@@ -18,6 +18,19 @@ belongs only in `apps/` and `packages/`.
 
 ## Current Phase
 
+Phase 130A cleans up the non-blocking GitHub Actions Node.js 20 runtime
+deprecation warning:
+
+```powershell
+cmd /c pnpm verify:phase130a-actions-node24-warning-cleanup
+```
+
+The Phase117A Release Gate now opts JavaScript actions into the Node 24 runtime
+with `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"`. This is warning cleanup
+only: it preserves the existing release-readiness gate and does not create a
+GitHub Release, publish packages or images, deploy cloud infrastructure, expose
+the service to the public internet, or complete global release.
+
 Phase 129A records the remote release-readiness status:
 
 ```powershell

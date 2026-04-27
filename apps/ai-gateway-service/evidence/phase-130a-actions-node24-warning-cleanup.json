@@ -1,32 +1,30 @@
 {
-  "phase": "phase-117a-cicd-release-gate",
+  "phase": "phase-130a-actions-node24-warning-cleanup",
   "status": "passed",
-  "generatedAt": "2026-04-27T16:08:46.623Z",
+  "generatedAt": "2026-04-27T16:07:56.187Z",
   "checks": {
     "workflowPresent": true,
-    "workflowNamePresent": true,
-    "workflowTriggersPresent": true,
-    "workflowReadOnlyPermissions": true,
     "workflowForcesActionsNode24": true,
-    "workflowUsesNode22": true,
-    "workflowUsesPinnedPnpm": true,
-    "gateCommandsComplete": true,
+    "workflowDoesNotAllowUnsecureNode20": true,
+    "workflowStillUsesReadOnlyPermissions": true,
+    "workflowCheckoutStepPresent": true,
+    "workflowSetupNodeStepPresent": true,
+    "workflowUsesNode22ForProject": true,
+    "gateCommandsPreserved": true,
     "noDeployOrPublishSteps": true,
     "rootScriptPresent": true,
     "serviceScriptPresent": true,
     "readmePhasePresent": true,
     "agentsBoundaryPresent": true,
     "userManualPresent": true,
+    "statusDocUpdated": true,
     "noPlainSecrets": true,
     "projectContextNotCreated": true
   },
   "workflow": {
     "path": ".github/workflows/release-gate.yml",
-    "triggers": [
-      "pull_request",
-      "push main/master",
-      "workflow_dispatch"
-    ],
+    "actionsNode24OptIn": true,
+    "node20OptOutPresent": false,
     "gateCommands": {
       "install": true,
       "workspaceCheck": true,
@@ -40,16 +38,16 @@
     "forbiddenHits": []
   },
   "safety": {
-    "realCiFileCreated": true,
+    "warningCleanupOnly": true,
     "deploysInfrastructure": false,
     "publishesRelease": false,
+    "publishesPackage": false,
     "pushesImage": false,
-    "forcesActionsNode24": true,
     "callsRealProviders": false,
     "plaintextApiKeyRecorded": false,
     "cloudDeploymentComplete": false,
     "globalReleaseComplete": false
   },
   "secretFindingCount": 0,
-  "conclusion": "cicd-release-gate-closed"
+  "conclusion": "actions-node24-warning-cleanup-closed"
 }

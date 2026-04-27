@@ -377,6 +377,21 @@ It must not create GitHub Releases, publish packages, publish container images,
 deploy cloud infrastructure, expose public production access, enable real
 multi-agent execution, or claim global release complete.
 
+## Phase 130A GitHub Actions Node 24 Warning Cleanup Boundary
+
+Phase 130A is verified by:
+
+```powershell
+cmd /c pnpm verify:phase130a-actions-node24-warning-cleanup
+```
+
+It only opts the existing GitHub Actions release gate JavaScript actions into
+the Node 24 runtime to clean up the non-blocking Node.js 20 deprecation
+warning. It must preserve the existing release-readiness checks and must not
+create GitHub Releases, publish packages, publish container images, deploy
+cloud infrastructure, expose public production access, enable real multi-agent
+execution, or claim global release complete.
+
 ## Default Command Set Freeze
 
 Phase 19A freezes the current default command set:

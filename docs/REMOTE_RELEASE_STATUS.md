@@ -39,9 +39,16 @@ Phase 129A records the remote delivery status for `unified-ai-system`.
 - No global release is complete.
 - No real multi-agent executor or 144-worker execution is enabled.
 
-## Known Non-Blocking Warning
+## Node.js 24 Actions Compatibility
 
-GitHub Actions currently reports a future Node.js runtime deprecation warning
-for `actions/checkout@v4` and `actions/setup-node@v4`. This is not blocking
-the current Release Gate pass, but it is a good candidate for the next cleanup
-phase.
+Phase 130A handles the prior non-blocking Node.js 20 deprecation warning
+cleanup. The Release Gate sets:
+
+```yaml
+FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+```
+
+This opts JavaScript actions into the Node 24 runtime while preserving the
+existing checks. It is warning cleanup only and does not change the release
+boundary: no deploy, publish, image push, GitHub Release, cloud deployment, or
+global release is created by this status.

@@ -1,12 +1,14 @@
-# Phase 117A CI/CD Release Gate Evidence
+# Phase 130A Actions Node 24 Warning Cleanup Evidence
 
-- Phase: phase-117a-cicd-release-gate
+- Phase: phase-130a-actions-node24-warning-cleanup
 - Status: passed
-- Generated at: 2026-04-27T16:08:46.623Z
+- Generated at: 2026-04-27T16:07:56.187Z
 - Workflow: .github/workflows/release-gate.yml
+- Actions Node 24 opt-in: true
+- Node 20 opt-out present: false
 - Forbidden deploy/publish hits: 0
 - Plain secret findings: 0
-- Conclusion: cicd-release-gate-closed
+- Conclusion: actions-node24-warning-cleanup-closed
 
 ## Gate Commands
 
@@ -22,24 +24,25 @@
 ## Checks
 
 - workflowPresent: passed
-- workflowNamePresent: passed
-- workflowTriggersPresent: passed
-- workflowReadOnlyPermissions: passed
 - workflowForcesActionsNode24: passed
-- workflowUsesNode22: passed
-- workflowUsesPinnedPnpm: passed
-- gateCommandsComplete: passed
+- workflowDoesNotAllowUnsecureNode20: passed
+- workflowStillUsesReadOnlyPermissions: passed
+- workflowCheckoutStepPresent: passed
+- workflowSetupNodeStepPresent: passed
+- workflowUsesNode22ForProject: passed
+- gateCommandsPreserved: passed
 - noDeployOrPublishSteps: passed
 - rootScriptPresent: passed
 - serviceScriptPresent: passed
 - readmePhasePresent: passed
 - agentsBoundaryPresent: passed
 - userManualPresent: passed
+- statusDocUpdated: passed
 - noPlainSecrets: passed
 - projectContextNotCreated: passed
 
 ## Boundaries
 
-- This is a GitHub Actions release-readiness gate only.
-- It does not deploy infrastructure, publish releases, push container images, or complete global release.
+- This phase only opts GitHub JavaScript actions into the Node 24 runtime.
+- It does not deploy infrastructure, publish releases, publish packages, push images, or complete global release.
 - It must not record plaintext API keys.

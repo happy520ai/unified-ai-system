@@ -152,6 +152,9 @@ async function main() {
   const latestRunMatchesHead = latestRun?.headSha === localHead;
   const latestRunSucceeded = latestRunMatchesHead && latestRun?.conclusion === "success";
   const statusDocFlat = normalizeWhitespace(statusDoc);
+  const workflowForcesActionsNode24 =
+    workflow.includes('FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"') ||
+    workflow.includes("FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true");
 
   const secretFindings = findPlainSecretFindings(
     [
@@ -195,6 +198,7 @@ async function main() {
     latestReleaseGateMatchesHead: latestRunMatchesHead,
     latestReleaseGateSucceeded: latestRunSucceeded,
     workflowPreparesComposeEnv: workflow.includes("cp .env.example .env"),
+    workflowForcesActionsNode24,
     statusDocPresent: existsSync(resolve(repoRoot, statusDocPath)),
     statusDocHasRepository: statusDoc.includes(repoFullName) && statusDoc.includes(repoUrl),
     statusDocHasSuccessBoundary:
@@ -204,6 +208,9 @@ async function main() {
       statusDocFlat.includes("No GitHub Release has been created") &&
       statusDocFlat.includes("No cloud deployment has been performed") &&
       statusDocFlat.includes("No global release is complete"),
+    statusDocHasNode24Cleanup:
+      statusDoc.includes("Phase 130A") &&
+      statusDoc.includes("FORCE_JAVASCRIPT_ACTIONS_TO_NODE24"),
     readmePhasePresent:
       readme.includes("Phase 129A") &&
       readme.includes("verify:phase129a-remote-release-status"),
@@ -271,9 +278,11 @@ async function main() {
       realAgentExecutionEnabled: false,
       plaintextApiKeyRecorded: false,
     },
-    knownWarnings: [
-      "GitHub Actions reports a future Node.js runtime deprecation warning for checkout/setup-node actions.",
-    ],
+    knownWarnings: workflowForcesActionsNode24
+      ? []
+      : [
+          "GitHub Actions reports a future Node.js runtime deprecation warning for checkout/setup-node actions.",
+        ],
     secretFindingCount: secretFindings.length,
     conclusion: passed
       ? "remote-release-status-closed"
