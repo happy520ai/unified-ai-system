@@ -1,7 +1,7 @@
 {
   "phase": "phase-114a-user-manual-release-pack",
   "status": "passed",
-  "generatedAt": "2026-04-27T16:57:02.558Z",
+  "generatedAt": "2026-04-27T17:08:08.430Z",
   "checks": {
     "rootScriptPresent": true,
     "serviceScriptPresent": true,

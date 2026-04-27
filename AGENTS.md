@@ -456,6 +456,23 @@ artifacts, publish packages, publish container images, deploy cloud
 infrastructure, expose public production access, enable real multi-agent
 execution, or claim global release complete.
 
+## Phase 135A Release Publish Preflight Boundary
+
+Phase 135A is verified by:
+
+```powershell
+cmd /c pnpm verify:phase135a-release-publish-preflight
+```
+
+It records the read-only preflight before publishing the existing
+`v0.1.0-rc.1` GitHub draft prerelease or uploading assets. It may verify the
+draft prerelease state, asset count, local and remote tag state, latest Release
+Gate status, release target gate status, and required explicit confirmation
+phrases. It must not publish the draft release, upload release artifacts,
+publish packages, publish container images, deploy cloud infrastructure, expose
+public production access, enable real multi-agent execution, or claim global
+release complete.
+
 ## Default Command Set Freeze
 
 Phase 19A freezes the current default command set:

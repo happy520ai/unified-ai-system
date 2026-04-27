@@ -127,6 +127,7 @@ async function main() {
       userManual.includes("verify:phase132a-release-decision-pack") &&
       userManual.includes("verify:phase133a-release-creation-confirmation") &&
       userManual.includes("verify:phase134a-release-creation-execution") &&
+      userManual.includes("verify:phase135a-release-publish-preflight") &&
       userManual.includes("verify:phase112a-non-docker-release-check") &&
       userManual.includes("verify:phase107a-secret-safety") &&
       userManual.includes("verify:phase105a-user-journey"),

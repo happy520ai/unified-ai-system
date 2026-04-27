@@ -90,3 +90,13 @@ prerelease exist for commit `bdba42b600d712acb77926774c75254b8c290ea6`. The
 release is still draft and prerelease: no release assets, packages, container
 images, cloud deployment, public production exposure, or global release are
 complete.
+
+## Release Publish Preflight
+
+Phase 135A records the read-only publish and asset-upload preflight in
+`docs/RELEASE_PUBLISH_PREFLIGHT.md`. It verifies that the existing
+`v0.1.0-rc.1` release remains a draft prerelease, is not published, has no
+uploaded assets, and still requires explicit later user confirmation before
+publishing or asset upload. It does not publish the draft release, upload
+assets, publish packages or images, deploy cloud infrastructure, expose public
+production access, or complete global release.

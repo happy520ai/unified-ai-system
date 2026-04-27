@@ -18,6 +18,20 @@ belongs only in `apps/` and `packages/`.
 
 ## Current Phase
 
+Phase 135A records the publish and asset-upload preflight for the existing
+`v0.1.0-rc.1` GitHub draft prerelease:
+
+```powershell
+cmd /c pnpm verify:phase135a-release-publish-preflight
+```
+
+The preflight document is `docs/RELEASE_PUBLISH_PREFLIGHT.md`. It confirms the
+draft prerelease still exists, is not published, has no uploaded assets, and
+requires an explicit later confirmation phrase before any publish or asset
+upload. This phase does not publish the draft release, upload assets, publish
+packages or images, deploy cloud infrastructure, expose the service to the
+public internet, or complete global release.
+
 Phase 134A creates the real `v0.1.0-rc.1` GitHub draft prerelease:
 
 ```powershell
