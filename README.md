@@ -18,6 +18,24 @@ belongs only in `apps/` and `packages/`.
 
 ## Current Phase
 
+Phase 128A records the GitHub remote creation and push:
+
+```powershell
+cmd /c pnpm verify:phase128a-github-remote-push
+```
+
+The private GitHub repository `happy520ai/unified-ai-system` exists, `origin`
+points to `https://github.com/happy520ai/unified-ai-system.git`, and local
+`master` tracks `origin/master`. The remote `master` head matches the pushed
+local commit. GitHub Actions may be triggered by the push; this phase records
+the real run status but does not claim Actions passed unless the remote run
+actually concludes successfully.
+
+The first remote run exposed a CI-only Docker Compose prerequisite: the runner
+does not have local `.env`. The release gate now prepares a temporary `.env`
+from `.env.example` before `verify:phase116a-docker-compose-runtime`; this file
+uses placeholder/blank values only and must not contain real secrets.
+
 Phase 127A records the GitHub remote target preflight:
 
 ```powershell

@@ -61,6 +61,7 @@ async function main() {
     userJourney: workflow.includes("pnpm verify:phase105a-user-journey"),
     setupReadiness: workflow.includes("pnpm verify:phase104a-first-run-setup"),
     dockerRuntime: workflow.includes("pnpm verify:phase115a-docker-runtime-recheck"),
+    prepareDockerComposeEnv: workflow.includes("cp .env.example .env"),
     dockerComposeRuntime: workflow.includes("pnpm verify:phase116a-docker-compose-runtime"),
   };
   const forbiddenReleaseMarkers = [

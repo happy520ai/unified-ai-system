@@ -182,7 +182,9 @@ and Docker Compose runtime validations. It does not deploy infrastructure. It
 does not publish packages. It does not push container images. It does not
 create GitHub releases. It does not provision cloud services, complete release
 automation, or complete global release. It must not call real providers and
-must not record plaintext API keys.
+must not record plaintext API keys. If CI prepares a temporary `.env` for
+Docker Compose, it must come from placeholder-only `.env.example` and must not
+contain real secrets.
 
 ## Phase 118A Remote CI/CD Gate Preflight Boundary
 
@@ -344,6 +346,21 @@ repository, configure remotes, push, open PRs, trigger remote workflows,
 publish releases, deploy infrastructure, or claim remote GitHub Actions passed.
 Do not select PME legacy repositories for the current `unified-ai-system`
 mainline unless the user explicitly requests that target.
+
+## Phase 128A GitHub Remote Push Boundary
+
+Phase 128A is verified by:
+
+```powershell
+cmd /c pnpm verify:phase128a-github-remote-push
+```
+
+It may create the private GitHub repository `happy520ai/unified-ai-system`,
+configure `origin`, and push local `master` to `origin/master`. It records the
+remote Actions status if a workflow is triggered, but it must not claim remote
+Actions passed unless the observed run conclusion is `success`. It must not
+open PRs, deploy infrastructure, publish releases, expose secrets, or claim
+global release complete.
 
 ## Default Command Set Freeze
 

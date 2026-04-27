@@ -2,7 +2,7 @@
 
 - Phase: phase-117a-cicd-release-gate
 - Status: passed
-- Generated at: 2026-04-27T10:22:50.137Z
+- Generated at: 2026-04-27T15:50:24.031Z
 - Workflow: .github/workflows/release-gate.yml
 - Forbidden deploy/publish hits: 0
 - Plain secret findings: 0
@@ -16,6 +16,7 @@
 - userJourney: present
 - setupReadiness: present
 - dockerRuntime: present
+- prepareDockerComposeEnv: present
 - dockerComposeRuntime: present
 
 ## Checks

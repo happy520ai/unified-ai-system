@@ -152,6 +152,20 @@ mainline. This phase does not create a GitHub repository, configure a remote,
 push code, open a PR, trigger GitHub Actions, deploy, publish, or claim a
 remote pass.
 
+The GitHub remote push verification command is:
+
+```powershell
+cmd /c pnpm verify:phase128a-github-remote-push
+```
+
+It records that the private repository `happy520ai/unified-ai-system` exists,
+`origin` is configured, and local `master` has been pushed to `origin/master`.
+It records the real GitHub Actions run status if one is triggered, but it does
+not claim remote Actions passed until the observed run conclusion is `success`.
+The GitHub Actions release gate prepares a temporary `.env` from `.env.example`
+before Docker Compose runtime validation; this temporary file must use only
+placeholder/blank values and must not contain real secrets.
+
 This still does not mean cloud deployment, full CI/CD release automation,
 public multi-user production deployment, global release, or real multi-agent
 execution is complete.
@@ -319,6 +333,8 @@ Complete locally:
   `cmd /c pnpm verify:phase126a-github-auth-ready`.
 - GitHub remote target preflight recorded through
   `cmd /c pnpm verify:phase127a-github-remote-target-preflight`.
+- GitHub private repository created and `master` pushed through
+  `cmd /c pnpm verify:phase128a-github-remote-push`.
 
 Not complete yet:
 
@@ -326,10 +342,8 @@ Not complete yet:
 - Automated deployment or release publishing.
 - Remote GitHub Actions pass, until a tracked remote repository and
   authenticated GitHub execution path are available.
-- Configured git remote.
-- Target GitHub repository URL.
-- Created `happy520ai/unified-ai-system` repository or another explicit target
-  repository.
+- Remote GitHub Actions pass, until the pushed workflow run concludes
+  successfully.
 - Current shell PATH refresh if `gh` is still not recognized before reopening
   PowerShell.
 - Pushed GitHub branch or pull request.
@@ -370,6 +384,7 @@ cmd /c pnpm verify:phase124a-github-cli-install
 cmd /c pnpm verify:phase125a-github-auth-preflight
 cmd /c pnpm verify:phase126a-github-auth-ready
 cmd /c pnpm verify:phase127a-github-remote-target-preflight
+cmd /c pnpm verify:phase128a-github-remote-push
 cmd /c pnpm verify:phase112a-non-docker-release-check
 cmd /c pnpm verify:phase107a-secret-safety
 cmd /c pnpm verify:phase105a-user-journey

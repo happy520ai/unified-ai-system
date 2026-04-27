@@ -49,6 +49,8 @@ jobs:
       - name: Docker runtime
         run: pnpm verify:phase115a-docker-runtime-recheck
 
+      - name: Prepare Docker Compose env file
+        run: cp .env.example .env
+
       - name: Docker Compose runtime
         run: pnpm verify:phase116a-docker-compose-runtime
-

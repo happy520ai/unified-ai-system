@@ -147,6 +147,7 @@
     "verify:phase124a-github-cli-install": "node ./src/entrypoints/verifyGithubCliInstall.js",
     "verify:phase125a-github-auth-preflight": "node ./src/entrypoints/verifyGithubAuthPreflight.js",
     "verify:phase126a-github-auth-ready": "node ./src/entrypoints/verifyGithubAuthReady.js",
-    "verify:phase127a-github-remote-target-preflight": "node ./src/entrypoints/verifyGithubRemoteTargetPreflight.js"
+    "verify:phase127a-github-remote-target-preflight": "node ./src/entrypoints/verifyGithubRemoteTargetPreflight.js",
+    "verify:phase128a-github-remote-push": "node ./src/entrypoints/verifyGithubRemotePush.js"
   }
 }
