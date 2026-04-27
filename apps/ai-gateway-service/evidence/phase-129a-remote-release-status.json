@@ -1,0 +1,98 @@
+{
+  "phase": "phase-129a-remote-release-status",
+  "status": "passed",
+  "generatedAt": "2026-04-27T15:59:10.445Z",
+  "checks": {
+    "rootScriptPresent": true,
+    "serviceScriptPresent": true,
+    "phase128Closed": true,
+    "phase128RecordedActionsSuccess": true,
+    "gitTopLevelIsProject": true,
+    "localCommitPresent": true,
+    "noStagedFiles": true,
+    "branchIsMaster": true,
+    "remoteConfigured": true,
+    "upstreamTracksOriginMaster": true,
+    "remoteHeadMatchesLocal": true,
+    "repoExists": true,
+    "repoIsPrivate": true,
+    "latestReleaseGateRecorded": true,
+    "latestReleaseGateMatchesHead": true,
+    "latestReleaseGateSucceeded": true,
+    "workflowPreparesComposeEnv": true,
+    "statusDocPresent": true,
+    "statusDocHasRepository": true,
+    "statusDocHasSuccessBoundary": true,
+    "statusDocHasLimitBoundaries": true,
+    "readmePhasePresent": true,
+    "agentsBoundaryPresent": true,
+    "userManualPresent": true,
+    "noPlainSecrets": true,
+    "projectContextNotCreated": true
+  },
+  "git": {
+    "repoRoot": "E:\\AI-Data\\AI网关系统\\unified-ai-system",
+    "gitTopLevel": "E:/AI-Data/AI网关系统/unified-ai-system",
+    "branch": "master",
+    "headSha": "43f79960f729f3aa334bbcea53ad3f32a8bef7ef",
+    "headSubject": "Phase128A remote gate evidence refresh",
+    "statusLineCount": 8,
+    "statusPreview": [
+      "M AGENTS.md",
+      "M README.md",
+      "M apps/ai-gateway-service/package.json",
+      "M apps/ai-gateway-service/src/entrypoints/verifyUserManualReleasePack.js",
+      "M docs/USER_MANUAL.md",
+      "M package.json",
+      "?? apps/ai-gateway-service/src/entrypoints/verifyRemoteReleaseStatus.js",
+      "?? docs/REMOTE_RELEASE_STATUS.md"
+    ],
+    "stagedFileCount": 0,
+    "remoteConfigured": true,
+    "remoteLines": [
+      "origin\thttps://github.com/happy520ai/unified-ai-system.git (fetch)",
+      "origin\thttps://github.com/happy520ai/unified-ai-system.git (push)"
+    ],
+    "upstream": "origin/master",
+    "remoteHeadSha": "43f79960f729f3aa334bbcea53ad3f32a8bef7ef",
+    "remoteHeadMatchesLocal": true
+  },
+  "github": {
+    "repoFullName": "happy520ai/unified-ai-system",
+    "repoUrl": "https://github.com/happy520ai/unified-ai-system",
+    "isPrivate": true,
+    "visibility": "PRIVATE",
+    "defaultBranch": "master",
+    "latestReleaseGate": {
+      "databaseId": 25005415446,
+      "workflowName": "Phase117A Release Gate",
+      "headBranch": "master",
+      "headSha": "43f79960f729f3aa334bbcea53ad3f32a8bef7ef",
+      "status": "completed",
+      "conclusion": "success",
+      "createdAt": "2026-04-27T15:54:44Z",
+      "url": "https://github.com/happy520ai/unified-ai-system/actions/runs/25005415446"
+    }
+  },
+  "docs": {
+    "statusDoc": "docs/REMOTE_RELEASE_STATUS.md",
+    "userManual": "docs/USER_MANUAL.md",
+    "workflow": ".github/workflows/release-gate.yml"
+  },
+  "safety": {
+    "remoteReleaseGatePassed": true,
+    "githubReleaseCreated": false,
+    "packagePublished": false,
+    "dockerImagePublished": false,
+    "cloudDeploymentComplete": false,
+    "publicProductionDeploymentComplete": false,
+    "globalReleaseComplete": false,
+    "realAgentExecutionEnabled": false,
+    "plaintextApiKeyRecorded": false
+  },
+  "knownWarnings": [
+    "GitHub Actions reports a future Node.js runtime deprecation warning for checkout/setup-node actions."
+  ],
+  "secretFindingCount": 0,
+  "conclusion": "remote-release-status-closed"
+}

@@ -362,6 +362,21 @@ Actions passed unless the observed run conclusion is `success`. It must not
 open PRs, deploy infrastructure, publish releases, expose secrets, or claim
 global release complete.
 
+## Phase 129A Remote Release Status Boundary
+
+Phase 129A is verified by:
+
+```powershell
+cmd /c pnpm verify:phase129a-remote-release-status
+```
+
+It records remote release-readiness status only: private repository state,
+`origin/master` tracking, remote head matching, latest observed GitHub Actions
+Release Gate status, the remote status document, and remaining product limits.
+It must not create GitHub Releases, publish packages, publish container images,
+deploy cloud infrastructure, expose public production access, enable real
+multi-agent execution, or claim global release complete.
+
 ## Default Command Set Freeze
 
 Phase 19A freezes the current default command set:

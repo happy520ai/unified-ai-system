@@ -1,0 +1,47 @@
+# Remote Release Status
+
+Phase 129A records the remote delivery status for `unified-ai-system`.
+
+## Repository
+
+- Repository: `happy520ai/unified-ai-system`
+- URL: `https://github.com/happy520ai/unified-ai-system`
+- Visibility: private
+- Default branch: `master`
+- Local remote: `origin`
+- Local branch: `master`
+
+## Verified Remote State
+
+- `master` is pushed to `origin/master`.
+- The remote branch head matches the local checked-out head at verification
+  time.
+- The Phase117A Release Gate has been observed on GitHub Actions.
+- The latest observed remote Release Gate for the pushed head is required to
+  conclude `success`.
+- The GitHub Actions gate prepares a temporary `.env` from `.env.example`
+  before Docker Compose runtime validation; it must not contain real secrets.
+
+## Local Product Status
+
+- `/ui` local user path is available through the pnpm startup path.
+- Setup Wizard is available.
+- Model Import, Chat, Knowledge/RAG, and Agent Workforce preview are documented.
+- Local Docker runtime and Docker Compose runtime have verified paths.
+- Secret-safety scan is required to report zero plaintext secret findings.
+
+## Explicit Limits
+
+- No GitHub Release has been created by this phase.
+- No package, Docker image, or artifact has been published.
+- No cloud deployment has been performed.
+- No public multi-user production deployment is complete.
+- No global release is complete.
+- No real multi-agent executor or 144-worker execution is enabled.
+
+## Known Non-Blocking Warning
+
+GitHub Actions currently reports a future Node.js runtime deprecation warning
+for `actions/checkout@v4` and `actions/setup-node@v4`. This is not blocking
+the current Release Gate pass, but it is a good candidate for the next cleanup
+phase.

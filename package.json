@@ -162,6 +162,7 @@
     "verify:phase126a-github-auth-ready": "pnpm --filter @unified-ai-system/ai-gateway-service verify:phase126a-github-auth-ready",
     "verify:phase127a-github-remote-target-preflight": "pnpm --filter @unified-ai-system/ai-gateway-service verify:phase127a-github-remote-target-preflight",
     "verify:phase128a-github-remote-push": "pnpm --filter @unified-ai-system/ai-gateway-service verify:phase128a-github-remote-push",
+    "verify:phase129a-remote-release-status": "pnpm --filter @unified-ai-system/ai-gateway-service verify:phase129a-remote-release-status",
     "verify:phase8a-model-import": "pnpm --filter @unified-ai-system/ai-gateway-service verify:phase8a-model-import"
   },
   "engines": {

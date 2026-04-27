@@ -18,6 +18,19 @@ belongs only in `apps/` and `packages/`.
 
 ## Current Phase
 
+Phase 129A records the remote release-readiness status:
+
+```powershell
+cmd /c pnpm verify:phase129a-remote-release-status
+```
+
+The private GitHub repository is pushed, `origin/master` is tracked, and the
+latest observed Phase117A Release Gate on the pushed remote head has concluded
+successfully. The status document is `docs/REMOTE_RELEASE_STATUS.md`. This is
+a remote delivery/readiness record only: it does not create a GitHub Release,
+publish packages or images, deploy cloud infrastructure, expose the service to
+the public internet, or complete global release.
+
 Phase 128A records the GitHub remote creation and push:
 
 ```powershell
