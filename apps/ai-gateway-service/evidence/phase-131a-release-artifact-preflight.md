@@ -2,19 +2,20 @@
 
 - Phase: phase-131a-release-artifact-preflight
 - Status: passed
-- Generated at: 2026-04-27T16:33:02.236Z
+- Generated at: 2026-04-27T16:47:11.759Z
 - Repository: happy520ai/unified-ai-system
 - Repository URL: https://github.com/happy520ai/unified-ai-system
 - Branch: master
-- Local head: ca5a9401675062b1ae1c37164728189aca51735f
-- Remote head: ca5a9401675062b1ae1c37164728189aca51735f
+- Local head: bdba42b600d712acb77926774c75254b8c290ea6
+- Remote head: bdba42b600d712acb77926774c75254b8c290ea6
 - Remote head matches local: true
 - Latest Release Gate: Phase117A Release Gate completed success
-- Latest Release Gate URL: https://github.com/happy520ai/unified-ai-system/actions/runs/25007037619
+- Latest Release Gate URL: https://github.com/happy520ai/unified-ai-system/actions/runs/25007359180
 - GitHub release count: 0
-- Local release tag count: 0
+- Local release tag count: 1
+- Release created by later Phase134A: true
 - Release/publish workflow hits: 0
-- GitHub Release created: false
+- GitHub Release created by this phase: false
 - Release artifact uploaded: false
 - Package published: false
 - Docker image published: false
@@ -41,8 +42,9 @@
 - latestReleaseGateRecorded: passed
 - latestReleaseGateSucceeded: passed
 - releaseListReadable: passed
-- noGithubReleaseExists: passed
-- noLocalReleaseTags: passed
+- noGithubReleaseExistsOrLaterPhase134Closed: passed
+- noLocalReleaseTagsOrLaterPhase134Closed: passed
+- laterPhase134ExecutionConsistent: passed
 - workflowHasNoReleaseOrPublishSteps: passed
 - releasePreflightDocPresent: passed
 - releasePreflightDocHasScope: passed

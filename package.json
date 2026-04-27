@@ -167,6 +167,7 @@
     "verify:phase131a-release-artifact-preflight": "pnpm --filter @unified-ai-system/ai-gateway-service verify:phase131a-release-artifact-preflight",
     "verify:phase132a-release-decision-pack": "pnpm --filter @unified-ai-system/ai-gateway-service verify:phase132a-release-decision-pack",
     "verify:phase133a-release-creation-confirmation": "pnpm --filter @unified-ai-system/ai-gateway-service verify:phase133a-release-creation-confirmation",
+    "verify:phase134a-release-creation-execution": "pnpm --filter @unified-ai-system/ai-gateway-service verify:phase134a-release-creation-execution",
     "verify:phase8a-model-import": "pnpm --filter @unified-ai-system/ai-gateway-service verify:phase8a-model-import"
   },
   "engines": {

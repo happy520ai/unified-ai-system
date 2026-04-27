@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import { findPlainSecretFindings } from "../security/secretSafety.js";
 
 const execFileAsync = promisify(execFile);
-const phase = "phase-131a-release-artifact-preflight";
+const phase = "phase-134a-release-creation-execution";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "../../../..");
 const evidenceDir = resolve(repoRoot, "apps/ai-gateway-service/evidence");
@@ -15,10 +15,11 @@ const knownGhPath = "C:\\Program Files\\GitHub CLI\\gh.exe";
 const repoFullName = "happy520ai/unified-ai-system";
 const repoUrl = `https://github.com/${repoFullName}`;
 const remoteUrl = `${repoUrl}.git`;
-const preflightDocPath = "docs/RELEASE_PREFLIGHT.md";
-const phase134EvidencePath =
-  "apps/ai-gateway-service/evidence/phase-134a-release-creation-execution.json";
-const laterCandidateTag = "v0.1.0-rc.1";
+const executionDocPath = "docs/RELEASE_CREATION_EXECUTION.md";
+const candidateVersion = "0.1.0";
+const candidateTag = "v0.1.0-rc.1";
+const candidateTitle = "unified-ai-system v0.1.0-rc.1";
+const releaseTargetCommit = "bdba42b600d712acb77926774c75254b8c290ea6";
 
 async function run(command, args, options = {}) {
   const startedAt = Date.now();
@@ -97,9 +98,11 @@ async function main() {
     userManual,
     remoteStatusDoc,
     preflightDoc,
+    decisionDoc,
+    confirmationDoc,
+    executionDoc,
     workflow,
-    phase129EvidenceText,
-    phase130EvidenceText,
+    phase133EvidenceText,
   ] = await Promise.all([
     readRequired("package.json"),
     readRequired("apps/ai-gateway-service/package.json"),
@@ -107,31 +110,23 @@ async function main() {
     readRequired("AGENTS.md"),
     readRequired("docs/USER_MANUAL.md"),
     readRequired("docs/REMOTE_RELEASE_STATUS.md"),
-    readRequired(preflightDocPath),
+    readRequired("docs/RELEASE_PREFLIGHT.md"),
+    readRequired("docs/RELEASE_DECISION_PACK.md"),
+    readRequired("docs/RELEASE_CREATION_CONFIRMATION.md"),
+    readRequired(executionDocPath),
     readRequired(".github/workflows/release-gate.yml"),
-    readRequired("apps/ai-gateway-service/evidence/phase-129a-remote-release-status.json"),
-    readRequired("apps/ai-gateway-service/evidence/phase-130a-actions-node24-warning-cleanup.json"),
+    readRequired("apps/ai-gateway-service/evidence/phase-133a-release-creation-confirmation.json"),
   ]);
-  const phase134EvidenceText = existsSync(resolve(repoRoot, phase134EvidencePath))
-    ? await readRequired(phase134EvidencePath)
-    : "";
 
   const rootPackage = parseJson(rootPackageText, "package.json");
   const servicePackage = parseJson(
     servicePackageText,
     "apps/ai-gateway-service/package.json",
   );
-  const phase129Evidence = parseJson(
-    phase129EvidenceText,
-    "phase-129a-remote-release-status.json",
+  const phase133Evidence = parseJson(
+    phase133EvidenceText,
+    "phase-133a-release-creation-confirmation.json",
   );
-  const phase130Evidence = parseJson(
-    phase130EvidenceText,
-    "phase-130a-actions-node24-warning-cleanup.json",
-  );
-  const phase134Evidence = phase134EvidenceText
-    ? parseJson(phase134EvidenceText, "phase-134a-release-creation-execution.json")
-    : null;
 
   const gitTopLevel = await runGit(["rev-parse", "--show-toplevel"]);
   const gitHead = await runGit(["rev-parse", "--verify", "HEAD"]);
@@ -140,9 +135,11 @@ async function main() {
   const gitStatus = await runGit(["status", "--short"]);
   const gitStaged = await runGit(["diff", "--cached", "--name-only"]);
   const gitTags = await runGit(["tag", "--list"]);
+  const localTagTarget = await runGit(["rev-list", "-n", "1", candidateTag]);
   const gitRemote = await runGit(["remote", "-v"]);
   const upstream = await runGit(["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"]);
   const remoteHeads = await runGit(["ls-remote", "--heads", "origin", "master"]);
+  const remoteCandidateTags = await runGit(["ls-remote", "--tags", "origin", candidateTag]);
   const repoView = await run(knownGhPath, [
     "repo",
     "view",
@@ -156,37 +153,43 @@ async function main() {
     "--repo",
     repoFullName,
     "--limit",
-    "5",
+    "20",
     "--json",
     "databaseId,headBranch,headSha,status,conclusion,workflowName,createdAt,url",
   ]);
-  const releaseList = await run(knownGhPath, [
-    "api",
-    `repos/${repoFullName}/releases`,
+  const releaseView = await run(knownGhPath, [
+    "release",
+    "view",
+    candidateTag,
+    "--repo",
+    repoFullName,
+    "--json",
+    "tagName,name,isDraft,isPrerelease,url,targetCommitish,createdAt,publishedAt,assets",
   ]);
 
   const localHead = gitHead.stdout.trim();
   const statusLines = parseLines(gitStatus.stdout);
   const stagedFiles = parseLines(gitStaged.stdout);
   const tagLines = parseLines(gitTags.stdout);
+  const remoteCandidateTagLines = parseLines(remoteCandidateTags.stdout);
   const remoteLines = parseLines(gitRemote.stdout);
   const remoteHeadLine = parseLines(remoteHeads.stdout)[0] ?? "";
   const [remoteHeadSha] = remoteHeadLine.split(/\s+/);
   const repo = parseJsonMaybe(repoView.stdout) ?? {};
   const runs = Array.isArray(parseJsonMaybe(runList.stdout)) ? parseJsonMaybe(runList.stdout) : [];
-  const releases = Array.isArray(parseJsonMaybe(releaseList.stdout))
-    ? parseJsonMaybe(releaseList.stdout)
-    : [];
-  const laterPhase134Closed =
-    phase134Evidence?.status === "passed" &&
-    phase134Evidence?.candidate?.tag === laterCandidateTag &&
-    phase134Evidence?.safety?.gitTagCreated === true &&
-    phase134Evidence?.safety?.githubReleaseCreated === true;
-  const latestRun = runs[0] ?? null;
-  const latestRunSucceeded = latestRun?.conclusion === "success";
+  const release = parseJsonMaybe(releaseView.stdout) ?? {};
+  const releaseTargetGate = runs.find(
+    (runItem) =>
+      runItem.headSha === releaseTargetCommit &&
+      runItem.workflowName === "Phase117A Release Gate" &&
+      runItem.conclusion === "success",
+  );
   const remoteConfigured = remoteLines.some((line) => line.includes(remoteUrl));
   const remoteHeadMatchesLocal = Boolean(localHead) && remoteHeadSha === localHead;
-  const preflightDocFlat = normalizeWhitespace(preflightDoc);
+  const remoteCandidateTagLine = remoteCandidateTagLines[0] ?? "";
+  const [remoteCandidateTagSha] = remoteCandidateTagLine.split(/\s+/);
+  const localCandidateTagTarget = localTagTarget.stdout.trim();
+  const executionDocFlat = normalizeWhitespace(executionDoc);
   const forbiddenWorkflowMarkers = [
     "gh release",
     "actions/create-release",
@@ -215,32 +218,35 @@ async function main() {
       userManual,
       remoteStatusDoc,
       preflightDoc,
+      decisionDoc,
+      confirmationDoc,
+      executionDoc,
       workflow,
-      phase129EvidenceText,
-      phase130EvidenceText,
-      phase134EvidenceText,
+      phase133EvidenceText,
       gitRemote.stdout,
       repoView.stdout,
       repoView.stderr,
       runList.stdout,
       runList.stderr,
-      releaseList.stdout,
-      releaseList.stderr,
+      releaseView.stdout,
+      releaseView.stderr,
     ].join("\n\n"),
-    "phase131a-release-artifact-preflight",
+    "phase134a-release-creation-execution",
   );
 
   const checks = {
     rootScriptPresent:
-      rootPackage.scripts?.["verify:phase131a-release-artifact-preflight"] ===
-      "pnpm --filter @unified-ai-system/ai-gateway-service verify:phase131a-release-artifact-preflight",
+      rootPackage.scripts?.["verify:phase134a-release-creation-execution"] ===
+      "pnpm --filter @unified-ai-system/ai-gateway-service verify:phase134a-release-creation-execution",
     serviceScriptPresent:
-      servicePackage.scripts?.["verify:phase131a-release-artifact-preflight"] ===
-      "node ./src/entrypoints/verifyGithubReleaseArtifactPreflight.js",
-    phase129Closed:
-      phase129Evidence.status === "passed" &&
-      phase129Evidence.safety?.remoteReleaseGatePassed === true,
-    phase130Closed: phase130Evidence.status === "passed",
+      servicePackage.scripts?.["verify:phase134a-release-creation-execution"] ===
+      "node ./src/entrypoints/verifyReleaseCreationExecution.js",
+    packageVersionMatchesCandidate: rootPackage.version === candidateVersion,
+    phase133Closed:
+      phase133Evidence.status === "passed" &&
+      phase133Evidence.candidate?.tag === candidateTag &&
+      phase133Evidence.safety?.githubReleaseCreated === false &&
+      phase133Evidence.safety?.gitTagCreated === false,
     gitTopLevelIsProject: normalizePath(gitTopLevel.stdout) === normalizePath(repoRoot),
     localCommitPresent: gitHead.exitCode === 0,
     noStagedFiles: stagedFiles.length === 0,
@@ -250,37 +256,53 @@ async function main() {
     remoteHeadMatchesLocal,
     repoExists: repoView.exitCode === 0 && repo.nameWithOwner === repoFullName,
     repoIsPrivate: repo.isPrivate === true && repo.visibility === "PRIVATE",
-    latestReleaseGateRecorded: Boolean(latestRun),
-    latestReleaseGateSucceeded: latestRunSucceeded,
-    releaseListReadable: releaseList.exitCode === 0,
-    noGithubReleaseExistsOrLaterPhase134Closed: releases.length === 0 || laterPhase134Closed,
-    noLocalReleaseTagsOrLaterPhase134Closed: tagLines.length === 0 || laterPhase134Closed,
-    laterPhase134ExecutionConsistent: !phase134EvidenceText || laterPhase134Closed,
+    releaseTargetGateSucceeded: Boolean(releaseTargetGate),
+    localCandidateTagExists: tagLines.includes(candidateTag),
+    localCandidateTagPointsToTarget: localCandidateTagTarget === releaseTargetCommit,
+    remoteCandidateTagExists: remoteCandidateTagLines.length > 0,
+    remoteCandidateTagPointsToTarget: remoteCandidateTagSha === releaseTargetCommit,
+    releaseViewReadable: releaseView.exitCode === 0,
+    releaseTagMatches: release.tagName === candidateTag,
+    releaseTitleMatches: release.name === candidateTitle,
+    releaseIsDraft: release.isDraft === true,
+    releaseIsPrerelease: release.isPrerelease === true,
+    releaseTargetsExpectedCommit: release.targetCommitish === releaseTargetCommit,
+    releaseHasNoPublishedAt: release.publishedAt === null,
+    releaseHasNoAssets: Array.isArray(release.assets) && release.assets.length === 0,
     workflowHasNoReleaseOrPublishSteps: workflowForbiddenHits.length === 0,
-    releasePreflightDocPresent: existsSync(resolve(repoRoot, preflightDocPath)),
-    releasePreflightDocHasScope:
-      preflightDoc.includes(repoFullName) &&
-      preflightDoc.includes("verify:phase131a-release-artifact-preflight"),
-    releasePreflightDocHasReadOnlyBoundary:
-      preflightDocFlat.includes("read-only preflight") &&
-      preflightDocFlat.includes("does not create a git tag") &&
-      preflightDocFlat.includes("does not create a GitHub Release") &&
-      preflightDocFlat.includes("does not deploy cloud infrastructure"),
-    releasePreflightDocHasManualDecisions:
-      preflightDoc.includes("Choose the release version and tag name") &&
-      preflightDoc.includes("Write release notes") &&
-      preflightDoc.includes("Re-run the remote Release Gate"),
+    executionDocPresent: existsSync(resolve(repoRoot, executionDocPath)),
+    executionDocHasCandidate:
+      executionDoc.includes(`Tag: \`${candidateTag}\``) &&
+      executionDoc.includes(`Release title: \`${candidateTitle}\``) &&
+      executionDoc.includes(`Release target commit: \`${releaseTargetCommit}\``),
+    executionDocHasExecutedCommands:
+      executionDoc.includes(`git tag ${candidateTag}`) &&
+      executionDoc.includes(`git push origin ${candidateTag}`) &&
+      executionDoc.includes("gh release create") &&
+      executionDoc.includes("--draft --prerelease"),
+    executionDocHasCreationState:
+      executionDoc.includes("The local tag `v0.1.0-rc.1` exists") &&
+      executionDoc.includes("The GitHub Release is a draft") &&
+      executionDoc.includes("No release assets were uploaded"),
+    executionDocHasBoundary:
+      executionDocFlat.includes("creates only the candidate git tag and GitHub draft prerelease") &&
+      executionDocFlat.includes("does not publish the draft release") &&
+      executionDocFlat.includes("does not upload release assets") &&
+      executionDocFlat.includes("does not deploy cloud infrastructure"),
     readmePhasePresent:
-      readme.includes("Phase 131A") &&
-      readme.includes("verify:phase131a-release-artifact-preflight"),
+      readme.includes("Phase 134A") &&
+      readme.includes("verify:phase134a-release-creation-execution"),
     agentsBoundaryPresent:
-      agents.includes("Phase 131A Release Artifact Preflight Boundary") &&
-      agents.includes("verify:phase131a-release-artifact-preflight"),
+      agents.includes("Phase 134A Release Creation Execution Boundary") &&
+      agents.includes("verify:phase134a-release-creation-execution"),
     userManualPresent:
-      userManual.includes("verify:phase131a-release-artifact-preflight"),
+      userManual.includes("verify:phase134a-release-creation-execution"),
     remoteStatusDocPresent:
-      remoteStatusDoc.includes("Phase 131A") &&
-      remoteStatusDoc.includes("RELEASE_PREFLIGHT.md"),
+      remoteStatusDoc.includes("Phase 134A") &&
+      remoteStatusDoc.includes("RELEASE_CREATION_EXECUTION.md"),
+    confirmationDocReferencesExecution:
+      confirmationDoc.includes("Phase 134A") &&
+      confirmationDoc.includes("RELEASE_CREATION_EXECUTION.md"),
     noPlainSecrets: secretFindings.length === 0,
     projectContextNotCreated: !existsSync(resolve(repoRoot, "PROJECT_CONTEXT.md")),
   };
@@ -290,6 +312,14 @@ async function main() {
     status: passed ? "passed" : "failed",
     generatedAt,
     checks,
+    candidate: {
+      version: candidateVersion,
+      tag: candidateTag,
+      title: candidateTitle,
+      releaseTargetCommit,
+      releaseUrl: release.url ?? "",
+      releaseCreatedAt: release.createdAt ?? "",
+    },
     git: {
       repoRoot,
       gitTopLevel: gitTopLevel.stdout.trim(),
@@ -300,7 +330,8 @@ async function main() {
       statusPreview: statusLines.slice(0, 50),
       stagedFileCount: stagedFiles.length,
       localReleaseTagCount: tagLines.length,
-      localReleaseTags: tagLines,
+      localCandidateTagTarget,
+      remoteCandidateTagSha,
       remoteConfigured,
       remoteLines: remoteLines.map(redactRemoteLine),
       upstream: upstream.stdout.trim(),
@@ -313,43 +344,48 @@ async function main() {
       isPrivate: repo.isPrivate === true,
       visibility: repo.visibility ?? "",
       defaultBranch: repo.defaultBranchRef?.name ?? "",
-      latestReleaseGate: latestRun
+      releaseTargetGate: releaseTargetGate
         ? {
-            databaseId: latestRun.databaseId,
-            workflowName: latestRun.workflowName,
-            headBranch: latestRun.headBranch,
-            headSha: latestRun.headSha,
-            status: latestRun.status,
-            conclusion: latestRun.conclusion || "",
-            createdAt: latestRun.createdAt,
-            url: latestRun.url,
+            databaseId: releaseTargetGate.databaseId,
+            workflowName: releaseTargetGate.workflowName,
+            headBranch: releaseTargetGate.headBranch,
+            headSha: releaseTargetGate.headSha,
+            status: releaseTargetGate.status,
+            conclusion: releaseTargetGate.conclusion || "",
+            createdAt: releaseTargetGate.createdAt,
+            url: releaseTargetGate.url,
           }
         : null,
-      releaseCount: releases.length,
-      releases: releases.slice(0, 20).map((release) => ({
-        id: release.id,
-        tagName: release.tag_name,
-        name: release.name,
-        draft: release.draft,
-        prerelease: release.prerelease,
-        url: release.html_url,
-      })),
-      laterPhase134ExecutionClosed: laterPhase134Closed,
+      release: {
+        tagName: release.tagName ?? "",
+        name: release.name ?? "",
+        isDraft: release.isDraft === true,
+        isPrerelease: release.isPrerelease === true,
+        targetCommitish: release.targetCommitish ?? "",
+        url: release.url ?? "",
+        createdAt: release.createdAt ?? "",
+        publishedAt: release.publishedAt ?? null,
+        assetCount: Array.isArray(release.assets) ? release.assets.length : null,
+      },
     },
     workflow: {
       path: ".github/workflows/release-gate.yml",
       forbiddenReleaseOrPublishHits: workflowForbiddenHits,
     },
     docs: {
-      preflightDoc: preflightDocPath,
+      executionDoc: executionDocPath,
+      confirmationPack: "docs/RELEASE_CREATION_CONFIRMATION.md",
+      decisionPack: "docs/RELEASE_DECISION_PACK.md",
+      preflightDoc: "docs/RELEASE_PREFLIGHT.md",
       remoteStatusDoc: "docs/REMOTE_RELEASE_STATUS.md",
       userManual: "docs/USER_MANUAL.md",
     },
     safety: {
-      readOnlyPreflight: true,
-      gitTagCreated: false,
-      githubReleaseCreated: false,
-      releaseCreatedByLaterPhase134: laterPhase134Closed,
+      gitTagCreated: true,
+      githubReleaseCreated: true,
+      githubReleaseDraft: release.isDraft === true,
+      githubReleasePrerelease: release.isPrerelease === true,
+      releasePublished: false,
       releaseArtifactUploaded: false,
       packagePublished: false,
       dockerImagePublished: false,
@@ -359,18 +395,18 @@ async function main() {
       realAgentExecutionEnabled: false,
       plaintextApiKeyRecorded: false,
     },
-    nextManualDecisions: [
-      "choose release version and tag name",
-      "decide draft versus prerelease status",
-      "write release notes from verified evidence",
-      "decide release assets",
-      "decide whether package or image publishing belongs in a later phase",
-      "rerun the remote Release Gate on the exact release commit",
+    remainingLimits: [
+      "draft release is not published",
+      "release assets are not uploaded",
+      "packages are not published",
+      "container images are not published",
+      "cloud deployment is not complete",
+      "global release is not complete",
     ],
     secretFindingCount: secretFindings.length,
     conclusion: passed
-      ? "release-artifact-preflight-closed"
-      : "release-artifact-preflight-not-closed",
+      ? "release-creation-execution-closed"
+      : "release-creation-execution-not-closed",
   };
 
   await mkdir(evidenceDir, { recursive: true });
@@ -386,26 +422,29 @@ async function main() {
 }
 
 function markdown(evidence) {
-  const run = evidence.github.latestReleaseGate;
+  const gate = evidence.github.releaseTargetGate;
   return [
-    "# Phase 131A Release Artifact Preflight Evidence",
+    "# Phase 134A Release Creation Execution Evidence",
     "",
     `- Phase: ${evidence.phase}`,
     `- Status: ${evidence.status}`,
     `- Generated at: ${evidence.generatedAt}`,
-    `- Repository: ${evidence.github.repoFullName}`,
-    `- Repository URL: ${evidence.github.repoUrl}`,
-    `- Branch: ${evidence.git.branch}`,
-    `- Local head: ${evidence.git.headSha}`,
-    `- Remote head: ${evidence.git.remoteHeadSha}`,
-    `- Remote head matches local: ${evidence.git.remoteHeadMatchesLocal}`,
-    `- Latest Release Gate: ${run ? `${run.workflowName} ${run.status} ${run.conclusion}`.trim() : "none"}`,
-    `- Latest Release Gate URL: ${run?.url ?? "none"}`,
-    `- GitHub release count: ${evidence.github.releaseCount}`,
-    `- Local release tag count: ${evidence.git.localReleaseTagCount}`,
-    `- Release created by later Phase134A: ${evidence.safety.releaseCreatedByLaterPhase134}`,
-    `- Release/publish workflow hits: ${evidence.workflow.forbiddenReleaseOrPublishHits.length}`,
-    `- GitHub Release created by this phase: ${evidence.safety.githubReleaseCreated}`,
+    `- Candidate version: ${evidence.candidate.version}`,
+    `- Candidate tag: ${evidence.candidate.tag}`,
+    `- Candidate title: ${evidence.candidate.title}`,
+    `- Release target commit: ${evidence.candidate.releaseTargetCommit}`,
+    `- Release URL: ${evidence.candidate.releaseUrl}`,
+    `- Release created at: ${evidence.candidate.releaseCreatedAt}`,
+    `- Local tag target: ${evidence.git.localCandidateTagTarget}`,
+    `- Remote tag target: ${evidence.git.remoteCandidateTagSha}`,
+    `- Release target gate: ${gate ? `${gate.workflowName} ${gate.status} ${gate.conclusion}`.trim() : "none"}`,
+    `- Release target gate URL: ${gate?.url ?? "none"}`,
+    `- Release draft: ${evidence.github.release.isDraft}`,
+    `- Release prerelease: ${evidence.github.release.isPrerelease}`,
+    `- Release asset count: ${evidence.github.release.assetCount}`,
+    `- Git tag created: ${evidence.safety.gitTagCreated}`,
+    `- GitHub Release created: ${evidence.safety.githubReleaseCreated}`,
+    `- Release published: ${evidence.safety.releasePublished}`,
     `- Release artifact uploaded: ${evidence.safety.releaseArtifactUploaded}`,
     `- Package published: ${evidence.safety.packagePublished}`,
     `- Docker image published: ${evidence.safety.dockerImagePublished}`,
@@ -420,14 +459,14 @@ function markdown(evidence) {
       ([name, value]) => `- ${name}: ${value ? "passed" : "failed"}`,
     ),
     "",
-    "## Next Manual Decisions",
+    "## Remaining Limits",
     "",
-    ...evidence.nextManualDecisions.map((decision) => `- ${decision}`),
+    ...evidence.remainingLimits.map((limit) => `- ${limit}`),
     "",
     "## Boundary",
     "",
-    "- This phase is a read-only GitHub Release and artifact preflight.",
-    "- It does not create tags, create releases, upload artifacts, publish packages/images, deploy cloud infrastructure, or complete global release.",
+    "- This phase creates the candidate git tag and GitHub draft prerelease only.",
+    "- It does not publish the draft release, upload artifacts, publish packages/images, deploy cloud infrastructure, or complete global release.",
     "",
   ].join("\n");
 }

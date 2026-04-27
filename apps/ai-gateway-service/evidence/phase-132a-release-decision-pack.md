@@ -2,7 +2,7 @@
 
 - Phase: phase-132a-release-decision-pack
 - Status: passed
-- Generated at: 2026-04-27T16:33:00.802Z
+- Generated at: 2026-04-27T16:47:27.819Z
 - Candidate version: 0.1.0
 - Candidate tag: v0.1.0-rc.1
 - Candidate title: unified-ai-system v0.1.0-rc.1
@@ -10,16 +10,17 @@
 - Recommended maturity: prerelease
 - Repository: happy520ai/unified-ai-system
 - Branch: master
-- Local head: ca5a9401675062b1ae1c37164728189aca51735f
-- Remote head: ca5a9401675062b1ae1c37164728189aca51735f
+- Local head: bdba42b600d712acb77926774c75254b8c290ea6
+- Remote head: bdba42b600d712acb77926774c75254b8c290ea6
 - Remote head matches local: true
 - Latest Release Gate: Phase117A Release Gate completed success
-- Latest Release Gate URL: https://github.com/happy520ai/unified-ai-system/actions/runs/25007037619
+- Latest Release Gate URL: https://github.com/happy520ai/unified-ai-system/actions/runs/25007359180
 - GitHub release count: 0
 - Candidate release exists: false
-- Candidate tag exists: false
+- Candidate tag exists: true
+- Release created by later Phase134A: true
 - Release/publish workflow hits: 0
-- GitHub Release created: false
+- GitHub Release created by this phase: false
 - Git tag created: false
 - Release artifact uploaded: false
 - Package published: false
@@ -47,8 +48,9 @@
 - latestReleaseGateRecorded: passed
 - latestReleaseGateSucceeded: passed
 - releaseListReadable: passed
-- noGithubReleaseExistsForCandidate: passed
-- noLocalCandidateTagExists: passed
+- noGithubReleaseExistsForCandidateOrLaterPhase134Closed: passed
+- noLocalCandidateTagExistsOrLaterPhase134Closed: passed
+- laterPhase134ExecutionConsistent: passed
 - workflowHasNoReleaseOrPublishSteps: passed
 - decisionPackDocPresent: passed
 - decisionPackHasCandidate: passed

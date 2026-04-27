@@ -224,6 +224,17 @@ It records the required confirmation phrase
 tag, create a GitHub Release, upload artifacts, publish packages or images,
 deploy, or complete global release.
 
+The real draft prerelease creation verification command is:
+
+```powershell
+cmd /c pnpm verify:phase134a-release-creation-execution
+```
+
+It verifies that tag `v0.1.0-rc.1` exists locally and remotely, and that the
+GitHub Release for that tag exists as draft + prerelease. It does not publish
+the draft release, upload artifacts, publish packages or images, deploy, or
+complete global release.
+
 This still does not mean cloud deployment, full CI/CD release automation,
 public multi-user production deployment, global release, or real multi-agent
 execution is complete.

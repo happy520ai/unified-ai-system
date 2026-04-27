@@ -440,6 +440,22 @@ packages, publish container images, deploy cloud infrastructure, expose public
 production access, enable real multi-agent execution, or claim global release
 complete.
 
+## Phase 134A Release Creation Execution Boundary
+
+Phase 134A is verified by:
+
+```powershell
+cmd /c pnpm verify:phase134a-release-creation-execution
+```
+
+It creates the candidate git tag `v0.1.0-rc.1` and the GitHub draft prerelease
+for that tag after explicit user confirmation. It may verify local and remote
+tag state, the draft prerelease state, release target gate success, and release
+execution evidence. It must not publish the draft release, upload release
+artifacts, publish packages, publish container images, deploy cloud
+infrastructure, expose public production access, enable real multi-agent
+execution, or claim global release complete.
+
 ## Default Command Set Freeze
 
 Phase 19A freezes the current default command set:

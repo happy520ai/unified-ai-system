@@ -81,3 +81,12 @@ a later real release phase is `创建 GitHub Release v0.1.0-rc.1`. It does not
 create a git tag, create a GitHub Release, upload artifacts, publish packages
 or images, deploy cloud infrastructure, expose public production access, or
 complete global release.
+
+## Release Creation Execution
+
+Phase 134A records the real draft prerelease creation in
+`docs/RELEASE_CREATION_EXECUTION.md`. The tag `v0.1.0-rc.1` and GitHub draft
+prerelease exist for commit `bdba42b600d712acb77926774c75254b8c290ea6`. The
+release is still draft and prerelease: no release assets, packages, container
+images, cloud deployment, public production exposure, or global release are
+complete.

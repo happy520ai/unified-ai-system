@@ -1,8 +1,8 @@
 {
   "phase": "phase-105a-user-journey",
   "status": "passed",
-  "generatedAt": "2026-04-27T09:29:24.734Z",
-  "serviceUrl": "http://127.0.0.1:49471",
+  "generatedAt": "2026-04-27T16:58:27.846Z",
+  "serviceUrl": "http://127.0.0.1:64153",
   "checks": {
     "uiHttpOk": true,
     "uiSetupWizardPresent": true,

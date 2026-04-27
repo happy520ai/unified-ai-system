@@ -71,3 +71,6 @@ and the user explicitly asks to remove it.
 - This phase does not deploy cloud infrastructure.
 - This phase does not expose public production access.
 - This phase does not complete global release.
+
+Phase 134A later created the candidate tag and GitHub draft prerelease and
+records the execution in `docs/RELEASE_CREATION_EXECUTION.md`.

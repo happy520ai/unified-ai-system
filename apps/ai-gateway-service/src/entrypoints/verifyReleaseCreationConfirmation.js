@@ -19,6 +19,8 @@ const confirmationDocPath = "docs/RELEASE_CREATION_CONFIRMATION.md";
 const candidateVersion = "0.1.0";
 const candidateTag = "v0.1.0-rc.1";
 const candidateTitle = "unified-ai-system v0.1.0-rc.1";
+const phase134EvidencePath =
+  "apps/ai-gateway-service/evidence/phase-134a-release-creation-execution.json";
 const requiredConfirmationPhrase = "创建 GitHub Release v0.1.0-rc.1";
 
 async function run(command, args, options = {}) {
@@ -115,6 +117,9 @@ async function main() {
     readRequired(".github/workflows/release-gate.yml"),
     readRequired("apps/ai-gateway-service/evidence/phase-132a-release-decision-pack.json"),
   ]);
+  const phase134EvidenceText = existsSync(resolve(repoRoot, phase134EvidencePath))
+    ? await readRequired(phase134EvidencePath)
+    : "";
 
   const rootPackage = parseJson(rootPackageText, "package.json");
   const servicePackage = parseJson(
@@ -125,6 +130,9 @@ async function main() {
     phase132EvidenceText,
     "phase-132a-release-decision-pack.json",
   );
+  const phase134Evidence = phase134EvidenceText
+    ? parseJson(phase134EvidenceText, "phase-134a-release-creation-execution.json")
+    : null;
 
   const gitTopLevel = await runGit(["rev-parse", "--show-toplevel"]);
   const gitHead = await runGit(["rev-parse", "--verify", "HEAD"]);
@@ -180,6 +188,11 @@ async function main() {
   const tagAlreadyExists = tagLines.includes(candidateTag);
   const remoteCandidateTagExists = remoteCandidateTagLines.length > 0;
   const releaseAlreadyExists = releases.some((release) => release.tag_name === candidateTag);
+  const laterPhase134Closed =
+    phase134Evidence?.status === "passed" &&
+    phase134Evidence?.candidate?.tag === candidateTag &&
+    phase134Evidence?.safety?.gitTagCreated === true &&
+    phase134Evidence?.safety?.githubReleaseCreated === true;
   const forbiddenWorkflowMarkers = [
     "gh release",
     "actions/create-release",
@@ -212,6 +225,7 @@ async function main() {
       confirmationDoc,
       workflow,
       phase132EvidenceText,
+      phase134EvidenceText,
       gitRemote.stdout,
       repoView.stdout,
       repoView.stderr,
@@ -248,9 +262,13 @@ async function main() {
     latestReleaseGateRecorded: Boolean(latestRun),
     latestReleaseGateSucceeded: latestRunSucceeded,
     releaseListReadable: releaseList.exitCode === 0,
-    noGithubReleaseExistsForCandidate: !releaseAlreadyExists,
-    noLocalCandidateTagExists: !tagAlreadyExists,
-    noRemoteCandidateTagExists: !remoteCandidateTagExists,
+    noGithubReleaseExistsForCandidateOrLaterPhase134Closed:
+      !releaseAlreadyExists || laterPhase134Closed,
+    noLocalCandidateTagExistsOrLaterPhase134Closed:
+      !tagAlreadyExists || laterPhase134Closed,
+    noRemoteCandidateTagExistsOrLaterPhase134Closed:
+      !remoteCandidateTagExists || laterPhase134Closed,
+    laterPhase134ExecutionConsistent: !phase134EvidenceText || laterPhase134Closed,
     workflowHasNoReleaseOrPublishSteps: workflowForbiddenHits.length === 0,
     confirmationDocPresent: existsSync(resolve(repoRoot, confirmationDocPath)),
     confirmationDocHasCandidate:
@@ -343,6 +361,7 @@ async function main() {
         : null,
       releaseCount: releases.length,
       candidateReleaseExists: releaseAlreadyExists,
+      laterPhase134ExecutionClosed: laterPhase134Closed,
     },
     workflow: {
       path: ".github/workflows/release-gate.yml",
@@ -359,6 +378,7 @@ async function main() {
       readOnlyConfirmationPack: true,
       gitTagCreated: false,
       githubReleaseCreated: false,
+      releaseCreatedByLaterPhase134: laterPhase134Closed,
       releaseArtifactUploaded: false,
       packagePublished: false,
       dockerImagePublished: false,
@@ -415,8 +435,9 @@ function markdown(evidence) {
     `- Candidate local tag exists: ${evidence.git.candidateTagExists}`,
     `- Candidate remote tag exists: ${evidence.git.remoteCandidateTagExists}`,
     `- Candidate release exists: ${evidence.github.candidateReleaseExists}`,
-    `- GitHub Release created: ${evidence.safety.githubReleaseCreated}`,
-    `- Git tag created: ${evidence.safety.gitTagCreated}`,
+    `- Release created by later Phase134A: ${evidence.safety.releaseCreatedByLaterPhase134}`,
+    `- GitHub Release created by this phase: ${evidence.safety.githubReleaseCreated}`,
+    `- Git tag created by this phase: ${evidence.safety.gitTagCreated}`,
     `- Release artifact uploaded: ${evidence.safety.releaseArtifactUploaded}`,
     `- Package published: ${evidence.safety.packagePublished}`,
     `- Docker image published: ${evidence.safety.dockerImagePublished}`,

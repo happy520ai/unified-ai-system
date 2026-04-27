@@ -19,6 +19,8 @@ const decisionDocPath = "docs/RELEASE_DECISION_PACK.md";
 const candidateVersion = "0.1.0";
 const candidateTag = "v0.1.0-rc.1";
 const candidateTitle = "unified-ai-system v0.1.0-rc.1";
+const phase134EvidencePath =
+  "apps/ai-gateway-service/evidence/phase-134a-release-creation-execution.json";
 
 async function run(command, args, options = {}) {
   const startedAt = Date.now();
@@ -112,6 +114,9 @@ async function main() {
     readRequired(".github/workflows/release-gate.yml"),
     readRequired("apps/ai-gateway-service/evidence/phase-131a-release-artifact-preflight.json"),
   ]);
+  const phase134EvidenceText = existsSync(resolve(repoRoot, phase134EvidencePath))
+    ? await readRequired(phase134EvidencePath)
+    : "";
 
   const rootPackage = parseJson(rootPackageText, "package.json");
   const servicePackage = parseJson(
@@ -122,6 +127,9 @@ async function main() {
     phase131EvidenceText,
     "phase-131a-release-artifact-preflight.json",
   );
+  const phase134Evidence = phase134EvidenceText
+    ? parseJson(phase134EvidenceText, "phase-134a-release-creation-execution.json")
+    : null;
 
   const gitTopLevel = await runGit(["rev-parse", "--show-toplevel"]);
   const gitHead = await runGit(["rev-parse", "--verify", "HEAD"]);
@@ -174,6 +182,11 @@ async function main() {
   const decisionDocFlat = normalizeWhitespace(decisionDoc);
   const tagAlreadyExists = tagLines.includes(candidateTag);
   const releaseAlreadyExists = releases.some((release) => release.tag_name === candidateTag);
+  const laterPhase134Closed =
+    phase134Evidence?.status === "passed" &&
+    phase134Evidence?.candidate?.tag === candidateTag &&
+    phase134Evidence?.safety?.gitTagCreated === true &&
+    phase134Evidence?.safety?.githubReleaseCreated === true;
   const forbiddenWorkflowMarkers = [
     "gh release",
     "actions/create-release",
@@ -205,6 +218,7 @@ async function main() {
       decisionDoc,
       workflow,
       phase131EvidenceText,
+      phase134EvidenceText,
       gitRemote.stdout,
       repoView.stdout,
       repoView.stderr,
@@ -240,8 +254,11 @@ async function main() {
     latestReleaseGateRecorded: Boolean(latestRun),
     latestReleaseGateSucceeded: latestRunSucceeded,
     releaseListReadable: releaseList.exitCode === 0,
-    noGithubReleaseExistsForCandidate: !releaseAlreadyExists,
-    noLocalCandidateTagExists: !tagAlreadyExists,
+    noGithubReleaseExistsForCandidateOrLaterPhase134Closed:
+      !releaseAlreadyExists || laterPhase134Closed,
+    noLocalCandidateTagExistsOrLaterPhase134Closed:
+      !tagAlreadyExists || laterPhase134Closed,
+    laterPhase134ExecutionConsistent: !phase134EvidenceText || laterPhase134Closed,
     workflowHasNoReleaseOrPublishSteps: workflowForbiddenHits.length === 0,
     decisionPackDocPresent: existsSync(resolve(repoRoot, decisionDocPath)),
     decisionPackHasCandidate:
@@ -331,6 +348,7 @@ async function main() {
         : null,
       releaseCount: releases.length,
       candidateReleaseExists: releaseAlreadyExists,
+      laterPhase134ExecutionClosed: laterPhase134Closed,
     },
     workflow: {
       path: ".github/workflows/release-gate.yml",
@@ -346,6 +364,7 @@ async function main() {
       readOnlyDecisionPack: true,
       gitTagCreated: false,
       githubReleaseCreated: false,
+      releaseCreatedByLaterPhase134: laterPhase134Closed,
       releaseArtifactUploaded: false,
       packagePublished: false,
       dockerImagePublished: false,
@@ -404,8 +423,9 @@ function markdown(evidence) {
     `- GitHub release count: ${evidence.github.releaseCount}`,
     `- Candidate release exists: ${evidence.github.candidateReleaseExists}`,
     `- Candidate tag exists: ${evidence.git.candidateTagExists}`,
+    `- Release created by later Phase134A: ${evidence.safety.releaseCreatedByLaterPhase134}`,
     `- Release/publish workflow hits: ${evidence.workflow.forbiddenReleaseOrPublishHits.length}`,
-    `- GitHub Release created: ${evidence.safety.githubReleaseCreated}`,
+    `- GitHub Release created by this phase: ${evidence.safety.githubReleaseCreated}`,
     `- Git tag created: ${evidence.safety.gitTagCreated}`,
     `- Release artifact uploaded: ${evidence.safety.releaseArtifactUploaded}`,
     `- Package published: ${evidence.safety.packagePublished}`,

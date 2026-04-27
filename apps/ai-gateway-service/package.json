@@ -153,6 +153,7 @@
     "verify:phase130a-actions-node24-warning-cleanup": "node ./src/entrypoints/verifyActionsNode24WarningCleanup.js",
     "verify:phase131a-release-artifact-preflight": "node ./src/entrypoints/verifyGithubReleaseArtifactPreflight.js",
     "verify:phase132a-release-decision-pack": "node ./src/entrypoints/verifyReleaseDecisionPack.js",
-    "verify:phase133a-release-creation-confirmation": "node ./src/entrypoints/verifyReleaseCreationConfirmation.js"
+    "verify:phase133a-release-creation-confirmation": "node ./src/entrypoints/verifyReleaseCreationConfirmation.js",
+    "verify:phase134a-release-creation-execution": "node ./src/entrypoints/verifyReleaseCreationExecution.js"
   }
 }

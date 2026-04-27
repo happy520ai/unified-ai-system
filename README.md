@@ -18,6 +18,19 @@ belongs only in `apps/` and `packages/`.
 
 ## Current Phase
 
+Phase 134A creates the real `v0.1.0-rc.1` GitHub draft prerelease:
+
+```powershell
+cmd /c pnpm verify:phase134a-release-creation-execution
+```
+
+The execution record is `docs/RELEASE_CREATION_EXECUTION.md`. The tag
+`v0.1.0-rc.1` points to `bdba42b600d712acb77926774c75254b8c290ea6`, whose
+remote `Phase117A Release Gate` passed before creation. The GitHub Release is
+draft and prerelease. This phase does not publish the draft release, upload
+release artifacts, publish packages or images, deploy cloud infrastructure,
+expose the service to the public internet, or complete global release.
+
 Phase 133A records the final GitHub Release creation confirmation pack:
 
 ```powershell

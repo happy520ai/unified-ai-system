@@ -2,7 +2,7 @@
 
 - Phase: phase-105a-user-journey
 - Status: passed
-- Generated at: 2026-04-27T09:29:24.734Z
+- Generated at: 2026-04-27T16:58:27.846Z
 - UI setup wizard present: true
 - UI user journey marker present: true
 - Setup readiness status: ready

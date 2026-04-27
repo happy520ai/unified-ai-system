@@ -1,12 +1,12 @@
 {
-  "phase": "phase-133a-release-creation-confirmation",
+  "phase": "phase-134a-release-creation-execution",
   "status": "passed",
-  "generatedAt": "2026-04-27T16:47:43.884Z",
+  "generatedAt": "2026-04-27T16:48:02.208Z",
   "checks": {
     "rootScriptPresent": true,
     "serviceScriptPresent": true,
     "packageVersionMatchesCandidate": true,
-    "phase132Closed": true,
+    "phase133Closed": true,
     "gitTopLevelIsProject": true,
     "localCommitPresent": true,
     "noStagedFiles": true,
@@ -16,25 +16,30 @@
     "remoteHeadMatchesLocal": true,
     "repoExists": true,
     "repoIsPrivate": true,
-    "latestReleaseGateRecorded": true,
-    "latestReleaseGateSucceeded": true,
-    "releaseListReadable": true,
-    "noGithubReleaseExistsForCandidateOrLaterPhase134Closed": true,
-    "noLocalCandidateTagExistsOrLaterPhase134Closed": true,
-    "noRemoteCandidateTagExistsOrLaterPhase134Closed": true,
-    "laterPhase134ExecutionConsistent": true,
+    "releaseTargetGateSucceeded": true,
+    "localCandidateTagExists": true,
+    "localCandidateTagPointsToTarget": true,
+    "remoteCandidateTagExists": true,
+    "remoteCandidateTagPointsToTarget": true,
+    "releaseViewReadable": true,
+    "releaseTagMatches": true,
+    "releaseTitleMatches": true,
+    "releaseIsDraft": true,
+    "releaseIsPrerelease": true,
+    "releaseTargetsExpectedCommit": true,
+    "releaseHasNoPublishedAt": true,
+    "releaseHasNoAssets": true,
     "workflowHasNoReleaseOrPublishSteps": true,
-    "confirmationDocPresent": true,
-    "confirmationDocHasCandidate": true,
-    "confirmationDocHasRequiredPhrase": true,
-    "confirmationDocHasReadOnlyBoundary": true,
-    "confirmationDocHasLaterCommandsOnly": true,
-    "confirmationDocHasRollbackNotes": true,
+    "executionDocPresent": true,
+    "executionDocHasCandidate": true,
+    "executionDocHasExecutedCommands": true,
+    "executionDocHasCreationState": true,
+    "executionDocHasBoundary": true,
     "readmePhasePresent": true,
     "agentsBoundaryPresent": true,
     "userManualPresent": true,
     "remoteStatusDocPresent": true,
-    "decisionPackReferencesConfirmation": true,
+    "confirmationDocReferencesExecution": true,
     "noPlainSecrets": true,
     "projectContextNotCreated": true
   },
@@ -42,9 +47,9 @@
     "version": "0.1.0",
     "tag": "v0.1.0-rc.1",
     "title": "unified-ai-system v0.1.0-rc.1",
-    "recommendedReleaseState": "draft",
-    "recommendedReleaseMaturity": "prerelease",
-    "requiredConfirmationPhrase": "创建 GitHub Release v0.1.0-rc.1"
+    "releaseTargetCommit": "bdba42b600d712acb77926774c75254b8c290ea6",
+    "releaseUrl": "https://github.com/happy520ai/unified-ai-system/releases/tag/untagged-88426f9cb7dcdb757b96",
+    "releaseCreatedAt": "2026-04-27T16:34:40Z"
   },
   "git": {
     "repoRoot": "E:\\AI-Data\\AI网关系统\\unified-ai-system",
@@ -80,8 +85,8 @@
     ],
     "stagedFileCount": 0,
     "localReleaseTagCount": 1,
-    "candidateTagExists": true,
-    "remoteCandidateTagExists": true,
+    "localCandidateTagTarget": "bdba42b600d712acb77926774c75254b8c290ea6",
+    "remoteCandidateTagSha": "bdba42b600d712acb77926774c75254b8c290ea6",
     "remoteConfigured": true,
     "remoteLines": [
       "origin\thttps://github.com/happy520ai/unified-ai-system.git (fetch)",
@@ -97,7 +102,7 @@
     "isPrivate": true,
     "visibility": "PRIVATE",
     "defaultBranch": "master",
-    "latestReleaseGate": {
+    "releaseTargetGate": {
       "databaseId": 25007359180,
       "workflowName": "Phase117A Release Gate",
       "headBranch": "master",
@@ -107,15 +112,24 @@
       "createdAt": "2026-04-27T16:35:01Z",
       "url": "https://github.com/happy520ai/unified-ai-system/actions/runs/25007359180"
     },
-    "releaseCount": 0,
-    "candidateReleaseExists": false,
-    "laterPhase134ExecutionClosed": true
+    "release": {
+      "tagName": "v0.1.0-rc.1",
+      "name": "unified-ai-system v0.1.0-rc.1",
+      "isDraft": true,
+      "isPrerelease": true,
+      "targetCommitish": "bdba42b600d712acb77926774c75254b8c290ea6",
+      "url": "https://github.com/happy520ai/unified-ai-system/releases/tag/untagged-88426f9cb7dcdb757b96",
+      "createdAt": "2026-04-27T16:34:40Z",
+      "publishedAt": null,
+      "assetCount": 0
+    }
   },
   "workflow": {
     "path": ".github/workflows/release-gate.yml",
     "forbiddenReleaseOrPublishHits": []
   },
   "docs": {
+    "executionDoc": "docs/RELEASE_CREATION_EXECUTION.md",
     "confirmationPack": "docs/RELEASE_CREATION_CONFIRMATION.md",
     "decisionPack": "docs/RELEASE_DECISION_PACK.md",
     "preflightDoc": "docs/RELEASE_PREFLIGHT.md",
@@ -123,10 +137,11 @@
     "userManual": "docs/USER_MANUAL.md"
   },
   "safety": {
-    "readOnlyConfirmationPack": true,
-    "gitTagCreated": false,
-    "githubReleaseCreated": false,
-    "releaseCreatedByLaterPhase134": true,
+    "gitTagCreated": true,
+    "githubReleaseCreated": true,
+    "githubReleaseDraft": true,
+    "githubReleasePrerelease": true,
+    "releasePublished": false,
     "releaseArtifactUploaded": false,
     "packagePublished": false,
     "dockerImagePublished": false,
@@ -136,13 +151,14 @@
     "realAgentExecutionEnabled": false,
     "plaintextApiKeyRecorded": false
   },
-  "nextManualDecisions": [
-    "explicitly approve the required confirmation phrase",
-    "rerun remote Release Gate on the exact release commit",
-    "create candidate tag only in a later explicit phase",
-    "create draft prerelease only in a later explicit phase",
-    "verify release page and rollback if needed"
+  "remainingLimits": [
+    "draft release is not published",
+    "release assets are not uploaded",
+    "packages are not published",
+    "container images are not published",
+    "cloud deployment is not complete",
+    "global release is not complete"
   ],
   "secretFindingCount": 0,
-  "conclusion": "release-creation-confirmation-closed"
+  "conclusion": "release-creation-execution-closed"
 }
