@@ -159,6 +159,7 @@
     "verify:phase123a-github-cli-readiness": "pnpm --filter @unified-ai-system/ai-gateway-service verify:phase123a-github-cli-readiness",
     "verify:phase124a-github-cli-install": "pnpm --filter @unified-ai-system/ai-gateway-service verify:phase124a-github-cli-install",
     "verify:phase125a-github-auth-preflight": "pnpm --filter @unified-ai-system/ai-gateway-service verify:phase125a-github-auth-preflight",
+    "verify:phase126a-github-auth-ready": "pnpm --filter @unified-ai-system/ai-gateway-service verify:phase126a-github-auth-ready",
     "verify:phase8a-model-import": "pnpm --filter @unified-ai-system/ai-gateway-service verify:phase8a-model-import"
   },
   "engines": {

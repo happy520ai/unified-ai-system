@@ -18,6 +18,22 @@ belongs only in `apps/` and `packages/`.
 
 ## Current Phase
 
+Phase 126A records that GitHub authentication is ready:
+
+```powershell
+cmd /c pnpm verify:phase126a-github-auth-ready
+```
+
+GitHub CLI is installed and authenticated as `happy520ai`. The evidence records
+the login and auth readiness without storing GitHub tokens. No git remote is
+configured yet, no push was attempted, and no remote GitHub Actions run has
+passed. The remaining required input is the target GitHub repository URL.
+
+```powershell
+git remote add origin <github-repo-url>
+git push -u origin master
+```
+
 Phase 125A records the GitHub authentication preflight:
 
 ```powershell

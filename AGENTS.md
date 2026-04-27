@@ -313,6 +313,22 @@ publish releases, deploy infrastructure, or claim remote GitHub Actions passed.
 If browser login is not completed by the user or the GitHub repository URL is
 missing, record those blockers honestly.
 
+## Phase 126A GitHub Auth Ready Boundary
+
+Phase 126A is verified by:
+
+```powershell
+cmd /c pnpm verify:phase126a-github-auth-ready
+```
+
+It records GitHub authentication readiness after the user completes `gh auth
+login`: installed CLI state, authenticated account, sanitized auth status, git
+remote state, and remaining remote-publish blockers. It must not store GitHub
+tokens in evidence, configure remotes, push, open PRs, trigger remote
+workflows, publish releases, deploy infrastructure, or claim remote GitHub
+Actions passed. If the GitHub repository URL is missing, record that blocker
+honestly.
+
 ## Default Command Set Freeze
 
 Phase 19A freezes the current default command set:

@@ -1,0 +1,85 @@
+{
+  "phase": "phase-126a-github-auth-ready",
+  "status": "passed",
+  "generatedAt": "2026-04-27T15:36:31.447Z",
+  "checks": {
+    "rootScriptPresent": true,
+    "serviceScriptPresent": true,
+    "phase125Closed": true,
+    "gitTopLevelIsProject": true,
+    "localCommitPresent": true,
+    "noStagedFiles": true,
+    "ghInstalled": true,
+    "ghAuthenticated": true,
+    "ghUserRecorded": true,
+    "authStatusRecordedWithoutToken": true,
+    "remoteStatusRecorded": true,
+    "remoteNotConfigured": true,
+    "blockersRecorded": true,
+    "readmePhasePresent": true,
+    "agentsBoundaryPresent": true,
+    "userManualPresent": true,
+    "noPlainSecrets": true,
+    "projectContextNotCreated": true
+  },
+  "git": {
+    "repoRoot": "E:\\AI-Data\\AI网关系统\\unified-ai-system",
+    "gitTopLevel": "E:/AI-Data/AI网关系统/unified-ai-system",
+    "branch": "master",
+    "headSubject": "Phase125A GitHub auth preflight",
+    "statusLineCount": 7,
+    "statusPreview": [
+      "M AGENTS.md",
+      "M README.md",
+      "M apps/ai-gateway-service/package.json",
+      "M apps/ai-gateway-service/src/entrypoints/verifyUserManualReleasePack.js",
+      "M docs/USER_MANUAL.md",
+      "M package.json",
+      "?? apps/ai-gateway-service/src/entrypoints/verifyGithubAuthReady.js"
+    ],
+    "stagedFileCount": 0,
+    "remoteConfigured": false,
+    "remoteCount": 0,
+    "remotePreview": [],
+    "blockers": [
+      "git remote is not configured",
+      "GitHub repository URL has not been provided in this workspace"
+    ]
+  },
+  "githubCli": {
+    "installed": true,
+    "knownPath": "C:\\Program Files\\GitHub CLI\\gh.exe",
+    "authenticated": true,
+    "login": "happy520ai",
+    "versionTail": [
+      "gh version 2.91.0 (2026-04-22)",
+      "https://github.com/cli/cli/releases/tag/v2.91.0"
+    ],
+    "authStatusSafeTail": [
+      "github.com",
+      "✓ Logged in to github.com account happy520ai (keyring)",
+      "- Active account: true",
+      "- Git operations protocol: https",
+      "- Token scopes: 'gist', 'read:org', 'repo', 'workflow'"
+    ],
+    "tokenRecorded": false
+  },
+  "nextCommands": [
+    "git remote add origin <github-repo-url>",
+    "git push -u origin master"
+  ],
+  "safety": {
+    "storedGitHubTokenInEvidence": false,
+    "configuredRemote": false,
+    "pushedToRemote": false,
+    "openedPullRequest": false,
+    "triggeredRemoteWorkflow": false,
+    "remoteActionsPassed": false,
+    "deployedInfrastructure": false,
+    "publishedRelease": false,
+    "plaintextApiKeyRecorded": false,
+    "globalReleaseComplete": false
+  },
+  "secretFindingCount": 0,
+  "conclusion": "github-auth-ready-remote-blocked"
+}
