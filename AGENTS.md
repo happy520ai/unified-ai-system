@@ -392,6 +392,22 @@ Releases, publish packages, publish container images, deploy cloud
 infrastructure, expose public production access, enable real multi-agent
 execution, or claim global release complete.
 
+## Phase 131A Release Artifact Preflight Boundary
+
+Phase 131A is verified by:
+
+```powershell
+cmd /c pnpm verify:phase131a-release-artifact-preflight
+```
+
+It records GitHub Release and artifact readiness as a read-only preflight only.
+It may inspect repository state, latest remote Release Gate state, local git
+tags, existing GitHub Releases, release preflight documentation, and workflow
+publish/deploy markers. It must not create git tags, create GitHub Releases,
+upload release artifacts, publish packages, publish container images, deploy
+cloud infrastructure, expose public production access, enable real multi-agent
+execution, or claim global release complete.
+
 ## Default Command Set Freeze
 
 Phase 19A freezes the current default command set:

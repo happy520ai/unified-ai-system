@@ -150,6 +150,7 @@
     "verify:phase127a-github-remote-target-preflight": "node ./src/entrypoints/verifyGithubRemoteTargetPreflight.js",
     "verify:phase128a-github-remote-push": "node ./src/entrypoints/verifyGithubRemotePush.js",
     "verify:phase129a-remote-release-status": "node ./src/entrypoints/verifyRemoteReleaseStatus.js",
-    "verify:phase130a-actions-node24-warning-cleanup": "node ./src/entrypoints/verifyActionsNode24WarningCleanup.js"
+    "verify:phase130a-actions-node24-warning-cleanup": "node ./src/entrypoints/verifyActionsNode24WarningCleanup.js",
+    "verify:phase131a-release-artifact-preflight": "node ./src/entrypoints/verifyGithubReleaseArtifactPreflight.js"
   }
 }

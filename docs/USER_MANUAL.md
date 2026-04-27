@@ -189,6 +189,17 @@ It verifies that the Release Gate uses Node 24 action versions:
 only; it does not deploy, publish, push images, create a GitHub Release, or
 complete global release.
 
+The GitHub Release and artifact preflight command is:
+
+```powershell
+cmd /c pnpm verify:phase131a-release-artifact-preflight
+```
+
+It records repository state, the latest remote Release Gate result, existing
+release/tag state, and `docs/RELEASE_PREFLIGHT.md`. It is read-only and does
+not create a tag, create a GitHub Release, upload artifacts, publish packages
+or images, deploy, or complete global release.
+
 This still does not mean cloud deployment, full CI/CD release automation,
 public multi-user production deployment, global release, or real multi-agent
 execution is complete.

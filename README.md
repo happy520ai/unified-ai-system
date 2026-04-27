@@ -18,6 +18,19 @@ belongs only in `apps/` and `packages/`.
 
 ## Current Phase
 
+Phase 131A records the GitHub Release and artifact preflight:
+
+```powershell
+cmd /c pnpm verify:phase131a-release-artifact-preflight
+```
+
+The preflight document is `docs/RELEASE_PREFLIGHT.md`. This is a read-only
+release readiness record only: it checks repository, latest Release Gate,
+current release/tag state, and release-boundary wording, but it does not create
+a git tag, create a GitHub Release, upload release artifacts, publish packages
+or images, deploy cloud infrastructure, expose the service to the public
+internet, or complete global release.
+
 Phase 130A cleans up the non-blocking GitHub Actions Node.js 20 runtime
 deprecation warning:
 

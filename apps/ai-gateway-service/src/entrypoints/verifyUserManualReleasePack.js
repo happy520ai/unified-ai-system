@@ -123,6 +123,7 @@ async function main() {
       userManual.includes("verify:phase128a-github-remote-push") &&
       userManual.includes("verify:phase129a-remote-release-status") &&
       userManual.includes("verify:phase130a-actions-node24-warning-cleanup") &&
+      userManual.includes("verify:phase131a-release-artifact-preflight") &&
       userManual.includes("verify:phase112a-non-docker-release-check") &&
       userManual.includes("verify:phase107a-secret-safety") &&
       userManual.includes("verify:phase105a-user-journey"),

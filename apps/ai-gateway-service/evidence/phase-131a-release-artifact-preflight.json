@@ -1,12 +1,12 @@
 {
-  "phase": "phase-129a-remote-release-status",
+  "phase": "phase-131a-release-artifact-preflight",
   "status": "passed",
-  "generatedAt": "2026-04-27T16:20:33.394Z",
+  "generatedAt": "2026-04-27T16:20:09.110Z",
   "checks": {
     "rootScriptPresent": true,
     "serviceScriptPresent": true,
-    "phase128Closed": true,
-    "phase128RecordedActionsSuccess": true,
+    "phase129Closed": true,
+    "phase130Closed": true,
     "gitTopLevelIsProject": true,
     "localCommitPresent": true,
     "noStagedFiles": true,
@@ -17,18 +17,19 @@
     "repoExists": true,
     "repoIsPrivate": true,
     "latestReleaseGateRecorded": true,
-    "latestReleaseGateMatchesHead": true,
     "latestReleaseGateSucceeded": true,
-    "workflowPreparesComposeEnv": true,
-    "workflowUsesNode24Actions": true,
-    "statusDocPresent": true,
-    "statusDocHasRepository": true,
-    "statusDocHasSuccessBoundary": true,
-    "statusDocHasLimitBoundaries": true,
-    "statusDocHasNode24Cleanup": true,
+    "releaseListReadable": true,
+    "noGithubReleaseExists": true,
+    "noLocalReleaseTags": true,
+    "workflowHasNoReleaseOrPublishSteps": true,
+    "releasePreflightDocPresent": true,
+    "releasePreflightDocHasScope": true,
+    "releasePreflightDocHasReadOnlyBoundary": true,
+    "releasePreflightDocHasManualDecisions": true,
     "readmePhasePresent": true,
     "agentsBoundaryPresent": true,
     "userManualPresent": true,
+    "remoteStatusDocPresent": true,
     "noPlainSecrets": true,
     "projectContextNotCreated": true
   },
@@ -53,6 +54,8 @@
       "?? docs/RELEASE_PREFLIGHT.md"
     ],
     "stagedFileCount": 0,
+    "localReleaseTagCount": 0,
+    "localReleaseTags": [],
     "remoteConfigured": true,
     "remoteLines": [
       "origin\thttps://github.com/happy520ai/unified-ai-system.git (fetch)",
@@ -77,16 +80,24 @@
       "conclusion": "success",
       "createdAt": "2026-04-27T16:13:33Z",
       "url": "https://github.com/happy520ai/unified-ai-system/actions/runs/25006342354"
-    }
+    },
+    "releaseCount": 0,
+    "releases": []
+  },
+  "workflow": {
+    "path": ".github/workflows/release-gate.yml",
+    "forbiddenReleaseOrPublishHits": []
   },
   "docs": {
-    "statusDoc": "docs/REMOTE_RELEASE_STATUS.md",
-    "userManual": "docs/USER_MANUAL.md",
-    "workflow": ".github/workflows/release-gate.yml"
+    "preflightDoc": "docs/RELEASE_PREFLIGHT.md",
+    "remoteStatusDoc": "docs/REMOTE_RELEASE_STATUS.md",
+    "userManual": "docs/USER_MANUAL.md"
   },
   "safety": {
-    "remoteReleaseGatePassed": true,
+    "readOnlyPreflight": true,
+    "gitTagCreated": false,
     "githubReleaseCreated": false,
+    "releaseArtifactUploaded": false,
     "packagePublished": false,
     "dockerImagePublished": false,
     "cloudDeploymentComplete": false,
@@ -95,7 +106,14 @@
     "realAgentExecutionEnabled": false,
     "plaintextApiKeyRecorded": false
   },
-  "knownWarnings": [],
+  "nextManualDecisions": [
+    "choose release version and tag name",
+    "decide draft versus prerelease status",
+    "write release notes from verified evidence",
+    "decide release assets",
+    "decide whether package or image publishing belongs in a later phase",
+    "rerun the remote Release Gate on the exact release commit"
+  ],
   "secretFindingCount": 0,
-  "conclusion": "remote-release-status-closed"
+  "conclusion": "release-artifact-preflight-closed"
 }

@@ -164,6 +164,7 @@
     "verify:phase128a-github-remote-push": "pnpm --filter @unified-ai-system/ai-gateway-service verify:phase128a-github-remote-push",
     "verify:phase129a-remote-release-status": "pnpm --filter @unified-ai-system/ai-gateway-service verify:phase129a-remote-release-status",
     "verify:phase130a-actions-node24-warning-cleanup": "pnpm --filter @unified-ai-system/ai-gateway-service verify:phase130a-actions-node24-warning-cleanup",
+    "verify:phase131a-release-artifact-preflight": "pnpm --filter @unified-ai-system/ai-gateway-service verify:phase131a-release-artifact-preflight",
     "verify:phase8a-model-import": "pnpm --filter @unified-ai-system/ai-gateway-service verify:phase8a-model-import"
   },
   "engines": {

@@ -54,3 +54,12 @@ preserve the existing explicit `pnpm install --frozen-lockfile` behavior. This
 is warning cleanup only and does not change the release boundary: no deploy,
 publish, image push, GitHub Release, cloud deployment, or global release is
 created by this status.
+
+## Release Artifact Preflight
+
+Phase 131A records the read-only GitHub Release and artifact preflight in
+`docs/RELEASE_PREFLIGHT.md`. It may inspect repository state, latest Release
+Gate state, local tags, and existing GitHub Releases. It does not create a git
+tag, create a GitHub Release, upload artifacts, publish packages or images,
+deploy cloud infrastructure, expose public production access, or complete
+global release.
