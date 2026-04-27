@@ -263,6 +263,23 @@ remote workflows, publish releases, deploy infrastructure, or claim remote
 GitHub Actions passed. If the GitHub repository URL, `gh` installation, or
 authentication is missing, record those blockers honestly.
 
+## Phase 123A GitHub CLI Readiness Boundary
+
+Phase 123A is verified by:
+
+```powershell
+cmd /c pnpm verify:phase123a-github-cli-readiness
+```
+
+It records GitHub CLI readiness and installation blockers only: `gh`
+availability, `gh auth status`, `winget` availability, Chocolatey availability,
+local commit state, and git remote state. It must not install system packages,
+configure remotes, push, open PRs, trigger remote workflows, publish releases,
+deploy infrastructure, or claim remote GitHub Actions passed. If `gh` is still
+missing, `winget` is unavailable, Chocolatey installation requires an elevated
+shell, the GitHub repository URL is missing, or authentication is missing,
+record those blockers honestly.
+
 ## Default Command Set Freeze
 
 Phase 19A freezes the current default command set:

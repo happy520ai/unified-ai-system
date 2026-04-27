@@ -1,17 +1,18 @@
 {
-  "phase": "phase-122a-github-remote-publish-preflight",
+  "phase": "phase-123a-github-cli-readiness",
   "status": "passed",
-  "generatedAt": "2026-04-27T11:32:05.491Z",
+  "generatedAt": "2026-04-27T11:31:39.681Z",
   "checks": {
     "rootScriptPresent": true,
     "serviceScriptPresent": true,
-    "phase121Closed": true,
+    "phase122Closed": true,
     "gitTopLevelIsProject": true,
-    "initialCommitPresent": true,
-    "localHeadRecorded": true,
+    "localCommitPresent": true,
     "noStagedFiles": true,
-    "workflowPresent": true,
     "remoteStatusRecorded": true,
+    "cliInstallStatusRecorded": true,
+    "wingetStatusRecorded": true,
+    "chocoStatusRecorded": true,
     "ghStatusRecorded": true,
     "blockersRecorded": true,
     "readmePhasePresent": true,
@@ -25,12 +26,10 @@
     "gitTopLevel": "E:/AI-Data/AI网关系统/unified-ai-system",
     "branch": "master",
     "headSubject": "Phase122A GitHub remote publish preflight",
-    "statusLineCount": 11,
+    "statusLineCount": 9,
     "statusPreview": [
       "M AGENTS.md",
       "M README.md",
-      "M apps/ai-gateway-service/evidence/phase-114a-user-manual-release-pack.json",
-      "M apps/ai-gateway-service/evidence/phase-114a-user-manual-release-pack.md",
       "M apps/ai-gateway-service/package.json",
       "M apps/ai-gateway-service/src/entrypoints/verifyUserManualReleasePack.js",
       "M docs/USER_MANUAL.md",
@@ -45,19 +44,36 @@
     "remotePreview": [],
     "blockers": [
       "git remote is not configured",
-      "GitHub CLI is not installed or not in PATH"
+      "GitHub CLI is not installed or not in PATH",
+      "Chocolatey is available, but gh is not installed after the attempted install"
     ]
   },
-  "github": {
+  "tools": {
     "ghAvailable": false,
     "ghAuthenticated": false,
     "ghVersionTail": [],
     "ghAuthTail": [
       "gh CLI is not available"
-    ]
+    ],
+    "wingetAvailable": true,
+    "wingetVersionTail": [
+      "v1.28.240"
+    ],
+    "chocolateyAvailable": true,
+    "chocolateyVersionTail": [
+      "2.7.0"
+    ],
+    "chocolateyGhPackageListed": false,
+    "chocolateyGhListTail": [
+      "chocolatey|2.7.0",
+      "KB3035131|1.0.3",
+      "ollama|0.18.2"
+    ],
+    "installAttemptNote": "A Chocolatey gh install was attempted in this session and did not leave gh available in PATH."
   },
   "nextCommands": [
-    "winget install --id GitHub.cli",
+    "winget install --id GitHub.cli --accept-package-agreements --accept-source-agreements",
+    "If winget is unavailable, run PowerShell as Administrator and use: choco install gh -y",
     "gh auth login",
     "git remote add origin <github-repo-url>",
     "git push -u origin master"
@@ -74,5 +90,5 @@
     "globalReleaseComplete": false
   },
   "secretFindingCount": 0,
-  "conclusion": "github-remote-publish-preflight-blocked-recorded"
+  "conclusion": "github-cli-readiness-blocked-recorded"
 }

@@ -18,6 +18,32 @@ belongs only in `apps/` and `packages/`.
 
 ## Current Phase
 
+Phase 123A records GitHub CLI readiness after the install attempt:
+
+```powershell
+cmd /c pnpm verify:phase123a-github-cli-readiness
+```
+
+`gh` is still not available in PATH. The validation environment can see
+`winget`, and Chocolatey is also available, but the prior `choco install gh -y`
+attempt did not leave GitHub CLI installed. No git remote is configured yet.
+This phase records the blocker and the simplest next commands without
+installing system packages, configuring a remote, pushing code, opening a PR,
+triggering GitHub Actions, deploying infrastructure, publishing releases, or
+claiming remote Actions passed.
+
+Simplest next commands for the later remote-publish phase:
+
+```powershell
+winget install --id GitHub.cli --accept-package-agreements --accept-source-agreements
+gh auth login
+git remote add origin <github-repo-url>
+git push -u origin master
+```
+
+If `winget` is unavailable in the active shell, run PowerShell as Administrator
+and use `choco install gh -y` instead.
+
 Phase 122A records the GitHub remote publish preflight:
 
 ```powershell

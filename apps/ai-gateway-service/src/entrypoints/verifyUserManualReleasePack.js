@@ -115,6 +115,7 @@ async function main() {
       userManual.includes("verify:phase120a-git-initial-commit-preflight") &&
       userManual.includes("verify:phase121a-git-initial-commit-execution") &&
       userManual.includes("verify:phase122a-github-remote-publish-preflight") &&
+      userManual.includes("verify:phase123a-github-cli-readiness") &&
       userManual.includes("verify:phase112a-non-docker-release-check") &&
       userManual.includes("verify:phase107a-secret-safety") &&
       userManual.includes("verify:phase105a-user-journey"),

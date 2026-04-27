@@ -91,6 +91,19 @@ It records whether this local commit can be published to GitHub. It does not
 configure a remote, push code, open a PR, trigger GitHub Actions, deploy,
 publish, or claim a remote pass.
 
+The GitHub CLI readiness command is:
+
+```powershell
+cmd /c pnpm verify:phase123a-github-cli-readiness
+```
+
+It records whether `gh`, `winget`, and Chocolatey are usable for the next
+remote-publish step. In the current validated state, `gh` is still not
+available in PATH, `winget` is available in the validation environment, and
+Chocolatey is available but the prior install attempt did not leave GitHub CLI
+installed. It does not install system packages, configure a remote, push code,
+open a PR, trigger GitHub Actions, deploy, publish, or claim a remote pass.
+
 This still does not mean cloud deployment, full CI/CD release automation,
 public multi-user production deployment, global release, or real multi-agent
 execution is complete.
@@ -248,6 +261,8 @@ Complete locally:
   `cmd /c pnpm verify:phase121a-git-initial-commit-execution`.
 - GitHub remote publish preflight recorded through
   `cmd /c pnpm verify:phase122a-github-remote-publish-preflight`.
+- GitHub CLI readiness/install blocker recorded through
+  `cmd /c pnpm verify:phase123a-github-cli-readiness`.
 
 Not complete yet:
 
@@ -256,6 +271,7 @@ Not complete yet:
 - Remote GitHub Actions pass, until a tracked remote repository and
   authenticated GitHub execution path are available.
 - Configured remote and GitHub CLI authentication.
+- GitHub CLI installed in PATH.
 - Pushed GitHub branch or pull request.
 - Public multi-user production deployment.
 - Complex account system.
@@ -289,6 +305,7 @@ cmd /c pnpm verify:phase119a-git-repo-readiness
 cmd /c pnpm verify:phase120a-git-initial-commit-preflight
 cmd /c pnpm verify:phase121a-git-initial-commit-execution
 cmd /c pnpm verify:phase122a-github-remote-publish-preflight
+cmd /c pnpm verify:phase123a-github-cli-readiness
 cmd /c pnpm verify:phase112a-non-docker-release-check
 cmd /c pnpm verify:phase107a-secret-safety
 cmd /c pnpm verify:phase105a-user-journey

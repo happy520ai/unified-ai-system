@@ -142,6 +142,7 @@
     "verify:phase119a-git-repo-readiness": "node ./src/entrypoints/verifyGitRepoReadiness.js",
     "verify:phase120a-git-initial-commit-preflight": "node ./src/entrypoints/verifyGitInitialCommitPreflight.js",
     "verify:phase121a-git-initial-commit-execution": "node ./src/entrypoints/verifyGitInitialCommitExecution.js",
-    "verify:phase122a-github-remote-publish-preflight": "node ./src/entrypoints/verifyGithubRemotePublishPreflight.js"
+    "verify:phase122a-github-remote-publish-preflight": "node ./src/entrypoints/verifyGithubRemotePublishPreflight.js",
+    "verify:phase123a-github-cli-readiness": "node ./src/entrypoints/verifyGithubCliReadiness.js"
   }
 }
