@@ -72,3 +72,12 @@ decision pack in `docs/RELEASE_DECISION_PACK.md`. The candidate is version
 create a git tag, create a GitHub Release, upload artifacts, publish packages
 or images, deploy cloud infrastructure, expose public production access, or
 complete global release.
+
+## Release Creation Confirmation
+
+Phase 133A records the final read-only release creation confirmation pack in
+`docs/RELEASE_CREATION_CONFIRMATION.md`. The required explicit user phrase for
+a later real release phase is `创建 GitHub Release v0.1.0-rc.1`. It does not
+create a git tag, create a GitHub Release, upload artifacts, publish packages
+or images, deploy cloud infrastructure, expose public production access, or
+complete global release.

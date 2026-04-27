@@ -1,7 +1,7 @@
 {
   "phase": "phase-131a-release-artifact-preflight",
   "status": "passed",
-  "generatedAt": "2026-04-27T16:26:39.083Z",
+  "generatedAt": "2026-04-27T16:33:02.236Z",
   "checks": {
     "rootScriptPresent": true,
     "serviceScriptPresent": true,
@@ -37,22 +37,25 @@
     "repoRoot": "E:\\AI-Data\\AI网关系统\\unified-ai-system",
     "gitTopLevel": "E:/AI-Data/AI网关系统/unified-ai-system",
     "branch": "master",
-    "headSha": "9903ef674a4962e099dc519fd8a6b682450a9df5",
-    "headSubject": "Phase131A release artifact preflight",
-    "statusLineCount": 12,
+    "headSha": "ca5a9401675062b1ae1c37164728189aca51735f",
+    "headSubject": "Phase132A release decision pack",
+    "statusLineCount": 15,
     "statusPreview": [
       "M AGENTS.md",
       "M README.md",
+      "M apps/ai-gateway-service/evidence/phase-130a-actions-node24-warning-cleanup.json",
+      "M apps/ai-gateway-service/evidence/phase-130a-actions-node24-warning-cleanup.md",
       "M apps/ai-gateway-service/package.json",
       "M apps/ai-gateway-service/src/entrypoints/verifyUserManualReleasePack.js",
+      "M docs/RELEASE_DECISION_PACK.md",
       "M docs/RELEASE_PREFLIGHT.md",
       "M docs/REMOTE_RELEASE_STATUS.md",
       "M docs/USER_MANUAL.md",
       "M package.json",
-      "?? apps/ai-gateway-service/evidence/phase-132a-release-decision-pack.json",
-      "?? apps/ai-gateway-service/evidence/phase-132a-release-decision-pack.md",
-      "?? apps/ai-gateway-service/src/entrypoints/verifyReleaseDecisionPack.js",
-      "?? docs/RELEASE_DECISION_PACK.md"
+      "?? apps/ai-gateway-service/evidence/phase-133a-release-creation-confirmation.json",
+      "?? apps/ai-gateway-service/evidence/phase-133a-release-creation-confirmation.md",
+      "?? apps/ai-gateway-service/src/entrypoints/verifyReleaseCreationConfirmation.js",
+      "?? docs/RELEASE_CREATION_CONFIRMATION.md"
     ],
     "stagedFileCount": 0,
     "localReleaseTagCount": 0,
@@ -63,7 +66,7 @@
       "origin\thttps://github.com/happy520ai/unified-ai-system.git (push)"
     ],
     "upstream": "origin/master",
-    "remoteHeadSha": "9903ef674a4962e099dc519fd8a6b682450a9df5",
+    "remoteHeadSha": "ca5a9401675062b1ae1c37164728189aca51735f",
     "remoteHeadMatchesLocal": true
   },
   "github": {
@@ -73,14 +76,14 @@
     "visibility": "PRIVATE",
     "defaultBranch": "master",
     "latestReleaseGate": {
-      "databaseId": 25006740001,
+      "databaseId": 25007037619,
       "workflowName": "Phase117A Release Gate",
       "headBranch": "master",
-      "headSha": "9903ef674a4962e099dc519fd8a6b682450a9df5",
+      "headSha": "ca5a9401675062b1ae1c37164728189aca51735f",
       "status": "completed",
       "conclusion": "success",
-      "createdAt": "2026-04-27T16:21:54Z",
-      "url": "https://github.com/happy520ai/unified-ai-system/actions/runs/25006740001"
+      "createdAt": "2026-04-27T16:28:07Z",
+      "url": "https://github.com/happy520ai/unified-ai-system/actions/runs/25007037619"
     },
     "releaseCount": 0,
     "releases": []

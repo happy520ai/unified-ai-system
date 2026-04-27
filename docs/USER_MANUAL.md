@@ -212,6 +212,18 @@ prerelease posture, and release notes text in
 create a GitHub Release, upload artifacts, publish packages or images, deploy,
 or complete global release.
 
+The final release creation confirmation command is:
+
+```powershell
+cmd /c pnpm verify:phase133a-release-creation-confirmation
+```
+
+It records the required confirmation phrase
+`创建 GitHub Release v0.1.0-rc.1` in
+`docs/RELEASE_CREATION_CONFIRMATION.md`. It is read-only and does not create a
+tag, create a GitHub Release, upload artifacts, publish packages or images,
+deploy, or complete global release.
+
 This still does not mean cloud deployment, full CI/CD release automation,
 public multi-user production deployment, global release, or real multi-agent
 execution is complete.

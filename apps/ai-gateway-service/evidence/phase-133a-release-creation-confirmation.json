@@ -1,12 +1,12 @@
 {
-  "phase": "phase-132a-release-decision-pack",
+  "phase": "phase-133a-release-creation-confirmation",
   "status": "passed",
-  "generatedAt": "2026-04-27T16:33:00.802Z",
+  "generatedAt": "2026-04-27T16:32:35.393Z",
   "checks": {
     "rootScriptPresent": true,
     "serviceScriptPresent": true,
     "packageVersionMatchesCandidate": true,
-    "phase131Closed": true,
+    "phase132Closed": true,
     "gitTopLevelIsProject": true,
     "localCommitPresent": true,
     "noStagedFiles": true,
@@ -21,17 +21,19 @@
     "releaseListReadable": true,
     "noGithubReleaseExistsForCandidate": true,
     "noLocalCandidateTagExists": true,
+    "noRemoteCandidateTagExists": true,
     "workflowHasNoReleaseOrPublishSteps": true,
-    "decisionPackDocPresent": true,
-    "decisionPackHasCandidate": true,
-    "decisionPackHasDraftPrereleaseRecommendation": true,
-    "decisionPackHasReleaseNotesDraft": true,
-    "decisionPackHasReadOnlyBoundary": true,
-    "decisionPackHasLaterCommandsOnly": true,
+    "confirmationDocPresent": true,
+    "confirmationDocHasCandidate": true,
+    "confirmationDocHasRequiredPhrase": true,
+    "confirmationDocHasReadOnlyBoundary": true,
+    "confirmationDocHasLaterCommandsOnly": true,
+    "confirmationDocHasRollbackNotes": true,
     "readmePhasePresent": true,
     "agentsBoundaryPresent": true,
     "userManualPresent": true,
     "remoteStatusDocPresent": true,
+    "decisionPackReferencesConfirmation": true,
     "noPlainSecrets": true,
     "projectContextNotCreated": true
   },
@@ -40,7 +42,8 @@
     "tag": "v0.1.0-rc.1",
     "title": "unified-ai-system v0.1.0-rc.1",
     "recommendedReleaseState": "draft",
-    "recommendedReleaseMaturity": "prerelease"
+    "recommendedReleaseMaturity": "prerelease",
+    "requiredConfirmationPhrase": "创建 GitHub Release v0.1.0-rc.1"
   },
   "git": {
     "repoRoot": "E:\\AI-Data\\AI网关系统\\unified-ai-system",
@@ -48,12 +51,10 @@
     "branch": "master",
     "headSha": "ca5a9401675062b1ae1c37164728189aca51735f",
     "headSubject": "Phase132A release decision pack",
-    "statusLineCount": 15,
+    "statusLineCount": 11,
     "statusPreview": [
       "M AGENTS.md",
       "M README.md",
-      "M apps/ai-gateway-service/evidence/phase-130a-actions-node24-warning-cleanup.json",
-      "M apps/ai-gateway-service/evidence/phase-130a-actions-node24-warning-cleanup.md",
       "M apps/ai-gateway-service/package.json",
       "M apps/ai-gateway-service/src/entrypoints/verifyUserManualReleasePack.js",
       "M docs/RELEASE_DECISION_PACK.md",
@@ -61,14 +62,13 @@
       "M docs/REMOTE_RELEASE_STATUS.md",
       "M docs/USER_MANUAL.md",
       "M package.json",
-      "?? apps/ai-gateway-service/evidence/phase-133a-release-creation-confirmation.json",
-      "?? apps/ai-gateway-service/evidence/phase-133a-release-creation-confirmation.md",
       "?? apps/ai-gateway-service/src/entrypoints/verifyReleaseCreationConfirmation.js",
       "?? docs/RELEASE_CREATION_CONFIRMATION.md"
     ],
     "stagedFileCount": 0,
     "localReleaseTagCount": 0,
     "candidateTagExists": false,
+    "remoteCandidateTagExists": false,
     "remoteConfigured": true,
     "remoteLines": [
       "origin\thttps://github.com/happy520ai/unified-ai-system.git (fetch)",
@@ -102,13 +102,14 @@
     "forbiddenReleaseOrPublishHits": []
   },
   "docs": {
+    "confirmationPack": "docs/RELEASE_CREATION_CONFIRMATION.md",
     "decisionPack": "docs/RELEASE_DECISION_PACK.md",
     "preflightDoc": "docs/RELEASE_PREFLIGHT.md",
     "remoteStatusDoc": "docs/REMOTE_RELEASE_STATUS.md",
     "userManual": "docs/USER_MANUAL.md"
   },
   "safety": {
-    "readOnlyDecisionPack": true,
+    "readOnlyConfirmationPack": true,
     "gitTagCreated": false,
     "githubReleaseCreated": false,
     "releaseArtifactUploaded": false,
@@ -121,13 +122,12 @@
     "plaintextApiKeyRecorded": false
   },
   "nextManualDecisions": [
-    "approve or change candidate version",
-    "approve or change candidate tag",
-    "approve draft/prerelease setting",
-    "review release notes wording",
+    "explicitly approve the required confirmation phrase",
     "rerun remote Release Gate on the exact release commit",
-    "explicitly open a later release-creation phase if a real release is desired"
+    "create candidate tag only in a later explicit phase",
+    "create draft prerelease only in a later explicit phase",
+    "verify release page and rollback if needed"
   ],
   "secretFindingCount": 0,
-  "conclusion": "release-decision-pack-closed"
+  "conclusion": "release-creation-confirmation-closed"
 }

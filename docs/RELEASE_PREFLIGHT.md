@@ -54,6 +54,8 @@ For verifier clarity:
 
 Phase 132A records a read-only decision-pack draft for these choices in
 `docs/RELEASE_DECISION_PACK.md`; it does not create the release.
+Phase 133A records the final read-only creation confirmation pack in
+`docs/RELEASE_CREATION_CONFIRMATION.md`; it still does not create the release.
 
 ## Explicit Limits
 

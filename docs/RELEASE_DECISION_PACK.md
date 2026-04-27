@@ -98,3 +98,7 @@ gh release create v0.1.0-rc.1 --draft --prerelease --title "unified-ai-system v0
 
 Before any later real release, re-run the remote Release Gate on the exact
 release commit and confirm secret-safety evidence remains clean.
+
+Phase 133A records the final read-only creation confirmation pack in
+`docs/RELEASE_CREATION_CONFIRMATION.md`; it still does not create the tag or
+GitHub Release.

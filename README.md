@@ -18,6 +18,19 @@ belongs only in `apps/` and `packages/`.
 
 ## Current Phase
 
+Phase 133A records the final GitHub Release creation confirmation pack:
+
+```powershell
+cmd /c pnpm verify:phase133a-release-creation-confirmation
+```
+
+The confirmation pack is `docs/RELEASE_CREATION_CONFIRMATION.md`. It records
+the exact confirmation phrase required before a later real release phase may
+create `v0.1.0-rc.1`: `创建 GitHub Release v0.1.0-rc.1`. This phase is
+read-only: it does not create a git tag, create a GitHub Release, upload
+release artifacts, publish packages or images, deploy cloud infrastructure,
+expose the service to the public internet, or complete global release.
+
 Phase 132A records the release version, tag, and release notes decision pack:
 
 ```powershell
