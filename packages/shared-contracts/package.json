@@ -1,0 +1,18 @@
+{
+  "name": "@unified-ai-system/shared-contracts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "check": "node -e \"const fs = require('node:fs'); for (const f of ['src/contracts/common.ts','src/contracts/gateway.ts','src/contracts/provider.ts','src/contracts/routing.ts','src/contracts/governance.ts','src/contracts/knowledge.ts','src/contracts/modelImport.ts','src/contracts/setup.ts','src/contracts/workflow.ts','src/contracts/workforce.ts','src/contracts/index.ts','src/index.ts']) fs.accessSync(f); console.log('shared-contracts: contracts ready')\"",
+    "build": "pnpm run check"
+  }
+}

@@ -1,0 +1,46 @@
+# Phase 47A Enterprise Overview UI Evidence
+
+- Phase: phase-47a-enterprise-overview-ui
+- Status: passed
+- Generated at: 2026-04-26T05:01:19.720Z
+- Service URL: http://127.0.0.1:64877
+- UI HTTP status: 200
+- UI panel present: true
+- Route present in UI: true
+- Route path: /enterprise/overview
+- Missing auth HTTP status: 401
+- Authorized HTTP status: 200
+- Route mode: read-only-enterprise-overview
+- Overview status: ready
+- Blocker count: 0
+- Warning count: 0
+- Deployment readiness status: ready
+- Startup readiness status: ready
+- Security readiness status: ready
+- Vector readiness mode: local-keyword
+- Vector readiness status: disabled
+- Acceptance source phase: phase-43a-enterprise-acceptance-report
+- Acceptance source status: passed
+- Acceptance evidence required: 25
+- Acceptance evidence passed: 25
+- Acceptance evidence missing: 0
+- Acceptance evidence failed: 0
+- Release-candidate source phase: phase-45a-enterprise-release-candidate-dry-run
+- Release-candidate source status: passed
+- Release-candidate mode: read-only-dry-run
+- Package created: false
+- Release created: false
+- Artifact published: false
+- Release-candidate evidence required: 27
+- Release-candidate evidence passed: 27
+- Release-candidate evidence missing: 0
+- Release-candidate evidence failed: 0
+- Read-only route: true
+- Provider calls: false
+- Runtime mutation: false
+- Release automation: false
+- Infrastructure provisioning: false
+- Secret values recorded: false
+- Response contains auditor token: false
+- Response contains NVIDIA key: false
+- Conclusion: enterprise-overview-ui-connected

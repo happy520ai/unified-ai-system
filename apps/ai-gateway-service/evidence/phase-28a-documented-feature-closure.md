@@ -1,0 +1,30 @@
+# Phase 28A Documented Feature Closure Evidence
+
+- Phase: phase-28a-documented-feature-closure
+- Status: passed
+- Generated at: 2026-04-24T17:48:28.029Z
+- Docs current feature markers present: true
+- UI URL: http://127.0.0.1:52414/ui
+- UI HTTP status: 200
+- UI title present: true
+- Chat-first present: true
+- Persistence text present: true
+- Stale memory warning absent: true
+- Service health HTTP status: 200
+- Service health status: ready
+- Knowledge health HTTP status: 200
+- Knowledge mode: local-keyword
+- Knowledge storage: file-sqlite
+- Max file MB: 100
+- PDF supported: true
+- Word supported: true
+- Excel supported: true
+- File load HTTP status: 200
+- File loaded count: 1
+- Retrieve HTTP status: 200
+- Retrieve top hit: phase28a-documented-feature.md
+- Retrieve snippet present: true
+- Matched terms: phase28a, documented, feature, closure, file, sqlite, chat, first
+- Vector readiness mode: local-keyword
+- Vector readiness status: disabled
+- Conclusion: documented-current-feature-set-connected

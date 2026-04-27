@@ -1,0 +1,22 @@
+# Phase 76J Web Chat Top Provider Minimized Evidence
+
+- Phase: phase-76j-web-chat-top-provider-minimized
+- Status: passed
+- Generated at: 2026-04-25T17:29:24.315Z
+- Service URL: http://127.0.0.1:65469
+- Details present: false
+- Summary present: false
+- Collapsed by default: true
+- Provider select inside details: false
+- Provider select hidden by default: true
+- Provider select visible when opened: false
+- Selected provider after open: local-fake-provider::local-fake-model
+- Fetches after selection: ["/providers","/config/runtime","/chat"]
+- Provider calls: false
+- Backend business route added: false
+- Default chat main lane changed: false
+- Screenshot path: apps/ai-gateway-service/evidence/phase-76j-web-chat-top-provider-minimized.png
+- Screenshot bytes: 119300
+- Screenshot dimensions: 1424x905
+- Valid PNG: true
+- Conclusion: web-chat-top-provider-minimized

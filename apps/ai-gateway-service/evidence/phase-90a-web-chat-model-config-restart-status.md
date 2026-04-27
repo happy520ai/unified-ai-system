@@ -1,0 +1,23 @@
+# Phase 90A Web Chat Model Config Restart Status Evidence
+
+- Phase: phase-90a-web-chat-model-config-restart-status
+- Status: passed
+- Generated at: 2026-04-26T10:24:51.381Z
+- Upstream phase: phase-89a-web-chat-model-config-restart-persistence
+- Upstream status: passed
+- Reload restored from local: true
+- Reload storage: local-user-file
+- Reload guide: 已从本机用户配置恢复 provider/model 和 API Key；服务重启后仍可用，可以直接发送。需要复核时点“配置模型”重新检测。
+- Restart restored from local: true
+- Restart storage: local-user-file
+- Restart guide: 已从本机用户配置恢复 provider/model 和 API Key；服务重启后仍可用，可以直接发送。需要复核时点“配置模型”重新检测。
+- Guide explains local restore: true
+- Guide explains restart usable: true
+- Guide explains direct send: true
+- Probe text readable: true
+- Preference text readable: true
+- First chat still works after restart: true
+- No secret in evidence: true
+- Real provider calls: false
+- Default chat main lane changed: false
+- Conclusion: web-chat-model-config-restart-status-readable

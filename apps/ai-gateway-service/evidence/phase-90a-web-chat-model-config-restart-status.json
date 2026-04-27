@@ -1,0 +1,48 @@
+{
+  "phase": "phase-90a-web-chat-model-config-restart-status",
+  "status": "passed",
+  "generatedAt": "2026-04-26T10:24:51.381Z",
+  "upstreamPhase": "phase-89a-web-chat-model-config-restart-persistence",
+  "upstreamStatus": "passed",
+  "ui": {
+    "reload": {
+      "providerSelectValue": "generic-openai-compatible::phase89-persisted-chat-model",
+      "composerModelRestoredFromLocal": "true",
+      "composerModelCredentialStorage": "local-user-file",
+      "composerModelGuideText": "已从本机用户配置恢复 provider/model 和 API Key；服务重启后仍可用，可以直接发送。需要复核时点“配置模型”重新检测。",
+      "composerModelProbeText": "本机配置已恢复",
+      "composerModelPreferenceText": "已恢复"
+    },
+    "restart": {
+      "providerSelectValue": "generic-openai-compatible::phase89-persisted-chat-model",
+      "composerModelRestoredFromLocal": "true",
+      "composerModelCredentialStorage": "local-user-file",
+      "composerModelGuideText": "已从本机用户配置恢复 provider/model 和 API Key；服务重启后仍可用，可以直接发送。需要复核时点“配置模型”重新检测。",
+      "composerModelProbeText": "本机配置已恢复",
+      "composerModelPreferenceText": "已恢复"
+    }
+  },
+  "checks": {
+    "upstreamPassed": true,
+    "reloadShowsRestoredDataset": true,
+    "restartShowsRestoredDataset": true,
+    "reloadShowsLocalFileStorage": true,
+    "restartShowsLocalFileStorage": true,
+    "guideExplainsLocalRestore": true,
+    "guideExplainsRestartUsable": true,
+    "guideExplainsCanSendDirectly": true,
+    "probeTextReadable": true,
+    "preferenceTextReadable": true,
+    "firstChatStillWorksAfterRestart": true,
+    "noSecretInEvidence": true,
+    "defaultChatMainLaneChanged": false
+  },
+  "safety": {
+    "localMockProviderOnly": true,
+    "realProviderCalls": false,
+    "apiKeyPersistedInEvidence": false,
+    "defaultChatMainLaneChanged": false,
+    "backendBusinessRouteAdded": false
+  },
+  "conclusion": "web-chat-model-config-restart-status-readable"
+}

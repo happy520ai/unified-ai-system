@@ -1,0 +1,27 @@
+# Phase 76Q Web Chat User API Catalog Coverage Evidence
+
+- Phase: phase-76q-web-chat-user-api-catalog-coverage
+- Status: passed
+- Generated at: 2026-04-26T06:56:37.336Z
+- Source workbook inspected: 免费api汇总.xlsx
+- API key values recorded: false
+- Observed provider families: iFlytek Spark, Baidu Qianfan, Tencent Hunyuan, Coze, Zhipu AI, SiliconFlow, DashScope, ModelScope, Google Gemini, Cloudflare Workers AI, Groq, Hugging Face, OpenAI, generic OpenAI-compatible relay
+- Tencent hint provider ids: tencent-hunyuan
+- Qianfan provider ids: qianfan
+- Zhipu provider ids: zhipu
+- iFlytek provider ids: xunfei-spark
+- ModelScope provider ids: modelscope
+- Cloudflare provider ids: cloudflare-workers-ai
+- Hugging Face provider ids: huggingface
+- Coze provider ids: coze
+- Generic sk provider ids: openai, deepseek, together, mistral, moonshot, siliconflow, dashscope, tencent-hunyuan, cohere, volcengine-doubao, minimax, stepfun, novita, baichuan, yi, infini-ai, generic-openai-compatible
+- Plain sk recommended provider/model: none
+- DashScope-shaped sk provider ids: dashscope
+- DashScope-shaped recommended provider/model: dashscope::qwen-max
+- Fake excluded from generic fallback: true
+- Generic sk spray prevented: true
+- Plain sk does not default to OpenAI: true
+- DashScope-shaped key recommended: true
+- Non-chat platforms recognized only: true
+- Hugging Face Router chat executable: true
+- Conclusion: user-api-catalog-coverage-connected

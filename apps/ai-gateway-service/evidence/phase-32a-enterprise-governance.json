@@ -1,0 +1,37 @@
+{
+  "phase": "phase-32a-enterprise-governance",
+  "status": "passed",
+  "generatedAt": "2026-04-26T05:00:49.105Z",
+  "serviceUrl": "http://127.0.0.1:58553",
+  "enterprise": {
+    "healthHttpStatus": 200,
+    "authEnabled": true,
+    "roles": [
+      "admin",
+      "operator",
+      "viewer",
+      "auditor"
+    ],
+    "auditLogPath": "C:\\Users\\Administrator\\AppData\\Local\\Temp\\phase32a-audit-QsU9BN\\enterprise-audit.jsonl",
+    "auditEntryCount": 8
+  },
+  "auth": {
+    "missingTokenStatus": 401,
+    "adminSessionStatus": 200,
+    "adminUserId": "phase32-admin",
+    "adminTenantId": "phase32-tenant"
+  },
+  "rbac": {
+    "viewerDashboardStatus": 200,
+    "viewerKnowledgeWriteStatus": 403,
+    "adminKnowledgeWriteStatus": 200,
+    "viewerAuditStatus": 403,
+    "adminAuditStatus": 200
+  },
+  "audit": {
+    "deniedKnowledgeWriteRecorded": true,
+    "allowedDashboardReadRecorded": true
+  },
+  "error": null,
+  "conclusion": "enterprise-governance-connected"
+}

@@ -1,0 +1,33 @@
+{
+  "phase": "phase-21a-knowledge-entry",
+  "status": "passed",
+  "generatedAt": "2026-04-26T04:56:52.678Z",
+  "service": {
+    "url": "http://127.0.0.1:61649"
+  },
+  "knowledge": {
+    "healthHttpStatus": 200,
+    "healthStatus": "ready",
+    "mode": "local-keyword",
+    "storage": "in-memory",
+    "embedding": "not-configured",
+    "sourceCount": 4,
+    "documentCount": 4,
+    "supportedModes": [
+      "keyword"
+    ],
+    "sourceIds": [
+      "unified-ai-system-defaults",
+      "unified-ai-system-boundaries",
+      "unified-ai-system-operations",
+      "unified-ai-system-defect-standby"
+    ],
+    "retrieveHttpStatus": 200,
+    "query": "default command set NVIDIA single provider logs",
+    "retrieveMode": "keyword",
+    "chunkCount": 3,
+    "topChunkDocumentId": "default-command-set"
+  },
+  "error": null,
+  "conclusion": "local-knowledge-entry-connected"
+}

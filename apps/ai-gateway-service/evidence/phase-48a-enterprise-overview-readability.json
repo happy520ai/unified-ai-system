@@ -1,0 +1,38 @@
+{
+  "phase": "phase-48a-enterprise-overview-readability",
+  "status": "passed",
+  "generatedAt": "2026-04-26T05:01:22.062Z",
+  "serviceUrl": "http://127.0.0.1:65372",
+  "ui": {
+    "httpStatus": 200,
+    "readableSummaryMarkerPresent": true,
+    "summaryContainerPresent": true,
+    "summaryButtonPresent": true,
+    "summaryRendererPresent": true,
+    "rawJsonPreserved": true
+  },
+  "route": {
+    "path": "/enterprise/overview",
+    "authorizedHttpStatus": 200,
+    "status": "ready",
+    "mode": "read-only-enterprise-overview"
+  },
+  "summary": {
+    "deploymentStatus": "ready",
+    "startupStatus": "ready",
+    "securityStatus": "ready",
+    "acceptanceStatus": "passed",
+    "releaseCandidateStatus": "passed",
+    "readOnlyRoute": true,
+    "providerCalls": false,
+    "runtimeMutation": false,
+    "releaseAutomation": false,
+    "infrastructureProvisioning": false
+  },
+  "safety": {
+    "responseContainsAuditorToken": false,
+    "responseContainsNvidiaKey": false
+  },
+  "error": null,
+  "conclusion": "enterprise-overview-readable-summary-connected"
+}

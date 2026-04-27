@@ -1,0 +1,35 @@
+{
+  "phase": "phase-21c-console-knowledge-chain",
+  "status": "passed",
+  "generatedAt": "2026-04-26T04:56:57.926Z",
+  "service": {
+    "url": "http://127.0.0.1:62679"
+  },
+  "console": {
+    "caller": "agent-console",
+    "sdkMethods": [
+      "knowledgeLoad",
+      "knowledgeRetrieve"
+    ]
+  },
+  "knowledge": {
+    "loadStatus": "ok",
+    "loadedSourceId": "phase-21b-local-source",
+    "loadedCount": 1,
+    "documentCount": 5,
+    "retrieveStatus": "ok",
+    "query": "phase21b-load-marker",
+    "retrieveMode": "keyword",
+    "chunkCount": 1,
+    "topChunkDocumentId": "phase-21b-local-document",
+    "topChunkSourceId": "phase-21b-local-source",
+    "markerMatched": true,
+    "meta": {
+      "traceId": "phase-21c-console-knowledge-chain",
+      "createdAt": "2026-04-26T04:56:57.923Z",
+      "durationMs": 4
+    }
+  },
+  "error": null,
+  "conclusion": "agent-console-to-knowledge-service-connected"
+}

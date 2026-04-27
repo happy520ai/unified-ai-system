@@ -1,0 +1,125 @@
+{
+  "phase": "phase-70a-web-chat-markdown-blocks",
+  "status": "passed",
+  "generatedAt": "2026-04-25T09:05:41.740Z",
+  "browserPath": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+  "serviceUrl": "http://127.0.0.1:59581",
+  "ui": {
+    "url": "http://127.0.0.1:59581/ui",
+    "prompt": "phase70a markdown table quote divider prompt",
+    "afterAnswer": {
+      "rawText": "Phase70A readable answer blocks:\n\n> Service readiness stays separate from provider response.\n> Knowledge references remain structured.\n\n| Command | Purpose | Result |\n| --- | --- | --- |\n| `cmd /c pnpm status:phase10a` | Check managed state | running/stopped |\n| `cmd /c pnpm logs:phase16a` | Read managed output | attributable log |\n\n---\n\nFinal note after divider.",
+      "renderedText": "Phase70A readable answer blocks:Service readiness stays separate from provider response.Knowledge references remain structured.CommandPurposeResultcmd /c pnpm status:phase10aCheck managed staterunning/stoppedcmd /c pnpm logs:phase16aRead managed outputattributable logFinal note after divider.",
+      "blockquoteCount": 1,
+      "blockquoteText": "Service readiness stays separate from provider response.Knowledge references remain structured.",
+      "tableCount": 1,
+      "tableHeaderTexts": [
+        "Command",
+        "Purpose",
+        "Result"
+      ],
+      "tableRowTexts": [
+        [
+          "cmd /c pnpm status:phase10a",
+          "Check managed state",
+          "running/stopped"
+        ],
+        [
+          "cmd /c pnpm logs:phase16a",
+          "Read managed output",
+          "attributable log"
+        ]
+      ],
+      "tableRowCount": 2,
+      "inlineCodeTexts": [
+        "cmd /c pnpm status:phase10a",
+        "cmd /c pnpm logs:phase16a"
+      ],
+      "hrCount": 1,
+      "finalParagraphPresent": true,
+      "clipboard": [],
+      "fetches": [
+        "/chat/rag/stream"
+      ],
+      "fetchStatuses": [
+        {
+          "path": "/chat/rag/stream",
+          "status": 200,
+          "ok": true,
+          "simulated": true
+        }
+      ],
+      "messageCount": 3
+    },
+    "afterCopyAnswer": {
+      "rawText": "Phase70A readable answer blocks:\n\n> Service readiness stays separate from provider response.\n> Knowledge references remain structured.\n\n| Command | Purpose | Result |\n| --- | --- | --- |\n| `cmd /c pnpm status:phase10a` | Check managed state | running/stopped |\n| `cmd /c pnpm logs:phase16a` | Read managed output | attributable log |\n\n---\n\nFinal note after divider.",
+      "renderedText": "Phase70A readable answer blocks:Service readiness stays separate from provider response.Knowledge references remain structured.CommandPurposeResultcmd /c pnpm status:phase10aCheck managed staterunning/stoppedcmd /c pnpm logs:phase16aRead managed outputattributable logFinal note after divider.",
+      "blockquoteCount": 1,
+      "blockquoteText": "Service readiness stays separate from provider response.Knowledge references remain structured.",
+      "tableCount": 1,
+      "tableHeaderTexts": [
+        "Command",
+        "Purpose",
+        "Result"
+      ],
+      "tableRowTexts": [
+        [
+          "cmd /c pnpm status:phase10a",
+          "Check managed state",
+          "running/stopped"
+        ],
+        [
+          "cmd /c pnpm logs:phase16a",
+          "Read managed output",
+          "attributable log"
+        ]
+      ],
+      "tableRowCount": 2,
+      "inlineCodeTexts": [
+        "cmd /c pnpm status:phase10a",
+        "cmd /c pnpm logs:phase16a"
+      ],
+      "hrCount": 1,
+      "finalParagraphPresent": true,
+      "clipboard": [
+        "Phase70A readable answer blocks:\n\n> Service readiness stays separate from provider response.\n> Knowledge references remain structured.\n\n| Command | Purpose | Result |\n| --- | --- | --- |\n| `cmd /c pnpm status:phase10a` | Check managed state | running/stopped |\n| `cmd /c pnpm logs:phase16a` | Read managed output | attributable log |\n\n---\n\nFinal note after divider."
+      ],
+      "fetches": [
+        "/chat/rag/stream"
+      ],
+      "fetchStatuses": [
+        {
+          "path": "/chat/rag/stream",
+          "status": 200,
+          "ok": true,
+          "simulated": true
+        }
+      ],
+      "messageCount": 4
+    }
+  },
+  "screenshot": {
+    "path": "apps/ai-gateway-service/evidence/phase-70a-web-chat-markdown-blocks.png",
+    "bytes": 141955,
+    "width": 1409,
+    "height": 1140,
+    "validPng": true
+  },
+  "safety": {
+    "browserInteraction": true,
+    "simulatedStreamOnly": true,
+    "markdownBlocksOnly": true,
+    "blockquoteRendering": true,
+    "tableRendering": true,
+    "dividerRendering": true,
+    "rawAnswerPreservedForCopy": true,
+    "fakeProviderOnly": true,
+    "defaultChatMainLaneChanged": false,
+    "backendBusinessRouteAdded": false,
+    "providerCalls": false,
+    "runtimeMutation": false,
+    "releaseAutomation": false,
+    "infrastructureProvisioning": false
+  },
+  "conclusion": "web-chat-markdown-blocks-connected"
+}

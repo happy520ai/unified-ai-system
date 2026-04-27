@@ -1,0 +1,16 @@
+node_modules/
+dist/
+coverage/
+.turbo/
+.cache/
+.codex/
+.data/
+.tmp/
+legacy/
+.env
+.env.*
+!.env.example
+!.env.enterprise.example
+*.log
+*.tsbuildinfo
+.phase*-service.*.log

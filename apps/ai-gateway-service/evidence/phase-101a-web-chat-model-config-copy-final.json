@@ -1,0 +1,58 @@
+{
+  "phase": "phase-101a-web-chat-model-config-copy-final",
+  "status": "passed",
+  "generatedAt": "2026-04-26T12:12:39.789Z",
+  "delegatedCheck": {
+    "phase": "phase-99a-web-chat-model-config-visual-final",
+    "status": "passed",
+    "conclusion": "web-chat-model-config-visual-final-passed",
+    "evidence": "apps/ai-gateway-service/evidence/phase-99a-web-chat-model-config-visual-final.json",
+    "screenshot": "apps/ai-gateway-service/evidence/phase-98a-web-chat-model-config-user-journey.png"
+  },
+  "requiredCopyPresent": {
+    "粘贴 Key，自动找模型。通过后直接聊。": true,
+    "添加聊天模型": true,
+    "粘贴 Key": true,
+    "一键检测并保存": true,
+    "高级设置": true,
+    "已经能聊。直接输入问题，或拖文件进来。": true
+  },
+  "retiredCopyRemoved": {
+    "模型配置向导": true,
+    "一键添加并检测": true,
+    "下一步建议": true,
+    "更多选项": true,
+    "高级启动配置": true,
+    "这把 API Key 暂时不能直接添加到聊天模型": true
+  },
+  "copyChecks": {
+    "inlineScriptSyntaxOk": true,
+    "phase99Passed": true,
+    "requiredCopyPresent": true,
+    "retiredCopyRemoved": true,
+    "composerGuideShort": true,
+    "primaryActionShort": true,
+    "advancedOptionsStillAvailableButCollapsed": true,
+    "startupOptionsStillAvailableButCollapsed": true,
+    "finalReadyNudgeShort": true
+  },
+  "frozenUserFlow": [
+    "配置模型",
+    "粘贴 Key",
+    "识别可用模型",
+    "选择模型",
+    "一键检测并保存",
+    "继续聊天"
+  ],
+  "safety": {
+    "browserInteraction": true,
+    "localMockProviderOnly": true,
+    "realProviderCalls": false,
+    "apiKeyValueRecorded": false,
+    "apiKeyPersistedInBrowser": false,
+    "apiKeyPersistedInEvidence": false,
+    "defaultChatMainLaneChanged": false,
+    "backendBusinessRouteAdded": false
+  },
+  "conclusion": "web-chat-model-config-copy-final-passed"
+}

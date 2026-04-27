@@ -1,0 +1,142 @@
+{
+  "phase": "phase-65a-web-chat-message-actions",
+  "status": "passed",
+  "generatedAt": "2026-04-25T09:55:17.951Z",
+  "browserPath": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+  "serviceUrl": "http://127.0.0.1:58646",
+  "ui": {
+    "url": "http://127.0.0.1:58646/ui",
+    "prompt": "phase65a copy citation retry prompt",
+    "afterFirstAnswer": {
+      "latestAssistantText": "phase65a message action answer #1",
+      "latestUserText": "phase65a copy citation retry prompt",
+      "latestSystemText": "",
+      "actionCount": 4,
+      "copyAnswerDisabled": false,
+      "copyCitationsDisabled": false,
+      "retryDisabled": false,
+      "clipboard": [],
+      "fetches": [
+        "/chat/rag/stream"
+      ],
+      "fetchStatuses": [
+        {
+          "path": "/chat/rag/stream",
+          "status": 200,
+          "ok": true,
+          "simulated": true
+        }
+      ],
+      "userCount": 1,
+      "ragStreamCount": 1,
+      "messageCount": 3
+    },
+    "afterCopyAnswer": {
+      "latestAssistantText": "phase65a message action answer #1",
+      "latestUserText": "phase65a copy citation retry prompt",
+      "latestSystemText": "已复制回答。",
+      "actionCount": 4,
+      "copyAnswerDisabled": false,
+      "copyCitationsDisabled": false,
+      "retryDisabled": false,
+      "clipboard": [
+        "phase65a message action answer #1"
+      ],
+      "fetches": [
+        "/chat/rag/stream"
+      ],
+      "fetchStatuses": [
+        {
+          "path": "/chat/rag/stream",
+          "status": 200,
+          "ok": true,
+          "simulated": true
+        }
+      ],
+      "userCount": 1,
+      "ragStreamCount": 1,
+      "messageCount": 4
+    },
+    "afterCopyCitations": {
+      "latestAssistantText": "phase65a message action answer #1",
+      "latestUserText": "phase65a copy citation retry prompt",
+      "latestSystemText": "已复制引用。",
+      "actionCount": 4,
+      "copyAnswerDisabled": false,
+      "copyCitationsDisabled": false,
+      "retryDisabled": false,
+      "clipboard": [
+        "phase65a message action answer #1",
+        "[1] Phase65A citation\nsourceId: phase65a-source\ndocumentId: phase65a-document-1\nsnippet: phase65a citation snippet #1"
+      ],
+      "fetches": [
+        "/chat/rag/stream"
+      ],
+      "fetchStatuses": [
+        {
+          "path": "/chat/rag/stream",
+          "status": 200,
+          "ok": true,
+          "simulated": true
+        }
+      ],
+      "userCount": 1,
+      "ragStreamCount": 1,
+      "messageCount": 5
+    },
+    "afterRetry": {
+      "latestAssistantText": "phase65a message action answer #2",
+      "latestUserText": "phase65a copy citation retry prompt",
+      "latestSystemText": "已复制引用。",
+      "actionCount": 4,
+      "copyAnswerDisabled": false,
+      "copyCitationsDisabled": false,
+      "retryDisabled": false,
+      "clipboard": [
+        "phase65a message action answer #1",
+        "[1] Phase65A citation\nsourceId: phase65a-source\ndocumentId: phase65a-document-1\nsnippet: phase65a citation snippet #1"
+      ],
+      "fetches": [
+        "/chat/rag/stream",
+        "/chat/rag/stream"
+      ],
+      "fetchStatuses": [
+        {
+          "path": "/chat/rag/stream",
+          "status": 200,
+          "ok": true,
+          "simulated": true
+        },
+        {
+          "path": "/chat/rag/stream",
+          "status": 200,
+          "ok": true,
+          "simulated": true
+        }
+      ],
+      "userCount": 2,
+      "ragStreamCount": 2,
+      "messageCount": 7
+    }
+  },
+  "screenshot": {
+    "path": "apps/ai-gateway-service/evidence/phase-65a-web-chat-message-actions.png",
+    "bytes": 124300,
+    "width": 1424,
+    "height": 1105,
+    "validPng": true
+  },
+  "safety": {
+    "browserInteraction": true,
+    "simulatedStreamOnly": true,
+    "messageActionsOnly": true,
+    "fakeProviderOnly": true,
+    "defaultChatMainLaneChanged": false,
+    "backendBusinessRouteAdded": false,
+    "providerCalls": false,
+    "runtimeMutation": false,
+    "releaseAutomation": false,
+    "infrastructureProvisioning": false
+  },
+  "conclusion": "web-chat-message-actions-connected"
+}

@@ -1,0 +1,21 @@
+{
+  "name": "@unified-ai-system/shared-sdk",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.js",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.js"
+    }
+  },
+  "dependencies": {
+    "@unified-ai-system/shared-contracts": "workspace:*"
+  },
+  "scripts": {
+    "check": "node --check ./src/index.js",
+    "build": "node --check ./src/index.js"
+  }
+}

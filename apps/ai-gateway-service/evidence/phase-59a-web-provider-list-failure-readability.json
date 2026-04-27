@@ -1,0 +1,49 @@
+{
+  "phase": "phase-59a-web-provider-list-failure-readability",
+  "status": "passed",
+  "generatedAt": "2026-04-25T07:03:22.557Z",
+  "browserPath": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+  "serviceUrl": "http://127.0.0.1:52536",
+  "ui": {
+    "url": "http://127.0.0.1:52536/ui",
+    "expectedProviderFailureHint": "provider 列表暂时加载失败，将继续使用服务端默认路由。",
+    "systemText": "provider 列表暂时加载失败，将继续使用服务端默认路由。可稍后刷新页面，或运行 health / doctor 检查服务配置。",
+    "providerFailureHintPresent": true,
+    "providerSelectValue": "",
+    "providerOptionCount": 1,
+    "fetches": [
+      "/providers"
+    ],
+    "fetchStatuses": [
+      {
+        "path": "/providers",
+        "status": 503,
+        "ok": false,
+        "simulated": true
+      }
+    ],
+    "disallowedChatFetches": [],
+    "messageCount": 2,
+    "systemCount": 1
+  },
+  "screenshot": {
+    "path": "apps/ai-gateway-service/evidence/phase-59a-web-provider-list-failure-readability.png",
+    "bytes": 136518,
+    "width": 1409,
+    "height": 1140,
+    "validPng": true
+  },
+  "safety": {
+    "browserInteraction": true,
+    "simulatedProviderListFailureOnly": true,
+    "noChatRequestSent": true,
+    "fakeProviderOnly": true,
+    "defaultChatMainLaneChanged": false,
+    "backendBusinessRouteAdded": false,
+    "providerCalls": false,
+    "runtimeMutation": false,
+    "releaseAutomation": false,
+    "infrastructureProvisioning": false
+  },
+  "conclusion": "web-provider-list-failure-readability-connected"
+}

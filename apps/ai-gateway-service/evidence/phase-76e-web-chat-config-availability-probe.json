@@ -1,0 +1,40 @@
+{
+  "phase": "phase-76e-web-chat-config-availability-probe",
+  "status": "passed",
+  "generatedAt": "2026-04-26T08:30:28.584Z",
+  "browserPath": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+  "serviceUrl": "http://127.0.0.1:60457",
+  "ui": {
+    "url": "http://127.0.0.1:60457/ui?showFakeProviders=1",
+    "finalState": {
+      "wizardPresent": true,
+      "probeButtonPresent": true,
+      "feedbackText": "当前模型可用正在使用现有服务配置完成检测。已通过现有 /chat 路径拿到成功响应。命中模型：local-fake-provider / local-fake-model返回预览：[fake:local-fake-provider/local-fake-model] 请用一句话回复：配置检测通过。记住默认选择继续聊天",
+      "effectText": "配置是否已生效当前聊天检测通过；当前模型可以真实回答：local-fake-provider / local-fake-model下次打开还没有记住默认模型。服务重启仅当前页面生效；服务重启后仍按启动环境变量。",
+      "selectedProvider": "local-fake-provider::local-fake-model",
+      "localStorageDump": "pme-moving-earth-chat-history-v1:{\"version\":1,\"savedAt\":\"2026-04-26T08:30:28.291Z\",\"messages\":[{\"role\":\"assistant\",\"type\":\"assistant\",\"text\":\"你好，我是 PME 移动地球。普通问题我会直接快速回答；把文件或资料丢给我时，我会先查本地知识库再组织回答。\"},{\"role\":\"user\",\"type\":\"user\",\"text\":\"配置模型\"},{\"role\":\"assistant\",\"type\":\"assistant\",\"text\":\"我会用三步帮你把聊天模型配置好：选模型、粘 API Key、点一次添加并检测。API Key 只进入当前本地服务内存，不写进聊天记录、浏览器存储或 evidence。\"},{\"role\":\"system\",\"type\":\"system\",\"text\":\"已应用到当前聊天：Local Fake Provider / Local Fake Model\"}]}",
+      "fetches": [
+        "/providers",
+        "/config/runtime",
+        "/chat"
+      ]
+    }
+  },
+  "screenshot": {
+    "path": "apps/ai-gateway-service/evidence/phase-76e-web-chat-config-availability-probe.png",
+    "bytes": 129990,
+    "width": 1424,
+    "height": 1005,
+    "validPng": true
+  },
+  "safety": {
+    "browserInteraction": true,
+    "providerAvailabilityProbe": true,
+    "fakeProviderOnly": true,
+    "probeUsesExistingChatRoute": true,
+    "secretPersisted": false,
+    "backendBusinessRouteAdded": false,
+    "defaultChatMainLaneChanged": false
+  },
+  "conclusion": "web-chat-config-availability-probe-connected"
+}

@@ -1,0 +1,22 @@
+# Phase 36A Enterprise Audit Export Evidence
+
+- Phase: phase-36a-enterprise-audit-export
+- Status: passed
+- Generated at: 2026-04-26T05:00:58.789Z
+- Service URL: http://127.0.0.1:60578
+- Audit log path: C:\Users\Administrator\AppData\Local\Temp\phase36a-audit-YQWpgf\enterprise-audit.jsonl
+- UI audit export present: true
+- Admin dashboard status: 200
+- Viewer denied write status: 403
+- Filtered denied status: 200
+- Filtered denied total matched: 1
+- Filtered viewer status: 200
+- Filtered viewer total matched: 1
+- JSON export status: 200
+- JSON export format: json
+- JSON export entry count: 5
+- JSONL export status: 200
+- JSONL export format: jsonl
+- JSONL export entry count: 1
+- JSONL export has denied code: true
+- Conclusion: enterprise-audit-export-connected

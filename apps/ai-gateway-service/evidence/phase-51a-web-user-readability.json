@@ -1,0 +1,28 @@
+{
+  "phase": "phase-51a-web-user-readability",
+  "status": "passed",
+  "generatedAt": "2026-04-25T17:27:52.492Z",
+  "serviceUrl": "http://127.0.0.1:64337",
+  "ui": {
+    "httpStatus": 200,
+    "requiredTextCount": 14,
+    "missingText": [],
+    "brokenMarkerCount": 0,
+    "brokenMarkers": [],
+    "firstScreenMarkerPresent": true,
+    "sideHiddenByDefault": true,
+    "noManualKnowledgeFormVisible": true,
+    "mainFunctionButtonsRemoved": true,
+    "chatFirstTitlePresent": true,
+    "dailyFlowPresent": true
+  },
+  "safety": {
+    "displayOnly": true,
+    "backendBusinessRouteAdded": false,
+    "providerCalls": false,
+    "runtimeMutation": false,
+    "releaseAutomation": false,
+    "infrastructureProvisioning": false
+  },
+  "conclusion": "web-user-readability-connected"
+}

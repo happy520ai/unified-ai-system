@@ -1,0 +1,87 @@
+{
+  "phase": "phase-63a-web-chat-abort-interaction",
+  "status": "passed",
+  "generatedAt": "2026-04-25T18:34:38.335Z",
+  "browserPath": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+  "serviceUrl": "http://127.0.0.1:54312",
+  "ui": {
+    "url": "http://127.0.0.1:54312/ui",
+    "prompt": "phase63a abort streaming chat prompt",
+    "partialAnswer": "phase63a streamed partial answer",
+    "stoppedMarker": "已停止生成",
+    "stoppedHint": "已停止当前回答，可以继续发送下一条。",
+    "duringStream": {
+      "sendButtonDisabled": true,
+      "sendButtonText": "生成中",
+      "stopButtonDisabled": false,
+      "stopButtonText": "停止生成",
+      "inputValue": "",
+      "assistantText": "PME02:34正在生成回答...phase63a streamed partial answer复制回答复制引用重新发送",
+      "assistantError": false,
+      "systemText": "",
+      "messageCount": 3,
+      "fetches": [
+        "/chat/rag/stream"
+      ],
+      "fetchStatuses": [
+        {
+          "path": "/chat/rag/stream",
+          "status": 200,
+          "ok": true,
+          "simulated": true
+        }
+      ],
+      "abortSeen": false,
+      "signalSeen": true,
+      "streamCancelled": false
+    },
+    "afterStop": {
+      "sendButtonDisabled": true,
+      "sendButtonText": "发送",
+      "stopButtonDisabled": true,
+      "stopButtonText": "停止生成",
+      "inputValue": "",
+      "assistantText": "PME02:34已停止生成。phase63a streamed partial answer（已停止生成。）复制回答复制引用重新发送",
+      "assistantError": false,
+      "systemText": "已停止当前回答，可以继续发送下一条。",
+      "messageCount": 4,
+      "fetches": [
+        "/chat/rag/stream"
+      ],
+      "fetchStatuses": [
+        {
+          "path": "/chat/rag/stream",
+          "status": 200,
+          "ok": true,
+          "simulated": true
+        }
+      ],
+      "abortSeen": true,
+      "signalSeen": true,
+      "streamCancelled": false
+    },
+    "ragStreamCount": 1,
+    "fallbackCount": 0
+  },
+  "screenshot": {
+    "path": "apps/ai-gateway-service/evidence/phase-63a-web-chat-abort-interaction.png",
+    "bytes": 121029,
+    "width": 1424,
+    "height": 1105,
+    "validPng": true
+  },
+  "safety": {
+    "browserInteraction": true,
+    "simulatedStreamOnly": true,
+    "userAbortOnly": true,
+    "fallbackSkippedAfterAbort": true,
+    "fakeProviderOnly": true,
+    "defaultChatMainLaneChanged": false,
+    "backendBusinessRouteAdded": false,
+    "providerCalls": false,
+    "runtimeMutation": false,
+    "releaseAutomation": false,
+    "infrastructureProvisioning": false
+  },
+  "conclusion": "web-chat-abort-interaction-connected"
+}

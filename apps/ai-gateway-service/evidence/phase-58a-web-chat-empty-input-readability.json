@@ -1,0 +1,42 @@
+{
+  "phase": "phase-58a-web-chat-empty-input-readability",
+  "status": "passed",
+  "generatedAt": "2026-04-25T07:03:16.346Z",
+  "browserPath": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+  "serviceUrl": "http://127.0.0.1:52423",
+  "ui": {
+    "url": "http://127.0.0.1:52423/ui",
+    "submittedWhitespaceOnly": true,
+    "expectedHint": "请输入问题，或把文件拖进来后再发送。",
+    "systemText": "请输入问题，或把文件拖进来后再发送。",
+    "hintPresent": true,
+    "inputValueAfterSubmit": "",
+    "fetches": [],
+    "fetchStatuses": [],
+    "disallowedChatFetches": [],
+    "messageCount": 2,
+    "assistantCount": 1,
+    "userCount": 0,
+    "systemCount": 1
+  },
+  "screenshot": {
+    "path": "apps/ai-gateway-service/evidence/phase-58a-web-chat-empty-input-readability.png",
+    "bytes": 132734,
+    "width": 1409,
+    "height": 1140,
+    "validPng": true
+  },
+  "safety": {
+    "browserInteraction": true,
+    "emptyInputOnly": true,
+    "noChatRequestSent": true,
+    "fakeProviderOnly": true,
+    "defaultChatMainLaneChanged": false,
+    "backendBusinessRouteAdded": false,
+    "providerCalls": false,
+    "runtimeMutation": false,
+    "releaseAutomation": false,
+    "infrastructureProvisioning": false
+  },
+  "conclusion": "web-chat-empty-input-readability-connected"
+}

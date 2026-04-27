@@ -1,0 +1,23 @@
+# Phase 76G Web Chat Config Advanced Options Collapse Evidence
+
+- Phase: phase-76g-web-chat-config-advanced-options-collapse
+- Status: passed
+- Generated at: 2026-04-25T11:51:06.475Z
+- Service URL: http://127.0.0.1:64046
+- Wizard present: true
+- One-click button present: true
+- Advanced options present: true
+- Advanced options open by default: false
+- Startup options present: true
+- Startup options open by default: false
+- Visible primary actions: 一键应用并检测, 记住默认选择
+- Probe used /chat: true
+- Selected provider: local-fake-provider::local-fake-model
+- Fake provider only: true
+- Backend business route added: false
+- Default chat main lane changed: false
+- Screenshot path: apps/ai-gateway-service/evidence/phase-76g-web-chat-config-advanced-options-collapse.png
+- Screenshot bytes: 127634
+- Screenshot dimensions: 1424x1005
+- Valid PNG: true
+- Conclusion: web-chat-config-advanced-options-collapsed

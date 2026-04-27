@@ -1,0 +1,33 @@
+# Phase 68A Web Chat Markdown Rendering Evidence
+
+- Phase: phase-68a-web-chat-markdown-rendering
+- Status: passed
+- Generated at: 2026-04-25T09:05:29.780Z
+- Service URL: http://127.0.0.1:59360
+- Prompt: phase68a markdown rendering prompt
+- Paragraph count: 2
+- Bullet count: 2
+- Numbered count: 2
+- Code block count: 1
+- Code text: cmd /c pnpm status:phase10a
+cmd /c pnpm idle:phase15a
+- Safe link count: 2
+- Unsafe link count: 0
+- Unsafe text present: true
+- Raw answer preserved for copy: true
+- Screenshot path: apps/ai-gateway-service/evidence/phase-68a-web-chat-markdown-rendering.png
+- Screenshot bytes: 143703
+- Screenshot dimensions: 1409x1140
+- Valid PNG: true
+- Browser interaction: true
+- Simulated stream only: true
+- Markdown rendering only: true
+- Unsafe links rendered as text: true
+- Fake provider only: true
+- Default chat main lane changed: false
+- Backend business route added: false
+- Provider calls: false
+- Runtime mutation: false
+- Release automation: false
+- Infrastructure provisioning: false
+- Conclusion: web-chat-markdown-rendering-connected

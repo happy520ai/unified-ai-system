@@ -1,0 +1,26 @@
+# Phase 76M Web Chat Citation Insight Evidence
+
+- Phase: phase-76m-web-chat-citation-insight
+- Status: passed
+- Generated at: 2026-04-25T12:28:50.119Z
+- Service URL: http://127.0.0.1:54390
+- Prompt: phase76m citation insight prompt
+- Assistant text: phase76m answer proves citation insight cards are readable
+- Citation heading: 知识命中 / 引用 1 条
+- First summary: 资料 1 · Phase 76M Citation Source
+- Score pill: 分数 0.9321
+- Term pills: phase76m, citation, scoring
+- Meta text: sourceIdphase76m-sourcedocumentIdphase76m-docfilephase76m-citation.mdnamespaceui
+- Highlight count: 4
+- Screenshot path: apps/ai-gateway-service/evidence/phase-76m-web-chat-citation-insight.png
+- Screenshot bytes: 127314
+- Screenshot dimensions: 1424x1105
+- Valid PNG: true
+- Browser interaction: true
+- Simulated stream only: true
+- Citation insight only: true
+- Fake provider only: true
+- Default chat main lane changed: false
+- Backend business route added: false
+- Provider calls: false
+- Conclusion: web-chat-citation-insight-connected

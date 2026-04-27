@@ -1,0 +1,58 @@
+{
+  "phase": "phase-102d-agent-workforce-plan-store",
+  "status": "passed",
+  "generatedAt": "2026-04-26T13:56:04.397Z",
+  "service": {
+    "url": "http://127.0.0.1:61366",
+    "healthHttpStatus": 200,
+    "routePresence": {
+      "workforcePlans": true,
+      "workforcePlanGet": true,
+      "workforcePlanExport": true,
+      "workforcePlanSave": true,
+      "workforcePlanDelete": true
+    }
+  },
+  "validation": {
+    "healthHttpStatus": 200,
+    "agentsHttpStatus": 200,
+    "agentCount": 7,
+    "generatedPlanSuccess": true,
+    "saveStatus": "saved",
+    "savedPlanId": "wfp_5967f9fbdef3",
+    "savedRoleCount": 7,
+    "savedTaskCount": 7,
+    "listAfterSaveCount": 1,
+    "getStatus": "found",
+    "exportStatus": "export_ready",
+    "exportFormats": [
+      "json",
+      "markdown"
+    ],
+    "deleteStatus": "deleted",
+    "listAfterDeleteCount": 0,
+    "secretAbsent": true
+  },
+  "ui": {
+    "httpStatus": 200,
+    "panelPresent": true,
+    "saveButtonPresent": true,
+    "historyPresent": true,
+    "historyRefreshPresent": true
+  },
+  "adjacentCapabilities": {
+    "knowledgeHealthHttpStatus": 200,
+    "modelImportProvidersHttpStatus": 200
+  },
+  "safety": {
+    "realLlmCalls": false,
+    "codeExecution": false,
+    "projectFileWrites": false,
+    "workflowRun": false,
+    "secretValuesStored": false,
+    "defaultChatLaneMutated": false,
+    "providerRegistryMutated": false
+  },
+  "error": null,
+  "conclusion": "agent-workforce-plan-store-closed"
+}

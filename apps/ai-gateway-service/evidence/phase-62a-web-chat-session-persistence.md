@@ -1,0 +1,34 @@
+# Phase 62A Web Chat Session Persistence Evidence
+
+- Phase: phase-62a-web-chat-session-persistence
+- Status: passed
+- Generated at: 2026-04-25T08:32:02.311Z
+- Service URL: http://127.0.0.1:56412
+- Storage key: pme-moving-earth-chat-history-v1
+- Prompt: phase62a persistent chat prompt
+- Answer: phase62a persistent chat answer
+- After send storage contains prompt: true
+- After send storage contains answer: true
+- After reload body contains prompt: true
+- After reload body contains answer: true
+- After reload status: 已恢复 3 条会话记录。
+- After clear body contains prompt: false
+- After clear body contains answer: false
+- After clear storage contains prompt: false
+- After clear storage contains answer: false
+- After clear status: 已清空当前浏览器里的会话记录。
+- Screenshot path: apps/ai-gateway-service/evidence/phase-62a-web-chat-session-persistence.png
+- Screenshot bytes: 133544
+- Screenshot dimensions: 1409x1140
+- Valid PNG: true
+- Browser interaction: true
+- Local storage only: true
+- Simulated chat only: true
+- Fake provider only: true
+- Default chat main lane changed: false
+- Backend business route added: false
+- Provider calls: false
+- Runtime mutation: false
+- Release automation: false
+- Infrastructure provisioning: false
+- Conclusion: web-chat-session-persistence-connected

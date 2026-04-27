@@ -1,0 +1,24 @@
+# Phase 81A First-Run Browser Open Evidence
+
+- Phase: phase-81a-first-run-browser-open
+- Status: passed
+- Generated at: 2026-04-26T07:53:55.647Z
+- First-run path: tools/phase79a/first-run.mjs
+- Auto-open after managed start: true
+- Opt-out env: PME_SKIP_BROWSER_OPEN=1, PME_AUTO_OPEN_BROWSER=0
+- Windows command present: true
+- macOS command present: true
+- Linux command present: true
+- Missing text: none
+- Root start script: node ./tools/phase79a/first-run.mjs start
+- Root verify script: pnpm --filter @unified-ai-system/ai-gateway-service verify:phase81a
+- Service verify script: node ./src/entrypoints/verifyFirstRunBrowserOpen.js
+- Missing scripts: none
+- Verify does not open browser: true
+- Read-only verify: true
+- Browser opened during verify: false
+- Service started during verify: false
+- Provider calls: false
+- Runtime mutation: false
+- Release automation: false
+- Conclusion: first-run-browser-open-connected

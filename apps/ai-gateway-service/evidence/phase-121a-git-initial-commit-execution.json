@@ -1,0 +1,81 @@
+{
+  "phase": "phase-121a-git-initial-commit-execution",
+  "status": "passed",
+  "generatedAt": "2026-04-27T10:51:39.145Z",
+  "checks": {
+    "rootScriptPresent": true,
+    "serviceScriptPresent": true,
+    "phase120Closed": true,
+    "gitTopLevelIsProject": true,
+    "initialCommitPresent": true,
+    "initialCommitMessageRecorded": true,
+    "noStagedFiles": true,
+    "strayRootArtifactRemoved": true,
+    "legacyIgnored": true,
+    "legacyNotTracked": true,
+    "envFilesIgnored": true,
+    "envTemplatesTracked": true,
+    "evidenceTracked": true,
+    "remoteStatusRecorded": true,
+    "ghStatusRecorded": true,
+    "readmePhasePresent": true,
+    "agentsBoundaryPresent": true,
+    "userManualPresent": true,
+    "noPlainSecrets": true,
+    "projectContextNotCreated": true
+  },
+  "git": {
+    "repoRoot": "E:\\AI-Data\\AI网关系统\\unified-ai-system",
+    "gitTopLevel": "E:/AI-Data/AI网关系统/unified-ai-system",
+    "headSubject": "Phase121A initial local commit",
+    "statusLineCount": 8,
+    "statusPreview": [
+      "M apps/ai-gateway-service/evidence/phase-114a-user-manual-release-pack.json",
+      "M apps/ai-gateway-service/evidence/phase-114a-user-manual-release-pack.md",
+      "M apps/ai-gateway-service/evidence/phase-118a-remote-cicd-gate-preflight.json",
+      "M apps/ai-gateway-service/evidence/phase-118a-remote-cicd-gate-preflight.md",
+      "M apps/ai-gateway-service/evidence/phase-119a-git-repo-readiness.json",
+      "M apps/ai-gateway-service/evidence/phase-119a-git-repo-readiness.md",
+      "M apps/ai-gateway-service/evidence/phase-120a-git-initial-commit-preflight.json",
+      "M apps/ai-gateway-service/evidence/phase-120a-git-initial-commit-preflight.md"
+    ],
+    "stagedFileCount": 0,
+    "trackedFileCount": 536,
+    "trackedLegacyFileCount": 0,
+    "evidenceFileCount": 302,
+    "remoteConfigured": false,
+    "remoteCount": 0,
+    "blockers": [
+      "git remote is not configured",
+      "GitHub CLI is not installed or not in PATH"
+    ]
+  },
+  "github": {
+    "ghAvailable": false,
+    "ghAuthenticated": false,
+    "ghVersionTail": [],
+    "ghAuthTail": [
+      "gh CLI is not available"
+    ]
+  },
+  "cleanup": {
+    "strayRootArtifactRemoved": true,
+    "legacyIgnored": true,
+    "legacyNotTracked": true,
+    "envEnterpriseTemplateTracked": true
+  },
+  "safety": {
+    "stagedFiles": false,
+    "createdCommit": true,
+    "configuredRemote": false,
+    "pushedToRemote": false,
+    "openedPullRequest": false,
+    "triggeredRemoteWorkflow": false,
+    "remoteActionsPassed": false,
+    "publishedRelease": false,
+    "plaintextApiKeyRecorded": false,
+    "globalReleaseComplete": false
+  },
+  "secretFindingCount": 0,
+  "conclusion": "git-initial-commit-execution-closed"
+}

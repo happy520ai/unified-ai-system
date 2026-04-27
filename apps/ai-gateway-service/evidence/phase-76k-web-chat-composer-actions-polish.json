@@ -1,0 +1,96 @@
+{
+  "phase": "phase-76k-web-chat-composer-actions-polish",
+  "status": "passed",
+  "generatedAt": "2026-04-25T12:29:29.067Z",
+  "browserPath": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+  "serviceUrl": "http://127.0.0.1:54888",
+  "ui": {
+    "url": "http://127.0.0.1:54888/ui",
+    "initialState": {
+      "morePresent": true,
+      "moreOpen": false,
+      "clearInsideMore": true,
+      "clearVisible": false,
+      "uploadVisible": true,
+      "uploadText": "上传",
+      "stopVisible": false,
+      "stopDisabled": true,
+      "sendVisible": true,
+      "sendDisabled": true,
+      "sendText": "发送",
+      "formSending": false,
+      "composerClasses": "composer",
+      "fetches": []
+    },
+    "moreOpenState": {
+      "morePresent": true,
+      "moreOpen": true,
+      "clearInsideMore": true,
+      "clearVisible": true,
+      "uploadVisible": true,
+      "uploadText": "上传",
+      "stopVisible": false,
+      "stopDisabled": true,
+      "sendVisible": true,
+      "sendDisabled": true,
+      "sendText": "发送",
+      "formSending": false,
+      "composerClasses": "composer",
+      "fetches": []
+    },
+    "sendingState": {
+      "morePresent": true,
+      "moreOpen": true,
+      "clearInsideMore": true,
+      "clearVisible": true,
+      "uploadVisible": true,
+      "uploadText": "上传",
+      "stopVisible": true,
+      "stopDisabled": false,
+      "sendVisible": true,
+      "sendDisabled": true,
+      "sendText": "生成中",
+      "formSending": true,
+      "composerClasses": "composer has-text is-sending",
+      "fetches": [
+        "/chat/rag/stream"
+      ]
+    },
+    "stoppedState": {
+      "morePresent": true,
+      "moreOpen": true,
+      "clearInsideMore": true,
+      "clearVisible": true,
+      "uploadVisible": true,
+      "uploadText": "上传",
+      "stopVisible": false,
+      "stopDisabled": true,
+      "sendVisible": true,
+      "sendDisabled": true,
+      "sendText": "发送",
+      "formSending": false,
+      "composerClasses": "composer",
+      "fetches": [
+        "/chat/rag/stream"
+      ]
+    }
+  },
+  "screenshot": {
+    "path": "apps/ai-gateway-service/evidence/phase-76k-web-chat-composer-actions-polish.png",
+    "bytes": 124114,
+    "width": 1424,
+    "height": 1005,
+    "validPng": true
+  },
+  "safety": {
+    "browserInteraction": true,
+    "simulatedStreamOnly": true,
+    "lowFrequencyClearActionCollapsed": true,
+    "stopOnlyVisibleWhileSending": true,
+    "fakeProviderOnly": true,
+    "backendBusinessRouteAdded": false,
+    "defaultChatMainLaneChanged": false,
+    "providerCalls": false
+  },
+  "conclusion": "web-chat-composer-actions-polished"
+}

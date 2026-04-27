@@ -1,0 +1,52 @@
+{
+  "phase": "phase-118a-remote-cicd-gate-preflight",
+  "status": "passed",
+  "generatedAt": "2026-04-27T10:51:03.662Z",
+  "checks": {
+    "rootScriptPresent": true,
+    "serviceScriptPresent": true,
+    "workflowPresent": true,
+    "phase117GateClosed": true,
+    "localWorkflowReady": true,
+    "remoteExecutionNotClaimed": true,
+    "blockersRecorded": true,
+    "readmePhasePresent": true,
+    "agentsBoundaryPresent": true,
+    "noPlainSecrets": true,
+    "projectContextNotCreated": true
+  },
+  "remoteGate": {
+    "workflowPath": ".github/workflows/release-gate.yml",
+    "remoteExecutionAttempted": false,
+    "remoteRunPassed": false,
+    "blockers": [
+      "no git remote is configured",
+      "GitHub CLI is not installed or not in PATH"
+    ],
+    "gitTopLevel": "E:/AI-Data/AI网关系统/unified-ai-system",
+    "expectedProjectRoot": "E:\\AI-Data\\AI网关系统\\unified-ai-system",
+    "currentBranch": "master",
+    "remoteCount": 0,
+    "initialCommitPresent": true,
+    "projectStatusLine": "",
+    "ghAvailable": false,
+    "ghAuthenticated": false,
+    "ghVersionTail": [],
+    "ghAuthTail": [
+      "gh CLI is not available"
+    ]
+  },
+  "safety": {
+    "pushedToRemote": false,
+    "openedPullRequest": false,
+    "triggeredRemoteWorkflow": false,
+    "remoteActionsPassed": false,
+    "deploysInfrastructure": false,
+    "publishesRelease": false,
+    "pushesImage": false,
+    "plaintextApiKeyRecorded": false,
+    "globalReleaseComplete": false
+  },
+  "secretFindingCount": 0,
+  "conclusion": "remote-cicd-gate-preflight-blocked-recorded"
+}

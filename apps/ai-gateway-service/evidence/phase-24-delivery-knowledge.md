@@ -1,0 +1,34 @@
+# Phase 24 Delivery Knowledge Evidence
+
+- Phase: phase-24-delivery-knowledge
+- Status: passed
+- Generated at: 2026-04-24T18:23:54.258Z
+- Delivery guide present: true
+- Delivery guide path: docs/DELIVERY_GUIDE.md
+- Sample path: apps/ai-gateway-service/knowledge-samples/real-usage-sample.md
+- Sample documents: 3
+- Source ID: phase-24-real-usage-source
+- Loaded documents: phase-24-delivery-operations, phase-24-knowledge-default-mode, phase-24-vector-production-mode
+- Load HTTP status: 200
+- Loaded count: 3
+- Source present: true
+- Source document count: 3
+- Retrieve HTTP status: 200
+- Query: phase24 delivery operations help status health logs idle command
+- Retrieve mode: keyword
+- Normalized query: phase24 delivery operations help status health logs idle command
+- Ranking: weighted-keyword-v2
+- Local keyword ready: true
+- Top hit document: phase-24-delivery-operations
+- Top chunk document: phase-24-delivery-operations
+- Top document: phase-24-delivery-operations
+- Top hit score: 0.5378
+- Snippet present: true
+- Highlight count: 8
+- Matched terms: delivery, operations, help, status, health, logs, idle, command
+- Vector active: false
+- Vector ready: not-active
+- Vector infra status: disabled
+- Vector probe top document: n/a
+- Vector write/read/retrieve completed: n/a
+- Conclusion: delivery-guide-and-real-usage-knowledge-connected

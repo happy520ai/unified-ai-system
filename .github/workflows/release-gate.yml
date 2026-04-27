@@ -1,0 +1,54 @@
+name: Phase117A Release Gate
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  release-gate:
+    name: Local release readiness gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@9.15.4 --activate
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Workspace check
+        run: pnpm -r --if-present check
+
+      - name: Secret safety
+        run: pnpm verify:phase107a-secret-safety
+
+      - name: User journey
+        run: pnpm verify:phase105a-user-journey
+
+      - name: Setup readiness
+        run: pnpm verify:phase104a-first-run-setup
+
+      - name: Docker runtime
+        run: pnpm verify:phase115a-docker-runtime-recheck
+
+      - name: Docker Compose runtime
+        run: pnpm verify:phase116a-docker-compose-runtime
+

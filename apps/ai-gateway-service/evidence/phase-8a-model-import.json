@@ -1,0 +1,1053 @@
+{
+  "phase": "phase-8a-model-import",
+  "status": "passed",
+  "generatedAt": "2026-04-26T12:12:53.814Z",
+  "serviceUrl": "http://127.0.0.1:54894",
+  "results": {
+    "nvidia": {
+      "success": true,
+      "status": "models_discovered",
+      "providerId": "nvidia",
+      "providerCandidates": [
+        "nvidia"
+      ],
+      "maskedKey": "nvapi-ph****sist",
+      "modelIds": [
+        "nvidia-live-model-from-api"
+      ],
+      "source": "provider_models_api"
+    },
+    "openai": {
+      "success": true,
+      "status": "models_discovered",
+      "providerId": "openai",
+      "providerCandidates": [
+        "openai",
+        "dashscope",
+        "deepseek",
+        "together",
+        "mistral",
+        "moonshot",
+        "siliconflow",
+        "tencent-hunyuan",
+        "zhipu",
+        "xunfei-spark",
+        "qianfan",
+        "modelscope",
+        "cohere",
+        "volcengine-doubao",
+        "minimax",
+        "stepfun",
+        "novita",
+        "baichuan",
+        "yi",
+        "infini-ai",
+        "openai-compatible"
+      ],
+      "maskedKey": "sk-opena****sist",
+      "modelIds": [
+        "openai-live-model-from-api"
+      ],
+      "source": "provider_models_api"
+    },
+    "dashscope": {
+      "success": true,
+      "status": "models_discovered",
+      "providerId": "dashscope",
+      "providerCandidates": [
+        "openai",
+        "dashscope",
+        "deepseek",
+        "together",
+        "mistral",
+        "moonshot",
+        "siliconflow",
+        "tencent-hunyuan",
+        "zhipu",
+        "xunfei-spark",
+        "qianfan",
+        "modelscope",
+        "cohere",
+        "volcengine-doubao",
+        "minimax",
+        "stepfun",
+        "novita",
+        "baichuan",
+        "yi",
+        "infini-ai",
+        "openai-compatible"
+      ],
+      "maskedKey": "sk-dashs****sist",
+      "modelIds": [
+        "qwen-plus-from-api"
+      ],
+      "source": "provider_models_api"
+    },
+    "gemini": {
+      "success": true,
+      "status": "models_discovered",
+      "providerId": "gemini",
+      "providerCandidates": [
+        "gemini"
+      ],
+      "maskedKey": "AIzaPhas****sist",
+      "modelIds": [
+        "gemini-live-model-from-api"
+      ],
+      "source": "provider_models_api"
+    },
+    "multi": {
+      "success": false,
+      "status": "needs_user_selection",
+      "providerCandidates": [
+        "openai",
+        "dashscope"
+      ],
+      "maskedKey": "sk-multi****sist",
+      "modelIds": [],
+      "source": "provider_models_api"
+    },
+    "compatible": {
+      "success": true,
+      "status": "models_discovered",
+      "providerId": "openai-compatible",
+      "providerCandidates": [
+        "openai-compatible"
+      ],
+      "maskedKey": "sk-compa****sist",
+      "modelIds": [
+        "compatible-live-model-from-api"
+      ],
+      "source": "provider_models_api"
+    },
+    "unknownProviderNvidiaHint": {
+      "success": true,
+      "status": "models_discovered",
+      "providerId": "nvidia",
+      "providerCandidates": [
+        "nvidia"
+      ],
+      "maskedKey": "unknown-****sist",
+      "modelIds": [
+        "nvidia-live-model-from-api"
+      ],
+      "source": "provider_models_api"
+    },
+    "noChatModels": {
+      "success": false,
+      "status": "provider_detected_but_no_chat_models",
+      "providerId": "gemini",
+      "providerCandidates": [
+        "gemini"
+      ],
+      "maskedKey": "AIzaPhas****sist",
+      "modelIds": [
+        "gemini-embedding-only-from-api"
+      ],
+      "source": "provider_models_api"
+    },
+    "invalid": {
+      "success": false,
+      "status": "invalid_api_key",
+      "providerCandidates": [
+        "nvidia"
+      ],
+      "maskedKey": "nvapi-in****sist",
+      "modelIds": [],
+      "source": "provider_models_api"
+    },
+    "unknown": {
+      "success": false,
+      "status": "needs_provider_selection",
+      "providerCandidates": [],
+      "maskedKey": "unknown-****-key",
+      "modelIds": [],
+      "source": "provider_models_api"
+    },
+    "globalProviders": {
+      "openrouter": {
+        "success": true,
+        "status": "models_discovered",
+        "providerId": "openrouter",
+        "providerCandidates": [
+          "openrouter"
+        ],
+        "maskedKey": "sk-or-v1****sist",
+        "modelIds": [
+          "openrouter-live-model-from-api"
+        ],
+        "source": "provider_models_api"
+      },
+      "deepseek": {
+        "success": true,
+        "status": "models_discovered",
+        "providerId": "deepseek",
+        "providerCandidates": [
+          "deepseek"
+        ],
+        "maskedKey": "sk-deeps****sist",
+        "modelIds": [
+          "deepseek-live-model-from-api"
+        ],
+        "source": "provider_models_api"
+      },
+      "groq": {
+        "success": true,
+        "status": "models_discovered",
+        "providerId": "groq",
+        "providerCandidates": [
+          "groq"
+        ],
+        "maskedKey": "gsk_groq****sist",
+        "modelIds": [
+          "groq-live-model-from-api"
+        ],
+        "source": "provider_models_api"
+      },
+      "together": {
+        "success": true,
+        "status": "models_discovered",
+        "providerId": "together",
+        "providerCandidates": [
+          "together"
+        ],
+        "maskedKey": "sk-toget****sist",
+        "modelIds": [
+          "together-live-model-from-api"
+        ],
+        "source": "provider_models_api"
+      },
+      "mistral": {
+        "success": true,
+        "status": "models_discovered",
+        "providerId": "mistral",
+        "providerCandidates": [
+          "mistral"
+        ],
+        "maskedKey": "sk-mistr****sist",
+        "modelIds": [
+          "mistral-live-model-from-api"
+        ],
+        "source": "provider_models_api"
+      },
+      "xai": {
+        "success": true,
+        "status": "models_discovered",
+        "providerId": "xai",
+        "providerCandidates": [
+          "xai"
+        ],
+        "maskedKey": "xai-phas****sist",
+        "modelIds": [
+          "xai-live-model-from-api"
+        ],
+        "source": "provider_models_api"
+      },
+      "moonshot": {
+        "success": true,
+        "status": "models_discovered",
+        "providerId": "moonshot",
+        "providerCandidates": [
+          "moonshot"
+        ],
+        "maskedKey": "sk-moons****sist",
+        "modelIds": [
+          "moonshot-live-model-from-api"
+        ],
+        "source": "provider_models_api"
+      },
+      "siliconflow": {
+        "success": true,
+        "status": "models_discovered",
+        "providerId": "siliconflow",
+        "providerCandidates": [
+          "siliconflow"
+        ],
+        "maskedKey": "sk-silic****sist",
+        "modelIds": [
+          "siliconflow-live-model-from-api"
+        ],
+        "source": "provider_models_api"
+      },
+      "tencent-hunyuan": {
+        "success": true,
+        "status": "models_discovered",
+        "providerId": "tencent-hunyuan",
+        "providerCandidates": [
+          "tencent-hunyuan"
+        ],
+        "maskedKey": "sk-tence****sist",
+        "modelIds": [
+          "tencent-hunyuan-live-model-from-api"
+        ],
+        "source": "provider_models_api"
+      },
+      "qianfan": {
+        "success": true,
+        "status": "models_discovered",
+        "providerId": "qianfan",
+        "providerCandidates": [
+          "qianfan"
+        ],
+        "maskedKey": "bce-v3/p****sist",
+        "modelIds": [
+          "qianfan-live-model-from-api"
+        ],
+        "source": "provider_models_api"
+      },
+      "zhipu": {
+        "success": true,
+        "status": "models_discovered",
+        "providerId": "zhipu",
+        "providerCandidates": [
+          "zhipu"
+        ],
+        "maskedKey": "sk-zhipu****sist",
+        "modelIds": [
+          "zhipu-live-model-from-api"
+        ],
+        "source": "provider_models_api"
+      },
+      "xunfei-spark": {
+        "success": true,
+        "status": "models_discovered",
+        "providerId": "xunfei-spark",
+        "providerCandidates": [
+          "xunfei-spark"
+        ],
+        "maskedKey": "sk-xunfe****sist",
+        "modelIds": [
+          "xunfei-spark-live-model-from-api"
+        ],
+        "source": "provider_models_api"
+      },
+      "modelscope": {
+        "success": true,
+        "status": "models_discovered",
+        "providerId": "modelscope",
+        "providerCandidates": [
+          "modelscope"
+        ],
+        "maskedKey": "ms-model****sist",
+        "modelIds": [
+          "modelscope-live-model-from-api"
+        ],
+        "source": "provider_models_api"
+      },
+      "perplexity": {
+        "success": true,
+        "status": "models_discovered",
+        "providerId": "perplexity",
+        "providerCandidates": [
+          "perplexity"
+        ],
+        "maskedKey": "pplx-pha****sist",
+        "modelIds": [
+          "perplexity-live-model-from-api"
+        ],
+        "source": "provider_models_api"
+      },
+      "fireworks": {
+        "success": true,
+        "status": "models_discovered",
+        "providerId": "fireworks",
+        "providerCandidates": [
+          "fireworks"
+        ],
+        "maskedKey": "fw_phase****sist",
+        "modelIds": [
+          "fireworks-live-model-from-api"
+        ],
+        "source": "provider_models_api"
+      },
+      "cerebras": {
+        "success": true,
+        "status": "models_discovered",
+        "providerId": "cerebras",
+        "providerCandidates": [
+          "cerebras"
+        ],
+        "maskedKey": "csk-phas****sist",
+        "modelIds": [
+          "cerebras-live-model-from-api"
+        ],
+        "source": "provider_models_api"
+      },
+      "cohere": {
+        "success": true,
+        "status": "models_discovered",
+        "providerId": "cohere",
+        "providerCandidates": [
+          "cohere"
+        ],
+        "maskedKey": "sk-coher****sist",
+        "modelIds": [
+          "cohere-live-model-from-api"
+        ],
+        "source": "provider_models_api"
+      },
+      "volcengine-doubao": {
+        "success": true,
+        "status": "models_discovered",
+        "providerId": "volcengine-doubao",
+        "providerCandidates": [
+          "volcengine-doubao"
+        ],
+        "maskedKey": "sk-douba****sist",
+        "modelIds": [
+          "doubao-live-model-from-api"
+        ],
+        "source": "provider_models_api"
+      },
+      "minimax": {
+        "success": true,
+        "status": "models_discovered",
+        "providerId": "minimax",
+        "providerCandidates": [
+          "minimax"
+        ],
+        "maskedKey": "sk-minim****sist",
+        "modelIds": [
+          "minimax-live-model-from-api"
+        ],
+        "source": "provider_models_api"
+      },
+      "stepfun": {
+        "success": true,
+        "status": "models_discovered",
+        "providerId": "stepfun",
+        "providerCandidates": [
+          "stepfun"
+        ],
+        "maskedKey": "sk-stepf****sist",
+        "modelIds": [
+          "stepfun-live-model-from-api"
+        ],
+        "source": "provider_models_api"
+      },
+      "novita": {
+        "success": true,
+        "status": "models_discovered",
+        "providerId": "novita",
+        "providerCandidates": [
+          "novita"
+        ],
+        "maskedKey": "sk-novit****sist",
+        "modelIds": [
+          "novita-live-model-from-api"
+        ],
+        "source": "provider_models_api"
+      },
+      "baichuan": {
+        "success": true,
+        "status": "models_discovered",
+        "providerId": "baichuan",
+        "providerCandidates": [
+          "baichuan"
+        ],
+        "maskedKey": "sk-baich****sist",
+        "modelIds": [
+          "baichuan-live-model-from-api"
+        ],
+        "source": "provider_models_api"
+      },
+      "yi": {
+        "success": true,
+        "status": "models_discovered",
+        "providerId": "yi",
+        "providerCandidates": [
+          "yi"
+        ],
+        "maskedKey": "sk-yi-ph****sist",
+        "modelIds": [
+          "yi-live-model-from-api"
+        ],
+        "source": "provider_models_api"
+      },
+      "infini-ai": {
+        "success": true,
+        "status": "models_discovered",
+        "providerId": "infini-ai",
+        "providerCandidates": [
+          "infini-ai"
+        ],
+        "maskedKey": "sk-infin****sist",
+        "modelIds": [
+          "infini-ai-live-model-from-api"
+        ],
+        "source": "provider_models_api"
+      },
+      "huggingface": {
+        "success": true,
+        "status": "models_discovered",
+        "providerId": "huggingface",
+        "providerCandidates": [
+          "huggingface"
+        ],
+        "maskedKey": "hf_huggi****sist",
+        "modelIds": [
+          "huggingface-live-model-from-api"
+        ],
+        "source": "provider_models_api"
+      }
+    },
+    "providerCatalog": {
+      "status": 200,
+      "count": 31,
+      "providerIds": [
+        "nvidia",
+        "openai",
+        "openrouter",
+        "dashscope",
+        "deepseek",
+        "groq",
+        "together",
+        "mistral",
+        "xai",
+        "perplexity",
+        "fireworks",
+        "cerebras",
+        "moonshot",
+        "siliconflow",
+        "tencent-hunyuan",
+        "qianfan",
+        "zhipu",
+        "xunfei-spark",
+        "modelscope",
+        "cohere",
+        "volcengine-doubao",
+        "minimax",
+        "stepfun",
+        "novita",
+        "baichuan",
+        "yi",
+        "infini-ai",
+        "huggingface",
+        "anthropic",
+        "openai-compatible",
+        "gemini"
+      ]
+    },
+    "confirm": {
+      "success": true,
+      "status": "model_imported",
+      "providerId": "nvidia",
+      "runtimeProviderId": "nvidia",
+      "modelId": "nvidia-live-model-from-api",
+      "secretStorage": "memory-only",
+      "persisted": false,
+      "runtimeChatUsable": true,
+      "defaultChatMainLaneChanged": false
+    },
+    "localUserPersistence": {
+      "preview": {
+        "success": true,
+        "status": "models_discovered",
+        "providerId": "nvidia",
+        "providerCandidates": [
+          "nvidia"
+        ],
+        "maskedKey": "nvapi-ph****oken",
+        "modelIds": [
+          "nvidia-live-model-from-api"
+        ],
+        "source": "provider_models_api"
+      },
+      "confirm": {
+        "success": true,
+        "status": "model_imported",
+        "providerId": "nvidia",
+        "runtimeProviderId": "nvidia",
+        "modelId": "nvidia-live-model-from-api",
+        "secretStorage": "local-user-file",
+        "persisted": true,
+        "runtimeChatUsable": true,
+        "defaultChatMainLaneChanged": false
+      },
+      "restored": {
+        "credentialPresent": true,
+        "credentialPersisted": true,
+        "secretStorage": "local-user-file",
+        "runtimeCredentialPresent": true,
+        "runtimeModelRestored": true
+      }
+    }
+  },
+  "probeLog": [
+    {
+      "providerId": "nvidia",
+      "result": "models",
+      "authShape": "present"
+    },
+    {
+      "providerId": "openai",
+      "result": "models",
+      "authShape": "present"
+    },
+    {
+      "providerId": "dashscope",
+      "result": "invalid",
+      "authShape": "present"
+    },
+    {
+      "providerId": "deepseek",
+      "result": "invalid",
+      "authShape": "present"
+    },
+    {
+      "providerId": "together",
+      "result": "invalid",
+      "authShape": "present"
+    },
+    {
+      "providerId": "mistral",
+      "result": "invalid",
+      "authShape": "present"
+    },
+    {
+      "providerId": "moonshot",
+      "result": "invalid",
+      "authShape": "present"
+    },
+    {
+      "providerId": "siliconflow",
+      "result": "invalid",
+      "authShape": "present"
+    },
+    {
+      "providerId": "tencent-hunyuan",
+      "result": "invalid",
+      "authShape": "present"
+    },
+    {
+      "providerId": "zhipu",
+      "result": "invalid",
+      "authShape": "present"
+    },
+    {
+      "providerId": "xunfei-spark",
+      "result": "invalid",
+      "authShape": "present"
+    },
+    {
+      "providerId": "qianfan",
+      "result": "invalid",
+      "authShape": "present"
+    },
+    {
+      "providerId": "modelscope",
+      "result": "invalid",
+      "authShape": "present"
+    },
+    {
+      "providerId": "cohere",
+      "result": "invalid",
+      "authShape": "present"
+    },
+    {
+      "providerId": "volcengine-doubao",
+      "result": "invalid",
+      "authShape": "present"
+    },
+    {
+      "providerId": "minimax",
+      "result": "invalid",
+      "authShape": "present"
+    },
+    {
+      "providerId": "stepfun",
+      "result": "invalid",
+      "authShape": "present"
+    },
+    {
+      "providerId": "novita",
+      "result": "invalid",
+      "authShape": "present"
+    },
+    {
+      "providerId": "baichuan",
+      "result": "invalid",
+      "authShape": "present"
+    },
+    {
+      "providerId": "yi",
+      "result": "invalid",
+      "authShape": "present"
+    },
+    {
+      "providerId": "infini-ai",
+      "result": "invalid",
+      "authShape": "present"
+    },
+    {
+      "providerId": "openai",
+      "result": "invalid",
+      "authShape": "present"
+    },
+    {
+      "providerId": "dashscope",
+      "result": "models",
+      "authShape": "present"
+    },
+    {
+      "providerId": "deepseek",
+      "result": "invalid",
+      "authShape": "present"
+    },
+    {
+      "providerId": "together",
+      "result": "invalid",
+      "authShape": "present"
+    },
+    {
+      "providerId": "mistral",
+      "result": "invalid",
+      "authShape": "present"
+    },
+    {
+      "providerId": "moonshot",
+      "result": "invalid",
+      "authShape": "present"
+    },
+    {
+      "providerId": "siliconflow",
+      "result": "invalid",
+      "authShape": "present"
+    },
+    {
+      "providerId": "tencent-hunyuan",
+      "result": "invalid",
+      "authShape": "present"
+    },
+    {
+      "providerId": "zhipu",
+      "result": "invalid",
+      "authShape": "present"
+    },
+    {
+      "providerId": "xunfei-spark",
+      "result": "invalid",
+      "authShape": "present"
+    },
+    {
+      "providerId": "qianfan",
+      "result": "invalid",
+      "authShape": "present"
+    },
+    {
+      "providerId": "modelscope",
+      "result": "invalid",
+      "authShape": "present"
+    },
+    {
+      "providerId": "cohere",
+      "result": "invalid",
+      "authShape": "present"
+    },
+    {
+      "providerId": "volcengine-doubao",
+      "result": "invalid",
+      "authShape": "present"
+    },
+    {
+      "providerId": "minimax",
+      "result": "invalid",
+      "authShape": "present"
+    },
+    {
+      "providerId": "stepfun",
+      "result": "invalid",
+      "authShape": "present"
+    },
+    {
+      "providerId": "novita",
+      "result": "invalid",
+      "authShape": "present"
+    },
+    {
+      "providerId": "baichuan",
+      "result": "invalid",
+      "authShape": "present"
+    },
+    {
+      "providerId": "yi",
+      "result": "invalid",
+      "authShape": "present"
+    },
+    {
+      "providerId": "infini-ai",
+      "result": "invalid",
+      "authShape": "present"
+    },
+    {
+      "providerId": "gemini",
+      "result": "models",
+      "authShape": "present"
+    },
+    {
+      "providerId": "openai",
+      "result": "models",
+      "authShape": "present"
+    },
+    {
+      "providerId": "dashscope",
+      "result": "models",
+      "authShape": "present"
+    },
+    {
+      "providerId": "deepseek",
+      "result": "invalid",
+      "authShape": "present"
+    },
+    {
+      "providerId": "together",
+      "result": "invalid",
+      "authShape": "present"
+    },
+    {
+      "providerId": "mistral",
+      "result": "invalid",
+      "authShape": "present"
+    },
+    {
+      "providerId": "moonshot",
+      "result": "invalid",
+      "authShape": "present"
+    },
+    {
+      "providerId": "siliconflow",
+      "result": "invalid",
+      "authShape": "present"
+    },
+    {
+      "providerId": "tencent-hunyuan",
+      "result": "invalid",
+      "authShape": "present"
+    },
+    {
+      "providerId": "zhipu",
+      "result": "invalid",
+      "authShape": "present"
+    },
+    {
+      "providerId": "xunfei-spark",
+      "result": "invalid",
+      "authShape": "present"
+    },
+    {
+      "providerId": "qianfan",
+      "result": "invalid",
+      "authShape": "present"
+    },
+    {
+      "providerId": "modelscope",
+      "result": "invalid",
+      "authShape": "present"
+    },
+    {
+      "providerId": "cohere",
+      "result": "invalid",
+      "authShape": "present"
+    },
+    {
+      "providerId": "volcengine-doubao",
+      "result": "invalid",
+      "authShape": "present"
+    },
+    {
+      "providerId": "minimax",
+      "result": "invalid",
+      "authShape": "present"
+    },
+    {
+      "providerId": "stepfun",
+      "result": "invalid",
+      "authShape": "present"
+    },
+    {
+      "providerId": "novita",
+      "result": "invalid",
+      "authShape": "present"
+    },
+    {
+      "providerId": "baichuan",
+      "result": "invalid",
+      "authShape": "present"
+    },
+    {
+      "providerId": "yi",
+      "result": "invalid",
+      "authShape": "present"
+    },
+    {
+      "providerId": "infini-ai",
+      "result": "invalid",
+      "authShape": "present"
+    },
+    {
+      "providerId": "openai-compatible",
+      "result": "models",
+      "authShape": "present"
+    },
+    {
+      "providerId": "nvidia",
+      "result": "models",
+      "authShape": "present"
+    },
+    {
+      "providerId": "gemini",
+      "result": "models",
+      "authShape": "present"
+    },
+    {
+      "providerId": "nvidia",
+      "result": "invalid",
+      "authShape": "present"
+    },
+    {
+      "providerId": "openrouter",
+      "result": "models",
+      "authShape": "present"
+    },
+    {
+      "providerId": "deepseek",
+      "result": "models",
+      "authShape": "present"
+    },
+    {
+      "providerId": "groq",
+      "result": "models",
+      "authShape": "present"
+    },
+    {
+      "providerId": "together",
+      "result": "models",
+      "authShape": "present"
+    },
+    {
+      "providerId": "mistral",
+      "result": "models",
+      "authShape": "present"
+    },
+    {
+      "providerId": "xai",
+      "result": "models",
+      "authShape": "present"
+    },
+    {
+      "providerId": "moonshot",
+      "result": "models",
+      "authShape": "present"
+    },
+    {
+      "providerId": "siliconflow",
+      "result": "models",
+      "authShape": "present"
+    },
+    {
+      "providerId": "tencent-hunyuan",
+      "result": "models",
+      "authShape": "present"
+    },
+    {
+      "providerId": "qianfan",
+      "result": "models",
+      "authShape": "present"
+    },
+    {
+      "providerId": "zhipu",
+      "result": "models",
+      "authShape": "present"
+    },
+    {
+      "providerId": "xunfei-spark",
+      "result": "models",
+      "authShape": "present"
+    },
+    {
+      "providerId": "modelscope",
+      "result": "models",
+      "authShape": "present"
+    },
+    {
+      "providerId": "perplexity",
+      "result": "models",
+      "authShape": "present"
+    },
+    {
+      "providerId": "fireworks",
+      "result": "models",
+      "authShape": "present"
+    },
+    {
+      "providerId": "cerebras",
+      "result": "models",
+      "authShape": "present"
+    },
+    {
+      "providerId": "cohere",
+      "result": "models",
+      "authShape": "present"
+    },
+    {
+      "providerId": "volcengine-doubao",
+      "result": "models",
+      "authShape": "present"
+    },
+    {
+      "providerId": "minimax",
+      "result": "models",
+      "authShape": "present"
+    },
+    {
+      "providerId": "stepfun",
+      "result": "models",
+      "authShape": "present"
+    },
+    {
+      "providerId": "novita",
+      "result": "models",
+      "authShape": "present"
+    },
+    {
+      "providerId": "baichuan",
+      "result": "models",
+      "authShape": "present"
+    },
+    {
+      "providerId": "yi",
+      "result": "models",
+      "authShape": "present"
+    },
+    {
+      "providerId": "infini-ai",
+      "result": "models",
+      "authShape": "present"
+    },
+    {
+      "providerId": "huggingface",
+      "result": "models",
+      "authShape": "present"
+    },
+    {
+      "providerId": "nvidia",
+      "result": "models",
+      "authShape": "present"
+    }
+  ],
+  "safety": {
+    "apiKeyValueRecorded": false,
+    "evidenceContainsPlaintextKey": false,
+    "modelsComeFromProviderModelsApi": true,
+    "ambiguousMultiProviderRequiresUserSelection": true,
+    "unknownKeyRequiresProviderSelection": true,
+    "unknownKeyWithProviderHintProbed": true,
+    "baseUrlUsesOpenAiCompatibleProbe": true,
+    "globalProviderHintProbeCoverage": true,
+    "providerCatalogExposed": true,
+    "noChatModelsSeparated": true,
+    "localUserModelPersistsAcrossRestart": true,
+    "defaultChatMainLaneChanged": false
+  },
+  "conclusion": "model-import-provider-models-api-flow-connected"
+}

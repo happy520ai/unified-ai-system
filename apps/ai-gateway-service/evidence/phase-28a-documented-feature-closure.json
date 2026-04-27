@@ -1,0 +1,58 @@
+{
+  "phase": "phase-28a-documented-feature-closure",
+  "status": "passed",
+  "generatedAt": "2026-04-24T17:48:28.029Z",
+  "docs": {
+    "featureSetMarkersPresent": true,
+    "readmePresent": true,
+    "agentsPresent": true,
+    "deliveryGuidePresent": true,
+    "operationManualPresent": true
+  },
+  "ui": {
+    "url": "http://127.0.0.1:52414/ui",
+    "httpStatus": 200,
+    "titlePresent": true,
+    "chatFirstPresent": true,
+    "persistenceTextPresent": true,
+    "staleMemoryWarningAbsent": true
+  },
+  "service": {
+    "healthHttpStatus": 200,
+    "healthStatus": "ready"
+  },
+  "knowledge": {
+    "healthHttpStatus": 200,
+    "mode": "local-keyword",
+    "storage": "file-sqlite",
+    "maxFileMegabytes": 100,
+    "pdfSupported": true,
+    "wordSupported": true,
+    "excelSupported": true,
+    "fileLoadHttpStatus": 200,
+    "fileLoadedCount": 1,
+    "retrieveHttpStatus": 200,
+    "retrieveMode": "keyword",
+    "query": "phase28a documented feature closure file sqlite chat first",
+    "topHitDocumentId": "phase28a-documented-feature.md",
+    "topHitSnippetPresent": true,
+    "topHitMatchedTerms": [
+      "phase28a",
+      "documented",
+      "feature",
+      "closure",
+      "file",
+      "sqlite",
+      "chat",
+      "first"
+    ]
+  },
+  "vector": {
+    "readinessHttpStatus": 200,
+    "mode": "local-keyword",
+    "status": "disabled",
+    "enabled": false
+  },
+  "error": null,
+  "conclusion": "documented-current-feature-set-connected"
+}

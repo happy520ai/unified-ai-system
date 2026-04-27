@@ -1,0 +1,71 @@
+{
+  "phase": "phase-76l-web-chat-knowledge-upload-receipt",
+  "status": "passed",
+  "generatedAt": "2026-04-25T12:29:11.092Z",
+  "browserPath": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+  "serviceUrl": "http://127.0.0.1:54654",
+  "ui": {
+    "url": "http://127.0.0.1:54654/ui",
+    "uploadedFileName": "phase76l-upload.txt",
+    "prompt": "请根据刚才上传的文件说明 phase76l knowledge upload receipt marker。",
+    "uploadState": {
+      "uploadStatus": "已导入 1 个文档。",
+      "receiptText": "资料已放进知识库。\n已导入：1 个文档（phase76l-upload.txt）\n接下来不用再选择知识库，直接问我：总结刚才的文件、提取关键事项、找表格里的重点。",
+      "inputPlaceholder": "资料已入库，可以直接问：帮我总结刚才上传的文件。",
+      "composerGuidanceKind": "empty-knowledge-loaded",
+      "composerGuidanceText": "刚才的资料已入库。可以直接问我：总结文件、提取重点、列待办，或对比里面的表格信息。",
+      "sessionStatus": "已入库 1 个资料文档，可以直接在聊天里提问。",
+      "fetches": [
+        "/knowledge/load/file"
+      ],
+      "fetchStatuses": [
+        {
+          "path": "/knowledge/load/file",
+          "status": 200,
+          "ok": true
+        }
+      ],
+      "systemMessageCount": 1
+    },
+    "chatState": {
+      "assistantText": "PME20:29正在生成回答...[fake:local-fake-provider/local-fake-model] 你是 PME 移动地球的服务端 RAG 聊天入口。请优先依据下面的本地知识库检索结果回答用户问题，并在答案中自然引用资料编号，例如 [1]。知识命中 / 引用 2 条资料 1 · phase76l-upload.txt分数 0.2800knowledgeuploadreceipttermCoverage: 0.5 / titleCoverage: 0 / sourceCoverage: 0 / documentIdCoverage: 0sourceId: ui-chat-file-import-source\ndocumentId: phase76l-upload.txtsourceIdui-chat-file-import-sourcedocumentIdphase76l-upload.txtfilephase76l-upload.txtThis file proves the PME chat upload receipt can tell the user that the document is in the knowledge base. phase76l-knowledge-upload-receipt-marker复制这条引用资料 2 · NVIDIA single-provider boundary分数 0.0933knowledgetermCoverage: 0.1667 / titleCoverage: 0 / sourceCoverage: 0 / documentIdCoverage: 0sourceId: unified-ai-system-boundaries\ndocumentId: nvidia-single-provider-boundarysourceIdunified-ai-system-boundariesdocumentIdnvidia-single-provider-boundary...evaluation, governance, dashboard, streaming, release automation, or production knowledge platform scope.复制这条引用复制回答复制引用重新发送",
+      "citationHeading": "知识命中 / 引用 2 条",
+      "errorMessage": "",
+      "fetches": [
+        "/knowledge/load/file",
+        "/chat/rag/stream"
+      ],
+      "fetchStatuses": [
+        {
+          "path": "/knowledge/load/file",
+          "status": 200,
+          "ok": true
+        },
+        {
+          "path": "/chat/rag/stream",
+          "status": 200,
+          "ok": true
+        }
+      ],
+      "messageCount": 4
+    }
+  },
+  "screenshot": {
+    "path": "apps/ai-gateway-service/evidence/phase-76l-web-chat-knowledge-upload-receipt.png",
+    "bytes": 141902,
+    "width": 1424,
+    "height": 1105,
+    "validPng": true
+  },
+  "safety": {
+    "browserFileInteraction": true,
+    "knowledgeUploadReceiptOnly": true,
+    "fakeProviderOnly": true,
+    "backendBusinessRouteAdded": false,
+    "defaultChatMainLaneChanged": false,
+    "providerCalls": false,
+    "releaseAutomation": false,
+    "infrastructureProvisioning": false
+  },
+  "conclusion": "web-chat-knowledge-upload-receipt-connected"
+}

@@ -1,0 +1,49 @@
+{
+  "phase": "phase-46a-enterprise-release-candidate-ui",
+  "status": "passed",
+  "generatedAt": "2026-04-26T05:01:17.341Z",
+  "serviceUrl": "http://127.0.0.1:64413",
+  "ui": {
+    "httpStatus": 200,
+    "panelPresent": true,
+    "routePresent": true,
+    "titlePresent": true
+  },
+  "route": {
+    "path": "/enterprise/release-candidate/dry-run",
+    "missingAuthHttpStatus": 401,
+    "authorizedHttpStatus": 200,
+    "mode": "read-only-existing-artifacts",
+    "evidencePath": "apps/ai-gateway-service/evidence/phase-45a-enterprise-release-candidate-dry-run.json"
+  },
+  "releaseCandidate": {
+    "sourcePhase": "phase-45a-enterprise-release-candidate-dry-run",
+    "sourceStatus": "passed",
+    "sourceConclusion": "enterprise-release-candidate-dry-run-ready",
+    "mode": "read-only-dry-run",
+    "packageCreated": false,
+    "releaseCreated": false,
+    "artifactPublished": false,
+    "docsStatus": "passed",
+    "scriptsStatus": "passed",
+    "evidenceStatus": "passed",
+    "evidenceRequiredCount": 27,
+    "evidencePassedCount": 27,
+    "evidenceMissingCount": 0,
+    "evidenceFailedCount": 0,
+    "boundaryStatus": "passed",
+    "secretScanStatus": "passed"
+  },
+  "safety": {
+    "readOnlyRoute": true,
+    "providerCalls": false,
+    "runtimeMutation": false,
+    "releaseAutomation": false,
+    "infrastructureProvisioning": false,
+    "secretValuesRecorded": false,
+    "responseContainsAuditorToken": false,
+    "responseContainsNvidiaKey": false
+  },
+  "error": null,
+  "conclusion": "enterprise-release-candidate-ui-connected"
+}

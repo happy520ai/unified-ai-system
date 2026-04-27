@@ -1,0 +1,58 @@
+{
+  "phase": "phase-92a-web-chat-model-config-repair-loop",
+  "status": "passed",
+  "generatedAt": "2026-04-26T10:48:50.010Z",
+  "browserPath": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+  "serviceUrl": "http://127.0.0.1:50815",
+  "ui": {
+    "url": "http://127.0.0.1:50815/ui?showFakeProviders=1",
+    "repairOpenState": {
+      "recoveryMode": "restore-recovery",
+      "recoveryValue": "generic-openai-compatible::phase92-restored-model",
+      "selectValue": "generic-openai-compatible::phase92-restored-model",
+      "providerHint": "openai-compatible",
+      "baseUrl": "https://phase92.initial.example.test/v1",
+      "manualModelId": "phase92-restored-model",
+      "secretRecoveryRecommended": "true",
+      "primaryButtonText": "重新检测模型",
+      "feedbackText": "正在修复已恢复的模型配置我已经把当前 provider、模型 ID 和能读取到的 base URL 带入向导。如果只是 provider 临时波动，可以直接点“重新检测模型”。如果是 API Key、权限、余额或 base URL 变了，请先替换 API Key 或补齐 base URL，再重新检测。重新检测模型替换 API Key检查 Base URL",
+      "localStorageContainsSecret": false
+    },
+    "repairedState": {
+      "modelProbeStatus": "passed",
+      "modelRecoveryRequired": "false",
+      "modelReady": "true",
+      "modelRestoredFromLocal": "true",
+      "modelConfigButtonText": "配置模型",
+      "feedbackText": "模型配置已生效，可以开始聊天Provider 已识别：generic-openai-compatible模型已选择：phase92-restored-model已添加到当前服务：已加入当前服务，并写入本机用户配置；服务重启后会自动恢复。/chat 探测已通过：当前模型已经返回成功响应。当前聊天可用：可以直接继续提问，不需要再去别的面板操作。默认选择状态：已持久化到本机用户配置；刷新页面和服务重启后会自动恢复。API Key 安全：不会写入浏览器、聊天记录、日志或 evidence。返回预览：配置检测通过，可以继续聊天。记住默认选择继续聊天",
+      "fetches": [
+        "/providers",
+        "/chat/stream",
+        "/chat",
+        "/providers",
+        "/config/runtime",
+        "/models/import/preview",
+        "/providers/runtime-credential",
+        "/chat"
+      ],
+      "pageTextContainsSecret": false,
+      "localStorageContainsSecret": false
+    }
+  },
+  "screenshot": {
+    "path": "apps/ai-gateway-service/evidence/phase-92a-web-chat-model-config-repair-loop.png",
+    "bytes": 152264,
+    "width": 1424,
+    "height": 1205,
+    "validPng": true
+  },
+  "safety": {
+    "browserInteraction": true,
+    "simulatedProviderFailureAndRepairOnly": true,
+    "realProviderCalls": false,
+    "apiKeyValueRecorded": false,
+    "defaultChatMainLaneChanged": false,
+    "backendBusinessRouteAdded": false
+  },
+  "conclusion": "web-chat-model-config-repair-loop-actionable"
+}

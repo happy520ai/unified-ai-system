@@ -1,0 +1,26 @@
+{
+  "phase": "phase-50a-help-readability",
+  "status": "passed",
+  "generatedAt": "2026-04-26T12:11:27.771Z",
+  "helpScriptPath": "tools/phase14a/help.mjs",
+  "rootHelpScript": "node ./tools/phase14a/help.mjs --includes verify:phase42a verify:phase45a verify:phase46a verify:phase47a",
+  "scriptMatches": true,
+  "output": {
+    "lineCount": 146,
+    "requiredTextCount": 64,
+    "missingText": [],
+    "brokenMarkerCount": 0,
+    "brokenMarkers": [],
+    "containsProviderCallCommand": false,
+    "containsMutationCommand": false
+  },
+  "safety": {
+    "readOnlyHelp": true,
+    "providerCalls": false,
+    "runtimeMutation": false,
+    "evidenceRefresh": false,
+    "serviceStart": false,
+    "processStop": false
+  },
+  "conclusion": "help-readability-connected"
+}

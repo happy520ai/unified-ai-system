@@ -1,0 +1,32 @@
+{
+  "phase": "phase-38a-enterprise-startup-readiness",
+  "status": "passed",
+  "generatedAt": "2026-04-26T05:01:03.507Z",
+  "serviceUrl": "http://127.0.0.1:61556",
+  "paths": {
+    "userStorePath": "C:\\Users\\Administrator\\AppData\\Local\\Temp\\phase38a-enterprise-startup-2aq03l\\users\\enterprise-users.json",
+    "auditLogPath": "C:\\Users\\Administrator\\AppData\\Local\\Temp\\phase38a-enterprise-startup-2aq03l\\audit\\enterprise-audit.jsonl",
+    "backupDir": "C:\\Users\\Administrator\\AppData\\Local\\Temp\\phase38a-enterprise-startup-2aq03l\\backups"
+  },
+  "enterprise": {
+    "uiHttpStatus": 200,
+    "uiStartupReadinessPresent": true,
+    "missingStartupReadinessStatus": 401,
+    "startupHttpStatus": 200,
+    "startupStatus": "ready",
+    "startupMode": "enterprise-production-startup-readiness",
+    "blockers": [],
+    "warnings": [],
+    "providerMode": "real",
+    "realProviderEnabled": true,
+    "defaultProviderId": "nvidia",
+    "nvidiaApiKeyPresent": true,
+    "nvidiaApiKeyValueExposed": false,
+    "deploymentReadinessStatus": "ready",
+    "securityReadinessStatus": "ready",
+    "responseContainsNvidiaKey": false,
+    "responseContainsAdminToken": false
+  },
+  "error": null,
+  "conclusion": "enterprise-startup-readiness-connected"
+}

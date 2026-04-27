@@ -1,0 +1,27 @@
+# Phase 88A Web Chat Model Config First Chat Evidence
+
+- Phase: phase-88a-web-chat-model-config-first-chat
+- Status: passed
+- Generated at: 2026-04-26T12:13:17.461Z
+- Service URL: http://127.0.0.1:58722
+- UI URL: http://127.0.0.1:58722/ui?showFakeProviders=1
+- Selected runtime value: generic-openai-compatible::phase88-chat-model
+- Preference value: generic-openai-compatible::phase88-chat-model
+- Composer model ready: true
+- First prompt: 请用一句话说 first chat live marker
+- First chat endpoint: /chat/stream
+- First chat provider/model: generic-openai-compatible / phase88-chat-model
+- Assistant answer includes marker: true
+- Input cleared after send: true
+- Send button ready: true
+- Focus returned to chat input: true
+- Local mock provider only: true
+- Real provider calls: false
+- API key persisted in browser: false
+- API key persisted in evidence: false
+- Default chat main lane changed: false
+- Screenshot path: apps/ai-gateway-service/evidence/phase-88a-web-chat-model-config-first-chat.png
+- Screenshot bytes: 117644
+- Screenshot dimensions: 1424x1105
+- Valid PNG: true
+- Conclusion: web-chat-model-config-first-chat-connected

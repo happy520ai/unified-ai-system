@@ -1,0 +1,24 @@
+# Phase 76I Web Chat Smart Composer Guidance Evidence
+
+- Phase: phase-76i-web-chat-smart-composer-guidance
+- Status: passed
+- Generated at: 2026-04-25T17:28:52.482Z
+- Service URL: http://127.0.0.1:65036
+- Hint present: true
+- Initial guidance kind: empty-unchecked
+- Typing guidance kind before probe: typing-unchecked
+- Wizard opened from composer: true
+- Final model probe status: passed
+- Final model value: local-fake-provider::local-fake-model
+- Final guidance tone: ok
+- Final guidance kind: typing-model-passed
+- Send button enabled after typing: true
+- Probe used /chat: true
+- Fake provider only: true
+- Backend business route added: false
+- Default chat main lane changed: false
+- Screenshot path: apps/ai-gateway-service/evidence/phase-76i-web-chat-smart-composer-guidance.png
+- Screenshot bytes: 119570
+- Screenshot dimensions: 1424x1005
+- Valid PNG: true
+- Conclusion: web-chat-smart-composer-guidance-connected

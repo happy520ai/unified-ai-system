@@ -1,0 +1,58 @@
+{
+  "phase": "phase-56a-web-chat-error-readability",
+  "status": "passed",
+  "generatedAt": "2026-04-26T08:16:20.433Z",
+  "browserPath": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+  "serviceUrl": "http://127.0.0.1:64604",
+  "ui": {
+    "url": "http://127.0.0.1:64604/ui",
+    "prompt": "请触发 phase56a readable error smoke。",
+    "assistantText": "PME16:16回答失败。聊天请求失败，但页面已经恢复，可以继续发送下一条。\n流式失败原因：HTTP 503\n普通回答失败：HTTP 502 / PHASE56A_FORCED_RAG_FAILURE / Phase56A forced readable error for Chat-first UI.恢复建议：这更像服务端或 provider 临时异常。请稍后重试，或运行 health / logs 查看服务状态。我不会把失败的 key 强行绑定到默认 NVIDIA，也不会用假模型冒充可用模型。复制回答复制引用重新发送",
+    "errorClassPresent": true,
+    "readableStreamFailureTextPresent": true,
+    "recoveryGuidancePresent": true,
+    "recoveryHealthLogsPresent": true,
+    "noFakeModelClaimPresent": true,
+    "httpStatusTextPresent": true,
+    "forcedErrorCode": "PHASE56A_FORCED_RAG_FAILURE",
+    "forcedErrorCodePresent": true,
+    "fetches": [
+      "/chat/rag/stream",
+      "/chat/rag"
+    ],
+    "fetchStatuses": [
+      {
+        "path": "/chat/rag/stream",
+        "status": 503,
+        "ok": false,
+        "simulated": true
+      },
+      {
+        "path": "/chat/rag",
+        "status": 502,
+        "ok": false,
+        "simulated": true
+      }
+    ],
+    "messageCount": 3
+  },
+  "screenshot": {
+    "path": "apps/ai-gateway-service/evidence/phase-56a-web-chat-error-readability.png",
+    "bytes": 140648,
+    "width": 1424,
+    "height": 1105,
+    "validPng": true
+  },
+  "safety": {
+    "browserErrorInteraction": true,
+    "simulatedBrowserFetchFailureOnly": true,
+    "fakeProviderOnly": true,
+    "defaultChatMainLaneChanged": false,
+    "backendBusinessRouteAdded": false,
+    "providerCalls": false,
+    "runtimeMutation": false,
+    "releaseAutomation": false,
+    "infrastructureProvisioning": false
+  },
+  "conclusion": "web-chat-error-readability-connected"
+}

@@ -1,0 +1,52 @@
+{
+  "phase": "phase-117a-cicd-release-gate",
+  "status": "passed",
+  "generatedAt": "2026-04-27T10:22:50.137Z",
+  "checks": {
+    "workflowPresent": true,
+    "workflowNamePresent": true,
+    "workflowTriggersPresent": true,
+    "workflowReadOnlyPermissions": true,
+    "workflowUsesNode22": true,
+    "workflowUsesPinnedPnpm": true,
+    "gateCommandsComplete": true,
+    "noDeployOrPublishSteps": true,
+    "rootScriptPresent": true,
+    "serviceScriptPresent": true,
+    "readmePhasePresent": true,
+    "agentsBoundaryPresent": true,
+    "userManualPresent": true,
+    "noPlainSecrets": true,
+    "projectContextNotCreated": true
+  },
+  "workflow": {
+    "path": ".github/workflows/release-gate.yml",
+    "triggers": [
+      "pull_request",
+      "push main/master",
+      "workflow_dispatch"
+    ],
+    "gateCommands": {
+      "install": true,
+      "workspaceCheck": true,
+      "secretSafety": true,
+      "userJourney": true,
+      "setupReadiness": true,
+      "dockerRuntime": true,
+      "dockerComposeRuntime": true
+    },
+    "forbiddenHits": []
+  },
+  "safety": {
+    "realCiFileCreated": true,
+    "deploysInfrastructure": false,
+    "publishesRelease": false,
+    "pushesImage": false,
+    "callsRealProviders": false,
+    "plaintextApiKeyRecorded": false,
+    "cloudDeploymentComplete": false,
+    "globalReleaseComplete": false
+  },
+  "secretFindingCount": 0,
+  "conclusion": "cicd-release-gate-closed"
+}

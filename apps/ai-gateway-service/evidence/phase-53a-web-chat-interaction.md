@@ -1,0 +1,28 @@
+# Phase 53A Web Chat Interaction Evidence
+
+- Phase: phase-53a-web-chat-interaction
+- Status: passed
+- Generated at: 2026-04-25T18:19:46.422Z
+- Service URL: http://127.0.0.1:61623
+- Loaded document ID: phase-53a-browser-chat-document
+- Loaded count: 1
+- Prompt: 请根据知识库说明 phase53a browser chat marker 的作用。
+- Fetches: /chat/rag/stream
+- Assistant text present: true
+- Assistant includes fake provider: true
+- Marker matched: true
+- Error message: none
+- Message count: 3
+- Screenshot path: apps/ai-gateway-service/evidence/phase-53a-web-chat-interaction.png
+- Screenshot bytes: 142247
+- Screenshot dimensions: 1424x1105
+- Valid PNG: true
+- Browser interaction: true
+- Fake provider only: true
+- Default chat main lane changed: false
+- Backend business route added: false
+- Provider calls: false
+- Runtime mutation beyond bounded knowledge load: false
+- Release automation: false
+- Infrastructure provisioning: false
+- Conclusion: web-chat-interaction-connected

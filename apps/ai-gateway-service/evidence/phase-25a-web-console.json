@@ -1,0 +1,135 @@
+{
+  "phase": "phase-25a-web-console",
+  "status": "passed",
+  "generatedAt": "2026-04-25T01:59:36.410Z",
+  "ui": {
+    "url": "http://127.0.0.1:57924/ui",
+    "consoleAliasUrl": "http://127.0.0.1:57924/console",
+    "httpStatus": 200,
+    "consoleAliasHttpStatus": 200,
+    "contentType": "text/html; charset=utf-8",
+    "titlePresent": true,
+    "boundaryPresent": true,
+    "commandHintsPresent": true,
+    "fileImportPresent": true,
+    "documentParserHintsPresent": true
+  },
+  "service": {
+    "url": "http://127.0.0.1:57924",
+    "healthHttpStatus": 200,
+    "healthStatus": "ready"
+  },
+  "knowledge": {
+    "healthHttpStatus": 200,
+    "mode": "local-keyword",
+    "storage": "in-memory",
+    "embedding": "not-configured",
+    "loadHttpStatus": 200,
+    "fileLoadHttpStatus": 200,
+    "loadedSourceId": "phase-25a-ui-source",
+    "loadedDocumentId": "phase-25a-ui-document",
+    "loadedCount": 1,
+    "fileSourceId": "phase-25a-file-parser-source",
+    "fileLoadedCount": 4,
+    "fileSkipped": [],
+    "sourcePresent": true,
+    "sourceDocumentCount": 1,
+    "fileSourcePresent": true,
+    "fileSourceDocumentCount": 4,
+    "retrieveHttpStatus": 200,
+    "retrieveMode": "keyword",
+    "query": "phase25a ui console vector readiness snippet scoreBreakdown metadata",
+    "topHitDocumentId": "phase-25a-ui-document",
+    "topHitSnippetPresent": true,
+    "topHitHighlights": [
+      {
+        "term": "phase25a",
+        "startOffset": 0,
+        "endOffset": 8
+      },
+      {
+        "term": "ui",
+        "startOffset": 9,
+        "endOffset": 11
+      },
+      {
+        "term": "console",
+        "startOffset": 12,
+        "endOffset": 19
+      },
+      {
+        "term": "vector",
+        "startOffset": 20,
+        "endOffset": 26
+      },
+      {
+        "term": "readiness",
+        "startOffset": 27,
+        "endOffset": 36
+      },
+      {
+        "term": "snippet",
+        "startOffset": 37,
+        "endOffset": 44
+      },
+      {
+        "term": "scorebreakdown",
+        "startOffset": 45,
+        "endOffset": 59
+      },
+      {
+        "term": "metadata",
+        "startOffset": 60,
+        "endOffset": 68
+      }
+    ],
+    "topHitMatchedTerms": [
+      "phase25a",
+      "ui",
+      "console",
+      "vector",
+      "readiness",
+      "snippet",
+      "scorebreakdown",
+      "metadata"
+    ],
+    "topHitScoreBreakdown": {
+      "termCoverage": 1,
+      "titleCoverage": 0.125,
+      "sourceCoverage": 0,
+      "documentIdCoverage": 0,
+      "bodyCoverage": 1,
+      "phraseMatch": true,
+      "contiguousMatch": true,
+      "exactMatch": false,
+      "matchedTermCount": 8,
+      "fieldWeights": {
+        "title": 0.18,
+        "sourceId": 0.08,
+        "documentId": 0.08,
+        "body": 0.56,
+        "phrase": 0.1,
+        "exact": 0.1
+      }
+    },
+    "topHitMetadata": {
+      "phase": "phase-25a-web-console",
+      "expectedTopHit": true,
+      "surface": "web-console"
+    },
+    "fileRetrieveHttpStatus": 200,
+    "fileRetrieveMode": "keyword",
+    "fileQuery": "phase25a spreadsheet parser file import",
+    "fileTopHitDocumentId": "phase25a-parser-sheet.xlsx",
+    "fileTopHitParser": "xlsx",
+    "fileTopHitSnippetPresent": true
+  },
+  "vector": {
+    "readinessHttpStatus": 200,
+    "mode": "local-keyword",
+    "status": "disabled",
+    "enabled": false
+  },
+  "error": null,
+  "conclusion": "web-console-operation-surface-connected"
+}

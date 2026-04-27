@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "declaration": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "baseUrl": ".",
+    "paths": {
+      "@unified-ai-system/shared-contracts": [
+        "packages/shared-contracts/src/index.ts"
+      ],
+      "@unified-ai-system/shared-sdk": [
+        "packages/shared-sdk/src/index.ts"
+      ],
+      "@unified-ai-system/shared-config": [
+        "packages/shared-config/src/index.ts"
+      ],
+      "@unified-ai-system/shared-utils": [
+        "packages/shared-utils/src/index.ts"
+      ]
+    }
+  }
+}

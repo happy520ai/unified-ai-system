@@ -1,0 +1,66 @@
+{
+  "phase": "phase-74a-web-chat-first-screen-polish",
+  "status": "passed",
+  "generatedAt": "2026-04-25T11:58:58.417Z",
+  "browserPath": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+  "serviceUrl": "http://127.0.0.1:52722",
+  "ui": {
+    "url": "http://127.0.0.1:52722/ui",
+    "firstScreenState": {
+      "innerWidth": 1424,
+      "innerHeight": 905,
+      "documentScrollWidth": 1424,
+      "bodyScrollWidth": 1424,
+      "brandPresent": true,
+      "chatFirstTitlePresent": true,
+      "welcomeCopyLength": 53,
+      "welcomeCopyShortEnough": true,
+      "assistantGreetingLength": 41,
+      "assistantGreetingShortEnough": true,
+      "oldControlPanelGreetingAbsent": true,
+      "quickStartIsDetails": true,
+      "quickStartCollapsedByDefault": true,
+      "commandListClientRects": 1,
+      "commandListCollapsedWithDetails": true,
+      "inputRect": {
+        "top": 712,
+        "left": 250,
+        "right": 1174,
+        "bottom": 740,
+        "width": 924,
+        "height": 28
+      },
+      "sendRect": {
+        "top": 833,
+        "left": 335,
+        "right": 395,
+        "bottom": 872,
+        "width": 60,
+        "height": 39
+      },
+      "inputIsPrimaryAction": true,
+      "sideHiddenByDefault": true,
+      "noHorizontalOverflow": true,
+      "inputPlaceholder": "输入问题，或把文件直接拖到这里。"
+    }
+  },
+  "screenshot": {
+    "path": "apps/ai-gateway-service/evidence/phase-74a-web-chat-first-screen-polish.png",
+    "bytes": 98861,
+    "width": 1424,
+    "height": 905,
+    "validPng": true
+  },
+  "safety": {
+    "browserRenderOnly": true,
+    "firstScreenOnly": true,
+    "simulatedProviderConfigOnly": true,
+    "defaultChatMainLaneChanged": false,
+    "backendBusinessRouteAdded": false,
+    "providerCalls": false,
+    "runtimeMutation": false,
+    "releaseAutomation": false,
+    "infrastructureProvisioning": false
+  },
+  "conclusion": "web-chat-first-screen-polish-connected"
+}

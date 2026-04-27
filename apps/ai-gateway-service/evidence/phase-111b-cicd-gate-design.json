@@ -1,0 +1,59 @@
+{
+  "phase": "phase-111b-cicd-gate-design",
+  "status": "passed",
+  "generatedAt": "2026-04-27T10:02:44.049Z",
+  "checks": {
+    "readmePhasePresent": true,
+    "readmeDockerRuntimeStatus": true,
+    "readmeDesignBoundary": true,
+    "readmeGateListComplete": true,
+    "agentsBoundaryPresent": true,
+    "scriptsPresent": true,
+    "phase117aGateMayExist": true,
+    "noPlainSecrets": true,
+    "projectContextNotCreated": true
+  },
+  "gates": {
+    "install": "pnpm install",
+    "lintCheck": "cmd /c pnpm -r --if-present check",
+    "secretScan": "cmd /c pnpm verify:phase107a-secret-safety",
+    "userJourney": "cmd /c pnpm verify:phase105a-user-journey",
+    "setupReadiness": "cmd /c pnpm verify:phase104a-first-run-setup",
+    "dockerBuildRun": "build image, run container, then verify /health/check, /setup/readiness, and /ui",
+    "smokeHealth": "cmd /c pnpm health:phase12a",
+    "artifactEvidenceScan": "scan evidence/logs for plaintext API keys and false global-release claims",
+    "gateChecks": {
+      "install": true,
+      "lintCheck": true,
+      "secretScan": true,
+      "userJourney": true,
+      "setupReadiness": true,
+      "dockerBuildRun": true,
+      "smokeHealth": true,
+      "artifactEvidenceScan": true
+    }
+  },
+  "cicd": {
+    "designOnly": true,
+    "minimalGateCreatedLaterByPhase117A": true,
+    "ciFiles": [
+      ".github/workflows/release-gate.yml"
+    ],
+    "githubActionsCreated": true,
+    "cloudDeploymentComplete": false,
+    "releaseAutomationComplete": false,
+    "globalReleaseComplete": false
+  },
+  "docker": {
+    "runtimeStillBlockedByDockerCli": false,
+    "phase115aDockerRuntimePassed": true,
+    "fakeRuntimePassRecorded": false
+  },
+  "safety": {
+    "defaultChatMainLaneChanged": false,
+    "plaintextApiKeyRecorded": false,
+    "projectContextCreated": false,
+    "legacyModified": false
+  },
+  "conclusion": "cicd-gate-design-closed"
+}

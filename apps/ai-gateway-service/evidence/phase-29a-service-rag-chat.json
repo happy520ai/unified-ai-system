@@ -1,0 +1,38 @@
+{
+  "phase": "phase-29a-service-rag-chat",
+  "status": "passed",
+  "generatedAt": "2026-04-25T09:56:15.484Z",
+  "service": {
+    "url": "http://127.0.0.1:59704",
+    "healthStatus": "ok",
+    "ragRoutePresent": true
+  },
+  "ui": {
+    "url": "http://127.0.0.1:59704/ui",
+    "httpStatus": 200,
+    "titlePresent": true,
+    "serviceRagPresent": true
+  },
+  "knowledge": {
+    "loadedSourceId": "phase-29a-rag-source",
+    "loadedCount": 1,
+    "query": "phase29a service rag gateway knowledge citation",
+    "retrieved": true,
+    "citationCount": 1,
+    "topHitDocumentId": "phase-29a-rag-document",
+    "firstCitationDocumentId": "phase-29a-rag-document",
+    "firstCitationSnippetPresent": true,
+    "markerMatched": true
+  },
+  "chat": {
+    "status": "ok",
+    "ragEnabled": true,
+    "ragMode": "service-side",
+    "knowledgeInjected": true,
+    "selectedProvider": "local-fake-provider",
+    "selectedModel": "local-fake-model",
+    "answerPresent": true
+  },
+  "error": null,
+  "conclusion": "service-rag-chat-connected"
+}

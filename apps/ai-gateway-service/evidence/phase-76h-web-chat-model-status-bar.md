@@ -1,0 +1,25 @@
+# Phase 76H Web Chat Model Status Bar Evidence
+
+- Phase: phase-76h-web-chat-model-status-bar
+- Status: passed
+- Generated at: 2026-04-26T08:08:45.110Z
+- Service URL: http://127.0.0.1:60458
+- Status bar present: true
+- Config button present: true
+- Config button text: 配置模型
+- Config button aria-label: 打开模型配置向导
+- Quick add-model chip present: false
+- Wizard opened from composer: true
+- Final model probe status: passed
+- Final model value: local-fake-provider::local-fake-model
+- Final model label: 模型：local-fake-provider / local-fake-model
+- Final probe text: 检测通过
+- Probe used /chat: true
+- Fake provider only: true
+- Backend business route added: false
+- Default chat main lane changed: false
+- Screenshot path: apps/ai-gateway-service/evidence/phase-76h-web-chat-model-status-bar.png
+- Screenshot bytes: 129538
+- Screenshot dimensions: 1424x1005
+- Valid PNG: true
+- Conclusion: web-chat-model-status-bar-connected

@@ -1,0 +1,100 @@
+{
+  "phase": "phase-69a-web-chat-code-block-tools",
+  "status": "passed",
+  "generatedAt": "2026-04-25T09:05:35.716Z",
+  "browserPath": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+  "serviceUrl": "http://127.0.0.1:59475",
+  "ui": {
+    "url": "http://127.0.0.1:59475/ui",
+    "prompt": "phase69a code block tools prompt",
+    "afterAnswer": {
+      "rawText": "Phase69A code block polish:\n\nUse `cmd /c pnpm status:phase10a` before cleanup.\n\n```powershell\ncmd /c pnpm status:phase10a\ncmd /c pnpm logs:phase16a\ncmd /c pnpm idle:phase15a\nWrite-Output \"phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-\"\n```",
+      "renderedText": "Phase69A code block polish:Use cmd /c pnpm status:phase10a before cleanup.powershell复制代码cmd /c pnpm status:phase10a\ncmd /c pnpm logs:phase16a\ncmd /c pnpm idle:phase15a\nWrite-Output \"phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-\"",
+      "inlineCodeCount": 1,
+      "inlineCodeTexts": [
+        "cmd /c pnpm status:phase10a"
+      ],
+      "codeWrapCount": 1,
+      "codeBlockCount": 1,
+      "copyCodeButtonCount": 1,
+      "copyCodeButtonText": "复制代码",
+      "toolbarText": "powershell复制代码",
+      "codeText": "cmd /c pnpm status:phase10a\ncmd /c pnpm logs:phase16a\ncmd /c pnpm idle:phase15a\nWrite-Output \"phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-\"",
+      "codeOverflowX": "auto",
+      "codeScrollWidth": 2190,
+      "codeClientWidth": 728,
+      "longCodeLinePresent": true,
+      "systemText": "",
+      "clipboard": [],
+      "fetches": [
+        "/chat/rag/stream"
+      ],
+      "fetchStatuses": [
+        {
+          "path": "/chat/rag/stream",
+          "status": 200,
+          "ok": true,
+          "simulated": true
+        }
+      ],
+      "messageCount": 3
+    },
+    "afterCopyCode": {
+      "rawText": "Phase69A code block polish:\n\nUse `cmd /c pnpm status:phase10a` before cleanup.\n\n```powershell\ncmd /c pnpm status:phase10a\ncmd /c pnpm logs:phase16a\ncmd /c pnpm idle:phase15a\nWrite-Output \"phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-\"\n```",
+      "renderedText": "Phase69A code block polish:Use cmd /c pnpm status:phase10a before cleanup.powershell已复制cmd /c pnpm status:phase10a\ncmd /c pnpm logs:phase16a\ncmd /c pnpm idle:phase15a\nWrite-Output \"phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-\"",
+      "inlineCodeCount": 1,
+      "inlineCodeTexts": [
+        "cmd /c pnpm status:phase10a"
+      ],
+      "codeWrapCount": 1,
+      "codeBlockCount": 1,
+      "copyCodeButtonCount": 1,
+      "copyCodeButtonText": "已复制",
+      "toolbarText": "powershell已复制",
+      "codeText": "cmd /c pnpm status:phase10a\ncmd /c pnpm logs:phase16a\ncmd /c pnpm idle:phase15a\nWrite-Output \"phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-\"",
+      "codeOverflowX": "auto",
+      "codeScrollWidth": 2190,
+      "codeClientWidth": 728,
+      "longCodeLinePresent": true,
+      "systemText": "已复制代码块。",
+      "clipboard": [
+        "cmd /c pnpm status:phase10a\ncmd /c pnpm logs:phase16a\ncmd /c pnpm idle:phase15a\nWrite-Output \"phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-phase69a-long-code-line-\""
+      ],
+      "fetches": [
+        "/chat/rag/stream"
+      ],
+      "fetchStatuses": [
+        {
+          "path": "/chat/rag/stream",
+          "status": 200,
+          "ok": true,
+          "simulated": true
+        }
+      ],
+      "messageCount": 4
+    }
+  },
+  "screenshot": {
+    "path": "apps/ai-gateway-service/evidence/phase-69a-web-chat-code-block-tools.png",
+    "bytes": 104238,
+    "width": 1409,
+    "height": 1140,
+    "validPng": true
+  },
+  "safety": {
+    "browserInteraction": true,
+    "simulatedStreamOnly": true,
+    "codeBlockToolsOnly": true,
+    "inlineCodeRendering": true,
+    "copyCodeButtonOnlyCopiesCode": true,
+    "longCodeOverflowIsHorizontal": true,
+    "fakeProviderOnly": true,
+    "defaultChatMainLaneChanged": false,
+    "backendBusinessRouteAdded": false,
+    "providerCalls": false,
+    "runtimeMutation": false,
+    "releaseAutomation": false,
+    "infrastructureProvisioning": false
+  },
+  "conclusion": "web-chat-code-block-tools-connected"
+}

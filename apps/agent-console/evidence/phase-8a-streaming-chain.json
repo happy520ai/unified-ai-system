@@ -1,0 +1,47 @@
+{
+  "phase": "phase-8a-streaming-chain",
+  "status": "passed",
+  "generatedAt": "2026-04-21T12:56:46.188Z",
+  "nvidiaApiKeyPresent": true,
+  "nvidiaModel": "meta/llama-3.1-8b-instruct",
+  "service": {
+    "url": "http://127.0.0.1:63577",
+    "healthStatus": "ready",
+    "providerMode": "real",
+    "realProviderEnabled": true,
+    "providers": [
+      "nvidia"
+    ],
+    "routes": [
+      "GET /health/check",
+      "GET /providers",
+      "GET /config/runtime",
+      "GET /route/modes",
+      "POST /chat",
+      "POST /chat/stream",
+      "POST /route"
+    ]
+  },
+  "streaming": {
+    "consoleExitCode": 0,
+    "consoleStatus": "completed",
+    "mode": "stream",
+    "selectedProvider": "nvidia",
+    "selectedModel": "meta/llama-3.1-8b-instruct",
+    "executionMode": "real",
+    "executionStatus": "success",
+    "chunkCount": 15,
+    "outputTextPresent": true,
+    "outputTextPreview": "I'm not aware of any information about Phase 8A streaming verification."
+  },
+  "nonStreamingBaseline": {
+    "consoleExitCode": 0,
+    "consoleStatus": "completed",
+    "selectedProvider": "nvidia",
+    "executionMode": "real",
+    "executionStatus": "success",
+    "outputTextPresent": true
+  },
+  "error": null,
+  "conclusion": "streaming-chain-connected"
+}

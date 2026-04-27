@@ -1,0 +1,22 @@
+# Phase 32A Enterprise Governance Evidence
+
+- Phase: phase-32a-enterprise-governance
+- Status: passed
+- Generated at: 2026-04-26T05:00:49.105Z
+- Service URL: http://127.0.0.1:58553
+- Auth enabled: true
+- Roles: admin, operator, viewer, auditor
+- Missing token status: 401
+- Admin session status: 200
+- Admin user: phase32-admin
+- Admin tenant: phase32-tenant
+- Viewer dashboard status: 200
+- Viewer knowledge write status: 403
+- Admin knowledge write status: 200
+- Viewer audit status: 403
+- Admin audit status: 200
+- Audit log path: C:\Users\Administrator\AppData\Local\Temp\phase32a-audit-QsU9BN\enterprise-audit.jsonl
+- Audit entry count: 8
+- Denied knowledge write recorded: true
+- Allowed dashboard read recorded: true
+- Conclusion: enterprise-governance-connected

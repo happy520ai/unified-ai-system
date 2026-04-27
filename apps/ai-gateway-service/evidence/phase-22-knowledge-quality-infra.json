@@ -1,0 +1,83 @@
+{
+  "phase": "phase-22-knowledge-quality-infra",
+  "status": "passed",
+  "generatedAt": "2026-04-24T18:23:46.575Z",
+  "service": {
+    "url": "http://127.0.0.1:56827"
+  },
+  "knowledge": {
+    "loadHttpStatus": 200,
+    "loadedCount": 2,
+    "retrieveHttpStatus": 200,
+    "retrieveMode": "keyword",
+    "normalizedQuery": "phase22 quality marker snippet highlight ranking metadata",
+    "ranking": "weighted-keyword-v2",
+    "queryNormalization": "unicode-nfkc-lowercase-collapse",
+    "chunkCount": 2,
+    "topHitDocumentId": "phase-22-quality-top-hit",
+    "topChunkDocumentId": "phase-22-quality-top-hit",
+    "topDocumentId": "phase-22-quality-top-hit",
+    "topHitRank": 1,
+    "topHitScore": 0.7114,
+    "topHitMatchedTerms": [
+      "phase22",
+      "quality",
+      "marker",
+      "snippet",
+      "highlight",
+      "ranking",
+      "metadata"
+    ],
+    "topHitSnippetPresent": true,
+    "topHitHighlights": [
+      {
+        "term": "phase22",
+        "startOffset": 0,
+        "endOffset": 7
+      },
+      {
+        "term": "quality",
+        "startOffset": 8,
+        "endOffset": 15
+      },
+      {
+        "term": "marker",
+        "startOffset": 16,
+        "endOffset": 22
+      },
+      {
+        "term": "snippet",
+        "startOffset": 23,
+        "endOffset": 30
+      },
+      {
+        "term": "highlight",
+        "startOffset": 31,
+        "endOffset": 40
+      },
+      {
+        "term": "ranking",
+        "startOffset": 41,
+        "endOffset": 48
+      },
+      {
+        "term": "metadata",
+        "startOffset": 49,
+        "endOffset": 57
+      }
+    ]
+  },
+  "infra": {
+    "httpStatus": 200,
+    "mode": "local-keyword",
+    "status": "disabled",
+    "enabled": false,
+    "embeddingStatus": "disabled",
+    "vectorStoreStatus": "disabled",
+    "pgvectorStatus": "disabled",
+    "embeddingInterface": "KnowledgeEmbeddingProvider",
+    "vectorStoreInterface": "KnowledgeVectorStore"
+  },
+  "error": null,
+  "conclusion": "knowledge-quality-and-infra-base-connected"
+}

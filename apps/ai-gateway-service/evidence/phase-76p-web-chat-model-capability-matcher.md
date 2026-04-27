@@ -1,0 +1,22 @@
+# Phase 76P Web Chat Model Capability Matcher Evidence
+
+- Phase: phase-76p-web-chat-model-capability-matcher
+- Status: passed
+- Generated at: 2026-04-25T15:42:06.351Z
+- Service URL: http://127.0.0.1:52754
+- UI capability summary visible: true
+- UI current-chat-only copy present: true
+- Fake recommended provider/model: local-fake-provider::local-fake-model
+- Generic sk provider count: 9
+- Generic sk network probe performed: false
+- Generic sk spray prevented: true
+- Generic sk capability summary: {"totalProviders":9,"totalModels":31,"providerSummaries":[{"providerId":"openai","providerDisplayName":"OpenAI","status":"candidate-provider-choice-required","availableForChat":true,"totalModels":7,"chatExecutableModels":3,"byCapability":{"chat":3,"vision":2,"reasoning":2,"tool-use":3,"structured-output":3,"summary":3,"coding":1,"image-generation":1,"embedding":1,"speech-output":1,"audio-input":1}},{"providerId":"deepseek","providerDisplayName":"DeepSeek","status":"candidate-provider-choice-required","availableForChat":true,"totalModels":2,"chatExecutableModels":2,"byCapability":{"chat":2,"coding":2,"summary":2,"reasoning":1}},{"providerId":"together","providerDisplayName":"Together AI","status":"candidate-provider-choice-required","availableForChat":true,"totalModels":3,"chatExecutableModels":3,"byCapability":{"chat":3,"reasoning":1,"summary":3,"coding":1}},{"providerId":"mistral","providerDisplayName":"Mistral","status":"candidate-provider-choice-required","availableForChat":true,"totalModels":3,"chatExecutableModels":3,"byCapability":{"chat":3,"reasoning":1,"coding":1,"tool-use":2,"summary":3,"vision":1}},{"providerId":"moonshot","providerDisplayName":"Moonshot AI","status":"candidate-provider-choice-required","availableForChat":true,"totalModels":3,"chatExecutableModels":3,"byCapability":{"chat":3,"reasoning":1,"coding":1,"summary":3}},{"providerId":"siliconflow","providerDisplayName":"SiliconFlow","status":"candidate-provider-choice-required","availableForChat":true,"totalModels":4,"chatExecutableModels":2,"byCapability":{"chat":2,"summary":2,"coding":1,"embedding":2,"rerank":1}},{"providerId":"dashscope","providerDisplayName":"DashScope","status":"candidate-provider-choice-required","availableForChat":true,"totalModels":5,"chatExecutableModels":3,"byCapability":{"chat":3,"reasoning":1,"summary":3,"vision":1,"embedding":1,"image-generation":1,"video-generation":1}},{"providerId":"tencent-hunyuan","providerDisplayName":"Tencent Hunyuan","status":"candidate-provider-choice-required","availableForChat":true,"totalModels":3,"chatExecutableModels":3,"byCapability":{"chat":3,"reasoning":2,"summary":3}},{"providerId":"generic-openai-compatible","providerDisplayName":"Generic OpenAI-Compatible API","status":"recognized-not-chat-available","availableForChat":false,"totalModels":1,"chatExecutableModels":1,"byCapability":{"chat":1,"summary":1}}],"chatExecutableModels":23,"byCapability":{"chat":23,"vision":4,"reasoning":9,"tool-use":5,"structured-output":3,"summary":23,"coding":7,"image-generation":2,"embedding":4,"speech-output":1,"audio-input":1,"rerank":1,"video-generation":1}}
+- Gemini provider ids: gemini
+- Gemini recommended provider/model: none
+- Gemini capability summary: {"totalProviders":1,"totalModels":5,"providerSummaries":[{"providerId":"gemini","providerDisplayName":"Gemini","status":"recognized-not-supported","availableForChat":false,"totalModels":5,"chatExecutableModels":0,"byCapability":{"chat":2,"vision":2,"reasoning":2,"coding":2,"summary":2,"embedding":1,"image-generation":1,"video-generation":1}}],"chatExecutableModels":0,"byCapability":{"chat":2,"vision":2,"reasoning":2,"coding":2,"summary":2,"embedding":1,"image-generation":1,"video-generation":1}}
+- Fake excluded from unknown fallback: true
+- Non-chat models hidden from chat dropdown: true
+- Recognized-only capabilities exposed: true
+- API key value recorded: false
+- Default chat main lane changed: false
+- Conclusion: web-chat-model-capability-matcher-connected

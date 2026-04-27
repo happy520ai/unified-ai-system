@@ -1,0 +1,66 @@
+{
+  "phase": "phase-76g-web-chat-config-advanced-options-collapse",
+  "status": "passed",
+  "generatedAt": "2026-04-25T11:51:06.475Z",
+  "browserPath": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+  "serviceUrl": "http://127.0.0.1:64046",
+  "ui": {
+    "url": "http://127.0.0.1:64046/ui",
+    "initialState": {
+      "wizardPresent": true,
+      "oneClickButtonPresent": true,
+      "advancedOptionsPresent": true,
+      "advancedOptionsOpen": false,
+      "startupOptionsPresent": true,
+      "startupOptionsOpen": false,
+      "visiblePrimaryActions": [
+        "一键应用并检测",
+        "记住默认选择"
+      ],
+      "feedbackText": "下一步建议先选一个模型，然后点“一键应用并检测”。检测通过后就可以继续聊天；需要刷新后保留时，再点“记住默认选择”。只应用、只检测、清除选择、启动模板都放在“更多选项”或“高级启动配置”里。",
+      "effectText": "配置是否已生效当前聊天还未手动应用，当前由服务端自动路由。下次打开还没有记住默认模型。服务重启服务重启后仍按启动环境变量生效；这里尚未改变服务端配置。",
+      "selectedProvider": "",
+      "fetches": [
+        "/providers",
+        "/config/runtime"
+      ]
+    },
+    "finalState": {
+      "wizardPresent": true,
+      "oneClickButtonPresent": true,
+      "advancedOptionsPresent": true,
+      "advancedOptionsOpen": false,
+      "startupOptionsPresent": true,
+      "startupOptionsOpen": false,
+      "visiblePrimaryActions": [
+        "一键应用并检测",
+        "记住默认选择"
+      ],
+      "feedbackText": "当前模型可用已通过现有 /chat 路径拿到成功响应。命中模型：local-fake-provider / local-fake-model返回预览：[fake:local-fake-provider/local-fake-model] 请用一句话回复：配置检测通过。",
+      "effectText": "配置是否已生效当前聊天检测通过；当前模型可以真实回答：local-fake-provider / local-fake-model下次打开还没有记住默认模型。服务重启仅当前页面生效；服务重启后仍按启动环境变量。",
+      "selectedProvider": "local-fake-provider::local-fake-model",
+      "fetches": [
+        "/providers",
+        "/config/runtime",
+        "/chat"
+      ]
+    }
+  },
+  "screenshot": {
+    "path": "apps/ai-gateway-service/evidence/phase-76g-web-chat-config-advanced-options-collapse.png",
+    "bytes": 127634,
+    "width": 1424,
+    "height": 1005,
+    "validPng": true
+  },
+  "safety": {
+    "browserInteraction": true,
+    "advancedControlsCollapsedByDefault": true,
+    "startupControlsCollapsedByDefault": true,
+    "oneClickApplyAndProbeStillWorks": true,
+    "fakeProviderOnly": true,
+    "backendBusinessRouteAdded": false,
+    "defaultChatMainLaneChanged": false
+  },
+  "conclusion": "web-chat-config-advanced-options-collapsed"
+}

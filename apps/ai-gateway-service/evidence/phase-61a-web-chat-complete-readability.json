@@ -1,0 +1,78 @@
+{
+  "phase": "phase-61a-web-chat-complete-readability",
+  "status": "passed",
+  "generatedAt": "2026-04-25T18:33:50.096Z",
+  "browserPath": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+  "serviceUrl": "http://127.0.0.1:53742",
+  "ui": {
+    "url": "http://127.0.0.1:53742/ui",
+    "fallbackSuccess": {
+      "sendButtonDisabled": true,
+      "sendButtonText": "发送",
+      "formSending": false,
+      "latestAssistantText": "PME02:33已切换普通回答。phase61 fallback answer from ordinary RAG复制回答复制引用重新发送",
+      "latestAssistantError": false,
+      "latestSystemText": "流式连接中断，已自动切换普通回答。本次回答仍来自同一个 AI Gateway。",
+      "messageCount": 4
+    },
+    "fallbackFailure": {
+      "sendButtonDisabled": true,
+      "sendButtonText": "发送",
+      "formSending": false,
+      "latestAssistantText": "PME02:33回答失败。聊天请求失败，但页面已经恢复，可以继续发送下一条。\n流式失败原因：PHASE61_STREAM_ERROR_EVENT / Phase61 simulated stream error event\n普通回答失败：HTTP 502 / PHASE61_FALLBACK_FAILED / Phase61 simulated fallback failure\n你可以稍后重试，或先运行 health / doctor / logs 查看服务状态。复制回答复制引用重新发送",
+      "latestAssistantError": true,
+      "latestSystemText": "流式连接中断，已自动切换普通回答。本次回答仍来自同一个 AI Gateway。",
+      "messageCount": 6
+    },
+    "emptyStream": {
+      "sendButtonDisabled": true,
+      "sendButtonText": "发送",
+      "formSending": false,
+      "latestAssistantText": "PME02:33已完成，但没有返回文本。流式请求已完成，但没有返回文本。复制回答复制引用重新发送",
+      "latestAssistantError": false,
+      "latestSystemText": "流式连接中断，已自动切换普通回答。本次回答仍来自同一个 AI Gateway。",
+      "messageCount": 8
+    },
+    "fetches": [
+      {
+        "path": "/chat/rag/stream",
+        "scenario": "fallback-success"
+      },
+      {
+        "path": "/chat/rag",
+        "scenario": "fallback-success"
+      },
+      {
+        "path": "/chat/rag/stream",
+        "scenario": "fallback-failure"
+      },
+      {
+        "path": "/chat/rag",
+        "scenario": "fallback-failure"
+      },
+      {
+        "path": "/chat/rag/stream",
+        "scenario": "empty-stream"
+      }
+    ]
+  },
+  "screenshot": {
+    "path": "apps/ai-gateway-service/evidence/phase-61a-web-chat-complete-readability.png",
+    "bytes": 125164,
+    "width": 1424,
+    "height": 1105,
+    "validPng": true
+  },
+  "safety": {
+    "browserInteraction": true,
+    "simulatedChatFailuresOnly": true,
+    "fakeProviderOnly": true,
+    "defaultChatMainLaneChanged": false,
+    "backendBusinessRouteAdded": false,
+    "providerCalls": false,
+    "runtimeMutation": false,
+    "releaseAutomation": false,
+    "infrastructureProvisioning": false
+  },
+  "conclusion": "web-chat-complete-readability-connected"
+}

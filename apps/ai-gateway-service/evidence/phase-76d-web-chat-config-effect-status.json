@@ -1,0 +1,103 @@
+{
+  "phase": "phase-76d-web-chat-config-effect-status",
+  "status": "passed",
+  "generatedAt": "2026-04-25T11:29:40.942Z",
+  "browserPath": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+  "serviceUrl": "http://127.0.0.1:50918",
+  "ui": {
+    "url": "http://127.0.0.1:50918/ui",
+    "initialState": {
+      "effectPanelPresent": true,
+      "effectItemCount": 3,
+      "effectText": "配置是否已生效当前聊天还未手动应用，当前由服务端自动路由。下次打开还没有记住默认模型。服务重启服务重启后仍按启动环境变量生效；这里尚未改变服务端配置。",
+      "selectedProvider": "",
+      "preference": null,
+      "localStorageDump": "pme-moving-earth-chat-history-v1:{\"version\":1,\"savedAt\":\"2026-04-25T11:29:40.579Z\",\"messages\":[{\"role\":\"assistant\",\"type\":\"assistant\",\"text\":\"你好，我是 PME 移动地球。把问题或文件丢给我，我会先查本地知识库，再组织回答。\"},{\"role\":\"user\",\"type\":\"user\",\"text\":\"配置模型\"},{\"role\":\"assistant\",\"type\":\"assistant\",\"text\":\"我会用三步帮你把聊天模型配置好：先看当前状态，再选择模型，最后告诉你下一步该点什么。API Key 不会写进聊天记录，也不会在浏览器里明文保存。\"}]}",
+      "fetches": [
+        "/providers",
+        "/config/runtime"
+      ]
+    },
+    "selectedState": {
+      "effectPanelPresent": true,
+      "effectItemCount": 3,
+      "effectText": "配置是否已生效当前聊天已选中但未应用：Local Fake Provider / Local Fake Model下次打开还没有记住默认模型。服务重启服务重启后仍按启动环境变量生效；这里尚未改变服务端配置。",
+      "selectedProvider": "",
+      "preference": null,
+      "localStorageDump": "pme-moving-earth-chat-history-v1:{\"version\":1,\"savedAt\":\"2026-04-25T11:29:40.579Z\",\"messages\":[{\"role\":\"assistant\",\"type\":\"assistant\",\"text\":\"你好，我是 PME 移动地球。把问题或文件丢给我，我会先查本地知识库，再组织回答。\"},{\"role\":\"user\",\"type\":\"user\",\"text\":\"配置模型\"},{\"role\":\"assistant\",\"type\":\"assistant\",\"text\":\"我会用三步帮你把聊天模型配置好：先看当前状态，再选择模型，最后告诉你下一步该点什么。API Key 不会写进聊天记录，也不会在浏览器里明文保存。\"}]}",
+      "fetches": [
+        "/providers",
+        "/config/runtime"
+      ]
+    },
+    "appliedState": {
+      "effectPanelPresent": true,
+      "effectItemCount": 3,
+      "effectText": "配置是否已生效当前聊天已生效于当前聊天：Local Fake Provider / Local Fake Model下次打开还没有记住默认模型。服务重启仅当前页面生效；服务重启后仍按启动环境变量。",
+      "selectedProvider": "local-fake-provider::local-fake-model",
+      "preference": null,
+      "localStorageDump": "pme-moving-earth-chat-history-v1:{\"version\":1,\"savedAt\":\"2026-04-25T11:29:40.713Z\",\"messages\":[{\"role\":\"assistant\",\"type\":\"assistant\",\"text\":\"你好，我是 PME 移动地球。把问题或文件丢给我，我会先查本地知识库，再组织回答。\"},{\"role\":\"user\",\"type\":\"user\",\"text\":\"配置模型\"},{\"role\":\"assistant\",\"type\":\"assistant\",\"text\":\"我会用三步帮你把聊天模型配置好：先看当前状态，再选择模型，最后告诉你下一步该点什么。API Key 不会写进聊天记录，也不会在浏览器里明文保存。\"},{\"role\":\"system\",\"type\":\"system\",\"text\":\"已应用到当前聊天：Local Fake Provider / Local Fake Model\"}]}",
+      "fetches": [
+        "/providers",
+        "/config/runtime"
+      ]
+    },
+    "persistedState": {
+      "effectPanelPresent": true,
+      "effectItemCount": 3,
+      "effectText": "配置是否已生效当前聊天已生效于当前聊天：Local Fake Provider / Local Fake Model下次打开已记住；刷新页面后会自动恢复。服务重启浏览器已记住，但服务重启仍需要启动环境变量。",
+      "selectedProvider": "local-fake-provider::local-fake-model",
+      "preference": {
+        "version": 1,
+        "savedAt": "2026-04-25T11:29:40.726Z",
+        "source": "chat-config-wizard",
+        "providerId": "local-fake-provider",
+        "modelId": "local-fake-model",
+        "value": "local-fake-provider::local-fake-model",
+        "secretPersisted": false
+      },
+      "localStorageDump": "pme-moving-earth-chat-history-v1:{\"version\":1,\"savedAt\":\"2026-04-25T11:29:40.730Z\",\"messages\":[{\"role\":\"assistant\",\"type\":\"assistant\",\"text\":\"你好，我是 PME 移动地球。把问题或文件丢给我，我会先查本地知识库，再组织回答。\"},{\"role\":\"user\",\"type\":\"user\",\"text\":\"配置模型\"},{\"role\":\"assistant\",\"type\":\"assistant\",\"text\":\"我会用三步帮你把聊天模型配置好：先看当前状态，再选择模型，最后告诉你下一步该点什么。API Key 不会写进聊天记录，也不会在浏览器里明文保存。\"},{\"role\":\"system\",\"type\":\"system\",\"text\":\"已应用到当前聊天：Local Fake Provider / Local Fake Model\"},{\"role\":\"system\",\"type\":\"system\",\"text\":\"已记住默认聊天模型：Local Fake Provider / Local Fake Model\"}]}\npme-moving-earth-provider-preference-v1:{\"version\":1,\"savedAt\":\"2026-04-25T11:29:40.726Z\",\"source\":\"chat-config-wizard\",\"providerId\":\"local-fake-provider\",\"modelId\":\"local-fake-model\",\"value\":\"local-fake-provider::local-fake-model\",\"secretPersisted\":false}",
+      "fetches": [
+        "/providers",
+        "/config/runtime"
+      ]
+    },
+    "templateState": {
+      "effectPanelPresent": true,
+      "effectItemCount": 3,
+      "effectText": "配置是否已生效当前聊天已生效于当前聊天：Local Fake Provider / Local Fake Model下次打开已记住；刷新页面后会自动恢复。服务重启启动模板已生成；复制到 PowerShell 并重启服务后才会长期生效。",
+      "selectedProvider": "local-fake-provider::local-fake-model",
+      "preference": {
+        "version": 1,
+        "savedAt": "2026-04-25T11:29:40.726Z",
+        "source": "chat-config-wizard",
+        "providerId": "local-fake-provider",
+        "modelId": "local-fake-model",
+        "value": "local-fake-provider::local-fake-model",
+        "secretPersisted": false
+      },
+      "localStorageDump": "pme-moving-earth-chat-history-v1:{\"version\":1,\"savedAt\":\"2026-04-25T11:29:40.730Z\",\"messages\":[{\"role\":\"assistant\",\"type\":\"assistant\",\"text\":\"你好，我是 PME 移动地球。把问题或文件丢给我，我会先查本地知识库，再组织回答。\"},{\"role\":\"user\",\"type\":\"user\",\"text\":\"配置模型\"},{\"role\":\"assistant\",\"type\":\"assistant\",\"text\":\"我会用三步帮你把聊天模型配置好：先看当前状态，再选择模型，最后告诉你下一步该点什么。API Key 不会写进聊天记录，也不会在浏览器里明文保存。\"},{\"role\":\"system\",\"type\":\"system\",\"text\":\"已应用到当前聊天：Local Fake Provider / Local Fake Model\"},{\"role\":\"system\",\"type\":\"system\",\"text\":\"已记住默认聊天模型：Local Fake Provider / Local Fake Model\"}]}\npme-moving-earth-provider-preference-v1:{\"version\":1,\"savedAt\":\"2026-04-25T11:29:40.726Z\",\"source\":\"chat-config-wizard\",\"providerId\":\"local-fake-provider\",\"modelId\":\"local-fake-model\",\"value\":\"local-fake-provider::local-fake-model\",\"secretPersisted\":false}",
+      "fetches": [
+        "/providers",
+        "/config/runtime"
+      ]
+    }
+  },
+  "screenshot": {
+    "path": "apps/ai-gateway-service/evidence/phase-76d-web-chat-config-effect-status.png",
+    "bytes": 127265,
+    "width": 1424,
+    "height": 1005,
+    "validPng": true
+  },
+  "safety": {
+    "browserInteraction": true,
+    "effectStatusOnly": true,
+    "fakeProviderOnly": true,
+    "providerCalls": false,
+    "secretPersisted": false,
+    "backendBusinessRouteAdded": false,
+    "defaultChatMainLaneChanged": false
+  },
+  "conclusion": "web-chat-config-effect-status-connected"
+}

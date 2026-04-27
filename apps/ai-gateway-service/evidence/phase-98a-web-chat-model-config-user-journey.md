@@ -1,0 +1,25 @@
+# Phase 98A Web Chat Model Config User Journey Evidence
+
+- Phase: phase-98a-web-chat-model-config-user-journey
+- Status: passed
+- Generated at: 2026-04-26T12:13:22.460Z
+- Entry button: 配置模型
+- Initial guide mentions API Key: true
+- Initial guide says direct chat after detection: true
+- Wizard present: true
+- Wizard step titles: 选择模型 / 粘贴 Key / 长期启动
+- Quick apply button: 一键检测并保存
+- Success title: 模型配置已生效，可以开始聊天
+- Success visible lines: 当前聊天可用：可以直接继续提问，不需要再去别的面板操作。 | Provider 已识别：generic-openai-compatible | 模型已选择：phase98-chat-model | /chat 探测已通过：当前模型已经返回成功响应。
+- Continue chat action present: true
+- Ready input focused: true
+- Ready guidance: 已经能聊。直接输入问题，或拖文件进来。
+- Local mock provider only: true
+- Real provider calls: false
+- API key persisted in browser: false
+- API key persisted in evidence: false
+- Default chat main lane changed: false
+- Screenshot path: apps/ai-gateway-service/evidence/phase-98a-web-chat-model-config-user-journey.png
+- Screenshot bytes: 125970
+- Valid PNG: true
+- Conclusion: web-chat-model-config-user-journey-readable

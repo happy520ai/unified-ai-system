@@ -1,0 +1,82 @@
+{
+  "phase": "phase-64a-web-chat-keyboard-interaction",
+  "status": "passed",
+  "generatedAt": "2026-04-25T18:34:55.406Z",
+  "browserPath": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+  "serviceUrl": "http://127.0.0.1:54559",
+  "ui": {
+    "url": "http://127.0.0.1:54559/ui",
+    "enterPrompt": "phase64a enter sends prompt",
+    "shiftEnterPrompt": "phase64a shift enter line one\\nphase64a shift enter line two",
+    "afterEnter": {
+      "activeElementId": "chat-input",
+      "inputValue": "",
+      "latestAssistantText": "phase64a keyboard answer #1",
+      "lastUserText": "phase64a enter sends prompt",
+      "sendButtonDisabled": true,
+      "sendButtonText": "发送",
+      "fetches": [
+        "/chat/rag/stream"
+      ],
+      "fetchStatuses": [
+        {
+          "path": "/chat/rag/stream",
+          "status": 200,
+          "ok": true,
+          "simulated": true
+        }
+      ],
+      "callCount": 1,
+      "messageCount": 3
+    },
+    "afterShiftEnter": {
+      "activeElementId": "chat-input",
+      "inputValue": "",
+      "latestAssistantText": "phase64a keyboard answer #2",
+      "lastUserText": "phase64a shift enter line one\nphase64a shift enter line two",
+      "sendButtonDisabled": true,
+      "sendButtonText": "发送",
+      "fetches": [
+        "/chat/rag/stream",
+        "/chat/rag/stream"
+      ],
+      "fetchStatuses": [
+        {
+          "path": "/chat/rag/stream",
+          "status": 200,
+          "ok": true,
+          "simulated": true
+        },
+        {
+          "path": "/chat/rag/stream",
+          "status": 200,
+          "ok": true,
+          "simulated": true
+        }
+      ],
+      "callCount": 2,
+      "messageCount": 5
+    },
+    "ragStreamCount": 2
+  },
+  "screenshot": {
+    "path": "apps/ai-gateway-service/evidence/phase-64a-web-chat-keyboard-interaction.png",
+    "bytes": 129817,
+    "width": 1424,
+    "height": 1105,
+    "validPng": true
+  },
+  "safety": {
+    "browserInteraction": true,
+    "simulatedStreamOnly": true,
+    "keyboardInteractionOnly": true,
+    "fakeProviderOnly": true,
+    "defaultChatMainLaneChanged": false,
+    "backendBusinessRouteAdded": false,
+    "providerCalls": false,
+    "runtimeMutation": false,
+    "releaseAutomation": false,
+    "infrastructureProvisioning": false
+  },
+  "conclusion": "web-chat-keyboard-interaction-connected"
+}

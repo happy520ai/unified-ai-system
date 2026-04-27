@@ -1,0 +1,25 @@
+# Phase 27 Knowledge Persistence Evidence
+
+- Phase: phase-27-knowledge-persistence
+- Status: passed
+- Generated at: 2026-04-24T18:24:02.120Z
+- Storage mode: file-sqlite
+- Durable: true
+- File status: configured
+- SQLite status: configured
+- File document count: 1
+- SQLite document count: 1
+- Vector note: Vector storage remains an explicit configured path and is verified by verify:phase23.
+- Load HTTP status: 200
+- Loaded count: 1
+- First retrieve top hit: phase-27-persistent-document
+- Vector infra mode: local-keyword
+- Vector infra status: disabled
+- Restart health HTTP status: 200
+- Restart source present: true
+- Restart retrieve HTTP status: 200
+- Restart top hit: phase-27-persistent-document
+- Marker matched after restart: true
+- Snippet present after restart: true
+- Matched terms after restart: phase27-persistence-marker
+- Conclusion: knowledge-persistence-connected

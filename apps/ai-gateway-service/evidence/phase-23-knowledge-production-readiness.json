@@ -1,0 +1,95 @@
+{
+  "phase": "phase-23-knowledge-production-readiness",
+  "status": "passed",
+  "generatedAt": "2026-04-24T15:02:09.545Z",
+  "service": {
+    "url": "http://127.0.0.1:55894"
+  },
+  "keyword": {
+    "ready": true,
+    "loadHttpStatus": 200,
+    "retrieveHttpStatus": 200,
+    "normalizedQuery": "phase23 exact quality ranking boost 中文 marker",
+    "ranking": "weighted-keyword-v2",
+    "queryNormalization": "unicode-nfkc-lowercase-collapse",
+    "stopwordsApplied": true,
+    "topHitDocumentId": "phase-23-quality-top-document",
+    "topChunkDocumentId": "phase-23-quality-top-document",
+    "topDocumentId": "phase-23-quality-top-document",
+    "topHitRank": 1,
+    "topHitScore": 0.86,
+    "scoreBreakdown": {
+      "termCoverage": 1,
+      "titleCoverage": 1,
+      "sourceCoverage": 0,
+      "documentIdCoverage": 0,
+      "bodyCoverage": 0.8571,
+      "phraseMatch": true,
+      "contiguousMatch": true,
+      "exactMatch": true,
+      "matchedTermCount": 7,
+      "fieldWeights": {
+        "title": 0.18,
+        "sourceId": 0.08,
+        "documentId": 0.08,
+        "body": 0.56,
+        "phrase": 0.1,
+        "exact": 0.1
+      }
+    },
+    "matchedTerms": [
+      "phase23",
+      "exact",
+      "quality",
+      "ranking",
+      "boost",
+      "中文",
+      "marker"
+    ],
+    "highlightCount": 7,
+    "snippetPresent": true,
+    "firstOrder": [
+      "phase-23-quality-top-document",
+      "phase-23-quality-partial-document"
+    ],
+    "secondOrder": [
+      "phase-23-quality-top-document",
+      "phase-23-quality-partial-document"
+    ],
+    "stableOrder": true
+  },
+  "vectorProduction": {
+    "ready": true,
+    "mode": "vector",
+    "status": "ready",
+    "enabled": true,
+    "productionReady": true,
+    "blockers": [],
+    "embeddingStatus": "configured",
+    "vectorStoreStatus": "configured",
+    "pgvectorStatus": "configured",
+    "probe": {
+      "provider": "gemini",
+      "model": "gemini-embedding-001",
+      "dimension": 3072,
+      "namespace": "default",
+      "configuredTable": "knowledge_chunks",
+      "probeTable": "knowledge_chunks_phase23_probe",
+      "topDocumentId": "phase-23-quality-top-document",
+      "topSimilarity": 0.906673,
+      "hitOrder": [
+        {
+          "documentId": "phase-23-quality-top-document",
+          "similarity": 0.906673
+        },
+        {
+          "documentId": "phase-23-quality-partial-document",
+          "similarity": 0.861398
+        }
+      ],
+      "writeReadRetrieveCompleted": true
+    }
+  },
+  "error": null,
+  "conclusion": "knowledge-production-deliverable-connected"
+}

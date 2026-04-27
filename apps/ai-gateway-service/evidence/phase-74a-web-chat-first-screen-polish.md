@@ -1,0 +1,30 @@
+# Phase 74A Web Chat First Screen Polish Evidence
+
+- Phase: phase-74a-web-chat-first-screen-polish
+- Status: passed
+- Generated at: 2026-04-25T11:58:58.417Z
+- Service URL: http://127.0.0.1:52722
+- Brand present: true
+- Chat-first title present: true
+- Welcome copy short enough: true
+- Assistant greeting short enough: true
+- Quick start is details: true
+- Quick start collapsed by default: true
+- Command list collapsed with details: true
+- Input is primary action: true
+- Side hidden by default: true
+- No horizontal overflow: true
+- Screenshot path: apps/ai-gateway-service/evidence/phase-74a-web-chat-first-screen-polish.png
+- Screenshot bytes: 98861
+- Screenshot dimensions: 1424x905
+- Valid PNG: true
+- Browser render only: true
+- First screen only: true
+- Simulated provider config only: true
+- Default chat main lane changed: false
+- Backend business route added: false
+- Provider calls: false
+- Runtime mutation: false
+- Release automation: false
+- Infrastructure provisioning: false
+- Conclusion: web-chat-first-screen-polish-connected

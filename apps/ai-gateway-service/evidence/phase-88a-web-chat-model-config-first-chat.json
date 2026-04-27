@@ -1,0 +1,146 @@
+{
+  "phase": "phase-88a-web-chat-model-config-first-chat",
+  "status": "passed",
+  "generatedAt": "2026-04-26T12:13:17.461Z",
+  "browserPath": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+  "serviceUrl": "http://127.0.0.1:58722",
+  "ui": {
+    "url": "http://127.0.0.1:58722/ui?showFakeProviders=1",
+    "mockProviderBaseUrl": "http://127.0.0.1:58718/v1",
+    "finalState": {
+      "providerSelectValue": "generic-openai-compatible::phase88-chat-model",
+      "composerModelReady": "true",
+      "composerModelProviderId": "generic-openai-compatible",
+      "composerModelId": "phase88-chat-model",
+      "preferenceValue": "generic-openai-compatible::phase88-chat-model",
+      "focusReturnedToChatInput": true,
+      "inputClearedAfterSend": true,
+      "sendButtonReady": true,
+      "latestAssistantText": "phase88 first chat answer first-chat-live-marker",
+      "latestAssistantStatus": "PME20:13回答完成。phase88 first chat answer first-chat-live-marker复制回答复制引用重新发送",
+      "assistantAnswerIncludesMarker": true,
+      "assistantStatusDone": true,
+      "assistantErrorText": "",
+      "localStorageContainsSecret": false,
+      "pageTextContainsSecret": false,
+      "chatProbeFetch": {
+        "path": "/chat",
+        "providerId": "generic-openai-compatible",
+        "model": "phase88-chat-model",
+        "prompt": "请用一句话回复：配置检测通过。",
+        "knowledgeRequested": false
+      },
+      "chatStreamFetch": {
+        "path": "/chat/stream",
+        "providerId": "generic-openai-compatible",
+        "model": "phase88-chat-model",
+        "prompt": "请用一句话说 first chat live marker",
+        "knowledgeRequested": false
+      },
+      "fetches": [
+        {
+          "path": "/providers"
+        },
+        {
+          "path": "/providers"
+        },
+        {
+          "path": "/config/runtime"
+        },
+        {
+          "path": "/models/import/preview",
+          "providerHint": "openai-compatible",
+          "baseUrl": "http://127.0.0.1:58718/v1",
+          "hasApiKey": true,
+          "apiKeyRedacted": "***"
+        },
+        {
+          "path": "/models/import/preview",
+          "providerHint": "openai-compatible",
+          "baseUrl": "http://127.0.0.1:58718/v1",
+          "hasApiKey": true,
+          "apiKeyRedacted": "***"
+        },
+        {
+          "path": "/models/import/confirm",
+          "providerId": "openai-compatible",
+          "modelId": "phase88-chat-model",
+          "hasApiKeyRef": true
+        },
+        {
+          "path": "/chat",
+          "providerId": "generic-openai-compatible",
+          "model": "phase88-chat-model",
+          "prompt": "请用一句话回复：配置检测通过。",
+          "knowledgeRequested": false
+        },
+        {
+          "path": "/chat/stream",
+          "providerId": "generic-openai-compatible",
+          "model": "phase88-chat-model",
+          "prompt": "请用一句话说 first chat live marker",
+          "knowledgeRequested": false
+        }
+      ]
+    }
+  },
+  "mockProvider": {
+    "requestCount": 4,
+    "requests": [
+      {
+        "method": "GET",
+        "url": "/v1/models",
+        "hasAuthorization": true,
+        "authorizationRedacted": "Bearer ***",
+        "model": "",
+        "stream": false,
+        "prompt": ""
+      },
+      {
+        "method": "GET",
+        "url": "/v1/models",
+        "hasAuthorization": true,
+        "authorizationRedacted": "Bearer ***",
+        "model": "",
+        "stream": false,
+        "prompt": ""
+      },
+      {
+        "method": "POST",
+        "url": "/v1/chat/completions",
+        "hasAuthorization": true,
+        "authorizationRedacted": "Bearer ***",
+        "model": "phase88-chat-model",
+        "stream": false,
+        "prompt": "请用一句话回复：配置检测通过。"
+      },
+      {
+        "method": "POST",
+        "url": "/v1/chat/completions",
+        "hasAuthorization": true,
+        "authorizationRedacted": "Bearer ***",
+        "model": "phase88-chat-model",
+        "stream": true,
+        "prompt": "请用一句话说 first chat live marker"
+      }
+    ]
+  },
+  "screenshot": {
+    "path": "apps/ai-gateway-service/evidence/phase-88a-web-chat-model-config-first-chat.png",
+    "bytes": 117644,
+    "width": 1424,
+    "height": 1105,
+    "validPng": true
+  },
+  "safety": {
+    "browserInteraction": true,
+    "localMockProviderOnly": true,
+    "realProviderCalls": false,
+    "apiKeyValueRecorded": false,
+    "apiKeyPersistedInBrowser": false,
+    "apiKeyPersistedInEvidence": false,
+    "defaultChatMainLaneChanged": false,
+    "backendBusinessRouteAdded": false
+  },
+  "conclusion": "web-chat-model-config-first-chat-connected"
+}

@@ -1,0 +1,22 @@
+# Phase 76O Web Chat API Key Auto Match Evidence
+
+- Phase: phase-76o-web-chat-api-key-auto-match
+- Status: passed
+- Generated at: 2026-04-25T14:39:26.493Z
+- Service URL: http://127.0.0.1:65497
+- UI auto-detect action present: true
+- Detect route present in UI: true
+- Recommended provider/model: local-fake-provider::local-fake-model
+- Selectable model count: 2
+- Selected runtime model: phase76o-alt-model
+- Detection secret storage: not-stored
+- Runtime credential provider: local-fake-provider
+- Runtime credential storage: memory-only
+- Runtime model count: 2
+- Chat selected provider: local-fake-provider
+- Chat selected model: phase76o-alt-model
+- API key value recorded: false
+- API key persisted: false
+- Detection stores secret: false
+- Default chat main lane changed: false
+- Conclusion: web-chat-api-key-auto-match-connected

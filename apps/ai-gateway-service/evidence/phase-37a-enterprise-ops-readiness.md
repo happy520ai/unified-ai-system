@@ -1,0 +1,39 @@
+# Phase 37A Enterprise Ops Readiness Evidence
+
+- Phase: phase-37a-enterprise-ops-readiness
+- Status: passed
+- Generated at: 2026-04-26T05:01:01.157Z
+- Service URL: http://127.0.0.1:61083
+- User store path: C:\Users\Administrator\AppData\Local\Temp\phase37a-enterprise-ops-rsaHX6\users\enterprise-users.json
+- Audit log path: C:\Users\Administrator\AppData\Local\Temp\phase37a-enterprise-ops-rsaHX6\audit\enterprise-audit.jsonl
+- Backup dir: C:\Users\Administrator\AppData\Local\Temp\phase37a-enterprise-ops-rsaHX6\backups
+- Backup path: C:\Users\Administrator\AppData\Local\Temp\phase37a-enterprise-ops-rsaHX6\backups\pme-enterprise-backup-2026-04-26T05-01-01-123Z.json
+- UI ops buttons present: true
+- Readiness HTTP status: 200
+- Readiness status: ready
+- Readiness blockers: none
+- Readiness warnings: none
+- Managed user status: 200
+- Knowledge load status: 200
+- Viewer backup denied status: 403
+- Backup status: 200
+- Backup id: pme-enterprise-backup-2026-04-26T05-01-01-123Z
+- Backup byte size: 12280
+- Backup stored user count: 1
+- Backup audit entry count: 6
+- Backup knowledge document count: 5
+- Backup contains token hash: true
+- Backup contains raw admin token: false
+- Backup contains raw viewer token: false
+- Backup contains raw managed token: false
+- Restore validate status: 200
+- Restore validate valid: true
+- Restore validate mode: restore-validate-only
+- Restore validate mutation: none
+- Outside restore validate status: 400
+- Outside restore validate code: enterprise_backup_path_outside_backup_dir
+- Audit status: 200
+- Audit entry count: 11
+- Backup audit recorded: true
+- Restore validate audit recorded: true
+- Conclusion: enterprise-ops-readiness-connected

@@ -1,0 +1,25 @@
+# Phase 40A Enterprise Deployment Preflight Evidence
+
+- Phase: phase-40a-enterprise-deployment-preflight
+- Status: passed
+- Generated at: 2026-04-26T05:01:06.014Z
+- Service URL: http://127.0.0.1:62034
+- User store path: C:\Users\Administrator\AppData\Local\Temp\phase40a-enterprise-preflight-AJTt8X\users\enterprise-users.json
+- Audit log path: C:\Users\Administrator\AppData\Local\Temp\phase40a-enterprise-preflight-AJTt8X\audit\enterprise-audit.jsonl
+- Backup dir: C:\Users\Administrator\AppData\Local\Temp\phase40a-enterprise-preflight-AJTt8X\backups
+- UI preflight panel present: true
+- UI preflight button present: true
+- Deployment readiness path present: true
+- Startup readiness path present: true
+- Security readiness path present: true
+- Vector readiness path present: true
+- Service health status: ready
+- Missing startup readiness status: 401
+- Deployment readiness status: ready
+- Startup readiness status: ready
+- Security readiness status: ready
+- Vector readiness mode: local-keyword
+- Vector readiness status: disabled
+- Response contains NVIDIA key: false
+- Response contains admin token: false
+- Conclusion: enterprise-deployment-preflight-connected

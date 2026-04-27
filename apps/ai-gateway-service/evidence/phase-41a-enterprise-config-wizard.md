@@ -1,0 +1,22 @@
+# Phase 41A Enterprise Config Wizard Evidence
+
+- Phase: phase-41a-enterprise-config-wizard
+- Status: passed
+- Generated at: 2026-04-26T05:01:08.290Z
+- Service URL: http://127.0.0.1:62555
+- UI HTTP status: 200
+- Config wizard panel present: true
+- Config input present: true
+- Config check button present: true
+- Config clear button present: true
+- Local parser present: true
+- Local checker present: true
+- NVIDIA key marker present: true
+- Enterprise token marker present: true
+- pgvector marker present: true
+- Uploaded false marker present: true
+- Values echoed false marker present: true
+- Response contains NVIDIA key: false
+- Response contains admin token: false
+- Response contains pgvector URI: false
+- Conclusion: enterprise-config-wizard-connected

@@ -1,0 +1,27 @@
+{
+  "phase": "phase-41a-enterprise-config-wizard",
+  "status": "passed",
+  "generatedAt": "2026-04-26T05:01:08.290Z",
+  "serviceUrl": "http://127.0.0.1:62555",
+  "ui": {
+    "httpStatus": 200,
+    "configWizardPanelPresent": true,
+    "configInputPresent": true,
+    "configCheckButtonPresent": true,
+    "configClearButtonPresent": true,
+    "localParserPresent": true,
+    "localCheckerPresent": true,
+    "requiredNvidiaKeyMarkerPresent": true,
+    "requiredEnterpriseTokenMarkerPresent": true,
+    "pgvectorMarkerPresent": true
+  },
+  "safety": {
+    "uploadedFalseMarkerPresent": true,
+    "valuesEchoedFalseMarkerPresent": true,
+    "responseContainsNvidiaKey": false,
+    "responseContainsAdminToken": false,
+    "responseContainsPgvectorUri": false
+  },
+  "error": null,
+  "conclusion": "enterprise-config-wizard-connected"
+}

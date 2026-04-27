@@ -1,0 +1,62 @@
+{
+  "phase": "phase-47a-enterprise-overview-ui",
+  "status": "passed",
+  "generatedAt": "2026-04-26T05:01:19.720Z",
+  "serviceUrl": "http://127.0.0.1:64877",
+  "ui": {
+    "httpStatus": 200,
+    "panelPresent": true,
+    "routePresent": true,
+    "titlePresent": true
+  },
+  "route": {
+    "path": "/enterprise/overview",
+    "missingAuthHttpStatus": 401,
+    "authorizedHttpStatus": 200,
+    "mode": "read-only-enterprise-overview",
+    "status": "ready",
+    "blockerCount": 0,
+    "warningCount": 0
+  },
+  "readiness": {
+    "deploymentStatus": "ready",
+    "startupStatus": "ready",
+    "securityStatus": "ready",
+    "vectorMode": "local-keyword",
+    "vectorStatus": "disabled"
+  },
+  "acceptance": {
+    "sourcePhase": "phase-43a-enterprise-acceptance-report",
+    "sourceStatus": "passed",
+    "sourceConclusion": "enterprise-acceptance-report-ready",
+    "requiredCount": 25,
+    "passedCount": 25,
+    "missingCount": 0,
+    "failedCount": 0
+  },
+  "releaseCandidate": {
+    "sourcePhase": "phase-45a-enterprise-release-candidate-dry-run",
+    "sourceStatus": "passed",
+    "sourceConclusion": "enterprise-release-candidate-dry-run-ready",
+    "mode": "read-only-dry-run",
+    "packageCreated": false,
+    "releaseCreated": false,
+    "artifactPublished": false,
+    "evidenceRequiredCount": 27,
+    "evidencePassedCount": 27,
+    "evidenceMissingCount": 0,
+    "evidenceFailedCount": 0
+  },
+  "safety": {
+    "readOnlyRoute": true,
+    "providerCalls": false,
+    "runtimeMutation": false,
+    "releaseAutomation": false,
+    "infrastructureProvisioning": false,
+    "secretValuesRecorded": false,
+    "responseContainsAuditorToken": false,
+    "responseContainsNvidiaKey": false
+  },
+  "error": null,
+  "conclusion": "enterprise-overview-ui-connected"
+}

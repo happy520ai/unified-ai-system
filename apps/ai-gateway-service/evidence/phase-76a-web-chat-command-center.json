@@ -1,0 +1,86 @@
+{
+  "phase": "phase-76a-web-chat-command-center",
+  "status": "passed",
+  "generatedAt": "2026-04-25T10:50:26.166Z",
+  "browserPath": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+  "serviceUrl": "http://127.0.0.1:59082",
+  "ui": {
+    "url": "http://127.0.0.1:59082/ui",
+    "modelState": {
+      "modelConfigCardPresent": true,
+      "knowledgeCardPresent": false,
+      "secretBoundaryVisible": true,
+      "selectedProvider": "",
+      "commandCardCount": 1,
+      "fetches": [
+        "/providers",
+        "/config/runtime"
+      ],
+      "fetchStatuses": [
+        {
+          "path": "/config/runtime",
+          "status": 200,
+          "ok": true
+        },
+        {
+          "path": "/providers",
+          "status": 200,
+          "ok": true
+        }
+      ]
+    },
+    "knowledgeState": {
+      "modelConfigCardPresent": true,
+      "knowledgeCardPresent": true,
+      "secretBoundaryVisible": true,
+      "selectedProvider": "local-fake-provider::local-fake-model",
+      "commandCardCount": 2,
+      "fetches": [
+        "/providers",
+        "/config/runtime",
+        "/knowledge/health",
+        "/knowledge/sources"
+      ],
+      "fetchStatuses": [
+        {
+          "path": "/config/runtime",
+          "status": 200,
+          "ok": true
+        },
+        {
+          "path": "/providers",
+          "status": 200,
+          "ok": true
+        },
+        {
+          "path": "/knowledge/health",
+          "status": 200,
+          "ok": true
+        },
+        {
+          "path": "/knowledge/sources",
+          "status": 200,
+          "ok": true
+        }
+      ]
+    }
+  },
+  "screenshot": {
+    "path": "apps/ai-gateway-service/evidence/phase-76a-web-chat-command-center.png",
+    "bytes": 120760,
+    "width": 1424,
+    "height": 1005,
+    "validPng": true
+  },
+  "safety": {
+    "browserInteraction": true,
+    "commandCenterOnly": true,
+    "fakeProviderOnly": true,
+    "providerCalls": false,
+    "runtimeSecretPersisted": false,
+    "defaultChatMainLaneChanged": false,
+    "backendBusinessRouteAdded": false,
+    "releaseAutomation": false
+  },
+  "conclusion": "web-chat-command-center-connected"
+}

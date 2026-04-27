@@ -1,0 +1,37 @@
+# Phase 23 Knowledge Production Readiness Evidence
+
+- Phase: phase-23-knowledge-production-readiness
+- Status: passed
+- Generated at: 2026-04-24T15:02:09.545Z
+- Service URL: http://127.0.0.1:55894
+- Keyword ready: true
+- Retrieve HTTP status: 200
+- Normalized query: phase23 exact quality ranking boost 中文 marker
+- Ranking: weighted-keyword-v2
+- Query normalization: unicode-nfkc-lowercase-collapse
+- Stopwords applied: true
+- Top hit document: phase-23-quality-top-document
+- Top chunk document: phase-23-quality-top-document
+- Top document: phase-23-quality-top-document
+- Top hit rank: 1
+- Top hit score: 0.86
+- Matched terms: phase23, exact, quality, ranking, boost, 中文, marker
+- Highlight count: 7
+- Snippet present: true
+- Stable order: true
+- Vector production ready: true
+- Vector mode: vector
+- Vector status: ready
+- Vector enabled: true
+- Embedding status: configured
+- Vector store status: configured
+- pgvector status: configured
+- Probe provider: gemini
+- Probe model: gemini-embedding-001
+- Probe dimension: 3072
+- Probe namespace: default
+- Probe top document: phase-23-quality-top-document
+- Probe top similarity: 0.906673
+- Probe write/read/retrieve completed: true
+- Blockers: none
+- Conclusion: knowledge-production-deliverable-connected

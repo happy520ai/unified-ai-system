@@ -1,0 +1,29 @@
+# Phase 26A Chat-first Web Console Evidence
+
+- Phase: phase-26a-chat-first-web-console
+- Status: passed
+- Generated at: 2026-04-25T09:56:12.565Z
+- UI URL: http://127.0.0.1:59673/ui
+- UI HTTP status: 200
+- Chat-first present: true
+- Workflow preview present: true
+- Streaming present: true
+- Chat input present: true
+- Chat file input present: true
+- Upload button present: true
+- Auto knowledge enabled present: true
+- Knowledge injection mode present: true
+- No sidebar rail present: true
+- File import present: true
+- Service health HTTP status: 200
+- Service health status: ready
+- File load HTTP status: 200
+- Loaded source ID: phase-26a-chat-first-source
+- Loaded count: 1
+- Retrieve HTTP status: 200
+- Retrieve mode: keyword
+- Query: phase26a chat first business workflow local knowledge
+- Top hit document: phase-26a-chat-first-document.txt
+- Snippet present: true
+- Matched terms: phase26a, chat, first, business, workflow, local, knowledge
+- Conclusion: chat-first-web-console-connected

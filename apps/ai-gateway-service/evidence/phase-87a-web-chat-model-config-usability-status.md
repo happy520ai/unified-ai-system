@@ -1,0 +1,23 @@
+# Phase 87A Web Chat Model Config Usability Status Evidence
+
+- Phase: phase-87a-web-chat-model-config-usability-status
+- Status: passed
+- Generated at: 2026-04-26T11:06:25.506Z
+- Upstream phase: phase-86a-web-chat-model-config-success-path
+- Upstream status: passed
+- Provider explained: true
+- Model explained: true
+- Runtime explained: true
+- Chat probe explained: true
+- Chat ready explained: true
+- Secret safety explained: true
+- Persisted choice explained: true
+- Browser secret safety explained: true
+- Composer ready dataset: true
+- Composer provider dataset: generic-openai-compatible
+- Composer model dataset: phase86-chat-model
+- Local mock provider only: true
+- Real provider calls: false
+- API key persisted in evidence: false
+- Default chat main lane changed: false
+- Conclusion: web-chat-model-config-usability-status-clear

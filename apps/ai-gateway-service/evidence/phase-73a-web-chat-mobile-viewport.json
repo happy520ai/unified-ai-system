@@ -1,0 +1,102 @@
+{
+  "phase": "phase-73a-web-chat-mobile-viewport",
+  "status": "passed",
+  "generatedAt": "2026-04-25T09:55:54.557Z",
+  "browserPath": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+  "serviceUrl": "http://127.0.0.1:59335",
+  "ui": {
+    "url": "http://127.0.0.1:59335/ui",
+    "mobileState": {
+      "innerWidth": 390,
+      "innerHeight": 844,
+      "documentScrollWidth": 390,
+      "documentScrollHeight": 844,
+      "bodyScrollWidth": 390,
+      "bodyScrollHeight": 844,
+      "pageHasNoHorizontalOverflow": true,
+      "pageHasNoDocumentScroll": true,
+      "shellRect": {
+        "top": 144,
+        "left": 8,
+        "right": 382,
+        "bottom": 836,
+        "width": 374,
+        "height": 692
+      },
+      "historyRect": {
+        "top": 145,
+        "left": 9,
+        "right": 381,
+        "bottom": 603,
+        "width": 372,
+        "height": 459
+      },
+      "composerRect": {
+        "top": 603,
+        "left": 9,
+        "right": 381,
+        "bottom": 835,
+        "width": 372,
+        "height": 232
+      },
+      "inputRect": {
+        "top": 625,
+        "left": 32,
+        "right": 358,
+        "bottom": 653,
+        "width": 326,
+        "height": 28
+      },
+      "sendRect": {
+        "top": 786,
+        "left": 199,
+        "right": 371,
+        "bottom": 825,
+        "width": 172,
+        "height": 39
+      },
+      "stopRect": {
+        "top": 786,
+        "left": 19,
+        "right": 191,
+        "bottom": 825,
+        "width": 172,
+        "height": 39
+      },
+      "shellWithinViewport": true,
+      "historyUsableHeight": true,
+      "composerWithinViewport": true,
+      "composerCompactHeight": true,
+      "inputWithinViewport": true,
+      "sendButtonVisible": true,
+      "stopButtonVisible": true,
+      "quickStartDisplay": "none",
+      "quickStartHiddenOnMobile": true,
+      "chipsOverflowX": "auto",
+      "chipsScrollableOnMobile": true,
+      "sideWidth": 390,
+      "sideFullWidthOnMobile": true,
+      "sendButtonDisabled": true,
+      "inputPlaceholderPresent": true
+    }
+  },
+  "screenshot": {
+    "path": "apps/ai-gateway-service/evidence/phase-73a-web-chat-mobile-viewport.png",
+    "bytes": 57431,
+    "width": 390,
+    "height": 844,
+    "validPng": true
+  },
+  "safety": {
+    "browserInteraction": true,
+    "mobileViewportOnly": true,
+    "simulatedProviderConfigOnly": true,
+    "defaultChatMainLaneChanged": false,
+    "backendBusinessRouteAdded": false,
+    "providerCalls": false,
+    "runtimeMutation": false,
+    "releaseAutomation": false,
+    "infrastructureProvisioning": false
+  },
+  "conclusion": "web-chat-mobile-viewport-connected"
+}

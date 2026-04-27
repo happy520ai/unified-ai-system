@@ -1,0 +1,28 @@
+# Phase 102E Agent Workforce User Guide Evidence
+
+- Phase: phase-102e-agent-workforce-user-guide
+- Status: passed
+- Generated at: 2026-04-26T13:55:51.377Z
+- Service URL: http://127.0.0.1:58996
+- Workforce health HTTP status: 200
+- Agent count: 7
+- UI phase marker present: true
+- UI preview wording present: true
+- UI not-executor wording present: true
+- UI no-code wording present: true
+- UI no-file-mutation wording present: true
+- UI next-use wording present: true
+- README Phase 102E present: true
+- README verify command present: true
+- README boundary present: true
+- AGENTS verify command present: true
+- AGENTS boundary present: true
+- Root script present: true
+- Real LLM calls: false
+- Code execution: false
+- Project file writes: false
+- Workflow run: false
+- Default chat lane mutated: false
+- Provider registry mutated: false
+- Secret values recorded: false
+- Conclusion: agent-workforce-user-guide-closed

@@ -1,0 +1,38 @@
+# Phase 46A Enterprise Release Candidate UI Evidence
+
+- Phase: phase-46a-enterprise-release-candidate-ui
+- Status: passed
+- Generated at: 2026-04-26T05:01:17.341Z
+- Service URL: http://127.0.0.1:64413
+- UI HTTP status: 200
+- UI panel present: true
+- Route present in UI: true
+- Route path: /enterprise/release-candidate/dry-run
+- Missing auth HTTP status: 401
+- Authorized HTTP status: 200
+- Route mode: read-only-existing-artifacts
+- Evidence path: apps/ai-gateway-service/evidence/phase-45a-enterprise-release-candidate-dry-run.json
+- Source phase: phase-45a-enterprise-release-candidate-dry-run
+- Source status: passed
+- Source conclusion: enterprise-release-candidate-dry-run-ready
+- Source mode: read-only-dry-run
+- Package created: false
+- Release created: false
+- Artifact published: false
+- Evidence required: 27
+- Evidence passed: 27
+- Evidence missing: 0
+- Evidence failed: 0
+- Docs status: passed
+- Scripts status: passed
+- Boundary status: passed
+- Secret scan status: passed
+- Read-only route: true
+- Provider calls: false
+- Runtime mutation: false
+- Release automation: false
+- Infrastructure provisioning: false
+- Secret values recorded: false
+- Response contains auditor token: false
+- Response contains NVIDIA key: false
+- Conclusion: enterprise-release-candidate-ui-connected

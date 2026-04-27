@@ -1,0 +1,33 @@
+# Phase 75A Web Chat Final Experience Evidence
+
+- Phase: phase-75a-web-chat-final-experience
+- Status: passed
+- Generated at: 2026-04-25T10:29:43.104Z
+- Service URL: http://127.0.0.1:62641
+- Initial assistant structured: true
+- Initial scroll button hidden: true
+- User meta label: 你
+- Assistant meta label: PME
+- User meta time present: true
+- Assistant meta time present: true
+- Action labels: 复制这条引用, 复制回答, 复制引用, 重新发送
+- Citation heading: 引用 1 条
+- Citation snippet: phase75a final citation snippet
+- History overflowing: true
+- Scroll button visible after manual scroll: true
+- Near bottom after recovery: true
+- Screenshot path: apps/ai-gateway-service/evidence/phase-75a-web-chat-final-experience.png
+- Screenshot bytes: 106905
+- Screenshot dimensions: 1424x1005
+- Valid PNG: true
+- Browser interaction: true
+- Simulated stream only: true
+- Final chat surface only: true
+- Fake provider only: true
+- Default chat main lane changed: false
+- Backend business route added: false
+- Provider calls: false
+- Runtime mutation: false
+- Release automation: false
+- Infrastructure provisioning: false
+- Conclusion: web-chat-final-experience-connected

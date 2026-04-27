@@ -1,0 +1,23 @@
+# Phase 80A Web First-Run Guide Evidence
+
+- Phase: phase-80a-web-first-run-guide
+- Status: passed
+- Generated at: 2026-04-26T07:40:40.902Z
+- UI route: GET /ui
+- Guide marker: phase80a-first-run-guide
+- Missing guide text: none
+- Guide has three steps: true
+- Guide hides advanced panel concepts: true
+- Root start script: node ./tools/phase79a/first-run.mjs start
+- Root verify script: pnpm --filter @unified-ai-system/ai-gateway-service verify:phase80a
+- Service verify script: node ./src/entrypoints/verifyWebFirstRunGuide.js
+- Missing scripts: none
+- First-run script exists: true
+- UI only: true
+- Provider calls: false
+- Runtime mutation: false
+- Backend business route added: false
+- Default chat main lane changed: false
+- Knowledge mode changed: false
+- Release automation: false
+- Conclusion: web-first-run-guide-connected

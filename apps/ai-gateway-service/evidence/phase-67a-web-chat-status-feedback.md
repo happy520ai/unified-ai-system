@@ -1,0 +1,30 @@
+# Phase 67A Web Chat Status Feedback Evidence
+
+- Phase: phase-67a-web-chat-status-feedback
+- Status: passed
+- Generated at: 2026-04-25T09:55:32.168Z
+- Service URL: http://127.0.0.1:58882
+- Prompt: phase67a status feedback prompt
+- Connecting status: 正在连接 AI Gateway...
+- Knowledge status: 已检索知识库：1 条引用，正在生成回答。
+- Generating status: 正在生成回答...
+- Done status: 回答完成。
+- Done status class: message-status done
+- Assistant text: phase67a answer generated after knowledge status feedback
+- Citation count: 1
+- Status saved into answer text: false
+- Screenshot path: apps/ai-gateway-service/evidence/phase-67a-web-chat-status-feedback.png
+- Screenshot bytes: 117798
+- Screenshot dimensions: 1424x1105
+- Valid PNG: true
+- Browser interaction: true
+- Simulated stream only: true
+- Status feedback only: true
+- Fake provider only: true
+- Default chat main lane changed: false
+- Backend business route added: false
+- Provider calls: false
+- Runtime mutation: false
+- Release automation: false
+- Infrastructure provisioning: false
+- Conclusion: web-chat-status-feedback-connected

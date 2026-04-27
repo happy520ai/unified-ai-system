@@ -1,0 +1,23 @@
+{
+  "name": "@unified-ai-system/agent-console",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.js",
+  "dependencies": {
+    "@unified-ai-system/shared-sdk": "workspace:*"
+  },
+  "scripts": {
+    "start": "node ./src/index.js",
+    "check": "node --check ./src/index.js && node --check ./src/entrypoints/verifyNvidiaServiceChain.js && node --check ./src/entrypoints/verifyErrorHandling.js && node --check ./src/entrypoints/verifyStreamingChain.js && node --check ./src/entrypoints/verifyKnowledgeServiceChain.js",
+    "build": "node --check ./src/index.js && node --check ./src/entrypoints/verifyNvidiaServiceChain.js && node --check ./src/entrypoints/verifyErrorHandling.js && node --check ./src/entrypoints/verifyStreamingChain.js && node --check ./src/entrypoints/verifyKnowledgeServiceChain.js",
+    "verify:phase7a": "node ./src/entrypoints/verifyNvidiaServiceChain.js",
+    "verify:phase7a-2": "node ./src/entrypoints/verifyNvidiaServiceChain.js",
+    "verify:phase7b": "node ./src/entrypoints/verifyNvidiaServiceChain.js",
+    "verify:phase7c": "node ./src/entrypoints/verifyNvidiaServiceChain.js",
+    "verify:phase7d": "node ./src/entrypoints/verifyErrorHandling.js",
+    "verify:phase7e": "node ./src/entrypoints/verifyErrorHandling.js",
+    "verify:phase8a": "node ./src/entrypoints/verifyStreamingChain.js",
+    "verify:phase21c": "node ./src/entrypoints/verifyKnowledgeServiceChain.js"
+  }
+}

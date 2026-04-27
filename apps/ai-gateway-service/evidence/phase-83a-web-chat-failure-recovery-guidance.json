@@ -1,0 +1,32 @@
+{
+  "phase": "phase-83a-web-chat-failure-recovery-guidance",
+  "status": "passed",
+  "generatedAt": "2026-04-26T08:27:13.669Z",
+  "checks": {
+    "scriptValid": true,
+    "chatRecoveryFunctionPresent": true,
+    "chatFailureUsesRecoveryLines": true,
+    "chatRecoveryMentionsConfigModel": true,
+    "chatRecoveryHandlesAuth": true,
+    "chatRecoveryHandlesTimeout": true,
+    "chatRecoveryKeepsPageUsable": true,
+    "chatRecoveryNoFakeModelClaim": true,
+    "modelProbeRecoveryFunctionPresent": true,
+    "modelProbeFailureUsesRecoveryLines": true,
+    "modelProbeHandlesOpenAiCompatibleBaseUrl": true,
+    "modelProbeUsesRealModelsList": true,
+    "modelProbeNoForcedNvidia": true,
+    "rootVerifyScriptPresent": true,
+    "serviceVerifyScriptPresent": true,
+    "serviceCheckIncludesVerifier": true
+  },
+  "safety": {
+    "readOnlyVerification": true,
+    "browserOpened": false,
+    "serviceStarted": false,
+    "providerCalls": false,
+    "backendBusinessRouteAdded": false,
+    "defaultChatMainLaneChanged": false
+  },
+  "conclusion": "web-chat-failure-recovery-guidance-connected"
+}

@@ -1,0 +1,46 @@
+{
+  "phase": "phase-91a-web-chat-model-config-restore-recovery",
+  "status": "passed",
+  "generatedAt": "2026-04-26T10:37:33.136Z",
+  "browserPath": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+  "serviceUrl": "http://127.0.0.1:50162",
+  "ui": {
+    "url": "http://127.0.0.1:50162/ui?showFakeProviders=1",
+    "state": {
+      "providerSelectValue": "generic-openai-compatible::phase91-restored-model",
+      "modelProbeStatus": "failed",
+      "modelRestoredFromLocal": "true",
+      "modelCredentialStorage": "local-user-file",
+      "modelRecoveryRequired": "true",
+      "modelGuideText": "本机恢复的模型配置这次发送失败；请点“重新检测模型”重新验证 API Key、provider、base URL 和模型。页面已恢复，可以继续调整后再发。",
+      "modelProbeText": "恢复配置需重新检测",
+      "modelPreferenceText": "需修复",
+      "modelConfigButtonText": "重新检测模型",
+      "modelConfigButtonAria": "重新检测已恢复的模型配置",
+      "assistantText": "PME18:37回答失败。聊天请求失败，但页面已经恢复，可以继续发送下一条。\n流式失败原因：HTTP 401\n普通回答失败：HTTP 401 / RESTORED_RUNTIME_CREDENTIAL_REJECTED / Restored runtime credential rejected during fallback.恢复建议：这次失败发生在“本机配置已恢复”的模型上；请先点输入区“重新检测模型”，重新验证 API Key、provider、base URL 和模型。重新检测通过后可以直接继续发送，不需要刷新页面。这更像 API Key / 权限 / 余额 / provider 选择不匹配。请点输入区“配置模型”，重新粘贴 API Key 并检测。如果你用的是 OpenAI-compatible / 中转 key，请确认 provider 和 base URL，不要只凭 sk- 前缀自动猜。我不会把失败的 key 强行绑定到默认 NVIDIA，也不会用假模型冒充可用模型。复制回答复制引用重新发送",
+      "fetches": [
+        "/providers",
+        "/chat/stream",
+        "/chat"
+      ],
+      "pageTextContainsSecret": false,
+      "localStorageContainsSecret": false
+    }
+  },
+  "screenshot": {
+    "path": "apps/ai-gateway-service/evidence/phase-91a-web-chat-model-config-restore-recovery.png",
+    "bytes": 150724,
+    "width": 1424,
+    "height": 1105,
+    "validPng": true
+  },
+  "safety": {
+    "browserInteraction": true,
+    "simulatedRestoredCredentialFailureOnly": true,
+    "realProviderCalls": false,
+    "apiKeyValueRecorded": false,
+    "defaultChatMainLaneChanged": false,
+    "backendBusinessRouteAdded": false
+  },
+  "conclusion": "web-chat-model-config-restore-recovery-actionable"
+}

@@ -1,0 +1,31 @@
+# Phase 59A Web Provider List Failure Readability Evidence
+
+- Phase: phase-59a-web-provider-list-failure-readability
+- Status: passed
+- Generated at: 2026-04-25T07:03:22.557Z
+- Service URL: http://127.0.0.1:52536
+- Expected provider failure hint: provider 列表暂时加载失败，将继续使用服务端默认路由。
+- System text: provider 列表暂时加载失败，将继续使用服务端默认路由。可稍后刷新页面，或运行 health / doctor 检查服务配置。
+- Provider failure hint present: true
+- Provider select value: 
+- Provider option count: 1
+- Fetches: /providers
+- Fetch statuses: [{"path":"/providers","status":503,"ok":false,"simulated":true}]
+- Disallowed chat fetches: none
+- Message count: 2
+- System count: 1
+- Screenshot path: apps/ai-gateway-service/evidence/phase-59a-web-provider-list-failure-readability.png
+- Screenshot bytes: 136518
+- Screenshot dimensions: 1409x1140
+- Valid PNG: true
+- Browser interaction: true
+- Simulated provider list failure only: true
+- No chat request sent: true
+- Fake provider only: true
+- Default chat main lane changed: false
+- Backend business route added: false
+- Provider calls: false
+- Runtime mutation: false
+- Release automation: false
+- Infrastructure provisioning: false
+- Conclusion: web-provider-list-failure-readability-connected

@@ -1,0 +1,73 @@
+{
+  "phase": "phase-76j-web-chat-top-provider-minimized",
+  "status": "passed",
+  "generatedAt": "2026-04-25T17:29:24.315Z",
+  "browserPath": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+  "serviceUrl": "http://127.0.0.1:65469",
+  "ui": {
+    "url": "http://127.0.0.1:65469/ui",
+    "initialState": {
+      "detailsPresent": false,
+      "summaryPresent": false,
+      "summaryText": "",
+      "detailsOpen": false,
+      "providerInsideDetails": false,
+      "providerVisible": false,
+      "providerValue": "",
+      "wizardPresent": false,
+      "modelProbeStatus": "not-checked",
+      "sideButtonVisible": false,
+      "fetches": []
+    },
+    "openedState": {
+      "detailsPresent": false,
+      "summaryPresent": false,
+      "summaryText": "",
+      "detailsOpen": false,
+      "providerInsideDetails": false,
+      "providerVisible": false,
+      "providerValue": "",
+      "wizardPresent": true,
+      "modelProbeStatus": "not-checked",
+      "sideButtonVisible": false,
+      "fetches": [
+        "/providers",
+        "/config/runtime"
+      ]
+    },
+    "selectedState": {
+      "detailsPresent": false,
+      "summaryPresent": false,
+      "summaryText": "",
+      "detailsOpen": false,
+      "providerInsideDetails": false,
+      "providerVisible": false,
+      "providerValue": "local-fake-provider::local-fake-model",
+      "wizardPresent": true,
+      "modelProbeStatus": "passed",
+      "sideButtonVisible": false,
+      "fetches": [
+        "/providers",
+        "/config/runtime",
+        "/chat"
+      ]
+    }
+  },
+  "screenshot": {
+    "path": "apps/ai-gateway-service/evidence/phase-76j-web-chat-top-provider-minimized.png",
+    "bytes": 119300,
+    "width": 1424,
+    "height": 905,
+    "validPng": true
+  },
+  "safety": {
+    "browserInteraction": true,
+    "topProviderCollapsedByDefault": true,
+    "providerSelectStillPresent": true,
+    "providerSelectionStillWorks": true,
+    "providerCalls": false,
+    "backendBusinessRouteAdded": false,
+    "defaultChatMainLaneChanged": false
+  },
+  "conclusion": "web-chat-top-provider-minimized"
+}

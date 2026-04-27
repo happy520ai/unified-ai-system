@@ -1,0 +1,221 @@
+{
+  "phase": "phase-31a-experience-capabilities",
+  "status": "passed",
+  "generatedAt": "2026-04-25T01:52:10.181Z",
+  "serviceUrl": "http://127.0.0.1:53741",
+  "ui": {
+    "httpStatus": 200,
+    "streamingMarker": true,
+    "dashboardMarker": true,
+    "memoryMarker": true,
+    "connectorMarker": true,
+    "evaluationMarker": true,
+    "graphMarker": true
+  },
+  "dashboard": {
+    "httpStatus": 200,
+    "streamingChat": true,
+    "fallbackExecution": true,
+    "longTermMemory": true,
+    "queryGraphRag": true
+  },
+  "providers": {
+    "count": 2,
+    "fallbackEnabled": true
+  },
+  "auth": {
+    "enabled": false,
+    "tenantMode": "optional"
+  },
+  "knowledge": {
+    "loadStatus": "ok",
+    "loadedCount": 1
+  },
+  "streaming": {
+    "httpStatus": 200,
+    "eventCount": 60,
+    "eventTypes": [
+      "knowledge",
+      "start",
+      "start",
+      "chunk",
+      "chunk",
+      "chunk",
+      "chunk",
+      "chunk",
+      "chunk",
+      "chunk",
+      "chunk",
+      "chunk",
+      "chunk",
+      "chunk",
+      "chunk",
+      "chunk",
+      "chunk",
+      "chunk",
+      "chunk",
+      "chunk",
+      "chunk",
+      "chunk",
+      "chunk",
+      "chunk",
+      "chunk",
+      "chunk",
+      "chunk",
+      "chunk",
+      "chunk",
+      "chunk",
+      "chunk",
+      "chunk",
+      "chunk",
+      "chunk",
+      "chunk",
+      "chunk",
+      "chunk",
+      "chunk",
+      "chunk",
+      "chunk",
+      "chunk",
+      "chunk",
+      "chunk",
+      "chunk",
+      "chunk",
+      "chunk",
+      "chunk",
+      "chunk",
+      "chunk",
+      "chunk",
+      "chunk",
+      "chunk",
+      "chunk",
+      "chunk",
+      "chunk",
+      "chunk",
+      "chunk",
+      "chunk",
+      "chunk",
+      "done"
+    ],
+    "knowledge": {
+      "type": "knowledge",
+      "prompt": "phase31a streaming fallback dashboard evaluation memory connector auth tenant graphrag workflow",
+      "query": "phase31a streaming fallback dashboard evaluation memory connector auth tenant graphrag workflow",
+      "citations": [
+        {
+          "index": 1,
+          "label": "[1]",
+          "sourceId": "phase-31a-capability-source",
+          "documentId": "phase-31a-capability-document",
+          "title": "Phase 31A Capability Document",
+          "snippet": "phase31a streaming fallback dashboard evaluation memory connector auth tenant graphrag workflow proves the user can experience the feature suite.",
+          "matchedTerms": [
+            "phase31a",
+            "streaming",
+            "fallback",
+            "dashboard",
+            "evaluation",
+            "memory",
+            "connector",
+            "auth",
+            "tenant",
+            "graphrag",
+            "workflow"
+          ],
+          "highlights": [
+            {
+              "term": "phase31a",
+              "startOffset": 0,
+              "endOffset": 8
+            },
+            {
+              "term": "streaming",
+              "startOffset": 9,
+              "endOffset": 18
+            },
+            {
+              "term": "fallback",
+              "startOffset": 19,
+              "endOffset": 27
+            },
+            {
+              "term": "dashboard",
+              "startOffset": 28,
+              "endOffset": 37
+            },
+            {
+              "term": "evaluation",
+              "startOffset": 38,
+              "endOffset": 48
+            },
+            {
+              "term": "memory",
+              "startOffset": 49,
+              "endOffset": 55
+            },
+            {
+              "term": "connector",
+              "startOffset": 56,
+              "endOffset": 65
+            },
+            {
+              "term": "auth",
+              "startOffset": 66,
+              "endOffset": 70
+            }
+          ],
+          "score": 0.66,
+          "scoreBreakdown": {
+            "termCoverage": 1,
+            "titleCoverage": 0,
+            "sourceCoverage": 0,
+            "documentIdCoverage": 0,
+            "bodyCoverage": 1,
+            "phraseMatch": true,
+            "contiguousMatch": true,
+            "exactMatch": false,
+            "matchedTermCount": 11,
+            "fieldWeights": {
+              "title": 0.18,
+              "sourceId": 0.08,
+              "documentId": 0.08,
+              "body": 0.56,
+              "phrase": 0.1,
+              "exact": 0.1
+            }
+          },
+          "metadata": {
+            "phase": "phase-31a-experience-capabilities",
+            "expectedTopHit": true
+          }
+        }
+      ],
+      "retrieved": true,
+      "chunkCount": 1
+    },
+    "done": true,
+    "outputText": "[fake:backup-fake-provider/backup-fake-model] 你是 PME 移动地球的服务端 RAG 聊天入口。请优先依据下面的本地知识库检索结果回答用户问题，并在答案中自然引用资料编号，例如 [1]。如果资料不足，请明确说明不足，不要编造。本地知识库检索结果：[1] Phase 31A Capability DocumentsourceId: phase-31a-capability-sourcedocumentId: phase-31a-capability-documentmatchedTerms: phase31a, streaming, fallback, dashboard, evaluation, memory, connector, auth, tenant, graphrag, workflowsnippet: phase31a streaming fallback dashboard evaluation memory connector auth tenant graphrag workflow proves the user can experience the feature suite.用户问题：phase31a streaming fallback dashboard evaluation memory connector auth tenant graphrag workflow",
+    "selectedProvider": "backup-fake-provider"
+  },
+  "memory": {
+    "saveStatus": "saved",
+    "documentCount": 1
+  },
+  "connector": {
+    "status": "imported",
+    "sourceId": "connector-phase31a-explicit-text"
+  },
+  "graph": {
+    "nodeCount": 6,
+    "edgeCount": 5
+  },
+  "evaluation": {
+    "score": 1,
+    "passed": true
+  },
+  "workflow": {
+    "status": "completed",
+    "artifact": ".data/workflows/phase-31a-workflow-report.md"
+  },
+  "error": null,
+  "conclusion": "experience-capabilities-connected"
+}

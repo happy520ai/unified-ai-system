@@ -1,0 +1,47 @@
+{
+  "phase": "phase-110a-docker-readiness",
+  "status": "passed",
+  "generatedAt": "2026-04-26T15:11:02.967Z",
+  "checks": {
+    "dockerfileExists": true,
+    "dockerignoreExists": true,
+    "composeExists": true,
+    "dockerfileMinimalNodePnpm": true,
+    "dockerfileServiceStartup": true,
+    "dockerignoreSafety": true,
+    "composeMinimalServiceOnly": true,
+    "readmeDockerInstructions": true,
+    "readmeDockerBoundary": true,
+    "agentsDockerBoundary": true,
+    "scriptsPresent": true,
+    "noPlainSecrets": true
+  },
+  "docker": {
+    "available": false,
+    "version": "",
+    "composeAvailable": false,
+    "composeVersion": "",
+    "realBuildRunExecuted": false,
+    "note": "Docker CLI was not available; static Docker readiness checks were used."
+  },
+  "deployment": {
+    "dockerFiles": [
+      "Dockerfile",
+      ".dockerignore",
+      "docker-compose.yml"
+    ],
+    "localContainerStartupSealed": true,
+    "cloudDeploymentComplete": false,
+    "cicdComplete": false,
+    "globalReleaseComplete": false,
+    "databaseContainersAdded": false,
+    "realApiKeysEmbedded": false
+  },
+  "safety": {
+    "defaultChatMainLaneChanged": false,
+    "realCloudDeployment": false,
+    "plaintextApiKeyRecorded": false,
+    "projectContextCreated": false
+  },
+  "conclusion": "docker-readiness-closed"
+}

@@ -1,0 +1,1058 @@
+{
+  "phase": "phase-76q-web-chat-user-api-catalog-coverage",
+  "status": "passed",
+  "generatedAt": "2026-04-26T06:56:37.336Z",
+  "sourceWorkbookInspected": {
+    "fileName": "免费api汇总.xlsx",
+    "apiKeyValuesRecorded": false,
+    "observedProviderFamilies": [
+      "iFlytek Spark",
+      "Baidu Qianfan",
+      "Tencent Hunyuan",
+      "Coze",
+      "Zhipu AI",
+      "SiliconFlow",
+      "DashScope",
+      "ModelScope",
+      "Google Gemini",
+      "Cloudflare Workers AI",
+      "Groq",
+      "Hugging Face",
+      "OpenAI",
+      "generic OpenAI-compatible relay"
+    ]
+  },
+  "detection": {
+    "excelProviderClues": {
+      "mode": "provider-model-discovery",
+      "recommended": {
+        "providerId": "tencent-hunyuan",
+        "providerDisplayName": "Tencent Hunyuan",
+        "modelId": "hunyuan-turbo",
+        "modelDisplayName": "Hunyuan Turbo",
+        "value": "tencent-hunyuan::hunyuan-turbo",
+        "label": "Tencent Hunyuan / Hunyuan Turbo",
+        "confidence": "verified",
+        "modelDiscoveryStatus": "ready",
+        "credentialValidated": true,
+        "capabilities": [
+          "chat",
+          "reasoning",
+          "summary"
+        ],
+        "modalities": {
+          "input": [
+            "text"
+          ],
+          "output": [
+            "text"
+          ]
+        },
+        "execution": {
+          "chat": true,
+          "chatReason": "chat-executable",
+          "currentRuntime": "current-chat-lane",
+          "executableCapabilities": [
+            "chat"
+          ],
+          "recognizedOnlyCapabilities": [
+            "reasoning",
+            "summary"
+          ]
+        }
+      },
+      "warnings": [],
+      "providerIds": [
+        "tencent-hunyuan"
+      ],
+      "statuses": [
+        {
+          "providerId": "tencent-hunyuan",
+          "status": "candidate",
+          "chatExecutableModelCount": 3
+        }
+      ],
+      "capabilitySummary": {
+        "totalProviders": 1,
+        "totalModels": 3,
+        "providerSummaries": [
+          {
+            "providerId": "tencent-hunyuan",
+            "providerDisplayName": "Tencent Hunyuan",
+            "status": "candidate",
+            "availableForChat": true,
+            "totalModels": 3,
+            "chatExecutableModels": 3,
+            "byCapability": {
+              "chat": 3,
+              "reasoning": 2,
+              "summary": 3
+            }
+          }
+        ],
+        "chatExecutableModels": 3,
+        "byCapability": {
+          "chat": 3,
+          "reasoning": 2,
+          "summary": 3
+        }
+      },
+      "networkProbePerformed": true,
+      "ambiguousKeySprayPrevented": false
+    },
+    "qianfan": {
+      "mode": "provider-model-discovery",
+      "recommended": {
+        "providerId": "qianfan",
+        "providerDisplayName": "Baidu Qianfan",
+        "modelId": "ernie-4.5-turbo-128k",
+        "modelDisplayName": "ERNIE 4.5 Turbo 128K",
+        "value": "qianfan::ernie-4.5-turbo-128k",
+        "label": "Baidu Qianfan / ERNIE 4.5 Turbo 128K",
+        "confidence": "verified",
+        "modelDiscoveryStatus": "ready",
+        "credentialValidated": true,
+        "capabilities": [
+          "chat",
+          "reasoning",
+          "summary"
+        ],
+        "modalities": {
+          "input": [
+            "text"
+          ],
+          "output": [
+            "text"
+          ]
+        },
+        "execution": {
+          "chat": true,
+          "chatReason": "chat-executable",
+          "currentRuntime": "current-chat-lane",
+          "executableCapabilities": [
+            "chat"
+          ],
+          "recognizedOnlyCapabilities": [
+            "reasoning",
+            "summary"
+          ]
+        }
+      },
+      "warnings": [],
+      "providerIds": [
+        "qianfan"
+      ],
+      "statuses": [
+        {
+          "providerId": "qianfan",
+          "status": "candidate",
+          "chatExecutableModelCount": 3
+        }
+      ],
+      "capabilitySummary": {
+        "totalProviders": 1,
+        "totalModels": 3,
+        "providerSummaries": [
+          {
+            "providerId": "qianfan",
+            "providerDisplayName": "Baidu Qianfan",
+            "status": "candidate",
+            "availableForChat": true,
+            "totalModels": 3,
+            "chatExecutableModels": 3,
+            "byCapability": {
+              "chat": 3,
+              "reasoning": 2,
+              "summary": 3
+            }
+          }
+        ],
+        "chatExecutableModels": 3,
+        "byCapability": {
+          "chat": 3,
+          "reasoning": 2,
+          "summary": 3
+        }
+      },
+      "networkProbePerformed": true,
+      "ambiguousKeySprayPrevented": false
+    },
+    "zhipu": {
+      "mode": "provider-model-discovery",
+      "recommended": {
+        "providerId": "zhipu",
+        "providerDisplayName": "Zhipu AI",
+        "modelId": "glm-4.5",
+        "modelDisplayName": "GLM 4.5",
+        "value": "zhipu::glm-4.5",
+        "label": "Zhipu AI / GLM 4.5",
+        "confidence": "verified",
+        "modelDiscoveryStatus": "ready",
+        "credentialValidated": true,
+        "capabilities": [
+          "chat",
+          "reasoning",
+          "coding",
+          "summary"
+        ],
+        "modalities": {
+          "input": [
+            "text"
+          ],
+          "output": [
+            "text"
+          ]
+        },
+        "execution": {
+          "chat": true,
+          "chatReason": "chat-executable",
+          "currentRuntime": "current-chat-lane",
+          "executableCapabilities": [
+            "chat"
+          ],
+          "recognizedOnlyCapabilities": [
+            "reasoning",
+            "coding",
+            "summary"
+          ]
+        }
+      },
+      "warnings": [],
+      "providerIds": [
+        "zhipu"
+      ],
+      "statuses": [
+        {
+          "providerId": "zhipu",
+          "status": "candidate",
+          "chatExecutableModelCount": 3
+        }
+      ],
+      "capabilitySummary": {
+        "totalProviders": 1,
+        "totalModels": 3,
+        "providerSummaries": [
+          {
+            "providerId": "zhipu",
+            "providerDisplayName": "Zhipu AI",
+            "status": "candidate",
+            "availableForChat": true,
+            "totalModels": 3,
+            "chatExecutableModels": 3,
+            "byCapability": {
+              "chat": 3,
+              "reasoning": 2,
+              "coding": 1,
+              "summary": 3
+            }
+          }
+        ],
+        "chatExecutableModels": 3,
+        "byCapability": {
+          "chat": 3,
+          "reasoning": 2,
+          "coding": 1,
+          "summary": 3
+        }
+      },
+      "networkProbePerformed": true,
+      "ambiguousKeySprayPrevented": false
+    },
+    "xunfei": {
+      "mode": "provider-model-discovery",
+      "recommended": {
+        "providerId": "xunfei-spark",
+        "providerDisplayName": "iFlytek Spark",
+        "modelId": "lite",
+        "modelDisplayName": "Spark Lite",
+        "value": "xunfei-spark::lite",
+        "label": "iFlytek Spark / Spark Lite",
+        "confidence": "verified",
+        "modelDiscoveryStatus": "ready",
+        "credentialValidated": true,
+        "capabilities": [
+          "chat",
+          "summary"
+        ],
+        "modalities": {
+          "input": [
+            "text"
+          ],
+          "output": [
+            "text"
+          ]
+        },
+        "execution": {
+          "chat": true,
+          "chatReason": "chat-executable",
+          "currentRuntime": "current-chat-lane",
+          "executableCapabilities": [
+            "chat"
+          ],
+          "recognizedOnlyCapabilities": [
+            "summary"
+          ]
+        }
+      },
+      "warnings": [],
+      "providerIds": [
+        "xunfei-spark"
+      ],
+      "statuses": [
+        {
+          "providerId": "xunfei-spark",
+          "status": "candidate",
+          "chatExecutableModelCount": 3
+        }
+      ],
+      "capabilitySummary": {
+        "totalProviders": 1,
+        "totalModels": 3,
+        "providerSummaries": [
+          {
+            "providerId": "xunfei-spark",
+            "providerDisplayName": "iFlytek Spark",
+            "status": "candidate",
+            "availableForChat": true,
+            "totalModels": 3,
+            "chatExecutableModels": 3,
+            "byCapability": {
+              "chat": 3,
+              "summary": 3,
+              "reasoning": 1
+            }
+          }
+        ],
+        "chatExecutableModels": 3,
+        "byCapability": {
+          "chat": 3,
+          "summary": 3,
+          "reasoning": 1
+        }
+      },
+      "networkProbePerformed": true,
+      "ambiguousKeySprayPrevented": false
+    },
+    "modelscope": {
+      "mode": "provider-model-discovery",
+      "recommended": {
+        "providerId": "modelscope",
+        "providerDisplayName": "ModelScope",
+        "modelId": "Qwen/Qwen2.5-72B-Instruct",
+        "modelDisplayName": "Qwen 2.5 72B Instruct",
+        "value": "modelscope::Qwen/Qwen2.5-72B-Instruct",
+        "label": "ModelScope / Qwen 2.5 72B Instruct",
+        "confidence": "verified",
+        "modelDiscoveryStatus": "ready",
+        "credentialValidated": true,
+        "capabilities": [
+          "chat",
+          "reasoning",
+          "summary"
+        ],
+        "modalities": {
+          "input": [
+            "text"
+          ],
+          "output": [
+            "text"
+          ]
+        },
+        "execution": {
+          "chat": true,
+          "chatReason": "chat-executable",
+          "currentRuntime": "current-chat-lane",
+          "executableCapabilities": [
+            "chat"
+          ],
+          "recognizedOnlyCapabilities": [
+            "reasoning",
+            "summary"
+          ]
+        }
+      },
+      "warnings": [],
+      "providerIds": [
+        "modelscope"
+      ],
+      "statuses": [
+        {
+          "providerId": "modelscope",
+          "status": "candidate",
+          "chatExecutableModelCount": 3
+        }
+      ],
+      "capabilitySummary": {
+        "totalProviders": 1,
+        "totalModels": 3,
+        "providerSummaries": [
+          {
+            "providerId": "modelscope",
+            "providerDisplayName": "ModelScope",
+            "status": "candidate",
+            "availableForChat": true,
+            "totalModels": 3,
+            "chatExecutableModels": 3,
+            "byCapability": {
+              "chat": 3,
+              "reasoning": 1,
+              "summary": 3,
+              "coding": 1
+            }
+          }
+        ],
+        "chatExecutableModels": 3,
+        "byCapability": {
+          "chat": 3,
+          "reasoning": 1,
+          "summary": 3,
+          "coding": 1
+        }
+      },
+      "networkProbePerformed": true,
+      "ambiguousKeySprayPrevented": false
+    },
+    "cloudflare": {
+      "mode": "safe-catalog-detection",
+      "recommended": null,
+      "warnings": [
+        "recognized-capabilities-not-chat-executable",
+        "The key family was recognized and model capabilities were classified, but no model can be safely added to the current chat lane."
+      ],
+      "providerIds": [
+        "cloudflare-workers-ai"
+      ],
+      "statuses": [
+        {
+          "providerId": "cloudflare-workers-ai",
+          "status": "recognized-not-supported",
+          "chatExecutableModelCount": 0
+        }
+      ],
+      "capabilitySummary": {
+        "totalProviders": 1,
+        "totalModels": 3,
+        "providerSummaries": [
+          {
+            "providerId": "cloudflare-workers-ai",
+            "providerDisplayName": "Cloudflare Workers AI",
+            "status": "recognized-not-supported",
+            "availableForChat": false,
+            "totalModels": 3,
+            "chatExecutableModels": 0,
+            "byCapability": {
+              "chat": 2,
+              "summary": 2,
+              "embedding": 1
+            }
+          }
+        ],
+        "chatExecutableModels": 0,
+        "byCapability": {
+          "chat": 2,
+          "summary": 2,
+          "embedding": 1
+        }
+      },
+      "networkProbePerformed": false,
+      "ambiguousKeySprayPrevented": false
+    },
+    "huggingface": {
+      "mode": "provider-model-discovery",
+      "recommended": {
+        "providerId": "huggingface",
+        "providerDisplayName": "Hugging Face Router",
+        "modelId": "Qwen/Qwen2.5-7B-Instruct",
+        "modelDisplayName": "Qwen 2.5 7B Instruct",
+        "value": "huggingface::Qwen/Qwen2.5-7B-Instruct",
+        "label": "Hugging Face Router / Qwen 2.5 7B Instruct",
+        "confidence": "verified",
+        "modelDiscoveryStatus": "ready",
+        "credentialValidated": true,
+        "capabilities": [
+          "chat",
+          "summary"
+        ],
+        "modalities": {
+          "input": [
+            "text"
+          ],
+          "output": [
+            "text"
+          ]
+        },
+        "execution": {
+          "chat": true,
+          "chatReason": "chat-executable",
+          "currentRuntime": "current-chat-lane",
+          "executableCapabilities": [
+            "chat"
+          ],
+          "recognizedOnlyCapabilities": [
+            "summary"
+          ]
+        }
+      },
+      "warnings": [],
+      "providerIds": [
+        "huggingface"
+      ],
+      "statuses": [
+        {
+          "providerId": "huggingface",
+          "status": "candidate",
+          "chatExecutableModelCount": 4
+        }
+      ],
+      "capabilitySummary": {
+        "totalProviders": 1,
+        "totalModels": 4,
+        "providerSummaries": [
+          {
+            "providerId": "huggingface",
+            "providerDisplayName": "Hugging Face Router",
+            "status": "candidate",
+            "availableForChat": true,
+            "totalModels": 4,
+            "chatExecutableModels": 4,
+            "byCapability": {
+              "chat": 4,
+              "summary": 4
+            }
+          }
+        ],
+        "chatExecutableModels": 4,
+        "byCapability": {
+          "chat": 4,
+          "summary": 4
+        }
+      },
+      "networkProbePerformed": true,
+      "ambiguousKeySprayPrevented": false
+    },
+    "coze": {
+      "mode": "safe-catalog-detection",
+      "recommended": null,
+      "warnings": [
+        "recognized-capabilities-not-chat-executable",
+        "The key family was recognized and model capabilities were classified, but no model can be safely added to the current chat lane."
+      ],
+      "providerIds": [
+        "coze"
+      ],
+      "statuses": [
+        {
+          "providerId": "coze",
+          "status": "recognized-not-supported",
+          "chatExecutableModelCount": 0
+        }
+      ],
+      "capabilitySummary": {
+        "totalProviders": 1,
+        "totalModels": 2,
+        "providerSummaries": [
+          {
+            "providerId": "coze",
+            "providerDisplayName": "Coze",
+            "status": "recognized-not-supported",
+            "availableForChat": false,
+            "totalModels": 2,
+            "chatExecutableModels": 0,
+            "byCapability": {
+              "chat": 2,
+              "tool-use": 2,
+              "summary": 2
+            }
+          }
+        ],
+        "chatExecutableModels": 0,
+        "byCapability": {
+          "chat": 2,
+          "tool-use": 2,
+          "summary": 2
+        }
+      },
+      "networkProbePerformed": false,
+      "ambiguousKeySprayPrevented": false
+    },
+    "genericSk": {
+      "mode": "safe-catalog-detection",
+      "recommended": null,
+      "warnings": [
+        "ambiguous-key-provider-choice-required",
+        "This key family can belong to multiple providers. The system listed safe candidates but did not send the key to every provider automatically."
+      ],
+      "providerIds": [
+        "openai",
+        "deepseek",
+        "together",
+        "mistral",
+        "moonshot",
+        "siliconflow",
+        "dashscope",
+        "tencent-hunyuan",
+        "cohere",
+        "volcengine-doubao",
+        "minimax",
+        "stepfun",
+        "novita",
+        "baichuan",
+        "yi",
+        "infini-ai",
+        "generic-openai-compatible"
+      ],
+      "statuses": [
+        {
+          "providerId": "openai",
+          "status": "candidate-provider-choice-required",
+          "chatExecutableModelCount": 3
+        },
+        {
+          "providerId": "deepseek",
+          "status": "candidate-provider-choice-required",
+          "chatExecutableModelCount": 2
+        },
+        {
+          "providerId": "together",
+          "status": "candidate-provider-choice-required",
+          "chatExecutableModelCount": 3
+        },
+        {
+          "providerId": "mistral",
+          "status": "candidate-provider-choice-required",
+          "chatExecutableModelCount": 3
+        },
+        {
+          "providerId": "moonshot",
+          "status": "candidate-provider-choice-required",
+          "chatExecutableModelCount": 3
+        },
+        {
+          "providerId": "siliconflow",
+          "status": "candidate-provider-choice-required",
+          "chatExecutableModelCount": 2
+        },
+        {
+          "providerId": "dashscope",
+          "status": "candidate-provider-choice-required",
+          "chatExecutableModelCount": 3
+        },
+        {
+          "providerId": "tencent-hunyuan",
+          "status": "candidate-provider-choice-required",
+          "chatExecutableModelCount": 3
+        },
+        {
+          "providerId": "cohere",
+          "status": "candidate-provider-choice-required",
+          "chatExecutableModelCount": 2
+        },
+        {
+          "providerId": "volcengine-doubao",
+          "status": "candidate-provider-choice-required",
+          "chatExecutableModelCount": 2
+        },
+        {
+          "providerId": "minimax",
+          "status": "candidate-provider-choice-required",
+          "chatExecutableModelCount": 2
+        },
+        {
+          "providerId": "stepfun",
+          "status": "candidate-provider-choice-required",
+          "chatExecutableModelCount": 2
+        },
+        {
+          "providerId": "novita",
+          "status": "candidate-provider-choice-required",
+          "chatExecutableModelCount": 2
+        },
+        {
+          "providerId": "baichuan",
+          "status": "candidate-provider-choice-required",
+          "chatExecutableModelCount": 2
+        },
+        {
+          "providerId": "yi",
+          "status": "candidate-provider-choice-required",
+          "chatExecutableModelCount": 2
+        },
+        {
+          "providerId": "infini-ai",
+          "status": "candidate-provider-choice-required",
+          "chatExecutableModelCount": 1
+        },
+        {
+          "providerId": "generic-openai-compatible",
+          "status": "recognized-not-chat-available",
+          "chatExecutableModelCount": 1
+        }
+      ],
+      "capabilitySummary": {
+        "totalProviders": 17,
+        "totalModels": 47,
+        "providerSummaries": [
+          {
+            "providerId": "openai",
+            "providerDisplayName": "OpenAI",
+            "status": "candidate-provider-choice-required",
+            "availableForChat": true,
+            "totalModels": 7,
+            "chatExecutableModels": 3,
+            "byCapability": {
+              "chat": 3,
+              "vision": 2,
+              "reasoning": 2,
+              "tool-use": 3,
+              "structured-output": 3,
+              "summary": 3,
+              "coding": 1,
+              "image-generation": 1,
+              "embedding": 1,
+              "speech-output": 1,
+              "audio-input": 1
+            }
+          },
+          {
+            "providerId": "deepseek",
+            "providerDisplayName": "DeepSeek",
+            "status": "candidate-provider-choice-required",
+            "availableForChat": true,
+            "totalModels": 2,
+            "chatExecutableModels": 2,
+            "byCapability": {
+              "chat": 2,
+              "coding": 2,
+              "summary": 2,
+              "reasoning": 1
+            }
+          },
+          {
+            "providerId": "together",
+            "providerDisplayName": "Together AI",
+            "status": "candidate-provider-choice-required",
+            "availableForChat": true,
+            "totalModels": 3,
+            "chatExecutableModels": 3,
+            "byCapability": {
+              "chat": 3,
+              "reasoning": 1,
+              "summary": 3,
+              "coding": 1
+            }
+          },
+          {
+            "providerId": "mistral",
+            "providerDisplayName": "Mistral",
+            "status": "candidate-provider-choice-required",
+            "availableForChat": true,
+            "totalModels": 3,
+            "chatExecutableModels": 3,
+            "byCapability": {
+              "chat": 3,
+              "reasoning": 1,
+              "coding": 1,
+              "tool-use": 2,
+              "summary": 3,
+              "vision": 1
+            }
+          },
+          {
+            "providerId": "moonshot",
+            "providerDisplayName": "Moonshot AI",
+            "status": "candidate-provider-choice-required",
+            "availableForChat": true,
+            "totalModels": 3,
+            "chatExecutableModels": 3,
+            "byCapability": {
+              "chat": 3,
+              "reasoning": 1,
+              "coding": 1,
+              "summary": 3
+            }
+          },
+          {
+            "providerId": "siliconflow",
+            "providerDisplayName": "SiliconFlow",
+            "status": "candidate-provider-choice-required",
+            "availableForChat": true,
+            "totalModels": 4,
+            "chatExecutableModels": 2,
+            "byCapability": {
+              "chat": 2,
+              "summary": 2,
+              "coding": 1,
+              "embedding": 2,
+              "rerank": 1
+            }
+          },
+          {
+            "providerId": "dashscope",
+            "providerDisplayName": "DashScope",
+            "status": "candidate-provider-choice-required",
+            "availableForChat": true,
+            "totalModels": 5,
+            "chatExecutableModels": 3,
+            "byCapability": {
+              "chat": 3,
+              "reasoning": 1,
+              "summary": 3,
+              "vision": 1,
+              "embedding": 1,
+              "image-generation": 1,
+              "video-generation": 1
+            }
+          },
+          {
+            "providerId": "tencent-hunyuan",
+            "providerDisplayName": "Tencent Hunyuan",
+            "status": "candidate-provider-choice-required",
+            "availableForChat": true,
+            "totalModels": 3,
+            "chatExecutableModels": 3,
+            "byCapability": {
+              "chat": 3,
+              "reasoning": 2,
+              "summary": 3
+            }
+          },
+          {
+            "providerId": "cohere",
+            "providerDisplayName": "Cohere",
+            "status": "candidate-provider-choice-required",
+            "availableForChat": true,
+            "totalModels": 2,
+            "chatExecutableModels": 2,
+            "byCapability": {
+              "chat": 2,
+              "tool-use": 2,
+              "summary": 2
+            }
+          },
+          {
+            "providerId": "volcengine-doubao",
+            "providerDisplayName": "Volcengine Doubao / Ark",
+            "status": "candidate-provider-choice-required",
+            "availableForChat": true,
+            "totalModels": 2,
+            "chatExecutableModels": 2,
+            "byCapability": {
+              "chat": 2,
+              "vision": 1,
+              "summary": 2,
+              "reasoning": 1
+            }
+          },
+          {
+            "providerId": "minimax",
+            "providerDisplayName": "MiniMax",
+            "status": "candidate-provider-choice-required",
+            "availableForChat": true,
+            "totalModels": 2,
+            "chatExecutableModels": 2,
+            "byCapability": {
+              "chat": 2,
+              "summary": 2
+            }
+          },
+          {
+            "providerId": "stepfun",
+            "providerDisplayName": "StepFun",
+            "status": "candidate-provider-choice-required",
+            "availableForChat": true,
+            "totalModels": 2,
+            "chatExecutableModels": 2,
+            "byCapability": {
+              "chat": 2,
+              "vision": 1,
+              "summary": 2
+            }
+          },
+          {
+            "providerId": "novita",
+            "providerDisplayName": "Novita AI",
+            "status": "candidate-provider-choice-required",
+            "availableForChat": true,
+            "totalModels": 2,
+            "chatExecutableModels": 2,
+            "byCapability": {
+              "chat": 2,
+              "reasoning": 1,
+              "summary": 2
+            }
+          },
+          {
+            "providerId": "baichuan",
+            "providerDisplayName": "Baichuan AI",
+            "status": "candidate-provider-choice-required",
+            "availableForChat": true,
+            "totalModels": 2,
+            "chatExecutableModels": 2,
+            "byCapability": {
+              "chat": 2,
+              "summary": 2
+            }
+          },
+          {
+            "providerId": "yi",
+            "providerDisplayName": "01.AI / Yi",
+            "status": "candidate-provider-choice-required",
+            "availableForChat": true,
+            "totalModels": 2,
+            "chatExecutableModels": 2,
+            "byCapability": {
+              "chat": 2,
+              "vision": 1,
+              "summary": 2
+            }
+          },
+          {
+            "providerId": "infini-ai",
+            "providerDisplayName": "Infini AI",
+            "status": "candidate-provider-choice-required",
+            "availableForChat": true,
+            "totalModels": 2,
+            "chatExecutableModels": 1,
+            "byCapability": {
+              "chat": 1,
+              "summary": 1,
+              "embedding": 1
+            }
+          },
+          {
+            "providerId": "generic-openai-compatible",
+            "providerDisplayName": "Generic OpenAI-Compatible API",
+            "status": "recognized-not-chat-available",
+            "availableForChat": false,
+            "totalModels": 1,
+            "chatExecutableModels": 1,
+            "byCapability": {
+              "chat": 1,
+              "summary": 1
+            }
+          }
+        ],
+        "chatExecutableModels": 38,
+        "byCapability": {
+          "chat": 38,
+          "vision": 7,
+          "reasoning": 11,
+          "tool-use": 7,
+          "structured-output": 3,
+          "summary": 38,
+          "coding": 7,
+          "image-generation": 2,
+          "embedding": 5,
+          "speech-output": 1,
+          "audio-input": 1,
+          "rerank": 1,
+          "video-generation": 1
+        }
+      },
+      "networkProbePerformed": false,
+      "ambiguousKeySprayPrevented": true
+    },
+    "dashscopeShape": {
+      "mode": "provider-model-discovery",
+      "recommended": {
+        "providerId": "dashscope",
+        "providerDisplayName": "DashScope",
+        "modelId": "qwen-max",
+        "modelDisplayName": "Qwen Max",
+        "value": "dashscope::qwen-max",
+        "label": "DashScope / Qwen Max",
+        "confidence": "verified",
+        "modelDiscoveryStatus": "ready",
+        "credentialValidated": true,
+        "capabilities": [
+          "chat",
+          "reasoning",
+          "summary"
+        ],
+        "modalities": {
+          "input": [
+            "text"
+          ],
+          "output": [
+            "text"
+          ]
+        },
+        "execution": {
+          "chat": true,
+          "chatReason": "chat-executable",
+          "currentRuntime": "current-chat-lane",
+          "executableCapabilities": [
+            "chat"
+          ],
+          "recognizedOnlyCapabilities": [
+            "reasoning",
+            "summary"
+          ]
+        }
+      },
+      "warnings": [],
+      "providerIds": [
+        "dashscope"
+      ],
+      "statuses": [
+        {
+          "providerId": "dashscope",
+          "status": "candidate",
+          "chatExecutableModelCount": 4
+        }
+      ],
+      "capabilitySummary": {
+        "totalProviders": 1,
+        "totalModels": 6,
+        "providerSummaries": [
+          {
+            "providerId": "dashscope",
+            "providerDisplayName": "DashScope",
+            "status": "candidate",
+            "availableForChat": true,
+            "totalModels": 6,
+            "chatExecutableModels": 4,
+            "byCapability": {
+              "chat": 4,
+              "reasoning": 1,
+              "summary": 4,
+              "vision": 1,
+              "embedding": 1,
+              "image-generation": 1,
+              "video-generation": 1
+            }
+          }
+        ],
+        "chatExecutableModels": 4,
+        "byCapability": {
+          "chat": 4,
+          "reasoning": 1,
+          "summary": 4,
+          "vision": 1,
+          "embedding": 1,
+          "image-generation": 1,
+          "video-generation": 1
+        }
+      },
+      "networkProbePerformed": true,
+      "ambiguousKeySprayPrevented": false
+    }
+  },
+  "extractedCredentialExamplesMasked": {
+    "tencent": "sk-pha...sist(43)",
+    "qianfan": "bce-v3...sist(54)",
+    "zhipu": "6f10c7...sist(61)",
+    "xunfei": "dFaiLu...EGRJ(41)",
+    "modelscope": "ms-pha...sist(35)"
+  },
+  "safety": {
+    "apiKeyValueRecorded": false,
+    "fakeExcludedFromGenericFallback": true,
+    "genericSkSprayPrevented": true,
+    "plainSkDoesNotDefaultToOpenAi": true,
+    "dashscopeShapeRecommended": true,
+    "nonChatPlatformsRecognizedOnly": true,
+    "huggingFaceRouterChatExecutable": true
+  },
+  "conclusion": "user-api-catalog-coverage-connected"
+}

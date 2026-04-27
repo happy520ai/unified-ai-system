@@ -1,0 +1,35 @@
+{
+  "phase": "phase-84a-web-chat-model-config-recovery-actions",
+  "status": "passed",
+  "generatedAt": "2026-04-26T08:52:23.533Z",
+  "checks": {
+    "scriptValid": true,
+    "feedbackActionsHelperPresent": true,
+    "recoveryActionsHelperPresent": true,
+    "successActionsHelperPresent": true,
+    "focusHelperPresent": true,
+    "diagnosticCommandsHelperPresent": true,
+    "retryActionPresent": true,
+    "providerFocusActionPresent": true,
+    "baseUrlFocusActionPresent": true,
+    "manualModelFocusActionPresent": true,
+    "diagnosticActionPresent": true,
+    "continueChatActionPresent": true,
+    "successCanApplyDetectedModel": true,
+    "missingKeyHasNextActions": true,
+    "noSecretLogging": true,
+    "rootVerifyScriptPresent": true,
+    "serviceVerifyScriptPresent": true,
+    "serviceCheckIncludesVerifier": true
+  },
+  "safety": {
+    "readOnlyVerification": true,
+    "browserOpened": false,
+    "serviceStarted": false,
+    "providerCalls": false,
+    "backendBusinessRouteAdded": false,
+    "defaultChatMainLaneChanged": false,
+    "secretValuesRecorded": false
+  },
+  "conclusion": "web-chat-model-config-recovery-actions-connected"
+}

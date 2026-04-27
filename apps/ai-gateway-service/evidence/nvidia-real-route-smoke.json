@@ -1,0 +1,70 @@
+{
+  "executedAt": "2026-04-21T11:34:58.734Z",
+  "mode": "real-with-key",
+  "provider": "nvidia",
+  "model": "meta/llama-3.1-8b-instruct",
+  "nvidiaApiKeyPresent": true,
+  "nvidiaBaseUrlPresent": false,
+  "success": true,
+  "externalSuccessEvidence": true,
+  "failure": false,
+  "skipped": false,
+  "conclusion": "verified: NVIDIA real-with-key smoke returned HTTP 200 with selectedProvider=nvidia and success=true.",
+  "commands": [
+    "Loaded .env into the current process, set AI_GATEWAY_SMOKE_MODE=real-with-key, set NVIDIA_MODEL=meta/llama-3.1-8b-instruct, cleared NVIDIA_BASE_URL, then ran node .\\apps\\ai-gateway-service\\src\\entrypoints\\smokeNvidiaRoute.js",
+    "cmd /c pnpm --filter @unified-ai-system/ai-gateway-service check"
+  ],
+  "smokeResult": {
+    "smoke": "nvidia-route",
+    "mode": "real-with-key",
+    "nvidiaApiKeyPresent": true,
+    "nvidiaModel": "meta/llama-3.1-8b-instruct",
+    "checks": [
+      {
+        "name": "nvidia-real-with-key-route",
+        "expected": "NVIDIA route returns a route envelope from the real provider path",
+        "httpStatus": 200,
+        "result": {
+          "success": true,
+          "code": "ROUTE_OK",
+          "message": "Route executed successfully.",
+          "data": {
+            "selectedProvider": "nvidia",
+            "selectedModel": "meta/llama-3.1-8b-instruct",
+            "executionMode": "real",
+            "executionStatus": "success",
+            "outputText": "It seems like you're referring to a specific command or process related to NVIDIA's graphics drivers or network configuration. However, I need a bit more context to provide",
+            "warnings": [
+              {
+                "code": "provider_preference_applied",
+                "message": "Provider selection used explicit request or fixed default preference."
+              }
+            ]
+          },
+          "error": null,
+          "meta": {
+            "requestId": "req_mo8jr7dy_bxtzrqv0",
+            "traceId": "req_mo8jr7dy_bxtzrqv0",
+            "timestamp": "2026-04-21T11:34:58.734Z",
+            "durationMs": 1161
+          }
+        }
+      }
+    ]
+  },
+  "routeEnvelopeSummary": {
+    "httpStatus": 200,
+    "success": true,
+    "code": "ROUTE_OK",
+    "selectedProvider": "nvidia",
+    "selectedModel": "meta/llama-3.1-8b-instruct",
+    "executionMode": "real",
+    "executionStatus": "success",
+    "error": null
+  },
+  "serviceCheck": {
+    "success": true,
+    "command": "cmd /c pnpm --filter @unified-ai-system/ai-gateway-service check",
+    "summary": "node --check validation passed for ai-gateway-service files, including smokeNvidiaRoute.js and nvidiaAdapter.js."
+  }
+}

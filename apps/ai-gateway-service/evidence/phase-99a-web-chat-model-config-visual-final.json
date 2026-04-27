@@ -1,0 +1,59 @@
+{
+  "phase": "phase-99a-web-chat-model-config-visual-final",
+  "status": "passed",
+  "generatedAt": "2026-04-26T12:13:24.493Z",
+  "delegatedCheck": {
+    "phase": "phase-98a-web-chat-model-config-user-journey",
+    "status": "passed",
+    "conclusion": "web-chat-model-config-user-journey-readable",
+    "evidence": "apps/ai-gateway-service/evidence/phase-98a-web-chat-model-config-user-journey.json",
+    "screenshot": "apps/ai-gateway-service/evidence/phase-98a-web-chat-model-config-user-journey.png"
+  },
+  "visualChecks": {
+    "phase98Passed": true,
+    "screenshotPresent": true,
+    "screenshotLargeEnough": true,
+    "composerPromptReadable": true,
+    "wizardReadable": true,
+    "successReadable": true,
+    "readyToChatReadable": true,
+    "mockProviderUsed": true,
+    "secretSafe": true,
+    "defaultChatLaneUnchanged": true
+  },
+  "screenshot": {
+    "path": "apps/ai-gateway-service/evidence/phase-98a-web-chat-model-config-user-journey.png",
+    "bytes": 125970,
+    "width": 1424,
+    "height": 1105,
+    "validPng": true
+  },
+  "userVisibleSummary": {
+    "entryButton": "配置模型",
+    "guide": "粘贴 Key，自动找模型。通过后直接聊。",
+    "wizardSteps": [
+      "选择模型",
+      "粘贴 Key",
+      "长期启动"
+    ],
+    "successTitle": "模型配置已生效，可以开始聊天",
+    "successLines": [
+      "当前聊天可用：可以直接继续提问，不需要再去别的面板操作。",
+      "Provider 已识别：generic-openai-compatible",
+      "模型已选择：phase98-chat-model",
+      "/chat 探测已通过：当前模型已经返回成功响应。"
+    ],
+    "readyGuidance": "已经能聊。直接输入问题，或拖文件进来。"
+  },
+  "safety": {
+    "browserInteraction": true,
+    "localMockProviderOnly": true,
+    "realProviderCalls": false,
+    "apiKeyValueRecorded": false,
+    "apiKeyPersistedInBrowser": false,
+    "apiKeyPersistedInEvidence": false,
+    "defaultChatMainLaneChanged": false,
+    "backendBusinessRouteAdded": false
+  },
+  "conclusion": "web-chat-model-config-visual-final-passed"
+}

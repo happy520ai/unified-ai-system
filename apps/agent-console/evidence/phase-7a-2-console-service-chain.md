@@ -1,0 +1,21 @@
+# Phase 7A-2 Console Service Chain Evidence
+
+- Phase: phase-7a-2-console-service-chain
+- Status: passed
+- Generated at: 2026-04-22T15:25:23.573Z
+- NVIDIA API key present: true
+- NVIDIA model: meta/llama-3.1-8b-instruct
+- Service URL: http://127.0.0.1:63024
+- Health status: ready
+- Service phase: phase-7a-1-service-entry
+- Provider mode: real
+- Real provider enabled: true
+- Providers: nvidia
+- Console status: completed
+- Console exit code: 0
+- Selected provider: nvidia
+- Selected model: meta/llama-3.1-8b-instruct
+- Execution mode: real
+- Execution status: success
+- Output text present: true
+- Conclusion: agent-console-to-ai-gateway-service-connected

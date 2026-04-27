@@ -1,0 +1,31 @@
+# Phase 22 Knowledge Quality And Infra Evidence
+
+- Phase: phase-22-knowledge-quality-infra
+- Status: passed
+- Generated at: 2026-04-24T18:23:46.575Z
+- Service URL: http://127.0.0.1:56827
+- Load HTTP status: 200
+- Loaded count: 2
+- Retrieve HTTP status: 200
+- Retrieve mode: keyword
+- Normalized query: phase22 quality marker snippet highlight ranking metadata
+- Ranking: weighted-keyword-v2
+- Query normalization: unicode-nfkc-lowercase-collapse
+- Retrieved chunks: 2
+- Top hit document: phase-22-quality-top-hit
+- Top chunk document: phase-22-quality-top-hit
+- Top document: phase-22-quality-top-hit
+- Top hit rank: 1
+- Top hit score: 0.7114
+- Top hit matched terms: phase22, quality, marker, snippet, highlight, ranking, metadata
+- Top hit snippet present: true
+- Top hit highlights: 7
+- Infra mode: local-keyword
+- Infra status: disabled
+- Infra enabled: false
+- Embedding status: disabled
+- Vector store status: disabled
+- pgvector status: disabled
+- Embedding interface: KnowledgeEmbeddingProvider
+- Vector store interface: KnowledgeVectorStore
+- Conclusion: knowledge-quality-and-infra-base-connected

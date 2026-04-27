@@ -1,0 +1,111 @@
+{
+  "phase": "phase-66a-web-chat-citation-readability",
+  "status": "passed",
+  "generatedAt": "2026-04-25T12:30:21.954Z",
+  "browserPath": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+  "serviceUrl": "http://127.0.0.1:55521",
+  "ui": {
+    "url": "http://127.0.0.1:55521/ui",
+    "prompt": "phase66a citation readability prompt",
+    "afterAnswer": {
+      "latestAssistantText": "phase66a answer with readable citations",
+      "citationHeading": "知识命中 / 引用 2 条",
+      "citationsVisible": true,
+      "citationCount": 2,
+      "firstCitationOpen": true,
+      "secondCitationOpen": false,
+      "firstSummary": "资料 1 · Phase66A first document",
+      "secondSummary": "资料 2 · Phase66A second document",
+      "firstSnippet": "phase66a first citation snippet",
+      "secondSnippet": "phase66a second citation snippet",
+      "copySingleButtonCount": 2,
+      "clipboard": [],
+      "fetches": [
+        "/chat/rag/stream"
+      ],
+      "fetchStatuses": [
+        {
+          "path": "/chat/rag/stream",
+          "status": 200,
+          "ok": true,
+          "simulated": true
+        }
+      ],
+      "messageCount": 3
+    },
+    "afterExpandSecond": {
+      "latestAssistantText": "phase66a answer with readable citations",
+      "citationHeading": "知识命中 / 引用 2 条",
+      "citationsVisible": true,
+      "citationCount": 2,
+      "firstCitationOpen": true,
+      "secondCitationOpen": true,
+      "firstSummary": "资料 1 · Phase66A first document",
+      "secondSummary": "资料 2 · Phase66A second document",
+      "firstSnippet": "phase66a first citation snippet",
+      "secondSnippet": "phase66a second citation snippet",
+      "copySingleButtonCount": 2,
+      "clipboard": [],
+      "fetches": [
+        "/chat/rag/stream"
+      ],
+      "fetchStatuses": [
+        {
+          "path": "/chat/rag/stream",
+          "status": 200,
+          "ok": true,
+          "simulated": true
+        }
+      ],
+      "messageCount": 3
+    },
+    "afterCopySingle": {
+      "latestAssistantText": "phase66a answer with readable citations",
+      "citationHeading": "知识命中 / 引用 2 条",
+      "citationsVisible": true,
+      "citationCount": 2,
+      "firstCitationOpen": true,
+      "secondCitationOpen": true,
+      "firstSummary": "资料 1 · Phase66A first document",
+      "secondSummary": "资料 2 · Phase66A second document",
+      "firstSnippet": "phase66a first citation snippet",
+      "secondSnippet": "phase66a second citation snippet",
+      "copySingleButtonCount": 2,
+      "clipboard": [
+        "[1] Phase66A first document\nsourceId: phase66a-source\ndocumentId: phase66a-document-1\nsnippet: phase66a first citation snippet"
+      ],
+      "fetches": [
+        "/chat/rag/stream"
+      ],
+      "fetchStatuses": [
+        {
+          "path": "/chat/rag/stream",
+          "status": 200,
+          "ok": true,
+          "simulated": true
+        }
+      ],
+      "messageCount": 4
+    }
+  },
+  "screenshot": {
+    "path": "apps/ai-gateway-service/evidence/phase-66a-web-chat-citation-readability.png",
+    "bytes": 125919,
+    "width": 1424,
+    "height": 1105,
+    "validPng": true
+  },
+  "safety": {
+    "browserInteraction": true,
+    "simulatedStreamOnly": true,
+    "citationReadabilityOnly": true,
+    "fakeProviderOnly": true,
+    "defaultChatMainLaneChanged": false,
+    "backendBusinessRouteAdded": false,
+    "providerCalls": false,
+    "runtimeMutation": false,
+    "releaseAutomation": false,
+    "infrastructureProvisioning": false
+  },
+  "conclusion": "web-chat-citation-readability-connected"
+}

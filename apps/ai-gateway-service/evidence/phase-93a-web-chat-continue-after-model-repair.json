@@ -1,0 +1,50 @@
+{
+  "phase": "phase-93a-web-chat-continue-after-model-repair",
+  "status": "passed",
+  "generatedAt": "2026-04-26T12:13:02.105Z",
+  "browserPath": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+  "serviceUrl": "http://127.0.0.1:56079",
+  "ui": {
+    "url": "http://127.0.0.1:56079/ui?showFakeProviders=1",
+    "beforeContinueState": {
+      "modelProbeStatus": "passed",
+      "modelRecoveryRequired": "false",
+      "continueActionPresent": true,
+      "continueActionText": "继续刚才的问题",
+      "feedbackText": "模型配置已生效，可以开始聊天当前聊天可用：可以直接继续提问，不需要再去别的面板操作。Provider 已识别：generic-openai-compatible模型已选择：phase93-restored-model/chat 探测已通过：当前模型已经返回成功响应。查看检测细节已添加到当前服务：复用当前服务已有配置，没有写入新的 API Key。默认选择状态：没有新的 API Key 需要保存。API Key 安全：不会写入浏览器、聊天记录、日志或 evidence。返回预览：model probe ok after repair继续刚才的问题设为默认继续聊天"
+    },
+    "continuedState": {
+      "modelProbeStatus": "passed",
+      "modelRecoveryRequired": "false",
+      "continuedAnswerPresent": true,
+      "repeatedUserPromptCount": 2,
+      "fetches": [
+        "/providers",
+        "/chat/rag/stream",
+        "/chat/rag",
+        "/providers",
+        "/config/runtime",
+        "/chat",
+        "/chat/rag/stream"
+      ],
+      "pageTextContainsSecret": false,
+      "localStorageContainsSecret": false
+    }
+  },
+  "screenshot": {
+    "path": "apps/ai-gateway-service/evidence/phase-93a-web-chat-continue-after-model-repair.png",
+    "bytes": 160029,
+    "width": 1424,
+    "height": 1205,
+    "validPng": true
+  },
+  "safety": {
+    "browserInteraction": true,
+    "simulatedProviderFailureRepairAndContinueOnly": true,
+    "realProviderCalls": false,
+    "apiKeyValueRecorded": false,
+    "defaultChatMainLaneChanged": false,
+    "backendBusinessRouteAdded": false
+  },
+  "conclusion": "web-chat-continue-after-model-repair-actionable"
+}

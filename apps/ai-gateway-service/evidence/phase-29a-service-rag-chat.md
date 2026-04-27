@@ -1,0 +1,28 @@
+# Phase 29A Service RAG Chat Evidence
+
+- Phase: phase-29a-service-rag-chat
+- Status: passed
+- Generated at: 2026-04-25T09:56:15.484Z
+- Service URL: http://127.0.0.1:59704
+- Health status: ok
+- RAG route present: true
+- UI URL: http://127.0.0.1:59704/ui
+- UI HTTP status: 200
+- UI title present: true
+- Service RAG UI present: true
+- Loaded source ID: phase-29a-rag-source
+- Loaded count: 1
+- Query: phase29a service rag gateway knowledge citation
+- Knowledge retrieved: true
+- Citation count: 1
+- Top hit document: phase-29a-rag-document
+- First citation document: phase-29a-rag-document
+- First citation snippet present: true
+- Marker matched in citation and answer: true
+- RAG enabled: true
+- RAG mode: service-side
+- Knowledge injected: true
+- Selected provider: local-fake-provider
+- Selected model: local-fake-model
+- Answer present: true
+- Conclusion: service-rag-chat-connected

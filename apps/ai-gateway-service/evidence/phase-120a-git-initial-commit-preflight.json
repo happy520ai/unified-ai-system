@@ -1,0 +1,82 @@
+{
+  "phase": "phase-120a-git-initial-commit-preflight",
+  "status": "passed",
+  "generatedAt": "2026-04-27T10:51:14.509Z",
+  "checks": {
+    "rootScriptPresent": true,
+    "serviceScriptPresent": true,
+    "phase119Closed": true,
+    "phase118Closed": true,
+    "gitTopLevelIsProject": true,
+    "noStagedFiles": true,
+    "initialCommitStatusRecorded": true,
+    "remoteStatusRecorded": true,
+    "ghStatusRecorded": true,
+    "manualDecisionsRecorded": true,
+    "envEnterpriseExampleTrackable": true,
+    "readmePhasePresent": true,
+    "agentsBoundaryPresent": true,
+    "userManualPresent": true,
+    "noPlainSecrets": true,
+    "projectContextNotCreated": true
+  },
+  "git": {
+    "repoRoot": "E:\\AI-Data\\AI网关系统\\unified-ai-system",
+    "gitTopLevel": "E:/AI-Data/AI网关系统/unified-ai-system",
+    "branch": "master",
+    "initialCommitPresent": true,
+    "remoteConfigured": false,
+    "remoteCount": 0,
+    "stagedFileCount": 0,
+    "stagedFiles": [],
+    "trackedFileCount": 536,
+    "statusLineCount": 4,
+    "statusPreview": [
+      "M apps/ai-gateway-service/evidence/phase-118a-remote-cicd-gate-preflight.json",
+      "M apps/ai-gateway-service/evidence/phase-118a-remote-cicd-gate-preflight.md",
+      "M apps/ai-gateway-service/evidence/phase-119a-git-repo-readiness.json",
+      "M apps/ai-gateway-service/evidence/phase-119a-git-repo-readiness.md"
+    ],
+    "legacyStatusLines": [],
+    "envEnterpriseStatusLines": [],
+    "blockers": [
+      "git remote is not configured",
+      "GitHub CLI is not installed or not in PATH"
+    ]
+  },
+  "github": {
+    "ghAvailable": false,
+    "ghAuthenticated": false,
+    "ghVersionTail": [],
+    "ghAuthTail": [
+      "gh CLI is not available"
+    ]
+  },
+  "manualDecisions": {
+    "strayRootArtifact": {
+      "name": "{console.error(e.message)",
+      "exists": false,
+      "sizeBytes": 0,
+      "decisionRequired": false
+    },
+    "legacyReadOnlyReference": {
+      "appearsInGitStatus": false,
+      "decisionRequired": false,
+      "boundary": "do not modify legacy contents; decide only whether to track or ignore it before the first commit"
+    }
+  },
+  "safety": {
+    "stagedFiles": false,
+    "createdCommit": false,
+    "configuredRemote": false,
+    "pushedToRemote": false,
+    "openedPullRequest": false,
+    "triggeredRemoteWorkflow": false,
+    "remoteActionsPassed": false,
+    "publishedRelease": false,
+    "plaintextApiKeyRecorded": false,
+    "globalReleaseComplete": false
+  },
+  "secretFindingCount": 0,
+  "conclusion": "git-initial-commit-preflight-recorded"
+}

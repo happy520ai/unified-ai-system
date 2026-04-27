@@ -1,0 +1,67 @@
+{
+  "phase": "phase-79a-first-run-entry",
+  "status": "passed",
+  "generatedAt": "2026-04-26T07:54:16.779Z",
+  "runtime": {
+    "nodeVersion": "22.14.0",
+    "nodeOk": true,
+    "packageManager": "pnpm@9.15.4",
+    "packageManagerOk": true,
+    "runningUnderPnpm": true
+  },
+  "scripts": {
+    "required": [
+      "start:pme",
+      "dev:phase7b",
+      "status:phase10a",
+      "health:phase12a",
+      "logs:phase16a",
+      "idle:phase15a",
+      "help:phase14a",
+      "verify:phase78a",
+      "verify:phase79a",
+      "verify:phase81a"
+    ],
+    "missing": []
+  },
+  "files": {
+    "required": [
+      "package.json",
+      "tools/phase9c/managed-dev.mjs",
+      "tools/phase12a/health.mjs",
+      "tools/phase14a/help.mjs",
+      "docs/GLOBAL_RELEASE_READINESS.md"
+    ],
+    "missing": []
+  },
+  "urls": {
+    "serviceUrl": "http://127.0.0.1:3100",
+    "webConsole": "http://127.0.0.1:3100/ui",
+    "healthCheck": "http://127.0.0.1:3100/health/check"
+  },
+  "localHealth": {
+    "checked": true,
+    "reachable": true,
+    "httpStatus": 200,
+    "ready": true,
+    "elapsedMs": 103
+  },
+  "safety": {
+    "providerCalls": false,
+    "runtimeMutation": false,
+    "processStartDuringVerify": false,
+    "processStopDuringVerify": false,
+    "secretsPrinted": false,
+    "legacyModified": false
+  },
+  "userEntry": {
+    "startCommand": "cmd /c pnpm start:pme",
+    "underlyingManagedStart": "node ./tools/phase9c/managed-dev.mjs start",
+    "statusCommand": "cmd /c pnpm status:phase10a",
+    "stopCommand": "cmd /c pnpm idle:phase15a",
+    "webConsole": "http://127.0.0.1:3100/ui",
+    "autoOpenBrowser": true,
+    "disableBrowserOpen": "set PME_SKIP_BROWSER_OPEN=1 or PME_AUTO_OPEN_BROWSER=0"
+  },
+  "conclusion": "first-run-entry-ready"
+}

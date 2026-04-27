@@ -1,0 +1,31 @@
+{
+  "phase": "phase-52a-web-browser-visual",
+  "status": "passed",
+  "generatedAt": "2026-04-25T09:52:11.504Z",
+  "browserPath": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+  "serviceUrl": "http://127.0.0.1:55840",
+  "ui": {
+    "url": "http://127.0.0.1:55840/ui",
+    "httpStatus": 200,
+    "requiredTextCount": 9,
+    "missingText": [],
+    "firstScreenMarkerPresent": true,
+    "sideHiddenByDefault": true
+  },
+  "screenshot": {
+    "path": "apps/ai-gateway-service/evidence/phase-52a-web-browser-visual.png",
+    "bytes": 101297,
+    "width": 1440,
+    "height": 1200,
+    "validPng": true
+  },
+  "safety": {
+    "browserRenderOnly": true,
+    "backendBusinessRouteAdded": false,
+    "providerCalls": false,
+    "runtimeMutation": false,
+    "releaseAutomation": false,
+    "infrastructureProvisioning": false
+  },
+  "conclusion": "web-browser-visual-connected"
+}

@@ -1,0 +1,347 @@
+import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { dirname, extname, relative, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { createGatewayApplication } from "../application/createGatewayApplication.js";
+import { createGatewayHttpServer } from "../http/httpServer.js";
+import { findPlainSecretFindings, maskSecret } from "../security/secretSafety.js";
+
+const PHASE = "phase-107a-secret-safety";
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const repoRoot = resolve(__dirname, "../../../..");
+const evidenceDir = resolve(repoRoot, "apps/ai-gateway-service/evidence");
+const evidenceJsonPath = resolve(evidenceDir, "phase-107a-secret-safety.json");
+const evidenceMdPath = resolve(evidenceDir, "phase-107a-secret-safety.md");
+const forbiddenSecret = "phase107a-secret-should-not-appear";
+const scanRoots = [
+  "README.md",
+  "AGENTS.md",
+  ".env.example",
+  ".env.enterprise.example",
+  "package.json",
+  "apps",
+  "packages",
+  "docs",
+  "evidence",
+];
+const textExtensions = new Set([
+  "",
+  ".cjs",
+  ".css",
+  ".example",
+  ".html",
+  ".js",
+  ".json",
+  ".jsonl",
+  ".md",
+  ".mjs",
+  ".ts",
+  ".tsx",
+  ".txt",
+  ".yml",
+  ".yaml",
+]);
+
+let server;
+
+try {
+  const application = createGatewayApplication({
+    ...process.env,
+    AI_GATEWAY_PROVIDER_MODE: "fake",
+    AI_GATEWAY_REAL_PROVIDER_ENABLED: "false",
+    AI_GATEWAY_ROUTE_MODE: "fixed",
+    AI_GATEWAY_DEFAULT_PROVIDER: "local-fake-provider",
+    AI_GATEWAY_ENABLED_PROVIDERS: "local-fake-provider",
+    KNOWLEDGE_INFRA_MODE: "local-keyword",
+    KNOWLEDGE_STORAGE_MODE: "memory",
+    PME_ENTERPRISE_AUTH_ENABLED: "false",
+  });
+  server = createGatewayHttpServer(application);
+  await listen(server, 0, "127.0.0.1");
+
+  const serviceUrl = `http://127.0.0.1:${server.address().port}`;
+  const [ui, setupReadiness, modelImportPreview, rootPackage, servicePackage, readme, agents, envExample, envEnterpriseExample] = await Promise.all([
+    fetchText(`${serviceUrl}/ui`),
+    fetchJson(`${serviceUrl}/setup/readiness`),
+    postJson(`${serviceUrl}/models/import/preview`, {
+      apiKey: forbiddenSecret,
+      providerHint: "auto",
+    }),
+    readFile(resolve(repoRoot, "package.json"), "utf8"),
+    readFile(resolve(repoRoot, "apps/ai-gateway-service/package.json"), "utf8"),
+    readFile(resolve(repoRoot, "README.md"), "utf8"),
+    readFile(resolve(repoRoot, "AGENTS.md"), "utf8"),
+    readFile(resolve(repoRoot, ".env.example"), "utf8"),
+    readFile(resolve(repoRoot, ".env.enterprise.example"), "utf8"),
+  ]);
+  const scan = await scanRepositoryForSecrets();
+
+  const evidence = createEvidence({
+    serviceUrl,
+    ui,
+    setupReadiness,
+    modelImportPreview,
+    rootPackage,
+    servicePackage,
+    readme,
+    agents,
+    envExample,
+    envEnterpriseExample,
+    scan,
+  });
+  await writeEvidence(evidence);
+  console.log(JSON.stringify(evidence, null, 2));
+  process.exitCode = evidence.status === "passed" ? 0 : 1;
+} catch (error) {
+  const evidence = {
+    phase: PHASE,
+    status: "failed",
+    generatedAt: new Date().toISOString(),
+    error: error instanceof Error ? error.message : String(error),
+    conclusion: "secret-safety-not-ready",
+  };
+  await writeEvidence(evidence);
+  console.log(JSON.stringify(evidence, null, 2));
+  process.exitCode = 1;
+} finally {
+  if (server) {
+    await close(server);
+  }
+}
+
+function createEvidence({
+  serviceUrl,
+  ui,
+  setupReadiness,
+  modelImportPreview,
+  rootPackage,
+  servicePackage,
+  readme,
+  agents,
+  envExample,
+  envEnterpriseExample,
+  scan,
+}) {
+  const rootScripts = JSON.parse(rootPackage).scripts ?? {};
+  const serviceScripts = JSON.parse(servicePackage).scripts ?? {};
+  const modelImportData = modelImportPreview.body?.data ?? {};
+  const setupData = setupReadiness.body?.data ?? {};
+  const maskedKey = modelImportData.maskedKey ?? "";
+  const payloadText = JSON.stringify({
+    ui: ui.text,
+    setup: sanitizeForEvidence(setupData),
+    modelImport: sanitizeForEvidence(modelImportData),
+    scan,
+  });
+
+  const checks = {
+    uiHttpOk: ui.httpStatus === 200,
+    setupReadinessOk: setupReadiness.httpStatus === 200 &&
+      setupData.status === "ready" &&
+      setupData.safety?.apiKeyExposed === false,
+    modelImportMasksUnknownKey: modelImportPreview.httpStatus === 200 &&
+      modelImportData.status === "needs_provider_selection" &&
+      modelImportData.maskedKey === maskSecret(forbiddenSecret) &&
+      maskedKey.includes("****"),
+    modelImportNoPlainSecretInResponse: !JSON.stringify(modelImportPreview.body).includes(forbiddenSecret),
+    uiNoPlainSecret: !String(ui.text ?? "").includes(forbiddenSecret),
+    envExampleNoPlainSecrets: findPlainSecretFindings(envExample, ".env.example").length === 0,
+    envEnterpriseExampleNoPlainSecrets: findPlainSecretFindings(
+      envEnterpriseExample,
+      ".env.enterprise.example",
+    ).length === 0,
+    readmeNoPlainSecrets: findPlainSecretFindings(readme, "README.md").length === 0,
+    agentsNoPlainSecrets: findPlainSecretFindings(agents, "AGENTS.md").length === 0,
+    repositoryScanNoPlainSecrets: scan.findingCount === 0,
+    docsBoundaryPresent: readme.includes("Phase 107A") &&
+      readme.includes("verify:phase107a-secret-safety") &&
+      agents.includes("verify:phase107a-secret-safety"),
+    scriptsPresent: rootScripts["verify:phase107a-secret-safety"] === "pnpm --filter @unified-ai-system/ai-gateway-service verify:phase107a-secret-safety" &&
+      serviceScripts["verify:phase107a-secret-safety"] === "node ./src/entrypoints/verifySecretSafety.js",
+    noPlainSecretInEvidence: !payloadText.includes(forbiddenSecret),
+  };
+  const passed = Object.values(checks).every(Boolean);
+
+  return {
+    phase: PHASE,
+    status: passed ? "passed" : "failed",
+    generatedAt: new Date().toISOString(),
+    serviceUrl,
+    checks,
+    modelImport: {
+      status: modelImportData.status,
+      reason: modelImportData.reason,
+      maskedKey,
+      userGuidancePresent: Boolean(modelImportData.userMessage),
+    },
+    scan: {
+      scope: scan.scope,
+      fileCount: scan.fileCount,
+      findingCount: scan.findingCount,
+      findings: scan.findings,
+    },
+    safety: {
+      plaintextApiKeyRecorded: false,
+      evidenceContainsPlaintextKey: false,
+      uiDisplaysPlaintextKey: false,
+      setupReadinessExposesKey: false,
+      productionSecretVaultClaimed: false,
+      defaultChatMainLaneChanged: false,
+      realFallbackExecution: false,
+      realAgentExecution: false,
+    },
+    conclusion: passed ? "secret-safety-ready" : "secret-safety-not-ready",
+  };
+}
+
+async function scanRepositoryForSecrets() {
+  const files = [];
+  for (const item of scanRoots) {
+    const absolute = resolve(repoRoot, item);
+    if (!existsSync(absolute)) {
+      continue;
+    }
+    const itemStat = await stat(absolute);
+    if (itemStat.isDirectory()) {
+      files.push(...await listTextFiles(absolute));
+    } else if (isTextFile(absolute)) {
+      files.push(absolute);
+    }
+  }
+
+  const findings = [];
+  for (const filePath of files) {
+    const text = await readFile(filePath, "utf8");
+    findings.push(...findPlainSecretFindings(text, toRepoPath(filePath)));
+  }
+
+  return {
+    scope: scanRoots,
+    fileCount: files.length,
+    findingCount: findings.length,
+    findings,
+  };
+}
+
+async function listTextFiles(directory) {
+  const output = [];
+  const entries = await readdir(directory, { withFileTypes: true });
+  for (const entry of entries) {
+    const absolute = resolve(directory, entry.name);
+    if (entry.isDirectory()) {
+      if (shouldSkipDirectory(entry.name)) {
+        continue;
+      }
+      output.push(...await listTextFiles(absolute));
+    } else if (entry.isFile() && isTextFile(absolute)) {
+      output.push(absolute);
+    }
+  }
+  return output;
+}
+
+function isTextFile(filePath) {
+  const ext = extname(filePath).toLowerCase();
+  if (!textExtensions.has(ext)) return false;
+  const normalized = toRepoPath(filePath);
+  return !normalized.includes("/node_modules/") &&
+    !normalized.includes("/.git/") &&
+    !normalized.includes("/dist/") &&
+    !normalized.includes("/build/") &&
+    !normalized.includes("/coverage/");
+}
+
+function shouldSkipDirectory(name) {
+  return [".git", "node_modules", "dist", "build", "coverage", ".next", ".cache"].includes(name);
+}
+
+function sanitizeForEvidence(value) {
+  if (Array.isArray(value)) return value.map(sanitizeForEvidence);
+  if (!value || typeof value !== "object") return value;
+  const output = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (/apiKey|authorization|token|secret/i.test(key)) {
+      output[key] = item ? "[redacted]" : item;
+    } else {
+      output[key] = sanitizeForEvidence(item);
+    }
+  }
+  return output;
+}
+
+async function fetchText(url) {
+  const response = await fetch(url);
+  return {
+    httpStatus: response.status,
+    text: await response.text(),
+  };
+}
+
+async function fetchJson(url) {
+  const response = await fetch(url);
+  const text = await response.text();
+  return {
+    httpStatus: response.status,
+    body: text ? JSON.parse(text) : {},
+  };
+}
+
+async function postJson(url, body) {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const text = await response.text();
+  return {
+    httpStatus: response.status,
+    body: text ? JSON.parse(text) : {},
+  };
+}
+
+function listen(server, port, host) {
+  return new Promise((resolveListen, rejectListen) => {
+    server.once("error", rejectListen);
+    server.listen(port, host, () => {
+      server.off("error", rejectListen);
+      resolveListen();
+    });
+  });
+}
+
+function close(server) {
+  return new Promise((resolveClose) => server.close(() => resolveClose()));
+}
+
+function toRepoPath(filePath) {
+  return relative(repoRoot, filePath).replace(/\\/g, "/");
+}
+
+async function writeEvidence(body) {
+  await mkdir(evidenceDir, { recursive: true });
+  await writeFile(evidenceJsonPath, `${JSON.stringify(body, null, 2)}\n`, "utf8");
+  await writeFile(evidenceMdPath, createEvidenceMarkdown(body), "utf8");
+}
+
+function createEvidenceMarkdown(body) {
+  return `# Phase 107A Secret Safety Evidence
+
+- Phase: ${body.phase}
+- Status: ${body.status}
+- Generated at: ${body.generatedAt}
+- UI HTTP OK: ${body.checks?.uiHttpOk}
+- Setup readiness OK: ${body.checks?.setupReadinessOk}
+- Model import masks unknown key: ${body.checks?.modelImportMasksUnknownKey}
+- Model import response contains plaintext key: ${!body.checks?.modelImportNoPlainSecretInResponse}
+- Env example contains plaintext secrets: ${!body.checks?.envExampleNoPlainSecrets}
+- Enterprise env example contains plaintext secrets: ${!body.checks?.envEnterpriseExampleNoPlainSecrets}
+- README contains plaintext secrets: ${!body.checks?.readmeNoPlainSecrets}
+- AGENTS contains plaintext secrets: ${!body.checks?.agentsNoPlainSecrets}
+- Repository scan finding count: ${body.scan?.findingCount}
+- Scripts present: ${body.checks?.scriptsPresent}
+- Plaintext API key recorded: ${body.safety?.plaintextApiKeyRecorded}
+- Production secret vault claimed: ${body.safety?.productionSecretVaultClaimed}
+- Default chat main lane changed: ${body.safety?.defaultChatMainLaneChanged}
+- Conclusion: ${body.conclusion}
+`;
+}

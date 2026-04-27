@@ -1,0 +1,33 @@
+# Phase 31A Experience Capabilities Evidence
+
+- Phase: phase-31a-experience-capabilities
+- Status: passed
+- Generated at: 2026-04-25T01:52:10.181Z
+- Service URL: http://127.0.0.1:53741
+- UI HTTP status: 200
+- Streaming marker: true
+- Dashboard marker: true
+- Memory marker: true
+- Connector marker: true
+- Evaluation marker: true
+- Graph marker: true
+- Dashboard streaming chat: true
+- Dashboard fallback execution: true
+- Dashboard long-term memory: true
+- Dashboard query GraphRAG: true
+- Provider count: 2
+- Fallback enabled: true
+- Auth enabled: false
+- Tenant mode: optional
+- Knowledge loaded count: 1
+- Stream done: true
+- Stream selected provider: backup-fake-provider
+- Memory document count: 1
+- Connector status: imported
+- Graph nodes: 6
+- Graph edges: 5
+- Evaluation score: 1
+- Evaluation passed: true
+- Workflow status: completed
+- Workflow artifact: .data/workflows/phase-31a-workflow-report.md
+- Conclusion: experience-capabilities-connected

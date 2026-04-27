@@ -1,0 +1,107 @@
+{
+  "phase": "phase-78a-global-release-readiness",
+  "status": "passed",
+  "generatedAt": "2026-04-26T12:13:38.789Z",
+  "docs": [
+    {
+      "path": "README.md",
+      "exists": true,
+      "utf8Readable": true,
+      "bytes": 71852,
+      "lineCount": 1334
+    },
+    {
+      "path": "AGENTS.md",
+      "exists": true,
+      "utf8Readable": true,
+      "bytes": 73984,
+      "lineCount": 1710
+    },
+    {
+      "path": "docs/DELIVERY_GUIDE.md",
+      "exists": true,
+      "utf8Readable": true,
+      "bytes": 40876,
+      "lineCount": 1076
+    },
+    {
+      "path": "docs/OPERATION_MANUAL.md",
+      "exists": true,
+      "utf8Readable": true,
+      "bytes": 41435,
+      "lineCount": 1342
+    },
+    {
+      "path": "docs/GLOBAL_RELEASE_READINESS.md",
+      "exists": true,
+      "utf8Readable": true,
+      "bytes": 10230,
+      "lineCount": 144
+    }
+  ],
+  "scripts": {
+    "required": [
+      "help:phase14a",
+      "start:pme",
+      "dev:phase7b",
+      "status:phase10a",
+      "health:phase12a",
+      "logs:phase16a",
+      "idle:phase15a",
+      "verify:phase21",
+      "verify:phase22",
+      "verify:phase23",
+      "verify:phase24",
+      "verify:phase50a",
+      "verify:phase76s",
+      "verify:phase77a",
+      "verify:phase78a",
+      "verify:phase79a",
+      "verify:phase80a",
+      "verify:phase81a",
+      "verify:phase82a",
+      "verify:phase83a",
+      "verify:phase84a",
+      "verify:phase85a",
+      "verify:phase86a",
+      "verify:phase87a",
+      "verify:phase88a",
+      "verify:phase89a",
+      "verify:phase90a",
+      "verify:phase91a",
+      "verify:phase92a",
+      "verify:phase93a",
+      "verify:phase94a",
+      "verify:phase95a",
+      "verify:phase96a",
+      "verify:phase97a",
+      "verify:phase98a",
+      "verify:phase99a",
+      "verify:phase100a",
+      "verify:phase101a",
+      "verify:phase8a-model-import",
+      "verify:enterprise"
+    ],
+    "missing": [],
+    "healthScript": "node ./tools/phase12a/health.mjs",
+    "healthIsLocalOnly": true
+  },
+  "readability": {
+    "mojibakeMarkerCount": 0,
+    "mojibakeFindings": []
+  },
+  "secrets": {
+    "checkedFiles": 211,
+    "findingCount": 0,
+    "findings": []
+  },
+  "boundaries": {
+    "releaseDoc": "docs/GLOBAL_RELEASE_READINESS.md",
+    "boundaryTextPresent": true,
+    "releaseAutomation": false,
+    "providerCalls": false,
+    "serviceStart": false,
+    "runtimeMutation": false
+  },
+  "conclusion": "global-release-readiness-baseline-connected"
+}

@@ -1,0 +1,31 @@
+# Phase 35A Enterprise User Lifecycle Evidence
+
+- Phase: phase-35a-enterprise-user-lifecycle
+- Status: passed
+- Generated at: 2026-04-26T05:00:56.470Z
+- User store path: C:\Users\Administrator\AppData\Local\Temp\phase35a-enterprise-store-5Th5wk\enterprise-users.json
+- Audit log path: C:\Users\Administrator\AppData\Local\Temp\phase35a-enterprise-audit-4MnGcC\enterprise-audit.jsonl
+- Health HTTP status: 200
+- User store mode: env-plus-json-file
+- UI managed users present: true
+- Create status: 200
+- Managed user: phase35-managed-operator
+- Managed role: operator
+- Managed source: file
+- Token value exposed: false
+- Token hash exposed: false
+- Managed session status: 200
+- Operator write status: 200
+- Revoke status: 200
+- Revoked session status: 401
+- Revoked session code: enterprise_token_revoked
+- Persisted store has token hash: true
+- Persisted store contains raw token: false
+- List after restart status: 200
+- Revoked after restart status: 401
+- Revoked after restart code: enterprise_token_revoked
+- Restarted managed user revoked: true
+- Audit entry count: 10
+- Upsert audit recorded: true
+- Revoke audit recorded: true
+- Conclusion: enterprise-user-lifecycle-connected

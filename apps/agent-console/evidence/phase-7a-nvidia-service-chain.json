@@ -1,0 +1,48 @@
+{
+  "phase": "phase-7a-nvidia-service-chain",
+  "status": "passed",
+  "generatedAt": "2026-04-21T12:23:54.321Z",
+  "nvidiaApiKeyPresent": true,
+  "nvidiaModel": "meta/llama-3.1-8b-instruct",
+  "service": {
+    "url": "http://127.0.0.1:59260",
+    "healthStatus": "ready",
+    "providerMode": "real",
+    "realProviderEnabled": true,
+    "providers": [
+      "nvidia"
+    ],
+    "routes": [
+      "GET /health/check",
+      "GET /providers",
+      "GET /config/runtime",
+      "GET /route/modes",
+      "POST /chat",
+      "POST /route"
+    ]
+  },
+  "console": {
+    "exitCode": 0,
+    "signal": null,
+    "status": "completed",
+    "gatewayServiceUrl": "http://127.0.0.1:59260",
+    "stderrPreview": ""
+  },
+  "route": {
+    "requestId": "agent-console-phase-7a-nvidia-chain",
+    "selectedProvider": "nvidia",
+    "selectedModel": "meta/llama-3.1-8b-instruct",
+    "executionMode": "real",
+    "executionStatus": "success",
+    "outputTextPresent": true,
+    "outputTextPreview": "The Phase 7A system-internal NVIDIA chain verification is a process to ensure the integrity of the NVIDIA driver chain.",
+    "warnings": [
+      {
+        "code": "provider_preference_applied",
+        "message": "Provider selection used explicit request or fixed default preference."
+      }
+    ]
+  },
+  "error": null,
+  "conclusion": "system-internal-call-chain-connected"
+}

@@ -1,0 +1,33 @@
+{
+  "phase": "phase-33a-enterprise-admin-console",
+  "status": "passed",
+  "generatedAt": "2026-04-26T05:00:51.600Z",
+  "serviceUrl": "http://127.0.0.1:59099",
+  "ui": {
+    "httpStatus": 200,
+    "contentType": "text/html; charset=utf-8",
+    "enterprisePanelPresent": true,
+    "enterpriseHealthButtonPresent": true,
+    "enterpriseSessionButtonPresent": true,
+    "enterpriseRolesButtonPresent": true,
+    "enterpriseAuditButtonPresent": true
+  },
+  "enterprise": {
+    "healthHttpStatus": 200,
+    "authEnabled": true,
+    "missingSessionStatus": 401,
+    "adminSessionStatus": 200,
+    "adminUserId": "phase33-admin",
+    "adminTenantId": "phase33-tenant",
+    "rolesHttpStatus": 200,
+    "roleCount": 4,
+    "dashboardHttpStatus": 200,
+    "viewerKnowledgeWriteStatus": 403,
+    "auditHttpStatus": 200,
+    "auditEntryCount": 6,
+    "allowedDashboardRecorded": true,
+    "deniedKnowledgeWriteRecorded": true
+  },
+  "error": null,
+  "conclusion": "enterprise-admin-console-connected"
+}

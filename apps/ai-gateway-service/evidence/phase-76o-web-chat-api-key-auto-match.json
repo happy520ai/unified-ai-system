@@ -1,0 +1,77 @@
+{
+  "phase": "phase-76o-web-chat-api-key-auto-match",
+  "status": "passed",
+  "generatedAt": "2026-04-25T14:39:26.493Z",
+  "serviceUrl": "http://127.0.0.1:65497",
+  "htmlInspection": {
+    "scriptValid": true,
+    "autoDetectButtonPresent": true,
+    "detectRoutePresent": true,
+    "oneClickAddStillPresent": true
+  },
+  "detection": {
+    "ok": true,
+    "httpStatus": 200,
+    "recommended": {
+      "providerId": "local-fake-provider",
+      "providerDisplayName": "Local Fake Provider",
+      "modelId": "local-fake-model",
+      "modelDisplayName": "Local Fake Model",
+      "value": "local-fake-provider::local-fake-model",
+      "label": "Local Fake Provider / Local Fake Model",
+      "confidence": "test-only",
+      "modelDiscoveryStatus": "not-run-ambiguous-key",
+      "credentialValidated": false,
+      "capabilities": [
+        "chat",
+        "summary"
+      ],
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "execution": {
+        "chat": true,
+        "chatReason": "chat-executable",
+        "currentRuntime": "current-chat-lane",
+        "executableCapabilities": [
+          "chat"
+        ],
+        "recognizedOnlyCapabilities": [
+          "summary"
+        ]
+      }
+    },
+    "detectedCount": 1,
+    "selectableModelCount": 2,
+    "selectedModelId": "phase76o-alt-model",
+    "secretStorage": "not-stored",
+    "networkProbePerformed": false
+  },
+  "credential": {
+    "ok": true,
+    "httpStatus": 200,
+    "providerId": "local-fake-provider",
+    "secretStorage": "memory-only",
+    "runtimeModelCount": 2,
+    "runtimeProviderEnabled": true
+  },
+  "chat": {
+    "ok": true,
+    "httpStatus": 200,
+    "selectedProvider": "local-fake-provider",
+    "selectedModel": "phase76o-alt-model"
+  },
+  "safety": {
+    "fakeProviderOnly": true,
+    "apiKeyValueRecorded": false,
+    "apiKeyPersisted": false,
+    "detectionStoresSecret": false,
+    "defaultChatMainLaneChanged": false
+  },
+  "conclusion": "web-chat-api-key-auto-match-connected"
+}

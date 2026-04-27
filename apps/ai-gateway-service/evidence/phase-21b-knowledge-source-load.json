@@ -1,0 +1,28 @@
+{
+  "phase": "phase-21b-knowledge-source-load",
+  "status": "passed",
+  "generatedAt": "2026-04-26T04:56:55.343Z",
+  "service": {
+    "url": "http://127.0.0.1:62182"
+  },
+  "knowledge": {
+    "mode": "local-keyword",
+    "storage": "in-memory",
+    "embedding": "not-configured",
+    "beforeDocumentCount": 4,
+    "afterDocumentCount": 5,
+    "loadedSourceId": "phase-21b-local-source",
+    "loadedDocumentId": "phase-21b-local-document",
+    "loadHttpStatus": 200,
+    "loadedCount": 1,
+    "sourcePresent": true,
+    "sourceDocumentCount": 1,
+    "retrieveHttpStatus": 200,
+    "retrieveMode": "keyword",
+    "retrieveChunkCount": 1,
+    "topChunkDocumentId": "phase-21b-local-document",
+    "markerMatched": true
+  },
+  "error": null,
+  "conclusion": "local-knowledge-source-load-connected"
+}

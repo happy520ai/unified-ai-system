@@ -1,0 +1,25 @@
+# Phase 89A Web Chat Model Config Restart Persistence Evidence
+
+- Phase: phase-89a-web-chat-model-config-restart-persistence
+- Status: passed
+- Generated at: 2026-04-26T10:24:49.357Z
+- Service URL: http://127.0.0.1:51762
+- Same port restart: true
+- Runtime credential store mode: local-file
+- Runtime credential store path present: true
+- Persisted providers: generic-openai-compatible
+- Persisted model ids: phase89-persisted-chat-model
+- Reload provider/model: generic-openai-compatible / phase89-persisted-chat-model
+- Reload answer marker: true
+- Restart provider/model: generic-openai-compatible / phase89-persisted-chat-model
+- Restart answer marker: true
+- Stream chat request count: 2
+- Local mock provider only: true
+- Real provider calls: false
+- API key persisted in evidence: false
+- Default chat main lane changed: false
+- Screenshot path: apps/ai-gateway-service/evidence/phase-89a-web-chat-model-config-restart-persistence.png
+- Screenshot bytes: 138640
+- Screenshot dimensions: 1424x1105
+- Valid PNG: true
+- Conclusion: web-chat-model-config-restart-persistence-connected

@@ -1,0 +1,39 @@
+{
+  "phase": "phase-103a-product-readiness",
+  "status": "passed",
+  "generatedAt": "2026-04-26T14:31:49.308Z",
+  "serviceUrl": "http://127.0.0.1:54418",
+  "checks": {
+    "uiHttpOk": true,
+    "uiProductReadinessMarker": true,
+    "uiCoreModulesReadable": true,
+    "providerCatalogWideEnough": true,
+    "unknownKeyNotUnsupported": true,
+    "maskedKeyRejectedClearly": true,
+    "workforceStillPreviewReady": true,
+    "docsPhasePresent": true,
+    "scriptsPresent": true,
+    "noPlainSecretInEvidence": true
+  },
+  "modelImport": {
+    "providerCatalogCount": 31,
+    "unknownStatus": "needs_provider_selection",
+    "unknownReason": "api_key_prefix_unknown_choose_provider_or_base_url",
+    "maskedStatus": "invalid_api_key",
+    "maskedReason": "masked_api_key_not_usable",
+    "failureGuidancePresent": true
+  },
+  "workforce": {
+    "healthStatus": "ready",
+    "agentCount": 7,
+    "previewOnly": true
+  },
+  "safety": {
+    "defaultChatMainLaneChanged": false,
+    "realProviderCalled": false,
+    "realLlmCalledByWorkforce": false,
+    "plaintextApiKeyRecorded": false,
+    "unsupportedKeyTypeReturned": false
+  },
+  "conclusion": "product-readiness-closed"
+}

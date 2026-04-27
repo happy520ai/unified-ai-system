@@ -1,0 +1,80 @@
+{
+  "phase": "phase-76r-web-chat-generic-openai-compatible-runtime",
+  "status": "passed",
+  "generatedAt": "2026-04-26T06:56:22.161Z",
+  "serviceUrl": "http://127.0.0.1:59738",
+  "upstream": {
+    "baseUrlShape": "local-fake-openai-compatible",
+    "chatCalled": true,
+    "authorizationShapeOk": true
+  },
+  "detection": {
+    "mode": "safe-catalog-detection",
+    "recommended": {
+      "providerId": "generic-openai-compatible",
+      "providerDisplayName": "Generic OpenAI-Compatible API",
+      "modelId": "custom-chat-model",
+      "modelDisplayName": "Custom Chat Model",
+      "value": "generic-openai-compatible::custom-chat-model",
+      "label": "Generic OpenAI-Compatible API / Custom Chat Model",
+      "confidence": "base-url",
+      "modelDiscoveryStatus": "not-run-ambiguous-key",
+      "credentialValidated": false,
+      "capabilities": [
+        "chat",
+        "summary"
+      ],
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "execution": {
+        "chat": true,
+        "chatReason": "chat-executable",
+        "currentRuntime": "current-chat-lane",
+        "executableCapabilities": [
+          "chat"
+        ],
+        "recognizedOnlyCapabilities": [
+          "summary"
+        ]
+      }
+    },
+    "warnings": [],
+    "providerIds": [
+      "generic-openai-compatible"
+    ],
+    "generic": {
+      "availableForChat": true,
+      "endpointConfigured": true,
+      "chatExecutableModelCount": 1
+    },
+    "networkProbePerformed": false
+  },
+  "credential": {
+    "ok": true,
+    "httpStatus": 200,
+    "providerId": "generic-openai-compatible",
+    "endpointConfigured": true,
+    "apiKeyPresent": true,
+    "secretStorage": "memory-only"
+  },
+  "chat": {
+    "ok": true,
+    "httpStatus": 200,
+    "selectedProvider": "generic-openai-compatible",
+    "selectedModel": "custom-chat-model",
+    "textPreview": "generic OpenAI-compatible probe passed"
+  },
+  "safety": {
+    "apiKeyValueRecorded": false,
+    "pastedCredentialParsed": true,
+    "endpointStoredMemoryOnly": true,
+    "defaultChatMainLaneChanged": false
+  },
+  "conclusion": "generic-openai-compatible-runtime-connected"
+}

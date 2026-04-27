@@ -1,0 +1,24 @@
+{
+  "phase": "phase-49a-web-chinese-readability",
+  "status": "passed",
+  "generatedAt": "2026-04-25T09:52:02.005Z",
+  "serviceUrl": "http://127.0.0.1:55764",
+  "ui": {
+    "httpStatus": 200,
+    "requiredTextCount": 33,
+    "missingText": [],
+    "brokenMarkerCount": 0,
+    "brokenMarkers": [],
+    "chatFirstTitlePresent": true,
+    "enterprisePanelPresent": true,
+    "readableOverviewPresent": true
+  },
+  "safety": {
+    "backendBusinessRouteAdded": false,
+    "providerCalls": false,
+    "runtimeMutation": false,
+    "releaseAutomation": false,
+    "infrastructureProvisioning": false
+  },
+  "conclusion": "web-chinese-readability-connected"
+}

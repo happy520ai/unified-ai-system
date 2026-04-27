@@ -1,0 +1,40 @@
+{
+  "phase": "phase-34a-enterprise-security-hardening",
+  "status": "passed",
+  "generatedAt": "2026-04-26T05:00:54.077Z",
+  "serviceUrl": "http://127.0.0.1:59608",
+  "ui": {
+    "httpStatus": 200,
+    "securityReadinessButtonPresent": true
+  },
+  "enterprise": {
+    "healthHttpStatus": 200,
+    "authEnabled": true,
+    "tokenExpirySupported": true,
+    "tokenRevocationSupported": true,
+    "adminReadinessStatus": "ready",
+    "adminReadinessHttpStatus": 200,
+    "auditorReadinessHttpStatus": 200,
+    "missingReadinessStatus": 401,
+    "activeUserCount": 3,
+    "expiredUserCount": 1,
+    "revokedUserCount": 2,
+    "tokenValuesExposed": false,
+    "expiredSessionStatus": 401,
+    "expiredSessionCode": "enterprise_token_expired",
+    "revokedSessionStatus": 401,
+    "revokedSessionCode": "enterprise_token_revoked",
+    "crossTenantStatus": 403,
+    "crossTenantCode": "enterprise_tenant_forbidden",
+    "viewerAuditStatus": 403,
+    "adminDashboardStatus": 200,
+    "adminAuditStatus": 200,
+    "auditLogPath": "C:\\Users\\Administrator\\AppData\\Local\\Temp\\phase34a-audit-EpwovX\\enterprise-audit.jsonl",
+    "auditEntryCount": 9,
+    "expiredAuditRecorded": true,
+    "revokedAuditRecorded": true,
+    "crossTenantAuditRecorded": true
+  },
+  "error": null,
+  "conclusion": "enterprise-security-hardening-connected"
+}

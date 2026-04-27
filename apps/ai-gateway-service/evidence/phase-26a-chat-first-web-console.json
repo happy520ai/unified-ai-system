@@ -1,0 +1,47 @@
+{
+  "phase": "phase-26a-chat-first-web-console",
+  "status": "passed",
+  "generatedAt": "2026-04-25T09:56:12.565Z",
+  "ui": {
+    "url": "http://127.0.0.1:59673/ui",
+    "httpStatus": 200,
+    "contentType": "text/html; charset=utf-8",
+    "chatFirstPresent": true,
+    "workflowPreviewPresent": true,
+    "streamingPresent": true,
+    "chatInputPresent": true,
+    "chatFileInputPresent": true,
+    "uploadButtonPresent": true,
+    "autoKnowledgeEnabledPresent": true,
+    "knowledgeInjectionModePresent": true,
+    "noSidebarRailPresent": true,
+    "fileImportPresent": true
+  },
+  "service": {
+    "url": "http://127.0.0.1:59673",
+    "healthHttpStatus": 200,
+    "healthStatus": "ready"
+  },
+  "knowledge": {
+    "fileLoadHttpStatus": 200,
+    "loadedSourceId": "phase-26a-chat-first-source",
+    "loadedDocumentId": "phase-26a-chat-first-document",
+    "loadedCount": 1,
+    "retrieveHttpStatus": 200,
+    "retrieveMode": "keyword",
+    "query": "phase26a chat first business workflow local knowledge",
+    "topHitDocumentId": "phase-26a-chat-first-document.txt",
+    "topHitSnippetPresent": true,
+    "topHitMatchedTerms": [
+      "phase26a",
+      "chat",
+      "first",
+      "business",
+      "workflow",
+      "local",
+      "knowledge"
+    ]
+  },
+  "error": null,
+  "conclusion": "chat-first-web-console-connected"
+}

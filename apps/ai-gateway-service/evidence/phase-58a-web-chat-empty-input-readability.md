@@ -1,0 +1,32 @@
+# Phase 58A Web Chat Empty Input Readability Evidence
+
+- Phase: phase-58a-web-chat-empty-input-readability
+- Status: passed
+- Generated at: 2026-04-25T07:03:16.346Z
+- Service URL: http://127.0.0.1:52423
+- Expected hint: 请输入问题，或把文件拖进来后再发送。
+- System text: 请输入问题，或把文件拖进来后再发送。
+- Hint present: true
+- Input value after submit: 
+- Fetches: none
+- Fetch statuses: []
+- Disallowed chat fetches: none
+- Message count: 2
+- Assistant count: 1
+- User count: 0
+- System count: 1
+- Screenshot path: apps/ai-gateway-service/evidence/phase-58a-web-chat-empty-input-readability.png
+- Screenshot bytes: 132734
+- Screenshot dimensions: 1409x1140
+- Valid PNG: true
+- Browser interaction: true
+- Empty input only: true
+- No chat request sent: true
+- Fake provider only: true
+- Default chat main lane changed: false
+- Backend business route added: false
+- Provider calls: false
+- Runtime mutation: false
+- Release automation: false
+- Infrastructure provisioning: false
+- Conclusion: web-chat-empty-input-readability-connected

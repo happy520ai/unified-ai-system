@@ -1,0 +1,88 @@
+{
+  "phase": "phase-60a-web-chat-sending-state-readability",
+  "status": "passed",
+  "generatedAt": "2026-04-25T18:33:44.684Z",
+  "browserPath": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+  "serviceUrl": "http://127.0.0.1:53561",
+  "ui": {
+    "url": "http://127.0.0.1:53561/ui",
+    "prompt": "phase60a duplicate submit smoke",
+    "duplicateHint": "正在生成回答，请等当前回复完成后再发送。",
+    "answerMarker": "phase60a streamed answer",
+    "sendingState": {
+      "sendButtonDisabled": true,
+      "sendButtonText": "生成中",
+      "assistantText": "PME02:33正在连接 AI Gateway...复制回答复制引用重新发送",
+      "systemText": "",
+      "errorClassPresent": false,
+      "fetches": [
+        "/chat/rag/stream"
+      ],
+      "fetchStatuses": [],
+      "streamResolveCount": 0,
+      "messageCount": 3,
+      "assistantCount": 2,
+      "systemCount": 0,
+      "userCount": 1
+    },
+    "duplicateState": {
+      "sendButtonDisabled": true,
+      "sendButtonText": "生成中",
+      "assistantText": "PME02:33正在连接 AI Gateway...复制回答复制引用重新发送",
+      "systemText": "正在生成回答，请等当前回复完成后再发送。",
+      "errorClassPresent": false,
+      "fetches": [
+        "/chat/rag/stream"
+      ],
+      "fetchStatuses": [],
+      "streamResolveCount": 0,
+      "messageCount": 4,
+      "assistantCount": 2,
+      "systemCount": 1,
+      "userCount": 1
+    },
+    "completedState": {
+      "sendButtonDisabled": true,
+      "sendButtonText": "发送",
+      "assistantText": "PME02:33回答完成。phase60a streamed answer复制回答复制引用重新发送",
+      "systemText": "正在生成回答，请等当前回复完成后再发送。",
+      "errorClassPresent": false,
+      "fetches": [
+        "/chat/rag/stream"
+      ],
+      "fetchStatuses": [
+        {
+          "path": "/chat/rag/stream",
+          "status": 200,
+          "ok": true,
+          "simulated": true
+        }
+      ],
+      "streamResolveCount": 1,
+      "messageCount": 4,
+      "assistantCount": 2,
+      "systemCount": 1,
+      "userCount": 1
+    },
+    "ragStreamCount": 1
+  },
+  "screenshot": {
+    "path": "apps/ai-gateway-service/evidence/phase-60a-web-chat-sending-state-readability.png",
+    "bytes": 120017,
+    "width": 1424,
+    "height": 1105,
+    "validPng": true
+  },
+  "safety": {
+    "browserInteraction": true,
+    "simulatedStreamOnly": true,
+    "duplicateSubmitBlocked": true,
+    "defaultChatMainLaneChanged": false,
+    "backendBusinessRouteAdded": false,
+    "providerCalls": false,
+    "runtimeMutation": false,
+    "releaseAutomation": false,
+    "infrastructureProvisioning": false
+  },
+  "conclusion": "web-chat-sending-state-readability-connected"
+}

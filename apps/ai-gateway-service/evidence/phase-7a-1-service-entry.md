@@ -1,0 +1,23 @@
+# Phase 7A-1 Service Entry Evidence
+
+- Phase: phase-7a-1-service-entry
+- Status: failed
+- Generated at: 2026-04-26T06:59:53.625Z
+- NVIDIA API key present: true
+- NVIDIA model: meta/llama-3.1-8b-instruct
+- Service URL: http://127.0.0.1:50845
+- Health HTTP status: 200
+- Health status: ready
+- Service phase: phase-7a-1-service-entry
+- Provider mode: real
+- Real provider enabled: true
+- Providers: nvidia
+- Routes: GET /health/check, GET /ui, GET /console, GET /enterprise/health, GET /enterprise/session, GET /enterprise/roles, GET /enterprise/users, POST /enterprise/users, POST /enterprise/users/revoke, GET /enterprise/security/readiness, GET /enterprise/audit, GET /enterprise/audit/export, GET /enterprise/acceptance/report, GET /enterprise/release-candidate/dry-run, GET /enterprise/overview, GET /enterprise/deployment/readiness, GET /enterprise/startup/readiness, POST /enterprise/backup, POST /enterprise/restore/validate, GET /dashboard/status, GET /auth/status, GET /providers, GET /connectors, GET /config/runtime, POST /providers/runtime-credential/detect, POST /providers/runtime-credential, GET /models/import/providers, POST /models/import/preview, POST /models/import/confirm, GET /route/modes, GET /knowledge/health, GET /knowledge/infra/readiness, GET /knowledge/sources, GET /knowledge/file-types, GET /workflow/health, GET /workflow/actions, POST /chat, POST /chat/stream, POST /chat/rag, POST /chat/rag/stream, POST /connectors/import/text, POST /evaluation/score, POST /knowledge/load, POST /knowledge/load/file, POST /knowledge/graph/retrieve, POST /knowledge/retrieve, GET /memory/list, POST /memory/save, POST /memory/retrieve, POST /workflow/plan, POST /workflow/run, POST /route
+- Chat HTTP status: 400
+- Chat success: false
+- Selected provider: n/a
+- Selected model: n/a
+- Execution mode: none
+- Execution status: error
+- Output text present: false
+- Conclusion: service-entry-health-or-chat-not-connected

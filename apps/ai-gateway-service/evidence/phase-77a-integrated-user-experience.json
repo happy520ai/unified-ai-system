@@ -1,0 +1,63 @@
+{
+  "phase": "phase-77a-integrated-user-experience",
+  "status": "passed",
+  "generatedAt": "2026-04-26T06:38:55.578Z",
+  "service": {
+    "url": "http://127.0.0.1:50440"
+  },
+  "ui": {
+    "httpStatus": 200,
+    "modelWizardPresent": true,
+    "enterpriseCommandPresent": true,
+    "workflowCommandPresent": true,
+    "modelImportPreviewRoutePresent": true,
+    "workflowRoutePresent": true
+  },
+  "modelImport": {
+    "httpStatus": 200,
+    "providerCount": 31,
+    "keyProvidersPresent": {
+      "dashscope": true,
+      "zhipu": true,
+      "huggingface": true,
+      "openaiCompatible": true,
+      "gemini": true
+    }
+  },
+  "knowledge": {
+    "loadHttpStatus": 200,
+    "loadedCount": 1,
+    "sourceCount": 5,
+    "retrieveHttpStatus": 200,
+    "topHitDocumentId": "phase-77a-integrated-document",
+    "snippetPresent": true,
+    "highlightCount": 4,
+    "matchedTerms": [
+      "integrated",
+      "user",
+      "experience",
+      "workflow"
+    ],
+    "scoreBreakdownPresent": true
+  },
+  "enterprise": {
+    "overviewHttpStatus": 200,
+    "overviewStatus": "ok"
+  },
+  "workflow": {
+    "runHttpStatus": 200,
+    "runStatus": "completed",
+    "artifactRelativePath": "C:/Users/Administrator/AppData/Local/Temp/phase77a-integrated-t7hQgh/phase-77a-integrated-report.md",
+    "artifactMarkerPresent": true,
+    "artifactSafetyTextPresent": true,
+    "arbitraryCommandExecution": false
+  },
+  "boundaries": {
+    "defaultChatMainLaneChanged": false,
+    "arbitraryShellExecution": false,
+    "broadFileSystemScan": false,
+    "providerApiKeyLogged": false
+  },
+  "error": null,
+  "conclusion": "integrated-user-experience-connected"
+}

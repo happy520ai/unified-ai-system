@@ -1,0 +1,32 @@
+# Phase 70A Web Chat Markdown Blocks Evidence
+
+- Phase: phase-70a-web-chat-markdown-blocks
+- Status: passed
+- Generated at: 2026-04-25T09:05:41.740Z
+- Service URL: http://127.0.0.1:59581
+- Prompt: phase70a markdown table quote divider prompt
+- Blockquote count: 1
+- Table count: 1
+- Table header: Command | Purpose | Result
+- Table row count: 2
+- Inline code count: 2
+- Divider count: 1
+- Raw answer preserved for copy: true
+- Screenshot path: apps/ai-gateway-service/evidence/phase-70a-web-chat-markdown-blocks.png
+- Screenshot bytes: 141955
+- Screenshot dimensions: 1409x1140
+- Valid PNG: true
+- Browser interaction: true
+- Simulated stream only: true
+- Markdown blocks only: true
+- Blockquote rendering: true
+- Table rendering: true
+- Divider rendering: true
+- Fake provider only: true
+- Default chat main lane changed: false
+- Backend business route added: false
+- Provider calls: false
+- Runtime mutation: false
+- Release automation: false
+- Infrastructure provisioning: false
+- Conclusion: web-chat-markdown-blocks-connected

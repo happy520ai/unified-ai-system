@@ -1,0 +1,26 @@
+# Phase 76K Web Chat Composer Actions Polish Evidence
+
+- Phase: phase-76k-web-chat-composer-actions-polish
+- Status: passed
+- Generated at: 2026-04-25T12:29:29.067Z
+- Service URL: http://127.0.0.1:54888
+- More actions present: true
+- More actions collapsed by default: true
+- Clear action inside more menu: true
+- Clear action hidden by default: true
+- Clear action visible when opened: true
+- Stop hidden by default: true
+- Stop visible while sending: true
+- Stop hidden after abort: true
+- Upload action text: 上传
+- Simulated stream request sent: true
+- Screenshot path: apps/ai-gateway-service/evidence/phase-76k-web-chat-composer-actions-polish.png
+- Screenshot bytes: 124114
+- Screenshot dimensions: 1424x1005
+- Valid PNG: true
+- Browser interaction: true
+- Simulated stream only: true
+- Backend business route added: false
+- Default chat main lane changed: false
+- Provider calls: false
+- Conclusion: web-chat-composer-actions-polished

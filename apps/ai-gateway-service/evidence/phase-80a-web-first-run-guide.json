@@ -1,0 +1,31 @@
+{
+  "phase": "phase-80a-web-first-run-guide",
+  "status": "passed",
+  "generatedAt": "2026-04-26T07:40:40.902Z",
+  "ui": {
+    "route": "GET /ui",
+    "guideMarker": "phase80a-first-run-guide",
+    "missingGuideText": [],
+    "guideHasThreeSteps": true,
+    "guideDoesNotExposeAdvancedPanel": true,
+    "webAddress": "http://127.0.0.1:3100/ui"
+  },
+  "scripts": {
+    "rootStart": "node ./tools/phase79a/first-run.mjs start",
+    "rootVerify": "pnpm --filter @unified-ai-system/ai-gateway-service verify:phase80a",
+    "serviceVerify": "node ./src/entrypoints/verifyWebFirstRunGuide.js",
+    "missingScripts": [],
+    "firstRunScriptExists": true
+  },
+  "safety": {
+    "uiOnly": true,
+    "providerCalls": false,
+    "runtimeMutation": false,
+    "backendBusinessRouteAdded": false,
+    "defaultChatMainLaneChanged": false,
+    "knowledgeModeChanged": false,
+    "advancedCapabilitiesExposedOnGuide": false,
+    "releaseAutomation": false
+  },
+  "conclusion": "web-first-run-guide-connected"
+}

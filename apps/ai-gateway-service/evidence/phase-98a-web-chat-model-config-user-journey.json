@@ -1,0 +1,130 @@
+{
+  "phase": "phase-98a-web-chat-model-config-user-journey",
+  "status": "passed",
+  "generatedAt": "2026-04-26T12:13:22.460Z",
+  "browserPath": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+  "serviceUrl": "http://127.0.0.1:59627",
+  "ui": {
+    "url": "http://127.0.0.1:59627/ui?showFakeProviders=1",
+    "initialState": {
+      "entryButtonText": "配置模型",
+      "modelLabel": "模型：自动",
+      "probeText": "未检测",
+      "guide": "粘贴 Key，自动找模型。通过后直接聊。",
+      "guideIncludesApiKey": true,
+      "guideIncludesDirectChat": true
+    },
+    "wizardState": {
+      "hasWizard": true,
+      "text": "添加聊天模型粘贴 Key，我会真实查询服务商模型列表；选一个可聊天模型，保存后直接用。当前自动选择 provider已记住自动选择 provider服务按服务端当前配置可选模型已加载配置是否已生效当前聊天当前使用服务端自动路由。下次打开还没有默认模型。服务重启保存后会进入本机配置；生产部署仍建议用正式密钥管理。1选择模型先用推荐项；需要时再手动换。自动选择 providerLocal Fake Provider / Local Fake ModelBackup Fake Provider / Backup Fake Model2粘贴 Key粘贴后点“一键检测并保存”。不确定服务商就保持自动。自动识别服务商NVIDIAOpenAIOpenRouter阿里百炼 / DashScopeDeepSeekGroqTogether AIMistralxAIMoonshot / Kimi硅基流动 / SiliconFlow腾讯混元百度千帆智谱 GLM讯飞星火ModelScopeCohere火山方舟 / 豆包MiniMax阶跃星辰 / StepFunNovita AI百川智能零一万物 / 01.AI无问芯穹 / Infini AIHugging Face RouterPerplexityFireworks AICerebrasAnthropic Claude（识别 / 列模型）GeminiOpenAI-compatible / 中转 Base URL识别可用模型一键检测并保存设为默认高级设置只应用本次只检测清除默认启动命令3长期启动需要命令行部署时再看这里；日常用户不用管。检查草稿复制启动模板高级面板下一步粘贴 Key，然后点“一键检测并保存”。通过后会自动回到聊天输入框。高级设置平时不用管。粘贴 Key开始识别填 Base URL查看原始配置与诊断{\n  \"providers\": [\n    {\n      \"id\": \"local-fake-provider\",\n      \"displayName\": \"Local Fake Provider\",\n      \"modelCount\": 1\n    },\n    {\n      \"id\": \"backup-fake-provider\",\n      \"displayName\": \"Backup Fake Provider\",\n      \"modelCount\": 1\n    }\n  ],\n  \"runtime\": {\n    \"agentConsole\": {\n      \"host\": \"127.0.0.1\",\n      \"port\": 3200\n    },\n    \"aiGatewayService\": {\n      \"endpoint\": {\n        \"host\": \"127.0.0.1\",\n        \"port\": 3100\n      },\n      \"requestTimeoutMs\": 60000,\n      \"providerSelection\": {\n        \"mode\": \"registry-default\",\n        \"defaultProviderId\": \"local-fake-provider\",\n        \"defaultModelId\": \"local-fake-model\",\n        \"enabledProviders\": [\n          \"local-fake-provider\",\n          \"backup-fake-provider\"\n        ]\n      },\n      \"providerMode\": \"fake\",\n      \"realProviderEnabled\": false,\n      \"fallbackEnabled\": false,\n      \"providerModels\": [\n        {\n          \"providerId\": \"local-fake-provider\",\n          \"modelId\": \"local-fake-model\",\n          \"providerType\": \"fake\",\n          \"enabled\": true,\n          \"priority\": 1,\n          \"capabilities\": [\n            \"chat\",\n            \"reasoning\",\n            \"summary\"\n          ],\n          \"dryRun\": false,\n          \"hasEndpoint\": false,\n          \"apiKeyPresent\": false\n        },\n        {\n          \"providerId\": \"backup-fake-provider\",\n          \"modelId\": \"backup-fake-model\",\n          \"providerType\": \"fake\",\n          \"enabled\": true,\n          \"priority\": 2,\n          \"capabilities\": [\n            \"chat\",\n            \"summary\"\n          ],\n          \"dryRun\": false,\n          \"hasEndpoint\": false,\n          \"apiKeyPresent\": false\n        },\n        {\n          \"providerId\": \"openai\",\n          \"modelId\": \"gpt-4o-mini\",\n          \"providerType\": \"openai\",\n          \"enabled\": false,\n          \"priority\": 50,\n          \"capabilities\": [\n            \"chat\",\n            \"reasoning\",\n            \"summary\"\n          ],\n          \"dryRun\": false,\n          \"hasEndpoint\": true,\n          \"apiKeyPresent\": false\n        },\n        {\n          \"providerId\": \"nvidia\",\n          \"modelId\": \"meta/llama-3.1-8b-instruct\",\n          \"providerType\": \"nvidia\",\n          \"enabled\": false,\n          \"priority\": 60,\n          \"capabilities\": [\n            \"chat\",\n            \"summary\"\n          ],\n          \"dryRun\": false,\n          \"hasEndpoint\": true,\n          \"apiKeyPresent\": \"[redacted]\"\n        },\n        {\n          \"providerId\": \"openrouter\",\n          \"modelId\": \"openai/gpt-4o-mini\",\n          \"providerType\": \"openai-compatible\",\n          \"enabled\": false,\n          \"priority\": 70,\n          \"capabilities\": [\n            \"chat\",\n            \"reasoning\",\n            \"summary\"\n          ],\n          \"dryRun\": false,\n          \"hasEndpoint\": true,\n          \"apiKeyPresent\": false\n        },\n        {\n          \"providerId\": \"deepseek\",\n          \"modelId\": \"deepseek-chat\",\n          \"providerType\": \"openai-compatible\",\n          \"enabled\": false,\n          \"priority\": 71,\n          \"capabilities\": [\n            \"chat\",\n            \"reasoning\",\n            \"summary\"\n          ],\n          \"dryRun\": false,\n          \"hasEndpoint\": true,\n          \"apiKeyPresent\": false\n        },\n        {\n          \"providerId\": \"groq\",\n          \"modelId\": \"llama-3.1-8b-instant\",\n          \"providerType\": \"openai-compatible\",\n          \"enabled\": false,\n          \"priority\": 72,\n          \"capabilities\": [\n            \"chat\",\n            \"summary\"\n          ],\n          \"dryRun\": false,\n          \"hasEndpoint\": true,\n          \"apiKeyPresent\": false\n        },\n        {\n          \"providerId\": \"together\",\n          \"modelId\": \"meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo\",\n          \"providerType\": \"openai-compatible\",\n          \"enabled\": false,\n          \"priority\": 73,\n          \"capabilities\": [\n            \"chat\",\n            \"summary\"\n          ],\n          \"dryRun\": false,\n          \"hasEndpoint\": true,\n          \"apiKeyPresent\": false\n        },\n        {\n          \"providerId\": \"mistral\",\n          \"modelId\": \"mistral-small-latest\",\n          \"providerType\": \"openai-compatible\",\n          \"enabled\": false,\n          \"priority\": 74,\n          \"capabilities\": [\n            \"chat\",\n            \"summary\"\n          ],\n          \"dryRun\": false,\n          \"hasEndpoint\": true,\n          \"apiKeyPresent\": false\n        },\n        {\n          \"providerId\": \"xai\",\n          \"modelId\": \"grok-3-mini\",\n          \"providerType\": \"openai-compatible\",\n          \"enabled\": false,\n          \"priority\": 75,\n          \"capabilities\": [\n            \"chat\",\n            \"reasoning\",\n            \"summary\"\n          ],\n          \"dryRun\": false,\n          \"hasEndpoint\": true,\n          \"apiKeyPresent\": false\n        },\n        {\n          \"providerId\": \"perplexity\",\n          \"modelId\": \"sonar\",\n          \"providerType\": \"openai-compatible\",\n          \"enabled\": false,\n          \"priority\": 76,\n          \"capabilities\": [\n            \"chat\",\n            \"summary\"\n          ],\n          \"dryRun\": false,\n          \"hasEndpoint\": true,\n          \"apiKeyPresent\": false\n        },\n        {\n          \"providerId\": \"fireworks\",\n          \"modelId\": \"accounts/fireworks/models/llama-v3p1-8b-instruct\",\n          \"providerType\": \"openai-compatible\",\n          \"enabled\": false,\n          \"priority\": 77,\n          \"capabilities\": [\n            \"chat\",\n            \"summary\"\n          ],\n          \"dryRun\": false,\n          \"hasEndpoint\": true,\n          \"apiKeyPresent\": false\n        },\n        {\n          \"providerId\": \"cerebras\",\n          \"modelId\": \"llama3.1-8b\",\n          \"providerType\": \"openai-compatible\",\n          \"enabled\": false,\n          \"priority\": 78,\n          \"capabilities\": [\n            \"chat\",\n            \"summary\"\n          ],\n          \"dryRun\": false,\n          \"hasEndpoint\": true,\n          \"apiKeyPresent\": false\n        },\n        {\n          \"providerId\": \"moonshot\",\n          \"modelId\": \"moonshot-v1-8k\",\n          \"providerType\": \"openai-compatible\",\n          \"enabled\": false,\n          \"priority\": 79,\n          \"capabilities\": [\n            \"chat\",\n            \"summary\"\n          ],\n          \"dryRun\": false,\n          \"hasEndpoint\": true,\n          \"apiKeyPresent\": false\n        },\n        {\n          \"providerId\": \"siliconflow\",\n          \"modelId\": \"Qwen/Qwen2.5-7B-Instruct\",\n          \"providerType\": \"openai-compatible\",\n          \"enabled\": false,\n          \"priority\": 80,\n          \"capabilities\": [\n            \"chat\",\n            \"summary\"\n          ],\n          \"dryRun\": false,\n          \"hasEndpoint\": true,\n          \"apiKeyPresent\": false\n        },\n        {\n          \"providerId\": \"dashscope\",\n          \"modelId\": \"qwen-plus\",\n          \"providerType\": \"openai-compatible\",\n          \"enabled\": false,\n          \"priority\": 81,\n          \"capabilities\": [\n            \"chat\",\n            \"summary\"\n          ],\n          \"dryRun\": false,\n          \"hasEndpoint\": true,\n          \"apiKeyPresent\": false\n        },\n        {\n          \"providerId\": \"tencent-hunyuan\",\n          \"modelId\": \"hunyuan-lite\",\n          \"providerType\": \"openai-compatible\",\n          \"enabled\": false,\n          \"priority\": 82,\n          \"capabilities\": [\n            \"chat\",\n            \"summary\"\n          ],\n          \"dryRun\": false,\n          \"hasEndpoint\": true,\n          \"apiKeyPresent\": false\n        },\n        {\n          \"providerId\": \"qianfan\",\n          \"modelId\": \"ernie-speed-128k\",\n          \"providerType\": \"openai-compatible\",\n          \"enabled\": false,\n          \"priority\": 83,\n          \"capabilities\": [\n            \"chat\",\n            \"summary\"\n          ],\n          \"dryRun\": false,\n          \"hasEndpoint\": true,\n          \"apiKeyPresent\": false\n        },\n        {\n          \"providerId\": \"zhipu\",\n          \"modelId\": \"glm-4-flash\",\n          \"providerType\": \"openai-compatible\",\n          \"enabled\": false,\n          \"priority\": 84,\n          \"capabilities\": [\n            \"chat\",\n            \"reasoning\",\n            \"summary\"\n          ],\n          \"dryRun\": false,\n          \"hasEndpoint\": true,\n          \"apiKeyPresent\": false\n        },\n        {\n          \"providerId\": \"xunfei-spark\",\n          \"modelId\": \"lite\",\n          \"providerType\": \"openai-compatible\",\n          \"enabled\": false,\n          \"priority\": 85,\n          \"capabilities\": [\n            \"chat\",\n            \"summary\"\n          ],\n          \"dryRun\": false,\n          \"hasEndpoint\": true,\n          \"apiKeyPresent\": false\n        },\n        {\n          \"providerId\": \"modelscope\",\n          \"modelId\": \"Qwen/Qwen2.5-7B-Instruct\",\n          \"providerType\": \"openai-compatible\",\n          \"enabled\": false,\n          \"priority\": 86,\n          \"capabilities\": [\n            \"chat\",\n            \"summary\"\n          ],\n          \"dryRun\": false,\n          \"hasEndpoint\": true,\n          \"apiKeyPresent\": false\n        },\n        {\n          \"providerId\": \"cohere\",\n          \"modelId\": \"command-a-03-2025\",\n          \"providerType\": \"openai-compatible\",\n          \"enabled\": false,\n          \"priority\": 87,\n          \"capabilities\": [\n            \"chat\",\n            \"tool-use\",\n            \"summary\"\n          ],\n          \"dryRun\": false,\n          \"hasEndpoint\": true,\n          \"apiKeyPresent\": false\n        },\n        {\n          \"providerId\": \"volcengine-doubao\",\n          \"modelId\": \"doubao-seed-1-6\",\n          \"providerType\": \"openai-compatible\",\n          \"enabled\": false,\n          \"priority\": 88,\n          \"capabilities\": [\n            \"chat\",\n            \"vision\",\n            \"coding\",\n            \"summary\"\n          ],\n          \"dryRun\": false,\n          \"hasEndpoint\": true,\n          \"apiKeyPresent\": false\n        },\n        {\n          \"providerId\": \"minimax\",\n          \"modelId\": \"MiniMax-Text-01\",\n          \"providerType\": \"openai-compatible\",\n          \"enabled\": false,\n          \"priority\": 89,\n          \"capabilities\": [\n            \"chat\",\n            \"vision\",\n            \"tool-use\",\n            \"summary\"\n          ],\n          \"dryRun\": false,\n          \"hasEndpoint\": true,\n          \"apiKeyPresent\": false\n        },\n        {\n          \"providerId\": \"stepfun\",\n          \"modelId\": \"step-2-mini\",\n          \"providerType\": \"openai-compatible\",\n          \"enabled\": false,\n          \"priority\": 90,\n          \"capabilities\": [\n            \"chat\",\n            \"vision\",\n            \"coding\",\n            \"summary\"\n          ],\n          \"dryRun\": false,\n          \"hasEndpoint\": true,\n          \"apiKeyPresent\": false\n        },\n        {\n          \"providerId\": \"novita\",\n          \"modelId\": \"meta-llama/llama-3.1-8b-instruct\",\n          \"providerType\": \"openai-compatible\",\n          \"enabled\": false,\n          \"priority\": 91,\n          \"capabilities\": [\n            \"chat\",\n            \"vision\",\n            \"image\",\n            \"coding\",\n            \"summary\"\n          ],\n          \"dryRun\": false,\n          \"hasEndpoint\": true,\n          \"apiKeyPresent\": false\n        },\n        {\n          \"providerId\": \"baichuan\",\n          \"modelId\": \"Baichuan4\",\n          \"providerType\": \"openai-compatible\",\n          \"enabled\": false,\n          \"priority\": 92,\n          \"capabilities\": [\n            \"chat\",\n            \"coding\",\n            \"summary\"\n          ],\n          \"dryRun\": false,\n          \"hasEndpoint\": true,\n          \"apiKeyPresent\": false\n        },\n        {\n          \"providerId\": \"yi\",\n          \"modelId\": \"yi-large\",\n          \"providerType\": \"openai-compatible\",\n          \"enabled\": false,\n          \"priority\": 93,\n          \"capabilities\": [\n            \"chat\",\n            \"vision\",\n            \"coding\",\n            \"summary\"\n          ],\n          \"dryRun\": false,\n          \"hasEndpoint\": true,\n          \"apiKeyPresent\": false\n        },\n        {\n          \"providerId\": \"infini-ai\",\n          \"modelId\": \"qwen2.5-72b-instruct\",\n          \"providerType\": \"openai-compatible\",\n          \"enabled\": false,\n          \"priority\": 94,\n          \"capabilities\": [\n            \"chat\",\n            \"embedding\",\n            \"rerank\",\n            \"summary\"\n          ],\n          \"dryRun\": false,\n          \"hasEndpoint\": true,\n          \"apiKeyPresent\": false\n        },\n        {\n          \"providerId\": \"huggingface\",\n          \"modelId\": \"meta-llama/Llama-3.1-8B-Instruct\",\n          \"providerType\": \"openai-compatible\",\n          \"enabled\": false,\n          \"priority\": 95,\n          \"capabilities\": [\n            \"chat\",\n            \"vision\",\n            \"coding\",\n            \"image\",\n            \"summary\"\n          ],\n          \"dryRun\": false,\n          \"hasEndpoint\": true,\n          \"apiKeyPresent\": false\n        },\n        {\n          \"providerId\": \"generic-openai-compatible\",\n          \"modelId\": \"custom-chat-model\",\n          \"providerType\": \"openai-compatible\",\n          \"enabled\": false,\n          \"priority\": 99,\n          \"capabilities\": [\n            \"chat\",\n            \"summary\"\n          ],\n          \"dryRun\": false,\n          \"hasEndpoint\": false,\n          \"apiKeyPresent\": false\n        }\n      ]\n    }\n  },\n  \"persistedPreference\": null,\n  \"safety\": {\n    \"currentBrowserProviderModelCanPersist\": true,\n    \"apiKeyStoredInBrowser\": false,\n    \"apiKeySentFromWizard\": true,\n    \"apiKeySecretStorage\": \"local-user-file\",\n    \"defaultChatMainLaneChanged\": false\n  }\n}",
+      "stepTitles": [
+        "选择模型",
+        "粘贴 Key",
+        "长期启动"
+      ],
+      "hasSecretInput": true,
+      "hasProviderHint": true,
+      "hasBaseUrlInput": true,
+      "hasDetectButton": true,
+      "quickApplyButtonText": "一键检测并保存",
+      "feedbackTitle": "下一步",
+      "feedbackHasPasteAction": true,
+      "advancedOptionsCollapsed": true
+    },
+    "successState": {
+      "providerSelectValue": "generic-openai-compatible::phase98-chat-model",
+      "statusTitle": "模型配置已生效，可以开始聊天",
+      "visibleLines": [
+        "当前聊天可用：可以直接继续提问，不需要再去别的面板操作。",
+        "Provider 已识别：generic-openai-compatible",
+        "模型已选择：phase98-chat-model",
+        "/chat 探测已通过：当前模型已经返回成功响应。"
+      ],
+      "feedbackCompact": "compact",
+      "hasDetails": true,
+      "continueChatActionPresent": true,
+      "persistActionPresent": true,
+      "composerModelGuide": "已经能聊。Key 不会保存在浏览器。",
+      "secretInputCleared": true
+    },
+    "readyState": {
+      "focusReturnedToChatInput": true,
+      "inputPlaceholder": "模型已就绪，直接输入问题。",
+      "composerGuidanceKind": "model-ready-nudge",
+      "composerGuidanceText": "已经能聊。直接输入问题，或拖文件进来。",
+      "sessionStatusText": "模型已就绪。",
+      "sendButtonDisabled": true,
+      "fetches": [
+        {
+          "path": "/providers"
+        },
+        {
+          "path": "/providers"
+        },
+        {
+          "path": "/config/runtime"
+        },
+        {
+          "path": "/models/import/preview",
+          "providerHint": "openai-compatible",
+          "baseUrlPresent": true,
+          "hasApiKey": true,
+          "apiKeyRedacted": "***"
+        },
+        {
+          "path": "/models/import/confirm",
+          "providerId": "openai-compatible",
+          "modelId": "phase98-chat-model",
+          "hasApiKeyRef": true
+        },
+        {
+          "path": "/chat",
+          "providerId": "generic-openai-compatible",
+          "model": "phase98-chat-model",
+          "promptPresent": true
+        }
+      ],
+      "pageTextContainsSecret": false,
+      "localStorageContainsSecret": false
+    }
+  },
+  "mockProvider": {
+    "requestCount": 2,
+    "requests": [
+      {
+        "method": "GET",
+        "url": "/v1/models",
+        "hasAuthorization": true,
+        "authorizationRedacted": "Bearer ***",
+        "model": "",
+        "stream": false
+      },
+      {
+        "method": "POST",
+        "url": "/v1/chat/completions",
+        "hasAuthorization": true,
+        "authorizationRedacted": "Bearer ***",
+        "model": "phase98-chat-model",
+        "stream": false
+      }
+    ]
+  },
+  "screenshot": {
+    "path": "apps/ai-gateway-service/evidence/phase-98a-web-chat-model-config-user-journey.png",
+    "bytes": 125970,
+    "width": 1424,
+    "height": 1105,
+    "validPng": true
+  },
+  "safety": {
+    "browserInteraction": true,
+    "localMockProviderOnly": true,
+    "realProviderCalls": false,
+    "apiKeyValueRecorded": false,
+    "apiKeyPersistedInBrowser": false,
+    "apiKeyPersistedInEvidence": false,
+    "defaultChatMainLaneChanged": false,
+    "backendBusinessRouteAdded": false
+  },
+  "conclusion": "web-chat-model-config-user-journey-readable"
+}

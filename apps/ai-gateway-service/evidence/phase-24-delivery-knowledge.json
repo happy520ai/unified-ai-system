@@ -1,0 +1,129 @@
+{
+  "phase": "phase-24-delivery-knowledge",
+  "status": "passed",
+  "generatedAt": "2026-04-24T18:23:54.258Z",
+  "delivery": {
+    "guidePath": "docs/DELIVERY_GUIDE.md",
+    "guidePresent": true,
+    "samplePath": "apps/ai-gateway-service/knowledge-samples/real-usage-sample.md",
+    "sampleDocumentCount": 3
+  },
+  "service": {
+    "url": "http://127.0.0.1:56903"
+  },
+  "knowledge": {
+    "sourceId": "phase-24-real-usage-source",
+    "loadedDocumentIds": [
+      "phase-24-delivery-operations",
+      "phase-24-knowledge-default-mode",
+      "phase-24-vector-production-mode"
+    ],
+    "loadHttpStatus": 200,
+    "loadedCount": 3,
+    "sourcePresent": true,
+    "sourceDocumentCount": 3,
+    "retrieveHttpStatus": 200,
+    "query": "phase24 delivery operations help status health logs idle command",
+    "retrieveMode": "keyword",
+    "normalizedQuery": "phase24 delivery operations help status health logs idle command",
+    "ranking": "weighted-keyword-v2",
+    "localReady": true,
+    "topHitDocumentId": "phase-24-delivery-operations",
+    "topChunkDocumentId": "phase-24-delivery-operations",
+    "topDocumentId": "phase-24-delivery-operations",
+    "topHitScore": 0.5378,
+    "topHitSnippetPresent": true,
+    "topHitHighlights": [
+      {
+        "term": "delivery",
+        "startOffset": 13,
+        "endOffset": 21
+      },
+      {
+        "term": "operations",
+        "startOffset": 22,
+        "endOffset": 32
+      },
+      {
+        "term": "command",
+        "startOffset": 62,
+        "endOffset": 69
+      },
+      {
+        "term": "help",
+        "startOffset": 121,
+        "endOffset": 125
+      },
+      {
+        "term": "status",
+        "startOffset": 161,
+        "endOffset": 167
+      },
+      {
+        "term": "health",
+        "startOffset": 187,
+        "endOffset": 193
+      },
+      {
+        "term": "logs",
+        "startOffset": 214,
+        "endOffset": 218
+      },
+      {
+        "term": "idle",
+        "startOffset": 246,
+        "endOffset": 250
+      }
+    ],
+    "topHitMatchedTerms": [
+      "delivery",
+      "operations",
+      "help",
+      "status",
+      "health",
+      "logs",
+      "idle",
+      "command"
+    ],
+    "topHitScoreBreakdown": {
+      "termCoverage": 0.8889,
+      "titleCoverage": 0.2222,
+      "sourceCoverage": 0,
+      "documentIdCoverage": 0,
+      "bodyCoverage": 0.8889,
+      "phraseMatch": false,
+      "contiguousMatch": false,
+      "exactMatch": false,
+      "matchedTermCount": 8,
+      "fieldWeights": {
+        "title": 0.18,
+        "sourceId": 0.08,
+        "documentId": 0.08,
+        "body": 0.56,
+        "phrase": 0.1,
+        "exact": 0.1
+      }
+    },
+    "topHitMetadata": {
+      "phase": "phase-24-delivery-knowledge",
+      "sourceType": "local-real-usage-sample",
+      "expectedRank": 1,
+      "topic": "delivery-operations"
+    },
+    "healthMode": "local-keyword",
+    "storage": "in-memory",
+    "embedding": "not-configured"
+  },
+  "vector": {
+    "active": false,
+    "ready": null,
+    "infraMode": "local-keyword",
+    "infraStatus": "disabled",
+    "embeddingStatus": "disabled",
+    "vectorStoreStatus": "disabled",
+    "pgvectorStatus": "disabled",
+    "probe": null
+  },
+  "error": null,
+  "conclusion": "delivery-guide-and-real-usage-knowledge-connected"
+}

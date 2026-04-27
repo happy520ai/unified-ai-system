@@ -1,0 +1,22 @@
+# Phase 76A Web Chat Command Center Evidence
+
+- Phase: phase-76a-web-chat-command-center
+- Status: passed
+- Generated at: 2026-04-25T10:50:26.166Z
+- Service URL: http://127.0.0.1:59082
+- Model config card present: true
+- Secret boundary visible: true
+- Selected provider: 
+- Knowledge card present: true
+- Command card count: 2
+- Fetches: /providers, /config/runtime, /knowledge/health, /knowledge/sources
+- Screenshot path: apps/ai-gateway-service/evidence/phase-76a-web-chat-command-center.png
+- Screenshot bytes: 120760
+- Screenshot dimensions: 1424x1005
+- Valid PNG: true
+- Command center only: true
+- Provider calls: false
+- Runtime secret persisted: false
+- Default chat main lane changed: false
+- Backend business route added: false
+- Conclusion: web-chat-command-center-connected

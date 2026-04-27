@@ -1,0 +1,140 @@
+{
+  "phase": "phase-89a-web-chat-model-config-restart-persistence",
+  "status": "passed",
+  "generatedAt": "2026-04-26T10:24:49.357Z",
+  "browserPath": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+  "service": {
+    "url": "http://127.0.0.1:51762",
+    "samePortRestart": true,
+    "runtimeCredentialStoreMode": "local-file",
+    "runtimeCredentialStorePathPresent": true
+  },
+  "ui": {
+    "url": "http://127.0.0.1:51762/ui?showFakeProviders=1",
+    "mockProviderBaseUrl": "http://127.0.0.1:51763/v1",
+    "reloadState": {
+      "providerSelectValue": "generic-openai-compatible::phase89-persisted-chat-model",
+      "composerModelReady": "false",
+      "composerModelProviderId": "generic-openai-compatible",
+      "composerModelId": "phase89-persisted-chat-model",
+      "composerModelRestoredFromLocal": "true",
+      "composerModelCredentialStorage": "local-user-file",
+      "composerModelGuideText": "已从本机用户配置恢复 provider/model 和 API Key；服务重启后仍可用，可以直接发送。需要复核时点“配置模型”重新检测。",
+      "composerModelProbeText": "本机配置已恢复",
+      "composerModelPreferenceText": "已恢复",
+      "preferenceValue": "generic-openai-compatible::phase89-persisted-chat-model",
+      "focusReturnedToChatInput": true,
+      "inputClearedAfterSend": true,
+      "composerIdle": true,
+      "latestAssistantText": "phase89 persisted chat answer phase89-reload-chat-marker",
+      "latestAssistantStatus": "PME18:23回答完成。phase89 persisted chat answer phase89-reload-chat-marker复制回答复制引用重新发送",
+      "assistantAnswerIncludesExpectedMarker": true,
+      "assistantStatusDone": true,
+      "assistantErrorText": "",
+      "localStorageContainsSecret": false,
+      "pageTextContainsSecret": false,
+      "chatStreamFetch": {
+        "path": "/chat/stream",
+        "providerId": "generic-openai-compatible",
+        "model": "phase89-persisted-chat-model",
+        "prompt": "first reload chat marker",
+        "knowledgeRequested": false
+      },
+      "fetches": [
+        {
+          "path": "/chat/stream",
+          "providerId": "generic-openai-compatible",
+          "model": "phase89-persisted-chat-model",
+          "prompt": "first reload chat marker",
+          "knowledgeRequested": false
+        }
+      ]
+    },
+    "restartState": {
+      "providerSelectValue": "generic-openai-compatible::phase89-persisted-chat-model",
+      "composerModelReady": "false",
+      "composerModelProviderId": "generic-openai-compatible",
+      "composerModelId": "phase89-persisted-chat-model",
+      "composerModelRestoredFromLocal": "true",
+      "composerModelCredentialStorage": "local-user-file",
+      "composerModelGuideText": "已从本机用户配置恢复 provider/model 和 API Key；服务重启后仍可用，可以直接发送。需要复核时点“配置模型”重新检测。",
+      "composerModelProbeText": "本机配置已恢复",
+      "composerModelPreferenceText": "已恢复",
+      "preferenceValue": "generic-openai-compatible::phase89-persisted-chat-model",
+      "focusReturnedToChatInput": true,
+      "inputClearedAfterSend": true,
+      "composerIdle": true,
+      "latestAssistantText": "phase89 persisted chat answer phase89-restart-chat-marker",
+      "latestAssistantStatus": "PME18:24回答完成。phase89 persisted chat answer phase89-restart-chat-marker复制回答复制引用重新发送",
+      "assistantAnswerIncludesExpectedMarker": true,
+      "assistantStatusDone": true,
+      "assistantErrorText": "",
+      "localStorageContainsSecret": false,
+      "pageTextContainsSecret": false,
+      "chatStreamFetch": {
+        "path": "/chat/stream",
+        "providerId": "generic-openai-compatible",
+        "model": "phase89-persisted-chat-model",
+        "prompt": "first restart chat marker",
+        "knowledgeRequested": false
+      },
+      "fetches": [
+        {
+          "path": "/chat/stream",
+          "providerId": "generic-openai-compatible",
+          "model": "phase89-persisted-chat-model",
+          "prompt": "first restart chat marker",
+          "knowledgeRequested": false
+        }
+      ]
+    }
+  },
+  "persistedStore": {
+    "version": 1,
+    "recordCount": 1,
+    "providers": [
+      "generic-openai-compatible"
+    ],
+    "endpointConfigured": [
+      true
+    ],
+    "modelIds": [
+      "phase89-persisted-chat-model"
+    ],
+    "apiKeyPresent": [
+      true
+    ]
+  },
+  "mockProvider": {
+    "requestCount": 5,
+    "modelListRequestCount": 2,
+    "nonStreamChatRequestCount": 1,
+    "streamChatRequestCount": 2,
+    "streamModels": [
+      "phase89-persisted-chat-model"
+    ],
+    "prompts": [
+      "请用一句话回复：配置检测通过。",
+      "first reload chat marker",
+      "first restart chat marker"
+    ],
+    "authorizationRedacted": true
+  },
+  "screenshot": {
+    "path": "apps/ai-gateway-service/evidence/phase-89a-web-chat-model-config-restart-persistence.png",
+    "bytes": 138640,
+    "width": 1424,
+    "height": 1105,
+    "validPng": true
+  },
+  "safety": {
+    "browserInteraction": true,
+    "localMockProviderOnly": true,
+    "realProviderCalls": false,
+    "apiKeyValueRecorded": false,
+    "apiKeyPersistedInEvidence": false,
+    "defaultChatMainLaneChanged": false,
+    "backendBusinessRouteAdded": false
+  },
+  "conclusion": "web-chat-model-config-restart-persistence-connected"
+}

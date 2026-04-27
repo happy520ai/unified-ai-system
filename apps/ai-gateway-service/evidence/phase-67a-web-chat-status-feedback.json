@@ -1,0 +1,119 @@
+{
+  "phase": "phase-67a-web-chat-status-feedback",
+  "status": "passed",
+  "generatedAt": "2026-04-25T09:55:32.168Z",
+  "browserPath": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+  "serviceUrl": "http://127.0.0.1:58882",
+  "ui": {
+    "url": "http://127.0.0.1:58882/ui",
+    "prompt": "phase67a status feedback prompt",
+    "afterConnecting": {
+      "latestAssistantText": "",
+      "latestAssistantStatus": "正在连接 AI Gateway...",
+      "latestAssistantStatusClass": "message-status active",
+      "citationHeading": "",
+      "citationCount": 0,
+      "firstSnippet": "",
+      "savedAssistantText": "你好，我是 PME 移动地球。把问题或文件丢给我，我会先查本地知识库，再组织回答。",
+      "savedAssistantTextIncludesStatus": false,
+      "fetches": [
+        "/chat/rag/stream"
+      ],
+      "fetchStatuses": [
+        {
+          "path": "/chat/rag/stream",
+          "status": 200,
+          "ok": true,
+          "simulated": true
+        }
+      ],
+      "messageCount": 3
+    },
+    "afterKnowledge": {
+      "latestAssistantText": "",
+      "latestAssistantStatus": "已检索知识库：1 条引用，正在生成回答。",
+      "latestAssistantStatusClass": "message-status active",
+      "citationHeading": "引用 1 条",
+      "citationCount": 1,
+      "firstSnippet": "phase67a citation snippet used for status feedback",
+      "savedAssistantText": "你好，我是 PME 移动地球。把问题或文件丢给我，我会先查本地知识库，再组织回答。",
+      "savedAssistantTextIncludesStatus": false,
+      "fetches": [
+        "/chat/rag/stream"
+      ],
+      "fetchStatuses": [
+        {
+          "path": "/chat/rag/stream",
+          "status": 200,
+          "ok": true,
+          "simulated": true
+        }
+      ],
+      "messageCount": 3
+    },
+    "afterGenerating": {
+      "latestAssistantText": "phase67a answer generated after knowledge status feedback",
+      "latestAssistantStatus": "正在生成回答...",
+      "latestAssistantStatusClass": "message-status active",
+      "citationHeading": "引用 1 条",
+      "citationCount": 1,
+      "firstSnippet": "phase67a citation snippet used for status feedback",
+      "savedAssistantText": "你好，我是 PME 移动地球。把问题或文件丢给我，我会先查本地知识库，再组织回答。",
+      "savedAssistantTextIncludesStatus": false,
+      "fetches": [
+        "/chat/rag/stream"
+      ],
+      "fetchStatuses": [
+        {
+          "path": "/chat/rag/stream",
+          "status": 200,
+          "ok": true,
+          "simulated": true
+        }
+      ],
+      "messageCount": 3
+    },
+    "afterDone": {
+      "latestAssistantText": "phase67a answer generated after knowledge status feedback",
+      "latestAssistantStatus": "回答完成。",
+      "latestAssistantStatusClass": "message-status done",
+      "citationHeading": "引用 1 条",
+      "citationCount": 1,
+      "firstSnippet": "phase67a citation snippet used for status feedback",
+      "savedAssistantText": "phase67a answer generated after knowledge status feedback",
+      "savedAssistantTextIncludesStatus": false,
+      "fetches": [
+        "/chat/rag/stream"
+      ],
+      "fetchStatuses": [
+        {
+          "path": "/chat/rag/stream",
+          "status": 200,
+          "ok": true,
+          "simulated": true
+        }
+      ],
+      "messageCount": 3
+    }
+  },
+  "screenshot": {
+    "path": "apps/ai-gateway-service/evidence/phase-67a-web-chat-status-feedback.png",
+    "bytes": 117798,
+    "width": 1424,
+    "height": 1105,
+    "validPng": true
+  },
+  "safety": {
+    "browserInteraction": true,
+    "simulatedStreamOnly": true,
+    "statusFeedbackOnly": true,
+    "fakeProviderOnly": true,
+    "defaultChatMainLaneChanged": false,
+    "backendBusinessRouteAdded": false,
+    "providerCalls": false,
+    "runtimeMutation": false,
+    "releaseAutomation": false,
+    "infrastructureProvisioning": false
+  },
+  "conclusion": "web-chat-status-feedback-connected"
+}

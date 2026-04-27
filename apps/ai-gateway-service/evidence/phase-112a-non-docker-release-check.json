@@ -1,0 +1,100 @@
+{
+  "phase": "phase-112a-non-docker-release-check",
+  "status": "passed",
+  "generatedAt": "2026-04-27T10:02:46.428Z",
+  "checks": {
+    "readmePhasePresent": true,
+    "readmeDeliverableChecklistComplete": true,
+    "readmeDockerRuntimeStatus": true,
+    "readmeCicdStatusDocumented": true,
+    "agentsBoundaryPresent": true,
+    "scriptsPresent": true,
+    "requiredEvidencePassed": true,
+    "noPlainSecrets": true,
+    "projectContextNotCreated": true
+  },
+  "deliverableStatus": {
+    "localPnpmStartupAvailable": true,
+    "uiAvailable": true,
+    "setupWizardAvailable": true,
+    "modelImportHardened": true,
+    "knowledgeRagAvailable": true,
+    "agentWorkforcePreviewAvailable": true,
+    "secretSafetyPassed": true,
+    "dockerRuntimeBlocked": false,
+    "dockerRuntimePassedLaterByPhase115A": true,
+    "cicdDesignOnly": false,
+    "minimalCicdGatePresentLaterByPhase117A": true,
+    "globalReleaseComplete": false
+  },
+  "regressions": [
+    {
+      "path": "apps/ai-gateway-service/evidence/phase-111b-cicd-gate-design.json",
+      "phase": "phase-111b-cicd-gate-design",
+      "status": "passed",
+      "conclusion": "cicd-gate-design-closed"
+    },
+    {
+      "path": "apps/ai-gateway-service/evidence/phase-110a-docker-readiness.json",
+      "phase": "phase-110a-docker-readiness",
+      "status": "passed",
+      "conclusion": "docker-readiness-closed"
+    },
+    {
+      "path": "apps/ai-gateway-service/evidence/phase-109a-deployment-readiness.json",
+      "phase": "phase-109a-deployment-readiness",
+      "status": "passed",
+      "conclusion": "deployment-readiness-boundary-closed"
+    },
+    {
+      "path": "apps/ai-gateway-service/evidence/phase-108a-access-boundary.json",
+      "phase": "phase-108a-access-boundary",
+      "status": "passed",
+      "conclusion": "access-boundary-closed"
+    },
+    {
+      "path": "apps/ai-gateway-service/evidence/phase-107a-secret-safety.json",
+      "phase": "phase-107a-secret-safety",
+      "status": "passed",
+      "conclusion": "secret-safety-ready"
+    },
+    {
+      "path": "apps/ai-gateway-service/evidence/phase-106a-delivery-readiness.json",
+      "phase": "phase-106a-delivery-readiness",
+      "status": "passed",
+      "conclusion": "delivery-readiness-ready"
+    },
+    {
+      "path": "apps/ai-gateway-service/evidence/phase-105a-user-journey.json",
+      "phase": "phase-105a-user-journey",
+      "status": "passed",
+      "conclusion": "ordinary-user-journey-ready"
+    }
+  ],
+  "secretScan": {
+    "scope": [
+      "README.md",
+      "AGENTS.md",
+      ".env.example",
+      "package.json",
+      "apps/ai-gateway-service/evidence",
+      "apps/agent-console/evidence",
+      "docs"
+    ],
+    "fileCount": 267,
+    "findingCount": 0,
+    "findings": []
+  },
+  "safety": {
+    "defaultChatMainLaneChanged": false,
+    "dockerRuntimeFaked": false,
+    "realCiCreated": true,
+    "deploymentOrReleaseAutomationCreated": false,
+    "cloudDeploymentComplete": false,
+    "releaseAutomationComplete": false,
+    "plaintextApiKeyRecorded": false,
+    "projectContextCreated": false,
+    "legacyModified": false
+  },
+  "conclusion": "non-docker-release-check-closed"
+}

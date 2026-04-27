@@ -1,0 +1,42 @@
+{
+  "phase": "phase-113b-docker-blocker-docs",
+  "status": "passed",
+  "generatedAt": "2026-04-27T09:51:05.944Z",
+  "checks": {
+    "rootScriptPresent": true,
+    "serviceScriptPresent": true,
+    "readmePhasePresent": true,
+    "readmeDockerDesktopPrereqs": true,
+    "readmeDockerCliCommands": true,
+    "readmeDockerRuntimeStatus": true,
+    "readmeStaticReadinessNotRuntimePass": true,
+    "agentsBoundaryPresent": true,
+    "projectContextNotCreated": true,
+    "noPlainSecrets": true
+  },
+  "docker": {
+    "cliAvailable": true,
+    "runtimeBlocked": false,
+    "currentEngine": "linux",
+    "currentBlocker": "none",
+    "requiredCommands": [
+      "docker --version",
+      "docker compose version",
+      "docker ps"
+    ],
+    "phase115aDockerRuntimePassed": true,
+    "phase110aStaticReadinessIsRuntimePass": false,
+    "fakeRuntimePassRecorded": false
+  },
+  "safety": {
+    "defaultChatMainLaneChanged": false,
+    "realCiCreated": false,
+    "cloudDeploymentComplete": false,
+    "releaseAutomationComplete": false,
+    "plaintextApiKeyRecorded": false,
+    "projectContextCreated": false,
+    "legacyModified": false
+  },
+  "secretFindingCount": 0,
+  "conclusion": "docker-blocker-docs-closed"
+}

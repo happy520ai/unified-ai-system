@@ -1,0 +1,115 @@
+{
+  "phase": "phase-68a-web-chat-markdown-rendering",
+  "status": "passed",
+  "generatedAt": "2026-04-25T09:05:29.780Z",
+  "browserPath": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+  "serviceUrl": "http://127.0.0.1:59360",
+  "ui": {
+    "url": "http://127.0.0.1:59360/ui",
+    "prompt": "phase68a markdown rendering prompt",
+    "afterAnswer": {
+      "done": true,
+      "renderedText": "这是 Markdown-lite 渲染测试：第一条业务要点第二条包含安全链接 https://example.com/runbook先检查状态再执行归零powershell复制代码cmd /c pnpm status:phase10a\ncmd /c pnpm idle:phase15a参考：交付指南\n危险链接：不要执行 (javascript:alert(1))",
+      "rawText": "这是 Markdown-lite 渲染测试：\n\n- 第一条业务要点\n- 第二条包含安全链接 https://example.com/runbook\n\n1. 先检查状态\n2. 再执行归零\n\n```powershell\ncmd /c pnpm status:phase10a\ncmd /c pnpm idle:phase15a\n```\n\n参考：[交付指南](https://example.com/delivery)\n危险链接：[不要执行](javascript:alert(1))",
+      "paragraphCount": 2,
+      "bulletCount": 2,
+      "numberedCount": 2,
+      "codeBlockCount": 1,
+      "codeText": "cmd /c pnpm status:phase10a\ncmd /c pnpm idle:phase15a",
+      "safeLinkCount": 2,
+      "safeLinks": [
+        {
+          "text": "https://example.com/runbook",
+          "href": "https://example.com/runbook",
+          "target": "_blank",
+          "rel": "noreferrer noopener"
+        },
+        {
+          "text": "交付指南",
+          "href": "https://example.com/delivery",
+          "target": "_blank",
+          "rel": "noreferrer noopener"
+        }
+      ],
+      "unsafeLinkCount": 0,
+      "unsafeTextPresent": true,
+      "clipboard": [],
+      "fetches": [
+        "/chat/rag/stream"
+      ],
+      "fetchStatuses": [
+        {
+          "path": "/chat/rag/stream",
+          "status": 200,
+          "ok": true,
+          "simulated": true
+        }
+      ],
+      "messageCount": 3
+    },
+    "afterCopyAnswer": {
+      "done": true,
+      "renderedText": "这是 Markdown-lite 渲染测试：第一条业务要点第二条包含安全链接 https://example.com/runbook先检查状态再执行归零powershell复制代码cmd /c pnpm status:phase10a\ncmd /c pnpm idle:phase15a参考：交付指南\n危险链接：不要执行 (javascript:alert(1))",
+      "rawText": "这是 Markdown-lite 渲染测试：\n\n- 第一条业务要点\n- 第二条包含安全链接 https://example.com/runbook\n\n1. 先检查状态\n2. 再执行归零\n\n```powershell\ncmd /c pnpm status:phase10a\ncmd /c pnpm idle:phase15a\n```\n\n参考：[交付指南](https://example.com/delivery)\n危险链接：[不要执行](javascript:alert(1))",
+      "paragraphCount": 2,
+      "bulletCount": 2,
+      "numberedCount": 2,
+      "codeBlockCount": 1,
+      "codeText": "cmd /c pnpm status:phase10a\ncmd /c pnpm idle:phase15a",
+      "safeLinkCount": 2,
+      "safeLinks": [
+        {
+          "text": "https://example.com/runbook",
+          "href": "https://example.com/runbook",
+          "target": "_blank",
+          "rel": "noreferrer noopener"
+        },
+        {
+          "text": "交付指南",
+          "href": "https://example.com/delivery",
+          "target": "_blank",
+          "rel": "noreferrer noopener"
+        }
+      ],
+      "unsafeLinkCount": 0,
+      "unsafeTextPresent": true,
+      "clipboard": [
+        "这是 Markdown-lite 渲染测试：\n\n- 第一条业务要点\n- 第二条包含安全链接 https://example.com/runbook\n\n1. 先检查状态\n2. 再执行归零\n\n```powershell\ncmd /c pnpm status:phase10a\ncmd /c pnpm idle:phase15a\n```\n\n参考：[交付指南](https://example.com/delivery)\n危险链接：[不要执行](javascript:alert(1))"
+      ],
+      "fetches": [
+        "/chat/rag/stream"
+      ],
+      "fetchStatuses": [
+        {
+          "path": "/chat/rag/stream",
+          "status": 200,
+          "ok": true,
+          "simulated": true
+        }
+      ],
+      "messageCount": 4
+    }
+  },
+  "screenshot": {
+    "path": "apps/ai-gateway-service/evidence/phase-68a-web-chat-markdown-rendering.png",
+    "bytes": 143703,
+    "width": 1409,
+    "height": 1140,
+    "validPng": true
+  },
+  "safety": {
+    "browserInteraction": true,
+    "simulatedStreamOnly": true,
+    "markdownRenderingOnly": true,
+    "unsafeLinksRenderedAsText": true,
+    "rawAnswerPreservedForCopy": true,
+    "fakeProviderOnly": true,
+    "defaultChatMainLaneChanged": false,
+    "backendBusinessRouteAdded": false,
+    "providerCalls": false,
+    "runtimeMutation": false,
+    "releaseAutomation": false,
+    "infrastructureProvisioning": false
+  },
+  "conclusion": "web-chat-markdown-rendering-connected"
+}

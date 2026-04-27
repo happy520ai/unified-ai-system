@@ -1,0 +1,92 @@
+{
+  "phase": "phase-85a-web-chat-model-config-failure-paths",
+  "status": "passed",
+  "generatedAt": "2026-04-26T08:52:20.795Z",
+  "browserPath": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+  "serviceUrl": "http://127.0.0.1:64013",
+  "ui": {
+    "url": "http://127.0.0.1:64013/ui?showFakeProviders=1",
+    "needsProvider": {
+      "scenario": "needs_provider_selection",
+      "passed": true,
+      "feedbackText": "无法仅凭 API Key 判断服务商无法仅凭 API Key 判断服务商。请选择 provider，或填写 OpenAI-compatible base URL 后继续检测。\n候选 provider：openai-compatible能力识别：provider 0 / 模型 0 / 当前可接入聊天 0我不会再因为 key 类型不明就直接判死，也不会把未知 key 强行绑定到某个写死模型。如果这是第三方中转、Cloudflare、Coze 或其它未内置服务商，请选择 OpenAI-compatible 并填写对应 base URL；如果是已内置服务商，请直接手动选择 provider 后继续检测。API Key 不会写入浏览器、聊天记录、日志或 evidence；只会发给你选择的 provider/base URL 做短超时 models/list probe。选择 provider填写 Base URL重新检测",
+      "nextActions": {
+        "retryOrDetect": true,
+        "provider": true,
+        "baseUrl": true,
+        "manualModel": false,
+        "diagnostics": false,
+        "continueChat": false
+      },
+      "secretPersisted": false,
+      "fetches": [
+        "/providers",
+        "/providers",
+        "/config/runtime",
+        "/models/import/preview"
+      ]
+    },
+    "noChatModels": {
+      "scenario": "no_chat_models",
+      "passed": true,
+      "feedbackText": "已拿到 provider 模型列表，但聊天模型为 0已经识别到 provider，但返回的模型没有当前聊天窗口可直接执行的 chat 能力。能力识别：provider 1 / 模型 1 / 当前可接入聊天 0 / vision 1已发现的模型：demo-vision-provider/Vision Demo Model [vision]这说明这把 key 可能主要开放视觉、听觉、生图、视频、embedding、rerank 或其它能力；当前聊天窗口只能添加具备 chat/completion/reasoning 能力的模型。我不会把非聊天模型伪装成聊天模型。后续要让视觉、生图、语音、视频真正可用，需要给这些能力分别接执行入口，而不是硬塞进 chat。手填模型 ID选择 provider填写 Base URL重新检测查看排查命令",
+      "nextActions": {
+        "retryOrDetect": true,
+        "provider": true,
+        "baseUrl": true,
+        "manualModel": true,
+        "diagnostics": true,
+        "continueChat": false
+      },
+      "secretPersisted": false,
+      "fetches": [
+        "/providers",
+        "/providers",
+        "/config/runtime",
+        "/models/import/preview",
+        "/models/import/preview"
+      ]
+    },
+    "timeoutProbe": {
+      "scenario": "chat_probe_timeout",
+      "passed": true,
+      "feedbackText": "当前模型暂不可用错误原因：ZHIPU_REQUEST_TIMEOUT / Zhipu AI request timed out after 10000ms下一步：这通常是 provider 超时、限流或网络波动。可以稍后再点“一键添加并检测”，或选择一个更快/更稳的模型。如果连续失败，请运行 health / doctor / logs，看本地服务和 provider 返回是否正常。我不会把未通过检测的模型标记为可用，也不会把 key 强行塞到 NVIDIA 或假模型里。重新检测选择 provider填写 Base URL手填模型 ID查看排查命令",
+      "nextActions": {
+        "retryOrDetect": true,
+        "provider": true,
+        "baseUrl": true,
+        "manualModel": true,
+        "diagnostics": true,
+        "continueChat": false
+      },
+      "fetches": [
+        "/providers",
+        "/providers",
+        "/config/runtime",
+        "/models/import/preview",
+        "/models/import/preview",
+        "/chat"
+      ]
+    },
+    "allFetches": []
+  },
+  "screenshot": {
+    "path": "apps/ai-gateway-service/evidence/phase-85a-web-chat-model-config-failure-paths.png",
+    "bytes": 135982,
+    "width": 1424,
+    "height": 1105,
+    "validPng": true
+  },
+  "safety": {
+    "browserInteraction": true,
+    "simulatedModelImportFailuresOnly": true,
+    "simulatedChatTimeoutOnly": true,
+    "fakeProviderOnly": true,
+    "realProviderCalls": false,
+    "backendBusinessRouteAdded": false,
+    "defaultChatMainLaneChanged": false,
+    "secretPersisted": false,
+    "releaseAutomation": false
+  },
+  "conclusion": "web-chat-model-config-failure-paths-readable-and-actionable"
+}

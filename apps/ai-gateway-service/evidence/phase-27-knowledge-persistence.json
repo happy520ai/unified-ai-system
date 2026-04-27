@@ -1,0 +1,36 @@
+{
+  "phase": "phase-27-knowledge-persistence",
+  "status": "passed",
+  "generatedAt": "2026-04-24T18:24:02.120Z",
+  "persistence": {
+    "storageMode": "file-sqlite",
+    "durable": true,
+    "fileStatus": "configured",
+    "sqliteStatus": "configured",
+    "fileDocumentCount": 1,
+    "sqliteDocumentCount": 1,
+    "vectorNote": "Vector storage remains an explicit configured path and is verified by verify:phase23.",
+    "tempPersistenceDirUsed": true
+  },
+  "firstRun": {
+    "loadHttpStatus": 200,
+    "loadedCount": 1,
+    "retrieveHttpStatus": 200,
+    "topHitDocumentId": "phase-27-persistent-document",
+    "vectorInfraMode": "local-keyword",
+    "vectorInfraStatus": "disabled"
+  },
+  "secondRun": {
+    "healthHttpStatus": 200,
+    "sourcePresent": true,
+    "retrieveHttpStatus": 200,
+    "topHitDocumentId": "phase-27-persistent-document",
+    "markerMatched": true,
+    "snippetPresent": true,
+    "matchedTerms": [
+      "phase27-persistence-marker"
+    ]
+  },
+  "error": null,
+  "conclusion": "knowledge-persistence-connected"
+}

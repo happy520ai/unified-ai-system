@@ -1,0 +1,54 @@
+{
+  "phase": "phase-97a-web-chat-model-config-aggregate",
+  "status": "passed",
+  "generatedAt": "2026-04-26T12:13:19.510Z",
+  "delegatedChecks": {
+    "successPath": {
+      "phase": "phase-86a-web-chat-model-config-success-path",
+      "status": "passed",
+      "conclusion": "web-chat-model-config-success-path-connected",
+      "realProviderCalls": false,
+      "secretLeakageDetected": false,
+      "runtimeModelConfigured": true,
+      "chatProbePassed": true,
+      "focusReturnedToChatInput": true
+    },
+    "repairContinue": {
+      "phase": "phase-93a-web-chat-continue-after-model-repair",
+      "status": "passed",
+      "conclusion": "web-chat-continue-after-model-repair-actionable",
+      "realProviderCalls": false,
+      "secretLeakageDetected": false,
+      "continuedPreviousPrompt": true,
+      "continueActionText": "继续刚才的问题"
+    },
+    "repairVisualPolish": {
+      "phase": "phase-94a-web-chat-model-config-repair-visual-polish",
+      "status": "passed",
+      "conclusion": "web-chat-model-config-repair-visual-polish-actionable",
+      "realProviderCalls": false,
+      "secretLeakageDetected": false,
+      "compactActionableCard": true,
+      "visibleParagraphCount": 4
+    },
+    "readyFirstMessage": {
+      "phase": "phase-96a-web-chat-ready-first-message",
+      "status": "passed",
+      "conclusion": "web-chat-ready-first-message-flow-connected",
+      "realProviderCalls": false,
+      "secretLeakageDetected": false,
+      "readyToChat": true,
+      "firstMessageReturned": true,
+      "firstMessageEndpoint": "/chat/stream"
+    }
+  },
+  "safety": {
+    "browserInteraction": true,
+    "localMockProviderOnly": true,
+    "realProviderCalls": false,
+    "apiKeyValueRecorded": false,
+    "defaultChatMainLaneChanged": false,
+    "backendBusinessRouteAdded": false
+  },
+  "conclusion": "web-chat-model-config-chain-validated"
+}

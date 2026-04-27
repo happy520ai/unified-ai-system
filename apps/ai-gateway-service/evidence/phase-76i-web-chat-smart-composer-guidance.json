@@ -1,0 +1,85 @@
+{
+  "phase": "phase-76i-web-chat-smart-composer-guidance",
+  "status": "passed",
+  "generatedAt": "2026-04-25T17:28:52.482Z",
+  "browserPath": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+  "serviceUrl": "http://127.0.0.1:65036",
+  "ui": {
+    "url": "http://127.0.0.1:65036/ui",
+    "initialState": {
+      "hintPresent": true,
+      "composerGuidanceTone": "neutral",
+      "composerGuidanceKind": "empty-unchecked",
+      "composerGuidanceText": "可以直接提问或拖文件；想先确认模型是否可用，输入“配置模型”后一键检测。",
+      "statusBarPresent": true,
+      "configButtonPresent": false,
+      "wizardPresent": false,
+      "modelProbeStatus": "not-checked",
+      "modelValue": "server-default-route",
+      "sendDisabled": true,
+      "fetches": []
+    },
+    "typedBeforeProbeState": {
+      "hintPresent": true,
+      "composerGuidanceTone": "warn",
+      "composerGuidanceKind": "typing-unchecked",
+      "composerGuidanceText": "Enter 发送；模型还未检测，想更稳可以先输入“配置模型”一键检测。",
+      "statusBarPresent": true,
+      "configButtonPresent": false,
+      "wizardPresent": false,
+      "modelProbeStatus": "not-checked",
+      "modelValue": "server-default-route",
+      "sendDisabled": false,
+      "fetches": []
+    },
+    "openedState": {
+      "hintPresent": true,
+      "composerGuidanceTone": "neutral",
+      "composerGuidanceKind": "empty-unchecked",
+      "composerGuidanceText": "可以直接提问或拖文件；想先确认模型是否可用，输入“配置模型”后一键检测。",
+      "statusBarPresent": true,
+      "configButtonPresent": false,
+      "wizardPresent": true,
+      "modelProbeStatus": "not-checked",
+      "modelValue": "server-default-route",
+      "sendDisabled": true,
+      "fetches": [
+        "/providers",
+        "/config/runtime"
+      ]
+    },
+    "finalState": {
+      "hintPresent": true,
+      "composerGuidanceTone": "ok",
+      "composerGuidanceKind": "typing-model-passed",
+      "composerGuidanceText": "Enter 发送；模型已检测通过，我会先查本地知识库再组织回答。",
+      "statusBarPresent": true,
+      "configButtonPresent": false,
+      "wizardPresent": true,
+      "modelProbeStatus": "passed",
+      "modelValue": "local-fake-provider::local-fake-model",
+      "sendDisabled": false,
+      "fetches": [
+        "/providers",
+        "/config/runtime",
+        "/chat"
+      ]
+    }
+  },
+  "screenshot": {
+    "path": "apps/ai-gateway-service/evidence/phase-76i-web-chat-smart-composer-guidance.png",
+    "bytes": 119570,
+    "width": 1424,
+    "height": 1005,
+    "validPng": true
+  },
+  "safety": {
+    "browserInteraction": true,
+    "smartComposerGuidance": true,
+    "guidanceChangesWithInputAndModelProbe": true,
+    "fakeProviderOnly": true,
+    "backendBusinessRouteAdded": false,
+    "defaultChatMainLaneChanged": false
+  },
+  "conclusion": "web-chat-smart-composer-guidance-connected"
+}

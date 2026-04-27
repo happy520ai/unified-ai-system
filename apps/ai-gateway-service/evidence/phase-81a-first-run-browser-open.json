@@ -1,0 +1,37 @@
+{
+  "phase": "phase-81a-first-run-browser-open",
+  "status": "passed",
+  "generatedAt": "2026-04-26T07:53:55.647Z",
+  "firstRun": {
+    "path": "tools/phase79a/first-run.mjs",
+    "exists": true,
+    "missingText": [],
+    "autoOpenAfterManagedStart": true,
+    "optOutEnv": [
+      "PME_SKIP_BROWSER_OPEN=1",
+      "PME_AUTO_OPEN_BROWSER=0"
+    ],
+    "browserCommands": {
+      "windows": true,
+      "darwin": true,
+      "linux": true
+    }
+  },
+  "scripts": {
+    "rootStart": "node ./tools/phase79a/first-run.mjs start",
+    "rootVerify": "pnpm --filter @unified-ai-system/ai-gateway-service verify:phase81a",
+    "serviceVerify": "node ./src/entrypoints/verifyFirstRunBrowserOpen.js",
+    "missingScripts": [],
+    "verifyDoesNotOpenBrowser": true
+  },
+  "safety": {
+    "readOnlyVerify": true,
+    "browserOpenedDuringVerify": false,
+    "serviceStartedDuringVerify": false,
+    "providerCalls": false,
+    "runtimeMutation": false,
+    "defaultChatMainLaneChanged": false,
+    "releaseAutomation": false
+  },
+  "conclusion": "first-run-browser-open-connected"
+}

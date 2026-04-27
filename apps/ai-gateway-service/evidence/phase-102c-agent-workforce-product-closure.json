@@ -1,0 +1,61 @@
+{
+  "phase": "phase-102c-agent-workforce-product-closure",
+  "status": "passed",
+  "generatedAt": "2026-04-26T13:31:18.682Z",
+  "service": {
+    "url": "http://127.0.0.1:59903",
+    "healthHttpStatus": 200,
+    "routePresence": {
+      "chat": true,
+      "knowledgeHealth": true,
+      "modelImportPreview": true,
+      "workforceHealth": true,
+      "workforceAgents": true,
+      "workforcePlan": true
+    }
+  },
+  "validation": {
+    "healthHttpStatus": 200,
+    "agentsHttpStatus": 200,
+    "agentCount": 7,
+    "normalGoalHttpStatus": 200,
+    "planVersion": "102C.1",
+    "createdAtPresent": true,
+    "summaryPresent": true,
+    "limitationsCount": 4,
+    "markdownPresent": true,
+    "exportableJsonPresent": true,
+    "recommendedNextStepPresent": true,
+    "emptyGoalHttpStatus": 400,
+    "emptyGoalCode": "WORKFORCE_GOAL_REQUIRED",
+    "longGoalHttpStatus": 400,
+    "longGoalCode": "WORKFORCE_GOAL_TOO_LONG",
+    "nonStringGoalHttpStatus": 400,
+    "nonStringGoalCode": "WORKFORCE_GOAL_MUST_BE_STRING"
+  },
+  "ui": {
+    "httpStatus": 200,
+    "panelPresent": true,
+    "exampleGoalsPresent": true,
+    "copyMarkdownPresent": true,
+    "exportJsonPresent": true,
+    "clearPresent": true,
+    "maxLengthHintPresent": true,
+    "previewBoundaryPresent": true
+  },
+  "adjacentCapabilities": {
+    "knowledgeHealthHttpStatus": 200,
+    "modelImportProvidersHttpStatus": 200
+  },
+  "safety": {
+    "realLlmCalls": false,
+    "codeExecution": false,
+    "projectFileWrites": false,
+    "workflowRun": false,
+    "defaultChatLaneMutated": false,
+    "providerRegistryMutated": false,
+    "secretValuesRecorded": false
+  },
+  "error": null,
+  "conclusion": "agent-workforce-product-preview-closed"
+}

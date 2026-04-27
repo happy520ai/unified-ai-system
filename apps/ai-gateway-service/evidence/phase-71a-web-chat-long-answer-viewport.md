@@ -1,0 +1,30 @@
+# Phase 71A Web Chat Long Answer Viewport Evidence
+
+- Phase: phase-71a-web-chat-long-answer-viewport
+- Status: passed
+- Generated at: 2026-04-25T09:55:41.968Z
+- Service URL: http://127.0.0.1:59019
+- Prompt: phase71a long answer viewport prompt
+- Auto-follow distance to bottom: 1
+- Manual-scroll preserved scrollTop: 0
+- Manual-scroll distance to bottom: 3992
+- Final distance to bottom: 1
+- Final answer visible: true
+- Long text wraps within bubble: true
+- Screenshot path: apps/ai-gateway-service/evidence/phase-71a-web-chat-long-answer-viewport.png
+- Screenshot bytes: 143390
+- Screenshot dimensions: 1424x1105
+- Valid PNG: true
+- Browser interaction: true
+- Simulated stream only: true
+- Viewport behavior only: true
+- Auto-follow when at bottom: true
+- Preserve manual scroll: true
+- Fake provider only: true
+- Default chat main lane changed: false
+- Backend business route added: false
+- Provider calls: false
+- Runtime mutation: false
+- Release automation: false
+- Infrastructure provisioning: false
+- Conclusion: web-chat-long-answer-viewport-connected

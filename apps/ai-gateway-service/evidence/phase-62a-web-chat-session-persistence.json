@@ -1,0 +1,71 @@
+{
+  "phase": "phase-62a-web-chat-session-persistence",
+  "status": "passed",
+  "generatedAt": "2026-04-25T08:32:02.311Z",
+  "browserPath": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+  "serviceUrl": "http://127.0.0.1:56412",
+  "ui": {
+    "url": "http://127.0.0.1:56412/ui",
+    "storageKey": "pme-moving-earth-chat-history-v1",
+    "prompt": "phase62a persistent chat prompt",
+    "answer": "phase62a persistent chat answer",
+    "afterSend": {
+      "bodyContainsPrompt": true,
+      "bodyContainsAnswer": true,
+      "storageContainsPrompt": true,
+      "storageContainsAnswer": true,
+      "storageValueLength": 391,
+      "statusText": "已保存 3 条会话记录。",
+      "messageCount": 3,
+      "fetches": [
+        "/chat/rag/stream"
+      ],
+      "sendButtonText": "发送",
+      "sendButtonDisabled": false
+    },
+    "afterReload": {
+      "bodyContainsPrompt": true,
+      "bodyContainsAnswer": true,
+      "storageContainsPrompt": true,
+      "storageContainsAnswer": true,
+      "storageValueLength": 391,
+      "statusText": "已恢复 3 条会话记录。",
+      "messageCount": 3,
+      "fetches": [],
+      "sendButtonText": "发送",
+      "sendButtonDisabled": false
+    },
+    "afterClear": {
+      "bodyContainsPrompt": false,
+      "bodyContainsAnswer": false,
+      "storageContainsPrompt": false,
+      "storageContainsAnswer": false,
+      "storageValueLength": 239,
+      "statusText": "已清空当前浏览器里的会话记录。",
+      "messageCount": 1,
+      "fetches": [],
+      "sendButtonText": "发送",
+      "sendButtonDisabled": false
+    }
+  },
+  "screenshot": {
+    "path": "apps/ai-gateway-service/evidence/phase-62a-web-chat-session-persistence.png",
+    "bytes": 133544,
+    "width": 1409,
+    "height": 1140,
+    "validPng": true
+  },
+  "safety": {
+    "browserInteraction": true,
+    "localStorageOnly": true,
+    "simulatedChatOnly": true,
+    "fakeProviderOnly": true,
+    "defaultChatMainLaneChanged": false,
+    "backendBusinessRouteAdded": false,
+    "providerCalls": false,
+    "runtimeMutation": false,
+    "releaseAutomation": false,
+    "infrastructureProvisioning": false
+  },
+  "conclusion": "web-chat-session-persistence-connected"
+}

@@ -1,0 +1,58 @@
+{
+  "phase": "phase-42a-enterprise-handoff-manifest",
+  "status": "passed",
+  "generatedAt": "2026-04-26T05:01:09.810Z",
+  "handoff": {
+    "manifestPath": "docs/ENTERPRISE_HANDOFF_MANIFEST.md",
+    "envTemplatePath": ".env.enterprise.example",
+    "releaseAutomation": false,
+    "infrastructureProvisioning": false,
+    "secretValuesRecorded": false
+  },
+  "result": {
+    "files": {
+      "status": "passed",
+      "requiredCount": 7,
+      "present": [
+        "README.md",
+        "AGENTS.md",
+        "docs/DELIVERY_GUIDE.md",
+        "docs/OPERATION_MANUAL.md",
+        "docs/ENTERPRISE_DEPLOYMENT_RUNBOOK.md",
+        "docs/ENTERPRISE_HANDOFF_MANIFEST.md",
+        ".env.enterprise.example"
+      ],
+      "missing": []
+    },
+    "scripts": {
+      "status": "passed",
+      "phase42RootScriptPresent": true,
+      "phase42ServiceScriptPresent": true,
+      "phase42CheckIncluded": true,
+      "helpIncluded": true,
+      "missingEnterpriseCommands": []
+    },
+    "docs": {
+      "status": "passed",
+      "missingMarkers": []
+    },
+    "envTemplate": {
+      "status": "passed",
+      "missingKeys": [],
+      "missingSecretPlaceholders": [],
+      "pgvectorUsesPlaceholder": true,
+      "directHostWarningPresent": true,
+      "defaultModeLocalKeyword": true
+    },
+    "ui": {
+      "status": "passed",
+      "missingMarkers": []
+    },
+    "boundaries": {
+      "status": "passed",
+      "missingMarkers": []
+    }
+  },
+  "error": null,
+  "conclusion": "enterprise-handoff-manifest-ready"
+}

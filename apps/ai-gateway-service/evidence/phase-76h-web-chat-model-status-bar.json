@@ -1,0 +1,82 @@
+{
+  "phase": "phase-76h-web-chat-model-status-bar",
+  "status": "passed",
+  "generatedAt": "2026-04-26T08:08:45.110Z",
+  "browserPath": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+  "serviceUrl": "http://127.0.0.1:60458",
+  "ui": {
+    "url": "http://127.0.0.1:60458/ui?showFakeProviders=1",
+    "initialState": {
+      "statusBarPresent": true,
+      "configButtonPresent": true,
+      "configButtonText": "配置模型",
+      "configButtonAriaLabel": "打开模型配置向导",
+      "modelGuidePresent": true,
+      "modelGuideText": "不确定模型能不能用？点“配置模型”，粘贴 API Key 后自动识别可用模型；检测通过后再发送。",
+      "quickAddModelChipPresent": false,
+      "wizardPresent": false,
+      "modelProbeStatus": "not-checked",
+      "modelValue": "server-default-route",
+      "modelLabelText": "模型：服务端自动选择",
+      "modelProbeText": "未检测",
+      "modelPreferenceText": "未记住",
+      "fetches": []
+    },
+    "openedState": {
+      "statusBarPresent": true,
+      "configButtonPresent": true,
+      "configButtonText": "配置模型",
+      "configButtonAriaLabel": "打开模型配置向导",
+      "modelGuidePresent": true,
+      "modelGuideText": "不确定模型能不能用？点“配置模型”，粘贴 API Key 后自动识别可用模型；检测通过后再发送。",
+      "quickAddModelChipPresent": false,
+      "wizardPresent": true,
+      "modelProbeStatus": "not-checked",
+      "modelValue": "server-default-route",
+      "modelLabelText": "模型：服务端自动选择",
+      "modelProbeText": "未检测",
+      "modelPreferenceText": "未记住",
+      "fetches": [
+        "/providers",
+        "/config/runtime"
+      ]
+    },
+    "finalState": {
+      "statusBarPresent": true,
+      "configButtonPresent": true,
+      "configButtonText": "配置模型",
+      "configButtonAriaLabel": "打开模型配置向导",
+      "modelGuidePresent": true,
+      "modelGuideText": "不确定模型能不能用？点“配置模型”，粘贴 API Key 后自动识别可用模型；检测通过后再发送。",
+      "quickAddModelChipPresent": false,
+      "wizardPresent": true,
+      "modelProbeStatus": "passed",
+      "modelValue": "local-fake-provider::local-fake-model",
+      "modelLabelText": "模型：local-fake-provider / local-fake-model",
+      "modelProbeText": "检测通过",
+      "modelPreferenceText": "未记住",
+      "fetches": [
+        "/providers",
+        "/config/runtime",
+        "/chat"
+      ]
+    }
+  },
+  "screenshot": {
+    "path": "apps/ai-gateway-service/evidence/phase-76h-web-chat-model-status-bar.png",
+    "bytes": 129538,
+    "width": 1424,
+    "height": 1005,
+    "validPng": true
+  },
+  "safety": {
+    "browserInteraction": true,
+    "composerStatusBar": true,
+    "configButtonOpensChatWizard": true,
+    "oneClickProbeSyncsComposerStatus": true,
+    "fakeProviderOnly": true,
+    "backendBusinessRouteAdded": false,
+    "defaultChatMainLaneChanged": false
+  },
+  "conclusion": "web-chat-model-status-bar-connected"
+}

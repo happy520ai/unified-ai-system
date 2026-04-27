@@ -1,0 +1,31 @@
+# Phase 69A Web Chat Code Block Tools Evidence
+
+- Phase: phase-69a-web-chat-code-block-tools
+- Status: passed
+- Generated at: 2026-04-25T09:05:35.716Z
+- Service URL: http://127.0.0.1:59475
+- Prompt: phase69a code block tools prompt
+- Inline code count: 1
+- Code wrap count: 1
+- Code block count: 1
+- Copy code button count: 1
+- Code overflow x: auto
+- Long code line present: true
+- Copied code matched: true
+- Screenshot path: apps/ai-gateway-service/evidence/phase-69a-web-chat-code-block-tools.png
+- Screenshot bytes: 104238
+- Screenshot dimensions: 1409x1140
+- Valid PNG: true
+- Browser interaction: true
+- Simulated stream only: true
+- Code block tools only: true
+- Inline code rendering: true
+- Long code overflow is horizontal: true
+- Fake provider only: true
+- Default chat main lane changed: false
+- Backend business route added: false
+- Provider calls: false
+- Runtime mutation: false
+- Release automation: false
+- Infrastructure provisioning: false
+- Conclusion: web-chat-code-block-tools-connected

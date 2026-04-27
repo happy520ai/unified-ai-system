@@ -1,0 +1,266 @@
+{
+  "phase": "phase-45a-enterprise-release-candidate-dry-run",
+  "status": "passed",
+  "generatedAt": "2026-04-26T05:01:15.113Z",
+  "releaseCandidate": {
+    "mode": "read-only-dry-run",
+    "packageCreated": false,
+    "releaseCreated": false,
+    "artifactPublished": false
+  },
+  "result": {
+    "docs": {
+      "status": "passed",
+      "requiredCount": 8,
+      "present": [
+        "README.md",
+        "AGENTS.md",
+        "docs/DELIVERY_GUIDE.md",
+        "docs/OPERATION_MANUAL.md",
+        "docs/ENTERPRISE_DEPLOYMENT_RUNBOOK.md",
+        "docs/ENTERPRISE_HANDOFF_MANIFEST.md",
+        "docs/ENTERPRISE_ACCEPTANCE_REPORT.md",
+        ".env.enterprise.example"
+      ],
+      "missing": []
+    },
+    "scripts": {
+      "status": "passed",
+      "missingRootScripts": [],
+      "missingServiceScripts": [],
+      "missingEnterpriseAggregate": [],
+      "serviceCheckIncludesPhase45": true,
+      "serviceCheckIncludesPhase46": true,
+      "serviceCheckIncludesPhase47": true,
+      "helpIncludesPhase45": true,
+      "helpIncludesPhase46": true,
+      "helpIncludesPhase47": true
+    },
+    "evidence": {
+      "status": "passed",
+      "requiredCount": 27,
+      "passedCount": 27,
+      "missing": [],
+      "failed": [],
+      "items": [
+        {
+          "path": "apps/ai-gateway-service/evidence/phase-7a-1-service-entry.json",
+          "phase": "phase-7a-1-service-entry",
+          "status": "passed",
+          "conclusion": "service-entry-health-and-chat-connected-to-nvidia",
+          "generatedAt": "2026-04-25T16:12:37.712Z"
+        },
+        {
+          "path": "apps/agent-console/evidence/phase-7a-2-console-service-chain.json",
+          "phase": "phase-7a-2-console-service-chain",
+          "status": "passed",
+          "conclusion": "agent-console-to-ai-gateway-service-connected",
+          "generatedAt": "2026-04-22T15:25:23.573Z"
+        },
+        {
+          "path": "apps/ai-gateway-service/evidence/phase-21a-knowledge-entry.json",
+          "phase": "phase-21a-knowledge-entry",
+          "status": "passed",
+          "conclusion": "local-knowledge-entry-connected",
+          "generatedAt": "2026-04-26T04:56:52.678Z"
+        },
+        {
+          "path": "apps/ai-gateway-service/evidence/phase-21b-knowledge-source-load.json",
+          "phase": "phase-21b-knowledge-source-load",
+          "status": "passed",
+          "conclusion": "local-knowledge-source-load-connected",
+          "generatedAt": "2026-04-26T04:56:55.343Z"
+        },
+        {
+          "path": "apps/agent-console/evidence/phase-21c-console-knowledge-chain.json",
+          "phase": "phase-21c-console-knowledge-chain",
+          "status": "passed",
+          "conclusion": "agent-console-to-knowledge-service-connected",
+          "generatedAt": "2026-04-26T04:56:57.926Z"
+        },
+        {
+          "path": "apps/ai-gateway-service/evidence/phase-22-knowledge-quality-infra.json",
+          "phase": "phase-22-knowledge-quality-infra",
+          "status": "passed",
+          "conclusion": "knowledge-quality-and-infra-base-connected",
+          "generatedAt": "2026-04-24T18:23:46.575Z"
+        },
+        {
+          "path": "apps/ai-gateway-service/evidence/phase-23-knowledge-production-readiness.json",
+          "phase": "phase-23-knowledge-production-readiness",
+          "status": "passed",
+          "conclusion": "knowledge-production-deliverable-connected",
+          "generatedAt": "2026-04-24T15:02:09.545Z"
+        },
+        {
+          "path": "apps/ai-gateway-service/evidence/phase-24-delivery-knowledge.json",
+          "phase": "phase-24-delivery-knowledge",
+          "status": "passed",
+          "conclusion": "delivery-guide-and-real-usage-knowledge-connected",
+          "generatedAt": "2026-04-24T18:23:54.258Z"
+        },
+        {
+          "path": "apps/ai-gateway-service/evidence/phase-25a-web-console.json",
+          "phase": "phase-25a-web-console",
+          "status": "passed",
+          "conclusion": "web-console-operation-surface-connected",
+          "generatedAt": "2026-04-25T01:59:36.410Z"
+        },
+        {
+          "path": "apps/ai-gateway-service/evidence/phase-26a-chat-first-web-console.json",
+          "phase": "phase-26a-chat-first-web-console",
+          "status": "passed",
+          "conclusion": "chat-first-web-console-connected",
+          "generatedAt": "2026-04-25T09:56:12.565Z"
+        },
+        {
+          "path": "apps/ai-gateway-service/evidence/phase-27-knowledge-persistence.json",
+          "phase": "phase-27-knowledge-persistence",
+          "status": "passed",
+          "conclusion": "knowledge-persistence-connected",
+          "generatedAt": "2026-04-24T18:24:02.120Z"
+        },
+        {
+          "path": "apps/ai-gateway-service/evidence/phase-28a-documented-feature-closure.json",
+          "phase": "phase-28a-documented-feature-closure",
+          "status": "passed",
+          "conclusion": "documented-current-feature-set-connected",
+          "generatedAt": "2026-04-24T17:48:28.029Z"
+        },
+        {
+          "path": "apps/ai-gateway-service/evidence/phase-29a-service-rag-chat.json",
+          "phase": "phase-29a-service-rag-chat",
+          "status": "passed",
+          "conclusion": "service-rag-chat-connected",
+          "generatedAt": "2026-04-25T09:56:15.484Z"
+        },
+        {
+          "path": "apps/ai-gateway-service/evidence/phase-30a-local-workflow-automation.json",
+          "phase": "phase-30a-local-workflow-automation",
+          "status": "passed",
+          "conclusion": "local-workflow-automation-connected",
+          "generatedAt": "2026-04-26T04:56:56.174Z"
+        },
+        {
+          "path": "apps/ai-gateway-service/evidence/phase-31a-experience-capabilities.json",
+          "phase": "phase-31a-experience-capabilities",
+          "status": "passed",
+          "conclusion": "experience-capabilities-connected",
+          "generatedAt": "2026-04-25T01:52:10.181Z"
+        },
+        {
+          "path": "apps/ai-gateway-service/evidence/phase-32a-enterprise-governance.json",
+          "phase": "phase-32a-enterprise-governance",
+          "status": "passed",
+          "conclusion": "enterprise-governance-connected",
+          "generatedAt": "2026-04-26T05:00:49.105Z"
+        },
+        {
+          "path": "apps/ai-gateway-service/evidence/phase-33a-enterprise-admin-console.json",
+          "phase": "phase-33a-enterprise-admin-console",
+          "status": "passed",
+          "conclusion": "enterprise-admin-console-connected",
+          "generatedAt": "2026-04-26T05:00:51.600Z"
+        },
+        {
+          "path": "apps/ai-gateway-service/evidence/phase-34a-enterprise-security-hardening.json",
+          "phase": "phase-34a-enterprise-security-hardening",
+          "status": "passed",
+          "conclusion": "enterprise-security-hardening-connected",
+          "generatedAt": "2026-04-26T05:00:54.077Z"
+        },
+        {
+          "path": "apps/ai-gateway-service/evidence/phase-35a-enterprise-user-lifecycle.json",
+          "phase": "phase-35a-enterprise-user-lifecycle",
+          "status": "passed",
+          "conclusion": "enterprise-user-lifecycle-connected",
+          "generatedAt": "2026-04-26T05:00:56.470Z"
+        },
+        {
+          "path": "apps/ai-gateway-service/evidence/phase-36a-enterprise-audit-export.json",
+          "phase": "phase-36a-enterprise-audit-export",
+          "status": "passed",
+          "conclusion": "enterprise-audit-export-connected",
+          "generatedAt": "2026-04-26T05:00:58.789Z"
+        },
+        {
+          "path": "apps/ai-gateway-service/evidence/phase-37a-enterprise-ops-readiness.json",
+          "phase": "phase-37a-enterprise-ops-readiness",
+          "status": "passed",
+          "conclusion": "enterprise-ops-readiness-connected",
+          "generatedAt": "2026-04-26T05:01:01.157Z"
+        },
+        {
+          "path": "apps/ai-gateway-service/evidence/phase-38a-enterprise-startup-readiness.json",
+          "phase": "phase-38a-enterprise-startup-readiness",
+          "status": "passed",
+          "conclusion": "enterprise-startup-readiness-connected",
+          "generatedAt": "2026-04-26T05:01:03.507Z"
+        },
+        {
+          "path": "apps/ai-gateway-service/evidence/phase-40a-enterprise-deployment-preflight.json",
+          "phase": "phase-40a-enterprise-deployment-preflight",
+          "status": "passed",
+          "conclusion": "enterprise-deployment-preflight-connected",
+          "generatedAt": "2026-04-26T05:01:06.014Z"
+        },
+        {
+          "path": "apps/ai-gateway-service/evidence/phase-41a-enterprise-config-wizard.json",
+          "phase": "phase-41a-enterprise-config-wizard",
+          "status": "passed",
+          "conclusion": "enterprise-config-wizard-connected",
+          "generatedAt": "2026-04-26T05:01:08.290Z"
+        },
+        {
+          "path": "apps/ai-gateway-service/evidence/phase-42a-enterprise-handoff-manifest.json",
+          "phase": "phase-42a-enterprise-handoff-manifest",
+          "status": "passed",
+          "conclusion": "enterprise-handoff-manifest-ready",
+          "generatedAt": "2026-04-26T05:01:09.810Z"
+        },
+        {
+          "path": "apps/ai-gateway-service/evidence/phase-43a-enterprise-acceptance-report.json",
+          "phase": "phase-43a-enterprise-acceptance-report",
+          "status": "passed",
+          "conclusion": "enterprise-acceptance-report-ready",
+          "generatedAt": "2026-04-26T05:01:11.236Z"
+        },
+        {
+          "path": "apps/ai-gateway-service/evidence/phase-44a-enterprise-acceptance-ui.json",
+          "phase": "phase-44a-enterprise-acceptance-ui",
+          "status": "passed",
+          "conclusion": "enterprise-acceptance-ui-connected",
+          "generatedAt": "2026-04-26T05:01:13.482Z"
+        }
+      ]
+    },
+    "ui": {
+      "status": "passed",
+      "missingMarkers": []
+    },
+    "boundaries": {
+      "status": "passed",
+      "missingMarkers": []
+    },
+    "envTemplate": {
+      "status": "passed",
+      "missingKeys": [],
+      "placeholderSafe": true
+    },
+    "secretScan": {
+      "status": "passed",
+      "scannedCount": 8,
+      "matches": []
+    }
+  },
+  "safety": {
+    "readOnlyDryRun": true,
+    "providerCalls": false,
+    "runtimeMutation": false,
+    "releaseAutomation": false,
+    "infrastructureProvisioning": false,
+    "secretValuesRecorded": false
+  },
+  "error": null,
+  "conclusion": "enterprise-release-candidate-dry-run-ready"
+}

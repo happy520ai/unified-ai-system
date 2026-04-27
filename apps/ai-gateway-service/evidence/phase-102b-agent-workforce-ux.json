@@ -1,0 +1,53 @@
+{
+  "phase": "phase-102b-agent-workforce-ux",
+  "status": "passed",
+  "generatedAt": "2026-04-26T13:31:23.735Z",
+  "service": {
+    "url": "http://127.0.0.1:60673",
+    "healthHttpStatus": 200,
+    "routePresence": {
+      "chat": true,
+      "knowledgeHealth": true,
+      "modelImportPreview": true,
+      "workforcePlan": true
+    }
+  },
+  "validation": {
+    "emptyGoalHttpStatus": 400,
+    "emptyGoalCode": "WORKFORCE_GOAL_REQUIRED",
+    "normalGoalHttpStatus": 200,
+    "planVersion": "102C.1",
+    "createdAtPresent": true,
+    "summaryPresent": true,
+    "userFriendlyStatus": "ready_to_review",
+    "selectedRoleCount": 7,
+    "taskCount": 7,
+    "deliverableCount": 6,
+    "acceptanceCriteriaCount": 4,
+    "riskCount": 3,
+    "nextActionCount": 4
+  },
+  "ui": {
+    "httpStatus": 200,
+    "panelPresent": true,
+    "statusPresent": true,
+    "renderedOutputPresent": true,
+    "copyMarkdownPresent": true,
+    "exampleButtonsPresent": true
+  },
+  "adjacentCapabilities": {
+    "knowledgeHealthHttpStatus": 200,
+    "modelImportProvidersHttpStatus": 200
+  },
+  "safety": {
+    "realLlmCalls": false,
+    "codeExecution": false,
+    "projectFileWrites": false,
+    "workflowRun": false,
+    "defaultChatLaneMutated": false,
+    "providerRegistryMutated": false,
+    "secretValuesRecorded": false
+  },
+  "error": null,
+  "conclusion": "agent-workforce-ux-ready"
+}

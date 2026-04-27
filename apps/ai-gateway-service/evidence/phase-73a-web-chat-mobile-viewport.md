@@ -1,0 +1,33 @@
+# Phase 73A Web Chat Mobile Viewport Evidence
+
+- Phase: phase-73a-web-chat-mobile-viewport
+- Status: passed
+- Generated at: 2026-04-25T09:55:54.557Z
+- Service URL: http://127.0.0.1:59335
+- Inner size: 390x844
+- Page has no horizontal overflow: true
+- Page has no document scroll: true
+- Shell within viewport: true
+- History usable height: true
+- Composer within viewport: true
+- Composer compact height: true
+- Input within viewport: true
+- Send button visible: true
+- Stop button visible: true
+- Quick start hidden on mobile: true
+- Chips scrollable on mobile: true
+- Side full width on mobile: true
+- Screenshot path: apps/ai-gateway-service/evidence/phase-73a-web-chat-mobile-viewport.png
+- Screenshot bytes: 57431
+- Screenshot dimensions: 390x844
+- Valid PNG: true
+- Browser interaction: true
+- Mobile viewport only: true
+- Simulated provider config only: true
+- Default chat main lane changed: false
+- Backend business route added: false
+- Provider calls: false
+- Runtime mutation: false
+- Release automation: false
+- Infrastructure provisioning: false
+- Conclusion: web-chat-mobile-viewport-connected

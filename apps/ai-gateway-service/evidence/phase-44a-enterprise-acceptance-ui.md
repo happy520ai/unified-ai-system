@@ -1,0 +1,32 @@
+# Phase 44A Enterprise Acceptance UI Evidence
+
+- Phase: phase-44a-enterprise-acceptance-ui
+- Status: passed
+- Generated at: 2026-04-26T05:01:13.482Z
+- Service URL: http://127.0.0.1:63631
+- UI HTTP status: 200
+- UI panel present: true
+- Report route present in UI: true
+- Route path: /enterprise/acceptance/report
+- Missing auth HTTP status: 401
+- Authorized HTTP status: 200
+- Route mode: read-only-existing-artifacts
+- Report path: docs/ENTERPRISE_ACCEPTANCE_REPORT.md
+- Report markdown present: true
+- Source phase: phase-43a-enterprise-acceptance-report
+- Source status: passed
+- Source conclusion: enterprise-acceptance-report-ready
+- Evidence required: 25
+- Evidence passed: 25
+- Evidence missing: 0
+- Evidence failed: 0
+- Command status: passed
+- Boundary status: passed
+- Read-only route: true
+- Provider calls: false
+- Release automation: false
+- Infrastructure provisioning: false
+- Secret values recorded: false
+- Response contains auditor token: false
+- Response contains NVIDIA key: false
+- Conclusion: enterprise-acceptance-ui-connected

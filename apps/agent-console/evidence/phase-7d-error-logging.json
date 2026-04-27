@@ -1,0 +1,49 @@
+{
+  "phase": "phase-7d-error-logging",
+  "status": "passed",
+  "generatedAt": "2026-04-21T12:49:23.558Z",
+  "nvidiaApiKeyPresent": true,
+  "nvidiaModel": "meta/llama-3.1-8b-instruct",
+  "successCase": {
+    "consoleExitCode": 0,
+    "consoleStatus": "completed",
+    "serviceHealthStatus": "ready",
+    "selectedProvider": "nvidia",
+    "selectedModel": "meta/llama-3.1-8b-instruct",
+    "executionMode": "real",
+    "executionStatus": "success",
+    "outputTextPresent": true
+  },
+  "errorCase": {
+    "consoleExitCode": 1,
+    "consoleStatus": "failed",
+    "statusCode": 400,
+    "code": "NVIDIA_API_KEY_MISSING",
+    "message": "NVIDIA API key is not configured.",
+    "retryable": false,
+    "provider": "nvidia",
+    "model": "meta/llama-3.1-8b-instruct"
+  },
+  "logs": {
+    "events": [
+      "request_received",
+      "request_received",
+      "provider_call_start",
+      "provider_call_completed",
+      "request_completed",
+      "request_received",
+      "request_received",
+      "provider_call_start",
+      "provider_call_failed",
+      "request_failed"
+    ],
+    "requestReceived": true,
+    "providerCallStart": true,
+    "providerCallCompleted": true,
+    "providerCallFailed": true,
+    "requestCompleted": true,
+    "requestFailed": true
+  },
+  "error": null,
+  "conclusion": "error-handling-and-logging-stable"
+}

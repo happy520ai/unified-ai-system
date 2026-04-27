@@ -1,0 +1,43 @@
+{
+  "phase": "phase-30a-local-workflow-automation",
+  "status": "passed",
+  "generatedAt": "2026-04-26T04:56:56.174Z",
+  "service": {
+    "url": "http://127.0.0.1:62334",
+    "healthStatus": "ok",
+    "workflowHealthRoutePresent": true,
+    "workflowRunRoutePresent": true
+  },
+  "ui": {
+    "url": "http://127.0.0.1:62334/ui",
+    "httpStatus": 200,
+    "workflowPanelPresent": true,
+    "workflowRunPresent": true
+  },
+  "workflow": {
+    "healthStatus": "ok",
+    "mode": "local-safe",
+    "outputDirectory": "C:/Users/Administrator/AppData/Local/Temp/phase30a-workflow-lfWeYM",
+    "arbitraryCommandExecution": false,
+    "broadFileSystemScan": false,
+    "actionCount": 3,
+    "plannedStepCount": 3,
+    "runStatus": "completed",
+    "workflowId": "workflow_mofaqlph_3ax481cj",
+    "artifactRelativePath": "C:/Users/Administrator/AppData/Local/Temp/phase30a-workflow-lfWeYM/phase-30a-workflow-report.md",
+    "artifactBytes": 1554,
+    "artifactSha256": "0993c036ee6ae60c12fecbc90d6bbf07597c00dcedb22b9483802a960028e9ac",
+    "artifactMarkerPresent": true,
+    "artifactSafetyTextPresent": true
+  },
+  "knowledge": {
+    "loadStatus": "ok",
+    "loadedSourceId": "phase-30a-workflow-source",
+    "loadedCount": 1,
+    "retrieved": true,
+    "chunkCount": 1,
+    "topHitDocumentId": "phase-30a-workflow-document"
+  },
+  "error": null,
+  "conclusion": "local-workflow-automation-connected"
+}

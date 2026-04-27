@@ -1,0 +1,30 @@
+# Phase 60A Web Chat Sending State Readability Evidence
+
+- Phase: phase-60a-web-chat-sending-state-readability
+- Status: passed
+- Generated at: 2026-04-25T18:33:44.684Z
+- Service URL: http://127.0.0.1:53561
+- Prompt: phase60a duplicate submit smoke
+- Duplicate hint: 正在生成回答，请等当前回复完成后再发送。
+- Answer marker: phase60a streamed answer
+- Sending button disabled: true
+- Sending button text: 生成中
+- Duplicate hint present: true
+- Completed button disabled: true
+- Completed button text: 发送
+- Completed assistant text: PME02:33回答完成。phase60a streamed answer复制回答复制引用重新发送
+- RAG stream request count: 1
+- Screenshot path: apps/ai-gateway-service/evidence/phase-60a-web-chat-sending-state-readability.png
+- Screenshot bytes: 120017
+- Screenshot dimensions: 1424x1105
+- Valid PNG: true
+- Browser interaction: true
+- Simulated stream only: true
+- Duplicate submit blocked: true
+- Default chat main lane changed: false
+- Backend business route added: false
+- Provider calls: false
+- Runtime mutation: false
+- Release automation: false
+- Infrastructure provisioning: false
+- Conclusion: web-chat-sending-state-readability-connected

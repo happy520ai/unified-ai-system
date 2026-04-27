@@ -1,0 +1,58 @@
+{
+  "phase": "phase-105a-user-journey",
+  "status": "passed",
+  "generatedAt": "2026-04-27T09:29:24.734Z",
+  "serviceUrl": "http://127.0.0.1:49471",
+  "checks": {
+    "uiHttpOk": true,
+    "uiSetupWizardPresent": true,
+    "uiUserJourneyMarkerPresent": true,
+    "uiCoreEntrypointsPresent": true,
+    "uiWorkforceStoreControlsPresent": true,
+    "setupReadinessOk": true,
+    "chatReadinessPresent": true,
+    "modelImportUnknownGuidance": true,
+    "workforcePlanSaveExportDeleteOk": true,
+    "readmeUserPathPresent": true,
+    "agentsBoundaryPresent": true,
+    "scriptsPresent": true,
+    "noPlainSecretInEvidence": true
+  },
+  "setup": {
+    "status": "ready",
+    "stepCount": 6,
+    "readinessKeys": [
+      "health",
+      "modelImport",
+      "chat",
+      "knowledge",
+      "workforce"
+    ],
+    "chatReady": true,
+    "modelImportReady": true,
+    "knowledgeReady": true,
+    "workforceReady": true
+  },
+  "modelImport": {
+    "unknownStatus": "needs_provider_selection",
+    "unknownReason": "api_key_prefix_unknown_choose_provider_or_base_url",
+    "userGuidancePresent": true
+  },
+  "workforce": {
+    "planStatus": 200,
+    "saveStatus": 200,
+    "listStatus": 200,
+    "exportStatus": 200,
+    "deleteStatus": 200,
+    "markdownExportPresent": true,
+    "jsonExportPresent": true
+  },
+  "safety": {
+    "plaintextApiKeyRecorded": false,
+    "realProviderCalled": false,
+    "defaultChatMainLaneChanged": false,
+    "workforceExecution": false,
+    "projectFileWrites": false
+  },
+  "conclusion": "ordinary-user-journey-ready"
+}

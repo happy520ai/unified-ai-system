@@ -1,0 +1,35 @@
+# Phase 55A Web Multi-File Upload Interaction Evidence
+
+- Phase: phase-55a-web-multi-file-upload-interaction
+- Status: passed
+- Generated at: 2026-04-25T12:16:17.238Z
+- Service URL: http://127.0.0.1:63348
+- Uploaded files: phase55a-upload.txt, phase55a-too-large.txt
+- Loaded file: phase55a-upload.txt
+- Skipped file: phase55a-too-large.txt
+- Upload status: 已导入 1 个文档。 跳过：phase55a-too-large.txt 超过 100MB
+- Multi-file input: true
+- Oversized file bytes: 104857601
+- Skip message present: true
+- Load file called: true
+- RAG stream called: true
+- Prompt: 请根据刚上传的文件说明 phase55a multi file upload marker 的作用。
+- Fetches: /knowledge/load/file, /chat/rag/stream
+- Assistant text present: true
+- Assistant includes fake provider: true
+- Marker matched: true
+- Error message: none
+- Message count: 4
+- Screenshot path: apps/ai-gateway-service/evidence/phase-55a-web-multi-file-upload-interaction.png
+- Screenshot bytes: 145787
+- Screenshot dimensions: 1424x1105
+- Valid PNG: true
+- Browser file interaction: true
+- Fake provider only: true
+- Default chat main lane changed: false
+- Backend business route added: false
+- Provider calls: false
+- Runtime mutation beyond bounded knowledge file load: false
+- Release automation: false
+- Infrastructure provisioning: false
+- Conclusion: web-multi-file-upload-interaction-connected

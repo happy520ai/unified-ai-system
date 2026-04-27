@@ -1,0 +1,41 @@
+{
+  "phase": "phase-87a-web-chat-model-config-usability-status",
+  "status": "passed",
+  "generatedAt": "2026-04-26T11:06:25.506Z",
+  "upstreamPhase": "phase-86a-web-chat-model-config-success-path",
+  "upstreamStatus": "passed",
+  "checks": {
+    "successPathPassed": true,
+    "providerExplained": true,
+    "modelExplained": true,
+    "runtimeExplained": true,
+    "chatProbeExplained": true,
+    "chatReadyExplained": true,
+    "secretSafetyExplained": true,
+    "persistedChoiceExplained": true,
+    "browserSecretSafetyExplained": true,
+    "composerReadyDataset": true,
+    "composerProviderDataset": true,
+    "composerModelDataset": true,
+    "composerGuideExplainsReady": true,
+    "apiKeyNotInEvidence": true
+  },
+  "ui": {
+    "providerSelectValue": "generic-openai-compatible::phase86-chat-model",
+    "preferenceValue": "generic-openai-compatible::phase86-chat-model",
+    "composerModelStatusState": "passed",
+    "composerModelReady": "true",
+    "composerModelProviderId": "generic-openai-compatible",
+    "composerModelId": "phase86-chat-model",
+    "feedbackText": "已经记住默认选择Provider 已识别：generic-openai-compatible模型已选择：phase86-chat-model已添加到当前服务：前一步已经完成运行时添加或使用现有服务配置。/chat 探测已通过：当前模型已经返回成功响应。当前聊天可用状态：已通过 /chat 探测，可以直接继续聊天。已记住默认选择：generic-openai-compatible / phase86-chat-model刷新这个浏览器页面后会自动恢复这个模型选择。API Key 安全：不会写入浏览器、聊天记录、日志或 evidence。API Key 未保存到浏览器；浏览器只保存 provider/model 选择。继续聊天",
+    "composerModelGuideText": "配置已生效：provider/model 已通过 /chat 探测，可以直接发送。API Key 不会保存在浏览器。"
+  },
+  "safety": {
+    "localMockProviderOnly": true,
+    "realProviderCalls": false,
+    "apiKeyValueRecorded": false,
+    "apiKeyPersistedInEvidence": false,
+    "defaultChatMainLaneChanged": false
+  },
+  "conclusion": "web-chat-model-config-usability-status-clear"
+}

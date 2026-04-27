@@ -1,0 +1,60 @@
+{
+  "phase": "phase-102a-agent-workforce-skeleton",
+  "status": "passed",
+  "generatedAt": "2026-04-26T13:31:21.408Z",
+  "service": {
+    "url": "http://127.0.0.1:60201",
+    "healthHttpStatus": 200,
+    "routePresence": {
+      "chat": true,
+      "knowledgeHealth": true,
+      "modelImportPreview": true,
+      "workforceHealth": true,
+      "workforceAgents": true,
+      "workforcePlan": true
+    }
+  },
+  "workforce": {
+    "healthHttpStatus": 200,
+    "agentsHttpStatus": 200,
+    "planHttpStatus": 200,
+    "status": "ready",
+    "roleCount": 7,
+    "workforceId": "wf_19165f4ded86",
+    "goal": "构建一个全球发布级 AI 模型管理系统",
+    "selectedRoleCount": 7,
+    "taskCount": 7,
+    "assignmentCount": 7,
+    "deliverableCount": 6,
+    "acceptanceCriteriaCount": 4,
+    "riskCount": 3,
+    "nextActionCount": 4
+  },
+  "sdk": {
+    "healthStatus": "ready",
+    "agentCount": 7,
+    "planWorkforceId": "wf_19165f4ded86",
+    "sdkPlanMatchesHttpPlan": true
+  },
+  "ui": {
+    "httpStatus": 200,
+    "panelPresent": true,
+    "buttonPresent": true,
+    "routeWired": true
+  },
+  "adjacentCapabilities": {
+    "knowledgeHealthHttpStatus": 200,
+    "modelImportProvidersHttpStatus": 200
+  },
+  "safety": {
+    "realLlmCalls": false,
+    "codeExecution": false,
+    "projectFileWrites": false,
+    "workflowRun": false,
+    "defaultChatLaneMutated": false,
+    "providerRegistryMutated": false,
+    "secretValuesRecorded": false
+  },
+  "error": null,
+  "conclusion": "agent-workforce-skeleton-connected"
+}

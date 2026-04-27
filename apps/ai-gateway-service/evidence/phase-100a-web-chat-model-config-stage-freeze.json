@@ -1,0 +1,90 @@
+{
+  "phase": "phase-100a-web-chat-model-config-stage-freeze",
+  "status": "passed",
+  "generatedAt": "2026-04-26T12:13:24.505Z",
+  "delegatedChecks": {
+    "providerModelImport": {
+      "phase": "phase-8a-model-import",
+      "status": "passed",
+      "conclusion": "model-import-provider-models-api-flow-connected",
+      "realProviderCalls": false,
+      "defaultChatMainLaneChanged": false,
+      "secretLeakageDetected": false,
+      "modelsComeFromProviderModelsApi": true,
+      "globalProviderHintProbeCoverage": true,
+      "ambiguousMultiProviderRequiresUserSelection": true,
+      "unknownKeyRequiresProviderSelection": true,
+      "localUserModelPersistsAcrossRestart": true
+    },
+    "explicitModelListProbe": {
+      "phase": "phase-76s-web-chat-model-list-probe",
+      "status": "passed",
+      "conclusion": "model-list-prefix-probe-connected",
+      "realProviderCalls": false,
+      "defaultChatMainLaneChanged": false,
+      "secretLeakageDetected": false,
+      "explicitProbeEnabledOnlyByRequest": true,
+      "plainSkDoesNotDefaultToOpenAi": true,
+      "dashscopeRecommendedAfterModelsApi": true,
+      "safeModeDoesNotProbeAmbiguousSk": true
+    },
+    "modelConfigAggregate": {
+      "phase": "phase-97a-web-chat-model-config-aggregate",
+      "status": "passed",
+      "conclusion": "web-chat-model-config-chain-validated",
+      "realProviderCalls": false,
+      "defaultChatMainLaneChanged": false,
+      "secretLeakageDetected": false,
+      "chainValidated": true,
+      "successPathPassed": true,
+      "repairContinuePassed": true,
+      "repairVisualPolishPassed": true,
+      "readyFirstMessagePassed": true
+    },
+    "visualFinal": {
+      "phase": "phase-99a-web-chat-model-config-visual-final",
+      "status": "passed",
+      "conclusion": "web-chat-model-config-visual-final-passed",
+      "realProviderCalls": false,
+      "defaultChatMainLaneChanged": false,
+      "secretLeakageDetected": false,
+      "visualFinalPassed": true,
+      "screenshotValid": true,
+      "composerPromptReadable": true,
+      "wizardReadable": true,
+      "successReadable": true,
+      "readyToChatReadable": true
+    }
+  },
+  "chainChecks": {
+    "allDelegatesPassed": true,
+    "modelsFromProviderApis": true,
+    "ambiguousKeysDoNotAutoPickOpenAi": true,
+    "explicitDeepProbeWorks": true,
+    "modelConfigRegressionPassed": true,
+    "visualJourneyPassed": true,
+    "noRealProviderCalls": true,
+    "noSecretLeakage": true,
+    "defaultChatLaneUnchanged": true
+  },
+  "frozenScope": {
+    "modelImportPreviewAndConfirm": true,
+    "boundedProviderModelsApiProbe": true,
+    "modelConfigSuccessAndRepairRegression": true,
+    "readyToChatAndFirstMessageRegression": true,
+    "finalVisualUserJourneyCheck": true,
+    "defaultChatMainLaneChanged": false,
+    "multiProviderRoutingEnabled": false,
+    "fallbackExecutionEnabled": false
+  },
+  "safety": {
+    "browserInteraction": true,
+    "localMockProviderOnly": true,
+    "realProviderCalls": false,
+    "apiKeyValueRecorded": false,
+    "secretLeakageDetected": false,
+    "defaultChatMainLaneChanged": false,
+    "backendBusinessRouteAdded": false
+  },
+  "conclusion": "web-chat-model-config-stage-freeze-passed"
+}

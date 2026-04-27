@@ -1,0 +1,71 @@
+{
+  "phase": "phase-106a-delivery-readiness",
+  "status": "passed",
+  "generatedAt": "2026-04-26T14:38:24.126Z",
+  "serviceUrl": "http://127.0.0.1:49201",
+  "checks": {
+    "uiHttpOk": true,
+    "uiUserJourneyStillPresent": true,
+    "setupReadinessOk": true,
+    "modelImportFailureGuidance": true,
+    "readmeZeroStartGuide": true,
+    "envExamplePresent": true,
+    "envExampleNoRealSecrets": true,
+    "agentsBoundaryPresent": true,
+    "scriptsPresent": true,
+    "noPlainSecretInEvidence": true
+  },
+  "setup": {
+    "status": "ready",
+    "readinessKeys": [
+      "health",
+      "modelImport",
+      "chat",
+      "knowledge",
+      "workforce"
+    ],
+    "chatReady": true,
+    "modelImportReady": true,
+    "knowledgeReady": true,
+    "workforceReady": true
+  },
+  "modelImport": {
+    "unknownStatus": "needs_provider_selection",
+    "unknownReason": "api_key_prefix_unknown_choose_provider_or_base_url",
+    "userGuidancePresent": true
+  },
+  "envExample": {
+    "present": true,
+    "keyCount": 17,
+    "keys": [
+      "NVIDIA_API_KEY",
+      "NVIDIA_MODEL",
+      "NVIDIA_BASE_URL",
+      "OPENAI_API_KEY",
+      "GEMINI_API_KEY",
+      "OPENAI_COMPATIBLE_BASE_URL",
+      "AI_GATEWAY_PROVIDER_MODE",
+      "AI_GATEWAY_REAL_PROVIDER_ENABLED",
+      "AI_GATEWAY_ROUTE_MODE",
+      "AI_GATEWAY_DEFAULT_PROVIDER",
+      "AI_GATEWAY_ENABLED_PROVIDERS",
+      "AI_GATEWAY_SERVICE_HOST",
+      "AI_GATEWAY_SERVICE_PORT",
+      "AI_GATEWAY_SERVICE_URL",
+      "AI_GATEWAY_REQUEST_TIMEOUT_MS",
+      "AI_GATEWAY_CONSOLE_TIMEOUT_MS",
+      "AI_GATEWAY_CONSOLE_STREAM"
+    ],
+    "likelySecretPresent": false
+  },
+  "safety": {
+    "plaintextApiKeyRecorded": false,
+    "realProviderCalled": false,
+    "defaultChatMainLaneChanged": false,
+    "realFallbackExecution": false,
+    "realAgentExecution": false,
+    "projectFileWrites": false,
+    "globalReleaseClaimed": false
+  },
+  "conclusion": "delivery-readiness-ready"
+}

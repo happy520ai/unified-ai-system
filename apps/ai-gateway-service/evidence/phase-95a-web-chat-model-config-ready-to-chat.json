@@ -1,0 +1,107 @@
+{
+  "phase": "phase-95a-web-chat-model-config-ready-to-chat",
+  "status": "passed",
+  "generatedAt": "2026-04-26T12:13:12.365Z",
+  "browserPath": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+  "serviceUrl": "http://127.0.0.1:57874",
+  "ui": {
+    "url": "http://127.0.0.1:57874/ui?showFakeProviders=1",
+    "readyState": {
+      "providerSelectValue": "generic-openai-compatible::phase95-chat-model",
+      "modelProbeStatus": "passed",
+      "modelReady": "true",
+      "focusReturnedToChatInput": true,
+      "inputPlaceholder": "模型已就绪，直接输入问题。",
+      "composerGuidanceKind": "model-ready-nudge",
+      "composerGuidanceText": "已经能聊。直接输入问题，或拖文件进来。",
+      "sessionStatusText": "模型已就绪。",
+      "sendButtonDisabled": true,
+      "secretInputCleared": true,
+      "pageTextContainsSecret": false,
+      "localStorageContainsSecret": false,
+      "fetches": [
+        {
+          "path": "/providers"
+        },
+        {
+          "path": "/providers"
+        },
+        {
+          "path": "/config/runtime"
+        },
+        {
+          "path": "/models/import/preview",
+          "providerHint": "openai-compatible",
+          "baseUrl": "http://127.0.0.1:57870/v1",
+          "hasApiKey": true,
+          "apiKeyRedacted": "***"
+        },
+        {
+          "path": "/models/import/preview",
+          "providerHint": "openai-compatible",
+          "baseUrl": "http://127.0.0.1:57870/v1",
+          "hasApiKey": true,
+          "apiKeyRedacted": "***"
+        },
+        {
+          "path": "/models/import/confirm",
+          "providerId": "openai-compatible",
+          "modelId": "phase95-chat-model",
+          "hasApiKeyRef": true
+        },
+        {
+          "path": "/chat",
+          "providerId": "generic-openai-compatible",
+          "model": "phase95-chat-model",
+          "promptPresent": true
+        }
+      ]
+    }
+  },
+  "mockProvider": {
+    "requestCount": 3,
+    "requests": [
+      {
+        "method": "GET",
+        "url": "/v1/models",
+        "hasAuthorization": true,
+        "authorizationRedacted": "Bearer ***",
+        "model": "",
+        "stream": false
+      },
+      {
+        "method": "GET",
+        "url": "/v1/models",
+        "hasAuthorization": true,
+        "authorizationRedacted": "Bearer ***",
+        "model": "",
+        "stream": false
+      },
+      {
+        "method": "POST",
+        "url": "/v1/chat/completions",
+        "hasAuthorization": true,
+        "authorizationRedacted": "Bearer ***",
+        "model": "phase95-chat-model",
+        "stream": false
+      }
+    ]
+  },
+  "screenshot": {
+    "path": "apps/ai-gateway-service/evidence/phase-95a-web-chat-model-config-ready-to-chat.png",
+    "bytes": 117675,
+    "width": 1424,
+    "height": 1105,
+    "validPng": true
+  },
+  "safety": {
+    "browserInteraction": true,
+    "localMockProviderOnly": true,
+    "realProviderCalls": false,
+    "apiKeyValueRecorded": false,
+    "apiKeyPersistedInBrowser": false,
+    "apiKeyPersistedInEvidence": false,
+    "defaultChatMainLaneChanged": false
+  },
+  "conclusion": "web-chat-model-config-ready-to-chat-actionable"
+}

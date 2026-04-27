@@ -1,0 +1,26 @@
+{
+  "phase": "phase-36a-enterprise-audit-export",
+  "status": "passed",
+  "generatedAt": "2026-04-26T05:00:58.789Z",
+  "serviceUrl": "http://127.0.0.1:60578",
+  "auditLogPath": "C:\\Users\\Administrator\\AppData\\Local\\Temp\\phase36a-audit-YQWpgf\\enterprise-audit.jsonl",
+  "enterprise": {
+    "uiHttpStatus": 200,
+    "uiAuditExportPresent": true,
+    "adminDashboardStatus": 200,
+    "viewerDeniedWriteStatus": 403,
+    "filteredDeniedStatus": 200,
+    "filteredDeniedTotalMatched": 1,
+    "filteredViewerStatus": 200,
+    "filteredViewerTotalMatched": 1,
+    "jsonExportStatus": 200,
+    "jsonExportFormat": "json",
+    "jsonExportEntryCount": 5,
+    "jsonlExportStatus": 200,
+    "jsonlExportFormat": "jsonl",
+    "jsonlExportEntryCount": 1,
+    "jsonlExportHasDeniedCode": true
+  },
+  "error": null,
+  "conclusion": "enterprise-audit-export-connected"
+}

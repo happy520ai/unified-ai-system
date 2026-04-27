@@ -1,0 +1,31 @@
+# Phase 64A Web Chat Keyboard Interaction Evidence
+
+- Phase: phase-64a-web-chat-keyboard-interaction
+- Status: passed
+- Generated at: 2026-04-25T18:34:55.406Z
+- Service URL: http://127.0.0.1:54559
+- Enter prompt: phase64a enter sends prompt
+- Shift+Enter prompt: phase64a shift enter line one\nphase64a shift enter line two
+- After Enter user text: phase64a enter sends prompt
+- After Enter assistant text: phase64a keyboard answer #1
+- After Enter active element: chat-input
+- After Shift+Enter user text: phase64a shift enter line one
+phase64a shift enter line two
+- After Shift+Enter assistant text: phase64a keyboard answer #2
+- After Shift+Enter active element: chat-input
+- RAG stream request count: 2
+- Screenshot path: apps/ai-gateway-service/evidence/phase-64a-web-chat-keyboard-interaction.png
+- Screenshot bytes: 129817
+- Screenshot dimensions: 1424x1105
+- Valid PNG: true
+- Browser interaction: true
+- Simulated stream only: true
+- Keyboard interaction only: true
+- Fake provider only: true
+- Default chat main lane changed: false
+- Backend business route added: false
+- Provider calls: false
+- Runtime mutation: false
+- Release automation: false
+- Infrastructure provisioning: false
+- Conclusion: web-chat-keyboard-interaction-connected

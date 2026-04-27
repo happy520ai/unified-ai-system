@@ -1,0 +1,38 @@
+# Phase 72A Web Chat Composer Polish Evidence
+
+- Phase: phase-72a-web-chat-composer-polish
+- Status: passed
+- Generated at: 2026-04-25T18:35:31.506Z
+- Service URL: http://127.0.0.1:55014
+- Prompt: phase72a composer polished prompt
+- Initial send disabled: true
+- Shortcut hint includes Enter: true
+- Shortcut hint includes Shift: true
+- Short input send disabled: false
+- Short input height: 28
+- Multiline input height: 180
+- Shift+Enter RAG stream count: 0
+- Accelerator send RAG stream count: 1
+- After send input value length: 0
+- After send active element: chat-input
+- Screenshot path: apps/ai-gateway-service/evidence/phase-72a-web-chat-composer-polish.png
+- Screenshot bytes: 116921
+- Screenshot dimensions: 1424x1105
+- Valid PNG: true
+- Browser interaction: true
+- Simulated stream only: true
+- Composer behavior only: true
+- Auto resize: true
+- Empty send disabled: true
+- Shortcut hint present: true
+- Shift+Enter does not send: true
+- Accelerator Enter sends: true
+- Focus restored after send: true
+- Fake provider only: true
+- Default chat main lane changed: false
+- Backend business route added: false
+- Provider calls: false
+- Runtime mutation: false
+- Release automation: false
+- Infrastructure provisioning: false
+- Conclusion: web-chat-composer-polish-connected

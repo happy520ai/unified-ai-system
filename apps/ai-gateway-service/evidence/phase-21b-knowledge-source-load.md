@@ -1,0 +1,23 @@
+# Phase 21B Knowledge Source Load Evidence
+
+- Phase: phase-21b-knowledge-source-load
+- Status: passed
+- Generated at: 2026-04-26T04:56:55.343Z
+- Service URL: http://127.0.0.1:62182
+- Knowledge mode: local-keyword
+- Storage: in-memory
+- Embedding: not-configured
+- Documents before load: 4
+- Documents after load: 5
+- Loaded source ID: phase-21b-local-source
+- Loaded document ID: phase-21b-local-document
+- Load HTTP status: 200
+- Loaded count: 1
+- Source present: true
+- Source document count: 1
+- Retrieve HTTP status: 200
+- Retrieve mode: keyword
+- Retrieved chunks: 1
+- Top chunk document: phase-21b-local-document
+- Marker matched: true
+- Conclusion: local-knowledge-source-load-connected

@@ -1,0 +1,64 @@
+{
+  "phase": "phase-76m-web-chat-citation-insight",
+  "status": "passed",
+  "generatedAt": "2026-04-25T12:28:50.119Z",
+  "browserPath": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+  "serviceUrl": "http://127.0.0.1:54390",
+  "ui": {
+    "url": "http://127.0.0.1:54390/ui",
+    "prompt": "phase76m citation insight prompt",
+    "afterAnswer": {
+      "latestAssistantText": "phase76m answer proves citation insight cards are readable",
+      "citationHeading": "知识命中 / 引用 1 条",
+      "firstSummary": "资料 1 · Phase 76M Citation Source",
+      "scorePill": "分数 0.9321",
+      "termPills": [
+        "phase76m",
+        "citation",
+        "scoring"
+      ],
+      "allPills": [
+        "分数 0.9321",
+        "phase76m",
+        "citation",
+        "scoring",
+        "exact: 2 / phrase: true / fieldWeight: title+body"
+      ],
+      "metaText": "sourceIdphase76m-sourcedocumentIdphase76m-docfilephase76m-citation.mdnamespaceui",
+      "snippetText": "The phase76m-citation-insight-marker explains why citation scoring, matched terms, and highlighted snippets make knowledge hits easier to trust.",
+      "highlightCount": 4,
+      "copySingleButtonCount": 1,
+      "fetches": [
+        "/chat/rag/stream"
+      ],
+      "fetchStatuses": [
+        {
+          "path": "/chat/rag/stream",
+          "status": 200,
+          "ok": true,
+          "simulated": true
+        }
+      ]
+    }
+  },
+  "screenshot": {
+    "path": "apps/ai-gateway-service/evidence/phase-76m-web-chat-citation-insight.png",
+    "bytes": 127314,
+    "width": 1424,
+    "height": 1105,
+    "validPng": true
+  },
+  "safety": {
+    "browserInteraction": true,
+    "simulatedStreamOnly": true,
+    "citationInsightOnly": true,
+    "fakeProviderOnly": true,
+    "defaultChatMainLaneChanged": false,
+    "backendBusinessRouteAdded": false,
+    "providerCalls": false,
+    "runtimeMutation": false,
+    "releaseAutomation": false,
+    "infrastructureProvisioning": false
+  },
+  "conclusion": "web-chat-citation-insight-connected"
+}

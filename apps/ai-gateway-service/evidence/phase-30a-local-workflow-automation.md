@@ -1,0 +1,30 @@
+# Phase 30A Local Workflow Automation Evidence
+
+- Phase: phase-30a-local-workflow-automation
+- Status: passed
+- Generated at: 2026-04-26T04:56:56.174Z
+- Service URL: http://127.0.0.1:62334
+- Health status: ok
+- Workflow health route present: true
+- Workflow run route present: true
+- UI URL: http://127.0.0.1:62334/ui
+- UI HTTP status: 200
+- Workflow panel present: true
+- Workflow run present: true
+- Workflow mode: local-safe
+- Output directory: C:/Users/Administrator/AppData/Local/Temp/phase30a-workflow-lfWeYM
+- Arbitrary command execution: false
+- Broad file system scan: false
+- Action count: 3
+- Planned step count: 3
+- Run status: completed
+- Artifact path: C:/Users/Administrator/AppData/Local/Temp/phase30a-workflow-lfWeYM/phase-30a-workflow-report.md
+- Artifact bytes: 1554
+- Artifact marker present: true
+- Artifact safety text present: true
+- Loaded source ID: phase-30a-workflow-source
+- Loaded count: 1
+- Knowledge retrieved: true
+- Knowledge chunk count: 1
+- Top hit document: phase-30a-workflow-document
+- Conclusion: local-workflow-automation-connected

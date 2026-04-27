@@ -1,0 +1,21 @@
+# Phase 92A Web Chat Model Config Repair Loop Evidence
+
+- Phase: phase-92a-web-chat-model-config-repair-loop
+- Status: passed
+- Generated at: 2026-04-26T10:48:50.010Z
+- Service URL: http://127.0.0.1:50815
+- Recovery mode: restore-recovery
+- Select value: generic-openai-compatible::phase92-restored-model
+- Provider hint: openai-compatible
+- Manual model ID: phase92-restored-model
+- Base URL prefilled: yes
+- Primary action: 重新检测模型
+- Probe after repair: passed
+- Recovery required after repair: false
+- Fetches: /providers, /chat/stream, /chat, /providers, /config/runtime, /models/import/preview, /providers/runtime-credential, /chat
+- Screenshot path: apps/ai-gateway-service/evidence/phase-92a-web-chat-model-config-repair-loop.png
+- Screenshot bytes: 152264
+- Valid PNG: true
+- Real provider calls: false
+- Default chat main lane changed: false
+- Conclusion: web-chat-model-config-repair-loop-actionable

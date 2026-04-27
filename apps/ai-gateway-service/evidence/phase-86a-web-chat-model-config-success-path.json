@@ -1,0 +1,140 @@
+{
+  "phase": "phase-86a-web-chat-model-config-success-path",
+  "status": "passed",
+  "generatedAt": "2026-04-26T12:12:57.121Z",
+  "browserPath": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+  "serviceUrl": "http://127.0.0.1:55187",
+  "ui": {
+    "url": "http://127.0.0.1:55187/ui?showFakeProviders=1",
+    "mockProviderBaseUrl": "http://127.0.0.1:55183/v1",
+    "finalState": {
+      "providerSelectValue": "generic-openai-compatible::phase86-chat-model",
+      "commandSelectValue": "generic-openai-compatible::phase86-chat-model",
+      "composerModelStatus": "\n              \n                模型：generic-openai-compatible / phase86-chat-model\n                检测通过\n                已记住\n              \n              配置模型\n              已经能聊。Key 不会保存在浏览器。\n            ",
+      "composerModelStatusState": "passed",
+      "composerModelReady": "true",
+      "composerModelProviderId": "generic-openai-compatible",
+      "composerModelId": "phase86-chat-model",
+      "composerModelGuideText": "已经能聊。Key 不会保存在浏览器。",
+      "feedbackText": "已设为默认Provider 已识别：generic-openai-compatible模型已选择：phase86-chat-model聊天可用状态：已通过，可以继续聊。默认模型：generic-openai-compatible / phase86-chat-model刷新这个浏览器页面后会自动恢复这个模型选择。Key 不写入浏览器、聊天记录、日志或 evidence。继续聊天",
+      "runtimeCredentialPresent": true,
+      "runtimeModelIds": [
+        "custom-chat-model",
+        "phase86-chat-model"
+      ],
+      "preferenceValue": "generic-openai-compatible::phase86-chat-model",
+      "preferenceProviderId": "generic-openai-compatible",
+      "preferenceModelId": "phase86-chat-model",
+      "focusReturnedToChatInput": true,
+      "secretInputCleared": true,
+      "localStorageContainsSecret": false,
+      "pageTextContainsSecret": false,
+      "previewFetch": {
+        "path": "/models/import/preview",
+        "providerHint": "openai-compatible",
+        "baseUrl": "http://127.0.0.1:55183/v1",
+        "hasApiKey": true,
+        "apiKeyRedacted": "***"
+      },
+      "confirmFetch": {
+        "path": "/models/import/confirm",
+        "providerId": "openai-compatible",
+        "modelId": "phase86-chat-model",
+        "hasApiKeyRef": true
+      },
+      "chatFetch": {
+        "path": "/chat",
+        "providerId": "generic-openai-compatible",
+        "model": "phase86-chat-model",
+        "promptPresent": true
+      },
+      "fetches": [
+        {
+          "path": "/providers"
+        },
+        {
+          "path": "/providers"
+        },
+        {
+          "path": "/config/runtime"
+        },
+        {
+          "path": "/models/import/preview",
+          "providerHint": "openai-compatible",
+          "baseUrl": "http://127.0.0.1:55183/v1",
+          "hasApiKey": true,
+          "apiKeyRedacted": "***"
+        },
+        {
+          "path": "/models/import/preview",
+          "providerHint": "openai-compatible",
+          "baseUrl": "http://127.0.0.1:55183/v1",
+          "hasApiKey": true,
+          "apiKeyRedacted": "***"
+        },
+        {
+          "path": "/models/import/confirm",
+          "providerId": "openai-compatible",
+          "modelId": "phase86-chat-model",
+          "hasApiKeyRef": true
+        },
+        {
+          "path": "/chat",
+          "providerId": "generic-openai-compatible",
+          "model": "phase86-chat-model",
+          "promptPresent": true
+        },
+        {
+          "path": "/providers"
+        }
+      ]
+    }
+  },
+  "mockProvider": {
+    "requestCount": 3,
+    "requests": [
+      {
+        "method": "GET",
+        "url": "/v1/models",
+        "hasAuthorization": true,
+        "authorizationRedacted": "Bearer ***",
+        "model": "",
+        "stream": false
+      },
+      {
+        "method": "GET",
+        "url": "/v1/models",
+        "hasAuthorization": true,
+        "authorizationRedacted": "Bearer ***",
+        "model": "",
+        "stream": false
+      },
+      {
+        "method": "POST",
+        "url": "/v1/chat/completions",
+        "hasAuthorization": true,
+        "authorizationRedacted": "Bearer ***",
+        "model": "phase86-chat-model",
+        "stream": false
+      }
+    ]
+  },
+  "screenshot": {
+    "path": "apps/ai-gateway-service/evidence/phase-86a-web-chat-model-config-success-path.png",
+    "bytes": 117855,
+    "width": 1424,
+    "height": 1105,
+    "validPng": true
+  },
+  "safety": {
+    "browserInteraction": true,
+    "localMockProviderOnly": true,
+    "realProviderCalls": false,
+    "apiKeyValueRecorded": false,
+    "apiKeyPersistedInBrowser": false,
+    "apiKeyPersistedInEvidence": false,
+    "runtimeCredentialStoreMode": "memory",
+    "defaultChatMainLaneChanged": false
+  },
+  "conclusion": "web-chat-model-config-success-path-connected"
+}

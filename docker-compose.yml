@@ -1,0 +1,12 @@
+services:
+  ai-gateway-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    environment:
+      AI_GATEWAY_SERVICE_HOST: 0.0.0.0
+      AI_GATEWAY_SERVICE_PORT: 3100
+    ports:
+      - "3100:3100"

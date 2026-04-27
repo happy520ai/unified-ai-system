@@ -1,0 +1,43 @@
+{
+  "phase": "phase-44a-enterprise-acceptance-ui",
+  "status": "passed",
+  "generatedAt": "2026-04-26T05:01:13.482Z",
+  "serviceUrl": "http://127.0.0.1:63631",
+  "ui": {
+    "httpStatus": 200,
+    "panelPresent": true,
+    "reportRoutePresent": true,
+    "titlePresent": true
+  },
+  "route": {
+    "path": "/enterprise/acceptance/report",
+    "missingAuthHttpStatus": 401,
+    "authorizedHttpStatus": 200,
+    "mode": "read-only-existing-artifacts",
+    "reportPath": "docs/ENTERPRISE_ACCEPTANCE_REPORT.md",
+    "reportMarkdownPresent": true
+  },
+  "acceptance": {
+    "sourcePhase": "phase-43a-enterprise-acceptance-report",
+    "sourceStatus": "passed",
+    "sourceConclusion": "enterprise-acceptance-report-ready",
+    "requiredCount": 25,
+    "passedCount": 25,
+    "missingCount": 0,
+    "failedCount": 0,
+    "commandStatus": "passed",
+    "boundaryStatus": "passed",
+    "docsPresentCount": 7
+  },
+  "safety": {
+    "readOnlyRoute": true,
+    "providerCalls": false,
+    "releaseAutomation": false,
+    "infrastructureProvisioning": false,
+    "secretValuesRecorded": false,
+    "responseContainsAuditorToken": false,
+    "responseContainsNvidiaKey": false
+  },
+  "error": null,
+  "conclusion": "enterprise-acceptance-ui-connected"
+}

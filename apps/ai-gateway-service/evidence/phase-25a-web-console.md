@@ -1,0 +1,44 @@
+# Phase 25A Web Console Evidence
+
+- Phase: phase-25a-web-console
+- Status: passed
+- Generated at: 2026-04-25T01:59:36.410Z
+- UI URL: http://127.0.0.1:57924/ui
+- UI HTTP status: 200
+- Console alias HTTP status: 200
+- Content type: text/html; charset=utf-8
+- Title present: true
+- Boundary present: true
+- Command hints present: true
+- File import present: true
+- Document parser hints present: true
+- Service health HTTP status: 200
+- Service health status: ready
+- Knowledge health HTTP status: 200
+- Knowledge mode: local-keyword
+- Storage: in-memory
+- Embedding: not-configured
+- Loaded source ID: phase-25a-ui-source
+- Loaded document ID: phase-25a-ui-document
+- Loaded count: 1
+- File parser source ID: phase-25a-file-parser-source
+- File parser loaded count: 4
+- File parser skipped: 0
+- Source present: true
+- Source document count: 1
+- File source present: true
+- File source document count: 4
+- Retrieve HTTP status: 200
+- Retrieve mode: keyword
+- Top hit document: phase-25a-ui-document
+- Snippet present: true
+- Highlight count: 8
+- Matched terms: phase25a, ui, console, vector, readiness, snippet, scorebreakdown, metadata
+- File retrieve HTTP status: 200
+- File top hit document: phase25a-parser-sheet.xlsx
+- File top hit parser: xlsx
+- Vector readiness HTTP status: 200
+- Vector readiness mode: local-keyword
+- Vector readiness status: disabled
+- Vector enabled: false
+- Conclusion: web-console-operation-surface-connected

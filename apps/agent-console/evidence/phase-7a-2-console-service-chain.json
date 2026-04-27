@@ -1,0 +1,50 @@
+{
+  "phase": "phase-7a-2-console-service-chain",
+  "status": "passed",
+  "generatedAt": "2026-04-22T15:25:23.573Z",
+  "nvidiaApiKeyPresent": true,
+  "nvidiaModel": "meta/llama-3.1-8b-instruct",
+  "service": {
+    "url": "http://127.0.0.1:63024",
+    "healthStatus": "ready",
+    "phase": "phase-7a-1-service-entry",
+    "providerMode": "real",
+    "realProviderEnabled": true,
+    "providers": [
+      "nvidia"
+    ],
+    "routes": [
+      "GET /health/check",
+      "GET /providers",
+      "GET /config/runtime",
+      "GET /route/modes",
+      "POST /chat",
+      "POST /chat/stream",
+      "POST /route"
+    ]
+  },
+  "console": {
+    "exitCode": 0,
+    "signal": null,
+    "status": "completed",
+    "gatewayServiceUrl": "http://127.0.0.1:63024",
+    "stderrPreview": ""
+  },
+  "route": {
+    "requestId": "agent-console-phase-7a-2-service-chain",
+    "selectedProvider": "nvidia",
+    "selectedModel": "meta/llama-3.1-8b-instruct",
+    "executionMode": "real",
+    "executionStatus": "success",
+    "outputTextPresent": true,
+    "outputTextPreview": "The Phase 7A-2 console to service verification is complete.",
+    "warnings": [
+      {
+        "code": "provider_preference_applied",
+        "message": "Provider selection used explicit request or fixed default preference."
+      }
+    ]
+  },
+  "error": null,
+  "conclusion": "agent-console-to-ai-gateway-service-connected"
+}

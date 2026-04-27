@@ -1,0 +1,60 @@
+{
+  "phase": "phase-94a-web-chat-model-config-repair-visual-polish",
+  "status": "passed",
+  "generatedAt": "2026-04-26T12:13:07.366Z",
+  "browserPath": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+  "serviceUrl": "http://127.0.0.1:56946",
+  "ui": {
+    "url": "http://127.0.0.1:56946/ui?showFakeProviders=1",
+    "visualState": {
+      "modelProbeStatus": "passed",
+      "modelRecoveryRequired": "false",
+      "feedbackCompact": "compact",
+      "visibleParagraphCount": 4,
+      "visibleParagraphs": [
+        "当前聊天可用：可以直接继续提问，不需要再去别的面板操作。",
+        "Provider 已识别：generic-openai-compatible",
+        "模型已选择：phase94-restored-model",
+        "/chat 探测已通过：当前模型已经返回成功响应。"
+      ],
+      "detailsPresent": true,
+      "detailsOpen": false,
+      "detailsSummary": "查看检测细节",
+      "actions": [
+        "continue-last-failed-prompt",
+        "persist-detected-model",
+        "continue-chat-after-model-check"
+      ],
+      "firstAction": "continue-last-failed-prompt",
+      "primaryAction": "continue-last-failed-prompt",
+      "feedbackTextIncludesProvider": true,
+      "feedbackTextIncludesSafety": true,
+      "pageTextContainsSecret": false,
+      "localStorageContainsSecret": false,
+      "fetches": [
+        "/providers",
+        "/chat/rag/stream",
+        "/chat/rag",
+        "/providers",
+        "/config/runtime",
+        "/chat"
+      ]
+    }
+  },
+  "screenshot": {
+    "path": "apps/ai-gateway-service/evidence/phase-94a-web-chat-model-config-repair-visual-polish.png",
+    "bytes": 139582,
+    "width": 1424,
+    "height": 1105,
+    "validPng": true
+  },
+  "safety": {
+    "browserInteraction": true,
+    "simulatedProviderFailureRepairOnly": true,
+    "realProviderCalls": false,
+    "apiKeyValueRecorded": false,
+    "defaultChatMainLaneChanged": false,
+    "backendBusinessRouteAdded": false
+  },
+  "conclusion": "web-chat-model-config-repair-visual-polish-actionable"
+}

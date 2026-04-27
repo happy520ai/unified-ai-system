@@ -1,0 +1,50 @@
+{
+  "phase": "phase-104a-first-run-setup",
+  "status": "passed",
+  "generatedAt": "2026-04-26T14:31:33.886Z",
+  "serviceUrl": "http://127.0.0.1:51634",
+  "checks": {
+    "setupHttpOk": true,
+    "setupSdkOk": true,
+    "setupPhase": true,
+    "setupStatusReady": true,
+    "setupStepCount": true,
+    "setupAreasPresent": true,
+    "setupSafetyNoSecrets": true,
+    "uiMarkerPresent": true,
+    "uiFirstRunCopyPresent": true,
+    "modelImportUnknownGuidance": true,
+    "scriptsPresent": true,
+    "docsPresent": true,
+    "noPlainSecretInEvidence": true
+  },
+  "setup": {
+    "status": "ready",
+    "stepCount": 6,
+    "readinessKeys": [
+      "health",
+      "modelImport",
+      "chat",
+      "knowledge",
+      "workforce"
+    ],
+    "healthReady": true,
+    "modelImportReady": true,
+    "chatReady": true,
+    "knowledgeReady": true,
+    "workforceReady": true
+  },
+  "modelImport": {
+    "unknownStatus": "needs_provider_selection",
+    "unknownReason": "api_key_prefix_unknown_choose_provider_or_base_url",
+    "userGuidancePresent": true
+  },
+  "safety": {
+    "plaintextApiKeyRecorded": false,
+    "defaultChatMainLaneChanged": false,
+    "realProviderCalled": false,
+    "workforceExecution": false,
+    "projectFileWrites": false
+  },
+  "conclusion": "first-run-setup-ready"
+}

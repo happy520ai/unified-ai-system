@@ -1,0 +1,53 @@
+{
+  "phase": "phase-114a-user-manual-release-pack",
+  "status": "passed",
+  "generatedAt": "2026-04-27T10:51:28.870Z",
+  "checks": {
+    "rootScriptPresent": true,
+    "serviceScriptPresent": true,
+    "readmePhasePresent": true,
+    "agentsBoundaryPresent": true,
+    "manualComplete": true,
+    "dockerRuntimeStatusDocumented": true,
+    "noPlainSecrets": true,
+    "projectContextNotCreated": true
+  },
+  "manualChecks": {
+    "zeroStart": true,
+    "envConfig": true,
+    "setupWizard": true,
+    "modelImport": true,
+    "chat": true,
+    "knowledgeRag": true,
+    "workforce": true,
+    "saveExport": true,
+    "blockedAndLimits": true,
+    "verification": true
+  },
+  "releasePack": {
+    "userManual": "docs/USER_MANUAL.md",
+    "localPnpmPathDocumented": true,
+    "setupWizardDocumented": true,
+    "modelImportDocumented": true,
+    "chatDocumented": true,
+    "knowledgeRagDocumented": true,
+    "agentWorkforcePreviewDocumented": true,
+    "saveExportDocumented": true,
+    "knownLimitsDocumented": true
+  },
+  "safety": {
+    "dockerRuntimePassed": true,
+    "dockerRuntimeFaked": false,
+    "minimalCicdGateCreatedLaterByPhase117A": true,
+    "deploymentOrReleaseAutomationCreated": false,
+    "cloudDeploymentComplete": false,
+    "releaseAutomationComplete": false,
+    "globalReleaseComplete": false,
+    "realAgentExecutionEnabled": false,
+    "plaintextApiKeyRecorded": false,
+    "legacyModified": false,
+    "projectContextCreated": false
+  },
+  "secretFindingCount": 0,
+  "conclusion": "user-manual-release-pack-closed"
+}

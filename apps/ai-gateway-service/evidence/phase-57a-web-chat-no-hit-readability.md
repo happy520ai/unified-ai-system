@@ -1,0 +1,32 @@
+# Phase 57A Web Chat No-Hit Readability Evidence
+
+- Phase: phase-57a-web-chat-no-hit-readability
+- Status: passed
+- Generated at: 2026-04-25T07:03:09.872Z
+- Service URL: http://127.0.0.1:52308
+- Prompt: 请根据本地知识库回答 phase57a-no-hit-rare-token-zxqv-918273 是什么。
+- Rare token: phase57a-no-hit-rare-token-zxqv-918273
+- Fetches: /chat/rag/stream
+- Fetch statuses: [{"path":"/chat/rag/stream","status":200,"ok":true}]
+- Assistant text present: true
+- Assistant includes fake provider: true
+- Rare token present: true
+- No-hit text present: true
+- Insufficient-data text present: true
+- No-fabrication text present: true
+- Error class present: false
+- Message count: 3
+- Screenshot path: apps/ai-gateway-service/evidence/phase-57a-web-chat-no-hit-readability.png
+- Screenshot bytes: 149891
+- Screenshot dimensions: 1409x1140
+- Valid PNG: true
+- Browser interaction: true
+- No-hit query only: true
+- Fake provider only: true
+- Default chat main lane changed: false
+- Backend business route added: false
+- Provider calls: false
+- Runtime mutation: false
+- Release automation: false
+- Infrastructure provisioning: false
+- Conclusion: web-chat-no-hit-readability-connected

@@ -1,0 +1,60 @@
+{
+  "phase": "phase-76n-web-chat-runtime-api-key-add",
+  "status": "passed",
+  "generatedAt": "2026-04-26T06:56:23.356Z",
+  "browserPath": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+  "serviceUrl": "http://127.0.0.1:59649",
+  "ui": {
+    "url": "http://127.0.0.1:59649/ui?showFakeProviders=1",
+    "finalState": {
+      "wizardPresent": true,
+      "oneClickButtonText": "一键添加并检测",
+      "secretPlaceholder": "粘贴 API Key，点“一键添加并检测”；只保存在当前本地服务内存",
+      "secretInputCleared": true,
+      "feedbackText": "当前模型可用API Key 已添加到当前服务内存，本次运行期间可以直接继续聊天。已通过现有 /chat 路径拿到成功响应。命中模型：local-fake-provider / local-fake-model返回预览：[fake:local-fake-provider/local-fake-model] 请用一句话回复：配置检测通过。服务重启后需要重新添加 API Key，或改用启动环境变量长期生效。",
+      "selectedProvider": "local-fake-provider::local-fake-model",
+      "runtimeCredentialPresent": true,
+      "localStorageContainsSecret": false,
+      "pageTextContainsSecret": false,
+      "fetches": [
+        {
+          "path": "/providers"
+        },
+        {
+          "path": "/config/runtime"
+        },
+        {
+          "path": "/providers/runtime-credential",
+          "providerId": "local-fake-provider",
+          "hasApiKey": true,
+          "apiKeyRedacted": "***",
+          "apiKeyLength": 37
+        },
+        {
+          "path": "/chat"
+        },
+        {
+          "path": "/providers"
+        }
+      ]
+    }
+  },
+  "screenshot": {
+    "path": "apps/ai-gateway-service/evidence/phase-76n-web-chat-runtime-api-key-add.png",
+    "bytes": 122910,
+    "width": 1424,
+    "height": 1005,
+    "validPng": true
+  },
+  "safety": {
+    "browserInteraction": true,
+    "runtimeCredentialRouteUsed": true,
+    "apiKeyValueRecorded": false,
+    "apiKeyPersistedInBrowser": false,
+    "apiKeyPersistedInEvidence": false,
+    "secretStorage": "memory-only",
+    "fakeProviderOnly": true,
+    "defaultChatMainLaneChanged": false
+  },
+  "conclusion": "web-chat-runtime-api-key-add-connected"
+}

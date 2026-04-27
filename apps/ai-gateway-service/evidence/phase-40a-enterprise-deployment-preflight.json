@@ -1,0 +1,33 @@
+{
+  "phase": "phase-40a-enterprise-deployment-preflight",
+  "status": "passed",
+  "generatedAt": "2026-04-26T05:01:06.014Z",
+  "serviceUrl": "http://127.0.0.1:62034",
+  "paths": {
+    "userStorePath": "C:\\Users\\Administrator\\AppData\\Local\\Temp\\phase40a-enterprise-preflight-AJTt8X\\users\\enterprise-users.json",
+    "auditLogPath": "C:\\Users\\Administrator\\AppData\\Local\\Temp\\phase40a-enterprise-preflight-AJTt8X\\audit\\enterprise-audit.jsonl",
+    "backupDir": "C:\\Users\\Administrator\\AppData\\Local\\Temp\\phase40a-enterprise-preflight-AJTt8X\\backups"
+  },
+  "ui": {
+    "httpStatus": 200,
+    "preflightPanelPresent": true,
+    "preflightButtonPresent": true,
+    "deploymentReadinessPathPresent": true,
+    "startupReadinessPathPresent": true,
+    "securityReadinessPathPresent": true,
+    "vectorReadinessPathPresent": true
+  },
+  "enterprise": {
+    "serviceHealthStatus": "ready",
+    "missingStartupReadinessStatus": 401,
+    "deploymentReadinessStatus": "ready",
+    "startupReadinessStatus": "ready",
+    "securityReadinessStatus": "ready",
+    "vectorReadinessMode": "local-keyword",
+    "vectorReadinessStatus": "disabled",
+    "responseContainsNvidiaKey": false,
+    "responseContainsAdminToken": false
+  },
+  "error": null,
+  "conclusion": "enterprise-deployment-preflight-connected"
+}

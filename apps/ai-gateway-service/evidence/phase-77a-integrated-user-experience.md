@@ -1,0 +1,31 @@
+# Phase 77A Integrated User Experience Evidence
+
+- Phase: phase-77a-integrated-user-experience
+- Status: passed
+- Generated at: 2026-04-26T06:38:55.578Z
+- Service URL: http://127.0.0.1:50440
+- UI HTTP status: 200
+- Model wizard present: true
+- Enterprise command present: true
+- Workflow command present: true
+- Model import provider count: 31
+- DashScope provider present: true
+- Zhipu provider present: true
+- Hugging Face provider present: true
+- OpenAI-compatible provider present: true
+- Gemini provider present: true
+- Knowledge loaded count: 1
+- Knowledge retrieve top hit: phase-77a-integrated-document
+- Snippet present: true
+- Highlight count: 4
+- Score breakdown present: true
+- Enterprise overview HTTP status: 200
+- Workflow run status: completed
+- Workflow artifact: C:/Users/Administrator/AppData/Local/Temp/phase77a-integrated-t7hQgh/phase-77a-integrated-report.md
+- Artifact marker present: true
+- Artifact safety text present: true
+- Default chat main lane changed: false
+- Arbitrary shell execution: false
+- Broad file system scan: false
+- Provider API key logged: false
+- Conclusion: integrated-user-experience-connected

@@ -1,0 +1,46 @@
+{
+  "phase": "phase-53a-web-chat-interaction",
+  "status": "passed",
+  "generatedAt": "2026-04-25T18:19:46.422Z",
+  "browserPath": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+  "serviceUrl": "http://127.0.0.1:61623",
+  "ui": {
+    "url": "http://127.0.0.1:61623/ui",
+    "loadedDocumentId": "phase-53a-browser-chat-document",
+    "loadedCount": 1,
+    "prompt": "请根据知识库说明 phase53a browser chat marker 的作用。",
+    "fetches": [
+      "/chat/rag/stream"
+    ],
+    "fetchStatuses": [
+      {
+        "path": "/chat/rag/stream",
+        "status": 200,
+        "ok": true
+      }
+    ],
+    "assistantTextPresent": true,
+    "assistantTextIncludesFakeProvider": true,
+    "markerMatched": true,
+    "errorMessage": "",
+    "messageCount": 3
+  },
+  "screenshot": {
+    "path": "apps/ai-gateway-service/evidence/phase-53a-web-chat-interaction.png",
+    "bytes": 142247,
+    "width": 1424,
+    "height": 1105,
+    "validPng": true
+  },
+  "safety": {
+    "browserInteraction": true,
+    "fakeProviderOnly": true,
+    "defaultChatMainLaneChanged": false,
+    "backendBusinessRouteAdded": false,
+    "providerCalls": false,
+    "runtimeMutationBeyondBoundedKnowledgeLoad": false,
+    "releaseAutomation": false,
+    "infrastructureProvisioning": false
+  },
+  "conclusion": "web-chat-interaction-connected"
+}

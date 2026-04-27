@@ -1,0 +1,30 @@
+# Phase 54A Web File Upload Interaction Evidence
+
+- Phase: phase-54a-web-file-upload-interaction
+- Status: passed
+- Generated at: 2026-04-25T12:16:00.459Z
+- Service URL: http://127.0.0.1:63105
+- Uploaded file: phase54a-upload.txt
+- Upload status: 已导入 1 个文档。
+- Load file called: true
+- RAG stream called: true
+- Prompt: 请根据刚上传的文件说明 phase54a file upload marker 的作用。
+- Fetches: /knowledge/load/file, /chat/rag/stream
+- Assistant text present: true
+- Assistant includes fake provider: true
+- Marker matched: true
+- Error message: none
+- Message count: 4
+- Screenshot path: apps/ai-gateway-service/evidence/phase-54a-web-file-upload-interaction.png
+- Screenshot bytes: 141577
+- Screenshot dimensions: 1424x1105
+- Valid PNG: true
+- Browser file interaction: true
+- Fake provider only: true
+- Default chat main lane changed: false
+- Backend business route added: false
+- Provider calls: false
+- Runtime mutation beyond bounded knowledge file load: false
+- Release automation: false
+- Infrastructure provisioning: false
+- Conclusion: web-file-upload-interaction-connected

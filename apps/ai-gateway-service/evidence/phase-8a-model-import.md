@@ -1,0 +1,25 @@
+# Phase 8A Model Import Evidence
+
+- Phase: phase-8a-model-import
+- Status: passed
+- Generated at: 2026-04-26T12:12:53.814Z
+- NVIDIA preview: models_discovered / nvidia-live-model-from-api
+- OpenAI preview: models_discovered / openai-live-model-from-api
+- DashScope preview: models_discovered / qwen-plus-from-api
+- Gemini preview: models_discovered / gemini-live-model-from-api
+- Multi-provider status: needs_user_selection
+- OpenAI-compatible base URL preview: models_discovered / compatible-live-model-from-api
+- Unknown key with NVIDIA hint preview: models_discovered
+- No-chat-models status: provider_detected_but_no_chat_models
+- Invalid-key status: invalid_api_key
+- Unknown-key status: needs_provider_selection
+- Global provider hint coverage: true
+- Global providers: openrouter:models_discovered, deepseek:models_discovered, groq:models_discovered, together:models_discovered, mistral:models_discovered, xai:models_discovered, moonshot:models_discovered, siliconflow:models_discovered, tencent-hunyuan:models_discovered, qianfan:models_discovered, zhipu:models_discovered, xunfei-spark:models_discovered, modelscope:models_discovered, perplexity:models_discovered, fireworks:models_discovered, cerebras:models_discovered, cohere:models_discovered, volcengine-doubao:models_discovered, minimax:models_discovered, stepfun:models_discovered, novita:models_discovered, baichuan:models_discovered, yi:models_discovered, infini-ai:models_discovered, huggingface:models_discovered
+- Provider catalog exposed: true
+- Provider catalog count: 31
+- Confirm status: model_imported
+- Local user model persists across restart: true
+- API key value recorded: false
+- Models come from provider models API: true
+- Default chat main lane changed: false
+- Conclusion: model-import-provider-models-api-flow-connected

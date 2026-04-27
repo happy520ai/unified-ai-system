@@ -1,0 +1,28 @@
+# Phase 112A Non-Docker Release Check Evidence
+
+- Phase: phase-112a-non-docker-release-check
+- Status: passed
+- Generated at: 2026-04-27T10:02:46.428Z
+- README phase present: true
+- README deliverable checklist complete: true
+- README Docker runtime status: true
+- README CI/CD status documented: true
+- AGENTS boundary present: true
+- Scripts present: true
+- Required evidence passed: true
+- Secret scan finding count: 0
+- Local pnpm startup available: true
+- /ui available: true
+- Setup Wizard available: true
+- Model Import hardened: true
+- Knowledge/RAG available: true
+- Agent Workforce preview available: true
+- Secret safety passed: true
+- Docker runtime blocked: false
+- Docker runtime passed later by Phase 115A: true
+- Minimal CI/CD gate present later by Phase 117A: true
+- Global release complete: false
+- Docker runtime faked: false
+- Real CI created: true
+- Plaintext API key recorded: false
+- Conclusion: non-docker-release-check-closed

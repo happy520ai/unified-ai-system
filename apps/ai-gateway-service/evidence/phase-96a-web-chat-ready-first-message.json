@@ -1,0 +1,36 @@
+{
+  "phase": "phase-96a-web-chat-ready-first-message",
+  "status": "passed",
+  "generatedAt": "2026-04-26T12:13:19.496Z",
+  "checks": {
+    "readyToChat": {
+      "delegatedPhase": "phase-95a-web-chat-model-config-ready-to-chat",
+      "status": "passed",
+      "focusReturnedToChatInput": true,
+      "composerGuidanceKind": "model-ready-nudge",
+      "sendButtonDisabledUntilText": true,
+      "screenshot": "apps/ai-gateway-service/evidence/phase-95a-web-chat-model-config-ready-to-chat.png"
+    },
+    "firstMessage": {
+      "delegatedPhase": "phase-88a-web-chat-model-config-first-chat",
+      "status": "passed",
+      "endpoint": "/chat/stream",
+      "providerId": "generic-openai-compatible",
+      "model": "phase88-chat-model",
+      "inputClearedAfterSend": true,
+      "sendButtonReady": true,
+      "focusReturnedToChatInput": true,
+      "assistantAnswerIncludesMarker": true,
+      "screenshot": "apps/ai-gateway-service/evidence/phase-88a-web-chat-model-config-first-chat.png"
+    }
+  },
+  "safety": {
+    "browserInteraction": true,
+    "localMockProviderOnly": true,
+    "realProviderCalls": false,
+    "apiKeyValueRecorded": false,
+    "defaultChatMainLaneChanged": false,
+    "backendBusinessRouteAdded": false
+  },
+  "conclusion": "web-chat-ready-first-message-flow-connected"
+}

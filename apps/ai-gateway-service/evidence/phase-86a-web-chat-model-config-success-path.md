@@ -1,0 +1,26 @@
+# Phase 86A Web Chat Model Config Success Path Evidence
+
+- Phase: phase-86a-web-chat-model-config-success-path
+- Status: passed
+- Generated at: 2026-04-26T12:12:57.121Z
+- Service URL: http://127.0.0.1:55187
+- UI URL: http://127.0.0.1:55187/ui?showFakeProviders=1
+- Preview provider hint: openai-compatible
+- Preview base URL present: true
+- Confirm provider: openai-compatible
+- Chat provider/model: generic-openai-compatible / phase86-chat-model
+- Selected runtime value: generic-openai-compatible::phase86-chat-model
+- Runtime credential present: true
+- Preference value: generic-openai-compatible::phase86-chat-model
+- Focus returned to chat input: true
+- API key value recorded: false
+- API key persisted in browser: false
+- API key persisted in evidence: false
+- Local mock provider only: true
+- Real provider calls: false
+- Default chat main lane changed: false
+- Screenshot path: apps/ai-gateway-service/evidence/phase-86a-web-chat-model-config-success-path.png
+- Screenshot bytes: 117855
+- Screenshot dimensions: 1424x1105
+- Valid PNG: true
+- Conclusion: web-chat-model-config-success-path-connected

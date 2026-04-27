@@ -1,0 +1,59 @@
+{
+  "phase": "phase-76b-web-chat-config-persistence",
+  "status": "passed",
+  "generatedAt": "2026-04-25T10:50:08.364Z",
+  "browserPath": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+  "serviceUrl": "http://127.0.0.1:58844",
+  "ui": {
+    "url": "http://127.0.0.1:58844/ui",
+    "beforeReload": {
+      "selectedProvider": "local-fake-provider::local-fake-model",
+      "preference": {
+        "version": 1,
+        "savedAt": "2026-04-25T10:50:08.057Z",
+        "source": "chat-config-wizard",
+        "providerId": "local-fake-provider",
+        "modelId": "local-fake-model",
+        "value": "local-fake-provider::local-fake-model",
+        "secretPersisted": false
+      },
+      "localStorageDump": "pme-moving-earth-chat-history-v1:{\"version\":1,\"savedAt\":\"2026-04-25T10:50:08.061Z\",\"messages\":[{\"role\":\"assistant\",\"type\":\"assistant\",\"text\":\"你好，我是 PME 移动地球。把问题或文件丢给我，我会先查本地知识库，再组织回答。\"},{\"role\":\"user\",\"type\":\"user\",\"text\":\"配置模型\"},{\"role\":\"assistant\",\"type\":\"assistant\",\"text\":\"我会用三步帮你把聊天模型配置好：先看当前状态，再选择模型，最后告诉你下一步该点什么。API Key 不会写进聊天记录，也不会在浏览器里明文保存。\"},{\"role\":\"system\",\"type\":\"system\",\"text\":\"已记住默认聊天模型：Local Fake Provider / Local Fake Model\"}]}\npme-moving-earth-provider-preference-v1:{\"version\":1,\"savedAt\":\"2026-04-25T10:50:08.057Z\",\"source\":\"chat-config-wizard\",\"providerId\":\"local-fake-provider\",\"modelId\":\"local-fake-model\",\"value\":\"local-fake-provider::local-fake-model\",\"secretPersisted\":false}",
+      "commandJsonText": "# PME 移动地球模型启动配置模板\n# 这里不会输出你输入的真实 API Key；请在 PowerShell 里自行粘贴。\n$env:AI_GATEWAY_PROVIDER_MODE='real'\n$env:AI_GATEWAY_REAL_PROVIDER_ENABLED='true'\n$env:AI_GATEWAY_ROUTE_MODE='fixed'\n$env:AI_GATEWAY_DEFAULT_PROVIDER='local-fake-provider'\n$env:AI_GATEWAY_DEFAULT_MODEL='local-fake-model'\n$env:AI_GATEWAY_ENABLED_PROVIDERS='local-fake-provider'\n# 当前 provider 未声明专用密钥变量；请按 provider adapter 文档配置。\n# 密钥草稿是否填写：yes\ncmd /c pnpm dev:phase7b",
+      "fetches": [
+        "/providers",
+        "/config/runtime"
+      ]
+    },
+    "afterReload": {
+      "selectedProvider": "local-fake-provider::local-fake-model",
+      "preference": {
+        "version": 1,
+        "savedAt": "2026-04-25T10:50:08.057Z",
+        "source": "chat-config-wizard",
+        "providerId": "local-fake-provider",
+        "modelId": "local-fake-model",
+        "value": "local-fake-provider::local-fake-model",
+        "secretPersisted": false
+      },
+      "localStorageDump": "pme-moving-earth-chat-history-v1:{\"version\":1,\"savedAt\":\"2026-04-25T10:50:08.061Z\",\"messages\":[{\"role\":\"assistant\",\"type\":\"assistant\",\"text\":\"你好，我是 PME 移动地球。把问题或文件丢给我，我会先查本地知识库，再组织回答。\"},{\"role\":\"user\",\"type\":\"user\",\"text\":\"配置模型\"},{\"role\":\"assistant\",\"type\":\"assistant\",\"text\":\"我会用三步帮你把聊天模型配置好：先看当前状态，再选择模型，最后告诉你下一步该点什么。API Key 不会写进聊天记录，也不会在浏览器里明文保存。\"},{\"role\":\"system\",\"type\":\"system\",\"text\":\"已记住默认聊天模型：Local Fake Provider / Local Fake Model\"}]}\npme-moving-earth-provider-preference-v1:{\"version\":1,\"savedAt\":\"2026-04-25T10:50:08.057Z\",\"source\":\"chat-config-wizard\",\"providerId\":\"local-fake-provider\",\"modelId\":\"local-fake-model\",\"value\":\"local-fake-provider::local-fake-model\",\"secretPersisted\":false}",
+      "commandJsonText": "",
+      "fetches": []
+    }
+  },
+  "screenshot": {
+    "path": "apps/ai-gateway-service/evidence/phase-76b-web-chat-config-persistence.png",
+    "bytes": 115895,
+    "width": 1424,
+    "height": 1005,
+    "validPng": true
+  },
+  "safety": {
+    "browserInteraction": true,
+    "persistedProviderModelOnly": true,
+    "secretPersisted": false,
+    "providerCalls": false,
+    "backendBusinessRouteAdded": false,
+    "defaultChatMainLaneChanged": false
+  },
+  "conclusion": "web-chat-config-persistence-connected"
+}

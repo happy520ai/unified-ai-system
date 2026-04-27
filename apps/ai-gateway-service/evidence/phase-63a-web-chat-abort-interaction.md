@@ -1,0 +1,35 @@
+# Phase 63A Web Chat Abort Interaction Evidence
+
+- Phase: phase-63a-web-chat-abort-interaction
+- Status: passed
+- Generated at: 2026-04-25T18:34:38.335Z
+- Service URL: http://127.0.0.1:54312
+- Prompt: phase63a abort streaming chat prompt
+- Partial answer: phase63a streamed partial answer
+- Stopped marker: 已停止生成
+- Stopped hint: 已停止当前回答，可以继续发送下一条。
+- During stream stop button disabled: false
+- During stream send button disabled: true
+- After stop assistant text: PME02:34已停止生成。phase63a streamed partial answer（已停止生成。）复制回答复制引用重新发送
+- After stop system text: 已停止当前回答，可以继续发送下一条。
+- After stop send button disabled: true
+- After stop input value empty: true
+- After stop abort seen: true
+- RAG stream request count: 1
+- Fallback request count: 0
+- Screenshot path: apps/ai-gateway-service/evidence/phase-63a-web-chat-abort-interaction.png
+- Screenshot bytes: 121029
+- Screenshot dimensions: 1424x1105
+- Valid PNG: true
+- Browser interaction: true
+- Simulated stream only: true
+- User abort only: true
+- Fallback skipped after abort: true
+- Fake provider only: true
+- Default chat main lane changed: false
+- Backend business route added: false
+- Provider calls: false
+- Runtime mutation: false
+- Release automation: false
+- Infrastructure provisioning: false
+- Conclusion: web-chat-abort-interaction-connected
