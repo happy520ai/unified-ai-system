@@ -155,6 +155,7 @@
     "verify:phase119a-git-repo-readiness": "pnpm --filter @unified-ai-system/ai-gateway-service verify:phase119a-git-repo-readiness",
     "verify:phase120a-git-initial-commit-preflight": "pnpm --filter @unified-ai-system/ai-gateway-service verify:phase120a-git-initial-commit-preflight",
     "verify:phase121a-git-initial-commit-execution": "pnpm --filter @unified-ai-system/ai-gateway-service verify:phase121a-git-initial-commit-execution",
+    "verify:phase122a-github-remote-publish-preflight": "pnpm --filter @unified-ai-system/ai-gateway-service verify:phase122a-github-remote-publish-preflight",
     "verify:phase8a-model-import": "pnpm --filter @unified-ai-system/ai-gateway-service verify:phase8a-model-import"
   },
   "engines": {

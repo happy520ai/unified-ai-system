@@ -1,0 +1,66 @@
+{
+  "phase": "phase-122a-github-remote-publish-preflight",
+  "status": "passed",
+  "generatedAt": "2026-04-27T11:22:47.453Z",
+  "checks": {
+    "rootScriptPresent": true,
+    "serviceScriptPresent": true,
+    "phase121Closed": true,
+    "gitTopLevelIsProject": true,
+    "initialCommitPresent": true,
+    "localHeadRecorded": true,
+    "noStagedFiles": true,
+    "workflowPresent": true,
+    "remoteStatusRecorded": true,
+    "ghStatusRecorded": true,
+    "blockersRecorded": true,
+    "readmePhasePresent": true,
+    "agentsBoundaryPresent": true,
+    "userManualPresent": true,
+    "noPlainSecrets": true,
+    "projectContextNotCreated": true
+  },
+  "git": {
+    "repoRoot": "E:\\AI-Data\\AI网关系统\\unified-ai-system",
+    "gitTopLevel": "E:/AI-Data/AI网关系统/unified-ai-system",
+    "branch": "master",
+    "headSubject": "Phase122A GitHub remote publish preflight",
+    "statusLineCount": 0,
+    "statusPreview": [],
+    "stagedFileCount": 0,
+    "remoteConfigured": false,
+    "remoteCount": 0,
+    "remotePreview": [],
+    "blockers": [
+      "git remote is not configured",
+      "GitHub CLI is not installed or not in PATH"
+    ]
+  },
+  "github": {
+    "ghAvailable": false,
+    "ghAuthenticated": false,
+    "ghVersionTail": [],
+    "ghAuthTail": [
+      "gh CLI is not available"
+    ]
+  },
+  "nextCommands": [
+    "winget install --id GitHub.cli",
+    "gh auth login",
+    "git remote add origin <github-repo-url>",
+    "git push -u origin master"
+  ],
+  "safety": {
+    "configuredRemote": false,
+    "pushedToRemote": false,
+    "openedPullRequest": false,
+    "triggeredRemoteWorkflow": false,
+    "remoteActionsPassed": false,
+    "deployedInfrastructure": false,
+    "publishedRelease": false,
+    "plaintextApiKeyRecorded": false,
+    "globalReleaseComplete": false
+  },
+  "secretFindingCount": 0,
+  "conclusion": "github-remote-publish-preflight-blocked-recorded"
+}

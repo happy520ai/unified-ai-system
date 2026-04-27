@@ -81,6 +81,16 @@ reference, real `.env` files remain ignored, and safe env templates are
 tracked. It does not configure a remote, push, open a PR, trigger GitHub
 Actions, deploy, publish, or claim a remote pass.
 
+The GitHub remote publish preflight command is:
+
+```powershell
+cmd /c pnpm verify:phase122a-github-remote-publish-preflight
+```
+
+It records whether this local commit can be published to GitHub. It does not
+configure a remote, push code, open a PR, trigger GitHub Actions, deploy,
+publish, or claim a remote pass.
+
 This still does not mean cloud deployment, full CI/CD release automation,
 public multi-user production deployment, global release, or real multi-agent
 execution is complete.
@@ -236,6 +246,8 @@ Complete locally:
   `cmd /c pnpm verify:phase120a-git-initial-commit-preflight`.
 - Local initial commit created through
   `cmd /c pnpm verify:phase121a-git-initial-commit-execution`.
+- GitHub remote publish preflight recorded through
+  `cmd /c pnpm verify:phase122a-github-remote-publish-preflight`.
 
 Not complete yet:
 
@@ -244,6 +256,7 @@ Not complete yet:
 - Remote GitHub Actions pass, until a tracked remote repository and
   authenticated GitHub execution path are available.
 - Configured remote and GitHub CLI authentication.
+- Pushed GitHub branch or pull request.
 - Public multi-user production deployment.
 - Complex account system.
 - Tenant isolation.
@@ -275,6 +288,7 @@ cmd /c pnpm verify:phase118a-remote-cicd-gate-preflight
 cmd /c pnpm verify:phase119a-git-repo-readiness
 cmd /c pnpm verify:phase120a-git-initial-commit-preflight
 cmd /c pnpm verify:phase121a-git-initial-commit-execution
+cmd /c pnpm verify:phase122a-github-remote-publish-preflight
 cmd /c pnpm verify:phase112a-non-docker-release-check
 cmd /c pnpm verify:phase107a-secret-safety
 cmd /c pnpm verify:phase105a-user-journey

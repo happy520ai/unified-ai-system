@@ -141,6 +141,7 @@
     "verify:phase118a-remote-cicd-gate-preflight": "node ./src/entrypoints/verifyRemoteCicdGatePreflight.js",
     "verify:phase119a-git-repo-readiness": "node ./src/entrypoints/verifyGitRepoReadiness.js",
     "verify:phase120a-git-initial-commit-preflight": "node ./src/entrypoints/verifyGitInitialCommitPreflight.js",
-    "verify:phase121a-git-initial-commit-execution": "node ./src/entrypoints/verifyGitInitialCommitExecution.js"
+    "verify:phase121a-git-initial-commit-execution": "node ./src/entrypoints/verifyGitInitialCommitExecution.js",
+    "verify:phase122a-github-remote-publish-preflight": "node ./src/entrypoints/verifyGithubRemotePublishPreflight.js"
   }
 }

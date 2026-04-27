@@ -18,6 +18,27 @@ belongs only in `apps/` and `packages/`.
 
 ## Current Phase
 
+Phase 122A records the GitHub remote publish preflight:
+
+```powershell
+cmd /c pnpm verify:phase122a-github-remote-publish-preflight
+```
+
+The local initial commit exists, but remote publishing is still blocked because
+no git remote is configured and GitHub CLI (`gh`) is not available in PATH.
+This phase records the blocker and the next commands without configuring a
+remote, pushing code, opening a PR, triggering GitHub Actions, deploying
+infrastructure, publishing releases, or claiming remote Actions passed.
+
+Next commands for the later remote-publish phase:
+
+```powershell
+winget install --id GitHub.cli
+gh auth login
+git remote add origin <github-repo-url>
+git push -u origin master
+```
+
 Phase 121A creates the local initial commit:
 
 ```powershell

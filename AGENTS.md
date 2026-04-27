@@ -248,6 +248,21 @@ releases, deploy infrastructure, or claim remote GitHub Actions passed. It must
 keep real `.env` files ignored and may track only safe environment templates
 such as `.env.example` and `.env.enterprise.example`.
 
+## Phase 122A GitHub Remote Publish Preflight Boundary
+
+Phase 122A is verified by:
+
+```powershell
+cmd /c pnpm verify:phase122a-github-remote-publish-preflight
+```
+
+It records GitHub remote publish prerequisites only: local commit state, git
+remote state, GitHub CLI availability/authentication, and remote Actions
+execution blockers. It must not configure remotes, push, open PRs, trigger
+remote workflows, publish releases, deploy infrastructure, or claim remote
+GitHub Actions passed. If the GitHub repository URL, `gh` installation, or
+authentication is missing, record those blockers honestly.
+
 ## Default Command Set Freeze
 
 Phase 19A freezes the current default command set:
