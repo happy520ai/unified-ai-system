@@ -297,6 +297,22 @@ remote workflows, publish releases, deploy infrastructure, or claim remote
 GitHub Actions passed. If authentication or the GitHub repository URL is
 missing, record those blockers honestly.
 
+## Phase 125A GitHub Auth Preflight Boundary
+
+Phase 125A is verified by:
+
+```powershell
+cmd /c pnpm verify:phase125a-github-auth-preflight
+```
+
+It records GitHub authentication readiness after the CLI installation:
+installed CLI state, `gh auth status`, browser-login attempt status, git remote
+state, and remaining remote-publish blockers. It must not store GitHub tokens
+in evidence, configure remotes, push, open PRs, trigger remote workflows,
+publish releases, deploy infrastructure, or claim remote GitHub Actions passed.
+If browser login is not completed by the user or the GitHub repository URL is
+missing, record those blockers honestly.
+
 ## Default Command Set Freeze
 
 Phase 19A freezes the current default command set:

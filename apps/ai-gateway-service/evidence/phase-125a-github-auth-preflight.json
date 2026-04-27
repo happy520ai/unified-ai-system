@@ -1,21 +1,19 @@
 {
-  "phase": "phase-124a-github-cli-install",
+  "phase": "phase-125a-github-auth-preflight",
   "status": "passed",
-  "generatedAt": "2026-04-27T11:52:53.672Z",
+  "generatedAt": "2026-04-27T11:52:28.986Z",
   "checks": {
     "rootScriptPresent": true,
     "serviceScriptPresent": true,
-    "phase123Closed": true,
+    "phase124Closed": true,
     "gitTopLevelIsProject": true,
     "localCommitPresent": true,
     "noStagedFiles": true,
     "ghInstalled": true,
-    "ghVersionRecorded": true,
-    "ghPathStatusRecorded": true,
     "ghAuthStatusRecorded": true,
-    "pathRefreshStatusRecorded": true,
-    "machinePathContainsGh": true,
+    "authNotCompleted": true,
     "remoteStatusRecorded": true,
+    "remoteNotConfigured": true,
     "blockersRecorded": true,
     "readmePhasePresent": true,
     "agentsBoundaryPresent": true,
@@ -28,18 +26,14 @@
     "gitTopLevel": "E:/AI-Data/AI网关系统/unified-ai-system",
     "branch": "master",
     "headSubject": "Phase124A GitHub CLI install",
-    "statusLineCount": 11,
+    "statusLineCount": 7,
     "statusPreview": [
       "M AGENTS.md",
       "M README.md",
-      "M apps/ai-gateway-service/evidence/phase-114a-user-manual-release-pack.json",
-      "M apps/ai-gateway-service/evidence/phase-114a-user-manual-release-pack.md",
       "M apps/ai-gateway-service/package.json",
       "M apps/ai-gateway-service/src/entrypoints/verifyUserManualReleasePack.js",
       "M docs/USER_MANUAL.md",
       "M package.json",
-      "?? apps/ai-gateway-service/evidence/phase-125a-github-auth-preflight.json",
-      "?? apps/ai-gateway-service/evidence/phase-125a-github-auth-preflight.md",
       "?? apps/ai-gateway-service/src/entrypoints/verifyGithubAuthPreflight.js"
     ],
     "stagedFileCount": 0,
@@ -47,16 +41,15 @@
     "remoteCount": 0,
     "remotePreview": [],
     "blockers": [
-      "current shell PATH has not picked up GitHub CLI yet",
       "GitHub CLI is not authenticated",
-      "git remote is not configured"
+      "git remote is not configured",
+      "GitHub repository URL has not been provided in this workspace",
+      "interactive GitHub browser login requires user completion"
     ]
   },
   "githubCli": {
     "installed": true,
     "knownPath": "C:\\Program Files\\GitHub CLI\\gh.exe",
-    "availableInCurrentPath": false,
-    "machinePathContainsGh": true,
     "authenticated": false,
     "versionTail": [
       "gh version 2.91.0 (2026-04-22)",
@@ -65,26 +58,20 @@
     "authStatusTail": [
       "You are not logged into any GitHub hosts. To log in, run: gh auth login"
     ],
-    "plainPathVersionTail": [],
-    "wingetAvailable": true,
-    "wingetVersionTail": [
-      "v1.28.240"
-    ],
-    "chocolateyAvailable": true,
-    "chocolateyVersionTail": [
-      "2.7.0"
-    ]
+    "loginAttempt": {
+      "command": "gh auth login --hostname github.com --git-protocol https --web --clipboard",
+      "result": "timed out in the Codex shell before authentication completed",
+      "tokenRecorded": false
+    }
   },
   "nextCommands": [
-    "Close and reopen PowerShell so PATH includes GitHub CLI",
-    "gh --version",
+    "Close and reopen PowerShell",
     "gh auth login",
     "git remote add origin <github-repo-url>",
     "git push -u origin master"
   ],
   "safety": {
-    "installedGitHubCli": true,
-    "storedGitHubToken": false,
+    "storedGitHubTokenInEvidence": false,
     "configuredRemote": false,
     "pushedToRemote": false,
     "openedPullRequest": false,
@@ -96,5 +83,5 @@
     "globalReleaseComplete": false
   },
   "secretFindingCount": 0,
-  "conclusion": "github-cli-installed-auth-remote-blocked"
+  "conclusion": "github-auth-preflight-blocked-recorded"
 }

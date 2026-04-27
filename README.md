@@ -18,6 +18,24 @@ belongs only in `apps/` and `packages/`.
 
 ## Current Phase
 
+Phase 125A records the GitHub authentication preflight:
+
+```powershell
+cmd /c pnpm verify:phase125a-github-auth-preflight
+```
+
+GitHub CLI is installed, but browser-based `gh auth login` did not complete in
+the Codex shell. No GitHub token was recorded in evidence, no git remote is
+configured, no push was attempted, and no remote GitHub Actions run has passed.
+The remaining manual step is to complete GitHub login in a normal PowerShell
+window and provide a repository URL.
+
+```powershell
+gh auth login
+git remote add origin <github-repo-url>
+git push -u origin master
+```
+
 Phase 124A records GitHub CLI installation:
 
 ```powershell

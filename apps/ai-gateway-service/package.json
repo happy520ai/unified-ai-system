@@ -144,6 +144,7 @@
     "verify:phase121a-git-initial-commit-execution": "node ./src/entrypoints/verifyGitInitialCommitExecution.js",
     "verify:phase122a-github-remote-publish-preflight": "node ./src/entrypoints/verifyGithubRemotePublishPreflight.js",
     "verify:phase123a-github-cli-readiness": "node ./src/entrypoints/verifyGithubCliReadiness.js",
-    "verify:phase124a-github-cli-install": "node ./src/entrypoints/verifyGithubCliInstall.js"
+    "verify:phase124a-github-cli-install": "node ./src/entrypoints/verifyGithubCliInstall.js",
+    "verify:phase125a-github-auth-preflight": "node ./src/entrypoints/verifyGithubAuthPreflight.js"
   }
 }
