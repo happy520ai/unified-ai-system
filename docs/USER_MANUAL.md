@@ -104,6 +104,19 @@ Chocolatey is available but the prior install attempt did not leave GitHub CLI
 installed. It does not install system packages, configure a remote, push code,
 open a PR, trigger GitHub Actions, deploy, publish, or claim a remote pass.
 
+The GitHub CLI install verification command is:
+
+```powershell
+cmd /c pnpm verify:phase124a-github-cli-install
+```
+
+It records that GitHub CLI is installed at `C:\Program Files\GitHub CLI\gh.exe`
+and that the machine PATH contains the GitHub CLI directory. If the current
+PowerShell session still does not recognize `gh`, close and reopen PowerShell.
+This phase does not log in to GitHub, store tokens, configure a remote, push
+code, open a PR, trigger GitHub Actions, deploy, publish, or claim a remote
+pass.
+
 This still does not mean cloud deployment, full CI/CD release automation,
 public multi-user production deployment, global release, or real multi-agent
 execution is complete.
@@ -263,6 +276,8 @@ Complete locally:
   `cmd /c pnpm verify:phase122a-github-remote-publish-preflight`.
 - GitHub CLI readiness/install blocker recorded through
   `cmd /c pnpm verify:phase123a-github-cli-readiness`.
+- GitHub CLI installed and recorded through
+  `cmd /c pnpm verify:phase124a-github-cli-install`.
 
 Not complete yet:
 
@@ -271,7 +286,8 @@ Not complete yet:
 - Remote GitHub Actions pass, until a tracked remote repository and
   authenticated GitHub execution path are available.
 - Configured remote and GitHub CLI authentication.
-- GitHub CLI installed in PATH.
+- Current shell PATH refresh if `gh` is still not recognized before reopening
+  PowerShell.
 - Pushed GitHub branch or pull request.
 - Public multi-user production deployment.
 - Complex account system.
@@ -306,6 +322,7 @@ cmd /c pnpm verify:phase120a-git-initial-commit-preflight
 cmd /c pnpm verify:phase121a-git-initial-commit-execution
 cmd /c pnpm verify:phase122a-github-remote-publish-preflight
 cmd /c pnpm verify:phase123a-github-cli-readiness
+cmd /c pnpm verify:phase124a-github-cli-install
 cmd /c pnpm verify:phase112a-non-docker-release-check
 cmd /c pnpm verify:phase107a-secret-safety
 cmd /c pnpm verify:phase105a-user-journey

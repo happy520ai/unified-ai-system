@@ -1,19 +1,21 @@
 {
-  "phase": "phase-123a-github-cli-readiness",
+  "phase": "phase-124a-github-cli-install",
   "status": "passed",
-  "generatedAt": "2026-04-27T11:41:27.082Z",
+  "generatedAt": "2026-04-27T11:41:00.067Z",
   "checks": {
     "rootScriptPresent": true,
     "serviceScriptPresent": true,
-    "phase122Closed": true,
+    "phase123Closed": true,
     "gitTopLevelIsProject": true,
     "localCommitPresent": true,
     "noStagedFiles": true,
+    "ghInstalled": true,
+    "ghVersionRecorded": true,
+    "ghPathStatusRecorded": true,
+    "ghAuthStatusRecorded": true,
+    "pathRefreshStatusRecorded": true,
+    "machinePathContainsGh": true,
     "remoteStatusRecorded": true,
-    "cliInstallStatusRecorded": true,
-    "wingetStatusRecorded": true,
-    "chocoStatusRecorded": true,
-    "ghStatusRecorded": true,
     "blockersRecorded": true,
     "readmePhasePresent": true,
     "agentsBoundaryPresent": true,
@@ -26,18 +28,14 @@
     "gitTopLevel": "E:/AI-Data/AI网关系统/unified-ai-system",
     "branch": "master",
     "headSubject": "Phase123A GitHub CLI readiness",
-    "statusLineCount": 11,
+    "statusLineCount": 7,
     "statusPreview": [
       "M AGENTS.md",
       "M README.md",
-      "M apps/ai-gateway-service/evidence/phase-114a-user-manual-release-pack.json",
-      "M apps/ai-gateway-service/evidence/phase-114a-user-manual-release-pack.md",
       "M apps/ai-gateway-service/package.json",
       "M apps/ai-gateway-service/src/entrypoints/verifyUserManualReleasePack.js",
       "M docs/USER_MANUAL.md",
       "M package.json",
-      "?? apps/ai-gateway-service/evidence/phase-124a-github-cli-install.json",
-      "?? apps/ai-gateway-service/evidence/phase-124a-github-cli-install.md",
       "?? apps/ai-gateway-service/src/entrypoints/verifyGithubCliInstall.js"
     ],
     "stagedFileCount": 0,
@@ -45,18 +43,25 @@
     "remoteCount": 0,
     "remotePreview": [],
     "blockers": [
-      "git remote is not configured",
-      "GitHub CLI is not installed or not in PATH",
-      "Chocolatey is available, but gh is not installed after the attempted install"
+      "current shell PATH has not picked up GitHub CLI yet",
+      "GitHub CLI is not authenticated",
+      "git remote is not configured"
     ]
   },
-  "tools": {
-    "ghAvailable": false,
-    "ghAuthenticated": false,
-    "ghVersionTail": [],
-    "ghAuthTail": [
-      "gh CLI is not available"
+  "githubCli": {
+    "installed": true,
+    "knownPath": "C:\\Program Files\\GitHub CLI\\gh.exe",
+    "availableInCurrentPath": false,
+    "machinePathContainsGh": true,
+    "authenticated": false,
+    "versionTail": [
+      "gh version 2.91.0 (2026-04-22)",
+      "https://github.com/cli/cli/releases/tag/v2.91.0"
     ],
+    "authStatusTail": [
+      "You are not logged into any GitHub hosts. To log in, run: gh auth login"
+    ],
+    "plainPathVersionTail": [],
     "wingetAvailable": true,
     "wingetVersionTail": [
       "v1.28.240"
@@ -64,23 +69,18 @@
     "chocolateyAvailable": true,
     "chocolateyVersionTail": [
       "2.7.0"
-    ],
-    "chocolateyGhPackageListed": false,
-    "chocolateyGhListTail": [
-      "chocolatey|2.7.0",
-      "KB3035131|1.0.3",
-      "ollama|0.18.2"
-    ],
-    "installAttemptNote": "A Chocolatey gh install was attempted in this session and did not leave gh available in PATH."
+    ]
   },
   "nextCommands": [
-    "winget install --id GitHub.cli --accept-package-agreements --accept-source-agreements",
-    "If winget is unavailable, run PowerShell as Administrator and use: choco install gh -y",
+    "Close and reopen PowerShell so PATH includes GitHub CLI",
+    "gh --version",
     "gh auth login",
     "git remote add origin <github-repo-url>",
     "git push -u origin master"
   ],
   "safety": {
+    "installedGitHubCli": true,
+    "storedGitHubToken": false,
     "configuredRemote": false,
     "pushedToRemote": false,
     "openedPullRequest": false,
@@ -92,5 +92,5 @@
     "globalReleaseComplete": false
   },
   "secretFindingCount": 0,
-  "conclusion": "github-cli-readiness-blocked-recorded"
+  "conclusion": "github-cli-installed-auth-remote-blocked"
 }

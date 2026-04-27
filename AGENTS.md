@@ -280,6 +280,23 @@ missing, `winget` is unavailable, Chocolatey installation requires an elevated
 shell, the GitHub repository URL is missing, or authentication is missing,
 record those blockers honestly.
 
+## Phase 124A GitHub CLI Install Boundary
+
+Phase 124A is verified by:
+
+```powershell
+cmd /c pnpm verify:phase124a-github-cli-install
+```
+
+It records that GitHub CLI has been installed and captures the remaining
+remote-publish blockers: current shell PATH refresh status, `gh auth status`,
+and git remote state. It may install GitHub CLI through `winget` or Chocolatey
+when explicitly continuing the remote-publish setup, but it must not log in to
+GitHub, store tokens in evidence, configure remotes, push, open PRs, trigger
+remote workflows, publish releases, deploy infrastructure, or claim remote
+GitHub Actions passed. If authentication or the GitHub repository URL is
+missing, record those blockers honestly.
+
 ## Default Command Set Freeze
 
 Phase 19A freezes the current default command set:

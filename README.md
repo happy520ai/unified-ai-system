@@ -18,6 +18,30 @@ belongs only in `apps/` and `packages/`.
 
 ## Current Phase
 
+Phase 124A records GitHub CLI installation:
+
+```powershell
+cmd /c pnpm verify:phase124a-github-cli-install
+```
+
+GitHub CLI 2.91.0 is installed at `C:\Program Files\GitHub CLI\gh.exe`, and the
+machine PATH contains the GitHub CLI directory. The current PowerShell session
+may still need to be closed and reopened before `gh` resolves without a full
+path. GitHub CLI is not authenticated yet, and no git remote is configured.
+This phase does not log in to GitHub, store tokens, configure a remote, push,
+open a PR, trigger GitHub Actions, deploy infrastructure, publish releases, or
+claim remote Actions passed.
+
+Simplest next commands:
+
+```powershell
+# Close and reopen PowerShell first if gh is not recognized.
+gh --version
+gh auth login
+git remote add origin <github-repo-url>
+git push -u origin master
+```
+
 Phase 123A records GitHub CLI readiness after the install attempt:
 
 ```powershell
