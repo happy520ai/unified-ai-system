@@ -2,7 +2,7 @@
 
 - Phase: phase-117a-cicd-release-gate
 - Status: passed
-- Generated at: 2026-04-27T16:08:46.623Z
+- Generated at: 2026-04-27T16:12:12.653Z
 - Workflow: .github/workflows/release-gate.yml
 - Forbidden deploy/publish hits: 0
 - Plain secret findings: 0
@@ -25,7 +25,8 @@
 - workflowNamePresent: passed
 - workflowTriggersPresent: passed
 - workflowReadOnlyPermissions: passed
-- workflowForcesActionsNode24: passed
+- workflowUsesNode24Actions: passed
+- workflowDoesNotForceNode20Actions: passed
 - workflowUsesNode22: passed
 - workflowUsesPinnedPnpm: passed
 - gateCommandsComplete: passed

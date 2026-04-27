@@ -184,10 +184,10 @@ The GitHub Actions Node.js 20 warning cleanup command is:
 cmd /c pnpm verify:phase130a-actions-node24-warning-cleanup
 ```
 
-It verifies that the Release Gate opts JavaScript actions into Node 24 with
-`FORCE_JAVASCRIPT_ACTIONS_TO_NODE24`. This is warning cleanup only; it does
-not deploy, publish, push images, create a GitHub Release, or complete global
-release.
+It verifies that the Release Gate uses Node 24 action versions:
+`actions/checkout@v5` and `actions/setup-node@v5`. This is warning cleanup
+only; it does not deploy, publish, push images, create a GitHub Release, or
+complete global release.
 
 This still does not mean cloud deployment, full CI/CD release automation,
 public multi-user production deployment, global release, or real multi-agent

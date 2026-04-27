@@ -27,10 +27,11 @@ function parseJson(text, label) {
   }
 }
 
-function includesActionsNode24OptIn(workflow) {
+function usesNode24Actions(workflow) {
   return (
-    workflow.includes('FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"') ||
-    workflow.includes("FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true")
+    workflow.includes("uses: actions/checkout@v5") &&
+    workflow.includes("uses: actions/setup-node@v5") &&
+    workflow.includes("package-manager-cache: false")
   );
 }
 
@@ -105,13 +106,20 @@ async function main() {
 
   const checks = {
     workflowPresent: existsSync(resolve(repoRoot, workflowPath)),
-    workflowForcesActionsNode24: includesActionsNode24OptIn(workflow),
+    workflowUsesNode24Actions: usesNode24Actions(workflow),
+    workflowDoesNotUseNode20ActionTags:
+      !workflow.includes("uses: actions/checkout@v4") &&
+      !workflow.includes("uses: actions/setup-node@v4"),
+    workflowDoesNotForceNode20Actions:
+      !workflow.includes("FORCE_JAVASCRIPT_ACTIONS_TO_NODE24"),
     workflowDoesNotAllowUnsecureNode20:
       !workflow.includes("ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION"),
     workflowStillUsesReadOnlyPermissions: workflow.includes("contents: read"),
-    workflowCheckoutStepPresent: workflow.includes("uses: actions/checkout@v4"),
-    workflowSetupNodeStepPresent: workflow.includes("uses: actions/setup-node@v4"),
+    workflowCheckoutStepPresent: workflow.includes("uses: actions/checkout@v5"),
+    workflowSetupNodeStepPresent: workflow.includes("uses: actions/setup-node@v5"),
     workflowUsesNode22ForProject: workflow.includes('node-version: "22"'),
+    workflowDisablesSetupNodeAutoCache:
+      workflow.includes("package-manager-cache: false"),
     gateCommandsPreserved: Object.values(gateCommands).every(Boolean),
     noDeployOrPublishSteps: forbiddenHits.length === 0,
     rootScriptPresent:
@@ -128,10 +136,12 @@ async function main() {
       agents.includes("verify:phase130a-actions-node24-warning-cleanup"),
     userManualPresent:
       userManual.includes("verify:phase130a-actions-node24-warning-cleanup") &&
-      userManual.includes("FORCE_JAVASCRIPT_ACTIONS_TO_NODE24"),
+      userManual.includes("actions/checkout@v5") &&
+      userManual.includes("actions/setup-node@v5"),
     statusDocUpdated:
       statusDoc.includes("Phase 130A") &&
-      statusDoc.includes("FORCE_JAVASCRIPT_ACTIONS_TO_NODE24") &&
+      statusDoc.includes("actions/checkout@v5") &&
+      statusDoc.includes("actions/setup-node@v5") &&
       statusDocFlat.includes("Node.js 20 deprecation warning cleanup"),
     noPlainSecrets: secretFindings.length === 0,
     projectContextNotCreated: !existsSync(resolve(repoRoot, "PROJECT_CONTEXT.md")),
@@ -144,7 +154,8 @@ async function main() {
     checks,
     workflow: {
       path: workflowPath,
-      actionsNode24OptIn: checks.workflowForcesActionsNode24,
+      node24Actions: checks.workflowUsesNode24Actions,
+      forcedNode24Runtime: !checks.workflowDoesNotForceNode20Actions,
       node20OptOutPresent: !checks.workflowDoesNotAllowUnsecureNode20,
       gateCommands,
       forbiddenHits,
@@ -186,7 +197,8 @@ function markdown(evidence) {
     `- Status: ${evidence.status}`,
     `- Generated at: ${evidence.generatedAt}`,
     `- Workflow: ${evidence.workflow.path}`,
-    `- Actions Node 24 opt-in: ${evidence.workflow.actionsNode24OptIn}`,
+    `- Node 24 action versions: ${evidence.workflow.node24Actions}`,
+    `- Forced Node 24 runtime: ${evidence.workflow.forcedNode24Runtime}`,
     `- Node 20 opt-out present: ${evidence.workflow.node20OptOutPresent}`,
     `- Forbidden deploy/publish hits: ${evidence.workflow.forbiddenHits.length}`,
     `- Plain secret findings: ${evidence.secretFindingCount}`,
@@ -206,7 +218,7 @@ function markdown(evidence) {
     "",
     "## Boundaries",
     "",
-    "- This phase only opts GitHub JavaScript actions into the Node 24 runtime.",
+    "- This phase only moves GitHub JavaScript actions to Node 24 action versions.",
     "- It does not deploy infrastructure, publish releases, publish packages, push images, or complete global release.",
     "- It must not record plaintext API keys.",
     "",

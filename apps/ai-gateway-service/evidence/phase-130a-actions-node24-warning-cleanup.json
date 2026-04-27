@@ -1,15 +1,18 @@
 {
   "phase": "phase-130a-actions-node24-warning-cleanup",
   "status": "passed",
-  "generatedAt": "2026-04-27T16:07:56.187Z",
+  "generatedAt": "2026-04-27T16:12:17.936Z",
   "checks": {
     "workflowPresent": true,
-    "workflowForcesActionsNode24": true,
+    "workflowUsesNode24Actions": true,
+    "workflowDoesNotUseNode20ActionTags": true,
+    "workflowDoesNotForceNode20Actions": true,
     "workflowDoesNotAllowUnsecureNode20": true,
     "workflowStillUsesReadOnlyPermissions": true,
     "workflowCheckoutStepPresent": true,
     "workflowSetupNodeStepPresent": true,
     "workflowUsesNode22ForProject": true,
+    "workflowDisablesSetupNodeAutoCache": true,
     "gateCommandsPreserved": true,
     "noDeployOrPublishSteps": true,
     "rootScriptPresent": true,
@@ -23,7 +26,8 @@
   },
   "workflow": {
     "path": ".github/workflows/release-gate.yml",
-    "actionsNode24OptIn": true,
+    "node24Actions": true,
+    "forcedNode24Runtime": false,
     "node20OptOutPresent": false,
     "gateCommands": {
       "install": true,

@@ -101,9 +101,12 @@ async function main() {
       workflow.includes("pull_request:") &&
       workflow.includes("workflow_dispatch:"),
     workflowReadOnlyPermissions: workflow.includes("contents: read"),
-    workflowForcesActionsNode24:
-      workflow.includes('FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"') ||
-      workflow.includes("FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true"),
+    workflowUsesNode24Actions:
+      workflow.includes("uses: actions/checkout@v5") &&
+      workflow.includes("uses: actions/setup-node@v5") &&
+      workflow.includes("package-manager-cache: false"),
+    workflowDoesNotForceNode20Actions:
+      !workflow.includes("FORCE_JAVASCRIPT_ACTIONS_TO_NODE24"),
     workflowUsesNode22: workflow.includes('node-version: "22"'),
     workflowUsesPinnedPnpm: workflow.includes("corepack prepare pnpm@9.15.4 --activate"),
     gateCommandsComplete: Object.values(gateCommands).every(Boolean),
@@ -146,7 +149,7 @@ async function main() {
       deploysInfrastructure: false,
       publishesRelease: false,
       pushesImage: false,
-      forcesActionsNode24: checks.workflowForcesActionsNode24,
+      usesNode24Actions: checks.workflowUsesNode24Actions,
       callsRealProviders: false,
       plaintextApiKeyRecorded: false,
       cloudDeploymentComplete: false,

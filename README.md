@@ -25,11 +25,13 @@ deprecation warning:
 cmd /c pnpm verify:phase130a-actions-node24-warning-cleanup
 ```
 
-The Phase117A Release Gate now opts JavaScript actions into the Node 24 runtime
-with `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"`. This is warning cleanup
-only: it preserves the existing release-readiness gate and does not create a
-GitHub Release, publish packages or images, deploy cloud infrastructure, expose
-the service to the public internet, or complete global release.
+The Phase117A Release Gate now uses Node 24 action versions:
+`actions/checkout@v5` and `actions/setup-node@v5`. Setup Node's automatic
+package-manager cache is disabled to preserve the existing install behavior.
+This is warning cleanup only: it preserves the existing release-readiness gate
+and does not create a GitHub Release, publish packages or images, deploy cloud
+infrastructure, expose the service to the public internet, or complete global
+release.
 
 Phase 129A records the remote release-readiness status:
 

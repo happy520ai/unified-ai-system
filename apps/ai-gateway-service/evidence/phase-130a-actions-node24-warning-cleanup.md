@@ -2,9 +2,10 @@
 
 - Phase: phase-130a-actions-node24-warning-cleanup
 - Status: passed
-- Generated at: 2026-04-27T16:07:56.187Z
+- Generated at: 2026-04-27T16:12:17.936Z
 - Workflow: .github/workflows/release-gate.yml
-- Actions Node 24 opt-in: true
+- Node 24 action versions: true
+- Forced Node 24 runtime: false
 - Node 20 opt-out present: false
 - Forbidden deploy/publish hits: 0
 - Plain secret findings: 0
@@ -24,12 +25,15 @@
 ## Checks
 
 - workflowPresent: passed
-- workflowForcesActionsNode24: passed
+- workflowUsesNode24Actions: passed
+- workflowDoesNotUseNode20ActionTags: passed
+- workflowDoesNotForceNode20Actions: passed
 - workflowDoesNotAllowUnsecureNode20: passed
 - workflowStillUsesReadOnlyPermissions: passed
 - workflowCheckoutStepPresent: passed
 - workflowSetupNodeStepPresent: passed
 - workflowUsesNode22ForProject: passed
+- workflowDisablesSetupNodeAutoCache: passed
 - gateCommandsPreserved: passed
 - noDeployOrPublishSteps: passed
 - rootScriptPresent: passed
@@ -43,6 +47,6 @@
 
 ## Boundaries
 
-- This phase only opts GitHub JavaScript actions into the Node 24 runtime.
+- This phase only moves GitHub JavaScript actions to Node 24 action versions.
 - It does not deploy infrastructure, publish releases, publish packages, push images, or complete global release.
 - It must not record plaintext API keys.

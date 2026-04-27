@@ -42,13 +42,15 @@ Phase 129A records the remote delivery status for `unified-ai-system`.
 ## Node.js 24 Actions Compatibility
 
 Phase 130A handles the prior non-blocking Node.js 20 deprecation warning
-cleanup. The Release Gate sets:
+cleanup. The Release Gate now uses Node 24 action versions:
 
 ```yaml
-FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+- uses: actions/checkout@v5
+- uses: actions/setup-node@v5
 ```
 
-This opts JavaScript actions into the Node 24 runtime while preserving the
-existing checks. It is warning cleanup only and does not change the release
-boundary: no deploy, publish, image push, GitHub Release, cloud deployment, or
-global release is created by this status.
+`actions/setup-node@v5` has `package-manager-cache: false` configured to
+preserve the existing explicit `pnpm install --frozen-lockfile` behavior. This
+is warning cleanup only and does not change the release boundary: no deploy,
+publish, image push, GitHub Release, cloud deployment, or global release is
+created by this status.

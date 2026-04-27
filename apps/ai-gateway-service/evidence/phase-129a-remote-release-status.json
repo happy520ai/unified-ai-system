@@ -1,7 +1,7 @@
 {
   "phase": "phase-129a-remote-release-status",
   "status": "passed",
-  "generatedAt": "2026-04-27T16:08:49.882Z",
+  "generatedAt": "2026-04-27T16:12:31.587Z",
   "checks": {
     "rootScriptPresent": true,
     "serviceScriptPresent": true,
@@ -20,7 +20,7 @@
     "latestReleaseGateMatchesHead": true,
     "latestReleaseGateSucceeded": true,
     "workflowPreparesComposeEnv": true,
-    "workflowForcesActionsNode24": true,
+    "workflowUsesNode24Actions": true,
     "statusDocPresent": true,
     "statusDocHasRepository": true,
     "statusDocHasSuccessBoundary": true,
@@ -36,9 +36,9 @@
     "repoRoot": "E:\\AI-Data\\AI网关系统\\unified-ai-system",
     "gitTopLevel": "E:/AI-Data/AI网关系统/unified-ai-system",
     "branch": "master",
-    "headSha": "e56e0653bdae2220412eb59edafbab961b7017b3",
-    "headSubject": "Phase129A remote release status",
-    "statusLineCount": 17,
+    "headSha": "3ce2c7653df01197d4c3e2492fd55933c5359415",
+    "headSubject": "Phase130A actions Node 24 warning cleanup",
+    "statusLineCount": 14,
     "statusPreview": [
       "M .github/workflows/release-gate.yml",
       "M AGENTS.md",
@@ -47,16 +47,13 @@
       "M apps/ai-gateway-service/evidence/phase-114a-user-manual-release-pack.md",
       "M apps/ai-gateway-service/evidence/phase-117a-cicd-release-gate.json",
       "M apps/ai-gateway-service/evidence/phase-117a-cicd-release-gate.md",
-      "M apps/ai-gateway-service/package.json",
+      "M apps/ai-gateway-service/evidence/phase-130a-actions-node24-warning-cleanup.json",
+      "M apps/ai-gateway-service/evidence/phase-130a-actions-node24-warning-cleanup.md",
+      "M apps/ai-gateway-service/src/entrypoints/verifyActionsNode24WarningCleanup.js",
       "M apps/ai-gateway-service/src/entrypoints/verifyCicdReleaseGate.js",
       "M apps/ai-gateway-service/src/entrypoints/verifyRemoteReleaseStatus.js",
-      "M apps/ai-gateway-service/src/entrypoints/verifyUserManualReleasePack.js",
       "M docs/REMOTE_RELEASE_STATUS.md",
-      "M docs/USER_MANUAL.md",
-      "M package.json",
-      "?? apps/ai-gateway-service/evidence/phase-130a-actions-node24-warning-cleanup.json",
-      "?? apps/ai-gateway-service/evidence/phase-130a-actions-node24-warning-cleanup.md",
-      "?? apps/ai-gateway-service/src/entrypoints/verifyActionsNode24WarningCleanup.js"
+      "M docs/USER_MANUAL.md"
     ],
     "stagedFileCount": 0,
     "remoteConfigured": true,
@@ -65,7 +62,7 @@
       "origin\thttps://github.com/happy520ai/unified-ai-system.git (push)"
     ],
     "upstream": "origin/master",
-    "remoteHeadSha": "e56e0653bdae2220412eb59edafbab961b7017b3",
+    "remoteHeadSha": "3ce2c7653df01197d4c3e2492fd55933c5359415",
     "remoteHeadMatchesLocal": true
   },
   "github": {
@@ -75,14 +72,14 @@
     "visibility": "PRIVATE",
     "defaultBranch": "master",
     "latestReleaseGate": {
-      "databaseId": 25005824268,
+      "databaseId": 25006181242,
       "workflowName": "Phase117A Release Gate",
       "headBranch": "master",
-      "headSha": "e56e0653bdae2220412eb59edafbab961b7017b3",
+      "headSha": "3ce2c7653df01197d4c3e2492fd55933c5359415",
       "status": "completed",
       "conclusion": "success",
-      "createdAt": "2026-04-27T16:02:47Z",
-      "url": "https://github.com/happy520ai/unified-ai-system/actions/runs/25005824268"
+      "createdAt": "2026-04-27T16:10:13Z",
+      "url": "https://github.com/happy520ai/unified-ai-system/actions/runs/25006181242"
     }
   },
   "docs": {
