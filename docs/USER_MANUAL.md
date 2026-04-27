@@ -140,6 +140,18 @@ out of evidence. It does not configure a remote, push code, open a PR, trigger
 GitHub Actions, deploy, publish, or claim a remote pass. A target GitHub
 repository URL is still required before remote publishing can continue.
 
+The GitHub remote target preflight command is:
+
+```powershell
+cmd /c pnpm verify:phase127a-github-remote-target-preflight
+```
+
+It records whether the inferred target repository `happy520ai/unified-ai-system`
+exists. Existing PME legacy-oriented repositories are not selected for this
+mainline. This phase does not create a GitHub repository, configure a remote,
+push code, open a PR, trigger GitHub Actions, deploy, publish, or claim a
+remote pass.
+
 This still does not mean cloud deployment, full CI/CD release automation,
 public multi-user production deployment, global release, or real multi-agent
 execution is complete.
@@ -305,6 +317,8 @@ Complete locally:
   `cmd /c pnpm verify:phase125a-github-auth-preflight`.
 - GitHub CLI authentication readiness recorded through
   `cmd /c pnpm verify:phase126a-github-auth-ready`.
+- GitHub remote target preflight recorded through
+  `cmd /c pnpm verify:phase127a-github-remote-target-preflight`.
 
 Not complete yet:
 
@@ -314,6 +328,8 @@ Not complete yet:
   authenticated GitHub execution path are available.
 - Configured git remote.
 - Target GitHub repository URL.
+- Created `happy520ai/unified-ai-system` repository or another explicit target
+  repository.
 - Current shell PATH refresh if `gh` is still not recognized before reopening
   PowerShell.
 - Pushed GitHub branch or pull request.
@@ -353,6 +369,7 @@ cmd /c pnpm verify:phase123a-github-cli-readiness
 cmd /c pnpm verify:phase124a-github-cli-install
 cmd /c pnpm verify:phase125a-github-auth-preflight
 cmd /c pnpm verify:phase126a-github-auth-ready
+cmd /c pnpm verify:phase127a-github-remote-target-preflight
 cmd /c pnpm verify:phase112a-non-docker-release-check
 cmd /c pnpm verify:phase107a-secret-safety
 cmd /c pnpm verify:phase105a-user-journey

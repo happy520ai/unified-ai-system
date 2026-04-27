@@ -329,6 +329,22 @@ workflows, publish releases, deploy infrastructure, or claim remote GitHub
 Actions passed. If the GitHub repository URL is missing, record that blocker
 honestly.
 
+## Phase 127A GitHub Remote Target Preflight Boundary
+
+Phase 127A is verified by:
+
+```powershell
+cmd /c pnpm verify:phase127a-github-remote-target-preflight
+```
+
+It records the remote target preflight only: authenticated GitHub account,
+inferred repository availability, candidate repository listing, git remote
+state, and remaining remote-publish blockers. It must not create a GitHub
+repository, configure remotes, push, open PRs, trigger remote workflows,
+publish releases, deploy infrastructure, or claim remote GitHub Actions passed.
+Do not select PME legacy repositories for the current `unified-ai-system`
+mainline unless the user explicitly requests that target.
+
 ## Default Command Set Freeze
 
 Phase 19A freezes the current default command set:

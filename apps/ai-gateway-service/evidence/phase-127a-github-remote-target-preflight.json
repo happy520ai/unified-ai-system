@@ -1,21 +1,22 @@
 {
-  "phase": "phase-126a-github-auth-ready",
+  "phase": "phase-127a-github-remote-target-preflight",
   "status": "passed",
-  "generatedAt": "2026-04-27T15:42:54.095Z",
+  "generatedAt": "2026-04-27T15:42:39.181Z",
   "checks": {
     "rootScriptPresent": true,
     "serviceScriptPresent": true,
-    "phase125Closed": true,
+    "phase126Closed": true,
     "gitTopLevelIsProject": true,
     "localCommitPresent": true,
     "noStagedFiles": true,
-    "ghInstalled": true,
-    "ghAuthenticated": true,
-    "ghUserRecorded": true,
-    "authStatusRecordedWithoutToken": true,
+    "ghAuthenticatedUserRecorded": true,
+    "targetRepoStatusRecorded": true,
+    "inferredTargetNotAccessible": true,
+    "candidateReposRecorded": true,
     "remoteStatusRecorded": true,
     "remoteNotConfigured": true,
     "blockersRecorded": true,
+    "noLegacyRepoSelected": true,
     "readmePhasePresent": true,
     "agentsBoundaryPresent": true,
     "userManualPresent": true,
@@ -27,7 +28,7 @@
     "gitTopLevel": "E:/AI-Data/AI网关系统/unified-ai-system",
     "branch": "master",
     "headSubject": "Phase126A GitHub auth ready",
-    "statusLineCount": 9,
+    "statusLineCount": 7,
     "statusPreview": [
       "M AGENTS.md",
       "M README.md",
@@ -35,8 +36,6 @@
       "M apps/ai-gateway-service/src/entrypoints/verifyUserManualReleasePack.js",
       "M docs/USER_MANUAL.md",
       "M package.json",
-      "?? apps/ai-gateway-service/evidence/phase-127a-github-remote-target-preflight.json",
-      "?? apps/ai-gateway-service/evidence/phase-127a-github-remote-target-preflight.md",
       "?? apps/ai-gateway-service/src/entrypoints/verifyGithubRemoteTargetPreflight.js"
     ],
     "stagedFileCount": 0,
@@ -44,34 +43,42 @@
     "remoteCount": 0,
     "remotePreview": [],
     "blockers": [
+      "happy520ai/unified-ai-system does not exist or is not accessible",
       "git remote is not configured",
-      "GitHub repository URL has not been provided in this workspace"
+      "explicit GitHub repository URL has not been provided"
     ]
   },
-  "githubCli": {
-    "installed": true,
-    "knownPath": "C:\\Program Files\\GitHub CLI\\gh.exe",
-    "authenticated": true,
+  "github": {
     "login": "happy520ai",
-    "versionTail": [
-      "gh version 2.91.0 (2026-04-22)",
-      "https://github.com/cli/cli/releases/tag/v2.91.0"
+    "inferredTarget": "happy520ai/unified-ai-system",
+    "inferredTargetExists": false,
+    "targetRepoTail": [
+      "GraphQL: Could not resolve to a Repository with the name 'happy520ai/unified-ai-system'. (repository)"
     ],
-    "authStatusSafeTail": [
-      "github.com",
-      "✓ Logged in to github.com account happy520ai (keyring)",
-      "- Active account: true",
-      "- Git operations protocol: https",
-      "- Token scopes: 'gist', 'read:org', 'repo', 'workflow'"
+    "candidateRepos": [
+      {
+        "nameWithOwner": "happy520ai/PME-AI-Gateway-beta",
+        "url": "https://github.com/happy520ai/PME-AI-Gateway-beta",
+        "visibility": "PUBLIC",
+        "isPrivate": false
+      },
+      {
+        "nameWithOwner": "happy520ai/PME",
+        "url": "https://github.com/happy520ai/PME",
+        "visibility": "PUBLIC",
+        "isPrivate": false
+      }
     ],
-    "tokenRecorded": false
+    "selectedRemote": null
   },
   "nextCommands": [
-    "git remote add origin <github-repo-url>",
+    "gh repo create happy520ai/unified-ai-system --private",
+    "git remote add origin https://github.com/happy520ai/unified-ai-system.git",
     "git push -u origin master"
   ],
   "safety": {
-    "storedGitHubTokenInEvidence": false,
+    "createdGitHubRepository": false,
+    "selectedLegacyPmeRepository": false,
     "configuredRemote": false,
     "pushedToRemote": false,
     "openedPullRequest": false,
@@ -83,5 +90,5 @@
     "globalReleaseComplete": false
   },
   "secretFindingCount": 0,
-  "conclusion": "github-auth-ready-remote-blocked"
+  "conclusion": "github-remote-target-missing-recorded"
 }

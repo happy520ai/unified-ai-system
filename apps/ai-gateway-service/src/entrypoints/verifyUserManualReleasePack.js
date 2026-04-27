@@ -119,6 +119,7 @@ async function main() {
       userManual.includes("verify:phase124a-github-cli-install") &&
       userManual.includes("verify:phase125a-github-auth-preflight") &&
       userManual.includes("verify:phase126a-github-auth-ready") &&
+      userManual.includes("verify:phase127a-github-remote-target-preflight") &&
       userManual.includes("verify:phase112a-non-docker-release-check") &&
       userManual.includes("verify:phase107a-secret-safety") &&
       userManual.includes("verify:phase105a-user-journey"),

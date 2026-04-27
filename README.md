@@ -18,6 +18,26 @@ belongs only in `apps/` and `packages/`.
 
 ## Current Phase
 
+Phase 127A records the GitHub remote target preflight:
+
+```powershell
+cmd /c pnpm verify:phase127a-github-remote-target-preflight
+```
+
+GitHub CLI is authenticated as `happy520ai`, but the inferred target repository
+`happy520ai/unified-ai-system` does not exist or is not accessible. Existing
+repositories under the account include PME legacy-oriented names, so this phase
+does not select them for the current `unified-ai-system` mainline. No remote is
+configured and no push was attempted.
+
+The safe next command is to create or provide the intended repository URL:
+
+```powershell
+gh repo create happy520ai/unified-ai-system --private
+git remote add origin https://github.com/happy520ai/unified-ai-system.git
+git push -u origin master
+```
+
 Phase 126A records that GitHub authentication is ready:
 
 ```powershell
