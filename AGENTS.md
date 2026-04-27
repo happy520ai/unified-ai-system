@@ -408,6 +408,21 @@ upload release artifacts, publish packages, publish container images, deploy
 cloud infrastructure, expose public production access, enable real multi-agent
 execution, or claim global release complete.
 
+## Phase 132A Release Decision Pack Boundary
+
+Phase 132A is verified by:
+
+```powershell
+cmd /c pnpm verify:phase132a-release-decision-pack
+```
+
+It records a draft release version, tag, title, prerelease/draft posture, and
+release notes text in `docs/RELEASE_DECISION_PACK.md`. It is a read-only
+decision pack only. It must not create git tags, create GitHub Releases, upload
+release artifacts, publish packages, publish container images, deploy cloud
+infrastructure, expose public production access, enable real multi-agent
+execution, or claim global release complete.
+
 ## Default Command Set Freeze
 
 Phase 19A freezes the current default command set:

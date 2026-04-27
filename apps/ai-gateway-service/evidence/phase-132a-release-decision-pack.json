@@ -1,12 +1,12 @@
 {
-  "phase": "phase-131a-release-artifact-preflight",
+  "phase": "phase-132a-release-decision-pack",
   "status": "passed",
-  "generatedAt": "2026-04-27T16:26:39.083Z",
+  "generatedAt": "2026-04-27T16:26:16.750Z",
   "checks": {
     "rootScriptPresent": true,
     "serviceScriptPresent": true,
-    "phase129Closed": true,
-    "phase130Closed": true,
+    "packageVersionMatchesCandidate": true,
+    "phase131Closed": true,
     "gitTopLevelIsProject": true,
     "localCommitPresent": true,
     "noStagedFiles": true,
@@ -19,13 +19,15 @@
     "latestReleaseGateRecorded": true,
     "latestReleaseGateSucceeded": true,
     "releaseListReadable": true,
-    "noGithubReleaseExists": true,
-    "noLocalReleaseTags": true,
+    "noGithubReleaseExistsForCandidate": true,
+    "noLocalCandidateTagExists": true,
     "workflowHasNoReleaseOrPublishSteps": true,
-    "releasePreflightDocPresent": true,
-    "releasePreflightDocHasScope": true,
-    "releasePreflightDocHasReadOnlyBoundary": true,
-    "releasePreflightDocHasManualDecisions": true,
+    "decisionPackDocPresent": true,
+    "decisionPackHasCandidate": true,
+    "decisionPackHasDraftPrereleaseRecommendation": true,
+    "decisionPackHasReleaseNotesDraft": true,
+    "decisionPackHasReadOnlyBoundary": true,
+    "decisionPackHasLaterCommandsOnly": true,
     "readmePhasePresent": true,
     "agentsBoundaryPresent": true,
     "userManualPresent": true,
@@ -33,13 +35,20 @@
     "noPlainSecrets": true,
     "projectContextNotCreated": true
   },
+  "candidate": {
+    "version": "0.1.0",
+    "tag": "v0.1.0-rc.1",
+    "title": "unified-ai-system v0.1.0-rc.1",
+    "recommendedReleaseState": "draft",
+    "recommendedReleaseMaturity": "prerelease"
+  },
   "git": {
     "repoRoot": "E:\\AI-Data\\AI网关系统\\unified-ai-system",
     "gitTopLevel": "E:/AI-Data/AI网关系统/unified-ai-system",
     "branch": "master",
     "headSha": "9903ef674a4962e099dc519fd8a6b682450a9df5",
     "headSubject": "Phase131A release artifact preflight",
-    "statusLineCount": 12,
+    "statusLineCount": 10,
     "statusPreview": [
       "M AGENTS.md",
       "M README.md",
@@ -49,14 +58,12 @@
       "M docs/REMOTE_RELEASE_STATUS.md",
       "M docs/USER_MANUAL.md",
       "M package.json",
-      "?? apps/ai-gateway-service/evidence/phase-132a-release-decision-pack.json",
-      "?? apps/ai-gateway-service/evidence/phase-132a-release-decision-pack.md",
       "?? apps/ai-gateway-service/src/entrypoints/verifyReleaseDecisionPack.js",
       "?? docs/RELEASE_DECISION_PACK.md"
     ],
     "stagedFileCount": 0,
     "localReleaseTagCount": 0,
-    "localReleaseTags": [],
+    "candidateTagExists": false,
     "remoteConfigured": true,
     "remoteLines": [
       "origin\thttps://github.com/happy520ai/unified-ai-system.git (fetch)",
@@ -83,19 +90,20 @@
       "url": "https://github.com/happy520ai/unified-ai-system/actions/runs/25006740001"
     },
     "releaseCount": 0,
-    "releases": []
+    "candidateReleaseExists": false
   },
   "workflow": {
     "path": ".github/workflows/release-gate.yml",
     "forbiddenReleaseOrPublishHits": []
   },
   "docs": {
+    "decisionPack": "docs/RELEASE_DECISION_PACK.md",
     "preflightDoc": "docs/RELEASE_PREFLIGHT.md",
     "remoteStatusDoc": "docs/REMOTE_RELEASE_STATUS.md",
     "userManual": "docs/USER_MANUAL.md"
   },
   "safety": {
-    "readOnlyPreflight": true,
+    "readOnlyDecisionPack": true,
     "gitTagCreated": false,
     "githubReleaseCreated": false,
     "releaseArtifactUploaded": false,
@@ -108,13 +116,13 @@
     "plaintextApiKeyRecorded": false
   },
   "nextManualDecisions": [
-    "choose release version and tag name",
-    "decide draft versus prerelease status",
-    "write release notes from verified evidence",
-    "decide release assets",
-    "decide whether package or image publishing belongs in a later phase",
-    "rerun the remote Release Gate on the exact release commit"
+    "approve or change candidate version",
+    "approve or change candidate tag",
+    "approve draft/prerelease setting",
+    "review release notes wording",
+    "rerun remote Release Gate on the exact release commit",
+    "explicitly open a later release-creation phase if a real release is desired"
   ],
   "secretFindingCount": 0,
-  "conclusion": "release-artifact-preflight-closed"
+  "conclusion": "release-decision-pack-closed"
 }

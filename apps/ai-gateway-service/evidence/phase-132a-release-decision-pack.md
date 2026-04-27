@@ -1,10 +1,14 @@
-# Phase 131A Release Artifact Preflight Evidence
+# Phase 132A Release Decision Pack Evidence
 
-- Phase: phase-131a-release-artifact-preflight
+- Phase: phase-132a-release-decision-pack
 - Status: passed
-- Generated at: 2026-04-27T16:26:39.083Z
+- Generated at: 2026-04-27T16:26:16.750Z
+- Candidate version: 0.1.0
+- Candidate tag: v0.1.0-rc.1
+- Candidate title: unified-ai-system v0.1.0-rc.1
+- Recommended state: draft
+- Recommended maturity: prerelease
 - Repository: happy520ai/unified-ai-system
-- Repository URL: https://github.com/happy520ai/unified-ai-system
 - Branch: master
 - Local head: 9903ef674a4962e099dc519fd8a6b682450a9df5
 - Remote head: 9903ef674a4962e099dc519fd8a6b682450a9df5
@@ -12,23 +16,25 @@
 - Latest Release Gate: Phase117A Release Gate completed success
 - Latest Release Gate URL: https://github.com/happy520ai/unified-ai-system/actions/runs/25006740001
 - GitHub release count: 0
-- Local release tag count: 0
+- Candidate release exists: false
+- Candidate tag exists: false
 - Release/publish workflow hits: 0
 - GitHub Release created: false
+- Git tag created: false
 - Release artifact uploaded: false
 - Package published: false
 - Docker image published: false
 - Cloud deployment complete: false
 - Global release complete: false
 - Plain secret findings: 0
-- Conclusion: release-artifact-preflight-closed
+- Conclusion: release-decision-pack-closed
 
 ## Checks
 
 - rootScriptPresent: passed
 - serviceScriptPresent: passed
-- phase129Closed: passed
-- phase130Closed: passed
+- packageVersionMatchesCandidate: passed
+- phase131Closed: passed
 - gitTopLevelIsProject: passed
 - localCommitPresent: passed
 - noStagedFiles: passed
@@ -41,13 +47,15 @@
 - latestReleaseGateRecorded: passed
 - latestReleaseGateSucceeded: passed
 - releaseListReadable: passed
-- noGithubReleaseExists: passed
-- noLocalReleaseTags: passed
+- noGithubReleaseExistsForCandidate: passed
+- noLocalCandidateTagExists: passed
 - workflowHasNoReleaseOrPublishSteps: passed
-- releasePreflightDocPresent: passed
-- releasePreflightDocHasScope: passed
-- releasePreflightDocHasReadOnlyBoundary: passed
-- releasePreflightDocHasManualDecisions: passed
+- decisionPackDocPresent: passed
+- decisionPackHasCandidate: passed
+- decisionPackHasDraftPrereleaseRecommendation: passed
+- decisionPackHasReleaseNotesDraft: passed
+- decisionPackHasReadOnlyBoundary: passed
+- decisionPackHasLaterCommandsOnly: passed
 - readmePhasePresent: passed
 - agentsBoundaryPresent: passed
 - userManualPresent: passed
@@ -57,14 +65,14 @@
 
 ## Next Manual Decisions
 
-- choose release version and tag name
-- decide draft versus prerelease status
-- write release notes from verified evidence
-- decide release assets
-- decide whether package or image publishing belongs in a later phase
-- rerun the remote Release Gate on the exact release commit
+- approve or change candidate version
+- approve or change candidate tag
+- approve draft/prerelease setting
+- review release notes wording
+- rerun remote Release Gate on the exact release commit
+- explicitly open a later release-creation phase if a real release is desired
 
 ## Boundary
 
-- This phase is a read-only GitHub Release and artifact preflight.
+- This phase is a read-only release version, tag, and release-notes decision pack.
 - It does not create tags, create releases, upload artifacts, publish packages/images, deploy cloud infrastructure, or complete global release.

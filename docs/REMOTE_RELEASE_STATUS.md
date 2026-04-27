@@ -63,3 +63,12 @@ Gate state, local tags, and existing GitHub Releases. It does not create a git
 tag, create a GitHub Release, upload artifacts, publish packages or images,
 deploy cloud infrastructure, expose public production access, or complete
 global release.
+
+## Release Decision Pack
+
+Phase 132A records the read-only release version, tag, and release notes
+decision pack in `docs/RELEASE_DECISION_PACK.md`. The candidate is version
+`0.1.0` with tag `v0.1.0-rc.1`, recommended as a draft prerelease. It does not
+create a git tag, create a GitHub Release, upload artifacts, publish packages
+or images, deploy cloud infrastructure, expose public production access, or
+complete global release.

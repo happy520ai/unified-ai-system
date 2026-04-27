@@ -165,6 +165,7 @@
     "verify:phase129a-remote-release-status": "pnpm --filter @unified-ai-system/ai-gateway-service verify:phase129a-remote-release-status",
     "verify:phase130a-actions-node24-warning-cleanup": "pnpm --filter @unified-ai-system/ai-gateway-service verify:phase130a-actions-node24-warning-cleanup",
     "verify:phase131a-release-artifact-preflight": "pnpm --filter @unified-ai-system/ai-gateway-service verify:phase131a-release-artifact-preflight",
+    "verify:phase132a-release-decision-pack": "pnpm --filter @unified-ai-system/ai-gateway-service verify:phase132a-release-decision-pack",
     "verify:phase8a-model-import": "pnpm --filter @unified-ai-system/ai-gateway-service verify:phase8a-model-import"
   },
   "engines": {

@@ -52,6 +52,9 @@ For verifier clarity:
 - Re-run the remote Release Gate on the exact release commit before creating a
   real release.
 
+Phase 132A records a read-only decision-pack draft for these choices in
+`docs/RELEASE_DECISION_PACK.md`; it does not create the release.
+
 ## Explicit Limits
 
 - GitHub Release creation remains incomplete.

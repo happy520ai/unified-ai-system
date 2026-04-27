@@ -18,6 +18,19 @@ belongs only in `apps/` and `packages/`.
 
 ## Current Phase
 
+Phase 132A records the release version, tag, and release notes decision pack:
+
+```powershell
+cmd /c pnpm verify:phase132a-release-decision-pack
+```
+
+The decision pack is `docs/RELEASE_DECISION_PACK.md`. It proposes candidate
+version `0.1.0`, candidate tag `v0.1.0-rc.1`, a draft prerelease posture, and
+release notes text. This is documentation and verification only: it does not
+create a git tag, create a GitHub Release, upload release artifacts, publish
+packages or images, deploy cloud infrastructure, expose the service to the
+public internet, or complete global release.
+
 Phase 131A records the GitHub Release and artifact preflight:
 
 ```powershell
