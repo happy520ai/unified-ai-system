@@ -1,7 +1,7 @@
 {
   "phase": "phase-128a-github-remote-push",
   "status": "passed",
-  "generatedAt": "2026-04-27T15:50:32.776Z",
+  "generatedAt": "2026-04-27T15:53:51.583Z",
   "checks": {
     "rootScriptPresent": true,
     "serviceScriptPresent": true,
@@ -28,24 +28,10 @@
     "repoRoot": "E:\\AI-Data\\AI网关系统\\unified-ai-system",
     "gitTopLevel": "E:/AI-Data/AI网关系统/unified-ai-system",
     "branch": "master",
-    "headSha": "bdca1b1337df99bd8f18b31061b829feefb86672",
-    "headSubject": "Phase127A GitHub remote target preflight",
-    "statusLineCount": 13,
-    "statusPreview": [
-      "M .github/workflows/release-gate.yml",
-      "M AGENTS.md",
-      "M README.md",
-      "M apps/ai-gateway-service/evidence/phase-117a-cicd-release-gate.json",
-      "M apps/ai-gateway-service/evidence/phase-117a-cicd-release-gate.md",
-      "M apps/ai-gateway-service/package.json",
-      "M apps/ai-gateway-service/src/entrypoints/verifyCicdReleaseGate.js",
-      "M apps/ai-gateway-service/src/entrypoints/verifyUserManualReleasePack.js",
-      "M docs/USER_MANUAL.md",
-      "M package.json",
-      "?? apps/ai-gateway-service/evidence/phase-128a-github-remote-push.json",
-      "?? apps/ai-gateway-service/evidence/phase-128a-github-remote-push.md",
-      "?? apps/ai-gateway-service/src/entrypoints/verifyGithubRemotePush.js"
-    ],
+    "headSha": "411b845c2c95c308cd50abd5ca6d7913f49e7e2b",
+    "headSubject": "Phase128A GitHub remote push",
+    "statusLineCount": 0,
+    "statusPreview": [],
     "stagedFileCount": 0,
     "remoteConfigured": true,
     "remoteLines": [
@@ -53,7 +39,7 @@
       "origin\thttps://github.com/happy520ai/unified-ai-system.git (push)"
     ],
     "upstream": "origin/master",
-    "remoteHeadSha": "bdca1b1337df99bd8f18b31061b829feefb86672",
+    "remoteHeadSha": "411b845c2c95c308cd50abd5ca6d7913f49e7e2b",
     "remoteHeadMatchesLocalHead": true
   },
   "github": {
@@ -65,14 +51,14 @@
     "actions": {
       "triggeredForPushedHead": true,
       "latestRun": {
-        "databaseId": 25005002578,
+        "databaseId": 25005311086,
         "workflowName": "Phase117A Release Gate",
         "headBranch": "master",
-        "headSha": "bdca1b1337df99bd8f18b31061b829feefb86672",
+        "headSha": "411b845c2c95c308cd50abd5ca6d7913f49e7e2b",
         "status": "completed",
-        "conclusion": "failure",
-        "createdAt": "2026-04-27T15:46:32Z",
-        "url": "https://github.com/happy520ai/unified-ai-system/actions/runs/25005002578"
+        "conclusion": "success",
+        "createdAt": "2026-04-27T15:52:40Z",
+        "url": "https://github.com/happy520ai/unified-ai-system/actions/runs/25005311086"
       }
     }
   },
@@ -82,7 +68,7 @@
     "pushedToRemote": true,
     "openedPullRequest": false,
     "remoteActionsStatusRecorded": true,
-    "remoteActionsPassedClaimed": false,
+    "remoteActionsPassedClaimed": true,
     "deployedInfrastructure": false,
     "publishedRelease": false,
     "plaintextApiKeyRecorded": false,
