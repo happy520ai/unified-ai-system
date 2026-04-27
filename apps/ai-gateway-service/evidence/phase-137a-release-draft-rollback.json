@@ -1,12 +1,12 @@
 {
-  "phase": "phase-135a-release-publish-preflight",
+  "phase": "phase-137a-release-draft-rollback",
   "status": "passed",
-  "generatedAt": "2026-04-27T17:31:32.217Z",
+  "generatedAt": "2026-04-27T17:30:52.442Z",
   "checks": {
     "rootScriptPresent": true,
     "serviceScriptPresent": true,
     "packageVersionMatchesCandidate": true,
-    "phase134Closed": true,
+    "phase136Closed": true,
     "gitTopLevelIsProject": true,
     "localCommitPresent": true,
     "noStagedFiles": true,
@@ -25,18 +25,17 @@
     "releaseViewReadable": true,
     "releaseTagMatches": true,
     "releaseTitleMatches": true,
-    "releaseIsStillDraftOrLaterPhase136Closed": true,
-    "releaseIsStillPrerelease": true,
+    "releaseIsDraftAgain": true,
+    "releaseRemainsPrerelease": true,
     "releaseTargetsExpectedCommit": true,
-    "releaseIsNotPublishedOrLaterPhase136Closed": true,
+    "releasePublishedAtRetained": true,
     "releaseHasNoAssets": true,
-    "laterPhase136ExecutionConsistent": true,
     "workflowHasNoReleaseOrPublishSteps": true,
-    "publishPreflightDocPresent": true,
-    "publishPreflightDocHasCandidate": true,
-    "publishPreflightDocHasRequiredPhrases": true,
-    "publishPreflightDocHasLaterCommandsOnly": true,
-    "publishPreflightDocHasBoundary": true,
+    "rollbackDocPresent": true,
+    "rollbackDocHasCandidate": true,
+    "rollbackDocHasExecutedCommand": true,
+    "rollbackDocHasRollbackState": true,
+    "rollbackDocHasBoundary": true,
     "readmePhasePresent": true,
     "agentsBoundaryPresent": true,
     "userManualPresent": true,
@@ -49,10 +48,10 @@
     "tag": "v0.1.0-rc.1",
     "title": "unified-ai-system v0.1.0-rc.1",
     "releaseTargetCommit": "bdba42b600d712acb77926774c75254b8c290ea6",
-    "requiredPublishPhrase": "发布 GitHub Release v0.1.0-rc.1",
-    "requiredAssetPhrase": "上传 GitHub Release v0.1.0-rc.1 资产",
+    "requiredRollbackPhrase": "撤回 GitHub Release v0.1.0-rc.1 为 draft",
     "releaseUrl": "https://github.com/happy520ai/unified-ai-system/releases/tag/untagged-713fdd907977ced8c085",
-    "releaseCreatedAt": "2026-04-27T16:34:40Z"
+    "releaseCreatedAt": "2026-04-27T16:34:40Z",
+    "retainedPublishedAt": "2026-04-27T17:14:03Z"
   },
   "git": {
     "repoRoot": "E:\\AI-Data\\AI网关系统\\unified-ai-system",
@@ -60,20 +59,16 @@
     "branch": "master",
     "headSha": "84b4de7f2d3243d07084277992eae2c2feee28a5",
     "headSubject": "Phase136A release publish execution",
-    "statusLineCount": 14,
+    "statusLineCount": 10,
     "statusPreview": [
       "M AGENTS.md",
       "M README.md",
-      "M apps/ai-gateway-service/evidence/phase-136a-release-publish-execution.json",
-      "M apps/ai-gateway-service/evidence/phase-136a-release-publish-execution.md",
       "M apps/ai-gateway-service/package.json",
       "M apps/ai-gateway-service/src/entrypoints/verifyReleasePublishExecution.js",
       "M apps/ai-gateway-service/src/entrypoints/verifyUserManualReleasePack.js",
       "M docs/REMOTE_RELEASE_STATUS.md",
       "M docs/USER_MANUAL.md",
       "M package.json",
-      "?? apps/ai-gateway-service/evidence/phase-137a-release-draft-rollback.json",
-      "?? apps/ai-gateway-service/evidence/phase-137a-release-draft-rollback.md",
       "?? apps/ai-gateway-service/src/entrypoints/verifyReleaseDraftRollback.js",
       "?? docs/RELEASE_DRAFT_ROLLBACK.md"
     ],
@@ -126,25 +121,22 @@
       "createdAt": "2026-04-27T16:34:40Z",
       "publishedAt": "2026-04-27T17:14:03Z",
       "assetCount": 0
-    },
-    "laterPhase136ExecutionClosed": true
+    }
   },
   "workflow": {
     "path": ".github/workflows/release-gate.yml",
     "forbiddenReleaseOrPublishHits": []
   },
   "docs": {
-    "publishPreflightDoc": "docs/RELEASE_PUBLISH_PREFLIGHT.md",
-    "executionDoc": "docs/RELEASE_CREATION_EXECUTION.md",
-    "decisionPack": "docs/RELEASE_DECISION_PACK.md",
+    "rollbackDoc": "docs/RELEASE_DRAFT_ROLLBACK.md",
+    "publishExecutionDoc": "docs/RELEASE_PUBLISH_EXECUTION.md",
     "remoteStatusDoc": "docs/REMOTE_RELEASE_STATUS.md",
     "userManual": "docs/USER_MANUAL.md"
   },
   "safety": {
-    "readOnlyPublishPreflight": true,
-    "releaseAlreadyCreatedByPhase134A": true,
-    "releasePublished": false,
-    "releasePublishedByLaterPhase136": true,
+    "releaseRolledBackToDraft": true,
+    "releaseDeleted": false,
+    "gitTagDeleted": false,
     "releaseArtifactUploaded": false,
     "packagePublished": false,
     "dockerImagePublished": false,
@@ -154,11 +146,15 @@
     "realAgentExecutionEnabled": false,
     "plaintextApiKeyRecorded": false
   },
-  "nextManualDecisions": [
-    "provide exact asset paths if assets should be uploaded",
-    "open a later explicit asset-upload phase if needed",
-    "keep package, image, cloud deployment, and global release as separate later phases"
+  "remainingLimits": [
+    "release is back in draft state",
+    "release assets are not uploaded",
+    "packages are not published",
+    "container images are not published",
+    "cloud deployment is not complete",
+    "public production deployment is not complete",
+    "global release is not complete"
   ],
   "secretFindingCount": 0,
-  "conclusion": "release-publish-preflight-closed"
+  "conclusion": "release-draft-rollback-closed"
 }

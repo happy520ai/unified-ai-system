@@ -2,7 +2,7 @@
 
 - Phase: phase-114a-user-manual-release-pack
 - Status: passed
-- Generated at: 2026-04-27T17:19:59.619Z
+- Generated at: 2026-04-27T17:32:14.091Z
 - User manual: docs/USER_MANUAL.md
 - Local pnpm path documented: true
 - Setup Wizard documented: true

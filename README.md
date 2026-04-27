@@ -18,6 +18,18 @@ belongs only in `apps/` and `packages/`.
 
 ## Current Phase
 
+Phase 137A rolls the existing `v0.1.0-rc.1` GitHub prerelease back to draft:
+
+```powershell
+cmd /c pnpm verify:phase137a-release-draft-rollback
+```
+
+The rollback record is `docs/RELEASE_DRAFT_ROLLBACK.md`. The release remains
+present and still points to tag `v0.1.0-rc.1`, but it is draft again. This
+phase does not delete the release, delete the tag, upload release assets,
+publish packages or images, deploy cloud infrastructure, expose the service to
+the public internet, or complete global release.
+
 Phase 136A publishes the existing `v0.1.0-rc.1` GitHub prerelease:
 
 ```powershell

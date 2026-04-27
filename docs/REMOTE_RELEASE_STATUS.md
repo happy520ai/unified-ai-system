@@ -107,3 +107,11 @@ Phase 136A records the real GitHub prerelease publication in
 `docs/RELEASE_PUBLISH_EXECUTION.md`. The `v0.1.0-rc.1` release is no longer a
 draft and remains a prerelease. No release assets, packages, container images,
 cloud deployment, public production exposure, or global release are complete.
+
+## Release Draft Rollback
+
+Phase 137A records the rollback of the existing GitHub prerelease back to draft
+state in `docs/RELEASE_DRAFT_ROLLBACK.md`. The `v0.1.0-rc.1` release and tag
+still exist, the release is draft again, and it remains a prerelease. No
+release assets, packages, container images, cloud deployment, public production
+exposure, or global release are complete.

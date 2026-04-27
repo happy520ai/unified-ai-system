@@ -156,6 +156,7 @@
     "verify:phase133a-release-creation-confirmation": "node ./src/entrypoints/verifyReleaseCreationConfirmation.js",
     "verify:phase134a-release-creation-execution": "node ./src/entrypoints/verifyReleaseCreationExecution.js",
     "verify:phase135a-release-publish-preflight": "node ./src/entrypoints/verifyReleasePublishPreflight.js",
-    "verify:phase136a-release-publish-execution": "node ./src/entrypoints/verifyReleasePublishExecution.js"
+    "verify:phase136a-release-publish-execution": "node ./src/entrypoints/verifyReleasePublishExecution.js",
+    "verify:phase137a-release-draft-rollback": "node ./src/entrypoints/verifyReleaseDraftRollback.js"
   }
 }

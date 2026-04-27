@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import { findPlainSecretFindings } from "../security/secretSafety.js";
 
 const execFileAsync = promisify(execFile);
-const phase = "phase-136a-release-publish-execution";
+const phase = "phase-137a-release-draft-rollback";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "../../../..");
 const evidenceDir = resolve(repoRoot, "apps/ai-gateway-service/evidence");
@@ -15,14 +15,12 @@ const knownGhPath = "C:\\Program Files\\GitHub CLI\\gh.exe";
 const repoFullName = "happy520ai/unified-ai-system";
 const repoUrl = `https://github.com/${repoFullName}`;
 const remoteUrl = `${repoUrl}.git`;
-const executionDocPath = "docs/RELEASE_PUBLISH_EXECUTION.md";
-const phase137EvidencePath =
-  "apps/ai-gateway-service/evidence/phase-137a-release-draft-rollback.json";
+const rollbackDocPath = "docs/RELEASE_DRAFT_ROLLBACK.md";
 const candidateVersion = "0.1.0";
 const candidateTag = "v0.1.0-rc.1";
 const candidateTitle = "unified-ai-system v0.1.0-rc.1";
 const releaseTargetCommit = "bdba42b600d712acb77926774c75254b8c290ea6";
-const requiredPublishPhrase = "发布 GitHub Release v0.1.0-rc.1";
+const requiredRollbackPhrase = "撤回 GitHub Release v0.1.0-rc.1 为 draft";
 
 async function run(command, args, options = {}) {
   const startedAt = Date.now();
@@ -87,14 +85,6 @@ async function readRequired(relativePath) {
   return readFile(resolve(repoRoot, relativePath), "utf8");
 }
 
-async function readOptional(relativePath) {
-  if (!existsSync(resolve(repoRoot, relativePath))) {
-    return "";
-  }
-
-  return readFile(resolve(repoRoot, relativePath), "utf8");
-}
-
 function redactRemoteLine(line) {
   return String(line).replace(/:\/\/[^@\s]+@/g, "://[redacted]@");
 }
@@ -108,11 +98,10 @@ async function main() {
     agents,
     userManual,
     remoteStatusDoc,
-    publishPreflightDoc,
     publishExecutionDoc,
+    rollbackDoc,
     workflow,
-    phase135EvidenceText,
-    phase137EvidenceText,
+    phase136EvidenceText,
   ] = await Promise.all([
     readRequired("package.json"),
     readRequired("apps/ai-gateway-service/package.json"),
@@ -120,11 +109,10 @@ async function main() {
     readRequired("AGENTS.md"),
     readRequired("docs/USER_MANUAL.md"),
     readRequired("docs/REMOTE_RELEASE_STATUS.md"),
-    readRequired("docs/RELEASE_PUBLISH_PREFLIGHT.md"),
-    readRequired(executionDocPath),
+    readRequired("docs/RELEASE_PUBLISH_EXECUTION.md"),
+    readRequired(rollbackDocPath),
     readRequired(".github/workflows/release-gate.yml"),
-    readRequired("apps/ai-gateway-service/evidence/phase-135a-release-publish-preflight.json"),
-    readOptional(phase137EvidencePath),
+    readRequired("apps/ai-gateway-service/evidence/phase-136a-release-publish-execution.json"),
   ]);
 
   const rootPackage = parseJson(rootPackageText, "package.json");
@@ -132,13 +120,10 @@ async function main() {
     servicePackageText,
     "apps/ai-gateway-service/package.json",
   );
-  const phase135Evidence = parseJson(
-    phase135EvidenceText,
-    "phase-135a-release-publish-preflight.json",
+  const phase136Evidence = parseJson(
+    phase136EvidenceText,
+    "phase-136a-release-publish-execution.json",
   );
-  const phase137Evidence = phase137EvidenceText
-    ? parseJson(phase137EvidenceText, "phase-137a-release-draft-rollback.json")
-    : null;
 
   const gitTopLevel = await runGit(["rev-parse", "--show-toplevel"]);
   const gitHead = await runGit(["rev-parse", "--verify", "HEAD"]);
@@ -207,12 +192,7 @@ async function main() {
   const remoteConfigured = remoteLines.some((line) => line.includes(remoteUrl));
   const remoteHeadMatchesLocal = Boolean(localHead) && remoteHeadSha === localHead;
   const localCandidateTagTarget = localTagTarget.stdout.trim();
-  const laterPhase137Closed =
-    phase137Evidence?.status === "passed" &&
-    phase137Evidence?.candidate?.tag === candidateTag &&
-    phase137Evidence?.safety?.releaseRolledBackToDraft === true &&
-    phase137Evidence?.safety?.releaseArtifactUploaded === false;
-  const executionDocFlat = normalizeWhitespace(publishExecutionDoc);
+  const rollbackDocFlat = normalizeWhitespace(rollbackDoc);
   const forbiddenWorkflowMarkers = [
     "gh release",
     "actions/create-release",
@@ -240,11 +220,10 @@ async function main() {
       agents,
       userManual,
       remoteStatusDoc,
-      publishPreflightDoc,
       publishExecutionDoc,
+      rollbackDoc,
       workflow,
-      phase135EvidenceText,
-      phase137EvidenceText,
+      phase136EvidenceText,
       gitRemote.stdout,
       repoView.stdout,
       repoView.stderr,
@@ -253,22 +232,22 @@ async function main() {
       releaseView.stdout,
       releaseView.stderr,
     ].join("\n\n"),
-    "phase136a-release-publish-execution",
+    "phase137a-release-draft-rollback",
   );
 
   const checks = {
     rootScriptPresent:
-      rootPackage.scripts?.["verify:phase136a-release-publish-execution"] ===
-      "pnpm --filter @unified-ai-system/ai-gateway-service verify:phase136a-release-publish-execution",
+      rootPackage.scripts?.["verify:phase137a-release-draft-rollback"] ===
+      "pnpm --filter @unified-ai-system/ai-gateway-service verify:phase137a-release-draft-rollback",
     serviceScriptPresent:
-      servicePackage.scripts?.["verify:phase136a-release-publish-execution"] ===
-      "node ./src/entrypoints/verifyReleasePublishExecution.js",
+      servicePackage.scripts?.["verify:phase137a-release-draft-rollback"] ===
+      "node ./src/entrypoints/verifyReleaseDraftRollback.js",
     packageVersionMatchesCandidate: rootPackage.version === candidateVersion,
-    phase135Closed:
-      phase135Evidence.status === "passed" &&
-      phase135Evidence.candidate?.tag === candidateTag &&
-      phase135Evidence.safety?.releasePublished === false &&
-      phase135Evidence.safety?.releaseArtifactUploaded === false,
+    phase136Closed:
+      phase136Evidence.status === "passed" &&
+      phase136Evidence.candidate?.tag === candidateTag &&
+      phase136Evidence.safety?.releasePublished === true &&
+      phase136Evidence.safety?.releaseArtifactUploaded === false,
     gitTopLevelIsProject: normalizePath(gitTopLevel.stdout) === normalizePath(repoRoot),
     localCommitPresent: gitHead.exitCode === 0,
     noStagedFiles: stagedFiles.length === 0,
@@ -287,43 +266,43 @@ async function main() {
     releaseViewReadable: releaseView.exitCode === 0,
     releaseTagMatches: release.tagName === candidateTag,
     releaseTitleMatches: release.name === candidateTitle,
-    releaseIsPublishedOrLaterPhase137Closed: release.isDraft === false || laterPhase137Closed,
+    releaseIsDraftAgain: release.isDraft === true,
     releaseRemainsPrerelease: release.isPrerelease === true,
     releaseTargetsExpectedCommit: release.targetCommitish === releaseTargetCommit,
-    releasePublishedAtPresent: typeof release.publishedAt === "string" && release.publishedAt.length > 0,
+    releasePublishedAtRetained: typeof release.publishedAt === "string" && release.publishedAt.length > 0,
     releaseHasNoAssets: Array.isArray(release.assets) && release.assets.length === 0,
-    laterPhase137ExecutionConsistent: !phase137EvidenceText || laterPhase137Closed,
     workflowHasNoReleaseOrPublishSteps: workflowForbiddenHits.length === 0,
-    executionDocPresent: existsSync(resolve(repoRoot, executionDocPath)),
-    executionDocHasCandidate:
-      publishExecutionDoc.includes(`Tag: \`${candidateTag}\``) &&
-      publishExecutionDoc.includes(`Release title: \`${candidateTitle}\``) &&
-      publishExecutionDoc.includes(`Release target commit: \`${releaseTargetCommit}\``),
-    executionDocHasExecutedCommand:
-      publishExecutionDoc.includes("gh release edit") &&
-      publishExecutionDoc.includes("--draft=false") &&
-      publishExecutionDoc.includes("--prerelease") &&
-      publishExecutionDoc.includes("--latest=false"),
-    executionDocHasPublicationState:
-      publishExecutionDoc.includes("no longer a draft") &&
-      publishExecutionDoc.includes("remains a prerelease") &&
-      publishExecutionDoc.includes("No release assets were uploaded"),
-    executionDocHasBoundary:
-      executionDocFlat.includes("publishes only the existing GitHub prerelease") &&
-      executionDocFlat.includes("does not upload release assets") &&
-      executionDocFlat.includes("does not publish packages") &&
-      executionDocFlat.includes("does not deploy cloud infrastructure"),
+    rollbackDocPresent: existsSync(resolve(repoRoot, rollbackDocPath)),
+    rollbackDocHasCandidate:
+      rollbackDoc.includes(`Tag: \`${candidateTag}\``) &&
+      rollbackDoc.includes(`Release title: \`${candidateTitle}\``) &&
+      rollbackDoc.includes(`Release target commit: \`${releaseTargetCommit}\``),
+    rollbackDocHasExecutedCommand:
+      rollbackDoc.includes("gh release edit") &&
+      rollbackDoc.includes("--draft") &&
+      rollbackDoc.includes("--prerelease") &&
+      rollbackDoc.includes("--latest=false"),
+    rollbackDocHasRollbackState:
+      rollbackDoc.includes("draft again") &&
+      rollbackDoc.includes("remains a prerelease") &&
+      rollbackDoc.includes("No release assets were uploaded") &&
+      rollbackDoc.includes("isDraft=true"),
+    rollbackDocHasBoundary:
+      rollbackDocFlat.includes("only changes the existing GitHub Release back to draft state") &&
+      rollbackDocFlat.includes("does not delete the GitHub Release") &&
+      rollbackDocFlat.includes("does not delete the git tag") &&
+      rollbackDocFlat.includes("does not deploy cloud infrastructure"),
     readmePhasePresent:
-      readme.includes("Phase 136A") &&
-      readme.includes("verify:phase136a-release-publish-execution"),
+      readme.includes("Phase 137A") &&
+      readme.includes("verify:phase137a-release-draft-rollback"),
     agentsBoundaryPresent:
-      agents.includes("Phase 136A Release Publish Execution Boundary") &&
-      agents.includes("verify:phase136a-release-publish-execution"),
+      agents.includes("Phase 137A Release Draft Rollback Boundary") &&
+      agents.includes("verify:phase137a-release-draft-rollback"),
     userManualPresent:
-      userManual.includes("verify:phase136a-release-publish-execution"),
+      userManual.includes("verify:phase137a-release-draft-rollback"),
     remoteStatusDocPresent:
-      remoteStatusDoc.includes("Phase 136A") &&
-      remoteStatusDoc.includes("RELEASE_PUBLISH_EXECUTION.md"),
+      remoteStatusDoc.includes("Phase 137A") &&
+      remoteStatusDoc.includes("RELEASE_DRAFT_ROLLBACK.md"),
     noPlainSecrets: secretFindings.length === 0,
     projectContextNotCreated: !existsSync(resolve(repoRoot, "PROJECT_CONTEXT.md")),
   };
@@ -338,10 +317,10 @@ async function main() {
       tag: candidateTag,
       title: candidateTitle,
       releaseTargetCommit,
-      requiredPublishPhrase,
+      requiredRollbackPhrase,
       releaseUrl: release.url ?? "",
       releaseCreatedAt: release.createdAt ?? "",
-      releasePublishedAt: release.publishedAt ?? "",
+      retainedPublishedAt: release.publishedAt ?? "",
     },
     git: {
       repoRoot,
@@ -402,25 +381,21 @@ async function main() {
         publishedAt: release.publishedAt ?? null,
         assetCount: Array.isArray(release.assets) ? release.assets.length : null,
       },
-      laterPhase137ExecutionClosed: laterPhase137Closed,
     },
     workflow: {
       path: ".github/workflows/release-gate.yml",
       forbiddenReleaseOrPublishHits: workflowForbiddenHits,
     },
     docs: {
-      executionDoc: executionDocPath,
-      publishPreflightDoc: "docs/RELEASE_PUBLISH_PREFLIGHT.md",
-      releaseDraftRollbackEvidence: phase137EvidenceText ? phase137EvidencePath : "",
+      rollbackDoc: rollbackDocPath,
+      publishExecutionDoc: "docs/RELEASE_PUBLISH_EXECUTION.md",
       remoteStatusDoc: "docs/REMOTE_RELEASE_STATUS.md",
       userManual: "docs/USER_MANUAL.md",
     },
     safety: {
-      releasePublished: true,
-      releasePublishedByThisPhase: true,
-      releaseCurrentlyDraftByLaterPhase137: laterPhase137Closed,
-      releaseRolledBackByLaterPhase137: laterPhase137Closed,
-      releasePrerelease: release.isPrerelease === true,
+      releaseRolledBackToDraft: release.isDraft === true,
+      releaseDeleted: false,
+      gitTagDeleted: false,
       releaseArtifactUploaded: false,
       packagePublished: false,
       dockerImagePublished: false,
@@ -431,7 +406,7 @@ async function main() {
       plaintextApiKeyRecorded: false,
     },
     remainingLimits: [
-      ...(laterPhase137Closed ? ["release is back in draft state after Phase137A rollback"] : []),
+      "release is back in draft state",
       "release assets are not uploaded",
       "packages are not published",
       "container images are not published",
@@ -441,8 +416,8 @@ async function main() {
     ],
     secretFindingCount: secretFindings.length,
     conclusion: passed
-      ? "release-publish-execution-closed"
-      : "release-publish-execution-not-closed",
+      ? "release-draft-rollback-closed"
+      : "release-draft-rollback-not-closed",
   };
 
   await mkdir(evidenceDir, { recursive: true });
@@ -461,7 +436,7 @@ function markdown(evidence) {
   const headGate = evidence.github.latestHeadReleaseGate;
   const targetGate = evidence.github.releaseTargetGate;
   return [
-    "# Phase 136A Release Publish Execution Evidence",
+    "# Phase 137A Release Draft Rollback Evidence",
     "",
     `- Phase: ${evidence.phase}`,
     `- Status: ${evidence.status}`,
@@ -471,18 +446,18 @@ function markdown(evidence) {
     `- Candidate title: ${evidence.candidate.title}`,
     `- Release target commit: ${evidence.candidate.releaseTargetCommit}`,
     `- Release URL: ${evidence.candidate.releaseUrl}`,
-    `- Release published at: ${evidence.candidate.releasePublishedAt}`,
     `- Release draft: ${evidence.github.release.isDraft}`,
     `- Release prerelease: ${evidence.github.release.isPrerelease}`,
+    `- Retained publishedAt: ${evidence.candidate.retainedPublishedAt || "none"}`,
     `- Release asset count: ${evidence.github.release.assetCount}`,
     `- Current head Release Gate: ${headGate ? `${headGate.workflowName} ${headGate.status} ${headGate.conclusion}`.trim() : "none"}`,
     `- Current head Release Gate URL: ${headGate?.url ?? "none"}`,
     `- Release target gate: ${targetGate ? `${targetGate.workflowName} ${targetGate.status} ${targetGate.conclusion}`.trim() : "none"}`,
     `- Release target gate URL: ${targetGate?.url ?? "none"}`,
-    `- Release published by this phase: ${evidence.safety.releasePublished}`,
-    `- Release currently draft by later Phase137A: ${evidence.safety.releaseCurrentlyDraftByLaterPhase137}`,
-    `- Release rolled back by later Phase137A: ${evidence.safety.releaseRolledBackByLaterPhase137}`,
-    `- Release artifact uploaded by this phase: ${evidence.safety.releaseArtifactUploaded}`,
+    `- Release rolled back to draft: ${evidence.safety.releaseRolledBackToDraft}`,
+    `- Release deleted: ${evidence.safety.releaseDeleted}`,
+    `- Git tag deleted: ${evidence.safety.gitTagDeleted}`,
+    `- Release artifact uploaded: ${evidence.safety.releaseArtifactUploaded}`,
     `- Package published: ${evidence.safety.packagePublished}`,
     `- Docker image published: ${evidence.safety.dockerImagePublished}`,
     `- Cloud deployment complete: ${evidence.safety.cloudDeploymentComplete}`,
@@ -502,8 +477,8 @@ function markdown(evidence) {
     "",
     "## Boundary",
     "",
-    "- This phase publishes the existing GitHub prerelease only.",
-    "- It does not upload assets, publish packages/images, deploy cloud infrastructure, or complete global release.",
+    "- This phase changes the existing GitHub Release back to draft state only.",
+    "- It does not delete the release, delete the tag, upload assets, publish packages/images, deploy cloud infrastructure, or complete global release.",
     "",
   ].join("\n");
 }

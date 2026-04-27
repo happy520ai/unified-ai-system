@@ -489,6 +489,23 @@ artifacts, publish packages, publish container images, deploy cloud
 infrastructure, expose public production access, enable real multi-agent
 execution, or claim global release complete.
 
+## Phase 137A Release Draft Rollback Boundary
+
+Phase 137A is verified by:
+
+```powershell
+cmd /c pnpm verify:phase137a-release-draft-rollback
+```
+
+It rolls the existing GitHub prerelease `v0.1.0-rc.1` back to draft state after
+explicit user confirmation. It may verify the release is draft again, remains a
+prerelease, keeps the tag and target commit, has no assets, and records that
+GitHub may retain the historical `publishedAt` timestamp. It must not delete
+the GitHub Release, delete the git tag, upload release artifacts, publish
+packages, publish container images, deploy cloud infrastructure, expose public
+production access, enable real multi-agent execution, or claim global release
+complete.
+
 ## Default Command Set Freeze
 
 Phase 19A freezes the current default command set:

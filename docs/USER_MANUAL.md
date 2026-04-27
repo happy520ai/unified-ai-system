@@ -257,6 +257,17 @@ It verifies that the existing `v0.1.0-rc.1` GitHub Release is published,
 remains a prerelease, has no uploaded assets, and still does not publish
 packages or images, deploy, or complete global release.
 
+The release draft rollback verification command is:
+
+```powershell
+cmd /c pnpm verify:phase137a-release-draft-rollback
+```
+
+It verifies that the existing `v0.1.0-rc.1` GitHub Release is back in draft
+state, still exists, keeps the git tag, remains a prerelease, has no uploaded
+assets, and still does not publish packages or images, deploy, or complete
+global release.
+
 This still does not mean cloud deployment, full CI/CD release automation,
 public multi-user production deployment, global release, or real multi-agent
 execution is complete.
@@ -442,6 +453,8 @@ Complete locally:
   `cmd /c pnpm verify:phase135a-release-publish-preflight`.
 - GitHub prerelease publication completed through
   `cmd /c pnpm verify:phase136a-release-publish-execution`.
+- GitHub prerelease rolled back to draft through
+  `cmd /c pnpm verify:phase137a-release-draft-rollback`.
 
 Not complete yet:
 
@@ -498,6 +511,7 @@ cmd /c pnpm verify:phase133a-release-creation-confirmation
 cmd /c pnpm verify:phase134a-release-creation-execution
 cmd /c pnpm verify:phase135a-release-publish-preflight
 cmd /c pnpm verify:phase136a-release-publish-execution
+cmd /c pnpm verify:phase137a-release-draft-rollback
 cmd /c pnpm verify:phase112a-non-docker-release-check
 cmd /c pnpm verify:phase107a-secret-safety
 cmd /c pnpm verify:phase105a-user-journey

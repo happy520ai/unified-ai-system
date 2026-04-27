@@ -2,20 +2,20 @@
 
 - Phase: phase-135a-release-publish-preflight
 - Status: passed
-- Generated at: 2026-04-27T17:19:37.098Z
+- Generated at: 2026-04-27T17:31:32.217Z
 - Candidate version: 0.1.0
 - Candidate tag: v0.1.0-rc.1
 - Candidate title: unified-ai-system v0.1.0-rc.1
 - Release target commit: bdba42b600d712acb77926774c75254b8c290ea6
-- Release URL: https://github.com/happy520ai/unified-ai-system/releases/tag/v0.1.0-rc.1
-- Release draft: false
+- Release URL: https://github.com/happy520ai/unified-ai-system/releases/tag/untagged-713fdd907977ced8c085
+- Release draft: true
 - Release prerelease: true
 - Release published at: 2026-04-27T17:14:03Z
 - Release asset count: 0
 - Release published by later Phase136A: true
-- Current head: 55ac3c2b51957c2effe05f7f030fbeb7b11e98a6
+- Current head: 84b4de7f2d3243d07084277992eae2c2feee28a5
 - Current head Release Gate: Phase117A Release Gate completed success
-- Current head Release Gate URL: https://github.com/happy520ai/unified-ai-system/actions/runs/25008938076
+- Current head Release Gate URL: https://github.com/happy520ai/unified-ai-system/actions/runs/25009464594
 - Release target gate: Phase117A Release Gate completed success
 - Release target gate URL: https://github.com/happy520ai/unified-ai-system/actions/runs/25007359180
 - Required publish phrase: 发布 GitHub Release v0.1.0-rc.1

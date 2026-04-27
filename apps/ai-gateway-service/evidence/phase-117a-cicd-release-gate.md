@@ -2,7 +2,7 @@
 
 - Phase: phase-117a-cicd-release-gate
 - Status: passed
-- Generated at: 2026-04-27T17:20:01.799Z
+- Generated at: 2026-04-27T17:32:23.729Z
 - Workflow: .github/workflows/release-gate.yml
 - Forbidden deploy/publish hits: 0
 - Plain secret findings: 0
