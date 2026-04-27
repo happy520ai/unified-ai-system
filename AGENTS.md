@@ -473,6 +473,22 @@ publish packages, publish container images, deploy cloud infrastructure, expose
 public production access, enable real multi-agent execution, or claim global
 release complete.
 
+## Phase 136A Release Publish Execution Boundary
+
+Phase 136A is verified by:
+
+```powershell
+cmd /c pnpm verify:phase136a-release-publish-execution
+```
+
+It publishes the existing GitHub prerelease `v0.1.0-rc.1` after explicit user
+confirmation. It may verify the release is no longer a draft, remains a
+prerelease, has a `publishedAt` timestamp, still has no assets, and preserves
+local/remote tag state and release-gate evidence. It must not upload release
+artifacts, publish packages, publish container images, deploy cloud
+infrastructure, expose public production access, enable real multi-agent
+execution, or claim global release complete.
+
 ## Default Command Set Freeze
 
 Phase 19A freezes the current default command set:

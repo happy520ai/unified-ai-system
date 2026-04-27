@@ -2,19 +2,20 @@
 
 - Phase: phase-134a-release-creation-execution
 - Status: passed
-- Generated at: 2026-04-27T17:07:38.709Z
+- Generated at: 2026-04-27T17:19:35.689Z
 - Candidate version: 0.1.0
 - Candidate tag: v0.1.0-rc.1
 - Candidate title: unified-ai-system v0.1.0-rc.1
 - Release target commit: bdba42b600d712acb77926774c75254b8c290ea6
-- Release URL: https://github.com/happy520ai/unified-ai-system/releases/tag/untagged-88426f9cb7dcdb757b96
+- Release URL: https://github.com/happy520ai/unified-ai-system/releases/tag/v0.1.0-rc.1
 - Release created at: 2026-04-27T16:34:40Z
 - Local tag target: bdba42b600d712acb77926774c75254b8c290ea6
 - Remote tag target: bdba42b600d712acb77926774c75254b8c290ea6
 - Release target gate: Phase117A Release Gate completed success
 - Release target gate URL: https://github.com/happy520ai/unified-ai-system/actions/runs/25007359180
-- Release draft: true
+- Release draft: false
 - Release prerelease: true
+- Release published by later Phase136A: true
 - Release asset count: 0
 - Git tag created: true
 - GitHub Release created: true
@@ -50,11 +51,12 @@
 - releaseViewReadable: passed
 - releaseTagMatches: passed
 - releaseTitleMatches: passed
-- releaseIsDraft: passed
+- releaseIsDraftOrLaterPhase136Closed: passed
 - releaseIsPrerelease: passed
 - releaseTargetsExpectedCommit: passed
-- releaseHasNoPublishedAt: passed
+- releaseHasNoPublishedAtOrLaterPhase136Closed: passed
 - releaseHasNoAssets: passed
+- laterPhase136ExecutionConsistent: passed
 - workflowHasNoReleaseOrPublishSteps: passed
 - executionDocPresent: passed
 - executionDocHasCandidate: passed
@@ -71,7 +73,6 @@
 
 ## Remaining Limits
 
-- draft release is not published
 - release assets are not uploaded
 - packages are not published
 - container images are not published

@@ -18,6 +18,17 @@ belongs only in `apps/` and `packages/`.
 
 ## Current Phase
 
+Phase 136A publishes the existing `v0.1.0-rc.1` GitHub prerelease:
+
+```powershell
+cmd /c pnpm verify:phase136a-release-publish-execution
+```
+
+The execution record is `docs/RELEASE_PUBLISH_EXECUTION.md`. The release is
+published and remains a prerelease for tag `v0.1.0-rc.1`. This phase does not
+upload release assets, publish packages or images, deploy cloud infrastructure,
+expose the service to the public internet, or complete global release.
+
 Phase 135A records the publish and asset-upload preflight for the existing
 `v0.1.0-rc.1` GitHub draft prerelease:
 

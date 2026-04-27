@@ -1,12 +1,12 @@
 {
-  "phase": "phase-134a-release-creation-execution",
+  "phase": "phase-136a-release-publish-execution",
   "status": "passed",
-  "generatedAt": "2026-04-27T17:19:35.689Z",
+  "generatedAt": "2026-04-27T17:18:36.047Z",
   "checks": {
     "rootScriptPresent": true,
     "serviceScriptPresent": true,
     "packageVersionMatchesCandidate": true,
-    "phase133Closed": true,
+    "phase135Closed": true,
     "gitTopLevelIsProject": true,
     "localCommitPresent": true,
     "noStagedFiles": true,
@@ -16,6 +16,7 @@
     "remoteHeadMatchesLocal": true,
     "repoExists": true,
     "repoIsPrivate": true,
+    "latestHeadReleaseGateSucceeded": true,
     "releaseTargetGateSucceeded": true,
     "localCandidateTagExists": true,
     "localCandidateTagPointsToTarget": true,
@@ -24,23 +25,21 @@
     "releaseViewReadable": true,
     "releaseTagMatches": true,
     "releaseTitleMatches": true,
-    "releaseIsDraftOrLaterPhase136Closed": true,
-    "releaseIsPrerelease": true,
+    "releaseIsPublished": true,
+    "releaseRemainsPrerelease": true,
     "releaseTargetsExpectedCommit": true,
-    "releaseHasNoPublishedAtOrLaterPhase136Closed": true,
+    "releasePublishedAtPresent": true,
     "releaseHasNoAssets": true,
-    "laterPhase136ExecutionConsistent": true,
     "workflowHasNoReleaseOrPublishSteps": true,
     "executionDocPresent": true,
     "executionDocHasCandidate": true,
-    "executionDocHasExecutedCommands": true,
-    "executionDocHasCreationState": true,
+    "executionDocHasExecutedCommand": true,
+    "executionDocHasPublicationState": true,
     "executionDocHasBoundary": true,
     "readmePhasePresent": true,
     "agentsBoundaryPresent": true,
     "userManualPresent": true,
     "remoteStatusDocPresent": true,
-    "confirmationDocReferencesExecution": true,
     "noPlainSecrets": true,
     "projectContextNotCreated": true
   },
@@ -49,8 +48,10 @@
     "tag": "v0.1.0-rc.1",
     "title": "unified-ai-system v0.1.0-rc.1",
     "releaseTargetCommit": "bdba42b600d712acb77926774c75254b8c290ea6",
+    "requiredPublishPhrase": "发布 GitHub Release v0.1.0-rc.1",
     "releaseUrl": "https://github.com/happy520ai/unified-ai-system/releases/tag/v0.1.0-rc.1",
-    "releaseCreatedAt": "2026-04-27T16:34:40Z"
+    "releaseCreatedAt": "2026-04-27T16:34:40Z",
+    "releasePublishedAt": "2026-04-27T17:14:03Z"
   },
   "git": {
     "repoRoot": "E:\\AI-Data\\AI网关系统\\unified-ai-system",
@@ -58,14 +59,10 @@
     "branch": "master",
     "headSha": "55ac3c2b51957c2effe05f7f030fbeb7b11e98a6",
     "headSubject": "Phase135A release publish preflight",
-    "statusLineCount": 17,
+    "statusLineCount": 13,
     "statusPreview": [
       "M AGENTS.md",
       "M README.md",
-      "M apps/ai-gateway-service/evidence/phase-134a-release-creation-execution.json",
-      "M apps/ai-gateway-service/evidence/phase-134a-release-creation-execution.md",
-      "M apps/ai-gateway-service/evidence/phase-135a-release-publish-preflight.json",
-      "M apps/ai-gateway-service/evidence/phase-135a-release-publish-preflight.md",
       "M apps/ai-gateway-service/package.json",
       "M apps/ai-gateway-service/src/entrypoints/verifyReleaseCreationExecution.js",
       "M apps/ai-gateway-service/src/entrypoints/verifyReleasePublishPreflight.js",
@@ -97,6 +94,16 @@
     "isPrivate": true,
     "visibility": "PRIVATE",
     "defaultBranch": "master",
+    "latestHeadReleaseGate": {
+      "databaseId": 25008938076,
+      "workflowName": "Phase117A Release Gate",
+      "headBranch": "master",
+      "headSha": "55ac3c2b51957c2effe05f7f030fbeb7b11e98a6",
+      "status": "completed",
+      "conclusion": "success",
+      "createdAt": "2026-04-27T17:09:53Z",
+      "url": "https://github.com/happy520ai/unified-ai-system/actions/runs/25008938076"
+    },
     "releaseTargetGate": {
       "databaseId": 25007359180,
       "workflowName": "Phase117A Release Gate",
@@ -117,28 +124,21 @@
       "createdAt": "2026-04-27T16:34:40Z",
       "publishedAt": "2026-04-27T17:14:03Z",
       "assetCount": 0
-    },
-    "laterPhase136ExecutionClosed": true
+    }
   },
   "workflow": {
     "path": ".github/workflows/release-gate.yml",
     "forbiddenReleaseOrPublishHits": []
   },
   "docs": {
-    "executionDoc": "docs/RELEASE_CREATION_EXECUTION.md",
-    "confirmationPack": "docs/RELEASE_CREATION_CONFIRMATION.md",
-    "decisionPack": "docs/RELEASE_DECISION_PACK.md",
-    "preflightDoc": "docs/RELEASE_PREFLIGHT.md",
+    "executionDoc": "docs/RELEASE_PUBLISH_EXECUTION.md",
+    "publishPreflightDoc": "docs/RELEASE_PUBLISH_PREFLIGHT.md",
     "remoteStatusDoc": "docs/REMOTE_RELEASE_STATUS.md",
     "userManual": "docs/USER_MANUAL.md"
   },
   "safety": {
-    "gitTagCreated": true,
-    "githubReleaseCreated": true,
-    "githubReleaseDraft": false,
-    "githubReleasePrerelease": true,
-    "releasePublished": false,
-    "releasePublishedByLaterPhase136": true,
+    "releasePublished": true,
+    "releasePrerelease": true,
     "releaseArtifactUploaded": false,
     "packagePublished": false,
     "dockerImagePublished": false,
@@ -153,8 +153,9 @@
     "packages are not published",
     "container images are not published",
     "cloud deployment is not complete",
+    "public production deployment is not complete",
     "global release is not complete"
   ],
   "secretFindingCount": 0,
-  "conclusion": "release-creation-execution-closed"
+  "conclusion": "release-publish-execution-closed"
 }

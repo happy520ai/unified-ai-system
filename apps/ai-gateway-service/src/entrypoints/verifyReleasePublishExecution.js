@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import { findPlainSecretFindings } from "../security/secretSafety.js";
 
 const execFileAsync = promisify(execFile);
-const phase = "phase-135a-release-publish-preflight";
+const phase = "phase-136a-release-publish-execution";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "../../../..");
 const evidenceDir = resolve(repoRoot, "apps/ai-gateway-service/evidence");
@@ -15,15 +15,12 @@ const knownGhPath = "C:\\Program Files\\GitHub CLI\\gh.exe";
 const repoFullName = "happy520ai/unified-ai-system";
 const repoUrl = `https://github.com/${repoFullName}`;
 const remoteUrl = `${repoUrl}.git`;
-const publishPreflightDocPath = "docs/RELEASE_PUBLISH_PREFLIGHT.md";
-const phase136EvidencePath =
-  "apps/ai-gateway-service/evidence/phase-136a-release-publish-execution.json";
+const executionDocPath = "docs/RELEASE_PUBLISH_EXECUTION.md";
 const candidateVersion = "0.1.0";
 const candidateTag = "v0.1.0-rc.1";
 const candidateTitle = "unified-ai-system v0.1.0-rc.1";
 const releaseTargetCommit = "bdba42b600d712acb77926774c75254b8c290ea6";
 const requiredPublishPhrase = "发布 GitHub Release v0.1.0-rc.1";
-const requiredAssetPhrase = "上传 GitHub Release v0.1.0-rc.1 资产";
 
 async function run(command, args, options = {}) {
   const startedAt = Date.now();
@@ -101,11 +98,10 @@ async function main() {
     agents,
     userManual,
     remoteStatusDoc,
-    decisionDoc,
-    executionDoc,
     publishPreflightDoc,
+    publishExecutionDoc,
     workflow,
-    phase134EvidenceText,
+    phase135EvidenceText,
   ] = await Promise.all([
     readRequired("package.json"),
     readRequired("apps/ai-gateway-service/package.json"),
@@ -113,28 +109,21 @@ async function main() {
     readRequired("AGENTS.md"),
     readRequired("docs/USER_MANUAL.md"),
     readRequired("docs/REMOTE_RELEASE_STATUS.md"),
-    readRequired("docs/RELEASE_DECISION_PACK.md"),
-    readRequired("docs/RELEASE_CREATION_EXECUTION.md"),
-    readRequired(publishPreflightDocPath),
+    readRequired("docs/RELEASE_PUBLISH_PREFLIGHT.md"),
+    readRequired(executionDocPath),
     readRequired(".github/workflows/release-gate.yml"),
-    readRequired("apps/ai-gateway-service/evidence/phase-134a-release-creation-execution.json"),
+    readRequired("apps/ai-gateway-service/evidence/phase-135a-release-publish-preflight.json"),
   ]);
-  const phase136EvidenceText = existsSync(resolve(repoRoot, phase136EvidencePath))
-    ? await readRequired(phase136EvidencePath)
-    : "";
 
   const rootPackage = parseJson(rootPackageText, "package.json");
   const servicePackage = parseJson(
     servicePackageText,
     "apps/ai-gateway-service/package.json",
   );
-  const phase134Evidence = parseJson(
-    phase134EvidenceText,
-    "phase-134a-release-creation-execution.json",
+  const phase135Evidence = parseJson(
+    phase135EvidenceText,
+    "phase-135a-release-publish-preflight.json",
   );
-  const phase136Evidence = phase136EvidenceText
-    ? parseJson(phase136EvidenceText, "phase-136a-release-publish-execution.json")
-    : null;
 
   const gitTopLevel = await runGit(["rev-parse", "--show-toplevel"]);
   const gitHead = await runGit(["rev-parse", "--verify", "HEAD"]);
@@ -188,11 +177,6 @@ async function main() {
   const repo = parseJsonMaybe(repoView.stdout) ?? {};
   const runs = Array.isArray(parseJsonMaybe(runList.stdout)) ? parseJsonMaybe(runList.stdout) : [];
   const release = parseJsonMaybe(releaseView.stdout) ?? {};
-  const laterPhase136Closed =
-    phase136Evidence?.status === "passed" &&
-    phase136Evidence?.candidate?.tag === candidateTag &&
-    phase136Evidence?.safety?.releasePublished === true &&
-    phase136Evidence?.safety?.releaseArtifactUploaded === false;
   const latestHeadGate = runs.find(
     (runItem) =>
       runItem.headSha === localHead &&
@@ -208,7 +192,7 @@ async function main() {
   const remoteConfigured = remoteLines.some((line) => line.includes(remoteUrl));
   const remoteHeadMatchesLocal = Boolean(localHead) && remoteHeadSha === localHead;
   const localCandidateTagTarget = localTagTarget.stdout.trim();
-  const publishDocFlat = normalizeWhitespace(publishPreflightDoc);
+  const executionDocFlat = normalizeWhitespace(publishExecutionDoc);
   const forbiddenWorkflowMarkers = [
     "gh release",
     "actions/create-release",
@@ -236,12 +220,10 @@ async function main() {
       agents,
       userManual,
       remoteStatusDoc,
-      decisionDoc,
-      executionDoc,
       publishPreflightDoc,
+      publishExecutionDoc,
       workflow,
-      phase134EvidenceText,
-      phase136EvidenceText,
+      phase135EvidenceText,
       gitRemote.stdout,
       repoView.stdout,
       repoView.stderr,
@@ -250,22 +232,22 @@ async function main() {
       releaseView.stdout,
       releaseView.stderr,
     ].join("\n\n"),
-    "phase135a-release-publish-preflight",
+    "phase136a-release-publish-execution",
   );
 
   const checks = {
     rootScriptPresent:
-      rootPackage.scripts?.["verify:phase135a-release-publish-preflight"] ===
-      "pnpm --filter @unified-ai-system/ai-gateway-service verify:phase135a-release-publish-preflight",
+      rootPackage.scripts?.["verify:phase136a-release-publish-execution"] ===
+      "pnpm --filter @unified-ai-system/ai-gateway-service verify:phase136a-release-publish-execution",
     serviceScriptPresent:
-      servicePackage.scripts?.["verify:phase135a-release-publish-preflight"] ===
-      "node ./src/entrypoints/verifyReleasePublishPreflight.js",
+      servicePackage.scripts?.["verify:phase136a-release-publish-execution"] ===
+      "node ./src/entrypoints/verifyReleasePublishExecution.js",
     packageVersionMatchesCandidate: rootPackage.version === candidateVersion,
-    phase134Closed:
-      phase134Evidence.status === "passed" &&
-      phase134Evidence.candidate?.tag === candidateTag &&
-      phase134Evidence.safety?.gitTagCreated === true &&
-      phase134Evidence.safety?.githubReleaseCreated === true,
+    phase135Closed:
+      phase135Evidence.status === "passed" &&
+      phase135Evidence.candidate?.tag === candidateTag &&
+      phase135Evidence.safety?.releasePublished === false &&
+      phase135Evidence.safety?.releaseArtifactUploaded === false,
     gitTopLevelIsProject: normalizePath(gitTopLevel.stdout) === normalizePath(repoRoot),
     localCommitPresent: gitHead.exitCode === 0,
     noStagedFiles: stagedFiles.length === 0,
@@ -284,43 +266,42 @@ async function main() {
     releaseViewReadable: releaseView.exitCode === 0,
     releaseTagMatches: release.tagName === candidateTag,
     releaseTitleMatches: release.name === candidateTitle,
-    releaseIsStillDraftOrLaterPhase136Closed: release.isDraft === true || laterPhase136Closed,
-    releaseIsStillPrerelease: release.isPrerelease === true,
+    releaseIsPublished: release.isDraft === false,
+    releaseRemainsPrerelease: release.isPrerelease === true,
     releaseTargetsExpectedCommit: release.targetCommitish === releaseTargetCommit,
-    releaseIsNotPublishedOrLaterPhase136Closed: release.publishedAt === null || laterPhase136Closed,
+    releasePublishedAtPresent: typeof release.publishedAt === "string" && release.publishedAt.length > 0,
     releaseHasNoAssets: Array.isArray(release.assets) && release.assets.length === 0,
-    laterPhase136ExecutionConsistent: !phase136EvidenceText || laterPhase136Closed,
     workflowHasNoReleaseOrPublishSteps: workflowForbiddenHits.length === 0,
-    publishPreflightDocPresent: existsSync(resolve(repoRoot, publishPreflightDocPath)),
-    publishPreflightDocHasCandidate:
-      publishPreflightDoc.includes(`Tag: \`${candidateTag}\``) &&
-      publishPreflightDoc.includes(`Release title: \`${candidateTitle}\``) &&
-      publishPreflightDoc.includes(`Release target commit: \`${releaseTargetCommit}\``),
-    publishPreflightDocHasRequiredPhrases:
-      publishPreflightDoc.includes(requiredPublishPhrase) &&
-      publishPreflightDoc.includes(requiredAssetPhrase) &&
-      publishPreflightDoc.includes("Any weaker wording"),
-    publishPreflightDocHasLaterCommandsOnly:
-      publishPreflightDoc.includes("Do not run these commands as part of Phase 135A") &&
-      publishPreflightDoc.includes("gh release edit") &&
-      publishPreflightDoc.includes("--draft=false") &&
-      publishPreflightDoc.includes("gh release upload"),
-    publishPreflightDocHasBoundary:
-      publishDocFlat.includes("This phase is read-only") &&
-      publishDocFlat.includes("does not publish the draft release") &&
-      publishDocFlat.includes("does not upload release assets") &&
-      publishDocFlat.includes("does not deploy cloud infrastructure"),
+    executionDocPresent: existsSync(resolve(repoRoot, executionDocPath)),
+    executionDocHasCandidate:
+      publishExecutionDoc.includes(`Tag: \`${candidateTag}\``) &&
+      publishExecutionDoc.includes(`Release title: \`${candidateTitle}\``) &&
+      publishExecutionDoc.includes(`Release target commit: \`${releaseTargetCommit}\``),
+    executionDocHasExecutedCommand:
+      publishExecutionDoc.includes("gh release edit") &&
+      publishExecutionDoc.includes("--draft=false") &&
+      publishExecutionDoc.includes("--prerelease") &&
+      publishExecutionDoc.includes("--latest=false"),
+    executionDocHasPublicationState:
+      publishExecutionDoc.includes("no longer a draft") &&
+      publishExecutionDoc.includes("remains a prerelease") &&
+      publishExecutionDoc.includes("No release assets were uploaded"),
+    executionDocHasBoundary:
+      executionDocFlat.includes("publishes only the existing GitHub prerelease") &&
+      executionDocFlat.includes("does not upload release assets") &&
+      executionDocFlat.includes("does not publish packages") &&
+      executionDocFlat.includes("does not deploy cloud infrastructure"),
     readmePhasePresent:
-      readme.includes("Phase 135A") &&
-      readme.includes("verify:phase135a-release-publish-preflight"),
+      readme.includes("Phase 136A") &&
+      readme.includes("verify:phase136a-release-publish-execution"),
     agentsBoundaryPresent:
-      agents.includes("Phase 135A Release Publish Preflight Boundary") &&
-      agents.includes("verify:phase135a-release-publish-preflight"),
+      agents.includes("Phase 136A Release Publish Execution Boundary") &&
+      agents.includes("verify:phase136a-release-publish-execution"),
     userManualPresent:
-      userManual.includes("verify:phase135a-release-publish-preflight"),
+      userManual.includes("verify:phase136a-release-publish-execution"),
     remoteStatusDocPresent:
-      remoteStatusDoc.includes("Phase 135A") &&
-      remoteStatusDoc.includes("RELEASE_PUBLISH_PREFLIGHT.md"),
+      remoteStatusDoc.includes("Phase 136A") &&
+      remoteStatusDoc.includes("RELEASE_PUBLISH_EXECUTION.md"),
     noPlainSecrets: secretFindings.length === 0,
     projectContextNotCreated: !existsSync(resolve(repoRoot, "PROJECT_CONTEXT.md")),
   };
@@ -336,9 +317,9 @@ async function main() {
       title: candidateTitle,
       releaseTargetCommit,
       requiredPublishPhrase,
-      requiredAssetPhrase,
       releaseUrl: release.url ?? "",
       releaseCreatedAt: release.createdAt ?? "",
+      releasePublishedAt: release.publishedAt ?? "",
     },
     git: {
       repoRoot,
@@ -399,24 +380,20 @@ async function main() {
         publishedAt: release.publishedAt ?? null,
         assetCount: Array.isArray(release.assets) ? release.assets.length : null,
       },
-      laterPhase136ExecutionClosed: laterPhase136Closed,
     },
     workflow: {
       path: ".github/workflows/release-gate.yml",
       forbiddenReleaseOrPublishHits: workflowForbiddenHits,
     },
     docs: {
-      publishPreflightDoc: publishPreflightDocPath,
-      executionDoc: "docs/RELEASE_CREATION_EXECUTION.md",
-      decisionPack: "docs/RELEASE_DECISION_PACK.md",
+      executionDoc: executionDocPath,
+      publishPreflightDoc: "docs/RELEASE_PUBLISH_PREFLIGHT.md",
       remoteStatusDoc: "docs/REMOTE_RELEASE_STATUS.md",
       userManual: "docs/USER_MANUAL.md",
     },
     safety: {
-      readOnlyPublishPreflight: true,
-      releaseAlreadyCreatedByPhase134A: true,
-      releasePublished: false,
-      releasePublishedByLaterPhase136: laterPhase136Closed,
+      releasePublished: release.isDraft === false,
+      releasePrerelease: release.isPrerelease === true,
       releaseArtifactUploaded: false,
       packagePublished: false,
       dockerImagePublished: false,
@@ -426,24 +403,18 @@ async function main() {
       realAgentExecutionEnabled: false,
       plaintextApiKeyRecorded: false,
     },
-    nextManualDecisions: laterPhase136Closed
-      ? [
-          "provide exact asset paths if assets should be uploaded",
-          "open a later explicit asset-upload phase if needed",
-          "keep package, image, cloud deployment, and global release as separate later phases",
-        ]
-      : [
-          "explicitly approve publishing the draft prerelease",
-          "confirm whether the release remains prerelease",
-          "confirm whether the release should not be marked as latest",
-          "confirm release notes final wording",
-          "provide exact asset paths if assets should be uploaded",
-          "open a later explicit publish execution phase",
-        ],
+    remainingLimits: [
+      "release assets are not uploaded",
+      "packages are not published",
+      "container images are not published",
+      "cloud deployment is not complete",
+      "public production deployment is not complete",
+      "global release is not complete",
+    ],
     secretFindingCount: secretFindings.length,
     conclusion: passed
-      ? "release-publish-preflight-closed"
-      : "release-publish-preflight-not-closed",
+      ? "release-publish-execution-closed"
+      : "release-publish-execution-not-closed",
   };
 
   await mkdir(evidenceDir, { recursive: true });
@@ -462,7 +433,7 @@ function markdown(evidence) {
   const headGate = evidence.github.latestHeadReleaseGate;
   const targetGate = evidence.github.releaseTargetGate;
   return [
-    "# Phase 135A Release Publish Preflight Evidence",
+    "# Phase 136A Release Publish Execution Evidence",
     "",
     `- Phase: ${evidence.phase}`,
     `- Status: ${evidence.status}`,
@@ -472,18 +443,14 @@ function markdown(evidence) {
     `- Candidate title: ${evidence.candidate.title}`,
     `- Release target commit: ${evidence.candidate.releaseTargetCommit}`,
     `- Release URL: ${evidence.candidate.releaseUrl}`,
+    `- Release published at: ${evidence.candidate.releasePublishedAt}`,
     `- Release draft: ${evidence.github.release.isDraft}`,
     `- Release prerelease: ${evidence.github.release.isPrerelease}`,
-    `- Release published at: ${evidence.github.release.publishedAt ?? "none"}`,
     `- Release asset count: ${evidence.github.release.assetCount}`,
-    `- Release published by later Phase136A: ${evidence.safety.releasePublishedByLaterPhase136}`,
-    `- Current head: ${evidence.git.headSha}`,
     `- Current head Release Gate: ${headGate ? `${headGate.workflowName} ${headGate.status} ${headGate.conclusion}`.trim() : "none"}`,
     `- Current head Release Gate URL: ${headGate?.url ?? "none"}`,
     `- Release target gate: ${targetGate ? `${targetGate.workflowName} ${targetGate.status} ${targetGate.conclusion}`.trim() : "none"}`,
     `- Release target gate URL: ${targetGate?.url ?? "none"}`,
-    `- Required publish phrase: ${evidence.candidate.requiredPublishPhrase}`,
-    `- Required asset phrase: ${evidence.candidate.requiredAssetPhrase}`,
     `- Release published by this phase: ${evidence.safety.releasePublished}`,
     `- Release artifact uploaded by this phase: ${evidence.safety.releaseArtifactUploaded}`,
     `- Package published: ${evidence.safety.packagePublished}`,
@@ -499,14 +466,14 @@ function markdown(evidence) {
       ([name, value]) => `- ${name}: ${value ? "passed" : "failed"}`,
     ),
     "",
-    "## Next Manual Decisions",
+    "## Remaining Limits",
     "",
-    ...evidence.nextManualDecisions.map((decision) => `- ${decision}`),
+    ...evidence.remainingLimits.map((limit) => `- ${limit}`),
     "",
     "## Boundary",
     "",
-    "- This phase is a read-only publish and asset-upload preflight.",
-    "- It does not publish the draft release, upload assets, publish packages/images, deploy cloud infrastructure, or complete global release.",
+    "- This phase publishes the existing GitHub prerelease only.",
+    "- It does not upload assets, publish packages/images, deploy cloud infrastructure, or complete global release.",
     "",
   ].join("\n");
 }

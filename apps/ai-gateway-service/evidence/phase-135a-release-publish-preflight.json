@@ -1,7 +1,7 @@
 {
   "phase": "phase-135a-release-publish-preflight",
   "status": "passed",
-  "generatedAt": "2026-04-27T17:08:21.306Z",
+  "generatedAt": "2026-04-27T17:19:37.098Z",
   "checks": {
     "rootScriptPresent": true,
     "serviceScriptPresent": true,
@@ -25,11 +25,12 @@
     "releaseViewReadable": true,
     "releaseTagMatches": true,
     "releaseTitleMatches": true,
-    "releaseIsStillDraft": true,
+    "releaseIsStillDraftOrLaterPhase136Closed": true,
     "releaseIsStillPrerelease": true,
     "releaseTargetsExpectedCommit": true,
-    "releaseIsNotPublished": true,
+    "releaseIsNotPublishedOrLaterPhase136Closed": true,
     "releaseHasNoAssets": true,
+    "laterPhase136ExecutionConsistent": true,
     "workflowHasNoReleaseOrPublishSteps": true,
     "publishPreflightDocPresent": true,
     "publishPreflightDocHasCandidate": true,
@@ -50,34 +51,34 @@
     "releaseTargetCommit": "bdba42b600d712acb77926774c75254b8c290ea6",
     "requiredPublishPhrase": "发布 GitHub Release v0.1.0-rc.1",
     "requiredAssetPhrase": "上传 GitHub Release v0.1.0-rc.1 资产",
-    "releaseUrl": "https://github.com/happy520ai/unified-ai-system/releases/tag/untagged-88426f9cb7dcdb757b96",
+    "releaseUrl": "https://github.com/happy520ai/unified-ai-system/releases/tag/v0.1.0-rc.1",
     "releaseCreatedAt": "2026-04-27T16:34:40Z"
   },
   "git": {
     "repoRoot": "E:\\AI-Data\\AI网关系统\\unified-ai-system",
     "gitTopLevel": "E:/AI-Data/AI网关系统/unified-ai-system",
     "branch": "master",
-    "headSha": "646555860ddacd3d7a73790e8e2f70daf15a6068",
-    "headSubject": "Phase134A release creation execution",
+    "headSha": "55ac3c2b51957c2effe05f7f030fbeb7b11e98a6",
+    "headSubject": "Phase135A release publish preflight",
     "statusLineCount": 17,
     "statusPreview": [
       "M AGENTS.md",
       "M README.md",
-      "M apps/ai-gateway-service/evidence/phase-114a-user-manual-release-pack.json",
-      "M apps/ai-gateway-service/evidence/phase-114a-user-manual-release-pack.md",
-      "M apps/ai-gateway-service/evidence/phase-117a-cicd-release-gate.json",
-      "M apps/ai-gateway-service/evidence/phase-117a-cicd-release-gate.md",
       "M apps/ai-gateway-service/evidence/phase-134a-release-creation-execution.json",
       "M apps/ai-gateway-service/evidence/phase-134a-release-creation-execution.md",
+      "M apps/ai-gateway-service/evidence/phase-135a-release-publish-preflight.json",
+      "M apps/ai-gateway-service/evidence/phase-135a-release-publish-preflight.md",
       "M apps/ai-gateway-service/package.json",
+      "M apps/ai-gateway-service/src/entrypoints/verifyReleaseCreationExecution.js",
+      "M apps/ai-gateway-service/src/entrypoints/verifyReleasePublishPreflight.js",
       "M apps/ai-gateway-service/src/entrypoints/verifyUserManualReleasePack.js",
       "M docs/REMOTE_RELEASE_STATUS.md",
       "M docs/USER_MANUAL.md",
       "M package.json",
-      "?? apps/ai-gateway-service/evidence/phase-135a-release-publish-preflight.json",
-      "?? apps/ai-gateway-service/evidence/phase-135a-release-publish-preflight.md",
-      "?? apps/ai-gateway-service/src/entrypoints/verifyReleasePublishPreflight.js",
-      "?? docs/RELEASE_PUBLISH_PREFLIGHT.md"
+      "?? apps/ai-gateway-service/evidence/phase-136a-release-publish-execution.json",
+      "?? apps/ai-gateway-service/evidence/phase-136a-release-publish-execution.md",
+      "?? apps/ai-gateway-service/src/entrypoints/verifyReleasePublishExecution.js",
+      "?? docs/RELEASE_PUBLISH_EXECUTION.md"
     ],
     "stagedFileCount": 0,
     "localReleaseTagCount": 1,
@@ -89,7 +90,7 @@
       "origin\thttps://github.com/happy520ai/unified-ai-system.git (push)"
     ],
     "upstream": "origin/master",
-    "remoteHeadSha": "646555860ddacd3d7a73790e8e2f70daf15a6068",
+    "remoteHeadSha": "55ac3c2b51957c2effe05f7f030fbeb7b11e98a6",
     "remoteHeadMatchesLocal": true
   },
   "github": {
@@ -99,14 +100,14 @@
     "visibility": "PRIVATE",
     "defaultBranch": "master",
     "latestHeadReleaseGate": {
-      "databaseId": 25008526155,
+      "databaseId": 25008938076,
       "workflowName": "Phase117A Release Gate",
       "headBranch": "master",
-      "headSha": "646555860ddacd3d7a73790e8e2f70daf15a6068",
+      "headSha": "55ac3c2b51957c2effe05f7f030fbeb7b11e98a6",
       "status": "completed",
       "conclusion": "success",
-      "createdAt": "2026-04-27T17:00:32Z",
-      "url": "https://github.com/happy520ai/unified-ai-system/actions/runs/25008526155"
+      "createdAt": "2026-04-27T17:09:53Z",
+      "url": "https://github.com/happy520ai/unified-ai-system/actions/runs/25008938076"
     },
     "releaseTargetGate": {
       "databaseId": 25007359180,
@@ -121,14 +122,15 @@
     "release": {
       "tagName": "v0.1.0-rc.1",
       "name": "unified-ai-system v0.1.0-rc.1",
-      "isDraft": true,
+      "isDraft": false,
       "isPrerelease": true,
       "targetCommitish": "bdba42b600d712acb77926774c75254b8c290ea6",
-      "url": "https://github.com/happy520ai/unified-ai-system/releases/tag/untagged-88426f9cb7dcdb757b96",
+      "url": "https://github.com/happy520ai/unified-ai-system/releases/tag/v0.1.0-rc.1",
       "createdAt": "2026-04-27T16:34:40Z",
-      "publishedAt": null,
+      "publishedAt": "2026-04-27T17:14:03Z",
       "assetCount": 0
-    }
+    },
+    "laterPhase136ExecutionClosed": true
   },
   "workflow": {
     "path": ".github/workflows/release-gate.yml",
@@ -145,6 +147,7 @@
     "readOnlyPublishPreflight": true,
     "releaseAlreadyCreatedByPhase134A": true,
     "releasePublished": false,
+    "releasePublishedByLaterPhase136": true,
     "releaseArtifactUploaded": false,
     "packagePublished": false,
     "dockerImagePublished": false,
@@ -155,12 +158,9 @@
     "plaintextApiKeyRecorded": false
   },
   "nextManualDecisions": [
-    "explicitly approve publishing the draft prerelease",
-    "confirm whether the release remains prerelease",
-    "confirm whether the release should not be marked as latest",
-    "confirm release notes final wording",
     "provide exact asset paths if assets should be uploaded",
-    "open a later explicit publish execution phase"
+    "open a later explicit asset-upload phase if needed",
+    "keep package, image, cloud deployment, and global release as separate later phases"
   ],
   "secretFindingCount": 0,
   "conclusion": "release-publish-preflight-closed"

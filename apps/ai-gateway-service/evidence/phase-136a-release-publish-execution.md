@@ -1,40 +1,36 @@
-# Phase 135A Release Publish Preflight Evidence
+# Phase 136A Release Publish Execution Evidence
 
-- Phase: phase-135a-release-publish-preflight
+- Phase: phase-136a-release-publish-execution
 - Status: passed
-- Generated at: 2026-04-27T17:19:37.098Z
+- Generated at: 2026-04-27T17:18:36.047Z
 - Candidate version: 0.1.0
 - Candidate tag: v0.1.0-rc.1
 - Candidate title: unified-ai-system v0.1.0-rc.1
 - Release target commit: bdba42b600d712acb77926774c75254b8c290ea6
 - Release URL: https://github.com/happy520ai/unified-ai-system/releases/tag/v0.1.0-rc.1
+- Release published at: 2026-04-27T17:14:03Z
 - Release draft: false
 - Release prerelease: true
-- Release published at: 2026-04-27T17:14:03Z
 - Release asset count: 0
-- Release published by later Phase136A: true
-- Current head: 55ac3c2b51957c2effe05f7f030fbeb7b11e98a6
 - Current head Release Gate: Phase117A Release Gate completed success
 - Current head Release Gate URL: https://github.com/happy520ai/unified-ai-system/actions/runs/25008938076
 - Release target gate: Phase117A Release Gate completed success
 - Release target gate URL: https://github.com/happy520ai/unified-ai-system/actions/runs/25007359180
-- Required publish phrase: 发布 GitHub Release v0.1.0-rc.1
-- Required asset phrase: 上传 GitHub Release v0.1.0-rc.1 资产
-- Release published by this phase: false
+- Release published by this phase: true
 - Release artifact uploaded by this phase: false
 - Package published: false
 - Docker image published: false
 - Cloud deployment complete: false
 - Global release complete: false
 - Plain secret findings: 0
-- Conclusion: release-publish-preflight-closed
+- Conclusion: release-publish-execution-closed
 
 ## Checks
 
 - rootScriptPresent: passed
 - serviceScriptPresent: passed
 - packageVersionMatchesCandidate: passed
-- phase134Closed: passed
+- phase135Closed: passed
 - gitTopLevelIsProject: passed
 - localCommitPresent: passed
 - noStagedFiles: passed
@@ -53,18 +49,17 @@
 - releaseViewReadable: passed
 - releaseTagMatches: passed
 - releaseTitleMatches: passed
-- releaseIsStillDraftOrLaterPhase136Closed: passed
-- releaseIsStillPrerelease: passed
+- releaseIsPublished: passed
+- releaseRemainsPrerelease: passed
 - releaseTargetsExpectedCommit: passed
-- releaseIsNotPublishedOrLaterPhase136Closed: passed
+- releasePublishedAtPresent: passed
 - releaseHasNoAssets: passed
-- laterPhase136ExecutionConsistent: passed
 - workflowHasNoReleaseOrPublishSteps: passed
-- publishPreflightDocPresent: passed
-- publishPreflightDocHasCandidate: passed
-- publishPreflightDocHasRequiredPhrases: passed
-- publishPreflightDocHasLaterCommandsOnly: passed
-- publishPreflightDocHasBoundary: passed
+- executionDocPresent: passed
+- executionDocHasCandidate: passed
+- executionDocHasExecutedCommand: passed
+- executionDocHasPublicationState: passed
+- executionDocHasBoundary: passed
 - readmePhasePresent: passed
 - agentsBoundaryPresent: passed
 - userManualPresent: passed
@@ -72,13 +67,16 @@
 - noPlainSecrets: passed
 - projectContextNotCreated: passed
 
-## Next Manual Decisions
+## Remaining Limits
 
-- provide exact asset paths if assets should be uploaded
-- open a later explicit asset-upload phase if needed
-- keep package, image, cloud deployment, and global release as separate later phases
+- release assets are not uploaded
+- packages are not published
+- container images are not published
+- cloud deployment is not complete
+- public production deployment is not complete
+- global release is not complete
 
 ## Boundary
 
-- This phase is a read-only publish and asset-upload preflight.
-- It does not publish the draft release, upload assets, publish packages/images, deploy cloud infrastructure, or complete global release.
+- This phase publishes the existing GitHub prerelease only.
+- It does not upload assets, publish packages/images, deploy cloud infrastructure, or complete global release.

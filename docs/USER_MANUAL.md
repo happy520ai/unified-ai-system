@@ -247,6 +247,16 @@ later confirmation before publishing or asset upload. It does not publish the
 draft release, upload assets, publish packages or images, deploy, or complete
 global release.
 
+The release publish execution verification command is:
+
+```powershell
+cmd /c pnpm verify:phase136a-release-publish-execution
+```
+
+It verifies that the existing `v0.1.0-rc.1` GitHub Release is published,
+remains a prerelease, has no uploaded assets, and still does not publish
+packages or images, deploy, or complete global release.
+
 This still does not mean cloud deployment, full CI/CD release automation,
 public multi-user production deployment, global release, or real multi-agent
 execution is complete.
@@ -430,12 +440,13 @@ Complete locally:
   `cmd /c pnpm verify:phase134a-release-creation-execution`.
 - Release publish and asset-upload preflight recorded through
   `cmd /c pnpm verify:phase135a-release-publish-preflight`.
+- GitHub prerelease publication completed through
+  `cmd /c pnpm verify:phase136a-release-publish-execution`.
 
 Not complete yet:
 
 - Cloud deployment.
-- Automated deployment or release publishing.
-- GitHub Release publication.
+- Automated deployment or release publishing automation.
 - Release asset upload.
 - Package or container image publishing.
 - Current shell PATH refresh if `gh` is still not recognized before reopening
@@ -486,6 +497,7 @@ cmd /c pnpm verify:phase132a-release-decision-pack
 cmd /c pnpm verify:phase133a-release-creation-confirmation
 cmd /c pnpm verify:phase134a-release-creation-execution
 cmd /c pnpm verify:phase135a-release-publish-preflight
+cmd /c pnpm verify:phase136a-release-publish-execution
 cmd /c pnpm verify:phase112a-non-docker-release-check
 cmd /c pnpm verify:phase107a-secret-safety
 cmd /c pnpm verify:phase105a-user-journey

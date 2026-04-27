@@ -16,6 +16,8 @@ const repoFullName = "happy520ai/unified-ai-system";
 const repoUrl = `https://github.com/${repoFullName}`;
 const remoteUrl = `${repoUrl}.git`;
 const executionDocPath = "docs/RELEASE_CREATION_EXECUTION.md";
+const phase136EvidencePath =
+  "apps/ai-gateway-service/evidence/phase-136a-release-publish-execution.json";
 const candidateVersion = "0.1.0";
 const candidateTag = "v0.1.0-rc.1";
 const candidateTitle = "unified-ai-system v0.1.0-rc.1";
@@ -117,6 +119,9 @@ async function main() {
     readRequired(".github/workflows/release-gate.yml"),
     readRequired("apps/ai-gateway-service/evidence/phase-133a-release-creation-confirmation.json"),
   ]);
+  const phase136EvidenceText = existsSync(resolve(repoRoot, phase136EvidencePath))
+    ? await readRequired(phase136EvidencePath)
+    : "";
 
   const rootPackage = parseJson(rootPackageText, "package.json");
   const servicePackage = parseJson(
@@ -127,6 +132,9 @@ async function main() {
     phase133EvidenceText,
     "phase-133a-release-creation-confirmation.json",
   );
+  const phase136Evidence = phase136EvidenceText
+    ? parseJson(phase136EvidenceText, "phase-136a-release-publish-execution.json")
+    : null;
 
   const gitTopLevel = await runGit(["rev-parse", "--show-toplevel"]);
   const gitHead = await runGit(["rev-parse", "--verify", "HEAD"]);
@@ -178,6 +186,11 @@ async function main() {
   const repo = parseJsonMaybe(repoView.stdout) ?? {};
   const runs = Array.isArray(parseJsonMaybe(runList.stdout)) ? parseJsonMaybe(runList.stdout) : [];
   const release = parseJsonMaybe(releaseView.stdout) ?? {};
+  const laterPhase136Closed =
+    phase136Evidence?.status === "passed" &&
+    phase136Evidence?.candidate?.tag === candidateTag &&
+    phase136Evidence?.safety?.releasePublished === true &&
+    phase136Evidence?.safety?.releaseArtifactUploaded === false;
   const releaseTargetGate = runs.find(
     (runItem) =>
       runItem.headSha === releaseTargetCommit &&
@@ -223,6 +236,7 @@ async function main() {
       executionDoc,
       workflow,
       phase133EvidenceText,
+      phase136EvidenceText,
       gitRemote.stdout,
       repoView.stdout,
       repoView.stderr,
@@ -264,11 +278,12 @@ async function main() {
     releaseViewReadable: releaseView.exitCode === 0,
     releaseTagMatches: release.tagName === candidateTag,
     releaseTitleMatches: release.name === candidateTitle,
-    releaseIsDraft: release.isDraft === true,
+    releaseIsDraftOrLaterPhase136Closed: release.isDraft === true || laterPhase136Closed,
     releaseIsPrerelease: release.isPrerelease === true,
     releaseTargetsExpectedCommit: release.targetCommitish === releaseTargetCommit,
-    releaseHasNoPublishedAt: release.publishedAt === null,
+    releaseHasNoPublishedAtOrLaterPhase136Closed: release.publishedAt === null || laterPhase136Closed,
     releaseHasNoAssets: Array.isArray(release.assets) && release.assets.length === 0,
+    laterPhase136ExecutionConsistent: !phase136EvidenceText || laterPhase136Closed,
     workflowHasNoReleaseOrPublishSteps: workflowForbiddenHits.length === 0,
     executionDocPresent: existsSync(resolve(repoRoot, executionDocPath)),
     executionDocHasCandidate:
@@ -367,6 +382,7 @@ async function main() {
         publishedAt: release.publishedAt ?? null,
         assetCount: Array.isArray(release.assets) ? release.assets.length : null,
       },
+      laterPhase136ExecutionClosed: laterPhase136Closed,
     },
     workflow: {
       path: ".github/workflows/release-gate.yml",
@@ -386,6 +402,7 @@ async function main() {
       githubReleaseDraft: release.isDraft === true,
       githubReleasePrerelease: release.isPrerelease === true,
       releasePublished: false,
+      releasePublishedByLaterPhase136: laterPhase136Closed,
       releaseArtifactUploaded: false,
       packagePublished: false,
       dockerImagePublished: false,
@@ -396,7 +413,7 @@ async function main() {
       plaintextApiKeyRecorded: false,
     },
     remainingLimits: [
-      "draft release is not published",
+      ...(laterPhase136Closed ? [] : ["draft release is not published"]),
       "release assets are not uploaded",
       "packages are not published",
       "container images are not published",
@@ -441,6 +458,7 @@ function markdown(evidence) {
     `- Release target gate URL: ${gate?.url ?? "none"}`,
     `- Release draft: ${evidence.github.release.isDraft}`,
     `- Release prerelease: ${evidence.github.release.isPrerelease}`,
+    `- Release published by later Phase136A: ${evidence.safety.releasePublishedByLaterPhase136}`,
     `- Release asset count: ${evidence.github.release.assetCount}`,
     `- Git tag created: ${evidence.safety.gitTagCreated}`,
     `- GitHub Release created: ${evidence.safety.githubReleaseCreated}`,

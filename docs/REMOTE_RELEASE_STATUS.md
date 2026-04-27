@@ -100,3 +100,10 @@ uploaded assets, and still requires explicit later user confirmation before
 publishing or asset upload. It does not publish the draft release, upload
 assets, publish packages or images, deploy cloud infrastructure, expose public
 production access, or complete global release.
+
+## Release Publish Execution
+
+Phase 136A records the real GitHub prerelease publication in
+`docs/RELEASE_PUBLISH_EXECUTION.md`. The `v0.1.0-rc.1` release is no longer a
+draft and remains a prerelease. No release assets, packages, container images,
+cloud deployment, public production exposure, or global release are complete.
