@@ -1,0 +1,17 @@
+{
+  "phase": "Phase369D",
+  "failures": [
+    "provider_unconfigured",
+    "credential_missing",
+    "credential_invalid",
+    "model_unselectable",
+    "quota_exceeded",
+    "budget_blocked",
+    "participant_selection_failed",
+    "supervisor_synthesis_failed",
+    "planner_no_candidate",
+    "capability_index_missing",
+    "timeout",
+    "user_policy_blocked"
+  ]
+}

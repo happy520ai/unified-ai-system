@@ -1,0 +1,36 @@
+{
+  "phase": "Phase324C-6+Phase324I+Phase326K/L+Phase327B/C",
+  "checkedAt": "2026-05-06T17:02:20.308Z",
+  "groups": {
+    "b7": {
+      "present": [
+        "docs/phase324b7-nvidia-smoke-batch-result.json",
+        "docs/phase324b7-model-smoke-evidence-index.json",
+        "apps/ai-gateway-service/evidence/phase324b7/minimaxai_minimax_m2_7.json"
+      ],
+      "missing": []
+    },
+    "h": {
+      "present": [
+        "docs/phase324h-model-library-stability-latency-capability-report.json",
+        "docs/phase324h-high-risk-and-review-queue.md"
+      ],
+      "missing": []
+    },
+    "hij": {
+      "present": [
+        "docs/phase326h-report-viewer-data-contract.json",
+        "docs/phase326i-participant-selector-result.json",
+        "docs/phase326j-capability-index-result.json"
+      ],
+      "missing": []
+    },
+    "a327": {
+      "present": [
+        "docs/phase327a-credential-reference-contract.json",
+        "docs/phase327a-user-owned-api-key-configuration-loop-design.md"
+      ],
+      "missing": []
+    }
+  }
+}

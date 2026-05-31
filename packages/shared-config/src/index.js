@@ -368,6 +368,18 @@ export const DEFAULT_RUNTIME_CONFIG = {
         dryRun: false,
       },
       {
+        providerId: "mimo",
+        modelId: "mimo-model-from-console",
+        providerType: "openai-compatible",
+        providerDisplayName: "MiMo Token Plan",
+        modelDisplayName: "MiMo model from console",
+        enabled: false,
+        priority: 96,
+        capabilities: ["chat", "reasoning", "summary"],
+        endpoint: "https://token-plan-cn.xiaomimimo.com/v1",
+        dryRun: false,
+      },
+      {
         providerId: "generic-openai-compatible",
         modelId: "custom-chat-model",
         providerType: "openai-compatible",
@@ -397,12 +409,15 @@ export function loadRuntimeConfig(env = process.env) {
   const openAiApiKeyPresent = Boolean(openAiApiKey);
   const nvidiaApiKey = env.NVIDIA_API_KEY;
   const nvidiaApiKeyPresent = Boolean(nvidiaApiKey);
+  const mimoApiKey = env.MIMO_API_KEY;
+  const mimoApiKeyPresent = Boolean(mimoApiKey);
   const realProviderEnabled = readBoolean(
     env.AI_GATEWAY_REAL_PROVIDER_ENABLED,
     DEFAULT_RUNTIME_CONFIG.aiGatewayService.realProviderEnabled,
   );
   const openAiModel = env.OPENAI_MODEL ?? "gpt-4o-mini";
   const nvidiaModel = env.NVIDIA_MODEL ?? "meta/llama-3.1-8b-instruct";
+  const mimoModel = env.MIMO_MODEL ?? "mimo-model-from-console";
   const requestedEnabledProviders = readList(env.AI_GATEWAY_ENABLED_PROVIDERS, []);
   const openAiProviderEnabled = shouldEnableOpenAiProvider({
     providerMode,
@@ -414,6 +429,12 @@ export function loadRuntimeConfig(env = process.env) {
     providerMode,
     realProviderEnabled,
     nvidiaApiKeyPresent,
+    requestedEnabledProviders,
+  });
+  const mimoProviderEnabled = shouldEnableMimoProvider({
+    providerMode,
+    realProviderEnabled,
+    mimoApiKeyPresent,
     requestedEnabledProviders,
   });
   const providerSelection = createProviderSelectionConfig({
@@ -438,7 +459,7 @@ export function loadRuntimeConfig(env = process.env) {
       ),
       providerMode,
       realProviderEnabled,
-      fallbackEnabled: readBoolean(env.AI_GATEWAY_FALLBACK_ENABLED, false),
+      fallbackEnabled: readBoolean(env.AI_GATEWAY_FALLBACK_ENABLED, true),
       providerSelection,
       providerModels: DEFAULT_RUNTIME_CONFIG.aiGatewayService.providerModels.map((provider) => {
         if (provider.providerId === "openai") {
@@ -462,6 +483,18 @@ export function loadRuntimeConfig(env = process.env) {
             endpoint: env.NVIDIA_BASE_URL ?? provider.endpoint,
             apiKey: nvidiaApiKey,
             apiKeyPresent: nvidiaApiKeyPresent,
+          };
+        }
+
+        if (provider.providerId === "mimo") {
+          return {
+            ...provider,
+            modelId: mimoModel,
+            modelDisplayName: mimoModel,
+            enabled: mimoProviderEnabled,
+            endpoint: env.MIMO_BASE_URL ?? provider.endpoint,
+            apiKey: mimoApiKey,
+            apiKeyPresent: mimoApiKeyPresent,
           };
         }
 
@@ -570,6 +603,18 @@ function shouldEnableNvidiaProvider({ providerMode, realProviderEnabled, nvidiaA
 
   if (providerMode === "auto") {
     return nvidiaApiKeyPresent && (requestedEnabledProviders.length === 0 || requestedEnabledProviders.includes("nvidia"));
+  }
+
+  return false;
+}
+
+function shouldEnableMimoProvider({ providerMode, realProviderEnabled, mimoApiKeyPresent, requestedEnabledProviders }) {
+  if (!realProviderEnabled || !mimoApiKeyPresent) {
+    return false;
+  }
+
+  if (providerMode === "real" || providerMode === "auto") {
+    return requestedEnabledProviders.includes("mimo");
   }
 
   return false;

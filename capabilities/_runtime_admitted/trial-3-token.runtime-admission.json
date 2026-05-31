@@ -1,0 +1,81 @@
+{
+  "capabilityId": "trial-3-token",
+  "admissionStatus": "approved_for_sandbox_runtime_only",
+  "runtimeKind": "sandbox_local",
+  "autoRuntimeEligible": true,
+  "productionRuntimeEligible": false,
+  "reason": "verifier_and_safety_boundary_passed_for_sandbox_local_only",
+  "safetyBoundary": {
+    "providerCallsAllowed": false,
+    "secretReadAllowed": false,
+    "deployAllowed": false,
+    "chatMutationAllowed": false,
+    "chatGatewayExecuteMutationAllowed": false,
+    "codexConfigMutationAllowed": false,
+    "selfApprovalAllowed": false
+  },
+  "requiredEvidenceRefs": [
+    "capabilities/_generated_dry_run/trial-3-token/verifier-result.json",
+    "capabilities/_generated_dry_run/trial-3-token/dry-run-result.json"
+  ],
+  "rollbackRef": "capabilities/_generated_dry_run/trial-3-token/rollback-plan.json",
+  "providerCallsAllowed": false,
+  "secretReadAllowed": false,
+  "deployAllowed": false,
+  "manifestPreview": {
+    "schemaVersion": "capability-neuron-manifest-v1",
+    "capabilityId": "trial-3-token",
+    "displayName": "Context Compression Token Saver",
+    "description": "Deterministic dry-run capability spec compiled from natural-language intake: 我希望网关能压缩长上下文省 token.",
+    "createdFromNaturalLanguage": true,
+    "intakeText": "我希望网关能压缩长上下文省 token",
+    "type": "context",
+    "status": "registered_preview",
+    "runtime": {
+      "kind": "sandbox_local",
+      "spawnable": true,
+      "maxSpawnDepth": 1,
+      "ttlSeconds": 300,
+      "maxRequests": 3,
+      "maxTokenBudget": 4000,
+      "enabledByDefault": false,
+      "autoRuntimeEligible": true,
+      "maxRuntimeMs": 30000
+    },
+    "safety": {
+      "providerCallsAllowed": false,
+      "secretReadAllowed": false,
+      "deployAllowed": false,
+      "chatMutationAllowed": false,
+      "chatGatewayExecuteMutationAllowed": false,
+      "codexConfigMutationAllowed": false,
+      "selfApprovalAllowed": false
+    },
+    "inputs": {},
+    "outputs": {},
+    "evidence": {
+      "required": true,
+      "schema": "gateway-capability-evidence-v1"
+    },
+    "approval": {
+      "requiredForRuntime": true,
+      "currentStatus": "approved_for_sandbox_runtime_only"
+    },
+    "rollback": {
+      "disableFlag": "TAIJI_DISABLE_TRIAL_3_TOKEN",
+      "deletePaths": []
+    },
+    "synapse": {
+      "pressureTypes": [
+        "token"
+      ],
+      "modes": [
+        "codex",
+        "normal"
+      ],
+      "dependencies": [],
+      "weight": 0.5
+    }
+  },
+  "failures": []
+}

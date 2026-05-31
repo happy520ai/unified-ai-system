@@ -1,0 +1,13 @@
+{
+  "recordType": "owner_weekly_review",
+  "phaseRange": "Phase1506-1530AIO",
+  "ownerReviewed": false,
+  "weekStart": "YYYY-MM-DD",
+  "weekEnd": "YYYY-MM-DD",
+  "realDailyLedgerCount": 0,
+  "automatedEvidenceReviewed": false,
+  "dogfoodingCompleted": false,
+  "ownerManualFeedback": false,
+  "realHumanFeedbackCollected": false,
+  "decision": "pending_owner_review"
+}

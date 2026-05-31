@@ -1,0 +1,127 @@
+{
+  "phaseId": "Phase2101A-2110A-Controlled-Quad-Tool-Mutation",
+  "planId": "phase2101-2110-controlled-quad-tool-mutation",
+  "maxChangedFiles": 4,
+  "runNodeCheck": true,
+  "runLocalSmoke": true,
+  "approvalRecord": {
+    "approved": true,
+    "permissionMode": "controlled-quad-tool-source-mutation",
+    "dryRun": false,
+    "approvedAtLeastOnceByOwner": [
+      {
+        "source": "user-message",
+        "text": "继续下一轮",
+        "scope": "phase2101-2110-controlled-quad-tool-mutation"
+      }
+    ],
+    "codexExecAllowed": false,
+    "projectProviderAllowed": false,
+    "secretReadAllowed": false,
+    "authJsonReadAllowed": false,
+    "envReadAllowed": false,
+    "codexConfigWriteAllowed": false,
+    "chatModificationAllowed": false,
+    "chatGatewayExecuteModificationAllowed": false,
+    "legacyModificationAllowed": false,
+    "deployAllowed": false,
+    "releaseAllowed": false,
+    "pushAllowed": false,
+    "commitAllowed": false
+  },
+  "allowedFiles": [
+    "docs/phase2106-quad-tool-mutation-target-one.proposal.diff",
+    "docs/phase2107-quad-tool-mutation-target-two.proposal.diff",
+    "docs/phase2108-quad-tool-mutation-target-three.proposal.diff",
+    "docs/phase2109-quad-tool-mutation-target-four.proposal.diff",
+    "tools/phase2091/generated-source-patch-target.mjs",
+    "tools/phase2092/apply-controlled-existing-tool-mutation.mjs",
+    "tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs",
+    "tools/phase2096_2100/apply-controlled-triple-tool-mutation.mjs",
+    "apps/ai-gateway-service/evidence/phase2101-2110-controlled-quad-tool-mutation/result.json",
+    "apps/ai-gateway-service/evidence/phase2101-2110-controlled-quad-tool-mutation/result.md",
+    "apps/ai-gateway-service/evidence/phase2101-2110-controlled-quad-tool-mutation/rollback.json",
+    "apps/ai-gateway-service/evidence/phase2101-2110-controlled-quad-tool-mutation/quad-smoke.json"
+  ],
+  "forbiddenPaths": [
+    "legacy",
+    "PROJECT_CONTEXT.md",
+    ".env",
+    ".git",
+    "node_modules",
+    "auth.json",
+    "apps/ai-gateway-service/src/providers",
+    "apps/ai-gateway-service/src/http/chat-gateway/execute",
+    "/chat"
+  ],
+  "operations": [
+    {
+      "action": "apply-single-existing-tool-source-mutation",
+      "proposalPath": "docs/phase2106-quad-tool-mutation-target-one.proposal.diff",
+      "targetPath": "tools/phase2091/generated-source-patch-target.mjs",
+      "expectedBeforeSha256": "73c96e9ff3c4b419e22ca6e2db6b5592c9b6e583c39106d81a3ae1e095ed8355",
+      "allowCreate": false,
+      "allowDelete": false,
+      "requiredExports": [
+        "export function buildPhase2106QuadMutationTargetOneStatus"
+      ],
+      "requiredMarkers": [
+        "PHASE2091_SOURCE_PATCH_OK",
+        "PHASE2092_EXISTING_TOOL_MUTATION_OK",
+        "PHASE2093_BATCH_TOOL_TARGET_ONE_OK",
+        "PHASE2096_TRIPLE_TOOL_TARGET_ONE_OK",
+        "PHASE2106_QUAD_TOOL_TARGET_ONE_OK"
+      ]
+    },
+    {
+      "action": "apply-single-existing-tool-source-mutation",
+      "proposalPath": "docs/phase2107-quad-tool-mutation-target-two.proposal.diff",
+      "targetPath": "tools/phase2092/apply-controlled-existing-tool-mutation.mjs",
+      "expectedBeforeSha256": "a3d2e3e18ad153cbbce27760c334c38dc5b9bf9b6c19128a5352ac57026e261e",
+      "allowCreate": false,
+      "allowDelete": false,
+      "requiredExports": [
+        "export function buildPhase2107QuadMutationTargetTwoStatus",
+        "export function buildPhase2094BatchMutationRuntimeStatus",
+        "export function main"
+      ],
+      "requiredMarkers": [
+        "PHASE2094_BATCH_TOOL_TARGET_TWO_OK",
+        "PHASE2097_TRIPLE_TOOL_TARGET_TWO_OK",
+        "PHASE2107_QUAD_TOOL_TARGET_TWO_OK"
+      ]
+    },
+    {
+      "action": "apply-single-existing-tool-source-mutation",
+      "proposalPath": "docs/phase2108-quad-tool-mutation-target-three.proposal.diff",
+      "targetPath": "tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs",
+      "expectedBeforeSha256": "022ccf576fd48d2fe5ee3c997f04aade50aaca01a2f9dfeec846ba0545e74334",
+      "allowCreate": false,
+      "allowDelete": false,
+      "requiredExports": [
+        "export function buildPhase2108QuadMutationTargetThreeStatus",
+        "export function buildPhase2100TripleMutationRuntimeStatus",
+        "export function main"
+      ],
+      "requiredMarkers": [
+        "PHASE2100_TRIPLE_TOOL_TARGET_THREE_OK",
+        "PHASE2108_QUAD_TOOL_TARGET_THREE_OK"
+      ]
+    },
+    {
+      "action": "apply-single-existing-tool-source-mutation",
+      "proposalPath": "docs/phase2109-quad-tool-mutation-target-four.proposal.diff",
+      "targetPath": "tools/phase2096_2100/apply-controlled-triple-tool-mutation.mjs",
+      "expectedBeforeSha256": "41e31914a5533b587e03d914bdb42786647a54715095aed87753f267e13d44f8",
+      "allowCreate": false,
+      "allowDelete": false,
+      "requiredExports": [
+        "export function buildPhase2109QuadMutationRuntimeStatus",
+        "export function main"
+      ],
+      "requiredMarkers": [
+        "PHASE2109_QUAD_TOOL_TARGET_FOUR_OK"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+diff --git a/tools/phase2132_2143/apply-controlled-sept-tool-mutation.mjs b/tools/phase2132_2143/apply-controlled-sept-tool-mutation.mjs
+index a7e9ed1..53e1888 100644
+--- a/tools/phase2132_2143/apply-controlled-sept-tool-mutation.mjs
++++ b/tools/phase2132_2143/apply-controlled-sept-tool-mutation.mjs
+@@ -84,6 +84,24 @@ export function buildPhase2183DecaMutationTargetEightStatus() {
+     chatGatewayExecuteModified: false,
+   };
+ }
++
++export function buildPhase2198ElevenMutationTargetEightStatus() {
++  return {
++    phaseId: "Phase2198A-Controlled-Eleven-Tool-Mutation-Target-Eight",
++    marker: "PHASE2198_ELEVEN_TOOL_TARGET_EIGHT_OK",
++    importSafe: true,
++    septToolTargetSevenMarker: "PHASE2143_SEPT_TOOL_TARGET_SEVEN_OK",
++    octToolTargetEightMarker: "PHASE2156_OCT_TOOL_TARGET_EIGHT_OK",
++    nonetToolTargetEightMarker: "PHASE2169_NONET_TOOL_TARGET_EIGHT_OK",
++    decaToolTargetEightMarker: "PHASE2183_DECA_TOOL_TARGET_EIGHT_OK",
++    elevenMutationApplied: true,
++    providerCallsMade: false,
++    codexExecExecuted: false,
++    chatModified: false,
++    chatGatewayExecuteModified: false,
++  };
++}
++
+ export function main() {
+   const args = parseArgs(process.argv.slice(2));
+   const planPath = args.plan || "docs/phase2132-2143-controlled-sept-tool-mutation-approval.example.json";

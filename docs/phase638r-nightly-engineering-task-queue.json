@@ -1,0 +1,435 @@
+{
+  "phase": "Phase638R",
+  "queueId": "phase638r-nightly-engineering-task-queue",
+  "nightlyStartTimeLocal": "20:00",
+  "maxTasksPerNightDefault": 8,
+  "maxTasksPerNightHardLimit": 12,
+  "stopOnFirstFailure": true,
+  "tasks": [
+    {
+      "taskId": "phase638r-task-001",
+      "title": "docs/evidence index refresh",
+      "riskTier": "low",
+      "autoExecutable": true,
+      "gateOnly": false,
+      "allowedFiles": [
+        "docs/phase637r-final-system-report.md",
+        "apps/ai-gateway-service/evidence/phase633r-637r/full-system-audit-bugfix-report-closure.json"
+      ],
+      "forbiddenFiles": [
+        "legacy/",
+        "PROJECT_CONTEXT.md",
+        ".env",
+        ".git",
+        "node_modules",
+        "/chat",
+        "/chat-gateway/execute"
+      ],
+      "validationCommands": [
+        "cmd /c node tools/phase637r/validate-final-system-report.mjs"
+      ],
+      "rollbackNote": "Evidence-only check; remove generated task evidence if needed.",
+      "stopOnFailure": true,
+      "providerCallsAllowed": false,
+      "secretAccessAllowed": false,
+      "codexConfigWriteAllowed": false,
+      "chatModificationAllowed": false,
+      "chatGatewayExecuteModificationAllowed": false,
+      "deployAllowed": false,
+      "pushAllowed": false,
+      "commitAllowed": false
+    },
+    {
+      "taskId": "phase638r-task-002",
+      "title": "README/AGENTS managed block drift check",
+      "riskTier": "low",
+      "autoExecutable": true,
+      "gateOnly": false,
+      "allowedFiles": [
+        "README.md",
+        "AGENTS.md",
+        "apps/ai-gateway-service/src/entrypoints/syncReadmeAgentsCurrentState.js"
+      ],
+      "forbiddenFiles": [
+        "legacy/",
+        "PROJECT_CONTEXT.md",
+        ".env",
+        ".git",
+        "node_modules",
+        "/chat",
+        "/chat-gateway/execute"
+      ],
+      "validationCommands": [
+        "cmd /c pnpm verify:phase306c-readme-agents-auto-sync-guard"
+      ],
+      "rollbackNote": "No mutation by runner; use sync script separately if drift is found.",
+      "stopOnFailure": true,
+      "providerCallsAllowed": false,
+      "secretAccessAllowed": false,
+      "codexConfigWriteAllowed": false,
+      "chatModificationAllowed": false,
+      "chatGatewayExecuteModificationAllowed": false,
+      "deployAllowed": false,
+      "pushAllowed": false,
+      "commitAllowed": false
+    },
+    {
+      "taskId": "phase638r-task-003",
+      "title": "Phase632 preflight health check",
+      "riskTier": "low",
+      "autoExecutable": true,
+      "gateOnly": false,
+      "allowedFiles": [
+        "tools/phase632i/run-token-saving-preflight.mjs",
+        "apps/ai-gateway-service/evidence/phase632i/token-saving-preflight-run.json"
+      ],
+      "forbiddenFiles": [
+        "legacy/",
+        "PROJECT_CONTEXT.md",
+        ".env",
+        ".git",
+        "node_modules"
+      ],
+      "validationCommands": [
+        "cmd /c pnpm run preflight:phase632-token-saving"
+      ],
+      "rollbackNote": "No rollback required for a preflight check.",
+      "stopOnFailure": true,
+      "providerCallsAllowed": false,
+      "secretAccessAllowed": false,
+      "codexConfigWriteAllowed": false,
+      "chatModificationAllowed": false,
+      "chatGatewayExecuteModificationAllowed": false,
+      "deployAllowed": false,
+      "pushAllowed": false,
+      "commitAllowed": false
+    },
+    {
+      "taskId": "phase638r-task-004",
+      "title": "known limits refresh",
+      "riskTier": "low",
+      "autoExecutable": true,
+      "gateOnly": false,
+      "allowedFiles": [
+        "docs/phase637r-known-limits-and-blockers.md",
+        "docs/phase637r-current-capability-boundary.md"
+      ],
+      "forbiddenFiles": [
+        "legacy/",
+        "PROJECT_CONTEXT.md",
+        ".env",
+        ".git",
+        "node_modules"
+      ],
+      "validationCommands": [
+        "cmd /c node tools/phase637r/validate-final-system-report.mjs"
+      ],
+      "rollbackNote": "No mutation by runner; update docs in a separate phase if stale.",
+      "stopOnFailure": true,
+      "providerCallsAllowed": false,
+      "secretAccessAllowed": false,
+      "codexConfigWriteAllowed": false,
+      "chatModificationAllowed": false,
+      "chatGatewayExecuteModificationAllowed": false,
+      "deployAllowed": false,
+      "pushAllowed": false,
+      "commitAllowed": false
+    },
+    {
+      "taskId": "phase638r-task-005",
+      "title": "stale context report check",
+      "riskTier": "low",
+      "autoExecutable": true,
+      "gateOnly": false,
+      "allowedFiles": [
+        ".codex-context/context-freshness-report.json"
+      ],
+      "forbiddenFiles": [
+        "legacy/",
+        "PROJECT_CONTEXT.md",
+        ".env",
+        ".git",
+        "node_modules"
+      ],
+      "validationCommands": [
+        "cmd /c pnpm run preflight:phase632-token-saving"
+      ],
+      "rollbackNote": "Regenerate context pack in a separate phase if stale=true.",
+      "stopOnFailure": true,
+      "providerCallsAllowed": false,
+      "secretAccessAllowed": false,
+      "codexConfigWriteAllowed": false,
+      "chatModificationAllowed": false,
+      "chatGatewayExecuteModificationAllowed": false,
+      "deployAllowed": false,
+      "pushAllowed": false,
+      "commitAllowed": false
+    },
+    {
+      "taskId": "phase638r-task-006",
+      "title": "relevant files scope audit",
+      "riskTier": "low",
+      "autoExecutable": true,
+      "gateOnly": false,
+      "allowedFiles": [
+        ".codex-context/relevant-files.json"
+      ],
+      "forbiddenFiles": [
+        "legacy/",
+        "PROJECT_CONTEXT.md",
+        ".env",
+        ".git",
+        "node_modules"
+      ],
+      "validationCommands": [
+        "cmd /c pnpm run preflight:phase632-token-saving"
+      ],
+      "rollbackNote": "Regenerate relevant files in a separate phase if scope exceeds the hard limit.",
+      "stopOnFailure": true,
+      "providerCallsAllowed": false,
+      "secretAccessAllowed": false,
+      "codexConfigWriteAllowed": false,
+      "chatModificationAllowed": false,
+      "chatGatewayExecuteModificationAllowed": false,
+      "deployAllowed": false,
+      "pushAllowed": false,
+      "commitAllowed": false
+    },
+    {
+      "taskId": "phase638r-task-007",
+      "title": "verifier script consistency check",
+      "riskTier": "medium-safe",
+      "autoExecutable": true,
+      "gateOnly": false,
+      "allowedFiles": [
+        "package.json",
+        "tools/phase633r/validate-full-system-audit-bugfix-report-bundle.mjs",
+        "tools/phase638r/validate-nightly-safe-engineering-runner.mjs"
+      ],
+      "forbiddenFiles": [
+        "legacy/",
+        "PROJECT_CONTEXT.md",
+        ".env",
+        ".git",
+        "node_modules"
+      ],
+      "validationCommands": [
+        "cmd /c node --check tools/phase638r/validate-nightly-safe-engineering-runner.mjs"
+      ],
+      "rollbackNote": "No mutation by runner; fix verifier drift in a separate phase.",
+      "stopOnFailure": true,
+      "providerCallsAllowed": false,
+      "secretAccessAllowed": false,
+      "codexConfigWriteAllowed": false,
+      "chatModificationAllowed": false,
+      "chatGatewayExecuteModificationAllowed": false,
+      "deployAllowed": false,
+      "pushAllowed": false,
+      "commitAllowed": false
+    },
+    {
+      "taskId": "phase638r-task-008",
+      "title": "Mission Control read-only copy audit",
+      "riskTier": "medium-safe",
+      "autoExecutable": true,
+      "gateOnly": false,
+      "allowedFiles": [
+        "README.md",
+        "AGENTS.md",
+        "apps/ai-gateway-service/src/entrypoints/syncReadmeAgentsCurrentState.js"
+      ],
+      "forbiddenFiles": [
+        "legacy/",
+        "PROJECT_CONTEXT.md",
+        ".env",
+        ".git",
+        "node_modules"
+      ],
+      "validationCommands": [
+        "cmd /c pnpm verify:phase306c-readme-agents-auto-sync-guard"
+      ],
+      "rollbackNote": "No mutation by runner; copy drift remains evidence until separately fixed.",
+      "stopOnFailure": true,
+      "providerCallsAllowed": false,
+      "secretAccessAllowed": false,
+      "codexConfigWriteAllowed": false,
+      "chatModificationAllowed": false,
+      "chatGatewayExecuteModificationAllowed": false,
+      "deployAllowed": false,
+      "pushAllowed": false,
+      "commitAllowed": false
+    },
+    {
+      "taskId": "phase638r-task-009",
+      "title": "dead preview button scan",
+      "riskTier": "medium-safe",
+      "autoExecutable": true,
+      "gateOnly": false,
+      "allowedFiles": [
+        "docs/phase637r-final-system-report.md",
+        "apps/ai-gateway-service/src/entrypoints/syncReadmeAgentsCurrentState.js"
+      ],
+      "forbiddenFiles": [
+        "legacy/",
+        "PROJECT_CONTEXT.md",
+        ".env",
+        ".git",
+        "node_modules"
+      ],
+      "validationCommands": [
+        "cmd /c pnpm smoke:phase308a-desktop-workbench-ui"
+      ],
+      "rollbackNote": "No mutation by runner; button drift becomes a future UI approval task.",
+      "stopOnFailure": true,
+      "providerCallsAllowed": false,
+      "secretAccessAllowed": false,
+      "codexConfigWriteAllowed": false,
+      "chatModificationAllowed": false,
+      "chatGatewayExecuteModificationAllowed": false,
+      "deployAllowed": false,
+      "pushAllowed": false,
+      "commitAllowed": false
+    },
+    {
+      "taskId": "phase638r-task-010",
+      "title": "public dry-run demo doc check",
+      "riskTier": "low",
+      "autoExecutable": true,
+      "gateOnly": false,
+      "allowedFiles": [
+        "README.md",
+        "docs/phase637r-final-system-report.md"
+      ],
+      "forbiddenFiles": [
+        "legacy/",
+        "PROJECT_CONTEXT.md",
+        ".env",
+        ".git",
+        "node_modules"
+      ],
+      "validationCommands": [
+        "cmd /c pnpm verify:phase107a-secret-safety"
+      ],
+      "rollbackNote": "No mutation by runner; doc drift can be fixed in a later docs-only phase.",
+      "stopOnFailure": true,
+      "providerCallsAllowed": false,
+      "secretAccessAllowed": false,
+      "codexConfigWriteAllowed": false,
+      "chatModificationAllowed": false,
+      "chatGatewayExecuteModificationAllowed": false,
+      "deployAllowed": false,
+      "pushAllowed": false,
+      "commitAllowed": false
+    },
+    {
+      "taskId": "phase638r-task-011",
+      "title": "package verify scripts inventory",
+      "riskTier": "low",
+      "autoExecutable": true,
+      "gateOnly": false,
+      "allowedFiles": [
+        "package.json"
+      ],
+      "forbiddenFiles": [
+        "legacy/",
+        "PROJECT_CONTEXT.md",
+        ".env",
+        ".git",
+        "node_modules"
+      ],
+      "validationCommands": [
+        "cmd /c node --check tools/phase638r/validate-nightly-safe-engineering-runner.mjs"
+      ],
+      "rollbackNote": "No mutation by runner; missing scripts become a future package-only fix.",
+      "stopOnFailure": true,
+      "providerCallsAllowed": false,
+      "secretAccessAllowed": false,
+      "codexConfigWriteAllowed": false,
+      "chatModificationAllowed": false,
+      "chatGatewayExecuteModificationAllowed": false,
+      "deployAllowed": false,
+      "pushAllowed": false,
+      "commitAllowed": false
+    },
+    {
+      "taskId": "phase638r-task-012",
+      "title": "final system report freshness check",
+      "riskTier": "low",
+      "autoExecutable": true,
+      "gateOnly": false,
+      "allowedFiles": [
+        "docs/phase637r-final-system-report.md",
+        "apps/ai-gateway-service/evidence/phase637r/final-system-report-result.json"
+      ],
+      "forbiddenFiles": [
+        "legacy/",
+        "PROJECT_CONTEXT.md",
+        ".env",
+        ".git",
+        "node_modules"
+      ],
+      "validationCommands": [
+        "cmd /c node tools/phase637r/validate-final-system-report.mjs"
+      ],
+      "rollbackNote": "No mutation by runner; stale report becomes a future report refresh task.",
+      "stopOnFailure": true,
+      "providerCallsAllowed": false,
+      "secretAccessAllowed": false,
+      "codexConfigWriteAllowed": false,
+      "chatModificationAllowed": false,
+      "chatGatewayExecuteModificationAllowed": false,
+      "deployAllowed": false,
+      "pushAllowed": false,
+      "commitAllowed": false
+    },
+    {
+      "taskId": "phase638r-high-risk-gate-001",
+      "title": "real provider call gate",
+      "riskTier": "high",
+      "autoExecutable": false,
+      "gateOnly": true,
+      "allowedFiles": [],
+      "forbiddenFiles": [
+        "provider runtime",
+        "secret",
+        "auth.json",
+        "raw base_url"
+      ],
+      "validationCommands": [],
+      "rollbackNote": "Requires a separate explicit approval phase; never execute in nightly runner.",
+      "stopOnFailure": true,
+      "providerCallsAllowed": false,
+      "secretAccessAllowed": false,
+      "codexConfigWriteAllowed": false,
+      "chatModificationAllowed": false,
+      "chatGatewayExecuteModificationAllowed": false,
+      "deployAllowed": false,
+      "pushAllowed": false,
+      "commitAllowed": false
+    },
+    {
+      "taskId": "phase638r-high-risk-gate-002",
+      "title": "/chat integration gate",
+      "riskTier": "high",
+      "autoExecutable": false,
+      "gateOnly": true,
+      "allowedFiles": [],
+      "forbiddenFiles": [
+        "/chat",
+        "/chat-gateway/execute",
+        "provider runtime"
+      ],
+      "validationCommands": [],
+      "rollbackNote": "Requires a separate explicit approval phase; never execute in nightly runner.",
+      "stopOnFailure": true,
+      "providerCallsAllowed": false,
+      "secretAccessAllowed": false,
+      "codexConfigWriteAllowed": false,
+      "chatModificationAllowed": false,
+      "chatGatewayExecuteModificationAllowed": false,
+      "deployAllowed": false,
+      "pushAllowed": false,
+      "commitAllowed": false
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "evidenceVersion": "phase671-runtime-evidence-ledger-v1",
+  "capabilityId": "trial-3-token",
+  "runtimeKind": "sandbox_local",
+  "executionStatus": "passed",
+  "leaseId": "lease-trial-3-token-3",
+  "ttlSeconds": 300,
+  "maxRequests": 3,
+  "maxTokenBudget": 4000,
+  "maxRuntimeMs": 30000,
+  "rollbackAvailable": true,
+  "rollbackRef": "capabilities/_generated_dry_run/trial-3-token/rollback-plan.json",
+  "providerCallsMade": false,
+  "secretRead": false,
+  "secretValueExposed": false,
+  "chatBehaviorChanged": false,
+  "chatGatewayExecuteBehaviorChanged": false,
+  "deployExecuted": false
+}

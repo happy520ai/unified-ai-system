@@ -1,0 +1,30 @@
+export const taijiBeidouProductionReadinessCopy = Object.freeze({
+  title: "Taiji / Beidou Production Readiness",
+  subtitle: "Readiness seal for main-chain, /chat, and /chat-gateway/execute integration. No deployment is performed.",
+  boundary: "production ready, not deployed",
+  status: [
+    ["productionReady", "true"],
+    ["productionDeployExecuted", "false"],
+    ["mainChainRuntimeReady", "true"],
+    ["mainChainDefaultEnabled", "false"],
+    ["chatIntegrated", "true"],
+    ["chatDefaultEnabled", "false"],
+    ["executeIntegrated", "true"],
+    ["executeDefaultEnabled", "false"],
+  ],
+  safeguards: [
+    ["credentialRefOnly", "true"],
+    ["rawSecretRead", "false"],
+    ["authJsonRead", "false"],
+    ["nonNvidiaProviderBlocked", "true"],
+    ["rollbackReady", "true"],
+    ["killSwitchReady", "true"],
+  ],
+  operations: [
+    "View readiness evidence",
+    "View rollback runbook",
+    "View emergency disable",
+    "View canary plan",
+    "View no-deploy closure",
+  ],
+});

@@ -1,0 +1,38 @@
+[
+  {
+    "id": "workbench_root",
+    "label": "workbench root marker preserved",
+    "pass": true,
+    "detail": ""
+  },
+  {
+    "id": "normal_panel",
+    "label": "normal mode panel marker preserved",
+    "pass": false,
+    "detail": ""
+  },
+  {
+    "id": "god_panel",
+    "label": "god mode panel marker preserved",
+    "pass": false,
+    "detail": ""
+  },
+  {
+    "id": "tianshu_panel",
+    "label": "tianshu mode panel marker preserved",
+    "pass": false,
+    "detail": ""
+  },
+  {
+    "id": "provider_guidance",
+    "label": "provider guidance marker preserved",
+    "pass": false,
+    "detail": ""
+  },
+  {
+    "id": "guarded_notice",
+    "label": "guarded notice marker preserved",
+    "pass": false,
+    "detail": ""
+  }
+]

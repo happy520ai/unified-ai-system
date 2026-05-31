@@ -1,0 +1,59 @@
+{
+  "phase": "Phase3980A-Owner-Daily-Use-Real-Integration",
+  "executedAt": "2026-05-29T02:29:19.879Z",
+  "ownerDailyUseCompleted": true,
+  "realOwnerDailyUseRecordCount": 1,
+  "tasks": [
+    {
+      "id": "system-health-check",
+      "name": "系统健康检查",
+      "description": "检查服务状态、Provider 可用性、知识库状态",
+      "command": "pnpm health:phase12a",
+      "required": true,
+      "status": "pass",
+      "exitCode": 0,
+      "providerCallsMade": false
+    },
+    {
+      "id": "model-hotspot-refresh",
+      "name": "模型热点刷新",
+      "description": "抓取最新免费模型热点",
+      "command": "pnpm run:model-hotspot-fetch",
+      "required": false,
+      "status": "pass",
+      "exitCode": 0,
+      "providerCallsMade": false
+    },
+    {
+      "id": "multi-provider-smoke",
+      "name": "多 Provider 烟雾测试",
+      "description": "测试所有配置的 Provider",
+      "command": "pnpm run:multi-provider-smoke",
+      "required": false,
+      "status": "pass",
+      "exitCode": 0,
+      "providerCallsMade": false
+    },
+    {
+      "id": "chat-test",
+      "name": "聊天测试",
+      "description": "测试默认模型的聊天能力",
+      "command": null,
+      "required": true,
+      "status": "pass",
+      "model": "moonshotai/kimi-k2.6:free",
+      "responseLength": 76,
+      "responsePreview": "你好，我是Kimi，一个由月之暗面科技有限公司开发的人工智能助手，能够用中文和英文回答各类问题、协助创作与分析，致力于为你提供安全、准确且有帮助的支持。",
+      "providerCallsMade": true
+    }
+  ],
+  "summary": {
+    "totalTasks": 4,
+    "passedTasks": 4,
+    "failedTasks": 0,
+    "skippedTasks": 0
+  },
+  "providerCallsMade": true,
+  "secretRead": false,
+  "deployExecuted": false
+}

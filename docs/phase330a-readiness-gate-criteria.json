@@ -1,0 +1,24 @@
+{
+  "phase": "Phase330A",
+  "gateName": "three-mode-limited-beta-readiness-gate",
+  "releaseType": "limited_beta_readiness_only",
+  "productionGA": false,
+  "criteria": {
+    "runtimeSmokeRequired": true,
+    "uiSmokeRequired": true,
+    "secretSafetyRequired": true,
+    "observabilityRequired": true,
+    "rollbackPlanRequired": true,
+    "quotaBudgetRequired": true,
+    "credentialGateRequired": true
+  },
+  "blockingFailures": [
+    "secret_exposure",
+    "unauthorized_provider_call",
+    "failed_high_risk_model_used",
+    "chat_gateway_regression_failed",
+    "credential_gate_missing",
+    "quota_budget_gate_missing",
+    "rollback_plan_missing"
+  ]
+}

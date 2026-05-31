@@ -1,0 +1,16 @@
+{
+  "requestId": "phase329f-request-001",
+  "userIdRef": "user_anon",
+  "mode": "god",
+  "providerId": "nvidia",
+  "modelId": "meta/llama-3.2-3b-instruct",
+  "estimatedInputTokens": 400,
+  "estimatedOutputTokens": 600,
+  "estimatedCost": 0.002,
+  "currency": "USD",
+  "estimateOnly": true,
+  "actualBillingConnected": false,
+  "costSource": "mock_estimate_formula",
+  "confidence": "low_to_medium",
+  "warning": "internal_test_cost_unknown"
+}

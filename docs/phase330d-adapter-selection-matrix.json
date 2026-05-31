@@ -1,0 +1,44 @@
+{
+  "phase": "Phase330D",
+  "candidates": [
+    {
+      "adapter": "envCredentialAdapter",
+      "secretExposureRisk": "medium",
+      "operationalComplexity": "low",
+      "auditability": "limited",
+      "rotationSupport": "manual",
+      "revokeSupport": "manual",
+      "perUserOwnership": "weak",
+      "providerScopeControl": "medium",
+      "environmentPortability": "low",
+      "betaReadiness": true,
+      "productionReadiness": false
+    },
+    {
+      "adapter": "encryptedReferenceAdapter",
+      "secretExposureRisk": "low_if_service_exists",
+      "operationalComplexity": "medium",
+      "auditability": "medium",
+      "rotationSupport": "requires_policy",
+      "revokeSupport": "requires_policy",
+      "perUserOwnership": "medium",
+      "providerScopeControl": "medium",
+      "environmentPortability": "medium",
+      "betaReadiness": false,
+      "productionReadiness": false
+    },
+    {
+      "adapter": "vaultReferenceAdapter",
+      "secretExposureRisk": "lowest_with_real_vault",
+      "operationalComplexity": "high",
+      "auditability": "high",
+      "rotationSupport": "strong",
+      "revokeSupport": "strong",
+      "perUserOwnership": "strong",
+      "providerScopeControl": "strong",
+      "environmentPortability": "high",
+      "betaReadiness": false,
+      "productionReadiness": false
+    }
+  ]
+}

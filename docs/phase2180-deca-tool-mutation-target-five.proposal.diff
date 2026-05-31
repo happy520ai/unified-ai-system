@@ -1,0 +1,34 @@
+diff --git a/tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs b/tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs
+--- a/tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs
++++ b/tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs
+@@ -47,6 +47,7 @@ export function buildPhase2120QuintMutationRuntimeStatus() {
+     phase2141Marker: "PHASE2141_SEPT_TOOL_TARGET_FIVE_OK",
+     phase2153Marker: "PHASE2153_OCT_TOOL_TARGET_FIVE_OK",
+     phase2166Marker: "PHASE2166_NONET_TOOL_TARGET_FIVE_OK",
++    phase2180Marker: "PHASE2180_DECA_TOOL_TARGET_FIVE_OK",
+     providerCallsMade: false,
+     codexExecExecuted: false,
+     chatModified: false,
+@@ -108,6 +109,22 @@ export function buildPhase2166NonetMutationTargetFiveStatus() {
+   };
+ }
+ 
++
++export function buildPhase2180DecaMutationTargetFiveStatus() {
++  return {
++    phaseId: "Phase2180A-Controlled-Deca-Tool-Mutation-Target-Five",
++    marker: "PHASE2180_DECA_TOOL_TARGET_FIVE_OK",
++    importSafe: true,
++    phase2153Marker: "PHASE2153_OCT_TOOL_TARGET_FIVE_OK",
++    phase2166Marker: "PHASE2166_NONET_TOOL_TARGET_FIVE_OK",
++    phase2180Marker: "PHASE2180_DECA_TOOL_TARGET_FIVE_OK",
++    decaMutationApplied: true,
++    providerCallsMade: false,
++    codexExecExecuted: false,
++    chatModified: false,
++    chatGatewayExecuteModified: false,
++  };
++}
+ export function main() {
+   const args = parseArgs(process.argv.slice(2));
+   const planPath = args.plan || "docs/phase2101-2110-controlled-quad-tool-mutation-approval.example.json";

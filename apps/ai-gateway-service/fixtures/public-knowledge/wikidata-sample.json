@@ -1,0 +1,15 @@
+{
+  "id": "Q937",
+  "labels": {
+    "en": { "language": "en", "value": "Albert Einstein" },
+    "zh": { "language": "zh", "value": "Albert Einstein" }
+  },
+  "descriptions": {
+    "en": { "language": "en", "value": "German-born theoretical physicist" }
+  },
+  "claims": {
+    "P31": [{ "mainsnak": { "property": "P31" } }],
+    "P106": [{ "mainsnak": { "property": "P106" } }],
+    "P569": [{ "mainsnak": { "property": "P569" } }]
+  }
+}

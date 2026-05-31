@@ -1,0 +1,12 @@
+{
+  "phase": "Phase377C",
+  "cards": [
+    "Reviewer",
+    "Critic",
+    "Risk Scout",
+    "Supervisor",
+    "Conflict Summary"
+  ],
+  "providerCallsMade": false,
+  "dryRunOnly": true
+}

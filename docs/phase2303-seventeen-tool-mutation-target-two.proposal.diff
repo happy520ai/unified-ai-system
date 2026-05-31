@@ -1,0 +1,42 @@
+diff --git a/tools/phase2092/apply-controlled-existing-tool-mutation.mjs b/tools/phase2092/apply-controlled-existing-tool-mutation.mjs
+index 3a67f57..fa8b9d6 100644
+--- a/tools/phase2092/apply-controlled-existing-tool-mutation.mjs
++++ b/tools/phase2092/apply-controlled-existing-tool-mutation.mjs
+@@ -41,6 +41,7 @@ export function buildPhase2094BatchMutationRuntimeStatus() {
+     phase2225Marker: "PHASE2225_THIRTEEN_TOOL_TARGET_TWO_OK",
+     phase2243Marker: "PHASE2243_FOURTEEN_TOOL_TARGET_TWO_OK",
+     phase2282Marker: "PHASE2282_SIXTEEN_TOOL_TARGET_TWO_OK",
++    phase2303Marker: "PHASE2303_SEVENTEEN_TOOL_TARGET_TWO_OK",
+     phase2262Marker: "PHASE2262_FIFTEEN_TOOL_TARGET_TWO_OK",
+     phase2177Marker: "PHASE2177_DECA_TOOL_TARGET_TWO_OK",
+     providerCallsMade: false,
+@@ -178,6 +179,29 @@ export function buildPhase2282SixteenMutationTargetTwoStatus() {
+     chatGatewayExecuteModified: false,
+   };
+ }
++
++export function buildPhase2303SeventeenMutationTargetTwoStatus() {
++  return {
++    phaseId: "Phase2303A-Controlled-Seventeen-Tool-Mutation-Target-Two",
++    marker: "PHASE2303_SEVENTEEN_TOOL_TARGET_TWO_OK",
++    importSafe: true,
++    phase2150Marker: "PHASE2150_OCT_TOOL_TARGET_TWO_OK",
++    phase2163Marker: "PHASE2163_NONET_TOOL_TARGET_TWO_OK",
++    phase2177Marker: "PHASE2177_DECA_TOOL_TARGET_TWO_OK",
++    phase2192Marker: "PHASE2192_ELEVEN_TOOL_TARGET_TWO_OK",
++    phase2208Marker: "PHASE2208_TWELVE_TOOL_TARGET_TWO_OK",
++    phase2225Marker: "PHASE2225_THIRTEEN_TOOL_TARGET_TWO_OK",
++    phase2243Marker: "PHASE2243_FOURTEEN_TOOL_TARGET_TWO_OK",
++    phase2262Marker: "PHASE2262_FIFTEEN_TOOL_TARGET_TWO_OK",
++    phase2282Marker: "PHASE2282_SIXTEEN_TOOL_TARGET_TWO_OK",
++    phase2303Marker: "PHASE2303_SEVENTEEN_TOOL_TARGET_TWO_OK",
++    seventeenMutationApplied: true,
++    providerCallsMade: false,
++    codexExecExecuted: false,
++    chatModified: false,
++    chatGatewayExecuteModified: false,
++  };
++}
+ export function buildPhase2243FourteenMutationTargetTwoStatus() {
+   return {
+     phaseId: "Phase2243A-Controlled-Fourteen-Tool-Mutation-Target-Two",

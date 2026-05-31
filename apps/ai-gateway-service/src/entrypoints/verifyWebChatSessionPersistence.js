@@ -18,6 +18,8 @@ const evidenceMdPath = resolve(evidenceDir, "phase-62a-web-chat-session-persiste
 const evidencePngPath = resolve(evidenceDir, "phase-62a-web-chat-session-persistence.png");
 
 const storageKey = "pme-moving-earth-chat-history-v1";
+const sessionsStorageKey = "pme-moving-earth-chat-sessions-v1";
+const activeSessionStorageKey = "pme-moving-earth-active-chat-session-v1";
 const prompt = "phase62a persistent chat prompt";
 const answer = "phase62a persistent chat answer";
 
@@ -68,7 +70,7 @@ try {
     await cdp.send("Runtime.enable");
     await cdp.send("Page.navigate", { url: uiUrl });
     await waitForLoadEvent(cdp);
-    await waitForExpression(cdp, "Boolean(document.getElementById('chat-form') && document.getElementById('clear-chat-button'))");
+    await waitForExpression(cdp, "Boolean(document.getElementById('chat-form') && document.getElementById('clear-chat-button') && document.getElementById('new-chat-button') && document.getElementById('sidebar-new-chat-button') && document.getElementById('chat-session-list'))");
 
     await installFetchSimulation(cdp);
     await cdp.evaluate(`(() => {
@@ -78,7 +80,7 @@ try {
       document.getElementById("chat-form").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
       return true;
     })()`);
-    await waitForExpression(cdp, `document.body.textContent.includes(${JSON.stringify(answer)}) && !document.getElementById("send-button").disabled`);
+    await waitForExpression(cdp, `document.body.textContent.includes(${JSON.stringify(answer)}) && !document.getElementById("chat-form").classList.contains("is-sending")`);
     const afterSend = await readState(cdp);
 
     await cdp.send("Page.reload", { ignoreCache: true });
@@ -87,11 +89,30 @@ try {
     const afterReload = await readState(cdp);
 
     await cdp.evaluate(`(() => {
-      document.getElementById("clear-chat-button").click();
+      document.getElementById("sidebar-new-chat-button").click();
       return true;
     })()`);
     await waitForExpression(cdp, `!document.body.textContent.includes(${JSON.stringify(prompt)}) && !document.body.textContent.includes(${JSON.stringify(answer)})`);
-    const afterClear = await readState(cdp);
+    const afterNew = await readState(cdp);
+
+    const oldSessionClicked = await cdp.evaluate(`(() => {
+      const raw = localStorage.getItem(${JSON.stringify(sessionsStorageKey)}) || "{}";
+      let sessions = [];
+      try {
+        sessions = JSON.parse(raw).sessions || [];
+      } catch {
+        sessions = [];
+      }
+      const oldSession = sessions.find((item) => JSON.stringify(item.messages || []).includes(${JSON.stringify(prompt)}) &&
+        JSON.stringify(item.messages || []).includes(${JSON.stringify(answer)}));
+      if (!oldSession) return false;
+      const button = document.querySelector("[data-chat-session-id='" + oldSession.id + "']");
+      if (!button) return false;
+      button.click();
+      return true;
+    })()`);
+    await waitForExpression(cdp, `document.body.textContent.includes(${JSON.stringify(prompt)}) && document.body.textContent.includes(${JSON.stringify(answer)})`);
+    const afterLoadOld = await readState(cdp);
 
     await mkdir(evidenceDir, { recursive: true });
     await cdp.send("Page.captureScreenshot", { format: "png", captureBeyondViewport: true })
@@ -104,11 +125,18 @@ try {
       afterReload.bodyContainsPrompt &&
       afterReload.bodyContainsAnswer &&
       afterReload.statusText.includes("已恢复") &&
-      !afterClear.bodyContainsPrompt &&
-      !afterClear.bodyContainsAnswer &&
-      !afterClear.storageContainsPrompt &&
-      !afterClear.storageContainsAnswer &&
-      afterClear.statusText.includes("已清空") &&
+      !afterNew.bodyContainsPrompt &&
+      !afterNew.bodyContainsAnswer &&
+      !afterNew.storageContainsPrompt &&
+      !afterNew.storageContainsAnswer &&
+      afterNew.sessionsStorageContainsPrompt &&
+      afterNew.sessionsStorageContainsAnswer &&
+      afterNew.sessionButtonCount >= 2 &&
+      afterNew.statusText.includes("新会话") &&
+      oldSessionClicked &&
+      afterLoadOld.bodyContainsPrompt &&
+      afterLoadOld.bodyContainsAnswer &&
+      afterLoadOld.activeSessionId === afterNew.oldSessionId &&
       screenshot.validPng &&
       screenshot.bytes > 10000;
 
@@ -121,11 +149,15 @@ try {
       ui: {
         url: uiUrl,
         storageKey,
+        sessionsStorageKey,
+        activeSessionStorageKey,
         prompt,
         answer,
         afterSend,
         afterReload,
-        afterClear,
+        afterNew,
+        afterLoadOld,
+        oldSessionClicked,
       },
       screenshot: {
         path: "apps/ai-gateway-service/evidence/phase-62a-web-chat-session-persistence.png",
@@ -219,19 +251,47 @@ async function installFetchSimulation(cdp) {
 async function readState(cdp) {
   return cdp.evaluate(`(() => {
     const storageValue = localStorage.getItem(${JSON.stringify(storageKey)}) || "";
+    const sessionsStorageValue = localStorage.getItem(${JSON.stringify(sessionsStorageKey)}) || "";
+    const activeSessionId = localStorage.getItem(${JSON.stringify(activeSessionStorageKey)}) || "";
     const bodyText = document.body.textContent || "";
     const statusText = document.getElementById("chat-session-status")?.textContent || "";
+    const sessionButtons = Array.from(document.querySelectorAll("[data-chat-session-id]")).map((node) => ({
+      id: node.dataset.chatSessionId || "",
+      text: node.textContent || "",
+      active: node.classList.contains("active"),
+    }));
+    let oldSessionId = "";
+    try {
+      const parsed = JSON.parse(sessionsStorageValue || "{}");
+      const sessions = Array.isArray(parsed.sessions) ? parsed.sessions : [];
+      const oldSession = sessions.find((item) => JSON.stringify(item.messages || []).includes(${JSON.stringify(prompt)}) &&
+        JSON.stringify(item.messages || []).includes(${JSON.stringify(answer)}));
+      oldSessionId = oldSession?.id || "";
+    } catch {
+      oldSessionId = "";
+    }
     return {
       bodyContainsPrompt: bodyText.includes(${JSON.stringify(prompt)}),
       bodyContainsAnswer: bodyText.includes(${JSON.stringify(answer)}),
       storageContainsPrompt: storageValue.includes(${JSON.stringify(prompt)}),
       storageContainsAnswer: storageValue.includes(${JSON.stringify(answer)}),
+      sessionsStorageContainsPrompt: sessionsStorageValue.includes(${JSON.stringify(prompt)}),
+      sessionsStorageContainsAnswer: sessionsStorageValue.includes(${JSON.stringify(answer)}),
       storageValueLength: storageValue.length,
+      sessionsStorageValueLength: sessionsStorageValue.length,
+      activeSessionId,
+      oldSessionId,
+      sessionButtonCount: sessionButtons.length,
+      activeSessionButtonCount: sessionButtons.filter((item) => item.active).length,
+      sessionListText: document.getElementById("chat-session-list")?.textContent || "",
       statusText,
       messageCount: document.querySelectorAll(".message").length,
       fetches: window.__phase62Fetches || [],
       sendButtonText: document.getElementById("send-button")?.textContent || "",
       sendButtonDisabled: Boolean(document.getElementById("send-button")?.disabled),
+      formIsSending: Boolean(document.getElementById("chat-form")?.classList.contains("is-sending")),
+      newChatButtonPresent: Boolean(document.getElementById("new-chat-button")),
+      sidebarNewChatButtonPresent: Boolean(document.getElementById("sidebar-new-chat-button")),
     };
   })()`);
 }

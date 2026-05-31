@@ -1,0 +1,47 @@
+{
+  "draftOnly": true,
+  "notAnApproval": true,
+  "requiresHumanCompletion": true,
+  "approvalId": null,
+  "approvalType": "god_mode_quality_signoff",
+  "approvalDecision": "pending",
+  "approverNameRef": "",
+  "approverRole": "",
+  "approverOrgRef": "",
+  "approvedScope": [
+    "god_mode_runtime_quality",
+    "god_mode_benchmark_review",
+    "god_mode_conflict_resolution_review",
+    "god_mode_production_candidate_risk"
+  ],
+  "approvalTimestamp": null,
+  "evidenceRefs": [
+    "docs/phase360b-god-mode-production-candidate-signoff.md",
+    "apps/ai-gateway-service/evidence/phase360b/god-mode-production-candidate-signoff-result.json",
+    "docs/phase360a-production-candidate-final-signoff-packet.md",
+    "docs/phase360a-deploy-not-authorized-boundary.json",
+    "docs/phase360abcdef-execution-report.md",
+    "docs/phase361a-launch-authorization-state.json",
+    "docs/phase361b-human-approval-records-index.json",
+    "docs/phase361c-deploy-authorization-state.json",
+    "docs/phase361d-signoff-verification-report.md",
+    "docs/phase361f-go-no-go-decision-state.json",
+    "docs/phase362a-reviewer-follow-up-tracker.json",
+    "docs/phase362a-approval-evidence-intake-report.md"
+  ],
+  "conditions": [],
+  "expiration": null,
+  "revocationPolicy": "",
+  "humanInstructions": [
+    "Use only real reviewer judgment and evidence.",
+    "Do not write approved unless the human actually approved.",
+    "Copy the completed file to docs/approvals/phase361/god-mode-reviewer-quality-signoff.json."
+  ],
+  "auditTrace": {
+    "createdBy": "codex",
+    "source": "approval_draft_preparation",
+    "secretValueIncluded": false,
+    "forged": false,
+    "draftOnly": true
+  }
+}

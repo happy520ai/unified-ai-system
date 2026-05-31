@@ -1,0 +1,31 @@
+{
+  "phase": "Phase354A",
+  "designType": "enterprise_rbac",
+  "result": {
+    "phase": "Phase354A",
+    "sourcePhase": "Phase353A",
+    "rbacDesignGenerated": true,
+    "adminOnlyActionsDefined": true,
+    "reviewerApprovalSeparationDefined": true,
+    "roles": [
+      "enterprise_admin",
+      "tenant_admin",
+      "reviewer",
+      "operator",
+      "viewer"
+    ],
+    "adminOnlyActions": [
+      "manage_tenant_boundary_policy",
+      "assign_tenant_admin",
+      "enable_enterprise_governance_flags"
+    ],
+    "reviewerSeparatedActions": [
+      "approve_candidate_signoff",
+      "record_human_review_decision"
+    ],
+    "tenantBoundaryInherited": true,
+    "crossTenantAccessForbidden": true,
+    "productionGA": false,
+    "secretValueExposed": false
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "authorizationId": "auth-phase600-codex-context-gateway-001",
+  "allowCodexBaseUrlChange": true,
+  "configScope": "session_override",
+  "relayRef": "relayRef.codex-context-gateway.preview",
+  "credentialRef": "credentialRef.codex-relay-authorized",
+  "accountPoolRef": "accountPoolRef.codex-pro-pool-authorized",
+  "maxRequests": 3,
+  "maxEstimatedCostUsd": 1,
+  "maxDurationMinutes": 10,
+  "rollbackOwner": "user-owner",
+  "approvalReason": "Guarded base_url test readiness only; no production rollout.",
+  "approvalRecordRef": "approvalRef.phase600-human-approval-001",
+  "emergencyDisablePlan": {
+    "disableRelay": true,
+    "restorePreviousConfig": true,
+    "invalidateContext": true,
+    "preserveEvidence": true
+  },
+  "guardedRealTestScope": {
+    "allowedAction": "readiness_review_only",
+    "realConfigWriteAllowed": false,
+    "relayStartAllowed": false,
+    "providerCallAllowed": false,
+    "maxTestRequests": 0
+  },
+  "rollbackWindowMinutes": 30,
+  "dryRunOnly": true,
+  "riskAcceptanceReviewed": true,
+  "riskAcceptanceAcceptedRisks": [
+    "wrong_base_url",
+    "bad_relay_response",
+    "account_pool_rate_limit",
+    "cache_miss",
+    "stale_context",
+    "token_over_budget",
+    "secret_leakage",
+    "provider_billing",
+    "config_drift",
+    "rollback_failure"
+  ],
+  "userExplicitlyApprovedGuardedRealTest": false
+}

@@ -1,0 +1,40 @@
+{
+  "phaseId": "Phase3981A-Restricted-Capability-Graduation-Gate",
+  "approvalType": "restricted_capability_graduation_real_use",
+  "ownerApproved": true,
+  "credentialRefOnly": true,
+  "rawSecretReadAllowed": false,
+  "rawSecretPrintAllowed": false,
+  "providerCallAllowed": true,
+  "deployAllowed": false,
+  "commitAllowed": false,
+  "pushAllowed": false,
+  "chatRouteChangeAllowed": false,
+  "chatGatewayExecuteChangeAllowed": false,
+  "capabilities": [
+    "workforce.multi_agent.execution",
+    "gvc.automatic_repair_cycle",
+    "provider.multi_provider.real_call",
+    "mode.normal_god_tianshu.runtime",
+    "nightly.scheduler.real_registration"
+  ],
+  "firstRunLimits": {
+    "maxWorkers": 3,
+    "maxGvcFilesChanged": 1,
+    "maxProviderRequestsPerProvider": 1,
+    "maxSchedulerRegistrations": 1,
+    "defaultChatMainChainMutation": false
+  },
+  "stopConditions": [
+    "verifier_failure",
+    "provider_timeout",
+    "provider_rate_limit",
+    "secret_exposure_risk",
+    "out_of_scope_file_mutation",
+    "chat_route_mutation_detected",
+    "deploy_or_git_operation_detected"
+  ],
+  "evidenceRequired": true,
+  "rollbackRequired": true,
+  "generatedAt": "2026-05-28T05:16:06.872Z"
+}

@@ -1,0 +1,26 @@
+{
+  "phase": "Phase332A",
+  "schemaName": "limited-beta-rc-artifact-manifest",
+  "required": [
+    "packageId",
+    "phase",
+    "generatedAt",
+    "releaseExecuted",
+    "deployExecuted",
+    "gitTagCreated",
+    "artifactUploaded",
+    "sourceCommitRef",
+    "includedDocs",
+    "includedEvidence",
+    "includedContracts",
+    "includedRuntimeModules",
+    "includedUiModules",
+    "excludedSecrets",
+    "excludedEnvFiles",
+    "verificationResults",
+    "rollbackPlanRefs",
+    "readinessGateRefs",
+    "riskRegisterRefs",
+    "safety"
+  ]
+}

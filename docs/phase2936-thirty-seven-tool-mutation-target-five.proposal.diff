@@ -1,0 +1,62 @@
+diff --git a/tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs b/tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs
+index 0be194e..ef7f14c 100644
+--- a/tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs
++++ b/tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs
+@@ -72,6 +72,7 @@ export function buildPhase2120QuintMutationRuntimeStatus() {
+     phase2816Marker: "PHASE2816_THIRTY_FOUR_TOOL_TARGET_FIVE_OK",
+     phase2855Marker: "PHASE2855_THIRTY_FIVE_TOOL_TARGET_FIVE_OK",
+     phase2895Marker: "PHASE2895_THIRTY_SIX_TOOL_TARGET_FIVE_OK",
++    phase2936Marker: "PHASE2936_THIRTY_SEVEN_TOOL_TARGET_FIVE_OK",
+     phase2265Marker: "PHASE2265_FIFTEEN_TOOL_TARGET_FIVE_OK",
+     phase2180Marker: "PHASE2180_DECA_TOOL_TARGET_FIVE_OK",
+     providerCallsMade: false,
+@@ -225,6 +226,49 @@ export function buildPhase2306SeventeenMutationTargetFiveStatus() {
+ 
+ 
+ 
++
++export function buildPhase2936ThirtySevenMutationTargetFiveStatus() {
++  return {
++    phaseId: "Phase2936A-Controlled-Thirty-Seven-Tool-Mutation-Target-Five",
++    marker: "PHASE2936_THIRTY_SEVEN_TOOL_TARGET_FIVE_OK",
++    importSafe: true,
++    phase2153Marker: "PHASE2153_OCT_TOOL_TARGET_FIVE_OK",
++    phase2166Marker: "PHASE2166_NONET_TOOL_TARGET_FIVE_OK",
++    phase2180Marker: "PHASE2180_DECA_TOOL_TARGET_FIVE_OK",
++    phase2195Marker: "PHASE2195_ELEVEN_TOOL_TARGET_FIVE_OK",
++    phase2211Marker: "PHASE2211_TWELVE_TOOL_TARGET_FIVE_OK",
++    phase2228Marker: "PHASE2228_THIRTEEN_TOOL_TARGET_FIVE_OK",
++    phase2246Marker: "PHASE2246_FOURTEEN_TOOL_TARGET_FIVE_OK",
++    phase2265Marker: "PHASE2265_FIFTEEN_TOOL_TARGET_FIVE_OK",
++    phase2285Marker: "PHASE2285_SIXTEEN_TOOL_TARGET_FIVE_OK",
++    phase2306Marker: "PHASE2306_SEVENTEEN_TOOL_TARGET_FIVE_OK",
++    phase2328Marker: "PHASE2328_EIGHTEEN_TOOL_TARGET_FIVE_OK",
++    phase2351Marker: "PHASE2351_NINETEEN_TOOL_TARGET_FIVE_OK",
++    phase2375Marker: "PHASE2375_TWENTY_TOOL_TARGET_FIVE_OK",
++    phase2400Marker: "PHASE2400_TWENTY_ONE_TOOL_TARGET_FIVE_OK",
++    phase2426Marker: "PHASE2426_TWENTY_TWO_TOOL_TARGET_FIVE_OK",
++    phase2453Marker: "PHASE2453_TWENTY_THREE_TOOL_TARGET_FIVE_OK",
++    phase2481Marker: "PHASE2481_TWENTY_FOUR_TOOL_TARGET_FIVE_OK",
++    phase2510Marker: "PHASE2510_TWENTY_FIVE_TOOL_TARGET_FIVE_OK",
++    phase2540Marker: "PHASE2540_TWENTY_SIX_TOOL_TARGET_FIVE_OK",
++    phase2571Marker: "PHASE2571_TWENTY_SEVEN_TOOL_TARGET_FIVE_OK",
++    phase2603Marker: "PHASE2603_TWENTY_EIGHT_TOOL_TARGET_FIVE_OK",
++    phase2636Marker: "PHASE2636_TWENTY_NINE_TOOL_TARGET_FIVE_OK",
++    phase2670Marker: "PHASE2670_THIRTY_TOOL_TARGET_FIVE_OK",
++    phase2705Marker: "PHASE2705_THIRTY_ONE_TOOL_TARGET_FIVE_OK",
++    phase2741Marker: "PHASE2741_THIRTY_TWO_TOOL_TARGET_FIVE_OK",
++    phase2778Marker: "PHASE2778_THIRTY_THREE_TOOL_TARGET_FIVE_OK",
++    phase2816Marker: "PHASE2816_THIRTY_FOUR_TOOL_TARGET_FIVE_OK",
++    phase2855Marker: "PHASE2855_THIRTY_FIVE_TOOL_TARGET_FIVE_OK",
++    phase2895Marker: "PHASE2895_THIRTY_SIX_TOOL_TARGET_FIVE_OK",
++    phase2936Marker: "PHASE2936_THIRTY_SEVEN_TOOL_TARGET_FIVE_OK",
++    thirtySevenMutationApplied: true,
++    providerCallsMade: false,
++    codexExecExecuted: false,
++    chatModified: false,
++    chatGatewayExecuteModified: false,
++  };
++}
+ export function buildPhase2895ThirtySixMutationTargetFiveStatus() {
+   return {
+     phaseId: "Phase2895A-Controlled-Thirty-Six-Tool-Mutation-Target-Five",

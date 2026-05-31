@@ -1,0 +1,33 @@
+diff --git a/tools/phase2091/generated-source-patch-target.mjs b/tools/phase2091/generated-source-patch-target.mjs
+index 6e1f647..392c562 100644
+--- a/tools/phase2091/generated-source-patch-target.mjs
++++ b/tools/phase2091/generated-source-patch-target.mjs
+@@ -135,6 +135,21 @@ export function buildPhase2176DecaMutationTargetOneStatus() {
+   };
+ }
+ 
++
++export function buildPhase2191ElevenMutationTargetOneStatus() {
++  return {
++    phaseId: "Phase2191A-Controlled-Eleven-Tool-Mutation-Target-One",
++    marker: "PHASE2191_ELEVEN_TOOL_TARGET_ONE_OK",
++    octToolTargetOneMarker: "PHASE2149_OCT_TOOL_TARGET_ONE_OK",
++    nonetToolTargetOneMarker: "PHASE2162_NONET_TOOL_TARGET_ONE_OK",
++    decaToolTargetOneMarker: "PHASE2176_DECA_TOOL_TARGET_ONE_OK",
++    elevenMutationApplied: true,
++    providerCallsMade: false,
++    codexExecExecuted: false,
++    chatModified: false,
++    chatGatewayExecuteModified: false,
++  };
++}
+ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+   console.log(JSON.stringify({
+     status: "passed",
+@@ -149,5 +164,6 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href)
+     phase2149: buildPhase2149OctMutationTargetOneStatus(),
+     phase2162: buildPhase2162NonetMutationTargetOneStatus(),
+     phase2176: buildPhase2176DecaMutationTargetOneStatus(),
++    phase2191: buildPhase2191ElevenMutationTargetOneStatus(),
+   }, null, 2));
+ }

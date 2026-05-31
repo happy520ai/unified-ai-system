@@ -1,0 +1,12 @@
+.future-os-panel :is(button, textarea, a):focus-visible {
+  outline: 3px solid rgb(79 124 255 / 35%);
+  outline-offset: 3px;
+}
+
+.future-os-panel button {
+  font-family: var(--future-font);
+}
+
+.future-os-panel [hidden] {
+  display: none !important;
+}

@@ -1,0 +1,19 @@
+{
+  "phase": "Phase370F",
+  "manualQaSteps": [
+    "启动本机 runtime",
+    "打开 Workbench",
+    "验证普通模式入口",
+    "验证 God Mode UI candidate 可见",
+    "验证 God Mode conflict summary / supervisor transparency 文案",
+    "验证 Tianshu Mode UI candidate 可见",
+    "验证 Tianshu planner explanation / no-candidate fallback 文案",
+    "验证 Model Library provider setup 提示",
+    "验证 credentialRef-only / secret 不显示",
+    "验证 quota / budget / provider 未配置提示",
+    "验证错误态 fallback copy",
+    "验证快速对话不被破坏",
+    "验证 no-production-deploy banner / docs",
+    "停止 runtime"
+  ]
+}

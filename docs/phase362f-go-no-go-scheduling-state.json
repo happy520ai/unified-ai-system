@@ -1,0 +1,24 @@
+{
+  "phase": "Phase362F",
+  "meetingName": "production-go-no-go-meeting-scheduling",
+  "meetingScheduled": false,
+  "meetingHeld": false,
+  "goDecision": "pending",
+  "goDecisionAllowed": false,
+  "requiredApprovalsComplete": false,
+  "requiredAttendeesConfirmed": false,
+  "preReadEvidenceReady": true,
+  "schedulingBlockers": [
+    "meeting_schedule_record_missing",
+    "required_approvals_incomplete",
+    "deploy_authorization_missing"
+  ],
+  "decisionRecordRef": null,
+  "safety": {
+    "deployAuthorized": false,
+    "releaseAuthorized": false,
+    "productionGaAuthorized": false,
+    "deployExecuted": false,
+    "releaseExecuted": false
+  }
+}

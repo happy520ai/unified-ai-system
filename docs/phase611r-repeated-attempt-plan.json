@@ -1,0 +1,57 @@
+{
+  "phase": "Phase611R-Fix",
+  "name": "Codex Exec Custom Provider Repeated Guarded Test Attempt Plan",
+  "designOnly": true,
+  "maxPlannedAttempts": 3,
+  "maxRequestsPerAttempt": 1,
+  "maxRequestsTotal": 3,
+  "retryLimitPerAttempt": 0,
+  "stopOnFirstFailure": true,
+  "attempts": [
+    {
+      "attemptId": "attempt-1",
+      "selectedProviderId": "crs",
+      "commandPreview": "codex exec -c model_provider=\"crs\" \"Read .codex-context/current-context-pack.md. Check .codex-context/context-freshness-report.json and confirm stale=false. Read .codex-context/relevant-files.json. Do not edit files. Do not scan the full repository. Do not read secrets. Reply with one line only: CONTEXT_GATEWAY_MODEL_PROVIDER_OK.\"",
+      "maxRequests": 1,
+      "retryLimit": 0,
+      "expectedAck": "CONTEXT_GATEWAY_MODEL_PROVIDER_OK",
+      "stopOnFailure": true,
+      "requiresExplicitConfirmation": true,
+      "authJsonAccessAllowed": false,
+      "codexConfigWriteAllowed": false,
+      "chatModificationAllowed": false,
+      "chatGatewayExecuteModificationAllowed": false,
+      "deployAllowed": false
+    },
+    {
+      "attemptId": "attempt-2",
+      "selectedProviderId": "crs",
+      "commandPreview": "codex exec -c model_provider=\"crs\" \"Read .codex-context/current-context-pack.md. Check .codex-context/context-freshness-report.json and confirm stale=false. Read .codex-context/relevant-files.json. Do not edit files. Do not scan the full repository. Do not read secrets. Reply with one line only: CONTEXT_GATEWAY_MODEL_PROVIDER_OK.\"",
+      "maxRequests": 1,
+      "retryLimit": 0,
+      "expectedAck": "CONTEXT_GATEWAY_MODEL_PROVIDER_OK",
+      "stopOnFailure": true,
+      "requiresExplicitConfirmation": true,
+      "authJsonAccessAllowed": false,
+      "codexConfigWriteAllowed": false,
+      "chatModificationAllowed": false,
+      "chatGatewayExecuteModificationAllowed": false,
+      "deployAllowed": false
+    },
+    {
+      "attemptId": "attempt-3",
+      "selectedProviderId": "crs",
+      "commandPreview": "codex exec -c model_provider=\"crs\" \"Read .codex-context/current-context-pack.md. Check .codex-context/context-freshness-report.json and confirm stale=false. Read .codex-context/relevant-files.json. Do not edit files. Do not scan the full repository. Do not read secrets. Reply with one line only: CONTEXT_GATEWAY_MODEL_PROVIDER_OK.\"",
+      "maxRequests": 1,
+      "retryLimit": 0,
+      "expectedAck": "CONTEXT_GATEWAY_MODEL_PROVIDER_OK",
+      "stopOnFailure": true,
+      "requiresExplicitConfirmation": true,
+      "authJsonAccessAllowed": false,
+      "codexConfigWriteAllowed": false,
+      "chatModificationAllowed": false,
+      "chatGatewayExecuteModificationAllowed": false,
+      "deployAllowed": false
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "phase": "Phase354C",
+  "designType": "tianshu_reviewer_rbac",
+  "result": {
+    "phase": "Phase354C",
+    "sourcePhase": "Phase353C",
+    "rbacDesignGenerated": true,
+    "adminOnlyActionsDefined": true,
+    "reviewerApprovalSeparationDefined": true,
+    "adminOnlyActions": [
+      "change_planner_policy_defaults",
+      "reassign_reviewer_pool_for_tenant"
+    ],
+    "reviewerSeparatedActions": [
+      "approve_policy_proposal",
+      "reject_policy_proposal",
+      "request_changes_before_activation"
+    ],
+    "policyActivated": false,
+    "crossTenantAccessForbidden": true,
+    "productionGA": false,
+    "secretValueExposed": false
+  }
+}

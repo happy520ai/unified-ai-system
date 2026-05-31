@@ -216,6 +216,44 @@ export function createGatewayClient(options) {
         timeoutMs,
       });
     },
+    workforcePlanClarifications(planId, request) {
+      return requestJson({
+        baseUrl,
+        path: `/workforce/plans/${encodeURIComponent(planId)}/clarifications`,
+        method: "POST",
+        body: request,
+        headers,
+        timeoutMs,
+      });
+    },
+    workforcePlanLifecycle(planId, request) {
+      return requestJson({
+        baseUrl,
+        path: `/workforce/plans/${encodeURIComponent(planId)}/lifecycle`,
+        method: "POST",
+        body: request,
+        headers,
+        timeoutMs,
+      });
+    },
+    workforcePlanReviewPackage(planId) {
+      return requestJson({
+        baseUrl,
+        path: `/workforce/plans/${encodeURIComponent(planId)}/review-package`,
+        headers,
+        timeoutMs,
+      });
+    },
+    workforcePlanApprovalGate(planId, request) {
+      return requestJson({
+        baseUrl,
+        path: `/workforce/plans/${encodeURIComponent(planId)}/approval-gate`,
+        method: "POST",
+        body: request,
+        headers,
+        timeoutMs,
+      });
+    },
     generate(request) {
       return requestJson({
         baseUrl,

@@ -1,0 +1,92 @@
+{
+  "phase": "Phase338A-F",
+  "checkedAt": "2026-05-07T01:42:18.832Z",
+  "groupStatus": {
+    "phase328a": {
+      "exists": true,
+      "missing": []
+    },
+    "phase329abcdef": {
+      "exists": true,
+      "missing": []
+    },
+    "phase330abcdef": {
+      "exists": true,
+      "missing": []
+    },
+    "phase331abcdef": {
+      "exists": true,
+      "missing": []
+    },
+    "phase332abcdef": {
+      "exists": true,
+      "missing": []
+    },
+    "phase333abcdef": {
+      "exists": true,
+      "missing": []
+    },
+    "phase334abcdef": {
+      "exists": true,
+      "missing": []
+    },
+    "previousPhase337abcdef": {
+      "exists": true,
+      "missing": []
+    }
+  },
+  "missing": [],
+  "present": [
+    "apps/ai-gateway-service/evidence/phase328a/three-mode-normal-runtime-smoke.json",
+    "apps/ai-gateway-service/evidence/phase328a/three-mode-god-runtime-smoke.json",
+    "apps/ai-gateway-service/evidence/phase328a/three-mode-tianshu-runtime-smoke.json",
+    "apps/agent-console/evidence/phase328a/three-mode-ui-smoke.json",
+    "apps/ai-gateway-service/evidence/phase329a/three-mode-production-hardening-result.json",
+    "apps/ai-gateway-service/evidence/phase329b/god-mode-quality-benchmark-result.json",
+    "apps/ai-gateway-service/evidence/phase329c/tianshu-adaptive-scoring-result.json",
+    "apps/ai-gateway-service/evidence/phase329d/credential-vault-adapter-integration-result.json",
+    "apps/agent-console/evidence/phase329e/user-owned-provider-beta-ui-smoke.json",
+    "docs/phase329f-billing-integration-check-result.json",
+    "apps/ai-gateway-service/evidence/phase330a/three-mode-limited-beta-readiness-result.json",
+    "apps/ai-gateway-service/evidence/phase330b/god-mode-benchmark-regression-result.json",
+    "apps/ai-gateway-service/evidence/phase330c/tianshu-feedback-loop-governance-result.json",
+    "apps/ai-gateway-service/evidence/phase330d/credential-vault-production-adapter-selection-result.json",
+    "apps/agent-console/evidence/phase330e/provider-onboarding-wizard-hardening-smoke.json",
+    "apps/ai-gateway-service/evidence/phase330f/mock-invoice-flow-result.json",
+    "apps/ai-gateway-service/evidence/phase331a/limited-beta-controlled-rollout-dry-run-result.json",
+    "apps/ai-gateway-service/evidence/phase331b/god-mode-benchmark-historical-trend-result.json",
+    "apps/ai-gateway-service/evidence/phase331c/tianshu-feedback-approval-workflow-result.json",
+    "apps/ai-gateway-service/evidence/phase331d/credential-vault-implementation-plan-result.json",
+    "apps/agent-console/evidence/phase331e/provider-onboarding-beta-usability-smoke.json",
+    "apps/ai-gateway-service/evidence/phase331f/billing-mock-invoice-export-result.json",
+    "apps/agent-console/evidence/phase331f/billing-mock-invoice-ui-smoke.json",
+    "apps/ai-gateway-service/evidence/phase332a/limited-beta-rc-package-dry-run-result.json",
+    "apps/ai-gateway-service/evidence/phase332b/god-mode-trend-alert-evaluation-result.json",
+    "apps/agent-console/evidence/phase332c/tianshu-feedback-reviewer-console-smoke.json",
+    "apps/ai-gateway-service/evidence/phase332d/credential-vault-adapter-spike-result.json",
+    "apps/agent-console/evidence/phase332e/provider-onboarding-guided-test-result.json",
+    "apps/ai-gateway-service/evidence/phase332f/mock-billing-statement-export-hardening-result.json",
+    "apps/agent-console/evidence/phase332f/mock-billing-statement-export-ui-smoke.json",
+    "apps/ai-gateway-service/evidence/phase333a/limited-beta-rc-evidence-bundle-review-result.json",
+    "apps/agent-console/evidence/phase333b/god-mode-alert-dashboard-ui-smoke.json",
+    "apps/agent-console/evidence/phase333c/tianshu-reviewer-console-interaction-hardening-smoke.json",
+    "apps/ai-gateway-service/evidence/phase333d/guarded-credential-vault-adapter-implementation-plan-result.json",
+    "apps/agent-console/evidence/phase333e/provider-onboarding-guided-test-automation-result.json",
+    "apps/ai-gateway-service/evidence/phase333f/mock-statement-export-regression-result.json",
+    "apps/agent-console/evidence/phase333f/mock-statement-export-regression-ui-smoke.json",
+    "apps/ai-gateway-service/evidence/phase334a/limited-beta-rc-final-dry-run-result.json",
+    "apps/agent-console/evidence/phase334b/god-mode-alert-dashboard-static-integration-smoke.json",
+    "apps/agent-console/evidence/phase334c/tianshu-reviewer-console-beta-workflow-dry-run-result.json",
+    "apps/ai-gateway-service/evidence/phase334d/credential-vault-guarded-adapter-implementation-dry-run-result.json",
+    "apps/agent-console/evidence/phase334e/provider-onboarding-guided-test-checklist-export-result.json",
+    "apps/ai-gateway-service/evidence/phase334f/mock-statement-export-polish-csv-edge-result.json",
+    "apps/ai-gateway-service/evidence/phase337a/limited-beta-candidate-evidence-index-result.json",
+    "apps/agent-console/evidence/phase337b/god-mode-alert-acknowledgement-workflow-result.json",
+    "apps/ai-gateway-service/evidence/phase337c/tianshu-reviewer-assignment-design-result.json",
+    "apps/ai-gateway-service/evidence/phase337d/credential-vault-rotation-revoke-dry-run-result.json",
+    "apps/agent-console/evidence/phase337e/provider-onboarding-localization-copy-review-result.json",
+    "apps/agent-console/evidence/phase337f/mock-statement-accessibility-readability-result.json"
+  ],
+  "allowExecution": true,
+  "blockedStages": []
+}

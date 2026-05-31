@@ -1,0 +1,13 @@
+{
+  "phase": "Phase365E",
+  "postDeploySmokeExecuted": false,
+  "postDeploySmokePassed": false,
+  "postDeploySmokeSkipped": true,
+  "checksPassed": 0,
+  "checksFailed": 0,
+  "failedChecks": [
+    "deploy_not_executed_or_failed"
+  ],
+  "rollbackRecommended": false,
+  "secretValueExposed": false
+}

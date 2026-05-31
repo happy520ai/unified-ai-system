@@ -1,0 +1,32 @@
+{
+  "phase": "Phase351F",
+  "traceType": "billing_estimate_trace",
+  "result": {
+    "phase": "Phase351F",
+    "sourcePhase": "Phase350F",
+    "auditTraceCompletenessChecked": true,
+    "estimateTraceCompletenessChecked": true,
+    "missingTraceFieldsReported": true,
+    "noSecretInTrace": true,
+    "traceCompletenessPassed": false,
+    "requiredTraceFields": [
+      "requestId",
+      "phase",
+      "statementId",
+      "estimateOnly",
+      "actualBillingConnected",
+      "legalInvoiceGenerated",
+      "restorePath"
+    ],
+    "missingTraceFields": [
+      "requestId",
+      "statementId",
+      "estimateOnly"
+    ],
+    "paymentProviderConnected": false,
+    "actualBillingConnected": false,
+    "legalInvoiceGenerated": false,
+    "productionGA": false,
+    "secretValueExposed": false
+  }
+}

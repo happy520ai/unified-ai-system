@@ -1,0 +1,38 @@
+diff --git a/tools/phase2091/generated-source-patch-target.mjs b/tools/phase2091/generated-source-patch-target.mjs
+--- a/tools/phase2091/generated-source-patch-target.mjs
++++ b/tools/phase2091/generated-source-patch-target.mjs
+@@ -75,6 +75,18 @@
+ export function buildPhase2126SextMutationTargetOneStatus() {
+   return {
+     phaseId: "Phase2126A-Controlled-Sext-Tool-Mutation-Target-One",
+     marker: "PHASE2126_SEXT_TOOL_TARGET_ONE_OK",
+     sextMutationApplied: true,
+     providerCallsMade: false,
+     codexExecExecuted: false,
+     chatModified: false,
+     chatGatewayExecuteModified: false,
+   };
+ }
+ 
++export function buildPhase2137SeptMutationTargetOneStatus() {
++  return {
++    phaseId: "Phase2137A-Controlled-Sept-Tool-Mutation-Target-One",
++    marker: "PHASE2137_SEPT_TOOL_TARGET_ONE_OK",
++    septMutationApplied: true,
++    providerCallsMade: false,
++    codexExecExecuted: false,
++    chatModified: false,
++    chatGatewayExecuteModified: false,
++  };
++}
++
+ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+   console.log(JSON.stringify({
+@@ -93,6 +105,7 @@
+     phase2096: buildPhase2096TripleMutationTargetOneStatus(),
+     phase2106: buildPhase2106QuadMutationTargetOneStatus(),
+     phase2116: buildPhase2116QuintMutationTargetOneStatus(),
+     phase2126: buildPhase2126SextMutationTargetOneStatus(),
++    phase2137: buildPhase2137SeptMutationTargetOneStatus(),
+   }, null, 2));
+ }

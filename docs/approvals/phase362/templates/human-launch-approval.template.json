@@ -1,0 +1,17 @@
+{
+  "templateOnly": true,
+  "notAnApproval": true,
+  "approvalId": null,
+  "approvalType": "human_launch_approval",
+  "approvalDecision": "pending",
+  "approverNameRef": "",
+  "approverRole": "launch owner",
+  "approverOrgRef": "",
+  "approvedScope": [],
+  "approvalTimestamp": null,
+  "evidenceRefs": [],
+  "conditions": [],
+  "expiration": null,
+  "revocationPolicy": "",
+  "auditTrace": {}
+}

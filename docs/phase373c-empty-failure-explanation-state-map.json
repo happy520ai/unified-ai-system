@@ -1,0 +1,23 @@
+{
+  "phase": "Phase373C",
+  "godMode": [
+    "no participants configured",
+    "participant unavailable",
+    "credentialRef missing",
+    "quota / budget blocked",
+    "conflict summary empty",
+    "supervisor synthesis unavailable",
+    "fallback to Normal Mode guidance"
+  ],
+  "tianshuMode": [
+    "planner not started",
+    "no candidate model",
+    "capability index missing",
+    "provider unconfigured",
+    "credentialRef missing",
+    "task too broad / unsupported",
+    "retry planner",
+    "go to Model Library",
+    "fallback to Normal Mode"
+  ]
+}

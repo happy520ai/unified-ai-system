@@ -1,0 +1,314 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://unified-ai-system.local/schemas/phase1310a/capability-policy.schema.json",
+  "title": "Phase1310A Neural Fabric Capability Policy Schema",
+  "description": "Spec-only governance schema for Neural Fabric capabilities, epochs, revocation, and signature policy. It does not implement signing keys, generate private keys, read secrets, call Providers, train models, download models, or connect the main chain.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "kind",
+    "id",
+    "capability",
+    "epoch",
+    "revocation",
+    "signaturePolicy",
+    "safety"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "phase1310a.v1"
+    },
+    "kind": {
+      "type": "string",
+      "const": "capability-policy"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{2,120}$"
+    },
+    "capability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "capabilityId",
+        "capabilityType",
+        "scope",
+        "allowedOps",
+        "deniedOps",
+        "evidenceRequired"
+      ],
+      "properties": {
+        "capabilityId": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]{2,120}$"
+        },
+        "capabilityType": {
+          "type": "string",
+          "enum": [
+            "neural-op",
+            "weight-atom",
+            "adapter-atom",
+            "router-op",
+            "governance-policy"
+          ]
+        },
+        "scope": {
+          "type": "string",
+          "enum": [
+            "spec_only",
+            "dry_run_preview",
+            "read_only_panel",
+            "manual_review_required",
+            "blocked"
+          ]
+        },
+        "allowedOps": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "describe",
+              "validate_schema",
+              "dry_run_score",
+              "render_readonly_status",
+              "write_evidence"
+            ]
+          },
+          "uniqueItems": true
+        },
+        "deniedOps": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "enum": [
+              "provider_call",
+              "model_execution",
+              "model_training",
+              "model_download",
+              "secret_read",
+              "private_key_generation",
+              "main_chain_integration",
+              "chat_route_mutation",
+              "chat_gateway_execute_mutation"
+            ]
+          },
+          "uniqueItems": true
+        },
+        "evidenceRequired": {
+          "type": "boolean",
+          "const": true
+        }
+      }
+    },
+    "epoch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "epochId",
+        "sequence",
+        "state",
+        "activationPolicy",
+        "rollbackPolicy"
+      ],
+      "properties": {
+        "epochId": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]{2,120}$"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "draft",
+            "active_spec",
+            "superseded",
+            "revoked",
+            "blocked"
+          ]
+        },
+        "activationPolicy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "requiresVerifierPass",
+            "requiresEvidence",
+            "requiresHumanApprovalForRuntime"
+          ],
+          "properties": {
+            "requiresVerifierPass": {
+              "type": "boolean",
+              "const": true
+            },
+            "requiresEvidence": {
+              "type": "boolean",
+              "const": true
+            },
+            "requiresHumanApprovalForRuntime": {
+              "type": "boolean",
+              "const": true
+            }
+          }
+        },
+        "rollbackPolicy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "rollbackAllowed",
+            "rollbackEvidenceRequired"
+          ],
+          "properties": {
+            "rollbackAllowed": {
+              "type": "boolean"
+            },
+            "rollbackEvidenceRequired": {
+              "type": "boolean",
+              "const": true
+            }
+          }
+        }
+      }
+    },
+    "revocation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "revocationStatus",
+        "revocationReasons",
+        "revokedCapabilities",
+        "emergencyDisableAllowed"
+      ],
+      "properties": {
+        "revocationStatus": {
+          "type": "string",
+          "enum": [
+            "not_revoked",
+            "revocation_pending",
+            "revoked",
+            "blocked"
+          ]
+        },
+        "revocationReasons": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "safety_boundary_violation",
+              "schema_incompatibility",
+              "stale_epoch",
+              "evidence_missing",
+              "manual_review_failed",
+              "policy_superseded"
+            ]
+          },
+          "uniqueItems": true
+        },
+        "revokedCapabilities": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9._-]{2,120}$"
+          },
+          "uniqueItems": true
+        },
+        "emergencyDisableAllowed": {
+          "type": "boolean",
+          "const": true
+        }
+      }
+    },
+    "signaturePolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "signatureRequired",
+        "keyMaterialGenerated",
+        "privateKeyGenerated",
+        "secretReadAllowed",
+        "algorithmPolicy",
+        "verificationMode"
+      ],
+      "properties": {
+        "signatureRequired": {
+          "type": "boolean"
+        },
+        "keyMaterialGenerated": {
+          "type": "boolean",
+          "const": false
+        },
+        "privateKeyGenerated": {
+          "type": "boolean",
+          "const": false
+        },
+        "secretReadAllowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "algorithmPolicy": {
+          "type": "string",
+          "enum": [
+            "detached-signature-required-later",
+            "unsigned-spec-preview",
+            "manual-review-required"
+          ]
+        },
+        "verificationMode": {
+          "type": "string",
+          "enum": [
+            "schema_only",
+            "metadata_only",
+            "manual_review_required"
+          ]
+        }
+      }
+    },
+    "safety": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "providerCallsAllowed",
+        "secretReadAllowed",
+        "chatRouteMutationAllowed",
+        "chatGatewayExecuteMutationAllowed",
+        "trainingAllowed",
+        "modelDownloadAllowed",
+        "mainChainIntegrationAllowed"
+      ],
+      "properties": {
+        "providerCallsAllowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "secretReadAllowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "chatRouteMutationAllowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "chatGatewayExecuteMutationAllowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "trainingAllowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "modelDownloadAllowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "mainChainIntegrationAllowed": {
+          "type": "boolean",
+          "const": false
+        }
+      }
+    }
+  }
+}

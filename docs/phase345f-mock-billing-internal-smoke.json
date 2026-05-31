@@ -1,0 +1,13 @@
+{
+  "phase": "Phase345F",
+  "inputPhase": "Phase344F",
+  "flagName": "mockBillingBetaVisibility",
+  "internalOnly": true,
+  "smokePassed": true,
+  "noPublicExposure": true,
+  "noUnauthorizedProviderCall": true,
+  "actualBillingConnected": false,
+  "realInvoiceGenerated": false,
+  "providerRealCallExecuted": false,
+  "secretValueExposed": false
+}

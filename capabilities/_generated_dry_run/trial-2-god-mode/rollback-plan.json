@@ -1,0 +1,10 @@
+{
+  "disableFlag": "TAIJI_DISABLE_TRIAL_2_GOD_MODE",
+  "deletePaths": [],
+  "steps": [
+    "remove generated dry-run adapter preview",
+    "remove registry preview entry",
+    "remove synapse preview entry",
+    "keep /chat and /chat-gateway/execute unchanged"
+  ]
+}

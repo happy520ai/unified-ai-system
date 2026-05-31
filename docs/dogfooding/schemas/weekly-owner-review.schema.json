@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Phase1641 Weekly Owner Review Schema",
+  "type": "object",
+  "required": [
+    "recordType",
+    "phaseRange",
+    "weekStart",
+    "weekEnd",
+    "ownerReviewed",
+    "ownerManualFeedback",
+    "realHumanFeedbackCollected",
+    "dogfoodingCompleted",
+    "realDailyLedgerCount",
+    "ownerNotesCount",
+    "tasksCount",
+    "p0Count",
+    "p1Count",
+    "p2Count",
+    "p3Count",
+    "automatedEvidenceReviewed",
+    "decision",
+    "codexGeneratedTemplateOnly"
+  ],
+  "properties": {
+    "recordType": {
+      "const": "weekly_owner_review"
+    },
+    "phaseRange": {
+      "const": "Phase1621-1650AIO"
+    },
+    "weekStart": {
+      "type": "string"
+    },
+    "weekEnd": {
+      "type": "string"
+    },
+    "ownerReviewed": {
+      "const": false
+    },
+    "ownerManualFeedback": {
+      "const": false
+    },
+    "realHumanFeedbackCollected": {
+      "const": false
+    },
+    "dogfoodingCompleted": {
+      "const": false
+    },
+    "realDailyLedgerCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "ownerNotesCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "tasksCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "p0Count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "p1Count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "p2Count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "p3Count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "automatedEvidenceReviewed": {
+      "type": "boolean"
+    },
+    "decision": {
+      "type": "string"
+    },
+    "codexGeneratedTemplateOnly": {
+      "const": true
+    }
+  }
+}

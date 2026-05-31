@@ -1,0 +1,40 @@
+{
+  "invoiceId": "mock-normalModeInternalNvidiaEstimate",
+  "userIdRef": "user_anon",
+  "billingPeriod": "2026-05",
+  "modeUsageSummary": {
+    "normal": 3
+  },
+  "providerUsageSummary": {
+    "nvidia": 3
+  },
+  "estimatedCostTotal": 0.002,
+  "currency": "USD",
+  "estimateOnly": true,
+  "actualInvoice": false,
+  "paymentProviderConnected": false,
+  "taxCalculated": false,
+  "legalInvoice": false,
+  "lineItems": [
+    {
+      "mode": "normal",
+      "providerId": "nvidia",
+      "modelId": "meta/llama-3.2-1b-instruct",
+      "requestCount": 3,
+      "estimatedInputTokens": 300,
+      "estimatedOutputTokens": 600,
+      "estimatedCost": 0.002,
+      "costSource": "mock_estimate_formula",
+      "estimateConfidence": "low_to_medium"
+    }
+  ],
+  "warnings": [
+    "mockInvoiceOnly",
+    "notLegalInvoice",
+    "actualBillingConnected=false"
+  ],
+  "auditTrace": {
+    "scenarioId": "normalModeInternalNvidiaEstimate",
+    "paymentProviderConnected": false
+  }
+}

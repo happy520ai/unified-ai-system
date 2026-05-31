@@ -1,0 +1,19 @@
+{
+  "confirmationId": "confirm-phase602-one-shot-guarded-base-url-test-001",
+  "confirmedBy": "user-owner",
+  "decision": "approved_execute_one_shot_guarded_real_base_url_test",
+  "configScope": "session_override",
+  "maxRequests": 1,
+  "maxEstimatedCostUsd": 1,
+  "maxDurationMinutes": 10,
+  "providerCallAllowedForOneShot": true,
+  "persistentConfigWriteAllowed": false,
+  "projectConfigWriteAllowed": false,
+  "userConfigWriteAllowed": false,
+  "relayStartAllowed": false,
+  "useExistingRelayOnly": true,
+  "rollbackRequiredAfterTest": true,
+  "emergencyDisableRequired": true,
+  "approvalReason": "Approve one-shot guarded real base_url test using session_override only. No persistent config write, no deploy, no production rollout.",
+  "createdAt": "<ISO timestamp>"
+}

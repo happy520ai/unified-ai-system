@@ -1,0 +1,16 @@
+{
+  "phase": "Phase367E",
+  "requiredFields": [
+    "confirmationType",
+    "confirmationId",
+    "confirmedBy",
+    "confirmedRole",
+    "confirmationDecision",
+    "executeDeploy",
+    "approvedCommandRef",
+    "approvedDeployScope",
+    "confirmationTimestamp",
+    "acknowledgements",
+    "safety.codexIsConfirmer=false"
+  ]
+}

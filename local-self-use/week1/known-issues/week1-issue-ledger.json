@@ -1,0 +1,14 @@
+{
+  "phase": "Phase746",
+  "realSevenDaySoakCompleted": false,
+  "p0IssueCount": 0,
+  "p1IssueCount": 0,
+  "p2IssueCount": 0,
+  "p3IssueCount": 0,
+  "issues": [
+    {
+      "severity": "blocker",
+      "type": "real_seven_day_soak_logs_missing_or_incomplete"
+    }
+  ]
+}

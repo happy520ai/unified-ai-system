@@ -1,0 +1,23 @@
+diff --git a/tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs b/tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs
+--- a/tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs
++++ b/tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs
+@@ -37,13 +37,26 @@
+   };
+ }
+ 
++export function buildPhase2120QuintMutationRuntimeStatus() {
++  return {
++    phaseId: "Phase2120A-Controlled-Quint-Tool-Mutation-Target-Five",
++    marker: "PHASE2120_QUINT_TOOL_TARGET_FIVE_OK",
++    importSafe: true,
++    quintRunnerReady: true,
++    providerCallsMade: false,
++    codexExecExecuted: false,
++    chatModified: false,
++    chatGatewayExecuteModified: false,
++  };
++}
++
+ export function main() {
+   const args = parseArgs(process.argv.slice(2));
+   const planPath = args.plan || "docs/phase2101-2110-controlled-quad-tool-mutation-approval.example.json";

@@ -1,0 +1,26 @@
+diff --git a/tools/phase2132_2143/apply-controlled-sept-tool-mutation.mjs b/tools/phase2132_2143/apply-controlled-sept-tool-mutation.mjs
+--- a/tools/phase2132_2143/apply-controlled-sept-tool-mutation.mjs
++++ b/tools/phase2132_2143/apply-controlled-sept-tool-mutation.mjs
+@@ -51,6 +51,22 @@ export function buildPhase2156OctMutationRuntimeStatus() {
+   };
+ }
+ 
++export function buildPhase2169NonetMutationTargetEightStatus() {
++  return {
++    phaseId: "Phase2169A-Controlled-Nonet-Tool-Mutation-Target-Eight",
++    marker: "PHASE2169_NONET_TOOL_TARGET_EIGHT_OK",
++    importSafe: true,
++    phase2143Marker: "PHASE2143_SEPT_TOOL_TARGET_SEVEN_OK",
++    phase2156Marker: "PHASE2156_OCT_TOOL_TARGET_EIGHT_OK",
++    phase2169Marker: "PHASE2169_NONET_TOOL_TARGET_EIGHT_OK",
++    nonetMutationApplied: true,
++    providerCallsMade: false,
++    codexExecExecuted: false,
++    chatModified: false,
++    chatGatewayExecuteModified: false,
++  };
++}
++
+ export function main() {
+   const args = parseArgs(process.argv.slice(2));
+   const planPath = args.plan || "docs/phase2132-2143-controlled-sept-tool-mutation-approval.example.json";

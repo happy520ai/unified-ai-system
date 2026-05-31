@@ -1,0 +1,17 @@
+{
+  "phase": "Phase1451-1475-AIO",
+  "generatedBy": "codex_observation",
+  "repairLedgerGenerated": true,
+  "highRiskRuntimeRepairExecuted": false,
+  "lowRiskRepairsExecuted": false,
+  "repairItems": [],
+  "repairResults": [],
+  "regressionResults": [
+    "pnpm run verify:phase1451-1475-real-local-dogfooding-intake",
+    "pnpm run verify:phase1306-1450-taiji-beidou-local-dogfooding-mainline",
+    "pnpm verify:phase107a-secret-safety",
+    "pnpm verify:safe-regression-matrix",
+    "pnpm --filter @unified-ai-system/taiji-beidou-engine check",
+    "pnpm -r --workspace-concurrency=1 --if-present check"
+  ]
+}

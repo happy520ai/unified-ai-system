@@ -1,0 +1,35 @@
+{
+  "phase": "Phase1956P-NVIDIA-Route-Repair",
+  "decision": "prepare_nvidia_route_repair_without_provider_call",
+  "providerId": "nvidia",
+  "currentRouteStatus": "timeout_blocked",
+  "allowProviderCall": false,
+  "maxRequests": 0,
+  "retryAttemptCount": 0,
+  "diagnosticScope": [
+    "endpoint_contract_review",
+    "adapter_request_body_review",
+    "non_streaming_response_handling_review",
+    "timeout_stage_instrumentation",
+    "model_compatibility_review",
+    "sanitized_error_classification"
+  ],
+  "forbiddenActions": [
+    "real_provider_call",
+    "raw_secret_read",
+    "auth_json_read",
+    "dot_env_read",
+    "chat_gateway_execute_modification",
+    "deploy",
+    "release",
+    "tag",
+    "artifact_upload",
+    "commit",
+    "push"
+  ],
+  "expectedOutputs": [
+    "route_diagnostic_evidence",
+    "adapter_contract_findings",
+    "next_owner_approval_template_if_needed"
+  ]
+}

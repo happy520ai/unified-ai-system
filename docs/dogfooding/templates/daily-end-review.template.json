@@ -1,0 +1,22 @@
+{
+  "recordType": "daily_end_review",
+  "phaseRange": "Phase1621-1650AIO",
+  "date": "YYYY-MM-DD",
+  "tasksRecordedCount": 0,
+  "automatedTestsExecutedCount": 0,
+  "ownerManualNotesCount": 0,
+  "failureCount": 0,
+  "frictionCount": 0,
+  "misrouteCount": 0,
+  "falsePositiveCount": 0,
+  "falseNegativeCount": 0,
+  "tokenSavingSummary": "",
+  "recommendedRepairQueue": [],
+  "nextDayFocus": "",
+  "dailyEndReviewFlowReady": false,
+  "automatedEvidenceNotClaimedAsHuman": true,
+  "providerCallsMade": false,
+  "ownerManualFeedback": false,
+  "realHumanFeedbackCollected": false,
+  "dogfoodingCompleted": false
+}

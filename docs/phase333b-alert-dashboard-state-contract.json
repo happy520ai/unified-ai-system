@@ -1,0 +1,10 @@
+{
+  "phase": "Phase333B",
+  "selectedSeverity": "all",
+  "selectedAlertId": null,
+  "showOnlyBlockers": false,
+  "showInsufficientHistory": true,
+  "showRecommendedActions": true,
+  "selectedTimeWindow": "phase331_history",
+  "externalAlertIntegration": false
+}

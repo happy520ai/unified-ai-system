@@ -1,0 +1,30 @@
+[
+  {
+    "missionContextId": "mission_ctx_security",
+    "currentMode": "security",
+    "selectedPanel": "security_shield",
+    "riskLevel": "high",
+    "dryRunOnly": true,
+    "providerState": "credentialRef_required",
+    "credentialRefRequired": true,
+    "securityShieldActive": true,
+    "evidenceAvailable": true,
+    "allowedActions": ["view_plan", "open_evidence"],
+    "blockedActions": ["call_unconfigured_provider", "deploy", "read_secret"],
+    "recommendedPanel": "security_shield"
+  },
+  {
+    "missionContextId": "mission_ctx_tianshu",
+    "currentMode": "tianshu",
+    "selectedPanel": "tianshu_flight_path",
+    "riskLevel": "medium",
+    "dryRunOnly": true,
+    "providerState": "unconfigured",
+    "credentialRefRequired": true,
+    "securityShieldActive": true,
+    "evidenceAvailable": true,
+    "allowedActions": ["view_plan", "open_evidence"],
+    "blockedActions": ["call_unconfigured_provider", "deploy", "read_secret"],
+    "recommendedPanel": "tianshu_flight_path"
+  }
+]

@@ -1,0 +1,17 @@
+{
+  "templateOnly": true,
+  "notASelection": true,
+  "selectionType": "deployment_target_selection",
+  "selectedTarget": null,
+  "selectedPath": null,
+  "selectedBy": "",
+  "selectedRole": "",
+  "selectionTimestamp": null,
+  "conditions": [],
+  "codexMayGenerateExecutableCommandRef": false,
+  "codexIsSelector": false,
+  "safety": {
+    "secretValueIncluded": false,
+    "deployExecuted": false
+  }
+}

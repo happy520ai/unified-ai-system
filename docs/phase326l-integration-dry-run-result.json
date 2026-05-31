@@ -1,0 +1,292 @@
+{
+  "phase": "Phase326L",
+  "runtimeStatus": "dry_run_without_provider_call",
+  "providerCallsMade": false,
+  "nonNvidiaProviderCallsMade": false,
+  "secretValueExposed": false,
+  "missingSources": [],
+  "scenariosProcessed": 5,
+  "results": [
+    {
+      "scenarioId": "tianshuSingleModelSelectionScenario",
+      "taskClassification": "general_reasoning",
+      "capabilityIndexUsed": true,
+      "candidateModels": [
+        "user-configured-coding-model",
+        "user-configured-reasoning-model",
+        "user-configured-long-context-model",
+        "user-configured-data-model"
+      ],
+      "selectedModels": [
+        "user-configured-coding-model",
+        "user-configured-reasoning-model"
+      ],
+      "selectedParticipants": [
+        "mock-supervisor",
+        "mock-critic",
+        "mock-coder"
+      ],
+      "integratedPlannerDecision": {
+        "executionMode": "single_model",
+        "decisionReason": "capability_index_connected_to_participant_selector_without_provider_call",
+        "runtimeStatus": "dry_run_without_provider_call"
+      },
+      "godModeEscalationDecision": {
+        "escalated": false,
+        "reason": "single_model_or_tianshu_planner_path_sufficient",
+        "runtimeEnabled": false
+      },
+      "selectedParticipantsFromCapabilityIndex": [
+        {
+          "participant": "mock-supervisor",
+          "backedByCapabilityModel": "user-configured-coding-model"
+        },
+        {
+          "participant": "mock-critic",
+          "backedByCapabilityModel": "user-configured-reasoning-model"
+        },
+        {
+          "participant": "mock-coder",
+          "backedByCapabilityModel": "user-configured-coding-model"
+        }
+      ],
+      "rejectedModels": [
+        {
+          "modelId": "user-disabled-risk-model",
+          "reason": "governance_or_credential_rejected"
+        }
+      ],
+      "fallbackPlan": "fallback to stable selectable dry-run candidate if primary is unavailable",
+      "auditTrace": {
+        "providerCallsMade": false,
+        "nonNvidiaProviderCallsMade": false,
+        "secretValueExposed": false,
+        "runtimeStage": "dry_run_without_provider_call",
+        "sourceFiles": [
+          "docs/phase326i-participant-selector-result.json",
+          "docs/phase326j-capability-index-result.json",
+          "docs/phase326g-tianshu-dry-run-result.json",
+          "docs/phase326f-god-mode-dry-run-result.json"
+        ]
+      }
+    },
+    {
+      "scenarioId": "tianshuEscalatesToGodModeScenario",
+      "taskClassification": "safety_sensitive",
+      "capabilityIndexUsed": true,
+      "candidateModels": [
+        "user-configured-coding-model",
+        "user-configured-reasoning-model",
+        "user-configured-long-context-model",
+        "user-configured-data-model"
+      ],
+      "selectedModels": [
+        "user-configured-coding-model",
+        "user-configured-reasoning-model",
+        "user-configured-long-context-model"
+      ],
+      "selectedParticipants": [
+        "mock-supervisor",
+        "mock-critic",
+        "mock-coder"
+      ],
+      "integratedPlannerDecision": {
+        "executionMode": "god_mode_review",
+        "decisionReason": "capability_index_connected_to_participant_selector_without_provider_call",
+        "runtimeStatus": "dry_run_without_provider_call"
+      },
+      "godModeEscalationDecision": {
+        "escalated": true,
+        "reason": "scenario_requires_multi_participant_review",
+        "runtimeEnabled": false
+      },
+      "selectedParticipantsFromCapabilityIndex": [
+        {
+          "participant": "mock-supervisor",
+          "backedByCapabilityModel": "user-configured-coding-model"
+        },
+        {
+          "participant": "mock-critic",
+          "backedByCapabilityModel": "user-configured-reasoning-model"
+        },
+        {
+          "participant": "mock-coder",
+          "backedByCapabilityModel": "user-configured-long-context-model"
+        }
+      ],
+      "rejectedModels": [
+        {
+          "modelId": "user-disabled-risk-model",
+          "reason": "governance_or_credential_rejected"
+        }
+      ],
+      "fallbackPlan": "fallback to stable selectable dry-run candidate if primary is unavailable",
+      "auditTrace": {
+        "providerCallsMade": false,
+        "nonNvidiaProviderCallsMade": false,
+        "secretValueExposed": false,
+        "runtimeStage": "dry_run_without_provider_call",
+        "sourceFiles": [
+          "docs/phase326i-participant-selector-result.json",
+          "docs/phase326j-capability-index-result.json",
+          "docs/phase326g-tianshu-dry-run-result.json",
+          "docs/phase326f-god-mode-dry-run-result.json"
+        ]
+      }
+    },
+    {
+      "scenarioId": "godModeUsesCapabilityIndexScenario",
+      "taskClassification": "general_reasoning",
+      "capabilityIndexUsed": true,
+      "candidateModels": [
+        "user-configured-coding-model",
+        "user-configured-reasoning-model",
+        "user-configured-long-context-model",
+        "user-configured-data-model"
+      ],
+      "selectedModels": [
+        "user-configured-coding-model",
+        "user-configured-reasoning-model",
+        "user-configured-long-context-model"
+      ],
+      "selectedParticipants": [
+        "mock-supervisor",
+        "mock-critic",
+        "mock-coder"
+      ],
+      "integratedPlannerDecision": {
+        "executionMode": "god_mode_review",
+        "decisionReason": "capability_index_connected_to_participant_selector_without_provider_call",
+        "runtimeStatus": "dry_run_without_provider_call"
+      },
+      "godModeEscalationDecision": {
+        "escalated": true,
+        "reason": "scenario_requires_multi_participant_review",
+        "runtimeEnabled": false
+      },
+      "selectedParticipantsFromCapabilityIndex": [
+        {
+          "participant": "mock-supervisor",
+          "backedByCapabilityModel": "user-configured-coding-model"
+        },
+        {
+          "participant": "mock-critic",
+          "backedByCapabilityModel": "user-configured-reasoning-model"
+        },
+        {
+          "participant": "mock-coder",
+          "backedByCapabilityModel": "user-configured-long-context-model"
+        }
+      ],
+      "rejectedModels": [
+        {
+          "modelId": "user-disabled-risk-model",
+          "reason": "governance_or_credential_rejected"
+        }
+      ],
+      "fallbackPlan": "fallback to stable selectable dry-run candidate if primary is unavailable",
+      "auditTrace": {
+        "providerCallsMade": false,
+        "nonNvidiaProviderCallsMade": false,
+        "secretValueExposed": false,
+        "runtimeStage": "dry_run_without_provider_call",
+        "sourceFiles": [
+          "docs/phase326i-participant-selector-result.json",
+          "docs/phase326j-capability-index-result.json",
+          "docs/phase326g-tianshu-dry-run-result.json",
+          "docs/phase326f-god-mode-dry-run-result.json"
+        ]
+      }
+    },
+    {
+      "scenarioId": "insufficientEligibleModelsScenario",
+      "taskClassification": "general_reasoning",
+      "capabilityIndexUsed": true,
+      "candidateModels": [
+        "user-configured-coding-model",
+        "user-configured-reasoning-model",
+        "user-configured-long-context-model",
+        "user-configured-data-model"
+      ],
+      "selectedModels": [],
+      "selectedParticipants": [],
+      "integratedPlannerDecision": {
+        "executionMode": "reject",
+        "decisionReason": "insufficient_eligible_models_in_dry_run",
+        "runtimeStatus": "dry_run_without_provider_call"
+      },
+      "godModeEscalationDecision": {
+        "escalated": false,
+        "reason": "single_model_or_tianshu_planner_path_sufficient",
+        "runtimeEnabled": false
+      },
+      "selectedParticipantsFromCapabilityIndex": [],
+      "rejectedModels": [
+        {
+          "modelId": "user-disabled-risk-model",
+          "reason": "governance_or_credential_rejected"
+        }
+      ],
+      "fallbackPlan": "ask user to configure and validate more eligible models",
+      "auditTrace": {
+        "providerCallsMade": false,
+        "nonNvidiaProviderCallsMade": false,
+        "secretValueExposed": false,
+        "runtimeStage": "dry_run_without_provider_call",
+        "sourceFiles": [
+          "docs/phase326i-participant-selector-result.json",
+          "docs/phase326j-capability-index-result.json",
+          "docs/phase326g-tianshu-dry-run-result.json",
+          "docs/phase326f-god-mode-dry-run-result.json"
+        ]
+      }
+    },
+    {
+      "scenarioId": "highRiskModelRejectedScenario",
+      "taskClassification": "safety_sensitive",
+      "capabilityIndexUsed": true,
+      "candidateModels": [
+        "user-configured-coding-model",
+        "user-configured-reasoning-model",
+        "user-configured-long-context-model",
+        "user-configured-data-model"
+      ],
+      "selectedModels": [],
+      "selectedParticipants": [],
+      "integratedPlannerDecision": {
+        "executionMode": "reject",
+        "decisionReason": "capability_index_connected_to_participant_selector_without_provider_call",
+        "runtimeStatus": "dry_run_without_provider_call"
+      },
+      "godModeEscalationDecision": {
+        "escalated": false,
+        "reason": "single_model_or_tianshu_planner_path_sufficient",
+        "runtimeEnabled": false
+      },
+      "selectedParticipantsFromCapabilityIndex": [],
+      "rejectedModels": [
+        {
+          "modelId": "user-disabled-risk-model",
+          "reason": "governance_or_credential_rejected"
+        },
+        {
+          "modelId": "mock-high-risk",
+          "reason": "high_risk_model_rejected"
+        }
+      ],
+      "fallbackPlan": "ask user to configure and validate more eligible models",
+      "auditTrace": {
+        "providerCallsMade": false,
+        "nonNvidiaProviderCallsMade": false,
+        "secretValueExposed": false,
+        "runtimeStage": "dry_run_without_provider_call",
+        "sourceFiles": [
+          "docs/phase326i-participant-selector-result.json",
+          "docs/phase326j-capability-index-result.json",
+          "docs/phase326g-tianshu-dry-run-result.json",
+          "docs/phase326f-god-mode-dry-run-result.json"
+        ]
+      }
+    }
+  ]
+}

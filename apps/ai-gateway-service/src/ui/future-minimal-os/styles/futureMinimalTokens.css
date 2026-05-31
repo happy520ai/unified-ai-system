@@ -1,0 +1,24 @@
+.future-responsive-frame {
+  --future-bg: #07101c;
+  --future-bg-soft: #0b1828;
+  --future-surface: rgb(12 25 42 / 72%);
+  --future-surface-strong: rgb(14 30 50 / 88%);
+  --future-border: rgb(151 174 255 / 20%);
+  --future-text: #f3f7ff;
+  --future-muted: #a7b4c8;
+  --future-subtle: #76859b;
+  --future-accent: #7c8cff;
+  --future-accent-strong: #5b6cff;
+  --future-accent-soft: rgb(124 140 255 / 16%);
+  --future-success: #38d39f;
+  --future-warning: #f7c66b;
+  --future-danger: #ff7d8a;
+  --future-radius: 22px;
+  --future-radius-small: 16px;
+  --future-radius-shell: 28px;
+  --future-shadow: 0 34px 90px rgb(0 0 0 / 36%);
+  --future-shadow-soft: 0 18px 48px rgb(0 0 0 / 24%);
+  --future-space: 16px;
+  --future-transition: 180ms ease;
+  --future-font: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}

@@ -1,0 +1,24 @@
+{
+  "phase": "Phase350F",
+  "drillType": "billing_export_disable_restore",
+  "result": {
+    "phase": "Phase350F",
+    "sourcePhase": "Phase349F",
+    "rollbackDrillDryRunExecuted": true,
+    "disablePathVerified": true,
+    "restorePathDocumented": true,
+    "noProductionChange": true,
+    "paymentProviderConnected": false,
+    "actualBillingConnected": false,
+    "legalInvoiceGenerated": false,
+    "productionGA": false,
+    "rollbackStepsVerified": [
+      "hide_impacted_mock_statement_export",
+      "preserve_estimate_only_warning_copy",
+      "recompute_mock_totals_from_source_evidence",
+      "block_invoice_language_until_compliance_review"
+    ],
+    "restorePath": "restore_mock_statement_export_after_estimate_consistency_review",
+    "secretValueExposed": false
+  }
+}

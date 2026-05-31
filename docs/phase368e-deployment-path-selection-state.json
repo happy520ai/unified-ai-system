@@ -1,0 +1,9 @@
+{
+  "phase": "Phase368E",
+  "selectionPacketGenerated": true,
+  "humanTargetSelectionPresent": false,
+  "selectedTarget": null,
+  "codexMayGenerateExecutableCommandRef": false,
+  "requiresHumanTargetSelection": true,
+  "deployExecuted": false
+}

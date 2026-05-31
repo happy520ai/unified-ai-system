@@ -1,0 +1,40 @@
+export function buildContextCodecRequest({
+  requestId,
+  mode = "normal",
+  userMessage = "",
+  conversationDigest = "",
+  missionState = {},
+  providerRef = "providerRef:dry-run",
+  credentialRef = "credentialRef:dry-run",
+  safetyBoundary = {},
+  evidenceRefs = [],
+} = {}) {
+  return {
+    requestId: requestId ?? `phase641r-${mode}-dry-run`,
+    source: "main-gateway",
+    mode,
+    userMessage,
+    conversationDigest,
+    missionState: {
+      mission: missionState.mission ?? "context codec dry-run",
+      recommendedMode: missionState.recommendedMode ?? mode,
+      noProviderCall: true,
+      ...missionState,
+    },
+    providerRef,
+    credentialRef,
+    safetyBoundary: {
+      providerCallsAllowed: false,
+      secretReadAllowed: false,
+      codexConfigWriteAllowed: false,
+      codexConfigMutationAllowed: false,
+      chatBehaviorChangeAllowed: false,
+      chatMutationAllowed: false,
+      chatGatewayExecuteBehaviorChangeAllowed: false,
+      chatGatewayExecuteMutationAllowed: false,
+      deployAllowed: false,
+      ...safetyBoundary,
+    },
+    evidenceRefs,
+  };
+}

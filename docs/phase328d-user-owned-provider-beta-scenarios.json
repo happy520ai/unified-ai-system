@@ -1,0 +1,118 @@
+{
+  "phase": "Phase328D",
+  "scenarios": [
+    {
+      "scenarioId": "nvidiaInternalBaselineAllowed",
+      "providerConfig": {
+        "providerId": "nvidia",
+        "userOwned": false,
+        "enabled": true,
+        "realCallsAllowed": true,
+        "governanceStage": "internal_test"
+      },
+      "credentialRef": "env_key_name:NVIDIA_API_KEY",
+      "request": {
+        "mode": "normal"
+      }
+    },
+    {
+      "scenarioId": "openaiUserOwnedCredentialMissing",
+      "providerConfig": {
+        "providerId": "openai",
+        "userOwned": true,
+        "enabled": true,
+        "realCallsAllowed": true,
+        "governanceStage": "guarded_user_owned_provider_test"
+      },
+      "credentialRef": "",
+      "request": {
+        "mode": "normal"
+      }
+    },
+    {
+      "scenarioId": "openaiUserOwnedGuardedRealCallBlockedByFlag",
+      "providerConfig": {
+        "providerId": "openai",
+        "userOwned": true,
+        "enabled": true,
+        "realCallsAllowed": true,
+        "governanceStage": "guarded_user_owned_provider_test"
+      },
+      "credentialRef": "env_key_name:NVIDIA_API_KEY",
+      "request": {
+        "mode": "normal"
+      }
+    },
+    {
+      "scenarioId": "openaiUserOwnedCredentialResolverNotReady",
+      "providerConfig": {
+        "providerId": "openai",
+        "userOwned": true,
+        "enabled": true,
+        "realCallsAllowed": true,
+        "governanceStage": "limited_beta"
+      },
+      "credentialRef": "vault_reference:openai-prod",
+      "request": {
+        "mode": "normal"
+      }
+    },
+    {
+      "scenarioId": "secretValueRejected",
+      "providerConfig": {
+        "providerId": "openai",
+        "userOwned": true,
+        "enabled": true,
+        "realCallsAllowed": true,
+        "governanceStage": "limited_beta"
+      },
+      "credentialRef": "env_key_name:OPENAI_API_KEY",
+      "request": {
+        "mode": "normal",
+        "secretValue": "forbidden"
+      }
+    },
+    {
+      "scenarioId": "providerGovernanceRejected",
+      "providerConfig": {
+        "providerId": "openai",
+        "userOwned": true,
+        "enabled": true,
+        "realCallsAllowed": true,
+        "governanceStage": "shadow_config"
+      },
+      "credentialRef": "env_key_name:NVIDIA_API_KEY",
+      "request": {
+        "mode": "normal"
+      }
+    },
+    {
+      "scenarioId": "credentialRevoked",
+      "providerConfig": {
+        "providerId": "openai",
+        "userOwned": true,
+        "enabled": true,
+        "realCallsAllowed": true,
+        "governanceStage": "limited_beta"
+      },
+      "credentialRef": "env_key_name:REVOKED_OPENAI_KEY",
+      "request": {
+        "mode": "normal"
+      }
+    },
+    {
+      "scenarioId": "providerDisabled",
+      "providerConfig": {
+        "providerId": "openai",
+        "userOwned": true,
+        "enabled": false,
+        "realCallsAllowed": true,
+        "governanceStage": "limited_beta"
+      },
+      "credentialRef": "env_key_name:NVIDIA_API_KEY",
+      "request": {
+        "mode": "normal"
+      }
+    }
+  ]
+}

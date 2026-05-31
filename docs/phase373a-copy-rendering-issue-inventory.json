@@ -1,0 +1,12 @@
+{
+  "phase": "Phase373A",
+  "targetFile": "apps/ai-gateway-service/src/ui/consolePage.js",
+  "repairedCategories": [
+    "browser-visible mojibake",
+    "broken closing-tag text rendering",
+    "no-deploy / dry-run candidate copy clarity",
+    "provider setup / credentialRef guidance readability",
+    "God / Tianshu state explanation readability"
+  ],
+  "remainingIssuePatterns": []
+}

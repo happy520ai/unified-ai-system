@@ -1,0 +1,15 @@
+{
+  "approved": false,
+  "decision": "pending_owner_approval",
+  "providerId": "",
+  "modelId": "",
+  "credentialRef": "",
+  "maxRequests": 3,
+  "maxCostUsd": 0,
+  "timeoutMs": 30000,
+  "environment": "local",
+  "allowRealProviderCall": false,
+  "allowSecretRead": false,
+  "allowRawKeyOutput": false,
+  "rollback": "disable provider stability test flag"
+}

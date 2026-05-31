@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 80" role="img" aria-label="Yiyi sea breeze white hat">
+  <defs>
+    <linearGradient id="hatCrown" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#fffefa"/>
+      <stop offset="0.62" stop-color="#f1eadb"/>
+      <stop offset="1" stop-color="#d8c8ad"/>
+    </linearGradient>
+    <linearGradient id="hatBrim" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#fffdf6"/>
+      <stop offset="0.72" stop-color="#efe4ce"/>
+      <stop offset="1" stop-color="#cdbd9c"/>
+    </linearGradient>
+  </defs>
+  <ellipse cx="110" cy="50" rx="100" ry="21" fill="url(#hatBrim)" stroke="#b8a887" stroke-width="3"/>
+  <path d="M66 47c4-26 16-39 44-39s41 13 45 39c-22 8-67 8-89 0Z" fill="url(#hatCrown)" stroke="#b8a887" stroke-width="3"/>
+  <path d="M62 47c28 11 68 11 96 0" fill="none" stroke="#8fc4da" stroke-width="8" stroke-linecap="round"/>
+  <path d="M48 48h124" stroke="#9c8e74" stroke-width="2" stroke-linecap="round" opacity=".35"/>
+  <path d="M82 23c20 5 37 5 56 0M73 35c25 5 50 5 75 0" stroke="#b7a98d" stroke-width="2" opacity=".32"/>
+</svg>

@@ -1,0 +1,13 @@
+{
+  "phase": "Phase1911A",
+  "ownerApproved": true,
+  "allowChatMainChainLocalActionExecution": true,
+  "approvedActionId": "create_desktop_spreadsheet",
+  "allowRealDesktopFileCreation": true,
+  "maxRealFileCreateCount": 1,
+  "allowBatchFromChat": false,
+  "allowOverwrite": false,
+  "allowDesktopScan": false,
+  "allowReadOtherDesktopFiles": false,
+  "acknowledgeChatCanTriggerOneLocalDesktopFileCreation": true
+}

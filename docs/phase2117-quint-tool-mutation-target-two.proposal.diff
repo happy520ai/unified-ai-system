@@ -1,0 +1,48 @@
+diff --git a/tools/phase2092/apply-controlled-existing-tool-mutation.mjs b/tools/phase2092/apply-controlled-existing-tool-mutation.mjs
+--- a/tools/phase2092/apply-controlled-existing-tool-mutation.mjs
++++ b/tools/phase2092/apply-controlled-existing-tool-mutation.mjs
+@@ -28,25 +28,39 @@
+   return {
+     phaseId: "Phase2094A-Controlled-Batch-Tool-Mutation-Target-Two",
+     marker: "PHASE2094_BATCH_TOOL_TARGET_TWO_OK",
+     importSafe: true,
+     phase2097Marker: "PHASE2097_TRIPLE_TOOL_TARGET_TWO_OK",
+     phase2107Marker: "PHASE2107_QUAD_TOOL_TARGET_TWO_OK",
++    phase2117Marker: "PHASE2117_QUINT_TOOL_TARGET_TWO_OK",
+     providerCallsMade: false,
+     codexExecExecuted: false,
+     chatModified: false,
+     chatGatewayExecuteModified: false,
+   };
+ }
+ 
+ export function buildPhase2107QuadMutationTargetTwoStatus() {
+   return {
+     phaseId: "Phase2107A-Controlled-Quad-Tool-Mutation-Target-Two",
+     marker: "PHASE2107_QUAD_TOOL_TARGET_TWO_OK",
+     importSafe: true,
+     quadMutationApplied: true,
+     providerCallsMade: false,
+     codexExecExecuted: false,
+     chatModified: false,
+     chatGatewayExecuteModified: false,
+   };
+ }
+ 
++export function buildPhase2117QuintMutationTargetTwoStatus() {
++  return {
++    phaseId: "Phase2117A-Controlled-Quint-Tool-Mutation-Target-Two",
++    marker: "PHASE2117_QUINT_TOOL_TARGET_TWO_OK",
++    importSafe: true,
++    quintMutationApplied: true,
++    providerCallsMade: false,
++    codexExecExecuted: false,
++    chatModified: false,
++    chatGatewayExecuteModified: false,
++  };
++}
++
+ export function buildPhase2097TripleMutationTargetTwoStatus() {
+   return {
+     phaseId: "Phase2097A-Controlled-Triple-Tool-Mutation-Target-Two",
+     marker: "PHASE2097_TRIPLE_TOOL_TARGET_TWO_OK",

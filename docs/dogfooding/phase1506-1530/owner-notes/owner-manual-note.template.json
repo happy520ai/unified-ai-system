@@ -1,0 +1,9 @@
+{
+  "recordType": "owner_manual_note",
+  "phaseRange": "Phase1506-1530AIO",
+  "ownerProvided": false,
+  "ownerManualFeedback": false,
+  "realHumanFeedbackCollected": false,
+  "dogfoodingCompleted": false,
+  "note": ""
+}

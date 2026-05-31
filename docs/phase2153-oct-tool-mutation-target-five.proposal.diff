@@ -1,0 +1,31 @@
+diff --git a/tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs b/tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs
+--- a/tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs
++++ b/tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs
+@@ -45,6 +45,7 @@ export function buildPhase2120QuintMutationRuntimeStatus() {
+     quintRunnerReady: true,
+     phase2130Marker: "PHASE2130_SEXT_TOOL_TARGET_FIVE_OK",
+     phase2141Marker: "PHASE2141_SEPT_TOOL_TARGET_FIVE_OK",
++    phase2153Marker: "PHASE2153_OCT_TOOL_TARGET_FIVE_OK",
+     providerCallsMade: false,
+     codexExecExecuted: false,
+     chatModified: false,
+@@ -78,6 +79,19 @@ export function buildPhase2141SeptMutationTargetFiveStatus() {
+   };
+ }
+ 
++export function buildPhase2153OctMutationTargetFiveStatus() {
++  return {
++    phaseId: "Phase2153A-Controlled-Oct-Tool-Mutation-Target-Five",
++    marker: "PHASE2153_OCT_TOOL_TARGET_FIVE_OK",
++    importSafe: true,
++    octMutationApplied: true,
++    providerCallsMade: false,
++    codexExecExecuted: false,
++    chatModified: false,
++    chatGatewayExecuteModified: false,
++  };
++}
++
+ export function main() {
+   const args = parseArgs(process.argv.slice(2));
+   const planPath = args.plan || "docs/phase2101-2110-controlled-quad-tool-mutation-approval.example.json";

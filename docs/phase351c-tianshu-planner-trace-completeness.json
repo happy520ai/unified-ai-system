@@ -1,0 +1,32 @@
+{
+  "phase": "Phase351C",
+  "traceType": "tianshu_planner_trace",
+  "result": {
+    "phase": "Phase351C",
+    "sourcePhase": "Phase350C",
+    "auditTraceCompletenessChecked": true,
+    "plannerTraceCompletenessChecked": true,
+    "missingTraceFieldsReported": true,
+    "noSecretInTrace": true,
+    "traceCompletenessPassed": false,
+    "requiredTraceFields": [
+      "requestId",
+      "phase",
+      "policyProposalId",
+      "reviewerDecision",
+      "policyActivated",
+      "rollbackStepsVerified",
+      "restorePath"
+    ],
+    "missingTraceFields": [
+      "requestId",
+      "policyProposalId",
+      "reviewerDecision"
+    ],
+    "policyActivated": false,
+    "trainingTriggered": false,
+    "embeddingBatchTriggered": false,
+    "productionGA": false,
+    "secretValueExposed": false
+  }
+}

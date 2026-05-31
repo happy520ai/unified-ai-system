@@ -1,0 +1,19 @@
+{
+  "day": 5,
+  "date": "",
+  "minutesUsed": 0,
+  "tasksRun": [],
+  "providerRequests": 0,
+  "providerFailures": 0,
+  "runtimeFailures": 0,
+  "blockedReasons": [],
+  "uxFriction": [],
+  "newCapabilityIdeas": [],
+  "evidenceRefs": [],
+  "severityCounts": {
+    "P0": 0,
+    "P1": 0,
+    "P2": 0,
+    "P3": 0
+  }
+}

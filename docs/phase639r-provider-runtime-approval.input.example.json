@@ -1,0 +1,22 @@
+{
+  "approvalId": "approve-phase639r-provider-runtime-001",
+  "approvedBy": "user-owner",
+  "decision": "approved_prepare_provider_runtime_candidate_only",
+  "allowProviderRuntimeCandidatePreparation": true,
+  "allowProviderRuntimeModification": false,
+  "allowProviderCall": false,
+  "allowAuthJsonAccess": false,
+  "allowCodexConfigWrite": false,
+  "allowDefaultChatModification": false,
+  "allowChatGatewayExecuteModification": false,
+  "allowDeploy": false,
+  "allowRelease": false,
+  "allowPush": false,
+  "allowCommit": false,
+  "maxRequestsDefault": 1,
+  "maxRequestsHardLimit": 3,
+  "retryLimit": 0,
+  "stopOnFirstFailure": true,
+  "approvalReason": "Approve provider runtime candidate preparation only. No provider runtime modification, no Provider call, no /chat or /chat-gateway/execute modification, no deploy.",
+  "createdAt": "2026-05-12T00:54:58.0951082+08:00"
+}

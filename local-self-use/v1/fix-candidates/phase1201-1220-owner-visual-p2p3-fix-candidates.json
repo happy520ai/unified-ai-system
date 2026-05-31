@@ -1,0 +1,19 @@
+{
+  "phaseRange": "Phase1201-1220",
+  "completed": true,
+  "ownerFeedbackCollected": false,
+  "ownerFeedbackAuthentic": false,
+  "actualFixesAppliedThisPhase": false,
+  "p0p1Blocked": false,
+  "fixCandidates": [],
+  "providerCallsMade": false,
+  "rawSecretRead": false,
+  "secretValueExposed": false,
+  "authJsonRead": false,
+  "chatBehaviorChangedByDefault": false,
+  "chatGatewayExecuteBehaviorChangedByDefault": false,
+  "deployExecuted": false,
+  "releaseExecuted": false,
+  "tagCreated": false,
+  "artifactUploaded": false
+}

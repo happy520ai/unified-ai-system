@@ -1,0 +1,282 @@
+{
+  "schemaVersion": "phase325b-v1",
+  "providers": [
+    {
+      "providerId": "nvidia",
+      "providerType": "llm",
+      "enabled": true,
+      "realCallsAllowed": true,
+      "status": "active",
+      "credentialRef": {
+        "kind": "runtime-secret-ref",
+        "ref": "nvidia/runtime/current",
+        "redact": true
+      },
+      "models": {
+        "allowed": [
+          "nvidia/llama-3.1-nemotron-nano-8b-v1",
+          "nvidia/llama-3.3-nemotron-super-49b-v1",
+          "nvidia/nemotron-3-super-120b-a12b",
+          "nvidia/nemotron-mini-4b-instruct",
+          "deepseek-ai/deepseek-v4-pro"
+        ]
+      },
+      "routingPolicy": {
+        "defaultRoute": "/chat",
+        "allowlistOnly": true,
+        "fallbackPolicy": "deny",
+        "realCallAuthorizationRequired": true
+      },
+      "budgetPolicy": {
+        "dailyRequestLimit": 50,
+        "maxTokensPerRequest": 2048,
+        "costCenter": "gateway-ops"
+      },
+      "timeoutPolicy": {
+        "requestTimeoutMs": 45000,
+        "cooldownAfterTimeoutMs": 60000
+      },
+      "retryPolicy": {
+        "maxRetries": 1,
+        "stopOnRateLimit": true,
+        "stopOnSchemaInvalid": true
+      },
+      "auditPolicy": {
+        "enabled": true,
+        "redactSecrets": true,
+        "retainDays": 30
+      },
+      "rolloutStage": "rollback-ready",
+      "killSwitch": {
+        "enabled": false,
+        "routeDenied": false
+      }
+    },
+    {
+      "providerId": "openai",
+      "providerType": "llm",
+      "enabled": false,
+      "realCallsAllowed": false,
+      "status": "future-provider-slot",
+      "credentialRef": {
+        "kind": "runtime-secret-ref",
+        "ref": "openai/runtime/current",
+        "redact": true
+      },
+      "models": {
+        "allowed": []
+      },
+      "routingPolicy": {
+        "defaultRoute": "/chat",
+        "allowlistOnly": true,
+        "fallbackPolicy": "deny",
+        "realCallAuthorizationRequired": true
+      },
+      "budgetPolicy": {
+        "dailyRequestLimit": 0,
+        "maxTokensPerRequest": 0,
+        "costCenter": "gateway-ops"
+      },
+      "timeoutPolicy": {
+        "requestTimeoutMs": 0,
+        "cooldownAfterTimeoutMs": 0
+      },
+      "retryPolicy": {
+        "maxRetries": 0,
+        "stopOnRateLimit": true,
+        "stopOnSchemaInvalid": true
+      },
+      "auditPolicy": {
+        "enabled": false,
+        "redactSecrets": true,
+        "retainDays": 0
+      },
+      "rolloutStage": "schema-only",
+      "killSwitch": {
+        "enabled": true,
+        "routeDenied": true
+      }
+    },
+    {
+      "providerId": "claude",
+      "providerType": "llm",
+      "enabled": false,
+      "realCallsAllowed": false,
+      "status": "future-provider-slot",
+      "credentialRef": {
+        "kind": "runtime-secret-ref",
+        "ref": "claude/runtime/current",
+        "redact": true
+      },
+      "models": {
+        "allowed": []
+      },
+      "routingPolicy": {
+        "defaultRoute": "/chat",
+        "allowlistOnly": true,
+        "fallbackPolicy": "deny",
+        "realCallAuthorizationRequired": true
+      },
+      "budgetPolicy": {
+        "dailyRequestLimit": 0,
+        "maxTokensPerRequest": 0,
+        "costCenter": "gateway-ops"
+      },
+      "timeoutPolicy": {
+        "requestTimeoutMs": 0,
+        "cooldownAfterTimeoutMs": 0
+      },
+      "retryPolicy": {
+        "maxRetries": 0,
+        "stopOnRateLimit": true,
+        "stopOnSchemaInvalid": true
+      },
+      "auditPolicy": {
+        "enabled": false,
+        "redactSecrets": true,
+        "retainDays": 0
+      },
+      "rolloutStage": "schema-only",
+      "killSwitch": {
+        "enabled": true,
+        "routeDenied": true
+      }
+    },
+    {
+      "providerId": "openrouter",
+      "providerType": "llm",
+      "enabled": false,
+      "realCallsAllowed": false,
+      "status": "future-provider-slot",
+      "credentialRef": {
+        "kind": "runtime-secret-ref",
+        "ref": "openrouter/runtime/current",
+        "redact": true
+      },
+      "models": {
+        "allowed": []
+      },
+      "routingPolicy": {
+        "defaultRoute": "/chat",
+        "allowlistOnly": true,
+        "fallbackPolicy": "deny",
+        "realCallAuthorizationRequired": true
+      },
+      "budgetPolicy": {
+        "dailyRequestLimit": 0,
+        "maxTokensPerRequest": 0,
+        "costCenter": "gateway-ops"
+      },
+      "timeoutPolicy": {
+        "requestTimeoutMs": 0,
+        "cooldownAfterTimeoutMs": 0
+      },
+      "retryPolicy": {
+        "maxRetries": 0,
+        "stopOnRateLimit": true,
+        "stopOnSchemaInvalid": true
+      },
+      "auditPolicy": {
+        "enabled": false,
+        "redactSecrets": true,
+        "retainDays": 0
+      },
+      "rolloutStage": "schema-only",
+      "killSwitch": {
+        "enabled": true,
+        "routeDenied": true
+      }
+    },
+    {
+      "providerId": "mimo",
+      "providerType": "llm",
+      "enabled": false,
+      "realCallsAllowed": false,
+      "status": "future-provider-slot",
+      "credentialRef": {
+        "kind": "runtime-secret-ref",
+        "ref": "mimo/runtime/current",
+        "redact": true
+      },
+      "models": {
+        "allowed": []
+      },
+      "routingPolicy": {
+        "defaultRoute": "/chat",
+        "allowlistOnly": true,
+        "fallbackPolicy": "deny",
+        "realCallAuthorizationRequired": true
+      },
+      "budgetPolicy": {
+        "dailyRequestLimit": 0,
+        "maxTokensPerRequest": 0,
+        "costCenter": "gateway-ops"
+      },
+      "timeoutPolicy": {
+        "requestTimeoutMs": 0,
+        "cooldownAfterTimeoutMs": 0
+      },
+      "retryPolicy": {
+        "maxRetries": 0,
+        "stopOnRateLimit": true,
+        "stopOnSchemaInvalid": true
+      },
+      "auditPolicy": {
+        "enabled": false,
+        "redactSecrets": true,
+        "retainDays": 0
+      },
+      "rolloutStage": "schema-only",
+      "killSwitch": {
+        "enabled": true,
+        "routeDenied": true
+      }
+    },
+    {
+      "providerId": "local",
+      "providerType": "llm",
+      "enabled": false,
+      "realCallsAllowed": false,
+      "status": "future-provider-slot",
+      "credentialRef": {
+        "kind": "runtime-secret-ref",
+        "ref": "local/runtime/current",
+        "redact": true
+      },
+      "models": {
+        "allowed": []
+      },
+      "routingPolicy": {
+        "defaultRoute": "/chat",
+        "allowlistOnly": true,
+        "fallbackPolicy": "deny",
+        "realCallAuthorizationRequired": true
+      },
+      "budgetPolicy": {
+        "dailyRequestLimit": 0,
+        "maxTokensPerRequest": 0,
+        "costCenter": "gateway-ops"
+      },
+      "timeoutPolicy": {
+        "requestTimeoutMs": 0,
+        "cooldownAfterTimeoutMs": 0
+      },
+      "retryPolicy": {
+        "maxRetries": 0,
+        "stopOnRateLimit": true,
+        "stopOnSchemaInvalid": true
+      },
+      "auditPolicy": {
+        "enabled": false,
+        "redactSecrets": true,
+        "retainDays": 0
+      },
+      "rolloutStage": "schema-only",
+      "killSwitch": {
+        "enabled": true,
+        "routeDenied": true
+      }
+    }
+  ]
+}
+

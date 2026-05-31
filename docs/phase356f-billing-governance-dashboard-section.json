@@ -1,0 +1,31 @@
+{
+  "phase": "Phase356F",
+  "designType": "billing_governance_dashboard_section",
+  "result": {
+    "phase": "Phase356F",
+    "sourcePhase": "Phase355F",
+    "governanceDashboardDesignGenerated": true,
+    "sectionContractsGenerated": true,
+    "noProductionUiClaim": true,
+    "sectionId": "billing_governance",
+    "sectionContractFields": [
+      "tenantId",
+      "statementId",
+      "actorRole",
+      "estimateOnly",
+      "exportPermissionDecision",
+      "warningCopyVersion",
+      "timestamp"
+    ],
+    "sectionPanels": [
+      "estimate_only_export_audit",
+      "warning_copy_version_matrix",
+      "export_permission_decision_log"
+    ],
+    "paymentProviderConnected": false,
+    "actualBillingConnected": false,
+    "legalInvoiceGenerated": false,
+    "secretValueExposed": false,
+    "productionGA": false
+  }
+}

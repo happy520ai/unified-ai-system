@@ -1,0 +1,9 @@
+{
+  "phase": "Phase374D",
+  "markers": [
+    "id=\"provider-credentialref-guarded-notice\"",
+    "data-provider-setup-guidance=\"true\"",
+    "id=\"provider-credentialref-guidance\"",
+    "data-credentialref-only-copy=\"true\""
+  ]
+}

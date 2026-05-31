@@ -1,0 +1,22 @@
+{
+  "phase": "Phase350B",
+  "drillType": "god_mode_disable_restore",
+  "result": {
+    "phase": "Phase350B",
+    "sourcePhase": "Phase349B",
+    "rollbackDrillDryRunExecuted": true,
+    "disablePathVerified": true,
+    "restorePathDocumented": true,
+    "noProductionChange": true,
+    "externalNotification": false,
+    "productionGA": false,
+    "rollbackStepsVerified": [
+      "mark_god_mode_quality_degraded",
+      "keep_external_notification_disabled",
+      "route_to_normal_mode_or_manual_review",
+      "capture_benchmark_regression_evidence"
+    ],
+    "restorePath": "restore_god_mode_from_degraded_after_benchmark_review",
+    "secretValueExposed": false
+  }
+}

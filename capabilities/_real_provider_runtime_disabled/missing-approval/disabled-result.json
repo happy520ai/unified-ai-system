@@ -1,0 +1,13 @@
+{
+  "caseId": "missing-approval",
+  "providerId": "nvidia",
+  "executionStatus": "blocked",
+  "blockedReason": "missing_approval",
+  "completed": false,
+  "passed": false,
+  "providerCallsMade": false,
+  "secretRead": false,
+  "secretValueExposed": false,
+  "emergencyDisableAvailable": true,
+  "emergencyDisableRef": "TAIJI_BEIDOU_REAL_PROVIDER_RUNTIME_ENABLED=false"
+}

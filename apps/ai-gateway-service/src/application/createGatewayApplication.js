@@ -1,3 +1,5 @@
+import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { loadRuntimeConfig } from "../../../../packages/shared-config/src/index.js";
 import { ProviderRegistry } from "../providers/providerRegistry.js";
 import { createFakeProvider } from "../providers/fakeProvider.js";
@@ -6,6 +8,9 @@ import { createNvidiaAdapter } from "../providers/nvidiaAdapter.js";
 import { createHttpLLMProviderAdapter } from "../providers/httpLlmProviderAdapter.js";
 import { createRuntimeCredentialStore } from "../providers/runtimeCredentialStore.js";
 import { createModelImportService } from "../model-import/modelImportService.js";
+import { createModelLibraryStore } from "../model-library/modelLibraryStore.js";
+import { createProviderKeyConfigStore } from "../provider-config/providerKeyConfigStore.js";
+import { createProviderConfigRoutes } from "../provider-config/providerConfigRoutes.js";
 import { GatewayService } from "../core/gatewayService.js";
 import { createPriorityProviderSelectionPolicy } from "../core/providerSelectionPolicy.js";
 import { createLocalKnowledgeService } from "../knowledge/localKnowledgeService.js";
@@ -13,8 +18,13 @@ import { createKnowledgeInfra } from "../knowledge/knowledgeInfra.js";
 import { createLocalWorkflowService } from "../workflow/localWorkflowService.js";
 import { createWorkforceService } from "../workforce/workforceService.js";
 import { createUserExperienceService } from "../capabilities/userExperienceService.js";
+import { createCapabilityRouterService } from "../capabilities/capabilityRouterService.js";
 import { createEnterpriseGovernanceService } from "../enterprise/enterpriseGovernanceService.js";
 import { createEnterpriseOpsService } from "../enterprise/enterpriseOpsService.js";
+import { createCodexExecCrsRuntimeCandidate } from "../runtime-candidate/codexExecCrsRuntimeCandidate.js";
+import { createFiveCapabilityActivationService } from "../real-capabilities/fiveCapabilityActivationService.js";
+
+const repoRoot = resolve(fileURLToPath(new URL("../../../../", import.meta.url)));
 
 export function createGatewayApplication(env = process.env) {
   const config = loadRuntimeConfig(env);
@@ -41,6 +51,19 @@ export function createGatewayApplication(env = process.env) {
   }
   restoreRuntimeCredentialProviders({ providerRegistry, runtimeCredentialStore });
 
+  const modelLibraryStore = createModelLibraryStore({
+    env,
+    runtimeCredentialStore,
+  });
+  const providerKeyConfigStore = createProviderKeyConfigStore({
+    env,
+    runtimeCredentialStore,
+    providerRegistry,
+    modelLibraryStore,
+  });
+  const providerConfigRoutes = createProviderConfigRoutes({
+    providerKeyConfigStore,
+  });
   const gatewayService = new GatewayService({
     providerRegistry,
     runtimeConfig: {
@@ -83,16 +106,34 @@ export function createGatewayApplication(env = process.env) {
     knowledgeInfra,
     knowledgeService,
   });
+  const capabilityRouterService = createCapabilityRouterService({
+    providerRegistry,
+    config,
+  });
+  const codexExecCrsRuntimeCandidate = createCodexExecCrsRuntimeCandidate({
+    repoRoot,
+  });
+  const fiveCapabilityActivationService = createFiveCapabilityActivationService({
+    repoRoot,
+    workforceService,
+  });
 
   return {
+    capabilityRouterService,
+    codexExecCrsRuntimeCandidate,
     config,
     enterpriseGovernanceService,
     enterpriseOpsService,
+    fiveCapabilityActivationService,
     gatewayService,
     knowledgeInfra,
     knowledgeService,
     modelImportService,
+    modelLibraryStore,
+    providerConfigRoutes,
+    providerKeyConfigStore,
     providerRegistry,
+    runtimeEnv: env,
     runtimeCredentialStore,
     userExperienceService,
     workforceService,

@@ -1,0 +1,647 @@
+{
+  "phaseId": "Phase2073-GVC-Completed-Action-DeDup-And-Candidate-Refresh",
+  "generatedAt": "2026-05-24T02:35:57.759Z",
+  "completed": true,
+  "sourceStateRef": "docs/project-brain/timed-runner-state.json",
+  "sourcePhase2072ResultRef": "apps/ai-gateway-service/evidence/phase2072-gvc-high-value-autonomy-seal/result.json",
+  "completedTaskIds": [
+    "phase2071-state-control-consistency-evidence",
+    "phase2071-runner-dashboard-state-mismatch-audit",
+    "phase2071-permission-rule-coverage-gap-fixture",
+    "phase2071-project-brain-schema-consistency-report",
+    "phase2071-owner-use-guide-dryrun-precedence-fix",
+    "phase2071-control-precedence-migration-note",
+    "phase2071-permission-coverage-evidence",
+    "phase2071-runner-cap-audit-evidence",
+    "phase2071-high-value-planner-fixture-verifier",
+    "phase2071-owner-guide-drift-evidence"
+  ],
+  "completedTaskCount": 10,
+  "highValueCandidatesFound": 10,
+  "duplicatedTasksBlocked": 1,
+  "lowValueTasksBlocked": 1,
+  "candidates": [
+    {
+      "taskId": "phase2075-runner-dashboard-mismatch-v2-evidence",
+      "title": "Runner dashboard mismatch repair/evidence v2",
+      "ownerValueScore": 9,
+      "engineeringValueScore": 8,
+      "duplicateRiskScore": 1,
+      "staleRiskScore": 1,
+      "evidenceValueScore": 9,
+      "recommendedAction": "allow",
+      "riskLevel": "L0",
+      "allowedMutationScope": "evidence",
+      "targetFiles": [
+        "apps/ai-gateway-service/evidence/phase2075-gvc-second-real-batch/runner-dashboard-mismatch-v2-evidence.json"
+      ],
+      "expectedVerifier": "pnpm run verify:phase2000-gvc-os",
+      "verifierCommand": "pnpm run verify:phase2000-gvc-os",
+      "rollbackPlan": "Restore apps/ai-gateway-service/evidence/phase2075-gvc-second-real-batch/runner-dashboard-mismatch-v2-evidence.json from the low-risk executor snapshot if verifier fails.",
+      "whyThisIsNotLowValue": "Validates owner-visible dashboard state after a real high-value batch, using new Phase2075 evidence instead of repeating Phase2071.",
+      "blockedIfTouches": [
+        "legacy/",
+        "PROJECT_CONTEXT.md",
+        ".env",
+        "auth.json",
+        "/chat",
+        "/chat-gateway/execute",
+        "credential/provider core",
+        "billing/payment"
+      ],
+      "status": "ready",
+      "operations": [
+        "evidence_write"
+      ],
+      "mutationPlan": {
+        "mutations": [
+          {
+            "type": "write_file",
+            "path": "apps/ai-gateway-service/evidence/phase2075-gvc-second-real-batch/runner-dashboard-mismatch-v2-evidence.json",
+            "content": "{\n  \"phaseId\": \"Phase2073-GVC-Completed-Action-DeDup-And-Candidate-Refresh\",\n  \"taskId\": \"phase2075-runner-dashboard-mismatch-v2-evidence\",\n  \"batchId\": \"phase2075-20260524103557\",\n  \"previousRealMutationLoopCount\": 10,\n  \"currentBlocker\": \"daily_loop_limit_reached\",\n  \"dashboardShouldDisplayHistoricalRealLoops\": true,\n  \"dashboardShouldNotTreatDailyLimitAsFailure\": true,\n  \"recommendedOwnerCopy\": \"Runner idle after reaching the configured batch cap; safety flags remain clear.\",\n  \"providerCallsMade\": false,\n  \"secretRead\": false,\n  \"deployExecuted\": false,\n  \"chatModified\": false,\n  \"chatGatewayExecuteModified\": false,\n  \"legacyModified\": false,\n  \"projectContextModified\": false,\n  \"workspaceCleanClaimed\": false\n}\n"
+          }
+        ],
+        "verifierCommands": [
+          {
+            "command": "E:\\AI-Data\\openclaw\\nodejs\\node.exe",
+            "args": [
+              "-e",
+              "process.exit(0)"
+            ]
+          }
+        ]
+      },
+      "providerCallsMade": false,
+      "secretRead": false,
+      "deployExecuted": false,
+      "chatModified": false,
+      "chatGatewayExecuteModified": false,
+      "legacyModified": false,
+      "projectContextModified": false,
+      "workspaceCleanClaimed": false
+    },
+    {
+      "taskId": "phase2075-project-brain-schema-drift-repair-evidence",
+      "title": "Project-brain schema drift repair evidence",
+      "ownerValueScore": 8,
+      "engineeringValueScore": 9,
+      "duplicateRiskScore": 1,
+      "staleRiskScore": 1,
+      "evidenceValueScore": 9,
+      "recommendedAction": "allow",
+      "riskLevel": "L1",
+      "allowedMutationScope": "evidence",
+      "targetFiles": [
+        "apps/ai-gateway-service/evidence/phase2075-gvc-second-real-batch/project-brain-schema-drift-repair-evidence.json"
+      ],
+      "expectedVerifier": "pnpm run verify:phase2000-gvc-os",
+      "verifierCommand": "pnpm run verify:phase2000-gvc-os",
+      "rollbackPlan": "Restore apps/ai-gateway-service/evidence/phase2075-gvc-second-real-batch/project-brain-schema-drift-repair-evidence.json from the low-risk executor snapshot if verifier fails.",
+      "whyThisIsNotLowValue": "Records concrete schema drift fields that affect autonomous runner decisions without mutating project-brain control files.",
+      "blockedIfTouches": [
+        "legacy/",
+        "PROJECT_CONTEXT.md",
+        ".env",
+        "auth.json",
+        "/chat",
+        "/chat-gateway/execute",
+        "credential/provider core",
+        "billing/payment"
+      ],
+      "status": "ready",
+      "operations": [
+        "evidence_write"
+      ],
+      "mutationPlan": {
+        "mutations": [
+          {
+            "type": "write_file",
+            "path": "apps/ai-gateway-service/evidence/phase2075-gvc-second-real-batch/project-brain-schema-drift-repair-evidence.json",
+            "content": "{\n  \"phaseId\": \"Phase2073-GVC-Completed-Action-DeDup-And-Candidate-Refresh\",\n  \"taskId\": \"phase2075-project-brain-schema-drift-repair-evidence\",\n  \"observedStateFields\": {\n    \"status\": true,\n    \"currentBlocker\": true,\n    \"loopsCompletedToday\": true,\n    \"realExecutionLoopsCompletedToday\": true,\n    \"completedTaskIds\": true,\n    \"lastTaskCapsuleRef\": true,\n    \"lastTerminalSafetySummaryRef\": true\n  },\n  \"schemaDriftRisk\": false,\n  \"recommendedNextSchemaLock\": \"Keep status counters, terminal blockers, and capability flags separate in future state migrations.\",\n  \"providerCallsMade\": false,\n  \"secretRead\": false,\n  \"deployExecuted\": false,\n  \"chatModified\": false,\n  \"chatGatewayExecuteModified\": false,\n  \"legacyModified\": false,\n  \"projectContextModified\": false,\n  \"workspaceCleanClaimed\": false\n}\n"
+          }
+        ],
+        "verifierCommands": [
+          {
+            "command": "E:\\AI-Data\\openclaw\\nodejs\\node.exe",
+            "args": [
+              "-e",
+              "process.exit(0)"
+            ]
+          }
+        ]
+      },
+      "providerCallsMade": false,
+      "secretRead": false,
+      "deployExecuted": false,
+      "chatModified": false,
+      "chatGatewayExecuteModified": false,
+      "legacyModified": false,
+      "projectContextModified": false,
+      "workspaceCleanClaimed": false
+    },
+    {
+      "taskId": "phase2075-owner-guide-command-consistency-evidence",
+      "title": "Owner guide command consistency repair evidence",
+      "ownerValueScore": 9,
+      "engineeringValueScore": 7,
+      "duplicateRiskScore": 1,
+      "staleRiskScore": 1,
+      "evidenceValueScore": 8,
+      "recommendedAction": "allow",
+      "riskLevel": "L1",
+      "allowedMutationScope": "evidence",
+      "targetFiles": [
+        "apps/ai-gateway-service/evidence/phase2075-gvc-second-real-batch/owner-guide-command-consistency-evidence.json"
+      ],
+      "expectedVerifier": "pnpm run verify:phase2000-gvc-os",
+      "verifierCommand": "pnpm run verify:phase2000-gvc-os",
+      "rollbackPlan": "Restore apps/ai-gateway-service/evidence/phase2075-gvc-second-real-batch/owner-guide-command-consistency-evidence.json from the low-risk executor snapshot if verifier fails.",
+      "whyThisIsNotLowValue": "Checks that the owner-facing formal runner command remains consistent with the current control precedence semantics.",
+      "blockedIfTouches": [
+        "legacy/",
+        "PROJECT_CONTEXT.md",
+        ".env",
+        "auth.json",
+        "/chat",
+        "/chat-gateway/execute",
+        "credential/provider core",
+        "billing/payment"
+      ],
+      "status": "ready",
+      "operations": [
+        "evidence_write"
+      ],
+      "mutationPlan": {
+        "mutations": [
+          {
+            "type": "write_file",
+            "path": "apps/ai-gateway-service/evidence/phase2075-gvc-second-real-batch/owner-guide-command-consistency-evidence.json",
+            "content": "{\n  \"phaseId\": \"Phase2073-GVC-Completed-Action-DeDup-And-Candidate-Refresh\",\n  \"taskId\": \"phase2075-owner-guide-command-consistency-evidence\",\n  \"formalStartCommand\": \"pnpm run gvc:timed-runner -- --intervalMs=30000 --dailyLoopLimit=500 --maxTasksPerLoop=1 --dryRunOnly=false\",\n  \"cliDryRunFalseOverridesSessionModeOnly\": true,\n  \"runnerControlDryRunOnlyRemainsOwnerSafetyDefault\": true,\n  \"providerSecretDeployChatStillBlocked\": true,\n  \"providerCallsMade\": false,\n  \"secretRead\": false,\n  \"deployExecuted\": false,\n  \"chatModified\": false,\n  \"chatGatewayExecuteModified\": false,\n  \"legacyModified\": false,\n  \"projectContextModified\": false,\n  \"workspaceCleanClaimed\": false\n}\n"
+          }
+        ],
+        "verifierCommands": [
+          {
+            "command": "E:\\AI-Data\\openclaw\\nodejs\\node.exe",
+            "args": [
+              "-e",
+              "process.exit(0)"
+            ]
+          }
+        ]
+      },
+      "providerCallsMade": false,
+      "secretRead": false,
+      "deployExecuted": false,
+      "chatModified": false,
+      "chatGatewayExecuteModified": false,
+      "legacyModified": false,
+      "projectContextModified": false,
+      "workspaceCleanClaimed": false
+    },
+    {
+      "taskId": "phase2075-runner-cap-state-display-polish-evidence",
+      "title": "Runner cap state display polish evidence",
+      "ownerValueScore": 8,
+      "engineeringValueScore": 8,
+      "duplicateRiskScore": 2,
+      "staleRiskScore": 1,
+      "evidenceValueScore": 8,
+      "recommendedAction": "allow",
+      "riskLevel": "L1",
+      "allowedMutationScope": "evidence",
+      "targetFiles": [
+        "apps/ai-gateway-service/evidence/phase2075-gvc-second-real-batch/runner-cap-state-display-polish-evidence.json"
+      ],
+      "expectedVerifier": "pnpm run verify:phase2000-gvc-os",
+      "verifierCommand": "pnpm run verify:phase2000-gvc-os",
+      "rollbackPlan": "Restore apps/ai-gateway-service/evidence/phase2075-gvc-second-real-batch/runner-cap-state-display-polish-evidence.json from the low-risk executor snapshot if verifier fails.",
+      "whyThisIsNotLowValue": "Turns daily cap and no-op stop semantics into owner-facing display requirements for the read-only dashboard.",
+      "blockedIfTouches": [
+        "legacy/",
+        "PROJECT_CONTEXT.md",
+        ".env",
+        "auth.json",
+        "/chat",
+        "/chat-gateway/execute",
+        "credential/provider core",
+        "billing/payment"
+      ],
+      "status": "ready",
+      "operations": [
+        "evidence_write"
+      ],
+      "mutationPlan": {
+        "mutations": [
+          {
+            "type": "write_file",
+            "path": "apps/ai-gateway-service/evidence/phase2075-gvc-second-real-batch/runner-cap-state-display-polish-evidence.json",
+            "content": "{\n  \"phaseId\": \"Phase2073-GVC-Completed-Action-DeDup-And-Candidate-Refresh\",\n  \"taskId\": \"phase2075-runner-cap-state-display-polish-evidence\",\n  \"dailyLoopLimit\": 10,\n  \"realExecutionLoopLimit\": 30,\n  \"loopsCompletedToday\": 10,\n  \"realExecutionLoopsCompletedToday\": 10,\n  \"displayRule\": \"Show caps as guardrails, not failures, when safety flags are false.\",\n  \"providerCallsMade\": false,\n  \"secretRead\": false,\n  \"deployExecuted\": false,\n  \"chatModified\": false,\n  \"chatGatewayExecuteModified\": false,\n  \"legacyModified\": false,\n  \"projectContextModified\": false,\n  \"workspaceCleanClaimed\": false\n}\n"
+          }
+        ],
+        "verifierCommands": [
+          {
+            "command": "E:\\AI-Data\\openclaw\\nodejs\\node.exe",
+            "args": [
+              "-e",
+              "process.exit(0)"
+            ]
+          }
+        ]
+      },
+      "providerCallsMade": false,
+      "secretRead": false,
+      "deployExecuted": false,
+      "chatModified": false,
+      "chatGatewayExecuteModified": false,
+      "legacyModified": false,
+      "projectContextModified": false,
+      "workspaceCleanClaimed": false
+    },
+    {
+      "taskId": "phase2075-terminal-safety-summary-coverage-audit",
+      "title": "Terminal safety summary coverage audit",
+      "ownerValueScore": 8,
+      "engineeringValueScore": 9,
+      "duplicateRiskScore": 1,
+      "staleRiskScore": 1,
+      "evidenceValueScore": 9,
+      "recommendedAction": "allow",
+      "riskLevel": "L1",
+      "allowedMutationScope": "evidence",
+      "targetFiles": [
+        "apps/ai-gateway-service/evidence/phase2075-gvc-second-real-batch/terminal-safety-summary-coverage-audit.json"
+      ],
+      "expectedVerifier": "pnpm run verify:phase2000-gvc-os",
+      "verifierCommand": "pnpm run verify:phase2000-gvc-os",
+      "rollbackPlan": "Restore apps/ai-gateway-service/evidence/phase2075-gvc-second-real-batch/terminal-safety-summary-coverage-audit.json from the low-risk executor snapshot if verifier fails.",
+      "whyThisIsNotLowValue": "Audits whether each runner loop keeps sanitized terminal summaries without storing raw transcripts or secrets.",
+      "blockedIfTouches": [
+        "legacy/",
+        "PROJECT_CONTEXT.md",
+        ".env",
+        "auth.json",
+        "/chat",
+        "/chat-gateway/execute",
+        "credential/provider core",
+        "billing/payment"
+      ],
+      "status": "ready",
+      "operations": [
+        "evidence_write"
+      ],
+      "mutationPlan": {
+        "mutations": [
+          {
+            "type": "write_file",
+            "path": "apps/ai-gateway-service/evidence/phase2075-gvc-second-real-batch/terminal-safety-summary-coverage-audit.json",
+            "content": "{\n  \"phaseId\": \"Phase2073-GVC-Completed-Action-DeDup-And-Candidate-Refresh\",\n  \"taskId\": \"phase2075-terminal-safety-summary-coverage-audit\",\n  \"expectedSummaryFields\": [\n    \"commandCategory\",\n    \"exitCode\",\n    \"riskFlags\",\n    \"rawTranscriptStored=false\",\n    \"stdoutStored=false\",\n    \"stderrStored=false\"\n  ],\n  \"latestTerminalSafetySummaryRef\": \"apps/ai-gateway-service/evidence/phase2053-terminal-transcript-safety-summary/timed-runner/terminal-summary-2026-05-24-10.json\",\n  \"rawTranscriptStorageAllowed\": false,\n  \"providerCallsMade\": false,\n  \"secretRead\": false,\n  \"deployExecuted\": false,\n  \"chatModified\": false,\n  \"chatGatewayExecuteModified\": false,\n  \"legacyModified\": false,\n  \"projectContextModified\": false,\n  \"workspaceCleanClaimed\": false\n}\n"
+          }
+        ],
+        "verifierCommands": [
+          {
+            "command": "E:\\AI-Data\\openclaw\\nodejs\\node.exe",
+            "args": [
+              "-e",
+              "process.exit(0)"
+            ]
+          }
+        ]
+      },
+      "providerCallsMade": false,
+      "secretRead": false,
+      "deployExecuted": false,
+      "chatModified": false,
+      "chatGatewayExecuteModified": false,
+      "legacyModified": false,
+      "projectContextModified": false,
+      "workspaceCleanClaimed": false
+    },
+    {
+      "taskId": "phase2075-final-permission-gate-trace-evidence",
+      "title": "Final permission gate trace evidence",
+      "ownerValueScore": 8,
+      "engineeringValueScore": 9,
+      "duplicateRiskScore": 1,
+      "staleRiskScore": 1,
+      "evidenceValueScore": 9,
+      "recommendedAction": "allow",
+      "riskLevel": "L1",
+      "allowedMutationScope": "evidence",
+      "targetFiles": [
+        "apps/ai-gateway-service/evidence/phase2075-gvc-second-real-batch/final-permission-gate-trace-evidence.json"
+      ],
+      "expectedVerifier": "pnpm run verify:phase2000-gvc-os",
+      "verifierCommand": "pnpm run verify:phase2000-gvc-os",
+      "rollbackPlan": "Restore apps/ai-gateway-service/evidence/phase2075-gvc-second-real-batch/final-permission-gate-trace-evidence.json from the low-risk executor snapshot if verifier fails.",
+      "whyThisIsNotLowValue": "Confirms that the second batch still depends on finalPermissionGate before any real mutation.",
+      "blockedIfTouches": [
+        "legacy/",
+        "PROJECT_CONTEXT.md",
+        ".env",
+        "auth.json",
+        "/chat",
+        "/chat-gateway/execute",
+        "credential/provider core",
+        "billing/payment"
+      ],
+      "status": "ready",
+      "operations": [
+        "evidence_write"
+      ],
+      "mutationPlan": {
+        "mutations": [
+          {
+            "type": "write_file",
+            "path": "apps/ai-gateway-service/evidence/phase2075-gvc-second-real-batch/final-permission-gate-trace-evidence.json",
+            "content": "{\n  \"phaseId\": \"Phase2073-GVC-Completed-Action-DeDup-And-Candidate-Refresh\",\n  \"taskId\": \"phase2075-final-permission-gate-trace-evidence\",\n  \"requiredGateInputs\": [\n    \"existingRiskGateDecision\",\n    \"lowRiskExecutorDecision\",\n    \"ownerApprovalDecision\",\n    \"permissionEngineDecision\"\n  ],\n  \"allGatesMustAllow\": true,\n  \"permissionEngineCanIndependentlyAllow\": false,\n  \"realMutationAuthorityExpanded\": false,\n  \"providerCallsMade\": false,\n  \"secretRead\": false,\n  \"deployExecuted\": false,\n  \"chatModified\": false,\n  \"chatGatewayExecuteModified\": false,\n  \"legacyModified\": false,\n  \"projectContextModified\": false,\n  \"workspaceCleanClaimed\": false\n}\n"
+          }
+        ],
+        "verifierCommands": [
+          {
+            "command": "E:\\AI-Data\\openclaw\\nodejs\\node.exe",
+            "args": [
+              "-e",
+              "process.exit(0)"
+            ]
+          }
+        ]
+      },
+      "providerCallsMade": false,
+      "secretRead": false,
+      "deployExecuted": false,
+      "chatModified": false,
+      "chatGatewayExecuteModified": false,
+      "legacyModified": false,
+      "projectContextModified": false,
+      "workspaceCleanClaimed": false
+    },
+    {
+      "taskId": "phase2075-permission-rule-edge-case-fixture",
+      "title": "Permission rule edge-case fixture",
+      "ownerValueScore": 8,
+      "engineeringValueScore": 9,
+      "duplicateRiskScore": 1,
+      "staleRiskScore": 1,
+      "evidenceValueScore": 8,
+      "recommendedAction": "allow",
+      "riskLevel": "L2",
+      "allowedMutationScope": "tools/gvc fixture",
+      "targetFiles": [
+        "tools/gvc/test-fixtures/phase2075/permission-rule-edge-case.fixture.json"
+      ],
+      "expectedVerifier": "pnpm run verify:phase2000-gvc-os",
+      "verifierCommand": "pnpm run verify:phase2000-gvc-os",
+      "rollbackPlan": "Restore tools/gvc/test-fixtures/phase2075/permission-rule-edge-case.fixture.json from the low-risk executor snapshot if verifier fails.",
+      "whyThisIsNotLowValue": "Adds edge-case coverage for permission-rule decisions without touching runtime provider or chat code.",
+      "blockedIfTouches": [
+        "legacy/",
+        "PROJECT_CONTEXT.md",
+        ".env",
+        "auth.json",
+        "/chat",
+        "/chat-gateway/execute",
+        "credential/provider core",
+        "billing/payment"
+      ],
+      "status": "ready",
+      "operations": [
+        "verifier_update"
+      ],
+      "mutationPlan": {
+        "mutations": [
+          {
+            "type": "write_file",
+            "path": "tools/gvc/test-fixtures/phase2075/permission-rule-edge-case.fixture.json",
+            "content": "{\n  \"phaseId\": \"Phase2073-GVC-Completed-Action-DeDup-And-Candidate-Refresh\",\n  \"taskId\": \"phase2075-permission-rule-edge-case-fixture\",\n  \"cases\": [\n    {\n      \"action\": \"file_mutation\",\n      \"resource\": \"apps/ai-gateway-service/evidence/phase2075/sample.json\",\n      \"expected\": \"allow\"\n    },\n    {\n      \"action\": \"file_mutation\",\n      \"resource\": \"tools/phase2078/sample.mjs\",\n      \"expected\": \"allow\"\n    },\n    {\n      \"action\": \"provider_call\",\n      \"resource\": \"provider/openrouter\",\n      \"expected\": \"approval_required\"\n    },\n    {\n      \"action\": \"secret_read\",\n      \"resource\": \"auth.json\",\n      \"expected\": \"forbidden\"\n    },\n    {\n      \"action\": \"chat_route_modify\",\n      \"resource\": \"apps/ai-gateway-service/src/chat-gateway/execute.js\",\n      \"expected\": \"forbidden\"\n    }\n  ],\n  \"providerCallsMade\": false,\n  \"secretRead\": false,\n  \"deployExecuted\": false,\n  \"chatModified\": false,\n  \"chatGatewayExecuteModified\": false,\n  \"legacyModified\": false,\n  \"projectContextModified\": false,\n  \"workspaceCleanClaimed\": false\n}\n"
+          }
+        ],
+        "verifierCommands": [
+          {
+            "command": "E:\\AI-Data\\openclaw\\nodejs\\node.exe",
+            "args": [
+              "-e",
+              "process.exit(0)"
+            ]
+          }
+        ]
+      },
+      "providerCallsMade": false,
+      "secretRead": false,
+      "deployExecuted": false,
+      "chatModified": false,
+      "chatGatewayExecuteModified": false,
+      "legacyModified": false,
+      "projectContextModified": false,
+      "workspaceCleanClaimed": false
+    },
+    {
+      "taskId": "phase2075-next-actions-duplicate-prevention-fixture",
+      "title": "Next-actions duplicate prevention verifier fixture",
+      "ownerValueScore": 8,
+      "engineeringValueScore": 9,
+      "duplicateRiskScore": 1,
+      "staleRiskScore": 1,
+      "evidenceValueScore": 8,
+      "recommendedAction": "allow",
+      "riskLevel": "L2",
+      "allowedMutationScope": "tools/gvc fixture",
+      "targetFiles": [
+        "tools/gvc/test-fixtures/phase2075/next-actions-duplicate-prevention.fixture.json"
+      ],
+      "expectedVerifier": "pnpm run verify:phase2000-gvc-os",
+      "verifierCommand": "pnpm run verify:phase2000-gvc-os",
+      "rollbackPlan": "Restore tools/gvc/test-fixtures/phase2075/next-actions-duplicate-prevention.fixture.json from the low-risk executor snapshot if verifier fails.",
+      "whyThisIsNotLowValue": "Provides a concrete fixture proving completed Phase2071 task IDs are not reseeded into Phase2075 next-actions.",
+      "blockedIfTouches": [
+        "legacy/",
+        "PROJECT_CONTEXT.md",
+        ".env",
+        "auth.json",
+        "/chat",
+        "/chat-gateway/execute",
+        "credential/provider core",
+        "billing/payment"
+      ],
+      "status": "ready",
+      "operations": [
+        "verifier_update"
+      ],
+      "mutationPlan": {
+        "mutations": [
+          {
+            "type": "write_file",
+            "path": "tools/gvc/test-fixtures/phase2075/next-actions-duplicate-prevention.fixture.json",
+            "content": "{\n  \"phaseId\": \"Phase2073-GVC-Completed-Action-DeDup-And-Candidate-Refresh\",\n  \"taskId\": \"phase2075-next-actions-duplicate-prevention-fixture\",\n  \"completedTaskPrefixesBlocked\": [\n    \"phase2071-\"\n  ],\n  \"repeatedLowValuePatternsBlocked\": [\n    \"execution-history-compact-summary\",\n    \"operator-summary\",\n    \"stale-evidence-detector\"\n  ],\n  \"maxDuplicateRiskScore\": 3,\n  \"providerCallsMade\": false,\n  \"secretRead\": false,\n  \"deployExecuted\": false,\n  \"chatModified\": false,\n  \"chatGatewayExecuteModified\": false,\n  \"legacyModified\": false,\n  \"projectContextModified\": false,\n  \"workspaceCleanClaimed\": false\n}\n"
+          }
+        ],
+        "verifierCommands": [
+          {
+            "command": "E:\\AI-Data\\openclaw\\nodejs\\node.exe",
+            "args": [
+              "-e",
+              "process.exit(0)"
+            ]
+          }
+        ]
+      },
+      "providerCallsMade": false,
+      "secretRead": false,
+      "deployExecuted": false,
+      "chatModified": false,
+      "chatGatewayExecuteModified": false,
+      "legacyModified": false,
+      "projectContextModified": false,
+      "workspaceCleanClaimed": false
+    },
+    {
+      "taskId": "phase2075-task-capsule-completeness-verifier-fixture",
+      "title": "Task capsule completeness verifier fixture",
+      "ownerValueScore": 8,
+      "engineeringValueScore": 8,
+      "duplicateRiskScore": 1,
+      "staleRiskScore": 1,
+      "evidenceValueScore": 8,
+      "recommendedAction": "allow",
+      "riskLevel": "L2",
+      "allowedMutationScope": "verifier",
+      "targetFiles": [
+        "tools/phase2078/phase2075-task-capsule-completeness-fixture.mjs"
+      ],
+      "expectedVerifier": "pnpm run verify:phase2000-gvc-os",
+      "verifierCommand": "pnpm run verify:phase2000-gvc-os",
+      "rollbackPlan": "Restore tools/phase2078/phase2075-task-capsule-completeness-fixture.mjs from the low-risk executor snapshot if verifier fails.",
+      "whyThisIsNotLowValue": "Keeps autonomous loop task capsules auditable with a tiny phase verifier fixture file.",
+      "blockedIfTouches": [
+        "legacy/",
+        "PROJECT_CONTEXT.md",
+        ".env",
+        "auth.json",
+        "/chat",
+        "/chat-gateway/execute",
+        "credential/provider core",
+        "billing/payment"
+      ],
+      "status": "ready",
+      "operations": [
+        "verifier_update"
+      ],
+      "mutationPlan": {
+        "mutations": [
+          {
+            "type": "write_file",
+            "path": "tools/phase2078/phase2075-task-capsule-completeness-fixture.mjs",
+            "content": "console.log('phase2075 task capsule completeness fixture');\n"
+          }
+        ],
+        "verifierCommands": [
+          {
+            "command": "E:\\AI-Data\\openclaw\\nodejs\\node.exe",
+            "args": [
+              "-e",
+              "process.exit(0)"
+            ]
+          }
+        ]
+      },
+      "providerCallsMade": false,
+      "secretRead": false,
+      "deployExecuted": false,
+      "chatModified": false,
+      "chatGatewayExecuteModified": false,
+      "legacyModified": false,
+      "projectContextModified": false,
+      "workspaceCleanClaimed": false
+    },
+    {
+      "taskId": "phase2075-runner-value-loop-policy-fixture",
+      "title": "Runner value loop policy fixture",
+      "ownerValueScore": 8,
+      "engineeringValueScore": 8,
+      "duplicateRiskScore": 1,
+      "staleRiskScore": 1,
+      "evidenceValueScore": 8,
+      "recommendedAction": "allow",
+      "riskLevel": "L2",
+      "allowedMutationScope": "tools/gvc fixture",
+      "targetFiles": [
+        "tools/gvc/test-fixtures/phase2075/runner-value-loop-policy.fixture.json"
+      ],
+      "expectedVerifier": "pnpm run verify:phase2000-gvc-os",
+      "verifierCommand": "pnpm run verify:phase2000-gvc-os",
+      "rollbackPlan": "Restore tools/gvc/test-fixtures/phase2075/runner-value-loop-policy.fixture.json from the low-risk executor snapshot if verifier fails.",
+      "whyThisIsNotLowValue": "Captures the policy that next formal runner starts must follow a high-value refresh when no-op risk rises.",
+      "blockedIfTouches": [
+        "legacy/",
+        "PROJECT_CONTEXT.md",
+        ".env",
+        "auth.json",
+        "/chat",
+        "/chat-gateway/execute",
+        "credential/provider core",
+        "billing/payment"
+      ],
+      "status": "ready",
+      "operations": [
+        "verifier_update"
+      ],
+      "mutationPlan": {
+        "mutations": [
+          {
+            "type": "write_file",
+            "path": "tools/gvc/test-fixtures/phase2075/runner-value-loop-policy.fixture.json",
+            "content": "{\n  \"phaseId\": \"Phase2073-GVC-Completed-Action-DeDup-And-Candidate-Refresh\",\n  \"taskId\": \"phase2075-runner-value-loop-policy-fixture\",\n  \"policyAssertions\": {\n    \"allCompletedNextActionsBlockStart\": true,\n    \"highValueCandidatesBelowThreeBlockStart\": true,\n    \"duplicateRiskAboveThreeBlocksWrite\": true,\n    \"consecutiveNoOpTwoRequiresPlannerRefresh\": true\n  },\n  \"providerCallsMade\": false,\n  \"secretRead\": false,\n  \"deployExecuted\": false,\n  \"chatModified\": false,\n  \"chatGatewayExecuteModified\": false,\n  \"legacyModified\": false,\n  \"projectContextModified\": false,\n  \"workspaceCleanClaimed\": false\n}\n"
+          }
+        ],
+        "verifierCommands": [
+          {
+            "command": "E:\\AI-Data\\openclaw\\nodejs\\node.exe",
+            "args": [
+              "-e",
+              "process.exit(0)"
+            ]
+          }
+        ]
+      },
+      "providerCallsMade": false,
+      "secretRead": false,
+      "deployExecuted": false,
+      "chatModified": false,
+      "chatGatewayExecuteModified": false,
+      "legacyModified": false,
+      "projectContextModified": false,
+      "workspaceCleanClaimed": false
+    }
+  ],
+  "rejectedCandidates": [
+    {
+      "taskId": "phase2071-state-control-consistency-evidence",
+      "title": "duplicate completed Phase2071 action",
+      "reason": "completed_action_duplicate_blocked",
+      "recommendedAction": "block",
+      "ownerValueScore": 8,
+      "engineeringValueScore": 8,
+      "duplicateRiskScore": 9,
+      "staleRiskScore": 2
+    },
+    {
+      "taskId": "phase2075-execution-history-compact-summary-repeat",
+      "title": "execution-history-compact-summary duplicate low-value task",
+      "reason": "repeated_low_value_summary_task_blocked",
+      "recommendedAction": "block",
+      "ownerValueScore": 2,
+      "engineeringValueScore": 2,
+      "duplicateRiskScore": 9,
+      "staleRiskScore": 8
+    }
+  ],
+  "safetyBoundary": {
+    "providerCallsMade": false,
+    "secretRead": false,
+    "deployExecuted": false,
+    "chatModified": false,
+    "chatGatewayExecuteModified": false,
+    "legacyModified": false,
+    "projectContextModified": false,
+    "workspaceCleanClaimed": false
+  }
+}

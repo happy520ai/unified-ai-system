@@ -1,0 +1,20 @@
+{
+  "classifierVersion": "phase651-666-immune-risk-v1",
+  "decision": "dry_run_allowed",
+  "riskTier": "low",
+  "blocked": false,
+  "approvalRequired": false,
+  "runtimeEnableAllowed": false,
+  "selfApprovalAllowed": false,
+  "recursiveSpawnBlocked": true,
+  "maxSpawnDepth": 1,
+  "providerRisk": false,
+  "secretRisk": false,
+  "deployRisk": false,
+  "chatMutationRisk": false,
+  "chatGatewayExecuteMutationRisk": false,
+  "codexConfigRisk": false,
+  "recursiveSpawnRisk": false,
+  "selfApprovalRisk": false,
+  "riskSignals": []
+}

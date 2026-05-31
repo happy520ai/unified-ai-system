@@ -1,5 +1,6 @@
 import { createProviderDescriptor } from "./providerAdapter.js";
 import { createProviderResponse } from "./providerMapping.js";
+import { getOrCreateAgent } from "../http/connectionPool.js";
 
 export class HttpLLMProviderAdapter {
   constructor(modelConfig, options = {}) {
@@ -79,6 +80,7 @@ export class HttpLLMProviderAdapter {
         },
         body: JSON.stringify(payload),
         signal: controller.signal,
+        agent: getOrCreateAgent(baseUrl),
       });
       const body = await readJsonResponse(response);
 
@@ -88,6 +90,7 @@ export class HttpLLMProviderAdapter {
           body,
           providerRequest,
           prefix: this.errorPrefix,
+          providerName: this.modelConfig.providerDisplayName ?? this.modelConfig.providerId,
         });
       }
 
@@ -176,6 +179,7 @@ export class HttpLLMProviderAdapter {
           body: await readJsonResponse(response),
           providerRequest,
           prefix: this.errorPrefix,
+          providerName: this.modelConfig.providerDisplayName ?? this.modelConfig.providerId,
         });
       }
 
@@ -262,8 +266,8 @@ export function createHttpLLMProviderAdapter(modelConfig, options = {}) {
 
 function mapGatewayRequestToChatCompletions(providerRequest) {
   const { request, target } = providerRequest;
-
-  return {
+  const maxOutputTokens = request.options?.maxOutputTokens;
+  const body = {
     model: target.modelId,
     messages: request.messages
       .filter((message) => message.role === "system" || message.role === "user" || message.role === "assistant")
@@ -272,9 +276,18 @@ function mapGatewayRequestToChatCompletions(providerRequest) {
         content: message.content,
       })),
     temperature: request.options?.temperature,
-    max_tokens: request.options?.maxOutputTokens,
+    max_tokens: maxOutputTokens,
     stream: false,
   };
+
+  if (target.providerId === "mimo") {
+    body.max_completion_tokens = maxOutputTokens;
+    body.thinking = {
+      type: "disabled",
+    };
+  }
+
+  return body;
 }
 
 function mapChatCompletionsResponseToProviderResponse(body, { providerRequest, latencyMs }) {
@@ -375,20 +388,57 @@ function parseStreamLine(line) {
   }
 }
 
-function createHttpProviderError({ response, body, providerRequest, prefix }) {
-  const isRateLimit = response.status === 429;
+function createHttpProviderError({ response, body, providerRequest, prefix, providerName }) {
+  const statusDescriptor = describeHttpErrorStatus(response.status, prefix, providerName);
 
   return createProviderError({
-    code: isRateLimit ? `${prefix}_RATE_LIMIT` : `${prefix}_HTTP_ERROR`,
-    type: isRateLimit ? "rate_limit" : "http",
-    message: extractProviderErrorMessage(body, response.status),
-    retryable: isRateLimit || response.status >= 500,
+    code: statusDescriptor.code,
+    type: statusDescriptor.type,
+    message: extractProviderErrorMessage(body, response.status, statusDescriptor.message),
+    retryable: statusDescriptor.retryable,
     details: createErrorDetails(providerRequest, {
       statusCode: response.status,
       errorType: body?.error?.type,
       errorCode: body?.error?.code,
     }),
   });
+}
+
+function describeHttpErrorStatus(statusCode, prefix, providerName) {
+  const name = providerName || "HTTP LLM provider";
+  if (statusCode === 401) {
+    return {
+      code: `${prefix}_UNAUTHORIZED`,
+      type: "authentication",
+      message: `${name} rejected the request with HTTP 401. Check the provider-specific API key, base URL, and model access.`,
+      retryable: false,
+    };
+  }
+
+  if (statusCode === 403) {
+    return {
+      code: `${prefix}_FORBIDDEN`,
+      type: "authorization",
+      message: `${name} rejected the request with HTTP 403. Check account permissions, subscription scope, and model access.`,
+      retryable: false,
+    };
+  }
+
+  if (statusCode === 429) {
+    return {
+      code: `${prefix}_RATE_LIMIT`,
+      type: "rate_limit",
+      message: `${name} rejected the request with HTTP 429. The provider rate limit or quota was reached; retry later or use another model.`,
+      retryable: true,
+    };
+  }
+
+  return {
+    code: `${prefix}_HTTP_ERROR`,
+    type: "http",
+    message: `${name} request failed with HTTP ${statusCode}.`,
+    retryable: statusCode >= 500,
+  };
 }
 
 function createProviderError({ code, type, message, retryable, details }) {
@@ -422,8 +472,8 @@ async function readJsonResponse(response) {
   }
 }
 
-function extractProviderErrorMessage(body, statusCode) {
-  return body?.error?.message ?? body?.rawText ?? `HTTP LLM provider request failed with HTTP ${statusCode}`;
+function extractProviderErrorMessage(body, statusCode, fallbackMessage) {
+  return body?.error?.message ?? body?.rawText ?? fallbackMessage ?? `HTTP LLM provider request failed with HTTP ${statusCode}`;
 }
 
 function isNetworkError(error) {

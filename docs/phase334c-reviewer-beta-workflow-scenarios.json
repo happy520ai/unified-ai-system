@@ -1,0 +1,45 @@
+{
+  "phase": "Phase334C",
+  "scenarios": [
+    {
+      "id": "proposalQueuedToDryRunApproved",
+      "status": "passed"
+    },
+    {
+      "id": "proposalRejectedWithNotes",
+      "status": "passed"
+    },
+    {
+      "id": "proposalRequestChanges",
+      "status": "passed"
+    },
+    {
+      "id": "proposalNeedsMoreSamples",
+      "status": "passed"
+    },
+    {
+      "id": "dryRunCompletedButActivationBlocked",
+      "status": "passed"
+    },
+    {
+      "id": "rollbackRequiredFlow",
+      "status": "passed"
+    },
+    {
+      "id": "activateWithoutApprovalBlocked",
+      "status": "passed"
+    },
+    {
+      "id": "autoApplyBlocked",
+      "status": "passed"
+    },
+    {
+      "id": "skipDryRunBlocked",
+      "status": "passed"
+    },
+    {
+      "id": "auditTrailRecorded",
+      "status": "passed"
+    }
+  ]
+}

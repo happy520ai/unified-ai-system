@@ -1,0 +1,12 @@
+{
+  "phase": "Phase365C",
+  "deployGateOpen": true,
+  "deployExecutionAllowed": true,
+  "blockers": [],
+  "warnings": [],
+  "requiresExplicitExecution": true,
+  "deployExecuted": false,
+  "releaseExecuted": false,
+  "tagCreated": false,
+  "artifactUploaded": false
+}

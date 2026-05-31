@@ -1,0 +1,17 @@
+{
+  "templateOnly": true,
+  "notAnApproval": true,
+  "approvalId": null,
+  "approvalType": "billing_warning_copy_approval",
+  "approvalDecision": "pending",
+  "approverNameRef": "",
+  "approverRole": "billing reviewer",
+  "approverOrgRef": "",
+  "approvedScope": [],
+  "approvalTimestamp": null,
+  "evidenceRefs": [],
+  "conditions": [],
+  "expiration": null,
+  "revocationPolicy": "",
+  "auditTrace": {}
+}

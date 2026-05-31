@@ -1,0 +1,31 @@
+{
+  "capabilityId": "codex-context-gateway-neuron",
+  "admissionStatus": "rejected",
+  "runtimeKind": "sandbox_local",
+  "autoRuntimeEligible": false,
+  "productionRuntimeEligible": false,
+  "reason": "verifier_result_not_passed,rollback_plan_missing,dry_run_result_not_passed",
+  "safetyBoundary": {
+    "providerCallsAllowed": false,
+    "secretReadAllowed": false,
+    "deployAllowed": false,
+    "chatMutationAllowed": false,
+    "chatGatewayExecuteMutationAllowed": false,
+    "codexConfigMutationAllowed": false,
+    "selfApprovalAllowed": false
+  },
+  "requiredEvidenceRefs": [
+    "capabilities/_generated_dry_run/codex-context-gateway-neuron/verifier-result.json",
+    "capabilities/_generated_dry_run/codex-context-gateway-neuron/dry-run-result.json"
+  ],
+  "rollbackRef": "capabilities/_generated_dry_run/codex-context-gateway-neuron/rollback-plan.json",
+  "providerCallsAllowed": false,
+  "secretReadAllowed": false,
+  "deployAllowed": false,
+  "manifestPreview": null,
+  "failures": [
+    "verifier_result_not_passed",
+    "rollback_plan_missing",
+    "dry_run_result_not_passed"
+  ]
+}

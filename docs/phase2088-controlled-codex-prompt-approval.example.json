@@ -1,0 +1,63 @@
+{
+  "phaseId": "Phase2088A-Controlled-Codex-Prompt-Execution",
+  "planId": "phase2088-controlled-codex-prompt-smoke",
+  "approvalRecord": {
+    "approved": true,
+    "permissionMode": "bounded-real-codex-prompt",
+    "dryRun": false,
+    "approvedAtLeastOnceByOwner": [
+      {
+        "source": "user-message",
+        "text": "继续下一阶段",
+        "scope": "phase2088-controlled-codex-prompt-once"
+      }
+    ],
+    "maxExternalToolInvocations": 1,
+    "maxRequests": 1,
+    "maxCostUsd": 0,
+    "projectProviderAllowed": false,
+    "secretReadAllowed": false,
+    "authJsonReadByRunnerAllowed": false,
+    "envReadAllowed": false,
+    "credentialEnvPassthroughAllowed": true,
+    "credentialEnvAllowlist": [
+      "CRS_OAI_KEY"
+    ],
+    "codexConfigWriteAllowed": false,
+    "chatModificationAllowed": false,
+    "chatGatewayExecuteModificationAllowed": false,
+    "legacyModificationAllowed": false,
+    "deployAllowed": false,
+    "releaseAllowed": false,
+    "pushAllowed": false,
+    "commitAllowed": false
+  },
+  "allowedFiles": [
+    "apps/ai-gateway-service/evidence/phase2088-controlled-codex-prompt-execution/codex-prompt-smoke-result.json",
+    "apps/ai-gateway-service/evidence/phase2088-controlled-codex-prompt-execution/codex-last-message.md"
+  ],
+  "forbiddenPaths": [
+    "legacy",
+    "PROJECT_CONTEXT.md",
+    ".env",
+    ".git",
+    "node_modules",
+    "apps/ai-gateway-service/src/http/chat-gateway/execute",
+    "apps/ai-gateway-service/src/providers",
+    ".codex/auth.json"
+  ],
+  "operation": {
+    "externalToolKind": "codex-cli",
+    "action": "bounded-prompt-once",
+    "sandbox": "read-only",
+    "askForApproval": "never",
+    "ephemeral": true,
+    "shellEnvironmentInherit": "none",
+    "timeoutMs": 180000,
+    "outputLastMessagePath": "apps/ai-gateway-service/evidence/phase2088-controlled-codex-prompt-execution/codex-last-message.md",
+    "prompt": "Return a short final answer only. Include the exact marker PHASE2088_CODEX_PROMPT_OK. Do not inspect files, do not run commands, do not modify files, do not request secrets, and do not mention API keys."
+  },
+  "evidence": {
+    "resultPath": "apps/ai-gateway-service/evidence/phase2088-controlled-codex-prompt-execution/codex-prompt-smoke-result.json"
+  }
+}

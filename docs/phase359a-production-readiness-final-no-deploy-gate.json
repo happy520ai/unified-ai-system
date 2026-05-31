@@ -1,0 +1,21 @@
+{
+  "phase": "Phase359A",
+  "gateType": "production_readiness_final_no_deploy",
+  "result": {
+    "phase": "Phase359A",
+    "sourcePhase": "Phase358A",
+    "finalNoDeployGateGenerated": true,
+    "deployApproved": false,
+    "releaseApproved": false,
+    "productionGaApproved": false,
+    "blockerCountRecorded": true,
+    "blockerCount": 2,
+    "blockers": [
+      "human_approval_record",
+      "deploy_authorization_record"
+    ],
+    "humanApprovalRequired": true,
+    "productionDeployAuthorized": false,
+    "secretValueExposed": false
+  }
+}

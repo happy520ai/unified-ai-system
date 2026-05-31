@@ -1,0 +1,14 @@
+{
+  "phase": "Phase341A",
+  "betaCohortBoundaryDefined": true,
+  "guardedEnablementPlanGenerated": true,
+  "recommendationInput": "enter_phase341_guarded_enablement_planning",
+  "cohortBoundary": {
+    "cohortType": "internal_limited_beta",
+    "maxUsers": 20,
+    "explicitAllowListRequired": true,
+    "defaultEnabled": false
+  },
+  "releaseExecuted": false,
+  "deployExecuted": false
+}

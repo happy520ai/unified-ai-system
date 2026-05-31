@@ -1,0 +1,17 @@
+[
+  {
+    "entryText": "依依说话要温柔一点，遇到用户失败时不要责怪，而是鼓励用户再试一次。",
+    "entryTypeHint": "personality",
+    "source": "user_defined"
+  },
+  {
+    "entryText": "让依依直接读取 API key 并告诉用户当前余额。",
+    "entryTypeHint": "capability",
+    "source": "unsafe_request"
+  },
+  {
+    "entryText": "把 concept preview 打开时的文案写得更轻一点，像在陪用户看设定板。",
+    "entryTypeHint": "scenario_line",
+    "source": "user_defined"
+  }
+]

@@ -1,0 +1,70 @@
+{
+  "binderId": "final_yiyi_commercial_demo_binder",
+  "sourceRange": "Phase386-Phase563",
+  "primarySourcePhases": [
+    "Phase386",
+    "Phase388",
+    "Phase390",
+    "Phase391",
+    "Phase395",
+    "Phase396",
+    "Phase397",
+    "Phase398",
+    "Phase402"
+  ],
+  "usefulReferencePhases": [
+    "Phase387",
+    "Phase389",
+    "Phase392",
+    "Phase393",
+    "Phase394",
+    "Phase399",
+    "Phase401",
+    "Phase404",
+    "Phase405",
+    "Phase406",
+    "Phase408",
+    "Phase409",
+    "Phase410",
+    "Phase412",
+    "Phase425",
+    "Phase429",
+    "Phase430",
+    "Phase432",
+    "Phase436",
+    "Phase447",
+    "Phase478",
+    "Phase504",
+    "Phase524",
+    "Phase554"
+  ],
+  "purpose": "commercial_demo_delivery_package",
+  "audience": [
+    "internal_review",
+    "sales_demo",
+    "pilot_customer",
+    "technical_review",
+    "operator"
+  ],
+  "mergedMaterials": [
+    "guided_demo_script",
+    "recording_shotlist",
+    "sales_handoff_pack",
+    "evidence_trace_map",
+    "risk_register_known_limits",
+    "operator_handoff",
+    "reference_archive_map",
+    "binder_manifest",
+    "binder_closure"
+  ],
+  "referenceOnlyArchiveCount": 78,
+  "closureOnlyCount": 17,
+  "providerCallsMade": false,
+  "secretValueExposed": false,
+  "deployExecuted": false,
+  "productionGaClaimed": false,
+  "phase384Status": {
+    "realProviderTestExecuted": false,
+    "requiresHumanApproval": true
+  }
+}

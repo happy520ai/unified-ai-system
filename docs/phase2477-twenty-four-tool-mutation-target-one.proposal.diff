@@ -1,0 +1,47 @@
+diff --git a/tools/phase2091/generated-source-patch-target.mjs b/tools/phase2091/generated-source-patch-target.mjs
+index 1bcd8d9..11b6c2e 100644
+--- a/tools/phase2091/generated-source-patch-target.mjs
++++ b/tools/phase2091/generated-source-patch-target.mjs
+@@ -420,6 +420,35 @@ export function buildPhase2449TwentyThreeMutationTargetOneStatus() {
+     chatGatewayExecuteModified: false,
+   };
+ }
++
++export function buildPhase2477TwentyFourMutationTargetOneStatus() {
++  return {
++    phaseId: "Phase2477A-Controlled-Twenty-Four-Tool-Mutation-Target-One",
++    marker: "PHASE2477_TWENTY_FOUR_TOOL_TARGET_ONE_OK",
++    phase2149Marker: "PHASE2149_OCT_TOOL_TARGET_ONE_OK",
++    phase2162Marker: "PHASE2162_NONET_TOOL_TARGET_ONE_OK",
++    phase2176Marker: "PHASE2176_DECA_TOOL_TARGET_ONE_OK",
++    phase2191Marker: "PHASE2191_ELEVEN_TOOL_TARGET_ONE_OK",
++    phase2207Marker: "PHASE2207_TWELVE_TOOL_TARGET_ONE_OK",
++    phase2224Marker: "PHASE2224_THIRTEEN_TOOL_TARGET_ONE_OK",
++    phase2242Marker: "PHASE2242_FOURTEEN_TOOL_TARGET_ONE_OK",
++    phase2261Marker: "PHASE2261_FIFTEEN_TOOL_TARGET_ONE_OK",
++    phase2281Marker: "PHASE2281_SIXTEEN_TOOL_TARGET_ONE_OK",
++    phase2302Marker: "PHASE2302_SEVENTEEN_TOOL_TARGET_ONE_OK",
++    phase2324Marker: "PHASE2324_EIGHTEEN_TOOL_TARGET_ONE_OK",
++    phase2347Marker: "PHASE2347_NINETEEN_TOOL_TARGET_ONE_OK",
++    phase2371Marker: "PHASE2371_TWENTY_TOOL_TARGET_ONE_OK",
++    phase2396Marker: "PHASE2396_TWENTY_ONE_TOOL_TARGET_ONE_OK",
++    phase2422Marker: "PHASE2422_TWENTY_TWO_TOOL_TARGET_ONE_OK",
++    phase2449Marker: "PHASE2449_TWENTY_THREE_TOOL_TARGET_ONE_OK",
++    phase2477Marker: "PHASE2477_TWENTY_FOUR_TOOL_TARGET_ONE_OK",
++    twentyFourMutationApplied: true,
++    providerCallsMade: false,
++    codexExecExecuted: false,
++    chatModified: false,
++    chatGatewayExecuteModified: false,
++  };
++}
+ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+   console.log(JSON.stringify({
+     status: "passed",
+@@ -447,5 +476,6 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href)
+     phase2396: buildPhase2396TwentyOneMutationTargetOneStatus(),
+     phase2422: buildPhase2422TwentyTwoMutationTargetOneStatus(),
+     phase2449: buildPhase2449TwentyThreeMutationTargetOneStatus(),
++    phase2477: buildPhase2477TwentyFourMutationTargetOneStatus(),
+   }, null, 2));
+ }

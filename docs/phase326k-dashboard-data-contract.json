@@ -1,0 +1,57 @@
+{
+  "phase": "Phase326K",
+  "contractName": "three-mode-dry-run-summary-dashboard-data-contract",
+  "runtimeStatus": "design_only",
+  "uiRuntimeEnabled": false,
+  "providerCallsAllowed": false,
+  "nonNvidiaProviderCallsAllowed": false,
+  "secretValueAllowed": false,
+  "supportedModes": [
+    "normal",
+    "god",
+    "tianshu"
+  ],
+  "sourceReports": [
+    "docs/phase326h-report-viewer-data-contract.json",
+    "docs/phase326i-participant-selector-result.json",
+    "docs/phase326j-capability-index-result.json",
+    "docs/phase326f-god-mode-dry-run-result.json",
+    "docs/phase326g-tianshu-dry-run-result.json"
+  ],
+  "summaryCards": {
+    "totalDryRuns": 0,
+    "godModeDryRuns": 0,
+    "tianshuDryRuns": 0,
+    "providerCallsMade": false,
+    "nonNvidiaProviderCallsMade": false,
+    "secretValueExposed": false,
+    "blockedScenarios": 0,
+    "warningCount": 0
+  },
+  "godModeSummary": {
+    "participantSelectorSummary": {},
+    "selectedParticipants": [],
+    "scoringBreakdown": [],
+    "supervisorPipelineStatus": "dry_run_only",
+    "dryRunOnlyBadge": true
+  },
+  "tianshuSummary": {
+    "capabilityIndexSummary": {},
+    "modelsIndexed": 0,
+    "rejectedModels": [],
+    "plannerDecisionSummary": {},
+    "dryRunOnlyBadge": true
+  },
+  "safetySummary": {
+    "noProviderCall": true,
+    "noSecretExposure": true,
+    "noRuntimeEnabled": true,
+    "noNonNvidiaCall": true
+  },
+  "missingSources": [],
+  "safety": {
+    "noWorkbenchUiChange": true,
+    "noConsolePageChange": true,
+    "noRuntimeChange": true
+  }
+}

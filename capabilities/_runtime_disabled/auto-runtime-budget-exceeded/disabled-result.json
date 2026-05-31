@@ -1,0 +1,15 @@
+{
+  "capabilityId": "auto-runtime-budget-exceeded",
+  "runtimeKind": "sandbox_local",
+  "executionStatus": "blocked",
+  "blockedReason": "token_budget_exceeded",
+  "providerCallsMade": false,
+  "secretRead": false,
+  "secretValueExposed": false,
+  "chatBehaviorChanged": false,
+  "chatGatewayExecuteBehaviorChanged": false,
+  "deployExecuted": false,
+  "rollbackRequired": false,
+  "disabledByKillSwitch": true,
+  "completed": false
+}

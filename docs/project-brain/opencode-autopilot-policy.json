@@ -1,0 +1,39 @@
+{
+  "phaseId": "Phase3979A-OpenCode-Autopilot-Governor",
+  "enabled": true,
+  "defaultDryRun": true,
+  "maxRoundsPerInvocation": 1,
+  "maxEstimatedRequestsPerDay": 3,
+  "maxEstimatedCostUsdPerDay": 0,
+  "stopOnVerifierFailure": true,
+  "stopOnOutOfScopeMutation": true,
+  "stopOnBudgetExceeded": true,
+  "stopOnCommandNotWhitelisted": true,
+  "stopOnBlocker": true,
+  "commandWhitelist": [
+    "node --check ",
+    "cmd /c pnpm run verify:",
+    "cmd /c pnpm run phase:auto-next:",
+    "cmd /c pnpm run run:phase2001-gvc-task-queue-runner",
+    "cmd /c pnpm run gvc:cycle",
+    "cmd /c pnpm run status:phase3979a-opencode-autopilot"
+  ],
+  "forbiddenPathPrefixes": [
+    "legacy/",
+    ".git/",
+    "node_modules/",
+    "apps/ai-gateway-service/src/routes/chat/",
+    "apps/ai-gateway-service/src/routes/chat-gateway/"
+  ],
+  "forbiddenExactPaths": [
+    "PROJECT_CONTEXT.md",
+    ".env",
+    ".env.local",
+    ".env.production",
+    "auth.json"
+  ],
+  "managedPaths": [
+    "docs/project-brain/opencode-autopilot-state.json",
+    "apps/ai-gateway-service/evidence/phase3979a-opencode-autopilot-governor/"
+  ]
+}

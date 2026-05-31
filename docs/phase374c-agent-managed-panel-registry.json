@@ -1,0 +1,223 @@
+[
+  {
+    "componentId": "mission_home_panel",
+    "displayName": "Mission Home",
+    "allowedModes": [
+      "normal",
+      "god",
+      "tianshu"
+    ],
+    "allowedActions": [
+      "view",
+      "inspect_evidence"
+    ],
+    "forbiddenActions": [
+      "read_secret",
+      "call_unconfigured_provider",
+      "production_action",
+      "generate_real_invoice"
+    ],
+    "riskLevel": "low",
+    "requiresApproval": false,
+    "providerCallsAllowed": false,
+    "secretValueAllowed": false,
+    "deployAllowed": false,
+    "releaseAllowed": false,
+    "billingAllowed": false
+  },
+  {
+    "componentId": "normal_mode_panel",
+    "displayName": "Normal Mode",
+    "allowedModes": [
+      "normal"
+    ],
+    "allowedActions": [
+      "view",
+      "chat_normal"
+    ],
+    "forbiddenActions": [
+      "read_secret",
+      "call_unconfigured_provider",
+      "production_action",
+      "generate_real_invoice"
+    ],
+    "riskLevel": "low",
+    "requiresApproval": false,
+    "providerCallsAllowed": false,
+    "secretValueAllowed": false,
+    "deployAllowed": false,
+    "releaseAllowed": false,
+    "billingAllowed": false
+  },
+  {
+    "componentId": "god_mode_arena_panel",
+    "displayName": "God Mode Arena",
+    "allowedModes": [
+      "god"
+    ],
+    "allowedActions": [
+      "view",
+      "run_god_mode_dry_run"
+    ],
+    "forbiddenActions": [
+      "read_secret",
+      "call_unconfigured_provider",
+      "production_action",
+      "generate_real_invoice"
+    ],
+    "riskLevel": "medium",
+    "requiresApproval": false,
+    "providerCallsAllowed": false,
+    "secretValueAllowed": false,
+    "deployAllowed": false,
+    "releaseAllowed": false,
+    "billingAllowed": false
+  },
+  {
+    "componentId": "tianshu_flight_path_panel",
+    "displayName": "Tianshu Flight Path",
+    "allowedModes": [
+      "tianshu"
+    ],
+    "allowedActions": [
+      "view",
+      "run_tianshu_planner_dry_run"
+    ],
+    "forbiddenActions": [
+      "read_secret",
+      "call_unconfigured_provider",
+      "production_action",
+      "generate_real_invoice"
+    ],
+    "riskLevel": "medium",
+    "requiresApproval": false,
+    "providerCallsAllowed": false,
+    "secretValueAllowed": false,
+    "deployAllowed": false,
+    "releaseAllowed": false,
+    "billingAllowed": false
+  },
+  {
+    "componentId": "security_shield_panel",
+    "displayName": "Security Shield",
+    "allowedModes": [
+      "normal",
+      "god",
+      "tianshu"
+    ],
+    "allowedActions": [
+      "view",
+      "inspect_guard"
+    ],
+    "forbiddenActions": [
+      "read_secret",
+      "call_unconfigured_provider",
+      "production_action",
+      "generate_real_invoice"
+    ],
+    "riskLevel": "medium",
+    "requiresApproval": false,
+    "providerCallsAllowed": false,
+    "secretValueAllowed": false,
+    "deployAllowed": false,
+    "releaseAllowed": false,
+    "billingAllowed": false
+  },
+  {
+    "componentId": "red_team_playground_panel",
+    "displayName": "Red Team Playground",
+    "allowedModes": [
+      "security"
+    ],
+    "allowedActions": [
+      "red_team_test_dry_run"
+    ],
+    "forbiddenActions": [
+      "read_secret",
+      "call_unconfigured_provider",
+      "production_action",
+      "generate_real_invoice"
+    ],
+    "riskLevel": "high",
+    "requiresApproval": false,
+    "providerCallsAllowed": false,
+    "secretValueAllowed": false,
+    "deployAllowed": false,
+    "releaseAllowed": false,
+    "billingAllowed": false
+  },
+  {
+    "componentId": "provider_setup_panel",
+    "displayName": "Provider Setup",
+    "allowedModes": [
+      "settings"
+    ],
+    "allowedActions": [
+      "configure_provider_reference",
+      "view_credential_ref_status"
+    ],
+    "forbiddenActions": [
+      "read_secret",
+      "call_unconfigured_provider",
+      "production_action",
+      "generate_real_invoice"
+    ],
+    "riskLevel": "medium",
+    "requiresApproval": false,
+    "providerCallsAllowed": false,
+    "secretValueAllowed": false,
+    "deployAllowed": false,
+    "releaseAllowed": false,
+    "billingAllowed": false
+  },
+  {
+    "componentId": "evidence_timeline_panel",
+    "displayName": "Evidence Timeline",
+    "allowedModes": [
+      "normal",
+      "god",
+      "tianshu"
+    ],
+    "allowedActions": [
+      "inspect_evidence",
+      "replay_trace"
+    ],
+    "forbiddenActions": [
+      "read_secret",
+      "call_unconfigured_provider",
+      "production_action",
+      "generate_real_invoice"
+    ],
+    "riskLevel": "low",
+    "requiresApproval": false,
+    "providerCallsAllowed": false,
+    "secretValueAllowed": false,
+    "deployAllowed": false,
+    "releaseAllowed": false,
+    "billingAllowed": false
+  },
+  {
+    "componentId": "approval_hold_panel",
+    "displayName": "Approval Hold",
+    "allowedModes": [
+      "security"
+    ],
+    "allowedActions": [
+      "request_approval",
+      "generate_command_ref_draft"
+    ],
+    "forbiddenActions": [
+      "read_secret",
+      "call_unconfigured_provider",
+      "production_action",
+      "generate_real_invoice"
+    ],
+    "riskLevel": "high",
+    "requiresApproval": true,
+    "providerCallsAllowed": false,
+    "secretValueAllowed": false,
+    "deployAllowed": false,
+    "releaseAllowed": false,
+    "billingAllowed": false
+  }
+]

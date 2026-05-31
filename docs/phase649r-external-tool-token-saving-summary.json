@@ -1,0 +1,16 @@
+{
+  "phase": "Phase649R-ExternalTool",
+  "estimatedSavingOnly": true,
+  "realBillingClaimed": false,
+  "invoiceGenerated": false,
+  "phase596HistoricalEstimateReferenced": true,
+  "phase632PreflightRequired": true,
+  "phase645RecheckReferenced": true,
+  "contextPackSavesTokens": true,
+  "relevantFilesAvoidFullRepoScan": true,
+  "staleGateAvoidsWrongContext": true,
+  "tokenBudgetLimitsInput": true,
+  "outputBudgetLimitsOutput": true,
+  "providerCallsMade": false,
+  "codexExecExecutedByThisPhase": false
+}

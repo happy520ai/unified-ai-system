@@ -1,0 +1,144 @@
+{
+  "graphVersion": "phase651-666-synapse-graph-v1",
+  "runtimeEnabled": false,
+  "nodes": [
+    {
+      "capabilityId": "trial-1",
+      "type": "safety",
+      "status": "registered_preview",
+      "modes": [
+        "normal",
+        "god",
+        "tianshu"
+      ],
+      "pressureTypes": [
+        "risk"
+      ],
+      "weight": 0.5,
+      "approvalRequiredForRuntime": true
+    },
+    {
+      "capabilityId": "trial-2-god-mode",
+      "type": "review",
+      "status": "registered_preview",
+      "modes": [
+        "god"
+      ],
+      "pressureTypes": [
+        "quality"
+      ],
+      "weight": 0.5,
+      "approvalRequiredForRuntime": true
+    },
+    {
+      "capabilityId": "trial-3-token",
+      "type": "context",
+      "status": "registered_preview",
+      "modes": [
+        "codex",
+        "normal"
+      ],
+      "pressureTypes": [
+        "token"
+      ],
+      "weight": 0.5,
+      "approvalRequiredForRuntime": true
+    },
+    {
+      "capabilityId": "trial-4",
+      "type": "evidence",
+      "status": "registered_preview",
+      "modes": [
+        "normal"
+      ],
+      "pressureTypes": [
+        "evidence"
+      ],
+      "weight": 0.5,
+      "approvalRequiredForRuntime": true
+    },
+    {
+      "capabilityId": "trial-5",
+      "type": "ui",
+      "status": "registered_preview",
+      "modes": [
+        "normal"
+      ],
+      "pressureTypes": [
+        "explainability"
+      ],
+      "weight": 0.5,
+      "approvalRequiredForRuntime": true
+    },
+    {
+      "capabilityId": "context-codec-core-neuron",
+      "type": "context",
+      "status": "registered_preview",
+      "modes": [
+        "normal",
+        "codex"
+      ],
+      "pressureTypes": [
+        "token",
+        "context"
+      ],
+      "weight": 0.7,
+      "approvalRequiredForRuntime": true
+    },
+    {
+      "capabilityId": "codex-context-gateway-neuron",
+      "type": "codex",
+      "status": "registered_preview",
+      "modes": [
+        "codex"
+      ],
+      "pressureTypes": [
+        "token",
+        "scope"
+      ],
+      "weight": 0.7,
+      "approvalRequiredForRuntime": true
+    },
+    {
+      "capabilityId": "god-review-cell-draft",
+      "type": "review",
+      "status": "approval_required",
+      "modes": [
+        "god"
+      ],
+      "pressureTypes": [
+        "quality",
+        "review"
+      ],
+      "weight": 0.5,
+      "approvalRequiredForRuntime": true
+    },
+    {
+      "capabilityId": "tianshu-planner-cell-draft",
+      "type": "planning",
+      "status": "approval_required",
+      "modes": [
+        "tianshu"
+      ],
+      "pressureTypes": [
+        "planning"
+      ],
+      "weight": 0.5,
+      "approvalRequiredForRuntime": true
+    }
+  ],
+  "edges": [
+    {
+      "from": "context-codec-core-neuron",
+      "to": "phase641r-context-codec-core",
+      "relation": "depends_on",
+      "runtimeEnabled": false
+    },
+    {
+      "from": "codex-context-gateway-neuron",
+      "to": "phase592-codex-context-gateway",
+      "relation": "depends_on",
+      "runtimeEnabled": false
+    }
+  ]
+}

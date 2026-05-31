@@ -1,0 +1,24 @@
+{
+  "schemaVersion": "fix-candidate-batch.v1",
+  "actualFixesAppliedThisPhase": false,
+  "candidates": [
+    {
+      "issueId": "ISSUE-001",
+      "severity": "P3",
+      "title": "Phase308A oldMarkerDriftDetected historical warning",
+      "proposedScope": "low-risk-dry-run-candidate",
+      "fixNowAllowed": false,
+      "requiresApproval": true,
+      "rollbackPlan": [
+        "Revert only the files changed by the approved fix.",
+        "Run the fix regression matrix.",
+        "Do not use git reset --hard or git clean."
+      ],
+      "regressionCommands": [
+        "pnpm verify:phase107a-secret-safety",
+        "pnpm verify:phase321a-workbench-product-recovery",
+        "pnpm smoke:phase308a-desktop-workbench-ui"
+      ]
+    }
+  ]
+}

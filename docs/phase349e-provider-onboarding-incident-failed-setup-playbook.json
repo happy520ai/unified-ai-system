@@ -1,0 +1,30 @@
+{
+  "phase": "Phase349E",
+  "playbookType": "provider_onboarding_failed_setup_incident",
+  "result": {
+    "phase": "Phase349E",
+    "sourcePhase": "Phase348E",
+    "incidentPlaybooksGenerated": true,
+    "rollbackStepsIncluded": true,
+    "escalationOwnersPlaceholder": true,
+    "noRealOpsIntegration": true,
+    "failedSetupPlaybookGenerated": true,
+    "noProviderCallFromUi": true,
+    "credentialRefOnly": true,
+    "productionGA": false,
+    "rollbackSteps": [
+      "keep_provider_call_blocked_from_ui",
+      "show_credential_ref_only_guidance",
+      "capture_failed_setup_evidence_without_secret",
+      "route_to_reviewer_checklist_before_retry"
+    ],
+    "metricsCovered": [
+      "guided_test_completion_rate",
+      "failed_path_explanation_coverage",
+      "credential_ref_only_submission_rate",
+      "raw_secret_rejection_rate",
+      "ui_provider_call_prevention_rate"
+    ],
+    "secretValueExposed": false
+  }
+}

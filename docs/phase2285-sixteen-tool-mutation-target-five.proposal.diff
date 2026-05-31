@@ -1,0 +1,41 @@
+diff --git a/tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs b/tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs
+index cd73f66..27dfa1a 100644
+--- a/tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs
++++ b/tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs
+@@ -51,6 +51,7 @@ export function buildPhase2120QuintMutationRuntimeStatus() {
+     phase2211Marker: "PHASE2211_TWELVE_TOOL_TARGET_FIVE_OK",
+     phase2228Marker: "PHASE2228_THIRTEEN_TOOL_TARGET_FIVE_OK",
+     phase2246Marker: "PHASE2246_FOURTEEN_TOOL_TARGET_FIVE_OK",
++    phase2285Marker: "PHASE2285_SIXTEEN_TOOL_TARGET_FIVE_OK",
+     phase2265Marker: "PHASE2265_FIFTEEN_TOOL_TARGET_FIVE_OK",
+     phase2180Marker: "PHASE2180_DECA_TOOL_TARGET_FIVE_OK",
+     providerCallsMade: false,
+@@ -140,6 +141,28 @@ export function buildPhase2265FifteenMutationTargetFiveStatus() {
+     chatGatewayExecuteModified: false,
+   };
+ }
++
++export function buildPhase2285SixteenMutationTargetFiveStatus() {
++  return {
++    phaseId: "Phase2285A-Controlled-Sixteen-Tool-Mutation-Target-Five",
++    marker: "PHASE2285_SIXTEEN_TOOL_TARGET_FIVE_OK",
++    importSafe: true,
++    phase2153Marker: "PHASE2153_OCT_TOOL_TARGET_FIVE_OK",
++    phase2166Marker: "PHASE2166_NONET_TOOL_TARGET_FIVE_OK",
++    phase2180Marker: "PHASE2180_DECA_TOOL_TARGET_FIVE_OK",
++    phase2195Marker: "PHASE2195_ELEVEN_TOOL_TARGET_FIVE_OK",
++    phase2211Marker: "PHASE2211_TWELVE_TOOL_TARGET_FIVE_OK",
++    phase2228Marker: "PHASE2228_THIRTEEN_TOOL_TARGET_FIVE_OK",
++    phase2246Marker: "PHASE2246_FOURTEEN_TOOL_TARGET_FIVE_OK",
++    phase2265Marker: "PHASE2265_FIFTEEN_TOOL_TARGET_FIVE_OK",
++    phase2285Marker: "PHASE2285_SIXTEEN_TOOL_TARGET_FIVE_OK",
++    sixteenMutationApplied: true,
++    providerCallsMade: false,
++    codexExecExecuted: false,
++    chatModified: false,
++    chatGatewayExecuteModified: false,
++  };
++}
+ export function buildPhase2246FourteenMutationTargetFiveStatus() {
+   return {
+     phaseId: "Phase2246A-Controlled-Fourteen-Tool-Mutation-Target-Five",

@@ -1,0 +1,14 @@
+{
+  "name": "@unified-ai-system/workforce-contracts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "scripts": {
+    "check": "node --no-warnings --experimental-vm-modules ../../tools/check-package-source-syntax.mjs src",
+    "build": "pnpm run check"
+  }
+}

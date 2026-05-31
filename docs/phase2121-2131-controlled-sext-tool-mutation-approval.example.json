@@ -1,0 +1,161 @@
+{
+  "phaseId": "Phase2121A-2131A-Controlled-Sext-Tool-Mutation",
+  "planId": "phase2121-2131-controlled-sext-tool-mutation",
+  "maxChangedFiles": 6,
+  "runNodeCheck": true,
+  "runLocalSmoke": true,
+  "approvalRecord": {
+    "approved": true,
+    "permissionMode": "controlled-sext-tool-source-mutation",
+    "dryRun": false,
+    "approvedAtLeastOnceByOwner": [
+      {
+        "source": "user-message",
+        "text": "continue-next-round",
+        "scope": "phase2121-2131-controlled-sext-tool-mutation"
+      }
+    ],
+    "codexExecAllowed": false,
+    "projectProviderAllowed": false,
+    "secretReadAllowed": false,
+    "authJsonReadAllowed": false,
+    "envReadAllowed": false,
+    "codexConfigWriteAllowed": false,
+    "chatModificationAllowed": false,
+    "chatGatewayExecuteModificationAllowed": false,
+    "legacyModificationAllowed": false,
+    "deployAllowed": false,
+    "releaseAllowed": false,
+    "pushAllowed": false,
+    "commitAllowed": false
+  },
+  "allowedFiles": [
+    "docs/phase2126-sext-tool-mutation-target-one.proposal.diff",
+    "docs/phase2127-sext-tool-mutation-target-two.proposal.diff",
+    "docs/phase2128-sext-tool-mutation-target-three.proposal.diff",
+    "docs/phase2129-sext-tool-mutation-target-four.proposal.diff",
+    "docs/phase2130-sext-tool-mutation-target-five.proposal.diff",
+    "docs/phase2131-sext-tool-mutation-target-six.proposal.diff",
+    "tools/phase2091/generated-source-patch-target.mjs",
+    "tools/phase2092/apply-controlled-existing-tool-mutation.mjs",
+    "tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs",
+    "tools/phase2096_2100/apply-controlled-triple-tool-mutation.mjs",
+    "tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs",
+    "tools/phase2111_2120/apply-controlled-quint-tool-mutation.mjs",
+    "apps/ai-gateway-service/evidence/phase2121-2131-controlled-sext-tool-mutation/result.json",
+    "apps/ai-gateway-service/evidence/phase2121-2131-controlled-sext-tool-mutation/result.md",
+    "apps/ai-gateway-service/evidence/phase2121-2131-controlled-sext-tool-mutation/rollback.json",
+    "apps/ai-gateway-service/evidence/phase2121-2131-controlled-sext-tool-mutation/sext-smoke.json"
+  ],
+  "forbiddenPaths": [
+    "legacy",
+    "PROJECT_CONTEXT.md",
+    ".env",
+    ".git",
+    "node_modules",
+    "auth.json",
+    "apps/ai-gateway-service/src/providers",
+    "apps/ai-gateway-service/src/http/chat-gateway/execute",
+    "/chat"
+  ],
+  "operations": [
+    {
+      "action": "apply-single-existing-tool-source-mutation",
+      "proposalPath": "docs/phase2126-sext-tool-mutation-target-one.proposal.diff",
+      "targetPath": "tools/phase2091/generated-source-patch-target.mjs",
+      "expectedBeforeSha256": "8bb7ad5fbf84f6f57f1a9f69e8711126d9259d3e97bb28154d68cc44f492baed",
+      "allowCreate": false,
+      "allowDelete": false,
+      "requiredExports": [
+        "export function buildPhase2126SextMutationTargetOneStatus"
+      ],
+      "requiredMarkers": [
+        "PHASE2091_SOURCE_PATCH_OK",
+        "PHASE2126_SEXT_TOOL_TARGET_ONE_OK"
+      ]
+    },
+    {
+      "action": "apply-single-existing-tool-source-mutation",
+      "proposalPath": "docs/phase2127-sext-tool-mutation-target-two.proposal.diff",
+      "targetPath": "tools/phase2092/apply-controlled-existing-tool-mutation.mjs",
+      "expectedBeforeSha256": "87903ec6611537913e6195c208ab120ba47b825af733c0ac6c8dc9451f4a5162",
+      "allowCreate": false,
+      "allowDelete": false,
+      "requiredExports": [
+        "export function buildPhase2127SextMutationTargetTwoStatus",
+        "export function buildPhase2094BatchMutationRuntimeStatus",
+        "export function main"
+      ],
+      "requiredMarkers": [
+        "PHASE2094_BATCH_TOOL_TARGET_TWO_OK",
+        "PHASE2127_SEXT_TOOL_TARGET_TWO_OK"
+      ]
+    },
+    {
+      "action": "apply-single-existing-tool-source-mutation",
+      "proposalPath": "docs/phase2128-sext-tool-mutation-target-three.proposal.diff",
+      "targetPath": "tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs",
+      "expectedBeforeSha256": "10afa7f3f8af1459b46d22ebbd34f94b44cee3f3340086d670855b1a3560fd46",
+      "allowCreate": false,
+      "allowDelete": false,
+      "requiredExports": [
+        "export function buildPhase2128SextMutationTargetThreeStatus",
+        "export function buildPhase2100TripleMutationRuntimeStatus",
+        "export function main"
+      ],
+      "requiredMarkers": [
+        "PHASE2100_TRIPLE_TOOL_TARGET_THREE_OK",
+        "PHASE2128_SEXT_TOOL_TARGET_THREE_OK"
+      ]
+    },
+    {
+      "action": "apply-single-existing-tool-source-mutation",
+      "proposalPath": "docs/phase2129-sext-tool-mutation-target-four.proposal.diff",
+      "targetPath": "tools/phase2096_2100/apply-controlled-triple-tool-mutation.mjs",
+      "expectedBeforeSha256": "57f2496ca39cbe0b5c576b77e246fec0795fb6762cb4b195c073a70f08d58903",
+      "allowCreate": false,
+      "allowDelete": false,
+      "requiredExports": [
+        "export function buildPhase2129SextMutationTargetFourStatus",
+        "export function buildPhase2109QuadMutationRuntimeStatus",
+        "export function main"
+      ],
+      "requiredMarkers": [
+        "PHASE2109_QUAD_TOOL_TARGET_FOUR_OK",
+        "PHASE2129_SEXT_TOOL_TARGET_FOUR_OK"
+      ]
+    },
+    {
+      "action": "apply-single-existing-tool-source-mutation",
+      "proposalPath": "docs/phase2130-sext-tool-mutation-target-five.proposal.diff",
+      "targetPath": "tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs",
+      "expectedBeforeSha256": "443adddf98c981a58c72b91159df75dc31cddabdcfa3be22de286785edd2d350",
+      "allowCreate": false,
+      "allowDelete": false,
+      "requiredExports": [
+        "export function buildPhase2130SextMutationTargetFiveStatus",
+        "export function buildPhase2120QuintMutationRuntimeStatus",
+        "export function main"
+      ],
+      "requiredMarkers": [
+        "PHASE2120_QUINT_TOOL_TARGET_FIVE_OK",
+        "PHASE2130_SEXT_TOOL_TARGET_FIVE_OK"
+      ]
+    },
+    {
+      "action": "apply-single-existing-tool-source-mutation",
+      "proposalPath": "docs/phase2131-sext-tool-mutation-target-six.proposal.diff",
+      "targetPath": "tools/phase2111_2120/apply-controlled-quint-tool-mutation.mjs",
+      "expectedBeforeSha256": "0515181031ceba6382772b14eb5e03c377469c8b3041a912bd8178132ec217f9",
+      "allowCreate": false,
+      "allowDelete": false,
+      "requiredExports": [
+        "export function buildPhase2131SextMutationRuntimeStatus",
+        "export function main"
+      ],
+      "requiredMarkers": [
+        "PHASE2131_SEXT_TOOL_TARGET_SIX_OK"
+      ]
+    }
+  ]
+}

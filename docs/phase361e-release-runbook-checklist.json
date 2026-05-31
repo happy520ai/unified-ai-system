@@ -1,0 +1,19 @@
+{
+  "phase": "Phase361E",
+  "checklistName": "production-release-runbook-checklist",
+  "prerequisites": [
+    "phase360_final_signoff_packet_present",
+    "human_launch_approval_present",
+    "deploy_authorization_present",
+    "tenant_admin_signoff_present",
+    "reviewer_quality_signoff_present",
+    "credential_vault_approval_present",
+    "billing_warning_copy_approval_present",
+    "go_no_go_meeting_completed"
+  ],
+  "commandsMarkedRequiresAuthorization": true,
+  "deployExecuted": false,
+  "releaseExecuted": false,
+  "tagCreated": false,
+  "artifactUploaded": false
+}

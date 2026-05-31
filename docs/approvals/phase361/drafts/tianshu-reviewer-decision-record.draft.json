@@ -1,0 +1,47 @@
+{
+  "draftOnly": true,
+  "notAnApproval": true,
+  "requiresHumanCompletion": true,
+  "approvalId": null,
+  "approvalType": "tianshu_policy_decision",
+  "approvalDecision": "pending",
+  "approverNameRef": "",
+  "approverRole": "",
+  "approverOrgRef": "",
+  "approvedScope": [
+    "tianshu_planner_policy_review",
+    "tianshu_model_selection_governance",
+    "tianshu_reviewer_workflow",
+    "tianshu_feedback_policy_boundary"
+  ],
+  "approvalTimestamp": null,
+  "evidenceRefs": [
+    "docs/phase360c-tianshu-production-candidate-signoff.md",
+    "apps/ai-gateway-service/evidence/phase360c/tianshu-production-candidate-signoff-result.json",
+    "docs/phase360a-production-candidate-final-signoff-packet.md",
+    "docs/phase360a-deploy-not-authorized-boundary.json",
+    "docs/phase360abcdef-execution-report.md",
+    "docs/phase361a-launch-authorization-state.json",
+    "docs/phase361b-human-approval-records-index.json",
+    "docs/phase361c-deploy-authorization-state.json",
+    "docs/phase361d-signoff-verification-report.md",
+    "docs/phase361f-go-no-go-decision-state.json",
+    "docs/phase362a-reviewer-follow-up-tracker.json",
+    "docs/phase362a-approval-evidence-intake-report.md"
+  ],
+  "conditions": [],
+  "expiration": null,
+  "revocationPolicy": "",
+  "humanInstructions": [
+    "Use real policy review notes only.",
+    "Keep approvalDecision pending until a human fills it.",
+    "Copy the completed file to docs/approvals/phase361/tianshu-reviewer-decision-record.json."
+  ],
+  "auditTrace": {
+    "createdBy": "codex",
+    "source": "approval_draft_preparation",
+    "secretValueIncluded": false,
+    "forged": false,
+    "draftOnly": true
+  }
+}

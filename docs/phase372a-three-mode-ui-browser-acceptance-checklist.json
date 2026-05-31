@@ -1,0 +1,47 @@
+{
+  "phase": "Phase372A",
+  "checklist": [
+    {
+      "id": "workbenchReachable",
+      "label": "Workbench 页面可打开",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "id": "threeModeOverviewVisible",
+      "label": "三模式总览区可见",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "id": "normalModePanelVisible",
+      "label": "Normal Mode 区块可见",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "id": "godModePanelVisible",
+      "label": "God Mode 区块可见",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "id": "tianshuModePanelVisible",
+      "label": "Tianshu Mode 区块可见",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "id": "noDeployNoticeVisible",
+      "label": "guarded notice 可见",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "id": "secretValueVisible",
+      "label": "不显示 secret",
+      "pass": true,
+      "detail": ""
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+diff --git a/tools/phase2091/generated-source-patch-target.mjs b/tools/phase2091/generated-source-patch-target.mjs
+--- a/tools/phase2091/generated-source-patch-target.mjs
++++ b/tools/phase2091/generated-source-patch-target.mjs
+@@ -96,6 +96,18 @@ export function buildPhase2137SeptMutationTargetOneStatus() {
+   };
+ }
+ 
++export function buildPhase2149OctMutationTargetOneStatus() {
++  return {
++    phaseId: "Phase2149A-Controlled-Oct-Tool-Mutation-Target-One",
++    marker: "PHASE2149_OCT_TOOL_TARGET_ONE_OK",
++    octMutationApplied: true,
++    providerCallsMade: false,
++    codexExecExecuted: false,
++    chatModified: false,
++    chatGatewayExecuteModified: false,
++  };
++}
++
+ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+   console.log(JSON.stringify({
+     status: "passed",
+@@ -107,5 +119,6 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href)
+     phase2116: buildPhase2116QuintMutationTargetOneStatus(),
+     phase2126: buildPhase2126SextMutationTargetOneStatus(),
+     phase2137: buildPhase2137SeptMutationTargetOneStatus(),
++    phase2149: buildPhase2149OctMutationTargetOneStatus(),
+   }, null, 2));
+ }

@@ -1,0 +1,45 @@
+{
+  "phase": "Phase329F",
+  "estimate": {
+    "requestId": "phase329f-request-001",
+    "userIdRef": "user_anon",
+    "mode": "god",
+    "providerId": "nvidia",
+    "modelId": "meta/llama-3.2-3b-instruct",
+    "estimatedInputTokens": 400,
+    "estimatedOutputTokens": 600,
+    "estimatedCost": 0.002,
+    "currency": "USD",
+    "estimateOnly": true,
+    "actualBillingConnected": false,
+    "costSource": "mock_estimate_formula",
+    "confidence": "low_to_medium",
+    "warning": "internal_test_cost_unknown"
+  },
+  "event": {
+    "eventId": "phase329f-event-001",
+    "requestId": "phase329f-request-001",
+    "userIdRef": "user_anon",
+    "mode": "god",
+    "providerId": "nvidia",
+    "modelId": "meta/llama-3.2-3b-instruct",
+    "eventType": "estimate_created",
+    "estimatedCost": 0.002,
+    "actualCost": null,
+    "actualCostAvailable": false,
+    "billingProviderConnected": false,
+    "timestamp": "2026-05-06T18:17:39.620Z",
+    "auditTrace": {
+      "providerCallsMade": true
+    }
+  },
+  "gate": {
+    "allowed": true,
+    "code": "BILLING_POLICY_ALLOWED",
+    "nonNvidiaProviderCostWarning": false,
+    "requireUserConfirmationAboveThreshold": false
+  },
+  "actualBillingConnected": false,
+  "billingProviderConnected": false,
+  "actualChargeClaimed": false
+}

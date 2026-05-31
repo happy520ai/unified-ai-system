@@ -1,0 +1,23 @@
+{
+  "capabilityId": "trial-1",
+  "admissionStatus": "approved_for_guarded_real_provider_runtime_v0",
+  "runtimeKind": "guarded_real_provider_v0",
+  "providerId": "nvidia",
+  "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1",
+  "credentialRefOnly": true,
+  "authorizationComplete": true,
+  "realProviderRuntimeAllowed": true,
+  "providerRuntimeDefaultEnabled": false,
+  "productionReady": false,
+  "mainChainRuntimeReady": false,
+  "nonNvidiaProviderBlocked": true,
+  "rollbackAvailable": true,
+  "rollbackRef": "capabilities/_generated_dry_run/trial-1/rollback-plan.json",
+  "maxSpawnDepth": 1,
+  "failures": [],
+  "providerCallsAllowed": true,
+  "secretReadAllowed": false,
+  "deployAllowed": false,
+  "chatMutationAllowed": false,
+  "chatGatewayExecuteMutationAllowed": false
+}

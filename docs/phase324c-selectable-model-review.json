@@ -1,0 +1,122 @@
+{
+  "phase": "Phase324C",
+  "generatedAt": "2026-05-06T12:54:23.858Z",
+  "sourceFiles": [
+    "docs/phase324b-nvidia-smoke-batch-result.json",
+    "docs/phase324b-model-smoke-evidence-index.json",
+    "apps/ai-gateway-service/evidence/phase324b/nvidia_nemotron_3_super_120b_a12b.json",
+    "apps/ai-gateway-service/evidence/phase324b/nvidia_nemotron_mini_4b_instruct.json",
+    "apps/ai-gateway-service/evidence/phase324b/nvidia_llama_3_3_nemotron_super_49b_v1_5.json",
+    "apps/ai-gateway-service/evidence/phase324b/nvidia_nemotron_3_nano_30b_a3b.json",
+    "apps/ai-gateway-service/evidence/phase324b/nvidia_nvidia_nemotron_nano_9b_v2.json",
+    "apps/ai-gateway-service/src/model-library",
+    "docs/phase324a-nvidia-model-candidate-inventory.json"
+  ],
+  "eligibleModels": [
+    {
+      "modelId": "nvidia/nemotron-3-super-120b-a12b",
+      "evidenceId": "phase324b-nvidia_nemotron_3_super_120b_a12b-20260506124314",
+      "evidencePath": "apps/ai-gateway-service/evidence/phase324b/nvidia_nemotron_3_super_120b_a12b.json",
+      "finalStatus": "smoke_passed",
+      "providerCalled": true,
+      "completionVerified": true,
+      "assistantTextPresent": true,
+      "capabilityBucket": "reasoning_chat",
+      "currentVerificationStatus": "unverified",
+      "currentSelectable": false
+    },
+    {
+      "modelId": "nvidia/nemotron-mini-4b-instruct",
+      "evidenceId": "phase324b-nvidia_nemotron_mini_4b_instruct-20260506124316",
+      "evidencePath": "apps/ai-gateway-service/evidence/phase324b/nvidia_nemotron_mini_4b_instruct.json",
+      "finalStatus": "smoke_passed",
+      "providerCalled": true,
+      "completionVerified": true,
+      "assistantTextPresent": true,
+      "capabilityBucket": "reasoning_chat",
+      "currentVerificationStatus": "unverified",
+      "currentSelectable": false
+    }
+  ],
+  "rejectedModels": [
+    {
+      "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1.5",
+      "evidenceId": "phase324b-nvidia_llama_3_3_nemotron_super_49b_v1_5-20260506124310",
+      "evidencePath": "apps/ai-gateway-service/evidence/phase324b/nvidia_llama_3_3_nemotron_super_49b_v1_5.json",
+      "finalStatus": "smoke_failed",
+      "providerCalled": true,
+      "completionVerified": false,
+      "assistantTextPresent": false,
+      "rejectionReason": [
+        "completionVerified=false",
+        "assistantTextPresent=false",
+        "not eligible for selectable"
+      ],
+      "currentVerificationStatus": "unverified",
+      "currentSelectable": false
+    },
+    {
+      "modelId": "nvidia/nemotron-3-nano-30b-a3b",
+      "evidenceId": "phase324b-nvidia_nemotron_3_nano_30b_a3b-20260506124312",
+      "evidencePath": "apps/ai-gateway-service/evidence/phase324b/nvidia_nemotron_3_nano_30b_a3b.json",
+      "finalStatus": "smoke_failed",
+      "providerCalled": true,
+      "completionVerified": false,
+      "assistantTextPresent": false,
+      "rejectionReason": [
+        "completionVerified=false",
+        "assistantTextPresent=false",
+        "not eligible for selectable"
+      ],
+      "currentVerificationStatus": "unverified",
+      "currentSelectable": false
+    },
+    {
+      "modelId": "nvidia/nvidia-nemotron-nano-9b-v2",
+      "evidenceId": "phase324b-nvidia_nvidia_nemotron_nano_9b_v2-20260506124319",
+      "evidencePath": "apps/ai-gateway-service/evidence/phase324b/nvidia_nvidia_nemotron_nano_9b_v2.json",
+      "finalStatus": "smoke_failed",
+      "providerCalled": true,
+      "completionVerified": false,
+      "assistantTextPresent": false,
+      "rejectionReason": [
+        "completionVerified=false",
+        "assistantTextPresent=false",
+        "not eligible for selectable"
+      ],
+      "currentVerificationStatus": "unverified",
+      "currentSelectable": false
+    }
+  ],
+  "evidenceMissing": false,
+  "evidenceModelMismatch": false,
+  "selectableUpdatePlan": {
+    "targetFile": "apps/ai-gateway-service/evidence/phase-313a-model-verification-state.json",
+    "eligibleModelIds": [
+      "nvidia/nemotron-3-super-120b-a12b",
+      "nvidia/nemotron-mini-4b-instruct"
+    ],
+    "rejectedModelIds": [
+      "nvidia/llama-3.3-nemotron-super-49b-v1.5",
+      "nvidia/nemotron-3-nano-30b-a3b",
+      "nvidia/nvidia-nemotron-nano-9b-v2"
+    ],
+    "fieldsToUpdate": [
+      "verificationStatus",
+      "lastVerifiedAt",
+      "lastSmokeMode",
+      "lastSmokeResult",
+      "failureCode",
+      "failureReason",
+      "providerCalled",
+      "endpointUsed",
+      "evidenceId"
+    ],
+    "noChangesTo": [
+      "apps/ai-gateway-service/src/chat-gateway/",
+      "apps/ai-gateway-service/src/providers/nvidia/",
+      "apps/ai-gateway-service/src/ui/consolePage.js",
+      "apps/ai-gateway-service/src/httpServer.js"
+    ]
+  }
+}

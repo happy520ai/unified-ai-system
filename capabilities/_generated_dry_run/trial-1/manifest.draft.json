@@ -1,0 +1,54 @@
+{
+  "schemaVersion": "capability-neuron-manifest-v1",
+  "capabilityId": "trial-1",
+  "displayName": "Task Risk Level Classifier",
+  "description": "Deterministic dry-run capability spec compiled from natural-language intake: 我希望网关能自动判断任务风险等级.",
+  "createdFromNaturalLanguage": true,
+  "intakeText": "我希望网关能自动判断任务风险等级",
+  "type": "safety",
+  "status": "registered_preview",
+  "runtime": {
+    "kind": "dry_run",
+    "spawnable": true,
+    "maxSpawnDepth": 1,
+    "ttlSeconds": 300,
+    "maxRequests": 3,
+    "maxTokenBudget": 4000,
+    "enabledByDefault": false
+  },
+  "safety": {
+    "providerCallsAllowed": false,
+    "secretReadAllowed": false,
+    "deployAllowed": false,
+    "chatMutationAllowed": false,
+    "chatGatewayExecuteMutationAllowed": false,
+    "codexConfigMutationAllowed": false,
+    "selfApprovalAllowed": false
+  },
+  "inputs": {},
+  "outputs": {},
+  "evidence": {
+    "required": true,
+    "schema": "gateway-capability-evidence-v1"
+  },
+  "approval": {
+    "requiredForRuntime": true,
+    "currentStatus": "draft"
+  },
+  "rollback": {
+    "disableFlag": "TAIJI_DISABLE_TRIAL_1",
+    "deletePaths": []
+  },
+  "synapse": {
+    "pressureTypes": [
+      "risk"
+    ],
+    "modes": [
+      "normal",
+      "god",
+      "tianshu"
+    ],
+    "dependencies": [],
+    "weight": 0.5
+  }
+}

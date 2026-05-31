@@ -1,0 +1,74 @@
+{
+  "binderId": "final_yiyi_commercial_demo_binder",
+  "knownLimits": [
+    "no_deploy_internal_demo",
+    "provider_not_connected_by_default",
+    "phase384_not_executed",
+    "pseudo_3d_or_concept_based_avatar",
+    "model_brain_disabled_by_default",
+    "manual_review_required",
+    "cross_browser_mobile_qa_still_needed",
+    "pilot_requires_authorization_and_test",
+    "no_production_ga_claim",
+    "no_absolute_security_claim"
+  ],
+  "risks": [
+    {
+      "riskId": "risk-01",
+      "severity": "high"
+    },
+    {
+      "riskId": "risk-02",
+      "severity": "high"
+    },
+    {
+      "riskId": "risk-03",
+      "severity": "high"
+    },
+    {
+      "riskId": "risk-04",
+      "severity": "medium"
+    },
+    {
+      "riskId": "risk-05",
+      "severity": "high"
+    },
+    {
+      "riskId": "risk-06",
+      "severity": "medium"
+    },
+    {
+      "riskId": "risk-07",
+      "severity": "medium"
+    },
+    {
+      "riskId": "risk-08",
+      "severity": "high"
+    },
+    {
+      "riskId": "risk-09",
+      "severity": "high"
+    },
+    {
+      "riskId": "risk-10",
+      "severity": "medium"
+    }
+  ],
+  "safety": {
+    "providerCallsMade": false,
+    "nonNvidiaProviderCallsMade": false,
+    "secretValueExposed": false,
+    "rawSecretAccessed": false,
+    "deployExecuted": false,
+    "releaseExecuted": false,
+    "tagCreated": false,
+    "artifactUploaded": false,
+    "externalUploadPerformed": false,
+    "releaseArtifactCreated": false,
+    "approvalForged": false,
+    "billingExecuted": false,
+    "invoiceGenerated": false,
+    "productionGaClaimed": false,
+    "workspaceCleanClaimed": false
+  }
+}

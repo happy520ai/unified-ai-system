@@ -1,0 +1,31 @@
+diff --git a/tools/phase2121_2131/apply-controlled-sext-tool-mutation.mjs b/tools/phase2121_2131/apply-controlled-sext-tool-mutation.mjs
+index 6a1d91b..34ea8f7 100644
+--- a/tools/phase2121_2131/apply-controlled-sext-tool-mutation.mjs
++++ b/tools/phase2121_2131/apply-controlled-sext-tool-mutation.mjs
+@@ -115,6 +115,26 @@ export function buildPhase2197ElevenMutationTargetSevenStatus() {
+   };
+ }
+ 
++
++export function buildPhase2213TwelveMutationTargetSevenStatus() {
++  return {
++    phaseId: "Phase2213A-Controlled-Twelve-Tool-Mutation-Target-Seven",
++    marker: "PHASE2213_TWELVE_TOOL_TARGET_SEVEN_OK",
++    importSafe: true,
++    phase2143Marker: "PHASE2143_SEPT_TOOL_TARGET_SEVEN_OK",
++    phase2155Marker: "PHASE2155_OCT_TOOL_TARGET_SEVEN_OK",
++    phase2168Marker: "PHASE2168_NONET_TOOL_TARGET_SEVEN_OK",
++    phase2182Marker: "PHASE2182_DECA_TOOL_TARGET_SEVEN_OK",
++    phase2197Marker: "PHASE2197_ELEVEN_TOOL_TARGET_SEVEN_OK",
++    phase2213Marker: "PHASE2213_TWELVE_TOOL_TARGET_SEVEN_OK",
++    twelveMutationApplied: true,
++    providerCallsMade: false,
++    codexExecExecuted: false,
++    chatModified: false,
++    chatGatewayExecuteModified: false,
++  };
++}
++
+ export function main() {
+   const args = parseArgs(process.argv.slice(2));
+   const planPath = args.plan || "docs/phase2121-2131-controlled-sext-tool-mutation-approval.example.json";

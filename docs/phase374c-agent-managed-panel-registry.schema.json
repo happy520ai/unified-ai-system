@@ -1,0 +1,20 @@
+{
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": [
+      "componentId",
+      "displayName",
+      "allowedModes",
+      "allowedActions",
+      "forbiddenActions",
+      "riskLevel",
+      "requiresApproval",
+      "providerCallsAllowed",
+      "secretValueAllowed",
+      "deployAllowed",
+      "releaseAllowed",
+      "billingAllowed"
+    ]
+  }
+}

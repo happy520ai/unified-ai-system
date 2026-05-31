@@ -1,0 +1,54 @@
+{
+  "phaseId": "Phase2090A-Controlled-Patch-Apply-Gate",
+  "planId": "phase2090-controlled-docs-only-patch-apply",
+  "approvalRecord": {
+    "approved": true,
+    "permissionMode": "controlled-docs-only-patch-apply",
+    "dryRun": false,
+    "approvedAtLeastOnceByOwner": [
+      {
+        "source": "user-message",
+        "text": "一切都可以允许你操作，但必须保持项目长期安全边界",
+        "scope": "phase2090-controlled-docs-only-patch-apply"
+      }
+    ],
+    "codexExecAllowed": false,
+    "projectProviderAllowed": false,
+    "secretReadAllowed": false,
+    "authJsonReadAllowed": false,
+    "envReadAllowed": false,
+    "codexConfigWriteAllowed": false,
+    "chatModificationAllowed": false,
+    "chatGatewayExecuteModificationAllowed": false,
+    "legacyModificationAllowed": false,
+    "deployAllowed": false,
+    "releaseAllowed": false,
+    "pushAllowed": false,
+    "commitAllowed": false
+  },
+  "allowedFiles": [
+    "apps/ai-gateway-service/evidence/phase2089-controlled-codex-patch-proposal/codex-patch-proposal.md",
+    "docs/phase2089-codex-generated-patch-proposal-target.md",
+    "apps/ai-gateway-service/evidence/phase2090-controlled-patch-apply-gate/result.json",
+    "apps/ai-gateway-service/evidence/phase2090-controlled-patch-apply-gate/result.md",
+    "apps/ai-gateway-service/evidence/phase2090-controlled-patch-apply-gate/rollback.json"
+  ],
+  "forbiddenPaths": [
+    "legacy",
+    "PROJECT_CONTEXT.md",
+    ".env",
+    ".git",
+    "node_modules",
+    "auth.json",
+    "apps/ai-gateway-service/src/providers",
+    "apps/ai-gateway-service/src/http/chat-gateway/execute",
+    "/chat"
+  ],
+  "operation": {
+    "action": "apply-single-docs-only-proposal",
+    "sourceProposalPath": "apps/ai-gateway-service/evidence/phase2089-controlled-codex-patch-proposal/codex-patch-proposal.md",
+    "targetPath": "docs/phase2089-codex-generated-patch-proposal-target.md",
+    "allowOverwrite": false,
+    "maxChangedFiles": 1
+  }
+}

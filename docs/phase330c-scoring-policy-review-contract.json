@@ -1,0 +1,14 @@
+{
+  "proposedWeightChanges": {
+    "capabilityMatch": 0.32
+  },
+  "evidenceWindow": {
+    "eventCount": 1,
+    "source": "phase330c_file_backed_feedback_events"
+  },
+  "sampleSize": 1,
+  "riskAssessment": "insufficient_sample_size",
+  "approvalRequired": true,
+  "autoApply": false,
+  "rollbackPolicy": "restore previous scoring policy JSON and rerun Phase329C evaluation"
+}

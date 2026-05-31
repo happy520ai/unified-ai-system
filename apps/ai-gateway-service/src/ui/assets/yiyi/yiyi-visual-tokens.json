@@ -1,0 +1,53 @@
+{
+  "avatarName": "依依",
+  "themeName": "sea_breeze_white_hat",
+  "displayName": "依依 · YIYI",
+  "role": "AI Mission Companion",
+  "version": "v1.0 海风白帽",
+  "palette": {
+    "pearlWhite": "#FFFFFF",
+    "mistWhite": "#E6F2FF",
+    "seaBlue": "#AEE2FF",
+    "silverGray": "#C7D2E3",
+    "softBlue": "#9ECDFF"
+  },
+  "materials": [
+    "soft_hat",
+    "translucent_jacket",
+    "light_orbit",
+    "shield_glass",
+    "mission_glow"
+  ],
+  "motionStyle": [
+    "soft_pulse",
+    "gentle_orbit",
+    "light_hover",
+    "calm_attention"
+  ],
+  "personalityKeywords": [
+    "温柔",
+    "灵动",
+    "聪明",
+    "可靠",
+    "陪伴",
+    "守护"
+  ],
+  "forbiddenStyle": [
+    "over_neon",
+    "heavy_cyberpunk",
+    "overly_childish",
+    "realistic_identity_claim"
+  ],
+  "safetyBoundary": {
+    "originalUserPhotoStored": false,
+    "rawPhotoStored": false,
+    "externalUploadPerformed": false,
+    "faceRecognitionPerformed": false,
+    "sensitiveAttributeInferencePerformed": false,
+    "photoInEvidence": false,
+    "providerCallsMade": false,
+    "secretValueExposed": false,
+    "deployExecuted": false,
+    "real3DModelLoaded": false
+  }
+}

@@ -1,0 +1,28 @@
+[
+  {
+    "modelCandidateId": "user_model_ref_001",
+    "provider": "user_configured_provider",
+    "modelRef": "configured_yiyi_brain_model_ref",
+    "credentialRef": "cred_ref_mock",
+    "rawSecretValuePresent": false,
+    "selectable": true,
+    "allowedForYiyiBrain": true,
+    "directProviderCallAllowed": false,
+    "capabilityTags": ["chat", "safety_explanation", "persona_response", "concise_response", "low_latency", "no_tool_execution"],
+    "decision": "eligible_for_dry_run",
+    "blockedBy": []
+  },
+  {
+    "modelCandidateId": "missing_credential",
+    "provider": "user_configured_provider",
+    "modelRef": "configured_yiyi_brain_model_ref",
+    "credentialRef": null,
+    "rawSecretValuePresent": false,
+    "selectable": true,
+    "allowedForYiyiBrain": true,
+    "directProviderCallAllowed": false,
+    "capabilityTags": ["chat"],
+    "decision": "rejected",
+    "blockedBy": ["missing_credential_ref"]
+  }
+]

@@ -1,0 +1,18 @@
+{
+  "recordType": "owner_daily_ledger",
+  "phaseRange": "Phase1506-1530AIO",
+  "date": "YYYY-MM-DD",
+  "ownerRecorded": false,
+  "automatedTaskRun": false,
+  "automatedBrowserWalkthrough": false,
+  "automatedScreenshotCaptured": false,
+  "automatedTokenSavingMeasured": false,
+  "automatedFailureDetected": false,
+  "automatedRegressionExecuted": false,
+  "automatedEvidenceNotClaimedAsHuman": true,
+  "ownerManualFeedback": false,
+  "realHumanFeedbackCollected": false,
+  "dogfoodingCompleted": false,
+  "providerCallsMade": false,
+  "entries": []
+}

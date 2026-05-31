@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Phase647R External Tool Task State",
+  "type": "object",
+  "required": [
+    "taskId",
+    "title",
+    "riskTier",
+    "status",
+    "allowedFiles",
+    "forbiddenFiles",
+    "validationCommands",
+    "evidencePath",
+    "blocker",
+    "rollbackNote",
+    "providerCallsAllowed",
+    "secretAccessAllowed",
+    "chatModificationAllowed",
+    "chatGatewayExecuteModificationAllowed",
+    "deployAllowed",
+    "pushAllowed",
+    "commitAllowed"
+  ],
+  "properties": {
+    "taskId": { "type": "string" },
+    "title": { "type": "string" },
+    "riskTier": { "enum": ["low", "medium", "high"] },
+    "status": {
+      "enum": ["pending", "running", "completed", "blocked", "skipped", "needs_approval", "failed"]
+    },
+    "allowedFiles": { "type": "array", "items": { "type": "string" } },
+    "forbiddenFiles": { "type": "array", "items": { "type": "string" } },
+    "validationCommands": { "type": "array", "items": { "type": "string" } },
+    "evidencePath": { "type": "string" },
+    "blocker": { "type": ["string", "null"] },
+    "rollbackNote": { "type": "string" },
+    "providerCallsAllowed": { "const": false },
+    "secretAccessAllowed": { "const": false },
+    "chatModificationAllowed": { "const": false },
+    "chatGatewayExecuteModificationAllowed": { "const": false },
+    "deployAllowed": { "const": false },
+    "pushAllowed": { "const": false },
+    "commitAllowed": { "const": false }
+  },
+  "additionalProperties": false
+}

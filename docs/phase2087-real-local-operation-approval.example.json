@@ -1,0 +1,60 @@
+{
+  "phaseId": "Phase2087A-Real-Local-Operation-Bridge",
+  "planId": "phase2087-real-local-smoke",
+  "approvalRecord": {
+    "approved": true,
+    "permissionMode": "bounded-real-local",
+    "dryRun": false,
+    "approvedAtLeastOnceByOwner": [
+      {
+        "source": "user-message",
+        "text": "确认执行 Phase2087A",
+        "scope": "real-local-operation-bridge-v1"
+      }
+    ],
+    "maxExternalToolInvocations": 1,
+    "maxRequests": 0,
+    "maxCostUsd": 0,
+    "providerAllowed": false,
+    "secretReadAllowed": false,
+    "authJsonReadAllowed": false,
+    "envReadAllowed": false,
+    "codexConfigWriteAllowed": false,
+    "chatModificationAllowed": false,
+    "chatGatewayExecuteModificationAllowed": false,
+    "legacyModificationAllowed": false,
+    "deployAllowed": false,
+    "releaseAllowed": false,
+    "pushAllowed": false,
+    "commitAllowed": false
+  },
+  "allowedFiles": [
+    "apps/ai-gateway-service/evidence/phase2087-real-local-operation-bridge/real-local-smoke-output.json",
+    "apps/ai-gateway-service/evidence/phase2087-real-local-operation-bridge/real-local-smoke-result.json"
+  ],
+  "forbiddenPaths": [
+    "legacy",
+    "PROJECT_CONTEXT.md",
+    ".env",
+    ".git",
+    "node_modules",
+    "apps/ai-gateway-service/src/http/chat-gateway/execute",
+    "apps/ai-gateway-service/src/providers",
+    ".codex/auth.json"
+  ],
+  "operation": {
+    "externalToolKind": "local-node",
+    "action": "write-json",
+    "outputPath": "apps/ai-gateway-service/evidence/phase2087-real-local-operation-bridge/real-local-smoke-output.json",
+    "timeoutMs": 30000,
+    "payload": {
+      "phaseId": "Phase2087A-Real-Local-Operation-Bridge",
+      "realLocalSmoke": true,
+      "dryRun": false,
+      "message": "Phase2087A real local operation bridge smoke executed through a child Node process."
+    }
+  },
+  "evidence": {
+    "resultPath": "apps/ai-gateway-service/evidence/phase2087-real-local-operation-bridge/real-local-smoke-result.json"
+  }
+}

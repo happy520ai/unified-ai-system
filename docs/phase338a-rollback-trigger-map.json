@@ -1,0 +1,13 @@
+{
+  "phase": "Phase338A",
+  "rollbackTriggerMapGenerated": true,
+  "triggers": [
+    "secret_safety_regression",
+    "provider_real_call_without_gate",
+    "credential_ref_bypass",
+    "mock_billing_claims_actual_invoice",
+    "unreviewed_policy_activation"
+  ],
+  "releaseExecuted": false,
+  "deployExecuted": false
+}

@@ -1,0 +1,46 @@
+{
+  "draftOnly": true,
+  "notAnApproval": true,
+  "requiresHumanCompletion": true,
+  "approvalId": null,
+  "approvalType": "human_launch_approval",
+  "approvalDecision": "pending",
+  "approverNameRef": "",
+  "approverRole": "",
+  "approverOrgRef": "",
+  "approvedScope": [
+    "production_launch_authorization_review",
+    "phase360_production_candidate",
+    "phase361_launch_authorization",
+    "phase362_approval_follow_up"
+  ],
+  "approvalTimestamp": null,
+  "evidenceRefs": [
+    "docs/phase360a-production-candidate-final-signoff-packet.md",
+    "docs/phase360a-deploy-not-authorized-boundary.json",
+    "docs/phase360abcdef-execution-report.md",
+    "docs/phase361a-launch-authorization-state.json",
+    "docs/phase361b-human-approval-records-index.json",
+    "docs/phase361c-deploy-authorization-state.json",
+    "docs/phase361d-signoff-verification-report.md",
+    "docs/phase361f-go-no-go-decision-state.json",
+    "docs/phase362a-reviewer-follow-up-tracker.json",
+    "docs/phase362a-approval-evidence-intake-report.md"
+  ],
+  "conditions": [],
+  "expiration": null,
+  "revocationPolicy": "",
+  "humanInstructions": [
+    "Open this draft and fill only by a human reviewer.",
+    "Set approvalId, approver fields, scope, decision, timestamp, and conditions with real values.",
+    "Remove or set draftOnly/notAnApproval/requiresHumanCompletion to false before promoting.",
+    "Copy the completed file to docs/approvals/phase361/human-approval-record.json."
+  ],
+  "auditTrace": {
+    "createdBy": "codex",
+    "source": "approval_draft_preparation",
+    "secretValueIncluded": false,
+    "forged": false,
+    "draftOnly": true
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "phaseId": "Phase2086-GVC-High-Value-Autonomy-Cycle-Controller",
+  "taskId": "phase2086-cycle-no-repeat-policy-fixture",
+  "title": "Cycle no-repeat policy fixture",
+  "cycleManaged": true,
+  "noRepeatPhase2073To2078": true,
+  "providerCallsMade": false,
+  "secretRead": false,
+  "deployExecuted": false,
+  "chatGatewayExecuteModified": false,
+  "legacyModified": false,
+  "projectContextModified": false,
+  "workspaceCleanClaimed": false
+}

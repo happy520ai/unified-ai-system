@@ -1,0 +1,24 @@
+{
+  "phase": "Phase352A",
+  "packetType": "production_candidate_security_review",
+  "result": {
+    "phase": "Phase352A",
+    "sourcePhase": "Phase351A",
+    "packetType": "production_candidate_security_review",
+    "securityReviewPacketsGenerated": true,
+    "riskRegisterUpdated": true,
+    "unresolvedSecurityBlockersListed": true,
+    "unresolvedSecurityBlockerCount": 4,
+    "unresolvedSecurityBlockers": [
+      "missing_trace_field:requestId",
+      "missing_trace_field:humanReviewDecision",
+      "require_request_id_for_incident_and_rollback_trace",
+      "require_human_review_decision_before_candidate_signoff"
+    ],
+    "productionGA": false,
+    "releaseAuthorized": false,
+    "deployAuthorized": false,
+    "noSecretInReviewPacket": true,
+    "secretValueExposed": false
+  }
+}

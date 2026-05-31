@@ -1,0 +1,13 @@
+{
+  "caseId": "non-nvidia-provider",
+  "providerId": "openai",
+  "executionStatus": "blocked",
+  "blockedReason": "non_nvidia_provider_blocked",
+  "completed": false,
+  "passed": false,
+  "providerCallsMade": false,
+  "secretRead": false,
+  "secretValueExposed": false,
+  "emergencyDisableAvailable": true,
+  "emergencyDisableRef": "TAIJI_BEIDOU_REAL_PROVIDER_RUNTIME_ENABLED=false"
+}

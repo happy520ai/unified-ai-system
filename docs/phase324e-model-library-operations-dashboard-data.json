@@ -1,0 +1,65 @@
+{
+  "phase": "Phase324E",
+  "generatedAt": "2026-05-06T14:34:49.643Z",
+  "kpis": {
+    "totalModels": 148,
+    "selectableModels": 9,
+    "smokePassedModels": 9,
+    "failedModels": 9,
+    "unverifiedModels": 125,
+    "newSmokePassRate": 0.4667,
+    "evidenceCoverageRatio": 0.1216,
+    "averageLatencyMs": 3719.63
+  },
+  "charts": {
+    "selectableGrowth": [
+      {
+        "stage": "initial_verified",
+        "selectableModels": 2
+      },
+      {
+        "stage": "Phase324C",
+        "selectableModels": 4
+      },
+      {
+        "stage": "Phase324C-2",
+        "selectableModels": 9
+      }
+    ],
+    "batchPassRates": [
+      {
+        "phase": "Phase324B",
+        "passRate": 0.4
+      },
+      {
+        "phase": "Phase324B-2",
+        "passRate": 0.8
+      },
+      {
+        "phase": "Phase324B-3",
+        "passRate": 0.2
+      }
+    ],
+    "failureTypes": {
+      "http404": 4,
+      "http410": 1,
+      "nvidiaHttpError": 9,
+      "completionVerifiedFalse": 9,
+      "assistantTextPresentFalse": 9
+    },
+    "slowModels": [
+      {
+        "modelId": "meta/llama-3.1-8b-instruct",
+        "finalStatus": "smoke_passed",
+        "latencyMs": 30503,
+        "evidenceId": "phase324b2-meta_llama_3_1_8b_instruct-20260506130631"
+      },
+      {
+        "modelId": "meta/llama-3.3-70b-instruct",
+        "finalStatus": "smoke_passed",
+        "latencyMs": 18410,
+        "evidenceId": "phase324b2-meta_llama_3_3_70b_instruct-20260506130650"
+      }
+    ]
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "phase": "Phase384",
+  "title": "Yiyi Guarded Real Provider Test Authorization Gate",
+  "authorizationType": "enter_authorization_gate_only",
+  "userMessage": "授权进入",
+  "authorizedByHuman": true,
+  "allowProviderCall": false,
+  "allowedProviderRefs": [],
+  "allowedCredentialRefs": [],
+  "allowedModelRefs": [],
+  "maxRequests": 0,
+  "maxEstimatedCostUsd": 0,
+  "noSecretOutputAllowed": true,
+  "noActionExecutionAllowed": true,
+  "noDeployAllowed": true,
+  "providerTestExecutionStatus": "blocked_pending_specific_authorization",
+  "requiredBeforeRealProviderTest": [
+    "allowedProviderRefs",
+    "allowedCredentialRefs",
+    "allowedModelRefs",
+    "maxRequests",
+    "maxEstimatedCostUsd",
+    "explicit_allowProviderCall_true"
+  ],
+  "safety": {
+    "providerCallsMade": false,
+    "nonNvidiaProviderCallsMade": false,
+    "secretValueExposed": false,
+    "rawSecretAccessed": false,
+    "deployExecuted": false,
+    "releaseExecuted": false,
+    "tagCreated": false,
+    "artifactUploaded": false,
+    "approvalForged": false,
+    "billingExecuted": false,
+    "invoiceGenerated": false,
+    "productionGaClaimed": false,
+    "workspaceCleanClaimed": false
+  }
+}

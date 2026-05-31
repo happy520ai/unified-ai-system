@@ -1,0 +1,59 @@
+{
+  "phaseId": "Phase2092A-Controlled-Existing-Tool-Source-Mutation",
+  "planId": "phase2092-controlled-existing-tool-mutation",
+  "approvalRecord": {
+    "approved": true,
+    "permissionMode": "controlled-existing-tool-source-mutation",
+    "dryRun": false,
+    "approvedAtLeastOnceByOwner": [
+      {
+        "source": "user-message",
+        "text": "直接帮我搞定这个系统，但必须保持安全边界、证据链、回滚和不提交不部署",
+        "scope": "phase2092-controlled-existing-tool-mutation"
+      }
+    ],
+    "codexExecAllowed": false,
+    "projectProviderAllowed": false,
+    "secretReadAllowed": false,
+    "authJsonReadAllowed": false,
+    "envReadAllowed": false,
+    "codexConfigWriteAllowed": false,
+    "chatModificationAllowed": false,
+    "chatGatewayExecuteModificationAllowed": false,
+    "legacyModificationAllowed": false,
+    "deployAllowed": false,
+    "releaseAllowed": false,
+    "pushAllowed": false,
+    "commitAllowed": false
+  },
+  "allowedFiles": [
+    "docs/phase2092-controlled-existing-tool-mutation.proposal.diff",
+    "tools/phase2091/generated-source-patch-target.mjs",
+    "apps/ai-gateway-service/evidence/phase2092-controlled-existing-tool-mutation/result.json",
+    "apps/ai-gateway-service/evidence/phase2092-controlled-existing-tool-mutation/result.md",
+    "apps/ai-gateway-service/evidence/phase2092-controlled-existing-tool-mutation/rollback.json",
+    "apps/ai-gateway-service/evidence/phase2092-controlled-existing-tool-mutation/source-smoke.json"
+  ],
+  "forbiddenPaths": [
+    "legacy",
+    "PROJECT_CONTEXT.md",
+    ".env",
+    ".git",
+    "node_modules",
+    "auth.json",
+    "apps/ai-gateway-service/src/providers",
+    "apps/ai-gateway-service/src/http/chat-gateway/execute",
+    "/chat"
+  ],
+  "operation": {
+    "action": "apply-single-existing-tool-source-mutation",
+    "proposalPath": "docs/phase2092-controlled-existing-tool-mutation.proposal.diff",
+    "targetPath": "tools/phase2091/generated-source-patch-target.mjs",
+    "expectedBeforeSha256": "11d1ed2c62b40e8c494c41d6bdde23ff197f56e4f887ead8b064cc74d8695565",
+    "allowCreate": false,
+    "allowDelete": false,
+    "maxChangedFiles": 1,
+    "runNodeCheck": true,
+    "runLocalSmoke": true
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "phase": "Phase361A-F",
+  "checkedAt": "2026-05-07T04:36:58.153Z",
+  "missing": [],
+  "present": [
+    "docs/phase360a-production-candidate-final-signoff-packet.md",
+    "docs/phase360a-deploy-not-authorized-boundary.json",
+    "docs/phase360abcdef-execution-report.md",
+    "apps/ai-gateway-service/evidence/phase360a/production-candidate-final-signoff-result.json",
+    "apps/ai-gateway-service/evidence/phase360b/god-mode-production-candidate-signoff-result.json",
+    "apps/ai-gateway-service/evidence/phase360c/tianshu-production-candidate-signoff-result.json",
+    "apps/ai-gateway-service/evidence/phase360d/credential-vault-production-candidate-signoff-result.json",
+    "apps/agent-console/evidence/phase360e/provider-onboarding-production-candidate-signoff-result.json",
+    "apps/ai-gateway-service/evidence/phase360f/billing-production-candidate-signoff-result.json"
+  ],
+  "allowLaunchAuthorizationWorkflow": true
+}

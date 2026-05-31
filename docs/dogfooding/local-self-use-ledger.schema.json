@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Phase1506 Local Self-Use Ledger Schema",
+  "type": "object",
+  "required": [
+    "recordType",
+    "date",
+    "ownerRecorded",
+    "automatedTaskRun",
+    "automatedEvidenceNotClaimedAsHuman",
+    "providerCallsMade",
+    "entries"
+  ],
+  "properties": {
+    "recordType": {
+      "const": "owner_daily_ledger"
+    },
+    "date": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+    },
+    "ownerRecorded": {
+      "type": "boolean"
+    },
+    "automatedTaskRun": {
+      "type": "boolean"
+    },
+    "automatedBrowserWalkthrough": {
+      "type": "boolean"
+    },
+    "automatedScreenshotCaptured": {
+      "type": "boolean"
+    },
+    "automatedTokenSavingMeasured": {
+      "type": "boolean"
+    },
+    "automatedFailureDetected": {
+      "type": "boolean"
+    },
+    "automatedRegressionExecuted": {
+      "type": "boolean"
+    },
+    "automatedEvidenceNotClaimedAsHuman": {
+      "const": true
+    },
+    "ownerManualFeedback": {
+      "const": false
+    },
+    "realHumanFeedbackCollected": {
+      "const": false
+    },
+    "dogfoodingCompleted": {
+      "const": false
+    },
+    "providerCallsMade": {
+      "const": false
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "taskId",
+          "taskType",
+          "result",
+          "evidenceRef"
+        ],
+        "properties": {
+          "taskId": {
+            "type": "string"
+          },
+          "taskType": {
+            "type": "string"
+          },
+          "result": {
+            "enum": [
+              "pass",
+              "fail",
+              "blocked",
+              "observation_only"
+            ]
+          },
+          "evidenceRef": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

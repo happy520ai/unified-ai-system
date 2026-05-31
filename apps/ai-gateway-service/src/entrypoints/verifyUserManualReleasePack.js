@@ -130,6 +130,8 @@ async function main() {
       userManual.includes("verify:phase135a-release-publish-preflight") &&
       userManual.includes("verify:phase136a-release-publish-execution") &&
       userManual.includes("verify:phase137a-release-draft-rollback") &&
+      userManual.includes("verify:phase138a-agent-workforce-omx-benchmark") &&
+      userManual.includes("verify:phase139a-agent-workforce-clarify-consensus") &&
       userManual.includes("verify:phase112a-non-docker-release-check") &&
       userManual.includes("verify:phase107a-secret-safety") &&
       userManual.includes("verify:phase105a-user-journey"),

@@ -1,0 +1,24 @@
+{
+  "phase": "Phase350A",
+  "drillType": "production_candidate_disable_restore",
+  "result": {
+    "phase": "Phase350A",
+    "sourcePhase": "Phase349A",
+    "drillName": "production_candidate_disable_restore",
+    "rollbackDrillDryRunExecuted": true,
+    "disablePathVerified": true,
+    "restorePathDocumented": true,
+    "noProductionChange": true,
+    "releaseExecuted": false,
+    "deployExecuted": false,
+    "productionGA": false,
+    "rollbackStepsVerified": [
+      "triage_gateway_availability_regression",
+      "disable_guarded_candidate_flags",
+      "restore_last_known_dry_run_baseline",
+      "record_evidence_and_human_review_decision"
+    ],
+    "restorePath": "restore_last_known_dry_run_baseline_after_human_review",
+    "secretValueExposed": false
+  }
+}

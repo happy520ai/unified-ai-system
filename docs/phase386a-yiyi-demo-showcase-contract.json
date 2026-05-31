@@ -1,0 +1,27 @@
+{
+  "phase": "Phase386",
+  "title": "Yiyi Commercial Demo Package + Guided Showcase",
+  "demoMode": "guided_showcase",
+  "providerCallsAllowed": false,
+  "modelBrainEnabledByDefault": false,
+  "deployAllowed": false,
+  "billingAllowed": false,
+  "targetAudience": [
+    "internal_review",
+    "commercial_demo",
+    "product_pitch",
+    "technical_showcase"
+  ],
+  "showcaseSteps": [
+    "welcome",
+    "mission_control_overview",
+    "normal_mode_preview",
+    "god_mode_arena_preview",
+    "tianshu_planning_preview",
+    "security_shield_demo",
+    "red_team_block_demo",
+    "evidence_replay_demo",
+    "yiyi_brain_status",
+    "closing_summary"
+  ]
+}

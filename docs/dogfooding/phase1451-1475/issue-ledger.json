@@ -1,0 +1,17 @@
+{
+  "phase": "Phase1451-1475-AIO",
+  "generatedBy": "codex_observation",
+  "recordsFabricated": false,
+  "realOwnerDogfoodingRecordCount": 0,
+  "realDailyLedgerCount": 0,
+  "realWeeklyReviewCount": 0,
+  "realOwnerFeedbackCount": 0,
+  "p0IssueCount": 0,
+  "p1IssueCount": 0,
+  "p2IssueCount": 0,
+  "p3IssueCount": 0,
+  "safetyBrakeEngaged": false,
+  "p1MustFixBeforeNextStage": false,
+  "issues": [],
+  "missingEvidenceRefs": []
+}

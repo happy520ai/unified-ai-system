@@ -1,0 +1,14 @@
+{
+  "phase": "Phase346E",
+  "smokeInput": "Phase345E",
+  "blockers": [],
+  "userSetupGateGenerated": true,
+  "readinessGatePassed": true,
+  "blockerCountRecorded": true,
+  "blockerCount": 0,
+  "noRealBilling": true,
+  "secretSafetyGatePassed": true,
+  "noProviderCallFromUi": true,
+  "productionGA": false,
+  "secretValueExposed": false
+}

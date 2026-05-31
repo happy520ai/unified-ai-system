@@ -1,0 +1,48 @@
+{
+  "phase": "Phase324B-5",
+  "batchId": "phase324b5",
+  "generatedAt": "2026-05-06T15:33:08.843Z",
+  "providerId": "nvidia",
+  "evidence": [
+    {
+      "batchId": "phase324b5",
+      "phase": "Phase324B-5",
+      "modelId": "google/codegemma-7b",
+      "evidenceId": "phase324b5-google_codegemma_7b-20260506153300",
+      "finalStatus": "smoke_failed",
+      "evidencePath": "apps/ai-gateway-service/evidence/phase324b5/google_codegemma_7b.json"
+    },
+    {
+      "batchId": "phase324b5",
+      "phase": "Phase324B-5",
+      "modelId": "google/gemma-2-2b-it",
+      "evidenceId": "phase324b5-google_gemma_2_2b_it-20260506153302",
+      "finalStatus": "smoke_failed",
+      "evidencePath": "apps/ai-gateway-service/evidence/phase324b5/google_gemma_2_2b_it.json"
+    },
+    {
+      "batchId": "phase324b5",
+      "phase": "Phase324B-5",
+      "modelId": "google/gemma-3-27b-it",
+      "evidenceId": "phase324b5-google_gemma_3_27b_it-20260506153303",
+      "finalStatus": "smoke_failed",
+      "evidencePath": "apps/ai-gateway-service/evidence/phase324b5/google_gemma_3_27b_it.json"
+    },
+    {
+      "batchId": "phase324b5",
+      "phase": "Phase324B-5",
+      "modelId": "google/gemma-3n-e2b-it",
+      "evidenceId": "phase324b5-google_gemma_3n_e2b_it-20260506153306",
+      "finalStatus": "smoke_passed",
+      "evidencePath": "apps/ai-gateway-service/evidence/phase324b5/google_gemma_3n_e2b_it.json"
+    },
+    {
+      "batchId": "phase324b5",
+      "phase": "Phase324B-5",
+      "modelId": "google/gemma-3n-e4b-it",
+      "evidenceId": "phase324b5-google_gemma_3n_e4b_it-20260506153308",
+      "finalStatus": "smoke_passed",
+      "evidencePath": "apps/ai-gateway-service/evidence/phase324b5/google_gemma_3n_e4b_it.json"
+    }
+  ]
+}

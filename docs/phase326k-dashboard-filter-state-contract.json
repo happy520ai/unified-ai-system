@@ -1,0 +1,30 @@
+{
+  "phase": "Phase326K",
+  "contractName": "three-mode-dry-run-summary-dashboard-filter-state-contract",
+  "runtimeStage": "design_only",
+  "noProviderCall": true,
+  "noUiRuntime": true,
+  "filterState": {
+    "selectedMode": "all",
+    "selectedPhase": "all",
+    "selectedScenario": "all",
+    "showOnlyWarnings": false,
+    "showOnlyBlocked": false,
+    "showAuditTrace": true,
+    "showHeuristicInference": true,
+    "showDryRunOnly": true,
+    "runtimeStage": "design_only"
+  },
+  "allowedModes": [
+    "all",
+    "normal",
+    "god",
+    "tianshu"
+  ],
+  "safety": {
+    "providerCallsMade": false,
+    "nonNvidiaProviderCallsMade": false,
+    "secretValueExposed": false,
+    "uiRuntimeEnabled": false
+  }
+}

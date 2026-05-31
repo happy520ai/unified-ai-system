@@ -1,0 +1,31 @@
+{
+  "capabilityId": "tianshu-planner-cell-draft",
+  "admissionStatus": "rejected",
+  "runtimeKind": "sandbox_local",
+  "autoRuntimeEligible": false,
+  "productionRuntimeEligible": false,
+  "reason": "verifier_result_not_passed,rollback_plan_missing,dry_run_result_not_passed",
+  "safetyBoundary": {
+    "providerCallsAllowed": false,
+    "secretReadAllowed": false,
+    "deployAllowed": false,
+    "chatMutationAllowed": false,
+    "chatGatewayExecuteMutationAllowed": false,
+    "codexConfigMutationAllowed": false,
+    "selfApprovalAllowed": false
+  },
+  "requiredEvidenceRefs": [
+    "capabilities/_generated_dry_run/tianshu-planner-cell-draft/verifier-result.json",
+    "capabilities/_generated_dry_run/tianshu-planner-cell-draft/dry-run-result.json"
+  ],
+  "rollbackRef": "capabilities/_generated_dry_run/tianshu-planner-cell-draft/rollback-plan.json",
+  "providerCallsAllowed": false,
+  "secretReadAllowed": false,
+  "deployAllowed": false,
+  "manifestPreview": null,
+  "failures": [
+    "verifier_result_not_passed",
+    "rollback_plan_missing",
+    "dry_run_result_not_passed"
+  ]
+}

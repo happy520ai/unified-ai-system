@@ -1,0 +1,28 @@
+{
+  "phase": "Phase357F",
+  "checklistType": "billing_production_readiness",
+  "result": {
+    "phase": "Phase357F",
+    "sourcePhase": "Phase356F",
+    "readinessChecklistsGenerated": true,
+    "blockerCriteriaDefined": true,
+    "humanApprovalRequired": true,
+    "checklistItems": [
+      "statement_id_present",
+      "estimate_only_label_enforced",
+      "warning_copy_version_logged",
+      "export_permission_decision_recorded"
+    ],
+    "blockerCriteria": [
+      "missing_statementId",
+      "estimate_only_label_missing",
+      "legal_invoice_language_present",
+      "actual_billing_connected_without_approval"
+    ],
+    "paymentProviderConnected": false,
+    "actualBillingConnected": false,
+    "legalInvoiceGenerated": false,
+    "productionGA": false,
+    "secretValueExposed": false
+  }
+}

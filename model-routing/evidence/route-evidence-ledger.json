@@ -1,0 +1,2390 @@
+{
+  "phase": "Phase830",
+  "routeEvidenceLedgerReady": true,
+  "ledgerEntryCount": 55,
+  "entries": [
+    {
+      "evidenceId": "phase821-900-route-001",
+      "routeId": "route-phase825-normal-cn",
+      "task": "用中文回答：什么是受控模型路由？",
+      "mode": "normal",
+      "selectedModelId": "abacusai/dracarys-llama-3.1-70b-instruct",
+      "providerId": "nvidia",
+      "score": null,
+      "reason": "score=77; smoke_passed,selectable",
+      "fallback": [
+        {
+          "modelId": "deepseek-ai/deepseek-v4-pro",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "google/gemma-3n-e2b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "google/gemma-3n-e4b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "google/gemma-4-31b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "meta/llama-3.1-70b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        }
+      ],
+      "requestAttemptCount": 1,
+      "responseClassification": "pass",
+      "estimatedCostUsd": 0.001,
+      "routeExplanation": "mode=normal; selected=abacusai/dracarys-llama-3.1-70b-instruct; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=low; dryRunOnly=true; providerCallsMade=false",
+      "humanReviewed": false,
+      "codexSurrogateReviewed": false
+    },
+    {
+      "evidenceId": "phase821-900-route-002",
+      "routeId": "route-phase825-normal-code",
+      "task": "Explain how to fix a missing null check in JavaScript.",
+      "mode": "normal",
+      "selectedModelId": "abacusai/dracarys-llama-3.1-70b-instruct",
+      "providerId": "nvidia",
+      "score": null,
+      "reason": "score=77; smoke_passed,selectable",
+      "fallback": [
+        {
+          "modelId": "deepseek-ai/deepseek-v4-pro",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "google/gemma-3n-e2b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "google/gemma-3n-e4b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "google/gemma-4-31b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "meta/llama-3.1-70b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        }
+      ],
+      "requestAttemptCount": 1,
+      "responseClassification": "pass",
+      "estimatedCostUsd": 0.001,
+      "routeExplanation": "mode=normal; selected=abacusai/dracarys-llama-3.1-70b-instruct; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=low; dryRunOnly=true; providerCallsMade=false",
+      "humanReviewed": false,
+      "codexSurrogateReviewed": false
+    },
+    {
+      "evidenceId": "phase821-900-route-003",
+      "routeId": "route-phase825-normal-json",
+      "task": "Return a JSON object with routeStatus and reason fields.",
+      "mode": "normal",
+      "selectedModelId": "abacusai/dracarys-llama-3.1-70b-instruct",
+      "providerId": "nvidia",
+      "score": null,
+      "reason": "score=77; smoke_passed,selectable",
+      "fallback": [
+        {
+          "modelId": "deepseek-ai/deepseek-v4-pro",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "google/gemma-3n-e2b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "google/gemma-3n-e4b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "google/gemma-4-31b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "meta/llama-3.1-70b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        }
+      ],
+      "requestAttemptCount": 1,
+      "responseClassification": "pass",
+      "estimatedCostUsd": 0.001,
+      "routeExplanation": "mode=normal; selected=abacusai/dracarys-llama-3.1-70b-instruct; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=medium; dryRunOnly=true; providerCallsMade=false",
+      "humanReviewed": false,
+      "codexSurrogateReviewed": false
+    },
+    {
+      "evidenceId": "phase821-900-route-004",
+      "routeId": "route-phase826-god-review",
+      "task": "Review a risky architecture decision with three reviewers.",
+      "mode": "god",
+      "selectedModelId": "abacusai/dracarys-llama-3.1-70b-instruct",
+      "providerId": "nvidia",
+      "score": null,
+      "reason": "score=81; smoke_passed,selectable",
+      "fallback": [
+        {
+          "modelId": "deepseek-ai/deepseek-v4-pro",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "google/gemma-3n-e2b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "google/gemma-3n-e4b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "google/gemma-4-31b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "meta/llama-3.1-70b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        }
+      ],
+      "requestAttemptCount": 1,
+      "responseClassification": "pass",
+      "estimatedCostUsd": 0.001,
+      "routeExplanation": "mode=god; selected=abacusai/dracarys-llama-3.1-70b-instruct; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "humanReviewed": false,
+      "codexSurrogateReviewed": false
+    },
+    {
+      "evidenceId": "phase821-900-route-005",
+      "routeId": "route-phase827-tianshu-plan",
+      "task": "Plan a guarded delivery path for model routing rollout.",
+      "mode": "tianshu",
+      "selectedModelId": "abacusai/dracarys-llama-3.1-70b-instruct",
+      "providerId": "nvidia",
+      "score": null,
+      "reason": "score=77; smoke_passed,selectable",
+      "fallback": [
+        {
+          "modelId": "deepseek-ai/deepseek-v4-pro",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "google/gemma-3n-e2b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "google/gemma-3n-e4b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "google/gemma-4-31b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "meta/llama-3.1-70b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        }
+      ],
+      "requestAttemptCount": 1,
+      "responseClassification": "pass",
+      "estimatedCostUsd": 0.001,
+      "routeExplanation": "mode=tianshu; selected=abacusai/dracarys-llama-3.1-70b-instruct; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "humanReviewed": false,
+      "codexSurrogateReviewed": false
+    },
+    {
+      "evidenceId": "phase821-900-route-006",
+      "routeId": "route-surrogate-normal-1",
+      "task": "Normal routing surrogate task 1",
+      "mode": "normal",
+      "selectedModelId": "google/gemma-3n-e4b-it",
+      "providerId": "nvidia",
+      "score": null,
+      "reason": "mode=normal; selected=google/gemma-3n-e4b-it; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=low; dryRunOnly=true; providerCallsMade=false",
+      "fallback": [
+        {
+          "modelId": "google/gemma-4-31b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "meta/llama-3.1-8b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "meta/llama-3.2-1b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "meta/llama-3.2-3b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "microsoft/phi-4-mini-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        }
+      ],
+      "requestAttemptCount": 0,
+      "responseClassification": "pass",
+      "estimatedCostUsd": 0,
+      "routeExplanation": "mode=normal; selected=google/gemma-3n-e4b-it; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=low; dryRunOnly=true; providerCallsMade=false",
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "evidenceId": "phase821-900-route-007",
+      "routeId": "route-surrogate-normal-2",
+      "task": "Normal routing surrogate task 2",
+      "mode": "normal",
+      "selectedModelId": "google/gemma-3n-e4b-it",
+      "providerId": "nvidia",
+      "score": null,
+      "reason": "mode=normal; selected=google/gemma-3n-e4b-it; tokenPressure=low; costPressure=high; latencyPressure=high; reasoningPressure=low; dryRunOnly=true; providerCallsMade=false",
+      "fallback": [
+        {
+          "modelId": "google/gemma-4-31b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "meta/llama-3.1-8b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "meta/llama-3.2-1b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "meta/llama-3.2-3b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "microsoft/phi-4-mini-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        }
+      ],
+      "requestAttemptCount": 0,
+      "responseClassification": "pass",
+      "estimatedCostUsd": 0,
+      "routeExplanation": "mode=normal; selected=google/gemma-3n-e4b-it; tokenPressure=low; costPressure=high; latencyPressure=high; reasoningPressure=low; dryRunOnly=true; providerCallsMade=false",
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "evidenceId": "phase821-900-route-008",
+      "routeId": "route-surrogate-normal-3",
+      "task": "Normal routing surrogate task 3",
+      "mode": "normal",
+      "selectedModelId": "google/gemma-3n-e4b-it",
+      "providerId": "nvidia",
+      "score": null,
+      "reason": "mode=normal; selected=google/gemma-3n-e4b-it; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=low; dryRunOnly=true; providerCallsMade=false",
+      "fallback": [
+        {
+          "modelId": "google/gemma-4-31b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "meta/llama-3.1-8b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "meta/llama-3.2-1b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "meta/llama-3.2-3b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "microsoft/phi-4-mini-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        }
+      ],
+      "requestAttemptCount": 0,
+      "responseClassification": "pass",
+      "estimatedCostUsd": 0,
+      "routeExplanation": "mode=normal; selected=google/gemma-3n-e4b-it; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=low; dryRunOnly=true; providerCallsMade=false",
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "evidenceId": "phase821-900-route-009",
+      "routeId": "route-surrogate-normal-4",
+      "task": "Normal routing surrogate task 4",
+      "mode": "normal",
+      "selectedModelId": "google/gemma-3n-e4b-it",
+      "providerId": "nvidia",
+      "score": null,
+      "reason": "mode=normal; selected=google/gemma-3n-e4b-it; tokenPressure=low; costPressure=high; latencyPressure=high; reasoningPressure=low; dryRunOnly=true; providerCallsMade=false",
+      "fallback": [
+        {
+          "modelId": "google/gemma-4-31b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "meta/llama-3.1-8b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "meta/llama-3.2-1b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "meta/llama-3.2-3b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "microsoft/phi-4-mini-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        }
+      ],
+      "requestAttemptCount": 0,
+      "responseClassification": "pass",
+      "estimatedCostUsd": 0,
+      "routeExplanation": "mode=normal; selected=google/gemma-3n-e4b-it; tokenPressure=low; costPressure=high; latencyPressure=high; reasoningPressure=low; dryRunOnly=true; providerCallsMade=false",
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "evidenceId": "phase821-900-route-010",
+      "routeId": "route-surrogate-normal-5",
+      "task": "Normal routing surrogate task 5",
+      "mode": "normal",
+      "selectedModelId": "google/gemma-3n-e4b-it",
+      "providerId": "nvidia",
+      "score": null,
+      "reason": "mode=normal; selected=google/gemma-3n-e4b-it; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=low; dryRunOnly=true; providerCallsMade=false",
+      "fallback": [
+        {
+          "modelId": "google/gemma-4-31b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "meta/llama-3.1-8b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "meta/llama-3.2-1b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "meta/llama-3.2-3b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "microsoft/phi-4-mini-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        }
+      ],
+      "requestAttemptCount": 0,
+      "responseClassification": "pass",
+      "estimatedCostUsd": 0,
+      "routeExplanation": "mode=normal; selected=google/gemma-3n-e4b-it; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=low; dryRunOnly=true; providerCallsMade=false",
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "evidenceId": "phase821-900-route-011",
+      "routeId": "route-surrogate-normal-6",
+      "task": "Normal routing surrogate task 6",
+      "mode": "normal",
+      "selectedModelId": "google/gemma-3n-e4b-it",
+      "providerId": "nvidia",
+      "score": null,
+      "reason": "mode=normal; selected=google/gemma-3n-e4b-it; tokenPressure=low; costPressure=high; latencyPressure=high; reasoningPressure=low; dryRunOnly=true; providerCallsMade=false",
+      "fallback": [
+        {
+          "modelId": "google/gemma-4-31b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "meta/llama-3.1-8b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "meta/llama-3.2-1b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "meta/llama-3.2-3b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "microsoft/phi-4-mini-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        }
+      ],
+      "requestAttemptCount": 0,
+      "responseClassification": "pass",
+      "estimatedCostUsd": 0,
+      "routeExplanation": "mode=normal; selected=google/gemma-3n-e4b-it; tokenPressure=low; costPressure=high; latencyPressure=high; reasoningPressure=low; dryRunOnly=true; providerCallsMade=false",
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "evidenceId": "phase821-900-route-012",
+      "routeId": "route-surrogate-normal-7",
+      "task": "Normal routing surrogate task 7",
+      "mode": "normal",
+      "selectedModelId": "google/gemma-3n-e4b-it",
+      "providerId": "nvidia",
+      "score": null,
+      "reason": "mode=normal; selected=google/gemma-3n-e4b-it; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=low; dryRunOnly=true; providerCallsMade=false",
+      "fallback": [
+        {
+          "modelId": "google/gemma-4-31b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "meta/llama-3.1-8b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "meta/llama-3.2-1b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "meta/llama-3.2-3b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "microsoft/phi-4-mini-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        }
+      ],
+      "requestAttemptCount": 0,
+      "responseClassification": "pass",
+      "estimatedCostUsd": 0,
+      "routeExplanation": "mode=normal; selected=google/gemma-3n-e4b-it; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=low; dryRunOnly=true; providerCallsMade=false",
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "evidenceId": "phase821-900-route-013",
+      "routeId": "route-surrogate-normal-8",
+      "task": "Normal routing surrogate task 8",
+      "mode": "normal",
+      "selectedModelId": "google/gemma-3n-e4b-it",
+      "providerId": "nvidia",
+      "score": null,
+      "reason": "mode=normal; selected=google/gemma-3n-e4b-it; tokenPressure=low; costPressure=high; latencyPressure=high; reasoningPressure=low; dryRunOnly=true; providerCallsMade=false",
+      "fallback": [
+        {
+          "modelId": "google/gemma-4-31b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "meta/llama-3.1-8b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "meta/llama-3.2-1b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "meta/llama-3.2-3b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "microsoft/phi-4-mini-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        }
+      ],
+      "requestAttemptCount": 0,
+      "responseClassification": "pass",
+      "estimatedCostUsd": 0,
+      "routeExplanation": "mode=normal; selected=google/gemma-3n-e4b-it; tokenPressure=low; costPressure=high; latencyPressure=high; reasoningPressure=low; dryRunOnly=true; providerCallsMade=false",
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "evidenceId": "phase821-900-route-014",
+      "routeId": "route-surrogate-normal-9",
+      "task": "Normal routing surrogate task 9",
+      "mode": "normal",
+      "selectedModelId": "google/gemma-3n-e4b-it",
+      "providerId": "nvidia",
+      "score": null,
+      "reason": "mode=normal; selected=google/gemma-3n-e4b-it; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=low; dryRunOnly=true; providerCallsMade=false",
+      "fallback": [
+        {
+          "modelId": "google/gemma-4-31b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "meta/llama-3.1-8b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "meta/llama-3.2-1b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "meta/llama-3.2-3b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "microsoft/phi-4-mini-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        }
+      ],
+      "requestAttemptCount": 0,
+      "responseClassification": "pass",
+      "estimatedCostUsd": 0,
+      "routeExplanation": "mode=normal; selected=google/gemma-3n-e4b-it; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=low; dryRunOnly=true; providerCallsMade=false",
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "evidenceId": "phase821-900-route-015",
+      "routeId": "route-surrogate-normal-10",
+      "task": "Normal routing surrogate task 10",
+      "mode": "normal",
+      "selectedModelId": "google/gemma-3n-e4b-it",
+      "providerId": "nvidia",
+      "score": null,
+      "reason": "mode=normal; selected=google/gemma-3n-e4b-it; tokenPressure=low; costPressure=high; latencyPressure=high; reasoningPressure=low; dryRunOnly=true; providerCallsMade=false",
+      "fallback": [
+        {
+          "modelId": "google/gemma-4-31b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "meta/llama-3.1-8b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "meta/llama-3.2-1b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "meta/llama-3.2-3b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "microsoft/phi-4-mini-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        }
+      ],
+      "requestAttemptCount": 0,
+      "responseClassification": "pass",
+      "estimatedCostUsd": 0,
+      "routeExplanation": "mode=normal; selected=google/gemma-3n-e4b-it; tokenPressure=low; costPressure=high; latencyPressure=high; reasoningPressure=low; dryRunOnly=true; providerCallsMade=false",
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "evidenceId": "phase821-900-route-016",
+      "routeId": "route-surrogate-god-1",
+      "task": "God reviewer surrogate task 1",
+      "mode": "god",
+      "selectedModelId": "deepseek-ai/deepseek-v4-pro",
+      "providerId": "nvidia",
+      "score": null,
+      "reason": "mode=god; selected=deepseek-ai/deepseek-v4-pro; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "fallback": [
+        {
+          "modelId": "nvidia/llama-3.1-nemotron-nano-8b-v1",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/nemotron-3-super-120b-a12b",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/nemotron-mini-4b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "google/gemma-3n-e4b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        }
+      ],
+      "requestAttemptCount": 0,
+      "responseClassification": "pass",
+      "estimatedCostUsd": 0,
+      "routeExplanation": "mode=god; selected=deepseek-ai/deepseek-v4-pro; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "evidenceId": "phase821-900-route-017",
+      "routeId": "route-surrogate-god-2",
+      "task": "God reviewer surrogate task 2",
+      "mode": "god",
+      "selectedModelId": "deepseek-ai/deepseek-v4-pro",
+      "providerId": "nvidia",
+      "score": null,
+      "reason": "mode=god; selected=deepseek-ai/deepseek-v4-pro; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "fallback": [
+        {
+          "modelId": "nvidia/llama-3.1-nemotron-nano-8b-v1",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/nemotron-3-super-120b-a12b",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/nemotron-mini-4b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "google/gemma-3n-e4b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        }
+      ],
+      "requestAttemptCount": 0,
+      "responseClassification": "pass",
+      "estimatedCostUsd": 0,
+      "routeExplanation": "mode=god; selected=deepseek-ai/deepseek-v4-pro; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "evidenceId": "phase821-900-route-018",
+      "routeId": "route-surrogate-god-3",
+      "task": "God reviewer surrogate task 3",
+      "mode": "god",
+      "selectedModelId": "deepseek-ai/deepseek-v4-pro",
+      "providerId": "nvidia",
+      "score": null,
+      "reason": "mode=god; selected=deepseek-ai/deepseek-v4-pro; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "fallback": [
+        {
+          "modelId": "nvidia/llama-3.1-nemotron-nano-8b-v1",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/nemotron-3-super-120b-a12b",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/nemotron-mini-4b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "google/gemma-3n-e4b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        }
+      ],
+      "requestAttemptCount": 0,
+      "responseClassification": "pass",
+      "estimatedCostUsd": 0,
+      "routeExplanation": "mode=god; selected=deepseek-ai/deepseek-v4-pro; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "evidenceId": "phase821-900-route-019",
+      "routeId": "route-surrogate-god-4",
+      "task": "God reviewer surrogate task 4",
+      "mode": "god",
+      "selectedModelId": "deepseek-ai/deepseek-v4-pro",
+      "providerId": "nvidia",
+      "score": null,
+      "reason": "mode=god; selected=deepseek-ai/deepseek-v4-pro; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "fallback": [
+        {
+          "modelId": "nvidia/llama-3.1-nemotron-nano-8b-v1",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/nemotron-3-super-120b-a12b",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/nemotron-mini-4b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "google/gemma-3n-e4b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        }
+      ],
+      "requestAttemptCount": 0,
+      "responseClassification": "pass",
+      "estimatedCostUsd": 0,
+      "routeExplanation": "mode=god; selected=deepseek-ai/deepseek-v4-pro; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "evidenceId": "phase821-900-route-020",
+      "routeId": "route-surrogate-god-5",
+      "task": "God reviewer surrogate task 5",
+      "mode": "god",
+      "selectedModelId": "deepseek-ai/deepseek-v4-pro",
+      "providerId": "nvidia",
+      "score": null,
+      "reason": "mode=god; selected=deepseek-ai/deepseek-v4-pro; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "fallback": [
+        {
+          "modelId": "nvidia/llama-3.1-nemotron-nano-8b-v1",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/nemotron-3-super-120b-a12b",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/nemotron-mini-4b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "google/gemma-3n-e4b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        }
+      ],
+      "requestAttemptCount": 0,
+      "responseClassification": "pass",
+      "estimatedCostUsd": 0,
+      "routeExplanation": "mode=god; selected=deepseek-ai/deepseek-v4-pro; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "evidenceId": "phase821-900-route-021",
+      "routeId": "route-surrogate-god-6",
+      "task": "God reviewer surrogate task 6",
+      "mode": "god",
+      "selectedModelId": "deepseek-ai/deepseek-v4-pro",
+      "providerId": "nvidia",
+      "score": null,
+      "reason": "mode=god; selected=deepseek-ai/deepseek-v4-pro; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "fallback": [
+        {
+          "modelId": "nvidia/llama-3.1-nemotron-nano-8b-v1",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/nemotron-3-super-120b-a12b",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/nemotron-mini-4b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "google/gemma-3n-e4b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        }
+      ],
+      "requestAttemptCount": 0,
+      "responseClassification": "pass",
+      "estimatedCostUsd": 0,
+      "routeExplanation": "mode=god; selected=deepseek-ai/deepseek-v4-pro; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "evidenceId": "phase821-900-route-022",
+      "routeId": "route-surrogate-god-7",
+      "task": "God reviewer surrogate task 7",
+      "mode": "god",
+      "selectedModelId": "deepseek-ai/deepseek-v4-pro",
+      "providerId": "nvidia",
+      "score": null,
+      "reason": "mode=god; selected=deepseek-ai/deepseek-v4-pro; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "fallback": [
+        {
+          "modelId": "nvidia/llama-3.1-nemotron-nano-8b-v1",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/nemotron-3-super-120b-a12b",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/nemotron-mini-4b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "google/gemma-3n-e4b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        }
+      ],
+      "requestAttemptCount": 0,
+      "responseClassification": "pass",
+      "estimatedCostUsd": 0,
+      "routeExplanation": "mode=god; selected=deepseek-ai/deepseek-v4-pro; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "evidenceId": "phase821-900-route-023",
+      "routeId": "route-surrogate-god-8",
+      "task": "God reviewer surrogate task 8",
+      "mode": "god",
+      "selectedModelId": "deepseek-ai/deepseek-v4-pro",
+      "providerId": "nvidia",
+      "score": null,
+      "reason": "mode=god; selected=deepseek-ai/deepseek-v4-pro; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "fallback": [
+        {
+          "modelId": "nvidia/llama-3.1-nemotron-nano-8b-v1",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/nemotron-3-super-120b-a12b",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/nemotron-mini-4b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "google/gemma-3n-e4b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        }
+      ],
+      "requestAttemptCount": 0,
+      "responseClassification": "pass",
+      "estimatedCostUsd": 0,
+      "routeExplanation": "mode=god; selected=deepseek-ai/deepseek-v4-pro; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "evidenceId": "phase821-900-route-024",
+      "routeId": "route-surrogate-tianshu-1",
+      "task": "Tianshu planner surrogate task 1",
+      "mode": "tianshu",
+      "selectedModelId": "nvidia/llama-3.1-nemotron-nano-8b-v1",
+      "providerId": "nvidia",
+      "score": null,
+      "reason": "mode=tianshu; selected=nvidia/llama-3.1-nemotron-nano-8b-v1; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "fallback": [
+        {
+          "modelId": "nvidia/nemotron-mini-4b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "deepseek-ai/deepseek-v4-pro",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/nemotron-3-super-120b-a12b",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "google/gemma-3n-e4b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        }
+      ],
+      "requestAttemptCount": 0,
+      "responseClassification": "pass",
+      "estimatedCostUsd": 0,
+      "routeExplanation": "mode=tianshu; selected=nvidia/llama-3.1-nemotron-nano-8b-v1; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "evidenceId": "phase821-900-route-025",
+      "routeId": "route-surrogate-tianshu-2",
+      "task": "Tianshu planner surrogate task 2",
+      "mode": "tianshu",
+      "selectedModelId": "nvidia/llama-3.1-nemotron-nano-8b-v1",
+      "providerId": "nvidia",
+      "score": null,
+      "reason": "mode=tianshu; selected=nvidia/llama-3.1-nemotron-nano-8b-v1; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "fallback": [
+        {
+          "modelId": "nvidia/nemotron-mini-4b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "deepseek-ai/deepseek-v4-pro",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/nemotron-3-super-120b-a12b",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "google/gemma-3n-e4b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        }
+      ],
+      "requestAttemptCount": 0,
+      "responseClassification": "pass",
+      "estimatedCostUsd": 0,
+      "routeExplanation": "mode=tianshu; selected=nvidia/llama-3.1-nemotron-nano-8b-v1; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "evidenceId": "phase821-900-route-026",
+      "routeId": "route-surrogate-tianshu-3",
+      "task": "Tianshu planner surrogate task 3",
+      "mode": "tianshu",
+      "selectedModelId": "nvidia/llama-3.1-nemotron-nano-8b-v1",
+      "providerId": "nvidia",
+      "score": null,
+      "reason": "mode=tianshu; selected=nvidia/llama-3.1-nemotron-nano-8b-v1; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "fallback": [
+        {
+          "modelId": "nvidia/nemotron-mini-4b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "deepseek-ai/deepseek-v4-pro",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/nemotron-3-super-120b-a12b",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "google/gemma-3n-e4b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        }
+      ],
+      "requestAttemptCount": 0,
+      "responseClassification": "pass",
+      "estimatedCostUsd": 0,
+      "routeExplanation": "mode=tianshu; selected=nvidia/llama-3.1-nemotron-nano-8b-v1; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "evidenceId": "phase821-900-route-027",
+      "routeId": "route-surrogate-tianshu-4",
+      "task": "Tianshu planner surrogate task 4",
+      "mode": "tianshu",
+      "selectedModelId": "nvidia/llama-3.1-nemotron-nano-8b-v1",
+      "providerId": "nvidia",
+      "score": null,
+      "reason": "mode=tianshu; selected=nvidia/llama-3.1-nemotron-nano-8b-v1; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "fallback": [
+        {
+          "modelId": "nvidia/nemotron-mini-4b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "deepseek-ai/deepseek-v4-pro",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/nemotron-3-super-120b-a12b",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "google/gemma-3n-e4b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        }
+      ],
+      "requestAttemptCount": 0,
+      "responseClassification": "pass",
+      "estimatedCostUsd": 0,
+      "routeExplanation": "mode=tianshu; selected=nvidia/llama-3.1-nemotron-nano-8b-v1; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "evidenceId": "phase821-900-route-028",
+      "routeId": "route-surrogate-tianshu-5",
+      "task": "Tianshu planner surrogate task 5",
+      "mode": "tianshu",
+      "selectedModelId": "nvidia/llama-3.1-nemotron-nano-8b-v1",
+      "providerId": "nvidia",
+      "score": null,
+      "reason": "mode=tianshu; selected=nvidia/llama-3.1-nemotron-nano-8b-v1; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "fallback": [
+        {
+          "modelId": "nvidia/nemotron-mini-4b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "deepseek-ai/deepseek-v4-pro",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/nemotron-3-super-120b-a12b",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "google/gemma-3n-e4b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        }
+      ],
+      "requestAttemptCount": 0,
+      "responseClassification": "pass",
+      "estimatedCostUsd": 0,
+      "routeExplanation": "mode=tianshu; selected=nvidia/llama-3.1-nemotron-nano-8b-v1; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "evidenceId": "phase821-900-route-029",
+      "routeId": "route-surrogate-tianshu-6",
+      "task": "Tianshu planner surrogate task 6",
+      "mode": "tianshu",
+      "selectedModelId": "nvidia/llama-3.1-nemotron-nano-8b-v1",
+      "providerId": "nvidia",
+      "score": null,
+      "reason": "mode=tianshu; selected=nvidia/llama-3.1-nemotron-nano-8b-v1; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "fallback": [
+        {
+          "modelId": "nvidia/nemotron-mini-4b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "deepseek-ai/deepseek-v4-pro",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/nemotron-3-super-120b-a12b",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "google/gemma-3n-e4b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        }
+      ],
+      "requestAttemptCount": 0,
+      "responseClassification": "pass",
+      "estimatedCostUsd": 0,
+      "routeExplanation": "mode=tianshu; selected=nvidia/llama-3.1-nemotron-nano-8b-v1; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "evidenceId": "phase821-900-route-030",
+      "routeId": "route-surrogate-tianshu-7",
+      "task": "Tianshu planner surrogate task 7",
+      "mode": "tianshu",
+      "selectedModelId": "nvidia/llama-3.1-nemotron-nano-8b-v1",
+      "providerId": "nvidia",
+      "score": null,
+      "reason": "mode=tianshu; selected=nvidia/llama-3.1-nemotron-nano-8b-v1; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "fallback": [
+        {
+          "modelId": "nvidia/nemotron-mini-4b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "deepseek-ai/deepseek-v4-pro",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/nemotron-3-super-120b-a12b",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "google/gemma-3n-e4b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        }
+      ],
+      "requestAttemptCount": 0,
+      "responseClassification": "pass",
+      "estimatedCostUsd": 0,
+      "routeExplanation": "mode=tianshu; selected=nvidia/llama-3.1-nemotron-nano-8b-v1; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "evidenceId": "phase821-900-route-031",
+      "routeId": "route-surrogate-tianshu-8",
+      "task": "Tianshu planner surrogate task 8",
+      "mode": "tianshu",
+      "selectedModelId": "nvidia/llama-3.1-nemotron-nano-8b-v1",
+      "providerId": "nvidia",
+      "score": null,
+      "reason": "mode=tianshu; selected=nvidia/llama-3.1-nemotron-nano-8b-v1; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "fallback": [
+        {
+          "modelId": "nvidia/nemotron-mini-4b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "deepseek-ai/deepseek-v4-pro",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/nemotron-3-super-120b-a12b",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "google/gemma-3n-e4b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        }
+      ],
+      "requestAttemptCount": 0,
+      "responseClassification": "pass",
+      "estimatedCostUsd": 0,
+      "routeExplanation": "mode=tianshu; selected=nvidia/llama-3.1-nemotron-nano-8b-v1; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "evidenceId": "phase821-900-route-032",
+      "routeId": "route-surrogate-fallback-1",
+      "task": "Fallback or blocked surrogate task 1",
+      "mode": "normal",
+      "selectedModelId": "nvidia/llama-3.1-nemotron-nano-8b-v1",
+      "providerId": "nvidia",
+      "score": null,
+      "reason": "mode=normal; selected=nvidia/llama-3.1-nemotron-nano-8b-v1; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "fallback": [
+        {
+          "modelId": "nvidia/nemotron-mini-4b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "google/gemma-3n-e4b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "google/gemma-4-31b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "meta/llama-3.1-8b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "meta/llama-3.2-1b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        }
+      ],
+      "requestAttemptCount": 0,
+      "responseClassification": "blocked_by_gate",
+      "estimatedCostUsd": 0,
+      "routeExplanation": "mode=normal; selected=nvidia/llama-3.1-nemotron-nano-8b-v1; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "evidenceId": "phase821-900-route-033",
+      "routeId": "route-surrogate-fallback-2",
+      "task": "Fallback or blocked surrogate task 2",
+      "mode": "god",
+      "selectedModelId": "deepseek-ai/deepseek-v4-pro",
+      "providerId": "nvidia",
+      "score": null,
+      "reason": "mode=god; selected=deepseek-ai/deepseek-v4-pro; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "fallback": [
+        {
+          "modelId": "nvidia/llama-3.1-nemotron-nano-8b-v1",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/nemotron-3-super-120b-a12b",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/nemotron-mini-4b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "google/gemma-3n-e4b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        }
+      ],
+      "requestAttemptCount": 0,
+      "responseClassification": "blocked_by_gate",
+      "estimatedCostUsd": 0,
+      "routeExplanation": "mode=god; selected=deepseek-ai/deepseek-v4-pro; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "evidenceId": "phase821-900-route-034",
+      "routeId": "route-surrogate-fallback-3",
+      "task": "Fallback or blocked surrogate task 3",
+      "mode": "normal",
+      "selectedModelId": "nvidia/llama-3.1-nemotron-nano-8b-v1",
+      "providerId": "nvidia",
+      "score": null,
+      "reason": "mode=normal; selected=nvidia/llama-3.1-nemotron-nano-8b-v1; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "fallback": [
+        {
+          "modelId": "nvidia/nemotron-mini-4b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "google/gemma-3n-e4b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "google/gemma-4-31b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "meta/llama-3.1-8b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "meta/llama-3.2-1b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        }
+      ],
+      "requestAttemptCount": 0,
+      "responseClassification": "blocked_by_gate",
+      "estimatedCostUsd": 0,
+      "routeExplanation": "mode=normal; selected=nvidia/llama-3.1-nemotron-nano-8b-v1; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "evidenceId": "phase821-900-route-035",
+      "routeId": "route-surrogate-fallback-4",
+      "task": "Fallback or blocked surrogate task 4",
+      "mode": "god",
+      "selectedModelId": "deepseek-ai/deepseek-v4-pro",
+      "providerId": "nvidia",
+      "score": null,
+      "reason": "mode=god; selected=deepseek-ai/deepseek-v4-pro; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "fallback": [
+        {
+          "modelId": "nvidia/llama-3.1-nemotron-nano-8b-v1",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/nemotron-3-super-120b-a12b",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/nemotron-mini-4b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "google/gemma-3n-e4b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        }
+      ],
+      "requestAttemptCount": 0,
+      "responseClassification": "blocked_by_gate",
+      "estimatedCostUsd": 0,
+      "routeExplanation": "mode=god; selected=deepseek-ai/deepseek-v4-pro; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "evidenceId": "phase821-900-route-036",
+      "routeId": "route-ensemble-fixture-1",
+      "task": "ensemble-fixture-1",
+      "mode": "god",
+      "selectedModelId": "deepseek-ai/deepseek-v4-pro",
+      "providerId": "nvidia",
+      "score": null,
+      "reason": "mode=god; selected=deepseek-ai/deepseek-v4-pro; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "fallback": [
+        {
+          "modelId": "nvidia/llama-3.1-nemotron-nano-8b-v1",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/nemotron-3-super-120b-a12b",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/nemotron-mini-4b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "google/gemma-3n-e4b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        }
+      ],
+      "requestAttemptCount": 0,
+      "responseClassification": "pass",
+      "estimatedCostUsd": 0,
+      "routeExplanation": "mode=god; selected=deepseek-ai/deepseek-v4-pro; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "evidenceId": "phase821-900-route-037",
+      "routeId": "route-ensemble-fixture-2",
+      "task": "ensemble-fixture-2",
+      "mode": "tianshu",
+      "selectedModelId": "nvidia/llama-3.1-nemotron-nano-8b-v1",
+      "providerId": "nvidia",
+      "score": null,
+      "reason": "mode=tianshu; selected=nvidia/llama-3.1-nemotron-nano-8b-v1; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "fallback": [
+        {
+          "modelId": "nvidia/nemotron-mini-4b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "deepseek-ai/deepseek-v4-pro",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/nemotron-3-super-120b-a12b",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "google/gemma-3n-e4b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        }
+      ],
+      "requestAttemptCount": 0,
+      "responseClassification": "pass",
+      "estimatedCostUsd": 0,
+      "routeExplanation": "mode=tianshu; selected=nvidia/llama-3.1-nemotron-nano-8b-v1; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "evidenceId": "phase821-900-route-038",
+      "routeId": "route-ensemble-fixture-3",
+      "task": "ensemble-fixture-3",
+      "mode": "tianshu",
+      "selectedModelId": "nvidia/llama-3.1-nemotron-nano-8b-v1",
+      "providerId": "nvidia",
+      "score": null,
+      "reason": "mode=tianshu; selected=nvidia/llama-3.1-nemotron-nano-8b-v1; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "fallback": [
+        {
+          "modelId": "nvidia/nemotron-mini-4b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "deepseek-ai/deepseek-v4-pro",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/nemotron-3-super-120b-a12b",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "google/gemma-3n-e4b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        }
+      ],
+      "requestAttemptCount": 0,
+      "responseClassification": "pass",
+      "estimatedCostUsd": 0,
+      "routeExplanation": "mode=tianshu; selected=nvidia/llama-3.1-nemotron-nano-8b-v1; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "evidenceId": "phase821-900-route-039",
+      "routeId": "route-ensemble-fixture-4",
+      "task": "ensemble-fixture-4",
+      "mode": "god",
+      "selectedModelId": "deepseek-ai/deepseek-v4-pro",
+      "providerId": "nvidia",
+      "score": null,
+      "reason": "mode=god; selected=deepseek-ai/deepseek-v4-pro; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "fallback": [
+        {
+          "modelId": "nvidia/llama-3.1-nemotron-nano-8b-v1",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/nemotron-3-super-120b-a12b",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/nemotron-mini-4b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "google/gemma-3n-e4b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        }
+      ],
+      "requestAttemptCount": 0,
+      "responseClassification": "pass",
+      "estimatedCostUsd": 0,
+      "routeExplanation": "mode=god; selected=deepseek-ai/deepseek-v4-pro; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "evidenceId": "phase821-900-route-040",
+      "routeId": "route-ensemble-fixture-5",
+      "task": "ensemble-fixture-5",
+      "mode": "tianshu",
+      "selectedModelId": "nvidia/llama-3.1-nemotron-nano-8b-v1",
+      "providerId": "nvidia",
+      "score": null,
+      "reason": "mode=tianshu; selected=nvidia/llama-3.1-nemotron-nano-8b-v1; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "fallback": [
+        {
+          "modelId": "nvidia/nemotron-mini-4b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "deepseek-ai/deepseek-v4-pro",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/nemotron-3-super-120b-a12b",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "google/gemma-3n-e4b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        }
+      ],
+      "requestAttemptCount": 0,
+      "responseClassification": "pass",
+      "estimatedCostUsd": 0,
+      "routeExplanation": "mode=tianshu; selected=nvidia/llama-3.1-nemotron-nano-8b-v1; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "evidenceId": "phase821-900-route-041",
+      "routeId": "route-ensemble-fixture-6",
+      "task": "ensemble-fixture-6",
+      "mode": "tianshu",
+      "selectedModelId": "nvidia/llama-3.1-nemotron-nano-8b-v1",
+      "providerId": "nvidia",
+      "score": null,
+      "reason": "mode=tianshu; selected=nvidia/llama-3.1-nemotron-nano-8b-v1; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "fallback": [
+        {
+          "modelId": "nvidia/nemotron-mini-4b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "deepseek-ai/deepseek-v4-pro",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/nemotron-3-super-120b-a12b",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "google/gemma-3n-e4b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        }
+      ],
+      "requestAttemptCount": 0,
+      "responseClassification": "pass",
+      "estimatedCostUsd": 0,
+      "routeExplanation": "mode=tianshu; selected=nvidia/llama-3.1-nemotron-nano-8b-v1; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "evidenceId": "phase821-900-route-042",
+      "routeId": "route-ensemble-fixture-7",
+      "task": "ensemble-fixture-7",
+      "mode": "god",
+      "selectedModelId": "deepseek-ai/deepseek-v4-pro",
+      "providerId": "nvidia",
+      "score": null,
+      "reason": "mode=god; selected=deepseek-ai/deepseek-v4-pro; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "fallback": [
+        {
+          "modelId": "nvidia/llama-3.1-nemotron-nano-8b-v1",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/nemotron-3-super-120b-a12b",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/nemotron-mini-4b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "google/gemma-3n-e4b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        }
+      ],
+      "requestAttemptCount": 0,
+      "responseClassification": "pass",
+      "estimatedCostUsd": 0,
+      "routeExplanation": "mode=god; selected=deepseek-ai/deepseek-v4-pro; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "evidenceId": "phase821-900-route-043",
+      "routeId": "route-ensemble-fixture-8",
+      "task": "ensemble-fixture-8",
+      "mode": "tianshu",
+      "selectedModelId": "nvidia/llama-3.1-nemotron-nano-8b-v1",
+      "providerId": "nvidia",
+      "score": null,
+      "reason": "mode=tianshu; selected=nvidia/llama-3.1-nemotron-nano-8b-v1; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "fallback": [
+        {
+          "modelId": "nvidia/nemotron-mini-4b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "deepseek-ai/deepseek-v4-pro",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/nemotron-3-super-120b-a12b",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "google/gemma-3n-e4b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        }
+      ],
+      "requestAttemptCount": 0,
+      "responseClassification": "pass",
+      "estimatedCostUsd": 0,
+      "routeExplanation": "mode=tianshu; selected=nvidia/llama-3.1-nemotron-nano-8b-v1; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "evidenceId": "phase821-900-route-044",
+      "routeId": "route-ensemble-fixture-9",
+      "task": "ensemble-fixture-9",
+      "mode": "tianshu",
+      "selectedModelId": "nvidia/llama-3.1-nemotron-nano-8b-v1",
+      "providerId": "nvidia",
+      "score": null,
+      "reason": "mode=tianshu; selected=nvidia/llama-3.1-nemotron-nano-8b-v1; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "fallback": [
+        {
+          "modelId": "nvidia/nemotron-mini-4b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "deepseek-ai/deepseek-v4-pro",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/nemotron-3-super-120b-a12b",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "google/gemma-3n-e4b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        }
+      ],
+      "requestAttemptCount": 0,
+      "responseClassification": "pass",
+      "estimatedCostUsd": 0,
+      "routeExplanation": "mode=tianshu; selected=nvidia/llama-3.1-nemotron-nano-8b-v1; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "evidenceId": "phase821-900-route-045",
+      "routeId": "route-ensemble-fixture-10",
+      "task": "ensemble-fixture-10",
+      "mode": "god",
+      "selectedModelId": "deepseek-ai/deepseek-v4-pro",
+      "providerId": "nvidia",
+      "score": null,
+      "reason": "mode=god; selected=deepseek-ai/deepseek-v4-pro; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "fallback": [
+        {
+          "modelId": "nvidia/llama-3.1-nemotron-nano-8b-v1",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/nemotron-3-super-120b-a12b",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/nemotron-mini-4b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "google/gemma-3n-e4b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        }
+      ],
+      "requestAttemptCount": 0,
+      "responseClassification": "pass",
+      "estimatedCostUsd": 0,
+      "routeExplanation": "mode=god; selected=deepseek-ai/deepseek-v4-pro; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "evidenceId": "phase821-900-route-046",
+      "routeId": "route-ensemble-fixture-11",
+      "task": "ensemble-fixture-11",
+      "mode": "tianshu",
+      "selectedModelId": "nvidia/llama-3.1-nemotron-nano-8b-v1",
+      "providerId": "nvidia",
+      "score": null,
+      "reason": "mode=tianshu; selected=nvidia/llama-3.1-nemotron-nano-8b-v1; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "fallback": [
+        {
+          "modelId": "nvidia/nemotron-mini-4b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "deepseek-ai/deepseek-v4-pro",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/nemotron-3-super-120b-a12b",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "google/gemma-3n-e4b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        }
+      ],
+      "requestAttemptCount": 0,
+      "responseClassification": "pass",
+      "estimatedCostUsd": 0,
+      "routeExplanation": "mode=tianshu; selected=nvidia/llama-3.1-nemotron-nano-8b-v1; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "evidenceId": "phase821-900-route-047",
+      "routeId": "route-ensemble-fixture-12",
+      "task": "ensemble-fixture-12",
+      "mode": "tianshu",
+      "selectedModelId": "nvidia/llama-3.1-nemotron-nano-8b-v1",
+      "providerId": "nvidia",
+      "score": null,
+      "reason": "mode=tianshu; selected=nvidia/llama-3.1-nemotron-nano-8b-v1; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "fallback": [
+        {
+          "modelId": "nvidia/nemotron-mini-4b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "deepseek-ai/deepseek-v4-pro",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/nemotron-3-super-120b-a12b",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "google/gemma-3n-e4b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        }
+      ],
+      "requestAttemptCount": 0,
+      "responseClassification": "pass",
+      "estimatedCostUsd": 0,
+      "routeExplanation": "mode=tianshu; selected=nvidia/llama-3.1-nemotron-nano-8b-v1; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "evidenceId": "phase821-900-route-048",
+      "routeId": "route-ensemble-fixture-13",
+      "task": "ensemble-fixture-13",
+      "mode": "god",
+      "selectedModelId": "deepseek-ai/deepseek-v4-pro",
+      "providerId": "nvidia",
+      "score": null,
+      "reason": "mode=god; selected=deepseek-ai/deepseek-v4-pro; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "fallback": [
+        {
+          "modelId": "nvidia/llama-3.1-nemotron-nano-8b-v1",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/nemotron-3-super-120b-a12b",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/nemotron-mini-4b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "google/gemma-3n-e4b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        }
+      ],
+      "requestAttemptCount": 0,
+      "responseClassification": "pass",
+      "estimatedCostUsd": 0,
+      "routeExplanation": "mode=god; selected=deepseek-ai/deepseek-v4-pro; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "evidenceId": "phase821-900-route-049",
+      "routeId": "route-ensemble-fixture-14",
+      "task": "ensemble-fixture-14",
+      "mode": "tianshu",
+      "selectedModelId": "nvidia/llama-3.1-nemotron-nano-8b-v1",
+      "providerId": "nvidia",
+      "score": null,
+      "reason": "mode=tianshu; selected=nvidia/llama-3.1-nemotron-nano-8b-v1; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "fallback": [
+        {
+          "modelId": "nvidia/nemotron-mini-4b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "deepseek-ai/deepseek-v4-pro",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/nemotron-3-super-120b-a12b",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "google/gemma-3n-e4b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        }
+      ],
+      "requestAttemptCount": 0,
+      "responseClassification": "pass",
+      "estimatedCostUsd": 0,
+      "routeExplanation": "mode=tianshu; selected=nvidia/llama-3.1-nemotron-nano-8b-v1; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "evidenceId": "phase821-900-route-050",
+      "routeId": "route-ensemble-fixture-15",
+      "task": "ensemble-fixture-15",
+      "mode": "tianshu",
+      "selectedModelId": "nvidia/llama-3.1-nemotron-nano-8b-v1",
+      "providerId": "nvidia",
+      "score": null,
+      "reason": "mode=tianshu; selected=nvidia/llama-3.1-nemotron-nano-8b-v1; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "fallback": [
+        {
+          "modelId": "nvidia/nemotron-mini-4b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "deepseek-ai/deepseek-v4-pro",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/nemotron-3-super-120b-a12b",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "google/gemma-3n-e4b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        }
+      ],
+      "requestAttemptCount": 0,
+      "responseClassification": "pass",
+      "estimatedCostUsd": 0,
+      "routeExplanation": "mode=tianshu; selected=nvidia/llama-3.1-nemotron-nano-8b-v1; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "evidenceId": "phase821-900-route-051",
+      "routeId": "route-ensemble-fixture-16",
+      "task": "ensemble-fixture-16",
+      "mode": "god",
+      "selectedModelId": "deepseek-ai/deepseek-v4-pro",
+      "providerId": "nvidia",
+      "score": null,
+      "reason": "mode=god; selected=deepseek-ai/deepseek-v4-pro; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "fallback": [
+        {
+          "modelId": "nvidia/llama-3.1-nemotron-nano-8b-v1",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/nemotron-3-super-120b-a12b",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/nemotron-mini-4b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "google/gemma-3n-e4b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        }
+      ],
+      "requestAttemptCount": 0,
+      "responseClassification": "pass",
+      "estimatedCostUsd": 0,
+      "routeExplanation": "mode=god; selected=deepseek-ai/deepseek-v4-pro; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "evidenceId": "phase821-900-route-052",
+      "routeId": "route-ensemble-fixture-17",
+      "task": "ensemble-fixture-17",
+      "mode": "tianshu",
+      "selectedModelId": "nvidia/llama-3.1-nemotron-nano-8b-v1",
+      "providerId": "nvidia",
+      "score": null,
+      "reason": "mode=tianshu; selected=nvidia/llama-3.1-nemotron-nano-8b-v1; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "fallback": [
+        {
+          "modelId": "nvidia/nemotron-mini-4b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "deepseek-ai/deepseek-v4-pro",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/nemotron-3-super-120b-a12b",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "google/gemma-3n-e4b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        }
+      ],
+      "requestAttemptCount": 0,
+      "responseClassification": "pass",
+      "estimatedCostUsd": 0,
+      "routeExplanation": "mode=tianshu; selected=nvidia/llama-3.1-nemotron-nano-8b-v1; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "evidenceId": "phase821-900-route-053",
+      "routeId": "route-ensemble-fixture-18",
+      "task": "ensemble-fixture-18",
+      "mode": "tianshu",
+      "selectedModelId": "nvidia/llama-3.1-nemotron-nano-8b-v1",
+      "providerId": "nvidia",
+      "score": null,
+      "reason": "mode=tianshu; selected=nvidia/llama-3.1-nemotron-nano-8b-v1; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "fallback": [
+        {
+          "modelId": "nvidia/nemotron-mini-4b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "deepseek-ai/deepseek-v4-pro",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/nemotron-3-super-120b-a12b",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "google/gemma-3n-e4b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        }
+      ],
+      "requestAttemptCount": 0,
+      "responseClassification": "pass",
+      "estimatedCostUsd": 0,
+      "routeExplanation": "mode=tianshu; selected=nvidia/llama-3.1-nemotron-nano-8b-v1; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "evidenceId": "phase821-900-route-054",
+      "routeId": "route-ensemble-fixture-19",
+      "task": "ensemble-fixture-19",
+      "mode": "god",
+      "selectedModelId": "deepseek-ai/deepseek-v4-pro",
+      "providerId": "nvidia",
+      "score": null,
+      "reason": "mode=god; selected=deepseek-ai/deepseek-v4-pro; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "fallback": [
+        {
+          "modelId": "nvidia/llama-3.1-nemotron-nano-8b-v1",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/nemotron-3-super-120b-a12b",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/nemotron-mini-4b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "google/gemma-3n-e4b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        }
+      ],
+      "requestAttemptCount": 0,
+      "responseClassification": "pass",
+      "estimatedCostUsd": 0,
+      "routeExplanation": "mode=god; selected=deepseek-ai/deepseek-v4-pro; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "evidenceId": "phase821-900-route-055",
+      "routeId": "route-ensemble-fixture-20",
+      "task": "ensemble-fixture-20",
+      "mode": "tianshu",
+      "selectedModelId": "nvidia/llama-3.1-nemotron-nano-8b-v1",
+      "providerId": "nvidia",
+      "score": null,
+      "reason": "mode=tianshu; selected=nvidia/llama-3.1-nemotron-nano-8b-v1; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "fallback": [
+        {
+          "modelId": "nvidia/nemotron-mini-4b-instruct",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "deepseek-ai/deepseek-v4-pro",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "nvidia/nemotron-3-super-120b-a12b",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        },
+        {
+          "modelId": "google/gemma-3n-e4b-it",
+          "providerId": "nvidia",
+          "reason": "selectable_smoke_passed_fallback"
+        }
+      ],
+      "requestAttemptCount": 0,
+      "responseClassification": "pass",
+      "estimatedCostUsd": 0,
+      "routeExplanation": "mode=tianshu; selected=nvidia/llama-3.1-nemotron-nano-8b-v1; tokenPressure=low; costPressure=medium; latencyPressure=high; reasoningPressure=high; dryRunOnly=true; providerCallsMade=false",
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    }
+  ],
+  "providerCallsMade": true,
+  "estimatedCostUsdTotal": 0.005,
+  "secretRead": false,
+  "rawSecretRead": false,
+  "authJsonRead": false,
+  "secretValueExposed": false,
+  "credentialRefOnly": true,
+  "chatBehaviorChangedByDefault": false,
+  "chatGatewayExecuteBehaviorChangedByDefault": false,
+  "chatDefaultEnabled": false,
+  "chatGatewayExecuteDefaultEnabled": false,
+  "deployExecuted": false,
+  "releaseExecuted": false,
+  "tagCreated": false,
+  "artifactUploaded": false,
+  "pushExecuted": false,
+  "commitCreated": false,
+  "workspaceCleanClaimed": false
+}

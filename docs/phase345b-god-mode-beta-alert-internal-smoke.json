@@ -1,0 +1,12 @@
+{
+  "phase": "Phase345B",
+  "inputPhase": "Phase344B",
+  "flagName": "godModeBetaAlerting",
+  "internalOnly": true,
+  "smokePassed": true,
+  "noPublicExposure": true,
+  "noUnauthorizedProviderCall": true,
+  "externalNotification": false,
+  "providerRealCallExecuted": false,
+  "secretValueExposed": false
+}

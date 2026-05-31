@@ -1,0 +1,13 @@
+{
+  "date": "",
+  "task": "",
+  "mode": "normal|god|tianshu|codex|taiji|beidou",
+  "whatWorked": "",
+  "whatFailed": "",
+  "confusingPoint": "",
+  "providerUsed": false,
+  "runtimeUsed": false,
+  "issueSeverity": "P0|P1|P2|P3|none",
+  "suggestedCapability": "",
+  "evidenceRef": ""
+}

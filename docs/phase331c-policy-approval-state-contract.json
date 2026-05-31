@@ -1,0 +1,19 @@
+{
+  "phase": "Phase331C",
+  "contractName": "tianshu-policy-approval-state",
+  "fields": [
+    "proposalId",
+    "state",
+    "reviewerIdRef",
+    "approvalTimestamp",
+    "rejectionReason",
+    "dryRunResult",
+    "activationAllowed",
+    "auditTrace"
+  ],
+  "defaults": {
+    "activationAllowed": false,
+    "approvalRequired": true,
+    "autoApply": false
+  }
+}

@@ -1,0 +1,39 @@
+diff --git a/tools/phase2171_2185/apply-controlled-deca-tool-mutation.mjs b/tools/phase2171_2185/apply-controlled-deca-tool-mutation.mjs
+index ab95c19..8d0a1f1 100644
+--- a/tools/phase2171_2185/apply-controlled-deca-tool-mutation.mjs
++++ b/tools/phase2171_2185/apply-controlled-deca-tool-mutation.mjs
+@@ -300,6 +300,34 @@ export function buildPhase2432TwentyTwoMutationTargetElevenStatus() {
+     chatGatewayExecuteModified: false,
+   };
+ }
++
++export function buildPhase2459TwentyThreeMutationTargetElevenStatus() {
++  return {
++    phaseId: "Phase2459A-Controlled-Twenty-Three-Tool-Mutation-Target-Eleven",
++    marker: "PHASE2459_TWENTY_THREE_TOOL_TARGET_ELEVEN_OK",
++    importSafe: true,
++    phase2170Marker: "PHASE2170_NONET_TOOL_TARGET_NINE_OK",
++    phase2185Marker: "PHASE2185_DECA_TOOL_TARGET_TEN_OK",
++    phase2201Marker: "PHASE2201_ELEVEN_TOOL_TARGET_ELEVEN_OK",
++    phase2217Marker: "PHASE2217_TWELVE_TOOL_TARGET_ELEVEN_OK",
++    phase2234Marker: "PHASE2234_THIRTEEN_TOOL_TARGET_ELEVEN_OK",
++    phase2252Marker: "PHASE2252_FOURTEEN_TOOL_TARGET_ELEVEN_OK",
++    phase2271Marker: "PHASE2271_FIFTEEN_TOOL_TARGET_ELEVEN_OK",
++    phase2291Marker: "PHASE2291_SIXTEEN_TOOL_TARGET_ELEVEN_OK",
++    phase2312Marker: "PHASE2312_SEVENTEEN_TOOL_TARGET_ELEVEN_OK",
++    phase2334Marker: "PHASE2334_EIGHTEEN_TOOL_TARGET_ELEVEN_OK",
++    phase2357Marker: "PHASE2357_NINETEEN_TOOL_TARGET_ELEVEN_OK",
++    phase2381Marker: "PHASE2381_TWENTY_TOOL_TARGET_ELEVEN_OK",
++    phase2406Marker: "PHASE2406_TWENTY_ONE_TOOL_TARGET_ELEVEN_OK",
++    phase2432Marker: "PHASE2432_TWENTY_TWO_TOOL_TARGET_ELEVEN_OK",
++    phase2459Marker: "PHASE2459_TWENTY_THREE_TOOL_TARGET_ELEVEN_OK",
++    twentyThreeMutationApplied: true,
++    providerCallsMade: false,
++    codexExecExecuted: false,
++    chatModified: false,
++    chatGatewayExecuteModified: false,
++  };
++}
+ export function main() {
+   const args = parseArgs(process.argv.slice(2));
+   const planPath = args.plan || "docs/phase2171-2185-controlled-deca-tool-mutation-approval.example.json";

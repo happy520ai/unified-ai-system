@@ -1,0 +1,9 @@
+{
+  "paused": false,
+  "stopRequested": false,
+  "maxTasksPerLoop": 1,
+  "dryRunOnly": true,
+  "noProvider": true,
+  "noSecret": true,
+  "noDeploy": true
+}

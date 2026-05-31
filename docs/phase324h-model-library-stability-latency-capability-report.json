@@ -1,0 +1,197 @@
+{
+  "phase": "Phase324H",
+  "reportName": "model-library-stability-latency-capability-report",
+  "runtimeStatus": "read_only_report",
+  "providerCallsMade": false,
+  "selectableModified": false,
+  "summary": {
+    "totalModels": 148,
+    "selectableModels": 16,
+    "smokePassedModels": 16,
+    "failedModels": 12,
+    "unverifiedModels": 120,
+    "manualReviewRequiredModels": 0,
+    "highRiskModels": 7,
+    "evidenceCoverage": "20/148",
+    "passRate": 0.4,
+    "failureRate": 0.6,
+    "averageLatencyMs": 5555,
+    "medianLatencyMs": 461.5,
+    "p95LatencyMs": 45012,
+    "fastestModels": [
+      {
+        "modelId": "google/gemma-7b",
+        "latencyMs": 52
+      },
+      {
+        "modelId": "microsoft/phi-4-mini-flash-reasoning",
+        "latencyMs": 57
+      },
+      {
+        "modelId": "microsoft/trellis",
+        "latencyMs": 57
+      },
+      {
+        "modelId": "google/gemma-3-27b-it",
+        "latencyMs": 59
+      },
+      {
+        "modelId": "deepseek-ai/deepseek-v3.1-terminus",
+        "latencyMs": 96
+      }
+    ],
+    "slowestModels": [
+      {
+        "modelId": "minimaxai/minimax-m2.5",
+        "latencyMs": 45019
+      },
+      {
+        "modelId": "deepseek-ai/deepseek-v4-flash",
+        "latencyMs": 45012
+      },
+      {
+        "modelId": "bytedance/seed-oss-36b-instruct",
+        "latencyMs": 8574
+      },
+      {
+        "modelId": "google/gemma-4-31b-it",
+        "latencyMs": 5182
+      },
+      {
+        "modelId": "minimaxai/minimax-m2.7",
+        "latencyMs": 1479
+      }
+    ],
+    "highLatencyModels": [
+      {
+        "modelId": "google/gemma-4-31b-it",
+        "latencyMs": 5182
+      },
+      {
+        "modelId": "bytedance/seed-oss-36b-instruct",
+        "latencyMs": 8574
+      },
+      {
+        "modelId": "deepseek-ai/deepseek-v4-flash",
+        "latencyMs": 45012
+      },
+      {
+        "modelId": "minimaxai/minimax-m2.5",
+        "latencyMs": 45019
+      }
+    ],
+    "httpStatusDistribution": {
+      "200": 9,
+      "400": 1,
+      "404": 2,
+      "410": 5,
+      "422": 1,
+      "none": 2
+    },
+    "errorCodeDistribution": {
+      "nvidia_http_error": 10,
+      "nvidia_request_timeout": 2,
+      "none": 8
+    },
+    "providerDistribution": {
+      "nvidia": 20
+    },
+    "phaseDistribution": {
+      "Phase324B-4": 5,
+      "Phase324B-5": 5,
+      "Phase324B-6": 5,
+      "Phase324B-7": 5
+    }
+  },
+  "latencyTiers": {
+    "ultra_fast": 11,
+    "fast": 3,
+    "normal": 2,
+    "slow": 0,
+    "very_slow": 4
+  },
+  "riskTiers": {
+    "stable_selectable": 7,
+    "eligible_for_review": 1,
+    "high_latency_review": 0,
+    "failed_not_eligible": 5,
+    "high_risk_http_410": 5,
+    "high_risk_timeout": 2,
+    "unverified": 0,
+    "manual_review_required": 0
+  },
+  "capabilityTiers": {
+    "general_chat": 12,
+    "low_latency": 4,
+    "coding": 1,
+    "large_model": 2,
+    "long_context": 1,
+    "reasoning": 1
+  },
+  "reviewQueues": {
+    "eligibleForPhase324C6": [
+      {
+        "modelId": "minimaxai/minimax-m2.7"
+      }
+    ],
+    "highRiskHttp410": [
+      {
+        "modelId": "deepseek-ai/deepseek-v3.1-terminus"
+      },
+      {
+        "modelId": "deepseek-ai/deepseek-v3.2"
+      },
+      {
+        "modelId": "google/gemma-7b"
+      },
+      {
+        "modelId": "microsoft/phi-3-medium-128k-instruct"
+      },
+      {
+        "modelId": "microsoft/phi-4-mini-flash-reasoning"
+      }
+    ],
+    "highRiskTimeout": [
+      {
+        "modelId": "deepseek-ai/deepseek-v4-flash"
+      },
+      {
+        "modelId": "minimaxai/minimax-m2.5"
+      }
+    ],
+    "notRecommendedRetry": [
+      {
+        "modelId": "deepseek-ai/deepseek-v3.1-terminus"
+      },
+      {
+        "modelId": "deepseek-ai/deepseek-v3.2"
+      },
+      {
+        "modelId": "deepseek-ai/deepseek-v4-flash"
+      },
+      {
+        "modelId": "google/gemma-7b"
+      },
+      {
+        "modelId": "microsoft/phi-3-medium-128k-instruct"
+      },
+      {
+        "modelId": "microsoft/phi-4-mini-flash-reasoning"
+      },
+      {
+        "modelId": "minimaxai/minimax-m2.5"
+      }
+    ]
+  },
+  "missingSources": [],
+  "capabilityInference": {
+    "inferenceUsed": true,
+    "inferenceSource": "model_id_heuristic"
+  },
+  "safety": {
+    "readOnly": true,
+    "noProviderCall": true,
+    "noSelectableChange": true,
+    "noChatMainChainChange": true
+  }
+}

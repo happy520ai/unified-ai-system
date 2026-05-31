@@ -1,0 +1,38 @@
+{
+  "phase": "Phase557A",
+  "title": "Yiyi Demo Controlled Safety Signals",
+  "packageType": "controlled-safety-signals",
+  "checklist": [
+    {
+      "id": "controlledSafetySignalsCreated",
+      "order": 1,
+      "status": "prepared",
+      "safetyBoundary": "dry-run docs/evidence only; no provider, no secret, no deploy, no billing"
+    },
+    {
+      "id": "safetySignalsChecklistCreated",
+      "order": 2,
+      "status": "prepared",
+      "safetyBoundary": "dry-run docs/evidence only; no provider, no secret, no deploy, no billing"
+    }
+  ],
+  "previousClosure": {
+    "path": "apps/ai-gateway-service/evidence/phase556/yiyi-demo-evidence-reliability-ledger-closure-result.json",
+    "exists": true,
+    "sizeBytes": 2100
+  },
+  "phase384StillRequiresHumanApproval": true,
+  "providerCallsMade": false,
+  "nonNvidiaProviderCallsMade": false,
+  "secretValueExposed": false,
+  "rawSecretAccessed": false,
+  "deployExecuted": false,
+  "releaseExecuted": false,
+  "tagCreated": false,
+  "artifactUploaded": false,
+  "approvalForged": false,
+  "billingExecuted": false,
+  "invoiceGenerated": false,
+  "productionGaClaimed": false,
+  "workspaceCleanClaimed": false
+}

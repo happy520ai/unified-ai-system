@@ -1,0 +1,41 @@
+{
+  "phase": "Phase616R-Fix",
+  "artifactType": "runtime_candidate_route_contract_dry_run",
+  "routeId": "codex_exec_crs_runtime_candidate_dry_run",
+  "sourcePreviewRouteId": "codex_exec_crs_preview",
+  "sourceCapabilityRef": "phase613r",
+  "sourceApprovalPacketRef": "phase615r",
+  "selectedProviderId": "crs",
+  "mode": "dry_run_candidate_only",
+  "runtimeIntegrated": false,
+  "allowedEntryPoints": [
+    "mission_control_read_only_preview",
+    "runtime_candidate_dry_run_preview"
+  ],
+  "forbiddenEntryPoints": [
+    "/chat",
+    "/chat-gateway/execute",
+    "provider_runtime",
+    "production_router"
+  ],
+  "requiresSeparateRuntimeApprovalBeforeWiring": true,
+  "maxRequestsDefault": 1,
+  "maxRequestsHardLimit": 3,
+  "retryLimit": 0,
+  "stopOnFirstFailure": true,
+  "rollbackRequired": true,
+  "emergencyDisableRequired": true,
+  "authJsonAccessAllowed": false,
+  "codexConfigWriteAllowed": false,
+  "projectCodexConfigWriteAllowed": false,
+  "chatIntegrationAllowed": false,
+  "chatGatewayExecuteIntegrationAllowed": false,
+  "providerRuntimeModificationAllowed": false,
+  "providerCallAllowedByThisPhase": false,
+  "codexExecAllowedByThisPhase": false,
+  "productionReady": false,
+  "releaseReady": false,
+  "exampleOnly": false,
+  "dryRunArtifact": true
+}
+

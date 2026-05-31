@@ -1,0 +1,35 @@
+{
+  "phase": "Phase362D",
+  "packageName": "vault-approval-follow-up-package",
+  "selectedAdapter": null,
+  "productionReadyFromPhase360": false,
+  "vaultBackendConfigured": false,
+  "credentialRefPolicyReviewed": false,
+  "secretRedactionReviewed": false,
+  "rawSecretNeverReturnedReviewed": false,
+  "revokePolicyReviewed": false,
+  "rotationPolicyReviewed": false,
+  "tenantIsolationReviewed": false,
+  "auditEventCoverageReviewed": false,
+  "accessDecisionRequired": true,
+  "vaultBackendApprovalRequired": true,
+  "vaultApprovalPresent": false,
+  "accessDecisionPresent": false,
+  "credentialRefPresent": false,
+  "productionVaultEnabled": false,
+  "followUpActions": [
+    "request vault backend approval",
+    "request access decision",
+    "request credentialRef evidence"
+  ],
+  "blockers": [
+    "credential_vault_backend_approval",
+    "accessDecision",
+    "credentialRef"
+  ],
+  "safety": {
+    "secretValueExposed": false,
+    "rawSecretReturned": false,
+    "realProviderCallAuthorized": false
+  }
+}

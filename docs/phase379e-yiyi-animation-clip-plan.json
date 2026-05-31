@@ -1,0 +1,32 @@
+{
+  "phase": "Phase379E",
+  "avatarName": "依依",
+  "targetAssetFormat": [
+    "glTF",
+    "GLB"
+  ],
+  "real3DModelLoaded": false,
+  "pseudo3DPrototype": true,
+  "gltfIntegrationReserved": true,
+  "clips": [
+    { "clipId": "idle", "purpose": "calm standing / breathing loop", "priority": "P0" },
+    { "clipId": "roam", "purpose": "light bounded roaming feeling", "priority": "P1" },
+    { "clipId": "mouse_attention", "purpose": "look toward pointer / attention pose", "priority": "P0" },
+    { "clipId": "wave", "purpose": "welcome and onboarding greeting", "priority": "P0" },
+    { "clipId": "point", "purpose": "guide to selected Mission Control panel", "priority": "P0" },
+    { "clipId": "thinking", "purpose": "dry-run analysis waiting state", "priority": "P0" },
+    { "clipId": "guard", "purpose": "raise translucent shield", "priority": "P0" },
+    { "clipId": "blocked", "purpose": "red-team blocked / gentle denial", "priority": "P0" },
+    { "clipId": "happy", "purpose": "God Arena successful review moment", "priority": "P1" },
+    { "clipId": "worried", "purpose": "risk warning without alarmism", "priority": "P1" },
+    { "clipId": "fallback_sorry", "purpose": "soft apology and next-step prompt", "priority": "P0" },
+    { "clipId": "compact_resting", "purpose": "corner compact / reduced-motion fallback", "priority": "P0" }
+  ],
+  "safetyBoundary": {
+    "rawPhotoStored": false,
+    "externalUploadPerformed": false,
+    "faceRecognitionPerformed": false,
+    "sensitiveAttributeInferencePerformed": false,
+    "providerCallsMade": false
+  }
+}

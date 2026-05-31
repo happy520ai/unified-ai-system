@@ -1,0 +1,17 @@
+{
+  "phase": "Phase373A-2",
+  "blockerTarget": "source_no_dangerous_buttons",
+  "offendingFiles": [
+    "apps/ai-gateway-service/src/ui/consolePage.js"
+  ],
+  "offendingSnippetTypes": [
+    "no-deploy notice",
+    "deploy / production explanatory copy"
+  ],
+  "offendingPatternsBeforeFix": [
+    "no-deploy",
+    "production deploy",
+    "deploy"
+  ],
+  "currentDangerousKeywordMatchesAfterFix": []
+}

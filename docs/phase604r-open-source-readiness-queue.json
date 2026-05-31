@@ -1,0 +1,326 @@
+{
+  "phase": "Phase604R",
+  "title": "Codex Overnight Safe Auto Runner + Open Source Readiness Queue",
+  "queueMode": "preview_only",
+  "longRunningLoopStarted": false,
+  "providerCallsMade": false,
+  "workspaceCleanClaimed": false,
+  "tasks": [
+    {
+      "taskId": "phase604r-task-001",
+      "title": "Mission Control first-use click path verifier",
+      "allowedFiles": [
+        "tools/phase604r/",
+        "docs/phase604r-*.md",
+        "apps/ai-gateway-service/evidence/phase604r/*.json"
+      ],
+      "forbiddenFiles": [
+        "legacy/",
+        "PROJECT_CONTEXT.md",
+        "/chat",
+        "/chat-gateway/execute",
+        ".codex/config.toml",
+        "~/.codex/config.toml"
+      ],
+      "validationCommands": [
+        "cmd /c node --check tools/phase604r/validate-overnight-safe-auto-runner.mjs",
+        "cmd /c node tools/phase604r/validate-overnight-safe-auto-runner.mjs"
+      ],
+      "rollbackNote": "Remove only the Phase604R first-use verifier artifact and its evidence entry; preserve unrelated Phase604 evidence.",
+      "riskLevel": "low",
+      "providerCallsAllowed": false,
+      "secretAccessAllowed": false,
+      "deployAllowed": false,
+      "autoContinueAllowed": true
+    },
+    {
+      "taskId": "phase604r-task-002",
+      "title": "Dry-run copy danger wording scan",
+      "allowedFiles": [
+        "tools/phase604r/",
+        "docs/phase604r-*.md",
+        "apps/ai-gateway-service/evidence/phase604r/*.json"
+      ],
+      "forbiddenFiles": [
+        "legacy/",
+        "PROJECT_CONTEXT.md",
+        "/chat",
+        "/chat-gateway/execute",
+        ".codex/config.toml",
+        "~/.codex/config.toml"
+      ],
+      "validationCommands": [
+        "cmd /c node --check tools/phase604r/validate-overnight-safe-auto-runner.mjs",
+        "cmd /c pnpm verify:phase107a-secret-safety"
+      ],
+      "rollbackNote": "Revert only Phase604R dry-run wording notes and regenerated local evidence.",
+      "riskLevel": "low",
+      "providerCallsAllowed": false,
+      "secretAccessAllowed": false,
+      "deployAllowed": false,
+      "autoContinueAllowed": true
+    },
+    {
+      "taskId": "phase604r-task-003",
+      "title": "Context pack freshness verifier",
+      "allowedFiles": [
+        "tools/phase604r/",
+        "docs/phase604r-*.md",
+        "apps/ai-gateway-service/evidence/phase604r/*.json"
+      ],
+      "forbiddenFiles": [
+        "legacy/",
+        "PROJECT_CONTEXT.md",
+        "/chat",
+        "/chat-gateway/execute",
+        ".codex/config.toml",
+        "~/.codex/config.toml"
+      ],
+      "validationCommands": [
+        "cmd /c node tools/phase604r/validate-overnight-safe-auto-runner.mjs"
+      ],
+      "rollbackNote": "Remove the freshness verifier artifact if it overreaches beyond local context metadata.",
+      "riskLevel": "low",
+      "providerCallsAllowed": false,
+      "secretAccessAllowed": false,
+      "deployAllowed": false,
+      "autoContinueAllowed": true
+    },
+    {
+      "taskId": "phase604r-task-004",
+      "title": "Relevant files scope verifier",
+      "allowedFiles": [
+        "tools/phase604r/",
+        "docs/phase604r-*.md",
+        "apps/ai-gateway-service/evidence/phase604r/*.json"
+      ],
+      "forbiddenFiles": [
+        "legacy/",
+        "PROJECT_CONTEXT.md",
+        "/chat",
+        "/chat-gateway/execute",
+        ".codex/config.toml",
+        "~/.codex/config.toml"
+      ],
+      "validationCommands": [
+        "cmd /c node tools/phase604r/validate-overnight-safe-auto-runner.mjs"
+      ],
+      "rollbackNote": "Remove only the relevant-files scope verifier and its generated evidence.",
+      "riskLevel": "low",
+      "providerCallsAllowed": false,
+      "secretAccessAllowed": false,
+      "deployAllowed": false,
+      "autoContinueAllowed": true
+    },
+    {
+      "taskId": "phase604r-task-005",
+      "title": "README and AGENTS sync guard",
+      "allowedFiles": [
+        "tools/phase604r/",
+        "docs/phase604r-*.md",
+        "apps/ai-gateway-service/evidence/phase604r/*.json"
+      ],
+      "forbiddenFiles": [
+        "legacy/",
+        "PROJECT_CONTEXT.md",
+        "/chat",
+        "/chat-gateway/execute",
+        ".codex/config.toml",
+        "~/.codex/config.toml"
+      ],
+      "validationCommands": [
+        "cmd /c pnpm sync:readme-agents-current-state",
+        "cmd /c pnpm verify:phase306c-readme-agents-auto-sync-guard"
+      ],
+      "rollbackNote": "If managed block sync changes are unwanted, restore only the managed block from prior evidence; do not claim a clean workspace.",
+      "riskLevel": "low",
+      "providerCallsAllowed": false,
+      "secretAccessAllowed": false,
+      "deployAllowed": false,
+      "autoContinueAllowed": true
+    },
+    {
+      "taskId": "phase604r-task-006",
+      "title": "Open-source secret hygiene scan",
+      "allowedFiles": [
+        "tools/phase604r/",
+        "docs/phase604r-*.md",
+        "apps/ai-gateway-service/evidence/phase604r/*.json"
+      ],
+      "forbiddenFiles": [
+        "legacy/",
+        "PROJECT_CONTEXT.md",
+        "/chat",
+        "/chat-gateway/execute",
+        ".codex/config.toml",
+        "~/.codex/config.toml"
+      ],
+      "validationCommands": [
+        "cmd /c pnpm verify:phase107a-secret-safety"
+      ],
+      "rollbackNote": "Remove only Phase604R hygiene report files if the scan scope is too broad.",
+      "riskLevel": "low",
+      "providerCallsAllowed": false,
+      "secretAccessAllowed": false,
+      "deployAllowed": false,
+      "autoContinueAllowed": true
+    },
+    {
+      "taskId": "phase604r-task-007",
+      "title": "Docs and evidence index refresh",
+      "allowedFiles": [
+        "tools/phase604r/",
+        "docs/phase604r-*.md",
+        "apps/ai-gateway-service/evidence/phase604r/*.json"
+      ],
+      "forbiddenFiles": [
+        "legacy/",
+        "PROJECT_CONTEXT.md",
+        "/chat",
+        "/chat-gateway/execute",
+        ".codex/config.toml",
+        "~/.codex/config.toml"
+      ],
+      "validationCommands": [
+        "cmd /c node tools/phase604r/validate-overnight-safe-auto-runner.mjs"
+      ],
+      "rollbackNote": "Remove only the generated Phase604R index files and rerun the queue verifier.",
+      "riskLevel": "low",
+      "providerCallsAllowed": false,
+      "secretAccessAllowed": false,
+      "deployAllowed": false,
+      "autoContinueAllowed": true
+    },
+    {
+      "taskId": "phase604r-task-008",
+      "title": "License and README readiness checklist",
+      "allowedFiles": [
+        "tools/phase604r/",
+        "docs/phase604r-*.md",
+        "apps/ai-gateway-service/evidence/phase604r/*.json"
+      ],
+      "forbiddenFiles": [
+        "legacy/",
+        "PROJECT_CONTEXT.md",
+        "/chat",
+        "/chat-gateway/execute",
+        ".codex/config.toml",
+        "~/.codex/config.toml"
+      ],
+      "validationCommands": [
+        "cmd /c node tools/phase604r/validate-overnight-safe-auto-runner.mjs"
+      ],
+      "rollbackNote": "Remove checklist-only files; do not change license state without a separate explicit phase.",
+      "riskLevel": "low",
+      "providerCallsAllowed": false,
+      "secretAccessAllowed": false,
+      "deployAllowed": false,
+      "autoContinueAllowed": true
+    },
+    {
+      "taskId": "phase604r-task-009",
+      "title": "Local dev quickstart draft",
+      "allowedFiles": [
+        "tools/phase604r/",
+        "docs/phase604r-*.md",
+        "apps/ai-gateway-service/evidence/phase604r/*.json"
+      ],
+      "forbiddenFiles": [
+        "legacy/",
+        "PROJECT_CONTEXT.md",
+        "/chat",
+        "/chat-gateway/execute",
+        ".codex/config.toml",
+        "~/.codex/config.toml"
+      ],
+      "validationCommands": [
+        "cmd /c pnpm verify:phase321a-workbench-product-recovery"
+      ],
+      "rollbackNote": "Remove quickstart draft files if they overstate readiness or imply production status.",
+      "riskLevel": "low",
+      "providerCallsAllowed": false,
+      "secretAccessAllowed": false,
+      "deployAllowed": false,
+      "autoContinueAllowed": true
+    },
+    {
+      "taskId": "phase604r-task-010",
+      "title": "Mock-only sample task walkthrough",
+      "allowedFiles": [
+        "tools/phase604r/",
+        "docs/phase604r-*.md",
+        "apps/ai-gateway-service/evidence/phase604r/*.json"
+      ],
+      "forbiddenFiles": [
+        "legacy/",
+        "PROJECT_CONTEXT.md",
+        "/chat",
+        "/chat-gateway/execute",
+        ".codex/config.toml",
+        "~/.codex/config.toml"
+      ],
+      "validationCommands": [
+        "cmd /c pnpm smoke:phase308a-desktop-workbench-ui"
+      ],
+      "rollbackNote": "Remove mock-only walkthrough files; keep real provider paths untouched.",
+      "riskLevel": "low",
+      "providerCallsAllowed": false,
+      "secretAccessAllowed": false,
+      "deployAllowed": false,
+      "autoContinueAllowed": true
+    },
+    {
+      "taskId": "phase604r-task-011",
+      "title": "Known limits page",
+      "allowedFiles": [
+        "tools/phase604r/",
+        "docs/phase604r-*.md",
+        "apps/ai-gateway-service/evidence/phase604r/*.json"
+      ],
+      "forbiddenFiles": [
+        "legacy/",
+        "PROJECT_CONTEXT.md",
+        "/chat",
+        "/chat-gateway/execute",
+        ".codex/config.toml",
+        "~/.codex/config.toml"
+      ],
+      "validationCommands": [
+        "cmd /c node tools/phase604r/validate-overnight-safe-auto-runner.mjs"
+      ],
+      "rollbackNote": "Remove only the known-limits draft if it conflicts with later release readiness docs.",
+      "riskLevel": "low",
+      "providerCallsAllowed": false,
+      "secretAccessAllowed": false,
+      "deployAllowed": false,
+      "autoContinueAllowed": true
+    },
+    {
+      "taskId": "phase604r-task-012",
+      "title": "Contributor safety guide",
+      "allowedFiles": [
+        "tools/phase604r/",
+        "docs/phase604r-*.md",
+        "apps/ai-gateway-service/evidence/phase604r/*.json"
+      ],
+      "forbiddenFiles": [
+        "legacy/",
+        "PROJECT_CONTEXT.md",
+        "/chat",
+        "/chat-gateway/execute",
+        ".codex/config.toml",
+        "~/.codex/config.toml"
+      ],
+      "validationCommands": [
+        "cmd /c node tools/phase604r/validate-overnight-safe-auto-runner.mjs",
+        "cmd /c pnpm verify:phase107a-secret-safety"
+      ],
+      "rollbackNote": "Remove contributor safety guide draft if it needs legal or maintainer review before use.",
+      "riskLevel": "low",
+      "providerCallsAllowed": false,
+      "secretAccessAllowed": false,
+      "deployAllowed": false,
+      "autoContinueAllowed": true
+    }
+  ]
+}

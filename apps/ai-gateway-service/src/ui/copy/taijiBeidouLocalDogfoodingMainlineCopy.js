@@ -1,0 +1,46 @@
+export const taijiBeidouLocalDogfoodingMainlineCopy = Object.freeze({
+  title: "Taiji / Beidou Local Dogfooding Mainline",
+  subtitle:
+    "Default-enabled local candidate layer, callable/readable/claimable status, bounded multi-provider readiness, and delayed launch gate are shown as read-only evidence.",
+  boundary: "local dogfooding only / no deploy / no production-ready claim",
+  defaultEnable: [
+    ["defaultEnableExecuted", "true"],
+    ["mainChainDefaultEnabled", "true"],
+    ["taijiBeidouDefaultEnabled", "true"],
+    ["providerRuntimeDefaultEnabled", "false"],
+    ["rollbackReady", "true"],
+    ["emergencyDisableReady", "true"],
+  ],
+  capabilityStatus: [
+    ["callable", "prepared-only unless concrete credentialRef scope is approved"],
+    ["readable", "credentialRef runtime metadata only"],
+    ["claimable", "evidence-backed facts only"],
+    ["realProviderCallsMade", "false without concrete provider/model/credentialRef scope"],
+    ["rawSecretReadByCodex", "false"],
+    ["authJsonRead", "false"],
+  ],
+  stability: [
+    ["multiProviderStabilityEvaluated", "prepared"],
+    ["costEnvelopeEvaluated", "true"],
+    ["failureRecoveryEvaluated", "true"],
+    ["providerCallsExceededApproval", "false"],
+    ["estimatedCostExceededApproval", "false"],
+    ["selectableGateBypassed", "false"],
+  ],
+  dogfooding: [
+    ["localProductionReadinessRehearsed", "true"],
+    ["dogfoodingFrameworkReady", "true"],
+    ["dailyWeeklyLedgerTemplatesReady", "true"],
+    ["issueRepairLoopReady", "true"],
+    ["realOneMonthDogfoodingCompleted", "false"],
+    ["realTwoMonthDogfoodingCompleted", "false"],
+  ],
+  launchGate: [
+    "delayedLaunchGateReady=true",
+    "productionReadyClaimed=false",
+    "publicLaunchClaimed=false",
+    "deployExecuted=false",
+    "releaseExecuted=false",
+    "artifactUploaded=false",
+  ],
+});

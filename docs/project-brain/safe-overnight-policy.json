@@ -1,0 +1,43 @@
+{
+  "phaseId": "SafeOvernightMode",
+  "enabled": true,
+  "intervalMs": 30000,
+  "dailyLoopLimit": 500,
+  "realMutationLoopLimit": 30,
+  "maxTasksPerLoop": 1,
+  "dryRunDefault": true,
+  "ownerManualStartOnly": true,
+  "emergencyStopFile": "docs/project-brain/runner-control.json",
+  "stopConditions": {
+    "consecutiveNoOpLimit": 3,
+    "consecutiveVerifierFailLimit": 2,
+    "rollbackFailureLimit": 0,
+    "sameFileTouchLimitPerDay": 3,
+    "consecutiveLowValueBlockedLimit": 2,
+    "providerSecretDeployChatRiskStopsImmediately": true
+  },
+  "forbiddenPaths": [
+    "legacy/",
+    "PROJECT_CONTEXT.md",
+    "/chat",
+    "/chat-gateway/execute",
+    "credential/provider core",
+    "billing/payment"
+  ],
+  "forbiddenActions": [
+    "provider_call",
+    "secret_read",
+    "deploy",
+    "release",
+    "tag",
+    "artifact_upload",
+    "push",
+    "commit"
+  ],
+  "evidenceRequiredEveryLoop": true,
+  "mutationSummaryRequiredEveryLoop": true,
+  "providerCallsMade": false,
+  "secretRead": false,
+  "deployExecuted": false,
+  "chatGatewayExecuteModified": false
+}

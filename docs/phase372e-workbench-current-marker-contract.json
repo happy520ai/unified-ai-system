@@ -1,0 +1,10 @@
+{
+  "phase": "Phase372E",
+  "rootMarker": "data-workbench-root=\"phase372-workbench-root\"",
+  "normalModeMarker": "id=\"three-mode-panel-normal\"",
+  "godModeMarker": "id=\"three-mode-panel-god\"",
+  "tianshuModeMarker": "id=\"three-mode-panel-tianshu\"",
+  "providerSetupMarker": "id=\"provider-credentialref-guidance\"",
+  "guardedNoticeMarker": "id=\"three-mode-guarded-notice\"",
+  "currentUiHasMarkers": true
+}

@@ -1,0 +1,647 @@
+{
+  "phaseId": "Phase2391A-2416A-Controlled-Twenty-One-Tool-Mutation",
+  "planId": "phase2391-2416-controlled-twenty-one-tool-mutation",
+  "maxChangedFiles": 21,
+  "runNodeCheck": true,
+  "runLocalSmoke": true,
+  "approvalRecord": {
+    "approved": true,
+    "permissionMode": "controlled-twenty-one-tool-source-mutation",
+    "dryRun": false,
+    "approvedAtLeastOnceByOwner": [
+      {
+        "source": "user-message",
+        "text": "continue-next-round",
+        "scope": "phase2391-2416-controlled-twenty-one-tool-mutation"
+      }
+    ],
+    "codexExecAllowed": false,
+    "projectProviderAllowed": false,
+    "secretReadAllowed": false,
+    "authJsonReadAllowed": false,
+    "envReadAllowed": false,
+    "codexConfigWriteAllowed": false,
+    "chatModificationAllowed": false,
+    "chatGatewayExecuteModificationAllowed": false,
+    "legacyModificationAllowed": false,
+    "deployAllowed": false,
+    "releaseAllowed": false,
+    "pushAllowed": false,
+    "commitAllowed": false
+  },
+  "allowedFiles": [
+    "docs/phase2396-twenty-one-tool-mutation-target-one.proposal.diff",
+    "docs/phase2397-twenty-one-tool-mutation-target-two.proposal.diff",
+    "docs/phase2398-twenty-one-tool-mutation-target-three.proposal.diff",
+    "docs/phase2399-twenty-one-tool-mutation-target-four.proposal.diff",
+    "docs/phase2400-twenty-one-tool-mutation-target-five.proposal.diff",
+    "docs/phase2401-twenty-one-tool-mutation-target-six.proposal.diff",
+    "docs/phase2402-twenty-one-tool-mutation-target-seven.proposal.diff",
+    "docs/phase2403-twenty-one-tool-mutation-target-eight.proposal.diff",
+    "docs/phase2404-twenty-one-tool-mutation-target-nine.proposal.diff",
+    "docs/phase2405-twenty-one-tool-mutation-target-ten.proposal.diff",
+    "docs/phase2406-twenty-one-tool-mutation-target-eleven.proposal.diff",
+    "docs/phase2407-twenty-one-tool-mutation-target-twelve.proposal.diff",
+    "docs/phase2408-twenty-one-tool-mutation-target-thirteen.proposal.diff",
+    "docs/phase2409-twenty-one-tool-mutation-target-fourteen.proposal.diff",
+    "docs/phase2410-twenty-one-tool-mutation-target-fifteen.proposal.diff",
+    "docs/phase2411-twenty-one-tool-mutation-target-sixteen.proposal.diff",
+    "docs/phase2412-twenty-one-tool-mutation-target-seventeen.proposal.diff",
+    "docs/phase2413-twenty-one-tool-mutation-target-eighteen.proposal.diff",
+    "docs/phase2414-twenty-one-tool-mutation-target-nineteen.proposal.diff",
+    "docs/phase2415-twenty-one-tool-mutation-target-twenty.proposal.diff",
+    "docs/phase2416-twenty-one-tool-mutation-target-twenty-one.proposal.diff",
+    "tools/phase2091/generated-source-patch-target.mjs",
+    "tools/phase2092/apply-controlled-existing-tool-mutation.mjs",
+    "tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs",
+    "tools/phase2096_2100/apply-controlled-triple-tool-mutation.mjs",
+    "tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs",
+    "tools/phase2111_2120/apply-controlled-quint-tool-mutation.mjs",
+    "tools/phase2121_2131/apply-controlled-sext-tool-mutation.mjs",
+    "tools/phase2132_2143/apply-controlled-sept-tool-mutation.mjs",
+    "tools/phase2144_2156/apply-controlled-oct-tool-mutation.mjs",
+    "tools/phase2157_2170/apply-controlled-nonet-tool-mutation.mjs",
+    "tools/phase2171_2185/apply-controlled-deca-tool-mutation.mjs",
+    "tools/phase2186_2201/apply-controlled-eleven-tool-mutation.mjs",
+    "tools/phase2202_2218/apply-controlled-twelve-tool-mutation.mjs",
+    "tools/phase2219_2236/apply-controlled-thirteen-tool-mutation.mjs",
+    "tools/phase2237_2255/apply-controlled-fourteen-tool-mutation.mjs",
+    "tools/phase2256_2275/apply-controlled-fifteen-tool-mutation.mjs",
+    "tools/phase2276_2296/apply-controlled-sixteen-tool-mutation.mjs",
+    "tools/phase2297_2318/apply-controlled-seventeen-tool-mutation.mjs",
+    "tools/phase2319_2341/apply-controlled-eighteen-tool-mutation.mjs",
+    "tools/phase2342_2365/apply-controlled-nineteen-tool-mutation.mjs",
+    "tools/phase2366_2390/apply-controlled-twenty-tool-mutation.mjs",
+    "apps/ai-gateway-service/evidence/phase2391-2416-controlled-twenty-one-tool-mutation/result.json",
+    "apps/ai-gateway-service/evidence/phase2391-2416-controlled-twenty-one-tool-mutation/result.md",
+    "apps/ai-gateway-service/evidence/phase2391-2416-controlled-twenty-one-tool-mutation/rollback.json",
+    "apps/ai-gateway-service/evidence/phase2391-2416-controlled-twenty-one-tool-mutation/twenty-one-smoke.json"
+  ],
+  "forbiddenPaths": [
+    "legacy",
+    "PROJECT_CONTEXT.md",
+    ".env",
+    ".git",
+    "node_modules",
+    "auth.json",
+    "apps/ai-gateway-service/src/providers",
+    "apps/ai-gateway-service/src/http/chat-gateway/execute",
+    "/chat"
+  ],
+  "operations": [
+    {
+      "action": "apply-single-existing-tool-source-mutation",
+      "proposalPath": "docs/phase2396-twenty-one-tool-mutation-target-one.proposal.diff",
+      "targetPath": "tools/phase2091/generated-source-patch-target.mjs",
+      "expectedBeforeSha256": "d926f6db22e0c94c50119b83fd22f72c27f5304458810abe8cb4a4d7a60978a3",
+      "allowCreate": false,
+      "allowDelete": false,
+      "requiredExports": [
+        "export function buildPhase2396TwentyOneMutationTargetOneStatus"
+      ],
+      "requiredMarkers": [
+        "PHASE2091_SOURCE_PATCH_OK",
+        "PHASE2162_NONET_TOOL_TARGET_ONE_OK",
+        "PHASE2176_DECA_TOOL_TARGET_ONE_OK",
+        "PHASE2191_ELEVEN_TOOL_TARGET_ONE_OK",
+        "PHASE2207_TWELVE_TOOL_TARGET_ONE_OK",
+        "PHASE2224_THIRTEEN_TOOL_TARGET_ONE_OK",
+        "PHASE2242_FOURTEEN_TOOL_TARGET_ONE_OK",
+        "PHASE2261_FIFTEEN_TOOL_TARGET_ONE_OK",
+        "PHASE2281_SIXTEEN_TOOL_TARGET_ONE_OK",
+        "PHASE2302_SEVENTEEN_TOOL_TARGET_ONE_OK",
+        "PHASE2324_EIGHTEEN_TOOL_TARGET_ONE_OK",
+        "PHASE2347_NINETEEN_TOOL_TARGET_ONE_OK",
+        "PHASE2371_TWENTY_TOOL_TARGET_ONE_OK",
+        "PHASE2396_TWENTY_ONE_TOOL_TARGET_ONE_OK"
+      ]
+    },
+    {
+      "action": "apply-single-existing-tool-source-mutation",
+      "proposalPath": "docs/phase2397-twenty-one-tool-mutation-target-two.proposal.diff",
+      "targetPath": "tools/phase2092/apply-controlled-existing-tool-mutation.mjs",
+      "expectedBeforeSha256": "4e3715577efb1890bc803dfc8ed0a0cdf79bf652a0159b262c9fa01fe183fcf2",
+      "allowCreate": false,
+      "allowDelete": false,
+      "requiredExports": [
+        "export function buildPhase2397TwentyOneMutationTargetTwoStatus",
+        "export function main"
+      ],
+      "requiredMarkers": [
+        "PHASE2094_BATCH_TOOL_TARGET_TWO_OK",
+        "PHASE2163_NONET_TOOL_TARGET_TWO_OK",
+        "PHASE2177_DECA_TOOL_TARGET_TWO_OK",
+        "PHASE2192_ELEVEN_TOOL_TARGET_TWO_OK",
+        "PHASE2208_TWELVE_TOOL_TARGET_TWO_OK",
+        "PHASE2225_THIRTEEN_TOOL_TARGET_TWO_OK",
+        "PHASE2243_FOURTEEN_TOOL_TARGET_TWO_OK",
+        "PHASE2262_FIFTEEN_TOOL_TARGET_TWO_OK",
+        "PHASE2282_SIXTEEN_TOOL_TARGET_TWO_OK",
+        "PHASE2303_SEVENTEEN_TOOL_TARGET_TWO_OK",
+        "PHASE2325_EIGHTEEN_TOOL_TARGET_TWO_OK",
+        "PHASE2348_NINETEEN_TOOL_TARGET_TWO_OK",
+        "PHASE2372_TWENTY_TOOL_TARGET_TWO_OK",
+        "PHASE2397_TWENTY_ONE_TOOL_TARGET_TWO_OK"
+      ]
+    },
+    {
+      "action": "apply-single-existing-tool-source-mutation",
+      "proposalPath": "docs/phase2398-twenty-one-tool-mutation-target-three.proposal.diff",
+      "targetPath": "tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs",
+      "expectedBeforeSha256": "9f584beb0ce1d3e97e5521ccb8078a1baee755df6c47384fa0d52edc6e51a83a",
+      "allowCreate": false,
+      "allowDelete": false,
+      "requiredExports": [
+        "export function buildPhase2398TwentyOneMutationTargetThreeStatus",
+        "export function main"
+      ],
+      "requiredMarkers": [
+        "PHASE2100_TRIPLE_TOOL_TARGET_THREE_OK",
+        "PHASE2164_NONET_TOOL_TARGET_THREE_OK",
+        "PHASE2178_DECA_TOOL_TARGET_THREE_OK",
+        "PHASE2193_ELEVEN_TOOL_TARGET_THREE_OK",
+        "PHASE2209_TWELVE_TOOL_TARGET_THREE_OK",
+        "PHASE2226_THIRTEEN_TOOL_TARGET_THREE_OK",
+        "PHASE2244_FOURTEEN_TOOL_TARGET_THREE_OK",
+        "PHASE2263_FIFTEEN_TOOL_TARGET_THREE_OK",
+        "PHASE2283_SIXTEEN_TOOL_TARGET_THREE_OK",
+        "PHASE2304_SEVENTEEN_TOOL_TARGET_THREE_OK",
+        "PHASE2326_EIGHTEEN_TOOL_TARGET_THREE_OK",
+        "PHASE2349_NINETEEN_TOOL_TARGET_THREE_OK",
+        "PHASE2373_TWENTY_TOOL_TARGET_THREE_OK",
+        "PHASE2398_TWENTY_ONE_TOOL_TARGET_THREE_OK"
+      ]
+    },
+    {
+      "action": "apply-single-existing-tool-source-mutation",
+      "proposalPath": "docs/phase2399-twenty-one-tool-mutation-target-four.proposal.diff",
+      "targetPath": "tools/phase2096_2100/apply-controlled-triple-tool-mutation.mjs",
+      "expectedBeforeSha256": "1ff4318172fdc2f6cfa4f68e8115d445481d21e6f8a33861c1a118914663369b",
+      "allowCreate": false,
+      "allowDelete": false,
+      "requiredExports": [
+        "export function buildPhase2399TwentyOneMutationTargetFourStatus",
+        "export function main"
+      ],
+      "requiredMarkers": [
+        "PHASE2109_QUAD_TOOL_TARGET_FOUR_OK",
+        "PHASE2165_NONET_TOOL_TARGET_FOUR_OK",
+        "PHASE2179_DECA_TOOL_TARGET_FOUR_OK",
+        "PHASE2194_ELEVEN_TOOL_TARGET_FOUR_OK",
+        "PHASE2210_TWELVE_TOOL_TARGET_FOUR_OK",
+        "PHASE2227_THIRTEEN_TOOL_TARGET_FOUR_OK",
+        "PHASE2245_FOURTEEN_TOOL_TARGET_FOUR_OK",
+        "PHASE2264_FIFTEEN_TOOL_TARGET_FOUR_OK",
+        "PHASE2284_SIXTEEN_TOOL_TARGET_FOUR_OK",
+        "PHASE2305_SEVENTEEN_TOOL_TARGET_FOUR_OK",
+        "PHASE2327_EIGHTEEN_TOOL_TARGET_FOUR_OK",
+        "PHASE2350_NINETEEN_TOOL_TARGET_FOUR_OK",
+        "PHASE2374_TWENTY_TOOL_TARGET_FOUR_OK",
+        "PHASE2399_TWENTY_ONE_TOOL_TARGET_FOUR_OK"
+      ]
+    },
+    {
+      "action": "apply-single-existing-tool-source-mutation",
+      "proposalPath": "docs/phase2400-twenty-one-tool-mutation-target-five.proposal.diff",
+      "targetPath": "tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs",
+      "expectedBeforeSha256": "8a9a749d6b4992b306358a984f13b3660aa15351c96abe7f833eb6a2914c3782",
+      "allowCreate": false,
+      "allowDelete": false,
+      "requiredExports": [
+        "export function buildPhase2400TwentyOneMutationTargetFiveStatus",
+        "export function main"
+      ],
+      "requiredMarkers": [
+        "PHASE2120_QUINT_TOOL_TARGET_FIVE_OK",
+        "PHASE2166_NONET_TOOL_TARGET_FIVE_OK",
+        "PHASE2180_DECA_TOOL_TARGET_FIVE_OK",
+        "PHASE2195_ELEVEN_TOOL_TARGET_FIVE_OK",
+        "PHASE2211_TWELVE_TOOL_TARGET_FIVE_OK",
+        "PHASE2228_THIRTEEN_TOOL_TARGET_FIVE_OK",
+        "PHASE2246_FOURTEEN_TOOL_TARGET_FIVE_OK",
+        "PHASE2265_FIFTEEN_TOOL_TARGET_FIVE_OK",
+        "PHASE2285_SIXTEEN_TOOL_TARGET_FIVE_OK",
+        "PHASE2306_SEVENTEEN_TOOL_TARGET_FIVE_OK",
+        "PHASE2328_EIGHTEEN_TOOL_TARGET_FIVE_OK",
+        "PHASE2351_NINETEEN_TOOL_TARGET_FIVE_OK",
+        "PHASE2375_TWENTY_TOOL_TARGET_FIVE_OK",
+        "PHASE2400_TWENTY_ONE_TOOL_TARGET_FIVE_OK"
+      ]
+    },
+    {
+      "action": "apply-single-existing-tool-source-mutation",
+      "proposalPath": "docs/phase2401-twenty-one-tool-mutation-target-six.proposal.diff",
+      "targetPath": "tools/phase2111_2120/apply-controlled-quint-tool-mutation.mjs",
+      "expectedBeforeSha256": "a918c72dbfd02c6bc55b7db4f2f469b0f29883846ef8723a9cbce4d181c905dd",
+      "allowCreate": false,
+      "allowDelete": false,
+      "requiredExports": [
+        "export function buildPhase2401TwentyOneMutationTargetSixStatus",
+        "export function main"
+      ],
+      "requiredMarkers": [
+        "PHASE2142_SEPT_TOOL_TARGET_SIX_OK",
+        "PHASE2167_NONET_TOOL_TARGET_SIX_OK",
+        "PHASE2181_DECA_TOOL_TARGET_SIX_OK",
+        "PHASE2196_ELEVEN_TOOL_TARGET_SIX_OK",
+        "PHASE2212_TWELVE_TOOL_TARGET_SIX_OK",
+        "PHASE2229_THIRTEEN_TOOL_TARGET_SIX_OK",
+        "PHASE2247_FOURTEEN_TOOL_TARGET_SIX_OK",
+        "PHASE2266_FIFTEEN_TOOL_TARGET_SIX_OK",
+        "PHASE2286_SIXTEEN_TOOL_TARGET_SIX_OK",
+        "PHASE2307_SEVENTEEN_TOOL_TARGET_SIX_OK",
+        "PHASE2329_EIGHTEEN_TOOL_TARGET_SIX_OK",
+        "PHASE2352_NINETEEN_TOOL_TARGET_SIX_OK",
+        "PHASE2376_TWENTY_TOOL_TARGET_SIX_OK",
+        "PHASE2401_TWENTY_ONE_TOOL_TARGET_SIX_OK"
+      ]
+    },
+    {
+      "action": "apply-single-existing-tool-source-mutation",
+      "proposalPath": "docs/phase2402-twenty-one-tool-mutation-target-seven.proposal.diff",
+      "targetPath": "tools/phase2121_2131/apply-controlled-sext-tool-mutation.mjs",
+      "expectedBeforeSha256": "a800b227e68b8fc04514279fde43268c74973d7fa64cc9592acc974fad873445",
+      "allowCreate": false,
+      "allowDelete": false,
+      "requiredExports": [
+        "export function buildPhase2402TwentyOneMutationTargetSevenStatus",
+        "export function main"
+      ],
+      "requiredMarkers": [
+        "PHASE2143_SEPT_TOOL_TARGET_SEVEN_OK",
+        "PHASE2168_NONET_TOOL_TARGET_SEVEN_OK",
+        "PHASE2182_DECA_TOOL_TARGET_SEVEN_OK",
+        "PHASE2197_ELEVEN_TOOL_TARGET_SEVEN_OK",
+        "PHASE2213_TWELVE_TOOL_TARGET_SEVEN_OK",
+        "PHASE2230_THIRTEEN_TOOL_TARGET_SEVEN_OK",
+        "PHASE2248_FOURTEEN_TOOL_TARGET_SEVEN_OK",
+        "PHASE2267_FIFTEEN_TOOL_TARGET_SEVEN_OK",
+        "PHASE2287_SIXTEEN_TOOL_TARGET_SEVEN_OK",
+        "PHASE2308_SEVENTEEN_TOOL_TARGET_SEVEN_OK",
+        "PHASE2330_EIGHTEEN_TOOL_TARGET_SEVEN_OK",
+        "PHASE2353_NINETEEN_TOOL_TARGET_SEVEN_OK",
+        "PHASE2377_TWENTY_TOOL_TARGET_SEVEN_OK",
+        "PHASE2402_TWENTY_ONE_TOOL_TARGET_SEVEN_OK"
+      ]
+    },
+    {
+      "action": "apply-single-existing-tool-source-mutation",
+      "proposalPath": "docs/phase2403-twenty-one-tool-mutation-target-eight.proposal.diff",
+      "targetPath": "tools/phase2132_2143/apply-controlled-sept-tool-mutation.mjs",
+      "expectedBeforeSha256": "00cd9835d3f8ccb1fefee7ef1e3c73d9b4a2d0e9abe6d1339baf004b6b12af96",
+      "allowCreate": false,
+      "allowDelete": false,
+      "requiredExports": [
+        "export function buildPhase2403TwentyOneMutationTargetEightStatus",
+        "export function main"
+      ],
+      "requiredMarkers": [
+        "PHASE2156_OCT_TOOL_TARGET_EIGHT_OK",
+        "PHASE2169_NONET_TOOL_TARGET_EIGHT_OK",
+        "PHASE2183_DECA_TOOL_TARGET_EIGHT_OK",
+        "PHASE2198_ELEVEN_TOOL_TARGET_EIGHT_OK",
+        "PHASE2214_TWELVE_TOOL_TARGET_EIGHT_OK",
+        "PHASE2231_THIRTEEN_TOOL_TARGET_EIGHT_OK",
+        "PHASE2249_FOURTEEN_TOOL_TARGET_EIGHT_OK",
+        "PHASE2268_FIFTEEN_TOOL_TARGET_EIGHT_OK",
+        "PHASE2288_SIXTEEN_TOOL_TARGET_EIGHT_OK",
+        "PHASE2309_SEVENTEEN_TOOL_TARGET_EIGHT_OK",
+        "PHASE2331_EIGHTEEN_TOOL_TARGET_EIGHT_OK",
+        "PHASE2354_NINETEEN_TOOL_TARGET_EIGHT_OK",
+        "PHASE2378_TWENTY_TOOL_TARGET_EIGHT_OK",
+        "PHASE2403_TWENTY_ONE_TOOL_TARGET_EIGHT_OK"
+      ]
+    },
+    {
+      "action": "apply-single-existing-tool-source-mutation",
+      "proposalPath": "docs/phase2404-twenty-one-tool-mutation-target-nine.proposal.diff",
+      "targetPath": "tools/phase2144_2156/apply-controlled-oct-tool-mutation.mjs",
+      "expectedBeforeSha256": "85e438f6c7640189af0a5c1031eb9e5979b0571be5c3bcd09f006d98a6d81976",
+      "allowCreate": false,
+      "allowDelete": false,
+      "requiredExports": [
+        "export function buildPhase2404TwentyOneMutationTargetNineStatus",
+        "export function main"
+      ],
+      "requiredMarkers": [
+        "PHASE2156_OCT_TOOL_TARGET_EIGHT_OK",
+        "PHASE2170_NONET_TOOL_TARGET_NINE_OK",
+        "PHASE2184_DECA_TOOL_TARGET_NINE_OK",
+        "PHASE2199_ELEVEN_TOOL_TARGET_NINE_OK",
+        "PHASE2215_TWELVE_TOOL_TARGET_NINE_OK",
+        "PHASE2232_THIRTEEN_TOOL_TARGET_NINE_OK",
+        "PHASE2250_FOURTEEN_TOOL_TARGET_NINE_OK",
+        "PHASE2269_FIFTEEN_TOOL_TARGET_NINE_OK",
+        "PHASE2289_SIXTEEN_TOOL_TARGET_NINE_OK",
+        "PHASE2310_SEVENTEEN_TOOL_TARGET_NINE_OK",
+        "PHASE2332_EIGHTEEN_TOOL_TARGET_NINE_OK",
+        "PHASE2355_NINETEEN_TOOL_TARGET_NINE_OK",
+        "PHASE2379_TWENTY_TOOL_TARGET_NINE_OK",
+        "PHASE2404_TWENTY_ONE_TOOL_TARGET_NINE_OK"
+      ]
+    },
+    {
+      "action": "apply-single-existing-tool-source-mutation",
+      "proposalPath": "docs/phase2405-twenty-one-tool-mutation-target-ten.proposal.diff",
+      "targetPath": "tools/phase2157_2170/apply-controlled-nonet-tool-mutation.mjs",
+      "expectedBeforeSha256": "10aec26af35c95ab47c355b086ce6d9eaa7302d9ca96279093d18fb1217ffbf1",
+      "allowCreate": false,
+      "allowDelete": false,
+      "requiredExports": [
+        "export function buildPhase2405TwentyOneMutationTargetTenStatus",
+        "export function main"
+      ],
+      "requiredMarkers": [
+        "PHASE2170_NONET_TOOL_TARGET_NINE_OK",
+        "PHASE2185_DECA_TOOL_TARGET_TEN_OK",
+        "PHASE2200_ELEVEN_TOOL_TARGET_TEN_OK",
+        "PHASE2216_TWELVE_TOOL_TARGET_TEN_OK",
+        "PHASE2233_THIRTEEN_TOOL_TARGET_TEN_OK",
+        "PHASE2251_FOURTEEN_TOOL_TARGET_TEN_OK",
+        "PHASE2270_FIFTEEN_TOOL_TARGET_TEN_OK",
+        "PHASE2290_SIXTEEN_TOOL_TARGET_TEN_OK",
+        "PHASE2311_SEVENTEEN_TOOL_TARGET_TEN_OK",
+        "PHASE2333_EIGHTEEN_TOOL_TARGET_TEN_OK",
+        "PHASE2356_NINETEEN_TOOL_TARGET_TEN_OK",
+        "PHASE2380_TWENTY_TOOL_TARGET_TEN_OK",
+        "PHASE2405_TWENTY_ONE_TOOL_TARGET_TEN_OK"
+      ]
+    },
+    {
+      "action": "apply-single-existing-tool-source-mutation",
+      "proposalPath": "docs/phase2406-twenty-one-tool-mutation-target-eleven.proposal.diff",
+      "targetPath": "tools/phase2171_2185/apply-controlled-deca-tool-mutation.mjs",
+      "expectedBeforeSha256": "993dcb87e4db854b016e574e0d1992ec8f2ec82880ee3463718bb3e8fd4dd74b",
+      "allowCreate": false,
+      "allowDelete": false,
+      "requiredExports": [
+        "export function buildPhase2406TwentyOneMutationTargetElevenStatus",
+        "export function main"
+      ],
+      "requiredMarkers": [
+        "PHASE2185_DECA_TOOL_TARGET_TEN_OK",
+        "PHASE2201_ELEVEN_TOOL_TARGET_ELEVEN_OK",
+        "PHASE2217_TWELVE_TOOL_TARGET_ELEVEN_OK",
+        "PHASE2234_THIRTEEN_TOOL_TARGET_ELEVEN_OK",
+        "PHASE2252_FOURTEEN_TOOL_TARGET_ELEVEN_OK",
+        "PHASE2271_FIFTEEN_TOOL_TARGET_ELEVEN_OK",
+        "PHASE2291_SIXTEEN_TOOL_TARGET_ELEVEN_OK",
+        "PHASE2312_SEVENTEEN_TOOL_TARGET_ELEVEN_OK",
+        "PHASE2334_EIGHTEEN_TOOL_TARGET_ELEVEN_OK",
+        "PHASE2357_NINETEEN_TOOL_TARGET_ELEVEN_OK",
+        "PHASE2381_TWENTY_TOOL_TARGET_ELEVEN_OK",
+        "PHASE2406_TWENTY_ONE_TOOL_TARGET_ELEVEN_OK"
+      ]
+    },
+    {
+      "action": "apply-single-existing-tool-source-mutation",
+      "proposalPath": "docs/phase2407-twenty-one-tool-mutation-target-twelve.proposal.diff",
+      "targetPath": "tools/phase2186_2201/apply-controlled-eleven-tool-mutation.mjs",
+      "expectedBeforeSha256": "e459771d869ec5c9c3c95598382fb3ead8544df8d82cc7dec51dbf44234dfd7e",
+      "allowCreate": false,
+      "allowDelete": false,
+      "requiredExports": [
+        "export function buildPhase2407TwentyOneMutationTargetTwelveStatus",
+        "export function main"
+      ],
+      "requiredMarkers": [
+        "PHASE2201_ELEVEN_TOOL_TARGET_ELEVEN_OK",
+        "PHASE2218_TWELVE_TOOL_TARGET_TWELVE_OK",
+        "PHASE2235_THIRTEEN_TOOL_TARGET_TWELVE_OK",
+        "PHASE2253_FOURTEEN_TOOL_TARGET_TWELVE_OK",
+        "PHASE2272_FIFTEEN_TOOL_TARGET_TWELVE_OK",
+        "PHASE2292_SIXTEEN_TOOL_TARGET_TWELVE_OK",
+        "PHASE2313_SEVENTEEN_TOOL_TARGET_TWELVE_OK",
+        "PHASE2335_EIGHTEEN_TOOL_TARGET_TWELVE_OK",
+        "PHASE2358_NINETEEN_TOOL_TARGET_TWELVE_OK",
+        "PHASE2382_TWENTY_TOOL_TARGET_TWELVE_OK",
+        "PHASE2407_TWENTY_ONE_TOOL_TARGET_TWELVE_OK"
+      ]
+    },
+    {
+      "action": "apply-single-existing-tool-source-mutation",
+      "proposalPath": "docs/phase2408-twenty-one-tool-mutation-target-thirteen.proposal.diff",
+      "targetPath": "tools/phase2202_2218/apply-controlled-twelve-tool-mutation.mjs",
+      "expectedBeforeSha256": "15e730b177eb24ceec2367bcfc7053f1d703c324721a43f1c16bd0b3d0a6db0b",
+      "allowCreate": false,
+      "allowDelete": false,
+      "requiredExports": [
+        "export function buildPhase2408TwentyOneMutationTargetThirteenStatus",
+        "export function main"
+      ],
+      "requiredMarkers": [
+        "PHASE2201_ELEVEN_TOOL_TARGET_ELEVEN_OK",
+        "PHASE2218_TWELVE_TOOL_TARGET_TWELVE_OK",
+        "PHASE2236_THIRTEEN_TOOL_TARGET_THIRTEEN_OK",
+        "PHASE2254_FOURTEEN_TOOL_TARGET_THIRTEEN_OK",
+        "PHASE2273_FIFTEEN_TOOL_TARGET_THIRTEEN_OK",
+        "PHASE2293_SIXTEEN_TOOL_TARGET_THIRTEEN_OK",
+        "PHASE2314_SEVENTEEN_TOOL_TARGET_THIRTEEN_OK",
+        "PHASE2336_EIGHTEEN_TOOL_TARGET_THIRTEEN_OK",
+        "PHASE2359_NINETEEN_TOOL_TARGET_THIRTEEN_OK",
+        "PHASE2383_TWENTY_TOOL_TARGET_THIRTEEN_OK",
+        "PHASE2408_TWENTY_ONE_TOOL_TARGET_THIRTEEN_OK"
+      ]
+    },
+    {
+      "action": "apply-single-existing-tool-source-mutation",
+      "proposalPath": "docs/phase2409-twenty-one-tool-mutation-target-fourteen.proposal.diff",
+      "targetPath": "tools/phase2219_2236/apply-controlled-thirteen-tool-mutation.mjs",
+      "expectedBeforeSha256": "ba35659dbd8fe28387f1726c09f8a68a39879c6acc2a007fe558d51213771994",
+      "allowCreate": false,
+      "allowDelete": false,
+      "requiredExports": [
+        "export function buildPhase2409TwentyOneMutationTargetFourteenStatus",
+        "export function main"
+      ],
+      "requiredMarkers": [
+        "PHASE2201_ELEVEN_TOOL_TARGET_ELEVEN_OK",
+        "PHASE2218_TWELVE_TOOL_TARGET_TWELVE_OK",
+        "PHASE2236_THIRTEEN_TOOL_TARGET_THIRTEEN_OK",
+        "PHASE2255_FOURTEEN_TOOL_TARGET_FOURTEEN_OK",
+        "PHASE2274_FIFTEEN_TOOL_TARGET_FOURTEEN_OK",
+        "PHASE2294_SIXTEEN_TOOL_TARGET_FOURTEEN_OK",
+        "PHASE2315_SEVENTEEN_TOOL_TARGET_FOURTEEN_OK",
+        "PHASE2337_EIGHTEEN_TOOL_TARGET_FOURTEEN_OK",
+        "PHASE2360_NINETEEN_TOOL_TARGET_FOURTEEN_OK",
+        "PHASE2384_TWENTY_TOOL_TARGET_FOURTEEN_OK",
+        "PHASE2409_TWENTY_ONE_TOOL_TARGET_FOURTEEN_OK"
+      ]
+    },
+    {
+      "action": "apply-single-existing-tool-source-mutation",
+      "proposalPath": "docs/phase2410-twenty-one-tool-mutation-target-fifteen.proposal.diff",
+      "targetPath": "tools/phase2237_2255/apply-controlled-fourteen-tool-mutation.mjs",
+      "expectedBeforeSha256": "636d5d482ad055591a78e12082d0c0054f8f6d5349e142d45642e26a4459c7c9",
+      "allowCreate": false,
+      "allowDelete": false,
+      "requiredExports": [
+        "export function buildPhase2410TwentyOneMutationTargetFifteenStatus",
+        "export function main"
+      ],
+      "requiredMarkers": [
+        "PHASE2201_ELEVEN_TOOL_TARGET_ELEVEN_OK",
+        "PHASE2218_TWELVE_TOOL_TARGET_TWELVE_OK",
+        "PHASE2236_THIRTEEN_TOOL_TARGET_THIRTEEN_OK",
+        "PHASE2255_FOURTEEN_TOOL_TARGET_FOURTEEN_OK",
+        "PHASE2275_FIFTEEN_TOOL_TARGET_FIFTEEN_OK",
+        "PHASE2295_SIXTEEN_TOOL_TARGET_FIFTEEN_OK",
+        "PHASE2316_SEVENTEEN_TOOL_TARGET_FIFTEEN_OK",
+        "PHASE2338_EIGHTEEN_TOOL_TARGET_FIFTEEN_OK",
+        "PHASE2361_NINETEEN_TOOL_TARGET_FIFTEEN_OK",
+        "PHASE2385_TWENTY_TOOL_TARGET_FIFTEEN_OK",
+        "PHASE2410_TWENTY_ONE_TOOL_TARGET_FIFTEEN_OK"
+      ]
+    },
+    {
+      "action": "apply-single-existing-tool-source-mutation",
+      "proposalPath": "docs/phase2411-twenty-one-tool-mutation-target-sixteen.proposal.diff",
+      "targetPath": "tools/phase2256_2275/apply-controlled-fifteen-tool-mutation.mjs",
+      "expectedBeforeSha256": "1103c4932a45de1d5642e3c9b9332b991a72022a5723f7d7be477fd07dfe7566",
+      "allowCreate": false,
+      "allowDelete": false,
+      "requiredExports": [
+        "export function buildPhase2411TwentyOneMutationTargetSixteenStatus",
+        "export function main"
+      ],
+      "requiredMarkers": [
+        "PHASE2201_ELEVEN_TOOL_TARGET_ELEVEN_OK",
+        "PHASE2218_TWELVE_TOOL_TARGET_TWELVE_OK",
+        "PHASE2236_THIRTEEN_TOOL_TARGET_THIRTEEN_OK",
+        "PHASE2255_FOURTEEN_TOOL_TARGET_FOURTEEN_OK",
+        "PHASE2275_FIFTEEN_TOOL_TARGET_FIFTEEN_OK",
+        "PHASE2296_SIXTEEN_TOOL_TARGET_SIXTEEN_OK",
+        "PHASE2317_SEVENTEEN_TOOL_TARGET_SIXTEEN_OK",
+        "PHASE2339_EIGHTEEN_TOOL_TARGET_SIXTEEN_OK",
+        "PHASE2362_NINETEEN_TOOL_TARGET_SIXTEEN_OK",
+        "PHASE2386_TWENTY_TOOL_TARGET_SIXTEEN_OK",
+        "PHASE2411_TWENTY_ONE_TOOL_TARGET_SIXTEEN_OK"
+      ]
+    },
+    {
+      "action": "apply-single-existing-tool-source-mutation",
+      "proposalPath": "docs/phase2412-twenty-one-tool-mutation-target-seventeen.proposal.diff",
+      "targetPath": "tools/phase2276_2296/apply-controlled-sixteen-tool-mutation.mjs",
+      "expectedBeforeSha256": "6edf9c58376588455ce493123617fe0fdb83aa2757d3904911fa97676a7753b0",
+      "allowCreate": false,
+      "allowDelete": false,
+      "requiredExports": [
+        "export function buildPhase2412TwentyOneMutationTargetSeventeenStatus",
+        "export function main"
+      ],
+      "requiredMarkers": [
+        "PHASE2201_ELEVEN_TOOL_TARGET_ELEVEN_OK",
+        "PHASE2218_TWELVE_TOOL_TARGET_TWELVE_OK",
+        "PHASE2236_THIRTEEN_TOOL_TARGET_THIRTEEN_OK",
+        "PHASE2255_FOURTEEN_TOOL_TARGET_FOURTEEN_OK",
+        "PHASE2275_FIFTEEN_TOOL_TARGET_FIFTEEN_OK",
+        "PHASE2296_SIXTEEN_TOOL_TARGET_SIXTEEN_OK",
+        "PHASE2318_SEVENTEEN_TOOL_TARGET_SEVENTEEN_OK",
+        "PHASE2340_EIGHTEEN_TOOL_TARGET_SEVENTEEN_OK",
+        "PHASE2363_NINETEEN_TOOL_TARGET_SEVENTEEN_OK",
+        "PHASE2387_TWENTY_TOOL_TARGET_SEVENTEEN_OK",
+        "PHASE2412_TWENTY_ONE_TOOL_TARGET_SEVENTEEN_OK"
+      ]
+    },
+    {
+      "action": "apply-single-existing-tool-source-mutation",
+      "proposalPath": "docs/phase2413-twenty-one-tool-mutation-target-eighteen.proposal.diff",
+      "targetPath": "tools/phase2297_2318/apply-controlled-seventeen-tool-mutation.mjs",
+      "expectedBeforeSha256": "09c7bba096c14111d8208a052cd34688d5f8093c75d1f5a6d960233b319e4af4",
+      "allowCreate": false,
+      "allowDelete": false,
+      "requiredExports": [
+        "export function buildPhase2413TwentyOneMutationTargetEighteenStatus",
+        "export function main"
+      ],
+      "requiredMarkers": [
+        "PHASE2201_ELEVEN_TOOL_TARGET_ELEVEN_OK",
+        "PHASE2218_TWELVE_TOOL_TARGET_TWELVE_OK",
+        "PHASE2236_THIRTEEN_TOOL_TARGET_THIRTEEN_OK",
+        "PHASE2255_FOURTEEN_TOOL_TARGET_FOURTEEN_OK",
+        "PHASE2275_FIFTEEN_TOOL_TARGET_FIFTEEN_OK",
+        "PHASE2296_SIXTEEN_TOOL_TARGET_SIXTEEN_OK",
+        "PHASE2318_SEVENTEEN_TOOL_TARGET_SEVENTEEN_OK",
+        "PHASE2341_EIGHTEEN_TOOL_TARGET_EIGHTEEN_OK",
+        "PHASE2364_NINETEEN_TOOL_TARGET_EIGHTEEN_OK",
+        "PHASE2388_TWENTY_TOOL_TARGET_EIGHTEEN_OK",
+        "PHASE2413_TWENTY_ONE_TOOL_TARGET_EIGHTEEN_OK"
+      ]
+    },
+    {
+      "action": "apply-single-existing-tool-source-mutation",
+      "proposalPath": "docs/phase2414-twenty-one-tool-mutation-target-nineteen.proposal.diff",
+      "targetPath": "tools/phase2319_2341/apply-controlled-eighteen-tool-mutation.mjs",
+      "expectedBeforeSha256": "12d5616a0048eede0766221371a4dc9da391d424072c860c87036cb82995ae6c",
+      "allowCreate": false,
+      "allowDelete": false,
+      "requiredExports": [
+        "export function buildPhase2414TwentyOneMutationTargetNineteenStatus",
+        "export function main"
+      ],
+      "requiredMarkers": [
+        "PHASE2201_ELEVEN_TOOL_TARGET_ELEVEN_OK",
+        "PHASE2218_TWELVE_TOOL_TARGET_TWELVE_OK",
+        "PHASE2236_THIRTEEN_TOOL_TARGET_THIRTEEN_OK",
+        "PHASE2255_FOURTEEN_TOOL_TARGET_FOURTEEN_OK",
+        "PHASE2275_FIFTEEN_TOOL_TARGET_FIFTEEN_OK",
+        "PHASE2296_SIXTEEN_TOOL_TARGET_SIXTEEN_OK",
+        "PHASE2318_SEVENTEEN_TOOL_TARGET_SEVENTEEN_OK",
+        "PHASE2341_EIGHTEEN_TOOL_TARGET_EIGHTEEN_OK",
+        "PHASE2365_NINETEEN_TOOL_TARGET_NINETEEN_OK",
+        "PHASE2389_TWENTY_TOOL_TARGET_NINETEEN_OK",
+        "PHASE2414_TWENTY_ONE_TOOL_TARGET_NINETEEN_OK"
+      ]
+    },
+    {
+      "action": "apply-single-existing-tool-source-mutation",
+      "proposalPath": "docs/phase2415-twenty-one-tool-mutation-target-twenty.proposal.diff",
+      "targetPath": "tools/phase2342_2365/apply-controlled-nineteen-tool-mutation.mjs",
+      "expectedBeforeSha256": "acd4a803b143af4f1957071ebc885fb3b025ad716b2660ed47d8026ae0e30edc",
+      "allowCreate": false,
+      "allowDelete": false,
+      "requiredExports": [
+        "export function buildPhase2415TwentyOneMutationTargetTwentyStatus",
+        "export function main"
+      ],
+      "requiredMarkers": [
+        "PHASE2201_ELEVEN_TOOL_TARGET_ELEVEN_OK",
+        "PHASE2218_TWELVE_TOOL_TARGET_TWELVE_OK",
+        "PHASE2236_THIRTEEN_TOOL_TARGET_THIRTEEN_OK",
+        "PHASE2255_FOURTEEN_TOOL_TARGET_FOURTEEN_OK",
+        "PHASE2275_FIFTEEN_TOOL_TARGET_FIFTEEN_OK",
+        "PHASE2296_SIXTEEN_TOOL_TARGET_SIXTEEN_OK",
+        "PHASE2318_SEVENTEEN_TOOL_TARGET_SEVENTEEN_OK",
+        "PHASE2341_EIGHTEEN_TOOL_TARGET_EIGHTEEN_OK",
+        "PHASE2365_NINETEEN_TOOL_TARGET_NINETEEN_OK",
+        "PHASE2390_TWENTY_TOOL_TARGET_TWENTY_OK",
+        "PHASE2415_TWENTY_ONE_TOOL_TARGET_TWENTY_OK"
+      ]
+    },
+    {
+      "action": "apply-single-existing-tool-source-mutation",
+      "proposalPath": "docs/phase2416-twenty-one-tool-mutation-target-twenty-one.proposal.diff",
+      "targetPath": "tools/phase2366_2390/apply-controlled-twenty-tool-mutation.mjs",
+      "expectedBeforeSha256": "274f4e4c320d44facd514eb33ab6c0a8cf3da8a08610f6b7b6a7bca7c87843cf",
+      "allowCreate": false,
+      "allowDelete": false,
+      "requiredExports": [
+        "export function buildPhase2416TwentyOneMutationRuntimeStatus",
+        "export function main"
+      ],
+      "requiredMarkers": [
+        "PHASE2201_ELEVEN_TOOL_TARGET_ELEVEN_OK",
+        "PHASE2218_TWELVE_TOOL_TARGET_TWELVE_OK",
+        "PHASE2236_THIRTEEN_TOOL_TARGET_THIRTEEN_OK",
+        "PHASE2255_FOURTEEN_TOOL_TARGET_FOURTEEN_OK",
+        "PHASE2275_FIFTEEN_TOOL_TARGET_FIFTEEN_OK",
+        "PHASE2296_SIXTEEN_TOOL_TARGET_SIXTEEN_OK",
+        "PHASE2318_SEVENTEEN_TOOL_TARGET_SEVENTEEN_OK",
+        "PHASE2341_EIGHTEEN_TOOL_TARGET_EIGHTEEN_OK",
+        "PHASE2365_NINETEEN_TOOL_TARGET_NINETEEN_OK",
+        "PHASE2390_TWENTY_TOOL_TARGET_TWENTY_OK",
+        "PHASE2416_TWENTY_ONE_TOOL_TARGET_TWENTY_ONE_OK"
+      ]
+    }
+  ]
+}

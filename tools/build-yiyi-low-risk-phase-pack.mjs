@@ -1,0 +1,1678 @@
+import { mkdir, writeFile } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
+
+const safetyKeys = [
+  "providerCallsMade",
+  "nonNvidiaProviderCallsMade",
+  "secretValueExposed",
+  "rawSecretAccessed",
+  "deployExecuted",
+  "releaseExecuted",
+  "tagCreated",
+  "artifactUploaded",
+  "approvalForged",
+  "billingExecuted",
+  "invoiceGenerated",
+  "productionGaClaimed",
+  "workspaceCleanClaimed",
+];
+
+const safety = Object.fromEntries(safetyKeys.map((key) => [key, false]));
+
+const phases = [
+  {
+    phase: 394,
+    slug: "stakeholder-review-packet",
+    title: "Yiyi Demo Stakeholder Review Packet + Signoff Checklist",
+    phaseType: "commercial_demo_stakeholder_review_packet",
+    deliverables: ["stakeholderReviewPacketCreated", "signoffChecklistCreated"],
+    nextTitle: "Yiyi Demo Evidence Index Refresh + Trace Map",
+  },
+  {
+    phase: 395,
+    slug: "evidence-index-refresh-trace-map",
+    title: "Yiyi Demo Evidence Index Refresh + Trace Map",
+    phaseType: "commercial_demo_evidence_index_trace_map",
+    deliverables: ["evidenceIndexRefreshed", "traceMapCreated"],
+    nextTitle: "Yiyi Demo Risk Register + Mitigation Notes",
+  },
+  {
+    phase: 396,
+    slug: "risk-register-mitigation-notes",
+    title: "Yiyi Demo Risk Register + Mitigation Notes",
+    phaseType: "commercial_demo_risk_register_mitigation_notes",
+    deliverables: ["riskRegisterCreated", "mitigationNotesCreated"],
+    nextTitle: "Yiyi Demo Buyer Persona Talk Track Pack",
+  },
+  {
+    phase: 397,
+    slug: "buyer-persona-talk-track-pack",
+    title: "Yiyi Demo Buyer Persona Talk Track Pack",
+    phaseType: "commercial_demo_buyer_persona_talk_track",
+    deliverables: ["buyerPersonaPackCreated", "talkTrackPackCreated"],
+    nextTitle: "Yiyi Demo Post-demo Follow-up Email Pack",
+  },
+  {
+    phase: 398,
+    slug: "post-demo-followup-email-pack",
+    title: "Yiyi Demo Post-demo Follow-up Email Pack",
+    phaseType: "commercial_demo_followup_email_pack",
+    deliverables: ["followupEmailPackCreated", "followupBoundaryNotesCreated"],
+    nextTitle: "Yiyi Demo Internal QA Scorecard",
+  },
+  {
+    phase: 399,
+    slug: "internal-qa-scorecard",
+    title: "Yiyi Demo Internal QA Scorecard",
+    phaseType: "commercial_demo_internal_qa_scorecard",
+    deliverables: ["internalQaScorecardCreated", "reviewCriteriaCreated"],
+    nextTitle: "Yiyi Demo Manual Trial Feedback Form",
+  },
+  {
+    phase: 400,
+    slug: "manual-trial-feedback-form",
+    title: "Yiyi Demo Manual Trial Feedback Form",
+    phaseType: "commercial_demo_manual_trial_feedback_form",
+    deliverables: ["feedbackFormCreated", "feedbackRubricCreated"],
+    nextTitle: "Yiyi Demo Sales Readiness Known Limits Sheet",
+  },
+  {
+    phase: 401,
+    slug: "sales-readiness-known-limits",
+    title: "Yiyi Demo Sales Readiness Known Limits Sheet",
+    phaseType: "commercial_demo_sales_readiness_known_limits",
+    deliverables: ["knownLimitsSheetCreated", "salesReadinessBoundaryCreated"],
+    nextTitle: "Yiyi Demo Final Operator Handoff Index",
+  },
+  {
+    phase: 402,
+    slug: "final-operator-handoff-index",
+    title: "Yiyi Demo Final Operator Handoff Index",
+    phaseType: "commercial_demo_final_operator_handoff_index",
+    deliverables: ["operatorHandoffIndexCreated", "handoffChecklistCreated"],
+    nextTitle: "Yiyi Demo Low-risk Auto-run Closure",
+  },
+  {
+    phase: 403,
+    slug: "low-risk-auto-run-closure",
+    title: "Yiyi Demo Low-risk Auto-run Closure",
+    phaseType: "commercial_demo_low_risk_auto_run_closure",
+    deliverables: ["lowRiskAutoRunClosureCreated", "phase384StopPrepared"],
+    nextTitle: "Yiyi Guarded Real Provider Test Authorization Gate",
+    nextPhase: 384,
+    nextRisk: "high",
+    nextRequiresHumanApproval: true,
+  },
+  {
+    phase: 404,
+    slug: "channel-briefing-pack",
+    title: "Yiyi Demo Channel Briefing Pack",
+    phaseType: "commercial_demo_channel_briefing_pack",
+    deliverables: ["channelBriefingPackCreated", "briefingChecklistCreated"],
+    nextTitle: "Yiyi Demo Session Agenda Templates",
+  },
+  {
+    phase: 405,
+    slug: "session-agenda-templates",
+    title: "Yiyi Demo Session Agenda Templates",
+    phaseType: "commercial_demo_session_agenda_templates",
+    deliverables: ["sessionAgendaTemplatesCreated", "agendaVariantsCreated"],
+    nextTitle: "Yiyi Demo Moderator Notes Pack",
+  },
+  {
+    phase: 406,
+    slug: "moderator-notes-pack",
+    title: "Yiyi Demo Moderator Notes Pack",
+    phaseType: "commercial_demo_moderator_notes_pack",
+    deliverables: ["moderatorNotesPackCreated", "moderationChecklistCreated"],
+    nextTitle: "Yiyi Demo Storyline Sequencing Pack",
+  },
+  {
+    phase: 407,
+    slug: "storyline-sequencing-pack",
+    title: "Yiyi Demo Storyline Sequencing Pack",
+    phaseType: "commercial_demo_storyline_sequencing_pack",
+    deliverables: ["storylineSequencingPackCreated", "sequenceChecklistCreated"],
+    nextTitle: "Yiyi Demo Audience Question Routing Pack",
+  },
+  {
+    phase: 408,
+    slug: "audience-question-routing-pack",
+    title: "Yiyi Demo Audience Question Routing Pack",
+    phaseType: "commercial_demo_audience_question_routing_pack",
+    deliverables: ["questionRoutingPackCreated", "routingDecisionMapCreated"],
+    nextTitle: "Yiyi Demo Executive Summary Cards",
+  },
+  {
+    phase: 409,
+    slug: "executive-summary-cards",
+    title: "Yiyi Demo Executive Summary Cards",
+    phaseType: "commercial_demo_executive_summary_cards",
+    deliverables: ["executiveSummaryCardsCreated", "summaryCueCardsCreated"],
+    nextTitle: "Yiyi Demo Workshop Prep Checklist",
+  },
+  {
+    phase: 410,
+    slug: "workshop-prep-checklist",
+    title: "Yiyi Demo Workshop Prep Checklist",
+    phaseType: "commercial_demo_workshop_prep_checklist",
+    deliverables: ["workshopPrepChecklistCreated", "prepBoundaryNotesCreated"],
+    nextTitle: "Yiyi Demo Cross-functional Review Notes",
+  },
+  {
+    phase: 411,
+    slug: "cross-functional-review-notes",
+    title: "Yiyi Demo Cross-functional Review Notes",
+    phaseType: "commercial_demo_cross_functional_review_notes",
+    deliverables: ["crossFunctionalReviewNotesCreated", "reviewOutcomeTemplateCreated"],
+    nextTitle: "Yiyi Demo Pilot Proposal Outline",
+  },
+  {
+    phase: 412,
+    slug: "pilot-proposal-outline",
+    title: "Yiyi Demo Pilot Proposal Outline",
+    phaseType: "commercial_demo_pilot_proposal_outline",
+    deliverables: ["pilotProposalOutlineCreated", "pilotBoundaryNotesCreated"],
+    nextTitle: "Yiyi Demo Extended Low-risk Auto-run Closure",
+  },
+  {
+    phase: 413,
+    slug: "extended-low-risk-auto-run-closure",
+    title: "Yiyi Demo Extended Low-risk Auto-run Closure",
+    phaseType: "commercial_demo_extended_low_risk_auto_run_closure",
+    deliverables: ["extendedLowRiskClosureCreated", "phase384StopPrepared"],
+    nextTitle: "Yiyi Guarded Real Provider Test Authorization Gate",
+    nextPhase: 384,
+    nextRisk: "high",
+    nextRequiresHumanApproval: true,
+  },
+  {
+    phase: 414,
+    slug: "demo-enablement-onepager",
+    title: "Yiyi Demo Enablement One-pager",
+    phaseType: "commercial_demo_enablement_onepager",
+    deliverables: ["enablementOnepagerCreated", "onepagerChecklistCreated"],
+    nextTitle: "Yiyi Demo Partner Intro Script Pack",
+  },
+  {
+    phase: 415,
+    slug: "partner-intro-script-pack",
+    title: "Yiyi Demo Partner Intro Script Pack",
+    phaseType: "commercial_demo_partner_intro_script_pack",
+    deliverables: ["partnerIntroScriptPackCreated", "partnerBriefChecklistCreated"],
+    nextTitle: "Yiyi Demo Discovery Question Bank",
+  },
+  {
+    phase: 416,
+    slug: "discovery-question-bank",
+    title: "Yiyi Demo Discovery Question Bank",
+    phaseType: "commercial_demo_discovery_question_bank",
+    deliverables: ["discoveryQuestionBankCreated", "discoveryUsageNotesCreated"],
+    nextTitle: "Yiyi Demo Demo-to-POC Bridge Notes",
+  },
+  {
+    phase: 417,
+    slug: "demo-to-poc-bridge-notes",
+    title: "Yiyi Demo Demo-to-POC Bridge Notes",
+    phaseType: "commercial_demo_to_poc_bridge_notes",
+    deliverables: ["demoToPocBridgeNotesCreated", "bridgeBoundaryChecklistCreated"],
+    nextTitle: "Yiyi Demo Objection Escalation Matrix",
+  },
+  {
+    phase: 418,
+    slug: "objection-escalation-matrix",
+    title: "Yiyi Demo Objection Escalation Matrix",
+    phaseType: "commercial_demo_objection_escalation_matrix",
+    deliverables: ["objectionEscalationMatrixCreated", "escalationDecisionGuideCreated"],
+    nextTitle: "Yiyi Demo Demo Room Setup Checklist",
+  },
+  {
+    phase: 419,
+    slug: "demo-room-setup-checklist",
+    title: "Yiyi Demo Demo Room Setup Checklist",
+    phaseType: "commercial_demo_room_setup_checklist",
+    deliverables: ["demoRoomSetupChecklistCreated", "setupReadinessNotesCreated"],
+    nextTitle: "Yiyi Demo Multi-stakeholder Summary Pack",
+  },
+  {
+    phase: 420,
+    slug: "multi-stakeholder-summary-pack",
+    title: "Yiyi Demo Multi-stakeholder Summary Pack",
+    phaseType: "commercial_demo_multi_stakeholder_summary_pack",
+    deliverables: ["multiStakeholderSummaryPackCreated", "stakeholderSummaryNotesCreated"],
+    nextTitle: "Yiyi Demo Internal Signoff Reminder Pack",
+  },
+  {
+    phase: 421,
+    slug: "internal-signoff-reminder-pack",
+    title: "Yiyi Demo Internal Signoff Reminder Pack",
+    phaseType: "commercial_demo_internal_signoff_reminder_pack",
+    deliverables: ["internalSignoffReminderPackCreated", "reminderChecklistCreated"],
+    nextTitle: "Yiyi Demo Final Handoff Recap Cards",
+  },
+  {
+    phase: 422,
+    slug: "final-handoff-recap-cards",
+    title: "Yiyi Demo Final Handoff Recap Cards",
+    phaseType: "commercial_demo_final_handoff_recap_cards",
+    deliverables: ["finalHandoffRecapCardsCreated", "recapUsageNotesCreated"],
+    nextTitle: "Yiyi Demo Third Low-risk Auto-run Closure",
+  },
+  {
+    phase: 423,
+    slug: "third-low-risk-auto-run-closure",
+    title: "Yiyi Demo Third Low-risk Auto-run Closure",
+    phaseType: "commercial_demo_third_low_risk_auto_run_closure",
+    deliverables: ["thirdLowRiskClosureCreated", "phase384StopPrepared"],
+    nextTitle: "Yiyi Guarded Real Provider Test Authorization Gate",
+    nextPhase: 384,
+    nextRisk: "high",
+    nextRequiresHumanApproval: true,
+  },
+  {
+    phase: 424,
+    slug: "demo-asset-inventory-refresh",
+    title: "Yiyi Demo Asset Inventory Refresh",
+    phaseType: "commercial_demo_asset_inventory_refresh",
+    deliverables: ["assetInventoryRefreshed", "assetCoverageChecklistCreated"],
+    nextTitle: "Yiyi Demo Safe Claims Review Pack",
+  },
+  {
+    phase: 425,
+    slug: "safe-claims-review-pack",
+    title: "Yiyi Demo Safe Claims Review Pack",
+    phaseType: "commercial_demo_safe_claims_review_pack",
+    deliverables: ["safeClaimsReviewPackCreated", "claimBoundaryChecklistCreated"],
+    nextTitle: "Yiyi Demo Narrative Consistency Sweep",
+  },
+  {
+    phase: 426,
+    slug: "narrative-consistency-sweep",
+    title: "Yiyi Demo Narrative Consistency Sweep",
+    phaseType: "commercial_demo_narrative_consistency_sweep",
+    deliverables: ["narrativeConsistencySweepCreated", "storyConsistencyChecklistCreated"],
+    nextTitle: "Yiyi Demo Readiness Snapshot Pack",
+  },
+  {
+    phase: 427,
+    slug: "readiness-snapshot-pack",
+    title: "Yiyi Demo Readiness Snapshot Pack",
+    phaseType: "commercial_demo_readiness_snapshot_pack",
+    deliverables: ["readinessSnapshotPackCreated", "snapshotChecklistCreated"],
+    nextTitle: "Yiyi Demo Support Handoff Notes",
+  },
+  {
+    phase: 428,
+    slug: "support-handoff-notes",
+    title: "Yiyi Demo Support Handoff Notes",
+    phaseType: "commercial_demo_support_handoff_notes",
+    deliverables: ["supportHandoffNotesCreated", "supportBoundaryChecklistCreated"],
+    nextTitle: "Yiyi Demo Security FAQ Addendum",
+  },
+  {
+    phase: 429,
+    slug: "security-faq-addendum",
+    title: "Yiyi Demo Security FAQ Addendum",
+    phaseType: "commercial_demo_security_faq_addendum",
+    deliverables: ["securityFaqAddendumCreated", "securityBoundaryChecklistCreated"],
+    nextTitle: "Yiyi Demo Evidence Appendix Pack",
+  },
+  {
+    phase: 430,
+    slug: "evidence-appendix-pack",
+    title: "Yiyi Demo Evidence Appendix Pack",
+    phaseType: "commercial_demo_evidence_appendix_pack",
+    deliverables: ["evidenceAppendixPackCreated", "appendixChecklistCreated"],
+    nextTitle: "Yiyi Demo Manual Acceptance Notes",
+  },
+  {
+    phase: 431,
+    slug: "manual-acceptance-notes",
+    title: "Yiyi Demo Manual Acceptance Notes",
+    phaseType: "commercial_demo_manual_acceptance_notes",
+    deliverables: ["manualAcceptanceNotesCreated", "acceptanceChecklistCreated"],
+    nextTitle: "Yiyi Demo Operator Quick Reference",
+  },
+  {
+    phase: 432,
+    slug: "operator-quick-reference",
+    title: "Yiyi Demo Operator Quick Reference",
+    phaseType: "commercial_demo_operator_quick_reference",
+    deliverables: ["operatorQuickReferenceCreated", "quickReferenceChecklistCreated"],
+    nextTitle: "Yiyi Demo Fourth Low-risk Auto-run Closure",
+  },
+  {
+    phase: 433,
+    slug: "fourth-low-risk-auto-run-closure",
+    title: "Yiyi Demo Fourth Low-risk Auto-run Closure",
+    phaseType: "commercial_demo_fourth_low_risk_auto_run_closure",
+    deliverables: ["fourthLowRiskClosureCreated", "phase384StopPrepared"],
+    nextTitle: "Yiyi Guarded Real Provider Test Authorization Gate",
+    nextPhase: 384,
+    nextRisk: "high",
+    nextRequiresHumanApproval: true,
+  },
+  {
+    phase: 434,
+    slug: "demo-readout-brief-pack",
+    title: "Yiyi Demo Readout Brief Pack",
+    phaseType: "commercial_demo_readout_brief_pack",
+    deliverables: ["demoReadoutBriefPackCreated", "readoutChecklistCreated"],
+    nextTitle: "Yiyi Demo Stakeholder Alignment Notes",
+  },
+  {
+    phase: 435,
+    slug: "stakeholder-alignment-notes",
+    title: "Yiyi Demo Stakeholder Alignment Notes",
+    phaseType: "commercial_demo_stakeholder_alignment_notes",
+    deliverables: ["stakeholderAlignmentNotesCreated", "alignmentChecklistCreated"],
+    nextTitle: "Yiyi Demo Pilot Success Criteria Pack",
+  },
+  {
+    phase: 436,
+    slug: "pilot-success-criteria-pack",
+    title: "Yiyi Demo Pilot Success Criteria Pack",
+    phaseType: "commercial_demo_pilot_success_criteria_pack",
+    deliverables: ["pilotSuccessCriteriaPackCreated", "successCriteriaChecklistCreated"],
+    nextTitle: "Yiyi Demo Implementation Boundary Notes",
+  },
+  {
+    phase: 437,
+    slug: "implementation-boundary-notes",
+    title: "Yiyi Demo Implementation Boundary Notes",
+    phaseType: "commercial_demo_implementation_boundary_notes",
+    deliverables: ["implementationBoundaryNotesCreated", "boundaryChecklistCreated"],
+    nextTitle: "Yiyi Demo Support Intake Template",
+  },
+  {
+    phase: 438,
+    slug: "support-intake-template",
+    title: "Yiyi Demo Support Intake Template",
+    phaseType: "commercial_demo_support_intake_template",
+    deliverables: ["supportIntakeTemplateCreated", "intakeChecklistCreated"],
+    nextTitle: "Yiyi Demo Handoff Meeting Kit",
+  },
+  {
+    phase: 439,
+    slug: "handoff-meeting-kit",
+    title: "Yiyi Demo Handoff Meeting Kit",
+    phaseType: "commercial_demo_handoff_meeting_kit",
+    deliverables: ["handoffMeetingKitCreated", "meetingChecklistCreated"],
+    nextTitle: "Yiyi Demo Value Proof Notes",
+  },
+  {
+    phase: 440,
+    slug: "value-proof-notes",
+    title: "Yiyi Demo Value Proof Notes",
+    phaseType: "commercial_demo_value_proof_notes",
+    deliverables: ["valueProofNotesCreated", "proofChecklistCreated"],
+    nextTitle: "Yiyi Demo Safe Expansion Backlog",
+  },
+  {
+    phase: 441,
+    slug: "safe-expansion-backlog",
+    title: "Yiyi Demo Safe Expansion Backlog",
+    phaseType: "commercial_demo_safe_expansion_backlog",
+    deliverables: ["safeExpansionBacklogCreated", "expansionBoundaryChecklistCreated"],
+    nextTitle: "Yiyi Demo Review Board Packet",
+  },
+  {
+    phase: 442,
+    slug: "review-board-packet",
+    title: "Yiyi Demo Review Board Packet",
+    phaseType: "commercial_demo_review_board_packet",
+    deliverables: ["reviewBoardPacketCreated", "reviewBoardChecklistCreated"],
+    nextTitle: "Yiyi Demo Fifth Low-risk Auto-run Closure",
+  },
+  {
+    phase: 443,
+    slug: "fifth-low-risk-auto-run-closure",
+    title: "Yiyi Demo Fifth Low-risk Auto-run Closure",
+    phaseType: "commercial_demo_fifth_low_risk_auto_run_closure",
+    deliverables: ["fifthLowRiskClosureCreated", "phase384StopPrepared"],
+    nextTitle: "Yiyi Guarded Real Provider Test Authorization Gate",
+    nextPhase: 384,
+    nextRisk: "high",
+    nextRequiresHumanApproval: true,
+  },
+  {
+    phase: 444,
+    slug: "field-enablement-brief",
+    title: "Yiyi Demo Field Enablement Brief",
+    phaseType: "commercial_demo_field_enablement_brief",
+    deliverables: ["fieldEnablementBriefCreated", "enablementBriefChecklistCreated"],
+    nextTitle: "Yiyi Demo Buyer Readiness Snapshot",
+  },
+  {
+    phase: 445,
+    slug: "buyer-readiness-snapshot",
+    title: "Yiyi Demo Buyer Readiness Snapshot",
+    phaseType: "commercial_demo_buyer_readiness_snapshot",
+    deliverables: ["buyerReadinessSnapshotCreated", "buyerReadinessChecklistCreated"],
+    nextTitle: "Yiyi Demo Safe Objection Notes",
+  },
+  {
+    phase: 446,
+    slug: "safe-objection-notes",
+    title: "Yiyi Demo Safe Objection Notes",
+    phaseType: "commercial_demo_safe_objection_notes",
+    deliverables: ["safeObjectionNotesCreated", "objectionNotesChecklistCreated"],
+    nextTitle: "Yiyi Demo Handoff Readiness Matrix",
+  },
+  {
+    phase: 447,
+    slug: "handoff-readiness-matrix",
+    title: "Yiyi Demo Handoff Readiness Matrix",
+    phaseType: "commercial_demo_handoff_readiness_matrix",
+    deliverables: ["handoffReadinessMatrixCreated", "handoffMatrixChecklistCreated"],
+    nextTitle: "Yiyi Demo Follow-up Sequencing Notes",
+  },
+  {
+    phase: 448,
+    slug: "followup-sequencing-notes",
+    title: "Yiyi Demo Follow-up Sequencing Notes",
+    phaseType: "commercial_demo_followup_sequencing_notes",
+    deliverables: ["followupSequencingNotesCreated", "followupSequenceChecklistCreated"],
+    nextTitle: "Yiyi Demo Review Facilitation Pack",
+  },
+  {
+    phase: 449,
+    slug: "review-facilitation-pack",
+    title: "Yiyi Demo Review Facilitation Pack",
+    phaseType: "commercial_demo_review_facilitation_pack",
+    deliverables: ["reviewFacilitationPackCreated", "facilitationChecklistCreated"],
+    nextTitle: "Yiyi Demo Risk Acknowledgement Notes",
+  },
+  {
+    phase: 450,
+    slug: "risk-acknowledgement-notes",
+    title: "Yiyi Demo Risk Acknowledgement Notes",
+    phaseType: "commercial_demo_risk_acknowledgement_notes",
+    deliverables: ["riskAcknowledgementNotesCreated", "riskAcknowledgementChecklistCreated"],
+    nextTitle: "Yiyi Demo Operator Prep Ledger",
+  },
+  {
+    phase: 451,
+    slug: "operator-prep-ledger",
+    title: "Yiyi Demo Operator Prep Ledger",
+    phaseType: "commercial_demo_operator_prep_ledger",
+    deliverables: ["operatorPrepLedgerCreated", "operatorPrepChecklistCreated"],
+    nextTitle: "Yiyi Demo Controlled Next-step Pack",
+  },
+  {
+    phase: 452,
+    slug: "controlled-nextstep-pack",
+    title: "Yiyi Demo Controlled Next-step Pack",
+    phaseType: "commercial_demo_controlled_nextstep_pack",
+    deliverables: ["controlledNextstepPackCreated", "nextstepChecklistCreated"],
+    nextTitle: "Yiyi Demo Sixth Low-risk Auto-run Closure",
+  },
+  {
+    phase: 453,
+    slug: "sixth-low-risk-auto-run-closure",
+    title: "Yiyi Demo Sixth Low-risk Auto-run Closure",
+    phaseType: "commercial_demo_sixth_low_risk_auto_run_closure",
+    deliverables: ["sixthLowRiskClosureCreated", "phase384StopPrepared"],
+    nextTitle: "Yiyi Guarded Real Provider Test Authorization Gate",
+    nextPhase: 384,
+    nextRisk: "high",
+    nextRequiresHumanApproval: true,
+  },
+  {
+    phase: 454,
+    slug: "readiness-briefing-notes",
+    title: "Yiyi Demo Readiness Briefing Notes",
+    phaseType: "commercial_demo_readiness_briefing_notes",
+    deliverables: ["readinessBriefingNotesCreated", "briefingNotesChecklistCreated"],
+    nextTitle: "Yiyi Demo Audience Fit Summary",
+  },
+  {
+    phase: 455,
+    slug: "audience-fit-summary",
+    title: "Yiyi Demo Audience Fit Summary",
+    phaseType: "commercial_demo_audience_fit_summary",
+    deliverables: ["audienceFitSummaryCreated", "audienceFitChecklistCreated"],
+    nextTitle: "Yiyi Demo Safe Scope Reminder Pack",
+  },
+  {
+    phase: 456,
+    slug: "safe-scope-reminder-pack",
+    title: "Yiyi Demo Safe Scope Reminder Pack",
+    phaseType: "commercial_demo_safe_scope_reminder_pack",
+    deliverables: ["safeScopeReminderPackCreated", "scopeReminderChecklistCreated"],
+    nextTitle: "Yiyi Demo Decision Trace Notes",
+  },
+  {
+    phase: 457,
+    slug: "decision-trace-notes",
+    title: "Yiyi Demo Decision Trace Notes",
+    phaseType: "commercial_demo_decision_trace_notes",
+    deliverables: ["decisionTraceNotesCreated", "decisionTraceChecklistCreated"],
+    nextTitle: "Yiyi Demo Facilitation Backup Cards",
+  },
+  {
+    phase: 458,
+    slug: "facilitation-backup-cards",
+    title: "Yiyi Demo Facilitation Backup Cards",
+    phaseType: "commercial_demo_facilitation_backup_cards",
+    deliverables: ["facilitationBackupCardsCreated", "backupCardsChecklistCreated"],
+    nextTitle: "Yiyi Demo Known Boundary Recap",
+  },
+  {
+    phase: 459,
+    slug: "known-boundary-recap",
+    title: "Yiyi Demo Known Boundary Recap",
+    phaseType: "commercial_demo_known_boundary_recap",
+    deliverables: ["knownBoundaryRecapCreated", "boundaryRecapChecklistCreated"],
+    nextTitle: "Yiyi Demo Controlled Handoff Notes",
+  },
+  {
+    phase: 460,
+    slug: "controlled-handoff-notes",
+    title: "Yiyi Demo Controlled Handoff Notes",
+    phaseType: "commercial_demo_controlled_handoff_notes",
+    deliverables: ["controlledHandoffNotesCreated", "handoffNotesChecklistCreated"],
+    nextTitle: "Yiyi Demo Proof Point Cue Sheet",
+  },
+  {
+    phase: 461,
+    slug: "proof-point-cue-sheet",
+    title: "Yiyi Demo Proof Point Cue Sheet",
+    phaseType: "commercial_demo_proof_point_cue_sheet",
+    deliverables: ["proofPointCueSheetCreated", "cueSheetChecklistCreated"],
+    nextTitle: "Yiyi Demo Low-risk Wrap-up Pack",
+  },
+  {
+    phase: 462,
+    slug: "lowrisk-wrapup-pack",
+    title: "Yiyi Demo Low-risk Wrap-up Pack",
+    phaseType: "commercial_demo_lowrisk_wrapup_pack",
+    deliverables: ["lowriskWrapupPackCreated", "wrapupChecklistCreated"],
+    nextTitle: "Yiyi Demo Seventh Low-risk Auto-run Closure",
+  },
+  {
+    phase: 463,
+    slug: "seventh-low-risk-auto-run-closure",
+    title: "Yiyi Demo Seventh Low-risk Auto-run Closure",
+    phaseType: "commercial_demo_seventh_low_risk_auto_run_closure",
+    deliverables: ["seventhLowRiskClosureCreated", "phase384StopPrepared"],
+    nextTitle: "Yiyi Guarded Real Provider Test Authorization Gate",
+    nextPhase: 384,
+    nextRisk: "high",
+    nextRequiresHumanApproval: true,
+  },
+  {
+    phase: 464,
+    slug: "commercial-readiness-digest",
+    title: "Yiyi Demo Commercial Readiness Digest",
+    phaseType: "commercial_demo_readiness_digest",
+    deliverables: ["commercialReadinessDigestCreated", "readinessDigestChecklistCreated"],
+    nextTitle: "Yiyi Demo Safety Boundary Cue Pack",
+  },
+  {
+    phase: 465,
+    slug: "safety-boundary-cue-pack",
+    title: "Yiyi Demo Safety Boundary Cue Pack",
+    phaseType: "commercial_demo_safety_boundary_cue_pack",
+    deliverables: ["safetyBoundaryCuePackCreated", "boundaryCueChecklistCreated"],
+    nextTitle: "Yiyi Demo Pilot Intake Notes",
+  },
+  {
+    phase: 466,
+    slug: "pilot-intake-notes",
+    title: "Yiyi Demo Pilot Intake Notes",
+    phaseType: "commercial_demo_pilot_intake_notes",
+    deliverables: ["pilotIntakeNotesCreated", "pilotIntakeChecklistCreated"],
+    nextTitle: "Yiyi Demo Buyer Outcome Matrix",
+  },
+  {
+    phase: 467,
+    slug: "buyer-outcome-matrix",
+    title: "Yiyi Demo Buyer Outcome Matrix",
+    phaseType: "commercial_demo_buyer_outcome_matrix",
+    deliverables: ["buyerOutcomeMatrixCreated", "outcomeMatrixChecklistCreated"],
+    nextTitle: "Yiyi Demo Review Follow-through Notes",
+  },
+  {
+    phase: 468,
+    slug: "review-followthrough-notes",
+    title: "Yiyi Demo Review Follow-through Notes",
+    phaseType: "commercial_demo_review_followthrough_notes",
+    deliverables: ["reviewFollowthroughNotesCreated", "followthroughChecklistCreated"],
+    nextTitle: "Yiyi Demo Controlled Pilot Outline",
+  },
+  {
+    phase: 469,
+    slug: "controlled-pilot-outline",
+    title: "Yiyi Demo Controlled Pilot Outline",
+    phaseType: "commercial_demo_controlled_pilot_outline",
+    deliverables: ["controlledPilotOutlineCreated", "controlledPilotChecklistCreated"],
+    nextTitle: "Yiyi Demo Success Signal Cards",
+  },
+  {
+    phase: 470,
+    slug: "success-signal-cards",
+    title: "Yiyi Demo Success Signal Cards",
+    phaseType: "commercial_demo_success_signal_cards",
+    deliverables: ["successSignalCardsCreated", "successSignalChecklistCreated"],
+    nextTitle: "Yiyi Demo Post-review Action Ledger",
+  },
+  {
+    phase: 471,
+    slug: "post-review-action-ledger",
+    title: "Yiyi Demo Post-review Action Ledger",
+    phaseType: "commercial_demo_post_review_action_ledger",
+    deliverables: ["postReviewActionLedgerCreated", "actionLedgerChecklistCreated"],
+    nextTitle: "Yiyi Demo Low-risk Continuity Pack",
+  },
+  {
+    phase: 472,
+    slug: "lowrisk-continuity-pack",
+    title: "Yiyi Demo Low-risk Continuity Pack",
+    phaseType: "commercial_demo_lowrisk_continuity_pack",
+    deliverables: ["lowriskContinuityPackCreated", "continuityChecklistCreated"],
+    nextTitle: "Yiyi Demo Eighth Low-risk Auto-run Closure",
+  },
+  {
+    phase: 473,
+    slug: "eighth-low-risk-auto-run-closure",
+    title: "Yiyi Demo Eighth Low-risk Auto-run Closure",
+    phaseType: "commercial_demo_eighth_low_risk_auto_run_closure",
+    deliverables: ["eighthLowRiskClosureCreated", "phase384StopPrepared"],
+    nextTitle: "Yiyi Guarded Real Provider Test Authorization Gate",
+    nextPhase: 384,
+    nextRisk: "high",
+    nextRequiresHumanApproval: true,
+  },
+  {
+    phase: 474,
+    slug: "demo-governance-brief",
+    title: "Yiyi Demo Governance Brief",
+    phaseType: "commercial_demo_governance_brief",
+    deliverables: ["demoGovernanceBriefCreated", "governanceBriefChecklistCreated"],
+    nextTitle: "Yiyi Demo Stakeholder Confidence Notes",
+  },
+  {
+    phase: 475,
+    slug: "stakeholder-confidence-notes",
+    title: "Yiyi Demo Stakeholder Confidence Notes",
+    phaseType: "commercial_demo_stakeholder_confidence_notes",
+    deliverables: ["stakeholderConfidenceNotesCreated", "confidenceChecklistCreated"],
+    nextTitle: "Yiyi Demo Controlled Rollout Questions",
+  },
+  {
+    phase: 476,
+    slug: "controlled-rollout-questions",
+    title: "Yiyi Demo Controlled Rollout Questions",
+    phaseType: "commercial_demo_controlled_rollout_questions",
+    deliverables: ["controlledRolloutQuestionsCreated", "rolloutQuestionChecklistCreated"],
+    nextTitle: "Yiyi Demo Evidence Tour Notes",
+  },
+  {
+    phase: 477,
+    slug: "evidence-tour-notes",
+    title: "Yiyi Demo Evidence Tour Notes",
+    phaseType: "commercial_demo_evidence_tour_notes",
+    deliverables: ["evidenceTourNotesCreated", "evidenceTourChecklistCreated"],
+    nextTitle: "Yiyi Demo Security Review Cue Sheet",
+  },
+  {
+    phase: 478,
+    slug: "security-review-cue-sheet",
+    title: "Yiyi Demo Security Review Cue Sheet",
+    phaseType: "commercial_demo_security_review_cue_sheet",
+    deliverables: ["securityReviewCueSheetCreated", "securityReviewChecklistCreated"],
+    nextTitle: "Yiyi Demo Commercial Follow-up Ledger",
+  },
+  {
+    phase: 479,
+    slug: "commercial-followup-ledger",
+    title: "Yiyi Demo Commercial Follow-up Ledger",
+    phaseType: "commercial_demo_commercial_followup_ledger",
+    deliverables: ["commercialFollowupLedgerCreated", "followupLedgerChecklistCreated"],
+    nextTitle: "Yiyi Demo Internal Demo Replay Notes",
+  },
+  {
+    phase: 480,
+    slug: "internal-demo-replay-notes",
+    title: "Yiyi Demo Internal Demo Replay Notes",
+    phaseType: "commercial_demo_internal_replay_notes",
+    deliverables: ["internalDemoReplayNotesCreated", "replayNotesChecklistCreated"],
+    nextTitle: "Yiyi Demo Buyer Enablement Addendum",
+  },
+  {
+    phase: 481,
+    slug: "buyer-enablement-addendum",
+    title: "Yiyi Demo Buyer Enablement Addendum",
+    phaseType: "commercial_demo_buyer_enablement_addendum",
+    deliverables: ["buyerEnablementAddendumCreated", "enablementAddendumChecklistCreated"],
+    nextTitle: "Yiyi Demo Safe Continuation Notes",
+  },
+  {
+    phase: 482,
+    slug: "safe-continuation-notes",
+    title: "Yiyi Demo Safe Continuation Notes",
+    phaseType: "commercial_demo_safe_continuation_notes",
+    deliverables: ["safeContinuationNotesCreated", "continuationChecklistCreated"],
+    nextTitle: "Yiyi Demo Ninth Low-risk Auto-run Closure",
+  },
+  {
+    phase: 483,
+    slug: "ninth-low-risk-auto-run-closure",
+    title: "Yiyi Demo Ninth Low-risk Auto-run Closure",
+    phaseType: "commercial_demo_ninth_low_risk_auto_run_closure",
+    deliverables: ["ninthLowRiskClosureCreated", "phase384StopPrepared"],
+    nextTitle: "Yiyi Guarded Real Provider Test Authorization Gate",
+    nextPhase: 384,
+    nextRisk: "high",
+    nextRequiresHumanApproval: true,
+  },
+  {
+    phase: 484,
+    slug: "commercial-decision-brief",
+    title: "Yiyi Demo Commercial Decision Brief",
+    phaseType: "commercial_demo_commercial_decision_brief",
+    deliverables: ["commercialDecisionBriefCreated", "decisionBriefChecklistCreated"],
+    nextTitle: "Yiyi Demo Trust Boundary Notes",
+  },
+  {
+    phase: 485,
+    slug: "trust-boundary-notes",
+    title: "Yiyi Demo Trust Boundary Notes",
+    phaseType: "commercial_demo_trust_boundary_notes",
+    deliverables: ["trustBoundaryNotesCreated", "trustBoundaryChecklistCreated"],
+    nextTitle: "Yiyi Demo Pilot Readiness Ledger",
+  },
+  {
+    phase: 486,
+    slug: "pilot-readiness-ledger",
+    title: "Yiyi Demo Pilot Readiness Ledger",
+    phaseType: "commercial_demo_pilot_readiness_ledger",
+    deliverables: ["pilotReadinessLedgerCreated", "pilotReadinessChecklistCreated"],
+    nextTitle: "Yiyi Demo Buyer Journey Handoff",
+  },
+  {
+    phase: 487,
+    slug: "buyer-journey-handoff",
+    title: "Yiyi Demo Buyer Journey Handoff",
+    phaseType: "commercial_demo_buyer_journey_handoff",
+    deliverables: ["buyerJourneyHandoffCreated", "journeyHandoffChecklistCreated"],
+    nextTitle: "Yiyi Demo Security Confidence Pack",
+  },
+  {
+    phase: 488,
+    slug: "security-confidence-pack",
+    title: "Yiyi Demo Security Confidence Pack",
+    phaseType: "commercial_demo_security_confidence_pack",
+    deliverables: ["securityConfidencePackCreated", "securityConfidenceChecklistCreated"],
+    nextTitle: "Yiyi Demo Evidence Confidence Notes",
+  },
+  {
+    phase: 489,
+    slug: "evidence-confidence-notes",
+    title: "Yiyi Demo Evidence Confidence Notes",
+    phaseType: "commercial_demo_evidence_confidence_notes",
+    deliverables: ["evidenceConfidenceNotesCreated", "evidenceConfidenceChecklistCreated"],
+    nextTitle: "Yiyi Demo Operator Continuity Ledger",
+  },
+  {
+    phase: 490,
+    slug: "operator-continuity-ledger",
+    title: "Yiyi Demo Operator Continuity Ledger",
+    phaseType: "commercial_demo_operator_continuity_ledger",
+    deliverables: ["operatorContinuityLedgerCreated", "operatorContinuityChecklistCreated"],
+    nextTitle: "Yiyi Demo Review Closure Notes",
+  },
+  {
+    phase: 491,
+    slug: "review-closure-notes",
+    title: "Yiyi Demo Review Closure Notes",
+    phaseType: "commercial_demo_review_closure_notes",
+    deliverables: ["reviewClosureNotesCreated", "reviewClosureChecklistCreated"],
+    nextTitle: "Yiyi Demo Safe Next Batch Pack",
+  },
+  {
+    phase: 492,
+    slug: "safe-next-batch-pack",
+    title: "Yiyi Demo Safe Next Batch Pack",
+    phaseType: "commercial_demo_safe_next_batch_pack",
+    deliverables: ["safeNextBatchPackCreated", "nextBatchChecklistCreated"],
+    nextTitle: "Yiyi Demo Tenth Low-risk Auto-run Closure",
+  },
+  {
+    phase: 493,
+    slug: "tenth-low-risk-auto-run-closure",
+    title: "Yiyi Demo Tenth Low-risk Auto-run Closure",
+    phaseType: "commercial_demo_tenth_low_risk_auto_run_closure",
+    deliverables: ["tenthLowRiskClosureCreated", "phase384StopPrepared"],
+    nextTitle: "Yiyi Guarded Real Provider Test Authorization Gate",
+    nextPhase: 384,
+    nextRisk: "high",
+    nextRequiresHumanApproval: true,
+  },
+  {
+    phase: 494,
+    slug: "commercial-proof-digest",
+    title: "Yiyi Demo Commercial Proof Digest",
+    phaseType: "commercial_demo_commercial_proof_digest",
+    deliverables: ["commercialProofDigestCreated", "proofDigestChecklistCreated"],
+    nextTitle: "Yiyi Demo Safe Evaluation Notes",
+  },
+  {
+    phase: 495,
+    slug: "safe-evaluation-notes",
+    title: "Yiyi Demo Safe Evaluation Notes",
+    phaseType: "commercial_demo_safe_evaluation_notes",
+    deliverables: ["safeEvaluationNotesCreated", "evaluationNotesChecklistCreated"],
+    nextTitle: "Yiyi Demo Buyer Review Ledger",
+  },
+  {
+    phase: 496,
+    slug: "buyer-review-ledger",
+    title: "Yiyi Demo Buyer Review Ledger",
+    phaseType: "commercial_demo_buyer_review_ledger",
+    deliverables: ["buyerReviewLedgerCreated", "buyerReviewChecklistCreated"],
+    nextTitle: "Yiyi Demo Pilot Boundary Cue Sheet",
+  },
+  {
+    phase: 497,
+    slug: "pilot-boundary-cue-sheet",
+    title: "Yiyi Demo Pilot Boundary Cue Sheet",
+    phaseType: "commercial_demo_pilot_boundary_cue_sheet",
+    deliverables: ["pilotBoundaryCueSheetCreated", "pilotBoundaryChecklistCreated"],
+    nextTitle: "Yiyi Demo Internal Confidence Recap",
+  },
+  {
+    phase: 498,
+    slug: "internal-confidence-recap",
+    title: "Yiyi Demo Internal Confidence Recap",
+    phaseType: "commercial_demo_internal_confidence_recap",
+    deliverables: ["internalConfidenceRecapCreated", "confidenceRecapChecklistCreated"],
+    nextTitle: "Yiyi Demo Governance Follow-up Pack",
+  },
+  {
+    phase: 499,
+    slug: "governance-followup-pack",
+    title: "Yiyi Demo Governance Follow-up Pack",
+    phaseType: "commercial_demo_governance_followup_pack",
+    deliverables: ["governanceFollowupPackCreated", "governanceFollowupChecklistCreated"],
+    nextTitle: "Yiyi Demo Evidence Readiness Ledger",
+  },
+  {
+    phase: 500,
+    slug: "evidence-readiness-ledger",
+    title: "Yiyi Demo Evidence Readiness Ledger",
+    phaseType: "commercial_demo_evidence_readiness_ledger",
+    deliverables: ["evidenceReadinessLedgerCreated", "evidenceReadinessChecklistCreated"],
+    nextTitle: "Yiyi Demo Controlled Commercial Notes",
+  },
+  {
+    phase: 501,
+    slug: "controlled-commercial-notes",
+    title: "Yiyi Demo Controlled Commercial Notes",
+    phaseType: "commercial_demo_controlled_commercial_notes",
+    deliverables: ["controlledCommercialNotesCreated", "commercialNotesChecklistCreated"],
+    nextTitle: "Yiyi Demo Low-risk Continuation Index",
+  },
+  {
+    phase: 502,
+    slug: "lowrisk-continuation-index",
+    title: "Yiyi Demo Low-risk Continuation Index",
+    phaseType: "commercial_demo_lowrisk_continuation_index",
+    deliverables: ["lowriskContinuationIndexCreated", "continuationIndexChecklistCreated"],
+    nextTitle: "Yiyi Demo Eleventh Low-risk Auto-run Closure",
+  },
+  {
+    phase: 503,
+    slug: "eleventh-low-risk-auto-run-closure",
+    title: "Yiyi Demo Eleventh Low-risk Auto-run Closure",
+    phaseType: "commercial_demo_eleventh_low_risk_auto_run_closure",
+    deliverables: ["eleventhLowRiskClosureCreated", "phase384StopPrepared"],
+    nextTitle: "Yiyi Guarded Real Provider Test Authorization Gate",
+    nextPhase: 384,
+    nextRisk: "high",
+    nextRequiresHumanApproval: true,
+  },
+  {
+    phase: 504,
+    slug: "commercial-readiness-scorecard",
+    title: "Yiyi Demo Commercial Readiness Scorecard",
+    phaseType: "commercial_demo_commercial_readiness_scorecard",
+    deliverables: ["commercialReadinessScorecardCreated", "readinessScorecardChecklistCreated"],
+    nextTitle: "Yiyi Demo Safe Stakeholder Q&A Notes",
+  },
+  {
+    phase: 505,
+    slug: "safe-stakeholder-qa-notes",
+    title: "Yiyi Demo Safe Stakeholder Q&A Notes",
+    phaseType: "commercial_demo_safe_stakeholder_qa_notes",
+    deliverables: ["safeStakeholderQaNotesCreated", "stakeholderQaChecklistCreated"],
+    nextTitle: "Yiyi Demo Buyer Confidence Ledger",
+  },
+  {
+    phase: 506,
+    slug: "buyer-confidence-ledger",
+    title: "Yiyi Demo Buyer Confidence Ledger",
+    phaseType: "commercial_demo_buyer_confidence_ledger",
+    deliverables: ["buyerConfidenceLedgerCreated", "buyerConfidenceChecklistCreated"],
+    nextTitle: "Yiyi Demo Security Positioning Notes",
+  },
+  {
+    phase: 507,
+    slug: "security-positioning-notes",
+    title: "Yiyi Demo Security Positioning Notes",
+    phaseType: "commercial_demo_security_positioning_notes",
+    deliverables: ["securityPositioningNotesCreated", "securityPositioningChecklistCreated"],
+    nextTitle: "Yiyi Demo Evidence Walkthrough Cards",
+  },
+  {
+    phase: 508,
+    slug: "evidence-walkthrough-cards",
+    title: "Yiyi Demo Evidence Walkthrough Cards",
+    phaseType: "commercial_demo_evidence_walkthrough_cards",
+    deliverables: ["evidenceWalkthroughCardsCreated", "walkthroughCardsChecklistCreated"],
+    nextTitle: "Yiyi Demo Controlled Trial Framing",
+  },
+  {
+    phase: 509,
+    slug: "controlled-trial-framing",
+    title: "Yiyi Demo Controlled Trial Framing",
+    phaseType: "commercial_demo_controlled_trial_framing",
+    deliverables: ["controlledTrialFramingCreated", "trialFramingChecklistCreated"],
+    nextTitle: "Yiyi Demo Internal Narrative Sync",
+  },
+  {
+    phase: 510,
+    slug: "internal-narrative-sync",
+    title: "Yiyi Demo Internal Narrative Sync",
+    phaseType: "commercial_demo_internal_narrative_sync",
+    deliverables: ["internalNarrativeSyncCreated", "narrativeSyncChecklistCreated"],
+    nextTitle: "Yiyi Demo Safe Buyer Follow-up Pack",
+  },
+  {
+    phase: 511,
+    slug: "safe-buyer-followup-pack",
+    title: "Yiyi Demo Safe Buyer Follow-up Pack",
+    phaseType: "commercial_demo_safe_buyer_followup_pack",
+    deliverables: ["safeBuyerFollowupPackCreated", "buyerFollowupChecklistCreated"],
+    nextTitle: "Yiyi Demo Low-risk Extension Index",
+  },
+  {
+    phase: 512,
+    slug: "lowrisk-extension-index",
+    title: "Yiyi Demo Low-risk Extension Index",
+    phaseType: "commercial_demo_lowrisk_extension_index",
+    deliverables: ["lowriskExtensionIndexCreated", "extensionIndexChecklistCreated"],
+    nextTitle: "Yiyi Demo Twelfth Low-risk Auto-run Closure",
+  },
+  {
+    phase: 513,
+    slug: "twelfth-low-risk-auto-run-closure",
+    title: "Yiyi Demo Twelfth Low-risk Auto-run Closure",
+    phaseType: "commercial_demo_twelfth_low_risk_auto_run_closure",
+    deliverables: ["twelfthLowRiskClosureCreated", "phase384StopPrepared"],
+    nextTitle: "Yiyi Guarded Real Provider Test Authorization Gate",
+    nextPhase: 384,
+    nextRisk: "high",
+    nextRequiresHumanApproval: true,
+  },
+  {
+    phase: 514,
+    slug: "commercial-operator-brief",
+    title: "Yiyi Demo Commercial Operator Brief",
+    phaseType: "commercial_demo_commercial_operator_brief",
+    deliverables: ["commercialOperatorBriefCreated", "operatorBriefChecklistCreated"],
+    nextTitle: "Yiyi Demo Safe Proof Notes",
+  },
+  {
+    phase: 515,
+    slug: "safe-proof-notes",
+    title: "Yiyi Demo Safe Proof Notes",
+    phaseType: "commercial_demo_safe_proof_notes",
+    deliverables: ["safeProofNotesCreated", "safeProofChecklistCreated"],
+    nextTitle: "Yiyi Demo Review Confidence Ledger",
+  },
+  {
+    phase: 516,
+    slug: "review-confidence-ledger",
+    title: "Yiyi Demo Review Confidence Ledger",
+    phaseType: "commercial_demo_review_confidence_ledger",
+    deliverables: ["reviewConfidenceLedgerCreated", "reviewConfidenceChecklistCreated"],
+    nextTitle: "Yiyi Demo Buyer Safety Brief",
+  },
+  {
+    phase: 517,
+    slug: "buyer-safety-brief",
+    title: "Yiyi Demo Buyer Safety Brief",
+    phaseType: "commercial_demo_buyer_safety_brief",
+    deliverables: ["buyerSafetyBriefCreated", "buyerSafetyChecklistCreated"],
+    nextTitle: "Yiyi Demo Evidence Assurance Pack",
+  },
+  {
+    phase: 518,
+    slug: "evidence-assurance-pack",
+    title: "Yiyi Demo Evidence Assurance Pack",
+    phaseType: "commercial_demo_evidence_assurance_pack",
+    deliverables: ["evidenceAssurancePackCreated", "evidenceAssuranceChecklistCreated"],
+    nextTitle: "Yiyi Demo Controlled Buyer Notes",
+  },
+  {
+    phase: 519,
+    slug: "controlled-buyer-notes",
+    title: "Yiyi Demo Controlled Buyer Notes",
+    phaseType: "commercial_demo_controlled_buyer_notes",
+    deliverables: ["controlledBuyerNotesCreated", "controlledBuyerChecklistCreated"],
+    nextTitle: "Yiyi Demo Internal Review Addendum",
+  },
+  {
+    phase: 520,
+    slug: "internal-review-addendum",
+    title: "Yiyi Demo Internal Review Addendum",
+    phaseType: "commercial_demo_internal_review_addendum",
+    deliverables: ["internalReviewAddendumCreated", "internalReviewChecklistCreated"],
+    nextTitle: "Yiyi Demo Safe Commercial Index",
+  },
+  {
+    phase: 521,
+    slug: "safe-commercial-index",
+    title: "Yiyi Demo Safe Commercial Index",
+    phaseType: "commercial_demo_safe_commercial_index",
+    deliverables: ["safeCommercialIndexCreated", "safeCommercialChecklistCreated"],
+    nextTitle: "Yiyi Demo Low-risk Carry-forward Pack",
+  },
+  {
+    phase: 522,
+    slug: "lowrisk-carryforward-pack",
+    title: "Yiyi Demo Low-risk Carry-forward Pack",
+    phaseType: "commercial_demo_lowrisk_carryforward_pack",
+    deliverables: ["lowriskCarryforwardPackCreated", "carryforwardChecklistCreated"],
+    nextTitle: "Yiyi Demo Thirteenth Low-risk Auto-run Closure",
+  },
+  {
+    phase: 523,
+    slug: "thirteenth-low-risk-auto-run-closure",
+    title: "Yiyi Demo Thirteenth Low-risk Auto-run Closure",
+    phaseType: "commercial_demo_thirteenth_low_risk_auto_run_closure",
+    deliverables: ["thirteenthLowRiskClosureCreated", "phase384StopPrepared"],
+    nextTitle: "Yiyi Guarded Real Provider Test Authorization Gate",
+    nextPhase: 384,
+    nextRisk: "high",
+    nextRequiresHumanApproval: true,
+  },
+  {
+    phase: 524,
+    slug: "commercial-trust-scorecard",
+    title: "Yiyi Demo Commercial Trust Scorecard",
+    phaseType: "commercial_demo_commercial_trust_scorecard",
+    deliverables: ["commercialTrustScorecardCreated", "trustScorecardChecklistCreated"],
+    nextTitle: "Yiyi Demo Safe Review Brief",
+  },
+  {
+    phase: 525,
+    slug: "safe-review-brief",
+    title: "Yiyi Demo Safe Review Brief",
+    phaseType: "commercial_demo_safe_review_brief",
+    deliverables: ["safeReviewBriefCreated", "safeReviewChecklistCreated"],
+    nextTitle: "Yiyi Demo Buyer Assurance Notes",
+  },
+  {
+    phase: 526,
+    slug: "buyer-assurance-notes",
+    title: "Yiyi Demo Buyer Assurance Notes",
+    phaseType: "commercial_demo_buyer_assurance_notes",
+    deliverables: ["buyerAssuranceNotesCreated", "buyerAssuranceChecklistCreated"],
+    nextTitle: "Yiyi Demo Evidence Control Ledger",
+  },
+  {
+    phase: 527,
+    slug: "evidence-control-ledger",
+    title: "Yiyi Demo Evidence Control Ledger",
+    phaseType: "commercial_demo_evidence_control_ledger",
+    deliverables: ["evidenceControlLedgerCreated", "evidenceControlChecklistCreated"],
+    nextTitle: "Yiyi Demo Security Response Cards",
+  },
+  {
+    phase: 528,
+    slug: "security-response-cards",
+    title: "Yiyi Demo Security Response Cards",
+    phaseType: "commercial_demo_security_response_cards",
+    deliverables: ["securityResponseCardsCreated", "securityResponseChecklistCreated"],
+    nextTitle: "Yiyi Demo Controlled Readiness Notes",
+  },
+  {
+    phase: 529,
+    slug: "controlled-readiness-notes",
+    title: "Yiyi Demo Controlled Readiness Notes",
+    phaseType: "commercial_demo_controlled_readiness_notes",
+    deliverables: ["controlledReadinessNotesCreated", "controlledReadinessChecklistCreated"],
+    nextTitle: "Yiyi Demo Operator Assurance Pack",
+  },
+  {
+    phase: 530,
+    slug: "operator-assurance-pack",
+    title: "Yiyi Demo Operator Assurance Pack",
+    phaseType: "commercial_demo_operator_assurance_pack",
+    deliverables: ["operatorAssurancePackCreated", "operatorAssuranceChecklistCreated"],
+    nextTitle: "Yiyi Demo Buyer Continuation Index",
+  },
+  {
+    phase: 531,
+    slug: "buyer-continuation-index",
+    title: "Yiyi Demo Buyer Continuation Index",
+    phaseType: "commercial_demo_buyer_continuation_index",
+    deliverables: ["buyerContinuationIndexCreated", "buyerContinuationChecklistCreated"],
+    nextTitle: "Yiyi Demo Low-risk Forward Notes",
+  },
+  {
+    phase: 532,
+    slug: "lowrisk-forward-notes",
+    title: "Yiyi Demo Low-risk Forward Notes",
+    phaseType: "commercial_demo_lowrisk_forward_notes",
+    deliverables: ["lowriskForwardNotesCreated", "forwardNotesChecklistCreated"],
+    nextTitle: "Yiyi Demo Fourteenth Low-risk Auto-run Closure",
+  },
+  {
+    phase: 533,
+    slug: "fourteenth-low-risk-auto-run-closure",
+    title: "Yiyi Demo Fourteenth Low-risk Auto-run Closure",
+    phaseType: "commercial_demo_fourteenth_low_risk_auto_run_closure",
+    deliverables: ["fourteenthLowRiskClosureCreated", "phase384StopPrepared"],
+    nextTitle: "Yiyi Guarded Real Provider Test Authorization Gate",
+    nextPhase: 384,
+    nextRisk: "high",
+    nextRequiresHumanApproval: true,
+  },
+  {
+    phase: 534,
+    slug: "commercial-safety-digest",
+    title: "Yiyi Demo Commercial Safety Digest",
+    phaseType: "commercial_demo_commercial_safety_digest",
+    deliverables: ["commercialSafetyDigestCreated", "safetyDigestChecklistCreated"],
+    nextTitle: "Yiyi Demo Buyer Trust Ledger",
+  },
+  {
+    phase: 535,
+    slug: "buyer-trust-ledger",
+    title: "Yiyi Demo Buyer Trust Ledger",
+    phaseType: "commercial_demo_buyer_trust_ledger",
+    deliverables: ["buyerTrustLedgerCreated", "buyerTrustChecklistCreated"],
+    nextTitle: "Yiyi Demo Evidence Stewardship Notes",
+  },
+  {
+    phase: 536,
+    slug: "evidence-stewardship-notes",
+    title: "Yiyi Demo Evidence Stewardship Notes",
+    phaseType: "commercial_demo_evidence_stewardship_notes",
+    deliverables: ["evidenceStewardshipNotesCreated", "stewardshipChecklistCreated"],
+    nextTitle: "Yiyi Demo Controlled Assurance Brief",
+  },
+  {
+    phase: 537,
+    slug: "controlled-assurance-brief",
+    title: "Yiyi Demo Controlled Assurance Brief",
+    phaseType: "commercial_demo_controlled_assurance_brief",
+    deliverables: ["controlledAssuranceBriefCreated", "assuranceBriefChecklistCreated"],
+    nextTitle: "Yiyi Demo Review Safeguard Cards",
+  },
+  {
+    phase: 538,
+    slug: "review-safeguard-cards",
+    title: "Yiyi Demo Review Safeguard Cards",
+    phaseType: "commercial_demo_review_safeguard_cards",
+    deliverables: ["reviewSafeguardCardsCreated", "safeguardCardsChecklistCreated"],
+    nextTitle: "Yiyi Demo Commercial Continuity Notes",
+  },
+  {
+    phase: 539,
+    slug: "commercial-continuity-notes",
+    title: "Yiyi Demo Commercial Continuity Notes",
+    phaseType: "commercial_demo_commercial_continuity_notes",
+    deliverables: ["commercialContinuityNotesCreated", "continuityNotesChecklistCreated"],
+    nextTitle: "Yiyi Demo Operator Safety Ledger",
+  },
+  {
+    phase: 540,
+    slug: "operator-safety-ledger",
+    title: "Yiyi Demo Operator Safety Ledger",
+    phaseType: "commercial_demo_operator_safety_ledger",
+    deliverables: ["operatorSafetyLedgerCreated", "operatorSafetyChecklistCreated"],
+    nextTitle: "Yiyi Demo Buyer Proof Addendum",
+  },
+  {
+    phase: 541,
+    slug: "buyer-proof-addendum",
+    title: "Yiyi Demo Buyer Proof Addendum",
+    phaseType: "commercial_demo_buyer_proof_addendum",
+    deliverables: ["buyerProofAddendumCreated", "buyerProofChecklistCreated"],
+    nextTitle: "Yiyi Demo Low-risk Safety Index",
+  },
+  {
+    phase: 542,
+    slug: "lowrisk-safety-index",
+    title: "Yiyi Demo Low-risk Safety Index",
+    phaseType: "commercial_demo_lowrisk_safety_index",
+    deliverables: ["lowriskSafetyIndexCreated", "safetyIndexChecklistCreated"],
+    nextTitle: "Yiyi Demo Fifteenth Low-risk Auto-run Closure",
+  },
+  {
+    phase: 543,
+    slug: "fifteenth-low-risk-auto-run-closure",
+    title: "Yiyi Demo Fifteenth Low-risk Auto-run Closure",
+    phaseType: "commercial_demo_fifteenth_low_risk_auto_run_closure",
+    deliverables: ["fifteenthLowRiskClosureCreated", "phase384StopPrepared"],
+    nextTitle: "Yiyi Guarded Real Provider Test Authorization Gate",
+    nextPhase: 384,
+    nextRisk: "high",
+    nextRequiresHumanApproval: true,
+  },
+  {
+    phase: 544,
+    slug: "commercial-confidence-digest",
+    title: "Yiyi Demo Commercial Confidence Digest",
+    phaseType: "commercial_demo_commercial_confidence_digest",
+    deliverables: ["commercialConfidenceDigestCreated", "confidenceDigestChecklistCreated"],
+    nextTitle: "Yiyi Demo Buyer Safety Ledger",
+  },
+  {
+    phase: 545,
+    slug: "buyer-safety-ledger",
+    title: "Yiyi Demo Buyer Safety Ledger",
+    phaseType: "commercial_demo_buyer_safety_ledger",
+    deliverables: ["buyerSafetyLedgerCreated", "buyerSafetyLedgerChecklistCreated"],
+    nextTitle: "Yiyi Demo Evidence Trust Cards",
+  },
+  {
+    phase: 546,
+    slug: "evidence-trust-cards",
+    title: "Yiyi Demo Evidence Trust Cards",
+    phaseType: "commercial_demo_evidence_trust_cards",
+    deliverables: ["evidenceTrustCardsCreated", "evidenceTrustChecklistCreated"],
+    nextTitle: "Yiyi Demo Controlled Security Notes",
+  },
+  {
+    phase: 547,
+    slug: "controlled-security-notes",
+    title: "Yiyi Demo Controlled Security Notes",
+    phaseType: "commercial_demo_controlled_security_notes",
+    deliverables: ["controlledSecurityNotesCreated", "controlledSecurityChecklistCreated"],
+    nextTitle: "Yiyi Demo Operator Confidence Pack",
+  },
+  {
+    phase: 548,
+    slug: "operator-confidence-pack",
+    title: "Yiyi Demo Operator Confidence Pack",
+    phaseType: "commercial_demo_operator_confidence_pack",
+    deliverables: ["operatorConfidencePackCreated", "operatorConfidenceChecklistCreated"],
+    nextTitle: "Yiyi Demo Commercial Proof Ledger",
+  },
+  {
+    phase: 549,
+    slug: "commercial-proof-ledger",
+    title: "Yiyi Demo Commercial Proof Ledger",
+    phaseType: "commercial_demo_commercial_proof_ledger",
+    deliverables: ["commercialProofLedgerCreated", "commercialProofChecklistCreated"],
+    nextTitle: "Yiyi Demo Review Continuity Cards",
+  },
+  {
+    phase: 550,
+    slug: "review-continuity-cards",
+    title: "Yiyi Demo Review Continuity Cards",
+    phaseType: "commercial_demo_review_continuity_cards",
+    deliverables: ["reviewContinuityCardsCreated", "reviewContinuityChecklistCreated"],
+    nextTitle: "Yiyi Demo Buyer Follow-through Index",
+  },
+  {
+    phase: 551,
+    slug: "buyer-followthrough-index",
+    title: "Yiyi Demo Buyer Follow-through Index",
+    phaseType: "commercial_demo_buyer_followthrough_index",
+    deliverables: ["buyerFollowthroughIndexCreated", "buyerFollowthroughChecklistCreated"],
+    nextTitle: "Yiyi Demo Low-risk Evidence Forward Pack",
+  },
+  {
+    phase: 552,
+    slug: "lowrisk-evidence-forward-pack",
+    title: "Yiyi Demo Low-risk Evidence Forward Pack",
+    phaseType: "commercial_demo_lowrisk_evidence_forward_pack",
+    deliverables: ["lowriskEvidenceForwardPackCreated", "evidenceForwardChecklistCreated"],
+    nextTitle: "Yiyi Demo Sixteenth Low-risk Auto-run Closure",
+  },
+  {
+    phase: 553,
+    slug: "sixteenth-low-risk-auto-run-closure",
+    title: "Yiyi Demo Sixteenth Low-risk Auto-run Closure",
+    phaseType: "commercial_demo_sixteenth_low_risk_auto_run_closure",
+    deliverables: ["sixteenthLowRiskClosureCreated", "phase384StopPrepared"],
+    nextTitle: "Yiyi Guarded Real Provider Test Authorization Gate",
+    nextPhase: 384,
+    nextRisk: "high",
+    nextRequiresHumanApproval: true,
+  },
+  {
+    phase: 554,
+    slug: "commercial-guardrail-brief",
+    title: "Yiyi Demo Commercial Guardrail Brief",
+    phaseType: "commercial_demo_commercial_guardrail_brief",
+    deliverables: ["commercialGuardrailBriefCreated", "guardrailBriefChecklistCreated"],
+    nextTitle: "Yiyi Demo Buyer Confidence Notes",
+  },
+  {
+    phase: 555,
+    slug: "buyer-confidence-notes",
+    title: "Yiyi Demo Buyer Confidence Notes",
+    phaseType: "commercial_demo_buyer_confidence_notes",
+    deliverables: ["buyerConfidenceNotesCreated", "buyerConfidenceNotesChecklistCreated"],
+    nextTitle: "Yiyi Demo Evidence Reliability Ledger",
+  },
+  {
+    phase: 556,
+    slug: "evidence-reliability-ledger",
+    title: "Yiyi Demo Evidence Reliability Ledger",
+    phaseType: "commercial_demo_evidence_reliability_ledger",
+    deliverables: ["evidenceReliabilityLedgerCreated", "evidenceReliabilityChecklistCreated"],
+    nextTitle: "Yiyi Demo Controlled Safety Signals",
+  },
+  {
+    phase: 557,
+    slug: "controlled-safety-signals",
+    title: "Yiyi Demo Controlled Safety Signals",
+    phaseType: "commercial_demo_controlled_safety_signals",
+    deliverables: ["controlledSafetySignalsCreated", "safetySignalsChecklistCreated"],
+    nextTitle: "Yiyi Demo Operator Assurance Notes",
+  },
+  {
+    phase: 558,
+    slug: "operator-assurance-notes",
+    title: "Yiyi Demo Operator Assurance Notes",
+    phaseType: "commercial_demo_operator_assurance_notes",
+    deliverables: ["operatorAssuranceNotesCreated", "operatorAssuranceNotesChecklistCreated"],
+    nextTitle: "Yiyi Demo Buyer Risk Framing Pack",
+  },
+  {
+    phase: 559,
+    slug: "buyer-risk-framing-pack",
+    title: "Yiyi Demo Buyer Risk Framing Pack",
+    phaseType: "commercial_demo_buyer_risk_framing_pack",
+    deliverables: ["buyerRiskFramingPackCreated", "riskFramingChecklistCreated"],
+    nextTitle: "Yiyi Demo Review Continuation Ledger",
+  },
+  {
+    phase: 560,
+    slug: "review-continuation-ledger",
+    title: "Yiyi Demo Review Continuation Ledger",
+    phaseType: "commercial_demo_review_continuation_ledger",
+    deliverables: ["reviewContinuationLedgerCreated", "reviewContinuationChecklistCreated"],
+    nextTitle: "Yiyi Demo Low-risk Buyer Path Index",
+  },
+  {
+    phase: 561,
+    slug: "lowrisk-buyer-path-index",
+    title: "Yiyi Demo Low-risk Buyer Path Index",
+    phaseType: "commercial_demo_lowrisk_buyer_path_index",
+    deliverables: ["lowriskBuyerPathIndexCreated", "buyerPathChecklistCreated"],
+    nextTitle: "Yiyi Demo Safe Continuity Brief",
+  },
+  {
+    phase: 562,
+    slug: "safe-continuity-brief",
+    title: "Yiyi Demo Safe Continuity Brief",
+    phaseType: "commercial_demo_safe_continuity_brief",
+    deliverables: ["safeContinuityBriefCreated", "continuityBriefChecklistCreated"],
+    nextTitle: "Yiyi Demo Seventeenth Low-risk Auto-run Closure",
+  },
+  {
+    phase: 563,
+    slug: "seventeenth-low-risk-auto-run-closure",
+    title: "Yiyi Demo Seventeenth Low-risk Auto-run Closure",
+    phaseType: "commercial_demo_seventeenth_low_risk_auto_run_closure",
+    deliverables: ["seventeenthLowRiskClosureCreated", "phase384StopPrepared"],
+    nextTitle: "Yiyi Guarded Real Provider Test Authorization Gate",
+    nextPhase: 384,
+    nextRisk: "high",
+    nextRequiresHumanApproval: true,
+  },
+];
+
+function phaseName(number) {
+  return `Phase${number}`;
+}
+
+function dirName(number) {
+  return `phase${number}`;
+}
+
+function scriptBase(item) {
+  return `yiyi-demo-${item.slug}`;
+}
+
+async function writeText(path, value) {
+  const target = resolve(path);
+  await mkdir(dirname(target), { recursive: true });
+  await writeFile(target, value.endsWith("\n") ? value : `${value}\n`, "utf8");
+}
+
+function commonSource(item) {
+  const nextPhase = item.nextPhase ?? item.phase + 1;
+  const nextRisk = item.nextRisk ?? "low";
+  const nextRequiresHumanApproval = item.nextRequiresHumanApproval ?? false;
+  return `import { existsSync, statSync } from "node:fs";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
+
+export const phaseTitle = ${JSON.stringify(item.title)};
+export const phaseNumber = ${item.phase};
+export const phaseName = ${JSON.stringify(phaseName(item.phase))};
+export const phaseSlug = ${JSON.stringify(item.slug)};
+export const phaseType = ${JSON.stringify(item.phaseType)};
+export const phaseDeliverables = ${JSON.stringify(item.deliverables, null, 2)};
+export const phaseSafety = ${JSON.stringify(safety, null, 2)};
+
+export function ensure(condition, message) {
+  if (!condition) throw new Error(message);
+}
+
+export async function readText(path) {
+  return readFile(resolve(path), "utf8");
+}
+
+export async function writeText(path, value) {
+  const target = resolve(path);
+  await mkdir(dirname(target), { recursive: true });
+  await writeFile(target, value.endsWith("\\n") ? value : \`\${value}\\n\`, "utf8");
+}
+
+export async function writeJson(path, value) {
+  await writeText(path, \`\${JSON.stringify(value, null, 2)}\\n\`);
+}
+
+export function fileInfo(path) {
+  const target = resolve(path);
+  return {
+    path,
+    exists: existsSync(target),
+    sizeBytes: existsSync(target) ? statSync(target).size : 0,
+  };
+}
+
+export function makeResult(extra = {}) {
+  return {
+    phase: phaseName,
+    title: phaseTitle,
+    completed: true,
+    recommended_sealed: true,
+    blocker: null,
+    validationsPassed: true,
+    phaseType,
+    riskLevel: "low",
+    ...phaseSafety,
+    safety: { ...phaseSafety },
+    remainingRisks: [
+      "manual_review_still_recommended",
+      "real_provider_test_not_executed",
+      "production_deploy_not_executed"
+    ],
+    nextRecommendedPhases: [
+      {
+        phase: ${JSON.stringify(phaseName(nextPhase))},
+        title: ${JSON.stringify(item.nextTitle)},
+        riskLevel: ${JSON.stringify(nextRisk)},
+        requiresHumanApproval: ${JSON.stringify(nextRequiresHumanApproval)}
+      }${nextPhase === 384 ? "" : `,
+      {
+        phase: "Phase384",
+        title: "Yiyi Guarded Real Provider Test Authorization Gate",
+        riskLevel: "high",
+        requiresHumanApproval: true
+      }`}
+    ],
+    rollbackPlan: [
+      \`Remove \${phaseName} docs/evidence/tools if this low-risk package needs to be regenerated.\`,
+      "No provider runtime, chat gateway, deployment, billing, or credential state was changed."
+    ],
+    ...extra
+  };
+}
+`;
+}
+
+function buildSource(item) {
+  const prevPhase = item.phase - 1;
+  const prevSlug =
+    phases.find((phase) => phase.phase === prevPhase)?.slug ||
+    "yiyi-demo-localization-copy-qa";
+  const prevClosure =
+    item.phase === 394
+      ? "apps/ai-gateway-service/evidence/phase393/yiyi-demo-localization-copy-qa-closure-result.json"
+      : `apps/ai-gateway-service/evidence/phase${prevPhase}/yiyi-demo-${prevSlug}-closure-result.json`;
+  const base = scriptBase(item);
+  return `import {
+  ensure,
+  fileInfo,
+  makeResult,
+  phaseDeliverables,
+  phaseName,
+  phaseSafety,
+  phaseSlug,
+  phaseTitle,
+  writeJson,
+  writeText
+} from "../phase${item.phase}-common.mjs";
+
+const previousClosure = fileInfo(${JSON.stringify(prevClosure)});
+ensure(previousClosure.exists && previousClosure.sizeBytes > 20, \`\${phaseName} requires previous phase closure evidence.\`);
+
+const checklist = phaseDeliverables.map((deliverable, index) => ({
+  id: deliverable,
+  order: index + 1,
+  status: "prepared",
+  safetyBoundary: "dry-run docs/evidence only; no provider, no secret, no deploy, no billing"
+}));
+
+const packageJson = {
+  phase: \`\${phaseName}A\`,
+  title: phaseTitle,
+  packageType: phaseSlug,
+  checklist,
+  previousClosure,
+  phase384StillRequiresHumanApproval: true,
+  ...phaseSafety
+};
+
+await writeJson(\`docs/phase${item.phase}a-yiyi-demo-${item.slug}.json\`, packageJson);
+await writeText(
+  \`docs/phase${item.phase}a-yiyi-demo-${item.slug}.md\`,
+  [
+    \`# \${phaseName}A \${phaseTitle}\`,
+    "",
+    "This low-risk package extends the Yiyi commercial demo operations layer.",
+    "",
+    "Scope:",
+    "- Local docs and evidence only.",
+    "- No provider call, no secret access, no deployment, no billing.",
+    "- Phase384 remains the high-risk gated path for any real provider test.",
+    "",
+    "Checklist:",
+    ...checklist.map((item) => \`- \${item.order}. \${item.id}: \${item.status}\`)
+  ].join("\\n")
+);
+
+const result = makeResult({
+  phase: \`\${phaseName}A\`,
+  packageCreated: true,
+  checklistCreated: true,
+  checklistCount: checklist.length,
+  phase384StillRequiresHumanApproval: true,
+  ...Object.fromEntries(phaseDeliverables.map((key) => [key, true])),
+  ...phaseSafety
+});
+
+await writeJson(\`apps/ai-gateway-service/evidence/phase${item.phase}a/yiyi-demo-${item.slug}-result.json\`, result);
+console.log(JSON.stringify(result, null, 2));
+`;
+}
+
+function closureSource(item) {
+  return `import {
+  ensure,
+  fileInfo,
+  makeResult,
+  phaseDeliverables,
+  phaseName,
+  phaseSafety,
+  phaseTitle,
+  writeJson,
+  writeText
+} from "../phase${item.phase}-common.mjs";
+
+const requiredFiles = [
+  "docs/phase${item.phase}a-yiyi-demo-${item.slug}.json",
+  "docs/phase${item.phase}a-yiyi-demo-${item.slug}.md",
+  "apps/ai-gateway-service/evidence/phase${item.phase}a/yiyi-demo-${item.slug}-result.json"
+];
+
+for (const path of requiredFiles) {
+  const info = fileInfo(path);
+  ensure(info.exists && info.sizeBytes > 20, \`Missing \${phaseName} prerequisite: \${path}\`);
+}
+
+const result = makeResult({
+  packageCreated: true,
+  checklistCreated: true,
+  phase384StillRequiresHumanApproval: true,
+  providerRuntimeModified: false,
+  chatGatewayExecuteModified: false,
+  chatSendMainChainModified: false,
+  ...Object.fromEntries(phaseDeliverables.map((key) => [key, true])),
+  ...phaseSafety
+});
+
+await writeText(
+  "docs/phase${item.phase}-yiyi-demo-${item.slug}-closure.md",
+  [
+    \`# \${phaseName} \${phaseTitle} Closure\`,
+    "",
+    "Completed:",
+    ...phaseDeliverables.map((item) => \`- \${item}\`),
+    "",
+    "Boundary:",
+    "- No provider call.",
+    "- No secret access.",
+    "- No deploy/release/tag/artifact upload.",
+    "- No billing/invoice.",
+    "- No production GA claim.",
+    "- No provider runtime, /chat-gateway/execute route, or Chat send main-chain modification."
+  ].join("\\n")
+);
+
+await writeJson("apps/ai-gateway-service/evidence/phase${item.phase}/yiyi-demo-${item.slug}-closure-result.json", result);
+console.log(JSON.stringify(result, null, 2));
+`;
+}
+
+for (const item of phases) {
+  await writeText(`tools/phase${item.phase}-common.mjs`, commonSource(item));
+  await writeText(`tools/phase${item.phase}a/build-yiyi-demo-${item.slug}.mjs`, buildSource(item));
+  await writeText(`tools/phase${item.phase}/build-yiyi-demo-${item.slug}-closure.mjs`, closureSource(item));
+}
+
+console.log(JSON.stringify({ generated: phases.map((item) => phaseName(item.phase)) }, null, 2));

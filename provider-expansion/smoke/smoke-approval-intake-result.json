@@ -1,0 +1,33 @@
+{
+  "phase": "Phase787",
+  "approvalPath": "provider-expansion/approvals/phase781_800-smoke-approval.input.json",
+  "approvalInputPresent": false,
+  "approved": false,
+  "blocker": "smoke_approval_missing_or_invalid",
+  "validation": {
+    "valid": false,
+    "failures": [
+      "approval_missing"
+    ]
+  },
+  "realSmokeAllowed": false,
+  "allowSecretRead": false,
+  "allowDeploy": false,
+  "allowChatMutation": false,
+  "allowChatGatewayExecuteMutation": false,
+  "providerCallsMade": false,
+  "secretRead": false,
+  "authJsonRead": false,
+  "rawSecretRead": false,
+  "secretValueExposed": false,
+  "credentialRefOnly": true,
+  "chatBehaviorChangedByDefault": false,
+  "chatGatewayExecuteBehaviorChangedByDefault": false,
+  "deployExecuted": false,
+  "releaseExecuted": false,
+  "tagCreated": false,
+  "artifactUploaded": false,
+  "pushExecuted": false,
+  "commitCreated": false,
+  "workspaceCleanClaimed": false
+}

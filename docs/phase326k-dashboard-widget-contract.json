@@ -1,0 +1,107 @@
+{
+  "phase": "Phase326K",
+  "contractName": "three-mode-dry-run-summary-dashboard-widget-contract",
+  "runtimeStatus": "design_only",
+  "widgets": [
+    {
+      "widgetId": "DryRunStatusCard",
+      "displayName": "Dry-run Status",
+      "dataSource": "summaryCards",
+      "visibleInModes": [
+        "normal",
+        "god",
+        "tianshu"
+      ],
+      "emptyState": "No dry-run summaries available.",
+      "safetyNotes": "Shows dry-run status only; no runtime execution."
+    },
+    {
+      "widgetId": "ProviderCallSafetyCard",
+      "displayName": "Provider Call Safety",
+      "dataSource": "safetySummary",
+      "visibleInModes": [
+        "normal",
+        "god",
+        "tianshu"
+      ],
+      "emptyState": "No safety summary available.",
+      "safetyNotes": "Must keep providerCallsMade=false and secretValueExposed=false."
+    },
+    {
+      "widgetId": "GodParticipantSelectorCard",
+      "displayName": "God Participant Selector",
+      "dataSource": "godModeSummary.participantSelectorSummary",
+      "visibleInModes": [
+        "god"
+      ],
+      "emptyState": "No God selector dry-run result available.",
+      "safetyNotes": "Selector data is dry-run metadata, not runtime participant dispatch."
+    },
+    {
+      "widgetId": "GodScoringBreakdownPanel",
+      "displayName": "God Scoring Breakdown",
+      "dataSource": "godModeSummary.scoringBreakdown",
+      "visibleInModes": [
+        "god"
+      ],
+      "emptyState": "No scoring breakdown available.",
+      "safetyNotes": "Scores are mock dry-run scores."
+    },
+    {
+      "widgetId": "TianshuCapabilityIndexCard",
+      "displayName": "Tianshu Capability Index",
+      "dataSource": "tianshuSummary.capabilityIndexSummary",
+      "visibleInModes": [
+        "tianshu"
+      ],
+      "emptyState": "No capability index available.",
+      "safetyNotes": "Capability index is dry-run only and may include heuristic inference."
+    },
+    {
+      "widgetId": "TianshuRejectedModelsPanel",
+      "displayName": "Tianshu Rejected Models",
+      "dataSource": "tianshuSummary.rejectedModels",
+      "visibleInModes": [
+        "tianshu"
+      ],
+      "emptyState": "No rejected models.",
+      "safetyNotes": "Rejected models must not become selectable through this dashboard."
+    },
+    {
+      "widgetId": "AuditTracePanel",
+      "displayName": "Audit Trace",
+      "dataSource": "auditTrace",
+      "visibleInModes": [
+        "normal",
+        "god",
+        "tianshu"
+      ],
+      "emptyState": "No audit trace available.",
+      "safetyNotes": "Audit trace may include credentialRef but never secret values."
+    },
+    {
+      "widgetId": "MissingSourceWarning",
+      "displayName": "Missing Source Warning",
+      "dataSource": "missingSources",
+      "visibleInModes": [
+        "normal",
+        "god",
+        "tianshu"
+      ],
+      "emptyState": "All expected sources are present.",
+      "safetyNotes": "Missing source blocks real summary claims."
+    },
+    {
+      "widgetId": "RuntimeDisabledBanner",
+      "displayName": "Runtime Disabled",
+      "dataSource": "runtimeStatus",
+      "visibleInModes": [
+        "normal",
+        "god",
+        "tianshu"
+      ],
+      "emptyState": "Runtime status unavailable.",
+      "safetyNotes": "Must clearly state design-only/dry-run-only."
+    }
+  ]
+}

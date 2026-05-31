@@ -1,0 +1,50 @@
+diff --git a/tools/phase2121_2131/apply-controlled-sext-tool-mutation.mjs b/tools/phase2121_2131/apply-controlled-sext-tool-mutation.mjs
+index 4d8feb2..555cd1f 100644
+--- a/tools/phase2121_2131/apply-controlled-sext-tool-mutation.mjs
++++ b/tools/phase2121_2131/apply-controlled-sext-tool-mutation.mjs
+@@ -687,6 +687,45 @@ export function buildPhase2707ThirtyOneMutationTargetSevenStatus() {
+     chatGatewayExecuteModified: false,
+   };
+ }
++
++export function buildPhase2743ThirtyTwoMutationTargetSevenStatus() {
++  return {
++    phaseId: "Phase2743A-Controlled-Thirty-Two-Tool-Mutation-Target-Seven",
++    marker: "PHASE2743_THIRTY_TWO_TOOL_TARGET_SEVEN_OK",
++    importSafe: true,
++    phase2143Marker: "PHASE2143_SEPT_TOOL_TARGET_SEVEN_OK",
++    phase2155Marker: "PHASE2155_OCT_TOOL_TARGET_SEVEN_OK",
++    phase2168Marker: "PHASE2168_NONET_TOOL_TARGET_SEVEN_OK",
++    phase2182Marker: "PHASE2182_DECA_TOOL_TARGET_SEVEN_OK",
++    phase2197Marker: "PHASE2197_ELEVEN_TOOL_TARGET_SEVEN_OK",
++    phase2213Marker: "PHASE2213_TWELVE_TOOL_TARGET_SEVEN_OK",
++    phase2230Marker: "PHASE2230_THIRTEEN_TOOL_TARGET_SEVEN_OK",
++    phase2248Marker: "PHASE2248_FOURTEEN_TOOL_TARGET_SEVEN_OK",
++    phase2267Marker: "PHASE2267_FIFTEEN_TOOL_TARGET_SEVEN_OK",
++    phase2287Marker: "PHASE2287_SIXTEEN_TOOL_TARGET_SEVEN_OK",
++    phase2308Marker: "PHASE2308_SEVENTEEN_TOOL_TARGET_SEVEN_OK",
++    phase2330Marker: "PHASE2330_EIGHTEEN_TOOL_TARGET_SEVEN_OK",
++    phase2353Marker: "PHASE2353_NINETEEN_TOOL_TARGET_SEVEN_OK",
++    phase2377Marker: "PHASE2377_TWENTY_TOOL_TARGET_SEVEN_OK",
++    phase2402Marker: "PHASE2402_TWENTY_ONE_TOOL_TARGET_SEVEN_OK",
++    phase2428Marker: "PHASE2428_TWENTY_TWO_TOOL_TARGET_SEVEN_OK",
++    phase2455Marker: "PHASE2455_TWENTY_THREE_TOOL_TARGET_SEVEN_OK",
++    phase2483Marker: "PHASE2483_TWENTY_FOUR_TOOL_TARGET_SEVEN_OK",
++    phase2512Marker: "PHASE2512_TWENTY_FIVE_TOOL_TARGET_SEVEN_OK",
++    phase2542Marker: "PHASE2542_TWENTY_SIX_TOOL_TARGET_SEVEN_OK",
++    phase2573Marker: "PHASE2573_TWENTY_SEVEN_TOOL_TARGET_SEVEN_OK",
++    phase2605Marker: "PHASE2605_TWENTY_EIGHT_TOOL_TARGET_SEVEN_OK",
++    phase2638Marker: "PHASE2638_TWENTY_NINE_TOOL_TARGET_SEVEN_OK",
++    phase2672Marker: "PHASE2672_THIRTY_TOOL_TARGET_SEVEN_OK",
++    phase2707Marker: "PHASE2707_THIRTY_ONE_TOOL_TARGET_SEVEN_OK",
++    phase2743Marker: "PHASE2743_THIRTY_TWO_TOOL_TARGET_SEVEN_OK",
++    thirtyTwoMutationApplied: true,
++    providerCallsMade: false,
++    codexExecExecuted: false,
++    chatModified: false,
++    chatGatewayExecuteModified: false,
++  };
++}
+ export function main() {
+   const args = parseArgs(process.argv.slice(2));
+   const planPath = args.plan || "docs/phase2121-2131-controlled-sext-tool-mutation-approval.example.json";

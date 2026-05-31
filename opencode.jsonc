@@ -1,0 +1,433 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+
+  // ===== Provider: keep your current NVIDIA-compatible endpoint =====
+  "model": "nvidia/nemotron-3-super-120b-a12b",
+  "small_model": "nvidia/llama-3.1-nemotron-nano-8b-v1",
+  "enabled_providers": ["nvidia", "xiaomi"],
+
+  "provider": {
+    "nvidia": {
+      "options": {
+        "baseURL": "https://integrate.api.nvidia.com/v1",
+        "apiKey": "{env:NVIDIA_API_KEY}",
+        "timeout": 600000,
+        "chunkTimeout": 60000
+      },
+      "models": {
+        "nemotron-3-super-120b-a12b": {
+          "name": "NVIDIA Nemotron 3 Super 120B A12B"
+        },
+        "llama-3.1-nemotron-nano-8b-v1": {
+          "name": "NVIDIA Llama 3.1 Nemotron Nano 8B V1"
+        },
+        "llama-3.3-nemotron-super-49b-v1": {
+          "name": "NVIDIA Llama 3.3 Nemotron Super 49B V1"
+        }
+      }
+    },
+    "xiaomi": {
+      "options": {
+        "baseURL": "https://token-plan-cn.xiaomimimo.com/v1",
+        "apiKey": "{env:MIMO_API_KEY}",
+        "timeout": 600000,
+        "chunkTimeout": 60000
+      },
+      "models": {
+        "mi-mimo": {
+          "name": "Xiaomi MiMo"
+        }
+      }
+    }
+  },
+
+  // ===== Safe defaults for your Phase-gated AI Gateway repo =====
+  "shell": "pwsh",
+  "share": "disabled",
+  "autoupdate": "notify",
+  "instructions": ["AGENTS.md"],
+
+  // ===== LSP: code intelligence for JS/TS/frontend/config work =====
+  "lsp": {
+    "typescript": {
+      "command": ["C:\\Users\\Administrator\\.config\\opencode\\node_modules\\.bin\\typescript-language-server.cmd", "--stdio"],
+      "extensions": [".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx"]
+    },
+    "eslint": {
+      "command": ["C:\\Users\\Administrator\\.config\\opencode\\node_modules\\.bin\\vscode-eslint-language-server.cmd", "--stdio"],
+      "extensions": [".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx"]
+    },
+    "html": {
+      "command": ["C:\\Users\\Administrator\\.config\\opencode\\node_modules\\.bin\\vscode-html-language-server.cmd", "--stdio"],
+      "extensions": [".html", ".htm"]
+    },
+    "css": {
+      "command": ["C:\\Users\\Administrator\\.config\\opencode\\node_modules\\.bin\\vscode-css-language-server.cmd", "--stdio"],
+      "extensions": [".css", ".scss", ".less"]
+    },
+    "tailwindcss": {
+      "command": ["C:\\Users\\Administrator\\.config\\opencode\\node_modules\\.bin\\tailwindcss-language-server.cmd", "--stdio"],
+      "extensions": [".html", ".css", ".js", ".jsx", ".ts", ".tsx"]
+    },
+    "json": {
+      "command": ["C:\\Users\\Administrator\\.config\\opencode\\node_modules\\.bin\\vscode-json-language-server.cmd", "--stdio"],
+      "extensions": [".json", ".jsonc"]
+    },
+    "markdown": {
+      "command": ["C:\\Users\\Administrator\\.config\\opencode\\node_modules\\.bin\\vscode-markdown-language-server.cmd", "--stdio"],
+      "extensions": [".md", ".mdx"]
+    }
+  },
+
+  "formatter": {
+    "prettier": {
+      "command": ["C:\\Users\\Administrator\\.config\\opencode\\node_modules\\.bin\\prettier.cmd", "--write"],
+      "extensions": [".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".json", ".jsonc", ".css", ".scss", ".html", ".md"]
+    }
+  },
+
+  "watcher": {
+    "ignore": [
+      ".git/**",
+      "node_modules/**",
+      "legacy/**",
+      "dist/**",
+      "build/**",
+      "coverage/**",
+      ".turbo/**",
+      ".next/**",
+      "evidence/**",
+      "reports/**",
+      "**/.env",
+      "**/.env.*",
+      "**/*secret*",
+      "**/*token*"
+    ]
+  },
+
+  // Permission order matters for bash patterns: broad rule first, specific rules after.
+  "permission": {
+    "external_directory": "deny",
+    "edit": "ask",
+    "lsp": "allow",
+    "bash": {
+      "*": "ask",
+
+      "git push*": "deny",
+      "git commit*": "deny",
+      "git tag*": "deny",
+      "git reset*": "deny",
+      "git clean*": "deny",
+      "gh release*": "deny",
+      "npm publish*": "deny",
+      "pnpm publish*": "deny",
+      "docker push*": "deny",
+      "kubectl *": "deny",
+      "terraform apply*": "deny",
+      "rm -rf*": "deny",
+      "del /s*": "deny",
+      "Remove-Item -Recurse*": "deny",
+
+      "cmd /c pnpm run health:phase12a": "allow",
+      "cmd /c pnpm run doctor:phase13a": "allow",
+      "cmd /c pnpm run verify:phase107a-secret-safety": "allow",
+      "cmd /c pnpm run verify:phase321a-workbench-product-recovery": "allow",
+      "cmd /c pnpm run verify:phase313a-model-usability-matrix": "allow",
+      "cmd /c pnpm -r --if-present check": "allow",
+      "cmd /c pnpm run verify:phase322a-workbench-chat-gateway-real-nvidia": "ask",
+      "git status*": "allow",
+      "git diff*": "allow"
+    },
+
+    // Disable high-risk MCP namespaces if they are added later by another config.
+    "filesystem_*": "deny",
+    "git_*": "deny",
+    "github_*": "deny",
+    "postgres_*": "deny",
+    "sqlite_*": "deny",
+    "browser_*": "ask",
+    "playwright_*": "ask",
+    "memory_*": "ask",
+    "ui_automation_*": "ask",
+    "sentry_*": "ask"
+  },
+
+  // ===== MCP: low-risk, high-value tools =====
+  "mcp": {
+    // Up-to-date library/framework docs. Use in prompts: "use context7".
+    "context7": {
+      "type": "remote",
+      "url": "https://mcp.context7.com/mcp",
+      "enabled": true,
+      "timeout": 10000
+    },
+
+    // Public GitHub code search snippets. Useful for API usage examples; read-only.
+    "gh_grep": {
+      "type": "remote",
+      "url": "https://mcp.grep.app",
+      "enabled": true,
+      "timeout": 10000
+    },
+
+    // Structured reasoning helper. Local npm MCP; useful for weaker multi-agent models.
+    "sequential_thinking": {
+      "type": "local",
+      "command": ["C:\\Users\\Administrator\\.config\\opencode\\node_modules\\.bin\\mcp-server-sequential-thinking.cmd"],
+      "enabled": true,
+      "timeout": 10000
+    },
+
+    // Project-scoped file context. OpenCode permissions still require approval for edits.
+    "filesystem_project": {
+      "type": "local",
+      "command": ["C:\\Users\\Administrator\\.config\\opencode\\node_modules\\.bin\\mcp-server-filesystem.cmd", "E:\\AI-Data\\AI网关系统\\unified-ai-system"],
+      "enabled": true,
+      "timeout": 10000
+    },
+
+    // Lightweight memory graph for durable task notes. Keep usage non-secret.
+    "memory": {
+      "type": "local",
+      "command": ["C:\\Users\\Administrator\\.config\\opencode\\node_modules\\.bin\\mcp-server-memory.cmd"],
+      "enabled": true,
+      "timeout": 10000
+    },
+
+    // Frontend/UI interaction automation for local workbench verification.
+    "playwright": {
+      "type": "local",
+      "command": [
+        "C:\\Users\\Administrator\\.config\\opencode\\node_modules\\.bin\\playwright-mcp.cmd",
+        "--browser",
+        "chrome",
+        "--isolated",
+        "--viewport-size",
+        "1440x900",
+        "--timeout-action",
+        "8000",
+        "--timeout-navigation",
+        "60000",
+        "--output-dir",
+        "E:\\AI-Data\\AI网关系统\\unified-ai-system\\.opencode\\playwright-output"
+      ],
+      "enabled": true,
+      "timeout": 20000
+    }
+  },
+
+  // Official plugin loading supports npm package names. Keep this list light.
+  "plugin": [
+    "opencode-notifier",
+    "opencode-cost-guard",
+    [
+      "opencode-tool-search",
+      {
+        "alwaysLoad": ["bash", "grep", "glob", "read", "edit", "write", "apply_patch", "task", "skill"],
+        "searchLimit": 8
+      }
+    ]
+  ],
+
+  // ===== Multi-agent setup to compensate for weaker native orchestration =====
+  "default_agent": "phase-orchestrator",
+
+  "agent": {
+    "phase-orchestrator": {
+      "description": "Primary coordinator for the unified-ai-system repo. Splits work into planning, safety review, implementation, and verification while respecting sealed phase boundaries.",
+      "mode": "primary",
+      "model": "nvidia/nemotron-3-super-120b-a12b",
+      "temperature": 0.1,
+      "steps": 24,
+      "prompt": "You are the Phase Orchestrator for the user's unified-ai-system project. Always preserve the Phase safety boundaries: no legacy/ modification, no PROJECT_CONTEXT.md creation, no commit/push/deploy/release, no secret output, no non-NVIDIA paid API calls, no embedding batch training, no hidden module exposure, and no /chat-gateway/execute change unless explicitly requested. For each task: 1) restate bounded scope, 2) ask @phase-governor to check risk when scope changes, 3) use @code-archaeologist for read-only inspection, 4) use @docs-researcher with context7/gh_grep only when external docs are needed, 5) implement minimal changes only after scope is clear, 6) run the smallest required validation gate, and 7) report exact modified files and validation results. Never claim the workspace is clean unless verified.",
+      "permission": {
+        "edit": "ask",
+        "bash": {
+          "*": "ask",
+          "git push*": "deny",
+          "git commit*": "deny",
+          "git tag*": "deny",
+          "git reset*": "deny",
+          "git clean*": "deny",
+          "gh release*": "deny",
+          "npm publish*": "deny",
+          "pnpm publish*": "deny",
+          "docker push*": "deny",
+          "rm -rf*": "deny",
+          "Remove-Item -Recurse*": "deny",
+          "cmd /c pnpm run health:phase12a": "allow",
+          "cmd /c pnpm run doctor:phase13a": "allow",
+          "cmd /c pnpm run verify:phase107a-secret-safety": "allow",
+          "cmd /c pnpm run verify:phase321a-workbench-product-recovery": "allow",
+          "cmd /c pnpm run verify:phase313a-model-usability-matrix": "allow",
+          "cmd /c pnpm -r --if-present check": "allow",
+          "git status*": "allow",
+          "git diff*": "allow"
+        },
+        "task": {
+          "*": "deny",
+          "phase-governor": "allow",
+          "code-archaeologist": "allow",
+          "docs-researcher": "allow",
+          "verification-runner": "ask",
+          "implementation-worker": "ask"
+        },
+        "external_directory": "deny"
+      }
+    },
+
+    "phase-governor": {
+      "description": "Read-only safety and phase-boundary reviewer. Use before modifying risky files or connecting approvals/routes/chat/send paths.",
+      "mode": "subagent",
+      "model": "nvidia/llama-3.3-nemotron-super-49b-v1",
+      "temperature": 0,
+      "steps": 10,
+      "prompt": "Review the requested change against unified-ai-system safety boundaries. Classify the change as safe, needs explicit approval, or blocked. Pay special attention to legacy/, PROJECT_CONTEXT.md, .env/secrets, release/deploy/commit/push, approvals apply-approved, /chat-gateway/execute, non-NVIDIA paid APIs, embedding training, and hidden module exposure. Do not edit files.",
+      "permission": {
+        "edit": "deny",
+        "bash": "deny",
+        "external_directory": "deny"
+      }
+    },
+
+    "code-archaeologist": {
+      "description": "Fast read-only repo explorer for routes, package scripts, Workbench modules, evidence, and stale phase entrypoints.",
+      "mode": "subagent",
+      "model": "nvidia/llama-3.1-nemotron-nano-8b-v1",
+      "temperature": 0,
+      "steps": 12,
+      "prompt": "Explore the codebase read-only. Find relevant files, summarize exact locations, and avoid modifying anything. Prefer grep/glob/read. Do not run commands unless necessary and approved by the parent.",
+      "permission": {
+        "edit": "deny",
+        "bash": "deny",
+        "external_directory": "deny"
+      }
+    },
+
+    "docs-researcher": {
+      "description": "External docs/code search specialist using Context7 and Grep MCP only when public docs or examples are needed.",
+      "mode": "subagent",
+      "model": "nvidia/llama-3.1-nemotron-nano-8b-v1",
+      "temperature": 0,
+      "steps": 10,
+      "prompt": "Use context7 for official library/framework documentation and gh_grep for public code examples. Return concise source-backed findings. Do not edit files and do not use high-risk MCPs.",
+      "permission": {
+        "edit": "deny",
+        "bash": "deny",
+        "context7_*": "allow",
+        "gh_grep_*": "allow",
+        "sequential_thinking_*": "allow",
+        "external_directory": "deny"
+      }
+    },
+
+    "verification-runner": {
+      "description": "Runs approved validation commands and summarizes pass/fail evidence. No file edits.",
+      "mode": "subagent",
+      "model": "nvidia/llama-3.1-nemotron-nano-8b-v1",
+      "temperature": 0,
+      "steps": 12,
+      "prompt": "Run only approved validation commands. Capture exact command, pass/fail, and key evidence. Never print secrets. Do not modify files.",
+      "permission": {
+        "edit": "deny",
+        "bash": {
+          "*": "ask",
+          "cmd /c pnpm run health:phase12a": "allow",
+          "cmd /c pnpm run doctor:phase13a": "allow",
+          "cmd /c pnpm run verify:phase107a-secret-safety": "allow",
+          "cmd /c pnpm run verify:phase321a-workbench-product-recovery": "allow",
+          "cmd /c pnpm run verify:phase313a-model-usability-matrix": "allow",
+          "cmd /c pnpm -r --if-present check": "allow",
+          "cmd /c pnpm run verify:phase322a-workbench-chat-gateway-real-nvidia": "ask"
+        },
+        "external_directory": "deny"
+      }
+    },
+
+    "implementation-worker": {
+      "description": "Minimal-change implementation subagent. Use only after scope and safety gates are clear.",
+      "mode": "subagent",
+      "model": "nvidia/nemotron-3-super-120b-a12b",
+      "temperature": 0.1,
+      "steps": 16,
+      "prompt": "Implement the smallest safe patch for the approved scope. Do not touch legacy/, PROJECT_CONTEXT.md, release/deploy/commit/push paths, secrets, non-NVIDIA paid APIs, embedding training, hidden modules, or /chat-gateway/execute unless explicitly approved. Prefer documentation/planning-only changes when validation gates are not green.",
+      "permission": {
+        "edit": "ask",
+        "bash": {
+          "*": "ask",
+          "git push*": "deny",
+          "git commit*": "deny",
+          "git tag*": "deny",
+          "git reset*": "deny",
+          "git clean*": "deny",
+          "gh release*": "deny",
+          "npm publish*": "deny",
+          "pnpm publish*": "deny",
+          "docker push*": "deny",
+          "rm -rf*": "deny",
+          "Remove-Item -Recurse*": "deny"
+        },
+        "external_directory": "deny"
+      }
+    }
+  },
+
+  // ===== Reusable commands =====
+  "command": {
+    "phase-preflight": {
+      "description": "Run the standard safe baseline before any Phase work.",
+      "agent": "verification-runner",
+      "template": "Run the baseline validation gate only: cmd /c pnpm run verify:phase107a-secret-safety, cmd /c pnpm run health:phase12a, cmd /c pnpm run doctor:phase13a, cmd /c pnpm run verify:phase321a-workbench-product-recovery, cmd /c pnpm run verify:phase313a-model-usability-matrix, cmd /c pnpm -r --if-present check. Summarize pass/fail without printing secrets."
+    },
+    "phase-diagnose": {
+      "description": "Diagnose a bounded project problem without editing files.",
+      "agent": "phase-orchestrator",
+      "template": "Diagnose the current bounded issue in unified-ai-system without editing files. First run the baseline validation gate if it is relevant and low-risk. Then ask @phase-governor to check boundary risk, use @code-archaeologist for read-only inspection, and use @docs-researcher only if public docs/examples are needed. Output only: probable root cause, exact touched files/routes likely involved, user-facing impact, smallest safe fix scope, required verifier commands, and blocker status. Do not modify files, do not claim completion, and do not expand scope."
+    },
+    "phase-execute": {
+      "description": "Execute one approved bounded phase change with verification.",
+      "agent": "phase-orchestrator",
+      "template": "Execute one approved bounded change for unified-ai-system. First restate the scope and boundaries. Ask @phase-governor to confirm the change is within policy. Use @code-archaeologist to verify exact files, then let @implementation-worker apply the smallest safe patch only within the approved area. After changes, run only the required verifier commands, plus the safe baseline if relevant, and summarize: modified files, exact validations run, pass/fail, evidence paths if any, blocker status, and next-step recommendation. Do not touch legacy/, PROJECT_CONTEXT.md, secrets, release/deploy/commit/push paths, or default /chat behavior unless explicitly approved."
+    },
+    "phase-review": {
+      "description": "Review a completed phase for boundary compliance and verification quality.",
+      "agent": "phase-orchestrator",
+      "template": "Review the latest bounded phase work in unified-ai-system without making code changes. Check whether the implemented change stayed within scope, whether any boundary was violated, whether the verifier set was sufficient, whether the evidence and docs match the observed behavior, and whether any reply/UI text overstates system capability. Output: findings ordered by severity, residual risks, missing validation if any, and whether the phase looks ready for seal/pass or should remain blocked."
+    },
+    "phase-ui-chat-repair": {
+      "description": "Diagnose or repair Chat/UI reply quality, route stability, and execution-detail presentation.",
+      "agent": "phase-orchestrator",
+      "template": "Work on the unified-ai-system Chat/UI chain only. Target issues such as unstable greeting behavior, tutorial-style fake completion, local action intent routing, execution-detail overexposure, and user-visible Chinese wording quality. First run the safe baseline if relevant. Ask @phase-governor to confirm scope boundaries. Use @code-archaeologist to inspect only the relevant UI, route, verifier, and evidence files. If asked to implement, let @implementation-worker apply the smallest safe patch. Preserve legacy/, PROJECT_CONTEXT.md, default /chat safety boundaries, provider secrecy, and selectable/model gating rules. At the end, report: root cause, modified files, UI-visible behavior change, verifier commands run, pass/fail, blocker, and next-step recommendation."
+    },
+    "phase-model-gate-review": {
+      "description": "Review or repair model selectable gate, direct-chat eligibility, and fallback behavior.",
+      "agent": "phase-orchestrator",
+      "template": "Review or repair the model gating logic for unified-ai-system. Focus only on verificationStatus, selectable, directChatAllowed, capability bucket filtering, chat dropdown eligibility, and user-facing behavior when a non-chat or unverified model is selected. First ask @phase-governor to confirm the change is within policy. Use @code-archaeologist for read-only inspection of model registry, route logic, UI dropdown wiring, verifier scripts, and evidence files. If implementation is approved, let @implementation-worker make the smallest safe patch. Do not weaken safety assertions, do not allow unverified or non-chat models into normal chat, and do not fake provider success. Report: current gate behavior, exact root cause, modified files if any, verifier coverage, pass/blocker, and recommended next phase."
+    },
+    "phase323d10-c10-retry": {
+      "description": "Retry Phase323D-10 + Phase323C-10 after Phase107A docs fix, with approvals list-only and low-risk sample decisions.",
+      "agent": "phase-orchestrator",
+      "template": "Retry Phase323D-10 + Phase323C-10 from Step 0. First run the baseline validation gate. If green, implement only: approvals list-only bridge with gates; low-risk human-review sample decision template. Do not connect preview/proposal/approve/reject/apply-approved. Do not delete/move scripts or entrypoints. Do not modify legacy/, PROJECT_CONTEXT.md, httpServer.js, /chat-gateway/execute, Chat send, or release/deploy/commit/push paths. Run required validations and report exact modified files."
+    },
+    "mcp-health": {
+      "description": "Check MCP availability from OpenCode.",
+      "agent": "phase-orchestrator",
+      "template": "Check configured MCP servers with opencode mcp list. If a remote MCP needs auth, report the exact auth command. Do not change files."
+    },
+    "phase-autopilot-once": {
+      "description": "Run exactly one bounded autopilot round with queue/policy/state updates.",
+      "agent": "phase-orchestrator",
+      "template": "Use the OpenCode autopilot governance files only: docs/automation/opencode-autopilot-task-queue.json, docs/project-brain/opencode-autopilot-policy.json, docs/project-brain/opencode-autopilot-state.json, docs/project-brain/runner-control.json, and docs/project-brain/safe-overnight-policy.json. Execute exactly one next pending task through the strict loop preflight -> diagnose -> execute -> review. Enforce the task allowedFiles list, stop immediately on verifier failure, out-of-scope mutation, command whitelist violation, blocker, or request/cost cap breach, and write a JSON plus Markdown round report and updated resume state. Do not touch legacy/, PROJECT_CONTEXT.md, secrets, release/deploy/commit/push paths, or default /chat behavior."
+    },
+    "phase-autopilot-resume": {
+      "description": "Resume the bounded autopilot loop from the persisted state file.",
+      "agent": "phase-orchestrator",
+      "template": "Resume the OpenCode autopilot from docs/project-brain/opencode-autopilot-state.json. Before doing anything, read docs/project-brain/opencode-autopilot-policy.json, docs/project-brain/runner-control.json, and docs/project-brain/safe-overnight-policy.json. If paused, stopRequested, blocker, or budget cap is active, stop and write the blocker report only. Otherwise pick the next pending queue task and execute exactly one bounded round with preflight -> diagnose -> execute -> review, then write updated state and per-round reports. Never expand file scope beyond the selected task allowlist."
+    },
+    "phase-autopilot-refresh-real-candidates": {
+      "description": "Refresh autopilot candidates from the real current phase state and safety brake outputs.",
+      "agent": "phase-orchestrator",
+      "template": "Refresh docs/project-brain/opencode-autopilot-phase-candidates.json from the real project phase inputs only: docs/phase-orchestrator/current-phase-state.json, docs/phase-orchestrator/safety-brake-decision.json, docs/phase-orchestrator/phase-registry.json, and docs/phase-orchestrator/next-codex-prompt.meta.json. Convert them into autopilot-readable candidate tasks. Low-risk candidates may remain pending. High-risk or approval-required phases must remain blocked and may only generate authorization/report candidates. Do not execute the real next phase, do not call providers, and do not expand beyond docs/evidence/governance files."
+    }
+  }
+}

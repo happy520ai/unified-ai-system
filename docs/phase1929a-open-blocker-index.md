@@ -1,0 +1,7 @@
+# Phase1929A Open Blocker Index
+
+- real_owner_dogfooding_records_not_yet_collected
+- real_provider_test_still_requires_owner_authorization
+- p0_p1_risks_remain
+- commercial_readiness_not_yet_claimable
+- owner_pilot_not_yet_executed

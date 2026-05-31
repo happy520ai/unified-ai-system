@@ -1,0 +1,40 @@
+{
+  "phase": "Phase324B-7",
+  "evidence": [
+    {
+      "modelId": "microsoft/phi-3-medium-128k-instruct",
+      "finalStatus": "smoke_failed",
+      "evidenceId": "phase324b7-microsoft_phi_3_medium_128k_instruct-20260506164709",
+      "evidencePath": "apps/ai-gateway-service/evidence/phase324b7/microsoft_phi_3_medium_128k_instruct.json",
+      "selectableRecommendation": "not_eligible"
+    },
+    {
+      "modelId": "microsoft/phi-4-mini-flash-reasoning",
+      "finalStatus": "smoke_failed",
+      "evidenceId": "phase324b7-microsoft_phi_4_mini_flash_reasoning-20260506164710",
+      "evidencePath": "apps/ai-gateway-service/evidence/phase324b7/microsoft_phi_4_mini_flash_reasoning.json",
+      "selectableRecommendation": "not_eligible"
+    },
+    {
+      "modelId": "microsoft/trellis",
+      "finalStatus": "smoke_failed",
+      "evidenceId": "phase324b7-microsoft_trellis-20260506164712",
+      "evidencePath": "apps/ai-gateway-service/evidence/phase324b7/microsoft_trellis.json",
+      "selectableRecommendation": "not_eligible"
+    },
+    {
+      "modelId": "minimaxai/minimax-m2.5",
+      "finalStatus": "smoke_failed",
+      "evidenceId": "phase324b7-minimaxai_minimax_m2_5-20260506164758",
+      "evidencePath": "apps/ai-gateway-service/evidence/phase324b7/minimaxai_minimax_m2_5.json",
+      "selectableRecommendation": "not_eligible"
+    },
+    {
+      "modelId": "minimaxai/minimax-m2.7",
+      "finalStatus": "smoke_passed",
+      "evidenceId": "phase324b7-minimaxai_minimax_m2_7-20260506164801",
+      "evidencePath": "apps/ai-gateway-service/evidence/phase324b7/minimaxai_minimax_m2_7.json",
+      "selectableRecommendation": "eligible_after_phase324c6"
+    }
+  ]
+}

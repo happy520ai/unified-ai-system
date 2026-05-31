@@ -1,0 +1,29 @@
+{
+  "phase": "Phase324B-7+Phase324H+Phase326H/I/J+Phase327A",
+  "checkedAt": "2026-05-06T16:45:00.668Z",
+  "groups": {
+    "c5": {
+      "present": [
+        "docs/phase324c5-execution-report.md",
+        "docs/phase324c5-selectable-model-review.json"
+      ],
+      "missing": []
+    },
+    "efg": {
+      "present": [
+        "docs/phase326e-execution-report.md",
+        "docs/phase326f-god-mode-dry-run-result.json",
+        "docs/phase326g-tianshu-dry-run-result.json"
+      ],
+      "missing": []
+    },
+    "bcd": {
+      "present": [
+        "docs/phase326b-request-envelope.schema.json",
+        "docs/phase326c-god-mode-review-and-adjudication-contract.json",
+        "docs/phase326d-planner-decision-contract.json"
+      ],
+      "missing": []
+    }
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "phase": "Phase326H",
+  "contractName": "three-mode-dry-run-report-viewer-state-contract",
+  "runtimeStatus": "design_only",
+  "selectedMode": "god",
+  "selectedRunId": "",
+  "selectedScenarioId": "",
+  "filterStatus": "all",
+  "filterProviderCall": "all",
+  "showAuditTrace": true,
+  "showSafetyPanel": true,
+  "disabledReason": "viewer_design_only",
+  "runtimeStage": "design_only",
+  "safety": {
+    "noWorkbenchUiChange": true,
+    "noConsolePageChange": true,
+    "providerCallsAllowed": false,
+    "nonNvidiaProviderCallsAllowed": false,
+    "secretValueAllowed": false
+  }
+}
+

@@ -1,0 +1,9 @@
+{
+  "phase": "Phase342E",
+  "shadowConfigOnly": true,
+  "runtimeExposureChanged": false,
+  "providerRealCallExecuted": false,
+  "secretValueExposed": false,
+  "explicitTesterAllowListRequired": true,
+  "credentialRefOnly": true
+}

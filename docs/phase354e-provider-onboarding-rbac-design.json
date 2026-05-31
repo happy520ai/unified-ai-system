@@ -1,0 +1,24 @@
+{
+  "phase": "Phase354E",
+  "designType": "provider_onboarding_rbac",
+  "result": {
+    "phase": "Phase354E",
+    "sourcePhase": "Phase353E",
+    "rbacDesignGenerated": true,
+    "adminOnlyActionsDefined": true,
+    "reviewerApprovalSeparationDefined": true,
+    "adminOnlyActions": [
+      "approve_provider_setup_template",
+      "assign_tenant_admin_for_provider_setup"
+    ],
+    "reviewerSeparatedActions": [
+      "review_guided_test_submission",
+      "approve_checklist_completion"
+    ],
+    "noProviderCallFromUi": true,
+    "credentialRefOnly": true,
+    "crossTenantAccessForbidden": true,
+    "productionGA": false,
+    "secretValueExposed": false
+  }
+}

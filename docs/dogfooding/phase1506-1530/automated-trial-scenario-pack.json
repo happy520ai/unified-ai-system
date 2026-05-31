@@ -1,0 +1,23 @@
+{
+  "recordType": "automated_trial_scenario_pack",
+  "phaseRange": "Phase1506-1530AIO",
+  "scenarios": [
+    {
+      "id": "local-task-intake-preview",
+      "task": "Open Mission Control and inspect dogfooding framework state.",
+      "expected": "local-only preview, no provider call, evidence recorded"
+    },
+    {
+      "id": "token-saving-counter-preview",
+      "task": "Compare bounded relevant-file read scope against broad scan estimate.",
+      "expected": "token saving estimate recorded as automated metric only"
+    },
+    {
+      "id": "failure-friction-ledger-preview",
+      "task": "Classify synthetic friction observations into P0/P1/P2/P3 repair queue.",
+      "expected": "issues classified without claiming owner feedback"
+    }
+  ],
+  "providerCallsMade": false,
+  "automatedEvidenceNotClaimedAsHuman": true
+}

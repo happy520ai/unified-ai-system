@@ -1,0 +1,25 @@
+{
+  "phase": "Phase328E",
+  "contractName": "three-mode-telemetry-cost-visibility-contract",
+  "billingClaimed": false,
+  "costFieldsAreEstimateOnly": true,
+  "fields": [
+    "currentMode",
+    "selectedModel",
+    "participantModels",
+    "selectedModels",
+    "providerCallsMade",
+    "nonNvidiaProviderCallsMade",
+    "fallbackUsed",
+    "latencyMs",
+    "participantCallCount",
+    "supervisorCallCount",
+    "estimatedTokenUsage",
+    "estimatedCost",
+    "quotaStatus",
+    "budgetStatus",
+    "policyStatus",
+    "credentialStatus",
+    "safetyWarnings"
+  ]
+}

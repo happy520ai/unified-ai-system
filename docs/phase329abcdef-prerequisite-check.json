@@ -1,0 +1,20 @@
+{
+  "phase": "Phase329A-F",
+  "checkedAt": "2026-05-06T17:58:24.126Z",
+  "missing": [],
+  "present": [
+    "apps/ai-gateway-service/evidence/phase328a/three-mode-normal-runtime-smoke.json",
+    "apps/ai-gateway-service/evidence/phase328a/three-mode-god-runtime-smoke.json",
+    "apps/ai-gateway-service/evidence/phase328a/three-mode-tianshu-runtime-smoke.json",
+    "apps/agent-console/evidence/phase328a/three-mode-ui-smoke.json",
+    "apps/ai-gateway-service/evidence/phase328b/god-mode-quality-evaluation-result.json",
+    "apps/ai-gateway-service/evidence/phase328c/tianshu-planner-accuracy-evaluation-result.json",
+    "apps/ai-gateway-service/evidence/phase328d/user-owned-provider-guarded-beta-result.json",
+    "apps/agent-console/evidence/phase328e/three-mode-ui-telemetry-smoke.json",
+    "docs/phase328f-quota-budget-governance-result.json",
+    "apps/ai-gateway-service/src/three-mode/modeRuntimeExecutor.js",
+    "apps/ai-gateway-service/src/three-mode/godModeExecutor.js",
+    "apps/ai-gateway-service/src/three-mode/tianshuModeExecutor.js"
+  ],
+  "allowRuntimeEvaluation": true
+}

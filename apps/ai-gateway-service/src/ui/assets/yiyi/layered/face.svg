@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 130" role="img" aria-label="Yiyi gentle face">
+  <defs>
+    <linearGradient id="skin" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#fff9f5"/>
+      <stop offset="1" stop-color="#f3dcd3"/>
+    </linearGradient>
+  </defs>
+  <path d="M20 54C20 22 39 8 60 8s40 14 40 46c0 38-19 66-40 66S20 92 20 54Z" fill="url(#skin)" stroke="#d9b7aa" stroke-width="3"/>
+  <ellipse cx="44" cy="58" rx="7" ry="11" fill="#172033"/>
+  <ellipse cx="76" cy="58" rx="7" ry="11" fill="#172033"/>
+  <circle cx="47" cy="54" r="2.4" fill="#fff"/>
+  <circle cx="79" cy="54" r="2.4" fill="#fff"/>
+  <path d="M53 80c5 5 10 5 15 0" fill="none" stroke="#875161" stroke-width="3" stroke-linecap="round"/>
+  <ellipse cx="33" cy="76" rx="11" ry="5" fill="#e7778a" opacity=".25"/>
+  <ellipse cx="87" cy="76" rx="11" ry="5" fill="#e7778a" opacity=".25"/>
+</svg>

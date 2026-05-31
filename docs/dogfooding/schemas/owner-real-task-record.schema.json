@@ -1,0 +1,178 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Phase1624 Owner Real Task Record Schema",
+  "type": "object",
+  "required": [
+    "recordType",
+    "phaseRange",
+    "taskId",
+    "taskTitle",
+    "taskCategory",
+    "taskInputSummary",
+    "modeUsed",
+    "missionControlPath",
+    "contextGatewayUsed",
+    "conceptFieldVisible",
+    "evidenceReplayUsed",
+    "securityShieldTriggered",
+    "providerCallUsed",
+    "ownerPerceivedUsefulness",
+    "ownerTrustLevel",
+    "keepUsingTomorrow",
+    "ownerManualNote",
+    "ownerProvided",
+    "ownerManualFeedback",
+    "realHumanFeedbackCollected",
+    "automatedEvidenceNotClaimedAsHuman"
+  ],
+  "properties": {
+    "recordType": {
+      "const": "owner_real_task_record"
+    },
+    "phaseRange": {
+      "const": "Phase1621-1650AIO"
+    },
+    "taskId": {
+      "type": "string"
+    },
+    "taskTitle": {
+      "type": "string"
+    },
+    "taskCategory": {
+      "type": "string"
+    },
+    "taskInputSummary": {
+      "type": "string"
+    },
+    "modeUsed": {
+      "enum": [
+        "normal",
+        "god",
+        "tianshu",
+        "mixed"
+      ]
+    },
+    "missionControlPath": {
+      "type": "string"
+    },
+    "contextGatewayUsed": {
+      "type": "boolean"
+    },
+    "conceptFieldVisible": {
+      "type": "boolean"
+    },
+    "evidenceReplayUsed": {
+      "type": "boolean"
+    },
+    "securityShieldTriggered": {
+      "type": "boolean"
+    },
+    "providerCallUsed": {
+      "type": "boolean"
+    },
+    "providerRef": {
+      "type": "string"
+    },
+    "estimatedTokenSaving": {
+      "type": "number"
+    },
+    "ownerPerceivedUsefulness": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 1,
+      "maximum": 5
+    },
+    "ownerPerceivedSpeed": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 1,
+      "maximum": 5
+    },
+    "ownerPerceivedClarity": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 1,
+      "maximum": 5
+    },
+    "ownerTrustLevel": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 1,
+      "maximum": 5
+    },
+    "failureOccurred": {
+      "type": "boolean"
+    },
+    "frictionPoint": {
+      "type": "string"
+    },
+    "confusingArea": {
+      "type": "string"
+    },
+    "desiredFix": {
+      "type": "string"
+    },
+    "keepUsingTomorrow": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "ownerManualNote": {
+      "type": "string"
+    },
+    "ownerProvided": {
+      "const": false
+    },
+    "ownerManualFeedback": {
+      "const": false
+    },
+    "realHumanFeedbackCollected": {
+      "const": false
+    },
+    "automatedEvidenceNotClaimedAsHuman": {
+      "const": true
+    },
+    "timestamp": {
+      "type": "string"
+    },
+    "evidencePath": {
+      "type": "string"
+    },
+    "browserScreenshotPath": {
+      "type": "string"
+    },
+    "verifierResultPath": {
+      "type": "string"
+    },
+    "tokenSavingComputed": {
+      "type": "number"
+    },
+    "routeAffinityScore": {
+      "type": "number"
+    },
+    "evidenceCoherenceScore": {
+      "type": "number"
+    },
+    "surpriseScore": {
+      "type": "number"
+    },
+    "riskFieldScore": {
+      "type": "number"
+    },
+    "localHealthCheckResult": {
+      "type": "string"
+    },
+    "regressionResult": {
+      "type": "string"
+    }
+  }
+}

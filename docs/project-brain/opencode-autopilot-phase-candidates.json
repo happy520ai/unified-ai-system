@@ -1,0 +1,144 @@
+{
+  "phaseId": "Phase3980A-OpenCode-Phase-Candidate-Bridge",
+  "generatedAt": "2026-05-28T05:18:33.009Z",
+  "latestPhase": "Phase1955P-Retry-Fail",
+  "latestResultPath": "apps/ai-gateway-service/evidence/phase1955p_retry_fail/nvidia-route-failure-closure-result.json",
+  "selectedNextPhase": "Phase564",
+  "selectedNextPhaseTitle": "Auto-run Value Audit + Deduplication + Registry Freeze",
+  "selectedNextPhaseRiskLevel": "low",
+  "humanApprovalRequired": false,
+  "safetyBrakeEngaged": false,
+  "readyToExecute": true,
+  "autoContinueAllowed": false,
+  "allowedExecutionMode": "docs_evidence_registry_freeze_only",
+  "promptMeta": {
+    "selectedNextPhase": "Phase564",
+    "selectedNextPhaseRiskLevel": "low",
+    "readyToExecute": false,
+    "autoContinueAllowed": false,
+    "blockedReasons": []
+  },
+  "candidates": [
+    {
+      "taskId": "phase3980a-phase-state-refresh",
+      "title": "Refresh latest phase state from Phase1955P-Retry-Fail",
+      "priority": 100,
+      "status": "pending",
+      "allowedFiles": [
+        "docs/automation/opencode-autopilot-task-queue.json",
+        "docs/project-brain/opencode-autopilot-policy.json",
+        "docs/project-brain/opencode-autopilot-state.json",
+        "docs/project-brain/opencode-autopilot-phase-candidates.json",
+        "docs/phase3980a-opencode-phase-candidate-bridge.md",
+        "tools/phase3980a/build-opencode-phase-candidates.mjs",
+        "tools/phase3980a/verify-opencode-phase-candidates.mjs",
+        "tools/phase3979a/run-opencode-autopilot-governor.mjs",
+        "tools/phase3979a/read-opencode-autopilot-status.mjs",
+        "tools/phase3979a/verify-opencode-autopilot-governor.mjs",
+        "package.json",
+        "opencode.jsonc"
+      ],
+      "preflightCommands": [
+        "node --check tools/phase3980a/build-opencode-phase-candidates.mjs",
+        "node --check tools/phase3980a/verify-opencode-phase-candidates.mjs"
+      ],
+      "diagnoseCommands": [
+        "cmd /c pnpm run phase:auto-next:state",
+        "cmd /c pnpm run phase:auto-next:safety"
+      ],
+      "executeCommands": [
+        "cmd /c pnpm run phase:auto-next:state"
+      ],
+      "reviewCommands": [
+        "cmd /c pnpm run phase:auto-next:safety"
+      ],
+      "verifyCommands": [
+        "cmd /c pnpm run status:phase3979a-opencode-autopilot",
+        "cmd /c pnpm run verify:phase3980a-opencode-phase-candidate-bridge"
+      ],
+      "requestBudget": 0,
+      "costBudgetUsd": 0,
+      "blocker": null
+    },
+    {
+      "taskId": "phase3980a-lowrisk-next-phase-phase564",
+      "title": "Prepare low-risk next phase candidate Phase564",
+      "priority": 95,
+      "status": "pending",
+      "allowedFiles": [
+        "docs/automation/opencode-autopilot-task-queue.json",
+        "docs/project-brain/opencode-autopilot-policy.json",
+        "docs/project-brain/opencode-autopilot-state.json",
+        "docs/project-brain/opencode-autopilot-phase-candidates.json",
+        "docs/phase3980a-opencode-phase-candidate-bridge.md",
+        "tools/phase3980a/build-opencode-phase-candidates.mjs",
+        "tools/phase3980a/verify-opencode-phase-candidates.mjs",
+        "tools/phase3979a/run-opencode-autopilot-governor.mjs",
+        "tools/phase3979a/read-opencode-autopilot-status.mjs",
+        "tools/phase3979a/verify-opencode-autopilot-governor.mjs",
+        "package.json",
+        "opencode.jsonc"
+      ],
+      "preflightCommands": [
+        "node --check tools/phase3980a/build-opencode-phase-candidates.mjs",
+        "node --check tools/phase3980a/verify-opencode-phase-candidates.mjs"
+      ],
+      "diagnoseCommands": [
+        "cmd /c pnpm run phase:auto-next:state",
+        "cmd /c pnpm run phase:auto-next:safety"
+      ],
+      "executeCommands": [
+        "cmd /c pnpm run phase:auto-next:prompt"
+      ],
+      "reviewCommands": [
+        "cmd /c pnpm run phase:auto-next:dry-run"
+      ],
+      "verifyCommands": [
+        "cmd /c pnpm run verify:phase3980a-opencode-phase-candidate-bridge"
+      ],
+      "requestBudget": 0,
+      "costBudgetUsd": 0,
+      "blocker": null
+    },
+    {
+      "taskId": "phase3980a-candidate-bridge-report",
+      "title": "Write real phase candidate bridge report",
+      "priority": 80,
+      "status": "pending",
+      "allowedFiles": [
+        "docs/automation/opencode-autopilot-task-queue.json",
+        "docs/project-brain/opencode-autopilot-policy.json",
+        "docs/project-brain/opencode-autopilot-state.json",
+        "docs/project-brain/opencode-autopilot-phase-candidates.json",
+        "docs/phase3980a-opencode-phase-candidate-bridge.md",
+        "tools/phase3980a/build-opencode-phase-candidates.mjs",
+        "tools/phase3980a/verify-opencode-phase-candidates.mjs",
+        "tools/phase3979a/run-opencode-autopilot-governor.mjs",
+        "tools/phase3979a/read-opencode-autopilot-status.mjs",
+        "tools/phase3979a/verify-opencode-autopilot-governor.mjs",
+        "package.json",
+        "opencode.jsonc"
+      ],
+      "preflightCommands": [
+        "node --check tools/phase3980a/build-opencode-phase-candidates.mjs",
+        "node --check tools/phase3980a/verify-opencode-phase-candidates.mjs"
+      ],
+      "diagnoseCommands": [
+        "cmd /c pnpm run phase:auto-next:state",
+        "cmd /c pnpm run phase:auto-next:safety"
+      ],
+      "executeCommands": [
+        "cmd /c pnpm run status:phase3979a-opencode-autopilot"
+      ],
+      "reviewCommands": [
+        "cmd /c pnpm run verify:phase3980a-opencode-phase-candidate-bridge"
+      ],
+      "verifyCommands": [
+        "cmd /c pnpm run verify:phase3980a-opencode-phase-candidate-bridge"
+      ],
+      "requestBudget": 0,
+      "costBudgetUsd": 0,
+      "blocker": null
+    }
+  ]
+}

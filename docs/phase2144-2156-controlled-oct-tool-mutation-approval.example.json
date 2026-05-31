@@ -1,0 +1,203 @@
+{
+  "phaseId": "Phase2144A-2156A-Controlled-Oct-Tool-Mutation",
+  "planId": "phase2144-2156-controlled-oct-tool-mutation",
+  "maxChangedFiles": 8,
+  "runNodeCheck": true,
+  "runLocalSmoke": true,
+  "approvalRecord": {
+    "approved": true,
+    "permissionMode": "controlled-oct-tool-source-mutation",
+    "dryRun": false,
+    "approvedAtLeastOnceByOwner": [
+      {
+        "source": "user-message",
+        "text": "continue-next-round",
+        "scope": "phase2144-2156-controlled-oct-tool-mutation"
+      }
+    ],
+    "codexExecAllowed": false,
+    "projectProviderAllowed": false,
+    "secretReadAllowed": false,
+    "authJsonReadAllowed": false,
+    "envReadAllowed": false,
+    "codexConfigWriteAllowed": false,
+    "chatModificationAllowed": false,
+    "chatGatewayExecuteModificationAllowed": false,
+    "legacyModificationAllowed": false,
+    "deployAllowed": false,
+    "releaseAllowed": false,
+    "pushAllowed": false,
+    "commitAllowed": false
+  },
+  "allowedFiles": [
+    "docs/phase2149-oct-tool-mutation-target-one.proposal.diff",
+    "docs/phase2150-oct-tool-mutation-target-two.proposal.diff",
+    "docs/phase2151-oct-tool-mutation-target-three.proposal.diff",
+    "docs/phase2152-oct-tool-mutation-target-four.proposal.diff",
+    "docs/phase2153-oct-tool-mutation-target-five.proposal.diff",
+    "docs/phase2154-oct-tool-mutation-target-six.proposal.diff",
+    "docs/phase2155-oct-tool-mutation-target-seven.proposal.diff",
+    "docs/phase2156-oct-tool-mutation-target-eight.proposal.diff",
+    "tools/phase2091/generated-source-patch-target.mjs",
+    "tools/phase2092/apply-controlled-existing-tool-mutation.mjs",
+    "tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs",
+    "tools/phase2096_2100/apply-controlled-triple-tool-mutation.mjs",
+    "tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs",
+    "tools/phase2111_2120/apply-controlled-quint-tool-mutation.mjs",
+    "tools/phase2121_2131/apply-controlled-sext-tool-mutation.mjs",
+    "tools/phase2132_2143/apply-controlled-sept-tool-mutation.mjs",
+    "apps/ai-gateway-service/evidence/phase2144-2156-controlled-oct-tool-mutation/result.json",
+    "apps/ai-gateway-service/evidence/phase2144-2156-controlled-oct-tool-mutation/result.md",
+    "apps/ai-gateway-service/evidence/phase2144-2156-controlled-oct-tool-mutation/rollback.json",
+    "apps/ai-gateway-service/evidence/phase2144-2156-controlled-oct-tool-mutation/oct-smoke.json"
+  ],
+  "forbiddenPaths": [
+    "legacy",
+    "PROJECT_CONTEXT.md",
+    ".env",
+    ".git",
+    "node_modules",
+    "auth.json",
+    "apps/ai-gateway-service/src/providers",
+    "apps/ai-gateway-service/src/http/chat-gateway/execute",
+    "/chat"
+  ],
+  "operations": [
+    {
+      "action": "apply-single-existing-tool-source-mutation",
+      "proposalPath": "docs/phase2149-oct-tool-mutation-target-one.proposal.diff",
+      "targetPath": "tools/phase2091/generated-source-patch-target.mjs",
+      "expectedBeforeSha256": "9982d4e9123bca0dc56ab0654e71c1dbab8da8d214cd842d8c9ccd015597041c",
+      "allowCreate": false,
+      "allowDelete": false,
+      "requiredExports": [
+        "export function buildPhase2149OctMutationTargetOneStatus"
+      ],
+      "requiredMarkers": [
+        "PHASE2091_SOURCE_PATCH_OK",
+        "PHASE2137_SEPT_TOOL_TARGET_ONE_OK",
+        "PHASE2149_OCT_TOOL_TARGET_ONE_OK"
+      ]
+    },
+    {
+      "action": "apply-single-existing-tool-source-mutation",
+      "proposalPath": "docs/phase2150-oct-tool-mutation-target-two.proposal.diff",
+      "targetPath": "tools/phase2092/apply-controlled-existing-tool-mutation.mjs",
+      "expectedBeforeSha256": "2a1cbe42b7421984b5e04906864e2f9d9d9a8904e166eb44e5f69dc92a41d634",
+      "allowCreate": false,
+      "allowDelete": false,
+      "requiredExports": [
+        "export function buildPhase2150OctMutationTargetTwoStatus",
+        "export function buildPhase2094BatchMutationRuntimeStatus",
+        "export function main"
+      ],
+      "requiredMarkers": [
+        "PHASE2094_BATCH_TOOL_TARGET_TWO_OK",
+        "PHASE2138_SEPT_TOOL_TARGET_TWO_OK",
+        "PHASE2150_OCT_TOOL_TARGET_TWO_OK"
+      ]
+    },
+    {
+      "action": "apply-single-existing-tool-source-mutation",
+      "proposalPath": "docs/phase2151-oct-tool-mutation-target-three.proposal.diff",
+      "targetPath": "tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs",
+      "expectedBeforeSha256": "a3ea3052f74caa1b0f5d81b3592850b56386237898577d698a718f2cd6d9d7d8",
+      "allowCreate": false,
+      "allowDelete": false,
+      "requiredExports": [
+        "export function buildPhase2151OctMutationTargetThreeStatus",
+        "export function buildPhase2100TripleMutationRuntimeStatus",
+        "export function main"
+      ],
+      "requiredMarkers": [
+        "PHASE2100_TRIPLE_TOOL_TARGET_THREE_OK",
+        "PHASE2139_SEPT_TOOL_TARGET_THREE_OK",
+        "PHASE2151_OCT_TOOL_TARGET_THREE_OK"
+      ]
+    },
+    {
+      "action": "apply-single-existing-tool-source-mutation",
+      "proposalPath": "docs/phase2152-oct-tool-mutation-target-four.proposal.diff",
+      "targetPath": "tools/phase2096_2100/apply-controlled-triple-tool-mutation.mjs",
+      "expectedBeforeSha256": "03983d8966f05a360b52d09d87df296a6f054ce759c03d56d9f9694912a7a7ec",
+      "allowCreate": false,
+      "allowDelete": false,
+      "requiredExports": [
+        "export function buildPhase2152OctMutationTargetFourStatus",
+        "export function buildPhase2109QuadMutationRuntimeStatus",
+        "export function main"
+      ],
+      "requiredMarkers": [
+        "PHASE2109_QUAD_TOOL_TARGET_FOUR_OK",
+        "PHASE2140_SEPT_TOOL_TARGET_FOUR_OK",
+        "PHASE2152_OCT_TOOL_TARGET_FOUR_OK"
+      ]
+    },
+    {
+      "action": "apply-single-existing-tool-source-mutation",
+      "proposalPath": "docs/phase2153-oct-tool-mutation-target-five.proposal.diff",
+      "targetPath": "tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs",
+      "expectedBeforeSha256": "9f794466105f8bd14d2a9cc0b22976a6193986ce531a26ba01f1edc73496039b",
+      "allowCreate": false,
+      "allowDelete": false,
+      "requiredExports": [
+        "export function buildPhase2153OctMutationTargetFiveStatus",
+        "export function buildPhase2120QuintMutationRuntimeStatus",
+        "export function main"
+      ],
+      "requiredMarkers": [
+        "PHASE2120_QUINT_TOOL_TARGET_FIVE_OK",
+        "PHASE2141_SEPT_TOOL_TARGET_FIVE_OK",
+        "PHASE2153_OCT_TOOL_TARGET_FIVE_OK"
+      ]
+    },
+    {
+      "action": "apply-single-existing-tool-source-mutation",
+      "proposalPath": "docs/phase2154-oct-tool-mutation-target-six.proposal.diff",
+      "targetPath": "tools/phase2111_2120/apply-controlled-quint-tool-mutation.mjs",
+      "expectedBeforeSha256": "46d2ffbc21742f59e9e036fc10014952d9a8fd9005ef8bd912020f64a08c7962",
+      "allowCreate": false,
+      "allowDelete": false,
+      "requiredExports": [
+        "export function buildPhase2154OctMutationTargetSixStatus",
+        "export function main"
+      ],
+      "requiredMarkers": [
+        "PHASE2142_SEPT_TOOL_TARGET_SIX_OK",
+        "PHASE2154_OCT_TOOL_TARGET_SIX_OK"
+      ]
+    },
+    {
+      "action": "apply-single-existing-tool-source-mutation",
+      "proposalPath": "docs/phase2155-oct-tool-mutation-target-seven.proposal.diff",
+      "targetPath": "tools/phase2121_2131/apply-controlled-sext-tool-mutation.mjs",
+      "expectedBeforeSha256": "a2886340138af930d08e0228551abbc14b6309493a097b1af51733359d3914a4",
+      "allowCreate": false,
+      "allowDelete": false,
+      "requiredExports": [
+        "export function buildPhase2155OctMutationTargetSevenStatus",
+        "export function main"
+      ],
+      "requiredMarkers": [
+        "PHASE2143_SEPT_TOOL_TARGET_SEVEN_OK",
+        "PHASE2155_OCT_TOOL_TARGET_SEVEN_OK"
+      ]
+    },
+    {
+      "action": "apply-single-existing-tool-source-mutation",
+      "proposalPath": "docs/phase2156-oct-tool-mutation-target-eight.proposal.diff",
+      "targetPath": "tools/phase2132_2143/apply-controlled-sept-tool-mutation.mjs",
+      "expectedBeforeSha256": "474ebd3b82666264ad264d471811ac4efe5f104c8ae1579c44be9312fc907288",
+      "allowCreate": false,
+      "allowDelete": false,
+      "requiredExports": [
+        "export function buildPhase2156OctMutationRuntimeStatus",
+        "export function main"
+      ],
+      "requiredMarkers": [
+        "PHASE2143_SEPT_TOOL_TARGET_SEVEN_OK",
+        "PHASE2156_OCT_TOOL_TARGET_EIGHT_OK"
+      ]
+    }
+  ]
+}

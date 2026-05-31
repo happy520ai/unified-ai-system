@@ -1,0 +1,15 @@
+{
+  "name": "@unified-ai-system/context-codec-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "scripts": {
+    "check": "node --no-warnings --experimental-vm-modules ../../tools/check-package-source-syntax.mjs src && node ./test/context-codec-core.test.js",
+    "build": "pnpm check",
+    "test": "node ./test/context-codec-core.test.js"
+  }
+}

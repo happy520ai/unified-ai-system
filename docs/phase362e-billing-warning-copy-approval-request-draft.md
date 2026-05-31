@@ -1,0 +1,10 @@
+# Phase362E Billing Warning Copy Approval Request Draft
+
+Required warnings must remain visible:
+
+- MOCK STATEMENT
+- ESTIMATE ONLY
+- NOT A LEGAL INVOICE
+- PAYMENT PROVIDER NOT CONNECTED
+- ACTUAL BILLING NOT CONNECTED
+- DO NOT USE FOR TAX OR PAYMENT SETTLEMENT

@@ -1,0 +1,50 @@
+{
+  "phase": "Phase332D",
+  "testCases": [
+    {
+      "id": "envKeyNameReferenceResolvedAsMetadataOnly",
+      "status": "passed"
+    },
+    {
+      "id": "envKeyMissingBlocked",
+      "status": "passed"
+    },
+    {
+      "id": "encryptedReferenceAdapterNotReady",
+      "status": "passed"
+    },
+    {
+      "id": "vaultReferenceAdapterNotConfigured",
+      "status": "passed"
+    },
+    {
+      "id": "unsupportedReferenceTypeRejected",
+      "status": "passed"
+    },
+    {
+      "id": "secretValuePayloadRejected",
+      "status": "passed",
+      "detail": "payload field secretValue is rejected by access policy design before adapter resolution"
+    },
+    {
+      "id": "scopeNotAllowedRejected",
+      "status": "passed",
+      "detail": "provider and mode scope denial remains required by credentialAccessPolicy"
+    },
+    {
+      "id": "revokedCredentialRejected",
+      "status": "blocked",
+      "detail": "revocation backend not configured in this spike"
+    },
+    {
+      "id": "redactionAlwaysApplied",
+      "status": "passed",
+      "detail": "adapter spike only records metadata and redacted status"
+    },
+    {
+      "id": "rawSecretNeverReturned",
+      "status": "passed",
+      "detail": "raw secret value is never returned in spike evidence"
+    }
+  ]
+}

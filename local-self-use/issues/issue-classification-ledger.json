@@ -1,0 +1,11 @@
+{
+  "phase": "Phase733",
+  "issueCount": 0,
+  "issues": [],
+  "severityGuide": {
+    "P0": "data leak, secret exposure, wrong provider call, deploy misfire, severe main-chain break",
+    "P1": "core feature unavailable, runtime error, /chat or /execute default behavior abnormal",
+    "P2": "UX blocker, unclear explanation, significant performance regression",
+    "P3": "small copy, UI, or docs improvement"
+  }
+}

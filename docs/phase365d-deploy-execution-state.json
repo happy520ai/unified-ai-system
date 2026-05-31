@@ -1,0 +1,16 @@
+{
+  "phase": "Phase365D",
+  "deployAttempted": false,
+  "deployExecuted": false,
+  "deploySucceeded": false,
+  "deployFailed": false,
+  "deploySkippedReason": "approved_command_ref_has_no_executable_command_in_phase364_boundary",
+  "approvedCommandRef": "docs/phase366b-approved-command-ref.json",
+  "commandExecuted": null,
+  "exitCode": null,
+  "durationMs": 0,
+  "logsRedacted": true,
+  "secretValueExposed": false,
+  "rollbackRecommended": false,
+  "rollbackExecuted": false
+}

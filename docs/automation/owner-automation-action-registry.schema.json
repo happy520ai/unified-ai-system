@@ -1,0 +1,132 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Owner Automation Action Registry v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "phase",
+    "routeChoice",
+    "actions",
+    "runtimeBoundary"
+  ],
+  "properties": {
+    "version": {
+      "const": "v1"
+    },
+    "phase": {
+      "const": "Phase1889A"
+    },
+    "routeChoice": {
+      "const": "Route A / local_self_use_only"
+    },
+    "generatedBy": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "actions": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "actionId",
+          "enabled",
+          "displayName",
+          "ownerFacingName",
+          "category",
+          "riskLevel",
+          "defaultPermissionMode",
+          "realRunRequiresApproval",
+          "supportsDryRun",
+          "supportsRealRun",
+          "defaultDryRunFirst",
+          "allowedDirectories",
+          "forbiddenCapabilities",
+          "evidenceRefs"
+        ],
+        "properties": {
+          "actionId": {
+            "const": "create_desktop_spreadsheet"
+          },
+          "enabled": {
+            "const": true
+          },
+          "displayName": {
+            "const": "创建桌面表格"
+          },
+          "ownerFacingName": {
+            "const": "帮我在桌面建一个表格"
+          },
+          "category": {
+            "const": "local_file_action"
+          },
+          "riskLevel": {
+            "const": "low_with_guardrails"
+          },
+          "defaultPermissionMode": {
+            "const": "owner_explicit_approval_required"
+          },
+          "realRunRequiresApproval": {
+            "const": true
+          },
+          "supportsDryRun": {
+            "const": true
+          },
+          "supportsRealRun": {
+            "const": true
+          },
+          "defaultDryRunFirst": {
+            "const": true
+          },
+          "overwritePolicy": {
+            "const": "never_overwrite_append_timestamp"
+          },
+          "scansDesktop": {
+            "const": false
+          },
+          "readsDesktopOtherFiles": {
+            "const": false
+          },
+          "canDeleteFiles": {
+            "const": false
+          },
+          "canMoveFiles": {
+            "const": false
+          },
+          "canOverwriteFiles": {
+            "const": false
+          },
+          "providerCallsMade": {
+            "const": false
+          },
+          "ownerOsResultSupported": {
+            "const": true
+          },
+          "bossDailyReportSupported": {
+            "const": true
+          }
+        }
+      }
+    },
+    "runtimeBoundary": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "registryOnly": {
+          "const": true
+        },
+        "noRuntimeExecutionAdded": {
+          "const": true
+        },
+        "noDesktopFileCreatedByThisPhase": {
+          "const": true
+        }
+      }
+    }
+  }
+}

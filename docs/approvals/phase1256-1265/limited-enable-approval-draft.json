@@ -1,0 +1,19 @@
+{
+  "phaseRange": "Phase1256-1265",
+  "decision": "draft_pending_owner_final_decision",
+  "ownerPersonallyApproved": false,
+  "ownerManualReviewCompleted": false,
+  "allowLimitedEnableBehindFlag": false,
+  "allowProviderCall": false,
+  "allowSecretRead": false,
+  "allowChatDefaultChange": false,
+  "allowChatGatewayExecuteDefaultChange": false,
+  "allowMainChainDefaultEnable": false,
+  "allowProviderRuntimeDefaultEnable": false,
+  "allowDeploy": false,
+  "allowRelease": false,
+  "allowTag": false,
+  "allowArtifactUpload": false,
+  "allowCommitPush": false,
+  "allowProductionReadyClaim": false
+}

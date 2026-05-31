@@ -1,0 +1,172 @@
+{
+  "phase": "Phase325C",
+  "schemaVersion": "phase325c-governance-examples-v1",
+  "validExamples": [
+    {
+      "name": "valid NVIDIA current runtime config",
+      "providerId": "nvidia",
+      "providerStatus": "current_runtime_enabled",
+      "enabled": true,
+      "realCallsAllowed": true,
+      "credentialRef": {
+        "kind": "env_name",
+        "envName": "NVIDIA_API_KEY",
+        "redactionRequired": true
+      },
+      "routeEligibility": {
+        "chatGateway": true,
+        "fallbackToPaidProvider": false
+      },
+      "governanceStage": "guarded_enablement",
+      "budgetPolicy": {
+        "required": true,
+        "dailyRequestLimit": 50
+      },
+      "auditPolicy": {
+        "required": true,
+        "enabled": true
+      },
+      "killSwitch": {
+        "required": true,
+        "engaged": false
+      }
+    },
+    {
+      "name": "valid OpenAI future-provider-slot config without real call",
+      "providerId": "openai",
+      "providerStatus": "future_provider_slot",
+      "enabled": false,
+      "realCallsAllowed": false,
+      "credentialRef": {
+        "kind": "env_name",
+        "envName": "OPENAI_API_KEY",
+        "redactionRequired": true
+      },
+      "routeEligibility": {
+        "chatGateway": false,
+        "fallbackToPaidProvider": false
+      },
+      "governanceStage": "design_only",
+      "killSwitch": {
+        "required": true,
+        "engaged": true
+      }
+    },
+    {
+      "name": "valid Claude future-provider-slot config without real call",
+      "providerId": "claude",
+      "providerStatus": "future_provider_slot",
+      "enabled": false,
+      "realCallsAllowed": false,
+      "credentialRef": {
+        "kind": "env_name",
+        "envName": "ANTHROPIC_API_KEY",
+        "redactionRequired": true
+      },
+      "routeEligibility": {
+        "chatGateway": false,
+        "fallbackToPaidProvider": false
+      },
+      "governanceStage": "design_only",
+      "killSwitch": {
+        "required": true,
+        "engaged": true
+      }
+    },
+    {
+      "name": "valid OpenRouter future-provider-slot config without real call",
+      "providerId": "openrouter",
+      "providerStatus": "future_provider_slot",
+      "enabled": false,
+      "realCallsAllowed": false,
+      "credentialRef": {
+        "kind": "env_name",
+        "envName": "OPENROUTER_API_KEY",
+        "redactionRequired": true
+      },
+      "routeEligibility": {
+        "chatGateway": false,
+        "fallbackToPaidProvider": false
+      },
+      "governanceStage": "design_only",
+      "killSwitch": {
+        "required": true,
+        "engaged": true
+      }
+    },
+    {
+      "name": "valid MiMo future-provider-slot config without real call",
+      "providerId": "mimo",
+      "providerStatus": "future_provider_slot",
+      "enabled": false,
+      "realCallsAllowed": false,
+      "credentialRef": {
+        "kind": "env_name",
+        "envName": "MIMO_API_KEY",
+        "redactionRequired": true
+      },
+      "routeEligibility": {
+        "chatGateway": false,
+        "fallbackToPaidProvider": false
+      },
+      "governanceStage": "design_only",
+      "killSwitch": {
+        "required": true,
+        "engaged": true
+      }
+    }
+  ],
+  "invalidExamples": [
+    {
+      "name": "invalid config: secret value exposed",
+      "providerId": "openai",
+      "enabled": false,
+      "realCallsAllowed": false,
+      "invalidReason": "Plaintext secret-like fields are forbidden. Use credentialRef.envName only."
+    },
+    {
+      "name": "invalid config: non-NVIDIA enabled directly",
+      "providerId": "claude",
+      "enabled": true,
+      "realCallsAllowed": true,
+      "credentialRef": {
+        "kind": "env_name",
+        "envName": "ANTHROPIC_API_KEY",
+        "redactionRequired": true
+      },
+      "invalidReason": "Non-NVIDIA providers cannot be enabled directly in Phase325C."
+    },
+    {
+      "name": "invalid config: provider enabled without governance stage",
+      "providerId": "openrouter",
+      "enabled": true,
+      "realCallsAllowed": false,
+      "credentialRef": {
+        "kind": "env_name",
+        "envName": "OPENROUTER_API_KEY",
+        "redactionRequired": true
+      },
+      "invalidReason": "Enabled provider config must declare an approved governance stage."
+    },
+    {
+      "name": "invalid config: paid provider call allowed in design stage",
+      "providerId": "mimo",
+      "providerStatus": "design_only",
+      "enabled": false,
+      "realCallsAllowed": true,
+      "credentialRef": {
+        "kind": "env_name",
+        "envName": "MIMO_API_KEY",
+        "redactionRequired": true
+      },
+      "invalidReason": "Design-only stage cannot allow real paid provider calls."
+    }
+  ],
+  "safety": {
+    "containsSecretValues": false,
+    "usesEnvNamesOnly": true,
+    "nonNvidiaRealCallsAllowed": false,
+    "runtimeModified": false
+  }
+}
+

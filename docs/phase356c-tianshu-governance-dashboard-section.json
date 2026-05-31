@@ -1,0 +1,29 @@
+{
+  "phase": "Phase356C",
+  "designType": "tianshu_governance_dashboard_section",
+  "result": {
+    "phase": "Phase356C",
+    "sourcePhase": "Phase355C",
+    "governanceDashboardDesignGenerated": true,
+    "sectionContractsGenerated": true,
+    "noProductionUiClaim": true,
+    "sectionId": "tianshu_governance",
+    "sectionContractFields": [
+      "tenantId",
+      "policyProposalId",
+      "reviewerRole",
+      "decision",
+      "requestChangesFlag",
+      "approvalSeparationState",
+      "timestamp"
+    ],
+    "sectionPanels": [
+      "proposal_review_queue",
+      "approval_separation_state",
+      "request_changes_audit_stream"
+    ],
+    "policyActivated": false,
+    "secretValueExposed": false,
+    "productionGA": false
+  }
+}

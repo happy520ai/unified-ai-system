@@ -1,0 +1,54 @@
+{
+  "mode": "tianshu",
+  "taskSummary": "用户提交一个需要系统自动选择模型或模型组合的任务。",
+  "plannerStatus": "no_candidate",
+  "plannerExplanation": {
+    "decisionBasis": [
+      "capability router summary",
+      "model selectable status",
+      "provider / credentialRef readiness",
+      "quota / budget / user policy state"
+    ],
+    "selectedModelRefs": [],
+    "rejectedCandidates": [
+      {
+        "modelRef": "nvidia/llama-3.3-nemotron-super-49b-v1",
+        "reason": "credential_missing"
+      },
+      {
+        "modelRef": "nvidia/llama-3.1-nemotron-nano-8b-v1",
+        "reason": "quota_exceeded"
+      }
+    ],
+    "capabilityMatch": [
+      "reasoning_chat",
+      "planner_explanation",
+      "fallback_guidance"
+    ],
+    "confidence": "low"
+  },
+  "noCandidateFallback": {
+    "triggered": true,
+    "reason": "planner_no_candidate",
+    "recommendedActions": [
+      "配置 provider",
+      "切换到 Normal Mode",
+      "降低任务复杂度",
+      "重试 planner",
+      "查看 Model Library"
+    ]
+  },
+  "warnings": [
+    "provider_unconfigured",
+    "credential_missing",
+    "quota_exceeded",
+    "budget_blocked",
+    "planner_no_candidate",
+    "user_policy_blocked"
+  ],
+  "safetyNotice": {
+    "providerCallsMade": false,
+    "secretValueExposed": false,
+    "dryRunOnly": true
+  }
+}

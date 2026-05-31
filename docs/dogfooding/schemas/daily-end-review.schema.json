@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Phase1623 Daily End Review Schema",
+  "type": "object",
+  "required": [
+    "recordType",
+    "phaseRange",
+    "date",
+    "tasksRecordedCount",
+    "automatedTestsExecutedCount",
+    "ownerManualNotesCount",
+    "failureCount",
+    "frictionCount",
+    "misrouteCount",
+    "falsePositiveCount",
+    "falseNegativeCount",
+    "tokenSavingSummary",
+    "recommendedRepairQueue",
+    "nextDayFocus",
+    "dailyEndReviewFlowReady",
+    "automatedEvidenceNotClaimedAsHuman"
+  ],
+  "properties": {
+    "recordType": {
+      "const": "daily_end_review"
+    },
+    "phaseRange": {
+      "const": "Phase1621-1650AIO"
+    },
+    "date": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+    },
+    "tasksRecordedCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "automatedTestsExecutedCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "ownerManualNotesCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "failureCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "frictionCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "misrouteCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "falsePositiveCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "falseNegativeCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "tokenSavingSummary": {
+      "type": "string"
+    },
+    "recommendedRepairQueue": {
+      "type": "array"
+    },
+    "nextDayFocus": {
+      "type": [
+        "string",
+        "array"
+      ]
+    },
+    "dailyEndReviewFlowReady": {
+      "type": "boolean"
+    },
+    "providerCallsMade": {
+      "const": false
+    },
+    "ownerManualFeedback": {
+      "const": false
+    },
+    "realHumanFeedbackCollected": {
+      "const": false
+    },
+    "dogfoodingCompleted": {
+      "const": false
+    },
+    "automatedEvidenceNotClaimedAsHuman": {
+      "const": true
+    }
+  }
+}

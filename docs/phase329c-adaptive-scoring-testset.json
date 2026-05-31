@@ -1,0 +1,224 @@
+{
+  "phase": "Phase329C",
+  "scenarios": [
+    {
+      "scenarioId": "codingPrefersCodingModel",
+      "task": {
+        "type": "coding"
+      },
+      "candidates": [
+        {
+          "modelId": "meta/llama-3.2-1b-instruct",
+          "capabilities": [
+            "general_chat",
+            "coding"
+          ],
+          "latencyMs": 329,
+          "estimatedCost": 0.01,
+          "providerAvailable": true,
+          "safetyAllowed": true,
+          "contextScore": 0.6
+        },
+        {
+          "modelId": "nvidia/nemotron-mini-4b-instruct",
+          "capabilities": [
+            "reasoning",
+            "general_chat"
+          ],
+          "latencyMs": 428,
+          "estimatedCost": 0.02,
+          "providerAvailable": true,
+          "safetyAllowed": true,
+          "contextScore": 0.7
+        },
+        {
+          "modelId": "blocked/high-risk-model",
+          "capabilities": [
+            "reasoning"
+          ],
+          "latencyMs": 100,
+          "estimatedCost": 0.001,
+          "failedHighRisk": true,
+          "providerAvailable": true,
+          "safetyAllowed": false
+        },
+        {
+          "modelId": "quota/blocked-model",
+          "capabilities": [
+            "coding"
+          ],
+          "latencyMs": 100,
+          "estimatedCost": 0.001,
+          "quotaBudgetBlocked": true,
+          "providerAvailable": true,
+          "safetyAllowed": true
+        }
+      ],
+      "expectedModelId": "meta/llama-3.2-1b-instruct",
+      "priorSignals": {
+        "successRate": 0.9
+      }
+    },
+    {
+      "scenarioId": "reasoningPrefersReasoningModel",
+      "task": {
+        "type": "reasoning"
+      },
+      "candidates": [
+        {
+          "modelId": "meta/llama-3.2-1b-instruct",
+          "capabilities": [
+            "general_chat",
+            "coding"
+          ],
+          "latencyMs": 329,
+          "estimatedCost": 0.01,
+          "providerAvailable": true,
+          "safetyAllowed": true,
+          "contextScore": 0.6
+        },
+        {
+          "modelId": "nvidia/nemotron-mini-4b-instruct",
+          "capabilities": [
+            "reasoning",
+            "general_chat"
+          ],
+          "latencyMs": 428,
+          "estimatedCost": 0.02,
+          "providerAvailable": true,
+          "safetyAllowed": true,
+          "contextScore": 0.7
+        },
+        {
+          "modelId": "blocked/high-risk-model",
+          "capabilities": [
+            "reasoning"
+          ],
+          "latencyMs": 100,
+          "estimatedCost": 0.001,
+          "failedHighRisk": true,
+          "providerAvailable": true,
+          "safetyAllowed": false
+        },
+        {
+          "modelId": "quota/blocked-model",
+          "capabilities": [
+            "coding"
+          ],
+          "latencyMs": 100,
+          "estimatedCost": 0.001,
+          "quotaBudgetBlocked": true,
+          "providerAvailable": true,
+          "safetyAllowed": true
+        }
+      ],
+      "expectedModelId": "nvidia/nemotron-mini-4b-instruct",
+      "priorSignals": {
+        "successRate": 0.9
+      }
+    },
+    {
+      "scenarioId": "userPreferenceChangesSelection",
+      "task": {
+        "type": "general_chat"
+      },
+      "candidates": [
+        {
+          "modelId": "meta/llama-3.2-1b-instruct",
+          "capabilities": [
+            "general_chat",
+            "coding"
+          ],
+          "latencyMs": 329,
+          "estimatedCost": 0.01,
+          "providerAvailable": true,
+          "safetyAllowed": true,
+          "contextScore": 0.6
+        },
+        {
+          "modelId": "nvidia/nemotron-mini-4b-instruct",
+          "capabilities": [
+            "reasoning",
+            "general_chat"
+          ],
+          "latencyMs": 428,
+          "estimatedCost": 0.02,
+          "providerAvailable": true,
+          "safetyAllowed": true,
+          "contextScore": 0.7
+        },
+        {
+          "modelId": "blocked/high-risk-model",
+          "capabilities": [
+            "reasoning"
+          ],
+          "latencyMs": 100,
+          "estimatedCost": 0.001,
+          "failedHighRisk": true,
+          "providerAvailable": true,
+          "safetyAllowed": false
+        },
+        {
+          "modelId": "quota/blocked-model",
+          "capabilities": [
+            "coding"
+          ],
+          "latencyMs": 100,
+          "estimatedCost": 0.001,
+          "quotaBudgetBlocked": true,
+          "providerAvailable": true,
+          "safetyAllowed": true
+        }
+      ],
+      "expectedModelId": "nvidia/nemotron-mini-4b-instruct",
+      "userPreference": {
+        "preferredModelId": "nvidia/nemotron-mini-4b-instruct"
+      }
+    },
+    {
+      "scenarioId": "fallbackWhenPrimaryUnavailable",
+      "task": {
+        "type": "translation"
+      },
+      "candidates": [
+        {
+          "modelId": "meta/llama-3.2-1b-instruct",
+          "capabilities": [
+            "general_chat",
+            "coding"
+          ],
+          "latencyMs": 329,
+          "estimatedCost": 0.01,
+          "providerAvailable": true,
+          "safetyAllowed": true,
+          "contextScore": 0.6,
+          "fallback": true
+        },
+        {
+          "modelId": "blocked/high-risk-model",
+          "capabilities": [
+            "reasoning"
+          ],
+          "latencyMs": 100,
+          "estimatedCost": 0.001,
+          "failedHighRisk": true,
+          "providerAvailable": true,
+          "safetyAllowed": false
+        },
+        {
+          "modelId": "quota/blocked-model",
+          "capabilities": [
+            "coding"
+          ],
+          "latencyMs": 100,
+          "estimatedCost": 0.001,
+          "quotaBudgetBlocked": true,
+          "providerAvailable": true,
+          "safetyAllowed": true
+        }
+      ],
+      "expectedModelId": "meta/llama-3.2-1b-instruct",
+      "expectFallback": true
+    }
+  ]
+}

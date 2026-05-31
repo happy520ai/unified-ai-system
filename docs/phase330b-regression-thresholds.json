@@ -1,0 +1,10 @@
+{
+  "phase": "Phase330B",
+  "averageQualityScoreDropMax": 0.08,
+  "conflictResolutionScoreDropMax": 0.1,
+  "fallbackUsedIncreaseMax": 3,
+  "failedScenarioIncreaseMax": 1,
+  "p95LatencyIncreaseMaxRatio": 1.5,
+  "secretExposureAllowed": false,
+  "unauthorizedProviderCallAllowed": false
+}

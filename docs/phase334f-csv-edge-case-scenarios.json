@@ -1,0 +1,53 @@
+{
+  "phase": "Phase334F",
+  "scenarios": [
+    {
+      "id": "commaInProviderName",
+      "status": "passed"
+    },
+    {
+      "id": "quoteInModelName",
+      "status": "passed"
+    },
+    {
+      "id": "newlineInWarning",
+      "status": "passed"
+    },
+    {
+      "id": "unicodeProviderName",
+      "status": "passed"
+    },
+    {
+      "id": "zeroCostLineItem",
+      "status": "passed"
+    },
+    {
+      "id": "missingCostEstimate",
+      "status": "passed"
+    },
+    {
+      "id": "veryLargeEstimatedCost",
+      "status": "passed"
+    },
+    {
+      "id": "emptyLineItems",
+      "status": "passed"
+    },
+    {
+      "id": "blockedInvoiceLine",
+      "status": "passed"
+    },
+    {
+      "id": "markdownSpecialCharacters",
+      "status": "passed"
+    },
+    {
+      "id": "formulaInjectionAttempt",
+      "status": "passed"
+    },
+    {
+      "id": "longTextField",
+      "status": "passed"
+    }
+  ]
+}

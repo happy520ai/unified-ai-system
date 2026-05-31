@@ -1,0 +1,30 @@
+{
+  "phase": "Phase793",
+  "highRiskBlocked": true,
+  "failedDeprecatedBlocked": true,
+  "blockedModelCount": 0,
+  "blocked": [],
+  "selectableBlockedForStatuses": [
+    "failed",
+    "high_risk",
+    "blocked",
+    "deprecated"
+  ],
+  "providerCallsMade": false,
+  "secretRead": false,
+  "selectableModified": false,
+  "completed": true,
+  "authJsonRead": false,
+  "rawSecretRead": false,
+  "secretValueExposed": false,
+  "credentialRefOnly": true,
+  "chatBehaviorChangedByDefault": false,
+  "chatGatewayExecuteBehaviorChangedByDefault": false,
+  "deployExecuted": false,
+  "releaseExecuted": false,
+  "tagCreated": false,
+  "artifactUploaded": false,
+  "pushExecuted": false,
+  "commitCreated": false,
+  "workspaceCleanClaimed": false
+}

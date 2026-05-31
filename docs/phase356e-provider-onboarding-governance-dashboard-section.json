@@ -1,0 +1,30 @@
+{
+  "phase": "Phase356E",
+  "designType": "provider_onboarding_governance_dashboard_section",
+  "result": {
+    "phase": "Phase356E",
+    "sourcePhase": "Phase355E",
+    "governanceDashboardDesignGenerated": true,
+    "sectionContractsGenerated": true,
+    "noProductionUiClaim": true,
+    "sectionId": "provider_onboarding_governance",
+    "sectionContractFields": [
+      "tenantId",
+      "reviewerChecklistId",
+      "actorRole",
+      "credentialRefOnly",
+      "rawSecretRejected",
+      "setupDecision",
+      "timestamp"
+    ],
+    "sectionPanels": [
+      "reviewer_checklist_audit",
+      "raw_secret_rejection_summary",
+      "credential_ref_only_submission_health"
+    ],
+    "noProviderCallFromUi": true,
+    "credentialRefOnly": true,
+    "secretValueExposed": false,
+    "productionGA": false
+  }
+}

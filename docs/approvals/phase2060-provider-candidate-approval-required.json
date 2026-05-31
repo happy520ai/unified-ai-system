@@ -1,0 +1,51 @@
+{
+  "taskId": "phase2060-provider-candidate",
+  "title": "Provider candidate approval-required blocked",
+  "status": "approval_required",
+  "reason": "Task is L3 or includes approval-gated operations. Phase2000 only creates this packet and does not execute.",
+  "requiredFields": [
+    "provider",
+    "model",
+    "credentialRef",
+    "maxRequests",
+    "maxCostUsd",
+    "timeoutMs",
+    "retryPolicy",
+    "prompt",
+    "expectedResult",
+    "rollbackPlan"
+  ],
+  "defaultLimits": {
+    "maxRequests": 1,
+    "maxCostUsd": 0.02,
+    "retryPolicy": "no_retry",
+    "timeoutMs": 30000,
+    "rawSecretReadAllowed": false
+  },
+  "ownerMustProvide": {
+    "provider": "",
+    "model": "",
+    "credentialRef": "",
+    "maxRequests": 1,
+    "maxCostUsd": 0.02,
+    "timeoutMs": 30000,
+    "retryPolicy": "no_retry",
+    "prompt": "",
+    "expectedResult": "",
+    "rollbackPlan": ""
+  },
+  "constraints": {
+    "maxRequestsMustBeAtMost": 1,
+    "maxCostUsdMustBeAtMost": 0.02,
+    "timeoutMsMustBeAtMost": 30000,
+    "rawSecretReadAllowed": false,
+    "credentialRefOnly": true
+  },
+  "providerCallsMade": false,
+  "secretRead": false,
+  "deployReleasePerformed": false,
+  "chatModified": false,
+  "chatGatewayExecuteModified": false,
+  "legacyModified": false,
+  "projectContextModified": false
+}

@@ -1,0 +1,42 @@
+{
+  "phase": "Phase326D",
+  "contractName": "tianshu-planner-decision-contract",
+  "runtimeStatus": "shadow_config_only",
+  "providerCallsAllowed": false,
+  "nonNvidiaProviderCallsAllowed": false,
+  "decision": {
+    "taskType": "",
+    "taskComplexity": "",
+    "capabilityRequirements": [],
+    "candidateModels": [],
+    "selectedModels": [],
+    "executionMode": "single_model | multi_model | god_mode_review | reject",
+    "selectionReason": "",
+    "fallbackPlan": "",
+    "validationPlan": ""
+  },
+  "scoring": {
+    "capabilityMatchWeight": 0.35,
+    "reliabilityWeight": 0.2,
+    "latencyWeight": 0.15,
+    "costWeight": 0.1,
+    "contextFitWeight": 0.1,
+    "userPreferenceWeight": 0.1
+  },
+  "rejectionReasons": [
+    "no_user_configured_model",
+    "credential_missing",
+    "provider_disabled",
+    "governance_rejected",
+    "no_capability_match",
+    "runtime_stage_not_enabled"
+  ],
+  "safety": {
+    "userConfiguredModelsOnly": true,
+    "credentialRefOnly": true,
+    "secretValueAllowed": false,
+    "noRuntimeChange": true,
+    "noProviderCall": true
+  }
+}
+

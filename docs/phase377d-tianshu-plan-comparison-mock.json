@@ -1,0 +1,10 @@
+{
+  "phase": "Phase377D",
+  "plans": [
+    "fast",
+    "balanced",
+    "deepReview"
+  ],
+  "dryRunOnly": true,
+  "providerCallsMade": false
+}

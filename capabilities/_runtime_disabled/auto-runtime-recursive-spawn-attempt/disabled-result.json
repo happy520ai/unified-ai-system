@@ -1,0 +1,15 @@
+{
+  "capabilityId": "auto-runtime-recursive-spawn-attempt",
+  "runtimeKind": "sandbox_local",
+  "executionStatus": "blocked",
+  "blockedReason": "recursive_spawn_attempt",
+  "providerCallsMade": false,
+  "secretRead": false,
+  "secretValueExposed": false,
+  "chatBehaviorChanged": false,
+  "chatGatewayExecuteBehaviorChanged": false,
+  "deployExecuted": false,
+  "rollbackRequired": false,
+  "disabledByKillSwitch": true,
+  "completed": false
+}

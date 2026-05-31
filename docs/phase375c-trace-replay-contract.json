@@ -1,0 +1,11 @@
+{
+  "phase": "Phase375C",
+  "replaySteps": [
+    "intent",
+    "panel",
+    "risk",
+    "blockedActions",
+    "dryRunResult",
+    "evidence"
+  ]
+}

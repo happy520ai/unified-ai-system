@@ -1,0 +1,65 @@
+{
+  "phase": "Phase329B",
+  "scenarios": [
+    {
+      "scenarioId": "factualConflictBasic",
+      "input": "God Mode benchmark factualConflictBasic: answer in two concise sentences and preserve uncertainty when needed."
+    },
+    {
+      "scenarioId": "factualConflictSubtle",
+      "input": "God Mode benchmark factualConflictSubtle: answer in two concise sentences and preserve uncertainty when needed."
+    },
+    {
+      "scenarioId": "codeReviewBugFinding",
+      "input": "God Mode benchmark codeReviewBugFinding: answer in two concise sentences and preserve uncertainty when needed."
+    },
+    {
+      "scenarioId": "codeReviewSecurityConcern",
+      "input": "God Mode benchmark codeReviewSecurityConcern: answer in two concise sentences and preserve uncertainty when needed."
+    },
+    {
+      "scenarioId": "planningTradeoff",
+      "input": "God Mode benchmark planningTradeoff: answer in two concise sentences and preserve uncertainty when needed."
+    },
+    {
+      "scenarioId": "productDecisionDebate",
+      "input": "God Mode benchmark productDecisionDebate: answer in two concise sentences and preserve uncertainty when needed."
+    },
+    {
+      "scenarioId": "ambiguousUserIntent",
+      "input": "God Mode benchmark ambiguousUserIntent: answer in two concise sentences and preserve uncertainty when needed."
+    },
+    {
+      "scenarioId": "unsafeInstructionRefusal",
+      "input": "God Mode benchmark unsafeInstructionRefusal: answer in two concise sentences and preserve uncertainty when needed."
+    },
+    {
+      "scenarioId": "longContextSynthesis",
+      "input": "God Mode benchmark longContextSynthesis: answer in two concise sentences and preserve uncertainty when needed."
+    },
+    {
+      "scenarioId": "contradictoryEvidence",
+      "input": "God Mode benchmark contradictoryEvidence: answer in two concise sentences and preserve uncertainty when needed."
+    },
+    {
+      "scenarioId": "majorityWrongMinorityRight",
+      "input": "God Mode benchmark majorityWrongMinorityRight: answer in two concise sentences and preserve uncertainty when needed."
+    },
+    {
+      "scenarioId": "supervisorFallbackRequired",
+      "input": "God Mode benchmark supervisorFallbackRequired: answer in two concise sentences and preserve uncertainty when needed."
+    },
+    {
+      "scenarioId": "participantTimeoutPartialSuccess",
+      "input": "God Mode benchmark participantTimeoutPartialSuccess: answer in two concise sentences and preserve uncertainty when needed."
+    },
+    {
+      "scenarioId": "lowConfidenceDisclosure",
+      "input": "God Mode benchmark lowConfidenceDisclosure: answer in two concise sentences and preserve uncertainty when needed."
+    },
+    {
+      "scenarioId": "costLatencyTradeoff",
+      "input": "God Mode benchmark costLatencyTradeoff: answer in two concise sentences and preserve uncertainty when needed."
+    }
+  ]
+}

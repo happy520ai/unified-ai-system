@@ -1,0 +1,72 @@
+[
+  {
+    "caseId": "provider_unconfigured",
+    "clearNextStep": true,
+    "safePanelRecommended": true,
+    "toneGentle": true,
+    "unsafeFallbackDetected": false
+  },
+  {
+    "caseId": "credentialRef_missing",
+    "clearNextStep": true,
+    "safePanelRecommended": true,
+    "toneGentle": true,
+    "unsafeFallbackDetected": false
+  },
+  {
+    "caseId": "quota_blocked",
+    "clearNextStep": true,
+    "safePanelRecommended": true,
+    "toneGentle": true,
+    "unsafeFallbackDetected": false
+  },
+  {
+    "caseId": "budget_blocked",
+    "clearNextStep": true,
+    "safePanelRecommended": true,
+    "toneGentle": true,
+    "unsafeFallbackDetected": false
+  },
+  {
+    "caseId": "evidence_unavailable",
+    "clearNextStep": true,
+    "safePanelRecommended": true,
+    "toneGentle": true,
+    "unsafeFallbackDetected": false
+  },
+  {
+    "caseId": "security_policy_uncertain",
+    "clearNextStep": true,
+    "safePanelRecommended": true,
+    "toneGentle": true,
+    "unsafeFallbackDetected": false
+  },
+  {
+    "caseId": "mission_context_missing",
+    "clearNextStep": true,
+    "safePanelRecommended": true,
+    "toneGentle": true,
+    "unsafeFallbackDetected": false
+  },
+  {
+    "caseId": "avatar_compact_mode",
+    "clearNextStep": true,
+    "safePanelRecommended": true,
+    "toneGentle": true,
+    "unsafeFallbackDetected": false
+  },
+  {
+    "caseId": "reduced_motion_enabled",
+    "clearNextStep": true,
+    "safePanelRecommended": true,
+    "toneGentle": true,
+    "unsafeFallbackDetected": false
+  },
+  {
+    "caseId": "model_brain_disabled",
+    "clearNextStep": true,
+    "safePanelRecommended": true,
+    "toneGentle": true,
+    "unsafeFallbackDetected": false
+  }
+]

@@ -1,0 +1,330 @@
+{
+  "phase": "Phase332E",
+  "scenarios": [
+    {
+      "testId": "happyPathCredentialRefOnly",
+      "persona": "limited_beta_reviewer",
+      "preconditions": [
+        "Use credential reference names only",
+        "Do not enter real API key values"
+      ],
+      "evidenceToCapture": [
+        "visible warning text",
+        "validation result",
+        "no provider call from UI"
+      ],
+      "safetyChecks": [
+        "secretValueExposed=false",
+        "noProviderCallFromUi=true"
+      ],
+      "steps": [
+        "Open provider onboarding wizard",
+        "Enter credential reference only",
+        "Run local validation"
+      ],
+      "expectedResult": "ONBOARDING_INPUT_ACCEPTED_FOR_BACKEND_GATE",
+      "blockedReasonExpected": null,
+      "input": {
+        "providerId": "openai",
+        "credentialRefType": "env_key_name",
+        "credentialRef": "OPENAI_API_KEY",
+        "confirmation": true
+      }
+    },
+    {
+      "testId": "rawSecretRejected",
+      "persona": "limited_beta_reviewer",
+      "preconditions": [
+        "Use credential reference names only",
+        "Do not enter real API key values"
+      ],
+      "evidenceToCapture": [
+        "visible warning text",
+        "validation result",
+        "no provider call from UI"
+      ],
+      "safetyChecks": [
+        "secretValueExposed=false",
+        "noProviderCallFromUi=true"
+      ],
+      "steps": [
+        "Open provider onboarding wizard",
+        "Enter credential reference only",
+        "Run local validation"
+      ],
+      "expectedResult": "RAW_SECRET_REJECTED",
+      "blockedReasonExpected": "RAW_SECRET_REJECTED",
+      "input": {
+        "providerId": "openai",
+        "credentialRefType": "env_key_name",
+        "credentialRef": "sk-forbidden",
+        "confirmation": true
+      }
+    },
+    {
+      "testId": "missingCredentialRefBlocked",
+      "persona": "limited_beta_reviewer",
+      "preconditions": [
+        "Use credential reference names only",
+        "Do not enter real API key values"
+      ],
+      "evidenceToCapture": [
+        "visible warning text",
+        "validation result",
+        "no provider call from UI"
+      ],
+      "safetyChecks": [
+        "secretValueExposed=false",
+        "noProviderCallFromUi=true"
+      ],
+      "steps": [
+        "Open provider onboarding wizard",
+        "Enter credential reference only",
+        "Run local validation"
+      ],
+      "expectedResult": "CREDENTIAL_REF_MISSING",
+      "blockedReasonExpected": null,
+      "input": {
+        "providerId": "openai",
+        "credentialRefType": "env_key_name",
+        "credentialRef": "",
+        "confirmation": true
+      }
+    },
+    {
+      "testId": "unsupportedProviderRejected",
+      "persona": "limited_beta_reviewer",
+      "preconditions": [
+        "Use credential reference names only",
+        "Do not enter real API key values"
+      ],
+      "evidenceToCapture": [
+        "visible warning text",
+        "validation result",
+        "no provider call from UI"
+      ],
+      "safetyChecks": [
+        "secretValueExposed=false",
+        "noProviderCallFromUi=true"
+      ],
+      "steps": [
+        "Open provider onboarding wizard",
+        "Enter credential reference only",
+        "Run local validation"
+      ],
+      "expectedResult": "UNSUPPORTED_PROVIDER",
+      "blockedReasonExpected": null,
+      "input": {
+        "providerId": "unknown",
+        "credentialRefType": "env_key_name",
+        "credentialRef": "OPENAI_API_KEY",
+        "confirmation": true
+      }
+    },
+    {
+      "testId": "disabledProviderBlocked",
+      "persona": "limited_beta_reviewer",
+      "preconditions": [
+        "Use credential reference names only",
+        "Do not enter real API key values"
+      ],
+      "evidenceToCapture": [
+        "visible warning text",
+        "validation result",
+        "no provider call from UI"
+      ],
+      "safetyChecks": [
+        "secretValueExposed=false",
+        "noProviderCallFromUi=true"
+      ],
+      "steps": [
+        "Open provider onboarding wizard",
+        "Enter credential reference only",
+        "Run local validation"
+      ],
+      "expectedResult": "EXPLICIT_CONFIRMATION_REQUIRED",
+      "blockedReasonExpected": null,
+      "input": {
+        "providerId": "mimo",
+        "credentialRefType": "env_key_name",
+        "credentialRef": "MIMO_API_KEY",
+        "confirmation": false
+      }
+    },
+    {
+      "testId": "productionEnablementBlocked",
+      "persona": "limited_beta_reviewer",
+      "preconditions": [
+        "Use credential reference names only",
+        "Do not enter real API key values"
+      ],
+      "evidenceToCapture": [
+        "visible warning text",
+        "validation result",
+        "no provider call from UI"
+      ],
+      "safetyChecks": [
+        "secretValueExposed=false",
+        "noProviderCallFromUi=true"
+      ],
+      "steps": [
+        "Open provider onboarding wizard",
+        "Enter credential reference only",
+        "Run local validation"
+      ],
+      "expectedResult": "PRODUCTION_ENABLEMENT_BLOCKED_FROM_BETA_UI",
+      "blockedReasonExpected": "PRODUCTION_ENABLEMENT_BLOCKED_FROM_BETA_UI",
+      "input": {
+        "providerId": "openai",
+        "credentialRefType": "env_key_name",
+        "credentialRef": "OPENAI_API_KEY",
+        "productionEnablementRequested": true,
+        "confirmation": true
+      }
+    },
+    {
+      "testId": "quotaWarningShown",
+      "persona": "limited_beta_reviewer",
+      "preconditions": [
+        "Use credential reference names only",
+        "Do not enter real API key values"
+      ],
+      "evidenceToCapture": [
+        "visible warning text",
+        "validation result",
+        "no provider call from UI"
+      ],
+      "safetyChecks": [
+        "secretValueExposed=false",
+        "noProviderCallFromUi=true"
+      ],
+      "steps": [
+        "Open provider onboarding wizard",
+        "Inspect visible beta guidance"
+      ],
+      "expectedResult": "VISIBLE",
+      "blockedReasonExpected": null,
+      "staticPass": true
+    },
+    {
+      "testId": "budgetWarningShown",
+      "persona": "limited_beta_reviewer",
+      "preconditions": [
+        "Use credential reference names only",
+        "Do not enter real API key values"
+      ],
+      "evidenceToCapture": [
+        "visible warning text",
+        "validation result",
+        "no provider call from UI"
+      ],
+      "safetyChecks": [
+        "secretValueExposed=false",
+        "noProviderCallFromUi=true"
+      ],
+      "steps": [
+        "Open provider onboarding wizard",
+        "Inspect visible beta guidance"
+      ],
+      "expectedResult": "VISIBLE",
+      "blockedReasonExpected": null,
+      "staticPass": true
+    },
+    {
+      "testId": "revokeFlowExplained",
+      "persona": "limited_beta_reviewer",
+      "preconditions": [
+        "Use credential reference names only",
+        "Do not enter real API key values"
+      ],
+      "evidenceToCapture": [
+        "visible warning text",
+        "validation result",
+        "no provider call from UI"
+      ],
+      "safetyChecks": [
+        "secretValueExposed=false",
+        "noProviderCallFromUi=true"
+      ],
+      "steps": [
+        "Open provider onboarding wizard",
+        "Inspect visible beta guidance"
+      ],
+      "expectedResult": "VISIBLE",
+      "blockedReasonExpected": null,
+      "staticPass": true
+    },
+    {
+      "testId": "rotateFlowExplained",
+      "persona": "limited_beta_reviewer",
+      "preconditions": [
+        "Use credential reference names only",
+        "Do not enter real API key values"
+      ],
+      "evidenceToCapture": [
+        "visible warning text",
+        "validation result",
+        "no provider call from UI"
+      ],
+      "safetyChecks": [
+        "secretValueExposed=false",
+        "noProviderCallFromUi=true"
+      ],
+      "steps": [
+        "Open provider onboarding wizard",
+        "Inspect visible beta guidance"
+      ],
+      "expectedResult": "VISIBLE",
+      "blockedReasonExpected": null,
+      "staticPass": true
+    },
+    {
+      "testId": "betaOnlyMessagingVisible",
+      "persona": "limited_beta_reviewer",
+      "preconditions": [
+        "Use credential reference names only",
+        "Do not enter real API key values"
+      ],
+      "evidenceToCapture": [
+        "visible warning text",
+        "validation result",
+        "no provider call from UI"
+      ],
+      "safetyChecks": [
+        "secretValueExposed=false",
+        "noProviderCallFromUi=true"
+      ],
+      "steps": [
+        "Open provider onboarding wizard",
+        "Inspect visible beta guidance"
+      ],
+      "expectedResult": "VISIBLE",
+      "blockedReasonExpected": null,
+      "staticPass": true
+    },
+    {
+      "testId": "noProviderCallFromUi",
+      "persona": "limited_beta_reviewer",
+      "preconditions": [
+        "Use credential reference names only",
+        "Do not enter real API key values"
+      ],
+      "evidenceToCapture": [
+        "visible warning text",
+        "validation result",
+        "no provider call from UI"
+      ],
+      "safetyChecks": [
+        "secretValueExposed=false",
+        "noProviderCallFromUi=true"
+      ],
+      "steps": [
+        "Open provider onboarding wizard",
+        "Inspect visible beta guidance"
+      ],
+      "expectedResult": "VISIBLE",
+      "blockedReasonExpected": null,
+      "staticPass": true
+    }
+  ]
+}

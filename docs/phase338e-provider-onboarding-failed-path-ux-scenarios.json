@@ -1,0 +1,25 @@
+{
+  "phase": "Phase338E",
+  "scenarios": [
+    {
+      "id": "rawSecretRejected",
+      "userMessagePresent": true
+    },
+    {
+      "id": "missingCredentialRefBlocked",
+      "userMessagePresent": true
+    },
+    {
+      "id": "unsupportedProviderRejected",
+      "userMessagePresent": true
+    },
+    {
+      "id": "disabledProviderBlocked",
+      "userMessagePresent": true
+    },
+    {
+      "id": "noProviderCallFromUi",
+      "userMessagePresent": true
+    }
+  ]
+}

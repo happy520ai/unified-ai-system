@@ -1,0 +1,26 @@
+{
+  "assetId": "yiyi_concept_board_v1",
+  "assetType": "generated_concept_board",
+  "file": "yiyi-concept-board.png",
+  "sourceType": "generated_visual_reference",
+  "sourcePath": "yiyi.png",
+  "assetPath": "apps/ai-gateway-service/src/ui/assets/yiyi/yiyi-concept-board.png",
+  "fileSizeBytes": 2467272,
+  "sha256": "6498c6a6b1eb5a788d2bf5fb86d6114dc69d4ac4d42306492a66e96c36ba3116",
+  "originalUserPhotoStored": false,
+  "rawPhotoStored": false,
+  "externalUploadPerformed": false,
+  "faceRecognitionPerformed": false,
+  "sensitiveAttributeInferencePerformed": false,
+  "photoInEvidence": false,
+  "isProduction3DModel": false,
+  "isGltfOrGlb": false,
+  "real3DModelLoaded": false,
+  "binaryEmbeddedInJson": false,
+  "usage": [
+    "mission_avatar_visual_reference",
+    "character_card",
+    "onboarding_preview",
+    "future_3d_model_brief"
+  ]
+}

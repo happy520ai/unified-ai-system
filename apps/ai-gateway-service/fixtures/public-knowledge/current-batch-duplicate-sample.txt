@@ -1,0 +1,1 @@
+Current batch public knowledge sample about local keyword indexing should only be accepted once in a single import batch.

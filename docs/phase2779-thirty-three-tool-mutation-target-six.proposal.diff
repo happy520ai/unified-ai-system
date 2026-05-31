@@ -1,0 +1,51 @@
+diff --git a/tools/phase2111_2120/apply-controlled-quint-tool-mutation.mjs b/tools/phase2111_2120/apply-controlled-quint-tool-mutation.mjs
+index 5df6a87..3d3e609 100644
+--- a/tools/phase2111_2120/apply-controlled-quint-tool-mutation.mjs
++++ b/tools/phase2111_2120/apply-controlled-quint-tool-mutation.mjs
+@@ -740,6 +740,46 @@ export function buildPhase2742ThirtyTwoMutationTargetSixStatus() {
+     chatGatewayExecuteModified: false,
+   };
+ }
++
++export function buildPhase2779ThirtyThreeMutationTargetSixStatus() {
++  return {
++    phaseId: "Phase2779A-Controlled-Thirty-Three-Tool-Mutation-Target-Six",
++    marker: "PHASE2779_THIRTY_THREE_TOOL_TARGET_SIX_OK",
++    importSafe: true,
++    phase2142Marker: "PHASE2142_SEPT_TOOL_TARGET_SIX_OK",
++    phase2154Marker: "PHASE2154_OCT_TOOL_TARGET_SIX_OK",
++    phase2167Marker: "PHASE2167_NONET_TOOL_TARGET_SIX_OK",
++    phase2181Marker: "PHASE2181_DECA_TOOL_TARGET_SIX_OK",
++    phase2196Marker: "PHASE2196_ELEVEN_TOOL_TARGET_SIX_OK",
++    phase2212Marker: "PHASE2212_TWELVE_TOOL_TARGET_SIX_OK",
++    phase2229Marker: "PHASE2229_THIRTEEN_TOOL_TARGET_SIX_OK",
++    phase2247Marker: "PHASE2247_FOURTEEN_TOOL_TARGET_SIX_OK",
++    phase2266Marker: "PHASE2266_FIFTEEN_TOOL_TARGET_SIX_OK",
++    phase2286Marker: "PHASE2286_SIXTEEN_TOOL_TARGET_SIX_OK",
++    phase2307Marker: "PHASE2307_SEVENTEEN_TOOL_TARGET_SIX_OK",
++    phase2329Marker: "PHASE2329_EIGHTEEN_TOOL_TARGET_SIX_OK",
++    phase2352Marker: "PHASE2352_NINETEEN_TOOL_TARGET_SIX_OK",
++    phase2376Marker: "PHASE2376_TWENTY_TOOL_TARGET_SIX_OK",
++    phase2401Marker: "PHASE2401_TWENTY_ONE_TOOL_TARGET_SIX_OK",
++    phase2427Marker: "PHASE2427_TWENTY_TWO_TOOL_TARGET_SIX_OK",
++    phase2454Marker: "PHASE2454_TWENTY_THREE_TOOL_TARGET_SIX_OK",
++    phase2482Marker: "PHASE2482_TWENTY_FOUR_TOOL_TARGET_SIX_OK",
++    phase2511Marker: "PHASE2511_TWENTY_FIVE_TOOL_TARGET_SIX_OK",
++    phase2541Marker: "PHASE2541_TWENTY_SIX_TOOL_TARGET_SIX_OK",
++    phase2572Marker: "PHASE2572_TWENTY_SEVEN_TOOL_TARGET_SIX_OK",
++    phase2604Marker: "PHASE2604_TWENTY_EIGHT_TOOL_TARGET_SIX_OK",
++    phase2637Marker: "PHASE2637_TWENTY_NINE_TOOL_TARGET_SIX_OK",
++    phase2671Marker: "PHASE2671_THIRTY_TOOL_TARGET_SIX_OK",
++    phase2706Marker: "PHASE2706_THIRTY_ONE_TOOL_TARGET_SIX_OK",
++    phase2742Marker: "PHASE2742_THIRTY_TWO_TOOL_TARGET_SIX_OK",
++    phase2779Marker: "PHASE2779_THIRTY_THREE_TOOL_TARGET_SIX_OK",
++    thirtyThreeMutationApplied: true,
++    providerCallsMade: false,
++    codexExecExecuted: false,
++    chatModified: false,
++    chatGatewayExecuteModified: false,
++  };
++}
+ export function main() {
+   const args = parseArgs(process.argv.slice(2));
+   const planPath = args.plan || "docs/phase2111-2120-controlled-quint-tool-mutation-approval.example.json";

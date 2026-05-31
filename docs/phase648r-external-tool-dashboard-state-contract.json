@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Phase648R External Tool Dashboard State",
+  "type": "object",
+  "required": [
+    "externalToolMode",
+    "phase632PreflightStatus",
+    "contextPackStatus",
+    "relevantFilesStatus",
+    "tokenBudgetStatus",
+    "staleGateStatus",
+    "nightlyRunnerStatus",
+    "fallbackLauncherStatus",
+    "latestEvidencePaths",
+    "notChatIntegrated",
+    "notChatGatewayExecuteIntegrated",
+    "notProviderRuntime",
+    "productionReady",
+    "releaseReady"
+  ],
+  "properties": {
+    "externalToolMode": { "const": true },
+    "phase632PreflightStatus": { "type": "string" },
+    "contextPackStatus": { "type": "string" },
+    "relevantFilesStatus": { "type": "string" },
+    "tokenBudgetStatus": { "type": "string" },
+    "staleGateStatus": { "type": "string" },
+    "nightlyRunnerStatus": { "type": "string" },
+    "fallbackLauncherStatus": { "type": "string" },
+    "latestEvidencePaths": { "type": "array", "items": { "type": "string" } },
+    "notChatIntegrated": { "const": true },
+    "notChatGatewayExecuteIntegrated": { "const": true },
+    "notProviderRuntime": { "const": true },
+    "productionReady": { "const": false },
+    "releaseReady": { "const": false }
+  },
+  "additionalProperties": false
+}

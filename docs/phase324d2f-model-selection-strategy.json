@@ -1,0 +1,297 @@
+{
+  "phase": "Phase324D-2F",
+  "generatedAt": "2026-05-06T14:57:11.244Z",
+  "sourceFiles": {
+    "phase324dViewData": "docs/phase324d-model-status-view-data.json",
+    "phase324eReport": "docs/phase324e-model-library-operations-report.json",
+    "phase324eDashboard": "docs/phase324e-model-library-operations-dashboard-data.json",
+    "usabilityMatrix": "apps/ai-gateway-service/evidence/phase-313a-model-usability-matrix.json",
+    "verificationState": "apps/ai-gateway-service/evidence/phase-313a-model-verification-state.json"
+  },
+  "summary": {
+    "selectableModels": 9,
+    "totalModels": 148,
+    "smokePassedModels": 9,
+    "failedModels": 9,
+    "unverifiedModels": 125,
+    "providerScope": "NVIDIA-only",
+    "multiProviderOpen": false,
+    "verificationStateRecordCount": 10,
+    "operationsAverageLatencyMs": 3719.63
+  },
+  "defaultRecommended": {
+    "modelId": "nvidia/nemotron-3-super-120b-a12b",
+    "providerId": "nvidia",
+    "capabilityBucket": "reasoning_chat",
+    "evidenceId": "phase324b-nvidia_nemotron_3_super_120b_a12b-20260506124314",
+    "latencyMs": 974,
+    "reason": "Evidence-backed selectable model with a balanced latency/quality profile. Strategy only; does not change real default route."
+  },
+  "fastModels": [
+    {
+      "modelId": "nvidia/nemotron-mini-4b-instruct",
+      "providerId": "nvidia",
+      "capabilityBucket": "reasoning_chat",
+      "evidenceId": "phase324b-nvidia_nemotron_mini_4b_instruct-20260506124316",
+      "latencyMs": 428,
+      "reason": "Low latency in current smoke evidence; not a long-term SLA."
+    },
+    {
+      "modelId": "microsoft/phi-4-mini-instruct",
+      "providerId": "nvidia",
+      "capabilityBucket": "chat",
+      "evidenceId": "phase324b3-microsoft_phi_4_mini_instruct-20260506130704",
+      "latencyMs": 446,
+      "reason": "Low latency in current smoke evidence; not a long-term SLA."
+    },
+    {
+      "modelId": "nvidia/nemotron-3-super-120b-a12b",
+      "providerId": "nvidia",
+      "capabilityBucket": "reasoning_chat",
+      "evidenceId": "phase324b-nvidia_nemotron_3_super_120b_a12b-20260506124314",
+      "latencyMs": 974,
+      "reason": "Low latency in current smoke evidence; not a long-term SLA."
+    },
+    {
+      "modelId": "abacusai/dracarys-llama-3.1-70b-instruct",
+      "providerId": "nvidia",
+      "capabilityBucket": "chat",
+      "evidenceId": "phase324b2-abacusai_dracarys_llama_3_1_70b_instruct-20260506130555",
+      "latencyMs": 1011,
+      "reason": "Low latency in current smoke evidence; not a long-term SLA."
+    }
+  ],
+  "highQualityModels": [
+    {
+      "modelId": "abacusai/dracarys-llama-3.1-70b-instruct",
+      "providerId": "nvidia",
+      "capabilityBucket": "chat",
+      "evidenceId": "phase324b2-abacusai_dracarys_llama_3_1_70b_instruct-20260506130555",
+      "latencyMs": 1011,
+      "reason": "High-capability candidate with evidence-backed selectable status."
+    },
+    {
+      "modelId": "meta/llama-3.1-70b-instruct",
+      "providerId": "nvidia",
+      "capabilityBucket": "chat",
+      "evidenceId": "phase324b2-meta_llama_3_1_70b_instruct-20260506130559",
+      "latencyMs": 2143,
+      "reason": "High-capability candidate with evidence-backed selectable status."
+    },
+    {
+      "modelId": "meta/llama-3.3-70b-instruct",
+      "providerId": "nvidia",
+      "capabilityBucket": "chat",
+      "evidenceId": "phase324b2-meta_llama_3_3_70b_instruct-20260506130650",
+      "latencyMs": 18410,
+      "reason": "High-capability candidate with high-latency warning."
+    },
+    {
+      "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1",
+      "providerId": "nvidia",
+      "capabilityBucket": "reasoning_chat",
+      "evidenceId": "phase-313a-model-usability-matrix",
+      "latencyMs": null,
+      "reason": "High-capability candidate with evidence-backed selectable status."
+    },
+    {
+      "modelId": "nvidia/nemotron-3-super-120b-a12b",
+      "providerId": "nvidia",
+      "capabilityBucket": "reasoning_chat",
+      "evidenceId": "phase324b-nvidia_nemotron_3_super_120b_a12b-20260506124314",
+      "latencyMs": 974,
+      "reason": "High-capability candidate with evidence-backed selectable status."
+    }
+  ],
+  "lowLatencyModels": [
+    {
+      "modelId": "nvidia/nemotron-mini-4b-instruct",
+      "providerId": "nvidia",
+      "capabilityBucket": "reasoning_chat",
+      "evidenceId": "phase324b-nvidia_nemotron_mini_4b_instruct-20260506124316",
+      "latencyMs": 428,
+      "reason": "Latency comes from smoke evidence; not a long-term SLA."
+    },
+    {
+      "modelId": "microsoft/phi-4-mini-instruct",
+      "providerId": "nvidia",
+      "capabilityBucket": "chat",
+      "evidenceId": "phase324b3-microsoft_phi_4_mini_instruct-20260506130704",
+      "latencyMs": 446,
+      "reason": "Latency comes from smoke evidence; not a long-term SLA."
+    },
+    {
+      "modelId": "nvidia/nemotron-3-super-120b-a12b",
+      "providerId": "nvidia",
+      "capabilityBucket": "reasoning_chat",
+      "evidenceId": "phase324b-nvidia_nemotron_3_super_120b_a12b-20260506124314",
+      "latencyMs": 974,
+      "reason": "Latency comes from smoke evidence; not a long-term SLA."
+    },
+    {
+      "modelId": "abacusai/dracarys-llama-3.1-70b-instruct",
+      "providerId": "nvidia",
+      "capabilityBucket": "chat",
+      "evidenceId": "phase324b2-abacusai_dracarys_llama_3_1_70b_instruct-20260506130555",
+      "latencyMs": 1011,
+      "reason": "Latency comes from smoke evidence; not a long-term SLA."
+    },
+    {
+      "modelId": "meta/llama-3.1-70b-instruct",
+      "providerId": "nvidia",
+      "capabilityBucket": "chat",
+      "evidenceId": "phase324b2-meta_llama_3_1_70b_instruct-20260506130559",
+      "latencyMs": 2143,
+      "reason": "Latency comes from smoke evidence; not a long-term SLA."
+    }
+  ],
+  "balancedModels": [
+    {
+      "modelId": "nvidia/nemotron-3-super-120b-a12b",
+      "providerId": "nvidia",
+      "capabilityBucket": "reasoning_chat",
+      "evidenceId": "phase324b-nvidia_nemotron_3_super_120b_a12b-20260506124314",
+      "latencyMs": 974,
+      "reason": "Balanced recommendation from selectable status, evidenceId, capability, and latency."
+    },
+    {
+      "modelId": "abacusai/dracarys-llama-3.1-70b-instruct",
+      "providerId": "nvidia",
+      "capabilityBucket": "chat",
+      "evidenceId": "phase324b2-abacusai_dracarys_llama_3_1_70b_instruct-20260506130555",
+      "latencyMs": 1011,
+      "reason": "Balanced recommendation from selectable status, evidenceId, capability, and latency."
+    },
+    {
+      "modelId": "meta/llama-3.1-70b-instruct",
+      "providerId": "nvidia",
+      "capabilityBucket": "chat",
+      "evidenceId": "phase324b2-meta_llama_3_1_70b_instruct-20260506130559",
+      "latencyMs": 2143,
+      "reason": "Balanced recommendation from selectable status, evidenceId, capability, and latency."
+    },
+    {
+      "modelId": "nvidia/nemotron-mini-4b-instruct",
+      "providerId": "nvidia",
+      "capabilityBucket": "reasoning_chat",
+      "evidenceId": "phase324b-nvidia_nemotron_mini_4b_instruct-20260506124316",
+      "latencyMs": 428,
+      "reason": "Balanced recommendation from selectable status, evidenceId, capability, and latency."
+    }
+  ],
+  "fallbackCandidates": [
+    {
+      "modelId": "nvidia/nemotron-mini-4b-instruct",
+      "providerId": "nvidia",
+      "capabilityBucket": "reasoning_chat",
+      "evidenceId": "phase324b-nvidia_nemotron_mini_4b_instruct-20260506124316",
+      "latencyMs": 428,
+      "reason": "Selectable evidence-backed fallback candidate."
+    },
+    {
+      "modelId": "microsoft/phi-4-mini-instruct",
+      "providerId": "nvidia",
+      "capabilityBucket": "chat",
+      "evidenceId": "phase324b3-microsoft_phi_4_mini_instruct-20260506130704",
+      "latencyMs": 446,
+      "reason": "Selectable evidence-backed fallback candidate."
+    },
+    {
+      "modelId": "nvidia/nemotron-3-super-120b-a12b",
+      "providerId": "nvidia",
+      "capabilityBucket": "reasoning_chat",
+      "evidenceId": "phase324b-nvidia_nemotron_3_super_120b_a12b-20260506124314",
+      "latencyMs": 974,
+      "reason": "Selectable evidence-backed fallback candidate."
+    }
+  ],
+  "highLatencyWarning": [
+    {
+      "modelId": "meta/llama-3.1-8b-instruct",
+      "latencyMs": 30503,
+      "evidenceId": "phase324b2-meta_llama_3_1_8b_instruct-20260506130631",
+      "warning": "Latency is from smoke evidence only and may affect UX; do not treat as SLA."
+    },
+    {
+      "modelId": "meta/llama-3.3-70b-instruct",
+      "latencyMs": 18410,
+      "evidenceId": "phase324b2-meta_llama_3_3_70b_instruct-20260506130650",
+      "warning": "Latency is from smoke evidence only and may affect UX; do not treat as SLA."
+    }
+  ],
+  "notRecommendedNow": [
+    {
+      "modelId": "meta/llama2-70b",
+      "providerId": "nvidia",
+      "evidenceId": "phase324b2-meta_llama2_70b-20260506130652",
+      "reason": "httpStatus=404; assistantTextPresent=false; not eligible for selectable"
+    },
+    {
+      "modelId": "meta/llama3-8b",
+      "providerId": "nvidia",
+      "evidenceId": "phase324b3-meta_llama3_8b-20260506130700",
+      "reason": "httpStatus=404; assistantTextPresent=false; not eligible for selectable"
+    },
+    {
+      "modelId": "microsoft/phi-3-mini-4k-instruct",
+      "providerId": "nvidia",
+      "evidenceId": "phase324b3-microsoft_phi_3_mini_4k_instruct-20260506130702",
+      "reason": "httpStatus=410; assistantTextPresent=false; not eligible for selectable"
+    },
+    {
+      "modelId": "mistralai/mistral-7b-instruct",
+      "providerId": "nvidia",
+      "evidenceId": "phase324b3-mistralai_mistral_7b_instruct-20260506130705",
+      "reason": "httpStatus=404; assistantTextPresent=false; not eligible for selectable"
+    },
+    {
+      "modelId": "mistralai/mistral-7b-instruct-v0.3",
+      "providerId": "nvidia",
+      "evidenceId": "phase324b3-mistralai_mistral_7b_instruct_v0_3-20260506130707",
+      "reason": "httpStatus=404; assistantTextPresent=false; not eligible for selectable"
+    },
+    {
+      "modelId": "nvidia/llama-3.1-nemotron-ultra-253b-v1",
+      "providerId": "nvidia",
+      "evidenceId": "phase-313a-model-usability-matrix",
+      "reason": "NVIDIA call did not complete successfully (HTTP 404)."
+    },
+    {
+      "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1.5",
+      "providerId": "nvidia",
+      "evidenceId": "phase324b-nvidia_llama_3_3_nemotron_super_49b_v1_5-20260506124310",
+      "reason": "completionVerified=false; assistantTextPresent=false; not eligible for selectable"
+    },
+    {
+      "modelId": "nvidia/nemotron-3-nano-30b-a3b",
+      "providerId": "nvidia",
+      "evidenceId": "phase324b-nvidia_nemotron_3_nano_30b_a3b-20260506124312",
+      "reason": "completionVerified=false; assistantTextPresent=false; not eligible for selectable"
+    },
+    {
+      "modelId": "nvidia/nvidia-nemotron-nano-9b-v2",
+      "providerId": "nvidia",
+      "evidenceId": "phase324b-nvidia_nvidia_nemotron_nano_9b_v2-20260506124319",
+      "reason": "completionVerified=false; assistantTextPresent=false; not eligible for selectable"
+    }
+  ],
+  "multiProviderStatus": {
+    "nvidia": "enabled-real-provider",
+    "openai": "future-provider-slot-not-open",
+    "claude": "future-provider-slot-not-open",
+    "openrouter": "future-provider-slot-not-open",
+    "mimo": "future-provider-slot-not-open",
+    "local": "future-provider-slot-not-open"
+  },
+  "safety": {
+    "strategyOnly": true,
+    "changesRealDefaultModel": false,
+    "changesRealRouting": false,
+    "changesSelectableGate": false,
+    "recommendsFailedAsDefault": false,
+    "recommendsUnverifiedAsDefault": false,
+    "recommendsNonNvidiaAsDefault": false,
+    "apiCalled": false,
+    "envRead": false
+  }
+}

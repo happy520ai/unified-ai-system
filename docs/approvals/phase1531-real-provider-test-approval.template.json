@@ -1,0 +1,37 @@
+{
+  "phase": "Phase1531",
+  "recordType": "real_provider_test_approval_template",
+  "routeChoice": "local_self_use_only",
+  "localSelfUseOnly": true,
+  "providerScope": "nvidia_only_local_self_use",
+  "providerRefExplicitlyConfigured": false,
+  "credentialRefExists": false,
+  "credentialRefOnly": true,
+  "credentialRefRecordPolicy": "Do not paste raw CredentialRef or secret values into repository files.",
+  "rawSecretRead": false,
+  "secretValueExposed": false,
+  "rawCredentialRefRead": false,
+  "maxRequests": 20,
+  "maxEstimatedCostUsd": 1,
+  "resultLedgerEnabled": true,
+  "rollbackPlanReady": true,
+  "allowProviderCall": false,
+  "approvalOwner": "owner_required_before_real_call",
+  "providerCallDefault": "blocked_until_all_gate_fields_are_true",
+  "forbiddenProviders": [
+    "openai",
+    "claude",
+    "openrouter",
+    "mimo",
+    "paid_provider"
+  ],
+  "forbiddenActions": [
+    "read_raw_secret",
+    "read_auth_json",
+    "output_raw_credential_ref",
+    "modify_chat_default",
+    "modify_chat_gateway_execute_default",
+    "deploy_release_tag_artifact_upload",
+    "push_commit"
+  ]
+}

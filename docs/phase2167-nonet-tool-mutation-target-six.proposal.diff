@@ -1,0 +1,26 @@
+diff --git a/tools/phase2111_2120/apply-controlled-quint-tool-mutation.mjs b/tools/phase2111_2120/apply-controlled-quint-tool-mutation.mjs
+--- a/tools/phase2111_2120/apply-controlled-quint-tool-mutation.mjs
++++ b/tools/phase2111_2120/apply-controlled-quint-tool-mutation.mjs
+@@ -77,6 +77,22 @@ export function buildPhase2154OctMutationTargetSixStatus() {
+   };
+ }
+ 
++export function buildPhase2167NonetMutationTargetSixStatus() {
++  return {
++    phaseId: "Phase2167A-Controlled-Nonet-Tool-Mutation-Target-Six",
++    marker: "PHASE2167_NONET_TOOL_TARGET_SIX_OK",
++    importSafe: true,
++    phase2142Marker: "PHASE2142_SEPT_TOOL_TARGET_SIX_OK",
++    phase2154Marker: "PHASE2154_OCT_TOOL_TARGET_SIX_OK",
++    phase2167Marker: "PHASE2167_NONET_TOOL_TARGET_SIX_OK",
++    nonetMutationApplied: true,
++    providerCallsMade: false,
++    codexExecExecuted: false,
++    chatModified: false,
++    chatGatewayExecuteModified: false,
++  };
++}
++
+ export function main() {
+   const args = parseArgs(process.argv.slice(2));
+   const planPath = args.plan || "docs/phase2111-2120-controlled-quint-tool-mutation-approval.example.json";

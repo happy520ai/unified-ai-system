@@ -1,0 +1,20 @@
+{
+  "recordId": "owner-daily-use-0001",
+  "ownerProvided": true,
+  "createdAt": "YYYY-MM-DDTHH:mm:ss+08:00",
+  "scenario": "",
+  "taskAttempted": "",
+  "entryPointUsed": "",
+  "expectedOutcome": "",
+  "actualOutcome": "",
+  "completed": false,
+  "friction": "",
+  "severityHint": "P0 | P1 | P2 | P3 | LowValue",
+  "screenshotsOrEvidenceRefs": [],
+  "secretsIncluded": false,
+  "providerCallRequested": false,
+  "deployRequested": false,
+  "chatRouteChangeRequested": false,
+  "chatGatewayExecuteChangeRequested": false,
+  "ownerNotes": ""
+}

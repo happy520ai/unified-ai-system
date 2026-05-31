@@ -1,0 +1,14 @@
+{
+  "phase": "Phase364D",
+  "preflightOnly": true,
+  "commandsGenerated": true,
+  "commandsExecuted": false,
+  "deployCommandExecuted": false,
+  "releaseCommandExecuted": false,
+  "tagCommandExecuted": false,
+  "artifactUploadExecuted": false,
+  "requiresFinalManualExecutionConfirmation": true,
+  "safety": {
+    "secretValueExposed": false
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "phase": "Phase371C",
+  "tianshuVisualAcceptanceExecuted": true,
+  "tianshuPanelVisible": true,
+  "plannerExplanationVisible": true,
+  "noCandidateFallbackVisible": true,
+  "nextActionsVisible": true,
+  "dryRunNoticeVisible": true,
+  "secretValueVisible": false,
+  "productionRuntimeClaimDetected": false,
+  "providerCallsMade": false,
+  "deployExecuted": false,
+  "acceptancePassed": false,
+  "manualBrowserVerificationRequired": true
+}

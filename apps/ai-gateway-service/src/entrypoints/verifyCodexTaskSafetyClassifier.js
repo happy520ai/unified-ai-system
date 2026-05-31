@@ -1,0 +1,62 @@
+import { verifyCodexOneShotReadinessPhase } from "./verifyCodexOneShotReadinessSupport.js";
+
+await verifyCodexOneShotReadinessPhase({
+  phase: "phase-257a-codex-task-safety-classifier",
+  docPath: "docs/CODEX_TASK_SAFETY_CLASSIFIER.md",
+  verifierPath: "apps/ai-gateway-service/src/entrypoints/verifyCodexTaskSafetyClassifier.js",
+  rootScriptName: "verify:phase257a-codex-task-safety-classifier",
+  serviceScriptValue: "node ./src/entrypoints/verifyCodexTaskSafetyClassifier.js",
+  requiredDocSections: [
+    "# Codex Task Safety Classifier",
+    "## 1. safe-preview Definition",
+    "## 2. needs-human-review Definition",
+    "## 3. blocked Definition",
+    "## 4. forbidden Definition",
+    "## 5. Examples By Class",
+    "## 6. Never Automatic",
+    "## 7. Handoff-only Tasks",
+    "## 8. One-shot Readiness Candidates",
+    "## 9. Human Confirmation Required",
+    "## 10. Classification Output Template",
+  ],
+  requiredDocMarkers: [
+    "safe-preview",
+    "needs-human-review",
+    "blocked",
+    "forbidden",
+    "must never be automatic",
+    "can only generate handoff text",
+    "executionEnabled=false",
+    "codexExecInvoked=false",
+    "approvalPreviewIsExecutionPermission=false",
+  ],
+  requiredUiMarkers: [
+    "phase257a-codex-task-safety-classifier",
+    "safe-preview",
+    "needs-human-review",
+    "blocked",
+    "forbidden",
+    "handoff only",
+    "human confirmation",
+  ],
+  requiredVerificationCommands: [
+    "cmd /c pnpm run verify:phase257a-codex-task-safety-classifier",
+  ],
+  requiredEvidenceStatusPaths: [
+    "apps/ai-gateway-service/evidence/phase-256a-codex-one-shot-readiness-policy.json",
+  ],
+  conclusionPassed: "codex-task-safety-classifier-preview-ready",
+  conclusionFailed: "codex-task-safety-classifier-preview-incomplete",
+  capabilityList: [
+    "task-safety-classifier",
+    "safe-preview",
+    "needs-human-review",
+    "blocked",
+    "forbidden",
+    "handoff-only",
+  ],
+  notes: [
+    "Phase 257A classifies candidate Codex tasks before readiness.",
+    "Forbidden tasks remain blocked from automatic execution.",
+  ],
+});

@@ -1,0 +1,11 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Yiyi Persona Entry",
+  "type": "object",
+  "required": ["entryText", "entryTypeHint", "source"],
+  "properties": {
+    "entryText": { "type": "string" },
+    "entryTypeHint": { "type": "string" },
+    "source": { "type": "string" }
+  }
+}

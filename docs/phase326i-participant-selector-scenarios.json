@@ -1,0 +1,79 @@
+{
+  "phase": "Phase326I",
+  "runtimeStatus": "dry_run_without_provider_call",
+  "scenarios": [
+    {
+      "scenarioId": "codingReviewParticipantSelection",
+      "mode": "god",
+      "runtimeStatus": "dry_run_without_provider_call",
+      "taskType": "coding",
+      "selectionPolicy": "balanced_review",
+      "providerCallsAllowed": false,
+      "nonNvidiaProviderCallsAllowed": false,
+      "secretValueAllowed": false,
+      "candidateModels": [
+        { "modelId": "mock-coder", "credentialRefPresent": true, "providerEnabled": true, "highRisk": false, "capabilities": { "coding": 0.95, "reasoning": 0.8, "critique": 0.6, "safety": 0.5 }, "reliabilityScore": 0.9, "latencyTier": "fast", "costTier": "medium" },
+        { "modelId": "mock-critic", "credentialRefPresent": true, "providerEnabled": true, "highRisk": false, "capabilities": { "coding": 0.7, "reasoning": 0.85, "critique": 0.95, "safety": 0.6 }, "reliabilityScore": 0.88, "latencyTier": "normal", "costTier": "medium" },
+        { "modelId": "mock-supervisor", "credentialRefPresent": true, "providerEnabled": true, "highRisk": false, "capabilities": { "coding": 0.65, "reasoning": 0.9, "critique": 0.8, "safety": 0.75 }, "reliabilityScore": 0.92, "latencyTier": "normal", "costTier": "medium" }
+      ]
+    },
+    {
+      "scenarioId": "factualReviewParticipantSelection",
+      "mode": "god",
+      "runtimeStatus": "dry_run_without_provider_call",
+      "taskType": "research",
+      "selectionPolicy": "fact_check_heavy",
+      "providerCallsAllowed": false,
+      "nonNvidiaProviderCallsAllowed": false,
+      "secretValueAllowed": false,
+      "candidateModels": [
+        { "modelId": "mock-reasoner", "credentialRefPresent": true, "providerEnabled": true, "highRisk": false, "capabilities": { "reasoning": 0.9, "critique": 0.75, "safety": 0.5 }, "reliabilityScore": 0.9, "latencyTier": "normal", "costTier": "medium" },
+        { "modelId": "mock-fact-checker", "credentialRefPresent": true, "providerEnabled": true, "highRisk": false, "capabilities": { "reasoning": 0.78, "critique": 0.88, "safety": 0.6 }, "reliabilityScore": 0.86, "latencyTier": "fast", "costTier": "low" },
+        { "modelId": "mock-supervisor", "credentialRefPresent": true, "providerEnabled": true, "highRisk": false, "capabilities": { "reasoning": 0.9, "critique": 0.8, "safety": 0.75 }, "reliabilityScore": 0.92, "latencyTier": "normal", "costTier": "medium" }
+      ]
+    },
+    {
+      "scenarioId": "safetySensitiveParticipantSelection",
+      "mode": "god",
+      "runtimeStatus": "dry_run_without_provider_call",
+      "taskType": "safety_sensitive",
+      "selectionPolicy": "safety_guard_required",
+      "providerCallsAllowed": false,
+      "nonNvidiaProviderCallsAllowed": false,
+      "secretValueAllowed": false,
+      "candidateModels": [
+        { "modelId": "mock-primary", "credentialRefPresent": true, "providerEnabled": true, "highRisk": false, "capabilities": { "reasoning": 0.82, "critique": 0.65, "safety": 0.7 }, "reliabilityScore": 0.86, "latencyTier": "fast", "costTier": "low" },
+        { "modelId": "mock-safety", "credentialRefPresent": true, "providerEnabled": true, "highRisk": false, "capabilities": { "reasoning": 0.7, "critique": 0.75, "safety": 0.96 }, "reliabilityScore": 0.9, "latencyTier": "normal", "costTier": "medium" },
+        { "modelId": "mock-supervisor", "credentialRefPresent": true, "providerEnabled": true, "highRisk": false, "capabilities": { "reasoning": 0.9, "critique": 0.8, "safety": 0.8 }, "reliabilityScore": 0.92, "latencyTier": "normal", "costTier": "medium" }
+      ]
+    },
+    {
+      "scenarioId": "insufficientParticipantsScenario",
+      "mode": "god",
+      "runtimeStatus": "dry_run_without_provider_call",
+      "taskType": "writing",
+      "selectionPolicy": "minimum_two",
+      "providerCallsAllowed": false,
+      "nonNvidiaProviderCallsAllowed": false,
+      "secretValueAllowed": false,
+      "candidateModels": [
+        { "modelId": "mock-only-one", "credentialRefPresent": true, "providerEnabled": true, "highRisk": false, "capabilities": { "reasoning": 0.75, "critique": 0.5, "safety": 0.5 }, "reliabilityScore": 0.8, "latencyTier": "fast", "costTier": "low" }
+      ]
+    },
+    {
+      "scenarioId": "highRiskModelRejectedScenario",
+      "mode": "god",
+      "runtimeStatus": "dry_run_without_provider_call",
+      "taskType": "reasoning",
+      "selectionPolicy": "reject_high_risk",
+      "providerCallsAllowed": false,
+      "nonNvidiaProviderCallsAllowed": false,
+      "secretValueAllowed": false,
+      "candidateModels": [
+        { "modelId": "mock-high-risk", "credentialRefPresent": true, "providerEnabled": true, "highRisk": true, "capabilities": { "reasoning": 0.95, "critique": 0.95, "safety": 0.4 }, "reliabilityScore": 0.2, "latencyTier": "slow", "costTier": "high" },
+        { "modelId": "mock-safe", "credentialRefPresent": true, "providerEnabled": true, "highRisk": false, "capabilities": { "reasoning": 0.78, "critique": 0.7, "safety": 0.85 }, "reliabilityScore": 0.86, "latencyTier": "normal", "costTier": "medium" }
+      ]
+    }
+  ]
+}
+

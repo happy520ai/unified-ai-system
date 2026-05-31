@@ -1,0 +1,56 @@
+{
+  "binderId": "final_yiyi_commercial_demo_binder",
+  "evidenceSources": [
+    "apps/ai-gateway-service/evidence/phase386/yiyi-commercial-demo-guided-showcase-closure-result.json",
+    "apps/ai-gateway-service/evidence/phase386f/screenshots/*.png",
+    "apps/ai-gateway-service/evidence/phase564/auto-run-value-audit-closure-result.json"
+  ],
+  "browserSmoke": {
+    "browserSmokePassed": true,
+    "screenshotsCaptured": true,
+    "screenshotNames": [
+      "yiyi-guided-showcase-overview.png",
+      "yiyi-guided-showcase-welcome.png",
+      "yiyi-guided-showcase-normal.png",
+      "yiyi-guided-showcase-god.png",
+      "yiyi-guided-showcase-tianshu.png",
+      "yiyi-guided-showcase-security.png",
+      "yiyi-guided-showcase-redteam.png",
+      "yiyi-guided-showcase-evidence.png",
+      "yiyi-guided-showcase-brain-status.png",
+      "yiyi-guided-showcase-closing.png"
+    ],
+    "dangerousActionButtonDetected": false
+  },
+  "redTeamBlockedEvidence": {
+    "scenarioId": "red_team_block_demo",
+    "screenshot": "yiyi-guided-showcase-redteam.png",
+    "providerCallsMade": false,
+    "secretValueExposed": false,
+    "deployExecuted": false
+  },
+  "securityShieldEvidence": {
+    "scenarioId": "security_shield_demo",
+    "screenshot": "yiyi-guided-showcase-security.png"
+  },
+  "yiyiBrainQualityEvidence": {
+    "modelBrainEnabledByDefault": false,
+    "noRealProviderClaim": true
+  },
+  "demoReadinessEvidence": {
+    "guidedShowcaseCreated": true,
+    "demoScenarioPackCreated": true,
+    "demoScriptsGenerated": true,
+    "demoEvidencePackageGenerated": true
+  },
+  "autoRunnerStopEvidence": {
+    "lowRiskFillerAutoRunStopped": true,
+    "phaseRegistryFrozen": true,
+    "noPhase565PlusGenerated": true
+  },
+  "phase384BlockedEvidence": {
+    "phase384StillRequiresAuthorization": true,
+    "phase384StillRequiresHumanApproval": true
+  },
+  "noSecretStatement": true
+}

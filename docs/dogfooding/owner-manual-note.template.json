@@ -1,0 +1,20 @@
+{
+  "recordType": "owner_manual_note_template",
+  "phaseRange": "Phase1506-1530AIO",
+  "ownerProvided": false,
+  "ownerManualFeedback": false,
+  "realHumanFeedbackCollected": false,
+  "noteDate": "YYYY-MM-DD",
+  "taskId": "",
+  "friction": "",
+  "expectedBehavior": "",
+  "actualBehavior": "",
+  "severity": "P3",
+  "evidenceRef": "",
+  "codexGeneratedTemplateOnly": true,
+  "instructions": [
+    "Only the owner may change ownerProvided to true.",
+    "Codex must not count this template as human feedback.",
+    "Do not include API keys, secrets, tokens, webhooks, or raw CredentialRef values."
+  ]
+}

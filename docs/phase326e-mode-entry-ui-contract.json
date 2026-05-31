@@ -1,0 +1,42 @@
+{
+  "phase": "Phase326E",
+  "contractName": "three-mode-entry-ui-contract",
+  "runtimeStatus": "shadow_config_only",
+  "uiRuntimeEnabled": false,
+  "availableModes": [
+    {
+      "mode": "normal",
+      "displayName": "普通模式",
+      "englishName": "Normal Mode",
+      "requiresUserSelectedModel": true,
+      "requiresParticipantModels": false,
+      "requiresPlanner": false,
+      "enabledInRuntime": false
+    },
+    {
+      "mode": "god",
+      "displayName": "上帝模式",
+      "englishName": "God Mode",
+      "requiresUserSelectedModel": "optional",
+      "requiresParticipantModels": true,
+      "requiresPlanner": "optional",
+      "enabledInRuntime": false
+    },
+    {
+      "mode": "tianshu",
+      "displayName": "天枢模式",
+      "englishName": "Tianshu Mode",
+      "requiresUserSelectedModel": false,
+      "requiresParticipantModels": false,
+      "requiresPlanner": true,
+      "enabledInRuntime": false
+    }
+  ],
+  "safety": {
+    "noWorkbenchUiChange": true,
+    "noConsolePageChange": true,
+    "noRuntimeRouteChange": true,
+    "noProviderCall": true
+  }
+}
+

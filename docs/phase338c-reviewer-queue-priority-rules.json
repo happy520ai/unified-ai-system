@@ -1,0 +1,14 @@
+{
+  "phase": "Phase338C",
+  "reviewerQueuePriorityRulesValid": true,
+  "assignmentPolicyPresent": true,
+  "priorityOrder": [
+    "rollback_required",
+    "secret_or_policy_safety_review",
+    "dry_run_failed",
+    "needs_more_samples",
+    "copy_or_metadata_review"
+  ],
+  "autoApplyBlocked": true,
+  "policyActivated": false
+}

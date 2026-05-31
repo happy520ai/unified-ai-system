@@ -1,0 +1,31 @@
+diff --git a/tools/phase2091/generated-source-patch-target.mjs b/tools/phase2091/generated-source-patch-target.mjs
+--- a/tools/phase2091/generated-source-patch-target.mjs
++++ b/tools/phase2091/generated-source-patch-target.mjs
+@@ -46,14 +46,26 @@ export function buildPhase2096TripleMutationTargetOneStatus() {
+     chatModified: false,
+     chatGatewayExecuteModified: false,
+   };
+ }
+ 
++export function buildPhase2106QuadMutationTargetOneStatus() {
++  return {
++    phaseId: "Phase2106A-Controlled-Quad-Tool-Mutation-Target-One",
++    marker: "PHASE2106_QUAD_TOOL_TARGET_ONE_OK",
++    quadMutationApplied: true,
++    providerCallsMade: false,
++    codexExecExecuted: false,
++    chatModified: false,
++    chatGatewayExecuteModified: false,
++  };
++}
++
+ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+   console.log(JSON.stringify({
+     status: "passed",
+     ...buildPhase2091SourcePatchStatus(),
+     phase2092: buildPhase2092ExistingToolMutationStatus(),
+     phase2093: buildPhase2093BatchMutationTargetOneStatus(),
+     phase2096: buildPhase2096TripleMutationTargetOneStatus(),
++    phase2106: buildPhase2106QuadMutationTargetOneStatus(),
+   }, null, 2));
+ }

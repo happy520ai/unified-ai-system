@@ -30,9 +30,16 @@ import type {
   WorkforcePlanDeleteResult,
   WorkforcePlanExportResult,
   WorkforcePlanGetResult,
+  WorkforcePlanLifecycleRequest,
+  WorkforcePlanLifecycleResult,
+  WorkforcePlanApprovalGateRequest,
+  WorkforcePlanApprovalGateResult,
+  WorkforcePlanClarificationAnswerRequest,
+  WorkforcePlanClarificationAnswerResult,
   WorkforcePlanListResult,
   WorkforcePlanRequest,
   WorkforcePlanResult,
+  WorkforcePlanReviewPackageResult,
   WorkforcePlanSaveRequest,
   WorkforcePlanSaveResult,
 } from "@unified-ai-system/shared-contracts";
@@ -67,6 +74,10 @@ export interface GatewayClient {
   workforcePlanGet(planId: string): Promise<WorkforcePlanGetResult>;
   workforcePlanDelete(planId: string): Promise<WorkforcePlanDeleteResult>;
   workforcePlanExport(planId: string): Promise<WorkforcePlanExportResult>;
+  workforcePlanClarifications(planId: string, request: WorkforcePlanClarificationAnswerRequest): Promise<WorkforcePlanClarificationAnswerResult>;
+  workforcePlanLifecycle(planId: string, request: WorkforcePlanLifecycleRequest): Promise<WorkforcePlanLifecycleResult>;
+  workforcePlanReviewPackage(planId: string): Promise<WorkforcePlanReviewPackageResult>;
+  workforcePlanApprovalGate(planId: string, request: WorkforcePlanApprovalGateRequest): Promise<WorkforcePlanApprovalGateResult>;
   generate(request: GatewayRequest): Promise<GatewayResult>;
 }
 

@@ -1,0 +1,139 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Yiyi Character Canon",
+  "type": "object",
+  "required": [
+    "identity",
+    "coreCanon",
+    "visualProfile",
+    "personalityProfile",
+    "speechStyle",
+    "missionRelationship",
+    "capabilityLimits",
+    "safetyRules",
+    "editableProfile"
+  ],
+  "properties": {
+    "identity": {
+      "type": "object",
+      "required": ["avatarName", "displayName", "version", "role", "authorityLevel"],
+      "properties": {
+        "avatarName": { "type": "string" },
+        "displayName": { "type": "string" },
+        "version": { "type": "string" },
+        "role": { "type": "string" },
+        "authorityLevel": { "type": "string", "enum": ["presentation_and_guidance_only"] }
+      }
+    },
+    "coreCanon": {
+      "type": "object",
+      "required": ["summary", "stableFacts", "missionRelationship", "personalityAnchors", "safetyAnchors", "mustNeverChangeWithoutApproval"],
+      "properties": {
+        "summary": { "type": "string" },
+        "stableFacts": { "type": "array", "items": { "type": "string" } },
+        "missionRelationship": { "type": "array", "items": { "type": "string" } },
+        "personalityAnchors": { "type": "array", "items": { "type": "string" } },
+        "safetyAnchors": { "type": "array", "items": { "type": "string" } },
+        "mustNeverChangeWithoutApproval": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "visualProfile": {
+      "type": "object",
+      "required": ["theme", "hair", "palette", "styleKeywords"],
+      "properties": {
+        "theme": { "type": "string" },
+        "hair": { "type": "string" },
+        "palette": { "type": "array", "items": { "type": "string" } },
+        "styleKeywords": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "personalityProfile": {
+      "type": "object",
+      "required": ["traits", "guardrails"],
+      "properties": {
+        "traits": { "type": "array", "items": { "type": "string" } },
+        "guardrails": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "speechStyle": {
+      "type": "object",
+      "required": ["tone", "rules", "forbiddenPatterns"],
+      "properties": {
+        "tone": { "type": "array", "items": { "type": "string" } },
+        "rules": { "type": "array", "items": { "type": "string" } },
+        "forbiddenPatterns": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "missionRelationship": {
+      "type": "object",
+      "required": ["roles", "panelResponsibilities"],
+      "properties": {
+        "roles": { "type": "array", "items": { "type": "string" } },
+        "panelResponsibilities": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "capabilityLimits": {
+      "type": "object",
+      "required": [
+        "canExecuteActions",
+        "canReadSecrets",
+        "canCallProviders",
+        "canDeploy",
+        "canRelease",
+        "canCreateTag",
+        "canUploadArtifact",
+        "canModifyEvidence",
+        "canForgeApproval",
+        "canGenerateInvoice"
+      ],
+      "properties": {
+        "canExecuteActions": { "type": "boolean", "const": false },
+        "canReadSecrets": { "type": "boolean", "const": false },
+        "canCallProviders": { "type": "boolean", "const": false },
+        "canDeploy": { "type": "boolean", "const": false },
+        "canRelease": { "type": "boolean", "const": false },
+        "canCreateTag": { "type": "boolean", "const": false },
+        "canUploadArtifact": { "type": "boolean", "const": false },
+        "canModifyEvidence": { "type": "boolean", "const": false },
+        "canForgeApproval": { "type": "boolean", "const": false },
+        "canGenerateInvoice": { "type": "boolean", "const": false }
+      }
+    },
+    "safetyRules": {
+      "type": "object",
+      "required": [
+        "noSecret",
+        "noProviderCall",
+        "noDeploy",
+        "noEvidenceTampering",
+        "noApprovalForging",
+        "noMedicalClaim",
+        "noTherapyClaim",
+        "noSensitiveAttributeInference",
+        "noHiddenSystemPromptLeakage"
+      ],
+      "properties": {
+        "noSecret": { "type": "boolean", "const": true },
+        "noProviderCall": { "type": "boolean", "const": true },
+        "noDeploy": { "type": "boolean", "const": true },
+        "noEvidenceTampering": { "type": "boolean", "const": true },
+        "noApprovalForging": { "type": "boolean", "const": true },
+        "noMedicalClaim": { "type": "boolean", "const": true },
+        "noTherapyClaim": { "type": "boolean", "const": true },
+        "noSensitiveAttributeInference": { "type": "boolean", "const": true },
+        "noHiddenSystemPromptLeakage": { "type": "boolean", "const": true }
+      }
+    },
+    "editableProfile": {
+      "type": "object",
+      "required": ["favoriteGestures", "preferredTone", "scenarioPreferences", "userDefinedNotes", "futureCanonCandidates"],
+      "properties": {
+        "favoriteGestures": { "type": "array", "items": { "type": "string" } },
+        "preferredTone": { "type": "array", "items": { "type": "string" } },
+        "scenarioPreferences": { "type": "array", "items": { "type": "string" } },
+        "userDefinedNotes": { "type": "array", "items": { "type": "string" } },
+        "futureCanonCandidates": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "type": "object",
+  "required": [
+    "evidenceId",
+    "timestamp",
+    "mode",
+    "intent",
+    "selectedPanel",
+    "riskScore",
+    "blockedActions",
+    "allowedActions",
+    "dryRunResult",
+    "supervisorComment",
+    "fallbackReason",
+    "replayAvailable",
+    "rollbackPathAvailable",
+    "secretValueExposed",
+    "providerCallsMade"
+  ]
+}

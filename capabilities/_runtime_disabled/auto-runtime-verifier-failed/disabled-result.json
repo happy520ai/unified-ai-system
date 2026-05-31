@@ -1,0 +1,15 @@
+{
+  "capabilityId": "auto-runtime-verifier-failed",
+  "runtimeKind": "sandbox_local",
+  "executionStatus": "failed",
+  "blockedReason": "verifier_failed",
+  "providerCallsMade": false,
+  "secretRead": false,
+  "secretValueExposed": false,
+  "chatBehaviorChanged": false,
+  "chatGatewayExecuteBehaviorChanged": false,
+  "deployExecuted": false,
+  "rollbackRequired": true,
+  "disabledByKillSwitch": true,
+  "completed": false
+}

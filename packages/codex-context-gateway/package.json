@@ -1,0 +1,14 @@
+{
+  "name": "@unified-ai-system/codex-context-gateway",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "scripts": {
+    "check": "node --check ./src/index.js",
+    "build": "node --check ./src/index.js"
+  }
+}

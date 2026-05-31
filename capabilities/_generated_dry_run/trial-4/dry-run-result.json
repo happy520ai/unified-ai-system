@@ -1,0 +1,20 @@
+{
+  "dryRunVersion": "phase651-666-sandbox-dry-run-v1",
+  "capabilityId": "trial-4",
+  "status": "passed",
+  "runtimeEnabled": false,
+  "adapterKind": "dry_run",
+  "fixtureGenerated": true,
+  "scaffoldPlanGenerated": true,
+  "providerCallsMade": false,
+  "secretRead": false,
+  "codexConfigModified": false,
+  "chatBehaviorChanged": false,
+  "chatGatewayExecuteBehaviorChanged": false,
+  "deployExecuted": false,
+  "output": {
+    "summary": "Dry-run adapter preview generated for Failure Rollback Advisor.",
+    "evidenceRequired": true,
+    "runtimeGate": "approval_required_before_runtime"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "phase": "Phase372C",
+  "markers": {
+    "panel": "three-mode-panel-tianshu",
+    "plannerStatus": "three-mode-tianshu-planner-status",
+    "selectedModels": "three-mode-tianshu-selected-models",
+    "rejectedCandidates": "three-mode-tianshu-rejected-candidates",
+    "capabilitySummary": "three-mode-tianshu-capability-summary",
+    "noCandidateReason": "three-mode-tianshu-no-candidate-reason",
+    "nextActions": "three-mode-tianshu-next-actions",
+    "providerWarning": "three-mode-tianshu-provider-warning",
+    "guardedNotice": "three-mode-guarded-notice"
+  }
+}

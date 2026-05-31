@@ -1,0 +1,33 @@
+{
+  "phase": "Phase955",
+  "completed": true,
+  "recommended_sealed": true,
+  "blocker": null,
+  "noRuntimeChangeTuningDesignReady": true,
+  "routePolicyAppliedToRuntime": false,
+  "runtimeChanged": false,
+  "requiresFutureApprovalForTuning": true,
+  "recommendations": [
+    "Keep external provider authenticity as a hard gate before scoring.",
+    "Keep failed and blocked models excluded from fallback candidates.",
+    "Add latency metrics to the next route evidence schema before latency threshold tuning.",
+    "Do not default-enable God or Tianshu from this small sample.",
+    "Use Round 2 model fit results as recommendation evidence only, not as selectable mutation input."
+  ],
+  "rawSecretRead": false,
+  "secretValueExposed": false,
+  "authJsonRead": false,
+  "chatBehaviorChangedByDefault": false,
+  "chatGatewayExecuteBehaviorChangedByDefault": false,
+  "deployExecuted": false,
+  "releaseExecuted": false,
+  "tagCreated": false,
+  "artifactUploaded": false,
+  "unsupportedClaimCount": 0,
+  "hallucinatedFactCount": 0,
+  "codexContextGatewayUsed": true,
+  "contextCodecUsed": true,
+  "relevantFilesUsed": true,
+  "fullRepoScanAvoided": true,
+  "tokenBudgetRespected": true
+}

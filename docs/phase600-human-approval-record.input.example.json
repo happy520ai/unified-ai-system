@@ -1,0 +1,20 @@
+{
+  "approvalRecordRef": "approvalRef.phase600-human-approval-001",
+  "reviewerRef": "user-owner",
+  "reviewerRole": "project_owner",
+  "decision": "approved_for_readiness_review_only",
+  "decisionTimestamp": "2026-05-10T00:00:00.000Z",
+  "approvalReason": "Approve readiness review for a future guarded real base_url test. This does not approve real config modification.",
+  "allowedScope": {
+    "authorizationPacketReview": true,
+    "guardedReadinessReview": true,
+    "realConfigWriteAllowed": false,
+    "realRelayConnectionAllowed": false,
+    "providerCallAllowed": false
+  },
+  "maxRequests": 0,
+  "maxEstimatedCostUsd": 0,
+  "rollbackOwner": "user-owner",
+  "emergencyDisablePlanReviewed": true,
+  "notes": "No real Codex base_url change is authorized in Phase600."
+}

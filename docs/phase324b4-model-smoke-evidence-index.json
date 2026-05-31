@@ -1,0 +1,48 @@
+{
+  "phase": "Phase324B-4",
+  "batchId": "phase324b4",
+  "generatedAt": "2026-05-06T15:14:31.398Z",
+  "providerId": "nvidia",
+  "evidence": [
+    {
+      "batchId": "phase324b4",
+      "phase": "Phase324B-4",
+      "modelId": "bytedance/seed-oss-36b-instruct",
+      "evidenceId": "phase324b4-bytedance_seed_oss_36b_instruct-20260506151339",
+      "finalStatus": "smoke_failed",
+      "evidencePath": "apps/ai-gateway-service/evidence/phase324b4/bytedance_seed_oss_36b_instruct.json"
+    },
+    {
+      "batchId": "phase324b4",
+      "phase": "Phase324B-4",
+      "modelId": "deepseek-ai/deepseek-v3.1-terminus",
+      "evidenceId": "phase324b4-deepseek_ai_deepseek_v3_1_terminus-20260506151340",
+      "finalStatus": "smoke_failed",
+      "evidencePath": "apps/ai-gateway-service/evidence/phase324b4/deepseek_ai_deepseek_v3_1_terminus.json"
+    },
+    {
+      "batchId": "phase324b4",
+      "phase": "Phase324B-4",
+      "modelId": "deepseek-ai/deepseek-v3.2",
+      "evidenceId": "phase324b4-deepseek_ai_deepseek_v3_2-20260506151342",
+      "finalStatus": "smoke_failed",
+      "evidencePath": "apps/ai-gateway-service/evidence/phase324b4/deepseek_ai_deepseek_v3_2.json"
+    },
+    {
+      "batchId": "phase324b4",
+      "phase": "Phase324B-4",
+      "modelId": "deepseek-ai/deepseek-v4-flash",
+      "evidenceId": "phase324b4-deepseek_ai_deepseek_v4_flash-20260506151428",
+      "finalStatus": "smoke_failed",
+      "evidencePath": "apps/ai-gateway-service/evidence/phase324b4/deepseek_ai_deepseek_v4_flash.json"
+    },
+    {
+      "batchId": "phase324b4",
+      "phase": "Phase324B-4",
+      "modelId": "deepseek-ai/deepseek-v4-pro",
+      "evidenceId": "phase324b4-deepseek_ai_deepseek_v4_pro-20260506151431",
+      "finalStatus": "smoke_passed",
+      "evidencePath": "apps/ai-gateway-service/evidence/phase324b4/deepseek_ai_deepseek_v4_pro.json"
+    }
+  ]
+}

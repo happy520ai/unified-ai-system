@@ -1,0 +1,368 @@
+{
+  "runtimeRegistryVersion": "phase668-auto-runtime-v0",
+  "runtimeKind": "sandbox_local",
+  "productionReady": false,
+  "defaultProviderCallsAllowed": false,
+  "defaultSecretReadAllowed": false,
+  "defaultDeployAllowed": false,
+  "admittedCapabilities": [
+    {
+      "capabilityId": "trial-1",
+      "runtimeKind": "sandbox_local",
+      "autoRuntimeEligible": true,
+      "productionRuntimeEligible": false,
+      "approvalStatus": "approved_for_sandbox_runtime_only",
+      "rollbackRef": "capabilities/_generated_dry_run/trial-1/rollback-plan.json",
+      "safetyBoundary": {
+        "providerCallsAllowed": false,
+        "secretReadAllowed": false,
+        "deployAllowed": false,
+        "chatMutationAllowed": false,
+        "chatGatewayExecuteMutationAllowed": false,
+        "codexConfigMutationAllowed": false,
+        "selfApprovalAllowed": false
+      },
+      "manifest": {
+        "schemaVersion": "capability-neuron-manifest-v1",
+        "capabilityId": "trial-1",
+        "displayName": "Task Risk Level Classifier",
+        "description": "Deterministic dry-run capability spec compiled from natural-language intake: 我希望网关能自动判断任务风险等级.",
+        "createdFromNaturalLanguage": true,
+        "intakeText": "我希望网关能自动判断任务风险等级",
+        "type": "safety",
+        "status": "registered_preview",
+        "runtime": {
+          "kind": "sandbox_local",
+          "spawnable": true,
+          "maxSpawnDepth": 1,
+          "ttlSeconds": 300,
+          "maxRequests": 3,
+          "maxTokenBudget": 4000,
+          "enabledByDefault": false,
+          "autoRuntimeEligible": true,
+          "maxRuntimeMs": 30000
+        },
+        "safety": {
+          "providerCallsAllowed": false,
+          "secretReadAllowed": false,
+          "deployAllowed": false,
+          "chatMutationAllowed": false,
+          "chatGatewayExecuteMutationAllowed": false,
+          "codexConfigMutationAllowed": false,
+          "selfApprovalAllowed": false
+        },
+        "inputs": {},
+        "outputs": {},
+        "evidence": {
+          "required": true,
+          "schema": "gateway-capability-evidence-v1"
+        },
+        "approval": {
+          "requiredForRuntime": true,
+          "currentStatus": "approved_for_sandbox_runtime_only"
+        },
+        "rollback": {
+          "disableFlag": "TAIJI_DISABLE_TRIAL_1",
+          "deletePaths": []
+        },
+        "synapse": {
+          "pressureTypes": [
+            "risk"
+          ],
+          "modes": [
+            "normal",
+            "god",
+            "tianshu"
+          ],
+          "dependencies": [],
+          "weight": 0.5
+        }
+      }
+    },
+    {
+      "capabilityId": "trial-2-god-mode",
+      "runtimeKind": "sandbox_local",
+      "autoRuntimeEligible": true,
+      "productionRuntimeEligible": false,
+      "approvalStatus": "approved_for_sandbox_runtime_only",
+      "rollbackRef": "capabilities/_generated_dry_run/trial-2-god-mode/rollback-plan.json",
+      "safetyBoundary": {
+        "providerCallsAllowed": false,
+        "secretReadAllowed": false,
+        "deployAllowed": false,
+        "chatMutationAllowed": false,
+        "chatGatewayExecuteMutationAllowed": false,
+        "codexConfigMutationAllowed": false,
+        "selfApprovalAllowed": false
+      },
+      "manifest": {
+        "schemaVersion": "capability-neuron-manifest-v1",
+        "capabilityId": "trial-2-god-mode",
+        "displayName": "God Mode Need Classifier",
+        "description": "Deterministic dry-run capability spec compiled from natural-language intake: 我希望网关能判断是否需要 God Mode.",
+        "createdFromNaturalLanguage": true,
+        "intakeText": "我希望网关能判断是否需要 God Mode",
+        "type": "review",
+        "status": "registered_preview",
+        "runtime": {
+          "kind": "sandbox_local",
+          "spawnable": true,
+          "maxSpawnDepth": 1,
+          "ttlSeconds": 300,
+          "maxRequests": 3,
+          "maxTokenBudget": 4000,
+          "enabledByDefault": false,
+          "autoRuntimeEligible": true,
+          "maxRuntimeMs": 30000
+        },
+        "safety": {
+          "providerCallsAllowed": false,
+          "secretReadAllowed": false,
+          "deployAllowed": false,
+          "chatMutationAllowed": false,
+          "chatGatewayExecuteMutationAllowed": false,
+          "codexConfigMutationAllowed": false,
+          "selfApprovalAllowed": false
+        },
+        "inputs": {},
+        "outputs": {},
+        "evidence": {
+          "required": true,
+          "schema": "gateway-capability-evidence-v1"
+        },
+        "approval": {
+          "requiredForRuntime": true,
+          "currentStatus": "approved_for_sandbox_runtime_only"
+        },
+        "rollback": {
+          "disableFlag": "TAIJI_DISABLE_TRIAL_2_GOD_MODE",
+          "deletePaths": []
+        },
+        "synapse": {
+          "pressureTypes": [
+            "quality"
+          ],
+          "modes": [
+            "god"
+          ],
+          "dependencies": [],
+          "weight": 0.5
+        }
+      }
+    },
+    {
+      "capabilityId": "trial-3-token",
+      "runtimeKind": "sandbox_local",
+      "autoRuntimeEligible": true,
+      "productionRuntimeEligible": false,
+      "approvalStatus": "approved_for_sandbox_runtime_only",
+      "rollbackRef": "capabilities/_generated_dry_run/trial-3-token/rollback-plan.json",
+      "safetyBoundary": {
+        "providerCallsAllowed": false,
+        "secretReadAllowed": false,
+        "deployAllowed": false,
+        "chatMutationAllowed": false,
+        "chatGatewayExecuteMutationAllowed": false,
+        "codexConfigMutationAllowed": false,
+        "selfApprovalAllowed": false
+      },
+      "manifest": {
+        "schemaVersion": "capability-neuron-manifest-v1",
+        "capabilityId": "trial-3-token",
+        "displayName": "Context Compression Token Saver",
+        "description": "Deterministic dry-run capability spec compiled from natural-language intake: 我希望网关能压缩长上下文省 token.",
+        "createdFromNaturalLanguage": true,
+        "intakeText": "我希望网关能压缩长上下文省 token",
+        "type": "context",
+        "status": "registered_preview",
+        "runtime": {
+          "kind": "sandbox_local",
+          "spawnable": true,
+          "maxSpawnDepth": 1,
+          "ttlSeconds": 300,
+          "maxRequests": 3,
+          "maxTokenBudget": 4000,
+          "enabledByDefault": false,
+          "autoRuntimeEligible": true,
+          "maxRuntimeMs": 30000
+        },
+        "safety": {
+          "providerCallsAllowed": false,
+          "secretReadAllowed": false,
+          "deployAllowed": false,
+          "chatMutationAllowed": false,
+          "chatGatewayExecuteMutationAllowed": false,
+          "codexConfigMutationAllowed": false,
+          "selfApprovalAllowed": false
+        },
+        "inputs": {},
+        "outputs": {},
+        "evidence": {
+          "required": true,
+          "schema": "gateway-capability-evidence-v1"
+        },
+        "approval": {
+          "requiredForRuntime": true,
+          "currentStatus": "approved_for_sandbox_runtime_only"
+        },
+        "rollback": {
+          "disableFlag": "TAIJI_DISABLE_TRIAL_3_TOKEN",
+          "deletePaths": []
+        },
+        "synapse": {
+          "pressureTypes": [
+            "token"
+          ],
+          "modes": [
+            "codex",
+            "normal"
+          ],
+          "dependencies": [],
+          "weight": 0.5
+        }
+      }
+    },
+    {
+      "capabilityId": "trial-4",
+      "runtimeKind": "sandbox_local",
+      "autoRuntimeEligible": true,
+      "productionRuntimeEligible": false,
+      "approvalStatus": "approved_for_sandbox_runtime_only",
+      "rollbackRef": "capabilities/_generated_dry_run/trial-4/rollback-plan.json",
+      "safetyBoundary": {
+        "providerCallsAllowed": false,
+        "secretReadAllowed": false,
+        "deployAllowed": false,
+        "chatMutationAllowed": false,
+        "chatGatewayExecuteMutationAllowed": false,
+        "codexConfigMutationAllowed": false,
+        "selfApprovalAllowed": false
+      },
+      "manifest": {
+        "schemaVersion": "capability-neuron-manifest-v1",
+        "capabilityId": "trial-4",
+        "displayName": "Failure Rollback Advisor",
+        "description": "Deterministic dry-run capability spec compiled from natural-language intake: 我希望网关能在失败时生成回滚建议.",
+        "createdFromNaturalLanguage": true,
+        "intakeText": "我希望网关能在失败时生成回滚建议",
+        "type": "evidence",
+        "status": "registered_preview",
+        "runtime": {
+          "kind": "sandbox_local",
+          "spawnable": true,
+          "maxSpawnDepth": 1,
+          "ttlSeconds": 300,
+          "maxRequests": 3,
+          "maxTokenBudget": 4000,
+          "enabledByDefault": false,
+          "autoRuntimeEligible": true,
+          "maxRuntimeMs": 30000
+        },
+        "safety": {
+          "providerCallsAllowed": false,
+          "secretReadAllowed": false,
+          "deployAllowed": false,
+          "chatMutationAllowed": false,
+          "chatGatewayExecuteMutationAllowed": false,
+          "codexConfigMutationAllowed": false,
+          "selfApprovalAllowed": false
+        },
+        "inputs": {},
+        "outputs": {},
+        "evidence": {
+          "required": true,
+          "schema": "gateway-capability-evidence-v1"
+        },
+        "approval": {
+          "requiredForRuntime": true,
+          "currentStatus": "approved_for_sandbox_runtime_only"
+        },
+        "rollback": {
+          "disableFlag": "TAIJI_DISABLE_TRIAL_4",
+          "deletePaths": []
+        },
+        "synapse": {
+          "pressureTypes": [
+            "evidence"
+          ],
+          "modes": [
+            "normal"
+          ],
+          "dependencies": [],
+          "weight": 0.5
+        }
+      }
+    },
+    {
+      "capabilityId": "trial-5",
+      "runtimeKind": "sandbox_local",
+      "autoRuntimeEligible": true,
+      "productionRuntimeEligible": false,
+      "approvalStatus": "approved_for_sandbox_runtime_only",
+      "rollbackRef": "capabilities/_generated_dry_run/trial-5/rollback-plan.json",
+      "safetyBoundary": {
+        "providerCallsAllowed": false,
+        "secretReadAllowed": false,
+        "deployAllowed": false,
+        "chatMutationAllowed": false,
+        "chatGatewayExecuteMutationAllowed": false,
+        "codexConfigMutationAllowed": false,
+        "selfApprovalAllowed": false
+      },
+      "manifest": {
+        "schemaVersion": "capability-neuron-manifest-v1",
+        "capabilityId": "trial-5",
+        "displayName": "Capability Disabled Reason Viewer",
+        "description": "Deterministic dry-run capability spec compiled from natural-language intake: 我希望网关能展示某个能力为什么没有被启用.",
+        "createdFromNaturalLanguage": true,
+        "intakeText": "我希望网关能展示某个能力为什么没有被启用",
+        "type": "ui",
+        "status": "registered_preview",
+        "runtime": {
+          "kind": "sandbox_local",
+          "spawnable": true,
+          "maxSpawnDepth": 1,
+          "ttlSeconds": 300,
+          "maxRequests": 3,
+          "maxTokenBudget": 4000,
+          "enabledByDefault": false,
+          "autoRuntimeEligible": true,
+          "maxRuntimeMs": 30000
+        },
+        "safety": {
+          "providerCallsAllowed": false,
+          "secretReadAllowed": false,
+          "deployAllowed": false,
+          "chatMutationAllowed": false,
+          "chatGatewayExecuteMutationAllowed": false,
+          "codexConfigMutationAllowed": false,
+          "selfApprovalAllowed": false
+        },
+        "inputs": {},
+        "outputs": {},
+        "evidence": {
+          "required": true,
+          "schema": "gateway-capability-evidence-v1"
+        },
+        "approval": {
+          "requiredForRuntime": true,
+          "currentStatus": "approved_for_sandbox_runtime_only"
+        },
+        "rollback": {
+          "disableFlag": "TAIJI_DISABLE_TRIAL_5",
+          "deletePaths": []
+        },
+        "synapse": {
+          "pressureTypes": [
+            "explainability"
+          ],
+          "modes": [
+            "normal"
+          ],
+          "dependencies": [],
+          "weight": 0.5
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "phase": "Phase444A",
+  "title": "Yiyi Demo Field Enablement Brief",
+  "packageType": "field-enablement-brief",
+  "checklist": [
+    {
+      "id": "fieldEnablementBriefCreated",
+      "order": 1,
+      "status": "prepared",
+      "safetyBoundary": "dry-run docs/evidence only; no provider, no secret, no deploy, no billing"
+    },
+    {
+      "id": "enablementBriefChecklistCreated",
+      "order": 2,
+      "status": "prepared",
+      "safetyBoundary": "dry-run docs/evidence only; no provider, no secret, no deploy, no billing"
+    }
+  ],
+  "previousClosure": {
+    "path": "apps/ai-gateway-service/evidence/phase443/yiyi-demo-fifth-low-risk-auto-run-closure-closure-result.json",
+    "exists": true,
+    "sizeBytes": 1930
+  },
+  "phase384StillRequiresHumanApproval": true,
+  "providerCallsMade": false,
+  "nonNvidiaProviderCallsMade": false,
+  "secretValueExposed": false,
+  "rawSecretAccessed": false,
+  "deployExecuted": false,
+  "releaseExecuted": false,
+  "tagCreated": false,
+  "artifactUploaded": false,
+  "approvalForged": false,
+  "billingExecuted": false,
+  "invoiceGenerated": false,
+  "productionGaClaimed": false,
+  "workspaceCleanClaimed": false
+}

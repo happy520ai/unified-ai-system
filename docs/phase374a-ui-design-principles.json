@@ -1,0 +1,20 @@
+{
+  "phase": "Phase374A",
+  "principles": [
+    "minimal",
+    "alive",
+    "restrained",
+    "explorable",
+    "replayable",
+    "safe",
+    "agentic"
+  ],
+  "forbidden": [
+    "dangerous_buttons",
+    "direct_production_control",
+    "real_provider_trigger",
+    "secret_display",
+    "fake_approval",
+    "fake_production_status"
+  ]
+}

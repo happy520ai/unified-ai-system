@@ -1,0 +1,133 @@
+{
+  "phase": "Phase607R-AutoScale",
+  "title": "Safe Auto Runner Batch Expansion + Risk Tier Gate",
+  "defaultMaxTasks": 12,
+  "candidateCount": 20,
+  "lowAutoAllowed": true,
+  "mediumSafeAutoAllowed": true,
+  "highRiskAutoAllowed": false,
+  "highRiskGateOnly": true,
+  "failureStopsBatch": true,
+  "tasks": [
+    {
+      "taskId": "phase607r-auto-001",
+      "title": "Phase607R hygiene verifier rerun",
+      "riskTier": "low",
+      "validationCommands": ["cmd /c node tools/phase607r/validate-public-repo-hygiene-preflight.mjs"]
+    },
+    {
+      "taskId": "phase607r-auto-002",
+      "title": "Phase606R minimum readiness verifier rerun",
+      "riskTier": "low",
+      "validationCommands": ["cmd /c node tools/phase606r/validate-open-source-minimum-readiness-lock.mjs"]
+    },
+    {
+      "taskId": "phase607r-auto-003",
+      "title": "Phase605R batch evidence verifier rerun",
+      "riskTier": "low",
+      "validationCommands": ["cmd /c node tools/phase605r/validate-safe-auto-runner-batch.mjs"]
+    },
+    {
+      "taskId": "phase607r-auto-004",
+      "title": "Phase604R overnight queue verifier rerun",
+      "riskTier": "low",
+      "validationCommands": ["cmd /c node tools/phase604r/validate-overnight-safe-auto-runner.mjs"]
+    },
+    {
+      "taskId": "phase607r-auto-005",
+      "title": "Phase607R verifier syntax check",
+      "riskTier": "low",
+      "validationCommands": ["cmd /c node --check tools/phase607r/validate-public-repo-hygiene-preflight.mjs"]
+    },
+    {
+      "taskId": "phase607r-auto-006",
+      "title": "Phase606R verifier syntax check",
+      "riskTier": "low",
+      "validationCommands": ["cmd /c node --check tools/phase606r/validate-open-source-minimum-readiness-lock.mjs"]
+    },
+    {
+      "taskId": "phase607r-auto-007",
+      "title": "Phase605R runner syntax check",
+      "riskTier": "low",
+      "validationCommands": ["cmd /c node --check tools/phase605r/run-safe-auto-runner-batch.mjs"]
+    },
+    {
+      "taskId": "phase607r-auto-008",
+      "title": "Phase605R verifier syntax check",
+      "riskTier": "low",
+      "validationCommands": ["cmd /c node --check tools/phase605r/validate-safe-auto-runner-batch.mjs"]
+    },
+    {
+      "taskId": "phase607r-auto-009",
+      "title": "Phase604R verifier syntax check",
+      "riskTier": "low",
+      "validationCommands": ["cmd /c node --check tools/phase604r/validate-overnight-safe-auto-runner.mjs"]
+    },
+    {
+      "taskId": "phase607r-auto-010",
+      "title": "README AGENTS auto sync guard",
+      "riskTier": "medium-safe",
+      "validationCommands": ["cmd /c pnpm verify:phase306c-readme-agents-auto-sync-guard"]
+    },
+    {
+      "taskId": "phase607r-auto-011",
+      "title": "Workbench product recovery dry-run verifier",
+      "riskTier": "medium-safe",
+      "validationCommands": ["cmd /c pnpm verify:phase321a-workbench-product-recovery"]
+    },
+    {
+      "taskId": "phase607r-auto-012",
+      "title": "Desktop Workbench UI dry-run smoke",
+      "riskTier": "medium-safe",
+      "validationCommands": ["cmd /c pnpm smoke:phase308a-desktop-workbench-ui"]
+    },
+    {
+      "taskId": "phase607r-auto-013",
+      "title": "Phase607R AutoScale runner syntax check",
+      "riskTier": "low",
+      "validationCommands": ["cmd /c node --check tools/phase607r/run-autoscale-safe-runner-batch.mjs"]
+    },
+    {
+      "taskId": "phase607r-auto-014",
+      "title": "Phase607R AutoScale verifier syntax check",
+      "riskTier": "low",
+      "validationCommands": ["cmd /c node --check tools/phase607r/validate-autoscale-safe-runner-batch.mjs"]
+    },
+    {
+      "taskId": "phase607r-auto-015",
+      "title": "Phase608R hygiene verifier syntax check",
+      "riskTier": "low",
+      "validationCommands": ["cmd /c node --check tools/phase608r/validate-public-repo-hygiene-preflight.mjs"]
+    },
+    {
+      "taskId": "phase607r-auto-016",
+      "title": "Phase609R demo package verifier syntax check",
+      "riskTier": "low",
+      "validationCommands": ["cmd /c node --check tools/phase609r/validate-public-dry-run-demo-package.mjs"]
+    },
+    {
+      "taskId": "phase607r-high-001",
+      "title": "Real Provider smoke request",
+      "riskTier": "high",
+      "validationCommands": []
+    },
+    {
+      "taskId": "phase607r-high-002",
+      "title": "Codex persistent config write",
+      "riskTier": "high",
+      "validationCommands": []
+    },
+    {
+      "taskId": "phase607r-high-003",
+      "title": "Deployment release tag push flow",
+      "riskTier": "high",
+      "validationCommands": []
+    },
+    {
+      "taskId": "phase607r-high-004",
+      "title": "Chat gateway runtime modification",
+      "riskTier": "high",
+      "validationCommands": []
+    }
+  ]
+}

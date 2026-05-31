@@ -1,0 +1,16 @@
+{
+  "templateOnly": true,
+  "notAConfirmation": true,
+  "confirmationType": "rollback_execution_confirmation",
+  "confirmationDecision": "pending",
+  "executeRollback": false,
+  "rollbackReason": "",
+  "confirmedBy": "",
+  "confirmedRole": "",
+  "codexIsConfirmer": false,
+  "requiresHumanCompletion": true,
+  "safety": {
+    "secretValueIncluded": false,
+    "rollbackExecuted": false
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "phase": "Phase363F",
+  "approvalRecordsComplete": true,
+  "signoffsVerified": true,
+  "deployAuthorized": true,
+  "meetingHeld": false,
+  "goDecision": "pending",
+  "goDecisionAllowed": true,
+  "decisionRecordRequired": true,
+  "decisionRecordPresent": false,
+  "deployExecuted": false,
+  "releaseExecuted": false,
+  "tagCreated": false,
+  "artifactUploaded": false,
+  "productionGaAuthorized": false,
+  "remainingBlockers": [
+    "meeting_record_missing"
+  ],
+  "safety": {
+    "codexIsApprover": false,
+    "approvalForged": false,
+    "secretValueExposed": false
+  }
+}

@@ -1,0 +1,47 @@
+diff --git a/tools/phase2092/apply-controlled-existing-tool-mutation.mjs b/tools/phase2092/apply-controlled-existing-tool-mutation.mjs
+--- a/tools/phase2092/apply-controlled-existing-tool-mutation.mjs
++++ b/tools/phase2092/apply-controlled-existing-tool-mutation.mjs
+@@ -27,13 +27,14 @@
+ export function buildPhase2094BatchMutationRuntimeStatus() {
+   return {
+     phaseId: "Phase2094A-Controlled-Batch-Tool-Mutation-Target-Two",
+     marker: "PHASE2094_BATCH_TOOL_TARGET_TWO_OK",
+     importSafe: true,
+     phase2097Marker: "PHASE2097_TRIPLE_TOOL_TARGET_TWO_OK",
+     phase2107Marker: "PHASE2107_QUAD_TOOL_TARGET_TWO_OK",
+     phase2117Marker: "PHASE2117_QUINT_TOOL_TARGET_TWO_OK",
+     phase2127Marker: "PHASE2127_SEXT_TOOL_TARGET_TWO_OK",
++    phase2138Marker: "PHASE2138_SEPT_TOOL_TARGET_TWO_OK",
+     providerCallsMade: false,
+     codexExecExecuted: false,
+     chatModified: false,
+     chatGatewayExecuteModified: false,
+   };
+@@ -69,6 +70,18 @@
+ export function buildPhase2127SextMutationTargetTwoStatus() {
+   return {
+     phaseId: "Phase2127A-Controlled-Sext-Tool-Mutation-Target-Two",
+     marker: "PHASE2127_SEXT_TOOL_TARGET_TWO_OK",
+     importSafe: true,
+     sextMutationApplied: true,
+     providerCallsMade: false,
+     codexExecExecuted: false,
+     chatModified: false,
+     chatGatewayExecuteModified: false,
+   };
+ }
+ 
++export function buildPhase2138SeptMutationTargetTwoStatus() {
++  return {
++    phaseId: "Phase2138A-Controlled-Sept-Tool-Mutation-Target-Two",
++    marker: "PHASE2138_SEPT_TOOL_TARGET_TWO_OK",
++    importSafe: true,
++    septMutationApplied: true,
++    providerCallsMade: false,
++    codexExecExecuted: false,
++    chatModified: false,
++    chatGatewayExecuteModified: false,
++  };
++}
++
+ export function buildPhase2097TripleMutationTargetTwoStatus() {

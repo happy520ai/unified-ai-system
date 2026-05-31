@@ -1,0 +1,14 @@
+{
+  "phase": "Phase342A",
+  "shadowConfigOnly": true,
+  "runtimeExposureChanged": false,
+  "providerRealCallExecuted": false,
+  "secretValueExposed": false,
+  "cohortBoundary": {
+    "cohortType": "internal_limited_beta",
+    "maxUsers": 20,
+    "explicitAllowListRequired": true,
+    "defaultEnabled": false
+  },
+  "activationMode": "shadow_only"
+}

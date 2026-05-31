@@ -1,0 +1,26 @@
+diff --git a/tools/phase2121_2131/apply-controlled-sext-tool-mutation.mjs b/tools/phase2121_2131/apply-controlled-sext-tool-mutation.mjs
+--- a/tools/phase2121_2131/apply-controlled-sext-tool-mutation.mjs
++++ b/tools/phase2121_2131/apply-controlled-sext-tool-mutation.mjs
+@@ -63,6 +63,22 @@ export function buildPhase2155OctMutationTargetSevenStatus() {
+   };
+ }
+ 
++export function buildPhase2168NonetMutationTargetSevenStatus() {
++  return {
++    phaseId: "Phase2168A-Controlled-Nonet-Tool-Mutation-Target-Seven",
++    marker: "PHASE2168_NONET_TOOL_TARGET_SEVEN_OK",
++    importSafe: true,
++    phase2143Marker: "PHASE2143_SEPT_TOOL_TARGET_SEVEN_OK",
++    phase2155Marker: "PHASE2155_OCT_TOOL_TARGET_SEVEN_OK",
++    phase2168Marker: "PHASE2168_NONET_TOOL_TARGET_SEVEN_OK",
++    nonetMutationApplied: true,
++    providerCallsMade: false,
++    codexExecExecuted: false,
++    chatModified: false,
++    chatGatewayExecuteModified: false,
++  };
++}
++
+ export function main() {
+   const args = parseArgs(process.argv.slice(2));
+   const planPath = args.plan || "docs/phase2121-2131-controlled-sext-tool-mutation-approval.example.json";

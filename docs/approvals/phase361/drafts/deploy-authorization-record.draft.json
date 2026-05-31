@@ -1,0 +1,45 @@
+{
+  "draftOnly": true,
+  "notAnApproval": true,
+  "requiresHumanCompletion": true,
+  "approvalId": null,
+  "approvalType": "deploy_authorization",
+  "approvalDecision": "pending",
+  "approverNameRef": "",
+  "approverRole": "",
+  "approverOrgRef": "",
+  "approvedScope": [
+    "deploy_authorization",
+    "release_command_preflight",
+    "production_launch_runbook",
+    "rollback_plan_review"
+  ],
+  "approvalTimestamp": null,
+  "evidenceRefs": [
+    "docs/phase360a-production-candidate-final-signoff-packet.md",
+    "docs/phase360a-deploy-not-authorized-boundary.json",
+    "docs/phase360abcdef-execution-report.md",
+    "docs/phase361a-launch-authorization-state.json",
+    "docs/phase361b-human-approval-records-index.json",
+    "docs/phase361c-deploy-authorization-state.json",
+    "docs/phase361d-signoff-verification-report.md",
+    "docs/phase361f-go-no-go-decision-state.json",
+    "docs/phase362a-reviewer-follow-up-tracker.json",
+    "docs/phase362a-approval-evidence-intake-report.md"
+  ],
+  "conditions": [],
+  "expiration": null,
+  "revocationPolicy": "",
+  "humanInstructions": [
+    "This draft is the only future path to deployAuthorized=true, but it is not authorization now.",
+    "Fill with real sign-off only and promote manually.",
+    "Copy the completed file to docs/approvals/phase361/deploy-authorization-record.json."
+  ],
+  "auditTrace": {
+    "createdBy": "codex",
+    "source": "approval_draft_preparation",
+    "secretValueIncluded": false,
+    "forged": false,
+    "draftOnly": true
+  }
+}

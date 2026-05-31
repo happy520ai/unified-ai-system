@@ -1,0 +1,60 @@
+import { verifyPersonalKnowledgePhase } from "./verifyPersonalKnowledgeClosureSupport.js";
+
+await verifyPersonalKnowledgePhase({
+  phase: "phase-253a-personal-knowledge-maintenance-loop",
+  docPath: "docs/PERSONAL_KNOWLEDGE_MAINTENANCE_LOOP.md",
+  verifierPath: "apps/ai-gateway-service/src/entrypoints/verifyPersonalKnowledgeMaintenanceLoop.js",
+  rootScriptName: "verify:phase253a-personal-knowledge-maintenance-loop",
+  serviceScriptValue: "node ./src/entrypoints/verifyPersonalKnowledgeMaintenanceLoop.js",
+  requiredDocSections: [
+    "# Personal Knowledge Maintenance Loop",
+    "## 2. Documents To Check After Each Codex Round",
+    "## 3. New Phase Evidence",
+    "## 4. New Docs",
+    "## 5. Older Evidence",
+    "## 6. README/AGENTS Sync",
+    "## 7. Current Blocker Record",
+    "## 8. Next Step Record",
+    "## 9. Noise Prevention",
+    "## 10. Commercial Misframe Prevention",
+    "## 11. Stop Maintenance",
+  ],
+  requiredDocMarkers: [
+    "Add new phase evidence only after the verifier passes.",
+    "Keep older evidence but lower its priority behind latest phase evidence",
+    "Sync README/AGENTS only when boundaries or commands actually change.",
+    "record the current blocker",
+    "record the next safe action",
+    "Prevent commercial suggestions from becoming current implementation facts.",
+    "Stop maintenance",
+  ],
+  requiredUiMarkers: [
+    "phase253a-personal-knowledge-maintenance-loop",
+    "New evidence update",
+    "New docs update",
+    "Older evidence lowered",
+    "README/AGENTS sync",
+    "Blocker and next step",
+    "Stop for human judgment",
+  ],
+  requiredVerificationCommands: [
+    "cmd /c pnpm run verify:phase253a-personal-knowledge-maintenance-loop",
+  ],
+  requiredEvidenceStatusPaths: [
+    "apps/ai-gateway-service/evidence/phase-252a-personal-knowledge-live-trial.json",
+  ],
+  conclusionPassed: "personal-knowledge-maintenance-loop-preview-ready",
+  conclusionFailed: "personal-knowledge-maintenance-loop-preview-incomplete",
+  capabilityList: [
+    "knowledge-maintenance-loop",
+    "new-evidence-update",
+    "new-docs-update",
+    "older-evidence-lowered",
+    "readme-agents-sync",
+    "blocker-next-step-record",
+  ],
+  notes: [
+    "Phase 253A defines how knowledge posture is updated after each manual Codex round.",
+    "Failed or missing evidence is not promoted to current fact.",
+  ],
+});

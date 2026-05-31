@@ -1,0 +1,1960 @@
+{
+  "phaseId": "Phase2046-ClaudeCode-Source-Utilization-Audit",
+  "generatedAt": "2026-05-23T15:11:41.195Z",
+  "auditMode": "static_source_audit_only",
+  "claudeCodeSourceFound": true,
+  "claudeCodeSourcePath": "E:\\AI-Data\\AI网关系统\\claudcodesrc-ponponon-master",
+  "sourceCandidates": [
+    {
+      "path": "E:\\AI-Data\\AI网关系统\\claudcodesrc-ponponon-master",
+      "exists": true,
+      "hasSrc": true
+    },
+    {
+      "path": "E:\\AI-Data\\AI网关系统\\unified-ai-system\\legacy\\claudcodesrc-ponponon-master",
+      "exists": true,
+      "hasSrc": true
+    },
+    {
+      "path": "E:\\AI-Data\\AI网关系统\\ai-gateway-workspace\\claudcodesrc-ponponon-master",
+      "exists": false,
+      "hasSrc": false
+    }
+  ],
+  "safeSourceFileCount": 1891,
+  "readModules": [
+    {
+      "focusArea": "tool permission model",
+      "relativePath": "src/utils/permissions/PermissionMode.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 3489,
+      "lineCount": 142,
+      "keywordHits": [
+        "permission"
+      ]
+    },
+    {
+      "focusArea": "tool permission model",
+      "relativePath": "src/utils/permissions/PermissionResult.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 874,
+      "lineCount": 36,
+      "keywordHits": []
+    },
+    {
+      "focusArea": "tool permission model",
+      "relativePath": "src/utils/permissions/PermissionRule.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 1176,
+      "lineCount": 41,
+      "keywordHits": [
+        "permission",
+        "tool"
+      ]
+    },
+    {
+      "focusArea": "tool permission model",
+      "relativePath": "src/utils/permissions/permissionRuleParser.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 7274,
+      "lineCount": 199,
+      "keywordHits": [
+        "permission",
+        "tool"
+      ]
+    },
+    {
+      "focusArea": "tool permission model",
+      "relativePath": "src/utils/permissions/permissionsLoader.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 8743,
+      "lineCount": 297,
+      "keywordHits": [
+        "permission"
+      ]
+    },
+    {
+      "focusArea": "tool permission model",
+      "relativePath": "src/utils/permissions/pathValidation.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 16249,
+      "lineCount": 486,
+      "keywordHits": [
+        "permission",
+        "approval",
+        "shell",
+        "command",
+        "session",
+        "context",
+        "memory",
+        "tool",
+        "agent",
+        "config"
+      ]
+    },
+    {
+      "focusArea": "tool permission model",
+      "relativePath": "src/utils/permissions/dangerousPatterns.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 2476,
+      "lineCount": 81,
+      "keywordHits": [
+        "permission",
+        "shell",
+        "command",
+        "tool",
+        "config"
+      ]
+    },
+    {
+      "focusArea": "tool permission model",
+      "relativePath": "src/utils/permissions/bashClassifier.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 1444,
+      "lineCount": 62,
+      "keywordHits": []
+    },
+    {
+      "focusArea": "tool permission model",
+      "relativePath": "src/hooks/toolPermission/PermissionContext.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 12768,
+      "lineCount": 389,
+      "keywordHits": [
+        "permission",
+        "context",
+        "tool",
+        "patch"
+      ]
+    },
+    {
+      "focusArea": "command execution model",
+      "relativePath": "src/utils/Shell.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 16929,
+      "lineCount": 475,
+      "keywordHits": [
+        "permission",
+        "shell",
+        "command",
+        "session",
+        "memory",
+        "tool",
+        "config",
+        "provider"
+      ]
+    },
+    {
+      "focusArea": "command execution model",
+      "relativePath": "src/utils/ShellCommand.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 14138,
+      "lineCount": 466,
+      "keywordHits": [
+        "shell",
+        "command",
+        "memory"
+      ]
+    },
+    {
+      "focusArea": "command execution model",
+      "relativePath": "src/utils/shell/readOnlyCommandValidation.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 68294,
+      "lineCount": 1894,
+      "keywordHits": [
+        "shell",
+        "command",
+        "context",
+        "tool",
+        "diff",
+        "patch",
+        "config"
+      ]
+    },
+    {
+      "focusArea": "command execution model",
+      "relativePath": "src/utils/shell/outputLimits.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 416,
+      "lineCount": 15,
+      "keywordHits": []
+    },
+    {
+      "focusArea": "command execution model",
+      "relativePath": "src/utils/powershell/dangerousCmdlets.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 6155,
+      "lineCount": 186,
+      "keywordHits": [
+        "permission",
+        "command"
+      ]
+    },
+    {
+      "focusArea": "command execution model",
+      "relativePath": "src/tools/BashTool/bashSecurity.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 102561,
+      "lineCount": 2593,
+      "keywordHits": [
+        "permission",
+        "approval",
+        "shell",
+        "command",
+        "context",
+        "diff",
+        "terminal"
+      ]
+    },
+    {
+      "focusArea": "command execution model",
+      "relativePath": "src/tools/PowerShellTool/powershellSecurity.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 37651,
+      "lineCount": 1091,
+      "keywordHits": [
+        "permission",
+        "shell",
+        "command",
+        "session"
+      ]
+    },
+    {
+      "focusArea": "session/context handling",
+      "relativePath": "src/bootstrap/state.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 56109,
+      "lineCount": 1759,
+      "keywordHits": [
+        "permission",
+        "shell",
+        "command",
+        "session",
+        "context",
+        "memory",
+        "tool",
+        "agent",
+        "provider"
+      ]
+    },
+    {
+      "focusArea": "session/context handling",
+      "relativePath": "src/context.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 6446,
+      "lineCount": 190,
+      "keywordHits": [
+        "context",
+        "config"
+      ]
+    },
+    {
+      "focusArea": "session/context handling",
+      "relativePath": "src/utils/sessionState.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 5309,
+      "lineCount": 151,
+      "keywordHits": [
+        "permission",
+        "command",
+        "session",
+        "context",
+        "tool",
+        "agent"
+      ]
+    },
+    {
+      "focusArea": "session/context handling",
+      "relativePath": "src/utils/sessionRestore.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 20406,
+      "lineCount": 552,
+      "keywordHits": [
+        "shell",
+        "command",
+        "session",
+        "context",
+        "agent"
+      ]
+    },
+    {
+      "focusArea": "session/context handling",
+      "relativePath": "src/utils/agentContext.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 6660,
+      "lineCount": 179,
+      "keywordHits": [
+        "session",
+        "context",
+        "tool",
+        "terminal",
+        "agent"
+      ]
+    },
+    {
+      "focusArea": "session/context handling",
+      "relativePath": "src/utils/queryContext.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 5937,
+      "lineCount": 180,
+      "keywordHits": [
+        "command",
+        "context",
+        "memory",
+        "mcp",
+        "tool"
+      ]
+    },
+    {
+      "focusArea": "session/context handling",
+      "relativePath": "src/utils/readEditContext.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 7224,
+      "lineCount": 228,
+      "keywordHits": [
+        "context"
+      ]
+    },
+    {
+      "focusArea": "session/context handling",
+      "relativePath": "src/assistant/sessionHistory.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 2503,
+      "lineCount": 88,
+      "keywordHits": []
+    },
+    {
+      "focusArea": "approval gate",
+      "relativePath": "src/utils/classifierApprovals.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 2448,
+      "lineCount": 89,
+      "keywordHits": [
+        "approval",
+        "tool"
+      ]
+    },
+    {
+      "focusArea": "approval gate",
+      "relativePath": "src/utils/classifierApprovalsHook.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 531,
+      "lineCount": 18,
+      "keywordHits": []
+    },
+    {
+      "focusArea": "approval gate",
+      "relativePath": "src/hooks/useCanUseTool.tsx",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 40206,
+      "lineCount": 204,
+      "keywordHits": [
+        "permission",
+        "command",
+        "tool",
+        "config"
+      ]
+    },
+    {
+      "focusArea": "approval gate",
+      "relativePath": "src/components/TrustDialog/TrustDialog.tsx",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 32481,
+      "lineCount": 290,
+      "keywordHits": [
+        "command",
+        "context",
+        "mcp",
+        "tool",
+        "config"
+      ]
+    },
+    {
+      "focusArea": "approval gate",
+      "relativePath": "src/services/mcpServerApproval.tsx",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 6400,
+      "lineCount": 41,
+      "keywordHits": [
+        "approval",
+        "mcp",
+        "config"
+      ]
+    },
+    {
+      "focusArea": "project memory files",
+      "relativePath": "src/memdir/memdir.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 21174,
+      "lineCount": 508,
+      "keywordHits": [
+        "shell",
+        "session",
+        "context",
+        "memory",
+        "tool",
+        "agent"
+      ]
+    },
+    {
+      "focusArea": "project memory files",
+      "relativePath": "src/memdir/memoryScan.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 3105,
+      "lineCount": 95,
+      "keywordHits": [
+        "memory",
+        "agent"
+      ]
+    },
+    {
+      "focusArea": "project memory files",
+      "relativePath": "src/memdir/memoryTypes.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 22866,
+      "lineCount": 272,
+      "keywordHits": [
+        "command",
+        "session",
+        "context",
+        "memory",
+        "diff"
+      ]
+    },
+    {
+      "focusArea": "project memory files",
+      "relativePath": "src/memdir/findRelevantMemories.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 5305,
+      "lineCount": 142,
+      "keywordHits": [
+        "memory",
+        "tool"
+      ]
+    },
+    {
+      "focusArea": "project memory files",
+      "relativePath": "src/utils/memoryFileDetection.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 10212,
+      "lineCount": 290,
+      "keywordHits": [
+        "shell",
+        "command",
+        "session",
+        "memory",
+        "agent",
+        "config"
+      ]
+    },
+    {
+      "focusArea": "project memory files",
+      "relativePath": "src/services/SessionMemory/sessionMemory.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 16561,
+      "lineCount": 496,
+      "keywordHits": [
+        "command",
+        "session",
+        "context",
+        "memory",
+        "tool",
+        "agent",
+        "config"
+      ]
+    },
+    {
+      "focusArea": "MCP/tool bridge",
+      "relativePath": "src/entrypoints/mcp.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 6270,
+      "lineCount": 197,
+      "keywordHits": [
+        "shell",
+        "command",
+        "memory",
+        "mcp",
+        "tool"
+      ]
+    },
+    {
+      "focusArea": "MCP/tool bridge",
+      "relativePath": "src/services/mcp/config.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 51130,
+      "lineCount": 1579,
+      "keywordHits": [
+        "command",
+        "session",
+        "mcp",
+        "tool",
+        "config"
+      ]
+    },
+    {
+      "focusArea": "MCP/tool bridge",
+      "relativePath": "src/services/mcp/client.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 119060,
+      "lineCount": 3349,
+      "keywordHits": [
+        "permission",
+        "command",
+        "session",
+        "context",
+        "memory",
+        "mcp",
+        "tool",
+        "terminal",
+        "agent",
+        "config",
+        "provider"
+      ]
+    },
+    {
+      "focusArea": "MCP/tool bridge",
+      "relativePath": "src/utils/mcpValidation.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 6300,
+      "lineCount": 209,
+      "keywordHits": [
+        "mcp",
+        "tool"
+      ]
+    },
+    {
+      "focusArea": "MCP/tool bridge",
+      "relativePath": "src/utils/mcpOutputStorage.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 7086,
+      "lineCount": 190,
+      "keywordHits": [
+        "context",
+        "mcp",
+        "tool",
+        "provider"
+      ]
+    },
+    {
+      "focusArea": "MCP/tool bridge",
+      "relativePath": "src/utils/plugins/mcpPluginIntegration.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 20113,
+      "lineCount": 635,
+      "keywordHits": [
+        "command",
+        "mcp",
+        "config"
+      ]
+    },
+    {
+      "focusArea": "MCP/tool bridge",
+      "relativePath": "src/hooks/useMergedTools.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 1645,
+      "lineCount": 45,
+      "keywordHits": [
+        "permission",
+        "context",
+        "mcp",
+        "tool"
+      ]
+    },
+    {
+      "focusArea": "MCP/tool bridge",
+      "relativePath": "src/utils/toolSchemaCache.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 1061,
+      "lineCount": 27,
+      "keywordHits": [
+        "session",
+        "mcp",
+        "tool",
+        "config"
+      ]
+    },
+    {
+      "focusArea": "MCP/tool bridge",
+      "relativePath": "src/utils/toolResultStorage.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 38384,
+      "lineCount": 1041,
+      "keywordHits": [
+        "permission",
+        "shell",
+        "session",
+        "mcp",
+        "tool",
+        "agent"
+      ]
+    },
+    {
+      "focusArea": "diff/apply patch workflow",
+      "relativePath": "src/commands/diff/index.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 221,
+      "lineCount": 9,
+      "keywordHits": [
+        "command",
+        "diff"
+      ]
+    },
+    {
+      "focusArea": "diff/apply patch workflow",
+      "relativePath": "src/hooks/useTurnDiffs.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 6686,
+      "lineCount": 214,
+      "keywordHits": [
+        "tool",
+        "diff"
+      ]
+    },
+    {
+      "focusArea": "diff/apply patch workflow",
+      "relativePath": "src/hooks/useDiffData.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 2839,
+      "lineCount": 111,
+      "keywordHits": [
+        "diff"
+      ]
+    },
+    {
+      "focusArea": "diff/apply patch workflow",
+      "relativePath": "src/hooks/useDiffInIDE.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 9867,
+      "lineCount": 380,
+      "keywordHits": [
+        "approval",
+        "mcp",
+        "tool",
+        "diff",
+        "patch",
+        "terminal",
+        "config"
+      ]
+    },
+    {
+      "focusArea": "diff/apply patch workflow",
+      "relativePath": "src/components/StructuredDiff.tsx",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 25007,
+      "lineCount": 190,
+      "keywordHits": [
+        "context",
+        "diff",
+        "patch",
+        "terminal"
+      ]
+    },
+    {
+      "focusArea": "diff/apply patch workflow",
+      "relativePath": "src/utils/gitDiff.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 16039,
+      "lineCount": 533,
+      "keywordHits": [
+        "memory",
+        "diff",
+        "patch"
+      ]
+    },
+    {
+      "focusArea": "diff/apply patch workflow",
+      "relativePath": "src/utils/diff.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 4855,
+      "lineCount": 178,
+      "keywordHits": [
+        "context",
+        "diff",
+        "patch"
+      ]
+    },
+    {
+      "focusArea": "diff/apply patch workflow",
+      "relativePath": "src/tools/FileEditTool/FileEditTool.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 20502,
+      "lineCount": 626,
+      "keywordHits": [
+        "permission",
+        "context",
+        "memory",
+        "mcp",
+        "tool",
+        "diff",
+        "patch"
+      ]
+    },
+    {
+      "focusArea": "rollback/undo pattern",
+      "relativePath": "src/tools/shared/gitOperationTracking.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 9485,
+      "lineCount": 278,
+      "keywordHits": [
+        "shell",
+        "command",
+        "session",
+        "tool"
+      ]
+    },
+    {
+      "focusArea": "rollback/undo pattern",
+      "relativePath": "src/tools/ExitWorktreeTool/ExitWorktreeTool.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 11649,
+      "lineCount": 330,
+      "keywordHits": [
+        "shell",
+        "session",
+        "tool"
+      ]
+    },
+    {
+      "focusArea": "rollback/undo pattern",
+      "relativePath": "src/utils/gitDiff.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 16039,
+      "lineCount": 533,
+      "keywordHits": [
+        "memory",
+        "diff",
+        "patch"
+      ]
+    },
+    {
+      "focusArea": "rollback/undo pattern",
+      "relativePath": "src/hooks/useTurnDiffs.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 6686,
+      "lineCount": 214,
+      "keywordHits": [
+        "tool",
+        "diff"
+      ]
+    },
+    {
+      "focusArea": "terminal safety",
+      "relativePath": "src/ink/terminal.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 8190,
+      "lineCount": 249,
+      "keywordHits": [
+        "session",
+        "diff",
+        "patch",
+        "terminal"
+      ]
+    },
+    {
+      "focusArea": "terminal safety",
+      "relativePath": "src/ink/terminal-querier.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 7843,
+      "lineCount": 213,
+      "keywordHits": [
+        "terminal"
+      ]
+    },
+    {
+      "focusArea": "terminal safety",
+      "relativePath": "src/utils/terminal.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 4372,
+      "lineCount": 132,
+      "keywordHits": [
+        "tool",
+        "terminal"
+      ]
+    },
+    {
+      "focusArea": "terminal safety",
+      "relativePath": "src/utils/terminalPanel.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 6014,
+      "lineCount": 192,
+      "keywordHits": [
+        "shell",
+        "command",
+        "session",
+        "terminal"
+      ]
+    },
+    {
+      "focusArea": "terminal safety",
+      "relativePath": "src/ink/hooks/use-terminal-viewport.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 3977,
+      "lineCount": 97,
+      "keywordHits": [
+        "terminal"
+      ]
+    },
+    {
+      "focusArea": "terminal safety",
+      "relativePath": "src/components/tasks/ShellInput.tsx",
+      "exists": false,
+      "read": false,
+      "sizeBytes": 0,
+      "lineCount": 0,
+      "keywordHits": []
+    },
+    {
+      "focusArea": "agent loop",
+      "relativePath": "src/tools/AgentTool/AgentTool.tsx",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 233734,
+      "lineCount": 1398,
+      "keywordHits": [
+        "permission",
+        "approval",
+        "shell",
+        "command",
+        "session",
+        "context",
+        "memory",
+        "mcp",
+        "tool",
+        "agent"
+      ]
+    },
+    {
+      "focusArea": "agent loop",
+      "relativePath": "src/tools/AgentTool/forkSubagent.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 8678,
+      "lineCount": 211,
+      "keywordHits": [
+        "permission",
+        "command",
+        "context",
+        "tool",
+        "terminal",
+        "agent"
+      ]
+    },
+    {
+      "focusArea": "agent loop",
+      "relativePath": "src/tools/AgentTool/agentMemory.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 5853,
+      "lineCount": 178,
+      "keywordHits": [
+        "memory",
+        "agent",
+        "config"
+      ]
+    },
+    {
+      "focusArea": "agent loop",
+      "relativePath": "src/tools/AgentTool/agentMemorySnapshot.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 5633,
+      "lineCount": 198,
+      "keywordHits": [
+        "memory",
+        "agent"
+      ]
+    },
+    {
+      "focusArea": "agent loop",
+      "relativePath": "src/utils/forkedAgent.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 24635,
+      "lineCount": 690,
+      "keywordHits": [
+        "permission",
+        "command",
+        "session",
+        "context",
+        "memory",
+        "tool",
+        "agent",
+        "config"
+      ]
+    },
+    {
+      "focusArea": "agent loop",
+      "relativePath": "src/utils/standaloneAgent.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 803,
+      "lineCount": 24,
+      "keywordHits": [
+        "session",
+        "context",
+        "agent"
+      ]
+    },
+    {
+      "focusArea": "config handling",
+      "relativePath": "src/query/config.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 1808,
+      "lineCount": 47,
+      "keywordHits": [
+        "config"
+      ]
+    },
+    {
+      "focusArea": "config handling",
+      "relativePath": "src/utils/config.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 63496,
+      "lineCount": 1818,
+      "keywordHits": [
+        "permission",
+        "approval",
+        "command",
+        "session",
+        "memory",
+        "mcp",
+        "tool",
+        "terminal",
+        "config"
+      ]
+    },
+    {
+      "focusArea": "config handling",
+      "relativePath": "src/utils/configConstants.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 733,
+      "lineCount": 22,
+      "keywordHits": [
+        "context"
+      ]
+    },
+    {
+      "focusArea": "config handling",
+      "relativePath": "src/utils/settings/permissionValidation.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 8657,
+      "lineCount": 263,
+      "keywordHits": [
+        "permission",
+        "command",
+        "mcp",
+        "tool"
+      ]
+    },
+    {
+      "focusArea": "config handling",
+      "relativePath": "src/utils/settings/toolValidationConfig.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 3100,
+      "lineCount": 104,
+      "keywordHits": [
+        "command",
+        "tool"
+      ]
+    },
+    {
+      "focusArea": "config handling",
+      "relativePath": "src/utils/markdownConfigLoader.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 21312,
+      "lineCount": 601,
+      "keywordHits": [
+        "permission",
+        "command",
+        "session",
+        "tool",
+        "agent"
+      ]
+    },
+    {
+      "focusArea": "config handling",
+      "relativePath": "src/migrations/migrateBypassPermissionsAcceptedToSettings.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 1262,
+      "lineCount": 41,
+      "keywordHits": [
+        "config"
+      ]
+    },
+    {
+      "focusArea": "provider abstraction",
+      "relativePath": "src/utils/model/providers.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 1340,
+      "lineCount": 41,
+      "keywordHits": []
+    },
+    {
+      "focusArea": "provider abstraction",
+      "relativePath": "src/utils/model/configs.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 4286,
+      "lineCount": 119,
+      "keywordHits": [
+        "config"
+      ]
+    },
+    {
+      "focusArea": "provider abstraction",
+      "relativePath": "src/utils/model/agent.ts",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 5578,
+      "lineCount": 158,
+      "keywordHits": [
+        "tool",
+        "agent",
+        "config",
+        "provider"
+      ]
+    },
+    {
+      "focusArea": "provider abstraction",
+      "relativePath": "src/components/agents/ModelSelector.tsx",
+      "exists": true,
+      "read": true,
+      "sizeBytes": 6927,
+      "lineCount": 68,
+      "keywordHits": [
+        "agent"
+      ]
+    }
+  ],
+  "referenceArchitecturePoints": [
+    {
+      "focusArea": "tool permission model",
+      "claudeCodeModules": [
+        {
+          "path": "src/utils/permissions/PermissionMode.ts",
+          "exists": true
+        },
+        {
+          "path": "src/utils/permissions/PermissionResult.ts",
+          "exists": true
+        },
+        {
+          "path": "src/utils/permissions/PermissionRule.ts",
+          "exists": true
+        },
+        {
+          "path": "src/utils/permissions/permissionRuleParser.ts",
+          "exists": true
+        },
+        {
+          "path": "src/utils/permissions/permissionsLoader.ts",
+          "exists": true
+        },
+        {
+          "path": "src/utils/permissions/pathValidation.ts",
+          "exists": true
+        },
+        {
+          "path": "src/utils/permissions/dangerousPatterns.ts",
+          "exists": true
+        },
+        {
+          "path": "src/utils/permissions/bashClassifier.ts",
+          "exists": true
+        },
+        {
+          "path": "src/hooks/toolPermission/PermissionContext.ts",
+          "exists": true
+        }
+      ],
+      "architecturalPattern": "A typed permission mode, rule, result, path validation, and command classifier layer separates what the agent wants to do from what the local environment may allow.",
+      "pmeCurrentUse": "PME has risk-policy JSON, permission modes, approval records, and GVC risk gates, but rules are still spread across phase verifiers and runner code.",
+      "utilizationLevel": "partial",
+      "pmeAnalogues": [
+        {
+          "path": "tools/gvc/validate-risk-gate.mjs",
+          "exists": true
+        },
+        {
+          "path": "apps/ai-gateway-service/src/agent-runner/permissionModePolicy.js",
+          "exists": true
+        },
+        {
+          "path": "docs/project-brain/risk-policy.json",
+          "exists": true
+        }
+      ],
+      "gap": "No single reusable permission rule parser/result object is shared across Local Agent, GVC runner, Codex Context Gateway, and future external tool bridges.",
+      "recommendation": "Create a PME permission-rule DSL and shared evaluation result shape before expanding autonomous mutation surfaces."
+    },
+    {
+      "focusArea": "command execution model",
+      "claudeCodeModules": [
+        {
+          "path": "src/utils/Shell.ts",
+          "exists": true
+        },
+        {
+          "path": "src/utils/ShellCommand.ts",
+          "exists": true
+        },
+        {
+          "path": "src/utils/shell/readOnlyCommandValidation.ts",
+          "exists": true
+        },
+        {
+          "path": "src/utils/shell/outputLimits.ts",
+          "exists": true
+        },
+        {
+          "path": "src/utils/powershell/dangerousCmdlets.ts",
+          "exists": true
+        },
+        {
+          "path": "src/tools/BashTool/bashSecurity.ts",
+          "exists": true
+        },
+        {
+          "path": "src/tools/PowerShellTool/powershellSecurity.ts",
+          "exists": true
+        }
+      ],
+      "architecturalPattern": "Shell execution is modeled as a classified command with read-only checks, output limits, shell-specific safety rules, and UI-visible semantics.",
+      "pmeCurrentUse": "PME runs explicit verifier commands and blocks deploy/provider/chat operations, but command classification is mostly phase-specific.",
+      "utilizationLevel": "weak_partial",
+      "pmeAnalogues": [
+        {
+          "path": "tools/gvc/run-timed-local-runner.mjs",
+          "exists": true
+        },
+        {
+          "path": "tools/gvc/low-risk-autonomous-executor.mjs",
+          "exists": true
+        },
+        {
+          "path": "apps/ai-gateway-service/src/agent-runner/approvedPatchRunner.js",
+          "exists": true
+        }
+      ],
+      "gap": "PowerShell and shell safety are not yet centralized as reusable parse/classify/explain primitives for owner-facing automation.",
+      "recommendation": "Add a dry-run command classifier that labels read-only, mutation, forbidden, provider-risk, secret-risk, and deploy-risk commands without executing them."
+    },
+    {
+      "focusArea": "session/context handling",
+      "claudeCodeModules": [
+        {
+          "path": "src/bootstrap/state.ts",
+          "exists": true
+        },
+        {
+          "path": "src/context.ts",
+          "exists": true
+        },
+        {
+          "path": "src/utils/sessionState.ts",
+          "exists": true
+        },
+        {
+          "path": "src/utils/sessionRestore.ts",
+          "exists": true
+        },
+        {
+          "path": "src/utils/agentContext.ts",
+          "exists": true
+        },
+        {
+          "path": "src/utils/queryContext.ts",
+          "exists": true
+        },
+        {
+          "path": "src/utils/readEditContext.ts",
+          "exists": true
+        },
+        {
+          "path": "src/assistant/sessionHistory.ts",
+          "exists": true
+        }
+      ],
+      "architecturalPattern": "Session state, query context, read/edit context, and restore history are distinct layers instead of one loose transcript.",
+      "pmeCurrentUse": "PME has project-brain state, Codex Context packs, stale guards, and runner state files.",
+      "utilizationLevel": "partial",
+      "pmeAnalogues": [
+        {
+          "path": "docs/project-brain/current-state.json",
+          "exists": true
+        },
+        {
+          "path": "docs/project-brain/timed-runner-state.json",
+          "exists": true
+        },
+        {
+          "path": "packages/codex-context-gateway/src/contextPackGenerator.js",
+          "exists": true
+        },
+        {
+          "path": "packages/codex-context-gateway/src/contextFreshnessDetector.js",
+          "exists": true
+        }
+      ],
+      "gap": "PME lacks a compact unified session ledger connecting task intent, files read, edits planned, edits applied, verifier state, and resume pointer.",
+      "recommendation": "Unify project-brain, context pack, and execution history into a bounded session ledger with freshness and resume fields."
+    },
+    {
+      "focusArea": "approval gate",
+      "claudeCodeModules": [
+        {
+          "path": "src/utils/classifierApprovals.ts",
+          "exists": true
+        },
+        {
+          "path": "src/utils/classifierApprovalsHook.ts",
+          "exists": true
+        },
+        {
+          "path": "src/hooks/useCanUseTool.tsx",
+          "exists": true
+        },
+        {
+          "path": "src/components/TrustDialog/TrustDialog.tsx",
+          "exists": true
+        },
+        {
+          "path": "src/services/mcpServerApproval.tsx",
+          "exists": true
+        }
+      ],
+      "architecturalPattern": "Approval is a first-class state transition that can be previewed, explained, recorded, and consumed by tool permission checks.",
+      "pmeCurrentUse": "PME already uses approval packets, approval preview surfaces, runner control files, and provider approval schemas.",
+      "utilizationLevel": "strong_partial",
+      "pmeAnalogues": [
+        {
+          "path": "apps/ai-gateway-service/src/approval/approvalStore.js",
+          "exists": true
+        },
+        {
+          "path": "apps/ai-gateway-service/src/agent-runner/localAgentApprovalPreview.js",
+          "exists": true
+        },
+        {
+          "path": "docs/approvals/gvc-low-risk-autonomous-mutation-approval.json",
+          "exists": true
+        },
+        {
+          "path": "tools/gvc/read-runner-control.mjs",
+          "exists": true
+        }
+      ],
+      "gap": "Approval semantics are strong but fragmented by phase and product area; not all approval records share one canonical schema.",
+      "recommendation": "Define an approval-intent envelope shared by Local Agent, GVC runner, Provider gate, and external tool candidates."
+    },
+    {
+      "focusArea": "project memory files",
+      "claudeCodeModules": [
+        {
+          "path": "src/memdir/memdir.ts",
+          "exists": true
+        },
+        {
+          "path": "src/memdir/memoryScan.ts",
+          "exists": true
+        },
+        {
+          "path": "src/memdir/memoryTypes.ts",
+          "exists": true
+        },
+        {
+          "path": "src/memdir/findRelevantMemories.ts",
+          "exists": true
+        },
+        {
+          "path": "src/utils/memoryFileDetection.ts",
+          "exists": true
+        },
+        {
+          "path": "src/services/SessionMemory/sessionMemory.ts",
+          "exists": true
+        }
+      ],
+      "architecturalPattern": "Memory files are discoverable, typed, age-aware, and relevance-filtered instead of treated as one global instruction blob.",
+      "pmeCurrentUse": "PME has AGENTS managed rules and project-brain JSON files.",
+      "utilizationLevel": "partial",
+      "pmeAnalogues": [
+        {
+          "path": "AGENTS.md",
+          "exists": true
+        },
+        {
+          "path": "README.md",
+          "exists": true
+        },
+        {
+          "path": "docs/project-brain/current-state.json",
+          "exists": true
+        },
+        {
+          "path": "docs/project-brain/goals.json",
+          "exists": true
+        },
+        {
+          "path": "docs/project-brain/completion-definition.json",
+          "exists": true
+        }
+      ],
+      "gap": "Project memory is not yet relevance-ranked or age-scored before each autonomous runner loop.",
+      "recommendation": "Add memory age/relevance scoring for project-brain inputs and AGENTS managed state."
+    },
+    {
+      "focusArea": "MCP/tool bridge",
+      "claudeCodeModules": [
+        {
+          "path": "src/entrypoints/mcp.ts",
+          "exists": true
+        },
+        {
+          "path": "src/services/mcp/config.ts",
+          "exists": true
+        },
+        {
+          "path": "src/services/mcp/client.ts",
+          "exists": true
+        },
+        {
+          "path": "src/utils/mcpValidation.ts",
+          "exists": true
+        },
+        {
+          "path": "src/utils/mcpOutputStorage.ts",
+          "exists": true
+        },
+        {
+          "path": "src/utils/plugins/mcpPluginIntegration.ts",
+          "exists": true
+        },
+        {
+          "path": "src/hooks/useMergedTools.ts",
+          "exists": true
+        },
+        {
+          "path": "src/utils/toolSchemaCache.ts",
+          "exists": true
+        },
+        {
+          "path": "src/utils/toolResultStorage.ts",
+          "exists": true
+        }
+      ],
+      "architecturalPattern": "Tool bridges benefit from schema caching, output storage, validation, merged command/tool registries, and approval-aware connection setup.",
+      "pmeCurrentUse": "PME has Codex Context Gateway previews and external tool bridge designs, but not a general local MCP registry for PME tools.",
+      "utilizationLevel": "weak_partial",
+      "pmeAnalogues": [
+        {
+          "path": "packages/codex-context-gateway/src/runnerIntegrationPreview.js",
+          "exists": true
+        },
+        {
+          "path": "packages/codex-context-gateway/src/relayArchitectureDesign.js",
+          "exists": true
+        },
+        {
+          "path": "packages/codex-context-gateway/src/authorizationEvidenceBuilder.js",
+          "exists": true
+        }
+      ],
+      "gap": "No shared local tool schema cache or output ledger exists for all owner-facing tools.",
+      "recommendation": "Build a read-only PME tool registry preview before any real tool execution bridge."
+    },
+    {
+      "focusArea": "diff/apply patch workflow",
+      "claudeCodeModules": [
+        {
+          "path": "src/commands/diff/index.ts",
+          "exists": true
+        },
+        {
+          "path": "src/hooks/useTurnDiffs.ts",
+          "exists": true
+        },
+        {
+          "path": "src/hooks/useDiffData.ts",
+          "exists": true
+        },
+        {
+          "path": "src/hooks/useDiffInIDE.ts",
+          "exists": true
+        },
+        {
+          "path": "src/components/StructuredDiff.tsx",
+          "exists": true
+        },
+        {
+          "path": "src/utils/gitDiff.ts",
+          "exists": true
+        },
+        {
+          "path": "src/utils/diff.ts",
+          "exists": true
+        },
+        {
+          "path": "src/tools/FileEditTool/FileEditTool.ts",
+          "exists": true
+        }
+      ],
+      "architecturalPattern": "Diffs are turn-scoped, structured, reviewable, and connect file edit intent to an approval/apply path.",
+      "pmeCurrentUse": "PME has patch proposal, approval policy, approved patch runner, and autonomous mutation plan/evidence.",
+      "utilizationLevel": "partial",
+      "pmeAnalogues": [
+        {
+          "path": "apps/ai-gateway-service/src/agent-runner/localOperationPatchProposal.js",
+          "exists": true
+        },
+        {
+          "path": "apps/ai-gateway-service/src/agent-runner/patchApprovalPolicy.js",
+          "exists": true
+        },
+        {
+          "path": "apps/ai-gateway-service/src/agent-runner/approvedPatchRunner.js",
+          "exists": true
+        },
+        {
+          "path": "tools/gvc/low-risk-autonomous-executor.mjs",
+          "exists": true
+        }
+      ],
+      "gap": "Owner UI does not yet expose one consistent structured diff view for GVC mutations, Local Agent patches, and future tool edits.",
+      "recommendation": "Add a unified read-only diff ledger and structured diff panel before adding more write surfaces."
+    },
+    {
+      "focusArea": "rollback/undo pattern",
+      "claudeCodeModules": [
+        {
+          "path": "src/tools/shared/gitOperationTracking.ts",
+          "exists": true
+        },
+        {
+          "path": "src/tools/ExitWorktreeTool/ExitWorktreeTool.ts",
+          "exists": true
+        },
+        {
+          "path": "src/utils/gitDiff.ts",
+          "exists": true
+        },
+        {
+          "path": "src/hooks/useTurnDiffs.ts",
+          "exists": true
+        }
+      ],
+      "architecturalPattern": "Edits should be paired with operation tracking, visible diffs, rollback manifests, and explicit exit/restore flows.",
+      "pmeCurrentUse": "PME has rollback manifests, rollback simulation, route disable plans, and GVC rollback on verifier failure.",
+      "utilizationLevel": "strong_partial",
+      "pmeAnalogues": [
+        {
+          "path": "apps/ai-gateway-service/src/agent-runner/rollbackManifest.js",
+          "exists": true
+        },
+        {
+          "path": "tools/gvc/low-risk-autonomous-executor.mjs",
+          "exists": true
+        },
+        {
+          "path": "packages/codex-context-gateway/src/rollbackSimulation.js",
+          "exists": true
+        },
+        {
+          "path": "packages/model-routing-engine/src/routeRollbackDisable.js",
+          "exists": true
+        }
+      ],
+      "gap": "Rollback evidence is present, but not yet normalized into one owner-readable undo history across subsystems.",
+      "recommendation": "Create a cross-phase rollback ledger with last-known snapshot, verifier failure cause, rollback status, and owner-readable summary."
+    },
+    {
+      "focusArea": "terminal safety",
+      "claudeCodeModules": [
+        {
+          "path": "src/ink/terminal.ts",
+          "exists": true
+        },
+        {
+          "path": "src/ink/terminal-querier.ts",
+          "exists": true
+        },
+        {
+          "path": "src/utils/terminal.ts",
+          "exists": true
+        },
+        {
+          "path": "src/utils/terminalPanel.ts",
+          "exists": true
+        },
+        {
+          "path": "src/ink/hooks/use-terminal-viewport.ts",
+          "exists": true
+        },
+        {
+          "path": "src/components/tasks/ShellInput.tsx",
+          "exists": false
+        }
+      ],
+      "architecturalPattern": "Terminal interaction is bounded by viewport, output handling, focus state, and shell-specific display components.",
+      "pmeCurrentUse": "PME has manual launch scripts and runner logs/evidence, but limited terminal output classification.",
+      "utilizationLevel": "weak_partial",
+      "pmeAnalogues": [
+        {
+          "path": "tools/gvc/run-timed-local-runner.mjs",
+          "exists": true
+        },
+        {
+          "path": "tools/gvc/start-timed-local-runner.cmd",
+          "exists": true
+        },
+        {
+          "path": "tools/gvc/start-timed-local-runner.ps1",
+          "exists": true
+        }
+      ],
+      "gap": "Long command output and terminal state are not centrally summarized for owner control panels.",
+      "recommendation": "Introduce terminal transcript summaries and output limit policies for all local runner commands."
+    },
+    {
+      "focusArea": "agent loop",
+      "claudeCodeModules": [
+        {
+          "path": "src/tools/AgentTool/AgentTool.tsx",
+          "exists": true
+        },
+        {
+          "path": "src/tools/AgentTool/forkSubagent.ts",
+          "exists": true
+        },
+        {
+          "path": "src/tools/AgentTool/agentMemory.ts",
+          "exists": true
+        },
+        {
+          "path": "src/tools/AgentTool/agentMemorySnapshot.ts",
+          "exists": true
+        },
+        {
+          "path": "src/utils/forkedAgent.ts",
+          "exists": true
+        },
+        {
+          "path": "src/utils/standaloneAgent.ts",
+          "exists": true
+        }
+      ],
+      "architecturalPattern": "Agent loops should isolate agent memory, spawn/fork boundaries, progress state, and final result capture.",
+      "pmeCurrentUse": "PME has GVC next-action selection, timed runner, quality gate, and low-risk mutation executor.",
+      "utilizationLevel": "partial",
+      "pmeAnalogues": [
+        {
+          "path": "tools/gvc/select-next-action.mjs",
+          "exists": true
+        },
+        {
+          "path": "tools/gvc/run-timed-local-runner.mjs",
+          "exists": true
+        },
+        {
+          "path": "tools/gvc/generate-next-actions.mjs",
+          "exists": true
+        },
+        {
+          "path": "tools/gvc/score-next-action-quality.mjs",
+          "exists": true
+        }
+      ],
+      "gap": "PME runner is policy-rich but still lacks explicit per-agent memory snapshots and forked subtask result contracts.",
+      "recommendation": "Add an autonomous-runner task capsule with memory snapshot, allowed files, mutation plan, result, and rollback pointer."
+    },
+    {
+      "focusArea": "config handling",
+      "claudeCodeModules": [
+        {
+          "path": "src/query/config.ts",
+          "exists": true
+        },
+        {
+          "path": "src/utils/config.ts",
+          "exists": true
+        },
+        {
+          "path": "src/utils/configConstants.ts",
+          "exists": true
+        },
+        {
+          "path": "src/utils/settings/permissionValidation.ts",
+          "exists": true
+        },
+        {
+          "path": "src/utils/settings/toolValidationConfig.ts",
+          "exists": true
+        },
+        {
+          "path": "src/utils/markdownConfigLoader.ts",
+          "exists": true
+        },
+        {
+          "path": "src/migrations/migrateBypassPermissionsAcceptedToSettings.ts",
+          "exists": true
+        }
+      ],
+      "architecturalPattern": "Config is loaded, validated, migrated, redacted, and explained before affecting runtime behavior.",
+      "pmeCurrentUse": "PME has control/policy JSON and redacted config preview tools.",
+      "utilizationLevel": "partial",
+      "pmeAnalogues": [
+        {
+          "path": "docs/project-brain/risk-policy.json",
+          "exists": true
+        },
+        {
+          "path": "docs/project-brain/runner-control.json",
+          "exists": true
+        },
+        {
+          "path": "docs/project-brain/safe-overnight-policy.json",
+          "exists": true
+        },
+        {
+          "path": "packages/codex-context-gateway/src/redactedConfigPreviewBuilder.js",
+          "exists": true
+        }
+      ],
+      "gap": "Policy config migration/versioning is not yet uniform for project-brain, runner-control, and approval packets.",
+      "recommendation": "Version project-brain/control schemas and add migration checks before the runner reads them."
+    },
+    {
+      "focusArea": "provider abstraction",
+      "claudeCodeModules": [
+        {
+          "path": "src/utils/model/providers.ts",
+          "exists": true
+        },
+        {
+          "path": "src/utils/model/configs.ts",
+          "exists": true
+        },
+        {
+          "path": "src/utils/model/agent.ts",
+          "exists": true
+        },
+        {
+          "path": "src/components/agents/ModelSelector.tsx",
+          "exists": true
+        }
+      ],
+      "architecturalPattern": "Provider/model selection should be capability-aware, config-aware, and separated from direct execution.",
+      "pmeCurrentUse": "PME has provider registry, credentialRef gates, model library status rules, and cost/quota/provider execution guards.",
+      "utilizationLevel": "strong_partial",
+      "pmeAnalogues": [
+        {
+          "path": "apps/ai-gateway-service/src/providers/providerRegistry.js",
+          "exists": true
+        },
+        {
+          "path": "apps/ai-gateway-service/src/providers/providerExecutionAuthorizationGate.js",
+          "exists": true
+        },
+        {
+          "path": "apps/ai-gateway-service/src/core/providerSelectionPolicy.js",
+          "exists": true
+        },
+        {
+          "path": "packages/global-model-library/src/providerCredentialReadinessGate.js",
+          "exists": true
+        }
+      ],
+      "gap": "Provider abstraction is strong in AI Gateway, but it is intentionally not connected to GVC autonomous runner or Claude Code source audit.",
+      "recommendation": "Keep Provider bridges approval-gated and reuse only the abstraction pattern, not source code or direct runtime behavior."
+    }
+  ],
+  "pmeUsedPatterns": [
+    {
+      "mechanism": "Risk-gated autonomous loop",
+      "pmeFiles": [
+        "tools/gvc/validate-risk-gate.mjs",
+        "tools/gvc/run-timed-local-runner.mjs",
+        "docs/project-brain/risk-policy.json"
+      ],
+      "borrowedPatternLevel": "conceptual",
+      "status": "used"
+    },
+    {
+      "mechanism": "Approval packet and control-file gating",
+      "pmeFiles": [
+        "docs/approvals/gvc-low-risk-autonomous-mutation-approval.json",
+        "docs/project-brain/runner-control.json",
+        "tools/gvc/read-runner-control.mjs"
+      ],
+      "borrowedPatternLevel": "conceptual",
+      "status": "used"
+    },
+    {
+      "mechanism": "Evidence-first verifier chain",
+      "pmeFiles": [
+        "tools/gvc/verify-task-quality-gate.mjs",
+        "tools/gvc/verify-phase2038-batch-rollback-audit.mjs",
+        "apps/ai-gateway-service/evidence/"
+      ],
+      "borrowedPatternLevel": "independent PME pattern",
+      "status": "used"
+    },
+    {
+      "mechanism": "Patch proposal and approved local apply boundary",
+      "pmeFiles": [
+        "apps/ai-gateway-service/src/agent-runner/localOperationPatchProposal.js",
+        "apps/ai-gateway-service/src/agent-runner/patchApprovalPolicy.js",
+        "apps/ai-gateway-service/src/agent-runner/approvedPatchRunner.js"
+      ],
+      "borrowedPatternLevel": "conceptual",
+      "status": "used"
+    },
+    {
+      "mechanism": "Rollback on verifier failure",
+      "pmeFiles": [
+        "tools/gvc/low-risk-autonomous-executor.mjs",
+        "apps/ai-gateway-service/src/agent-runner/rollbackManifest.js"
+      ],
+      "borrowedPatternLevel": "conceptual",
+      "status": "used"
+    },
+    {
+      "mechanism": "Context gateway with freshness and relevant-file scope",
+      "pmeFiles": [
+        "packages/codex-context-gateway/src/contextPackGenerator.js",
+        "packages/codex-context-gateway/src/staleContextGuard.js",
+        "packages/codex-context-gateway/src/relevantFileScopeGate.js"
+      ],
+      "borrowedPatternLevel": "independent PME pattern",
+      "status": "used"
+    },
+    {
+      "mechanism": "Provider abstraction and credentialRef gate",
+      "pmeFiles": [
+        "apps/ai-gateway-service/src/providers/providerExecutionAuthorizationGate.js",
+        "packages/global-model-library/src/providerCredentialReadinessGate.js"
+      ],
+      "borrowedPatternLevel": "independent PME pattern",
+      "status": "used"
+    }
+  ],
+  "gapsWorthAbsorbing": [
+    {
+      "focusArea": "tool permission model",
+      "gap": "No single reusable permission rule parser/result object is shared across Local Agent, GVC runner, Codex Context Gateway, and future external tool bridges.",
+      "expectedValue": "Reduces drift between UI approvals, GVC risk gate, and local operation policy.",
+      "safeNextStep": "Create a PME permission-rule DSL and shared evaluation result shape before expanding autonomous mutation surfaces.",
+      "copyBoundary": "Use architecture ideas only. Do not copy Claude Code source into PME."
+    },
+    {
+      "focusArea": "command execution model",
+      "gap": "PowerShell and shell safety are not yet centralized as reusable parse/classify/explain primitives for owner-facing automation.",
+      "expectedValue": "Prevents unsafe command execution and improves owner-visible explanations.",
+      "safeNextStep": "Add a dry-run command classifier that labels read-only, mutation, forbidden, provider-risk, secret-risk, and deploy-risk commands without executing them.",
+      "copyBoundary": "Use architecture ideas only. Do not copy Claude Code source into PME."
+    },
+    {
+      "focusArea": "session/context handling",
+      "gap": "PME lacks a compact unified session ledger connecting task intent, files read, edits planned, edits applied, verifier state, and resume pointer.",
+      "expectedValue": "Improves long-running runner resume and auditability.",
+      "safeNextStep": "Unify project-brain, context pack, and execution history into a bounded session ledger with freshness and resume fields.",
+      "copyBoundary": "Use architecture ideas only. Do not copy Claude Code source into PME."
+    },
+    {
+      "focusArea": "approval gate",
+      "gap": "Approval semantics are strong but fragmented by phase and product area; not all approval records share one canonical schema.",
+      "expectedValue": "Reduces fragmented approval packets and dry-run/real-write confusion.",
+      "safeNextStep": "Define an approval-intent envelope shared by Local Agent, GVC runner, Provider gate, and external tool candidates.",
+      "copyBoundary": "Use architecture ideas only. Do not copy Claude Code source into PME."
+    },
+    {
+      "focusArea": "project memory files",
+      "gap": "Project memory is not yet relevance-ranked or age-scored before each autonomous runner loop.",
+      "expectedValue": "Keeps autonomous runs focused on fresh, relevant state.",
+      "safeNextStep": "Add memory age/relevance scoring for project-brain inputs and AGENTS managed state.",
+      "copyBoundary": "Use architecture ideas only. Do not copy Claude Code source into PME."
+    },
+    {
+      "focusArea": "MCP/tool bridge",
+      "gap": "No shared local tool schema cache or output ledger exists for all owner-facing tools.",
+      "expectedValue": "Creates a safer path to future tool integrations without connecting runtime too early.",
+      "safeNextStep": "Build a read-only PME tool registry preview before any real tool execution bridge.",
+      "copyBoundary": "Use architecture ideas only. Do not copy Claude Code source into PME."
+    },
+    {
+      "focusArea": "diff/apply patch workflow",
+      "gap": "Owner UI does not yet expose one consistent structured diff view for GVC mutations, Local Agent patches, and future tool edits.",
+      "expectedValue": "Makes owner review and rollback easier to trust.",
+      "safeNextStep": "Add a unified read-only diff ledger and structured diff panel before adding more write surfaces.",
+      "copyBoundary": "Use architecture ideas only. Do not copy Claude Code source into PME."
+    },
+    {
+      "focusArea": "rollback/undo pattern",
+      "gap": "Rollback evidence is present, but not yet normalized into one owner-readable undo history across subsystems.",
+      "expectedValue": "Improves recovery evidence after verifier failures.",
+      "safeNextStep": "Create a cross-phase rollback ledger with last-known snapshot, verifier failure cause, rollback status, and owner-readable summary.",
+      "copyBoundary": "Use architecture ideas only. Do not copy Claude Code source into PME."
+    },
+    {
+      "focusArea": "terminal safety",
+      "gap": "Long command output and terminal state are not centrally summarized for owner control panels.",
+      "expectedValue": "Keeps local automation understandable and bounded.",
+      "safeNextStep": "Introduce terminal transcript summaries and output limit policies for all local runner commands.",
+      "copyBoundary": "Use architecture ideas only. Do not copy Claude Code source into PME."
+    },
+    {
+      "focusArea": "agent loop",
+      "gap": "PME runner is policy-rich but still lacks explicit per-agent memory snapshots and forked subtask result contracts.",
+      "expectedValue": "Makes autonomous tasks easier to isolate, verify, and stop.",
+      "safeNextStep": "Add an autonomous-runner task capsule with memory snapshot, allowed files, mutation plan, result, and rollback pointer.",
+      "copyBoundary": "Use architecture ideas only. Do not copy Claude Code source into PME."
+    },
+    {
+      "focusArea": "config handling",
+      "gap": "Policy config migration/versioning is not yet uniform for project-brain, runner-control, and approval packets.",
+      "expectedValue": "Prevents stale or invalid policy files from silently changing runner behavior.",
+      "safeNextStep": "Version project-brain/control schemas and add migration checks before the runner reads them.",
+      "copyBoundary": "Use architecture ideas only. Do not copy Claude Code source into PME."
+    },
+    {
+      "focusArea": "provider abstraction",
+      "gap": "Provider abstraction is strong in AI Gateway, but it is intentionally not connected to GVC autonomous runner or Claude Code source audit.",
+      "expectedValue": "Keeps Provider calls gated while preserving a clean future extension path.",
+      "safeNextStep": "Keep Provider bridges approval-gated and reuse only the abstraction pattern, not source code or direct runtime behavior.",
+      "copyBoundary": "Use architecture ideas only. Do not copy Claude Code source into PME."
+    }
+  ],
+  "licenseAndCopyRisk": [
+    {
+      "risk": "Local source tree is a recovered/non-official Claude Code source tree, not a PME-owned dependency.",
+      "impact": "Direct copying into PME can create license, copyright, and provenance risk.",
+      "policy": "Do not copy source, comments, or implementation bodies. Keep only pattern-level audit notes and independent PME implementations."
+    },
+    {
+      "risk": "The local package metadata declares license handling outside a normal permissive open-source grant.",
+      "impact": "Commercial reuse requires independent legal review before any code reuse.",
+      "policy": "Treat this phase as static architecture research only."
+    },
+    {
+      "risk": "Some modules relate to auth/session/provider behavior.",
+      "impact": "Unsafe files could accidentally expose secret handling details if blindly scanned.",
+      "policy": "The audit skips auth.json, .env, token-named, secret-named, archive, dependency, and oversized bundle files."
+    }
+  ],
+  "nextPhaseRecommendations": [
+    {
+      "phase": "Phase2047-PME-Permission-Rule-DSL-Design",
+      "goal": "Define a shared permission rule/result schema for Local Agent, GVC runner, Codex Context Gateway, and future tool bridges.",
+      "boundary": "docs/spec/verifier only; no runtime tool execution."
+    },
+    {
+      "phase": "Phase2048-PME-Shell-Command-Classifier-DryRun",
+      "goal": "Build a dry-run command classifier for PowerShell/cmd/node/pnpm/git/provider/deploy/secret risks.",
+      "boundary": "classification only; no command execution beyond verifier tests."
+    },
+    {
+      "phase": "Phase2049-PME-Tool-Registry-And-Result-Ledger-Preview",
+      "goal": "Create a read-only tool schema cache and result ledger preview for owner-facing tool governance.",
+      "boundary": "read-only preview; no MCP connection or external tool invocation."
+    },
+    {
+      "phase": "Phase2050-PME-Session-Ledger-Context-Unification",
+      "goal": "Unify project-brain, context pack, next-actions, mutation evidence, and rollback pointers into a bounded session ledger.",
+      "boundary": "local files only; no Provider, no chat route modification."
+    }
+  ],
+  "completeUtilization": false,
+  "utilizationConclusion": "partial_utilization_with_clear_gaps",
+  "safety": {
+    "staticSourceAuditOnly": true,
+    "claudeCodeExecuted": false,
+    "providerCallsMade": false,
+    "secretRead": false,
+    "rawSecretExposed": false,
+    "authJsonRead": false,
+    "envFileRead": false,
+    "deployExecuted": false,
+    "releaseExecuted": false,
+    "tagCreated": false,
+    "artifactUploaded": false,
+    "pushExecuted": false,
+    "commitCreated": false,
+    "chatModified": false,
+    "chatGatewayExecuteModified": false,
+    "legacyModified": false,
+    "projectContextModified": false,
+    "copiedClaudeCodeSourceIntoProject": false,
+    "workspaceCleanClaimed": false,
+    "productionReadyClaimed": false
+  }
+}

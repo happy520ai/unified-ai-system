@@ -1,0 +1,21 @@
+{
+  "phase": "Phase339C",
+  "scenarios": [
+    {
+      "id": "queuePriorityRulesPresent",
+      "status": "passed"
+    },
+    {
+      "id": "autoApplyBlocked",
+      "status": "passed"
+    },
+    {
+      "id": "policyActivationBlocked",
+      "status": "passed"
+    },
+    {
+      "id": "rollbackPriorityFirst",
+      "status": "passed"
+    }
+  ]
+}

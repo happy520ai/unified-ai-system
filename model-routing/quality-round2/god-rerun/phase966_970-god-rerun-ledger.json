@@ -1,0 +1,11 @@
+{
+  "phaseRange": "Phase966-970",
+  "targetScenario": "god_dual_reviewer",
+  "rerunResultPath": "apps/ai-gateway-service/evidence/phase966_970/god-dual-reviewer-small-scope-rerun-result.json",
+  "rerunAttemptsPath": "apps/ai-gateway-service/evidence/phase966_970/god-dual-reviewer-small-scope-rerun-attempts.json",
+  "providerCallsMade": true,
+  "totalProviderRequests": 2,
+  "responseClassification": "pass",
+  "godModeSmallScopeRerunPassed": true,
+  "originalEvidenceMutated": false
+}

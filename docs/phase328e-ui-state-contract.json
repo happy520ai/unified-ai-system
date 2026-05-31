@@ -1,0 +1,16 @@
+{
+  "phase": "Phase328E",
+  "contractName": "three-mode-ui-state-contract",
+  "stateFields": {
+    "activeThreeMode": "normal | god | tianshu",
+    "lastThreeModeResult": "three-mode envelope",
+    "telemetry": "derived from auditTrace",
+    "costVisibility": "estimate_or_unknown_only",
+    "quotaBudgetPolicy": "derived from auditTrace.policyDecision"
+  },
+  "safety": {
+    "quickChatPreserved": true,
+    "billingClaimed": false,
+    "secretValueDisplayed": false
+  }
+}

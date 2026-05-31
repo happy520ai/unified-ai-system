@@ -1,0 +1,108 @@
+{
+  "phase": "Phase324C-4",
+  "scope": "selectable_review_only_for_phase324b5_smoke_passed_models",
+  "generatedAt": "2026-05-06T15:50:12.015Z",
+  "allowedModels": [
+    "google/gemma-3n-e2b-it",
+    "google/gemma-3n-e4b-it"
+  ],
+  "forbiddenModels": [
+    "google/codegemma-7b",
+    "google/gemma-2-2b-it",
+    "google/gemma-3-27b-it"
+  ],
+  "eligible": [
+    {
+      "modelId": "google/gemma-3n-e2b-it",
+      "reviewStatus": "eligible",
+      "finalStatus": "smoke_passed",
+      "providerCalled": true,
+      "completionVerified": true,
+      "assistantTextPresent": true,
+      "httpStatus": 200,
+      "errorCode": null,
+      "latencyMs": 1112,
+      "evidenceId": "phase324b5-google_gemma_3n_e2b_it-20260506153306",
+      "evidencePath": "apps/ai-gateway-service/evidence/phase324b5/google_gemma_3n_e2b_it.json",
+      "selectableRecommendation": "eligible_after_phase324c4",
+      "decisionReason": "phase324b5_smoke_passed_evidence_complete"
+    },
+    {
+      "modelId": "google/gemma-3n-e4b-it",
+      "reviewStatus": "eligible",
+      "finalStatus": "smoke_passed",
+      "providerCalled": true,
+      "completionVerified": true,
+      "assistantTextPresent": true,
+      "httpStatus": 200,
+      "errorCode": null,
+      "latencyMs": 817,
+      "evidenceId": "phase324b5-google_gemma_3n_e4b_it-20260506153308",
+      "evidencePath": "apps/ai-gateway-service/evidence/phase324b5/google_gemma_3n_e4b_it.json",
+      "selectableRecommendation": "eligible_after_phase324c4",
+      "decisionReason": "phase324b5_smoke_passed_evidence_complete"
+    }
+  ],
+  "rejected": [
+    {
+      "modelId": "google/codegemma-7b",
+      "reviewStatus": "rejected",
+      "finalStatus": "smoke_failed",
+      "providerCalled": true,
+      "completionVerified": false,
+      "assistantTextPresent": false,
+      "httpStatus": 404,
+      "errorCode": "nvidia_http_error",
+      "latencyMs": 460,
+      "evidenceId": "phase324b5-google_codegemma_7b-20260506153300",
+      "evidencePath": "apps/ai-gateway-service/evidence/phase324b5/google_codegemma_7b.json",
+      "selectableRecommendation": "not_eligible",
+      "decisionReason": "phase324b5_failed_model_forbidden"
+    },
+    {
+      "modelId": "google/gemma-2-2b-it",
+      "reviewStatus": "rejected",
+      "finalStatus": "smoke_failed",
+      "providerCalled": true,
+      "completionVerified": false,
+      "assistantTextPresent": false,
+      "httpStatus": 422,
+      "errorCode": "nvidia_http_error",
+      "latencyMs": 339,
+      "evidenceId": "phase324b5-google_gemma_2_2b_it-20260506153302",
+      "evidencePath": "apps/ai-gateway-service/evidence/phase324b5/google_gemma_2_2b_it.json",
+      "selectableRecommendation": "not_eligible",
+      "decisionReason": "phase324b5_failed_model_forbidden"
+    },
+    {
+      "modelId": "google/gemma-3-27b-it",
+      "reviewStatus": "rejected",
+      "finalStatus": "smoke_failed",
+      "providerCalled": true,
+      "completionVerified": false,
+      "assistantTextPresent": false,
+      "httpStatus": 400,
+      "errorCode": "nvidia_http_error",
+      "latencyMs": 59,
+      "evidenceId": "phase324b5-google_gemma_3_27b_it-20260506153303",
+      "evidencePath": "apps/ai-gateway-service/evidence/phase324b5/google_gemma_3_27b_it.json",
+      "selectableRecommendation": "not_eligible",
+      "decisionReason": "phase324b5_failed_model_forbidden"
+    }
+  ],
+  "summary": {
+    "eligibleCount": 2,
+    "rejectedCount": 3,
+    "previousSelectableModels": 10,
+    "plannedSelectableModels": 12,
+    "previousSmokePassedModels": 10,
+    "plannedSmokePassedModels": 12
+  },
+  "safety": {
+    "onlyAllowedModelsReviewed": true,
+    "b5FailedModelsExcluded": true,
+    "b6ResultsExcluded": true,
+    "noChatMainChainTouched": true,
+    "noSelectableGateTouched": true
+  }
+}

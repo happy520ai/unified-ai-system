@@ -1,0 +1,19 @@
+{
+  "phase": "Phase329E",
+  "contractName": "provider-beta-ui-state-contract",
+  "credentialRefOnly": true,
+  "secretValueAllowed": false,
+  "directProviderCallFromUi": false,
+  "betaOnly": true,
+  "notProduction": true,
+  "fields": [
+    "providerId",
+    "credentialRefType",
+    "credentialRef",
+    "governanceStage",
+    "realCallsAllowed",
+    "providerEnabled",
+    "userOwned",
+    "blockedReason"
+  ]
+}

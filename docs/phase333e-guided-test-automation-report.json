@@ -1,0 +1,79 @@
+{
+  "phase": "Phase333E",
+  "scenariosTotal": 12,
+  "scenariosRun": 12,
+  "passed": 12,
+  "failed": 0,
+  "blocked": 0,
+  "skipped": 0,
+  "passRate": 1,
+  "rawSecretRejected": true,
+  "noProviderCallFromUi": true,
+  "betaOnlyMessagingVisible": true,
+  "credentialRefOnly": true,
+  "secretValueExposed": false,
+  "coverageMatrix": [
+    {
+      "id": "happyPathCredentialRefOnly",
+      "covered": true,
+      "status": "passed"
+    },
+    {
+      "id": "rawSecretRejected",
+      "covered": true,
+      "status": "passed"
+    },
+    {
+      "id": "missingCredentialRefBlocked",
+      "covered": true,
+      "status": "passed"
+    },
+    {
+      "id": "unsupportedProviderRejected",
+      "covered": true,
+      "status": "passed"
+    },
+    {
+      "id": "disabledProviderBlocked",
+      "covered": true,
+      "status": "passed"
+    },
+    {
+      "id": "productionEnablementBlocked",
+      "covered": true,
+      "status": "passed"
+    },
+    {
+      "id": "quotaWarningShown",
+      "covered": true,
+      "status": "passed"
+    },
+    {
+      "id": "budgetWarningShown",
+      "covered": true,
+      "status": "passed"
+    },
+    {
+      "id": "revokeFlowExplained",
+      "covered": true,
+      "status": "passed"
+    },
+    {
+      "id": "rotateFlowExplained",
+      "covered": true,
+      "status": "passed"
+    },
+    {
+      "id": "betaOnlyMessagingVisible",
+      "covered": true,
+      "status": "passed"
+    },
+    {
+      "id": "noProviderCallFromUi",
+      "covered": true,
+      "status": "passed"
+    }
+  ],
+  "failureAnalysis": "no_failures",
+  "recommendedFixes": []
+}

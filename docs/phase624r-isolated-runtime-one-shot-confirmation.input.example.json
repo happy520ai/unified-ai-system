@@ -1,0 +1,19 @@
+{
+  "confirmationId": "phase624r-isolated-runtime-one-shot-confirmation-001",
+  "confirmedBy": "user-owner",
+  "decision": "approved_execute_isolated_runtime_guarded_one_shot",
+  "selectedProviderId": "crs",
+  "allowIsolatedRuntimeCandidateWiring": true,
+  "allowDefaultChatIntegration": false,
+  "allowChatGatewayExecuteMainChainIntegration": false,
+  "allowProviderRuntimeMainChainModification": false,
+  "allowCodexExecForGuardedOneShot": true,
+  "maxRequestsPerAttempt": 1,
+  "retryLimit": 0,
+  "stopOnFirstFailure": true,
+  "allowDeploy": false,
+  "allowRelease": false,
+  "allowPush": false,
+  "allowCommit": false,
+  "createdAt": "<ISO timestamp>"
+}

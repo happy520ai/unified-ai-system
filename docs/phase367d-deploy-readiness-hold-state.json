@@ -1,0 +1,24 @@
+{
+  "phase": "Phase367D",
+  "deployReadinessHoldFrozen": true,
+  "readyForFinalManualDeployConfirmation": true,
+  "approvedCommandRefReady": true,
+  "environmentReady": true,
+  "rollbackReady": true,
+  "postDeploySmokeReady": true,
+  "monitoringReady": true,
+  "finalManualConfirmationPresent": false,
+  "executeDeploy": false,
+  "deployExecuted": false,
+  "releaseExecuted": false,
+  "tagCreated": false,
+  "artifactUploaded": false,
+  "productionGaAuthorized": false,
+  "remainingBlockers": [
+    "final_manual_deploy_execution_confirmation_required"
+  ],
+  "safety": {
+    "secretValueExposed": false,
+    "workspaceCleanClaimed": false
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "phase": "Phase365B",
+  "finalSafetyCheckPassed": true,
+  "deployCommandApproved": true,
+  "deployCommandSafe": true,
+  "secretSafetyPassed": true,
+  "productRecoveryPassed": true,
+  "packageCheckPassed": true,
+  "rollbackReady": true,
+  "monitoringReady": true,
+  "blockers": [],
+  "warnings": [],
+  "deployExecuted": false
+}

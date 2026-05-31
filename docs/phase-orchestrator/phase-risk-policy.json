@@ -1,0 +1,47 @@
+{
+  "policyVersion": "phase383-v1",
+  "riskLevels": {
+    "low": {
+      "allowed": ["docs", "schema", "evidence", "local_dry_run", "mock", "ui_polish", "screenshot_smoke", "no_provider_call_testing"],
+      "readyToExecute": true,
+      "requiresReview": false,
+      "humanApprovalRequired": false
+    },
+    "medium": {
+      "allowed": ["ui_behavior_design", "routing_design", "model_selection_dry_run", "prompt_envelope_design", "safety_copy_change"],
+      "readyToExecute": false,
+      "requiresReview": true,
+      "humanApprovalRequired": false
+    },
+    "high": {
+      "allowed": [],
+      "readyToExecute": false,
+      "requiresReview": true,
+      "humanApprovalRequired": true
+    }
+  },
+  "highRiskTriggers": [
+    "real_provider_call",
+    "credential_access",
+    "deploy",
+    "release",
+    "tag",
+    "artifact_upload",
+    "billing",
+    "invoice",
+    "provider_runtime_modification",
+    "chat_gateway_execute_modification",
+    "chat_send_modification",
+    "safety_gate_relaxation"
+  ],
+  "brakeRules": {
+    "highRiskPhaseRequiresHumanApproval": true,
+    "providerCallRequiresHumanApproval": true,
+    "deployRequiresHumanApproval": true,
+    "secretAccessRequiresHumanApproval": true,
+    "billingRequiresHumanApproval": true,
+    "approvalModificationRequiresHumanApproval": true,
+    "safetyGateRelaxationBlocked": true,
+    "nextPhaseAutoExecutionBlocked": true
+  }
+}

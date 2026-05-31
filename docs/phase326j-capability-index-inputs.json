@@ -1,0 +1,30 @@
+{
+  "phase": "Phase326J",
+  "runtimeStatus": "dry_run_without_provider_call",
+  "mockUserConfiguredModels": [
+    { "modelId": "user-configured-coding-model", "providerId": "mock-provider-a", "credentialRef": "user_secret_store_reference:mock-coding", "modelNameHint": "coding reasoning model" },
+    { "modelId": "user-configured-reasoning-model", "providerId": "mock-provider-a", "credentialRef": "user_secret_store_reference:mock-reasoning", "modelNameHint": "reasoning supervisor model" },
+    { "modelId": "user-configured-long-context-model", "providerId": "mock-provider-b", "credentialRef": "user_secret_store_reference:mock-long", "modelNameHint": "long context writing model" },
+    { "modelId": "user-configured-data-model", "providerId": "mock-provider-b", "credentialRef": "user_secret_store_reference:mock-data", "modelNameHint": "data analysis structured output model" },
+    { "modelId": "user-disabled-risk-model", "providerId": "mock-provider-c", "credentialRef": "", "modelNameHint": "experimental high risk model" }
+  ],
+  "mockProviderCredentialRefs": {
+    "mock-provider-a": true,
+    "mock-provider-b": true,
+    "mock-provider-c": false
+  },
+  "mockGovernanceStatus": {
+    "user-configured-coding-model": { "userConfigured": true, "credentialRefPresent": true, "providerEnabled": true, "selectable": true, "failed": false, "highRisk": false, "allowedForNormalMode": true, "allowedForGodMode": true, "allowedForTianshuMode": true },
+    "user-configured-reasoning-model": { "userConfigured": true, "credentialRefPresent": true, "providerEnabled": true, "selectable": true, "failed": false, "highRisk": false, "allowedForNormalMode": true, "allowedForGodMode": true, "allowedForTianshuMode": true },
+    "user-configured-long-context-model": { "userConfigured": true, "credentialRefPresent": true, "providerEnabled": true, "selectable": true, "failed": false, "highRisk": false, "allowedForNormalMode": true, "allowedForGodMode": false, "allowedForTianshuMode": true },
+    "user-configured-data-model": { "userConfigured": true, "credentialRefPresent": true, "providerEnabled": true, "selectable": true, "failed": false, "highRisk": false, "allowedForNormalMode": true, "allowedForGodMode": false, "allowedForTianshuMode": true },
+    "user-disabled-risk-model": { "userConfigured": true, "credentialRefPresent": false, "providerEnabled": false, "selectable": false, "failed": true, "highRisk": true, "allowedForNormalMode": false, "allowedForGodMode": false, "allowedForTianshuMode": false }
+  },
+  "optionalEvidenceSignals": {
+    "user-configured-coding-model": { "historicalSuccessRate": 0.91, "averageLatencyMs": 850 },
+    "user-configured-reasoning-model": { "historicalSuccessRate": 0.88, "averageLatencyMs": 1200 },
+    "user-configured-long-context-model": { "historicalSuccessRate": 0.84, "averageLatencyMs": 1800 },
+    "user-configured-data-model": { "historicalSuccessRate": 0.86, "averageLatencyMs": 950 }
+  }
+}
+

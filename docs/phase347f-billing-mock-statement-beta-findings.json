@@ -1,0 +1,23 @@
+{
+  "phase": "Phase347F",
+  "findings": [
+    "actual_billing_not_connected_by_design",
+    "production_candidate_requires_estimate_accuracy_and_compliance_review"
+  ],
+  "result": {
+    "phase": "Phase347F",
+    "betaFindingsReviewed": true,
+    "productionCandidateRisksListed": true,
+    "unresolvedBlockersTracked": true,
+    "unresolvedBlockerCount": 0,
+    "readinessGatePassed": true,
+    "actualBillingConnected": false,
+    "realInvoiceGenerated": false,
+    "risks": [
+      "actual_billing_not_connected_by_design",
+      "production_candidate_requires_estimate_accuracy_and_compliance_review"
+    ],
+    "productionGA": false,
+    "secretValueExposed": false
+  }
+}

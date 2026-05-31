@@ -1,0 +1,32 @@
+diff --git a/tools/phase2111_2120/apply-controlled-quint-tool-mutation.mjs b/tools/phase2111_2120/apply-controlled-quint-tool-mutation.mjs
+--- a/tools/phase2111_2120/apply-controlled-quint-tool-mutation.mjs
++++ b/tools/phase2111_2120/apply-controlled-quint-tool-mutation.mjs
+@@ -38,6 +38,19 @@
+ export function buildPhase2131SextMutationRuntimeStatus() {
+   return {
+     phaseId: "Phase2131A-Controlled-Sext-Tool-Mutation-Target-Six",
+     marker: "PHASE2131_SEXT_TOOL_TARGET_SIX_OK",
+     importSafe: true,
+     sextRunnerReady: true,
+     providerCallsMade: false,
+     codexExecExecuted: false,
+     chatModified: false,
+     chatGatewayExecuteModified: false,
+   };
+ }
+ 
++export function buildPhase2142SeptMutationTargetSixStatus() {
++  return {
++    phaseId: "Phase2142A-Controlled-Sept-Tool-Mutation-Target-Six",
++    marker: "PHASE2142_SEPT_TOOL_TARGET_SIX_OK",
++    importSafe: true,
++    phase2142Marker: "PHASE2142_SEPT_TOOL_TARGET_SIX_OK",
++    septMutationApplied: true,
++    providerCallsMade: false,
++    codexExecExecuted: false,
++    chatModified: false,
++    chatGatewayExecuteModified: false,
++  };
++}
++
+ export function main() {

@@ -1,0 +1,12 @@
+{
+  "decision": "approved_execute_one_shot_real_provider_smoke | rejected",
+  "provider": "",
+  "maxRequests": 1,
+  "providerCallAllowed": false,
+  "secretReadAllowed": false,
+  "credentialRefOnly": true,
+  "rawSecretPrintAllowed": false,
+  "deployAllowed": false,
+  "chatRouteChangeAllowed": false,
+  "chatGatewayExecuteChangeAllowed": false
+}

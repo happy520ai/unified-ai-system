@@ -1,0 +1,144 @@
+{
+  "phase": "Phase326D",
+  "schemaName": "model-capability-index",
+  "runtimeStatus": "shadow_config_only",
+  "type": "object",
+  "required": [
+    "modelId",
+    "providerId",
+    "userConfigured",
+    "credentialRefRequired",
+    "capabilities",
+    "governance"
+  ],
+  "properties": {
+    "modelId": {
+      "type": "string"
+    },
+    "providerId": {
+      "type": "string"
+    },
+    "userConfigured": {
+      "type": "boolean"
+    },
+    "credentialRefRequired": {
+      "type": "boolean"
+    },
+    "credentialRef": {
+      "type": "string"
+    },
+    "capabilities": {
+      "type": "object",
+      "properties": {
+        "coding": {
+          "type": "number"
+        },
+        "reasoning": {
+          "type": "number"
+        },
+        "writing": {
+          "type": "number"
+        },
+        "translation": {
+          "type": "number"
+        },
+        "dataAnalysis": {
+          "type": "number"
+        },
+        "imageUnderstanding": {
+          "type": "number"
+        },
+        "longContext": {
+          "type": "number"
+        },
+        "toolUse": {
+          "type": "number"
+        },
+        "planning": {
+          "type": "number"
+        },
+        "research": {
+          "type": "number"
+        },
+        "structuredOutput": {
+          "type": "number"
+        }
+      }
+    },
+    "constraints": {
+      "type": "object",
+      "properties": {
+        "contextWindow": {
+          "type": "number"
+        },
+        "maxOutputTokens": {
+          "type": "number"
+        },
+        "supportsStreaming": {
+          "type": "boolean"
+        },
+        "supportsTools": {
+          "type": "boolean"
+        },
+        "supportsVision": {
+          "type": "boolean"
+        }
+      }
+    },
+    "qualitySignals": {
+      "type": "object",
+      "properties": {
+        "historicalSuccessRate": {
+          "type": "number"
+        },
+        "averageLatencyMs": {
+          "type": "number"
+        },
+        "availabilityScore": {
+          "type": "number"
+        },
+        "lastSmokeStatus": {
+          "type": "string"
+        }
+      }
+    },
+    "governance": {
+      "type": "object",
+      "properties": {
+        "selectable": {
+          "type": "boolean"
+        },
+        "status": {
+          "type": "string"
+        },
+        "riskLevel": {
+          "type": "string"
+        },
+        "allowedForNormalMode": {
+          "type": "boolean"
+        },
+        "allowedForGodMode": {
+          "type": "boolean"
+        },
+        "allowedForTianshuMode": {
+          "type": "boolean"
+        }
+      }
+    },
+    "safety": {
+      "type": "object",
+      "properties": {
+        "secretValueAllowed": {
+          "type": "boolean"
+        },
+        "userOwnedApiKeyRequired": {
+          "type": "boolean"
+        },
+        "unconfiguredProviderCallAllowed": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}
+

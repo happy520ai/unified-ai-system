@@ -1,0 +1,83 @@
+{
+  "statementId": "mock-statement-phase331f-001",
+  "userIdRef": "user_anon",
+  "billingPeriod": "2026-05",
+  "generatedAt": "2026-05-06T18:35:36.393Z",
+  "estimateOnly": true,
+  "legalInvoice": false,
+  "paymentProviderConnected": false,
+  "actualBillingConnected": false,
+  "currency": "USD",
+  "totalEstimatedCost": 0.022,
+  "modeUsageSummary": {
+    "normal": 4,
+    "god": 2,
+    "tianshu": 4
+  },
+  "providerUsageSummary": {
+    "nvidia": 9,
+    "openai": 1
+  },
+  "lineItems": [
+    {
+      "mode": "normal",
+      "providerId": "nvidia",
+      "modelId": "meta/llama-3.2-1b-instruct",
+      "requestCount": 3,
+      "estimatedInputTokens": 300,
+      "estimatedOutputTokens": 600,
+      "estimatedCost": 0.002,
+      "costSource": "mock_estimate_formula",
+      "estimateConfidence": "low_to_medium"
+    },
+    {
+      "mode": "god",
+      "providerId": "nvidia",
+      "modelId": "meta/llama-3.2-3b-instruct",
+      "requestCount": 2,
+      "estimatedInputTokens": 900,
+      "estimatedOutputTokens": 1200,
+      "estimatedCost": 0.006,
+      "costSource": "mock_estimate_formula",
+      "estimateConfidence": "low_to_medium"
+    },
+    {
+      "mode": "tianshu",
+      "providerId": "nvidia",
+      "modelId": "meta/llama-3.2-1b-instruct",
+      "requestCount": 4,
+      "estimatedInputTokens": 700,
+      "estimatedOutputTokens": 900,
+      "estimatedCost": 0.004,
+      "costSource": "mock_estimate_formula",
+      "estimateConfidence": "low_to_medium"
+    },
+    {
+      "mode": "normal",
+      "providerId": "openai",
+      "modelId": "user-owned-model",
+      "requestCount": 1,
+      "estimatedInputTokens": 400,
+      "estimatedOutputTokens": 400,
+      "estimatedCost": 0.01,
+      "costSource": "userOwnedProviderEstimate",
+      "estimateConfidence": "low_to_medium"
+    }
+  ],
+  "warnings": [
+    "MOCK STATEMENT",
+    "ESTIMATE ONLY",
+    "NOT A LEGAL INVOICE",
+    "PAYMENT PROVIDER NOT CONNECTED",
+    "ACTUAL BILLING NOT CONNECTED"
+  ],
+  "exportFormats": [
+    "json",
+    "csv",
+    "markdown"
+  ],
+  "auditTrace": {
+    "actualInvoice": false,
+    "paymentProviderConnected": false
+  }
+}

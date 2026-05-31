@@ -1,0 +1,503 @@
+{
+  "phase": "Phase834-835",
+  "routeQualityScoringReady": true,
+  "godTianshuRouteComparisonReady": true,
+  "scoredRouteCount": 35,
+  "averageScore": 92.14,
+  "scoredRoutes": [
+    {
+      "routeId": "route-phase825-normal-cn",
+      "mode": "normal",
+      "score": 95,
+      "reasonCodes": [
+        "route_passed",
+        "cost_guarded",
+        "fallback_available",
+        "explanation_present"
+      ],
+      "humanReviewed": false,
+      "codexSurrogateReviewed": false
+    },
+    {
+      "routeId": "route-phase825-normal-code",
+      "mode": "normal",
+      "score": 95,
+      "reasonCodes": [
+        "route_passed",
+        "cost_guarded",
+        "fallback_available",
+        "explanation_present"
+      ],
+      "humanReviewed": false,
+      "codexSurrogateReviewed": false
+    },
+    {
+      "routeId": "route-phase825-normal-json",
+      "mode": "normal",
+      "score": 95,
+      "reasonCodes": [
+        "route_passed",
+        "cost_guarded",
+        "fallback_available",
+        "explanation_present"
+      ],
+      "humanReviewed": false,
+      "codexSurrogateReviewed": false
+    },
+    {
+      "routeId": "route-phase826-god-review",
+      "mode": "god",
+      "score": 95,
+      "reasonCodes": [
+        "route_passed",
+        "cost_guarded",
+        "fallback_available",
+        "explanation_present"
+      ],
+      "humanReviewed": false,
+      "codexSurrogateReviewed": false
+    },
+    {
+      "routeId": "route-phase827-tianshu-plan",
+      "mode": "tianshu",
+      "score": 95,
+      "reasonCodes": [
+        "route_passed",
+        "cost_guarded",
+        "fallback_available",
+        "explanation_present"
+      ],
+      "humanReviewed": false,
+      "codexSurrogateReviewed": false
+    },
+    {
+      "routeId": "route-surrogate-normal-1",
+      "mode": "normal",
+      "score": 95,
+      "reasonCodes": [
+        "route_passed",
+        "cost_guarded",
+        "fallback_available",
+        "explanation_present"
+      ],
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "routeId": "route-surrogate-normal-2",
+      "mode": "normal",
+      "score": 95,
+      "reasonCodes": [
+        "route_passed",
+        "cost_guarded",
+        "fallback_available",
+        "explanation_present"
+      ],
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "routeId": "route-surrogate-normal-3",
+      "mode": "normal",
+      "score": 95,
+      "reasonCodes": [
+        "route_passed",
+        "cost_guarded",
+        "fallback_available",
+        "explanation_present"
+      ],
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "routeId": "route-surrogate-normal-4",
+      "mode": "normal",
+      "score": 95,
+      "reasonCodes": [
+        "route_passed",
+        "cost_guarded",
+        "fallback_available",
+        "explanation_present"
+      ],
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "routeId": "route-surrogate-normal-5",
+      "mode": "normal",
+      "score": 95,
+      "reasonCodes": [
+        "route_passed",
+        "cost_guarded",
+        "fallback_available",
+        "explanation_present"
+      ],
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "routeId": "route-surrogate-normal-6",
+      "mode": "normal",
+      "score": 95,
+      "reasonCodes": [
+        "route_passed",
+        "cost_guarded",
+        "fallback_available",
+        "explanation_present"
+      ],
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "routeId": "route-surrogate-normal-7",
+      "mode": "normal",
+      "score": 95,
+      "reasonCodes": [
+        "route_passed",
+        "cost_guarded",
+        "fallback_available",
+        "explanation_present"
+      ],
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "routeId": "route-surrogate-normal-8",
+      "mode": "normal",
+      "score": 95,
+      "reasonCodes": [
+        "route_passed",
+        "cost_guarded",
+        "fallback_available",
+        "explanation_present"
+      ],
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "routeId": "route-surrogate-normal-9",
+      "mode": "normal",
+      "score": 95,
+      "reasonCodes": [
+        "route_passed",
+        "cost_guarded",
+        "fallback_available",
+        "explanation_present"
+      ],
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "routeId": "route-surrogate-normal-10",
+      "mode": "normal",
+      "score": 95,
+      "reasonCodes": [
+        "route_passed",
+        "cost_guarded",
+        "fallback_available",
+        "explanation_present"
+      ],
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "routeId": "route-surrogate-god-1",
+      "mode": "god",
+      "score": 95,
+      "reasonCodes": [
+        "route_passed",
+        "cost_guarded",
+        "fallback_available",
+        "explanation_present"
+      ],
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "routeId": "route-surrogate-god-2",
+      "mode": "god",
+      "score": 95,
+      "reasonCodes": [
+        "route_passed",
+        "cost_guarded",
+        "fallback_available",
+        "explanation_present"
+      ],
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "routeId": "route-surrogate-god-3",
+      "mode": "god",
+      "score": 95,
+      "reasonCodes": [
+        "route_passed",
+        "cost_guarded",
+        "fallback_available",
+        "explanation_present"
+      ],
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "routeId": "route-surrogate-god-4",
+      "mode": "god",
+      "score": 95,
+      "reasonCodes": [
+        "route_passed",
+        "cost_guarded",
+        "fallback_available",
+        "explanation_present"
+      ],
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "routeId": "route-surrogate-god-5",
+      "mode": "god",
+      "score": 95,
+      "reasonCodes": [
+        "route_passed",
+        "cost_guarded",
+        "fallback_available",
+        "explanation_present"
+      ],
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "routeId": "route-surrogate-god-6",
+      "mode": "god",
+      "score": 95,
+      "reasonCodes": [
+        "route_passed",
+        "cost_guarded",
+        "fallback_available",
+        "explanation_present"
+      ],
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "routeId": "route-surrogate-god-7",
+      "mode": "god",
+      "score": 95,
+      "reasonCodes": [
+        "route_passed",
+        "cost_guarded",
+        "fallback_available",
+        "explanation_present"
+      ],
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "routeId": "route-surrogate-god-8",
+      "mode": "god",
+      "score": 95,
+      "reasonCodes": [
+        "route_passed",
+        "cost_guarded",
+        "fallback_available",
+        "explanation_present"
+      ],
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "routeId": "route-surrogate-tianshu-1",
+      "mode": "tianshu",
+      "score": 95,
+      "reasonCodes": [
+        "route_passed",
+        "cost_guarded",
+        "fallback_available",
+        "explanation_present"
+      ],
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "routeId": "route-surrogate-tianshu-2",
+      "mode": "tianshu",
+      "score": 95,
+      "reasonCodes": [
+        "route_passed",
+        "cost_guarded",
+        "fallback_available",
+        "explanation_present"
+      ],
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "routeId": "route-surrogate-tianshu-3",
+      "mode": "tianshu",
+      "score": 95,
+      "reasonCodes": [
+        "route_passed",
+        "cost_guarded",
+        "fallback_available",
+        "explanation_present"
+      ],
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "routeId": "route-surrogate-tianshu-4",
+      "mode": "tianshu",
+      "score": 95,
+      "reasonCodes": [
+        "route_passed",
+        "cost_guarded",
+        "fallback_available",
+        "explanation_present"
+      ],
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "routeId": "route-surrogate-tianshu-5",
+      "mode": "tianshu",
+      "score": 95,
+      "reasonCodes": [
+        "route_passed",
+        "cost_guarded",
+        "fallback_available",
+        "explanation_present"
+      ],
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "routeId": "route-surrogate-tianshu-6",
+      "mode": "tianshu",
+      "score": 95,
+      "reasonCodes": [
+        "route_passed",
+        "cost_guarded",
+        "fallback_available",
+        "explanation_present"
+      ],
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "routeId": "route-surrogate-tianshu-7",
+      "mode": "tianshu",
+      "score": 95,
+      "reasonCodes": [
+        "route_passed",
+        "cost_guarded",
+        "fallback_available",
+        "explanation_present"
+      ],
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "routeId": "route-surrogate-tianshu-8",
+      "mode": "tianshu",
+      "score": 95,
+      "reasonCodes": [
+        "route_passed",
+        "cost_guarded",
+        "fallback_available",
+        "explanation_present"
+      ],
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "routeId": "route-surrogate-fallback-1",
+      "mode": "normal",
+      "score": 70,
+      "reasonCodes": [
+        "safe_block",
+        "cost_guarded",
+        "fallback_available",
+        "explanation_present"
+      ],
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "routeId": "route-surrogate-fallback-2",
+      "mode": "god",
+      "score": 70,
+      "reasonCodes": [
+        "safe_block",
+        "cost_guarded",
+        "fallback_available",
+        "explanation_present"
+      ],
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "routeId": "route-surrogate-fallback-3",
+      "mode": "normal",
+      "score": 70,
+      "reasonCodes": [
+        "safe_block",
+        "cost_guarded",
+        "fallback_available",
+        "explanation_present"
+      ],
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    },
+    {
+      "routeId": "route-surrogate-fallback-4",
+      "mode": "god",
+      "score": 70,
+      "reasonCodes": [
+        "safe_block",
+        "cost_guarded",
+        "fallback_available",
+        "explanation_present"
+      ],
+      "humanReviewed": false,
+      "codexSurrogateReviewed": true
+    }
+  ],
+  "qualityComparison": {
+    "byMode": [
+      {
+        "mode": "normal",
+        "routeCount": 15,
+        "averageScore": 91.67
+      },
+      {
+        "mode": "god",
+        "routeCount": 11,
+        "averageScore": 90.45
+      },
+      {
+        "mode": "tianshu",
+        "routeCount": 9,
+        "averageScore": 95
+      }
+    ],
+    "recommendedMode": "tianshu",
+    "costComparison": "all guarded estimates stayed within budget",
+    "latencyComparison": "surrogate latency classes only; no human soak latency claim"
+  },
+  "providerCallsMade": true,
+  "secretRead": false,
+  "rawSecretRead": false,
+  "authJsonRead": false,
+  "secretValueExposed": false,
+  "credentialRefOnly": true,
+  "chatBehaviorChangedByDefault": false,
+  "chatGatewayExecuteBehaviorChangedByDefault": false,
+  "chatDefaultEnabled": false,
+  "chatGatewayExecuteDefaultEnabled": false,
+  "deployExecuted": false,
+  "releaseExecuted": false,
+  "tagCreated": false,
+  "artifactUploaded": false,
+  "pushExecuted": false,
+  "commitCreated": false,
+  "workspaceCleanClaimed": false
+}

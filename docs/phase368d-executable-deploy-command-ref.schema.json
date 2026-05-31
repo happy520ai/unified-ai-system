@@ -1,0 +1,29 @@
+{
+  "phase": "Phase365",
+  "commandRefId": "",
+  "deploymentTarget": "",
+  "preflightOnly": false,
+  "commandsExecutableInThisPhase": true,
+  "requiresFinalManualExecutionConfirmation": true,
+  "approvedCommands": [
+    {
+      "command": "",
+      "purpose": "production_deploy",
+      "executableInPhase365": true,
+      "requiresDeployGateOpen": true,
+      "requiresFinalManualExecutionConfirmation": true,
+      "timeoutSeconds": 0,
+      "workingDirectory": "",
+      "expectedEvidenceRefs": []
+    }
+  ],
+  "excludedCommands": [],
+  "safety": {
+    "secretValueIncluded": false,
+    "apiKeyIncluded": false,
+    "destructiveCleanupIncluded": false,
+    "gitResetHardIncluded": false,
+    "gitCleanIncluded": false,
+    "deployExecuted": false
+  }
+}

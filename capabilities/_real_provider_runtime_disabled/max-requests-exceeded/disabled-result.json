@@ -1,0 +1,13 @@
+{
+  "caseId": "max-requests-exceeded",
+  "providerId": "nvidia",
+  "executionStatus": "blocked",
+  "blockedReason": "max_requests_exceeded",
+  "completed": false,
+  "passed": false,
+  "providerCallsMade": false,
+  "secretRead": false,
+  "secretValueExposed": false,
+  "emergencyDisableAvailable": true,
+  "emergencyDisableRef": "TAIJI_BEIDOU_REAL_PROVIDER_RUNTIME_ENABLED=false"
+}

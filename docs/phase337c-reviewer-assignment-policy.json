@@ -1,0 +1,16 @@
+{
+  "phase": "Phase337C",
+  "reviewerAssignmentPolicyPresent": true,
+  "roles": [
+    "queue_owner",
+    "dry_run_approver",
+    "rollback_reviewer"
+  ],
+  "separationOfDutyRequired": true,
+  "rollbackRequiresReviewerDifferentFromApprover": true,
+  "sampleAssignment": {
+    "proposalId": "phase336c-proposal",
+    "approverIdRef": "reviewer_alpha",
+    "rollbackReviewerIdRef": "reviewer_beta"
+  }
+}

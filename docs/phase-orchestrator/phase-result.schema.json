@@ -1,0 +1,43 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Phase Result Standard Contract",
+  "type": "object",
+  "required": ["phase", "completed", "safety"],
+  "properties": {
+    "phase": { "type": "string", "pattern": "^Phase[0-9]+[A-Z]?$" },
+    "title": { "type": "string" },
+    "completed": { "type": "boolean" },
+    "recommended_sealed": { "type": "boolean" },
+    "recommendedSealed": { "type": "boolean" },
+    "blocker": {},
+    "phaseType": { "type": "string" },
+    "riskLevel": { "type": "string", "enum": ["low", "medium", "high"] },
+    "modifiedFiles": { "type": "array", "items": { "type": "string" } },
+    "createdFiles": { "type": "array", "items": { "type": "string" } },
+    "validationsRun": { "type": "array", "items": { "type": "string" } },
+    "validationsPassed": { "type": "boolean" },
+    "safety": {
+      "type": "object",
+      "properties": {
+        "providerCallsMade": { "type": "boolean" },
+        "nonNvidiaProviderCallsMade": { "type": "boolean" },
+        "secretValueExposed": { "type": "boolean" },
+        "rawSecretAccessed": { "type": "boolean" },
+        "deployExecuted": { "type": "boolean" },
+        "releaseExecuted": { "type": "boolean" },
+        "tagCreated": { "type": "boolean" },
+        "artifactUploaded": { "type": "boolean" },
+        "evidenceModified": { "type": "boolean" },
+        "approvalForged": { "type": "boolean" },
+        "billingExecuted": { "type": "boolean" },
+        "invoiceGenerated": { "type": "boolean" },
+        "productionGaClaimed": { "type": "boolean" },
+        "dangerousActionButtonDetected": { "type": "boolean" },
+        "workspaceCleanClaimed": { "type": "boolean" }
+      }
+    },
+    "remainingRisks": { "type": "array", "items": { "type": "string" } },
+    "nextRecommendedPhases": { "type": "array" },
+    "rollbackPlan": { "type": "array", "items": { "type": "string" } }
+  }
+}

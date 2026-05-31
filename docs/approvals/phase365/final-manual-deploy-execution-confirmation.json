@@ -1,0 +1,41 @@
+{
+    "confirmationType":  "final_manual_deploy_execution_confirmation",
+    "confirmationId":  "deploy-confirmation-20260507-001",
+    "confirmedBy":  "Chen JiongJiong",
+    "confirmedRole":  "Launch Owner",
+    "confirmedOrgRef":  "PME / Internal",
+    "confirmationDecision":  "confirmed",
+    "executeDeploy":  true,
+    "approvedCommandRef":  "docs/phase366b-approved-command-ref.json",
+    "approvedDeployScope":  [
+                                "production_launch_execution",
+                                "phase364_final_launch_authorization_packet",
+                                "phase365_deploy_execution_gate",
+                                "phase366_final_deploy_rehearsal",
+                                "phase367_deploy_readiness_hold"
+                            ],
+    "confirmationTimestamp":  "2026-05-07T15:09:07+08:00",
+    "conditions":  [
+                       "Deploy may execute only if Phase365C deployExecutionAllowed=true.",
+                       "Deploy command must match approvedCommandRef.",
+                       "No secrets may be exposed in logs, docs, evidence, or deploy records.",
+                       "Rollback must remain available during launch window.",
+                       "Post-deploy smoke must run after deploy success.",
+                       "Production GA remains unauthorized until post-deploy smoke and separate GA decision are complete."
+                   ],
+    "acknowledgements":  {
+                             "phase364LaunchAuthorizationReviewed":  true,
+                             "goNoGoDecisionReviewed":  true,
+                             "deployAuthorizationReviewed":  true,
+                             "rollbackPlanReviewed":  true,
+                             "monitoringPlanReviewed":  true,
+                             "secretSafetyReviewed":  true,
+                             "finalCommandReviewed":  true
+                         },
+    "safety":  {
+                   "codexIsConfirmer":  false,
+                   "secretValueIncluded":  false,
+                   "apiKeyIncluded":  false,
+                   "approvalForged":  false
+               }
+}

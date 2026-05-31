@@ -1,0 +1,23 @@
+{
+  "phase": "Phase372A",
+  "screenshotCaptured": true,
+  "screenshots": [
+    {
+      "path": "apps/ai-gateway-service/evidence/phase372a/screenshots/three-mode-overview.png",
+      "exists": true
+    },
+    {
+      "path": "apps/ai-gateway-service/evidence/phase372a/screenshots/normal-mode-panel.png",
+      "exists": true
+    },
+    {
+      "path": "apps/ai-gateway-service/evidence/phase372a/screenshots/god-mode-panel.png",
+      "exists": true
+    },
+    {
+      "path": "apps/ai-gateway-service/evidence/phase372a/screenshots/tianshu-mode-panel.png",
+      "exists": true
+    }
+  ],
+  "secretValueExposed": false
+}

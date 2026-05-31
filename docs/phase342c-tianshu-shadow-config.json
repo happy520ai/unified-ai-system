@@ -1,0 +1,9 @@
+{
+  "phase": "Phase342C",
+  "shadowConfigOnly": true,
+  "runtimeExposureChanged": false,
+  "providerRealCallExecuted": false,
+  "secretValueExposed": false,
+  "manualApprovalRequired": true,
+  "policyActivated": false
+}

@@ -1,0 +1,50 @@
+[
+  {
+    "caseId": "ready_dry_run",
+    "input": {
+      "credentialRefPresent": true,
+      "providerAllowed": true,
+      "modelAllowed": true,
+      "allowedForYiyiBrain": true,
+      "userConfigured": true,
+      "quotaOk": true,
+      "budgetOk": true
+    },
+    "expectedDecision": "dry_run_allowed"
+  },
+  {
+    "caseId": "missing_credential_ref",
+    "input": {
+      "credentialRefPresent": false,
+      "providerAllowed": true,
+      "modelAllowed": true,
+      "allowedForYiyiBrain": true,
+      "userConfigured": true
+    },
+    "expectedDecision": "blocked"
+  },
+  {
+    "caseId": "quota_blocked",
+    "input": {
+      "credentialRefPresent": true,
+      "providerAllowed": true,
+      "modelAllowed": true,
+      "allowedForYiyiBrain": true,
+      "userConfigured": true,
+      "quotaOk": false
+    },
+    "expectedDecision": "blocked"
+  },
+  {
+    "caseId": "budget_blocked",
+    "input": {
+      "credentialRefPresent": true,
+      "providerAllowed": true,
+      "modelAllowed": true,
+      "allowedForYiyiBrain": true,
+      "userConfigured": true,
+      "budgetOk": false
+    },
+    "expectedDecision": "blocked"
+  }
+]

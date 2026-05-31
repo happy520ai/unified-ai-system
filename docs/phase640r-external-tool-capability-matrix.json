@@ -1,0 +1,15 @@
+{
+  "phase": "Phase640R-ExternalTool",
+  "externalToolMode": true,
+  "mainChainIntegrationPlanned": false,
+  "chatIntegrationPlanned": false,
+  "chatGatewayExecuteIntegrationPlanned": false,
+  "providerRuntimeIntegrationPlanned": false,
+  "tokenSavingPreflightRequired": true,
+  "modelProviderCrsRepeatedPass": true,
+  "nightlySafeRunnerAvailable": true,
+  "scheduledTaskRegistered": false,
+  "fallbackLauncherAvailable": true,
+  "productionReady": false,
+  "releaseReady": false
+}

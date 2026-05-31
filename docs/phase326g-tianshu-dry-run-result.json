@@ -1,0 +1,151 @@
+{
+  "phase": "Phase326G",
+  "mode": "tianshu",
+  "runtimeStatus": "dry_run_without_provider_call",
+  "providerCallsMade": false,
+  "nonNvidiaProviderCallsMade": false,
+  "secretValueExposed": false,
+  "scenariosProcessed": 5,
+  "results": [
+    {
+      "scenarioId": "codingTaskScenario",
+      "taskClassification": "coding",
+      "capabilityRequirements": [
+        "coding",
+        "reasoning"
+      ],
+      "candidateModels": [
+        "user-configured-coding-model",
+        "user-configured-reasoning-model"
+      ],
+      "plannerDecision": {
+        "taskType": "coding",
+        "executionMode": "single_model",
+        "decisionReason": "mock capability match selected without provider call"
+      },
+      "selectedModels": [
+        "user-configured-coding-model"
+      ],
+      "executionMode": "single_model",
+      "rejectionReason": "",
+      "fallbackPlan": "no fallback used in dry-run",
+      "auditTrace": {
+        "providerCallsMade": false,
+        "nonNvidiaProviderCallsMade": false,
+        "secretValueExposed": false,
+        "runtimeStage": "dry_run_without_provider_call"
+      }
+    },
+    {
+      "scenarioId": "dataAnalysisTaskScenario",
+      "taskClassification": "data_analysis",
+      "capabilityRequirements": [
+        "data_analysis",
+        "structured_output"
+      ],
+      "candidateModels": [
+        "user-configured-data-model",
+        "user-configured-reasoning-model"
+      ],
+      "plannerDecision": {
+        "taskType": "data_analysis",
+        "executionMode": "multi_model",
+        "decisionReason": "mock capability match selected without provider call"
+      },
+      "selectedModels": [
+        "user-configured-data-model",
+        "user-configured-reasoning-model"
+      ],
+      "executionMode": "multi_model",
+      "rejectionReason": "",
+      "fallbackPlan": "no fallback used in dry-run",
+      "auditTrace": {
+        "providerCallsMade": false,
+        "nonNvidiaProviderCallsMade": false,
+        "secretValueExposed": false,
+        "runtimeStage": "dry_run_without_provider_call"
+      }
+    },
+    {
+      "scenarioId": "longContextTaskScenario",
+      "taskClassification": "long_context",
+      "capabilityRequirements": [
+        "long_context",
+        "writing"
+      ],
+      "candidateModels": [
+        "user-configured-long-context-model"
+      ],
+      "plannerDecision": {
+        "taskType": "long_context",
+        "executionMode": "single_model",
+        "decisionReason": "mock capability match selected without provider call"
+      },
+      "selectedModels": [
+        "user-configured-long-context-model"
+      ],
+      "executionMode": "single_model",
+      "rejectionReason": "",
+      "fallbackPlan": "no fallback used in dry-run",
+      "auditTrace": {
+        "providerCallsMade": false,
+        "nonNvidiaProviderCallsMade": false,
+        "secretValueExposed": false,
+        "runtimeStage": "dry_run_without_provider_call"
+      }
+    },
+    {
+      "scenarioId": "noEligibleModelScenario",
+      "taskClassification": "image_understanding",
+      "capabilityRequirements": [
+        "image_understanding"
+      ],
+      "candidateModels": [],
+      "plannerDecision": {
+        "taskType": "image_understanding",
+        "executionMode": "reject",
+        "decisionReason": "no eligible mock model in dry-run index"
+      },
+      "selectedModels": [],
+      "executionMode": "reject",
+      "rejectionReason": "no_eligible_model",
+      "fallbackPlan": "ask user to configure an eligible model",
+      "auditTrace": {
+        "providerCallsMade": false,
+        "nonNvidiaProviderCallsMade": false,
+        "secretValueExposed": false,
+        "runtimeStage": "dry_run_without_provider_call"
+      }
+    },
+    {
+      "scenarioId": "godModeEscalationScenario",
+      "taskClassification": "safety_sensitive",
+      "capabilityRequirements": [
+        "reasoning",
+        "safety_sensitive"
+      ],
+      "candidateModels": [
+        "user-configured-reasoning-model",
+        "user-configured-coding-model"
+      ],
+      "plannerDecision": {
+        "taskType": "safety_sensitive",
+        "executionMode": "god_mode_review",
+        "decisionReason": "mock capability match selected without provider call"
+      },
+      "selectedModels": [
+        "user-configured-reasoning-model",
+        "user-configured-coding-model"
+      ],
+      "executionMode": "god_mode_review",
+      "rejectionReason": "",
+      "fallbackPlan": "no fallback used in dry-run",
+      "auditTrace": {
+        "providerCallsMade": false,
+        "nonNvidiaProviderCallsMade": false,
+        "secretValueExposed": false,
+        "runtimeStage": "dry_run_without_provider_call"
+      }
+    }
+  ]
+}

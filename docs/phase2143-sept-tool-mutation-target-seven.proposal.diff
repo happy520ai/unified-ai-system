@@ -1,0 +1,31 @@
+diff --git a/tools/phase2121_2131/apply-controlled-sext-tool-mutation.mjs b/tools/phase2121_2131/apply-controlled-sext-tool-mutation.mjs
+--- a/tools/phase2121_2131/apply-controlled-sext-tool-mutation.mjs
++++ b/tools/phase2121_2131/apply-controlled-sext-tool-mutation.mjs
+@@ -36,6 +36,19 @@
+ export function buildPhase2131SextMutationRuntimeStatus() {
+   return {
+     phaseId: "Phase2131A-Controlled-Sext-Tool-Mutation-Target-Six",
+     marker: "PHASE2131_SEXT_TOOL_TARGET_SIX_OK",
+     importSafe: true,
+     sextRunnerReady: true,
+     providerCallsMade: false,
+     codexExecExecuted: false,
+     chatModified: false,
+     chatGatewayExecuteModified: false,
+   };
+ }
+ 
++export function buildPhase2143SeptMutationRuntimeStatus() {
++  return {
++    phaseId: "Phase2143A-Controlled-Sept-Tool-Mutation-Target-Seven",
++    marker: "PHASE2143_SEPT_TOOL_TARGET_SEVEN_OK",
++    importSafe: true,
++    septRunnerReady: true,
++    providerCallsMade: false,
++    codexExecExecuted: false,
++    chatModified: false,
++    chatGatewayExecuteModified: false,
++  };
++}
++
+ export function main() {

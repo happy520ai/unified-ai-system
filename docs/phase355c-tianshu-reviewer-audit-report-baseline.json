@@ -1,0 +1,27 @@
+{
+  "phase": "Phase355C",
+  "auditType": "tianshu_reviewer_audit_report_baseline",
+  "result": {
+    "phase": "Phase355C",
+    "sourcePhase": "Phase354C",
+    "auditReportBaselineGenerated": true,
+    "exportableAuditFormatDefined": true,
+    "exportFormats": [
+      "json",
+      "markdown",
+      "csv_safe_markdown"
+    ],
+    "requiredAuditFields": [
+      "tenantId",
+      "policyProposalId",
+      "reviewerRole",
+      "decision",
+      "requestChangesFlag",
+      "approvalSeparationState",
+      "timestamp"
+    ],
+    "policyActivated": false,
+    "secretValueExposed": false,
+    "productionGA": false
+  }
+}

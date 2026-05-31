@@ -1,0 +1,39 @@
+diff --git a/tools/phase2092/apply-controlled-existing-tool-mutation.mjs b/tools/phase2092/apply-controlled-existing-tool-mutation.mjs
+index 6040b86..5be8ee2 100644
+--- a/tools/phase2092/apply-controlled-existing-tool-mutation.mjs
++++ b/tools/phase2092/apply-controlled-existing-tool-mutation.mjs
+@@ -39,6 +39,7 @@ export function buildPhase2094BatchMutationRuntimeStatus() {
+     phase2192Marker: "PHASE2192_ELEVEN_TOOL_TARGET_TWO_OK",
+     phase2208Marker: "PHASE2208_TWELVE_TOOL_TARGET_TWO_OK",
+     phase2225Marker: "PHASE2225_THIRTEEN_TOOL_TARGET_TWO_OK",
++    phase2243Marker: "PHASE2243_FOURTEEN_TOOL_TARGET_TWO_OK",
+     phase2177Marker: "PHASE2177_DECA_TOOL_TARGET_TWO_OK",
+     providerCallsMade: false,
+     codexExecExecuted: false,
+@@ -131,6 +132,26 @@ export function buildPhase2163NonetMutationTargetTwoStatus() {
+ 
+ 
+ 
++
++export function buildPhase2243FourteenMutationTargetTwoStatus() {
++  return {
++    phaseId: "Phase2243A-Controlled-Fourteen-Tool-Mutation-Target-Two",
++    marker: "PHASE2243_FOURTEEN_TOOL_TARGET_TWO_OK",
++    importSafe: true,
++    phase2150Marker: "PHASE2150_OCT_TOOL_TARGET_TWO_OK",
++    phase2163Marker: "PHASE2163_NONET_TOOL_TARGET_TWO_OK",
++    phase2177Marker: "PHASE2177_DECA_TOOL_TARGET_TWO_OK",
++    phase2192Marker: "PHASE2192_ELEVEN_TOOL_TARGET_TWO_OK",
++    phase2208Marker: "PHASE2208_TWELVE_TOOL_TARGET_TWO_OK",
++    phase2225Marker: "PHASE2225_THIRTEEN_TOOL_TARGET_TWO_OK",
++    phase2243Marker: "PHASE2243_FOURTEEN_TOOL_TARGET_TWO_OK",
++    fourteenMutationApplied: true,
++    providerCallsMade: false,
++    codexExecExecuted: false,
++    chatModified: false,
++    chatGatewayExecuteModified: false,
++  };
++}
+ export function buildPhase2225ThirteenMutationTargetTwoStatus() {
+   return {
+     phaseId: "Phase2225A-Controlled-Thirteen-Tool-Mutation-Target-Two",

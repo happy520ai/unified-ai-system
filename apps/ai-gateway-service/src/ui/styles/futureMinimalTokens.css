@@ -1,0 +1,19 @@
+.future-responsive-frame {
+  --future-bg: #070b18;
+  --future-bg-soft: #0b1022;
+  --future-surface: rgb(13 20 39 / 82%);
+  --future-surface-strong: rgb(20 30 54 / 90%);
+  --future-border: rgb(153 176 255 / 18%);
+  --future-text: #f5f7ff;
+  --future-muted: #aab6d4;
+  --future-accent: #7c8cff;
+  --future-accent-strong: #a77bff;
+  --future-success: #46d39a;
+  --future-warning: #f4c76a;
+  --future-danger: #ff7d7d;
+  --future-radius: 18px;
+  --future-radius-small: 12px;
+  --future-shadow: 0 26px 80px rgb(0 0 0 / 34%);
+  --future-space: 16px;
+  --future-transition: 160ms ease;
+}

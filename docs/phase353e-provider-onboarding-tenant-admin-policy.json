@@ -1,0 +1,28 @@
+{
+  "phase": "Phase353E",
+  "designType": "provider_onboarding_tenant_admin_policy",
+  "result": {
+    "phase": "Phase353E",
+    "sourcePhase": "Phase352E",
+    "tenantBoundaryDefined": true,
+    "crossTenantAccessForbidden": true,
+    "tenantIsolationPolicyGenerated": true,
+    "tenantAdminPolicyRules": [
+      "provider_setup_is_visible_only_within_same_tenant",
+      "reviewer_checklist_id_must_match_tenant",
+      "credential_ref_examples_are_tenant_scoped",
+      "raw_secret_rejection_audit_is_tenant_scoped"
+    ],
+    "noProviderCallFromUi": true,
+    "credentialRefOnly": true,
+    "unresolvedSecurityBlockers": [
+      "missing_trace_field:requestId",
+      "missing_trace_field:persona",
+      "missing_trace_field:reviewerChecklistId",
+      "persona_and_reviewer_checklist_trace_required_for_beta_user_risk",
+      "raw_secret_rejection_must_remain_mandatory"
+    ],
+    "productionGA": false,
+    "secretValueExposed": false
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "phase": "Phase365A",
+  "confirmationType": "final_manual_deploy_execution_confirmation",
+  "required": [
+    "confirmationType",
+    "confirmationId",
+    "confirmedBy",
+    "confirmedRole",
+    "confirmedOrgRef",
+    "confirmationDecision",
+    "executeDeploy",
+    "approvedCommandRef",
+    "approvedDeployScope",
+    "confirmationTimestamp",
+    "conditions",
+    "acknowledgements",
+    "safety"
+  ]
+}

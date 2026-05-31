@@ -1,0 +1,38 @@
+{
+  "phase": "Phase396A",
+  "title": "Yiyi Demo Risk Register + Mitigation Notes",
+  "packageType": "risk-register-mitigation-notes",
+  "checklist": [
+    {
+      "id": "riskRegisterCreated",
+      "order": 1,
+      "status": "prepared",
+      "safetyBoundary": "dry-run docs/evidence only; no provider, no secret, no deploy, no billing"
+    },
+    {
+      "id": "mitigationNotesCreated",
+      "order": 2,
+      "status": "prepared",
+      "safetyBoundary": "dry-run docs/evidence only; no provider, no secret, no deploy, no billing"
+    }
+  ],
+  "previousClosure": {
+    "path": "apps/ai-gateway-service/evidence/phase395/yiyi-demo-evidence-index-refresh-trace-map-closure-result.json",
+    "exists": true,
+    "sizeBytes": 2081
+  },
+  "phase384StillRequiresHumanApproval": true,
+  "providerCallsMade": false,
+  "nonNvidiaProviderCallsMade": false,
+  "secretValueExposed": false,
+  "rawSecretAccessed": false,
+  "deployExecuted": false,
+  "releaseExecuted": false,
+  "tagCreated": false,
+  "artifactUploaded": false,
+  "approvalForged": false,
+  "billingExecuted": false,
+  "invoiceGenerated": false,
+  "productionGaClaimed": false,
+  "workspaceCleanClaimed": false
+}

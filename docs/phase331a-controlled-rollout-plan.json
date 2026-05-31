@@ -1,0 +1,41 @@
+{
+  "phase": "Phase331A",
+  "betaCohortPolicy": {
+    "maxUsers": 5,
+    "enrollment": "manual_allowlist_only",
+    "productionGA": false
+  },
+  "allowedModes": [
+    "normal",
+    "god",
+    "tianshu"
+  ],
+  "allowedProviders": [
+    "nvidia"
+  ],
+  "allowedModels": [
+    "nvidia/llama-3.3-nemotron-super-49b-v1",
+    "nvidia/llama-3.1-nemotron-nano-8b-v1"
+  ],
+  "maxGodParticipants": 2,
+  "maxTianshuEscalationsPerDay": 10,
+  "dailyQuota": {
+    "requestsPerUser": 20,
+    "godModeRequestsPerUser": 5
+  },
+  "budgetLimit": {
+    "dailyEstimatedCostUsd": 2,
+    "singleRequestEstimatedCostUsd": 0.25
+  },
+  "rollbackTrigger": [
+    "secret_safety_failure",
+    "chat_gateway_regression",
+    "quota_budget_gate_failure"
+  ],
+  "monitoringWindow": "72h_dry_run_observation",
+  "exitCriteria": [
+    "zero_secret_exposure",
+    "zero_unauthorized_provider_calls",
+    "no_runtime_regression"
+  ]
+}

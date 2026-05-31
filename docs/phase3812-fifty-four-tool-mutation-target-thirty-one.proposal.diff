@@ -1,0 +1,70 @@
+diff --git a/tools/phase2661_2695/apply-controlled-thirty-tool-mutation.mjs b/tools/phase2661_2695/apply-controlled-thirty-tool-mutation.mjs
+index c9b1406..26f6d45 100644
+--- a/tools/phase2661_2695/apply-controlled-thirty-tool-mutation.mjs
++++ b/tools/phase2661_2695/apply-controlled-thirty-tool-mutation.mjs
+@@ -1140,6 +1140,65 @@ export function buildPhase3754FiftyThreeMutationTargetThirtyOneStatus() {
+     chatGatewayExecuteModified: false,
+   };
+ }
++
++export function buildPhase3812FiftyFourMutationTargetThirtyOneStatus() {
++  return {
++    phaseId: "Phase3812A-Controlled-Fifty-Four-Tool-Mutation-Target-Thirty-One",
++    marker: "PHASE3812_FIFTY_FOUR_TOOL_TARGET_THIRTY_ONE_OK",
++    importSafe: true,
++    phase2170Marker: "PHASE2170_NONET_TOOL_TARGET_NINE_OK",
++    phase2185Marker: "PHASE2185_DECA_TOOL_TARGET_TEN_OK",
++    phase2201Marker: "PHASE2201_ELEVEN_TOOL_TARGET_ELEVEN_OK",
++    phase2218Marker: "PHASE2218_TWELVE_TOOL_TARGET_TWELVE_OK",
++    phase2236Marker: "PHASE2236_THIRTEEN_TOOL_TARGET_THIRTEEN_OK",
++    phase2255Marker: "PHASE2255_FOURTEEN_TOOL_TARGET_FOURTEEN_OK",
++    phase2275Marker: "PHASE2275_FIFTEEN_TOOL_TARGET_FIFTEEN_OK",
++    phase2296Marker: "PHASE2296_SIXTEEN_TOOL_TARGET_SIXTEEN_OK",
++    phase2318Marker: "PHASE2318_SEVENTEEN_TOOL_TARGET_SEVENTEEN_OK",
++    phase2341Marker: "PHASE2341_EIGHTEEN_TOOL_TARGET_EIGHTEEN_OK",
++    phase2365Marker: "PHASE2365_NINETEEN_TOOL_TARGET_NINETEEN_OK",
++    phase2390Marker: "PHASE2390_TWENTY_TOOL_TARGET_TWENTY_OK",
++    phase2416Marker: "PHASE2416_TWENTY_ONE_TOOL_TARGET_TWENTY_ONE_OK",
++    phase2443Marker: "PHASE2443_TWENTY_TWO_TOOL_TARGET_TWENTY_TWO_OK",
++    phase2471Marker: "PHASE2471_TWENTY_THREE_TOOL_TARGET_TWENTY_THREE_OK",
++    phase2500Marker: "PHASE2500_TWENTY_FOUR_TOOL_TARGET_TWENTY_FOUR_OK",
++    phase2530Marker: "PHASE2530_TWENTY_FIVE_TOOL_TARGET_TWENTY_FIVE_OK",
++    phase2561Marker: "PHASE2561_TWENTY_SIX_TOOL_TARGET_TWENTY_SIX_OK",
++    phase2593Marker: "PHASE2593_TWENTY_SEVEN_TOOL_TARGET_TWENTY_SEVEN_OK",
++    phase2626Marker: "PHASE2626_TWENTY_EIGHT_TOOL_TARGET_TWENTY_EIGHT_OK",
++    phase2660Marker: "PHASE2660_TWENTY_NINE_TOOL_TARGET_TWENTY_NINE_OK",
++    phase2695Marker: "PHASE2695_THIRTY_TOOL_TARGET_THIRTY_OK",
++    phase2731Marker: "PHASE2731_THIRTY_ONE_TOOL_TARGET_THIRTY_ONE_OK",
++    phase2767Marker: "PHASE2767_THIRTY_TWO_TOOL_TARGET_THIRTY_ONE_OK",
++    phase2804Marker: "PHASE2804_THIRTY_THREE_TOOL_TARGET_THIRTY_ONE_OK",
++    phase2842Marker: "PHASE2842_THIRTY_FOUR_TOOL_TARGET_THIRTY_ONE_OK",
++    phase2881Marker: "PHASE2881_THIRTY_FIVE_TOOL_TARGET_THIRTY_ONE_OK",
++    phase2921Marker: "PHASE2921_THIRTY_SIX_TOOL_TARGET_THIRTY_ONE_OK",
++    phase2962Marker: "PHASE2962_THIRTY_SEVEN_TOOL_TARGET_THIRTY_ONE_OK",
++    phase3004Marker: "PHASE3004_THIRTY_EIGHT_TOOL_TARGET_THIRTY_ONE_OK",
++    phase3047Marker: "PHASE3047_THIRTY_NINE_TOOL_TARGET_THIRTY_ONE_OK",
++    phase3091Marker: "PHASE3091_FORTY_TOOL_TARGET_THIRTY_ONE_OK",
++    phase3136Marker: "PHASE3136_FORTY_ONE_TOOL_TARGET_THIRTY_ONE_OK",
++    phase3182Marker: "PHASE3182_FORTY_TWO_TOOL_TARGET_THIRTY_ONE_OK",
++    phase3229Marker: "PHASE3229_FORTY_THREE_TOOL_TARGET_THIRTY_ONE_OK",
++    phase3277Marker: "PHASE3277_FORTY_FOUR_TOOL_TARGET_THIRTY_ONE_OK",
++    phase3326Marker: "PHASE3326_FORTY_FIVE_TOOL_TARGET_THIRTY_ONE_OK",
++    phase3376Marker: "PHASE3376_FORTY_SIX_TOOL_TARGET_THIRTY_ONE_OK",
++    phase3427Marker: "PHASE3427_FORTY_SEVEN_TOOL_TARGET_THIRTY_ONE_OK",
++    phase3479Marker: "PHASE3479_FORTY_EIGHT_TOOL_TARGET_THIRTY_ONE_OK",
++    phase3532Marker: "PHASE3532_FORTY_NINE_TOOL_TARGET_THIRTY_ONE_OK",
++    phase3586Marker: "PHASE3586_FIFTY_TOOL_TARGET_THIRTY_ONE_OK",
++    phase3641Marker: "PHASE3641_FIFTY_ONE_TOOL_TARGET_THIRTY_ONE_OK",
++    phase3697Marker: "PHASE3697_FIFTY_TWO_TOOL_TARGET_THIRTY_ONE_OK",
++    phase3754Marker: "PHASE3754_FIFTY_THREE_TOOL_TARGET_THIRTY_ONE_OK",
++    phase3812Marker: "PHASE3812_FIFTY_FOUR_TOOL_TARGET_THIRTY_ONE_OK",
++    fiftyFourMutationApplied: true,
++    providerCallsMade: false,
++    codexExecExecuted: false,
++    chatModified: false,
++    chatGatewayExecuteModified: false,
++  };
++}
+ export function main() {
+   const args = parseArgs(process.argv.slice(2));
+   const planPath = args.plan || "docs/phase2661-2695-controlled-thirty-tool-mutation-approval.example.json";

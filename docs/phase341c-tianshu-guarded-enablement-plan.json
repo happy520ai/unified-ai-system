@@ -1,0 +1,9 @@
+{
+  "phase": "Phase341C",
+  "reviewerWorkflowGuarded": true,
+  "reviewerWorkflowReady": true,
+  "manualApprovalRequired": true,
+  "policyActivated": false,
+  "trainingTriggered": false,
+  "embeddingBatchTriggered": false
+}

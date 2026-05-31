@@ -1,0 +1,32 @@
+{
+  "verifierVersion": "phase651-666-verifier-v1",
+  "capabilityId": "trial-4",
+  "passed": true,
+  "unsupportedClaims": [],
+  "hallucinatedFacts": [],
+  "unsupportedClaimCount": 0,
+  "hallucinatedFactCount": 0,
+  "checks": [
+    {
+      "id": "manifest_valid",
+      "passed": true,
+      "details": []
+    },
+    {
+      "id": "dry_run_passed",
+      "passed": true
+    },
+    {
+      "id": "runtime_disabled",
+      "passed": true
+    },
+    {
+      "id": "approval_required",
+      "passed": true
+    },
+    {
+      "id": "provider_calls_false",
+      "passed": true
+    }
+  ]
+}

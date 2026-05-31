@@ -1,0 +1,23 @@
+{
+  "phase": "Phase350E",
+  "drillType": "provider_onboarding_disable_restore",
+  "result": {
+    "phase": "Phase350E",
+    "sourcePhase": "Phase349E",
+    "rollbackDrillDryRunExecuted": true,
+    "disablePathVerified": true,
+    "restorePathDocumented": true,
+    "noProductionChange": true,
+    "noProviderCallFromUi": true,
+    "credentialRefOnly": true,
+    "productionGA": false,
+    "rollbackStepsVerified": [
+      "keep_provider_call_blocked_from_ui",
+      "show_credential_ref_only_guidance",
+      "capture_failed_setup_evidence_without_secret",
+      "route_to_reviewer_checklist_before_retry"
+    ],
+    "restorePath": "restore_guided_setup_after_reviewer_checklist_retry",
+    "secretValueExposed": false
+  }
+}

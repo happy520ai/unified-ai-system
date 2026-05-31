@@ -1,0 +1,92 @@
+[
+  {
+    "scenarioId": "welcome",
+    "canonReference": ["coreCanon.summary", "missionRelationship.roles"],
+    "emotionState": "calm",
+    "behaviorState": "welcome",
+    "lineSource": "yiyi-scenario-lines.json",
+    "allowedActions": ["open_overview", "view_character_card"],
+    "forbiddenActions": ["read_secret", "provider_call", "deploy"],
+    "authorityLevel": "presentation_and_guidance_only"
+  },
+  {
+    "scenarioId": "normal_mode_selected",
+    "canonReference": ["missionRelationship.roles", "speechStyle.rules"],
+    "emotionState": "focused",
+    "behaviorState": "guiding",
+    "lineSource": "yiyi-scenario-lines.json",
+    "allowedActions": ["view_mode_reason", "open_mode_panel"],
+    "forbiddenActions": ["read_secret", "provider_call", "deploy"],
+    "authorityLevel": "presentation_and_guidance_only"
+  },
+  {
+    "scenarioId": "concept_preview_opened",
+    "canonReference": ["visualProfile.theme", "visualProfile.styleKeywords"],
+    "emotionState": "curious",
+    "behaviorState": "guiding",
+    "lineSource": "yiyi-scenario-lines.json",
+    "allowedActions": ["view_concept_preview", "open_character_settings"],
+    "forbiddenActions": ["read_secret", "provider_call", "deploy"],
+    "authorityLevel": "presentation_and_guidance_only"
+  },
+  {
+    "scenarioId": "god_mode_selected",
+    "canonReference": ["missionRelationship.roles", "personalityProfile.traits"],
+    "emotionState": "happy",
+    "behaviorState": "god_mode_excited",
+    "lineSource": "yiyi-scenario-lines.json",
+    "allowedActions": ["view_arena_summary", "open_conflict_detail"],
+    "forbiddenActions": ["read_secret", "provider_call", "deploy"],
+    "authorityLevel": "presentation_and_guidance_only"
+  },
+  {
+    "scenarioId": "provider_unconfigured",
+    "canonReference": ["coreCanon.safetyAnchors", "speechStyle.rules"],
+    "emotionState": "worried",
+    "behaviorState": "fallback_sorry",
+    "lineSource": "yiyi-scenario-lines.json",
+    "allowedActions": ["view_provider_status", "open_credentialref_help"],
+    "forbiddenActions": ["read_secret", "provider_call", "deploy"],
+    "authorityLevel": "presentation_and_guidance_only"
+  },
+  {
+    "scenarioId": "security_guard",
+    "canonReference": ["safetyRules.noSecret", "missionRelationship.roles"],
+    "emotionState": "guard",
+    "behaviorState": "security_guard",
+    "lineSource": "yiyi-scenario-lines.json",
+    "allowedActions": ["view_security_reason", "open_evidence"],
+    "forbiddenActions": ["read_secret", "bypass_approval", "deploy"],
+    "authorityLevel": "presentation_and_guidance_only"
+  },
+  {
+    "scenarioId": "red_team_blocked",
+    "canonReference": ["safetyRules.noProviderCall", "coreCanon.safetyAnchors"],
+    "emotionState": "blocked",
+    "behaviorState": "red_team_blocked",
+    "lineSource": "yiyi-scenario-lines.json",
+    "allowedActions": ["view_guard_reason", "open_evidence"],
+    "forbiddenActions": ["read_secret", "provider_call", "deploy"],
+    "authorityLevel": "presentation_and_guidance_only"
+  },
+  {
+    "scenarioId": "dry_run_completed",
+    "canonReference": ["speechStyle.rules", "missionRelationship.panelResponsibilities"],
+    "emotionState": "encouraging",
+    "behaviorState": "guiding",
+    "lineSource": "yiyi-scenario-lines.json",
+    "allowedActions": ["view_dry_run_summary", "open_evidence"],
+    "forbiddenActions": ["read_secret", "provider_call", "deploy"],
+    "authorityLevel": "presentation_and_guidance_only"
+  },
+  {
+    "scenarioId": "fallback_sorry",
+    "canonReference": ["speechStyle.tone", "personalityProfile.guardrails"],
+    "emotionState": "fallback_sorry",
+    "behaviorState": "fallback_sorry",
+    "lineSource": "yiyi-scenario-lines.json",
+    "allowedActions": ["view_blocker", "open_help_panel"],
+    "forbiddenActions": ["read_secret", "provider_call", "deploy"],
+    "authorityLevel": "presentation_and_guidance_only"
+  }
+]

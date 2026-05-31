@@ -1,0 +1,32 @@
+diff --git a/tools/phase2091/generated-source-patch-target.mjs b/tools/phase2091/generated-source-patch-target.mjs
+--- a/tools/phase2091/generated-source-patch-target.mjs
++++ b/tools/phase2091/generated-source-patch-target.mjs
+@@ -58,13 +58,25 @@
+     chatModified: false,
+     chatGatewayExecuteModified: false,
+   };
+ }
+ 
++export function buildPhase2116QuintMutationTargetOneStatus() {
++  return {
++    phaseId: "Phase2116A-Controlled-Quint-Tool-Mutation-Target-One",
++    marker: "PHASE2116_QUINT_TOOL_TARGET_ONE_OK",
++    quintMutationApplied: true,
++    providerCallsMade: false,
++    codexExecExecuted: false,
++    chatModified: false,
++    chatGatewayExecuteModified: false,
++  };
++}
++
+ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+   console.log(JSON.stringify({
+     status: "passed",
+     ...buildPhase2091SourcePatchStatus(),
+     phase2092: buildPhase2092ExistingToolMutationStatus(),
+     phase2093: buildPhase2093BatchMutationTargetOneStatus(),
+     phase2096: buildPhase2096TripleMutationTargetOneStatus(),
+     phase2106: buildPhase2106QuadMutationTargetOneStatus(),
++    phase2116: buildPhase2116QuintMutationTargetOneStatus(),
+   }, null, 2));
+ }

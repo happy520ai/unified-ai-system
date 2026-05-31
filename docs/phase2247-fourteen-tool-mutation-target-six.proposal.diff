@@ -1,0 +1,32 @@
+diff --git a/tools/phase2111_2120/apply-controlled-quint-tool-mutation.mjs b/tools/phase2111_2120/apply-controlled-quint-tool-mutation.mjs
+index d4e9893..198c4d1 100644
+--- a/tools/phase2111_2120/apply-controlled-quint-tool-mutation.mjs
++++ b/tools/phase2111_2120/apply-controlled-quint-tool-mutation.mjs
+@@ -170,6 +170,27 @@ export function buildPhase2229ThirteenMutationTargetSixStatus() {
+   };
+ }
+ 
++
++export function buildPhase2247FourteenMutationTargetSixStatus() {
++  return {
++    phaseId: "Phase2247A-Controlled-Fourteen-Tool-Mutation-Target-Six",
++    marker: "PHASE2247_FOURTEEN_TOOL_TARGET_SIX_OK",
++    importSafe: true,
++    phase2142Marker: "PHASE2142_SEPT_TOOL_TARGET_SIX_OK",
++    phase2154Marker: "PHASE2154_OCT_TOOL_TARGET_SIX_OK",
++    phase2167Marker: "PHASE2167_NONET_TOOL_TARGET_SIX_OK",
++    phase2181Marker: "PHASE2181_DECA_TOOL_TARGET_SIX_OK",
++    phase2196Marker: "PHASE2196_ELEVEN_TOOL_TARGET_SIX_OK",
++    phase2212Marker: "PHASE2212_TWELVE_TOOL_TARGET_SIX_OK",
++    phase2229Marker: "PHASE2229_THIRTEEN_TOOL_TARGET_SIX_OK",
++    phase2247Marker: "PHASE2247_FOURTEEN_TOOL_TARGET_SIX_OK",
++    fourteenMutationApplied: true,
++    providerCallsMade: false,
++    codexExecExecuted: false,
++    chatModified: false,
++    chatGatewayExecuteModified: false,
++  };
++}
+ export function main() {
+   const args = parseArgs(process.argv.slice(2));
+   const planPath = args.plan || "docs/phase2111-2120-controlled-quint-tool-mutation-approval.example.json";

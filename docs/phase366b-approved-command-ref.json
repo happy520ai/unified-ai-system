@@ -1,0 +1,47 @@
+{
+  "phase": "Phase366B",
+  "commandRefId": "approved-command-ref-phase366b-001",
+  "preflightOnly": true,
+  "commandsExecutableInThisPhase": false,
+  "requiresFinalManualExecutionConfirmation": true,
+  "approvedCommands": [
+    {
+      "command": "pnpm run verify:phase107a-secret-safety",
+      "doNotExecuteInPhase366": true
+    },
+    {
+      "command": "pnpm run verify:phase321a-workbench-product-recovery",
+      "doNotExecuteInPhase366": true
+    },
+    {
+      "command": "pnpm -r --if-present check",
+      "doNotExecuteInPhase366": true
+    },
+    {
+      "command": "pnpm run verify:phase322a-workbench-chat-gateway-real-nvidia",
+      "doNotExecuteInPhase366": true
+    },
+    {
+      "command": "node tools/phase365d/execute-deploy-if-explicitly-confirmed.mjs --run",
+      "requiresFinalManualExecutionConfirmation": true,
+      "doNotExecuteInPhase366": true
+    }
+  ],
+  "excludedCommands": [
+    "git reset --hard",
+    "git clean",
+    "env dump",
+    "direct .env read",
+    "unapproved provider call",
+    "real billing command",
+    "invoice generation command"
+  ],
+  "safety": {
+    "secretValueIncluded": false,
+    "apiKeyIncluded": false,
+    "destructiveCleanupIncluded": false,
+    "gitResetHardIncluded": false,
+    "gitCleanIncluded": false,
+    "deployExecuted": false
+  }
+}

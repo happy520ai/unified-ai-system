@@ -1,0 +1,22 @@
+{
+  "phase": "Phase359F",
+  "gateType": "billing_final_production_risk",
+  "result": {
+    "phase": "Phase359F",
+    "sourcePhase": "Phase358F",
+    "finalNoDeployGateGenerated": true,
+    "deployApproved": false,
+    "releaseApproved": false,
+    "productionGaApproved": false,
+    "blockerCountRecorded": true,
+    "blockerCount": 2,
+    "blockers": [
+      "statementId",
+      "warning_copy_approval_record"
+    ],
+    "paymentProviderConnected": false,
+    "actualBillingConnected": false,
+    "legalInvoiceGenerated": false,
+    "secretValueExposed": false
+  }
+}

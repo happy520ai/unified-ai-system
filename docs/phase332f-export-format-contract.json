@@ -1,0 +1,41 @@
+{
+  "phase": "Phase332F",
+  "supportedFormats": [
+    "json",
+    "csv",
+    "markdown"
+  ],
+  "estimateOnly": true,
+  "legalInvoice": false,
+  "paymentProviderConnected": false,
+  "actualBillingConnected": false,
+  "requiredWarningLabels": [
+    "MOCK STATEMENT",
+    "ESTIMATE ONLY",
+    "NOT A LEGAL INVOICE",
+    "PAYMENT PROVIDER NOT CONNECTED",
+    "ACTUAL BILLING NOT CONNECTED"
+  ],
+  "redactionPolicy": {
+    "secrets": "forbidden",
+    "paymentData": "forbidden",
+    "userId": "reference_only"
+  },
+  "exportMetadata": [
+    "statementId",
+    "billingPeriod",
+    "generatedAt",
+    "currency"
+  ],
+  "lineItemFields": [
+    "mode",
+    "providerId",
+    "modelId",
+    "requestCount",
+    "estimatedInputTokens",
+    "estimatedOutputTokens",
+    "estimatedCost",
+    "costSource",
+    "estimateConfidence"
+  ]
+}

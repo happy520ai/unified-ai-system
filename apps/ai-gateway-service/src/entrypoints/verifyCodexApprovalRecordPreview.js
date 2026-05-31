@@ -1,0 +1,63 @@
+import { verifyCodexOneShotReadinessPhase } from "./verifyCodexOneShotReadinessSupport.js";
+
+await verifyCodexOneShotReadinessPhase({
+  phase: "phase-259a-codex-approval-record-preview",
+  docPath: "docs/CODEX_APPROVAL_RECORD_PREVIEW.md",
+  verifierPath: "apps/ai-gateway-service/src/entrypoints/verifyCodexApprovalRecordPreview.js",
+  rootScriptName: "verify:phase259a-codex-approval-record-preview",
+  serviceScriptValue: "node ./src/entrypoints/verifyCodexApprovalRecordPreview.js",
+  requiredDocSections: [
+    "# Codex Approval Record Preview",
+    "## 1. approval-preview Definition",
+    "## 2. Why It Is Not Execution Authorization",
+    "## 3. Approval Record Fields",
+    "## 4. Approval Revocation Rule",
+    "## 5. Approval Expiry Rule",
+    "## 6. Preflight Still Required",
+  ],
+  requiredDocMarkers: [
+    "approval-preview is a structured record",
+    "approval-preview does not enable execution.",
+    "\"approvalId\"",
+    "\"requestedTask\"",
+    "\"allowedScope\"",
+    "\"blockedScope\"",
+    "\"allowedFiles\"",
+    "\"blockedFiles\"",
+    "\"requiredVerification\"",
+    "\"expectedEvidence\"",
+    "\"stopCondition\"",
+    "\"expiresAt\"",
+    "\"approvedByHuman\"",
+    "\"executionEnabled\": false",
+    "approval-preview is not execution authorization.",
+  ],
+  requiredUiMarkers: [
+    "phase259a-codex-approval-record-preview",
+    "approval-preview only",
+    "not execution permission",
+    "approval fields",
+    "expiresAt",
+    "executionEnabled=false",
+    "preflight still required",
+  ],
+  requiredVerificationCommands: [
+    "cmd /c pnpm run verify:phase259a-codex-approval-record-preview",
+  ],
+  requiredEvidenceStatusPaths: [
+    "apps/ai-gateway-service/evidence/phase-258a-codex-preflight-checklist.json",
+  ],
+  conclusionPassed: "codex-approval-record-preview-ready",
+  conclusionFailed: "codex-approval-record-preview-incomplete",
+  capabilityList: [
+    "approval-record-preview",
+    "approval-fields",
+    "revocation-rule",
+    "expiry-rule",
+    "preflight-still-required",
+  ],
+  notes: [
+    "Phase 259A defines approval-preview metadata.",
+    "approval-preview is not execution authorization.",
+  ],
+});

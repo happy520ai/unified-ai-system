@@ -1,0 +1,61 @@
+import { verifyPersonalKnowledgePhase } from "./verifyPersonalKnowledgeClosureSupport.js";
+
+await verifyPersonalKnowledgePhase({
+  phase: "phase-251a-personal-knowledge-ui-guide",
+  docPath: "docs/PERSONAL_KNOWLEDGE_UI_GUIDE.md",
+  verifierPath: "apps/ai-gateway-service/src/entrypoints/verifyPersonalKnowledgeUiGuide.js",
+  rootScriptName: "verify:phase251a-personal-knowledge-ui-guide",
+  serviceScriptValue: "node ./src/entrypoints/verifyPersonalKnowledgeUiGuide.js",
+  requiredDocSections: [
+    "# Personal Knowledge UI Guide",
+    "## 1. Entering Knowledge Areas",
+    "## 2. Viewing Knowledge Sources",
+    "## 3. Understanding Source Load/List",
+    "## 4. Using RAG Chat",
+    "## 5. Citation / Highlight",
+    "## 6. Trust Check",
+    "## 7. Stale Answer Detection",
+    "## 8. Convert To Next Codex Task",
+    "## 9. Convert To Decision Dashboard Input",
+    "## 10. UI Boundary",
+  ],
+  requiredDocMarkers: [
+    "source load/list",
+    "RAG chat",
+    "citation/highlight",
+    "local keyword retrieval",
+    "file/SQLite persistence",
+    "Do not trust it when it claims production RAG or GraphRAG.",
+    "Do not promise production vector RAG or GraphRAG.",
+    "Do not promise enterprise ACL sync or multi-tenant knowledge base.",
+  ],
+  requiredUiMarkers: [
+    "phase251a-personal-knowledge-ui-guide",
+    "Enter knowledge area",
+    "Source load/list",
+    "RAG chat",
+    "Citation/highlight",
+    "Trust and stale answer check",
+    "Convert to next task",
+  ],
+  requiredVerificationCommands: [
+    "cmd /c pnpm run verify:phase251a-personal-knowledge-ui-guide",
+  ],
+  requiredEvidenceStatusPaths: [
+    "apps/ai-gateway-service/evidence/phase-250a-personal-knowledge-freshness-guard.json",
+  ],
+  conclusionPassed: "personal-knowledge-ui-guide-preview-ready",
+  conclusionFailed: "personal-knowledge-ui-guide-preview-incomplete",
+  capabilityList: [
+    "knowledge-ui-guide",
+    "source-load-list-guidance",
+    "rag-chat-guidance",
+    "citation-highlight-guidance",
+    "stale-answer-detection",
+    "next-task-conversion",
+  ],
+  notes: [
+    "Phase 251A documents how the operator should use the UI Knowledge/RAG areas for project questions.",
+    "The UI guidance remains preview-only and local/self-use only.",
+  ],
+});

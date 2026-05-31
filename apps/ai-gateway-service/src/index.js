@@ -23,6 +23,8 @@ server.listen(port, host, () => {
           "GET /knowledge/health",
           "GET /knowledge/infra/readiness",
           "GET /knowledge/sources",
+          "GET /ws/info",
+          "WS /ws",
           "POST /chat",
           "POST /chat/stream",
           "POST /knowledge/load",
@@ -44,6 +46,10 @@ process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
 
 function shutdown() {
+  try {
+    const { destroyAllPools } = require("./http/connectionPool.js");
+    destroyAllPools();
+  } catch {}
   server.close(() => {
     process.exit(0);
   });

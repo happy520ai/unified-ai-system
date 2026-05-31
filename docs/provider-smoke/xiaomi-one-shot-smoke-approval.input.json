@@ -1,0 +1,15 @@
+{
+  "decision": "rejected",
+  "provider": "mimo",
+  "model": "",
+  "maxRequests": 1,
+  "providerCallAllowed": false,
+  "credentialRefOnly": true,
+  "rawSecretReadAllowed": false,
+  "rawSecretPrintAllowed": false,
+  "authorizationHeaderPrintAllowed": false,
+  "deployAllowed": false,
+  "chatRouteChangeAllowed": false,
+  "chatGatewayExecuteChangeAllowed": false,
+  "prompt": "请用一句中文回复：小米模型真实 smoke 测试成功。"
+}

@@ -1,0 +1,15 @@
+{
+  "capabilityId": "auto-runtime-runtime-timeout",
+  "runtimeKind": "sandbox_local",
+  "executionStatus": "blocked",
+  "blockedReason": "runtime_timeout",
+  "providerCallsMade": false,
+  "secretRead": false,
+  "secretValueExposed": false,
+  "chatBehaviorChanged": false,
+  "chatGatewayExecuteBehaviorChanged": false,
+  "deployExecuted": false,
+  "rollbackRequired": false,
+  "disabledByKillSwitch": true,
+  "completed": false
+}

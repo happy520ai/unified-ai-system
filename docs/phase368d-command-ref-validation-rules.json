@@ -1,0 +1,16 @@
+{
+  "phase": "Phase368D",
+  "rejectedWhen": [
+    "preflightOnly=true",
+    "commandsExecutableInThisPhase=false",
+    "approvedCommands is empty",
+    "command contains git reset --hard",
+    "command contains git clean",
+    "command contains echo %...KEY...",
+    "command contains cat .env / type .env / Get-Content .env",
+    "command contains unapproved provider call",
+    "command contains real billing / invoice",
+    "command lacks requiresFinalManualExecutionConfirmation",
+    "command lacks timeoutSeconds"
+  ]
+}

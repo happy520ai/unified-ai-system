@@ -1,0 +1,23 @@
+{
+  "schemaVersion": "issue-ledger.v1",
+  "generatedByPhase": "Phase1162",
+  "actualFixesAppliedThisPhase": false,
+  "issues": [
+    {
+      "issueId": "ISSUE-001",
+      "source": "smoke",
+      "title": "Phase308A oldMarkerDriftDetected historical warning",
+      "description": "Historical smoke warning remains tracked as a P3 marker drift item, not an active unsafe risk.",
+      "affectedArea": "Workbench markers",
+      "severity": "P3",
+      "evidenceRef": "pnpm smoke:phase308a-desktop-workbench-ui",
+      "reproSteps": [
+        "Run Phase308A desktop workbench UI smoke."
+      ],
+      "suggestedFix": "Review marker drift in a future approved polish phase.",
+      "activeUnsafeRisk": false,
+      "fixNowAllowed": false,
+      "requiresApproval": true
+    }
+  ]
+}

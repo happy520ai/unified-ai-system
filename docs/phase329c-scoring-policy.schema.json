@@ -1,0 +1,24 @@
+{
+  "phase": "Phase329C",
+  "schemaName": "tianshu-adaptive-scoring-policy",
+  "runtimeStatus": "guarded_runtime_policy",
+  "weights": {
+    "capabilityMatch": 0.3,
+    "historicalSuccessRate": 0.15,
+    "latencyScore": 0.1,
+    "costScore": 0.1,
+    "contextFit": 0.1,
+    "outputFormatFit": 0,
+    "safetyFit": 0.1,
+    "userPreferenceFit": 0.05,
+    "providerAvailability": 0.05,
+    "quotaBudgetFit": 0.05,
+    "fallbackReliability": 0
+  },
+  "constraints": {
+    "noFailedHighRiskModels": true,
+    "credentialRefRequired": true,
+    "respectQuotaBudget": true,
+    "secretValueAllowed": false
+  }
+}

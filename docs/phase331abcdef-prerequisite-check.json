@@ -1,0 +1,24 @@
+{
+  "phase": "Phase331A-F",
+  "checkedAt": "2026-05-06T18:19:32.181Z",
+  "missing": [],
+  "present": [
+    "apps/ai-gateway-service/evidence/phase328a/three-mode-normal-runtime-smoke.json",
+    "apps/ai-gateway-service/evidence/phase328a/three-mode-god-runtime-smoke.json",
+    "apps/ai-gateway-service/evidence/phase328a/three-mode-tianshu-runtime-smoke.json",
+    "apps/agent-console/evidence/phase328a/three-mode-ui-smoke.json",
+    "apps/ai-gateway-service/evidence/phase329a/three-mode-production-hardening-result.json",
+    "apps/ai-gateway-service/evidence/phase329b/god-mode-quality-benchmark-result.json",
+    "apps/ai-gateway-service/evidence/phase329c/tianshu-adaptive-scoring-result.json",
+    "apps/ai-gateway-service/evidence/phase329d/credential-vault-adapter-integration-result.json",
+    "apps/agent-console/evidence/phase329e/user-owned-provider-beta-ui-smoke.json",
+    "docs/phase329f-billing-integration-check-result.json",
+    "apps/ai-gateway-service/evidence/phase330a/three-mode-limited-beta-readiness-result.json",
+    "apps/ai-gateway-service/evidence/phase330b/god-mode-benchmark-regression-result.json",
+    "apps/ai-gateway-service/evidence/phase330c/tianshu-feedback-loop-governance-result.json",
+    "apps/ai-gateway-service/evidence/phase330d/credential-vault-production-adapter-selection-result.json",
+    "apps/agent-console/evidence/phase330e/provider-onboarding-wizard-hardening-smoke.json",
+    "apps/ai-gateway-service/evidence/phase330f/mock-invoice-flow-result.json"
+  ],
+  "allowReleaseCandidateGate": true
+}

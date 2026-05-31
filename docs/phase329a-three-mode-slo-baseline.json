@@ -1,0 +1,12 @@
+{
+  "phase": "Phase329A",
+  "normalModeP95LatencyTargetMs": 60000,
+  "godModeP95LatencyTargetMs": 180000,
+  "tianshuModeP95LatencyTargetMs": 120000,
+  "normalModeSuccessRateTarget": 0.95,
+  "godModePartialSuccessAllowed": true,
+  "tianshuPlannerDecisionCompletenessTarget": 0.95,
+  "credentialGateFalsePositiveTarget": 0.01,
+  "secretExposureTarget": 0,
+  "unauthorizedProviderCallTarget": 0
+}

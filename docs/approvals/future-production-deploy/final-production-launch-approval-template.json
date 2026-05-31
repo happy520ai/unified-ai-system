@@ -1,0 +1,16 @@
+{
+  "phaseRange": "FutureProductionDeploy",
+  "decision": "pending_after_real_one_to_two_month_local_dogfooding",
+  "ownerApproved": false,
+  "realOneMonthDogfoodingCompleted": false,
+  "realTwoMonthDogfoodingCompleted": false,
+  "ownerLongRunFeedbackReviewed": false,
+  "allowProductionDeploy": false,
+  "allowPublicLaunch": false,
+  "allowRelease": false,
+  "allowTag": false,
+  "allowArtifactUpload": false,
+  "allowProviderCallExpansion": false,
+  "allowProductionReadyClaim": false,
+  "allowWorkspaceCleanClaim": false
+}

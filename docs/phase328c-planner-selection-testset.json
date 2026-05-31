@@ -1,0 +1,65 @@
+{
+  "phase": "Phase328C",
+  "scenarios": [
+    {
+      "scenarioId": "codingTask",
+      "input": "Write a concise code review report for a Node.js change.",
+      "expectedTaskClassification": "coding",
+      "expectedExecutionMode": "single_model"
+    },
+    {
+      "scenarioId": "reasoningTask",
+      "input": "Reason about tradeoffs between single-model and supervisor synthesis.",
+      "expectedTaskClassification": "reasoning",
+      "expectedExecutionMode": "escalate_to_god_mode"
+    },
+    {
+      "scenarioId": "writingTask",
+      "input": "Write a product summary in one paragraph.",
+      "expectedTaskClassification": "general_chat",
+      "expectedExecutionMode": "single_model"
+    },
+    {
+      "scenarioId": "translationTask",
+      "input": "Translate this short paragraph to English.",
+      "expectedTaskClassification": "translation",
+      "expectedExecutionMode": "single_model"
+    },
+    {
+      "scenarioId": "dataAnalysisTask",
+      "input": "Analyze this CSV-style dataset and summarize trends.",
+      "expectedTaskClassification": "data_analysis",
+      "expectedExecutionMode": "single_model"
+    },
+    {
+      "scenarioId": "longContextTask",
+      "input": "Read a long context design note and give a short conclusion.",
+      "expectedTaskClassification": "long_context",
+      "expectedExecutionMode": "single_model"
+    },
+    {
+      "scenarioId": "generalChatTask",
+      "input": "Say hello and explain the three runtime modes briefly.",
+      "expectedTaskClassification": "general_chat",
+      "expectedExecutionMode": "single_model"
+    },
+    {
+      "scenarioId": "godEscalationTask",
+      "input": "Evaluate conflicting strategy options and preserve uncertainty.",
+      "expectedTaskClassification": "reasoning",
+      "expectedExecutionMode": "escalate_to_god_mode"
+    },
+    {
+      "scenarioId": "noEligibleModelTask",
+      "input": "General task when no eligible model should still stay on safe fallback.",
+      "expectedTaskClassification": "general_chat",
+      "expectedExecutionMode": "single_model"
+    },
+    {
+      "scenarioId": "fallbackRequiredTask",
+      "input": "Pick the safest fallback if preferred pool is unavailable.",
+      "expectedTaskClassification": "general_chat",
+      "expectedExecutionMode": "single_model"
+    }
+  ]
+}

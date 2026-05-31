@@ -1,0 +1,106 @@
+{
+  "phase": "Phase328F",
+  "scenariosProcessed": 7,
+  "results": [
+    {
+      "scenarioId": "allowedNormal",
+      "status": "allowed",
+      "decision": {
+        "allowed": true,
+        "blocked": false,
+        "warning": false,
+        "reason": "allowed_with_mock_budget_tracking",
+        "remainingQuota": {
+          "dailyRequests": 49,
+          "monthlyRequests": 499
+        },
+        "estimatedCost": 0.01,
+        "budgetStatus": {
+          "dailyRemaining": 4.99,
+          "monthlyRemaining": 49.99
+        },
+        "policyStatus": "allowed"
+      }
+    },
+    {
+      "scenarioId": "warningNearQuota",
+      "status": "warning",
+      "decision": {
+        "allowed": true,
+        "blocked": false,
+        "warning": true,
+        "reason": "allowed_with_mock_budget_tracking",
+        "remainingQuota": {
+          "dailyRequests": 0,
+          "monthlyRequests": 498
+        },
+        "estimatedCost": 0.01,
+        "budgetStatus": {
+          "dailyRemaining": 4.99,
+          "monthlyRemaining": 49.99
+        },
+        "policyStatus": "allowed"
+      }
+    },
+    {
+      "scenarioId": "blockedQuota",
+      "status": "blocked",
+      "error": {
+        "code": "USER_QUOTA_EXCEEDED",
+        "message": "Daily request quota exceeded.",
+        "details": {
+          "dailyRequestCount": 1,
+          "monthlyRequestCount": 0,
+          "dailyEstimatedCost": 0,
+          "monthlyEstimatedCost": 0
+        }
+      }
+    },
+    {
+      "scenarioId": "blockedBudget",
+      "status": "blocked",
+      "error": {
+        "code": "USER_BUDGET_EXCEEDED",
+        "message": "Daily estimated budget exceeded.",
+        "details": {
+          "dailyRequestCount": 0,
+          "monthlyRequestCount": 0,
+          "dailyEstimatedCost": 0.02,
+          "monthlyEstimatedCost": 0
+        }
+      }
+    },
+    {
+      "scenarioId": "godParticipantLimitExceeded",
+      "status": "blocked",
+      "error": {
+        "code": "GOD_PARTICIPANT_LIMIT_EXCEEDED",
+        "message": "God Mode participant count exceeds limit 2.",
+        "details": {
+          "participantCount": 3,
+          "maxGodParticipants": 2
+        }
+      }
+    },
+    {
+      "scenarioId": "tianshuEscalationBlocked",
+      "status": "blocked",
+      "error": {
+        "code": "TIANSHU_ESCALATION_NOT_ALLOWED",
+        "message": "Tianshu God escalation is not allowed for this user.",
+        "details": {
+          "mode": "tianshu"
+        }
+      }
+    },
+    {
+      "scenarioId": "auditTraceRequired",
+      "status": "blocked",
+      "error": {
+        "code": "AUDIT_TRACE_REQUIRED",
+        "message": "Audit trace is required for this user policy.",
+        "details": {}
+      }
+    }
+  ]
+}

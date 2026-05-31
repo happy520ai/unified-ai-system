@@ -1,0 +1,38 @@
+{
+  "phase": "Phase474A",
+  "title": "Yiyi Demo Governance Brief",
+  "packageType": "demo-governance-brief",
+  "checklist": [
+    {
+      "id": "demoGovernanceBriefCreated",
+      "order": 1,
+      "status": "prepared",
+      "safetyBoundary": "dry-run docs/evidence only; no provider, no secret, no deploy, no billing"
+    },
+    {
+      "id": "governanceBriefChecklistCreated",
+      "order": 2,
+      "status": "prepared",
+      "safetyBoundary": "dry-run docs/evidence only; no provider, no secret, no deploy, no billing"
+    }
+  ],
+  "previousClosure": {
+    "path": "apps/ai-gateway-service/evidence/phase473/yiyi-demo-eighth-low-risk-auto-run-closure-closure-result.json",
+    "exists": true,
+    "sizeBytes": 1933
+  },
+  "phase384StillRequiresHumanApproval": true,
+  "providerCallsMade": false,
+  "nonNvidiaProviderCallsMade": false,
+  "secretValueExposed": false,
+  "rawSecretAccessed": false,
+  "deployExecuted": false,
+  "releaseExecuted": false,
+  "tagCreated": false,
+  "artifactUploaded": false,
+  "approvalForged": false,
+  "billingExecuted": false,
+  "invoiceGenerated": false,
+  "productionGaClaimed": false,
+  "workspaceCleanClaimed": false
+}

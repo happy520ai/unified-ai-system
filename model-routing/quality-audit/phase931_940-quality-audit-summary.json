@@ -1,0 +1,114 @@
+{
+  "phase": "Phase934",
+  "completed": true,
+  "recommended_sealed": true,
+  "blocker": null,
+  "routeQualityAuditReady": true,
+  "routeQualityScoreCount": 5,
+  "minScore": 100,
+  "maxScore": 100,
+  "averageScore": 100,
+  "perModeScores": {
+    "normal": {
+      "count": 2,
+      "averageScore": 100,
+      "scores": [
+        100,
+        100
+      ]
+    },
+    "god": {
+      "count": 1,
+      "averageScore": 100,
+      "scores": [
+        100
+      ]
+    },
+    "tianshu": {
+      "count": 1,
+      "averageScore": 100,
+      "scores": [
+        100
+      ]
+    },
+    "fallback": {
+      "count": 1,
+      "averageScore": 100,
+      "scores": [
+        100
+      ]
+    }
+  },
+  "perScenarioScores": [
+    {
+      "id": "normal_definition",
+      "mode": "normal",
+      "modelId": "nvidia/llama-3.1-nemotron-nano-8b-v1",
+      "score": 100,
+      "routeTestPassed": true,
+      "responseClassification": "pass",
+      "fallback": false
+    },
+    {
+      "id": "normal_json",
+      "mode": "normal",
+      "modelId": "nvidia/llama-3.1-nemotron-nano-8b-v1",
+      "score": 100,
+      "routeTestPassed": true,
+      "responseClassification": "pass",
+      "fallback": false
+    },
+    {
+      "id": "god_review",
+      "mode": "god",
+      "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1",
+      "score": 100,
+      "routeTestPassed": true,
+      "responseClassification": "pass",
+      "fallback": false
+    },
+    {
+      "id": "tianshu_plan",
+      "mode": "tianshu",
+      "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1",
+      "score": 100,
+      "routeTestPassed": true,
+      "responseClassification": "pass",
+      "fallback": false
+    },
+    {
+      "id": "fallback_verified_nvidia",
+      "mode": "fallback",
+      "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1",
+      "score": 100,
+      "routeTestPassed": true,
+      "responseClassification": "pass",
+      "fallback": true
+    }
+  ],
+  "scoreMissingCount": 0,
+  "scoreOutOfRangeCount": 0,
+  "scoringEvidenceComplete": true,
+  "scoreSource": "derived_from_phase916_930_route_evidence",
+  "runtimePolicyModified": false,
+  "markerMissingPromotedToPass": false,
+  "failedBlockedHighRiskPromotedToPass": false,
+  "providerCallsMadeThisPhase": false,
+  "newProviderRequestsThisPhase": 0,
+  "rawSecretRead": false,
+  "secretValueExposed": false,
+  "authJsonRead": false,
+  "chatBehaviorChangedByDefault": false,
+  "chatGatewayExecuteBehaviorChangedByDefault": false,
+  "deployExecuted": false,
+  "releaseExecuted": false,
+  "tagCreated": false,
+  "artifactUploaded": false,
+  "unsupportedClaimCount": 0,
+  "hallucinatedFactCount": 0,
+  "codexContextGatewayUsed": true,
+  "contextCodecUsed": true,
+  "relevantFilesUsed": true,
+  "fullRepoScanAvoided": true,
+  "tokenBudgetRespected": true
+}

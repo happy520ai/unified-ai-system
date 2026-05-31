@@ -1,0 +1,139 @@
+{
+  "phase": "Phase731",
+  "realSevenDaySoakCompleted": false,
+  "days": [
+    {
+      "day": 1,
+      "date": "",
+      "minutesUsed": 0,
+      "tasksRun": [],
+      "providerRequests": 0,
+      "providerFailures": 0,
+      "runtimeFailures": 0,
+      "blockedReasons": [],
+      "uxFriction": [],
+      "newCapabilityIdeas": [],
+      "evidenceRefs": [],
+      "severityCounts": {
+        "P0": 0,
+        "P1": 0,
+        "P2": 0,
+        "P3": 0
+      }
+    },
+    {
+      "day": 2,
+      "date": "",
+      "minutesUsed": 0,
+      "tasksRun": [],
+      "providerRequests": 0,
+      "providerFailures": 0,
+      "runtimeFailures": 0,
+      "blockedReasons": [],
+      "uxFriction": [],
+      "newCapabilityIdeas": [],
+      "evidenceRefs": [],
+      "severityCounts": {
+        "P0": 0,
+        "P1": 0,
+        "P2": 0,
+        "P3": 0
+      }
+    },
+    {
+      "day": 3,
+      "date": "",
+      "minutesUsed": 0,
+      "tasksRun": [],
+      "providerRequests": 0,
+      "providerFailures": 0,
+      "runtimeFailures": 0,
+      "blockedReasons": [],
+      "uxFriction": [],
+      "newCapabilityIdeas": [],
+      "evidenceRefs": [],
+      "severityCounts": {
+        "P0": 0,
+        "P1": 0,
+        "P2": 0,
+        "P3": 0
+      }
+    },
+    {
+      "day": 4,
+      "date": "",
+      "minutesUsed": 0,
+      "tasksRun": [],
+      "providerRequests": 0,
+      "providerFailures": 0,
+      "runtimeFailures": 0,
+      "blockedReasons": [],
+      "uxFriction": [],
+      "newCapabilityIdeas": [],
+      "evidenceRefs": [],
+      "severityCounts": {
+        "P0": 0,
+        "P1": 0,
+        "P2": 0,
+        "P3": 0
+      }
+    },
+    {
+      "day": 5,
+      "date": "",
+      "minutesUsed": 0,
+      "tasksRun": [],
+      "providerRequests": 0,
+      "providerFailures": 0,
+      "runtimeFailures": 0,
+      "blockedReasons": [],
+      "uxFriction": [],
+      "newCapabilityIdeas": [],
+      "evidenceRefs": [],
+      "severityCounts": {
+        "P0": 0,
+        "P1": 0,
+        "P2": 0,
+        "P3": 0
+      }
+    },
+    {
+      "day": 6,
+      "date": "",
+      "minutesUsed": 0,
+      "tasksRun": [],
+      "providerRequests": 0,
+      "providerFailures": 0,
+      "runtimeFailures": 0,
+      "blockedReasons": [],
+      "uxFriction": [],
+      "newCapabilityIdeas": [],
+      "evidenceRefs": [],
+      "severityCounts": {
+        "P0": 0,
+        "P1": 0,
+        "P2": 0,
+        "P3": 0
+      }
+    },
+    {
+      "day": 7,
+      "date": "",
+      "minutesUsed": 0,
+      "tasksRun": [],
+      "providerRequests": 0,
+      "providerFailures": 0,
+      "runtimeFailures": 0,
+      "blockedReasons": [],
+      "uxFriction": [],
+      "newCapabilityIdeas": [],
+      "evidenceRefs": [],
+      "severityCounts": {
+        "P0": 0,
+        "P1": 0,
+        "P2": 0,
+        "P3": 0
+      }
+    }
+  ]
+}

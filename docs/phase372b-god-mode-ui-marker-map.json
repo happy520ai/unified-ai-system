@@ -1,0 +1,13 @@
+{
+  "phase": "Phase372B",
+  "markers": {
+    "panel": "three-mode-panel-god",
+    "participantSummary": "three-mode-god-participant-summary",
+    "conflictSummary": "three-mode-god-conflict-level",
+    "disagreementPoints": "three-mode-god-disagreement-points",
+    "supervisorStatus": "three-mode-god-supervisor-status",
+    "supervisorBasis": "three-mode-god-supervisor-basis",
+    "fallbackReason": "three-mode-god-fallback-reason",
+    "guardedNotice": "three-mode-guarded-notice"
+  }
+}

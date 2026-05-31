@@ -1,0 +1,61 @@
+{
+  "phase": "Phase328A",
+  "successExample": {
+    "success": true,
+    "code": "OK",
+    "message": "Three Mode runtime completed.",
+    "data": {
+      "requestId": "phase328a-example-normal",
+      "mode": "normal",
+      "finalAnswer": "Three Mode adds normal, god, and tianshu runtime choices.",
+      "selectedModel": {
+        "providerId": "nvidia",
+        "modelId": "meta/llama-3.2-1b-instruct",
+        "verificationStatus": "smoke_passed",
+        "selectable": true,
+        "evidenceId": "phase324b6-meta_llama_3_2_1b_instruct-20260506155545",
+        "capabilityBucket": "chat"
+      },
+      "participantModels": [],
+      "modelContributions": [],
+      "disagreements": [],
+      "plannerDecision": null,
+      "supervisorDecision": null,
+      "confidenceSummary": {
+        "status": "high"
+      },
+      "uncertainty": {
+        "notes": []
+      },
+      "fallbackUsed": false,
+      "auditTrace": {
+        "providerCallsMade": true,
+        "nonNvidiaProviderCallsMade": false,
+        "secretValueExposed": false
+      }
+    },
+    "error": null,
+    "meta": {
+      "timestamp": "2026-05-07T00:00:00.000Z",
+      "durationMs": 1500
+    }
+  },
+  "errorExample": {
+    "success": false,
+    "code": "USER_CREDENTIAL_RUNTIME_NOT_READY",
+    "message": "User credential runtime is not ready for non-NVIDIA real calls.",
+    "data": null,
+    "error": {
+      "code": "USER_CREDENTIAL_RUNTIME_NOT_READY",
+      "message": "User credential runtime is not ready for non-NVIDIA real calls.",
+      "recoverable": true,
+      "details": {
+        "providerId": "openai"
+      }
+    },
+    "meta": {
+      "timestamp": "2026-05-07T00:00:00.000Z",
+      "durationMs": 12
+    }
+  }
+}

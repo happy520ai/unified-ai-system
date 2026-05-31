@@ -1,0 +1,36 @@
+{
+  "phase": "Phase333A",
+  "artifactManifest": {
+    "manifestExists": true,
+    "releaseExecuted": false,
+    "deployExecuted": false,
+    "gitTagCreated": false,
+    "artifactUploaded": false,
+    "secretFilesIncluded": false,
+    "envFilesIncluded": false,
+    "apiKeysIncluded": false
+  },
+  "runtimeEvidence": [
+    "apps/ai-gateway-service/evidence/phase328a/three-mode-normal-runtime-smoke.json",
+    "apps/ai-gateway-service/evidence/phase328a/three-mode-god-runtime-smoke.json",
+    "apps/ai-gateway-service/evidence/phase328a/three-mode-tianshu-runtime-smoke.json"
+  ],
+  "uiEvidence": [
+    "apps/agent-console/evidence/phase328a/three-mode-ui-smoke.json",
+    "apps/agent-console/evidence/phase330e/provider-onboarding-wizard-hardening-smoke.json",
+    "apps/agent-console/evidence/phase331f/billing-mock-invoice-ui-smoke.json",
+    "apps/ai-gateway-service/evidence/phase332f/mock-billing-statement-export-hardening-result.json"
+  ],
+  "rollbackEvidence": [
+    "docs/phase331a-rollout-risk-register.md",
+    "docs/phase330a-readiness-risk-register.md",
+    "docs/phase332a-rc-package-risk-register.md"
+  ],
+  "noReleaseControls": {
+    "releaseExecuted": false,
+    "deployExecuted": false,
+    "tagCreated": false,
+    "artifactUploaded": false,
+    "remoteReleaseCreated": false
+  }
+}

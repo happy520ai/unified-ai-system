@@ -1,0 +1,65 @@
+{
+  "phase": "Phase328A",
+  "route": "/three-mode/execute",
+  "examples": {
+    "normal": {
+      "requestId": "phase328a-test-normal-001",
+      "mode": "normal",
+      "input": {
+        "content": "用一句话介绍当前系统三模式"
+      },
+      "modelSelection": {
+        "selectedModelId": "meta/llama-3.2-1b-instruct"
+      },
+      "executionPolicy": {
+        "timeoutMs": 60000,
+        "allowFallback": true,
+        "allowParallelExecution": false,
+        "allowGodEscalation": false
+      },
+      "audit": {
+        "traceEnabled": true
+      }
+    },
+    "god": {
+      "requestId": "phase328a-test-god-001",
+      "mode": "god",
+      "input": {
+        "content": "评估这个产品三模式设计的优缺点"
+      },
+      "modelSelection": {
+        "participantModelIds": [
+          "meta/llama-3.2-1b-instruct",
+          "nvidia/nemotron-mini-4b-instruct"
+        ],
+        "supervisorModelId": "meta/llama-3.2-3b-instruct",
+        "allowSystemModelSelection": true
+      },
+      "executionPolicy": {
+        "timeoutMs": 120000,
+        "allowParallelExecution": true,
+        "maxParticipants": 3
+      },
+      "audit": {
+        "traceEnabled": true,
+        "includeModelContributions": true
+      }
+    },
+    "tianshu": {
+      "requestId": "phase328a-test-tianshu-001",
+      "mode": "tianshu",
+      "input": {
+        "content": "帮我判断这个任务应该用哪个模型完成：写一个代码审查报告"
+      },
+      "executionPolicy": {
+        "timeoutMs": 120000,
+        "allowFallback": true,
+        "allowGodEscalation": true
+      },
+      "audit": {
+        "traceEnabled": true,
+        "includePlannerDecision": true
+      }
+    }
+  }
+}

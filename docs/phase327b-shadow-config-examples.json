@@ -1,0 +1,85 @@
+{
+  "phase": "Phase327B",
+  "runtimeStatus": "shadow_config_only",
+  "nvidiaInternalTestCredentialRefExample": {
+    "providerId": "nvidia",
+    "credentialRef": "credential_ref:nvidia-internal-test",
+    "credentialRefType": "env_key_name",
+    "secretValueAllowed": false,
+    "credentialRefOnly": true,
+    "realCallsAllowed": false,
+    "nonNvidiaProviderCallsAllowed": false,
+    "runtimeStatus": "shadow_config_only"
+  },
+  "openaiUserOwnedCredentialRefExample": {
+    "providerId": "openai",
+    "credentialRef": "credential_ref:user-openai-shadow",
+    "credentialRefType": "vault_reference",
+    "secretValueAllowed": false,
+    "credentialRefOnly": true,
+    "realCallsAllowed": false,
+    "nonNvidiaProviderCallsAllowed": false,
+    "runtimeStatus": "shadow_config_only"
+  },
+  "claudeUserOwnedCredentialRefExample": {
+    "providerId": "claude",
+    "credentialRef": "credential_ref:user-claude-shadow",
+    "credentialRefType": "encrypted_reference",
+    "secretValueAllowed": false,
+    "credentialRefOnly": true,
+    "realCallsAllowed": false,
+    "nonNvidiaProviderCallsAllowed": false,
+    "runtimeStatus": "shadow_config_only"
+  },
+  "openrouterUserOwnedCredentialRefExample": {
+    "providerId": "openrouter",
+    "credentialRef": "credential_ref:user-openrouter-shadow",
+    "credentialRefType": "user_secret_store_reference",
+    "secretValueAllowed": false,
+    "credentialRefOnly": true,
+    "realCallsAllowed": false,
+    "nonNvidiaProviderCallsAllowed": false,
+    "runtimeStatus": "shadow_config_only"
+  },
+  "mimoUserOwnedCredentialRefExample": {
+    "providerId": "mimo",
+    "credentialRef": "credential_ref:user-mimo-shadow",
+    "credentialRefType": "vault_reference",
+    "secretValueAllowed": false,
+    "credentialRefOnly": true,
+    "realCallsAllowed": false,
+    "nonNvidiaProviderCallsAllowed": false,
+    "runtimeStatus": "shadow_config_only"
+  },
+  "revokedCredentialRefExample": {
+    "providerId": "openai",
+    "credentialRef": "credential_ref:revoked-shadow",
+    "credentialRefType": "vault_reference",
+    "status": "revoked",
+    "secretValueAllowed": false,
+    "credentialRefOnly": true,
+    "realCallsAllowed": false,
+    "nonNvidiaProviderCallsAllowed": false,
+    "runtimeStatus": "shadow_config_only"
+  },
+  "invalidSecretValueExample": {
+    "providerId": "openrouter",
+    "credentialRef": "",
+    "secretValueProvided": true,
+    "secretValueAllowed": false,
+    "credentialRefOnly": true,
+    "realCallsAllowed": false,
+    "nonNvidiaProviderCallsAllowed": false,
+    "runtimeStatus": "shadow_config_only"
+  },
+  "invalidRealCallEnabledExample": {
+    "providerId": "claude",
+    "credentialRef": "credential_ref:invalid-real-call",
+    "realCallsAllowed": false,
+    "attemptedRealCallEnabled": true,
+    "secretValueAllowed": false,
+    "credentialRefOnly": true,
+    "nonNvidiaProviderCallsAllowed": false,
+    "runtimeStatus": "shadow_config_only"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "phase": "Phase359E",
+  "gateType": "provider_onboarding_final_production_risk",
+  "result": {
+    "phase": "Phase359E",
+    "sourcePhase": "Phase358E",
+    "finalNoDeployGateGenerated": true,
+    "deployApproved": false,
+    "releaseApproved": false,
+    "productionGaApproved": false,
+    "blockerCountRecorded": true,
+    "blockerCount": 2,
+    "blockers": [
+      "reviewerChecklistId",
+      "tenant_admin_approval_record"
+    ],
+    "noProviderCallFromUi": true,
+    "credentialRefOnly": true,
+    "secretValueExposed": false
+  }
+}

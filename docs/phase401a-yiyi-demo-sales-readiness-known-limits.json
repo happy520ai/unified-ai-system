@@ -1,0 +1,38 @@
+{
+  "phase": "Phase401A",
+  "title": "Yiyi Demo Sales Readiness Known Limits Sheet",
+  "packageType": "sales-readiness-known-limits",
+  "checklist": [
+    {
+      "id": "knownLimitsSheetCreated",
+      "order": 1,
+      "status": "prepared",
+      "safetyBoundary": "dry-run docs/evidence only; no provider, no secret, no deploy, no billing"
+    },
+    {
+      "id": "salesReadinessBoundaryCreated",
+      "order": 2,
+      "status": "prepared",
+      "safetyBoundary": "dry-run docs/evidence only; no provider, no secret, no deploy, no billing"
+    }
+  ],
+  "previousClosure": {
+    "path": "apps/ai-gateway-service/evidence/phase400/yiyi-demo-manual-trial-feedback-form-closure-result.json",
+    "exists": true,
+    "sizeBytes": 2080
+  },
+  "phase384StillRequiresHumanApproval": true,
+  "providerCallsMade": false,
+  "nonNvidiaProviderCallsMade": false,
+  "secretValueExposed": false,
+  "rawSecretAccessed": false,
+  "deployExecuted": false,
+  "releaseExecuted": false,
+  "tagCreated": false,
+  "artifactUploaded": false,
+  "approvalForged": false,
+  "billingExecuted": false,
+  "invoiceGenerated": false,
+  "productionGaClaimed": false,
+  "workspaceCleanClaimed": false
+}

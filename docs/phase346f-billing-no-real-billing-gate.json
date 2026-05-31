@@ -1,0 +1,15 @@
+{
+  "phase": "Phase346F",
+  "smokeInput": "Phase345F",
+  "blockers": [],
+  "noRealBillingGateGenerated": true,
+  "readinessGatePassed": true,
+  "blockerCountRecorded": true,
+  "blockerCount": 0,
+  "noRealBilling": true,
+  "secretSafetyGatePassed": true,
+  "actualBillingConnected": false,
+  "realInvoiceGenerated": false,
+  "productionGA": false,
+  "secretValueExposed": false
+}

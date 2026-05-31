@@ -1,0 +1,49 @@
+{
+  "draftOnly": true,
+  "notAnApproval": true,
+  "requiresHumanCompletion": true,
+  "approvalId": null,
+  "approvalType": "billing_warning_copy_approval",
+  "approvalDecision": "pending",
+  "approverNameRef": "",
+  "approverRole": "",
+  "approverOrgRef": "",
+  "approvedScope": [
+    "mock_statement_warning_copy",
+    "estimate_only_copy",
+    "not_legal_invoice_copy",
+    "actual_billing_not_connected_copy",
+    "no_tax_or_payment_settlement_copy"
+  ],
+  "approvalTimestamp": null,
+  "evidenceRefs": [
+    "docs/phase360f-billing-production-candidate-signoff.md",
+    "apps/ai-gateway-service/evidence/phase360f/billing-production-candidate-signoff-result.json",
+    "docs/phase362e-billing-warning-copy-follow-up-report.md",
+    "docs/phase360a-production-candidate-final-signoff-packet.md",
+    "docs/phase360a-deploy-not-authorized-boundary.json",
+    "docs/phase360abcdef-execution-report.md",
+    "docs/phase361a-launch-authorization-state.json",
+    "docs/phase361b-human-approval-records-index.json",
+    "docs/phase361c-deploy-authorization-state.json",
+    "docs/phase361d-signoff-verification-report.md",
+    "docs/phase361f-go-no-go-decision-state.json",
+    "docs/phase362a-reviewer-follow-up-tracker.json",
+    "docs/phase362a-approval-evidence-intake-report.md"
+  ],
+  "conditions": [],
+  "expiration": null,
+  "revocationPolicy": "",
+  "humanInstructions": [
+    "Preserve the warning labels exactly.",
+    "Do not turn this into a billing approval or invoice.",
+    "Copy the completed file to docs/approvals/phase361/billing-warning-copy-approval-record.json."
+  ],
+  "auditTrace": {
+    "createdBy": "codex",
+    "source": "approval_draft_preparation",
+    "secretValueIncluded": false,
+    "forged": false,
+    "draftOnly": true
+  }
+}

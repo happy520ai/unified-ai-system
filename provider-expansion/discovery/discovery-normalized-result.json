@@ -1,0 +1,23 @@
+{
+  "phase": "Phase786",
+  "normalizedModelCount": 0,
+  "normalizedModels": [],
+  "providerCallsMade": false,
+  "secretRead": false,
+  "selectableModified": false,
+  "completed": true,
+  "discoveryResultNormalizerReady": true,
+  "authJsonRead": false,
+  "rawSecretRead": false,
+  "secretValueExposed": false,
+  "credentialRefOnly": true,
+  "chatBehaviorChangedByDefault": false,
+  "chatGatewayExecuteBehaviorChangedByDefault": false,
+  "deployExecuted": false,
+  "releaseExecuted": false,
+  "tagCreated": false,
+  "artifactUploaded": false,
+  "pushExecuted": false,
+  "commitCreated": false,
+  "workspaceCleanClaimed": false
+}

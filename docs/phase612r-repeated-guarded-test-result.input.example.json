@@ -1,0 +1,37 @@
+{
+  "intakeId": "phase612r-repeated-codex-exec-guarded-test-001",
+  "reportedBy": "user-owner",
+  "executionMode": "codex_exec_non_interactive",
+  "selectedProviderId": "crs",
+  "maxPlannedAttempts": 3,
+  "maxRequestsPerAttempt": 1,
+  "maxRequestsTotal": 3,
+  "retryLimitPerAttempt": 0,
+  "attempts": [
+    {
+      "attemptId": "attempt-1",
+      "requestAttemptCount": 1,
+      "retryAttemptCount": 0,
+      "exitCode": 0,
+      "stdoutSanitized": "CONTEXT_GATEWAY_MODEL_PROVIDER_OK",
+      "stderrSanitizedSummary": "",
+      "ack": "CONTEXT_GATEWAY_MODEL_PROVIDER_OK",
+      "rawBaseUrlValueIncluded": false,
+      "secretValueIncluded": false,
+      "webhookValueIncluded": false,
+      "authJsonAccessed": false,
+      "codexConfigModified": false,
+      "projectCodexConfigModified": false,
+      "chatModified": false,
+      "chatGatewayExecuteModified": false,
+      "deployExecuted": false,
+      "releaseExecuted": false,
+      "tagCreated": false,
+      "artifactUploaded": false,
+      "pushExecuted": false,
+      "commitCreated": false,
+      "cleanupCompleted": true
+    }
+  ],
+  "notes": "Example only. Do not count as real repeated guarded test evidence."
+}

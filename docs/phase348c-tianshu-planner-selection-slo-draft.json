@@ -1,0 +1,24 @@
+{
+  "phase": "Phase348C",
+  "draftType": "tianshu_planner_selection_slo",
+  "result": {
+    "phase": "Phase348C",
+    "sourcePhase": "Phase347C",
+    "sloDraftGenerated": true,
+    "slaDraftGenerated": true,
+    "metricsDefined": true,
+    "productionGAFalselyClaimed": false,
+    "policyActivated": false,
+    "trainingTriggered": false,
+    "embeddingBatchTriggered": false,
+    "productionGA": false,
+    "metricCount": 4,
+    "metrics": [
+      "planner_selection_review_coverage",
+      "wrong_routing_detection_rate",
+      "manual_approval_required_rate",
+      "policy_activation_blocked_by_default"
+    ],
+    "secretValueExposed": false
+  }
+}

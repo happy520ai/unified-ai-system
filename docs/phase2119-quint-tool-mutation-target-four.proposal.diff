@@ -1,0 +1,35 @@
+diff --git a/tools/phase2096_2100/apply-controlled-triple-tool-mutation.mjs b/tools/phase2096_2100/apply-controlled-triple-tool-mutation.mjs
+--- a/tools/phase2096_2100/apply-controlled-triple-tool-mutation.mjs
++++ b/tools/phase2096_2100/apply-controlled-triple-tool-mutation.mjs
+@@ -39,23 +39,38 @@
+   return {
+     phaseId: "Phase2109A-Controlled-Quad-Tool-Mutation-Target-Four",
+     marker: "PHASE2109_QUAD_TOOL_TARGET_FOUR_OK",
+     importSafe: true,
+     quadRunnerReady: true,
++    phase2119Marker: "PHASE2119_QUINT_TOOL_TARGET_FOUR_OK",
+     providerCallsMade: false,
+     codexExecExecuted: false,
+     chatModified: false,
+     chatGatewayExecuteModified: false,
+   };
+ }
+ 
++export function buildPhase2119QuintMutationTargetFourStatus() {
++  return {
++    phaseId: "Phase2119A-Controlled-Quint-Tool-Mutation-Target-Four",
++    marker: "PHASE2119_QUINT_TOOL_TARGET_FOUR_OK",
++    importSafe: true,
++    quintMutationApplied: true,
++    providerCallsMade: false,
++    codexExecExecuted: false,
++    chatModified: false,
++    chatGatewayExecuteModified: false,
++  };
++}
++
+ export function main() {
+   const args = parseArgs(process.argv.slice(2));
+   const planPath = args.plan || "docs/phase2096-2100-controlled-triple-tool-mutation-approval.example.json";
+   const generatedAt = new Date().toISOString();
+   const plan = readJson(planPath);

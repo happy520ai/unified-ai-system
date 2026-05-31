@@ -1,0 +1,30 @@
+{
+  "phase": "Phase361F",
+  "meetingName": "production-go-no-go-meeting",
+  "meetingHeld": false,
+  "goDecision": "pending",
+  "goDecisionAllowed": false,
+  "deployAuthorized": false,
+  "releaseAuthorized": false,
+  "productionGaAuthorized": false,
+  "requiredAttendeesPresent": false,
+  "requiredApprovalsComplete": false,
+  "unresolvedBlockers": [
+    "human_launch_approval",
+    "deploy_authorization",
+    "god_mode_quality_signoff",
+    "tianshu_policy_decision",
+    "credential_vault_backend_approval",
+    "tenant_admin_approval",
+    "billing_warning_copy_approval",
+    "deploy_authorization"
+  ],
+  "decisionRecordRef": null,
+  "safety": {
+    "deployExecuted": false,
+    "releaseExecuted": false,
+    "tagCreated": false,
+    "artifactUploaded": false,
+    "secretValueExposed": false
+  }
+}

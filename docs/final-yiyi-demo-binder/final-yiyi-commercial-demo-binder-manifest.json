@@ -1,0 +1,433 @@
+{
+  "binderId": "final_yiyi_commercial_demo_binder",
+  "version": "v1.0",
+  "createdFrom": "Phase386-Phase563 audit",
+  "sourceAudit": "Phase564",
+  "primaryMaterials": [
+    {
+      "phase": "Phase386",
+      "title": "Phase386 Yiyi Commercial Demo Guided Showcase",
+      "category": "closure-only / repetitive auto-run artifacts",
+      "valueLevel": "high_value",
+      "primaryFiles": [
+        "docs/phase386-yiyi-commercial-demo-guided-showcase-closure.md",
+        "docs/phase386a-yiyi-demo-narrative.md",
+        "docs/phase386a-yiyi-demo-showcase-contract.json",
+        "docs/phase386b-yiyi-guided-showcase-ui-flow.md",
+        "docs/phase386c-yiyi-demo-scenario-pack.md",
+        "docs/phase386c-yiyi-demo-scenarios.json",
+        "docs/phase386d-yiyi-commercial-demo-script-3min.md",
+        "docs/phase386d-yiyi-commercial-demo-script-8min.md",
+        "docs/phase386d-yiyi-recording-guide.md",
+        "docs/phase386d-yiyi-sales-demo-script.md",
+        "docs/phase386d-yiyi-screenshot-shotlist.md",
+        "docs/phase386d-yiyi-technical-review-demo-script.md",
+        "docs/phase386e-yiyi-demo-evidence-package.md",
+        "docs/phase386f-yiyi-guided-showcase-browser-smoke.md"
+      ],
+      "mergeTarget": "final-yiyi-commercial-demo-package"
+    },
+    {
+      "phase": "Phase388",
+      "title": "Phase388 Yiyi Demo Recording Asset Pack",
+      "category": "recording guide",
+      "valueLevel": "high_value",
+      "primaryFiles": [
+        "docs/phase388-yiyi-demo-recording-asset-pack-closure.md",
+        "docs/phase388a-yiyi-demo-recording-asset-pack.md",
+        "docs/phase388a-yiyi-manual-browser-review-checklist.json"
+      ],
+      "mergeTarget": "final-yiyi-commercial-demo-package"
+    },
+    {
+      "phase": "Phase390",
+      "title": "Phase390 Yiyi Commercial Demo Final Qa Sales Handoff",
+      "category": "QA checklist",
+      "valueLevel": "high_value",
+      "primaryFiles": [
+        "docs/phase390-yiyi-commercial-demo-final-qa-sales-handoff-closure.md",
+        "docs/phase390a-yiyi-commercial-demo-final-qa-index.json",
+        "docs/phase390a-yiyi-sales-handoff-pack.md"
+      ],
+      "mergeTarget": "final-yiyi-commercial-demo-package"
+    },
+    {
+      "phase": "Phase391",
+      "title": "Phase391 Yiyi Demo Rehearsal Runbook",
+      "category": "closure-only / repetitive auto-run artifacts",
+      "valueLevel": "high_value",
+      "primaryFiles": [
+        "docs/phase391-yiyi-demo-rehearsal-runbook-closure.md",
+        "docs/phase391a-yiyi-demo-operator-checklist.json",
+        "docs/phase391a-yiyi-demo-rehearsal-runbook.md"
+      ],
+      "mergeTarget": "final-yiyi-commercial-demo-package"
+    },
+    {
+      "phase": "Phase395",
+      "title": "Phase395 Yiyi Demo Evidence Index Refresh Trace Map",
+      "category": "evidence index",
+      "valueLevel": "high_value",
+      "primaryFiles": [
+        "docs/phase395-yiyi-demo-evidence-index-refresh-trace-map-closure.md",
+        "docs/phase395a-yiyi-demo-evidence-index-refresh-trace-map.json",
+        "docs/phase395a-yiyi-demo-evidence-index-refresh-trace-map.md"
+      ],
+      "mergeTarget": "final-yiyi-commercial-demo-package"
+    },
+    {
+      "phase": "Phase396",
+      "title": "Phase396 Yiyi Demo Risk Register Mitigation Notes",
+      "category": "risk register",
+      "valueLevel": "high_value",
+      "primaryFiles": [
+        "docs/phase396-yiyi-demo-risk-register-mitigation-notes-closure.md",
+        "docs/phase396a-yiyi-demo-risk-register-mitigation-notes.json",
+        "docs/phase396a-yiyi-demo-risk-register-mitigation-notes.md"
+      ],
+      "mergeTarget": "final-yiyi-commercial-demo-package"
+    },
+    {
+      "phase": "Phase397",
+      "title": "Phase397 Yiyi Demo Buyer Persona Talk Track Pack",
+      "category": "sales handoff",
+      "valueLevel": "high_value",
+      "primaryFiles": [
+        "docs/phase397-yiyi-demo-buyer-persona-talk-track-pack-closure.md",
+        "docs/phase397a-yiyi-demo-buyer-persona-talk-track-pack.json",
+        "docs/phase397a-yiyi-demo-buyer-persona-talk-track-pack.md"
+      ],
+      "mergeTarget": "final-yiyi-commercial-demo-package"
+    },
+    {
+      "phase": "Phase398",
+      "title": "Phase398 Yiyi Demo Post Demo Followup Email Pack",
+      "category": "follow-up email",
+      "valueLevel": "high_value",
+      "primaryFiles": [
+        "docs/phase398-yiyi-demo-post-demo-followup-email-pack-closure.md",
+        "docs/phase398a-yiyi-demo-post-demo-followup-email-pack.json",
+        "docs/phase398a-yiyi-demo-post-demo-followup-email-pack.md"
+      ],
+      "mergeTarget": "final-yiyi-commercial-demo-package"
+    },
+    {
+      "phase": "Phase402",
+      "title": "Phase402 Yiyi Demo Final Operator Handoff Index",
+      "category": "evidence index",
+      "valueLevel": "high_value",
+      "primaryFiles": [
+        "docs/phase402-yiyi-demo-final-operator-handoff-index-closure.md",
+        "docs/phase402a-yiyi-demo-final-operator-handoff-index.json",
+        "docs/phase402a-yiyi-demo-final-operator-handoff-index.md"
+      ],
+      "mergeTarget": "final-yiyi-commercial-demo-package"
+    }
+  ],
+  "referenceOnlyMaterials": [
+    {
+      "phase": "Phase387",
+      "title": "Phase387 Yiyi Commercial Visual Polish Cross Browser Qa",
+      "category": "QA checklist",
+      "valueLevel": "useful_reference",
+      "primaryFiles": [
+        "docs/phase387-yiyi-commercial-visual-polish-cross-browser-qa-closure.md",
+        "docs/phase387a-yiyi-visual-polish-cross-browser-qa-matrix.json",
+        "docs/phase387a-yiyi-visual-polish-cross-browser-qa.md"
+      ],
+      "mergeTarget": "phase399-final-qa-scorecard-core"
+    },
+    {
+      "phase": "Phase389",
+      "title": "Phase389 Yiyi Mobile Demo Adaptation Presenter Notes",
+      "category": "recording guide",
+      "valueLevel": "useful_reference",
+      "primaryFiles": [
+        "docs/phase389-yiyi-mobile-demo-adaptation-presenter-notes-closure.md",
+        "docs/phase389a-yiyi-mobile-demo-adaptation.md",
+        "docs/phase389a-yiyi-mobile-demo-review-checklist.json",
+        "docs/phase389a-yiyi-presenter-notes.md"
+      ],
+      "mergeTarget": "phase388-recording-and-shotlist-core"
+    },
+    {
+      "phase": "Phase392",
+      "title": "Phase392 Yiyi Demo Faq Objection Pack",
+      "category": "sales handoff",
+      "valueLevel": "useful_reference",
+      "primaryFiles": [
+        "docs/phase392-yiyi-demo-faq-objection-pack-closure.md",
+        "docs/phase392a-yiyi-demo-faq-objection-cards.json",
+        "docs/phase392a-yiyi-demo-faq-pack.md"
+      ],
+      "mergeTarget": "phase390-sales-handoff-core"
+    },
+    {
+      "phase": "Phase393",
+      "title": "Phase393 Yiyi Demo Localization Copy Qa",
+      "category": "recording guide",
+      "valueLevel": "useful_reference",
+      "primaryFiles": [
+        "docs/phase393-yiyi-demo-localization-copy-qa-closure.md",
+        "docs/phase393a-yiyi-demo-localization-copy-qa.md",
+        "docs/phase393a-yiyi-demo-terminology-lock.json"
+      ],
+      "mergeTarget": "phase388-recording-and-shotlist-core"
+    },
+    {
+      "phase": "Phase394",
+      "title": "Phase394 Yiyi Demo Stakeholder Review Packet",
+      "category": "QA checklist",
+      "valueLevel": "useful_reference",
+      "primaryFiles": [
+        "docs/phase394-yiyi-demo-stakeholder-review-packet-closure.md",
+        "docs/phase394a-yiyi-demo-stakeholder-review-packet.json",
+        "docs/phase394a-yiyi-demo-stakeholder-review-packet.md"
+      ],
+      "mergeTarget": "phase399-final-qa-scorecard-core"
+    },
+    {
+      "phase": "Phase399",
+      "title": "Phase399 Yiyi Demo Internal Qa Scorecard",
+      "category": "QA checklist",
+      "valueLevel": "useful_reference",
+      "primaryFiles": [
+        "docs/phase399-yiyi-demo-internal-qa-scorecard-closure.md",
+        "docs/phase399a-yiyi-demo-internal-qa-scorecard.json",
+        "docs/phase399a-yiyi-demo-internal-qa-scorecard.md"
+      ],
+      "mergeTarget": "phase399-final-qa-scorecard-core"
+    },
+    {
+      "phase": "Phase401",
+      "title": "Phase401 Yiyi Demo Sales Readiness Known Limits",
+      "category": "QA checklist",
+      "valueLevel": "useful_reference",
+      "primaryFiles": [
+        "docs/phase401-yiyi-demo-sales-readiness-known-limits-closure.md",
+        "docs/phase401a-yiyi-demo-sales-readiness-known-limits.json",
+        "docs/phase401a-yiyi-demo-sales-readiness-known-limits.md"
+      ],
+      "mergeTarget": "phase399-final-qa-scorecard-core"
+    },
+    {
+      "phase": "Phase404",
+      "title": "Phase404 Yiyi Demo Channel Briefing Pack",
+      "category": "sales handoff",
+      "valueLevel": "useful_reference",
+      "primaryFiles": [
+        "docs/phase404-yiyi-demo-channel-briefing-pack-closure.md",
+        "docs/phase404a-yiyi-demo-channel-briefing-pack.json",
+        "docs/phase404a-yiyi-demo-channel-briefing-pack.md"
+      ],
+      "mergeTarget": "phase390-sales-handoff-core"
+    },
+    {
+      "phase": "Phase405",
+      "title": "Phase405 Yiyi Demo Session Agenda Templates",
+      "category": "operator checklist",
+      "valueLevel": "useful_reference",
+      "primaryFiles": [
+        "docs/phase405-yiyi-demo-session-agenda-templates-closure.md",
+        "docs/phase405a-yiyi-demo-session-agenda-templates.json",
+        "docs/phase405a-yiyi-demo-session-agenda-templates.md"
+      ],
+      "mergeTarget": "phase391-operator-rehearsal-core"
+    },
+    {
+      "phase": "Phase406",
+      "title": "Phase406 Yiyi Demo Moderator Notes Pack",
+      "category": "operator checklist",
+      "valueLevel": "useful_reference",
+      "primaryFiles": [
+        "docs/phase406-yiyi-demo-moderator-notes-pack-closure.md",
+        "docs/phase406a-yiyi-demo-moderator-notes-pack.json",
+        "docs/phase406a-yiyi-demo-moderator-notes-pack.md"
+      ],
+      "mergeTarget": "phase391-operator-rehearsal-core"
+    },
+    {
+      "phase": "Phase408",
+      "title": "Phase408 Yiyi Demo Audience Question Routing Pack",
+      "category": "buyer persona",
+      "valueLevel": "useful_reference",
+      "primaryFiles": [
+        "docs/phase408-yiyi-demo-audience-question-routing-pack-closure.md",
+        "docs/phase408a-yiyi-demo-audience-question-routing-pack.json",
+        "docs/phase408a-yiyi-demo-audience-question-routing-pack.md"
+      ],
+      "mergeTarget": "phase397-buyer-persona-core"
+    },
+    {
+      "phase": "Phase409",
+      "title": "Phase409 Yiyi Demo Executive Summary Cards",
+      "category": "sales handoff",
+      "valueLevel": "useful_reference",
+      "primaryFiles": [
+        "docs/phase409-yiyi-demo-executive-summary-cards-closure.md",
+        "docs/phase409a-yiyi-demo-executive-summary-cards.json",
+        "docs/phase409a-yiyi-demo-executive-summary-cards.md"
+      ],
+      "mergeTarget": "phase390-sales-handoff-core"
+    },
+    {
+      "phase": "Phase410",
+      "title": "Phase410 Yiyi Demo Workshop Prep Checklist",
+      "category": "QA checklist",
+      "valueLevel": "useful_reference",
+      "primaryFiles": [
+        "docs/phase410-yiyi-demo-workshop-prep-checklist-closure.md",
+        "docs/phase410a-yiyi-demo-workshop-prep-checklist.json",
+        "docs/phase410a-yiyi-demo-workshop-prep-checklist.md"
+      ],
+      "mergeTarget": "phase399-final-qa-scorecard-core"
+    },
+    {
+      "phase": "Phase412",
+      "title": "Phase412 Yiyi Demo Pilot Proposal Outline",
+      "category": "pilot readiness",
+      "valueLevel": "useful_reference",
+      "primaryFiles": [
+        "docs/phase412-yiyi-demo-pilot-proposal-outline-closure.md",
+        "docs/phase412a-yiyi-demo-pilot-proposal-outline.json",
+        "docs/phase412a-yiyi-demo-pilot-proposal-outline.md"
+      ],
+      "mergeTarget": "phase412-pilot-proposal-core"
+    },
+    {
+      "phase": "Phase425",
+      "title": "Phase425 Yiyi Demo Safe Claims Review Pack",
+      "category": "QA checklist",
+      "valueLevel": "useful_reference",
+      "primaryFiles": [
+        "docs/phase425-yiyi-demo-safe-claims-review-pack-closure.md",
+        "docs/phase425a-yiyi-demo-safe-claims-review-pack.json",
+        "docs/phase425a-yiyi-demo-safe-claims-review-pack.md"
+      ],
+      "mergeTarget": "phase399-final-qa-scorecard-core"
+    },
+    {
+      "phase": "Phase429",
+      "title": "Phase429 Yiyi Demo Security Faq Addendum",
+      "category": "sales handoff",
+      "valueLevel": "useful_reference",
+      "primaryFiles": [
+        "docs/phase429-yiyi-demo-security-faq-addendum-closure.md",
+        "docs/phase429a-yiyi-demo-security-faq-addendum.json",
+        "docs/phase429a-yiyi-demo-security-faq-addendum.md"
+      ],
+      "mergeTarget": "phase390-sales-handoff-core"
+    },
+    {
+      "phase": "Phase430",
+      "title": "Phase430 Yiyi Demo Evidence Appendix Pack",
+      "category": "evidence index",
+      "valueLevel": "useful_reference",
+      "primaryFiles": [
+        "docs/phase430-yiyi-demo-evidence-appendix-pack-closure.md",
+        "docs/phase430a-yiyi-demo-evidence-appendix-pack.json",
+        "docs/phase430a-yiyi-demo-evidence-appendix-pack.md"
+      ],
+      "mergeTarget": "phase395-evidence-index-core"
+    },
+    {
+      "phase": "Phase432",
+      "title": "Phase432 Yiyi Demo Operator Quick Reference",
+      "category": "operator checklist",
+      "valueLevel": "useful_reference",
+      "primaryFiles": [
+        "docs/phase432-yiyi-demo-operator-quick-reference-closure.md",
+        "docs/phase432a-yiyi-demo-operator-quick-reference.json",
+        "docs/phase432a-yiyi-demo-operator-quick-reference.md"
+      ],
+      "mergeTarget": "phase391-operator-rehearsal-core"
+    },
+    {
+      "phase": "Phase436",
+      "title": "Phase436 Yiyi Demo Pilot Success Criteria Pack",
+      "category": "pilot readiness",
+      "valueLevel": "useful_reference",
+      "primaryFiles": [
+        "docs/phase436-yiyi-demo-pilot-success-criteria-pack-closure.md",
+        "docs/phase436a-yiyi-demo-pilot-success-criteria-pack.json",
+        "docs/phase436a-yiyi-demo-pilot-success-criteria-pack.md"
+      ],
+      "mergeTarget": "phase412-pilot-proposal-core"
+    },
+    {
+      "phase": "Phase447",
+      "title": "Phase447 Yiyi Demo Handoff Readiness Matrix",
+      "category": "QA checklist",
+      "valueLevel": "useful_reference",
+      "primaryFiles": [
+        "docs/phase447-yiyi-demo-handoff-readiness-matrix-closure.md",
+        "docs/phase447a-yiyi-demo-handoff-readiness-matrix.json",
+        "docs/phase447a-yiyi-demo-handoff-readiness-matrix.md"
+      ],
+      "mergeTarget": "phase399-final-qa-scorecard-core"
+    },
+    {
+      "phase": "Phase478",
+      "title": "Phase478 Yiyi Demo Security Review Cue Sheet",
+      "category": "QA checklist",
+      "valueLevel": "useful_reference",
+      "primaryFiles": [
+        "docs/phase478-yiyi-demo-security-review-cue-sheet-closure.md",
+        "docs/phase478a-yiyi-demo-security-review-cue-sheet.json",
+        "docs/phase478a-yiyi-demo-security-review-cue-sheet.md"
+      ],
+      "mergeTarget": "phase399-final-qa-scorecard-core"
+    },
+    {
+      "phase": "Phase504",
+      "title": "Phase504 Yiyi Demo Commercial Readiness Scorecard",
+      "category": "QA checklist",
+      "valueLevel": "useful_reference",
+      "primaryFiles": [
+        "docs/phase504-yiyi-demo-commercial-readiness-scorecard-closure.md",
+        "docs/phase504a-yiyi-demo-commercial-readiness-scorecard.json",
+        "docs/phase504a-yiyi-demo-commercial-readiness-scorecard.md"
+      ],
+      "mergeTarget": "phase399-final-qa-scorecard-core"
+    },
+    {
+      "phase": "Phase524",
+      "title": "Phase524 Yiyi Demo Commercial Trust Scorecard",
+      "category": "sales handoff",
+      "valueLevel": "useful_reference",
+      "primaryFiles": [
+        "docs/phase524-yiyi-demo-commercial-trust-scorecard-closure.md",
+        "docs/phase524a-yiyi-demo-commercial-trust-scorecard.json",
+        "docs/phase524a-yiyi-demo-commercial-trust-scorecard.md"
+      ],
+      "mergeTarget": "phase390-sales-handoff-core"
+    },
+    {
+      "phase": "Phase554",
+      "title": "Phase554 Yiyi Demo Commercial Guardrail Brief",
+      "category": "risk register",
+      "valueLevel": "useful_reference",
+      "primaryFiles": [
+        "docs/phase554-yiyi-demo-commercial-guardrail-brief-closure.md",
+        "docs/phase554a-yiyi-demo-commercial-guardrail-brief.json",
+        "docs/phase554a-yiyi-demo-commercial-guardrail-brief.md"
+      ],
+      "mergeTarget": "phase396-risk-register-core"
+    }
+  ],
+  "safety": {
+    "providerCallsMade": false,
+    "secretValueExposed": false,
+    "rawSecretAccessed": false,
+    "deployExecuted": false,
+    "releaseExecuted": false,
+    "billingExecuted": false,
+    "invoiceGenerated": false,
+    "productionGaClaimed": false,
+    "workspaceCleanClaimed": false
+  },
+  "phase384Status": {
+    "realProviderTestExecuted": false,
+    "requiresHumanApproval": true
+  }
+}

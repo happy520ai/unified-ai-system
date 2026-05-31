@@ -255,6 +255,15 @@ const PROVIDER_PROBES = {
     defaultCapabilities: ["chat", "vision", "coding", "image"],
     providerGroup: "openai-compatible",
   },
+  mimo: {
+    providerId: "mimo",
+    displayName: "MiMo Token Plan",
+    baseUrl: "https://token-plan-cn.xiaomimimo.com/v1",
+    modelsPath: "/models",
+    auth: "bearer",
+    defaultCapabilities: ["chat", "reasoning", "summary"],
+    providerGroup: "openai-compatible",
+  },
   anthropic: {
     providerId: "anthropic",
     displayName: "Anthropic Claude",

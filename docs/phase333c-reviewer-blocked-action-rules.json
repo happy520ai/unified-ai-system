@@ -1,0 +1,10 @@
+{
+  "phase": "Phase333C",
+  "blockedActions": [
+    "activate_without_approval",
+    "auto_apply",
+    "skip_dry_run"
+  ],
+  "reviewerNotesRequiredForRejection": true,
+  "activationBlockedByDefault": true
+}

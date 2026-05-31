@@ -1,0 +1,393 @@
+{
+  "phase": "Phase324E",
+  "generatedAt": "2026-05-06T14:34:49.643Z",
+  "sourceFiles": {
+    "usabilityMatrix": "apps/ai-gateway-service/evidence/phase-313a-model-usability-matrix.json",
+    "verificationState": "apps/ai-gateway-service/evidence/phase-313a-model-verification-state.json",
+    "phase324dViewData": "docs/phase324d-model-status-view-data.json",
+    "phase324bBatch": "docs/phase324b-nvidia-smoke-batch-result.json",
+    "phase324b2Batch": "docs/phase324b2-nvidia-smoke-batch-result.json",
+    "phase324b3Batch": "docs/phase324b3-nvidia-smoke-batch-result.json",
+    "phase324bIndex": "docs/phase324b-model-smoke-evidence-index.json",
+    "phase324b2b3Index": "docs/phase324b2-b3-model-smoke-evidence-index.json",
+    "phase324cReview": "docs/phase324c-selectable-model-review.json",
+    "phase324c2Review": "docs/phase324c2-selectable-model-review.json",
+    "phase324aInventory": "docs/phase324a-nvidia-model-candidate-inventory.json",
+    "evidenceDirs": [
+      "apps/ai-gateway-service/evidence/phase324b",
+      "apps/ai-gateway-service/evidence/phase324b2",
+      "apps/ai-gateway-service/evidence/phase324b3"
+    ]
+  },
+  "summary": {
+    "totalModels": 148,
+    "selectableModels": 9,
+    "smokePassedModels": 9,
+    "failedModels": 9,
+    "unverifiedModels": 125,
+    "providerScope": "NVIDIA-only",
+    "multiProviderOpen": false
+  },
+  "selectableGrowth": [
+    {
+      "stage": "initial_verified",
+      "selectableModels": 2
+    },
+    {
+      "stage": "Phase324C",
+      "selectableModels": 4
+    },
+    {
+      "stage": "Phase324C-2",
+      "selectableModels": 9
+    }
+  ],
+  "smokeBatchPerformance": {
+    "batches": [
+      {
+        "phase": "Phase324B",
+        "batchId": "phase324b",
+        "plannedModelCount": 5,
+        "processedModelCount": 5,
+        "passCount": 2,
+        "failCount": 3,
+        "skippedEnvMissingCount": 0,
+        "manualReviewRequiredCount": 0,
+        "passRate": 0.4,
+        "models": [
+          "nvidia/llama-3.3-nemotron-super-49b-v1.5",
+          "nvidia/nemotron-3-nano-30b-a3b",
+          "nvidia/nemotron-3-super-120b-a12b",
+          "nvidia/nemotron-mini-4b-instruct",
+          "nvidia/nvidia-nemotron-nano-9b-v2"
+        ]
+      },
+      {
+        "phase": "Phase324B-2",
+        "batchId": "phase324b2",
+        "plannedModelCount": 5,
+        "processedModelCount": 5,
+        "passCount": 4,
+        "failCount": 1,
+        "skippedEnvMissingCount": 0,
+        "manualReviewRequiredCount": 0,
+        "passRate": 0.8,
+        "models": [
+          "abacusai/dracarys-llama-3.1-70b-instruct",
+          "meta/llama-3.1-70b-instruct",
+          "meta/llama-3.1-8b-instruct",
+          "meta/llama-3.3-70b-instruct",
+          "meta/llama2-70b"
+        ]
+      },
+      {
+        "phase": "Phase324B-3",
+        "batchId": "phase324b3",
+        "plannedModelCount": 5,
+        "processedModelCount": 5,
+        "passCount": 1,
+        "failCount": 4,
+        "skippedEnvMissingCount": 0,
+        "manualReviewRequiredCount": 0,
+        "passRate": 0.2,
+        "models": [
+          "meta/llama3-8b",
+          "microsoft/phi-3-mini-4k-instruct",
+          "microsoft/phi-4-mini-instruct",
+          "mistralai/mistral-7b-instruct",
+          "mistralai/mistral-7b-instruct-v0.3"
+        ]
+      }
+    ],
+    "totalPass": 7,
+    "totalFail": 8,
+    "totalProcessed": 15,
+    "newSmokePassRate": 0.4667,
+    "originalVerifiedModels": 2,
+    "finalSmokePassedModels": 9
+  },
+  "failureAnalysis": {
+    "http404": 4,
+    "http410": 1,
+    "nvidiaHttpError": 9,
+    "completionVerifiedFalse": 9,
+    "assistantTextPresentFalse": 9,
+    "timeout": 0,
+    "schemaInvalid": 0,
+    "emptyCompletion": 0,
+    "failedModels": [
+      {
+        "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1.5",
+        "httpStatus": 200,
+        "errorCode": "nvidia_http_error",
+        "completionVerified": false,
+        "assistantTextPresent": false,
+        "evidenceId": "phase324b-nvidia_llama_3_3_nemotron_super_49b_v1_5-20260506124310"
+      },
+      {
+        "modelId": "nvidia/nemotron-3-nano-30b-a3b",
+        "httpStatus": 200,
+        "errorCode": "nvidia_http_error",
+        "completionVerified": false,
+        "assistantTextPresent": false,
+        "evidenceId": "phase324b-nvidia_nemotron_3_nano_30b_a3b-20260506124312"
+      },
+      {
+        "modelId": "nvidia/nvidia-nemotron-nano-9b-v2",
+        "httpStatus": 200,
+        "errorCode": "nvidia_http_error",
+        "completionVerified": false,
+        "assistantTextPresent": false,
+        "evidenceId": "phase324b-nvidia_nvidia_nemotron_nano_9b_v2-20260506124319"
+      },
+      {
+        "modelId": "meta/llama2-70b",
+        "httpStatus": 404,
+        "errorCode": "nvidia_http_error",
+        "completionVerified": false,
+        "assistantTextPresent": false,
+        "evidenceId": "phase324b2-meta_llama2_70b-20260506130652"
+      },
+      {
+        "modelId": "meta/llama3-8b",
+        "httpStatus": 404,
+        "errorCode": "nvidia_http_error",
+        "completionVerified": false,
+        "assistantTextPresent": false,
+        "evidenceId": "phase324b3-meta_llama3_8b-20260506130700"
+      },
+      {
+        "modelId": "microsoft/phi-3-mini-4k-instruct",
+        "httpStatus": 410,
+        "errorCode": "nvidia_http_error",
+        "completionVerified": false,
+        "assistantTextPresent": false,
+        "evidenceId": "phase324b3-microsoft_phi_3_mini_4k_instruct-20260506130702"
+      },
+      {
+        "modelId": "mistralai/mistral-7b-instruct",
+        "httpStatus": 404,
+        "errorCode": "nvidia_http_error",
+        "completionVerified": false,
+        "assistantTextPresent": false,
+        "evidenceId": "phase324b3-mistralai_mistral_7b_instruct-20260506130705"
+      },
+      {
+        "modelId": "mistralai/mistral-7b-instruct-v0.3",
+        "httpStatus": 404,
+        "errorCode": "nvidia_http_error",
+        "completionVerified": false,
+        "assistantTextPresent": false,
+        "evidenceId": "phase324b3-mistralai_mistral_7b_instruct_v0_3-20260506130707"
+      },
+      {
+        "modelId": "nvidia/llama-3.1-nemotron-ultra-253b-v1",
+        "httpStatus": null,
+        "errorCode": "nvidia_http_error",
+        "completionVerified": false,
+        "assistantTextPresent": false,
+        "evidenceId": "phase-313a-model-usability-matrix"
+      }
+    ],
+    "notRecommendedForShortTermRetry": [
+      "meta/llama2-70b",
+      "meta/llama3-8b",
+      "microsoft/phi-3-mini-4k-instruct",
+      "mistralai/mistral-7b-instruct",
+      "mistralai/mistral-7b-instruct-v0.3"
+    ]
+  },
+  "latencyAnalysis": {
+    "passedAverageLatencyMs": 7702.14,
+    "failedAverageLatencyMs": 622.11,
+    "overallAverageLatencyMs": 3719.63,
+    "minLatency": {
+      "modelId": "nvidia/llama-3.1-nemotron-ultra-253b-v1",
+      "finalStatus": "smoke_failed",
+      "latencyMs": 0,
+      "evidenceId": "phase-313a-model-usability-matrix"
+    },
+    "maxLatency": {
+      "modelId": "meta/llama-3.1-8b-instruct",
+      "finalStatus": "smoke_passed",
+      "latencyMs": 30503,
+      "evidenceId": "phase324b2-meta_llama_3_1_8b_instruct-20260506130631"
+    },
+    "passedLatencies": [
+      {
+        "modelId": "nvidia/nemotron-3-super-120b-a12b",
+        "finalStatus": "smoke_passed",
+        "latencyMs": 974,
+        "evidenceId": "phase324b-nvidia_nemotron_3_super_120b_a12b-20260506124314"
+      },
+      {
+        "modelId": "nvidia/nemotron-mini-4b-instruct",
+        "finalStatus": "smoke_passed",
+        "latencyMs": 428,
+        "evidenceId": "phase324b-nvidia_nemotron_mini_4b_instruct-20260506124316"
+      },
+      {
+        "modelId": "abacusai/dracarys-llama-3.1-70b-instruct",
+        "finalStatus": "smoke_passed",
+        "latencyMs": 1011,
+        "evidenceId": "phase324b2-abacusai_dracarys_llama_3_1_70b_instruct-20260506130555"
+      },
+      {
+        "modelId": "meta/llama-3.1-70b-instruct",
+        "finalStatus": "smoke_passed",
+        "latencyMs": 2143,
+        "evidenceId": "phase324b2-meta_llama_3_1_70b_instruct-20260506130559"
+      },
+      {
+        "modelId": "meta/llama-3.1-8b-instruct",
+        "finalStatus": "smoke_passed",
+        "latencyMs": 30503,
+        "evidenceId": "phase324b2-meta_llama_3_1_8b_instruct-20260506130631"
+      },
+      {
+        "modelId": "meta/llama-3.3-70b-instruct",
+        "finalStatus": "smoke_passed",
+        "latencyMs": 18410,
+        "evidenceId": "phase324b2-meta_llama_3_3_70b_instruct-20260506130650"
+      },
+      {
+        "modelId": "microsoft/phi-4-mini-instruct",
+        "finalStatus": "smoke_passed",
+        "latencyMs": 446,
+        "evidenceId": "phase324b3-microsoft_phi_4_mini_instruct-20260506130704"
+      }
+    ],
+    "failedLatencies": [
+      {
+        "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1.5",
+        "finalStatus": "smoke_failed",
+        "latencyMs": 3360,
+        "evidenceId": "phase324b-nvidia_llama_3_3_nemotron_super_49b_v1_5-20260506124310"
+      },
+      {
+        "modelId": "nvidia/nemotron-3-nano-30b-a3b",
+        "finalStatus": "smoke_failed",
+        "latencyMs": 402,
+        "evidenceId": "phase324b-nvidia_nemotron_3_nano_30b_a3b-20260506124312"
+      },
+      {
+        "modelId": "nvidia/nvidia-nemotron-nano-9b-v2",
+        "finalStatus": "smoke_failed",
+        "latencyMs": 1267,
+        "evidenceId": "phase324b-nvidia_nvidia_nemotron_nano_9b_v2-20260506124319"
+      },
+      {
+        "modelId": "meta/llama2-70b",
+        "finalStatus": "smoke_failed",
+        "latencyMs": 80,
+        "evidenceId": "phase324b2-meta_llama2_70b-20260506130652"
+      },
+      {
+        "modelId": "meta/llama3-8b",
+        "finalStatus": "smoke_failed",
+        "latencyMs": 314,
+        "evidenceId": "phase324b3-meta_llama3_8b-20260506130700"
+      },
+      {
+        "modelId": "microsoft/phi-3-mini-4k-instruct",
+        "finalStatus": "smoke_failed",
+        "latencyMs": 50,
+        "evidenceId": "phase324b3-microsoft_phi_3_mini_4k_instruct-20260506130702"
+      },
+      {
+        "modelId": "mistralai/mistral-7b-instruct",
+        "finalStatus": "smoke_failed",
+        "latencyMs": 50,
+        "evidenceId": "phase324b3-mistralai_mistral_7b_instruct-20260506130705"
+      },
+      {
+        "modelId": "mistralai/mistral-7b-instruct-v0.3",
+        "finalStatus": "smoke_failed",
+        "latencyMs": 76,
+        "evidenceId": "phase324b3-mistralai_mistral_7b_instruct_v0_3-20260506130707"
+      },
+      {
+        "modelId": "nvidia/llama-3.1-nemotron-ultra-253b-v1",
+        "finalStatus": "smoke_failed",
+        "latencyMs": 0,
+        "evidenceId": "phase-313a-model-usability-matrix"
+      }
+    ],
+    "slowModels": [
+      {
+        "modelId": "meta/llama-3.1-8b-instruct",
+        "finalStatus": "smoke_passed",
+        "latencyMs": 30503,
+        "evidenceId": "phase324b2-meta_llama_3_1_8b_instruct-20260506130631"
+      },
+      {
+        "modelId": "meta/llama-3.3-70b-instruct",
+        "finalStatus": "smoke_passed",
+        "latencyMs": 18410,
+        "evidenceId": "phase324b2-meta_llama_3_3_70b_instruct-20260506130650"
+      }
+    ],
+    "highLatencyThresholdMs": 10000
+  },
+  "evidenceCoverage": {
+    "selectableModelsHaveEvidenceId": true,
+    "selectableWithEvidenceId": 9,
+    "selectableTotal": 9,
+    "smokeFailedModelsHaveEvidence": true,
+    "smokeFailedWithEvidence": 9,
+    "smokeFailedTotal": 9,
+    "unverifiedModels": 125,
+    "missingEvidenceModels": 130,
+    "evidenceCoverageRatio": 0.1216,
+    "smokeEvidenceCoverageRatio": 1
+  },
+  "modelStatusBuckets": {
+    "selectableVerified": [
+      "abacusai/dracarys-llama-3.1-70b-instruct",
+      "meta/llama-3.1-70b-instruct",
+      "meta/llama-3.1-8b-instruct",
+      "meta/llama-3.3-70b-instruct",
+      "microsoft/phi-4-mini-instruct",
+      "nvidia/llama-3.1-nemotron-nano-8b-v1",
+      "nvidia/llama-3.3-nemotron-super-49b-v1",
+      "nvidia/nemotron-3-super-120b-a12b",
+      "nvidia/nemotron-mini-4b-instruct"
+    ],
+    "smokeFailed": [
+      "meta/llama2-70b",
+      "meta/llama3-8b",
+      "microsoft/phi-3-mini-4k-instruct",
+      "mistralai/mistral-7b-instruct",
+      "mistralai/mistral-7b-instruct-v0.3",
+      "nvidia/llama-3.1-nemotron-ultra-253b-v1",
+      "nvidia/llama-3.3-nemotron-super-49b-v1.5",
+      "nvidia/nemotron-3-nano-30b-a3b",
+      "nvidia/nvidia-nemotron-nano-9b-v2"
+    ],
+    "unverified": 125,
+    "deprecated": 5,
+    "blocked": 0,
+    "manualReview": 0
+  },
+  "unverifiedBacklog": {
+    "count": 125,
+    "recommendation": "Use Phase324E failure analysis to exclude high-risk 404/410 models before Phase324B-4."
+  },
+  "nextActions": [
+    "Phase324D-2: UI filters/sorting/latency/evidence search.",
+    "Phase324B-4: continue NVIDIA-only smoke with high-risk failures excluded.",
+    "Phase324F: model selection/default recommendation strategy.",
+    "Phase325A: multi-provider safety design only; no real non-NVIDIA calls."
+  ],
+  "safety": {
+    "apiCalled": false,
+    "envRead": false,
+    "productionCodeModified": false,
+    "verificationMetadataModified": false,
+    "uiModified": false,
+    "selectableGateModified": false,
+    "chatGatewayModified": false,
+    "evidenceModified": false
+  },
+  "verificationStateRecordCount": 10
+}

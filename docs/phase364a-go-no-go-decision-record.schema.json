@@ -1,0 +1,25 @@
+{
+  "phase": "Phase364A",
+  "required": [
+    "decisionRecordId",
+    "meetingName",
+    "meetingHeld",
+    "decision",
+    "decisionTimestamp",
+    "decisionBy",
+    "decisionRole",
+    "attendees",
+    "evidenceRefs",
+    "conditions",
+    "rollbackAcknowledged",
+    "monitoringAcknowledged",
+    "deployAuthorizationRef",
+    "auditTrace"
+  ],
+  "decisionEnum": [
+    "go",
+    "no_go",
+    "conditional_go",
+    "postponed"
+  ]
+}

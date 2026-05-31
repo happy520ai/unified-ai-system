@@ -1,0 +1,9 @@
+{
+  "recordType": "two_week_closure_template",
+  "phaseRange": "Phase1506-1530AIO",
+  "ownerReviewed": false,
+  "dogfoodingCompleted": false,
+  "realHumanFeedbackCollected": false,
+  "minimumRealDailyLedgerCountRequired": 10,
+  "codexGeneratedTemplateOnly": true
+}

@@ -1,0 +1,39 @@
+{
+  "phase": "Phase334A",
+  "checks": [
+    {
+      "path": "apps/ai-gateway-service/evidence/phase328a/three-mode-normal-runtime-smoke.json",
+      "present": true
+    },
+    {
+      "path": "apps/ai-gateway-service/evidence/phase328a/three-mode-god-runtime-smoke.json",
+      "present": true
+    },
+    {
+      "path": "apps/ai-gateway-service/evidence/phase328a/three-mode-tianshu-runtime-smoke.json",
+      "present": true
+    },
+    {
+      "path": "apps/agent-console/evidence/phase328a/three-mode-ui-smoke.json",
+      "present": true
+    },
+    {
+      "path": "apps/agent-console/evidence/phase333b/god-mode-alert-dashboard-ui-smoke.json",
+      "present": true
+    },
+    {
+      "path": "apps/agent-console/evidence/phase333c/tianshu-reviewer-console-interaction-hardening-smoke.json",
+      "present": true
+    },
+    {
+      "path": "apps/agent-console/evidence/phase333e/provider-onboarding-guided-test-automation-result.json",
+      "present": true
+    },
+    {
+      "path": "apps/agent-console/evidence/phase333f/mock-statement-export-regression-ui-smoke.json",
+      "present": true
+    }
+  ],
+  "explicitNoDeploySignoff": true,
+  "limitedBetaDryRunOnly": true
+}

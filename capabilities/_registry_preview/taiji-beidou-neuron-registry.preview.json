@@ -1,0 +1,486 @@
+{
+  "phase": "Phase651-666-AIO",
+  "registryPreviewAvailable": true,
+  "runtimeEnabled": false,
+  "manifests": [
+    {
+      "schemaVersion": "capability-neuron-manifest-v1",
+      "capabilityId": "trial-1",
+      "displayName": "Task Risk Level Classifier",
+      "description": "Deterministic dry-run capability spec compiled from natural-language intake: 我希望网关能自动判断任务风险等级.",
+      "createdFromNaturalLanguage": true,
+      "intakeText": "我希望网关能自动判断任务风险等级",
+      "type": "safety",
+      "status": "registered_preview",
+      "runtime": {
+        "kind": "dry_run",
+        "spawnable": true,
+        "maxSpawnDepth": 1,
+        "ttlSeconds": 300,
+        "maxRequests": 3,
+        "maxTokenBudget": 4000,
+        "enabledByDefault": false
+      },
+      "safety": {
+        "providerCallsAllowed": false,
+        "secretReadAllowed": false,
+        "deployAllowed": false,
+        "chatMutationAllowed": false,
+        "chatGatewayExecuteMutationAllowed": false,
+        "codexConfigMutationAllowed": false,
+        "selfApprovalAllowed": false
+      },
+      "inputs": {},
+      "outputs": {},
+      "evidence": {
+        "required": true,
+        "schema": "gateway-capability-evidence-v1"
+      },
+      "approval": {
+        "requiredForRuntime": true,
+        "currentStatus": "draft"
+      },
+      "rollback": {
+        "disableFlag": "TAIJI_DISABLE_TRIAL_1",
+        "deletePaths": []
+      },
+      "synapse": {
+        "pressureTypes": [
+          "risk"
+        ],
+        "modes": [
+          "normal",
+          "god",
+          "tianshu"
+        ],
+        "dependencies": [],
+        "weight": 0.5
+      }
+    },
+    {
+      "schemaVersion": "capability-neuron-manifest-v1",
+      "capabilityId": "trial-2-god-mode",
+      "displayName": "God Mode Need Classifier",
+      "description": "Deterministic dry-run capability spec compiled from natural-language intake: 我希望网关能判断是否需要 God Mode.",
+      "createdFromNaturalLanguage": true,
+      "intakeText": "我希望网关能判断是否需要 God Mode",
+      "type": "review",
+      "status": "registered_preview",
+      "runtime": {
+        "kind": "dry_run",
+        "spawnable": true,
+        "maxSpawnDepth": 1,
+        "ttlSeconds": 300,
+        "maxRequests": 3,
+        "maxTokenBudget": 4000,
+        "enabledByDefault": false
+      },
+      "safety": {
+        "providerCallsAllowed": false,
+        "secretReadAllowed": false,
+        "deployAllowed": false,
+        "chatMutationAllowed": false,
+        "chatGatewayExecuteMutationAllowed": false,
+        "codexConfigMutationAllowed": false,
+        "selfApprovalAllowed": false
+      },
+      "inputs": {},
+      "outputs": {},
+      "evidence": {
+        "required": true,
+        "schema": "gateway-capability-evidence-v1"
+      },
+      "approval": {
+        "requiredForRuntime": true,
+        "currentStatus": "draft"
+      },
+      "rollback": {
+        "disableFlag": "TAIJI_DISABLE_TRIAL_2_GOD_MODE",
+        "deletePaths": []
+      },
+      "synapse": {
+        "pressureTypes": [
+          "quality"
+        ],
+        "modes": [
+          "god"
+        ],
+        "dependencies": [],
+        "weight": 0.5
+      }
+    },
+    {
+      "schemaVersion": "capability-neuron-manifest-v1",
+      "capabilityId": "trial-3-token",
+      "displayName": "Context Compression Token Saver",
+      "description": "Deterministic dry-run capability spec compiled from natural-language intake: 我希望网关能压缩长上下文省 token.",
+      "createdFromNaturalLanguage": true,
+      "intakeText": "我希望网关能压缩长上下文省 token",
+      "type": "context",
+      "status": "registered_preview",
+      "runtime": {
+        "kind": "dry_run",
+        "spawnable": true,
+        "maxSpawnDepth": 1,
+        "ttlSeconds": 300,
+        "maxRequests": 3,
+        "maxTokenBudget": 4000,
+        "enabledByDefault": false
+      },
+      "safety": {
+        "providerCallsAllowed": false,
+        "secretReadAllowed": false,
+        "deployAllowed": false,
+        "chatMutationAllowed": false,
+        "chatGatewayExecuteMutationAllowed": false,
+        "codexConfigMutationAllowed": false,
+        "selfApprovalAllowed": false
+      },
+      "inputs": {},
+      "outputs": {},
+      "evidence": {
+        "required": true,
+        "schema": "gateway-capability-evidence-v1"
+      },
+      "approval": {
+        "requiredForRuntime": true,
+        "currentStatus": "draft"
+      },
+      "rollback": {
+        "disableFlag": "TAIJI_DISABLE_TRIAL_3_TOKEN",
+        "deletePaths": []
+      },
+      "synapse": {
+        "pressureTypes": [
+          "token"
+        ],
+        "modes": [
+          "codex",
+          "normal"
+        ],
+        "dependencies": [],
+        "weight": 0.5
+      }
+    },
+    {
+      "schemaVersion": "capability-neuron-manifest-v1",
+      "capabilityId": "trial-4",
+      "displayName": "Failure Rollback Advisor",
+      "description": "Deterministic dry-run capability spec compiled from natural-language intake: 我希望网关能在失败时生成回滚建议.",
+      "createdFromNaturalLanguage": true,
+      "intakeText": "我希望网关能在失败时生成回滚建议",
+      "type": "evidence",
+      "status": "registered_preview",
+      "runtime": {
+        "kind": "dry_run",
+        "spawnable": true,
+        "maxSpawnDepth": 1,
+        "ttlSeconds": 300,
+        "maxRequests": 3,
+        "maxTokenBudget": 4000,
+        "enabledByDefault": false
+      },
+      "safety": {
+        "providerCallsAllowed": false,
+        "secretReadAllowed": false,
+        "deployAllowed": false,
+        "chatMutationAllowed": false,
+        "chatGatewayExecuteMutationAllowed": false,
+        "codexConfigMutationAllowed": false,
+        "selfApprovalAllowed": false
+      },
+      "inputs": {},
+      "outputs": {},
+      "evidence": {
+        "required": true,
+        "schema": "gateway-capability-evidence-v1"
+      },
+      "approval": {
+        "requiredForRuntime": true,
+        "currentStatus": "draft"
+      },
+      "rollback": {
+        "disableFlag": "TAIJI_DISABLE_TRIAL_4",
+        "deletePaths": []
+      },
+      "synapse": {
+        "pressureTypes": [
+          "evidence"
+        ],
+        "modes": [
+          "normal"
+        ],
+        "dependencies": [],
+        "weight": 0.5
+      }
+    },
+    {
+      "schemaVersion": "capability-neuron-manifest-v1",
+      "capabilityId": "trial-5",
+      "displayName": "Capability Disabled Reason Viewer",
+      "description": "Deterministic dry-run capability spec compiled from natural-language intake: 我希望网关能展示某个能力为什么没有被启用.",
+      "createdFromNaturalLanguage": true,
+      "intakeText": "我希望网关能展示某个能力为什么没有被启用",
+      "type": "ui",
+      "status": "registered_preview",
+      "runtime": {
+        "kind": "dry_run",
+        "spawnable": true,
+        "maxSpawnDepth": 1,
+        "ttlSeconds": 300,
+        "maxRequests": 3,
+        "maxTokenBudget": 4000,
+        "enabledByDefault": false
+      },
+      "safety": {
+        "providerCallsAllowed": false,
+        "secretReadAllowed": false,
+        "deployAllowed": false,
+        "chatMutationAllowed": false,
+        "chatGatewayExecuteMutationAllowed": false,
+        "codexConfigMutationAllowed": false,
+        "selfApprovalAllowed": false
+      },
+      "inputs": {},
+      "outputs": {},
+      "evidence": {
+        "required": true,
+        "schema": "gateway-capability-evidence-v1"
+      },
+      "approval": {
+        "requiredForRuntime": true,
+        "currentStatus": "draft"
+      },
+      "rollback": {
+        "disableFlag": "TAIJI_DISABLE_TRIAL_5",
+        "deletePaths": []
+      },
+      "synapse": {
+        "pressureTypes": [
+          "explainability"
+        ],
+        "modes": [
+          "normal"
+        ],
+        "dependencies": [],
+        "weight": 0.5
+      }
+    },
+    {
+      "schemaVersion": "capability-neuron-manifest-v1",
+      "capabilityId": "context-codec-core-neuron",
+      "displayName": "Context Codec Core Neuron",
+      "description": "Built-in dry-run neuron for Phase641R Context Codec shared core.",
+      "createdFromNaturalLanguage": true,
+      "intakeText": "Register Context Codec as a built-in dry-run neuron.",
+      "type": "context",
+      "status": "registered_preview",
+      "runtime": {
+        "kind": "dry_run",
+        "spawnable": true,
+        "maxSpawnDepth": 1,
+        "ttlSeconds": 300,
+        "maxRequests": 3,
+        "maxTokenBudget": 4000,
+        "enabledByDefault": false
+      },
+      "safety": {
+        "providerCallsAllowed": false,
+        "secretReadAllowed": false,
+        "deployAllowed": false,
+        "chatMutationAllowed": false,
+        "chatGatewayExecuteMutationAllowed": false,
+        "codexConfigMutationAllowed": false,
+        "selfApprovalAllowed": false
+      },
+      "inputs": {},
+      "outputs": {},
+      "evidence": {
+        "required": true,
+        "schema": "gateway-capability-evidence-v1"
+      },
+      "approval": {
+        "requiredForRuntime": true,
+        "currentStatus": "draft"
+      },
+      "rollback": {
+        "disableFlag": "TAIJI_DISABLE_CONTEXT_CODEC_CORE_NEURON",
+        "deletePaths": []
+      },
+      "synapse": {
+        "pressureTypes": [
+          "token",
+          "context"
+        ],
+        "modes": [
+          "normal",
+          "codex"
+        ],
+        "dependencies": [
+          "phase641r-context-codec-core"
+        ],
+        "weight": 0.7
+      }
+    },
+    {
+      "schemaVersion": "capability-neuron-manifest-v1",
+      "capabilityId": "codex-context-gateway-neuron",
+      "displayName": "Codex Context Gateway Neuron",
+      "description": "Built-in dry-run neuron for Codex long-task token-saving preflight.",
+      "createdFromNaturalLanguage": true,
+      "intakeText": "Register Codex Context Gateway as a built-in dry-run neuron.",
+      "type": "codex",
+      "status": "registered_preview",
+      "runtime": {
+        "kind": "dry_run",
+        "spawnable": true,
+        "maxSpawnDepth": 1,
+        "ttlSeconds": 300,
+        "maxRequests": 3,
+        "maxTokenBudget": 4000,
+        "enabledByDefault": false
+      },
+      "safety": {
+        "providerCallsAllowed": false,
+        "secretReadAllowed": false,
+        "deployAllowed": false,
+        "chatMutationAllowed": false,
+        "chatGatewayExecuteMutationAllowed": false,
+        "codexConfigMutationAllowed": false,
+        "selfApprovalAllowed": false
+      },
+      "inputs": {},
+      "outputs": {},
+      "evidence": {
+        "required": true,
+        "schema": "gateway-capability-evidence-v1"
+      },
+      "approval": {
+        "requiredForRuntime": true,
+        "currentStatus": "draft"
+      },
+      "rollback": {
+        "disableFlag": "TAIJI_DISABLE_CODEX_CONTEXT_GATEWAY_NEURON",
+        "deletePaths": []
+      },
+      "synapse": {
+        "pressureTypes": [
+          "token",
+          "scope"
+        ],
+        "modes": [
+          "codex"
+        ],
+        "dependencies": [
+          "phase592-codex-context-gateway"
+        ],
+        "weight": 0.7
+      }
+    },
+    {
+      "schemaVersion": "capability-neuron-manifest-v1",
+      "capabilityId": "god-review-cell-draft",
+      "displayName": "God Review Cell Draft",
+      "description": "Draft dry-run neuron for future multi-review planning. It does not call models.",
+      "createdFromNaturalLanguage": true,
+      "intakeText": "Register God Review Cell draft.",
+      "type": "review",
+      "status": "approval_required",
+      "runtime": {
+        "kind": "dry_run",
+        "spawnable": true,
+        "maxSpawnDepth": 1,
+        "ttlSeconds": 300,
+        "maxRequests": 3,
+        "maxTokenBudget": 4000,
+        "enabledByDefault": false
+      },
+      "safety": {
+        "providerCallsAllowed": false,
+        "secretReadAllowed": false,
+        "deployAllowed": false,
+        "chatMutationAllowed": false,
+        "chatGatewayExecuteMutationAllowed": false,
+        "codexConfigMutationAllowed": false,
+        "selfApprovalAllowed": false
+      },
+      "inputs": {},
+      "outputs": {},
+      "evidence": {
+        "required": true,
+        "schema": "gateway-capability-evidence-v1"
+      },
+      "approval": {
+        "requiredForRuntime": true,
+        "currentStatus": "draft"
+      },
+      "rollback": {
+        "disableFlag": "TAIJI_DISABLE_GOD_REVIEW_CELL_DRAFT",
+        "deletePaths": []
+      },
+      "synapse": {
+        "pressureTypes": [
+          "quality",
+          "review"
+        ],
+        "modes": [
+          "god"
+        ],
+        "dependencies": [],
+        "weight": 0.5
+      }
+    },
+    {
+      "schemaVersion": "capability-neuron-manifest-v1",
+      "capabilityId": "tianshu-planner-cell-draft",
+      "displayName": "Tianshu Planner Cell Draft",
+      "description": "Draft dry-run neuron for future planning. It does not trigger Tianshu runtime.",
+      "createdFromNaturalLanguage": true,
+      "intakeText": "Register Tianshu Planner Cell draft.",
+      "type": "planning",
+      "status": "approval_required",
+      "runtime": {
+        "kind": "dry_run",
+        "spawnable": true,
+        "maxSpawnDepth": 1,
+        "ttlSeconds": 300,
+        "maxRequests": 3,
+        "maxTokenBudget": 4000,
+        "enabledByDefault": false
+      },
+      "safety": {
+        "providerCallsAllowed": false,
+        "secretReadAllowed": false,
+        "deployAllowed": false,
+        "chatMutationAllowed": false,
+        "chatGatewayExecuteMutationAllowed": false,
+        "codexConfigMutationAllowed": false,
+        "selfApprovalAllowed": false
+      },
+      "inputs": {},
+      "outputs": {},
+      "evidence": {
+        "required": true,
+        "schema": "gateway-capability-evidence-v1"
+      },
+      "approval": {
+        "requiredForRuntime": true,
+        "currentStatus": "draft"
+      },
+      "rollback": {
+        "disableFlag": "TAIJI_DISABLE_TIANSHU_PLANNER_CELL_DRAFT",
+        "deletePaths": []
+      },
+      "synapse": {
+        "pressureTypes": [
+          "planning"
+        ],
+        "modes": [
+          "tianshu"
+        ],
+        "dependencies": [],
+        "weight": 0.5
+      }
+    }
+  ]
+}

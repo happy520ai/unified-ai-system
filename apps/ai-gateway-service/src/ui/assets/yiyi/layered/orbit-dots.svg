@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" role="img" aria-label="Yiyi god mode orbit dots">
+  <circle cx="120" cy="20" r="8" fill="#8fd0ef"/>
+  <circle cx="207" cy="70" r="6" fill="#bfeeff"/>
+  <circle cx="207" cy="170" r="7" fill="#7dbdd8"/>
+  <circle cx="120" cy="220" r="6" fill="#dff7ff"/>
+  <circle cx="33" cy="170" r="7" fill="#8fd0ef"/>
+  <circle cx="33" cy="70" r="6" fill="#bfeeff"/>
+  <circle cx="120" cy="120" r="93" fill="none" stroke="#aee2ff" stroke-width="2" stroke-dasharray="8 10" opacity=".72"/>
+</svg>

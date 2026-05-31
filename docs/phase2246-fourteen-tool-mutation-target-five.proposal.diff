@@ -1,0 +1,39 @@
+diff --git a/tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs b/tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs
+index ae4a7ee..b91ea34 100644
+--- a/tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs
++++ b/tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs
+@@ -50,6 +50,7 @@ export function buildPhase2120QuintMutationRuntimeStatus() {
+     phase2195Marker: "PHASE2195_ELEVEN_TOOL_TARGET_FIVE_OK",
+     phase2211Marker: "PHASE2211_TWELVE_TOOL_TARGET_FIVE_OK",
+     phase2228Marker: "PHASE2228_THIRTEEN_TOOL_TARGET_FIVE_OK",
++    phase2246Marker: "PHASE2246_FOURTEEN_TOOL_TARGET_FIVE_OK",
+     phase2180Marker: "PHASE2180_DECA_TOOL_TARGET_FIVE_OK",
+     providerCallsMade: false,
+     codexExecExecuted: false,
+@@ -116,6 +117,26 @@ export function buildPhase2166NonetMutationTargetFiveStatus() {
+ 
+ 
+ 
++
++export function buildPhase2246FourteenMutationTargetFiveStatus() {
++  return {
++    phaseId: "Phase2246A-Controlled-Fourteen-Tool-Mutation-Target-Five",
++    marker: "PHASE2246_FOURTEEN_TOOL_TARGET_FIVE_OK",
++    importSafe: true,
++    phase2153Marker: "PHASE2153_OCT_TOOL_TARGET_FIVE_OK",
++    phase2166Marker: "PHASE2166_NONET_TOOL_TARGET_FIVE_OK",
++    phase2180Marker: "PHASE2180_DECA_TOOL_TARGET_FIVE_OK",
++    phase2195Marker: "PHASE2195_ELEVEN_TOOL_TARGET_FIVE_OK",
++    phase2211Marker: "PHASE2211_TWELVE_TOOL_TARGET_FIVE_OK",
++    phase2228Marker: "PHASE2228_THIRTEEN_TOOL_TARGET_FIVE_OK",
++    phase2246Marker: "PHASE2246_FOURTEEN_TOOL_TARGET_FIVE_OK",
++    fourteenMutationApplied: true,
++    providerCallsMade: false,
++    codexExecExecuted: false,
++    chatModified: false,
++    chatGatewayExecuteModified: false,
++  };
++}
+ export function buildPhase2228ThirteenMutationTargetFiveStatus() {
+   return {
+     phaseId: "Phase2228A-Controlled-Thirteen-Tool-Mutation-Target-Five",

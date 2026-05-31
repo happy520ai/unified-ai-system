@@ -1,0 +1,15 @@
+{
+  "overrides": [
+    {
+      "sourcePhase": "Phase382",
+      "oldNextPhase": "Phase383",
+      "oldTitleContains": "guarded real provider test",
+      "newNextPhase": "Phase384",
+      "newTitle": "Yiyi Guarded Real Provider Test Authorization Gate",
+      "reason": "Phase383 is reserved for Phase Orchestrator + Safety Brake; guarded provider test moved to Phase384.",
+      "riskLevel": "high",
+      "requiresHumanApproval": true,
+      "autoContinueAllowed": false
+    }
+  ]
+}

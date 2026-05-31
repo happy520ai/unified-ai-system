@@ -1,0 +1,39 @@
+diff --git a/tools/phase2092/apply-controlled-existing-tool-mutation.mjs b/tools/phase2092/apply-controlled-existing-tool-mutation.mjs
+--- a/tools/phase2092/apply-controlled-existing-tool-mutation.mjs
++++ b/tools/phase2092/apply-controlled-existing-tool-mutation.mjs
+@@ -1,6 +1,7 @@
+ import { createHash } from "node:crypto";
+ import { spawnSync } from "node:child_process";
+ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
++import { pathToFileURL } from "node:url";
+ import path from "node:path";
+ 
+ const repoRoot = process.cwd();
+@@ -23,7 +24,18 @@ const forbiddenPathFragments = [
+   "/chat",
+ ];
+ 
+-function main() {
++export function buildPhase2094BatchMutationRuntimeStatus() {
++  return {
++    phaseId: "Phase2094A-Controlled-Batch-Tool-Mutation-Target-Two",
++    marker: "PHASE2094_BATCH_TOOL_TARGET_TWO_OK",
++    importSafe: true,
++    providerCallsMade: false,
++    codexExecExecuted: false,
++    chatModified: false,
++    chatGatewayExecuteModified: false,
++  };
++}
++
++export function main() {
+   const args = parseArgs(process.argv.slice(2));
+   const planPath = args.plan || "docs/phase2092-controlled-existing-tool-mutation-approval.example.json";
+   const generatedAt = new Date().toISOString();
+@@ -525,3 +536,5 @@ function printSummary(result) {
+ }
+ 
+-main();
++if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
++  main();
++}

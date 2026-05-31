@@ -1,0 +1,66 @@
+{
+  "phase": "Phase326C",
+  "contractName": "god-mode-review-and-adjudication-contract",
+  "runtimeStatus": "shadow_config_only",
+  "providerCallsAllowed": false,
+  "nonNvidiaProviderCallsAllowed": false,
+  "pipeline": [
+    "task_intake",
+    "participant_selection",
+    "parallel_draft_generation",
+    "cross_review",
+    "conflict_detection",
+    "confidence_synthesis",
+    "supervisor_synthesis",
+    "audit_trace"
+  ],
+  "roles": {
+    "primary_responder": {
+      "required": true,
+      "description": "Produces initial answer candidates"
+    },
+    "critic": {
+      "required": true,
+      "description": "Finds errors, omissions, weak reasoning, and contradictions"
+    },
+    "fact_checker": {
+      "required": false,
+      "description": "Checks factual claims when supported by configured tools or reliable evidence"
+    },
+    "safety_guard": {
+      "required": true,
+      "description": "Flags policy, privacy, secret, or unsafe execution concerns"
+    },
+    "supervisor": {
+      "required": true,
+      "description": "Synthesizes final answer and resolves conflicts"
+    }
+  },
+  "adjudicationSignals": [
+    "agreement",
+    "disagreement",
+    "evidenceStrength",
+    "reasoningQuality",
+    "taskFit",
+    "historicalReliability",
+    "uncertainty",
+    "safetyRisk"
+  ],
+  "requiredOutputs": [
+    "finalAnswer",
+    "modelContributions",
+    "disagreements",
+    "resolvedConflicts",
+    "unresolvedUncertainty",
+    "confidenceSummary",
+    "auditTrace"
+  ],
+  "safety": {
+    "userConfiguredModelsOnly": true,
+    "credentialRefOnly": true,
+    "secretValueAllowed": false,
+    "noRuntimeChange": true,
+    "noProviderCall": true
+  }
+}
+

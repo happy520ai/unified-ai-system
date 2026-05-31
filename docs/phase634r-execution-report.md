@@ -1,0 +1,20 @@
+# Phase634R Execution Report
+
+completed=true
+recommended_sealed=true
+blocker=null
+
+issueLedgerGenerated=true
+everyIssueHasSeverity=true
+p0NotAutoFixable=true
+p1RequiresSeparateApproval=true
+p2AutoFixAllowed=true
+secretIssuesNotAutoFixed=true
+chatIssuesNotAutoFixed=true
+providerRuntimeIssuesNotAutoFixed=true
+
+p0BlockerCount=0
+p1RiskCount=2
+p2AutoFixCandidateCount=2
+p3AutoFixCandidateCount=0
+infoCount=1

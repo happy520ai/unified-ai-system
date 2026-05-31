@@ -1,0 +1,24 @@
+{
+  "phase": "Phase361C",
+  "packetName": "deploy-authorization-packet",
+  "deployAuthorized": false,
+  "releaseAuthorized": false,
+  "tagAuthorized": false,
+  "artifactUploadAuthorized": false,
+  "productionGaAuthorized": false,
+  "authorizationRecordRef": null,
+  "missingAuthorizationRecords": [
+    "deploy_authorization"
+  ],
+  "conditions": [],
+  "blockers": [
+    "deploy_authorization"
+  ],
+  "safety": {
+    "deployExecuted": false,
+    "releaseExecuted": false,
+    "tagCreated": false,
+    "artifactUploaded": false,
+    "secretValueExposed": false
+  }
+}

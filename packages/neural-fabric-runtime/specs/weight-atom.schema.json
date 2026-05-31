@@ -1,0 +1,220 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://unified-ai-system.local/schemas/phase1302a/weight-atom.schema.json",
+  "title": "Phase1302A Weight-atom Schema",
+  "description": "Schema-only descriptor for a Neural Fabric weight atom. It records references, shape, storage, verification, runtime policy, and safety boundaries without allowing training, downloads, or model execution.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "kind",
+    "id",
+    "source",
+    "shape",
+    "storage",
+    "verification",
+    "runtimePolicy",
+    "safety"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "phase1302a.v1"
+    },
+    "kind": {
+      "type": "string",
+      "const": "weight-atom"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{2,120}$"
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sourceType",
+        "sourceRef",
+        "licenseStatus"
+      ],
+      "properties": {
+        "sourceType": {
+          "type": "string",
+          "enum": [
+            "local-spec",
+            "provider-owned",
+            "user-owned",
+            "synthetic-placeholder",
+            "unknown"
+          ]
+        },
+        "sourceRef": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "licenseStatus": {
+          "type": "string",
+          "enum": [
+            "not_applicable",
+            "known_allowed",
+            "manual_review_required",
+            "blocked",
+            "unknown"
+          ]
+        }
+      }
+    },
+    "shape": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "dataType",
+        "dimensionCount",
+        "parameterCountKnown"
+      ],
+      "properties": {
+        "dataType": {
+          "type": "string",
+          "enum": [
+            "float16",
+            "bfloat16",
+            "float32",
+            "int8",
+            "unknown"
+          ]
+        },
+        "dimensionCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "parameterCountKnown": {
+          "type": "boolean"
+        },
+        "parameterCount": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "storage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "storageMode",
+        "pathOrRef",
+        "rawWeightsEmbedded"
+      ],
+      "properties": {
+        "storageMode": {
+          "type": "string",
+          "enum": [
+            "ref-only",
+            "local-path-ref",
+            "credential-ref",
+            "not-stored"
+          ]
+        },
+        "pathOrRef": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "rawWeightsEmbedded": {
+          "type": "boolean",
+          "const": false
+        }
+      }
+    },
+    "verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "verificationStatus",
+        "evidenceIdRequired",
+        "evidenceId"
+      ],
+      "properties": {
+        "verificationStatus": {
+          "type": "string",
+          "enum": [
+            "spec_only",
+            "unverified",
+            "manual_review_required",
+            "blocked",
+            "deprecated"
+          ]
+        },
+        "evidenceIdRequired": {
+          "type": "boolean",
+          "const": true
+        },
+        "evidenceId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 180
+        }
+      }
+    },
+    "runtimePolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "trainingAllowed",
+        "modelDownloadAllowed",
+        "modelExecutionAllowed",
+        "providerCallsAllowed",
+        "mainChainIntegrationAllowed"
+      ],
+      "properties": {
+        "trainingAllowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "modelDownloadAllowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "modelExecutionAllowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "providerCallsAllowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "mainChainIntegrationAllowed": {
+          "type": "boolean",
+          "const": false
+        }
+      }
+    },
+    "safety": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "secretReadAllowed",
+        "rawSecretAllowed",
+        "rawWeightExportAllowed",
+        "selectableGateBypassAllowed"
+      ],
+      "properties": {
+        "secretReadAllowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "rawSecretAllowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "rawWeightExportAllowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "selectableGateBypassAllowed": {
+          "type": "boolean",
+          "const": false
+        }
+      }
+    }
+  }
+}

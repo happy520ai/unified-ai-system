@@ -1,0 +1,25 @@
+{
+  "phase": "Phase358F",
+  "bundleType": "billing_production_evidence",
+  "result": {
+    "phase": "Phase358F",
+    "sourcePhase": "Phase357F",
+    "evidenceBundlesGenerated": true,
+    "missingEvidenceReported": true,
+    "productionDeployAuthorized": false,
+    "bundledItems": [
+      "billing_readiness_checklist",
+      "billing_governance_section",
+      "estimate_only_export_audit_baseline"
+    ],
+    "missingEvidence": [
+      "statementId",
+      "warning_copy_approval_record"
+    ],
+    "paymentProviderConnected": false,
+    "actualBillingConnected": false,
+    "legalInvoiceGenerated": false,
+    "secretValueExposed": false,
+    "productionGA": false
+  }
+}

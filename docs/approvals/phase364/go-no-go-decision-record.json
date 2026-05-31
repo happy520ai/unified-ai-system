@@ -1,0 +1,44 @@
+{
+    "decisionRecordId":  "go-no-go-20260507-001",
+    "meetingName":  "production-go-no-go-meeting",
+    "meetingHeld":  true,
+    "decision":  "go",
+    "decisionTimestamp":  "2026-05-07T14:06:58+08:00",
+    "decisionBy":  "Chen JiongJiong",
+    "decisionRole":  "Launch Owner",
+    "attendees":  [
+                      {
+                          "nameRef":  "Chen JiongJiong",
+                          "role":  "Launch Owner",
+                          "present":  true
+                      }
+                  ],
+    "evidenceRefs":  [
+                         "docs/phase363c-approval-source-audit-report.md",
+                         "docs/phase363d-deploy-authorization-state-rerun.json",
+                         "docs/phase363e-signoff-verification-rerun-state.json",
+                         "docs/phase363f-go-no-go-decision-preparation-state.json",
+                         "apps/ai-gateway-service/evidence/phase363c/approval-source-audit-verification-result.json",
+                         "apps/ai-gateway-service/evidence/phase363d/deploy-authorization-human-instruction-verification-result.json",
+                         "apps/ai-gateway-service/evidence/phase363e/signoff-verification-rerun-result.json",
+                         "apps/ai-gateway-service/evidence/phase363f/go-no-go-decision-preparation-result.json"
+                     ],
+    "conditions":  [
+                       "No secrets may be exposed in logs, docs, evidence, approval records, or launch records.",
+                       "Release/deploy commands require final explicit execution confirmation after Phase364.",
+                       "Rollback plan must remain available during launch window.",
+                       "Monitoring activation must be dry-run verified before execution.",
+                       "Billing remains estimate-only unless separate real billing approval is issued.",
+                       "Non-NVIDIA provider calls remain gated by credentialRef, credential vault, user-owned provider policy, selectable gate, quota, and budget controls."
+                   ],
+    "rollbackAcknowledged":  true,
+    "monitoringAcknowledged":  true,
+    "deployAuthorizationRef":  "docs/phase363d-deploy-authorization-state-rerun.json",
+    "auditTrace":  {
+                       "createdBy":  "human",
+                       "source":  "manual_go_no_go_decision_record",
+                       "codexIsDecisionMaker":  false,
+                       "secretValueIncluded":  false,
+                       "forged":  false
+                   }
+}

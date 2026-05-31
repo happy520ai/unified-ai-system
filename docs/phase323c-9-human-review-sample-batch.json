@@ -1,0 +1,564 @@
+{
+  "phase": "Phase323C-9",
+  "title": "Human Review Sample Batch",
+  "generatedAt": "2026-05-06T12:12:35.651Z",
+  "declarations": {
+    "deleteScripts": false,
+    "moveEntrypoints": false,
+    "renameScripts": false,
+    "changePackageScripts": false,
+    "executeCandidateScripts": false,
+    "staticOnly": true
+  },
+  "batchId": "low-risk-sample-batch-001",
+  "batchLabel": "Phase323C-9: Low-Risk Sample Batch",
+  "sourceCategory": "archive-candidate-low-risk",
+  "totalLowRiskCandidates": 87,
+  "selectedCount": 20,
+  "decisionSummary": {
+    "keep": 0,
+    "keepHistoricalCompatible": 3,
+    "markDeprecatedOnly": 0,
+    "candidateForFutureArchive": 17,
+    "needsMoreContext": 0
+  },
+  "sampleItems": [
+    {
+      "id": "script:root:verify:phase155a-template-export-copy-ux",
+      "name": "verify:phase155a-template-export-copy-ux",
+      "source": "script:root",
+      "currentCategory": "archive-candidate-low-risk",
+      "priority": 3,
+      "reason": "低风险候选，但仍不可自动归档。",
+      "proposedHumanDecision": "candidate-for-future-archive",
+      "proposedFutureAction": "future-archive-candidate",
+      "requiredManualChecks": [
+        "确认不被当前 Phase322A 主链使用",
+        "确认不被 5 个 Workbench 主模块使用",
+        "确认不被 secret safety 验证链使用",
+        "确认不被 diagnostics / providerConfig / fileContext bridge 使用"
+      ],
+      "requiredRegressionCommands": [
+        "cmd /c pnpm run health:phase12a",
+        "cmd /c pnpm run doctor:phase13a",
+        "cmd /c pnpm run verify:phase321a-workbench-product-recovery",
+        "cmd /c pnpm run verify:phase313a-model-usability-matrix",
+        "cmd /c pnpm run verify:phase107a-secret-safety",
+        "cmd /c pnpm -r --if-present check"
+      ],
+      "rollbackNotes": "如误删，必须通过 git revert 回退。不 reset、不 clean、不 force push。",
+      "riskNotes": "可进入未来小批量归档候选，但仍需至少一次人工确认。"
+    },
+    {
+      "id": "script:root:verify:phase156a-guided-onboarding-demo-dataset",
+      "name": "verify:phase156a-guided-onboarding-demo-dataset",
+      "source": "script:root",
+      "currentCategory": "archive-candidate-low-risk",
+      "priority": 3,
+      "reason": "低风险候选，但仍不可自动归档。",
+      "proposedHumanDecision": "keep-historical-compatible",
+      "proposedFutureAction": "document-only",
+      "requiredManualChecks": [
+        "确认不被当前 Phase322A 主链使用",
+        "确认不被 5 个 Workbench 主模块使用",
+        "确认不被 secret safety 验证链使用",
+        "确认不被 diagnostics / providerConfig / fileContext bridge 使用"
+      ],
+      "requiredRegressionCommands": [
+        "cmd /c pnpm run health:phase12a",
+        "cmd /c pnpm run doctor:phase13a",
+        "cmd /c pnpm run verify:phase321a-workbench-product-recovery",
+        "cmd /c pnpm run verify:phase313a-model-usability-matrix",
+        "cmd /c pnpm run verify:phase107a-secret-safety",
+        "cmd /c pnpm -r --if-present check"
+      ],
+      "rollbackNotes": "如误删，必须通过 git revert 回退。不 reset、不 clean、不 force push。",
+      "riskNotes": "可进入未来小批量归档候选，但仍需至少一次人工确认。"
+    },
+    {
+      "id": "script:root:verify:phase164a-plan-output-readability",
+      "name": "verify:phase164a-plan-output-readability",
+      "source": "script:root",
+      "currentCategory": "archive-candidate-low-risk",
+      "priority": 3,
+      "reason": "低风险候选，但仍不可自动归档。",
+      "proposedHumanDecision": "candidate-for-future-archive",
+      "proposedFutureAction": "future-archive-candidate",
+      "requiredManualChecks": [
+        "确认不被当前 Phase322A 主链使用",
+        "确认不被 5 个 Workbench 主模块使用",
+        "确认不被 secret safety 验证链使用",
+        "确认不被 diagnostics / providerConfig / fileContext bridge 使用"
+      ],
+      "requiredRegressionCommands": [
+        "cmd /c pnpm run health:phase12a",
+        "cmd /c pnpm run doctor:phase13a",
+        "cmd /c pnpm run verify:phase321a-workbench-product-recovery",
+        "cmd /c pnpm run verify:phase313a-model-usability-matrix",
+        "cmd /c pnpm run verify:phase107a-secret-safety",
+        "cmd /c pnpm -r --if-present check"
+      ],
+      "rollbackNotes": "如误删，必须通过 git revert 回退。不 reset、不 clean、不 force push。",
+      "riskNotes": "可进入未来小批量归档候选，但仍需至少一次人工确认。"
+    },
+    {
+      "id": "script:root:verify:phase168a-guided-demo-mode-polish",
+      "name": "verify:phase168a-guided-demo-mode-polish",
+      "source": "script:root",
+      "currentCategory": "archive-candidate-low-risk",
+      "priority": 3,
+      "reason": "低风险候选，但仍不可自动归档。",
+      "proposedHumanDecision": "keep-historical-compatible",
+      "proposedFutureAction": "document-only",
+      "requiredManualChecks": [
+        "确认不被当前 Phase322A 主链使用",
+        "确认不被 5 个 Workbench 主模块使用",
+        "确认不被 secret safety 验证链使用",
+        "确认不被 diagnostics / providerConfig / fileContext bridge 使用"
+      ],
+      "requiredRegressionCommands": [
+        "cmd /c pnpm run health:phase12a",
+        "cmd /c pnpm run doctor:phase13a",
+        "cmd /c pnpm run verify:phase321a-workbench-product-recovery",
+        "cmd /c pnpm run verify:phase313a-model-usability-matrix",
+        "cmd /c pnpm run verify:phase107a-secret-safety",
+        "cmd /c pnpm -r --if-present check"
+      ],
+      "rollbackNotes": "如误删，必须通过 git revert 回退。不 reset、不 clean、不 force push。",
+      "riskNotes": "可进入未来小批量归档候选，但仍需至少一次人工确认。"
+    },
+    {
+      "id": "script:root:verify:phase169a-user-manual-navigation",
+      "name": "verify:phase169a-user-manual-navigation",
+      "source": "script:root",
+      "currentCategory": "archive-candidate-low-risk",
+      "priority": 3,
+      "reason": "低风险候选，但仍不可自动归档。",
+      "proposedHumanDecision": "candidate-for-future-archive",
+      "proposedFutureAction": "future-archive-candidate",
+      "requiredManualChecks": [
+        "确认不被当前 Phase322A 主链使用",
+        "确认不被 5 个 Workbench 主模块使用",
+        "确认不被 secret safety 验证链使用",
+        "确认不被 diagnostics / providerConfig / fileContext bridge 使用"
+      ],
+      "requiredRegressionCommands": [
+        "cmd /c pnpm run health:phase12a",
+        "cmd /c pnpm run doctor:phase13a",
+        "cmd /c pnpm run verify:phase321a-workbench-product-recovery",
+        "cmd /c pnpm run verify:phase313a-model-usability-matrix",
+        "cmd /c pnpm run verify:phase107a-secret-safety",
+        "cmd /c pnpm -r --if-present check"
+      ],
+      "rollbackNotes": "如误删，必须通过 git revert 回退。不 reset、不 clean、不 force push。",
+      "riskNotes": "可进入未来小批量归档候选，但仍需至少一次人工确认。"
+    },
+    {
+      "id": "script:root:verify:phase173a-manual-qa-checklist",
+      "name": "verify:phase173a-manual-qa-checklist",
+      "source": "script:root",
+      "currentCategory": "archive-candidate-low-risk",
+      "priority": 3,
+      "reason": "低风险候选，但仍不可自动归档。",
+      "proposedHumanDecision": "candidate-for-future-archive",
+      "proposedFutureAction": "future-archive-candidate",
+      "requiredManualChecks": [
+        "确认不被当前 Phase322A 主链使用",
+        "确认不被 5 个 Workbench 主模块使用",
+        "确认不被 secret safety 验证链使用",
+        "确认不被 diagnostics / providerConfig / fileContext bridge 使用"
+      ],
+      "requiredRegressionCommands": [
+        "cmd /c pnpm run health:phase12a",
+        "cmd /c pnpm run doctor:phase13a",
+        "cmd /c pnpm run verify:phase321a-workbench-product-recovery",
+        "cmd /c pnpm run verify:phase313a-model-usability-matrix",
+        "cmd /c pnpm run verify:phase107a-secret-safety",
+        "cmd /c pnpm -r --if-present check"
+      ],
+      "rollbackNotes": "如误删，必须通过 git revert 回退。不 reset、不 clean、不 force push。",
+      "riskNotes": "可进入未来小批量归档候选，但仍需至少一次人工确认。"
+    },
+    {
+      "id": "script:root:verify:phase174a-evidence-manifest-final",
+      "name": "verify:phase174a-evidence-manifest-final",
+      "source": "script:root",
+      "currentCategory": "archive-candidate-low-risk",
+      "priority": 3,
+      "reason": "低风险候选，但仍不可自动归档。",
+      "proposedHumanDecision": "candidate-for-future-archive",
+      "proposedFutureAction": "future-archive-candidate",
+      "requiredManualChecks": [
+        "确认不被当前 Phase322A 主链使用",
+        "确认不被 5 个 Workbench 主模块使用",
+        "确认不被 secret safety 验证链使用",
+        "确认不被 diagnostics / providerConfig / fileContext bridge 使用"
+      ],
+      "requiredRegressionCommands": [
+        "cmd /c pnpm run health:phase12a",
+        "cmd /c pnpm run doctor:phase13a",
+        "cmd /c pnpm run verify:phase321a-workbench-product-recovery",
+        "cmd /c pnpm run verify:phase313a-model-usability-matrix",
+        "cmd /c pnpm run verify:phase107a-secret-safety",
+        "cmd /c pnpm -r --if-present check"
+      ],
+      "rollbackNotes": "如误删，必须通过 git revert 回退。不 reset、不 clean、不 force push。",
+      "riskNotes": "可进入未来小批量归档候选，但仍需至少一次人工确认。"
+    },
+    {
+      "id": "script:root:verify:phase177a-documentation-crosslink-index",
+      "name": "verify:phase177a-documentation-crosslink-index",
+      "source": "script:root",
+      "currentCategory": "archive-candidate-low-risk",
+      "priority": 3,
+      "reason": "低风险候选，但仍不可自动归档。",
+      "proposedHumanDecision": "candidate-for-future-archive",
+      "proposedFutureAction": "future-archive-candidate",
+      "requiredManualChecks": [
+        "确认不被当前 Phase322A 主链使用",
+        "确认不被 5 个 Workbench 主模块使用",
+        "确认不被 secret safety 验证链使用",
+        "确认不被 diagnostics / providerConfig / fileContext bridge 使用"
+      ],
+      "requiredRegressionCommands": [
+        "cmd /c pnpm run health:phase12a",
+        "cmd /c pnpm run doctor:phase13a",
+        "cmd /c pnpm run verify:phase321a-workbench-product-recovery",
+        "cmd /c pnpm run verify:phase313a-model-usability-matrix",
+        "cmd /c pnpm run verify:phase107a-secret-safety",
+        "cmd /c pnpm -r --if-present check"
+      ],
+      "rollbackNotes": "如误删，必须通过 git revert 回退。不 reset、不 clean、不 force push。",
+      "riskNotes": "可进入未来小批量归档候选，但仍需至少一次人工确认。"
+    },
+    {
+      "id": "script:root:verify:phase180a-final-product-decision-gate",
+      "name": "verify:phase180a-final-product-decision-gate",
+      "source": "script:root",
+      "currentCategory": "archive-candidate-low-risk",
+      "priority": 3,
+      "reason": "低风险候选，但仍不可自动归档。",
+      "proposedHumanDecision": "candidate-for-future-archive",
+      "proposedFutureAction": "future-archive-candidate",
+      "requiredManualChecks": [
+        "确认不被当前 Phase322A 主链使用",
+        "确认不被 5 个 Workbench 主模块使用",
+        "确认不被 secret safety 验证链使用",
+        "确认不被 diagnostics / providerConfig / fileContext bridge 使用"
+      ],
+      "requiredRegressionCommands": [
+        "cmd /c pnpm run health:phase12a",
+        "cmd /c pnpm run doctor:phase13a",
+        "cmd /c pnpm run verify:phase321a-workbench-product-recovery",
+        "cmd /c pnpm run verify:phase313a-model-usability-matrix",
+        "cmd /c pnpm run verify:phase107a-secret-safety",
+        "cmd /c pnpm -r --if-present check"
+      ],
+      "rollbackNotes": "如误删，必须通过 git revert 回退。不 reset、不 clean、不 force push。",
+      "riskNotes": "可进入未来小批量归档候选，但仍需至少一次人工确认。"
+    },
+    {
+      "id": "script:root:verify:phase183a-terminology-consistency",
+      "name": "verify:phase183a-terminology-consistency",
+      "source": "script:root",
+      "currentCategory": "archive-candidate-low-risk",
+      "priority": 3,
+      "reason": "低风险候选，但仍不可自动归档。",
+      "proposedHumanDecision": "candidate-for-future-archive",
+      "proposedFutureAction": "future-archive-candidate",
+      "requiredManualChecks": [
+        "确认不被当前 Phase322A 主链使用",
+        "确认不被 5 个 Workbench 主模块使用",
+        "确认不被 secret safety 验证链使用",
+        "确认不被 diagnostics / providerConfig / fileContext bridge 使用"
+      ],
+      "requiredRegressionCommands": [
+        "cmd /c pnpm run health:phase12a",
+        "cmd /c pnpm run doctor:phase13a",
+        "cmd /c pnpm run verify:phase321a-workbench-product-recovery",
+        "cmd /c pnpm run verify:phase313a-model-usability-matrix",
+        "cmd /c pnpm run verify:phase107a-secret-safety",
+        "cmd /c pnpm -r --if-present check"
+      ],
+      "rollbackNotes": "如误删，必须通过 git revert 回退。不 reset、不 clean、不 force push。",
+      "riskNotes": "可进入未来小批量归档候选，但仍需至少一次人工确认。"
+    },
+    {
+      "id": "script:root:verify:phase185a-accessibility-readability",
+      "name": "verify:phase185a-accessibility-readability",
+      "source": "script:root",
+      "currentCategory": "archive-candidate-low-risk",
+      "priority": 3,
+      "reason": "低风险候选，但仍不可自动归档。",
+      "proposedHumanDecision": "candidate-for-future-archive",
+      "proposedFutureAction": "future-archive-candidate",
+      "requiredManualChecks": [
+        "确认不被当前 Phase322A 主链使用",
+        "确认不被 5 个 Workbench 主模块使用",
+        "确认不被 secret safety 验证链使用",
+        "确认不被 diagnostics / providerConfig / fileContext bridge 使用"
+      ],
+      "requiredRegressionCommands": [
+        "cmd /c pnpm run health:phase12a",
+        "cmd /c pnpm run doctor:phase13a",
+        "cmd /c pnpm run verify:phase321a-workbench-product-recovery",
+        "cmd /c pnpm run verify:phase313a-model-usability-matrix",
+        "cmd /c pnpm run verify:phase107a-secret-safety",
+        "cmd /c pnpm -r --if-present check"
+      ],
+      "rollbackNotes": "如误删，必须通过 git revert 回退。不 reset、不 clean、不 force push。",
+      "riskNotes": "可进入未来小批量归档候选，但仍需至少一次人工确认。"
+    },
+    {
+      "id": "script:root:verify:phase186a-demo-goal-copy-polish",
+      "name": "verify:phase186a-demo-goal-copy-polish",
+      "source": "script:root",
+      "currentCategory": "archive-candidate-low-risk",
+      "priority": 3,
+      "reason": "低风险候选，但仍不可自动归档。",
+      "proposedHumanDecision": "keep-historical-compatible",
+      "proposedFutureAction": "document-only",
+      "requiredManualChecks": [
+        "确认不被当前 Phase322A 主链使用",
+        "确认不被 5 个 Workbench 主模块使用",
+        "确认不被 secret safety 验证链使用",
+        "确认不被 diagnostics / providerConfig / fileContext bridge 使用"
+      ],
+      "requiredRegressionCommands": [
+        "cmd /c pnpm run health:phase12a",
+        "cmd /c pnpm run doctor:phase13a",
+        "cmd /c pnpm run verify:phase321a-workbench-product-recovery",
+        "cmd /c pnpm run verify:phase313a-model-usability-matrix",
+        "cmd /c pnpm run verify:phase107a-secret-safety",
+        "cmd /c pnpm -r --if-present check"
+      ],
+      "rollbackNotes": "如误删，必须通过 git revert 回退。不 reset、不 clean、不 force push。",
+      "riskNotes": "可进入未来小批量归档候选，但仍需至少一次人工确认。"
+    },
+    {
+      "id": "script:root:verify:phase187a-history-detail-polish",
+      "name": "verify:phase187a-history-detail-polish",
+      "source": "script:root",
+      "currentCategory": "archive-candidate-low-risk",
+      "priority": 3,
+      "reason": "低风险候选，但仍不可自动归档。",
+      "proposedHumanDecision": "candidate-for-future-archive",
+      "proposedFutureAction": "future-archive-candidate",
+      "requiredManualChecks": [
+        "确认不被当前 Phase322A 主链使用",
+        "确认不被 5 个 Workbench 主模块使用",
+        "确认不被 secret safety 验证链使用",
+        "确认不被 diagnostics / providerConfig / fileContext bridge 使用"
+      ],
+      "requiredRegressionCommands": [
+        "cmd /c pnpm run health:phase12a",
+        "cmd /c pnpm run doctor:phase13a",
+        "cmd /c pnpm run verify:phase321a-workbench-product-recovery",
+        "cmd /c pnpm run verify:phase313a-model-usability-matrix",
+        "cmd /c pnpm run verify:phase107a-secret-safety",
+        "cmd /c pnpm -r --if-present check"
+      ],
+      "rollbackNotes": "如误删，必须通过 git revert 回退。不 reset、不 clean、不 force push。",
+      "riskNotes": "可进入未来小批量归档候选，但仍需至少一次人工确认。"
+    },
+    {
+      "id": "script:root:verify:phase188a-boundary-banner-safety-notice",
+      "name": "verify:phase188a-boundary-banner-safety-notice",
+      "source": "script:root",
+      "currentCategory": "archive-candidate-low-risk",
+      "priority": 3,
+      "reason": "低风险候选，但仍不可自动归档。",
+      "proposedHumanDecision": "candidate-for-future-archive",
+      "proposedFutureAction": "future-archive-candidate",
+      "requiredManualChecks": [
+        "确认不被当前 Phase322A 主链使用",
+        "确认不被 5 个 Workbench 主模块使用",
+        "确认不被 secret safety 验证链使用",
+        "确认不被 diagnostics / providerConfig / fileContext bridge 使用"
+      ],
+      "requiredRegressionCommands": [
+        "cmd /c pnpm run health:phase12a",
+        "cmd /c pnpm run doctor:phase13a",
+        "cmd /c pnpm run verify:phase321a-workbench-product-recovery",
+        "cmd /c pnpm run verify:phase313a-model-usability-matrix",
+        "cmd /c pnpm run verify:phase107a-secret-safety",
+        "cmd /c pnpm -r --if-present check"
+      ],
+      "rollbackNotes": "如误删，必须通过 git revert 回退。不 reset、不 clean、不 force push。",
+      "riskNotes": "可进入未来小批量归档候选，但仍需至少一次人工确认。"
+    },
+    {
+      "id": "script:root:verify:phase189a-microcopy-regression-pack",
+      "name": "verify:phase189a-microcopy-regression-pack",
+      "source": "script:root",
+      "currentCategory": "archive-candidate-low-risk",
+      "priority": 3,
+      "reason": "低风险候选，但仍不可自动归档。",
+      "proposedHumanDecision": "candidate-for-future-archive",
+      "proposedFutureAction": "future-archive-candidate",
+      "requiredManualChecks": [
+        "确认不被当前 Phase322A 主链使用",
+        "确认不被 5 个 Workbench 主模块使用",
+        "确认不被 secret safety 验证链使用",
+        "确认不被 diagnostics / providerConfig / fileContext bridge 使用"
+      ],
+      "requiredRegressionCommands": [
+        "cmd /c pnpm run health:phase12a",
+        "cmd /c pnpm run doctor:phase13a",
+        "cmd /c pnpm run verify:phase321a-workbench-product-recovery",
+        "cmd /c pnpm run verify:phase313a-model-usability-matrix",
+        "cmd /c pnpm run verify:phase107a-secret-safety",
+        "cmd /c pnpm -r --if-present check"
+      ],
+      "rollbackNotes": "如误删，必须通过 git revert 回退。不 reset、不 clean、不 force push。",
+      "riskNotes": "可进入未来小批量归档候选，但仍需至少一次人工确认。"
+    },
+    {
+      "id": "script:root:verify:phase190a-ux-polish-closure",
+      "name": "verify:phase190a-ux-polish-closure",
+      "source": "script:root",
+      "currentCategory": "archive-candidate-low-risk",
+      "priority": 3,
+      "reason": "低风险候选，但仍不可自动归档。",
+      "proposedHumanDecision": "candidate-for-future-archive",
+      "proposedFutureAction": "future-archive-candidate",
+      "requiredManualChecks": [
+        "确认不被当前 Phase322A 主链使用",
+        "确认不被 5 个 Workbench 主模块使用",
+        "确认不被 secret safety 验证链使用",
+        "确认不被 diagnostics / providerConfig / fileContext bridge 使用"
+      ],
+      "requiredRegressionCommands": [
+        "cmd /c pnpm run health:phase12a",
+        "cmd /c pnpm run doctor:phase13a",
+        "cmd /c pnpm run verify:phase321a-workbench-product-recovery",
+        "cmd /c pnpm run verify:phase313a-model-usability-matrix",
+        "cmd /c pnpm run verify:phase107a-secret-safety",
+        "cmd /c pnpm -r --if-present check"
+      ],
+      "rollbackNotes": "如误删，必须通过 git revert 回退。不 reset、不 clean、不 force push。",
+      "riskNotes": "可进入未来小批量归档候选，但仍需至少一次人工确认。"
+    },
+    {
+      "id": "script:root:verify:phase194a-final-user-trial-closure",
+      "name": "verify:phase194a-final-user-trial-closure",
+      "source": "script:root",
+      "currentCategory": "archive-candidate-low-risk",
+      "priority": 3,
+      "reason": "低风险候选，但仍不可自动归档。",
+      "proposedHumanDecision": "candidate-for-future-archive",
+      "proposedFutureAction": "future-archive-candidate",
+      "requiredManualChecks": [
+        "确认不被当前 Phase322A 主链使用",
+        "确认不被 5 个 Workbench 主模块使用",
+        "确认不被 secret safety 验证链使用",
+        "确认不被 diagnostics / providerConfig / fileContext bridge 使用"
+      ],
+      "requiredRegressionCommands": [
+        "cmd /c pnpm run health:phase12a",
+        "cmd /c pnpm run doctor:phase13a",
+        "cmd /c pnpm run verify:phase321a-workbench-product-recovery",
+        "cmd /c pnpm run verify:phase313a-model-usability-matrix",
+        "cmd /c pnpm run verify:phase107a-secret-safety",
+        "cmd /c pnpm -r --if-present check"
+      ],
+      "rollbackNotes": "如误删，必须通过 git revert 回退。不 reset、不 clean、不 force push。",
+      "riskNotes": "可进入未来小批量归档候选，但仍需至少一次人工确认。"
+    },
+    {
+      "id": "script:root:verify:phase196a-small-ui-copy-fix-pass",
+      "name": "verify:phase196a-small-ui-copy-fix-pass",
+      "source": "script:root",
+      "currentCategory": "archive-candidate-low-risk",
+      "priority": 3,
+      "reason": "低风险候选，但仍不可自动归档。",
+      "proposedHumanDecision": "candidate-for-future-archive",
+      "proposedFutureAction": "future-archive-candidate",
+      "requiredManualChecks": [
+        "确认不被当前 Phase322A 主链使用",
+        "确认不被 5 个 Workbench 主模块使用",
+        "确认不被 secret safety 验证链使用",
+        "确认不被 diagnostics / providerConfig / fileContext bridge 使用"
+      ],
+      "requiredRegressionCommands": [
+        "cmd /c pnpm run health:phase12a",
+        "cmd /c pnpm run doctor:phase13a",
+        "cmd /c pnpm run verify:phase321a-workbench-product-recovery",
+        "cmd /c pnpm run verify:phase313a-model-usability-matrix",
+        "cmd /c pnpm run verify:phase107a-secret-safety",
+        "cmd /c pnpm -r --if-present check"
+      ],
+      "rollbackNotes": "如误删，必须通过 git revert 回退。不 reset、不 clean、不 force push。",
+      "riskNotes": "可进入未来小批量归档候选，但仍需至少一次人工确认。"
+    },
+    {
+      "id": "script:root:verify:phase197a-docs-quickstart-tightening",
+      "name": "verify:phase197a-docs-quickstart-tightening",
+      "source": "script:root",
+      "currentCategory": "archive-candidate-low-risk",
+      "priority": 3,
+      "reason": "低风险候选，但仍不可自动归档。",
+      "proposedHumanDecision": "candidate-for-future-archive",
+      "proposedFutureAction": "future-archive-candidate",
+      "requiredManualChecks": [
+        "确认不被当前 Phase322A 主链使用",
+        "确认不被 5 个 Workbench 主模块使用",
+        "确认不被 secret safety 验证链使用",
+        "确认不被 diagnostics / providerConfig / fileContext bridge 使用"
+      ],
+      "requiredRegressionCommands": [
+        "cmd /c pnpm run health:phase12a",
+        "cmd /c pnpm run doctor:phase13a",
+        "cmd /c pnpm run verify:phase321a-workbench-product-recovery",
+        "cmd /c pnpm run verify:phase313a-model-usability-matrix",
+        "cmd /c pnpm run verify:phase107a-secret-safety",
+        "cmd /c pnpm -r --if-present check"
+      ],
+      "rollbackNotes": "如误删，必须通过 git revert 回退。不 reset、不 clean、不 force push。",
+      "riskNotes": "可进入未来小批量归档候选，但仍需至少一次人工确认。"
+    },
+    {
+      "id": "script:root:verify:phase198a-lightweight-iteration-closure",
+      "name": "verify:phase198a-lightweight-iteration-closure",
+      "source": "script:root",
+      "currentCategory": "archive-candidate-low-risk",
+      "priority": 3,
+      "reason": "低风险候选，但仍不可自动归档。",
+      "proposedHumanDecision": "candidate-for-future-archive",
+      "proposedFutureAction": "future-archive-candidate",
+      "requiredManualChecks": [
+        "确认不被当前 Phase322A 主链使用",
+        "确认不被 5 个 Workbench 主模块使用",
+        "确认不被 secret safety 验证链使用",
+        "确认不被 diagnostics / providerConfig / fileContext bridge 使用"
+      ],
+      "requiredRegressionCommands": [
+        "cmd /c pnpm run health:phase12a",
+        "cmd /c pnpm run doctor:phase13a",
+        "cmd /c pnpm run verify:phase321a-workbench-product-recovery",
+        "cmd /c pnpm run verify:phase313a-model-usability-matrix",
+        "cmd /c pnpm run verify:phase107a-secret-safety",
+        "cmd /c pnpm -r --if-present check"
+      ],
+      "rollbackNotes": "如误删，必须通过 git revert 回退。不 reset、不 clean、不 force push。",
+      "riskNotes": "可进入未来小批量归档候选，但仍需至少一次人工确认。"
+    }
+  ],
+  "requiredRegressionCommands": [
+    "cmd /c pnpm run health:phase12a",
+    "cmd /c pnpm run doctor:phase13a",
+    "cmd /c pnpm run verify:phase321a-workbench-product-recovery",
+    "cmd /c pnpm run verify:phase313a-model-usability-matrix",
+    "cmd /c pnpm run verify:phase107a-secret-safety",
+    "cmd /c pnpm -r --if-present check"
+  ],
+  "productionRegressionCommands": [
+    "cmd /c pnpm run verify:phase322a-workbench-chat-gateway-real-nvidia"
+  ],
+  "rollbackPlan": {
+    "description": "如误删或误移动，必须通过 git revert 回退。不 reset、不 clean、不 force push、不自动恢复。",
+    "revertCommand": "git diff --name-only 检查变动范围，确认后 git revert <commit>",
+    "safetyRule": "不 reset、不 clean、不 force push、不自动恢复。"
+  },
+  "notes": "本轮只生成样板，不删除、不移动、不重命名、不修改任何 scripts 或 entrypoints。未来真实处理必须另开阶段。"
+}

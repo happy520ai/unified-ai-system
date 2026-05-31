@@ -1,0 +1,36 @@
+export const taijiBeidouRealProviderRuntimeCopy = Object.freeze({
+  title: "太极 / 北斗 Guarded Real Provider Runtime v0",
+  subtitle: "credentialRef-only NVIDIA guarded one-shot gate",
+  boundary: "not production, not main-chain, approval-gated",
+  status: [
+    ["runtime gate", "available"],
+    ["approval", "required"],
+    ["providerId", "nvidia only"],
+    ["credential", "credentialRef-only"],
+    ["default enabled", "false"],
+    ["production ready", "false"],
+  ],
+  ledger: [
+    ["maxRequests", "1 default / 3 max"],
+    ["actualRequests", "0 until approved"],
+    ["maxRetries", "0"],
+    ["cost estimate", "0 USD cap"],
+    ["responseClassification", "blocked_by_missing_approval"],
+    ["emergency disable", "available"],
+  ],
+  guards: [
+    ["raw secret", "blocked"],
+    ["auth.json", "blocked"],
+    ["non-NVIDIA", "blocked"],
+    ["chat mutation", "blocked"],
+    ["execute mutation", "blocked"],
+    ["deploy", "blocked"],
+  ],
+  previewActions: [
+    "查看 approval packet",
+    "查看 execution evidence",
+    "查看 blocked reason",
+    "查看 rollback plan",
+    "查看 emergency disable",
+  ],
+});

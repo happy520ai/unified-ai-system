@@ -1,0 +1,11 @@
+{
+  "phase": "Phase333D",
+  "secretValueExposed": false,
+  "rawSecretReturned": false,
+  "unauthorizedScopeRejected": true,
+  "revokedCredentialRejected": true,
+  "unsupportedReferenceTypeRejected": true,
+  "redactionAlwaysApplied": true,
+  "auditEventRecorded": true,
+  "rollbackDocumented": true
+}

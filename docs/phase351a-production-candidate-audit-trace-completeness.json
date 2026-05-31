@@ -1,0 +1,28 @@
+{
+  "phase": "Phase351A",
+  "traceType": "production_candidate_audit_trace",
+  "result": {
+    "phase": "Phase351A",
+    "sourcePhase": "Phase350A",
+    "auditTraceCompletenessChecked": true,
+    "missingTraceFieldsReported": true,
+    "noSecretInTrace": true,
+    "traceCompletenessPassed": false,
+    "requiredTraceFields": [
+      "requestId",
+      "phase",
+      "drillName",
+      "disablePathVerified",
+      "restorePathDocumented",
+      "noProductionChange",
+      "humanReviewDecision"
+    ],
+    "missingTraceFields": [
+      "requestId",
+      "humanReviewDecision"
+    ],
+    "noProductionChange": true,
+    "productionGA": false,
+    "secretValueExposed": false
+  }
+}

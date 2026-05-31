@@ -1,0 +1,21 @@
+{
+  "phase": "Phase331C",
+  "schemaName": "tianshu-policy-proposal",
+  "required": [
+    "proposalId",
+    "sourceFeedbackWindow",
+    "sampleSize",
+    "affectedTaskTypes",
+    "proposedWeightChanges",
+    "riskAssessment",
+    "expectedImpact",
+    "approvalRequired",
+    "autoApply",
+    "rollbackPlan",
+    "reviewerNotes"
+  ],
+  "defaults": {
+    "approvalRequired": true,
+    "autoApply": false
+  }
+}

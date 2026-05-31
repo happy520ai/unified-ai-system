@@ -1,0 +1,86 @@
+{
+  "phase": "Phase392A",
+  "title": "Yiyi Demo FAQ Pack + Objection Handling Cards",
+  "faqCards": [
+    {
+      "topic": "what_is_yiyi",
+      "question": "依依是什么？",
+      "answer": "依依是 Mission Companion，负责把 Mission Control 的模式、安全边界、证据链和演示节奏讲清楚。"
+    },
+    {
+      "topic": "why_not普通_chatbot",
+      "question": "这为什么不是普通 Chatbot？",
+      "answer": "演示重点是 Agent-managed AI Mission Control：模式选择、安全护盾、红队攻防、证据回放和大脑状态，而不是单次问答。"
+    },
+    {
+      "topic": "normal_god_tianshu_difference",
+      "question": "Normal / God / Tianshu 有什么差异？",
+      "answer": "Normal 展示直接聊天概念，God 展示多角色评审视角，Tianshu 展示任务理解、路径规划和 fallback 的调度感；当前均为 dry-run preview。"
+    },
+    {
+      "topic": "security_shield_value",
+      "question": "Security Shield 的价值是什么？",
+      "answer": "它把 prompt injection、secret leak、provider gate、approval gate 等风险可视化，帮助用户理解系统如何先挡风险。"
+    },
+    {
+      "topic": "red_team_playground_value",
+      "question": "Red Team Playground 有什么商业展示价值？",
+      "answer": "它让攻击被拦截这件事变得可见、可玩、可讲解，展示系统不是只靠口头承诺安全。"
+    },
+    {
+      "topic": "evidence_replay_value",
+      "question": "Evidence Replay 为什么重要？",
+      "answer": "它把 evidenceId、trace、blockedActions、fallbackReason 等信息组织成可复核链路，建立演示可信度。"
+    },
+    {
+      "topic": "why_model_brain_disabled",
+      "question": "为什么模型大脑默认关闭？",
+      "answer": "这是安全默认值。真实 provider test 需要 Phase384 的明确 provider/model/credential/request/cost 授权。"
+    },
+    {
+      "topic": "when_real_provider_test",
+      "question": "什么时候能做真实模型测试？",
+      "answer": "只有当用户明确给出 allowProviderCall=true、providerRefs、credentialRefs、modelRefs、maxRequests 和成本上限后，才可进入 Phase384 具体测试。"
+    },
+    {
+      "topic": "is_this_production_ga",
+      "question": "这是否已经生产可用？",
+      "answer": "不能这么声称。当前是本地商业 Demo 包，未 deploy、未 release、未生产 GA。"
+    },
+    {
+      "topic": "what_still_needs_review",
+      "question": "还需要什么人工复核？",
+      "answer": "仍建议做人工录屏复核、跨浏览器复核、销售话术彩排，以及如需真实模型测试则单独走 Phase384 授权。"
+    }
+  ],
+  "objectionCards": [
+    {
+      "objection": "客户要求现场调用真实 provider",
+      "safeResponse": "当前演示保持 no-provider-call。可以记录为 Phase384 授权需求，待 provider/model/credential/request/cost 边界明确后再测试。"
+    },
+    {
+      "objection": "客户要求展示 API Key",
+      "safeResponse": "不能展示密钥明文。系统只展示安全状态、credentialRef 或 masked 状态。"
+    },
+    {
+      "objection": "客户要求立即部署或发布",
+      "safeResponse": "本阶段不 deploy、不 release。可以进入独立部署准备阶段，但不能把 demo 包说成生产上线。"
+    },
+    {
+      "objection": "客户问是否能生成账单",
+      "safeResponse": "本演示不生成真实 invoice，不执行 billing。只能讲安全边界和未来商业化接口方向。"
+    }
+  ],
+  "providerCallsMade": false,
+  "nonNvidiaProviderCallsMade": false,
+  "secretValueExposed": false,
+  "rawSecretAccessed": false,
+  "deployExecuted": false,
+  "releaseExecuted": false,
+  "tagCreated": false,
+  "artifactUploaded": false,
+  "billingExecuted": false,
+  "invoiceGenerated": false,
+  "productionGaClaimed": false,
+  "workspaceCleanClaimed": false
+}

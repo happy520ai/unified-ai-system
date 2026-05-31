@@ -1,0 +1,41 @@
+{
+  "phase": "Phase372C",
+  "checklist": [
+    {
+      "id": "tianshuPanelVisible",
+      "label": "Tianshu panel visible",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "id": "plannerExplanationVisible",
+      "label": "planner explanation visible",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "id": "noCandidateFallbackVisible",
+      "label": "no-candidate fallback visible",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "id": "nextActionsVisible",
+      "label": "next actions visible",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "id": "providerUnconfiguredNoticeVisible",
+      "label": "provider unconfigured notice visible",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "id": "credentialRefNoticeVisible",
+      "label": "credentialRef notice visible",
+      "pass": true,
+      "detail": ""
+    }
+  ]
+}

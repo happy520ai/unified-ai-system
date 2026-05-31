@@ -1,0 +1,9 @@
+{
+  "phase": "Phase343B",
+  "runtimeFlagDesignGenerated": true,
+  "defaultEnabled": false,
+  "rollbackFlagPresent": true,
+  "perUserPolicyRequired": true,
+  "shadowConfigOnly": true,
+  "flagName": "godModeBetaAlerting"
+}

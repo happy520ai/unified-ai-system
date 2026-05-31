@@ -1,0 +1,12 @@
+{
+  "phase": "Phase333C",
+  "transitions": {
+    "approve_for_dry_run": "approved_for_dry_run",
+    "reject": "rejected",
+    "request_changes": "changes_requested",
+    "mark_needs_more_samples": "needs_more_samples",
+    "rollback_required": "rollback_required"
+  },
+  "activationAllowed": false,
+  "dryRunResultRequiredBeforeActivation": true
+}

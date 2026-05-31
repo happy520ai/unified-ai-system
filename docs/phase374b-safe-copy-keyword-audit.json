@@ -1,0 +1,17 @@
+{
+  "phase": "Phase374B",
+  "auditedFiles": [
+    "apps/ai-gateway-service/src/ui/copy/threeModeCopy.js",
+    "apps/ai-gateway-service/src/ui/copy/godModeCopy.js",
+    "apps/ai-gateway-service/src/ui/copy/tianshuCopy.js",
+    "apps/ai-gateway-service/src/ui/copy/providerCredentialCopy.js",
+    "apps/ai-gateway-service/src/ui/consolePage.js"
+  ],
+  "forbiddenActionMarkerPatterns": [
+    "deploy-button",
+    "release-button",
+    "dangerous-action",
+    "execute-production"
+  ],
+  "hits": []
+}

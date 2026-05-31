@@ -1,0 +1,12 @@
+{
+  "issueId": "dogfood-issue-001",
+  "severity": "P2",
+  "classificationRules": {
+    "P0": "secret/provider/deploy/default-route safety breach",
+    "P1": "route, rollback, stability, cost, or recovery weakness",
+    "P2": "UX, evidence, status, or operator friction",
+    "P3": "copy, docs, naming, or minor polish"
+  },
+  "status": "open",
+  "regressionRequired": true
+}

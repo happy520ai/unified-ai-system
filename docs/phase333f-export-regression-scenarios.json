@@ -1,0 +1,53 @@
+{
+  "phase": "Phase333F",
+  "scenarios": [
+    {
+      "id": "normalStatementJsonExport",
+      "status": "passed"
+    },
+    {
+      "id": "normalStatementCsvExport",
+      "status": "passed"
+    },
+    {
+      "id": "normalStatementMarkdownExport",
+      "status": "passed"
+    },
+    {
+      "id": "emptyStatementExport",
+      "status": "passed"
+    },
+    {
+      "id": "blockedInvoiceExport",
+      "status": "passed"
+    },
+    {
+      "id": "highCostWarningExport",
+      "status": "passed"
+    },
+    {
+      "id": "multiModeUsageExport",
+      "status": "passed"
+    },
+    {
+      "id": "nonNvidiaEstimateWarningExport",
+      "status": "passed"
+    },
+    {
+      "id": "noLegalInvoiceClaimValidation",
+      "status": "passed"
+    },
+    {
+      "id": "noActualBillingClaimValidation",
+      "status": "passed"
+    },
+    {
+      "id": "noSecretInExportValidation",
+      "status": "passed"
+    },
+    {
+      "id": "totalsConsistencyValidation",
+      "status": "passed"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "caseId": "marker-missing",
+  "providerId": "nvidia",
+  "executionStatus": "failed",
+  "blockedReason": "provider_response_received_but_marker_missing",
+  "completed": false,
+  "passed": false,
+  "providerCallsMade": false,
+  "secretRead": false,
+  "secretValueExposed": false,
+  "emergencyDisableAvailable": true,
+  "emergencyDisableRef": "TAIJI_BEIDOU_REAL_PROVIDER_RUNTIME_ENABLED=false"
+}

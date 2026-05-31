@@ -1,0 +1,59 @@
+{
+  "phaseId": "Phase2030-GVC-Guarded-Provider-Approval-Bridge",
+  "taskId": "gvc-provider-approval-bridge",
+  "title": "Guarded Provider approval bridge",
+  "status": "approval_required",
+  "approvalRequired": true,
+  "approved": false,
+  "reason": "Phase2030 may only design a Provider approval bridge. Real Provider calls remain separately approval-gated.",
+  "requiredFields": [
+    "provider",
+    "model",
+    "credentialRef",
+    "maxRequests",
+    "maxCostUsd",
+    "timeoutMs",
+    "retryPolicy",
+    "prompt",
+    "expectedResult",
+    "rollbackPlan"
+  ],
+  "ownerMustProvide": {
+    "provider": "",
+    "model": "",
+    "credentialRef": "",
+    "maxRequests": 1,
+    "maxCostUsd": 0.02,
+    "timeoutMs": 30000,
+    "retryPolicy": "no_retry",
+    "prompt": "",
+    "expectedResult": "",
+    "rollbackPlan": ""
+  },
+  "constraints": {
+    "defaultEnabled": false,
+    "maxRequestsMustBeAtMost": 1,
+    "maxCostUsdMustBeAtMost": 0.02,
+    "timeoutMsMustBeAtMost": 30000,
+    "retryPolicyMustBe": "no_retry",
+    "credentialRefOnly": true,
+    "rawSecretReadAllowed": false,
+    "providerCallAllowedByThisPhase": false
+  },
+  "safety": {
+    "providerCallsMade": false,
+    "secretRead": false,
+    "deployExecuted": false,
+    "releaseExecuted": false,
+    "tagCreated": false,
+    "artifactUploaded": false,
+    "pushExecuted": false,
+    "commitCreated": false,
+    "chatModified": false,
+    "chatGatewayExecuteModified": false,
+    "legacyModified": false,
+    "projectContextModified": false,
+    "workspaceCleanClaimed": false,
+    "productionReadyClaimed": false
+  }
+}

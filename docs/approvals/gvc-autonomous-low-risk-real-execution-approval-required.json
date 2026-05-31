@@ -1,0 +1,81 @@
+{
+  "phaseId": "Phase2026-GVC-Autonomous-Low-Risk-Task-Execution",
+  "taskId": "gvc-autonomous-low-risk-real-execution",
+  "title": "Autonomous low-risk real mutation loop",
+  "status": "approval_required",
+  "approvalRequired": true,
+  "approved": false,
+  "reason": "Phase2026 would allow bounded real low-risk local mutations. It is not enabled without explicit owner approval.",
+  "requiredFields": [
+    "approvalRecordId",
+    "approvedByOwner",
+    "allowedMutationScopes",
+    "maxMutationsPerLoop",
+    "maxRealExecutionLoopsPerDay",
+    "rollbackPlan",
+    "verifierChain",
+    "stopConditions"
+  ],
+  "ownerMustProvide": {
+    "approvalRecordId": "",
+    "approvedByOwner": false,
+    "allowedMutationScopes": [
+      "docs",
+      "evidence",
+      "verifier",
+      "package scripts",
+      "non-core UI repair",
+      "stale cleanup",
+      "history compaction",
+      "local dry-run automation"
+    ],
+    "maxMutationsPerLoop": 3,
+    "maxRealExecutionLoopsPerDay": 100,
+    "rollbackPlan": "Revert the mutation batch if verifier fails or risk escalates.",
+    "verifierChain": [
+      "pnpm run verify:phase107a-secret-safety",
+      "pnpm run verify:phase321a-workbench-product-recovery",
+      "pnpm -r --if-present check"
+    ],
+    "stopConditions": [
+      "risk_escalation",
+      "secret_or_provider_or_deploy_or_chat_route_risk",
+      "two_consecutive_verifier_failures",
+      "rollback_failed",
+      "daily_real_execution_limit_reached"
+    ]
+  },
+  "constraints": {
+    "defaultEnabled": false,
+    "maxMutationsPerLoop": 3,
+    "maxRealExecutionLoopsPerDay": 100,
+    "rollbackOnVerifierFailure": true,
+    "mutationEvidenceRequired": true,
+    "repairEvidenceRequired": true,
+    "providerAllowed": false,
+    "secretAllowed": false,
+    "deployAllowed": false,
+    "chatRouteModificationAllowed": false,
+    "chatGatewayExecuteModificationAllowed": false,
+    "credentialResolverModificationAllowed": false,
+    "billingPaymentModificationAllowed": false,
+    "legacyModificationAllowed": false,
+    "projectContextModificationAllowed": false
+  },
+  "safety": {
+    "providerCallsMade": false,
+    "secretRead": false,
+    "deployExecuted": false,
+    "releaseExecuted": false,
+    "tagCreated": false,
+    "artifactUploaded": false,
+    "pushExecuted": false,
+    "commitCreated": false,
+    "chatModified": false,
+    "chatGatewayExecuteModified": false,
+    "legacyModified": false,
+    "projectContextModified": false,
+    "workspaceCleanClaimed": false,
+    "productionReadyClaimed": false
+  }
+}

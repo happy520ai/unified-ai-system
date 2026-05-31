@@ -1,0 +1,165 @@
+{
+  "phase": "Phase326B",
+  "schemaName": "three-mode-response-envelope",
+  "runtimeStatus": "design_only",
+  "type": "object",
+  "required": [
+    "requestId",
+    "mode",
+    "status"
+  ],
+  "properties": {
+    "requestId": {
+      "type": "string"
+    },
+    "mode": {
+      "type": "string",
+      "enum": [
+        "normal",
+        "god",
+        "tianshu"
+      ]
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "success",
+        "partial_success",
+        "failed",
+        "rejected",
+        "dry_run_only"
+      ]
+    },
+    "finalAnswer": {
+      "type": "string"
+    },
+    "selectedModel": {
+      "type": "object",
+      "properties": {
+        "modelId": {
+          "type": "string"
+        },
+        "providerId": {
+          "type": "string"
+        },
+        "selectionReason": {
+          "type": "string"
+        }
+      }
+    },
+    "participantModels": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "modelId": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "contributionSummary": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "plannerDecision": {
+      "type": "object",
+      "properties": {
+        "taskType": {
+          "type": "string"
+        },
+        "capabilityRequirements": {
+          "type": "array"
+        },
+        "candidateModels": {
+          "type": "array"
+        },
+        "selectedExecutionPlan": {
+          "type": "string"
+        },
+        "decisionReason": {
+          "type": "string"
+        }
+      }
+    },
+    "supervisorDecision": {
+      "type": "object",
+      "properties": {
+        "resolvedConflicts": {
+          "type": "array"
+        },
+        "synthesisStrategy": {
+          "type": "string"
+        },
+        "confidenceSummary": {
+          "type": "string"
+        }
+      }
+    },
+    "confidenceSummary": {
+      "type": "object"
+    },
+    "uncertainty": {
+      "type": "object",
+      "properties": {
+        "level": {
+          "type": "string"
+        },
+        "reasons": {
+          "type": "array"
+        }
+      }
+    },
+    "auditTrace": {
+      "type": "object",
+      "properties": {
+        "runtimeStage": {
+          "type": "string"
+        },
+        "providerCallsMade": {
+          "type": "boolean"
+        },
+        "nonNvidiaProviderCallsMade": {
+          "type": "boolean"
+        },
+        "secretValueExposed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "error": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "recoverable": {
+          "type": "boolean"
+        }
+      }
+    },
+    "fallback": {
+      "type": "object",
+      "properties": {
+        "fallbackUsed": {
+          "type": "boolean"
+        },
+        "fallbackReason": {
+          "type": "string"
+        },
+        "fallbackModel": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}
+

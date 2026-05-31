@@ -1,0 +1,20 @@
+{
+  "selectedNextPhase": "Phase564",
+  "selectedNextPhaseTitle": "Auto-run Value Audit + Deduplication + Registry Freeze",
+  "selectedNextPhaseRiskLevel": "low",
+  "latestPhase": "Phase1955P-Retry-Fail",
+  "latestResultPath": "apps/ai-gateway-service/evidence/phase1955p_retry_fail/nvidia-route-failure-closure-result.json",
+  "promptGenerated": true,
+  "promptGeneratedAt": "2026-05-30T00:56:03.342Z",
+  "generatedAt": "2026-05-30T00:56:03.342Z",
+  "promptTitle": "Generated Next Phase Prompt - Phase564",
+  "promptContentHash": "e8f3126b36bbf622b95e81fb12ffa0df6ceaed0bdd7cac293585273600d97a0b",
+  "promptMetaMatch": true,
+  "readyToExecute": false,
+  "autoContinueAllowed": false,
+  "humanApprovalRequired": false,
+  "safetyBrakeEngaged": false,
+  "executeNextPhaseAllowed": false,
+  "blockedReasons": [],
+  "sourcePhase": "Phase383"
+}

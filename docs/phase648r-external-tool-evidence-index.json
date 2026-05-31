@@ -1,0 +1,21 @@
+{
+  "phase": "Phase648R-ExternalTool",
+  "externalToolMode": true,
+  "latestEvidencePaths": [
+    "apps/ai-gateway-service/evidence/phase641r-645r-external-tool/external-tool-productization-bundle-result.json",
+    "apps/ai-gateway-service/evidence/phase646r-external-tool/daily-workflow-optimization-result.json",
+    "apps/ai-gateway-service/evidence/phase647r-external-tool/task-queue-state-ledger-result.json",
+    "apps/ai-gateway-service/evidence/phase648r-external-tool/evidence-dashboard-pack-result.json"
+  ],
+  "phase632PreflightEvidence": "apps/ai-gateway-service/evidence/phase632i/token-saving-preflight-run.json",
+  "contextPackPath": ".codex-context/current-context-pack.md",
+  "relevantFilesPath": ".codex-context/relevant-files.json",
+  "tokenBudgetReportPath": ".codex-context/token-budget-report.json",
+  "freshnessReportPath": ".codex-context/context-freshness-report.json",
+  "providerCallsMade": false,
+  "chatModified": false,
+  "chatGatewayExecuteModified": false,
+  "providerRuntimeModified": false,
+  "productionReady": false,
+  "releaseReady": false
+}

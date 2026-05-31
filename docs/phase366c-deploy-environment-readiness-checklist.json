@@ -1,0 +1,53 @@
+{
+  "phase": "Phase366C",
+  "checks": [
+    {
+      "name": "project_root_exists",
+      "ok": true
+    },
+    {
+      "name": "package_json_exists",
+      "ok": true
+    },
+    {
+      "name": "pnpm_available",
+      "ok": true
+    },
+    {
+      "name": "node_available",
+      "ok": true
+    },
+    {
+      "name": "phase364_final_launch_authorization_exists",
+      "ok": true
+    },
+    {
+      "name": "phase365_blocked_package_exists",
+      "ok": true
+    },
+    {
+      "name": "approved_command_ref_exists",
+      "ok": true
+    },
+    {
+      "name": "secret_safety_verifier_available",
+      "ok": true
+    },
+    {
+      "name": "product_recovery_verifier_available",
+      "ok": true
+    },
+    {
+      "name": "rollback_runbook_exists",
+      "ok": true
+    },
+    {
+      "name": "monitoring_checklist_exists",
+      "ok": true
+    },
+    {
+      "name": "post_deploy_smoke_checklist_exists",
+      "ok": true
+    }
+  ]
+}

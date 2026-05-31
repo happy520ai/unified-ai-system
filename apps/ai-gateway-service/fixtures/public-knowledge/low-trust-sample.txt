@@ -1,0 +1,1 @@
+Unattributed low trust web claim for preview rejection only. This fixture proves low-trust content is not imported by default.

@@ -1,0 +1,60 @@
+{
+  "decision": "approved_execute_phase941_960_real_route_quality_test_round2",
+  "approvalOwner": "human-user",
+  "approvalReason": "Run bounded NVIDIA-only real route quality test round 2 after Phase931-940 audit and Phase916-930 confirmed external Provider route quality baseline.",
+  "providerAllowlist": [
+    "nvidia"
+  ],
+  "credentialRef": "credentialRef:nvidia:default",
+  "credentialRefOnly": true,
+  "allowedModes": [
+    "normal",
+    "god",
+    "tianshu",
+    "fallback"
+  ],
+  "modelEligibility": {
+    "requireSelectable": true,
+    "requireSmokePassed": true,
+    "blockFailed": true,
+    "blockHighRisk": true,
+    "blockDeprecated": true,
+    "blockCredentialMissing": true
+  },
+  "maxTotalProviderRequests": 20,
+  "maxRequestsPerMode": 5,
+  "maxRequestsPerModel": 4,
+  "maxRetriesPerRequest": 0,
+  "maxEstimatedCostUsdTotal": 1.0,
+  "allowProviderCall": true,
+  "allowSecretRead": false,
+  "allowAuthJsonRead": false,
+  "allowDeploy": false,
+  "allowRelease": false,
+  "allowTag": false,
+  "allowArtifactUpload": false,
+  "allowChatDefaultEnable": false,
+  "allowChatGatewayExecuteDefaultEnable": false,
+  "allowChatMutation": false,
+  "allowChatGatewayExecuteMutation": false,
+  "allowCodexConfigMutation": false,
+  "expiresAt": "2026-05-14T23:59:00+09:00",
+  "acknowledgements": {
+    "notProductionTraffic": true,
+    "notDeploy": true,
+    "notRelease": true,
+    "notHumanReview": true,
+    "codexSurrogateTestingOnly": true,
+    "credentialRefOnly": true,
+    "rawSecretMustNotBePrinted": true,
+    "authJsonMustNotBeRead": true,
+    "externalProviderTraceRequired": true,
+    "maxRequestsMustBeRespected": true,
+    "maxRetriesMustBeZero": true,
+    "budgetMustBeRespected": true,
+    "failedBlockedHighRiskModelsExcluded": true,
+    "selectableMustNotChange": true,
+    "evidenceRequired": true,
+    "rollbackRequired": true
+  }
+}

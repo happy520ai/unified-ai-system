@@ -1,0 +1,30 @@
+{
+  "phase": "Phase349A",
+  "playbookType": "production_candidate_incident_response",
+  "result": {
+    "phase": "Phase349A",
+    "sourcePhase": "Phase348A",
+    "incidentPlaybooksGenerated": true,
+    "rollbackStepsIncluded": true,
+    "escalationOwnersPlaceholder": true,
+    "noRealOpsIntegration": true,
+    "productionGA": false,
+    "releaseAuthorized": false,
+    "deployAuthorized": false,
+    "rollbackSteps": [
+      "triage_gateway_availability_regression",
+      "disable_guarded_candidate_flags",
+      "restore_last_known_dry_run_baseline",
+      "record_evidence_and_human_review_decision"
+    ],
+    "escalationOwnerPlaceholder": "TBD-human-owner-before-real-production",
+    "metricsCovered": [
+      "gateway_availability_shadow_slo",
+      "chat_gateway_completion_verification_rate",
+      "provider_selection_gate_integrity",
+      "secret_safety_violation_count",
+      "rollback_readiness_time_to_disable"
+    ],
+    "secretValueExposed": false
+  }
+}

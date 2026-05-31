@@ -1,0 +1,16 @@
+{
+  "phase": "Phase332C",
+  "selectedProposalId": "phase331c-proposal-001",
+  "proposalState": "dry_run_completed",
+  "reviewerIdRef": "reviewer_anon",
+  "action": "activate_without_approval",
+  "actionAllowed": false,
+  "blockedReason": "ACTION_BLOCKED_BY_PHASE332C_REVIEWER_CONSOLE",
+  "activationAllowed": false,
+  "autoApply": false,
+  "auditTrace": {
+    "approvalRequired": true,
+    "autoApply": false,
+    "sensitiveRawFeedbackAllowed": false
+  }
+}

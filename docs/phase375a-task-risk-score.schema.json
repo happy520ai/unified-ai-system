@@ -1,0 +1,19 @@
+{
+  "type": "object",
+  "required": [
+    "promptInjectionRisk",
+    "secretLeakRisk",
+    "systemPromptLeakRisk",
+    "providerCallRisk",
+    "deployRisk",
+    "billingRisk",
+    "excessiveAgencyRisk",
+    "unboundedConsumptionRisk",
+    "evidenceIntegrityRisk",
+    "recommendedMode",
+    "recommendedPanel",
+    "humanApprovalRequired",
+    "blockedActions",
+    "explanation"
+  ]
+}

@@ -1,0 +1,1684 @@
+{
+  "phase": "Phase323C-6",
+  "generatedAt": "2026-05-06T12:12:24.944Z",
+  "sourceReports": [
+    "docs\\phase323c-5-archive-candidate-review.json",
+    "docs\\phase323c-6-archive-plan.md"
+  ],
+  "summary": {
+    "protectedCore": 25,
+    "activeSupport": 50,
+    "historicalCompatible": 253,
+    "archiveCandidateLowRisk": 87,
+    "archiveCandidateNeedsManualReview": 257,
+    "forbiddenDangerous": 106,
+    "unknownReviewRequired": 481
+  },
+  "protectedCore": [
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "check",
+      "label": "script:root:check",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "health:phase12a",
+      "label": "script:root:health:phase12a",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "doctor:phase13a",
+      "label": "script:root:doctor:phase13a",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase107a-secret-safety",
+      "label": "script:root:verify:phase107a-secret-safety",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase312a-unified-model-library",
+      "label": "script:root:verify:phase312a-unified-model-library",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase313a-model-usability-matrix",
+      "label": "script:root:verify:phase313a-model-usability-matrix",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase314a-chat-gateway-task-closure",
+      "label": "script:root:verify:phase314a-chat-gateway-task-closure",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase319a-functional-landing",
+      "label": "script:root:verify:phase319a-functional-landing",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase321a-workbench-product-recovery",
+      "label": "script:root:verify:phase321a-workbench-product-recovery",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase322a-workbench-chat-gateway-real-nvidia",
+      "label": "script:root:verify:phase322a-workbench-chat-gateway-real-nvidia",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "script",
+      "scope": "service",
+      "name": "check",
+      "label": "script:service:check",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "script",
+      "scope": "service",
+      "name": "verify:phase107a-secret-safety",
+      "label": "script:service:verify:phase107a-secret-safety",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "script",
+      "scope": "service",
+      "name": "verify:phase312a-unified-model-library",
+      "label": "script:service:verify:phase312a-unified-model-library",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "script",
+      "scope": "service",
+      "name": "verify:phase313a-model-usability-matrix",
+      "label": "script:service:verify:phase313a-model-usability-matrix",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "script",
+      "scope": "service",
+      "name": "verify:phase314a-chat-gateway-task-closure",
+      "label": "script:service:verify:phase314a-chat-gateway-task-closure",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "script",
+      "scope": "service",
+      "name": "verify:phase319a-functional-landing",
+      "label": "script:service:verify:phase319a-functional-landing",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "script",
+      "scope": "service",
+      "name": "verify:phase321a-workbench-product-recovery",
+      "label": "script:service:verify:phase321a-workbench-product-recovery",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "script",
+      "scope": "service",
+      "name": "verify:phase322a-workbench-chat-gateway-real-nvidia",
+      "label": "script:service:verify:phase322a-workbench-chat-gateway-real-nvidia",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "entrypoint",
+      "scope": "service",
+      "name": "verifyPhase312AUnifiedModelLibrary.js",
+      "label": "entrypoint:service:verifyPhase312AUnifiedModelLibrary.js",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "entrypoint",
+      "scope": "service",
+      "name": "verifyPhase313AModelUsabilityMatrix.js",
+      "label": "entrypoint:service:verifyPhase313AModelUsabilityMatrix.js",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "entrypoint",
+      "scope": "service",
+      "name": "verifyPhase314AChatGatewayTaskClosure.js",
+      "label": "entrypoint:service:verifyPhase314AChatGatewayTaskClosure.js",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "entrypoint",
+      "scope": "service",
+      "name": "verifyPhase319AFunctionalLanding.js",
+      "label": "entrypoint:service:verifyPhase319AFunctionalLanding.js",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "entrypoint",
+      "scope": "service",
+      "name": "verifyPhase321AWorkbenchProductRecovery.js",
+      "label": "entrypoint:service:verifyPhase321AWorkbenchProductRecovery.js",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "entrypoint",
+      "scope": "service",
+      "name": "verifyPhase322AWorkbenchChatGatewayRealNvidia.js",
+      "label": "entrypoint:service:verifyPhase322AWorkbenchChatGatewayRealNvidia.js",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "entrypoint",
+      "scope": "service",
+      "name": "verifySecretSafety.js",
+      "label": "entrypoint:service:verifySecretSafety.js",
+      "futureAction": "keep"
+    }
+  ],
+  "activeSupportSamples": [
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "inventory:phase323c",
+      "label": "script:root:inventory:phase323c",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "governance:phase323c",
+      "label": "script:root:governance:phase323c",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "commands:phase323c",
+      "label": "script:root:commands:phase323c",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase308a-desktop-grade-bilingual-workbench-ux",
+      "label": "script:root:verify:phase308a-desktop-grade-bilingual-workbench-ux",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase312a-frontend-backend-links",
+      "label": "script:root:verify:phase312a-frontend-backend-links",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "smoke:phase312a-chat-ui-runtime",
+      "label": "script:root:smoke:phase312a-chat-ui-runtime",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "smoke:phase312a-nvidia-real-models",
+      "label": "script:root:smoke:phase312a-nvidia-real-models",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "smoke:phase313a-dry-run-model-verification-plan",
+      "label": "script:root:smoke:phase313a-dry-run-model-verification-plan",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "smoke:phase313a-nvidia-model-usability",
+      "label": "script:root:smoke:phase313a-nvidia-model-usability",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "smoke:phase314a-chat-gateway-dry-run",
+      "label": "script:root:smoke:phase314a-chat-gateway-dry-run",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "smoke:phase314a-nvidia-task-closure",
+      "label": "script:root:smoke:phase314a-nvidia-task-closure",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "smoke:phase315a-chat-gateway-acceptance",
+      "label": "script:root:smoke:phase315a-chat-gateway-acceptance",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "smoke:phase319a-functional-landing",
+      "label": "script:root:smoke:phase319a-functional-landing",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "smoke:phase321a-workbench-product-recovery",
+      "label": "script:root:smoke:phase321a-workbench-product-recovery",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "smoke:phase322a-workbench-chat-gateway-real-nvidia",
+      "label": "script:root:smoke:phase322a-workbench-chat-gateway-real-nvidia",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "smoke:phase308a-desktop-workbench-ui",
+      "label": "script:root:smoke:phase308a-desktop-workbench-ui",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "create:desktop-workbench-shortcut",
+      "label": "script:root:create:desktop-workbench-shortcut",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "script",
+      "scope": "service",
+      "name": "inventory:phase323c",
+      "label": "script:service:inventory:phase323c",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "script",
+      "scope": "service",
+      "name": "governance:phase323c",
+      "label": "script:service:governance:phase323c",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "script",
+      "scope": "service",
+      "name": "commands:phase323c",
+      "label": "script:service:commands:phase323c",
+      "futureAction": "keep"
+    }
+  ],
+  "historicalCompatibleSamples": [
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "benchmark:token-saving",
+      "label": "script:root:benchmark:token-saving",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "benchmark:rag-source-selection",
+      "label": "script:root:benchmark:rag-source-selection",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "benchmark:response-cache",
+      "label": "script:root:benchmark:response-cache",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "benchmark:system-capability",
+      "label": "script:root:benchmark:system-capability",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "benchmark:response-cache-hardening",
+      "label": "script:root:benchmark:response-cache-hardening",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "benchmark:model-tier-routing",
+      "label": "script:root:benchmark:model-tier-routing",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "benchmark:quality-cost-routing",
+      "label": "script:root:benchmark:quality-cost-routing",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "import:public-knowledge:preview",
+      "label": "script:root:import:public-knowledge:preview",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "run:phase278a-free-model-daily-knowledge-enrichment",
+      "label": "script:root:run:phase278a-free-model-daily-knowledge-enrichment",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "run:phase290a-provider-cost-free-model-governance",
+      "label": "script:root:run:phase290a-provider-cost-free-model-governance",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "handoff:next-task",
+      "label": "script:root:handoff:next-task",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "handoff:codex",
+      "label": "script:root:handoff:codex",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "handoff:codex:open",
+      "label": "script:root:handoff:codex:open",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "handoff:codex:app",
+      "label": "script:root:handoff:codex:app",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "codex:result:import",
+      "label": "script:root:codex:result:import",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "codex:loop:status",
+      "label": "script:root:codex:loop:status",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "codex:loop:dry-run",
+      "label": "script:root:codex:loop:dry-run",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "codex:loop:once",
+      "label": "script:root:codex:loop:once",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "codex:send:dry-run",
+      "label": "script:root:codex:send:dry-run",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "codex:send:once",
+      "label": "script:root:codex:send:once",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "codex:desktop:send:dry-run",
+      "label": "script:root:codex:desktop:send:dry-run",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "codex:desktop:send:once",
+      "label": "script:root:codex:desktop:send:once",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "codex:desktop:status",
+      "label": "script:root:codex:desktop:status",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "codex:desktop:send",
+      "label": "script:root:codex:desktop:send",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "codex:desktop:ingest",
+      "label": "script:root:codex:desktop:ingest",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "codex:desktop:review",
+      "label": "script:root:codex:desktop:review",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "codex:desktop:loop",
+      "label": "script:root:codex:desktop:loop",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "codex:desktop:test:internal",
+      "label": "script:root:codex:desktop:test:internal",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "codex:desktop:audit",
+      "label": "script:root:codex:desktop:audit",
+      "futureAction": "keep"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "codex:desktop:reset-ready",
+      "label": "script:root:codex:desktop:reset-ready",
+      "futureAction": "keep"
+    }
+  ],
+  "lowRiskCandidates": [
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase155a-template-export-copy-ux",
+      "label": "script:root:verify:phase155a-template-export-copy-ux",
+      "futureAction": "deprecate-index-only"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase156a-guided-onboarding-demo-dataset",
+      "label": "script:root:verify:phase156a-guided-onboarding-demo-dataset",
+      "futureAction": "deprecate-index-only"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase164a-plan-output-readability",
+      "label": "script:root:verify:phase164a-plan-output-readability",
+      "futureAction": "deprecate-index-only"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase168a-guided-demo-mode-polish",
+      "label": "script:root:verify:phase168a-guided-demo-mode-polish",
+      "futureAction": "deprecate-index-only"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase169a-user-manual-navigation",
+      "label": "script:root:verify:phase169a-user-manual-navigation",
+      "futureAction": "deprecate-index-only"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase173a-manual-qa-checklist",
+      "label": "script:root:verify:phase173a-manual-qa-checklist",
+      "futureAction": "deprecate-index-only"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase174a-evidence-manifest-final",
+      "label": "script:root:verify:phase174a-evidence-manifest-final",
+      "futureAction": "deprecate-index-only"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase177a-documentation-crosslink-index",
+      "label": "script:root:verify:phase177a-documentation-crosslink-index",
+      "futureAction": "deprecate-index-only"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase180a-final-product-decision-gate",
+      "label": "script:root:verify:phase180a-final-product-decision-gate",
+      "futureAction": "deprecate-index-only"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase183a-terminology-consistency",
+      "label": "script:root:verify:phase183a-terminology-consistency",
+      "futureAction": "deprecate-index-only"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase185a-accessibility-readability",
+      "label": "script:root:verify:phase185a-accessibility-readability",
+      "futureAction": "deprecate-index-only"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase186a-demo-goal-copy-polish",
+      "label": "script:root:verify:phase186a-demo-goal-copy-polish",
+      "futureAction": "deprecate-index-only"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase187a-history-detail-polish",
+      "label": "script:root:verify:phase187a-history-detail-polish",
+      "futureAction": "deprecate-index-only"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase188a-boundary-banner-safety-notice",
+      "label": "script:root:verify:phase188a-boundary-banner-safety-notice",
+      "futureAction": "deprecate-index-only"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase189a-microcopy-regression-pack",
+      "label": "script:root:verify:phase189a-microcopy-regression-pack",
+      "futureAction": "deprecate-index-only"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase190a-ux-polish-closure",
+      "label": "script:root:verify:phase190a-ux-polish-closure",
+      "futureAction": "deprecate-index-only"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase194a-final-user-trial-closure",
+      "label": "script:root:verify:phase194a-final-user-trial-closure",
+      "futureAction": "deprecate-index-only"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase196a-small-ui-copy-fix-pass",
+      "label": "script:root:verify:phase196a-small-ui-copy-fix-pass",
+      "futureAction": "deprecate-index-only"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase197a-docs-quickstart-tightening",
+      "label": "script:root:verify:phase197a-docs-quickstart-tightening",
+      "futureAction": "deprecate-index-only"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase198a-lightweight-iteration-closure",
+      "label": "script:root:verify:phase198a-lightweight-iteration-closure",
+      "futureAction": "deprecate-index-only"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase222a-next-product-direction-outline",
+      "label": "script:root:verify:phase222a-next-product-direction-outline",
+      "futureAction": "deprecate-index-only"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase232a-fully-automated-controlled-loop-closure",
+      "label": "script:root:verify:phase232a-fully-automated-controlled-loop-closure",
+      "futureAction": "deprecate-index-only"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase235a-full-system-readthrough-report",
+      "label": "script:root:verify:phase235a-full-system-readthrough-report",
+      "futureAction": "deprecate-index-only"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase236a-commercial-business-report",
+      "label": "script:root:verify:phase236a-commercial-business-report",
+      "futureAction": "deprecate-index-only"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase267a-project-readthrough-future-report",
+      "label": "script:root:verify:phase267a-project-readthrough-future-report",
+      "futureAction": "deprecate-index-only"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase267a-architecture-report",
+      "label": "script:root:verify:phase267a-architecture-report",
+      "futureAction": "deprecate-index-only"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase281a-operational-readiness-decision-gate",
+      "label": "script:root:verify:phase281a-operational-readiness-decision-gate",
+      "futureAction": "deprecate-index-only"
+    },
+    {
+      "kind": "script",
+      "scope": "service",
+      "name": "verify:phase155a-template-export-copy-ux",
+      "label": "script:service:verify:phase155a-template-export-copy-ux",
+      "futureAction": "deprecate-index-only"
+    },
+    {
+      "kind": "script",
+      "scope": "service",
+      "name": "verify:phase156a-guided-onboarding-demo-dataset",
+      "label": "script:service:verify:phase156a-guided-onboarding-demo-dataset",
+      "futureAction": "deprecate-index-only"
+    },
+    {
+      "kind": "script",
+      "scope": "service",
+      "name": "verify:phase164a-plan-output-readability",
+      "label": "script:service:verify:phase164a-plan-output-readability",
+      "futureAction": "deprecate-index-only"
+    },
+    {
+      "kind": "script",
+      "scope": "service",
+      "name": "verify:phase168a-guided-demo-mode-polish",
+      "label": "script:service:verify:phase168a-guided-demo-mode-polish",
+      "futureAction": "deprecate-index-only"
+    },
+    {
+      "kind": "script",
+      "scope": "service",
+      "name": "verify:phase169a-user-manual-navigation",
+      "label": "script:service:verify:phase169a-user-manual-navigation",
+      "futureAction": "deprecate-index-only"
+    },
+    {
+      "kind": "script",
+      "scope": "service",
+      "name": "verify:phase173a-manual-qa-checklist",
+      "label": "script:service:verify:phase173a-manual-qa-checklist",
+      "futureAction": "deprecate-index-only"
+    },
+    {
+      "kind": "script",
+      "scope": "service",
+      "name": "verify:phase174a-evidence-manifest-final",
+      "label": "script:service:verify:phase174a-evidence-manifest-final",
+      "futureAction": "deprecate-index-only"
+    },
+    {
+      "kind": "script",
+      "scope": "service",
+      "name": "verify:phase177a-documentation-crosslink-index",
+      "label": "script:service:verify:phase177a-documentation-crosslink-index",
+      "futureAction": "deprecate-index-only"
+    },
+    {
+      "kind": "script",
+      "scope": "service",
+      "name": "verify:phase180a-final-product-decision-gate",
+      "label": "script:service:verify:phase180a-final-product-decision-gate",
+      "futureAction": "deprecate-index-only"
+    },
+    {
+      "kind": "script",
+      "scope": "service",
+      "name": "verify:phase183a-terminology-consistency",
+      "label": "script:service:verify:phase183a-terminology-consistency",
+      "futureAction": "deprecate-index-only"
+    },
+    {
+      "kind": "script",
+      "scope": "service",
+      "name": "verify:phase185a-accessibility-readability",
+      "label": "script:service:verify:phase185a-accessibility-readability",
+      "futureAction": "deprecate-index-only"
+    },
+    {
+      "kind": "script",
+      "scope": "service",
+      "name": "verify:phase186a-demo-goal-copy-polish",
+      "label": "script:service:verify:phase186a-demo-goal-copy-polish",
+      "futureAction": "deprecate-index-only"
+    },
+    {
+      "kind": "script",
+      "scope": "service",
+      "name": "verify:phase187a-history-detail-polish",
+      "label": "script:service:verify:phase187a-history-detail-polish",
+      "futureAction": "deprecate-index-only"
+    }
+  ],
+  "manualReviewRequired": [
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase103a-product-readiness",
+      "label": "script:root:verify:phase103a-product-readiness",
+      "futureAction": "manual-review"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase154a-template-acceptance-sample-plans",
+      "label": "script:root:verify:phase154a-template-acceptance-sample-plans",
+      "futureAction": "manual-review"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase158a-product-readiness-known-limits",
+      "label": "script:root:verify:phase158a-product-readiness-known-limits",
+      "futureAction": "manual-review"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase161a-ui-information-architecture",
+      "label": "script:root:verify:phase161a-ui-information-architecture",
+      "futureAction": "manual-review"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase170a-readme-agents-boundary-sync",
+      "label": "script:root:verify:phase170a-readme-agents-boundary-sync",
+      "futureAction": "manual-review"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase181a-empty-state-first-use-guidance",
+      "label": "script:root:verify:phase181a-empty-state-first-use-guidance",
+      "futureAction": "manual-review"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase191a-manual-trial-walkthrough",
+      "label": "script:root:verify:phase191a-manual-trial-walkthrough",
+      "futureAction": "manual-review"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase199a-real-ui-trial-runtime-sync",
+      "label": "script:root:verify:phase199a-real-ui-trial-runtime-sync",
+      "futureAction": "manual-review"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase200a-real-ui-trial-final-seal",
+      "label": "script:root:verify:phase200a-real-ui-trial-final-seal",
+      "futureAction": "manual-review"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase204a-safe-desktop-runner-design",
+      "label": "script:root:verify:phase204a-safe-desktop-runner-design",
+      "futureAction": "manual-review"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase212a-roundtrip-manual-bridge-trial",
+      "label": "script:root:verify:phase212a-roundtrip-manual-bridge-trial",
+      "futureAction": "manual-review"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase228a-one-click-manual-bridge-loop",
+      "label": "script:root:verify:phase228a-one-click-manual-bridge-loop",
+      "futureAction": "manual-review"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase230a-desktop-fully-automated-control-bat",
+      "label": "script:root:verify:phase230a-desktop-fully-automated-control-bat",
+      "futureAction": "manual-review"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase267a-desktop-automation-ready-state-reset",
+      "label": "script:root:verify:phase267a-desktop-automation-ready-state-reset",
+      "futureAction": "manual-review"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase285a-product-console-ux-hardening",
+      "label": "script:root:verify:phase285a-product-console-ux-hardening",
+      "futureAction": "manual-review"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase286a-product-deep-optimization-roadmap",
+      "label": "script:root:verify:phase286a-product-deep-optimization-roadmap",
+      "futureAction": "manual-review"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase295a-local-agent-permission-mode-gate",
+      "label": "script:root:verify:phase295a-local-agent-permission-mode-gate",
+      "futureAction": "manual-review"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase296a-read-only-local-agent-runner",
+      "label": "script:root:verify:phase296a-read-only-local-agent-runner",
+      "futureAction": "manual-review"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase303a-305a-ui-ready-approved-local-operation-loop",
+      "label": "script:root:verify:phase303a-305a-ui-ready-approved-local-operation-loop",
+      "futureAction": "manual-review"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase306a-ui-usability-redesign",
+      "label": "script:root:verify:phase306a-ui-usability-redesign",
+      "futureAction": "manual-review"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase307a-product-grade-ui-rebuild",
+      "label": "script:root:verify:phase307a-product-grade-ui-rebuild",
+      "futureAction": "manual-review"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase308b-real-product-ux-recovery",
+      "label": "script:root:verify:phase308b-real-product-ux-recovery",
+      "futureAction": "manual-review"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase308d-screenshot-actual-ui-acceptance-repair",
+      "label": "script:root:verify:phase308d-screenshot-actual-ui-acceptance-repair",
+      "futureAction": "manual-review"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase310c-minimal-real-provider-smoke",
+      "label": "script:root:verify:phase310c-minimal-real-provider-smoke",
+      "futureAction": "manual-review"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase315a-full-system-acceptance",
+      "label": "script:root:verify:phase315a-full-system-acceptance",
+      "futureAction": "manual-review"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "smoke:phase315a-ui-acceptance",
+      "label": "script:root:smoke:phase315a-ui-acceptance",
+      "futureAction": "manual-review"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "smoke:phase315a-human-journey-acceptance",
+      "label": "script:root:smoke:phase315a-human-journey-acceptance",
+      "futureAction": "manual-review"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "smoke:phase316a-actual-ui-clickability",
+      "label": "script:root:smoke:phase316a-actual-ui-clickability",
+      "futureAction": "manual-review"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase316a-actual-ui-clickability-repair",
+      "label": "script:root:verify:phase316a-actual-ui-clickability-repair",
+      "futureAction": "manual-review"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "smoke:phase317a-real-ui-runtime-click",
+      "label": "script:root:smoke:phase317a-real-ui-runtime-click",
+      "futureAction": "manual-review"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase317a-real-ui-repair",
+      "label": "script:root:verify:phase317a-real-ui-repair",
+      "futureAction": "manual-review"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "smoke:phase318a-chat-feature-realization",
+      "label": "script:root:smoke:phase318a-chat-feature-realization",
+      "futureAction": "manual-review"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase318a-chat-feature-realization",
+      "label": "script:root:verify:phase318a-chat-feature-realization",
+      "futureAction": "manual-review"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "smoke:phase320a-real-browser-full-module",
+      "label": "script:root:smoke:phase320a-real-browser-full-module",
+      "futureAction": "manual-review"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase320a-real-browser-full-module",
+      "label": "script:root:verify:phase320a-real-browser-full-module",
+      "futureAction": "manual-review"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase306c-readme-agents-auto-sync-guard",
+      "label": "script:root:verify:phase306c-readme-agents-auto-sync-guard",
+      "futureAction": "manual-review"
+    },
+    {
+      "kind": "script",
+      "scope": "service",
+      "name": "verify:phase103a-product-readiness",
+      "label": "script:service:verify:phase103a-product-readiness",
+      "futureAction": "manual-review"
+    },
+    {
+      "kind": "script",
+      "scope": "service",
+      "name": "verify:phase154a-template-acceptance-sample-plans",
+      "label": "script:service:verify:phase154a-template-acceptance-sample-plans",
+      "futureAction": "manual-review"
+    },
+    {
+      "kind": "script",
+      "scope": "service",
+      "name": "verify:phase158a-product-readiness-known-limits",
+      "label": "script:service:verify:phase158a-product-readiness-known-limits",
+      "futureAction": "manual-review"
+    },
+    {
+      "kind": "script",
+      "scope": "service",
+      "name": "verify:phase161a-ui-information-architecture",
+      "label": "script:service:verify:phase161a-ui-information-architecture",
+      "futureAction": "manual-review"
+    }
+  ],
+  "forbiddenDangerous": [
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "run:phase282a-commit-readiness-preflight",
+      "label": "script:root:run:phase282a-commit-readiness-preflight",
+      "futureAction": "forbidden-do-not-run"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "run:phase283a-ui-release-readiness-preflight",
+      "label": "script:root:run:phase283a-ui-release-readiness-preflight",
+      "futureAction": "forbidden-do-not-run"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "run:phase284a-final-commit-package-clean-baseline-gate",
+      "label": "script:root:run:phase284a-final-commit-package-clean-baseline-gate",
+      "futureAction": "forbidden-do-not-run"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "run:phase289a-deployment-runtime-stability",
+      "label": "script:root:run:phase289a-deployment-runtime-stability",
+      "futureAction": "forbidden-do-not-run"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase109a-deployment-readiness",
+      "label": "script:root:verify:phase109a-deployment-readiness",
+      "futureAction": "forbidden-do-not-run"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase110a-docker-readiness",
+      "label": "script:root:verify:phase110a-docker-readiness",
+      "futureAction": "forbidden-do-not-run"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase112a-non-docker-release-check",
+      "label": "script:root:verify:phase112a-non-docker-release-check",
+      "futureAction": "forbidden-do-not-run"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase113b-docker-blocker-docs",
+      "label": "script:root:verify:phase113b-docker-blocker-docs",
+      "futureAction": "forbidden-do-not-run"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase114a-user-manual-release-pack",
+      "label": "script:root:verify:phase114a-user-manual-release-pack",
+      "futureAction": "forbidden-do-not-run"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase115a-docker-runtime-recheck",
+      "label": "script:root:verify:phase115a-docker-runtime-recheck",
+      "futureAction": "forbidden-do-not-run"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase116a-docker-compose-runtime",
+      "label": "script:root:verify:phase116a-docker-compose-runtime",
+      "futureAction": "forbidden-do-not-run"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase117a-cicd-release-gate",
+      "label": "script:root:verify:phase117a-cicd-release-gate",
+      "futureAction": "forbidden-do-not-run"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase118a-remote-cicd-gate-preflight",
+      "label": "script:root:verify:phase118a-remote-cicd-gate-preflight",
+      "futureAction": "forbidden-do-not-run"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase120a-git-initial-commit-preflight",
+      "label": "script:root:verify:phase120a-git-initial-commit-preflight",
+      "futureAction": "forbidden-do-not-run"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase121a-git-initial-commit-execution",
+      "label": "script:root:verify:phase121a-git-initial-commit-execution",
+      "futureAction": "forbidden-do-not-run"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase122a-github-remote-publish-preflight",
+      "label": "script:root:verify:phase122a-github-remote-publish-preflight",
+      "futureAction": "forbidden-do-not-run"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase123a-github-cli-readiness",
+      "label": "script:root:verify:phase123a-github-cli-readiness",
+      "futureAction": "forbidden-do-not-run"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase124a-github-cli-install",
+      "label": "script:root:verify:phase124a-github-cli-install",
+      "futureAction": "forbidden-do-not-run"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase125a-github-auth-preflight",
+      "label": "script:root:verify:phase125a-github-auth-preflight",
+      "futureAction": "forbidden-do-not-run"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase126a-github-auth-ready",
+      "label": "script:root:verify:phase126a-github-auth-ready",
+      "futureAction": "forbidden-do-not-run"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase127a-github-remote-target-preflight",
+      "label": "script:root:verify:phase127a-github-remote-target-preflight",
+      "futureAction": "forbidden-do-not-run"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase128a-github-remote-push",
+      "label": "script:root:verify:phase128a-github-remote-push",
+      "futureAction": "forbidden-do-not-run"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase129a-remote-release-status",
+      "label": "script:root:verify:phase129a-remote-release-status",
+      "futureAction": "forbidden-do-not-run"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase131a-release-artifact-preflight",
+      "label": "script:root:verify:phase131a-release-artifact-preflight",
+      "futureAction": "forbidden-do-not-run"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase132a-release-decision-pack",
+      "label": "script:root:verify:phase132a-release-decision-pack",
+      "futureAction": "forbidden-do-not-run"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase133a-release-creation-confirmation",
+      "label": "script:root:verify:phase133a-release-creation-confirmation",
+      "futureAction": "forbidden-do-not-run"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase134a-release-creation-execution",
+      "label": "script:root:verify:phase134a-release-creation-execution",
+      "futureAction": "forbidden-do-not-run"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase135a-release-publish-preflight",
+      "label": "script:root:verify:phase135a-release-publish-preflight",
+      "futureAction": "forbidden-do-not-run"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase136a-release-publish-execution",
+      "label": "script:root:verify:phase136a-release-publish-execution",
+      "futureAction": "forbidden-do-not-run"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase137a-release-draft-rollback",
+      "label": "script:root:verify:phase137a-release-draft-rollback",
+      "futureAction": "forbidden-do-not-run"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase282a-commit-readiness-preflight",
+      "label": "script:root:verify:phase282a-commit-readiness-preflight",
+      "futureAction": "forbidden-do-not-run"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase283a-ui-release-readiness-preflight",
+      "label": "script:root:verify:phase283a-ui-release-readiness-preflight",
+      "futureAction": "forbidden-do-not-run"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase284a-final-commit-package-clean-baseline-gate",
+      "label": "script:root:verify:phase284a-final-commit-package-clean-baseline-gate",
+      "futureAction": "forbidden-do-not-run"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase289a-deployment-runtime-stability",
+      "label": "script:root:verify:phase289a-deployment-runtime-stability",
+      "futureAction": "forbidden-do-not-run"
+    },
+    {
+      "kind": "script",
+      "scope": "service",
+      "name": "run:phase282a-commit-readiness-preflight",
+      "label": "script:service:run:phase282a-commit-readiness-preflight",
+      "futureAction": "forbidden-do-not-run"
+    },
+    {
+      "kind": "script",
+      "scope": "service",
+      "name": "run:phase283a-ui-release-readiness-preflight",
+      "label": "script:service:run:phase283a-ui-release-readiness-preflight",
+      "futureAction": "forbidden-do-not-run"
+    },
+    {
+      "kind": "script",
+      "scope": "service",
+      "name": "run:phase284a-final-commit-package-clean-baseline-gate",
+      "label": "script:service:run:phase284a-final-commit-package-clean-baseline-gate",
+      "futureAction": "forbidden-do-not-run"
+    },
+    {
+      "kind": "script",
+      "scope": "service",
+      "name": "run:phase289a-deployment-runtime-stability",
+      "label": "script:service:run:phase289a-deployment-runtime-stability",
+      "futureAction": "forbidden-do-not-run"
+    },
+    {
+      "kind": "script",
+      "scope": "service",
+      "name": "verify:phase109a-deployment-readiness",
+      "label": "script:service:verify:phase109a-deployment-readiness",
+      "futureAction": "forbidden-do-not-run"
+    },
+    {
+      "kind": "script",
+      "scope": "service",
+      "name": "verify:phase110a-docker-readiness",
+      "label": "script:service:verify:phase110a-docker-readiness",
+      "futureAction": "forbidden-do-not-run"
+    }
+  ],
+  "unknownReviewRequired": [
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "build",
+      "label": "script:root:build",
+      "futureAction": "unknown-review-required"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "start:agent-console",
+      "label": "script:root:start:agent-console",
+      "futureAction": "unknown-review-required"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "start:ai-gateway-service",
+      "label": "script:root:start:ai-gateway-service",
+      "futureAction": "unknown-review-required"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "dev:phase7a-service",
+      "label": "script:root:dev:phase7a-service",
+      "futureAction": "unknown-review-required"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "start:pme",
+      "label": "script:root:start:pme",
+      "futureAction": "unknown-review-required"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "smoke:mimo-route",
+      "label": "script:root:smoke:mimo-route",
+      "futureAction": "unknown-review-required"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "smoke:mimo-paid-route",
+      "label": "script:root:smoke:mimo-paid-route",
+      "futureAction": "unknown-review-required"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "discover:mimo-model-id",
+      "label": "script:root:discover:mimo-model-id",
+      "futureAction": "unknown-review-required"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "calibrate:token-estimator",
+      "label": "script:root:calibrate:token-estimator",
+      "futureAction": "unknown-review-required"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "audit:full-codebase",
+      "label": "script:root:audit:full-codebase",
+      "futureAction": "unknown-review-required"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "security:audit-hardening",
+      "label": "script:root:security:audit-hardening",
+      "futureAction": "unknown-review-required"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "run:phase281a-operational-readiness-decision-gate",
+      "label": "script:root:run:phase281a-operational-readiness-decision-gate",
+      "futureAction": "unknown-review-required"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "run:phase285a-product-console-ux-hardening",
+      "label": "script:root:run:phase285a-product-console-ux-hardening",
+      "futureAction": "unknown-review-required"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "run:phase286a-product-deep-optimization-roadmap",
+      "label": "script:root:run:phase286a-product-deep-optimization-roadmap",
+      "futureAction": "unknown-review-required"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "run:phase287a-modular-architecture-refactor-first-cut",
+      "label": "script:root:run:phase287a-modular-architecture-refactor-first-cut",
+      "futureAction": "unknown-review-required"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "run:phase288a-architecture-refactor-followup-cleanup",
+      "label": "script:root:run:phase288a-architecture-refactor-followup-cleanup",
+      "futureAction": "unknown-review-required"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "run:phase291a-unified-regression-test-matrix",
+      "label": "script:root:run:phase291a-unified-regression-test-matrix",
+      "futureAction": "unknown-review-required"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "dev:phase7b",
+      "label": "script:root:dev:phase7b",
+      "futureAction": "unknown-review-required"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "stop:phase9c",
+      "label": "script:root:stop:phase9c",
+      "futureAction": "unknown-review-required"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "status:phase10a",
+      "label": "script:root:status:phase10a",
+      "futureAction": "unknown-review-required"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "logs:phase16a",
+      "label": "script:root:logs:phase16a",
+      "futureAction": "unknown-review-required"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "agent:auto:import",
+      "label": "script:root:agent:auto:import",
+      "futureAction": "unknown-review-required"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "agent:auto:manual-loop",
+      "label": "script:root:agent:auto:manual-loop",
+      "futureAction": "unknown-review-required"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "agent:auto:dry-run",
+      "label": "script:root:agent:auto:dry-run",
+      "futureAction": "unknown-review-required"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "agent:auto:continuous",
+      "label": "script:root:agent:auto:continuous",
+      "futureAction": "unknown-review-required"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "agent:auto:continuous:test",
+      "label": "script:root:agent:auto:continuous:test",
+      "futureAction": "unknown-review-required"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "agent:auto:continuous:stop",
+      "label": "script:root:agent:auto:continuous:stop",
+      "futureAction": "unknown-review-required"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "idle:phase15a",
+      "label": "script:root:idle:phase15a",
+      "futureAction": "unknown-review-required"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "restart:phase11a",
+      "label": "script:root:restart:phase11a",
+      "futureAction": "unknown-review-required"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "help:phase14a",
+      "label": "script:root:help:phase14a",
+      "futureAction": "unknown-review-required"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase7a-1",
+      "label": "script:root:verify:phase7a-1",
+      "futureAction": "unknown-review-required"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase7a-2",
+      "label": "script:root:verify:phase7a-2",
+      "futureAction": "unknown-review-required"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase7a",
+      "label": "script:root:verify:phase7a",
+      "futureAction": "unknown-review-required"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase7b",
+      "label": "script:root:verify:phase7b",
+      "futureAction": "unknown-review-required"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase7c",
+      "label": "script:root:verify:phase7c",
+      "futureAction": "unknown-review-required"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase7d",
+      "label": "script:root:verify:phase7d",
+      "futureAction": "unknown-review-required"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase7e",
+      "label": "script:root:verify:phase7e",
+      "futureAction": "unknown-review-required"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase8a",
+      "label": "script:root:verify:phase8a",
+      "futureAction": "unknown-review-required"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase8a-4",
+      "label": "script:root:verify:phase8a-4",
+      "futureAction": "unknown-review-required"
+    },
+    {
+      "kind": "script",
+      "scope": "root",
+      "name": "verify:phase21",
+      "label": "script:root:verify:phase21",
+      "futureAction": "unknown-review-required"
+    }
+  ],
+  "notes": {
+    "staticOnly": true,
+    "deletedScripts": false,
+    "movedEntrypoints": false,
+    "executedCandidateScripts": false,
+    "packageScriptSemanticsChanged": false,
+    "archivePlanLineCount": 131
+  }
+}

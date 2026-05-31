@@ -1,0 +1,50 @@
+{
+  "mode": "god",
+  "status": "dry_run",
+  "participants": [
+    {
+      "modelRef": "nvidia/llama-3.3-nemotron-super-49b-v1",
+      "status": "ready",
+      "critiqueSummary": "候选参与者可审阅答案，但当前仅为 mock/dry-run 展示。"
+    },
+    {
+      "modelRef": "nvidia/llama-3.1-nemotron-nano-8b-v1",
+      "status": "partial",
+      "unavailableReason": "participant_selection_failed",
+      "critiqueSummary": "参与者选择结果可展示，但不代表真实多 provider 已启用。"
+    }
+  ],
+  "conflictSummary": {
+    "hasConflict": true,
+    "conflictLevel": "medium",
+    "summary": "两个参与者在答案细节完整度和风险提示强度上存在分歧。",
+    "disagreementPoints": [
+      "是否需要更强的风险提示",
+      "是否需要回退到更保守的回复策略"
+    ]
+  },
+  "supervisorTransparency": {
+    "supervisorModelRef": "supervisor/dry-run",
+    "synthesisStatus": "completed",
+    "decisionBasis": [
+      "reviewer critique summary",
+      "participant availability state",
+      "fallback policy boundary"
+    ],
+    "uncertainty": "当前结果为 dry-run/mock，不代表真实多 provider 共识已经执行。",
+    "fallbackUsed": true,
+    "fallbackReason": "participant_selection_failed"
+  },
+  "warnings": [
+    "credential_missing",
+    "quota_exceeded",
+    "budget_blocked",
+    "participant_selection_failed",
+    "user_policy_blocked"
+  ],
+  "safetyNotice": {
+    "providerCallsMade": false,
+    "secretValueExposed": false,
+    "dryRunOnly": true
+  }
+}

@@ -1,0 +1,120 @@
+{
+  "phaseId": "Phase3979A-OpenCode-Autopilot-Governor",
+  "queueId": "opencode-autopilot-task-queue",
+  "schemaVersion": 1,
+  "generatedAt": "2026-05-28T00:00:00.000Z",
+  "mode": "safe_governance_only",
+  "notes": [
+    "This queue is for bounded OpenCode autopilot governance only.",
+    "It does not authorize real provider calls, secret reads, commit, push, deploy, release, or legacy mutation.",
+    "Queue task completion state is stored in docs/project-brain/opencode-autopilot-state.json."
+  ],
+  "tasks": [
+    {
+      "taskId": "phase3979a-autopilot-baseline-preflight",
+      "title": "Autopilot baseline preflight",
+      "priority": 100,
+      "status": "pending",
+      "allowedFiles": [
+        "docs/automation/opencode-autopilot-task-queue.json",
+        "docs/project-brain/opencode-autopilot-policy.json",
+        "docs/project-brain/opencode-autopilot-state.json",
+        "tools/phase3979a/run-opencode-autopilot-governor.mjs",
+        "tools/phase3979a/read-opencode-autopilot-status.mjs",
+        "tools/phase3979a/verify-opencode-autopilot-governor.mjs",
+        "docs/phase3979a-opencode-autopilot-governor.md",
+        "opencode.jsonc",
+        "package.json"
+      ],
+      "preflightCommands": [
+        "node --check tools/phase3979a/run-opencode-autopilot-governor.mjs",
+        "node --check tools/phase3979a/read-opencode-autopilot-status.mjs",
+        "node --check tools/phase3979a/verify-opencode-autopilot-governor.mjs"
+      ],
+      "diagnoseCommands": [
+        "cmd /c pnpm run verify:gvc-safe-overnight-mode"
+      ],
+      "executeCommands": [
+        "cmd /c pnpm run phase:auto-next:state"
+      ],
+      "reviewCommands": [
+        "cmd /c pnpm run phase:auto-next:safety"
+      ],
+      "verifyCommands": [
+        "cmd /c pnpm run status:phase3979a-opencode-autopilot"
+      ],
+      "requestBudget": 0,
+      "costBudgetUsd": 0,
+      "blocker": null
+    },
+    {
+      "taskId": "phase3979a-autopilot-queue-health",
+      "title": "Autopilot queue and risk gate health",
+      "priority": 90,
+      "status": "pending",
+      "allowedFiles": [
+        "docs/automation/opencode-autopilot-task-queue.json",
+        "docs/project-brain/opencode-autopilot-policy.json",
+        "docs/project-brain/opencode-autopilot-state.json",
+        "tools/gvc/run-task-queue-dry-run.mjs",
+        "tools/gvc/verify-gvc-task-queue-runner.mjs",
+        "tools/gvc/validate-risk-gate.mjs",
+        "tools/phase3979a/run-opencode-autopilot-governor.mjs",
+        "tools/phase3979a/read-opencode-autopilot-status.mjs",
+        "tools/phase3979a/verify-opencode-autopilot-governor.mjs"
+      ],
+      "preflightCommands": [
+        "cmd /c pnpm run verify:phase2001-gvc-task-queue-runner"
+      ],
+      "diagnoseCommands": [
+        "cmd /c pnpm run run:phase2001-gvc-task-queue-runner"
+      ],
+      "executeCommands": [
+        "cmd /c pnpm run phase:auto-next:prompt"
+      ],
+      "reviewCommands": [
+        "cmd /c pnpm run phase:auto-next:safety"
+      ],
+      "verifyCommands": [
+        "cmd /c pnpm run status:phase3979a-opencode-autopilot"
+      ],
+      "requestBudget": 0,
+      "costBudgetUsd": 0,
+      "blocker": null
+    },
+    {
+      "taskId": "phase3979a-autopilot-cycle-readiness",
+      "title": "Autopilot cycle readiness snapshot",
+      "priority": 80,
+      "status": "pending",
+      "allowedFiles": [
+        "docs/automation/opencode-autopilot-task-queue.json",
+        "docs/project-brain/opencode-autopilot-policy.json",
+        "docs/project-brain/opencode-autopilot-state.json",
+        "tools/gvc/run-cycle-controller.mjs",
+        "tools/gvc/build-continuous-runner-state.mjs",
+        "tools/phase3979a/run-opencode-autopilot-governor.mjs",
+        "tools/phase3979a/read-opencode-autopilot-status.mjs",
+        "tools/phase3979a/verify-opencode-autopilot-governor.mjs"
+      ],
+      "preflightCommands": [
+        "cmd /c pnpm run verify:gvc-safe-overnight-mode"
+      ],
+      "diagnoseCommands": [
+        "cmd /c pnpm run phase:auto-next:state"
+      ],
+      "executeCommands": [
+        "cmd /c pnpm run gvc:cycle"
+      ],
+      "reviewCommands": [
+        "cmd /c pnpm run status:phase3979a-opencode-autopilot"
+      ],
+      "verifyCommands": [
+        "cmd /c pnpm run status:phase3979a-opencode-autopilot"
+      ],
+      "requestBudget": 0,
+      "costBudgetUsd": 0,
+      "blocker": null
+    }
+  ]
+}

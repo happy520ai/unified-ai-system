@@ -1,0 +1,31 @@
+{
+  "phase": "Phase351E",
+  "traceType": "provider_onboarding_setup_trace",
+  "result": {
+    "phase": "Phase351E",
+    "sourcePhase": "Phase350E",
+    "auditTraceCompletenessChecked": true,
+    "setupTraceCompletenessChecked": true,
+    "missingTraceFieldsReported": true,
+    "noSecretInTrace": true,
+    "traceCompletenessPassed": false,
+    "requiredTraceFields": [
+      "requestId",
+      "phase",
+      "persona",
+      "credentialRefOnly",
+      "noProviderCallFromUi",
+      "reviewerChecklistId",
+      "restorePath"
+    ],
+    "missingTraceFields": [
+      "requestId",
+      "persona",
+      "reviewerChecklistId"
+    ],
+    "noProviderCallFromUi": true,
+    "credentialRefOnly": true,
+    "productionGA": false,
+    "secretValueExposed": false
+  }
+}

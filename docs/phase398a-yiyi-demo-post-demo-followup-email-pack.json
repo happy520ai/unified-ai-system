@@ -1,0 +1,38 @@
+{
+  "phase": "Phase398A",
+  "title": "Yiyi Demo Post-demo Follow-up Email Pack",
+  "packageType": "post-demo-followup-email-pack",
+  "checklist": [
+    {
+      "id": "followupEmailPackCreated",
+      "order": 1,
+      "status": "prepared",
+      "safetyBoundary": "dry-run docs/evidence only; no provider, no secret, no deploy, no billing"
+    },
+    {
+      "id": "followupBoundaryNotesCreated",
+      "order": 2,
+      "status": "prepared",
+      "safetyBoundary": "dry-run docs/evidence only; no provider, no secret, no deploy, no billing"
+    }
+  ],
+  "previousClosure": {
+    "path": "apps/ai-gateway-service/evidence/phase397/yiyi-demo-buyer-persona-talk-track-pack-closure-result.json",
+    "exists": true,
+    "sizeBytes": 2080
+  },
+  "phase384StillRequiresHumanApproval": true,
+  "providerCallsMade": false,
+  "nonNvidiaProviderCallsMade": false,
+  "secretValueExposed": false,
+  "rawSecretAccessed": false,
+  "deployExecuted": false,
+  "releaseExecuted": false,
+  "tagCreated": false,
+  "artifactUploaded": false,
+  "approvalForged": false,
+  "billingExecuted": false,
+  "invoiceGenerated": false,
+  "productionGaClaimed": false,
+  "workspaceCleanClaimed": false
+}

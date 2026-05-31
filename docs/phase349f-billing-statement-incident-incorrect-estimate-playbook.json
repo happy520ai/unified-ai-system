@@ -1,0 +1,31 @@
+{
+  "phase": "Phase349F",
+  "playbookType": "billing_incorrect_estimate_incident",
+  "result": {
+    "phase": "Phase349F",
+    "sourcePhase": "Phase348F",
+    "incidentPlaybooksGenerated": true,
+    "rollbackStepsIncluded": true,
+    "escalationOwnersPlaceholder": true,
+    "noRealOpsIntegration": true,
+    "incorrectEstimatePlaybookGenerated": true,
+    "paymentProviderConnected": false,
+    "actualBillingConnected": false,
+    "legalInvoiceGenerated": false,
+    "productionGA": false,
+    "rollbackSteps": [
+      "hide_impacted_mock_statement_export",
+      "preserve_estimate_only_warning_copy",
+      "recompute_mock_totals_from_source_evidence",
+      "block_invoice_language_until_compliance_review"
+    ],
+    "metricsCovered": [
+      "estimate_label_visibility_rate",
+      "csv_export_escape_success_rate",
+      "statement_total_consistency_rate",
+      "no_legal_invoice_claim_rate",
+      "actual_billing_connection_count"
+    ],
+    "secretValueExposed": false
+  }
+}

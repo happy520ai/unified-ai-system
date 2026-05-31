@@ -1,0 +1,65 @@
+{
+  "phaseId": "Phase2089A-Controlled-Codex-Patch-Proposal",
+  "planId": "phase2089-controlled-codex-patch-proposal-smoke",
+  "approvalRecord": {
+    "approved": true,
+    "permissionMode": "bounded-real-codex-patch-proposal",
+    "dryRun": false,
+    "approvedAtLeastOnceByOwner": [
+      {
+        "source": "user-message",
+        "text": "那现在可以执行我之前提的要求了",
+        "scope": "phase2089-controlled-codex-patch-proposal-once"
+      }
+    ],
+    "maxExternalToolInvocations": 1,
+    "maxRequests": 1,
+    "maxCostUsd": 0,
+    "projectProviderAllowed": false,
+    "secretReadAllowed": false,
+    "authJsonReadByRunnerAllowed": false,
+    "envReadAllowed": false,
+    "credentialEnvPassthroughAllowed": true,
+    "credentialEnvAllowlist": [
+      "CRS_OAI_KEY"
+    ],
+    "codexConfigWriteAllowed": false,
+    "chatModificationAllowed": false,
+    "chatGatewayExecuteModificationAllowed": false,
+    "legacyModificationAllowed": false,
+    "deployAllowed": false,
+    "releaseAllowed": false,
+    "pushAllowed": false,
+    "commitAllowed": false,
+    "patchApplyAllowed": false
+  },
+  "allowedFiles": [
+    "apps/ai-gateway-service/evidence/phase2089-controlled-codex-patch-proposal/codex-patch-proposal-smoke-result.json",
+    "apps/ai-gateway-service/evidence/phase2089-controlled-codex-patch-proposal/codex-patch-proposal.md"
+  ],
+  "forbiddenPaths": [
+    "legacy",
+    "PROJECT_CONTEXT.md",
+    ".env",
+    ".git",
+    "node_modules",
+    "apps/ai-gateway-service/src/http/chat-gateway/execute",
+    "apps/ai-gateway-service/src/providers",
+    ".codex/auth.json"
+  ],
+  "operation": {
+    "externalToolKind": "codex-cli",
+    "action": "bounded-patch-proposal-once",
+    "sandbox": "read-only",
+    "askForApproval": "never",
+    "ephemeral": true,
+    "shellEnvironmentInherit": "none",
+    "timeoutMs": 180000,
+    "proposalOutputPath": "apps/ai-gateway-service/evidence/phase2089-controlled-codex-patch-proposal/codex-patch-proposal.md",
+    "proposedTargetPath": "docs/phase2089-codex-generated-patch-proposal-target.md",
+    "prompt": "Return only a Markdown code block containing a unified diff proposal. Include the exact marker PHASE2089_CODEX_PATCH_PROPOSAL_OK inside the proposed new file content. The diff must add only docs/phase2089-codex-generated-patch-proposal-target.md. Use this exact diff header shape: diff --git a/docs/phase2089-codex-generated-patch-proposal-target.md b/docs/phase2089-codex-generated-patch-proposal-target.md, then --- /dev/null, then +++ b/docs/phase2089-codex-generated-patch-proposal-target.md. Do not inspect files, do not run commands, do not modify files, do not request secrets, do not mention API keys, and do not apply any patch."
+  },
+  "evidence": {
+    "resultPath": "apps/ai-gateway-service/evidence/phase2089-controlled-codex-patch-proposal/codex-patch-proposal-smoke-result.json"
+  }
+}

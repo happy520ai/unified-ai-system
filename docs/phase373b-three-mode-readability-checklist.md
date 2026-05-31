@@ -1,0 +1,4 @@
+- [x] Normal Mode 文案可读
+- [x] God Mode 文案可读
+- [x] Tianshu Mode 文案可读
+- [x] no production claim guard

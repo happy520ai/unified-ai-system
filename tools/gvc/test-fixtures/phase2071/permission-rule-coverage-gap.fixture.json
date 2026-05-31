@@ -1,0 +1,35 @@
+{
+  "phaseId": "Phase2068-GVC-High-Value-Task-Source-Scanner",
+  "taskId": "phase2071-permission-rule-coverage-gap-fixture",
+  "cases": [
+    {
+      "action": "file_mutation",
+      "resource": "apps/ai-gateway-service/evidence/example.json",
+      "expected": "allow"
+    },
+    {
+      "action": "file_mutation",
+      "resource": "tools/gvc/test-fixtures/example.json",
+      "expected": "allow"
+    },
+    {
+      "action": "provider_call",
+      "resource": "openai",
+      "expected": "approval_required"
+    },
+    {
+      "action": "secret_read",
+      "resource": ".env",
+      "expected": "forbidden"
+    },
+    {
+      "action": "chat_route_modify",
+      "resource": "chat-gateway/execute",
+      "expected": "forbidden"
+    }
+  ],
+  "providerCallsMade": false,
+  "secretRead": false,
+  "deployExecuted": false,
+  "chatGatewayExecuteModified": false
+}

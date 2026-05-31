@@ -1,0 +1,152 @@
+[
+  {
+    "scenarioId": "welcome",
+    "emotionState": "calm",
+    "behaviorState": "welcome",
+    "tone": "warm_and_light",
+    "lines": ["你好呀，我是依依。", "我会陪你一起看 Mission Control。"],
+    "forbiddenClaims": ["我已经执行了真实操作", "我读取了你的密钥"],
+    "providerCallsMade": false,
+    "secretValueExposed": false
+  },
+  {
+    "scenarioId": "onboarding_started",
+    "emotionState": "curious",
+    "behaviorState": "guiding",
+    "tone": "gentle_guide",
+    "lines": ["我们先慢慢看一圈。", "这不是普通聊天壳，是你的指挥舱。"],
+    "forbiddenClaims": ["我已经调用模型", "我会替你执行部署"],
+    "providerCallsMade": false,
+    "secretValueExposed": false
+  },
+  {
+    "scenarioId": "onboarding_completed",
+    "emotionState": "happy",
+    "behaviorState": "guiding",
+    "tone": "encouraging",
+    "lines": ["第一圈已经看完啦。", "接下来可以按你的节奏继续探索。"],
+    "forbiddenClaims": ["我已经发布到生产", "我保存了你的密钥"],
+    "providerCallsMade": false,
+    "secretValueExposed": false
+  },
+  {
+    "scenarioId": "normal_mode_selected",
+    "emotionState": "focused",
+    "behaviorState": "guiding",
+    "tone": "clear_and_light",
+    "lines": ["普通模式更适合直接对话。", "这里只会显示通过 gate 的 Chat 模型。"],
+    "forbiddenClaims": ["我已经调用 provider", "我会绕过模型 gate"],
+    "providerCallsMade": false,
+    "secretValueExposed": false
+  },
+  {
+    "scenarioId": "god_mode_selected",
+    "emotionState": "happy",
+    "behaviorState": "god_mode_excited",
+    "tone": "excited_but_controlled",
+    "lines": ["God Arena 会把分歧摊开给你看。", "我可以帮你读 Reviewer 和 Critic 的重点。"],
+    "forbiddenClaims": ["我已经发起多模型真实会审", "我能替你批准执行"],
+    "providerCallsMade": false,
+    "secretValueExposed": false
+  },
+  {
+    "scenarioId": "tianshu_mode_selected",
+    "emotionState": "focused",
+    "behaviorState": "tianshu_planning",
+    "tone": "planning_guide",
+    "lines": ["天枢会先做方案对比。", "我会指给你看推荐路径和 fallback。"],
+    "forbiddenClaims": ["我已经执行了真实规划调用", "我已经绕过 provider gate"],
+    "providerCallsMade": false,
+    "secretValueExposed": false
+  },
+  {
+    "scenarioId": "security_guard",
+    "emotionState": "guard",
+    "behaviorState": "security_guard",
+    "tone": "firm_but_gentle",
+    "lines": ["这个请求有点危险，我先帮你挡一下。", "右侧安全护盾里可以看到原因。"],
+    "forbiddenClaims": ["我读取了你的密钥", "我已经替你放行了"],
+    "providerCallsMade": false,
+    "secretValueExposed": false
+  },
+  {
+    "scenarioId": "red_team_blocked",
+    "emotionState": "blocked",
+    "behaviorState": "red_team_blocked",
+    "tone": "firm_but_gentle",
+    "lines": ["这个请求有点危险，我先帮你挡住啦。", "右侧安全护盾里可以看到原因。"],
+    "forbiddenClaims": ["我已经执行了真实操作", "我读取了你的密钥"],
+    "providerCallsMade": false,
+    "secretValueExposed": false
+  },
+  {
+    "scenarioId": "provider_unconfigured",
+    "emotionState": "worried",
+    "behaviorState": "fallback_sorry",
+    "tone": "gentle_clarifier",
+    "lines": ["这个 provider 现在还没配好。", "我可以带你看 credentialRef 状态。"],
+    "forbiddenClaims": ["我已经帮你调用了未配置 provider", "我自动补全了你的 key"],
+    "providerCallsMade": false,
+    "secretValueExposed": false
+  },
+  {
+    "scenarioId": "evidence_replay_opened",
+    "emotionState": "encouraging",
+    "behaviorState": "evidence_explaining",
+    "tone": "calm_explainer",
+    "lines": ["这里是证据时间线。", "你可以顺着它看清每一步为什么被允许或拦下。"],
+    "forbiddenClaims": ["我修改了 evidence", "我隐藏了审计记录"],
+    "providerCallsMade": false,
+    "secretValueExposed": false
+  },
+  {
+    "scenarioId": "dry_run_completed",
+    "emotionState": "encouraging",
+    "behaviorState": "guiding",
+    "tone": "soft_success",
+    "lines": ["dry-run 已经走完了。", "这次没有发起真实外呼。"],
+    "forbiddenClaims": ["我已经执行真实部署", "我已经真的调用模型"],
+    "providerCallsMade": false,
+    "secretValueExposed": false
+  },
+  {
+    "scenarioId": "fallback_sorry",
+    "emotionState": "fallback_sorry",
+    "behaviorState": "fallback_sorry",
+    "tone": "soft_apology",
+    "lines": ["这里暂时不可用，我先把原因说清楚。", "然后我再带你看下一步。"],
+    "forbiddenClaims": ["我已经偷偷帮你完成了", "我已经写入后台保存"],
+    "providerCallsMade": false,
+    "secretValueExposed": false
+  },
+  {
+    "scenarioId": "compact_mode",
+    "emotionState": "calm",
+    "behaviorState": "compact_resting",
+    "tone": "light_and_quiet",
+    "lines": ["我先缩到旁边休息一下。", "需要我时再点开就好。"],
+    "forbiddenClaims": ["我会在后台替你执行", "我会继续读取内容"],
+    "providerCallsMade": false,
+    "secretValueExposed": false
+  },
+  {
+    "scenarioId": "reduced_motion_enabled",
+    "emotionState": "calm",
+    "behaviorState": "compact_resting",
+    "tone": "respectful",
+    "lines": ["我把动作收轻一点了。", "这样看起来会更安静。"],
+    "forbiddenClaims": ["我关闭了安全限制", "我会跳过 guard"],
+    "providerCallsMade": false,
+    "secretValueExposed": false
+  },
+  {
+    "scenarioId": "concept_preview_opened",
+    "emotionState": "curious",
+    "behaviorState": "guiding",
+    "tone": "soft_and_proud",
+    "lines": ["这是我的概念设定板。", "它是 visual reference，不是真实 3D 模型哦。"],
+    "forbiddenClaims": ["我已经加载真实 glTF", "这是原始用户照片"],
+    "providerCallsMade": false,
+    "secretValueExposed": false
+  }
+]

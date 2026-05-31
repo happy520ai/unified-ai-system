@@ -1,0 +1,32 @@
+{
+  "phase": "Phase329A",
+  "contractName": "three-mode-observability-baseline-contract",
+  "externalApmConnected": false,
+  "fields": [
+    "requestId",
+    "userIdRef",
+    "mode",
+    "selectedModel",
+    "participantModels",
+    "plannerDecision",
+    "supervisorDecision",
+    "providerCallsMade",
+    "nonNvidiaProviderCallsMade",
+    "failedProviderCalls",
+    "fallbackUsed",
+    "latencyMs",
+    "participantLatencyMs",
+    "supervisorLatencyMs",
+    "plannerLatencyMs",
+    "estimatedTokenUsage",
+    "estimatedCost",
+    "quotaStatus",
+    "budgetStatus",
+    "policyDecision",
+    "credentialGateDecision",
+    "errorCode",
+    "retryCount",
+    "circuitBreakerStatus",
+    "safetyGateStatus"
+  ]
+}

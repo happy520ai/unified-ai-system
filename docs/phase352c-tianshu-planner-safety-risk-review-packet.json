@@ -1,0 +1,26 @@
+{
+  "phase": "Phase352C",
+  "packetType": "tianshu_planner_wrong_routing_risk_review",
+  "result": {
+    "phase": "Phase352C",
+    "sourcePhase": "Phase351C",
+    "packetType": "tianshu_planner_wrong_routing_risk_review",
+    "securityReviewPacketsGenerated": true,
+    "riskRegisterUpdated": true,
+    "unresolvedSecurityBlockersListed": true,
+    "unresolvedSecurityBlockerCount": 5,
+    "unresolvedSecurityBlockers": [
+      "missing_trace_field:requestId",
+      "missing_trace_field:policyProposalId",
+      "missing_trace_field:reviewerDecision",
+      "wrong_routing_requires_policy_proposal_trace",
+      "reviewer_decision_required_before_policy_activation"
+    ],
+    "policyActivated": false,
+    "trainingTriggered": false,
+    "embeddingBatchTriggered": false,
+    "productionGA": false,
+    "noSecretInReviewPacket": true,
+    "secretValueExposed": false
+  }
+}

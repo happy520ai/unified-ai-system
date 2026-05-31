@@ -1,0 +1,10 @@
+{
+  "steps": [
+    "Mission Control 不是普通 Chatbot，而是 AI 指挥舱。",
+    "Normal / God / Tianshu 三种模式负责不同任务强度。",
+    "Security Shield 解释风险和 blocked 决策。",
+    "Evidence Replay 保留 trace，可本地导出。",
+    "当前仍是 dry-run / credentialRef-only / no-provider-call / no-deploy。"
+  ],
+  "skippable": true
+}

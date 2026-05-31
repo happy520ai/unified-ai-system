@@ -1,0 +1,43 @@
+diff --git a/tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs b/tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs
+index 3417c7a..66b71c7 100644
+--- a/tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs
++++ b/tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs
+@@ -40,6 +40,7 @@ export function buildPhase2100TripleMutationRuntimeStatus() {
+     phase2244Marker: "PHASE2244_FOURTEEN_TOOL_TARGET_THREE_OK",
+     phase2283Marker: "PHASE2283_SIXTEEN_TOOL_TARGET_THREE_OK",
+     phase2304Marker: "PHASE2304_SEVENTEEN_TOOL_TARGET_THREE_OK",
++    phase2326Marker: "PHASE2326_EIGHTEEN_TOOL_TARGET_THREE_OK",
+     phase2263Marker: "PHASE2263_FIFTEEN_TOOL_TARGET_THREE_OK",
+     phase2178Marker: "PHASE2178_DECA_TOOL_TARGET_THREE_OK",
+     providerCallsMade: false,
+@@ -200,6 +201,30 @@ export function buildPhase2304SeventeenMutationTargetThreeStatus() {
+     chatGatewayExecuteModified: false,
+   };
+ }
++
++export function buildPhase2326EighteenMutationTargetThreeStatus() {
++  return {
++    phaseId: "Phase2326A-Controlled-Eighteen-Tool-Mutation-Target-Three",
++    marker: "PHASE2326_EIGHTEEN_TOOL_TARGET_THREE_OK",
++    importSafe: true,
++    phase2151Marker: "PHASE2151_OCT_TOOL_TARGET_THREE_OK",
++    phase2164Marker: "PHASE2164_NONET_TOOL_TARGET_THREE_OK",
++    phase2178Marker: "PHASE2178_DECA_TOOL_TARGET_THREE_OK",
++    phase2193Marker: "PHASE2193_ELEVEN_TOOL_TARGET_THREE_OK",
++    phase2209Marker: "PHASE2209_TWELVE_TOOL_TARGET_THREE_OK",
++    phase2226Marker: "PHASE2226_THIRTEEN_TOOL_TARGET_THREE_OK",
++    phase2244Marker: "PHASE2244_FOURTEEN_TOOL_TARGET_THREE_OK",
++    phase2263Marker: "PHASE2263_FIFTEEN_TOOL_TARGET_THREE_OK",
++    phase2283Marker: "PHASE2283_SIXTEEN_TOOL_TARGET_THREE_OK",
++    phase2304Marker: "PHASE2304_SEVENTEEN_TOOL_TARGET_THREE_OK",
++    phase2326Marker: "PHASE2326_EIGHTEEN_TOOL_TARGET_THREE_OK",
++    eighteenMutationApplied: true,
++    providerCallsMade: false,
++    codexExecExecuted: false,
++    chatModified: false,
++    chatGatewayExecuteModified: false,
++  };
++}
+ export function buildPhase2244FourteenMutationTargetThreeStatus() {
+   return {
+     phaseId: "Phase2244A-Controlled-Fourteen-Tool-Mutation-Target-Three",

@@ -1,27 +1,32 @@
 const DEFAULT_MODE = "local-keyword";
 const VECTOR_MODE = "vector";
+const SQLITE_VEC_MODE = "sqlite-vec";
 
 export function createKnowledgeInfra(env = process.env) {
   const mode = normalizeMode(env.KNOWLEDGE_INFRA_MODE);
   const vectorEnabled = mode === VECTOR_MODE;
+  const sqliteVecEnabled = mode === SQLITE_VEC_MODE;
 
   return {
     getReadiness() {
       const embedding = createEmbeddingReadiness(env, vectorEnabled);
       const vectorStore = createVectorStoreReadiness(env, vectorEnabled);
       const pgvector = createPgvectorReadiness(env, vectorEnabled, vectorStore);
+      const sqliteVec = createSqliteVecReadiness(env, sqliteVecEnabled);
       const blockers = createProductionBlockers({
         vectorEnabled,
+        sqliteVecEnabled,
         embedding,
         vectorStore,
         pgvector,
+        sqliteVec,
       });
 
       return {
         mode,
         defaultMode: DEFAULT_MODE,
-        enabled: vectorEnabled,
-        status: resolveReadinessStatus({ vectorEnabled, embedding, vectorStore }),
+        enabled: vectorEnabled || sqliteVecEnabled,
+        status: resolveReadinessStatus({ vectorEnabled, sqliteVecEnabled, embedding, vectorStore, sqliteVec }),
         productionReady: blockers.length === 0,
         blockers,
         config: {
@@ -38,6 +43,7 @@ export function createKnowledgeInfra(env = process.env) {
         embedding,
         vectorStore,
         pgvector,
+        sqliteVec,
         interfaces: {
           embeddingProvider: {
             name: "KnowledgeEmbeddingProvider",
@@ -47,17 +53,25 @@ export function createKnowledgeInfra(env = process.env) {
             name: "KnowledgeVectorStore",
             methods: ["upsertDocuments", "query", "getReadiness"],
           },
+          sqliteVecStore: {
+            name: "SqliteVecStore",
+            methods: ["upsertDocument", "upsertDocuments", "query", "deleteDocument", "getDocumentCount", "close"],
+          },
         },
-        notes: vectorEnabled
-          ? "Vector infra is config-gated and requires explicit embedding/vector store configuration."
-          : "Next-gen knowledge infra is off by default; local keyword retrieval is active.",
+        notes: sqliteVecEnabled
+          ? "SQLite-vec mode enabled: lightweight local vector storage without external database."
+          : vectorEnabled
+            ? "Vector infra is config-gated and requires explicit embedding/vector store configuration."
+            : "Next-gen knowledge infra is off by default; local keyword retrieval is active.",
       };
     },
   };
 }
 
 function normalizeMode(value) {
-  return value === VECTOR_MODE ? VECTOR_MODE : DEFAULT_MODE;
+  if (value === VECTOR_MODE) return VECTOR_MODE;
+  if (value === SQLITE_VEC_MODE) return SQLITE_VEC_MODE;
+  return DEFAULT_MODE;
 }
 
 function createEmbeddingReadiness(env, vectorEnabled) {
@@ -161,7 +175,11 @@ function createPgvectorReadiness(env, vectorEnabled, vectorStore) {
   };
 }
 
-function resolveReadinessStatus({ vectorEnabled, embedding, vectorStore }) {
+function resolveReadinessStatus({ vectorEnabled, sqliteVecEnabled, embedding, vectorStore, sqliteVec }) {
+  if (sqliteVecEnabled) {
+    return sqliteVec?.status === "ready" ? "ready" : "not-configured";
+  }
+
   if (!vectorEnabled) {
     return "disabled";
   }
@@ -173,8 +191,30 @@ function resolveReadinessStatus({ vectorEnabled, embedding, vectorStore }) {
   return "not-configured";
 }
 
-function createProductionBlockers({ vectorEnabled, embedding, vectorStore, pgvector }) {
+function createSqliteVecReadiness(env, sqliteVecEnabled) {
+  if (!sqliteVecEnabled) {
+    return {
+      status: "disabled",
+      configured: false,
+      reason: "KNOWLEDGE_INFRA_MODE is not sqlite-vec.",
+    };
+  }
+
+  return {
+    status: "ready",
+    configured: true,
+    dbPath: ".data/knowledge/vectors.sqlite",
+    reason: "SQLite-vec is ready for local vector storage without external database.",
+  };
+}
+
+function createProductionBlockers({ vectorEnabled, sqliteVecEnabled, embedding, vectorStore, pgvector, sqliteVec }) {
   const blockers = [];
+
+  if (sqliteVecEnabled) {
+    // SQLite-vec has no blockers - it's self-contained
+    return blockers;
+  }
 
   if (!vectorEnabled) {
     blockers.push("KNOWLEDGE_INFRA_MODE is not vector.");

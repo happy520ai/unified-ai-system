@@ -1,0 +1,25 @@
+{
+  "phase": "Phase354F",
+  "designType": "billing_rbac",
+  "result": {
+    "phase": "Phase354F",
+    "sourcePhase": "Phase353F",
+    "rbacDesignGenerated": true,
+    "adminOnlyActionsDefined": true,
+    "reviewerApprovalSeparationDefined": true,
+    "adminOnlyActions": [
+      "approve_statement_visibility_policy",
+      "assign_billing_governance_owner"
+    ],
+    "reviewerSeparatedActions": [
+      "review_estimate_warning_copy",
+      "approve_export_permission_request"
+    ],
+    "paymentProviderConnected": false,
+    "actualBillingConnected": false,
+    "legalInvoiceGenerated": false,
+    "crossTenantAccessForbidden": true,
+    "productionGA": false,
+    "secretValueExposed": false
+  }
+}

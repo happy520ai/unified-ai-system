@@ -1,0 +1,29 @@
+{
+  "phase": "Phase351B",
+  "traceType": "god_mode_contribution_trace",
+  "result": {
+    "phase": "Phase351B",
+    "sourcePhase": "Phase350B",
+    "auditTraceCompletenessChecked": true,
+    "contributionTraceCompletenessChecked": true,
+    "missingTraceFieldsReported": true,
+    "noSecretInTrace": true,
+    "traceCompletenessPassed": false,
+    "requiredTraceFields": [
+      "requestId",
+      "phase",
+      "rollbackStepsVerified",
+      "externalNotification",
+      "benchmarkEvidenceId",
+      "reviewerDecision"
+    ],
+    "missingTraceFields": [
+      "requestId",
+      "benchmarkEvidenceId",
+      "reviewerDecision"
+    ],
+    "externalNotification": false,
+    "productionGA": false,
+    "secretValueExposed": false
+  }
+}

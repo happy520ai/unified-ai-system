@@ -1,0 +1,146 @@
+{
+  "phase": "Phase323C-11",
+  "title": "Human Review Sample Decision Updates",
+  "generatedAt": "2026-05-06T12:12:35.740Z",
+  "sourcePhase": "Phase323C-10",
+  "sourceDecisionItemCount": 20,
+  "updatedItemCount": 3,
+  "declarations": {
+    "deleteScripts": false,
+    "moveEntrypoints": false,
+    "renameScripts": false,
+    "changePackageScripts": false,
+    "executeCandidateScripts": false,
+    "staticOnly": true,
+    "realArchiveExecuted": false
+  },
+  "allowedReviewerDecisions": [
+    "reviewed-keep",
+    "reviewed-mark-deprecated-only",
+    "reviewed-needs-more-context"
+  ],
+  "allowedFutureActions": [
+    "no-op",
+    "document-only",
+    "deprecated-index-only",
+    "manual-review-again"
+  ],
+  "requiredRegressionCommands": [
+    "cmd /c pnpm run health:phase12a",
+    "cmd /c pnpm run doctor:phase13a",
+    "cmd /c pnpm run verify:phase321a-workbench-product-recovery",
+    "cmd /c pnpm run verify:phase313a-model-usability-matrix",
+    "cmd /c pnpm run verify:phase107a-secret-safety",
+    "cmd /c pnpm -r --if-present check"
+  ],
+  "productionRegressionCommands": [
+    "cmd /c pnpm run verify:phase322a-workbench-chat-gateway-real-nvidia"
+  ],
+  "updatedItems": [
+    {
+      "id": "script:root:verify:phase156a-guided-onboarding-demo-dataset",
+      "name": "verify:phase156a-guided-onboarding-demo-dataset",
+      "source": "script:root",
+      "currentCategory": "archive-candidate-low-risk",
+      "priority": 3,
+      "originalReason": "低风险候选，但仍不可自动归档。",
+      "proposedHumanDecision": "keep-historical-compatible",
+      "previousReviewerDecision": "pending-human-review",
+      "reviewerDecision": "reviewed-keep",
+      "reviewer": "phase323c11-human-sample",
+      "reviewDate": "2026-05-06",
+      "futureAction": "document-only",
+      "requiredEvidence": [
+        "人工 reviewerDecision 记录",
+        "回归命令执行结果",
+        "后续独立 Phase 的归档或 deprecated 证据"
+      ],
+      "requiredRegressionCommands": [
+        "cmd /c pnpm run health:phase12a",
+        "cmd /c pnpm run doctor:phase13a",
+        "cmd /c pnpm run verify:phase321a-workbench-product-recovery",
+        "cmd /c pnpm run verify:phase313a-model-usability-matrix",
+        "cmd /c pnpm run verify:phase107a-secret-safety",
+        "cmd /c pnpm -r --if-present check"
+      ],
+      "rollbackNotes": "如后续人工判断失误，仅允许通过独立 Phase 的 git revert 回退；本轮不做真实变更。",
+      "riskNotes": "当前只给出示例人工结论，仍不得删除脚本或移动入口。",
+      "decisionReason": "保留为历史兼容验证样板，仅记录文档说明，不触发删除或移动。",
+      "noDeleteReason": "本轮只允许文档或索引层处理，不允许删除 scripts、移动 entrypoints 或执行候选脚本。",
+      "status": "reviewed-keep"
+    },
+    {
+      "id": "script:root:verify:phase168a-guided-demo-mode-polish",
+      "name": "verify:phase168a-guided-demo-mode-polish",
+      "source": "script:root",
+      "currentCategory": "archive-candidate-low-risk",
+      "priority": 3,
+      "originalReason": "低风险候选，但仍不可自动归档。",
+      "proposedHumanDecision": "keep-historical-compatible",
+      "previousReviewerDecision": "pending-human-review",
+      "reviewerDecision": "reviewed-mark-deprecated-only",
+      "reviewer": "phase323c11-human-sample",
+      "reviewDate": "2026-05-06",
+      "futureAction": "deprecated-index-only",
+      "requiredEvidence": [
+        "人工 reviewerDecision 记录",
+        "回归命令执行结果",
+        "后续独立 Phase 的归档或 deprecated 证据"
+      ],
+      "requiredRegressionCommands": [
+        "cmd /c pnpm run health:phase12a",
+        "cmd /c pnpm run doctor:phase13a",
+        "cmd /c pnpm run verify:phase321a-workbench-product-recovery",
+        "cmd /c pnpm run verify:phase313a-model-usability-matrix",
+        "cmd /c pnpm run verify:phase107a-secret-safety",
+        "cmd /c pnpm -r --if-present check"
+      ],
+      "rollbackNotes": "若后续索引判断需撤销，仅在独立阶段回滚文档或索引记录。",
+      "riskNotes": "只允许 deprecated-index-only，仍不允许移动 entrypoint 或执行候选脚本。",
+      "decisionReason": "可先做 deprecated/index 级别记录，但不进入真实归档和删除动作。",
+      "noDeleteReason": "本轮只允许文档或索引层处理，不允许删除 scripts、移动 entrypoints 或执行候选脚本。",
+      "status": "reviewed-mark-deprecated-only"
+    },
+    {
+      "id": "script:root:verify:phase173a-manual-qa-checklist",
+      "name": "verify:phase173a-manual-qa-checklist",
+      "source": "script:root",
+      "currentCategory": "archive-candidate-low-risk",
+      "priority": 3,
+      "originalReason": "低风险候选，但仍不可自动归档。",
+      "proposedHumanDecision": "candidate-for-future-archive",
+      "previousReviewerDecision": "pending-human-review",
+      "reviewerDecision": "reviewed-needs-more-context",
+      "reviewer": "phase323c11-human-sample",
+      "reviewDate": "2026-05-06",
+      "futureAction": "manual-review-again",
+      "requiredEvidence": [
+        "人工 reviewerDecision 记录",
+        "回归命令执行结果",
+        "后续独立 Phase 的归档或 deprecated 证据"
+      ],
+      "requiredRegressionCommands": [
+        "cmd /c pnpm run health:phase12a",
+        "cmd /c pnpm run doctor:phase13a",
+        "cmd /c pnpm run verify:phase321a-workbench-product-recovery",
+        "cmd /c pnpm run verify:phase313a-model-usability-matrix",
+        "cmd /c pnpm run verify:phase107a-secret-safety",
+        "cmd /c pnpm -r --if-present check"
+      ],
+      "rollbackNotes": "无需代码回滚；后续仅在独立阶段继续人工复核。",
+      "riskNotes": "状态保持为更多上下文待补充，避免误升为 future archive candidate。",
+      "decisionReason": "该样板仍需更多上下文确认引用关系，本轮只记录需再次人工复核。",
+      "noDeleteReason": "本轮只允许文档或索引层处理，不允许删除 scripts、移动 entrypoints 或执行候选脚本。",
+      "status": "reviewed-needs-more-context"
+    }
+  ],
+  "notes": [
+    "本轮只记录少量人工结论示例。",
+    "本轮不删除 scripts。",
+    "本轮不移动 entrypoints。",
+    "本轮不修改 package.json 或 service package.json。",
+    "本轮不执行任何候选脚本。",
+    "本轮不做真实归档。",
+    "未来真实处理必须另开独立 Phase。"
+  ]
+}

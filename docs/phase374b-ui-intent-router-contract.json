@@ -1,0 +1,15 @@
+{
+  "phase": "Phase374B",
+  "mode": "dry-run-only",
+  "fields": [
+    "intent",
+    "recommendedMode",
+    "riskLevel",
+    "recommendedPanel",
+    "requiresApproval",
+    "providerCallsAllowed",
+    "dangerousActionDetected",
+    "blockedActions",
+    "userFacingSummary"
+  ]
+}

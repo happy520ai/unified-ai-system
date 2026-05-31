@@ -1,0 +1,25 @@
+{
+  "phase": "Phase352E",
+  "packetType": "provider_onboarding_user_risk_review",
+  "result": {
+    "phase": "Phase352E",
+    "sourcePhase": "Phase351E",
+    "packetType": "provider_onboarding_user_risk_review",
+    "securityReviewPacketsGenerated": true,
+    "riskRegisterUpdated": true,
+    "unresolvedSecurityBlockersListed": true,
+    "unresolvedSecurityBlockerCount": 5,
+    "unresolvedSecurityBlockers": [
+      "missing_trace_field:requestId",
+      "missing_trace_field:persona",
+      "missing_trace_field:reviewerChecklistId",
+      "persona_and_reviewer_checklist_trace_required_for_beta_user_risk",
+      "raw_secret_rejection_must_remain_mandatory"
+    ],
+    "noProviderCallFromUi": true,
+    "credentialRefOnly": true,
+    "productionGA": false,
+    "noSecretInReviewPacket": true,
+    "secretValueExposed": false
+  }
+}

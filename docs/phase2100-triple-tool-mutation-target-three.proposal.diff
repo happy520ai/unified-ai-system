@@ -1,0 +1,39 @@
+diff --git a/tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs b/tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs
+--- a/tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs
++++ b/tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs
+@@ -1,7 +1,8 @@
+ import { createHash } from "node:crypto";
+ import { spawnSync } from "node:child_process";
+ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
++import { pathToFileURL } from "node:url";
+ import path from "node:path";
+@@ -21,7 +22,19 @@ const forbiddenPathFragments = [
+   "/chat",
+ ];
+ 
+-function main() {
++export function buildPhase2100TripleMutationRuntimeStatus() {
++  return {
++    phaseId: "Phase2100A-Controlled-Triple-Tool-Mutation-Target-Three",
++    marker: "PHASE2100_TRIPLE_TOOL_TARGET_THREE_OK",
++    importSafe: true,
++    tripleRunnerReady: true,
++    providerCallsMade: false,
++    codexExecExecuted: false,
++    chatModified: false,
++    chatGatewayExecuteModified: false,
++  };
++}
++
++export function main() {
+   const args = parseArgs(process.argv.slice(2));
+   const planPath = args.plan || "docs/phase2093-2095-controlled-batch-tool-mutation-approval.example.json";
+   const generatedAt = new Date().toISOString();
+@@ -625,4 +638,6 @@ function printSummary(result) {
+   }, null, 2));
+ }
+ 
+-main();
++if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
++  main();
++}

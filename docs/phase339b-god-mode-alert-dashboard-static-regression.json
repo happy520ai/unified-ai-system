@@ -1,0 +1,21 @@
+{
+  "phase": "Phase339B",
+  "scenarios": [
+    {
+      "id": "dashboardVisible",
+      "status": "passed"
+    },
+    {
+      "id": "criticalCardVisible",
+      "status": "passed"
+    },
+    {
+      "id": "ruleTableVisible",
+      "status": "passed"
+    },
+    {
+      "id": "externalIntegrationDisabled",
+      "status": "passed"
+    }
+  ]
+}

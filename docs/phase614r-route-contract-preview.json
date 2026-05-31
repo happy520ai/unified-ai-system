@@ -1,0 +1,24 @@
+{
+  "routeId": "codex_exec_crs_preview",
+  "routeType": "codex_exec_custom_model_provider",
+  "selectedProviderId": "crs",
+  "mode": "preview_only",
+  "sourceCapabilityRef": "phase613r",
+  "allowedEntryPoints": [
+    "mission_control_read_only_preview"
+  ],
+  "forbiddenEntryPoints": [
+    "/chat",
+    "/chat-gateway/execute",
+    "provider_runtime",
+    "production_router"
+  ],
+  "requiresManualApprovalBeforeRuntime": true,
+  "maxRequestsDefault": 1,
+  "maxRequestsHardLimit": 3,
+  "retryLimit": 0,
+  "rollbackRequired": true,
+  "emergencyDisableRequired": true,
+  "productionReady": false,
+  "releaseReady": false
+}

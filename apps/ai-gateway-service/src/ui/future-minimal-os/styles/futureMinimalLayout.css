@@ -1,0 +1,153 @@
+.future-responsive-frame {
+  display: grid;
+  min-height: min(900px, calc(100dvh - 108px));
+  border-radius: var(--future-radius-shell);
+  background:
+    radial-gradient(circle at 22% 12%, rgb(93 118 255 / 22%), transparent 28%),
+    radial-gradient(circle at 78% 16%, rgb(18 146 190 / 14%), transparent 34%),
+    linear-gradient(135deg, #050b14 0%, #07111f 52%, #0b1524 100%),
+    var(--future-bg);
+  color: var(--future-text);
+  overflow: hidden;
+  font-family: var(--future-font);
+}
+
+.future-os-panel {
+  position: relative;
+  display: grid;
+  min-height: min(900px, calc(100dvh - 108px));
+  border: 1px solid rgb(151 174 255 / 12%);
+  border-radius: var(--future-radius-shell);
+  background:
+    radial-gradient(circle at 14% 12%, rgb(85 111 255 / 12%), transparent 28%),
+    radial-gradient(circle at 88% 88%, rgb(29 211 176 / 7%), transparent 35%),
+    linear-gradient(145deg, rgb(4 12 22 / 94%), rgb(7 17 30 / 88%));
+  box-shadow: var(--future-shadow);
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.future-os-content {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  min-height: inherit;
+  padding: 22px 24px;
+}
+
+.future-minimal-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgb(255 255 255 / 3.4%) 1px, transparent 1px),
+    linear-gradient(180deg, rgb(255 255 255 / 3.4%) 1px, transparent 1px),
+    radial-gradient(circle at 31% 18%, rgb(124 140 255 / 20%), transparent 26%),
+    radial-gradient(circle at 73% 72%, rgb(29 211 176 / 10%), transparent 34%);
+  background-size: 72px 72px, 72px 72px, auto, auto;
+}
+
+.future-bg-line {
+  position: absolute;
+  display: block;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgb(79 124 255 / 24%), transparent);
+}
+
+.future-bg-line-a {
+  top: 21%;
+  left: 10%;
+  right: 8%;
+}
+
+.future-bg-line-b {
+  bottom: 19%;
+  left: 18%;
+  right: 15%;
+}
+
+.future-main-workspace,
+.future-first-screen,
+.future-rail-items,
+.future-preview-body,
+.future-command-surface {
+  display: grid;
+}
+
+.future-main-workspace {
+  min-height: 0;
+  align-content: stretch;
+}
+
+.future-first-screen {
+  min-height: 0;
+  height: calc(100dvh - 44px);
+  max-height: 1000px;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-rows: minmax(430px, 1.1fr) minmax(300px, 0.74fr);
+  grid-template-areas:
+    "home home home composer composer composer"
+    "recommend recommend progress progress details details";
+  gap: 18px;
+  align-items: stretch;
+}
+
+.future-home-panel { grid-area: home; }
+.future-composer-panel { grid-area: composer; }
+.future-recommendation-showcase { grid-area: recommend; }
+
+.future-execution-panel,
+.future-details-accordion {
+  min-width: 0;
+}
+
+.future-execution-panel {
+  grid-area: progress;
+  width: auto;
+  justify-self: stretch;
+}
+
+.future-details-accordion {
+  grid-area: details;
+  width: auto;
+  justify-self: stretch;
+}
+
+.future-os-hero,
+.future-preview-head,
+.future-details-head,
+.future-command-progress:not(.future-command-progress-local),
+.future-preview-card,
+.future-status-dock {
+  display: none !important;
+}
+
+.future-mode-selector,
+.future-preview-grid,
+.future-details-grid,
+.future-boundary-grid,
+.future-status-dock {
+  display: grid;
+  gap: 12px;
+}
+
+.future-mode-selector {
+  grid-template-columns: 1fr;
+}
+
+.future-home-panel .future-mode-selector {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.future-preview-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.future-details-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.future-boundary-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}

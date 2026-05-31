@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Phase361 Human Approval Record",
+  "type": "object",
+  "required": [
+    "approvalId",
+    "approvalType",
+    "approverNameRef",
+    "approverRole",
+    "approverOrgRef",
+    "approvalDecision",
+    "approvedScope",
+    "approvalTimestamp",
+    "evidenceRefs",
+    "conditions",
+    "expiration",
+    "revocationPolicy",
+    "auditTrace"
+  ],
+  "properties": {
+    "approvalId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "approvalType": {
+      "enum": [
+        "human_launch_approval",
+        "deploy_authorization",
+        "god_mode_quality_signoff",
+        "tianshu_policy_decision",
+        "credential_vault_backend_approval",
+        "tenant_admin_approval",
+        "billing_warning_copy_approval"
+      ]
+    },
+    "approverNameRef": {
+      "type": "string",
+      "minLength": 1
+    },
+    "approverRole": {
+      "type": "string",
+      "minLength": 1
+    },
+    "approverOrgRef": {
+      "type": "string",
+      "minLength": 1
+    },
+    "approvalDecision": {
+      "enum": [
+        "approved",
+        "approved_with_conditions",
+        "rejected",
+        "pending",
+        "revoked"
+      ]
+    },
+    "approvedScope": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    },
+    "approvalTimestamp": {
+      "type": "string",
+      "minLength": 1
+    },
+    "evidenceRefs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    },
+    "conditions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "expiration": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "revocationPolicy": {
+      "type": "string",
+      "minLength": 1
+    },
+    "auditTrace": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": true
+}

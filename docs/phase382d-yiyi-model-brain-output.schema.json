@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Yiyi Model Brain Output",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "speechBubble": { "type": "string" },
+    "emotionState": { "type": "string" },
+    "behaviorState": { "type": "string" },
+    "explanation": { "type": "string" },
+    "recommendedPanel": { "type": "string" },
+    "safeSuggestion": { "type": "string" },
+    "blockedReason": { "type": ["string", "null"] },
+    "evidenceReference": { "type": "string" },
+    "nextStepHint": { "type": "string" },
+    "confidence": { "type": "string" },
+    "dryRunOnly": { "const": true },
+    "modelUsedRef": { "type": ["string", "null"] },
+    "reasoningSummary": { "type": "string" }
+  }
+}

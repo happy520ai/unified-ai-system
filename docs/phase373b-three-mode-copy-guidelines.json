@@ -1,0 +1,9 @@
+{
+  "phase": "Phase373B",
+  "principles": [
+    "do not exaggerate production capability",
+    "show provider / credentialRef state clearly",
+    "keep God / Tianshu explanation layers separate",
+    "use direct next-step wording for provider-unconfigured cases"
+  ]
+}

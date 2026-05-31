@@ -1,0 +1,32 @@
+diff --git a/tools/phase2092/apply-controlled-existing-tool-mutation.mjs b/tools/phase2092/apply-controlled-existing-tool-mutation.mjs
+--- a/tools/phase2092/apply-controlled-existing-tool-mutation.mjs
++++ b/tools/phase2092/apply-controlled-existing-tool-mutation.mjs
+@@ -28,18 +28,31 @@ export function buildPhase2094BatchMutationRuntimeStatus() {
+   return {
+     phaseId: "Phase2094A-Controlled-Batch-Tool-Mutation-Target-Two",
+     marker: "PHASE2094_BATCH_TOOL_TARGET_TWO_OK",
+     importSafe: true,
++    phase2097Marker: "PHASE2097_TRIPLE_TOOL_TARGET_TWO_OK",
+     providerCallsMade: false,
+     codexExecExecuted: false,
+     chatModified: false,
+     chatGatewayExecuteModified: false,
+   };
+ }
+ 
++export function buildPhase2097TripleMutationTargetTwoStatus() {
++  return {
++    phaseId: "Phase2097A-Controlled-Triple-Tool-Mutation-Target-Two",
++    marker: "PHASE2097_TRIPLE_TOOL_TARGET_TWO_OK",
++    importSafe: true,
++    tripleMutationApplied: true,
++    providerCallsMade: false,
++    codexExecExecuted: false,
++    chatModified: false,
++    chatGatewayExecuteModified: false,
++  };
++}
++
+ export function main() {
+   const args = parseArgs(process.argv.slice(2));
+   const planPath = args.plan || "docs/phase2092-controlled-existing-tool-mutation-approval.example.json";

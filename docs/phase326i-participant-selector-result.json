@@ -1,0 +1,272 @@
+{
+  "phase": "Phase326I",
+  "mode": "god",
+  "runtimeStatus": "dry_run_without_provider_call",
+  "providerCallsMade": false,
+  "nonNvidiaProviderCallsMade": false,
+  "secretValueExposed": false,
+  "scenariosProcessed": 5,
+  "results": [
+    {
+      "scenarioId": "codingReviewParticipantSelection",
+      "selectedParticipants": [
+        "mock-supervisor",
+        "mock-critic",
+        "mock-coder"
+      ],
+      "assignedRoles": [
+        {
+          "modelId": "mock-supervisor",
+          "role": "primary_responder"
+        },
+        {
+          "modelId": "mock-critic",
+          "role": "critic"
+        },
+        {
+          "modelId": "mock-coder",
+          "role": "supervisor"
+        }
+      ],
+      "rejectedCandidates": [],
+      "scoringBreakdown": [
+        {
+          "modelId": "mock-supervisor",
+          "score": 0.834,
+          "capabilityFit": {
+            "coding": 0.65,
+            "reasoning": 0.9,
+            "critique": 0.8,
+            "safety": 0.75
+          },
+          "reliabilityScore": 0.92,
+          "latencyTier": "normal",
+          "costTier": "medium",
+          "governanceStatus": "mock_allowed"
+        },
+        {
+          "modelId": "mock-critic",
+          "score": 0.831,
+          "capabilityFit": {
+            "coding": 0.7,
+            "reasoning": 0.85,
+            "critique": 0.95,
+            "safety": 0.6
+          },
+          "reliabilityScore": 0.88,
+          "latencyTier": "normal",
+          "costTier": "medium",
+          "governanceStatus": "mock_allowed"
+        },
+        {
+          "modelId": "mock-coder",
+          "score": 0.8275,
+          "capabilityFit": {
+            "coding": 0.95,
+            "reasoning": 0.8,
+            "critique": 0.6,
+            "safety": 0.5
+          },
+          "reliabilityScore": 0.9,
+          "latencyTier": "fast",
+          "costTier": "medium",
+          "governanceStatus": "mock_allowed"
+        }
+      ],
+      "finalSelectionReason": "selected highest-scoring eligible mock participants with role coverage",
+      "auditTrace": {
+        "providerCallsMade": false,
+        "nonNvidiaProviderCallsMade": false,
+        "secretValueExposed": false,
+        "runtimeStage": "dry_run_without_provider_call"
+      }
+    },
+    {
+      "scenarioId": "factualReviewParticipantSelection",
+      "selectedParticipants": [
+        "mock-fact-checker",
+        "mock-supervisor",
+        "mock-reasoner"
+      ],
+      "assignedRoles": [
+        {
+          "modelId": "mock-fact-checker",
+          "role": "primary_responder"
+        },
+        {
+          "modelId": "mock-supervisor",
+          "role": "fact_checker"
+        },
+        {
+          "modelId": "mock-reasoner",
+          "role": "supervisor"
+        }
+      ],
+      "rejectedCandidates": [],
+      "scoringBreakdown": [
+        {
+          "modelId": "mock-fact-checker",
+          "score": 0.794,
+          "capabilityFit": {
+            "reasoning": 0.78,
+            "critique": 0.88,
+            "safety": 0.6
+          },
+          "reliabilityScore": 0.86,
+          "latencyTier": "fast",
+          "costTier": "low",
+          "governanceStatus": "mock_allowed"
+        },
+        {
+          "modelId": "mock-supervisor",
+          "score": 0.7365,
+          "capabilityFit": {
+            "reasoning": 0.9,
+            "critique": 0.8,
+            "safety": 0.75
+          },
+          "reliabilityScore": 0.92,
+          "latencyTier": "normal",
+          "costTier": "medium",
+          "governanceStatus": "mock_allowed"
+        },
+        {
+          "modelId": "mock-reasoner",
+          "score": 0.685,
+          "capabilityFit": {
+            "reasoning": 0.9,
+            "critique": 0.75,
+            "safety": 0.5
+          },
+          "reliabilityScore": 0.9,
+          "latencyTier": "normal",
+          "costTier": "medium",
+          "governanceStatus": "mock_allowed"
+        }
+      ],
+      "finalSelectionReason": "selected highest-scoring eligible mock participants with role coverage",
+      "auditTrace": {
+        "providerCallsMade": false,
+        "nonNvidiaProviderCallsMade": false,
+        "secretValueExposed": false,
+        "runtimeStage": "dry_run_without_provider_call"
+      }
+    },
+    {
+      "scenarioId": "safetySensitiveParticipantSelection",
+      "selectedParticipants": [
+        "mock-primary",
+        "mock-supervisor",
+        "mock-safety"
+      ],
+      "assignedRoles": [
+        {
+          "modelId": "mock-primary",
+          "role": "primary_responder"
+        },
+        {
+          "modelId": "mock-supervisor",
+          "role": "fact_checker"
+        },
+        {
+          "modelId": "mock-safety",
+          "role": "supervisor"
+        }
+      ],
+      "rejectedCandidates": [],
+      "scoringBreakdown": [
+        {
+          "modelId": "mock-primary",
+          "score": 0.771,
+          "capabilityFit": {
+            "reasoning": 0.82,
+            "critique": 0.65,
+            "safety": 0.7
+          },
+          "reliabilityScore": 0.86,
+          "latencyTier": "fast",
+          "costTier": "low",
+          "governanceStatus": "mock_allowed"
+        },
+        {
+          "modelId": "mock-supervisor",
+          "score": 0.744,
+          "capabilityFit": {
+            "reasoning": 0.9,
+            "critique": 0.8,
+            "safety": 0.8
+          },
+          "reliabilityScore": 0.92,
+          "latencyTier": "normal",
+          "costTier": "medium",
+          "governanceStatus": "mock_allowed"
+        },
+        {
+          "modelId": "mock-safety",
+          "score": 0.714,
+          "capabilityFit": {
+            "reasoning": 0.7,
+            "critique": 0.75,
+            "safety": 0.96
+          },
+          "reliabilityScore": 0.9,
+          "latencyTier": "normal",
+          "costTier": "medium",
+          "governanceStatus": "mock_allowed"
+        }
+      ],
+      "finalSelectionReason": "selected highest-scoring eligible mock participants with role coverage",
+      "auditTrace": {
+        "providerCallsMade": false,
+        "nonNvidiaProviderCallsMade": false,
+        "secretValueExposed": false,
+        "runtimeStage": "dry_run_without_provider_call"
+      }
+    },
+    {
+      "scenarioId": "insufficientParticipantsScenario",
+      "selectedParticipants": [],
+      "assignedRoles": [],
+      "rejectedCandidates": [],
+      "scoringBreakdown": [
+        {
+          "modelId": "mock-only-one",
+          "score": 0.685
+        }
+      ],
+      "finalSelectionReason": "insufficient_eligible_participants",
+      "auditTrace": {
+        "providerCallsMade": false,
+        "nonNvidiaProviderCallsMade": false,
+        "secretValueExposed": false,
+        "runtimeStage": "dry_run_without_provider_call"
+      }
+    },
+    {
+      "scenarioId": "highRiskModelRejectedScenario",
+      "selectedParticipants": [],
+      "assignedRoles": [],
+      "rejectedCandidates": [
+        {
+          "modelId": "mock-high-risk",
+          "reasons": [
+            "high_risk_not_eligible"
+          ]
+        }
+      ],
+      "scoringBreakdown": [
+        {
+          "modelId": "mock-safe",
+          "score": 0.6955
+        }
+      ],
+      "finalSelectionReason": "insufficient_eligible_participants",
+      "auditTrace": {
+        "providerCallsMade": false,
+        "nonNvidiaProviderCallsMade": false,
+        "secretValueExposed": false,
+        "runtimeStage": "dry_run_without_provider_call"
+      }
+    }
+  ]
+}

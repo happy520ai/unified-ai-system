@@ -1,0 +1,18 @@
+{
+  "phase": "Phase376C",
+  "arenaRoles": [
+    "Reviewer",
+    "Critic",
+    "Risk Scout",
+    "Supervisor",
+    "Final Synthesizer"
+  ],
+  "reviewSummary": {
+    "speedBias": "fast path is visible but not auto-selected",
+    "reasoningStrength": "supervisor synthesis preview",
+    "riskFinding": "blocked path is explained",
+    "disagreement": "conflict summary available"
+  },
+  "dryRunOnly": true,
+  "providerCallsMade": false
+}

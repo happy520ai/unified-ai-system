@@ -1,0 +1,22 @@
+{
+  "phase": "Phase373E",
+  "screenshots": [
+    {
+      "path": "apps/ai-gateway-service/evidence/phase373e/screenshots/three-mode-overview-polished.png",
+      "url": "http://127.0.0.1:3100/ui?ts=phase373e-overview&page=chat"
+    },
+    {
+      "path": "apps/ai-gateway-service/evidence/phase373e/screenshots/god-mode-polished.png",
+      "url": "http://127.0.0.1:3100/ui?ts=phase373e-god&page=chat&threeMode=god"
+    },
+    {
+      "path": "apps/ai-gateway-service/evidence/phase373e/screenshots/tianshu-mode-polished.png",
+      "url": "http://127.0.0.1:3100/ui?ts=phase373e-tianshu&page=chat&threeMode=tianshu"
+    },
+    {
+      "path": "apps/ai-gateway-service/evidence/phase373e/screenshots/provider-credentialref-polished.png",
+      "url": "http://127.0.0.1:3100/ui?ts=phase373e-provider&page=models"
+    }
+  ],
+  "screenshotCaptured": true
+}

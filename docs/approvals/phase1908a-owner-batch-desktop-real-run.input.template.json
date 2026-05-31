@@ -1,0 +1,13 @@
+{
+  "phase": "Phase1908A",
+  "ownerApproved": true,
+  "approvedActionId": "batch_create_desktop_spreadsheets",
+  "allowRealDesktopFileCreation": true,
+  "maxRealFileCreateCount": 3,
+  "allowOverwrite": false,
+  "allowDesktopScan": false,
+  "allowReadOtherDesktopFiles": false,
+  "approvedOutputDirectory": "Desktop",
+  "approvedTestFilenamePrefix": "小天批量真实运行测试",
+  "acknowledgeThisCreatesMultipleRealDesktopFiles": true
+}

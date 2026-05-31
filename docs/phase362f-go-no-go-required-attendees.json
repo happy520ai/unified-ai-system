@@ -1,0 +1,50 @@
+{
+  "phase": "Phase362F",
+  "requiredAttendees": [
+    {
+      "role": "launch owner",
+      "confirmed": false,
+      "confirmationRecordRef": null
+    },
+    {
+      "role": "deploy owner",
+      "confirmed": false,
+      "confirmationRecordRef": null
+    },
+    {
+      "role": "tenant admin",
+      "confirmed": false,
+      "confirmationRecordRef": null
+    },
+    {
+      "role": "God Mode reviewer",
+      "confirmed": false,
+      "confirmationRecordRef": null
+    },
+    {
+      "role": "Tianshu reviewer",
+      "confirmed": false,
+      "confirmationRecordRef": null
+    },
+    {
+      "role": "credential vault owner",
+      "confirmed": false,
+      "confirmationRecordRef": null
+    },
+    {
+      "role": "billing / warning copy reviewer",
+      "confirmed": false,
+      "confirmationRecordRef": null
+    },
+    {
+      "role": "incident response owner",
+      "confirmed": false,
+      "confirmationRecordRef": null
+    },
+    {
+      "role": "rollback owner",
+      "confirmed": false,
+      "confirmationRecordRef": null
+    }
+  ]
+}

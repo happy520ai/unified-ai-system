@@ -1,0 +1,14 @@
+{
+  "phase": "Phase333B",
+  "dashboardName": "god-mode-alert-dashboard",
+  "sourceAlertRules": "docs/phase332b-god-mode-trend-alert-rules.json",
+  "sourceTrendData": "docs/phase331b-god-mode-trend-dashboard-data.json",
+  "summaryCards": true,
+  "alertRows": true,
+  "trendPanels": true,
+  "recommendedActions": true,
+  "safetyPanel": true,
+  "emptyState": true,
+  "insufficientHistoryState": true,
+  "externalAlertIntegration": false
+}

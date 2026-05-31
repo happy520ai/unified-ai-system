@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Phase362 Approval Evidence Intake",
+  "type": "object",
+  "required": [
+    "templateOnly",
+    "notAnApproval",
+    "approvalId",
+    "approvalType",
+    "approvalDecision",
+    "approverNameRef",
+    "approverRole",
+    "approvedScope",
+    "approvalTimestamp",
+    "evidenceRefs",
+    "conditions",
+    "expiration",
+    "revocationPolicy",
+    "auditTrace"
+  ],
+  "properties": {
+    "templateOnly": {
+      "const": true
+    },
+    "notAnApproval": {
+      "const": true
+    },
+    "approvalId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "approvalType": {
+      "enum": [
+        "human_launch_approval",
+        "deploy_authorization",
+        "god_mode_quality_signoff",
+        "tianshu_policy_decision",
+        "credential_vault_backend_approval",
+        "tenant_admin_approval",
+        "billing_warning_copy_approval"
+      ]
+    },
+    "approvalDecision": {
+      "enum": [
+        "pending"
+      ]
+    },
+    "approverNameRef": {
+      "type": "string"
+    },
+    "approverRole": {
+      "type": "string"
+    },
+    "approvedScope": {
+      "type": "array"
+    },
+    "approvalTimestamp": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "evidenceRefs": {
+      "type": "array"
+    },
+    "conditions": {
+      "type": "array"
+    },
+    "expiration": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "revocationPolicy": {
+      "type": "string"
+    },
+    "auditTrace": {
+      "type": "object"
+    }
+  }
+}

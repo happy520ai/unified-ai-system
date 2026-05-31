@@ -1,0 +1,13 @@
+{
+  "phase": "Phase337B",
+  "acknowledgementSteps": [
+    "view_alert",
+    "inspect_drilldown",
+    "acknowledge_alert",
+    "record_reviewer_note",
+    "schedule_regression_rerun"
+  ],
+  "externalAlertIntegration": false,
+  "autoEscalationEnabled": false,
+  "staticWorkflowOnly": true
+}

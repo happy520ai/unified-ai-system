@@ -1,0 +1,24 @@
+{
+  "phaseId": "Phase2020-GVC-Desktop-One-Click-Launcher",
+  "phaseName": "Governed Vibe Coding Desktop One-Click Launcher",
+  "updatedAt": "2026-05-23T00:00:00+08:00",
+  "project": "unified-ai-system / PME AI Gateway",
+  "mode": "local_self_use_autonomy_preview",
+  "currentBlocker": "none",
+  "latestKnownFocus": "Created repo-local Windows launcher scripts for manually starting the Phase2019 timed runner without desktop writes, scheduler registration, or startup auto-run.",
+  "hardBoundaries": {
+    "providerCallsAllowedByDefault": false,
+    "secretReadAllowed": false,
+    "deployReleaseAllowed": false,
+    "chatMainChainModificationAllowedByDefault": false,
+    "chatGatewayExecuteModificationAllowedByDefault": false,
+    "legacyModificationAllowed": false,
+    "projectContextCreationAllowed": false,
+    "autoCommitAllowed": false,
+    "autoPushAllowed": false,
+    "workspaceCleanClaimAllowed": false
+  },
+  "sealedCriteriaSource": "docs/project-brain/completion-definition.json",
+  "riskPolicySource": "docs/project-brain/risk-policy.json",
+  "nextActionsSource": "docs/project-brain/next-actions.json"
+}

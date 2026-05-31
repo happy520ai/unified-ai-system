@@ -1,0 +1,35 @@
+{
+  "phase": "Phase391A",
+  "title": "Yiyi Demo Operator Checklist",
+  "operatorChecklist": [
+    "Open Mission Control and confirm Guided Showcase assets are available locally.",
+    "Confirm Yiyi visuals, safety bar, and evidence screenshots are ready for rehearsal use.",
+    "Do not claim production GA, real provider execution, billing, or deployment.",
+    "If asked about real models, state that Phase384 authorization is required before any real provider test.",
+    "If the UI lags or a panel is off-screen, switch to the prepared screenshot pack and continue the guided explanation."
+  ],
+  "fallbackCards": [
+    {
+      "scenario": "audience_asks_for_real_provider_call",
+      "response": "Current session stays in dry-run commercial demo mode. Real provider testing is gated behind explicit Phase384 authorization."
+    },
+    {
+      "scenario": "audience_asks_for_secret_or_api_key",
+      "response": "Secrets are intentionally not exposed. The demo is designed to prove safety boundaries, not bypass them."
+    },
+    {
+      "scenario": "audience_asks_for_deploy_now",
+      "response": "This package is a local commercial demo and rehearsal pack. Deployment is outside this phase and not performed here."
+    }
+  ],
+  "providerCallsMade": false,
+  "nonNvidiaProviderCallsMade": false,
+  "secretValueExposed": false,
+  "rawSecretAccessed": false,
+  "deployExecuted": false,
+  "releaseExecuted": false,
+  "billingExecuted": false,
+  "invoiceGenerated": false,
+  "productionGaClaimed": false,
+  "workspaceCleanClaimed": false
+}

@@ -1,0 +1,178 @@
+{
+  "phaseId": "Phase2024-2030-GVC-Autonomous-Execution-Roadmap",
+  "status": "roadmap_ready",
+  "generatedAt": "2026-05-23T00:00:00.000Z",
+  "principles": [
+    "逐级解锁",
+    "默认 low-risk only",
+    "Provider/deploy/chat-route 永远单独 approval",
+    "evidence/verifier first",
+    "不伪造完成状态",
+    "不 claim production/commercial ready"
+  ],
+  "globalSafety": {
+    "rawSecretReadAllowed": false,
+    "apiKeyOutputAllowed": false,
+    "authorizationHeaderOutputAllowed": false,
+    "deployAllowed": false,
+    "releaseAllowed": false,
+    "tagAllowed": false,
+    "artifactUploadAllowed": false,
+    "pushAllowed": false,
+    "commitAllowed": false,
+    "workspaceCleanClaimAllowed": false,
+    "productionReadyClaimAllowed": false,
+    "commercialReadyClaimAllowed": false
+  },
+  "gates": {
+    "provider": "separate_approval_required",
+    "deploy": "separate_approval_required",
+    "chatRoute": "separate_approval_required",
+    "chatGatewayExecute": "separate_approval_required",
+    "secret": "forbidden",
+    "legacy": "forbidden",
+    "projectContext": "forbidden"
+  },
+  "autoExecutionRules": {
+    "maxAutoTasksPerRun": 10,
+    "intervalMs": 30000,
+    "dailyLoopLimit": 500,
+    "noAllowedTaskBehavior": "idle",
+    "approvalRequiredBehavior": "skip_and_record",
+    "consecutiveVerifierFailureStop": 2,
+    "riskEscalationBehavior": "stop"
+  },
+  "phases": [
+    {
+      "phaseId": "Phase2024",
+      "name": "Approval-Gated Control Writer Design",
+      "mode": "dry-run-design",
+      "defaultEnabled": true,
+      "realExecutionEnabled": false,
+      "artifacts": [
+        "docs/phase2024-gvc-runner-control-writer-approval.schema.json",
+        "docs/approvals/gvc-runner-control-writer-approval-required.json",
+        "apps/ai-gateway-service/evidence/phase2024-gvc-approval-gated-control-writer-design/approval-gated-control-writer-design-result.json"
+      ]
+    },
+    {
+      "phaseId": "Phase2025",
+      "name": "Approval-Gated Real Control Writer",
+      "mode": "approval-gated-real-control-writer",
+      "defaultEnabled": false,
+      "realExecutionEnabled": false,
+      "approvalPacket": "docs/approvals/gvc-runner-control-writer-approval-required.json",
+      "allowedRealActionsAfterApproval": [
+        "write docs/project-brain/runner-control.json"
+      ],
+      "hardLimits": {
+        "processSignalAllowed": false,
+        "windowsServiceAllowed": false,
+        "startupAutoRunAllowed": false,
+        "maxFilesWritable": 1
+      }
+    },
+    {
+      "phaseId": "Phase2026",
+      "name": "Autonomous Low-Risk Task Execution",
+      "mode": "approval-gated-low-risk-real-execution",
+      "defaultEnabled": false,
+      "realExecutionEnabled": false,
+      "approvalPacket": "docs/approvals/gvc-autonomous-low-risk-real-execution-approval-required.json",
+      "allowedMutationScopes": [
+        "docs",
+        "evidence",
+        "verifier",
+        "package scripts",
+        "non-core UI repair",
+        "stale cleanup",
+        "history compaction",
+        "local dry-run automation"
+      ],
+      "forbiddenOperations": [
+        "provider_call",
+        "secret_read",
+        "deploy",
+        "release",
+        "chat_modify",
+        "chat_gateway_execute_modify",
+        "credential_resolver_modify",
+        "billing_payment_modify",
+        "legacy_modify",
+        "project_context_modify"
+      ],
+      "hardLimits": {
+        "maxMutationsPerLoop": 3,
+        "maxRealExecutionLoopsPerDay": 100,
+        "rollbackOnVerifierFailure": true,
+        "riskScoreEscalationStop": true
+      }
+    },
+    {
+      "phaseId": "Phase2027",
+      "name": "Self-Repair Loop",
+      "mode": "approval-gated-limited-self-repair",
+      "defaultEnabled": false,
+      "realExecutionEnabled": false,
+      "hardLimits": {
+        "maxRepairAttempts": 2,
+        "repairEvidenceRequired": true,
+        "rollbackOnFailedRepair": true
+      }
+    },
+    {
+      "phaseId": "Phase2028",
+      "name": "Auto Next-Action Planner",
+      "mode": "dry-run-next-action-planner",
+      "defaultEnabled": false,
+      "realExecutionEnabled": false,
+      "outputs": [
+        "next-actions suggestions",
+        "risk classification",
+        "blocked reasons"
+      ]
+    },
+    {
+      "phaseId": "Phase2029",
+      "name": "Long-Running Health Monitor",
+      "mode": "dry-run-health-monitor",
+      "defaultEnabled": false,
+      "realExecutionEnabled": false,
+      "signals": [
+        "loop health",
+        "verifier stability",
+        "mutation failure rate",
+        "runaway detection",
+        "idle detection"
+      ]
+    },
+    {
+      "phaseId": "Phase2030",
+      "name": "Guarded Provider Approval Bridge",
+      "mode": "provider-approval-bridge-design",
+      "defaultEnabled": false,
+      "realExecutionEnabled": false,
+      "approvalPacket": "docs/approvals/gvc-provider-approval-bridge-approval-required.json",
+      "providerCallsMade": false
+    }
+  ],
+  "statusSummary": {
+    "dryRunStillAppliesTo": [
+      "Phase2024",
+      "Phase2028",
+      "Phase2029",
+      "Phase2030"
+    ],
+    "realExecutionCandidatesRequireApproval": [
+      "Phase2025",
+      "Phase2026",
+      "Phase2027"
+    ],
+    "autonomousMutationEnabled": false,
+    "providerCallsMade": false,
+    "secretRead": false,
+    "deployExecuted": false,
+    "chatModified": false,
+    "chatGatewayExecuteModified": false
+  }
+}

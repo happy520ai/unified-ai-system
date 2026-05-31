@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Explicit Human Approval Instruction",
+  "type": "object",
+  "required": [
+    "instructionType",
+    "instructionId",
+    "givenBy",
+    "givenRole",
+    "givenOrgRef",
+    "decision",
+    "approvedApprovalTypes",
+    "conditions",
+    "instructionTimestamp",
+    "evidenceRefs",
+    "codexMayTranscribeApprovalFiles",
+    "codexIsApprover",
+    "approvalRecordOutputDirectory",
+    "safety"
+  ],
+  "properties": {
+    "instructionType": {
+      "const": "explicit_human_launch_approval_instruction"
+    },
+    "instructionId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "givenBy": {
+      "type": "string",
+      "minLength": 1
+    },
+    "givenRole": {
+      "type": "string",
+      "minLength": 1
+    },
+    "givenOrgRef": {
+      "type": "string",
+      "minLength": 1
+    },
+    "decision": {
+      "enum": [
+        "approved",
+        "approved_with_conditions",
+        "rejected",
+        "pending"
+      ]
+    },
+    "approvedApprovalTypes": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "human_launch_approval",
+          "deploy_authorization",
+          "god_mode_quality_signoff",
+          "tianshu_policy_decision",
+          "credential_vault_backend_approval",
+          "tenant_admin_approval",
+          "billing_warning_copy_approval"
+        ]
+      },
+      "uniqueItems": true
+    },
+    "conditions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "instructionTimestamp": {
+      "type": "string",
+      "minLength": 1
+    },
+    "evidenceRefs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    },
+    "codexMayTranscribeApprovalFiles": {
+      "type": "boolean"
+    },
+    "codexIsApprover": {
+      "type": "boolean"
+    },
+    "approvalRecordOutputDirectory": {
+      "const": "docs/approvals/phase361"
+    },
+    "safety": {
+      "type": "object",
+      "required": [
+        "secretValueIncluded",
+        "apiKeyIncluded",
+        "deployExecuted",
+        "releaseExecuted",
+        "tagCreated",
+        "artifactUploaded"
+      ],
+      "properties": {
+        "secretValueIncluded": {
+          "const": false
+        },
+        "apiKeyIncluded": {
+          "const": false
+        },
+        "deployExecuted": {
+          "const": false
+        },
+        "releaseExecuted": {
+          "const": false
+        },
+        "tagCreated": {
+          "const": false
+        },
+        "artifactUploaded": {
+          "const": false
+        }
+      }
+    }
+  }
+}

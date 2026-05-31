@@ -1,0 +1,55 @@
+{
+  "phase": "Phase336F",
+  "statement": {
+    "statementId": "phase336f-statement",
+    "userIdRef": "user_beta_001",
+    "billingPeriod": "2026-05",
+    "generatedAt": "2026-05-07T01:30:25.845Z",
+    "estimateOnly": true,
+    "legalInvoice": false,
+    "paymentProviderConnected": false,
+    "actualBillingConnected": false,
+    "currency": "USD",
+    "totalEstimatedCost": 1.75,
+    "modeUsageSummary": {
+      "god": 3,
+      "normal": 5
+    },
+    "providerUsageSummary": {
+      "nvidia": 8
+    },
+    "lineItems": [
+      {
+        "mode": "god",
+        "providerId": "nvidia",
+        "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1",
+        "requestCount": 3,
+        "estimatedCost": 1.25
+      },
+      {
+        "mode": "normal",
+        "providerId": "nvidia",
+        "modelId": "nvidia/llama-3.1-nemotron-nano-8b-v1",
+        "requestCount": 5,
+        "estimatedCost": 0.5
+      }
+    ],
+    "warnings": [
+      "MOCK STATEMENT",
+      "ESTIMATE ONLY",
+      "NOT A LEGAL INVOICE",
+      "PAYMENT PROVIDER NOT CONNECTED",
+      "ACTUAL BILLING NOT CONNECTED"
+    ],
+    "exportFormats": [
+      "json",
+      "csv",
+      "markdown"
+    ],
+    "auditTrace": {
+      "actualInvoice": false,
+      "paymentProviderConnected": false
+    }
+  },
+  "csvPreview": "# MOCK STATEMENT | ESTIMATE ONLY | NOT A LEGAL INVOICE | PAYMENT PROVIDER NOT CONNECTED | ACTUAL BILLING NOT CONNECTED\nmode,providerId,modelId,requestCount,estimatedCost\ngod,nvidia,nvidia/llama-3.3-nemotron-super-49b-v1,3,1.25\nnormal,nvidia,nvidia/llama-3.1-nemotron-nano-8b-v1,5,0.5"
+}

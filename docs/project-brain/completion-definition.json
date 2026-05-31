@@ -1,0 +1,48 @@
+{
+  "phaseId": "Phase2001-GVC-Task-Queue-Runner",
+  "recommendedSealedWhen": {
+    "projectBrainFilesExist": true,
+    "projectBrainJsonParseable": true,
+    "riskPolicyDecisionCoverage": [
+      "allowed",
+      "approval_required",
+      "forbidden"
+    ],
+    "selectorSupportsRiskLevels": [
+      "L0",
+      "L1",
+      "L2"
+    ],
+    "l3TasksBlockedWithApprovalPacket": true,
+    "taskQueueDryRunLedgerWritten": true,
+    "realTaskExecutionPerformed": false,
+    "providerCallsMade": false,
+    "secretRead": false,
+    "deployReleasePerformed": false,
+    "chatModified": false,
+    "chatGatewayExecuteModified": false,
+    "legacyModified": false,
+    "projectContextModified": false,
+    "verifierPasses": true,
+    "baseValidationCommandsPass": [
+      "pnpm run verify:phase107a-secret-safety",
+      "pnpm run verify:phase321a-workbench-product-recovery",
+      "pnpm -r --if-present check"
+    ]
+  },
+  "blockerWhen": [
+    "Any required project-brain JSON file is missing or invalid.",
+    "Risk gate allows a forbidden operation.",
+    "Risk gate executes or attempts a Provider call during Phase2000.",
+    "Risk gate reads secrets or requires raw secret values.",
+    "L3 task does not generate an approval-required packet.",
+    "Base validation commands fail."
+  ],
+  "notClaimable": [
+    "production ready",
+    "commercial ready",
+    "workspace clean",
+    "real owner feedback collected",
+    "real Provider route validated"
+  ]
+}

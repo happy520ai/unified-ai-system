@@ -1,0 +1,24 @@
+{
+  "phase": "Phase350C",
+  "drillType": "tianshu_disable_restore",
+  "result": {
+    "phase": "Phase350C",
+    "sourcePhase": "Phase349C",
+    "rollbackDrillDryRunExecuted": true,
+    "disablePathVerified": true,
+    "restorePathDocumented": true,
+    "noProductionChange": true,
+    "policyActivated": false,
+    "trainingTriggered": false,
+    "embeddingBatchTriggered": false,
+    "productionGA": false,
+    "rollbackStepsVerified": [
+      "freeze_policy_proposal_queue",
+      "route_selection_to_manual_review",
+      "block_activation_until_reviewer_approval",
+      "export_audit_trail_for_wrong_selection_review"
+    ],
+    "restorePath": "restore_policy_queue_after_manual_wrong_selection_review",
+    "secretValueExposed": false
+  }
+}

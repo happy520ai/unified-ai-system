@@ -1,0 +1,20 @@
+{
+  "confirmationId": "phase625r-repeated-isolated-runtime-confirmation-001",
+  "confirmedBy": "user-owner",
+  "decision": "approved_execute_repeated_isolated_runtime_reliability",
+  "selectedProviderId": "crs",
+  "allowRepeatedIsolatedRuntimeReliability": true,
+  "maxPlannedAttempts": 3,
+  "maxRequestsPerAttempt": 1,
+  "maxRequestsTotal": 3,
+  "retryLimit": 0,
+  "stopOnFirstFailure": true,
+  "allowDefaultChatIntegration": false,
+  "allowChatGatewayExecuteMainChainIntegration": false,
+  "allowProviderRuntimeMainChainModification": false,
+  "allowDeploy": false,
+  "allowRelease": false,
+  "allowPush": false,
+  "allowCommit": false,
+  "createdAt": "<ISO timestamp>"
+}

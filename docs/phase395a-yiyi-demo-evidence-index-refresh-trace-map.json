@@ -1,0 +1,38 @@
+{
+  "phase": "Phase395A",
+  "title": "Yiyi Demo Evidence Index Refresh + Trace Map",
+  "packageType": "evidence-index-refresh-trace-map",
+  "checklist": [
+    {
+      "id": "evidenceIndexRefreshed",
+      "order": 1,
+      "status": "prepared",
+      "safetyBoundary": "dry-run docs/evidence only; no provider, no secret, no deploy, no billing"
+    },
+    {
+      "id": "traceMapCreated",
+      "order": 2,
+      "status": "prepared",
+      "safetyBoundary": "dry-run docs/evidence only; no provider, no secret, no deploy, no billing"
+    }
+  ],
+  "previousClosure": {
+    "path": "apps/ai-gateway-service/evidence/phase394/yiyi-demo-stakeholder-review-packet-closure-result.json",
+    "exists": true,
+    "sizeBytes": 2111
+  },
+  "phase384StillRequiresHumanApproval": true,
+  "providerCallsMade": false,
+  "nonNvidiaProviderCallsMade": false,
+  "secretValueExposed": false,
+  "rawSecretAccessed": false,
+  "deployExecuted": false,
+  "releaseExecuted": false,
+  "tagCreated": false,
+  "artifactUploaded": false,
+  "approvalForged": false,
+  "billingExecuted": false,
+  "invoiceGenerated": false,
+  "productionGaClaimed": false,
+  "workspaceCleanClaimed": false
+}

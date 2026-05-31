@@ -1,0 +1,7 @@
+{
+  "phase": "Phase340B",
+  "betaMonitoringReady": true,
+  "externalAlertIntegration": false,
+  "autoNotificationEnabled": false,
+  "staticDashboardRegressionPassed": true
+}

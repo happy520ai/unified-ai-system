@@ -1,0 +1,106 @@
+{
+  "phaseId": "Phase2096A-2100A-Controlled-Triple-Tool-Mutation",
+  "planId": "phase2096-2100-controlled-triple-tool-mutation",
+  "maxChangedFiles": 3,
+  "runNodeCheck": true,
+  "runLocalSmoke": true,
+  "approvalRecord": {
+    "approved": true,
+    "permissionMode": "controlled-triple-tool-source-mutation",
+    "dryRun": false,
+    "approvedAtLeastOnceByOwner": [
+      {
+        "source": "user-message",
+        "text": "你加速推进的速度还不够快可以20个阶段不断的跑",
+        "scope": "phase2096-2100-controlled-triple-tool-mutation"
+      }
+    ],
+    "codexExecAllowed": false,
+    "projectProviderAllowed": false,
+    "secretReadAllowed": false,
+    "authJsonReadAllowed": false,
+    "envReadAllowed": false,
+    "codexConfigWriteAllowed": false,
+    "chatModificationAllowed": false,
+    "chatGatewayExecuteModificationAllowed": false,
+    "legacyModificationAllowed": false,
+    "deployAllowed": false,
+    "releaseAllowed": false,
+    "pushAllowed": false,
+    "commitAllowed": false
+  },
+  "allowedFiles": [
+    "docs/phase2096-triple-tool-mutation-target-one.proposal.diff",
+    "docs/phase2097-triple-tool-mutation-target-two.proposal.diff",
+    "docs/phase2100-triple-tool-mutation-target-three.proposal.diff",
+    "tools/phase2091/generated-source-patch-target.mjs",
+    "tools/phase2092/apply-controlled-existing-tool-mutation.mjs",
+    "tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs",
+    "apps/ai-gateway-service/evidence/phase2096-2100-controlled-triple-tool-mutation/result.json",
+    "apps/ai-gateway-service/evidence/phase2096-2100-controlled-triple-tool-mutation/result.md",
+    "apps/ai-gateway-service/evidence/phase2096-2100-controlled-triple-tool-mutation/rollback.json",
+    "apps/ai-gateway-service/evidence/phase2096-2100-controlled-triple-tool-mutation/triple-smoke.json"
+  ],
+  "forbiddenPaths": [
+    "legacy",
+    "PROJECT_CONTEXT.md",
+    ".env",
+    ".git",
+    "node_modules",
+    "auth.json",
+    "apps/ai-gateway-service/src/providers",
+    "apps/ai-gateway-service/src/http/chat-gateway/execute",
+    "/chat"
+  ],
+  "operations": [
+    {
+      "action": "apply-single-existing-tool-source-mutation",
+      "proposalPath": "docs/phase2096-triple-tool-mutation-target-one.proposal.diff",
+      "targetPath": "tools/phase2091/generated-source-patch-target.mjs",
+      "expectedBeforeSha256": "5174d1468ebf4af5d1cbbe6ef9ce30a55819e9e1c616d42aa068e43b3cd4802d",
+      "allowCreate": false,
+      "allowDelete": false,
+      "requiredExports": [
+        "export function buildPhase2096TripleMutationTargetOneStatus"
+      ],
+      "requiredMarkers": [
+        "PHASE2091_SOURCE_PATCH_OK",
+        "PHASE2092_EXISTING_TOOL_MUTATION_OK",
+        "PHASE2093_BATCH_TOOL_TARGET_ONE_OK",
+        "PHASE2096_TRIPLE_TOOL_TARGET_ONE_OK"
+      ]
+    },
+    {
+      "action": "apply-single-existing-tool-source-mutation",
+      "proposalPath": "docs/phase2097-triple-tool-mutation-target-two.proposal.diff",
+      "targetPath": "tools/phase2092/apply-controlled-existing-tool-mutation.mjs",
+      "expectedBeforeSha256": "fdf542dcdb47423b5b4a9dbcea32653f004c60216b71d4ab024ab68e14570435",
+      "allowCreate": false,
+      "allowDelete": false,
+      "requiredExports": [
+        "export function buildPhase2097TripleMutationTargetTwoStatus",
+        "export function buildPhase2094BatchMutationRuntimeStatus",
+        "export function main"
+      ],
+      "requiredMarkers": [
+        "PHASE2094_BATCH_TOOL_TARGET_TWO_OK",
+        "PHASE2097_TRIPLE_TOOL_TARGET_TWO_OK"
+      ]
+    },
+    {
+      "action": "apply-single-existing-tool-source-mutation",
+      "proposalPath": "docs/phase2100-triple-tool-mutation-target-three.proposal.diff",
+      "targetPath": "tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs",
+      "expectedBeforeSha256": "6526dd526b6c9ae60e1a6cd27d38636b42c8b2517bfae799d42451c001f4d250",
+      "allowCreate": false,
+      "allowDelete": false,
+      "requiredExports": [
+        "export function buildPhase2100TripleMutationRuntimeStatus",
+        "export function main"
+      ],
+      "requiredMarkers": [
+        "PHASE2100_TRIPLE_TOOL_TARGET_THREE_OK"
+      ]
+    }
+  ]
+}

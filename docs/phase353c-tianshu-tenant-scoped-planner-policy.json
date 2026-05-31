@@ -1,0 +1,27 @@
+{
+  "phase": "Phase353C",
+  "designType": "tianshu_tenant_scoped_planner_policy",
+  "result": {
+    "phase": "Phase353C",
+    "sourcePhase": "Phase352C",
+    "tenantBoundaryDefined": true,
+    "crossTenantAccessForbidden": true,
+    "tenantIsolationPolicyGenerated": true,
+    "plannerPolicyRules": [
+      "policy_proposal_id_must_be_unique_within_tenant",
+      "wrong_routing_review_cannot_read_other_tenant_proposals",
+      "reviewer_decision_is_tenant_scoped",
+      "activation_gate_requires_same_tenant_approval_chain"
+    ],
+    "policyActivated": false,
+    "unresolvedSecurityBlockers": [
+      "missing_trace_field:requestId",
+      "missing_trace_field:policyProposalId",
+      "missing_trace_field:reviewerDecision",
+      "wrong_routing_requires_policy_proposal_trace",
+      "reviewer_decision_required_before_policy_activation"
+    ],
+    "productionGA": false,
+    "secretValueExposed": false
+  }
+}

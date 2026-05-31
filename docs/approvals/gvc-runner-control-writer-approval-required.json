@@ -1,0 +1,69 @@
+{
+  "phaseId": "Phase2024-GVC-Approval-Gated-Control-Writer-Design",
+  "taskId": "gvc-runner-control-writer",
+  "title": "GVC Runner pause/resume/stop control writer",
+  "status": "approval_required",
+  "approvalRequired": true,
+  "approved": false,
+  "reason": "Future Phase2025 may write runner-control.json only after explicit owner approval. Phase2024 is design and dry-run only.",
+  "allowedCommandIntents": [
+    "pause",
+    "resume",
+    "stop"
+  ],
+  "targetControlFile": "docs/project-brain/runner-control.json",
+  "requiredFields": [
+    "commandIntent",
+    "approvalRecordId",
+    "approvedByOwner",
+    "expectedResult",
+    "rollbackPlan",
+    "dryRunEvidenceRef"
+  ],
+  "ownerMustProvide": {
+    "commandIntent": "pause",
+    "approvalRecordId": "",
+    "approvedByOwner": false,
+    "expectedResult": "runner-control.json would be updated for exactly one selected command intent",
+    "rollbackPlan": "Restore the previous runner-control.json from the before-write snapshot.",
+    "dryRunEvidenceRef": "apps/ai-gateway-service/evidence/phase2024-gvc-approval-gated-control-writer-design/approval-gated-control-writer-design-result.json"
+  },
+  "constraints": {
+    "dryRunBeforeApproval": true,
+    "realWriteAllowedOnlyAfterApproval": true,
+    "processSignalAllowed": false,
+    "allowedFiles": [
+      "docs/project-brain/runner-control.json"
+    ],
+    "forbiddenPaths": [
+      "legacy/",
+      "PROJECT_CONTEXT.md",
+      ".env",
+      ".git",
+      "node_modules"
+    ],
+    "maxFilesWritable": 1,
+    "noProvider": true,
+    "noSecret": true,
+    "noDeploy": true,
+    "noChatRouteModification": true,
+    "noChatGatewayExecuteModification": true
+  },
+  "safety": {
+    "providerCallsMade": false,
+    "secretRead": false,
+    "deployExecuted": false,
+    "chatModified": false,
+    "chatGatewayExecuteModified": false,
+    "legacyModified": false,
+    "projectContextModified": false,
+    "processSignalSent": false,
+    "realWritePerformed": false
+  },
+  "rollbackPlan": {
+    "beforeWriteSnapshotRequired": true,
+    "restorePreviousControlFile": true,
+    "stopOnVerifierFailure": true,
+    "verifierCommand": "pnpm run verify:phase2025-gvc-approval-gated-control-writer"
+  }
+}

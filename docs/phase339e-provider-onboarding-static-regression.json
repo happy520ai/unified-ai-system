@@ -1,0 +1,21 @@
+{
+  "phase": "Phase339E",
+  "scenarios": [
+    {
+      "id": "failedPathUxSmokePassed",
+      "status": "passed"
+    },
+    {
+      "id": "rawSecretRejectedPresent",
+      "status": "passed"
+    },
+    {
+      "id": "noProviderCallFromUiPresent",
+      "status": "passed"
+    },
+    {
+      "id": "credentialRefOnly",
+      "status": "passed"
+    }
+  ]
+}

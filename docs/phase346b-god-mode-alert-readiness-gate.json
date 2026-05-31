@@ -1,0 +1,14 @@
+{
+  "phase": "Phase346B",
+  "smokeInput": "Phase345B",
+  "blockers": [],
+  "alertReadinessGateGenerated": true,
+  "readinessGatePassed": true,
+  "blockerCountRecorded": true,
+  "blockerCount": 0,
+  "noRealBilling": true,
+  "secretSafetyGatePassed": true,
+  "externalNotification": false,
+  "productionGA": false,
+  "secretValueExposed": false
+}

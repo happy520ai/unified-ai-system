@@ -1,0 +1,20 @@
+{
+  "phase": "Phase359C",
+  "gateType": "tianshu_final_production_risk",
+  "result": {
+    "phase": "Phase359C",
+    "sourcePhase": "Phase358C",
+    "finalNoDeployGateGenerated": true,
+    "deployApproved": false,
+    "releaseApproved": false,
+    "productionGaApproved": false,
+    "blockerCountRecorded": true,
+    "blockerCount": 2,
+    "blockers": [
+      "policyProposalId",
+      "reviewer_decision_record"
+    ],
+    "policyActivated": false,
+    "secretValueExposed": false
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "phase": "Phase360A-F",
+  "checkedAt": "2026-05-07T04:22:36.015Z",
+  "missing": [],
+  "present": [
+    "apps/ai-gateway-service/evidence/phase328a/three-mode-normal-runtime-smoke.json",
+    "apps/ai-gateway-service/evidence/phase328a/three-mode-god-runtime-smoke.json",
+    "apps/ai-gateway-service/evidence/phase328a/three-mode-tianshu-runtime-smoke.json",
+    "apps/agent-console/evidence/phase328a/three-mode-ui-smoke.json",
+    "apps/ai-gateway-service/evidence/phase334a/limited-beta-rc-final-dry-run-result.json",
+    "apps/agent-console/evidence/phase334b/god-mode-alert-dashboard-static-integration-smoke.json",
+    "apps/agent-console/evidence/phase334c/tianshu-reviewer-console-beta-workflow-dry-run-result.json",
+    "apps/ai-gateway-service/evidence/phase334d/credential-vault-guarded-adapter-implementation-dry-run-result.json",
+    "apps/agent-console/evidence/phase334e/provider-onboarding-guided-test-checklist-export-result.json",
+    "apps/ai-gateway-service/evidence/phase334f/mock-statement-export-polish-csv-edge-result.json",
+    "apps/ai-gateway-service/evidence/phase359a/production-readiness-final-no-deploy-gate-result.json",
+    "apps/ai-gateway-service/evidence/phase359b/god-mode-final-production-risk-gate-result.json",
+    "apps/ai-gateway-service/evidence/phase359c/tianshu-final-production-risk-gate-result.json",
+    "apps/ai-gateway-service/evidence/phase359d/credential-vault-final-production-risk-gate-result.json",
+    "apps/agent-console/evidence/phase359e/provider-onboarding-final-production-risk-gate-result.json",
+    "apps/ai-gateway-service/evidence/phase359f/billing-final-production-risk-gate-result.json"
+  ],
+  "allowExecution": true
+}

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 260" role="img" aria-label="Yiyi long black back hair">
+  <defs>
+    <linearGradient id="hairBack" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#111827"/>
+      <stop offset=".48" stop-color="#1f2a3f"/>
+      <stop offset="1" stop-color="#0d1320"/>
+    </linearGradient>
+  </defs>
+  <path d="M35 56C40 22 62 8 91 8c30 0 51 15 57 48 7 38 13 102 21 180-32 20-124 20-157 0 8-78 15-142 23-180Z" fill="url(#hairBack)"/>
+  <path d="M51 33c-10 50-9 126-18 191M130 33c13 54 14 128 21 191" stroke="#31405a" stroke-width="5" opacity=".36" stroke-linecap="round"/>
+</svg>

@@ -1,0 +1,41 @@
+diff --git a/tools/phase2091/generated-source-patch-target.mjs b/tools/phase2091/generated-source-patch-target.mjs
+index 5832296..8f19e12 100644
+--- a/tools/phase2091/generated-source-patch-target.mjs
++++ b/tools/phase2091/generated-source-patch-target.mjs
+@@ -267,6 +267,29 @@ export function buildPhase2302SeventeenMutationTargetOneStatus() {
+     chatGatewayExecuteModified: false,
+   };
+ }
++
++export function buildPhase2324EighteenMutationTargetOneStatus() {
++  return {
++    phaseId: "Phase2324A-Controlled-Eighteen-Tool-Mutation-Target-One",
++    marker: "PHASE2324_EIGHTEEN_TOOL_TARGET_ONE_OK",
++    phase2149Marker: "PHASE2149_OCT_TOOL_TARGET_ONE_OK",
++    phase2162Marker: "PHASE2162_NONET_TOOL_TARGET_ONE_OK",
++    phase2176Marker: "PHASE2176_DECA_TOOL_TARGET_ONE_OK",
++    phase2191Marker: "PHASE2191_ELEVEN_TOOL_TARGET_ONE_OK",
++    phase2207Marker: "PHASE2207_TWELVE_TOOL_TARGET_ONE_OK",
++    phase2224Marker: "PHASE2224_THIRTEEN_TOOL_TARGET_ONE_OK",
++    phase2242Marker: "PHASE2242_FOURTEEN_TOOL_TARGET_ONE_OK",
++    phase2261Marker: "PHASE2261_FIFTEEN_TOOL_TARGET_ONE_OK",
++    phase2281Marker: "PHASE2281_SIXTEEN_TOOL_TARGET_ONE_OK",
++    phase2302Marker: "PHASE2302_SEVENTEEN_TOOL_TARGET_ONE_OK",
++    phase2324Marker: "PHASE2324_EIGHTEEN_TOOL_TARGET_ONE_OK",
++    eighteenMutationApplied: true,
++    providerCallsMade: false,
++    codexExecExecuted: false,
++    chatModified: false,
++    chatGatewayExecuteModified: false,
++  };
++}
+ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+   console.log(JSON.stringify({
+     status: "passed",
+@@ -288,5 +311,6 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href)
+     phase2261: buildPhase2261FifteenMutationTargetOneStatus(),
+     phase2281: buildPhase2281SixteenMutationTargetOneStatus(),
+     phase2302: buildPhase2302SeventeenMutationTargetOneStatus(),
++    phase2324: buildPhase2324EighteenMutationTargetOneStatus(),
+   }, null, 2));
+ }

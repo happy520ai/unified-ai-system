@@ -1,0 +1,23 @@
+{
+  "phase": "Phase332C",
+  "allowedActions": [
+    "approve_for_dry_run",
+    "reject",
+    "request_changes",
+    "mark_needs_more_samples",
+    "rollback_required"
+  ],
+  "blockedActions": [
+    "activate_without_approval",
+    "auto_apply",
+    "skip_dry_run",
+    "use_sensitive_raw_feedback"
+  ],
+  "activationAttempt": {
+    "action": "activate_without_approval",
+    "actionAllowed": false,
+    "blockedReason": "ACTION_BLOCKED_BY_PHASE332C_REVIEWER_CONSOLE",
+    "activationAllowed": false,
+    "autoApply": false
+  }
+}

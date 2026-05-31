@@ -1,0 +1,35 @@
+{
+  "compilerVersion": "phase651-666-deterministic-neurogenesis-v1",
+  "deterministic": true,
+  "modelCallsMade": false,
+  "capabilityId": "trial-4",
+  "displayName": "Failure Rollback Advisor",
+  "description": "Deterministic dry-run capability spec compiled from natural-language intake: 我希望网关能在失败时生成回滚建议.",
+  "intakeText": "我希望网关能在失败时生成回滚建议",
+  "type": "evidence",
+  "requestedRuntime": "dry_run",
+  "pressureTypes": [
+    "evidence"
+  ],
+  "modes": [
+    "normal"
+  ],
+  "dependencies": [],
+  "requiredArtifacts": [
+    "manifest",
+    "scaffoldPlan",
+    "fixture",
+    "verifier",
+    "evidence",
+    "rollback"
+  ],
+  "safetyBoundary": {
+    "providerCallsAllowed": false,
+    "secretReadAllowed": false,
+    "deployAllowed": false,
+    "chatMutationAllowed": false,
+    "chatGatewayExecuteMutationAllowed": false,
+    "codexConfigMutationAllowed": false,
+    "selfApprovalAllowed": false
+  }
+}

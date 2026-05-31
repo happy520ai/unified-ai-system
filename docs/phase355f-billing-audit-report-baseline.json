@@ -1,0 +1,29 @@
+{
+  "phase": "Phase355F",
+  "auditType": "billing_audit_report_baseline",
+  "result": {
+    "phase": "Phase355F",
+    "sourcePhase": "Phase354F",
+    "auditReportBaselineGenerated": true,
+    "exportableAuditFormatDefined": true,
+    "exportFormats": [
+      "json",
+      "markdown",
+      "csv_safe_markdown"
+    ],
+    "requiredAuditFields": [
+      "tenantId",
+      "statementId",
+      "actorRole",
+      "estimateOnly",
+      "exportPermissionDecision",
+      "warningCopyVersion",
+      "timestamp"
+    ],
+    "paymentProviderConnected": false,
+    "actualBillingConnected": false,
+    "legalInvoiceGenerated": false,
+    "secretValueExposed": false,
+    "productionGA": false
+  }
+}

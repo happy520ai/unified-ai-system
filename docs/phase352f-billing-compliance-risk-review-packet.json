@@ -1,0 +1,26 @@
+{
+  "phase": "Phase352F",
+  "packetType": "billing_estimate_statement_compliance_review",
+  "result": {
+    "phase": "Phase352F",
+    "sourcePhase": "Phase351F",
+    "packetType": "billing_estimate_statement_compliance_review",
+    "securityReviewPacketsGenerated": true,
+    "riskRegisterUpdated": true,
+    "unresolvedSecurityBlockersListed": true,
+    "unresolvedSecurityBlockerCount": 5,
+    "unresolvedSecurityBlockers": [
+      "missing_trace_field:requestId",
+      "missing_trace_field:statementId",
+      "missing_trace_field:estimateOnly",
+      "estimate_only_trace_required_before_candidate_signoff",
+      "legal_invoice_language_must_remain_blocked"
+    ],
+    "paymentProviderConnected": false,
+    "actualBillingConnected": false,
+    "legalInvoiceGenerated": false,
+    "productionGA": false,
+    "noSecretInReviewPacket": true,
+    "secretValueExposed": false
+  }
+}

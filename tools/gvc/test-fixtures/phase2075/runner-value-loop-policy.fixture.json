@@ -1,0 +1,18 @@
+{
+  "phaseId": "Phase2073-GVC-Completed-Action-DeDup-And-Candidate-Refresh",
+  "taskId": "phase2075-runner-value-loop-policy-fixture",
+  "policyAssertions": {
+    "allCompletedNextActionsBlockStart": true,
+    "highValueCandidatesBelowThreeBlockStart": true,
+    "duplicateRiskAboveThreeBlocksWrite": true,
+    "consecutiveNoOpTwoRequiresPlannerRefresh": true
+  },
+  "providerCallsMade": false,
+  "secretRead": false,
+  "deployExecuted": false,
+  "chatModified": false,
+  "chatGatewayExecuteModified": false,
+  "legacyModified": false,
+  "projectContextModified": false,
+  "workspaceCleanClaimed": false
+}

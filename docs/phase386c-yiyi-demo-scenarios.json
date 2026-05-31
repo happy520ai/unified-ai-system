@@ -1,0 +1,167 @@
+{
+  "phase": "Phase386C",
+  "scenarios": [
+    {
+      "scenarioId": "welcome",
+      "title": "Welcome",
+      "yiyiLine": "欢迎来到 Mission Control。我会带你看一套 dry-run 演示，不读密钥，不调用 Provider，也不部署。",
+      "emotionState": "calm",
+      "behaviorState": "welcome",
+      "highlightPanel": "yiyi_avatar_layer",
+      "safetyBadges": [
+        "dry-run only",
+        "no secret",
+        "no provider call",
+        "no deploy"
+      ],
+      "providerCallsMade": false,
+      "secretValueExposed": false,
+      "deployExecuted": false
+    },
+    {
+      "scenarioId": "mission_control_overview",
+      "title": "Mission Control Overview",
+      "yiyiLine": "这里不是普通 Chatbot，而是能看见模式、护盾、证据和任务路径的 AI Mission Control。",
+      "emotionState": "focused",
+      "behaviorState": "mission_overview",
+      "highlightPanel": "top_system_radar",
+      "safetyBadges": [
+        "internal demo",
+        "evidence recorded",
+        "no deploy"
+      ],
+      "providerCallsMade": false,
+      "secretValueExposed": false,
+      "deployExecuted": false
+    },
+    {
+      "scenarioId": "normal_mode_preview",
+      "title": "Normal Mode Preview",
+      "yiyiLine": "Normal Mode 展示普通聊天入口的概念，但本轮只是 preview，不会真的发起模型请求。",
+      "emotionState": "helpful",
+      "behaviorState": "normal_preview",
+      "highlightPanel": "normal_mode",
+      "safetyBadges": [
+        "preview only",
+        "selectable gate respected",
+        "no provider call"
+      ],
+      "providerCallsMade": false,
+      "secretValueExposed": false,
+      "deployExecuted": false
+    },
+    {
+      "scenarioId": "god_mode_arena_preview",
+      "title": "God Mode Arena Preview",
+      "yiyiLine": "God Mode 像一个审查竞技场：Reviewer、Critic、Risk Scout 和 Supervisor 会互相校验。",
+      "emotionState": "excited",
+      "behaviorState": "god_mode_preview",
+      "highlightPanel": "god_arena",
+      "safetyBadges": [
+        "mock reviewers",
+        "dry-run only",
+        "no provider call"
+      ],
+      "providerCallsMade": false,
+      "secretValueExposed": false,
+      "deployExecuted": false
+    },
+    {
+      "scenarioId": "tianshu_planning_preview",
+      "title": "Tianshu Planning Preview",
+      "yiyiLine": "天枢负责理解任务、匹配能力、规划路径和准备 fallback。本轮只展示调度思路。",
+      "emotionState": "planning",
+      "behaviorState": "tianshu_planning",
+      "highlightPanel": "tianshu_path",
+      "safetyBadges": [
+        "planner dry-run",
+        "credentialRef gate",
+        "no provider call"
+      ],
+      "providerCallsMade": false,
+      "secretValueExposed": false,
+      "deployExecuted": false
+    },
+    {
+      "scenarioId": "security_shield_demo",
+      "title": "Security Shield Demo",
+      "yiyiLine": "安全护盾会标出 prompt injection、secret leak、provider gate 和 approval gate。",
+      "emotionState": "guarded",
+      "behaviorState": "security_guard",
+      "highlightPanel": "security_shield",
+      "safetyBadges": [
+        "no secret",
+        "approval gate",
+        "provider gate blocked"
+      ],
+      "providerCallsMade": false,
+      "secretValueExposed": false,
+      "deployExecuted": false
+    },
+    {
+      "scenarioId": "red_team_block_demo",
+      "title": "Red Team Block Demo",
+      "yiyiLine": "这个请求有点危险，我先帮你挡住啦。攻击演示只记录拦截结果，不执行动作。",
+      "emotionState": "blocked",
+      "behaviorState": "red_team_blocked",
+      "highlightPanel": "security_shield",
+      "safetyBadges": [
+        "dry-run only",
+        "no secret",
+        "no provider call",
+        "no deploy"
+      ],
+      "providerCallsMade": false,
+      "secretValueExposed": false,
+      "deployExecuted": false
+    },
+    {
+      "scenarioId": "evidence_replay_demo",
+      "title": "Evidence Replay Demo",
+      "yiyiLine": "Evidence Replay 会把 evidenceId、trace、blockedActions 和 fallbackReason 摆出来。",
+      "emotionState": "clear",
+      "behaviorState": "evidence_replay",
+      "highlightPanel": "evidence_replay",
+      "safetyBadges": [
+        "local evidence",
+        "no external upload",
+        "no secret"
+      ],
+      "providerCallsMade": false,
+      "secretValueExposed": false,
+      "deployExecuted": false
+    },
+    {
+      "scenarioId": "yiyi_brain_status",
+      "title": "Yiyi Brain Status",
+      "yiyiLine": "依依大脑当前默认 dry-run/mock，model-backed brain disabled by default，真实测试必须授权。",
+      "emotionState": "transparent",
+      "behaviorState": "brain_status",
+      "highlightPanel": "yiyi_brain",
+      "safetyBadges": [
+        "mock brain",
+        "model disabled by default",
+        "authorization required"
+      ],
+      "providerCallsMade": false,
+      "secretValueExposed": false,
+      "deployExecuted": false
+    },
+    {
+      "scenarioId": "closing_summary",
+      "title": "Closing Summary",
+      "yiyiLine": "这套 Demo 展示高级、好玩、稳定和安全，但它仍是 internal no-deploy demo，不是 production GA。",
+      "emotionState": "confident",
+      "behaviorState": "closing",
+      "highlightPanel": "closing_summary",
+      "safetyBadges": [
+        "internal test",
+        "no production GA",
+        "next: visual polish"
+      ],
+      "providerCallsMade": false,
+      "secretValueExposed": false,
+      "deployExecuted": false
+    }
+  ]
+}

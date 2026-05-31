@@ -1,0 +1,50 @@
+{
+  "phaseId": "Phase2001-GVC-Task-Queue-Runner",
+  "primaryGoal": "Move unified-ai-system toward local self-use complete through bounded autonomous dry-run execution.",
+  "successPrinciples": [
+    "Prefer small reversible tasks with verifier and evidence.",
+    "Keep provider calls, secrets, deploy, release, push, commit, and main-chain chat changes gated.",
+    "Generate approval packets for high-risk work instead of executing it.",
+    "Never count automated checks as real owner feedback or production validation.",
+    "Do not claim workspace clean."
+  ],
+  "nearTermGoals": [
+    {
+      "goalId": "gvc-001",
+      "title": "Maintain project-brain state files",
+      "riskLevel": "L0",
+      "doneWhen": "current-state, goals, risk-policy, next-actions, and completion-definition JSON files parse successfully."
+    },
+    {
+      "goalId": "gvc-002",
+      "title": "Select next bounded local task",
+      "riskLevel": "L1",
+      "doneWhen": "selector can return an allowed L0, L1, or L2 candidate without touching forbidden paths."
+    },
+    {
+      "goalId": "gvc-003",
+      "title": "Block high-risk work",
+      "riskLevel": "L3",
+      "doneWhen": "L3 tasks produce docs/approvals approval-required packets and do not execute."
+    },
+    {
+      "goalId": "gvc-004",
+      "title": "Record execution evidence",
+      "riskLevel": "L1",
+      "doneWhen": "each GVC run writes sanitized evidence with providerCallsMade=false and secretRead=false unless separately approved."
+    },
+    {
+      "goalId": "gvc-005",
+      "title": "Dry-run queued local actions",
+      "riskLevel": "L1",
+      "doneWhen": "task queue runner writes a decision ledger for L0/L1/L2 allowed actions and L3 approval-gated actions without real execution."
+    }
+  ],
+  "notGoals": [
+    "No real Provider call in Phase2000.",
+    "No runtime inference.",
+    "No /chat or /chat-gateway/execute integration.",
+    "No deploy, release, tag, push, commit, or artifact upload.",
+    "No production-ready or commercial-ready claim."
+  ]
+}

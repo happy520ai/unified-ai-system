@@ -1,0 +1,29 @@
+{
+  "decision": "approved_execute_mimo_continuous_real_provider_smoke",
+  "provider": "mimo",
+  "model": "",
+  "providerCallAllowed": true,
+  "continuousRealSmokeAllowed": true,
+  "credentialRefOnly": true,
+  "maxRequests": 200,
+  "maxDurationMinutes": 120,
+  "intervalSeconds": 30,
+  "retryPerRequest": 0,
+  "maxAllowedFailures": 5,
+  "stopOnConsecutiveFailures": 3,
+  "maxAllowedP95LatencyMs": 30000,
+  "maxInputTokensPerRequest": 512,
+  "maxOutputTokensPerRequest": 512,
+  "maxTotalEstimatedTokens": 250000,
+  "rawSecretReadAllowed": false,
+  "rawSecretPrintAllowed": false,
+  "authorizationHeaderPrintAllowed": false,
+  "deployAllowed": false,
+  "chatRouteChangeAllowed": false,
+  "chatGatewayExecuteChangeAllowed": false,
+  "prompts": [
+    "请用一句中文回复：小米模型持续真实验证成功。",
+    "请用一句话总结：PME AI Gateway 正在执行 Provider smoke。",
+    "请返回 JSON：{\"ok\":true,\"provider\":\"mimo\",\"type\":\"smoke\"}"
+  ]
+}

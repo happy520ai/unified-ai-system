@@ -1,0 +1,47 @@
+{
+  "phase": "Phase387",
+  "title": "Yiyi Commercial Visual Polish + Cross-browser QA",
+  "mode": "dry_run_ui_qa_only",
+  "browserTargets": [
+    "Chrome or Edge headless local smoke",
+    "manual Chrome review",
+    "manual Edge review"
+  ],
+  "viewportTargets": [
+    {
+      "name": "desktop",
+      "width": 1680,
+      "height": 3200
+    },
+    {
+      "name": "tablet",
+      "width": 1024,
+      "height": 1800
+    },
+    {
+      "name": "mobile",
+      "width": 390,
+      "height": 1400
+    }
+  ],
+  "requiredMarkers": [
+    "yiyi-guided-showcase-panel",
+    "guided-showcase-stepper",
+    "demo-safety-bar",
+    "mission-control",
+    "security-shield-panel",
+    "red-team-scenario-library-panel",
+    "evidence-timeline-panel",
+    "yiyi-brain-panel"
+  ],
+  "forbiddenRuntimeActions": [
+    "provider_call",
+    "read_secret",
+    "deploy",
+    "release",
+    "tag",
+    "artifact_upload",
+    "billing",
+    "invoice"
+  ]
+}

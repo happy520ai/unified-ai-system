@@ -1,0 +1,15 @@
+{
+  "capabilityId": "auto-runtime-secret-like-output",
+  "runtimeKind": "sandbox_local",
+  "executionStatus": "blocked",
+  "blockedReason": "secret_like_output",
+  "providerCallsMade": false,
+  "secretRead": false,
+  "secretValueExposed": false,
+  "chatBehaviorChanged": false,
+  "chatGatewayExecuteBehaviorChanged": false,
+  "deployExecuted": false,
+  "rollbackRequired": false,
+  "disabledByKillSwitch": true,
+  "completed": false
+}

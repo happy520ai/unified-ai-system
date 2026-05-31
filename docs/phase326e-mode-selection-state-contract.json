@@ -1,0 +1,29 @@
+{
+  "phase": "Phase326E",
+  "contractName": "three-mode-selection-state-contract",
+  "runtimeStatus": "shadow_config_only",
+  "providerCallsAllowed": false,
+  "nonNvidiaProviderCallsAllowed": false,
+  "secretValueAllowed": false,
+  "state": {
+    "selectedMode": "normal | god | tianshu",
+    "selectedModelId": "",
+    "participantModelIds": [],
+    "plannerEnabled": false,
+    "supervisorEnabled": false,
+    "userCredentialBoundary": {
+      "requiresUserOwnedApiKey": true,
+      "credentialRefOnly": true,
+      "secretValueAllowed": false
+    },
+    "modeAvailability": "disabled | hidden | experimental | shadow_config_only",
+    "disabledReason": "runtime_not_enabled",
+    "runtimeStage": "shadow_config_only"
+  },
+  "safety": {
+    "noWorkbenchUiChange": true,
+    "noConsolePageChange": true,
+    "noProviderCall": true
+  }
+}
+

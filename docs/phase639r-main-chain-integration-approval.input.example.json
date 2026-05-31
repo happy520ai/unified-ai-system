@@ -1,0 +1,22 @@
+{
+  "approvalId": "approve-phase639r-main-chain-integration-001",
+  "approvedBy": "user-owner",
+  "decision": "approved_prepare_main_chain_integration_candidate_only",
+  "allowMainChainCandidatePreparation": true,
+  "allowDefaultChatModification": false,
+  "allowChatGatewayExecuteModification": false,
+  "allowProviderRuntimeModification": false,
+  "allowProviderCall": false,
+  "allowAuthJsonAccess": false,
+  "allowCodexConfigWrite": false,
+  "allowDeploy": false,
+  "allowRelease": false,
+  "allowPush": false,
+  "allowCommit": false,
+  "maxRequestsDefault": 1,
+  "maxRequestsHardLimit": 3,
+  "retryLimit": 0,
+  "stopOnFirstFailure": true,
+  "approvalReason": "Approve main-chain integration candidate preparation only. No /chat modification, no /chat-gateway/execute modification, no provider runtime modification, no Provider call, no deploy.",
+  "createdAt": "2026-05-12T00:54:58.0951082+08:00"
+}

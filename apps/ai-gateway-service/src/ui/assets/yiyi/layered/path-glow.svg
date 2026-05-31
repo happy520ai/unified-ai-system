@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 90" role="img" aria-label="Yiyi tianshu route glow">
+  <path d="M14 70C56 12 102 93 142 38c21-28 42-28 64-9" fill="none" stroke="#72bedc" stroke-width="7" stroke-linecap="round" opacity=".72"/>
+  <circle cx="14" cy="70" r="7" fill="#dff8ff"/>
+  <circle cx="142" cy="38" r="7" fill="#dff8ff"/>
+  <circle cx="206" cy="29" r="7" fill="#dff8ff"/>
+</svg>

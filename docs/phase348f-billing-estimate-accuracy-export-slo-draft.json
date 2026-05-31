@@ -1,0 +1,25 @@
+{
+  "phase": "Phase348F",
+  "draftType": "billing_estimate_accuracy_export_slo",
+  "result": {
+    "phase": "Phase348F",
+    "sourcePhase": "Phase347F",
+    "sloDraftGenerated": true,
+    "slaDraftGenerated": true,
+    "metricsDefined": true,
+    "productionGAFalselyClaimed": false,
+    "paymentProviderConnected": false,
+    "actualBillingConnected": false,
+    "legalInvoiceGenerated": false,
+    "productionGA": false,
+    "metricCount": 5,
+    "metrics": [
+      "estimate_label_visibility_rate",
+      "csv_export_escape_success_rate",
+      "statement_total_consistency_rate",
+      "no_legal_invoice_claim_rate",
+      "actual_billing_connection_count"
+    ],
+    "secretValueExposed": false
+  }
+}

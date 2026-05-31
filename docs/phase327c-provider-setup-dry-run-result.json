@@ -1,0 +1,180 @@
+{
+  "phase": "Phase327C",
+  "runtimeStatus": "dry_run_without_provider_call",
+  "providerCallsMade": false,
+  "nonNvidiaProviderCallsMade": false,
+  "secretValueExposed": false,
+  "scenariosProcessed": 10,
+  "results": [
+    {
+      "scenarioId": "nvidiaInternalTestProviderSetupScenario",
+      "providerId": "nvidia",
+      "setupDecision": "dry_run_reference_ready",
+      "credentialRefValidation": "valid_reference",
+      "providerEnablementDecision": "shadow_config_only",
+      "modelLibraryVisibilityDecision": "provider_visible_with_guarded_badge",
+      "selectableActivationDecision": "blocked_not_real_validation_stage",
+      "rejectionReason": "",
+      "auditTrace": {
+        "providerCallsMade": false,
+        "nonNvidiaProviderCallsMade": false,
+        "secretValueExposed": false,
+        "runtimeStage": "dry_run_without_provider_call",
+        "credentialRefOnly": true
+      }
+    },
+    {
+      "scenarioId": "openaiUserOwnedProviderSetupScenario",
+      "providerId": "openai",
+      "setupDecision": "dry_run_reference_ready",
+      "credentialRefValidation": "valid_reference",
+      "providerEnablementDecision": "shadow_config_only",
+      "modelLibraryVisibilityDecision": "provider_visible_with_guarded_badge",
+      "selectableActivationDecision": "blocked_not_real_validation_stage",
+      "rejectionReason": "",
+      "auditTrace": {
+        "providerCallsMade": false,
+        "nonNvidiaProviderCallsMade": false,
+        "secretValueExposed": false,
+        "runtimeStage": "dry_run_without_provider_call",
+        "credentialRefOnly": true
+      }
+    },
+    {
+      "scenarioId": "claudeUserOwnedProviderSetupScenario",
+      "providerId": "claude",
+      "setupDecision": "dry_run_reference_ready",
+      "credentialRefValidation": "valid_reference",
+      "providerEnablementDecision": "shadow_config_only",
+      "modelLibraryVisibilityDecision": "provider_visible_with_guarded_badge",
+      "selectableActivationDecision": "blocked_not_real_validation_stage",
+      "rejectionReason": "",
+      "auditTrace": {
+        "providerCallsMade": false,
+        "nonNvidiaProviderCallsMade": false,
+        "secretValueExposed": false,
+        "runtimeStage": "dry_run_without_provider_call",
+        "credentialRefOnly": true
+      }
+    },
+    {
+      "scenarioId": "openrouterUserOwnedProviderSetupScenario",
+      "providerId": "openrouter",
+      "setupDecision": "dry_run_reference_ready",
+      "credentialRefValidation": "valid_reference",
+      "providerEnablementDecision": "shadow_config_only",
+      "modelLibraryVisibilityDecision": "provider_visible_with_guarded_badge",
+      "selectableActivationDecision": "blocked_not_real_validation_stage",
+      "rejectionReason": "",
+      "auditTrace": {
+        "providerCallsMade": false,
+        "nonNvidiaProviderCallsMade": false,
+        "secretValueExposed": false,
+        "runtimeStage": "dry_run_without_provider_call",
+        "credentialRefOnly": true
+      }
+    },
+    {
+      "scenarioId": "mimoUserOwnedProviderSetupScenario",
+      "providerId": "mimo",
+      "setupDecision": "dry_run_reference_ready",
+      "credentialRefValidation": "valid_reference",
+      "providerEnablementDecision": "shadow_config_only",
+      "modelLibraryVisibilityDecision": "provider_visible_with_guarded_badge",
+      "selectableActivationDecision": "blocked_not_real_validation_stage",
+      "rejectionReason": "",
+      "auditTrace": {
+        "providerCallsMade": false,
+        "nonNvidiaProviderCallsMade": false,
+        "secretValueExposed": false,
+        "runtimeStage": "dry_run_without_provider_call",
+        "credentialRefOnly": true
+      }
+    },
+    {
+      "scenarioId": "missingCredentialRefScenario",
+      "providerId": "openai",
+      "setupDecision": "rejected",
+      "credentialRefValidation": "missing_credential_ref",
+      "providerEnablementDecision": "disabled",
+      "modelLibraryVisibilityDecision": "provider_hidden_until_reference_present",
+      "selectableActivationDecision": "blocked_missing_credential_ref",
+      "rejectionReason": "missing_credential_ref",
+      "auditTrace": {
+        "providerCallsMade": false,
+        "nonNvidiaProviderCallsMade": false,
+        "secretValueExposed": false,
+        "runtimeStage": "dry_run_without_provider_call",
+        "credentialRefOnly": true
+      }
+    },
+    {
+      "scenarioId": "secretValueRejectedScenario",
+      "providerId": "claude",
+      "setupDecision": "rejected",
+      "credentialRefValidation": "secret_value_rejected",
+      "providerEnablementDecision": "disabled",
+      "modelLibraryVisibilityDecision": "provider_hidden_secret_rejected",
+      "selectableActivationDecision": "blocked_secret_value_not_allowed",
+      "rejectionReason": "secret_value_not_allowed",
+      "auditTrace": {
+        "providerCallsMade": false,
+        "nonNvidiaProviderCallsMade": false,
+        "secretValueExposed": false,
+        "runtimeStage": "dry_run_without_provider_call",
+        "credentialRefOnly": true
+      }
+    },
+    {
+      "scenarioId": "realCallBlockedInDryRunScenario",
+      "providerId": "openrouter",
+      "setupDecision": "rejected",
+      "credentialRefValidation": "reference_present_but_real_call_blocked",
+      "providerEnablementDecision": "shadow_config_only",
+      "modelLibraryVisibilityDecision": "provider_visible_with_real_call_block_notice",
+      "selectableActivationDecision": "blocked_real_call_not_allowed_in_dry_run",
+      "rejectionReason": "real_call_not_allowed_in_dry_run",
+      "auditTrace": {
+        "providerCallsMade": false,
+        "nonNvidiaProviderCallsMade": false,
+        "secretValueExposed": false,
+        "runtimeStage": "dry_run_without_provider_call",
+        "credentialRefOnly": true
+      }
+    },
+    {
+      "scenarioId": "providerDisabledScenario",
+      "providerId": "mimo",
+      "setupDecision": "rejected",
+      "credentialRefValidation": "reference_present",
+      "providerEnablementDecision": "disabled",
+      "modelLibraryVisibilityDecision": "provider_disabled",
+      "selectableActivationDecision": "blocked_provider_disabled",
+      "rejectionReason": "provider_disabled",
+      "auditTrace": {
+        "providerCallsMade": false,
+        "nonNvidiaProviderCallsMade": false,
+        "secretValueExposed": false,
+        "runtimeStage": "dry_run_without_provider_call",
+        "credentialRefOnly": true
+      }
+    },
+    {
+      "scenarioId": "credentialRevokedScenario",
+      "providerId": "openai",
+      "setupDecision": "rejected",
+      "credentialRefValidation": "credential_ref_revoked",
+      "providerEnablementDecision": "disabled",
+      "modelLibraryVisibilityDecision": "provider_hidden_revoked_reference",
+      "selectableActivationDecision": "blocked_revoked_credential_ref",
+      "rejectionReason": "credential_ref_revoked",
+      "auditTrace": {
+        "providerCallsMade": false,
+        "nonNvidiaProviderCallsMade": false,
+        "secretValueExposed": false,
+        "runtimeStage": "dry_run_without_provider_call",
+        "credentialRefOnly": true
+      }
+    }
+  ]
+}

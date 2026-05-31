@@ -1,0 +1,15 @@
+{
+  "capabilityId": "auto-runtime-missing-rollback-plan",
+  "runtimeKind": "sandbox_local",
+  "executionStatus": "blocked",
+  "blockedReason": "missing_rollback_plan",
+  "providerCallsMade": false,
+  "secretRead": false,
+  "secretValueExposed": false,
+  "chatBehaviorChanged": false,
+  "chatGatewayExecuteBehaviorChanged": false,
+  "deployExecuted": false,
+  "rollbackRequired": false,
+  "disabledByKillSwitch": true,
+  "completed": false
+}

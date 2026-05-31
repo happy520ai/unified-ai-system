@@ -1,0 +1,36 @@
+{
+  "phase": "Phase371A",
+  "safeUiEntry": "apps/ai-gateway-service/src/ui/consolePage.js",
+  "contractMapping": {
+    "normalMode": [
+      "three-mode-normal-status-card",
+      "three-mode-normal-selected-model",
+      "three-mode-normal-provider-status",
+      "three-mode-normal-credential-status",
+      "three-mode-normal-governance-status"
+    ],
+    "godMode": [
+      "three-mode-god-participant-summary",
+      "three-mode-god-conflict-level",
+      "three-mode-god-disagreement-points",
+      "three-mode-god-fallback-reason",
+      "three-mode-god-supervisor-status",
+      "three-mode-god-supervisor-basis",
+      "three-mode-god-supervisor-uncertainty",
+      "three-mode-god-warning-status"
+    ],
+    "tianshuMode": [
+      "three-mode-tianshu-planner-status",
+      "three-mode-tianshu-selected-models",
+      "three-mode-tianshu-rejected-candidates",
+      "three-mode-tianshu-capability-summary",
+      "three-mode-tianshu-no-candidate-reason",
+      "three-mode-tianshu-next-actions",
+      "three-mode-tianshu-provider-warning",
+      "three-mode-tianshu-dry-run-status"
+    ],
+    "sharedNotice": [
+      "three-mode-guarded-notice"
+    ]
+  }
+}

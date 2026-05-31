@@ -1,0 +1,18 @@
+{
+  "phase": "Phase331B",
+  "dashboardName": "god-mode-benchmark-historical-trend-dashboard",
+  "runtimeStatus": "dashboard_data_only",
+  "requiredMetrics": [
+    "averageQualityScore",
+    "conflictResolutionScore",
+    "fallbackUsedCount",
+    "failedScenarioCount",
+    "partialSuccessCount",
+    "p95LatencyMs",
+    "costEstimate",
+    "secretExposureCount",
+    "unauthorizedProviderCallCount",
+    "benchmarkScenarioCount",
+    "regressionDetected"
+  ]
+}

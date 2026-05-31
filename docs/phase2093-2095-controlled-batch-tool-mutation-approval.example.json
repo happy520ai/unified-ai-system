@@ -1,0 +1,86 @@
+{
+  "phaseId": "Phase2093A-2095A-Controlled-Batch-Tool-Mutation",
+  "planId": "phase2093-2095-controlled-batch-tool-mutation",
+  "maxChangedFiles": 2,
+  "runNodeCheck": true,
+  "runLocalSmoke": true,
+  "approvalRecord": {
+    "approved": true,
+    "permissionMode": "controlled-batch-tool-source-mutation",
+    "dryRun": false,
+    "approvedAtLeastOnceByOwner": [
+      {
+        "source": "user-message",
+        "text": "继续下一步，需要加快节奏，阶段可以合起来搞，但必须保持安全边界、证据链、回滚和不提交不部署",
+        "scope": "phase2093-2095-controlled-batch-tool-mutation"
+      }
+    ],
+    "codexExecAllowed": false,
+    "projectProviderAllowed": false,
+    "secretReadAllowed": false,
+    "authJsonReadAllowed": false,
+    "envReadAllowed": false,
+    "codexConfigWriteAllowed": false,
+    "chatModificationAllowed": false,
+    "chatGatewayExecuteModificationAllowed": false,
+    "legacyModificationAllowed": false,
+    "deployAllowed": false,
+    "releaseAllowed": false,
+    "pushAllowed": false,
+    "commitAllowed": false
+  },
+  "allowedFiles": [
+    "docs/phase2093-batch-tool-mutation-target-one.proposal.diff",
+    "docs/phase2094-batch-tool-mutation-target-two.proposal.diff",
+    "tools/phase2091/generated-source-patch-target.mjs",
+    "tools/phase2092/apply-controlled-existing-tool-mutation.mjs",
+    "apps/ai-gateway-service/evidence/phase2093-2095-controlled-batch-tool-mutation/result.json",
+    "apps/ai-gateway-service/evidence/phase2093-2095-controlled-batch-tool-mutation/result.md",
+    "apps/ai-gateway-service/evidence/phase2093-2095-controlled-batch-tool-mutation/rollback.json",
+    "apps/ai-gateway-service/evidence/phase2093-2095-controlled-batch-tool-mutation/batch-smoke.json"
+  ],
+  "forbiddenPaths": [
+    "legacy",
+    "PROJECT_CONTEXT.md",
+    ".env",
+    ".git",
+    "node_modules",
+    "auth.json",
+    "apps/ai-gateway-service/src/providers",
+    "apps/ai-gateway-service/src/http/chat-gateway/execute",
+    "/chat"
+  ],
+  "operations": [
+    {
+      "action": "apply-single-existing-tool-source-mutation",
+      "proposalPath": "docs/phase2093-batch-tool-mutation-target-one.proposal.diff",
+      "targetPath": "tools/phase2091/generated-source-patch-target.mjs",
+      "expectedBeforeSha256": "551ca47ff74baae3c7a1d703dd863de63c2d628a93b56f33b73ce7e98ec6f2e3",
+      "allowCreate": false,
+      "allowDelete": false,
+      "requiredExports": [
+        "export function buildPhase2093BatchMutationTargetOneStatus"
+      ],
+      "requiredMarkers": [
+        "PHASE2091_SOURCE_PATCH_OK",
+        "PHASE2092_EXISTING_TOOL_MUTATION_OK",
+        "PHASE2093_BATCH_TOOL_TARGET_ONE_OK"
+      ]
+    },
+    {
+      "action": "apply-single-existing-tool-source-mutation",
+      "proposalPath": "docs/phase2094-batch-tool-mutation-target-two.proposal.diff",
+      "targetPath": "tools/phase2092/apply-controlled-existing-tool-mutation.mjs",
+      "expectedBeforeSha256": "38c70e41ec9ca35f1a54871315ccb28ebd66148c5f3fc566c42b925e17492d7c",
+      "allowCreate": false,
+      "allowDelete": false,
+      "requiredExports": [
+        "export function buildPhase2094BatchMutationRuntimeStatus",
+        "export function main"
+      ],
+      "requiredMarkers": [
+        "PHASE2094_BATCH_TOOL_TARGET_TWO_OK"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "phase": "Phase330B",
+  "source": "phase329b_benchmark_result",
+  "capturedAt": "2026-05-06T18:13:51.087Z",
+  "summary": {
+    "passed": 15,
+    "partial": 0,
+    "failed": 0,
+    "averageQualityScore": 0.9361,
+    "averageConflictResolutionScore": 1,
+    "fallbackUsedCount": 0,
+    "conflictDetectedCount": 6,
+    "conflictResolvedCount": 6
+  },
+  "scenarioCount": 15
+}

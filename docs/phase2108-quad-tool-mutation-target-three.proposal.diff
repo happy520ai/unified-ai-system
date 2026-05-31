@@ -1,0 +1,33 @@
+diff --git a/tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs b/tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs
+--- a/tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs
++++ b/tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs
+@@ -26,11 +26,24 @@ export function buildPhase2100TripleMutationRuntimeStatus() {
+   return {
+     phaseId: "Phase2100A-Controlled-Triple-Tool-Mutation-Target-Three",
+     marker: "PHASE2100_TRIPLE_TOOL_TARGET_THREE_OK",
+     importSafe: true,
+     tripleRunnerReady: true,
++    phase2108Marker: "PHASE2108_QUAD_TOOL_TARGET_THREE_OK",
+     providerCallsMade: false,
+     codexExecExecuted: false,
+     chatModified: false,
+     chatGatewayExecuteModified: false,
+   };
+ }
+ 
++export function buildPhase2108QuadMutationTargetThreeStatus() {
++  return {
++    phaseId: "Phase2108A-Controlled-Quad-Tool-Mutation-Target-Three",
++    marker: "PHASE2108_QUAD_TOOL_TARGET_THREE_OK",
++    importSafe: true,
++    quadMutationApplied: true,
++    providerCallsMade: false,
++    codexExecExecuted: false,
++    chatModified: false,
++    chatGatewayExecuteModified: false,
++  };
++}
++
+ export function main() {
+   const args = parseArgs(process.argv.slice(2));
+   const planPath = args.plan || "docs/phase2093-2095-controlled-batch-tool-mutation-approval.example.json";

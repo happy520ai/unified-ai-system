@@ -80,6 +80,11 @@ export function createLocalKnowledgeService(options = {}) {
   const persistedDocuments = normalizeDocuments(persistence.loadDocuments()).map(markUserDocument);
   let documents = mergeDocuments(defaultDocuments, persistedDocuments);
 
+  // Query result cache (LRU-like, max 100 entries, 5 minute TTL)
+  const queryCache = new Map();
+  const CACHE_MAX_SIZE = 100;
+  const CACHE_TTL_MS = 5 * 60 * 1000;
+
   return {
     getHealth() {
       const persistenceStatus = persistence.getStatus();
@@ -204,6 +209,13 @@ export function createLocalKnowledgeService(options = {}) {
         throw error;
       }
 
+      // Check cache
+      const cacheKey = `${normalizedQuery}:${(request.sourceIds || []).join(",")}:${request.topK || "default"}:${request.minScore || 0}`;
+      const cached = queryCache.get(cacheKey);
+      if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+        return { ...cached.result, metadata: { ...cached.result.metadata, cacheHit: true } };
+      }
+
       const sourceIds = Array.isArray(request.sourceIds)
         ? new Set(request.sourceIds.filter((sourceId) => typeof sourceId === "string"))
         : null;
@@ -221,7 +233,7 @@ export function createLocalKnowledgeService(options = {}) {
           rank: index + 1,
         }));
 
-      return {
+      const result = {
         query,
         normalizedQuery,
         mode: "keyword",
@@ -244,8 +256,18 @@ export function createLocalKnowledgeService(options = {}) {
           candidateCount: candidates.length,
           resultCount: chunks.length,
           requestedTopK: topK,
+          cacheHit: false,
         },
       };
+
+      // Store in cache
+      if (queryCache.size >= CACHE_MAX_SIZE) {
+        const oldestKey = queryCache.keys().next().value;
+        queryCache.delete(oldestKey);
+      }
+      queryCache.set(cacheKey, { result, timestamp: Date.now() });
+
+      return result;
     },
     close() {
       persistence.close();

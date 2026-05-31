@@ -1,0 +1,7 @@
+model_provider = "pme_context_gateway"
+
+[model_providers.pme_context_gateway]
+name = "PME Codex Context Gateway"
+base_url = "<redacted:env:CODEX_CONTEXT_GATEWAY_RELAY_BASE_URL>"
+wire_api = "responses"
+requires_openai_auth = true

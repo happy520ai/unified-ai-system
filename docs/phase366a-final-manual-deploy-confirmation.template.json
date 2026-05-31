@@ -1,0 +1,9 @@
+{
+  "templateOnly": true,
+  "notAConfirmation": true,
+  "confirmationType": "final_manual_deploy_execution_confirmation",
+  "confirmationDecision": "pending",
+  "executeDeploy": false,
+  "codexIsConfirmer": false,
+  "requiresHumanCompletion": true
+}

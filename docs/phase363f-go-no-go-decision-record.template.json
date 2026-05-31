@@ -1,0 +1,15 @@
+{
+  "templateOnly": true,
+  "notDecisionRecord": true,
+  "meetingId": "",
+  "meetingHeld": false,
+  "attendees": [],
+  "decision": "pending",
+  "decisionTimestamp": null,
+  "decisionBy": "",
+  "conditions": [],
+  "evidenceRefs": [],
+  "rollbackAcknowledged": false,
+  "monitoringAcknowledged": false,
+  "deployAuthorizationRef": "docs/phase363d-deploy-authorization-state-rerun.json"
+}

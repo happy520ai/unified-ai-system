@@ -1,0 +1,60 @@
+import { verifyPersonalKnowledgePhase } from "./verifyPersonalKnowledgeClosureSupport.js";
+
+await verifyPersonalKnowledgePhase({
+  phase: "phase-250a-personal-knowledge-freshness-guard",
+  docPath: "docs/PERSONAL_KNOWLEDGE_FRESHNESS_GUARD.md",
+  verifierPath: "apps/ai-gateway-service/src/entrypoints/verifyPersonalKnowledgeFreshnessGuard.js",
+  rootScriptName: "verify:phase250a-personal-knowledge-freshness-guard",
+  serviceScriptValue: "node ./src/entrypoints/verifyPersonalKnowledgeFreshnessGuard.js",
+  requiredDocSections: [
+    "# Personal Knowledge Freshness Guard",
+    "## 1. Current Fact Order",
+    "## 2. Latest Evidence Rule",
+    "## 3. Phase Number Rule",
+    "## 4. Closure Snapshot Rule",
+    "## 5. Stale Evidence Warning",
+    "## 6. Dirty Workspace Warning",
+    "## 7. Timestamp Caution",
+    "## 8. Conflict Handling",
+    "## 9. Marking Uncertain",
+    "## 10. Re-verification Triggers",
+  ],
+  requiredDocMarkers: [
+    "Latest passed phase evidence.",
+    "Latest closure snapshot.",
+    "Document update time does not equal current truth.",
+    "Prefer latest passed evidence.",
+    "Mark unresolved conflicts uncertain.",
+    "Require re-verification",
+    "do not describe workspace as clean",
+  ],
+  requiredUiMarkers: [
+    "phase250a-personal-knowledge-freshness-guard",
+    "Current fact order",
+    "Latest evidence first",
+    "Phase number caution",
+    "Closure snapshot priority",
+    "Dirty workspace warning",
+    "Mark uncertain",
+  ],
+  requiredVerificationCommands: [
+    "cmd /c pnpm run verify:phase250a-personal-knowledge-freshness-guard",
+  ],
+  requiredEvidenceStatusPaths: [
+    "apps/ai-gateway-service/evidence/phase-249a-personal-knowledge-citation-report.json",
+  ],
+  conclusionPassed: "personal-knowledge-freshness-guard-preview-ready",
+  conclusionFailed: "personal-knowledge-freshness-guard-preview-incomplete",
+  capabilityList: [
+    "knowledge-freshness-guard",
+    "current-fact-order",
+    "latest-evidence-rule",
+    "closure-snapshot-priority",
+    "dirty-workspace-warning",
+    "uncertain-marker",
+  ],
+  notes: [
+    "Phase 250A prevents stale docs, stale evidence, and old phase framing from being treated as current state.",
+    "Dirty workspace is treated as a warning, not hidden as clean.",
+  ],
+});

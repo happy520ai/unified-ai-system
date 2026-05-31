@@ -1,0 +1,32 @@
+{
+  "avatarName": "依依",
+  "avatarId": "yiyi_mission_companion",
+  "role": "mission_avatar_companion",
+  "authorityLevel": "presentation_and_guidance_only",
+  "canExecuteActions": false,
+  "canReadSecrets": false,
+  "canCallProviders": false,
+  "canDeploy": false,
+  "canModifyEvidence": false,
+  "canExplain": true,
+  "canGuide": true,
+  "canReactToMissionEvents": true,
+  "photoProcessingMode": "dry_run_profile_only",
+  "rawPhotoStored": false,
+  "externalUploadAllowed": false,
+  "externalUploadPerformed": false,
+  "faceRecognitionPerformed": false,
+  "sensitiveAttributeInferencePerformed": false,
+  "visualDirection": [
+    "sea_breeze",
+    "white_hat",
+    "long_black_hair",
+    "gentle_futuristic",
+    "mission_companion"
+  ],
+  "modeBoundaries": {
+    "noSecret": true,
+    "noProviderCall": true,
+    "noDeploy": true
+  }
+}

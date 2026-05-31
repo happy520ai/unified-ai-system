@@ -1,0 +1,43 @@
+export const threeModeCopy = {
+  runtimeTitle: "三种工作模式",
+  safetyBadge: "安全预览：不读取密钥，不调用真实模型，不部署",
+  guardedNotice: "这里用于理解 Normal / God / Tianshu 的区别。当前界面只做预览，不代表真实 Provider 已启用。",
+  tabs: {
+    normal: "Normal",
+    god: "God",
+    tianshu: "Tianshu",
+  },
+  normal: {
+    summary: "Normal 适合普通问题：直接、快速、低成本。",
+    modelLabel: "当前候选模型",
+    descriptionLabel: "适合什么时候用",
+    descriptionBody: "当问题清楚、风险不高、只需要一个直接回答时，先用 Normal。",
+    providerLabel: "Provider 状态",
+    inputLabel: "普通问题",
+    inputPlaceholder: "输入一个清楚的小问题，例如：总结这段说明。",
+    statusTitle: "Normal 状态",
+    statusLines: [
+      "selectedModel: pending",
+      "providerStatus: pending",
+      "credentialRefStatus: credentialRefOnly",
+      "quota / budget / selectable: pending",
+    ],
+    sendLabel: "预览 Normal 方案",
+  },
+  result: {
+    resultTitle: "模式结果",
+    resultEmpty: "暂无模式预览。",
+    auditTitle: "安全记录",
+    auditEmpty: "暂无安全记录。",
+    telemetryTitle: "预览状态",
+    telemetryBody: [
+      "latencyMs=0",
+      "estimatedTokenUsage=0",
+      "estimatedCost=preview-only",
+      "quotaStatus=not-used",
+      "budgetStatus=not-used",
+      "policyStatus=guarded",
+      "credentialStatus=credentialRefOnly",
+    ].join("\n"),
+  },
+};

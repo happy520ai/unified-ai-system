@@ -1,0 +1,37 @@
+diff --git a/tools/phase2202_2218/apply-controlled-twelve-tool-mutation.mjs b/tools/phase2202_2218/apply-controlled-twelve-tool-mutation.mjs
+index da4c031..3ef730f 100644
+--- a/tools/phase2202_2218/apply-controlled-twelve-tool-mutation.mjs
++++ b/tools/phase2202_2218/apply-controlled-twelve-tool-mutation.mjs
+@@ -214,6 +214,32 @@ export function buildPhase2383TwentyMutationTargetThirteenStatus() {
+     chatGatewayExecuteModified: false,
+   };
+ }
++
++export function buildPhase2408TwentyOneMutationTargetThirteenStatus() {
++  return {
++    phaseId: "Phase2408A-Controlled-Twenty-One-Tool-Mutation-Target-Thirteen",
++    marker: "PHASE2408_TWENTY_ONE_TOOL_TARGET_THIRTEEN_OK",
++    importSafe: true,
++    phase2170Marker: "PHASE2170_NONET_TOOL_TARGET_NINE_OK",
++    phase2185Marker: "PHASE2185_DECA_TOOL_TARGET_TEN_OK",
++    phase2201Marker: "PHASE2201_ELEVEN_TOOL_TARGET_ELEVEN_OK",
++    phase2218Marker: "PHASE2218_TWELVE_TOOL_TARGET_TWELVE_OK",
++    phase2236Marker: "PHASE2236_THIRTEEN_TOOL_TARGET_THIRTEEN_OK",
++    phase2254Marker: "PHASE2254_FOURTEEN_TOOL_TARGET_THIRTEEN_OK",
++    phase2273Marker: "PHASE2273_FIFTEEN_TOOL_TARGET_THIRTEEN_OK",
++    phase2293Marker: "PHASE2293_SIXTEEN_TOOL_TARGET_THIRTEEN_OK",
++    phase2314Marker: "PHASE2314_SEVENTEEN_TOOL_TARGET_THIRTEEN_OK",
++    phase2336Marker: "PHASE2336_EIGHTEEN_TOOL_TARGET_THIRTEEN_OK",
++    phase2359Marker: "PHASE2359_NINETEEN_TOOL_TARGET_THIRTEEN_OK",
++    phase2383Marker: "PHASE2383_TWENTY_TOOL_TARGET_THIRTEEN_OK",
++    phase2408Marker: "PHASE2408_TWENTY_ONE_TOOL_TARGET_THIRTEEN_OK",
++    twentyOneMutationApplied: true,
++    providerCallsMade: false,
++    codexExecExecuted: false,
++    chatModified: false,
++    chatGatewayExecuteModified: false,
++  };
++}
+ export function main() {
+   const args = parseArgs(process.argv.slice(2));
+   const planPath = args.plan || "docs/phase2202-2218-controlled-twelve-tool-mutation-approval.example.json";

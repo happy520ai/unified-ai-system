@@ -1,0 +1,106 @@
+{
+  "phase": "Phase331B",
+  "dashboardName": "god-mode-benchmark-historical-trend-dashboard",
+  "runtimeStatus": "dashboard_data_only",
+  "historyPointCount": 3,
+  "trendStatus": "ok",
+  "metrics": {
+    "averageQualityScore": [
+      0.9361,
+      0.9361,
+      0.9361
+    ],
+    "conflictResolutionScore": [
+      1,
+      1,
+      1
+    ],
+    "fallbackUsedCount": [
+      0,
+      0,
+      0
+    ],
+    "failedScenarioCount": [
+      0,
+      0,
+      0
+    ],
+    "partialSuccessCount": [
+      0,
+      0,
+      0
+    ],
+    "p95LatencyMs": [
+      0,
+      0,
+      0
+    ],
+    "costEstimate": [
+      0,
+      0,
+      0
+    ],
+    "benchmarkScenarioCount": [
+      15,
+      15,
+      15
+    ]
+  },
+  "trends": {
+    "qualityTrend": "flat",
+    "conflictResolutionTrend": "flat",
+    "fallbackTrend": "flat",
+    "latencyTrend": "flat",
+    "costTrend": "flat",
+    "regressionMarkers": []
+  },
+  "history": [
+    {
+      "source": "phase329b_benchmark",
+      "averageQualityScore": 0.9361,
+      "conflictResolutionScore": 1,
+      "fallbackUsedCount": 0,
+      "failedScenarioCount": 0,
+      "partialSuccessCount": 0,
+      "p95LatencyMs": 0,
+      "costEstimate": 0,
+      "secretExposureCount": 0,
+      "unauthorizedProviderCallCount": 0,
+      "benchmarkScenarioCount": 15,
+      "regressionDetected": false
+    },
+    {
+      "source": "phase330b_baseline_snapshot",
+      "averageQualityScore": 0.9361,
+      "conflictResolutionScore": 1,
+      "fallbackUsedCount": 0,
+      "failedScenarioCount": 0,
+      "partialSuccessCount": 0,
+      "p95LatencyMs": 0,
+      "costEstimate": 0,
+      "secretExposureCount": 0,
+      "unauthorizedProviderCallCount": 0,
+      "benchmarkScenarioCount": 15,
+      "regressionDetected": false
+    },
+    {
+      "source": "phase330b_regression_current",
+      "averageQualityScore": 0.9361,
+      "conflictResolutionScore": 1,
+      "fallbackUsedCount": 0,
+      "failedScenarioCount": 0,
+      "partialSuccessCount": 0,
+      "p95LatencyMs": 0,
+      "costEstimate": 0,
+      "secretExposureCount": 0,
+      "unauthorizedProviderCallCount": 0,
+      "benchmarkScenarioCount": 15,
+      "regressionDetected": false
+    }
+  ],
+  "safety": {
+    "secretValueExposed": false,
+    "unauthorizedProviderCalled": false,
+    "failedHighRiskModelUsed": false
+  }
+}

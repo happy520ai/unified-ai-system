@@ -1,0 +1,66 @@
+{
+  "scaffoldPlanVersion": "phase651-666-scaffold-plan-v1",
+  "capabilityId": "trial-3-token",
+  "runtimeEnabled": false,
+  "files": {
+    "adapter": "capabilities/_generated_dry_run/trial-3-token/adapter.dry-run.js",
+    "fixture": "capabilities/_generated_dry_run/trial-3-token/fixture.json",
+    "verifier": "capabilities/_generated_dry_run/trial-3-token/validate-trial-3-token.mjs",
+    "evidence": "apps/ai-gateway-service/evidence/phase651_666/capability-trial-3-token.json",
+    "docs": "capabilities/_generated_dry_run/trial-3-token/README.md",
+    "rollback": "capabilities/_generated_dry_run/trial-3-token/rollback.md"
+  },
+  "steps": [
+    "compile natural language spec",
+    "classify immune risk",
+    "generate manifest draft",
+    "generate dry-run adapter plan",
+    "generate verifier/evidence/rollback plan",
+    "write registry preview only"
+  ],
+  "forbiddenSteps": [
+    "enable runtime",
+    "call provider",
+    "read secret",
+    "modify /chat",
+    "modify /chat-gateway/execute",
+    "write Codex config",
+    "deploy or release"
+  ],
+  "inputs": {
+    "compilerVersion": "phase651-666-deterministic-neurogenesis-v1",
+    "deterministic": true,
+    "modelCallsMade": false,
+    "capabilityId": "trial-3-token",
+    "displayName": "Context Compression Token Saver",
+    "description": "Deterministic dry-run capability spec compiled from natural-language intake: 我希望网关能压缩长上下文省 token.",
+    "intakeText": "我希望网关能压缩长上下文省 token",
+    "type": "context",
+    "requestedRuntime": "dry_run",
+    "pressureTypes": [
+      "token"
+    ],
+    "modes": [
+      "codex",
+      "normal"
+    ],
+    "dependencies": [],
+    "requiredArtifacts": [
+      "manifest",
+      "scaffoldPlan",
+      "fixture",
+      "verifier",
+      "evidence",
+      "rollback"
+    ],
+    "safetyBoundary": {
+      "providerCallsAllowed": false,
+      "secretReadAllowed": false,
+      "deployAllowed": false,
+      "chatMutationAllowed": false,
+      "chatGatewayExecuteMutationAllowed": false,
+      "codexConfigMutationAllowed": false,
+      "selfApprovalAllowed": false
+    }
+  }
+}

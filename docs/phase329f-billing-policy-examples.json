@@ -1,0 +1,15 @@
+{
+  "phase": "Phase329F",
+  "examples": {
+    "default": {
+      "dailyBudgetLimit": 5,
+      "monthlyBudgetLimit": 50,
+      "maxSingleRequestEstimatedCost": 0.5,
+      "godModeMaxEstimatedCost": 0.4,
+      "tianshuMaxEstimatedCost": 0.3,
+      "nonNvidiaProviderCostWarning": true,
+      "requireUserConfirmationAboveThreshold": true,
+      "confirmationThreshold": 0.05
+    }
+  }
+}

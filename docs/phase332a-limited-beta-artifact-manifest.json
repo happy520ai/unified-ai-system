@@ -1,0 +1,71 @@
+{
+  "packageId": "phase332a-limited-beta-rc-dry-run",
+  "phase": "Phase332A",
+  "generatedAt": "2026-05-06T18:41:40.733Z",
+  "releaseExecuted": false,
+  "deployExecuted": false,
+  "gitTagCreated": false,
+  "artifactUploaded": false,
+  "sourceCommitRef": "3592079",
+  "includedDocs": [
+    "docs/phase331a-controlled-rollout-plan.json",
+    "docs/phase331a-release-candidate-gate-criteria.json"
+  ],
+  "includedEvidence": [
+    "apps/ai-gateway-service/evidence/phase328a",
+    "apps/ai-gateway-service/evidence/phase329a",
+    "apps/ai-gateway-service/evidence/phase330a",
+    "apps/ai-gateway-service/evidence/phase331a"
+  ],
+  "includedContracts": [
+    "docs/phase331b-god-mode-trend-dashboard-data.json",
+    "docs/phase331c-policy-approval-state-contract.json",
+    "docs/phase331f-exportable-statement-contract.json"
+  ],
+  "includedRuntimeModules": [
+    "apps/ai-gateway-service/src/three-mode",
+    "apps/ai-gateway-service/src/billing"
+  ],
+  "includedUiModules": [
+    "apps/agent-console/src/providerOnboardingWizard.js",
+    "apps/agent-console/src/billingMockInvoicePanel.js"
+  ],
+  "excludedSecrets": [
+    "*.env",
+    "*.key",
+    "*.pem",
+    "secret values",
+    "raw credential values"
+  ],
+  "excludedEnvFiles": [
+    ".env",
+    ".env.local",
+    ".env.production"
+  ],
+  "verificationResults": {
+    "phase331ReadyForReleaseCandidate": true,
+    "dryRunOnly": true,
+    "blockers": [],
+    "warnings": []
+  },
+  "rollbackPlanRefs": [
+    "docs/phase331a-rollout-risk-register.md",
+    "docs/phase330a-readiness-risk-register.md"
+  ],
+  "readinessGateRefs": [
+    "docs/phase331a-release-candidate-gate-criteria.json",
+    "docs/phase330a-readiness-gate-criteria.json"
+  ],
+  "riskRegisterRefs": [
+    "docs/phase332a-rc-package-risk-register.md"
+  ],
+  "safety": {
+    "secretFilesIncluded": false,
+    "envFilesIncluded": false,
+    "apiKeysIncluded": false,
+    "releaseExecuted": false,
+    "deployExecuted": false,
+    "gitTagCreated": false,
+    "artifactUploaded": false
+  }
+}

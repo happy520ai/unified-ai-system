@@ -1,0 +1,76 @@
+{
+  "phase": "Phase3962A-ProviderRealityStatusMatrix",
+  "generatedFromEvidenceOnly": true,
+  "providerCallsMade": false,
+  "secretRead": false,
+  "productionReadyClaimed": false,
+  "providerStabilityClaimed": false,
+  "phase3958BaselinePresent": true,
+  "providers": [
+    {
+      "providerName": "NVIDIA",
+      "configured": true,
+      "credentialRefPresent": true,
+      "credentialRefResolvable": false,
+      "rawSecretRead": false,
+      "lastRealSmokeStatus": "historical_partial_chat_model_smoke_evidence_only",
+      "lastRealSmokeEvidence": "Phase3958A baseline references two NVIDIA chat models as smoke-passed; no new call in Phase3962A.",
+      "continuousStabilityVerified": false,
+      "selectableAllowed": true,
+      "productionClaimAllowed": false,
+      "blocker": "continuous_stability_not_verified"
+    },
+    {
+      "providerName": "OpenAI",
+      "configured": false,
+      "credentialRefPresent": false,
+      "credentialRefResolvable": false,
+      "rawSecretRead": false,
+      "lastRealSmokeStatus": "not_executed_by_policy",
+      "lastRealSmokeEvidence": null,
+      "continuousStabilityVerified": false,
+      "selectableAllowed": false,
+      "productionClaimAllowed": false,
+      "blocker": "owner_authorization_and_credentialref_required"
+    },
+    {
+      "providerName": "Claude",
+      "configured": false,
+      "credentialRefPresent": false,
+      "credentialRefResolvable": false,
+      "rawSecretRead": false,
+      "lastRealSmokeStatus": "not_executed_by_policy",
+      "lastRealSmokeEvidence": null,
+      "continuousStabilityVerified": false,
+      "selectableAllowed": false,
+      "productionClaimAllowed": false,
+      "blocker": "owner_authorization_and_credentialref_required"
+    },
+    {
+      "providerName": "OpenRouter",
+      "configured": true,
+      "credentialRefPresent": true,
+      "credentialRefResolvable": true,
+      "rawSecretRead": false,
+      "lastRealSmokeStatus": "pass",
+      "lastRealSmokeEvidence": "Phase3979A-OpenRouter-CredentialRef-Real-Integration: pass",
+      "continuousStabilityVerified": true,
+      "selectableAllowed": true,
+      "productionClaimAllowed": false,
+      "blocker": null
+    },
+    {
+      "providerName": "MiMo",
+      "configured": false,
+      "credentialRefPresent": false,
+      "credentialRefResolvable": false,
+      "rawSecretRead": false,
+      "lastRealSmokeStatus": "not_executed_by_policy",
+      "lastRealSmokeEvidence": null,
+      "continuousStabilityVerified": false,
+      "selectableAllowed": false,
+      "productionClaimAllowed": false,
+      "blocker": "explicit_owner_authorization_required"
+    }
+  ]
+}

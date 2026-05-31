@@ -1,0 +1,15 @@
+{
+  "dailyCommands": [
+    "pnpm run verify:phase107a-secret-safety",
+    "pnpm run verify:phase321a-workbench-product-recovery",
+    "pnpm smoke:phase308a-desktop-workbench-ui"
+  ],
+  "weeklyCommands": [
+    "pnpm run verify:phase651-666-taiji-beidou-self-use",
+    "pnpm run verify:phase667-674-taiji-beidou-auto-runtime-v0",
+    "pnpm run verify:phase675-682-taiji-beidou-real-provider-runtime-v0",
+    "pnpm run verify:phase683-700-taiji-beidou-production-readiness",
+    "pnpm run verify:phase701-720-no-deploy-production-ops"
+  ],
+  "realRegressionRunClaimed": false
+}

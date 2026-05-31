@@ -1,0 +1,23 @@
+{
+  "phase": "Phase330C",
+  "schemaName": "tianshu-feedback-event",
+  "required": [
+    "eventId",
+    "requestId",
+    "userIdRef",
+    "mode",
+    "taskType",
+    "selectedModels",
+    "plannerDecision",
+    "userFeedback",
+    "outcomeSignal",
+    "createdAt"
+  ],
+  "forbidden": [
+    "promptSecret",
+    "apiKey",
+    "rawCredential",
+    "sensitivePersonalData",
+    "unredactedUserIdentifier"
+  ]
+}

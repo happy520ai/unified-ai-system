@@ -1,0 +1,14 @@
+{
+  "phaseRange": "Phase1246-1255",
+  "decision": "pending_owner_manual_review",
+  "ownerManualReviewCompleted": false,
+  "ownerApprovedLimitedEnable": false,
+  "allowLimitedEnableBehindFlag": false,
+  "providerCallAllowed": false,
+  "secretReadAllowed": false,
+  "chatDefaultChangeAllowed": false,
+  "chatGatewayExecuteDefaultChangeAllowed": false,
+  "mainChainDefaultEnableAllowed": false,
+  "deploymentAllowed": false,
+  "productionReadyClaimAllowed": false
+}

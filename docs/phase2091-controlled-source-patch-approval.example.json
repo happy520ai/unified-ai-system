@@ -1,0 +1,57 @@
+{
+  "phaseId": "Phase2091A-Controlled-Source-Patch-Apply",
+  "planId": "phase2091-controlled-source-patch-apply",
+  "approvalRecord": {
+    "approved": true,
+    "permissionMode": "controlled-source-patch-apply",
+    "dryRun": false,
+    "approvedAtLeastOnceByOwner": [
+      {
+        "source": "user-message",
+        "text": "直接帮我搞定我的这个系统，但必须保持安全边界和可验证证据",
+        "scope": "phase2091-controlled-source-patch-apply"
+      }
+    ],
+    "codexExecAllowed": false,
+    "projectProviderAllowed": false,
+    "secretReadAllowed": false,
+    "authJsonReadAllowed": false,
+    "envReadAllowed": false,
+    "codexConfigWriteAllowed": false,
+    "chatModificationAllowed": false,
+    "chatGatewayExecuteModificationAllowed": false,
+    "legacyModificationAllowed": false,
+    "deployAllowed": false,
+    "releaseAllowed": false,
+    "pushAllowed": false,
+    "commitAllowed": false
+  },
+  "allowedFiles": [
+    "docs/phase2091-controlled-source-patch.proposal.diff",
+    "tools/phase2091/generated-source-patch-target.mjs",
+    "apps/ai-gateway-service/evidence/phase2091-controlled-source-patch-apply/result.json",
+    "apps/ai-gateway-service/evidence/phase2091-controlled-source-patch-apply/result.md",
+    "apps/ai-gateway-service/evidence/phase2091-controlled-source-patch-apply/rollback.json",
+    "apps/ai-gateway-service/evidence/phase2091-controlled-source-patch-apply/source-smoke.json"
+  ],
+  "forbiddenPaths": [
+    "legacy",
+    "PROJECT_CONTEXT.md",
+    ".env",
+    ".git",
+    "node_modules",
+    "auth.json",
+    "apps/ai-gateway-service/src/providers",
+    "apps/ai-gateway-service/src/http/chat-gateway/execute",
+    "/chat"
+  ],
+  "operation": {
+    "action": "apply-single-source-proposal",
+    "proposalPath": "docs/phase2091-controlled-source-patch.proposal.diff",
+    "targetPath": "tools/phase2091/generated-source-patch-target.mjs",
+    "allowOverwrite": false,
+    "maxChangedFiles": 1,
+    "runNodeCheck": true,
+    "runLocalSmoke": true
+  }
+}

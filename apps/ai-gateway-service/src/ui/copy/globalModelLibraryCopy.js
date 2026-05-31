@@ -1,0 +1,33 @@
+export const globalModelLibraryCopy = Object.freeze({
+  title: "Global Model Library",
+  subtitle: "全球模型库扩容只读底座。当前阶段只展示 catalog / contract / dry-run import，不做真实接入。",
+  boundaryBadges: [
+    "providerCallsMade=false",
+    "secretRead=false",
+    "authJsonRead=false",
+    "selectable unchanged",
+    "no /chat change",
+    "no /chat-gateway/execute change",
+    "dry-run catalog only",
+  ],
+  metrics: [
+    ["currentMatchedModelCount", 148],
+    ["currentSelectableModelCount", 17],
+    ["currentSmokePassedModelCount", 17],
+    ["currentFailedModelCount", 1],
+    ["currentHighRiskBlockedModelCount", 12],
+    ["providerFamilyCount", ">=30"],
+    ["catalogSeedModelCount", ">=400"],
+    ["dryRunImportedModelCount", ">=400"],
+    ["credentialMissingCount", "dry-run only"],
+    ["credentialReadyCount", 0],
+    ["smokePendingCount", 0],
+    ["selectableCandidateCount", 0],
+  ],
+  safetyLines: [
+    "Seed models are not runtime-ready.",
+    "credential_missing models are not usable.",
+    "discovered/cataloged models are not smokePassed.",
+    "No new selectable models are added by this phase.",
+  ],
+});

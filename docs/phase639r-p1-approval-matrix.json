@@ -1,0 +1,43 @@
+{
+  "phase": "Phase639R",
+  "name": "Unified P1 Approval Matrix",
+  "completed": true,
+  "recommended_sealed": true,
+  "blocker": null,
+  "risks": [
+    {
+      "riskId": "P1-001",
+      "sourceIssueId": "phase634r-p1-001",
+      "approvalPacketPath": "docs/phase639r-main-chain-integration-approval-packet.md",
+      "approvalInputExamplePath": "docs/phase639r-main-chain-integration-approval.input.example.json",
+      "canAutoExecute": false,
+      "implementationInThisPhase": false,
+      "realCallAllowed": false,
+      "chatModificationAllowed": false,
+      "chatGatewayExecuteModificationAllowed": false,
+      "providerRuntimeModificationAllowed": false,
+      "deployAllowed": false,
+      "releaseAllowed": false,
+      "pushAllowed": false,
+      "commitAllowed": false,
+      "nextGate": "Phase640R Main-Chain Candidate Preparation Approval Gate"
+    },
+    {
+      "riskId": "P1-002",
+      "sourceIssueId": "phase634r-p1-002",
+      "approvalPacketPath": "docs/phase639r-provider-runtime-approval-packet.md",
+      "approvalInputExamplePath": "docs/phase639r-provider-runtime-approval.input.example.json",
+      "canAutoExecute": false,
+      "implementationInThisPhase": false,
+      "realCallAllowed": false,
+      "chatModificationAllowed": false,
+      "chatGatewayExecuteModificationAllowed": false,
+      "providerRuntimeModificationAllowed": false,
+      "deployAllowed": false,
+      "releaseAllowed": false,
+      "pushAllowed": false,
+      "commitAllowed": false,
+      "nextGate": "Phase641R Provider Runtime Candidate Preparation Approval Gate"
+    }
+  ]
+}

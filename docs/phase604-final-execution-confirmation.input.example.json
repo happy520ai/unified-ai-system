@@ -1,0 +1,19 @@
+{
+  "confirmationId": "confirm-phase604-custom-model-provider-one-shot-001",
+  "confirmedBy": "user-owner",
+  "decision": "approved_execute_custom_model_provider_guarded_one_shot_test",
+  "configRoute": "model_provider",
+  "preferredProviderId": "crs",
+  "fallbackProviderId": "pme_context_gateway",
+  "maxRequests": 1,
+  "retryLimit": 0,
+  "maxDurationMinutes": 10,
+  "providerCallAllowedForOneShot": true,
+  "authJsonAccessAllowed": false,
+  "persistentUserConfigWriteAllowed": false,
+  "persistentProjectConfigWriteAllowed": false,
+  "temporaryProjectConfigAllowed": false,
+  "rollbackRequiredAfterTest": true,
+  "approvalReason": "Approve one-shot custom model_provider route test. No auth.json access, no persistent config write, no production rollout.",
+  "createdAt": "<ISO timestamp>"
+}

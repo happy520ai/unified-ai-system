@@ -1,0 +1,37 @@
+{
+  "compilerVersion": "phase651-666-deterministic-neurogenesis-v1",
+  "deterministic": true,
+  "modelCallsMade": false,
+  "capabilityId": "trial-1",
+  "displayName": "Task Risk Level Classifier",
+  "description": "Deterministic dry-run capability spec compiled from natural-language intake: 我希望网关能自动判断任务风险等级.",
+  "intakeText": "我希望网关能自动判断任务风险等级",
+  "type": "safety",
+  "requestedRuntime": "dry_run",
+  "pressureTypes": [
+    "risk"
+  ],
+  "modes": [
+    "normal",
+    "god",
+    "tianshu"
+  ],
+  "dependencies": [],
+  "requiredArtifacts": [
+    "manifest",
+    "scaffoldPlan",
+    "fixture",
+    "verifier",
+    "evidence",
+    "rollback"
+  ],
+  "safetyBoundary": {
+    "providerCallsAllowed": false,
+    "secretReadAllowed": false,
+    "deployAllowed": false,
+    "chatMutationAllowed": false,
+    "chatGatewayExecuteMutationAllowed": false,
+    "codexConfigMutationAllowed": false,
+    "selfApprovalAllowed": false
+  }
+}

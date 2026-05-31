@@ -1,0 +1,11 @@
+{
+  "phase": "Phase344A",
+  "flagName": "limitedBetaGuardedEnablement",
+  "flagsDryRunExecuted": true,
+  "userExposure": false,
+  "externalNotification": false,
+  "policyActivated": false,
+  "providerRealCallExecuted": false,
+  "realInvoiceGenerated": false,
+  "secretValueExposed": false
+}

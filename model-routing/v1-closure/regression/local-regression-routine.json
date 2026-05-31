@@ -1,0 +1,40 @@
+{
+  "phase": "Phase986",
+  "completed": true,
+  "recommended_sealed": true,
+  "blocker": null,
+  "localRegressionRoutineReady": true,
+  "dailyCommands": [
+    "pnpm run verify:phase107a-secret-safety",
+    "pnpm run verify:phase321a-workbench-product-recovery",
+    "pnpm smoke:phase308a-desktop-workbench-ui"
+  ],
+  "weeklyCommands": [
+    "pnpm run verify:phase916-930-real-route-quality-test",
+    "pnpm run verify:phase931-940-quality-result-audit",
+    "pnpm run verify:phase966-970-god-marker-rerun",
+    "pnpm run verify:phase971-1000-local-self-use-routing-v1"
+  ],
+  "providerCallsMade": false,
+  "providerCallsMadeThisPhase": false,
+  "newProviderRequestsThisPhase": 0,
+  "routePolicyAppliedToRuntime": false,
+  "rawSecretRead": false,
+  "secretValueExposed": false,
+  "authJsonRead": false,
+  "chatBehaviorChangedByDefault": false,
+  "chatGatewayExecuteBehaviorChangedByDefault": false,
+  "deployExecuted": false,
+  "releaseExecuted": false,
+  "tagCreated": false,
+  "artifactUploaded": false,
+  "selectableModifiedThisPhase": false,
+  "unauthorizedSelectableChangeDetected": false,
+  "unsupportedClaimCount": 0,
+  "hallucinatedFactCount": 0,
+  "codexContextGatewayUsed": true,
+  "contextCodecUsed": true,
+  "relevantFilesUsed": true,
+  "fullRepoScanAvoided": true,
+  "tokenBudgetRespected": true
+}

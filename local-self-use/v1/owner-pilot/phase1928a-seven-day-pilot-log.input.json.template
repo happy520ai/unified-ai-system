@@ -1,0 +1,9 @@
+{
+  "day": 1,
+  "date": "",
+  "ownerTask": "",
+  "completed": null,
+  "friction": "",
+  "evidenceId": "",
+  "decision": "continue_pending_owner_input"
+}

@@ -1,0 +1,19 @@
+{
+  "phase": "Phase1165",
+  "completed": true,
+  "recommended_sealed": true,
+  "blocker": null,
+  "activeRiskStopDisablePolicyReady": true,
+  "activeUnsafeRiskDetected": false,
+  "allowedActionWhenUnsafe": "stop-disable-block-only",
+  "providerCallsMade": false,
+  "rawSecretRead": false,
+  "secretValueExposed": false,
+  "authJsonRead": false,
+  "chatBehaviorChangedByDefault": false,
+  "chatGatewayExecuteBehaviorChangedByDefault": false,
+  "deployExecuted": false,
+  "releaseExecuted": false,
+  "tagCreated": false,
+  "artifactUploaded": false
+}

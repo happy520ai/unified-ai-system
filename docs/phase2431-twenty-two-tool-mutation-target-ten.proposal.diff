@@ -1,0 +1,38 @@
+diff --git a/tools/phase2157_2170/apply-controlled-nonet-tool-mutation.mjs b/tools/phase2157_2170/apply-controlled-nonet-tool-mutation.mjs
+index 0875379..cfb46b7 100644
+--- a/tools/phase2157_2170/apply-controlled-nonet-tool-mutation.mjs
++++ b/tools/phase2157_2170/apply-controlled-nonet-tool-mutation.mjs
+@@ -288,6 +288,33 @@ export function buildPhase2405TwentyOneMutationTargetTenStatus() {
+     chatGatewayExecuteModified: false,
+   };
+ }
++
++export function buildPhase2431TwentyTwoMutationTargetTenStatus() {
++  return {
++    phaseId: "Phase2431A-Controlled-Twenty-Two-Tool-Mutation-Target-Ten",
++    marker: "PHASE2431_TWENTY_TWO_TOOL_TARGET_TEN_OK",
++    importSafe: true,
++    phase2170Marker: "PHASE2170_NONET_TOOL_TARGET_NINE_OK",
++    phase2185Marker: "PHASE2185_DECA_TOOL_TARGET_TEN_OK",
++    phase2200Marker: "PHASE2200_ELEVEN_TOOL_TARGET_TEN_OK",
++    phase2216Marker: "PHASE2216_TWELVE_TOOL_TARGET_TEN_OK",
++    phase2233Marker: "PHASE2233_THIRTEEN_TOOL_TARGET_TEN_OK",
++    phase2251Marker: "PHASE2251_FOURTEEN_TOOL_TARGET_TEN_OK",
++    phase2270Marker: "PHASE2270_FIFTEEN_TOOL_TARGET_TEN_OK",
++    phase2290Marker: "PHASE2290_SIXTEEN_TOOL_TARGET_TEN_OK",
++    phase2311Marker: "PHASE2311_SEVENTEEN_TOOL_TARGET_TEN_OK",
++    phase2333Marker: "PHASE2333_EIGHTEEN_TOOL_TARGET_TEN_OK",
++    phase2356Marker: "PHASE2356_NINETEEN_TOOL_TARGET_TEN_OK",
++    phase2380Marker: "PHASE2380_TWENTY_TOOL_TARGET_TEN_OK",
++    phase2405Marker: "PHASE2405_TWENTY_ONE_TOOL_TARGET_TEN_OK",
++    phase2431Marker: "PHASE2431_TWENTY_TWO_TOOL_TARGET_TEN_OK",
++    twentyTwoMutationApplied: true,
++    providerCallsMade: false,
++    codexExecExecuted: false,
++    chatModified: false,
++    chatGatewayExecuteModified: false,
++  };
++}
+ export function main() {
+   const args = parseArgs(process.argv.slice(2));
+   const planPath = args.plan || "docs/phase2157-2170-controlled-nonet-tool-mutation-approval.example.json";

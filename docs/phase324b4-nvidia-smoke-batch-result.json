@@ -1,0 +1,740 @@
+{
+  "phase": "Phase324B-4",
+  "batchId": "phase324b4",
+  "generatedAt": "2026-05-06T15:14:31.398Z",
+  "providerId": "nvidia",
+  "plannedModelCount": 5,
+  "processedModelCount": 5,
+  "smokePassedCount": 1,
+  "smokeFailedCount": 4,
+  "skippedEnvMissingCount": 0,
+  "manualReviewRequiredCount": 0,
+  "eligibleForPhase324C3Count": 1,
+  "nonNvidiaCallsDetected": false,
+  "secretExposureDetected": false,
+  "selectableGateModified": false,
+  "chatDropdownModified": false,
+  "phase313VerificationStateModified": false,
+  "chatGatewayModified": false,
+  "providerClientModified": false,
+  "models": [
+    {
+      "modelId": "bytedance/seed-oss-36b-instruct"
+    },
+    {
+      "modelId": "deepseek-ai/deepseek-v3.1-terminus"
+    },
+    {
+      "modelId": "deepseek-ai/deepseek-v3.2"
+    },
+    {
+      "modelId": "deepseek-ai/deepseek-v4-flash"
+    },
+    {
+      "modelId": "deepseek-ai/deepseek-v4-pro"
+    }
+  ],
+  "candidateSelection": {
+    "phase": "Phase324B-4",
+    "batchId": "phase324b4",
+    "generatedAt": "2026-05-06T15:13:30.625Z",
+    "mode": "preview",
+    "providerScope": "NVIDIA-only",
+    "maxCandidates": 5,
+    "sourceFiles": {
+      "inventory": "docs/phase324a-nvidia-model-candidate-inventory.json",
+      "phase324eReport": "docs/phase324e-model-library-operations-report.json",
+      "phase324eDashboard": "docs/phase324e-model-library-operations-dashboard-data.json",
+      "phase324d2fStrategy": "docs/phase324d2f-model-selection-strategy.json",
+      "previousBatches": [
+        "docs/phase324b-nvidia-smoke-batch-result.json",
+        "docs/phase324b2-nvidia-smoke-batch-result.json",
+        "docs/phase324b3-nvidia-smoke-batch-result.json"
+      ]
+    },
+    "summary": {
+      "totalRuntimeRecords": 148,
+      "safeCandidateCount": 62,
+      "plannedModelCount": 5,
+      "fewerThanFiveSafeCandidates": false,
+      "fewerThanThreeSafeCandidates": false,
+      "excludedCounts": {
+        "already_selectable": 9,
+        "non_chat_model": 68,
+        "known_failed_or_high_risk": 9
+      },
+      "nonNvidiaPlanned": false,
+      "selectablePlanned": false,
+      "highRiskPlanned": false,
+      "nonChatPlanned": false
+    },
+    "plannedModels": [
+      {
+        "modelId": "bytedance/seed-oss-36b-instruct",
+        "providerId": "nvidia",
+        "capabilityBucket": "chat",
+        "verificationStatus": "unverified",
+        "selectable": false,
+        "directChatAllowed": true,
+        "requiresSpecialPayload": false,
+        "sourceHintFromPhase324A": false
+      },
+      {
+        "modelId": "deepseek-ai/deepseek-v3.1-terminus",
+        "providerId": "nvidia",
+        "capabilityBucket": "reasoning_chat",
+        "verificationStatus": "unverified",
+        "selectable": false,
+        "directChatAllowed": true,
+        "requiresSpecialPayload": false,
+        "sourceHintFromPhase324A": false
+      },
+      {
+        "modelId": "deepseek-ai/deepseek-v3.2",
+        "providerId": "nvidia",
+        "capabilityBucket": "reasoning_chat",
+        "verificationStatus": "unverified",
+        "selectable": false,
+        "directChatAllowed": true,
+        "requiresSpecialPayload": false,
+        "sourceHintFromPhase324A": false
+      },
+      {
+        "modelId": "deepseek-ai/deepseek-v4-flash",
+        "providerId": "nvidia",
+        "capabilityBucket": "reasoning_chat",
+        "verificationStatus": "unverified",
+        "selectable": false,
+        "directChatAllowed": true,
+        "requiresSpecialPayload": false,
+        "sourceHintFromPhase324A": false
+      },
+      {
+        "modelId": "deepseek-ai/deepseek-v4-pro",
+        "providerId": "nvidia",
+        "capabilityBucket": "reasoning_chat",
+        "verificationStatus": "unverified",
+        "selectable": false,
+        "directChatAllowed": true,
+        "requiresSpecialPayload": false,
+        "sourceHintFromPhase324A": false
+      }
+    ],
+    "safeCandidatePoolPreview": [
+      {
+        "modelId": "bytedance/seed-oss-36b-instruct",
+        "providerId": "nvidia",
+        "capabilityBucket": "chat",
+        "verificationStatus": "unverified",
+        "selectable": false,
+        "directChatAllowed": true,
+        "requiresSpecialPayload": false,
+        "sourceHintFromPhase324A": false
+      },
+      {
+        "modelId": "deepseek-ai/deepseek-v3.1-terminus",
+        "providerId": "nvidia",
+        "capabilityBucket": "reasoning_chat",
+        "verificationStatus": "unverified",
+        "selectable": false,
+        "directChatAllowed": true,
+        "requiresSpecialPayload": false,
+        "sourceHintFromPhase324A": false
+      },
+      {
+        "modelId": "deepseek-ai/deepseek-v3.2",
+        "providerId": "nvidia",
+        "capabilityBucket": "reasoning_chat",
+        "verificationStatus": "unverified",
+        "selectable": false,
+        "directChatAllowed": true,
+        "requiresSpecialPayload": false,
+        "sourceHintFromPhase324A": false
+      },
+      {
+        "modelId": "deepseek-ai/deepseek-v4-flash",
+        "providerId": "nvidia",
+        "capabilityBucket": "reasoning_chat",
+        "verificationStatus": "unverified",
+        "selectable": false,
+        "directChatAllowed": true,
+        "requiresSpecialPayload": false,
+        "sourceHintFromPhase324A": false
+      },
+      {
+        "modelId": "deepseek-ai/deepseek-v4-pro",
+        "providerId": "nvidia",
+        "capabilityBucket": "reasoning_chat",
+        "verificationStatus": "unverified",
+        "selectable": false,
+        "directChatAllowed": true,
+        "requiresSpecialPayload": false,
+        "sourceHintFromPhase324A": false
+      },
+      {
+        "modelId": "google/codegemma-7b",
+        "providerId": "nvidia",
+        "capabilityBucket": "code",
+        "verificationStatus": "unverified",
+        "selectable": false,
+        "directChatAllowed": true,
+        "requiresSpecialPayload": false,
+        "sourceHintFromPhase324A": false
+      },
+      {
+        "modelId": "google/gemma-2-2b-it",
+        "providerId": "nvidia",
+        "capabilityBucket": "chat",
+        "verificationStatus": "unverified",
+        "selectable": false,
+        "directChatAllowed": true,
+        "requiresSpecialPayload": false,
+        "sourceHintFromPhase324A": false
+      },
+      {
+        "modelId": "google/gemma-3-27b-it",
+        "providerId": "nvidia",
+        "capabilityBucket": "chat",
+        "verificationStatus": "unverified",
+        "selectable": false,
+        "directChatAllowed": true,
+        "requiresSpecialPayload": false,
+        "sourceHintFromPhase324A": false
+      },
+      {
+        "modelId": "google/gemma-3n-e2b-it",
+        "providerId": "nvidia",
+        "capabilityBucket": "chat",
+        "verificationStatus": "unverified",
+        "selectable": false,
+        "directChatAllowed": true,
+        "requiresSpecialPayload": false,
+        "sourceHintFromPhase324A": false
+      },
+      {
+        "modelId": "google/gemma-3n-e4b-it",
+        "providerId": "nvidia",
+        "capabilityBucket": "chat",
+        "verificationStatus": "unverified",
+        "selectable": false,
+        "directChatAllowed": true,
+        "requiresSpecialPayload": false,
+        "sourceHintFromPhase324A": false
+      },
+      {
+        "modelId": "google/gemma-4-31b-it",
+        "providerId": "nvidia",
+        "capabilityBucket": "chat",
+        "verificationStatus": "unverified",
+        "selectable": false,
+        "directChatAllowed": true,
+        "requiresSpecialPayload": false,
+        "sourceHintFromPhase324A": false
+      },
+      {
+        "modelId": "google/gemma-7b",
+        "providerId": "nvidia",
+        "capabilityBucket": "chat",
+        "verificationStatus": "unverified",
+        "selectable": false,
+        "directChatAllowed": true,
+        "requiresSpecialPayload": false,
+        "sourceHintFromPhase324A": false
+      },
+      {
+        "modelId": "meta/llama-3.2-1b-instruct",
+        "providerId": "nvidia",
+        "capabilityBucket": "chat",
+        "verificationStatus": "unverified",
+        "selectable": false,
+        "directChatAllowed": true,
+        "requiresSpecialPayload": false,
+        "sourceHintFromPhase324A": false
+      },
+      {
+        "modelId": "meta/llama-3.2-3b-instruct",
+        "providerId": "nvidia",
+        "capabilityBucket": "chat",
+        "verificationStatus": "unverified",
+        "selectable": false,
+        "directChatAllowed": true,
+        "requiresSpecialPayload": false,
+        "sourceHintFromPhase324A": false
+      },
+      {
+        "modelId": "meta/llama-4-maverick-17b-128e-instruct",
+        "providerId": "nvidia",
+        "capabilityBucket": "chat",
+        "verificationStatus": "unverified",
+        "selectable": false,
+        "directChatAllowed": true,
+        "requiresSpecialPayload": false,
+        "sourceHintFromPhase324A": false
+      },
+      {
+        "modelId": "microsoft/phi-3-medium-128k-instruct",
+        "providerId": "nvidia",
+        "capabilityBucket": "chat",
+        "verificationStatus": "unverified",
+        "selectable": false,
+        "directChatAllowed": true,
+        "requiresSpecialPayload": false,
+        "sourceHintFromPhase324A": false
+      },
+      {
+        "modelId": "microsoft/phi-4-mini-flash-reasoning",
+        "providerId": "nvidia",
+        "capabilityBucket": "reasoning_chat",
+        "verificationStatus": "unverified",
+        "selectable": false,
+        "directChatAllowed": true,
+        "requiresSpecialPayload": false,
+        "sourceHintFromPhase324A": false
+      },
+      {
+        "modelId": "microsoft/trellis",
+        "providerId": "nvidia",
+        "capabilityBucket": "chat",
+        "verificationStatus": "unverified",
+        "selectable": false,
+        "directChatAllowed": true,
+        "requiresSpecialPayload": false,
+        "sourceHintFromPhase324A": false
+      },
+      {
+        "modelId": "minimaxai/minimax-m2.5",
+        "providerId": "nvidia",
+        "capabilityBucket": "chat",
+        "verificationStatus": "unverified",
+        "selectable": false,
+        "directChatAllowed": true,
+        "requiresSpecialPayload": false,
+        "sourceHintFromPhase324A": false
+      },
+      {
+        "modelId": "minimaxai/minimax-m2.7",
+        "providerId": "nvidia",
+        "capabilityBucket": "chat",
+        "verificationStatus": "unverified",
+        "selectable": false,
+        "directChatAllowed": true,
+        "requiresSpecialPayload": false,
+        "sourceHintFromPhase324A": false
+      }
+    ],
+    "excludedHighRiskModels": [
+      "meta/llama2-70b",
+      "meta/llama3-8b",
+      "microsoft/phi-3-mini-4k-instruct",
+      "mistralai/mistral-7b-instruct",
+      "mistralai/mistral-7b-instruct-v0.3",
+      "nvidia/llama-3.1-nemotron-ultra-253b-v1",
+      "nvidia/llama-3.3-nemotron-super-49b-v1.5",
+      "nvidia/nemotron-3-nano-30b-a3b",
+      "nvidia/nvidia-nemotron-nano-9b-v2"
+    ],
+    "excludedSelectableModels": [
+      "abacusai/dracarys-llama-3.1-70b-instruct",
+      "meta/llama-3.1-70b-instruct",
+      "meta/llama-3.1-8b-instruct",
+      "meta/llama-3.3-70b-instruct",
+      "microsoft/phi-4-mini-instruct",
+      "nvidia/llama-3.1-nemotron-nano-8b-v1",
+      "nvidia/llama-3.3-nemotron-super-49b-v1",
+      "nvidia/nemotron-3-super-120b-a12b",
+      "nvidia/nemotron-mini-4b-instruct"
+    ],
+    "excludedNonChatModels": [
+      {
+        "modelId": "google/paligemma",
+        "capabilityBucket": "vision"
+      },
+      {
+        "modelId": "hive/ai-generated-image-detection",
+        "capabilityBucket": "multimodal"
+      },
+      {
+        "modelId": "hive/deepfake-image-detection",
+        "capabilityBucket": "multimodal"
+      },
+      {
+        "modelId": "ipd/proteinmpnn",
+        "capabilityBucket": "biology"
+      },
+      {
+        "modelId": "ipd/rfdiffusion",
+        "capabilityBucket": "biology"
+      },
+      {
+        "modelId": "meta/esm2-650m",
+        "capabilityBucket": "biology"
+      },
+      {
+        "modelId": "meta/esmfold",
+        "capabilityBucket": "biology"
+      },
+      {
+        "modelId": "meta/llama-3.2-11b-vision-instruct",
+        "capabilityBucket": "multimodal"
+      },
+      {
+        "modelId": "meta/llama-3.2-90b-vision-instruct",
+        "capabilityBucket": "multimodal"
+      },
+      {
+        "modelId": "meta/llama-guard-4-12b",
+        "capabilityBucket": "safety"
+      },
+      {
+        "modelId": "microsoft/phi-4-multimodal-instruct",
+        "capabilityBucket": "multimodal"
+      },
+      {
+        "modelId": "mit/boltz2",
+        "capabilityBucket": "biology"
+      },
+      {
+        "modelId": "mit/diffdock",
+        "capabilityBucket": "biology"
+      },
+      {
+        "modelId": "nvidia/audio2face-3d-claire-notongue",
+        "capabilityBucket": "deprecated"
+      },
+      {
+        "modelId": "nvidia/bevformer",
+        "capabilityBucket": "autonomous_driving"
+      },
+      {
+        "modelId": "nvidia/cosmos-1.0-7b-diffusion-text2world",
+        "capabilityBucket": "video"
+      },
+      {
+        "modelId": "nvidia/cosmos-predict1-5b",
+        "capabilityBucket": "video"
+      },
+      {
+        "modelId": "nvidia/cosmos-predict1-7b",
+        "capabilityBucket": "video"
+      },
+      {
+        "modelId": "nvidia/cosmos-transfer2.5-2b",
+        "capabilityBucket": "video"
+      },
+      {
+        "modelId": "nvidia/embed-qa-4",
+        "capabilityBucket": "embedding"
+      },
+      {
+        "modelId": "nvidia/genmol",
+        "capabilityBucket": "biology"
+      },
+      {
+        "modelId": "nvidia/gliner-pii",
+        "capabilityBucket": "pii"
+      },
+      {
+        "modelId": "nvidia/ising-calibration-1-35b-a3b",
+        "capabilityBucket": "multimodal"
+      },
+      {
+        "modelId": "nvidia/llama-3_1-nemotron-safety-guard-8b-v3",
+        "capabilityBucket": "safety"
+      },
+      {
+        "modelId": "nvidia/llama-3.1-nemoguard-8b-content-safety",
+        "capabilityBucket": "safety"
+      },
+      {
+        "modelId": "nvidia/llama-3.1-nemoguard-8b-topic-control",
+        "capabilityBucket": "safety"
+      },
+      {
+        "modelId": "nvidia/llama-3.1-nemotron-nano-vl-8b-v1",
+        "capabilityBucket": "multimodal"
+      },
+      {
+        "modelId": "nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1",
+        "capabilityBucket": "vision"
+      },
+      {
+        "modelId": "nvidia/llama-3.2-nemoretriever-300m-embed-v1",
+        "capabilityBucket": "embedding"
+      },
+      {
+        "modelId": "nvidia/llama-3.2-nemoretriever-300m-embed-v2",
+        "capabilityBucket": "embedding"
+      },
+      {
+        "modelId": "nvidia/llama-3.2-nemoretriever-500m-rerank-v2",
+        "capabilityBucket": "rerank"
+      },
+      {
+        "modelId": "nvidia/llama-3.2-nv-embedqa-1b-v1",
+        "capabilityBucket": "embedding"
+      },
+      {
+        "modelId": "nvidia/llama-3.2-nv-embedqa-1b-v2",
+        "capabilityBucket": "embedding"
+      },
+      {
+        "modelId": "nvidia/llama-3.2-nv-rerankqa-1b-v1",
+        "capabilityBucket": "rerank"
+      },
+      {
+        "modelId": "nvidia/llama-3.2-nv-rerankqa-1b-v2",
+        "capabilityBucket": "rerank"
+      },
+      {
+        "modelId": "nvidia/llama-nemotron-embed-1b-v2",
+        "capabilityBucket": "embedding"
+      },
+      {
+        "modelId": "nvidia/llama-nemotron-embed-vl-1b-v2",
+        "capabilityBucket": "multimodal"
+      },
+      {
+        "modelId": "nvidia/llama-nemotron-rerank-1b-v2",
+        "capabilityBucket": "rerank"
+      },
+      {
+        "modelId": "nvidia/llama-nemotron-rerank-vl-1b-v2",
+        "capabilityBucket": "multimodal"
+      },
+      {
+        "modelId": "nvidia/magpie-tts-flow",
+        "capabilityBucket": "deprecated"
+      },
+      {
+        "modelId": "nvidia/molmim",
+        "capabilityBucket": "biology"
+      },
+      {
+        "modelId": "nvidia/nemoguard-jailbreak-detect",
+        "capabilityBucket": "safety"
+      },
+      {
+        "modelId": "nvidia/nemoretriever-parse",
+        "capabilityBucket": "multimodal"
+      },
+      {
+        "modelId": "nvidia/nemotron-3-content-safety",
+        "capabilityBucket": "multimodal"
+      },
+      {
+        "modelId": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
+        "capabilityBucket": "video"
+      },
+      {
+        "modelId": "nvidia/nemotron-content-safety-reasoning-4b",
+        "capabilityBucket": "safety"
+      },
+      {
+        "modelId": "nvidia/nemotron-nano-12b-v2-vl",
+        "capabilityBucket": "multimodal"
+      },
+      {
+        "modelId": "nvidia/nemotron-parse",
+        "capabilityBucket": "multimodal"
+      },
+      {
+        "modelId": "nvidia/nemotron-voicechat",
+        "capabilityBucket": "voice"
+      },
+      {
+        "modelId": "nvidia/nv-dinov2",
+        "capabilityBucket": "multimodal"
+      },
+      {
+        "modelId": "nvidia/nv-embed-v1",
+        "capabilityBucket": "embedding"
+      },
+      {
+        "modelId": "nvidia/nv-embedcode-7b-v1",
+        "capabilityBucket": "embedding"
+      },
+      {
+        "modelId": "nvidia/nv-embedqa-e5-v5",
+        "capabilityBucket": "embedding"
+      },
+      {
+        "modelId": "nvidia/nv-grounding-dino",
+        "capabilityBucket": "multimodal"
+      },
+      {
+        "modelId": "nvidia/nv-rerankqa-mistral-4b-v3",
+        "capabilityBucket": "rerank"
+      },
+      {
+        "modelId": "nvidia/nvclip",
+        "capabilityBucket": "multimodal"
+      },
+      {
+        "modelId": "nvidia/ocdrnet",
+        "capabilityBucket": "deprecated"
+      },
+      {
+        "modelId": "nvidia/rerank-qa-mistral-4b",
+        "capabilityBucket": "rerank"
+      },
+      {
+        "modelId": "nvidia/retail-object-detection",
+        "capabilityBucket": "deprecated"
+      },
+      {
+        "modelId": "nvidia/riva-translate-4b-instruct-v1_1",
+        "capabilityBucket": "voice"
+      },
+      {
+        "modelId": "nvidia/sparsedrive",
+        "capabilityBucket": "autonomous_driving"
+      },
+      {
+        "modelId": "nvidia/streampetr",
+        "capabilityBucket": "autonomous_driving"
+      },
+      {
+        "modelId": "nvidia/synthetic-video-detector",
+        "capabilityBucket": "video"
+      },
+      {
+        "modelId": "nvidia/usdcode",
+        "capabilityBucket": "openusd"
+      },
+      {
+        "modelId": "nvidia/vista3d",
+        "capabilityBucket": "biology"
+      },
+      {
+        "modelId": "nvidia/visual-changenet",
+        "capabilityBucket": "deprecated"
+      },
+      {
+        "modelId": "snowflake/arctic-embed-l",
+        "capabilityBucket": "embedding"
+      },
+      {
+        "modelId": "stabilityai/stable-video-diffusion",
+        "capabilityBucket": "video"
+      }
+    ],
+    "excludedPreviousProcessedModels": []
+  },
+  "results": [
+    {
+      "batchId": "phase324b4",
+      "phase": "Phase324B-4",
+      "modelId": "bytedance/seed-oss-36b-instruct",
+      "providerId": "nvidia",
+      "finalStatus": "smoke_failed",
+      "providerCalled": true,
+      "completionVerified": false,
+      "assistantTextPresent": false,
+      "httpStatus": 200,
+      "errorCode": "nvidia_http_error",
+      "latencyMs": 8574,
+      "evidenceId": "phase324b4-bytedance_seed_oss_36b_instruct-20260506151339",
+      "evidencePath": "apps/ai-gateway-service/evidence/phase324b4/bytedance_seed_oss_36b_instruct.json",
+      "selectableRecommendation": "not_eligible",
+      "notes": [
+        "Provider responded but the smoke did not satisfy the success gate."
+      ],
+      "nonNvidiaCallDetected": false,
+      "secretExposureDetected": false
+    },
+    {
+      "batchId": "phase324b4",
+      "phase": "Phase324B-4",
+      "modelId": "deepseek-ai/deepseek-v3.1-terminus",
+      "providerId": "nvidia",
+      "finalStatus": "smoke_failed",
+      "providerCalled": true,
+      "completionVerified": false,
+      "assistantTextPresent": false,
+      "httpStatus": 410,
+      "errorCode": "nvidia_http_error",
+      "latencyMs": 96,
+      "evidenceId": "phase324b4-deepseek_ai_deepseek_v3_1_terminus-20260506151340",
+      "evidencePath": "apps/ai-gateway-service/evidence/phase324b4/deepseek_ai_deepseek_v3_1_terminus.json",
+      "selectableRecommendation": "not_eligible",
+      "notes": [
+        "Provider responded but the smoke did not satisfy the success gate."
+      ],
+      "nonNvidiaCallDetected": false,
+      "secretExposureDetected": false
+    },
+    {
+      "batchId": "phase324b4",
+      "phase": "Phase324B-4",
+      "modelId": "deepseek-ai/deepseek-v3.2",
+      "providerId": "nvidia",
+      "finalStatus": "smoke_failed",
+      "providerCalled": true,
+      "completionVerified": false,
+      "assistantTextPresent": false,
+      "httpStatus": 410,
+      "errorCode": "nvidia_http_error",
+      "latencyMs": 96,
+      "evidenceId": "phase324b4-deepseek_ai_deepseek_v3_2-20260506151342",
+      "evidencePath": "apps/ai-gateway-service/evidence/phase324b4/deepseek_ai_deepseek_v3_2.json",
+      "selectableRecommendation": "not_eligible",
+      "notes": [
+        "Provider responded but the smoke did not satisfy the success gate."
+      ],
+      "nonNvidiaCallDetected": false,
+      "secretExposureDetected": false
+    },
+    {
+      "batchId": "phase324b4",
+      "phase": "Phase324B-4",
+      "modelId": "deepseek-ai/deepseek-v4-flash",
+      "providerId": "nvidia",
+      "finalStatus": "smoke_failed",
+      "providerCalled": true,
+      "completionVerified": false,
+      "assistantTextPresent": false,
+      "httpStatus": null,
+      "errorCode": "nvidia_request_timeout",
+      "latencyMs": 45012,
+      "evidenceId": "phase324b4-deepseek_ai_deepseek_v4_flash-20260506151428",
+      "evidencePath": "apps/ai-gateway-service/evidence/phase324b4/deepseek_ai_deepseek_v4_flash.json",
+      "selectableRecommendation": "not_eligible",
+      "notes": [
+        "Smoke did not satisfy the success gate."
+      ],
+      "nonNvidiaCallDetected": false,
+      "secretExposureDetected": false
+    },
+    {
+      "batchId": "phase324b4",
+      "phase": "Phase324B-4",
+      "modelId": "deepseek-ai/deepseek-v4-pro",
+      "providerId": "nvidia",
+      "finalStatus": "smoke_passed",
+      "providerCalled": true,
+      "completionVerified": true,
+      "assistantTextPresent": true,
+      "httpStatus": 200,
+      "errorCode": null,
+      "latencyMs": 930,
+      "evidenceId": "phase324b4-deepseek_ai_deepseek_v4_pro-20260506151431",
+      "evidencePath": "apps/ai-gateway-service/evidence/phase324b4/deepseek_ai_deepseek_v4_pro.json",
+      "selectableRecommendation": "eligible_after_phase324c3",
+      "notes": [
+        "Real NVIDIA call completed with non-empty assistant text; Phase324C-3 may review selectable eligibility."
+      ],
+      "nonNvidiaCallDetected": false,
+      "secretExposureDetected": false
+    }
+  ],
+  "phase324c3Candidates": [
+    "deepseek-ai/deepseek-v4-pro"
+  ],
+  "nonPhase324c3Candidates": [
+    "bytedance/seed-oss-36b-instruct",
+    "deepseek-ai/deepseek-v3.1-terminus",
+    "deepseek-ai/deepseek-v3.2",
+    "deepseek-ai/deepseek-v4-flash"
+  ],
+  "canSeal": true
+}

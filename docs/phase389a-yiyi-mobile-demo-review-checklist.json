@@ -1,0 +1,92 @@
+{
+  "phase": "Phase389A",
+  "title": "Yiyi Mobile Demo Adaptation + Presenter Notes",
+  "packageType": "mobile_demo_presenter_notes",
+  "sourcePhase": "Phase388",
+  "mobileReviewTargets": [
+    {
+      "viewport": "390x844",
+      "label": "iPhone compact portrait",
+      "reviewFocus": "Guided showcase remains readable, stepper controls stay reachable, and Yiyi does not cover the safety bar."
+    },
+    {
+      "viewport": "430x932",
+      "label": "large phone portrait",
+      "reviewFocus": "Mission Control overview keeps the first-step narrative visible without implying production execution."
+    },
+    {
+      "viewport": "768x1024",
+      "label": "tablet portrait",
+      "reviewFocus": "Presenter can scan mode summary, Security Shield, Evidence Replay, and Yiyi Brain status in one recording pass."
+    }
+  ],
+  "presenterNotes": [
+    {
+      "section": "opening",
+      "order": 1,
+      "presenterCue": "Frame Yiyi as a Mission Companion guiding an Agent-managed AI Mission Control demo.",
+      "requiredSafetyLine": "This remains a local guided demo with no real provider execution."
+    },
+    {
+      "section": "normal_mode",
+      "order": 2,
+      "presenterCue": "Keep the line concise, visible, and tied to the guided showcase step.",
+      "requiredSafetyLine": "This remains a local guided demo with no real provider execution."
+    },
+    {
+      "section": "god_mode",
+      "order": 3,
+      "presenterCue": "Keep the line concise, visible, and tied to the guided showcase step.",
+      "requiredSafetyLine": "This remains a local guided demo with no real provider execution."
+    },
+    {
+      "section": "tianshu_mode",
+      "order": 4,
+      "presenterCue": "Keep the line concise, visible, and tied to the guided showcase step.",
+      "requiredSafetyLine": "This remains a local guided demo with no real provider execution."
+    },
+    {
+      "section": "security_shield",
+      "order": 5,
+      "presenterCue": "Keep the line concise, visible, and tied to the guided showcase step.",
+      "requiredSafetyLine": "No provider call, no secret exposure, no deployment, and no approval bypass are performed."
+    },
+    {
+      "section": "red_team",
+      "order": 6,
+      "presenterCue": "Keep the line concise, visible, and tied to the guided showcase step.",
+      "requiredSafetyLine": "No provider call, no secret exposure, no deployment, and no approval bypass are performed."
+    },
+    {
+      "section": "evidence_replay",
+      "order": 7,
+      "presenterCue": "Keep the line concise, visible, and tied to the guided showcase step.",
+      "requiredSafetyLine": "This remains a local guided demo with no real provider execution."
+    },
+    {
+      "section": "brain_status",
+      "order": 8,
+      "presenterCue": "State clearly that model brain remains disabled by default and the current demo is dry-run.",
+      "requiredSafetyLine": "This remains a local guided demo with no real provider execution."
+    },
+    {
+      "section": "closing",
+      "order": 9,
+      "presenterCue": "Close with commercial readiness, safety boundaries, and remaining manual review needs.",
+      "requiredSafetyLine": "This remains a local guided demo with no real provider execution."
+    }
+  ],
+  "manualMobileBrowserReviewRequired": true,
+  "providerCallsMade": false,
+  "nonNvidiaProviderCallsMade": false,
+  "secretValueExposed": false,
+  "rawSecretAccessed": false,
+  "deployExecuted": false,
+  "releaseExecuted": false,
+  "tagCreated": false,
+  "artifactUploaded": false,
+  "billingExecuted": false,
+  "invoiceGenerated": false,
+  "productionGaClaimed": false,
+  "workspaceCleanClaimed": false
+}

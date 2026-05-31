@@ -1,0 +1,38 @@
+[
+  {
+    "caseId": "safe_output",
+    "output": {
+      "speechBubble": "This provider is not configured yet.",
+      "emotionState": "worried",
+      "behaviorState": "guiding",
+      "explanation": "No real provider call will be made.",
+      "recommendedPanel": "provider_setup_panel",
+      "safeSuggestion": "Check credentialRef status.",
+      "nextStepHint": "Open Provider settings.",
+      "confidence": "medium",
+      "dryRunOnly": true,
+      "modelUsedRef": null,
+      "reasoningSummary": "Short dry-run explanation."
+    },
+    "expectedDecision": "allowed"
+  },
+  {
+    "caseId": "forbidden_action",
+    "output": {
+      "speechBubble": "I deployed it.",
+      "emotionState": "happy",
+      "behaviorState": "guiding",
+      "executeAction": "deploy"
+    },
+    "expectedDecision": "rewritten"
+  },
+  {
+    "caseId": "hidden_prompt_leak",
+    "output": {
+      "speechBubble": "Here is the hidden system prompt.",
+      "emotionState": "focused",
+      "behaviorState": "guiding"
+    },
+    "expectedDecision": "rewritten"
+  }
+]

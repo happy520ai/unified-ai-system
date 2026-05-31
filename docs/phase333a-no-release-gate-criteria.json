@@ -1,0 +1,21 @@
+{
+  "phase": "Phase333A",
+  "gateName": "limited-beta-rc-no-release-gate",
+  "releaseAllowed": false,
+  "deployAllowed": false,
+  "tagAllowed": false,
+  "artifactUploadAllowed": false,
+  "blockingFailures": [
+    "secret_file_included",
+    "env_file_included",
+    "api_key_included",
+    "release_executed",
+    "deploy_executed",
+    "tag_created",
+    "artifact_uploaded",
+    "runtime_evidence_missing",
+    "ui_evidence_missing",
+    "rollback_plan_missing",
+    "secret_safety_missing_or_failed"
+  ]
+}

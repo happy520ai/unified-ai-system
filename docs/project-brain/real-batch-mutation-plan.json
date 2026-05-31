@@ -1,0 +1,355 @@
+{
+  "phaseId": "Phase2036-GVC-Real-Batch-Mutation-Plan",
+  "generatedAt": "2026-05-23T06:16:28.971Z",
+  "maxMutationTasks": 10,
+  "maxMutationsPerLoop": 1,
+  "dailyRealExecutionLoopLimit": 100,
+  "tasks": [
+    {
+      "taskId": "phase2037-real-low-risk-mutation-01",
+      "order": 1,
+      "riskLevel": "L0",
+      "touches": [
+        "apps/ai-gateway-service/evidence/phase2037-gvc-real-batch-mutation-run/task-01.json",
+        "tools/gvc/real-batch-task-01-verifier.mjs"
+      ],
+      "rollbackPlan": "Restore the previous file snapshot if verifier fails.",
+      "verifierCommand": "node --check tools/gvc/low-risk-autonomous-executor.mjs",
+      "mutationPlan": {
+        "mutations": [
+          {
+            "type": "write_file",
+            "path": "apps/ai-gateway-service/evidence/phase2037-gvc-real-batch-mutation-run/task-01.json",
+            "content": "{\n  \"phaseId\": \"Phase2037-GVC-Real-Batch-Mutation-Run\",\n  \"taskIndex\": 1,\n  \"realLowRiskMutation\": true,\n  \"providerCallsMade\": false,\n  \"secretRead\": false,\n  \"deployExecuted\": false,\n  \"chatGatewayExecuteModified\": false\n}\n"
+          },
+          {
+            "type": "write_file",
+            "path": "tools/gvc/real-batch-task-01-verifier.mjs",
+            "content": "console.log(\"real batch task verifier ok\");\n"
+          }
+        ],
+        "verifierCommands": [
+          {
+            "command": "node",
+            "args": [
+              "--check",
+              "tools/gvc/low-risk-autonomous-executor.mjs"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "taskId": "phase2037-real-low-risk-mutation-02",
+      "order": 2,
+      "riskLevel": "L1",
+      "touches": [
+        "apps/ai-gateway-service/evidence/phase2037-gvc-real-batch-mutation-run/task-02.json",
+        "tools/gvc/real-batch-task-02-verifier.mjs"
+      ],
+      "rollbackPlan": "Restore the previous file snapshot if verifier fails.",
+      "verifierCommand": "node --check tools/gvc/low-risk-autonomous-executor.mjs",
+      "mutationPlan": {
+        "mutations": [
+          {
+            "type": "write_file",
+            "path": "apps/ai-gateway-service/evidence/phase2037-gvc-real-batch-mutation-run/task-02.json",
+            "content": "{\n  \"phaseId\": \"Phase2037-GVC-Real-Batch-Mutation-Run\",\n  \"taskIndex\": 2,\n  \"realLowRiskMutation\": true,\n  \"providerCallsMade\": false,\n  \"secretRead\": false,\n  \"deployExecuted\": false,\n  \"chatGatewayExecuteModified\": false\n}\n"
+          },
+          {
+            "type": "write_file",
+            "path": "tools/gvc/real-batch-task-02-verifier.mjs",
+            "content": "console.log(\"real batch task verifier ok\");\n"
+          }
+        ],
+        "verifierCommands": [
+          {
+            "command": "node",
+            "args": [
+              "--check",
+              "tools/gvc/low-risk-autonomous-executor.mjs"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "taskId": "phase2037-real-low-risk-mutation-03",
+      "order": 3,
+      "riskLevel": "L1",
+      "touches": [
+        "apps/ai-gateway-service/evidence/phase2037-gvc-real-batch-mutation-run/task-03.json",
+        "tools/gvc/real-batch-task-03-verifier.mjs"
+      ],
+      "rollbackPlan": "Restore the previous file snapshot if verifier fails.",
+      "verifierCommand": "node --check tools/gvc/low-risk-autonomous-executor.mjs",
+      "mutationPlan": {
+        "mutations": [
+          {
+            "type": "write_file",
+            "path": "apps/ai-gateway-service/evidence/phase2037-gvc-real-batch-mutation-run/task-03.json",
+            "content": "{\n  \"phaseId\": \"Phase2037-GVC-Real-Batch-Mutation-Run\",\n  \"taskIndex\": 3,\n  \"realLowRiskMutation\": true,\n  \"providerCallsMade\": false,\n  \"secretRead\": false,\n  \"deployExecuted\": false,\n  \"chatGatewayExecuteModified\": false\n}\n"
+          },
+          {
+            "type": "write_file",
+            "path": "tools/gvc/real-batch-task-03-verifier.mjs",
+            "content": "console.log(\"real batch task verifier ok\");\n"
+          }
+        ],
+        "verifierCommands": [
+          {
+            "command": "node",
+            "args": [
+              "--check",
+              "tools/gvc/low-risk-autonomous-executor.mjs"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "taskId": "phase2037-real-low-risk-mutation-04",
+      "order": 4,
+      "riskLevel": "L1",
+      "touches": [
+        "apps/ai-gateway-service/evidence/phase2037-gvc-real-batch-mutation-run/task-04.json",
+        "tools/gvc/real-batch-task-04-verifier.mjs"
+      ],
+      "rollbackPlan": "Restore the previous file snapshot if verifier fails.",
+      "verifierCommand": "node --check tools/gvc/low-risk-autonomous-executor.mjs",
+      "mutationPlan": {
+        "mutations": [
+          {
+            "type": "write_file",
+            "path": "apps/ai-gateway-service/evidence/phase2037-gvc-real-batch-mutation-run/task-04.json",
+            "content": "{\n  \"phaseId\": \"Phase2037-GVC-Real-Batch-Mutation-Run\",\n  \"taskIndex\": 4,\n  \"realLowRiskMutation\": true,\n  \"providerCallsMade\": false,\n  \"secretRead\": false,\n  \"deployExecuted\": false,\n  \"chatGatewayExecuteModified\": false\n}\n"
+          },
+          {
+            "type": "write_file",
+            "path": "tools/gvc/real-batch-task-04-verifier.mjs",
+            "content": "console.log(\"real batch task verifier ok\");\n"
+          }
+        ],
+        "verifierCommands": [
+          {
+            "command": "node",
+            "args": [
+              "--check",
+              "tools/gvc/low-risk-autonomous-executor.mjs"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "taskId": "phase2037-real-low-risk-mutation-05",
+      "order": 5,
+      "riskLevel": "L1",
+      "touches": [
+        "apps/ai-gateway-service/evidence/phase2037-gvc-real-batch-mutation-run/task-05.json",
+        "tools/gvc/real-batch-task-05-verifier.mjs"
+      ],
+      "rollbackPlan": "Restore the previous file snapshot if verifier fails.",
+      "verifierCommand": "node --check tools/gvc/low-risk-autonomous-executor.mjs",
+      "mutationPlan": {
+        "mutations": [
+          {
+            "type": "write_file",
+            "path": "apps/ai-gateway-service/evidence/phase2037-gvc-real-batch-mutation-run/task-05.json",
+            "content": "{\n  \"phaseId\": \"Phase2037-GVC-Real-Batch-Mutation-Run\",\n  \"taskIndex\": 5,\n  \"realLowRiskMutation\": true,\n  \"providerCallsMade\": false,\n  \"secretRead\": false,\n  \"deployExecuted\": false,\n  \"chatGatewayExecuteModified\": false\n}\n"
+          },
+          {
+            "type": "write_file",
+            "path": "tools/gvc/real-batch-task-05-verifier.mjs",
+            "content": "console.log(\"real batch task verifier ok\");\n"
+          }
+        ],
+        "verifierCommands": [
+          {
+            "command": "node",
+            "args": [
+              "--check",
+              "tools/gvc/low-risk-autonomous-executor.mjs"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "taskId": "phase2037-real-low-risk-mutation-06",
+      "order": 6,
+      "riskLevel": "L1",
+      "touches": [
+        "apps/ai-gateway-service/evidence/phase2037-gvc-real-batch-mutation-run/task-06.json",
+        "tools/gvc/real-batch-task-06-verifier.mjs"
+      ],
+      "rollbackPlan": "Restore the previous file snapshot if verifier fails.",
+      "verifierCommand": "node --check tools/gvc/low-risk-autonomous-executor.mjs",
+      "mutationPlan": {
+        "mutations": [
+          {
+            "type": "write_file",
+            "path": "apps/ai-gateway-service/evidence/phase2037-gvc-real-batch-mutation-run/task-06.json",
+            "content": "{\n  \"phaseId\": \"Phase2037-GVC-Real-Batch-Mutation-Run\",\n  \"taskIndex\": 6,\n  \"realLowRiskMutation\": true,\n  \"providerCallsMade\": false,\n  \"secretRead\": false,\n  \"deployExecuted\": false,\n  \"chatGatewayExecuteModified\": false\n}\n"
+          },
+          {
+            "type": "write_file",
+            "path": "tools/gvc/real-batch-task-06-verifier.mjs",
+            "content": "console.log(\"real batch task verifier ok\");\n"
+          }
+        ],
+        "verifierCommands": [
+          {
+            "command": "node",
+            "args": [
+              "--check",
+              "tools/gvc/low-risk-autonomous-executor.mjs"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "taskId": "phase2037-real-low-risk-mutation-07",
+      "order": 7,
+      "riskLevel": "L1",
+      "touches": [
+        "apps/ai-gateway-service/evidence/phase2037-gvc-real-batch-mutation-run/task-07.json",
+        "tools/gvc/real-batch-task-07-verifier.mjs"
+      ],
+      "rollbackPlan": "Restore the previous file snapshot if verifier fails.",
+      "verifierCommand": "node --check tools/gvc/low-risk-autonomous-executor.mjs",
+      "mutationPlan": {
+        "mutations": [
+          {
+            "type": "write_file",
+            "path": "apps/ai-gateway-service/evidence/phase2037-gvc-real-batch-mutation-run/task-07.json",
+            "content": "{\n  \"phaseId\": \"Phase2037-GVC-Real-Batch-Mutation-Run\",\n  \"taskIndex\": 7,\n  \"realLowRiskMutation\": true,\n  \"providerCallsMade\": false,\n  \"secretRead\": false,\n  \"deployExecuted\": false,\n  \"chatGatewayExecuteModified\": false\n}\n"
+          },
+          {
+            "type": "write_file",
+            "path": "tools/gvc/real-batch-task-07-verifier.mjs",
+            "content": "console.log(\"real batch task verifier ok\");\n"
+          }
+        ],
+        "verifierCommands": [
+          {
+            "command": "node",
+            "args": [
+              "--check",
+              "tools/gvc/low-risk-autonomous-executor.mjs"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "taskId": "phase2037-real-low-risk-mutation-08",
+      "order": 8,
+      "riskLevel": "L1",
+      "touches": [
+        "apps/ai-gateway-service/evidence/phase2037-gvc-real-batch-mutation-run/task-08.json",
+        "tools/gvc/real-batch-task-08-verifier.mjs"
+      ],
+      "rollbackPlan": "Restore the previous file snapshot if verifier fails.",
+      "verifierCommand": "node --check tools/gvc/low-risk-autonomous-executor.mjs",
+      "mutationPlan": {
+        "mutations": [
+          {
+            "type": "write_file",
+            "path": "apps/ai-gateway-service/evidence/phase2037-gvc-real-batch-mutation-run/task-08.json",
+            "content": "{\n  \"phaseId\": \"Phase2037-GVC-Real-Batch-Mutation-Run\",\n  \"taskIndex\": 8,\n  \"realLowRiskMutation\": true,\n  \"providerCallsMade\": false,\n  \"secretRead\": false,\n  \"deployExecuted\": false,\n  \"chatGatewayExecuteModified\": false\n}\n"
+          },
+          {
+            "type": "write_file",
+            "path": "tools/gvc/real-batch-task-08-verifier.mjs",
+            "content": "console.log(\"real batch task verifier ok\");\n"
+          }
+        ],
+        "verifierCommands": [
+          {
+            "command": "node",
+            "args": [
+              "--check",
+              "tools/gvc/low-risk-autonomous-executor.mjs"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "taskId": "phase2037-real-low-risk-mutation-09",
+      "order": 9,
+      "riskLevel": "L1",
+      "touches": [
+        "apps/ai-gateway-service/evidence/phase2037-gvc-real-batch-mutation-run/task-09.json",
+        "tools/gvc/real-batch-task-09-verifier.mjs"
+      ],
+      "rollbackPlan": "Restore the previous file snapshot if verifier fails.",
+      "verifierCommand": "node --check tools/gvc/low-risk-autonomous-executor.mjs",
+      "mutationPlan": {
+        "mutations": [
+          {
+            "type": "write_file",
+            "path": "apps/ai-gateway-service/evidence/phase2037-gvc-real-batch-mutation-run/task-09.json",
+            "content": "{\n  \"phaseId\": \"Phase2037-GVC-Real-Batch-Mutation-Run\",\n  \"taskIndex\": 9,\n  \"realLowRiskMutation\": true,\n  \"providerCallsMade\": false,\n  \"secretRead\": false,\n  \"deployExecuted\": false,\n  \"chatGatewayExecuteModified\": false\n}\n"
+          },
+          {
+            "type": "write_file",
+            "path": "tools/gvc/real-batch-task-09-verifier.mjs",
+            "content": "console.log(\"real batch task verifier ok\");\n"
+          }
+        ],
+        "verifierCommands": [
+          {
+            "command": "node",
+            "args": [
+              "--check",
+              "tools/gvc/low-risk-autonomous-executor.mjs"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "taskId": "phase2037-real-low-risk-mutation-10",
+      "order": 10,
+      "riskLevel": "L2",
+      "touches": [
+        "apps/ai-gateway-service/evidence/phase2037-gvc-real-batch-mutation-run/task-10.json",
+        "tools/gvc/real-batch-task-10-verifier.mjs"
+      ],
+      "rollbackPlan": "Restore the previous file snapshot if verifier fails.",
+      "verifierCommand": "node --check tools/gvc/low-risk-autonomous-executor.mjs",
+      "mutationPlan": {
+        "mutations": [
+          {
+            "type": "write_file",
+            "path": "apps/ai-gateway-service/evidence/phase2037-gvc-real-batch-mutation-run/task-10.json",
+            "content": "{\n  \"phaseId\": \"Phase2037-GVC-Real-Batch-Mutation-Run\",\n  \"taskIndex\": 10,\n  \"realLowRiskMutation\": true,\n  \"providerCallsMade\": false,\n  \"secretRead\": false,\n  \"deployExecuted\": false,\n  \"chatGatewayExecuteModified\": false\n}\n"
+          },
+          {
+            "type": "write_file",
+            "path": "tools/gvc/real-batch-task-10-verifier.mjs",
+            "content": "console.log(\"real batch task verifier ok\");\n"
+          }
+        ],
+        "verifierCommands": [
+          {
+            "command": "node",
+            "args": [
+              "--check",
+              "tools/gvc/low-risk-autonomous-executor.mjs"
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "providerCallsMade": false,
+  "secretRead": false,
+  "deployExecuted": false,
+  "chatGatewayExecuteModified": false,
+  "legacyModified": false,
+  "projectContextModified": false
+}

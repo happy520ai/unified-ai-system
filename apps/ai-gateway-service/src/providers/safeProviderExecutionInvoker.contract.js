@@ -1,0 +1,32 @@
+export const SAFE_PROVIDER_EXECUTION_INVOKER_CONTRACT = Object.freeze({
+  allowedInvocationPurpose: "phase1932p_guarded_provider_stability_test",
+  allowedInvocationPurposes: Object.freeze([
+    "phase1932p_guarded_provider_stability_test",
+    "phase1958p_guarded_alternative_provider_one_shot",
+    "phase3984a_credentialref_multi_provider_one_shot",
+  ]),
+  requiredInvocationFields: Object.freeze([
+    "providerId",
+    "modelId",
+    "credentialRef",
+    "prompt",
+    "expectedResponseContains",
+    "timeoutMs",
+    "maxRequests",
+    "invocationPurpose",
+  ]),
+  forbiddenBehaviors: Object.freeze([
+    "rawSecretRead",
+    "authJsonRead",
+    "envDump",
+    "rawKeyOutput",
+    "authHeaderLogged",
+    "chatGatewayExecuteDefaultRouteChange",
+    "deploy",
+    "release",
+    "tag",
+    "artifactUpload",
+  ]),
+  maxRequestsLimit: 3,
+  timeoutMsLimit: 60000,
+});

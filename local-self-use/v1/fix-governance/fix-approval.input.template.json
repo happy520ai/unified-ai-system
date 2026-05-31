@@ -1,0 +1,13 @@
+{
+  "issueId": "",
+  "approvedByOwner": false,
+  "approvalScope": "docs-copy-dry-run-only",
+  "allowLowRiskFix": false,
+  "allowUiFix": false,
+  "allowDocsFix": true,
+  "allowRouteFix": false,
+  "allowProviderFix": false,
+  "allowSecretFix": false,
+  "allowChatMutation": false,
+  "allowDeploy": false
+}

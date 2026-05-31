@@ -1,0 +1,142 @@
+{
+  "phase": "Phase362A",
+  "trackerName": "reviewer-follow-up-tracker",
+  "statusEnum": [
+    "missing",
+    "requested",
+    "received_pending_validation",
+    "valid",
+    "invalid",
+    "blocked",
+    "waived_by_authority",
+    "not_required"
+  ],
+  "items": [
+    {
+      "approvalType": "human_launch_approval",
+      "ownerRole": "launch owner",
+      "requestedFrom": "human approver",
+      "status": "missing",
+      "dueDate": null,
+      "blocker": "human_launch_approval",
+      "requiredEvidence": [
+        "signed launch approval",
+        "approved scope",
+        "audit trace"
+      ],
+      "sourceBlockerFromPhase361": "human_launch_approval",
+      "templatePath": "docs/approvals/phase362/templates/human-launch-approval.template.json",
+      "collectedRecordPath": "docs/approvals/phase361/human-approval-record.json",
+      "validationStatus": "missing_real_record",
+      "nextAction": "request_real_signed_record"
+    },
+    {
+      "approvalType": "deploy_authorization",
+      "ownerRole": "deploy owner",
+      "requestedFrom": "deployment approver",
+      "status": "missing",
+      "dueDate": null,
+      "blocker": "deploy_authorization",
+      "requiredEvidence": [
+        "signed deploy authorization",
+        "scope",
+        "rollback acknowledgement"
+      ],
+      "sourceBlockerFromPhase361": "deploy_authorization",
+      "templatePath": "docs/approvals/phase362/templates/deploy-authorization.template.json",
+      "collectedRecordPath": "docs/approvals/phase361/deploy-authorization-record.json",
+      "validationStatus": "missing_real_record",
+      "nextAction": "request_real_signed_record"
+    },
+    {
+      "approvalType": "god_mode_quality_signoff",
+      "ownerRole": "God Mode reviewer",
+      "requestedFrom": "quality reviewer",
+      "status": "missing",
+      "dueDate": null,
+      "blocker": "god_mode_quality_signoff",
+      "requiredEvidence": [
+        "reviewer quality signoff",
+        "benchmark evidence reference"
+      ],
+      "sourceBlockerFromPhase361": "god_mode_quality_signoff",
+      "templatePath": "docs/approvals/phase362/templates/god-mode-quality-signoff.template.json",
+      "collectedRecordPath": "docs/approvals/phase361/god-mode-reviewer-quality-signoff.json",
+      "validationStatus": "missing_real_record",
+      "nextAction": "request_real_signed_record"
+    },
+    {
+      "approvalType": "tianshu_policy_decision",
+      "ownerRole": "Tianshu reviewer",
+      "requestedFrom": "policy reviewer",
+      "status": "missing",
+      "dueDate": null,
+      "blocker": "tianshu_policy_decision",
+      "requiredEvidence": [
+        "policy proposal id",
+        "reviewer decision record"
+      ],
+      "sourceBlockerFromPhase361": "tianshu_policy_decision",
+      "templatePath": "docs/approvals/phase362/templates/tianshu-policy-decision.template.json",
+      "collectedRecordPath": "docs/approvals/phase361/tianshu-reviewer-decision-record.json",
+      "validationStatus": "missing_real_record",
+      "nextAction": "request_real_signed_record"
+    },
+    {
+      "approvalType": "credential_vault_backend_approval",
+      "ownerRole": "credential vault owner",
+      "requestedFrom": "vault approver",
+      "status": "missing",
+      "dueDate": null,
+      "blocker": "credential_vault_backend_approval",
+      "requiredEvidence": [
+        "credentialRef",
+        "access decision",
+        "vault backend approval"
+      ],
+      "sourceBlockerFromPhase361": "credential_vault_backend_approval",
+      "templatePath": "docs/approvals/phase362/templates/credential-vault-backend-approval.template.json",
+      "collectedRecordPath": "docs/approvals/phase361/credential-vault-backend-approval-record.json",
+      "validationStatus": "missing_real_record",
+      "nextAction": "request_real_signed_record"
+    },
+    {
+      "approvalType": "tenant_admin_approval",
+      "ownerRole": "tenant admin",
+      "requestedFrom": "tenant administrator",
+      "status": "missing",
+      "dueDate": null,
+      "blocker": "tenant_admin_approval",
+      "requiredEvidence": [
+        "tenant admin approval",
+        "reviewer checklist id"
+      ],
+      "sourceBlockerFromPhase361": "tenant_admin_approval",
+      "templatePath": "docs/approvals/phase362/templates/tenant-admin-approval.template.json",
+      "collectedRecordPath": "docs/approvals/phase361/tenant-admin-approval-record.json",
+      "validationStatus": "missing_real_record",
+      "nextAction": "request_real_signed_record"
+    },
+    {
+      "approvalType": "billing_warning_copy_approval",
+      "ownerRole": "billing reviewer",
+      "requestedFrom": "billing warning copy approver",
+      "status": "missing",
+      "dueDate": null,
+      "blocker": "billing_warning_copy_approval",
+      "requiredEvidence": [
+        "statement id",
+        "warning copy approval record"
+      ],
+      "sourceBlockerFromPhase361": "billing_warning_copy_approval",
+      "templatePath": "docs/approvals/phase362/templates/billing-warning-copy-approval.template.json",
+      "collectedRecordPath": "docs/approvals/phase361/billing-warning-copy-approval-record.json",
+      "validationStatus": "missing_real_record",
+      "nextAction": "request_real_signed_record"
+    }
+  ],
+  "templateOnlyCount": 7,
+  "collectedApprovalCount": 0,
+  "missingApprovalCount": 7,
+  "templateCountedAsApproval": false
+}

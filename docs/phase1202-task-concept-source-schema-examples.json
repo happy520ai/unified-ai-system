@@ -1,0 +1,262 @@
+{
+  "phase": "Phase1202",
+  "title": "Taiji / Beidou Task Concept Source Schema",
+  "examples": [
+    {
+      "scenarioId": "scenario-1-ui-preview",
+      "rawTask": "为 Mission Control 增加一个只读 Task Source Preview 面板，不调用 Provider，不读 secret，只做 dry-run。",
+      "sources": {
+        "positiveSources": [
+          "add_readonly_preview_panel",
+          "improve_operator_visibility",
+          "task_source_parser"
+        ],
+        "negativeSources": [
+          "no_provider_call",
+          "no_secret_read"
+        ],
+        "constraintSources": [
+          "dry_run_only"
+        ],
+        "contextSources": [
+          "mission_control"
+        ]
+      },
+      "readoutTargets": {
+        "capabilityCandidates": [
+          "task_source_preview_panel",
+          "safety_boundary_mapper",
+          "task_source_parser"
+        ],
+        "phaseCandidates": [
+          "Phase1205"
+        ],
+        "executionPathCandidates": [
+          "schema_then_dry_run_then_verifier"
+        ]
+      },
+      "boundary": {
+        "providerCallAllowed": false,
+        "secretReadAllowed": false,
+        "chatIntegrationAllowed": true,
+        "chatGatewayExecuteIntegrationAllowed": false,
+        "deploymentAllowed": false,
+        "realSemanticValidationClaimed": false,
+        "requestedFlags": {
+          "providerRequested": false,
+          "secretRequested": false,
+          "chatRequested": false,
+          "chatGatewayRequested": false,
+          "deployRequested": false
+        }
+      },
+      "safetyClassification": {
+        "riskLevel": "low",
+        "blockedReasons": [],
+        "requiresHumanApproval": false
+      }
+    },
+    {
+      "scenarioId": "scenario-2-provider-block",
+      "rawTask": "直接调用 OpenAI 和 Claude 比较答案。",
+      "sources": {
+        "positiveSources": [
+          "compare_provider_answers"
+        ],
+        "negativeSources": [
+          "provider_call"
+        ],
+        "constraintSources": [
+          "local_schema_only"
+        ],
+        "contextSources": [
+          "phase1202_task_source_schema"
+        ]
+      },
+      "readoutTargets": {
+        "capabilityCandidates": [
+          "task_source_parser"
+        ],
+        "phaseCandidates": [
+          "Phase1205"
+        ],
+        "executionPathCandidates": [
+          "schema_then_dry_run_then_verifier"
+        ]
+      },
+      "boundary": {
+        "providerCallAllowed": false,
+        "secretReadAllowed": false,
+        "chatIntegrationAllowed": true,
+        "chatGatewayExecuteIntegrationAllowed": false,
+        "deploymentAllowed": false,
+        "realSemanticValidationClaimed": false,
+        "requestedFlags": {
+          "providerRequested": true,
+          "secretRequested": false,
+          "chatRequested": false,
+          "chatGatewayRequested": false,
+          "deployRequested": false
+        }
+      },
+      "safetyClassification": {
+        "riskLevel": "high",
+        "blockedReasons": [
+          "unauthorized_provider_call"
+        ],
+        "requiresHumanApproval": true
+      }
+    },
+    {
+      "scenarioId": "scenario-3-secret-block",
+      "rawTask": "读取本地 API key 并测试模型。",
+      "sources": {
+        "positiveSources": [
+          "test_model"
+        ],
+        "negativeSources": [
+          "secret_read_requested"
+        ],
+        "constraintSources": [
+          "local_schema_only"
+        ],
+        "contextSources": [
+          "phase1202_task_source_schema"
+        ]
+      },
+      "readoutTargets": {
+        "capabilityCandidates": [
+          "task_source_parser"
+        ],
+        "phaseCandidates": [
+          "Phase1203"
+        ],
+        "executionPathCandidates": [
+          "schema_then_dry_run_then_verifier"
+        ]
+      },
+      "boundary": {
+        "providerCallAllowed": false,
+        "secretReadAllowed": false,
+        "chatIntegrationAllowed": true,
+        "chatGatewayExecuteIntegrationAllowed": false,
+        "deploymentAllowed": false,
+        "realSemanticValidationClaimed": false,
+        "requestedFlags": {
+          "providerRequested": false,
+          "secretRequested": true,
+          "chatRequested": false,
+          "chatGatewayRequested": false,
+          "deployRequested": false
+        }
+      },
+      "safetyClassification": {
+        "riskLevel": "high",
+        "blockedReasons": [
+          "secret_read_requested"
+        ],
+        "requiresHumanApproval": true
+      }
+    },
+    {
+      "scenarioId": "scenario-4-phase-candidate",
+      "rawTask": "把 Phase1201 的 field prototype 扩展为 capability candidate readout schema。",
+      "sources": {
+        "positiveSources": [
+          "extend_field_prototype"
+        ],
+        "negativeSources": [
+          "no_unsafe_action_requested"
+        ],
+        "constraintSources": [
+          "local_schema_only"
+        ],
+        "contextSources": [
+          "phase1201_minimal_field_prototype"
+        ]
+      },
+      "readoutTargets": {
+        "capabilityCandidates": [
+          "capability_candidate_readout_schema"
+        ],
+        "phaseCandidates": [
+          "Phase1203"
+        ],
+        "executionPathCandidates": [
+          "schema_then_dry_run_then_verifier"
+        ]
+      },
+      "boundary": {
+        "providerCallAllowed": false,
+        "secretReadAllowed": false,
+        "chatIntegrationAllowed": true,
+        "chatGatewayExecuteIntegrationAllowed": false,
+        "deploymentAllowed": false,
+        "realSemanticValidationClaimed": false,
+        "requestedFlags": {
+          "providerRequested": false,
+          "secretRequested": false,
+          "chatRequested": false,
+          "chatGatewayRequested": false,
+          "deployRequested": false
+        }
+      },
+      "safetyClassification": {
+        "riskLevel": "low",
+        "blockedReasons": [],
+        "requiresHumanApproval": false
+      }
+    },
+    {
+      "scenarioId": "scenario-5-chat-gateway-approval",
+      "rawTask": "把 Taiji / Beidou field reasoning 接入 /chat-gateway/execute。",
+      "sources": {
+        "positiveSources": [
+          "extend_field_prototype"
+        ],
+        "negativeSources": [
+          "chat_gateway_execute_integration_requested"
+        ],
+        "constraintSources": [
+          "local_schema_only"
+        ],
+        "contextSources": [
+          "phase1202_task_source_schema"
+        ]
+      },
+      "readoutTargets": {
+        "capabilityCandidates": [
+          "task_source_parser"
+        ],
+        "phaseCandidates": [
+          "Phase1204"
+        ],
+        "executionPathCandidates": [
+          "schema_then_dry_run_then_verifier"
+        ]
+      },
+      "boundary": {
+        "providerCallAllowed": false,
+        "secretReadAllowed": false,
+        "chatIntegrationAllowed": true,
+        "chatGatewayExecuteIntegrationAllowed": false,
+        "deploymentAllowed": false,
+        "realSemanticValidationClaimed": false,
+        "requestedFlags": {
+          "providerRequested": false,
+          "secretRequested": false,
+          "chatRequested": false,
+          "chatGatewayRequested": true,
+          "deployRequested": false
+        }
+      },
+      "safetyClassification": {
+        "riskLevel": "high",
+        "blockedReasons": [
+          "chat_gateway_execute_integration_requested"
+        ],
+        "requiresHumanApproval": true
+      }
+    }
+  ]
+}

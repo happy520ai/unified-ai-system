@@ -1,0 +1,22 @@
+{
+  "phase": "Phase376E",
+  "fields": [
+    "evidenceId",
+    "timestamp",
+    "mode",
+    "intent",
+    "selectedPanel",
+    "riskScore",
+    "blockedActions",
+    "allowedActions",
+    "dryRunResult",
+    "supervisorComment",
+    "fallbackReason",
+    "replayAvailable",
+    "rollbackPathAvailable",
+    "providerCallsMade",
+    "secretValueExposed"
+  ],
+  "providerCallsMade": false,
+  "secretValueExposed": false
+}

@@ -1,0 +1,82 @@
+{
+  "phase": "Phase390A",
+  "title": "Yiyi Commercial Demo Final QA Index",
+  "packageType": "final_demo_qa_index",
+  "sources": [
+    {
+      "path": "docs/phase386-yiyi-commercial-demo-guided-showcase-closure.md",
+      "exists": true,
+      "sizeBytes": 849
+    },
+    {
+      "path": "docs/phase387-yiyi-commercial-visual-polish-cross-browser-qa-closure.md",
+      "exists": true,
+      "sizeBytes": 640
+    },
+    {
+      "path": "docs/phase388-yiyi-demo-recording-asset-pack-closure.md",
+      "exists": true,
+      "sizeBytes": 1238
+    },
+    {
+      "path": "docs/phase389-yiyi-mobile-demo-adaptation-presenter-notes-closure.md",
+      "exists": true,
+      "sizeBytes": 724
+    },
+    {
+      "path": "apps/ai-gateway-service/evidence/phase386/yiyi-commercial-demo-guided-showcase-closure-result.json",
+      "exists": true,
+      "sizeBytes": 3799
+    },
+    {
+      "path": "apps/ai-gateway-service/evidence/phase387/yiyi-commercial-visual-polish-cross-browser-qa-closure-result.json",
+      "exists": true,
+      "sizeBytes": 1852
+    },
+    {
+      "path": "apps/ai-gateway-service/evidence/phase388/yiyi-demo-recording-asset-pack-closure-result.json",
+      "exists": true,
+      "sizeBytes": 2120
+    },
+    {
+      "path": "apps/ai-gateway-service/evidence/phase389/yiyi-mobile-demo-adaptation-presenter-notes-closure-result.json",
+      "exists": true,
+      "sizeBytes": 2099
+    }
+  ],
+  "demoChain": [
+    "Phase386",
+    "Phase387",
+    "Phase388",
+    "Phase389"
+  ],
+  "finalHandoffReadyForManualReview": true,
+  "finalHandoffReadyForProductionClaim": false,
+  "realProviderTestExecuted": false,
+  "productionDeployExecuted": false,
+  "providerCallsMade": false,
+  "nonNvidiaProviderCallsMade": false,
+  "secretValueExposed": false,
+  "rawSecretAccessed": false,
+  "deployExecuted": false,
+  "releaseExecuted": false,
+  "tagCreated": false,
+  "artifactUploaded": false,
+  "billingExecuted": false,
+  "invoiceGenerated": false,
+  "productionGaClaimed": false,
+  "workspaceCleanClaimed": false,
+  "phase384Status": {
+    "riskLevel": "high",
+    "requiresHumanApproval": true,
+    "autoExecutionAllowed": false,
+    "requiredBeforeRealProviderTest": [
+      "explicit allowProviderCall=true",
+      "allowedProviderRefs",
+      "allowedCredentialRefs",
+      "allowedModelRefs",
+      "maxRequests",
+      "maxEstimatedCostUsd"
+    ]
+  }
+}

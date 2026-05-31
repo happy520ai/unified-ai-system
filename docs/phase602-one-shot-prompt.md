@@ -1,0 +1,1 @@
+Read .codex-context/current-context-pack.md. Verify .codex-context/context-freshness-report.json stale=false. Read .codex-context/relevant-files.json. Do not edit files. Do not scan the full repository. Do not read secrets, API keys, webhook values, or .env files. Output one-line acknowledgement only.

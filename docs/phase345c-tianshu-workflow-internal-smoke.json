@@ -1,0 +1,12 @@
+{
+  "phase": "Phase345C",
+  "inputPhase": "Phase344C",
+  "flagName": "tianshuReviewerGuardedWorkflow",
+  "internalOnly": true,
+  "smokePassed": true,
+  "noPublicExposure": true,
+  "noUnauthorizedProviderCall": true,
+  "policyActivated": false,
+  "providerRealCallExecuted": false,
+  "secretValueExposed": false
+}

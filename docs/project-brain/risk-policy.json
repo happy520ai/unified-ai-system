@@ -1,0 +1,95 @@
+{
+  "phaseId": "Phase2000-GVC-OS",
+  "decisionTypes": [
+    "allowed",
+    "approval_required",
+    "forbidden"
+  ],
+  "riskLevels": {
+    "L0": {
+      "defaultDecision": "allowed",
+      "description": "Read-only project state inspection and JSON/docs validation."
+    },
+    "L1": {
+      "defaultDecision": "allowed",
+      "description": "Docs, evidence, verifier, package scripts, and local dry-run tooling."
+    },
+    "L2": {
+      "defaultDecision": "allowed",
+      "description": "Low/medium-risk local code or UI changes that avoid main-chain runtime and forbidden paths."
+    },
+    "L3": {
+      "defaultDecision": "approval_required",
+      "description": "Provider calls, main-chain changes, provider runtime mutation, guarded real local actions, or budget-sensitive execution."
+    },
+    "L4": {
+      "defaultDecision": "forbidden",
+      "description": "Secrets, destructive operations, deploy/release/push/commit, legacy mutation, or production claims without evidence."
+    }
+  },
+  "forbiddenPathPrefixes": [
+    "legacy/",
+    ".git/",
+    "node_modules/"
+  ],
+  "forbiddenExactPaths": [
+    "PROJECT_CONTEXT.md",
+    ".env",
+    ".env.local",
+    ".env.production",
+    "auth.json"
+  ],
+  "forbiddenBasenames": [
+    "PROJECT_CONTEXT.md",
+    ".env",
+    ".env.local",
+    ".env.production",
+    "auth.json"
+  ],
+  "forbiddenOperations": [
+    "secret_read",
+    "raw_secret_output",
+    "authorization_header_read",
+    "auth_json_read",
+    "env_plaintext_read",
+    "legacy_modify",
+    "project_context_modify",
+    "deploy",
+    "release",
+    "tag",
+    "artifact_upload",
+    "push",
+    "commit",
+    "destructive_git",
+    "workspace_clean_claim"
+  ],
+  "approvalRequiredOperations": [
+    "provider_call",
+    "paid_api_call",
+    "provider_runtime_modify",
+    "chat_modify",
+    "chat_gateway_execute_modify",
+    "real_desktop_action",
+    "real_user_file_write",
+    "budget_sensitive_execution"
+  ],
+  "providerApprovalRequiredFields": [
+    "provider",
+    "model",
+    "credentialRef",
+    "maxRequests",
+    "maxCostUsd",
+    "timeoutMs",
+    "retryPolicy",
+    "prompt",
+    "expectedResult",
+    "rollbackPlan"
+  ],
+  "providerDefaultLimits": {
+    "maxRequests": 1,
+    "maxCostUsd": 0.02,
+    "retryPolicy": "no_retry",
+    "timeoutMs": 30000,
+    "rawSecretReadAllowed": false
+  }
+}

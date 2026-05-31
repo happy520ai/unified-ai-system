@@ -1,0 +1,45 @@
+{
+  "phase": "Phase334D",
+  "scenarios": [
+    {
+      "id": "envAdapterInternalTestAllowed",
+      "status": "passed"
+    },
+    {
+      "id": "envAdapterMissingKeyBlocked",
+      "status": "passed"
+    },
+    {
+      "id": "encryptedReferenceAdapterNotReady",
+      "status": "passed"
+    },
+    {
+      "id": "vaultReferenceAdapterNotConfigured",
+      "status": "passed"
+    },
+    {
+      "id": "unsupportedReferenceTypeRejected",
+      "status": "passed"
+    },
+    {
+      "id": "secretValuePayloadRejected",
+      "status": "passed"
+    },
+    {
+      "id": "unauthorizedScopeRejected",
+      "status": "passed"
+    },
+    {
+      "id": "revokedCredentialRejected",
+      "status": "passed"
+    },
+    {
+      "id": "redactionAlwaysApplied",
+      "status": "passed"
+    },
+    {
+      "id": "guardedRealCallCredentialCheckBlockedWithoutGate",
+      "status": "passed"
+    }
+  ]
+}

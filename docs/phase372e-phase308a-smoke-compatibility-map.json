@@ -1,0 +1,11 @@
+{
+  "phase": "Phase372E",
+  "compatibilityMap": {
+    "PHASE308_DESKTOP_WORKBENCH_TEMPLATE_BEGIN": "data-workbench-root=\"phase372-workbench-root\"",
+    "data-workbench-page=\"chat\"": "data-page=\"chat\"",
+    "data-workbench-page=\"local-agent\"": "id=\"three-mode-panel-god\"",
+    "data-workbench-page=\"repair\"": "id=\"three-mode-panel-tianshu\"",
+    "data-workbench-page=\"help\"": "id=\"provider-credentialref-guidance\"",
+    "desktop-grade": "AI Gateway Workbench"
+  }
+}

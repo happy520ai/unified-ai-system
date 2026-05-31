@@ -1,0 +1,11 @@
+{
+  "phase": "Phase374F",
+  "before": {
+    "file": "apps/ai-gateway-service/src/ui/consolePage.js",
+    "approximateLines": 2448
+  },
+  "after": {
+    "file": "apps/ai-gateway-service/src/ui/consolePage.js",
+    "approximateLines": 2360
+  }
+}

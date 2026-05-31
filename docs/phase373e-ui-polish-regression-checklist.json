@@ -1,0 +1,35 @@
+{
+  "phase": "Phase373E",
+  "checklist": [
+    {
+      "id": "encoding",
+      "pass": true,
+      "label": "编码 / 文案渲染问题已消除"
+    },
+    {
+      "id": "threeMode",
+      "pass": true,
+      "label": "三模式文案可读"
+    },
+    {
+      "id": "god",
+      "pass": true,
+      "label": "God Mode 状态文案可读"
+    },
+    {
+      "id": "tianshu",
+      "pass": true,
+      "label": "Tianshu 状态文案可读"
+    },
+    {
+      "id": "provider",
+      "pass": true,
+      "label": "Provider / credentialRef 文案可读"
+    },
+    {
+      "id": "noDeploy",
+      "pass": true,
+      "label": "no-deploy notice 清楚"
+    }
+  ]
+}

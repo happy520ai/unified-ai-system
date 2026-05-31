@@ -1,0 +1,21 @@
+{
+  "phase": "Phase329D",
+  "contractName": "credential-vault-adapter-contract",
+  "adapters": [
+    "env_key_name",
+    "encrypted_reference",
+    "vault_reference"
+  ],
+  "rawSecretNeverReturned": true,
+  "secretValueExposed": false,
+  "realVaultConnected": false,
+  "errors": [
+    "CREDENTIAL_REFERENCE_TYPE_UNKNOWN",
+    "ENV_CREDENTIAL_KEY_MISSING",
+    "ENCRYPTED_REFERENCE_ADAPTER_NOT_READY",
+    "VAULT_ADAPTER_NOT_CONFIGURED",
+    "CREDENTIAL_ACCESS_DENIED",
+    "SECRET_VALUE_FORBIDDEN",
+    "CREDENTIAL_SCOPE_NOT_ALLOWED"
+  ]
+}

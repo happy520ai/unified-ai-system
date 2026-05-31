@@ -1,0 +1,1208 @@
+{
+  "phase": "Phase324I",
+  "reportName": "model-library-routing-preference-report",
+  "runtimeStatus": "read_only_recommendation_report",
+  "generatedAt": "2026-05-06T17:05:06.605Z",
+  "providerCallsMade": false,
+  "selectableModified": false,
+  "routingRuntimeModified": false,
+  "missingSources": [],
+  "summary": {
+    "selectableCandidatesConsidered": 17,
+    "phase324c6Applied": true,
+    "phase324c6EligibleCount": 1,
+    "minimaxM27Selectable": true,
+    "note": "minimaxai/minimax-m2.7 may be considered with evidenceSource=phase324b7"
+  },
+  "recommendations": {
+    "defaultGeneralChat": [
+      {
+        "modelId": "meta/llama-3.2-1b-instruct",
+        "providerId": "nvidia",
+        "evidenceId": "phase324b6-meta_llama_3_2_1b_instruct-20260506155545",
+        "latencyMs": 329,
+        "reason": "stable selectable smoke_passed model with evidence",
+        "evidenceReason": "smoke_passed_evidence_present",
+        "capabilityTierReason": "capability inferred from verification metadata and model id",
+        "riskReason": "not in failed or high-risk exclusion queues",
+        "fallbackReason": "eligible selectable fallback candidate",
+        "inferenceSource": "model_id_heuristic"
+      },
+      {
+        "modelId": "nvidia/nemotron-mini-4b-instruct",
+        "providerId": "nvidia",
+        "evidenceId": "phase324b-nvidia_nemotron_mini_4b_instruct-20260506124316",
+        "latencyMs": 428,
+        "reason": "stable selectable smoke_passed model with evidence",
+        "evidenceReason": "smoke_passed_evidence_present",
+        "capabilityTierReason": "capability inferred from verification metadata and model id",
+        "riskReason": "not in failed or high-risk exclusion queues",
+        "fallbackReason": "eligible selectable fallback candidate",
+        "inferenceSource": "model_id_heuristic"
+      },
+      {
+        "modelId": "microsoft/phi-4-mini-instruct",
+        "providerId": "nvidia",
+        "evidenceId": "phase324b3-microsoft_phi_4_mini_instruct-20260506130704",
+        "latencyMs": 446,
+        "reason": "stable selectable smoke_passed model with evidence",
+        "evidenceReason": "smoke_passed_evidence_present",
+        "capabilityTierReason": "capability inferred from verification metadata and model id",
+        "riskReason": "not in failed or high-risk exclusion queues",
+        "fallbackReason": "eligible selectable fallback candidate",
+        "inferenceSource": "model_id_heuristic"
+      },
+      {
+        "modelId": "meta/llama-3.2-3b-instruct",
+        "providerId": "nvidia",
+        "evidenceId": "phase324b6-meta_llama_3_2_3b_instruct-20260506155547",
+        "latencyMs": 463,
+        "reason": "stable selectable smoke_passed model with evidence",
+        "evidenceReason": "smoke_passed_evidence_present",
+        "capabilityTierReason": "capability inferred from verification metadata and model id",
+        "riskReason": "not in failed or high-risk exclusion queues",
+        "fallbackReason": "eligible selectable fallback candidate",
+        "inferenceSource": "model_id_heuristic"
+      },
+      {
+        "modelId": "meta/llama-4-maverick-17b-128e-instruct",
+        "providerId": "nvidia",
+        "evidenceId": "phase324b6-meta_llama_4_maverick_17b_128e_instruct-20260506155549",
+        "latencyMs": 510,
+        "reason": "stable selectable smoke_passed model with evidence",
+        "evidenceReason": "smoke_passed_evidence_present",
+        "capabilityTierReason": "capability inferred from verification metadata and model id",
+        "riskReason": "not in failed or high-risk exclusion queues",
+        "fallbackReason": "eligible selectable fallback candidate",
+        "inferenceSource": "model_id_heuristic"
+      }
+    ],
+    "lowLatency": [
+      {
+        "modelId": "meta/llama-3.2-1b-instruct",
+        "providerId": "nvidia",
+        "evidenceId": "phase324b6-meta_llama_3_2_1b_instruct-20260506155545",
+        "latencyMs": 329,
+        "reason": "lowest recorded smoke latency among selectable models",
+        "evidenceReason": "smoke_passed_evidence_present",
+        "capabilityTierReason": "capability inferred from verification metadata and model id",
+        "riskReason": "not in failed or high-risk exclusion queues",
+        "fallbackReason": "eligible selectable fallback candidate",
+        "inferenceSource": "model_id_heuristic"
+      },
+      {
+        "modelId": "nvidia/nemotron-mini-4b-instruct",
+        "providerId": "nvidia",
+        "evidenceId": "phase324b-nvidia_nemotron_mini_4b_instruct-20260506124316",
+        "latencyMs": 428,
+        "reason": "lowest recorded smoke latency among selectable models",
+        "evidenceReason": "smoke_passed_evidence_present",
+        "capabilityTierReason": "capability inferred from verification metadata and model id",
+        "riskReason": "not in failed or high-risk exclusion queues",
+        "fallbackReason": "eligible selectable fallback candidate",
+        "inferenceSource": "model_id_heuristic"
+      },
+      {
+        "modelId": "microsoft/phi-4-mini-instruct",
+        "providerId": "nvidia",
+        "evidenceId": "phase324b3-microsoft_phi_4_mini_instruct-20260506130704",
+        "latencyMs": 446,
+        "reason": "lowest recorded smoke latency among selectable models",
+        "evidenceReason": "smoke_passed_evidence_present",
+        "capabilityTierReason": "capability inferred from verification metadata and model id",
+        "riskReason": "not in failed or high-risk exclusion queues",
+        "fallbackReason": "eligible selectable fallback candidate",
+        "inferenceSource": "model_id_heuristic"
+      },
+      {
+        "modelId": "meta/llama-3.2-3b-instruct",
+        "providerId": "nvidia",
+        "evidenceId": "phase324b6-meta_llama_3_2_3b_instruct-20260506155547",
+        "latencyMs": 463,
+        "reason": "lowest recorded smoke latency among selectable models",
+        "evidenceReason": "smoke_passed_evidence_present",
+        "capabilityTierReason": "capability inferred from verification metadata and model id",
+        "riskReason": "not in failed or high-risk exclusion queues",
+        "fallbackReason": "eligible selectable fallback candidate",
+        "inferenceSource": "model_id_heuristic"
+      },
+      {
+        "modelId": "meta/llama-4-maverick-17b-128e-instruct",
+        "providerId": "nvidia",
+        "evidenceId": "phase324b6-meta_llama_4_maverick_17b_128e_instruct-20260506155549",
+        "latencyMs": 510,
+        "reason": "lowest recorded smoke latency among selectable models",
+        "evidenceReason": "smoke_passed_evidence_present",
+        "capabilityTierReason": "capability inferred from verification metadata and model id",
+        "riskReason": "not in failed or high-risk exclusion queues",
+        "fallbackReason": "eligible selectable fallback candidate",
+        "inferenceSource": "model_id_heuristic"
+      }
+    ],
+    "reasoning": [
+      {
+        "modelId": "nvidia/nemotron-mini-4b-instruct",
+        "providerId": "nvidia",
+        "evidenceId": "phase324b-nvidia_nemotron_mini_4b_instruct-20260506124316",
+        "latencyMs": 428,
+        "reason": "reasoning-oriented candidate by model id heuristic",
+        "evidenceReason": "smoke_passed_evidence_present",
+        "capabilityTierReason": "capability inferred from verification metadata and model id",
+        "riskReason": "not in failed or high-risk exclusion queues",
+        "fallbackReason": "eligible selectable fallback candidate",
+        "inferenceSource": "model_id_heuristic"
+      },
+      {
+        "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1",
+        "providerId": "nvidia",
+        "evidenceId": "phase-313a-model-usability-matrix",
+        "latencyMs": 875,
+        "reason": "reasoning-oriented candidate by model id heuristic",
+        "evidenceReason": "smoke_passed_evidence_present",
+        "capabilityTierReason": "capability inferred from verification metadata and model id",
+        "riskReason": "not in failed or high-risk exclusion queues",
+        "fallbackReason": "eligible selectable fallback candidate",
+        "inferenceSource": "model_id_heuristic"
+      },
+      {
+        "modelId": "deepseek-ai/deepseek-v4-pro",
+        "providerId": "nvidia",
+        "evidenceId": "phase324b4-deepseek_ai_deepseek_v4_pro-20260506151431",
+        "latencyMs": 930,
+        "reason": "reasoning-oriented candidate by model id heuristic",
+        "evidenceReason": "smoke_passed_evidence_present",
+        "capabilityTierReason": "capability inferred from verification metadata and model id",
+        "riskReason": "not in failed or high-risk exclusion queues",
+        "fallbackReason": "eligible selectable fallback candidate",
+        "inferenceSource": "model_id_heuristic"
+      },
+      {
+        "modelId": "nvidia/nemotron-3-super-120b-a12b",
+        "providerId": "nvidia",
+        "evidenceId": "phase324b-nvidia_nemotron_3_super_120b_a12b-20260506124314",
+        "latencyMs": 974,
+        "reason": "reasoning-oriented candidate by model id heuristic",
+        "evidenceReason": "smoke_passed_evidence_present",
+        "capabilityTierReason": "capability inferred from verification metadata and model id",
+        "riskReason": "not in failed or high-risk exclusion queues",
+        "fallbackReason": "eligible selectable fallback candidate",
+        "inferenceSource": "model_id_heuristic"
+      },
+      {
+        "modelId": "abacusai/dracarys-llama-3.1-70b-instruct",
+        "providerId": "nvidia",
+        "evidenceId": "phase324b2-abacusai_dracarys_llama_3_1_70b_instruct-20260506130555",
+        "latencyMs": 1011,
+        "reason": "reasoning-oriented candidate by model id heuristic",
+        "evidenceReason": "smoke_passed_evidence_present",
+        "capabilityTierReason": "capability inferred from verification metadata and model id",
+        "riskReason": "not in failed or high-risk exclusion queues",
+        "fallbackReason": "eligible selectable fallback candidate",
+        "inferenceSource": "model_id_heuristic"
+      }
+    ],
+    "coding": [
+      {
+        "modelId": "meta/llama-3.2-1b-instruct",
+        "providerId": "nvidia",
+        "evidenceId": "phase324b6-meta_llama_3_2_1b_instruct-20260506155545",
+        "latencyMs": 329,
+        "reason": "coding-oriented candidate by model id heuristic",
+        "evidenceReason": "smoke_passed_evidence_present",
+        "capabilityTierReason": "capability inferred from verification metadata and model id",
+        "riskReason": "not in failed or high-risk exclusion queues",
+        "fallbackReason": "eligible selectable fallback candidate",
+        "inferenceSource": "model_id_heuristic"
+      },
+      {
+        "modelId": "microsoft/phi-4-mini-instruct",
+        "providerId": "nvidia",
+        "evidenceId": "phase324b3-microsoft_phi_4_mini_instruct-20260506130704",
+        "latencyMs": 446,
+        "reason": "coding-oriented candidate by model id heuristic",
+        "evidenceReason": "smoke_passed_evidence_present",
+        "capabilityTierReason": "capability inferred from verification metadata and model id",
+        "riskReason": "not in failed or high-risk exclusion queues",
+        "fallbackReason": "eligible selectable fallback candidate",
+        "inferenceSource": "model_id_heuristic"
+      },
+      {
+        "modelId": "meta/llama-3.2-3b-instruct",
+        "providerId": "nvidia",
+        "evidenceId": "phase324b6-meta_llama_3_2_3b_instruct-20260506155547",
+        "latencyMs": 463,
+        "reason": "coding-oriented candidate by model id heuristic",
+        "evidenceReason": "smoke_passed_evidence_present",
+        "capabilityTierReason": "capability inferred from verification metadata and model id",
+        "riskReason": "not in failed or high-risk exclusion queues",
+        "fallbackReason": "eligible selectable fallback candidate",
+        "inferenceSource": "model_id_heuristic"
+      },
+      {
+        "modelId": "meta/llama-4-maverick-17b-128e-instruct",
+        "providerId": "nvidia",
+        "evidenceId": "phase324b6-meta_llama_4_maverick_17b_128e_instruct-20260506155549",
+        "latencyMs": 510,
+        "reason": "coding-oriented candidate by model id heuristic",
+        "evidenceReason": "smoke_passed_evidence_present",
+        "capabilityTierReason": "capability inferred from verification metadata and model id",
+        "riskReason": "not in failed or high-risk exclusion queues",
+        "fallbackReason": "eligible selectable fallback candidate",
+        "inferenceSource": "model_id_heuristic"
+      },
+      {
+        "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1",
+        "providerId": "nvidia",
+        "evidenceId": "phase-313a-model-usability-matrix",
+        "latencyMs": 875,
+        "reason": "coding-oriented candidate by model id heuristic",
+        "evidenceReason": "smoke_passed_evidence_present",
+        "capabilityTierReason": "capability inferred from verification metadata and model id",
+        "riskReason": "not in failed or high-risk exclusion queues",
+        "fallbackReason": "eligible selectable fallback candidate",
+        "inferenceSource": "model_id_heuristic"
+      }
+    ],
+    "longContext": [
+      {
+        "modelId": "meta/llama-4-maverick-17b-128e-instruct",
+        "providerId": "nvidia",
+        "evidenceId": "phase324b6-meta_llama_4_maverick_17b_128e_instruct-20260506155549",
+        "latencyMs": 510,
+        "reason": "long-context candidate by model id heuristic",
+        "evidenceReason": "smoke_passed_evidence_present",
+        "capabilityTierReason": "capability inferred from verification metadata and model id",
+        "riskReason": "not in failed or high-risk exclusion queues",
+        "fallbackReason": "eligible selectable fallback candidate",
+        "inferenceSource": "model_id_heuristic"
+      },
+      {
+        "modelId": "minimaxai/minimax-m2.7",
+        "providerId": "nvidia",
+        "evidenceId": "phase324b7-minimaxai_minimax_m2_7-20260506164801",
+        "latencyMs": 1479,
+        "reason": "long-context candidate by model id heuristic",
+        "evidenceReason": "smoke_passed_evidence_present",
+        "capabilityTierReason": "capability inferred from verification metadata and model id",
+        "riskReason": "not in failed or high-risk exclusion queues",
+        "fallbackReason": "eligible selectable fallback candidate",
+        "inferenceSource": "model_id_heuristic"
+      }
+    ],
+    "largeModel": [
+      {
+        "modelId": "meta/llama-4-maverick-17b-128e-instruct",
+        "providerId": "nvidia",
+        "evidenceId": "phase324b6-meta_llama_4_maverick_17b_128e_instruct-20260506155549",
+        "latencyMs": 510,
+        "reason": "large-model candidate by model id heuristic",
+        "evidenceReason": "smoke_passed_evidence_present",
+        "capabilityTierReason": "capability inferred from verification metadata and model id",
+        "riskReason": "not in failed or high-risk exclusion queues",
+        "fallbackReason": "eligible selectable fallback candidate",
+        "inferenceSource": "model_id_heuristic"
+      },
+      {
+        "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1",
+        "providerId": "nvidia",
+        "evidenceId": "phase-313a-model-usability-matrix",
+        "latencyMs": 875,
+        "reason": "large-model candidate by model id heuristic",
+        "evidenceReason": "smoke_passed_evidence_present",
+        "capabilityTierReason": "capability inferred from verification metadata and model id",
+        "riskReason": "not in failed or high-risk exclusion queues",
+        "fallbackReason": "eligible selectable fallback candidate",
+        "inferenceSource": "model_id_heuristic"
+      },
+      {
+        "modelId": "nvidia/nemotron-3-super-120b-a12b",
+        "providerId": "nvidia",
+        "evidenceId": "phase324b-nvidia_nemotron_3_super_120b_a12b-20260506124314",
+        "latencyMs": 974,
+        "reason": "large-model candidate by model id heuristic",
+        "evidenceReason": "smoke_passed_evidence_present",
+        "capabilityTierReason": "capability inferred from verification metadata and model id",
+        "riskReason": "not in failed or high-risk exclusion queues",
+        "fallbackReason": "eligible selectable fallback candidate",
+        "inferenceSource": "model_id_heuristic"
+      },
+      {
+        "modelId": "abacusai/dracarys-llama-3.1-70b-instruct",
+        "providerId": "nvidia",
+        "evidenceId": "phase324b2-abacusai_dracarys_llama_3_1_70b_instruct-20260506130555",
+        "latencyMs": 1011,
+        "reason": "large-model candidate by model id heuristic",
+        "evidenceReason": "smoke_passed_evidence_present",
+        "capabilityTierReason": "capability inferred from verification metadata and model id",
+        "riskReason": "not in failed or high-risk exclusion queues",
+        "fallbackReason": "eligible selectable fallback candidate",
+        "inferenceSource": "model_id_heuristic"
+      },
+      {
+        "modelId": "meta/llama-3.1-70b-instruct",
+        "providerId": "nvidia",
+        "evidenceId": "phase324b2-meta_llama_3_1_70b_instruct-20260506130559",
+        "latencyMs": 2143,
+        "reason": "large-model candidate by model id heuristic",
+        "evidenceReason": "smoke_passed_evidence_present",
+        "capabilityTierReason": "capability inferred from verification metadata and model id",
+        "riskReason": "not in failed or high-risk exclusion queues",
+        "fallbackReason": "eligible selectable fallback candidate",
+        "inferenceSource": "model_id_heuristic"
+      }
+    ],
+    "stableFallbackChain": [
+      {
+        "modelId": "meta/llama-3.2-1b-instruct",
+        "providerId": "nvidia",
+        "evidenceId": "phase324b6-meta_llama_3_2_1b_instruct-20260506155545",
+        "latencyMs": 329,
+        "reason": "fallback chain candidate ordered by latency and smoke evidence",
+        "evidenceReason": "smoke_passed_evidence_present",
+        "capabilityTierReason": "capability inferred from verification metadata and model id",
+        "riskReason": "not in failed or high-risk exclusion queues",
+        "fallbackReason": "ordered fallback candidate after primary model failure",
+        "inferenceSource": "model_id_heuristic"
+      },
+      {
+        "modelId": "nvidia/nemotron-mini-4b-instruct",
+        "providerId": "nvidia",
+        "evidenceId": "phase324b-nvidia_nemotron_mini_4b_instruct-20260506124316",
+        "latencyMs": 428,
+        "reason": "fallback chain candidate ordered by latency and smoke evidence",
+        "evidenceReason": "smoke_passed_evidence_present",
+        "capabilityTierReason": "capability inferred from verification metadata and model id",
+        "riskReason": "not in failed or high-risk exclusion queues",
+        "fallbackReason": "ordered fallback candidate after primary model failure",
+        "inferenceSource": "model_id_heuristic"
+      },
+      {
+        "modelId": "microsoft/phi-4-mini-instruct",
+        "providerId": "nvidia",
+        "evidenceId": "phase324b3-microsoft_phi_4_mini_instruct-20260506130704",
+        "latencyMs": 446,
+        "reason": "fallback chain candidate ordered by latency and smoke evidence",
+        "evidenceReason": "smoke_passed_evidence_present",
+        "capabilityTierReason": "capability inferred from verification metadata and model id",
+        "riskReason": "not in failed or high-risk exclusion queues",
+        "fallbackReason": "ordered fallback candidate after primary model failure",
+        "inferenceSource": "model_id_heuristic"
+      },
+      {
+        "modelId": "meta/llama-3.2-3b-instruct",
+        "providerId": "nvidia",
+        "evidenceId": "phase324b6-meta_llama_3_2_3b_instruct-20260506155547",
+        "latencyMs": 463,
+        "reason": "fallback chain candidate ordered by latency and smoke evidence",
+        "evidenceReason": "smoke_passed_evidence_present",
+        "capabilityTierReason": "capability inferred from verification metadata and model id",
+        "riskReason": "not in failed or high-risk exclusion queues",
+        "fallbackReason": "ordered fallback candidate after primary model failure",
+        "inferenceSource": "model_id_heuristic"
+      },
+      {
+        "modelId": "meta/llama-4-maverick-17b-128e-instruct",
+        "providerId": "nvidia",
+        "evidenceId": "phase324b6-meta_llama_4_maverick_17b_128e_instruct-20260506155549",
+        "latencyMs": 510,
+        "reason": "fallback chain candidate ordered by latency and smoke evidence",
+        "evidenceReason": "smoke_passed_evidence_present",
+        "capabilityTierReason": "capability inferred from verification metadata and model id",
+        "riskReason": "not in failed or high-risk exclusion queues",
+        "fallbackReason": "ordered fallback candidate after primary model failure",
+        "inferenceSource": "model_id_heuristic"
+      },
+      {
+        "modelId": "google/gemma-3n-e4b-it",
+        "providerId": "nvidia",
+        "evidenceId": "phase324b5-google_gemma_3n_e4b_it-20260506153308",
+        "latencyMs": 817,
+        "reason": "fallback chain candidate ordered by latency and smoke evidence",
+        "evidenceReason": "smoke_passed_evidence_present",
+        "capabilityTierReason": "capability inferred from verification metadata and model id",
+        "riskReason": "not in failed or high-risk exclusion queues",
+        "fallbackReason": "ordered fallback candidate after primary model failure",
+        "inferenceSource": "model_id_heuristic"
+      },
+      {
+        "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1",
+        "providerId": "nvidia",
+        "evidenceId": "phase-313a-model-usability-matrix",
+        "latencyMs": 875,
+        "reason": "fallback chain candidate ordered by latency and smoke evidence",
+        "evidenceReason": "smoke_passed_evidence_present",
+        "capabilityTierReason": "capability inferred from verification metadata and model id",
+        "riskReason": "not in failed or high-risk exclusion queues",
+        "fallbackReason": "ordered fallback candidate after primary model failure",
+        "inferenceSource": "model_id_heuristic"
+      }
+    ],
+    "godModeCandidatePool": [
+      {
+        "modelId": "meta/llama-3.2-1b-instruct",
+        "providerId": "nvidia",
+        "evidenceId": "phase324b6-meta_llama_3_2_1b_instruct-20260506155545",
+        "latencyMs": 329,
+        "reason": "candidate for future God Mode dry-run pool; runtime not enabled",
+        "evidenceReason": "smoke_passed_evidence_present",
+        "capabilityTierReason": "capability inferred from verification metadata and model id",
+        "riskReason": "not in failed or high-risk exclusion queues",
+        "fallbackReason": "eligible selectable fallback candidate",
+        "inferenceSource": "model_id_heuristic"
+      },
+      {
+        "modelId": "nvidia/nemotron-mini-4b-instruct",
+        "providerId": "nvidia",
+        "evidenceId": "phase324b-nvidia_nemotron_mini_4b_instruct-20260506124316",
+        "latencyMs": 428,
+        "reason": "candidate for future God Mode dry-run pool; runtime not enabled",
+        "evidenceReason": "smoke_passed_evidence_present",
+        "capabilityTierReason": "capability inferred from verification metadata and model id",
+        "riskReason": "not in failed or high-risk exclusion queues",
+        "fallbackReason": "eligible selectable fallback candidate",
+        "inferenceSource": "model_id_heuristic"
+      },
+      {
+        "modelId": "microsoft/phi-4-mini-instruct",
+        "providerId": "nvidia",
+        "evidenceId": "phase324b3-microsoft_phi_4_mini_instruct-20260506130704",
+        "latencyMs": 446,
+        "reason": "candidate for future God Mode dry-run pool; runtime not enabled",
+        "evidenceReason": "smoke_passed_evidence_present",
+        "capabilityTierReason": "capability inferred from verification metadata and model id",
+        "riskReason": "not in failed or high-risk exclusion queues",
+        "fallbackReason": "eligible selectable fallback candidate",
+        "inferenceSource": "model_id_heuristic"
+      },
+      {
+        "modelId": "meta/llama-3.2-3b-instruct",
+        "providerId": "nvidia",
+        "evidenceId": "phase324b6-meta_llama_3_2_3b_instruct-20260506155547",
+        "latencyMs": 463,
+        "reason": "candidate for future God Mode dry-run pool; runtime not enabled",
+        "evidenceReason": "smoke_passed_evidence_present",
+        "capabilityTierReason": "capability inferred from verification metadata and model id",
+        "riskReason": "not in failed or high-risk exclusion queues",
+        "fallbackReason": "eligible selectable fallback candidate",
+        "inferenceSource": "model_id_heuristic"
+      },
+      {
+        "modelId": "meta/llama-4-maverick-17b-128e-instruct",
+        "providerId": "nvidia",
+        "evidenceId": "phase324b6-meta_llama_4_maverick_17b_128e_instruct-20260506155549",
+        "latencyMs": 510,
+        "reason": "candidate for future God Mode dry-run pool; runtime not enabled",
+        "evidenceReason": "smoke_passed_evidence_present",
+        "capabilityTierReason": "capability inferred from verification metadata and model id",
+        "riskReason": "not in failed or high-risk exclusion queues",
+        "fallbackReason": "eligible selectable fallback candidate",
+        "inferenceSource": "model_id_heuristic"
+      },
+      {
+        "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1",
+        "providerId": "nvidia",
+        "evidenceId": "phase-313a-model-usability-matrix",
+        "latencyMs": 875,
+        "reason": "candidate for future God Mode dry-run pool; runtime not enabled",
+        "evidenceReason": "smoke_passed_evidence_present",
+        "capabilityTierReason": "capability inferred from verification metadata and model id",
+        "riskReason": "not in failed or high-risk exclusion queues",
+        "fallbackReason": "eligible selectable fallback candidate",
+        "inferenceSource": "model_id_heuristic"
+      },
+      {
+        "modelId": "deepseek-ai/deepseek-v4-pro",
+        "providerId": "nvidia",
+        "evidenceId": "phase324b4-deepseek_ai_deepseek_v4_pro-20260506151431",
+        "latencyMs": 930,
+        "reason": "candidate for future God Mode dry-run pool; runtime not enabled",
+        "evidenceReason": "smoke_passed_evidence_present",
+        "capabilityTierReason": "capability inferred from verification metadata and model id",
+        "riskReason": "not in failed or high-risk exclusion queues",
+        "fallbackReason": "eligible selectable fallback candidate",
+        "inferenceSource": "model_id_heuristic"
+      },
+      {
+        "modelId": "nvidia/nemotron-3-super-120b-a12b",
+        "providerId": "nvidia",
+        "evidenceId": "phase324b-nvidia_nemotron_3_super_120b_a12b-20260506124314",
+        "latencyMs": 974,
+        "reason": "candidate for future God Mode dry-run pool; runtime not enabled",
+        "evidenceReason": "smoke_passed_evidence_present",
+        "capabilityTierReason": "capability inferred from verification metadata and model id",
+        "riskReason": "not in failed or high-risk exclusion queues",
+        "fallbackReason": "eligible selectable fallback candidate",
+        "inferenceSource": "model_id_heuristic"
+      }
+    ],
+    "tianshuCandidatePool": [
+      {
+        "modelId": "meta/llama-3.2-1b-instruct",
+        "providerId": "nvidia",
+        "evidenceId": "phase324b6-meta_llama_3_2_1b_instruct-20260506155545",
+        "latencyMs": 329,
+        "reason": "candidate for future Tianshu capability index seed; runtime not enabled",
+        "evidenceReason": "smoke_passed_evidence_present",
+        "capabilityTierReason": "capability inferred from verification metadata and model id",
+        "riskReason": "not in failed or high-risk exclusion queues",
+        "fallbackReason": "eligible selectable fallback candidate",
+        "inferenceSource": "model_id_heuristic"
+      },
+      {
+        "modelId": "nvidia/nemotron-mini-4b-instruct",
+        "providerId": "nvidia",
+        "evidenceId": "phase324b-nvidia_nemotron_mini_4b_instruct-20260506124316",
+        "latencyMs": 428,
+        "reason": "candidate for future Tianshu capability index seed; runtime not enabled",
+        "evidenceReason": "smoke_passed_evidence_present",
+        "capabilityTierReason": "capability inferred from verification metadata and model id",
+        "riskReason": "not in failed or high-risk exclusion queues",
+        "fallbackReason": "eligible selectable fallback candidate",
+        "inferenceSource": "model_id_heuristic"
+      },
+      {
+        "modelId": "microsoft/phi-4-mini-instruct",
+        "providerId": "nvidia",
+        "evidenceId": "phase324b3-microsoft_phi_4_mini_instruct-20260506130704",
+        "latencyMs": 446,
+        "reason": "candidate for future Tianshu capability index seed; runtime not enabled",
+        "evidenceReason": "smoke_passed_evidence_present",
+        "capabilityTierReason": "capability inferred from verification metadata and model id",
+        "riskReason": "not in failed or high-risk exclusion queues",
+        "fallbackReason": "eligible selectable fallback candidate",
+        "inferenceSource": "model_id_heuristic"
+      },
+      {
+        "modelId": "meta/llama-3.2-3b-instruct",
+        "providerId": "nvidia",
+        "evidenceId": "phase324b6-meta_llama_3_2_3b_instruct-20260506155547",
+        "latencyMs": 463,
+        "reason": "candidate for future Tianshu capability index seed; runtime not enabled",
+        "evidenceReason": "smoke_passed_evidence_present",
+        "capabilityTierReason": "capability inferred from verification metadata and model id",
+        "riskReason": "not in failed or high-risk exclusion queues",
+        "fallbackReason": "eligible selectable fallback candidate",
+        "inferenceSource": "model_id_heuristic"
+      },
+      {
+        "modelId": "meta/llama-4-maverick-17b-128e-instruct",
+        "providerId": "nvidia",
+        "evidenceId": "phase324b6-meta_llama_4_maverick_17b_128e_instruct-20260506155549",
+        "latencyMs": 510,
+        "reason": "candidate for future Tianshu capability index seed; runtime not enabled",
+        "evidenceReason": "smoke_passed_evidence_present",
+        "capabilityTierReason": "capability inferred from verification metadata and model id",
+        "riskReason": "not in failed or high-risk exclusion queues",
+        "fallbackReason": "eligible selectable fallback candidate",
+        "inferenceSource": "model_id_heuristic"
+      },
+      {
+        "modelId": "google/gemma-3n-e4b-it",
+        "providerId": "nvidia",
+        "evidenceId": "phase324b5-google_gemma_3n_e4b_it-20260506153308",
+        "latencyMs": 817,
+        "reason": "candidate for future Tianshu capability index seed; runtime not enabled",
+        "evidenceReason": "smoke_passed_evidence_present",
+        "capabilityTierReason": "capability inferred from verification metadata and model id",
+        "riskReason": "not in failed or high-risk exclusion queues",
+        "fallbackReason": "eligible selectable fallback candidate",
+        "inferenceSource": "model_id_heuristic"
+      },
+      {
+        "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1",
+        "providerId": "nvidia",
+        "evidenceId": "phase-313a-model-usability-matrix",
+        "latencyMs": 875,
+        "reason": "candidate for future Tianshu capability index seed; runtime not enabled",
+        "evidenceReason": "smoke_passed_evidence_present",
+        "capabilityTierReason": "capability inferred from verification metadata and model id",
+        "riskReason": "not in failed or high-risk exclusion queues",
+        "fallbackReason": "eligible selectable fallback candidate",
+        "inferenceSource": "model_id_heuristic"
+      },
+      {
+        "modelId": "deepseek-ai/deepseek-v4-pro",
+        "providerId": "nvidia",
+        "evidenceId": "phase324b4-deepseek_ai_deepseek_v4_pro-20260506151431",
+        "latencyMs": 930,
+        "reason": "candidate for future Tianshu capability index seed; runtime not enabled",
+        "evidenceReason": "smoke_passed_evidence_present",
+        "capabilityTierReason": "capability inferred from verification metadata and model id",
+        "riskReason": "not in failed or high-risk exclusion queues",
+        "fallbackReason": "eligible selectable fallback candidate",
+        "inferenceSource": "model_id_heuristic"
+      }
+    ]
+  },
+  "exclusions": {
+    "highRisk": [
+      {
+        "modelId": "deepseek-ai/deepseek-v3.1-terminus",
+        "reason": "phase324h_high_risk_exclusion"
+      },
+      {
+        "modelId": "deepseek-ai/deepseek-v3.2",
+        "reason": "phase324h_high_risk_exclusion"
+      },
+      {
+        "modelId": "google/gemma-7b",
+        "reason": "phase324h_high_risk_exclusion"
+      },
+      {
+        "modelId": "microsoft/phi-3-medium-128k-instruct",
+        "reason": "phase324h_high_risk_exclusion"
+      },
+      {
+        "modelId": "microsoft/phi-4-mini-flash-reasoning",
+        "reason": "phase324h_high_risk_exclusion"
+      },
+      {
+        "modelId": "deepseek-ai/deepseek-v4-flash",
+        "reason": "phase324h_high_risk_exclusion"
+      },
+      {
+        "modelId": "minimaxai/minimax-m2.5",
+        "reason": "phase324h_high_risk_exclusion"
+      }
+    ],
+    "failed": [
+      {
+        "modelId": "deepseek-ai/deepseek-v3.1-terminus",
+        "reason": "phase324h_failed_or_not_recommended_retry"
+      },
+      {
+        "modelId": "deepseek-ai/deepseek-v3.2",
+        "reason": "phase324h_failed_or_not_recommended_retry"
+      },
+      {
+        "modelId": "deepseek-ai/deepseek-v4-flash",
+        "reason": "phase324h_failed_or_not_recommended_retry"
+      },
+      {
+        "modelId": "google/gemma-7b",
+        "reason": "phase324h_failed_or_not_recommended_retry"
+      },
+      {
+        "modelId": "microsoft/phi-3-medium-128k-instruct",
+        "reason": "phase324h_failed_or_not_recommended_retry"
+      },
+      {
+        "modelId": "microsoft/phi-4-mini-flash-reasoning",
+        "reason": "phase324h_failed_or_not_recommended_retry"
+      },
+      {
+        "modelId": "minimaxai/minimax-m2.5",
+        "reason": "phase324h_failed_or_not_recommended_retry"
+      }
+    ],
+    "unverified": [
+      {
+        "modelId": "bytedance/seed-oss-36b-instruct",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "deepseek-ai/deepseek-v3.1-terminus",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "deepseek-ai/deepseek-v3.2",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "deepseek-ai/deepseek-v4-flash",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "google/codegemma-7b",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "google/gemma-2-2b-it",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "google/gemma-3-27b-it",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "google/gemma-7b",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "google/paligemma",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "hive/ai-generated-image-detection",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "hive/deepfake-image-detection",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "ipd/proteinmpnn",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "ipd/rfdiffusion",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "meta/esm2-650m",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "meta/esmfold",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "meta/llama-3.2-11b-vision-instruct",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "meta/llama-3.2-90b-vision-instruct",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "meta/llama-guard-4-12b",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "meta/llama2-70b",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "meta/llama3-8b",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "microsoft/phi-3-medium-128k-instruct",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "microsoft/phi-3-mini-4k-instruct",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "microsoft/phi-4-mini-flash-reasoning",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "microsoft/phi-4-multimodal-instruct",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "microsoft/trellis",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "minimaxai/minimax-m2.5",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "mistralai/devstral-2-123b-instruct-2512",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "mistralai/magistral-small-2506",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "mistralai/mamba-codestral-7b-v0.1",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "mistralai/ministral-14b-instruct-2512",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "mistralai/mistral-7b-instruct",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "mistralai/mistral-7b-instruct-v0.3",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "mistralai/mistral-large-3-675b-instruct-2512",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "mistralai/mistral-medium-3-5-128b",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "mistralai/mistral-medium-3-instruct",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "mistralai/mistral-nemotron",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "mistralai/mistral-small-24b-instruct",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "mistralai/mistral-small-4-119b-2603",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "mistralai/mixtral-8x22b-instruct",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "mistralai/mixtral-8x7b-instruct",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "mit/boltz2",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "mit/diffdock",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "moonshotai/kimi-k2-5",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "moonshotai/kimi-k2-instruct",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "moonshotai/kimi-k2-instruct-0905",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "moonshotai/kimi-k2-thinking",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "moonshotai/kimi-k2.6",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "nvidia/bevformer",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "nvidia/corrdiff",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "nvidia/cosmos-1.0-7b-diffusion-text2world",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "nvidia/cosmos-predict1-5b",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "nvidia/cosmos-predict1-7b",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "nvidia/cosmos-transfer2.5-2b",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "nvidia/cuopt",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "nvidia/deploying-nims",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "nvidia/embed-qa-4",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "nvidia/fourcastnet",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "nvidia/genmol",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "nvidia/gliner-pii",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "nvidia/ising-calibration-1-35b-a3b",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "nvidia/llama-3_1-nemotron-safety-guard-8b-v3",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "nvidia/llama-3.1-nemoguard-8b-content-safety",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "nvidia/llama-3.1-nemoguard-8b-topic-control",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "nvidia/llama-3.1-nemotron-nano-vl-8b-v1",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "nvidia/llama-3.2-nemoretriever-300m-embed-v1",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "nvidia/llama-3.2-nemoretriever-300m-embed-v2",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "nvidia/llama-3.2-nemoretriever-500m-rerank-v2",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "nvidia/llama-3.2-nv-embedqa-1b-v1",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "nvidia/llama-3.2-nv-embedqa-1b-v2",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "nvidia/llama-3.2-nv-rerankqa-1b-v1",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "nvidia/llama-3.2-nv-rerankqa-1b-v2",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1.5",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "nvidia/llama-nemotron-embed-1b-v2",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "nvidia/llama-nemotron-embed-vl-1b-v2",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "nvidia/llama-nemotron-rerank-1b-v2",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "nvidia/llama-nemotron-rerank-vl-1b-v2",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "nvidia/molmim",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "nvidia/nemoguard-jailbreak-detect",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "nvidia/nemoretriever-parse",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "nvidia/nemotron-3-content-safety",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "nvidia/nemotron-3-nano-30b-a3b",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "nvidia/nemotron-content-safety-reasoning-4b",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "nvidia/nemotron-nano-12b-v2-vl",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "nvidia/nemotron-parse",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "nvidia/nemotron-voicechat",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "nvidia/nv-dinov2",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "nvidia/nv-embed-v1",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "nvidia/nv-embedcode-7b-v1",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "nvidia/nv-embedqa-e5-v5",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "nvidia/nv-grounding-dino",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "nvidia/nv-rerankqa-mistral-4b-v3",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "nvidia/nvclip",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "nvidia/nvidia-nemotron-nano-9b-v2",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "nvidia/rerank-qa-mistral-4b",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "nvidia/riva-translate-4b-instruct-v1_1",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "nvidia/sparsedrive",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "nvidia/streampetr",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "nvidia/synthetic-video-detector",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "nvidia/usdcode",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "nvidia/vila",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "nvidia/vista3d",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "openai/gpt-oss-120b",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "openai/gpt-oss-20b",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "opengpt-x/teuken-7b-instruct-commercial-v0.4",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "qwen/qwen2.5-7b-instruct",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "qwen/qwen2.5-coder-32b-instruct",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "qwen/qwen2.5-coder-7b-instruct",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "qwen/qwen3-5-122b-a10b",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "qwen/qwen3-coder-480b-a35b-instruct",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "qwen/qwen3-next-80b-a3b-instruct",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "qwen/qwen3-next-80b-a3b-thinking",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "qwen/qwen3.5-397b-a17b",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "qwen/qwq-32b",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "sarvamai/sarvam-m",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "snowflake/arctic-embed-l",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "stabilityai/stable-diffusion-3-medium",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "stabilityai/stable-diffusion-xl",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "stabilityai/stable-video-diffusion",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "stepfun-ai/step-3-5-flash",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "stockmark/stockmark-2-100b-instruct",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "upstage/solar-10.7b-instruct",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "z-ai/glm4.7",
+        "reason": "unverified_not_selectable"
+      },
+      {
+        "modelId": "z-ai/glm5.1",
+        "reason": "unverified_not_selectable"
+      }
+    ],
+    "manualReviewRequired": []
+  },
+  "safety": {
+    "readOnly": true,
+    "noProviderCall": true,
+    "noSelectableChange": true,
+    "noRouterRuntimeChange": true
+  }
+}

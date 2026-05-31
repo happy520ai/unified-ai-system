@@ -1,0 +1,81 @@
+{
+  "characterId": "yiyi",
+  "displayName": "?? ? YIYI",
+  "targetStyle": [
+    "????",
+    "???",
+    "???????",
+    "????",
+    "????",
+    "???? Mission Companion"
+  ],
+  "negativeStyle": [
+    "snowman",
+    "blob",
+    "chubby doll",
+    "round mascot",
+    "faceless toy"
+  ],
+  "preferredEngines": [
+    "hunyuan3d",
+    "charactergen",
+    "instantmesh"
+  ],
+  "outputTargets": [
+    "yiyi_candidate.glb",
+    "yiyi_candidate.obj",
+    "yiyi.vrm"
+  ],
+  "localPipeline": {
+    "workbenchRuntimeGeneration": false,
+    "sidecarToolingOnly": true,
+    "defaultDryRun": true,
+    "recommendedPostProcess": [
+      "Blender",
+      "VRM Add-on",
+      "glTF Validator",
+      "glTF Transform"
+    ]
+  },
+  "paths": {
+    "generationConfig": "apps/ai-gateway-service/src/ui/assets/yiyi/generation/yiyi-3d-generation-config.json",
+    "generatedDir": "apps/ai-gateway-service/src/ui/assets/yiyi/generated",
+    "modelDir": "apps/ai-gateway-service/src/ui/assets/yiyi/model",
+    "acceptedVrm": "apps/ai-gateway-service/src/ui/assets/yiyi/model/yiyi.vrm",
+    "acceptedGlb": "apps/ai-gateway-service/src/ui/assets/yiyi/model/yiyi.glb"
+  },
+  "safety": {
+    "rawPhotoStored": false,
+    "faceRecognitionPerformed": false,
+    "sensitiveAttributeInferencePerformed": false,
+    "photoTo3DExternalServiceCalled": false,
+    "providerCallsMade": false,
+    "nonNvidiaProviderCallsMade": false,
+    "secretValueExposed": false,
+    "deployExecuted": false
+  },
+  "localEngine": {
+    "engine": "hunyuan3d-2.1",
+    "enginePath": "E:/AI-Data/AI-Engines/Hunyuan3D-2.1",
+    "envName": "yiyi-hunyuan3d-21",
+    "mode": "local_api_sidecar",
+    "apiServer": "http://127.0.0.1:8081",
+    "enabled": false
+  },
+  "engine": "hunyuan3d-2.1",
+  "engineMode": "local_api_sidecar",
+  "apiBaseUrl": "http://127.0.0.1:8081",
+  "referenceImage": "apps/ai-gateway-service/src/ui/assets/yiyi/generation/yiyi_reference.png",
+  "candidateOutput": "apps/ai-gateway-service/src/ui/assets/yiyi/generated/yiyi_candidate.glb",
+  "candidateStatus": "pending_or_generated",
+  "featureFlags": {
+    "YIYI_3D_AVATAR_ENABLED": false,
+    "YIYI_2D_COMPANION_ENABLED": false,
+    "YIYI_CHARACTER_UI_VISIBLE": false
+  },
+  "avatar3DVisible": false,
+  "companion2DVisible": false,
+  "characterModuleVisible": false,
+  "fallbackMode": "none",
+  "workbenchRuntimeGeneration": false
+}

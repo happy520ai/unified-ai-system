@@ -1,0 +1,31 @@
+diff --git a/tools/phase2202_2218/apply-controlled-twelve-tool-mutation.mjs b/tools/phase2202_2218/apply-controlled-twelve-tool-mutation.mjs
+index 85ccda1..ad3b51f 100644
+--- a/tools/phase2202_2218/apply-controlled-twelve-tool-mutation.mjs
++++ b/tools/phase2202_2218/apply-controlled-twelve-tool-mutation.mjs
+@@ -40,6 +40,26 @@ export function buildPhase2218TwelveMutationRuntimeStatus() {
+   };
+ }
+ 
++
++export function buildPhase2236ThirteenMutationRuntimeStatus() {
++  return {
++    phaseId: "Phase2236A-Controlled-Thirteen-Tool-Mutation-Target-Thirteen",
++    marker: "PHASE2236_THIRTEEN_TOOL_TARGET_THIRTEEN_OK",
++    importSafe: true,
++    phase2170Marker: "PHASE2170_NONET_TOOL_TARGET_NINE_OK",
++    phase2185Marker: "PHASE2185_DECA_TOOL_TARGET_TEN_OK",
++    phase2201Marker: "PHASE2201_ELEVEN_TOOL_TARGET_ELEVEN_OK",
++    phase2218Marker: "PHASE2218_TWELVE_TOOL_TARGET_TWELVE_OK",
++    phase2236Marker: "PHASE2236_THIRTEEN_TOOL_TARGET_THIRTEEN_OK",
++    thirteenRunnerReady: true,
++    thirteenMutationApplied: true,
++    providerCallsMade: false,
++    codexExecExecuted: false,
++    chatModified: false,
++    chatGatewayExecuteModified: false,
++  };
++}
++
+ export function main() {
+   const args = parseArgs(process.argv.slice(2));
+   const planPath = args.plan || "docs/phase2202-2218-controlled-twelve-tool-mutation-approval.example.json";

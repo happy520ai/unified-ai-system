@@ -1,0 +1,18 @@
+{
+  "approved": true,
+  "scope": "low_risk_only",
+  "allowDocs": true,
+  "allowEvidence": true,
+  "allowVerifier": true,
+  "allowNonCoreUi": true,
+  "allowPackageScripts": true,
+  "maxMutationsPerLoop": 3,
+  "dailyRealExecutionLoopLimit": 100,
+  "rollbackRequired": true,
+  "providerAllowed": false,
+  "secretReadAllowed": false,
+  "deployAllowed": false,
+  "chatRouteModificationAllowed": false,
+  "legacyModificationAllowed": false,
+  "projectContextModificationAllowed": false
+}

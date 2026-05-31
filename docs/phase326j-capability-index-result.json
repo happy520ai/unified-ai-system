@@ -1,0 +1,233 @@
+{
+  "phase": "Phase326J",
+  "mode": "tianshu",
+  "runtimeStatus": "dry_run_without_provider_call",
+  "providerCallsMade": false,
+  "nonNvidiaProviderCallsMade": false,
+  "secretValueExposed": false,
+  "modelsIndexed": 4,
+  "capabilityIndex": [
+    {
+      "modelId": "user-configured-coding-model",
+      "providerId": "mock-provider-a",
+      "credentialRef": "user_secret_store_reference:mock-coding",
+      "capabilityScores": {
+        "coding": 0.92,
+        "reasoning": 0.9,
+        "writing": 0.55,
+        "translation": 0.3,
+        "dataAnalysis": 0.35,
+        "longContext": 0.45,
+        "toolUse": 0.45,
+        "planning": 0.85,
+        "research": 0.78,
+        "structuredOutput": 0.5,
+        "multimodal": 0.2
+      },
+      "constraints": {
+        "contextWindow": 16000,
+        "supportsStreaming": true,
+        "supportsTools": false
+      },
+      "qualitySignals": {
+        "historicalSuccessRate": 0.91,
+        "averageLatencyMs": 850,
+        "availabilityScore": 1
+      },
+      "governance": {
+        "userConfigured": true,
+        "credentialRefPresent": true,
+        "providerEnabled": true,
+        "selectable": true,
+        "failed": false,
+        "highRisk": false,
+        "allowedForNormalMode": true,
+        "allowedForGodMode": true,
+        "allowedForTianshuMode": true
+      },
+      "allowedModes": {
+        "normal": true,
+        "god": true,
+        "tianshu": true
+      },
+      "indexConfidence": "medium",
+      "indexSource": [
+        "mock_inventory",
+        "user_config_stub",
+        "model_id_heuristic"
+      ],
+      "inference": true
+    },
+    {
+      "modelId": "user-configured-reasoning-model",
+      "providerId": "mock-provider-a",
+      "credentialRef": "user_secret_store_reference:mock-reasoning",
+      "capabilityScores": {
+        "coding": 0.4,
+        "reasoning": 0.9,
+        "writing": 0.55,
+        "translation": 0.3,
+        "dataAnalysis": 0.35,
+        "longContext": 0.45,
+        "toolUse": 0.45,
+        "planning": 0.85,
+        "research": 0.78,
+        "structuredOutput": 0.5,
+        "multimodal": 0.2
+      },
+      "constraints": {
+        "contextWindow": 16000,
+        "supportsStreaming": true,
+        "supportsTools": false
+      },
+      "qualitySignals": {
+        "historicalSuccessRate": 0.88,
+        "averageLatencyMs": 1200,
+        "availabilityScore": 1
+      },
+      "governance": {
+        "userConfigured": true,
+        "credentialRefPresent": true,
+        "providerEnabled": true,
+        "selectable": true,
+        "failed": false,
+        "highRisk": false,
+        "allowedForNormalMode": true,
+        "allowedForGodMode": true,
+        "allowedForTianshuMode": true
+      },
+      "allowedModes": {
+        "normal": true,
+        "god": true,
+        "tianshu": true
+      },
+      "indexConfidence": "medium",
+      "indexSource": [
+        "mock_inventory",
+        "user_config_stub",
+        "model_id_heuristic"
+      ],
+      "inference": true
+    },
+    {
+      "modelId": "user-configured-long-context-model",
+      "providerId": "mock-provider-b",
+      "credentialRef": "user_secret_store_reference:mock-long",
+      "capabilityScores": {
+        "coding": 0.4,
+        "reasoning": 0.55,
+        "writing": 0.9,
+        "translation": 0.3,
+        "dataAnalysis": 0.35,
+        "longContext": 0.92,
+        "toolUse": 0.45,
+        "planning": 0.5,
+        "research": 0.78,
+        "structuredOutput": 0.5,
+        "multimodal": 0.2
+      },
+      "constraints": {
+        "contextWindow": 128000,
+        "supportsStreaming": true,
+        "supportsTools": false
+      },
+      "qualitySignals": {
+        "historicalSuccessRate": 0.84,
+        "averageLatencyMs": 1800,
+        "availabilityScore": 1
+      },
+      "governance": {
+        "userConfigured": true,
+        "credentialRefPresent": true,
+        "providerEnabled": true,
+        "selectable": true,
+        "failed": false,
+        "highRisk": false,
+        "allowedForNormalMode": true,
+        "allowedForGodMode": false,
+        "allowedForTianshuMode": true
+      },
+      "allowedModes": {
+        "normal": true,
+        "god": false,
+        "tianshu": true
+      },
+      "indexConfidence": "medium",
+      "indexSource": [
+        "mock_inventory",
+        "user_config_stub",
+        "model_id_heuristic"
+      ],
+      "inference": true
+    },
+    {
+      "modelId": "user-configured-data-model",
+      "providerId": "mock-provider-b",
+      "credentialRef": "user_secret_store_reference:mock-data",
+      "capabilityScores": {
+        "coding": 0.4,
+        "reasoning": 0.55,
+        "writing": 0.55,
+        "translation": 0.3,
+        "dataAnalysis": 0.9,
+        "longContext": 0.45,
+        "toolUse": 0.45,
+        "planning": 0.5,
+        "research": 0.45,
+        "structuredOutput": 0.88,
+        "multimodal": 0.2
+      },
+      "constraints": {
+        "contextWindow": 16000,
+        "supportsStreaming": true,
+        "supportsTools": false
+      },
+      "qualitySignals": {
+        "historicalSuccessRate": 0.86,
+        "averageLatencyMs": 950,
+        "availabilityScore": 1
+      },
+      "governance": {
+        "userConfigured": true,
+        "credentialRefPresent": true,
+        "providerEnabled": true,
+        "selectable": true,
+        "failed": false,
+        "highRisk": false,
+        "allowedForNormalMode": true,
+        "allowedForGodMode": false,
+        "allowedForTianshuMode": true
+      },
+      "allowedModes": {
+        "normal": true,
+        "god": false,
+        "tianshu": true
+      },
+      "indexConfidence": "medium",
+      "indexSource": [
+        "mock_inventory",
+        "user_config_stub",
+        "model_id_heuristic"
+      ],
+      "inference": true
+    }
+  ],
+  "rejectedModels": [
+    {
+      "modelId": "user-disabled-risk-model",
+      "reason": "governance_or_credential_rejected"
+    }
+  ],
+  "auditTrace": {
+    "providerCallsMade": false,
+    "nonNvidiaProviderCallsMade": false,
+    "secretValueExposed": false,
+    "runtimeStage": "dry_run_without_provider_call",
+    "indexSources": [
+      "mock_inventory",
+      "evidence_metadata",
+      "model_id_heuristic",
+      "user_config_stub"
+    ]
+  }
+}

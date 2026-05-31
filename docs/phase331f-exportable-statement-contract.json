@@ -1,0 +1,23 @@
+{
+  "phase": "Phase331F",
+  "statementId": "string",
+  "userIdRef": "string",
+  "billingPeriod": "YYYY-MM",
+  "generatedAt": "iso_timestamp",
+  "estimateOnly": true,
+  "legalInvoice": false,
+  "paymentProviderConnected": false,
+  "actualBillingConnected": false,
+  "currency": "USD",
+  "totalEstimatedCost": "number",
+  "modeUsageSummary": "object",
+  "providerUsageSummary": "object",
+  "lineItems": "array",
+  "warnings": "array",
+  "exportFormats": [
+    "json",
+    "csv",
+    "markdown"
+  ],
+  "auditTrace": "object"
+}

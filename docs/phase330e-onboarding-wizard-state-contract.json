@@ -1,0 +1,40 @@
+{
+  "phase": "Phase330E",
+  "wizardId": "provider-onboarding-wizard",
+  "wizardVisible": true,
+  "steps": [
+    "provider_selection",
+    "credential_reference_type_selection",
+    "credential_ref_input",
+    "secret_safety_validation",
+    "provider_governance_check",
+    "model_discovery_policy_preview",
+    "real_call_beta_eligibility",
+    "quota_budget_warning",
+    "confirmation",
+    "summary_next_steps"
+  ],
+  "progress": {
+    "progressVisible": true,
+    "currentStepId": "provider_selection",
+    "currentStepNumber": 1,
+    "totalSteps": 10,
+    "percentComplete": 10
+  },
+  "helpText": {
+    "credentialRef": "Enter a credential reference name such as OPENAI_API_KEY, never an API key value.",
+    "secretSafety": "Raw keys, bearer tokens, and secret-looking values are rejected before backend validation.",
+    "betaOnly": "This onboarding wizard is limited beta only and cannot enable production access.",
+    "quotaBudget": "Non-NVIDIA providers require quota, budget, governance, and credentialRef gates.",
+    "revokeRotateDisable": "Use revoke, rotate, or disable actions if a reference is stale or no longer authorized."
+  },
+  "betaBadgeVisible": true,
+  "betaOnlyBadgeVisible": true,
+  "costWarningVisible": true,
+  "quotaWarningVisible": true,
+  "revokeInstructionsVisible": true,
+  "revokeRotateDisableHelpVisible": true,
+  "credentialRefExample": "OPENAI_API_KEY",
+  "credentialRefExampleSafe": true,
+  "directProviderCallFromUi": false
+}

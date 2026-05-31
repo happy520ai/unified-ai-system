@@ -1,0 +1,71 @@
+{
+  "phase": "Phase326C",
+  "schemaName": "god-mode-supervisor-output",
+  "runtimeStatus": "shadow_config_only",
+  "type": "object",
+  "required": [
+    "finalAnswer",
+    "synthesisStrategy",
+    "modelContributions",
+    "disagreements",
+    "resolvedConflicts",
+    "unresolvedQuestions",
+    "confidenceSummary",
+    "safetyNotes",
+    "auditTrace"
+  ],
+  "properties": {
+    "finalAnswer": {
+      "type": "string"
+    },
+    "synthesisStrategy": {
+      "type": "string"
+    },
+    "modelContributions": {
+      "type": "array"
+    },
+    "disagreements": {
+      "type": "array"
+    },
+    "resolvedConflicts": {
+      "type": "array"
+    },
+    "unresolvedQuestions": {
+      "type": "array"
+    },
+    "confidenceSummary": {
+      "type": "object"
+    },
+    "safetyNotes": {
+      "type": "array"
+    },
+    "auditTrace": {
+      "type": "object",
+      "required": [
+        "providerCallsMade",
+        "nonNvidiaProviderCallsMade",
+        "secretValueExposed",
+        "runtimeStage",
+        "participantSelectionPolicy"
+      ],
+      "properties": {
+        "providerCallsMade": {
+          "type": "boolean"
+        },
+        "nonNvidiaProviderCallsMade": {
+          "type": "boolean"
+        },
+        "secretValueExposed": {
+          "type": "boolean"
+        },
+        "runtimeStage": {
+          "type": "string"
+        },
+        "participantSelectionPolicy": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}
+

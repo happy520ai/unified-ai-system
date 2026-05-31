@@ -1,0 +1,149 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://unified-ai-system.local/schemas/phase2024-gvc-runner-control-writer-approval.schema.json",
+  "title": "GVC Runner Control Writer Approval",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "phaseId",
+    "status",
+    "approvalRequired",
+    "approved",
+    "allowedCommandIntents",
+    "targetControlFile",
+    "requiredFields",
+    "ownerMustProvide",
+    "constraints",
+    "safety",
+    "rollbackPlan"
+  ],
+  "properties": {
+    "phaseId": {
+      "const": "Phase2024-GVC-Approval-Gated-Control-Writer-Design"
+    },
+    "status": {
+      "const": "approval_required"
+    },
+    "approvalRequired": {
+      "const": true
+    },
+    "approved": {
+      "const": false
+    },
+    "allowedCommandIntents": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "pause",
+          "resume",
+          "stop"
+        ]
+      },
+      "contains": {
+        "const": "pause"
+      }
+    },
+    "targetControlFile": {
+      "const": "docs/project-brain/runner-control.json"
+    },
+    "requiredFields": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "ownerMustProvide": {
+      "type": "object",
+      "required": [
+        "commandIntent",
+        "approvalRecordId",
+        "approvedByOwner",
+        "expectedResult",
+        "rollbackPlan",
+        "dryRunEvidenceRef"
+      ],
+      "properties": {
+        "commandIntent": {
+          "enum": [
+            "pause",
+            "resume",
+            "stop"
+          ]
+        },
+        "approvalRecordId": {
+          "type": "string"
+        },
+        "approvedByOwner": {
+          "type": "boolean"
+        },
+        "expectedResult": {
+          "type": "string"
+        },
+        "rollbackPlan": {
+          "type": "string"
+        },
+        "dryRunEvidenceRef": {
+          "type": "string"
+        }
+      }
+    },
+    "constraints": {
+      "type": "object",
+      "properties": {
+        "dryRunBeforeApproval": {
+          "const": true
+        },
+        "realWriteAllowedOnlyAfterApproval": {
+          "const": true
+        },
+        "processSignalAllowed": {
+          "const": false
+        },
+        "noProvider": {
+          "const": true
+        },
+        "noSecret": {
+          "const": true
+        },
+        "noDeploy": {
+          "const": true
+        }
+      }
+    },
+    "safety": {
+      "type": "object",
+      "properties": {
+        "providerCallsMade": {
+          "const": false
+        },
+        "secretRead": {
+          "const": false
+        },
+        "deployExecuted": {
+          "const": false
+        },
+        "chatModified": {
+          "const": false
+        },
+        "chatGatewayExecuteModified": {
+          "const": false
+        },
+        "legacyModified": {
+          "const": false
+        },
+        "projectContextModified": {
+          "const": false
+        },
+        "processSignalSent": {
+          "const": false
+        },
+        "realWritePerformed": {
+          "const": false
+        }
+      }
+    },
+    "rollbackPlan": {
+      "type": "object"
+    }
+  }
+}

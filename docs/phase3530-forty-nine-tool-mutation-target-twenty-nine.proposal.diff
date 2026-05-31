@@ -1,0 +1,65 @@
+diff --git a/tools/phase2594_2626/apply-controlled-twenty-eight-tool-mutation.mjs b/tools/phase2594_2626/apply-controlled-twenty-eight-tool-mutation.mjs
+index 971bc68..064ee0e 100644
+--- a/tools/phase2594_2626/apply-controlled-twenty-eight-tool-mutation.mjs
++++ b/tools/phase2594_2626/apply-controlled-twenty-eight-tool-mutation.mjs
+@@ -927,6 +927,60 @@ export function buildPhase3477FortyEightMutationTargetTwentyNineStatus() {
+     chatGatewayExecuteModified: false,
+   };
+ }
++
++export function buildPhase3530FortyNineMutationTargetTwentyNineStatus() {
++  return {
++    phaseId: "Phase3530A-Controlled-Forty-Nine-Tool-Mutation-Target-Twenty-Nine",
++    marker: "PHASE3530_FORTY_NINE_TOOL_TARGET_TWENTY_NINE_OK",
++    importSafe: true,
++    phase2170Marker: "PHASE2170_NONET_TOOL_TARGET_NINE_OK",
++    phase2185Marker: "PHASE2185_DECA_TOOL_TARGET_TEN_OK",
++    phase2201Marker: "PHASE2201_ELEVEN_TOOL_TARGET_ELEVEN_OK",
++    phase2218Marker: "PHASE2218_TWELVE_TOOL_TARGET_TWELVE_OK",
++    phase2236Marker: "PHASE2236_THIRTEEN_TOOL_TARGET_THIRTEEN_OK",
++    phase2255Marker: "PHASE2255_FOURTEEN_TOOL_TARGET_FOURTEEN_OK",
++    phase2275Marker: "PHASE2275_FIFTEEN_TOOL_TARGET_FIFTEEN_OK",
++    phase2296Marker: "PHASE2296_SIXTEEN_TOOL_TARGET_SIXTEEN_OK",
++    phase2318Marker: "PHASE2318_SEVENTEEN_TOOL_TARGET_SEVENTEEN_OK",
++    phase2341Marker: "PHASE2341_EIGHTEEN_TOOL_TARGET_EIGHTEEN_OK",
++    phase2365Marker: "PHASE2365_NINETEEN_TOOL_TARGET_NINETEEN_OK",
++    phase2390Marker: "PHASE2390_TWENTY_TOOL_TARGET_TWENTY_OK",
++    phase2416Marker: "PHASE2416_TWENTY_ONE_TOOL_TARGET_TWENTY_ONE_OK",
++    phase2443Marker: "PHASE2443_TWENTY_TWO_TOOL_TARGET_TWENTY_TWO_OK",
++    phase2471Marker: "PHASE2471_TWENTY_THREE_TOOL_TARGET_TWENTY_THREE_OK",
++    phase2500Marker: "PHASE2500_TWENTY_FOUR_TOOL_TARGET_TWENTY_FOUR_OK",
++    phase2530Marker: "PHASE2530_TWENTY_FIVE_TOOL_TARGET_TWENTY_FIVE_OK",
++    phase2561Marker: "PHASE2561_TWENTY_SIX_TOOL_TARGET_TWENTY_SIX_OK",
++    phase2593Marker: "PHASE2593_TWENTY_SEVEN_TOOL_TARGET_TWENTY_SEVEN_OK",
++    phase2626Marker: "PHASE2626_TWENTY_EIGHT_TOOL_TARGET_TWENTY_EIGHT_OK",
++    phase2660Marker: "PHASE2660_TWENTY_NINE_TOOL_TARGET_TWENTY_NINE_OK",
++    phase2694Marker: "PHASE2694_THIRTY_TOOL_TARGET_TWENTY_NINE_OK",
++    phase2729Marker: "PHASE2729_THIRTY_ONE_TOOL_TARGET_TWENTY_NINE_OK",
++    phase2765Marker: "PHASE2765_THIRTY_TWO_TOOL_TARGET_TWENTY_NINE_OK",
++    phase2802Marker: "PHASE2802_THIRTY_THREE_TOOL_TARGET_TWENTY_NINE_OK",
++    phase2840Marker: "PHASE2840_THIRTY_FOUR_TOOL_TARGET_TWENTY_NINE_OK",
++    phase2879Marker: "PHASE2879_THIRTY_FIVE_TOOL_TARGET_TWENTY_NINE_OK",
++    phase2919Marker: "PHASE2919_THIRTY_SIX_TOOL_TARGET_TWENTY_NINE_OK",
++    phase2960Marker: "PHASE2960_THIRTY_SEVEN_TOOL_TARGET_TWENTY_NINE_OK",
++    phase3002Marker: "PHASE3002_THIRTY_EIGHT_TOOL_TARGET_TWENTY_NINE_OK",
++    phase3045Marker: "PHASE3045_THIRTY_NINE_TOOL_TARGET_TWENTY_NINE_OK",
++    phase3089Marker: "PHASE3089_FORTY_TOOL_TARGET_TWENTY_NINE_OK",
++    phase3134Marker: "PHASE3134_FORTY_ONE_TOOL_TARGET_TWENTY_NINE_OK",
++    phase3180Marker: "PHASE3180_FORTY_TWO_TOOL_TARGET_TWENTY_NINE_OK",
++    phase3227Marker: "PHASE3227_FORTY_THREE_TOOL_TARGET_TWENTY_NINE_OK",
++    phase3275Marker: "PHASE3275_FORTY_FOUR_TOOL_TARGET_TWENTY_NINE_OK",
++    phase3324Marker: "PHASE3324_FORTY_FIVE_TOOL_TARGET_TWENTY_NINE_OK",
++    phase3374Marker: "PHASE3374_FORTY_SIX_TOOL_TARGET_TWENTY_NINE_OK",
++    phase3425Marker: "PHASE3425_FORTY_SEVEN_TOOL_TARGET_TWENTY_NINE_OK",
++    phase3477Marker: "PHASE3477_FORTY_EIGHT_TOOL_TARGET_TWENTY_NINE_OK",
++    phase3530Marker: "PHASE3530_FORTY_NINE_TOOL_TARGET_TWENTY_NINE_OK",
++    fortyNineMutationApplied: true,
++    providerCallsMade: false,
++    codexExecExecuted: false,
++    chatModified: false,
++    chatGatewayExecuteModified: false,
++  };
++}
+ export function main() {
+   const args = parseArgs(process.argv.slice(2));
+   const planPath = args.plan || "docs/phase2594-2626-controlled-twenty-eight-tool-mutation-approval.example.json";

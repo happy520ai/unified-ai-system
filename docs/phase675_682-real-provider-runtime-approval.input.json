@@ -1,0 +1,29 @@
+{
+  "decision": "approved_execute_guarded_real_provider_runtime_v0",
+  "providerId": "nvidia",
+  "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1",
+  "credentialRef": "credentialRef:nvidia:default",
+  "capabilityId": "trial-1",
+  "runtimeKind": "guarded_real_provider_v0",
+  "maxRequests": 1,
+  "maxRetries": 0,
+  "maxEstimatedCostUsd": 0,
+  "allowProviderCall": true,
+  "allowSecretRead": false,
+  "allowDeploy": false,
+  "allowChatMutation": false,
+  "allowChatGatewayExecuteMutation": false,
+  "allowCodexConfigMutation": false,
+  "approvalOwner": "human-user",
+  "approvalReason": "self-use guarded real provider runtime validation",
+  "expiresAt": "2026-05-13T23:59:00+09:00",
+  "acknowledgements": {
+    "notProductionRuntime": true,
+    "notMainChainRuntime": true,
+    "notDeployment": true,
+    "credentialRefOnly": true,
+    "rawSecretMustNotBePrinted": true,
+    "evidenceRequired": true,
+    "rollbackRequired": true
+  }
+}

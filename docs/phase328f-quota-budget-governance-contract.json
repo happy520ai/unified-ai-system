@@ -1,0 +1,36 @@
+{
+  "phase": "Phase328F",
+  "contractName": "quota-budget-governance-contract",
+  "requestFields": [
+    "userId",
+    "allowedModes",
+    "disabledModes",
+    "maxGodParticipants",
+    "allowTianshuGodEscalation",
+    "allowNonNvidiaProviderCalls",
+    "allowedProviders",
+    "blockedProviders",
+    "allowedModels",
+    "blockedModels",
+    "dailyRequestLimit",
+    "monthlyRequestLimit",
+    "dailyBudgetLimit",
+    "monthlyBudgetLimit",
+    "maxSingleRequestEstimatedCost",
+    "maxLatencyMs",
+    "requireCredentialRef",
+    "requireAuditTrace",
+    "runtimeStatus"
+  ],
+  "outputFields": [
+    "allowed",
+    "blocked",
+    "warning",
+    "reason",
+    "remainingQuota",
+    "estimatedCost",
+    "budgetStatus",
+    "policyStatus"
+  ],
+  "realBillingIntegrated": false
+}

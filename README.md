@@ -1,2085 +1,362 @@
-# PME 移动地球
+# unified-ai-system / AI Gateway Workbench
 
-PME 移动地球 is the current product name for this local AI Gateway, chat, and
-knowledge-base system. The repository remains the same monorepo for the agent
-console and AI Gateway service.
+Public repo preflight status: dry-run / local preview / governance demo. Default: no real Provider calls. Users bringing their own API key remains a future controlled path, not the default clone path. This README makes no general availability claim and no deployment promise.
 
-The legacy projects under `legacy/` are read-only references. New development
-belongs only in `apps/` and `packages/`.
-
-## Layout
-
-- `apps/agent-console`: upper-level agent interaction entrypoint.
-- `apps/ai-gateway-service`: AI Gateway service entrypoint and future runtime.
-- `packages/shared-contracts`: shared public protocol types.
-- `packages/shared-sdk`: shared clients and adapters.
-- `packages/shared-config`: shared configuration defaults and loaders.
-- `packages/shared-utils`: shared utility helpers.
-
-## Current Phase
-
-Phase 137A rolls the existing `v0.1.0-rc.1` GitHub prerelease back to draft:
+Start with local dry-run checks only:
 
 ```powershell
-cmd /c pnpm verify:phase137a-release-draft-rollback
-```
-
-The rollback record is `docs/RELEASE_DRAFT_ROLLBACK.md`. The release remains
-present and still points to tag `v0.1.0-rc.1`, but it is draft again. This
-phase does not delete the release, delete the tag, upload release assets,
-publish packages or images, deploy cloud infrastructure, expose the service to
-the public internet, or complete global release.
-
-Phase 136A publishes the existing `v0.1.0-rc.1` GitHub prerelease:
-
-```powershell
-cmd /c pnpm verify:phase136a-release-publish-execution
-```
-
-The execution record is `docs/RELEASE_PUBLISH_EXECUTION.md`. The release is
-published and remains a prerelease for tag `v0.1.0-rc.1`. This phase does not
-upload release assets, publish packages or images, deploy cloud infrastructure,
-expose the service to the public internet, or complete global release.
-
-Phase 135A records the publish and asset-upload preflight for the existing
-`v0.1.0-rc.1` GitHub draft prerelease:
-
-```powershell
-cmd /c pnpm verify:phase135a-release-publish-preflight
-```
-
-The preflight document is `docs/RELEASE_PUBLISH_PREFLIGHT.md`. It confirms the
-draft prerelease still exists, is not published, has no uploaded assets, and
-requires an explicit later confirmation phrase before any publish or asset
-upload. This phase does not publish the draft release, upload assets, publish
-packages or images, deploy cloud infrastructure, expose the service to the
-public internet, or complete global release.
-
-Phase 134A creates the real `v0.1.0-rc.1` GitHub draft prerelease:
-
-```powershell
-cmd /c pnpm verify:phase134a-release-creation-execution
-```
-
-The execution record is `docs/RELEASE_CREATION_EXECUTION.md`. The tag
-`v0.1.0-rc.1` points to `bdba42b600d712acb77926774c75254b8c290ea6`, whose
-remote `Phase117A Release Gate` passed before creation. The GitHub Release is
-draft and prerelease. This phase does not publish the draft release, upload
-release artifacts, publish packages or images, deploy cloud infrastructure,
-expose the service to the public internet, or complete global release.
-
-Phase 133A records the final GitHub Release creation confirmation pack:
-
-```powershell
-cmd /c pnpm verify:phase133a-release-creation-confirmation
-```
-
-The confirmation pack is `docs/RELEASE_CREATION_CONFIRMATION.md`. It records
-the exact confirmation phrase required before a later real release phase may
-create `v0.1.0-rc.1`: `创建 GitHub Release v0.1.0-rc.1`. This phase is
-read-only: it does not create a git tag, create a GitHub Release, upload
-release artifacts, publish packages or images, deploy cloud infrastructure,
-expose the service to the public internet, or complete global release.
-
-Phase 132A records the release version, tag, and release notes decision pack:
-
-```powershell
-cmd /c pnpm verify:phase132a-release-decision-pack
-```
-
-The decision pack is `docs/RELEASE_DECISION_PACK.md`. It proposes candidate
-version `0.1.0`, candidate tag `v0.1.0-rc.1`, a draft prerelease posture, and
-release notes text. This is documentation and verification only: it does not
-create a git tag, create a GitHub Release, upload release artifacts, publish
-packages or images, deploy cloud infrastructure, expose the service to the
-public internet, or complete global release.
-
-Phase 131A records the GitHub Release and artifact preflight:
-
-```powershell
-cmd /c pnpm verify:phase131a-release-artifact-preflight
-```
-
-The preflight document is `docs/RELEASE_PREFLIGHT.md`. This is a read-only
-release readiness record only: it checks repository, latest Release Gate,
-current release/tag state, and release-boundary wording, but it does not create
-a git tag, create a GitHub Release, upload release artifacts, publish packages
-or images, deploy cloud infrastructure, expose the service to the public
-internet, or complete global release.
-
-Phase 130A cleans up the non-blocking GitHub Actions Node.js 20 runtime
-deprecation warning:
-
-```powershell
-cmd /c pnpm verify:phase130a-actions-node24-warning-cleanup
-```
-
-The Phase117A Release Gate now uses Node 24 action versions:
-`actions/checkout@v5` and `actions/setup-node@v5`. Setup Node's automatic
-package-manager cache is disabled to preserve the existing install behavior.
-This is warning cleanup only: it preserves the existing release-readiness gate
-and does not create a GitHub Release, publish packages or images, deploy cloud
-infrastructure, expose the service to the public internet, or complete global
-release.
-
-Phase 129A records the remote release-readiness status:
-
-```powershell
-cmd /c pnpm verify:phase129a-remote-release-status
-```
-
-The private GitHub repository is pushed, `origin/master` is tracked, and the
-latest observed Phase117A Release Gate on the pushed remote head has concluded
-successfully. The status document is `docs/REMOTE_RELEASE_STATUS.md`. This is
-a remote delivery/readiness record only: it does not create a GitHub Release,
-publish packages or images, deploy cloud infrastructure, expose the service to
-the public internet, or complete global release.
-
-Phase 128A records the GitHub remote creation and push:
-
-```powershell
-cmd /c pnpm verify:phase128a-github-remote-push
-```
-
-The private GitHub repository `happy520ai/unified-ai-system` exists, `origin`
-points to `https://github.com/happy520ai/unified-ai-system.git`, and local
-`master` tracks `origin/master`. The remote `master` head matches the pushed
-local commit. GitHub Actions may be triggered by the push; this phase records
-the real run status but does not claim Actions passed unless the remote run
-actually concludes successfully.
-
-The first remote run exposed a CI-only Docker Compose prerequisite: the runner
-does not have local `.env`. The release gate now prepares a temporary `.env`
-from `.env.example` before `verify:phase116a-docker-compose-runtime`; this file
-uses placeholder/blank values only and must not contain real secrets.
-
-Phase 127A records the GitHub remote target preflight:
-
-```powershell
-cmd /c pnpm verify:phase127a-github-remote-target-preflight
-```
-
-GitHub CLI is authenticated as `happy520ai`, but the inferred target repository
-`happy520ai/unified-ai-system` does not exist or is not accessible. Existing
-repositories under the account include PME legacy-oriented names, so this phase
-does not select them for the current `unified-ai-system` mainline. No remote is
-configured and no push was attempted.
-
-The safe next command is to create or provide the intended repository URL:
-
-```powershell
-gh repo create happy520ai/unified-ai-system --private
-git remote add origin https://github.com/happy520ai/unified-ai-system.git
-git push -u origin master
-```
-
-Phase 126A records that GitHub authentication is ready:
-
-```powershell
-cmd /c pnpm verify:phase126a-github-auth-ready
-```
-
-GitHub CLI is installed and authenticated as `happy520ai`. The evidence records
-the login and auth readiness without storing GitHub tokens. No git remote is
-configured yet, no push was attempted, and no remote GitHub Actions run has
-passed. The remaining required input is the target GitHub repository URL.
-
-```powershell
-git remote add origin <github-repo-url>
-git push -u origin master
-```
-
-Phase 125A records the GitHub authentication preflight:
-
-```powershell
-cmd /c pnpm verify:phase125a-github-auth-preflight
-```
-
-GitHub CLI is installed, but browser-based `gh auth login` did not complete in
-the Codex shell. No GitHub token was recorded in evidence, no git remote is
-configured, no push was attempted, and no remote GitHub Actions run has passed.
-The remaining manual step is to complete GitHub login in a normal PowerShell
-window and provide a repository URL.
-
-```powershell
-gh auth login
-git remote add origin <github-repo-url>
-git push -u origin master
-```
-
-Phase 124A records GitHub CLI installation:
-
-```powershell
-cmd /c pnpm verify:phase124a-github-cli-install
-```
-
-GitHub CLI 2.91.0 is installed at `C:\Program Files\GitHub CLI\gh.exe`, and the
-machine PATH contains the GitHub CLI directory. The current PowerShell session
-may still need to be closed and reopened before `gh` resolves without a full
-path. GitHub CLI is not authenticated yet, and no git remote is configured.
-This phase does not log in to GitHub, store tokens, configure a remote, push,
-open a PR, trigger GitHub Actions, deploy infrastructure, publish releases, or
-claim remote Actions passed.
-
-Simplest next commands:
-
-```powershell
-# Close and reopen PowerShell first if gh is not recognized.
-gh --version
-gh auth login
-git remote add origin <github-repo-url>
-git push -u origin master
-```
-
-Phase 123A records GitHub CLI readiness after the install attempt:
-
-```powershell
-cmd /c pnpm verify:phase123a-github-cli-readiness
-```
-
-`gh` is still not available in PATH. The validation environment can see
-`winget`, and Chocolatey is also available, but the prior `choco install gh -y`
-attempt did not leave GitHub CLI installed. No git remote is configured yet.
-This phase records the blocker and the simplest next commands without
-installing system packages, configuring a remote, pushing code, opening a PR,
-triggering GitHub Actions, deploying infrastructure, publishing releases, or
-claiming remote Actions passed.
-
-Simplest next commands for the later remote-publish phase:
-
-```powershell
-winget install --id GitHub.cli --accept-package-agreements --accept-source-agreements
-gh auth login
-git remote add origin <github-repo-url>
-git push -u origin master
-```
-
-If `winget` is unavailable in the active shell, run PowerShell as Administrator
-and use `choco install gh -y` instead.
-
-Phase 122A records the GitHub remote publish preflight:
-
-```powershell
-cmd /c pnpm verify:phase122a-github-remote-publish-preflight
-```
-
-The local initial commit exists, but remote publishing is still blocked because
-no git remote is configured and GitHub CLI (`gh`) is not available in PATH.
-This phase records the blocker and the next commands without configuring a
-remote, pushing code, opening a PR, triggering GitHub Actions, deploying
-infrastructure, publishing releases, or claiming remote Actions passed.
-
-Next commands for the later remote-publish phase:
-
-```powershell
-winget install --id GitHub.cli
-gh auth login
-git remote add origin <github-repo-url>
-git push -u origin master
-```
-
-Phase 121A creates the local initial commit:
-
-```powershell
-cmd /c pnpm verify:phase121a-git-initial-commit-execution
-```
-
-The zero-byte root artifact `{console.error(e.message)` has been removed.
-`legacy/` is now ignored as a local read-only reference and is not tracked in
-the initial commit. Real `.env` files remain ignored, while `.env.example` and
-`.env.enterprise.example` are tracked as safe templates. This phase may create
-the first local commit only. It does not configure a git remote, push, open a
-PR, trigger GitHub Actions, publish releases, deploy infrastructure, or claim
-remote Actions passed.
-
-Remaining remote-publish blockers after this phase are: no git remote and no
-GitHub CLI (`gh`) in PATH.
-
-Phase 120A records the initial commit preflight:
-
-```powershell
-cmd /c pnpm verify:phase120a-git-initial-commit-preflight
-```
-
-It confirms the project git top-level, prior Phase 119A/118A evidence, staged
-file state, remote state, GitHub CLI state, and first-commit manual decisions.
-It also makes the safe `.env.enterprise.example` template trackable while
-keeping real `.env` files ignored.
-
-This phase did not stage files, create commits, configure remotes, push, open
-a PR, trigger GitHub Actions, publish releases, deploy infrastructure, or claim
-remote Actions passed. At Phase 120A time, the recorded commit-before-publish
-items were: decide whether to delete or intentionally ignore the zero-byte root
-artifact `{console.error(e.message)`, decide whether `legacy/` should be
-tracked as a read-only reference or ignored before the first commit, create the
-initial commit, configure a git remote, and install/authenticate GitHub CLI
-(`gh`) or use an equivalent authenticated connector.
-
-Phase 119A records local git repository readiness:
-
-```powershell
-cmd /c pnpm verify:phase119a-git-repo-readiness
-```
-
-`unified-ai-system` now has its own local `.git` repository, and the project
-git top-level is the project root. Local runtime folders and secret files are
-kept out of git through `.gitignore`, including `.env`, `.codex/`, `.data/`,
-`.tmp/`, and `node_modules/`.
-
-This phase does not stage files, create an initial commit, configure a remote,
-push, open a PR, or trigger GitHub Actions. Remaining remote-publish blockers
-are: no initial commit, no git remote, and no GitHub CLI (`gh`) in PATH.
-
-Phase 118A records the remote GitHub Actions gate preflight:
-
-```powershell
-cmd /c pnpm verify:phase118a-remote-cicd-gate-preflight
-```
-
-The local release gate workflow is ready, but a real remote GitHub Actions run
-has not been executed from this workspace. Current remote-run prerequisites are
-not complete: no git remote is configured for this project checkout, no initial
-commit has been created, and the GitHub CLI (`gh`) is not available in PATH.
-Phase 118A records these facts without pushing code, opening a PR, or
-pretending a remote workflow passed.
-
-To complete a later real remote gate run, create the initial commit, configure
-a GitHub remote, install/authenticate GitHub CLI or use an equivalent
-authenticated GitHub connector, then push a branch or open a PR so
-`.github/workflows/release-gate.yml` can run on GitHub Actions.
-
-Phase 117A adds the minimal CI/CD release gate:
-
-```powershell
-cmd /c pnpm verify:phase117a-cicd-release-gate
-```
-
-The workflow lives at:
-
-```text
-.github/workflows/release-gate.yml
-```
-
-It runs on pull requests, pushes to `main` / `master`, and manual dispatch. The
-gate installs dependencies, runs workspace checks, secret safety, ordinary user
-journey, setup readiness, Docker runtime, and Docker Compose runtime:
-
-```powershell
-pnpm install --frozen-lockfile
-pnpm -r --if-present check
-pnpm verify:phase107a-secret-safety
-pnpm verify:phase105a-user-journey
-pnpm verify:phase104a-first-run-setup
-pnpm verify:phase115a-docker-runtime-recheck
-pnpm verify:phase116a-docker-compose-runtime
-```
-
-This is CI/CD gate validation only. It does not deploy infrastructure, publish
-packages, push container images, create releases, provision cloud services, or
-complete global release.
-
-Phase 116A closes the local Docker Compose runtime check:
-
-```powershell
-cmd /c pnpm verify:phase116a-docker-compose-runtime
-```
-
-Docker Compose now builds and starts the `ai-gateway-service` service from
-`docker-compose.yml`, verifies `/health/check`, `/setup/readiness`, and `/ui`
-on `http://127.0.0.1:3100`, then shuts the Compose project down. Because the
-Compose file intentionally maps `3100:3100`, stop the local pnpm service before
-running this verification if it is already using port 3100:
-
-```powershell
-cmd /c pnpm stop:phase9c
-cmd /c pnpm verify:phase116a-docker-compose-runtime
-cmd /c pnpm start:pme
-```
-
-This is a local Docker Compose runtime pass for `ai-gateway-service` only. It
-is not cloud deployment, not CI/CD automation, not production deployment, not
-public multi-user release, and not global release.
-
-Phase 115A closes the local Docker runtime recheck:
-
-```powershell
-cmd /c pnpm verify:phase115a-docker-runtime-recheck
-```
-
-Docker CLI, Docker Compose, Docker daemon, and the Linux Docker engine now pass
-locally. The root Linux `Dockerfile` builds successfully, the container runs,
-and smoke checks pass for `/health/check`, `/setup/readiness`, and `/ui`.
-This required repairing the WSL MSI registration so
-`C:\Windows\System32\wsl.exe --version` works, switching Docker Desktop back
-to the Linux engine, and excluding nested `node_modules` from Docker build
-context through `.dockerignore`.
-
-This is a local Docker runtime pass for `ai-gateway-service` only. It is not
-cloud deployment, not CI/CD automation, not production deployment, not public
-multi-user release, and not global release.
-
-Phase 114A adds the non-Docker user manual release pack:
-
-```powershell
-cmd /c pnpm verify:phase114a-user-manual-release-pack
-```
-
-The ordinary-user manual is:
-
-```text
-docs/USER_MANUAL.md
-```
-
-It documents the current local pnpm startup path, `/ui`, Setup Wizard, Model
-Import / API Key setup, Chat, Knowledge/RAG, Agent Workforce preview,
-save/export flows, secret-safety expectations, and known release limits. This
-is a non-Docker local/internal testing release pack only. It does not make
-Docker runtime, CI/CD, cloud deployment, public multi-user production
-deployment, real multi-agent execution, or global release complete.
-
-Phase 113B records the original Docker runtime blocker and installation prerequisites:
-
-```powershell
-cmd /c pnpm verify:phase113b-docker-blocker-docs
-```
-
-Docker CLI prerequisites were later rechecked on 2026-04-27. The local Docker
-daemon can now answer the prerequisite commands on the Windows/Hyper-V engine:
-
-- `docker --version`
-- `docker compose version`
-- `docker ps`
-
-That intermediate state was not a Docker runtime pass for the project because
-the Docker daemon was still on the Windows engine while the root `Dockerfile`
-uses the Linux image `node:22-bookworm-slim`. Phase 115A later repaired WSL,
-switched Docker Desktop to the Linux engine, and verified real local Docker
-build/run successfully. Phase 110A static Docker readiness is not the same as
-Docker runtime passing and must not be used as Docker build/run evidence.
-
-Phase 112A records the current non-Docker deliverable status:
-
-```powershell
-cmd /c pnpm verify:phase112a-non-docker-release-check
-```
-
-Current deliverable status checklist:
-
-- Local pnpm startup is available through `pnpm install` and
-  `cmd /c pnpm start:pme`.
-- `/ui` is available after the service starts at `http://127.0.0.1:3100/ui`.
-- Setup Wizard is available through the Web UI and `GET /setup/readiness`.
-- Model Import / API Key guidance has been hardened for unknown providers,
-  provider selection, Base URL guidance, and masked key handling.
-- Knowledge/RAG is available through the bounded local knowledge and RAG
-  routes, with local keyword retrieval as the default user path.
-- Agent Workforce preview is available for deterministic plan generation,
-  save/history/read/delete, and task-package export.
-- Secret redaction and evidence safety have passed
-  `cmd /c pnpm verify:phase107a-secret-safety`.
-- Docker local runtime now passes through Phase 115A:
-  `cmd /c pnpm verify:phase115a-docker-runtime-recheck`.
-- Minimal CI/CD gate exists through Phase 117A, but no cloud deployment,
-  release automation, package publish, image push, or global release has been
-  created.
-
-Phase 111B adds the CI/CD and release-gate design boundary:
-
-```powershell
-cmd /c pnpm verify:phase111b-cicd-gate-design
-```
-
-Docker local runtime now passes through Phase 115A and Compose runtime through
-Phase 116A. Phase 117A later adds a real GitHub Actions release gate. Phase
-111B remains the design boundary only and does not itself complete CI/CD
-automation, cloud deployment, release automation, or global release.
-
-Future CI/CD release gates should include:
-
-- install: `pnpm install`
-- lint/check: `cmd /c pnpm -r --if-present check`
-- secret scan: `cmd /c pnpm verify:phase107a-secret-safety`
-- user journey: `cmd /c pnpm verify:phase105a-user-journey`
-- setup readiness: `cmd /c pnpm verify:phase104a-first-run-setup`
-- Docker build/run: build the image, run the container, then verify
-  `/health/check`, `/setup/readiness`, and `/ui`
-- smoke health: `cmd /c pnpm health:phase12a`
-- artifact/evidence scan: verify evidence and logs contain no plaintext API
-  keys and do not claim unverified global release
-
-Phase 110A adds the minimal local Docker startup baseline:
-
-```powershell
-cmd /c pnpm verify:phase110a-docker-readiness
-```
-
-It adds a root `Dockerfile`, `.dockerignore`, and a minimal
-`docker-compose.yml` for running only `apps/ai-gateway-service` locally. This
-is local container startup only; it is not cloud deployment, not CI/CD, not a
-production cluster, and not global release.
-
-Build and run with Docker:
-
-```powershell
-docker build -t pme-mobile-earth-ai-gateway .
-docker run --rm --env-file .env -p 3100:3100 pme-mobile-earth-ai-gateway
-```
-
-Or use Docker Compose:
-
-```powershell
-cmd /c pnpm stop:phase9c
-docker compose up --build ai-gateway-service
-```
-
-Then open the UI and verify local readiness:
-
-```text
-http://127.0.0.1:3100/ui
-http://127.0.0.1:3100/health/check
-http://127.0.0.1:3100/setup/readiness
-```
-
-The Docker files do not contain real API keys. Use `.env` locally and keep real
-secrets out of git. The Compose file only starts `ai-gateway-service`; it does
-not add Postgres, pgvector, Redis, cloud services, or release automation.
-Use `cmd /c pnpm verify:phase116a-docker-compose-runtime` for the repeatable
-local Compose runtime smoke.
-
-Phase 109A adds the deployment, Docker, and production-run documentation
-hardening check:
-
-```powershell
-cmd /c pnpm verify:phase109a-deployment-readiness
-```
-
-This is a documentation and readiness boundary only. It does not perform a
-cloud deployment, does not add CI/CD, and does not mean Docker or production
-deployment is complete.
-
-Local development startup:
-
-```powershell
-pnpm install
-cmd /c pnpm start:pme
-```
-
-Then open:
-
-```text
-http://127.0.0.1:3100/ui
-```
-
-Intranet test startup uses the same managed entrypoint after setting a private
-`.env` or shell environment for provider keys and service URL. Keep the
-service bound to a trusted internal network only. For this repository, the
-current recommended verification sequence is:
-
-```powershell
-cmd /c pnpm verify:phase104a-first-run-setup
-cmd /c pnpm health:phase12a
-cmd /c pnpm doctor:phase13a
-cmd /c pnpm -r --if-present check
-```
-
-Phase 109A did not seal Docker. Phase 110A now provides the local Docker
-startup baseline; any future cloud deployment must still include real
-build/run and deployment verification before documentation may call it
-complete.
-
-Do not expose this service directly to the public internet for multi-user
-access. Production deployment still requires auth, tenant isolation, encrypted
-secret vault, rate limit, audit retention, backup/restore policy, TLS/reverse
-proxy hardening, and a dedicated security review.
-
-Phase 108A adds the access, permission, and multi-user release boundary
-closure for the current product surface:
-
-```powershell
-cmd /c pnpm verify:phase108a-access-boundary
-```
-
-The current system can be run and tested locally, but it should not be exposed
-directly to the public internet for multiple users. Before production
-deployment, the product still needs a real account system, auth, tenant
-isolation, encrypted secret vault, rate limit, audit retention, and a dedicated
-security review. Phase 108A is a boundary and readiness wording closure; it
-does not mean that the account system, production multi-tenant isolation,
-enterprise security, or global release is complete.
-
-Phase 32A adds the first enterprise governance foundation on top of the
-bounded product surface: optional token authentication, tenant context,
-role-based permission checks, protected enterprise/session/roles/audit routes,
-and JSONL audit recording for authorization decisions. It is a real enforced
-foundation when enabled, not a full enterprise IAM/SSO/SAML/OIDC system,
-policy engine, governance automation platform, or admin console.
-Phase 33A exposes that enterprise foundation in the Web console so an operator
-can inspect governance health, current session, role permissions, and audit
-records from `/ui` using the configured enterprise token.
-Phase 34A hardens the enterprise foundation with token expiry, revoked-token
-rejection, cross-tenant denial checks, and a protected security readiness
-diagnostic route. It is still a bounded enterprise safety layer, not full
-SSO/IAM, user lifecycle management, or compliance automation.
-Phase 35A adds hash-only managed user/token lifecycle persistence: an admin can
-list managed users, create/update a token-backed user, revoke that user, and
-verify that revoked state survives a fresh service application instance. Token
-values are not returned by the API or stored as plaintext.
-Phase 36A adds filtered enterprise audit query/export so operators can retrieve
-bounded audit evidence by outcome, code, path, user, tenant, or time window and
-export JSON/JSONL content without broad system log scanning.
-Phase 37A adds enterprise deployment/ops readiness, hash-only backup creation,
-and restore validation dry-run. It verifies deploy-time configuration, writes a
-bounded JSON backup under the configured enterprise backup directory, and
-validates that backup without mutating the live service.
-Phase 38A adds redacted enterprise production startup readiness: it checks
-real-provider startup configuration, enterprise auth/token posture, durable
-knowledge storage, audit path, backup path, and secret presence without
-exposing secret values.
-Phase 40A adds a read-only Web console deployment preflight view: it aggregates
-existing service health, deployment readiness, startup readiness, security
-readiness, and vector readiness responses into a UI Go/No-Go panel without
-adding a new backend business route.
-Phase 41A adds a browser-local enterprise config wizard in `/ui`: operators can
-paste a private `.env` draft for missing-config checks without uploading,
-saving, or echoing secret values.
-Phase 42A adds a read-only enterprise handoff manifest check that verifies the
-deployment documents, environment template, default scripts, enterprise
-aggregate command, and boundary wording without release automation.
-Phase 43A adds a read-only enterprise acceptance report that summarizes
-existing evidence, documents, commands, and official boundaries without calling
-providers, provisioning infrastructure, or running release automation.
-Phase 44A adds a protected read-only Web console entry for that acceptance
-report at `GET /enterprise/acceptance/report`; it only reads the Phase43A
-report/evidence and does not call providers, mutate runtime data, provision
-infrastructure, or run release automation.
-Phase 45A adds a read-only enterprise release-candidate dry-run that checks
-delivery docs, scripts, evidence, UI markers, safe environment template, and
-boundary wording without creating packages, publishing releases, calling
-providers, provisioning infrastructure, or recording secret values.
-Phase 46A exposes the Phase45A release-candidate dry-run through a protected
-read-only Web console route at `GET /enterprise/release-candidate/dry-run`;
-it only reads existing evidence and does not create packages, publish releases,
-call providers, provision infrastructure, or record secret values.
-Phase 47A adds a protected read-only enterprise overview at
-`GET /enterprise/overview`; it aggregates governance health, readiness,
-acceptance evidence, and release-candidate dry-run evidence without provider
-calls, runtime mutation, packaging, release automation, or infrastructure
-provisioning.
-Phase 48A keeps that route unchanged and adds a readable one-screen Web
-summary in `/ui`: overall status, governance, deployment, startup, security,
-vector readiness, acceptance, release-candidate, and safety are shown as
-status rows while the raw JSON remains available for diagnosis.
-Phase 49A keeps the same Web API surface and improves `/ui` Chinese
-readability: visible labels, buttons, placeholders, and side-panel summaries
-are Chinese-first while existing English markers remain available for bounded
-verification.
-Phase 31A adds bounded, real user-facing experience capabilities on top of the
-frozen command set: streaming Chat-first output through `/chat/rag/stream`,
-provider visibility/selection through the UI and `/providers`, retryable
-fallback execution when `AI_GATEWAY_FALLBACK_ENABLED=true`, a runtime dashboard
-at `/dashboard/status`, heuristic evaluation/scoring, long-term memory backed
-by the knowledge store, explicit text connector import, optional auth/tenant
-headers, query-time GraphRAG-style result graphs, and the existing safe local
-workflow loop. These are minimum usable loops that a user can open, click, and
-verify; they are not enterprise IAM, broad external crawling, arbitrary local
-automation, governance automation, or release automation.
-Phase 30A adds a minimal safe local business workflow automation loop:
-`POST /workflow/run` may retrieve local knowledge, compose a Markdown report,
-and write one controlled artifact under the managed workflow output directory.
-It does not execute arbitrary local commands, scan broad files, automate the
-OS, or run external connectors. Phase 29A adds a bounded service-side RAG chat
-entry at `POST /chat/rag`:
-the service retrieves local knowledge, injects structured citations, and then
-routes the augmented prompt through the existing gateway provider path. The
-default `/chat` NVIDIA single-provider lane remains unchanged. Phase 26A turns
-the Web surface into a minimal Chat-first foreground at
-`http://127.0.0.1:3100/ui`: files can be dropped directly into the chat
-surface for bounded knowledge loading, and user prompts now call `/chat/rag`
-so knowledge retrieval happens in the service layer. Business workflow
-automation is now limited to the safe Phase 30A local loop. Phase 25A adds the
-minimal Web visual operation console at
-`http://127.0.0.1:3100/ui` when `ai-gateway-service` is running. The console is
-a static operation surface that calls existing health and knowledge APIs only.
-Phase 27 adds local durable knowledge persistence for daily managed startup:
-`dev:phase7b` enables `file-sqlite` storage under `.data/knowledge`, so
-documents imported through the Web chat/file load path are restored after
-service restart and machine reboot. The retrieval mode remains local keyword;
-pgvector/Supabase remains an explicit vector mode covered by `verify:phase23`.
-Phase 24Z is sealed for the final delivery guide and real-usage knowledge
-sample load/retrieve validation. Phase 23Z is sealed for the real vector
-production-readiness path: with
-explicit vector configuration, `verify:phase23` has passed real Gemini
-embedding plus pgvector write/read/retrieve. The default usable knowledge
-baseline remains local-keyword/in-memory unless vector mode is explicitly
-enabled.
-Phase 22Z seals the current-boundary knowledge quality baseline and
-off-by-default next-gen knowledge infrastructure base. Phase 21Z seals the
-current-boundary knowledge usable state.
-Phase 21C is sealed for the minimal agent-console to knowledge retrieval chain.
-Phase 21B is sealed for minimal local knowledge source loading on top of the AI
-Gateway baseline. Phase 21A is sealed for the minimal local knowledge entry.
-Phase 19A is sealed for the final default command set freeze
-and closure summary. Phase 18F is sealed for the default command set real-operation
-regression and final documentation closure. Phases 9C, 10A, 11A, 12A, 13A,
-14A, 15A, and 16C are sealed for managed startup, stop, status, restart,
-health, doctor, help, idle, and logs. Phase 8A is sealed for single-command
-integration acceptance orchestration. Phase 7A is sealed through Phase 7A-5:
-`apps/agent-console` calls `apps/ai-gateway-service` over HTTP using the shared
-SDK, and the service routes `POST /chat` to NVIDIA only.
-
-Default command set:
-
-```powershell
-cmd /c pnpm help:phase14a
-cmd /c pnpm start:pme
-cmd /c pnpm dev:phase7b
-cmd /c pnpm status:phase10a
-cmd /c pnpm health:phase12a
-cmd /c pnpm doctor:phase13a
-cmd /c pnpm logs:phase16a
-cmd /c pnpm restart:phase11a
-cmd /c pnpm idle:phase15a
-cmd /c pnpm stop:phase9c
-cmd /c pnpm verify:phase7a
-cmd /c pnpm verify:phase8a-4
-cmd /c pnpm verify:phase21
-cmd /c pnpm verify:phase22
-cmd /c pnpm verify:phase23
-cmd /c pnpm verify:phase24
-cmd /c pnpm verify:phase25a
-cmd /c pnpm verify:phase26a
-cmd /c pnpm verify:phase27
-cmd /c pnpm verify:phase28a
-cmd /c pnpm verify:phase29a
-cmd /c pnpm verify:phase30a
-cmd /c pnpm verify:phase31a
-cmd /c pnpm verify:phase32a
-cmd /c pnpm verify:phase33a
-cmd /c pnpm verify:phase34a
-cmd /c pnpm verify:phase35a
-cmd /c pnpm verify:phase36a
-cmd /c pnpm verify:phase37a
-cmd /c pnpm verify:phase38a
-cmd /c pnpm verify:phase40a
-cmd /c pnpm verify:phase41a
-cmd /c pnpm verify:phase42a
-cmd /c pnpm verify:phase43a
-cmd /c pnpm verify:phase44a
-cmd /c pnpm verify:phase45a
-cmd /c pnpm verify:phase46a
-cmd /c pnpm verify:phase47a
-cmd /c pnpm verify:phase48a
-cmd /c pnpm verify:phase49a
-cmd /c pnpm verify:phase50a
-cmd /c pnpm verify:phase51a
-cmd /c pnpm verify:phase52a
-cmd /c pnpm verify:phase53a
-cmd /c pnpm verify:phase54a
-cmd /c pnpm verify:phase55a
-cmd /c pnpm verify:phase56a
-cmd /c pnpm verify:phase57a
-cmd /c pnpm verify:phase58a
-cmd /c pnpm verify:phase59a
-cmd /c pnpm verify:phase60a
-cmd /c pnpm verify:phase61a
-cmd /c pnpm verify:phase62a
-cmd /c pnpm verify:phase63a
-cmd /c pnpm verify:phase64a
-cmd /c pnpm verify:phase65a
-cmd /c pnpm verify:phase66a
-cmd /c pnpm verify:phase67a
-cmd /c pnpm verify:phase68a
-cmd /c pnpm verify:phase69a
-cmd /c pnpm verify:phase70a
-cmd /c pnpm verify:phase71a
-cmd /c pnpm verify:phase72a
-cmd /c pnpm verify:phase73a
-cmd /c pnpm verify:phase74a
-cmd /c pnpm verify:phase75a
-cmd /c pnpm verify:phase76a
-cmd /c pnpm verify:phase76b
-cmd /c pnpm verify:phase76c
-cmd /c pnpm verify:phase76d
-cmd /c pnpm verify:phase76e
-cmd /c pnpm verify:phase76f
-cmd /c pnpm verify:phase76g
-cmd /c pnpm verify:phase76h
-cmd /c pnpm verify:phase76i
-cmd /c pnpm verify:phase76j
-cmd /c pnpm verify:phase76k
-cmd /c pnpm verify:phase78a
-cmd /c pnpm verify:phase79a
-cmd /c pnpm verify:phase80a
-cmd /c pnpm verify:phase81a
-cmd /c pnpm verify:phase82a
-cmd /c pnpm verify:phase83a
-cmd /c pnpm verify:phase84a
-cmd /c pnpm verify:phase85a
-cmd /c pnpm verify:phase86a
-cmd /c pnpm verify:phase87a
-cmd /c pnpm verify:phase88a
-cmd /c pnpm verify:phase89a
-cmd /c pnpm verify:phase90a
-cmd /c pnpm verify:phase91a
-cmd /c pnpm verify:phase92a
-cmd /c pnpm verify:phase93a
-cmd /c pnpm verify:phase94a
-cmd /c pnpm verify:phase95a
-cmd /c pnpm verify:phase96a
-cmd /c pnpm verify:phase97a
-cmd /c pnpm verify:phase98a
-cmd /c pnpm verify:phase99a
-cmd /c pnpm verify:phase100a
-cmd /c pnpm verify:phase101a
-cmd /c pnpm verify:phase102a-workforce
-cmd /c pnpm verify:phase102b-workforce-ux
-cmd /c pnpm verify:phase102c-workforce-product-closure
-cmd /c pnpm verify:phase102d-workforce-plan-store
-cmd /c pnpm verify:phase102e-workforce-user-guide
-cmd /c pnpm verify:phase103a-product-readiness
-cmd /c pnpm verify:phase104a-first-run-setup
-cmd /c pnpm verify:phase76l
-cmd /c pnpm verify:phase76m
-cmd /c pnpm verify:phase76n
-cmd /c pnpm verify:phase76o
-cmd /c pnpm verify:phase76p
-cmd /c pnpm verify:phase76q
-cmd /c pnpm verify:phase76r
-cmd /c pnpm verify:phase76s
-cmd /c pnpm verify:phase8a-model-import
-cmd /c pnpm verify:enterprise
-cmd /c pnpm verify:phase21a
-cmd /c pnpm verify:phase21b
-cmd /c pnpm verify:phase21c
-```
-
-User-facing startup entry: `start:pme`, which runs a first-run preflight and then
-reuses the managed `dev:phase7b` startup path. Long-running entries:
-`dev:phase7b` and `restart:phase11a`.
-Read-only entries: `help:phase14a`, `status:phase10a`, `doctor:phase13a`, and
-`logs:phase16a`. One-shot validation or cleanup entries: `health:phase12a`,
-`idle:phase15a`, `stop:phase9c`, `verify:phase7a`, `verify:phase8a-4`, and
-`verify:phase21` / `verify:phase22` / `verify:phase23` /
-`verify:phase21a` / `verify:phase21b` / `verify:phase21c`,
-`verify:phase24`, `verify:phase25a`, `verify:phase26a`,
-`verify:phase27`, `verify:phase28a`, `verify:phase29a`, and
-`verify:phase30a` / `verify:phase31a` / `verify:phase32a` /
-`verify:phase33a` / `verify:phase34a` / `verify:phase35a` /
-`verify:phase36a` / `verify:phase37a` / `verify:phase38a` /
-`verify:phase40a` / `verify:phase41a` / `verify:phase42a` /
-`verify:phase43a` / `verify:phase44a` /
-`verify:phase45a` /
-`verify:phase46a` /
-`verify:phase47a` /
-`verify:phase48a` /
-`verify:phase49a` /
-`verify:phase50a` /
-`verify:phase51a` /
-`verify:phase52a` /
-`verify:phase53a` /
-`verify:phase54a` /
-`verify:phase55a` /
-`verify:phase56a` /
-`verify:phase57a` /
-`verify:phase58a` /
-`verify:phase59a` /
-`verify:phase60a` /
-`verify:phase61a` /
-`verify:phase62a` /
-`verify:phase63a` /
-`verify:phase64a` /
-`verify:phase65a` /
-`verify:phase66a` /
-`verify:phase67a` /
-`verify:phase68a` /
-`verify:phase69a` /
-`verify:phase70a` /
-`verify:phase71a` /
-`verify:phase72a` /
-`verify:phase73a` /
-`verify:phase74a` /
-`verify:phase75a` /
-`verify:phase76a` /
-`verify:phase76b` /
-`verify:phase76c` /
-`verify:phase76d` /
-`verify:phase76e` /
-`verify:phase76f` /
-`verify:phase76g` /
-`verify:phase76h` /
-`verify:phase76i` /
-`verify:phase76j` /
-`verify:phase76k` /
-`verify:phase76l` /
-`verify:phase76m` /
-`verify:phase76n` /
-`verify:phase76o` /
-`verify:phase76p` /
-`verify:phase76q` /
-`verify:phase76r` /
-`verify:phase76s` /
-`verify:enterprise`.
-Phase 27 persistence validation is available as `verify:phase27`; it checks
-that an imported knowledge document is written to local JSON plus SQLite and
-can be retrieved after a fresh service application is created with the same
-persistence directory.
-Phase 28A documented feature closure validation is available as
-`verify:phase28a`; it checks that the currently documented feature set is
-connected through docs, UI, service health, file-type discovery, file import,
-local retrieval, persistence wording, and readiness diagnostics.
-Phase 29A service RAG validation is available as `verify:phase29a`; it checks
-`POST /chat/rag` end to end: local knowledge retrieve, structured citations,
-gateway provider answer, and Web UI wiring.
-Phase 30A local workflow validation is available as `verify:phase30a`; it
-checks `GET /workflow/health`, `GET /workflow/actions`, `POST /workflow/plan`,
-and `POST /workflow/run`. The run path is an allowlisted local automation loop:
-`knowledge.retrieve` -> `report.compose` -> `artifact.write` only. The artifact
-write is constrained to the managed workflow output directory, and the workflow
-service does not execute shell commands, scan arbitrary files, automate the OS,
-or call external connectors.
-Phase 31A experience-capability validation is available as `verify:phase31a`;
-it checks the Chat-first UI markers plus real HTTP/SSE loops for dashboard,
-provider list, optional auth status, streaming RAG chat, retryable fallback to
-a backup provider, long-term memory, explicit text connector import,
-evaluation/scoring, query-time graph retrieval, and safe workflow execution.
-The default `/chat` lane remains NVIDIA single-provider unless explicitly
-configured otherwise.
-Phase 32A enterprise governance validation is available as `verify:phase32a`;
-it checks optional enterprise auth, tenant identity, admin/viewer RBAC,
-protected route denial, and audit recording. Enable it with
-`PME_ENTERPRISE_AUTH_ENABLED=true` plus either `PME_ENTERPRISE_USERS_JSON` or
-`PME_AUTH_TOKEN`. This is the enterprise safety foundation only; it is not full
-IAM, SSO, SAML/OIDC, lifecycle management, or a policy administration console.
-Phase 33A enterprise admin console validation is available as
-`verify:phase33a`; it checks the Web console enterprise panel and the same
-protected governance routes from an operator-facing surface.
-Phase 34A enterprise security hardening validation is available as
-`verify:phase34a`; it checks security readiness, token expiry rejection,
-revoked-token rejection, cross-tenant denial, protected audit visibility, and
-the Web console security-readiness control.
-Phase 35A enterprise user lifecycle validation is available as
-`verify:phase35a`; it checks the protected managed user API, hash-only token
-storage, managed token authentication, token revocation, persistence across a
-fresh service application instance, audit records, and the Web console managed
-user controls.
-Phase 36A enterprise audit export validation is available as
-`verify:phase36a`; it checks filtered audit query, JSON/JSONL export, denied
-event evidence, and the Web console audit export control.
-Phase 37A enterprise ops readiness validation is available as
-`verify:phase37a`; it checks protected deployment readiness, admin-only backup
-creation, hash-only enterprise user backup content, restore validation dry-run,
-path containment for restore validation, and Web console backup/readiness
-controls.
-Phase 38A enterprise startup readiness validation is available as
-`verify:phase38a`; it checks protected production-startup readiness for real
-NVIDIA provider configuration, enterprise auth/token posture, durable knowledge
-storage, audit path, backup path, and redacted secret presence. It does not
-call the provider and does not print API keys.
-Phase 40A enterprise deployment preflight validation is available as
-`verify:phase40a`; it checks that `/ui` exposes a read-only deployment
-preflight panel over existing readiness endpoints and that those endpoints can
-be read with an admin token without leaking secrets.
-Phase 41A enterprise config wizard validation is available as
-`verify:phase41a`; it checks that `/ui` exposes a browser-local `.env` draft
-checker that reports missing required settings and secret presence without
-uploading, saving, or echoing secret values.
-Phase 42A enterprise handoff manifest validation is available as
-`verify:phase42a`; it checks the handoff manifest, delivery docs, runbook,
-operation manual, `.env.enterprise.example`, enterprise scripts, and UI safety
-markers. It is read-only and does not provision infrastructure or run release
-automation.
-Phase 43A enterprise acceptance report validation is available as
-`verify:phase43a`; it summarizes existing evidence, required docs, command
-coverage, and boundary markers into `docs/ENTERPRISE_ACCEPTANCE_REPORT.md`.
-It is read-only over existing artifacts and does not call providers,
-provision infrastructure, or run release automation.
-Phase 44A enterprise acceptance report UI validation is available as
-`verify:phase44a`; it checks the protected read-only
-`GET /enterprise/acceptance/report` route and the Web console panel that
-displays the existing Phase43A report/evidence. It does not call providers,
-mutate runtime data, provision infrastructure, run release automation, or
-record secret values.
-Phase 45A enterprise release-candidate dry-run validation is available as
-`verify:phase45a`; it checks the current handoff docs, operation manual,
-environment template, enterprise scripts, existing evidence, UI safety markers,
-and official boundaries. It is read-only and does not create a package,
-publish a release, call providers, provision infrastructure, mutate runtime
-data, or record secret values.
-Phase 46A enterprise release-candidate UI validation is available as
-`verify:phase46a`; it checks the protected read-only
-`GET /enterprise/release-candidate/dry-run` route and the Web console panel
-that displays the existing Phase45A evidence. It does not create packages,
-publish releases, call providers, mutate runtime data, provision
-infrastructure, run release automation, or record secret values.
-Phase 47A enterprise overview UI validation is available as
-`verify:phase47a`; it checks the protected read-only
-`GET /enterprise/overview` route and the Web console panel that consolidates
-governance health, readiness, acceptance report evidence, and
-release-candidate dry-run evidence. It does not call providers, mutate runtime
-data, create packages, publish releases, provision infrastructure, run release
-automation, or record secret values.
-Phase 48A enterprise overview readability validation is available as
-`verify:phase48a`; it checks that the same Web console overview has a readable
-one-screen summary and keeps the raw JSON view for diagnosis. It does not add a
-new backend business route, call providers, mutate runtime data, create
-packages, publish releases, provision infrastructure, run release automation,
-or record secret values.
-Phase 49A Web Chinese readability validation is available as
-`verify:phase49a`; it checks that the Chat-first foreground and hidden
-capability panel expose readable Chinese labels for daily use, governance,
-knowledge, workflow, scoring, GraphRAG, and default-command surfaces. It is
-display-only and does not add backend routes, call providers, mutate runtime
-data, publish releases, or provision infrastructure.
-Phase 50A help readability validation is available as `verify:phase50a`; it
-checks that `help:phase14a` is served through the UTF-8 `tools/phase14a/help.mjs`
-script and prints readable Chinese command/boundary text. It is read-only and
-does not start services, stop processes, call providers, mutate runtime data,
-refresh evidence outside its own verifier, publish releases, or provision
-infrastructure.
-Phase 51A Web user readability validation is available as `verify:phase51a`;
-it checks that the first screen explains the daily command flow, keeps advanced
-capabilities hidden in the side panel by default, and does not reintroduce the
-manual source/document form into the main user path. It is display-only and
-does not add backend routes, call providers, mutate runtime data, publish
-releases, or provision infrastructure.
-Phase 52A Web browser visual validation is available as `verify:phase52a`; it
-starts a temporary service instance, renders `/ui` with a local headless
-Chrome/Edge browser, and saves a screenshot evidence PNG. It is browser-render
-only and does not add backend routes, call providers, mutate runtime data,
-publish releases, or provision infrastructure.
-Phase 53A Web chat interaction validation is available as `verify:phase53a`;
-it renders `/ui` in a local headless browser, submits a prompt through the real
-Chat-first form, and verifies that the page receives a bounded service-side
-RAG answer through `/chat/rag/stream`. It uses the local fake provider only and
-does not change the default NVIDIA `/chat` lane, add backend routes, call real
-providers, publish releases, or provision infrastructure.
-Phase 54A Web file upload interaction validation is available as
-`verify:phase54a`; it renders `/ui` in a local headless browser, injects a
-small text file through the real file input, verifies `/knowledge/load/file`,
-then asks through Chat-first and verifies `/chat/rag/stream` can retrieve the
-uploaded content. It uses the local fake provider only and does not change the
-default NVIDIA `/chat` lane, add backend routes, call real providers, publish
-releases, or provision infrastructure.
-Phase 55A Web multi-file upload validation is available as `verify:phase55a`;
-it renders `/ui` in a local headless browser, injects multiple files through
-the real file input, verifies one small file is loaded through
-`/knowledge/load/file`, verifies an oversized file is skipped with the 100MB
-message, then asks through Chat-first and verifies `/chat/rag/stream` can
-retrieve the loaded content. It uses the local fake provider only and does not
-change the default NVIDIA `/chat` lane, add backend routes, call real
-providers, publish releases, or provision infrastructure.
-Phase 56A Web chat error readability validation is available as
-`verify:phase56a`; it renders `/ui` in a local headless browser, simulates a
-bounded `/chat/rag/stream` plus fallback `/chat/rag` failure inside the browser,
-and verifies the Chat-first surface shows a readable error state with HTTP
-status and error code. It does not call real providers, add backend routes,
-change the default NVIDIA `/chat` lane, publish releases, or provision
-infrastructure.
-Phase 57A Web chat no-hit readability validation is available as
-`verify:phase57a`; it renders `/ui` in a local headless browser, asks a query
-that should not match local knowledge, and verifies `/chat/rag/stream` returns
-a readable no-hit / insufficient-data instruction instead of implying the
-system failed. It uses the local fake provider only and does not change the
-default NVIDIA `/chat` lane, add backend routes, call real providers, publish
-releases, or provision infrastructure.
-Phase 58A Web chat empty-input readability validation is available as
-`verify:phase58a`; it renders `/ui` in a local headless browser, submits a
-whitespace-only chat message, and verifies the Chat-first surface shows a clear
-system hint without sending `/chat/rag/stream`, `/chat/rag`, or `/chat`
-requests. It does not call providers, add backend routes, change the default
-NVIDIA `/chat` lane, publish releases, or provision infrastructure.
-Phase 59A Web provider-list failure readability validation is available as
-`verify:phase59a`; it renders `/ui` in a local headless browser, simulates a
-bounded `/providers` failure before the page loads, and verifies the Chat-first
-surface explains that the provider list is unavailable while the service will
-continue using the server-side default route. It does not send chat requests,
-call providers, add backend routes, change the default NVIDIA `/chat` lane,
-publish releases, or provision infrastructure.
-Phase 60A Web chat sending-state validation is available as `verify:phase60a`;
-it renders `/ui` in a local headless browser, simulates a slow streaming chat
-response, verifies the send button switches to `生成中`, and verifies a duplicate
-submit is blocked with a readable system hint while only one `/chat/rag/stream`
-request is sent. It does not call real providers, add backend routes, change
-the default NVIDIA `/chat` lane, publish releases, or provision infrastructure.
-Phase 61A Web chat complete-readability validation is available as
-`verify:phase61a`; it renders `/ui` in a local headless browser and verifies
-the remaining user-visible chat recovery paths: SSE `error` events are treated
-as real failures, streaming failure can fall back to ordinary RAG, fallback
-failure shows a readable next-step message, empty streams get a clear no-text
-message, and the send button always returns to `发送`. It does not call real
-providers, add backend routes, change the default NVIDIA `/chat` lane, publish
-releases, or provision infrastructure.
-Phase 62A Web chat session-persistence validation is available as
-`verify:phase62a`; it renders `/ui` in a local headless browser and verifies
-that chat messages are saved in the current browser, restored after reload, and
-can be cleared from the UI. It uses local browser storage only, does not add
-backend business routes, does not call real providers, and does not change the
-default NVIDIA `/chat` lane.
-Phase 63A Web chat abort validation is available as `verify:phase63a`; it
-renders `/ui` in a local headless browser, simulates a long streaming answer,
-clicks `停止生成`, verifies the stream is aborted, verifies no fallback request is
-sent after a user stop, and verifies the UI returns to a send-ready state with a
-clear stopped message. It does not call real providers, add backend routes,
-change the default NVIDIA `/chat` lane, publish releases, or provision
-infrastructure.
-Phase 64A Web chat keyboard validation is available as `verify:phase64a`; it
-renders `/ui` in a local headless browser, verifies `Enter` sends the chat,
-`Shift+Enter` preserves a newline before sending, and focus returns to the chat
-input after the response. It does not call real providers, add backend routes,
-change the default NVIDIA `/chat` lane, publish releases, or provision
-infrastructure.
-Phase 65A Web chat message actions validation is available as
-`verify:phase65a`; it renders `/ui` in a local headless browser and verifies
-copy answer, copy citations, and retry last prompt actions on assistant
-messages. It is UI-only, uses a simulated stream, and does not call real
-providers, add backend routes, change the default NVIDIA `/chat` lane, publish
-releases, or provision infrastructure.
-Phase 66A Web chat citation readability validation is available as
-`verify:phase66a`; it renders `/ui` in a local headless browser and verifies
-that retrieved citations appear as a readable citation list with expandable
-details and per-citation copy actions. It is UI-only, uses a simulated stream,
-and does not call real providers, add backend routes, change the default
-NVIDIA `/chat` lane, publish releases, or provision infrastructure.
-Phase 67A Web chat status feedback validation is available as
-`verify:phase67a`; it renders `/ui` in a local headless browser and verifies
-that each assistant answer shows gateway connection, knowledge retrieval,
-generation, and completion status separately from the saved answer text. It is
-UI-only, uses a simulated stream, and does not call real providers, add backend
-routes, change the default NVIDIA `/chat` lane, publish releases, or provision
-infrastructure.
-Phase 68A Web chat Markdown-lite rendering validation is available as
-`verify:phase68a`; it renders `/ui` in a local headless browser and verifies
-assistant answers can safely display paragraphs, bullet lists, numbered lists,
-code blocks, and http/https links while unsafe links render as plain text and
-raw answer text remains available for copy/history. It is UI-only, uses a
-simulated stream, and does not call real providers, add backend routes, change
-the default NVIDIA `/chat` lane, publish releases, or provision infrastructure.
-Phase 69A Web chat code-block tools validation is available as
-`verify:phase69a`; it renders `/ui` in a local headless browser and verifies
-assistant answers can show inline code, fenced code blocks with a language
-toolbar, a per-code-block copy button, and horizontal scrolling for long code
-lines. It is UI-only, uses a simulated stream, and does not call real
-providers, add backend routes, change the default NVIDIA `/chat` lane, publish
-releases, or provision infrastructure.
-Phase 70A Web chat Markdown block validation is available as `verify:phase70a`;
-it renders `/ui` in a local headless browser and verifies assistant answers can
-safely display blockquotes, Markdown tables, and horizontal dividers while
-preserving the raw answer for copy/history. It is UI-only, uses a simulated
-stream, and does not call real providers, add backend routes, change the
-default NVIDIA `/chat` lane, publish releases, or provision infrastructure.
-Phase 71A Web chat long-answer viewport validation is available as
-`verify:phase71a`; it renders `/ui` in a local headless browser and verifies
-long streaming answers auto-follow when the user is at the bottom, preserve a
-manual scroll position when the user reads earlier content, and keep the final
-answer visible after completion. It is UI-only, uses a simulated stream, and
-does not call real providers, add backend routes, change the default NVIDIA
-`/chat` lane, publish releases, or provision infrastructure.
-Phase 72A Web chat composer validation is available as `verify:phase72a`; it
-renders `/ui` in a local headless browser and verifies the Chat input area has
-empty-send protection, auto-resizing textarea behavior, visible shortcut/count
-feedback, Shift+Enter newline preservation, Ctrl/Cmd+Enter send, and focus
-restoration after send. It is UI-only, uses a simulated stream, and does not
-call real providers, add backend routes, change the default NVIDIA `/chat`
-lane, publish releases, or provision infrastructure.
-Phase 73A Web chat mobile viewport validation is available as
-`verify:phase73a`; it renders `/ui` at a phone-sized viewport and verifies the
-page has no horizontal or whole-document scroll, the chat shell, history, and
-composer stay inside the viewport, mobile quick-start content is compacted, and
-primary controls remain visible. It is UI-only and does not call real
-providers, add backend routes, change the default NVIDIA `/chat` lane, publish
-releases, or provision infrastructure.
-
-Phase 74A Web chat first-screen polish validation is available as
-`verify:phase74a`; it renders `/ui` at a desktop viewport and verifies the
-opening screen behaves like a clean chat product entry: the command checklist is
-collapsed by default, the greeting is short, the side panel is hidden, and the
-input remains the primary action. It is UI-only and does not call real
-providers, add backend routes, change the default NVIDIA `/chat` lane, publish
-releases, or provision infrastructure.
-
-Phase 75A Web chat final experience validation is available as
-`verify:phase75a`; it renders `/ui`, sends a simulated streaming chat request,
-and verifies the final chat surface: structured user/assistant bubbles with
-labels and timestamps, readable citations, copy/retry actions, long-answer
-overflow handling, and a visible scroll-to-bottom recovery control. It remains
-UI-only over simulated provider output and does not call real providers, add
-backend routes, change the default NVIDIA `/chat` lane, publish releases, or
-provision infrastructure.
-Phase 76A Web chat command-center validation is available as
-`verify:phase76a`; it renders `/ui` in a local browser and verifies bounded
-chat-window command cards for model configuration, service status, health, and
-knowledge status. These cards call existing safe HTTP APIs only, do not persist
-API keys, do not add backend routes, and do not change the default NVIDIA
-`/chat` lane.
-Phase 76B Web chat config persistence validation is available as
-`verify:phase76b`; it verifies that the model configuration card can remember a
-provider/model selection in current-browser storage across reloads while never
-persisting API key draft values. Generated startup templates are redacted and
-do not change server runtime configuration by themselves.
-Phase 76C Web chat config wizard validation is available as `verify:phase76c`;
-it verifies that the same model configuration flow is presented as a guided
-three-step card with current status, next action, safe secret handling, and a
-copyable redacted startup template. It remains a browser UI experience layer and
-does not change the backend chat lane or persist API key values.
-Phase 76D Web chat config effect-status validation is available as
-`verify:phase76d`; it verifies that the chat card clearly shows whether a model
-choice is effective for the current chat, remembered for the next browser
-session, or only ready to become long-lived after copying the startup template
-and restarting the managed service. It remains UI feedback only and does not
-mutate service runtime configuration.
-Phase 76E Web chat config availability-probe validation is available as
-`verify:phase76e`; it verifies that the model configuration wizard exposes a
-user-triggered “检测当前模型是否可用” action. The action reuses the existing
-`/chat` route to perform a tiny availability probe, shows a clear pass/fail
-status in the card, does not persist API key draft values, does not add backend
-business routes, and does not alter the default chat main lane.
-Phase 76F Web chat one-click model apply/probe validation is available as
-`verify:phase76f`; it verifies that the same configuration wizard provides a
-single primary “一键应用并检测” action for ordinary users. The action applies the
-selected provider/model to the current browser chat and immediately runs the
-same existing `/chat` availability probe. It remains a UI convenience layer and
-does not store API keys, add backend routes, or mutate service runtime config.
-Phase 76G Web chat model config collapse validation is available as
-`verify:phase76g`; it verifies that the ordinary path keeps only the primary
-“一键应用并检测” and “记住默认选择” actions visible, while advanced actions such as
-single apply, single probe, clearing preferences, API key draft checks, startup
-templates, and raw diagnostics stay collapsed behind “更多选项” or “高级启动配置”.
-It remains a front-end usability layer and does not change provider execution,
-store API keys, add backend routes, or mutate service runtime config.
-Phase 76H Web chat model status-bar validation is available as
-`verify:phase76h`; it verifies that the composer shows the current chat model,
-probe status, and remember-default status next to the input area. The composer
-configuration button opens the same chat-native model configuration wizard, and
-the one-click apply/probe result is reflected back into the composer status bar.
-It remains a front-end usability layer and does not change provider execution,
-store API keys, add backend routes, or mutate service runtime config.
-Phase 76I Web chat smart composer guidance validation is available as
-`verify:phase76i`; it verifies that the input hint changes with empty input,
-typed input, model checking, model probe success/failure, and sending state.
-It remains a front-end usability layer and does not change provider execution,
-store API keys, add backend routes, or mutate service runtime config.
-Phase 76J Web chat top-provider minimization validation is available as
-`verify:phase76j`; it verifies that the header provider dropdown is collapsed
-behind a lightweight model-settings entry by default, while the same
-`provider-select` remains available when expanded. It remains a front-end
-usability layer and does not call providers, add backend routes, or mutate
-service runtime config.
-Phase 76K Web chat composer actions polish validation is available as
-`verify:phase76k`; it verifies that the main input area keeps daily actions
-lightweight: upload remains visible, clear-chat is collapsed behind a more menu,
-and stop-generation only appears while an answer is being generated. It remains
-a front-end usability layer and does not call providers, add backend routes, or
-mutate service runtime config.
-Phase 76L Web chat knowledge upload receipt validation is available as
-`verify:phase76l`; it verifies that uploading a file produces a readable chat
-receipt, updates the input placeholder and composer hint to show the document
-is now in the knowledge base, and the next chat can retrieve that uploaded
-content through the existing RAG stream. It remains a front-end usability layer
-over existing knowledge load and chat routes.
-Phase 76M Web chat citation insight validation is available as
-`verify:phase76m`; it verifies that knowledge hits are shown as readable
-citation insight cards with source/document metadata, score, matched terms,
-score breakdown, and highlighted snippets. It remains a front-end usability
-layer and does not change the default NVIDIA `/chat` lane or knowledge
-retrieval contract.
-Phase 76N Web chat runtime API Key add validation is available as
-`verify:phase76n`; it verifies that the chat-native model wizard can accept an
-API Key, store it only in the current local service memory, immediately run the
-existing `/chat` probe, clear the secret field, and avoid writing the secret to
-browser storage, logs, or evidence. This is a bounded runtime convenience path:
-service restart clears the runtime key, and long-lived keys should still be set
-through startup environment variables.
-Phase 76O Web chat API Key auto-match validation is available as
-`verify:phase76o`; it verifies that the chat-native model wizard can detect a
-key family before storing it, surface safe provider/model candidates, let the
-user manually choose a model, then add the key memory-only and probe through the
-existing `/chat` path. It now uses a bounded provider catalog plus live
-provider `/models` discovery when the key family is unambiguous. Ambiguous
-generic keys such as `sk-` are not sprayed across providers; the UI presents
-candidate providers and only probes the user-selected lane. Detection does not
-store the key, does not log the key value, and refuses to force an unrecognized
-or non-chat key into NVIDIA. A reachable provider `/models` list is treated as
-model catalog discovery only; it does not prove the API key can run chat. The
-existing `/chat` probe remains the real usability check. `Local Fake Provider`
-and `Local Fake Model` are test-only entries and should not be treated as real
-model matches for user keys.
-Phase 76P Web chat model capability matcher validation is available as
-`verify:phase76p`; it verifies that API Key detection now returns structured
-provider/model capability profiles for chat, vision, reasoning, coding,
-tool-use, structured output, image generation, audio input, speech output,
-video generation, embedding, rerank, and moderation where the provider catalog
-or live model metadata supports those distinctions. The chat model dropdown
-must only contain models that are executable by the current chat lane; other
-capabilities may be recognized and displayed as diagnostics, but must not be
-pretended to be one-click chat models. Generic `sk-` keys remain
-provider-choice-required and are not sprayed across vendors. Unknown key
-families do not auto-select NVIDIA. `Local Fake Provider` remains test-only
-and is excluded from real/unknown key fallback.
-Phase 76Q Web chat user API catalog coverage validation is available as
-`verify:phase76q`; it verifies the provider families observed from the local
-user API workbook without recording secret values. The matcher now recognizes
-iFlytek Spark, Baidu Qianfan, Tencent Hunyuan, Zhipu AI, SiliconFlow,
-DashScope, ModelScope, Gemini, Cloudflare Workers AI, Groq, Hugging Face,
-OpenAI, Coze, and generic OpenAI-compatible relay clues. Generic or relay
-`sk-` keys still require provider confirmation or a base URL; they must not be
-sprayed across vendors, must not default to OpenAI without proof, and must not
-fall back to fake/NVIDIA. DashScope/Bailian-shaped `sk-` keys with a 32-hex
-body are treated as DashScope candidates and verified through the DashScope
-compatible-mode model path.
-Phase 76R Web chat generic OpenAI-compatible runtime validation is available
-as `verify:phase76r`; it verifies that a pasted relay/custom credential
-containing both an API Key and a base URL can be parsed, added memory-only as
-`generic-openai-compatible`, and used through the existing `/chat` path against
-an OpenAI-compatible `/chat/completions` endpoint. Generic relay keys without a
-base URL remain not actionable, because the system cannot safely infer where to
-send the secret.
-Phase 76S Web chat model-list probe validation is available as
-`verify:phase76s`; it verifies the explicit user-triggered `/models` probing
-path for ambiguous API keys. Safe default paste mode still does not spray a
-generic `sk-` key across vendors and does not default to OpenAI. When the user
-clicks the model auto-detect action, the service may make bounded model-list
-requests only to catalogued candidate providers, mark providers that reject the
-key as `auth-failed`, and recommend the provider only when its model-list API
-authenticates and returns usable models. This route must never store or log the
-API Key, and the final `/chat` probe remains the real chat-usability check.
-The model import line is validated by `verify:phase8a-model-import`: pasted
-keys are cleaned and probed through provider model-list APIs, discovered models
-come only from those API responses, ambiguous multi-provider hits require user
-selection, and confirmation stores the key memory-only in the local dev
-registry without changing the default NVIDIA `/chat` lane.
-Phase 87A Web chat model config usability-status validation is available as
-`verify:phase87a`; it verifies that the successful API Key/model configuration
-path explains, in the chat UI, which provider was identified, which model was
-selected, whether it was added to the current service, whether `/chat` probing
-passed, whether the default choice was remembered, and that API keys are not
-stored in browser state, chat history, logs, or evidence.
-Phase 88A Web chat model config first-chat validation is available as
-`verify:phase88a`; it verifies that immediately after the same successful
-configuration flow, a real first user prompt from the chat composer uses the
-new runtime provider/model through `/chat/stream`, receives a streamed answer,
-clears the input, returns focus to the composer, and still avoids storing API
-keys in browser state, chat history, logs, or evidence. It uses a local mock
-OpenAI-compatible provider only and does not change the default NVIDIA `/chat`
-lane.
-Phase 89A Web chat model config restart-persistence validation is available as
-`verify:phase89a`; it verifies that a local-file runtime model configuration
-survives browser reload and same-port service restart, restores the remembered
-provider/model selection, and sends chat through `/chat/stream` without
-requiring the API Key to be entered again. It uses a temporary local credential
-file plus a local mock OpenAI-compatible provider, then removes the temporary
-file after verification.
-Phase 90A Web chat model config restart-status readability validation is
-available as `verify:phase90a`; it verifies that after browser reload and
-same-port service restart, the chat composer visibly explains that the model
-and API Key were restored from local user configuration, remain usable after
-service restart, and can be used directly without re-entering the key. It does
-not pretend a fresh `/chat` probe has already been rerun, does not call real
-providers, and does not alter the default NVIDIA `/chat` lane.
-Phase 91A Web chat restored-config recovery validation is available as
-`verify:phase91a`; it verifies that when a locally restored runtime model later
-fails during chat, the assistant error and composer status tell the user to
-re-check the restored API Key, provider, base URL, and model. The composer
-action changes to `重新检测模型` while the page remains usable. It uses simulated
-browser failures only, does not call real providers, and does not alter the
-default NVIDIA `/chat` lane.
-Phase 92A Web chat model-config repair-loop validation is available as
-`verify:phase92a`; it verifies that clicking the restored-config recovery
-action opens the model configuration wizard in repair mode, carries forward the
-current provider/model/base URL where available, focuses the API Key repair
-path, and can re-run the existing `/chat` availability probe after replacing
-the local runtime credential. It uses simulated browser failures and repair
-responses only, does not call real providers, and does not alter the default
-NVIDIA `/chat` lane.
-Phase 93A Web chat continue-after-repair validation is available as
-`verify:phase93a`; it verifies that after a restored model failure is repaired
-and the model probe passes, the repair card offers `继续刚才的问题` and can resend
-the previously failed prompt without the user typing it again. It uses
-simulated browser failures and repair responses only, does not call real
-providers, and does not alter the default NVIDIA `/chat` lane.
-Phase 94A Web chat model-config repair visual polish validation is available
-as `verify:phase94a`; it verifies that the repair success card keeps only the
-most useful next-step text visible, folds diagnostic details under
-`查看检测细节`, and makes `继续刚才的问题` the primary first action when a failed
-prompt can be resumed. It remains UI-only, uses simulated provider responses,
-does not call real providers, and does not alter the default NVIDIA `/chat`
-lane.
-Phase 95A Web chat model-config ready-to-chat validation is available as
-`verify:phase95a`; it verifies that clicking `继续聊天` after a successful model
-probe focuses the chat input, changes the placeholder and composer hint to a
-clear ready-to-chat state, and updates the session status without saving API
-keys in browser storage or evidence. It remains UI-only over the existing
-model import and `/chat` paths and does not alter the default NVIDIA `/chat`
-lane.
-Phase 96A Web chat ready-first-message validation is available as
-`verify:phase96a`; it verifies the end-user flow after model configuration:
-the successful model config state returns focus to the chat input, the first
-typed message sends through the selected runtime model, the input clears, the
-assistant answer returns, and focus comes back to the composer. It delegates to
-the existing Phase 95A and Phase 88A browser checks, uses local mock provider
-responses, keeps secrets out of evidence, and does not alter the default
-NVIDIA `/chat` lane.
-Phase 97A Web chat model-config aggregate validation is available as
-`verify:phase97a`; it aggregates the successful model configuration path,
-first configured-message path, repair-and-continue path, repair success visual
-polish, ready-to-chat state, and ready-first-message flow into one browser
-regression command. It reuses existing bounded checks, uses local mock provider
-responses, keeps secrets out of evidence, and does not alter the default
-NVIDIA `/chat` lane.
-Phase 98A Web chat model-config user-journey validation is available as
-`verify:phase98a`; it verifies the visible end-user path from the composer model
-prompt, through the three-step configuration wizard, one-click add/detect,
-success explanation, and the final continue-to-chat focus state. It uses a
-local mock provider, keeps API keys out of evidence/browser state, and does not
-alter the default NVIDIA `/chat` lane.
-Phase 99A Web chat model-config visual final validation is available as
-`verify:phase99a`; it delegates the Phase 98A browser journey, checks the
-captured screenshot evidence, and verifies the visible composer prompt, wizard,
-success state, and ready-to-chat guidance remain readable. It uses local mock
-provider evidence only, keeps secrets out of evidence, and does not alter the
-default NVIDIA `/chat` lane.
-Phase 100A Web chat model-config stage-freeze validation is available as
-`verify:phase100a`; it aggregates provider model import, explicit model-list
-probing, successful and repaired configuration regressions, ready-first-message
-behavior, and the final visual user journey into one bounded stage-freeze
-command. It reuses existing evidence, uses local mocks only, keeps secrets out
-of evidence, and keeps the default NVIDIA `/chat` lane unchanged.
-
-Phase 101A freezes the ordinary-user model configuration copy with
-`verify:phase101a`. The Web chat model setup surface now presents the simple
-flow `配置模型 -> 粘贴 Key -> 识别可用模型 -> 一键检测并保存 -> 继续聊天`,
-while advanced settings and startup templates stay collapsed for users who need
-them. The check delegates the existing visual path, uses local mocks only, keeps
-secrets out of evidence, and does not enable new routing or fallback behavior.
-Phase 102A adds the minimal Agent Workforce product skeleton with
-`verify:phase102a-workforce`. It exposes `GET /workforce/health`,
-`GET /workforce/agents`, and `POST /workforce/plan`, plus SDK and Web console
-preview wiring. The first version is deterministic and rule-based: it shows the
-7-role AI company team and a task plan preview only. It does not call real LLMs,
-run agents concurrently, execute code, write project files, change the default
-NVIDIA `/chat` lane, change provider registry behavior, or connect to workflow
-execution.
-
-Phase 102B hardens the Agent Workforce preview experience with
-`verify:phase102b-workforce-ux`. The Web console now shows example goals,
-empty-goal guidance, loading/success/error status, structured role cards,
-task/deliverable/acceptance/risk/next-action sections, and a Markdown copy
-button. `/workforce/plan` also returns `planVersion`, `createdAt`, `summary`,
-and `userFriendlyStatus`. It remains a preview-only deterministic planner and
-must not execute agents, code, workflow runs, provider calls, or project-file
-writes.
-
-Phase 102C closes the Agent Workforce preview product loop with
-`verify:phase102c-workforce-product-closure`. The `/ui` preview now supports
-example goals, clear empty/invalid/too-long goal feedback, Markdown copy, JSON
-export, clear/restart, visible max-length guidance, and structured plan sections
-that ordinary users can read. `/workforce/plan` exposes `limitations`,
-`markdown`, `exportableJson`, and `recommendedNextStep`. It still does not call
-real LLMs, execute agents, run code, write user project files, attach workflow
-execution, alter provider registry, or change the default NVIDIA `/chat` lane.
-
-Phase 102D adds the dev-only Agent Workforce plan store with
-`verify:phase102d-workforce-plan-store`. The service exposes
-`POST /workforce/plans/save`, `GET /workforce/plans`,
-`GET /workforce/plans/:id`, `DELETE /workforce/plans/:id`, and
-`GET /workforce/plans/:id/export`; the Web console can save plans, reload
-history, delete saved plans, and export task packages as JSON or Markdown. This
-store is a local development plan history only: it must not save API keys,
-write user project files, execute agents, call real LLMs, attach workflow runs,
-alter provider registry behavior, or change the default NVIDIA `/chat` lane.
-
-Phase 102E seals the Agent Workforce preview user guide with
-`verify:phase102e-workforce-user-guide`. For ordinary users, Agent Workforce is
-an AI company planning surface: enter a goal, generate a 7-role team plan, read
-the role split, tasks, deliverables, acceptance criteria, risks, and next
-actions, then copy Markdown, save history, or export a JSON/Markdown task
-package. It is useful for requirement decomposition, team-role thinking, task
-planning, and preparing a handoff package for a human developer or a later
-explicit safe-execution mainline. It is not a real multi-agent executor: it
-does not call real LLMs, run 144 staff, execute code, modify files, start
-workflow runs, auto-ship product changes, alter provider registry behavior, or
-change the default NVIDIA `/chat` lane.
-
-Phase 103A adds the global product-readiness hardening check with
-`verify:phase103a-product-readiness`. It verifies that `/ui` explains the core
-entry points for Chat, API Key model import, Knowledge/RAG, Workflow, Agent
-Workforce, and Enterprise/readiness in user-readable language; that unknown or
-masked API keys produce clear next-step guidance instead of empty “model 0”
-states; and that Agent Workforce remains a preview-only planner. It does not
-claim global release completion, does not enable real multi-provider routing or
-fallback execution, does not call real LLMs for Workforce, does not alter the
-default NVIDIA `/chat` lane, and must keep API keys out of logs and evidence.
-
-Phase 104A adds the first-run setup wizard check with
-`verify:phase104a-first-run-setup`. It adds the read-only `GET /setup/readiness`
-route and a `/ui` first-use guide for ordinary users: check service readiness,
-add or detect a model, start chatting, try Agent Workforce planning, optionally
-use Knowledge/RAG, and understand preview/dev-only limits before production
-release. The readiness route aggregates existing health, model import, chat,
-knowledge, and workforce state without calling real providers, exposing API
-keys, changing the default NVIDIA `/chat` lane, or enabling real Agent
-execution.
-
-Phase 105A adds the ordinary-user end-to-end journey regression with
-`verify:phase105a-user-journey`. It checks that a user can open `/ui`, read the
-Setup Wizard, call `/setup/readiness`, understand Chat readiness, see clear
-Model Import / API Key failure guidance, find Knowledge/RAG guidance, generate
-an Agent Workforce plan, save it, list history, export it, delete the temporary
-saved plan, and recover from readable error messages.
-
-普通用户从 0 到 1 使用流程：
-
-```powershell
-cmd /c pnpm start:pme
-# open http://127.0.0.1:3100/ui
-```
-
-Then follow the page: run the Setup Wizard readiness check, add or detect a
-model, start Chat, optionally upload documents for Knowledge/RAG, then use
-Agent Workforce to generate a planning package. If API Key detection fails,
-choose the provider manually or fill the OpenAI-compatible Base URL; the
-system must not guess models from API Key text. Agent Workforce task packages
-can be saved, reloaded from history, copied as Markdown, or exported as JSON
-for human review or a later explicitly approved execution mainline. Current
-preview/dev-only surfaces must not be represented as global release completion,
-real fallback execution, or real multi-Agent code execution.
-
-Phase 106A adds the local installation, startup, and pre-delivery readiness
-closure with `verify:phase106a-delivery-readiness`. It checks that a new tester
-has enough documentation and placeholders to install dependencies, configure
-runtime environment variables, start the service, open `/ui`, run readiness,
-validate the ordinary-user journey, and understand preview/dev-only limits.
-
-Phase 107A adds the release-before-secret-safety check with
-`verify:phase107a-secret-safety`. It scans the documented release surface,
-`apps/`, `packages/`, `docs`, and evidence text files for real-looking API keys
-or credential URLs, verifies model-import masking, and confirms setup readiness
-does not expose key values. Real API keys must stay out of README, AGENTS,
-`.env.example`, UI text, logs, and evidence. The current local runtime
-credential store is a developer convenience, not a production secret vault.
-
-## 从 0 启动
-
-1. Install prerequisites:
-
-```powershell
-node --version
-pnpm --version
 cmd /c pnpm install
+cmd /c pnpm verify:phase107a-secret-safety
+cmd /c pnpm verify:phase606r-open-source-minimum-readiness-lock
+cmd /c pnpm verify:phase607r-public-repo-hygiene-preflight
 ```
 
-2. Prepare local environment values. Copy `.env.example` to your own local
-environment file or set values in PowerShell. Do not commit real API keys.
-Minimum placeholders include `NVIDIA_API_KEY`, `NVIDIA_MODEL`,
-`NVIDIA_BASE_URL`, `AI_GATEWAY_SERVICE_URL`, `OPENAI_API_KEY`,
-`GEMINI_API_KEY`, and `OPENAI_COMPATIBLE_BASE_URL`.
+Do not commit secrets, do not run real providers, and do not treat this repository as deployed production software.
 
-3. Start PME:
+Phase 107A secret-safety regression is part of the public clone baseline: before sharing forks, demos, or derivative builds, keep `verify:phase107a-secret-safety` green.
+
+<!-- BEGIN UNIFIED_AI_SYSTEM_CURRENT_STATE -->
+## Current State Sync
+
+Managed block maintained by `sync:readme-agents-current-state`.
+
+### Current system position
+
+- Local-first AI Gateway Workbench for bounded gateway, Mission Control, and Workforce dry-run flows.
+- Mission Control sample dry-run first-screen entry is sealed and remains the default first experience.
+- Workforce Expert System production-readiness chain is sealed as internal beta readiness, not production deployment.
+- Position Library, Employee Library, Scheduler, and Brain Adapter are independent bounded domains.
+- Local Agent operations remain approval-gated and workspace-bounded.
+
+### Current phase summary
+
+- Phase303A-305A UI-ready Approved Local Operation Loop is sealed.
+- Phase306B UI Manual Visibility Hotfix is complete, and the Phase303A-305A verifier/evidence compatibility reconciliation has removed the blocker.
+- Phase321A Workbench Product Recovery has passed.
+- Phase574R / Phase574R-2 / Phase574R-3 Mission Control sample dry-run UX and init guard are sealed.
+- Phase576A-F Workforce architecture split, Position Library, Employee Pyramid, Brain Adapter preview, and Workforce preview UI are sealed.
+- Phase577 Position Library Official Import Plan is sealed.
+- Phase577A-T Auto-Verified Sequential Execution is sealed with per-phase docs, evidence JSON, verifier result, execution report, modifiedFiles, safetyBoundary, and rollback note.
+- Phase578 Position Library Importer + Normalizer + Search Index is sealed.
+- Phase578A-T Unified IO + Internal Employee Communication Bus + Adaptive Branch Execution Fabric is sealed as dry-run execution fabric preview; it does not reuse the Phase577 source registry / O*NET / SOC / ISCO / ESCO import governance scope.
+- Phase579A-T through Phase591A-T define the current long-horizon hardening line for scenario matrix, load pressure, trace/debug, safety gates, adapter readiness, Mission Control observability, internal beta, production governance, soak/chaos, architecture lock, and test expansion.
+- Phase579A-T through Phase591A-T remain dry-run / no-provider-call / no-secret-read / no-external-send / no-deploy governance work until their aggregate verifier seals them.
+- Phase592A-T Codex Context Gateway is sealed as an independent read-only context sub-gateway for project state, evidence refs, dirty-file metadata, relevant-file selection, long-context compression, token budget control, stale-context guard, and Codex prompt packs.
+- Phase592A-T does not connect real Codex base_url, does not call providers, does not read secrets, and does not modify `/chat`, `/chat-gateway/execute`, provider runtime, or Codex config.
+- Phase593A-T Codex Context Gateway Operator Panel Preview is sealed as a Mission Control / Workbench internal preview for `.codex-context` hash, stale status, token budget, relevant files, evidence refs, prompt pack, dirty summary, freshness report, and safety boundary visibility.
+- Phase593A-T is UI / preview / verifier only; it does not connect real Codex, does not modify Codex config or base_url, does not call providers, and does not modify `/chat`, `/chat-gateway/execute`, provider runtime, Yiyi, Character, Guided Showcase, deploy, release, tags, or artifacts.
+- Phase594A-T Codex Context Gateway Usage Workflow + Runner Integration Preview is sealed as a preview-only workflow for reading `.codex-context/current-context-pack.md`, checking stale=false, using `relevant-files.json` as the default read scope, loading `codex-prompt-pack.md`, planning validation commands, and running a dry-run runner wrapper before any future Codex task.
+- Phase594A-T is not a real Codex integration; it does not modify Codex config or base_url, does not connect real Codex, does not call providers, does not read secrets or webhooks, and does not modify `/chat`, `/chat-gateway/execute`, provider runtime, deploy, release, tags, or artifacts.
+- Phase595A-T Codex Context Gateway Real Usage Trial Without Base URL Change is sealed as a bounded real workflow trial: Codex/task scripts read `.codex-context/current-context-pack.md`, require stale=false, use `relevant-files.json` by default, load `codex-prompt-pack.md`, generate the Phase595 trial note, track expected/actual read previews, estimate token savings, and write evidence.
+- Phase595A-T does not modify Codex config or base_url, does not connect a real Codex relay, does not call project providers, does not read secrets or webhooks, does not modify `/chat` or `/chat-gateway/execute`, and does not deploy, release, tag, or upload artifacts.
+- Phase596A-T Codex Context Gateway Repeated Usage Trial + Token Saving Benchmark is sealed as a repeated benchmark over 10 bounded docs tasks: each task uses `.codex-context/current-context-pack.md`, requires stale=false, uses `relevant-files.json`, loads `codex-prompt-pack.md`, records expected/actual read preview, estimates token savings, and writes evidence.
+- Phase596A-T does not modify Codex config or base_url, does not connect a real Codex relay, does not call providers, does not read secrets or webhooks, does not modify `/chat` or `/chat-gateway/execute`, and does not deploy, release, tag, or upload artifacts.
+- Phase597A-T Codex Context Gateway Controlled Base URL Integration Design is sealed as design-only work for future Codex base_url / relay / account-pool integration: it documents config surfaces, redacted config preview schema, relay architecture, authorization requirements, account-pool policy, cache-miss reuse, rate limits, credential boundaries, rollback, risk review, checklist, Mission Control preview, and authorization packet template.
+- Phase597A-T does not modify real Codex config, does not write `~/.codex/config.toml`, does not create a project `.codex/config.toml`, does not modify Codex base_url, does not connect a real relay, does not call providers, does not read secrets or webhooks, and does not modify `/chat` or `/chat-gateway/execute`.
+- Phase598A-T Codex Context Gateway Authorization Evidence Intake + Dry-Run Config Simulation is sealed as authorization intake and simulation-only work: it defines required authorization fields, validates completeness, generates placeholder-only templates, builds redacted dry-run config previews, simulates relay/account-pool/credentialRef/rollback/emergency-disable paths, and shows Mission Control authorization status.
+- Phase598A-T keeps real integration blocked while authorizationComplete=false: it does not modify real Codex config, does not write `~/.codex/config.toml`, does not create a project `.codex/config.toml`, does not modify Codex base_url, does not start relay/proxy services, does not call providers, does not read secrets or webhooks, and does not modify `/chat` or `/chat-gateway/execute`.
+- Phase599A-T Codex Context Gateway Authorization Packet Completion + Human Approval Review is sealed as authorization packet review and human approval review workflow: it finalizes the authorization packet schema, generates placeholder/example packets, loads an optional input packet, reviews completeness, human approval, config scope, relay/account pool refs, credentialRef, budget/rate/duration, rollback/emergency disable, risk acceptance, evidence ledger, and guarded real test readiness.
+- Phase599A-T does not grant real integration by itself: without a complete user-provided packet and approved human approval record it keeps authorizationComplete=false, humanApprovalStatus=missing, realIntegrationAllowed=false, guardedRealTestAllowed=false, realConfigWriteAllowed=false, relayStartAllowed=false, providerCallsMade=false, and it does not modify real Codex config/base_url or connect relay/provider.
+- Phase600A-T Codex Context Gateway Authorization Packet Input + Human Approval Record + Guarded Real Test Readiness Review is sealed as input/readiness-review-only work: it generates example input files, may load sanitized authorization packet and human approval record inputs, reviews completeness, approval consistency, budget/request/duration, relay/account-pool/credentialRef refs, rollback/emergency disable, risk acceptance, evidence ledger, and Mission Control readiness preview.
+- Phase600A-T does not execute a real guarded test: readinessReviewPassed or futureGuardedRealTestCandidate is not a base_url change, and realIntegrationAllowed=false, guardedRealTestAllowed=false, realConfigWriteAllowed=false, relayStartAllowed=false, providerCallsMade=false, secret/webhook reads=false, and real Codex config/base_url remains unchanged.
+- Phase601A-T Codex Context Gateway Guarded Real Base URL Test Preparation is sealed as preparation-only work: it may generate session_override command previews, relay health check previews, credential/account-pool precheck previews, one-shot prompt previews, rollback and emergency disable previews, non-execution guards, checklists, evidence ledgers, and Mission Control preparation preview.
+- Phase601A-T does not execute a real base_url test: final command bundle preview is not a real command run, and realTestExecuted=false, commandExecuted=false, providerCallsMade=false, relayStarted=false, codexConfigModified=false, codexBaseUrlModified=false, and final user confirmation remains required.
+- Phase602A-T Codex Context Gateway Guarded Real Base URL One-Shot Test is scaffolded as a gated one-shot execution phase, but without `docs/phase602-final-execution-confirmation.input.json` it seals as blocked with blocker=final_user_confirmation_missing, oneShotExecuted=false, requestAttemptCount=0, retryAttemptCount=0, and no persistent Codex config writes.
+- Phase602A-T must not be described as production integration: it never writes `~/.codex/config.toml` or project `.codex/config.toml`, never modifies `/chat` or `/chat-gateway/execute`, never deploys/releases/tags/uploads artifacts, and never prints raw base_url, API key, secret, or webhook values.
+- Phase603A-T Codex Context Gateway Custom Model Provider Route Preparation is sealed as custom model_provider / config.toml route design and one-shot preparation: it records that the openai_base_url override negative-control did not prove the relay path, inspects only sanitized `~/.codex/config.toml` structure, generates the `pme_context_gateway` provider preview, negative-control plan, command bundle preview, rollback/emergency previews, evidence ledger, and Mission Control custom provider preview.
+- Phase603A-T keeps `~/.codex/auth.json` on a hard denylist: authJsonRead=false, authJsonTouched=false, no real Codex config write, no project `.codex/config.toml` write, no provider switch, no relay connection, no provider call, no raw base_url/secret/webhook exposure, no `/chat` or `/chat-gateway/execute` modification, and final user confirmation remains required before Phase604.
+- Phase604A-T Codex Context Gateway Custom model_provider Negative-Control + Guarded One-Shot Test is scaffolded as the gated execution phase after Phase603, but without `docs/phase604-final-execution-confirmation.input.json` it seals as blocked with blocker=final_user_confirmation_missing, negativeControlExecuted=false, oneShotExecuted=false, requestAttemptCount=0, retryAttemptCount=0, and no provider calls.
+- Phase604A-T keeps `~/.codex/auth.json` on a hard denylist and forbids persistent Codex config writes: authJsonRead=false, authJsonTouched=false, user/project Codex config modified=false, raw base_url/secret/webhook exposure=false, `/chat` and `/chat-gateway/execute` unchanged, deploy/release/tag/artifact=false, and workspaceCleanClaimed=false.
+- Phase604R-Fix / Phase605R / Phase606R-Fix preserve the first custom model_provider one-shot attempt evidence, classify the root cause as stdin_is_not_a_terminal, and prepare the next interactive-terminal manual command route without re-running Codex or calling a Provider.
+- Phase607R-Fix Interactive Terminal Guarded One-Shot Execution Intake is intake-only: it reads the manual result input if present, otherwise seals with blocker=manual_result_input_missing, oneShotExecutionIntakeCompleted=false, testStatus=blocked, responseClassification=blocked_by_missing_manual_result, and codexOneShotExecutedByThisPhase=false.
+- Phase610R-Fix Codex Exec Custom Model Provider One-Shot Result Intake is sealed from a user-reported sanitized `codex exec` result: selectedProviderId=crs, requestAttemptCount=1, retryAttemptCount=0, responseClassification=pass, stderr warnings are non-blocking, and this intake phase does not re-run Codex or call a Provider.
+- Phase611R-Fix Codex Exec Custom Provider Repeated Guarded Test Design is sealed as design-only: it imports the Phase610R-Fix guarded pass, prepares maxPlannedAttempts=3 and maxRequestsTotal=3 with retryLimit=0 per attempt, requires explicit Phase612 confirmation before execution, and does not execute new `codex exec`, call Providers by this phase, or claim repeated reliability.
+- Phase612R-Fix Repeated Codex Exec Custom Provider Guarded Reliability Execution is bounded real validation only after explicit confirmation: maxPlannedAttempts=3, maxRequestsPerAttempt=1, maxRequestsTotal=3, retryLimit=0, stopOnFirstFailure=true, selectedProviderId=crs, no `/chat` integration, no deploy/release/tag/push/commit, and no production/release readiness claim.
+- Phase613R-Fix Repeated Reliability Result Closure is sealed as closure/design-only: it imports Phase612R repeated_pass, records that the proven scope is controlled `codex exec -c model_provider="crs"` guarded prompt only, and designs the next controlled integration gate without executing Codex, calling Providers by this phase, modifying `/chat` or `/chat-gateway/execute`, or claiming production/release readiness.
+- Phase614R-Fix Controlled Integration Preview Gate is sealed as preview-only: it imports Phase613R boundary closure, generates a route contract preview for `codex_exec_crs_preview`, allows only Mission Control read-only preview, forbids `/chat`, `/chat-gateway/execute`, provider runtime, and production router entrypoints, and makes runtime integration require a separate explicit approval packet.
+- Phase615R-Fix Runtime Integration Approval Packet is sealed as approval-packet-only: it imports Phase614R preview gate, generates approval packet, example input, risk matrix, rollback plan, emergency disable plan, maxRequests/budget policy, operator checklist, and Phase616 dry-run next gate while runtime integration remains unexecuted and `/chat`, `/chat-gateway/execute`, and provider runtime remain unchanged.
+- Phase616R-620R Controlled Runtime Candidate Dry-Run Bundle is sealed as dry-run candidate preparation: it imports Phase615R approval packet, generates route contract dry-run, readiness dry-run, operator approval dry-run, evidence ledger, and closure while runtime integration remains unexecuted and `/chat`, `/chat-gateway/execute`, and provider runtime remain unchanged.
+- Phase621R-628R Controlled Runtime Candidate Path is sealed as an isolated runtime candidate path: it wires independent `/runtime-candidate/codex-exec-crs/*` endpoints, runs local dry-run smoke, guarded isolated one-shot simulation, and max 3 local reliability attempts with totalRequestAttemptCount=3 and totalRetryAttemptCount=0 while `codexExecExecutedByThisPhase=false` and `providerCallsMadeByThisPhase=false`.
+- Phase621R-628R is not default runtime integration: default `/chat` remains unchanged, `/chat-gateway/execute` main chain remains unchanged, provider runtime is unmodified, Codex config is not written, auth.json is not read, and production/release readiness is not claimed.
+- Phase629R-Fix Main Chain Integration Final Human Approval Packet is sealed as approval-packet-only: it imports Phase621R-628R closure evidence, generates final human approval packet, approval example, risk matrix, execution boundary, rollback plan, emergency disable plan, final go/no-go checklist, and Phase630 next gate while main-chain integration remains unexecuted and `/chat`, `/chat-gateway/execute`, and provider runtime remain unchanged.
+- Phase630R-Fix Main Chain Integration Design Patch is sealed as design-patch-only: it imports Phase629R evidence, generates a route patch preview, diff plan, implementation boundary, risk matrix, rollback/emergency design, and Phase631 next gate while the patch is not applied and `/chat`, `/chat-gateway/execute`, and provider runtime remain unchanged.
+- Phase631R-Fix Token Saving Enforcement Gate is sealed as token-saving policy, preflight checklist, task template, verifier, and evidence for future Codex work; it requires context pack, relevant files, stale=false, token budget, output budget, explicit phase scope, and forbids full repo scans by default.
+- Phase632A-G Codex Token Saving Mandatory Gate Chain is sealed as mandatory A-G gates: context pack, relevant files, token budget, stale gate, forbidden full repo scan, output budget, and aggregate closure; it executes no Codex, calls no Provider, and does not modify `/chat`, `/chat-gateway/execute`, provider runtime, or Codex config.
+- Phase632H Token Saving Hard Enforcement Lock is sealed as project-level managed guidance: 必须使用 docs/phase632-codex-token-saving-task-template.md。 未通过 Phase632 preflight，不得继续执行。 All Codex tasks must first pass Phase632 preflight, read context pack, read relevant files, check token budget, check stale=false, forbid full repo scan, and follow output budget.
+- Phase632I Automatic Token-Saving Preflight Injection is sealed as project-level managed guidance plus wrapper: 必须使用 docs/phase632-codex-token-saving-task-template.md。 未通过 Phase632 preflight，不得继续执行。 所有 Codex 任务必须先跑 Phase632 preflight. Operators may run `pnpm run preflight:phase632-token-saving`; full repo scan is forbidden, and context pack, relevant files, token budget, and stale=false gate are mandatory before continuing.
+- Phase633R-637R Full System Audit + Bug Fix + Final System Report Bundle is sealed as a targeted audit/report bundle: low-risk docs/script drift fixes were applied, final system reports were generated, productionReady=false, releaseReady=false, `/chat` not integrated, `/chat-gateway/execute` not integrated, provider runtime not modified, and the Phase632 token-saving hard gate remains mandatory.
+- Phase638R Nightly 20:00 Safe Engineering Task Runner is available as a local one-shot batch after explicit registration: it starts daily at 20:00 only if the Windows Task Scheduler script is registered, requires Phase632 preflight, runs only low/medium-safe tasks, keeps high-risk tasks gate-only, is not a daemon or infinite loop, calls no Providers, reads no secrets/auth.json/raw base_url, modifies no `/chat` or `/chat-gateway/execute`, and performs no deploy/release/push/commit.
+- Phase639R P1 Approval Packet Bundle is sealed as approval-packet-only: it imports Phase633R-637R audit results, prepares Main-chain Integration Approval Packet and Provider Runtime Approval Packet, keeps no implementation executed, Provider not called, `/chat` not modified, `/chat-gateway/execute` not modified, provider runtime not modified, production/release not ready, and Phase632 preflight remains mandatory.
+- Phase639R-Nightly fallback operator panel is sealed as read-only Mission Control state: Windows Task Scheduler remains unregistered after windows_task_scheduler_access_denied, nightly automation is not enabled, fallback launcher is available, Phase632 preflight remains mandatory, and no Provider, secret/auth.json/raw base_url, Codex config, `/chat`, `/chat-gateway/execute`, deploy, release, push, or commit action was performed.
+- Phase640R-Nightly Permissioned Scheduler Registration Retry Pack is ready as manual permissioned retry guidance: Windows Task Scheduler remains unregistered until a user runs the retry script in an administrator or permissioned Windows session and verifies it, nightly automation is not enabled yet, fallback launcher remains available, Phase632 preflight remains mandatory, and no Provider, secret/auth.json/raw base_url, Codex config, `/chat`, `/chat-gateway/execute`, deploy, release, push, or commit action was performed.
+- Phase641R-Nightly Registration Result Intake is sealed with blocker=registration_result_input_missing: scheduledTaskRegistered=false, nightlyAutomationEnabled=false, Phase632 preflight remains mandatory, and no Provider, secret/auth.json/raw base_url, Codex config, `/chat`, `/chat-gateway/execute`, deploy, release, push, or commit action was performed.
+- Phase640R-ExternalTool Codex/crs gateway is external tool mode: main-chain integration frozen, provider runtime integration frozen, Phase632 preflight mandatory, no `/chat` integration, no `/chat-gateway/execute` integration, no provider runtime mutation, no Provider call by this phase, and no production/release claim.
+- Phase641R-645R External Tool Productization Bundle is complete: external tool mode confirmed, CLI wrapper ready, operator panel hardened, nightly safe runner reliability checked, open-source dry-run tool pack ready, token-saving benchmark rechecked, Phase632 preflight mandatory, not main chain, not `/chat` integrated, not `/chat-gateway/execute` integrated, not provider runtime, no Provider call, no secret/auth.json/raw base_url, no Codex config write, no deploy/release/push/commit, and production/release not ready.
+- Phase646R-650R External Tool Daily Workflow Closure is complete: daily workflow ready, task queue ledger ready, evidence dashboard ready, token-saving report ready, next-use playbook ready, external tool mode remains active, Phase632 preflight mandatory, not main chain, not `/chat` integrated, not `/chat-gateway/execute` integrated, not provider runtime, no Provider call, no secret/auth.json/raw base_url, no Codex config write, no deploy/release/push/commit, and production/release not ready.
+- Phase2087A Real Local Operation Bridge is sealed as a bounded real local execution bridge: after Phase632 preflight and an approvalRecord, it invokes a real local child process once and writes allowed evidence. It detects OpenCode/Codex availability but does not execute OpenCode/Codex model prompts by this phase, does not call Providers, does not read secrets/auth.json/.env, does not write Codex config/base_url, keeps default `/chat` and `/chat-gateway/execute` unchanged, and performs no deploy/release/tag/artifact/push/commit.
+- Phase2088A Controlled Codex Prompt Execution is sealed as a bounded real `codex exec` prompt smoke: after Phase632 preflight, Phase2087A seal, approvalRecord, allowedFiles, and forbiddenPaths pass, it may invoke `codex exec` exactly once with an isolated temp workspace, `--ephemeral`, `--sandbox read-only`, `--ask-for-approval never`, and `--output-last-message` to an allowed evidence file. It may pass `CRS_OAI_KEY` by environment variable name only for the Codex external tool account, recording presence as boolean and never printing the value. It does not call project Providers, does not read secrets/auth.json/.env, does not write Codex config/base_url, keeps default `/chat` and `/chat-gateway/execute` unchanged, and performs no deploy/release/tag/artifact/push/commit.
+- Phase2089A Controlled Codex Patch Proposal is sealed as a bounded real `codex exec` patch-proposal smoke: after Phase632 preflight, Phase2088A seal, approvalRecord, allowedFiles, and forbiddenPaths pass, it may invoke `codex exec` exactly once in a read-only isolated temp workspace and capture only a unified diff proposal to evidence. The proposal is not applied, the target file is not created, `CRS_OAI_KEY` may be passed only by environment variable name with boolean evidence, project Providers are not called, `/chat` and `/chat-gateway/execute` stay unchanged, and no deploy/release/tag/artifact/push/commit is performed.
+- Phase2090A Controlled Patch Apply Gate is sealed as the first bounded real patch application: after Phase632 preflight and Phase2089A seal, it validates the single docs-only unified diff proposal, creates only `docs/phase2089-codex-generated-patch-proposal-target.md`, writes rollback evidence, executes no Codex by this phase, calls no project Providers, reads no secrets/auth.json/.env, keeps default `/chat` and `/chat-gateway/execute` unchanged, and performs no deploy/release/tag/artifact/push/commit.
+- Phase2091A Controlled Source Patch Apply is sealed as the first bounded real source patch application: after Phase632 preflight and Phase2090A seal, it validates one source-file addition under `tools/phase2091/`, creates `tools/phase2091/generated-source-patch-target.mjs`, runs `node --check`, runs a local source smoke marker, writes rollback evidence, executes no Codex by this phase, calls no project Providers, keeps default `/chat` and `/chat-gateway/execute` unchanged, and performs no deploy/release/tag/artifact/push/commit.
+- Phase2092A Controlled Existing Tool Source Mutation is sealed as the first bounded real existing source-file mutation: after Phase632 preflight and Phase2091A seal, it validates one single-file unified diff against `tools/phase2091/generated-source-patch-target.mjs`, checks the expected pre-mutation SHA, modifies that existing tool file, preserves the Phase2091 smoke marker, adds the Phase2092 smoke marker, runs `node --check`, runs a local source smoke, writes restore-previous-content rollback evidence, executes no Codex by this phase, calls no project Providers, keeps default `/chat` and `/chat-gateway/execute` unchanged, and performs no deploy/release/tag/artifact/push/commit.
+- Phase2093A-2095A Controlled Batch Tool Mutation is sealed as the first bounded real two-file existing tool-source mutation batch: after Phase632 preflight and Phase2092A seal, it validates exactly two low-risk unified diff proposals, checks expected pre-mutation SHA values, modifies only `tools/phase2091/generated-source-patch-target.mjs` and `tools/phase2092/apply-controlled-existing-tool-mutation.mjs`, preserves earlier smoke markers, adds Phase2093/Phase2094 batch markers, runs `node --check`, runs local batch smoke, writes rollback evidence, executes no Codex by this phase, calls no project Providers, keeps default `/chat` and `/chat-gateway/execute` unchanged, and performs no deploy/release/tag/artifact/push/commit.
+- Phase2096A-2100A Controlled Triple Tool Mutation is sealed as the first bounded real three-file existing tool-source mutation batch: after Phase632 preflight and Phase2093A-2095A seal, it validates exactly three low-risk unified diff proposals, checks expected pre-mutation SHA values, modifies only `tools/phase2091/generated-source-patch-target.mjs`, `tools/phase2092/apply-controlled-existing-tool-mutation.mjs`, and `tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs`, preserves earlier smoke markers, adds Phase2096/Phase2097/Phase2100 markers, runs `node --check`, runs local triple smoke, writes rollback evidence, executes no Codex by this phase, calls no project Providers, keeps default `/chat` and `/chat-gateway/execute` unchanged, and performs no deploy/release/tag/artifact/push/commit.
+- Phase2101A-2110A Controlled Quad Tool Mutation is sealed as the first bounded real four-file existing tool-source mutation batch plus reusable substrate extraction: after Phase632 preflight and Phase2096A-2100A seal, it introduces `tools/phase2101_2110/controlled-mutation-substrate.mjs`, validates exactly four low-risk unified diff proposals, checks expected pre-mutation SHA values, modifies only `tools/phase2091/generated-source-patch-target.mjs`, `tools/phase2092/apply-controlled-existing-tool-mutation.mjs`, `tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs`, and `tools/phase2096_2100/apply-controlled-triple-tool-mutation.mjs`, preserves earlier smoke markers, adds Phase2106/Phase2107/Phase2108/Phase2109 markers, runs `node --check`, runs local quad smoke, writes rollback evidence, executes no Codex by this phase, calls no project Providers, keeps default `/chat` and `/chat-gateway/execute` unchanged, and performs no deploy/release/tag/artifact/push/commit.
+- Phase2111A-2120A Controlled Quint Tool Mutation is sealed as the first bounded real five-file existing tool-source mutation batch plus reusable JSON smoke helper reuse: after Phase632 preflight and Phase2101A-2110A seal, it reuses `tools/phase2101_2110/controlled-mutation-substrate.mjs`, validates exactly five low-risk unified diff proposals, checks expected pre-mutation SHA values, modifies only `tools/phase2091/generated-source-patch-target.mjs`, `tools/phase2092/apply-controlled-existing-tool-mutation.mjs`, `tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs`, `tools/phase2096_2100/apply-controlled-triple-tool-mutation.mjs`, and `tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs`, preserves earlier smoke markers, adds Phase2116/Phase2117/Phase2118/Phase2119/Phase2120 markers, runs `node --check`, runs local quint smoke, writes rollback evidence, executes no Codex by this phase, calls no project Providers, keeps default `/chat` and `/chat-gateway/execute` unchanged, and performs no deploy/release/tag/artifact/push/commit.
+- Phase2121A-2131A Controlled Sext Tool Mutation is sealed as the first bounded real six-file existing tool-source mutation batch plus reusable JSON smoke helper expansion: after Phase632 preflight and Phase2111A-2120A seal, it reuses `tools/phase2101_2110/controlled-mutation-substrate.mjs`, validates exactly six low-risk unified diff proposals, checks expected pre-mutation SHA values, modifies only `tools/phase2091/generated-source-patch-target.mjs`, `tools/phase2092/apply-controlled-existing-tool-mutation.mjs`, `tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs`, `tools/phase2096_2100/apply-controlled-triple-tool-mutation.mjs`, `tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs`, and `tools/phase2111_2120/apply-controlled-quint-tool-mutation.mjs`, preserves earlier smoke markers, adds Phase2126/Phase2127/Phase2128/Phase2129/Phase2130/Phase2131 markers, runs `node --check`, runs local sext smoke, writes rollback evidence, executes no Codex by this phase, calls no project Providers, keeps default `/chat` and `/chat-gateway/execute` unchanged, and performs no deploy/release/tag/artifact/push/commit.
+- Phase2132A-2143A Controlled Sept Tool Mutation is sealed as the bounded real seven-file existing tool-source mutation batch: after Phase632 preflight and Phase2121A-2131A seal, it reuses `tools/phase2101_2110/controlled-mutation-substrate.mjs`, validates exactly seven low-risk unified diff proposals, checks expected pre-mutation SHA values, modifies only `tools/phase2091/generated-source-patch-target.mjs`, `tools/phase2092/apply-controlled-existing-tool-mutation.mjs`, `tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs`, `tools/phase2096_2100/apply-controlled-triple-tool-mutation.mjs`, `tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs`, `tools/phase2111_2120/apply-controlled-quint-tool-mutation.mjs`, and `tools/phase2121_2131/apply-controlled-sext-tool-mutation.mjs`, preserves earlier smoke markers, adds Phase2137/Phase2138/Phase2139/Phase2140/Phase2141/Phase2142/Phase2143 markers, runs `node --check`, runs local sept smoke, writes rollback evidence, executes no Codex by this phase, calls no project Providers, keeps default `/chat` and `/chat-gateway/execute` unchanged, and performs no deploy/release/tag/artifact/push/commit.
+- Phase2144A-2156A Controlled Oct Tool Mutation is active as the bounded real eight-file existing tool-source mutation batch: after Phase632 preflight and Phase2132A-2143A seal, it reuses `tools/phase2101_2110/controlled-mutation-substrate.mjs`, validates exactly eight low-risk unified diff proposals, checks expected pre-mutation SHA values, modifies only `tools/phase2091/generated-source-patch-target.mjs`, `tools/phase2092/apply-controlled-existing-tool-mutation.mjs`, `tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs`, `tools/phase2096_2100/apply-controlled-triple-tool-mutation.mjs`, `tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs`, `tools/phase2111_2120/apply-controlled-quint-tool-mutation.mjs`, `tools/phase2121_2131/apply-controlled-sext-tool-mutation.mjs`, and `tools/phase2132_2143/apply-controlled-sept-tool-mutation.mjs`, preserves earlier smoke markers, adds Phase2149/Phase2150/Phase2151/Phase2152/Phase2153/Phase2154/Phase2155/Phase2156 markers, runs `node --check`, runs local oct smoke, writes rollback evidence, executes no Codex by this phase, calls no project Providers, keeps default `/chat` and `/chat-gateway/execute` unchanged, and performs no deploy/release/tag/artifact/push/commit.
+- Phase2157A-2170A Controlled Nonet Tool Mutation is active as the bounded real nine-file existing tool-source mutation batch: after Phase632 preflight and Phase2144A-2156A seal, it reuses `tools/phase2101_2110/controlled-mutation-substrate.mjs`, validates exactly nine low-risk unified diff proposals, checks expected pre-mutation SHA values, modifies only `tools/phase2091/generated-source-patch-target.mjs`, `tools/phase2092/apply-controlled-existing-tool-mutation.mjs`, `tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs`, `tools/phase2096_2100/apply-controlled-triple-tool-mutation.mjs`, `tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs`, `tools/phase2111_2120/apply-controlled-quint-tool-mutation.mjs`, `tools/phase2121_2131/apply-controlled-sext-tool-mutation.mjs`, `tools/phase2132_2143/apply-controlled-sept-tool-mutation.mjs`, and `tools/phase2144_2156/apply-controlled-oct-tool-mutation.mjs`, preserves earlier smoke markers, adds Phase2162/Phase2163/Phase2164/Phase2165/Phase2166/Phase2167/Phase2168/Phase2169/Phase2170 markers, runs `node --check`, runs local nonet smoke, writes rollback evidence, executes no Codex by this phase, calls no project Providers, keeps default `/chat` and `/chat-gateway/execute` unchanged, and performs no deploy/release/tag/artifact/push/commit.
+- Phase2171A-2185A Controlled Deca Tool Mutation is active as the bounded real ten-file existing tool-source mutation batch: after Phase632 preflight and Phase2157A-2170A seal, it reuses `tools/phase2101_2110/controlled-mutation-substrate.mjs`, validates exactly ten low-risk unified diff proposals, checks expected pre-mutation SHA values, modifies only `tools/phase2091/generated-source-patch-target.mjs`, `tools/phase2092/apply-controlled-existing-tool-mutation.mjs`, `tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs`, `tools/phase2096_2100/apply-controlled-triple-tool-mutation.mjs`, `tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs`, `tools/phase2111_2120/apply-controlled-quint-tool-mutation.mjs`, `tools/phase2121_2131/apply-controlled-sext-tool-mutation.mjs`, `tools/phase2132_2143/apply-controlled-sept-tool-mutation.mjs`, `tools/phase2144_2156/apply-controlled-oct-tool-mutation.mjs`, and `tools/phase2157_2170/apply-controlled-nonet-tool-mutation.mjs`, preserves earlier smoke markers, adds Phase2176/Phase2177/Phase2178/Phase2179/Phase2180/Phase2181/Phase2182/Phase2183/Phase2184/Phase2185 markers, runs `node --check`, runs local deca smoke, writes rollback evidence, executes no Codex by this phase, calls no project Providers, keeps default `/chat` and `/chat-gateway/execute` unchanged, and performs no deploy/release/tag/artifact/push/commit.
+- Phase2202A-2218A Controlled Twelve Tool Mutation is active as the bounded real twelve-file existing tool-source mutation batch: after Phase632 preflight and Phase2186A-2201A seal, it reuses `tools/phase2101_2110/controlled-mutation-substrate.mjs`, validates exactly twelve low-risk unified diff proposals, checks expected pre-mutation SHA values, modifies only `tools/phase2091/generated-source-patch-target.mjs`, `tools/phase2092/apply-controlled-existing-tool-mutation.mjs`, `tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs`, `tools/phase2096_2100/apply-controlled-triple-tool-mutation.mjs`, `tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs`, `tools/phase2111_2120/apply-controlled-quint-tool-mutation.mjs`, `tools/phase2121_2131/apply-controlled-sext-tool-mutation.mjs`, `tools/phase2132_2143/apply-controlled-sept-tool-mutation.mjs`, `tools/phase2144_2156/apply-controlled-oct-tool-mutation.mjs`, `tools/phase2157_2170/apply-controlled-nonet-tool-mutation.mjs`, `tools/phase2171_2185/apply-controlled-deca-tool-mutation.mjs`, and `tools/phase2186_2201/apply-controlled-eleven-tool-mutation.mjs`, preserves earlier smoke markers, adds Phase2207/Phase2208/Phase2209/Phase2210/Phase2211/Phase2212/Phase2213/Phase2214/Phase2215/Phase2216/Phase2217/Phase2218 markers, runs `node --check`, runs local twelve smoke, writes rollback evidence, executes no Codex by this phase, calls no project Providers, keeps default `/chat` and `/chat-gateway/execute` unchanged, and performs no deploy/release/tag/artifact/push/commit.
+- Phase2219A-2236A Controlled Thirteen Tool Mutation is active as the bounded real thirteen-file existing tool-source mutation batch: after Phase632 preflight and Phase2202A-2218A seal, it reuses `tools/phase2101_2110/controlled-mutation-substrate.mjs`, validates exactly thirteen low-risk unified diff proposals, checks expected pre-mutation SHA values, modifies only `tools/phase2091/generated-source-patch-target.mjs`, `tools/phase2092/apply-controlled-existing-tool-mutation.mjs`, `tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs`, `tools/phase2096_2100/apply-controlled-triple-tool-mutation.mjs`, `tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs`, `tools/phase2111_2120/apply-controlled-quint-tool-mutation.mjs`, `tools/phase2121_2131/apply-controlled-sext-tool-mutation.mjs`, `tools/phase2132_2143/apply-controlled-sept-tool-mutation.mjs`, `tools/phase2144_2156/apply-controlled-oct-tool-mutation.mjs`, `tools/phase2157_2170/apply-controlled-nonet-tool-mutation.mjs`, `tools/phase2171_2185/apply-controlled-deca-tool-mutation.mjs`, `tools/phase2186_2201/apply-controlled-eleven-tool-mutation.mjs`, and `tools/phase2202_2218/apply-controlled-twelve-tool-mutation.mjs`, preserves earlier smoke markers, adds Phase2224/Phase2225/Phase2226/Phase2227/Phase2228/Phase2229/Phase2230/Phase2231/Phase2232/Phase2233/Phase2234/Phase2235/Phase2236 markers, runs `node --check`, runs local thirteen smoke, writes rollback evidence, executes no Codex by this phase, calls no project Providers, keeps default `/chat` and `/chat-gateway/execute` unchanged, and performs no deploy/release/tag/artifact/push/commit.
+- Phase2237A-2255A Controlled Fourteen Tool Mutation is active as the bounded real fourteen-file existing tool-source mutation batch: after Phase632 preflight and Phase2219A-2236A seal, it reuses `tools/phase2101_2110/controlled-mutation-substrate.mjs`, validates exactly fourteen low-risk unified diff proposals, checks expected pre-mutation SHA values, modifies only `tools/phase2091/generated-source-patch-target.mjs`, `tools/phase2092/apply-controlled-existing-tool-mutation.mjs`, `tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs`, `tools/phase2096_2100/apply-controlled-triple-tool-mutation.mjs`, `tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs`, `tools/phase2111_2120/apply-controlled-quint-tool-mutation.mjs`, `tools/phase2121_2131/apply-controlled-sext-tool-mutation.mjs`, `tools/phase2132_2143/apply-controlled-sept-tool-mutation.mjs`, `tools/phase2144_2156/apply-controlled-oct-tool-mutation.mjs`, `tools/phase2157_2170/apply-controlled-nonet-tool-mutation.mjs`, `tools/phase2171_2185/apply-controlled-deca-tool-mutation.mjs`, `tools/phase2186_2201/apply-controlled-eleven-tool-mutation.mjs`, `tools/phase2202_2218/apply-controlled-twelve-tool-mutation.mjs`, and `tools/phase2219_2236/apply-controlled-thirteen-tool-mutation.mjs`, preserves earlier smoke markers, adds Phase2242/Phase2243/Phase2244/Phase2245/Phase2246/Phase2247/Phase2248/Phase2249/Phase2250/Phase2251/Phase2252/Phase2253/Phase2254/Phase2255 markers, runs `node --check`, runs local fourteen smoke, writes rollback evidence, executes no Codex by this phase, calls no project Providers, keeps default `/chat` and `/chat-gateway/execute` unchanged, and performs no deploy/release/tag/artifact/push/commit.
+- Phase2256A-2275A Controlled Fifteen Tool Mutation is active as the bounded real fifteen-file existing tool-source mutation batch: after Phase632 preflight and Phase2237A-2255A seal, it reuses `tools/phase2101_2110/controlled-mutation-substrate.mjs`, validates exactly fifteen low-risk unified diff proposals, checks expected pre-mutation SHA values, modifies only `tools/phase2091/generated-source-patch-target.mjs`, `tools/phase2092/apply-controlled-existing-tool-mutation.mjs`, `tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs`, `tools/phase2096_2100/apply-controlled-triple-tool-mutation.mjs`, `tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs`, `tools/phase2111_2120/apply-controlled-quint-tool-mutation.mjs`, `tools/phase2121_2131/apply-controlled-sext-tool-mutation.mjs`, `tools/phase2132_2143/apply-controlled-sept-tool-mutation.mjs`, `tools/phase2144_2156/apply-controlled-oct-tool-mutation.mjs`, `tools/phase2157_2170/apply-controlled-nonet-tool-mutation.mjs`, `tools/phase2171_2185/apply-controlled-deca-tool-mutation.mjs`, `tools/phase2186_2201/apply-controlled-eleven-tool-mutation.mjs`, `tools/phase2202_2218/apply-controlled-twelve-tool-mutation.mjs`, `tools/phase2219_2236/apply-controlled-thirteen-tool-mutation.mjs`, and `tools/phase2237_2255/apply-controlled-fourteen-tool-mutation.mjs`, preserves earlier smoke markers, adds Phase2261/Phase2262/Phase2263/Phase2264/Phase2265/Phase2266/Phase2267/Phase2268/Phase2269/Phase2270/Phase2271/Phase2272/Phase2273/Phase2274/Phase2275 markers, runs `node --check`, runs local fifteen smoke, writes rollback evidence, executes no Codex by this phase, calls no project Providers, keeps default `/chat` and `/chat-gateway/execute` unchanged, and performs no deploy/release/tag/artifact/push/commit.
+- Phase2276A-2296A Controlled Sixteen Tool Mutation is active as the bounded real sixteen-file existing tool-source mutation batch: after Phase632 preflight and Phase2256A-2275A seal, it reuses `tools/phase2101_2110/controlled-mutation-substrate.mjs`, validates exactly sixteen low-risk unified diff proposals, checks expected pre-mutation SHA values, modifies only `tools/phase2091/generated-source-patch-target.mjs`, `tools/phase2092/apply-controlled-existing-tool-mutation.mjs`, `tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs`, `tools/phase2096_2100/apply-controlled-triple-tool-mutation.mjs`, `tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs`, `tools/phase2111_2120/apply-controlled-quint-tool-mutation.mjs`, `tools/phase2121_2131/apply-controlled-sext-tool-mutation.mjs`, `tools/phase2132_2143/apply-controlled-sept-tool-mutation.mjs`, `tools/phase2144_2156/apply-controlled-oct-tool-mutation.mjs`, `tools/phase2157_2170/apply-controlled-nonet-tool-mutation.mjs`, `tools/phase2171_2185/apply-controlled-deca-tool-mutation.mjs`, `tools/phase2186_2201/apply-controlled-eleven-tool-mutation.mjs`, `tools/phase2202_2218/apply-controlled-twelve-tool-mutation.mjs`, `tools/phase2219_2236/apply-controlled-thirteen-tool-mutation.mjs`, `tools/phase2237_2255/apply-controlled-fourteen-tool-mutation.mjs`, and `tools/phase2256_2275/apply-controlled-fifteen-tool-mutation.mjs`, preserves earlier smoke markers, adds Phase2281/Phase2282/Phase2283/Phase2284/Phase2285/Phase2286/Phase2287/Phase2288/Phase2289/Phase2290/Phase2291/Phase2292/Phase2293/Phase2294/Phase2295/Phase2296 markers, runs `node --check`, runs local sixteen smoke, writes rollback evidence, executes no Codex by this phase, calls no project Providers, keeps default `/chat` and `/chat-gateway/execute` unchanged, and performs no deploy/release/tag/artifact/push/commit.
+- Phase2297A-2318A Controlled Seventeen Tool Mutation is active as the bounded real seventeen-file existing tool-source mutation batch: after Phase632 preflight and Phase2276A-2296A seal, it reuses `tools/phase2101_2110/controlled-mutation-substrate.mjs`, validates exactly seventeen low-risk unified diff proposals, checks expected pre-mutation SHA values, modifies only `tools/phase2091/generated-source-patch-target.mjs`, `tools/phase2092/apply-controlled-existing-tool-mutation.mjs`, `tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs`, `tools/phase2096_2100/apply-controlled-triple-tool-mutation.mjs`, `tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs`, `tools/phase2111_2120/apply-controlled-quint-tool-mutation.mjs`, `tools/phase2121_2131/apply-controlled-sext-tool-mutation.mjs`, `tools/phase2132_2143/apply-controlled-sept-tool-mutation.mjs`, `tools/phase2144_2156/apply-controlled-oct-tool-mutation.mjs`, `tools/phase2157_2170/apply-controlled-nonet-tool-mutation.mjs`, `tools/phase2171_2185/apply-controlled-deca-tool-mutation.mjs`, `tools/phase2186_2201/apply-controlled-eleven-tool-mutation.mjs`, `tools/phase2202_2218/apply-controlled-twelve-tool-mutation.mjs`, `tools/phase2219_2236/apply-controlled-thirteen-tool-mutation.mjs`, `tools/phase2237_2255/apply-controlled-fourteen-tool-mutation.mjs`, `tools/phase2256_2275/apply-controlled-fifteen-tool-mutation.mjs`, and `tools/phase2276_2296/apply-controlled-sixteen-tool-mutation.mjs`, preserves earlier smoke markers, adds Phase2302/Phase2303/Phase2304/Phase2305/Phase2306/Phase2307/Phase2308/Phase2309/Phase2310/Phase2311/Phase2312/Phase2313/Phase2314/Phase2315/Phase2316/Phase2317/Phase2318 markers, runs `node --check`, runs local seventeen smoke, writes rollback evidence, executes no Codex by this phase, calls no project Providers, keeps default `/chat` and `/chat-gateway/execute` unchanged, and performs no deploy/release/tag/artifact/push/commit.
+- Phase2319A-2341A Controlled Eighteen Tool Mutation is active as the bounded real eighteen-file existing tool-source mutation batch: after Phase632 preflight and Phase2297A-2318A seal, it reuses `tools/phase2101_2110/controlled-mutation-substrate.mjs`, validates exactly eighteen low-risk unified diff proposals, checks expected pre-mutation SHA values, modifies only `tools/phase2091/generated-source-patch-target.mjs`, `tools/phase2092/apply-controlled-existing-tool-mutation.mjs`, `tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs`, `tools/phase2096_2100/apply-controlled-triple-tool-mutation.mjs`, `tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs`, `tools/phase2111_2120/apply-controlled-quint-tool-mutation.mjs`, `tools/phase2121_2131/apply-controlled-sext-tool-mutation.mjs`, `tools/phase2132_2143/apply-controlled-sept-tool-mutation.mjs`, `tools/phase2144_2156/apply-controlled-oct-tool-mutation.mjs`, `tools/phase2157_2170/apply-controlled-nonet-tool-mutation.mjs`, `tools/phase2171_2185/apply-controlled-deca-tool-mutation.mjs`, `tools/phase2186_2201/apply-controlled-eleven-tool-mutation.mjs`, `tools/phase2202_2218/apply-controlled-twelve-tool-mutation.mjs`, `tools/phase2219_2236/apply-controlled-thirteen-tool-mutation.mjs`, `tools/phase2237_2255/apply-controlled-fourteen-tool-mutation.mjs`, `tools/phase2256_2275/apply-controlled-fifteen-tool-mutation.mjs`, `tools/phase2276_2296/apply-controlled-sixteen-tool-mutation.mjs`, and `tools/phase2297_2318/apply-controlled-seventeen-tool-mutation.mjs`, preserves earlier smoke markers, adds Phase2324/Phase2325/Phase2326/Phase2327/Phase2328/Phase2329/Phase2330/Phase2331/Phase2332/Phase2333/Phase2334/Phase2335/Phase2336/Phase2337/Phase2338/Phase2339/Phase2340/Phase2341 markers, runs `node --check`, runs local eighteen smoke, writes rollback evidence, executes no Codex by this phase, calls no project Providers, keeps default `/chat` and `/chat-gateway/execute` unchanged, and performs no deploy/release/tag/artifact/push/commit.
+- Phase2342A-2365A Controlled Nineteen Tool Mutation is active as the bounded real nineteen-file existing tool-source mutation batch: after Phase632 preflight and Phase2319A-2341A seal, it reuses `tools/phase2101_2110/controlled-mutation-substrate.mjs`, validates exactly nineteen low-risk unified diff proposals, checks expected pre-mutation SHA values, modifies only `tools/phase2091/generated-source-patch-target.mjs`, `tools/phase2092/apply-controlled-existing-tool-mutation.mjs`, `tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs`, `tools/phase2096_2100/apply-controlled-triple-tool-mutation.mjs`, `tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs`, `tools/phase2111_2120/apply-controlled-quint-tool-mutation.mjs`, `tools/phase2121_2131/apply-controlled-sext-tool-mutation.mjs`, `tools/phase2132_2143/apply-controlled-sept-tool-mutation.mjs`, `tools/phase2144_2156/apply-controlled-oct-tool-mutation.mjs`, `tools/phase2157_2170/apply-controlled-nonet-tool-mutation.mjs`, `tools/phase2171_2185/apply-controlled-deca-tool-mutation.mjs`, `tools/phase2186_2201/apply-controlled-eleven-tool-mutation.mjs`, `tools/phase2202_2218/apply-controlled-twelve-tool-mutation.mjs`, `tools/phase2219_2236/apply-controlled-thirteen-tool-mutation.mjs`, `tools/phase2237_2255/apply-controlled-fourteen-tool-mutation.mjs`, `tools/phase2256_2275/apply-controlled-fifteen-tool-mutation.mjs`, `tools/phase2276_2296/apply-controlled-sixteen-tool-mutation.mjs`, `tools/phase2297_2318/apply-controlled-seventeen-tool-mutation.mjs`, and `tools/phase2319_2341/apply-controlled-eighteen-tool-mutation.mjs`, preserves earlier smoke markers, adds Phase2347/Phase2348/Phase2349/Phase2350/Phase2351/Phase2352/Phase2353/Phase2354/Phase2355/Phase2356/Phase2357/Phase2358/Phase2359/Phase2360/Phase2361/Phase2362/Phase2363/Phase2364/Phase2365 markers, runs `node --check`, runs local nineteen smoke, writes rollback evidence, executes no Codex by this phase, calls no project Providers, keeps default `/chat` and `/chat-gateway/execute` unchanged, and performs no deploy/release/tag/artifact/push/commit.
+- Phase2366A-2390A Controlled Twenty Tool Mutation is active as the bounded real twenty-file existing tool-source mutation batch: after Phase632 preflight and Phase2342A-2365A seal, it reuses `tools/phase2101_2110/controlled-mutation-substrate.mjs`, validates exactly twenty low-risk unified diff proposals, checks expected pre-mutation SHA values, modifies only `tools/phase2091/generated-source-patch-target.mjs`, `tools/phase2092/apply-controlled-existing-tool-mutation.mjs`, `tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs`, `tools/phase2096_2100/apply-controlled-triple-tool-mutation.mjs`, `tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs`, `tools/phase2111_2120/apply-controlled-quint-tool-mutation.mjs`, `tools/phase2121_2131/apply-controlled-sext-tool-mutation.mjs`, `tools/phase2132_2143/apply-controlled-sept-tool-mutation.mjs`, `tools/phase2144_2156/apply-controlled-oct-tool-mutation.mjs`, `tools/phase2157_2170/apply-controlled-nonet-tool-mutation.mjs`, `tools/phase2171_2185/apply-controlled-deca-tool-mutation.mjs`, `tools/phase2186_2201/apply-controlled-eleven-tool-mutation.mjs`, `tools/phase2202_2218/apply-controlled-twelve-tool-mutation.mjs`, `tools/phase2219_2236/apply-controlled-thirteen-tool-mutation.mjs`, `tools/phase2237_2255/apply-controlled-fourteen-tool-mutation.mjs`, `tools/phase2256_2275/apply-controlled-fifteen-tool-mutation.mjs`, `tools/phase2276_2296/apply-controlled-sixteen-tool-mutation.mjs`, `tools/phase2297_2318/apply-controlled-seventeen-tool-mutation.mjs`, `tools/phase2319_2341/apply-controlled-eighteen-tool-mutation.mjs`, and `tools/phase2342_2365/apply-controlled-nineteen-tool-mutation.mjs`, preserves earlier smoke markers, adds Phase2371/Phase2372/Phase2373/Phase2374/Phase2375/Phase2376/Phase2377/Phase2378/Phase2379/Phase2380/Phase2381/Phase2382/Phase2383/Phase2384/Phase2385/Phase2386/Phase2387/Phase2388/Phase2389/Phase2390 markers, runs `node --check`, runs local twenty smoke, writes rollback evidence, executes no Codex by this phase, calls no project Providers, keeps default `/chat` and `/chat-gateway/execute` unchanged, and performs no deploy/release/tag/artifact/push/commit.
+- Phase2391A-2416A Controlled Twenty-One Tool Mutation is active as the bounded real twenty-one-file existing tool-source mutation batch: after Phase632 preflight and Phase2366A-2390A seal, it reuses `tools/phase2101_2110/controlled-mutation-substrate.mjs`, validates exactly twenty-one low-risk unified diff proposals, checks expected pre-mutation SHA values, modifies only `tools/phase2091/generated-source-patch-target.mjs`, `tools/phase2092/apply-controlled-existing-tool-mutation.mjs`, `tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs`, `tools/phase2096_2100/apply-controlled-triple-tool-mutation.mjs`, `tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs`, `tools/phase2111_2120/apply-controlled-quint-tool-mutation.mjs`, `tools/phase2121_2131/apply-controlled-sext-tool-mutation.mjs`, `tools/phase2132_2143/apply-controlled-sept-tool-mutation.mjs`, `tools/phase2144_2156/apply-controlled-oct-tool-mutation.mjs`, `tools/phase2157_2170/apply-controlled-nonet-tool-mutation.mjs`, `tools/phase2171_2185/apply-controlled-deca-tool-mutation.mjs`, `tools/phase2186_2201/apply-controlled-eleven-tool-mutation.mjs`, `tools/phase2202_2218/apply-controlled-twelve-tool-mutation.mjs`, `tools/phase2219_2236/apply-controlled-thirteen-tool-mutation.mjs`, `tools/phase2237_2255/apply-controlled-fourteen-tool-mutation.mjs`, `tools/phase2256_2275/apply-controlled-fifteen-tool-mutation.mjs`, `tools/phase2276_2296/apply-controlled-sixteen-tool-mutation.mjs`, `tools/phase2297_2318/apply-controlled-seventeen-tool-mutation.mjs`, `tools/phase2319_2341/apply-controlled-eighteen-tool-mutation.mjs`, `tools/phase2342_2365/apply-controlled-nineteen-tool-mutation.mjs`, and `tools/phase2366_2390/apply-controlled-twenty-tool-mutation.mjs`, preserves earlier smoke markers, adds Phase2396/Phase2397/Phase2398/Phase2399/Phase2400/Phase2401/Phase2402/Phase2403/Phase2404/Phase2405/Phase2406/Phase2407/Phase2408/Phase2409/Phase2410/Phase2411/Phase2412/Phase2413/Phase2414/Phase2415/Phase2416 markers, runs `node --check`, runs local twenty-one smoke, writes rollback evidence, executes no Codex by this phase, calls no project Providers, keeps default `/chat` and `/chat-gateway/execute` unchanged, and performs no deploy/release/tag/artifact/push/commit.
+- Phase2417A-2443A Controlled Twenty-Two Tool Mutation is active as the bounded real twenty-two-file existing tool-source mutation batch: after Phase632 preflight and Phase2391A-2416A seal, it reuses `tools/phase2101_2110/controlled-mutation-substrate.mjs`, validates exactly twenty-two low-risk unified diff proposals, checks expected pre-mutation SHA values, modifies only `tools/phase2091/generated-source-patch-target.mjs`, `tools/phase2092/apply-controlled-existing-tool-mutation.mjs`, `tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs`, `tools/phase2096_2100/apply-controlled-triple-tool-mutation.mjs`, `tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs`, `tools/phase2111_2120/apply-controlled-quint-tool-mutation.mjs`, `tools/phase2121_2131/apply-controlled-sext-tool-mutation.mjs`, `tools/phase2132_2143/apply-controlled-sept-tool-mutation.mjs`, `tools/phase2144_2156/apply-controlled-oct-tool-mutation.mjs`, `tools/phase2157_2170/apply-controlled-nonet-tool-mutation.mjs`, `tools/phase2171_2185/apply-controlled-deca-tool-mutation.mjs`, `tools/phase2186_2201/apply-controlled-eleven-tool-mutation.mjs`, `tools/phase2202_2218/apply-controlled-twelve-tool-mutation.mjs`, `tools/phase2219_2236/apply-controlled-thirteen-tool-mutation.mjs`, `tools/phase2237_2255/apply-controlled-fourteen-tool-mutation.mjs`, `tools/phase2256_2275/apply-controlled-fifteen-tool-mutation.mjs`, `tools/phase2276_2296/apply-controlled-sixteen-tool-mutation.mjs`, `tools/phase2297_2318/apply-controlled-seventeen-tool-mutation.mjs`, `tools/phase2319_2341/apply-controlled-eighteen-tool-mutation.mjs`, `tools/phase2342_2365/apply-controlled-nineteen-tool-mutation.mjs`, `tools/phase2366_2390/apply-controlled-twenty-tool-mutation.mjs`, and `tools/phase2391_2416/apply-controlled-twenty-one-tool-mutation.mjs`, preserves earlier smoke markers, adds Phase2422/Phase2423/Phase2424/Phase2425/Phase2426/Phase2427/Phase2428/Phase2429/Phase2430/Phase2431/Phase2432/Phase2433/Phase2434/Phase2435/Phase2436/Phase2437/Phase2438/Phase2439/Phase2440/Phase2441/Phase2442/Phase2443 markers, runs `node --check`, runs local twenty-two smoke, writes rollback evidence, executes no Codex by this phase, calls no project Providers, keeps default `/chat` and `/chat-gateway/execute` unchanged, and performs no deploy/release/tag/artifact/push/commit.
+- Phase2444A-2471A Controlled Twenty-Three Tool Mutation is active as the bounded real twenty-three-file existing tool-source mutation batch: after Phase632 preflight and Phase2417A-2443A seal, it reuses `tools/phase2101_2110/controlled-mutation-substrate.mjs`, validates exactly twenty-three low-risk unified diff proposals, checks expected pre-mutation SHA values, modifies only `tools/phase2091/generated-source-patch-target.mjs`, `tools/phase2092/apply-controlled-existing-tool-mutation.mjs`, `tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs`, `tools/phase2096_2100/apply-controlled-triple-tool-mutation.mjs`, `tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs`, `tools/phase2111_2120/apply-controlled-quint-tool-mutation.mjs`, `tools/phase2121_2131/apply-controlled-sext-tool-mutation.mjs`, `tools/phase2132_2143/apply-controlled-sept-tool-mutation.mjs`, `tools/phase2144_2156/apply-controlled-oct-tool-mutation.mjs`, `tools/phase2157_2170/apply-controlled-nonet-tool-mutation.mjs`, `tools/phase2171_2185/apply-controlled-deca-tool-mutation.mjs`, `tools/phase2186_2201/apply-controlled-eleven-tool-mutation.mjs`, `tools/phase2202_2218/apply-controlled-twelve-tool-mutation.mjs`, `tools/phase2219_2236/apply-controlled-thirteen-tool-mutation.mjs`, `tools/phase2237_2255/apply-controlled-fourteen-tool-mutation.mjs`, `tools/phase2256_2275/apply-controlled-fifteen-tool-mutation.mjs`, `tools/phase2276_2296/apply-controlled-sixteen-tool-mutation.mjs`, `tools/phase2297_2318/apply-controlled-seventeen-tool-mutation.mjs`, `tools/phase2319_2341/apply-controlled-eighteen-tool-mutation.mjs`, `tools/phase2342_2365/apply-controlled-nineteen-tool-mutation.mjs`, `tools/phase2366_2390/apply-controlled-twenty-tool-mutation.mjs`, `tools/phase2391_2416/apply-controlled-twenty-one-tool-mutation.mjs`, and `tools/phase2417_2443/apply-controlled-twenty-two-tool-mutation.mjs`, preserves earlier smoke markers, adds Phase2449/Phase2450/Phase2451/Phase2452/Phase2453/Phase2454/Phase2455/Phase2456/Phase2457/Phase2458/Phase2459/Phase2460/Phase2461/Phase2462/Phase2463/Phase2464/Phase2465/Phase2466/Phase2467/Phase2468/Phase2469/Phase2470/Phase2471 markers, runs `node --check`, runs local twenty-three smoke, writes rollback evidence, executes no Codex by this phase, calls no project Providers, keeps default `/chat` and `/chat-gateway/execute` unchanged, and performs no deploy/release/tag/artifact/push/commit.
+- Phase2472A-2500A Controlled Twenty-Four Tool Mutation is active as the bounded real twenty-four-file existing tool-source mutation batch: after Phase632 preflight and Phase2444A-2471A seal, it reuses `tools/phase2101_2110/controlled-mutation-substrate.mjs`, validates exactly twenty-four low-risk unified diff proposals, checks expected pre-mutation SHA values, modifies only the approved controlled mutation tool files from `tools/phase2091/` through `tools/phase2444_2471/`, preserves earlier smoke markers, adds Phase2477 through Phase2500 markers, runs `node --check`, runs local twenty-four smoke, writes rollback evidence, executes no Codex by this phase, calls no project Providers, keeps default `/chat` and `/chat-gateway/execute` unchanged, and performs no deploy/release/tag/artifact/push/commit.
+- Phase2501A-2530A Controlled Twenty-Five Tool Mutation is active as the bounded real twenty-five-file existing tool-source mutation batch: after Phase632 preflight and Phase2472A-2500A seal, it reuses `tools/phase2101_2110/controlled-mutation-substrate.mjs`, validates exactly twenty-five low-risk unified diff proposals, checks expected pre-mutation SHA values, modifies only the approved controlled mutation tool files from `tools/phase2091/` through `tools/phase2472_2500/`, preserves earlier smoke markers, adds Phase2506 through Phase2530 markers, runs `node --check`, runs local twenty-five smoke, writes rollback evidence, executes no Codex by this phase, calls no project Providers, keeps default `/chat` and `/chat-gateway/execute` unchanged, and performs no deploy/release/tag/artifact/push/commit.
+- Phase2531A-2561A Controlled Twenty-Six Tool Mutation is active as the bounded real twenty-six-file existing tool-source mutation batch: after Phase632 preflight and Phase2501A-2530A seal, it reuses `tools/phase2101_2110/controlled-mutation-substrate.mjs`, validates exactly twenty-six low-risk unified diff proposals, checks expected pre-mutation SHA values, modifies only the approved controlled mutation tool files from `tools/phase2091/` through `tools/phase2501_2530/`, preserves earlier smoke markers, adds Phase2536 through Phase2561 markers, runs `node --check`, runs local twenty-six smoke, writes rollback evidence, executes no Codex by this phase, calls no project Providers, keeps default `/chat` and `/chat-gateway/execute` unchanged, and performs no deploy/release/tag/artifact/push/commit.
+- Phase2562A-2593A Controlled Twenty-Seven Tool Mutation is active as the bounded real twenty-seven-file existing tool-source mutation batch: after Phase632 preflight and Phase2531A-2561A seal, it reuses `tools/phase2101_2110/controlled-mutation-substrate.mjs`, validates exactly twenty-seven low-risk unified diff proposals, checks expected pre-mutation SHA values, modifies only the approved controlled mutation tool files from `tools/phase2091/` through `tools/phase2531_2561/`, preserves earlier smoke markers, adds Phase2567 through Phase2593 markers, runs `node --check`, runs local twenty-seven smoke, writes rollback evidence, executes no Codex by this phase, calls no project Providers, keeps default `/chat` and `/chat-gateway/execute` unchanged, and performs no deploy/release/tag/artifact/push/commit.
+- Phase2594A-2626A Controlled Twenty-Eight Tool Mutation is active as the bounded real twenty-eight-file existing tool-source mutation batch: after Phase632 preflight and Phase2562A-2593A seal, it reuses `tools/phase2101_2110/controlled-mutation-substrate.mjs`, validates exactly twenty-eight low-risk unified diff proposals, checks expected pre-mutation SHA values, modifies only the approved controlled mutation tool files from `tools/phase2091/` through `tools/phase2562_2593/`, preserves earlier smoke markers, adds Phase2599 through Phase2626 markers, runs `node --check`, runs local twenty-eight smoke, writes rollback evidence, executes no Codex by this phase, calls no project Providers, keeps default `/chat` and `/chat-gateway/execute` unchanged, and performs no deploy/release/tag/artifact/push/commit.
+- Phase2627A-2660A Controlled Twenty-Nine Tool Mutation is active as the bounded real twenty-nine-file existing tool-source mutation batch: after Phase632 preflight and Phase2594A-2626A seal, it reuses `tools/phase2101_2110/controlled-mutation-substrate.mjs`, validates exactly twenty-nine low-risk unified diff proposals, checks expected pre-mutation SHA values, modifies only the approved controlled mutation tool files from `tools/phase2091/` through `tools/phase2594_2626/`, preserves earlier smoke markers, adds Phase2632 through Phase2660 markers, runs `node --check`, runs local twenty-nine smoke, writes rollback evidence, executes no Codex by this phase, calls no project Providers, keeps default `/chat` and `/chat-gateway/execute` unchanged, and performs no deploy/release/tag/artifact/push/commit.
+- Phase2661A-2695A Controlled Thirty Tool Mutation is active as the bounded real thirty-file existing tool-source mutation batch: after Phase632 preflight and Phase2627A-2660A seal, it reuses `tools/phase2101_2110/controlled-mutation-substrate.mjs`, validates exactly thirty low-risk unified diff proposals, checks expected pre-mutation SHA values, modifies only the approved controlled mutation tool files from `tools/phase2091/` through `tools/phase2627_2660/`, preserves earlier smoke markers, adds Phase2666 through Phase2695 markers, runs `node --check`, runs local thirty smoke, writes rollback evidence, executes no Codex by this phase, calls no project Providers, keeps default `/chat` and `/chat-gateway/execute` unchanged, and performs no deploy/release/tag/artifact/push/commit.
+- Phase2696A-2731A Controlled Thirty-One Tool Mutation is active as the bounded real thirty-one-file existing tool-source mutation batch: after Phase632 preflight and Phase2661A-2695A seal, it reuses `tools/phase2101_2110/controlled-mutation-substrate.mjs`, validates exactly thirty-one low-risk unified diff proposals, checks expected pre-mutation SHA values, modifies only the approved controlled mutation tool files from `tools/phase2091/` through `tools/phase2661_2695/`, preserves earlier smoke markers, adds Phase2701 through Phase2731 markers, runs `node --check`, runs local thirty-one smoke, writes rollback evidence, executes no Codex by this phase, calls no project Providers, keeps default `/chat` and `/chat-gateway/execute` unchanged, and performs no deploy/release/tag/artifact/push/commit.
+- Phase2732A-2768A Controlled Thirty-Two Tool Mutation is active as the bounded real thirty-two-file existing tool-source mutation batch: after Phase632 preflight and Phase2696A-2731A seal, it reuses `tools/phase2101_2110/controlled-mutation-substrate.mjs`, validates exactly thirty-two low-risk unified diff proposals, checks expected pre-mutation SHA values, modifies only the approved controlled mutation tool files from `tools/phase2091/` through `tools/phase2696_2731/`, preserves earlier smoke markers, adds Phase2737 through Phase2768 markers, runs `node --check`, runs local thirty-two smoke, writes rollback evidence, executes no Codex by this phase, calls no project Providers, keeps default `/chat` and `/chat-gateway/execute` unchanged, and performs no deploy/release/tag/artifact/push/commit.
+- Phase2769A-2806A Controlled Thirty-Three Tool Mutation is active as the bounded real thirty-three-file existing tool-source mutation batch: after Phase632 preflight and Phase2732A-2768A seal, it reuses `tools/phase2101_2110/controlled-mutation-substrate.mjs`, validates exactly thirty-three low-risk unified diff proposals, checks expected pre-mutation SHA values, modifies only the approved controlled mutation tool files from `tools/phase2091/` through `tools/phase2732_2768/`, preserves earlier smoke markers, adds Phase2774 through Phase2806 markers, runs `node --check`, runs local thirty-three smoke, writes rollback evidence, executes no Codex by this phase, calls no project Providers, keeps default `/chat` and `/chat-gateway/execute` unchanged, and performs no deploy/release/tag/artifact/push/commit.
+- Phase2807A-2845A Controlled Thirty-Four Tool Mutation is active as the bounded real thirty-four-file existing tool-source mutation batch: after Phase632 preflight and Phase2769A-2806A seal, it reuses `tools/phase2101_2110/controlled-mutation-substrate.mjs`, validates exactly thirty-four low-risk unified diff proposals, checks expected pre-mutation SHA values, modifies only the approved controlled mutation tool files from `tools/phase2091/` through `tools/phase2769_2806/`, preserves earlier smoke markers, adds Phase2812 through Phase2845 markers, runs `node --check`, runs local thirty-four smoke, writes rollback evidence, executes no Codex by this phase, calls no project Providers, keeps default `/chat` and `/chat-gateway/execute` unchanged, and performs no deploy/release/tag/artifact/push/commit.
+- Phase2846A-2885A Controlled Thirty-Five Tool Mutation is active as the bounded real thirty-five-file existing tool-source mutation batch: after Phase632 preflight and Phase2807A-2845A seal, it reuses `tools/phase2101_2110/controlled-mutation-substrate.mjs`, validates exactly thirty-five low-risk unified diff proposals, checks expected pre-mutation SHA values, modifies only the approved controlled mutation tool files from `tools/phase2091/` through `tools/phase2807_2845/`, preserves earlier smoke markers, adds Phase2851 through Phase2885 markers, runs `node --check`, runs local thirty-five smoke, writes rollback evidence, executes no Codex by this phase, calls no project Providers, keeps default `/chat` and `/chat-gateway/execute` unchanged, and performs no deploy/release/tag/artifact/push/commit.
+- Phase2886A-2926A Controlled Thirty-Six Tool Mutation is active as the bounded real thirty-six-file existing tool-source mutation batch: after Phase632 preflight and Phase2846A-2885A seal, it reuses `tools/phase2101_2110/controlled-mutation-substrate.mjs`, validates exactly thirty-six low-risk unified diff proposals, checks expected pre-mutation SHA values, modifies only the approved controlled mutation tool files from `tools/phase2091/` through `tools/phase2846_2885/`, preserves earlier smoke markers, adds Phase2891 through Phase2926 markers, runs `node --check`, runs local thirty-six smoke, writes rollback evidence, executes no Codex by this phase, calls no project Providers, keeps default `/chat` and `/chat-gateway/execute` unchanged, and performs no deploy/release/tag/artifact/push/commit.
+- Phase2927A-2968A Controlled Thirty-Seven Tool Mutation is active as the bounded real thirty-seven-file existing tool-source mutation batch: after Phase632 preflight and Phase2886A-2926A seal, it reuses `tools/phase2101_2110/controlled-mutation-substrate.mjs`, validates exactly thirty-seven low-risk unified diff proposals, checks expected pre-mutation SHA values, modifies only the approved controlled mutation tool files from `tools/phase2091/` through `tools/phase2886_2926/`, preserves earlier smoke markers, adds Phase2932 through Phase2968 markers, runs `node --check`, runs local thirty-seven smoke, writes rollback evidence, executes no Codex by this phase, calls no project Providers, keeps default `/chat` and `/chat-gateway/execute` unchanged, and performs no deploy/release/tag/artifact/push/commit.
+- Phase2969A-3011A Controlled Thirty-Eight Tool Mutation is active as the bounded real thirty-eight-file existing tool-source mutation batch: after Phase632 preflight and Phase2927A-2968A seal, it reuses `tools/phase2101_2110/controlled-mutation-substrate.mjs`, validates exactly thirty-eight low-risk unified diff proposals, checks expected pre-mutation SHA values, modifies only the approved controlled mutation tool files from `tools/phase2091/` through `tools/phase2927_2968/`, preserves earlier smoke markers, adds Phase2974 through Phase3011 markers, runs `node --check`, runs local thirty-eight smoke, writes rollback evidence, executes no Codex by this phase, calls no project Providers, keeps default `/chat` and `/chat-gateway/execute` unchanged, and performs no deploy/release/tag/artifact/push/commit.
+- Phase3012A-3055A Controlled Thirty-Nine Tool Mutation is active as the bounded real thirty-nine-file existing tool-source mutation batch: after Phase632 preflight and Phase2969A-3011A seal, it reuses `tools/phase2101_2110/controlled-mutation-substrate.mjs`, validates exactly thirty-nine low-risk unified diff proposals, checks expected pre-mutation SHA values, modifies only the approved controlled mutation tool files from `tools/phase2091/` through `tools/phase2969_3011/`, preserves earlier smoke markers, adds Phase3017 through Phase3055 markers, runs `node --check`, runs local thirty-nine smoke, writes rollback evidence, executes no Codex by this phase, calls no project Providers, keeps default `/chat` and `/chat-gateway/execute` unchanged, and performs no deploy/release/tag/artifact/push/commit.
+- Phase3056A-3100A Controlled Forty Tool Mutation is active as the bounded real forty-file existing tool-source mutation batch: after Phase632 preflight and Phase3012A-3055A seal, it reuses `tools/phase2101_2110/controlled-mutation-substrate.mjs`, validates exactly forty low-risk unified diff proposals, checks expected pre-mutation SHA values, modifies only the approved controlled mutation tool files from `tools/phase2091/` through `tools/phase3012_3055/`, preserves earlier smoke markers, adds Phase3061 through Phase3100 markers, runs `node --check`, runs local forty smoke, writes rollback evidence, executes no Codex by this phase, calls no project Providers, keeps default `/chat` and `/chat-gateway/execute` unchanged, and performs no deploy/release/tag/artifact/push/commit.
+- Phase3101A-3146A Controlled Forty-One Tool Mutation is active as the bounded real forty-one-file existing tool-source mutation batch: after Phase632 preflight and Phase3056A-3100A seal, it reuses `tools/phase2101_2110/controlled-mutation-substrate.mjs`, validates exactly forty-one low-risk unified diff proposals, checks expected pre-mutation SHA values, modifies only the approved controlled mutation tool files from `tools/phase2091/` through `tools/phase3056_3100/`, preserves earlier smoke markers, adds Phase3106 through Phase3146 markers, runs `node --check`, runs local forty-one smoke, writes rollback evidence, executes no Codex by this phase, calls no project Providers, keeps default `/chat` and `/chat-gateway/execute` unchanged, and performs no deploy/release/tag/artifact/push/commit.
+- Phase3147A-3193A Controlled Forty-Two Tool Mutation is active as the bounded real forty-two-file existing tool-source mutation batch: after Phase632 preflight and Phase3101A-3146A seal, it reuses `tools/phase2101_2110/controlled-mutation-substrate.mjs`, validates exactly forty-two low-risk unified diff proposals, checks expected pre-mutation SHA values, modifies only the approved controlled mutation tool files from `tools/phase2091/` through `tools/phase3101_3146/`, preserves earlier smoke markers, adds Phase3152 through Phase3193 markers, runs `node --check`, runs local forty-two smoke, writes rollback evidence, accepts idempotent reapply with zero new writes, executes no Codex by this phase, calls no project Providers, keeps default `/chat` and `/chat-gateway/execute` unchanged, and performs no deploy/release/tag/artifact/push/commit.
+- Phase3194A-3241A Controlled Forty-Three Tool Mutation is active as the bounded real forty-three-file existing tool-source mutation batch: after Phase632 preflight and Phase3147A-3193A seal, it reuses `tools/phase2101_2110/controlled-mutation-substrate.mjs`, validates exactly forty-three low-risk unified diff proposals, checks expected pre-mutation SHA values, modifies only the approved controlled mutation tool files from `tools/phase2091/` through `tools/phase3147_3193/`, preserves earlier smoke markers, adds Phase3199 through Phase3241 markers, runs `node --check`, runs local forty-three smoke, writes rollback evidence, accepts idempotent reapply with zero new writes, executes no Codex by this phase, calls no project Providers, keeps default `/chat` and `/chat-gateway/execute` unchanged, and performs no deploy/release/tag/artifact/push/commit.
+- Phase3242A-3290A Controlled Forty-Four Tool Mutation is active as the bounded real forty-four-file existing tool-source mutation batch: after Phase632 preflight and Phase3194A-3241A seal, it reuses `tools/phase2101_2110/controlled-mutation-substrate.mjs`, validates exactly forty-four low-risk unified diff proposals, checks expected pre-mutation SHA values, modifies only the approved controlled mutation tool files from `tools/phase2091/` through `tools/phase3194_3241/`, preserves earlier smoke markers, adds Phase3247 through Phase3290 markers, runs `node --check`, runs local forty-four smoke, writes rollback evidence, accepts idempotent reapply with zero new writes, executes no Codex by this phase, calls no project Providers, keeps default `/chat` and `/chat-gateway/execute` unchanged, and performs no deploy/release/tag/artifact/push/commit.
+- Phase3291A-3340A Controlled Forty-Five Tool Mutation is active as the bounded real forty-five-file existing tool-source mutation batch: after Phase632 preflight and Phase3242A-3290A seal, it reuses `tools/phase2101_2110/controlled-mutation-substrate.mjs`, validates exactly forty-five low-risk unified diff proposals, checks expected pre-mutation SHA values, modifies only the approved controlled mutation tool files from `tools/phase2091/` through `tools/phase3242_3290/`, preserves earlier smoke markers, adds Phase3296 through Phase3340 markers, runs `node --check`, runs local forty-five smoke, writes rollback evidence, accepts idempotent reapply with zero new writes, executes no Codex by this phase, calls no project Providers, keeps default `/chat` and `/chat-gateway/execute` unchanged, and performs no deploy/release/tag/artifact/push/commit.
+- Phase3341A-3391A Controlled Forty-Six Tool Mutation is active as the bounded real forty-six-file existing tool-source mutation batch: after Phase632 preflight and Phase3291A-3340A seal, it reuses `tools/phase2101_2110/controlled-mutation-substrate.mjs`, validates exactly forty-six low-risk unified diff proposals, checks expected pre-mutation SHA values, modifies only the approved controlled mutation tool files from `tools/phase2091/` through `tools/phase3291_3340/`, preserves earlier smoke markers, adds Phase3346 through Phase3391 markers, runs `node --check`, runs local forty-six smoke through a short Windows-safe smoke runner, writes rollback evidence, accepts idempotent reapply with zero new writes, executes no Codex by this phase, calls no project Providers, keeps default `/chat` and `/chat-gateway/execute` unchanged, and performs no deploy/release/tag/artifact/push/commit.
+- Phase3392A-3443A Controlled Forty-Seven Tool Mutation is active as the bounded real forty-seven-file existing tool-source mutation batch: after Phase632 preflight and Phase3341A-3391A seal, it reuses `tools/phase2101_2110/controlled-mutation-substrate.mjs`, validates exactly forty-seven low-risk unified diff proposals, checks expected pre-mutation SHA values, modifies only the approved controlled mutation tool files from `tools/phase2091/` through `tools/phase3341_3391/`, preserves earlier smoke markers, adds Phase3397 through Phase3443 markers, runs `node --check`, runs local forty-seven smoke through a short Windows-safe smoke runner, writes rollback evidence, accepts idempotent reapply with zero new writes, executes no Codex by this phase, calls no project Providers, keeps default `/chat` and `/chat-gateway/execute` unchanged, and performs no deploy/release/tag/artifact/push/commit.
+- Phase3444A-3496A Controlled Forty-Eight Tool Mutation is active as the bounded real forty-eight-file existing tool-source mutation batch: after Phase632 preflight and Phase3392A-3443A seal, it reuses `tools/phase2101_2110/controlled-mutation-substrate.mjs`, validates exactly forty-eight low-risk unified diff proposals, checks expected pre-mutation SHA values, modifies only the approved controlled mutation tool files from `tools/phase2091/` through `tools/phase3392_3443/`, preserves earlier smoke markers, adds Phase3449 through Phase3496 markers, runs `node --check`, runs local forty-eight smoke through a short Windows-safe smoke runner, writes rollback evidence, accepts idempotent reapply with zero new writes, executes no Codex by this phase, calls no project Providers, keeps default `/chat` and `/chat-gateway/execute` unchanged, and performs no deploy/release/tag/artifact/push/commit.
+- Phase3497A-3550A Controlled Forty-Nine Tool Mutation is active as the bounded real forty-nine-file existing tool-source mutation batch: after Phase632 preflight and Phase3444A-3496A seal, it reuses `tools/phase2101_2110/controlled-mutation-substrate.mjs`, validates exactly forty-nine low-risk unified diff proposals, checks expected pre-mutation SHA values, modifies only the approved controlled mutation tool files from `tools/phase2091/` through `tools/phase3444_3496/`, preserves earlier smoke markers, adds Phase3502 through Phase3550 markers, runs `node --check`, runs local forty-nine smoke through a short Windows-safe smoke runner, writes rollback evidence, accepts idempotent reapply with zero new writes, executes no Codex by this phase, calls no project Providers, keeps default `/chat` and `/chat-gateway/execute` unchanged, and performs no deploy/release/tag/artifact/push/commit.
+- Phase3551A-3605A Controlled Fifty Tool Mutation is active as the bounded real fifty-file existing tool-source mutation batch: after Phase632 preflight and Phase3497A-3550A seal, it reuses `tools/phase2101_2110/controlled-mutation-substrate.mjs`, validates exactly fifty low-risk unified diff proposals, checks expected pre-mutation SHA values, modifies only the approved controlled mutation tool files from `tools/phase2091/` through `tools/phase3497_3550/`, preserves earlier smoke markers, adds Phase3556 through Phase3605 markers, runs `node --check`, runs local fifty smoke through a short Windows-safe smoke runner, writes rollback evidence, accepts idempotent reapply with zero new writes, executes no Codex by this phase, calls no project Providers, keeps default `/chat` and `/chat-gateway/execute` unchanged, and performs no deploy/release/tag/artifact/push/commit.
+- Phase3606A-3661A Controlled Fifty-One Tool Mutation is active as the bounded real fifty-one-file existing tool-source mutation batch: after Phase632 preflight and Phase3551A-3605A seal, it reuses `tools/phase2101_2110/controlled-mutation-substrate.mjs`, validates exactly fifty-one low-risk unified diff proposals, checks expected pre-mutation SHA values, modifies only the approved controlled mutation tool files from `tools/phase2091/` through `tools/phase3551_3605/`, preserves earlier smoke markers, adds Phase3611 through Phase3661 markers, runs `node --check`, runs local fifty-one smoke through a short Windows-safe smoke runner, writes rollback evidence, accepts idempotent reapply with zero new writes, executes no Codex by this phase, calls no project Providers, keeps default `/chat` and `/chat-gateway/execute` unchanged, and performs no deploy/release/tag/artifact/push/commit.
+- Phase3662A-3718A Controlled Fifty-Two Tool Mutation is active as the bounded real fifty-two-file existing tool-source mutation batch: after Phase632 preflight and Phase3606A-3661A seal, it reuses `tools/phase2101_2110/controlled-mutation-substrate.mjs`, validates exactly fifty-two low-risk unified diff proposals, checks expected pre-mutation SHA values, modifies only the approved controlled mutation tool files from `tools/phase2091/` through `tools/phase3606_3661/`, preserves earlier smoke markers, adds Phase3667 through Phase3718 markers, runs `node --check`, runs local fifty-two smoke through a short Windows-safe smoke runner, writes rollback evidence, accepts idempotent reapply with zero new writes, executes no Codex by this phase, calls no project Providers, keeps default `/chat` and `/chat-gateway/execute` unchanged, and performs no deploy/release/tag/artifact/push/commit.
+- Phase3719A-3776A Controlled Fifty-Three Tool Mutation is active as the bounded real fifty-three-file existing tool-source mutation batch: after Phase632 preflight and Phase3662A-3718A seal, it reuses `tools/phase2101_2110/controlled-mutation-substrate.mjs`, validates exactly fifty-three low-risk unified diff proposals, checks expected pre-mutation SHA values, modifies only the approved controlled mutation tool files from `tools/phase2091/` through `tools/phase3662_3718/`, preserves earlier smoke markers, adds Phase3724 through Phase3776 markers, runs `node --check`, runs local fifty-three smoke through a short Windows-safe smoke runner, writes rollback evidence, accepts idempotent reapply with zero new writes, executes no Codex by this phase, calls no project Providers, keeps default `/chat` and `/chat-gateway/execute` unchanged, and performs no deploy/release/tag/artifact/push/commit.
+- Phase3777A-3835A Controlled Fifty-Four Tool Mutation is active as the bounded real fifty-four-file existing tool-source mutation batch: after Phase632 preflight and Phase3719A-3776A seal, it reuses `tools/phase2101_2110/controlled-mutation-substrate.mjs`, validates exactly fifty-four low-risk unified diff proposals, checks expected pre-mutation SHA values, modifies only the approved controlled mutation tool files from `tools/phase2091/` through `tools/phase3719_3776/`, preserves earlier smoke markers, adds Phase3782 through Phase3835 markers, runs `node --check`, runs local fifty-four smoke through a short Windows-safe smoke runner, writes rollback evidence, accepts idempotent reapply with zero new writes, executes no Codex by this phase, calls no project Providers, keeps default `/chat` and `/chat-gateway/execute` unchanged, and performs no deploy/release/tag/artifact/push/commit.
+- Phase3836A-3895A Controlled Fifty-Five Tool Mutation is active as the bounded real fifty-five-file existing tool-source mutation batch: after Phase632 preflight and Phase3777A-3835A seal, it reuses `tools/phase2101_2110/controlled-mutation-substrate.mjs`, validates exactly fifty-five low-risk unified diff proposals, checks expected pre-mutation SHA values, modifies only the approved controlled mutation tool files from `tools/phase2091/` through `tools/phase3777_3835/`, preserves earlier smoke markers, adds Phase3841 through Phase3895 markers, runs `node --check`, runs local fifty-five smoke through a short Windows-safe smoke runner, writes rollback evidence, accepts idempotent reapply with zero new writes, executes no Codex by this phase, calls no project Providers, keeps default `/chat` and `/chat-gateway/execute` unchanged, and performs no deploy/release/tag/artifact/push/commit.
+- Phase3896A-3956A Controlled Fifty-Six Tool Mutation is active as the bounded real fifty-six-file existing tool-source mutation batch: after Phase632 preflight and Phase3836A-3895A seal, it reuses `tools/phase2101_2110/controlled-mutation-substrate.mjs`, validates exactly fifty-six low-risk unified diff proposals, checks expected pre-mutation SHA values, modifies only the approved controlled mutation tool files from `tools/phase2091/` through `tools/phase3836_3895/`, preserves earlier smoke markers, adds Phase3901 through Phase3956 markers, runs `node --check`, runs local fifty-six smoke through a short Windows-safe smoke runner, writes rollback evidence, accepts idempotent reapply with zero new writes, executes no Codex by this phase, calls no project Providers, keeps default `/chat` and `/chat-gateway/execute` unchanged, and performs no deploy/release/tag/artifact/push/commit.
+- Phase3957A Controlled Mutation Expansion Hard Stop is sealed as the governance stop for the controlled mutation file-count line: Phase3896A-3956A remains valid evidence for exactly 56 files, controlled mutation expansion is capped at 56 files, Phase3957A-4017A controlled fifty-seven tool mutation is blocked by default, further file-count expansion requires Product Work Value Gate approval, and low-risk phase expansion must not be selected while Product Work Mode, Product Reality, Owner Daily Use, or Self Evolution Governance blockers remain unresolved.
+- Phase3958A Product Reality Baseline Compression is sealed as the current product-reality compression: it does not expand controlled mutation beyond the 56-file cap, does not add a 57th mutation target, does not add Phase3958-4018 tool-source markers, calls no Providers, reads no secrets, changes no `/chat` or `/chat-gateway/execute`, and separates evidence-backed real capabilities from dry-run/mock/template/governance artifacts while proposing at most 10 Product Work Mode next phases.
+- Phase651-666 Taiji / Beidou Engine Self-Use Foundation is complete as a dry-run self-use kernel: natural-language capability intake, capability neuron manifest schema, immune classifier, scaffold/dry-run/verifier/evidence/rollback generation, registry preview, synapse graph preview, homeostasis policy, built-in Context Codec and Codex Context neurons, God/Tianshu draft neurons, Mission Control read-only Beidou panel, and Codex long-task token-saving subgateway runner are available; productionReady=false, runtime auto-enable=false, maxSpawnDepth=1, Phase632 preflight remains mandatory, no Provider call, no secret/auth.json/raw base_url, no Codex config/base_url write, no `/chat` or `/chat-gateway/execute` behavior change, no deploy/release/tag/artifact/push/commit.
+- Phase1451-1475 Real Local Dogfooding Intake + Issue Repair Closure starts owner-ledger intake and issue repair closure: owner daily/weekly ledgers count only when actually filled, missing owner records keep blocker=real_owner_dogfooding_records_missing, P0/P1 remain gated, P2/P3 may only touch docs/read-only UI polish, no Provider call, no secret/auth.json/raw CredentialRef read, no `/chat` or `/chat-gateway/execute` change, no deploy/release/tag/artifact/push/commit, and no production/public-launch claim.
+- Phase1476 Concept Field Kernel is sealed as a synthetic concept-field sub-kernel experiment under Taiji / Beidou Engine: it adds critical audit docs, a contract, synthetic vectors, dry-run scoring, benchmark scaffold, evidence, and verifier while syntheticDryRunOnly=true, realSemanticValidationClaimed=false, providerCallsMade=false, no GloVe or external dataset download, no `/chat` or `/chat-gateway/execute` change, no deploy/release/tag/artifact/push/commit, and no AGI or trillion-model-surpass claim.
+- Phase1476-1600 Local Self-Use Route A Master Control is sealed as routeChoice=local_self_use_only across five AIO rounds: Phase1476-1485AIO, Phase1486-1505AIO, Phase1506-1530AIO, Phase1531-1560AIO, and Phase1561-1600AIO. It is local automation/evidence control only, providerCallsMade=false, manualHumanTestClaimed=false, productionReadyClaimed=false, no `/chat` or `/chat-gateway/execute` change, no deploy/release/tag/artifact/push/commit, and no AGI/LLM-replacement/trillion-model-surpass claim.
+- Phase1561-1600 Local Self-Use Candidate Finalization is sealed as local self-use candidate closure: startup guide, health check, emergency disable, backup/restore, evidence retention, troubleshooting, upgrade/rollback, final operator handoff, candidate decision packet, and final seal evidence are ready; publicProductionClaimed=false, publicProductionDeploy=false, commercialBilling=false, multiTenantIsolation=false, publicUserAccountSystem=false, externalSLA=false, publicMarketingClaim=false, and no production-ready or public-launch claim is allowed.
+- Phase1601-1620 Global Bug Intake + Stabilization Repair Loop is sealed as local self-use stabilization: bug inventory, severity classifier, P0 secret/safety/deploy audit, runtime route audit, Mission Control availability audit, P2/P3 ledgers, regression matrix, browser walkthrough evidence, and stable-candidate seal are ready while unresolvedP0Count=0, unresolvedP1Count=0, Provider calls=false, `/chat` unchanged, `/chat-gateway/execute` unchanged, deploy/release/tag/artifact/push/commit=false, and productionReadyClaimed=false.
+- Phase1506-1530 Local Dogfooding Framework + Evidence Loop is sealed as a framework-only local self-use evidence loop: owner daily ledger schema, weekly review template, manual note template, automated task intake, token-saving counter, failure/friction ledgers, issue classifier, repair queue, automated browser screenshot recheck, regression matrix, known limits, and seal evidence are ready while dogfoodingCompleted=false, ownerManualFeedback=false unless owner provided manual note, and automated evidence is not human feedback.
+- Phase1531-1560 Guarded Real Provider Local Self-Use Test Gate is sealed as provider-gate-ready while realProviderTestCompleted=false: it generates an approval packet, CredentialRef/budget/rate/retry gate checks, gated NVIDIA test evidence, failure recovery taxonomy, emergency disable, trace redaction, latency/cost ledgers, and known limits; because providerRef and credentialRef are not explicitly configured in repo evidence, providerCallsMade=false and blocker=provider_gate_not_satisfied for real provider execution.
+- Phase1781-1800 Owner Zero-Learning Mode is sealed as a local desktop one-click operator: root CMD/PowerShell launchers run a local-only service/browser check, click the boss-mode check button automatically, generate/open a Chinese owner daily report, and write local evidence while ownerWebOperationRequired=false, providerCallsMade=false, `/chat` unchanged, `/chat-gateway/execute` unchanged, deploy/release/tag/artifact/push/commit=false, productionReadyClaimed=false, and automation is not counted as human feedback.
+- Phase1801-1820 Owner UI Design Polish is sealed as awesome-design-assisted local owner UI polish: public design-system repos were used as reference-only inspiration, PME-owned owner tokens/components/report styling were added, no external code/brand assets/fonts/CDNs/images were copied or loaded, Provider calls=false, `/chat` unchanged, `/chat-gateway/execute` unchanged, deploy/release/tag/artifact/push/commit=false, and productionReadyClaimed=false.
+- Phase1821-1840 Codex Design Knowledge Pack is sealed as local UI rewrite discipline: future Codex owner-facing UI edits must read `docs/design/codex-design-knowledge/`, Owner Home must not regress into an engineering backend, owner-facing pages must not become a button wall, and Phase / evidence / trace / raw provider details remain default-hidden in Advanced Mode.
+- Phase1881A Legacy Automation Capability Read-Only Audit is sealed as legacy-only audit evidence: legacy automation exists as browser/desktop/file/shell/agent/dry-run patterns, but it is not current Owner OS or Owner Automation Kernel runtime capability; reuse must be by gated reimplementation, no legacy script execution, no Provider call, no secret read, no `/chat` or `/chat-gateway/execute` change, no deploy/release/tag/artifact/push/commit.
+- Phase1889A-1901A Owner Automation Action Registry and Command Palette v1 are sealed as read-only local Owner OS capability display plus real `/ui` browser visual smoke, final seal bundle, and dry-run preview drawer polish: exactly one action, `create_desktop_spreadsheet`, is registered and shown as `帮我在桌面建一个表格`; dry-run preview drawer hierarchy, evidence references, approval-required state, safety copy, evidence drawer, screenshot, DOM evidence, Phase1900 seal evidence, and Phase1901 preview polish evidence are verified, while real desktop creation, batch file actions, desktop scan/read, Provider calls, `/chat`, and `/chat-gateway/execute` remain blocked.
+- Phase633A Token Saving Preflight Wrapper is sealed as a reusable local dry-run preflight command: it checks `.codex-context/current-context-pack.md`, `.codex-context/relevant-files.json`, `.codex-context/context-freshness-report.json`, `stale=false`, token budget, output budget, relevant file hard limit, and full repo scan prohibition before future Codex task execution.
+- Phase606R Open Source Minimum Readiness Lock is sealed as a clone/read/dry-run-demo readiness lock: another operator can read the guidance and run local dry-run checks without a real Provider, deployment, release, tag, artifact upload, persistent Codex config write, `/chat` change, `/chat-gateway/execute` change, secret read, or workspace-clean claim.
+- Phase607R-AutoScale through Phase610R Public Readiness Acceleration is sealed as public-preflight acceleration: safe runner autoscale executed low/medium-safe local tasks, high-risk tasks generated gate evidence only, dry-run demo docs were packaged, and release blockers were reviewed with releaseCandidateReady=false while P0 license/security blockers remain.
+
+### Current `/ui` entry points
+
+- Mission Control sample dry-run entry
+- Phase641R-Nightly registration result intake preview
+- Phase640R-ExternalTool external Codex relay tool preview
+- Phase641R-645R External Tool Productization Bundle preview
+- Phase646R-650R External Tool Daily Workflow Dashboard preview
+- Phase2087A bounded real local operation bridge evidence
+- Phase2088A bounded real Codex prompt evidence
+- Phase2089A bounded real Codex patch proposal evidence
+- Phase2090A bounded real docs-only patch apply evidence
+- Phase2091A bounded real source patch apply evidence
+- Phase2092A bounded real existing source mutation evidence
+- Phase2093-2095 bounded real batch tool mutation evidence
+- Phase2096-2100 bounded real triple tool mutation evidence
+- Phase651-666 Taiji / Beidou Engine read-only self-use panel
+- Phase1451-1475 Real Local Dogfooding Intake read-only panel
+- Phase1476 synthetic concept-field sub-kernel evidence only
+- Phase1476-1600 Route A local self-use master-control evidence only
+- Phase1601-1620 global bug intake and stabilization evidence only; no production-ready claim
+- Phase1506-1530 local dogfooding framework evidence only; no owner dogfooding completion claim
+- Phase1531-1560 provider gate evidence only; real provider tests remain gated/skipped until explicit providerRef and credentialRef approval
+- Phase1781-1800 zero-learning desktop one-click operator evidence only; no Provider call and no production-ready claim
+- Phase1801-1820 owner UI design polish evidence only; reference-only design inspiration, no external asset import, no Provider call, and no production-ready claim
+- Phase1821-1840 UI design knowledge discipline only; read `docs/design/codex-design-knowledge/` before owner-facing UI changes; no owner satisfaction claim and no production-ready claim
+- Phase1889A-1901A owner automation command palette read-only display, visual smoke, seal bundle, and dry-run preview drawer polish; shows only the registered create_desktop_spreadsheet command with dry-run preview and approval-required state
+- Workforce Expert System preview and product UI
+- Model configuration and provider status
+- Approval tasks
+- File context registration
+- Diagnostics center
+
+### Current Workforce capabilities
+
+- Source-backed position seeds and official import plan exist; no complete-world-job claim is made.
+- Virtual employee catalog and L0-L6 pyramid policy exist for dry-run scheduling.
+- Scheduler enforces fanout, budget, timeout, rejected employee evidence, and no full catalog broadcast.
+- Phase578A-T adds unified input/output envelopes, internal employee bus bridge, adaptive dry-run branch execution, result merger, load governance, failure injection, and Mission Control branch preview.
+- Phase579A-T through Phase591A-T harden Phase578 execution fabric with scenario, load, trace, safety, adapter, soak, architecture, and operator acceptance evidence while preserving dry-run boundaries.
+- Phase592A-T adds `.codex-context` context pack outputs for future Codex handoff preparation while keeping real execution unchanged.
+- Phase593A-T adds the Mission Control operator panel for those `.codex-context` outputs while keeping real Codex execution unchanged.
+- Phase594A-T adds the usage workflow preview that tells operators and future Codex runners to read `.codex-context/current-context-pack.md`, stop on `stale=true`, use `relevant-files.json` as the default read boundary, load `codex-prompt-pack.md`, and run the planned validation commands.
+- Phase595A-T proves the same workflow on a small docs task without changing Codex base_url: the trial note is generated, context pack usage is tracked, expected reads are audited, token saving is estimated, and no full repository scan is claimed.
+- Phase596A-T repeats that workflow across 10 bounded docs tasks, records read-audit previews, estimates average token saving, verifies budget respect, and keeps full repository scan avoidance visible in Mission Control.
+- Phase597A-T keeps the next base_url step in design-only mode: Mission Control may show authorization-required, base_url-not-modified, relay-not-connected, account-pool, rollback, risk, and next-gate previews, but no real config or relay is changed.
+- Phase598A-T turns the Phase597 authorization packet into dry-run intake: Mission Control may show missing required fields, dry-run config simulation, real config write blocked, relay start blocked, credentialRef-only, rollback simulation, and emergency disable simulation while real integration remains blocked.
+- Phase599A-T turns the Phase598 dry-run intake into human approval review: Mission Control may show authorizationComplete, humanApprovalStatus, missingFields, finalDecision, guardedRealTestAllowed, realConfigWriteAllowed, relayStartAllowed, and nextRequiredAction while keeping any real base_url test blocked until a later explicitly authorized phase.
+- Phase600A-T turns Phase599 review into input/readiness preview: Mission Control may show authorization input status, human approval record status, readiness decision, missing fields, final decision, evidence ledger, and nextAction while providing no real execution button and no automatic base_url change.
+- Phase601A-T adds preparation preview for a future guarded base_url test: Mission Control may show readiness import, session_override command preview, rollback preview, emergency disable preview, final command bundle preview, and final confirmation requirement while still executing no real test.
+- Phase602A-T adds one-shot result preview and blocked execution evidence: Mission Control may show final confirmation status, env precheck status, requestAttemptCount, response classification, cleanup status, config write status, and next action without exposing raw base_url or secrets.
+- Phase603A-T adds custom model_provider route preview: Mission Control may show the openai_base_url negative-control result, nextRoute=custom_model_provider, auth.json denylist, sanitized config preview, command preview only, rollback/emergency readiness, and final confirmation requirement while still executing no real custom provider test.
+- Phase604A-T adds custom model_provider result preview: Mission Control may show final confirmation status, bad-provider negative-control status, selectedProviderId, one-shot status, requestAttemptCount, cleanup status, authJsonTouched=false, persistentConfigWrite=false, and next action.
+- Phase607R-Fix adds interactive terminal result intake preview: Mission Control may show manual route, selectedProviderId, requestAttemptCount, responseClassification, cleanup status, config write status, and next action while keeping codexOneShotExecutedByThisPhase=false.
+- Phase610R-Fix adds codex exec result intake preview: Mission Control may show custom model_provider one-shot pass once, selectedProviderId=crs, requestAttemptCount=1, retryAttemptCount=0, responseClassification=pass, not production ready, not repeated reliability proven, and no `/chat` integration.
+- Phase611R-Fix adds repeated guarded test design preview: Mission Control may show Phase610R one-shot pass once, Phase611R design ready, maxPlannedAttempts=3, maxRequestsTotal=3, Phase612 explicit confirmation required, not executed yet, not production ready, not `/chat` integrated, and not release ready.
+- Phase612R-Fix adds repeated guarded reliability result preview: Mission Control may show selectedProviderId=crs, plannedAttempts, completedAttempts, totalRequestAttemptCount, totalRetryAttemptCount, repeatedReliabilityClassification, allAttemptsPassed, stoppedReason, and safety boundaries while still showing not production ready, not release ready, and not `/chat` integrated.
+- Phase613R-Fix adds repeated reliability closure and next-gate preview: Mission Control may show Phase612 repeated_pass, the controlled codex exec custom model_provider capability boundary, and a separate controlled integration preview gate while still showing not production ready, not release ready, not `/chat` integrated, and not `/chat-gateway/execute` integrated.
+- Phase614R-Fix adds controlled integration preview gate UI: Mission Control may show Phase612 repeated_pass, Phase613 capability boundary, routeId=codex_exec_crs_preview, integrationMode=preview_only, allowedEntryPoints=mission_control_read_only_preview, forbidden main-chain entrypoints, and a Phase615 approval-packet next action without any runtime execution button.
+- Phase615R-Fix adds runtime integration approval packet preview: Mission Control may show approvalPacketReady, runtimeIntegrationNotExecuted, approvalRequired, selectedProviderId=crs, rollback/emergency/maxRequests checklist readiness, and Phase616 route contract dry-run next phase without runtime wiring or execution controls.
+- Phase616R-620R adds controlled runtime candidate dry-run preview: Mission Control may show dryRunCandidateSealed, routeId=codex_exec_crs_runtime_candidate_dry_run, candidateMode=dry_run_candidate_only, maxRequestsDefault=1, maxRequestsHardLimit=3, retryLimit=0, and Phase621 implementation-plan-review next gate without runtime wiring or execution controls.
+- Phase629R-Fix adds final human approval packet preview: Mission Control may show Phase621R-628R isolated runtime candidate path, approvalPacketReady, mainChainIntegrationNotExecuted, finalHumanApprovalRequired, selectedProviderId=crs, `/chat` not integrated, `/chat-gateway/execute` not integrated, provider runtime not modified, and Phase630 design-patch next gate without execution controls.
+- Phase630R-Fix adds main-chain design patch preview: Mission Control may show designPatchReady, patchPreviewOnly, targetEntryPointsPreview, targetEntryPointsModified=[], mainChainPatchNotApplied, `/chat` not modified, `/chat-gateway/execute` not modified, provider runtime not modified, and Phase631 approval-required next gate without execution controls.
+- Phase631R-Fix adds token-saving enforcement preview: future Codex tasks must use `.codex-context/current-context-pack.md`, `.codex-context/relevant-files.json`, `stale=false`, a token budget, and an output budget before task execution.
+- Phase632A-G adds the mandatory Codex token-saving gate chain preview: Mission Control may show contextPackGateRequired, relevantFilesGateRequired, tokenBudgetGateRequired, staleGateRequired, forbiddenFullRepoScanGateRequired, outputBudgetGateRequired, and aggregateClosureReady without execution controls.
+- Phase632H adds hard enforcement guidance: 必须使用 docs/phase632-codex-token-saving-task-template.md。 未通过 Phase632 preflight，不得继续执行。 This is a documentation/verifier lock only and adds no execution control.
+- Phase632I adds automatic token-saving preflight injection guidance: operators may run `pnpm run preflight:phase632-token-saving`; users no longer need to restate the hard rule manually, and no real execution control, Codex exec, or Provider call is added.
+- Phase633R-637R adds the final audit/report preview: Mission Control and docs may reference the audit baseline, risk ledger, low-risk fixes, regression matrix, and final system report while keeping productionReady=false and releaseReady=false.
+- Phase638R adds nightly safe-runner preview: `pnpm run nightly:phase638-safe-runner` runs a bounded local one-shot batch and Windows Task Scheduler registration remains opt-in.
+- Phase633A adds the local token-saving preflight wrapper preview: operators may run `pnpm preflight:codex-token-saving` to produce dry-run evidence before Codex task execution; it adds no real execution button and calls no Provider.
+- Phase606R adds open-source minimum readiness docs for clone/read/dry-run demo use while preserving local-only safety boundaries and not requiring real Provider access.
+- Phase607R-610R adds public readiness acceleration docs for risk-tier queue expansion, public repo hygiene, dry-run demo packaging, and release blocker review; these remain preview/dry-run only and do not publish or deploy the project.
+- Phase3957A Controlled Mutation Expansion Hard Stop keeps controlled mutation expansion capped at 56 files; further file-count expansion is blocked by default and requires Product Work Value Gate approval.
+- Phase3958A Product Reality Baseline Compression separates evidence-backed real capabilities from dry-run/mock/template/governance artifacts and redirects the next work to Product Work Mode.
+- Phase3959A-3970A Product Work Mode AIO establishes owner daily-use intake, UI dead-button scanning, Provider reality matrix, CredentialRef readiness without secrets, governed self-evolution, next-phase value gate, low-risk self-patch dry-run, owner Provider-smoke approval gate, read-only dashboard, rollback dry-run, and seal review while preserving no-provider-call/no-secret/no-deploy/no-chat-change boundaries.
+- Brain Adapter and Gateway Authorization Gate require explicit providerRef / credentialRef / modelRef authorization before any real provider call.
+- User-owned model binding is credentialRef-only and does not read raw secrets.
+
+### Current start commands
 
 ```powershell
-cmd /c pnpm start:pme
+cmd /c pnpm run dev:phase7b
+cmd /c pnpm run status:phase10a
+cmd /c pnpm run health:phase12a
+cmd /c pnpm run doctor:phase13a
 ```
 
-4. Open the Web console:
+### Current safety boundary
+
+- `full_open` disabled
+- no commit / push / deploy / release
+- no tag / artifact upload
+- no unauthorized provider call
+- no `.env` / secrets
+- no raw API key / secret output
+- no all-world-jobs claim
+- Phase578A-T branch execution fabric is preview-only and provider-free
+- Phase579A-T through Phase591A-T long-horizon hardening is preview-only, provider-free, no-secret-read, no-webhook-read, and no-external-send
+- Phase592A-T Codex Context Gateway is read-only, provider-free, no-secret-read, no-webhook-read, no Codex config/base_url modification, and not a model-call result
+- Phase593A-T Codex Context Gateway Operator Panel Preview is UI-only, provider-free, no-secret-read, no-webhook-read, no Codex config/base_url modification, no `/chat` or `/chat-gateway/execute` modification, and not a real Codex/model-call result
+- Phase594A-T Codex Context Gateway Usage Workflow + Runner Integration Preview is preview-only, provider-free, no-secret-read, no-webhook-read, no Codex config/base_url modification, no real Codex connection, no `/chat` or `/chat-gateway/execute` modification, and not a real Codex/model-call result
+- Phase595A-T Codex Context Gateway Real Usage Trial Without Base URL Change is provider-free, no-secret-read, no-webhook-read, no Codex config/base_url modification, no real Codex relay connection, no `/chat` or `/chat-gateway/execute` modification, and not a Provider/model-call result
+- Phase596A-T Codex Context Gateway Repeated Usage Trial + Token Saving Benchmark is provider-free, no-secret-read, no-webhook-read, no Codex config/base_url modification, no real Codex relay connection, no `/chat` or `/chat-gateway/execute` modification, and not a Provider/model-call result
+- Phase597A-T Codex Context Gateway Controlled Base URL Integration Design is design-only, provider-free, no-secret-read, no-webhook-read, no real Codex config/base_url modification, no relay/proxy start, no `/chat` or `/chat-gateway/execute` modification, and not a real Codex integration
+- Phase598A-T Codex Context Gateway Authorization Evidence Intake + Dry-Run Config Simulation is simulation-only, provider-free, no-secret-read, no-webhook-read, no real Codex config/base_url modification, no relay/proxy start, no real integration while authorizationComplete=false, no `/chat` or `/chat-gateway/execute` modification, and not a real Codex integration
+- Phase599A-T Codex Context Gateway Authorization Packet Completion + Human Approval Review is review-only, provider-free, no-secret-read, no-webhook-read, no real Codex config/base_url modification, no relay/proxy start, no forged human approval, no real integration unless all authorization gates pass in a later explicitly authorized phase, no `/chat` or `/chat-gateway/execute` modification, and not a real Codex integration
+- Phase600A-T Codex Context Gateway Authorization Packet Input + Human Approval Record + Guarded Real Test Readiness Review is input/readiness-review-only, provider-free, no-secret-read, no-webhook-read, no real Codex config/base_url modification, no relay/proxy start, no real guarded test execution, no `/chat` or `/chat-gateway/execute` modification, and not a real Codex integration
+- Phase601A-T Codex Context Gateway Guarded Real Base URL Test Preparation is preparation-only: command previews, rollback previews, emergency disable previews, checklists, Mission Control preparation UI, and evidence ledgers may be generated, but real command execution, real relay connection, provider calls, persistent Codex config writes, `/chat` changes, deploy, release, tags, and artifacts remain blocked
+- Phase602A-T Codex Context Gateway Guarded Real Base URL One-Shot Test requires a final confirmation input before any real one-shot execution; without it, oneShotExecuted=false, requestAttemptCount=0, retryAttemptCount=0, persistent config write=false, raw base_url/secret/webhook exposure=false, and the phase remains blocked by final_user_confirmation_missing
+- Phase603A-T Codex Context Gateway Custom Model Provider Route Preparation is design/preparation-only: it may inspect sanitized `~/.codex/config.toml` structure and generate `.preview` artifacts, but `~/.codex/auth.json` is never read or touched, real config writes, provider switches, relay/proxy starts, provider calls, `/chat` changes, deploy, release, tags, and artifacts remain blocked
+- Phase604A-T Codex Context Gateway Custom model_provider Negative-Control + Guarded One-Shot Test requires `docs/phase604-final-execution-confirmation.input.json` and maxRequests=1 before any bad-provider negative-control or one-shot execution; missing confirmation blocks both commands, keeps authJsonRead=false, authJsonTouched=false, requestAttemptCount=0, retryAttemptCount=0, persistent config write=false, providerCallsMade=false, and raw base_url/secret/webhook exposure=false
+- Phase607R-Fix Interactive Terminal Guarded One-Shot Execution Intake is intake-only: it may read `docs/phase607r-interactive-terminal-result.input.json`, but it must not execute Codex, call Providers, read `~/.codex/auth.json`, write Codex config, expose raw base_url/secret/webhook values, modify `/chat` or `/chat-gateway/execute`, deploy, release, tag, artifact, push, commit, or claim workspace clean
+- Phase610R-Fix Codex Exec Custom Model Provider One-Shot Result Intake is sanitized result intake only: it may record the user-reported `codex exec` pass marker, but it must not re-run one-shot commands, call Providers by this phase, read `~/.codex/auth.json`, write user/project Codex config, expose raw base_url/secret/webhook values, modify `/chat` or `/chat-gateway/execute`, deploy, release, tag, artifact, push, commit, or claim production/release readiness.
+- Phase611R-Fix Codex Exec Custom Provider Repeated Guarded Test Design is design-only: it may generate maxPlannedAttempts=3 command previews, budget/rate/rollback policy, Phase612 confirmation and result input examples, verifier, and evidence schema, but it must not execute `codex exec`, call Providers by this phase, read auth.json, write Codex config, modify provider runtime, modify `/chat` or `/chat-gateway/execute`, deploy, release, tag, artifact, push, commit, or claim repeated reliability.
+- Phase612R-Fix Repeated Codex Exec Custom Provider Guarded Reliability Execution may execute up to 3 explicit `codex exec -c model_provider="crs"` attempts serially after confirmation; it must not read auth.json, write Codex config, modify provider runtime, modify `/chat` or `/chat-gateway/execute`, retry, run concurrently, start daemons, deploy, release, tag, artifact, push, commit, expose raw base_url/secret/webhook values, or claim production/release readiness.
+- Phase613R-Fix Repeated Reliability Result Closure is closure/design-only: it may import Phase612R evidence, generate capability boundary docs, controlled next-gate design, Mission Control preview, verifier, and evidence, but it must not execute `codex exec`, call Providers by this phase, read auth.json, write Codex config, modify provider runtime, modify `/chat` or `/chat-gateway/execute`, deploy, release, tag, artifact, push, commit, or claim production/release readiness.
+- Phase614R-Fix Controlled Integration Preview Gate is preview-only: it may generate independent gate docs, route contract preview, approval policy, runtime boundary policy, Mission Control read-only preview, verifier, and evidence, but it must not execute `codex exec`, call Providers by this phase, read auth.json, write Codex config, modify provider runtime, modify `/chat` or `/chat-gateway/execute`, deploy, release, tag, artifact, push, commit, or claim production/release readiness.
+- Phase615R-Fix Runtime Integration Approval Packet is approval-packet-only: it may generate runtime integration approval packet docs, approval example, risk matrix, rollback plan, emergency disable plan, maxRequests/budget policy, operator checklist, Mission Control read-only preview, verifier, and evidence, but it must not execute `codex exec`, call Providers by this phase, read auth.json, write Codex config, modify provider runtime, modify `/chat` or `/chat-gateway/execute`, deploy, release, tag, artifact, push, commit, or claim production/release readiness.
+- Phase616R-620R Controlled Runtime Candidate Dry-Run Bundle is dry-run candidate only: it may generate route contract dry-run, readiness dry-run, operator approval dry-run, evidence ledger, closure docs, Mission Control read-only preview, verifier, and evidence, but it must not execute `codex exec`, call Providers by this phase, read auth.json, write Codex config, modify provider runtime, modify `/chat` or `/chat-gateway/execute`, deploy, release, tag, artifact, push, commit, or claim production/release readiness.
+- Phase621R-628R Controlled Runtime Candidate Path is isolated-candidate-only: it may wire independent runtime-candidate endpoints and run local dry-run/guarded/reliability smoke evidence, but it must not execute real `codex exec`, call Providers by this phase, read auth.json, write Codex config, modify provider runtime, modify default `/chat` or `/chat-gateway/execute` main chain, deploy, release, tag, artifact, push, commit, or claim production/release readiness.
+- Phase629R-Fix Main Chain Integration Final Human Approval Packet is approval-packet-only: it may generate final approval docs, example input, risk matrix, execution boundary, rollback/emergency plans, go/no-go checklist, Mission Control read-only preview, verifier, and evidence, but it must not execute `codex exec`, call Providers by this phase, read auth.json, write Codex config, modify provider runtime, modify `/chat` or `/chat-gateway/execute`, deploy, release, tag, artifact, push, commit, or claim production/release readiness.
+- Phase630R-Fix Main Chain Integration Design Patch is design-patch-only: it may generate route patch preview, diff plan, implementation boundary, risk matrix, rollback/emergency design, Mission Control read-only preview, verifier, and evidence, but it must not execute `codex exec`, call Providers by this phase, read auth.json, write Codex config, modify provider runtime, modify `/chat` or `/chat-gateway/execute`, deploy, release, tag, artifact, push, commit, or claim production/release readiness.
+- Phase631R-Fix Token Saving Enforcement Gate is token-saving policy/verifier/evidence only: it may require context pack, relevant files, stale=false, token budget, output budget, explicit scope, and no full repo scan, but it must not execute `codex exec`, call Providers, read auth.json, write Codex config, modify provider runtime, modify `/chat` or `/chat-gateway/execute`, deploy, release, tag, artifact, push, commit, or claim workspace clean.
+- Phase632A-G Codex Token Saving Mandatory Gate Chain is mandatory gate policy/verifier/evidence only: future Codex tasks must pass context pack, relevant files, token budget, stale gate, forbidden full repo scan, output budget, and aggregate closure before execution; this phase must not execute `codex exec`, call Providers, read auth.json, write Codex config, modify provider runtime, modify `/chat` or `/chat-gateway/execute`, deploy, release, tag, artifact, push, commit, or claim workspace clean.
+- Phase632H Token Saving Hard Enforcement Lock makes the token-saving workflow mandatory in README/AGENTS managed guidance: 必须使用 docs/phase632-codex-token-saving-task-template.md。 未通过 Phase632 preflight，不得继续执行。 All Codex tasks must first pass Phase632 preflight, read context pack, read relevant files, check token budget, check stale=false, forbid full repo scan, and follow output budget. It must not execute `codex exec`, call Providers, read auth.json, write Codex config, modify provider runtime, modify `/chat` or `/chat-gateway/execute`, deploy, release, tag, artifact, push, commit, or claim workspace clean.
+- Phase632I Automatic Token-Saving Preflight Injection makes the hard rule automatic in README/AGENTS managed guidance and package scripts: 必须使用 docs/phase632-codex-token-saving-task-template.md。 未通过 Phase632 preflight，不得继续执行。 所有 Codex 任务必须先跑 Phase632 preflight. `pnpm run preflight:phase632-token-saving` checks context pack, relevant files, token budget report, stale=false, relevant file hard limit, full repo scan prohibition, and output budget before continuing. It must not execute `codex exec`, call Providers, read auth.json, write Codex config, modify provider runtime, modify `/chat` or `/chat-gateway/execute`, deploy, release, tag, artifact, push, commit, or claim workspace clean.
+- Phase633R-637R Full System Audit + Bug Fix + Final System Report Bundle is audit/report/low-risk-fix only: it may generate docs, evidence, verifiers, regression matrix, final report, and fix docs/script drift, but it must not execute `codex exec`, call Providers, read auth.json, write Codex config, modify provider runtime, modify `/chat` or `/chat-gateway/execute`, deploy, release, tag, artifact, push, commit, claim production readiness, claim release readiness, or claim workspace clean.
+- Phase638R Nightly 20:00 Safe Engineering Task Runner is local low/medium-safe one-shot batch only: Windows scheduling starts daily at 20:00 only after explicit registration, Phase632 preflight is mandatory, high-risk tasks remain gate-only, daemon=false, infiniteLoop=false, and it must not execute `codex exec`, call Providers, read auth.json/secrets/raw base_url, write Codex config, modify provider runtime, modify `/chat` or `/chat-gateway/execute`, deploy, release, tag, artifact, push, commit, or claim workspace clean.
+- Phase639R P1 Approval Packet Bundle is approval-packet-only: it imports Phase633R-637R audit results, prepares separate Main-chain Integration Approval Packet and Provider Runtime Approval Packet, keeps no implementation executed, Provider not called, `/chat` not modified, `/chat-gateway/execute` not modified, provider runtime not modified, production/release not ready, and Phase632 preflight remains mandatory.
+- Phase639R-Nightly fallback operator panel is UI read-only status only: Task Scheduler remains unregistered, nightly automation is not enabled, fallback launcher is available, Phase632 preflight remains mandatory, and it must not register Windows Task Scheduler, run the nightly runner, execute `codex exec`, call Providers, read auth.json/secrets/raw base_url, write Codex config, modify provider runtime, modify `/chat` or `/chat-gateway/execute`, deploy, release, tag, artifact, push, commit, or claim workspace clean.
+- Phase640R-Nightly Permissioned Scheduler Registration Retry Pack is docs/scripts/evidence/UI read-only retry preparation only: it may generate manual retry, verify, safe unregister scripts, admin checklist, result intake example, and Mission Control preview, but it must not auto-elevate, bypass permissions, register Windows Task Scheduler by this phase, run the nightly runner, execute `codex exec`, call Providers, read auth.json/secrets/raw base_url, write Codex config, modify provider runtime, modify `/chat` or `/chat-gateway/execute`, deploy, release, tag, artifact, push, commit, or claim workspace clean.
+- Phase641R-Nightly Registration Result Intake is result-intake/evidence/UI read-only status only: it may load `docs/phase641r-nightly-registration-result.input.json`, generate an example when missing, run the read-only Task Scheduler verification script, and update evidence/Mission Control state, but it must not auto-register Windows Task Scheduler, run the nightly runner, execute `codex exec`, call Providers, read auth.json/secrets/raw base_url, write Codex config, modify provider runtime, modify `/chat` or `/chat-gateway/execute`, deploy, release, tag, artifact, push, commit, or claim workspace clean.
+- Phase640R-ExternalTool productizes Codex/crs as an external Codex relay/token-saving tool only: it freezes main-chain integration and provider runtime integration by current user direction, keeps `/chat` and `/chat-gateway/execute` unmodified, forbids provider runtime mutation, does not execute `codex exec`, does not call Providers by this phase, and does not claim production/release readiness.
+- Phase641R-645R External Tool Productization Bundle records the external tool productization chain: CLI wrapper ready, operator panel hardened, nightly safe runner reliability checked, open-source dry-run tool pack ready, token-saving benchmark rechecked, Phase632 preflight mandatory, not main chain, not `/chat`, not `/chat-gateway/execute`, not provider runtime, no Provider call, no secret/auth.json/raw base_url, no Codex config write, no deploy/release/push/commit, and production/release not ready.
+- Phase646R-650R External Tool Daily Workflow Closure records the daily external-tool operating line: daily workflow ready, task queue ledger ready, evidence dashboard ready, token-saving report ready, next-use playbook ready, external tool mode active, Phase632 preflight mandatory, not main chain, not `/chat`, not `/chat-gateway/execute`, not provider runtime, no Provider call, no secret/auth.json/raw base_url, no Codex config write, no deploy/release/push/commit, and production/release not ready.
+- Phase2087A Real Local Operation Bridge may execute exactly one bounded local child process after Phase632 preflight, approvalRecord, allowedFiles, and forbiddenPaths pass. Phase2087A may write only its allowed evidence files and detect OpenCode/Codex availability; it must not execute OpenCode/Codex model prompts by this phase, call Providers, read secrets/auth.json/.env, write Codex config/base_url, modify provider runtime, modify default `/chat` or `/chat-gateway/execute`, deploy, release, tag, upload artifacts, push, commit, modify legacy, create PROJECT_CONTEXT.md, or claim workspace clean.
+- Phase2088A Controlled Codex Prompt Execution may execute exactly one bounded `codex exec` prompt after Phase632 preflight, Phase2087A seal, approvalRecord, allowedFiles, and forbiddenPaths pass. Phase2088A may write only its allowed evidence files, capture the final Codex message, and pass `CRS_OAI_KEY` by variable name only to the Codex child process when explicitly allowlisted; evidence may record boolean presence but must never print the value. It must not call project Providers, read secrets/auth.json/.env, write Codex config/base_url, modify provider runtime, modify default `/chat` or `/chat-gateway/execute`, deploy, release, tag, upload artifacts, push, commit, modify legacy, create PROJECT_CONTEXT.md, or claim workspace clean. Codex may use its configured external account/model for this one prompt, but project provider runtime remains untouched.
+- Phase2089A Controlled Codex Patch Proposal may execute exactly one bounded `codex exec` patch proposal after Phase632 preflight, Phase2088A seal, approvalRecord, allowedFiles, and forbiddenPaths pass. Phase2089A may write only its allowed result/proposal evidence files, require a unified diff proposal marker, and keep patchProposalApplied=false and targetFileCreated=false. It must not apply patches, modify source files, call project Providers, read secrets/auth.json/.env, write Codex config/base_url, modify provider runtime, modify default `/chat` or `/chat-gateway/execute`, deploy, release, tag, upload artifacts, push, commit, modify legacy, create PROJECT_CONTEXT.md, or claim workspace clean. Codex may use its configured external account/model for this one proposal, but project provider runtime remains untouched.
+- Phase2090A Controlled Patch Apply Gate may apply exactly one validated docs-only file addition from Phase2089A after approvalRecord, allowedFiles, and forbiddenPaths pass. It must refuse overwrite, multi-file diffs, deletes, renames, binary diffs, source changes, unsafe text, Provider calls, Codex execution by this phase, secrets/auth.json/.env reads, Codex config/base_url writes, provider runtime changes, default `/chat` or `/chat-gateway/execute` changes, deploy, release, tag, artifact upload, push, commit, legacy changes, PROJECT_CONTEXT.md creation, or workspace-clean claims. It must write rollback evidence for deleting only the created docs file.
+- Phase2091A Controlled Source Patch Apply may apply exactly one validated source file addition under `tools/phase2091/` after approvalRecord, allowedFiles, and forbiddenPaths pass. It must run `node --check` and a local source smoke marker, write rollback evidence for deleting only the created source file, and must refuse overwrite, multi-file diffs, deletes, renames, binary diffs, unsafe text, Provider calls, Codex execution by this phase, secrets/auth.json/.env reads, Codex config/base_url writes, provider runtime changes, default `/chat` or `/chat-gateway/execute` changes, deploy, release, tag, artifact upload, push, commit, legacy changes, PROJECT_CONTEXT.md creation, or workspace-clean claims.
+- Phase2092A Controlled Existing Tool Source Mutation may apply exactly one validated existing source-file mutation to `tools/phase2091/generated-source-patch-target.mjs` after Phase632 preflight, Phase2091A seal, approvalRecord, allowedFiles, forbiddenPaths, and expected pre-mutation SHA pass. It must run `node --check` and a local source smoke marker, preserve Phase2091 behavior, add Phase2092 evidence marker, write rollback evidence for restoring the previous target content, and must refuse create/delete/rename/binary/multi-file diffs, unsafe text, Provider calls, Codex execution by this phase, secrets/auth.json/.env reads, Codex config/base_url writes, provider runtime changes, default `/chat` or `/chat-gateway/execute` changes, deploy, release, tag, artifact upload, push, commit, legacy changes, PROJECT_CONTEXT.md creation, or workspace-clean claims.
+- Phase2093A-2095A Controlled Batch Tool Mutation may apply exactly two validated low-risk existing tool source mutations to `tools/phase2091/generated-source-patch-target.mjs` and `tools/phase2092/apply-controlled-existing-tool-mutation.mjs` after Phase632 preflight, Phase2092A seal, approvalRecord, allowedFiles, forbiddenPaths, and expected pre-mutation SHA values pass. It must run `node --check` for both files, run local batch smoke, preserve Phase2091/Phase2092 behavior, add Phase2093/Phase2094 evidence markers, write rollback evidence for restoring previous target contents, and must refuse create/delete/rename/binary/unapproved multi-file diffs, unsafe text, Provider calls, Codex execution by this phase, secrets/auth.json/.env reads, Codex config/base_url writes, provider runtime changes, default `/chat` or `/chat-gateway/execute` changes, deploy, release, tag, artifact upload, push, commit, legacy changes, PROJECT_CONTEXT.md creation, or workspace-clean claims.
+- Phase2096A-2100A Controlled Triple Tool Mutation may apply exactly three validated low-risk existing tool source mutations to `tools/phase2091/generated-source-patch-target.mjs`, `tools/phase2092/apply-controlled-existing-tool-mutation.mjs`, and `tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs` after Phase632 preflight, Phase2093A-2095A seal, approvalRecord, allowedFiles, forbiddenPaths, and expected pre-mutation SHA values pass. It must run `node --check` for all three files, run local triple smoke, preserve earlier behavior, add Phase2096/Phase2097/Phase2100 evidence markers, write rollback evidence for restoring previous target contents, and must refuse create/delete/rename/binary/unapproved multi-file diffs, unsafe text, Provider calls, Codex execution by this phase, secrets/auth.json/.env reads, Codex config/base_url writes, provider runtime changes, default `/chat` or `/chat-gateway/execute` changes, deploy, release, tag, artifact upload, push, commit, legacy changes, PROJECT_CONTEXT.md creation, or workspace-clean claims.
+- Phase2101A-2110A Controlled Quad Tool Mutation may add a reusable controlled mutation substrate and apply exactly four validated low-risk existing tool source mutations to `tools/phase2091/generated-source-patch-target.mjs`, `tools/phase2092/apply-controlled-existing-tool-mutation.mjs`, `tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs`, and `tools/phase2096_2100/apply-controlled-triple-tool-mutation.mjs` after Phase632 preflight, Phase2096A-2100A seal, approvalRecord, allowedFiles, forbiddenPaths, and expected pre-mutation SHA values pass. It must run `node --check` for all four files, run local quad smoke, preserve earlier behavior, add Phase2106/Phase2107/Phase2108/Phase2109 evidence markers, write rollback evidence for restoring previous target contents, and must refuse create/delete/rename/binary/unapproved multi-file diffs, unsafe text, Provider calls, Codex execution by this phase, secrets/auth.json/.env reads, Codex config/base_url writes, provider runtime changes, default `/chat` or `/chat-gateway/execute` changes, deploy, release, tag, artifact upload, push, commit, legacy changes, PROJECT_CONTEXT.md creation, or workspace-clean claims.
+- Phase2111A-2120A Controlled Quint Tool Mutation may reuse the controlled mutation substrate JSON smoke helper and apply exactly five validated low-risk existing tool source mutations to `tools/phase2091/generated-source-patch-target.mjs`, `tools/phase2092/apply-controlled-existing-tool-mutation.mjs`, `tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs`, `tools/phase2096_2100/apply-controlled-triple-tool-mutation.mjs`, and `tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs` after Phase632 preflight, Phase2101A-2110A seal, approvalRecord, allowedFiles, forbiddenPaths, and expected pre-mutation SHA values pass. It must run `node --check` for all five files, run local quint smoke, preserve earlier behavior, add Phase2116/Phase2117/Phase2118/Phase2119/Phase2120 evidence markers, write rollback evidence for restoring previous target contents, and must refuse create/delete/rename/binary/unapproved multi-file diffs, unsafe text, Provider calls, Codex execution by this phase, secrets/auth.json/.env reads, Codex config/base_url writes, provider runtime changes, default `/chat` or `/chat-gateway/execute` changes, deploy, release, tag, artifact upload, push, commit, legacy changes, PROJECT_CONTEXT.md creation, or workspace-clean claims.
+- Phase2121A-2131A Controlled Sext Tool Mutation may reuse the controlled mutation substrate JSON smoke helper and apply exactly six validated low-risk existing tool source mutations to `tools/phase2091/generated-source-patch-target.mjs`, `tools/phase2092/apply-controlled-existing-tool-mutation.mjs`, `tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs`, `tools/phase2096_2100/apply-controlled-triple-tool-mutation.mjs`, `tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs`, and `tools/phase2111_2120/apply-controlled-quint-tool-mutation.mjs` after Phase632 preflight, Phase2111A-2120A seal, approvalRecord, allowedFiles, forbiddenPaths, and expected pre-mutation SHA values pass. It must run `node --check` for all six files, run local sext smoke, preserve earlier behavior, add Phase2126/Phase2127/Phase2128/Phase2129/Phase2130/Phase2131 evidence markers, write rollback evidence for restoring previous target contents, and must refuse create/delete/rename/binary/unapproved multi-file diffs, unsafe text, Provider calls, Codex execution by this phase, secrets/auth.json/.env reads, Codex config/base_url writes, provider runtime changes, default `/chat` or `/chat-gateway/execute` changes, deploy, release, tag, artifact upload, push, commit, legacy changes, PROJECT_CONTEXT.md creation, or workspace-clean claims.
+- Phase2132A-2143A Controlled Sept Tool Mutation may reuse the controlled mutation substrate JSON smoke helper and apply exactly seven validated low-risk existing tool source mutations to `tools/phase2091/generated-source-patch-target.mjs`, `tools/phase2092/apply-controlled-existing-tool-mutation.mjs`, `tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs`, `tools/phase2096_2100/apply-controlled-triple-tool-mutation.mjs`, `tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs`, `tools/phase2111_2120/apply-controlled-quint-tool-mutation.mjs`, and `tools/phase2121_2131/apply-controlled-sext-tool-mutation.mjs` after Phase632 preflight, Phase2121A-2131A seal, approvalRecord, allowedFiles, forbiddenPaths, and expected pre-mutation SHA values pass. It must run `node --check` for all seven files, run local sept smoke, preserve earlier behavior, add Phase2137/Phase2138/Phase2139/Phase2140/Phase2141/Phase2142/Phase2143 evidence markers, write rollback evidence for restoring previous target contents, and must refuse create/delete/rename/binary/unapproved multi-file diffs, unsafe text, Provider calls, Codex execution by this phase, secrets/auth.json/.env reads, Codex config/base_url writes, provider runtime changes, default `/chat` or `/chat-gateway/execute` changes, deploy, release, tag, artifact upload, push, commit, legacy changes, PROJECT_CONTEXT.md creation, or workspace-clean claims.
+- Phase2144A-2156A Controlled Oct Tool Mutation may reuse the controlled mutation substrate JSON smoke helper and apply exactly eight validated low-risk existing tool source mutations to `tools/phase2091/generated-source-patch-target.mjs`, `tools/phase2092/apply-controlled-existing-tool-mutation.mjs`, `tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs`, `tools/phase2096_2100/apply-controlled-triple-tool-mutation.mjs`, `tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs`, `tools/phase2111_2120/apply-controlled-quint-tool-mutation.mjs`, `tools/phase2121_2131/apply-controlled-sext-tool-mutation.mjs`, and `tools/phase2132_2143/apply-controlled-sept-tool-mutation.mjs` after Phase632 preflight, Phase2132A-2143A seal, approvalRecord, allowedFiles, forbiddenPaths, and expected pre-mutation SHA values pass. It must run `node --check` for all eight files, run local oct smoke, preserve earlier behavior, add Phase2149/Phase2150/Phase2151/Phase2152/Phase2153/Phase2154/Phase2155/Phase2156 evidence markers, write rollback evidence for restoring previous target contents, and must refuse create/delete/rename/binary/unapproved multi-file diffs, unsafe text, Provider calls, Codex execution by this phase, secrets/auth.json/.env reads, Codex config/base_url writes, provider runtime changes, default `/chat` or `/chat-gateway/execute` changes, deploy, release, tag, artifact upload, push, commit, legacy changes, PROJECT_CONTEXT.md creation, or workspace-clean claims.
+- Phase2157A-2170A Controlled Nonet Tool Mutation may reuse the controlled mutation substrate JSON smoke helper and apply exactly nine validated low-risk existing tool source mutations to `tools/phase2091/generated-source-patch-target.mjs`, `tools/phase2092/apply-controlled-existing-tool-mutation.mjs`, `tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs`, `tools/phase2096_2100/apply-controlled-triple-tool-mutation.mjs`, `tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs`, `tools/phase2111_2120/apply-controlled-quint-tool-mutation.mjs`, `tools/phase2121_2131/apply-controlled-sext-tool-mutation.mjs`, `tools/phase2132_2143/apply-controlled-sept-tool-mutation.mjs`, and `tools/phase2144_2156/apply-controlled-oct-tool-mutation.mjs` after Phase632 preflight, Phase2144A-2156A seal, approvalRecord, allowedFiles, forbiddenPaths, and expected pre-mutation SHA values pass. It must run `node --check` for all nine files, run local nonet smoke, preserve earlier behavior, add Phase2162/Phase2163/Phase2164/Phase2165/Phase2166/Phase2167/Phase2168/Phase2169/Phase2170 evidence markers, write rollback evidence for restoring previous target contents, and must refuse create/delete/rename/binary/unapproved multi-file diffs, unsafe text, Provider calls, Codex execution by this phase, secrets/auth.json/.env reads, Codex config/base_url writes, provider runtime changes, default `/chat` or `/chat-gateway/execute` changes, deploy, release, tag, artifact upload, push, commit, legacy changes, PROJECT_CONTEXT.md creation, or workspace-clean claims.
+- Phase2171A-2185A Controlled Deca Tool Mutation may reuse the controlled mutation substrate JSON smoke helper and apply exactly ten validated low-risk existing tool source mutations to `tools/phase2091/generated-source-patch-target.mjs`, `tools/phase2092/apply-controlled-existing-tool-mutation.mjs`, `tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs`, `tools/phase2096_2100/apply-controlled-triple-tool-mutation.mjs`, `tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs`, `tools/phase2111_2120/apply-controlled-quint-tool-mutation.mjs`, `tools/phase2121_2131/apply-controlled-sext-tool-mutation.mjs`, `tools/phase2132_2143/apply-controlled-sept-tool-mutation.mjs`, `tools/phase2144_2156/apply-controlled-oct-tool-mutation.mjs`, and `tools/phase2157_2170/apply-controlled-nonet-tool-mutation.mjs` after Phase632 preflight, Phase2157A-2170A seal, approvalRecord, allowedFiles, forbiddenPaths, and expected pre-mutation SHA values pass. It must run `node --check` for all ten files, run local deca smoke, preserve earlier behavior, add Phase2176/Phase2177/Phase2178/Phase2179/Phase2180/Phase2181/Phase2182/Phase2183/Phase2184/Phase2185 evidence markers, write rollback evidence for restoring previous target contents, and must refuse create/delete/rename/binary/unapproved multi-file diffs, unsafe text, Provider calls, Codex execution by this phase, secrets/auth.json/.env reads, Codex config/base_url writes, provider runtime changes, default `/chat` or `/chat-gateway/execute` changes, deploy, release, tag, artifact upload, push, commit, legacy changes, PROJECT_CONTEXT.md creation, or workspace-clean claims.
+- Phase2202A-2218A Controlled Twelve Tool Mutation may reuse the controlled mutation substrate JSON smoke helper and apply exactly twelve validated low-risk existing tool source mutations to `tools/phase2091/generated-source-patch-target.mjs`, `tools/phase2092/apply-controlled-existing-tool-mutation.mjs`, `tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs`, `tools/phase2096_2100/apply-controlled-triple-tool-mutation.mjs`, `tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs`, `tools/phase2111_2120/apply-controlled-quint-tool-mutation.mjs`, `tools/phase2121_2131/apply-controlled-sext-tool-mutation.mjs`, `tools/phase2132_2143/apply-controlled-sept-tool-mutation.mjs`, `tools/phase2144_2156/apply-controlled-oct-tool-mutation.mjs`, `tools/phase2157_2170/apply-controlled-nonet-tool-mutation.mjs`, `tools/phase2171_2185/apply-controlled-deca-tool-mutation.mjs`, and `tools/phase2186_2201/apply-controlled-eleven-tool-mutation.mjs` after Phase632 preflight, Phase2186A-2201A seal, approvalRecord, allowedFiles, forbiddenPaths, and expected pre-mutation SHA values pass. It must run `node --check` for all twelve files, run local twelve smoke, preserve earlier behavior, add Phase2207/Phase2208/Phase2209/Phase2210/Phase2211/Phase2212/Phase2213/Phase2214/Phase2215/Phase2216/Phase2217/Phase2218 evidence markers, write rollback evidence for restoring previous target contents, and must refuse create/delete/rename/binary/unapproved multi-file diffs, unsafe text, Provider calls, Codex execution by this phase, secrets/auth.json/.env reads, Codex config/base_url writes, provider runtime changes, default `/chat` or `/chat-gateway/execute` changes, deploy, release, tag, artifact upload, push, commit, legacy changes, PROJECT_CONTEXT.md creation, or workspace-clean claims.
+- Phase2219A-2236A Controlled Thirteen Tool Mutation may reuse the controlled mutation substrate JSON smoke helper and apply exactly thirteen validated low-risk existing tool source mutations to `tools/phase2091/generated-source-patch-target.mjs`, `tools/phase2092/apply-controlled-existing-tool-mutation.mjs`, `tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs`, `tools/phase2096_2100/apply-controlled-triple-tool-mutation.mjs`, `tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs`, `tools/phase2111_2120/apply-controlled-quint-tool-mutation.mjs`, `tools/phase2121_2131/apply-controlled-sext-tool-mutation.mjs`, `tools/phase2132_2143/apply-controlled-sept-tool-mutation.mjs`, `tools/phase2144_2156/apply-controlled-oct-tool-mutation.mjs`, `tools/phase2157_2170/apply-controlled-nonet-tool-mutation.mjs`, `tools/phase2171_2185/apply-controlled-deca-tool-mutation.mjs`, `tools/phase2186_2201/apply-controlled-eleven-tool-mutation.mjs`, and `tools/phase2202_2218/apply-controlled-twelve-tool-mutation.mjs` after Phase632 preflight, Phase2202A-2218A seal, approvalRecord, allowedFiles, forbiddenPaths, and expected pre-mutation SHA values pass. It must run `node --check` for all thirteen files, run local thirteen smoke, preserve earlier behavior, add Phase2224/Phase2225/Phase2226/Phase2227/Phase2228/Phase2229/Phase2230/Phase2231/Phase2232/Phase2233/Phase2234/Phase2235/Phase2236 evidence markers, write rollback evidence for restoring previous target contents, and must refuse create/delete/rename/binary/unapproved multi-file diffs, unsafe text, Provider calls, Codex execution by this phase, secrets/auth.json/.env reads, Codex config/base_url writes, provider runtime changes, default `/chat` or `/chat-gateway/execute` changes, deploy, release, tag, artifact upload, push, commit, legacy changes, PROJECT_CONTEXT.md creation, or workspace-clean claims.
+- Phase2237A-2255A Controlled Fourteen Tool Mutation may reuse the controlled mutation substrate JSON smoke helper and apply exactly fourteen validated low-risk existing tool source mutations to `tools/phase2091/generated-source-patch-target.mjs`, `tools/phase2092/apply-controlled-existing-tool-mutation.mjs`, `tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs`, `tools/phase2096_2100/apply-controlled-triple-tool-mutation.mjs`, `tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs`, `tools/phase2111_2120/apply-controlled-quint-tool-mutation.mjs`, `tools/phase2121_2131/apply-controlled-sext-tool-mutation.mjs`, `tools/phase2132_2143/apply-controlled-sept-tool-mutation.mjs`, `tools/phase2144_2156/apply-controlled-oct-tool-mutation.mjs`, `tools/phase2157_2170/apply-controlled-nonet-tool-mutation.mjs`, `tools/phase2171_2185/apply-controlled-deca-tool-mutation.mjs`, `tools/phase2186_2201/apply-controlled-eleven-tool-mutation.mjs`, `tools/phase2202_2218/apply-controlled-twelve-tool-mutation.mjs`, and `tools/phase2219_2236/apply-controlled-thirteen-tool-mutation.mjs` after Phase632 preflight, Phase2219A-2236A seal, approvalRecord, allowedFiles, forbiddenPaths, and expected pre-mutation SHA values pass. It must run `node --check` for all fourteen files, run local fourteen smoke, preserve earlier behavior, add Phase2242/Phase2243/Phase2244/Phase2245/Phase2246/Phase2247/Phase2248/Phase2249/Phase2250/Phase2251/Phase2252/Phase2253/Phase2254/Phase2255 evidence markers, write rollback evidence for restoring previous target contents, and must refuse create/delete/rename/binary/unapproved multi-file diffs, unsafe text, Provider calls, Codex execution by this phase, secrets/auth.json/.env reads, Codex config/base_url writes, provider runtime changes, default `/chat` or `/chat-gateway/execute` changes, deploy, release, tag, artifact upload, push, commit, legacy changes, PROJECT_CONTEXT.md creation, or workspace-clean claims.
+- Phase2256A-2275A Controlled Fifteen Tool Mutation may reuse the controlled mutation substrate JSON smoke helper and apply exactly fifteen validated low-risk existing tool source mutations to `tools/phase2091/generated-source-patch-target.mjs`, `tools/phase2092/apply-controlled-existing-tool-mutation.mjs`, `tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs`, `tools/phase2096_2100/apply-controlled-triple-tool-mutation.mjs`, `tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs`, `tools/phase2111_2120/apply-controlled-quint-tool-mutation.mjs`, `tools/phase2121_2131/apply-controlled-sext-tool-mutation.mjs`, `tools/phase2132_2143/apply-controlled-sept-tool-mutation.mjs`, `tools/phase2144_2156/apply-controlled-oct-tool-mutation.mjs`, `tools/phase2157_2170/apply-controlled-nonet-tool-mutation.mjs`, `tools/phase2171_2185/apply-controlled-deca-tool-mutation.mjs`, `tools/phase2186_2201/apply-controlled-eleven-tool-mutation.mjs`, `tools/phase2202_2218/apply-controlled-twelve-tool-mutation.mjs`, `tools/phase2219_2236/apply-controlled-thirteen-tool-mutation.mjs`, and `tools/phase2237_2255/apply-controlled-fourteen-tool-mutation.mjs` after Phase632 preflight, Phase2237A-2255A seal, approvalRecord, allowedFiles, forbiddenPaths, and expected pre-mutation SHA values pass. It must run `node --check` for all fifteen files, run local fifteen smoke, preserve earlier behavior, add Phase2261/Phase2262/Phase2263/Phase2264/Phase2265/Phase2266/Phase2267/Phase2268/Phase2269/Phase2270/Phase2271/Phase2272/Phase2273/Phase2274/Phase2275 evidence markers, write rollback evidence for restoring previous target contents, and must refuse create/delete/rename/binary/unapproved multi-file diffs, unsafe text, Provider calls, Codex execution by this phase, secrets/auth.json/.env reads, Codex config/base_url writes, provider runtime changes, default `/chat` or `/chat-gateway/execute` changes, deploy, release, tag, artifact upload, push, commit, legacy changes, PROJECT_CONTEXT.md creation, or workspace-clean claims.
+- Phase2276A-2296A Controlled Sixteen Tool Mutation may reuse the controlled mutation substrate JSON smoke helper and apply exactly sixteen validated low-risk existing tool source mutations to `tools/phase2091/generated-source-patch-target.mjs`, `tools/phase2092/apply-controlled-existing-tool-mutation.mjs`, `tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs`, `tools/phase2096_2100/apply-controlled-triple-tool-mutation.mjs`, `tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs`, `tools/phase2111_2120/apply-controlled-quint-tool-mutation.mjs`, `tools/phase2121_2131/apply-controlled-sext-tool-mutation.mjs`, `tools/phase2132_2143/apply-controlled-sept-tool-mutation.mjs`, `tools/phase2144_2156/apply-controlled-oct-tool-mutation.mjs`, `tools/phase2157_2170/apply-controlled-nonet-tool-mutation.mjs`, `tools/phase2171_2185/apply-controlled-deca-tool-mutation.mjs`, `tools/phase2186_2201/apply-controlled-eleven-tool-mutation.mjs`, `tools/phase2202_2218/apply-controlled-twelve-tool-mutation.mjs`, `tools/phase2219_2236/apply-controlled-thirteen-tool-mutation.mjs`, `tools/phase2237_2255/apply-controlled-fourteen-tool-mutation.mjs`, and `tools/phase2256_2275/apply-controlled-fifteen-tool-mutation.mjs` after Phase632 preflight, Phase2256A-2275A seal, approvalRecord, allowedFiles, forbiddenPaths, and expected pre-mutation SHA values pass. It must run `node --check` for all sixteen files, run local sixteen smoke, preserve earlier behavior, add Phase2281/Phase2282/Phase2283/Phase2284/Phase2285/Phase2286/Phase2287/Phase2288/Phase2289/Phase2290/Phase2291/Phase2292/Phase2293/Phase2294/Phase2295/Phase2296 evidence markers, write rollback evidence for restoring previous target contents, and must refuse create/delete/rename/binary/unapproved multi-file diffs, unsafe text, Provider calls, Codex execution by this phase, secrets/auth.json/.env reads, Codex config/base_url writes, provider runtime changes, default `/chat` or `/chat-gateway/execute` changes, deploy, release, tag, artifact upload, push, commit, legacy changes, PROJECT_CONTEXT.md creation, or workspace-clean claims.
+- Phase2297A-2318A Controlled Seventeen Tool Mutation may reuse the controlled mutation substrate JSON smoke helper and apply exactly seventeen validated low-risk existing tool source mutations to `tools/phase2091/generated-source-patch-target.mjs`, `tools/phase2092/apply-controlled-existing-tool-mutation.mjs`, `tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs`, `tools/phase2096_2100/apply-controlled-triple-tool-mutation.mjs`, `tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs`, `tools/phase2111_2120/apply-controlled-quint-tool-mutation.mjs`, `tools/phase2121_2131/apply-controlled-sext-tool-mutation.mjs`, `tools/phase2132_2143/apply-controlled-sept-tool-mutation.mjs`, `tools/phase2144_2156/apply-controlled-oct-tool-mutation.mjs`, `tools/phase2157_2170/apply-controlled-nonet-tool-mutation.mjs`, `tools/phase2171_2185/apply-controlled-deca-tool-mutation.mjs`, `tools/phase2186_2201/apply-controlled-eleven-tool-mutation.mjs`, `tools/phase2202_2218/apply-controlled-twelve-tool-mutation.mjs`, `tools/phase2219_2236/apply-controlled-thirteen-tool-mutation.mjs`, `tools/phase2237_2255/apply-controlled-fourteen-tool-mutation.mjs`, `tools/phase2256_2275/apply-controlled-fifteen-tool-mutation.mjs`, and `tools/phase2276_2296/apply-controlled-sixteen-tool-mutation.mjs` after Phase632 preflight, Phase2276A-2296A seal, approvalRecord, allowedFiles, forbiddenPaths, and expected pre-mutation SHA values pass. It must run `node --check` for all seventeen files, run local seventeen smoke, preserve earlier behavior, add Phase2302/Phase2303/Phase2304/Phase2305/Phase2306/Phase2307/Phase2308/Phase2309/Phase2310/Phase2311/Phase2312/Phase2313/Phase2314/Phase2315/Phase2316/Phase2317/Phase2318 evidence markers, write rollback evidence for restoring previous target contents, and must refuse create/delete/rename/binary/unapproved multi-file diffs, unsafe text, Provider calls, Codex execution by this phase, secrets/auth.json/.env reads, Codex config/base_url writes, provider runtime changes, default `/chat` or `/chat-gateway/execute` changes, deploy, release, tag, artifact upload, push, commit, legacy changes, PROJECT_CONTEXT.md creation, or workspace-clean claims.
+- Phase2319A-2341A Controlled Eighteen Tool Mutation may reuse the controlled mutation substrate JSON smoke helper and apply exactly eighteen validated low-risk existing tool source mutations to `tools/phase2091/generated-source-patch-target.mjs`, `tools/phase2092/apply-controlled-existing-tool-mutation.mjs`, `tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs`, `tools/phase2096_2100/apply-controlled-triple-tool-mutation.mjs`, `tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs`, `tools/phase2111_2120/apply-controlled-quint-tool-mutation.mjs`, `tools/phase2121_2131/apply-controlled-sext-tool-mutation.mjs`, `tools/phase2132_2143/apply-controlled-sept-tool-mutation.mjs`, `tools/phase2144_2156/apply-controlled-oct-tool-mutation.mjs`, `tools/phase2157_2170/apply-controlled-nonet-tool-mutation.mjs`, `tools/phase2171_2185/apply-controlled-deca-tool-mutation.mjs`, `tools/phase2186_2201/apply-controlled-eleven-tool-mutation.mjs`, `tools/phase2202_2218/apply-controlled-twelve-tool-mutation.mjs`, `tools/phase2219_2236/apply-controlled-thirteen-tool-mutation.mjs`, `tools/phase2237_2255/apply-controlled-fourteen-tool-mutation.mjs`, `tools/phase2256_2275/apply-controlled-fifteen-tool-mutation.mjs`, `tools/phase2276_2296/apply-controlled-sixteen-tool-mutation.mjs`, and `tools/phase2297_2318/apply-controlled-seventeen-tool-mutation.mjs` after Phase632 preflight, Phase2297A-2318A seal, approvalRecord, allowedFiles, forbiddenPaths, and expected pre-mutation SHA values pass. It must run `node --check` for all eighteen files, run local eighteen smoke, preserve earlier behavior, add Phase2324/Phase2325/Phase2326/Phase2327/Phase2328/Phase2329/Phase2330/Phase2331/Phase2332/Phase2333/Phase2334/Phase2335/Phase2336/Phase2337/Phase2338/Phase2339/Phase2340/Phase2341 evidence markers, write rollback evidence for restoring previous target contents, and must refuse create/delete/rename/binary/unapproved multi-file diffs, unsafe text, Provider calls, Codex execution by this phase, secrets/auth.json/.env reads, Codex config/base_url writes, provider runtime changes, default `/chat` or `/chat-gateway/execute` changes, deploy, release, tag, artifact upload, push, commit, legacy changes, PROJECT_CONTEXT.md creation, or workspace-clean claims.
+- Phase2342A-2365A Controlled Nineteen Tool Mutation may reuse the controlled mutation substrate JSON smoke helper and apply exactly nineteen validated low-risk existing tool source mutations to `tools/phase2091/generated-source-patch-target.mjs`, `tools/phase2092/apply-controlled-existing-tool-mutation.mjs`, `tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs`, `tools/phase2096_2100/apply-controlled-triple-tool-mutation.mjs`, `tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs`, `tools/phase2111_2120/apply-controlled-quint-tool-mutation.mjs`, `tools/phase2121_2131/apply-controlled-sext-tool-mutation.mjs`, `tools/phase2132_2143/apply-controlled-sept-tool-mutation.mjs`, `tools/phase2144_2156/apply-controlled-oct-tool-mutation.mjs`, `tools/phase2157_2170/apply-controlled-nonet-tool-mutation.mjs`, `tools/phase2171_2185/apply-controlled-deca-tool-mutation.mjs`, `tools/phase2186_2201/apply-controlled-eleven-tool-mutation.mjs`, `tools/phase2202_2218/apply-controlled-twelve-tool-mutation.mjs`, `tools/phase2219_2236/apply-controlled-thirteen-tool-mutation.mjs`, `tools/phase2237_2255/apply-controlled-fourteen-tool-mutation.mjs`, `tools/phase2256_2275/apply-controlled-fifteen-tool-mutation.mjs`, `tools/phase2276_2296/apply-controlled-sixteen-tool-mutation.mjs`, `tools/phase2297_2318/apply-controlled-seventeen-tool-mutation.mjs`, and `tools/phase2319_2341/apply-controlled-eighteen-tool-mutation.mjs` after Phase632 preflight, Phase2319A-2341A seal, approvalRecord, allowedFiles, forbiddenPaths, and expected pre-mutation SHA values pass. It must run `node --check` for all nineteen files, run local nineteen smoke, preserve earlier behavior, add Phase2347/Phase2348/Phase2349/Phase2350/Phase2351/Phase2352/Phase2353/Phase2354/Phase2355/Phase2356/Phase2357/Phase2358/Phase2359/Phase2360/Phase2361/Phase2362/Phase2363/Phase2364/Phase2365 evidence markers, write rollback evidence for restoring previous target contents, and must refuse create/delete/rename/binary/unapproved multi-file diffs, unsafe text, Provider calls, Codex execution by this phase, secrets/auth.json/.env reads, Codex config/base_url writes, provider runtime changes, default `/chat` or `/chat-gateway/execute` changes, deploy, release, tag, artifact upload, push, commit, legacy changes, PROJECT_CONTEXT.md creation, or workspace-clean claims.
+- Phase2366A-2390A Controlled Twenty Tool Mutation may reuse the controlled mutation substrate JSON smoke helper and apply exactly twenty validated low-risk existing tool source mutations to `tools/phase2091/generated-source-patch-target.mjs`, `tools/phase2092/apply-controlled-existing-tool-mutation.mjs`, `tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs`, `tools/phase2096_2100/apply-controlled-triple-tool-mutation.mjs`, `tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs`, `tools/phase2111_2120/apply-controlled-quint-tool-mutation.mjs`, `tools/phase2121_2131/apply-controlled-sext-tool-mutation.mjs`, `tools/phase2132_2143/apply-controlled-sept-tool-mutation.mjs`, `tools/phase2144_2156/apply-controlled-oct-tool-mutation.mjs`, `tools/phase2157_2170/apply-controlled-nonet-tool-mutation.mjs`, `tools/phase2171_2185/apply-controlled-deca-tool-mutation.mjs`, `tools/phase2186_2201/apply-controlled-eleven-tool-mutation.mjs`, `tools/phase2202_2218/apply-controlled-twelve-tool-mutation.mjs`, `tools/phase2219_2236/apply-controlled-thirteen-tool-mutation.mjs`, `tools/phase2237_2255/apply-controlled-fourteen-tool-mutation.mjs`, `tools/phase2256_2275/apply-controlled-fifteen-tool-mutation.mjs`, `tools/phase2276_2296/apply-controlled-sixteen-tool-mutation.mjs`, `tools/phase2297_2318/apply-controlled-seventeen-tool-mutation.mjs`, `tools/phase2319_2341/apply-controlled-eighteen-tool-mutation.mjs`, and `tools/phase2342_2365/apply-controlled-nineteen-tool-mutation.mjs` after Phase632 preflight, Phase2342A-2365A seal, approvalRecord, allowedFiles, forbiddenPaths, and expected pre-mutation SHA values pass. It must run `node --check` for all twenty files, run local twenty smoke, preserve earlier behavior, add Phase2371/Phase2372/Phase2373/Phase2374/Phase2375/Phase2376/Phase2377/Phase2378/Phase2379/Phase2380/Phase2381/Phase2382/Phase2383/Phase2384/Phase2385/Phase2386/Phase2387/Phase2388/Phase2389/Phase2390 evidence markers, write rollback evidence for restoring previous target contents, and must refuse create/delete/rename/binary/unapproved multi-file diffs, unsafe text, Provider calls, Codex execution by this phase, secrets/auth.json/.env reads, Codex config/base_url writes, provider runtime changes, default `/chat` or `/chat-gateway/execute` changes, deploy, release, tag, artifact upload, push, commit, legacy changes, PROJECT_CONTEXT.md creation, or workspace-clean claims.
+- Phase2391A-2416A Controlled Twenty-One Tool Mutation may reuse the controlled mutation substrate JSON smoke helper and apply exactly twenty-one validated low-risk existing tool source mutations to `tools/phase2091/generated-source-patch-target.mjs`, `tools/phase2092/apply-controlled-existing-tool-mutation.mjs`, `tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs`, `tools/phase2096_2100/apply-controlled-triple-tool-mutation.mjs`, `tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs`, `tools/phase2111_2120/apply-controlled-quint-tool-mutation.mjs`, `tools/phase2121_2131/apply-controlled-sext-tool-mutation.mjs`, `tools/phase2132_2143/apply-controlled-sept-tool-mutation.mjs`, `tools/phase2144_2156/apply-controlled-oct-tool-mutation.mjs`, `tools/phase2157_2170/apply-controlled-nonet-tool-mutation.mjs`, `tools/phase2171_2185/apply-controlled-deca-tool-mutation.mjs`, `tools/phase2186_2201/apply-controlled-eleven-tool-mutation.mjs`, `tools/phase2202_2218/apply-controlled-twelve-tool-mutation.mjs`, `tools/phase2219_2236/apply-controlled-thirteen-tool-mutation.mjs`, `tools/phase2237_2255/apply-controlled-fourteen-tool-mutation.mjs`, `tools/phase2256_2275/apply-controlled-fifteen-tool-mutation.mjs`, `tools/phase2276_2296/apply-controlled-sixteen-tool-mutation.mjs`, `tools/phase2297_2318/apply-controlled-seventeen-tool-mutation.mjs`, `tools/phase2319_2341/apply-controlled-eighteen-tool-mutation.mjs`, `tools/phase2342_2365/apply-controlled-nineteen-tool-mutation.mjs`, and `tools/phase2366_2390/apply-controlled-twenty-tool-mutation.mjs` after Phase632 preflight, Phase2366A-2390A seal, approvalRecord, allowedFiles, forbiddenPaths, and expected pre-mutation SHA values pass. It must run `node --check` for all twenty-one files, run local twenty-one smoke, preserve earlier behavior, add Phase2396/Phase2397/Phase2398/Phase2399/Phase2400/Phase2401/Phase2402/Phase2403/Phase2404/Phase2405/Phase2406/Phase2407/Phase2408/Phase2409/Phase2410/Phase2411/Phase2412/Phase2413/Phase2414/Phase2415/Phase2416 evidence markers, write rollback evidence for restoring previous target contents, and must refuse create/delete/rename/binary/unapproved multi-file diffs, unsafe text, Provider calls, Codex execution by this phase, secrets/auth.json/.env reads, Codex config/base_url writes, provider runtime changes, default `/chat` or `/chat-gateway/execute` changes, deploy, release, tag, artifact upload, push, commit, legacy changes, PROJECT_CONTEXT.md creation, or workspace-clean claims.
+- Phase651-666 Taiji / Beidou Engine Self-Use Foundation records a dry-run self-use kernel for natural-language capability generation, capability neuron manifests, immune classification, scaffold/dry-run/verifier/evidence/rollback generation, registry/synapse preview, homeostasis policy, built-in Context Codec and Codex Context neurons, God/Tianshu draft neurons, Mission Control read-only Beidou panel, and Codex long-task token-saving subgateway runner. It must not auto-enable runtime, self-approve capabilities, exceed maxSpawnDepth=1, execute recursive spawn, call Providers, read auth.json/secrets/raw base_url, write Codex config/base_url, modify provider runtime, modify `/chat` or `/chat-gateway/execute`, deploy, release, tag, artifact, push, commit, restore Yiyi/Character, or claim production/release readiness.
+- Phase1451-1475 Real Local Dogfooding Intake + Issue Repair Closure may only read owner-filled dogfooding ledgers, classify feedback/issues, generate issue/repair/evidence ledgers, and perform low-risk docs or read-only Mission Control status repairs; it must not fabricate owner records, count Codex self-tests as owner feedback, continue past P0 without safety brake, auto-downgrade P1, call Providers, read secrets/auth.json/raw CredentialRef values, bypass credentialRef/quota/budget/selectable gates, modify provider runtime, modify `/chat` or `/chat-gateway/execute`, deploy, release, tag, upload artifacts, push, commit, restore Yiyi/Character, claim workspace clean, claim production readiness, or claim public launch readiness.
+- Phase1476 Concept Field Kernel may only run synthetic vectors dry-run, critical audit, benchmark scaffold, evidence, and verifier as a synthetic concept-field sub-kernel; it must not claim AGI, claim trillion-model surpass, claim real semantic validation, download GloVe/gensim/external datasets, use external network, call Providers, read secrets/auth.json/raw CredentialRef, modify provider runtime, modify `/chat` or `/chat-gateway/execute`, deploy, release, tag, upload artifacts, push, commit, or claim production readiness.
+- Phase1476-1600 Local Self-Use Route A Master Control must stay routeChoice=local_self_use_only: each round may generate docs, evidence, local Node automation results, continuation gates, rollback runbooks, and provider approval packet templates only. It must not call Providers, read secrets/auth.json/raw CredentialRef, write user or project Codex config, modify provider runtime, modify `/chat` or `/chat-gateway/execute`, open public services, deploy, release, tag, upload artifacts, push, commit, restore Yiyi/Character mainline, claim manual human testing from automation, claim production readiness, claim AGI, claim LLM replacement, or claim trillion-model surpass.
+- Phase1506-1530 Local Dogfooding Framework + Evidence Loop may seal the framework, automated local trial, manual note schema, issue classifier, repair queue, and known-limits report only. It must not fake owner dogfooding, must not mark automated browser walkthroughs as human feedback, must keep dogfoodingCompleted=false until sufficient real owner records exist, and must not call Providers, read secrets/auth.json/raw CredentialRef, modify `/chat` or `/chat-gateway/execute`, deploy, release, tag, upload artifacts, push, commit, or claim production readiness.
+- Phase1531-1560 Guarded Real Provider Local Self-Use Test Gate may generate Provider Gate evidence, approval packet templates, CredentialRef readiness status, budget/rate/retry guards, emergency disable, redaction checks, and gated/skipped NVIDIA test ledgers only. It must not read raw secrets, read auth.json, output raw CredentialRef, bypass budget/quota/CredentialRef gates, call paid Providers, call OpenAI/Claude/OpenRouter/MiMo, enable main-chain defaults, modify `/chat` or `/chat-gateway/execute`, deploy, release, tag, upload artifacts, push, commit, or claim production provider readiness.
+- Phase1781-1800 Owner Zero-Learning Mode is local desktop one-click operation only: it may create root launchers, auto-start/detect the local service, run local Chrome/Edge headless browser checks against `/ui`, generate/open a Chinese owner daily report, and write local evidence. It must not require owner web-button operation, call Providers, read secrets/auth.json/raw CredentialRef, modify `/chat` or `/chat-gateway/execute`, deploy, release, tag, upload artifacts, push, commit, claim production readiness, or count automation as human feedback.
+- Phase1801-1820 Owner UI Design Polish may only use awesome-design-md / awesome-design-systems as reference-only design inspiration, add PME-owned design docs/tokens/components, polish Owner Home and owner daily report visuals, and write local screenshot evidence. It must not copy unknown-license code or brand assets, use remote fonts/CDNs/hotlinked images, call Providers, read secrets/auth.json/raw CredentialRef, modify `/chat` or `/chat-gateway/execute`, deploy, release, tag, upload artifacts, push, commit, or claim production readiness.
+- Phase1821-1840 Codex Design Knowledge Pack keeps UI changes disciplined: Codex UI edits must first read `docs/design/codex-design-knowledge/`; Owner Home must not退回工程后台; owner-facing pages must not become a 按钮墙; Phase / evidence / trace / raw provider details are default-hidden in Advanced Mode; this phase may add docs/verifiers/evidence/managed guidance only and must not call Providers, read secrets/auth.json/raw CredentialRef, modify `/chat` or `/chat-gateway/execute`, deploy, release, tag, upload artifacts, push, commit, use remote fonts/CDNs/hotlinked images, or claim production readiness.
+- Phase1881A Legacy Automation Capability Read-Only Audit may only enumerate and classify automation capability under `legacy/ai-gateway-workspace` and `legacy/claudcodesrc-ponponon-master`; it must not modify legacy, execute legacy scripts, read `.env`/auth.json/secrets/raw CredentialRef, call Providers, modify `/chat` or `/chat-gateway/execute`, deploy, release, tag, upload artifacts, push, commit, or claim legacy capability as current Owner OS runtime integration.
+- Phase1889A-1901A Owner Automation Action Registry and Command Palette v1 may only register, display, visually smoke-test, seal, and polish the dry-run preview drawer for the single safe local action `create_desktop_spreadsheet` as a read-only Owner OS capability with dry-run preview, approval-required state, safety copy, evidence drawer, screenshot, DOM evidence, final seal evidence, and preview polish evidence. It must not create new files by this phase, scan/read Desktop files, add batch/delete/move/overwrite capability, enable ungated real-run buttons, execute legacy scripts, call Providers, read secrets/auth.json/raw CredentialRef, modify `/chat` or `/chat-gateway/execute`, deploy, release, tag, upload artifacts, push, commit, claim production readiness, or claim generic desktop automation.
+- Phase667-674 Taiji / Beidou Auto Runtime v0 is sealed as sandbox/local auto runtime only: registry preview neurons can be reviewed, verifier-passed low-risk neurons can be admitted to a sandbox runtime registry, deterministic local dry-run adapters can execute with lease/TTL/request/token/runtime budgets, evidence ledgers and failure-injection disabled records are generated, and Mission Control shows a read-only Auto Runtime panel. It is not production runtime, not real Provider runtime, not main-chain runtime, and it must not call Providers, read secrets/auth.json/raw base_url, write Codex config/base_url, modify provider runtime, modify `/chat` or `/chat-gateway/execute`, deploy, release, tag, artifact, push, commit, restore Yiyi/Character, or claim production/release readiness.
+- Phase675-682 Taiji / Beidou Guarded Real Provider Runtime v0 is sealed as an approval-gated, credentialRef-only Provider runtime path: it defines authorization schema, NVIDIA-only provider allowlist, credentialRef gate, bridge dry-run, approval intake, one-shot guarded execution gate, evidence/cost/quota ledger, emergency disable drill, and Mission Control read-only Real Provider Runtime panel. Without `docs/phase675_682-real-provider-runtime-approval.input.json`, it seals as gate-ready with blocker=real_provider_runtime_approval_missing and realProviderCallExecuted=false. It is not production runtime, not public release, not main-chain runtime, not default `/chat`, not `/chat-gateway/execute`, and it must not read raw secrets/auth.json/raw base_url, write Codex config/base_url, deploy, release, tag, artifact, push, commit, restore Yiyi/Character, or claim production/release readiness.
+- Phase683-700 Taiji / Beidou Production Readiness records readiness, not deployment: Phase675-682 guarded real NVIDIA Provider runtime must be passed first, then disabled-by-default main-chain, `/chat-gateway/execute`, and `/chat` preview/shadow hooks can be sealed with rollback, kill switch, compliance, cost boundary, monitoring, alert, runbook, and canary plan evidence. Defaults remain disabled, non-NVIDIA providers remain blocked, CredentialRef-only remains required, productionDeployExecuted=false, and it must not read raw secrets/auth.json/raw base_url, write Codex config/base_url, deploy, release, tag, artifact, push, commit, restore Yiyi/Character, or claim workspace clean.
+- Phase701-720 Production Operation Readiness Complete Pack is sealed as no-deploy operations readiness only: deploy authorization packet, environment isolation, runtime config freeze, canary plan, rollback command pack, emergency disable dry-run, monitoring/alerting config, SLO/SLI/error budget, cost/quota guard, incident/operator handbook, support guide, compliance/security final review, route default-disabled regression, dry-run deploy command boundary, Go/No-Go packet, Mission Control production ops panel, and post-deploy checklist can be prepared while productionDeployExecuted=false, deployAuthorized=false, goDecision=pending, meetingHeld=false, postDeploySmokeExecuted=false, productionTrafficObserved=false, and no deploy/release/tag/artifact/push/commit/default route mutation/secret read is allowed.
+- Phase633A Token Saving Preflight Wrapper is local dry-run preflight only: it may check `.codex-context` files and write sanitized evidence, but it must not execute `codex exec`, call Providers, read auth.json, write Codex config, modify provider runtime, modify `/chat` or `/chat-gateway/execute`, deploy, release, tag, artifact, push, commit, or claim workspace clean.
+- Phase606R Open Source Minimum Readiness Lock is clone/read/dry-run-demo readiness only: no real Provider requirement, no deployment, no release, no tag, no artifact upload, no persistent Codex config write, no `/chat` or `/chat-gateway/execute` modification, no secret/webhook/raw endpoint exposure, and no workspace-clean claim
+- no Gateway core copy
+- `legacy/` blocked
+- `PROJECT_CONTEXT.md` prohibited
+- workspace dirty is not clean
+- production deployed is false
+- real Provider Workforce execution is disabled unless a later phase is explicitly authorized
+
+### Current blocker
+
+- none
+<!-- END UNIFIED_AI_SYSTEM_CURRENT_STATE -->
 
-```text
-http://127.0.0.1:3100/ui
-```
-
-5. Follow the Setup Wizard: run readiness, add or detect a model, then start
-Chat. If API Key / baseUrl detection fails, select the provider manually or
-fill the OpenAI-compatible base URL and retry. The system must not guess models
-from API Key text.
-
-6. Validate the delivery-ready path:
-
-```powershell
-cmd /c pnpm verify:phase106a-delivery-readiness
-cmd /c pnpm verify:phase105a-user-journey
-cmd /c pnpm health:phase12a
-cmd /c pnpm doctor:phase13a
-```
-
-If startup or readiness fails, check `cmd /c pnpm status:phase10a`,
-`cmd /c pnpm logs:phase16a`, and the readable error card in `/ui`. Current
-preview/dev-only surfaces include Agent Workforce plan preview/history/export,
-model-import guidance, and bounded readiness panels. They are not a claim that
-global release, production fallback execution, full IAM/SSO, or real multi-Agent
-code execution is complete.
-
-Enterprise aggregate validation is available as `verify:enterprise`; it only
-chains `verify:phase32a`, `verify:phase33a`, `verify:phase34a`,
-`verify:phase35a`, `verify:phase36a`, `verify:phase37a`,
-`verify:phase38a`, `verify:phase40a`, `verify:phase41a`, and
-`verify:phase42a`, `verify:phase43a`, `verify:phase44a`, and
-`verify:phase45a`, `verify:phase46a`, `verify:phase47a`, and
-`verify:phase48a`.
-Phase 24 delivery validation is available as `verify:phase24`; it is not a new
-runtime command family and only checks the delivery guide plus a bounded
-real-usage knowledge sample load/retrieve.
-The real-operation regression is established for this frozen command set.
-Phase 31A now provides real minimum loops for streaming output, multi-provider
-visibility/selection, retryable fallback execution, dashboard, heuristic
-evaluation/scoring, long-term memory, explicit text connector import, optional
-auth/tenant headers, and query-time GraphRAG-style result graphs. These are
-bounded product surfaces, not full DataEyes, enterprise governance/dashboard,
-production GraphRAG, arbitrary external connector crawling, enterprise
-auth/tenant, streaming platform infrastructure, or release automation. The
-bounded service-side RAG chat path is available through `/chat/rag` and
-`/chat/rag/stream`; it does not change the default NVIDIA `/chat` lane. The
-real vector production path is covered only by the explicit `verify:phase23`
-configuration and does not change the default local-keyword mode.
-Phase 32A through Phase 47A add a real protected-route governance, security
-hardening, managed token lifecycle, audit evidence, and bounded deployment
-ops/backup/startup/preflight readiness plus local config-check layer for
-enterprise use, plus read-only handoff, acceptance report, acceptance UI, and
-release-candidate dry-run/UI and enterprise overview checks. They do not turn
-the system into a full enterprise platform or release automation system by
-themselves.
-
-Daily use is now in defect-driven standby. Report one concrete issue at a time
-with this template:
-
-```text
-复现命令：
-实际失败：
-期望表现：
-唯一失败点：
-关键输出：
-```
-
-Delivery guide:
-
-```powershell
-cmd /c pnpm verify:phase24
-```
-
-The final delivery guide is `docs/DELIVERY_GUIDE.md`. The Phase 24 validation
-loads the local real-usage sample at
-`apps/ai-gateway-service/knowledge-samples/real-usage-sample.md` through
-`POST /knowledge/load`, retrieves it through `POST /knowledge/retrieve`, and
-checks top hit, snippet, highlights, matched terms, score breakdown, and
-metadata. If vector mode is explicitly configured, it also runs the bounded
-Gemini embedding plus pgvector probe over the same sample documents; otherwise
-the vector path remains configured-capable but inactive for that run.
-
-Detailed Chinese operation manual:
-
-```text
-docs/OPERATION_MANUAL.md
-```
-
-Enterprise deployment runbook and safe environment template:
-
-```text
-docs/ENTERPRISE_DEPLOYMENT_RUNBOOK.md
-docs/ENTERPRISE_HANDOFF_MANIFEST.md
-docs/ENTERPRISE_ACCEPTANCE_REPORT.md
-.env.enterprise.example
-```
-
-Phase 39A adds these delivery artifacts only. It does not add commands,
-dependencies, business logic, SSO/IAM, SIEM, infrastructure provisioning, or
-release automation.
-
-Minimal Web console:
-
-```powershell
-cmd /c pnpm dev:phase7b
-# then open http://127.0.0.1:3100/ui
-cmd /c pnpm verify:phase25a
-cmd /c pnpm verify:phase26a
-```
-
-The Web console is now Chat-first. It supports chat through the service-side
-`/chat/rag` path, chat-window document drops, service health, knowledge health,
-knowledge sources, document file import, keyword retrieve result inspection,
-vector readiness, chat-window command cards, and default command hints.
-Document import is bounded to `POST /knowledge/load/file` and supports
-text-like files, PDF, Word `.docx`, and Excel `.xls` / `.xlsx` up to 100MB per
-file; legacy binary `.doc` is not part of this minimal parser. The Web UI now
-calls `/chat/rag`; the service performs knowledge retrieve and returns
-structured citations with the answer. This does not change the service `/chat`
-contract, the NVIDIA single-provider lane, or the default local-keyword
-knowledge mode.
-Workflow automation is the bounded Phase 30A loop only: it can retrieve local
-knowledge, compose a report, and write one managed artifact. It is not an
-arbitrary local command runner, file scanner, OS automation layer, or external
-connector system.
-
-Default daily knowledge persistence:
-
-```powershell
-cmd /c pnpm dev:phase7b
-cmd /c pnpm verify:phase27
-```
-
-The managed daily startup sets `KNOWLEDGE_STORAGE_MODE=file-sqlite` and uses
-`.data/knowledge` as the persistence directory unless those environment
-variables are overridden. This gives two local durable stores at once:
-`knowledge-documents.json` for simple file backup/inspection and
-`knowledge-documents.sqlite` for a steadier long-term local store. The
-pgvector/Supabase path is still explicit: set `KNOWLEDGE_INFRA_MODE=vector`
-and the Phase 23 vector environment variables, then run `verify:phase23` to
-validate the real embedding plus pgvector write/read/retrieve path. Local
-keyword retrieval remains available when vector mode is not configured.
-
-Default Phase 23Z knowledge production-readiness gate:
-
-```powershell
-cmd /c pnpm verify:phase23
-```
-
-`verify:phase23` runs the Phase 22 aggregate knowledge check and then checks
-the Phase 23 keyword quality v2 plus real vector production-readiness gate.
-With explicit Gemini embedding and pgvector pooler configuration, this gate has
-passed a real embedding -> pgvector write -> read -> vector retrieve probe.
-Keyword retrieval remains local-keyword by default, with stronger
-normalization, stopword filtering, field weighting, exact/phrase/contiguous
-boosts, stable top hit ordering, snippets, highlights, matched terms,
-`topHit`, `topChunk`, `topDocument`, and score breakdown.
-
-The real vector production gate requires explicit external prerequisites:
-`KNOWLEDGE_INFRA_MODE=vector`, `KNOWLEDGE_EMBEDDING_PROVIDER`,
-`KNOWLEDGE_EMBEDDING_MODEL`, `KNOWLEDGE_EMBEDDING_API_KEY`,
-`KNOWLEDGE_VECTOR_STORE=pgvector`, and `PGVECTOR_CONNECTION_STRING`.
-`PGVECTOR_TABLE` and `KNOWLEDGE_VECTOR_NAMESPACE` may scope the target table
-and namespace. Without these prerequisites and a real embedding plus pgvector
-write/read/retrieve probe, Phase 23Z must be treated as blocked, not as a
-production vector delivery. With the prerequisites present and the probe
-passing, Phase 23Z is considered production-vector-delivered for this bounded
-knowledge path. This does not affect the default local-keyword knowledge mode.
-
-Default Phase 22Z knowledge quality and infra acceptance:
-
-```powershell
-cmd /c pnpm verify:phase22
-```
-
-`verify:phase22` runs the Phase 21 aggregate knowledge check and the Phase 22
-quality/infra check. The default knowledge mode remains `local-keyword` with
-`in-memory` storage and `embedding: not-configured`. Keyword retrieval now
-returns normalized query data, weighted keyword ranking, stable top hit/rank,
-matched terms, snippets, highlights, score breakdown, and document metadata.
-The next-gen infrastructure base exposes an off-by-default readiness path for
-embedding provider and vector store interfaces, including pgvector config
-diagnostics. When not explicitly enabled, it reports disabled/not-configured
-state and does not affect local-keyword retrieval. The current config entry
-names are `KNOWLEDGE_INFRA_MODE`, `KNOWLEDGE_EMBEDDING_PROVIDER`,
-`KNOWLEDGE_EMBEDDING_MODEL`, `KNOWLEDGE_EMBEDDING_API_KEY`,
-`KNOWLEDGE_EMBEDDING_BASE_URL`, `KNOWLEDGE_VECTOR_STORE`,
-`PGVECTOR_CONNECTION_STRING`, `PGVECTOR_TABLE`, and
-`KNOWLEDGE_VECTOR_NAMESPACE`.
-
-Default Phase 21Z knowledge acceptance:
-
-```powershell
-cmd /c pnpm verify:phase21
-```
-
-`verify:phase21` is the current knowledge aggregate check. It only chains
-`verify:phase21a`, `verify:phase21b`, and `verify:phase21c`; it does not add a
-new validation system or new business logic. The frozen knowledge capability is:
-`GET /knowledge/health`, `GET /knowledge/sources`, `POST /knowledge/load`,
-`POST /knowledge/retrieve`, shared SDK `knowledgeLoad` /
-`knowledgeRetrieve`, and the `agent-console` verifier that calls knowledge
-through the SDK. The boundary remains local-keyword, in-memory, non-vector, and
-not mixed into the default NVIDIA `/chat` path.
-
-Default Phase 21C agent-console knowledge chain:
-
-```powershell
-cmd /c pnpm verify:phase21c
-```
-
-`verify:phase21c` checks that `apps/agent-console` can use the shared SDK to
-call `ai-gateway-service` knowledge retrieval over HTTP. It loads a bounded
-local source through `POST /knowledge/load`, retrieves it through
-`POST /knowledge/retrieve`, and records structured evidence for the returned
-knowledge result. This proves the upper entry can use knowledge without mixing
-knowledge into the default `/chat` path. It remains local-keyword,
-in-memory, non-vector, and does not add embeddings, vector databases,
-pgvector, GraphRAG, long-term memory, auth/tenant, external connectors, or a
-production RAG pipeline.
-
-Default Phase 21B local knowledge source load:
-
-```powershell
-cmd /c pnpm verify:phase21b
-```
-
-`verify:phase21b` checks the minimal `POST /knowledge/load` path by loading a
-local text document set with `sourceId`, `documentId`, content, and metadata,
-then verifying the loaded source through `GET /knowledge/sources` and keyword
-retrieval through `POST /knowledge/retrieve`. This remains in-memory,
-local-keyword, non-vector document loading. It is not a full ingestion
-pipeline, external document connector, embedding path, vector database,
-pgvector, GraphRAG, long-term memory, auth/tenant layer, or production
-knowledge platform.
-
-Default Phase 21A local knowledge entry:
-
-```powershell
-cmd /c pnpm verify:phase21a
-```
-
-`verify:phase21a` checks the new local knowledge service entrypoints:
-`GET /knowledge/health`, `GET /knowledge/sources`, and
-`POST /knowledge/retrieve`. This is a bounded in-memory keyword retrieval
-baseline for the PME 移动地球 operating knowledge. It does not use
-external embeddings, vector databases, pgvector, GraphRAG, tenant auth,
-connectors, governance dashboards, or a provider lane. Chat generation remains
-NVIDIA single-provider through `/chat`.
-
-Default Phase 16C managed output/log view:
-
-```powershell
-cmd /c pnpm logs:phase16a
-```
-
-`logs:phase16a` reads only the `logPath` recorded in the current Phase 9C
-managed startup state. It does not scan files, system logs, processes, ports,
-or network endpoints, and it does not start, stop, restart, call providers,
-refresh evidence, or change managed startup state. If no current managed
-state/log path exists, it reports that there is no attributable output.
-
-Default Phase 15A idle check:
-
-```powershell
-cmd /c pnpm idle:phase15a
-```
-
-`idle:phase15a` composes the existing safe stop and status commands:
-`stop:phase9c` followed by `status:phase10a`. It does not introduce a new kill
-strategy, does not widen the stop scope, and does not bypass the Phase 9C PID
-ownership mechanism. Its expected resting state is `stopped`.
-
-Default Phase 14A command overview:
-
-```powershell
-cmd /c pnpm help:phase14a
-```
-
-`help:phase14a` prints the current default command set and boundary summary.
-It is read-only: it does not start, stop, restart, run health checks, call
-providers, refresh evidence, or change managed startup state.
-
-Default Phase 13A doctor check:
-
-```powershell
-cmd /c pnpm doctor:phase13a
-```
-
-`doctor:phase13a` is a read-only self-check that runs `status:phase10a` and the
-workspace check. It does not start, stop, restart, scan ports, scan broad
-process lists, call providers, refresh evidence, or change managed startup
-state. Use `health:phase12a` separately when you only need to know whether the
-local service is ready.
-
-Default Phase 12A health check:
-
-```powershell
-cmd /c pnpm health:phase12a
-```
-
-`health:phase12a` checks the existing ai-gateway-service health route by
-calling `/health/check` on the running local service. It does
-not call NVIDIA or any other provider, does not introduce broad network scans,
-port scans, or business behavior, and is intended to answer the user-facing
-question "is the local service ready?". When real provider smoke evidence is
-explicitly needed, use `cmd /c pnpm verify:phase7a-1` or
-`cmd /c pnpm verify:phase7a`.
-
-Default Phase 11A managed restart:
-
-```powershell
-cmd /c pnpm restart:phase11a
-```
-
-`restart:phase11a` only composes the existing safe stop and start commands:
-`stop:phase9c` followed by `dev:phase7b`. It does not introduce a new kill
-strategy, does not widen the stop scope, and does not bypass the Phase 9C PID
-ownership mechanism. Like `dev:phase7b`, it becomes a long-running command
-after startup begins.
-
-Default Phase 10A managed status check:
-
-```powershell
-cmd /c pnpm status:phase10a
-```
-
-`status:phase10a` reads the Phase 9C managed startup state and checks only the
-recorded owner PID. It reports `running`, `stopped`, or `stale` without changing
-processes or state, and it does not use broad process scans, process-name
-matching, or port probing.
-
-Default Phase 9C managed startup:
-
-```powershell
-$env:NVIDIA_API_KEY='<your-nvidia-key>'
-$env:NVIDIA_MODEL='meta/llama-3.1-8b-instruct'
-$env:AI_GATEWAY_PROVIDER_MODE='real'
-$env:AI_GATEWAY_REAL_PROVIDER_ENABLED='true'
-$env:AI_GATEWAY_ROUTE_MODE='fixed'
-$env:AI_GATEWAY_DEFAULT_PROVIDER='nvidia'
-$env:AI_GATEWAY_ENABLED_PROVIDERS='nvidia'
-$env:AI_GATEWAY_SERVICE_URL='http://127.0.0.1:3100'
-Remove-Item Env:NVIDIA_BASE_URL -ErrorAction SilentlyContinue
-cmd /c pnpm dev:phase7b
-```
-
-Default Phase 9C directed stop/cleanup:
-
-```powershell
-cmd /c pnpm stop:phase9c
-```
-
-`dev:phase7b` wraps the existing `ai-gateway-service` and `agent-console`
-workspace `start` scripts with a minimal PID ownership record. It uses the
-current NVIDIA single-provider runtime environment, fills the existing default
-NVIDIA runtime variables when they are not set, starts the service first, waits
-for `/health/check` to report ready, and only then runs the console startup
-request. A retryable NVIDIA provider timeout during that console startup
-request is logged as a startup warning rather than treated as a failed service
-start; real provider response validation remains covered by `verify:phase7a-1`,
-`verify:phase7a`, and `verify:phase8a-4`. `stop:phase9c` only stops the
-recorded managed startup process tree; it does not use broad process-name
-kills or port kills. The stop command is only authoritative for processes
-started through this managed `dev:phase7b` entrypoint.
-
-Default Phase 8A readiness/wait validation:
-
-```powershell
-$env:NVIDIA_API_KEY='<your-nvidia-key>'
-$env:NVIDIA_MODEL='meta/llama-3.1-8b-instruct'
-Remove-Item Env:NVIDIA_BASE_URL -ErrorAction SilentlyContinue
-cmd /c pnpm verify:phase8a-4
-```
-
-`verify:phase8a-4` starts `ai-gateway-service`, waits for the service health
-check to report ready, runs `agent-console`, then runs `verify:phase7a` and
-cleans up the service process. Service readiness remains a hard requirement.
-If the console or Phase 7A verification reaches the real NVIDIA request stage
-and fails only with retryable `NVIDIA_REQUEST_TIMEOUT`, the command records a
-warning instead of treating readiness/wait orchestration as failed. Other
-failures remain hard failures. It reuses existing workspace scripts and keeps
-the NVIDIA single-provider boundary; it does not enter DataEyes,
-multi-provider execution, fallback execution, scoring, governance, dashboard,
-knowledge, streaming, or release automation.
-
-Phase 7B startup command retained by the Phase 9C wrapper:
-
-```powershell
-$env:NVIDIA_API_KEY='<your-nvidia-key>'
-$env:NVIDIA_MODEL='meta/llama-3.1-8b-instruct'
-$env:AI_GATEWAY_PROVIDER_MODE='real'
-$env:AI_GATEWAY_REAL_PROVIDER_ENABLED='true'
-$env:AI_GATEWAY_ROUTE_MODE='fixed'
-$env:AI_GATEWAY_DEFAULT_PROVIDER='nvidia'
-$env:AI_GATEWAY_ENABLED_PROVIDERS='nvidia'
-$env:AI_GATEWAY_SERVICE_URL='http://127.0.0.1:3100'
-Remove-Item Env:NVIDIA_BASE_URL -ErrorAction SilentlyContinue
-cmd /c pnpm dev:phase7b
-```
-
-`dev:phase7b` reuses the existing `ai-gateway-service` and `agent-console`
-workspace `start` scripts through the managed Phase 9C wrapper, with the
-service readiness check gating the console startup request. Default Phase 7A
-validation remains:
-
-```powershell
-$env:NVIDIA_API_KEY='<your-nvidia-key>'
-$env:NVIDIA_MODEL='meta/llama-3.1-8b-instruct'
-Remove-Item Env:NVIDIA_BASE_URL -ErrorAction SilentlyContinue
-cmd /c pnpm verify:phase7a
-```
-
-`verify:phase7a` runs `verify:phase7a-1`, `verify:phase7a-2`, and the
-workspace check in one command. Minimal acceptance is: service health is ready,
-`POST /chat` exists, `agent-console` calls the service through the shared SDK,
-selected provider is `nvidia`, execution mode is `real`, execution status is
-`success`, and output is present. Evidence is recorded in
-`apps/ai-gateway-service/evidence/phase-7a-1-service-entry.*` and
-`apps/agent-console/evidence/phase-7a-2-console-service-chain.*`.
-
-Phase 7B boundary: NVIDIA is the only real provider in scope. This solidifies
-single-command startup wording only; it does not enter DataEyes, multi-provider
-execution, fallback execution, scoring, governance, dashboard, knowledge,
-streaming, release automation, or the next phase.
-
-Phase 7E is sealed as the NVIDIA single-provider service runtime baseline:
-`apps/agent-console` calls `apps/ai-gateway-service` over HTTP using the shared
-SDK, the shared contracts define the minimal chat/health shapes, and the
-service routes `POST /chat` to NVIDIA only.
-
-Runtime configuration entry points are listed in `.env.example`. For manual
-development, set the NVIDIA/runtime variables in your shell, start the service
-first, then run the console against it:
-
-```powershell
-$env:NVIDIA_API_KEY='<your-nvidia-key>'
-$env:NVIDIA_MODEL='meta/llama-3.1-8b-instruct'
-$env:AI_GATEWAY_PROVIDER_MODE='real'
-$env:AI_GATEWAY_REAL_PROVIDER_ENABLED='true'
-$env:AI_GATEWAY_ROUTE_MODE='fixed'
-$env:AI_GATEWAY_DEFAULT_PROVIDER='nvidia'
-$env:AI_GATEWAY_ENABLED_PROVIDERS='nvidia'
-Remove-Item Env:NVIDIA_BASE_URL -ErrorAction SilentlyContinue
-cmd /c pnpm start:ai-gateway-service
-```
-
-In a second shell:
-
-```powershell
-$env:AI_GATEWAY_SERVICE_URL='http://127.0.0.1:3100'
-cmd /c pnpm start:agent-console
-```
-
-Default Phase 7E validation:
-
-```powershell
-cmd /c pnpm verify:phase7e
-cmd /c pnpm -r --if-present check
-```
-
-Minimal acceptance for Phase 7E is: service health is ready, `POST /chat`
-exists, `agent-console` calls the service through the shared SDK, selected
-provider is `nvidia`, execution mode is `real`, execution status is `success`,
-output is present, the controlled missing-key error returns a stable
-`code/message/provider` summary, and service logs include request/provider
-success and failure events. Evidence is recorded in
-`apps/ai-gateway-service/evidence/phase-7a-1-service-entry.*`,
-`apps/agent-console/evidence/phase-7a-2-console-service-chain.*`, and
-`apps/agent-console/evidence/phase-7d-error-logging.*`.
-
-Phase 7E boundary: NVIDIA is the only real provider in scope. This does not
-enter DataEyes, multi-provider execution, fallback execution, scoring,
-governance, dashboard, knowledge, release automation, or the next phase.
-
-Phase 6N is sealed at the NVIDIA single-provider `real-with-key` closure.
-Repository-local evidence is recorded in
-`apps/ai-gateway-service/evidence/nvidia-real-route-smoke.*`.
-
-Current formal conclusion: NVIDIA `real-with-key` returned `httpStatus: 200`,
-`success: true`, `selectedProvider: nvidia`, and
-`externalSuccessEvidence: true`. The AI Gateway service check also passed.
-
-Verification commands:
-
-```powershell
-$env:AI_GATEWAY_SMOKE_MODE='real-with-key'
-$env:NVIDIA_API_KEY='<your-nvidia-key>'
-$env:NVIDIA_MODEL='meta/llama-3.1-8b-instruct'
-Remove-Item Env:NVIDIA_BASE_URL -ErrorAction SilentlyContinue
-node .\apps\ai-gateway-service\src\entrypoints\smokeNvidiaRoute.js
-cmd /c pnpm --filter @unified-ai-system/ai-gateway-service check
-```
-
-Success acceptance for this phase is a `smoke:nvidia-route` result with
-`nvidiaApiKeyPresent: true`, `nvidia-real-with-key-route`, `httpStatus: 200`,
-`success: true`, `selectedProvider: nvidia`, and
-`externalSuccessEvidence: true` in the evidence file.
-
-Phase 6N boundary: fake remains available, NVIDIA is the only real provider in
-scope for that sealed phase, and the system does not enter DataEyes,
-multi-provider execution, fallback execution, scoring, governance, dashboard,
-knowledge, release automation, or the next phase.

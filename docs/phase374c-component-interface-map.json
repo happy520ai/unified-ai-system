@@ -1,0 +1,25 @@
+{
+  "phase": "Phase374C",
+  "components": {
+    "ThreeModeOverviewPanel": [
+      "GuardedCandidateNotice",
+      "NormalModePanel",
+      "GodModePanel",
+      "TianshuModePanel"
+    ],
+    "NormalModePanel": [
+      "threeModeCopy.normal"
+    ],
+    "GodModePanel": [
+      "godModeCopy"
+    ],
+    "TianshuModePanel": [
+      "tianshuCopy"
+    ],
+    "GuardedCandidateNotice": [
+      "id",
+      "body",
+      "extraAttributes"
+    ]
+  }
+}

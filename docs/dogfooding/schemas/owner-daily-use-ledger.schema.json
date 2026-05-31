@@ -1,0 +1,246 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Phase1621 Owner Daily Use Ledger Schema",
+  "type": "object",
+  "required": [
+    "recordType",
+    "phaseRange",
+    "date",
+    "taskId",
+    "taskTitle",
+    "taskCategory",
+    "taskInputSummary",
+    "modeUsed",
+    "missionControlPath",
+    "contextGatewayUsed",
+    "conceptFieldVisible",
+    "evidenceReplayUsed",
+    "securityShieldTriggered",
+    "providerCallUsed",
+    "estimatedTokenSaving",
+    "ownerPerceivedUsefulness",
+    "ownerTrustLevel",
+    "keepUsingTomorrow",
+    "ownerManualNote",
+    "automatedEvidenceNotClaimedAsHuman",
+    "ownerManualFeedback",
+    "realHumanFeedbackCollected",
+    "dogfoodingCompleted",
+    "providerCallsMade",
+    "entries"
+  ],
+  "properties": {
+    "recordType": {
+      "const": "owner_daily_ledger"
+    },
+    "phaseRange": {
+      "const": "Phase1621-1650AIO"
+    },
+    "date": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+    },
+    "taskId": {
+      "type": "string"
+    },
+    "taskTitle": {
+      "type": "string"
+    },
+    "taskCategory": {
+      "type": "string"
+    },
+    "taskInputSummary": {
+      "type": "string"
+    },
+    "modeUsed": {
+      "enum": [
+        "normal",
+        "god",
+        "tianshu",
+        "mixed"
+      ]
+    },
+    "missionControlPath": {
+      "type": "string"
+    },
+    "contextGatewayUsed": {
+      "type": "boolean"
+    },
+    "conceptFieldVisible": {
+      "type": "boolean"
+    },
+    "evidenceReplayUsed": {
+      "type": "boolean"
+    },
+    "securityShieldTriggered": {
+      "type": "boolean"
+    },
+    "providerCallUsed": {
+      "type": "boolean"
+    },
+    "providerRef": {
+      "type": "string"
+    },
+    "estimatedTokenSaving": {
+      "type": "number"
+    },
+    "ownerPerceivedUsefulness": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 1,
+      "maximum": 5
+    },
+    "ownerPerceivedSpeed": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 1,
+      "maximum": 5
+    },
+    "ownerPerceivedClarity": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 1,
+      "maximum": 5
+    },
+    "ownerTrustLevel": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 1,
+      "maximum": 5
+    },
+    "failureOccurred": {
+      "type": "boolean"
+    },
+    "frictionPoint": {
+      "type": "string"
+    },
+    "confusingArea": {
+      "type": "string"
+    },
+    "desiredFix": {
+      "type": "string"
+    },
+    "keepUsingTomorrow": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "ownerManualNote": {
+      "type": "string"
+    },
+    "timestamp": {
+      "type": "string"
+    },
+    "evidencePath": {
+      "type": "string"
+    },
+    "browserScreenshotPath": {
+      "type": "string"
+    },
+    "verifierResultPath": {
+      "type": "string"
+    },
+    "tokenSavingComputed": {
+      "type": "number"
+    },
+    "routeAffinityScore": {
+      "type": "number"
+    },
+    "evidenceCoherenceScore": {
+      "type": "number"
+    },
+    "surpriseScore": {
+      "type": "number"
+    },
+    "riskFieldScore": {
+      "type": "number"
+    },
+    "localHealthCheckResult": {
+      "type": "string"
+    },
+    "regressionResult": {
+      "type": "string"
+    },
+    "ownerRecorded": {
+      "type": "boolean"
+    },
+    "automatedTaskRun": {
+      "type": "boolean"
+    },
+    "automatedBrowserWalkthrough": {
+      "type": "boolean"
+    },
+    "automatedScreenshotCaptured": {
+      "type": "boolean"
+    },
+    "automatedTokenSavingMeasured": {
+      "type": "boolean"
+    },
+    "automatedFailureDetected": {
+      "type": "boolean"
+    },
+    "automatedRegressionExecuted": {
+      "type": "boolean"
+    },
+    "ownerManualFeedback": {
+      "const": false
+    },
+    "realHumanFeedbackCollected": {
+      "const": false
+    },
+    "dogfoodingCompleted": {
+      "const": false
+    },
+    "automatedEvidenceNotClaimedAsHuman": {
+      "const": true
+    },
+    "providerCallsMade": {
+      "const": false
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/taskEntry"
+      }
+    }
+  },
+  "$defs": {
+    "taskEntry": {
+      "type": "object",
+      "required": [
+        "taskId",
+        "taskTitle",
+        "modeUsed",
+        "evidencePath"
+      ],
+      "properties": {
+        "taskId": {
+          "type": "string"
+        },
+        "taskTitle": {
+          "type": "string"
+        },
+        "modeUsed": {
+          "enum": [
+            "normal",
+            "god",
+            "tianshu",
+            "mixed"
+          ]
+        },
+        "evidencePath": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

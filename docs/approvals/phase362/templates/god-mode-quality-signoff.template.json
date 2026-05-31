@@ -1,0 +1,17 @@
+{
+  "templateOnly": true,
+  "notAnApproval": true,
+  "approvalId": null,
+  "approvalType": "god_mode_quality_signoff",
+  "approvalDecision": "pending",
+  "approverNameRef": "",
+  "approverRole": "God Mode reviewer",
+  "approverOrgRef": "",
+  "approvedScope": [],
+  "approvalTimestamp": null,
+  "evidenceRefs": [],
+  "conditions": [],
+  "expiration": null,
+  "revocationPolicy": "",
+  "auditTrace": {}
+}

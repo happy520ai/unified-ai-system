@@ -1,0 +1,25 @@
+{
+  "phase": "Phase364C",
+  "finalDeployAuthorizationLocked": true,
+  "deployAuthorized": true,
+  "deployAuthorizationSource": "explicit_human_instruction",
+  "goNoGoDecisionRef": "docs/approvals/phase364/go-no-go-decision-record.json",
+  "requiresFinalManualExecutionConfirmation": true,
+  "deployExecuted": false,
+  "releaseExecuted": false,
+  "tagCreated": false,
+  "artifactUploaded": false,
+  "productionGaAuthorized": false,
+  "conditions": [
+    "No secrets may be exposed in logs, docs, evidence, approval records, or launch records.",
+    "Release/deploy commands require final explicit execution confirmation after Phase364.",
+    "Rollback plan must remain available during launch window.",
+    "Monitoring activation must be dry-run verified before execution.",
+    "Billing remains estimate-only unless separate real billing approval is issued.",
+    "Non-NVIDIA provider calls remain gated by credentialRef, credential vault, user-owned provider policy, selectable gate, quota, and budget controls."
+  ],
+  "safety": {
+    "secretValueExposed": false,
+    "approvalForged": false
+  }
+}

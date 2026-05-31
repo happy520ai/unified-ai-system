@@ -1,0 +1,52 @@
+{
+  "schemaVersion": "capability-neuron-manifest-v1",
+  "capabilityId": "trial-5",
+  "displayName": "Capability Disabled Reason Viewer",
+  "description": "Deterministic dry-run capability spec compiled from natural-language intake: 我希望网关能展示某个能力为什么没有被启用.",
+  "createdFromNaturalLanguage": true,
+  "intakeText": "我希望网关能展示某个能力为什么没有被启用",
+  "type": "ui",
+  "status": "registered_preview",
+  "runtime": {
+    "kind": "dry_run",
+    "spawnable": true,
+    "maxSpawnDepth": 1,
+    "ttlSeconds": 300,
+    "maxRequests": 3,
+    "maxTokenBudget": 4000,
+    "enabledByDefault": false
+  },
+  "safety": {
+    "providerCallsAllowed": false,
+    "secretReadAllowed": false,
+    "deployAllowed": false,
+    "chatMutationAllowed": false,
+    "chatGatewayExecuteMutationAllowed": false,
+    "codexConfigMutationAllowed": false,
+    "selfApprovalAllowed": false
+  },
+  "inputs": {},
+  "outputs": {},
+  "evidence": {
+    "required": true,
+    "schema": "gateway-capability-evidence-v1"
+  },
+  "approval": {
+    "requiredForRuntime": true,
+    "currentStatus": "draft"
+  },
+  "rollback": {
+    "disableFlag": "TAIJI_DISABLE_TRIAL_5",
+    "deletePaths": []
+  },
+  "synapse": {
+    "pressureTypes": [
+      "explainability"
+    ],
+    "modes": [
+      "normal"
+    ],
+    "dependencies": [],
+    "weight": 0.5
+  }
+}

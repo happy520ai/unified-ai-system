@@ -1,5 +1,10 @@
 const SECRET_PATTERNS = [
   {
+    type: "mimo-api-key",
+    regex: /\btp-[A-Za-z0-9_-]{20,}\b/g,
+    valueFromMatch: (match) => match[0],
+  },
+  {
     type: "nvidia-api-key",
     regex: /\bnvapi-[A-Za-z0-9_-]{12,}\b/g,
     valueFromMatch: (match) => match[0],
@@ -113,6 +118,9 @@ export function findPlainSecretFindings(text, filePath = "") {
       if (!value || isSafePlaceholderSecret(value)) {
         continue;
       }
+      if (pattern.type === "api-key-env-value" && isSafeCodeExpressionValue(value)) {
+        continue;
+      }
       findings.push({
         filePath,
         line: countLinesBefore(source, match.index) + 1,
@@ -141,4 +149,9 @@ function countLinesBefore(text, index) {
 function isRepeatedPlaceholder(text) {
   const withoutPrefix = text.replace(/^(sk-|nvapi-|hf_|aiza)/, "");
   return withoutPrefix.length >= 16 && /^([a-z0-9])\1+$/i.test(withoutPrefix);
+}
+
+function isSafeCodeExpressionValue(value) {
+  const text = cleanSecretValue(value);
+  return /^(?:Object|Array|String|Number|Boolean|Math|Date|JSON|RegExp|Promise|Map|Set|WeakMap|WeakSet)\s*\./.test(text);
 }

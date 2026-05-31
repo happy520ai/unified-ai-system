@@ -1,0 +1,34 @@
+diff --git a/tools/phase2132_2143/apply-controlled-sept-tool-mutation.mjs b/tools/phase2132_2143/apply-controlled-sept-tool-mutation.mjs
+index a5025f1..52a24c1 100644
+--- a/tools/phase2132_2143/apply-controlled-sept-tool-mutation.mjs
++++ b/tools/phase2132_2143/apply-controlled-sept-tool-mutation.mjs
+@@ -187,6 +187,29 @@ export function buildPhase2268FifteenMutationTargetEightStatus() {
+     chatGatewayExecuteModified: false,
+   };
+ }
++
++export function buildPhase2288SixteenMutationTargetEightStatus() {
++  return {
++    phaseId: "Phase2288A-Controlled-Sixteen-Tool-Mutation-Target-Eight",
++    marker: "PHASE2288_SIXTEEN_TOOL_TARGET_EIGHT_OK",
++    importSafe: true,
++    phase2143Marker: "PHASE2143_SEPT_TOOL_TARGET_SEVEN_OK",
++    phase2156Marker: "PHASE2156_OCT_TOOL_TARGET_EIGHT_OK",
++    phase2169Marker: "PHASE2169_NONET_TOOL_TARGET_EIGHT_OK",
++    phase2183Marker: "PHASE2183_DECA_TOOL_TARGET_EIGHT_OK",
++    phase2198Marker: "PHASE2198_ELEVEN_TOOL_TARGET_EIGHT_OK",
++    phase2214Marker: "PHASE2214_TWELVE_TOOL_TARGET_EIGHT_OK",
++    phase2231Marker: "PHASE2231_THIRTEEN_TOOL_TARGET_EIGHT_OK",
++    phase2249Marker: "PHASE2249_FOURTEEN_TOOL_TARGET_EIGHT_OK",
++    phase2268Marker: "PHASE2268_FIFTEEN_TOOL_TARGET_EIGHT_OK",
++    phase2288Marker: "PHASE2288_SIXTEEN_TOOL_TARGET_EIGHT_OK",
++    sixteenMutationApplied: true,
++    providerCallsMade: false,
++    codexExecExecuted: false,
++    chatModified: false,
++    chatGatewayExecuteModified: false,
++  };
++}
+ export function main() {
+   const args = parseArgs(process.argv.slice(2));
+   const planPath = args.plan || "docs/phase2132-2143-controlled-sept-tool-mutation-approval.example.json";

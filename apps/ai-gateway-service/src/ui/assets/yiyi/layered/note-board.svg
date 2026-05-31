@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 90 70" role="img" aria-label="Yiyi evidence note board">
+  <rect x="8" y="8" width="74" height="54" rx="10" fill="#ffffff" stroke="#8ca7bd" stroke-width="3"/>
+  <path d="M24 24h38M24 36h30M24 48h22" stroke="#6ba9c8" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="18" cy="24" r="3" fill="#8fd0ef"/>
+  <circle cx="18" cy="36" r="3" fill="#8fd0ef"/>
+  <circle cx="18" cy="48" r="3" fill="#8fd0ef"/>
+</svg>

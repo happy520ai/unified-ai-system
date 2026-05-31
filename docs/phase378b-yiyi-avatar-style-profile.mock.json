@@ -1,0 +1,22 @@
+{
+  "profileId": "yiyi_style_profile_v1",
+  "source": "user_reference_photo_optional",
+  "rawPhotoStored": false,
+  "externalUploadPerformed": false,
+  "faceRecognitionPerformed": false,
+  "sensitiveAttributeInferencePerformed": false,
+  "secretValueExposed": false,
+  "styleKeywords": [
+    "sea_breeze",
+    "white_hat",
+    "long_black_hair",
+    "soft_clean",
+    "gentle_futuristic"
+  ],
+  "avatarRenderingMode": "stylized_3d_placeholder",
+  "assetBinding": {
+    "model": "placeholder_yiyi.glb",
+    "textureTheme": "pearl_white_blue",
+    "accessory": "soft_hat_or_light_ring"
+  }
+}

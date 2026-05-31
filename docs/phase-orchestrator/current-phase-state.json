@@ -1,0 +1,31 @@
+{
+  "latestPhase": "Phase1955P-Retry-Fail",
+  "latestResultPath": "apps/ai-gateway-service/evidence/phase1955p_retry_fail/nvidia-route-failure-closure-result.json",
+  "completed": true,
+  "recommended_sealed": true,
+  "blocker": null,
+  "validationsPassed": true,
+  "safety": {
+    "providerCallsMade": false,
+    "secretValueExposed": false,
+    "deployExecuted": false,
+    "releaseExecuted": false,
+    "tagCreated": false,
+    "artifactUploaded": false,
+    "workspaceCleanClaimed": false,
+    "rawSecretAccessed": false,
+    "evidenceModified": false
+  },
+  "nextRecommendedPhases": [],
+  "remainingRisks": [],
+  "stateReadAt": "2026-05-30T01:11:14.558Z",
+  "workspaceCleanClaimed": false,
+  "warnings": [
+    "missing_title",
+    "missing_validationsRun",
+    "used_root_safety_fields"
+  ],
+  "compatibleLegacyFieldsUsed": true,
+  "phase381ClosureRequired": false,
+  "phase382ClosureRequired": false
+}

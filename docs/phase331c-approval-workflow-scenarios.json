@@ -1,0 +1,36 @@
+{
+  "phase": "Phase331C",
+  "scenarios": [
+    {
+      "id": "validProposalQueued",
+      "expectedState": "proposal_queued",
+      "passed": true
+    },
+    {
+      "id": "insufficientSampleRejected",
+      "expectedState": "manual_review_required",
+      "passed": true
+    },
+    {
+      "id": "highRiskImpactRequiresManualReview",
+      "expectedState": "manual_review_required",
+      "passed": true
+    },
+    {
+      "id": "dryRunApprovedButActivationBlocked",
+      "expectedState": "dry_run_completed",
+      "activationAllowed": false,
+      "passed": true
+    },
+    {
+      "id": "rejectedProposal",
+      "expectedState": "rejected",
+      "passed": true
+    },
+    {
+      "id": "rollbackRequiredScenario",
+      "expectedState": "rolled_back",
+      "passed": true
+    }
+  ]
+}

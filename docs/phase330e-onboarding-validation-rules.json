@@ -1,0 +1,14 @@
+{
+  "phase": "Phase330E",
+  "rules": [
+    "reject raw secret-like input",
+    "reject empty credentialRef",
+    "reject unsupported reference type",
+    "reject disabled provider",
+    "reject production enablement from beta UI",
+    "require explicit user confirmation for guarded real-call beta",
+    "show cost warning for non NVIDIA providers",
+    "show quota warning",
+    "show rollback / revoke instructions"
+  ]
+}

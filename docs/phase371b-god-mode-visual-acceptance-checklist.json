@@ -1,0 +1,15 @@
+{
+  "phase": "Phase371B",
+  "godModeVisualAcceptanceExecuted": true,
+  "godModePanelVisible": true,
+  "conflictSummaryVisible": true,
+  "supervisorTransparencyVisible": true,
+  "fallbackReasonVisible": true,
+  "dryRunNoticeVisible": true,
+  "secretValueVisible": false,
+  "productionRuntimeClaimDetected": false,
+  "providerCallsMade": false,
+  "deployExecuted": false,
+  "acceptancePassed": false,
+  "manualBrowserVerificationRequired": true
+}

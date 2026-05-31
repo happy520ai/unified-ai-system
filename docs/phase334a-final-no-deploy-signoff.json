@@ -1,0 +1,17 @@
+{
+  "phase": "Phase334A",
+  "signoffName": "limited-beta-rc-final-no-deploy-signoff",
+  "limitedBetaDryRunOnly": true,
+  "releaseApproved": false,
+  "deployApproved": false,
+  "tagApproved": false,
+  "artifactUploadApproved": false,
+  "productionGaApproved": false,
+  "signoffRequiredBeforeRealDeploy": true,
+  "safety": {
+    "secretFilesIncluded": false,
+    "envFilesIncluded": false,
+    "apiKeysIncluded": false,
+    "unauthorizedProviderCalled": false
+  }
+}

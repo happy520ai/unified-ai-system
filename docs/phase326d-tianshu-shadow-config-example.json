@@ -1,0 +1,88 @@
+{
+  "phase": "Phase326D",
+  "runtimeStatus": "shadow_config_only",
+  "providerCallsAllowed": false,
+  "nonNvidiaProviderCallsAllowed": false,
+  "secretValueAllowed": false,
+  "credentialRefOnly": true,
+  "codingTaskExample": {
+    "taskType": "coding",
+    "candidateModels": [
+      "user-model-code-a",
+      "user-model-review-b"
+    ],
+    "executionMode": "single_model",
+    "selectedModels": [
+      "user-model-code-a"
+    ]
+  },
+  "researchTaskExample": {
+    "taskType": "research",
+    "candidateModels": [
+      "user-model-long-a",
+      "user-model-reason-b"
+    ],
+    "executionMode": "multi_model",
+    "selectedModels": [
+      "user-model-long-a",
+      "user-model-reason-b"
+    ]
+  },
+  "dataAnalysisTaskExample": {
+    "taskType": "data_analysis",
+    "candidateModels": [
+      "user-model-data-a"
+    ],
+    "executionMode": "single_model",
+    "selectedModels": [
+      "user-model-data-a"
+    ]
+  },
+  "longContextTaskExample": {
+    "taskType": "long_context",
+    "candidateModels": [
+      "user-model-long-a"
+    ],
+    "executionMode": "single_model",
+    "selectedModels": [
+      "user-model-long-a"
+    ]
+  },
+  "noEligibleModelExample": {
+    "taskType": "multimodal",
+    "candidateModels": [],
+    "executionMode": "reject",
+    "rejectionReason": "no_user_configured_model"
+  },
+  "credentialMissingExample": {
+    "taskType": "planning",
+    "candidateModels": [
+      "user-model-plan-a"
+    ],
+    "executionMode": "reject",
+    "rejectionReason": "credential_missing"
+  },
+  "governanceRejectedExample": {
+    "taskType": "reasoning",
+    "candidateModels": [
+      "user-model-risky-a"
+    ],
+    "executionMode": "reject",
+    "rejectionReason": "governance_rejected"
+  },
+  "godModeEscalationExample": {
+    "taskType": "safety_sensitive",
+    "candidateModels": [
+      "user-model-reason-a",
+      "user-model-critic-b",
+      "user-model-safe-c"
+    ],
+    "executionMode": "god_mode_review",
+    "selectedModels": [
+      "user-model-reason-a",
+      "user-model-critic-b",
+      "user-model-safe-c"
+    ]
+  }
+}
+

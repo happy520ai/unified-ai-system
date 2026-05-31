@@ -1,0 +1,17 @@
+{
+  "phase": "Phase368F",
+  "deployRetryReadinessGenerated": true,
+  "phase365BlockerAddressed": false,
+  "blocker": "production_deploy_command_missing",
+  "deploymentTargetSelected": false,
+  "executableCommandRefReady": false,
+  "readyToRerunPhase365D": false,
+  "nextRequiredHumanAction": "select_deployment_target",
+  "deployExecuted": false,
+  "releaseExecuted": false,
+  "tagCreated": false,
+  "artifactUploaded": false,
+  "productionGaAuthorized": false,
+  "secretValueExposed": false,
+  "workspaceCleanClaimed": false
+}

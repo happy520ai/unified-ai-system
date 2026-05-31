@@ -1,0 +1,92 @@
+{
+  "phase": "Phase326G",
+  "runtimeStatus": "dry_run_without_provider_call",
+  "scenarios": [
+    {
+      "scenarioId": "codingTaskScenario",
+      "mode": "tianshu",
+      "runtimeStatus": "dry_run_without_provider_call",
+      "input": "Implement and review a small coding change.",
+      "taskTypeExpected": "coding",
+      "capabilityRequirementsExpected": [
+        "coding",
+        "reasoning"
+      ],
+      "mockCapabilityIndex": [
+        "user-configured-coding-model",
+        "user-configured-reasoning-model"
+      ],
+      "providerCallsAllowed": false,
+      "nonNvidiaProviderCallsAllowed": false,
+      "secretValueAllowed": false
+    },
+    {
+      "scenarioId": "dataAnalysisTaskScenario",
+      "mode": "tianshu",
+      "runtimeStatus": "dry_run_without_provider_call",
+      "input": "Analyze a CSV trend and explain anomalies.",
+      "taskTypeExpected": "data_analysis",
+      "capabilityRequirementsExpected": [
+        "data_analysis",
+        "structured_output"
+      ],
+      "mockCapabilityIndex": [
+        "user-configured-data-model",
+        "user-configured-reasoning-model"
+      ],
+      "providerCallsAllowed": false,
+      "nonNvidiaProviderCallsAllowed": false,
+      "secretValueAllowed": false
+    },
+    {
+      "scenarioId": "longContextTaskScenario",
+      "mode": "tianshu",
+      "runtimeStatus": "dry_run_without_provider_call",
+      "input": "Summarize a very long project report.",
+      "taskTypeExpected": "long_context",
+      "capabilityRequirementsExpected": [
+        "long_context",
+        "writing"
+      ],
+      "mockCapabilityIndex": [
+        "user-configured-long-context-model"
+      ],
+      "providerCallsAllowed": false,
+      "nonNvidiaProviderCallsAllowed": false,
+      "secretValueAllowed": false
+    },
+    {
+      "scenarioId": "noEligibleModelScenario",
+      "mode": "tianshu",
+      "runtimeStatus": "dry_run_without_provider_call",
+      "input": "Perform image understanding without a configured vision model.",
+      "taskTypeExpected": "image_understanding",
+      "capabilityRequirementsExpected": [
+        "image_understanding"
+      ],
+      "mockCapabilityIndex": [],
+      "providerCallsAllowed": false,
+      "nonNvidiaProviderCallsAllowed": false,
+      "secretValueAllowed": false
+    },
+    {
+      "scenarioId": "godModeEscalationScenario",
+      "mode": "tianshu",
+      "runtimeStatus": "dry_run_without_provider_call",
+      "input": "Review a safety-sensitive architecture decision.",
+      "taskTypeExpected": "safety_sensitive",
+      "capabilityRequirementsExpected": [
+        "reasoning",
+        "safety_sensitive"
+      ],
+      "mockCapabilityIndex": [
+        "user-configured-reasoning-model",
+        "user-configured-coding-model"
+      ],
+      "providerCallsAllowed": false,
+      "nonNvidiaProviderCallsAllowed": false,
+      "secretValueAllowed": false
+    }
+  ]
+}
+

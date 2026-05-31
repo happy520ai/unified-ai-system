@@ -1,0 +1,35 @@
+{
+  "phaseRange": "Phase1326-1365",
+  "decision": "approved_controlled_callable_readable_claimable_validation",
+  "ownerApproved": true,
+  "allowBoundedProviderCall": true,
+  "allowedProviders": [
+    "nvidia"
+  ],
+  "allowedModels": [
+    "nvidia/llama-3.3-nemotron-super-49b-v1"
+  ],
+  "allowedCredentialRefs": [
+    "<credentialRef-name-only>"
+  ],
+  "maxRequests": 1,
+  "maxRetries": 0,
+  "maxEstimatedCostUsd": 0.05,
+  "allowCredentialRefRuntimeResolve": true,
+  "allowRawSecretRead": false,
+  "allowAuthJsonRead": false,
+  "allowRawCredentialRefRead": false,
+  "allowSecretOutput": false,
+  "allowClaimEvidenceBackedFacts": true,
+  "allowProductionReadyClaim": false,
+  "allowRealSemanticValidationClaim": false,
+  "allowRealHumanFeedbackClaim": false,
+  "allowProviderStabilityClaim": false,
+  "allowDeploy": false,
+  "allowRelease": false,
+  "allowTag": false,
+  "allowArtifactUpload": false,
+  "allowCommit": false,
+  "allowPush": false,
+  "allowWorkspaceCleanClaim": false
+}

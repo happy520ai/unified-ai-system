@@ -1,0 +1,20 @@
+{
+  "phase": "Phase366F",
+  "finalDeployRehearsalExecuted": true,
+  "readyForFinalManualDeployConfirmation": true,
+  "approvedCommandRefReady": true,
+  "environmentReady": true,
+  "rollbackTemplateReady": true,
+  "postDeploySmokeChecklistReady": true,
+  "remainingBlockers": [
+    "final_manual_deploy_execution_confirmation_required"
+  ],
+  "nextRequiredHumanAction": "create_final_manual_deploy_execution_confirmation",
+  "deployExecuted": false,
+  "releaseExecuted": false,
+  "tagCreated": false,
+  "artifactUploaded": false,
+  "productionGaAuthorized": false,
+  "secretValueExposed": false,
+  "workspaceCleanClaimed": false
+}

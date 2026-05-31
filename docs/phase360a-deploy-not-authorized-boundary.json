@@ -1,0 +1,18 @@
+{
+  "phase": "Phase360A",
+  "boundaryName": "deploy-not-authorized",
+  "productionCandidateOnly": true,
+  "deployAuthorized": false,
+  "releaseAuthorized": false,
+  "productionGaAuthorized": false,
+  "humanApprovalRequiredBeforeDeploy": true,
+  "secretValueExposed": false,
+  "unauthorizedProviderCalled": false,
+  "realBillingConnected": false,
+  "legalInvoiceGenerated": false,
+  "workspaceCleanClaimed": false,
+  "blockers": [
+    "human_approval_record",
+    "deploy_authorization_record"
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "phase": "Phase368B",
+  "classifications": {
+    "local_runtime_activation": [
+      "pnpm start:pme",
+      "pnpm dev:phase7b",
+      "pnpm start:ai-gateway-service",
+      "pnpm start:agent-console"
+    ],
+    "verification_only": [
+      "pnpm -r --if-present check",
+      "pnpm run verify:*",
+      "pnpm run smoke:*"
+    ],
+    "build_only": [
+      "pnpm run build",
+      "pnpm build"
+    ],
+    "not_deploy": [
+      "check",
+      "verify",
+      "smoke",
+      "build",
+      "start local",
+      "dev local"
+    ],
+    "production_deploy": [
+      "explicit deploy adapter",
+      "explicit deploy script",
+      "explicit CI/CD deploy workflow"
+    ]
+  }
+}

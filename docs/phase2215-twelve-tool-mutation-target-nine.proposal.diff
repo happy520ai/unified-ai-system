@@ -1,0 +1,30 @@
+diff --git a/tools/phase2144_2156/apply-controlled-oct-tool-mutation.mjs b/tools/phase2144_2156/apply-controlled-oct-tool-mutation.mjs
+index 0be4842..e43ec9f 100644
+--- a/tools/phase2144_2156/apply-controlled-oct-tool-mutation.mjs
++++ b/tools/phase2144_2156/apply-controlled-oct-tool-mutation.mjs
+@@ -88,6 +88,25 @@ export function buildPhase2199ElevenMutationTargetNineStatus() {
+   };
+ }
+ 
++
++export function buildPhase2215TwelveMutationTargetNineStatus() {
++  return {
++    phaseId: "Phase2215A-Controlled-Twelve-Tool-Mutation-Target-Nine",
++    marker: "PHASE2215_TWELVE_TOOL_TARGET_NINE_OK",
++    importSafe: true,
++    phase2156Marker: "PHASE2156_OCT_TOOL_TARGET_EIGHT_OK",
++    phase2170Marker: "PHASE2170_NONET_TOOL_TARGET_NINE_OK",
++    phase2184Marker: "PHASE2184_DECA_TOOL_TARGET_NINE_OK",
++    phase2199Marker: "PHASE2199_ELEVEN_TOOL_TARGET_NINE_OK",
++    phase2215Marker: "PHASE2215_TWELVE_TOOL_TARGET_NINE_OK",
++    twelveMutationApplied: true,
++    providerCallsMade: false,
++    codexExecExecuted: false,
++    chatModified: false,
++    chatGatewayExecuteModified: false,
++  };
++}
++
+ export function main() {
+   const args = parseArgs(process.argv.slice(2));
+   const planPath = args.plan || "docs/phase2144-2156-controlled-oct-tool-mutation-approval.example.json";

@@ -1,0 +1,40 @@
+{
+  "phase": "Phase326H",
+  "contractName": "three-mode-dry-run-report-viewer-data-contract",
+  "runtimeStatus": "design_only",
+  "uiRuntimeEnabled": false,
+  "providerCallsAllowed": false,
+  "nonNvidiaProviderCallsAllowed": false,
+  "secretValueAllowed": false,
+  "supportedModes": [
+    "normal",
+    "god",
+    "tianshu"
+  ],
+  "reportSources": {
+    "god": "docs/phase326f-god-mode-dry-run-result.json",
+    "tianshu": "docs/phase326g-tianshu-dry-run-result.json"
+  },
+  "summaryCards": [
+    "scenariosProcessed",
+    "providerCallsMade",
+    "nonNvidiaProviderCallsMade",
+    "secretValueExposed"
+  ],
+  "detailsPanels": [
+    "modelContributions",
+    "disagreements",
+    "resolvedConflicts",
+    "plannerDecision",
+    "selectedModels"
+  ],
+  "auditTracePanel": true,
+  "safetyPanel": true,
+  "emptyState": {
+    "message": "No dry-run report is available."
+  },
+  "errorState": {
+    "message": "Report cannot be loaded or parsed."
+  }
+}
+

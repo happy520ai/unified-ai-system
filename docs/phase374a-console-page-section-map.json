@@ -1,0 +1,21 @@
+{
+  "phase": "Phase374A",
+  "uiPath": "apps/ai-gateway-service/src/ui/consolePage.js",
+  "lineCount": 2307,
+  "sections": {
+    "threeModeRuntime": "chat page embedded panel block",
+    "normalModePanel": "three-mode-panel-normal",
+    "godModePanel": "three-mode-panel-god",
+    "tianshuModePanel": "three-mode-panel-tianshu",
+    "providerCredentialRef": "provider-credentialref-guarded-notice / provider-credentialref-guidance",
+    "smokeMarkers": [
+      "data-workbench-root=\"phase372-workbench-root\"",
+      "id=\"three-mode-runtime\"",
+      "id=\"three-mode-panel-normal\"",
+      "id=\"three-mode-panel-god\"",
+      "id=\"three-mode-panel-tianshu\"",
+      "id=\"provider-credentialref-guidance\"",
+      "id=\"three-mode-guarded-notice\""
+    ]
+  }
+}

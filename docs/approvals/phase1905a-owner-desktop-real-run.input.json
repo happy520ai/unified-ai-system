@@ -1,0 +1,15 @@
+{
+  "phase": "Phase1905A",
+  "ownerApproved": true,
+  "approvedActionId": "create_desktop_spreadsheet",
+  "allowRealDesktopFileCreation": true,
+  "maxRealFileCreateCount": 1,
+  "allowOverwrite": false,
+  "allowDesktopScan": false,
+  "allowReadOtherDesktopFiles": false,
+  "approvedOutputDirectory": "Desktop",
+  "approvedTestFilenamePrefix": "小天真实运行测试",
+  "acknowledgeThisCreatesARealDesktopFile": true,
+  "approvalSource": "owner_explicit_chat_authorization",
+  "approvalScope": "guarded_real_local_desktop_file_creation_test_only"
+}

@@ -1,0 +1,15 @@
+{
+  "phase": "Phase372F",
+  "gaps": [
+    {
+      "id": "real-browser-text-encoding",
+      "status": "open",
+      "note": "Browser screenshots show visible encoding/copy rendering defects that still need polish."
+    },
+    {
+      "id": "three-mode-mode-switch-verification",
+      "status": "open",
+      "note": "Screenshots exist, but real browser interaction-level confirmation for God/Tianshu active state still needs follow-up."
+    }
+  ]
+}

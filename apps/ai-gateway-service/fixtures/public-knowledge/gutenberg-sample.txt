@@ -1,0 +1,12 @@
+*** START OF THIS PROJECT GUTENBERG EBOOK SAMPLE ***
+
+Title: A Small Public Domain Sample
+Author: Example Public Domain Author
+
+Chapter I
+
+This is a short public domain style sample for the local public knowledge import preview. It is long enough to be chunked and indexed without calling an embedding model or a paid API. The text is used to verify deterministic cleaning, source metadata, source trust scoring, and local keyword index creation.
+
+It should be treated as background public knowledge only. It must not override private project evidence or current phase status.
+
+*** END OF THIS PROJECT GUTENBERG EBOOK SAMPLE ***

@@ -1,0 +1,47 @@
+{
+  "phase": "Phase362E",
+  "packageName": "billing-warning-copy-approval-follow-up-package",
+  "estimateOnlyWording": true,
+  "notLegalInvoiceWording": true,
+  "paymentProviderNotConnectedWording": true,
+  "actualBillingNotConnectedWording": true,
+  "noTaxUseWording": true,
+  "noPaymentSettlementWording": true,
+  "nonNvidiaUserOwnedProviderCostWarning": true,
+  "quotaBudgetWarning": true,
+  "exportWarningLabels": [
+    "MOCK STATEMENT",
+    "ESTIMATE ONLY",
+    "NOT A LEGAL INVOICE",
+    "PAYMENT PROVIDER NOT CONNECTED",
+    "ACTUAL BILLING NOT CONNECTED",
+    "DO NOT USE FOR TAX OR PAYMENT SETTLEMENT"
+  ],
+  "statementIdRequirement": true,
+  "warningCopyApprovalRequired": true,
+  "warningCopyApprovalPresent": false,
+  "statementIdPresent": false,
+  "realBillingConnected": false,
+  "legalInvoiceGenerated": false,
+  "requiredWarningLabels": [
+    "MOCK STATEMENT",
+    "ESTIMATE ONLY",
+    "NOT A LEGAL INVOICE",
+    "PAYMENT PROVIDER NOT CONNECTED",
+    "ACTUAL BILLING NOT CONNECTED",
+    "DO NOT USE FOR TAX OR PAYMENT SETTLEMENT"
+  ],
+  "missingApprovals": [
+    "billing_warning_copy_approval",
+    "statementId"
+  ],
+  "followUpActions": [
+    "request statementId",
+    "request billing warning copy approval"
+  ],
+  "safety": {
+    "actualBillingClaimed": false,
+    "legalInvoiceClaimed": false,
+    "secretValueExposed": false
+  }
+}

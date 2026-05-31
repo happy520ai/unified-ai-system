@@ -1,0 +1,11 @@
+{
+  "phase": "Phase345A",
+  "inputPhase": "Phase344A",
+  "flagName": "limitedBetaGuardedEnablement",
+  "internalOnly": true,
+  "smokePassed": true,
+  "noPublicExposure": true,
+  "noUnauthorizedProviderCall": true,
+  "providerRealCallExecuted": false,
+  "secretValueExposed": false
+}

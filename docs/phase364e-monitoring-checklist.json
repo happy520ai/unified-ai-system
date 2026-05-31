@@ -1,0 +1,19 @@
+{
+  "phase": "Phase364E",
+  "items": [
+    "service health",
+    "/chat-gateway/execute health",
+    "Normal Mode success rate",
+    "God Mode participant/fallback status",
+    "Tianshu planner decision status",
+    "Provider error rate",
+    "Credential vault access errors",
+    "quota/budget rejection rate",
+    "billing estimate warnings",
+    "latency p95",
+    "error code distribution",
+    "rollback trigger",
+    "incident owner",
+    "monitoring window"
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Yiyi Brain Request",
+  "type": "object",
+  "required": ["brainRequestId", "source", "userIntent", "missionContext", "personaContext", "allowedOutputs", "forbiddenOutputs", "dryRunOnly"],
+  "properties": {
+    "brainRequestId": { "type": "string" },
+    "source": { "const": "mission_control" },
+    "userIntent": { "type": "string" },
+    "missionContext": {
+      "type": "object",
+      "required": ["currentMode", "selectedPanel", "riskLevel", "providerCallsAllowed", "deployAllowed", "dryRunOnly"],
+      "properties": {
+        "currentMode": { "type": "string" },
+        "selectedPanel": { "type": "string" },
+        "riskLevel": { "enum": ["low", "medium", "high"] },
+        "providerCallsAllowed": { "const": false },
+        "deployAllowed": { "const": false },
+        "dryRunOnly": { "const": true }
+      }
+    },
+    "personaContext": {
+      "type": "object",
+      "required": ["avatarName", "tone", "authorityLevel"],
+      "properties": {
+        "avatarName": { "type": "string" },
+        "tone": { "type": "string" },
+        "authorityLevel": { "const": "presentation_and_guidance_only" }
+      }
+    },
+    "allowedOutputs": {
+      "type": "array",
+      "items": {
+        "enum": ["speechBubble", "emotionState", "behaviorState", "explanation", "recommendedPanel", "safeSuggestion", "blockedReason", "evidenceReference", "nextStepHint", "confidence", "dryRunOnly"]
+      }
+    },
+    "forbiddenOutputs": {
+      "type": "array",
+      "contains": { "const": "executeAction" }
+    },
+    "dryRunOnly": { "const": true }
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "phaseId": "Phase2073-GVC-Completed-Action-DeDup-And-Candidate-Refresh",
+  "taskId": "phase2075-permission-rule-edge-case-fixture",
+  "cases": [
+    {
+      "action": "file_mutation",
+      "resource": "apps/ai-gateway-service/evidence/phase2075/sample.json",
+      "expected": "allow"
+    },
+    {
+      "action": "file_mutation",
+      "resource": "tools/phase2078/sample.mjs",
+      "expected": "allow"
+    },
+    {
+      "action": "provider_call",
+      "resource": "provider/openrouter",
+      "expected": "approval_required"
+    },
+    {
+      "action": "secret_read",
+      "resource": "auth.json",
+      "expected": "forbidden"
+    },
+    {
+      "action": "chat_route_modify",
+      "resource": "apps/ai-gateway-service/src/chat-gateway/execute.js",
+      "expected": "forbidden"
+    }
+  ],
+  "providerCallsMade": false,
+  "secretRead": false,
+  "deployExecuted": false,
+  "chatModified": false,
+  "chatGatewayExecuteModified": false,
+  "legacyModified": false,
+  "projectContextModified": false,
+  "workspaceCleanClaimed": false
+}

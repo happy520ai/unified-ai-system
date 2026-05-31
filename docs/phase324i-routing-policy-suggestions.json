@@ -1,0 +1,144 @@
+{
+  "phase": "Phase324I",
+  "runtimeStatus": "read_only_policy_suggestions",
+  "normalModeSuggestedPolicy": {
+    "primary": "meta/llama-3.2-1b-instruct",
+    "fallbackChain": [
+      "meta/llama-3.2-1b-instruct",
+      "nvidia/nemotron-mini-4b-instruct",
+      "microsoft/phi-4-mini-instruct",
+      "meta/llama-3.2-3b-instruct",
+      "meta/llama-4-maverick-17b-128e-instruct",
+      "google/gemma-3n-e4b-it",
+      "nvidia/llama-3.3-nemotron-super-49b-v1"
+    ],
+    "rule": "select only smoke_passed/selectable/evidence-backed models"
+  },
+  "godModeSuggestedPolicy": {
+    "candidatePool": [
+      "meta/llama-3.2-1b-instruct",
+      "nvidia/nemotron-mini-4b-instruct",
+      "microsoft/phi-4-mini-instruct",
+      "meta/llama-3.2-3b-instruct",
+      "meta/llama-4-maverick-17b-128e-instruct",
+      "nvidia/llama-3.3-nemotron-super-49b-v1",
+      "deepseek-ai/deepseek-v4-pro",
+      "nvidia/nemotron-3-super-120b-a12b"
+    ],
+    "runtimeEnabled": false,
+    "confidence": "medium",
+    "uncertaintyNotes": "Capability fit is partly inferred from model ids, not benchmarked."
+  },
+  "tianshuModeSuggestedPolicy": {
+    "candidatePool": [
+      "meta/llama-3.2-1b-instruct",
+      "nvidia/nemotron-mini-4b-instruct",
+      "microsoft/phi-4-mini-instruct",
+      "meta/llama-3.2-3b-instruct",
+      "meta/llama-4-maverick-17b-128e-instruct",
+      "google/gemma-3n-e4b-it",
+      "nvidia/llama-3.3-nemotron-super-49b-v1",
+      "deepseek-ai/deepseek-v4-pro"
+    ],
+    "runtimeEnabled": false,
+    "confidence": "medium",
+    "uncertaintyNotes": "Capability index should remain dry-run until user-owned provider validation exists."
+  },
+  "fallbackChainSuggestions": [
+    {
+      "modelId": "meta/llama-3.2-1b-instruct",
+      "providerId": "nvidia",
+      "evidenceId": "phase324b6-meta_llama_3_2_1b_instruct-20260506155545",
+      "latencyMs": 329,
+      "reason": "fallback chain candidate ordered by latency and smoke evidence",
+      "evidenceReason": "smoke_passed_evidence_present",
+      "capabilityTierReason": "capability inferred from verification metadata and model id",
+      "riskReason": "not in failed or high-risk exclusion queues",
+      "fallbackReason": "ordered fallback candidate after primary model failure",
+      "inferenceSource": "model_id_heuristic"
+    },
+    {
+      "modelId": "nvidia/nemotron-mini-4b-instruct",
+      "providerId": "nvidia",
+      "evidenceId": "phase324b-nvidia_nemotron_mini_4b_instruct-20260506124316",
+      "latencyMs": 428,
+      "reason": "fallback chain candidate ordered by latency and smoke evidence",
+      "evidenceReason": "smoke_passed_evidence_present",
+      "capabilityTierReason": "capability inferred from verification metadata and model id",
+      "riskReason": "not in failed or high-risk exclusion queues",
+      "fallbackReason": "ordered fallback candidate after primary model failure",
+      "inferenceSource": "model_id_heuristic"
+    },
+    {
+      "modelId": "microsoft/phi-4-mini-instruct",
+      "providerId": "nvidia",
+      "evidenceId": "phase324b3-microsoft_phi_4_mini_instruct-20260506130704",
+      "latencyMs": 446,
+      "reason": "fallback chain candidate ordered by latency and smoke evidence",
+      "evidenceReason": "smoke_passed_evidence_present",
+      "capabilityTierReason": "capability inferred from verification metadata and model id",
+      "riskReason": "not in failed or high-risk exclusion queues",
+      "fallbackReason": "ordered fallback candidate after primary model failure",
+      "inferenceSource": "model_id_heuristic"
+    },
+    {
+      "modelId": "meta/llama-3.2-3b-instruct",
+      "providerId": "nvidia",
+      "evidenceId": "phase324b6-meta_llama_3_2_3b_instruct-20260506155547",
+      "latencyMs": 463,
+      "reason": "fallback chain candidate ordered by latency and smoke evidence",
+      "evidenceReason": "smoke_passed_evidence_present",
+      "capabilityTierReason": "capability inferred from verification metadata and model id",
+      "riskReason": "not in failed or high-risk exclusion queues",
+      "fallbackReason": "ordered fallback candidate after primary model failure",
+      "inferenceSource": "model_id_heuristic"
+    },
+    {
+      "modelId": "meta/llama-4-maverick-17b-128e-instruct",
+      "providerId": "nvidia",
+      "evidenceId": "phase324b6-meta_llama_4_maverick_17b_128e_instruct-20260506155549",
+      "latencyMs": 510,
+      "reason": "fallback chain candidate ordered by latency and smoke evidence",
+      "evidenceReason": "smoke_passed_evidence_present",
+      "capabilityTierReason": "capability inferred from verification metadata and model id",
+      "riskReason": "not in failed or high-risk exclusion queues",
+      "fallbackReason": "ordered fallback candidate after primary model failure",
+      "inferenceSource": "model_id_heuristic"
+    },
+    {
+      "modelId": "google/gemma-3n-e4b-it",
+      "providerId": "nvidia",
+      "evidenceId": "phase324b5-google_gemma_3n_e4b_it-20260506153308",
+      "latencyMs": 817,
+      "reason": "fallback chain candidate ordered by latency and smoke evidence",
+      "evidenceReason": "smoke_passed_evidence_present",
+      "capabilityTierReason": "capability inferred from verification metadata and model id",
+      "riskReason": "not in failed or high-risk exclusion queues",
+      "fallbackReason": "ordered fallback candidate after primary model failure",
+      "inferenceSource": "model_id_heuristic"
+    },
+    {
+      "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1",
+      "providerId": "nvidia",
+      "evidenceId": "phase-313a-model-usability-matrix",
+      "latencyMs": 875,
+      "reason": "fallback chain candidate ordered by latency and smoke evidence",
+      "evidenceReason": "smoke_passed_evidence_present",
+      "capabilityTierReason": "capability inferred from verification metadata and model id",
+      "riskReason": "not in failed or high-risk exclusion queues",
+      "fallbackReason": "ordered fallback candidate after primary model failure",
+      "inferenceSource": "model_id_heuristic"
+    }
+  ],
+  "exclusionRules": [
+    "exclude verificationStatus != smoke_passed",
+    "exclude selectable != true",
+    "exclude missing evidenceId",
+    "exclude HTTP 404/410/timeout/high-risk/manual_review_required/unverified"
+  ],
+  "confidence": "medium",
+  "uncertaintyNotes": [
+    "Latency comes from smoke evidence, not production SLA.",
+    "Capability labels use model_id_heuristic when no benchmark exists."
+  ]
+}

@@ -1,0 +1,52 @@
+{
+  "taskRiskLevel": "medium",
+  "promptInjectionRisk": "low",
+  "secretLeakRisk": "none",
+  "providerCallRisk": "blocked",
+  "deployRisk": "blocked",
+  "billingRisk": "none",
+  "recommendedMode": "tianshu_dry_run",
+  "humanApprovalRequired": false,
+  "guards": [
+    [
+      "Prompt Injection Guard",
+      "active"
+    ],
+    [
+      "Secret Leak Guard",
+      "active"
+    ],
+    [
+      "System Prompt Leak Guard",
+      "active"
+    ],
+    [
+      "Provider Call Gate",
+      "blocked"
+    ],
+    [
+      "CredentialRef Gate",
+      "active"
+    ],
+    [
+      "Dangerous Action Lock",
+      "blocked"
+    ],
+    [
+      "Approval Gate",
+      "requires_approval"
+    ],
+    [
+      "Quota / Budget Guard",
+      "dry_run_only"
+    ],
+    [
+      "Evidence Recorder",
+      "active"
+    ],
+    [
+      "Rollback Path Status",
+      "available"
+    ]
+  ]
+}

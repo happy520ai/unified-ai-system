@@ -1,0 +1,26 @@
+{
+  "phase": "Phase336C",
+  "events": [
+    {
+      "eventId": "phase333c-audit-001",
+      "proposalId": "phase336c-proposal",
+      "action": "approve_for_dry_run",
+      "reviewerIdRef": "reviewer_anon",
+      "secretValueExposed": false
+    },
+    {
+      "eventId": "phase336c-audit-rollback-001",
+      "proposalId": "phase336c-proposal",
+      "action": "rollback_required",
+      "reviewerIdRef": "reviewer_anon",
+      "secretValueExposed": false
+    }
+  ],
+  "rollbackPreview": {
+    "stateTransitionPreviewVisible": true,
+    "currentState": "approved_for_dry_run",
+    "action": "rollback_required",
+    "nextState": "rollback_required",
+    "activationAllowed": false
+  }
+}

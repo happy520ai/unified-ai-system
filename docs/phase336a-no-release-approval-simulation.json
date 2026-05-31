@@ -1,0 +1,12 @@
+{
+  "phase": "Phase336A",
+  "simulationName": "limited-beta-human-approval-no-release-simulation",
+  "noReleaseSimulation": true,
+  "releaseExecuted": false,
+  "deployExecuted": false,
+  "tagCreated": false,
+  "artifactUploaded": false,
+  "humanApprovalRequired": true,
+  "limitedBetaDryRunOnly": true,
+  "upstreamEvidenceFreezeCompleted": true
+}

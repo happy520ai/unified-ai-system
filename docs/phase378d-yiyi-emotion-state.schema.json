@@ -1,0 +1,14 @@
+{
+  "type": "object",
+  "required": [
+    "emotionState",
+    "intensity",
+    "trigger",
+    "avatarPose",
+    "motion",
+    "speechBubble",
+    "medicalClaim",
+    "therapyClaim",
+    "sensitiveHealthInference"
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "phase": "Phase376D",
+  "flightPath": [
+    "Understand",
+    "Decompose",
+    "Match Capability",
+    "Route",
+    "Guard",
+    "Plan",
+    "Evidence"
+  ],
+  "capabilityMatching": {
+    "taskType": "planning_preview",
+    "candidateModelPool": "verified chat candidates only",
+    "selectedRoute": "planner sandbox",
+    "rejectedCandidates": [
+      "unconfigured provider"
+    ],
+    "fallbackRoute": "credentialRef required"
+  },
+  "plannerDryRun": true,
+  "providerCallsMade": false
+}

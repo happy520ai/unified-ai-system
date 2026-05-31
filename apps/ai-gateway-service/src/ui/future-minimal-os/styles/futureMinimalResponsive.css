@@ -1,0 +1,128 @@
+@media (max-width: 1320px) {
+  .future-os-content {
+    padding: 18px;
+  }
+
+  .future-first-screen {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 14px;
+  }
+
+  .future-home-panel,
+  .future-composer-frame,
+  .future-recommendation-showcase,
+  .future-execution-panel,
+  .future-details-accordion {
+    border-radius: 22px;
+    padding: 16px;
+  }
+
+  .future-home-center h3 {
+    font-size: 34px;
+  }
+
+  .future-mode-choice {
+    min-height: 102px;
+    padding: 11px;
+  }
+
+  .future-mode-choice small {
+    font-size: 10px;
+  }
+}
+
+@media (max-width: 1100px) {
+  body:has(#future-minimal-os-panel:target) {
+    overflow: auto;
+  }
+
+  .future-responsive-frame,
+  .future-os-panel,
+  .future-first-screen {
+    min-height: 100dvh;
+    height: auto;
+    max-height: none;
+    overflow: auto;
+  }
+
+  .future-os-content {
+    width: min(100%, 1024px);
+    min-width: 0;
+    padding: 18px;
+  }
+
+  .future-first-screen {
+    width: min(100%, 920px);
+    margin: 0 auto;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto auto auto auto;
+    grid-template-areas:
+      "home"
+      "composer"
+      "recommend"
+      "progress"
+      "details";
+  }
+
+  .future-execution-panel,
+  .future-details-accordion {
+    width: 100%;
+    justify-self: stretch;
+  }
+
+  .future-mode-selector {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 860px) {
+  .future-os-content {
+    padding: 12px;
+  }
+
+  .future-first-screen {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "home"
+      "composer"
+      "recommend"
+      "progress"
+      "details";
+  }
+
+  .future-rail-version {
+    display: none;
+  }
+
+  .future-home-panel .future-mode-selector,
+  .future-composer-controls,
+  .future-progress-layout,
+  .future-mini-mode-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .future-command-progress-local {
+    margin-right: 44px;
+  }
+
+  .future-command-surface textarea {
+    font-size: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .future-primary-cta,
+  .future-mode-choice,
+  .future-command-surface,
+  .future-rail-items a,
+  .future-home-panel::before,
+  .future-composer-frame::before,
+  .future-recommendation-showcase::before,
+  .future-execution-panel::before,
+  .future-details-accordion::before,
+  .future-progress-ring circle + circle,
+  .future-system-secure i {
+    animation: none !important;
+    transition: none !important;
+  }
+}

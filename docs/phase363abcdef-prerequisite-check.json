@@ -1,0 +1,19 @@
+{
+  "phase": "Phase363A-F",
+  "checkedAt": "2026-05-07T05:12:37.448Z",
+  "missing": [],
+  "present": [
+    "docs/phase361a-launch-authorization-state.json",
+    "docs/phase361b-human-approval-records-index.json",
+    "docs/phase361c-deploy-authorization-state.json",
+    "docs/phase361d-signoff-verification-report.md",
+    "docs/phase361f-go-no-go-decision-state.json",
+    "docs/phase362a-reviewer-follow-up-tracker.json",
+    "docs/phase362b-deploy-authorization-remediation-checklist.json",
+    "docs/phase362c-tenant-admin-signoff-checklist.json",
+    "docs/phase362d-vault-approval-checklist.json",
+    "docs/phase362e-billing-warning-copy-checklist.json",
+    "docs/phase362f-go-no-go-scheduling-state.json"
+  ],
+  "allowHumanInstructionIntake": true
+}

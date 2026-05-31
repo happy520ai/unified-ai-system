@@ -1,0 +1,17 @@
+{
+  "phase": "Phase363B",
+  "approvalSource": "explicit_human_instruction",
+  "codexIsApprover": false,
+  "generatedApprovalTypes": [
+    "human_launch_approval",
+    "deploy_authorization",
+    "god_mode_quality_signoff",
+    "tianshu_policy_decision",
+    "credential_vault_backend_approval",
+    "tenant_admin_approval",
+    "billing_warning_copy_approval"
+  ],
+  "skippedApprovalTypes": [],
+  "blockedApprovalTypes": [],
+  "instructionRef": "docs/approvals/phase363/explicit-human-approval-instruction.json"
+}

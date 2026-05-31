@@ -1,0 +1,55 @@
+{
+  "phase": "Phase331D",
+  "milestones": [
+    {
+      "id": "adapter_interface_freeze",
+      "order": 1,
+      "status": "planned"
+    },
+    {
+      "id": "secret_redaction_validation",
+      "order": 2,
+      "status": "planned"
+    },
+    {
+      "id": "vault_backend_configuration",
+      "order": 3,
+      "status": "blocked"
+    },
+    {
+      "id": "access_policy_validation",
+      "order": 4,
+      "status": "planned"
+    },
+    {
+      "id": "credential_rotation_test",
+      "order": 5,
+      "status": "planned"
+    },
+    {
+      "id": "credential_revoke_test",
+      "order": 6,
+      "status": "planned"
+    },
+    {
+      "id": "guarded_real_call_test",
+      "order": 7,
+      "status": "planned"
+    },
+    {
+      "id": "limited_beta_enablement",
+      "order": 8,
+      "status": "planned"
+    },
+    {
+      "id": "rollback_drill",
+      "order": 9,
+      "status": "planned"
+    },
+    {
+      "id": "production_readiness_review",
+      "order": 10,
+      "status": "planned"
+    }
+  ]
+}

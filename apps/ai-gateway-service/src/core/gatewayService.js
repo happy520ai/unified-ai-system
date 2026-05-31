@@ -1,6 +1,9 @@
 import { createRequestId } from "../../../../packages/shared-utils/src/index.js";
 import { createProviderRequest } from "../providers/providerMapping.js";
 import { normalizeGatewayRequest } from "./requestNormalizer.js";
+import { createLogger } from "../http/structuredLogger.js";
+
+const gatewayLogger = createLogger({ app: "ai-gateway-service", level: "info" });
 
 export class GatewayService {
   constructor({ providerRegistry, runtimeConfig = {} }) {
@@ -237,13 +240,7 @@ export class GatewayService {
 }
 
 function writeGatewayLog(event, details = {}) {
-  console.error(
-    JSON.stringify({
-      app: "ai-gateway-service",
-      event,
-      ...details,
-    }),
-  );
+  gatewayLogger.info(event, details);
 }
 
 function createFallbackAttempts(selection, runtimeConfig) {

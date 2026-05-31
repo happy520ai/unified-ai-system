@@ -1,0 +1,20 @@
+{
+  "approvalId": "phase621r-runtime-final-approval-001",
+  "approvedBy": "user-owner",
+  "decision": "approved_controlled_runtime_candidate_path",
+  "selectedProviderId": "crs",
+  "allowIsolatedRuntimeCandidateWiring": true,
+  "allowDefaultChatIntegration": false,
+  "allowChatGatewayExecuteMainChainIntegration": false,
+  "allowProviderRuntimeMainChainModification": false,
+  "allowCodexExecForGuardedOneShot": true,
+  "maxRequestsPerAttempt": 1,
+  "maxRequestsTotal": 3,
+  "retryLimit": 0,
+  "stopOnFirstFailure": true,
+  "allowDeploy": false,
+  "allowRelease": false,
+  "allowPush": false,
+  "allowCommit": false,
+  "createdAt": "2026-05-11T09:40:00.000Z"
+}

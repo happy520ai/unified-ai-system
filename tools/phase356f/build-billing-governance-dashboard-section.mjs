@@ -1,0 +1,40 @@
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { resolve } from "node:path";
+
+const repoRoot = resolve(".");
+const sourcePath = resolve(repoRoot, "apps/ai-gateway-service/evidence/phase355f/billing-audit-report-baseline-result.json");
+const evidenceDir = resolve(repoRoot, "apps/ai-gateway-service/evidence/phase356f");
+const resultPath = resolve(evidenceDir, "billing-governance-dashboard-section-result.json");
+const designPath = resolve(repoRoot, "docs/phase356f-billing-governance-dashboard-section.json");
+const reportPath = resolve(repoRoot, "docs/phase356f-execution-report.md");
+
+const source = JSON.parse(await readFile(sourcePath, "utf8"));
+const result = {
+  phase: "Phase356F",
+  sourcePhase: source.phase,
+  governanceDashboardDesignGenerated: true,
+  sectionContractsGenerated: true,
+  noProductionUiClaim: true,
+  sectionId: "billing_governance",
+  sectionContractFields: source.requiredAuditFields,
+  sectionPanels: [
+    "estimate_only_export_audit",
+    "warning_copy_version_matrix",
+    "export_permission_decision_log",
+  ],
+  paymentProviderConnected: false,
+  actualBillingConnected: false,
+  legalInvoiceGenerated: false,
+  secretValueExposed: false,
+  productionGA: false,
+};
+
+await writeOutputs(result);
+console.log(JSON.stringify(result, null, 2));
+
+async function writeOutputs(current) {
+  await mkdir(evidenceDir, { recursive: true });
+  await writeFile(resultPath, `${JSON.stringify(current, null, 2)}\n`, "utf8");
+  await writeFile(designPath, `${JSON.stringify({ phase: current.phase, designType: "billing_governance_dashboard_section", result: current }, null, 2)}\n`, "utf8");
+  await writeFile(reportPath, `# Phase356F Execution Report\n\n- governanceDashboardDesignGenerated: ${current.governanceDashboardDesignGenerated}\n- sectionContractsGenerated: ${current.sectionContractsGenerated}\n- actualBillingConnected: ${current.actualBillingConnected}\n`, "utf8");
+}

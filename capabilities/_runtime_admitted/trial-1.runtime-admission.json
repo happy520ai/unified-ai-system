@@ -1,0 +1,82 @@
+{
+  "capabilityId": "trial-1",
+  "admissionStatus": "approved_for_sandbox_runtime_only",
+  "runtimeKind": "sandbox_local",
+  "autoRuntimeEligible": true,
+  "productionRuntimeEligible": false,
+  "reason": "verifier_and_safety_boundary_passed_for_sandbox_local_only",
+  "safetyBoundary": {
+    "providerCallsAllowed": false,
+    "secretReadAllowed": false,
+    "deployAllowed": false,
+    "chatMutationAllowed": false,
+    "chatGatewayExecuteMutationAllowed": false,
+    "codexConfigMutationAllowed": false,
+    "selfApprovalAllowed": false
+  },
+  "requiredEvidenceRefs": [
+    "capabilities/_generated_dry_run/trial-1/verifier-result.json",
+    "capabilities/_generated_dry_run/trial-1/dry-run-result.json"
+  ],
+  "rollbackRef": "capabilities/_generated_dry_run/trial-1/rollback-plan.json",
+  "providerCallsAllowed": false,
+  "secretReadAllowed": false,
+  "deployAllowed": false,
+  "manifestPreview": {
+    "schemaVersion": "capability-neuron-manifest-v1",
+    "capabilityId": "trial-1",
+    "displayName": "Task Risk Level Classifier",
+    "description": "Deterministic dry-run capability spec compiled from natural-language intake: 我希望网关能自动判断任务风险等级.",
+    "createdFromNaturalLanguage": true,
+    "intakeText": "我希望网关能自动判断任务风险等级",
+    "type": "safety",
+    "status": "registered_preview",
+    "runtime": {
+      "kind": "sandbox_local",
+      "spawnable": true,
+      "maxSpawnDepth": 1,
+      "ttlSeconds": 300,
+      "maxRequests": 3,
+      "maxTokenBudget": 4000,
+      "enabledByDefault": false,
+      "autoRuntimeEligible": true,
+      "maxRuntimeMs": 30000
+    },
+    "safety": {
+      "providerCallsAllowed": false,
+      "secretReadAllowed": false,
+      "deployAllowed": false,
+      "chatMutationAllowed": false,
+      "chatGatewayExecuteMutationAllowed": false,
+      "codexConfigMutationAllowed": false,
+      "selfApprovalAllowed": false
+    },
+    "inputs": {},
+    "outputs": {},
+    "evidence": {
+      "required": true,
+      "schema": "gateway-capability-evidence-v1"
+    },
+    "approval": {
+      "requiredForRuntime": true,
+      "currentStatus": "approved_for_sandbox_runtime_only"
+    },
+    "rollback": {
+      "disableFlag": "TAIJI_DISABLE_TRIAL_1",
+      "deletePaths": []
+    },
+    "synapse": {
+      "pressureTypes": [
+        "risk"
+      ],
+      "modes": [
+        "normal",
+        "god",
+        "tianshu"
+      ],
+      "dependencies": [],
+      "weight": 0.5
+    }
+  },
+  "failures": []
+}

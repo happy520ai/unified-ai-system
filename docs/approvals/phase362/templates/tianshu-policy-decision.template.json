@@ -1,0 +1,17 @@
+{
+  "templateOnly": true,
+  "notAnApproval": true,
+  "approvalId": null,
+  "approvalType": "tianshu_policy_decision",
+  "approvalDecision": "pending",
+  "approverNameRef": "",
+  "approverRole": "Tianshu reviewer",
+  "approverOrgRef": "",
+  "approvedScope": [],
+  "approvalTimestamp": null,
+  "evidenceRefs": [],
+  "conditions": [],
+  "expiration": null,
+  "revocationPolicy": "",
+  "auditTrace": {}
+}

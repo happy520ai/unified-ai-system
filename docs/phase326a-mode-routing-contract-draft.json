@@ -1,0 +1,80 @@
+{
+  "phase": "Phase326A",
+  "contractName": "three-mode-routing-contract-draft",
+  "runtimeStatus": "design_only",
+  "modes": {
+    "normal": {
+      "displayName": "普通模式",
+      "englishName": "Normal Mode",
+      "userSelectsModel": true,
+      "systemSelectsModel": false,
+      "multiModelAdjudication": false,
+      "agenticPlanning": false,
+      "requiresUserOwnedApiKey": true,
+      "allowedRuntimeStage": "future"
+    },
+    "god": {
+      "displayName": "上帝模式",
+      "englishName": "God Mode",
+      "userSelectsModel": "optional",
+      "systemSelectsModel": "policy_controlled",
+      "multiModelAdjudication": true,
+      "agenticPlanning": "optional",
+      "requiresUserOwnedApiKey": true,
+      "allowedRuntimeStage": "future",
+      "draftOutputShape": {
+        "finalAnswer": "string",
+        "modelContributions": "array",
+        "disagreements": "array",
+        "resolvedConflicts": "array",
+        "uncertainty": "object",
+        "confidenceSummary": "object",
+        "auditTrace": "array"
+      }
+    },
+    "tianshu": {
+      "displayName": "天枢模式",
+      "englishName": "Tianshu Mode",
+      "userSelectsModel": false,
+      "systemSelectsModel": true,
+      "multiModelAdjudication": "optional",
+      "agenticPlanning": true,
+      "requiresUserOwnedApiKey": true,
+      "allowedRuntimeStage": "future",
+      "draftComponents": [
+        "Task Analyzer",
+        "Capability Profiler",
+        "Model Capability Index",
+        "Planner",
+        "Candidate Model Selector",
+        "Execution Orchestrator",
+        "Result Validator",
+        "Final Answer Composer"
+      ]
+    }
+  },
+  "providerBoundary": {
+    "currentRuntimeBaseline": "nvidia_only_internal_test",
+    "productionProviderSelection": "user_configured_model_library",
+    "nonNvidiaRealCallsAllowed": false,
+    "secretValueAllowedInConfig": false,
+    "credentialReferenceOnly": true
+  },
+  "governanceBoundary": {
+    "modelLibraryRequired": true,
+    "providerGovernanceRequired": true,
+    "userAuthorizationRequired": true,
+    "budgetPolicyRequiredForPaidProviders": true,
+    "auditRequiredBeforeRuntime": true,
+    "fallbackMustBeExplicit": true
+  },
+  "safety": {
+    "noRuntimeChange": true,
+    "noProviderCall": true,
+    "noChatGatewayChange": true,
+    "noWorkbenchUiChange": true,
+    "godModeRuntimeEnabled": false,
+    "tianshuModeRuntimeEnabled": false
+  }
+}
+

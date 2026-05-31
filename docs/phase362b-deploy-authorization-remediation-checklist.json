@@ -1,0 +1,37 @@
+{
+  "phase": "Phase362B",
+  "checklistName": "deploy-authorization-remediation-checklist",
+  "deployAuthorized": false,
+  "releaseAuthorized": false,
+  "tagAuthorized": false,
+  "artifactUploadAuthorized": false,
+  "productionGaAuthorized": false,
+  "authorizationRecordRequired": true,
+  "authorizationRecordPresent": false,
+  "items": [
+    "production candidate evidence reviewed",
+    "Phase360 deploy-not-authorized boundary reviewed",
+    "Phase361 deploy authorization packet reviewed",
+    "deployment scope defined",
+    "excluded scope defined",
+    "rollback plan reviewed",
+    "monitoring plan reviewed",
+    "incident response owner assigned",
+    "credential vault state reviewed",
+    "billing / quota / budget boundary reviewed",
+    "tenant/admin signoff dependency reviewed",
+    "Go/No-Go dependency reviewed",
+    "deploy authorization record required",
+    "release/tag/artifact upload explicitly not authorized until approval"
+  ],
+  "blockers": [
+    "deploy_authorization_record_missing"
+  ],
+  "safety": {
+    "deployExecuted": false,
+    "releaseExecuted": false,
+    "tagCreated": false,
+    "artifactUploaded": false,
+    "secretValueExposed": false
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "phase": "Phase397A",
+  "title": "Yiyi Demo Buyer Persona Talk Track Pack",
+  "packageType": "buyer-persona-talk-track-pack",
+  "checklist": [
+    {
+      "id": "buyerPersonaPackCreated",
+      "order": 1,
+      "status": "prepared",
+      "safetyBoundary": "dry-run docs/evidence only; no provider, no secret, no deploy, no billing"
+    },
+    {
+      "id": "talkTrackPackCreated",
+      "order": 2,
+      "status": "prepared",
+      "safetyBoundary": "dry-run docs/evidence only; no provider, no secret, no deploy, no billing"
+    }
+  ],
+  "previousClosure": {
+    "path": "apps/ai-gateway-service/evidence/phase396/yiyi-demo-risk-register-mitigation-notes-closure-result.json",
+    "exists": true,
+    "sizeBytes": 2086
+  },
+  "phase384StillRequiresHumanApproval": true,
+  "providerCallsMade": false,
+  "nonNvidiaProviderCallsMade": false,
+  "secretValueExposed": false,
+  "rawSecretAccessed": false,
+  "deployExecuted": false,
+  "releaseExecuted": false,
+  "tagCreated": false,
+  "artifactUploaded": false,
+  "approvalForged": false,
+  "billingExecuted": false,
+  "invoiceGenerated": false,
+  "productionGaClaimed": false,
+  "workspaceCleanClaimed": false
+}

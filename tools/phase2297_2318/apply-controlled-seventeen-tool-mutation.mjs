@@ -1,0 +1,2490 @@
+import { existsSync } from "node:fs";
+import { pathToFileURL } from "node:url";
+import {
+  defaultForbiddenPathFragments,
+  parseSingleExistingFileMutationProposal,
+  readJsonFile,
+  readTextFile,
+  resolveRelativePath,
+  runJsonCommandSmokes,
+  runNodeCheckForTargets,
+  sanitizeTail,
+  sha256Text,
+  validateAlreadyAppliedTargetContent,
+  validateControlledMutationPlan,
+  writeJsonFile,
+  writeTextFile,
+} from "../phase2101_2110/controlled-mutation-substrate.mjs";
+
+const phaseId = "Phase2297A-2318A-Controlled-Seventeen-Tool-Mutation";
+const resultPath = "apps/ai-gateway-service/evidence/phase2297-2318-controlled-seventeen-tool-mutation/result.json";
+const resultMdPath = "apps/ai-gateway-service/evidence/phase2297-2318-controlled-seventeen-tool-mutation/result.md";
+const rollbackPath = "apps/ai-gateway-service/evidence/phase2297-2318-controlled-seventeen-tool-mutation/rollback.json";
+const smokePath = "apps/ai-gateway-service/evidence/phase2297-2318-controlled-seventeen-tool-mutation/seventeen-smoke.json";
+
+export function buildPhase2318SeventeenMutationRuntimeStatus() {
+  return {
+    phaseId: "Phase2318A-Controlled-Seventeen-Tool-Mutation-Target-Seventeen",
+    marker: "PHASE2318_SEVENTEEN_TOOL_TARGET_SEVENTEEN_OK",
+    importSafe: true,
+    phase2170Marker: "PHASE2170_NONET_TOOL_TARGET_NINE_OK",
+    phase2185Marker: "PHASE2185_DECA_TOOL_TARGET_TEN_OK",
+    phase2201Marker: "PHASE2201_ELEVEN_TOOL_TARGET_ELEVEN_OK",
+    phase2218Marker: "PHASE2218_TWELVE_TOOL_TARGET_TWELVE_OK",
+    phase2236Marker: "PHASE2236_THIRTEEN_TOOL_TARGET_THIRTEEN_OK",
+    phase2255Marker: "PHASE2255_FOURTEEN_TOOL_TARGET_FOURTEEN_OK",
+    phase2275Marker: "PHASE2275_FIFTEEN_TOOL_TARGET_FIFTEEN_OK",
+    phase2296Marker: "PHASE2296_SIXTEEN_TOOL_TARGET_SIXTEEN_OK",
+    phase2318Marker: "PHASE2318_SEVENTEEN_TOOL_TARGET_SEVENTEEN_OK",
+    seventeenRunnerReady: true,
+    seventeenMutationApplied: true,
+    providerCallsMade: false,
+    codexExecExecuted: false,
+    chatModified: false,
+    chatGatewayExecuteModified: false,
+  };
+}
+
+
+export function buildPhase2341EighteenMutationRuntimeStatus() {
+  return {
+    phaseId: "Phase2341A-Controlled-Eighteen-Tool-Mutation-Target-Eighteen",
+    marker: "PHASE2341_EIGHTEEN_TOOL_TARGET_EIGHTEEN_OK",
+    importSafe: true,
+    phase2170Marker: "PHASE2170_NONET_TOOL_TARGET_NINE_OK",
+    phase2185Marker: "PHASE2185_DECA_TOOL_TARGET_TEN_OK",
+    phase2201Marker: "PHASE2201_ELEVEN_TOOL_TARGET_ELEVEN_OK",
+    phase2218Marker: "PHASE2218_TWELVE_TOOL_TARGET_TWELVE_OK",
+    phase2236Marker: "PHASE2236_THIRTEEN_TOOL_TARGET_THIRTEEN_OK",
+    phase2255Marker: "PHASE2255_FOURTEEN_TOOL_TARGET_FOURTEEN_OK",
+    phase2275Marker: "PHASE2275_FIFTEEN_TOOL_TARGET_FIFTEEN_OK",
+    phase2296Marker: "PHASE2296_SIXTEEN_TOOL_TARGET_SIXTEEN_OK",
+    phase2318Marker: "PHASE2318_SEVENTEEN_TOOL_TARGET_SEVENTEEN_OK",
+    phase2341Marker: "PHASE2341_EIGHTEEN_TOOL_TARGET_EIGHTEEN_OK",
+    eighteenRunnerReady: true,
+    eighteenMutationApplied: true,
+    providerCallsMade: false,
+    codexExecExecuted: false,
+    chatModified: false,
+    chatGatewayExecuteModified: false,
+  };
+}
+
+export function buildPhase2364NineteenMutationTargetEighteenStatus() {
+  return {
+    phaseId: "Phase2364A-Controlled-Nineteen-Tool-Mutation-Target-Eighteen",
+    marker: "PHASE2364_NINETEEN_TOOL_TARGET_EIGHTEEN_OK",
+    importSafe: true,
+    phase2170Marker: "PHASE2170_NONET_TOOL_TARGET_NINE_OK",
+    phase2185Marker: "PHASE2185_DECA_TOOL_TARGET_TEN_OK",
+    phase2201Marker: "PHASE2201_ELEVEN_TOOL_TARGET_ELEVEN_OK",
+    phase2218Marker: "PHASE2218_TWELVE_TOOL_TARGET_TWELVE_OK",
+    phase2236Marker: "PHASE2236_THIRTEEN_TOOL_TARGET_THIRTEEN_OK",
+    phase2255Marker: "PHASE2255_FOURTEEN_TOOL_TARGET_FOURTEEN_OK",
+    phase2275Marker: "PHASE2275_FIFTEEN_TOOL_TARGET_FIFTEEN_OK",
+    phase2296Marker: "PHASE2296_SIXTEEN_TOOL_TARGET_SIXTEEN_OK",
+    phase2318Marker: "PHASE2318_SEVENTEEN_TOOL_TARGET_SEVENTEEN_OK",
+    phase2341Marker: "PHASE2341_EIGHTEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2364Marker: "PHASE2364_NINETEEN_TOOL_TARGET_EIGHTEEN_OK",
+    nineteenMutationApplied: true,
+    providerCallsMade: false,
+    codexExecExecuted: false,
+    chatModified: false,
+    chatGatewayExecuteModified: false,
+  };
+}
+
+export function buildPhase2388TwentyMutationTargetEighteenStatus() {
+  return {
+    phaseId: "Phase2388A-Controlled-Twenty-Tool-Mutation-Target-Eighteen",
+    marker: "PHASE2388_TWENTY_TOOL_TARGET_EIGHTEEN_OK",
+    importSafe: true,
+    phase2170Marker: "PHASE2170_NONET_TOOL_TARGET_NINE_OK",
+    phase2185Marker: "PHASE2185_DECA_TOOL_TARGET_TEN_OK",
+    phase2201Marker: "PHASE2201_ELEVEN_TOOL_TARGET_ELEVEN_OK",
+    phase2218Marker: "PHASE2218_TWELVE_TOOL_TARGET_TWELVE_OK",
+    phase2236Marker: "PHASE2236_THIRTEEN_TOOL_TARGET_THIRTEEN_OK",
+    phase2255Marker: "PHASE2255_FOURTEEN_TOOL_TARGET_FOURTEEN_OK",
+    phase2275Marker: "PHASE2275_FIFTEEN_TOOL_TARGET_FIFTEEN_OK",
+    phase2296Marker: "PHASE2296_SIXTEEN_TOOL_TARGET_SIXTEEN_OK",
+    phase2318Marker: "PHASE2318_SEVENTEEN_TOOL_TARGET_SEVENTEEN_OK",
+    phase2341Marker: "PHASE2341_EIGHTEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2364Marker: "PHASE2364_NINETEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2388Marker: "PHASE2388_TWENTY_TOOL_TARGET_EIGHTEEN_OK",
+    twentyMutationApplied: true,
+    providerCallsMade: false,
+    codexExecExecuted: false,
+    chatModified: false,
+    chatGatewayExecuteModified: false,
+  };
+}
+
+export function buildPhase2413TwentyOneMutationTargetEighteenStatus() {
+  return {
+    phaseId: "Phase2413A-Controlled-Twenty-One-Tool-Mutation-Target-Eighteen",
+    marker: "PHASE2413_TWENTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    importSafe: true,
+    phase2170Marker: "PHASE2170_NONET_TOOL_TARGET_NINE_OK",
+    phase2185Marker: "PHASE2185_DECA_TOOL_TARGET_TEN_OK",
+    phase2201Marker: "PHASE2201_ELEVEN_TOOL_TARGET_ELEVEN_OK",
+    phase2218Marker: "PHASE2218_TWELVE_TOOL_TARGET_TWELVE_OK",
+    phase2236Marker: "PHASE2236_THIRTEEN_TOOL_TARGET_THIRTEEN_OK",
+    phase2255Marker: "PHASE2255_FOURTEEN_TOOL_TARGET_FOURTEEN_OK",
+    phase2275Marker: "PHASE2275_FIFTEEN_TOOL_TARGET_FIFTEEN_OK",
+    phase2296Marker: "PHASE2296_SIXTEEN_TOOL_TARGET_SIXTEEN_OK",
+    phase2318Marker: "PHASE2318_SEVENTEEN_TOOL_TARGET_SEVENTEEN_OK",
+    phase2341Marker: "PHASE2341_EIGHTEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2364Marker: "PHASE2364_NINETEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2388Marker: "PHASE2388_TWENTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase2413Marker: "PHASE2413_TWENTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    twentyOneMutationApplied: true,
+    providerCallsMade: false,
+    codexExecExecuted: false,
+    chatModified: false,
+    chatGatewayExecuteModified: false,
+  };
+}
+
+export function buildPhase2439TwentyTwoMutationTargetEighteenStatus() {
+  return {
+    phaseId: "Phase2439A-Controlled-Twenty-Two-Tool-Mutation-Target-Eighteen",
+    marker: "PHASE2439_TWENTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    importSafe: true,
+    phase2170Marker: "PHASE2170_NONET_TOOL_TARGET_NINE_OK",
+    phase2185Marker: "PHASE2185_DECA_TOOL_TARGET_TEN_OK",
+    phase2201Marker: "PHASE2201_ELEVEN_TOOL_TARGET_ELEVEN_OK",
+    phase2218Marker: "PHASE2218_TWELVE_TOOL_TARGET_TWELVE_OK",
+    phase2236Marker: "PHASE2236_THIRTEEN_TOOL_TARGET_THIRTEEN_OK",
+    phase2255Marker: "PHASE2255_FOURTEEN_TOOL_TARGET_FOURTEEN_OK",
+    phase2275Marker: "PHASE2275_FIFTEEN_TOOL_TARGET_FIFTEEN_OK",
+    phase2296Marker: "PHASE2296_SIXTEEN_TOOL_TARGET_SIXTEEN_OK",
+    phase2318Marker: "PHASE2318_SEVENTEEN_TOOL_TARGET_SEVENTEEN_OK",
+    phase2341Marker: "PHASE2341_EIGHTEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2364Marker: "PHASE2364_NINETEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2388Marker: "PHASE2388_TWENTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase2413Marker: "PHASE2413_TWENTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2439Marker: "PHASE2439_TWENTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    twentyTwoMutationApplied: true,
+    providerCallsMade: false,
+    codexExecExecuted: false,
+    chatModified: false,
+    chatGatewayExecuteModified: false,
+  };
+}
+
+export function buildPhase2466TwentyThreeMutationTargetEighteenStatus() {
+  return {
+    phaseId: "Phase2466A-Controlled-Twenty-Three-Tool-Mutation-Target-Eighteen",
+    marker: "PHASE2466_TWENTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    importSafe: true,
+    phase2170Marker: "PHASE2170_NONET_TOOL_TARGET_NINE_OK",
+    phase2185Marker: "PHASE2185_DECA_TOOL_TARGET_TEN_OK",
+    phase2201Marker: "PHASE2201_ELEVEN_TOOL_TARGET_ELEVEN_OK",
+    phase2218Marker: "PHASE2218_TWELVE_TOOL_TARGET_TWELVE_OK",
+    phase2236Marker: "PHASE2236_THIRTEEN_TOOL_TARGET_THIRTEEN_OK",
+    phase2255Marker: "PHASE2255_FOURTEEN_TOOL_TARGET_FOURTEEN_OK",
+    phase2275Marker: "PHASE2275_FIFTEEN_TOOL_TARGET_FIFTEEN_OK",
+    phase2296Marker: "PHASE2296_SIXTEEN_TOOL_TARGET_SIXTEEN_OK",
+    phase2318Marker: "PHASE2318_SEVENTEEN_TOOL_TARGET_SEVENTEEN_OK",
+    phase2341Marker: "PHASE2341_EIGHTEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2364Marker: "PHASE2364_NINETEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2388Marker: "PHASE2388_TWENTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase2413Marker: "PHASE2413_TWENTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2439Marker: "PHASE2439_TWENTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase2466Marker: "PHASE2466_TWENTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    twentyThreeMutationApplied: true,
+    providerCallsMade: false,
+    codexExecExecuted: false,
+    chatModified: false,
+    chatGatewayExecuteModified: false,
+  };
+}
+
+export function buildPhase2494TwentyFourMutationTargetEighteenStatus() {
+  return {
+    phaseId: "Phase2494A-Controlled-Twenty-Four-Tool-Mutation-Target-Eighteen",
+    marker: "PHASE2494_TWENTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    importSafe: true,
+    phase2170Marker: "PHASE2170_NONET_TOOL_TARGET_NINE_OK",
+    phase2185Marker: "PHASE2185_DECA_TOOL_TARGET_TEN_OK",
+    phase2201Marker: "PHASE2201_ELEVEN_TOOL_TARGET_ELEVEN_OK",
+    phase2218Marker: "PHASE2218_TWELVE_TOOL_TARGET_TWELVE_OK",
+    phase2236Marker: "PHASE2236_THIRTEEN_TOOL_TARGET_THIRTEEN_OK",
+    phase2255Marker: "PHASE2255_FOURTEEN_TOOL_TARGET_FOURTEEN_OK",
+    phase2275Marker: "PHASE2275_FIFTEEN_TOOL_TARGET_FIFTEEN_OK",
+    phase2296Marker: "PHASE2296_SIXTEEN_TOOL_TARGET_SIXTEEN_OK",
+    phase2318Marker: "PHASE2318_SEVENTEEN_TOOL_TARGET_SEVENTEEN_OK",
+    phase2341Marker: "PHASE2341_EIGHTEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2364Marker: "PHASE2364_NINETEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2388Marker: "PHASE2388_TWENTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase2413Marker: "PHASE2413_TWENTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2439Marker: "PHASE2439_TWENTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase2466Marker: "PHASE2466_TWENTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2494Marker: "PHASE2494_TWENTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    twentyFourMutationApplied: true,
+    providerCallsMade: false,
+    codexExecExecuted: false,
+    chatModified: false,
+    chatGatewayExecuteModified: false,
+  };
+}
+
+export function buildPhase2523TwentyFiveMutationTargetEighteenStatus() {
+  return {
+    phaseId: "Phase2523A-Controlled-Twenty-Five-Tool-Mutation-Target-Eighteen",
+    marker: "PHASE2523_TWENTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    importSafe: true,
+    phase2170Marker: "PHASE2170_NONET_TOOL_TARGET_NINE_OK",
+    phase2185Marker: "PHASE2185_DECA_TOOL_TARGET_TEN_OK",
+    phase2201Marker: "PHASE2201_ELEVEN_TOOL_TARGET_ELEVEN_OK",
+    phase2218Marker: "PHASE2218_TWELVE_TOOL_TARGET_TWELVE_OK",
+    phase2236Marker: "PHASE2236_THIRTEEN_TOOL_TARGET_THIRTEEN_OK",
+    phase2255Marker: "PHASE2255_FOURTEEN_TOOL_TARGET_FOURTEEN_OK",
+    phase2275Marker: "PHASE2275_FIFTEEN_TOOL_TARGET_FIFTEEN_OK",
+    phase2296Marker: "PHASE2296_SIXTEEN_TOOL_TARGET_SIXTEEN_OK",
+    phase2318Marker: "PHASE2318_SEVENTEEN_TOOL_TARGET_SEVENTEEN_OK",
+    phase2341Marker: "PHASE2341_EIGHTEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2364Marker: "PHASE2364_NINETEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2388Marker: "PHASE2388_TWENTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase2413Marker: "PHASE2413_TWENTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2439Marker: "PHASE2439_TWENTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase2466Marker: "PHASE2466_TWENTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2494Marker: "PHASE2494_TWENTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase2523Marker: "PHASE2523_TWENTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    twentyFiveMutationApplied: true,
+    providerCallsMade: false,
+    codexExecExecuted: false,
+    chatModified: false,
+    chatGatewayExecuteModified: false,
+  };
+}
+
+export function buildPhase2553TwentySixMutationTargetEighteenStatus() {
+  return {
+    phaseId: "Phase2553A-Controlled-Twenty-Six-Tool-Mutation-Target-Eighteen",
+    marker: "PHASE2553_TWENTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    importSafe: true,
+    phase2170Marker: "PHASE2170_NONET_TOOL_TARGET_NINE_OK",
+    phase2185Marker: "PHASE2185_DECA_TOOL_TARGET_TEN_OK",
+    phase2201Marker: "PHASE2201_ELEVEN_TOOL_TARGET_ELEVEN_OK",
+    phase2218Marker: "PHASE2218_TWELVE_TOOL_TARGET_TWELVE_OK",
+    phase2236Marker: "PHASE2236_THIRTEEN_TOOL_TARGET_THIRTEEN_OK",
+    phase2255Marker: "PHASE2255_FOURTEEN_TOOL_TARGET_FOURTEEN_OK",
+    phase2275Marker: "PHASE2275_FIFTEEN_TOOL_TARGET_FIFTEEN_OK",
+    phase2296Marker: "PHASE2296_SIXTEEN_TOOL_TARGET_SIXTEEN_OK",
+    phase2318Marker: "PHASE2318_SEVENTEEN_TOOL_TARGET_SEVENTEEN_OK",
+    phase2341Marker: "PHASE2341_EIGHTEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2364Marker: "PHASE2364_NINETEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2388Marker: "PHASE2388_TWENTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase2413Marker: "PHASE2413_TWENTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2439Marker: "PHASE2439_TWENTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase2466Marker: "PHASE2466_TWENTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2494Marker: "PHASE2494_TWENTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase2523Marker: "PHASE2523_TWENTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2553Marker: "PHASE2553_TWENTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    twentySixMutationApplied: true,
+    providerCallsMade: false,
+    codexExecExecuted: false,
+    chatModified: false,
+    chatGatewayExecuteModified: false,
+  };
+}
+
+export function buildPhase2584TwentySevenMutationTargetEighteenStatus() {
+  return {
+    phaseId: "Phase2584A-Controlled-Twenty-Seven-Tool-Mutation-Target-Eighteen",
+    marker: "PHASE2584_TWENTY_SEVEN_TOOL_TARGET_EIGHTEEN_OK",
+    importSafe: true,
+    phase2170Marker: "PHASE2170_NONET_TOOL_TARGET_NINE_OK",
+    phase2185Marker: "PHASE2185_DECA_TOOL_TARGET_TEN_OK",
+    phase2201Marker: "PHASE2201_ELEVEN_TOOL_TARGET_ELEVEN_OK",
+    phase2218Marker: "PHASE2218_TWELVE_TOOL_TARGET_TWELVE_OK",
+    phase2236Marker: "PHASE2236_THIRTEEN_TOOL_TARGET_THIRTEEN_OK",
+    phase2255Marker: "PHASE2255_FOURTEEN_TOOL_TARGET_FOURTEEN_OK",
+    phase2275Marker: "PHASE2275_FIFTEEN_TOOL_TARGET_FIFTEEN_OK",
+    phase2296Marker: "PHASE2296_SIXTEEN_TOOL_TARGET_SIXTEEN_OK",
+    phase2318Marker: "PHASE2318_SEVENTEEN_TOOL_TARGET_SEVENTEEN_OK",
+    phase2341Marker: "PHASE2341_EIGHTEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2364Marker: "PHASE2364_NINETEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2388Marker: "PHASE2388_TWENTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase2413Marker: "PHASE2413_TWENTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2439Marker: "PHASE2439_TWENTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase2466Marker: "PHASE2466_TWENTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2494Marker: "PHASE2494_TWENTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase2523Marker: "PHASE2523_TWENTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2553Marker: "PHASE2553_TWENTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    phase2584Marker: "PHASE2584_TWENTY_SEVEN_TOOL_TARGET_EIGHTEEN_OK",
+    twentySevenMutationApplied: true,
+    providerCallsMade: false,
+    codexExecExecuted: false,
+    chatModified: false,
+    chatGatewayExecuteModified: false,
+  };
+}
+
+export function buildPhase2616TwentyEightMutationTargetEighteenStatus() {
+  return {
+    phaseId: "Phase2616A-Controlled-Twenty-Eight-Tool-Mutation-Target-Eighteen",
+    marker: "PHASE2616_TWENTY_EIGHT_TOOL_TARGET_EIGHTEEN_OK",
+    importSafe: true,
+    phase2170Marker: "PHASE2170_NONET_TOOL_TARGET_NINE_OK",
+    phase2185Marker: "PHASE2185_DECA_TOOL_TARGET_TEN_OK",
+    phase2201Marker: "PHASE2201_ELEVEN_TOOL_TARGET_ELEVEN_OK",
+    phase2218Marker: "PHASE2218_TWELVE_TOOL_TARGET_TWELVE_OK",
+    phase2236Marker: "PHASE2236_THIRTEEN_TOOL_TARGET_THIRTEEN_OK",
+    phase2255Marker: "PHASE2255_FOURTEEN_TOOL_TARGET_FOURTEEN_OK",
+    phase2275Marker: "PHASE2275_FIFTEEN_TOOL_TARGET_FIFTEEN_OK",
+    phase2296Marker: "PHASE2296_SIXTEEN_TOOL_TARGET_SIXTEEN_OK",
+    phase2318Marker: "PHASE2318_SEVENTEEN_TOOL_TARGET_SEVENTEEN_OK",
+    phase2341Marker: "PHASE2341_EIGHTEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2364Marker: "PHASE2364_NINETEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2388Marker: "PHASE2388_TWENTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase2413Marker: "PHASE2413_TWENTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2439Marker: "PHASE2439_TWENTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase2466Marker: "PHASE2466_TWENTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2494Marker: "PHASE2494_TWENTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase2523Marker: "PHASE2523_TWENTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2553Marker: "PHASE2553_TWENTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    phase2584Marker: "PHASE2584_TWENTY_SEVEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2616Marker: "PHASE2616_TWENTY_EIGHT_TOOL_TARGET_EIGHTEEN_OK",
+    twentyEightMutationApplied: true,
+    providerCallsMade: false,
+    codexExecExecuted: false,
+    chatModified: false,
+    chatGatewayExecuteModified: false,
+  };
+}
+
+export function buildPhase2649TwentyNineMutationTargetEighteenStatus() {
+  return {
+    phaseId: "Phase2649A-Controlled-Twenty-Nine-Tool-Mutation-Target-Eighteen",
+    marker: "PHASE2649_TWENTY_NINE_TOOL_TARGET_EIGHTEEN_OK",
+    importSafe: true,
+    phase2170Marker: "PHASE2170_NONET_TOOL_TARGET_NINE_OK",
+    phase2185Marker: "PHASE2185_DECA_TOOL_TARGET_TEN_OK",
+    phase2201Marker: "PHASE2201_ELEVEN_TOOL_TARGET_ELEVEN_OK",
+    phase2218Marker: "PHASE2218_TWELVE_TOOL_TARGET_TWELVE_OK",
+    phase2236Marker: "PHASE2236_THIRTEEN_TOOL_TARGET_THIRTEEN_OK",
+    phase2255Marker: "PHASE2255_FOURTEEN_TOOL_TARGET_FOURTEEN_OK",
+    phase2275Marker: "PHASE2275_FIFTEEN_TOOL_TARGET_FIFTEEN_OK",
+    phase2296Marker: "PHASE2296_SIXTEEN_TOOL_TARGET_SIXTEEN_OK",
+    phase2318Marker: "PHASE2318_SEVENTEEN_TOOL_TARGET_SEVENTEEN_OK",
+    phase2341Marker: "PHASE2341_EIGHTEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2364Marker: "PHASE2364_NINETEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2388Marker: "PHASE2388_TWENTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase2413Marker: "PHASE2413_TWENTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2439Marker: "PHASE2439_TWENTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase2466Marker: "PHASE2466_TWENTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2494Marker: "PHASE2494_TWENTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase2523Marker: "PHASE2523_TWENTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2553Marker: "PHASE2553_TWENTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    phase2584Marker: "PHASE2584_TWENTY_SEVEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2616Marker: "PHASE2616_TWENTY_EIGHT_TOOL_TARGET_EIGHTEEN_OK",
+    phase2649Marker: "PHASE2649_TWENTY_NINE_TOOL_TARGET_EIGHTEEN_OK",
+    twentyNineMutationApplied: true,
+    providerCallsMade: false,
+    codexExecExecuted: false,
+    chatModified: false,
+    chatGatewayExecuteModified: false,
+  };
+}
+
+export function buildPhase2683ThirtyMutationTargetEighteenStatus() {
+  return {
+    phaseId: "Phase2683A-Controlled-Thirty-Tool-Mutation-Target-Eighteen",
+    marker: "PHASE2683_THIRTY_TOOL_TARGET_EIGHTEEN_OK",
+    importSafe: true,
+    phase2170Marker: "PHASE2170_NONET_TOOL_TARGET_NINE_OK",
+    phase2185Marker: "PHASE2185_DECA_TOOL_TARGET_TEN_OK",
+    phase2201Marker: "PHASE2201_ELEVEN_TOOL_TARGET_ELEVEN_OK",
+    phase2218Marker: "PHASE2218_TWELVE_TOOL_TARGET_TWELVE_OK",
+    phase2236Marker: "PHASE2236_THIRTEEN_TOOL_TARGET_THIRTEEN_OK",
+    phase2255Marker: "PHASE2255_FOURTEEN_TOOL_TARGET_FOURTEEN_OK",
+    phase2275Marker: "PHASE2275_FIFTEEN_TOOL_TARGET_FIFTEEN_OK",
+    phase2296Marker: "PHASE2296_SIXTEEN_TOOL_TARGET_SIXTEEN_OK",
+    phase2318Marker: "PHASE2318_SEVENTEEN_TOOL_TARGET_SEVENTEEN_OK",
+    phase2341Marker: "PHASE2341_EIGHTEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2364Marker: "PHASE2364_NINETEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2388Marker: "PHASE2388_TWENTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase2413Marker: "PHASE2413_TWENTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2439Marker: "PHASE2439_TWENTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase2466Marker: "PHASE2466_TWENTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2494Marker: "PHASE2494_TWENTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase2523Marker: "PHASE2523_TWENTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2553Marker: "PHASE2553_TWENTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    phase2584Marker: "PHASE2584_TWENTY_SEVEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2616Marker: "PHASE2616_TWENTY_EIGHT_TOOL_TARGET_EIGHTEEN_OK",
+    phase2649Marker: "PHASE2649_TWENTY_NINE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2683Marker: "PHASE2683_THIRTY_TOOL_TARGET_EIGHTEEN_OK",
+    thirtyMutationApplied: true,
+    providerCallsMade: false,
+    codexExecExecuted: false,
+    chatModified: false,
+    chatGatewayExecuteModified: false,
+  };
+}
+
+export function buildPhase2718ThirtyOneMutationTargetEighteenStatus() {
+  return {
+    phaseId: "Phase2718A-Controlled-Thirty-One-Tool-Mutation-Target-Eighteen",
+    marker: "PHASE2718_THIRTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    importSafe: true,
+    phase2170Marker: "PHASE2170_NONET_TOOL_TARGET_NINE_OK",
+    phase2185Marker: "PHASE2185_DECA_TOOL_TARGET_TEN_OK",
+    phase2201Marker: "PHASE2201_ELEVEN_TOOL_TARGET_ELEVEN_OK",
+    phase2218Marker: "PHASE2218_TWELVE_TOOL_TARGET_TWELVE_OK",
+    phase2236Marker: "PHASE2236_THIRTEEN_TOOL_TARGET_THIRTEEN_OK",
+    phase2255Marker: "PHASE2255_FOURTEEN_TOOL_TARGET_FOURTEEN_OK",
+    phase2275Marker: "PHASE2275_FIFTEEN_TOOL_TARGET_FIFTEEN_OK",
+    phase2296Marker: "PHASE2296_SIXTEEN_TOOL_TARGET_SIXTEEN_OK",
+    phase2318Marker: "PHASE2318_SEVENTEEN_TOOL_TARGET_SEVENTEEN_OK",
+    phase2341Marker: "PHASE2341_EIGHTEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2364Marker: "PHASE2364_NINETEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2388Marker: "PHASE2388_TWENTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase2413Marker: "PHASE2413_TWENTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2439Marker: "PHASE2439_TWENTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase2466Marker: "PHASE2466_TWENTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2494Marker: "PHASE2494_TWENTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase2523Marker: "PHASE2523_TWENTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2553Marker: "PHASE2553_TWENTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    phase2584Marker: "PHASE2584_TWENTY_SEVEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2616Marker: "PHASE2616_TWENTY_EIGHT_TOOL_TARGET_EIGHTEEN_OK",
+    phase2649Marker: "PHASE2649_TWENTY_NINE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2683Marker: "PHASE2683_THIRTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase2718Marker: "PHASE2718_THIRTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    thirtyOneMutationApplied: true,
+    providerCallsMade: false,
+    codexExecExecuted: false,
+    chatModified: false,
+    chatGatewayExecuteModified: false,
+  };
+}
+
+export function buildPhase2754ThirtyTwoMutationTargetEighteenStatus() {
+  return {
+    phaseId: "Phase2754A-Controlled-Thirty-Two-Tool-Mutation-Target-Eighteen",
+    marker: "PHASE2754_THIRTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    importSafe: true,
+    phase2170Marker: "PHASE2170_NONET_TOOL_TARGET_NINE_OK",
+    phase2185Marker: "PHASE2185_DECA_TOOL_TARGET_TEN_OK",
+    phase2201Marker: "PHASE2201_ELEVEN_TOOL_TARGET_ELEVEN_OK",
+    phase2218Marker: "PHASE2218_TWELVE_TOOL_TARGET_TWELVE_OK",
+    phase2236Marker: "PHASE2236_THIRTEEN_TOOL_TARGET_THIRTEEN_OK",
+    phase2255Marker: "PHASE2255_FOURTEEN_TOOL_TARGET_FOURTEEN_OK",
+    phase2275Marker: "PHASE2275_FIFTEEN_TOOL_TARGET_FIFTEEN_OK",
+    phase2296Marker: "PHASE2296_SIXTEEN_TOOL_TARGET_SIXTEEN_OK",
+    phase2318Marker: "PHASE2318_SEVENTEEN_TOOL_TARGET_SEVENTEEN_OK",
+    phase2341Marker: "PHASE2341_EIGHTEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2364Marker: "PHASE2364_NINETEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2388Marker: "PHASE2388_TWENTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase2413Marker: "PHASE2413_TWENTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2439Marker: "PHASE2439_TWENTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase2466Marker: "PHASE2466_TWENTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2494Marker: "PHASE2494_TWENTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase2523Marker: "PHASE2523_TWENTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2553Marker: "PHASE2553_TWENTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    phase2584Marker: "PHASE2584_TWENTY_SEVEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2616Marker: "PHASE2616_TWENTY_EIGHT_TOOL_TARGET_EIGHTEEN_OK",
+    phase2649Marker: "PHASE2649_TWENTY_NINE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2683Marker: "PHASE2683_THIRTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase2718Marker: "PHASE2718_THIRTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2754Marker: "PHASE2754_THIRTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    thirtyTwoMutationApplied: true,
+    providerCallsMade: false,
+    codexExecExecuted: false,
+    chatModified: false,
+    chatGatewayExecuteModified: false,
+  };
+}
+
+export function buildPhase2791ThirtyThreeMutationTargetEighteenStatus() {
+  return {
+    phaseId: "Phase2791A-Controlled-Thirty-Three-Tool-Mutation-Target-Eighteen",
+    marker: "PHASE2791_THIRTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    importSafe: true,
+    phase2170Marker: "PHASE2170_NONET_TOOL_TARGET_NINE_OK",
+    phase2185Marker: "PHASE2185_DECA_TOOL_TARGET_TEN_OK",
+    phase2201Marker: "PHASE2201_ELEVEN_TOOL_TARGET_ELEVEN_OK",
+    phase2218Marker: "PHASE2218_TWELVE_TOOL_TARGET_TWELVE_OK",
+    phase2236Marker: "PHASE2236_THIRTEEN_TOOL_TARGET_THIRTEEN_OK",
+    phase2255Marker: "PHASE2255_FOURTEEN_TOOL_TARGET_FOURTEEN_OK",
+    phase2275Marker: "PHASE2275_FIFTEEN_TOOL_TARGET_FIFTEEN_OK",
+    phase2296Marker: "PHASE2296_SIXTEEN_TOOL_TARGET_SIXTEEN_OK",
+    phase2318Marker: "PHASE2318_SEVENTEEN_TOOL_TARGET_SEVENTEEN_OK",
+    phase2341Marker: "PHASE2341_EIGHTEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2364Marker: "PHASE2364_NINETEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2388Marker: "PHASE2388_TWENTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase2413Marker: "PHASE2413_TWENTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2439Marker: "PHASE2439_TWENTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase2466Marker: "PHASE2466_TWENTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2494Marker: "PHASE2494_TWENTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase2523Marker: "PHASE2523_TWENTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2553Marker: "PHASE2553_TWENTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    phase2584Marker: "PHASE2584_TWENTY_SEVEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2616Marker: "PHASE2616_TWENTY_EIGHT_TOOL_TARGET_EIGHTEEN_OK",
+    phase2649Marker: "PHASE2649_TWENTY_NINE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2683Marker: "PHASE2683_THIRTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase2718Marker: "PHASE2718_THIRTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2754Marker: "PHASE2754_THIRTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase2791Marker: "PHASE2791_THIRTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    thirtyThreeMutationApplied: true,
+    providerCallsMade: false,
+    codexExecExecuted: false,
+    chatModified: false,
+    chatGatewayExecuteModified: false,
+  };
+}
+
+export function buildPhase2829ThirtyFourMutationTargetEighteenStatus() {
+  return {
+    phaseId: "Phase2829A-Controlled-Thirty-Four-Tool-Mutation-Target-Eighteen",
+    marker: "PHASE2829_THIRTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    importSafe: true,
+    phase2170Marker: "PHASE2170_NONET_TOOL_TARGET_NINE_OK",
+    phase2185Marker: "PHASE2185_DECA_TOOL_TARGET_TEN_OK",
+    phase2201Marker: "PHASE2201_ELEVEN_TOOL_TARGET_ELEVEN_OK",
+    phase2218Marker: "PHASE2218_TWELVE_TOOL_TARGET_TWELVE_OK",
+    phase2236Marker: "PHASE2236_THIRTEEN_TOOL_TARGET_THIRTEEN_OK",
+    phase2255Marker: "PHASE2255_FOURTEEN_TOOL_TARGET_FOURTEEN_OK",
+    phase2275Marker: "PHASE2275_FIFTEEN_TOOL_TARGET_FIFTEEN_OK",
+    phase2296Marker: "PHASE2296_SIXTEEN_TOOL_TARGET_SIXTEEN_OK",
+    phase2318Marker: "PHASE2318_SEVENTEEN_TOOL_TARGET_SEVENTEEN_OK",
+    phase2341Marker: "PHASE2341_EIGHTEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2364Marker: "PHASE2364_NINETEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2388Marker: "PHASE2388_TWENTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase2413Marker: "PHASE2413_TWENTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2439Marker: "PHASE2439_TWENTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase2466Marker: "PHASE2466_TWENTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2494Marker: "PHASE2494_TWENTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase2523Marker: "PHASE2523_TWENTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2553Marker: "PHASE2553_TWENTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    phase2584Marker: "PHASE2584_TWENTY_SEVEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2616Marker: "PHASE2616_TWENTY_EIGHT_TOOL_TARGET_EIGHTEEN_OK",
+    phase2649Marker: "PHASE2649_TWENTY_NINE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2683Marker: "PHASE2683_THIRTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase2718Marker: "PHASE2718_THIRTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2754Marker: "PHASE2754_THIRTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase2791Marker: "PHASE2791_THIRTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2829Marker: "PHASE2829_THIRTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    thirtyFourMutationApplied: true,
+    providerCallsMade: false,
+    codexExecExecuted: false,
+    chatModified: false,
+    chatGatewayExecuteModified: false,
+  };
+}
+
+export function buildPhase2868ThirtyFiveMutationTargetEighteenStatus() {
+  return {
+    phaseId: "Phase2868A-Controlled-Thirty-Five-Tool-Mutation-Target-Eighteen",
+    marker: "PHASE2868_THIRTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    importSafe: true,
+    phase2170Marker: "PHASE2170_NONET_TOOL_TARGET_NINE_OK",
+    phase2185Marker: "PHASE2185_DECA_TOOL_TARGET_TEN_OK",
+    phase2201Marker: "PHASE2201_ELEVEN_TOOL_TARGET_ELEVEN_OK",
+    phase2218Marker: "PHASE2218_TWELVE_TOOL_TARGET_TWELVE_OK",
+    phase2236Marker: "PHASE2236_THIRTEEN_TOOL_TARGET_THIRTEEN_OK",
+    phase2255Marker: "PHASE2255_FOURTEEN_TOOL_TARGET_FOURTEEN_OK",
+    phase2275Marker: "PHASE2275_FIFTEEN_TOOL_TARGET_FIFTEEN_OK",
+    phase2296Marker: "PHASE2296_SIXTEEN_TOOL_TARGET_SIXTEEN_OK",
+    phase2318Marker: "PHASE2318_SEVENTEEN_TOOL_TARGET_SEVENTEEN_OK",
+    phase2341Marker: "PHASE2341_EIGHTEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2364Marker: "PHASE2364_NINETEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2388Marker: "PHASE2388_TWENTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase2413Marker: "PHASE2413_TWENTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2439Marker: "PHASE2439_TWENTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase2466Marker: "PHASE2466_TWENTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2494Marker: "PHASE2494_TWENTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase2523Marker: "PHASE2523_TWENTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2553Marker: "PHASE2553_TWENTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    phase2584Marker: "PHASE2584_TWENTY_SEVEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2616Marker: "PHASE2616_TWENTY_EIGHT_TOOL_TARGET_EIGHTEEN_OK",
+    phase2649Marker: "PHASE2649_TWENTY_NINE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2683Marker: "PHASE2683_THIRTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase2718Marker: "PHASE2718_THIRTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2754Marker: "PHASE2754_THIRTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase2791Marker: "PHASE2791_THIRTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2829Marker: "PHASE2829_THIRTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase2868Marker: "PHASE2868_THIRTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    thirtyFiveMutationApplied: true,
+    providerCallsMade: false,
+    codexExecExecuted: false,
+    chatModified: false,
+    chatGatewayExecuteModified: false,
+  };
+}
+
+export function buildPhase2908ThirtySixMutationTargetEighteenStatus() {
+  return {
+    phaseId: "Phase2908A-Controlled-Thirty-Six-Tool-Mutation-Target-Eighteen",
+    marker: "PHASE2908_THIRTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    importSafe: true,
+    phase2170Marker: "PHASE2170_NONET_TOOL_TARGET_NINE_OK",
+    phase2185Marker: "PHASE2185_DECA_TOOL_TARGET_TEN_OK",
+    phase2201Marker: "PHASE2201_ELEVEN_TOOL_TARGET_ELEVEN_OK",
+    phase2218Marker: "PHASE2218_TWELVE_TOOL_TARGET_TWELVE_OK",
+    phase2236Marker: "PHASE2236_THIRTEEN_TOOL_TARGET_THIRTEEN_OK",
+    phase2255Marker: "PHASE2255_FOURTEEN_TOOL_TARGET_FOURTEEN_OK",
+    phase2275Marker: "PHASE2275_FIFTEEN_TOOL_TARGET_FIFTEEN_OK",
+    phase2296Marker: "PHASE2296_SIXTEEN_TOOL_TARGET_SIXTEEN_OK",
+    phase2318Marker: "PHASE2318_SEVENTEEN_TOOL_TARGET_SEVENTEEN_OK",
+    phase2341Marker: "PHASE2341_EIGHTEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2364Marker: "PHASE2364_NINETEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2388Marker: "PHASE2388_TWENTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase2413Marker: "PHASE2413_TWENTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2439Marker: "PHASE2439_TWENTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase2466Marker: "PHASE2466_TWENTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2494Marker: "PHASE2494_TWENTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase2523Marker: "PHASE2523_TWENTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2553Marker: "PHASE2553_TWENTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    phase2584Marker: "PHASE2584_TWENTY_SEVEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2616Marker: "PHASE2616_TWENTY_EIGHT_TOOL_TARGET_EIGHTEEN_OK",
+    phase2649Marker: "PHASE2649_TWENTY_NINE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2683Marker: "PHASE2683_THIRTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase2718Marker: "PHASE2718_THIRTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2754Marker: "PHASE2754_THIRTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase2791Marker: "PHASE2791_THIRTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2829Marker: "PHASE2829_THIRTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase2868Marker: "PHASE2868_THIRTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2908Marker: "PHASE2908_THIRTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    thirtySixMutationApplied: true,
+    providerCallsMade: false,
+    codexExecExecuted: false,
+    chatModified: false,
+    chatGatewayExecuteModified: false,
+  };
+}
+
+export function buildPhase2949ThirtySevenMutationTargetEighteenStatus() {
+  return {
+    phaseId: "Phase2949A-Controlled-Thirty-Seven-Tool-Mutation-Target-Eighteen",
+    marker: "PHASE2949_THIRTY_SEVEN_TOOL_TARGET_EIGHTEEN_OK",
+    importSafe: true,
+    phase2170Marker: "PHASE2170_NONET_TOOL_TARGET_NINE_OK",
+    phase2185Marker: "PHASE2185_DECA_TOOL_TARGET_TEN_OK",
+    phase2201Marker: "PHASE2201_ELEVEN_TOOL_TARGET_ELEVEN_OK",
+    phase2218Marker: "PHASE2218_TWELVE_TOOL_TARGET_TWELVE_OK",
+    phase2236Marker: "PHASE2236_THIRTEEN_TOOL_TARGET_THIRTEEN_OK",
+    phase2255Marker: "PHASE2255_FOURTEEN_TOOL_TARGET_FOURTEEN_OK",
+    phase2275Marker: "PHASE2275_FIFTEEN_TOOL_TARGET_FIFTEEN_OK",
+    phase2296Marker: "PHASE2296_SIXTEEN_TOOL_TARGET_SIXTEEN_OK",
+    phase2318Marker: "PHASE2318_SEVENTEEN_TOOL_TARGET_SEVENTEEN_OK",
+    phase2341Marker: "PHASE2341_EIGHTEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2364Marker: "PHASE2364_NINETEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2388Marker: "PHASE2388_TWENTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase2413Marker: "PHASE2413_TWENTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2439Marker: "PHASE2439_TWENTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase2466Marker: "PHASE2466_TWENTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2494Marker: "PHASE2494_TWENTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase2523Marker: "PHASE2523_TWENTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2553Marker: "PHASE2553_TWENTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    phase2584Marker: "PHASE2584_TWENTY_SEVEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2616Marker: "PHASE2616_TWENTY_EIGHT_TOOL_TARGET_EIGHTEEN_OK",
+    phase2649Marker: "PHASE2649_TWENTY_NINE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2683Marker: "PHASE2683_THIRTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase2718Marker: "PHASE2718_THIRTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2754Marker: "PHASE2754_THIRTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase2791Marker: "PHASE2791_THIRTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2829Marker: "PHASE2829_THIRTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase2868Marker: "PHASE2868_THIRTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2908Marker: "PHASE2908_THIRTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    phase2949Marker: "PHASE2949_THIRTY_SEVEN_TOOL_TARGET_EIGHTEEN_OK",
+    thirtySevenMutationApplied: true,
+    providerCallsMade: false,
+    codexExecExecuted: false,
+    chatModified: false,
+    chatGatewayExecuteModified: false,
+  };
+}
+
+export function buildPhase2991ThirtyEightMutationTargetEighteenStatus() {
+  return {
+    phaseId: "Phase2991A-Controlled-Thirty-Eight-Tool-Mutation-Target-Eighteen",
+    marker: "PHASE2991_THIRTY_EIGHT_TOOL_TARGET_EIGHTEEN_OK",
+    importSafe: true,
+    phase2170Marker: "PHASE2170_NONET_TOOL_TARGET_NINE_OK",
+    phase2185Marker: "PHASE2185_DECA_TOOL_TARGET_TEN_OK",
+    phase2201Marker: "PHASE2201_ELEVEN_TOOL_TARGET_ELEVEN_OK",
+    phase2218Marker: "PHASE2218_TWELVE_TOOL_TARGET_TWELVE_OK",
+    phase2236Marker: "PHASE2236_THIRTEEN_TOOL_TARGET_THIRTEEN_OK",
+    phase2255Marker: "PHASE2255_FOURTEEN_TOOL_TARGET_FOURTEEN_OK",
+    phase2275Marker: "PHASE2275_FIFTEEN_TOOL_TARGET_FIFTEEN_OK",
+    phase2296Marker: "PHASE2296_SIXTEEN_TOOL_TARGET_SIXTEEN_OK",
+    phase2318Marker: "PHASE2318_SEVENTEEN_TOOL_TARGET_SEVENTEEN_OK",
+    phase2341Marker: "PHASE2341_EIGHTEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2364Marker: "PHASE2364_NINETEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2388Marker: "PHASE2388_TWENTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase2413Marker: "PHASE2413_TWENTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2439Marker: "PHASE2439_TWENTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase2466Marker: "PHASE2466_TWENTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2494Marker: "PHASE2494_TWENTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase2523Marker: "PHASE2523_TWENTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2553Marker: "PHASE2553_TWENTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    phase2584Marker: "PHASE2584_TWENTY_SEVEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2616Marker: "PHASE2616_TWENTY_EIGHT_TOOL_TARGET_EIGHTEEN_OK",
+    phase2649Marker: "PHASE2649_TWENTY_NINE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2683Marker: "PHASE2683_THIRTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase2718Marker: "PHASE2718_THIRTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2754Marker: "PHASE2754_THIRTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase2791Marker: "PHASE2791_THIRTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2829Marker: "PHASE2829_THIRTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase2868Marker: "PHASE2868_THIRTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2908Marker: "PHASE2908_THIRTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    phase2949Marker: "PHASE2949_THIRTY_SEVEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2991Marker: "PHASE2991_THIRTY_EIGHT_TOOL_TARGET_EIGHTEEN_OK",
+    thirtyEightMutationApplied: true,
+    providerCallsMade: false,
+    codexExecExecuted: false,
+    chatModified: false,
+    chatGatewayExecuteModified: false,
+  };
+}
+
+export function buildPhase3034ThirtyNineMutationTargetEighteenStatus() {
+  return {
+    phaseId: "Phase3034A-Controlled-Thirty-Nine-Tool-Mutation-Target-Eighteen",
+    marker: "PHASE3034_THIRTY_NINE_TOOL_TARGET_EIGHTEEN_OK",
+    importSafe: true,
+    phase2170Marker: "PHASE2170_NONET_TOOL_TARGET_NINE_OK",
+    phase2185Marker: "PHASE2185_DECA_TOOL_TARGET_TEN_OK",
+    phase2201Marker: "PHASE2201_ELEVEN_TOOL_TARGET_ELEVEN_OK",
+    phase2218Marker: "PHASE2218_TWELVE_TOOL_TARGET_TWELVE_OK",
+    phase2236Marker: "PHASE2236_THIRTEEN_TOOL_TARGET_THIRTEEN_OK",
+    phase2255Marker: "PHASE2255_FOURTEEN_TOOL_TARGET_FOURTEEN_OK",
+    phase2275Marker: "PHASE2275_FIFTEEN_TOOL_TARGET_FIFTEEN_OK",
+    phase2296Marker: "PHASE2296_SIXTEEN_TOOL_TARGET_SIXTEEN_OK",
+    phase2318Marker: "PHASE2318_SEVENTEEN_TOOL_TARGET_SEVENTEEN_OK",
+    phase2341Marker: "PHASE2341_EIGHTEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2364Marker: "PHASE2364_NINETEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2388Marker: "PHASE2388_TWENTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase2413Marker: "PHASE2413_TWENTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2439Marker: "PHASE2439_TWENTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase2466Marker: "PHASE2466_TWENTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2494Marker: "PHASE2494_TWENTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase2523Marker: "PHASE2523_TWENTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2553Marker: "PHASE2553_TWENTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    phase2584Marker: "PHASE2584_TWENTY_SEVEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2616Marker: "PHASE2616_TWENTY_EIGHT_TOOL_TARGET_EIGHTEEN_OK",
+    phase2649Marker: "PHASE2649_TWENTY_NINE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2683Marker: "PHASE2683_THIRTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase2718Marker: "PHASE2718_THIRTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2754Marker: "PHASE2754_THIRTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase2791Marker: "PHASE2791_THIRTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2829Marker: "PHASE2829_THIRTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase2868Marker: "PHASE2868_THIRTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2908Marker: "PHASE2908_THIRTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    phase2949Marker: "PHASE2949_THIRTY_SEVEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2991Marker: "PHASE2991_THIRTY_EIGHT_TOOL_TARGET_EIGHTEEN_OK",
+    phase3034Marker: "PHASE3034_THIRTY_NINE_TOOL_TARGET_EIGHTEEN_OK",
+    thirtyNineMutationApplied: true,
+    providerCallsMade: false,
+    codexExecExecuted: false,
+    chatModified: false,
+    chatGatewayExecuteModified: false,
+  };
+}
+
+export function buildPhase3078FortyMutationTargetEighteenStatus() {
+  return {
+    phaseId: "Phase3078A-Controlled-Forty-Tool-Mutation-Target-Eighteen",
+    marker: "PHASE3078_FORTY_TOOL_TARGET_EIGHTEEN_OK",
+    importSafe: true,
+    phase2170Marker: "PHASE2170_NONET_TOOL_TARGET_NINE_OK",
+    phase2185Marker: "PHASE2185_DECA_TOOL_TARGET_TEN_OK",
+    phase2201Marker: "PHASE2201_ELEVEN_TOOL_TARGET_ELEVEN_OK",
+    phase2218Marker: "PHASE2218_TWELVE_TOOL_TARGET_TWELVE_OK",
+    phase2236Marker: "PHASE2236_THIRTEEN_TOOL_TARGET_THIRTEEN_OK",
+    phase2255Marker: "PHASE2255_FOURTEEN_TOOL_TARGET_FOURTEEN_OK",
+    phase2275Marker: "PHASE2275_FIFTEEN_TOOL_TARGET_FIFTEEN_OK",
+    phase2296Marker: "PHASE2296_SIXTEEN_TOOL_TARGET_SIXTEEN_OK",
+    phase2318Marker: "PHASE2318_SEVENTEEN_TOOL_TARGET_SEVENTEEN_OK",
+    phase2341Marker: "PHASE2341_EIGHTEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2364Marker: "PHASE2364_NINETEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2388Marker: "PHASE2388_TWENTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase2413Marker: "PHASE2413_TWENTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2439Marker: "PHASE2439_TWENTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase2466Marker: "PHASE2466_TWENTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2494Marker: "PHASE2494_TWENTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase2523Marker: "PHASE2523_TWENTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2553Marker: "PHASE2553_TWENTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    phase2584Marker: "PHASE2584_TWENTY_SEVEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2616Marker: "PHASE2616_TWENTY_EIGHT_TOOL_TARGET_EIGHTEEN_OK",
+    phase2649Marker: "PHASE2649_TWENTY_NINE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2683Marker: "PHASE2683_THIRTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase2718Marker: "PHASE2718_THIRTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2754Marker: "PHASE2754_THIRTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase2791Marker: "PHASE2791_THIRTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2829Marker: "PHASE2829_THIRTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase2868Marker: "PHASE2868_THIRTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2908Marker: "PHASE2908_THIRTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    phase2949Marker: "PHASE2949_THIRTY_SEVEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2991Marker: "PHASE2991_THIRTY_EIGHT_TOOL_TARGET_EIGHTEEN_OK",
+    phase3034Marker: "PHASE3034_THIRTY_NINE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3078Marker: "PHASE3078_FORTY_TOOL_TARGET_EIGHTEEN_OK",
+    fortyMutationApplied: true,
+    providerCallsMade: false,
+    codexExecExecuted: false,
+    chatModified: false,
+    chatGatewayExecuteModified: false,
+  };
+}
+
+export function buildPhase3123FortyOneMutationTargetEighteenStatus() {
+  return {
+    phaseId: "Phase3123A-Controlled-Forty-One-Tool-Mutation-Target-Eighteen",
+    marker: "PHASE3123_FORTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    importSafe: true,
+    phase2170Marker: "PHASE2170_NONET_TOOL_TARGET_NINE_OK",
+    phase2185Marker: "PHASE2185_DECA_TOOL_TARGET_TEN_OK",
+    phase2201Marker: "PHASE2201_ELEVEN_TOOL_TARGET_ELEVEN_OK",
+    phase2218Marker: "PHASE2218_TWELVE_TOOL_TARGET_TWELVE_OK",
+    phase2236Marker: "PHASE2236_THIRTEEN_TOOL_TARGET_THIRTEEN_OK",
+    phase2255Marker: "PHASE2255_FOURTEEN_TOOL_TARGET_FOURTEEN_OK",
+    phase2275Marker: "PHASE2275_FIFTEEN_TOOL_TARGET_FIFTEEN_OK",
+    phase2296Marker: "PHASE2296_SIXTEEN_TOOL_TARGET_SIXTEEN_OK",
+    phase2318Marker: "PHASE2318_SEVENTEEN_TOOL_TARGET_SEVENTEEN_OK",
+    phase2341Marker: "PHASE2341_EIGHTEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2364Marker: "PHASE2364_NINETEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2388Marker: "PHASE2388_TWENTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase2413Marker: "PHASE2413_TWENTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2439Marker: "PHASE2439_TWENTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase2466Marker: "PHASE2466_TWENTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2494Marker: "PHASE2494_TWENTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase2523Marker: "PHASE2523_TWENTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2553Marker: "PHASE2553_TWENTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    phase2584Marker: "PHASE2584_TWENTY_SEVEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2616Marker: "PHASE2616_TWENTY_EIGHT_TOOL_TARGET_EIGHTEEN_OK",
+    phase2649Marker: "PHASE2649_TWENTY_NINE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2683Marker: "PHASE2683_THIRTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase2718Marker: "PHASE2718_THIRTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2754Marker: "PHASE2754_THIRTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase2791Marker: "PHASE2791_THIRTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2829Marker: "PHASE2829_THIRTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase2868Marker: "PHASE2868_THIRTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2908Marker: "PHASE2908_THIRTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    phase2949Marker: "PHASE2949_THIRTY_SEVEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2991Marker: "PHASE2991_THIRTY_EIGHT_TOOL_TARGET_EIGHTEEN_OK",
+    phase3034Marker: "PHASE3034_THIRTY_NINE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3078Marker: "PHASE3078_FORTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase3123Marker: "PHASE3123_FORTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    fortyOneMutationApplied: true,
+    providerCallsMade: false,
+    codexExecExecuted: false,
+    chatModified: false,
+    chatGatewayExecuteModified: false,
+  };
+}
+
+export function buildPhase3169FortyTwoMutationTargetEighteenStatus() {
+  return {
+    phaseId: "Phase3169A-Controlled-Forty-Two-Tool-Mutation-Target-Eighteen",
+    marker: "PHASE3169_FORTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    importSafe: true,
+    phase2170Marker: "PHASE2170_NONET_TOOL_TARGET_NINE_OK",
+    phase2185Marker: "PHASE2185_DECA_TOOL_TARGET_TEN_OK",
+    phase2201Marker: "PHASE2201_ELEVEN_TOOL_TARGET_ELEVEN_OK",
+    phase2218Marker: "PHASE2218_TWELVE_TOOL_TARGET_TWELVE_OK",
+    phase2236Marker: "PHASE2236_THIRTEEN_TOOL_TARGET_THIRTEEN_OK",
+    phase2255Marker: "PHASE2255_FOURTEEN_TOOL_TARGET_FOURTEEN_OK",
+    phase2275Marker: "PHASE2275_FIFTEEN_TOOL_TARGET_FIFTEEN_OK",
+    phase2296Marker: "PHASE2296_SIXTEEN_TOOL_TARGET_SIXTEEN_OK",
+    phase2318Marker: "PHASE2318_SEVENTEEN_TOOL_TARGET_SEVENTEEN_OK",
+    phase2341Marker: "PHASE2341_EIGHTEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2364Marker: "PHASE2364_NINETEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2388Marker: "PHASE2388_TWENTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase2413Marker: "PHASE2413_TWENTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2439Marker: "PHASE2439_TWENTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase2466Marker: "PHASE2466_TWENTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2494Marker: "PHASE2494_TWENTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase2523Marker: "PHASE2523_TWENTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2553Marker: "PHASE2553_TWENTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    phase2584Marker: "PHASE2584_TWENTY_SEVEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2616Marker: "PHASE2616_TWENTY_EIGHT_TOOL_TARGET_EIGHTEEN_OK",
+    phase2649Marker: "PHASE2649_TWENTY_NINE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2683Marker: "PHASE2683_THIRTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase2718Marker: "PHASE2718_THIRTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2754Marker: "PHASE2754_THIRTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase2791Marker: "PHASE2791_THIRTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2829Marker: "PHASE2829_THIRTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase2868Marker: "PHASE2868_THIRTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2908Marker: "PHASE2908_THIRTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    phase2949Marker: "PHASE2949_THIRTY_SEVEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2991Marker: "PHASE2991_THIRTY_EIGHT_TOOL_TARGET_EIGHTEEN_OK",
+    phase3034Marker: "PHASE3034_THIRTY_NINE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3078Marker: "PHASE3078_FORTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase3123Marker: "PHASE3123_FORTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3169Marker: "PHASE3169_FORTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    fortyTwoMutationApplied: true,
+    providerCallsMade: false,
+    codexExecExecuted: false,
+    chatModified: false,
+    chatGatewayExecuteModified: false,
+  };
+}
+
+export function buildPhase3216FortyThreeMutationTargetEighteenStatus() {
+  return {
+    phaseId: "Phase3216A-Controlled-Forty-Three-Tool-Mutation-Target-Eighteen",
+    marker: "PHASE3216_FORTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    importSafe: true,
+    phase2170Marker: "PHASE2170_NONET_TOOL_TARGET_NINE_OK",
+    phase2185Marker: "PHASE2185_DECA_TOOL_TARGET_TEN_OK",
+    phase2201Marker: "PHASE2201_ELEVEN_TOOL_TARGET_ELEVEN_OK",
+    phase2218Marker: "PHASE2218_TWELVE_TOOL_TARGET_TWELVE_OK",
+    phase2236Marker: "PHASE2236_THIRTEEN_TOOL_TARGET_THIRTEEN_OK",
+    phase2255Marker: "PHASE2255_FOURTEEN_TOOL_TARGET_FOURTEEN_OK",
+    phase2275Marker: "PHASE2275_FIFTEEN_TOOL_TARGET_FIFTEEN_OK",
+    phase2296Marker: "PHASE2296_SIXTEEN_TOOL_TARGET_SIXTEEN_OK",
+    phase2318Marker: "PHASE2318_SEVENTEEN_TOOL_TARGET_SEVENTEEN_OK",
+    phase2341Marker: "PHASE2341_EIGHTEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2364Marker: "PHASE2364_NINETEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2388Marker: "PHASE2388_TWENTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase2413Marker: "PHASE2413_TWENTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2439Marker: "PHASE2439_TWENTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase2466Marker: "PHASE2466_TWENTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2494Marker: "PHASE2494_TWENTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase2523Marker: "PHASE2523_TWENTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2553Marker: "PHASE2553_TWENTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    phase2584Marker: "PHASE2584_TWENTY_SEVEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2616Marker: "PHASE2616_TWENTY_EIGHT_TOOL_TARGET_EIGHTEEN_OK",
+    phase2649Marker: "PHASE2649_TWENTY_NINE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2683Marker: "PHASE2683_THIRTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase2718Marker: "PHASE2718_THIRTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2754Marker: "PHASE2754_THIRTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase2791Marker: "PHASE2791_THIRTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2829Marker: "PHASE2829_THIRTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase2868Marker: "PHASE2868_THIRTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2908Marker: "PHASE2908_THIRTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    phase2949Marker: "PHASE2949_THIRTY_SEVEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2991Marker: "PHASE2991_THIRTY_EIGHT_TOOL_TARGET_EIGHTEEN_OK",
+    phase3034Marker: "PHASE3034_THIRTY_NINE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3078Marker: "PHASE3078_FORTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase3123Marker: "PHASE3123_FORTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3169Marker: "PHASE3169_FORTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase3216Marker: "PHASE3216_FORTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    fortyThreeMutationApplied: true,
+    providerCallsMade: false,
+    codexExecExecuted: false,
+    chatModified: false,
+    chatGatewayExecuteModified: false,
+  };
+}
+
+export function buildPhase3264FortyFourMutationTargetEighteenStatus() {
+  return {
+    phaseId: "Phase3264A-Controlled-Forty-Four-Tool-Mutation-Target-Eighteen",
+    marker: "PHASE3264_FORTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    importSafe: true,
+    phase2170Marker: "PHASE2170_NONET_TOOL_TARGET_NINE_OK",
+    phase2185Marker: "PHASE2185_DECA_TOOL_TARGET_TEN_OK",
+    phase2201Marker: "PHASE2201_ELEVEN_TOOL_TARGET_ELEVEN_OK",
+    phase2218Marker: "PHASE2218_TWELVE_TOOL_TARGET_TWELVE_OK",
+    phase2236Marker: "PHASE2236_THIRTEEN_TOOL_TARGET_THIRTEEN_OK",
+    phase2255Marker: "PHASE2255_FOURTEEN_TOOL_TARGET_FOURTEEN_OK",
+    phase2275Marker: "PHASE2275_FIFTEEN_TOOL_TARGET_FIFTEEN_OK",
+    phase2296Marker: "PHASE2296_SIXTEEN_TOOL_TARGET_SIXTEEN_OK",
+    phase2318Marker: "PHASE2318_SEVENTEEN_TOOL_TARGET_SEVENTEEN_OK",
+    phase2341Marker: "PHASE2341_EIGHTEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2364Marker: "PHASE2364_NINETEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2388Marker: "PHASE2388_TWENTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase2413Marker: "PHASE2413_TWENTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2439Marker: "PHASE2439_TWENTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase2466Marker: "PHASE2466_TWENTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2494Marker: "PHASE2494_TWENTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase2523Marker: "PHASE2523_TWENTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2553Marker: "PHASE2553_TWENTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    phase2584Marker: "PHASE2584_TWENTY_SEVEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2616Marker: "PHASE2616_TWENTY_EIGHT_TOOL_TARGET_EIGHTEEN_OK",
+    phase2649Marker: "PHASE2649_TWENTY_NINE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2683Marker: "PHASE2683_THIRTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase2718Marker: "PHASE2718_THIRTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2754Marker: "PHASE2754_THIRTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase2791Marker: "PHASE2791_THIRTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2829Marker: "PHASE2829_THIRTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase2868Marker: "PHASE2868_THIRTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2908Marker: "PHASE2908_THIRTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    phase2949Marker: "PHASE2949_THIRTY_SEVEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2991Marker: "PHASE2991_THIRTY_EIGHT_TOOL_TARGET_EIGHTEEN_OK",
+    phase3034Marker: "PHASE3034_THIRTY_NINE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3078Marker: "PHASE3078_FORTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase3123Marker: "PHASE3123_FORTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3169Marker: "PHASE3169_FORTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase3216Marker: "PHASE3216_FORTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3264Marker: "PHASE3264_FORTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    fortyFourMutationApplied: true,
+    providerCallsMade: false,
+    codexExecExecuted: false,
+    chatModified: false,
+    chatGatewayExecuteModified: false,
+  };
+}
+
+export function buildPhase3313FortyFiveMutationTargetEighteenStatus() {
+  return {
+    phaseId: "Phase3313A-Controlled-Forty-Five-Tool-Mutation-Target-Eighteen",
+    marker: "PHASE3313_FORTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    importSafe: true,
+    phase2170Marker: "PHASE2170_NONET_TOOL_TARGET_NINE_OK",
+    phase2185Marker: "PHASE2185_DECA_TOOL_TARGET_TEN_OK",
+    phase2201Marker: "PHASE2201_ELEVEN_TOOL_TARGET_ELEVEN_OK",
+    phase2218Marker: "PHASE2218_TWELVE_TOOL_TARGET_TWELVE_OK",
+    phase2236Marker: "PHASE2236_THIRTEEN_TOOL_TARGET_THIRTEEN_OK",
+    phase2255Marker: "PHASE2255_FOURTEEN_TOOL_TARGET_FOURTEEN_OK",
+    phase2275Marker: "PHASE2275_FIFTEEN_TOOL_TARGET_FIFTEEN_OK",
+    phase2296Marker: "PHASE2296_SIXTEEN_TOOL_TARGET_SIXTEEN_OK",
+    phase2318Marker: "PHASE2318_SEVENTEEN_TOOL_TARGET_SEVENTEEN_OK",
+    phase2341Marker: "PHASE2341_EIGHTEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2364Marker: "PHASE2364_NINETEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2388Marker: "PHASE2388_TWENTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase2413Marker: "PHASE2413_TWENTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2439Marker: "PHASE2439_TWENTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase2466Marker: "PHASE2466_TWENTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2494Marker: "PHASE2494_TWENTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase2523Marker: "PHASE2523_TWENTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2553Marker: "PHASE2553_TWENTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    phase2584Marker: "PHASE2584_TWENTY_SEVEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2616Marker: "PHASE2616_TWENTY_EIGHT_TOOL_TARGET_EIGHTEEN_OK",
+    phase2649Marker: "PHASE2649_TWENTY_NINE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2683Marker: "PHASE2683_THIRTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase2718Marker: "PHASE2718_THIRTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2754Marker: "PHASE2754_THIRTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase2791Marker: "PHASE2791_THIRTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2829Marker: "PHASE2829_THIRTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase2868Marker: "PHASE2868_THIRTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2908Marker: "PHASE2908_THIRTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    phase2949Marker: "PHASE2949_THIRTY_SEVEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2991Marker: "PHASE2991_THIRTY_EIGHT_TOOL_TARGET_EIGHTEEN_OK",
+    phase3034Marker: "PHASE3034_THIRTY_NINE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3078Marker: "PHASE3078_FORTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase3123Marker: "PHASE3123_FORTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3169Marker: "PHASE3169_FORTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase3216Marker: "PHASE3216_FORTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3264Marker: "PHASE3264_FORTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase3313Marker: "PHASE3313_FORTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    fortyFiveMutationApplied: true,
+    providerCallsMade: false,
+    codexExecExecuted: false,
+    chatModified: false,
+    chatGatewayExecuteModified: false,
+  };
+}
+
+export function buildPhase3363FortySixMutationTargetEighteenStatus() {
+  return {
+    phaseId: "Phase3363A-Controlled-Forty-Six-Tool-Mutation-Target-Eighteen",
+    marker: "PHASE3363_FORTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    importSafe: true,
+    phase2170Marker: "PHASE2170_NONET_TOOL_TARGET_NINE_OK",
+    phase2185Marker: "PHASE2185_DECA_TOOL_TARGET_TEN_OK",
+    phase2201Marker: "PHASE2201_ELEVEN_TOOL_TARGET_ELEVEN_OK",
+    phase2218Marker: "PHASE2218_TWELVE_TOOL_TARGET_TWELVE_OK",
+    phase2236Marker: "PHASE2236_THIRTEEN_TOOL_TARGET_THIRTEEN_OK",
+    phase2255Marker: "PHASE2255_FOURTEEN_TOOL_TARGET_FOURTEEN_OK",
+    phase2275Marker: "PHASE2275_FIFTEEN_TOOL_TARGET_FIFTEEN_OK",
+    phase2296Marker: "PHASE2296_SIXTEEN_TOOL_TARGET_SIXTEEN_OK",
+    phase2318Marker: "PHASE2318_SEVENTEEN_TOOL_TARGET_SEVENTEEN_OK",
+    phase2341Marker: "PHASE2341_EIGHTEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2364Marker: "PHASE2364_NINETEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2388Marker: "PHASE2388_TWENTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase2413Marker: "PHASE2413_TWENTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2439Marker: "PHASE2439_TWENTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase2466Marker: "PHASE2466_TWENTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2494Marker: "PHASE2494_TWENTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase2523Marker: "PHASE2523_TWENTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2553Marker: "PHASE2553_TWENTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    phase2584Marker: "PHASE2584_TWENTY_SEVEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2616Marker: "PHASE2616_TWENTY_EIGHT_TOOL_TARGET_EIGHTEEN_OK",
+    phase2649Marker: "PHASE2649_TWENTY_NINE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2683Marker: "PHASE2683_THIRTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase2718Marker: "PHASE2718_THIRTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2754Marker: "PHASE2754_THIRTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase2791Marker: "PHASE2791_THIRTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2829Marker: "PHASE2829_THIRTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase2868Marker: "PHASE2868_THIRTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2908Marker: "PHASE2908_THIRTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    phase2949Marker: "PHASE2949_THIRTY_SEVEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2991Marker: "PHASE2991_THIRTY_EIGHT_TOOL_TARGET_EIGHTEEN_OK",
+    phase3034Marker: "PHASE3034_THIRTY_NINE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3078Marker: "PHASE3078_FORTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase3123Marker: "PHASE3123_FORTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3169Marker: "PHASE3169_FORTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase3216Marker: "PHASE3216_FORTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3264Marker: "PHASE3264_FORTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase3313Marker: "PHASE3313_FORTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3363Marker: "PHASE3363_FORTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    fortySixMutationApplied: true,
+    providerCallsMade: false,
+    codexExecExecuted: false,
+    chatModified: false,
+    chatGatewayExecuteModified: false,
+  };
+}
+
+export function buildPhase3414FortySevenMutationTargetEighteenStatus() {
+  return {
+    phaseId: "Phase3414A-Controlled-Forty-Seven-Tool-Mutation-Target-Eighteen",
+    marker: "PHASE3414_FORTY_SEVEN_TOOL_TARGET_EIGHTEEN_OK",
+    importSafe: true,
+    phase2170Marker: "PHASE2170_NONET_TOOL_TARGET_NINE_OK",
+    phase2185Marker: "PHASE2185_DECA_TOOL_TARGET_TEN_OK",
+    phase2201Marker: "PHASE2201_ELEVEN_TOOL_TARGET_ELEVEN_OK",
+    phase2218Marker: "PHASE2218_TWELVE_TOOL_TARGET_TWELVE_OK",
+    phase2236Marker: "PHASE2236_THIRTEEN_TOOL_TARGET_THIRTEEN_OK",
+    phase2255Marker: "PHASE2255_FOURTEEN_TOOL_TARGET_FOURTEEN_OK",
+    phase2275Marker: "PHASE2275_FIFTEEN_TOOL_TARGET_FIFTEEN_OK",
+    phase2296Marker: "PHASE2296_SIXTEEN_TOOL_TARGET_SIXTEEN_OK",
+    phase2318Marker: "PHASE2318_SEVENTEEN_TOOL_TARGET_SEVENTEEN_OK",
+    phase2341Marker: "PHASE2341_EIGHTEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2364Marker: "PHASE2364_NINETEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2388Marker: "PHASE2388_TWENTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase2413Marker: "PHASE2413_TWENTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2439Marker: "PHASE2439_TWENTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase2466Marker: "PHASE2466_TWENTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2494Marker: "PHASE2494_TWENTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase2523Marker: "PHASE2523_TWENTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2553Marker: "PHASE2553_TWENTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    phase2584Marker: "PHASE2584_TWENTY_SEVEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2616Marker: "PHASE2616_TWENTY_EIGHT_TOOL_TARGET_EIGHTEEN_OK",
+    phase2649Marker: "PHASE2649_TWENTY_NINE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2683Marker: "PHASE2683_THIRTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase2718Marker: "PHASE2718_THIRTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2754Marker: "PHASE2754_THIRTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase2791Marker: "PHASE2791_THIRTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2829Marker: "PHASE2829_THIRTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase2868Marker: "PHASE2868_THIRTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2908Marker: "PHASE2908_THIRTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    phase2949Marker: "PHASE2949_THIRTY_SEVEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2991Marker: "PHASE2991_THIRTY_EIGHT_TOOL_TARGET_EIGHTEEN_OK",
+    phase3034Marker: "PHASE3034_THIRTY_NINE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3078Marker: "PHASE3078_FORTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase3123Marker: "PHASE3123_FORTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3169Marker: "PHASE3169_FORTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase3216Marker: "PHASE3216_FORTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3264Marker: "PHASE3264_FORTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase3313Marker: "PHASE3313_FORTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3363Marker: "PHASE3363_FORTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    phase3414Marker: "PHASE3414_FORTY_SEVEN_TOOL_TARGET_EIGHTEEN_OK",
+    fortySevenMutationApplied: true,
+    providerCallsMade: false,
+    codexExecExecuted: false,
+    chatModified: false,
+    chatGatewayExecuteModified: false,
+  };
+}
+
+export function buildPhase3466FortyEightMutationTargetEighteenStatus() {
+  return {
+    phaseId: "Phase3466A-Controlled-Forty-Eight-Tool-Mutation-Target-Eighteen",
+    marker: "PHASE3466_FORTY_EIGHT_TOOL_TARGET_EIGHTEEN_OK",
+    importSafe: true,
+    phase2170Marker: "PHASE2170_NONET_TOOL_TARGET_NINE_OK",
+    phase2185Marker: "PHASE2185_DECA_TOOL_TARGET_TEN_OK",
+    phase2201Marker: "PHASE2201_ELEVEN_TOOL_TARGET_ELEVEN_OK",
+    phase2218Marker: "PHASE2218_TWELVE_TOOL_TARGET_TWELVE_OK",
+    phase2236Marker: "PHASE2236_THIRTEEN_TOOL_TARGET_THIRTEEN_OK",
+    phase2255Marker: "PHASE2255_FOURTEEN_TOOL_TARGET_FOURTEEN_OK",
+    phase2275Marker: "PHASE2275_FIFTEEN_TOOL_TARGET_FIFTEEN_OK",
+    phase2296Marker: "PHASE2296_SIXTEEN_TOOL_TARGET_SIXTEEN_OK",
+    phase2318Marker: "PHASE2318_SEVENTEEN_TOOL_TARGET_SEVENTEEN_OK",
+    phase2341Marker: "PHASE2341_EIGHTEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2364Marker: "PHASE2364_NINETEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2388Marker: "PHASE2388_TWENTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase2413Marker: "PHASE2413_TWENTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2439Marker: "PHASE2439_TWENTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase2466Marker: "PHASE2466_TWENTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2494Marker: "PHASE2494_TWENTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase2523Marker: "PHASE2523_TWENTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2553Marker: "PHASE2553_TWENTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    phase2584Marker: "PHASE2584_TWENTY_SEVEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2616Marker: "PHASE2616_TWENTY_EIGHT_TOOL_TARGET_EIGHTEEN_OK",
+    phase2649Marker: "PHASE2649_TWENTY_NINE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2683Marker: "PHASE2683_THIRTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase2718Marker: "PHASE2718_THIRTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2754Marker: "PHASE2754_THIRTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase2791Marker: "PHASE2791_THIRTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2829Marker: "PHASE2829_THIRTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase2868Marker: "PHASE2868_THIRTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2908Marker: "PHASE2908_THIRTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    phase2949Marker: "PHASE2949_THIRTY_SEVEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2991Marker: "PHASE2991_THIRTY_EIGHT_TOOL_TARGET_EIGHTEEN_OK",
+    phase3034Marker: "PHASE3034_THIRTY_NINE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3078Marker: "PHASE3078_FORTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase3123Marker: "PHASE3123_FORTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3169Marker: "PHASE3169_FORTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase3216Marker: "PHASE3216_FORTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3264Marker: "PHASE3264_FORTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase3313Marker: "PHASE3313_FORTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3363Marker: "PHASE3363_FORTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    phase3414Marker: "PHASE3414_FORTY_SEVEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase3466Marker: "PHASE3466_FORTY_EIGHT_TOOL_TARGET_EIGHTEEN_OK",
+    fortyEightMutationApplied: true,
+    providerCallsMade: false,
+    codexExecExecuted: false,
+    chatModified: false,
+    chatGatewayExecuteModified: false,
+  };
+}
+
+export function buildPhase3519FortyNineMutationTargetEighteenStatus() {
+  return {
+    phaseId: "Phase3519A-Controlled-Forty-Nine-Tool-Mutation-Target-Eighteen",
+    marker: "PHASE3519_FORTY_NINE_TOOL_TARGET_EIGHTEEN_OK",
+    importSafe: true,
+    phase2170Marker: "PHASE2170_NONET_TOOL_TARGET_NINE_OK",
+    phase2185Marker: "PHASE2185_DECA_TOOL_TARGET_TEN_OK",
+    phase2201Marker: "PHASE2201_ELEVEN_TOOL_TARGET_ELEVEN_OK",
+    phase2218Marker: "PHASE2218_TWELVE_TOOL_TARGET_TWELVE_OK",
+    phase2236Marker: "PHASE2236_THIRTEEN_TOOL_TARGET_THIRTEEN_OK",
+    phase2255Marker: "PHASE2255_FOURTEEN_TOOL_TARGET_FOURTEEN_OK",
+    phase2275Marker: "PHASE2275_FIFTEEN_TOOL_TARGET_FIFTEEN_OK",
+    phase2296Marker: "PHASE2296_SIXTEEN_TOOL_TARGET_SIXTEEN_OK",
+    phase2318Marker: "PHASE2318_SEVENTEEN_TOOL_TARGET_SEVENTEEN_OK",
+    phase2341Marker: "PHASE2341_EIGHTEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2364Marker: "PHASE2364_NINETEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2388Marker: "PHASE2388_TWENTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase2413Marker: "PHASE2413_TWENTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2439Marker: "PHASE2439_TWENTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase2466Marker: "PHASE2466_TWENTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2494Marker: "PHASE2494_TWENTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase2523Marker: "PHASE2523_TWENTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2553Marker: "PHASE2553_TWENTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    phase2584Marker: "PHASE2584_TWENTY_SEVEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2616Marker: "PHASE2616_TWENTY_EIGHT_TOOL_TARGET_EIGHTEEN_OK",
+    phase2649Marker: "PHASE2649_TWENTY_NINE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2683Marker: "PHASE2683_THIRTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase2718Marker: "PHASE2718_THIRTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2754Marker: "PHASE2754_THIRTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase2791Marker: "PHASE2791_THIRTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2829Marker: "PHASE2829_THIRTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase2868Marker: "PHASE2868_THIRTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2908Marker: "PHASE2908_THIRTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    phase2949Marker: "PHASE2949_THIRTY_SEVEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2991Marker: "PHASE2991_THIRTY_EIGHT_TOOL_TARGET_EIGHTEEN_OK",
+    phase3034Marker: "PHASE3034_THIRTY_NINE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3078Marker: "PHASE3078_FORTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase3123Marker: "PHASE3123_FORTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3169Marker: "PHASE3169_FORTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase3216Marker: "PHASE3216_FORTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3264Marker: "PHASE3264_FORTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase3313Marker: "PHASE3313_FORTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3363Marker: "PHASE3363_FORTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    phase3414Marker: "PHASE3414_FORTY_SEVEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase3466Marker: "PHASE3466_FORTY_EIGHT_TOOL_TARGET_EIGHTEEN_OK",
+    phase3519Marker: "PHASE3519_FORTY_NINE_TOOL_TARGET_EIGHTEEN_OK",
+    fortyNineMutationApplied: true,
+    providerCallsMade: false,
+    codexExecExecuted: false,
+    chatModified: false,
+    chatGatewayExecuteModified: false,
+  };
+}
+
+export function buildPhase3573FiftyMutationTargetEighteenStatus() {
+  return {
+    phaseId: "Phase3573A-Controlled-Fifty-Tool-Mutation-Target-Eighteen",
+    marker: "PHASE3573_FIFTY_TOOL_TARGET_EIGHTEEN_OK",
+    importSafe: true,
+    phase2170Marker: "PHASE2170_NONET_TOOL_TARGET_NINE_OK",
+    phase2185Marker: "PHASE2185_DECA_TOOL_TARGET_TEN_OK",
+    phase2201Marker: "PHASE2201_ELEVEN_TOOL_TARGET_ELEVEN_OK",
+    phase2218Marker: "PHASE2218_TWELVE_TOOL_TARGET_TWELVE_OK",
+    phase2236Marker: "PHASE2236_THIRTEEN_TOOL_TARGET_THIRTEEN_OK",
+    phase2255Marker: "PHASE2255_FOURTEEN_TOOL_TARGET_FOURTEEN_OK",
+    phase2275Marker: "PHASE2275_FIFTEEN_TOOL_TARGET_FIFTEEN_OK",
+    phase2296Marker: "PHASE2296_SIXTEEN_TOOL_TARGET_SIXTEEN_OK",
+    phase2318Marker: "PHASE2318_SEVENTEEN_TOOL_TARGET_SEVENTEEN_OK",
+    phase2341Marker: "PHASE2341_EIGHTEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2364Marker: "PHASE2364_NINETEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2388Marker: "PHASE2388_TWENTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase2413Marker: "PHASE2413_TWENTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2439Marker: "PHASE2439_TWENTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase2466Marker: "PHASE2466_TWENTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2494Marker: "PHASE2494_TWENTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase2523Marker: "PHASE2523_TWENTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2553Marker: "PHASE2553_TWENTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    phase2584Marker: "PHASE2584_TWENTY_SEVEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2616Marker: "PHASE2616_TWENTY_EIGHT_TOOL_TARGET_EIGHTEEN_OK",
+    phase2649Marker: "PHASE2649_TWENTY_NINE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2683Marker: "PHASE2683_THIRTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase2718Marker: "PHASE2718_THIRTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2754Marker: "PHASE2754_THIRTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase2791Marker: "PHASE2791_THIRTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2829Marker: "PHASE2829_THIRTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase2868Marker: "PHASE2868_THIRTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2908Marker: "PHASE2908_THIRTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    phase2949Marker: "PHASE2949_THIRTY_SEVEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2991Marker: "PHASE2991_THIRTY_EIGHT_TOOL_TARGET_EIGHTEEN_OK",
+    phase3034Marker: "PHASE3034_THIRTY_NINE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3078Marker: "PHASE3078_FORTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase3123Marker: "PHASE3123_FORTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3169Marker: "PHASE3169_FORTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase3216Marker: "PHASE3216_FORTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3264Marker: "PHASE3264_FORTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase3313Marker: "PHASE3313_FORTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3363Marker: "PHASE3363_FORTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    phase3414Marker: "PHASE3414_FORTY_SEVEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase3466Marker: "PHASE3466_FORTY_EIGHT_TOOL_TARGET_EIGHTEEN_OK",
+    phase3519Marker: "PHASE3519_FORTY_NINE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3573Marker: "PHASE3573_FIFTY_TOOL_TARGET_EIGHTEEN_OK",
+    fiftyMutationApplied: true,
+    providerCallsMade: false,
+    codexExecExecuted: false,
+    chatModified: false,
+    chatGatewayExecuteModified: false,
+  };
+}
+
+export function buildPhase3628FiftyOneMutationTargetEighteenStatus() {
+  return {
+    phaseId: "Phase3628A-Controlled-Fifty-One-Tool-Mutation-Target-Eighteen",
+    marker: "PHASE3628_FIFTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    importSafe: true,
+    phase2170Marker: "PHASE2170_NONET_TOOL_TARGET_NINE_OK",
+    phase2185Marker: "PHASE2185_DECA_TOOL_TARGET_TEN_OK",
+    phase2201Marker: "PHASE2201_ELEVEN_TOOL_TARGET_ELEVEN_OK",
+    phase2218Marker: "PHASE2218_TWELVE_TOOL_TARGET_TWELVE_OK",
+    phase2236Marker: "PHASE2236_THIRTEEN_TOOL_TARGET_THIRTEEN_OK",
+    phase2255Marker: "PHASE2255_FOURTEEN_TOOL_TARGET_FOURTEEN_OK",
+    phase2275Marker: "PHASE2275_FIFTEEN_TOOL_TARGET_FIFTEEN_OK",
+    phase2296Marker: "PHASE2296_SIXTEEN_TOOL_TARGET_SIXTEEN_OK",
+    phase2318Marker: "PHASE2318_SEVENTEEN_TOOL_TARGET_SEVENTEEN_OK",
+    phase2341Marker: "PHASE2341_EIGHTEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2364Marker: "PHASE2364_NINETEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2388Marker: "PHASE2388_TWENTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase2413Marker: "PHASE2413_TWENTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2439Marker: "PHASE2439_TWENTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase2466Marker: "PHASE2466_TWENTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2494Marker: "PHASE2494_TWENTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase2523Marker: "PHASE2523_TWENTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2553Marker: "PHASE2553_TWENTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    phase2584Marker: "PHASE2584_TWENTY_SEVEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2616Marker: "PHASE2616_TWENTY_EIGHT_TOOL_TARGET_EIGHTEEN_OK",
+    phase2649Marker: "PHASE2649_TWENTY_NINE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2683Marker: "PHASE2683_THIRTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase2718Marker: "PHASE2718_THIRTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2754Marker: "PHASE2754_THIRTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase2791Marker: "PHASE2791_THIRTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2829Marker: "PHASE2829_THIRTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase2868Marker: "PHASE2868_THIRTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2908Marker: "PHASE2908_THIRTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    phase2949Marker: "PHASE2949_THIRTY_SEVEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2991Marker: "PHASE2991_THIRTY_EIGHT_TOOL_TARGET_EIGHTEEN_OK",
+    phase3034Marker: "PHASE3034_THIRTY_NINE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3078Marker: "PHASE3078_FORTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase3123Marker: "PHASE3123_FORTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3169Marker: "PHASE3169_FORTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase3216Marker: "PHASE3216_FORTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3264Marker: "PHASE3264_FORTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase3313Marker: "PHASE3313_FORTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3363Marker: "PHASE3363_FORTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    phase3414Marker: "PHASE3414_FORTY_SEVEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase3466Marker: "PHASE3466_FORTY_EIGHT_TOOL_TARGET_EIGHTEEN_OK",
+    phase3519Marker: "PHASE3519_FORTY_NINE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3573Marker: "PHASE3573_FIFTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase3628Marker: "PHASE3628_FIFTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    fiftyOneMutationApplied: true,
+    providerCallsMade: false,
+    codexExecExecuted: false,
+    chatModified: false,
+    chatGatewayExecuteModified: false,
+  };
+}
+
+export function buildPhase3684FiftyTwoMutationTargetEighteenStatus() {
+  return {
+    phaseId: "Phase3684A-Controlled-Fifty-Two-Tool-Mutation-Target-Eighteen",
+    marker: "PHASE3684_FIFTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    importSafe: true,
+    phase2170Marker: "PHASE2170_NONET_TOOL_TARGET_NINE_OK",
+    phase2185Marker: "PHASE2185_DECA_TOOL_TARGET_TEN_OK",
+    phase2201Marker: "PHASE2201_ELEVEN_TOOL_TARGET_ELEVEN_OK",
+    phase2218Marker: "PHASE2218_TWELVE_TOOL_TARGET_TWELVE_OK",
+    phase2236Marker: "PHASE2236_THIRTEEN_TOOL_TARGET_THIRTEEN_OK",
+    phase2255Marker: "PHASE2255_FOURTEEN_TOOL_TARGET_FOURTEEN_OK",
+    phase2275Marker: "PHASE2275_FIFTEEN_TOOL_TARGET_FIFTEEN_OK",
+    phase2296Marker: "PHASE2296_SIXTEEN_TOOL_TARGET_SIXTEEN_OK",
+    phase2318Marker: "PHASE2318_SEVENTEEN_TOOL_TARGET_SEVENTEEN_OK",
+    phase2341Marker: "PHASE2341_EIGHTEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2364Marker: "PHASE2364_NINETEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2388Marker: "PHASE2388_TWENTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase2413Marker: "PHASE2413_TWENTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2439Marker: "PHASE2439_TWENTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase2466Marker: "PHASE2466_TWENTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2494Marker: "PHASE2494_TWENTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase2523Marker: "PHASE2523_TWENTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2553Marker: "PHASE2553_TWENTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    phase2584Marker: "PHASE2584_TWENTY_SEVEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2616Marker: "PHASE2616_TWENTY_EIGHT_TOOL_TARGET_EIGHTEEN_OK",
+    phase2649Marker: "PHASE2649_TWENTY_NINE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2683Marker: "PHASE2683_THIRTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase2718Marker: "PHASE2718_THIRTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2754Marker: "PHASE2754_THIRTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase2791Marker: "PHASE2791_THIRTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2829Marker: "PHASE2829_THIRTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase2868Marker: "PHASE2868_THIRTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2908Marker: "PHASE2908_THIRTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    phase2949Marker: "PHASE2949_THIRTY_SEVEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2991Marker: "PHASE2991_THIRTY_EIGHT_TOOL_TARGET_EIGHTEEN_OK",
+    phase3034Marker: "PHASE3034_THIRTY_NINE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3078Marker: "PHASE3078_FORTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase3123Marker: "PHASE3123_FORTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3169Marker: "PHASE3169_FORTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase3216Marker: "PHASE3216_FORTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3264Marker: "PHASE3264_FORTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase3313Marker: "PHASE3313_FORTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3363Marker: "PHASE3363_FORTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    phase3414Marker: "PHASE3414_FORTY_SEVEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase3466Marker: "PHASE3466_FORTY_EIGHT_TOOL_TARGET_EIGHTEEN_OK",
+    phase3519Marker: "PHASE3519_FORTY_NINE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3573Marker: "PHASE3573_FIFTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase3628Marker: "PHASE3628_FIFTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3684Marker: "PHASE3684_FIFTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    fiftyTwoMutationApplied: true,
+    providerCallsMade: false,
+    codexExecExecuted: false,
+    chatModified: false,
+    chatGatewayExecuteModified: false,
+  };
+}
+
+export function buildPhase3741FiftyThreeMutationTargetEighteenStatus() {
+  return {
+    phaseId: "Phase3741A-Controlled-Fifty-Three-Tool-Mutation-Target-Eighteen",
+    marker: "PHASE3741_FIFTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    importSafe: true,
+    phase2170Marker: "PHASE2170_NONET_TOOL_TARGET_NINE_OK",
+    phase2185Marker: "PHASE2185_DECA_TOOL_TARGET_TEN_OK",
+    phase2201Marker: "PHASE2201_ELEVEN_TOOL_TARGET_ELEVEN_OK",
+    phase2218Marker: "PHASE2218_TWELVE_TOOL_TARGET_TWELVE_OK",
+    phase2236Marker: "PHASE2236_THIRTEEN_TOOL_TARGET_THIRTEEN_OK",
+    phase2255Marker: "PHASE2255_FOURTEEN_TOOL_TARGET_FOURTEEN_OK",
+    phase2275Marker: "PHASE2275_FIFTEEN_TOOL_TARGET_FIFTEEN_OK",
+    phase2296Marker: "PHASE2296_SIXTEEN_TOOL_TARGET_SIXTEEN_OK",
+    phase2318Marker: "PHASE2318_SEVENTEEN_TOOL_TARGET_SEVENTEEN_OK",
+    phase2341Marker: "PHASE2341_EIGHTEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2364Marker: "PHASE2364_NINETEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2388Marker: "PHASE2388_TWENTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase2413Marker: "PHASE2413_TWENTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2439Marker: "PHASE2439_TWENTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase2466Marker: "PHASE2466_TWENTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2494Marker: "PHASE2494_TWENTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase2523Marker: "PHASE2523_TWENTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2553Marker: "PHASE2553_TWENTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    phase2584Marker: "PHASE2584_TWENTY_SEVEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2616Marker: "PHASE2616_TWENTY_EIGHT_TOOL_TARGET_EIGHTEEN_OK",
+    phase2649Marker: "PHASE2649_TWENTY_NINE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2683Marker: "PHASE2683_THIRTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase2718Marker: "PHASE2718_THIRTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2754Marker: "PHASE2754_THIRTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase2791Marker: "PHASE2791_THIRTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2829Marker: "PHASE2829_THIRTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase2868Marker: "PHASE2868_THIRTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2908Marker: "PHASE2908_THIRTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    phase2949Marker: "PHASE2949_THIRTY_SEVEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2991Marker: "PHASE2991_THIRTY_EIGHT_TOOL_TARGET_EIGHTEEN_OK",
+    phase3034Marker: "PHASE3034_THIRTY_NINE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3078Marker: "PHASE3078_FORTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase3123Marker: "PHASE3123_FORTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3169Marker: "PHASE3169_FORTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase3216Marker: "PHASE3216_FORTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3264Marker: "PHASE3264_FORTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase3313Marker: "PHASE3313_FORTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3363Marker: "PHASE3363_FORTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    phase3414Marker: "PHASE3414_FORTY_SEVEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase3466Marker: "PHASE3466_FORTY_EIGHT_TOOL_TARGET_EIGHTEEN_OK",
+    phase3519Marker: "PHASE3519_FORTY_NINE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3573Marker: "PHASE3573_FIFTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase3628Marker: "PHASE3628_FIFTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3684Marker: "PHASE3684_FIFTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase3741Marker: "PHASE3741_FIFTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    fiftyThreeMutationApplied: true,
+    providerCallsMade: false,
+    codexExecExecuted: false,
+    chatModified: false,
+    chatGatewayExecuteModified: false,
+  };
+}
+
+export function buildPhase3799FiftyFourMutationTargetEighteenStatus() {
+  return {
+    phaseId: "Phase3799A-Controlled-Fifty-Four-Tool-Mutation-Target-Eighteen",
+    marker: "PHASE3799_FIFTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    importSafe: true,
+    phase2170Marker: "PHASE2170_NONET_TOOL_TARGET_NINE_OK",
+    phase2185Marker: "PHASE2185_DECA_TOOL_TARGET_TEN_OK",
+    phase2201Marker: "PHASE2201_ELEVEN_TOOL_TARGET_ELEVEN_OK",
+    phase2218Marker: "PHASE2218_TWELVE_TOOL_TARGET_TWELVE_OK",
+    phase2236Marker: "PHASE2236_THIRTEEN_TOOL_TARGET_THIRTEEN_OK",
+    phase2255Marker: "PHASE2255_FOURTEEN_TOOL_TARGET_FOURTEEN_OK",
+    phase2275Marker: "PHASE2275_FIFTEEN_TOOL_TARGET_FIFTEEN_OK",
+    phase2296Marker: "PHASE2296_SIXTEEN_TOOL_TARGET_SIXTEEN_OK",
+    phase2318Marker: "PHASE2318_SEVENTEEN_TOOL_TARGET_SEVENTEEN_OK",
+    phase2341Marker: "PHASE2341_EIGHTEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2364Marker: "PHASE2364_NINETEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2388Marker: "PHASE2388_TWENTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase2413Marker: "PHASE2413_TWENTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2439Marker: "PHASE2439_TWENTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase2466Marker: "PHASE2466_TWENTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2494Marker: "PHASE2494_TWENTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase2523Marker: "PHASE2523_TWENTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2553Marker: "PHASE2553_TWENTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    phase2584Marker: "PHASE2584_TWENTY_SEVEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2616Marker: "PHASE2616_TWENTY_EIGHT_TOOL_TARGET_EIGHTEEN_OK",
+    phase2649Marker: "PHASE2649_TWENTY_NINE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2683Marker: "PHASE2683_THIRTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase2718Marker: "PHASE2718_THIRTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2754Marker: "PHASE2754_THIRTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase2791Marker: "PHASE2791_THIRTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2829Marker: "PHASE2829_THIRTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase2868Marker: "PHASE2868_THIRTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2908Marker: "PHASE2908_THIRTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    phase2949Marker: "PHASE2949_THIRTY_SEVEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2991Marker: "PHASE2991_THIRTY_EIGHT_TOOL_TARGET_EIGHTEEN_OK",
+    phase3034Marker: "PHASE3034_THIRTY_NINE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3078Marker: "PHASE3078_FORTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase3123Marker: "PHASE3123_FORTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3169Marker: "PHASE3169_FORTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase3216Marker: "PHASE3216_FORTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3264Marker: "PHASE3264_FORTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase3313Marker: "PHASE3313_FORTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3363Marker: "PHASE3363_FORTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    phase3414Marker: "PHASE3414_FORTY_SEVEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase3466Marker: "PHASE3466_FORTY_EIGHT_TOOL_TARGET_EIGHTEEN_OK",
+    phase3519Marker: "PHASE3519_FORTY_NINE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3573Marker: "PHASE3573_FIFTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase3628Marker: "PHASE3628_FIFTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3684Marker: "PHASE3684_FIFTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase3741Marker: "PHASE3741_FIFTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3799Marker: "PHASE3799_FIFTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    fiftyFourMutationApplied: true,
+    providerCallsMade: false,
+    codexExecExecuted: false,
+    chatModified: false,
+    chatGatewayExecuteModified: false,
+  };
+}
+
+export function buildPhase3858FiftyFiveMutationTargetEighteenStatus() {
+  return {
+    phaseId: "Phase3858A-Controlled-Fifty-Five-Tool-Mutation-Target-Eighteen",
+    marker: "PHASE3858_FIFTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    importSafe: true,
+    phase2170Marker: "PHASE2170_NONET_TOOL_TARGET_NINE_OK",
+    phase2185Marker: "PHASE2185_DECA_TOOL_TARGET_TEN_OK",
+    phase2201Marker: "PHASE2201_ELEVEN_TOOL_TARGET_ELEVEN_OK",
+    phase2218Marker: "PHASE2218_TWELVE_TOOL_TARGET_TWELVE_OK",
+    phase2236Marker: "PHASE2236_THIRTEEN_TOOL_TARGET_THIRTEEN_OK",
+    phase2255Marker: "PHASE2255_FOURTEEN_TOOL_TARGET_FOURTEEN_OK",
+    phase2275Marker: "PHASE2275_FIFTEEN_TOOL_TARGET_FIFTEEN_OK",
+    phase2296Marker: "PHASE2296_SIXTEEN_TOOL_TARGET_SIXTEEN_OK",
+    phase2318Marker: "PHASE2318_SEVENTEEN_TOOL_TARGET_SEVENTEEN_OK",
+    phase2341Marker: "PHASE2341_EIGHTEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2364Marker: "PHASE2364_NINETEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2388Marker: "PHASE2388_TWENTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase2413Marker: "PHASE2413_TWENTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2439Marker: "PHASE2439_TWENTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase2466Marker: "PHASE2466_TWENTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2494Marker: "PHASE2494_TWENTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase2523Marker: "PHASE2523_TWENTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2553Marker: "PHASE2553_TWENTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    phase2584Marker: "PHASE2584_TWENTY_SEVEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2616Marker: "PHASE2616_TWENTY_EIGHT_TOOL_TARGET_EIGHTEEN_OK",
+    phase2649Marker: "PHASE2649_TWENTY_NINE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2683Marker: "PHASE2683_THIRTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase2718Marker: "PHASE2718_THIRTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2754Marker: "PHASE2754_THIRTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase2791Marker: "PHASE2791_THIRTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2829Marker: "PHASE2829_THIRTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase2868Marker: "PHASE2868_THIRTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2908Marker: "PHASE2908_THIRTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    phase2949Marker: "PHASE2949_THIRTY_SEVEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2991Marker: "PHASE2991_THIRTY_EIGHT_TOOL_TARGET_EIGHTEEN_OK",
+    phase3034Marker: "PHASE3034_THIRTY_NINE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3078Marker: "PHASE3078_FORTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase3123Marker: "PHASE3123_FORTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3169Marker: "PHASE3169_FORTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase3216Marker: "PHASE3216_FORTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3264Marker: "PHASE3264_FORTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase3313Marker: "PHASE3313_FORTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3363Marker: "PHASE3363_FORTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    phase3414Marker: "PHASE3414_FORTY_SEVEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase3466Marker: "PHASE3466_FORTY_EIGHT_TOOL_TARGET_EIGHTEEN_OK",
+    phase3519Marker: "PHASE3519_FORTY_NINE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3573Marker: "PHASE3573_FIFTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase3628Marker: "PHASE3628_FIFTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3684Marker: "PHASE3684_FIFTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase3741Marker: "PHASE3741_FIFTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3799Marker: "PHASE3799_FIFTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase3858Marker: "PHASE3858_FIFTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    fiftyFiveMutationApplied: true,
+    providerCallsMade: false,
+    codexExecExecuted: false,
+    chatModified: false,
+    chatGatewayExecuteModified: false,
+  };
+}
+
+export function buildPhase3918FiftySixMutationTargetEighteenStatus() {
+  return {
+    phaseId: "Phase3918A-Controlled-Fifty-Six-Tool-Mutation-Target-Eighteen",
+    marker: "PHASE3918_FIFTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    importSafe: true,
+    phase2170Marker: "PHASE2170_NONET_TOOL_TARGET_NINE_OK",
+    phase2185Marker: "PHASE2185_DECA_TOOL_TARGET_TEN_OK",
+    phase2201Marker: "PHASE2201_ELEVEN_TOOL_TARGET_ELEVEN_OK",
+    phase2218Marker: "PHASE2218_TWELVE_TOOL_TARGET_TWELVE_OK",
+    phase2236Marker: "PHASE2236_THIRTEEN_TOOL_TARGET_THIRTEEN_OK",
+    phase2255Marker: "PHASE2255_FOURTEEN_TOOL_TARGET_FOURTEEN_OK",
+    phase2275Marker: "PHASE2275_FIFTEEN_TOOL_TARGET_FIFTEEN_OK",
+    phase2296Marker: "PHASE2296_SIXTEEN_TOOL_TARGET_SIXTEEN_OK",
+    phase2318Marker: "PHASE2318_SEVENTEEN_TOOL_TARGET_SEVENTEEN_OK",
+    phase2341Marker: "PHASE2341_EIGHTEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2364Marker: "PHASE2364_NINETEEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2388Marker: "PHASE2388_TWENTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase2413Marker: "PHASE2413_TWENTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2439Marker: "PHASE2439_TWENTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase2466Marker: "PHASE2466_TWENTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2494Marker: "PHASE2494_TWENTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase2523Marker: "PHASE2523_TWENTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2553Marker: "PHASE2553_TWENTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    phase2584Marker: "PHASE2584_TWENTY_SEVEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2616Marker: "PHASE2616_TWENTY_EIGHT_TOOL_TARGET_EIGHTEEN_OK",
+    phase2649Marker: "PHASE2649_TWENTY_NINE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2683Marker: "PHASE2683_THIRTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase2718Marker: "PHASE2718_THIRTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2754Marker: "PHASE2754_THIRTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase2791Marker: "PHASE2791_THIRTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2829Marker: "PHASE2829_THIRTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase2868Marker: "PHASE2868_THIRTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    phase2908Marker: "PHASE2908_THIRTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    phase2949Marker: "PHASE2949_THIRTY_SEVEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase2991Marker: "PHASE2991_THIRTY_EIGHT_TOOL_TARGET_EIGHTEEN_OK",
+    phase3034Marker: "PHASE3034_THIRTY_NINE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3078Marker: "PHASE3078_FORTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase3123Marker: "PHASE3123_FORTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3169Marker: "PHASE3169_FORTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase3216Marker: "PHASE3216_FORTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3264Marker: "PHASE3264_FORTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase3313Marker: "PHASE3313_FORTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3363Marker: "PHASE3363_FORTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    phase3414Marker: "PHASE3414_FORTY_SEVEN_TOOL_TARGET_EIGHTEEN_OK",
+    phase3466Marker: "PHASE3466_FORTY_EIGHT_TOOL_TARGET_EIGHTEEN_OK",
+    phase3519Marker: "PHASE3519_FORTY_NINE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3573Marker: "PHASE3573_FIFTY_TOOL_TARGET_EIGHTEEN_OK",
+    phase3628Marker: "PHASE3628_FIFTY_ONE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3684Marker: "PHASE3684_FIFTY_TWO_TOOL_TARGET_EIGHTEEN_OK",
+    phase3741Marker: "PHASE3741_FIFTY_THREE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3799Marker: "PHASE3799_FIFTY_FOUR_TOOL_TARGET_EIGHTEEN_OK",
+    phase3858Marker: "PHASE3858_FIFTY_FIVE_TOOL_TARGET_EIGHTEEN_OK",
+    phase3918Marker: "PHASE3918_FIFTY_SIX_TOOL_TARGET_EIGHTEEN_OK",
+    fiftySixMutationApplied: true,
+    providerCallsMade: false,
+    codexExecExecuted: false,
+    chatModified: false,
+    chatGatewayExecuteModified: false,
+  };
+}
+export function main() {
+  const args = parseArgs(process.argv.slice(2));
+  const planPath = args.plan || "docs/phase2297-2318-controlled-seventeen-tool-mutation-approval.example.json";
+  const generatedAt = new Date().toISOString();
+  const plan = readJsonFile(planPath);
+  const validation = validatePlan(plan);
+  const base = buildBaseResult({ plan, validation, generatedAt, planPath });
+
+  if (!validation.valid) {
+    const blocked = {
+      ...base,
+      status: "blocked",
+      blocker: validation.blocker,
+      seventeenMutationApplied: false,
+      changedFileCount: 0,
+      nodeCheckPassed: false,
+      localSeventeenSmokePassed: false,
+      rollbackAvailable: false,
+      recommendedSealed: false,
+    };
+    writeJsonFile(resultPath, blocked);
+    writeTextFile(resultMdPath, renderMarkdown(blocked));
+    printSummary(blocked);
+    process.exit(1);
+  }
+
+  const operations = plan.operations;
+  const originals = new Map();
+  const parsedOperations = [];
+  const previousRollback = readJsonFile(rollbackPath);
+  const previousRollbackFiles = new Map(
+    Array.isArray(previousRollback?.files)
+      ? previousRollback.files.map((entry) => [entry.targetPath, entry])
+      : [],
+  );
+
+  for (const operation of operations) {
+    const beforeContent = readTextFile(operation.targetPath);
+    const beforeSha256 = sha256Text(beforeContent);
+    if (beforeSha256 !== operation.expectedBeforeSha256) {
+      const alreadyApplied = validateAlreadyAppliedTargetContent({
+        currentContent: beforeContent,
+        currentSha256: beforeSha256,
+        operation,
+        extraValidators: buildExtraValidators(operation.targetPath),
+      });
+      if (alreadyApplied.valid) {
+        const previousRollbackFile = previousRollbackFiles.get(operation.targetPath);
+        originals.set(operation.targetPath, {
+          targetPath: operation.targetPath,
+          previousFileSha256: operation.expectedBeforeSha256,
+          previousFileByteLength: previousRollbackFile?.previousFileByteLength ?? null,
+          idempotentAlreadyApplied: true,
+        });
+        parsedOperations.push({
+          operation,
+          parsed: {
+            ...alreadyApplied,
+            beforeSha256: operation.expectedBeforeSha256,
+            afterSha256: beforeSha256,
+            afterContent: beforeContent,
+            idempotentAlreadyApplied: true,
+          },
+        });
+        continue;
+      }
+      const failed = {
+        ...base,
+        status: "failed",
+        blocker: `target_sha_mismatch_refuse_apply:${operation.targetPath}:${alreadyApplied.blocker}`,
+        seventeenMutationApplied: false,
+        changedFileCount: 0,
+        nodeCheckPassed: false,
+        localSeventeenSmokePassed: false,
+        rollbackAvailable: false,
+        recommendedSealed: false,
+      };
+      writeJsonFile(resultPath, failed);
+      writeTextFile(resultMdPath, renderMarkdown(failed));
+      printSummary(failed);
+      process.exit(1);
+    }
+
+    const proposal = readTextFile(operation.proposalPath);
+    const parsed = parseSingleExistingFileMutationProposal({
+      proposalText: proposal,
+      beforeContent,
+      targetPath: operation.targetPath,
+      requiredMarkers: operation.requiredMarkers || [],
+      requiredExports: operation.requiredExports || [],
+      maxHunks: 4,
+    });
+    if (!parsed.valid) {
+      const failed = {
+        ...base,
+        status: "failed",
+        blocker: `${parsed.blocker}:${operation.targetPath}`,
+        proposalValidation: parsed,
+        seventeenMutationApplied: false,
+        changedFileCount: 0,
+        nodeCheckPassed: false,
+        localSeventeenSmokePassed: false,
+        rollbackAvailable: false,
+        recommendedSealed: false,
+      };
+      writeJsonFile(resultPath, failed);
+      writeTextFile(resultMdPath, renderMarkdown(failed));
+      printSummary(failed);
+      process.exit(1);
+    }
+    originals.set(operation.targetPath, {
+      targetPath: operation.targetPath,
+      previousFileSha256: beforeSha256,
+      previousFileByteLength: Buffer.byteLength(beforeContent, "utf8"),
+    });
+    parsedOperations.push({ operation, parsed });
+  }
+
+  for (const { operation, parsed } of parsedOperations) {
+    if (parsed.idempotentAlreadyApplied) continue;
+    writeTextFile(operation.targetPath, parsed.afterContent);
+  }
+
+  const nodeChecks = runNodeCheckForTargets(operations.map((operation) => operation.targetPath));
+  const nodeCheckPassed = nodeChecks.every((entry) => entry.result.status === 0);
+  const smokeRuns = runJsonCommandSmokes([
+  {
+    "id": "phase2091",
+    "command": "node",
+    "args": [
+      "tools/phase2091/generated-source-patch-target.mjs"
+    ]
+  },
+  {
+    "id": "phase2092",
+    "command": "node",
+    "args": [
+      "-e",
+      "import('./tools/phase2092/apply-controlled-existing-tool-mutation.mjs').then(m=>console.log(JSON.stringify(m.buildPhase2094BatchMutationRuntimeStatus())))"
+    ]
+  },
+  {
+    "id": "phase2093",
+    "command": "node",
+    "args": [
+      "-e",
+      "import('./tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs').then(m=>console.log(JSON.stringify(m.buildPhase2100TripleMutationRuntimeStatus())))"
+    ]
+  },
+  {
+    "id": "phase2096",
+    "command": "node",
+    "args": [
+      "-e",
+      "import('./tools/phase2096_2100/apply-controlled-triple-tool-mutation.mjs').then(m=>console.log(JSON.stringify(m.buildPhase2109QuadMutationRuntimeStatus())))"
+    ]
+  },
+  {
+    "id": "phase2101",
+    "command": "node",
+    "args": [
+      "-e",
+      "import('./tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs').then(m=>console.log(JSON.stringify(m.buildPhase2120QuintMutationRuntimeStatus())))"
+    ]
+  },
+  {
+    "id": "phase2111",
+    "command": "node",
+    "args": [
+      "-e",
+      "import('./tools/phase2111_2120/apply-controlled-quint-tool-mutation.mjs').then(m=>console.log(JSON.stringify(m.buildPhase2307SeventeenMutationTargetSixStatus())))"
+    ]
+  },
+  {
+    "id": "phase2121",
+    "command": "node",
+    "args": [
+      "-e",
+      "import('./tools/phase2121_2131/apply-controlled-sext-tool-mutation.mjs').then(m=>console.log(JSON.stringify(m.buildPhase2308SeventeenMutationTargetSevenStatus())))"
+    ]
+  },
+  {
+    "id": "phase2132",
+    "command": "node",
+    "args": [
+      "-e",
+      "import('./tools/phase2132_2143/apply-controlled-sept-tool-mutation.mjs').then(m=>console.log(JSON.stringify(m.buildPhase2309SeventeenMutationTargetEightStatus())))"
+    ]
+  },
+  {
+    "id": "phase2144",
+    "command": "node",
+    "args": [
+      "-e",
+      "import('./tools/phase2144_2156/apply-controlled-oct-tool-mutation.mjs').then(m=>console.log(JSON.stringify(m.buildPhase2310SeventeenMutationTargetNineStatus())))"
+    ]
+  },
+  {
+    "id": "phase2157",
+    "command": "node",
+    "args": [
+      "-e",
+      "import('./tools/phase2157_2170/apply-controlled-nonet-tool-mutation.mjs').then(m=>console.log(JSON.stringify(m.buildPhase2311SeventeenMutationTargetTenStatus())))"
+    ]
+  },
+  {
+    "id": "phase2171",
+    "command": "node",
+    "args": [
+      "-e",
+      "import('./tools/phase2171_2185/apply-controlled-deca-tool-mutation.mjs').then(m=>console.log(JSON.stringify(m.buildPhase2312SeventeenMutationTargetElevenStatus())))"
+    ]
+  },
+  {
+    "id": "phase2186",
+    "command": "node",
+    "args": [
+      "-e",
+      "import('./tools/phase2186_2201/apply-controlled-eleven-tool-mutation.mjs').then(m=>console.log(JSON.stringify(m.buildPhase2313SeventeenMutationTargetTwelveStatus())))"
+    ]
+  },
+  {
+    "id": "phase2202",
+    "command": "node",
+    "args": [
+      "-e",
+      "import('./tools/phase2202_2218/apply-controlled-twelve-tool-mutation.mjs').then(m=>console.log(JSON.stringify(m.buildPhase2314SeventeenMutationTargetThirteenStatus())))"
+    ]
+  },
+  {
+    "id": "phase2219",
+    "command": "node",
+    "args": [
+      "-e",
+      "import('./tools/phase2219_2236/apply-controlled-thirteen-tool-mutation.mjs').then(m=>console.log(JSON.stringify(m.buildPhase2315SeventeenMutationTargetFourteenStatus())))"
+    ]
+  },
+  {
+    "id": "phase2237",
+    "command": "node",
+    "args": [
+      "-e",
+      "import('./tools/phase2237_2255/apply-controlled-fourteen-tool-mutation.mjs').then(m=>console.log(JSON.stringify(m.buildPhase2316SeventeenMutationTargetFifteenStatus())))"
+    ]
+  },
+  {
+    "id": "phase2256",
+    "command": "node",
+    "args": [
+      "-e",
+      "import('./tools/phase2256_2275/apply-controlled-fifteen-tool-mutation.mjs').then(m=>console.log(JSON.stringify(m.buildPhase2317SeventeenMutationTargetSixteenStatus())))"
+    ]
+  },
+  {
+    "id": "phase2276",
+    "command": "node",
+    "args": [
+      "-e",
+      "import('./tools/phase2276_2296/apply-controlled-sixteen-tool-mutation.mjs').then(m=>console.log(JSON.stringify(m.buildPhase2318SeventeenMutationRuntimeStatus())))"
+    ]
+  }
+]);
+  const smokePhase2091 = smokeRuns[0];
+  const smokePhase2092 = smokeRuns[1];
+  const smokePhase2093 = smokeRuns[2];
+  const smokePhase2096 = smokeRuns[3];
+  const smokePhase2101 = smokeRuns[4];
+  const smokePhase2111 = smokeRuns[5];
+  const smokePhase2121 = smokeRuns[6];
+  const smokePhase2132 = smokeRuns[7];
+  const smokePhase2144 = smokeRuns[8];
+  const smokePhase2157 = smokeRuns[9];
+  const smokePhase2171 = smokeRuns[10];
+  const smokePhase2186 = smokeRuns[11];
+  const smokePhase2202 = smokeRuns[12];
+  const smokePhase2219 = smokeRuns[13];
+  const smokePhase2237 = smokeRuns[14];
+  const smokePhase2256 = smokeRuns[15];
+  const smokePhase2276 = smokeRuns[16];
+
+  const smokeResult = {
+    phaseId,
+    generatedAt: new Date().toISOString(),
+    status:
+      smokePhase2091.result.status === 0 &&
+      smokePhase2092.result.status === 0 &&
+      smokePhase2093.result.status === 0 &&
+      smokePhase2096.result.status === 0 &&
+      smokePhase2101.result.status === 0 &&
+      smokePhase2111.result.status === 0 &&
+      smokePhase2121.result.status === 0 &&
+      smokePhase2132.result.status === 0 &&
+      smokePhase2144.result.status === 0 &&
+      smokePhase2157.result.status === 0 &&
+      smokePhase2171.result.status === 0 &&
+      smokePhase2186.result.status === 0 &&
+      smokePhase2202.result.status === 0 &&
+      smokePhase2219.result.status === 0 &&
+      smokePhase2237.result.status === 0 &&
+      smokePhase2256.result.status === 0 &&
+      smokePhase2276.result.status === 0 &&
+      smokePhase2091.parsed?.marker === "PHASE2091_SOURCE_PATCH_OK" &&
+      smokePhase2091.parsed?.phase2092?.marker === "PHASE2092_EXISTING_TOOL_MUTATION_OK" &&
+      smokePhase2091.parsed?.phase2093?.marker === "PHASE2093_BATCH_TOOL_TARGET_ONE_OK" &&
+      smokePhase2091.parsed?.phase2096?.marker === "PHASE2096_TRIPLE_TOOL_TARGET_ONE_OK" &&
+      smokePhase2091.parsed?.phase2106?.marker === "PHASE2106_QUAD_TOOL_TARGET_ONE_OK" &&
+      smokePhase2091.parsed?.phase2116?.marker === "PHASE2116_QUINT_TOOL_TARGET_ONE_OK" &&
+      smokePhase2091.parsed?.phase2126?.marker === "PHASE2126_SEXT_TOOL_TARGET_ONE_OK" &&
+      smokePhase2091.parsed?.phase2137?.marker === "PHASE2137_SEPT_TOOL_TARGET_ONE_OK" &&
+      smokePhase2091.parsed?.phase2149?.marker === "PHASE2149_OCT_TOOL_TARGET_ONE_OK" &&
+      smokePhase2091.parsed?.phase2162?.marker === "PHASE2162_NONET_TOOL_TARGET_ONE_OK" &&
+      smokePhase2091.parsed?.phase2176?.marker === "PHASE2176_DECA_TOOL_TARGET_ONE_OK" &&
+      smokePhase2091.parsed?.phase2191?.marker === "PHASE2191_ELEVEN_TOOL_TARGET_ONE_OK" &&
+      smokePhase2091.parsed?.phase2207?.marker === "PHASE2207_TWELVE_TOOL_TARGET_ONE_OK" &&
+      smokePhase2091.parsed?.phase2224?.marker === "PHASE2224_THIRTEEN_TOOL_TARGET_ONE_OK" &&
+      smokePhase2091.parsed?.phase2242?.marker === "PHASE2242_FOURTEEN_TOOL_TARGET_ONE_OK" &&
+      smokePhase2091.parsed?.phase2261?.marker === "PHASE2261_FIFTEEN_TOOL_TARGET_ONE_OK" &&
+      smokePhase2091.parsed?.phase2281?.marker === "PHASE2281_SIXTEEN_TOOL_TARGET_ONE_OK" &&
+      smokePhase2091.parsed?.phase2302?.marker === "PHASE2302_SEVENTEEN_TOOL_TARGET_ONE_OK" &&
+      smokePhase2092.parsed?.marker === "PHASE2094_BATCH_TOOL_TARGET_TWO_OK" &&
+      smokePhase2092.parsed?.phase2127Marker === "PHASE2127_SEXT_TOOL_TARGET_TWO_OK" &&
+      smokePhase2092.parsed?.phase2138Marker === "PHASE2138_SEPT_TOOL_TARGET_TWO_OK" &&
+      smokePhase2092.parsed?.phase2150Marker === "PHASE2150_OCT_TOOL_TARGET_TWO_OK" &&
+      smokePhase2092.parsed?.phase2163Marker === "PHASE2163_NONET_TOOL_TARGET_TWO_OK" &&
+      smokePhase2092.parsed?.phase2177Marker === "PHASE2177_DECA_TOOL_TARGET_TWO_OK" &&
+      smokePhase2092.parsed?.phase2192Marker === "PHASE2192_ELEVEN_TOOL_TARGET_TWO_OK" &&
+      smokePhase2092.parsed?.phase2208Marker === "PHASE2208_TWELVE_TOOL_TARGET_TWO_OK" &&
+      smokePhase2092.parsed?.phase2225Marker === "PHASE2225_THIRTEEN_TOOL_TARGET_TWO_OK" &&
+      smokePhase2092.parsed?.phase2243Marker === "PHASE2243_FOURTEEN_TOOL_TARGET_TWO_OK" &&
+      smokePhase2092.parsed?.phase2262Marker === "PHASE2262_FIFTEEN_TOOL_TARGET_TWO_OK" &&
+      smokePhase2092.parsed?.phase2282Marker === "PHASE2282_SIXTEEN_TOOL_TARGET_TWO_OK" &&
+      smokePhase2092.parsed?.phase2303Marker === "PHASE2303_SEVENTEEN_TOOL_TARGET_TWO_OK" &&
+      smokePhase2093.parsed?.marker === "PHASE2100_TRIPLE_TOOL_TARGET_THREE_OK" &&
+      smokePhase2093.parsed?.phase2128Marker === "PHASE2128_SEXT_TOOL_TARGET_THREE_OK" &&
+      smokePhase2093.parsed?.phase2139Marker === "PHASE2139_SEPT_TOOL_TARGET_THREE_OK" &&
+      smokePhase2093.parsed?.phase2151Marker === "PHASE2151_OCT_TOOL_TARGET_THREE_OK" &&
+      smokePhase2093.parsed?.phase2164Marker === "PHASE2164_NONET_TOOL_TARGET_THREE_OK" &&
+      smokePhase2093.parsed?.phase2178Marker === "PHASE2178_DECA_TOOL_TARGET_THREE_OK" &&
+      smokePhase2093.parsed?.phase2193Marker === "PHASE2193_ELEVEN_TOOL_TARGET_THREE_OK" &&
+      smokePhase2093.parsed?.phase2209Marker === "PHASE2209_TWELVE_TOOL_TARGET_THREE_OK" &&
+      smokePhase2093.parsed?.phase2226Marker === "PHASE2226_THIRTEEN_TOOL_TARGET_THREE_OK" &&
+      smokePhase2093.parsed?.phase2244Marker === "PHASE2244_FOURTEEN_TOOL_TARGET_THREE_OK" &&
+      smokePhase2093.parsed?.phase2263Marker === "PHASE2263_FIFTEEN_TOOL_TARGET_THREE_OK" &&
+      smokePhase2093.parsed?.phase2283Marker === "PHASE2283_SIXTEEN_TOOL_TARGET_THREE_OK" &&
+      smokePhase2093.parsed?.phase2304Marker === "PHASE2304_SEVENTEEN_TOOL_TARGET_THREE_OK" &&
+      smokePhase2096.parsed?.marker === "PHASE2109_QUAD_TOOL_TARGET_FOUR_OK" &&
+      smokePhase2096.parsed?.phase2129Marker === "PHASE2129_SEXT_TOOL_TARGET_FOUR_OK" &&
+      smokePhase2096.parsed?.phase2140Marker === "PHASE2140_SEPT_TOOL_TARGET_FOUR_OK" &&
+      smokePhase2096.parsed?.phase2152Marker === "PHASE2152_OCT_TOOL_TARGET_FOUR_OK" &&
+      smokePhase2096.parsed?.phase2165Marker === "PHASE2165_NONET_TOOL_TARGET_FOUR_OK" &&
+      smokePhase2096.parsed?.phase2179Marker === "PHASE2179_DECA_TOOL_TARGET_FOUR_OK" &&
+      smokePhase2096.parsed?.phase2194Marker === "PHASE2194_ELEVEN_TOOL_TARGET_FOUR_OK" &&
+      smokePhase2096.parsed?.phase2210Marker === "PHASE2210_TWELVE_TOOL_TARGET_FOUR_OK" &&
+      smokePhase2096.parsed?.phase2227Marker === "PHASE2227_THIRTEEN_TOOL_TARGET_FOUR_OK" &&
+      smokePhase2096.parsed?.phase2245Marker === "PHASE2245_FOURTEEN_TOOL_TARGET_FOUR_OK" &&
+      smokePhase2096.parsed?.phase2264Marker === "PHASE2264_FIFTEEN_TOOL_TARGET_FOUR_OK" &&
+      smokePhase2096.parsed?.phase2284Marker === "PHASE2284_SIXTEEN_TOOL_TARGET_FOUR_OK" &&
+      smokePhase2096.parsed?.phase2305Marker === "PHASE2305_SEVENTEEN_TOOL_TARGET_FOUR_OK" &&
+      smokePhase2101.parsed?.marker === "PHASE2120_QUINT_TOOL_TARGET_FIVE_OK" &&
+      smokePhase2101.parsed?.phase2130Marker === "PHASE2130_SEXT_TOOL_TARGET_FIVE_OK" &&
+      smokePhase2101.parsed?.phase2141Marker === "PHASE2141_SEPT_TOOL_TARGET_FIVE_OK" &&
+      smokePhase2101.parsed?.phase2153Marker === "PHASE2153_OCT_TOOL_TARGET_FIVE_OK" &&
+      smokePhase2101.parsed?.phase2166Marker === "PHASE2166_NONET_TOOL_TARGET_FIVE_OK" &&
+      smokePhase2101.parsed?.phase2180Marker === "PHASE2180_DECA_TOOL_TARGET_FIVE_OK" &&
+      smokePhase2101.parsed?.phase2195Marker === "PHASE2195_ELEVEN_TOOL_TARGET_FIVE_OK" &&
+      smokePhase2101.parsed?.phase2211Marker === "PHASE2211_TWELVE_TOOL_TARGET_FIVE_OK" &&
+      smokePhase2101.parsed?.phase2228Marker === "PHASE2228_THIRTEEN_TOOL_TARGET_FIVE_OK" &&
+      smokePhase2101.parsed?.phase2246Marker === "PHASE2246_FOURTEEN_TOOL_TARGET_FIVE_OK" &&
+      smokePhase2101.parsed?.phase2265Marker === "PHASE2265_FIFTEEN_TOOL_TARGET_FIVE_OK" &&
+      smokePhase2101.parsed?.phase2285Marker === "PHASE2285_SIXTEEN_TOOL_TARGET_FIVE_OK" &&
+      smokePhase2101.parsed?.phase2306Marker === "PHASE2306_SEVENTEEN_TOOL_TARGET_FIVE_OK" &&
+      smokePhase2111.parsed?.marker === "PHASE2307_SEVENTEEN_TOOL_TARGET_SIX_OK" &&
+      smokePhase2111.parsed?.phase2142Marker === "PHASE2142_SEPT_TOOL_TARGET_SIX_OK" &&
+      smokePhase2111.parsed?.phase2154Marker === "PHASE2154_OCT_TOOL_TARGET_SIX_OK" &&
+      smokePhase2111.parsed?.phase2167Marker === "PHASE2167_NONET_TOOL_TARGET_SIX_OK" &&
+      smokePhase2111.parsed?.phase2181Marker === "PHASE2181_DECA_TOOL_TARGET_SIX_OK" &&
+      smokePhase2111.parsed?.phase2196Marker === "PHASE2196_ELEVEN_TOOL_TARGET_SIX_OK" &&
+      smokePhase2111.parsed?.phase2212Marker === "PHASE2212_TWELVE_TOOL_TARGET_SIX_OK" &&
+      smokePhase2111.parsed?.phase2229Marker === "PHASE2229_THIRTEEN_TOOL_TARGET_SIX_OK" &&
+      smokePhase2111.parsed?.phase2247Marker === "PHASE2247_FOURTEEN_TOOL_TARGET_SIX_OK" &&
+      smokePhase2111.parsed?.phase2266Marker === "PHASE2266_FIFTEEN_TOOL_TARGET_SIX_OK" &&
+      smokePhase2111.parsed?.phase2286Marker === "PHASE2286_SIXTEEN_TOOL_TARGET_SIX_OK" &&
+      smokePhase2111.parsed?.phase2307Marker === "PHASE2307_SEVENTEEN_TOOL_TARGET_SIX_OK" &&
+      smokePhase2121.parsed?.marker === "PHASE2308_SEVENTEEN_TOOL_TARGET_SEVEN_OK" &&
+      smokePhase2121.parsed?.phase2143Marker === "PHASE2143_SEPT_TOOL_TARGET_SEVEN_OK" &&
+      smokePhase2121.parsed?.phase2155Marker === "PHASE2155_OCT_TOOL_TARGET_SEVEN_OK" &&
+      smokePhase2121.parsed?.phase2168Marker === "PHASE2168_NONET_TOOL_TARGET_SEVEN_OK" &&
+      smokePhase2121.parsed?.phase2182Marker === "PHASE2182_DECA_TOOL_TARGET_SEVEN_OK" &&
+      smokePhase2121.parsed?.phase2197Marker === "PHASE2197_ELEVEN_TOOL_TARGET_SEVEN_OK" &&
+      smokePhase2121.parsed?.phase2213Marker === "PHASE2213_TWELVE_TOOL_TARGET_SEVEN_OK" &&
+      smokePhase2121.parsed?.phase2230Marker === "PHASE2230_THIRTEEN_TOOL_TARGET_SEVEN_OK" &&
+      smokePhase2121.parsed?.phase2248Marker === "PHASE2248_FOURTEEN_TOOL_TARGET_SEVEN_OK" &&
+      smokePhase2121.parsed?.phase2267Marker === "PHASE2267_FIFTEEN_TOOL_TARGET_SEVEN_OK" &&
+      smokePhase2121.parsed?.phase2287Marker === "PHASE2287_SIXTEEN_TOOL_TARGET_SEVEN_OK" &&
+      smokePhase2121.parsed?.phase2308Marker === "PHASE2308_SEVENTEEN_TOOL_TARGET_SEVEN_OK" &&
+      smokePhase2132.parsed?.marker === "PHASE2309_SEVENTEEN_TOOL_TARGET_EIGHT_OK" &&
+      smokePhase2132.parsed?.phase2143Marker === "PHASE2143_SEPT_TOOL_TARGET_SEVEN_OK" &&
+      smokePhase2132.parsed?.phase2156Marker === "PHASE2156_OCT_TOOL_TARGET_EIGHT_OK" &&
+      smokePhase2132.parsed?.phase2169Marker === "PHASE2169_NONET_TOOL_TARGET_EIGHT_OK" &&
+      smokePhase2132.parsed?.phase2183Marker === "PHASE2183_DECA_TOOL_TARGET_EIGHT_OK" &&
+      smokePhase2132.parsed?.phase2198Marker === "PHASE2198_ELEVEN_TOOL_TARGET_EIGHT_OK" &&
+      smokePhase2132.parsed?.phase2214Marker === "PHASE2214_TWELVE_TOOL_TARGET_EIGHT_OK" &&
+      smokePhase2132.parsed?.phase2231Marker === "PHASE2231_THIRTEEN_TOOL_TARGET_EIGHT_OK" &&
+      smokePhase2132.parsed?.phase2249Marker === "PHASE2249_FOURTEEN_TOOL_TARGET_EIGHT_OK" &&
+      smokePhase2132.parsed?.phase2268Marker === "PHASE2268_FIFTEEN_TOOL_TARGET_EIGHT_OK" &&
+      smokePhase2132.parsed?.phase2288Marker === "PHASE2288_SIXTEEN_TOOL_TARGET_EIGHT_OK" &&
+      smokePhase2132.parsed?.phase2309Marker === "PHASE2309_SEVENTEEN_TOOL_TARGET_EIGHT_OK" &&
+      smokePhase2144.parsed?.marker === "PHASE2310_SEVENTEEN_TOOL_TARGET_NINE_OK" &&
+      smokePhase2144.parsed?.phase2156Marker === "PHASE2156_OCT_TOOL_TARGET_EIGHT_OK" &&
+      smokePhase2144.parsed?.phase2170Marker === "PHASE2170_NONET_TOOL_TARGET_NINE_OK" &&
+      smokePhase2144.parsed?.phase2184Marker === "PHASE2184_DECA_TOOL_TARGET_NINE_OK" &&
+      smokePhase2144.parsed?.phase2199Marker === "PHASE2199_ELEVEN_TOOL_TARGET_NINE_OK" &&
+      smokePhase2144.parsed?.phase2215Marker === "PHASE2215_TWELVE_TOOL_TARGET_NINE_OK" &&
+      smokePhase2144.parsed?.phase2232Marker === "PHASE2232_THIRTEEN_TOOL_TARGET_NINE_OK" &&
+      smokePhase2144.parsed?.phase2250Marker === "PHASE2250_FOURTEEN_TOOL_TARGET_NINE_OK" &&
+      smokePhase2144.parsed?.phase2269Marker === "PHASE2269_FIFTEEN_TOOL_TARGET_NINE_OK" &&
+      smokePhase2144.parsed?.phase2289Marker === "PHASE2289_SIXTEEN_TOOL_TARGET_NINE_OK" &&
+      smokePhase2144.parsed?.phase2310Marker === "PHASE2310_SEVENTEEN_TOOL_TARGET_NINE_OK" &&
+      smokePhase2157.parsed?.marker === "PHASE2311_SEVENTEEN_TOOL_TARGET_TEN_OK" &&
+      smokePhase2157.parsed?.phase2170Marker === "PHASE2170_NONET_TOOL_TARGET_NINE_OK" &&
+      smokePhase2157.parsed?.phase2185Marker === "PHASE2185_DECA_TOOL_TARGET_TEN_OK" &&
+      smokePhase2157.parsed?.phase2200Marker === "PHASE2200_ELEVEN_TOOL_TARGET_TEN_OK" &&
+      smokePhase2157.parsed?.phase2216Marker === "PHASE2216_TWELVE_TOOL_TARGET_TEN_OK" &&
+      smokePhase2157.parsed?.phase2233Marker === "PHASE2233_THIRTEEN_TOOL_TARGET_TEN_OK" &&
+      smokePhase2157.parsed?.phase2251Marker === "PHASE2251_FOURTEEN_TOOL_TARGET_TEN_OK" &&
+      smokePhase2157.parsed?.phase2270Marker === "PHASE2270_FIFTEEN_TOOL_TARGET_TEN_OK" &&
+      smokePhase2157.parsed?.phase2290Marker === "PHASE2290_SIXTEEN_TOOL_TARGET_TEN_OK" &&
+      smokePhase2157.parsed?.phase2311Marker === "PHASE2311_SEVENTEEN_TOOL_TARGET_TEN_OK" &&
+      smokePhase2171.parsed?.marker === "PHASE2312_SEVENTEEN_TOOL_TARGET_ELEVEN_OK" &&
+      smokePhase2171.parsed?.phase2170Marker === "PHASE2170_NONET_TOOL_TARGET_NINE_OK" &&
+      smokePhase2171.parsed?.phase2185Marker === "PHASE2185_DECA_TOOL_TARGET_TEN_OK" &&
+      smokePhase2171.parsed?.phase2201Marker === "PHASE2201_ELEVEN_TOOL_TARGET_ELEVEN_OK" &&
+      smokePhase2171.parsed?.phase2217Marker === "PHASE2217_TWELVE_TOOL_TARGET_ELEVEN_OK" &&
+      smokePhase2171.parsed?.phase2234Marker === "PHASE2234_THIRTEEN_TOOL_TARGET_ELEVEN_OK" &&
+      smokePhase2171.parsed?.phase2252Marker === "PHASE2252_FOURTEEN_TOOL_TARGET_ELEVEN_OK" &&
+      smokePhase2171.parsed?.phase2271Marker === "PHASE2271_FIFTEEN_TOOL_TARGET_ELEVEN_OK" &&
+      smokePhase2171.parsed?.phase2291Marker === "PHASE2291_SIXTEEN_TOOL_TARGET_ELEVEN_OK" &&
+      smokePhase2171.parsed?.phase2312Marker === "PHASE2312_SEVENTEEN_TOOL_TARGET_ELEVEN_OK" &&
+      smokePhase2186.parsed?.marker === "PHASE2313_SEVENTEEN_TOOL_TARGET_TWELVE_OK" &&
+      smokePhase2186.parsed?.phase2170Marker === "PHASE2170_NONET_TOOL_TARGET_NINE_OK" &&
+      smokePhase2186.parsed?.phase2185Marker === "PHASE2185_DECA_TOOL_TARGET_TEN_OK" &&
+      smokePhase2186.parsed?.phase2201Marker === "PHASE2201_ELEVEN_TOOL_TARGET_ELEVEN_OK" &&
+      smokePhase2186.parsed?.phase2218Marker === "PHASE2218_TWELVE_TOOL_TARGET_TWELVE_OK" &&
+      smokePhase2186.parsed?.phase2235Marker === "PHASE2235_THIRTEEN_TOOL_TARGET_TWELVE_OK" &&
+      smokePhase2186.parsed?.phase2253Marker === "PHASE2253_FOURTEEN_TOOL_TARGET_TWELVE_OK" &&
+      smokePhase2186.parsed?.phase2272Marker === "PHASE2272_FIFTEEN_TOOL_TARGET_TWELVE_OK" &&
+      smokePhase2186.parsed?.phase2292Marker === "PHASE2292_SIXTEEN_TOOL_TARGET_TWELVE_OK" &&
+      smokePhase2186.parsed?.phase2313Marker === "PHASE2313_SEVENTEEN_TOOL_TARGET_TWELVE_OK" &&
+      smokePhase2202.parsed?.marker === "PHASE2314_SEVENTEEN_TOOL_TARGET_THIRTEEN_OK" &&
+      smokePhase2202.parsed?.phase2170Marker === "PHASE2170_NONET_TOOL_TARGET_NINE_OK" &&
+      smokePhase2202.parsed?.phase2185Marker === "PHASE2185_DECA_TOOL_TARGET_TEN_OK" &&
+      smokePhase2202.parsed?.phase2201Marker === "PHASE2201_ELEVEN_TOOL_TARGET_ELEVEN_OK" &&
+      smokePhase2202.parsed?.phase2218Marker === "PHASE2218_TWELVE_TOOL_TARGET_TWELVE_OK" &&
+      smokePhase2202.parsed?.phase2236Marker === "PHASE2236_THIRTEEN_TOOL_TARGET_THIRTEEN_OK" &&
+      smokePhase2202.parsed?.phase2254Marker === "PHASE2254_FOURTEEN_TOOL_TARGET_THIRTEEN_OK" &&
+      smokePhase2202.parsed?.phase2273Marker === "PHASE2273_FIFTEEN_TOOL_TARGET_THIRTEEN_OK" &&
+      smokePhase2202.parsed?.phase2293Marker === "PHASE2293_SIXTEEN_TOOL_TARGET_THIRTEEN_OK" &&
+      smokePhase2202.parsed?.phase2314Marker === "PHASE2314_SEVENTEEN_TOOL_TARGET_THIRTEEN_OK" &&
+      smokePhase2219.parsed?.marker === "PHASE2315_SEVENTEEN_TOOL_TARGET_FOURTEEN_OK" &&
+      smokePhase2219.parsed?.phase2170Marker === "PHASE2170_NONET_TOOL_TARGET_NINE_OK" &&
+      smokePhase2219.parsed?.phase2185Marker === "PHASE2185_DECA_TOOL_TARGET_TEN_OK" &&
+      smokePhase2219.parsed?.phase2201Marker === "PHASE2201_ELEVEN_TOOL_TARGET_ELEVEN_OK" &&
+      smokePhase2219.parsed?.phase2218Marker === "PHASE2218_TWELVE_TOOL_TARGET_TWELVE_OK" &&
+      smokePhase2219.parsed?.phase2236Marker === "PHASE2236_THIRTEEN_TOOL_TARGET_THIRTEEN_OK" &&
+      smokePhase2219.parsed?.phase2255Marker === "PHASE2255_FOURTEEN_TOOL_TARGET_FOURTEEN_OK" &&
+      smokePhase2219.parsed?.phase2274Marker === "PHASE2274_FIFTEEN_TOOL_TARGET_FOURTEEN_OK" &&
+      smokePhase2219.parsed?.phase2294Marker === "PHASE2294_SIXTEEN_TOOL_TARGET_FOURTEEN_OK" &&
+      smokePhase2219.parsed?.phase2315Marker === "PHASE2315_SEVENTEEN_TOOL_TARGET_FOURTEEN_OK" &&
+      smokePhase2237.parsed?.marker === "PHASE2316_SEVENTEEN_TOOL_TARGET_FIFTEEN_OK" &&
+      smokePhase2237.parsed?.phase2170Marker === "PHASE2170_NONET_TOOL_TARGET_NINE_OK" &&
+      smokePhase2237.parsed?.phase2185Marker === "PHASE2185_DECA_TOOL_TARGET_TEN_OK" &&
+      smokePhase2237.parsed?.phase2201Marker === "PHASE2201_ELEVEN_TOOL_TARGET_ELEVEN_OK" &&
+      smokePhase2237.parsed?.phase2218Marker === "PHASE2218_TWELVE_TOOL_TARGET_TWELVE_OK" &&
+      smokePhase2237.parsed?.phase2236Marker === "PHASE2236_THIRTEEN_TOOL_TARGET_THIRTEEN_OK" &&
+      smokePhase2237.parsed?.phase2255Marker === "PHASE2255_FOURTEEN_TOOL_TARGET_FOURTEEN_OK" &&
+      smokePhase2237.parsed?.phase2275Marker === "PHASE2275_FIFTEEN_TOOL_TARGET_FIFTEEN_OK" &&
+      smokePhase2237.parsed?.phase2295Marker === "PHASE2295_SIXTEEN_TOOL_TARGET_FIFTEEN_OK" &&
+      smokePhase2237.parsed?.phase2316Marker === "PHASE2316_SEVENTEEN_TOOL_TARGET_FIFTEEN_OK" &&
+      smokePhase2256.parsed?.marker === "PHASE2317_SEVENTEEN_TOOL_TARGET_SIXTEEN_OK" &&
+      smokePhase2256.parsed?.phase2170Marker === "PHASE2170_NONET_TOOL_TARGET_NINE_OK" &&
+      smokePhase2256.parsed?.phase2185Marker === "PHASE2185_DECA_TOOL_TARGET_TEN_OK" &&
+      smokePhase2256.parsed?.phase2201Marker === "PHASE2201_ELEVEN_TOOL_TARGET_ELEVEN_OK" &&
+      smokePhase2256.parsed?.phase2218Marker === "PHASE2218_TWELVE_TOOL_TARGET_TWELVE_OK" &&
+      smokePhase2256.parsed?.phase2236Marker === "PHASE2236_THIRTEEN_TOOL_TARGET_THIRTEEN_OK" &&
+      smokePhase2256.parsed?.phase2255Marker === "PHASE2255_FOURTEEN_TOOL_TARGET_FOURTEEN_OK" &&
+      smokePhase2256.parsed?.phase2275Marker === "PHASE2275_FIFTEEN_TOOL_TARGET_FIFTEEN_OK" &&
+      smokePhase2256.parsed?.phase2296Marker === "PHASE2296_SIXTEEN_TOOL_TARGET_SIXTEEN_OK" &&
+      smokePhase2256.parsed?.phase2317Marker === "PHASE2317_SEVENTEEN_TOOL_TARGET_SIXTEEN_OK" &&
+      smokePhase2276.parsed?.marker === "PHASE2318_SEVENTEEN_TOOL_TARGET_SEVENTEEN_OK" &&
+      smokePhase2276.parsed?.phase2170Marker === "PHASE2170_NONET_TOOL_TARGET_NINE_OK" &&
+      smokePhase2276.parsed?.phase2185Marker === "PHASE2185_DECA_TOOL_TARGET_TEN_OK" &&
+      smokePhase2276.parsed?.phase2201Marker === "PHASE2201_ELEVEN_TOOL_TARGET_ELEVEN_OK" &&
+      smokePhase2276.parsed?.phase2218Marker === "PHASE2218_TWELVE_TOOL_TARGET_TWELVE_OK" &&
+      smokePhase2276.parsed?.phase2236Marker === "PHASE2236_THIRTEEN_TOOL_TARGET_THIRTEEN_OK" &&
+      smokePhase2276.parsed?.phase2255Marker === "PHASE2255_FOURTEEN_TOOL_TARGET_FOURTEEN_OK" &&
+      smokePhase2276.parsed?.phase2275Marker === "PHASE2275_FIFTEEN_TOOL_TARGET_FIFTEEN_OK" &&
+      smokePhase2276.parsed?.phase2296Marker === "PHASE2296_SIXTEEN_TOOL_TARGET_SIXTEEN_OK" &&
+      smokePhase2276.parsed?.phase2318Marker === "PHASE2318_SEVENTEEN_TOOL_TARGET_SEVENTEEN_OK" &&
+      true
+        ? "passed"
+        : "failed",
+    phase2302Marker: smokePhase2091.parsed?.phase2302?.marker || null,
+    phase2303Marker: smokePhase2092.parsed?.phase2303Marker || null,
+    phase2304Marker: smokePhase2093.parsed?.phase2304Marker || null,
+    phase2305Marker: smokePhase2096.parsed?.phase2305Marker || null,
+    phase2306Marker: smokePhase2101.parsed?.phase2306Marker || null,
+    phase2307Marker: smokePhase2111.parsed?.phase2307Marker || null,
+    phase2308Marker: smokePhase2121.parsed?.phase2308Marker || null,
+    phase2309Marker: smokePhase2132.parsed?.phase2309Marker || null,
+    phase2310Marker: smokePhase2144.parsed?.phase2310Marker || null,
+    phase2311Marker: smokePhase2157.parsed?.phase2311Marker || null,
+    phase2312Marker: smokePhase2171.parsed?.phase2312Marker || null,
+    phase2313Marker: smokePhase2186.parsed?.phase2313Marker || null,
+    phase2314Marker: smokePhase2202.parsed?.phase2314Marker || null,
+    phase2315Marker: smokePhase2219.parsed?.phase2315Marker || null,
+    phase2316Marker: smokePhase2237.parsed?.phase2316Marker || null,
+    phase2317Marker: smokePhase2256.parsed?.phase2317Marker || null,
+    phase2318Marker: smokePhase2276.parsed?.phase2318Marker || null,
+    providerCallsMade: false,
+    stdout: sanitizeTail(smokeRuns.map((entry) => entry.result.stdout).join("\n")),
+    stderr: sanitizeTail(smokeRuns.map((entry) => entry.result.stderr).join("\n")),
+  };
+  writeJsonFile(smokePath, smokeResult);
+
+  const files = parsedOperations.map(({ operation, parsed }) => {
+    const original = originals.get(operation.targetPath);
+    return {
+      targetPath: operation.targetPath,
+      previousFileSha256: original.previousFileSha256,
+      mutatedFileSha256: sha256Text(parsed.afterContent),
+      previousFileByteLength: original.previousFileByteLength,
+      mutatedFileByteLength: Buffer.byteLength(parsed.afterContent, "utf8"),
+      idempotentAlreadyApplied: Boolean(original.idempotentAlreadyApplied),
+    };
+  });
+  const rollback = {
+    phaseId,
+    generatedAt,
+    rollbackAction: "restore-previous-content-seventeen",
+    rollbackExecuted: false,
+    files,
+    safetyBoundary: {
+      restoreOnlyListedFiles: true,
+      maxChangedFiles: 17,
+      noCommit: true,
+      noPush: true,
+      noDeploy: true,
+      noProviderCall: true,
+      noChatChange: true,
+    },
+  };
+  writeJsonFile(rollbackPath, rollback);
+
+  const completed = nodeCheckPassed && smokeResult.status === "passed";
+  const result = {
+    ...base,
+    status: completed ? "passed" : "failed",
+    blocker: completed ? "none" : "seventeen_mutation_node_check_or_smoke_failed",
+    proposalValidations: parsedOperations.map((entry) => entry.parsed),
+    changedFiles: operations.map((operation) => operation.targetPath),
+    changedFileCount: operations.length,
+    actualWritesPerformed: parsedOperations.filter((entry) => !entry.parsed.idempotentAlreadyApplied).length,
+    idempotentReapplyAccepted: parsedOperations.every((entry) => entry.parsed.idempotentAlreadyApplied),
+    seventeenMutationApplied: true,
+    nodeCheckPassed,
+    nodeChecks: nodeChecks.map((entry) => ({
+      targetPath: entry.targetPath,
+      exitCode: entry.result.status ?? 1,
+      stderr: sanitizeTail(entry.result.stderr),
+    })),
+    localSeventeenSmokePassed: smokeResult.status === "passed",
+    smokePath,
+    rollbackAvailable: true,
+    rollbackPath,
+    codexExecExecuted: false,
+    providerCallsMade: false,
+    projectProviderCallsMade: false,
+    paidProviderCallsMadeByProject: false,
+    secretRead: false,
+    envRead: false,
+    authJsonRead: false,
+    authJsonContentExposed: false,
+    codexConfigModified: false,
+    codexBaseUrlModified: false,
+    chatModified: false,
+    chatGatewayExecuteModified: false,
+    deployExecuted: false,
+    releaseExecuted: false,
+    tagCreated: false,
+    artifactUploaded: false,
+    pushExecuted: false,
+    commitCreated: false,
+    legacyModified: false,
+    projectContextCreated: existsSync(resolveRelativePath("PROJECT_CONTEXT.md")),
+    workspaceCleanClaimed: false,
+    productionReadyClaimed: false,
+    releaseReadyClaimed: false,
+    recommendedSealed: completed,
+    evidenceRefs: {
+      result: resultPath,
+      resultMarkdown: resultMdPath,
+      rollback: rollbackPath,
+      smoke: smokePath,
+    },
+  };
+
+  writeJsonFile(resultPath, result);
+  writeTextFile(resultMdPath, renderMarkdown(result));
+  printSummary(result);
+  if (!completed) process.exit(1);
+}
+
+function validatePlan(plan) {
+  return validateControlledMutationPlan({
+    plan,
+    expectedPhaseId: phaseId,
+    expectedPermissionMode: "controlled-seventeen-tool-source-mutation",
+    expectedOperationCount: 17,
+    expectedMaxChangedFiles: 17,
+    requiredAllowedFiles: [
+    "apps/ai-gateway-service/evidence/phase2297-2318-controlled-seventeen-tool-mutation/result.json",
+    "apps/ai-gateway-service/evidence/phase2297-2318-controlled-seventeen-tool-mutation/result.md",
+    "apps/ai-gateway-service/evidence/phase2297-2318-controlled-seventeen-tool-mutation/rollback.json",
+    "apps/ai-gateway-service/evidence/phase2297-2318-controlled-seventeen-tool-mutation/seventeen-smoke.json",
+    "docs/phase2302-seventeen-tool-mutation-target-one.proposal.diff",
+    "docs/phase2303-seventeen-tool-mutation-target-two.proposal.diff",
+    "docs/phase2304-seventeen-tool-mutation-target-three.proposal.diff",
+    "docs/phase2305-seventeen-tool-mutation-target-four.proposal.diff",
+    "docs/phase2306-seventeen-tool-mutation-target-five.proposal.diff",
+    "docs/phase2307-seventeen-tool-mutation-target-six.proposal.diff",
+    "docs/phase2308-seventeen-tool-mutation-target-seven.proposal.diff",
+    "docs/phase2309-seventeen-tool-mutation-target-eight.proposal.diff",
+    "docs/phase2310-seventeen-tool-mutation-target-nine.proposal.diff",
+    "docs/phase2311-seventeen-tool-mutation-target-ten.proposal.diff",
+    "docs/phase2312-seventeen-tool-mutation-target-eleven.proposal.diff",
+    "docs/phase2313-seventeen-tool-mutation-target-twelve.proposal.diff",
+    "docs/phase2314-seventeen-tool-mutation-target-thirteen.proposal.diff",
+    "docs/phase2315-seventeen-tool-mutation-target-fourteen.proposal.diff",
+    "docs/phase2316-seventeen-tool-mutation-target-fifteen.proposal.diff",
+    "docs/phase2317-seventeen-tool-mutation-target-sixteen.proposal.diff",
+    "docs/phase2318-seventeen-tool-mutation-target-seventeen.proposal.diff",
+    "tools/phase2091/generated-source-patch-target.mjs",
+    "tools/phase2092/apply-controlled-existing-tool-mutation.mjs",
+    "tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs",
+    "tools/phase2096_2100/apply-controlled-triple-tool-mutation.mjs",
+    "tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs",
+    "tools/phase2111_2120/apply-controlled-quint-tool-mutation.mjs",
+    "tools/phase2121_2131/apply-controlled-sext-tool-mutation.mjs",
+    "tools/phase2132_2143/apply-controlled-sept-tool-mutation.mjs",
+    "tools/phase2144_2156/apply-controlled-oct-tool-mutation.mjs",
+    "tools/phase2157_2170/apply-controlled-nonet-tool-mutation.mjs",
+    "tools/phase2171_2185/apply-controlled-deca-tool-mutation.mjs",
+    "tools/phase2186_2201/apply-controlled-eleven-tool-mutation.mjs",
+    "tools/phase2202_2218/apply-controlled-twelve-tool-mutation.mjs",
+    "tools/phase2219_2236/apply-controlled-thirteen-tool-mutation.mjs",
+    "tools/phase2237_2255/apply-controlled-fourteen-tool-mutation.mjs",
+    "tools/phase2256_2275/apply-controlled-fifteen-tool-mutation.mjs",
+    "tools/phase2276_2296/apply-controlled-sixteen-tool-mutation.mjs"
+],
+    requiredForbiddenPaths: [
+      "legacy",
+      "PROJECT_CONTEXT.md",
+      ".env",
+      ".git",
+      "node_modules",
+      "auth.json",
+    ],
+    requiredTargets: [
+    "tools/phase2091/generated-source-patch-target.mjs",
+    "tools/phase2092/apply-controlled-existing-tool-mutation.mjs",
+    "tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs",
+    "tools/phase2096_2100/apply-controlled-triple-tool-mutation.mjs",
+    "tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs",
+    "tools/phase2111_2120/apply-controlled-quint-tool-mutation.mjs",
+    "tools/phase2121_2131/apply-controlled-sext-tool-mutation.mjs",
+    "tools/phase2132_2143/apply-controlled-sept-tool-mutation.mjs",
+    "tools/phase2144_2156/apply-controlled-oct-tool-mutation.mjs",
+    "tools/phase2157_2170/apply-controlled-nonet-tool-mutation.mjs",
+    "tools/phase2171_2185/apply-controlled-deca-tool-mutation.mjs",
+    "tools/phase2186_2201/apply-controlled-eleven-tool-mutation.mjs",
+    "tools/phase2202_2218/apply-controlled-twelve-tool-mutation.mjs",
+    "tools/phase2219_2236/apply-controlled-thirteen-tool-mutation.mjs",
+    "tools/phase2237_2255/apply-controlled-fourteen-tool-mutation.mjs",
+    "tools/phase2256_2275/apply-controlled-fifteen-tool-mutation.mjs",
+    "tools/phase2276_2296/apply-controlled-sixteen-tool-mutation.mjs"
+],
+    upstreamChecks: [
+      {
+        id: "phase632_preflight",
+        path: "apps/ai-gateway-service/evidence/phase632i/token-saving-preflight-run.json",
+        predicate: (evidence) => evidence.preflightPassed === true && evidence.staleFalse === true,
+        blocker: "phase632_preflight_not_passed",
+      },
+      {
+        id: "phase2296_sealed",
+        path: "apps/ai-gateway-service/evidence/phase2276-2296-controlled-sixteen-tool-mutation/result.json",
+        predicate: (evidence) => evidence.recommendedSealed === true && evidence.sixteenMutationApplied === true,
+        blocker: "phase2296_not_sealed",
+      },
+    ],
+    forbiddenPathFragments: defaultForbiddenPathFragments,
+  });
+}
+
+function buildExtraValidators(targetPath) {
+  const importSafeGuard = (content) =>
+    content.includes("pathToFileURL(process.argv[1]).href") ? null : "import_safe_main_guard_missing";
+  const mainExportGuard = (content) => (content.includes("export function main()") ? null : "main_export_missing");
+
+  if (targetPath === "tools/phase2091/generated-source-patch-target.mjs") return [importSafeGuard];
+  if ([
+    "tools/phase2092/apply-controlled-existing-tool-mutation.mjs",
+    "tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs",
+    "tools/phase2096_2100/apply-controlled-triple-tool-mutation.mjs",
+    "tools/phase2101_2110/apply-controlled-quad-tool-mutation.mjs",
+    "tools/phase2111_2120/apply-controlled-quint-tool-mutation.mjs",
+    "tools/phase2121_2131/apply-controlled-sext-tool-mutation.mjs",
+    "tools/phase2132_2143/apply-controlled-sept-tool-mutation.mjs",
+    "tools/phase2144_2156/apply-controlled-oct-tool-mutation.mjs",
+    "tools/phase2157_2170/apply-controlled-nonet-tool-mutation.mjs",
+    "tools/phase2171_2185/apply-controlled-deca-tool-mutation.mjs",
+    "tools/phase2186_2201/apply-controlled-eleven-tool-mutation.mjs",
+    "tools/phase2202_2218/apply-controlled-twelve-tool-mutation.mjs",
+    "tools/phase2219_2236/apply-controlled-thirteen-tool-mutation.mjs",
+    "tools/phase2237_2255/apply-controlled-fourteen-tool-mutation.mjs",
+    "tools/phase2256_2275/apply-controlled-fifteen-tool-mutation.mjs",
+    "tools/phase2276_2296/apply-controlled-sixteen-tool-mutation.mjs"
+].includes(targetPath)) return [importSafeGuard, mainExportGuard];
+  return [];
+}
+
+function buildBaseResult({ plan, validation, generatedAt, planPath }) {
+  return {
+    phaseId,
+    generatedAt,
+    planPath,
+    planId: plan?.planId || null,
+    approvalRecordRequired: true,
+    allowedFilesRequired: true,
+    forbiddenPathsEnforced: true,
+    validation,
+    phase632PreflightPassed: validation.upstreamResults.some((entry) => entry.id === "phase632_preflight" && entry.passed),
+    phase2296Sealed: validation.upstreamResults.some((entry) => entry.id === "phase2296_sealed" && entry.passed),
+    codexExecExecuted: false,
+    providerCallsMade: false,
+    projectProviderCallsMade: false,
+    secretRead: false,
+    envRead: false,
+    authJsonRead: false,
+    chatModified: false,
+    chatGatewayExecuteModified: false,
+    workspaceCleanClaimed: false,
+  };
+}
+
+function parseArgs(argv) {
+  const args = {};
+  for (let index = 0; index < argv.length; index += 1) {
+    if (argv[index] === "--plan") {
+      args.plan = argv[index + 1];
+      index += 1;
+    }
+  }
+  return args;
+}
+
+function renderMarkdown(result) {
+  return [
+    "# Phase2297A-2318A Controlled Seventeen Tool Mutation Evidence",
+    "",
+    `- status: ${result.status}`,
+    `- recommendedSealed: ${Boolean(result.recommendedSealed)}`,
+    `- blocker: ${result.blocker}`,
+    `- seventeenMutationApplied: ${Boolean(result.seventeenMutationApplied)}`,
+    `- changedFileCount: ${result.changedFileCount || 0}`,
+    `- nodeCheckPassed: ${Boolean(result.nodeCheckPassed)}`,
+    `- localSeventeenSmokePassed: ${Boolean(result.localSeventeenSmokePassed)}`,
+    `- rollbackAvailable: ${Boolean(result.rollbackAvailable)}`,
+    `- codexExecExecuted: ${Boolean(result.codexExecExecuted)}`,
+    `- providerCallsMade: ${Boolean(result.providerCallsMade)}`,
+    `- chatModified: ${Boolean(result.chatModified)}`,
+    `- chatGatewayExecuteModified: ${Boolean(result.chatGatewayExecuteModified)}`,
+    `- commitCreated: ${Boolean(result.commitCreated)}`,
+    `- pushExecuted: ${Boolean(result.pushExecuted)}`,
+    `- workspaceCleanClaimed: ${Boolean(result.workspaceCleanClaimed)}`,
+    "",
+  ].join("\n");
+}
+
+function printSummary(result) {
+  console.log(JSON.stringify({
+    status: result.status,
+    blocker: result.blocker,
+    seventeenMutationApplied: result.seventeenMutationApplied,
+    changedFileCount: result.changedFileCount,
+    nodeCheckPassed: result.nodeCheckPassed,
+    localSeventeenSmokePassed: result.localSeventeenSmokePassed,
+    providerCallsMade: result.providerCallsMade,
+  }, null, 2));
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main();
+}

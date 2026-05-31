@@ -1,0 +1,63 @@
+import { verifyCodexOneShotReadinessPhase } from "./verifyCodexOneShotReadinessSupport.js";
+
+await verifyCodexOneShotReadinessPhase({
+  phase: "phase-263a-codex-one-shot-ui-readiness-panel",
+  docPath: "docs/CODEX_ONE_SHOT_UI_READINESS_PANEL.md",
+  verifierPath: "apps/ai-gateway-service/src/entrypoints/verifyCodexOneShotUiReadinessPanel.js",
+  rootScriptName: "verify:phase263a-codex-one-shot-ui-readiness-panel",
+  serviceScriptValue: "node ./src/entrypoints/verifyCodexOneShotUiReadinessPanel.js",
+  requiredDocSections: [
+    "# Codex One-shot UI Readiness Panel",
+    "## 1. Required UI Status",
+    "## 2. Operator Meaning",
+    "## 3. Required Preflight Checks",
+    "## 4. Required Evidence",
+    "## 5. Go / No-go Decision",
+    "## 6. UI Prompt",
+  ],
+  requiredDocMarkers: [
+    "One-shot readiness is preview-only",
+    "executionEnabled=false",
+    "Codex exec not invoked",
+    "Worktree not created",
+    "Workflow runner not connected",
+    "Commit/push disabled",
+    "Approval-preview is not execution permission",
+    "Required preflight checks",
+    "Required evidence",
+    "Go/no-go decision",
+  ],
+  requiredUiMarkers: [
+    "phase263a-codex-one-shot-ui-readiness-panel",
+    "One-shot readiness is preview-only",
+    "executionEnabled=false",
+    "Codex exec not invoked",
+    "Worktree not created",
+    "Workflow runner not connected",
+    "Commit/push disabled",
+    "Approval-preview is not execution permission",
+    "Required preflight checks",
+    "Required evidence",
+    "Go/no-go decision",
+  ],
+  requiredVerificationCommands: [
+    "cmd /c pnpm run verify:phase263a-codex-one-shot-ui-readiness-panel",
+  ],
+  requiredEvidenceStatusPaths: [
+    "apps/ai-gateway-service/evidence/phase-262a-codex-rollback-stop-rules.json",
+  ],
+  conclusionPassed: "codex-one-shot-ui-readiness-panel-preview-ready",
+  conclusionFailed: "codex-one-shot-ui-readiness-panel-preview-incomplete",
+  capabilityList: [
+    "ui-readiness-panel",
+    "preview-only-status",
+    "execution-disabled-status",
+    "codex-not-invoked-status",
+    "worktree-runner-disabled-status",
+    "go-no-go-status",
+  ],
+  notes: [
+    "Phase 263A displays one-shot readiness status in the Personal Operator Console.",
+    "The UI panel keeps real execution disabled.",
+  ],
+});

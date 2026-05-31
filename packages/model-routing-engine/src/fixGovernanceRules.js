@@ -1,0 +1,12 @@
+export function buildFixGovernanceRules() {
+  return {
+    fixMustHaveIssueId: true,
+    fixMustHaveEvidenceRef: true,
+    fixMustHaveRollbackPlan: true,
+    fixMustHaveRegressionCommand: true,
+    p0p1RequireExplicitApproval: true,
+    providerSecretChatDeploySelectableRequireSeparateGate: true,
+    uiCopyDocsLowRiskCanBeBatchedLater: true,
+    actualFixesAppliedThisPhase: false
+  };
+}

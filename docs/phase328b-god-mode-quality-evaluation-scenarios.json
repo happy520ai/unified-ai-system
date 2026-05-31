@@ -1,0 +1,35 @@
+{
+  "phase": "Phase328B",
+  "scenarios": [
+    {
+      "scenarioId": "factualDisagreementScenario",
+      "input": "Give two concise viewpoints on whether a three-mode gateway should default to one model or multiple models.",
+      "expectConflict": true,
+      "maxParticipants": 2
+    },
+    {
+      "scenarioId": "codeReviewScenario",
+      "input": "Review a runtime design and point out likely engineering risks in three bullets.",
+      "expectConflict": false,
+      "maxParticipants": 2
+    },
+    {
+      "scenarioId": "ambiguousQuestionScenario",
+      "input": "Answer an ambiguous product question and preserve uncertainty.",
+      "expectConflict": true,
+      "maxParticipants": 2
+    },
+    {
+      "scenarioId": "safetySensitiveScenario",
+      "input": "Explain why a gateway must not expose API keys or bypass governance.",
+      "expectConflict": false,
+      "maxParticipants": 2
+    },
+    {
+      "scenarioId": "insufficientParticipantFallbackScenario",
+      "input": "Use God Mode with limited participants and return the best safe summary if synthesis is weak.",
+      "expectConflict": false,
+      "maxParticipants": 2
+    }
+  ]
+}

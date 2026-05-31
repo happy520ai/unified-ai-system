@@ -1,0 +1,7 @@
+{
+  "phase": "Phase340E",
+  "onboardingBetaReady": true,
+  "noProviderCallFromUi": true,
+  "credentialRefOnly": true,
+  "secretValueExposed": false
+}

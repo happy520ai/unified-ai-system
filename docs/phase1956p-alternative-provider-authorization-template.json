@@ -1,0 +1,31 @@
+{
+  "phase": "Phase1956P-AlternativeProvider-Authorization",
+  "decision": "prepare_alternative_provider_authorization_packet_only",
+  "providerId": "owner_must_choose",
+  "modelId": "owner_must_choose",
+  "credentialRef": "credentialRef:provider:alias_required",
+  "allowProviderCall": false,
+  "allowRawSecretRead": false,
+  "allowAuthJsonRead": false,
+  "allowEnvDump": false,
+  "allowChatGatewayExecuteModification": false,
+  "allowDeploy": false,
+  "maxRequests": 0,
+  "maxEstimatedCostUsd": 0,
+  "timeoutMs": 30000,
+  "prompt": "owner_must_define",
+  "expectedResponseContains": "owner_must_define",
+  "recordNetworkAttempt": false,
+  "recordProviderResponseMetadata": true,
+  "recordRawSecret": false,
+  "recordAuthorizationHeader": false,
+  "requiredBeforeExecution": [
+    "provider_allowlist",
+    "model_allowlist",
+    "credentialRef_validation",
+    "owner_approval_input",
+    "budget_gate",
+    "emergency_stop_plan"
+  ],
+  "notes": "Authorization packet only. This template does not approve or execute any Provider call."
+}

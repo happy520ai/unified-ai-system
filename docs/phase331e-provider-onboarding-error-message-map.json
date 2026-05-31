@@ -1,0 +1,7 @@
+{
+  "phase": "Phase331E",
+  "RAW_SECRET_REJECTED": "This looks like a secret value. Enter only the credential reference name.",
+  "CREDENTIAL_REF_MISSING": "A credential reference is required before validation can continue.",
+  "UNSUPPORTED_PROVIDER": "This provider is not enabled for limited beta onboarding.",
+  "PRODUCTION_ENABLEMENT_BLOCKED_FROM_BETA_UI": "Production enablement is blocked from the limited beta UI."
+}

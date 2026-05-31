@@ -1,0 +1,58 @@
+{
+  "decision": "approved_execute_phase966_970_god_mode_marker_rerun",
+  "approvalOwner": "human-user",
+  "approvalReason": "Small-scope rerun for god_dual_reviewer marker mismatch after Phase961-965 audit.",
+  "providerAllowlist": [
+    "nvidia"
+  ],
+  "credentialRef": "credentialRef:nvidia:default",
+  "credentialRefOnly": true,
+  "targetScenario": "god_dual_reviewer",
+  "allowedModes": [
+    "god"
+  ],
+  "modelEligibility": {
+    "requireSelectable": true,
+    "requireSmokePassed": true,
+    "blockFailed": true,
+    "blockHighRisk": true,
+    "blockDeprecated": true,
+    "blockCredentialMissing": true
+  },
+  "maxTotalProviderRequests": 4,
+  "maxRequestsPerModel": 2,
+  "maxRetriesPerRequest": 0,
+  "maxEstimatedCostUsdTotal": 0.25,
+  "allowProviderCall": true,
+  "allowSecretRead": false,
+  "allowAuthJsonRead": false,
+  "allowDeploy": false,
+  "allowRelease": false,
+  "allowTag": false,
+  "allowArtifactUpload": false,
+  "allowChatDefaultEnable": false,
+  "allowChatGatewayExecuteDefaultEnable": false,
+  "allowChatMutation": false,
+  "allowChatGatewayExecuteMutation": false,
+  "allowCodexConfigMutation": false,
+  "expiresAt": "2026-05-14T23:59:00+09:00",
+  "acknowledgements": {
+    "notProductionTraffic": true,
+    "notDeploy": true,
+    "notRelease": true,
+    "notHumanReview": true,
+    "codexSurrogateTestingOnly": true,
+    "credentialRefOnly": true,
+    "rawSecretMustNotBePrinted": true,
+    "authJsonMustNotBeRead": true,
+    "externalProviderTraceRequired": true,
+    "maxRequestsMustBeRespected": true,
+    "maxRetriesMustBeZero": true,
+    "budgetMustBeRespected": true,
+    "failedBlockedHighRiskModelsExcluded": true,
+    "selectableMustNotChange": true,
+    "oldEvidenceMustNotBeMutated": true,
+    "evidenceRequired": true,
+    "rollbackRequired": true
+  }
+}

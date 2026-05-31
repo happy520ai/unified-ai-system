@@ -1,0 +1,339 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://unified-ai-system.local/schemas/phase1302a/neural-op.schema.json",
+  "title": "Phase1302A Neural-op Manifest Schema",
+  "description": "Schema-only manifest for Neural Fabric operations. It describes capability intent, adapters, routing, evidence, and safety boundaries without enabling runtime execution.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "kind",
+    "id",
+    "displayName",
+    "opType",
+    "capabilityBucket",
+    "executionPolicy",
+    "evidencePolicy",
+    "safety"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "phase1302a.v1"
+    },
+    "kind": {
+      "type": "string",
+      "const": "neural-op"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{2,120}$"
+    },
+    "displayName": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "description": {
+      "type": "string",
+      "maxLength": 1200
+    },
+    "opType": {
+      "type": "string",
+      "enum": [
+        "adapter",
+        "router",
+        "policy",
+        "evidence",
+        "capability-manifest"
+      ]
+    },
+    "capabilityBucket": {
+      "type": "string",
+      "enum": [
+        "chat",
+        "reasoning_chat",
+        "code",
+        "workflow",
+        "retrieval",
+        "translation",
+        "safety",
+        "routing",
+        "evidence",
+        "unknown"
+      ]
+    },
+    "adapterAtoms": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/adapterAtom"
+      },
+      "default": []
+    },
+    "routerOps": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/routerOp"
+      },
+      "default": []
+    },
+    "weightAtomRefs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9._-]{2,120}$"
+      },
+      "default": []
+    },
+    "executionPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "modelExecutionAllowed",
+        "providerCallsAllowed",
+        "trainingAllowed",
+        "modelDownloadAllowed",
+        "mainChainIntegrationAllowed",
+        "dryRunOnly"
+      ],
+      "properties": {
+        "modelExecutionAllowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "providerCallsAllowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "trainingAllowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "modelDownloadAllowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "mainChainIntegrationAllowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "dryRunOnly": {
+          "type": "boolean",
+          "const": true
+        }
+      }
+    },
+    "evidencePolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "evidenceRequired",
+        "evidenceIdRequired",
+        "statusValues"
+      ],
+      "properties": {
+        "evidenceRequired": {
+          "type": "boolean",
+          "const": true
+        },
+        "evidenceIdRequired": {
+          "type": "boolean",
+          "const": true
+        },
+        "statusValues": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "spec_only",
+              "manual_review_required",
+              "blocked",
+              "deprecated"
+            ]
+          }
+        }
+      }
+    },
+    "safety": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "secretReadAllowed",
+        "authJsonReadAllowed",
+        "chatRouteMutationAllowed",
+        "chatGatewayExecuteMutationAllowed",
+        "selectableGateBypassAllowed"
+      ],
+      "properties": {
+        "secretReadAllowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "authJsonReadAllowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "chatRouteMutationAllowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "chatGatewayExecuteMutationAllowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "selectableGateBypassAllowed": {
+          "type": "boolean",
+          "const": false
+        }
+      }
+    }
+  },
+  "$defs": {
+    "adapterAtom": {
+      "title": "Phase1302A Adapter-atom Schema",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id",
+        "adapterType",
+        "inputContract",
+        "outputContract",
+        "runtimeBoundary"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "adapter-atom"
+        },
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]{2,120}$"
+        },
+        "adapterType": {
+          "type": "string",
+          "enum": [
+            "provider-adapter",
+            "tool-adapter",
+            "ui-adapter",
+            "evidence-adapter",
+            "policy-adapter"
+          ]
+        },
+        "inputContract": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "outputContract": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "runtimeBoundary": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "runtimeEnabled",
+            "providerCallsAllowed",
+            "secretReadAllowed"
+          ],
+          "properties": {
+            "runtimeEnabled": {
+              "type": "boolean",
+              "const": false
+            },
+            "providerCallsAllowed": {
+              "type": "boolean",
+              "const": false
+            },
+            "secretReadAllowed": {
+              "type": "boolean",
+              "const": false
+            }
+          }
+        }
+      }
+    },
+    "routerOp": {
+      "title": "Phase1302A Router-op Schema",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id",
+        "routingMode",
+        "candidatePolicy",
+        "selectionGate",
+        "fallbackPolicy"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "router-op"
+        },
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]{2,120}$"
+        },
+        "routingMode": {
+          "type": "string",
+          "enum": [
+            "explain_only",
+            "dry_run_preview",
+            "manual_review_required"
+          ]
+        },
+        "candidatePolicy": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "selectionGate": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "requiresSmokePassed",
+            "requiresSelectableTrue",
+            "requiresDirectChatAllowed",
+            "allowsUnverified"
+          ],
+          "properties": {
+            "requiresSmokePassed": {
+              "type": "boolean",
+              "const": true
+            },
+            "requiresSelectableTrue": {
+              "type": "boolean",
+              "const": true
+            },
+            "requiresDirectChatAllowed": {
+              "type": "boolean",
+              "const": true
+            },
+            "allowsUnverified": {
+              "type": "boolean",
+              "const": false
+            }
+          }
+        },
+        "fallbackPolicy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "fallbackAllowed",
+            "providerCallAllowed"
+          ],
+          "properties": {
+            "fallbackAllowed": {
+              "type": "boolean"
+            },
+            "providerCallAllowed": {
+              "type": "boolean",
+              "const": false
+            }
+          }
+        }
+      }
+    }
+  }
+}

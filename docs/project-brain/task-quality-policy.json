@@ -1,0 +1,29 @@
+{
+  "phaseId": "Phase2034-GVC-Autonomous-Task-Quality-Gate",
+  "minAllowedTotalScore": 240,
+  "minOwnerValueScore": 70,
+  "minEngineeringValueScore": 70,
+  "minEvidenceValueScore": 60,
+  "maxDuplicateRiskScore": 35,
+  "maxStaleRiskScore": 45,
+  "blockDocsOnlyWhenLowValue": true,
+  "blockDuplicateLowValueTasks": true,
+  "recommendedActions": {
+    "allow": "allow",
+    "blockLowValue": "block_low_value",
+    "blockDuplicate": "block_duplicate",
+    "approvalRequired": "approval_required"
+  },
+  "hardForbiddenOperations": [
+    "provider_call",
+    "secret_read",
+    "deploy",
+    "release",
+    "tag",
+    "artifact_upload",
+    "push",
+    "commit",
+    "chat_modify",
+    "chat_gateway_execute_modify"
+  ]
+}

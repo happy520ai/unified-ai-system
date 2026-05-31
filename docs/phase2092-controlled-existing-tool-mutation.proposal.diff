@@ -1,0 +1,26 @@
+diff --git a/tools/phase2091/generated-source-patch-target.mjs b/tools/phase2091/generated-source-patch-target.mjs
+--- a/tools/phase2091/generated-source-patch-target.mjs
++++ b/tools/phase2091/generated-source-patch-target.mjs
+@@ -12,9 +12,22 @@ export function buildPhase2091SourcePatchStatus() {
+   };
+ }
+ 
++export function buildPhase2092ExistingToolMutationStatus() {
++  return {
++    phaseId: "Phase2092A-Controlled-Existing-Tool-Source-Mutation",
++    marker: "PHASE2092_EXISTING_TOOL_MUTATION_OK",
++    existingToolMutationApplied: true,
++    providerCallsMade: false,
++    codexExecExecuted: false,
++    chatModified: false,
++    chatGatewayExecuteModified: false,
++  };
++}
++
+ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+   console.log(JSON.stringify({
+     status: "passed",
+     ...buildPhase2091SourcePatchStatus(),
++    phase2092: buildPhase2092ExistingToolMutationStatus(),
+   }, null, 2));
+ }

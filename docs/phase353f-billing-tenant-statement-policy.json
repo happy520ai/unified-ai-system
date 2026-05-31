@@ -1,0 +1,29 @@
+{
+  "phase": "Phase353F",
+  "designType": "billing_tenant_statement_policy",
+  "result": {
+    "phase": "Phase353F",
+    "sourcePhase": "Phase352F",
+    "tenantBoundaryDefined": true,
+    "crossTenantAccessForbidden": true,
+    "tenantIsolationPolicyGenerated": true,
+    "statementPolicyRules": [
+      "statement_id_must_be_unique_within_tenant",
+      "estimate_only_exports_cannot_be_shared_cross_tenant",
+      "billing_review_evidence_is_tenant_scoped",
+      "legal_invoice_language_block_is_enforced_per_tenant"
+    ],
+    "paymentProviderConnected": false,
+    "actualBillingConnected": false,
+    "legalInvoiceGenerated": false,
+    "unresolvedSecurityBlockers": [
+      "missing_trace_field:requestId",
+      "missing_trace_field:statementId",
+      "missing_trace_field:estimateOnly",
+      "estimate_only_trace_required_before_candidate_signoff",
+      "legal_invoice_language_must_remain_blocked"
+    ],
+    "productionGA": false,
+    "secretValueExposed": false
+  }
+}

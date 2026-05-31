@@ -1,0 +1,23 @@
+{
+  "phase": "Phase366E",
+  "items": [
+    "service health",
+    "setup readiness",
+    "/chat-gateway/execute health",
+    "Normal Mode smoke",
+    "God Mode smoke",
+    "Tianshu Mode smoke",
+    "provider governance",
+    "credentialRef gate",
+    "credential vault access policy",
+    "selectable gate",
+    "quota gate",
+    "budget gate",
+    "billing estimate-only warning",
+    "no real invoice claim",
+    "secret safety",
+    "UI quick chat",
+    "rollback trigger readiness",
+    "monitoring signal presence"
+  ]
+}

@@ -1,0 +1,290 @@
+{
+  "phase": "Phase326B",
+  "runtimeStatus": "design_only",
+  "normalModeRequestExample": {
+    "requestId": "req-normal-001",
+    "userId": "user-001",
+    "mode": "normal",
+    "input": {
+      "content": "Summarize this design note.",
+      "taskType": "writing",
+      "language": "en"
+    },
+    "modelSelection": {
+      "userSelectedModel": "user-model-a",
+      "allowSystemModelSelection": false
+    },
+    "providerCredentialPolicy": {
+      "requiresUserOwnedApiKey": true,
+      "credentialRefOnly": true,
+      "secretValueAllowed": false,
+      "allowedCredentialRefTypes": [
+        "env_name",
+        "vault_ref"
+      ]
+    },
+    "executionPolicy": {
+      "maxModels": 1,
+      "allowFallback": false,
+      "allowParallelExecution": false,
+      "allowCrossReview": false,
+      "allowPlanner": false
+    },
+    "audit": {
+      "traceEnabled": true,
+      "includeModelContributions": false,
+      "includePlannerDecision": false
+    },
+    "safety": {
+      "noUnconfiguredProviderCall": true,
+      "noSecretValueInPayload": true,
+      "runtimeStage": "design_only"
+    }
+  },
+  "normalModeResponseExample": {
+    "requestId": "req-normal-001",
+    "mode": "normal",
+    "status": "dry_run_only",
+    "finalAnswer": "Design-only response example.",
+    "selectedModel": {
+      "modelId": "user-model-a",
+      "providerId": "user-provider-a",
+      "selectionReason": "user_selected"
+    },
+    "auditTrace": {
+      "runtimeStage": "design_only",
+      "providerCallsMade": false,
+      "nonNvidiaProviderCallsMade": false,
+      "secretValueExposed": false
+    },
+    "fallback": {
+      "fallbackUsed": false,
+      "fallbackReason": "",
+      "fallbackModel": ""
+    }
+  },
+  "godModeRequestExample": {
+    "requestId": "req-god-001",
+    "userId": "user-001",
+    "mode": "god",
+    "input": {
+      "content": "Analyze this architecture choice.",
+      "taskType": "reasoning",
+      "language": "en"
+    },
+    "modelSelection": {
+      "participantModels": [
+        "user-model-a",
+        "user-model-b",
+        "user-model-c"
+      ],
+      "allowSystemModelSelection": true,
+      "selectionPolicy": "user_configured_only"
+    },
+    "providerCredentialPolicy": {
+      "requiresUserOwnedApiKey": true,
+      "credentialRefOnly": true,
+      "secretValueAllowed": false,
+      "allowedCredentialRefTypes": [
+        "env_name",
+        "vault_ref"
+      ]
+    },
+    "executionPolicy": {
+      "maxModels": 4,
+      "allowFallback": false,
+      "allowParallelExecution": true,
+      "allowCrossReview": true,
+      "allowPlanner": false
+    },
+    "audit": {
+      "traceEnabled": true,
+      "includeModelContributions": true,
+      "includePlannerDecision": false
+    },
+    "safety": {
+      "noUnconfiguredProviderCall": true,
+      "noSecretValueInPayload": true,
+      "runtimeStage": "shadow_config"
+    }
+  },
+  "godModeResponseExample": {
+    "requestId": "req-god-001",
+    "mode": "god",
+    "status": "dry_run_only",
+    "finalAnswer": "Supervisor draft summary.",
+    "participantModels": [
+      {
+        "modelId": "user-model-a",
+        "role": "primary_responder",
+        "status": "planned",
+        "contributionSummary": "Initial draft"
+      },
+      {
+        "modelId": "user-model-b",
+        "role": "critic",
+        "status": "planned",
+        "contributionSummary": "Review draft"
+      }
+    ],
+    "supervisorDecision": {
+      "resolvedConflicts": [
+        "conflict-001"
+      ],
+      "synthesisStrategy": "review_then_summarize",
+      "confidenceSummary": "medium"
+    },
+    "auditTrace": {
+      "runtimeStage": "shadow_config",
+      "providerCallsMade": false,
+      "nonNvidiaProviderCallsMade": false,
+      "secretValueExposed": false
+    }
+  },
+  "tianshuModeRequestExample": {
+    "requestId": "req-tianshu-001",
+    "userId": "user-001",
+    "mode": "tianshu",
+    "input": {
+      "content": "Plan a coding and review workflow.",
+      "taskType": "planning",
+      "language": "en"
+    },
+    "modelSelection": {
+      "allowSystemModelSelection": true,
+      "selectionPolicy": "planner_controlled"
+    },
+    "providerCredentialPolicy": {
+      "requiresUserOwnedApiKey": true,
+      "credentialRefOnly": true,
+      "secretValueAllowed": false,
+      "allowedCredentialRefTypes": [
+        "env_name",
+        "vault_ref"
+      ]
+    },
+    "executionPolicy": {
+      "maxModels": 4,
+      "allowFallback": true,
+      "allowParallelExecution": true,
+      "allowCrossReview": false,
+      "allowPlanner": true
+    },
+    "audit": {
+      "traceEnabled": true,
+      "includeModelContributions": true,
+      "includePlannerDecision": true
+    },
+    "safety": {
+      "noUnconfiguredProviderCall": true,
+      "noSecretValueInPayload": true,
+      "runtimeStage": "shadow_config_only"
+    }
+  },
+  "tianshuModeResponseExample": {
+    "requestId": "req-tianshu-001",
+    "mode": "tianshu",
+    "status": "dry_run_only",
+    "finalAnswer": "Planner-only draft response.",
+    "plannerDecision": {
+      "taskType": "planning",
+      "capabilityRequirements": [
+        "planning",
+        "coding"
+      ],
+      "candidateModels": [
+        "user-model-a",
+        "user-model-b"
+      ],
+      "selectedExecutionPlan": "single_model",
+      "decisionReason": "highest capability match in allowed set"
+    },
+    "auditTrace": {
+      "runtimeStage": "shadow_config_only",
+      "providerCallsMade": false,
+      "nonNvidiaProviderCallsMade": false,
+      "secretValueExposed": false
+    }
+  },
+  "rejectedSecretValueExample": {
+    "requestId": "req-reject-secret-001",
+    "mode": "normal",
+    "status": "rejected",
+    "error": {
+      "code": "SECRET_VALUE_FORBIDDEN",
+      "message": "Secret values are forbidden in contract payloads.",
+      "recoverable": true
+    },
+    "auditTrace": {
+      "runtimeStage": "design_only",
+      "providerCallsMade": false,
+      "nonNvidiaProviderCallsMade": false,
+      "secretValueExposed": false
+    }
+  },
+  "rejectedUnconfiguredProviderExample": {
+    "requestId": "req-reject-provider-001",
+    "mode": "god",
+    "status": "rejected",
+    "error": {
+      "code": "PROVIDER_GOVERNANCE_REJECTED",
+      "message": "Unconfigured provider usage is forbidden.",
+      "recoverable": true
+    },
+    "auditTrace": {
+      "runtimeStage": "shadow_config",
+      "providerCallsMade": false,
+      "nonNvidiaProviderCallsMade": false,
+      "secretValueExposed": false
+    }
+  },
+  "plannerNoDecisionExample": {
+    "requestId": "req-planner-nodecision-001",
+    "mode": "tianshu",
+    "status": "rejected",
+    "plannerDecision": {
+      "taskType": "research",
+      "capabilityRequirements": [
+        "research",
+        "long_context"
+      ],
+      "candidateModels": [],
+      "selectedExecutionPlan": "reject",
+      "decisionReason": "no eligible user-configured model"
+    },
+    "error": {
+      "code": "PLANNER_NO_DECISION",
+      "message": "Planner could not produce an eligible decision.",
+      "recoverable": true
+    },
+    "auditTrace": {
+      "runtimeStage": "shadow_config_only",
+      "providerCallsMade": false,
+      "nonNvidiaProviderCallsMade": false,
+      "secretValueExposed": false
+    }
+  },
+  "supervisorConflictExample": {
+    "requestId": "req-god-conflict-001",
+    "mode": "god",
+    "status": "partial_success",
+    "finalAnswer": "Supervisor could not fully resolve the conflict.",
+    "supervisorDecision": {
+      "resolvedConflicts": [],
+      "synthesisStrategy": "preserve_disagreement",
+      "confidenceSummary": "low"
+    },
+    "error": {
+      "code": "SUPERVISOR_CONFLICT_UNRESOLVED",
+      "message": "Model disagreement remains unresolved.",
+      "recoverable": true
+    },
+    "auditTrace": {
+      "runtimeStage": "shadow_config",
+      "providerCallsMade": false,
+      "nonNvidiaProviderCallsMade": false,
+      "secretValueExposed": false
+    }
+  }
+}
+

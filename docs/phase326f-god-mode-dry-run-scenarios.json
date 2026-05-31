@@ -1,0 +1,79 @@
+{
+  "phase": "Phase326F",
+  "runtimeStatus": "dry_run_without_provider_call",
+  "scenarios": [
+    {
+      "scenarioId": "codingAnswerReviewScenario",
+      "mode": "god",
+      "runtimeStatus": "dry_run_without_provider_call",
+      "input": "Review a proposed code fix for correctness and missing tests.",
+      "participantModelsStub": [
+        "user-model-a",
+        "user-model-b",
+        "user-model-c"
+      ],
+      "expectedPipeline": [
+        "task_intake",
+        "participant_selection",
+        "parallel_draft_generation",
+        "cross_review",
+        "conflict_detection",
+        "confidence_synthesis",
+        "supervisor_synthesis",
+        "audit_trace"
+      ],
+      "providerCallsAllowed": false,
+      "nonNvidiaProviderCallsAllowed": false,
+      "secretValueAllowed": false
+    },
+    {
+      "scenarioId": "factualConflictScenario",
+      "mode": "god",
+      "runtimeStatus": "dry_run_without_provider_call",
+      "input": "Resolve conflicting model claims about an architecture tradeoff.",
+      "participantModelsStub": [
+        "user-model-a",
+        "user-model-b",
+        "user-model-c"
+      ],
+      "expectedPipeline": [
+        "task_intake",
+        "participant_selection",
+        "parallel_draft_generation",
+        "cross_review",
+        "conflict_detection",
+        "confidence_synthesis",
+        "supervisor_synthesis",
+        "audit_trace"
+      ],
+      "providerCallsAllowed": false,
+      "nonNvidiaProviderCallsAllowed": false,
+      "secretValueAllowed": false
+    },
+    {
+      "scenarioId": "safetyGuardScenario",
+      "mode": "god",
+      "runtimeStatus": "dry_run_without_provider_call",
+      "input": "Check whether a task may expose secrets or route to unauthorized providers.",
+      "participantModelsStub": [
+        "user-model-a",
+        "user-model-b",
+        "user-model-c"
+      ],
+      "expectedPipeline": [
+        "task_intake",
+        "participant_selection",
+        "parallel_draft_generation",
+        "cross_review",
+        "conflict_detection",
+        "confidence_synthesis",
+        "supervisor_synthesis",
+        "audit_trace"
+      ],
+      "providerCallsAllowed": false,
+      "nonNvidiaProviderCallsAllowed": false,
+      "secretValueAllowed": false
+    }
+  ]
+}
+

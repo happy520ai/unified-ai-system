@@ -1,0 +1,12 @@
+{
+  "phase": "Phase341B",
+  "betaMonitoringReady": true,
+  "alertEscalationDryRunOnly": true,
+  "externalAlertIntegration": false,
+  "autoNotificationEnabled": false,
+  "escalationPolicy": [
+    "internal_review_note",
+    "manual_regression_rerun",
+    "freeze_cohort_expansion"
+  ]
+}

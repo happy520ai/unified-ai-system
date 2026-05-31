@@ -1,0 +1,21 @@
+{
+  "phase": "Phase339F",
+  "scenarios": [
+    {
+      "id": "timezoneEdgeCasesCovered",
+      "status": "passed"
+    },
+    {
+      "id": "mockStatementOnly",
+      "status": "passed"
+    },
+    {
+      "id": "noLegalInvoiceClaim",
+      "status": "passed"
+    },
+    {
+      "id": "noActualBillingClaim",
+      "status": "passed"
+    }
+  ]
+}

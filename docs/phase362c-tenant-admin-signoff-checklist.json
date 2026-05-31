@@ -1,0 +1,35 @@
+{
+  "phase": "Phase362C",
+  "packageName": "tenant-admin-signoff-follow-up-package",
+  "tenantAdminApprovalPresent": false,
+  "reviewerChecklistIdPresent": false,
+  "signoffVerified": false,
+  "tenantScopeReviewed": false,
+  "allowedProvidersReviewed": false,
+  "allowedModelsReviewed": false,
+  "quotaBudgetPolicyReviewed": false,
+  "userOwnedProviderBoundaryReviewed": false,
+  "credentialRefBoundaryReviewed": false,
+  "billingEstimateOnlyReviewed": false,
+  "noRealInvoiceReviewed": false,
+  "noDeployBoundaryReviewed": false,
+  "rollbackPlanReviewed": false,
+  "adminApproverRequired": true,
+  "requiredRecords": [
+    "tenant_admin_approval",
+    "reviewerChecklistId"
+  ],
+  "missingRecords": [
+    "tenant_admin_approval",
+    "reviewerChecklistId"
+  ],
+  "followUpActions": [
+    "request tenant admin approval",
+    "request reviewer checklist id"
+  ],
+  "safety": {
+    "approvalForged": false,
+    "deployAuthorized": false,
+    "secretValueExposed": false
+  }
+}

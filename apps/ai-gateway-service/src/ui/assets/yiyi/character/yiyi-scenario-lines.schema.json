@@ -1,0 +1,19 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Yiyi Scenario Lines",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": ["scenarioId", "emotionState", "behaviorState", "tone", "lines", "forbiddenClaims", "providerCallsMade", "secretValueExposed"],
+    "properties": {
+      "scenarioId": { "type": "string" },
+      "emotionState": { "type": "string" },
+      "behaviorState": { "type": "string" },
+      "tone": { "type": "string" },
+      "lines": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+      "forbiddenClaims": { "type": "array", "items": { "type": "string" } },
+      "providerCallsMade": { "type": "boolean", "const": false },
+      "secretValueExposed": { "type": "boolean", "const": false }
+    }
+  }
+}

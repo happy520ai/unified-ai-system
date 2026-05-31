@@ -1,0 +1,29 @@
+{
+  "feedbackSource": "owner",
+  "ownerName": "",
+  "isRealManualTrial": true,
+  "trialDate": "YYYY-MM-DD",
+  "trialDurationMinutes": 0,
+  "chromeUsed": true,
+  "targetUrl": "http://127.0.0.1:3100/ui",
+  "walkedPaths": [
+    "initial screen",
+    "mission input",
+    "primary CTA preview",
+    "Normal / God / Tianshu cards",
+    "details collapsed",
+    "details expanded",
+    "bottom status dock"
+  ],
+  "tasksTried": [],
+  "whatWorked": [],
+  "whatFailed": [],
+  "confusingPoints": [],
+  "bugsObserved": [],
+  "severitySuggestions": [],
+  "visualP2P3Suggestions": [],
+  "evidenceRefs": [],
+  "noEvidenceReason": "",
+  "readyForP2P3MicroFix": false,
+  "notes": ""
+}

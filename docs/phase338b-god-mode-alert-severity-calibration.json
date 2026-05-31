@@ -1,0 +1,20 @@
+{
+  "phase": "Phase338B",
+  "alertSeverityCalibrated": true,
+  "staticWorkflowOnly": true,
+  "thresholds": [
+    {
+      "severity": "critical",
+      "condition": "secret_safety_or_unauthorized_provider_call"
+    },
+    {
+      "severity": "warning",
+      "condition": "benchmark_trend_regression_without_blocker"
+    },
+    {
+      "severity": "blocker",
+      "condition": "release_boundary_or_selectable_gate_bypass"
+    }
+  ],
+  "externalAlertIntegration": false
+}

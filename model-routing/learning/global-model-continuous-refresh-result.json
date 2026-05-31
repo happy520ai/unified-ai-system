@@ -1,0 +1,395 @@
+{
+  "phaseRange": "Phase881-900",
+  "globalModelRefreshContractReady": true,
+  "staleModelDetectorReady": true,
+  "modelHealthScoreReady": true,
+  "routingWeightUpdatePolicyReady": true,
+  "modelRetirementCandidatePolicyReady": true,
+  "providerAvailabilityWatchReady": true,
+  "catalogRefreshDryRunReady": true,
+  "smokeRefreshApprovalGateReady": true,
+  "continuousLearningEvidenceLedgerReady": true,
+  "taijiModelGrowthLoopReady": true,
+  "globalModelOpsDashboardReady": true,
+  "modelLibraryQualityScorecardReady": true,
+  "routeLearningRegressionReady": true,
+  "costDriftGuardReady": true,
+  "providerRiskDriftGuardReady": true,
+  "offlineOpsRunbookReady": true,
+  "nextExpansionPlanReady": true,
+  "finalIntegratedEvidenceAuditReady": true,
+  "globalModelContinuousRefreshReady": true,
+  "routingLearningReady": true,
+  "healthScores": [
+    {
+      "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1",
+      "providerId": "nvidia",
+      "healthScore": 80,
+      "staleEvidence": false,
+      "retirementCandidate": false,
+      "reasonCodes": [
+        "runtime_eligible",
+        "no_route_failure_observed"
+      ]
+    },
+    {
+      "modelId": "nvidia/llama-3.1-nemotron-nano-8b-v1",
+      "providerId": "nvidia",
+      "healthScore": 84,
+      "staleEvidence": false,
+      "retirementCandidate": false,
+      "reasonCodes": [
+        "runtime_eligible",
+        "route_failures_present"
+      ]
+    },
+    {
+      "modelId": "nvidia/nemotron-3-super-120b-a12b",
+      "providerId": "nvidia",
+      "healthScore": 80,
+      "staleEvidence": false,
+      "retirementCandidate": false,
+      "reasonCodes": [
+        "runtime_eligible",
+        "no_route_failure_observed"
+      ]
+    },
+    {
+      "modelId": "nvidia/nemotron-mini-4b-instruct",
+      "providerId": "nvidia",
+      "healthScore": 80,
+      "staleEvidence": false,
+      "retirementCandidate": false,
+      "reasonCodes": [
+        "runtime_eligible",
+        "no_route_failure_observed"
+      ]
+    },
+    {
+      "modelId": "abacusai/dracarys-llama-3.1-70b-instruct",
+      "providerId": "nvidia",
+      "healthScore": 50,
+      "staleEvidence": false,
+      "retirementCandidate": false,
+      "reasonCodes": [
+        "runtime_eligible",
+        "route_failures_present"
+      ]
+    },
+    {
+      "modelId": "meta/llama-3.1-70b-instruct",
+      "providerId": "nvidia",
+      "healthScore": 80,
+      "staleEvidence": false,
+      "retirementCandidate": false,
+      "reasonCodes": [
+        "runtime_eligible",
+        "no_route_failure_observed"
+      ]
+    },
+    {
+      "modelId": "meta/llama-3.1-8b-instruct",
+      "providerId": "nvidia",
+      "healthScore": 80,
+      "staleEvidence": false,
+      "retirementCandidate": false,
+      "reasonCodes": [
+        "runtime_eligible",
+        "no_route_failure_observed"
+      ]
+    },
+    {
+      "modelId": "meta/llama-3.3-70b-instruct",
+      "providerId": "nvidia",
+      "healthScore": 80,
+      "staleEvidence": false,
+      "retirementCandidate": false,
+      "reasonCodes": [
+        "runtime_eligible",
+        "no_route_failure_observed"
+      ]
+    },
+    {
+      "modelId": "microsoft/phi-4-mini-instruct",
+      "providerId": "nvidia",
+      "healthScore": 80,
+      "staleEvidence": false,
+      "retirementCandidate": false,
+      "reasonCodes": [
+        "runtime_eligible",
+        "no_route_failure_observed"
+      ]
+    },
+    {
+      "modelId": "deepseek-ai/deepseek-v4-pro",
+      "providerId": "nvidia",
+      "healthScore": 84,
+      "staleEvidence": false,
+      "retirementCandidate": false,
+      "reasonCodes": [
+        "runtime_eligible",
+        "route_failures_present"
+      ]
+    },
+    {
+      "modelId": "google/gemma-3n-e2b-it",
+      "providerId": "nvidia",
+      "healthScore": 80,
+      "staleEvidence": false,
+      "retirementCandidate": false,
+      "reasonCodes": [
+        "runtime_eligible",
+        "no_route_failure_observed"
+      ]
+    },
+    {
+      "modelId": "google/gemma-3n-e4b-it",
+      "providerId": "nvidia",
+      "healthScore": 100,
+      "staleEvidence": false,
+      "retirementCandidate": false,
+      "reasonCodes": [
+        "runtime_eligible",
+        "no_route_failure_observed"
+      ]
+    },
+    {
+      "modelId": "google/gemma-4-31b-it",
+      "providerId": "nvidia",
+      "healthScore": 80,
+      "staleEvidence": false,
+      "retirementCandidate": false,
+      "reasonCodes": [
+        "runtime_eligible",
+        "no_route_failure_observed"
+      ]
+    },
+    {
+      "modelId": "meta/llama-3.2-1b-instruct",
+      "providerId": "nvidia",
+      "healthScore": 80,
+      "staleEvidence": false,
+      "retirementCandidate": false,
+      "reasonCodes": [
+        "runtime_eligible",
+        "no_route_failure_observed"
+      ]
+    },
+    {
+      "modelId": "meta/llama-3.2-3b-instruct",
+      "providerId": "nvidia",
+      "healthScore": 80,
+      "staleEvidence": false,
+      "retirementCandidate": false,
+      "reasonCodes": [
+        "runtime_eligible",
+        "no_route_failure_observed"
+      ]
+    },
+    {
+      "modelId": "meta/llama-4-maverick-17b-128e-instruct",
+      "providerId": "nvidia",
+      "healthScore": 80,
+      "staleEvidence": false,
+      "retirementCandidate": false,
+      "reasonCodes": [
+        "runtime_eligible",
+        "no_route_failure_observed"
+      ]
+    },
+    {
+      "modelId": "minimaxai/minimax-m2.7",
+      "providerId": "nvidia",
+      "healthScore": 80,
+      "staleEvidence": false,
+      "retirementCandidate": false,
+      "reasonCodes": [
+        "runtime_eligible",
+        "no_route_failure_observed"
+      ]
+    }
+  ],
+  "routingWeightUpdates": [
+    {
+      "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1",
+      "providerId": "nvidia",
+      "previousWeight": 1,
+      "proposedWeight": 0.8,
+      "applyAutomatically": false,
+      "reason": "dry_run_learning_signal"
+    },
+    {
+      "modelId": "nvidia/llama-3.1-nemotron-nano-8b-v1",
+      "providerId": "nvidia",
+      "previousWeight": 1,
+      "proposedWeight": 0.84,
+      "applyAutomatically": false,
+      "reason": "dry_run_learning_signal"
+    },
+    {
+      "modelId": "nvidia/nemotron-3-super-120b-a12b",
+      "providerId": "nvidia",
+      "previousWeight": 1,
+      "proposedWeight": 0.8,
+      "applyAutomatically": false,
+      "reason": "dry_run_learning_signal"
+    },
+    {
+      "modelId": "nvidia/nemotron-mini-4b-instruct",
+      "providerId": "nvidia",
+      "previousWeight": 1,
+      "proposedWeight": 0.8,
+      "applyAutomatically": false,
+      "reason": "dry_run_learning_signal"
+    },
+    {
+      "modelId": "abacusai/dracarys-llama-3.1-70b-instruct",
+      "providerId": "nvidia",
+      "previousWeight": 1,
+      "proposedWeight": 0.5,
+      "applyAutomatically": false,
+      "reason": "dry_run_learning_signal"
+    },
+    {
+      "modelId": "meta/llama-3.1-70b-instruct",
+      "providerId": "nvidia",
+      "previousWeight": 1,
+      "proposedWeight": 0.8,
+      "applyAutomatically": false,
+      "reason": "dry_run_learning_signal"
+    },
+    {
+      "modelId": "meta/llama-3.1-8b-instruct",
+      "providerId": "nvidia",
+      "previousWeight": 1,
+      "proposedWeight": 0.8,
+      "applyAutomatically": false,
+      "reason": "dry_run_learning_signal"
+    },
+    {
+      "modelId": "meta/llama-3.3-70b-instruct",
+      "providerId": "nvidia",
+      "previousWeight": 1,
+      "proposedWeight": 0.8,
+      "applyAutomatically": false,
+      "reason": "dry_run_learning_signal"
+    },
+    {
+      "modelId": "microsoft/phi-4-mini-instruct",
+      "providerId": "nvidia",
+      "previousWeight": 1,
+      "proposedWeight": 0.8,
+      "applyAutomatically": false,
+      "reason": "dry_run_learning_signal"
+    },
+    {
+      "modelId": "deepseek-ai/deepseek-v4-pro",
+      "providerId": "nvidia",
+      "previousWeight": 1,
+      "proposedWeight": 0.84,
+      "applyAutomatically": false,
+      "reason": "dry_run_learning_signal"
+    },
+    {
+      "modelId": "google/gemma-3n-e2b-it",
+      "providerId": "nvidia",
+      "previousWeight": 1,
+      "proposedWeight": 0.8,
+      "applyAutomatically": false,
+      "reason": "dry_run_learning_signal"
+    },
+    {
+      "modelId": "google/gemma-3n-e4b-it",
+      "providerId": "nvidia",
+      "previousWeight": 1,
+      "proposedWeight": 1,
+      "applyAutomatically": false,
+      "reason": "dry_run_learning_signal"
+    },
+    {
+      "modelId": "google/gemma-4-31b-it",
+      "providerId": "nvidia",
+      "previousWeight": 1,
+      "proposedWeight": 0.8,
+      "applyAutomatically": false,
+      "reason": "dry_run_learning_signal"
+    },
+    {
+      "modelId": "meta/llama-3.2-1b-instruct",
+      "providerId": "nvidia",
+      "previousWeight": 1,
+      "proposedWeight": 0.8,
+      "applyAutomatically": false,
+      "reason": "dry_run_learning_signal"
+    },
+    {
+      "modelId": "meta/llama-3.2-3b-instruct",
+      "providerId": "nvidia",
+      "previousWeight": 1,
+      "proposedWeight": 0.8,
+      "applyAutomatically": false,
+      "reason": "dry_run_learning_signal"
+    },
+    {
+      "modelId": "meta/llama-4-maverick-17b-128e-instruct",
+      "providerId": "nvidia",
+      "previousWeight": 1,
+      "proposedWeight": 0.8,
+      "applyAutomatically": false,
+      "reason": "dry_run_learning_signal"
+    },
+    {
+      "modelId": "minimaxai/minimax-m2.7",
+      "providerId": "nvidia",
+      "previousWeight": 1,
+      "proposedWeight": 0.8,
+      "applyAutomatically": false,
+      "reason": "dry_run_learning_signal"
+    }
+  ],
+  "staleModels": [],
+  "retirementCandidates": [],
+  "providerAvailabilityWatch": {
+    "source": "local_evidence_only",
+    "providerApiCalled": false
+  },
+  "catalogRefreshDryRun": {
+    "executed": true,
+    "providerCallsMade": false
+  },
+  "smokeRefreshApprovalGate": {
+    "futureApprovalRequired": true,
+    "executedByThisPhase": false
+  },
+  "taijiModelGrowthLoop": {
+    "intakeGenerated": true,
+    "runtimeEnabled": false
+  },
+  "qualityScorecard": {
+    "modelCount": 17,
+    "averageHealthScore": 79.88
+  },
+  "providerCallsMade": false,
+  "secretRead": false,
+  "phase": "Phase894",
+  "selectableDriftGuardReady": true,
+  "selectableDriftGuardPassed": true,
+  "selectableModelCountBefore": 17,
+  "selectableModelCountAfter": 17,
+  "unauthorizedSelectableChangeDetected": false,
+  "rawSecretRead": false,
+  "authJsonRead": false,
+  "secretValueExposed": false,
+  "credentialRefOnly": true,
+  "chatBehaviorChangedByDefault": false,
+  "chatGatewayExecuteBehaviorChangedByDefault": false,
+  "chatDefaultEnabled": false,
+  "chatGatewayExecuteDefaultEnabled": false,
+  "deployExecuted": false,
+  "releaseExecuted": false,
+  "tagCreated": false,
+  "artifactUploaded": false,
+  "pushExecuted": false,
+  "commitCreated": false,
+  "workspaceCleanClaimed": false
+}

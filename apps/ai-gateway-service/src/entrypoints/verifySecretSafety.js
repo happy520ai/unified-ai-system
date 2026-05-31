@@ -13,11 +13,12 @@ const evidenceDir = resolve(repoRoot, "apps/ai-gateway-service/evidence");
 const evidenceJsonPath = resolve(evidenceDir, "phase-107a-secret-safety.json");
 const evidenceMdPath = resolve(evidenceDir, "phase-107a-secret-safety.md");
 const forbiddenSecret = "phase107a-secret-should-not-appear";
-const scanRoots = [
+const baseScanRoots = [
   "README.md",
   "AGENTS.md",
   ".env.example",
   ".env.enterprise.example",
+  ".opencode",
   "package.json",
   "apps",
   "packages",
@@ -61,12 +62,12 @@ try {
 
   const serviceUrl = `http://127.0.0.1:${server.address().port}`;
   const [ui, setupReadiness, modelImportPreview, rootPackage, servicePackage, readme, agents, envExample, envEnterpriseExample] = await Promise.all([
-    fetchText(`${serviceUrl}/ui`),
-    fetchJson(`${serviceUrl}/setup/readiness`),
+    fetchText(`${serviceUrl}/ui`, { expectStatus: 200, label: "GET /ui" }),
+    fetchJson(`${serviceUrl}/setup/readiness`, { expectStatus: 200, label: "GET /setup/readiness" }),
     postJson(`${serviceUrl}/models/import/preview`, {
       apiKey: forbiddenSecret,
       providerHint: "auto",
-    }),
+    }, { expectStatus: 200, label: "POST /models/import/preview" }),
     readFile(resolve(repoRoot, "package.json"), "utf8"),
     readFile(resolve(repoRoot, "apps/ai-gateway-service/package.json"), "utf8"),
     readFile(resolve(repoRoot, "README.md"), "utf8"),
@@ -190,11 +191,19 @@ function createEvidence({
       realFallbackExecution: false,
       realAgentExecution: false,
     },
+    diagnostics: {
+      http: {
+        ui: buildHttpDiagnostics(ui),
+        setupReadiness: buildHttpDiagnostics(setupReadiness),
+        modelImportPreview: buildHttpDiagnostics(modelImportPreview),
+      },
+    },
     conclusion: passed ? "secret-safety-ready" : "secret-safety-not-ready",
   };
 }
 
 async function scanRepositoryForSecrets() {
+  const scanRoots = [...baseScanRoots, ...await listOpenCodeConfigFilesAtRepoRoot()];
   const files = [];
   for (const item of scanRoots) {
     const absolute = resolve(repoRoot, item);
@@ -221,6 +230,15 @@ async function scanRepositoryForSecrets() {
     findingCount: findings.length,
     findings,
   };
+}
+
+async function listOpenCodeConfigFilesAtRepoRoot() {
+  const entries = await readdir(repoRoot, { withFileTypes: true });
+  return entries
+    .filter((entry) => entry.isFile() && /^opencode/i.test(entry.name))
+    .map((entry) => entry.name)
+    .filter((entryName, index, array) => array.indexOf(entryName) === index)
+    .sort();
 }
 
 async function listTextFiles(directory) {
@@ -269,34 +287,98 @@ function sanitizeForEvidence(value) {
   return output;
 }
 
-async function fetchText(url) {
-  const response = await fetch(url);
+async function fetchText(url, options = {}) {
+  return retryHttpRead(options.label ?? url, async () => {
+    const response = await fetch(url);
+    return {
+      httpStatus: response.status,
+      text: await response.text(),
+    };
+  }, options);
+}
+
+async function fetchJson(url, options = {}) {
+  return retryHttpRead(options.label ?? url, async () => {
+    const response = await fetch(url);
+    const text = await response.text();
+    return {
+      httpStatus: response.status,
+      body: text ? JSON.parse(text) : {},
+      text,
+    };
+  }, options);
+}
+
+async function postJson(url, body, options = {}) {
+  return retryHttpRead(options.label ?? url, async () => {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const text = await response.text();
+    return {
+      httpStatus: response.status,
+      body: text ? JSON.parse(text) : {},
+      text,
+    };
+  }, options);
+}
+
+async function retryHttpRead(label, read, options = {}) {
+  const expectStatus = options.expectStatus ?? 200;
+  const maxAttempts = options.maxAttempts ?? 3;
+  const attempts = [];
+  let lastResult = null;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      const result = await read();
+      lastResult = result;
+      attempts.push({
+        attempt,
+        httpStatus: result.httpStatus,
+        ok: result.httpStatus === expectStatus,
+      });
+      if (result.httpStatus === expectStatus) {
+        return { ...result, attempts };
+      }
+    } catch (error) {
+      attempts.push({
+        attempt,
+        httpStatus: null,
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
+    if (attempt < maxAttempts) {
+      await delay(250 * attempt);
+    }
+  }
+
+  if (lastResult) {
+    return { ...lastResult, attempts };
+  }
+
+  throw new Error(`${label} failed after ${maxAttempts} attempts: ${JSON.stringify(attempts)}`);
+}
+
+function buildHttpDiagnostics(result) {
   return {
-    httpStatus: response.status,
-    text: await response.text(),
+    httpStatus: result?.httpStatus ?? null,
+    attempts: Array.isArray(result?.attempts) ? result.attempts : [],
+    textPreview: safePreview(result?.text),
   };
 }
 
-async function fetchJson(url) {
-  const response = await fetch(url);
-  const text = await response.text();
-  return {
-    httpStatus: response.status,
-    body: text ? JSON.parse(text) : {},
-  };
+function safePreview(text) {
+  if (typeof text !== "string") return "";
+  return text.replaceAll(forbiddenSecret, "[redacted-forbidden-secret]").slice(0, 240);
 }
 
-async function postJson(url, body) {
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  const text = await response.text();
-  return {
-    httpStatus: response.status,
-    body: text ? JSON.parse(text) : {},
-  };
+function delay(ms) {
+  return new Promise((resolveDelay) => setTimeout(resolveDelay, ms));
 }
 
 function listen(server, port, host) {

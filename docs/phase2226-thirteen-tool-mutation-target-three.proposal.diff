@@ -1,0 +1,38 @@
+diff --git a/tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs b/tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs
+index 16d04a6..7217f11 100644
+--- a/tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs
++++ b/tools/phase2093_2095/apply-controlled-batch-tool-mutation.mjs
+@@ -36,6 +36,7 @@ export function buildPhase2100TripleMutationRuntimeStatus() {
+     phase2164Marker: "PHASE2164_NONET_TOOL_TARGET_THREE_OK",
+     phase2193Marker: "PHASE2193_ELEVEN_TOOL_TARGET_THREE_OK",
+     phase2209Marker: "PHASE2209_TWELVE_TOOL_TARGET_THREE_OK",
++    phase2226Marker: "PHASE2226_THIRTEEN_TOOL_TARGET_THREE_OK",
+     phase2178Marker: "PHASE2178_DECA_TOOL_TARGET_THREE_OK",
+     providerCallsMade: false,
+     codexExecExecuted: false,
+@@ -127,6 +128,25 @@ export function buildPhase2164NonetMutationTargetThreeStatus() {
+ 
+ 
+ 
++
++export function buildPhase2226ThirteenMutationTargetThreeStatus() {
++  return {
++    phaseId: "Phase2226A-Controlled-Thirteen-Tool-Mutation-Target-Three",
++    marker: "PHASE2226_THIRTEEN_TOOL_TARGET_THREE_OK",
++    importSafe: true,
++    phase2151Marker: "PHASE2151_OCT_TOOL_TARGET_THREE_OK",
++    phase2164Marker: "PHASE2164_NONET_TOOL_TARGET_THREE_OK",
++    phase2178Marker: "PHASE2178_DECA_TOOL_TARGET_THREE_OK",
++    phase2193Marker: "PHASE2193_ELEVEN_TOOL_TARGET_THREE_OK",
++    phase2209Marker: "PHASE2209_TWELVE_TOOL_TARGET_THREE_OK",
++    phase2226Marker: "PHASE2226_THIRTEEN_TOOL_TARGET_THREE_OK",
++    thirteenMutationApplied: true,
++    providerCallsMade: false,
++    codexExecExecuted: false,
++    chatModified: false,
++    chatGatewayExecuteModified: false,
++  };
++}
+ export function buildPhase2209TwelveMutationTargetThreeStatus() {
+   return {
+     phaseId: "Phase2209A-Controlled-Twelve-Tool-Mutation-Target-Three",

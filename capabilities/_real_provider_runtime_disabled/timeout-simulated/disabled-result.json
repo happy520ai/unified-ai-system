@@ -1,0 +1,13 @@
+{
+  "caseId": "timeout-simulated",
+  "providerId": "nvidia",
+  "executionStatus": "failed",
+  "blockedReason": "timeout_simulated",
+  "completed": false,
+  "passed": false,
+  "providerCallsMade": false,
+  "secretRead": false,
+  "secretValueExposed": false,
+  "emergencyDisableAvailable": true,
+  "emergencyDisableRef": "TAIJI_BEIDOU_REAL_PROVIDER_RUNTIME_ENABLED=false"
+}

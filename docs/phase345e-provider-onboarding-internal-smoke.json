@@ -1,0 +1,12 @@
+{
+  "phase": "Phase345E",
+  "inputPhase": "Phase344E",
+  "flagName": "providerOnboardingGuardedBeta",
+  "internalOnly": true,
+  "smokePassed": true,
+  "noPublicExposure": true,
+  "noUnauthorizedProviderCall": true,
+  "noProviderCallFromUi": true,
+  "providerRealCallExecuted": false,
+  "secretValueExposed": false
+}

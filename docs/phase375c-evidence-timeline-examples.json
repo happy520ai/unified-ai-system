@@ -1,0 +1,28 @@
+[
+  {
+    "evidenceId": "mc-dry-run-001",
+    "timestamp": "2026-05-07T00:00:00.000Z",
+    "mode": "tianshu_dry_run",
+    "intent": "task_planning",
+    "selectedPanel": "tianshu_flight_path_panel",
+    "riskScore": {
+      "taskRiskLevel": "medium"
+    },
+    "blockedActions": [
+      "provider_bypass"
+    ],
+    "allowedActions": [
+      "inspect_evidence",
+      "replay_trace"
+    ],
+    "dryRunResult": {
+      "status": "explained"
+    },
+    "supervisorComment": "Use planner sandbox first.",
+    "fallbackReason": "credentialRef required",
+    "replayAvailable": true,
+    "rollbackPathAvailable": true,
+    "secretValueExposed": false,
+    "providerCallsMade": false
+  }
+]

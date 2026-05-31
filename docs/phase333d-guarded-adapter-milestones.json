@@ -1,0 +1,55 @@
+{
+  "phase": "Phase333D",
+  "milestones": [
+    {
+      "id": "adapter_contract_freeze",
+      "order": 1,
+      "status": "planned"
+    },
+    {
+      "id": "redaction_guard_tests",
+      "order": 2,
+      "status": "planned"
+    },
+    {
+      "id": "credential_scope_policy_tests",
+      "order": 3,
+      "status": "planned"
+    },
+    {
+      "id": "env_adapter_internal_test",
+      "order": 4,
+      "status": "planned"
+    },
+    {
+      "id": "encrypted_reference_adapter_spike",
+      "order": 5,
+      "status": "planned"
+    },
+    {
+      "id": "vault_reference_adapter_spike",
+      "order": 6,
+      "status": "gated"
+    },
+    {
+      "id": "guarded_real_call_integration_test",
+      "order": 7,
+      "status": "planned"
+    },
+    {
+      "id": "revoke_rotation_test",
+      "order": 8,
+      "status": "planned"
+    },
+    {
+      "id": "audit_event_validation",
+      "order": 9,
+      "status": "planned"
+    },
+    {
+      "id": "rollback_drill",
+      "order": 10,
+      "status": "planned"
+    }
+  ]
+}

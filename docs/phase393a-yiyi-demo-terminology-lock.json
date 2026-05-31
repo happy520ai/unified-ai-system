@@ -1,0 +1,55 @@
+{
+  "phase": "Phase393A",
+  "title": "Yiyi Demo Localization Copy QA + Terminology Lock",
+  "terminology": [
+    {
+      "term": "Mission Companion",
+      "zh": "任务陪伴者",
+      "usage": "Use for Yiyi's role in the guided commercial demo."
+    },
+    {
+      "term": "Agent-managed AI Mission Control",
+      "zh": "Agent 管理式 AI 任务总控台",
+      "usage": "Use for the product category; do not reduce it to a normal chatbot."
+    },
+    {
+      "term": "Guided Showcase",
+      "zh": "引导式演示",
+      "usage": "Use for demo flow; do not call it production execution."
+    },
+    {
+      "term": "dry-run",
+      "zh": "本地预演 / dry-run",
+      "usage": "Use when describing mock, preview, and no-provider-call states."
+    },
+    {
+      "term": "Evidence Replay",
+      "zh": "证据回放",
+      "usage": "Use for trust-building local evidence review."
+    }
+  ],
+  "forbiddenClaims": [
+    "production GA",
+    "real provider execution",
+    "API key display",
+    "deployment completed",
+    "billing executed",
+    "workspace clean"
+  ],
+  "safeCopyRules": [
+    "Say guided demo or dry-run preview when describing the current showcase.",
+    "Say real provider testing requires Phase384 authorization.",
+    "Say no secret values are displayed.",
+    "Say no deployment, release, billing, invoice, or production GA was performed."
+  ],
+  "providerCallsMade": false,
+  "nonNvidiaProviderCallsMade": false,
+  "secretValueExposed": false,
+  "rawSecretAccessed": false,
+  "deployExecuted": false,
+  "releaseExecuted": false,
+  "billingExecuted": false,
+  "invoiceGenerated": false,
+  "productionGaClaimed": false,
+  "workspaceCleanClaimed": false
+}

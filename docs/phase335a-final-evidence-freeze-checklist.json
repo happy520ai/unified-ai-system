@@ -1,0 +1,10 @@
+{
+  "phase": "Phase335A",
+  "freezeInputs": [
+    "phase334a final RC dry-run",
+    "phase333a no-release gate",
+    "phase334f mock statement polish",
+    "phase334c reviewer workflow dry-run"
+  ],
+  "humanApprovalRequired": true
+}

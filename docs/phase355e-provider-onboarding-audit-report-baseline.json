@@ -1,0 +1,28 @@
+{
+  "phase": "Phase355E",
+  "auditType": "provider_onboarding_audit_report_baseline",
+  "result": {
+    "phase": "Phase355E",
+    "sourcePhase": "Phase354E",
+    "auditReportBaselineGenerated": true,
+    "exportableAuditFormatDefined": true,
+    "exportFormats": [
+      "json",
+      "markdown",
+      "csv_safe_markdown"
+    ],
+    "requiredAuditFields": [
+      "tenantId",
+      "reviewerChecklistId",
+      "actorRole",
+      "credentialRefOnly",
+      "rawSecretRejected",
+      "setupDecision",
+      "timestamp"
+    ],
+    "noProviderCallFromUi": true,
+    "credentialRefOnly": true,
+    "secretValueExposed": false,
+    "productionGA": false
+  }
+}

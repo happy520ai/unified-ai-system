@@ -1,0 +1,23 @@
+{
+  "phase": "Phase368C",
+  "requirements": [
+    "explicit deployment target",
+    "executable command",
+    "no secret inline",
+    "no .env dump",
+    "no git reset --hard",
+    "no git clean",
+    "no destructive cleanup",
+    "no unapproved provider call",
+    "no real billing / invoice command",
+    "rollback path",
+    "post-deploy smoke",
+    "monitoring hook",
+    "logs redacted",
+    "evidence written",
+    "exit code captured",
+    "timeout",
+    "idempotency notes",
+    "operator instructions"
+  ]
+}

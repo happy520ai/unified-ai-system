@@ -1,0 +1,35 @@
+{
+  "compilerVersion": "phase651-666-deterministic-neurogenesis-v1",
+  "deterministic": true,
+  "modelCallsMade": false,
+  "capabilityId": "trial-2-god-mode",
+  "displayName": "God Mode Need Classifier",
+  "description": "Deterministic dry-run capability spec compiled from natural-language intake: 我希望网关能判断是否需要 God Mode.",
+  "intakeText": "我希望网关能判断是否需要 God Mode",
+  "type": "review",
+  "requestedRuntime": "dry_run",
+  "pressureTypes": [
+    "quality"
+  ],
+  "modes": [
+    "god"
+  ],
+  "dependencies": [],
+  "requiredArtifacts": [
+    "manifest",
+    "scaffoldPlan",
+    "fixture",
+    "verifier",
+    "evidence",
+    "rollback"
+  ],
+  "safetyBoundary": {
+    "providerCallsAllowed": false,
+    "secretReadAllowed": false,
+    "deployAllowed": false,
+    "chatMutationAllowed": false,
+    "chatGatewayExecuteMutationAllowed": false,
+    "codexConfigMutationAllowed": false,
+    "selfApprovalAllowed": false
+  }
+}

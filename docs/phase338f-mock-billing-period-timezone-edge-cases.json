@@ -1,0 +1,35 @@
+{
+  "phase": "Phase338F",
+  "scenarios": [
+    {
+      "id": "monthBoundaryUtc",
+      "billingPeriod": "2026-05",
+      "timezone": "UTC",
+      "status": "passed"
+    },
+    {
+      "id": "monthBoundaryAsiaShanghai",
+      "billingPeriod": "2026-05",
+      "timezone": "Asia/Shanghai",
+      "status": "passed"
+    },
+    {
+      "id": "leapDayPeriod",
+      "billingPeriod": "2024-02",
+      "timezone": "UTC",
+      "status": "passed"
+    },
+    {
+      "id": "yearBoundary",
+      "billingPeriod": "2026-12",
+      "timezone": "UTC",
+      "status": "passed"
+    },
+    {
+      "id": "emptyPeriodEstimateOnly",
+      "billingPeriod": "2026-06",
+      "timezone": "America/Los_Angeles",
+      "status": "passed"
+    }
+  ]
+}

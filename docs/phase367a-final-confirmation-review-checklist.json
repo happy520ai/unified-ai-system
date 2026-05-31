@@ -1,0 +1,17 @@
+{
+  "phase": "Phase367A",
+  "items": [
+    "Phase364 final launch authorization reviewed",
+    "Phase365 blocked/no-op default reviewed",
+    "Phase366 rehearsal reviewed",
+    "approvedCommandRef reviewed",
+    "rollback template reviewed",
+    "post-deploy smoke checklist reviewed",
+    "monitoring readiness reviewed",
+    "secret safety reviewed",
+    "product recovery reviewed",
+    "package check reviewed",
+    "executeDeploy remains false in this phase",
+    "final confirmation still requires human creation"
+  ]
+}

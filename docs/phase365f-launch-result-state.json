@@ -1,0 +1,21 @@
+{
+  "phase": "Phase365F",
+  "launchResultPackageGenerated": true,
+  "deployAttempted": false,
+  "deployExecuted": false,
+  "deploySucceeded": false,
+  "deployFailed": false,
+  "postDeploySmokeExecuted": false,
+  "postDeploySmokePassed": false,
+  "launchStatus": "not_deployed",
+  "rollbackRecommended": false,
+  "rollbackExecuted": false,
+  "productionGaAuthorized": false,
+  "followUpActions": [
+    "await_final_manual_confirmation_or_approved_command_execution_path"
+  ],
+  "safety": {
+    "secretValueExposed": false,
+    "workspaceCleanClaimed": false
+  }
+}

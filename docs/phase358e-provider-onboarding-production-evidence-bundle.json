@@ -1,0 +1,24 @@
+{
+  "phase": "Phase358E",
+  "bundleType": "provider_onboarding_production_evidence",
+  "result": {
+    "phase": "Phase358E",
+    "sourcePhase": "Phase357E",
+    "evidenceBundlesGenerated": true,
+    "missingEvidenceReported": true,
+    "productionDeployAuthorized": false,
+    "bundledItems": [
+      "provider_onboarding_readiness_checklist",
+      "provider_onboarding_governance_section",
+      "raw_secret_rejection_audit_baseline"
+    ],
+    "missingEvidence": [
+      "reviewerChecklistId",
+      "tenant_admin_approval_record"
+    ],
+    "noProviderCallFromUi": true,
+    "credentialRefOnly": true,
+    "secretValueExposed": false,
+    "productionGA": false
+  }
+}

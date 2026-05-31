@@ -1,0 +1,64 @@
+diff --git a/tools/phase2091/generated-source-patch-target.mjs b/tools/phase2091/generated-source-patch-target.mjs
+index 03d11e6..b473754 100644
+--- a/tools/phase2091/generated-source-patch-target.mjs
++++ b/tools/phase2091/generated-source-patch-target.mjs
+@@ -1049,6 +1049,52 @@ export function buildPhase3061FortyMutationTargetOneStatus() {
+     chatGatewayExecuteModified: false,
+   };
+ }
++
++export function buildPhase3066FortyOneMutationTargetOneStatus() {
++  return {
++    phaseId: "Phase3066A-Controlled-Forty-One-Tool-Mutation-Target-One",
++    marker: "PHASE3066_FORTY_ONE_TOOL_TARGET_ONE_OK",
++    phase2149Marker: "PHASE2149_OCT_TOOL_TARGET_ONE_OK",
++    phase2162Marker: "PHASE2162_NONET_TOOL_TARGET_ONE_OK",
++    phase2176Marker: "PHASE2176_DECA_TOOL_TARGET_ONE_OK",
++    phase2191Marker: "PHASE2191_ELEVEN_TOOL_TARGET_ONE_OK",
++    phase2207Marker: "PHASE2207_TWELVE_TOOL_TARGET_ONE_OK",
++    phase2224Marker: "PHASE2224_THIRTEEN_TOOL_TARGET_ONE_OK",
++    phase2242Marker: "PHASE2242_FOURTEEN_TOOL_TARGET_ONE_OK",
++    phase2261Marker: "PHASE2261_FIFTEEN_TOOL_TARGET_ONE_OK",
++    phase2281Marker: "PHASE2281_SIXTEEN_TOOL_TARGET_ONE_OK",
++    phase2302Marker: "PHASE2302_SEVENTEEN_TOOL_TARGET_ONE_OK",
++    phase2324Marker: "PHASE2324_EIGHTEEN_TOOL_TARGET_ONE_OK",
++    phase2347Marker: "PHASE2347_NINETEEN_TOOL_TARGET_ONE_OK",
++    phase2371Marker: "PHASE2371_TWENTY_TOOL_TARGET_ONE_OK",
++    phase2396Marker: "PHASE2396_TWENTY_ONE_TOOL_TARGET_ONE_OK",
++    phase2422Marker: "PHASE2422_TWENTY_TWO_TOOL_TARGET_ONE_OK",
++    phase2449Marker: "PHASE2449_TWENTY_THREE_TOOL_TARGET_ONE_OK",
++    phase2477Marker: "PHASE2477_TWENTY_FOUR_TOOL_TARGET_ONE_OK",
++    phase2506Marker: "PHASE2506_TWENTY_FIVE_TOOL_TARGET_ONE_OK",
++    phase2536Marker: "PHASE2536_TWENTY_SIX_TOOL_TARGET_ONE_OK",
++    phase2567Marker: "PHASE2567_TWENTY_SEVEN_TOOL_TARGET_ONE_OK",
++    phase2599Marker: "PHASE2599_TWENTY_EIGHT_TOOL_TARGET_ONE_OK",
++    phase2632Marker: "PHASE2632_TWENTY_NINE_TOOL_TARGET_ONE_OK",
++    phase2666Marker: "PHASE2666_THIRTY_TOOL_TARGET_ONE_OK",
++    phase2701Marker: "PHASE2701_THIRTY_ONE_TOOL_TARGET_ONE_OK",
++    phase2737Marker: "PHASE2737_THIRTY_TWO_TOOL_TARGET_ONE_OK",
++    phase2774Marker: "PHASE2774_THIRTY_THREE_TOOL_TARGET_ONE_OK",
++    phase2812Marker: "PHASE2812_THIRTY_FOUR_TOOL_TARGET_ONE_OK",
++    phase2851Marker: "PHASE2851_THIRTY_FIVE_TOOL_TARGET_ONE_OK",
++    phase2891Marker: "PHASE2891_THIRTY_SIX_TOOL_TARGET_ONE_OK",
++    phase2932Marker: "PHASE2932_THIRTY_SEVEN_TOOL_TARGET_ONE_OK",
++    phase2974Marker: "PHASE2974_THIRTY_EIGHT_TOOL_TARGET_ONE_OK",
++    phase3017Marker: "PHASE3017_THIRTY_NINE_TOOL_TARGET_ONE_OK",
++    phase3061Marker: "PHASE3061_FORTY_TOOL_TARGET_ONE_OK",
++    phase3066Marker: "PHASE3066_FORTY_ONE_TOOL_TARGET_ONE_OK",
++    fortyOneMutationApplied: true,
++    providerCallsMade: false,
++    codexExecExecuted: false,
++    chatModified: false,
++    chatGatewayExecuteModified: false,
++  };
++}
+ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+   console.log(JSON.stringify({
+     status: "passed",
+@@ -1093,5 +1139,6 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href)
+     phase2974: buildPhase2974ThirtyEightMutationTargetOneStatus(),
+     phase3017: buildPhase3017ThirtyNineMutationTargetOneStatus(),
+     phase3061: buildPhase3061FortyMutationTargetOneStatus(),
++    phase3066: buildPhase3066FortyOneMutationTargetOneStatus(),
+   }, null, 2));
+ }

@@ -1,0 +1,21 @@
+{
+  "phaseId": "Phase2073-GVC-Completed-Action-DeDup-And-Candidate-Refresh",
+  "taskId": "phase2075-next-actions-duplicate-prevention-fixture",
+  "completedTaskPrefixesBlocked": [
+    "phase2071-"
+  ],
+  "repeatedLowValuePatternsBlocked": [
+    "execution-history-compact-summary",
+    "operator-summary",
+    "stale-evidence-detector"
+  ],
+  "maxDuplicateRiskScore": 3,
+  "providerCallsMade": false,
+  "secretRead": false,
+  "deployExecuted": false,
+  "chatModified": false,
+  "chatGatewayExecuteModified": false,
+  "legacyModified": false,
+  "projectContextModified": false,
+  "workspaceCleanClaimed": false
+}

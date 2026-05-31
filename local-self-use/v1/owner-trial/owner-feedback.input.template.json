@@ -1,0 +1,18 @@
+{
+  "feedbackSource": "owner",
+  "ownerName": "",
+  "isRealManualTrial": true,
+  "trialDate": "YYYY-MM-DD",
+  "trialDurationMinutes": 0,
+  "walkedPaths": [],
+  "tasksTried": [],
+  "whatWorked": [],
+  "whatFailed": [],
+  "confusingPoints": [],
+  "bugsObserved": [],
+  "severitySuggestions": [],
+  "evidenceRefs": [],
+  "noEvidenceReason": "",
+  "readyForBugFixPhase": false,
+  "notes": ""
+}

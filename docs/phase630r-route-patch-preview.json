@@ -1,0 +1,25 @@
+{
+  "patchId": "phase630r-main-chain-route-patch-preview",
+  "patchMode": "design_preview_only",
+  "selectedProviderId": "crs",
+  "sourceCapabilityRef": "phase612r_repeated_pass",
+  "sourceBoundaryRef": "phase613r_capability_boundary",
+  "runtimeCandidateRef": "phase621r_628r_isolated_runtime_candidate",
+  "targetEntryPointsPreview": [
+    "/chat",
+    "/chat-gateway/execute"
+  ],
+  "targetEntryPointsModified": [],
+  "chatModificationPlannedButNotApplied": true,
+  "chatGatewayExecuteModificationPlannedButNotApplied": true,
+  "providerRuntimeModificationPlannedButNotApplied": true,
+  "requiresSeparateImplementationPhase": true,
+  "requiresExplicitApprovalBeforeImplementation": true,
+  "maxRequestsDefault": 1,
+  "maxRequestsHardLimit": 3,
+  "retryLimit": 0,
+  "stopOnFirstFailure": true,
+  "productionReady": false,
+  "releaseReady": false,
+  "runtimeIntegrated": false
+}

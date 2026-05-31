@@ -1,0 +1,16 @@
+{
+  "phase": "Phase331E",
+  "checks": [
+    "step labels clear",
+    "progress indicator visible",
+    "help text visible",
+    "blocked reason readable",
+    "raw secret rejection explanation visible",
+    "credentialRef example uses key name only",
+    "provider disabled reason clear",
+    "quota and budget warnings clear",
+    "cost warning clear",
+    "revoke rotate disable next steps clear",
+    "beta only and not production wording clear"
+  ]
+}

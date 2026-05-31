@@ -1,0 +1,41 @@
+{
+  "phase": "Phase372B",
+  "checklist": [
+    {
+      "id": "godModePanelVisible",
+      "label": "God Mode panel visible",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "id": "participantSummaryVisible",
+      "label": "participant summary visible",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "id": "conflictSummaryVisible",
+      "label": "conflict summary visible",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "id": "supervisorTransparencyVisible",
+      "label": "supervisor transparency visible",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "id": "fallbackReasonVisible",
+      "label": "fallback reason visible",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "id": "dryRunNoticeVisible",
+      "label": "dry-run notice visible",
+      "pass": true,
+      "detail": ""
+    }
+  ]
+}

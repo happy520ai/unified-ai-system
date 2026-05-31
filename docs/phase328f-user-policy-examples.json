@@ -1,0 +1,68 @@
+{
+  "phase": "Phase328F",
+  "defaultUserPolicy": {
+    "userId": "phase328f-user",
+    "allowedModes": [
+      "normal",
+      "god",
+      "tianshu"
+    ],
+    "disabledModes": [],
+    "maxGodParticipants": 3,
+    "allowTianshuGodEscalation": true,
+    "allowNonNvidiaProviderCalls": false,
+    "allowedProviders": [
+      "nvidia"
+    ],
+    "blockedProviders": [
+      "openai",
+      "claude",
+      "openrouter",
+      "mimo"
+    ],
+    "allowedModels": [],
+    "blockedModels": [],
+    "dailyRequestLimit": 50,
+    "monthlyRequestLimit": 500,
+    "dailyBudgetLimit": 5,
+    "monthlyBudgetLimit": 50,
+    "maxSingleRequestEstimatedCost": 0.5,
+    "maxLatencyMs": 120000,
+    "requireCredentialRef": true,
+    "requireAuditTrace": true,
+    "runtimeStatus": "guarded_default_policy"
+  },
+  "restrictedUserPolicy": {
+    "userId": "phase328f-user",
+    "allowedModes": [
+      "normal"
+    ],
+    "disabledModes": [
+      "god",
+      "tianshu"
+    ],
+    "maxGodParticipants": 3,
+    "allowTianshuGodEscalation": true,
+    "allowNonNvidiaProviderCalls": false,
+    "allowedProviders": [
+      "nvidia"
+    ],
+    "blockedProviders": [
+      "openai",
+      "claude",
+      "openrouter",
+      "mimo"
+    ],
+    "allowedModels": [],
+    "blockedModels": [],
+    "dailyRequestLimit": 5,
+    "monthlyRequestLimit": 500,
+    "dailyBudgetLimit": 0.5,
+    "monthlyBudgetLimit": 50,
+    "maxSingleRequestEstimatedCost": 0.5,
+    "maxLatencyMs": 120000,
+    "requireCredentialRef": true,
+    "requireAuditTrace": true,
+    "runtimeStatus": "guarded_default_policy"
+  }
+}

@@ -1,0 +1,98 @@
+{
+  "phase": "Phase634R",
+  "issueCount": 5,
+  "issues": [
+    {
+      "issueId": "phase634r-p2-001",
+      "title": "Phase632 task template and checklist mandatory rule had encoding-noise drift",
+      "severity": "P2",
+      "affectedFiles": [
+        "docs/phase632-codex-token-saving-task-template.md",
+        "docs/phase632-codex-token-saving-preflight-checklist.md"
+      ],
+      "canAutoFix": true,
+      "reason": "Documentation text drift only; README/AGENTS and verifier rules already encode the intended hard rule.",
+      "proposedFix": "Replace the noisy mandatory-rule text with the exact Chinese hard-rule lines.",
+      "validationCommand": "cmd /c pnpm run preflight:phase632-token-saving",
+      "rollbackNote": "Restore the previous docs text if a downstream verifier unexpectedly depends on the noisy body text.",
+      "touchesChat": false,
+      "touchesChatGatewayExecute": false,
+      "touchesProviderRuntime": false,
+      "touchesSecret": false,
+      "deployNeeded": false
+    },
+    {
+      "issueId": "phase634r-p2-002",
+      "title": "Phase632A-G regression command alias missing",
+      "severity": "P2",
+      "affectedFiles": [
+        "package.json"
+      ],
+      "canAutoFix": true,
+      "reason": "The requested regression command uses a shorter alias that can safely delegate to the existing verified script.",
+      "proposedFix": "Add verify:phase632a-g-token-saving-mandatory-gate-chain as an alias to the existing chain script.",
+      "validationCommand": "cmd /c pnpm run verify:phase632a-g-token-saving-mandatory-gate-chain",
+      "rollbackNote": "Remove the alias if command naming policy changes.",
+      "touchesChat": false,
+      "touchesChatGatewayExecute": false,
+      "touchesProviderRuntime": false,
+      "touchesSecret": false,
+      "deployNeeded": false
+    },
+    {
+      "issueId": "phase634r-p1-001",
+      "title": "Main-chain integration remains design-only",
+      "severity": "P1",
+      "affectedFiles": [
+        "docs/phase630r-main-chain-integration-design-patch.md",
+        "apps/ai-gateway-service/evidence/phase630r/main-chain-integration-design-patch-result.json"
+      ],
+      "canAutoFix": false,
+      "reason": "Changing main-chain integration behavior requires a separate explicit phase and approval.",
+      "proposedFix": "Prepare a separate approval packet before any isolated implementation candidate.",
+      "validationCommand": "cmd /c pnpm verify:phase630r-main-chain-integration-design-patch",
+      "rollbackNote": "Keep design-only state until approved.",
+      "touchesChat": true,
+      "touchesChatGatewayExecute": true,
+      "touchesProviderRuntime": true,
+      "touchesSecret": false,
+      "deployNeeded": false
+    },
+    {
+      "issueId": "phase634r-p1-002",
+      "title": "Real provider runtime is outside this audit scope",
+      "severity": "P1",
+      "affectedFiles": [
+        "provider runtime main chain"
+      ],
+      "canAutoFix": false,
+      "reason": "Provider runtime changes could affect real execution semantics and need isolated approval.",
+      "proposedFix": "Create a future provider-runtime approval and dry-run candidate phase.",
+      "validationCommand": "cmd /c pnpm verify:phase107a-secret-safety",
+      "rollbackNote": "Do not modify provider runtime in audit/bundle phases.",
+      "touchesChat": false,
+      "touchesChatGatewayExecute": false,
+      "touchesProviderRuntime": true,
+      "touchesSecret": false,
+      "deployNeeded": false
+    },
+    {
+      "issueId": "phase634r-info-001",
+      "title": "Release and production readiness remain unclaimed",
+      "severity": "INFO",
+      "affectedFiles": [
+        "docs/phase637r-final-system-report.md"
+      ],
+      "canAutoFix": false,
+      "reason": "Current evidence supports local dry-run/preview and bounded Codex Context Gateway claims only.",
+      "proposedFix": "Keep productionReady=false and releaseReady=false in final reports.",
+      "validationCommand": "cmd /c node tools/phase637r/validate-final-system-report.mjs",
+      "rollbackNote": "Remove any production/release readiness wording if introduced later.",
+      "touchesChat": false,
+      "touchesChatGatewayExecute": false,
+      "touchesProviderRuntime": false,
+      "touchesSecret": false,
+      "deployNeeded": false
+    }
+  ]
+}

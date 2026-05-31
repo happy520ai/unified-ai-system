@@ -1,0 +1,62 @@
+{
+  "templateOnly": true,
+  "executeNow": false,
+  "decision": "template_requires_human_approval_before_execution",
+  "approvalOwner": "human-user",
+  "approvalReason": "Small-scope rerun for God Mode god_dual_reviewer marker/scoring fix validation after Phase961-965 design review.",
+  "providerAllowlist": [
+    "nvidia"
+  ],
+  "credentialRef": "credentialRef:nvidia:default",
+  "credentialRefOnly": true,
+  "allowedModes": [
+    "god"
+  ],
+  "scenarioScope": [
+    "god_dual_reviewer"
+  ],
+  "modelEligibility": {
+    "requireSelectable": true,
+    "requireSmokePassed": true,
+    "blockFailed": true,
+    "blockHighRisk": true,
+    "blockDeprecated": true,
+    "blockCredentialMissing": true
+  },
+  "maxTotalProviderRequests": 2,
+  "maxRequestsPerMode": 2,
+  "maxRequestsPerModel": 2,
+  "maxRetriesPerRequest": 0,
+  "maxEstimatedCostUsdTotal": 0.1,
+  "allowProviderCall": false,
+  "allowSecretRead": false,
+  "allowAuthJsonRead": false,
+  "allowDeploy": false,
+  "allowRelease": false,
+  "allowTag": false,
+  "allowArtifactUpload": false,
+  "allowChatDefaultEnable": false,
+  "allowChatGatewayExecuteDefaultEnable": false,
+  "allowChatMutation": false,
+  "allowChatGatewayExecuteMutation": false,
+  "allowCodexConfigMutation": false,
+  "activationInstructions": "Copy this template to a future .input.json approval file and set allowProviderCall=true only after explicit human approval. This template itself must not trigger execution.",
+  "acknowledgements": {
+    "notProductionTraffic": true,
+    "notDeploy": true,
+    "notRelease": true,
+    "notHumanReview": true,
+    "codexSurrogateTestingOnly": true,
+    "credentialRefOnly": true,
+    "rawSecretMustNotBePrinted": true,
+    "authJsonMustNotBeRead": true,
+    "externalProviderTraceRequired": true,
+    "maxRequestsMustBeRespected": true,
+    "maxRetriesMustBeZero": true,
+    "budgetMustBeRespected": true,
+    "failedBlockedHighRiskModelsExcluded": true,
+    "selectableMustNotChange": true,
+    "evidenceRequired": true,
+    "rollbackRequired": true
+  }
+}

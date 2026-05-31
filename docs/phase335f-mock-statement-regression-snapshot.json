@@ -1,0 +1,69 @@
+{
+  "phase": "Phase335F",
+  "regressionSnapshot": {
+    "phase": "Phase334F",
+    "scenariosRun": 12,
+    "passed": 12,
+    "failed": 0,
+    "blocked": 0,
+    "csvEscapingPassed": true,
+    "formulaInjectionBlocked": true,
+    "unicodePreserved": true,
+    "emptyStateHandled": true,
+    "noSecretInExport": true,
+    "noLegalInvoiceClaim": true,
+    "noActualBillingClaim": true,
+    "paymentProviderConnected": false,
+    "actualBillingConnected": false,
+    "scenarios": [
+      {
+        "id": "commaInProviderName",
+        "status": "passed"
+      },
+      {
+        "id": "quoteInModelName",
+        "status": "passed"
+      },
+      {
+        "id": "newlineInWarning",
+        "status": "passed"
+      },
+      {
+        "id": "unicodeProviderName",
+        "status": "passed"
+      },
+      {
+        "id": "zeroCostLineItem",
+        "status": "passed"
+      },
+      {
+        "id": "missingCostEstimate",
+        "status": "passed"
+      },
+      {
+        "id": "veryLargeEstimatedCost",
+        "status": "passed"
+      },
+      {
+        "id": "emptyLineItems",
+        "status": "passed"
+      },
+      {
+        "id": "blockedInvoiceLine",
+        "status": "passed"
+      },
+      {
+        "id": "markdownSpecialCharacters",
+        "status": "passed"
+      },
+      {
+        "id": "formulaInjectionAttempt",
+        "status": "passed"
+      },
+      {
+        "id": "longTextField",
+        "status": "passed"
+      }
+    ]
+  }
+}

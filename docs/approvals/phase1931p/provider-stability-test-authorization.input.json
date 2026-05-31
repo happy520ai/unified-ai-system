@@ -1,0 +1,45 @@
+{
+  "phase": "Phase1931P",
+  "authorizationType": "guarded_real_provider_stability_test",
+  "approved": true,
+  "decision": "approved_for_phase1932p_guarded_execution_only",
+  "providerId": "nvidia",
+  "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1",
+  "credentialRef": "credentialRef:nvidia:default",
+  "environment": "local",
+  "maxRequests": 3,
+  "maxCostUsd": 0,
+  "timeoutMs": 30000,
+  "retryPolicy": {
+    "maxRetries": 0,
+    "retryOnTimeout": false,
+    "retryOnRateLimit": false
+  },
+  "allowRealProviderCall": true,
+  "allowSecretRead": false,
+  "allowRawKeyOutput": false,
+  "allowAuthJsonRead": false,
+  "allowEnvDump": false,
+  "allowDeploy": false,
+  "allowRelease": false,
+  "allowTag": false,
+  "allowArtifactUpload": false,
+  "allowChatGatewayExecuteDefaultRouteChange": false,
+  "testPrompt": "Return exactly: PME_PROVIDER_STABILITY_OK",
+  "expectedResponseContains": "PME_PROVIDER_STABILITY_OK",
+  "successCriteria": {
+    "allRequestsCompleted": true,
+    "responseContainsExpectedMarker": true,
+    "requestCountLessOrEqualMaxRequests": true,
+    "costLessOrEqualMaxCostUsd": true,
+    "noRawSecretLogged": true,
+    "noChatGatewayExecuteDefaultRouteChange": true
+  },
+  "rollback": {
+    "method": "disable provider stability test flag and remove phase1932p execution evidence if invalid",
+    "requiresGitResetHard": false,
+    "requiresGitClean": false,
+    "requiresDeployRollback": false
+  },
+  "ownerNotes": "Owner authorizes a guarded local Provider stability test for Phase1932P only. No raw secrets may be read or printed. No deploy/release/tag/artifact. No /chat-gateway/execute default route change."
+}

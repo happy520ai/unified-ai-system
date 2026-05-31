@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 170 180" role="img" aria-label="Yiyi light technology outfit">
+  <defs>
+    <linearGradient id="jacket" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset=".58" stop-color="#e7f4fb"/>
+      <stop offset="1" stop-color="#b7d5e4"/>
+    </linearGradient>
+  </defs>
+  <path d="M25 66c9-29 30-43 60-43s51 14 60 43l11 91c-41 18-101 18-142 0l11-91Z" fill="url(#jacket)" stroke="#92b0c4" stroke-width="3"/>
+  <path d="M55 26l30 38 30-38" fill="none" stroke="#7cb8d4" stroke-width="5" stroke-linecap="round"/>
+  <path d="M69 44h32l-16 21-16-21Z" fill="#fafdff" stroke="#92c8dc" stroke-width="3"/>
+  <path d="M55 76c14 24 21 48 24 79M115 76c-14 24-21 48-24 79" fill="none" stroke="#5da8c9" stroke-width="4" opacity=".52" stroke-linecap="round"/>
+  <circle cx="85" cy="91" r="10" fill="#eaf8fd" stroke="#61abc8" stroke-width="3"/>
+  <path d="M39 70c-8 24-8 50-4 78M131 70c8 24 8 50 4 78" stroke="#c9d8e4" stroke-width="4" stroke-linecap="round"/>
+</svg>

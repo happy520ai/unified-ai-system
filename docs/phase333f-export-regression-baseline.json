@@ -1,0 +1,15 @@
+{
+  "phase": "Phase333F",
+  "warningLabels": [
+    "MOCK STATEMENT",
+    "ESTIMATE ONLY",
+    "NOT A LEGAL INVOICE",
+    "PAYMENT PROVIDER NOT CONNECTED",
+    "ACTUAL BILLING NOT CONNECTED"
+  ],
+  "supportedFormats": [
+    "json",
+    "csv",
+    "markdown"
+  ]
+}

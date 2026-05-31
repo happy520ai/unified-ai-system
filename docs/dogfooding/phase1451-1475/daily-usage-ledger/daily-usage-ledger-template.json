@@ -1,0 +1,11 @@
+{
+  "recordType": "template_only",
+  "date": "YYYY-MM-DD",
+  "ownerRecorded": false,
+  "sessionCount": 0,
+  "providerCallsObserved": 0,
+  "issues": [],
+  "rollbackUsed": false,
+  "emergencyDisableUsed": false,
+  "notes": ""
+}

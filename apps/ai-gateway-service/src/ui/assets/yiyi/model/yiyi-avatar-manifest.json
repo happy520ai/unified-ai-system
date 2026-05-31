@@ -1,0 +1,96 @@
+{
+  "characterId": "yiyi",
+  "displayName": "依依 · YIYI",
+  "assetType": "vrm_or_glb",
+  "preferredFormat": "vrm",
+  "conceptBoardRef": "apps/ai-gateway-service/src/ui/assets/yiyi/concept/yiyi-concept-board.png",
+  "generationPipelineEnabled": true,
+  "generationConfigRef": "apps/ai-gateway-service/src/ui/assets/yiyi/generation/yiyi-3d-generation-config.json",
+  "modelRef": {
+    "vrm": "apps/ai-gateway-service/src/ui/assets/yiyi/model/yiyi.vrm",
+    "glb": "apps/ai-gateway-service/src/ui/assets/yiyi/model/yiyi.glb",
+    "gltf": "apps/ai-gateway-service/src/ui/assets/yiyi/model/yiyi.gltf"
+  },
+  "currentAvatarMode": "hidden",
+  "currentModelStatus": "hidden_until_formal_asset_approved",
+  "real3DModelLoaded": false,
+  "realVrmRuntimeLoaded": false,
+  "pseudo3DLiveMotion": false,
+  "fallback": "none",
+  "fallbackBehavior": {
+    "mode": "none",
+    "message": "Character UI is disabled in the Workbench product surface.",
+    "cssSvgPseudo3DIsPrimaryAvatar": false,
+    "layered2_5dAllowedAsFallbackOnly": false,
+    "doNotShowSnowmanPseudo3DAsPrimary": true,
+    "doNotShowReal3DPlaceholder": true,
+    "doNotShow2DCompanionCard": true
+  },
+  "visualTarget": "海风白帽 / 长黑发 / 珍珠白浅蓝服装 / 温柔大眼 / 纤细比例 / 轻未来感 Mission Companion",
+  "vrmIntegration": {
+    "targetFile": "apps/ai-gateway-service/src/ui/assets/yiyi/model/yiyi.vrm",
+    "yiyiVrmDetected": false,
+    "loaderPlanned": "three + @pixiv/three-vrm",
+    "loaderEnabled": false,
+    "reason": "3d_avatar_hidden_by_default_until_formal_asset_approved"
+  },
+  "localGeneration": {
+    "enabled": true,
+    "workbenchRuntimeGeneration": false,
+    "sidecarToolingOnly": true,
+    "preferredEngines": [
+      "hunyuan3d",
+      "charactergen",
+      "instantmesh"
+    ],
+    "currentEngine": "none",
+    "modelGenerated": false,
+    "candidateAccepted": false
+  },
+  "futureModelFormats": [
+    "vrm",
+    "glb",
+    "gltf"
+  ],
+  "futureLoader": {
+    "glb": "three + GLTFLoader",
+    "gltf": "three + GLTFLoader",
+    "vrm": "@pixiv/three-vrm"
+  },
+  "dependencyRecommendation": {
+    "three": "Install only when yiyi.vrm or yiyi.glb is ready to load.",
+    "@pixiv/three-vrm": "Install when yiyi.vrm exists and runtime VRM loading is enabled.",
+    "currentDependenciesInstalled": false
+  },
+  "safetyBoundary": {
+    "rawPhotoStored": false,
+    "faceRecognitionPerformed": false,
+    "sensitiveAttributeInferencePerformed": false,
+    "photoTo3DExternalServiceCalled": false,
+    "providerCallsMade": false,
+    "nonNvidiaProviderCallsMade": false,
+    "secretValueExposed": false,
+    "deployExecuted": false,
+    "productionGaClaimed": false
+  },
+  "avatar3DVisible": false,
+  "companion2DVisible": false,
+  "characterModuleVisible": false,
+  "fallbackMode": "none",
+  "featureFlags": {
+    "YIYI_3D_AVATAR_ENABLED": false,
+    "YIYI_2D_COMPANION_ENABLED": false,
+    "YIYI_CHARACTER_UI_VISIBLE": false
+  },
+  "restore2DRequirements": {
+    "explicitProductDecisionRequired": true,
+    "manualUiVerificationRequired": true,
+    "featureFlagRequired": "YIYI_2D_COMPANION_ENABLED=true"
+  },
+  "restore3DRequirements": {
+    "formalYiyiVrmOrGlbExists": true,
+    "humanDesignApprovalRequired": true,
+    "manualRuntimeVerificationRequired": true,
+    "featureFlagRequired": "YIYI_3D_AVATAR_ENABLED=true"
+  }
+}

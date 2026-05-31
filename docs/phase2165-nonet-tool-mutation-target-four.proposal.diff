@@ -1,0 +1,33 @@
+diff --git a/tools/phase2096_2100/apply-controlled-triple-tool-mutation.mjs b/tools/phase2096_2100/apply-controlled-triple-tool-mutation.mjs
+--- a/tools/phase2096_2100/apply-controlled-triple-tool-mutation.mjs
++++ b/tools/phase2096_2100/apply-controlled-triple-tool-mutation.mjs
+@@ -45,6 +45,7 @@ export function buildPhase2109QuadMutationRuntimeStatus() {
+     phase2129Marker: "PHASE2129_SEXT_TOOL_TARGET_FOUR_OK",
+     phase2140Marker: "PHASE2140_SEPT_TOOL_TARGET_FOUR_OK",
+     phase2152Marker: "PHASE2152_OCT_TOOL_TARGET_FOUR_OK",
++    phase2165Marker: "PHASE2165_NONET_TOOL_TARGET_FOUR_OK",
+     providerCallsMade: false,
+     codexExecExecuted: false,
+     chatModified: false,
+@@ -104,6 +105,21 @@ export function buildPhase2152OctMutationTargetFourStatus() {
+   };
+ }
+ 
++export function buildPhase2165NonetMutationTargetFourStatus() {
++  return {
++    phaseId: "Phase2165A-Controlled-Nonet-Tool-Mutation-Target-Four",
++    marker: "PHASE2165_NONET_TOOL_TARGET_FOUR_OK",
++    importSafe: true,
++    phase2152Marker: "PHASE2152_OCT_TOOL_TARGET_FOUR_OK",
++    phase2165Marker: "PHASE2165_NONET_TOOL_TARGET_FOUR_OK",
++    nonetMutationApplied: true,
++    providerCallsMade: false,
++    codexExecExecuted: false,
++    chatModified: false,
++    chatGatewayExecuteModified: false,
++  };
++}
++
+ export function main() {
+   const args = parseArgs(process.argv.slice(2));
+   const planPath = args.plan || "docs/phase2096-2100-controlled-triple-tool-mutation-approval.example.json";

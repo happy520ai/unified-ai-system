@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Yiyi Model Brain Prompt Envelope",
+  "type": "object",
+  "required": ["personaCapsule", "missionContextCapsule", "modelCapsule", "safetyCapsule", "responseFormat"],
+  "properties": {
+    "personaCapsule": {
+      "type": "object",
+      "required": ["authorityLevel", "hiddenSystemPromptIncluded", "sensitiveUserProfileIncluded", "secretIncluded"],
+      "properties": {
+        "authorityLevel": { "const": "presentation_and_guidance_only" },
+        "hiddenSystemPromptIncluded": { "const": false },
+        "sensitiveUserProfileIncluded": { "const": false },
+        "secretIncluded": { "const": false }
+      }
+    },
+    "missionContextCapsule": {
+      "type": "object",
+      "required": ["dryRunOnly", "allowedActions", "blockedActions"],
+      "properties": {
+        "dryRunOnly": { "const": true },
+        "allowedActions": { "type": "array" },
+        "blockedActions": { "type": "array" }
+      }
+    },
+    "modelCapsule": {
+      "type": "object",
+      "required": ["credentialRefChecked", "rawSecretAccessed", "providerCallsMade"],
+      "properties": {
+        "credentialRefChecked": { "const": true },
+        "rawSecretAccessed": { "const": false },
+        "providerCallsMade": { "const": false }
+      }
+    },
+    "safetyCapsule": { "type": "object" },
+    "responseFormat": { "type": "object" }
+  }
+}

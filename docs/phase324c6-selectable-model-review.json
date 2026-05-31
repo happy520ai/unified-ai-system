@@ -1,0 +1,123 @@
+{
+  "phase": "Phase324C-6",
+  "scope": "selectable_review_only_for_phase324b7_smoke_passed_models",
+  "generatedAt": "2026-05-06T17:04:12.693Z",
+  "allowedModels": [
+    "minimaxai/minimax-m2.7"
+  ],
+  "forbiddenModels": [
+    "microsoft/phi-3-medium-128k-instruct",
+    "microsoft/phi-4-mini-flash-reasoning",
+    "microsoft/trellis",
+    "minimaxai/minimax-m2.5",
+    "google/gemma-7b"
+  ],
+  "eligible": [
+    {
+      "modelId": "minimaxai/minimax-m2.7",
+      "reviewStatus": "eligible",
+      "finalStatus": "smoke_passed",
+      "providerCalled": true,
+      "completionVerified": true,
+      "assistantTextPresent": true,
+      "httpStatus": 200,
+      "errorCode": null,
+      "latencyMs": 1479,
+      "evidenceId": "phase324b7-minimaxai_minimax_m2_7-20260506164801",
+      "evidencePath": "apps/ai-gateway-service/evidence/phase324b7/minimaxai_minimax_m2_7.json",
+      "selectableRecommendation": "eligible_after_phase324c6",
+      "decisionReason": "phase324b7_smoke_passed_evidence_complete"
+    }
+  ],
+  "rejected": [
+    {
+      "modelId": "microsoft/phi-3-medium-128k-instruct",
+      "reviewStatus": "rejected",
+      "finalStatus": "smoke_failed",
+      "providerCalled": true,
+      "completionVerified": false,
+      "assistantTextPresent": false,
+      "httpStatus": 410,
+      "errorCode": "nvidia_http_error",
+      "latencyMs": 457,
+      "evidenceId": "phase324b7-microsoft_phi_3_medium_128k_instruct-20260506164709",
+      "evidencePath": "apps/ai-gateway-service/evidence/phase324b7/microsoft_phi_3_medium_128k_instruct.json",
+      "selectableRecommendation": "not_eligible",
+      "decisionReason": "phase324b7_http_410_not_eligible"
+    },
+    {
+      "modelId": "microsoft/phi-4-mini-flash-reasoning",
+      "reviewStatus": "rejected",
+      "finalStatus": "smoke_failed",
+      "providerCalled": true,
+      "completionVerified": false,
+      "assistantTextPresent": false,
+      "httpStatus": 410,
+      "errorCode": "nvidia_http_error",
+      "latencyMs": 57,
+      "evidenceId": "phase324b7-microsoft_phi_4_mini_flash_reasoning-20260506164710",
+      "evidencePath": "apps/ai-gateway-service/evidence/phase324b7/microsoft_phi_4_mini_flash_reasoning.json",
+      "selectableRecommendation": "not_eligible",
+      "decisionReason": "phase324b7_http_410_not_eligible"
+    },
+    {
+      "modelId": "microsoft/trellis",
+      "reviewStatus": "rejected",
+      "finalStatus": "smoke_failed",
+      "providerCalled": true,
+      "completionVerified": false,
+      "assistantTextPresent": false,
+      "httpStatus": 404,
+      "errorCode": "nvidia_http_error",
+      "latencyMs": 57,
+      "evidenceId": "phase324b7-microsoft_trellis-20260506164712",
+      "evidencePath": "apps/ai-gateway-service/evidence/phase324b7/microsoft_trellis.json",
+      "selectableRecommendation": "not_eligible",
+      "decisionReason": "phase324b7_http_404_not_eligible"
+    },
+    {
+      "modelId": "minimaxai/minimax-m2.5",
+      "reviewStatus": "rejected",
+      "finalStatus": "smoke_failed",
+      "providerCalled": true,
+      "completionVerified": false,
+      "assistantTextPresent": false,
+      "httpStatus": null,
+      "errorCode": "nvidia_request_timeout",
+      "latencyMs": 45019,
+      "evidenceId": "phase324b7-minimaxai_minimax_m2_5-20260506164758",
+      "evidencePath": "apps/ai-gateway-service/evidence/phase324b7/minimaxai_minimax_m2_5.json",
+      "selectableRecommendation": "not_eligible",
+      "decisionReason": "phase324b7_timeout_not_eligible"
+    },
+    {
+      "modelId": "google/gemma-7b",
+      "reviewStatus": "rejected",
+      "finalStatus": "smoke_failed",
+      "providerCalled": false,
+      "completionVerified": false,
+      "assistantTextPresent": false,
+      "httpStatus": 410,
+      "errorCode": "nvidia_http_error",
+      "latencyMs": null,
+      "evidenceId": null,
+      "evidencePath": "apps/ai-gateway-service/evidence/phase324b6/google_gemma_7b.json",
+      "selectableRecommendation": "not_eligible",
+      "decisionReason": "phase324b6_http_410_not_eligible"
+    }
+  ],
+  "summary": {
+    "eligibleCount": 1,
+    "rejectedCount": 5,
+    "previousSelectableModels": 16,
+    "plannedSelectableModels": 17,
+    "previousSmokePassedModels": 16,
+    "plannedSmokePassedModels": 17
+  },
+  "safety": {
+    "onlyAllowedModelsReviewed": true,
+    "b7FailedModelsExcluded": true,
+    "noChatMainChainTouched": true,
+    "noSelectableGateTouched": true
+  }
+}

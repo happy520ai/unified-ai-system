@@ -1,0 +1,39 @@
+[
+  {
+    "id": "normal_chat",
+    "promptInjectionRisk": "none",
+    "secretLeakRisk": "none",
+    "systemPromptLeakRisk": "none",
+    "providerCallRisk": "dry_run_only",
+    "deployRisk": "none",
+    "billingRisk": "none",
+    "excessiveAgencyRisk": "low",
+    "unboundedConsumptionRisk": "low",
+    "evidenceIntegrityRisk": "low",
+    "recommendedMode": "normal",
+    "recommendedPanel": "normal_mode_panel",
+    "humanApprovalRequired": false,
+    "blockedActions": [],
+    "explanation": "普通对话路径，保持 evidence 记录。"
+  },
+  {
+    "id": "secret_request",
+    "promptInjectionRisk": "high",
+    "secretLeakRisk": "high",
+    "systemPromptLeakRisk": "medium",
+    "providerCallRisk": "blocked",
+    "deployRisk": "none",
+    "billingRisk": "none",
+    "excessiveAgencyRisk": "medium",
+    "unboundedConsumptionRisk": "low",
+    "evidenceIntegrityRisk": "medium",
+    "recommendedMode": "red_team_playground",
+    "recommendedPanel": "security_shield_panel",
+    "humanApprovalRequired": false,
+    "blockedActions": [
+      "secret_read",
+      "system_prompt_read"
+    ],
+    "explanation": "敏感信息请求被固定 gate 拦截。"
+  }
+]

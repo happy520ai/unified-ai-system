@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Yiyi Brain Model Candidate",
+  "type": "object",
+  "required": ["modelCandidateId", "provider", "modelRef", "credentialRef", "rawSecretValuePresent", "selectable", "allowedForYiyiBrain", "directProviderCallAllowed", "decision"],
+  "properties": {
+    "modelCandidateId": { "type": "string" },
+    "provider": { "type": "string" },
+    "modelRef": { "type": "string" },
+    "credentialRef": { "type": ["string", "null"] },
+    "rawSecretValuePresent": { "const": false },
+    "selectable": { "type": "boolean" },
+    "allowedForYiyiBrain": { "type": "boolean" },
+    "directProviderCallAllowed": { "const": false },
+    "capabilityTags": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "decision": { "enum": ["eligible_for_dry_run", "rejected"] },
+    "blockedBy": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

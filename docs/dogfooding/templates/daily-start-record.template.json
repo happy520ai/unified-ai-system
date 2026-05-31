@@ -1,0 +1,21 @@
+{
+  "recordType": "daily_start_record",
+  "phaseRange": "Phase1621-1650AIO",
+  "date": "YYYY-MM-DD",
+  "serviceHealth": "",
+  "missionControlAvailable": false,
+  "contextGatewayFresh": false,
+  "conceptFieldExperimentalHealth": false,
+  "providerGateState": "",
+  "evidenceReplayAvailable": false,
+  "unresolvedP0Count": 0,
+  "unresolvedP1Count": 0,
+  "recommendedTaskCategories": [],
+  "ownerDailyUseLedgerActivated": false,
+  "dailyStartFlowReady": false,
+  "automatedEvidenceNotClaimedAsHuman": true,
+  "providerCallsMade": false,
+  "ownerManualFeedback": false,
+  "realHumanFeedbackCollected": false,
+  "dogfoodingCompleted": false
+}

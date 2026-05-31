@@ -1,0 +1,154 @@
+{
+  "phase": "Phase326B",
+  "schemaName": "three-mode-request-envelope",
+  "runtimeStatus": "design_only",
+  "type": "object",
+  "required": [
+    "requestId",
+    "userId",
+    "mode",
+    "input",
+    "providerCredentialPolicy"
+  ],
+  "properties": {
+    "requestId": {
+      "type": "string"
+    },
+    "userId": {
+      "type": "string"
+    },
+    "mode": {
+      "type": "string",
+      "enum": [
+        "normal",
+        "god",
+        "tianshu"
+      ]
+    },
+    "input": {
+      "type": "object",
+      "required": [
+        "content"
+      ],
+      "properties": {
+        "content": {
+          "type": "string"
+        },
+        "attachments": {
+          "type": "array"
+        },
+        "taskType": {
+          "type": "string"
+        },
+        "language": {
+          "type": "string"
+        }
+      }
+    },
+    "modelSelection": {
+      "type": "object",
+      "properties": {
+        "userSelectedModel": {
+          "type": "string"
+        },
+        "participantModels": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "allowSystemModelSelection": {
+          "type": "boolean"
+        },
+        "selectionPolicy": {
+          "type": "string"
+        }
+      }
+    },
+    "providerCredentialPolicy": {
+      "type": "object",
+      "required": [
+        "requiresUserOwnedApiKey",
+        "secretValueAllowed"
+      ],
+      "properties": {
+        "requiresUserOwnedApiKey": {
+          "type": "boolean"
+        },
+        "credentialRefOnly": {
+          "type": "boolean"
+        },
+        "secretValueAllowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "allowedCredentialRefTypes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "executionPolicy": {
+      "type": "object",
+      "properties": {
+        "maxModels": {
+          "type": "number"
+        },
+        "timeoutMs": {
+          "type": "number"
+        },
+        "allowFallback": {
+          "type": "boolean"
+        },
+        "allowParallelExecution": {
+          "type": "boolean"
+        },
+        "allowCrossReview": {
+          "type": "boolean"
+        },
+        "allowPlanner": {
+          "type": "boolean"
+        }
+      }
+    },
+    "audit": {
+      "type": "object",
+      "properties": {
+        "traceEnabled": {
+          "type": "boolean"
+        },
+        "includeModelContributions": {
+          "type": "boolean"
+        },
+        "includePlannerDecision": {
+          "type": "boolean"
+        }
+      }
+    },
+    "safety": {
+      "type": "object",
+      "properties": {
+        "noUnconfiguredProviderCall": {
+          "type": "boolean",
+          "const": true
+        },
+        "noSecretValueInPayload": {
+          "type": "boolean"
+        },
+        "runtimeStage": {
+          "type": "string",
+          "enum": [
+            "design_only",
+            "contract_draft",
+            "shadow_config",
+            "dry_run_without_provider_call",
+            "shadow_config_only"
+          ]
+        }
+      }
+    }
+  }
+}
+

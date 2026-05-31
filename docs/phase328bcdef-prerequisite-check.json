@@ -1,0 +1,14 @@
+{
+  "phase": "Phase328B-F",
+  "checkedAt": "2026-05-06T17:44:34.105Z",
+  "missing": [],
+  "present": [
+    "apps/ai-gateway-service/evidence/phase328a/three-mode-normal-runtime-smoke.json",
+    "apps/ai-gateway-service/evidence/phase328a/three-mode-god-runtime-smoke.json",
+    "apps/ai-gateway-service/evidence/phase328a/three-mode-tianshu-runtime-smoke.json",
+    "apps/agent-console/evidence/phase328a/three-mode-ui-smoke.json",
+    "apps/ai-gateway-service/src/three-mode/modeRuntimeExecutor.js",
+    "apps/ai-gateway-service/src/three-mode/godModeExecutor.js",
+    "apps/ai-gateway-service/src/three-mode/tianshuModeExecutor.js"
+  ]
+}

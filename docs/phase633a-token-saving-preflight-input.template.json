@@ -1,0 +1,29 @@
+{
+  "phase": "Phase633A",
+  "taskScope": "Describe the bounded Codex task scope here.",
+  "allowedFiles": [
+    ".codex-context/current-context-pack.md",
+    ".codex-context/relevant-files.json",
+    ".codex-context/context-freshness-report.json"
+  ],
+  "contextPackRequired": true,
+  "relevantFilesRequired": true,
+  "freshnessReportRequired": true,
+  "staleFalseRequired": true,
+  "tokenBudgetRequired": true,
+  "outputBudgetRequired": true,
+  "fullRepoScanForbidden": true,
+  "unrelatedHistoryForbidden": true,
+  "maxRelevantFilesDefault": 20,
+  "maxRelevantFilesHardLimit": 50,
+  "allowCodexExec": false,
+  "allowProviderCall": false,
+  "allowAuthJsonAccess": false,
+  "allowCodexConfigWrite": false,
+  "allowChatModification": false,
+  "allowChatGatewayExecuteModification": false,
+  "allowDeploy": false,
+  "allowRelease": false,
+  "allowPush": false,
+  "allowCommit": false
+}

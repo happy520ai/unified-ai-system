@@ -1,0 +1,141 @@
+# Local Provider Cost / Quota Ledger
+
+Phase: Phase725
+
+## Scope
+
+- Local self-use framework only.
+- No deploy, release, tag, artifact upload, push, or commit.
+- No secret, auth.json, webhook, or raw base_url read/output.
+- No /chat or /chat-gateway/execute default behavior change.
+
+## Result
+
+- completed: true
+- blocker: null
+- localSelfUseMode: true
+- realSevenDaySoakCompleted: false
+- realThirtyDaySoakCompleted: false
+
+## Local Self-use Notes
+
+- providerCostQuotaLedgerReady: true
+- This is a framework/setup artifact, not proof of real 7-day or 30-day soak completion.
+- Any real future self-use entry must reference local evidence and must not include secrets.
+
+## Evidence
+
+```json
+{
+  "phaseRange": "Phase721-740",
+  "phase": "Phase725",
+  "generatedAt": "2026-05-12T05:48:00.257Z",
+  "localSelfUseMode": true,
+  "serverInfrastructureReady": false,
+  "deploymentDeferredBecauseNoServer": true,
+  "codexContextGatewayUsed": true,
+  "contextCodecUsed": true,
+  "relevantFilesUsed": true,
+  "fullRepoScanAvoided": true,
+  "tokenBudgetRespected": true,
+  "rawSecretRead": false,
+  "secretValueExposed": false,
+  "authJsonRead": false,
+  "codexConfigModified": false,
+  "codexBaseUrlModified": false,
+  "chatBehaviorChangedByDefault": false,
+  "chatGatewayExecuteBehaviorChangedByDefault": false,
+  "deployExecuted": false,
+  "releaseExecuted": false,
+  "tagCreated": false,
+  "artifactUploaded": false,
+  "productionDeployExecuted": false,
+  "postDeploySmokeExecuted": false,
+  "productionTrafficObserved": false,
+  "unsupportedClaimCount": 0,
+  "hallucinatedFactCount": 0,
+  "completed": true,
+  "recommended_sealed": true,
+  "blocker": null,
+  "localSelfUseReady": true,
+  "realSevenDaySoakCompleted": false,
+  "realThirtyDaySoakCompleted": false,
+  "realExternalTrialCompleted": false,
+  "phase651666EvidencePresent": true,
+  "phase667674EvidencePresent": true,
+  "phase675682EvidencePresent": true,
+  "phase683700EvidencePresent": true,
+  "phase701720EvidencePresent": true,
+  "providerCostQuotaLedgerReady": true,
+  "providerLedgerSource": "local_evidence_only",
+  "requestAttemptCount": 3,
+  "requestBudgetCapCount": 102,
+  "retryAttemptCount": 0,
+  "estimatedCostUsd": 0,
+  "failureCount": 5,
+  "passCount": 40,
+  "budgetExceeded": false,
+  "ledgerRows": [
+    {
+      "evidenceRef": "apps/ai-gateway-service/evidence/phase675_682/credentialref-provider-runtime-gate-result.json",
+      "providerId": "nvidia",
+      "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1",
+      "requestAttemptCount": 0,
+      "retryAttemptCount": 0,
+      "responseClassification": null,
+      "estimatedCostUsd": 0,
+      "budgetExceeded": false
+    },
+    {
+      "evidenceRef": "apps/ai-gateway-service/evidence/phase675_682/guarded-real-provider-runtime-one-shot-result.json",
+      "providerId": "nvidia",
+      "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1",
+      "requestAttemptCount": 1,
+      "retryAttemptCount": 0,
+      "responseClassification": "pass",
+      "estimatedCostUsd": 0,
+      "budgetExceeded": false
+    },
+    {
+      "evidenceRef": "apps/ai-gateway-service/evidence/phase675_682/provider-runtime-bridge-dry-run-result.json",
+      "providerId": "nvidia",
+      "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1",
+      "requestAttemptCount": 0,
+      "retryAttemptCount": 0,
+      "responseClassification": null,
+      "estimatedCostUsd": 0,
+      "budgetExceeded": false
+    },
+    {
+      "evidenceRef": "apps/ai-gateway-service/evidence/phase675_682/provider-runtime-evidence-ledger.json",
+      "providerId": "nvidia",
+      "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1",
+      "requestAttemptCount": 1,
+      "retryAttemptCount": 0,
+      "responseClassification": "pass",
+      "estimatedCostUsd": 0,
+      "budgetExceeded": false
+    },
+    {
+      "evidenceRef": "apps/ai-gateway-service/evidence/phase675_682/real-provider-runtime-approval-intake-result.json",
+      "providerId": "nvidia",
+      "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1",
+      "requestAttemptCount": 0,
+      "retryAttemptCount": 0,
+      "responseClassification": null,
+      "estimatedCostUsd": 0,
+      "budgetExceeded": false
+    },
+    {
+      "evidenceRef": "apps/ai-gateway-service/evidence/phase675_682/taiji-beidou-real-provider-runtime-v0-result.json",
+      "providerId": "nvidia",
+      "modelId": "nvidia/llama-3.3-nemotron-super-49b-v1",
+      "requestAttemptCount": 1,
+      "retryAttemptCount": 0,
+      "responseClassification": "pass",
+      "estimatedCostUsd": 0,
+      "budgetExceeded": false
+    }
+  ]
+}
+```

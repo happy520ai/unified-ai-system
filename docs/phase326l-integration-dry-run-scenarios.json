@@ -1,0 +1,66 @@
+{
+  "phase": "Phase326L",
+  "runtimeStatus": "dry_run_without_provider_call",
+  "scenarios": [
+    {
+      "scenarioId": "tianshuSingleModelSelectionScenario",
+      "runtimeStatus": "dry_run_without_provider_call",
+      "inputTask": "Use Tianshu to select one reliable model for a general reasoning answer.",
+      "expectedTaskType": "general_reasoning",
+      "expectedExecutionMode": "single_model",
+      "sourceCapabilityIndexRequired": true,
+      "sourceParticipantSelectorRequired": true,
+      "providerCallsAllowed": false,
+      "nonNvidiaProviderCallsAllowed": false,
+      "secretValueAllowed": false
+    },
+    {
+      "scenarioId": "tianshuEscalatesToGodModeScenario",
+      "runtimeStatus": "dry_run_without_provider_call",
+      "inputTask": "Safety-sensitive task should escalate from Tianshu planning to God Mode review.",
+      "expectedTaskType": "safety_sensitive",
+      "expectedExecutionMode": "god_mode_review",
+      "sourceCapabilityIndexRequired": true,
+      "sourceParticipantSelectorRequired": true,
+      "providerCallsAllowed": false,
+      "nonNvidiaProviderCallsAllowed": false,
+      "secretValueAllowed": false
+    },
+    {
+      "scenarioId": "godModeUsesCapabilityIndexScenario",
+      "runtimeStatus": "dry_run_without_provider_call",
+      "inputTask": "God Mode uses capability index to pick coding and critic participants.",
+      "expectedTaskType": "coding",
+      "expectedExecutionMode": "god_mode_review",
+      "sourceCapabilityIndexRequired": true,
+      "sourceParticipantSelectorRequired": true,
+      "providerCallsAllowed": false,
+      "nonNvidiaProviderCallsAllowed": false,
+      "secretValueAllowed": false
+    },
+    {
+      "scenarioId": "insufficientEligibleModelsScenario",
+      "runtimeStatus": "dry_run_without_provider_call",
+      "inputTask": "A task needs unavailable capability and should be blocked.",
+      "expectedTaskType": "missing_capability",
+      "expectedExecutionMode": "reject",
+      "sourceCapabilityIndexRequired": true,
+      "sourceParticipantSelectorRequired": true,
+      "providerCallsAllowed": false,
+      "nonNvidiaProviderCallsAllowed": false,
+      "secretValueAllowed": false
+    },
+    {
+      "scenarioId": "highRiskModelRejectedScenario",
+      "runtimeStatus": "dry_run_without_provider_call",
+      "inputTask": "High risk model must be rejected even if it appears strong.",
+      "expectedTaskType": "high_risk",
+      "expectedExecutionMode": "reject",
+      "sourceCapabilityIndexRequired": true,
+      "sourceParticipantSelectorRequired": true,
+      "providerCallsAllowed": false,
+      "nonNvidiaProviderCallsAllowed": false,
+      "secretValueAllowed": false
+    }
+  ]
+}

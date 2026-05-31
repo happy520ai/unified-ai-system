@@ -1,0 +1,161 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Owner Automation Evidence Ledger Entry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "phase",
+    "routeChoice",
+    "action",
+    "dryRun",
+    "input",
+    "output",
+    "safety",
+    "timestamps"
+  ],
+  "properties": {
+    "phase": {
+      "type": "string"
+    },
+    "routeChoice": {
+      "const": "Route A / local_self_use_only"
+    },
+    "action": {
+      "const": "create_desktop_spreadsheet"
+    },
+    "dryRun": {
+      "type": "boolean"
+    },
+    "input": {
+      "type": "object",
+      "required": [
+        "fileName",
+        "targetDirectory",
+        "columns",
+        "rows",
+        "openAfterCreate",
+        "overwritePolicy"
+      ],
+      "properties": {
+        "fileName": {
+          "type": "string"
+        },
+        "targetDirectory": {
+          "enum": [
+            "desktop",
+            "project_evidence",
+            "project_reports"
+          ]
+        },
+        "columns": {
+          "type": "array"
+        },
+        "rows": {
+          "type": "array"
+        },
+        "openAfterCreate": {
+          "type": "boolean"
+        },
+        "overwritePolicy": {
+          "const": "never_overwrite_append_timestamp"
+        }
+      }
+    },
+    "output": {
+      "type": "object",
+      "required": [
+        "ok",
+        "filePath",
+        "fileCreated",
+        "fileOpened",
+        "noExistingFileOverwritten",
+        "evidencePath"
+      ],
+      "properties": {
+        "ok": {
+          "type": "boolean"
+        },
+        "filePath": {
+          "type": "string"
+        },
+        "fileCreated": {
+          "type": "boolean"
+        },
+        "fileOpened": {
+          "type": "boolean"
+        },
+        "noExistingFileOverwritten": {
+          "type": "boolean"
+        },
+        "evidencePath": {
+          "type": "string"
+        }
+      }
+    },
+    "safety": {
+      "type": "object",
+      "required": [
+        "allowedDirectoryMatched",
+        "forbiddenDirectoryMatched",
+        "overwriteProtectionApplied",
+        "desktopScanPerformed",
+        "networkUsed"
+      ],
+      "properties": {
+        "allowedDirectoryMatched": {
+          "type": "boolean"
+        },
+        "forbiddenDirectoryMatched": {
+          "type": "boolean"
+        },
+        "overwriteProtectionApplied": {
+          "type": "boolean"
+        },
+        "desktopScanPerformed": {
+          "const": false
+        },
+        "networkUsed": {
+          "const": false
+        }
+      }
+    },
+    "providerCallsMade": {
+      "const": false
+    },
+    "rawSecretRead": {
+      "const": false
+    },
+    "authJsonRead": {
+      "const": false
+    },
+    "rawCredentialRefRead": {
+      "const": false
+    },
+    "legacyScriptsExecuted": {
+      "const": false
+    },
+    "legacyModified": {
+      "const": false
+    },
+    "chatModified": {
+      "const": false
+    },
+    "chatGatewayExecuteModified": {
+      "const": false
+    },
+    "deployExecuted": {
+      "const": false
+    },
+    "timestamps": {
+      "type": "object",
+      "required": [
+        "createdAt"
+      ],
+      "properties": {
+        "createdAt": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

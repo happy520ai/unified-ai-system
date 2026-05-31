@@ -1,0 +1,124 @@
+{
+  "version": "v1",
+  "phase": "Phase1889A",
+  "routeChoice": "Route A / local_self_use_only",
+  "generatedBy": "tools/phase1889a/build-owner-automation-action-registry.mjs",
+  "description": "Owner Automation Action Registry v1 for safe local owner-approved actions.",
+  "actions": [
+    {
+      "actionId": "create_desktop_spreadsheet",
+      "enabled": true,
+      "displayName": "创建桌面表格",
+      "ownerFacingName": "帮我在桌面建一个表格",
+      "description": "在桌面创建一个 CSV 任务表，并尝试自动打开。",
+      "category": "local_file_action",
+      "riskLevel": "low_with_guardrails",
+      "defaultPermissionMode": "owner_explicit_approval_required",
+      "requiresOwnerApprovalForRealRun": true,
+      "realRunRequiresApproval": true,
+      "supportsDryRun": true,
+      "supportsRealRun": true,
+      "defaultDryRunFirst": true,
+      "allowedDirectories": [
+        "desktop",
+        "project_evidence",
+        "project_reports"
+      ],
+      "allowedTargetDirectories": [
+        "desktop",
+        "project_evidence",
+        "project_reports"
+      ],
+      "forbiddenTargets": [
+        "legacy",
+        "PROJECT_CONTEXT.md",
+        ".env",
+        ".git",
+        "node_modules",
+        "auth.json",
+        "rawCredentialRef",
+        "providerRuntime",
+        "/chat",
+        "/chat-gateway/execute"
+      ],
+      "overwritePolicy": "never_overwrite_append_timestamp",
+      "forbiddenCapabilities": [
+        "delete_file",
+        "move_file",
+        "overwrite_file",
+        "desktop_scan",
+        "read_desktop_other_files",
+        "provider_call",
+        "secret_read",
+        "legacy_script_execution",
+        "deploy",
+        "chat_route_modification"
+      ],
+      "scansDesktop": false,
+      "readsDesktopOtherFiles": false,
+      "canDeleteFiles": false,
+      "canMoveFiles": false,
+      "canOverwriteFiles": false,
+      "providerCallsMade": false,
+      "evidenceRequired": true,
+      "ownerOsResultSupported": true,
+      "bossDailyReportSupported": true,
+      "metadata": {
+        "actionId": "create_desktop_spreadsheet",
+        "displayName": "创建桌面表格",
+        "ownerFacingName": "帮我在桌面建一个表格",
+        "category": "local_file_action",
+        "riskLevel": "low_with_guardrails",
+        "defaultPermissionMode": "owner_explicit_approval_required",
+        "dryRunSupported": true,
+        "realRunSupported": true,
+        "realRunRequiresApproval": true,
+        "allowedTargetDirectories": [
+          "desktop",
+          "project_evidence",
+          "project_reports"
+        ],
+        "forbiddenTargets": [
+          "legacy",
+          "PROJECT_CONTEXT.md",
+          ".env",
+          ".git",
+          "node_modules",
+          "auth.json",
+          "rawCredentialRef",
+          "providerRuntime",
+          "/chat",
+          "/chat-gateway/execute"
+        ],
+        "overwritePolicy": "never_overwrite_append_timestamp",
+        "scansDesktop": false,
+        "readsDesktopOtherFiles": false,
+        "canDeleteFiles": false,
+        "canMoveFiles": false,
+        "canOverwriteFiles": false,
+        "providerCallsMade": false,
+        "evidenceRequired": true,
+        "ownerOsResultSupported": true,
+        "bossDailyReportSupported": true
+      },
+      "evidenceRefs": {
+        "contract": "docs/automation/create-desktop-spreadsheet-action-contract.json",
+        "dryRun": "apps/ai-gateway-service/evidence/phase1883a-create-desktop-spreadsheet-dry-run.json",
+        "realRun": "apps/ai-gateway-service/evidence/phase1884a-create-desktop-spreadsheet-real-action.json",
+        "ownerOsIntegration": "apps/ai-gateway-service/evidence/phase1885a-owner-os-file-action-result-integration.json",
+        "visualSmoke": "apps/ai-gateway-service/evidence/phase1886a-owner-os-file-action-visual-smoke.json",
+        "copyPolish": "apps/ai-gateway-service/evidence/phase1887a-file-action-copy-polish.json"
+      }
+    }
+  ],
+  "runtimeBoundary": {
+    "registryOnly": true,
+    "noRuntimeExecutionAdded": true,
+    "noDesktopFileCreatedByThisPhase": true,
+    "noBatchFileCapabilityAdded": true,
+    "noProviderCalls": true,
+    "noChatRouteModification": true,
+    "noChatGatewayExecuteModification": true,
+    "productionReadyClaimed": false
+  }
+}

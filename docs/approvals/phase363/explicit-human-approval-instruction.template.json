@@ -1,0 +1,23 @@
+{
+  "instructionType": "explicit_human_launch_approval_instruction",
+  "instructionId": "human-instruction-20260507-001",
+  "givenBy": "",
+  "givenRole": "",
+  "givenOrgRef": "",
+  "decision": "pending",
+  "approvedApprovalTypes": [],
+  "conditions": [],
+  "instructionTimestamp": "",
+  "evidenceRefs": [],
+  "codexMayTranscribeApprovalFiles": true,
+  "codexIsApprover": false,
+  "approvalRecordOutputDirectory": "docs/approvals/phase361",
+  "safety": {
+    "secretValueIncluded": false,
+    "apiKeyIncluded": false,
+    "deployExecuted": false,
+    "releaseExecuted": false,
+    "tagCreated": false,
+    "artifactUploaded": false
+  }
+}

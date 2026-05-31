@@ -1,0 +1,24 @@
+{
+  "phase": "Phase362A-F",
+  "checkedAt": "2026-05-07T04:51:46.788Z",
+  "missing": [],
+  "present": [
+    "docs/phase361abcdef-prerequisite-check.json",
+    "docs/phase361a-launch-authorization-state.json",
+    "docs/phase361b-human-approval-records-index.json",
+    "docs/phase361b-human-approval-missing-records.md",
+    "docs/phase361c-deploy-authorization-state.json",
+    "docs/phase361d-signoff-verification-report.md",
+    "docs/phase361d-missing-signoffs.md",
+    "docs/phase361f-go-no-go-decision-state.json",
+    "docs/phase361f-go-no-go-evidence-index.json",
+    "docs/phase361abcdef-execution-report.md",
+    "apps/ai-gateway-service/evidence/phase361a/production-launch-authorization-workflow-result.json",
+    "apps/ai-gateway-service/evidence/phase361b/human-approval-record-collection-result.json",
+    "apps/ai-gateway-service/evidence/phase361c/deploy-authorization-packet-result.json",
+    "apps/ai-gateway-service/evidence/phase361d/tenant-admin-reviewer-signoff-verification-result.json",
+    "apps/ai-gateway-service/evidence/phase361e/production-release-runbook-finalization-result.json",
+    "apps/ai-gateway-service/evidence/phase361f/go-no-go-meeting-evidence-package-result.json"
+  ],
+  "allowApprovalFollowUp": true
+}

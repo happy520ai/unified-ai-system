@@ -1,0 +1,17 @@
+{
+  "eventId": "phase329f-event-001",
+  "requestId": "phase329f-request-001",
+  "userIdRef": "user_anon",
+  "mode": "god",
+  "providerId": "nvidia",
+  "modelId": "meta/llama-3.2-3b-instruct",
+  "eventType": "estimate_created",
+  "estimatedCost": 0.002,
+  "actualCost": null,
+  "actualCostAvailable": false,
+  "billingProviderConnected": false,
+  "timestamp": "2026-05-06T18:17:39.620Z",
+  "auditTrace": {
+    "providerCallsMade": true
+  }
+}

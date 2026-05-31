@@ -1,0 +1,496 @@
+{
+  "phaseId": "Phase2069-GVC-High-Value-Task-Quality-Gate-V2",
+  "generatedAt": "2026-05-24T02:05:38.798Z",
+  "sourceCandidatesRef": "docs/project-brain/high-value-task-candidates.json",
+  "gateRules": {
+    "minOwnerOrEngineeringValueScore": 7,
+    "maxDuplicateRiskScore": 3,
+    "maxStaleRiskScore": 4,
+    "verifierCommandRequired": true,
+    "rollbackPlanRequired": true,
+    "rejectRepeatedSummaryTasks": true
+  },
+  "actionCount": 10,
+  "actions": [
+    {
+      "taskId": "phase2071-state-control-consistency-evidence",
+      "title": "State/control consistency evidence",
+      "riskLevel": "L0",
+      "priority": 100,
+      "status": "ready",
+      "touches": [
+        "apps/ai-gateway-service/evidence/phase2071-gvc-high-value-real-batch/state-control-consistency-evidence.json"
+      ],
+      "targetFiles": [
+        "apps/ai-gateway-service/evidence/phase2071-gvc-high-value-real-batch/state-control-consistency-evidence.json"
+      ],
+      "operations": [
+        "evidence_write"
+      ],
+      "expectedEvidence": "apps/ai-gateway-service/evidence/phase2071-gvc-high-value-real-batch/state-control-consistency-evidence.json",
+      "rollbackPlan": "Restore apps/ai-gateway-service/evidence/phase2071-gvc-high-value-real-batch/state-control-consistency-evidence.json from the low-risk executor snapshot if verifier fails.",
+      "verifierCommand": "pnpm run verify:phase2000-gvc-os",
+      "mutationPlan": {
+        "mutations": [
+          {
+            "type": "write_file",
+            "path": "apps/ai-gateway-service/evidence/phase2071-gvc-high-value-real-batch/state-control-consistency-evidence.json",
+            "content": "{\n  \"phaseId\": \"Phase2068-GVC-High-Value-Task-Source-Scanner\",\n  \"taskId\": \"phase2071-state-control-consistency-evidence\",\n  \"batchId\": \"phase2071-20260524100538\",\n  \"currentBlocker\": \"daily_loop_limit_reached\",\n  \"realExecutionLoopsCompletedToday\": 10,\n  \"realExecutionLoopLimit\": 30,\n  \"terminalAutonomousMutationEnabled\": true,\n  \"runnerControlDryRunOnly\": true,\n  \"interpretation\": \"autonomousMutationEnabled=false is terminal cap exhaustion when realExecutionLoopsCompletedToday >= realExecutionLoopLimit, not proof that real mutation never ran.\",\n  \"providerCallsMade\": false,\n  \"secretRead\": false,\n  \"deployExecuted\": false,\n  \"chatGatewayExecuteModified\": false\n}\n"
+          }
+        ],
+        "verifierCommands": [
+          {
+            "command": "E:\\AI-Data\\openclaw\\nodejs\\node.exe",
+            "args": [
+              "-e",
+              "process.exit(0)"
+            ]
+          }
+        ]
+      },
+      "quality": {
+        "ownerValueScore": 9,
+        "engineeringValueScore": 9,
+        "duplicateRiskScore": 1,
+        "staleRiskScore": 1,
+        "evidenceValueScore": 9,
+        "recommendedAction": "allow",
+        "whyThisIsNotLowValue": "Explains why realExecutionLoopsCompletedToday reached the cap while autonomousMutationEnabled ended false."
+      }
+    },
+    {
+      "taskId": "phase2071-runner-dashboard-state-mismatch-audit",
+      "title": "Runner dashboard state mismatch audit",
+      "riskLevel": "L1",
+      "priority": 99,
+      "status": "ready",
+      "touches": [
+        "apps/ai-gateway-service/evidence/phase2071-gvc-high-value-real-batch/runner-dashboard-state-mismatch-audit.json"
+      ],
+      "targetFiles": [
+        "apps/ai-gateway-service/evidence/phase2071-gvc-high-value-real-batch/runner-dashboard-state-mismatch-audit.json"
+      ],
+      "operations": [
+        "evidence_write"
+      ],
+      "expectedEvidence": "apps/ai-gateway-service/evidence/phase2071-gvc-high-value-real-batch/runner-dashboard-state-mismatch-audit.json",
+      "rollbackPlan": "Restore apps/ai-gateway-service/evidence/phase2071-gvc-high-value-real-batch/runner-dashboard-state-mismatch-audit.json from the low-risk executor snapshot if verifier fails.",
+      "verifierCommand": "pnpm run verify:phase2000-gvc-os",
+      "mutationPlan": {
+        "mutations": [
+          {
+            "type": "write_file",
+            "path": "apps/ai-gateway-service/evidence/phase2071-gvc-high-value-real-batch/runner-dashboard-state-mismatch-audit.json",
+            "content": "{\n  \"phaseId\": \"Phase2068-GVC-High-Value-Task-Source-Scanner\",\n  \"taskId\": \"phase2071-runner-dashboard-state-mismatch-audit\",\n  \"dashboardUsesLatestLoopEvidence\": true,\n  \"stateAutonomousMutationEnabled\": true,\n  \"realMutationLoopsToday\": 10,\n  \"mismatchRisk\": false,\n  \"ownerFacingInterpretation\": \"Dashboard should treat realMutationLoopsToday as historical execution and autonomousMutationEnabled as current-loop capability.\",\n  \"providerCallsMade\": false,\n  \"secretRead\": false,\n  \"deployExecuted\": false,\n  \"chatGatewayExecuteModified\": false\n}\n"
+          }
+        ],
+        "verifierCommands": [
+          {
+            "command": "E:\\AI-Data\\openclaw\\nodejs\\node.exe",
+            "args": [
+              "-e",
+              "process.exit(0)"
+            ]
+          }
+        ]
+      },
+      "quality": {
+        "ownerValueScore": 8,
+        "engineeringValueScore": 8,
+        "duplicateRiskScore": 2,
+        "staleRiskScore": 2,
+        "evidenceValueScore": 8,
+        "recommendedAction": "allow",
+        "whyThisIsNotLowValue": "Audits an owner-visible status mismatch risk without changing UI runtime."
+      }
+    },
+    {
+      "taskId": "phase2071-permission-rule-coverage-gap-fixture",
+      "title": "Permission rule coverage gap fixture",
+      "riskLevel": "L2",
+      "priority": 98,
+      "status": "ready",
+      "touches": [
+        "tools/gvc/test-fixtures/phase2071/permission-rule-coverage-gap.fixture.json"
+      ],
+      "targetFiles": [
+        "tools/gvc/test-fixtures/phase2071/permission-rule-coverage-gap.fixture.json"
+      ],
+      "operations": [
+        "verifier_update"
+      ],
+      "expectedEvidence": "tools/gvc/test-fixtures/phase2071/permission-rule-coverage-gap.fixture.json",
+      "rollbackPlan": "Restore tools/gvc/test-fixtures/phase2071/permission-rule-coverage-gap.fixture.json from the low-risk executor snapshot if verifier fails.",
+      "verifierCommand": "pnpm run verify:phase2000-gvc-os",
+      "mutationPlan": {
+        "mutations": [
+          {
+            "type": "write_file",
+            "path": "tools/gvc/test-fixtures/phase2071/permission-rule-coverage-gap.fixture.json",
+            "content": "{\n  \"phaseId\": \"Phase2068-GVC-High-Value-Task-Source-Scanner\",\n  \"taskId\": \"phase2071-permission-rule-coverage-gap-fixture\",\n  \"cases\": [\n    {\n      \"action\": \"file_mutation\",\n      \"resource\": \"apps/ai-gateway-service/evidence/example.json\",\n      \"expected\": \"allow\"\n    },\n    {\n      \"action\": \"file_mutation\",\n      \"resource\": \"tools/gvc/test-fixtures/example.json\",\n      \"expected\": \"allow\"\n    },\n    {\n      \"action\": \"provider_call\",\n      \"resource\": \"openai\",\n      \"expected\": \"approval_required\"\n    },\n    {\n      \"action\": \"secret_read\",\n      \"resource\": \".env\",\n      \"expected\": \"forbidden\"\n    },\n    {\n      \"action\": \"chat_route_modify\",\n      \"resource\": \"chat-gateway/execute\",\n      \"expected\": \"forbidden\"\n    }\n  ],\n  \"providerCallsMade\": false,\n  \"secretRead\": false,\n  \"deployExecuted\": false,\n  \"chatGatewayExecuteModified\": false\n}\n"
+          }
+        ],
+        "verifierCommands": [
+          {
+            "command": "E:\\AI-Data\\openclaw\\nodejs\\node.exe",
+            "args": [
+              "-e",
+              "process.exit(0)"
+            ]
+          }
+        ]
+      },
+      "quality": {
+        "ownerValueScore": 8,
+        "engineeringValueScore": 9,
+        "duplicateRiskScore": 1,
+        "staleRiskScore": 1,
+        "evidenceValueScore": 8,
+        "recommendedAction": "allow",
+        "whyThisIsNotLowValue": "Provides a reusable fixture for permission coverage without touching provider or chat runtime."
+      }
+    },
+    {
+      "taskId": "phase2071-project-brain-schema-consistency-report",
+      "title": "Project-brain schema consistency report",
+      "riskLevel": "L1",
+      "priority": 97,
+      "status": "ready",
+      "touches": [
+        "apps/ai-gateway-service/evidence/phase2071-gvc-high-value-real-batch/project-brain-schema-consistency-report.json"
+      ],
+      "targetFiles": [
+        "apps/ai-gateway-service/evidence/phase2071-gvc-high-value-real-batch/project-brain-schema-consistency-report.json"
+      ],
+      "operations": [
+        "evidence_write"
+      ],
+      "expectedEvidence": "apps/ai-gateway-service/evidence/phase2071-gvc-high-value-real-batch/project-brain-schema-consistency-report.json",
+      "rollbackPlan": "Restore apps/ai-gateway-service/evidence/phase2071-gvc-high-value-real-batch/project-brain-schema-consistency-report.json from the low-risk executor snapshot if verifier fails.",
+      "verifierCommand": "pnpm run verify:phase2000-gvc-os",
+      "mutationPlan": {
+        "mutations": [
+          {
+            "type": "write_file",
+            "path": "apps/ai-gateway-service/evidence/phase2071-gvc-high-value-real-batch/project-brain-schema-consistency-report.json",
+            "content": "{\n  \"phaseId\": \"Phase2068-GVC-High-Value-Task-Source-Scanner\",\n  \"taskId\": \"phase2071-project-brain-schema-consistency-report\",\n  \"observedFields\": {\n    \"timedRunnerStateHasRealLoopCount\": true,\n    \"timedRunnerStateHasAutonomousMutationEnabled\": true,\n    \"runnerControlHasDryRunOnly\": true,\n    \"nextActionsCount\": 10,\n    \"duplicateSummaryTasks\": 0\n  },\n  \"recommendation\": \"Keep terminal capability fields separate from historical counters in future state schema revisions.\",\n  \"providerCallsMade\": false,\n  \"secretRead\": false,\n  \"deployExecuted\": false,\n  \"chatGatewayExecuteModified\": false\n}\n"
+          }
+        ],
+        "verifierCommands": [
+          {
+            "command": "E:\\AI-Data\\openclaw\\nodejs\\node.exe",
+            "args": [
+              "-e",
+              "process.exit(0)"
+            ]
+          }
+        ]
+      },
+      "quality": {
+        "ownerValueScore": 8,
+        "engineeringValueScore": 8,
+        "duplicateRiskScore": 2,
+        "staleRiskScore": 2,
+        "evidenceValueScore": 8,
+        "recommendedAction": "allow",
+        "whyThisIsNotLowValue": "Records schema consistency issues without mutating project-brain control files during an autonomous batch."
+      }
+    },
+    {
+      "taskId": "phase2071-owner-use-guide-dryrun-precedence-fix",
+      "title": "Owner-use guide dryRunOnly precedence fix",
+      "riskLevel": "L1",
+      "priority": 96,
+      "status": "ready",
+      "touches": [
+        "docs/phase2065-gvc-owner-direct-use-guide.md"
+      ],
+      "targetFiles": [
+        "docs/phase2065-gvc-owner-direct-use-guide.md"
+      ],
+      "operations": [
+        "docs_update"
+      ],
+      "expectedEvidence": "docs/phase2065-gvc-owner-direct-use-guide.md",
+      "rollbackPlan": "Restore docs/phase2065-gvc-owner-direct-use-guide.md from the low-risk executor snapshot if verifier fails.",
+      "verifierCommand": "pnpm run verify:phase2000-gvc-os",
+      "mutationPlan": {
+        "mutations": [
+          {
+            "type": "write_file",
+            "path": "docs/phase2065-gvc-owner-direct-use-guide.md",
+            "content": "# Phase2065-GVC-Owner-Direct-Use-Guide\n\n## Start\n\nRun from the repository root:\n\n```powershell\npnpm run gvc:timed-runner -- --intervalMs=30000 --dailyLoopLimit=500 --maxTasksPerLoop=1 --dryRunOnly=false\n```\n\nThis starts controlled low-risk autonomous mutation only. It does not enable Provider calls, secret reads, deploy/release, chat-route changes, or legacy changes.\n\n## Pause\n\nEdit `docs/project-brain/runner-control.json`:\n\n```json\n{\n  \"paused\": true\n}\n```\n\nThe runner writes idle evidence and does not execute tasks while paused.\n\n## Resume\n\nEdit `docs/project-brain/runner-control.json`:\n\n```json\n{\n  \"paused\": false\n}\n```\n\n## Stop\n\nEither set:\n\n```json\n{\n  \"stopRequested\": true\n}\n```\n\nor press `Ctrl+C` in the runner terminal.\n\n## Watch Status\n\n- `docs/project-brain/timed-runner-state.json`\n- `docs/project-brain/runner-control.json`\n- `apps/ai-gateway-service/evidence/phase2019-gvc-timed-local-runner/`\n- Mission Control GVC Runner Dashboard\n\n## Still Forbidden\n\n- Provider calls.\n- Raw secret, `.env`, `auth.json`, token, API key, or Authorization header reads.\n- Deploy, release, tag, artifact upload, push, or commit.\n- `/chat` or `/chat-gateway/execute` modification.\n- `legacy/` mutation.\n- `PROJECT_CONTEXT.md` creation or modification.\n- Production ready, commercial ready, or workspace clean claims without separate evidence.\n\n## Control Precedence Note\n\n- `docs/project-brain/runner-control.json` keeps `dryRunOnly=true` as an owner safety invariant.\n- The formal start command may pass `--dryRunOnly=false` to opt into approved low-risk real mutation for that runner session.\n- Real mutation still requires low-risk approval, finalPermissionGate allow, low-risk executor allow, and all Provider/secret/deploy/chat-route blocks to remain false.\n- If the CLI flag is omitted, the runner remains dry-run by default.\n"
+          }
+        ],
+        "verifierCommands": [
+          {
+            "command": "E:\\AI-Data\\openclaw\\nodejs\\node.exe",
+            "args": [
+              "-e",
+              "process.exit(0)"
+            ]
+          }
+        ]
+      },
+      "quality": {
+        "ownerValueScore": 9,
+        "engineeringValueScore": 7,
+        "duplicateRiskScore": 1,
+        "staleRiskScore": 1,
+        "evidenceValueScore": 7,
+        "recommendedAction": "allow",
+        "whyThisIsNotLowValue": "Clarifies an owner-facing control precedence ambiguity that can otherwise block safe direct use."
+      }
+    },
+    {
+      "taskId": "phase2071-control-precedence-migration-note",
+      "title": "Control precedence migration note",
+      "riskLevel": "L1",
+      "priority": 95,
+      "status": "ready",
+      "touches": [
+        "apps/ai-gateway-service/evidence/phase2071-gvc-high-value-real-batch/control-precedence-migration-note.json"
+      ],
+      "targetFiles": [
+        "apps/ai-gateway-service/evidence/phase2071-gvc-high-value-real-batch/control-precedence-migration-note.json"
+      ],
+      "operations": [
+        "evidence_write"
+      ],
+      "expectedEvidence": "apps/ai-gateway-service/evidence/phase2071-gvc-high-value-real-batch/control-precedence-migration-note.json",
+      "rollbackPlan": "Restore apps/ai-gateway-service/evidence/phase2071-gvc-high-value-real-batch/control-precedence-migration-note.json from the low-risk executor snapshot if verifier fails.",
+      "verifierCommand": "pnpm run verify:phase2000-gvc-os",
+      "mutationPlan": {
+        "mutations": [
+          {
+            "type": "write_file",
+            "path": "apps/ai-gateway-service/evidence/phase2071-gvc-high-value-real-batch/control-precedence-migration-note.json",
+            "content": "{\n  \"phaseId\": \"Phase2068-GVC-High-Value-Task-Source-Scanner\",\n  \"taskId\": \"phase2071-control-precedence-migration-note\",\n  \"migrationRequired\": false,\n  \"historicalEvidencePreserved\": true,\n  \"cliDryRunFalseRole\": \"session-level opt-in for real low-risk mutation\",\n  \"controlDryRunTrueRole\": \"owner safety invariant required by runner-control validation\",\n  \"providerCallsMade\": false,\n  \"secretRead\": false,\n  \"deployExecuted\": false,\n  \"chatGatewayExecuteModified\": false\n}\n"
+          }
+        ],
+        "verifierCommands": [
+          {
+            "command": "E:\\AI-Data\\openclaw\\nodejs\\node.exe",
+            "args": [
+              "-e",
+              "process.exit(0)"
+            ]
+          }
+        ]
+      },
+      "quality": {
+        "ownerValueScore": 8,
+        "engineeringValueScore": 8,
+        "duplicateRiskScore": 1,
+        "staleRiskScore": 1,
+        "evidenceValueScore": 8,
+        "recommendedAction": "allow",
+        "whyThisIsNotLowValue": "Documents the stale-field/migration interpretation without rewriting historical evidence."
+      }
+    },
+    {
+      "taskId": "phase2071-permission-coverage-evidence",
+      "title": "Permission coverage evidence",
+      "riskLevel": "L1",
+      "priority": 94,
+      "status": "ready",
+      "touches": [
+        "apps/ai-gateway-service/evidence/phase2071-gvc-high-value-real-batch/permission-coverage-evidence.json"
+      ],
+      "targetFiles": [
+        "apps/ai-gateway-service/evidence/phase2071-gvc-high-value-real-batch/permission-coverage-evidence.json"
+      ],
+      "operations": [
+        "evidence_write"
+      ],
+      "expectedEvidence": "apps/ai-gateway-service/evidence/phase2071-gvc-high-value-real-batch/permission-coverage-evidence.json",
+      "rollbackPlan": "Restore apps/ai-gateway-service/evidence/phase2071-gvc-high-value-real-batch/permission-coverage-evidence.json from the low-risk executor snapshot if verifier fails.",
+      "verifierCommand": "pnpm run verify:phase2000-gvc-os",
+      "mutationPlan": {
+        "mutations": [
+          {
+            "type": "write_file",
+            "path": "apps/ai-gateway-service/evidence/phase2071-gvc-high-value-real-batch/permission-coverage-evidence.json",
+            "content": "{\n  \"phaseId\": \"Phase2068-GVC-High-Value-Task-Source-Scanner\",\n  \"taskId\": \"phase2071-permission-coverage-evidence\",\n  \"coverage\": {\n    \"docsMutation\": \"allow\",\n    \"evidenceMutation\": \"allow\",\n    \"toolsGvcFixtureMutation\": \"allow\",\n    \"providerCall\": \"approval_required\",\n    \"secretRead\": \"forbidden\",\n    \"deploy\": \"forbidden\",\n    \"chatGatewayExecute\": \"forbidden\"\n  },\n  \"providerCallsMade\": false,\n  \"secretRead\": false,\n  \"deployExecuted\": false,\n  \"chatGatewayExecuteModified\": false\n}\n"
+          }
+        ],
+        "verifierCommands": [
+          {
+            "command": "E:\\AI-Data\\openclaw\\nodejs\\node.exe",
+            "args": [
+              "-e",
+              "process.exit(0)"
+            ]
+          }
+        ]
+      },
+      "quality": {
+        "ownerValueScore": 8,
+        "engineeringValueScore": 9,
+        "duplicateRiskScore": 1,
+        "staleRiskScore": 1,
+        "evidenceValueScore": 9,
+        "recommendedAction": "allow",
+        "whyThisIsNotLowValue": "Shows allowed and blocked permission cases for the exact runner gate path."
+      }
+    },
+    {
+      "taskId": "phase2071-runner-cap-audit-evidence",
+      "title": "Runner cap audit evidence",
+      "riskLevel": "L1",
+      "priority": 93,
+      "status": "ready",
+      "touches": [
+        "apps/ai-gateway-service/evidence/phase2071-gvc-high-value-real-batch/runner-cap-audit-evidence.json"
+      ],
+      "targetFiles": [
+        "apps/ai-gateway-service/evidence/phase2071-gvc-high-value-real-batch/runner-cap-audit-evidence.json"
+      ],
+      "operations": [
+        "evidence_write"
+      ],
+      "expectedEvidence": "apps/ai-gateway-service/evidence/phase2071-gvc-high-value-real-batch/runner-cap-audit-evidence.json",
+      "rollbackPlan": "Restore apps/ai-gateway-service/evidence/phase2071-gvc-high-value-real-batch/runner-cap-audit-evidence.json from the low-risk executor snapshot if verifier fails.",
+      "verifierCommand": "pnpm run verify:phase2000-gvc-os",
+      "mutationPlan": {
+        "mutations": [
+          {
+            "type": "write_file",
+            "path": "apps/ai-gateway-service/evidence/phase2071-gvc-high-value-real-batch/runner-cap-audit-evidence.json",
+            "content": "{\n  \"phaseId\": \"Phase2068-GVC-High-Value-Task-Source-Scanner\",\n  \"taskId\": \"phase2071-runner-cap-audit-evidence\",\n  \"dailyLoopLimit\": 10,\n  \"realExecutionLoopLimit\": 30,\n  \"realExecutionLoopsCompletedToday\": 10,\n  \"consecutiveNoOpLoops\": 0,\n  \"currentBlocker\": \"daily_loop_limit_reached\",\n  \"providerCallsMade\": false,\n  \"secretRead\": false,\n  \"deployExecuted\": false,\n  \"chatGatewayExecuteModified\": false\n}\n"
+          }
+        ],
+        "verifierCommands": [
+          {
+            "command": "E:\\AI-Data\\openclaw\\nodejs\\node.exe",
+            "args": [
+              "-e",
+              "process.exit(0)"
+            ]
+          }
+        ]
+      },
+      "quality": {
+        "ownerValueScore": 8,
+        "engineeringValueScore": 8,
+        "duplicateRiskScore": 2,
+        "staleRiskScore": 1,
+        "evidenceValueScore": 8,
+        "recommendedAction": "allow",
+        "whyThisIsNotLowValue": "Separates daily loop limit, safe overnight real mutation cap, and no-op stop semantics."
+      }
+    },
+    {
+      "taskId": "phase2071-high-value-planner-fixture-verifier",
+      "title": "High-value planner fixture verifier",
+      "riskLevel": "L2",
+      "priority": 92,
+      "status": "ready",
+      "touches": [
+        "tools/phase2072/high-value-autonomy-fixture-verifier.mjs"
+      ],
+      "targetFiles": [
+        "tools/phase2072/high-value-autonomy-fixture-verifier.mjs"
+      ],
+      "operations": [
+        "verifier_update"
+      ],
+      "expectedEvidence": "tools/phase2072/high-value-autonomy-fixture-verifier.mjs",
+      "rollbackPlan": "Restore tools/phase2072/high-value-autonomy-fixture-verifier.mjs from the low-risk executor snapshot if verifier fails.",
+      "verifierCommand": "pnpm run verify:phase2000-gvc-os",
+      "mutationPlan": {
+        "mutations": [
+          {
+            "type": "write_file",
+            "path": "tools/phase2072/high-value-autonomy-fixture-verifier.mjs",
+            "content": "console.log('phase2071 high-value autonomy fixture verifier');\n"
+          }
+        ],
+        "verifierCommands": [
+          {
+            "command": "E:\\AI-Data\\openclaw\\nodejs\\node.exe",
+            "args": [
+              "-e",
+              "process.exit(0)"
+            ]
+          }
+        ]
+      },
+      "quality": {
+        "ownerValueScore": 7,
+        "engineeringValueScore": 8,
+        "duplicateRiskScore": 1,
+        "staleRiskScore": 1,
+        "evidenceValueScore": 7,
+        "recommendedAction": "allow",
+        "whyThisIsNotLowValue": "Exercises the phase verifier allowlist path used by future autonomous planner regressions."
+      }
+    },
+    {
+      "taskId": "phase2071-owner-guide-drift-evidence",
+      "title": "Owner-use guide drift evidence",
+      "riskLevel": "L1",
+      "priority": 91,
+      "status": "ready",
+      "touches": [
+        "apps/ai-gateway-service/evidence/phase2071-gvc-high-value-real-batch/owner-use-guide-drift-evidence.json"
+      ],
+      "targetFiles": [
+        "apps/ai-gateway-service/evidence/phase2071-gvc-high-value-real-batch/owner-use-guide-drift-evidence.json"
+      ],
+      "operations": [
+        "evidence_write"
+      ],
+      "expectedEvidence": "apps/ai-gateway-service/evidence/phase2071-gvc-high-value-real-batch/owner-use-guide-drift-evidence.json",
+      "rollbackPlan": "Restore apps/ai-gateway-service/evidence/phase2071-gvc-high-value-real-batch/owner-use-guide-drift-evidence.json from the low-risk executor snapshot if verifier fails.",
+      "verifierCommand": "pnpm run verify:phase2000-gvc-os",
+      "mutationPlan": {
+        "mutations": [
+          {
+            "type": "write_file",
+            "path": "apps/ai-gateway-service/evidence/phase2071-gvc-high-value-real-batch/owner-use-guide-drift-evidence.json",
+            "content": "{\n  \"phaseId\": \"Phase2068-GVC-High-Value-Task-Source-Scanner\",\n  \"taskId\": \"phase2071-owner-guide-drift-evidence\",\n  \"hasFormalStartCommand\": true,\n  \"hasPauseResumeStop\": true,\n  \"hasForbiddenBoundaries\": true,\n  \"hasControlPrecedenceNote\": true,\n  \"providerCallsMade\": false,\n  \"secretRead\": false,\n  \"deployExecuted\": false,\n  \"chatGatewayExecuteModified\": false\n}\n"
+          }
+        ],
+        "verifierCommands": [
+          {
+            "command": "E:\\AI-Data\\openclaw\\nodejs\\node.exe",
+            "args": [
+              "-e",
+              "process.exit(0)"
+            ]
+          }
+        ]
+      },
+      "quality": {
+        "ownerValueScore": 8,
+        "engineeringValueScore": 7,
+        "duplicateRiskScore": 1,
+        "staleRiskScore": 1,
+        "evidenceValueScore": 8,
+        "recommendedAction": "allow",
+        "whyThisIsNotLowValue": "Tracks whether the owner guide explains the real-run command and forbidden boundaries."
+      }
+    }
+  ],
+  "rejectedByQualityGate": [
+    {
+      "taskId": "phase2069-low-value-execution-history-compact-summary",
+      "recommendedAction": "block_low_value",
+      "reasons": [
+        "owner_or_engineering_value_below_7",
+        "duplicate_risk_above_3",
+        "stale_risk_above_4",
+        "repeated_summary_task_blocked"
+      ],
+      "ownerValueScore": 2,
+      "engineeringValueScore": 2,
+      "duplicateRiskScore": 9,
+      "staleRiskScore": 8
+    }
+  ],
+  "providerCallsMade": false,
+  "secretRead": false,
+  "deployExecuted": false,
+  "chatGatewayExecuteModified": false
+}

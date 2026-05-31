@@ -1,0 +1,30 @@
+{
+  "phase": "Phase349C",
+  "playbookType": "tianshu_wrong_selection_incident",
+  "result": {
+    "phase": "Phase349C",
+    "sourcePhase": "Phase348C",
+    "incidentPlaybooksGenerated": true,
+    "rollbackStepsIncluded": true,
+    "escalationOwnersPlaceholder": true,
+    "noRealOpsIntegration": true,
+    "wrongSelectionPlaybookGenerated": true,
+    "policyActivated": false,
+    "trainingTriggered": false,
+    "embeddingBatchTriggered": false,
+    "productionGA": false,
+    "rollbackSteps": [
+      "freeze_policy_proposal_queue",
+      "route_selection_to_manual_review",
+      "block_activation_until_reviewer_approval",
+      "export_audit_trail_for_wrong_selection_review"
+    ],
+    "metricsCovered": [
+      "planner_selection_review_coverage",
+      "wrong_routing_detection_rate",
+      "manual_approval_required_rate",
+      "policy_activation_blocked_by_default"
+    ],
+    "secretValueExposed": false
+  }
+}
