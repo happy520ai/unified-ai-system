@@ -11,14 +11,19 @@
   <style>
     .page-enter { animation: fadeInUp 0.5s var(--ease-out) both; }
     .evolve-section { margin-bottom: var(--space-7); }
-    .status-dot-inline { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
-    .status-dot-inline.green { background: var(--status-success); box-shadow: 0 0 8px var(--status-success); }
-    .status-dot-inline.yellow { background: var(--status-warning); box-shadow: 0 0 8px var(--status-warning); }
-    .status-dot-inline.red { background: var(--status-danger); box-shadow: 0 0 8px var(--status-danger); }
+    .status-dot-inline { width: 8px; height: 8px; border-radius: var(--radius-full); display: inline-block; flex-shrink: 0; }
+    .status-dot-inline.green { background: var(--status-success); box-shadow: var(--glow-success); }
+    .status-dot-inline.yellow { background: var(--status-warning); box-shadow: var(--glow-warning); }
+    .status-dot-inline.red { background: var(--status-danger); box-shadow: var(--glow-danger); }
     .status-dot-inline.gray { background: var(--text-tertiary); }
-    .neuron-item { display: flex; align-items: center; gap: var(--space-4); padding: var(--space-4) var(--space-5); border-bottom: 1px solid rgba(255,255,255,0.03); transition: background var(--duration-fast); }
+    .neuron-item {
+      display: flex; align-items: center; gap: var(--space-4);
+      padding: var(--space-4) var(--space-5);
+      border-bottom: 1px solid var(--glass-border-faint);
+      border-radius: var(--radius-sm); transition: background var(--duration-fast);
+    }
     .neuron-item:last-child { border-bottom: none; }
-    .neuron-item:hover { background: rgba(255,255,255,0.02); }
+    .neuron-item:hover { background: var(--glass-bg-hover); }
     .neuron-info { flex: 1; min-width: 0; }
     .neuron-name { font-size: var(--text-body); font-weight: 500; color: var(--text-primary); margin-bottom: 2px; }
     .neuron-meta { font-size: var(--text-caption); color: var(--text-tertiary); display: flex; align-items: center; gap: var(--space-3); }

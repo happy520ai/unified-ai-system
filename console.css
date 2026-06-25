@@ -220,7 +220,7 @@ body::before {
   border-radius: var(--radius-full);
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.14);
+  background: var(--glass-border-hover);
 }
 
 /* ── Focus Ring ── */
@@ -743,7 +743,9 @@ body::before {
 }
 
 .input {
-  background: var(--input-bg);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-sm);
   padding: var(--space-3) var(--space-4);
@@ -755,9 +757,15 @@ body::before {
   width: 100%;
 }
 
+.input::placeholder { color: var(--text-faint); }
+
+.input:hover {
+  border-color: var(--glass-border-hover);
+}
+
 .input:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
+  box-shadow: 0 0 0 3px var(--accent-soft), 0 0 20px var(--accent-glow-subtle);
   background: rgba(0, 0, 0, 0.4);
 }
 
@@ -1651,13 +1659,14 @@ select.input {
   max-width: 680px;
   max-height: 85vh;
   background: var(--modal-bg);
-  backdrop-filter: blur(60px) saturate(180%);
-  border: 1px solid var(--glass-bg-active);
+  backdrop-filter: var(--glass-blur-heavy);
+  -webkit-backdrop-filter: var(--glass-blur-heavy);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg);
   display: flex;
   flex-direction: column;
-  box-shadow: 0 24px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.05);
-  animation: modalIn 0.3s ease-out;
+  box-shadow: var(--depth-3), 0 0 0 1px var(--glass-border-faint);
+  animation: modalIn 0.3s var(--ease-out);
 }
 @keyframes modalIn {
   from { opacity: 0; transform: translateY(20px) scale(0.97); }

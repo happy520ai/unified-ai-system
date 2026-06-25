@@ -48,26 +48,26 @@ const Interact = window.Interact = {
   toast(message, type = 'info', duration = 3000) {
     this.initToast();
     const colors = {
-      success: { bg: 'rgba(52,211,153,0.12)', border: 'rgba(52,211,153,0.25)', text: '#34d399', icon: '✓' },
-      error: { bg: 'rgba(248,113,113,0.12)', border: 'rgba(248,113,113,0.25)', text: '#f87171', icon: '✕' },
-      warning: { bg: 'rgba(251,191,36,0.12)', border: 'rgba(251,191,36,0.25)', text: '#fbbf24', icon: '⚠' },
-      info: { bg: 'rgba(96,165,250,0.12)', border: 'rgba(96,165,250,0.25)', text: '#60a5fa', icon: 'ℹ' },
+      success: { bg: 'rgba(52,211,153,0.15)', border: 'rgba(52,211,153,0.3)', text: 'var(--status-success)', icon: '✓', glow: 'rgba(52,211,153,0.15)' },
+      error: { bg: 'rgba(248,113,113,0.15)', border: 'rgba(248,113,113,0.3)', text: 'var(--status-danger)', icon: '✕', glow: 'rgba(248,113,113,0.15)' },
+      warning: { bg: 'rgba(251,191,36,0.15)', border: 'rgba(251,191,36,0.3)', text: 'var(--status-warning)', icon: '⚠', glow: 'rgba(251,191,36,0.15)' },
+      info: { bg: 'rgba(96,165,250,0.15)', border: 'rgba(96,165,250,0.3)', text: 'var(--status-info)', icon: 'ℹ', glow: 'rgba(96,165,250,0.15)' },
     };
     const c = colors[type] || colors.info;
     const el = document.createElement('div');
     el.setAttribute('role', 'status');
     el.style.cssText = `
-      pointer-events: auto; display: flex; align-items: center; gap: 10px;
-      padding: 12px 20px; border-radius: 14px;
+      pointer-events: auto; display: flex; align-items: center; gap: 12px;
+      padding: 14px 22px; border-radius: 16px;
       background: ${c.bg}; border: 1px solid ${c.border};
-      backdrop-filter: blur(40px) saturate(180%);
-      -webkit-backdrop-filter: blur(40px) saturate(180%);
+      backdrop-filter: blur(60px) saturate(180%);
+      -webkit-backdrop-filter: blur(60px) saturate(180%);
       color: ${c.text}; font-size: 14px; font-weight: 500;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.3), 0 0 20px ${c.glow};
       transform: translateX(120%); opacity: 0;
       transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
     `;
-    el.innerHTML = `<span style="font-size:16px" aria-hidden="true">${c.icon}</span><span>${escapeHtml(message)}</span>`;
+    el.innerHTML = `<span style="font-size:18px;opacity:0.9" aria-hidden="true">${c.icon}</span><span>${escapeHtml(message)}</span>`;
     this.toastContainer.appendChild(el);
     requestAnimationFrame(() => {
       el.style.transform = 'translateX(0)';
@@ -88,19 +88,20 @@ const Interact = window.Interact = {
     overlay.setAttribute('aria-label', title);
     overlay.style.cssText = `
       position: fixed; inset: 0; z-index: 9998;
-      background: rgba(0,0,0,0.6); backdrop-filter: blur(8px);
+      background: rgba(0,0,0,0.5); backdrop-filter: blur(12px);
       display: flex; align-items: center; justify-content: center;
       opacity: 0; transition: opacity 0.3s ease;
     `;
     const isDanger = type === 'danger';
-    const btnColor = isDanger ? '#f87171' : '#7c6aef';
-    const btnBg = isDanger ? 'rgba(248,113,113,0.15)' : 'rgba(124,106,239,0.15)';
+    const btnColor = isDanger ? 'var(--status-danger)' : 'var(--accent)';
+    const btnBg = isDanger ? 'var(--status-danger-soft)' : 'var(--accent-soft)';
     const modal = document.createElement('div');
     modal.style.cssText = `
-      background: rgba(12,12,18,0.92); backdrop-filter: blur(80px) saturate(200%);
-      border: 1px solid rgba(255,255,255,0.08); border-radius: 24px;
+      background: var(--modal-bg); backdrop-filter: blur(80px) saturate(200%);
+      -webkit-backdrop-filter: blur(80px) saturate(200%);
+      border: 1px solid var(--glass-border); border-radius: var(--radius-xl);
       padding: 32px; max-width: 420px; width: calc(100% - 32px);
-      box-shadow: 0 16px 80px rgba(0,0,0,0.6);
+      box-shadow: 0 16px 64px rgba(0,0,0,0.4), 0 0 0 1px var(--glass-border-faint);
       transform: scale(0.95) translateY(8px);
       transition: transform 0.35s cubic-bezier(0.34,1.56,0.64,1);
     `;
