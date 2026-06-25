@@ -80,7 +80,7 @@ export async function realRun(input = {}, approval, options = {}) {
   };
 }
 
-export { writeEvidenceFileAsync as writeEvidence } from "../../../../tools/lib/evidenceWriter.mjs";
+export { writeEvidenceFileAsync as writeEvidence } from "../../../../../tools/lib/evidenceWriter.mjs";
 
 function normalizeInput(input = {}) {
   const headers = Array.isArray(input.headers) && input.headers.length > 0 ? input.headers.map(String) : ["任务", "状态", "备注"];

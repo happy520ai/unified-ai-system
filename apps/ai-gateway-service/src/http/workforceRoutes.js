@@ -85,7 +85,7 @@ export function createWorkforceRoutes(application, helpers) {
     try {
       writeJson(res, 200, createOkEnvelope(await workforceService.getCurrentTier(), { startedAt }));
     } catch (e) {
-      writeCapabilityError({ response: res, error: e, startedAt, fallbackCode: "tier_read_failed" });
+      writeErrorResponse({ response: res, error: e, startedAt, fallbackCode: "tier_read_failed" });
     }
   }
 
@@ -97,7 +97,7 @@ export function createWorkforceRoutes(application, helpers) {
       const r = await workforceService.setTier(b);
       writeJson(res, r?.success ? 200 : 422, createOkEnvelope(r, { startedAt }));
     } catch (e) {
-      writeCapabilityError({ response: res, error: e, startedAt, fallbackCode: "tier_set_failed" });
+      writeErrorResponse({ response: res, error: e, startedAt, fallbackCode: "tier_set_failed" });
     }
   }
 
@@ -106,7 +106,7 @@ export function createWorkforceRoutes(application, helpers) {
     try {
       writeJson(res, 200, createOkEnvelope(await workforceService.getAutonomyUsage(), { startedAt }));
     } catch (e) {
-      writeCapabilityError({ response: res, error: e, startedAt, fallbackCode: "autonomy_usage_failed" });
+      writeErrorResponse({ response: res, error: e, startedAt, fallbackCode: "autonomy_usage_failed" });
     }
   }
 
@@ -115,7 +115,7 @@ export function createWorkforceRoutes(application, helpers) {
     try {
       writeJson(res, 200, createOkEnvelope(await workforceService.getTrustSnapshot(), { startedAt }));
     } catch (e) {
-      writeCapabilityError({ response: res, error: e, startedAt, fallbackCode: "autonomy_trust_failed" });
+      writeErrorResponse({ response: res, error: e, startedAt, fallbackCode: "autonomy_trust_failed" });
     }
   }
 
@@ -126,7 +126,7 @@ export function createWorkforceRoutes(application, helpers) {
     try {
       writeJson(res, 200, createOkEnvelope(await workforceService.issueAutonomyToken(b), { startedAt }));
     } catch (e) {
-      writeCapabilityError({ response: res, error: e, startedAt, fallbackCode: "autonomy_token_failed" });
+      writeErrorResponse({ response: res, error: e, startedAt, fallbackCode: "autonomy_token_failed" });
     }
   }
 
@@ -137,7 +137,7 @@ export function createWorkforceRoutes(application, helpers) {
     try {
       writeJson(res, 200, createOkEnvelope(await workforceService.revokeAutonomyToken(b.tokenId, b.revokedBy, b.reason), { startedAt }));
     } catch (e) {
-      writeCapabilityError({ response: res, error: e, startedAt, fallbackCode: "autonomy_revoke_failed" });
+      writeErrorResponse({ response: res, error: e, startedAt, fallbackCode: "autonomy_revoke_failed" });
     }
   }
 
@@ -148,7 +148,7 @@ export function createWorkforceRoutes(application, helpers) {
     try {
       writeJson(res, 200, createOkEnvelope(await workforceService.diagnosticRead(b), { startedAt }));
     } catch (e) {
-      writeCapabilityError({ response: res, error: e, startedAt, fallbackCode: "diag_read_failed" });
+      writeErrorResponse({ response: res, error: e, startedAt, fallbackCode: "diag_read_failed" });
     }
   }
 
@@ -160,7 +160,7 @@ export function createWorkforceRoutes(application, helpers) {
       const r = await workforceService.passGate(b);
       writeJson(res, r?.success ? 200 : 422, createOkEnvelope(r, { startedAt }));
     } catch (e) {
-      writeCapabilityError({ response: res, error: e, startedAt, fallbackCode: "tier_gate_failed" });
+      writeErrorResponse({ response: res, error: e, startedAt, fallbackCode: "tier_gate_failed" });
     }
   }
 
@@ -171,7 +171,7 @@ export function createWorkforceRoutes(application, helpers) {
     try {
       writeJson(res, 200, createOkEnvelope(await workforceService.fallBackTier(b), { startedAt }));
     } catch (e) {
-      writeCapabilityError({ response: res, error: e, startedAt, fallbackCode: "tier_fb_failed" });
+      writeErrorResponse({ response: res, error: e, startedAt, fallbackCode: "tier_fb_failed" });
     }
   }
 
@@ -183,7 +183,7 @@ export function createWorkforceRoutes(application, helpers) {
       const result = await workforceService.execute(b);
       writeJson(res, result?.success ? 200 : 422, createOkEnvelope(result, { startedAt }));
     } catch (e) {
-      writeCapabilityError({ response: res, error: e, startedAt, fallbackCode: "execute_failed" });
+      writeErrorResponse({ response: res, error: e, startedAt, fallbackCode: "execute_failed" });
     }
   }
 
@@ -195,7 +195,7 @@ export function createWorkforceRoutes(application, helpers) {
       const result = await workforceService.savePlan(b);
       writeJson(res, 200, createOkEnvelope(result, { startedAt }));
     } catch (e) {
-      writeCapabilityError({ response: res, error: e, startedAt, fallbackCode: "plans_save_failed" });
+      writeErrorResponse({ response: res, error: e, startedAt, fallbackCode: "plans_save_failed" });
     }
   }
 
@@ -205,7 +205,7 @@ export function createWorkforceRoutes(application, helpers) {
       const plans = await workforceService.listPlans();
       writeJson(res, 200, createOkEnvelope(plans, { startedAt }));
     } catch (e) {
-      writeCapabilityError({ response: res, error: e, startedAt, fallbackCode: "plans_list_failed" });
+      writeErrorResponse({ response: res, error: e, startedAt, fallbackCode: "plans_list_failed" });
     }
   }
 

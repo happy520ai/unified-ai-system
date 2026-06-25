@@ -9,7 +9,7 @@ import { validators } from "../validation/httpSchemas.js";
 /**
  * 创建知识库路由 handler 集合
  * @param {Object} application
- * @param {Object} helpers — { readJson, readCapabilityJson, writeJson, writeServiceLog, writeCapabilityError, createOkEnvelope, createErrorEnvelope }
+ * @param {Object} helpers — { readJson, readCapabilityJson, writeJson, writeServiceLog, writeErrorResponse, createOkEnvelope, createErrorEnvelope }
  * @returns {Object} { handlers: Map<string, Function> }
  */
 export function createKnowledgeRoutes(application, helpers) {
