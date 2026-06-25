@@ -1,0 +1,880 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data:;">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title data-i18n="chat.title">对话 — 太极北斗</title>
+  <link rel="stylesheet" href="console.css">
+  <link rel="stylesheet" href="chat.css">
+</head>
+<body>
+  <div id="toast-container" style="position:fixed;top:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:8px;"></div>
+
+  <!-- Sidebar -->
+
+  <div class="chat-page" id="chat-page">
+    <!-- Header -->
+    <div class="chat-header">
+      <div class="chat-header-left">
+        <span class="chat-header-title" data-i18n="chat.title">对话</span>
+        <span class="chat-status-badge" id="chat-status">
+          <span class="chat-status-dot" id="status-dot"></span>
+          <span id="status-text" data-i18n="chat.ready">就绪</span>
+        </span>
+      </div>
+      <div class="chat-header-actions">
+        <select class="chat-mode-select" id="mode-select" title="Chat mode">
+          <option value="standard" data-i18n="chat.modeStandard">标准模式</option>
+          <option value="god" data-i18n="chat.modeGod">上帝视角</option>
+          <option value="tianshu" data-i18n="chat.modeTianshu">天枢模式</option>
+        </select>
+        <button class="chat-header-btn" id="rag-toggle" data-i18n="chat.ragOff">RAG: 关</button>
+        <button class="chat-header-btn" id="clear-btn" data-i18n="chat.clear">清空</button>
+        <button class="chat-header-btn model-config-btn" id="model-config-btn" title="Model settings">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          <span id="current-model-label" class="model-label-text"></span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Messages -->
+    <div class="chat-messages" id="chat-messages">
+      <div class="chat-welcome" id="chat-welcome">
+        <div class="chat-welcome-icon">☯</div>
+        <h2 data-i18n="chat.welcomeTitle">太极北斗 AI 网关</h2>
+        <p data-i18n="chat.welcomeDesc">统一 AI 网关，多模型路由、知识检索、安全治理一体化。输入问题开始对话。</p>
+        <div class="chat-welcome-prompts" id="welcome-prompts">
+          <button class="chat-welcome-prompt" data-prompt="" data-i18n-prompt="chat.welcomePrompt1Data" data-i18n="chat.welcomePrompt1">这个系统有哪些功能？</button>
+          <button class="chat-welcome-prompt" data-prompt="" data-i18n-prompt="chat.welcomePrompt2Data" data-i18n="chat.welcomePrompt2">查看 Provider 状态</button>
+          <button class="chat-welcome-prompt" data-prompt="" data-i18n-prompt="chat.welcomePrompt3Data" data-i18n="chat.welcomePrompt3">知识库使用方法</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scroll-to-bottom -->
+    <button class="scroll-bottom-btn" id="scroll-bottom-btn" title="Scroll to bottom">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+    </button>
+
+    <!-- Composer -->
+    <div class="chat-composer">
+      <div class="composer-input-row">
+        <textarea
+          class="chat-textarea"
+          id="chat-input"
+          rows="1"
+          data-i18n-ph="chat.inputPlaceholder"
+          placeholder="输入消息… Enter 发送，Shift+Enter 换行" data-i18n-placeholder="chat.inputPlaceholder"
+        ></textarea>
+        <button class="chat-send-btn" id="send-btn" title="Send (Enter)">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="send-icon">
+            <line x1="22" y1="2" x2="11" y2="13"/>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+          </svg>
+        </button>
+      </div>
+      <div class="composer-model-info" id="composer-model-info"></div>
+      <div class="composer-hint" id="composer-hint" data-i18n="chat.composerHint">Enter 发送 · Shift+Enter 换行</div>
+    </div>
+  </div>
+
+    <!-- Model Config Panel -->
+    <div class="model-config-panel" id="model-config-panel" style="display:none;">
+      <div class="model-config-header">
+        <span class="model-config-title" data-i18n="chat.modelConfig">模型配置</span>
+        <button class="model-config-close" id="model-config-close">&times;</button>
+      </div>
+      <div class="model-config-body" id="model-config-body">
+        <div class="model-config-loading" id="model-config-loading" data-i18n="common.loading">加载中...</div>
+        <div class="provider-list" id="provider-list"></div>
+        <div class="model-select-row" id="model-select-row" style="display:none;">
+          <select class="model-select" id="model-select"></select>
+          <button class="model-apply-btn" id="model-apply-btn" data-i18n="chat.applyModel">应用</button>
+        </div>
+      </div>
+    </div>
+
+  <script src="components/nav.js"></script>
+  <script src="components/sidebar.js"></script>
+  <script src="components/utils.js"></script>
+  <script src="components/chat-stream.js"></script>
+  <script src="i18n.js"></script>
+
+  <script>
+  /* ============================================================
+     CHAT PAGE — Main logic
+     ============================================================ */
+  injectSidebar({ activeId: 'workforce' });
+  if (typeof I18N !== 'undefined' && I18N.init) I18N.init();
+
+  (function() {
+    'use strict';
+
+    /* ── Constants ── */
+    var MAX_HISTORY = 200;
+    var STORAGE_KEY = 'taichi_chat_history';
+    var API = window.location.origin;
+
+    /* ── State ── */
+    var state = {
+      messages: [],
+      isStreaming: false,
+      currentStream: null,
+      ragEnabled: false,
+      mode: 'standard',
+      autoScroll: true,
+      lastCitations: [],
+      selectedProvider: null,
+      selectedModel: null,
+    };
+
+    /* ── DOM refs ── */
+    var $ = function(id) { return document.getElementById(id); };
+    var messagesEl  = $('chat-messages');
+    var inputEl     = $('chat-input');
+    var sendBtn     = $('send-btn');
+    var sendIcon    = $('send-icon');
+    var ragToggle   = $('rag-toggle');
+    var clearBtn    = $('clear-btn');
+    var modeSelect  = $('mode-select');
+    var statusDot   = $('status-dot');
+    var statusText  = $('status-text');
+    var welcomeEl   = $('chat-welcome');
+    var scrollBtn   = $('scroll-bottom-btn');
+    var composerHint = $('composer-hint');
+    var modelConfigBtn = $('model-config-btn');
+    var modelConfigPanel = $('model-config-panel');
+    var modelConfigClose = $('model-config-close');
+    var providerListEl = $('provider-list');
+    var modelSelectRow = $('model-select-row');
+    var modelSelect = $('model-select');
+    var modelApplyBtn = $('model-apply-btn');
+    var currentModelLabel = $('current-model-label');
+    var composerModelInfo = $('composer-model-info');
+
+    /* ══════════════════════════════════════════════
+       MARKDOWN-LITE RENDERER
+       ══════════════════════════════════════════════ */
+
+    function renderMarkdown(text) {
+      if (!text) return '';
+      var h = escapeHtml(text);
+
+      /* Code blocks: ```lang\n...\n``` */
+      h = h.replace(/```(\w*)\n([\s\S]*?)```/g, function(_, lang, code) {
+        return '<pre><code>' + code + '</code></pre>';
+      });
+
+      /* Inline code: `...` */
+      h = h.replace(/`([^`\n]+)`/g, '<code>$1</code>');
+
+      /* Bold: **...** */
+      h = h.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+
+      /* Italic: *...* */
+      h = h.replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, '<em>$1</em>');
+
+      /* Links: [text](url) — only http/https */
+      h = h.replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+
+      return h;
+    }
+
+    /* ══════════════════════════════════════════════
+       DOM HELPERS
+       ══════════════════════════════════════════════ */
+
+    function addBubble(role, text, opts) {
+      opts = opts || {};
+      /* Hide welcome on first bubble */
+      if (welcomeEl && welcomeEl.parentNode) {
+        welcomeEl.style.display = 'none';
+      }
+
+      var div = document.createElement('div');
+      div.className = 'chat-bubble ' + role;
+
+      var html = '';
+      if (role === 'chat-user') {
+        html += '<div class="bubble-role">' + (I18N && I18N.t ? I18N.t('chat.you') : '你') + '</div>';
+      } else if (role === 'chat-ai') {
+        html += '<div class="bubble-role">AI</div>';
+      }
+
+      if (opts.html) {
+        html += '<div class="bubble-text">' + opts.html + '</div>';
+      } else {
+        html += '<div class="bubble-text">' + (role === 'chat-user' ? escapeHtml(text) : renderMarkdown(text)) + '</div>';
+      }
+
+      div.innerHTML = html;
+      messagesEl.appendChild(div);
+      scrollIfNeeded();
+      return div;
+    }
+
+    function addThinkingBubble() {
+      if (welcomeEl && welcomeEl.parentNode) welcomeEl.style.display = 'none';
+      var div = document.createElement('div');
+      div.className = 'chat-bubble chat-thinking';
+      div.id = 'thinking-bubble';
+      var modeLabel = state.mode === 'god' ? (I18N && I18N.t ? I18N.t('chat.modeAnalyzing') : '多模型分析中') : state.mode === 'tianshu' ? (I18N && I18N.t ? I18N.t('chat.modeReasoning') : '天枢推理中') : (I18N && I18N.t ? I18N.t('chat.modeThinking') : '思考中');
+      div.innerHTML = '<span class="thinking-dots"><span></span><span></span><span></span></span> ' + escapeHtml(modeLabel) + '…';
+      messagesEl.appendChild(div);
+      scrollIfNeeded();
+      return div;
+    }
+
+    function removeThinkingBubble() {
+      var el = $('thinking-bubble');
+      if (el) el.remove();
+    }
+
+    function addErrorBubble(message, retryPrompt) {
+      removeThinkingBubble();
+      var div = document.createElement('div');
+      div.className = 'chat-bubble chat-error';
+      var html = '<div class="bubble-text">⚠ ' + escapeHtml(message) + '</div>';
+      if (retryPrompt) {
+        html += '<div class="message-actions" style="opacity:1">';
+        html += '<button class="msg-action-btn retry-btn">' + escapeHtml(I18N && I18N.t ? I18N.t('chat.retry') : '重试') + '</button>';
+        html += '</div>';
+      }
+      div.innerHTML = html;
+      messagesEl.appendChild(div);
+
+      if (retryPrompt) {
+        var retryBtn = div.querySelector('.retry-btn');
+        retryBtn.onclick = function() {
+          div.remove();
+          sendMessage(retryPrompt);
+        };
+      }
+      scrollIfNeeded();
+    }
+
+    function addMessageActions(bubble, prompt) {
+      var actions = document.createElement('div');
+      actions.className = 'message-actions';
+
+      /* Copy button */
+      var copyBtn = document.createElement('button');
+      copyBtn.className = 'msg-action-btn';
+      copyBtn.textContent = I18N && I18N.t ? I18N.t('chat.copy') : '复制';
+      copyBtn.onclick = function() {
+        var textEl = bubble.querySelector('.bubble-text');
+        var text = textEl ? textEl.textContent : '';
+        navigator.clipboard.writeText(text).then(function() {
+          copyBtn.textContent = '✓';
+          setTimeout(function() { copyBtn.textContent = I18N && I18N.t ? I18N.t('chat.copy') : '复制'; }, 1500);
+        });
+      };
+      actions.appendChild(copyBtn);
+
+      /* Retry button (only for AI messages) */
+      if (prompt) {
+        var retryBtn = document.createElement('button');
+        retryBtn.className = 'msg-action-btn';
+        retryBtn.textContent = I18N && I18N.t ? I18N.t('chat.retry') : '重试';
+        retryBtn.onclick = function() {
+          /* Remove the AI response bubble and resend */
+          bubble.remove();
+          sendMessage(prompt);
+        };
+        actions.appendChild(retryBtn);
+      }
+
+      bubble.appendChild(actions);
+    }
+
+    /* ══════════════════════════════════════════════
+       CITATION RENDERING
+       ══════════════════════════════════════════════ */
+
+    function renderCitations(citations, container) {
+      if (!citations || !citations.length) return;
+
+      var wrap = document.createElement('div');
+      wrap.className = 'message-citations';
+
+      var heading = document.createElement('div');
+      heading.className = 'citation-heading';
+      heading.textContent = (I18N && I18N.t ? I18N.t('chat.citations') : '知识引用') + ' · ' + citations.length;
+      wrap.appendChild(heading);
+
+      citations.forEach(function(c, i) {
+        var details = document.createElement('details');
+        details.className = 'citation-card';
+
+        var summary = document.createElement('summary');
+        summary.innerHTML = '<span>' + escapeHtml(String(i + 1)) + '</span> <span>' + escapeHtml(c.title || c.sourceId || 'Unknown') + '</span>';
+        details.appendChild(summary);
+
+        var body = document.createElement('div');
+        body.className = 'citation-card-body';
+
+        /* Pill row */
+        var pills = document.createElement('div');
+        pills.className = 'citation-pill-row';
+
+        if (c.score != null) {
+          var scorePill = document.createElement('span');
+          scorePill.className = 'citation-pill score';
+          scorePill.textContent = (c.score * 100).toFixed(1) + '%';
+          pills.appendChild(scorePill);
+        }
+
+        if (c.matchedTerms && c.matchedTerms.length) {
+          c.matchedTerms.forEach(function(term) {
+            var termPill = document.createElement('span');
+            termPill.className = 'citation-pill term';
+            termPill.textContent = escapeHtml(term);
+            pills.appendChild(termPill);
+          });
+        }
+        body.appendChild(pills);
+
+        /* Snippet */
+        if (c.snippet) {
+          var snippet = document.createElement('div');
+          snippet.className = 'citation-snippet';
+          snippet.textContent = c.snippet.length > 200 ? c.snippet.slice(0, 200) + '…' : c.snippet;
+          body.appendChild(snippet);
+        }
+
+        /* Meta */
+        var meta = document.createElement('div');
+        meta.className = 'citation-meta-row';
+        if (c.sourceId) meta.innerHTML += '<span>source: ' + escapeHtml(c.sourceId) + '</span>';
+        if (c.documentId) meta.innerHTML += '<span>doc: ' + escapeHtml(c.documentId) + '</span>';
+        body.appendChild(meta);
+
+        details.appendChild(body);
+        wrap.appendChild(details);
+      });
+
+      container.appendChild(wrap);
+    }
+
+    /* ══════════════════════════════════════════════
+       STATUS MANAGEMENT
+       ══════════════════════════════════════════════ */
+
+    function setStatus(status, text) {
+      statusDot.className = 'chat-status-dot';
+      if (status === 'connected')  statusDot.classList.add('connected');
+      if (status === 'streaming')  statusDot.classList.add('streaming');
+      if (status === 'error')      statusDot.classList.add('error');
+
+      if (text) {
+        statusText.textContent = text;
+      } else {
+        var labels = {
+          connected: I18N && I18N.t ? I18N.t('chat.ready') : '就绪',
+          streaming: I18N && I18N.t ? I18N.t('chat.streaming') : '生成中…',
+          error:     I18N && I18N.t ? I18N.t('chat.error') : '错误',
+          done:      I18N && I18N.t ? I18N.t('chat.ready') : '就绪',
+        };
+        statusText.textContent = labels[status] || status;
+      }
+    }
+
+    function setSendButtonStreaming() {
+      sendBtn.classList.add('stop-btn');
+      sendBtn.title = 'Stop (Esc)';
+      sendIcon.innerHTML = '<rect x="6" y="6" width="12" height="12" rx="2"/>';
+    }
+
+    function setSendButtonNormal() {
+      sendBtn.classList.remove('stop-btn');
+      sendBtn.title = 'Send (Enter)';
+      sendIcon.innerHTML = '<line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>';
+    }
+
+    /* ══════════════════════════════════════════════
+       SCROLL MANAGEMENT
+       ══════════════════════════════════════════════ */
+
+    function scrollIfNeeded() {
+      if (state.autoScroll) {
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+      }
+      updateScrollButton();
+    }
+
+    function updateScrollButton() {
+      var atBottom = messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight < 80;
+      state.autoScroll = atBottom;
+      if (atBottom) {
+        scrollBtn.classList.remove('visible');
+      } else {
+        scrollBtn.classList.add('visible');
+      }
+    }
+
+    messagesEl.addEventListener('scroll', updateScrollButton);
+    scrollBtn.addEventListener('click', function() {
+      messagesEl.scrollTo({ top: messagesEl.scrollHeight, behavior: 'smooth' });
+    });
+
+    /* ══════════════════════════════════════════════
+       HISTORY PERSISTENCE
+       ══════════════════════════════════════════════ */
+
+    function saveHistory() {
+      try {
+        var trimmed = state.messages.slice(-MAX_HISTORY);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(trimmed));
+      } catch (e) {
+        console.warn('[chat] save history failed:', e.message);
+      }
+    }
+
+    function loadHistory() {
+      try {
+        var raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return;
+        var msgs = JSON.parse(raw);
+        if (!Array.isArray(msgs)) return;
+
+        msgs.forEach(function(m) {
+          var bubble;
+          if (m.role === 'user') {
+            bubble = addBubble('chat-user', m.content);
+            addMessageActions(bubble, null);
+          } else if (m.role === 'assistant') {
+            bubble = addBubble('chat-ai', m.content);
+            if (m.citations && m.citations.length) {
+              renderCitations(m.citations, bubble);
+            }
+            addMessageActions(bubble, m.content);
+          }
+          state.messages.push(m);
+        });
+      } catch (e) {
+        console.warn('[chat] load history failed:', e.message);
+      }
+    }
+
+    /* ══════════════════════════════════════════════
+       SSE STREAMING SEND
+       ══════════════════════════════════════════════ */
+
+    function sendMessage(text) {
+      if (!text || !text.trim()) return;
+      text = text.trim();
+
+      /* Add user bubble */
+      var userBubble = addBubble('chat-user', text);
+      addMessageActions(userBubble, null);
+      state.messages.push({ role: 'user', content: text, ts: Date.now() });
+
+      /* Show thinking */
+      addThinkingBubble();
+      setStatus('streaming');
+      setSendButtonStreaming();
+      state.isStreaming = true;
+
+      /* Build request body */
+      var body = { message: text, mode: state.mode };
+      if (state.selectedProvider) body.provider = state.selectedProvider;
+      if (state.selectedModel) body.model = state.selectedModel;
+      var url = state.ragEnabled ? (API + '/chat/rag/stream') : (API + '/chat/stream');
+
+      /* Create stream */
+      var stream = new ChatStream();
+      state.currentStream = stream;
+
+      var assistantBubble = null;
+      var textEl = null;
+      var accumulated = '';
+      var citations = [];
+
+      stream.connect({
+        url: url,
+        body: body,
+        timeout: 90000,
+
+        onStart: function(event) {
+          removeThinkingBubble();
+          assistantBubble = addBubble('chat-ai', '');
+          textEl = assistantBubble.querySelector('.bubble-text');
+          setStatus('streaming', event.selectedModel || undefined);
+        },
+
+        onChunk: function(event) {
+          removeThinkingBubble();
+          if (!assistantBubble) {
+            assistantBubble = addBubble('chat-ai', '');
+            textEl = assistantBubble.querySelector('.bubble-text');
+          }
+          var delta = event.textDelta || '';
+          if (delta) {
+            accumulated += delta;
+            textEl.innerHTML = renderMarkdown(accumulated);
+            scrollIfNeeded();
+          }
+        },
+
+        onKnowledge: function(event) {
+          citations = event.citations || [];
+          state.lastCitations = citations;
+          setStatus('streaming',
+            (I18N && I18N.t ? I18N.t('chat.retrieved') : '已检索') + ' ' + citations.length + ' ' + (I18N && I18N.t ? I18N.t('chat.citations') : '条引用')
+          );
+        },
+
+        onDone: function(event) {
+          removeThinkingBubble();
+          if (!assistantBubble) {
+            /* No chunks received — use outputText from done event */
+            var fullText = event.outputText || '';
+            assistantBubble = addBubble('chat-ai', fullText);
+            textEl = assistantBubble.querySelector('.bubble-text');
+            accumulated = fullText;
+          }
+
+          /* Render citations if RAG */
+          if (citations.length) {
+            renderCitations(citations, assistantBubble);
+          }
+
+          /* Add action buttons */
+          addMessageActions(assistantBubble, text);
+
+          /* Save to history */
+          state.messages.push({
+            role: 'assistant',
+            content: accumulated,
+            citations: citations.length ? citations : undefined,
+            ts: Date.now(),
+          });
+          saveHistory();
+
+          state.isStreaming = false;
+          state.currentStream = null;
+          setStatus('connected');
+          setSendButtonNormal();
+        },
+
+        onError: function(err) {
+          removeThinkingBubble();
+          state.isStreaming = false;
+          state.currentStream = null;
+          setStatus('error');
+          setSendButtonNormal();
+
+          var msg = err.message || err.code || 'Unknown error';
+          if (err.code === 'TIMEOUT') {
+            msg = I18N && I18N.t ? I18N.t('chat.errorTimeout') : '请求超时，请检查网络后重试';
+          } else if (err.code === 'NETWORK_ERROR') {
+            msg = I18N && I18N.t ? I18N.t('chat.errorNetwork') : '网络连接失败，请检查服务是否运行中';
+          } else if (err.code === 'CIRCUIT_OPEN') {
+            msg = I18N && I18N.t ? I18N.t('chat.errorCircuit') : 'Provider 熔断中，请稍后重试';
+          }
+          addErrorBubble(msg, text);
+        },
+
+        onStatus: function(s) {
+          if (s === 'connecting') setStatus('streaming', I18N && I18N.t ? I18N.t('chat.connecting') : '连接中…');
+          else if (s === 'done') {
+            /* Only update if we're not already done (onDone might have fired) */
+            if (state.isStreaming) {
+              removeThinkingBubble();
+              state.isStreaming = false;
+              state.currentStream = null;
+              setStatus('connected');
+              setSendButtonNormal();
+            }
+          }
+        },
+      });
+    }
+
+    function stopGeneration() {
+      if (state.currentStream) {
+        state.currentStream.abort();
+        state.isStreaming = false;
+        state.currentStream = null;
+        removeThinkingBubble();
+        setStatus('connected');
+        setSendButtonNormal();
+
+        /* Mark current assistant bubble as stopped */
+        var lastBubble = messagesEl.querySelector('.chat-bubble.chat-ai:last-of-type .bubble-text');
+        if (lastBubble && lastBubble.textContent) {
+          /* Already has content — add a stopped indicator */
+          var stoppedNote = document.createElement('div');
+          stoppedNote.style.cssText = 'font-size:11px;color:var(--text-tertiary);margin-top:6px;opacity:0.5;';
+          stoppedNote.textContent = I18N && I18N.t ? I18N.t('chat.stopped') : '— 已停止生成 —';
+          lastBubble.parentNode.appendChild(stoppedNote);
+        }
+      }
+    }
+
+
+    /* ══════════════════════════════════════════════
+       MODEL CONFIGURATION
+       ══════════════════════════════════════════════ */
+
+    var MODEL_STORAGE_KEY = 'taichi_chat_model';
+
+    function loadSavedModel() {
+      try {
+        var saved = localStorage.getItem(MODEL_STORAGE_KEY);
+        if (saved) {
+          var parsed = JSON.parse(saved);
+          state.selectedProvider = parsed.provider || null;
+          state.selectedModel = parsed.model || null;
+          updateModelLabels();
+        }
+      } catch (e) { /* ignore */ }
+    }
+
+    function saveModelSelection() {
+      if (state.selectedProvider && state.selectedModel) {
+        localStorage.setItem(MODEL_STORAGE_KEY, JSON.stringify({
+          provider: state.selectedProvider,
+          model: state.selectedModel,
+        }));
+      }
+    }
+
+    function updateModelLabels() {
+      if (state.selectedModel) {
+        var short = state.selectedModel.split('/').pop().split('-').slice(0, 2).join('-');
+        if (currentModelLabel) currentModelLabel.textContent = short;
+        if (composerModelInfo) {
+          composerModelInfo.textContent = (state.selectedProvider || '') + ' / ' + state.selectedModel;
+          composerModelInfo.style.display = '';
+        }
+      } else {
+        if (currentModelLabel) currentModelLabel.textContent = '';
+        if (composerModelInfo) { composerModelInfo.textContent = ''; composerModelInfo.style.display = 'none'; }
+      }
+    }
+
+    function toggleModelConfig() {
+      var visible = modelConfigPanel.style.display !== 'none';
+      if (visible) {
+        modelConfigPanel.style.display = 'none';
+        return;
+      }
+      modelConfigPanel.style.display = '';
+      loadProviders();
+    }
+
+    function loadProviders() {
+      providerListEl.innerHTML = '';
+      modelSelectRow.style.display = 'none';
+      var loadingEl = $('model-config-loading');
+      if (loadingEl) loadingEl.style.display = '';
+
+      fetch(API + '/providers').then(function(r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      }).then(function(data) {
+        if (loadingEl) loadingEl.style.display = 'none';
+        var providers = data.data || data.providers || data || [];
+        if (!Array.isArray(providers)) providers = [];
+        if (providers.length === 0) {
+          providerListEl.innerHTML = '<div class="model-config-empty" data-i18n="chat.noProviders">' +
+            (I18N && I18N.t ? I18N.t('chat.noProviders') : '暂无可用 Provider') + '</div>';
+          return;
+        }
+        renderProviderCards(providers);
+      }).catch(function(err) {
+        if (loadingEl) loadingEl.style.display = 'none';
+        providerListEl.innerHTML = '<div class="model-config-empty model-config-error">' +
+          (I18N && I18N.t ? I18N.t('chat.providerLoadError') : '无法加载 Provider 列表') + '</div>';
+      });
+    }
+
+    function renderProviderCards(providers) {
+      providerListEl.innerHTML = '';
+      providers.forEach(function(p) {
+        var id = p.id || p.providerId || p.name;
+        var models = p.models || [];
+        var card = document.createElement('div');
+        card.className = 'provider-card';
+        if (state.selectedProvider === id) card.classList.add('selected');
+        card.innerHTML = '<div class="provider-card-name">' + escapeHtml(id) + '</div>' +
+          '<div class="provider-card-models">' + (models.length || 0) + ' models</div>';
+        card.addEventListener('click', function() {
+          document.querySelectorAll('.provider-card').forEach(function(c) { c.classList.remove('selected'); });
+          card.classList.add('selected');
+          state.selectedProvider = id;
+          if (models.length > 0) {
+            populateModelSelect(models);
+            modelSelectRow.style.display = '';
+          } else {
+            modelSelectRow.style.display = 'none';
+          }
+        });
+        providerListEl.appendChild(card);
+      });
+    }
+
+    function populateModelSelect(models) {
+      modelSelect.innerHTML = '';
+      models.forEach(function(m) {
+        var modelId = typeof m === 'string' ? m : (m.id || m.modelId || m.name || '');
+        var opt = document.createElement('option');
+        opt.value = modelId;
+        opt.textContent = modelId;
+        if (state.selectedModel === modelId) opt.selected = true;
+        modelSelect.appendChild(opt);
+      });
+    }
+
+    function applyModelSelection() {
+      state.selectedModel = modelSelect.value;
+      saveModelSelection();
+      updateModelLabels();
+      modelConfigPanel.style.display = 'none';
+      showToast(
+        (I18N && I18N.t ? I18N.t('chat.modelApplied') : '已切换模型') + ': ' + state.selectedModel,
+        'success'
+      );
+    }
+
+    /* ══════════════════════════════════════════════
+       EVENT BINDINGS
+       ══════════════════════════════════════════════ */
+
+    /* Send button */
+    sendBtn.addEventListener('click', function() {
+      if (state.isStreaming) {
+        stopGeneration();
+      } else {
+        var text = inputEl.value.trim();
+        if (text) {
+          inputEl.value = '';
+          inputEl.style.height = 'auto';
+          sendMessage(text);
+        }
+      }
+    });
+
+    /* Textarea auto-resize + Enter to send */
+    inputEl.addEventListener('input', function() {
+      this.style.height = 'auto';
+      this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+    });
+
+    inputEl.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        if (!state.isStreaming) {
+          sendBtn.click();
+        }
+      }
+    });
+
+    /* Escape to stop */
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape' && state.isStreaming) {
+        stopGeneration();
+      }
+    });
+
+    /* RAG toggle */
+    ragToggle.addEventListener('click', function() {
+      state.ragEnabled = !state.ragEnabled;
+      this.textContent = state.ragEnabled
+        ? (I18N && I18N.t ? I18N.t('chat.ragOn') : 'RAG: 开')
+        : (I18N && I18N.t ? I18N.t('chat.ragOff') : 'RAG: 关');
+      this.classList.toggle('active', state.ragEnabled);
+      showToast(state.ragEnabled
+        ? (I18N && I18N.t ? I18N.t('chat.ragEnabled') : '知识库检索已启用')
+        : (I18N && I18N.t ? I18N.t('chat.ragDisabled') : '知识库检索已关闭'),
+        state.ragEnabled ? 'success' : 'info'
+      );
+    });
+
+    /* Clear chat */
+    clearBtn.addEventListener('click', function() {
+      if (state.isStreaming) stopGeneration();
+      if (state.messages.length === 0) return;
+
+      if (!confirm(I18N && I18N.t ? I18N.t('chat.clearConfirm') : '确定清空所有聊天记录？')) return;
+
+      messagesEl.innerHTML = '';
+      state.messages = [];
+      state.lastCitations = [];
+      localStorage.removeItem(STORAGE_KEY);
+
+      /* Restore welcome */
+      if (welcomeEl) {
+        messagesEl.appendChild(welcomeEl);
+        welcomeEl.style.display = '';
+      }
+      setStatus('connected');
+    });
+
+    /* Mode select */
+    modeSelect.addEventListener('change', function() {
+      state.mode = this.value;
+    });
+
+    /* Model config */
+    modelConfigBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      toggleModelConfig();
+    });
+    modelConfigClose.addEventListener('click', function() {
+      modelConfigPanel.style.display = 'none';
+    });
+    modelApplyBtn.addEventListener('click', applyModelSelection);
+    document.addEventListener('click', function(e) {
+      if (modelConfigPanel.style.display !== 'none' &&
+          !modelConfigPanel.contains(e.target) &&
+          !modelConfigBtn.contains(e.target)) {
+        modelConfigPanel.style.display = 'none';
+      }
+    });
+
+
+    /* Welcome prompts */
+    document.querySelectorAll('.chat-welcome-prompt').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var prompt = this.getAttribute('data-prompt');
+        if (prompt) {
+          inputEl.value = prompt;
+          sendBtn.click();
+        }
+      });
+    });
+
+    /* ── Toast helper ── */
+    function showToast(msg, type) {
+      type = type || 'info';
+      var c = $('toast-container');
+      var colors = { success: '#34d399', error: '#f87171', warning: '#fbbf24', info: '#60a5fa' };
+      var el = document.createElement('div');
+      el.style.cssText = 'pointer-events:auto;display:flex;align-items:center;gap:10px;padding:12px 20px;border-radius:14px;background:rgba(12,12,18,0.92);border:1px solid rgba(255,255,255,0.08);backdrop-filter:blur(40px);color:' + colors[type] + ';font-size:14px;font-weight:500;box-shadow:0 8px 32px rgba(0,0,0,0.4);transform:translateX(120%);opacity:0;transition:all 0.4s cubic-bezier(0.34,1.56,0.64,1);';
+      el.textContent = msg;
+      c.appendChild(el);
+      requestAnimationFrame(function() { el.style.transform = 'translateX(0)'; el.style.opacity = '1'; });
+      setTimeout(function() { el.style.transform = 'translateX(120%)'; el.style.opacity = '0'; setTimeout(function() { el.remove(); }, 400); }, 3000);
+    }
+
+    /* ── Init ── */
+    loadSavedModel();
+    loadHistory();
+    setStatus('connected');
+    inputEl.focus();
+
+    /* Check service health on load */
+    fetch(API + '/health/check').then(function(r) {
+      if (r.ok) setStatus('connected');
+      else setStatus('error', 'Service unavailable');
+    }).catch(function() {
+      setStatus('error', I18N && I18N.t ? I18N.t('chat.noService') : '服务未连接');
+    });
+
+  })();
+  </script>
+</body>
+</html>
