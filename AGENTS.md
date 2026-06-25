@@ -71,6 +71,37 @@ Managed block maintained by `sync:readme-agents-current-state`.
 - `doctor:phase13a`
 - `pnpm -r --if-present check`
 
+### Anti-Entropy Meta-Law (逆熵元法则)
+
+The system's first principle is building local, temporary, self-sustaining **low-entropy order**. Every decision must be tested against: "Is this injecting negative entropy or accelerating entropy increase?"
+
+**Seven Iron Laws:**
+
+1. **Origin Law (原点律):** Purpose is the gravity source. The minimum purpose is "AI Gateway Workbench — local actions executable, model calls controlled." Any feature that cannot answer which part of this purpose it serves must not be created.
+
+2. **Boundary Law (边界律):** Interfaces are entropy barriers. HTTP error responses must use `{ status, error: { code, message }, meta }` format. No deep imports into packages/ internals. WebSocket and SSE errors must reuse the same envelope structure.
+
+3. **Layering Law (分层律):** Decoupling is encapsulation. Five-layer architecture: UI → HTTP Server → Business Logic → Adapters → Infrastructure. Single file must not exceed 500 lines. No god modules (single file with 3+ responsibilities). No circular dependencies.
+
+4. **Feedback Law (闭环律):** Feedback is repair. Every error output must have corresponding monitoring. No empty `catch {}` blocks. Three feedback rings established: Health Check / Chat Error / Model Config Detection / Audit Log.
+
+5. **Razor Law (剃刀律):** Minimalism is purification. Same function must not be defined in 2+ files. Extract to shared module. Dead code must be cleaned immediately. `entrypoints/` scripts must import from `entrypointUtils.js` — never redefine `sleep`, `fetchJson`, `readJson`, `writeEvidence`.
+
+6. **Emergence Law (涌现律):** Self-organization is evolution. Provider adapters follow standard interfaces. Knowledge storage is pluggable via config. No hardcoded role lists or central over-scheduling.
+
+7. **Dissipation Law (耗散律):** Openness is immortality. System must continuously intake negative entropy and expel high-entropy waste. `legacy/` is read-only reference only. Temp files, old evidence, and stale cache entries must have cleanup policies.
+
+**Execution constraints (self-check before every change):**
+- Purpose check: Is this injecting negative entropy?
+- Layer check: Which of the five layers does this belong to?
+- Boundary check: Does this route implement standard error format?
+- Size check: Is the new file under 500 lines?
+- Duplication check: Am I reusing a shared function or copying again?
+- Feedback check: Does every catch block log or report errors?
+- Metabolism check: Is there old code that needs cleaning?
+
+Run `node tools/anti-entropy-audit.js` periodically to scan for violations.
+
 ### Evidence rules
 
 - Do not claim pass if the verifier chain is blocked.
@@ -3062,4 +3093,52 @@ Phase 225A-232A adds local automation for:
 
 Default mode is manual bridge / dry-run. Do not describe this as unattended production execution. Do not automatically call Codex CLI unless the explicit one-shot command and approval flags are present. Do not automatically apply patches, merge, commit, push, create worktrees, or dispatch workflow runs. Continue to preserve `legacy/`, do not create `PROJECT_CONTEXT.md`, and do not change the default NVIDIA `/chat` lane.
 
+## 反熵元法则 — Anti-Entropy Meta-Law
 
+> **核心断言：** 系统的唯一底层法则是构建局部的、暂时的、能自我维持的低熵秩序。
+> **永恒检验：** 此刻的决策是在注入负熵，还是在加速熵增？
+
+完整宣言见 `.qoderwork/ANTI_ENTROPY_MANIFESTO.md`。以下为七原则摘要及在本系统的硬约束：
+
+### 一、原点律 — 目的即引力源
+最小目的：AI Gateway Workbench — 本地动作可执行，模型调用受控。
+一切增删以此为唯一试金石。功能蔓延、目的漂移、需求膨胀均为熵增。
+
+### 二、边界律 — 接口即熵垒
+HTTP API、SDK、UI、数据持久化四层边界必须标准化。
+错误响应格式须统一为 `{ status, code, message, details? }`。
+鉴权头须统一为 `Authorization: Bearer <token>`。
+环境变量仅允许 `KNOWLEDGE_*`、`AI_GATEWAY_*`、`PGVECTOR_*` 前缀。
+
+### 三、分层律 — 解耦即封装
+五层架构：UI → HTTP Server → Business Logic → Adapters → Infrastructure。
+层间靠抽象协议对话，模块内高内聚，模块间松耦合。
+`consolePageInlineJs.js` (3500+ 行) 须拆分为 state/api/ui/events/model 五模块。
+禁止循环依赖，禁止上帝模块（单文件 >500 行且多职责）。
+
+### 四、闭环律 — 反馈即修复
+已建立：Health Check、Chat 错误、Model Config 检测、Audit Log 四环。
+待建立：Provider 健康度监控、Knowledge 检索质量反馈、Token Usage 预警。
+错误不得被静默吞没，每条输出必须有对应监控。
+
+### 五、剃刀律 — 极简即净化
+非必要不增实体。死代码、重复工具函数、未使用 CSS 类、过时验证器均为熵。
+已剔除：假数据页面 Demo Mode 化、复杂模型配置 UI 简化为三步流程。
+待剔除：`byId()` 重复定义、`showToast()` 双实现、过时中间态文档。
+
+### 六、涌现律 — 自组织即进化
+Provider 适配器模式、Knowledge 存储插件化、Workforce Role 组合、Autonomy Tier 治理。
+待建立：路由自动注册、动态模型探测、自适应重试策略。
+禁止中央调度过强，禁止硬编码不可扩展逻辑。
+
+### 七、耗散律 — 开放即永生
+已建立：日志轮转、Session 过期、Evidence 压缩。
+待建立：Model Cache LRU 淘汰、Knowledge Chunk GC、Approval Request 过期、Temp File 统一清理。
+封闭系统必然走向死寂，必须持续吸纳负熵、排出高熵废物。
+
+### 执行约束
+- 每次代码变更前自检：此变更是注入负熵还是加速熵增？
+- 新增模块必须归属五层之一，不得越层调用
+- 新增路由必须实现标准错误格式
+- 新增文件不得超过 500 行，超过须拆分
+- 死代码发现后立即清理，不积累
