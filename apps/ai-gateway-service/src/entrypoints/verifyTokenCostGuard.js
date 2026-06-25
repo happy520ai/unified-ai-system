@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { writeEvidenceWithRenderer } from "./entrypointUtils.js";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
@@ -9,6 +10,7 @@ import { createGatewayHttpServer } from "../http/httpServer.js";
 import { createConsolePage } from "../ui/consolePage.js";
 import { createTokenBudgetPolicy } from "../cost/tokenBudgetPolicy.js";
 import { checkTokenCostGuard } from "../cost/tokenCostGuard.js";
+import { listen, postJson, close } from "./entrypointUtils.js";
 
 const PHASE = "268A-token-cost-guard";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -243,7 +245,7 @@ try {
     },
   };
 
-  await writeEvidence(evidence);
+  await writeEvidenceWithRenderer(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence, renderEvidenceMarkdown);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = passed ? 0 : 1;
 } catch (error) {
@@ -390,38 +392,7 @@ async function getJson(url) {
   };
 }
 
-async function postJson(url, body) {
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  const payload = await response.json();
-  return {
-    httpStatus: response.status,
-    ...payload,
-  };
-}
 
-function listen(targetServer, port, host) {
-  return new Promise((resolveListen, rejectListen) => {
-    targetServer.once("error", rejectListen);
-    targetServer.listen(port, host, () => {
-      targetServer.off("error", rejectListen);
-      resolveListen();
-    });
-  });
-}
-
-function close(targetServer) {
-  return new Promise((resolveClose) => targetServer.close(() => resolveClose()));
-}
-
-async function writeEvidence(evidence) {
-  await mkdir(evidenceDir, { recursive: true });
-  await writeFile(evidenceJsonPath, `${JSON.stringify(evidence, null, 2)}\n`, "utf8");
-  await writeFile(evidenceMdPath, renderEvidenceMarkdown(evidence), "utf8");
-}
 
 function renderEvidenceMarkdown(evidence) {
   return `# Phase 268A Token Cost Guard Evidence

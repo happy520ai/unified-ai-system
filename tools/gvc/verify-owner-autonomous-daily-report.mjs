@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import "./build-owner-autonomous-daily-report.mjs";
+import { writeEvidenceFile } from "../lib/evidenceWriter.mjs";
 
 const repoRoot = process.cwd();
 const reportPath = path.join(repoRoot, "apps/ai-gateway-service/evidence/phase2042-gvc-owner-autonomous-daily-report/owner-autonomous-daily-report.json");
@@ -41,7 +42,7 @@ const result = {
   checks: checks.map(([id, pass]) => ({ id, pass })),
 };
 
-writeEvidence("phase2042-gvc-owner-autonomous-daily-report/owner-autonomous-daily-report-verify-result.json", result);
+writeEvidenceFile("apps/ai-gateway-service/evidence/phase2042-gvc-owner-autonomous-daily-report/owner-autonomous-daily-report-verify-result.json", result, repoRoot);
 console.log(JSON.stringify({ status: result.status, blocker: result.blocker, todayLoopCount: result.todayLoopCount }, null, 2));
 if (failed.length > 0) process.exit(1);
 
@@ -51,8 +52,3 @@ function readJson(relativePath) {
   return JSON.parse(readFileSync(filePath, "utf8").replace(/^\uFEFF/, ""));
 }
 
-function writeEvidence(relativePath, value) {
-  const filePath = path.join(repoRoot, "apps/ai-gateway-service/evidence", relativePath);
-  mkdirSync(path.dirname(filePath), { recursive: true });
-  writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
-}

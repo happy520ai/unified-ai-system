@@ -125,6 +125,15 @@ function createParsedDocument({ fileName, parser, mimeType, fileSize, text, meta
 
 function decodeBase64(value) {
   const raw = typeof value === "string" ? value.trim() : "";
+  // Pre-check: reject absurdly large strings before allocating a Buffer
+  // 100 MB binary → ~133 MB base64; cap at 150 MB string to prevent memory exhaustion
+  const MAX_BASE64_STRING_LENGTH = 150 * 1024 * 1024;
+  if (raw.length > MAX_BASE64_STRING_LENGTH) {
+    throw createParserError("KNOWLEDGE_FILE_TOO_LARGE", "Base64 input exceeds maximum safe length.", {
+      stringLength: raw.length,
+      maxLength: MAX_BASE64_STRING_LENGTH,
+    });
+  }
   const base64 = raw.includes(",") && raw.startsWith("data:") ? raw.slice(raw.indexOf(",") + 1) : raw;
   return Buffer.from(base64, "base64");
 }

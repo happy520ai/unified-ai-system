@@ -1,4 +1,4 @@
-import { runTaijiBeidouSelfUseDryRun } from "../../../../packages/taiji-beidou-engine/src/index.js";
+import { runTaijiBeidouSelfUseDryRun } from "@unified-ai-system/taiji-beidou-engine";
 
 export function buildTaijiBeidouRegistryPreview(intakes, options = {}) {
   const result = runTaijiBeidouSelfUseDryRun(intakes, options);

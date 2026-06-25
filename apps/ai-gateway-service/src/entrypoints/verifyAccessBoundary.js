@@ -1,6 +1,8 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { writeEvidencePair } from "./entrypointUtils.js";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { fetchText, fetchJson, listen, close } from "./entrypointUtils.js";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
 import { findPlainSecretFindings } from "../security/secretSafety.js";
@@ -52,7 +54,7 @@ try {
     readme,
     agents,
   });
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = evidence.status === "passed" ? 0 : 1;
 } catch (error) {
@@ -63,7 +65,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "access-boundary-not-closed",
   };
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -161,63 +163,3 @@ function createEvidence({
   };
 }
 
-async function fetchText(url) {
-  const response = await fetch(url);
-  return {
-    httpStatus: response.status,
-    text: await response.text(),
-  };
-}
-
-async function fetchJson(url) {
-  const response = await fetch(url);
-  const text = await response.text();
-  return {
-    httpStatus: response.status,
-    body: text ? JSON.parse(text) : {},
-  };
-}
-
-function listen(server, port, host) {
-  return new Promise((resolveListen, rejectListen) => {
-    server.once("error", rejectListen);
-    server.listen(port, host, () => {
-      server.off("error", rejectListen);
-      resolveListen();
-    });
-  });
-}
-
-function close(server) {
-  return new Promise((resolveClose) => server.close(() => resolveClose()));
-}
-
-async function writeEvidence(body) {
-  await mkdir(evidenceDir, { recursive: true });
-  await writeFile(evidenceJsonPath, `${JSON.stringify(body, null, 2)}\n`, "utf8");
-  await writeFile(evidenceMdPath, createEvidenceMarkdown(body), "utf8");
-}
-
-function createEvidenceMarkdown(body) {
-  return `# Phase 108A Access Boundary Evidence
-
-- Phase: ${body.phase}
-- Status: ${body.status}
-- Generated at: ${body.generatedAt}
-- UI HTTP OK: ${body.checks?.uiHttpOk}
-- Setup readiness OK: ${body.checks?.setupReadinessOk}
-- Auth status OK: ${body.checks?.authStatusOk}
-- Enterprise health OK: ${body.checks?.enterpriseHealthOk}
-- UI boundary marker: ${body.checks?.uiBoundaryMarker}
-- UI boundary copy: ${body.checks?.uiBoundaryCopy}
-- README boundary present: ${body.checks?.readmeBoundaryPresent}
-- AGENTS boundary present: ${body.checks?.agentsBoundaryPresent}
-- Scripts present: ${body.checks?.scriptsPresent}
-- Plaintext API key recorded: ${body.safety?.plaintextApiKeyRecorded}
-- Account system completed: ${body.safety?.accountSystemCompleted}
-- Multi-tenant completed: ${body.safety?.multiTenantCompleted}
-- Enterprise security completed: ${body.safety?.enterpriseSecurityCompleted}
-- Global release completed: ${body.safety?.globalReleaseCompleted}
-- Conclusion: ${body.conclusion}
-`;
-}

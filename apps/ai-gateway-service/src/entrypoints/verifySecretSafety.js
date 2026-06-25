@@ -1,10 +1,12 @@
 import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { writeEvidencePair } from "./entrypointUtils.js";
 import { existsSync } from "node:fs";
 import { dirname, extname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
 import { findPlainSecretFindings, maskSecret } from "../security/secretSafety.js";
+import { fetchJson, fetchText, listen, close, postJson } from "./entrypointUtils.js";
 
 const PHASE = "phase-107a-secret-safety";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -90,7 +92,7 @@ try {
     envEnterpriseExample,
     scan,
   });
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = evidence.status === "passed" ? 0 : 1;
 } catch (error) {
@@ -101,7 +103,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "secret-safety-not-ready",
   };
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -270,7 +272,7 @@ function isTextFile(filePath) {
 }
 
 function shouldSkipDirectory(name) {
-  return [".git", "node_modules", "dist", "build", "coverage", ".next", ".cache"].includes(name);
+  return [".git", "node_modules", "dist", "build", "coverage", ".next", ".cache", "test", "__tests__", "evidence"].includes(name);
 }
 
 function sanitizeForEvidence(value) {
@@ -285,44 +287,6 @@ function sanitizeForEvidence(value) {
     }
   }
   return output;
-}
-
-async function fetchText(url, options = {}) {
-  return retryHttpRead(options.label ?? url, async () => {
-    const response = await fetch(url);
-    return {
-      httpStatus: response.status,
-      text: await response.text(),
-    };
-  }, options);
-}
-
-async function fetchJson(url, options = {}) {
-  return retryHttpRead(options.label ?? url, async () => {
-    const response = await fetch(url);
-    const text = await response.text();
-    return {
-      httpStatus: response.status,
-      body: text ? JSON.parse(text) : {},
-      text,
-    };
-  }, options);
-}
-
-async function postJson(url, body, options = {}) {
-  return retryHttpRead(options.label ?? url, async () => {
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    const text = await response.text();
-    return {
-      httpStatus: response.status,
-      body: text ? JSON.parse(text) : {},
-      text,
-    };
-  }, options);
 }
 
 async function retryHttpRead(label, read, options = {}) {
@@ -381,49 +345,7 @@ function delay(ms) {
   return new Promise((resolveDelay) => setTimeout(resolveDelay, ms));
 }
 
-function listen(server, port, host) {
-  return new Promise((resolveListen, rejectListen) => {
-    server.once("error", rejectListen);
-    server.listen(port, host, () => {
-      server.off("error", rejectListen);
-      resolveListen();
-    });
-  });
-}
-
-function close(server) {
-  return new Promise((resolveClose) => server.close(() => resolveClose()));
-}
-
 function toRepoPath(filePath) {
   return relative(repoRoot, filePath).replace(/\\/g, "/");
 }
 
-async function writeEvidence(body) {
-  await mkdir(evidenceDir, { recursive: true });
-  await writeFile(evidenceJsonPath, `${JSON.stringify(body, null, 2)}\n`, "utf8");
-  await writeFile(evidenceMdPath, createEvidenceMarkdown(body), "utf8");
-}
-
-function createEvidenceMarkdown(body) {
-  return `# Phase 107A Secret Safety Evidence
-
-- Phase: ${body.phase}
-- Status: ${body.status}
-- Generated at: ${body.generatedAt}
-- UI HTTP OK: ${body.checks?.uiHttpOk}
-- Setup readiness OK: ${body.checks?.setupReadinessOk}
-- Model import masks unknown key: ${body.checks?.modelImportMasksUnknownKey}
-- Model import response contains plaintext key: ${!body.checks?.modelImportNoPlainSecretInResponse}
-- Env example contains plaintext secrets: ${!body.checks?.envExampleNoPlainSecrets}
-- Enterprise env example contains plaintext secrets: ${!body.checks?.envEnterpriseExampleNoPlainSecrets}
-- README contains plaintext secrets: ${!body.checks?.readmeNoPlainSecrets}
-- AGENTS contains plaintext secrets: ${!body.checks?.agentsNoPlainSecrets}
-- Repository scan finding count: ${body.scan?.findingCount}
-- Scripts present: ${body.checks?.scriptsPresent}
-- Plaintext API key recorded: ${body.safety?.plaintextApiKeyRecorded}
-- Production secret vault claimed: ${body.safety?.productionSecretVaultClaimed}
-- Default chat main lane changed: ${body.safety?.defaultChatMainLaneChanged}
-- Conclusion: ${body.conclusion}
-`;
-}

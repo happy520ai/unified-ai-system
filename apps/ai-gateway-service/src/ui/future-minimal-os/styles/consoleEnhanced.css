@@ -1,0 +1,160 @@
+/* ============================================================
+   Console Page — Neon Enhancement
+   Load AFTER consolePage.js inline styles
+   ============================================================ */
+
+/* === Console panel glassmorphism === */
+
+.future-os-panel {
+  background: var(--future-glass-bg) !important;
+  backdrop-filter: blur(var(--future-glass-blur)) !important;
+  -webkit-backdrop-filter: blur(var(--future-glass-blur)) !important;
+  border-color: var(--future-glass-border) !important;
+  box-shadow: var(--future-shadow-soft), inset 0 1px 0 rgba(255, 255, 255, 0.05) !important;
+}
+
+.future-os-panel:hover {
+  border-color: rgba(0, 240, 255, 0.35) !important;
+  box-shadow: var(--future-glow-cyan), var(--future-shadow-soft) !important;
+}
+
+/* === Hero section neon === */
+
+.future-os-title-block h2 {
+  color: var(--future-accent) !important;
+  text-shadow: 0 0 20px rgba(0, 240, 255, 0.3) !important;
+}
+
+/* === Safe pill neon === */
+
+.future-safe-pill {
+  background: rgba(0, 255, 136, 0.12) !important;
+  border-color: rgba(0, 255, 136, 0.3) !important;
+  color: var(--future-success) !important;
+  box-shadow: var(--future-glow-success) !important;
+}
+
+.future-safe-pill span {
+  background: var(--future-success) !important;
+  box-shadow: 0 0 8px rgba(0, 255, 136, 0.5) !important;
+}
+
+/* === Composer neon focus === */
+
+.future-os-composer textarea {
+  background: rgba(10, 10, 10, 0.7) !important;
+  border-color: var(--future-glass-border) !important;
+  color: var(--future-text) !important;
+  transition: all var(--future-transition) !important;
+}
+
+.future-os-composer textarea:focus {
+  border-color: rgba(0, 240, 255, 0.6) !important;
+  box-shadow: var(--future-glow-cyan) !important;
+}
+
+/* === Mode cards glassmorphism === */
+
+.future-mode-card {
+  background: var(--future-glass-bg) !important;
+  border-color: var(--future-glass-border) !important;
+  backdrop-filter: blur(var(--future-glass-blur)) !important;
+  -webkit-backdrop-filter: blur(var(--future-glass-blur)) !important;
+  transition: all var(--future-transition) !important;
+}
+
+.future-mode-card:hover {
+  border-color: rgba(0, 240, 255, 0.4) !important;
+  box-shadow: var(--future-glow-cyan) !important;
+  transform: translateY(-2px) !important;
+}
+
+.future-mode-card.is-recommended {
+  border-color: rgba(0, 240, 255, 0.6) !important;
+  background: var(--future-accent-soft) !important;
+  box-shadow: var(--future-glow-cyan) !important;
+}
+
+/* === Preview card glassmorphism === */
+
+.future-preview-card {
+  background: var(--future-glass-bg) !important;
+  border-color: var(--future-glass-border) !important;
+  backdrop-filter: blur(var(--future-glass-blur)) !important;
+  -webkit-backdrop-filter: blur(var(--future-glass-blur)) !important;
+  transition: all var(--future-transition) !important;
+}
+
+.future-preview-card:hover {
+  border-color: rgba(0, 240, 255, 0.3) !important;
+  box-shadow: var(--future-glow-cyan) !important;
+}
+
+.future-preview-card[data-preview-visible="true"] {
+  border-color: var(--future-accent) !important;
+  box-shadow: var(--future-glow-cyan) !important;
+}
+
+/* === Boundary grid neon === */
+
+.future-boundary-grid span {
+  background: var(--future-glass-bg) !important;
+  border-color: var(--future-glass-border) !important;
+  backdrop-filter: blur(10px) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
+}
+
+/* === Action row CTA neon === */
+
+.future-primary-cta {
+  background: linear-gradient(135deg, var(--future-accent), var(--future-accent-strong)) !important;
+  box-shadow: 0 16px 34px rgba(0, 240, 255, 0.25) !important;
+  animation: neon-cta-glow 3.2s ease-in-out infinite !important;
+}
+
+.future-primary-cta:is(:hover, :focus-visible) {
+  box-shadow: var(--future-glow-cyan), 0 20px 42px rgba(0, 240, 255, 0.3) !important;
+}
+
+/* === Chat messages neon === */
+
+.chat-message--assistant {
+  border-left: 3px solid var(--future-accent) !important;
+  background: var(--future-accent-soft) !important;
+}
+
+.chat-message--user {
+  border-left: 3px solid var(--future-accent-strong) !important;
+  background: var(--future-violet-soft) !important;
+}
+
+/* === Input field neon === */
+
+.chat-input {
+  background: rgba(10, 10, 10, 0.7) !important;
+  border-color: var(--future-glass-border) !important;
+  backdrop-filter: blur(var(--future-glass-blur)) !important;
+  -webkit-backdrop-filter: blur(var(--future-glass-blur)) !important;
+  transition: all var(--future-transition) !important;
+}
+
+.chat-input:focus {
+  border-color: rgba(0, 240, 255, 0.6) !important;
+  box-shadow: var(--future-glow-cyan) !important;
+}
+
+/* === Reduced motion === */
+
+@media (prefers-reduced-motion: reduce) {
+  .future-os-panel,
+  .future-mode-card,
+  .future-preview-card,
+  .future-os-composer textarea,
+  .chat-input {
+    transition: none !important;
+  }
+
+  .future-primary-cta {
+    animation: none !important;
+  }
+}

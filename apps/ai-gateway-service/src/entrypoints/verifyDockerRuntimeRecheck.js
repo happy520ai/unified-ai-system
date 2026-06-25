@@ -4,6 +4,7 @@ import { dirname, resolve } from "node:path";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 import { findPlainSecretFindings } from "../security/secretSafety.js";
+import { writeEvidenceWithRenderer } from "./entrypointUtils.js";
 
 const execFileAsync = promisify(execFile);
 const phase = "phase-115a-docker-runtime-recheck";
@@ -198,7 +199,7 @@ async function main() {
         ? "docker-runtime-recheck-passed"
         : "docker-runtime-recheck-failed",
     };
-    await writeEvidence(evidence);
+    await saveEvidence(evidence);
     console.log(JSON.stringify(evidence, null, 2));
     process.exitCode = passed ? 0 : 1;
   } catch (error) {
@@ -227,7 +228,7 @@ async function main() {
       error: error instanceof Error ? error.message : String(error),
       conclusion: "docker-runtime-recheck-failed",
     };
-    await writeEvidence(evidence);
+    await saveEvidence(evidence);
     console.log(JSON.stringify(evidence, null, 2));
     process.exitCode = 1;
   } finally {
@@ -235,14 +236,14 @@ async function main() {
   }
 }
 
-async function writeEvidence(evidence) {
-  await mkdir(evidenceDir, { recursive: true });
-  await writeFile(
+async function saveEvidence(evidence) {
+  await writeEvidenceWithRenderer(
+    evidenceDir,
     resolve(evidenceDir, `${phase}.json`),
-    `${JSON.stringify(evidence, null, 2)}\n`,
-    "utf8",
+    resolve(evidenceDir, `${phase}.md`),
+    evidence,
+    markdown,
   );
-  await writeFile(resolve(evidenceDir, `${phase}.md`), markdown(evidence), "utf8");
 }
 
 function markdown(evidence) {

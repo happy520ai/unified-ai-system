@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { readJson, readText } from "./entrypointUtils.js"
 
 const repoRoot = resolve(fileURLToPath(new URL("../../../..", import.meta.url)));
 const evidenceDir = resolve(repoRoot, "apps/ai-gateway-service/evidence/phase2024-gvc-approval-gated-control-writer-design");
@@ -184,18 +185,7 @@ if (failedChecks.length > 0) {
   process.exitCode = 1;
 }
 
-function readJson(filePath) {
-  if (!existsSync(filePath)) return null;
-  try {
-    return JSON.parse(readFileSync(filePath, "utf8").replace(/^\uFEFF/, ""));
-  } catch {
-    return null;
-  }
-}
 
-function readText(filePath) {
-  return existsSync(filePath) ? readFileSync(filePath, "utf8") : "";
-}
 
 function packetMatchesSchema(packet, schemaDocument) {
   if (!packet || !schemaDocument) return false;

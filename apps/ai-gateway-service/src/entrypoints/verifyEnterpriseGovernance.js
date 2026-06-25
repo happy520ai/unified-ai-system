@@ -1,9 +1,11 @@
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { writeEvidencePair } from "./entrypointUtils.js";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
+import { fetchJson, listen, close } from "./entrypointUtils.js";
 
 const PHASE = "phase-32a-enterprise-governance";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -124,7 +126,7 @@ try {
     adminAudit,
     conclusion: passed ? "enterprise-governance-connected" : "enterprise-governance-not-connected",
   });
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = passed ? 0 : 1;
 } catch (error) {
@@ -134,7 +136,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "enterprise-governance-not-connected",
   });
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -169,38 +171,6 @@ function createHeaders(token) {
   return {
     "x-pme-auth-token": token,
     "x-pme-tenant-id": tenantId,
-  };
-}
-
-function listen(targetServer, port, host) {
-  return new Promise((resolveListen, rejectListen) => {
-    targetServer.once("error", rejectListen);
-    targetServer.listen(port, host, () => {
-      targetServer.off("error", rejectListen);
-      resolveListen();
-    });
-  });
-}
-
-function close(targetServer) {
-  return new Promise((resolveClose) => {
-    targetServer.close(() => resolveClose());
-  });
-}
-
-async function fetchJson(url, options = {}) {
-  const response = await fetch(url, {
-    method: options.method ?? "GET",
-    headers: {
-      "content-type": "application/json",
-      ...(options.headers ?? {}),
-    },
-    body: options.body === undefined ? undefined : JSON.stringify(options.body),
-  });
-  const text = await response.text();
-  return {
-    httpStatus: response.status,
-    body: text ? JSON.parse(text) : {},
   };
 }
 
@@ -256,34 +226,3 @@ function createEvidence({
   };
 }
 
-async function writeEvidence(body) {
-  await mkdir(evidenceDir, { recursive: true });
-  await writeFile(evidenceJsonPath, `${JSON.stringify(body, null, 2)}\n`, "utf8");
-  await writeFile(evidenceMdPath, createEvidenceMarkdown(body), "utf8");
-}
-
-function createEvidenceMarkdown(body) {
-  return `# Phase 32A Enterprise Governance Evidence
-
-- Phase: ${body.phase}
-- Status: ${body.status}
-- Generated at: ${body.generatedAt}
-- Service URL: ${body.serviceUrl ?? "n/a"}
-- Auth enabled: ${body.enterprise?.authEnabled}
-- Roles: ${(body.enterprise?.roles ?? []).join(", ") || "n/a"}
-- Missing token status: ${body.auth?.missingTokenStatus ?? "n/a"}
-- Admin session status: ${body.auth?.adminSessionStatus ?? "n/a"}
-- Admin user: ${body.auth?.adminUserId ?? "n/a"}
-- Admin tenant: ${body.auth?.adminTenantId ?? "n/a"}
-- Viewer dashboard status: ${body.rbac?.viewerDashboardStatus ?? "n/a"}
-- Viewer knowledge write status: ${body.rbac?.viewerKnowledgeWriteStatus ?? "n/a"}
-- Admin knowledge write status: ${body.rbac?.adminKnowledgeWriteStatus ?? "n/a"}
-- Viewer audit status: ${body.rbac?.viewerAuditStatus ?? "n/a"}
-- Admin audit status: ${body.rbac?.adminAuditStatus ?? "n/a"}
-- Audit log path: ${body.enterprise?.auditLogPath ?? "n/a"}
-- Audit entry count: ${body.enterprise?.auditEntryCount ?? "n/a"}
-- Denied knowledge write recorded: ${body.audit?.deniedKnowledgeWriteRecorded}
-- Allowed dashboard read recorded: ${body.audit?.allowedDashboardReadRecorded}
-- Conclusion: ${body.conclusion}
-`;
-}

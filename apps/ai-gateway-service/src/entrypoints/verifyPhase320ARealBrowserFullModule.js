@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { readJson, readText } from "./entrypointUtils.js"
 
 const PHASE = "Phase320A";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -78,19 +79,7 @@ console.log(JSON.stringify({
 
 process.exitCode = finalEvidence.verifierStatus === "pass" ? 0 : 1;
 
-function readJson(path) {
-  if (!existsSync(path)) return null;
-  try {
-    return JSON.parse(readFileSync(path, "utf8"));
-  } catch {
-    return null;
-  }
-}
 
-function readText(relativePath) {
-  const absolute = resolve(repoRoot, relativePath);
-  return existsSync(absolute) ? readFileSync(absolute, "utf8") : "";
-}
 
 function renderEvidenceMarkdown(data) {
   return [

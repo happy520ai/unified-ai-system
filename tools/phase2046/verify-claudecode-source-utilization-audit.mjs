@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { writeEvidenceFile } from "../lib/evidenceWriter.mjs";
 
 const repoRoot = process.cwd();
 const checks = [];
@@ -90,7 +91,7 @@ const result = {
   },
 };
 
-writeEvidence("apps/ai-gateway-service/evidence/phase2046-claudecode-source-utilization-audit/verify-result.json", result);
+writeEvidenceFile("apps/ai-gateway-service/evidence/phase2046-claudecode-source-utilization-audit/verify-result.json", result, repoRoot);
 console.log(JSON.stringify({
   status: result.status,
   blocker: result.blocker,
@@ -116,8 +117,3 @@ function readText(relativePath) {
   return readFileSync(filePath, "utf8").replace(/^\uFEFF/, "");
 }
 
-function writeEvidence(relativePath, value) {
-  const filePath = resolve(relativePath);
-  mkdirSync(path.dirname(filePath), { recursive: true });
-  writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
-}

@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
-import { existsSync, readdirSync } from "node:fs";
+import { writeEvidencePair } from "./entrypointUtils.js";
 import { createServer } from "node:http";
-import { mkdtemp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -9,6 +9,17 @@ import vm from "node:vm";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
 import { createConsolePage } from "../ui/consolePage.js";
+import { sleep, listen, findBrowserPath, close } from "./entrypointUtils.js";
+import {
+  connectCdp,
+  closeCdpSilently,
+  createCdpPage,
+  inspectPng,
+  readDevToolsPort,
+  terminateBrowser,
+  waitForExpression,
+  waitForLoadEvent,
+} from "./verifyWebChatModelConfigSuccessPathHelpers.js";
 
 const PHASE = "phase-86a-web-chat-model-config-success-path";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -172,7 +183,7 @@ try {
     await closeCdpSilently(cdp);
   }
 
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = evidence.status === "passed" ? 0 : 1;
 } catch (error) {
@@ -183,7 +194,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "web-chat-model-config-success-path-not-connected",
   };
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -384,186 +395,6 @@ async function readState(cdp) {
   })()`);
 }
 
-function findBrowserPath() {
-  const candidates = [
-    process.env.PME_BROWSER_PATH,
-    "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
-    ...findVersionedBrowserPaths("C:\\Program Files (x86)\\Microsoft\\EdgeCore", "msedge.exe"),
-    ...findVersionedBrowserPaths("C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application", "msedge.exe"),
-  ].filter(Boolean);
-  const found = candidates.find((candidate) => existsSync(candidate));
-  if (!found) throw new Error("No supported headless browser found. Set PME_BROWSER_PATH to chrome.exe or msedge.exe.");
-  return found;
-}
-
-function findVersionedBrowserPaths(root, executableName) {
-  if (!existsSync(root)) return [];
-  return readdirSync(root, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => resolve(root, entry.name, executableName))
-    .reverse();
-}
-
-async function readDevToolsPort(profileDir) {
-  const portFile = resolve(profileDir, "DevToolsActivePort");
-  const deadline = Date.now() + 15_000;
-  while (Date.now() < deadline) {
-    try {
-      const [port] = (await readFile(portFile, "utf8")).trim().split(/\r?\n/);
-      if (port) return Number(port);
-    } catch {
-      await sleep(100);
-    }
-  }
-  throw new Error("Timed out waiting for Chrome DevToolsActivePort.");
-}
-
-async function createCdpPage(port, url) {
-  const response = await fetch(`http://127.0.0.1:${port}/json/new?${encodeURIComponent(url)}`, { method: "PUT" });
-  if (!response.ok) throw new Error(`Unable to create CDP page: HTTP ${response.status}`);
-  return response.json();
-}
-
-async function terminateBrowser(targetProcess) {
-  if (!targetProcess || targetProcess.killed) return;
-  const exited = new Promise((resolveExit) => targetProcess.once("exit", () => resolveExit(true)));
-  targetProcess.kill();
-  await Promise.race([exited, sleep(2000)]);
-}
-
-async function connectCdp(webSocketUrl) {
-  const socket = new WebSocket(webSocketUrl);
-  const pending = new Map();
-  const events = [];
-  let nextId = 1;
-
-  await new Promise((resolveOpen, rejectOpen) => {
-    socket.addEventListener("open", resolveOpen, { once: true });
-    socket.addEventListener("error", rejectOpen, { once: true });
-  });
-
-  socket.addEventListener("message", (event) => {
-    const message = JSON.parse(String(event.data));
-    if (message.id && pending.has(message.id)) {
-      const { resolveSend, rejectSend } = pending.get(message.id);
-      pending.delete(message.id);
-      if (message.error) rejectSend(new Error(message.error.message || JSON.stringify(message.error)));
-      else resolveSend(message.result ?? {});
-      return;
-    }
-    if (message.method) events.push(message);
-  });
-
-  return {
-    send(method, params = {}) {
-      const id = nextId++;
-      socket.send(JSON.stringify({ id, method, params }));
-      return new Promise((resolveSend, rejectSend) => pending.set(id, { resolveSend, rejectSend }));
-    },
-    async evaluate(expression) {
-      const result = await this.send("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true });
-      if (result.exceptionDetails) {
-        throw new Error(result.exceptionDetails.exception?.description || result.exceptionDetails.text || "Runtime.evaluate failed.");
-      }
-      return result.result?.value;
-    },
-    takeEvent(method) {
-      const index = events.findIndex((event) => event.method === method);
-      return index >= 0 ? events.splice(index, 1)[0] : null;
-    },
-    async close() {
-      if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) socket.close();
-    },
-  };
-}
-
-async function closeCdpSilently(cdp) {
-  try {
-    await cdp?.close();
-  } catch {
-    // Best-effort cleanup only.
-  }
-}
-
-async function waitForLoadEvent(cdp) {
-  const deadline = Date.now() + 15_000;
-  while (Date.now() < deadline) {
-    if (cdp.takeEvent("Page.loadEventFired")) return;
-    await sleep(100);
-  }
-  throw new Error("Timed out waiting for page load.");
-}
-
-async function waitForExpression(cdp, expression, timeoutMs = 15_000) {
-  const deadline = Date.now() + timeoutMs;
-  let lastError = null;
-  while (Date.now() < deadline) {
-    try {
-      if (await cdp.evaluate(`Boolean(${expression})`)) return true;
-    } catch (error) {
-      lastError = error instanceof Error ? error.message : String(error);
-    }
-    await sleep(100);
-  }
-  throw new Error(`Timed out waiting for expression: ${expression}; lastError=${lastError || "none"}`);
-}
-
-async function inspectPng(path) {
-  const stats = await stat(path);
-  const buffer = await readFile(path);
-  const validPng = buffer.length >= 24 && buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47;
-  return { bytes: stats.size, width: validPng ? buffer.readUInt32BE(16) : 0, height: validPng ? buffer.readUInt32BE(20) : 0, validPng };
-}
-
-function listen(targetServer, port, host) {
-  return new Promise((resolveListen, rejectListen) => {
-    targetServer.once("error", rejectListen);
-    targetServer.listen(port, host, () => {
-      targetServer.off("error", rejectListen);
-      resolveListen();
-    });
-  });
-}
-
-function close(targetServer) {
-  return new Promise((resolveClose) => targetServer.close(() => resolveClose()));
-}
-
-async function writeEvidence(body) {
-  await mkdir(evidenceDir, { recursive: true });
-  await writeFile(evidenceJsonPath, `${JSON.stringify(body, null, 2)}\n`, "utf8");
-  await writeFile(evidenceMdPath, createEvidenceMarkdown(body), "utf8");
-}
-
-function createEvidenceMarkdown(body) {
-  return `# Phase 86A Web Chat Model Config Success Path Evidence
-
-- Phase: ${body.phase}
-- Status: ${body.status}
-- Generated at: ${body.generatedAt}
-- Service URL: ${body.serviceUrl ?? "n/a"}
-- UI URL: ${body.ui?.url ?? "n/a"}
-- Preview provider hint: ${body.ui?.finalState?.previewFetch?.providerHint ?? "n/a"}
-- Preview base URL present: ${Boolean(body.ui?.finalState?.previewFetch?.baseUrl)}
-- Confirm provider: ${body.ui?.finalState?.confirmFetch?.providerId ?? "n/a"}
-- Chat provider/model: ${body.ui?.finalState?.chatFetch?.providerId ?? "n/a"} / ${body.ui?.finalState?.chatFetch?.model ?? "n/a"}
-- Selected runtime value: ${body.ui?.finalState?.providerSelectValue ?? "n/a"}
-- Runtime credential present: ${body.ui?.finalState?.runtimeCredentialPresent}
-- Preference value: ${body.ui?.finalState?.preferenceValue ?? "n/a"}
-- Focus returned to chat input: ${body.ui?.finalState?.focusReturnedToChatInput}
-- API key value recorded: ${body.safety?.apiKeyValueRecorded}
-- API key persisted in browser: ${body.safety?.apiKeyPersistedInBrowser}
-- API key persisted in evidence: ${body.safety?.apiKeyPersistedInEvidence}
-- Local mock provider only: ${body.safety?.localMockProviderOnly}
-- Real provider calls: ${body.safety?.realProviderCalls}
-- Default chat main lane changed: ${body.safety?.defaultChatMainLaneChanged}
-- Screenshot path: ${body.screenshot?.path ?? "n/a"}
-- Screenshot bytes: ${body.screenshot?.bytes ?? "n/a"}
-- Screenshot dimensions: ${body.screenshot?.width ?? "n/a"}x${body.screenshot?.height ?? "n/a"}
-- Valid PNG: ${body.screenshot?.validPng}
-- Conclusion: ${body.conclusion}
-`;
-}
 
 function safeJsonParse(text) {
   if (!text) return {};
@@ -574,6 +405,3 @@ function safeJsonParse(text) {
   }
 }
 
-function sleep(ms) {
-  return new Promise((resolveSleep) => setTimeout(resolveSleep, ms));
-}

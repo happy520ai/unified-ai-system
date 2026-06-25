@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { readJson } from "../entrypoints/entrypointUtils.js";
 
 const PHASE_EVIDENCE = [
   ["107A", "apps/ai-gateway-service/evidence/phase-107a-secret-safety.json"],
@@ -43,10 +44,3 @@ export function collectSecurityRegression(repoRoot) {
   };
 }
 
-function readJson(filePath) {
-  try {
-    return JSON.parse(readFileSync(filePath, "utf8"));
-  } catch {
-    return {};
-  }
-}

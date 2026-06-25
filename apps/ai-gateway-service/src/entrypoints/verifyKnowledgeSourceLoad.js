@@ -1,8 +1,10 @@
 import { mkdir, writeFile } from "node:fs/promises";
+import { writeEvidencePair } from "./entrypointUtils.js";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
+import { fetchJson, listen, close } from "./entrypointUtils.js";
 
 const PHASE = "phase-21b-knowledge-source-load";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -90,7 +92,7 @@ try {
     retrieve,
     conclusion: connected ? "local-knowledge-source-load-connected" : "local-knowledge-source-load-not-connected",
   });
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = connected ? 0 : 1;
 } catch (error) {
@@ -106,45 +108,13 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "local-knowledge-source-load-not-connected",
   });
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
   if (server) {
     await close(server);
   }
-}
-
-function listen(server, port, host) {
-  return new Promise((resolveListen, rejectListen) => {
-    server.once("error", rejectListen);
-    server.listen(port, host, () => {
-      server.off("error", rejectListen);
-      resolveListen();
-    });
-  });
-}
-
-function close(server) {
-  return new Promise((resolveClose) => {
-    server.close(() => resolveClose());
-  });
-}
-
-async function fetchJson(url, options = {}) {
-  const response = await fetch(url, {
-    method: options.method ?? "GET",
-    headers: {
-      "content-type": "application/json",
-    },
-    body: options.body === undefined ? undefined : JSON.stringify(options.body),
-  });
-  const text = await response.text();
-
-  return {
-    httpStatus: response.status,
-    body: text ? JSON.parse(text) : {},
-  };
 }
 
 function isKnowledgeSourceLoadConnected({ beforeHealth, load, afterHealth, sources, retrieve }) {
@@ -219,35 +189,3 @@ function createEvidence({
   };
 }
 
-async function writeEvidence(body) {
-  await mkdir(evidenceDir, { recursive: true });
-  await writeFile(evidenceJsonPath, `${JSON.stringify(body, null, 2)}\n`, "utf8");
-  await writeFile(evidenceMdPath, createEvidenceMarkdown(body), "utf8");
-}
-
-function createEvidenceMarkdown(body) {
-  return `# Phase 21B Knowledge Source Load Evidence
-
-- Phase: ${body.phase}
-- Status: ${body.status}
-- Generated at: ${body.generatedAt}
-- Service URL: ${body.service.url ?? "n/a"}
-- Knowledge mode: ${body.knowledge.mode ?? "n/a"}
-- Storage: ${body.knowledge.storage ?? "n/a"}
-- Embedding: ${body.knowledge.embedding ?? "n/a"}
-- Documents before load: ${body.knowledge.beforeDocumentCount ?? "n/a"}
-- Documents after load: ${body.knowledge.afterDocumentCount ?? "n/a"}
-- Loaded source ID: ${body.knowledge.loadedSourceId}
-- Loaded document ID: ${body.knowledge.loadedDocumentId}
-- Load HTTP status: ${body.knowledge.loadHttpStatus ?? "n/a"}
-- Loaded count: ${body.knowledge.loadedCount ?? "n/a"}
-- Source present: ${body.knowledge.sourcePresent}
-- Source document count: ${body.knowledge.sourceDocumentCount ?? "n/a"}
-- Retrieve HTTP status: ${body.knowledge.retrieveHttpStatus ?? "n/a"}
-- Retrieve mode: ${body.knowledge.retrieveMode ?? "n/a"}
-- Retrieved chunks: ${body.knowledge.retrieveChunkCount}
-- Top chunk document: ${body.knowledge.topChunkDocumentId ?? "n/a"}
-- Marker matched: ${body.knowledge.markerMatched}
-- Conclusion: ${body.conclusion}
-`;
-}

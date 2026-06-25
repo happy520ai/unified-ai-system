@@ -1,9 +1,11 @@
 import { createServer } from "node:http";
+import { writeEvidencePair } from "./entrypointUtils.js";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
+import { listen, readJson, writeJson, close } from "./entrypointUtils.js";
 
 const PHASE = "phase-76r-web-chat-generic-openai-compatible-runtime";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -110,7 +112,7 @@ try {
     },
     conclusion: passed ? "generic-openai-compatible-runtime-connected" : "generic-openai-compatible-runtime-not-connected",
   };
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = passed ? 0 : 1;
 } catch (error) {
@@ -121,7 +123,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "generic-openai-compatible-runtime-not-connected",
   };
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -207,57 +209,3 @@ function summarizeDetection(data) {
   };
 }
 
-async function readJson(request) {
-  const chunks = [];
-  for await (const chunk of request) {
-    chunks.push(Buffer.from(chunk));
-  }
-  const text = Buffer.concat(chunks).toString("utf8");
-  return text ? JSON.parse(text) : {};
-}
-
-function writeJson(response, statusCode, body) {
-  response.writeHead(statusCode, { "content-type": "application/json" });
-  response.end(JSON.stringify(body));
-}
-
-function listen(targetServer, port, host) {
-  return new Promise((resolveListen, rejectListen) => {
-    targetServer.once("error", rejectListen);
-    targetServer.listen(port, host, () => {
-      targetServer.off("error", rejectListen);
-      resolveListen();
-    });
-  });
-}
-
-function close(targetServer) {
-  return new Promise((resolveClose) => targetServer.close(() => resolveClose()));
-}
-
-async function writeEvidence(body) {
-  await mkdir(evidenceDir, { recursive: true });
-  await writeFile(evidenceJsonPath, `${JSON.stringify(body, null, 2)}\n`, "utf8");
-  await writeFile(evidenceMdPath, createEvidenceMarkdown(body), "utf8");
-}
-
-function createEvidenceMarkdown(body) {
-  return `# Phase 76R Web Chat Generic OpenAI-Compatible Runtime Evidence
-
-- Phase: ${body.phase}
-- Status: ${body.status}
-- Generated at: ${body.generatedAt}
-- Detection provider ids: ${(body.detection?.providerIds ?? []).join(", ")}
-- Recommended provider/model: ${body.detection?.recommended?.value ?? "n/a"}
-- Generic endpoint configured: ${body.detection?.generic?.endpointConfigured}
-- Runtime credential stored provider: ${body.credential?.providerId ?? "n/a"}
-- Runtime endpoint configured: ${body.credential?.endpointConfigured}
-- Chat selected provider: ${body.chat?.selectedProvider ?? "n/a"}
-- Chat selected model: ${body.chat?.selectedModel ?? "n/a"}
-- Upstream chat called: ${body.upstream?.chatCalled}
-- Upstream authorization shape ok: ${body.upstream?.authorizationShapeOk}
-- API key value recorded: ${body.safety?.apiKeyValueRecorded}
-- Default chat main lane changed: ${body.safety?.defaultChatMainLaneChanged}
-- Conclusion: ${body.conclusion}
-`;
-}

@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { localSelfUseIssueLedgerCopy } from "../copy/localSelfUseIssueLedgerCopy.js";
+import { readJson } from "../../entrypoints/entrypointUtils.js";
 
 const repoRoot = resolve(fileURLToPath(new URL("../../../../../", import.meta.url)));
 
@@ -31,15 +32,6 @@ ${localSelfUseIssueLedgerCopy.safetyLines.map((line) => `                  <li>$
               </section>`;
 }
 
-function readJson(relativePath) {
-  const path = resolve(repoRoot, relativePath);
-  if (!existsSync(path)) return null;
-  try {
-    return JSON.parse(readFileSync(path, "utf8"));
-  } catch {
-    return null;
-  }
-}
 
 function escapeHtml(value) {
   return String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");

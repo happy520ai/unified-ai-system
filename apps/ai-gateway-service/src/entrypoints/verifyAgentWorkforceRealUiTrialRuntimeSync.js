@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { readJson } from "./entrypointUtils.js"
 
 const rootDir = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
 const evidenceDir = join(rootDir, "apps", "ai-gateway-service", "evidence");
@@ -12,9 +13,6 @@ function assert(condition, message) {
   }
 }
 
-async function readJson(relativePath) {
-  return JSON.parse(await readFile(join(rootDir, relativePath), "utf8"));
-}
 
 function requireEvidenceFile(relativePath) {
   const absolutePath = join(rootDir, relativePath);

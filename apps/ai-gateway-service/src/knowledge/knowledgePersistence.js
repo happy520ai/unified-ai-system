@@ -1,6 +1,6 @@
 import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync } from "node:fs";
 
 const require = createRequire(import.meta.url);
 
@@ -248,7 +248,13 @@ function readFileDocuments(filePath) {
     return [];
   }
 
-  const parsed = JSON.parse(readFileSync(filePath, "utf8"));
+  let parsed;
+  try {
+    parsed = JSON.parse(readFileSync(filePath, "utf8"));
+  } catch {
+    // Corrupted or partially-written file — return empty and let caller recover
+    return [];
+  }
   const documents = Array.isArray(parsed?.documents) ? parsed.documents : [];
 
   return documents.map((document) => ({
@@ -264,27 +270,27 @@ function readFileDocuments(filePath) {
 
 function writeFileDocuments(filePath, documents) {
   ensureParentDir(filePath);
-  writeFileSync(
-    filePath,
-    `${JSON.stringify(
-      {
-        version: 1,
-        updatedAt: new Date().toISOString(),
-        documents: documents.map((document) => ({
-          sourceId: document.sourceId,
-          sourceTitle: document.sourceTitle,
-          documentId: document.documentId,
-          title: document.title,
-          uri: document.uri,
-          text: document.text,
-          metadata: document.metadata ?? {},
-        })),
-      },
-      null,
-      2,
-    )}\n`,
-    "utf8",
-  );
+  const content = `${JSON.stringify(
+    {
+      version: 1,
+      updatedAt: new Date().toISOString(),
+      documents: documents.map((document) => ({
+        sourceId: document.sourceId,
+        sourceTitle: document.sourceTitle,
+        documentId: document.documentId,
+        title: document.title,
+        uri: document.uri,
+        text: document.text,
+        metadata: document.metadata ?? {},
+      })),
+    },
+    null,
+    2,
+  )}\n`;
+  // Atomic write: write to .tmp then rename to prevent corruption on crash
+  const tmpPath = filePath + ".tmp";
+  writeFileSync(tmpPath, content, "utf8");
+  renameSync(tmpPath, filePath);
 }
 
 function mergeDocumentsByKey(documents) {

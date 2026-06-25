@@ -1,4 +1,4 @@
-import { createRequestId } from "../../../../packages/shared-utils/src/index.js";
+import { createRequestId } from "@unified-ai-system/shared-utils";
 
 const SUPPORTED_TASK_TYPES = new Set(["chat", "reasoning", "summary", "retrieval", "tool_use"]);
 

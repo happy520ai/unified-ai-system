@@ -1,4 +1,4 @@
-import { createRequestId } from "../../../../../packages/shared-utils/src/index.js";
+import { createRequestId } from "@unified-ai-system/shared-utils";
 import { ENDPOINT_TYPES, isDirectChatCapable } from "../../model-library/modelCapabilityRules.js";
 import { findModel } from "../../model-library/unifiedModelRegistry.js";
 

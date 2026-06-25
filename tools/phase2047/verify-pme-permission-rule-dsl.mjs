@@ -6,6 +6,7 @@ import {
   evaluatePermissionRules,
   permissionResultSchema,
 } from "../../packages/gvc-permission-engine/src/index.js";
+import { writeEvidenceFile } from "../lib/evidenceWriter.mjs";
 
 const repoRoot = process.cwd();
 const checks = [];
@@ -59,12 +60,7 @@ const result = {
   blocker: failed.length === 0 ? "none" : failed.map((entry) => entry.id).join(", "),
 };
 
-writeEvidence("apps/ai-gateway-service/evidence/phase2047-pme-permission-rule-dsl/result.json", result);
+writeEvidenceFile("apps/ai-gateway-service/evidence/phase2047-pme-permission-rule-dsl/result.json", result, repoRoot);
 console.log(JSON.stringify({ status: result.status, blocker: result.blocker }, null, 2));
 if (failed.length > 0) process.exit(1);
 
-function writeEvidence(relativePath, value) {
-  const filePath = path.join(repoRoot, relativePath);
-  mkdirSync(path.dirname(filePath), { recursive: true });
-  writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
-}

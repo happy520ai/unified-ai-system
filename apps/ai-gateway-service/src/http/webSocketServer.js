@@ -14,17 +14,43 @@ const WS_FRAME_TYPES = { TEXT: 0x01, BINARY: 0x02, CLOSE: 0x08, PING: 0x09, PONG
  * @param {Object} options
  * @param {Function} options.onConnection - Called when a client connects
  * @param {Function} options.onMessage - Called when a message is received
+ * @param {Function} [options.authenticate] - Optional auth check: (request) => boolean | Promise<boolean>
  * @param {Function} options.onClose - Called when a connection closes
  * @returns {Object} WebSocket server with attach() method
  */
 export function createWebSocketServer(options = {}) {
   const connections = new Set();
+  const MAX_WS_CONNECTIONS = 100;
 
   function attach(httpServer) {
-    httpServer.on("upgrade", (request, socket, head) => {
+    httpServer.on("upgrade", async (request, socket, head) => {
       if (request.url !== "/ws") {
         socket.destroy();
         return;
+      }
+
+      // --- Origin validation ---
+      const allowedOrigins = options.allowedOrigins ?? ["http://127.0.0.1:3100", "http://localhost:3100"];
+      const origin = request.headers.origin;
+      if (origin && !allowedOrigins.includes("*") && !allowedOrigins.includes(origin)) {
+        socket.write("HTTP/1.1 403 Forbidden\r\n\r\n");
+        socket.destroy();
+        return;
+      }
+
+      // Authentication gate (if configured)
+      if (options.authenticate) {
+        let authorized = false;
+        try {
+          authorized = await options.authenticate(request);
+        } catch {
+          authorized = false;
+        }
+        if (!authorized) {
+          socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
+          socket.destroy();
+          return;
+        }
       }
 
       const key = request.headers["sec-websocket-key"];
@@ -44,6 +70,13 @@ export function createWebSocketServer(options = {}) {
         `Sec-WebSocket-Accept: ${acceptKey}\r\n\r\n`
       );
 
+      // Connection cap: reject if too many connections
+      if (connections.size >= MAX_WS_CONNECTIONS) {
+        socket.write("HTTP/1.1 503 Service Unavailable\r\n\r\n");
+        socket.destroy();
+        return;
+      }
+
       const ws = createWebSocketConnection(socket);
       connections.add(ws);
 
@@ -58,7 +91,11 @@ export function createWebSocketServer(options = {}) {
         try {
           const frame = decodeFrame(buffer);
           if (frame.type === WS_FRAME_TYPES.TEXT) {
-            ws.onMessage(frame.payload.toString("utf8"), ws);
+            const result = ws.onMessage(frame.payload.toString("utf8"), ws);
+            // Catch async rejections to prevent unhandled promise rejection crash
+            if (result && typeof result.catch === "function") {
+              result.catch(() => {});
+            }
           } else if (frame.type === WS_FRAME_TYPES.CLOSE) {
             ws.close();
           } else if (frame.type === WS_FRAME_TYPES.PING) {
@@ -91,7 +128,11 @@ export function createWebSocketServer(options = {}) {
     return connections.size;
   }
 
-  return { attach, broadcast, getConnectionCount };
+  function getConnections() {
+    return connections;
+  }
+
+  return { attach, broadcast, getConnectionCount, getConnections };
 }
 
 function createWebSocketConnection(socket) {
@@ -108,7 +149,7 @@ function createWebSocketConnection(socket) {
       try {
         socket.write(encodeFrame(Buffer.alloc(0), WS_FRAME_TYPES.CLOSE));
         socket.end();
-      } catch {}
+      } catch (err) { console.error("[webSocketServer]:", err?.message || err); }
     },
     onMessage: null,
     onClose: null,
@@ -156,13 +197,21 @@ function decodeFrame(buffer) {
     offset = 10;
   }
 
+  const MAX_WS_PAYLOAD = 16 * 1024 * 1024; // 16 MB
+  if (payloadLength > MAX_WS_PAYLOAD) {
+    throw new Error("WebSocket frame payload exceeds maximum size (16MB)");
+  }
+  if (offset + payloadLength > buffer.length) {
+    throw new Error("Incomplete WebSocket frame");
+  }
+
   let maskKey = null;
   if (masked) {
-    maskKey = buffer.slice(offset, offset + 4);
+    maskKey = Buffer.from(buffer.subarray(offset, offset + 4));
     offset += 4;
   }
 
-  const payload = buffer.slice(offset, offset + payloadLength);
+  const payload = Buffer.from(buffer.subarray(offset, offset + payloadLength));
   if (masked && maskKey) {
     for (let i = 0; i < payload.length; i++) {
       payload[i] ^= maskKey[i % 4];

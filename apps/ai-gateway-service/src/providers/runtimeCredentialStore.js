@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { homedir } from "node:os";
 
@@ -67,7 +67,8 @@ export function createRuntimeCredentialStore({ env = process.env, storagePath } 
     listRecords() {
       return Array.from(credentials.values()).map((record) => ({
         providerId: record.providerId,
-        apiKey: record.apiKey,
+        apiKeyPresent: !!record.apiKey,
+        apiKeyPreview: record.apiKey ? `${String(record.apiKey).slice(0, 4)}...${String(record.apiKey).slice(-4)}` : null,
         endpoint: record.endpoint,
         source: record.source,
         setAt: record.setAt,
@@ -183,6 +184,11 @@ function persistCredentials(credentials, persistence) {
     }
     return true;
   } catch {
+    // Clean up orphaned temp file if rename failed
+    try {
+      const tmpPath = `${persistence.path}.${process.pid}.tmp`;
+      if (existsSync(tmpPath)) unlinkSync(tmpPath);
+    } catch { /* ignore cleanup errors */ }
     for (const record of credentials.values()) {
       record.persisted = false;
     }

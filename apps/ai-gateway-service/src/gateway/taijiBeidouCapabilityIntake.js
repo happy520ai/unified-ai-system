@@ -1,4 +1,4 @@
-import { compileNaturalLanguageCapability, classifyImmuneRisk, generateManifestDraft, generateScaffoldPlan } from "../../../../packages/taiji-beidou-engine/src/index.js";
+import { compileNaturalLanguageCapability, classifyImmuneRisk, generateManifestDraft, generateScaffoldPlan } from "@unified-ai-system/taiji-beidou-engine";
 
 export function buildTaijiBeidouCapabilityIntake(intakeText, options = {}) {
   const spec = compileNaturalLanguageCapability(intakeText, options);

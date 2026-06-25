@@ -1,9 +1,11 @@
 import { mkdir, writeFile } from "node:fs/promises";
+import { writeEvidencePair } from "./entrypointUtils.js";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as XLSX from "xlsx";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
+import { fetchJson, fetchText, listen, close } from "./entrypointUtils.js";
 
 const PHASE = "phase-25a-web-console";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -156,7 +158,7 @@ try {
     readiness,
     conclusion: passed ? "web-console-operation-surface-connected" : "web-console-operation-surface-not-connected",
   });
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = passed ? 0 : 1;
 } catch (error) {
@@ -177,56 +179,13 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "web-console-operation-surface-not-connected",
   });
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
   if (server) {
     await close(server);
   }
-}
-
-function listen(server, port, host) {
-  return new Promise((resolveListen, rejectListen) => {
-    server.once("error", rejectListen);
-    server.listen(port, host, () => {
-      server.off("error", rejectListen);
-      resolveListen();
-    });
-  });
-}
-
-function close(server) {
-  return new Promise((resolveClose) => {
-    server.close(() => resolveClose());
-  });
-}
-
-async function fetchText(url) {
-  const response = await fetch(url);
-  const text = await response.text();
-
-  return {
-    httpStatus: response.status,
-    contentType: response.headers.get("content-type"),
-    text,
-  };
-}
-
-async function fetchJson(url, options = {}) {
-  const response = await fetch(url, {
-    method: options.method ?? "GET",
-    headers: {
-      "content-type": "application/json",
-    },
-    body: options.body === undefined ? undefined : JSON.stringify(options.body),
-  });
-  const text = await response.text();
-
-  return {
-    httpStatus: response.status,
-    body: text ? JSON.parse(text) : {},
-  };
 }
 
 function isWebConsoleConnected({
@@ -381,11 +340,6 @@ function createEvidence({
   };
 }
 
-async function writeEvidence(body) {
-  await mkdir(evidenceDir, { recursive: true });
-  await writeFile(evidenceJsonPath, `${JSON.stringify(body, null, 2)}\n`, "utf8");
-  await writeFile(evidenceMdPath, createEvidenceMarkdown(body), "utf8");
-}
 
 function createXlsxFixtureBase64() {
   const workbook = XLSX.utils.book_new();
@@ -536,51 +490,3 @@ function crc32(buffer) {
   return (crc ^ 0xffffffff) >>> 0;
 }
 
-
-function createEvidenceMarkdown(body) {
-  return `# Phase 25A Web Console Evidence
-
-- Phase: ${body.phase}
-- Status: ${body.status}
-- Generated at: ${body.generatedAt}
-- UI URL: ${body.ui.url ?? "n/a"}
-- UI HTTP status: ${body.ui.httpStatus ?? "n/a"}
-- Console alias HTTP status: ${body.ui.consoleAliasHttpStatus ?? "n/a"}
-- Content type: ${body.ui.contentType ?? "n/a"}
-- Title present: ${body.ui.titlePresent}
-- Boundary present: ${body.ui.boundaryPresent}
-- Command hints present: ${body.ui.commandHintsPresent}
-- File import present: ${body.ui.fileImportPresent}
-- Document parser hints present: ${body.ui.documentParserHintsPresent}
-- Service health HTTP status: ${body.service.healthHttpStatus ?? "n/a"}
-- Service health status: ${body.service.healthStatus ?? "n/a"}
-- Knowledge health HTTP status: ${body.knowledge.healthHttpStatus ?? "n/a"}
-- Knowledge mode: ${body.knowledge.mode ?? "n/a"}
-- Storage: ${body.knowledge.storage ?? "n/a"}
-- Embedding: ${body.knowledge.embedding ?? "n/a"}
-- Loaded source ID: ${body.knowledge.loadedSourceId}
-- Loaded document ID: ${body.knowledge.loadedDocumentId}
-- Loaded count: ${body.knowledge.loadedCount ?? "n/a"}
-- File parser source ID: ${body.knowledge.fileSourceId}
-- File parser loaded count: ${body.knowledge.fileLoadedCount ?? "n/a"}
-- File parser skipped: ${body.knowledge.fileSkipped?.length ?? "n/a"}
-- Source present: ${body.knowledge.sourcePresent}
-- Source document count: ${body.knowledge.sourceDocumentCount ?? "n/a"}
-- File source present: ${body.knowledge.fileSourcePresent}
-- File source document count: ${body.knowledge.fileSourceDocumentCount ?? "n/a"}
-- Retrieve HTTP status: ${body.knowledge.retrieveHttpStatus ?? "n/a"}
-- Retrieve mode: ${body.knowledge.retrieveMode ?? "n/a"}
-- Top hit document: ${body.knowledge.topHitDocumentId ?? "n/a"}
-- Snippet present: ${body.knowledge.topHitSnippetPresent}
-- Highlight count: ${body.knowledge.topHitHighlights.length}
-- Matched terms: ${body.knowledge.topHitMatchedTerms.join(", ") || "n/a"}
-- File retrieve HTTP status: ${body.knowledge.fileRetrieveHttpStatus ?? "n/a"}
-- File top hit document: ${body.knowledge.fileTopHitDocumentId ?? "n/a"}
-- File top hit parser: ${body.knowledge.fileTopHitParser ?? "n/a"}
-- Vector readiness HTTP status: ${body.vector.readinessHttpStatus ?? "n/a"}
-- Vector readiness mode: ${body.vector.mode ?? "n/a"}
-- Vector readiness status: ${body.vector.status ?? "n/a"}
-- Vector enabled: ${body.vector.enabled ?? "n/a"}
-- Conclusion: ${body.conclusion}
-`;
-}

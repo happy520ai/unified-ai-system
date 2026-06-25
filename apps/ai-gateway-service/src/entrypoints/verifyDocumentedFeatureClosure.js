@@ -1,9 +1,11 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { writeEvidencePair } from "./entrypointUtils.js";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
+import { fetchJson, fetchText, listen, close } from "./entrypointUtils.js";
 
 const PHASE = "phase-28a-documented-feature-closure";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -105,7 +107,7 @@ try {
     readiness,
     conclusion: passed ? "documented-current-feature-set-connected" : "documented-current-feature-set-not-connected",
   });
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = passed ? 0 : 1;
 } catch (error) {
@@ -124,7 +126,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "documented-current-feature-set-failed",
   });
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -135,49 +137,6 @@ try {
   if (tempDir) {
     await rm(tempDir, { recursive: true, force: true });
   }
-}
-
-function listen(targetServer, port, host) {
-  return new Promise((resolveListen, rejectListen) => {
-    targetServer.once("error", rejectListen);
-    targetServer.listen(port, host, () => {
-      targetServer.off("error", rejectListen);
-      resolveListen();
-    });
-  });
-}
-
-function close(targetServer) {
-  return new Promise((resolveClose) => {
-    targetServer.close(() => resolveClose());
-  });
-}
-
-async function fetchText(url) {
-  const response = await fetch(url);
-  const text = await response.text();
-
-  return {
-    httpStatus: response.status,
-    contentType: response.headers.get("content-type"),
-    text,
-  };
-}
-
-async function fetchJson(url, options = {}) {
-  const response = await fetch(url, {
-    method: options.method ?? "GET",
-    headers: {
-      "content-type": "application/json",
-    },
-    body: options.body === undefined ? undefined : JSON.stringify(options.body),
-  });
-  const text = await response.text();
-
-  return {
-    httpStatus: response.status,
-    body: text ? JSON.parse(text) : {},
-  };
 }
 
 async function readDocs() {
@@ -326,42 +285,3 @@ function createEvidence({
   };
 }
 
-async function writeEvidence(body) {
-  await mkdir(evidenceDir, { recursive: true });
-  await writeFile(evidenceJsonPath, `${JSON.stringify(body, null, 2)}\n`, "utf8");
-  await writeFile(evidenceMdPath, createEvidenceMarkdown(body), "utf8");
-}
-
-function createEvidenceMarkdown(body) {
-  return `# Phase 28A Documented Feature Closure Evidence
-
-- Phase: ${body.phase}
-- Status: ${body.status}
-- Generated at: ${body.generatedAt}
-- Docs current feature markers present: ${body.docs.featureSetMarkersPresent}
-- UI URL: ${body.ui.url ?? "n/a"}
-- UI HTTP status: ${body.ui.httpStatus ?? "n/a"}
-- UI title present: ${body.ui.titlePresent}
-- Chat-first present: ${body.ui.chatFirstPresent}
-- Persistence text present: ${body.ui.persistenceTextPresent}
-- Stale memory warning absent: ${body.ui.staleMemoryWarningAbsent}
-- Service health HTTP status: ${body.service.healthHttpStatus ?? "n/a"}
-- Service health status: ${body.service.healthStatus ?? "n/a"}
-- Knowledge health HTTP status: ${body.knowledge.healthHttpStatus ?? "n/a"}
-- Knowledge mode: ${body.knowledge.mode ?? "n/a"}
-- Knowledge storage: ${body.knowledge.storage ?? "n/a"}
-- Max file MB: ${body.knowledge.maxFileMegabytes ?? "n/a"}
-- PDF supported: ${body.knowledge.pdfSupported}
-- Word supported: ${body.knowledge.wordSupported}
-- Excel supported: ${body.knowledge.excelSupported}
-- File load HTTP status: ${body.knowledge.fileLoadHttpStatus ?? "n/a"}
-- File loaded count: ${body.knowledge.fileLoadedCount ?? "n/a"}
-- Retrieve HTTP status: ${body.knowledge.retrieveHttpStatus ?? "n/a"}
-- Retrieve top hit: ${body.knowledge.topHitDocumentId ?? "n/a"}
-- Retrieve snippet present: ${body.knowledge.topHitSnippetPresent}
-- Matched terms: ${body.knowledge.topHitMatchedTerms.join(", ") || "n/a"}
-- Vector readiness mode: ${body.vector.mode ?? "n/a"}
-- Vector readiness status: ${body.vector.status ?? "n/a"}
-- Conclusion: ${body.conclusion}
-`;
-}

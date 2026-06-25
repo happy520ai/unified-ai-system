@@ -1,10 +1,12 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { writeEvidencePair } from "./entrypointUtils.js";
 import { dirname, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
-import { createGatewayClient } from "../../../../packages/shared-sdk/src/index.js";
+import { createGatewayClient } from "@unified-ai-system/shared-sdk";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
+import { fetchJson, fetchText, listen, close } from "./entrypointUtils.js";
 
 const PHASE = "phase-102d-agent-workforce-plan-store";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -104,7 +106,7 @@ try {
     conclusion: passed ? "agent-workforce-plan-store-closed" : "agent-workforce-plan-store-not-closed",
   });
 
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = passed ? 0 : 1;
 } catch (error) {
@@ -115,53 +117,13 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "agent-workforce-plan-store-not-closed",
   });
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
   if (server) {
     await close(server);
   }
-}
-
-function listen(server, port, host) {
-  return new Promise((resolveListen, rejectListen) => {
-    server.once("error", rejectListen);
-    server.listen(port, host, () => {
-      server.off("error", rejectListen);
-      resolveListen();
-    });
-  });
-}
-
-function close(server) {
-  return new Promise((resolveClose) => {
-    server.close(() => resolveClose());
-  });
-}
-
-async function fetchJson(url, options = {}) {
-  const response = await fetch(url, {
-    method: options.method ?? "GET",
-    headers: {
-      "content-type": "application/json",
-    },
-    body: options.body === undefined ? undefined : JSON.stringify(options.body),
-  });
-  const text = await response.text();
-
-  return {
-    httpStatus: response.status,
-    body: text ? JSON.parse(text) : {},
-  };
-}
-
-async function fetchText(url) {
-  const response = await fetch(url);
-  return {
-    httpStatus: response.status,
-    text: await response.text(),
-  };
 }
 
 function isPlanStoreReady({
@@ -322,46 +284,3 @@ function createEvidence({
   };
 }
 
-async function writeEvidence(body) {
-  await mkdir(evidenceDir, { recursive: true });
-  await writeFile(evidenceJsonPath, `${JSON.stringify(body, null, 2)}\n`, "utf8");
-  await writeFile(evidenceMdPath, createEvidenceMarkdown(body), "utf8");
-}
-
-function createEvidenceMarkdown(body) {
-  return `# Phase 102D Agent Workforce Plan Store Evidence
-
-- Phase: ${body.phase}
-- Status: ${body.status}
-- Generated at: ${body.generatedAt}
-- Workforce plans route present: ${body.service.routePresence.workforcePlans}
-- Workforce plan get route present: ${body.service.routePresence.workforcePlanGet}
-- Workforce plan export route present: ${body.service.routePresence.workforcePlanExport}
-- Workforce plan save route present: ${body.service.routePresence.workforcePlanSave}
-- Workforce plan delete route present: ${body.service.routePresence.workforcePlanDelete}
-- Agent count: ${body.validation.agentCount ?? "n/a"}
-- Generated plan success: ${body.validation.generatedPlanSuccess}
-- Save status: ${body.validation.saveStatus ?? "n/a"}
-- Saved plan id: ${body.validation.savedPlanId ?? "n/a"}
-- Saved role count: ${body.validation.savedRoleCount ?? "n/a"}
-- Saved task count: ${body.validation.savedTaskCount ?? "n/a"}
-- List after save count: ${body.validation.listAfterSaveCount ?? "n/a"}
-- Get status: ${body.validation.getStatus ?? "n/a"}
-- Export status: ${body.validation.exportStatus ?? "n/a"}
-- Export formats: ${(body.validation.exportFormats ?? []).join(", ") || "n/a"}
-- Delete status: ${body.validation.deleteStatus ?? "n/a"}
-- List after delete count: ${body.validation.listAfterDeleteCount ?? "n/a"}
-- UI panel present: ${body.ui.panelPresent}
-- UI save button present: ${body.ui.saveButtonPresent}
-- UI history present: ${body.ui.historyPresent}
-- Secret absent from evidence/store: ${body.validation.secretAbsent}
-- Real LLM calls: ${body.safety.realLlmCalls}
-- Code execution: ${body.safety.codeExecution}
-- Project file writes: ${body.safety.projectFileWrites}
-- Workflow run: ${body.safety.workflowRun}
-- Secret values stored: ${body.safety.secretValuesStored}
-- Default chat lane mutated: ${body.safety.defaultChatLaneMutated}
-- Provider registry mutated: ${body.safety.providerRegistryMutated}
-- Conclusion: ${body.conclusion}
-`;
-}

@@ -4,7 +4,7 @@ export function renderNormalModePanel() {
   return `
                       <div class="three-mode-panel is-active" id="three-mode-panel-normal">
                         <div class="three-mode-grid">
-                          <div class="surface-muted three-mode-wide">${threeModeCopy.normal.summary}<span class="sr-only">单模型直�?预览普通模式结�?/span></div>
+                          <div class="surface-muted three-mode-wide">${threeModeCopy.normal.summary}<span class="sr-only">单模型直达预览普通模式结果</span></div>
                           <div class="field">
                             <label for="three-mode-normal-model">${threeModeCopy.normal.modelLabel}</label>
                             <select id="three-mode-normal-model"></select>

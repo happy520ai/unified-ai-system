@@ -3,6 +3,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 import { createConsolePage } from "../ui/consolePage.js";
+import { writeEvidenceWithRenderer } from "./entrypointUtils.js";
 
 const PHASE = "phase-83a-web-chat-failure-recovery-guidance";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -55,7 +56,7 @@ try {
     },
     conclusion: passed ? "web-chat-failure-recovery-guidance-connected" : "web-chat-failure-recovery-guidance-not-connected",
   };
-  await writeEvidence(evidence);
+  await saveEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = passed ? 0 : 1;
 } catch (error) {
@@ -66,7 +67,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "web-chat-failure-recovery-guidance-not-connected",
   };
-  await writeEvidence(evidence);
+  await saveEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 }
@@ -77,10 +78,18 @@ function extractInlineScript(html) {
   return match[1];
 }
 
-async function writeEvidence(evidence) {
-  await mkdir(evidenceDir, { recursive: true });
-  await writeFile(evidenceJsonPath, JSON.stringify(evidence, null, 2));
-  await writeFile(evidenceMdPath, [
+async function saveEvidence(evidence) {
+  await writeEvidenceWithRenderer(
+    evidenceDir,
+    evidenceJsonPath,
+    evidenceMdPath,
+    evidence,
+    renderEvidenceMarkdown,
+  );
+}
+
+function renderEvidenceMarkdown(evidence) {
+  return [
     `# ${PHASE}`,
     "",
     `- Status: ${evidence.status}`,
@@ -95,5 +104,5 @@ async function writeEvidence(evidence) {
     `- Provider calls: ${Boolean(evidence.safety?.providerCalls)}`,
     `- Conclusion: ${evidence.conclusion}`,
     "",
-  ].join("\n"));
+  ].join("\n");
 }

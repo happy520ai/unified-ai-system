@@ -4,6 +4,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
+import { fetchJson, fetchText, postJson, listen } from "./entrypointUtils.js";
 
 const PHASE = "Phase319A";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -246,36 +247,6 @@ console.log(JSON.stringify({
   applyApprovedWorks: evidence.applyApprovedWorks,
   checksFailed: failedChecks.length,
 }, null, 2));
-
-function listen(serverInstance) {
-  return new Promise((resolveListen) => {
-    serverInstance.listen(0, "127.0.0.1", () => {
-      const address = serverInstance.address();
-      resolveListen(`http://127.0.0.1:${address.port}`);
-    });
-  });
-}
-
-async function fetchText(url) {
-  const response = await fetch(url);
-  return response.text();
-}
-
-async function fetchJson(url) {
-  const response = await fetch(url);
-  const payload = await response.json();
-  return payload.data ?? payload;
-}
-
-async function postJson(url, body) {
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  const payload = await response.json();
-  return payload.data ?? payload;
-}
 
 function renderEvidenceMarkdown(evidence) {
   return [

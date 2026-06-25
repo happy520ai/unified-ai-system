@@ -1,9 +1,11 @@
 import { existsSync, readFileSync } from "node:fs";
+import { writeEvidenceWithRenderer } from "./entrypointUtils.js";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
+import { fetchJson, fetchText, listen } from "./entrypointUtils.js";
 
 const PHASE = "Phase315A";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -327,26 +329,6 @@ function journeyPass(journeyId) {
   return journeyResults.find((item) => item.journeyId === journeyId)?.pass === true;
 }
 
-async function fetchText(url) {
-  const response = await fetch(url);
-  return response.text();
-}
-
-async function fetchJson(url) {
-  const response = await fetch(url);
-  return response.json();
-}
-
-function listen(targetServer) {
-  return new Promise((resolveListen, reject) => {
-    targetServer.once("error", reject);
-    targetServer.listen(0, "127.0.0.1", () => {
-      const address = targetServer.address();
-      resolveListen(`http://127.0.0.1:${address.port}`);
-    });
-  });
-}
-
 function closeServer(targetServer) {
   return new Promise((resolveClose) => targetServer.close(() => resolveClose()));
 }
@@ -401,11 +383,6 @@ function readExistingEvidence() {
   }
 }
 
-async function writeEvidence(data) {
-  await mkdir(evidenceDir, { recursive: true });
-  await writeFile(evidenceJsonPath, `${JSON.stringify(data, null, 2)}\n`, "utf8");
-  await writeFile(evidenceMdPath, renderMarkdown(data), "utf8");
-}
 
 function renderMarkdown(data) {
   return `# Phase315A Human Journey Acceptance

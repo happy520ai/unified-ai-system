@@ -1,10 +1,12 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { writeEvidencePair } from "./entrypointUtils.js";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createGatewayClient } from "../../../../packages/shared-sdk/src/index.js";
+import { createGatewayClient } from "@unified-ai-system/shared-sdk";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
+import { fetchText, listen, close } from "./entrypointUtils.js";
 
 const PHASE = "phase-30a-local-workflow-automation";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -109,7 +111,7 @@ try {
     artifactText,
     conclusion: passed ? "local-workflow-automation-connected" : "local-workflow-automation-not-connected",
   });
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = passed ? 0 : 1;
 } catch (error) {
@@ -128,7 +130,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "local-workflow-automation-not-connected",
   });
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -170,33 +172,6 @@ function isWorkflowAutomationConnected({ ui, health, workflowHealth, workflowAct
     artifactText.includes(marker) &&
     artifactText.includes("No arbitrary shell command was executed.")
   );
-}
-
-function listen(targetServer, port, host) {
-  return new Promise((resolveListen, rejectListen) => {
-    targetServer.once("error", rejectListen);
-    targetServer.listen(port, host, () => {
-      targetServer.off("error", rejectListen);
-      resolveListen();
-    });
-  });
-}
-
-function close(targetServer) {
-  return new Promise((resolveClose) => {
-    targetServer.close(() => resolveClose());
-  });
-}
-
-async function fetchText(url) {
-  const response = await fetch(url);
-  const text = await response.text();
-
-  return {
-    httpStatus: response.status,
-    contentType: response.headers.get("content-type"),
-    text,
-  };
 }
 
 function createEvidence({
@@ -259,42 +234,3 @@ function createEvidence({
   };
 }
 
-async function writeEvidence(body) {
-  await mkdir(evidenceDir, { recursive: true });
-  await writeFile(evidenceJsonPath, `${JSON.stringify(body, null, 2)}\n`, "utf8");
-  await writeFile(evidenceMdPath, createEvidenceMarkdown(body), "utf8");
-}
-
-function createEvidenceMarkdown(body) {
-  return `# Phase 30A Local Workflow Automation Evidence
-
-- Phase: ${body.phase}
-- Status: ${body.status}
-- Generated at: ${body.generatedAt}
-- Service URL: ${body.service.url ?? "n/a"}
-- Health status: ${body.service.healthStatus ?? "n/a"}
-- Workflow health route present: ${body.service.workflowHealthRoutePresent}
-- Workflow run route present: ${body.service.workflowRunRoutePresent}
-- UI URL: ${body.ui.url ?? "n/a"}
-- UI HTTP status: ${body.ui.httpStatus ?? "n/a"}
-- Workflow panel present: ${body.ui.workflowPanelPresent}
-- Workflow run present: ${body.ui.workflowRunPresent}
-- Workflow mode: ${body.workflow.mode ?? "n/a"}
-- Output directory: ${body.workflow.outputDirectory ?? "n/a"}
-- Arbitrary command execution: ${body.workflow.arbitraryCommandExecution}
-- Broad file system scan: ${body.workflow.broadFileSystemScan}
-- Action count: ${body.workflow.actionCount ?? "n/a"}
-- Planned step count: ${body.workflow.plannedStepCount ?? "n/a"}
-- Run status: ${body.workflow.runStatus ?? "n/a"}
-- Artifact path: ${body.workflow.artifactRelativePath ?? "n/a"}
-- Artifact bytes: ${body.workflow.artifactBytes ?? "n/a"}
-- Artifact marker present: ${body.workflow.artifactMarkerPresent}
-- Artifact safety text present: ${body.workflow.artifactSafetyTextPresent}
-- Loaded source ID: ${body.knowledge.loadedSourceId ?? "n/a"}
-- Loaded count: ${body.knowledge.loadedCount ?? "n/a"}
-- Knowledge retrieved: ${body.knowledge.retrieved}
-- Knowledge chunk count: ${body.knowledge.chunkCount ?? "n/a"}
-- Top hit document: ${body.knowledge.topHitDocumentId ?? "n/a"}
-- Conclusion: ${body.conclusion}
-`;
-}

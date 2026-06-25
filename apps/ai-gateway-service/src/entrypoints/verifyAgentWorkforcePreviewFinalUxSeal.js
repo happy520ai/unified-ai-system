@@ -1,4 +1,5 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { writeEvidencePair } from "./entrypointUtils.js";
 import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
@@ -6,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
 import { findPlainSecretFindings } from "../security/secretSafety.js";
+import { fetchJson, fetchText, listen, close, postJson } from "./entrypointUtils.js";
 
 const phase = "phase-149a-agent-workforce-preview-final-ux-seal";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -241,7 +243,7 @@ try {
     conclusion: passed ? "agent-workforce-preview-final-ux-seal-closed" : "agent-workforce-preview-final-ux-seal-not-closed",
   };
 
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = passed ? 0 : 1;
 } catch (error) {
@@ -252,7 +254,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "agent-workforce-preview-final-ux-seal-not-closed",
   };
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -265,81 +267,3 @@ async function readRequired(relativePath) {
   return readFile(resolve(repoRoot, relativePath), "utf8");
 }
 
-async function fetchText(url) {
-  const response = await fetch(url);
-  return { httpStatus: response.status, text: await response.text() };
-}
-
-async function fetchJson(url) {
-  const response = await fetch(url);
-  const text = await response.text();
-  return { httpStatus: response.status, body: text ? JSON.parse(text) : {} };
-}
-
-async function postJson(url, body) {
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  const text = await response.text();
-  return { httpStatus: response.status, body: text ? JSON.parse(text) : {} };
-}
-
-function listen(targetServer, port, host) {
-  return new Promise((resolveListen, rejectListen) => {
-    targetServer.once("error", rejectListen);
-    targetServer.listen(port, host, () => {
-      targetServer.off("error", rejectListen);
-      resolveListen();
-    });
-  });
-}
-
-function close(targetServer) {
-  return new Promise((resolveClose) => {
-    targetServer.close(() => resolveClose());
-  });
-}
-
-async function writeEvidence(body) {
-  await mkdir(evidenceDir, { recursive: true });
-  await writeFile(evidenceJsonPath, `${JSON.stringify(body, null, 2)}\n`, "utf8");
-  await writeFile(evidenceMdPath, createEvidenceMarkdown(body), "utf8");
-}
-
-function createEvidenceMarkdown(body) {
-  return `# Phase 149A Agent Workforce Preview Final UX Seal Evidence
-
-- Phase: ${body.phase}
-- Status: ${body.status}
-- Generated at: ${body.generatedAt}
-- Service URL: ${body.serviceUrl ?? "n/a"}
-- Plan ID: ${body.workforce?.planId ?? "n/a"}
-- Workforce ID: ${body.workforce?.workforceId ?? "n/a"}
-- Sealed: ${body.workforce?.sealed ?? false}
-- Preview only: ${body.workforce?.previewOnly ?? false}
-- Execution enabled: ${body.workforce?.executionEnabled ?? false}
-- Runner enabled: ${body.workforce?.runnerEnabled ?? false}
-- Workflow run enabled: ${body.workforce?.workflowRunEnabled ?? false}
-- External runner dispatch enabled: ${body.workforce?.externalRunnerDispatchEnabled ?? false}
-- OMX execution enabled: ${body.workforce?.omxExecutionEnabled ?? false}
-- Runs oh-my-codex: ${body.safety?.runsOhMyCodex ?? false}
-- Creates worktrees: ${body.safety?.createsWorktrees ?? false}
-- Default NVIDIA chat lane changed: ${body.safety?.defaultNvidiaChatLaneChanged ?? false}
-- Plain secret findings: ${body.secretFindingCount ?? "n/a"}
-- Conclusion: ${body.conclusion}
-
-## Covered Capabilities
-
-${(body.coveredCapabilities ?? []).map((item) => `- ${item}`).join("\n")}
-
-## User Path
-
-${(body.userPath ?? []).map((item) => `- ${item}`).join("\n")}
-
-## Checks
-
-${Object.entries(body.checks ?? {}).map(([name, value]) => `- ${name}: ${value ? "passed" : "failed"}`).join("\n")}
-`;
-}

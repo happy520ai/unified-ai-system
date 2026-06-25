@@ -1,9 +1,11 @@
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { writeEvidencePair } from "./entrypointUtils.js";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
+import { listen, close, postJson } from "./entrypointUtils.js";
 
 const PHASE = "phase-8a-model-import";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -246,7 +248,7 @@ try {
     conclusion: passed ? "model-import-provider-models-api-flow-connected" : "model-import-provider-models-api-flow-not-connected",
   };
 
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = passed ? 0 : 1;
 } catch (error) {
@@ -257,7 +259,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "model-import-provider-models-api-flow-not-connected",
   };
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -434,19 +436,6 @@ function createFetchResponse(status, body) {
   };
 }
 
-async function postJson(baseUrl, path, body) {
-  const response = await fetch(`${baseUrl}${path}`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  const payload = await response.json();
-  return {
-    status: response.status,
-    payload,
-    data: payload.data,
-  };
-}
 
 async function getJson(baseUrl, path) {
   const response = await fetch(`${baseUrl}${path}`);
@@ -506,51 +495,3 @@ function summarizeProviders(providers) {
   }));
 }
 
-async function writeEvidence(body) {
-  await mkdir(evidenceDir, { recursive: true });
-  await writeFile(evidenceJsonPath, `${JSON.stringify(body, null, 2)}\n`, "utf8");
-  await writeFile(evidenceMdPath, createEvidenceMarkdown(body), "utf8");
-}
-
-function createEvidenceMarkdown(body) {
-  return `# Phase 8A Model Import Evidence
-
-- Phase: ${body.phase}
-- Status: ${body.status}
-- Generated at: ${body.generatedAt}
-- NVIDIA preview: ${body.results?.nvidia?.status} / ${(body.results?.nvidia?.modelIds ?? []).join(", ")}
-- OpenAI preview: ${body.results?.openai?.status} / ${(body.results?.openai?.modelIds ?? []).join(", ")}
-- DashScope preview: ${body.results?.dashscope?.status} / ${(body.results?.dashscope?.modelIds ?? []).join(", ")}
-- Gemini preview: ${body.results?.gemini?.status} / ${(body.results?.gemini?.modelIds ?? []).join(", ")}
-- Multi-provider status: ${body.results?.multi?.status}
-- OpenAI-compatible base URL preview: ${body.results?.compatible?.status} / ${(body.results?.compatible?.modelIds ?? []).join(", ")}
-- Unknown key with NVIDIA hint preview: ${body.results?.unknownProviderNvidiaHint?.status}
-- No-chat-models status: ${body.results?.noChatModels?.status}
-- Invalid-key status: ${body.results?.invalid?.status}
-- Unknown-key status: ${body.results?.unknown?.status}
-- Global provider hint coverage: ${body.safety?.globalProviderHintProbeCoverage}
-- Global providers: ${Object.entries(body.results?.globalProviders ?? {}).map(([providerId, result]) => `${providerId}:${result.status}`).join(", ")}
-- Provider catalog exposed: ${body.safety?.providerCatalogExposed}
-- Provider catalog count: ${body.results?.providerCatalog?.count}
-- Confirm status: ${body.results?.confirm?.status}
-- Local user model persists across restart: ${body.safety?.localUserModelPersistsAcrossRestart}
-- API key value recorded: ${body.safety?.apiKeyValueRecorded}
-- Models come from provider models API: ${body.safety?.modelsComeFromProviderModelsApi}
-- Default chat main lane changed: ${body.safety?.defaultChatMainLaneChanged}
-- Conclusion: ${body.conclusion}
-`;
-}
-
-function listen(server, port, host) {
-  return new Promise((resolveListen, rejectListen) => {
-    server.once("error", rejectListen);
-    server.listen(port, host, () => {
-      server.off("error", rejectListen);
-      resolveListen();
-    });
-  });
-}
-
-function close(server) {
-  return new Promise((resolveClose) => server.close(() => resolveClose()));
-}

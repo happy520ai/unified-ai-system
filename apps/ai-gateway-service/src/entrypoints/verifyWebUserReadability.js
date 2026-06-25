@@ -1,8 +1,10 @@
 import { mkdir, writeFile } from "node:fs/promises";
+import { writeEvidencePair } from "./entrypointUtils.js";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
+import { fetchText, listen, close } from "./entrypointUtils.js";
 
 const PHASE = "phase-51a-web-user-readability";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -98,7 +100,7 @@ try {
     },
     conclusion: passed ? "web-user-readability-connected" : "web-user-readability-not-connected",
   };
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = passed ? 0 : 1;
 } catch (error) {
@@ -109,7 +111,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "web-user-readability-not-connected",
   };
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -118,60 +120,3 @@ try {
   }
 }
 
-function listen(targetServer, port, host) {
-  return new Promise((resolveListen, rejectListen) => {
-    targetServer.once("error", rejectListen);
-    targetServer.listen(port, host, () => {
-      targetServer.off("error", rejectListen);
-      resolveListen();
-    });
-  });
-}
-
-function close(targetServer) {
-  return new Promise((resolveClose) => {
-    targetServer.close(() => resolveClose());
-  });
-}
-
-async function fetchText(url) {
-  const response = await fetch(url);
-  return {
-    httpStatus: response.status,
-    contentType: response.headers.get("content-type"),
-    text: await response.text(),
-  };
-}
-
-async function writeEvidence(body) {
-  await mkdir(evidenceDir, { recursive: true });
-  await writeFile(evidenceJsonPath, `${JSON.stringify(body, null, 2)}\n`, "utf8");
-  await writeFile(evidenceMdPath, createEvidenceMarkdown(body), "utf8");
-}
-
-function createEvidenceMarkdown(body) {
-  return `# Phase 51A Web User Readability Evidence
-
-- Phase: ${body.phase}
-- Status: ${body.status}
-- Generated at: ${body.generatedAt}
-- Service URL: ${body.serviceUrl ?? "n/a"}
-- UI HTTP status: ${body.ui?.httpStatus ?? "n/a"}
-- Required readable text count: ${body.ui?.requiredTextCount ?? "n/a"}
-- Missing readable text: ${(body.ui?.missingText ?? []).join(", ") || "none"}
-- Broken marker count: ${body.ui?.brokenMarkerCount ?? "n/a"}
-- Broken markers: ${(body.ui?.brokenMarkers ?? []).join(", ") || "none"}
-- First-screen marker present: ${body.ui?.firstScreenMarkerPresent}
-- Side hidden by default: ${body.ui?.sideHiddenByDefault}
-- Manual knowledge form hidden/removed from first flow: ${body.ui?.noManualKnowledgeFormVisible}
-- Chat-first title present: ${body.ui?.chatFirstTitlePresent}
-- Daily flow present: ${body.ui?.dailyFlowPresent}
-- Display only: ${body.safety?.displayOnly}
-- Backend business route added: ${body.safety?.backendBusinessRouteAdded}
-- Provider calls: ${body.safety?.providerCalls}
-- Runtime mutation: ${body.safety?.runtimeMutation}
-- Release automation: ${body.safety?.releaseAutomation}
-- Infrastructure provisioning: ${body.safety?.infrastructureProvisioning}
-- Conclusion: ${body.conclusion}
-`;
-}

@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
 import { findPlainSecretFindings } from "../security/secretSafety.js";
+import { fetchJson, fetchText, postJson, listen, writeEvidenceWithRenderer } from "./entrypointUtils.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 export const repoRoot = resolve(__dirname, "../../../..");
@@ -85,13 +86,17 @@ export async function assertEvidencePassed(phase) {
   return evidence;
 }
 
-export async function writeEvidence(phase, body) {
-  await mkdir(evidenceDir, { recursive: true });
-  await writeFile(resolve(evidenceDir, `${phase}.json`), `${JSON.stringify(body, null, 2)}\n`, "utf8");
-  await writeFile(resolve(evidenceDir, `${phase}.md`), createEvidenceMarkdown(body), "utf8");
+export async function saveEvidence(phase, body) {
+  await writeEvidenceWithRenderer(
+    evidenceDir,
+    resolve(evidenceDir, `${phase}.json`),
+    resolve(evidenceDir, `${phase}.md`),
+    body,
+    renderEvidenceMarkdown,
+  );
 }
 
-export function createEvidenceMarkdown(body) {
+export function renderEvidenceMarkdown(body) {
   return `# ${body.phase} Evidence
 
 - Phase: ${body.phase}
@@ -232,40 +237,3 @@ export async function createPreviewPlan({ phase, selectedTemplate = "feature-dev
   }
 }
 
-function listen(httpServer, port, host) {
-  return new Promise((resolveListen, reject) => {
-    httpServer.once("error", reject);
-    httpServer.listen(port, host, () => {
-      httpServer.off("error", reject);
-      resolveListen();
-    });
-  });
-}
-
-async function fetchText(url) {
-  const response = await fetch(url);
-  return {
-    httpStatus: response.status,
-    text: await response.text(),
-  };
-}
-
-async function fetchJson(url) {
-  const response = await fetch(url);
-  return {
-    httpStatus: response.status,
-    body: await response.json(),
-  };
-}
-
-async function postJson(url, body) {
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  return {
-    httpStatus: response.status,
-    body: await response.json(),
-  };
-}

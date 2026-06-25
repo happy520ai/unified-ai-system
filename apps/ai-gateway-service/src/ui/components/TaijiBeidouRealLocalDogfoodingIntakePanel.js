@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { taijiBeidouRealLocalDogfoodingIntakeCopy } from "../copy/taijiBeidouRealLocalDogfoodingIntakeCopy.js";
+import { readJson } from "../../entrypoints/entrypointUtils.js";
 
 const repoRoot = resolve(fileURLToPath(new URL("../../../../../", import.meta.url)));
 const evidencePath = "apps/ai-gateway-service/evidence/phase1451-1475-real-local-dogfooding-intake/real-local-dogfooding-intake-result.json";
@@ -75,15 +76,6 @@ function renderChips(items) {
   return items.map((item) => `<span class="tour-chip">${escapeHtml(item)}</span>`).join("");
 }
 
-function readJson(relativePath) {
-  const path = resolve(repoRoot, relativePath);
-  if (!existsSync(path)) return null;
-  try {
-    return JSON.parse(readFileSync(path, "utf8"));
-  } catch {
-    return null;
-  }
-}
 
 function escapeHtml(value) {
   return String(value ?? "")

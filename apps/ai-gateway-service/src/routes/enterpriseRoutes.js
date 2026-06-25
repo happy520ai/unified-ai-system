@@ -3,7 +3,7 @@
  * Handles all /enterprise/* endpoints
  */
 
-import { createOkEnvelope, createErrorEnvelope } from "../../../../../packages/shared-utils/src/index.js";
+import { createOkEnvelope, createErrorEnvelope } from "@unified-ai-system/shared-utils";
 import { resolve as resolvePath } from "node:path";
 import { readFile } from "node:fs/promises";
 

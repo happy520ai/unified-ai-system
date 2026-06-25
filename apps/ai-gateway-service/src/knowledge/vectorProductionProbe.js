@@ -160,7 +160,12 @@ async function embedWithGemini({ apiKey, baseUrl, model, taskType, text, title }
     signal: AbortSignal.timeout(60000),
   });
   const textBody = await response.text();
-  const body = textBody ? JSON.parse(textBody) : {};
+  let body;
+  try {
+    body = textBody ? JSON.parse(textBody) : {};
+  } catch (parseErr) {
+    throw new Error(`Gemini embedding probe returned non-JSON body (HTTP ${response.status}): ${textBody.slice(0, 200)}`);
+  }
 
   if (!response.ok) {
     const message = body?.error?.message ?? `Embedding request failed with HTTP ${response.status}.`;

@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { readJson } from "../entrypoints/entrypointUtils.js";
 
 export function scanRagCacheKnowledgeSecurity(repoRoot) {
   const cacheEvidence = readJson(repoRoot, "apps/ai-gateway-service/evidence/phase-275a-response-cache-hardening.json");
@@ -111,10 +112,3 @@ function firstDefined(...values) {
   return values.find((value) => value !== undefined);
 }
 
-function readJson(repoRoot, relativePath) {
-  try {
-    return JSON.parse(readFileSync(resolve(repoRoot, relativePath), "utf8"));
-  } catch {
-    return null;
-  }
-}

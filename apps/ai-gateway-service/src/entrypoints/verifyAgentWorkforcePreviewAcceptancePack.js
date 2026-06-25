@@ -1,4 +1,5 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { writeEvidencePair } from "./entrypointUtils.js";
 import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -163,7 +164,7 @@ try {
       : "agent-workforce-preview-acceptance-pack-not-sealed",
   };
 
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = passed ? 0 : 1;
 } catch (error) {
@@ -174,7 +175,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "agent-workforce-preview-acceptance-pack-not-sealed",
   };
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 }
@@ -183,48 +184,3 @@ async function readRequired(relativePath) {
   return readFile(resolve(repoRoot, relativePath), "utf8");
 }
 
-async function writeEvidence(body) {
-  await mkdir(evidenceDir, { recursive: true });
-  await writeFile(evidenceJsonPath, `${JSON.stringify(body, null, 2)}\n`, "utf8");
-  await writeFile(evidenceMdPath, createEvidenceMarkdown(body), "utf8");
-}
-
-function createEvidenceMarkdown(body) {
-  return `# Phase 150A Agent Workforce Preview Acceptance Pack Evidence
-
-- Phase: ${body.phase}
-- Status: ${body.status}
-- Generated at: ${body.generatedAt}
-- Acceptance pack: ${body.acceptancePackPath ?? "n/a"}
-- Execution enabled: ${body.disabledState?.executionEnabled ?? false}
-- Runner enabled: ${body.disabledState?.runnerEnabled ?? false}
-- Workflow run enabled: ${body.disabledState?.workflowRunEnabled ?? false}
-- External runner dispatch enabled: ${body.disabledState?.externalRunnerDispatchEnabled ?? false}
-- OMX execution enabled: ${body.disabledState?.omxExecutionEnabled ?? false}
-- Calls oh-my-codex: ${body.safety?.callsOhMyCodex ?? false}
-- Creates worktrees: ${body.safety?.createsWorktrees ?? false}
-- Default NVIDIA chat lane changed: ${body.safety?.defaultNvidiaChatLaneChanged ?? false}
-- Plain secret findings: ${body.secretFindingCount ?? "n/a"}
-- Conclusion: ${body.conclusion}
-
-## Covered Capabilities
-
-${(body.coveredCapabilities ?? []).map((item) => `- ${item}`).join("\n")}
-
-## Evidence Index
-
-${(body.evidenceIndex ?? []).map((item) => `- ${item}`).join("\n")}
-
-## User Acceptance Checklist
-
-${(body.userAcceptanceChecklist ?? []).map((item) => `- ${item}`).join("\n")}
-
-## Known Blockers
-
-${(body.knownBlockers ?? []).map((item) => `- ${item}`).join("\n")}
-
-## Checks
-
-${Object.entries(body.checks ?? {}).map(([name, value]) => `- ${name}: ${value ? "passed" : "failed"}`).join("\n")}
-`;
-}

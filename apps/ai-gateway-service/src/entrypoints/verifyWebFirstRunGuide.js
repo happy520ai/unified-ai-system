@@ -1,4 +1,5 @@
 import { existsSync } from "node:fs";
+import { writeEvidencePair } from "./entrypointUtils.js";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -82,7 +83,7 @@ try {
     },
     conclusion: passed ? "web-first-run-guide-connected" : "web-first-run-guide-not-connected",
   };
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = passed ? 0 : 1;
 } catch (error) {
@@ -93,7 +94,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "web-first-run-guide-not-connected",
   };
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 }
@@ -120,35 +121,3 @@ function countOccurrences(value, marker) {
   return (String(value || "").match(new RegExp(marker, "g")) ?? []).length;
 }
 
-async function writeEvidence(body) {
-  await mkdir(evidenceDir, { recursive: true });
-  await writeFile(evidenceJsonPath, `${JSON.stringify(body, null, 2)}\n`, "utf8");
-  await writeFile(evidenceMdPath, createEvidenceMarkdown(body), "utf8");
-}
-
-function createEvidenceMarkdown(body) {
-  return `# Phase 80A Web First-Run Guide Evidence
-
-- Phase: ${body.phase}
-- Status: ${body.status}
-- Generated at: ${body.generatedAt}
-- UI route: ${body.ui?.route ?? "n/a"}
-- Guide marker: ${body.ui?.guideMarker ?? "n/a"}
-- Missing guide text: ${(body.ui?.missingGuideText ?? []).join(", ") || "none"}
-- Guide has three steps: ${body.ui?.guideHasThreeSteps}
-- Guide hides advanced panel concepts: ${body.ui?.guideDoesNotExposeAdvancedPanel}
-- Root start script: ${body.scripts?.rootStart ?? "n/a"}
-- Root verify script: ${body.scripts?.rootVerify ?? "n/a"}
-- Service verify script: ${body.scripts?.serviceVerify ?? "n/a"}
-- Missing scripts: ${(body.scripts?.missingScripts ?? []).join(", ") || "none"}
-- First-run script exists: ${body.scripts?.firstRunScriptExists}
-- UI only: ${body.safety?.uiOnly}
-- Provider calls: ${body.safety?.providerCalls}
-- Runtime mutation: ${body.safety?.runtimeMutation}
-- Backend business route added: ${body.safety?.backendBusinessRouteAdded}
-- Default chat main lane changed: ${body.safety?.defaultChatMainLaneChanged}
-- Knowledge mode changed: ${body.safety?.knowledgeModeChanged}
-- Release automation: ${body.safety?.releaseAutomation}
-- Conclusion: ${body.conclusion}
-`;
-}

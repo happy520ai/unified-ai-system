@@ -1,4 +1,5 @@
 import { existsSync } from "node:fs";
+import { writeEvidencePair } from "./entrypointUtils.js";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -77,7 +78,7 @@ try {
     },
     conclusion: passed ? "first-run-browser-open-connected" : "first-run-browser-open-not-connected",
   };
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = passed ? 0 : 1;
 } catch (error) {
@@ -88,41 +89,8 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "first-run-browser-open-not-connected",
   };
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 }
 
-async function writeEvidence(body) {
-  await mkdir(evidenceDir, { recursive: true });
-  await writeFile(evidenceJsonPath, `${JSON.stringify(body, null, 2)}\n`, "utf8");
-  await writeFile(evidenceMdPath, createEvidenceMarkdown(body), "utf8");
-}
-
-function createEvidenceMarkdown(body) {
-  return `# Phase 81A First-Run Browser Open Evidence
-
-- Phase: ${body.phase}
-- Status: ${body.status}
-- Generated at: ${body.generatedAt}
-- First-run path: ${body.firstRun?.path ?? "n/a"}
-- Auto-open after managed start: ${body.firstRun?.autoOpenAfterManagedStart}
-- Opt-out env: ${(body.firstRun?.optOutEnv ?? []).join(", ") || "none"}
-- Windows command present: ${body.firstRun?.browserCommands?.windows}
-- macOS command present: ${body.firstRun?.browserCommands?.darwin}
-- Linux command present: ${body.firstRun?.browserCommands?.linux}
-- Missing text: ${(body.firstRun?.missingText ?? []).join(", ") || "none"}
-- Root start script: ${body.scripts?.rootStart ?? "n/a"}
-- Root verify script: ${body.scripts?.rootVerify ?? "n/a"}
-- Service verify script: ${body.scripts?.serviceVerify ?? "n/a"}
-- Missing scripts: ${(body.scripts?.missingScripts ?? []).join(", ") || "none"}
-- Verify does not open browser: ${body.scripts?.verifyDoesNotOpenBrowser}
-- Read-only verify: ${body.safety?.readOnlyVerify}
-- Browser opened during verify: ${body.safety?.browserOpenedDuringVerify}
-- Service started during verify: ${body.safety?.serviceStartedDuringVerify}
-- Provider calls: ${body.safety?.providerCalls}
-- Runtime mutation: ${body.safety?.runtimeMutation}
-- Release automation: ${body.safety?.releaseAutomation}
-- Conclusion: ${body.conclusion}
-`;
-}

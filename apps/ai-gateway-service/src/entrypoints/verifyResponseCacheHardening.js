@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { readJson, readText, writeJson } from "./entrypointUtils.js"
 
 const PHASE = "275A-response-cache-hardening";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -270,17 +271,8 @@ function exists(relativePath) {
   return existsSync(resolve(repoRoot, relativePath));
 }
 
-function readText(relativePath) {
-  return readFileSync(resolve(repoRoot, relativePath), "utf8");
-}
 
-function readJson(relativePath) {
-  return JSON.parse(readText(relativePath));
-}
 
-function writeJson(relativePath, value) {
-  writeFileSync(resolve(repoRoot, relativePath), `${JSON.stringify(value, null, 2)}\n`, "utf8");
-}
 
 function gitStatusLegacyIsEmpty() {
   try {

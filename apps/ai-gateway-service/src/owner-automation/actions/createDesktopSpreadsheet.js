@@ -80,12 +80,7 @@ export async function realRun(input = {}, approval, options = {}) {
   };
 }
 
-export async function writeEvidence(relativePath, data, repoRoot = process.cwd()) {
-  const outputPath = join(repoRoot, relativePath);
-  await mkdir(dirname(outputPath), { recursive: true });
-  await writeFile(outputPath, `${JSON.stringify(data, null, 2)}\n`, "utf8");
-  return outputPath;
-}
+export { writeEvidenceFileAsync as writeEvidence } from "../../../../tools/lib/evidenceWriter.mjs";
 
 function normalizeInput(input = {}) {
   const headers = Array.isArray(input.headers) && input.headers.length > 0 ? input.headers.map(String) : ["任务", "状态", "备注"];

@@ -1,6 +1,7 @@
 import { readFile, stat } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { readJson, readText } from "./entrypointUtils.js"
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "../../../..");
@@ -143,13 +144,7 @@ async function exists(relativePath) {
   }
 }
 
-async function readJson(relativePath) {
-  return JSON.parse(await readText(relativePath));
-}
 
-async function readText(relativePath) {
-  return readFile(resolve(repoRoot, relativePath), "utf8");
-}
 
 main().catch((error) => {
   console.error(error?.message || error);

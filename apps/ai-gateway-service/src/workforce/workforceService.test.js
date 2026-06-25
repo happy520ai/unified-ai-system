@@ -1,71 +1,65 @@
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, before } from "node:test";
+import assert from "node:assert/strict";
 import { createWorkforceService } from "./workforceService.js";
 
 describe("workforce-service", () => {
   let service;
 
-  beforeAll(() => {
+  before(() => {
     service = createWorkforceService();
   });
 
   it("reports health as ready", () => {
     const h = service.getHealth();
-    expect(h.status).toBe("ready");
-    expect(h.ready).toBe(true);
-    expect(h.roleCount).toBe(7);
+    assert.equal(h.status, "ready");
+    assert.equal(h.ready, true);
+    assert.equal(h.roleCount, 7);
   });
 
   it("lists 7 workforce roles", () => {
     const agents = service.listAgents();
-    expect(agents.agents.length).toBe(7);
+    assert.equal(agents.agents.length, 7);
     const roles = agents.agents.map((a) => a.roleId);
-    expect(roles).toContain("ceo");
-    expect(roles).toContain("pm");
-    expect(roles).toContain("architect");
-    expect(roles).toContain("frontend-engineer");
-    expect(roles).toContain("backend-engineer");
-    expect(roles).toContain("qa");
-    expect(roles).toContain("reviewer");
+    assert.ok(roles.includes("ceo"));
+    assert.ok(roles.includes("pm"));
+    assert.ok(roles.includes("architect"));
+    assert.ok(roles.includes("frontend-engineer"));
+    assert.ok(roles.includes("backend-engineer"));
+    assert.ok(roles.includes("qa"));
+    assert.ok(roles.includes("reviewer"));
   });
 
   it("generates a workforce plan", () => {
     const plan = service.plan({ goal: "Build a login page" });
-    expect(plan.workforceId).toBeDefined();
-    expect(plan.goal).toBe("Build a login page");
-    expect(plan.taskBreakdown.length).toBe(7);
-    expect(plan.roleAssignments.length).toBe(7);
-    expect(plan.deliverables.length).toBeGreaterThan(0);
+    assert.ok(plan.workforceId !== undefined);
+    assert.equal(plan.goal, "Build a login page");
+    assert.equal(plan.taskBreakdown.length, 7);
+    assert.equal(plan.roleAssignments.length, 7);
+    assert.ok(plan.deliverables.length > 0);
   });
 
   it("saves and retrieves plans", async () => {
     const plan = service.plan({ goal: "Test save" });
     const saved = await service.savePlan({ plan });
-    expect(saved.planId).toBeDefined();
+    assert.ok(saved.planId !== undefined);
 
     const list = await service.listPlans();
-    expect(list.plans.length).toBeGreaterThan(0);
+    assert.ok(list.plans.length > 0);
 
     const retrieved = await service.getPlan(saved.planId);
-    expect(retrieved.plan.goal).toBe("Test save");
+    assert.equal(retrieved.plan.goal, "Test save");
 
     await service.deletePlan(saved.planId);
     const afterDelete = await service.listPlans();
-    expect(afterDelete.plans.some((p) => p.planId === saved.planId)).toBe(false);
+    assert.equal(afterDelete.plans.some((p) => p.planId === saved.planId), false);
   });
 
   it("exports plan as task package", async () => {
     const plan = service.plan({ goal: "Test export" });
     const saved = await service.savePlan({ plan });
     const exported = await service.exportPlan(saved.planId);
-    expect(exported.taskPackage).toBeDefined();
-    expect(exported.taskPackage.goal).toBe("Test export");
+    assert.ok(exported.taskPackage !== undefined);
+    assert.equal(exported.taskPackage.goal, "Test export");
     await service.deletePlan(saved.planId);
   });
 });
-
-
-
-
-
-
-

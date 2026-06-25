@@ -1,4 +1,5 @@
 import { existsSync } from "node:fs";
+import { writeEvidencePair } from "./entrypointUtils.js";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -28,7 +29,7 @@ try {
     envExample,
     dockerFiles,
   });
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = evidence.status === "passed" ? 0 : 1;
 } catch (error) {
@@ -39,7 +40,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "deployment-readiness-not-closed",
   };
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 }
@@ -160,34 +161,3 @@ function shouldSkipDirectory(name) {
   return [".git", "node_modules", "dist", "build", "coverage", ".next", ".cache", "legacy"].includes(name);
 }
 
-async function writeEvidence(body) {
-  await mkdir(evidenceDir, { recursive: true });
-  await writeFile(evidenceJsonPath, `${JSON.stringify(body, null, 2)}\n`, "utf8");
-  await writeFile(evidenceMdPath, createEvidenceMarkdown(body), "utf8");
-}
-
-function createEvidenceMarkdown(body) {
-  return `# Phase 109A Deployment Readiness Evidence
-
-- Phase: ${body.phase}
-- Status: ${body.status}
-- Generated at: ${body.generatedAt}
-- README phase present: ${body.checks?.readmePhasePresent}
-- README local startup: ${body.checks?.readmeLocalStartup}
-- README intranet startup: ${body.checks?.readmeIntranetStartup}
-- README verification commands: ${body.checks?.readmeVerificationCommands}
-- README public boundary: ${body.checks?.readmePublicBoundary}
-- README production gaps: ${body.checks?.readmeProductionGaps}
-- Docker boundary accurate: ${body.checks?.dockerBoundaryAccurate}
-- AGENTS boundary present: ${body.checks?.agentsBoundaryPresent}
-- Scripts present: ${body.checks?.scriptsPresent}
-- Env example placeholder only: ${body.checks?.envExampleStillPlaceholderOnly}
-- Docs contain plaintext secrets: ${!body.checks?.docsNoPlainSecrets}
-- Docker files: ${(body.deployment?.dockerFiles ?? []).join(", ") || "none"}
-- Public internet multi-user ready: ${body.deployment?.publicInternetMultiUserReady}
-- Cloud deployment complete: ${body.deployment?.cloudDeploymentComplete}
-- CI/CD complete: ${body.deployment?.cicdComplete}
-- Global release complete: ${body.deployment?.globalReleaseComplete}
-- Conclusion: ${body.conclusion}
-`;
-}

@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { writeEvidencePair } from "./entrypointUtils.js";
 import { existsSync, readdirSync } from "node:fs";
 import { mkdtemp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -6,6 +7,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
+import { sleep, listen, close, findBrowserPath } from "./entrypointUtils.js";
 
 const PHASE = "phase-58a-web-chat-empty-input-readability";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -149,7 +151,7 @@ try {
     await closeCdpSilently(cdp);
   }
 
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = evidence.status === "passed" ? 0 : 1;
 } catch (error) {
@@ -160,7 +162,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "web-chat-empty-input-readability-not-connected",
   };
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -173,19 +175,6 @@ try {
   }
 }
 
-function findBrowserPath() {
-  const candidates = [
-    process.env.PME_BROWSER_PATH,
-    "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
-    ...findVersionedBrowserPaths("C:\\Program Files (x86)\\Microsoft\\EdgeCore", "msedge.exe"),
-    ...findVersionedBrowserPaths("C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application", "msedge.exe"),
-  ].filter(Boolean);
-  const found = candidates.find((candidate) => existsSync(candidate));
-  if (!found) {
-    throw new Error("No supported headless browser found. Set PME_BROWSER_PATH to chrome.exe or msedge.exe.");
-  }
-  return found;
-}
 
 function findVersionedBrowserPaths(root, executableName) {
   if (!existsSync(root)) return [];
@@ -355,64 +344,3 @@ async function inspectPng(path) {
   };
 }
 
-function listen(targetServer, port, host) {
-  return new Promise((resolveListen, rejectListen) => {
-    targetServer.once("error", rejectListen);
-    targetServer.listen(port, host, () => {
-      targetServer.off("error", rejectListen);
-      resolveListen();
-    });
-  });
-}
-
-function close(targetServer) {
-  return new Promise((resolveClose) => {
-    targetServer.close(() => resolveClose());
-  });
-}
-
-async function writeEvidence(body) {
-  await mkdir(evidenceDir, { recursive: true });
-  await writeFile(evidenceJsonPath, `${JSON.stringify(body, null, 2)}\n`, "utf8");
-  await writeFile(evidenceMdPath, createEvidenceMarkdown(body), "utf8");
-}
-
-function createEvidenceMarkdown(body) {
-  return `# Phase 58A Web Chat Empty Input Readability Evidence
-
-- Phase: ${body.phase}
-- Status: ${body.status}
-- Generated at: ${body.generatedAt}
-- Service URL: ${body.serviceUrl ?? "n/a"}
-- Expected hint: ${body.ui?.expectedHint ?? "n/a"}
-- System text: ${body.ui?.systemText ?? "n/a"}
-- Hint present: ${body.ui?.hintPresent}
-- Input value after submit: ${body.ui?.inputValueAfterSubmit ?? "n/a"}
-- Fetches: ${(body.ui?.fetches ?? []).join(", ") || "none"}
-- Fetch statuses: ${JSON.stringify(body.ui?.fetchStatuses ?? [])}
-- Disallowed chat fetches: ${(body.ui?.disallowedChatFetches ?? []).join(", ") || "none"}
-- Message count: ${body.ui?.messageCount ?? "n/a"}
-- Assistant count: ${body.ui?.assistantCount ?? "n/a"}
-- User count: ${body.ui?.userCount ?? "n/a"}
-- System count: ${body.ui?.systemCount ?? "n/a"}
-- Screenshot path: ${body.screenshot?.path ?? "n/a"}
-- Screenshot bytes: ${body.screenshot?.bytes ?? "n/a"}
-- Screenshot dimensions: ${body.screenshot?.width ?? "n/a"}x${body.screenshot?.height ?? "n/a"}
-- Valid PNG: ${body.screenshot?.validPng}
-- Browser interaction: ${body.safety?.browserInteraction}
-- Empty input only: ${body.safety?.emptyInputOnly}
-- No chat request sent: ${body.safety?.noChatRequestSent}
-- Fake provider only: ${body.safety?.fakeProviderOnly}
-- Default chat main lane changed: ${body.safety?.defaultChatMainLaneChanged}
-- Backend business route added: ${body.safety?.backendBusinessRouteAdded}
-- Provider calls: ${body.safety?.providerCalls}
-- Runtime mutation: ${body.safety?.runtimeMutation}
-- Release automation: ${body.safety?.releaseAutomation}
-- Infrastructure provisioning: ${body.safety?.infrastructureProvisioning}
-- Conclusion: ${body.conclusion}
-`;
-}
-
-function sleep(ms) {
-  return new Promise((resolveSleep) => setTimeout(resolveSleep, ms));
-}

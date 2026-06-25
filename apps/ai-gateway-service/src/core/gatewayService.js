@@ -1,14 +1,32 @@
-import { createRequestId } from "../../../../packages/shared-utils/src/index.js";
 import { createProviderRequest } from "../providers/providerMapping.js";
 import { normalizeGatewayRequest } from "./requestNormalizer.js";
-import { createLogger } from "../http/structuredLogger.js";
+import { createRequestQueue } from "../providers/requestQueue.js";
+import {
+  writeGatewayLog,
+  createFallbackAttempts,
+  createAttemptSelection,
+  shouldTryFallback,
+  createFallbackExhaustedError,
+  createGatewayResponse,
+  createStreamEvent,
+  createRouteSuccessEnvelope,
+  createRouteFailureEnvelope,
+} from "./gatewayServiceHelpers.js";
 
-const gatewayLogger = createLogger({ app: "ai-gateway-service", level: "info" });
+export { createRouteFailureEnvelope } from "./gatewayServiceHelpers.js";
 
 export class GatewayService {
   constructor({ providerRegistry, runtimeConfig = {} }) {
     this.providerRegistry = providerRegistry;
     this.runtimeConfig = runtimeConfig;
+    // 请求队列：限制并发，避免触发 provider 速率限制
+    // NVIDIA 免费 tier 速率限制严格，并发设为 1（串行处理）
+    this.requestQueue = createRequestQueue({
+      maxConcurrent: runtimeConfig.maxConcurrent ?? 1,
+      maxRetries: runtimeConfig.maxRetries ?? 1,
+      baseDelayMs: 1000,
+      maxDelayMs: 10000,
+    });
   }
 
   async execute(input) {
@@ -18,8 +36,13 @@ export class GatewayService {
 
     try {
       request = normalizeGatewayRequest(input);
+
+      // 使用请求队列限制并发
       const baseSelection = this.providerRegistry.select(request);
-      const attemptResult = await this.#executeWithFallback(request, baseSelection, startedAt);
+      const attemptResult = await this.requestQueue.execute(
+        () => this.#executeWithFallback(request, baseSelection, startedAt),
+        { providerId: baseSelection.selected?.target?.providerId, model: baseSelection.selected?.target?.modelId }
+      );
       selection = attemptResult.selection;
       const providerResult = attemptResult.providerResult;
       writeGatewayLog("provider_call_completed", {
@@ -29,6 +52,7 @@ export class GatewayService {
         model: selection.selected.target.modelId,
         executionStatus: providerResult.executionStatus ?? "success",
         durationMs: Date.now() - startedAt,
+        queueStats: this.requestQueue.getStatus(),
       });
       const response = createGatewayResponse(request, selection, providerResult, startedAt, this.runtimeConfig, attemptResult.warnings);
 
@@ -45,6 +69,7 @@ export class GatewayService {
         code: error?.code,
         message: error instanceof Error ? error.message : "Gateway route execution failed.",
         durationMs: Date.now() - startedAt,
+        queueStats: this.requestQueue.getStatus(),
       });
       return createRouteFailureEnvelope(error, {
         request,
@@ -237,305 +262,4 @@ export class GatewayService {
 
     throw lastError ?? createFallbackExhaustedError();
   }
-}
-
-function writeGatewayLog(event, details = {}) {
-  gatewayLogger.info(event, details);
-}
-
-function createFallbackAttempts(selection, runtimeConfig) {
-  const candidates = runtimeConfig?.fallbackEnabled
-    ? selection.candidates
-    : [selection.selected];
-
-  return candidates.map((candidate, index) => ({
-    candidate,
-    index,
-    isLast: index === candidates.length - 1,
-  }));
-}
-
-function createAttemptSelection(baseSelection, candidate, index) {
-  const warnings = [...(baseSelection.warnings ?? [])];
-
-  if (index > 0) {
-    warnings.push({
-      code: "fallback_candidate_selected",
-      message: "A fallback candidate was selected for this execution attempt.",
-      fallbackAttempt: index + 1,
-      target: candidate.target,
-    });
-  }
-
-  return {
-    ...baseSelection,
-    selected: candidate,
-    warnings,
-    metadata: {
-      ...baseSelection.metadata,
-      fallbackAttempt: index + 1,
-    },
-  };
-}
-
-function shouldTryFallback(error, attempt, emittedChunk) {
-  return !attempt.isLast && !emittedChunk && error?.retryable === true;
-}
-
-function createFallbackExhaustedError() {
-  const error = new Error("Provider fallback attempts were exhausted.");
-  error.code = "PROVIDER_FALLBACK_EXHAUSTED";
-  error.category = "provider";
-  error.retryable = false;
-  return error;
-}
-
-function createGatewayResponse(request, selection, providerResult, startedAt, runtimeConfig, extraWarnings = []) {
-  const target = selection.selected.target;
-  const warnings = [...(selection.warnings ?? []), ...extraWarnings, ...(providerResult.warnings ?? [])];
-  const trace = createTrace({
-    request,
-    selection,
-    providerResult,
-    startedAt,
-    warnings,
-    runtimeConfig,
-  });
-  const execution = createExecutionSummary({
-    trace,
-    outputText: providerResult.text,
-    warnings,
-  });
-
-  return {
-    id: request.context.requestId,
-    message: providerResult.message,
-    text: providerResult.text,
-    outputText: execution.outputText,
-    model: target.modelId,
-    providerId: target.providerId,
-    selectedProvider: execution.selectedProvider,
-    selectedModel: execution.selectedModel,
-    executionMode: execution.executionMode,
-    executionStatus: execution.executionStatus,
-    warnings,
-    errorSummary: null,
-    finishReason: "stop",
-    usage: providerResult.usage,
-    routing: createRoutingDecision(request.context.requestId, request.context.traceId, selection, trace, warnings),
-    metadata: {
-      latencyMs: providerResult.latencyMs,
-      phase: "phase-7a-1-service-entry",
-      execution,
-      trace,
-      warnings,
-      rawProviderMeta: providerResult.raw,
-    },
-  };
-}
-
-function createStreamEvent(type, { request, selection, startedAt, outputText, textDelta, raw, runtimeConfig }) {
-  const target = selection.selected.target;
-
-  return {
-    type,
-    requestId: request.context.requestId,
-    traceId: request.context.traceId,
-    selectedProvider: target.providerId,
-    selectedModel: target.modelId,
-    executionMode: selection.selected.providerType === "fake" ? "fake" : "real",
-    executionStatus: type === "done" ? "success" : "streaming",
-    textDelta,
-    outputText,
-    rawProviderMeta: raw,
-    meta: {
-      phase: "phase-8a-streaming-chain",
-      providerMode: runtimeConfig?.providerMode ?? "unknown",
-      realProviderEnabled: runtimeConfig?.realProviderEnabled ?? false,
-      durationMs: Date.now() - startedAt,
-    },
-  };
-}
-
-function createRouteSuccessEnvelope(data, { traceId, startedAt }) {
-  return {
-    success: true,
-    code: "ROUTE_OK",
-    message: "Route executed successfully.",
-    data,
-    error: null,
-    meta: createRouteMeta({
-      requestId: data.id,
-      traceId,
-      startedAt,
-      timestamp: data.metadata.trace.timestamp,
-    }),
-  };
-}
-
-export function createRouteFailureEnvelope(error, params = {}) {
-  const startedAt = params.startedAt ?? Date.now();
-  const requestId = params.request?.context?.requestId ?? params.requestId ?? createRequestId("route_error");
-  const traceId = params.request?.context?.traceId ?? params.traceId ?? requestId;
-  const data = createErrorData({
-    request: params.request,
-    selection: params.selection,
-    error,
-    startedAt,
-    runtimeConfig: params.runtimeConfig,
-    requestId,
-    traceId,
-  });
-  const routeError = createRouteError(error, data);
-
-  return {
-    success: false,
-    code: routeError.code,
-    message: routeError.message,
-    data,
-    error: routeError,
-    meta: createRouteMeta({
-      requestId,
-      traceId,
-      startedAt,
-      timestamp: data.metadata.trace.timestamp,
-    }),
-  };
-}
-
-function createRouteMeta({ requestId, traceId, startedAt, timestamp }) {
-  return {
-    requestId,
-    traceId,
-    timestamp,
-    durationMs: Date.now() - startedAt,
-  };
-}
-
-function createTrace({ request, selection, providerResult, startedAt, warnings, runtimeConfig }) {
-  const target = selection.selected.target;
-
-  return {
-    selectedProvider: target.providerId,
-    selectedModel: target.modelId,
-    requestId: request.context.requestId,
-    traceId: request.context.traceId,
-    timestamp: new Date().toISOString(),
-    providerMode: runtimeConfig?.providerMode ?? "unknown",
-    routeMode: selection.metadata.mode,
-    mode: selection.metadata.mode,
-    realProviderEnabled: runtimeConfig?.realProviderEnabled ?? false,
-    providerType: selection.selected.providerType,
-    executionMode: selection.selected.providerType === "fake" ? "fake" : "real",
-    executionStatus: providerResult.executionStatus ?? "success",
-    durationMs: Date.now() - startedAt,
-    selectionPolicy: selection.metadata.policy,
-    warnings,
-  };
-}
-
-function createErrorData({ request, selection, error, startedAt, runtimeConfig, requestId, traceId }) {
-  const selected = selection?.selected;
-  const trace = {
-    selectedProvider: selected?.target?.providerId,
-    selectedModel: selected?.target?.modelId,
-    requestId,
-    traceId,
-    timestamp: new Date().toISOString(),
-    providerMode: runtimeConfig?.providerMode ?? "unknown",
-    routeMode: selection?.metadata?.mode,
-    mode: selection?.metadata?.mode,
-    realProviderEnabled: runtimeConfig?.realProviderEnabled ?? false,
-    providerType: selected?.providerType,
-    executionMode: selected?.providerType === "fake" ? "fake" : selected ? "real" : "none",
-    executionStatus: "error",
-    durationMs: Date.now() - startedAt,
-    selectionPolicy: selection?.metadata?.policy,
-    warnings: selection?.warnings ?? [],
-  };
-  const data = createExecutionSummary({
-    trace,
-    outputText: "",
-    warnings: trace.warnings,
-  });
-
-  return {
-    id: requestId,
-    ...data,
-    finishReason: "error",
-    routing: selection ? createRoutingDecision(requestId, traceId, selection, trace, trace.warnings) : undefined,
-    metadata: {
-      phase: "phase-7a-1-service-entry",
-      trace,
-    },
-  };
-}
-
-function createExecutionSummary({ trace, outputText, warnings, errorSummary = null }) {
-  return {
-    selectedProvider: trace.selectedProvider ?? null,
-    selectedModel: trace.selectedModel ?? null,
-    executionMode: trace.executionMode,
-    executionStatus: trace.executionStatus,
-    outputText,
-    warnings,
-    errorSummary,
-  };
-}
-
-function createRouteError(error, data) {
-  return {
-    code: error.code ?? "GATEWAY_ROUTE_ERROR",
-    type: error.type ?? error.category ?? "internal",
-    message: error instanceof Error ? error.message : "Gateway route execution failed.",
-    retryable: error.retryable ?? false,
-    provider: data.selectedProvider,
-    model: data.selectedModel,
-    details: sanitizeErrorDetails(error.details),
-  };
-}
-
-function sanitizeErrorDetails(details) {
-  if (!details || typeof details !== "object") {
-    return {};
-  }
-
-  const sanitized = { ...details };
-  delete sanitized.apiKey;
-  delete sanitized.authorization;
-  delete sanitized.headers;
-
-  return Object.fromEntries(Object.entries(sanitized).filter(([, value]) => value !== undefined));
-}
-
-function createRoutingDecision(requestId, traceId, selection, trace, warnings) {
-  return {
-    id: `route-${requestId}`,
-    status: selection.selected ? "selected" : "no_route",
-    selected: selection.selected?.target,
-    candidates: selection.candidates?.map(toRoutingCandidate) ?? [],
-    fallbackChain: selection.fallbackChain,
-    traceId,
-    reasons: selection.reasons,
-    metadata: {
-      ...selection.metadata,
-      trace,
-      warnings,
-    },
-  };
-}
-
-function toRoutingCandidate(candidate) {
-  return {
-    rank: candidate.rank,
-    target: candidate.target,
-    score: {
-      total: candidate.rank === 1 ? 1 : 0,
-    },
-    reasons: [candidate.rank === 1 ? "selected by priority policy" : "available fallback candidate"],
-    metadata: {
-      providerPriority: candidate.providerPriority,
-      modelPriority: candidate.modelPriority,
-    },
-  };
 }

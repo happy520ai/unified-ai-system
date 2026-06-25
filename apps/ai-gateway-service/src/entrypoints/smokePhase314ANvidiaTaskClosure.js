@@ -1,8 +1,10 @@
 import { mkdir, writeFile } from "node:fs/promises";
+import { writeEvidenceWithRenderer } from "./entrypointUtils.js";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
+import { sleep } from "./entrypointUtils.js";
 
 const PHASE = "314A";
 const TASK_NAME = "nvidia-task-closure";
@@ -216,19 +218,10 @@ async function runRealSmokeTask(serviceUrl, task) {
   }
 }
 
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 function closeServer(targetServer) {
   return new Promise((resolve) => targetServer.close(() => resolve()));
 }
 
-async function writeEvidence(data) {
-  await mkdir(evidenceDir, { recursive: true });
-  await writeFile(evidenceJsonPath, `${JSON.stringify(data, null, 2)}\n`, "utf8");
-  await writeFile(evidenceMdPath, renderMarkdown(data), "utf8");
-}
 
 function renderMarkdown(data) {
   return `# Phase 314A NVIDIA Task Closure Smoke

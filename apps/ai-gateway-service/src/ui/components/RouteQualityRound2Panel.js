@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { routeQualityRound2Copy } from "../copy/routeQualityRound2Copy.js";
+import { readJson } from "../../entrypoints/entrypointUtils.js";
 
 const repoRoot = resolve(fileURLToPath(new URL("../../../../../", import.meta.url)));
 
@@ -41,15 +42,6 @@ ${routeQualityRound2Copy.safetyLines.map((line) => `                  <li>${esca
               </section>`;
 }
 
-function readJson(relativePath) {
-  const path = resolve(repoRoot, relativePath);
-  if (!existsSync(path)) return null;
-  try {
-    return JSON.parse(readFileSync(path, "utf8"));
-  } catch {
-    return null;
-  }
-}
 
 function escapeHtml(value) {
   return String(value ?? "")

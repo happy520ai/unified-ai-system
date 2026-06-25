@@ -4,6 +4,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
+import { sleep } from "./entrypointUtils.js";
 
 const PHASE = "Phase315A";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -212,7 +213,7 @@ function readMainEvidenceFallback() {
   if (existsSync(evidenceJsonPath)) {
     try {
       return JSON.parse(readFileSync(evidenceJsonPath, "utf8"));
-    } catch {}
+    } catch (err) { console.error("[smokePhase315ANvidiaLatencyTimeout]:", err?.message || err); }
   }
   return {
     phase: PHASE,
@@ -245,10 +246,6 @@ function summarizeBy(items, field) {
     summary[key] = (summary[key] ?? 0) + 1;
     return summary;
   }, {});
-}
-
-function sleep(ms) {
-  return new Promise((resolveSleep) => setTimeout(resolveSleep, ms));
 }
 
 function closeServer(targetServer) {

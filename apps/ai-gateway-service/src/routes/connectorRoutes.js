@@ -3,8 +3,8 @@
  * Provides HTTP endpoints for Feishu and WeCom message sending.
  */
 
-import { createFeishuConnector } from "../../../../packages/im-connector-feishu/src/index.js";
-import { createWeComConnector } from "../../../../packages/im-connector-wecom/src/index.js";
+import { createFeishuConnector } from "@unified-ai-system/im-connector-feishu";
+import { createWeComConnector } from "@unified-ai-system/im-connector-wecom";
 
 export function createConnectorRoutes(env = process.env) {
   const feishu = createFeishuConnector({

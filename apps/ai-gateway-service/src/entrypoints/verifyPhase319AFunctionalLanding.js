@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { readJson, readText } from "./entrypointUtils.js"
 
 const PHASE = "Phase319A";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -117,17 +118,7 @@ if (failedChecks.length > 0) {
   process.exitCode = 1;
 }
 
-function readJson(path) {
-  try {
-    return JSON.parse(readFileSync(path, "utf8"));
-  } catch {
-    return null;
-  }
-}
 
-function readText(path) {
-  return readFileSync(resolve(repoRoot, path), "utf8");
-}
 
 function containsSecretLikeValue(value) {
   return /sk-[a-z0-9]{16,}|nvapi-[a-z0-9_-]{16,}|api[_-]?key["']?\s*:\s*["'][^"']{8,}/i.test(String(value || ""));

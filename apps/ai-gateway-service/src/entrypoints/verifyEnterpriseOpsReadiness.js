@@ -1,9 +1,11 @@
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { writeEvidencePair } from "./entrypointUtils.js";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
+import { fetchJson, fetchText, listen, close } from "./entrypointUtils.js";
 
 const PHASE = "phase-37a-enterprise-ops-readiness";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -158,7 +160,7 @@ try {
     ui,
     conclusion: passed ? "enterprise-ops-readiness-connected" : "enterprise-ops-readiness-not-connected",
   });
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = passed ? 0 : 1;
 } catch (error) {
@@ -168,7 +170,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "enterprise-ops-readiness-not-connected",
   });
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -228,47 +230,6 @@ function createHeaders(token) {
     "content-type": "application/json",
     "x-pme-auth-token": token,
     "x-pme-tenant-id": tenantId,
-  };
-}
-
-function listen(targetServer, port, host) {
-  return new Promise((resolveListen, rejectListen) => {
-    targetServer.once("error", rejectListen);
-    targetServer.listen(port, host, () => {
-      targetServer.off("error", rejectListen);
-      resolveListen();
-    });
-  });
-}
-
-function close(targetServer) {
-  return new Promise((resolveClose) => {
-    targetServer.close(() => resolveClose());
-  });
-}
-
-async function fetchText(url) {
-  const response = await fetch(url);
-  return {
-    httpStatus: response.status,
-    contentType: response.headers.get("content-type"),
-    text: await response.text(),
-  };
-}
-
-async function fetchJson(url, options = {}) {
-  const response = await fetch(url, {
-    method: options.method ?? "GET",
-    headers: {
-      "content-type": "application/json",
-      ...(options.headers ?? {}),
-    },
-    body: options.body === undefined ? undefined : JSON.stringify(options.body),
-  });
-  const text = await response.text();
-  return {
-    httpStatus: response.status,
-    body: text ? JSON.parse(text) : {},
   };
 }
 
@@ -343,51 +304,3 @@ function createEvidence({
   };
 }
 
-async function writeEvidence(body) {
-  await mkdir(evidenceDir, { recursive: true });
-  await writeFile(evidenceJsonPath, `${JSON.stringify(body, null, 2)}\n`, "utf8");
-  await writeFile(evidenceMdPath, createEvidenceMarkdown(body), "utf8");
-}
-
-function createEvidenceMarkdown(body) {
-  return `# Phase 37A Enterprise Ops Readiness Evidence
-
-- Phase: ${body.phase}
-- Status: ${body.status}
-- Generated at: ${body.generatedAt}
-- Service URL: ${body.serviceUrl ?? "n/a"}
-- User store path: ${body.paths?.userStorePath ?? "n/a"}
-- Audit log path: ${body.paths?.auditLogPath ?? "n/a"}
-- Backup dir: ${body.paths?.backupDir ?? "n/a"}
-- Backup path: ${body.paths?.backupPath ?? "n/a"}
-- UI ops buttons present: ${body.enterprise?.uiOpsButtonsPresent}
-- Readiness HTTP status: ${body.enterprise?.readinessHttpStatus ?? "n/a"}
-- Readiness status: ${body.enterprise?.readinessStatus ?? "n/a"}
-- Readiness blockers: ${(body.enterprise?.readinessBlockers ?? []).join(", ") || "none"}
-- Readiness warnings: ${(body.enterprise?.readinessWarnings ?? []).join(", ") || "none"}
-- Managed user status: ${body.enterprise?.managedUserStatus ?? "n/a"}
-- Knowledge load status: ${body.enterprise?.knowledgeLoadStatus ?? "n/a"}
-- Viewer backup denied status: ${body.enterprise?.viewerBackupDeniedStatus ?? "n/a"}
-- Backup status: ${body.enterprise?.backupStatus ?? "n/a"}
-- Backup id: ${body.enterprise?.backupId ?? "n/a"}
-- Backup byte size: ${body.enterprise?.backupByteSize ?? "n/a"}
-- Backup stored user count: ${body.enterprise?.backupStoredUserCount ?? "n/a"}
-- Backup audit entry count: ${body.enterprise?.backupAuditEntryCount ?? "n/a"}
-- Backup knowledge document count: ${body.enterprise?.backupKnowledgeDocumentCount ?? "n/a"}
-- Backup contains token hash: ${body.enterprise?.backupContainsTokenHash}
-- Backup contains raw admin token: ${body.enterprise?.backupContainsRawAdminToken}
-- Backup contains raw viewer token: ${body.enterprise?.backupContainsRawViewerToken}
-- Backup contains raw managed token: ${body.enterprise?.backupContainsRawManagedToken}
-- Restore validate status: ${body.enterprise?.restoreValidateStatus ?? "n/a"}
-- Restore validate valid: ${body.enterprise?.restoreValidateValid}
-- Restore validate mode: ${body.enterprise?.restoreValidateMode ?? "n/a"}
-- Restore validate mutation: ${body.enterprise?.restoreValidateMutation ?? "n/a"}
-- Outside restore validate status: ${body.enterprise?.outsideRestoreValidateStatus ?? "n/a"}
-- Outside restore validate code: ${body.enterprise?.outsideRestoreValidateCode ?? "n/a"}
-- Audit status: ${body.enterprise?.auditStatus ?? "n/a"}
-- Audit entry count: ${body.enterprise?.auditEntryCount ?? "n/a"}
-- Backup audit recorded: ${body.enterprise?.backupAuditRecorded}
-- Restore validate audit recorded: ${body.enterprise?.restoreValidateAuditRecorded}
-- Conclusion: ${body.conclusion}
-`;
-}

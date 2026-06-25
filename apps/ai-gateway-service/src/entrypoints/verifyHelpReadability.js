@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { writeEvidencePair } from "./entrypointUtils.js";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -133,7 +134,7 @@ try {
     },
     conclusion: passed ? "help-readability-connected" : "help-readability-not-connected",
   };
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = passed ? 0 : 1;
 } catch (error) {
@@ -144,37 +145,8 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "help-readability-not-connected",
   };
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 }
 
-async function writeEvidence(body) {
-  await mkdir(evidenceDir, { recursive: true });
-  await writeFile(evidenceJsonPath, `${JSON.stringify(body, null, 2)}\n`, "utf8");
-  await writeFile(evidenceMdPath, createEvidenceMarkdown(body), "utf8");
-}
-
-function createEvidenceMarkdown(body) {
-  return `# Phase 50A Help Readability Evidence
-
-- Phase: ${body.phase}
-- Status: ${body.status}
-- Generated at: ${body.generatedAt}
-- Help script path: ${body.helpScriptPath ?? "n/a"}
-- Root help script: ${body.rootHelpScript ?? "n/a"}
-- Script matches expected path: ${body.scriptMatches}
-- Output line count: ${body.output?.lineCount ?? "n/a"}
-- Required readable text count: ${body.output?.requiredTextCount ?? "n/a"}
-- Missing readable text: ${(body.output?.missingText ?? []).join(", ") || "none"}
-- Broken marker count: ${body.output?.brokenMarkerCount ?? "n/a"}
-- Broken markers: ${(body.output?.brokenMarkers ?? []).join(", ") || "none"}
-- Read-only help: ${body.safety?.readOnlyHelp}
-- Provider calls: ${body.safety?.providerCalls}
-- Runtime mutation: ${body.safety?.runtimeMutation}
-- Evidence refresh: ${body.safety?.evidenceRefresh}
-- Service start: ${body.safety?.serviceStart}
-- Process stop: ${body.safety?.processStop}
-- Conclusion: ${body.conclusion}
-`;
-}

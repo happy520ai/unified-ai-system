@@ -1,9 +1,11 @@
 import { mkdir, writeFile } from "node:fs/promises";
+import { writeEvidencePair } from "./entrypointUtils.js";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
 import { runVectorProductionProbe } from "../knowledge/vectorProductionProbe.js";
+import { fetchJson, listen, close } from "./entrypointUtils.js";
 
 const PHASE = "phase-23-knowledge-production-readiness";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -127,7 +129,7 @@ try {
       ? "knowledge-production-deliverable-connected"
       : "knowledge-production-deliverable-blocked",
   });
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = status === "passed" ? 0 : 1;
 } catch (error) {
@@ -145,45 +147,13 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "knowledge-production-deliverable-failed",
   });
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
   if (server) {
     await close(server);
   }
-}
-
-function listen(server, port, host) {
-  return new Promise((resolveListen, rejectListen) => {
-    server.once("error", rejectListen);
-    server.listen(port, host, () => {
-      server.off("error", rejectListen);
-      resolveListen();
-    });
-  });
-}
-
-function close(server) {
-  return new Promise((resolveClose) => {
-    server.close(() => resolveClose());
-  });
-}
-
-async function fetchJson(url, options = {}) {
-  const response = await fetch(url, {
-    method: options.method ?? "GET",
-    headers: {
-      "content-type": "application/json",
-    },
-    body: options.body === undefined ? undefined : JSON.stringify(options.body),
-  });
-  const text = await response.text();
-
-  return {
-    httpStatus: response.status,
-    body: text ? JSON.parse(text) : {},
-  };
 }
 
 function isKeywordQualityReady({ load, retrieve, retrieveAgain }) {
@@ -302,49 +272,3 @@ function createEvidence({
   };
 }
 
-async function writeEvidence(body) {
-  await mkdir(evidenceDir, { recursive: true });
-  await writeFile(evidenceJsonPath, `${JSON.stringify(body, null, 2)}\n`, "utf8");
-  await writeFile(evidenceMdPath, createEvidenceMarkdown(body), "utf8");
-}
-
-function createEvidenceMarkdown(body) {
-  return `# Phase 23 Knowledge Production Readiness Evidence
-
-- Phase: ${body.phase}
-- Status: ${body.status}
-- Generated at: ${body.generatedAt}
-- Service URL: ${body.service.url ?? "n/a"}
-- Keyword ready: ${body.keyword.ready}
-- Retrieve HTTP status: ${body.keyword.retrieveHttpStatus ?? "n/a"}
-- Normalized query: ${body.keyword.normalizedQuery ?? "n/a"}
-- Ranking: ${body.keyword.ranking ?? "n/a"}
-- Query normalization: ${body.keyword.queryNormalization ?? "n/a"}
-- Stopwords applied: ${body.keyword.stopwordsApplied ?? "n/a"}
-- Top hit document: ${body.keyword.topHitDocumentId ?? "n/a"}
-- Top chunk document: ${body.keyword.topChunkDocumentId ?? "n/a"}
-- Top document: ${body.keyword.topDocumentId ?? "n/a"}
-- Top hit rank: ${body.keyword.topHitRank ?? "n/a"}
-- Top hit score: ${body.keyword.topHitScore ?? "n/a"}
-- Matched terms: ${body.keyword.matchedTerms.join(", ") || "n/a"}
-- Highlight count: ${body.keyword.highlightCount}
-- Snippet present: ${body.keyword.snippetPresent}
-- Stable order: ${body.keyword.stableOrder}
-- Vector production ready: ${body.vectorProduction.ready}
-- Vector mode: ${body.vectorProduction.mode ?? "n/a"}
-- Vector status: ${body.vectorProduction.status ?? "n/a"}
-- Vector enabled: ${body.vectorProduction.enabled ?? "n/a"}
-- Embedding status: ${body.vectorProduction.embeddingStatus ?? "n/a"}
-- Vector store status: ${body.vectorProduction.vectorStoreStatus ?? "n/a"}
-- pgvector status: ${body.vectorProduction.pgvectorStatus ?? "n/a"}
-- Probe provider: ${body.vectorProduction.probe?.provider ?? "n/a"}
-- Probe model: ${body.vectorProduction.probe?.model ?? "n/a"}
-- Probe dimension: ${body.vectorProduction.probe?.dimension ?? "n/a"}
-- Probe namespace: ${body.vectorProduction.probe?.namespace ?? "n/a"}
-- Probe top document: ${body.vectorProduction.probe?.topDocumentId ?? "n/a"}
-- Probe top similarity: ${body.vectorProduction.probe?.topSimilarity ?? "n/a"}
-- Probe write/read/retrieve completed: ${body.vectorProduction.probe?.writeReadRetrieveCompleted ?? "n/a"}
-- Blockers: ${body.vectorProduction.blockers.join("; ") || "none"}
-- Conclusion: ${body.conclusion}
-`;
-}

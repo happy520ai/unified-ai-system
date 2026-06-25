@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { readJson, readText } from "./entrypointUtils.js"
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -22,13 +23,7 @@ export function phasePaths({ docName, evidenceName, runnerName, verifierName }) 
   };
 }
 
-export function readText(filePath) {
-  return readFileSync(filePath, "utf8");
-}
 
-export function readJson(filePath) {
-  return JSON.parse(readText(filePath));
-}
 
 export function packageScriptExists(filePath, scriptName) {
   return existsSync(filePath) && Boolean(readJson(filePath).scripts?.[scriptName]);

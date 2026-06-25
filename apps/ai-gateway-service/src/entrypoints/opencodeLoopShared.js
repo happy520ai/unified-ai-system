@@ -77,10 +77,6 @@ export async function readJsonIfPresent(pathValue) {
   }
 }
 
-export async function writeJson(pathValue, value) {
-  await mkdir(dirname(pathValue), { recursive: true });
-  await writeFile(pathValue, `${JSON.stringify(value, null, 2)}\n`, "utf8");
-}
 
 export async function writeText(pathValue, value) {
   await mkdir(dirname(pathValue), { recursive: true });
@@ -179,11 +175,7 @@ export function defaultDesktopDetection() {
   };
 }
 
-export function sleep(ms) {
-  return new Promise((resolvePromise) => {
-    setTimeout(resolvePromise, ms);
-  });
-}
+import { sleep, writeJson } from "./entrypointUtils.js";
 
 export function normalizePath(value) {
   return String(value || "").replaceAll("\\", "/").replace(/\/+$/, "").toLowerCase();

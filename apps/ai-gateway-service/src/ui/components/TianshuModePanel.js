@@ -4,7 +4,7 @@ export function renderTianshuModePanel() {
   return `
                       <div class="three-mode-panel" id="three-mode-panel-tianshu">
                         <div class="three-mode-grid">
-                          <div class="surface-muted three-mode-wide">${tianshuCopy.summary}<span class="sr-only">任务规划 先理解任�?模型组合 执行路线 预览天枢规划</span></div>
+                          <div class="surface-muted three-mode-wide">${tianshuCopy.summary}<span class="sr-only">任务规划 先理解任务模型组合 执行路线 预览天枢规划</span></div>
                           <div class="field">
                             <label>${tianshuCopy.taskPreviewLabel}</label>
                             <div class="surface-muted" id="three-mode-task-preview">${tianshuCopy.taskPreviewPending}</div>

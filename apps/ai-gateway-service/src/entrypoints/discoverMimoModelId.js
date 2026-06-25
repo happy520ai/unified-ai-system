@@ -4,14 +4,29 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { checkTokenCostGuard } from "../cost/tokenCostGuard.js";
+import {
+  discoverModelsEndpoint,
+  trySmokeWithAuthStyles,
+  createSmokeSummary,
+  classifyBlocker,
+  MAX_PAID_CALLS,
+  MAX_OUTPUT_TOKENS,
+} from "./mimoDiscoveryHttp.js";
+import {
+  buildDiscoveryEvidence,
+  createPassedEvidenceFromPriorTextSmoke,
+  createBlockedEvidence,
+  createModelsEndpointSummary,
+  createSafetySummary,
+  createCandidates,
+} from "./mimoDiscoveryEvidence.js";
 
 const PHASE = "271A-mimo-model-id-discovery";
 const PROVIDER_ID = "mimo";
 const DEFAULT_MIMO_BASE_URL = "https://token-plan-cn.xiaomimimo.com/v1";
 const PROMPT = "Say MIMO_SMOKE_OK";
-const MAX_OUTPUT_TOKENS = 32;
 const TEMPERATURE = 0;
-const MAX_PAID_CALLS = 3;
+export { MAX_PAID_CALLS, MAX_OUTPUT_TOKENS };
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "../../../..");
 const evidenceDir = resolve(repoRoot, "apps/ai-gateway-service/evidence");
@@ -56,16 +71,16 @@ try {
     if (priorTextSmoke) {
       await finish(priorTextSmoke);
     } else {
-    const discovery = await discoverWorkingModelId({
-      baseUrl: configuration.baseUrl,
-      apiKey: configuration.apiKey,
-      configuredModelId: configuration.configuredModelId,
-      runtimeModelIds: configuration.runtimeModelIds,
-      priorFailedModelId: configuration.priorFailedModelId,
-      initialPaidApiCallCount: Number(previous271Evidence?.smoke?.paidApiCallCount ?? 0),
-    });
-    const evidence = buildDiscoveryEvidence(baseEvidence, discovery);
-    await finish(evidence);
+      const discovery = await discoverWorkingModelId({
+        baseUrl: configuration.baseUrl,
+        apiKey: configuration.apiKey,
+        configuredModelId: configuration.configuredModelId,
+        runtimeModelIds: configuration.runtimeModelIds,
+        priorFailedModelId: configuration.priorFailedModelId,
+        initialPaidApiCallCount: Number(previous271Evidence?.smoke?.paidApiCallCount ?? 0),
+      });
+      const evidence = buildDiscoveryEvidence(baseEvidence, discovery);
+      await finish(evidence);
     }
   }
 } catch (error) {
@@ -168,12 +183,7 @@ function runGuard(model) {
       provider: PROVIDER_ID,
       model,
       modelTier: "cheap",
-      messages: [
-        {
-          role: "user",
-          content: PROMPT,
-        },
-      ],
+      messages: [{ role: "user", content: PROMPT }],
       maxOutputTokens: MAX_OUTPUT_TOKENS,
     });
     return {
@@ -206,11 +216,7 @@ async function discoverWorkingModelId({ baseUrl, apiKey, configuredModelId, runt
   if (modelsEndpoint.available && modelsEndpoint.matchingModels.length) {
     const modelId = modelsEndpoint.matchingModels[0];
     const smoke = await trySmokeWithAuthStyles({
-      baseUrl,
-      apiKey,
-      modelId,
-      paidApiCallCount,
-      candidateAttempts,
+      baseUrl, apiKey, modelId, paidApiCallCount, candidateAttempts,
     });
     paidApiCallCount = smoke.paidApiCallCount;
     successfulSmokeCallCount += smoke.success ? 1 : 0;
@@ -239,11 +245,7 @@ async function discoverWorkingModelId({ baseUrl, apiKey, configuredModelId, runt
     }
 
     const smoke = await trySmokeWithAuthStyles({
-      baseUrl,
-      apiKey,
-      modelId: candidate,
-      paidApiCallCount,
-      candidateAttempts,
+      baseUrl, apiKey, modelId: candidate, paidApiCallCount, candidateAttempts,
     });
     paidApiCallCount = smoke.paidApiCallCount;
     successfulSmokeCallCount += smoke.success ? 1 : 0;
@@ -275,447 +277,13 @@ async function discoverWorkingModelId({ baseUrl, apiKey, configuredModelId, runt
   };
 }
 
-async function discoverModelsEndpoint({ baseUrl, apiKey }) {
-  const summary = createModelsEndpointSummary();
-  summary.attempted = true;
-  const authStyles = ["bearer", "api-key"];
-
-  for (const authStyle of authStyles) {
-    try {
-      const response = await fetch(`${normalizeBaseUrl(baseUrl)}/models`, {
-        method: "GET",
-        headers: createAuthHeaders({ apiKey, authStyle }),
-        signal: AbortSignal.timeout(30_000),
-      });
-      const body = await readJsonOrText(response);
-      summary.httpStatus = response.status;
-      summary.authStyleTried = authStyle;
-
-      if (response.ok) {
-        const models = extractModelIds(body);
-        summary.available = true;
-        summary.modelCount = models.length;
-        summary.matchingModels = rankMatchingModels(models);
-        summary.errorType = "none";
-        return summary;
-      }
-
-      summary.errorType = classifyHttpStatus(response.status, body).type;
-      summary.message = sanitizeMessage(extractErrorMessage(body) || response.statusText);
-
-      if (![401, 403].includes(response.status)) {
-        return summary;
-      }
-    } catch (error) {
-      summary.available = false;
-      summary.errorType = error?.name === "TimeoutError" ? "network_timeout" : "unknown";
-      summary.message = sanitizeMessage(error instanceof Error ? error.message : String(error));
-      return summary;
-    }
-  }
-
-  return summary;
-}
-
-async function trySmokeWithAuthStyles({ baseUrl, apiKey, modelId, paidApiCallCount, candidateAttempts }) {
-  const authStyles = ["bearer", "api-key"];
-  let lastResult = null;
-
-  for (const authStyle of authStyles) {
-    if (paidApiCallCount >= MAX_PAID_CALLS) {
-      break;
-    }
-    const result = await callChatCompletions({ baseUrl, apiKey, modelId, authStyle });
-    paidApiCallCount += 1;
-    candidateAttempts.push({
-      modelId,
-      authStyle,
-      skipped: false,
-      result,
-    });
-    lastResult = result;
-
-    if (result.success) {
-      return {
-        success: true,
-        result,
-        paidApiCallCount,
-      };
-    }
-
-    if (!["auth_failed"].includes(classifyBlocker(result).type)) {
-      break;
-    }
-  }
-
-  return {
-    success: false,
-    result: lastResult ?? createSmokeSummary(),
-    paidApiCallCount,
-  };
-}
-
-async function callChatCompletions({ baseUrl, apiKey, modelId, authStyle }) {
-  const requestBody = {
-    model: modelId,
-    messages: [
-      {
-        role: "user",
-        content: PROMPT,
-      },
-    ],
-    temperature: TEMPERATURE,
-    stream: false,
-    max_tokens: MAX_OUTPUT_TOKENS,
-    max_completion_tokens: MAX_OUTPUT_TOKENS,
-    thinking: {
-      type: "disabled",
-    },
-  };
-
+function readJsonIfExists(path) {
+  if (!existsSync(path)) return null;
   try {
-    const response = await fetch(`${normalizeBaseUrl(baseUrl)}/chat/completions`, {
-      method: "POST",
-      headers: createAuthHeaders({ apiKey, authStyle }),
-      body: JSON.stringify(requestBody),
-      signal: AbortSignal.timeout(30_000),
-    });
-    const body = await readJsonOrText(response);
-    const text = extractCompletionText(body);
-    const usage = extractUsage(body);
-    const textReceived = text.trim().length > 0;
-    const exactSmokeTextMatched = text.trim().includes("MIMO_SMOKE_OK");
-    const success = response.ok && textReceived;
-
-    return {
-      attempted: true,
-      authStyle,
-      httpStatus: response.status,
-      success,
-      textReceived,
-      exactSmokeTextMatched,
-      successWithNonExactText: success && !exactSmokeTextMatched,
-      usageReturned: usage.usageReturned,
-      inputTokens: usage.inputTokens,
-      outputTokens: usage.outputTokens,
-      totalTokens: usage.totalTokens,
-      errorType: response.ok ? "none" : classifyHttpStatus(response.status, body).type,
-      message: response.ok ? "" : sanitizeMessage(extractErrorMessage(body) || response.statusText),
-    };
-  } catch (error) {
-    return {
-      attempted: true,
-      authStyle,
-      httpStatus: 0,
-      success: false,
-      textReceived: false,
-      exactSmokeTextMatched: false,
-      usageReturned: false,
-      inputTokens: null,
-      outputTokens: null,
-      totalTokens: null,
-      errorType: error?.name === "TimeoutError" ? "network_timeout" : "unknown",
-      message: sanitizeMessage(error instanceof Error ? error.message : String(error)),
-    };
-  }
-}
-
-function buildDiscoveryEvidence(baseEvidence, discovery) {
-  const passed = Boolean(discovery.discoveredWorkingModelId && discovery.smoke?.success);
-  const smoke = {
-    ...createSmokeSummary(),
-    attempted: discovery.paidApiCallCount > 0,
-    paidApiCallCount: discovery.paidApiCallCount,
-    successfulSmokeCallCount: discovery.successfulSmokeCallCount,
-    httpStatus: discovery.smoke?.httpStatus ?? 0,
-    success: discovery.smoke?.success === true,
-    textReceived: discovery.smoke?.textReceived === true,
-    exactSmokeTextMatched: discovery.smoke?.exactSmokeTextMatched === true,
-    successWithNonExactText: discovery.smoke?.successWithNonExactText === true,
-    usageReturned: discovery.smoke?.usageReturned === true,
-    inputTokens: discovery.smoke?.inputTokens ?? null,
-    outputTokens: discovery.smoke?.outputTokens ?? null,
-    totalTokens: discovery.smoke?.totalTokens ?? null,
-    candidateAttempts: discovery.candidateAttempts.map(redactAttempt),
-  };
-
-  return {
-    ...baseEvidence,
-    status: passed ? "passed" : "failed",
-    conclusion: passed ? "mimo-model-id-discovery-safe-smoke-passed" : "mimo-model-id-discovery-failed",
-    configuration: {
-      ...redactConfiguration(baseEvidence.configuration),
-      discoveredWorkingModelId: discovery.discoveredWorkingModelId,
-      modelDiscoveryMethod: discovery.modelDiscoveryMethod,
-    },
-    modelsEndpoint: discovery.modelsEndpoint,
-    smoke,
-    blocker: passed ? { type: "none", message: "" } : discovery.blocker,
-  };
-}
-
-function createPassedEvidenceFromPriorTextSmoke(baseEvidence, priorEvidence) {
-  if (!priorEvidence?.smoke) return null;
-  const smoke = priorEvidence.smoke;
-  if (Number(smoke.paidApiCallCount ?? 0) > MAX_PAID_CALLS) return null;
-  if (Number(smoke.maxOutputTokens ?? MAX_OUTPUT_TOKENS) > MAX_OUTPUT_TOKENS) return null;
-  if (smoke.longContextSent !== false) return null;
-  if (!(Number(smoke.httpStatus) >= 200 && Number(smoke.httpStatus) < 300)) return null;
-  if (smoke.textReceived !== true) return null;
-
-  const matchingAttempt = (smoke.candidateAttempts ?? []).find((attempt) => {
-    const result = attempt?.result ?? {};
-    return attempt?.modelId &&
-      Number(result.httpStatus) >= 200 &&
-      Number(result.httpStatus) < 300 &&
-      result.textReceived === true;
-  });
-  const modelId = matchingAttempt?.modelId;
-  if (!modelId) return null;
-
-  const candidateAttempts = (smoke.candidateAttempts ?? []).map((attempt) => {
-    if (attempt !== matchingAttempt) return attempt;
-    return {
-      ...attempt,
-      result: {
-        ...attempt.result,
-        success: true,
-        successWithNonExactText: attempt.result?.exactSmokeTextMatched !== true,
-      },
-    };
-  });
-
-  return {
-    ...baseEvidence,
-    status: "passed",
-    conclusion: "mimo-model-id-discovery-safe-smoke-passed",
-    configuration: {
-      ...redactConfiguration(baseEvidence.configuration),
-      discoveredWorkingModelId: modelId,
-      modelDiscoveryMethod: priorEvidence.modelsEndpoint?.available ? "models_endpoint" : "candidate_smoke",
-    },
-    modelsEndpoint: priorEvidence.modelsEndpoint ?? baseEvidence.modelsEndpoint,
-    smoke: {
-      ...createSmokeSummary(),
-      ...smoke,
-      success: true,
-      successfulSmokeCallCount: Math.max(1, Number(smoke.successfulSmokeCallCount ?? 0)),
-      exactSmokeTextMatched: smoke.exactSmokeTextMatched === true,
-      successWithNonExactText: smoke.exactSmokeTextMatched !== true,
-      candidateAttempts,
-      reusedPreviousTinySmoke: true,
-    },
-    guard: priorEvidence.guard ?? baseEvidence.guard,
-    blocker: {
-      type: "none",
-      message: "",
-    },
-  };
-}
-
-function createBlockedEvidence(baseEvidence, type, message) {
-  return {
-    ...baseEvidence,
-    status: "blocked",
-    conclusion: "mimo-model-id-discovery-blocked",
-    configuration: redactConfiguration(baseEvidence.configuration),
-    blocker: {
-      type,
-      message,
-    },
-  };
-}
-
-function createModelsEndpointSummary() {
-  return {
-    attempted: false,
-    available: false,
-    httpStatus: 0,
-    modelCount: 0,
-    matchingModels: [],
-    authStyleTried: null,
-    errorType: "not_found",
-    message: "",
-  };
-}
-
-function createSmokeSummary() {
-  return {
-    attempted: false,
-    paidApiCallCount: 0,
-    successfulSmokeCallCount: 0,
-    maxPaidApiCallAllowed: MAX_PAID_CALLS,
-    maxOutputTokens: MAX_OUTPUT_TOKENS,
-    temperature: TEMPERATURE,
-    stream: false,
-    longContextSent: false,
-    httpStatus: 0,
-    success: false,
-    textReceived: false,
-    exactSmokeTextMatched: false,
-    usageReturned: false,
-    inputTokens: null,
-    outputTokens: null,
-    totalTokens: null,
-  };
-}
-
-function createSafetySummary() {
-  return {
-    plainTextApiKeyWritten: false,
-    apiKeyPrinted: false,
-    defaultNvidiaChatLaneChanged: false,
-    mimoSetAsDefault: false,
-    longContextSentToPaidApi: false,
-    largeOutputRequested: false,
-    stressTestExecuted: false,
-    legacyModified: false,
-    projectContextCreated: false,
-    codexCliInvoked: false,
-    codexExecInvoked: false,
-    workflowRunnerEnabled: false,
-    worktreeCreated: false,
-    autoCommit: false,
-    autoPush: false,
-  };
-}
-
-function createCandidates({ configuredModelId, runtimeModelIds, priorFailedModelId }) {
-  return [...new Set([
-    configuredModelId,
-    "mimo-v2.5-pro",
-    "xiaomi/mimo-v2.5-pro",
-    "MiMo-V2.5-Pro",
-    "mimo-v2-5-pro",
-    ...runtimeModelIds,
-    priorFailedModelId,
-  ].filter(Boolean))];
-}
-
-function rankMatchingModels(models) {
-  const unique = [...new Set(models.filter(Boolean))];
-  return unique
-    .filter((model) => /mimo/i.test(model) || /v2\.?5/i.test(model) || /pro/i.test(model))
-    .sort((a, b) => scoreModel(b) - scoreModel(a))
-    .slice(0, 12);
-}
-
-function scoreModel(model) {
-  const value = String(model).toLowerCase();
-  let score = 0;
-  if (value === "mimo-v2.5-pro") score += 100;
-  if (value.includes("mimo")) score += 20;
-  if (value.includes("2.5") || value.includes("v2-5")) score += 20;
-  if (value.includes("pro")) score += 20;
-  if (value.includes("xiaomi")) score += 5;
-  return score;
-}
-
-function classifyBlocker(result = {}) {
-  if (result.httpStatus >= 200 && result.httpStatus < 300 && result.textReceived === false) {
-    return {
-      type: "protocol_incompatible",
-      message: "HTTP 2xx returned usage or an empty response, but no parseable completion text was found.",
-    };
-  }
-  if (result.errorType && result.errorType !== "none") {
-    return {
-      type: normalizeBlockerType(result.errorType),
-      message: sanitizeMessage(result.message ?? ""),
-    };
-  }
-  return {
-    type: "unknown",
-    message: sanitizeMessage(result.message ?? "No working MiMo model id was found."),
-  };
-}
-
-function classifyHttpStatus(status, body) {
-  const message = String(extractErrorMessage(body) ?? "").toLowerCase();
-  if ([401, 403].includes(status)) return { type: "auth_failed" };
-  if ([402, 429].includes(status) || message.includes("quota") || message.includes("billing")) return { type: "quota_or_billing" };
-  if ([404].includes(status) && message.includes("model")) return { type: "model_id_not_supported" };
-  if ([400, 404].includes(status) && (message.includes("not supported model") || message.includes("model"))) return { type: "model_id_not_supported" };
-  if ([404].includes(status)) return { type: "base_url_invalid" };
-  if ([405, 415, 422].includes(status)) return { type: "protocol_incompatible" };
-  if (status >= 500) return { type: "unknown" };
-  return { type: "unknown" };
-}
-
-function normalizeBlockerType(type) {
-  return [
-    "none",
-    "model_id_not_supported",
-    "base_url_invalid",
-    "auth_failed",
-    "quota_or_billing",
-    "protocol_incompatible",
-    "network_timeout",
-    "unknown",
-  ].includes(type) ? type : "unknown";
-}
-
-function createAuthHeaders({ apiKey, authStyle }) {
-  const headers = {
-    "content-type": "application/json",
-  };
-  if (authStyle === "api-key") {
-    headers["api-key"] = apiKey;
-  } else {
-    headers.authorization = `Bearer ${apiKey}`;
-  }
-  return headers;
-}
-
-async function readJsonOrText(response) {
-  const text = await response.text();
-  if (!text) return null;
-  try {
-    return JSON.parse(text);
+    return JSON.parse(readFileSync(path, "utf8"));
   } catch {
-    return { text };
+    return null;
   }
-}
-
-function extractModelIds(body) {
-  const data = Array.isArray(body?.data) ? body.data : Array.isArray(body?.models) ? body.models : [];
-  return data.map((item) => {
-    if (typeof item === "string") return item;
-    return item?.id ?? item?.model ?? item?.name ?? "";
-  }).filter(Boolean);
-}
-
-function extractCompletionText(body) {
-  const message = body?.choices?.[0]?.message;
-  const content = message?.content ?? body?.choices?.[0]?.text ?? body?.text ?? body?.output_text ?? body?.answer ?? "";
-  if (Array.isArray(content)) {
-    return content.map((item) => {
-      if (typeof item === "string") return item;
-      return item?.text ?? item?.content ?? "";
-    }).join("");
-  }
-  return String(content ?? "");
-}
-
-function extractUsage(body) {
-  const usage = body?.usage ?? {};
-  const inputTokens = usage.prompt_tokens ?? usage.input_tokens ?? usage.inputTokens;
-  const outputTokens = usage.completion_tokens ?? usage.output_tokens ?? usage.outputTokens;
-  const totalTokens = usage.total_tokens ?? usage.totalTokens;
-  const usageReturned = Number.isFinite(Number(inputTokens)) ||
-    Number.isFinite(Number(outputTokens)) ||
-    Number.isFinite(Number(totalTokens));
-
-  return {
-    usageReturned,
-    inputTokens: Number.isFinite(Number(inputTokens)) ? Number(inputTokens) : null,
-    outputTokens: Number.isFinite(Number(outputTokens)) ? Number(outputTokens) : null,
-    totalTokens: Number.isFinite(Number(totalTokens)) ? Number(totalTokens) : null,
-  };
-}
-
-function extractErrorMessage(body) {
-  return body?.error?.message ?? body?.message ?? body?.text ?? "";
 }
 
 function sanitizeMessage(value) {
@@ -724,52 +292,6 @@ function sanitizeMessage(value) {
     .replace(/(api[-_]?key\s*[:=]\s*)[A-Za-z0-9._-]+/gi, "$1<masked>")
     .replace(/(authorization\s*[:=]\s*)[A-Za-z0-9._\-\s]+/gi, "$1<masked>")
     .slice(0, 500);
-}
-
-function redactConfiguration(configuration) {
-  const {
-    apiKey,
-    baseUrl,
-    runtimeModelIds,
-    priorFailedModelId,
-    ...safe
-  } = configuration;
-  return {
-    ...safe,
-    runtimeModelIds,
-    priorFailedModelId,
-  };
-}
-
-function redactAttempt(attempt) {
-  return {
-    modelId: attempt.modelId,
-    authStyle: attempt.authStyle ?? null,
-    skipped: attempt.skipped === true,
-    reason: attempt.reason ?? null,
-    result: attempt.result ? {
-      httpStatus: attempt.result.httpStatus,
-      success: attempt.result.success,
-      textReceived: attempt.result.textReceived,
-      exactSmokeTextMatched: attempt.result.exactSmokeTextMatched,
-      usageReturned: attempt.result.usageReturned,
-      errorType: attempt.result.errorType,
-      message: attempt.result.message,
-    } : null,
-  };
-}
-
-function normalizeBaseUrl(baseUrl) {
-  return String(baseUrl ?? "").trim().replace(/\/+$/, "");
-}
-
-function readJsonIfExists(path) {
-  if (!existsSync(path)) return null;
-  try {
-    return JSON.parse(readFileSync(path, "utf8"));
-  } catch {
-    return null;
-  }
 }
 
 async function finish(evidence) {

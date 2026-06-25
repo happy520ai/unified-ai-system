@@ -3,6 +3,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
+import { fetchJson, postJson, listen } from "./entrypointUtils.js";
 
 const PHASE = "Phase621R-628R";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -149,29 +150,10 @@ function expect(condition, id, detail = "") {
   checks.push({ id, pass: Boolean(condition), detail: String(detail || "") });
 }
 
-async function listen(server) {
-  await new Promise((resolveListen) => server.listen(0, "127.0.0.1", resolveListen));
-  const address = server.address();
-  return `http://127.0.0.1:${address.port}`;
-}
-
 async function closeServer(server) {
   await new Promise((resolveClose) => server.close(resolveClose));
 }
 
-async function fetchJson(url) {
-  const response = await fetch(url);
-  return response.json();
-}
-
-async function postJson(url, body) {
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  return response.json();
-}
 
 function renderMarkdown(data) {
   return `# Phase621R-628R Controlled Runtime Candidate Path Smoke

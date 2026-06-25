@@ -5,7 +5,8 @@ import { fileURLToPath } from "node:url";
 
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
-import { listTaskToolModels } from "../model-library/unifiedModelRegistry.js";
+import { listTaskToolModels } from "../model-library/unifiedModelRegistry.js";import { listen } from "./entrypointUtils.js"
+
 
 const repoRoot = resolve(fileURLToPath(new URL("../../../..", import.meta.url)));
 const evidenceJsonPath = resolve(repoRoot, "apps/ai-gateway-service/evidence/phase-312a-frontend-backend-links.json");
@@ -141,16 +142,6 @@ if (evidence.status !== "pass") {
     automaticGateway: evidence.automaticGateway,
     nonChatDirectChat: evidence.nonChatDirectChat,
   }, null, 2));
-}
-
-function listen(server) {
-  return new Promise((resolveListen, reject) => {
-    server.once("error", reject);
-    server.listen(0, "127.0.0.1", () => {
-      const address = server.address();
-      resolveListen(`http://127.0.0.1:${address.port}`);
-    });
-  });
 }
 
 function closeServer(server) {

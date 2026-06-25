@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { resolve } from "node:path";
@@ -18,6 +18,8 @@ import {
 } from "./verifyAgentWorkforceClosureSupport.js";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
+import { fetchJson, postJson } from "./entrypointUtils.js";
+import { prepareSampleCodexResult, parseJsonOutput } from "./verifyFullyAutomatedLoopHelpers.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -429,45 +431,6 @@ async function checkDesktopBat() {
   return { path, exists: existsSync(path), text, selfTestPassed, statusOncePassed };
 }
 
-async function prepareSampleCodexResult() {
-  const inboxDir = resolve(repoRoot, ".codex-handoff/inbox");
-  await mkdir(inboxDir, { recursive: true });
-  const text = `# Codex Result
-
-## Summary
-Sample/manual bridge result for verification.
-
-## Changed Files
-- none
-
-## Commands Run
-- none
-
-## Tests Passed
-- passed
-
-## Evidence Paths
-- .codex-handoff/inbox/latest-codex-result.md
-
-## Known Issues
-- none
-
-## Boundary Check
-- legacy/ modified: no
-- PROJECT_CONTEXT.md created: no
-- oh-my-codex / OMX called: no
-- worktree created: no
-- workflow run hookup: no
-- default NVIDIA /chat lane changed: no
-- secret exposed: no
-- failed verification: no
-
-## Next Steps
-- Import and review feedback.
-`;
-  await writeFile(resolve(inboxDir, "latest-codex-result.md"), text, "utf8");
-}
-
 async function createTestServer(phase) {
   const storePath = resolve(tmpdir(), "unified-ai-system", `${phase}-${Date.now()}-workforce-plans.json`);
   const application = createGatewayApplication({
@@ -493,19 +456,6 @@ async function createTestServer(phase) {
   };
 }
 
-async function fetchJson(url) {
-  const response = await fetch(url);
-  return { httpStatus: response.status, body: await response.json() };
-}
-
-async function postJson(url, body) {
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  return { httpStatus: response.status, body: await response.json() };
-}
 
 async function runPowerShell(relativeScriptPath, args = []) {
   return execFileAsync(
@@ -515,15 +465,3 @@ async function runPowerShell(relativeScriptPath, args = []) {
   );
 }
 
-function parseJsonOutput(text) {
-  const trimmed = String(text || "").trim();
-  for (let start = 0; start < trimmed.length; start += 1) {
-    if (trimmed[start] !== "{") continue;
-    try {
-      return JSON.parse(trimmed.slice(start).trim());
-    } catch {
-      // Keep scanning: PowerShell commands may print status lines before JSON.
-    }
-  }
-  return {};
-}

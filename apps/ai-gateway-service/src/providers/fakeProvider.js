@@ -1,6 +1,8 @@
-import { withTimeout } from "../../../../packages/shared-utils/src/index.js";
+import { withTimeout } from "@unified-ai-system/shared-utils";
 import { createProviderDescriptor } from "./providerAdapter.js";
 import { createProviderResponse } from "./providerMapping.js";
+import { sleep } from "../entrypoints/entrypointUtils.js"
+
 
 export function createFakeProvider(modelConfig, options = {}) {
   const fixedLatencyMs = modelConfig.fixedLatencyMs ?? 10;
@@ -83,10 +85,6 @@ function getLastUserText(request) {
 
 function estimateTokens(text) {
   return Math.max(1, Math.ceil(String(text).length / 4));
-}
-
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function createFakeProviderError(providerRequest) {

@@ -11,6 +11,7 @@ import {
   buildProviderLatencyAccountability,
 } from "../chat-gateway/providerLatencyPolicy.js";
 import { buildProviderRetryFallbackAccountability } from "../chat-gateway/providerRetryFallbackPolicy.js";
+import { readText } from "./entrypointUtils.js"
 
 const PHASE = "Phase315A";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -209,11 +210,6 @@ function runDryRunCase(testCase) {
   };
 }
 
-function readText(relativePath) {
-  const absolute = resolve(repoRoot, relativePath);
-  if (!existsSync(absolute)) return "";
-  return readFileSync(absolute, "utf8");
-}
 
 function readJsonIfExists(path) {
   if (!existsSync(path)) return null;

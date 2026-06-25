@@ -4,7 +4,7 @@ export function renderGodModePanel() {
   return `
                       <div class="three-mode-panel" id="three-mode-panel-god">
                         <div class="three-mode-grid">
-                          <div class="surface-muted three-mode-wide">${godModeCopy.summary}<span class="sr-only">多模型互�?预览 God Mode 方案</span></div>
+                          <div class="surface-muted three-mode-wide">${godModeCopy.summary}<span class="sr-only">多模型互评预览 God Mode 方案</span></div>
                           <div class="field">
                             <label for="three-mode-god-participants">${godModeCopy.participantLabel}</label>
                             <select id="three-mode-god-participants" multiple></select>

@@ -3,6 +3,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { createConsolePage } from "../ui/consolePage.js";
+import { readJson, writeEvidenceSync } from "./entrypointUtils.js"
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "../../../..");
@@ -60,9 +61,6 @@ function expect(condition, id, detail = "") {
   checks.push({ id, pass: Boolean(condition), detail });
 }
 
-function readJson(path) {
-  return JSON.parse(readFileSync(path, "utf8"));
-}
 
 function extractBetween(source, startMarker, endMarker) {
   const start = source.indexOf(startMarker);
@@ -93,7 +91,7 @@ function visibleTextIncludes(source, text) {
   return stripTags(source).includes(text);
 }
 
-function writeEvidence(status, failures) {
+function saveEvidence(status, failures) {
   const evidence = {
     ...requiredEvidence,
     status,
@@ -281,7 +279,7 @@ function main() {
   });
 
   const failures = checks.filter((item) => !item.pass);
-  writeEvidence(failures.length ? "fail" : "pass", failures);
+  saveEvidence(failures.length ? "fail" : "pass", failures);
   if (failures.length) {
     console.error(`[phase308d] failed checks: ${failures.map((item) => item.id).join(", ")}`);
     process.exit(1);

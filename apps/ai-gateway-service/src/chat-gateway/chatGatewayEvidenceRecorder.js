@@ -54,9 +54,9 @@ export async function getEvidenceById(evidenceId) {
       try {
         const record = JSON.parse(line);
         if (record.evidenceId === evidenceId) return record;
-      } catch {}
+      } catch (err) { console.error("[chatGatewayEvidenceRecorder]:", err?.message || err); }
     }
-  } catch {}
+  } catch (err) { console.error("[chatGatewayEvidenceRecorder]:", err?.message || err); }
   return null;
 }
 

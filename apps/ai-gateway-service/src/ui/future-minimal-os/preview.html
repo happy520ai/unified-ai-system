@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI 网关系统 — 未来感 UI 预览</title>
+  <link rel="stylesheet" href="styles/futureMinimalTokens.css">
+  <link rel="stylesheet" href="styles/futureMinimalComponents.css">
+  <link rel="stylesheet" href="styles/futureMinimalEnhanced.css">
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: var(--future-bg);
+      color: var(--future-text);
+      font-family: var(--future-font);
+      min-height: 100vh;
+    }
+
+    .preview-container {
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 40px;
+    }
+
+    .preview-header {
+      text-align: center;
+      margin-bottom: 60px;
+    }
+
+    .preview-header h1 {
+      font-size: 2.5rem;
+      font-weight: 800;
+      color: var(--future-accent);
+      text-shadow: 0 0 30px rgba(0, 240, 255, 0.4);
+      margin: 0 0 16px;
+    }
+
+    .preview-header p {
+      color: var(--future-muted);
+      font-size: 1.125rem;
+    }
+
+    .preview-section {
+      margin-bottom: 60px;
+    }
+
+    .preview-section h2 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--future-text);
+      margin: 0 0 24px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--future-glass-border);
+    }
+
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 20px;
+    }
+
+    .status-grid {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 20px;
+    }
+
+    .module-card-demo {
+      padding: 24px;
+    }
+
+    .module-card-demo strong {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 1.125rem;
+    }
+
+    .module-card-demo p {
+      color: var(--future-muted);
+      margin: 0;
+      line-height: 1.6;
+    }
+
+    .table-demo {
+      margin-top: 20px;
+    }
+
+    .nav-demo {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 40px;
+    }
+
+    .nav-demo a {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 20px;
+      border: 1px solid var(--future-glass-border);
+      border-radius: var(--future-radius-small);
+      background: var(--future-glass-bg);
+      color: var(--future-muted);
+      text-decoration: none;
+      transition: all var(--future-transition);
+    }
+
+    .nav-demo a:hover,
+    .nav-demo a.is-active {
+      color: var(--future-accent);
+      border-color: rgba(0, 240, 255, 0.4);
+      background: var(--future-accent-soft);
+      box-shadow: var(--future-glow-cyan);
+    }
+
+    .color-swatches {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 16px;
+    }
+
+    .color-swatch {
+      padding: 20px;
+      border-radius: var(--future-radius-small);
+      text-align: center;
+      font-size: 0.875rem;
+      font-weight: 600;
+    }
+
+    .color-swatch__name {
+      display: block;
+      margin-top: 8px;
+      font-size: 0.75rem;
+      opacity: 0.8;
+    }
+  </style>
+</head>
+<body>
+  <div class="future-responsive-frame">
+    <div class="preview-container">
+      <header class="preview-header">
+        <h1 class="neon-text-cyan">AI 网关系统</h1>
+        <p>未来感 UI 预览 — Glassmorphism + Cyberpunk</p>
+      </header>
+
+      <!-- Navigation Demo -->
+      <nav class="nav-demo">
+        <a href="#" class="is-active">🏠 Dashboard</a>
+        <a href="#">💬 Chat</a>
+        <a href="#">📊 Reports</a>
+        <a href="#">⚙️ Admin</a>
+        <a href="#">🔒 Security</a>
+      </nav>
+
+      <!-- KPI Tiles -->
+      <section class="preview-section">
+        <h2>KPI 指标卡片</h2>
+        <div class="kpi-grid">
+          <div class="kpi-tile">
+            <span class="kpi-tile__value">$1.2M</span>
+            <span class="kpi-tile__delta kpi-tile__delta--up">▲ +12.4%</span>
+            <span class="kpi-tile__label">Revenue</span>
+          </div>
+          <div class="kpi-tile">
+            <span class="kpi-tile__value">87.3%</span>
+            <span class="kpi-tile__delta kpi-tile__delta--up">▲ +2.1%</span>
+            <span class="kpi-tile__label">Uptime</span>
+          </div>
+          <div class="kpi-tile">
+            <span class="kpi-tile__value">12.4K</span>
+            <span class="kpi-tile__delta kpi-tile__delta--up">▲ +8.7%</span>
+            <span class="kpi-tile__label">Requests</span>
+          </div>
+          <div class="kpi-tile">
+            <span class="kpi-tile__value">4ms</span>
+            <span class="kpi-tile__delta kpi-tile__delta--down">▼ -15.2%</span>
+            <span class="kpi-tile__label">Latency P99</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Status Pills -->
+      <section class="preview-section">
+        <h2>状态指示器</h2>
+        <div class="status-grid">
+          <span class="status-pill status-pill--online">● System Online</span>
+          <span class="status-pill status-pill--warning">● High Load</span>
+          <span class="status-pill status-pill--critical">● Critical Error</span>
+          <span class="status-pill status-pill--info">● Processing</span>
+        </div>
+      </section>
+
+      <!-- Module Cards -->
+      <section class="preview-section">
+        <h2>模块卡片（玻璃拟态）</h2>
+        <div class="card-grid">
+          <article class="future-module-card module-card-demo">
+            <strong>🔮 Mission Control</strong>
+            <p>任务编排与执行监控。实时查看任务状态、执行进度和资源消耗。</p>
+          </article>
+          <article class="future-module-card module-card-demo">
+            <strong>🧠 AI Brain</strong>
+            <p>模型路由与智能调度。自动选择最优模型，平衡成本与质量。</p>
+          </article>
+          <article class="future-module-card module-card-demo">
+            <strong>🛡️ Security</strong>
+            <p>安全审计与合规检查。实时监控异常行为，保障系统安全。</p>
+          </article>
+          <article class="future-module-card module-card-demo">
+            <strong>📊 Analytics</strong>
+            <p>数据分析与洞察。深度分析使用模式，优化资源分配。</p>
+          </article>
+        </div>
+      </section>
+
+      <!-- Data Table -->
+      <section class="preview-section">
+        <h2>数据表格</h2>
+        <div class="table-demo">
+          <table class="future-data-table">
+            <thead>
+              <tr>
+                <th>时间</th>
+                <th>用户</th>
+                <th>操作</th>
+                <th>状态</th>
+                <th>耗时</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>14:32:15</td>
+                <td>user-1029</td>
+                <td>触发 phase-12a</td>
+                <td><span class="status-pill status-pill--online">● OK</span></td>
+                <td>1.2s</td>
+              </tr>
+              <tr>
+                <td>14:31:42</td>
+                <td>user-0581</td>
+                <td>打开 chat 会话</td>
+                <td><span class="status-pill status-pill--warning">● Slow</span></td>
+                <td>3.8s</td>
+              </tr>
+              <tr>
+                <td>14:30:18</td>
+                <td>user-0394</td>
+                <td>提交审批请求</td>
+                <td><span class="status-pill status-pill--online">● OK</span></td>
+                <td>0.8s</td>
+              </tr>
+              <tr>
+                <td>14:29:55</td>
+                <td>system</td>
+                <td>自动扩容触发</td>
+                <td><span class="status-pill status-pill--info">● Processing</span></td>
+                <td>—</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Color Palette -->
+      <section class="preview-section">
+        <h2>配色方案</h2>
+        <div class="color-swatches">
+          <div class="color-swatch" style="background: #0A0A0A; color: #F5F7FA; border: 1px solid var(--future-glass-border);">
+            #0A0A0A
+            <span class="color-swatch__name">Background</span>
+          </div>
+          <div class="color-swatch" style="background: #00F0FF; color: #0A0A0A;">
+            #00F0FF
+            <span class="color-swatch__name">Neon Cyan</span>
+          </div>
+          <div class="color-swatch" style="background: #B026FF; color: #FFFFFF;">
+            #B026FF
+            <span class="color-swatch__name">Neon Violet</span>
+          </div>
+          <div class="color-swatch" style="background: #00FF88; color: #0A0A0A;">
+            #00FF88
+            <span class="color-swatch__name">Success</span>
+          </div>
+          <div class="color-swatch" style="background: #FFB800; color: #0A0A0A;">
+            #FFB800
+            <span class="color-swatch__name">Warning</span>
+          </div>
+          <div class="color-swatch" style="background: #FF3366; color: #FFFFFF;">
+            #FF3366
+            <span class="color-swatch__name">Danger</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Scanline Overlay -->
+      <div class="future-scanline-overlay" aria-hidden="true"></div>
+    </div>
+  </div>
+</body>
+</html>

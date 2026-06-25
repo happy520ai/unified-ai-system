@@ -1,7 +1,5 @@
 import { SAFE_PROVIDER_CALL_IMPLEMENTATION_CONTRACT } from "./safeProviderCallImplementation.contract.js";
-
-const RAW_KEY_PATTERN =
-  /(sk-[A-Za-z0-9_-]{20,}|nvapi-[A-Za-z0-9_-]{16,}|AKIA[0-9A-Z]{16}|xox[baprs]-|ghp_[A-Za-z0-9_]{20,}|api[_-]?key|bearer\s+[a-z0-9._-]{16,}|-----BEGIN)/i;
+import { RAW_KEY_PATTERN } from "./securityPatterns.js";
 
 export function createSafeProviderCallImplementation(options = {}) {
   const internalExecutor = typeof options.internalExecutor === "function" ? options.internalExecutor : null;

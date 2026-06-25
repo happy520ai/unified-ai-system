@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createConsolePage } from "../ui/consolePage.js";
 import { buildGvcRunnerDashboardSnapshot } from "../ui/components/GvcRunnerDashboardPanel.js";
+import { readJson, readText } from "./entrypointUtils.js"
 
 const repoRoot = resolve(fileURLToPath(new URL("../../../..", import.meta.url)));
 const evidenceDir = resolve(repoRoot, "apps/ai-gateway-service/evidence/phase2085-gvc-cycle-dashboard-readonly");
@@ -106,15 +107,4 @@ writeFileSync(resolve(repoRoot, "docs/phase2085-gvc-cycle-dashboard-readonly.md"
 console.log(JSON.stringify({ status: result.status, blocker: result.blocker, currentCycleState: result.currentCycleState }, null, 2));
 if (failed.length > 0) process.exitCode = 1;
 
-function readJson(filePath) {
-  if (!existsSync(filePath)) return null;
-  try {
-    return JSON.parse(readFileSync(filePath, "utf8").replace(/^\uFEFF/, ""));
-  } catch {
-    return null;
-  }
-}
 
-function readText(filePath) {
-  return existsSync(filePath) ? readFileSync(filePath, "utf8") : "";
-}

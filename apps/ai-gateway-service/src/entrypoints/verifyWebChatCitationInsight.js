@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { writeEvidencePair } from "./entrypointUtils.js";
 import { existsSync, readdirSync } from "node:fs";
 import { mkdtemp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -8,6 +9,7 @@ import vm from "node:vm";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
 import { createConsolePage } from "../ui/consolePage.js";
+import { sleep, listen, findBrowserPath, close } from "./entrypointUtils.js";
 
 const PHASE = "phase-76m-web-chat-citation-insight";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -141,7 +143,7 @@ try {
     await closeCdpSilently(cdp);
   }
 
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = evidence.status === "passed" ? 0 : 1;
 } catch (error) {
@@ -152,7 +154,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "web-chat-citation-insight-not-connected",
   };
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -253,17 +255,6 @@ async function waitForCitationInsight(cdp) {
   throw new Error("Timed out waiting for citation insight UI.");
 }
 
-function findBrowserPath() {
-  const candidates = [
-    process.env.PME_BROWSER_PATH,
-    "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
-    ...findVersionedBrowserPaths("C:\\Program Files (x86)\\Microsoft\\EdgeCore", "msedge.exe"),
-    ...findVersionedBrowserPaths("C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application", "msedge.exe"),
-  ].filter(Boolean);
-  const found = candidates.find((candidate) => existsSync(candidate));
-  if (!found) throw new Error("No supported headless browser found. Set PME_BROWSER_PATH to chrome.exe or msedge.exe.");
-  return found;
-}
 
 function findVersionedBrowserPaths(root, executableName) {
   if (!existsSync(root)) return [];
@@ -382,56 +373,3 @@ async function inspectPng(path) {
   return { bytes: stats.size, width: validPng ? buffer.readUInt32BE(16) : 0, height: validPng ? buffer.readUInt32BE(20) : 0, validPng };
 }
 
-function listen(targetServer, port, host) {
-  return new Promise((resolveListen, rejectListen) => {
-    targetServer.once("error", rejectListen);
-    targetServer.listen(port, host, () => {
-      targetServer.off("error", rejectListen);
-      resolveListen();
-    });
-  });
-}
-
-function close(targetServer) {
-  return new Promise((resolveClose) => targetServer.close(() => resolveClose()));
-}
-
-async function writeEvidence(body) {
-  await mkdir(evidenceDir, { recursive: true });
-  await writeFile(evidenceJsonPath, `${JSON.stringify(body, null, 2)}\n`, "utf8");
-  await writeFile(evidenceMdPath, createEvidenceMarkdown(body), "utf8");
-}
-
-function createEvidenceMarkdown(body) {
-  return `# Phase 76M Web Chat Citation Insight Evidence
-
-- Phase: ${body.phase}
-- Status: ${body.status}
-- Generated at: ${body.generatedAt}
-- Service URL: ${body.serviceUrl ?? "n/a"}
-- Prompt: ${body.ui?.prompt ?? "n/a"}
-- Assistant text: ${body.ui?.afterAnswer?.latestAssistantText ?? "n/a"}
-- Citation heading: ${body.ui?.afterAnswer?.citationHeading ?? "n/a"}
-- First summary: ${body.ui?.afterAnswer?.firstSummary ?? "n/a"}
-- Score pill: ${body.ui?.afterAnswer?.scorePill ?? "n/a"}
-- Term pills: ${(body.ui?.afterAnswer?.termPills ?? []).join(", ") || "none"}
-- Meta text: ${body.ui?.afterAnswer?.metaText ?? "n/a"}
-- Highlight count: ${body.ui?.afterAnswer?.highlightCount ?? "n/a"}
-- Screenshot path: ${body.screenshot?.path ?? "n/a"}
-- Screenshot bytes: ${body.screenshot?.bytes ?? "n/a"}
-- Screenshot dimensions: ${body.screenshot?.width ?? "n/a"}x${body.screenshot?.height ?? "n/a"}
-- Valid PNG: ${body.screenshot?.validPng}
-- Browser interaction: ${body.safety?.browserInteraction}
-- Simulated stream only: ${body.safety?.simulatedStreamOnly}
-- Citation insight only: ${body.safety?.citationInsightOnly}
-- Fake provider only: ${body.safety?.fakeProviderOnly}
-- Default chat main lane changed: ${body.safety?.defaultChatMainLaneChanged}
-- Backend business route added: ${body.safety?.backendBusinessRouteAdded}
-- Provider calls: ${body.safety?.providerCalls}
-- Conclusion: ${body.conclusion}
-`;
-}
-
-function sleep(ms) {
-  return new Promise((resolveSleep) => setTimeout(resolveSleep, ms));
-}

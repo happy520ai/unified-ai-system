@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { analyzeGvcBatch } from "./gvc-batch-analysis.mjs";
+import { writeEvidenceFile } from "../lib/evidenceWriter.mjs";
 
 const repoRoot = process.cwd();
 const summary = analyzeGvcBatch({ repoRoot });
@@ -20,12 +21,7 @@ const result = {
   blocker: failed.length === 0 ? "none" : failed.map(([id]) => id).join(", "),
   checks: checks.map(([id, pass]) => ({ id, pass })),
 };
-writeEvidence("phase2038-gvc-batch-rollback-audit/batch-rollback-audit-result.json", result);
+writeEvidenceFile("apps/ai-gateway-service/evidence/phase2038-gvc-batch-rollback-audit/batch-rollback-audit-result.json", result, repoRoot);
 console.log(JSON.stringify({ status: result.status, blocker: result.blocker, realMutationCount: result.realMutationCount, rollbackFailedCount: result.rollbackFailedCount }, null, 2));
 if (failed.length > 0) process.exit(1);
 
-function writeEvidence(relativePath, value) {
-  const filePath = path.join(repoRoot, "apps/ai-gateway-service/evidence", relativePath);
-  mkdirSync(path.dirname(filePath), { recursive: true });
-  writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
-}

@@ -1,8 +1,10 @@
 import { mkdir, writeFile } from "node:fs/promises";
+import { writeEvidencePair } from "./entrypointUtils.js";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
+import { fetchJson, listen, close } from "./entrypointUtils.js";
 
 const PHASE = "phase-22-knowledge-quality-infra";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -86,7 +88,7 @@ try {
     retrieve,
     conclusion: connected ? "knowledge-quality-and-infra-base-connected" : "knowledge-quality-and-infra-base-not-connected",
   });
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = connected ? 0 : 1;
 } catch (error) {
@@ -100,45 +102,13 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "knowledge-quality-and-infra-base-not-connected",
   });
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
   if (server) {
     await close(server);
   }
-}
-
-function listen(server, port, host) {
-  return new Promise((resolveListen, rejectListen) => {
-    server.once("error", rejectListen);
-    server.listen(port, host, () => {
-      server.off("error", rejectListen);
-      resolveListen();
-    });
-  });
-}
-
-function close(server) {
-  return new Promise((resolveClose) => {
-    server.close(() => resolveClose());
-  });
-}
-
-async function fetchJson(url, options = {}) {
-  const response = await fetch(url, {
-    method: options.method ?? "GET",
-    headers: {
-      "content-type": "application/json",
-    },
-    body: options.body === undefined ? undefined : JSON.stringify(options.body),
-  });
-  const text = await response.text();
-
-  return {
-    httpStatus: response.status,
-    body: text ? JSON.parse(text) : {},
-  };
 }
 
 function isQualityAndInfraConnected({ infra, load, retrieve }) {
@@ -233,43 +203,3 @@ function createEvidence({
   };
 }
 
-async function writeEvidence(body) {
-  await mkdir(evidenceDir, { recursive: true });
-  await writeFile(evidenceJsonPath, `${JSON.stringify(body, null, 2)}\n`, "utf8");
-  await writeFile(evidenceMdPath, createEvidenceMarkdown(body), "utf8");
-}
-
-function createEvidenceMarkdown(body) {
-  return `# Phase 22 Knowledge Quality And Infra Evidence
-
-- Phase: ${body.phase}
-- Status: ${body.status}
-- Generated at: ${body.generatedAt}
-- Service URL: ${body.service.url ?? "n/a"}
-- Load HTTP status: ${body.knowledge.loadHttpStatus ?? "n/a"}
-- Loaded count: ${body.knowledge.loadedCount ?? "n/a"}
-- Retrieve HTTP status: ${body.knowledge.retrieveHttpStatus ?? "n/a"}
-- Retrieve mode: ${body.knowledge.retrieveMode ?? "n/a"}
-- Normalized query: ${body.knowledge.normalizedQuery ?? "n/a"}
-- Ranking: ${body.knowledge.ranking ?? "n/a"}
-- Query normalization: ${body.knowledge.queryNormalization ?? "n/a"}
-- Retrieved chunks: ${body.knowledge.chunkCount}
-- Top hit document: ${body.knowledge.topHitDocumentId ?? "n/a"}
-- Top chunk document: ${body.knowledge.topChunkDocumentId ?? "n/a"}
-- Top document: ${body.knowledge.topDocumentId ?? "n/a"}
-- Top hit rank: ${body.knowledge.topHitRank ?? "n/a"}
-- Top hit score: ${body.knowledge.topHitScore ?? "n/a"}
-- Top hit matched terms: ${body.knowledge.topHitMatchedTerms.join(", ") || "n/a"}
-- Top hit snippet present: ${body.knowledge.topHitSnippetPresent}
-- Top hit highlights: ${body.knowledge.topHitHighlights.length}
-- Infra mode: ${body.infra.mode ?? "n/a"}
-- Infra status: ${body.infra.status ?? "n/a"}
-- Infra enabled: ${body.infra.enabled ?? "n/a"}
-- Embedding status: ${body.infra.embeddingStatus ?? "n/a"}
-- Vector store status: ${body.infra.vectorStoreStatus ?? "n/a"}
-- pgvector status: ${body.infra.pgvectorStatus ?? "n/a"}
-- Embedding interface: ${body.infra.embeddingInterface ?? "n/a"}
-- Vector store interface: ${body.infra.vectorStoreInterface ?? "n/a"}
-- Conclusion: ${body.conclusion}
-`;
-}

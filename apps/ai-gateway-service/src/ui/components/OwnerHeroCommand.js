@@ -6,7 +6,7 @@ export function renderOwnerHeroCommand(copy) {
                     <h2>${copy.heroQuestion}</h2>
                     <p>${copy.heroSubtitle}</p>
                   </div>
-                  <aside class="owner-os-boundary" aria-label="本地保护状�?>
+                  <aside class="owner-os-boundary" aria-label="本地保护状态">
                     <span>${copy.localOnlyBoundary}</span>
                     <small>${copy.localOnlyDetail}</small>
                   </aside>

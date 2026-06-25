@@ -12,13 +12,37 @@ export function createPriorityProviderSelectionPolicy(config = {}) {
         defaultProviderId,
         defaultModelId,
       });
-      const rankedCandidates = candidates
+
+      // 第一轮：严格匹配（provider + model）
+      let rankedCandidates = candidates
         .filter((candidate) => matchesRequestPreference(candidate, routeRequest))
         .sort(compareCandidatePriority)
         .map((candidate, index) => ({
           ...candidate,
           rank: index + 1,
         }));
+
+      // 第二轮：如果严格匹配无结果，放宽到只匹配 provider
+      if (rankedCandidates.length === 0 && routeRequest.providerId) {
+        const relaxedRequest = { ...routeRequest, model: undefined };
+        rankedCandidates = candidates
+          .filter((candidate) => matchesRequestPreference(candidate, relaxedRequest))
+          .sort(compareCandidatePriority)
+          .map((candidate, index) => ({
+            ...candidate,
+            rank: index + 1,
+          }));
+      }
+
+      // 第三轮：如果仍然无结果，使用所有候选
+      if (rankedCandidates.length === 0) {
+        rankedCandidates = candidates
+          .sort(compareCandidatePriority)
+          .map((candidate, index) => ({
+            ...candidate,
+            rank: index + 1,
+          }));
+      }
 
       if (rankedCandidates.length === 0) {
         const error = new Error("No provider route available");

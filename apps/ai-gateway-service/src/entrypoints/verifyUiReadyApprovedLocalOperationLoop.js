@@ -9,6 +9,7 @@ import {
 } from "../agent-runner/localOperationApprovalRecord.js";
 import { createLocalOperationPatchProposal } from "../agent-runner/localOperationPatchProposal.js";
 import { runLocalOperationLoop } from "../agent-runner/localOperationLoop.js";
+import { readJson, readText } from "./entrypointUtils.js"
 
 const repoRoot = resolve(fileURLToPath(new URL("../../../..", import.meta.url)));
 const scriptName = "verify:phase303a-305a-ui-ready-approved-local-operation-loop";
@@ -335,13 +336,7 @@ function createApprovedRecord(overrides = {}) {
   };
 }
 
-async function readText(filePath) {
-  return readFile(resolve(repoRoot, filePath), "utf8");
-}
 
-async function readJson(filePath) {
-  return JSON.parse(await readText(filePath));
-}
 
 function extractUiPanel(consolePage) {
   const start = consolePage.indexOf("Approved Local Operation Loop");

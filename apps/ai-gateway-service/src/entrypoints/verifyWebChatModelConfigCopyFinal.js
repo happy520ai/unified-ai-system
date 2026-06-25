@@ -1,4 +1,5 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { writeEvidencePair } from "./entrypointUtils.js";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
@@ -105,7 +106,7 @@ try {
   };
 }
 
-await writeEvidence(evidence);
+await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
 console.log(JSON.stringify(evidence, null, 2));
 process.exitCode = evidence.status === "passed" ? 0 : 1;
 
@@ -137,32 +138,3 @@ async function runNodeScript(scriptPath) {
   });
 }
 
-async function writeEvidence(body) {
-  await mkdir(evidenceDir, { recursive: true });
-  await writeFile(evidenceJsonPath, `${JSON.stringify(body, null, 2)}\n`, "utf8");
-  await writeFile(evidenceMdPath, createEvidenceMarkdown(body), "utf8");
-}
-
-function createEvidenceMarkdown(body) {
-  const checks = body.copyChecks ?? {};
-  return `# Phase 101A Web Chat Model Config Copy Final Evidence
-
-- Phase: ${body.phase}
-- Status: ${body.status}
-- Generated at: ${body.generatedAt}
-- Delegated Phase99A status: ${body.delegatedCheck?.status ?? "n/a"}
-- Inline script syntax ok: ${checks.inlineScriptSyntaxOk}
-- Required copy present: ${checks.requiredCopyPresent}
-- Retired copy removed: ${checks.retiredCopyRemoved}
-- Composer guide short: ${checks.composerGuideShort}
-- Primary action short: ${checks.primaryActionShort}
-- Advanced options still available but collapsed: ${checks.advancedOptionsStillAvailableButCollapsed}
-- Startup options still available but collapsed: ${checks.startupOptionsStillAvailableButCollapsed}
-- Final ready nudge short: ${checks.finalReadyNudgeShort}
-- Real provider calls: ${body.safety?.realProviderCalls}
-- API key persisted in browser: ${body.safety?.apiKeyPersistedInBrowser}
-- API key persisted in evidence: ${body.safety?.apiKeyPersistedInEvidence}
-- Default chat main lane changed: ${body.safety?.defaultChatMainLaneChanged}
-- Conclusion: ${body.conclusion}
-`;
-}

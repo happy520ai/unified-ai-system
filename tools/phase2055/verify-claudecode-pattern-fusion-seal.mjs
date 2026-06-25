@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { buildPatternFusionSeal } from "../../packages/gvc-permission-engine/src/index.js";
+import { writeEvidenceFile } from "../lib/evidenceWriter.mjs";
 
 const repoRoot = process.cwd();
 const checks = [];
@@ -46,7 +47,7 @@ const result = {
   blocker: failed.length === 0 ? "none" : failed.map((item) => item.id).join(", "),
 };
 
-writeEvidence("apps/ai-gateway-service/evidence/phase2055-claudecode-pattern-fusion-seal/result.json", result);
+writeEvidenceFile("apps/ai-gateway-service/evidence/phase2055-claudecode-pattern-fusion-seal/result.json", result, repoRoot);
 console.log(JSON.stringify({ status: result.status, blocker: result.blocker, fusedPatternCount: seal.fusedClaudeCodePatterns.length }, null, 2));
 if (failed.length > 0) process.exit(1);
 
@@ -56,8 +57,3 @@ function readJson(relativePath) {
   return JSON.parse(readFileSync(filePath, "utf8").replace(/^\uFEFF/, ""));
 }
 
-function writeEvidence(relativePath, value) {
-  const filePath = path.join(repoRoot, relativePath);
-  mkdirSync(path.dirname(filePath), { recursive: true });
-  writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
-}

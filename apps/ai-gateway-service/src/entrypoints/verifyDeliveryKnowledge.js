@@ -1,9 +1,11 @@
 import { access, mkdir, readFile, writeFile } from "node:fs/promises";
+import { writeEvidencePair } from "./entrypointUtils.js";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
 import { runVectorProductionProbe } from "../knowledge/vectorProductionProbe.js";
+import { fetchJson, listen, close } from "./entrypointUtils.js";
 
 const PHASE = "phase-24-delivery-knowledge";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -95,7 +97,7 @@ try {
       ? "delivery-guide-and-real-usage-knowledge-connected"
       : "delivery-guide-and-real-usage-knowledge-not-connected",
   });
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = passed ? 0 : 1;
 } catch (error) {
@@ -118,7 +120,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "delivery-guide-and-real-usage-knowledge-not-connected",
   });
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -181,38 +183,6 @@ function extractSection(content, id) {
 
 function escapeRegExp(value) {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function listen(server, port, host) {
-  return new Promise((resolveListen, rejectListen) => {
-    server.once("error", rejectListen);
-    server.listen(port, host, () => {
-      server.off("error", rejectListen);
-      resolveListen();
-    });
-  });
-}
-
-function close(server) {
-  return new Promise((resolveClose) => {
-    server.close(() => resolveClose());
-  });
-}
-
-async function fetchJson(url, options = {}) {
-  const response = await fetch(url, {
-    method: options.method ?? "GET",
-    headers: {
-      "content-type": "application/json",
-    },
-    body: options.body === undefined ? undefined : JSON.stringify(options.body),
-  });
-  const text = await response.text();
-
-  return {
-    httpStatus: response.status,
-    body: text ? JSON.parse(text) : {},
-  };
 }
 
 function isLocalKeywordReady({ health, load, sources, retrieve }) {
@@ -333,46 +303,3 @@ function createEvidence({
   };
 }
 
-async function writeEvidence(body) {
-  await mkdir(evidenceDir, { recursive: true });
-  await writeFile(evidenceJsonPath, `${JSON.stringify(body, null, 2)}\n`, "utf8");
-  await writeFile(evidenceMdPath, createEvidenceMarkdown(body), "utf8");
-}
-
-function createEvidenceMarkdown(body) {
-  return `# Phase 24 Delivery Knowledge Evidence
-
-- Phase: ${body.phase}
-- Status: ${body.status}
-- Generated at: ${body.generatedAt}
-- Delivery guide present: ${body.delivery.guidePresent}
-- Delivery guide path: ${body.delivery.guidePath}
-- Sample path: ${body.delivery.samplePath}
-- Sample documents: ${body.delivery.sampleDocumentCount}
-- Source ID: ${body.knowledge.sourceId}
-- Loaded documents: ${body.knowledge.loadedDocumentIds.join(", ") || "n/a"}
-- Load HTTP status: ${body.knowledge.loadHttpStatus ?? "n/a"}
-- Loaded count: ${body.knowledge.loadedCount ?? "n/a"}
-- Source present: ${body.knowledge.sourcePresent}
-- Source document count: ${body.knowledge.sourceDocumentCount ?? "n/a"}
-- Retrieve HTTP status: ${body.knowledge.retrieveHttpStatus ?? "n/a"}
-- Query: ${body.knowledge.query}
-- Retrieve mode: ${body.knowledge.retrieveMode ?? "n/a"}
-- Normalized query: ${body.knowledge.normalizedQuery ?? "n/a"}
-- Ranking: ${body.knowledge.ranking ?? "n/a"}
-- Local keyword ready: ${body.knowledge.localReady}
-- Top hit document: ${body.knowledge.topHitDocumentId ?? "n/a"}
-- Top chunk document: ${body.knowledge.topChunkDocumentId ?? "n/a"}
-- Top document: ${body.knowledge.topDocumentId ?? "n/a"}
-- Top hit score: ${body.knowledge.topHitScore ?? "n/a"}
-- Snippet present: ${body.knowledge.topHitSnippetPresent}
-- Highlight count: ${body.knowledge.topHitHighlights.length}
-- Matched terms: ${body.knowledge.topHitMatchedTerms.join(", ") || "n/a"}
-- Vector active: ${body.vector.active}
-- Vector ready: ${body.vector.ready ?? "not-active"}
-- Vector infra status: ${body.vector.infraStatus ?? "n/a"}
-- Vector probe top document: ${body.vector.probe?.topDocumentId ?? "n/a"}
-- Vector write/read/retrieve completed: ${body.vector.probe?.writeReadRetrieveCompleted ?? "n/a"}
-- Conclusion: ${body.conclusion}
-`;
-}

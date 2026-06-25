@@ -11,6 +11,7 @@ import {
   createOperatorPreviewState,
   isFullOpenEnabledInOperatorPreview,
 } from "../agent-runner/operatorPreviewState.js";
+import { readJson } from "./entrypointUtils.js"
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "../../../..");
@@ -72,9 +73,6 @@ function fail(message) {
   process.exit(1);
 }
 
-function readJson(filePath) {
-  return JSON.parse(readFileSync(filePath, "utf8"));
-}
 
 for (const requiredPath of [
   docsPath,

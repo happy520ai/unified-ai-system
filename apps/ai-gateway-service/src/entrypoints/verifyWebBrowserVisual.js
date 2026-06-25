@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { writeEvidencePair } from "./entrypointUtils.js";
 import { existsSync, readdirSync } from "node:fs";
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
@@ -6,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
+import { fetchText, listen, close, findBrowserPath } from "./entrypointUtils.js";
 
 const execFileAsync = promisify(execFile);
 const PHASE = "phase-52a-web-browser-visual";
@@ -99,7 +101,7 @@ try {
     },
     conclusion: passed ? "web-browser-visual-connected" : "web-browser-visual-not-connected",
   };
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = passed ? 0 : 1;
 } catch (error) {
@@ -110,7 +112,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "web-browser-visual-not-connected",
   };
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -119,19 +121,6 @@ try {
   }
 }
 
-function findBrowserPath() {
-  const candidates = [
-    process.env.PME_BROWSER_PATH,
-    "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
-    ...findVersionedBrowserPaths("C:\\Program Files (x86)\\Microsoft\\EdgeCore", "msedge.exe"),
-    ...findVersionedBrowserPaths("C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application", "msedge.exe"),
-  ].filter(Boolean);
-  const found = candidates.find((candidate) => existsSync(candidate));
-  if (!found) {
-    throw new Error("No supported headless browser found. Set PME_BROWSER_PATH to chrome.exe or msedge.exe.");
-  }
-  return found;
-}
 
 function findVersionedBrowserPaths(root, executableName) {
   if (!existsSync(root)) return [];
@@ -157,60 +146,3 @@ async function inspectPng(path) {
   };
 }
 
-function listen(targetServer, port, host) {
-  return new Promise((resolveListen, rejectListen) => {
-    targetServer.once("error", rejectListen);
-    targetServer.listen(port, host, () => {
-      targetServer.off("error", rejectListen);
-      resolveListen();
-    });
-  });
-}
-
-function close(targetServer) {
-  return new Promise((resolveClose) => {
-    targetServer.close(() => resolveClose());
-  });
-}
-
-async function fetchText(url) {
-  const response = await fetch(url);
-  return {
-    httpStatus: response.status,
-    contentType: response.headers.get("content-type"),
-    text: await response.text(),
-  };
-}
-
-async function writeEvidence(body) {
-  await mkdir(evidenceDir, { recursive: true });
-  await writeFile(evidenceJsonPath, `${JSON.stringify(body, null, 2)}\n`, "utf8");
-  await writeFile(evidenceMdPath, createEvidenceMarkdown(body), "utf8");
-}
-
-function createEvidenceMarkdown(body) {
-  return `# Phase 52A Web Browser Visual Evidence
-
-- Phase: ${body.phase}
-- Status: ${body.status}
-- Generated at: ${body.generatedAt}
-- Browser path: ${body.browserPath ?? "n/a"}
-- Service URL: ${body.serviceUrl ?? "n/a"}
-- UI HTTP status: ${body.ui?.httpStatus ?? "n/a"}
-- Required text count: ${body.ui?.requiredTextCount ?? "n/a"}
-- Missing text: ${(body.ui?.missingText ?? []).join(", ") || "none"}
-- First-screen marker present: ${body.ui?.firstScreenMarkerPresent}
-- Side hidden by default: ${body.ui?.sideHiddenByDefault}
-- Screenshot path: ${body.screenshot?.path ?? "n/a"}
-- Screenshot bytes: ${body.screenshot?.bytes ?? "n/a"}
-- Screenshot dimensions: ${body.screenshot?.width ?? "n/a"}x${body.screenshot?.height ?? "n/a"}
-- Valid PNG: ${body.screenshot?.validPng}
-- Browser render only: ${body.safety?.browserRenderOnly}
-- Backend business route added: ${body.safety?.backendBusinessRouteAdded}
-- Provider calls: ${body.safety?.providerCalls}
-- Runtime mutation: ${body.safety?.runtimeMutation}
-- Release automation: ${body.safety?.releaseAutomation}
-- Infrastructure provisioning: ${body.safety?.infrastructureProvisioning}
-- Conclusion: ${body.conclusion}
-`;
-}

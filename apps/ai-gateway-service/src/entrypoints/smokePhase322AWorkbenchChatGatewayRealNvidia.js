@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
+import { fetchText, postJson, listen } from "./entrypointUtils.js";
 
 const PHASE = "Phase322A";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -186,30 +187,6 @@ function renderMarkdown(data) {
   ].join("\n");
 }
 
-async function fetchText(url) {
-  const response = await fetch(url);
-  return response.text();
-}
-
-async function postJson(url, body) {
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  const payload = await response.json();
-  return payload.data ?? payload;
-}
-
-function listen(server) {
-  return new Promise((resolveListen, rejectListen) => {
-    server.once("error", rejectListen);
-    server.listen(0, "127.0.0.1", () => {
-      const address = server.address();
-      resolveListen(`http://127.0.0.1:${address.port}`);
-    });
-  });
-}
 
 function closeServer(server) {
   return new Promise((resolveClose) => server.close(() => resolveClose()));

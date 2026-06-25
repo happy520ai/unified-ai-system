@@ -1,9 +1,11 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { writeEvidencePair } from "./entrypointUtils.js";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createGatewayClient } from "../../../../packages/shared-sdk/src/index.js";
+import { createGatewayClient } from "@unified-ai-system/shared-sdk";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
+import { fetchJson, fetchText, listen, close, postJson } from "./entrypointUtils.js";
 
 const PHASE = "phase-104a-first-run-setup";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -57,7 +59,7 @@ try {
     readme,
     agents,
   });
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = evidence.status === "passed" ? 0 : 1;
 } catch (error) {
@@ -68,7 +70,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "first-run-setup-not-ready",
   };
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -172,73 +174,3 @@ function sanitizeForEvidence(value) {
   return output;
 }
 
-async function fetchText(url) {
-  const response = await fetch(url);
-  return {
-    httpStatus: response.status,
-    text: await response.text(),
-  };
-}
-
-async function fetchJson(url) {
-  const response = await fetch(url);
-  const text = await response.text();
-  return {
-    httpStatus: response.status,
-    body: text ? JSON.parse(text) : {},
-  };
-}
-
-async function postJson(url, body) {
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  const text = await response.text();
-  return {
-    httpStatus: response.status,
-    body: text ? JSON.parse(text) : {},
-  };
-}
-
-function listen(server, port, host) {
-  return new Promise((resolveListen, rejectListen) => {
-    server.once("error", rejectListen);
-    server.listen(port, host, () => {
-      server.off("error", rejectListen);
-      resolveListen();
-    });
-  });
-}
-
-function close(server) {
-  return new Promise((resolveClose) => server.close(() => resolveClose()));
-}
-
-async function writeEvidence(body) {
-  await mkdir(evidenceDir, { recursive: true });
-  await writeFile(evidenceJsonPath, `${JSON.stringify(body, null, 2)}\n`, "utf8");
-  await writeFile(evidenceMdPath, createEvidenceMarkdown(body), "utf8");
-}
-
-function createEvidenceMarkdown(body) {
-  return `# Phase 104A First-run Setup Evidence
-
-- Phase: ${body.phase}
-- Status: ${body.status}
-- Generated at: ${body.generatedAt}
-- Setup status: ${body.setup?.status}
-- Setup step count: ${body.setup?.stepCount}
-- Readiness keys: ${(body.setup?.readinessKeys ?? []).join(", ")}
-- UI setup marker: ${body.checks?.uiMarkerPresent}
-- UI first-run copy: ${body.checks?.uiFirstRunCopyPresent}
-- SDK setup readiness: ${body.checks?.setupSdkOk}
-- Unknown API key guidance: ${body.modelImport?.unknownStatus} / ${body.modelImport?.userGuidancePresent}
-- Root/service scripts present: ${body.checks?.scriptsPresent}
-- Plaintext API key recorded: ${body.safety?.plaintextApiKeyRecorded}
-- Default chat main lane changed: ${body.safety?.defaultChatMainLaneChanged}
-- Workforce execution enabled: ${body.safety?.workforceExecution}
-- Conclusion: ${body.conclusion}
-`;
-}

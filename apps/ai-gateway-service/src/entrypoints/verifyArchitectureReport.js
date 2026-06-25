@@ -8,6 +8,7 @@ import {
   noProjectContext,
   repoRoot,
 } from "./verifyAgentWorkforceClosureSupport.js";
+import { readJson, readText } from "./entrypointUtils.js"
 
 const phase = "phase-267a-architecture-report";
 const reportPath = "docs/UNIFIED_AI_SYSTEM_ARCHITECTURE_REPORT.md";
@@ -127,13 +128,7 @@ function allSafetyFieldsFalse(safety) {
   return Boolean(safety) && Object.values(safety).every((value) => value === false);
 }
 
-async function readText(relativePath) {
-  return readFile(resolve(repoRoot, relativePath), "utf8");
-}
 
-async function readJson(relativePath) {
-  return JSON.parse(await readText(relativePath));
-}
 
 async function writeEvidenceFiles(evidence) {
   await writeFile(resolve(repoRoot, evidenceJsonPath), `${JSON.stringify(evidence, null, 2)}\n`, "utf8");

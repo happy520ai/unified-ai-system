@@ -14,7 +14,7 @@ export function renderOwnerAutomationCommandPalette(copy = ownerAutomationComman
   if (!copy?.command) return "";
 
   return `
-                  <section class="owner-daily-report-panel owner-automation-command-palette" data-owner-automation-command-palette="true" aria-label="本地自动化能力面�?>
+                  <section class="owner-daily-report-panel owner-automation-command-palette" data-owner-automation-command-palette="true" aria-label="本地自动化能力面板">
                     <div class="owner-automation-command-palette-heading">
                       <strong>${escapeHtml(copy.title)}</strong>
                       <p>${escapeHtml(copy.subtitle)}</p>

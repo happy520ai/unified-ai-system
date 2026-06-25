@@ -1,10 +1,12 @@
 import { mkdir, writeFile } from "node:fs/promises";
+import { writeEvidencePair } from "./entrypointUtils.js";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
 import { createConsolePage } from "../ui/consolePage.js";
+import { listen, close } from "./entrypointUtils.js";
 
 const PHASE = "phase-76p-web-chat-model-capability-matcher";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -108,7 +110,7 @@ try {
     },
     conclusion: passed ? "web-chat-model-capability-matcher-connected" : "web-chat-model-capability-matcher-not-connected",
   };
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = passed ? 0 : 1;
 } catch (error) {
@@ -119,7 +121,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "web-chat-model-capability-matcher-not-connected",
   };
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -171,48 +173,3 @@ function summarizeDetection(data) {
   };
 }
 
-function listen(targetServer, port, host) {
-  return new Promise((resolveListen, rejectListen) => {
-    targetServer.once("error", rejectListen);
-    targetServer.listen(port, host, () => {
-      targetServer.off("error", rejectListen);
-      resolveListen();
-    });
-  });
-}
-
-function close(targetServer) {
-  return new Promise((resolveClose) => targetServer.close(() => resolveClose()));
-}
-
-async function writeEvidence(body) {
-  await mkdir(evidenceDir, { recursive: true });
-  await writeFile(evidenceJsonPath, `${JSON.stringify(body, null, 2)}\n`, "utf8");
-  await writeFile(evidenceMdPath, createEvidenceMarkdown(body), "utf8");
-}
-
-function createEvidenceMarkdown(body) {
-  return `# Phase 76P Web Chat Model Capability Matcher Evidence
-
-- Phase: ${body.phase}
-- Status: ${body.status}
-- Generated at: ${body.generatedAt}
-- Service URL: ${body.serviceUrl ?? "n/a"}
-- UI capability summary visible: ${body.htmlInspection?.capabilitySummaryVisible}
-- UI current-chat-only copy present: ${body.htmlInspection?.currentChatOnlyCopyPresent}
-- Fake recommended provider/model: ${body.detection?.fake?.recommended?.value ?? "n/a"}
-- Generic sk provider count: ${body.detection?.genericSk?.providerCount ?? "n/a"}
-- Generic sk network probe performed: ${body.detection?.genericSk?.networkProbePerformed}
-- Generic sk spray prevented: ${body.detection?.genericSk?.ambiguousKeySprayPrevented}
-- Generic sk capability summary: ${JSON.stringify(body.detection?.genericSk?.capabilitySummary ?? {})}
-- Gemini provider ids: ${(body.detection?.gemini?.providerIds ?? []).join(", ")}
-- Gemini recommended provider/model: ${body.detection?.gemini?.recommended?.value ?? "none"}
-- Gemini capability summary: ${JSON.stringify(body.detection?.gemini?.capabilitySummary ?? {})}
-- Fake excluded from unknown fallback: ${body.safety?.fakeExcludedFromUnknownFallback}
-- Non-chat models hidden from chat dropdown: ${body.safety?.nonChatModelsHiddenFromChatDropdown}
-- Recognized-only capabilities exposed: ${body.safety?.recognizedOnlyCapabilitiesExposed}
-- API key value recorded: ${body.safety?.apiKeyValueRecorded}
-- Default chat main lane changed: ${body.safety?.defaultChatMainLaneChanged}
-- Conclusion: ${body.conclusion}
-`;
-}

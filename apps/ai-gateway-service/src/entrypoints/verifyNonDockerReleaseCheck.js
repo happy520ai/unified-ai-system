@@ -1,4 +1,5 @@
 import { existsSync } from "node:fs";
+import { writeEvidencePair } from "./entrypointUtils.js";
 import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { dirname, extname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -40,7 +41,7 @@ try {
     evidenceStatuses,
     secretScan,
   });
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = evidence.status === "passed" ? 0 : 1;
 } catch (error) {
@@ -51,7 +52,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "non-docker-release-check-not-closed",
   };
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 }
@@ -236,40 +237,3 @@ function toRepoPath(filePath) {
   return relative(repoRoot, filePath).replace(/\\/g, "/");
 }
 
-async function writeEvidence(body) {
-  await mkdir(evidenceDir, { recursive: true });
-  await writeFile(evidenceJsonPath, `${JSON.stringify(body, null, 2)}\n`, "utf8");
-  await writeFile(evidenceMdPath, createEvidenceMarkdown(body), "utf8");
-}
-
-function createEvidenceMarkdown(body) {
-  return `# Phase 112A Non-Docker Release Check Evidence
-
-- Phase: ${body.phase}
-- Status: ${body.status}
-- Generated at: ${body.generatedAt}
-- README phase present: ${body.checks?.readmePhasePresent}
-- README deliverable checklist complete: ${body.checks?.readmeDeliverableChecklistComplete}
-- README Docker runtime status: ${body.checks?.readmeDockerRuntimeStatus}
-- README CI/CD status documented: ${body.checks?.readmeCicdStatusDocumented}
-- AGENTS boundary present: ${body.checks?.agentsBoundaryPresent}
-- Scripts present: ${body.checks?.scriptsPresent}
-- Required evidence passed: ${body.checks?.requiredEvidencePassed}
-- Secret scan finding count: ${body.secretScan?.findingCount}
-- Local pnpm startup available: ${body.deliverableStatus?.localPnpmStartupAvailable}
-- /ui available: ${body.deliverableStatus?.uiAvailable}
-- Setup Wizard available: ${body.deliverableStatus?.setupWizardAvailable}
-- Model Import hardened: ${body.deliverableStatus?.modelImportHardened}
-- Knowledge/RAG available: ${body.deliverableStatus?.knowledgeRagAvailable}
-- Agent Workforce preview available: ${body.deliverableStatus?.agentWorkforcePreviewAvailable}
-- Secret safety passed: ${body.deliverableStatus?.secretSafetyPassed}
-- Docker runtime blocked: ${body.deliverableStatus?.dockerRuntimeBlocked}
-- Docker runtime passed later by Phase 115A: ${body.deliverableStatus?.dockerRuntimePassedLaterByPhase115A}
-- Minimal CI/CD gate present later by Phase 117A: ${body.deliverableStatus?.minimalCicdGatePresentLaterByPhase117A}
-- Global release complete: ${body.deliverableStatus?.globalReleaseComplete}
-- Docker runtime faked: ${body.safety?.dockerRuntimeFaked}
-- Real CI created: ${body.safety?.realCiCreated}
-- Plaintext API key recorded: ${body.safety?.plaintextApiKeyRecorded}
-- Conclusion: ${body.conclusion}
-`;
-}

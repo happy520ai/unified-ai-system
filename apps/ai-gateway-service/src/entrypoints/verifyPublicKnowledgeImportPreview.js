@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { readJson, readText } from "./entrypointUtils.js"
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "../../../..");
@@ -212,13 +213,7 @@ function fileExists(relativePath) {
   return existsSync(resolve(repoRoot, relativePath));
 }
 
-function readText(relativePath) {
-  return readFileSync(resolve(repoRoot, relativePath), "utf8");
-}
 
-function readJson(relativePath) {
-  return JSON.parse(readFileSync(resolve(repoRoot, relativePath), "utf8"));
-}
 
 function containsPlaintextApiKey(text) {
   return /sk-[A-Za-z0-9]{16,}/i.test(text)

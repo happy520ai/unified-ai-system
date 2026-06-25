@@ -115,12 +115,18 @@
 }
 
 .future-os-hero,
-.future-preview-head,
 .future-details-head,
 .future-command-progress:not(.future-command-progress-local),
-.future-preview-card,
 .future-status-dock {
   display: none !important;
+}
+
+/* Preview card: hidden by default, shown when JS sets data-preview-visible="true" */
+.future-preview-card {
+  display: none !important;
+}
+.future-preview-card[data-preview-visible="true"] {
+  display: grid !important;
 }
 
 .future-mode-selector,

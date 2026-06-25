@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { readJson } from "./entrypointUtils.js"
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "../../../..");
@@ -13,9 +14,6 @@ const runnerPath = resolve(repoRoot, "apps/ai-gateway-service/src/entrypoints/ru
 const rootPackagePath = resolve(repoRoot, "package.json");
 const servicePackagePath = resolve(repoRoot, "apps/ai-gateway-service/package.json");
 
-function readJson(filePath) {
-  return JSON.parse(readFileSync(filePath, "utf8"));
-}
 
 function assertCheck(condition, message, failures) {
   if (!condition) {

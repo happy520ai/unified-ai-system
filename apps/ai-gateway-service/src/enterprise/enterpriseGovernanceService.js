@@ -1,18 +1,24 @@
-import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { appendFile, mkdir, readFile } from "node:fs/promises";
+import { appendFile, mkdir } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
-
-const DEFAULT_ROLES = {
-  admin: ["*"],
-  operator: ["session:read", "dashboard:read", "provider:read", "chat:use", "knowledge:read", "knowledge:write", "memory:write", "connector:write", "workflow:run", "evaluation:run"],
-  viewer: ["session:read", "dashboard:read", "provider:read", "knowledge:read"],
-  auditor: ["session:read", "dashboard:read", "audit:read"],
-};
+import {
+  DEFAULT_ROLES,
+  parseUsers,
+  addUser,
+  addStoredUser,
+  normalizeStoredUser,
+  findStoredUser,
+  loadStoredUsers,
+  saveStoredUsers,
+  createSanitizedUsers,
+  sanitizeUser,
+  sanitizeIdentity,
+  hashToken,
+} from "./enterpriseUserStore.js";
+import { readAuditFile, filterAuditEntries, sanitizeAuditFilters } from "./enterpriseAuditHelpers.js";
 
 const DEFAULT_AUDIT_LIMIT = 200;
 
-export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {}) {
+export function createEnterpriseGovernanceService({ env = {}, auditLogPath, auditHashChain = null, revocationStore = null } = {}) {
   const authEnabled = readBoolean(env.PME_ENTERPRISE_AUTH_ENABLED, Boolean(env.PME_AUTH_TOKEN || env.PME_ENTERPRISE_USERS_JSON || env.PME_ENTERPRISE_USER_STORE_PATH));
   const userStorePath = env.PME_ENTERPRISE_USER_STORE_PATH ?? resolve(".data/enterprise/users.json");
   const users = parseUsers(env);
@@ -44,7 +50,9 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
           mode: "jsonl-file",
           path: auditPath,
           inMemoryEntryCount: auditEntries.length,
+          hashChain: auditHashChain ? { enabled: true, entryCount: auditHashChain.getEntryCount(), lastHash: auditHashChain.getLastHash().slice(0, 12) } : { enabled: false },
         },
+        revocationStore: revocationStore ? { enabled: true, ...revocationStore.getStats() } : { enabled: false },
       };
     },
 
@@ -112,7 +120,7 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
       };
     },
 
-    revokeUser(input = {}, actorIdentity) {
+    async revokeUser(input = {}, actorIdentity) {
       const target = findStoredUser(storedUsers, input);
       if (!target) {
         const error = new Error("Enterprise user was not found in the managed user store.");
@@ -125,6 +133,14 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
       target.updatedAt = new Date().toISOString();
       saveStoredUsers(userStorePath, storedUsers);
       addStoredUser(users, target);
+
+      if (revocationStore) {
+        await revocationStore.revoke(target.tokenHash, {
+          source: "enterprise_user",
+          revokedBy: actorIdentity?.userId ?? "system",
+          reason: "enterprise_user_revoked",
+        });
+      }
 
       return {
         status: "ready",
@@ -170,7 +186,7 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
         };
       }
 
-      if (configured.revoked || revokedTokens.has(token) || revokedTokens.has(tokenHash)) {
+      if (configured.revoked || revokedTokens.has(token) || revokedTokens.has(tokenHash) || (revocationStore && revocationStore.isRevoked(token))) {
         return {
           authenticated: false,
           statusCode: 401,
@@ -267,6 +283,9 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
 
       await mkdir(dirname(auditPath), { recursive: true });
       await appendFile(auditPath, `${JSON.stringify(entry)}\n`, "utf8");
+      if (auditHashChain) {
+        await auditHashChain.append(entry);
+      }
       return entry;
     },
 
@@ -301,86 +320,8 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
   };
 }
 
-function parseUsers(env) {
-  const users = new Map();
-
-  if (env.PME_ENTERPRISE_USERS_JSON) {
-    const parsed = JSON.parse(env.PME_ENTERPRISE_USERS_JSON);
-    if (!Array.isArray(parsed)) {
-      throw new Error("PME_ENTERPRISE_USERS_JSON must be an array.");
-    }
-
-    for (const user of parsed) {
-      addUser(users, user);
-    }
-  }
-
-  if (env.PME_AUTH_TOKEN) {
-    addUser(users, {
-      token: env.PME_AUTH_TOKEN,
-      userId: env.PME_AUTH_USER_ID ?? "local-admin",
-      tenantId: env.PME_AUTH_TENANT_ID ?? "default",
-      role: env.PME_AUTH_ROLE ?? "admin",
-      expiresAt: env.PME_AUTH_EXPIRES_AT,
-    });
-  }
-
-  return users;
-}
-
-function addUser(users, user) {
-  if (!user?.token) {
-    return;
-  }
-
-  const role = user.role ?? "viewer";
-  const permissions = Array.isArray(user.permissions) ? user.permissions : DEFAULT_ROLES[role] ?? [];
-
-  users.set(user.token, {
-    token: user.token,
-    tokenHash: hashToken(user.token),
-    tokenFingerprint: createTokenFingerprint(hashToken(user.token)),
-    source: "env",
-    userId: user.userId ?? role,
-    tenantId: user.tenantId ?? "default",
-    role,
-    permissions,
-    expiresAt: user.expiresAt ?? null,
-    revoked: Boolean(user.revoked || user.disabled),
-  });
-}
-
-function addStoredUser(users, user) {
-  if (!user?.tokenHash) {
-    return;
-  }
-
-  const role = user.role ?? "viewer";
-  const permissions = Array.isArray(user.permissions) ? user.permissions : DEFAULT_ROLES[role] ?? [];
-
-  users.set(user.tokenHash, {
-    token: null,
-    tokenHash: user.tokenHash,
-    tokenFingerprint: user.tokenFingerprint ?? createTokenFingerprint(user.tokenHash),
-    source: "file",
-    userId: user.userId ?? role,
-    tenantId: user.tenantId ?? "default",
-    role,
-    permissions,
-    expiresAt: user.expiresAt ?? null,
-    revoked: Boolean(user.revoked || user.disabled),
-    createdAt: user.createdAt ?? null,
-    updatedAt: user.updatedAt ?? null,
-  });
-}
-
 function createIdentity({ userId, tenantId, role, permissions }) {
-  return {
-    userId,
-    tenantId,
-    role,
-    permissions,
-  };
+  return { userId, tenantId, role, permissions };
 }
 
 function readToken(request) {
@@ -388,7 +329,6 @@ function readToken(request) {
   if (typeof headerToken === "string" && headerToken.trim()) {
     return headerToken.trim();
   }
-
   const bearer = String(request.headers.authorization ?? "").replace(/^Bearer\s+/i, "").trim();
   return bearer || null;
 }
@@ -466,179 +406,16 @@ function createSecurityReadiness({ authEnabled, users, revokedTokens, userStoreP
   };
 }
 
-function createSanitizedUsers(users) {
-  return [...users.values()]
-    .map(sanitizeUser)
-    .sort((left, right) => `${left.tenantId}:${left.userId}:${left.role}`.localeCompare(`${right.tenantId}:${right.userId}:${right.role}`));
+function isUserRevoked(user, revokedTokens) {
+  return Boolean(user.revoked || revokedTokens.has(user.token) || revokedTokens.has(user.tokenHash));
 }
 
-function sanitizeUser(user) {
-  return {
-    userId: user.userId,
-    tenantId: user.tenantId,
-    role: user.role,
-    permissions: user.permissions,
-    source: user.source ?? "unknown",
-    tokenFingerprint: user.tokenFingerprint ?? createTokenFingerprint(user.tokenHash ?? hashToken(user.token ?? "")),
-    tokenHashExposed: false,
-    tokenValueExposed: false,
-    expiresAt: user.expiresAt ?? null,
-    revoked: Boolean(user.revoked),
-    createdAt: user.createdAt ?? null,
-    updatedAt: user.updatedAt ?? null,
-  };
-}
-
-function sanitizeIdentity(identity) {
-  return {
-    userId: identity.userId,
-    tenantId: identity.tenantId,
-    role: identity.role,
-  };
-}
-
-function normalizeStoredUser(input = {}, existing) {
-  const userId = readRequiredString(input.userId, "enterprise_user_id_required", "Enterprise userId is required.");
-  const token = typeof input.token === "string" ? input.token.trim() : "";
-  const tokenHash = token ? hashToken(token) : existing?.tokenHash;
-  if (!tokenHash) {
-    const error = new Error("Enterprise user token is required for a new managed user.");
-    error.code = "enterprise_user_token_required";
-    error.category = "validation";
-    throw error;
-  }
-
-  const role = readRole(input.role ?? existing?.role ?? "viewer");
-  const expiresAt = normalizeExpiresAt(input.expiresAt ?? existing?.expiresAt ?? null);
-  const now = new Date().toISOString();
-
-  return {
-    userId,
-    tenantId: readOptionalString(input.tenantId) ?? existing?.tenantId ?? "default",
-    role,
-    permissions: Array.isArray(input.permissions) ? input.permissions : existing?.permissions ?? DEFAULT_ROLES[role] ?? [],
-    tokenHash,
-    tokenFingerprint: createTokenFingerprint(tokenHash),
-    expiresAt,
-    revoked: Boolean(input.revoked ?? existing?.revoked ?? false),
-    createdAt: existing?.createdAt ?? now,
-    updatedAt: now,
-  };
-}
-
-function findStoredUser(storedUsers, input = {}) {
-  const userId = readOptionalString(input.userId);
-  const tokenFingerprint = readOptionalString(input.tokenFingerprint);
-  if (userId) {
-    return storedUsers.find((user) => user.userId === userId) ?? null;
-  }
-
-  if (tokenFingerprint) {
-    return storedUsers.find((user) => user.tokenFingerprint === tokenFingerprint) ?? null;
-  }
-
-  return null;
-}
-
-function loadStoredUsers(path) {
-  if (!existsSync(path)) {
-    return [];
-  }
-
-  const text = readFileSync(path, "utf8");
-  const parsed = JSON.parse(text);
-  const users = Array.isArray(parsed?.users) ? parsed.users : [];
-  return users.map(normalizeStoredUserFromFile);
-}
-
-function normalizeStoredUserFromFile(user) {
-  const userId = readRequiredString(user.userId, "enterprise_user_id_required", "Enterprise userId is required.");
-  const tokenHash = readRequiredString(user.tokenHash, "enterprise_user_token_hash_required", "Enterprise token hash is required.");
-  const role = readRole(user.role ?? "viewer");
-  const expiresAt = normalizeExpiresAt(user.expiresAt ?? null);
-
-  return {
-    userId,
-    tenantId: readOptionalString(user.tenantId) ?? "default",
-    role,
-    permissions: Array.isArray(user.permissions) ? user.permissions : DEFAULT_ROLES[role] ?? [],
-    tokenHash,
-    tokenFingerprint: readOptionalString(user.tokenFingerprint) ?? createTokenFingerprint(tokenHash),
-    expiresAt,
-    revoked: Boolean(user.revoked),
-    createdAt: readOptionalString(user.createdAt),
-    updatedAt: readOptionalString(user.updatedAt),
-  };
-}
-
-function saveStoredUsers(path, users) {
-  mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(
-    path,
-    `${JSON.stringify(
-      {
-        version: 1,
-        mode: "enterprise-managed-users",
-        tokenStorage: "sha256-hash-only",
-        users,
-      },
-      null,
-      2,
-    )}\n`,
-    "utf8",
-  );
-}
-
-function readRequiredString(value, code, message) {
-  const normalized = readOptionalString(value);
-  if (!normalized) {
-    const error = new Error(message);
-    error.code = code;
-    error.category = "validation";
-    throw error;
-  }
-
-  return normalized;
-}
-
-function readOptionalString(value) {
-  return typeof value === "string" && value.trim() ? value.trim() : null;
-}
-
-function readRole(value) {
-  const role = readOptionalString(value) ?? "viewer";
-  if (!DEFAULT_ROLES[role]) {
-    const error = new Error(`Unsupported enterprise role: ${role}`);
-    error.code = "enterprise_role_unsupported";
-    error.category = "validation";
-    throw error;
-  }
-
-  return role;
-}
-
-function normalizeExpiresAt(value) {
-  const expiresAt = readOptionalString(value);
+function isExpired(expiresAt) {
   if (!expiresAt) {
-    return null;
+    return false;
   }
-
-  if (!Number.isFinite(Date.parse(expiresAt))) {
-    const error = new Error("Enterprise token expiresAt must be a valid date string.");
-    error.code = "enterprise_expires_at_invalid";
-    error.category = "validation";
-    throw error;
-  }
-
-  return expiresAt;
-}
-
-function hashToken(token) {
-  return createHash("sha256").update(String(token)).digest("hex");
-}
-
-function createTokenFingerprint(tokenHash) {
-  return String(tokenHash ?? "").slice(0, 12);
+  const timestamp = Date.parse(expiresAt);
+  return Number.isFinite(timestamp) && timestamp <= Date.now();
 }
 
 function parseRevokedTokens(value) {
@@ -650,79 +427,9 @@ function parseRevokedTokens(value) {
   );
 }
 
-function isUserRevoked(user, revokedTokens) {
-  return Boolean(user.revoked || revokedTokens.has(user.token) || revokedTokens.has(user.tokenHash));
-}
-
-function isExpired(expiresAt) {
-  if (!expiresAt) {
-    return false;
-  }
-
-  const timestamp = Date.parse(expiresAt);
-  return Number.isFinite(timestamp) && timestamp <= Date.now();
-}
-
-async function readAuditFile(path) {
-  try {
-    const text = await readFile(path, "utf8");
-    return text
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .map((line) => JSON.parse(line));
-  } catch (error) {
-    if (error?.code === "ENOENT") {
-      return [];
-    }
-
-    throw error;
-  }
-}
-
-function filterAuditEntries(entries, filters = {}) {
-  const sanitized = sanitizeAuditFilters(filters);
-  return entries.filter((entry) => {
-    if (sanitized.outcome && entry.outcome !== sanitized.outcome) return false;
-    if (sanitized.code && entry.code !== sanitized.code) return false;
-    if (sanitized.path && entry.path !== sanitized.path) return false;
-    if (sanitized.userId && entry.userId !== sanitized.userId) return false;
-    if (sanitized.tenantId && entry.tenantId !== sanitized.tenantId) return false;
-    if (sanitized.since && Date.parse(entry.timestamp) < Date.parse(sanitized.since)) return false;
-    if (sanitized.until && Date.parse(entry.timestamp) > Date.parse(sanitized.until)) return false;
-    return true;
-  });
-}
-
-function sanitizeAuditFilters(filters = {}) {
-  return {
-    outcome: readOptionalString(filters.outcome),
-    code: readOptionalString(filters.code),
-    path: readOptionalString(filters.path),
-    userId: readOptionalString(filters.userId),
-    tenantId: readOptionalString(filters.tenantId),
-    since: normalizeOptionalDate(filters.since),
-    until: normalizeOptionalDate(filters.until),
-  };
-}
-
-function normalizeOptionalDate(value) {
-  const normalized = readOptionalString(value);
-  if (!normalized) {
-    return null;
-  }
-
-  if (!Number.isFinite(Date.parse(normalized))) {
-    return null;
-  }
-
-  return normalized;
-}
-
 function readBoolean(value, fallback) {
   if (value === undefined || value === "") {
     return fallback;
   }
-
   return value === "1" || String(value).toLowerCase() === "true";
 }

@@ -1,4 +1,5 @@
 import { createServer } from "node:http";
+import { writeEvidencePair } from "./entrypointUtils.js";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -6,6 +7,7 @@ import vm from "node:vm";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
 import { createConsolePage } from "../ui/consolePage.js";
+import { listen, postJson, close } from "./entrypointUtils.js";
 
 const PHASE = "phase-266a-capability-router-preview";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -162,7 +164,7 @@ try {
     conclusion: passed ? "capability-router-preview-ready" : "capability-router-preview-incomplete",
   };
 
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = passed ? 0 : 1;
 } catch (error) {
@@ -173,7 +175,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "capability-router-preview-incomplete",
   };
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -197,66 +199,3 @@ async function getJson(url) {
   };
 }
 
-async function postJson(url, body) {
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  const payload = await response.json();
-  return {
-    httpStatus: response.status,
-    ...payload,
-  };
-}
-
-function listen(targetServer, port, host) {
-  return new Promise((resolveListen, rejectListen) => {
-    targetServer.once("error", rejectListen);
-    targetServer.listen(port, host, () => {
-      targetServer.off("error", rejectListen);
-      resolveListen();
-    });
-  });
-}
-
-function close(targetServer) {
-  return new Promise((resolveClose) => targetServer.close(() => resolveClose()));
-}
-
-async function writeEvidence(body) {
-  await mkdir(evidenceDir, { recursive: true });
-  await writeFile(evidenceJsonPath, `${JSON.stringify(body, null, 2)}\n`, "utf8");
-  await writeFile(evidenceMdPath, createEvidenceMarkdown(body), "utf8");
-}
-
-function createEvidenceMarkdown(body) {
-  return `# Phase 266A Capability Router Preview Evidence
-
-- Phase: ${body.phase}
-- Status: ${body.status}
-- Generated at: ${body.generatedAt}
-- Service URL: ${body.serviceUrl ?? "n/a"}
-- Status endpoint ok: ${body.checks?.statusEndpointOk}
-- Preview endpoint ok: ${body.checks?.previewEndpointOk}
-- Router manager recorded: ${body.checks?.routerManagerRecorded}
-- Execution disabled: ${body.checks?.executionDisabled}
-- Coding routed: ${body.checks?.codingRouted}
-- Image routed: ${body.checks?.imageRouted}
-- Video routed: ${body.checks?.videoRouted}
-- Knowledge detected: ${body.checks?.knowledgeDetected}
-- No provider calls: ${body.checks?.noProviderCalls}
-- UI markers present: ${body.checks?.uiMarkersPresent}
-- Doc markers present: ${body.checks?.docMarkersPresent}
-- Scripts present: ${body.checks?.scriptsPresent}
-- Preview only: ${body.safety?.previewOnly}
-- Real specialized model invocation: ${body.safety?.realSpecializedModelInvocation}
-- Default chat main lane changed: ${body.safety?.defaultChatMainLaneChanged}
-- Codex exec invoked: ${body.safety?.codexExecInvoked}
-- Workflow runner connected: ${body.safety?.workflowRunnerConnected}
-- Worktree created: ${body.safety?.worktreeCreated}
-- Auto commit/push/PR: ${body.safety?.autoCommitPushPr}
-- API key value recorded: ${body.safety?.apiKeyValueRecorded}
-- Conclusion: ${body.conclusion}
-`;
-}

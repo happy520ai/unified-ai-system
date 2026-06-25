@@ -1,10 +1,12 @@
 import { existsSync, readFileSync } from "node:fs";
+import { writeEvidenceWithRenderer } from "./entrypointUtils.js";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
 import { checkTokenCostGuard } from "../cost/tokenCostGuard.js";
+import { listen, close } from "./entrypointUtils.js";
 
 const PHASE = "269A-mimo-paid-api-safe-smoke";
 const PROVIDER_ID = "mimo";
@@ -45,7 +47,7 @@ try {
       guardResult,
       reason: createConfigBlockReason(configSummary),
     });
-    await writeEvidence(evidence);
+    await writeEvidenceWithRenderer(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence, renderEvidenceMarkdown);
     console.log(JSON.stringify(evidence, null, 2));
     process.exitCode = 0;
   } else if (guardResult.decision === "block") {
@@ -54,7 +56,7 @@ try {
       guardResult,
       reason: "token_cost_guard_blocked_paid_smoke",
     });
-    await writeEvidence(evidence);
+    await writeEvidenceWithRenderer(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence, renderEvidenceMarkdown);
     console.log(JSON.stringify(evidence, null, 2));
     process.exitCode = 0;
   } else {
@@ -71,13 +73,13 @@ try {
       response,
       serviceUrl,
     });
-    await writeEvidence(evidence);
+    await writeEvidenceWithRenderer(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence, renderEvidenceMarkdown);
     console.log(JSON.stringify(evidence, null, 2));
     process.exitCode = evidence.status === "passed" ? 0 : 1;
   }
 } catch (error) {
   const evidence = createFailedEvidence(error);
-  await writeEvidence(evidence);
+  await writeEvidenceWithRenderer(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence, renderEvidenceMarkdown);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -417,25 +419,6 @@ function isSyntheticEmptyProviderText(value) {
   return /^\[mimo:[^\]]+\] empty response$/i.test(String(value ?? "").trim());
 }
 
-function listen(targetServer, port, host) {
-  return new Promise((resolveListen, rejectListen) => {
-    targetServer.once("error", rejectListen);
-    targetServer.listen(port, host, () => {
-      targetServer.off("error", rejectListen);
-      resolveListen();
-    });
-  });
-}
-
-function close(targetServer) {
-  return new Promise((resolveClose) => targetServer.close(() => resolveClose()));
-}
-
-async function writeEvidence(evidence) {
-  await mkdir(evidenceDir, { recursive: true });
-  await writeFile(evidenceJsonPath, `${JSON.stringify(evidence, null, 2)}\n`, "utf8");
-  await writeFile(evidenceMdPath, renderEvidenceMarkdown(evidence), "utf8");
-}
 
 function renderEvidenceMarkdown(evidence) {
   return `# Phase 269A MiMo Paid API Safe Smoke Evidence

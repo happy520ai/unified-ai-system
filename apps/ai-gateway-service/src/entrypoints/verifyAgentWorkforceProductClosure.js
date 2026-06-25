@@ -1,8 +1,10 @@
 import { mkdir, writeFile } from "node:fs/promises";
+import { writeEvidencePair } from "./entrypointUtils.js";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
+import { fetchJson, fetchText, listen, close } from "./entrypointUtils.js";
 
 const PHASE = "phase-102c-agent-workforce-product-closure";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -94,7 +96,7 @@ try {
     conclusion: passed ? "agent-workforce-product-preview-closed" : "agent-workforce-product-preview-not-closed",
   });
 
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = passed ? 0 : 1;
 } catch (error) {
@@ -105,53 +107,13 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "agent-workforce-product-preview-not-closed",
   });
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
   if (server) {
     await close(server);
   }
-}
-
-function listen(server, port, host) {
-  return new Promise((resolveListen, rejectListen) => {
-    server.once("error", rejectListen);
-    server.listen(port, host, () => {
-      server.off("error", rejectListen);
-      resolveListen();
-    });
-  });
-}
-
-function close(server) {
-  return new Promise((resolveClose) => {
-    server.close(() => resolveClose());
-  });
-}
-
-async function fetchJson(url, options = {}) {
-  const response = await fetch(url, {
-    method: options.method ?? "GET",
-    headers: {
-      "content-type": "application/json",
-    },
-    body: options.body === undefined ? undefined : JSON.stringify(options.body),
-  });
-  const text = await response.text();
-
-  return {
-    httpStatus: response.status,
-    body: text ? JSON.parse(text) : {},
-  };
-}
-
-async function fetchText(url) {
-  const response = await fetch(url);
-  return {
-    httpStatus: response.status,
-    text: await response.text(),
-  };
 }
 
 function isProductClosureReady({
@@ -301,46 +263,3 @@ function createEvidence({
   };
 }
 
-async function writeEvidence(body) {
-  await mkdir(evidenceDir, { recursive: true });
-  await writeFile(evidenceJsonPath, `${JSON.stringify(body, null, 2)}\n`, "utf8");
-  await writeFile(evidenceMdPath, createEvidenceMarkdown(body), "utf8");
-}
-
-function createEvidenceMarkdown(body) {
-  return `# Phase 102C Agent Workforce Product Closure Evidence
-
-- Phase: ${body.phase}
-- Status: ${body.status}
-- Generated at: ${body.generatedAt}
-- Health HTTP status: ${body.validation.healthHttpStatus ?? "n/a"}
-- Agents HTTP status: ${body.validation.agentsHttpStatus ?? "n/a"}
-- Agent count: ${body.validation.agentCount ?? "n/a"}
-- Normal goal HTTP status: ${body.validation.normalGoalHttpStatus ?? "n/a"}
-- Plan version: ${body.validation.planVersion ?? "n/a"}
-- Created at present: ${body.validation.createdAtPresent}
-- Summary present: ${body.validation.summaryPresent}
-- Limitations count: ${body.validation.limitationsCount ?? "n/a"}
-- Markdown present: ${body.validation.markdownPresent}
-- Exportable JSON present: ${body.validation.exportableJsonPresent}
-- Recommended next step present: ${body.validation.recommendedNextStepPresent}
-- Empty goal code: ${body.validation.emptyGoalCode ?? "n/a"}
-- Long goal code: ${body.validation.longGoalCode ?? "n/a"}
-- Non-string goal code: ${body.validation.nonStringGoalCode ?? "n/a"}
-- UI panel present: ${body.ui.panelPresent}
-- UI example goals present: ${body.ui.exampleGoalsPresent}
-- UI copy Markdown present: ${body.ui.copyMarkdownPresent}
-- UI export JSON present: ${body.ui.exportJsonPresent}
-- UI clear present: ${body.ui.clearPresent}
-- UI max length hint present: ${body.ui.maxLengthHintPresent}
-- UI preview boundary present: ${body.ui.previewBoundaryPresent}
-- Real LLM calls: ${body.safety.realLlmCalls}
-- Code execution: ${body.safety.codeExecution}
-- Project file writes: ${body.safety.projectFileWrites}
-- Workflow run: ${body.safety.workflowRun}
-- Default chat lane mutated: ${body.safety.defaultChatLaneMutated}
-- Provider registry mutated: ${body.safety.providerRegistryMutated}
-- Secret values recorded: ${body.safety.secretValuesRecorded}
-- Conclusion: ${body.conclusion}
-`;
-}

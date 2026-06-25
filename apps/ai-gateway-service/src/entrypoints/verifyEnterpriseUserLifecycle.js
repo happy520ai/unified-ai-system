@@ -1,9 +1,11 @@
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { writeEvidencePair } from "./entrypointUtils.js";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
+import { fetchJson, fetchText, listen, close } from "./entrypointUtils.js";
 
 const PHASE = "phase-35a-enterprise-user-lifecycle";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -117,7 +119,7 @@ try {
     storeText,
     conclusion: passed ? "enterprise-user-lifecycle-connected" : "enterprise-user-lifecycle-not-connected",
   });
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = passed ? 0 : 1;
 } catch (error) {
@@ -127,7 +129,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "enterprise-user-lifecycle-not-connected",
   });
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 }
@@ -206,47 +208,6 @@ function createHeaders(token) {
   };
 }
 
-function listen(targetServer, port, host) {
-  return new Promise((resolveListen, rejectListen) => {
-    targetServer.once("error", rejectListen);
-    targetServer.listen(port, host, () => {
-      targetServer.off("error", rejectListen);
-      resolveListen();
-    });
-  });
-}
-
-function close(targetServer) {
-  return new Promise((resolveClose) => {
-    targetServer.close(() => resolveClose());
-  });
-}
-
-async function fetchText(url) {
-  const response = await fetch(url);
-  return {
-    httpStatus: response.status,
-    contentType: response.headers.get("content-type"),
-    text: await response.text(),
-  };
-}
-
-async function fetchJson(url, options = {}) {
-  const response = await fetch(url, {
-    method: options.method ?? "GET",
-    headers: {
-      "content-type": "application/json",
-      ...(options.headers ?? {}),
-    },
-    body: options.body === undefined ? undefined : JSON.stringify(options.body),
-  });
-  const text = await response.text();
-  return {
-    httpStatus: response.status,
-    body: text ? JSON.parse(text) : {},
-  };
-}
-
 function createEvidence({ status, generatedAt, userStorePath, auditLogPath, first, second, storeText, conclusion, error }) {
   const listedUsers = first?.listedAfterCreate?.body?.data?.users ?? [];
   const restartedUsers = second?.listedAfterRestart?.body?.data?.users ?? [];
@@ -291,43 +252,3 @@ function createEvidence({ status, generatedAt, userStorePath, auditLogPath, firs
   };
 }
 
-async function writeEvidence(body) {
-  await mkdir(evidenceDir, { recursive: true });
-  await writeFile(evidenceJsonPath, `${JSON.stringify(body, null, 2)}\n`, "utf8");
-  await writeFile(evidenceMdPath, createEvidenceMarkdown(body), "utf8");
-}
-
-function createEvidenceMarkdown(body) {
-  return `# Phase 35A Enterprise User Lifecycle Evidence
-
-- Phase: ${body.phase}
-- Status: ${body.status}
-- Generated at: ${body.generatedAt}
-- User store path: ${body.userStorePath ?? "n/a"}
-- Audit log path: ${body.auditLogPath ?? "n/a"}
-- Health HTTP status: ${body.enterprise?.healthHttpStatus ?? "n/a"}
-- User store mode: ${body.enterprise?.userStoreMode ?? "n/a"}
-- UI managed users present: ${body.enterprise?.uiManagedUsersPresent}
-- Create status: ${body.enterprise?.createStatus ?? "n/a"}
-- Managed user: ${body.enterprise?.managedUserId ?? "n/a"}
-- Managed role: ${body.enterprise?.managedRole ?? "n/a"}
-- Managed source: ${body.enterprise?.managedSource ?? "n/a"}
-- Token value exposed: ${body.enterprise?.tokenValueExposed}
-- Token hash exposed: ${body.enterprise?.tokenHashExposed}
-- Managed session status: ${body.enterprise?.managedSessionStatus ?? "n/a"}
-- Operator write status: ${body.enterprise?.operatorWriteStatus ?? "n/a"}
-- Revoke status: ${body.enterprise?.revokeStatus ?? "n/a"}
-- Revoked session status: ${body.enterprise?.revokedSessionStatus ?? "n/a"}
-- Revoked session code: ${body.enterprise?.revokedSessionCode ?? "n/a"}
-- Persisted store has token hash: ${body.enterprise?.persistedStoreHasTokenHash}
-- Persisted store contains raw token: ${body.enterprise?.persistedStoreContainsRawToken}
-- List after restart status: ${body.enterprise?.listAfterRestartStatus ?? "n/a"}
-- Revoked after restart status: ${body.enterprise?.revokedAfterRestartStatus ?? "n/a"}
-- Revoked after restart code: ${body.enterprise?.revokedAfterRestartCode ?? "n/a"}
-- Restarted managed user revoked: ${body.enterprise?.restartedManagedUserRevoked}
-- Audit entry count: ${body.enterprise?.auditEntryCount ?? "n/a"}
-- Upsert audit recorded: ${body.enterprise?.upsertAuditRecorded}
-- Revoke audit recorded: ${body.enterprise?.revokeAuditRecorded}
-- Conclusion: ${body.conclusion}
-`;
-}

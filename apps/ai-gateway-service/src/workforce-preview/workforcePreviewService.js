@@ -1,5 +1,5 @@
-import { buildGatewayBrainAdapterPreview } from "../../../../packages/employee-brain-adapter/src/index.js";
-import { runWorkforceDryRun } from "../../../../packages/workforce-scheduler/src/index.js";
+import { buildGatewayBrainAdapterPreview } from "@unified-ai-system/employee-brain-adapter";
+import { runWorkforceDryRun } from "@unified-ai-system/workforce-scheduler";
 import { buildWorkforcePreviewEvidence } from "./workforcePreviewEvidence.js";
 
 export const DEFAULT_WORKFORCE_PREVIEW_TASK = "为 PME AI Gateway 设计一次内部试用后的 UX 修复计划，并判断需要哪些专家协作。";

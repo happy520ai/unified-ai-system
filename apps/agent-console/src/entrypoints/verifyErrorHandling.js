@@ -5,6 +5,8 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../../../ai-gateway-service/src/application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../../../ai-gateway-service/src/http/httpServer.js";
+import { listen, close, writeEvidenceWithRenderer } from "../../../ai-gateway-service/src/entrypoints/entrypointUtils.js"
+
 
 const PHASE = "phase-7d-error-logging";
 const DEFAULT_NVIDIA_MODEL = "meta/llama-3.1-8b-instruct";
@@ -88,7 +90,7 @@ try {
   process.exitCode = 1;
 } finally {
   console.error = originalConsoleError;
-  await writeEvidence(evidence);
+  await saveEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
 }
 
@@ -203,22 +205,6 @@ function stripQuotes(value) {
   }
 
   return value;
-}
-
-function listen(server, port, host) {
-  return new Promise((resolveListen, rejectListen) => {
-    server.once("error", rejectListen);
-    server.listen(port, host, () => {
-      server.off("error", rejectListen);
-      resolveListen();
-    });
-  });
-}
-
-function close(server) {
-  return new Promise((resolveClose) => {
-    server.close(() => resolveClose());
-  });
 }
 
 function runNode({ args, cwd, env, timeoutMs }) {
@@ -337,13 +323,11 @@ function summarizeLogs(logs) {
   };
 }
 
-async function writeEvidence(body) {
-  await mkdir(evidenceDir, { recursive: true });
-  await writeFile(evidenceJsonPath, `${JSON.stringify(body, null, 2)}\n`, "utf8");
-  await writeFile(evidenceMdPath, createEvidenceMarkdown(body), "utf8");
+async function saveEvidence(body) {
+  await writeEvidenceWithRenderer(evidenceDir, evidenceJsonPath, evidenceMdPath, body, renderEvidenceMarkdown);
 }
 
-function createEvidenceMarkdown(body) {
+function renderEvidenceMarkdown(body) {
   return `# Phase 7D Error Handling and Logging Evidence
 
 - Phase: ${body.phase}

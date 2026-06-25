@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { classifyLocalAgentIntent } from "../agent-runner/localAgentIntentClassifier.js";
 import { createLocalAgentApprovalPreview, isLocalAgentApprovalPreviewReady } from "../agent-runner/localAgentApprovalPreview.js";
 import { createLocalAgentIntentExplainer } from "../agent-runner/localAgentIntentExplainer.js";
+import { readJson } from "./entrypointUtils.js"
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "../../../..");
@@ -57,9 +58,6 @@ function fail(message) {
   process.exit(1);
 }
 
-function readJson(filePath) {
-  return JSON.parse(readFileSync(filePath, "utf8"));
-}
 
 function normalizeText(text) {
   return String(text ?? "").replace(/\r\n/g, "\n");

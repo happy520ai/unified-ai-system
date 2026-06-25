@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { writeEvidencePair } from "./entrypointUtils.js";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -81,7 +82,7 @@ try {
     conclusion: passed ? "web-chat-model-config-restart-status-readable" : "web-chat-model-config-restart-status-not-readable",
   };
 
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = passed ? 0 : 1;
 } catch (error) {
@@ -92,7 +93,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "web-chat-model-config-restart-status-not-readable",
   };
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 }
@@ -116,35 +117,3 @@ function runNodeScript(scriptPath) {
   });
 }
 
-async function writeEvidence(body) {
-  await mkdir(evidenceDir, { recursive: true });
-  await writeFile(evidenceJsonPath, `${JSON.stringify(body, null, 2)}\n`, "utf8");
-  await writeFile(evidenceMdPath, createEvidenceMarkdown(body), "utf8");
-}
-
-function createEvidenceMarkdown(body) {
-  return `# Phase 90A Web Chat Model Config Restart Status Evidence
-
-- Phase: ${body.phase}
-- Status: ${body.status}
-- Generated at: ${body.generatedAt}
-- Upstream phase: ${body.upstreamPhase ?? "n/a"}
-- Upstream status: ${body.upstreamStatus ?? "n/a"}
-- Reload restored from local: ${body.ui?.reload?.composerModelRestoredFromLocal ?? "n/a"}
-- Reload storage: ${body.ui?.reload?.composerModelCredentialStorage ?? "n/a"}
-- Reload guide: ${body.ui?.reload?.composerModelGuideText ?? "n/a"}
-- Restart restored from local: ${body.ui?.restart?.composerModelRestoredFromLocal ?? "n/a"}
-- Restart storage: ${body.ui?.restart?.composerModelCredentialStorage ?? "n/a"}
-- Restart guide: ${body.ui?.restart?.composerModelGuideText ?? "n/a"}
-- Guide explains local restore: ${body.checks?.guideExplainsLocalRestore}
-- Guide explains restart usable: ${body.checks?.guideExplainsRestartUsable}
-- Guide explains direct send: ${body.checks?.guideExplainsCanSendDirectly}
-- Probe text readable: ${body.checks?.probeTextReadable}
-- Preference text readable: ${body.checks?.preferenceTextReadable}
-- First chat still works after restart: ${body.checks?.firstChatStillWorksAfterRestart}
-- No secret in evidence: ${body.checks?.noSecretInEvidence}
-- Real provider calls: ${body.safety?.realProviderCalls}
-- Default chat main lane changed: ${body.safety?.defaultChatMainLaneChanged}
-- Conclusion: ${body.conclusion}
-`;
-}

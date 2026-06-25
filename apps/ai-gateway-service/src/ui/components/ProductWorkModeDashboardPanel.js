@@ -26,11 +26,11 @@ export function buildProductWorkModeDashboardSnapshot() {
 export function renderProductWorkModeDashboardPanel() {
   const snapshot = buildProductWorkModeDashboardSnapshot();
   return `
-              <section class="drilldown-panel product-work-mode-dashboard" id="product-work-mode-dashboard-panel" data-phase3968a-product-work-mode-dashboard="true" data-product-work-mode-readonly="true" aria-label="Product Work Mode 状态面�?>
+              <section class="drilldown-panel product-work-mode-dashboard" id="product-work-mode-dashboard-panel" data-phase3968a-product-work-mode-dashboard="true" data-product-work-mode-readonly="true" aria-label="Product Work Mode 状态面板">
                 <div class="drilldown-head">
                   <div>
                     <div class="eyebrow">Product Work Mode</div>
-                    <h3>真实产品工作台状�?/h3>
+                    <h3>真实产品工作台状态</h3>
                   </div>
                   <span class="tour-chip">read-only · no real action</span>
                 </div>

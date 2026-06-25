@@ -2,6 +2,7 @@ import { existsSync, statSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, extname, resolve } from "node:path";
 import { spawn } from "node:child_process";
+import { writeEvidenceFile } from "../lib/evidenceWriter.mjs";
 
 const task = "Yiyi-3D-Candidate-Generation-C";
 const enginePath = "E:/AI-Data/AI-Engines/Hunyuan3D-2.1";
@@ -23,8 +24,7 @@ function hasFlag(name) {
 }
 
 async function writeEvidence(result) {
-  await mkdir(dirname(resolve(evidencePath)), { recursive: true });
-  await writeFile(resolve(evidencePath), `${JSON.stringify(result, null, 2)}\n`);
+  writeEvidenceFile(evidencePath, result);
 }
 
 function baseResult({ inputPath, outputPath, dryRun, textureRequested }) {

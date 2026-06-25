@@ -2,7 +2,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { dirname, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createRequestId } from "../../../../packages/shared-utils/src/index.js";
+import { createRequestId } from "@unified-ai-system/shared-utils";
 
 const PHASE = "phase-30a-local-workflow-automation";
 const __dirname = dirname(fileURLToPath(import.meta.url));

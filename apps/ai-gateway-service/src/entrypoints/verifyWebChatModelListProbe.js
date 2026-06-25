@@ -1,4 +1,5 @@
 import { mkdir, writeFile } from "node:fs/promises";
+import { writeEvidencePair } from "./entrypointUtils.js";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
@@ -87,7 +88,7 @@ try {
     conclusion: passed ? "model-list-prefix-probe-connected" : "model-list-prefix-probe-not-connected",
   };
 
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = passed ? 0 : 1;
 } catch (error) {
@@ -98,7 +99,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "model-list-prefix-probe-not-connected",
   };
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -168,27 +169,3 @@ function summarizeDetection(data) {
   };
 }
 
-async function writeEvidence(body) {
-  await mkdir(evidenceDir, { recursive: true });
-  await writeFile(evidenceJsonPath, `${JSON.stringify(body, null, 2)}\n`, "utf8");
-  await writeFile(evidenceMdPath, createEvidenceMarkdown(body), "utf8");
-}
-
-function createEvidenceMarkdown(body) {
-  return `# Phase 76S Web Chat Model List Probe Evidence
-
-- Phase: ${body.phase}
-- Status: ${body.status}
-- Generated at: ${body.generatedAt}
-- Safe-mode recommended provider/model: ${body.safePrefixDetection?.recommended?.value ?? "none"}
-- Safe-mode network probe performed: ${body.safePrefixDetection?.safety?.networkProbePerformed}
-- Explicit probe enabled: ${body.explicitModelListProbe?.safety?.modelListProbeEnabled}
-- Explicit probe recommended provider/model: ${body.explicitModelListProbe?.recommended?.value ?? "none"}
-- Probe targets: ${(body.probeTargets ?? []).map((item) => `${item.providerId}:${item.result}`).join(", ")}
-- OpenAI default prevented: ${body.safety?.plainSkDoesNotDefaultToOpenAi}
-- DashScope recommended after authenticated /models: ${body.safety?.dashscopeRecommendedAfterAuthenticatedModelsApi}
-- API key value recorded: ${body.safety?.apiKeyValueRecorded}
-- Default chat main lane changed: ${body.safety?.defaultChatMainLaneChanged}
-- Conclusion: ${body.conclusion}
-`;
-}

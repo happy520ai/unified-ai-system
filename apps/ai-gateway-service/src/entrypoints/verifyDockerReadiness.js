@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { writeEvidencePair } from "./entrypointUtils.js";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
@@ -35,7 +36,7 @@ try {
     compose,
     docker,
   });
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = evidence.status === "passed" ? 0 : 1;
 } catch (error) {
@@ -46,7 +47,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "docker-readiness-not-closed",
   };
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 }
@@ -170,39 +171,3 @@ function normalizeWhitespace(text) {
   return String(text ?? "").replace(/\s+/g, " ");
 }
 
-async function writeEvidence(body) {
-  await mkdir(evidenceDir, { recursive: true });
-  await writeFile(evidenceJsonPath, `${JSON.stringify(body, null, 2)}\n`, "utf8");
-  await writeFile(evidenceMdPath, createEvidenceMarkdown(body), "utf8");
-}
-
-function createEvidenceMarkdown(body) {
-  return `# Phase 110A Docker Readiness Evidence
-
-- Phase: ${body.phase}
-- Status: ${body.status}
-- Generated at: ${body.generatedAt}
-- Dockerfile exists: ${body.checks?.dockerfileExists}
-- .dockerignore exists: ${body.checks?.dockerignoreExists}
-- docker-compose.yml exists: ${body.checks?.composeExists}
-- Dockerfile minimal Node/pnpm: ${body.checks?.dockerfileMinimalNodePnpm}
-- Dockerfile service startup: ${body.checks?.dockerfileServiceStartup}
-- Dockerignore safety: ${body.checks?.dockerignoreSafety}
-- Compose minimal service only: ${body.checks?.composeMinimalServiceOnly}
-- README Docker instructions: ${body.checks?.readmeDockerInstructions}
-- README Docker boundary: ${body.checks?.readmeDockerBoundary}
-- AGENTS Docker boundary: ${body.checks?.agentsDockerBoundary}
-- Scripts present: ${body.checks?.scriptsPresent}
-- Docs contain plaintext secrets: ${!body.checks?.noPlainSecrets}
-- Docker available: ${body.docker?.available}
-- Docker version: ${body.docker?.version || "not-detected"}
-- Docker compose available: ${body.docker?.composeAvailable}
-- Docker compose version: ${body.docker?.composeVersion || "not-detected"}
-- Real build/run executed: ${body.docker?.realBuildRunExecuted}
-- Local container startup sealed: ${body.deployment?.localContainerStartupSealed}
-- Cloud deployment complete: ${body.deployment?.cloudDeploymentComplete}
-- CI/CD complete: ${body.deployment?.cicdComplete}
-- Global release complete: ${body.deployment?.globalReleaseComplete}
-- Conclusion: ${body.conclusion}
-`;
-}

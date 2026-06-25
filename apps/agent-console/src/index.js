@@ -1,4 +1,4 @@
-import { createGatewayChatRequest, createGatewayClient } from "../../../packages/shared-sdk/src/index.js";
+import { createGatewayChatRequest, createGatewayClient } from "@unified-ai-system/shared-sdk";
 
 const gatewayServiceUrl =
   process.env.AI_GATEWAY_SERVICE_URL ?? "http://127.0.0.1:3100";

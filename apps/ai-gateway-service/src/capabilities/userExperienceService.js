@@ -203,9 +203,17 @@ export function isAuthorized({ enabled, expectedToken }, request) {
     return true;
   }
 
+  const { timingSafeEqual } = require("node:crypto");
   const headerToken = request.headers["x-pme-auth-token"];
-  const bearer = String(request.headers.authorization ?? "").replace(/^Bearer\s+/i, "");
-  return headerToken === expectedToken || bearer === expectedToken;
+  const bearer = String(request.headers.authorization ?? "").replace(/^Bearers+/i, "");
+
+  function safeCompare(a, b) {
+    if (typeof a !== "string" || typeof b !== "string") return false;
+    if (a.length !== b.length) return false;
+    return timingSafeEqual(Buffer.from(a), Buffer.from(b));
+  }
+
+  return safeCompare(headerToken, expectedToken) || safeCompare(bearer, expectedToken);
 }
 
 export function getRequestContext(request) {

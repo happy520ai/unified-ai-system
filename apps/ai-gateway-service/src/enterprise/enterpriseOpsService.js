@@ -211,7 +211,8 @@ export function createEnterpriseOpsService({ env = {}, config, enterpriseGoverna
         limit: input.auditLimit ?? 1000,
         format: "json",
       });
-      const auditEntries = JSON.parse(auditExport.content || "[]");
+      let auditEntries;
+      try { auditEntries = JSON.parse(auditExport.content || "[]"); } catch { auditEntries = []; };
       const body = {
         type: BACKUP_TYPE,
         version: BACKUP_VERSION,

@@ -3,6 +3,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readCodexDesktopStatus } from "./codexDesktopStatus.js";
 import { readCodexLoopStatus } from "./codexLoopStatus.js";
+import { readJson, readText } from "./entrypointUtils.js"
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "../../../..");
@@ -113,13 +114,7 @@ async function exists(relativePath) {
   }
 }
 
-async function readJson(relativePath) {
-  return JSON.parse(await readText(relativePath));
-}
 
-async function readText(relativePath) {
-  return readFile(resolve(repoRoot, relativePath), "utf8");
-}
 
 function renderEvidenceMarkdown(evidence) {
   return [

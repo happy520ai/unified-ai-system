@@ -1,5 +1,5 @@
 import { runContextCodecAdapter } from "./contextCodecAdapter.js";
-import { buildPhase641rAioSampleFixtures } from "../../../../packages/context-codec-core/src/index.js";
+import { buildPhase641rAioSampleFixtures } from "@unified-ai-system/context-codec-core";
 
 export function runMainGatewayContextCodecDryRun() {
   const scenarios = buildPhase641rAioSampleFixtures().map((fixture) => runContextCodecAdapter(fixture));

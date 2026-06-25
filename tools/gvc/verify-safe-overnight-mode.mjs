@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { writeEvidenceFile } from "../lib/evidenceWriter.mjs";
 
 const repoRoot = process.cwd();
 
@@ -11,11 +12,6 @@ function readJson(relativePath) {
   return JSON.parse(readFileSync(path.join(repoRoot, relativePath), "utf8").replace(/^\uFEFF/, ""));
 }
 
-function writeEvidence(relativePath, value) {
-  const filePath = path.join(repoRoot, "apps/ai-gateway-service/evidence", relativePath);
-  mkdirSync(path.dirname(filePath), { recursive: true });
-  writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
-}
 
 const policyPath = "docs/project-brain/safe-overnight-policy.json";
 const runnerPath = "tools/gvc/run-timed-local-runner.mjs";
@@ -81,7 +77,7 @@ const result = {
   workspaceCleanClaimed: false,
 };
 
-writeEvidence("safe-overnight-mode/safe-overnight-mode-verify-result.json", result);
+writeEvidenceFile("apps/ai-gateway-service/evidence/safe-overnight-mode/safe-overnight-mode-verify-result.json", result, repoRoot);
 console.log(JSON.stringify({ status: result.status, blocker: result.blocker }, null, 2));
 
 if (failed.length > 0) process.exit(1);

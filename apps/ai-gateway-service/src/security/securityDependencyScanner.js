@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { readJson } from "../entrypoints/entrypointUtils.js";
 
 export function scanDependencyScriptRisk(repoRoot) {
   const rootPackage = readJson(resolve(repoRoot, "package.json"));
@@ -47,10 +48,3 @@ export function scanDependencyScriptRisk(repoRoot) {
   };
 }
 
-function readJson(filePath) {
-  try {
-    return JSON.parse(readFileSync(filePath, "utf8"));
-  } catch {
-    return { scripts: {} };
-  }
-}

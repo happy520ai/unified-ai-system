@@ -1,4 +1,5 @@
 import { mkdir, writeFile } from "node:fs/promises";
+import { writeEvidenceWithRenderer } from "./entrypointUtils.js";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { generateEvidenceId } from "../chat-gateway/chatGatewayEvidenceRecorder.js";
@@ -155,11 +156,6 @@ function phase315AChangedFiles() {
   ];
 }
 
-async function writeEvidence(data) {
-  await mkdir(evidenceDir, { recursive: true });
-  await writeFile(evidenceJsonPath, `${JSON.stringify(data, null, 2)}\n`, "utf8");
-  await writeFile(evidenceMdPath, renderMarkdown(data), "utf8");
-}
 
 function renderMarkdown(data) {
   return `# Phase315A Provider Latency / Timeout / Retry / Fallback Accountability

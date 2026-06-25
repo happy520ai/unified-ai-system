@@ -1,7 +1,9 @@
 import { spawn } from "node:child_process";
+import { writeEvidencePair } from "./entrypointUtils.js";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { readJson } from "./entrypointUtils.js"
 
 const PHASE = "phase-97a-web-chat-model-config-aggregate";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -80,7 +82,7 @@ try {
   };
 }
 
-await writeEvidence(evidence);
+await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
 console.log(JSON.stringify(evidence, null, 2));
 process.exitCode = evidence.status === "passed" ? 0 : 1;
 
@@ -178,32 +180,3 @@ async function runNodeScript(scriptPath) {
   });
 }
 
-async function readJson(path) {
-  return JSON.parse(await readFile(path, "utf8"));
-}
-
-async function writeEvidence(body) {
-  await mkdir(evidenceDir, { recursive: true });
-  await writeFile(evidenceJsonPath, `${JSON.stringify(body, null, 2)}\n`, "utf8");
-  await writeFile(evidenceMdPath, createEvidenceMarkdown(body), "utf8");
-}
-
-function createEvidenceMarkdown(body) {
-  const checks = body.delegatedChecks ?? {};
-  return `# Phase 97A Web Chat Model Config Aggregate Evidence
-
-- Phase: ${body.phase}
-- Status: ${body.status}
-- Generated at: ${body.generatedAt}
-- Success path: ${checks.successPath?.status ?? "n/a"}; runtime configured: ${checks.successPath?.runtimeModelConfigured}
-- First chat path: ${checks.readyFirstMessage?.status ?? "n/a"}; first message returned: ${checks.readyFirstMessage?.firstMessageReturned}
-- Repair continue: ${checks.repairContinue?.status ?? "n/a"}; continued previous prompt: ${checks.repairContinue?.continuedPreviousPrompt}
-- Repair visual polish: ${checks.repairVisualPolish?.status ?? "n/a"}; compact actionable card: ${checks.repairVisualPolish?.compactActionableCard}
-- Local mock provider only: ${body.safety?.localMockProviderOnly}
-- Real provider calls: ${body.safety?.realProviderCalls}
-- API key value recorded: ${body.safety?.apiKeyValueRecorded}
-- Default chat main lane changed: ${body.safety?.defaultChatMainLaneChanged}
-- Backend business route added: ${body.safety?.backendBusinessRouteAdded}
-- Conclusion: ${body.conclusion}
-`;
-}

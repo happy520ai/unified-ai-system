@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { readJson, readText } from "./entrypointUtils.js"
 
 const PHASE = "Phase316A";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -95,19 +96,7 @@ console.log(JSON.stringify({
 
 process.exitCode = finalEvidence.verifierStatus === "pass" ? 0 : 1;
 
-function readText(relativePath) {
-  const absolute = resolve(repoRoot, relativePath);
-  return existsSync(absolute) ? readFileSync(absolute, "utf8") : "";
-}
 
-function readJson(path) {
-  if (!existsSync(path)) return null;
-  try {
-    return JSON.parse(readFileSync(path, "utf8"));
-  } catch {
-    return null;
-  }
-}
 
 function containsSecretLikeValue(source) {
   return /\b(?:nvapi[-_][A-Za-z0-9._-]{8,}|sk-proj[-_][A-Za-z0-9._-]{8,}|sk[-_][A-Za-z0-9._-]{8,}|pk[-_][A-Za-z0-9._-]{8,}|ak[-_][A-Za-z0-9._-]{8,})\b/i.test(String(source ?? ""));

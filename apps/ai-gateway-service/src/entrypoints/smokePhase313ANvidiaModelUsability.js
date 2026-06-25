@@ -6,6 +6,7 @@ import { createModelLibraryStore } from "../model-library/modelLibraryStore.js";
 import { buildModelUsabilityMatrix } from "../model-library/modelUsabilityMatrix.js";
 import { createModelVerificationStateStore, classifySmokeResultToVerificationStatus } from "../model-library/modelVerificationStateStore.js";
 import { createNvidiaUnifiedClient } from "../providers/nvidia/nvidiaUnifiedClient.js";
+import { sleep } from "./entrypointUtils.js";
 
 const repoRoot = resolve(fileURLToPath(new URL("../../../..", import.meta.url)));
 const evidenceJsonPath = resolve(repoRoot, "apps/ai-gateway-service/evidence/phase-313a-model-usability-matrix.json");
@@ -213,6 +214,3 @@ function renderMarkdown(evidence) {
   ].join("\n");
 }
 
-function sleep(ms) {
-  return new Promise((resolveSleep) => setTimeout(resolveSleep, ms));
-}

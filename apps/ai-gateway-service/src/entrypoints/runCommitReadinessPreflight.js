@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { readJson } from "./entrypointUtils.js"
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "../../../..");
@@ -358,9 +359,6 @@ function runGit(args) {
   }
 }
 
-function readJson(relativePath) {
-  return JSON.parse(readFileSync(resolve(repoRoot, relativePath), "utf8"));
-}
 
 function readJsonIfPresent(relativePath) {
   try {

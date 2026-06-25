@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { readJson } from "./entrypointUtils.js"
 
 const PHASE = "270A-token-saving-benchmark";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -146,16 +147,6 @@ function readRequiredText(path, checkName) {
   return exists ? readFileSync(path, "utf8") : "";
 }
 
-function readJson(path, checkName) {
-  const text = readRequiredText(path, checkName);
-  if (!text) return {};
-  try {
-    return JSON.parse(text);
-  } catch (error) {
-    assertCheck(`${checkName}_valid_json`, false, error instanceof Error ? error.message : String(error));
-    return {};
-  }
-}
 
 function assertCheck(name, passed, detail = "") {
   checks.push({

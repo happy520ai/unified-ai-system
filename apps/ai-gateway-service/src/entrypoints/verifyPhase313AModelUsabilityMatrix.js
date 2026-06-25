@@ -11,6 +11,7 @@ import { createModelVerificationPlan } from "../model-library/modelVerificationP
 import { createModelVerificationStateStore } from "../model-library/modelVerificationStateStore.js";
 import { MODEL_CAPABILITY_BUCKETS } from "../model-library/modelCapabilityBuckets.js";
 import { MODEL_VERIFICATION_STATUSES } from "../model-library/modelSelectableGate.js";
+import { readText, listen, writeEvidenceSync } from "./entrypointUtils.js"
 
 const repoRoot = resolve(fileURLToPath(new URL("../../../..", import.meta.url)));
 const evidenceJsonPath = resolve(repoRoot, "apps/ai-gateway-service/evidence/phase-313a-model-usability-matrix.json");
@@ -186,7 +187,7 @@ const evidence = {
   checks,
 };
 
-writeEvidence(evidence);
+saveEvidence(evidence);
 
 if (evidence.status !== "pass") {
   console.error(JSON.stringify({ status: evidence.status, blocker: evidence.blocker, failedChecks }, null, 2));
@@ -241,15 +242,7 @@ async function runRouteChecks() {
   }
 }
 
-function listen(server) {
-  return new Promise((resolveListen, reject) => {
-    server.once("error", reject);
-    server.listen(0, "127.0.0.1", () => {
-      const address = server.address();
-      resolveListen(`http://127.0.0.1:${address.port}`);
-    });
-  });
-}
+
 
 function closeServer(server) {
   return new Promise((resolveClose) => server.close(() => resolveClose()));
@@ -274,15 +267,16 @@ async function requestJson(url, body) {
   };
 }
 
-function readText(relativePath) {
-  const fullPath = resolve(repoRoot, relativePath);
-  return existsSync(fullPath) ? readFileSync(fullPath, "utf8") : "";
-}
 
-function writeEvidence(evidence) {
-  mkdirSync(dirname(evidenceJsonPath), { recursive: true });
-  writeFileSync(evidenceJsonPath, `${JSON.stringify(evidence, null, 2)}\n`, "utf8");
-  writeFileSync(evidenceMdPath, renderMarkdown(evidence), "utf8");
+
+function saveEvidence(evidence) {
+  writeEvidenceSync(
+    dirname(evidenceJsonPath),
+    evidenceJsonPath,
+    evidenceMdPath,
+    evidence,
+    renderMarkdown,
+  );
 }
 
 function renderMarkdown(evidence) {

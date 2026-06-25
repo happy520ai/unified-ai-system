@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { readJson, readText, writeJson } from "./entrypointUtils.js"
 
 const PHASE = "274A-response-cache-persistence";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -212,17 +213,8 @@ function exists(relativePath) {
   return existsSync(resolve(repoRoot, relativePath));
 }
 
-function readText(relativePath) {
-  return readFileSync(resolve(repoRoot, relativePath), "utf8");
-}
 
-function readJson(relativePath) {
-  return JSON.parse(readText(relativePath));
-}
 
-function writeJson(relativePath, value) {
-  writeFileSync(resolve(repoRoot, relativePath), `${JSON.stringify(value, null, 2)}\n`, "utf8");
-}
 
 function containsPlaintextSecret(text) {
   return /(Bearer\s+[A-Za-z0-9._-]{20,})|((api[_-]?key|authorization)\s*[:=]\s*[A-Za-z0-9._-]{20,})|\bsk-(?!copy|safety|package|test|redacted|preview)[A-Za-z0-9_-]{16,}\b|\bnvapi-(?!redacted|preview|test)[A-Za-z0-9_-]{12,}\b/i.test(text);

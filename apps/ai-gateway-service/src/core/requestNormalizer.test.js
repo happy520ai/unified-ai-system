@@ -1,4 +1,5 @@
-import { describe, it, expect } from "vitest";
+import { describe, it } from "node:test";
+import assert from "node:assert/strict";
 import { normalizeGatewayRequest } from "./requestNormalizer.js";
 
 describe("request-normalizer", () => {
@@ -6,23 +7,23 @@ describe("request-normalizer", () => {
     const result = normalizeGatewayRequest({
       messages: [{ role: "user", content: "hello" }],
     });
-    expect(result.messages.length).toBe(1);
-    expect(result.messages[0].role).toBe("user");
-    expect(result.messages[0].content).toBe("hello");
-    expect(result.context.requestId).toBeDefined();
-    expect(result.taskType).toBe("chat");
+    assert.equal(result.messages.length, 1);
+    assert.equal(result.messages[0].role, "user");
+    assert.equal(result.messages[0].content, "hello");
+    assert.ok(result.context.requestId !== undefined);
+    assert.equal(result.taskType, "chat");
   });
 
   it("throws for missing messages", () => {
-    expect(() => normalizeGatewayRequest({})).toThrow();
+    assert.throws(() => normalizeGatewayRequest({}));
   });
 
   it("throws for empty messages", () => {
-    expect(() => normalizeGatewayRequest({ messages: [] })).toThrow();
+    assert.throws(() => normalizeGatewayRequest({ messages: [] }));
   });
 
   it("throws for invalid message", () => {
-    expect(() => normalizeGatewayRequest({ messages: [null] })).toThrow();
+    assert.throws(() => normalizeGatewayRequest({ messages: [null] }));
   });
 
   it("normalizes task type", () => {
@@ -30,13 +31,13 @@ describe("request-normalizer", () => {
       messages: [{ role: "user", content: "hello" }],
       taskType: "reasoning",
     });
-    expect(result.taskType).toBe("reasoning");
+    assert.equal(result.taskType, "reasoning");
   });
 
   it("throws for unsupported task type", () => {
-    expect(() => normalizeGatewayRequest({
+    assert.throws(() => normalizeGatewayRequest({
       messages: [{ role: "user", content: "hello" }],
       taskType: "unsupported",
-    })).toThrow();
+    }));
   });
 });

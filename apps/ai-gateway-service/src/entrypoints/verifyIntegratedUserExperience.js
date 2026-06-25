@@ -1,9 +1,11 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { writeEvidencePair } from "./entrypointUtils.js";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
+import { fetchJson, fetchText, listen, close } from "./entrypointUtils.js";
 
 const PHASE = "phase-77a-integrated-user-experience";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -110,7 +112,7 @@ try {
     artifactText,
     conclusion: passed ? "integrated-user-experience-connected" : "integrated-user-experience-not-connected",
   });
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = passed ? 0 : 1;
 } catch (error) {
@@ -129,7 +131,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "integrated-user-experience-not-connected",
   });
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -186,50 +188,6 @@ function isIntegratedExperienceConnected({
     artifactText.includes(marker) &&
     artifactText.includes("No arbitrary shell command was executed.")
   );
-}
-
-function listen(targetServer, port, host) {
-  return new Promise((resolveListen, rejectListen) => {
-    targetServer.once("error", rejectListen);
-    targetServer.listen(port, host, () => {
-      targetServer.off("error", rejectListen);
-      resolveListen();
-    });
-  });
-}
-
-function close(targetServer) {
-  return new Promise((resolveClose) => {
-    targetServer.close(() => resolveClose());
-  });
-}
-
-async function fetchText(url) {
-  const response = await fetch(url);
-  const text = await response.text();
-
-  return {
-    httpStatus: response.status,
-    contentType: response.headers.get("content-type"),
-    text,
-  };
-}
-
-async function fetchJson(url, options = {}) {
-  const response = await fetch(url, {
-    method: options.method ?? "GET",
-    headers: {
-      "content-type": "application/json",
-      ...(options.headers ?? {}),
-    },
-    body: options.body ? JSON.stringify(options.body) : undefined,
-  });
-  const body = await response.json();
-
-  return {
-    httpStatus: response.status,
-    body,
-  };
 }
 
 function createEvidence({
@@ -310,43 +268,3 @@ function createEvidence({
   };
 }
 
-async function writeEvidence(body) {
-  await mkdir(evidenceDir, { recursive: true });
-  await writeFile(evidenceJsonPath, `${JSON.stringify(body, null, 2)}\n`, "utf8");
-  await writeFile(evidenceMdPath, createEvidenceMarkdown(body), "utf8");
-}
-
-function createEvidenceMarkdown(body) {
-  return `# Phase 77A Integrated User Experience Evidence
-
-- Phase: ${body.phase}
-- Status: ${body.status}
-- Generated at: ${body.generatedAt}
-- Service URL: ${body.service.url ?? "n/a"}
-- UI HTTP status: ${body.ui.httpStatus ?? "n/a"}
-- Model wizard present: ${body.ui.modelWizardPresent}
-- Enterprise command present: ${body.ui.enterpriseCommandPresent}
-- Workflow command present: ${body.ui.workflowCommandPresent}
-- Model import provider count: ${body.modelImport.providerCount}
-- DashScope provider present: ${body.modelImport.keyProvidersPresent.dashscope}
-- Zhipu provider present: ${body.modelImport.keyProvidersPresent.zhipu}
-- Hugging Face provider present: ${body.modelImport.keyProvidersPresent.huggingface}
-- OpenAI-compatible provider present: ${body.modelImport.keyProvidersPresent.openaiCompatible}
-- Gemini provider present: ${body.modelImport.keyProvidersPresent.gemini}
-- Knowledge loaded count: ${body.knowledge.loadedCount ?? "n/a"}
-- Knowledge retrieve top hit: ${body.knowledge.topHitDocumentId ?? "n/a"}
-- Snippet present: ${body.knowledge.snippetPresent}
-- Highlight count: ${body.knowledge.highlightCount ?? "n/a"}
-- Score breakdown present: ${body.knowledge.scoreBreakdownPresent}
-- Enterprise overview HTTP status: ${body.enterprise.overviewHttpStatus ?? "n/a"}
-- Workflow run status: ${body.workflow.runStatus ?? "n/a"}
-- Workflow artifact: ${body.workflow.artifactRelativePath ?? "n/a"}
-- Artifact marker present: ${body.workflow.artifactMarkerPresent}
-- Artifact safety text present: ${body.workflow.artifactSafetyTextPresent}
-- Default chat main lane changed: ${body.boundaries.defaultChatMainLaneChanged}
-- Arbitrary shell execution: ${body.boundaries.arbitraryShellExecution}
-- Broad file system scan: ${body.boundaries.broadFileSystemScan}
-- Provider API key logged: ${body.boundaries.providerApiKeyLogged}
-- Conclusion: ${body.conclusion}
-`;
-}

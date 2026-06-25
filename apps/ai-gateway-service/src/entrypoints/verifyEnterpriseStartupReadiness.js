@@ -1,9 +1,11 @@
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { writeEvidencePair } from "./entrypointUtils.js";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
+import { fetchJson, fetchText, listen, close } from "./entrypointUtils.js";
 
 const PHASE = "phase-38a-enterprise-startup-readiness";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -95,7 +97,7 @@ try {
     responseText,
     conclusion: passed ? "enterprise-startup-readiness-connected" : "enterprise-startup-readiness-not-connected",
   });
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = passed ? 0 : 1;
 } catch (error) {
@@ -105,7 +107,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "enterprise-startup-readiness-not-connected",
   });
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -147,47 +149,6 @@ function createHeaders(token) {
     "content-type": "application/json",
     "x-pme-auth-token": token,
     "x-pme-tenant-id": tenantId,
-  };
-}
-
-function listen(targetServer, port, host) {
-  return new Promise((resolveListen, rejectListen) => {
-    targetServer.once("error", rejectListen);
-    targetServer.listen(port, host, () => {
-      targetServer.off("error", rejectListen);
-      resolveListen();
-    });
-  });
-}
-
-function close(targetServer) {
-  return new Promise((resolveClose) => {
-    targetServer.close(() => resolveClose());
-  });
-}
-
-async function fetchText(url) {
-  const response = await fetch(url);
-  return {
-    httpStatus: response.status,
-    contentType: response.headers.get("content-type"),
-    text: await response.text(),
-  };
-}
-
-async function fetchJson(url, options = {}) {
-  const response = await fetch(url, {
-    method: options.method ?? "GET",
-    headers: {
-      "content-type": "application/json",
-      ...(options.headers ?? {}),
-    },
-    body: options.body === undefined ? undefined : JSON.stringify(options.body),
-  });
-  const text = await response.text();
-  return {
-    httpStatus: response.status,
-    body: text ? JSON.parse(text) : {},
   };
 }
 
@@ -242,38 +203,3 @@ function createEvidence({
   };
 }
 
-async function writeEvidence(body) {
-  await mkdir(evidenceDir, { recursive: true });
-  await writeFile(evidenceJsonPath, `${JSON.stringify(body, null, 2)}\n`, "utf8");
-  await writeFile(evidenceMdPath, createEvidenceMarkdown(body), "utf8");
-}
-
-function createEvidenceMarkdown(body) {
-  return `# Phase 38A Enterprise Startup Readiness Evidence
-
-- Phase: ${body.phase}
-- Status: ${body.status}
-- Generated at: ${body.generatedAt}
-- Service URL: ${body.serviceUrl ?? "n/a"}
-- User store path: ${body.paths?.userStorePath ?? "n/a"}
-- Audit log path: ${body.paths?.auditLogPath ?? "n/a"}
-- Backup dir: ${body.paths?.backupDir ?? "n/a"}
-- UI startup readiness present: ${body.enterprise?.uiStartupReadinessPresent}
-- Missing startup readiness status: ${body.enterprise?.missingStartupReadinessStatus ?? "n/a"}
-- Startup HTTP status: ${body.enterprise?.startupHttpStatus ?? "n/a"}
-- Startup status: ${body.enterprise?.startupStatus ?? "n/a"}
-- Startup mode: ${body.enterprise?.startupMode ?? "n/a"}
-- Blockers: ${(body.enterprise?.blockers ?? []).join(", ") || "none"}
-- Warnings: ${(body.enterprise?.warnings ?? []).join(", ") || "none"}
-- Provider mode: ${body.enterprise?.providerMode ?? "n/a"}
-- Real provider enabled: ${body.enterprise?.realProviderEnabled}
-- Default provider id: ${body.enterprise?.defaultProviderId ?? "n/a"}
-- NVIDIA API key present: ${body.enterprise?.nvidiaApiKeyPresent}
-- NVIDIA API key value exposed: ${body.enterprise?.nvidiaApiKeyValueExposed}
-- Deployment readiness status: ${body.enterprise?.deploymentReadinessStatus ?? "n/a"}
-- Security readiness status: ${body.enterprise?.securityReadinessStatus ?? "n/a"}
-- Response contains NVIDIA key: ${body.enterprise?.responseContainsNvidiaKey}
-- Response contains admin token: ${body.enterprise?.responseContainsAdminToken}
-- Conclusion: ${body.conclusion}
-`;
-}

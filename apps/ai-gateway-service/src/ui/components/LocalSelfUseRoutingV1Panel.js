@@ -5,6 +5,7 @@ import { localSelfUseRoutingV1Copy } from "../copy/localSelfUseRoutingV1Copy.js"
 import { renderLocalSelfUseEvidenceLedgerPanel } from "./LocalSelfUseEvidenceLedgerPanel.js";
 import { renderLocalSelfUseIssueLedgerPanel } from "./LocalSelfUseIssueLedgerPanel.js";
 import { renderSevenDaySoakEntryPanel } from "./SevenDaySoakEntryPanel.js";
+import { readJson } from "../../entrypoints/entrypointUtils.js";
 
 const repoRoot = resolve(fileURLToPath(new URL("../../../../../", import.meta.url)));
 
@@ -47,15 +48,6 @@ ${renderLocalSelfUseIssueLedgerPanel()}
 ${renderSevenDaySoakEntryPanel()}`;
 }
 
-function readJson(relativePath) {
-  const path = resolve(repoRoot, relativePath);
-  if (!existsSync(path)) return null;
-  try {
-    return JSON.parse(readFileSync(path, "utf8"));
-  } catch {
-    return null;
-  }
-}
 
 function escapeHtml(value) {
   return String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");

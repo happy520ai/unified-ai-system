@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { globalModelLibraryCopy } from "../copy/globalModelLibraryCopy.js";
+import { readJson } from "../../entrypoints/entrypointUtils.js";
 
 const repoRoot = resolve(fileURLToPath(new URL("../../../../../", import.meta.url)));
 export const globalModelLibraryPanelMarkers = Object.freeze([
@@ -63,15 +64,6 @@ ${safetyRows}
               </section>`;
 }
 
-function readJson(relativePath) {
-  const path = resolve(repoRoot, relativePath);
-  if (!existsSync(path)) return null;
-  try {
-    return JSON.parse(readFileSync(path, "utf8"));
-  } catch {
-    return null;
-  }
-}
 
 function escapeHtml(value) {
   return String(value ?? "")

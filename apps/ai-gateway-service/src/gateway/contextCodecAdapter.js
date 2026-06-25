@@ -1,4 +1,4 @@
-import { runContextCodecDryRun } from "../../../../packages/context-codec-core/src/index.js";
+import { runContextCodecDryRun } from "@unified-ai-system/context-codec-core";
 import { buildContextCodecRequest } from "./contextCodecRequestBuilder.js";
 
 export function runContextCodecAdapter(input = {}, options = {}) {

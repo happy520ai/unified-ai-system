@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { readJson, readText } from "./entrypointUtils.js"
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "../../../..");
@@ -135,19 +136,6 @@ function main() {
 
 function fileExists(relativePath) {
   return existsSync(resolve(repoRoot, relativePath));
-}
-
-function readText(relativePath) {
-  return readFileSync(resolve(repoRoot, relativePath), "utf8");
-}
-
-function readJson(relativePath, options = {}) {
-  const absolute = resolve(repoRoot, relativePath);
-  if (!existsSync(absolute)) {
-    if (options.optional) return null;
-    throw new Error(`Missing JSON file: ${relativePath}`);
-  }
-  return JSON.parse(readFileSync(absolute, "utf8"));
 }
 
 function containsPlaintextApiKey(text) {

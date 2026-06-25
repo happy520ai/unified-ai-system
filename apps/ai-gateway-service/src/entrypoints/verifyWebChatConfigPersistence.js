@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { writeEvidencePair } from "./entrypointUtils.js";
 import { existsSync, readdirSync } from "node:fs";
 import { mkdtemp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -8,6 +9,7 @@ import vm from "node:vm";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
 import { createConsolePage } from "../ui/consolePage.js";
+import { sleep, listen, findBrowserPath, close } from "./entrypointUtils.js";
 
 const PHASE = "phase-76b-web-chat-config-persistence";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -140,7 +142,7 @@ try {
     await closeCdpSilently(cdp);
   }
 
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = evidence.status === "passed" ? 0 : 1;
 } catch (error) {
@@ -151,7 +153,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "web-chat-config-persistence-not-connected",
   };
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -198,7 +200,7 @@ async function readState(cdp) {
   return cdp.evaluate(`(() => {
     const preferenceRaw = localStorage.getItem("pme-moving-earth-provider-preference-v1") || "";
     let preference = null;
-    try { preference = JSON.parse(preferenceRaw || "null"); } catch {}
+    try { preference = JSON.parse(preferenceRaw || "null"); } catch (err) { console.error("[verifyWebChatConfigPersistence]:", err?.message || err); }
     return {
       selectedProvider: document.getElementById("provider-select")?.value || "",
       preference,
@@ -209,17 +211,6 @@ async function readState(cdp) {
   })()`);
 }
 
-function findBrowserPath() {
-  const candidates = [
-    process.env.PME_BROWSER_PATH,
-    "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
-    ...findVersionedBrowserPaths("C:\\Program Files (x86)\\Microsoft\\EdgeCore", "msedge.exe"),
-    ...findVersionedBrowserPaths("C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application", "msedge.exe"),
-  ].filter(Boolean);
-  const found = candidates.find((candidate) => existsSync(candidate));
-  if (!found) throw new Error("No supported headless browser found. Set PME_BROWSER_PATH to chrome.exe or msedge.exe.");
-  return found;
-}
 
 function findVersionedBrowserPaths(root, executableName) {
   if (!existsSync(root)) return [];
@@ -338,49 +329,3 @@ async function inspectPng(path) {
   return { bytes: stats.size, width: validPng ? buffer.readUInt32BE(16) : 0, height: validPng ? buffer.readUInt32BE(20) : 0, validPng };
 }
 
-function listen(targetServer, port, host) {
-  return new Promise((resolveListen, rejectListen) => {
-    targetServer.once("error", rejectListen);
-    targetServer.listen(port, host, () => {
-      targetServer.off("error", rejectListen);
-      resolveListen();
-    });
-  });
-}
-
-function close(targetServer) {
-  return new Promise((resolveClose) => targetServer.close(() => resolveClose()));
-}
-
-async function writeEvidence(body) {
-  await mkdir(evidenceDir, { recursive: true });
-  await writeFile(evidenceJsonPath, `${JSON.stringify(body, null, 2)}\n`, "utf8");
-  await writeFile(evidenceMdPath, createEvidenceMarkdown(body), "utf8");
-}
-
-function createEvidenceMarkdown(body) {
-  return `# Phase 76B Web Chat Config Persistence Evidence
-
-- Phase: ${body.phase}
-- Status: ${body.status}
-- Generated at: ${body.generatedAt}
-- Service URL: ${body.serviceUrl ?? "n/a"}
-- Selected provider before reload: ${body.ui?.beforeReload?.selectedProvider ?? "n/a"}
-- Selected provider after reload: ${body.ui?.afterReload?.selectedProvider ?? "n/a"}
-- Preference secret persisted: ${body.ui?.afterReload?.preference?.secretPersisted}
-- Screenshot path: ${body.screenshot?.path ?? "n/a"}
-- Screenshot bytes: ${body.screenshot?.bytes ?? "n/a"}
-- Screenshot dimensions: ${body.screenshot?.width ?? "n/a"}x${body.screenshot?.height ?? "n/a"}
-- Valid PNG: ${body.screenshot?.validPng}
-- Persisted provider/model only: ${body.safety?.persistedProviderModelOnly}
-- Secret persisted: ${body.safety?.secretPersisted}
-- Provider calls: ${body.safety?.providerCalls}
-- Backend business route added: ${body.safety?.backendBusinessRouteAdded}
-- Default chat main lane changed: ${body.safety?.defaultChatMainLaneChanged}
-- Conclusion: ${body.conclusion}
-`;
-}
-
-function sleep(ms) {
-  return new Promise((resolveSleep) => setTimeout(resolveSleep, ms));
-}

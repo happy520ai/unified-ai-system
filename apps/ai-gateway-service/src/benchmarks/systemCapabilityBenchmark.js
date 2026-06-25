@@ -1,6 +1,26 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  numberOrZero,
+  roundNumber,
+  readJsonIfExists,
+  readTextIfExists,
+  calculateGrade,
+  calculateCacheHitRate,
+  hasAnyTrue,
+} from "./benchmarkUtils.js";
+import {
+  scoreTokenSaving,
+  scoreRagSourceSelection,
+  scoreFreshness,
+  scoreMimoSafety,
+  scoreCalibration,
+  scoreCostGuard,
+  scoreCacheReadiness,
+  scoreSecurityBoundary,
+} from "./benchmarkScoring.js";
+import { renderSystemCapabilityBenchmarkMarkdown } from "./benchmarkMarkdown.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const defaultRepoRoot = resolve(__dirname, "../../../..");
@@ -329,108 +349,6 @@ function createDimensions(sources, uiText) {
   return dimensions;
 }
 
-function scoreTokenSaving(tokenSaving, rag) {
-  let score = 0;
-  if (tokenSaving?.status === "passed" && rag?.status === "passed") score += 10;
-  if (numberOrZero(rag?.summary?.averageSavingsRatio) > 0.95) score += 3;
-  if (numberOrZero(tokenSaving?.paidApiCallCount) === 0 && rag?.safety?.longContextSentToPaidApi !== true) score += 2;
-  return Math.min(score, 15);
-}
-
-function scoreRagSourceSelection(rag) {
-  let score = 0;
-  if (numberOrZero(rag?.summary?.averageRequiredSourceRecall) >= 1) score += 5;
-  if (numberOrZero(rag?.summary?.latestEvidenceHitRate) >= 1) score += 4;
-  if (numberOrZero(rag?.summary?.staleSourceSelectedCount) === 0) score += 3;
-  if (numberOrZero(rag?.summary?.passCount) >= 8) score += 3;
-  return Math.min(score, 15);
-}
-
-function scoreFreshness(rag) {
-  let score = 0;
-  if (rag?.status === "passed") score += 4;
-  if (numberOrZero(rag?.summary?.failCount) === 0) score += 3;
-  if (numberOrZero(rag?.summary?.latestEvidenceHitRate) >= 1) score += 3;
-  return Math.min(score, 10);
-}
-
-function scoreMimoSafety(mimo269, mimo271) {
-  let score = 0;
-  if ((mimo271?.configuration?.discoveredWorkingModelId ?? "") === "mimo-v2.5-pro") score += 2;
-  if (mimo269?.response?.success === true || mimo271?.smoke?.success === true) score += 2;
-  if (mimo269?.response?.usageReturned === true || mimo271?.smoke?.usageReturned === true) score += 1;
-  if (mimo269?.mimoSetAsDefault === false && mimo271?.mimoSetAsDefault === false) score += 2;
-  if (
-    mimo269?.safety?.plainTextApiKeyWritten === false &&
-    mimo271?.safety?.plainTextApiKeyWritten === false &&
-    mimo269?.request?.longContextSent === false &&
-    mimo271?.smoke?.longContextSent === false
-  ) {
-    score += 3;
-  }
-  return Math.min(score, 10);
-}
-
-function scoreCalibration(calibration) {
-  let score = 0;
-  if (numberOrZero(calibration?.sampleCount) >= 2) score += 2;
-  if (Array.isArray(calibration?.samples) && calibration.samples.length >= 2) score += 2;
-  if (Number.isFinite(Number(calibration?.calibrationProfile?.recommendedInputSafetyMultiplier))) score += 2;
-  if (Number.isFinite(Number(calibration?.calibrationProfile?.recommendedMinimumInputTokenFloor))) score += 2;
-  if (calibration?.confidence === "low" && calibration?.calibrationCoverage === "smoke-only-limited") score += 1;
-  const confidenceCap = calibration?.confidence === "low" ? 8 : 10;
-  return Math.min(score, confidenceCap);
-}
-
-function scoreCostGuard(costGuard) {
-  let score = 0;
-  if (costGuard?.status === "passed") score += 2;
-  if (costGuard?.checks?.sampleEstimateAllowCasePassed === true) score += 2;
-  if (costGuard?.checks?.sampleHighCostRequireApprovalCasePassed === true) score += 2;
-  if (costGuard?.checks?.sampleOverBudgetBlockCasePassed === true) score += 2;
-  if (costGuard?.checks?.summaryEndpointOk === true && costGuard?.checks?.safetyFieldsFalse === true) score += 2;
-  return Math.min(score, 10);
-}
-
-function scoreCacheReadiness(cache, costGuard, tokenSaving, rag) {
-  let score = 0;
-  if (costGuard?.checks?.sampleCacheKeyGenerated === true) score += 2;
-  if (costGuard?.samples?.allow?.cache?.cacheEligible === true || numberOrZero(tokenSaving?.summary?.cacheEligibleCount) > 0) score += 1;
-  if (Array.isArray(tokenSaving?.betterPlan) || Array.isArray(rag?.recommendedNextRoutes)) score += 1;
-  if (cache?.status === "passed" && numberOrZero(cache?.summary?.hitCount) > 0) score += 1;
-  return Math.min(score, 4);
-}
-
-function scoreSecurityBoundary(sources) {
-  const secretSafetyPassed = sources.secretSafety.data?.status === "passed";
-  const providerDefaultUnchanged = !hasAnyTrue(sources, "defaultNvidiaChatLaneChanged") && !hasAnyTrue(sources, "mimoSetAsDefault");
-  const executionDisabled = Object.values(sources).every(({ data }) => {
-    const safety = data?.safety ?? {};
-    return safety.codexCliInvoked !== true &&
-      safety.codexExecInvoked !== true &&
-      safety.workflowRunnerEnabled !== true &&
-      safety.worktreeCreated !== true &&
-      safety.autoCommit !== true &&
-      safety.autoPush !== true;
-  });
-  const repoBoundarySafe = Object.values(sources).every(({ data }) => {
-    const safety = data?.safety ?? {};
-    return safety.legacyModified !== true && safety.projectContextCreated !== true;
-  });
-  const noLongPaidContext = Object.values(sources).every(({ data }) => {
-    const safety = data?.safety ?? {};
-    return safety.longContextSentToPaidApi !== true && safety.largeOutputRequested !== true && safety.stressTestExecuted !== true;
-  });
-
-  return [
-    secretSafetyPassed,
-    providerDefaultUnchanged,
-    executionDisabled,
-    repoBoundarySafe,
-    noLongPaidContext,
-  ].filter(Boolean).length * 2;
-}
-
 function createHeadlineMetrics(sources) {
   const tokenSaving = sources.tokenSavingBenchmark.data;
   const rag = sources.ragSourceSelectionBenchmark.data;
@@ -498,7 +416,7 @@ function createGaps(headlineMetrics) {
     "No audited production cost ledger tied to provider invoices.",
     "No workflow runner, worktree execution, auto commit, auto push, or PR automation.",
     "No production response-quality benchmark against real model outputs.",
-    "No clean-release baseline while the workspace remains dirty.",
+    "No clean-release baseline while a workspace remains dirty.",
     "No production SaaS operations layer, tenant isolation, rate limits, or SLA evidence.",
   ];
   if (headlineMetrics.cachePersistenceReady) {
@@ -547,33 +465,8 @@ function createRecommendedNextRoutes(headlineMetrics) {
 }
 
 function createSafetySummary() {
-  return {
-    plainTextApiKeyWritten: false,
-    apiKeyPrinted: false,
-    paidApiCallExecuted: false,
-    externalApiCalled: false,
-    mimoApiCalled: false,
-    defaultNvidiaChatLaneChanged: false,
-    mimoSetAsDefault: false,
-    longContextSentToPaidApi: false,
-    largeOutputRequested: false,
-    stressTestExecuted: false,
-    legacyModified: false,
-    projectContextCreated: false,
-    codexCliInvoked: false,
-    codexExecInvoked: false,
-    workflowRunnerEnabled: false,
-    worktreeCreated: false,
-    autoCommit: false,
-    autoPush: false,
-  };
-}
-
-function calculateGrade(totalScore) {
-  if (totalScore >= 85) return "A";
-  if (totalScore >= 70) return "B";
-  if (totalScore >= 55) return "C";
-  return "D";
+  const keys = ["plainTextApiKeyWritten", "apiKeyPrinted", "paidApiCallExecuted", "externalApiCalled", "mimoApiCalled", "defaultNvidiaChatLaneChanged", "mimoSetAsDefault", "longContextSentToPaidApi", "largeOutputRequested", "stressTestExecuted", "legacyModified", "projectContextCreated", "codexCliInvoked", "codexExecInvoked", "workflowRunnerEnabled", "worktreeCreated", "autoCommit", "autoPush"];
+  return Object.fromEntries(keys.map((k) => [k, false]));
 }
 
 function calculatePaidApiSafetyReadiness(dimensions) {
@@ -587,123 +480,4 @@ function calculatePaidApiSafetyReadiness(dimensions) {
   return "weak";
 }
 
-function calculateCacheHitRate(cache) {
-  const hits = numberOrZero(cache?.summary?.hitCount);
-  const misses = numberOrZero(cache?.summary?.missCount);
-  if (hits + misses <= 0) return null;
-  return roundNumber(hits / (hits + misses), 4);
-}
-
-function hasAnyTrue(sources, key) {
-  return Object.values(sources).some(({ data }) => data?.[key] === true || data?.safety?.[key] === true);
-}
-
-function readJsonIfExists(path) {
-  if (!existsSync(path)) return null;
-  try {
-    return JSON.parse(readFileSync(path, "utf8"));
-  } catch {
-    return null;
-  }
-}
-
-function readTextIfExists(path) {
-  if (!existsSync(path)) return "";
-  try {
-    return readFileSync(path, "utf8");
-  } catch {
-    return "";
-  }
-}
-
-function numberOrZero(value) {
-  const number = Number(value);
-  return Number.isFinite(number) ? number : 0;
-}
-
-function roundNumber(value, digits = 4) {
-  const factor = 10 ** digits;
-  return Math.round(Number(value) * factor) / factor;
-}
-
-export function renderSystemCapabilityBenchmarkMarkdown(evidence) {
-  const dimensionRows = evidence.dimensions
-    .map((item) => `| ${item.name} | ${item.score} | ${item.maxScore} | ${(item.limitations ?? [])[0] ?? ""} |`)
-    .join("\n");
-  const strengthList = evidence.strengths.map((item) => `- ${item}`).join("\n");
-  const riskList = evidence.risks.map((item) => `- ${item}`).join("\n");
-  const gapList = evidence.gaps.map((item) => `- ${item}`).join("\n");
-  const routeList = evidence.recommendedNextRoutes
-    .map((item) => `- ${item.priority}: ${item.route}. ${item.reason}`)
-    .join("\n");
-
-  return `# Phase 274A Unified System Capability Benchmark
-
-## Benchmark Result
-
-- Status: ${evidence.status}
-- Mode: ${evidence.mode}
-- Total score: ${evidence.scorecard.totalScore} / ${evidence.scorecard.maxScore}
-- Grade: ${evidence.scorecard.grade}
-- Production readiness: ${evidence.scorecard.productionReadiness}
-- Commercial self-use readiness: ${evidence.scorecard.commercialSelfUseReadiness}
-- Paid API safety readiness: ${evidence.scorecard.paidApiSafetyReadiness}
-- Paid API calls made in this benchmark: ${evidence.paidApiCallCount}
-- External API called: ${evidence.externalApiCalled}
-- MiMo API called: ${evidence.mimoApiCalled}
-
-## Headline Metrics
-
-- 270A averageSavingsRatio: ${evidence.headlineMetrics.tokenSavingBenchmarkAverageSavingsRatio}
-- 273A averageSavingsRatio: ${evidence.headlineMetrics.ragSourceSelectionAverageSavingsRatio}
-- RAG required source recall: ${evidence.headlineMetrics.ragRequiredSourceRecall}
-- Latest evidence hit rate: ${evidence.headlineMetrics.latestEvidenceHitRate}
-- Stale source selected count: ${evidence.headlineMetrics.staleSourceSelectedCount}
-- MiMo working model id: ${evidence.headlineMetrics.mimoWorkingModelId}
-- MiMo usage returned: ${evidence.headlineMetrics.mimoUsageReturned}
-- Token estimator confidence: ${evidence.headlineMetrics.tokenEstimatorConfidence}
-- Cache persistence ready: ${evidence.headlineMetrics.cachePersistenceReady}
-- Response cache hit rate: ${evidence.headlineMetrics.responseCacheHitRate ?? "n/a"}
-
-## Dimension Scores
-
-| Dimension | Score | Max | Main limitation |
-| --- | ---: | ---: | --- |
-${dimensionRows}
-
-## Strengths
-
-${strengthList}
-
-## Risks
-
-${riskList}
-
-## Gaps
-
-${gapList}
-
-## Recommended Next Routes
-
-${routeList}
-
-## Safety
-
-- plainTextApiKeyWritten=false
-- apiKeyPrinted=false
-- paidApiCallExecuted=false
-- externalApiCalled=false
-- mimoApiCalled=false
-- defaultNvidiaChatLaneChanged=false
-- mimoSetAsDefault=false
-- longContextSentToPaidApi=false
-- largeOutputRequested=false
-- stressTestExecuted=false
-- codexCliInvoked=false
-- codexExecInvoked=false
-- workflowRunnerEnabled=false
-- worktreeCreated=false
-- autoCommit=false
-- autoPush=false
-`;
-}
+export { renderSystemCapabilityBenchmarkMarkdown };

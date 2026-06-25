@@ -1,6 +1,42 @@
 import { createProviderDescriptor } from "./providerAdapter.js";
 import { createProviderResponse } from "./providerMapping.js";
-import { getOrCreateAgent } from "../http/connectionPool.js";
+import { getOrCreateAgent, fetchWithAgent } from "../http/connectionPool.js";
+import {
+  createProviderError,
+  createErrorDetails,
+  createErrorPrefix,
+  normalizeBaseUrl,
+  isPrivateOrReservedUrl,
+  readJsonResponse,
+  createHttpProviderError,
+  classifyNonStreamError,
+} from "./httpProviderErrorHelpers.js";
+import {
+  scoreResponseQuality,
+  tryPartialToolArgs,
+  validateChatResponse,
+  mapGatewayRequestToChatCompletions,
+  mapChatCompletionsResponseToProviderResponse,
+  readChatCompletionsStream,
+  openStreamWithRetry,
+} from "./httpProviderMapping.js";
+
+// Re-export for backward compatibility
+export { tryPartialToolArgs };
+
+// ── Retry configuration ──
+const DEFAULT_MAX_RETRIES = 3;
+const DEFAULT_RETRY_BASE_DELAY_MS = 2_000;
+const DEFAULT_RETRY_MAX_DELAY_MS = 30_000;
+
+// ── Array size caps ──
+const MAX_QUALITY_SAMPLES = 1000;
+
+// ── Cost Tracking — default token pricing ──
+const DEFAULT_TOKEN_PRICING = Object.freeze({
+  inputPer1k: 0.0025,
+  outputPer1k: 0.01,
+});
 
 export class HttpLLMProviderAdapter {
   constructor(modelConfig, options = {}) {
@@ -8,12 +44,22 @@ export class HttpLLMProviderAdapter {
     this.options = options;
     this.baseUrl = normalizeBaseUrl(modelConfig.endpoint);
     this.errorPrefix = createErrorPrefix(modelConfig.providerId);
+    this._health = {
+      totalRequests: 0, successfulRequests: 0, failedRequests: 0,
+      retriedRequests: 0, totalLatencyMs: 0, errors: {},
+      lastSuccessAt: null, lastFailureAt: null, startedAt: Date.now(),
+    };
+    this._streamState = null;
+    this._qualityScores = [];
+    this._costTracker = {
+      totalInputTokens: 0, totalOutputTokens: 0,
+      estimatedCostUsd: 0, pricingPerRequest: [],
+    };
   }
 
   get descriptor() {
     const apiKey = this.resolveApiKey();
     const baseUrl = this.resolveBaseUrl();
-
     return createProviderDescriptor(this.modelConfig, {
       costTier: "medium",
       latencyTier: "medium",
@@ -36,101 +82,107 @@ export class HttpLLMProviderAdapter {
 
   async generate(providerRequest) {
     if (this.modelConfig.dryRun) {
-      const text = `[dry-run:${providerRequest.target.providerId}/${providerRequest.target.modelId}] real provider adapter reserved`;
-
-      return createProviderResponse({
-        text,
-        message: {
-          role: "assistant",
-          content: text,
-        },
-        usage: {
-          inputTokens: 0,
-          outputTokens: 0,
-          totalTokens: 0,
-        },
-        latencyMs: 0,
-        executionStatus: "dry_run",
-        warnings: [
-          {
-            code: "real_provider_not_connected",
-            message: "HTTP LLM provider adapter is reserved but external API calls are disabled.",
-          },
-        ],
-      });
+      return this._dryRunResponse(providerRequest);
     }
+    return this.withRetry(() => this._generateOnce(providerRequest), providerRequest);
+  }
 
+  async _generateOnce(providerRequest) {
     const startedAt = Date.now();
+    this._health.totalRequests++;
+    const reqStart = Date.now();
 
     this.assertReady(providerRequest);
     const apiKey = this.resolveApiKey();
     const baseUrl = this.resolveBaseUrl();
-
     const payload = mapGatewayRequestToChatCompletions(providerRequest);
     const controller = new AbortController();
     const timeoutMs = this.options.timeoutMs ?? 10_000;
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
-      const response = await fetch(`${baseUrl}/chat/completions`, {
+      if (isPrivateOrReservedUrl(`${baseUrl}/chat/completions`)) {
+        throw createHttpProviderError({
+          response: null, body: null, providerRequest,
+          message: `SSRF blocked: baseUrl resolves to a private or reserved address.`,
+          retryable: false,
+        });
+      }
+
+      const agent = getOrCreateAgent(baseUrl);
+      const response = await fetchWithAgent(`${baseUrl}/chat/completions`, {
         method: "POST",
-        headers: {
-          authorization: `Bearer ${apiKey}`,
-          "content-type": "application/json",
-        },
+        headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
         body: JSON.stringify(payload),
-        signal: controller.signal,
-        agent: getOrCreateAgent(baseUrl),
+        agent,
+        timeout: controller.signal ? undefined : 60_000,
       });
       const body = await readJsonResponse(response);
 
       if (!response.ok) {
         throw createHttpProviderError({
-          response,
-          body,
-          providerRequest,
+          response, body, providerRequest,
           prefix: this.errorPrefix,
           providerName: this.modelConfig.providerDisplayName ?? this.modelConfig.providerId,
         });
       }
 
-      return mapChatCompletionsResponseToProviderResponse(body, {
-        providerRequest,
-        latencyMs: Date.now() - startedAt,
-      });
-    } catch (error) {
-      if (error?.category === "provider") {
-        throw error;
-      }
-
-      if (error?.name === "AbortError") {
+      try {
+        validateChatResponse(body);
+      } catch (validationError) {
         throw createProviderError({
-          code: `${this.errorPrefix}_REQUEST_TIMEOUT`,
-          type: "timeout",
-          message: `${this.modelConfig.providerDisplayName ?? this.modelConfig.providerId} request timed out after ${timeoutMs}ms.`,
-          retryable: true,
-          details: createErrorDetails(providerRequest, {
-            timeoutMs,
-          }),
-        });
-      }
-
-      if (isNetworkError(error)) {
-        throw createProviderError({
-          code: `${this.errorPrefix}_NETWORK_ERROR`,
-          type: "network",
-          message: `${this.modelConfig.providerDisplayName ?? this.modelConfig.providerId} request failed before receiving a response.`,
-          retryable: true,
+          code: `${this.errorPrefix}_MALFORMED_RESPONSE`,
+          type: "malformed",
+          message: validationError.message,
+          retryable: false,
           details: createErrorDetails(providerRequest),
         });
       }
 
-      throw createProviderError({
-        code: `${this.errorPrefix}_UNKNOWN_ERROR`,
-        type: "unknown",
-        message: error instanceof Error ? error.message : "HTTP LLM provider request failed.",
-        retryable: false,
-        details: createErrorDetails(providerRequest),
+      this._health.successfulRequests++;
+      this._health.totalLatencyMs += Date.now() - reqStart;
+      this._health.lastSuccessAt = new Date().toISOString();
+
+      const providerResponse = mapChatCompletionsResponseToProviderResponse(body, {
+        providerRequest, latencyMs: Date.now() - startedAt,
+      });
+
+      // Score response quality
+      const qualityScore = scoreResponseQuality(providerResponse);
+      this._qualityScores.push(qualityScore);
+      if (this._qualityScores.length > MAX_QUALITY_SAMPLES) {
+        this._qualityScores.splice(0, this._qualityScores.length - MAX_QUALITY_SAMPLES);
+      }
+
+      // Accumulate cost tracking
+      const usage = providerResponse?.usage;
+      if (usage) {
+        const inputTokens = usage.inputTokens ?? 0;
+        const outputTokens = usage.outputTokens ?? 0;
+        const pricing = providerRequest?.options?.tokenPricing ?? DEFAULT_TOKEN_PRICING;
+        const requestCost = (inputTokens / 1000 * pricing.inputPer1k) + (outputTokens / 1000 * pricing.outputPer1k);
+        this._costTracker.totalInputTokens += inputTokens;
+        this._costTracker.totalOutputTokens += outputTokens;
+        this._costTracker.estimatedCostUsd += requestCost;
+        this._costTracker.pricingPerRequest.push({
+          inputTokens, outputTokens, costUsd: requestCost, pricing: { ...pricing },
+        });
+        if (this._costTracker.pricingPerRequest.length > MAX_QUALITY_SAMPLES) {
+          this._costTracker.pricingPerRequest.splice(0, this._costTracker.pricingPerRequest.length - MAX_QUALITY_SAMPLES);
+        }
+      }
+
+      return providerResponse;
+    } catch (error) {
+      this._health.failedRequests++;
+      this._health.lastFailureAt = new Date().toISOString();
+      const errCode = error?.code || "UNKNOWN";
+      this._health.errors[errCode] = (this._health.errors[errCode] || 0) + 1;
+      classifyNonStreamError(error, {
+        errorPrefix: this.errorPrefix,
+        providerName: this.modelConfig.providerDisplayName ?? this.modelConfig.providerId,
+        providerRequest,
+        timeoutMs,
       });
     } finally {
       clearTimeout(timeoutId);
@@ -140,89 +192,113 @@ export class HttpLLMProviderAdapter {
   async *generateStream(providerRequest) {
     if (this.modelConfig.dryRun) {
       const text = `[dry-run:${providerRequest.target.providerId}/${providerRequest.target.modelId}] streaming provider adapter reserved`;
-
-      yield {
-        textDelta: text,
-        raw: {
-          dryRun: true,
-        },
-      };
+      yield { textDelta: text, raw: { dryRun: true } };
       return;
     }
 
     this.assertReady(providerRequest);
     const apiKey = this.resolveApiKey();
     const baseUrl = this.resolveBaseUrl();
+    const cfg = this.resolveRetryConfig();
+    const providerName = this.modelConfig.providerDisplayName ?? this.modelConfig.providerId;
+    const timeoutMs = this.options.timeoutMs ?? 10_000;
 
     const payload = {
       ...mapGatewayRequestToChatCompletions(providerRequest),
       stream: true,
     };
-    const controller = new AbortController();
-    const timeoutMs = this.options.timeoutMs ?? 10_000;
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    const response = await openStreamWithRetry({
+      baseUrl, apiKey, payload, providerRequest,
+      errorPrefix: this.errorPrefix,
+      providerName,
+      timeoutMs,
+      maxRetries: cfg.maxRetries,
+      retryDelay: (attempt, error) => this._retryDelay(attempt, cfg, error),
+    });
+
+    // ── Stream phase: no retry once chunks start flowing ──
+    this._streamState = {
+      chunksReceived: 0, textLength: 0, toolCallsPartial: [],
+      startedAt: Date.now(), interrupted: false, partialToolArgs: [],
+    };
 
     try {
-      const response = await fetch(`${baseUrl}/chat/completions`, {
-        method: "POST",
-        headers: {
-          authorization: `Bearer ${apiKey}`,
-          "content-type": "application/json",
-        },
-        body: JSON.stringify(payload),
-        signal: controller.signal,
-      });
-
-      if (!response.ok) {
-        throw createHttpProviderError({
-          response,
-          body: await readJsonResponse(response),
-          providerRequest,
-          prefix: this.errorPrefix,
-          providerName: this.modelConfig.providerDisplayName ?? this.modelConfig.providerId,
-        });
-      }
-
       for await (const chunk of readChatCompletionsStream(response, providerRequest)) {
+        if (this._streamState) {
+          this._streamState.chunksReceived++;
+          if (chunk.textDelta) {
+            this._streamState.textLength += chunk.textDelta.length;
+          }
+          if (chunk.raw?.toolCallArgs && this._streamState.toolCallsPartial.length > 0) {
+            const idx = chunk.raw.toolCallIndex ?? 0;
+            const accumulated = this._streamState.toolCallsPartial[idx] ?? "";
+            const partial = tryPartialToolArgs(accumulated);
+            if (partial) {
+              this._streamState.partialToolArgs[idx] = partial;
+            }
+          }
+        }
         yield chunk;
       }
-    } catch (error) {
-      if (error?.category === "provider") {
-        throw error;
+    } catch (streamError) {
+      if (this._streamState) {
+        this._streamState.interrupted = true;
+        this._streamState.interruptedAt = new Date().toISOString();
       }
-
-      if (error?.name === "AbortError") {
-        throw createProviderError({
-          code: `${this.errorPrefix}_REQUEST_TIMEOUT`,
-          type: "timeout",
-          message: `${this.modelConfig.providerDisplayName ?? this.modelConfig.providerId} request timed out after ${timeoutMs}ms.`,
-          retryable: true,
-          details: createErrorDetails(providerRequest, {
-            timeoutMs,
-          }),
-        });
-      }
-
-      if (isNetworkError(error)) {
-        throw createProviderError({
-          code: `${this.errorPrefix}_NETWORK_ERROR`,
-          type: "network",
-          message: `${this.modelConfig.providerDisplayName ?? this.modelConfig.providerId} request failed before receiving a response.`,
-          retryable: true,
-          details: createErrorDetails(providerRequest),
-        });
-      }
-
-      throw createProviderError({
-        code: `${this.errorPrefix}_UNKNOWN_ERROR`,
-        type: "unknown",
-        message: error instanceof Error ? error.message : "HTTP LLM provider stream failed.",
-        retryable: false,
-        details: createErrorDetails(providerRequest),
-      });
-    } finally {
-      clearTimeout(timeoutId);
+      throw streamError;
     }
+  }
+
+  async _retryDelay(attempt, cfg, error) {
+    this._health.retriedRequests++;
+    const delay = Math.min(cfg.baseDelayMs * Math.pow(2, attempt - 1), cfg.maxDelayMs);
+    const jitter = delay * (0.8 + Math.random() * 0.4);
+    const waitMs = Math.round(jitter);
+    const providerName = this.modelConfig.providerDisplayName ?? this.modelConfig.providerId;
+    console.log(
+      `  [retry] ${providerName} stream failed (attempt ${attempt}/${cfg.maxRetries}): ` +
+      `${error?.code ?? error?.message}. Retrying in ${waitMs}ms...`
+    );
+    await new Promise((resolve) => setTimeout(resolve, waitMs));
+  }
+
+  _dryRunResponse(providerRequest) {
+    const text = `[dry-run:${providerRequest.target.providerId}/${providerRequest.target.modelId}] real provider adapter reserved`;
+    return createProviderResponse({
+      text,
+      message: { role: "assistant", content: text },
+      usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+      latencyMs: 0,
+      executionStatus: "dry_run",
+      warnings: [{
+        code: "real_provider_not_connected",
+        message: "HTTP LLM provider adapter is reserved but external API calls are disabled.",
+      }],
+    });
+  }
+
+  async withRetry(fn, providerRequest) {
+    const cfg = this.resolveRetryConfig();
+    let lastError;
+    for (let attempt = 1; attempt <= cfg.maxRetries; attempt++) {
+      try {
+        return await fn();
+      } catch (error) {
+        if (!error?.retryable || attempt >= cfg.maxRetries) throw error;
+        await this._retryDelay(attempt, cfg, error);
+        lastError = error;
+      }
+    }
+    throw lastError;
+  }
+
+  resolveRetryConfig() {
+    return {
+      maxRetries: this.options.maxRetries ?? DEFAULT_MAX_RETRIES,
+      baseDelayMs: this.options.retryBaseDelayMs ?? DEFAULT_RETRY_BASE_DELAY_MS,
+      maxDelayMs: this.options.retryMaxDelayMs ?? DEFAULT_RETRY_MAX_DELAY_MS,
+    };
   }
 
   assertReady(providerRequest) {
@@ -232,21 +308,16 @@ export class HttpLLMProviderAdapter {
         type: "configuration",
         message: `${this.modelConfig.providerDisplayName ?? this.modelConfig.providerId} API key is not configured.`,
         retryable: false,
-        details: createErrorDetails(providerRequest, {
-          apiKeyPresent: false,
-        }),
+        details: createErrorDetails(providerRequest, { apiKey_present: false }),
       });
     }
-
     if (!this.resolveBaseUrl()) {
       throw createProviderError({
         code: `${this.errorPrefix}_ENDPOINT_MISSING`,
         type: "configuration",
         message: `${this.modelConfig.providerDisplayName ?? this.modelConfig.providerId} endpoint is not configured.`,
         retryable: false,
-        details: createErrorDetails(providerRequest, {
-          endpointConfigured: false,
-        }),
+        details: createErrorDetails(providerRequest, { endpointConfigured: false }),
       });
     }
   }
@@ -258,244 +329,83 @@ export class HttpLLMProviderAdapter {
   resolveBaseUrl() {
     return this.options.runtimeCredentialStore?.getEndpoint(this.modelConfig.providerId) || this.baseUrl || "";
   }
+
+  async warmConnection() {
+    const baseUrl = this.resolveBaseUrl();
+    if (!baseUrl) return { warmed: false, error: "No base URL configured" };
+    const startMs = Date.now();
+    try {
+      const agent = getOrCreateAgent(baseUrl);
+      await fetchWithAgent(`${baseUrl}/models`, { method: "HEAD", agent, timeout: 5000 });
+      return { warmed: true, latencyMs: Date.now() - startMs };
+    } catch (err) {
+      return { warmed: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  }
+
+  get health() {
+    const h = this._health;
+    return {
+      providerId: this.modelConfig.providerId,
+      modelId: this.modelConfig.modelId,
+      totalRequests: h.totalRequests,
+      successfulRequests: h.successfulRequests,
+      failedRequests: h.failedRequests,
+      retriedRequests: h.retriedRequests,
+      successRate: h.totalRequests > 0 ? h.successfulRequests / h.totalRequests : null,
+      averageLatencyMs: h.successfulRequests > 0 ? Math.round(h.totalLatencyMs / h.successfulRequests) : null,
+      errorDistribution: { ...h.errors },
+      lastSuccessAt: h.lastSuccessAt,
+      lastFailureAt: h.lastFailureAt,
+      uptimeMs: Date.now() - h.startedAt,
+    };
+  }
+
+  resetHealth() {
+    this._health = {
+      totalRequests: 0, successfulRequests: 0, failedRequests: 0,
+      retriedRequests: 0, totalLatencyMs: 0, errors: {},
+      lastSuccessAt: null, lastFailureAt: null, startedAt: Date.now(),
+    };
+  }
+
+  get streamState() {
+    return this._streamState ? { ...this._streamState } : null;
+  }
+
+  get qualityStats() {
+    const scores = this._qualityScores;
+    if (scores.length === 0) {
+      return { averageScore: null, minScore: null, maxScore: null, sampleSize: 0 };
+    }
+    const sum = scores.reduce((a, b) => a + b, 0);
+    return {
+      averageScore: Math.round((sum / scores.length) * 1000) / 1000,
+      minScore: Math.min(...scores),
+      maxScore: Math.max(...scores),
+      sampleSize: scores.length,
+    };
+  }
+
+  resetQuality() { this._qualityScores = []; }
+
+  get costSummary() {
+    return {
+      totalInputTokens: this._costTracker.totalInputTokens,
+      totalOutputTokens: this._costTracker.totalOutputTokens,
+      estimatedCostUsd: Math.round(this._costTracker.estimatedCostUsd * 1_000_000) / 1_000_000,
+      requestCount: this._costTracker.pricingPerRequest.length,
+    };
+  }
+
+  resetCost() {
+    this._costTracker = {
+      totalInputTokens: 0, totalOutputTokens: 0,
+      estimatedCostUsd: 0, pricingPerRequest: [],
+    };
+  }
 }
 
 export function createHttpLLMProviderAdapter(modelConfig, options = {}) {
   return new HttpLLMProviderAdapter(modelConfig, options);
-}
-
-function mapGatewayRequestToChatCompletions(providerRequest) {
-  const { request, target } = providerRequest;
-  const maxOutputTokens = request.options?.maxOutputTokens;
-  const body = {
-    model: target.modelId,
-    messages: request.messages
-      .filter((message) => message.role === "system" || message.role === "user" || message.role === "assistant")
-      .map((message) => ({
-        role: message.role,
-        content: message.content,
-      })),
-    temperature: request.options?.temperature,
-    max_tokens: maxOutputTokens,
-    stream: false,
-  };
-
-  if (target.providerId === "mimo") {
-    body.max_completion_tokens = maxOutputTokens;
-    body.thinking = {
-      type: "disabled",
-    };
-  }
-
-  return body;
-}
-
-function mapChatCompletionsResponseToProviderResponse(body, { providerRequest, latencyMs }) {
-  const content = body?.choices?.[0]?.message?.content ?? "";
-  const text = content || `[${providerRequest.target.providerId}:${providerRequest.target.modelId}] empty response`;
-
-  return createProviderResponse({
-    text,
-    message: {
-      role: "assistant",
-      content: text,
-    },
-    usage: {
-      inputTokens: body?.usage?.prompt_tokens ?? 0,
-      outputTokens: body?.usage?.completion_tokens ?? 0,
-      totalTokens: body?.usage?.total_tokens ?? 0,
-    },
-    latencyMs,
-    executionStatus: "success",
-    raw: {
-      id: body?.id,
-      model: body?.model,
-      finishReason: body?.choices?.[0]?.finish_reason,
-    },
-  });
-}
-
-async function* readChatCompletionsStream(response, providerRequest) {
-  if (!response.body) {
-    throw createProviderError({
-      code: `${createErrorPrefix(providerRequest.target.providerId)}_STREAM_BODY_MISSING`,
-      type: "http",
-      message: "HTTP LLM provider returned no stream body.",
-      retryable: false,
-      details: createErrorDetails(providerRequest),
-    });
-  }
-
-  const decoder = new TextDecoder();
-  let buffer = "";
-
-  for await (const chunk of response.body) {
-    buffer += decoder.decode(chunk, { stream: true });
-    const lines = buffer.split(/\r?\n/);
-    buffer = lines.pop() ?? "";
-
-    for (const line of lines) {
-      const parsed = parseStreamLine(line);
-
-      if (parsed === "done") {
-        return;
-      }
-
-      if (parsed?.textDelta) {
-        yield parsed;
-      }
-    }
-  }
-
-  const remaining = parseStreamLine(buffer);
-
-  if (remaining?.textDelta) {
-    yield remaining;
-  }
-}
-
-function parseStreamLine(line) {
-  const trimmed = line.trim();
-
-  if (!trimmed || !trimmed.startsWith("data:")) {
-    return null;
-  }
-
-  const data = trimmed.slice("data:".length).trim();
-
-  if (data === "[DONE]") {
-    return "done";
-  }
-
-  try {
-    const parsed = JSON.parse(data);
-    const textDelta = parsed?.choices?.[0]?.delta?.content ?? "";
-
-    if (!textDelta) {
-      return null;
-    }
-
-    return {
-      textDelta,
-      raw: {
-        id: parsed?.id,
-        model: parsed?.model,
-        finishReason: parsed?.choices?.[0]?.finish_reason,
-      },
-    };
-  } catch {
-    return null;
-  }
-}
-
-function createHttpProviderError({ response, body, providerRequest, prefix, providerName }) {
-  const statusDescriptor = describeHttpErrorStatus(response.status, prefix, providerName);
-
-  return createProviderError({
-    code: statusDescriptor.code,
-    type: statusDescriptor.type,
-    message: extractProviderErrorMessage(body, response.status, statusDescriptor.message),
-    retryable: statusDescriptor.retryable,
-    details: createErrorDetails(providerRequest, {
-      statusCode: response.status,
-      errorType: body?.error?.type,
-      errorCode: body?.error?.code,
-    }),
-  });
-}
-
-function describeHttpErrorStatus(statusCode, prefix, providerName) {
-  const name = providerName || "HTTP LLM provider";
-  if (statusCode === 401) {
-    return {
-      code: `${prefix}_UNAUTHORIZED`,
-      type: "authentication",
-      message: `${name} rejected the request with HTTP 401. Check the provider-specific API key, base URL, and model access.`,
-      retryable: false,
-    };
-  }
-
-  if (statusCode === 403) {
-    return {
-      code: `${prefix}_FORBIDDEN`,
-      type: "authorization",
-      message: `${name} rejected the request with HTTP 403. Check account permissions, subscription scope, and model access.`,
-      retryable: false,
-    };
-  }
-
-  if (statusCode === 429) {
-    return {
-      code: `${prefix}_RATE_LIMIT`,
-      type: "rate_limit",
-      message: `${name} rejected the request with HTTP 429. The provider rate limit or quota was reached; retry later or use another model.`,
-      retryable: true,
-    };
-  }
-
-  return {
-    code: `${prefix}_HTTP_ERROR`,
-    type: "http",
-    message: `${name} request failed with HTTP ${statusCode}.`,
-    retryable: statusCode >= 500,
-  };
-}
-
-function createProviderError({ code, type, message, retryable, details }) {
-  const error = new Error(message);
-  error.code = code;
-  error.type = type;
-  error.category = "provider";
-  error.retryable = retryable;
-  error.details = details;
-  return error;
-}
-
-function createErrorDetails(providerRequest, extra = {}) {
-  return {
-    providerId: providerRequest.target.providerId,
-    modelId: providerRequest.target.modelId,
-    ...extra,
-  };
-}
-
-async function readJsonResponse(response) {
-  const text = await response.text();
-  if (!text) {
-    return {};
-  }
-
-  try {
-    return JSON.parse(text);
-  } catch {
-    return { rawText: text };
-  }
-}
-
-function extractProviderErrorMessage(body, statusCode, fallbackMessage) {
-  return body?.error?.message ?? body?.rawText ?? fallbackMessage ?? `HTTP LLM provider request failed with HTTP ${statusCode}`;
-}
-
-function isNetworkError(error) {
-  return (
-    error instanceof TypeError ||
-    error?.code === "ECONNRESET" ||
-    error?.code === "ENOTFOUND" ||
-    error?.code === "EAI_AGAIN"
-  );
-}
-
-function normalizeBaseUrl(baseUrl) {
-  if (!baseUrl) {
-    return "";
-  }
-
-  return String(baseUrl).replace(/\/+$/, "");
-}
-
-function createErrorPrefix(providerId) {
-  return String(providerId ?? "HTTP_LLM")
-    .replace(/[^a-zA-Z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "")
-    .toUpperCase();
 }

@@ -1,10 +1,12 @@
 import { mkdir, writeFile } from "node:fs/promises";
+import { writeEvidencePair } from "./entrypointUtils.js";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
 import { createConsolePage } from "../ui/consolePage.js";
+import { listen, postJson, close } from "./entrypointUtils.js";
 
 const PHASE = "phase-76o-web-chat-api-key-auto-match";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -117,7 +119,7 @@ try {
     },
     conclusion: passed ? "web-chat-api-key-auto-match-connected" : "web-chat-api-key-auto-match-not-connected",
   };
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = passed ? 0 : 1;
 } catch (error) {
@@ -128,7 +130,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "web-chat-api-key-auto-match-not-connected",
   };
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -150,21 +152,6 @@ function verifyConsolePageIncludesAutoMatch() {
   };
 }
 
-async function postJson(url, body) {
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-    },
-    body: JSON.stringify(body),
-  });
-  const text = await response.text();
-  return {
-    ok: response.ok,
-    httpStatus: response.status,
-    payload: text ? JSON.parse(text) : {},
-  };
-}
 
 async function getJson(url) {
   const response = await fetch(url);
@@ -176,48 +163,3 @@ async function getJson(url) {
   };
 }
 
-function listen(targetServer, port, host) {
-  return new Promise((resolveListen, rejectListen) => {
-    targetServer.once("error", rejectListen);
-    targetServer.listen(port, host, () => {
-      targetServer.off("error", rejectListen);
-      resolveListen();
-    });
-  });
-}
-
-function close(targetServer) {
-  return new Promise((resolveClose) => targetServer.close(() => resolveClose()));
-}
-
-async function writeEvidence(body) {
-  await mkdir(evidenceDir, { recursive: true });
-  await writeFile(evidenceJsonPath, `${JSON.stringify(body, null, 2)}\n`, "utf8");
-  await writeFile(evidenceMdPath, createEvidenceMarkdown(body), "utf8");
-}
-
-function createEvidenceMarkdown(body) {
-  return `# Phase 76O Web Chat API Key Auto Match Evidence
-
-- Phase: ${body.phase}
-- Status: ${body.status}
-- Generated at: ${body.generatedAt}
-- Service URL: ${body.serviceUrl ?? "n/a"}
-- UI auto-detect action present: ${body.htmlInspection?.autoDetectButtonPresent}
-- Detect route present in UI: ${body.htmlInspection?.detectRoutePresent}
-- Recommended provider/model: ${body.detection?.recommended?.value ?? "n/a"}
-- Selectable model count: ${body.detection?.selectableModelCount ?? "n/a"}
-- Selected runtime model: ${body.detection?.selectedModelId ?? "n/a"}
-- Detection secret storage: ${body.detection?.secretStorage ?? "n/a"}
-- Runtime credential provider: ${body.credential?.providerId ?? "n/a"}
-- Runtime credential storage: ${body.credential?.secretStorage ?? "n/a"}
-- Runtime model count: ${body.credential?.runtimeModelCount ?? "n/a"}
-- Chat selected provider: ${body.chat?.selectedProvider ?? "n/a"}
-- Chat selected model: ${body.chat?.selectedModel ?? "n/a"}
-- API key value recorded: ${body.safety?.apiKeyValueRecorded}
-- API key persisted: ${body.safety?.apiKeyPersisted}
-- Detection stores secret: ${body.safety?.detectionStoresSecret}
-- Default chat main lane changed: ${body.safety?.defaultChatMainLaneChanged}
-- Conclusion: ${body.conclusion}
-`;
-}

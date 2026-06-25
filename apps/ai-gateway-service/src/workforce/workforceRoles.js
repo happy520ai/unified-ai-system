@@ -49,6 +49,27 @@ export function listWorkforceRoles() {
   return WORKFORCE_ROLES.map((role) => ({ ...role }));
 }
 
+export function getRoleById(roleId) {
+  const id = String(roleId || "").trim().toLowerCase();
+  return WORKFORCE_ROLES.find((r) => String(r.roleId).toLowerCase() === id) || null;
+}
+
+export function getRoleCapabilities(roleId) {
+  const role = getRoleById(roleId);
+  if (!role) return [];
+  // Map each role to a concise capability string list used to enrich LLM prompts.
+  const CAPABILITY_MAP = {
+    ceo: ["goal_clarification", "stakeholder_analysis", "okr_definition", "decision_boundary"],
+    pm: ["scope_definition", "milestone_planning", "acceptance_criteria", "user_value"],
+    architect: ["system_design", "integration_points", "data_flow", "rollback_boundary"],
+    "frontend-engineer": ["ui_surface", "state_management", "error_handling", "usability"],
+    "backend-engineer": ["api_design", "service_implementation", "validation", "persistence"],
+    qa: ["test_strategy", "regression_coverage", "acceptance_verification", "evidence_capture"],
+    reviewer: ["risk_assessment", "safety_review", "abuse_path_analysis", "release_blockers"],
+  };
+  return CAPABILITY_MAP[role.roleId] || [];
+}
+
 
 
 

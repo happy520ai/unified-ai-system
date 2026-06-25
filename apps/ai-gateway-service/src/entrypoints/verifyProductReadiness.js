@@ -1,8 +1,10 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { writeEvidencePair } from "./entrypointUtils.js";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
+import { fetchJson, fetchText, listen, close, postJson } from "./entrypointUtils.js";
 
 const PHASE = "phase-103a-product-readiness";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -62,7 +64,7 @@ try {
     readme,
     agents,
   });
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = evidence.status === "passed" ? 0 : 1;
 } catch (error) {
@@ -73,7 +75,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "product-readiness-not-closed",
   };
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -182,74 +184,3 @@ function sanitizeForEvidence(value) {
   return output;
 }
 
-async function fetchText(url) {
-  const response = await fetch(url);
-  return {
-    httpStatus: response.status,
-    text: await response.text(),
-  };
-}
-
-async function fetchJson(url) {
-  const response = await fetch(url);
-  const text = await response.text();
-  return {
-    httpStatus: response.status,
-    body: text ? JSON.parse(text) : {},
-  };
-}
-
-async function postJson(url, body) {
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  const text = await response.text();
-  return {
-    httpStatus: response.status,
-    body: text ? JSON.parse(text) : {},
-  };
-}
-
-function listen(server, port, host) {
-  return new Promise((resolveListen, rejectListen) => {
-    server.once("error", rejectListen);
-    server.listen(port, host, () => {
-      server.off("error", rejectListen);
-      resolveListen();
-    });
-  });
-}
-
-function close(server) {
-  return new Promise((resolveClose) => server.close(() => resolveClose()));
-}
-
-async function writeEvidence(body) {
-  await mkdir(evidenceDir, { recursive: true });
-  await writeFile(evidenceJsonPath, `${JSON.stringify(body, null, 2)}\n`, "utf8");
-  await writeFile(evidenceMdPath, createEvidenceMarkdown(body), "utf8");
-}
-
-function createEvidenceMarkdown(body) {
-  return `# Phase 103A Product Readiness Evidence
-
-- Phase: ${body.phase}
-- Status: ${body.status}
-- Generated at: ${body.generatedAt}
-- UI product marker: ${body.checks?.uiProductReadinessMarker}
-- UI core module descriptions: ${body.checks?.uiCoreModulesReadable}
-- Provider catalog count: ${body.modelImport?.providerCatalogCount}
-- Unknown key status: ${body.modelImport?.unknownStatus}
-- Masked key status: ${body.modelImport?.maskedStatus}
-- Failure guidance present: ${body.modelImport?.failureGuidancePresent}
-- Workforce agent count: ${body.workforce?.agentCount}
-- Workforce preview-only: ${body.workforce?.previewOnly}
-- Root/service scripts present: ${body.checks?.scriptsPresent}
-- Plaintext API key recorded: ${body.safety?.plaintextApiKeyRecorded}
-- Unsupported key type returned: ${body.safety?.unsupportedKeyTypeReturned}
-- Default chat main lane changed: ${body.safety?.defaultChatMainLaneChanged}
-- Conclusion: ${body.conclusion}
-`;
-}

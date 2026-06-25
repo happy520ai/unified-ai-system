@@ -1,8 +1,10 @@
 import { mkdir, writeFile } from "node:fs/promises";
+import { writeEvidencePair } from "./entrypointUtils.js";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
+import { fetchJson, fetchText, listen, close } from "./entrypointUtils.js";
 
 const PHASE = "phase-31a-experience-capabilities";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -133,7 +135,7 @@ try {
     workflow,
     conclusion: passed ? "experience-capabilities-connected" : "experience-capabilities-not-connected",
   });
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = passed ? 0 : 1;
 } catch (error) {
@@ -144,7 +146,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "experience-capabilities-not-connected",
   });
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -180,48 +182,6 @@ function isExperienceConnected({ ui, dashboard, providers, auth, load, streamEve
     score?.body?.data?.passed === true &&
     workflow?.body?.data?.status === "completed"
   );
-}
-
-function listen(targetServer, port, host) {
-  return new Promise((resolveListen, rejectListen) => {
-    targetServer.once("error", rejectListen);
-    targetServer.listen(port, host, () => {
-      targetServer.off("error", rejectListen);
-      resolveListen();
-    });
-  });
-}
-
-function close(targetServer) {
-  return new Promise((resolveClose) => {
-    targetServer.close(() => resolveClose());
-  });
-}
-
-async function fetchText(url) {
-  const response = await fetch(url);
-  const text = await response.text();
-  return {
-    httpStatus: response.status,
-    contentType: response.headers.get("content-type"),
-    text,
-  };
-}
-
-async function fetchJson(url, options = {}) {
-  const response = await fetch(url, {
-    method: options.method ?? "GET",
-    headers: {
-      "content-type": "application/json",
-      ...(options.headers ?? {}),
-    },
-    body: options.body === undefined ? undefined : JSON.stringify(options.body),
-  });
-  const text = await response.text();
-  return {
-    httpStatus: response.status,
-    body: text ? JSON.parse(text) : {},
-  };
 }
 
 async function collectSse(url, body) {
@@ -348,45 +308,3 @@ function createEvidence({
   };
 }
 
-async function writeEvidence(body) {
-  await mkdir(evidenceDir, { recursive: true });
-  await writeFile(evidenceJsonPath, `${JSON.stringify(body, null, 2)}\n`, "utf8");
-  await writeFile(evidenceMdPath, createEvidenceMarkdown(body), "utf8");
-}
-
-function createEvidenceMarkdown(body) {
-  return `# Phase 31A Experience Capabilities Evidence
-
-- Phase: ${body.phase}
-- Status: ${body.status}
-- Generated at: ${body.generatedAt}
-- Service URL: ${body.serviceUrl ?? "n/a"}
-- UI HTTP status: ${body.ui?.httpStatus ?? "n/a"}
-- Streaming marker: ${body.ui?.streamingMarker}
-- Dashboard marker: ${body.ui?.dashboardMarker}
-- Memory marker: ${body.ui?.memoryMarker}
-- Connector marker: ${body.ui?.connectorMarker}
-- Evaluation marker: ${body.ui?.evaluationMarker}
-- Graph marker: ${body.ui?.graphMarker}
-- Dashboard streaming chat: ${body.dashboard?.streamingChat}
-- Dashboard fallback execution: ${body.dashboard?.fallbackExecution}
-- Dashboard long-term memory: ${body.dashboard?.longTermMemory}
-- Dashboard query GraphRAG: ${body.dashboard?.queryGraphRag}
-- Provider count: ${body.providers?.count ?? "n/a"}
-- Fallback enabled: ${body.providers?.fallbackEnabled}
-- Auth enabled: ${body.auth?.enabled}
-- Tenant mode: ${body.auth?.tenantMode ?? "n/a"}
-- Knowledge loaded count: ${body.knowledge?.loadedCount ?? "n/a"}
-- Stream done: ${body.streaming?.done}
-- Stream selected provider: ${body.streaming?.selectedProvider ?? "n/a"}
-- Memory document count: ${body.memory?.documentCount ?? "n/a"}
-- Connector status: ${body.connector?.status ?? "n/a"}
-- Graph nodes: ${body.graph?.nodeCount ?? "n/a"}
-- Graph edges: ${body.graph?.edgeCount ?? "n/a"}
-- Evaluation score: ${body.evaluation?.score ?? "n/a"}
-- Evaluation passed: ${body.evaluation?.passed}
-- Workflow status: ${body.workflow?.status ?? "n/a"}
-- Workflow artifact: ${body.workflow?.artifact ?? "n/a"}
-- Conclusion: ${body.conclusion}
-`;
-}

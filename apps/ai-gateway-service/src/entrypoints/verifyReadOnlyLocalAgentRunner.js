@@ -12,6 +12,7 @@ import {
   BLOCKED_TASK_ACTIONS,
   READ_ONLY_LOCAL_AGENT_TASK_SCHEMA,
 } from "../agent-runner/localAgentTaskSchema.js";
+import { readJson } from "./entrypointUtils.js"
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "../../../..");
@@ -66,9 +67,6 @@ function fail(message) {
   process.exit(1);
 }
 
-function readJson(filePath) {
-  return JSON.parse(readFileSync(filePath, "utf8"));
-}
 
 for (const requiredPath of [
   docsPath,

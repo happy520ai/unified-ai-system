@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { readJson, readText } from "./entrypointUtils.js"
 
 const repoRoot = resolve(fileURLToPath(new URL("../../../..", import.meta.url)));
 const scriptName = "verify:phase306c-readme-agents-auto-sync-guard";
@@ -159,13 +160,7 @@ async function main() {
   }, null, 2));
 }
 
-async function readText(relativePath) {
-  return String(await readFile(resolve(repoRoot, relativePath), "utf8")).replace(/\r\n/g, "\n");
-}
 
-async function readJson(relativePath) {
-  return JSON.parse(await readText(relativePath));
-}
 
 function extractBlock(text, blockName) {
   const startMarker = `<!-- BEGIN ${blockName} -->`;

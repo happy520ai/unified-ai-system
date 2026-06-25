@@ -1,4 +1,5 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { writeEvidencePair } from "./entrypointUtils.js";
 import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
@@ -6,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
 import { findPlainSecretFindings } from "../security/secretSafety.js";
+import { fetchJson, fetchText, listen, close, postJson } from "./entrypointUtils.js";
 
 const phase = "phase-144a-execution-readiness-preflight";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -234,7 +236,7 @@ try {
     conclusion: passed ? "execution-readiness-preflight-preview-closed" : "execution-readiness-preflight-preview-not-closed",
   };
 
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = passed ? 0 : 1;
 } catch (error) {
@@ -245,7 +247,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "execution-readiness-preflight-preview-not-closed",
   };
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -254,90 +256,7 @@ try {
   }
 }
 
-function listen(targetServer, port, host) {
-  return new Promise((resolveListen, rejectListen) => {
-    targetServer.once("error", rejectListen);
-    targetServer.listen(port, host, () => {
-      targetServer.off("error", rejectListen);
-      resolveListen();
-    });
-  });
-}
-
-function close(targetServer) {
-  return new Promise((resolveClose) => {
-    targetServer.close(() => resolveClose());
-  });
-}
-
 async function readRequired(relativePath) {
   return readFile(resolve(repoRoot, relativePath), "utf8");
 }
 
-async function fetchText(url) {
-  const response = await fetch(url);
-  return {
-    httpStatus: response.status,
-    text: await response.text(),
-  };
-}
-
-async function fetchJson(url) {
-  const response = await fetch(url);
-  const text = await response.text();
-  return {
-    httpStatus: response.status,
-    body: text ? JSON.parse(text) : {},
-  };
-}
-
-async function postJson(url, body) {
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  const text = await response.text();
-  return {
-    httpStatus: response.status,
-    body: text ? JSON.parse(text) : {},
-  };
-}
-
-async function writeEvidence(body) {
-  await mkdir(evidenceDir, { recursive: true });
-  await writeFile(evidenceJsonPath, `${JSON.stringify(body, null, 2)}\n`, "utf8");
-  await writeFile(evidenceMdPath, createEvidenceMarkdown(body), "utf8");
-}
-
-function createEvidenceMarkdown(body) {
-  return `# Phase 144A Execution Readiness Preflight Evidence
-
-- Phase: ${body.phase}
-- Status: ${body.status}
-- Generated at: ${body.generatedAt}
-- Service URL: ${body.serviceUrl ?? "n/a"}
-- Plan ID: ${body.workforce?.planId ?? "n/a"}
-- Workforce ID: ${body.workforce?.workforceId ?? "n/a"}
-- Overall status: ${body.workforce?.overallStatus ?? "n/a"}
-- Execution enabled: ${body.workforce?.executionEnabled ?? false}
-- Check count: ${body.workforce?.checkCount ?? "n/a"}
-- Blocked reason count: ${body.workforce?.blockedReasonCount ?? "n/a"}
-- Approval decision: ${body.workforce?.approvalDecision ?? "n/a"}
-- Approval grants execution: ${body.workforce?.approvalGrantsExecution ?? false}
-- Git workspace inspection: ${body.safety?.gitWorkspaceInspection ?? false}
-- Code execution: ${body.safety?.codeExecution ?? false}
-- Project file writes: ${body.safety?.projectFileWrites ?? false}
-- Workflow run: ${body.safety?.workflowRun ?? false}
-- Creates worktrees: ${body.safety?.createsWorktrees ?? false}
-- Runs oh-my-codex: ${body.safety?.runsOhMyCodex ?? false}
-- Plain secret findings: ${body.secretFindingCount ?? "n/a"}
-- Conclusion: ${body.conclusion}
-
-## Checks
-
-${Object.entries(body.checks ?? {})
-  .map(([name, value]) => `- ${name}: ${value ? "passed" : "failed"}`)
-  .join("\n")}
-`;
-}

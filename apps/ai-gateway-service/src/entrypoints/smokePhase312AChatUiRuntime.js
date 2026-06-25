@@ -4,7 +4,8 @@ import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
-import { createGatewayHttpServer } from "../http/httpServer.js";
+import { createGatewayHttpServer } from "../http/httpServer.js";import { listen } from "./entrypointUtils.js"
+
 
 const repoRoot = resolve(fileURLToPath(new URL("../../../..", import.meta.url)));
 const evidenceJsonPath = resolve(repoRoot, "apps/ai-gateway-service/evidence/phase-312a-chat-ui-runtime.json");
@@ -147,16 +148,6 @@ if (evidence.status !== "pass") {
     oldSpaMarkersRequired: evidence.oldSpaMarkersRequired,
     providerCalledInDryRun: evidence.providerCalledInDryRun,
   }, null, 2));
-}
-
-function listen(targetServer) {
-  return new Promise((resolveListen, reject) => {
-    targetServer.once("error", reject);
-    targetServer.listen(0, "127.0.0.1", () => {
-      const address = targetServer.address();
-      resolveListen(`http://127.0.0.1:${address.port}`);
-    });
-  });
 }
 
 function closeServer(targetServer) {

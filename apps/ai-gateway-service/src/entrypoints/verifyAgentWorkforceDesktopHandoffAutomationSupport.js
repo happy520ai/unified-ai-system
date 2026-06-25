@@ -15,6 +15,7 @@ import {
   repoRoot,
   writeEvidence,
 } from "./verifyAgentWorkforceClosureSupport.js";
+import { fetchJson } from "./entrypointUtils.js";
 
 const execFileAsync = promisify(execFile);
 const scriptPath = "tools/agent-workforce/pull-codex-handoff.ps1";
@@ -299,20 +300,6 @@ async function runClipboardRealTrial() {
     clipboardContainsRequiredSections: requiredMarkers.every((marker) => clipboard.includes(marker)),
     worktreeListUnchanged: beforeWorktrees === afterWorktrees,
     businessStatusUnchanged: beforeStatus === afterStatus,
-  };
-}
-
-async function fetchJson(url) {
-  const response = await fetch(url);
-  let body = null;
-  try {
-    body = await response.json();
-  } catch {
-    body = null;
-  }
-  return {
-    httpStatus: response.status,
-    body,
   };
 }
 

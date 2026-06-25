@@ -1,15 +1,16 @@
-import { describe, it, expect } from "vitest";
+import { describe, it } from "node:test";
+import assert from "node:assert/strict";
 import { createConnectorRoutes } from "./connectorRoutes.js";
 
 describe("connector-routes", () => {
   it("reports health with feishu and wecom", () => {
     const routes = createConnectorRoutes({});
     const health = routes.getHealth();
-    expect(health.status).toBe("ready");
-    expect(health.connectors.feishu).toBeDefined();
-    expect(health.connectors.wecom).toBeDefined();
-    expect(health.connectors.feishu.dryRun).toBe(true);
-    expect(health.connectors.wecom.dryRun).toBe(true);
+    assert.equal(health.status, "ready");
+    assert.ok(health.connectors.feishu)!== undefined;
+    assert.ok(health.connectors.wecom)!== undefined;
+    assert.equal(health.connectors.feishu.dryRun, true);
+    assert.equal(health.connectors.wecom.dryRun, true);
   });
 
   it("sends feishu message in dry-run mode", async () => {
@@ -19,8 +20,8 @@ describe("connector-routes", () => {
       body: "Hello Feishu",
       targetId: "ou_xxx",
     });
-    expect(result.dryRun).toBe(true);
-    expect(result.delivered).toBe(false);
+    assert.equal(result.dryRun, true);
+    assert.equal(result.delivered, false);
   });
 
   it("sends wecom message in dry-run mode", async () => {
@@ -30,14 +31,14 @@ describe("connector-routes", () => {
       body: "Hello WeCom",
       targetId: "user123",
     });
-    expect(result.dryRun).toBe(true);
-    expect(result.delivered).toBe(false);
+    assert.equal(result.dryRun, true);
+    assert.equal(result.delivered, false);
   });
 
   it("uses real connector when webhook configured", async () => {
     const routes = createConnectorRoutes({ FEISHU_WEBHOOK_URL: "https://fake.feishu.cn/hook/test" });
     const health = routes.getHealth();
-    expect(health.connectors.feishu.webhookConfigured).toBe(true);
-    expect(health.connectors.feishu.dryRun).toBe(false);
+    assert.equal(health.connectors.feishu.webhookConfigured, true);
+    assert.equal(health.connectors.feishu.dryRun, false);
   });
 });

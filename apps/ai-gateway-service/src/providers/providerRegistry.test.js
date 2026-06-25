@@ -1,42 +1,43 @@
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, before } from "node:test";
+import assert from "node:assert/strict";
 import { ProviderRegistry } from "./providerRegistry.js";
 import { createFakeProvider } from "./fakeProvider.js";
 
 describe("provider-registry", () => {
   let registry;
 
-  beforeAll(() => {
+  before(() => {
     registry = new ProviderRegistry();
   });
 
   it("registers a provider", () => {
     const provider = createFakeProvider({ providerId: "test-fake", modelId: "test-model", providerType: "fake" });
     registry.register(provider);
-    expect(registry.has("test-fake")).toBe(true);
+    assert.ok(registry.has("test-fake"))=== (true);
   });
 
   it("lists registered providers", () => {
     const providers = registry.listAll();
-    expect(providers.length).toBeGreaterThan(0);
+    assert.ok(providers.length > 0);
   });
 
   it("gets provider by id", () => {
     const provider = registry.get("test-fake");
-    expect(provider.descriptor.id).toBe("test-fake");
+    assert.equal(provider.descriptor.id, "test-fake");
   });
 
   it("throws for duplicate registration", () => {
     const provider = createFakeProvider({ providerId: "test-fake", modelId: "test-model", providerType: "fake" });
-    expect(() => registry.register(provider)).toThrow();
+    assert.throws(() => registry.register(provider));
   });
 
   it("throws for missing provider", () => {
-    expect(() => registry.get("nonexistent")).toThrow();
+    assert.throws(() => registry.get("nonexistent"));
   });
 
   it("lists descriptors", () => {
     const descriptors = registry.listDescriptors();
-    expect(descriptors.length).toBeGreaterThan(0);
-    expect(descriptors[0].id).toBeDefined();
+    assert.ok(descriptors.length > 0);
+    assert.ok(descriptors[0].id)!== undefined;
   });
 });

@@ -1,5 +1,6 @@
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
-import { createGatewayHttpServer } from "../http/httpServer.js";
+import { createGatewayHttpServer } from "../http/httpServer.js";import { listen, close } from "./entrypointUtils.js"
+
 
 const SHORT_PROMPT = "只回复 OK 和你的 provider 名称。";
 const DEFAULT_NVIDIA_MODEL = process.env.NVIDIA_MODEL || "meta/llama-3.1-8b-instruct";
@@ -306,16 +307,3 @@ function hasEnvFlag(name, defaultValue = false) {
   return ["1", "true", "yes", "on"].includes(String(value).toLowerCase());
 }
 
-function listen(targetServer, port, host) {
-  return new Promise((resolve, reject) => {
-    targetServer.once("error", reject);
-    targetServer.listen(port, host, () => {
-      targetServer.off("error", reject);
-      resolve();
-    });
-  });
-}
-
-function close(targetServer) {
-  return new Promise((resolve) => targetServer.close(resolve));
-}

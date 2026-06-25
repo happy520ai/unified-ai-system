@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { readJson, readText } from "./entrypointUtils.js"
 
 const PHASE = "Phase3988A";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -412,19 +413,7 @@ if (failedChecks.length > 0) {
   process.exitCode = 1;
 }
 
-function readText(relativePath) {
-  const absolutePath = resolve(repoRoot, relativePath);
-  return existsSync(absolutePath) ? readFileSync(absolutePath, "utf8") : "";
-}
 
-function readJson(absolutePath) {
-  if (!existsSync(absolutePath)) return null;
-  try {
-    return JSON.parse(readFileSync(absolutePath, "utf8"));
-  } catch {
-    return null;
-  }
-}
 
 function uniqueMatches(source, pattern) {
   const values = [];

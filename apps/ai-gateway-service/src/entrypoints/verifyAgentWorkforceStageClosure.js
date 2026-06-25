@@ -1,4 +1,5 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { writeEvidencePair } from "./entrypointUtils.js";
 import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -176,7 +177,7 @@ try {
       : "agent-workforce-preview-stage-closure-not-sealed",
   };
 
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = passed ? 0 : 1;
 } catch (error) {
@@ -187,7 +188,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "agent-workforce-preview-stage-closure-not-sealed",
   };
-  await writeEvidence(evidence);
+  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 }
@@ -196,51 +197,3 @@ async function readRequired(relativePath) {
   return readFile(resolve(repoRoot, relativePath), "utf8");
 }
 
-async function writeEvidence(body) {
-  await mkdir(evidenceDir, { recursive: true });
-  await writeFile(evidenceJsonPath, `${JSON.stringify(body, null, 2)}\n`, "utf8");
-  await writeFile(evidenceMdPath, createEvidenceMarkdown(body), "utf8");
-}
-
-function createEvidenceMarkdown(body) {
-  return `# Phase 151A Agent Workforce Preview Stage Closure Evidence
-
-- Phase: ${body.phase}
-- Status: ${body.status}
-- Generated at: ${body.generatedAt}
-- Closure decision: ${body.closureDecisionPath ?? "n/a"}
-- Stage closure conclusion: ${body.stageClosureConclusion ?? "n/a"}
-- Phase 150A acceptance status: ${body.userAcceptanceReference?.status ?? "n/a"}
-- Phase 150A acceptance conclusion: ${body.userAcceptanceReference?.conclusion ?? "n/a"}
-- Execution enabled: ${body.boundaries?.executionEnabled ?? false}
-- Runner enabled: ${body.boundaries?.runnerEnabled ?? false}
-- Workflow run enabled: ${body.boundaries?.workflowRunEnabled ?? false}
-- External runner dispatch enabled: ${body.boundaries?.externalRunnerDispatchEnabled ?? false}
-- OMX execution enabled: ${body.boundaries?.omxExecutionEnabled ?? false}
-- Calls oh-my-codex: ${body.safety?.callsOhMyCodex ?? false}
-- Creates worktrees: ${body.safety?.createsWorktrees ?? false}
-- Default NVIDIA chat lane changed: ${body.safety?.defaultNvidiaChatLaneChanged ?? false}
-- Plain secret findings: ${body.secretFindingCount ?? "n/a"}
-- Conclusion: ${body.conclusion}
-
-## Completed Capabilities
-
-${(body.completedCapabilities ?? []).map((item) => `- ${item}`).join("\n")}
-
-## Evidence Index
-
-${(body.evidenceIndex ?? []).map((item) => `- ${item}`).join("\n")}
-
-## Follow-Up Options
-
-${(body.followUpOptions ?? []).map((item) => `- ${item}`).join("\n")}
-
-## Recommended Default Route
-
-${body.recommendedDefaultRoute ?? "n/a"}
-
-## Checks
-
-${Object.entries(body.checks ?? {}).map(([name, value]) => `- ${name}: ${value ? "passed" : "failed"}`).join("\n")}
-`;
-}

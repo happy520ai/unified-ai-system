@@ -31,7 +31,7 @@ const SECRET_PATTERNS = [
   },
   {
     type: "api-key-env-value",
-    regex: /\b([A-Z0-9_]*(?:API_KEY|TOKEN|SECRET)[A-Z0-9_]*)[ \t]*=[ \t]*([^\r\n#"'<>]{8,})/g,
+    regex: /\b([A-Z0-9_]*(?:API_KEY|TOKEN|SECRET)[A-Z0-9_]*)[ \t]*=[ \t]*([^\r\n#"'<]{8,})/g,
     valueFromMatch: (match) => match[2],
   },
   {
@@ -153,5 +153,37 @@ function isRepeatedPlaceholder(text) {
 
 function isSafeCodeExpressionValue(value) {
   const text = cleanSecretValue(value);
-  return /^(?:Object|Array|String|Number|Boolean|Math|Date|JSON|RegExp|Promise|Map|Set|WeakMap|WeakSet)\s*\./.test(text);
+  // Safe: JavaScript built-in objects
+  if (/^(?:Object|Array|String|Number|Boolean|Math|Date|JSON|RegExp|Promise|Map|Set|WeakMap|WeakSet)\s*\./.test(text)) {
+    return true;
+  }
+  // Safe: process.env.* reads (environment variable access, not hardcoded secrets)
+  if (/^process\.env\./.test(text)) {
+    return true;
+  }
+  // Safe: env.* reads
+  if (/^env\./.test(text)) {
+    return true;
+  }
+  // Safe: numeric expressions (e.g., 60 * 60 * 1000)
+  if (/^\d[\d\s*+/%-]*;?$/.test(text)) {
+    return true;
+  }
+  // Safe: boolean/null values
+  if (/^(?:true|false|null|undefined)$/i.test(text)) {
+    return true;
+  }
+  // Safe: function expressions and arrow functions
+  if (/^(?:function\s*\(|(?:\(.*?\)|[a-zA-Z_$][a-zA-Z0-9_$]*)\s*=>)/.test(text)) {
+    return true;
+  }
+  // Safe: array/object literals
+  if (/^(?:\[|\{)/.test(text)) {
+    return true;
+  }
+  // Safe: regex literals (e.g., /pattern/flags)
+  if (/^\/[^\/]+\/[gimsuy]*;?$/.test(text)) {
+    return true;
+  }
+  return false;
 }

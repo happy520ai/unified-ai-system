@@ -1,8 +1,6 @@
 import { SAFE_PROVIDER_EXECUTION_INVOKER_CONTRACT } from "./safeProviderExecutionInvoker.contract.js";
 import { createSafeProviderCallImplementation } from "./safeProviderCallImplementation.js";
-
-const RAW_KEY_PATTERN =
-  /(sk-[A-Za-z0-9_-]{20,}|nvapi-[A-Za-z0-9_-]{16,}|AKIA[0-9A-Z]{16}|xox[baprs]-|ghp_[A-Za-z0-9_]{20,}|api[_-]?key|bearer\s+[a-z0-9._-]{16,}|-----BEGIN)/i;
+import { RAW_KEY_PATTERN } from "./securityPatterns.js";
 
 export function createSafeProviderExecutionInvoker(options = {}) {
   const providerCallRuntime = options.safeProviderCallImplementation ?? createSafeProviderCallImplementation(options.providerCallImplementationOptions);
