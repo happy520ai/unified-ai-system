@@ -1,0 +1,82 @@
+# ===========================================================================
+# Forge Configuration — forge.config.yaml
+# ===========================================================================
+# All values can be overridden by environment variables prefixed with FORGE_
+# Example: FORGE_POOL_MAX_CONCURRENT=8 overrides pool.maxConcurrent
+#
+# Changes are hot-reloaded when the file is saved (no restart required)
+# for settings marked [hot]. Other settings require a restart.
+# ===========================================================================
+
+# ---- Agent Pool ----
+pool:
+  maxConcurrent: 4           # [hot] max parallel workers (global)
+  maxGoals: 3                # [hot] max parallel goals
+  enableCodeIntel: true      # enable code intelligence impact analysis
+  enableVerification: true   # enable verification engine
+  enableAutoVerify: true     # [hot] auto-verify after code mutations
+  maxVerifyRetries: 2        # max auto-verification retry attempts
+  verifyMaxTier: 2           # max verification tier for auto-verify
+  shutdownTimeout: 30000     # graceful shutdown timeout (ms)
+  goalCleanupDelay: 5000     # delay before cleaning goal tracker (ms)
+
+# ---- Budget Limits ----
+budget:
+  maxTokens: 500000          # max total tokens across all goals
+  maxCost: 10.0              # max cost in USD
+  maxMinutes: 120            # max wall-clock time (minutes)
+  warningThreshold: 0.8      # warn at this usage fraction
+  criticalThreshold: 0.95    # critical alert at this fraction
+
+# ---- API Server ----
+server:
+  port: 4500                 # HTTP port (requires restart)
+  corsOrigin: "*"            # CORS Access-Control-Allow-Origin
+  snapshotInterval: 5000     # [hot] WS snapshot broadcast interval (ms)
+  version: "0.4.0"           # API version string
+
+# ---- LLM Settings ----
+llm:
+  provider: "nvidia"         # LLM provider (xiaomi | nvidia)
+  model: "nvidia/llama-3.3-nemotron-super-49b-v1"  # default model name
+  temperature: 0.2           # sampling temperature
+  maxTokens: 4096            # default max output tokens per call
+  gatewayUrl: "http://127.0.0.1:3100"  # gateway bridge URL
+
+# ---- Worker Settings ----
+worker:
+  temperature: 0.1           # worker LLM temperature (lower = more precise)
+  maxTokensMutate: 32768     # max tokens for code mutation tasks
+  maxTokensRead: 8192        # max tokens for read-only tasks
+  retryAttempts: 3           # LLM call retry attempts
+  retryDelay: 2000           # retry delay for network errors (ms)
+  bashTimeout: 60000         # bash command timeout (ms)
+  maxFileSize: 50000         # skip files larger than this (chars)
+  fileSliceLimit: 8000       # truncate file content to this many chars
+
+# ---- Verification Engine ----
+verification:
+  maxTier: 5                 # max verification tier (1-5)
+  typescriptTimeout: 120000  # TypeScript check timeout (ms)
+  eslintTimeout: 60000       # ESLint check timeout (ms)
+  eslintMaxWarnings: 50      # max ESLint warnings before failure
+  testTimeout: 120000        # unit test timeout (ms)
+  integrationTimeout: 180000 # integration test timeout (ms)
+  npmAuditTimeout: 60000     # npm audit timeout (ms)
+
+# ---- Metrics ----
+metrics:
+  seriesWindow: 1800000      # time-series sliding window (ms, 30min)
+  maxRecords: 5000           # max task records to retain
+
+# ---- Priority Weights ----
+# Higher values are dequeued first. [hot]
+priority:
+  explore: 100
+  plan: 90
+  implement: 70
+  refactor: 60
+  test: 50
+  verify: 40
+  review: 30
+  debug: 20

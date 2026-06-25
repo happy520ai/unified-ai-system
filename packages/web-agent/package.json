@@ -1,0 +1,25 @@
+{
+  "name": "@unified-ai-system/web-agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./moduleRecognizer.js": "./src/moduleRecognizer.js",
+    "./llmBrain.js": "./src/llmBrain.js",
+    "./manualParser.js": "./src/manualParser.js",
+    "./browserExecutor.js": "./src/browserExecutor.js",
+    "./webAgent.js": "./src/webAgent.js"
+  },
+  "scripts": {
+    "check": "node --check src/index.js",
+    "smoke": "node src/__smoke__.mjs"
+  },
+  "dependencies": {
+    "playwright": "^1.48.0"
+  },
+  "peerDependencies": {
+    "@unified-ai-system/ai-gateway-service": "workspace:*"
+  }
+}

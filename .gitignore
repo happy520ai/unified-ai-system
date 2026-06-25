@@ -6,6 +6,15 @@ coverage/
 .cache/
 cache/
 temp/
+# 含明文 API key 的配置文件，绝不可提交（已确认含 17 个真实 key）
+providers-config.json
+providers-config.*.json
+secrets/
+*.secret
+*.secret.json
+# 本地真实环境变量（含 key）
+.env.local
+.env.*.local
 .codex/
 .codex/config.toml
 .codex-context/
@@ -18,6 +27,7 @@ temp/
 .data/
 .tmp/
 .tmp-*/
+.test-tmp-*/
 logs/
 runtime/
 legacy/
@@ -55,3 +65,119 @@ temp_phase*_backup/
 *.backup.*
 .phase*-service.*.log
 .aider*
+
+# 临时目录
+.codex-*
+.pnpm-*
+.tool-*
+.tool-external/
+
+# 备份文件
+*.bak
+
+# 垃圾文件
+nul
+new
+
+# 证据目录（verifier 生成的运行时产物，不入库）
+apps/agent-console/evidence/
+apps/ai-gateway-service/evidence/
+
+# Agent/工具元数据（运行时自动生成）
+.agent-memory/
+.agent-sessions/
+.dogfood/
+.forge/
+apps/.forge/
+.pm-workflow/
+.qoderwork/
+.canvas-meta.json
+.design.json
+
+# 乱码临时文件（Windows 路径编码异常产物）
+C：*
+C\357*
+"\344\272\260*"
+
+# 独立 HTML 产物（非源码）
+analytics.html
+apikeys.html
+approval.html
+chat.html
+codex-context.html
+dashboard.html
+demo.html
+ecommerce.html
+evidence.html
+governance.html
+index.html
+knowledge.html
+login.html
+neurons.html
+operations.html
+provider-wizard.html
+routing.html
+security.html
+settings.html
+team.html
+tri-mode.html
+ui-output.html
+workforce.html
+
+# 根级 CSS/JS 产物
+chat.css
+console.css
+knowledge.css
+i18n.js
+interact.js
+
+# 根级临时脚本和输出
+debug-backtick.mjs
+full-audit-scan.mjs
+parse-audit.mjs
+pnpm.cmd
+run-xiaotian-daily-check.cmd
+run-xiaotian-daily-check.ps1
+start-system.bat
+audit-output.txt
+audit_err.txt
+audit_out.txt
+audit_output.txt
+server-output.txt
+log
+
+# 根级临时目录
+bin/
+components/
+evidence/
+screenshots/
+sdk/
+skills/
+src/
+test/
+workforce-output/
+
+# forge-core 测试输出
+packages/forge-core/test-output*.txt
+packages/forge-core/test_output.txt
+packages/forge-core/test-results.txt
+packages/forge-core/forge_test_output.txt
+packages/forge-core/test-project/
+packages/forge-core/test-project-v2/
+packages/forge-core/test-projects/
+packages/forge-core/run-forge.bat
+
+# ai-gateway-service 临时文件
+apps/ai-gateway-service/level6_output_*.txt
+apps/ai-gateway-service/s5_*_output.txt
+apps/ai-gateway-service/summary.txt
+apps/ai-gateway-service/forge-llm-debug.json
+apps/ai-gateway-service/diag_result.txt
+apps/ai-gateway-service/run_inferno_v5.bat
+apps/ai-gateway-service/tests/
+apps/ai-gateway-service/tools/
+
+# 杂项临时文件
+_modified_deep_import_files.txt
+forge-llm-debug.json
+packages/forge-core/test-full-results.txt

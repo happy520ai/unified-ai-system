@@ -1,0 +1,32 @@
+{
+  "name": "@unified-ai-system/forge-core",
+  "version": "0.5.0",
+  "description": "Forge — Goal-driven autonomous coding engine, deeply integrated with unified-ai-system",
+  "type": "module",
+  "main": "src/index.js",
+  "bin": {
+    "forge": "bin/forge.js"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "test:coverage": "c8 --reporter=text --reporter=html --reporter=json-summary node --test test/*.test.js",
+    "test:coverage:check": "c8 --check-coverage --lines 60 --branches 40 --functions 50 node --test test/*.test.js",
+    "forge": "node bin/forge.js",
+    "rebuild:native": "node -e \"const p=require.resolve('better-sqlite3/package.json');const d=require('path').dirname(p);require('child_process').execSync('npx --yes node-gyp rebuild',{cwd:d,stdio:'inherit'})\"",
+    "postinstall": "node -e \"try{require('better-sqlite3');console.log('[forge] better-sqlite3 native OK')}catch(e){console.log('[forge] Rebuilding better-sqlite3...');const p=require.resolve('better-sqlite3/package.json');const d=require('path').dirname(p);require('child_process').execSync('npx --yes node-gyp rebuild',{cwd:d,stdio:'inherit'})}\""
+  },
+  "dependencies": {
+    "@unified-ai-system/shared-utils": "workspace:*",
+    "@unified-ai-system/shared-contracts": "workspace:*",
+    "@unified-ai-system/shared-config": "workspace:*",
+    "better-sqlite3": "^11.10.0",
+    "chalk": "^5.3.0",
+    "ora": "^8.0.0"
+  },
+  "devDependencies": {
+    "c8": "^10.1.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
