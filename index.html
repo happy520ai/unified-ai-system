@@ -224,10 +224,14 @@
     }
     .hero-name {
       font-family: var(--font-display);
-      font-size: clamp(40px, 6vw, 60px);
+      font-size: clamp(40px, 6vw, 56px);
       font-weight: 300;
       letter-spacing: var(--tracking-display);
       line-height: var(--leading-display);
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-light, #a78bfa) 50%, #60a5fa 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
       color: var(--text-primary);
       margin-bottom: var(--space-2);
     }
@@ -297,9 +301,9 @@
     }
     .quick-card:hover {
       background: var(--glass-bg-hover);
-      border-color: var(--glass-border-hover);
-      transform: translateY(-2px);
-      box-shadow: var(--depth-2);
+      border-color: var(--accent-border);
+      transform: translateY(-3px);
+      box-shadow: var(--shadow-glow-accent);
     }
     .quick-card:active {
       transform: translateY(0);

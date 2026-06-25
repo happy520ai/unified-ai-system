@@ -15,11 +15,11 @@
   --space-elevated: #101018;
 
   /* ─── Glass Tokens ─── */
-  --glass-bg: rgba(255, 255, 255, 0.03);
-  --glass-bg-hover: rgba(255, 255, 255, 0.055);
-  --glass-bg-active: rgba(255, 255, 255, 0.08);
-  --glass-border: rgba(255, 255, 255, 0.06);
-  --glass-border-hover: rgba(255, 255, 255, 0.1);
+  --glass-bg: rgba(255, 255, 255, 0.05);
+  --glass-bg-hover: rgba(255, 255, 255, 0.08);
+  --glass-bg-active: rgba(255, 255, 255, 0.12);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-border-hover: rgba(255, 255, 255, 0.14);
   --glass-blur: blur(60px) saturate(180%);
   --glass-blur-heavy: blur(80px) saturate(200%);
 
@@ -46,14 +46,15 @@
   --status-info-soft: rgba(96, 165, 250, 0.1);
 
   /* ─── Depth / Shadows ─── */
-  --depth-1: 0 4px 24px rgba(0, 0, 0, 0.4), 0 1px 4px rgba(0, 0, 0, 0.2);
-  --depth-2: 0 8px 48px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
-  --depth-3: 0 16px 80px rgba(0, 0, 0, 0.6), 0 4px 16px rgba(0, 0, 0, 0.4);
-  --depth-glow: 0 0 40px rgba(124, 106, 239, 0.08);
+  --depth-1: 0 2px 12px rgba(0, 0, 0, 0.25), 0 1px 4px rgba(0, 0, 0, 0.12);
+  --depth-2: 0 4px 24px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(0, 0, 0, 0.15);
+  --depth-3: 0 8px 40px rgba(0, 0, 0, 0.35), 0 4px 16px rgba(0, 0, 0, 0.2);
+  --depth-glow: 0 0 40px rgba(124, 106, 239, 0.15);
+  --shadow-glow-accent: 0 4px 20px rgba(124, 106, 239, 0.12), 0 2px 8px rgba(0, 0, 0, 0.15);
 
   /* ─── Border Radius ─── */
-  --radius-xl: 28px;
-  --radius-lg: 22px;
+  --radius-xl: 24px;
+  --radius-lg: 18px;
   --radius-md: 16px;
   --radius-sm: 10px;
   --radius-xs: 6px;
@@ -420,16 +421,22 @@ body::before {
   font-weight: 500;
 }
 
-.nav-item.active::before {
+.nav-item::before {
   content: '';
   position: absolute;
   left: 0;
   top: 50%;
   transform: translateY(-50%);
   width: 3px;
-  height: 18px;
+  height: 0;
   background: var(--accent);
   border-radius: var(--radius-full);
+  transition: height 0.25s var(--ease-spring), opacity 0.2s;
+  opacity: 0;
+}
+.nav-item.active::before {
+  height: 18px;
+  opacity: 1;
 }
 
 .nav-icon {

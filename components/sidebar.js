@@ -13,7 +13,15 @@
  */
 function renderSidebar(options = {}) {
   const activeId = options.activeId || getActiveNavId();
-  const brandText = options.brandText || "Gateway";
+  const brandText = options.brandText || "太极北斗";
+
+  const taijiSvg = `<svg viewBox="0 0 32 32" fill="none" aria-hidden="true">
+    <circle cx="16" cy="16" r="15" stroke="url(#tg)" stroke-width="1.5" opacity="0.6"/>
+    <path d="M16 1a15 15 0 0 1 0 30A15 15 0 0 0 16 1a7.5 7.5 0 0 1 0 15A7.5 7.5 0 0 0 16 1z" fill="url(#tg)"/>
+    <circle cx="16" cy="8.5" r="2.5" fill="#7c6aef"/>
+    <circle cx="16" cy="23.5" r="2.5" fill="#fff" opacity="0.7"/>
+    <defs><linearGradient id="tg" x1="0" y1="0" x2="32" y2="32"><stop stop-color="#7c6aef"/><stop offset="1" stop-color="#60a5fa"/></linearGradient></defs>
+  </svg>`;
 
   function renderLink(item) {
     const isActive = item.id === activeId ? " active" : "";
@@ -26,7 +34,7 @@ function renderSidebar(options = {}) {
 
   return `<nav class="sidebar" id="sidebar" aria-label="主导航">
     <div class="sidebar-brand">
-      <div class="sidebar-brand-icon" aria-hidden="true">G</div>
+      <div class="sidebar-brand-icon" aria-hidden="true">${taijiSvg}</div>
       <span class="sidebar-brand-text">${brandText}</span>
     </div>
 

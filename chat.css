@@ -322,6 +322,8 @@
       resize: none;
       border: 1px solid var(--glass-border);
       background: var(--glass-bg);
+      backdrop-filter: var(--glass-blur);
+      -webkit-backdrop-filter: var(--glass-blur);
       color: var(--text-primary);
       border-radius: var(--radius-md);
       padding: var(--space-3) var(--space-4);
@@ -329,9 +331,13 @@
       line-height: 1.5;
       font-family: var(--font-body);
       outline: none;
-      transition: border-color var(--duration-fast);
+      transition: border-color var(--duration-fast), box-shadow var(--duration-fast);
       min-height: 24px;
       max-height: 120px;
+    }
+    .chat-textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-glow-subtle);
     }
     .chat-textarea:focus { border-color: var(--accent); }
     .chat-textarea::placeholder { color: var(--text-tertiary); }
@@ -428,17 +434,7 @@
 /* ============================================================
    ============================================================ */
 
-.chat-messages {
-  max-height: 360px;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin-bottom: 12px;
-  padding: 4px;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(124,106,239,0.2) transparent;
-}
+/* Duplicate removed — using the flex-based definition above */
 
 .chat-messages::-webkit-scrollbar {
   width: 4px;
@@ -462,28 +458,30 @@
 
 .chat-bubble.chat-user {
   align-self: flex-end;
-  background: rgba(124,106,239,0.15);
-  border: 1px solid rgba(124,106,239,0.25);
-  border-radius: 14px 14px 4px 14px;
-  color: #e2e0f0;
+  background: rgba(124,106,239,0.22);
+  border: 1px solid rgba(124,106,239,0.3);
+  border-radius: var(--radius-lg) var(--radius-lg) var(--radius-xs) var(--radius-lg);
+  box-shadow: 0 2px 8px rgba(124,106,239,0.12), 0 1px 3px rgba(0,0,0,0.08);
+  color: var(--text-primary);
 }
 
 .chat-bubble.chat-ai {
   align-self: flex-start;
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 14px 14px 14px 4px;
-  color: #c8c6d8;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg) var(--radius-lg) var(--radius-lg) var(--radius-xs);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1), 0 1px 3px rgba(0,0,0,0.06);
+  color: var(--text-primary);
 }
-
 
 .chat-bubble.chat-thinking {
   align-self: flex-start;
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 14px 14px 14px 4px;
-  color: rgba(255,255,255,0.4);
-  font-size: 13px;
+  background: var(--glass-bg-faint);
+  border: 1px solid var(--glass-border-faint);
+  border-radius: var(--radius-lg) var(--radius-lg) var(--radius-lg) var(--radius-xs);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  color: var(--text-tertiary);
+  font-size: var(--text-body-sm);
 }
 
 /* ── Model Config Button & Label ── */
