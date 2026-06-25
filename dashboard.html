@@ -138,15 +138,19 @@
       backdrop-filter: var(--glass-blur);
       -webkit-backdrop-filter: var(--glass-blur);
       border: 1px solid var(--glass-border);
+      border-left: 3px solid var(--accent);
       border-radius: var(--radius-lg);
       padding: var(--space-5);
       transition: all var(--duration-normal) var(--ease-smooth);
     }
+    .metric-card:nth-child(2) { border-left-color: var(--status-success); }
+    .metric-card:nth-child(3) { border-left-color: var(--status-warning); }
+    .metric-card:nth-child(4) { border-left-color: var(--status-info); }
     .metric-card:hover {
       background: var(--glass-bg-hover);
       border-color: var(--glass-border-hover);
       transform: translateY(-2px);
-      box-shadow: var(--depth-2);
+      box-shadow: var(--shadow-glow-accent);
     }
     .metric-label {
       font-size: var(--text-body-sm);
@@ -270,7 +274,8 @@
       cursor: pointer;
       transition: background 0.2s;
     }
-    .req-table tr.req-row:hover { background: rgba(255,255,255,0.03); }
+    .req-table tr.req-row:nth-child(even) { background: var(--glass-bg-faint); }
+    .req-table tr.req-row:hover { background: var(--glass-bg-hover); }
     .req-table tr.req-row.new-row { animation: fadeIn 0.4s var(--ease-out); }
 
     /* Status dot (not badge) */
@@ -425,7 +430,7 @@
       border-radius: var(--radius-xs);
       transition: width 1s var(--ease-out);
       width: 0;
-      background: var(--accent);
+      background: linear-gradient(90deg, var(--accent), var(--accent-light, #a78bfa));
     }
     .prov-bar-pct {
       width: 48px;
