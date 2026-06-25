@@ -248,6 +248,68 @@ export function createSelfEvolutionPipeline(options = {}) {
         completedAt: now(),
       };
     },
+
+    /**
+     * 反馈循环：记录神经元执行结果，失败时触发重新进化
+     *
+     * @param {string} capabilityId - 神经元 ID
+     * @param {object} executionResult - { success, output, error, durationMs }
+     * @returns {Promise<object>} 反馈处理结果
+     */
+    async recordFeedback(capabilityId, executionResult) {
+      const record = await historyManager.getRecord(capabilityId);
+      if (!record) {
+        return { recorded: false, reason: "neuron_not_found" };
+      }
+
+      // 初始化反馈统计
+      if (!record.feedback) {
+        record.feedback = { totalExecutions: 0, successes: 0, failures: 0, lastExecutedAt: null };
+      }
+
+      record.feedback.totalExecutions++;
+      if (executionResult.success) {
+        record.feedback.successes++;
+      } else {
+        record.feedback.failures++;
+      }
+      record.feedback.lastExecutedAt = now();
+
+      // 计算失败率
+      const failureRate = record.feedback.failures / record.feedback.totalExecutions;
+      record.feedback.failureRate = failureRate;
+
+      // 持久化更新
+      const detailPath = join(EVOLUTION_HISTORY_DIR, `${capabilityId}.json`);
+      await mkdir(EVOLUTION_HISTORY_DIR, { recursive: true });
+      await writeFile(detailPath, JSON.stringify(record, null, 2), "utf8");
+
+      // 高失败率自动降级
+      const FAILURE_THRESHOLD = 0.5;
+      const MIN_EXECUTIONS = 3;
+      if (failureRate > FAILURE_THRESHOLD && record.feedback.totalExecutions >= MIN_EXECUTIONS) {
+        try {
+          await registry.revoke(capabilityId, `auto_degraded: failure rate ${Math.round(failureRate * 100)}% over ${record.feedback.totalExecutions} executions`);
+          record.feedback.autoDegraded = true;
+          await writeFile(detailPath, JSON.stringify(record, null, 2), "utf8");
+          return {
+            recorded: true,
+            autoDegraded: true,
+            failureRate,
+            message: `Neuron ${capabilityId} auto-degraded: ${Math.round(failureRate * 100)}% failure rate`,
+          };
+        } catch {
+          // 降级失败不阻塞
+        }
+      }
+
+      return {
+        recorded: true,
+        autoDegraded: false,
+        failureRate,
+        totalExecutions: record.feedback.totalExecutions,
+      };
+    },
   };
 
   return api;

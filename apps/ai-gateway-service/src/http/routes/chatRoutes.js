@@ -22,7 +22,7 @@ import { validators } from "../../validation/httpSchemas.js";
  * @returns {Object} { handlers: Map<string, Function> }
  */
 export function createChatRoutes(application, helpers) {
-  const { gatewayService, circuitBreakerRegistry, config } = application;
+  const { gatewayService, circuitBreakerRegistry, config, neuronRuntimeExecutor, selfEvolutionPipeline } = application;
   const {
     readJson,
     writeJson,
@@ -58,10 +58,26 @@ export function createChatRoutes(application, helpers) {
     const providerKey = chatInput?.providerId ?? chatInput?.provider ?? "gateway";
     const breaker = circuitBreakerRegistry ? circuitBreakerRegistry.getOrCreate(providerKey) : null;
 
+    // ── Neuron runtime hook (non-blocking, fail-open) ──
+    if (neuronRuntimeExecutor?.hooks?.beforeChatExecute) {
+      neuronRuntimeExecutor.hooks.beforeChatExecute(body, { startedAt }).catch(() => {});
+    }
+
     try {
       const result = breaker
         ? await breaker.execute(() => gatewayService.execute(chatInput))
         : await gatewayService.execute(chatInput);
+
+      // ── Neuron feedback loop: record execution result ──
+      if (selfEvolutionPipeline?.recordFeedback) {
+        const activeSkills = neuronRuntimeExecutor?.getActiveSkills?.() ?? [];
+        for (const skill of activeSkills) {
+          selfEvolutionPipeline.recordFeedback(skill.id, {
+            success: result.success,
+            durationMs: Date.now() - startedAt,
+          }).catch(() => {});
+        }
+      }
 
       if (writeServiceLog) {
         writeServiceLog(result.success ? "chat_completed" : "chat_failed", {

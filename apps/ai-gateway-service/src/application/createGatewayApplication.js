@@ -32,6 +32,9 @@ import { createCircuitBreakerRegistry } from "../providers/providerCircuitBreake
 import { createForgeGatewayService } from "./forgeGatewayService.js";
 import { createSqliteRepository } from "../database/sqliteRepository.js";
 import { createPromClientExporter } from "../observability/promClientExporter.js";
+import { createLiveSkillRegistry } from "../capabilities/liveSkillRegistry.js";
+import { createSelfEvolutionPipeline } from "../capabilities/selfEvolutionPipeline.js";
+import { createNeuronRuntimeExecutor } from "../capabilities/neuronRuntimeExecutor.js";
 
 const repoRoot = resolve(fileURLToPath(new URL("../../../../", import.meta.url)));
 
@@ -153,6 +156,24 @@ export function createGatewayApplication(env = process.env) {
     port: config.aiGatewayService.endpoint.port,
   });
 
+  // Wire forgeService into workforce executor for code generation
+  if (workforceService.setForgeService) {
+    workforceService.setForgeService(forgeService);
+  }
+
+  // --- Self-Evolution Pipeline ---
+  const liveSkillRegistry = createLiveSkillRegistry({
+    storageDir: env.LIVE_SKILL_REGISTRY_DIR ?? resolve(repoRoot, ".data", "capabilities"),
+  });
+  const selfEvolutionPipeline = createSelfEvolutionPipeline({
+    registry: liveSkillRegistry,
+    autoApprove: env.SELF_EVOLUTION_AUTO_APPROVE === "true",
+  });
+  const neuronRuntimeExecutor = createNeuronRuntimeExecutor({
+    registry: liveSkillRegistry,
+    failOpen: true,
+  });
+
   const repository = createSqliteRepository({
     dataDir: env.DATA_DIR ?? resolve(repoRoot, ".data"),
   });
@@ -173,7 +194,9 @@ export function createGatewayApplication(env = process.env) {
     gatewayService,
     knowledgeInfra,
     knowledgeService,
+    liveSkillRegistry,
     metricsCollector,
+    neuronRuntimeExecutor,
     promClientExporter,
     circuitBreakerRegistry,
     modelImportService,
@@ -184,6 +207,7 @@ export function createGatewayApplication(env = process.env) {
     revocationStore,
     runtimeEnv: env,
     runtimeCredentialStore,
+    selfEvolutionPipeline,
     userExperienceService,
     workforceService,
     workflowService,

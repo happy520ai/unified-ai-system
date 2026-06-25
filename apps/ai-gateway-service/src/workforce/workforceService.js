@@ -8,8 +8,56 @@ import {
 } from "./workforceRealLocalRunner.js";
 import { createControlledExecutor } from "./workforceControlledExecutor.js";
 
+/**
+ * Create a provider adapter that calls the AI Gateway's /chat endpoint.
+ * This bridges the workforce LLM executor to the gateway's multi-provider routing.
+ *
+ * @param {object} [options]
+ * @param {string} [options.gatewayUrl] — gateway base URL
+ * @returns {{ generate: function(object): Promise<{ text: string, usage: object, latencyMs: number }> }}
+ */
+function createGatewayProviderAdapter(options = {}) {
+  const gatewayUrl = options.gatewayUrl ?? process.env.AI_GATEWAY_URL ?? "http://127.0.0.1:3100";
+
+  return {
+    async generate(providerRequest) {
+      const messages = providerRequest?.request?.messages ?? [];
+      const maxTokens = providerRequest?.request?.options?.maxOutputTokens ?? 4096;
+      const temperature = providerRequest?.request?.options?.temperature ?? 0.3;
+      const start = Date.now();
+
+      const res = await fetch(`${gatewayUrl}/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages,
+          options: { maxOutputTokens: maxTokens, temperature },
+        }),
+        signal: AbortSignal.timeout(60_000),
+      });
+
+      if (!res.ok) {
+        throw new Error(`Gateway /chat returned ${res.status}: ${await res.text().catch(() => "")}`);
+      }
+
+      const data = await res.json();
+      const text = data?.data?.outputText ?? data?.choices?.[0]?.message?.content ?? "";
+      const usage = data?.data?.usage ?? data?.usage ?? null;
+      const latencyMs = Date.now() - start;
+
+      return { text, usage, latencyMs };
+    },
+  };
+}
+
 export function createWorkforceService(options = {}) {
   const planStore = createWorkforcePlanStore(options);
+
+  // Create gateway provider adapter for LLM-driven role execution
+  const providerAdapter = createGatewayProviderAdapter(options);
+
+  // Forge service reference (set after both services are created)
+  let forgeServiceRef = null;
 
   // Controlled executor wires the tier governor + sandbox merger + budget +
   // diagnostic channel. These are created lazily inside the executor.
@@ -17,9 +65,14 @@ export function createWorkforceService(options = {}) {
     repoRoot: options.repoRoot,
     executionDir: options.executionDir,
     env: options.env,
+    providerAdapter,
+    get forgeService() { return forgeServiceRef; },
   });
 
   return {
+    setForgeService(fs) {
+      forgeServiceRef = fs;
+    },
     getHealth() {
       const execInfo = executor.getInfo();
       return {

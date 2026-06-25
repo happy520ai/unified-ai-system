@@ -3,9 +3,28 @@
  *
  * Extracted from live-stream/index.js to keep the class module
  * under the 500-line limit (分层律).
+ *
+ * StreamEvent is defined here (not in index.js) to break the circular
+ * dependency: index.js → eventHelpers.js → index.js.
  */
 
-import { StreamEvent } from './index.js';
+/**
+ * Event types emitted during task execution.
+ * @readonly
+ * @enum {string}
+ */
+export const StreamEvent = Object.freeze({
+  TASK_START: 'task_start',
+  FILE_READ: 'file_read',
+  FILE_WRITE: 'file_write',
+  LLM_CALL_START: 'llm_call_start',
+  LLM_CALL_END: 'llm_call_end',
+  ACTION_EXECUTE: 'action_execute',
+  TOOL_CALL: 'tool_call',
+  ERROR: 'error',
+  TASK_COMPLETE: 'task_complete',
+  TASK_FAIL: 'task_fail',
+});
 
 /**
  * Paired event types used for timeline duration computation.

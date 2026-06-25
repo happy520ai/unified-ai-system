@@ -13,6 +13,7 @@ import { createExecutionApprovalGate } from "./executionApprovalGate.js";
 import { createWorktreeIsolation } from "./worktreeIsolation.js";
 import { TaskQueueManager } from "./taskQueueManager.js";
 import { createRoleExecutor, executeAllRoles } from "./roleExecutors.js";
+import { executeAllRolesWithLLM } from "./roleExecutorsLlm.js";
 import { createTaskEvidenceCapture } from "./taskEvidenceCapture.js";
 import { createSecurityReviewCheckpoint } from "./securityReviewCheckpoint.js";
 import { createGitWorkspaceGuard } from "./gitWorkspaceGuard.js";
@@ -49,8 +50,10 @@ const DEFAULT_EXECUTION_TIMEOUT_MS = 300_000; // 5 minutes
  */
 export function createControlledExecutor(options = {}) {
   const env = options.env ?? process.env;
-  const executionEnabled = env.WORKFORCE_EXECUTION_ENABLED === "true";
+  const executionEnabled = env.WORKFORCE_EXECUTION_ENABLED === "true" || !!options.providerAdapter;
   const dryRun = options.dryRun ?? !executionEnabled;
+  const providerAdapter = options.providerAdapter ?? null;
+  const forgeService = options.forgeService ?? null;
   const maxConcurrent = Number(env.WORKFORCE_MAX_CONCURRENT) || DEFAULT_MAX_CONCURRENT_AGENTS;
   const timeoutMs = Number(env.WORKFORCE_EXECUTION_TIMEOUT_MS) || DEFAULT_EXECUTION_TIMEOUT_MS;
 
@@ -244,8 +247,11 @@ export function createControlledExecutor(options = {}) {
 
       try {
         let _timeoutTimer;
+        const executionFn = providerAdapter
+          ? () => executeAllRolesWithLLM(plan.goal, context, providerAdapter)
+          : () => executeAllRoles(plan.goal, context);
         const allRoleResults = await Promise.race([
-          executeAllRoles(plan.goal, context).finally(() => clearTimeout(_timeoutTimer)),
+          executionFn().finally(() => clearTimeout(_timeoutTimer)),
           new Promise((_, reject) => {
             _timeoutTimer = setTimeout(() => reject(new Error(`Workforce execution timed out after ${timeoutMs}ms`)), timeoutMs);
           }),
@@ -264,6 +270,26 @@ export function createControlledExecutor(options = {}) {
         }
       } catch (err) {
         executionErrors.push(logRedactor.redact?.(err.message) ?? err.message);
+      }
+
+      // --- Step 8b: Forge code execution (if available) ---
+      if (forgeService && roleResults["backend-engineer"]) {
+        try {
+          const backendAnalysis = roleResults["backend-engineer"];
+          const implementationGoal = `Based on this backend analysis, implement the core API:\n${JSON.stringify(backendAnalysis.apiSpecs ?? backendAnalysis, null, 2).slice(0, 2000)}`;
+          const forgeResult = await forgeService.runGoal?.(implementationGoal, { timeoutMs: 60_000 });
+          if (forgeResult) {
+            roleResults["forge-implementation"] = {
+              roleId: "forge-implementation",
+              source: "forge-engine",
+              goal: implementationGoal,
+              result: forgeResult,
+              executedAt: new Date().toISOString(),
+            };
+          }
+        } catch (forgeErr) {
+          executionErrors.push(`forge_execution: ${logRedactor.redact?.(forgeErr.message) ?? forgeErr.message}`);
+        }
       }
 
       // --- Step 9: Post-execution security scan ---

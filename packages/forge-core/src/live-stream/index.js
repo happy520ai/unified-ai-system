@@ -25,33 +25,15 @@
  *   unsub();
  */
 
-// ── Enumerations ──────────────────────────────────────────────────────────────
+import { StreamEvent, PAIRED_EVENTS, matchesFilters, findStartType, summarizeEvent } from './eventHelpers.js';
 
-/**
- * Event types emitted during task execution.
- * @readonly
- * @enum {string}
- */
-export const StreamEvent = Object.freeze({
-  TASK_START: 'task_start',
-  FILE_READ: 'file_read',
-  FILE_WRITE: 'file_write',
-  LLM_CALL_START: 'llm_call_start',
-  LLM_CALL_END: 'llm_call_end',
-  ACTION_EXECUTE: 'action_execute',
-  TOOL_CALL: 'tool_call',
-  ERROR: 'error',
-  TASK_COMPLETE: 'task_complete',
-  TASK_FAIL: 'task_fail',
-});
+export { StreamEvent };
 
 /** Event types that terminate a task stream. */
 const TERMINAL_EVENTS = new Set([
   StreamEvent.TASK_COMPLETE,
   StreamEvent.TASK_FAIL,
 ]);
-
-import { PAIRED_EVENTS, matchesFilters, findStartType, summarizeEvent } from './eventHelpers.js';
 
 // ── Helper: generate a short unique id ────────────────────────────────────────
 
