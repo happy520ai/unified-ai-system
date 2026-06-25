@@ -1,0 +1,967 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data:;">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="太极北斗 AI 网关 — 多模型路由、知识库检索、企业级治理的统一 AI 平台">
+  <meta name="theme-color" content="#0f1117">
+  <title>太极北斗 — Unified AI Gateway</title>
+  <link rel="stylesheet" href="console.css">
+  <style>
+    /* ============================================================
+       INDEX — Apple Minimal
+       ============================================================ */
+
+    /* ── Page entrance ── */
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes countUp {
+      from { opacity: 0.4; }
+      to   { opacity: 1; }
+    }
+
+    /* ── Layout ── */
+    body { margin: 0; overflow-x: hidden; }
+    .page-wrapper {
+      display: flex;
+      min-height: 100vh;
+    }
+    .page-main {
+      flex: 1;
+      margin-left: calc(var(--sidebar-width) + var(--space-4) + var(--space-4));
+      transition: margin-left var(--duration-slow) var(--ease-spring);
+      position: relative;
+      z-index: 1;
+    }
+    .page-main.sidebar-collapsed {
+      margin-left: calc(var(--sidebar-collapsed) + var(--space-4) + var(--space-4));
+    }
+
+    /* ═══════════════════════════════════════════════
+       SIDEBAR
+       ═══════════════════════════════════════════════ */
+    .sidebar {
+      position: fixed;
+      left: var(--space-4);
+      top: var(--space-4);
+      bottom: var(--space-4);
+      width: 240px;
+      background: rgba(255, 255, 255, 0.025);
+      backdrop-filter: var(--glass-blur-heavy);
+      -webkit-backdrop-filter: var(--glass-blur-heavy);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--depth-2);
+      display: flex;
+      flex-direction: column;
+      z-index: 100;
+      overflow: hidden;
+      transition: width var(--duration-slow) var(--ease-spring);
+    }
+    .sidebar.collapsed { width: var(--sidebar-collapsed); }
+
+    .sidebar-brand {
+      padding: var(--space-5);
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+    }
+    .sidebar-brand-icon {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, var(--accent), #9b8afb);
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      font-size: 13px;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: -0.02em;
+    }
+    .sidebar-brand-text {
+      font-family: var(--font-display);
+      font-size: var(--text-body-lg);
+      font-weight: 600;
+      color: var(--text-primary);
+      letter-spacing: var(--tracking-tight);
+      white-space: nowrap;
+      overflow: hidden;
+      transition: opacity var(--duration-normal) var(--ease-smooth);
+    }
+    .sidebar.collapsed .sidebar-brand-text { opacity: 0; width: 0; }
+
+    .sidebar-section-label {
+      padding: var(--space-4) var(--space-5) var(--space-2);
+      font-size: var(--text-micro);
+      font-weight: 500;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-faint);
+      transition: opacity var(--duration-normal);
+    }
+    .sidebar.collapsed .sidebar-section-label { opacity: 0; height: 0; padding: 0; overflow: hidden; }
+
+    .sidebar-nav {
+      flex: 1;
+      padding: var(--space-2) var(--space-3);
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+      overflow-y: auto;
+    }
+
+    .sidebar-link {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      padding: 10px var(--space-4);
+      border-radius: var(--radius-sm);
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: var(--text-body);
+      font-weight: 400;
+      transition: all var(--duration-fast) var(--ease-smooth);
+      cursor: pointer;
+      position: relative;
+      white-space: nowrap;
+    }
+    .sidebar-link:hover {
+      color: var(--text-primary);
+      background: rgba(255, 255, 255, 0.04);
+    }
+    .sidebar-link.active {
+      color: var(--text-primary);
+      font-weight: 500;
+    }
+    .sidebar-link.active::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 3px;
+      height: 16px;
+      background: var(--accent);
+      border-radius: var(--radius-full);
+    }
+    .sidebar-link svg {
+      width: 20px;
+      height: 20px;
+      flex-shrink: 0;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 1.5;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      opacity: 0.6;
+    }
+    .sidebar-link:hover svg,
+    .sidebar-link.active svg { opacity: 1; }
+    .sidebar-link-label {
+      overflow: hidden;
+      transition: opacity var(--duration-normal);
+    }
+    .sidebar.collapsed .sidebar-link-label { opacity: 0; width: 0; }
+    .sidebar.collapsed .sidebar-link { justify-content: center; padding: 10px; }
+
+    .sidebar-footer {
+      padding: var(--space-3) var(--space-4);
+      border-top: 1px solid var(--glass-border);
+      transition: opacity var(--duration-normal);
+    }
+    .sidebar.collapsed .sidebar-footer { display: flex; justify-content: center; }
+
+    /* ── Sidebar Toggle ── */
+    .sidebar-toggle {
+      position: fixed;
+      top: var(--space-4);
+      left: calc(240px + var(--space-4) + 8px);
+      z-index: 101;
+      width: 32px;
+      height: 32px;
+      border-radius: var(--radius-sm);
+      background: var(--glass-bg);
+      backdrop-filter: var(--glass-blur);
+      -webkit-backdrop-filter: var(--glass-blur);
+      border: 1px solid var(--glass-border);
+      color: var(--text-secondary);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all var(--duration-normal) var(--ease-smooth);
+    }
+    .sidebar-toggle:hover {
+      background: var(--glass-bg-hover);
+      color: var(--text-primary);
+    }
+    .sidebar-toggle.collapsed {
+      left: calc(var(--sidebar-collapsed) + var(--space-4) + 8px);
+    }
+    .sidebar-toggle svg {
+      width: 16px; height: 16px;
+      stroke: currentColor; fill: none;
+      stroke-width: 1.5; stroke-linecap: round;
+    }
+
+    /* ═══════════════════════════════════════════════
+       HERO
+       ═══════════════════════════════════════════════ */
+    .hero {
+      min-height: 40vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: var(--space-8) var(--space-6) var(--space-7);
+      animation: fadeIn 0.6s var(--ease-out) both;
+    }
+    .hero-name {
+      font-family: var(--font-display);
+      font-size: clamp(40px, 6vw, 60px);
+      font-weight: 300;
+      letter-spacing: var(--tracking-display);
+      line-height: var(--leading-display);
+      color: var(--text-primary);
+      margin-bottom: var(--space-2);
+    }
+    .hero-sub {
+      font-size: var(--text-body);
+      color: var(--text-secondary);
+      margin-bottom: var(--space-7);
+      letter-spacing: var(--tracking-normal);
+    }
+
+    /* ── Stat pills ── */
+    .stat-pills {
+      display: flex;
+      gap: var(--space-5);
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .stat-pill {
+      display: flex;
+      align-items: baseline;
+      gap: var(--space-2);
+      padding: var(--space-3) var(--space-5);
+      background: var(--glass-bg);
+      backdrop-filter: var(--glass-blur);
+      -webkit-backdrop-filter: var(--glass-blur);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-full);
+    }
+    .stat-pill-value {
+      font-family: var(--font-display);
+      font-size: var(--text-title);
+      font-weight: 600;
+      color: var(--text-primary);
+      line-height: 1;
+    }
+    .stat-pill-label {
+      font-size: var(--text-body-sm);
+      color: var(--text-tertiary);
+      white-space: nowrap;
+    }
+
+    /* ═══════════════════════════════════════════════
+       QUICK ACCESS GRID
+       ═══════════════════════════════════════════════ */
+    .quick-section {
+      padding: 0 var(--space-6) var(--space-7);
+      max-width: var(--content-max);
+      margin: 0 auto;
+    }
+    .quick-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: var(--space-4);
+    }
+    .quick-card {
+      background: var(--glass-bg);
+      backdrop-filter: var(--glass-blur);
+      -webkit-backdrop-filter: var(--glass-blur);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-5);
+      cursor: pointer;
+      transition: all var(--duration-normal) var(--ease-smooth);
+      text-decoration: none;
+      display: block;
+      color: inherit;
+    }
+    .quick-card:hover {
+      background: var(--glass-bg-hover);
+      border-color: var(--glass-border-hover);
+      transform: translateY(-2px);
+      box-shadow: var(--depth-2);
+    }
+    .quick-card:active {
+      transform: translateY(0);
+    }
+    .quick-card-icon {
+      width: 40px;
+      height: 40px;
+      margin-bottom: var(--space-4);
+      color: var(--text-secondary);
+    }
+    .quick-card-icon svg {
+      width: 100%;
+      height: 100%;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 1.5;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .quick-card-title {
+      font-family: var(--font-display);
+      font-size: var(--text-heading);
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: var(--space-2);
+    }
+    .quick-card-desc {
+      font-size: var(--text-body-sm);
+      color: var(--text-secondary);
+      line-height: var(--leading-normal);
+    }
+
+    /* ═══════════════════════════════════════════════
+       RECENT ACTIVITY
+       ═══════════════════════════════════════════════ */
+    .activity-section {
+      padding: 0 var(--space-6) var(--space-8);
+      max-width: var(--content-max);
+      margin: 0 auto;
+    }
+    .activity-heading {
+      font-family: var(--font-display);
+      font-size: var(--text-heading);
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: var(--space-4);
+    }
+    .activity-list {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .activity-row {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      padding: var(--space-3) var(--space-3);
+      border-radius: var(--radius-sm);
+      transition: background var(--duration-fast);
+      animation: fadeIn 0.4s var(--ease-out) both;
+    }
+    .activity-row:hover { background: rgba(255,255,255,0.02); }
+    .activity-time {
+      font-size: var(--text-body-sm);
+      color: var(--text-tertiary);
+      font-family: var(--font-mono);
+      flex-shrink: 0;
+      width: 80px;
+    }
+    .activity-icon {
+      width: 20px;
+      height: 20px;
+      flex-shrink: 0;
+      color: var(--text-tertiary);
+    }
+    .activity-icon svg {
+      width: 100%; height: 100%;
+      stroke: currentColor; fill: none;
+      stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round;
+    }
+    .activity-icon.success { color: var(--status-success); }
+    .activity-icon.info { color: var(--status-info); }
+    .activity-icon.warning { color: var(--status-warning); }
+    .activity-icon.accent { color: var(--accent); }
+    .activity-text {
+      font-size: var(--text-body-sm);
+      color: var(--text-secondary);
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* ═══════════════════════════════════════════════
+       COMMAND PALETTE (Spotlight)
+       ═══════════════════════════════════════════════ */
+    .cmd-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      display: none;
+      align-items: flex-start;
+      justify-content: center;
+      padding-top: 18vh;
+      background: rgba(0,0,0,0.4);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+    .cmd-overlay.open { display: flex; }
+    .cmd-box {
+      width: 520px;
+      max-width: 92vw;
+      max-height: 380px;
+      background: rgba(18,18,26,0.96);
+      backdrop-filter: var(--glass-blur-heavy);
+      -webkit-backdrop-filter: var(--glass-blur-heavy);
+      border: 1px solid var(--glass-border-hover);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--depth-3);
+      overflow: hidden;
+      animation: fadeIn 0.2s var(--ease-out);
+      display: flex;
+      flex-direction: column;
+    }
+    .cmd-input-row {
+      display: flex;
+      align-items: center;
+      padding: var(--space-4) var(--space-5);
+      border-bottom: 1px solid var(--glass-border);
+      gap: var(--space-3);
+    }
+    .cmd-input-row svg {
+      width: 18px; height: 18px;
+      stroke: var(--text-tertiary); fill: none;
+      stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+      flex-shrink: 0;
+    }
+    .cmd-input {
+      flex: 1;
+      background: none;
+      border: none;
+      outline: none;
+      color: var(--text-primary);
+      font-size: var(--text-body-lg);
+      font-family: var(--font-body);
+    }
+    .cmd-input::placeholder { color: var(--text-faint); }
+    .cmd-kbd {
+      font-size: var(--text-caption);
+      color: var(--text-faint);
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-family: var(--font-mono);
+    }
+    .cmd-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: var(--space-2) var(--space-3);
+    }
+    .cmd-list::-webkit-scrollbar { width: 4px; }
+    .cmd-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); border-radius: 10px; }
+    .cmd-group-label {
+      font-size: var(--text-caption);
+      font-weight: 500;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text-faint);
+      padding: var(--space-3) var(--space-3) var(--space-1);
+    }
+    .cmd-item {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      padding: var(--space-3);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: background var(--duration-fast);
+      color: var(--text-secondary);
+    }
+    .cmd-item:hover, .cmd-item.selected {
+      background: rgba(255,255,255,0.05);
+      color: var(--text-primary);
+    }
+    .cmd-item.selected { outline: 1px solid rgba(124,106,239,0.3); }
+    .cmd-item-icon {
+      width: 28px; height: 28px;
+      border-radius: var(--radius-xs);
+      background: var(--glass-bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .cmd-item-icon svg {
+      width: 16px; height: 16px;
+      stroke: currentColor; fill: none;
+      stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round;
+    }
+    .cmd-item-text { flex: 1; font-size: var(--text-body); }
+    .cmd-footer {
+      padding: var(--space-2) var(--space-5);
+      border-top: 1px solid var(--glass-border);
+      display: flex;
+      gap: var(--space-4);
+      font-size: var(--text-caption);
+      color: var(--text-faint);
+    }
+    .cmd-footer span { display: flex; align-items: center; gap: 4px; }
+
+    /* ═══════════════════════════════════════════════
+       RESPONSIVE
+       ═══════════════════════════════════════════════ */
+    @media (max-width: 1024px) {
+      .quick-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 768px) {
+      .page-main { margin-left: 0 !important; }
+      .sidebar-toggle { display: none; }
+      .hero { padding: var(--space-7) var(--space-4) var(--space-6); min-height: 32vh; }
+      .hero-name { font-size: clamp(32px, 8vw, 48px); }
+      .stat-pills { gap: var(--space-3); }
+      .quick-section, .activity-section { padding-left: var(--space-4); padding-right: var(--space-4); }
+      .quick-grid { grid-template-columns: 1fr; }
+      .cmd-box { max-width: 96vw; }
+    }
+
+    /* ── Reveal on scroll ── */
+    .reveal {
+      opacity: 0;
+      transform: translateY(12px);
+      transition: opacity 0.5s var(--ease-smooth), transform 0.5s var(--ease-smooth);
+    }
+    .reveal.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  </style>
+</head>
+<body>
+  <div class="toast-container"></div>
+
+  <!-- ═══ Sidebar ═══ -->
+  <!-- Sidebar (由共享组件注入) -->
+
+
+  <!-- ═══ Main Content ═══ -->
+  <div class="page-main" id="page-main">
+
+    <!-- ── Hero ── -->
+    <section class="hero">
+      <h1 class="hero-name" data-i18n="landing.brandName">太极北斗</h1>
+      <p class="hero-sub" data-i18n="landing.tagline">Unified AI Gateway</p>
+      <div class="stat-pills" id="stat-pills">
+        <div class="stat-pill">
+          <span class="stat-pill-value" id="stat-providers" data-animate-number="0" data-i18n="landing.statProvidersVal">&mdash;</span>
+          <span class="stat-pill-label" data-i18n="landing.statProviders">Providers</span>
+        </div>
+        <div class="stat-pill">
+          <span class="stat-pill-value" id="stat-models" data-animate-number="0" data-i18n="landing.statModelsVal">&mdash;</span>
+          <span class="stat-pill-label" data-i18n="landing.statModels">Models</span>
+        </div>
+        <div class="stat-pill">
+          <span class="stat-pill-value" id="stat-neurons" data-animate-number="0" data-i18n="landing.statNeuronsVal">&mdash;</span>
+          <span class="stat-pill-label" data-i18n="landing.statNeurons">Neurons</span>
+        </div>
+        <div class="stat-pill">
+          <span class="stat-pill-value" id="stat-uptime" data-animate-number="0" data-i18n="landing.statUptimeVal">&mdash;</span>
+          <span class="stat-pill-label" data-i18n="landing.statUptime">Uptime</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Quick Access ── -->
+    <section class="quick-section reveal">
+      <div class="quick-grid">
+
+        <a class="quick-card reveal" href="chat.html">
+          <div class="quick-card-icon">
+            <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          </div>
+          <div class="quick-card-title" data-i18n="landing.actChat">开始对话</div>
+          <div class="quick-card-desc" data-i18n="landing.actChatDesc">与 AI 团队协作，多角色分析</div>
+        </a>
+
+        <a class="quick-card reveal reveal-delay-1" href="neurons.html">
+          <div class="quick-card-icon">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+          </div>
+          <div class="quick-card-title" data-i18n="landing.actNeuron">神经元进化</div>
+          <div class="quick-card-desc" data-i18n="landing.actNeuronDesc">创建、训练和部署智能模块</div>
+        </a>
+
+        <a class="quick-card reveal reveal-delay-2" href="provider-wizard.html">
+          <div class="quick-card-icon">
+            <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          </div>
+          <div class="quick-card-title" data-i18n="landing.actProvider">Provider 管理</div>
+          <div class="quick-card-desc" data-i18n="landing.actProviderDesc">接入 OpenAI、Claude、Gemini 等</div>
+        </a>
+
+        <a class="quick-card reveal reveal-delay-1" href="knowledge.html">
+          <div class="quick-card-icon">
+            <svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+          </div>
+          <div class="quick-card-title" data-i18n="landing.actKnowledge">知识库</div>
+          <div class="quick-card-desc" data-i18n="landing.actKnowledgeDesc">RAG 驱动的知识检索</div>
+        </a>
+
+        <a class="quick-card reveal reveal-delay-2" href="team.html">
+          <div class="quick-card-icon">
+            <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          </div>
+          <div class="quick-card-title" data-i18n="landing.actTeam">团队协作</div>
+          <div class="quick-card-desc" data-i18n="landing.actTeamDesc">管理成员、角色与权限</div>
+        </a>
+
+        <a class="quick-card reveal reveal-delay-3" href="dashboard.html">
+          <div class="quick-card-icon">
+            <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          </div>
+          <div class="quick-card-title" data-i18n="landing.actMonitor">系统监控</div>
+          <div class="quick-card-desc" data-i18n="landing.actMonitorDesc">实时健康与性能指标</div>
+        </a>
+
+      </div>
+    </section>
+
+    <!-- ── Recent Activity ── -->
+    <section class="activity-section reveal" id="activity-section">
+      <h2 class="activity-heading" data-i18n="landing.activityTitle">最近动态</h2>
+      <div class="activity-list" id="activity-list"></div>
+    </section>
+
+  </div>
+
+  <!-- ═══ Command Palette ═══ -->
+  <div class="cmd-overlay" id="cmd-overlay">
+    <div class="cmd-box">
+      <div class="cmd-input-row">
+        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input class="cmd-input" id="cmd-input" type="text" placeholder="搜索..." data-i18n-placeholder="landing.cmdPlaceholder" autocomplete="off">
+        <span class="cmd-kbd">ESC</span>
+      </div>
+      <div class="cmd-list" id="cmd-list"></div>
+      <div class="cmd-footer">
+        <span><span class="cmd-kbd">&#8593;&#8595;</span> navigate</span>
+        <span><span class="cmd-kbd">&#9166;</span> open</span>
+        <span><span class="cmd-kbd">esc</span> close</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ Scripts ═══ -->
+  <script src="components/nav.js"></script>
+  <script src="components/sidebar.js"></script>
+
+  <script>
+  (function() {
+    'use strict';
+    injectSidebar({ activeId: "index" });
+
+    var API = window.location.origin;
+
+    /* ═══════════════════════════════════════════════
+       SIDEBAR
+       ═══════════════════════════════════════════════ */
+    var sidebar = document.getElementById('sidebar');
+    var sidebarToggle = document.getElementById('sidebar-toggle');
+    var pageMain = document.getElementById('page-main');
+    var collapsed = false;
+
+    sidebarToggle.addEventListener('click', function() {
+      collapsed = !collapsed;
+      sidebar.classList.toggle('collapsed', collapsed);
+      pageMain.classList.toggle('sidebar-collapsed', collapsed);
+      sidebarToggle.classList.toggle('collapsed', collapsed);
+    });
+
+    /* ═══════════════════════════════════════════════
+       REVEAL ON SCROLL
+       ═══════════════════════════════════════════════ */
+    var revealObs = new IntersectionObserver(function(entries) {
+      entries.forEach(function(e) {
+        if (e.isIntersecting) { e.target.classList.add('visible'); revealObs.unobserve(e.target); }
+      });
+    }, { threshold: 0.1 });
+    document.querySelectorAll('.reveal').forEach(function(el) { revealObs.observe(el); });
+
+    /* ═══════════════════════════════════════════════
+       COUNT-UP
+       ═══════════════════════════════════════════════ */
+    function countUp(el, target, suffix, ms) {
+      suffix = suffix || '';
+      ms = ms || 800;
+      var start = null;
+      var isFloat = String(target).indexOf('.') !== -1;
+      function step(ts) {
+        if (!start) start = ts;
+        var p = Math.min((ts - start) / ms, 1);
+        var eased = 1 - Math.pow(1 - p, 3);
+        var cur = eased * target;
+        el.textContent = (isFloat ? cur.toFixed(1) : Math.floor(cur)) + suffix;
+        if (p < 1) requestAnimationFrame(step);
+        else el.textContent = (isFloat ? target.toFixed(1) : target) + suffix;
+      }
+      requestAnimationFrame(step);
+    }
+
+    /* ═══════════════════════════════════════════════
+       FETCH STATS
+       ═══════════════════════════════════════════════ */
+    function fetchStats() {
+      var elP = document.getElementById('stat-providers');
+      var elM = document.getElementById('stat-models');
+      var elN = document.getElementById('stat-neurons');
+      var elU = document.getElementById('stat-uptime');
+
+      fetch(API + '/system/info')
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+          var ap = d.activeProviders || 0;
+          var tm = d.totalModels || d.modelCount || 0;
+          if (d.providers) {
+            if (Array.isArray(d.providers)) ap = d.providers.filter(function(p) { return p.enabled || p.active || p.status === 'healthy'; }).length;
+            else if (typeof d.providers === 'object') ap = Object.keys(d.providers).length;
+          }
+          if (d.models) tm = Array.isArray(d.models) ? d.models.length : Object.keys(d.models).length;
+          countUp(elP, ap, '');
+          countUp(elM, tm, '');
+          var uptime = d.uptime || d.systemUptime || '';
+          if (uptime) {
+            if (typeof uptime === 'number') {
+              var days = Math.floor(uptime / 86400);
+              var hrs = Math.floor((uptime % 86400) / 3600);
+              elU.textContent = days + 'd ' + hrs + 'h';
+            } else {
+              elU.textContent = String(uptime).substring(0, 12);
+            }
+          } else { elU.textContent = '\u2014'; }
+        })
+        .catch(function() { elP.textContent = '\u2014'; elM.textContent = '\u2014'; elU.textContent = '\u2014'; });
+
+      fetch(API + '/neuron/stats')
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+          var c = d.total || d.count || d.neurons || 0;
+          if (Array.isArray(d.neurons)) c = d.neurons.length;
+          countUp(elN, c, '');
+        })
+        .catch(function() { elN.textContent = '\u2014'; });
+    }
+
+    /* ═══════════════════════════════════════════════
+       ACTIVITY FEED
+       ═══════════════════════════════════════════════ */
+    var activityList = document.getElementById('activity-list');
+    var actCounter = 0;
+
+    var fallback = [
+      { type: 'success', text: I18N.t('landing.actGatewayStarted'), time: I18N.t('landing.actTimeJust') },
+      { type: 'info', text: I18N.t('landing.actProviderHealthy'), time: I18N.t('landing.actTime1m') },
+      { type: 'accent', text: I18N.t('landing.actNeuronEvolved'), time: I18N.t('landing.actTime3m') },
+      { type: 'info', text: I18N.t('landing.actKnowledgeIndexed'), time: I18N.t('landing.actTime5m') },
+      { type: 'success', text: I18N.t('landing.actSecurityScanned'), time: I18N.t('landing.actTime8m') },
+    ];
+
+    var iconSVGs = {
+      success: '<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>',
+      info: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>',
+      warning: '<svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+      accent: '<svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>',
+    };
+
+    function renderActivity(items) {
+      activityList.innerHTML = '';
+      items.slice(0, 5).forEach(function(item, i) {
+        var row = document.createElement('div');
+        row.className = 'activity-row';
+        row.style.animationDelay = (i * 0.05) + 's';
+        row.innerHTML =
+          '<span class="activity-time">' + escapeHtml(item.time || '') + '</span>' +
+          '<span class="activity-icon ' + escapeHtml(item.type || 'info') + '">' + (iconSVGs[item.type] || iconSVGs.info) + '</span>' +
+          '<span class="activity-text">' + escapeHtml(item.text) + '</span>';
+        activityList.appendChild(row);
+      });
+      // If empty, hide the section
+      var section = document.getElementById('activity-section');
+      if (items.length === 0 && section) section.style.display = 'none';
+      else if (section) section.style.display = '';
+    }
+
+    function fetchActivity() {
+      fetch(API + '/service-bus/status')
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+          var items = [];
+          if (d.events && Array.isArray(d.events)) {
+            d.events.slice(0, 5).forEach(function(ev) {
+              var t = ev.status === 'ok' ? 'success' : (ev.status === 'warn' ? 'warning' : 'info');
+              items.push({
+                type: t,
+                text: (ev.source || 'System') + ' ' + (ev.message || ev.event || 'Event'),
+                time: ev.timestamp ? relativeTime(new Date(ev.timestamp)) : ''
+              });
+            });
+          }
+          if (items.length === 0) renderActivity(fallback);
+          else renderActivity(items);
+        })
+        .catch(function() { if (actCounter === 0) renderActivity(fallback); });
+      actCounter++;
+    }
+
+    function relativeTime(date) {
+      var diff = Math.floor((Date.now() - date.getTime()) / 1000);
+      if (diff < 60) return I18N.t('common.justNow');
+      if (diff < 3600) return Math.floor(diff / 60) + ' ' + I18N.t('common.minutesAgo');
+      if (diff < 86400) return Math.floor(diff / 3600) + ' ' + I18N.t('common.hoursAgo');
+      return Math.floor(diff / 86400) + ' ' + I18N.t('common.daysAgo');
+    }
+
+    /* ═══════════════════════════════════════════════
+       COMMAND PALETTE
+       ═══════════════════════════════════════════════ */
+    var cmdOverlay = document.getElementById('cmd-overlay');
+    var cmdInput = document.getElementById('cmd-input');
+    var cmdList = document.getElementById('cmd-list');
+    var cmdIdx = 0;
+    var cmdItems = [];
+
+    var pages = [
+      { label: I18N.t('landing.cmdHome') + ' Home', icon: 'home', href: 'index.html', group: 'pages' },
+      { label: I18N.t('landing.cmdDashboard') + ' Dashboard', icon: 'grid', href: 'dashboard.html', group: 'pages' },
+      { label: I18N.t('landing.cmdRouting') + ' Routing', icon: 'route', href: 'routing.html', group: 'pages' },
+      { label: I18N.t('landing.cmdWorkforce') + ' Workforce', icon: 'users', href: 'workforce.html', group: 'pages' },
+      { label: I18N.t('landing.cmdSecurity') + ' Security', icon: 'shield', href: 'security.html', group: 'pages' },
+      { label: I18N.t('landing.cmdNeurons') + ' Neurons', icon: 'neuron', href: 'neurons.html', group: 'pages' },
+      { label: I18N.t('landing.cmdOperations') + ' Operations', icon: 'monitor', href: 'operations.html', group: 'pages' },
+      { label: I18N.t('landing.cmdApproval') + ' Approval', icon: 'check', href: 'approval.html', group: 'pages' },
+      { label: I18N.t('landing.cmdTriMode') + ' Tri-Mode', icon: 'layers', href: 'tri-mode.html', group: 'pages' },
+      { label: I18N.t('landing.cmdKnowledge') + ' Knowledge', icon: 'book', href: 'knowledge.html', group: 'pages' },
+      { label: I18N.t('landing.cmdGovernance') + ' Governance', icon: 'plus', href: 'governance.html', group: 'pages' },
+      { label: I18N.t('landing.cmdEvidence') + ' Evidence', icon: 'file', href: 'evidence.html', group: 'pages' },
+      { label: I18N.t('landing.cmdProviderWizard'), icon: 'plus', href: 'provider-wizard.html', group: 'pages' },
+      { label: I18N.t('landing.cmdCodexContext'), icon: 'type', href: 'codex-context.html', group: 'pages' },
+      { label: I18N.t('landing.cmdTeam') + ' Team', icon: 'users', href: 'team.html', group: 'pages' },
+      { label: I18N.t('landing.cmdSettings') + ' Settings', icon: 'gear', href: 'settings.html', group: 'pages' },
+      { label: I18N.t('landing.cmdEcommerce') + ' E-Commerce', icon: 'cart', href: 'ecommerce.html', group: 'pages' },
+    ];
+
+    var actions = [
+      { label: I18N.t('landing.cmdStartChat') + ' Start Chat', icon: 'chat', href: 'chat.html', group: 'actions' },
+      { label: I18N.t('landing.cmdAddProvider'), icon: 'plus', href: 'provider-wizard.html', group: 'actions' },
+      { label: I18N.t('landing.cmdCreateNeuron'), icon: 'neuron', href: 'neurons.html', group: 'actions' },
+      { label: I18N.t('landing.cmdViewLogs'), icon: 'monitor', href: 'operations.html', group: 'actions' },
+    ];
+
+    var allEntries = pages.concat(actions);
+
+    var simpleIcons = {
+      home: '<svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>',
+      grid: '<svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>',
+      route: '<svg viewBox="0 0 24 24"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/></svg>',
+      users: '<svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>',
+      shield: '<svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>',
+      neuron: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4"/></svg>',
+      monitor: '<svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>',
+      check: '<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>',
+      layers: '<svg viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/></svg>',
+      book: '<svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>',
+      plus: '<svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>',
+      file: '<svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>',
+      type: '<svg viewBox="0 0 24 24"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>',
+      gear: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33"/></svg>',
+      cart: '<svg viewBox="0 0 24 24"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>',
+      chat: '<svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
+    };
+
+    function renderCmd(filter) {
+      filter = (filter || '').toLowerCase();
+      cmdList.innerHTML = '';
+      cmdItems = [];
+      cmdIdx = 0;
+
+      var groups = {};
+      allEntries.forEach(function(e) {
+        if (filter && e.label.toLowerCase().indexOf(filter) === -1) return;
+        if (!groups[e.group]) groups[e.group] = [];
+        groups[e.group].push(e);
+      });
+
+      var labels = { pages: 'PAGES', actions: 'ACTIONS' };
+      ['pages', 'actions'].forEach(function(g) {
+        if (!groups[g] || groups[g].length === 0) return;
+        var lbl = document.createElement('div');
+        lbl.className = 'cmd-group-label';
+        lbl.textContent = labels[g];
+        cmdList.appendChild(lbl);
+
+        groups[g].slice(0, 8).forEach(function(entry) {
+          var item = document.createElement('div');
+          item.className = 'cmd-item';
+          item.setAttribute('data-href', entry.href);
+          item.innerHTML =
+            '<div class="cmd-item-icon">' + (simpleIcons[entry.icon] || simpleIcons.grid) + '</div>' +
+            '<div class="cmd-item-text">' + entry.label + '</div>';
+          item.addEventListener('click', function() { window.location.href = entry.href; });
+          cmdList.appendChild(item);
+          cmdItems.push(item);
+        });
+      });
+
+      if (cmdItems.length > 0) cmdItems[0].classList.add('selected');
+      else cmdList.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-faint);font-size:var(--text-body-sm);">No results</div>';
+    }
+
+    function updateCmdSel() {
+      cmdItems.forEach(function(item, i) { item.classList.toggle('selected', i === cmdIdx); });
+      if (cmdItems[cmdIdx]) cmdItems[cmdIdx].scrollIntoView({ block: 'nearest' });
+    }
+
+    function openPalette() {
+      cmdOverlay.classList.add('open');
+      cmdInput.value = '';
+      renderCmd('');
+      setTimeout(function() { cmdInput.focus(); }, 50);
+    }
+
+    function closePalette() { cmdOverlay.classList.remove('open'); }
+
+    document.addEventListener('keydown', function(e) {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        cmdOverlay.classList.contains('open') ? closePalette() : openPalette();
+        return;
+      }
+      if (!cmdOverlay.classList.contains('open')) return;
+      if (e.key === 'Escape') closePalette();
+      else if (e.key === 'ArrowDown') { e.preventDefault(); if (cmdItems.length) { cmdIdx = (cmdIdx + 1) % cmdItems.length; updateCmdSel(); } }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); if (cmdItems.length) { cmdIdx = (cmdIdx - 1 + cmdItems.length) % cmdItems.length; updateCmdSel(); } }
+      else if (e.key === 'Enter') { e.preventDefault(); if (cmdItems[cmdIdx]) { var h = cmdItems[cmdIdx].getAttribute('data-href'); if (h) window.location.href = h; } }
+    });
+
+    cmdInput.addEventListener('input', function() { renderCmd(cmdInput.value); });
+    cmdOverlay.addEventListener('click', function(e) { if (e.target === cmdOverlay) closePalette(); });
+
+    /* ═══════════════════════════════════════════════
+       INIT
+       ═══════════════════════════════════════════════ */
+    fetchStats();
+    fetchActivity();
+    setInterval(fetchActivity, 10000);
+    setInterval(fetchStats, 30000);
+
+  })();
+  </script>
+
+  <script src="i18n.js"></script>
+  <script src="interact.js"></script>
+
+</body>
+</html>
