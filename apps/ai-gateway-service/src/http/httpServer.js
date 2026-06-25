@@ -16,6 +16,7 @@ import {
   writeServiceLog,
   writeErrorResponse,
 } from "./utils/responseUtils.js";
+import { readCapabilityJson, readEnterpriseJson } from "./utils/enterpriseUtils.js";
 
 import { resolvePermission, isPublicRoute } from "./utils/healthUtils.js";
 
@@ -67,6 +68,7 @@ export function createGatewayHttpServer(application) {
   const routeHelpers = {
     readJson,
     readCapabilityJson,
+    readEnterpriseJson,
     writeJson,
     writeServiceLog,
     writeErrorResponse,
@@ -92,6 +94,11 @@ export function createGatewayHttpServer(application) {
   });
   const authRoutes = createAuthRoutes({ ...application, authTokenService }, routeHelpers);
 
+  // ── WebSocket server (must be created before routes that reference it) ──
+  const wsServer = createWebSocketServer({
+    allowedOrigins: (application.runtimeEnv?.CORS_ALLOWED_ORIGINS ?? process.env.CORS_ALLOWED_ORIGINS ?? "http://127.0.0.1:3100,http://localhost:3100").split(",").map((s) => s.trim()).filter(Boolean),
+  });
+
   // ── 提取的路由模块(渐进式迁移) ──
   const chatRagRoutes = createChatRagRoutes({ application, gatewayService, knowledgeService, circuitBreakerRegistry });
   const capabilityRoutes = createHttpServerCapabilityRoutes({
@@ -116,38 +123,6 @@ export function createGatewayHttpServer(application) {
     capabilityRoutes.handlers,
     chatStreamRoutes.handlers,
   ];
-
-  const wsServer = createWebSocketServer({
-    allowedOrigins: (application.runtimeEnv?.CORS_ALLOWED_ORIGINS ?? process.env.CORS_ALLOWED_ORIGINS ?? "http://127.0.0.1:3100,http://localhost:3100").split(",").map((s) => s.trim()).filter(Boolean),
-    onConnection(ws) {
-      logger.info("ws_connected", { connectionCount: wsServer.getConnectionCount() });
-      ws.send(JSON.stringify({ type: "connected", message: "Welcome to AI Gateway WebSocket" }));
-    },
-    async onMessage(message, ws) {
-      try {
-        // Security: cap incoming WebSocket message size at 1 MB to prevent JSON.parse DoS
-        if (typeof message === "string" && message.length > 1_048_576) {
-          ws.send(JSON.stringify({ type: "error", message: "Message too large (max 1 MB)" }));
-          return;
-        }
-        const data = JSON.parse(message);
-        if (data.type === "chat" && data.prompt) {
-          const result = await gatewayService.execute({
-            messages: [{ role: "user", content: data.prompt }],
-            metadata: { source: "websocket" },
-          });
-          ws.send(JSON.stringify({ type: "chat_response", data: result }));
-        } else if (data.type === "ping") {
-          ws.send(JSON.stringify({ type: "pong", timestamp: Date.now() }));
-        }
-      } catch (e) {
-        ws.send(JSON.stringify({ type: "error", message: "Internal server error" }));
-      }
-    },
-    onClose(ws) {
-      logger.info("ws_disconnected", { connectionCount: wsServer.getConnectionCount() });
-    },
-  });
 
   return createServer(async (request, response) => {
     const startedAt = Date.now();

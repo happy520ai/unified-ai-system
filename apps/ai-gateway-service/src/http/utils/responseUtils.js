@@ -1,9 +1,63 @@
-import { readJson, writeJson } from "../../entrypoints/entrypointUtils.js";
+import { readJson as _readFileJson } from "../../entrypoints/entrypointUtils.js";
 import { createErrorEnvelope } from "@unified-ai-system/shared-utils";
 // =============================================================================
 // responseUtils.js — HTTP 响应工具函数
 // 从 httpServer.js 提取的通用响应工具
 // =============================================================================
+
+/**
+ * Read JSON from HTTP request body
+ */
+export async function readJson(request) {
+  // If body was already parsed (e.g. by middleware), return it
+  if (request.body && typeof request.body === "object") return request.body;
+  const chunks = [];
+  for await (const chunk of request) {
+    chunks.push(chunk);
+  }
+  const raw = Buffer.concat(chunks).toString("utf8");
+  return raw ? JSON.parse(raw) : {};
+}
+
+/**
+ * Write JSON HTTP response
+ */
+export function writeJson(response, status, data) {
+  const body = JSON.stringify(data);
+  response.writeHead(status, {
+    "Content-Type": "application/json; charset=utf-8",
+    "Content-Length": Buffer.byteLength(body),
+  });
+  response.end(body);
+}
+
+/**
+ * Write HTML response
+ */
+export function writeHtml(response, status, html) {
+  response.writeHead(status, { "Content-Type": "text/html; charset=utf-8" });
+  response.end(html);
+}
+
+/**
+ * Write SSE headers for streaming responses
+ */
+export function writeSseHeaders(response) {
+  response.writeHead(200, {
+    "Content-Type": "text/event-stream",
+    "Cache-Control": "no-cache",
+    "Connection": "keep-alive",
+    "X-Accel-Buffering": "no",
+  });
+}
+
+/**
+ * Write a single SSE event
+ */
+export function writeSseEvent(response, event, data) {
+  if (response.writableEnded) return;
+  response.write(`event: ${event}\ndata: ${typeof data === "string" ? data : JSON.stringify(data)}\n\n`);
+}
 
 const MAX_BODY_SIZE = 10 * 1024 * 1024; // 10MB
 

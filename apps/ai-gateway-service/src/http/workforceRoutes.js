@@ -34,9 +34,12 @@ export function createWorkforceRoutes(application, helpers) {
   }
 
   // ── POST /workforce/plan ──
-  async function handleWorkforcePlan(req, res, { startedAt }) {
-    const body = await readCapabilityJson({ request: req, response: res, startedAt, code: "workforce_plan_invalid_json" });
+  async function handleWorkforcePlan(req, res, { startedAt, body }) {
     if (!body) return;
+    if (!body.goal) {
+      writeErrorResponse({ response: res, error: { code: "WORKFORCE_GOAL_REQUIRED", message: "Goal is required", statusCode: 400 }, startedAt, fallbackCode: "workforce_plan_invalid_json" });
+      return;
+    }
     try {
       const result = workforceService.plan(body);
       const autoSaveResult = await workforceService.savePlan({ plan: result });
@@ -67,8 +70,8 @@ export function createWorkforceRoutes(application, helpers) {
   }
 
   // ── POST /workforce/run-local ──
-  async function handleWorkforceRunLocal(req, res, { startedAt }) {
-    const body = await readCapabilityJson({ request: req, response: res, startedAt, code: "workforce_run_local_invalid_json" });
+  async function handleWorkforceRunLocal(req, res, { startedAt, body }) {
+    if (!body) body = await readCapabilityJson({ request: req, response: res, startedAt, code: "workforce_run_local_invalid_json" });
     if (!body) return;
     try {
       const result = await workforceService.runLocal(body);
@@ -176,11 +179,14 @@ export function createWorkforceRoutes(application, helpers) {
   }
 
   // ── POST /workforce/execute ──
-  async function handleWorkforceExecute(req, res, { startedAt }) {
-    const b = await readCapabilityJson({ request: req, response: res, startedAt, code: "execute_bad" });
-    if (!b) return;
+  async function handleWorkforceExecute(req, res, { startedAt, body }) {
+    if (!body) return;
+    if (!body.goal) {
+      writeErrorResponse({ response: res, error: { code: "WORKFORCE_GOAL_REQUIRED", message: "Goal is required", statusCode: 400 }, startedAt, fallbackCode: "execute_bad" });
+      return;
+    }
     try {
-      const result = await workforceService.execute(b);
+      const result = await workforceService.execute(body);
       writeJson(res, result?.success ? 200 : 422, createOkEnvelope(result, { startedAt }));
     } catch (e) {
       writeErrorResponse({ response: res, error: e, startedAt, fallbackCode: "execute_failed" });
@@ -188,11 +194,11 @@ export function createWorkforceRoutes(application, helpers) {
   }
 
   // ── POST /workforce/plans/save ──
-  async function handleWorkforcePlansSave(req, res, { startedAt }) {
-    const b = await readCapabilityJson({ request: req, response: res, startedAt, code: "plans_save_bad" });
-    if (!b) return;
+  async function handleWorkforcePlansSave(req, res, { startedAt, body }) {
+    if (!body) body = await readCapabilityJson({ request: req, response: res, startedAt, code: "plans_save_bad" });
+    if (!body) return;
     try {
-      const result = await workforceService.savePlan(b);
+      const result = await workforceService.savePlan(body);
       writeJson(res, 200, createOkEnvelope(result, { startedAt }));
     } catch (e) {
       writeErrorResponse({ response: res, error: e, startedAt, fallbackCode: "plans_save_failed" });

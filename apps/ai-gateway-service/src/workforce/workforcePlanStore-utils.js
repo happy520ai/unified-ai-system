@@ -41,14 +41,18 @@ export function createStoreSafety() {
 
 export async function readStore(storePath) {
   try {
-    const parsed = JSON.parse(await readFile(storePath, "utf8"));
+    const content = await readFile(storePath, "utf8");
+    if (!content || !content.trim()) {
+      return { version: STORE_VERSION, updatedAt: null, plans: [] };
+    }
+    const parsed = JSON.parse(content);
     return {
       version: parsed.version === STORE_VERSION ? parsed.version : STORE_VERSION,
       updatedAt: parsed.updatedAt,
       plans: Array.isArray(parsed.plans) ? parsed.plans.map(redactSecrets) : [],
     };
   } catch (error) {
-    if (error?.code === "ENOENT") {
+    if (error?.code === "ENOENT" || error instanceof SyntaxError) {
       return { version: STORE_VERSION, updatedAt: null, plans: [] };
     }
     throw error;
