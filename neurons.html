@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data:;">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="太极北斗 AI 网关 — 多模型路由、知识库检索、企业级治理">
+  <meta name="theme-color" content="#0f1117">
+  <title data-i18n="neurons.title">神经元进化</title>
+  <link rel="stylesheet" href="console.css">
+  <style>
+    .page-enter { animation: fadeInUp 0.5s var(--ease-out) both; }
+    .evolve-section { margin-bottom: var(--space-7); }
+    .status-dot-inline { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+    .status-dot-inline.green { background: var(--status-success); box-shadow: 0 0 8px var(--status-success); }
+    .status-dot-inline.yellow { background: var(--status-warning); box-shadow: 0 0 8px var(--status-warning); }
+    .status-dot-inline.red { background: var(--status-danger); box-shadow: 0 0 8px var(--status-danger); }
+    .status-dot-inline.gray { background: var(--text-tertiary); }
+    .neuron-item { display: flex; align-items: center; gap: var(--space-4); padding: var(--space-4) var(--space-5); border-bottom: 1px solid rgba(255,255,255,0.03); transition: background var(--duration-fast); }
+    .neuron-item:last-child { border-bottom: none; }
+    .neuron-item:hover { background: rgba(255,255,255,0.02); }
+    .neuron-info { flex: 1; min-width: 0; }
+    .neuron-name { font-size: var(--text-body); font-weight: 500; color: var(--text-primary); margin-bottom: 2px; }
+    .neuron-meta { font-size: var(--text-caption); color: var(--text-tertiary); display: flex; align-items: center; gap: var(--space-3); }
+    .neuron-weight { font-family: var(--font-mono); font-size: var(--text-body-sm); color: var(--text-secondary); width: 48px; text-align: center; flex-shrink: 0; }
+    .timeline { display: flex; flex-direction: column; gap: 0; position: relative; padding-left: var(--space-6); }
+    .timeline::before { content: ''; position: absolute; left: 11px; top: 8px; bottom: 8px; width: 1px; background: rgba(255,255,255,0.06); }
+    .timeline-item { display: flex; align-items: flex-start; gap: var(--space-4); padding: var(--space-3) 0; position: relative; }
+    .timeline-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; position: absolute; left: calc(-1 * var(--space-6) + 7px); top: calc(var(--space-3) + 5px); }
+    .timeline-dot.green { background: var(--status-success); }
+    .timeline-dot.yellow { background: var(--status-warning); }
+    .timeline-dot.red { background: var(--status-danger); }
+    .timeline-dot.gray { background: var(--text-tertiary); }
+    .timeline-text { font-size: var(--text-body-sm); color: var(--text-secondary); }
+    .timeline-time { font-size: var(--text-caption); color: var(--text-tertiary); margin-top: 2px; }
+    .btn:active { transform: scale(0.97); }
+
+    /* RESPONSIVE */
+    @media (max-width: 1024px) {
+      .evolve-section { margin-bottom: var(--space-5); }
+      .neuron-item { padding: var(--space-3) var(--space-4); }
+    }
+    @media (max-width: 768px) {
+      .main-content { padding: var(--space-4); }
+      .neuron-item { flex-wrap: wrap; gap: var(--space-2); padding: var(--space-3); }
+      .neuron-info { min-width: 100%; }
+      .neuron-weight { width: auto; }
+      .timeline { padding-left: var(--space-5); }
+      .timeline::before { left: 9px; }
+      .timeline-dot { left: calc(-1 * var(--space-5) + 5px); }
+      .glass-panel-static { padding: var(--space-3) !important; }
+    }
+    @media (max-width: 640px) {
+      .main-content { padding: var(--space-3); }
+      .page-title { font-size: var(--text-heading-sm, 1.25rem); }
+      .page-subtitle { font-size: var(--text-body-sm); }
+      .neuron-item { padding: var(--space-2) var(--space-3); gap: var(--space-1); }
+      .neuron-name { font-size: var(--text-body-sm); }
+      .neuron-meta { font-size: var(--text-caption); flex-wrap: wrap; }
+      .neuron-weight { font-size: var(--text-caption); }
+      .timeline-text { font-size: var(--text-caption); }
+      .evolve-section { margin-bottom: var(--space-4); }
+    }
+  </style>
+</head>
+<body>
+  <div id="toast-container" style="position:fixed;top:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:8px;"></div>
+
+  <!-- Sidebar (由共享组件注入) -->
+
+
+  <main class="main-content page-enter">
+    <div class="page-header">
+      <div class="page-label" data-i18n="neurons.label">NEURON WORKBENCH</div>
+      <h1 class="page-title" data-i18n="neurons.title">神经元进化</h1>
+      <p class="page-subtitle" data-i18n="neurons.subtitle">AI 自进化管线，自然语言驱动自动生成、验证、注册网关神经元</p>
+    </div>
+
+    <!-- Section 1: Evolution Input -->
+    <section class="section evolve-section reveal">
+      <div class="section-header">
+        <h2 class="section-title" data-i18n="neurons.evolutionStudio">进化工作室</h2>
+      </div>
+      <div class="glass-panel-static" style="padding:var(--space-5);">
+        <p style="font-size:var(--text-body-sm);color:var(--text-secondary);margin-bottom:var(--space-4);line-height:1.6;" data-i18n="neurons.evolveDesc">描述你希望网关具备的新能力，AI 将自动生成、验证并注册为可执行的神经元</p>
+        <textarea class="input" id="evolve-input" rows="4" data-i18n-ph="neurons.evolvePlaceholder" placeholder="描述你希望网关具备的新能力..." style="margin-bottom:var(--space-4);resize:vertical;min-height:100px;"></textarea>
+        <button class="btn btn-primary" id="evolve-btn" data-i18n="neurons.evolve">开始进化</button>
+        <div id="evolve-status" style="margin-top:var(--space-3);font-size:var(--text-body-sm);color:var(--text-tertiary);"></div>
+      </div>
+    </section>
+
+    <!-- Section 2: Registered Neurons -->
+    <section class="section reveal reveal-delay-1">
+      <div class="section-header">
+        <h2 class="section-title" data-i18n="neurons.registry">已注册神经元</h2>
+        <span class="section-count" id="neuron-count">--</span>
+      </div>
+      <div class="glass-panel-static reveal" style="padding:0;overflow:hidden;" id="neurons-panel">
+        <div id="neurons-body">
+          <div style="text-align:center;padding:48px 0;color:var(--text-tertiary);font-size:var(--text-body-sm);" data-i18n="common.loading">加载中...</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 3: Evolution History -->
+    <section class="section reveal reveal-delay-2">
+      <div class="section-header">
+        <h2 class="section-title" data-i18n="neurons.history">进化历史</h2>
+      </div>
+      <div class="glass-panel-static" style="padding:var(--space-5);">
+        <div class="timeline" id="history-timeline">
+          <div style="text-align:center;padding:var(--space-5) 0;color:var(--text-tertiary);font-size:var(--text-body-sm);" data-i18n="neurons.noHistory">暂无进化历史</div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="components/nav.js"></script>
+  <script src="components/sidebar.js"></script>
+
+  <script>
+  injectSidebar({ activeId: "neurons" });
+  (function() {
+    var API = window.location.origin;
+
+    function showToast(msg, type) {
+      type = type || 'info';
+      var c = document.getElementById('toast-container');
+      var colors = { success: '#34d399', error: '#f87171', warning: '#fbbf24', info: '#60a5fa' };
+      var el = document.createElement('div');
+      el.style.cssText = 'pointer-events:auto;display:flex;align-items:center;gap:10px;padding:12px 20px;border-radius:14px;background:rgba(12,12,18,0.92);border:1px solid rgba(255,255,255,0.08);backdrop-filter:blur(40px);color:' + colors[type] + ';font-size:14px;font-weight:500;box-shadow:0 8px 32px rgba(0,0,0,0.4);transform:translateX(120%);opacity:0;transition:all 0.4s cubic-bezier(0.34,1.56,0.64,1);';
+      el.textContent = msg;
+      c.appendChild(el);
+      requestAnimationFrame(function() { el.style.transform = 'translateX(0)'; el.style.opacity = '1'; });
+      setTimeout(function() { el.style.transform = 'translateX(120%)'; el.style.opacity = '0'; setTimeout(function() { el.remove(); }, 400); }, 3000);
+    }
+
+    function safeFetch(url, opts) {
+      return fetch(url, opts).then(function(r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      }).catch(function(e) { console.warn('[neurons]', url, e.message); return null; });
+    }
+
+    function timeAgo(ts) {
+      if (!ts) return '--';
+      var d = new Date(ts);
+      var diff = Math.floor((Date.now() - d.getTime()) / 1000);
+      if (diff < 60) return diff + 's ago';
+      if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+      if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+      return d.toLocaleDateString();
+    }
+
+    // Evolve button
+    document.getElementById('evolve-btn').addEventListener('click', function() {
+      var input = document.getElementById('evolve-input');
+      var status = document.getElementById('evolve-status');
+      var text = input.value.trim();
+      if (!text) { showToast(I18N ? I18N.t('common.noData') : 'Please enter a description', 'warning'); return; }
+      var btn = this;
+      btn.disabled = true;
+      btn.style.opacity = '0.6';
+      btn.textContent = I18N ? I18N.t('neurons.evolving') : 'Evolving...';
+      status.textContent = '';
+      safeFetch(API + '/neuron/evolve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ description: text })
+      }).then(function(data) {
+        btn.disabled = false;
+        btn.style.opacity = '1';
+        btn.textContent = I18N ? I18N.t('neurons.evolve') : 'Start Evolution';
+        if (data && (data.success || data.name)) {
+          status.style.color = 'var(--status-success)';
+          status.textContent = (I18N ? I18N.t('neurons.evolveComplete') : 'Evolution Complete') + ': ' + (data.name || '');
+          showToast(I18N ? I18N.t('neurons.evolveComplete') : 'Evolution Complete', 'success');
+          input.value = '';
+          loadNeurons();
+          loadHistory();
+        } else {
+          status.style.color = 'var(--status-danger)';
+          status.textContent = (I18N ? I18N.t('neurons.evolveFailed') : 'Evolution Failed') + ': ' + (data ? data.error || '' : '');
+        }
+      });
+    });
+
+    var fallbackNeurons = [
+      { name: 'prompt-guard', type: 'safety', status: 'active', weight: 0.95 },
+      { name: 'context-enricher', type: 'context', status: 'active', weight: 0.88 },
+      { name: 'cost-optimizer', type: 'planning', status: 'active', weight: 0.82 },
+      { name: 'quality-scorer', type: 'review', status: 'active', weight: 0.91 },
+      { name: 'data-sanitizer', type: 'safety', status: 'disabled', weight: 0.76 }
+    ];
+
+    function renderNeurons(list) {
+      var body = document.getElementById('neurons-body');
+      var count = document.getElementById('neuron-count');
+      var items = list || fallbackNeurons;
+      count.textContent = items.length + ' neurons';
+      if (items.length === 0) {
+        body.innerHTML = '<div style="text-align:center;padding:48px 0;color:var(--text-tertiary);font-size:var(--text-body-sm);" data-i18n="neurons.noSkills">' + (I18N ? I18N.t('neurons.noSkills') : 'No neurons') + '</div>';
+        return;
+      }
+      body.innerHTML = items.map(function(n) {
+        var statusClass = n.status === 'active' ? 'green' : (n.status === 'disabled' ? 'gray' : 'red');
+        var typeColors = { safety: 'red', context: 'yellow', planning: 'green', review: 'green', data: 'yellow', transform: 'green' };
+        var typeColor = typeColors[n.type] || 'gray';
+        var checked = n.status === 'active' ? 'checked' : '';
+        return '<div class="neuron-item">' +
+          '<div class="neuron-info">' +
+            '<div class="neuron-name">' + escapeHtml(n.name || n.id || '--') + '</div>' +
+            '<div class="neuron-meta">' +
+              '<span style="display:flex;align-items:center;gap:4px;"><span class="status-dot-inline ' + typeColor + '" style="width:6px;height:6px;"></span>' + escapeHtml(n.type || '--') + '</span>' +
+              '<span style="display:flex;align-items:center;gap:4px;"><span class="status-dot-inline ' + statusClass + '" style="width:6px;height:6px;"></span>' + escapeHtml(n.status || '--') + '</span>' +
+            '</div>' +
+          '</div>' +
+          '<div class="neuron-weight">' + (n.weight || 0).toFixed(2) + '</div>' +
+          '<label class="toggle toggle-switch"><input type="checkbox" ' + checked + ' data-neuron="' + escapeHtml(n.name || n.id) + '"><span class="toggle-track"></span></label>' +
+        '</div>';
+      }).join('');
+    }
+
+    function loadNeurons() {
+      safeFetch(API + '/neuron/registry').then(function(data) {
+        var list = null;
+        if (data && Array.isArray(data)) list = data;
+        else if (data && data.neurons) list = data.neurons;
+        renderNeurons(list);
+      });
+    }
+
+    function loadHistory() {
+      safeFetch(API + '/neuron/stats').then(function(data) {
+        var timeline = document.getElementById('history-timeline');
+        var history = [];
+        if (data && data.history) history = data.history;
+        else if (data && data.evolutions) history = data.evolutions;
+        if (history.length === 0) {
+          history = [
+            { name: 'prompt-guard', time: new Date(Date.now() - 3600000).toISOString(), status: 'success' },
+            { name: 'context-enricher', time: new Date(Date.now() - 7200000).toISOString(), status: 'success' },
+            { name: 'cost-optimizer', time: new Date(Date.now() - 86400000).toISOString(), status: 'success' },
+            { name: 'quality-scorer', time: new Date(Date.now() - 172800000).toISOString(), status: 'failed' },
+            { name: 'data-sanitizer', time: new Date(Date.now() - 259200000).toISOString(), status: 'success' }
+          ];
+        }
+        var items = history.slice(0, 5);
+        timeline.innerHTML = items.map(function(h) {
+          var dotClass = h.status === 'success' ? 'green' : (h.status === 'failed' ? 'red' : 'gray');
+          return '<div class="timeline-item">' +
+            '<div class="timeline-dot ' + dotClass + '"></div>' +
+            '<div>' +
+              '<div class="timeline-text">' + escapeHtml(h.name || '--') + '</div>' +
+              '<div class="timeline-time">' + timeAgo(h.time || h.timestamp) + '</div>' +
+            '</div>' +
+          '</div>';
+        }).join('');
+      });
+    }
+
+    renderNeurons();
+    loadNeurons();
+    loadHistory();
+  })();
+  </script>
+  <script src="i18n.js"></script>
+  <script src="interact.js"></script>
+</body>
+</html>

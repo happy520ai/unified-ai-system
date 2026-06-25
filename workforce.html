@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data:;">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="太极北斗 AI 网关 — 多模型路由、知识库检索、企业级治理">
+  <meta name="theme-color" content="#0f1117">
+  <title data-i18n="workforce.title">团队协作</title>
+  <link rel="stylesheet" href="console.css">
+  <style>
+    .page-enter { animation: fadeInUp 0.5s var(--ease-out) both; }
+    .agent-row { display: flex; gap: var(--space-4); overflow-x: auto; padding-bottom: var(--space-2); margin-bottom: var(--space-7); }
+    .agent-card { flex: 0 0 150px; padding: var(--space-5); text-align: center; transition: all var(--duration-normal) var(--ease-smooth); }
+    .agent-card:hover { transform: translateY(-2px); }
+    .agent-avatar { width: 48px; height: 48px; border-radius: 50%; background: var(--accent-soft); display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 600; color: var(--accent); margin: 0 auto var(--space-3); }
+    .agent-name { font-size: var(--text-body); font-weight: 600; color: var(--text-primary); margin-bottom: 2px; }
+    .agent-role { font-size: var(--text-caption); color: var(--text-tertiary); margin-bottom: var(--space-3); }
+    .status-dot-inline { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+    .status-dot-inline.green { background: var(--status-success); box-shadow: 0 0 8px var(--status-success); }
+    .status-dot-inline.yellow { background: var(--status-warning); box-shadow: 0 0 8px var(--status-warning); }
+    .status-dot-inline.red { background: var(--status-danger); box-shadow: 0 0 8px var(--status-danger); }
+    .plan-item { display: flex; align-items: center; gap: var(--space-5); padding: var(--space-5); border-bottom: 1px solid rgba(255,255,255,0.03); transition: background var(--duration-fast); }
+    .plan-item:last-child { border-bottom: none; }
+    .plan-item:hover { background: rgba(255,255,255,0.02); }
+    .plan-info { flex: 1; min-width: 0; }
+    .plan-name { font-size: var(--text-body); font-weight: 500; color: var(--text-primary); margin-bottom: 6px; }
+    .plan-meta { font-size: var(--text-caption); color: var(--text-tertiary); }
+    .plan-progress { width: 160px; flex-shrink: 0; }
+    .btn:active { transform: scale(0.97); }
+    @media (max-width: 768px) { .agent-card { flex: 0 0 120px; } .plan-progress { width: 100px; } }
+  </style>
+</head>
+<body>
+  <a href="#page-main" class="skip-link">跳转到主要内容</a>
+  <div id="toast-container" style="position:fixed;top:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:8px;"></div>
+
+  <!-- Sidebar (由共享组件注入) -->
+
+
+  <main class="main-content page-enter">
+    <!-- Demo Mode Banner -->
+    <div class="glass-panel glass-panel-static" style="margin-bottom: var(--space-6); border-left: 3px solid var(--status-warning); padding: var(--space-4); display: flex; align-items: center; gap: var(--space-3);">
+      <span style="font-size: 20px;">⚠️</span>
+      <div>
+        <strong style="color: var(--text-primary);">演示模式</strong>
+        <span style="color: var(--text-secondary); margin-left: 8px;">此页面显示模拟数据，后端 API 未配置。</span>
+      </div>
+    </div>
+
+<div class="page-header">
+      <div class="page-label" data-i18n="workforce.label">WORKFORCE CENTER</div>
+      <h1 class="page-title" data-i18n="workforce.title">团队协作</h1>
+      <p class="page-subtitle" data-i18n="workforce.subtitle">7 个 AI 员工，金字塔结构化协作</p>
+    </div>
+
+    <!-- Section 1: Team Overview -->
+    <section class="section reveal">
+      <div class="section-header">
+        <h2 class="section-title" data-i18n="workforce.pyramid">协作概览</h2>
+        <span class="section-count" data-i18n="workforce.agentCount">7 位员工</span>
+      </div>
+      <div class="agent-row stagger" id="agent-row"></div>
+    </section>
+
+    <!-- Section 2: Active Plans -->
+    <section class="section reveal reveal-delay-1">
+      <div class="section-header">
+        <h2 class="section-title" data-i18n="workforce.activePlans">活跃计划</h2>
+      </div>
+      <div class="glass-panel-static reveal" style="padding:0;overflow:hidden;" id="plans-panel">
+        <div id="plans-body">
+          <div style="text-align:center;padding:48px 0;color:var(--text-tertiary);font-size:var(--text-body-sm);" data-i18n="common.loading">加载中...</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 3: New Plan Form -->
+    <section class="section reveal reveal-delay-2">
+      <div class="section-header">
+        <h2 class="section-title" data-i18n="workforce.newPlan">新建计划</h2>
+      </div>
+      <div class="glass-panel-static" style="padding:var(--space-5);">
+        <textarea class="input" id="plan-input" rows="3" data-i18n-ph="workforce.planPlaceholder" placeholder="描述你的目标..." style="margin-bottom:var(--space-4);resize:vertical;min-height:80px;"></textarea>
+        <button class="btn btn-primary" data-action="create-plan" id="create-plan-btn" data-i18n="workforce.createPlan">创建计划</button>
+      </div>
+    </section>
+  </main>
+
+  <script src="components/nav.js"></script>
+  <script src="components/sidebar.js"></script>
+
+  <script>
+  injectSidebar({ activeId: "workforce" });
+  (function() {
+    var API = window.location.origin;
+
+    function showToast(msg, type) {
+      type = type || 'info';
+      var c = document.getElementById('toast-container');
+      var colors = { success: '#34d399', error: '#f87171', warning: '#fbbf24', info: '#60a5fa' };
+      var el = document.createElement('div');
+      el.style.cssText = 'pointer-events:auto;display:flex;align-items:center;gap:10px;padding:12px 20px;border-radius:14px;background:rgba(12,12,18,0.92);border:1px solid rgba(255,255,255,0.08);backdrop-filter:blur(40px);color:' + colors[type] + ';font-size:14px;font-weight:500;box-shadow:0 8px 32px rgba(0,0,0,0.4);transform:translateX(120%);opacity:0;transition:all 0.4s cubic-bezier(0.34,1.56,0.64,1);';
+      el.textContent = msg;
+      c.appendChild(el);
+      requestAnimationFrame(function() { el.style.transform = 'translateX(0)'; el.style.opacity = '1'; });
+      setTimeout(function() { el.style.transform = 'translateX(120%)'; el.style.opacity = '0'; setTimeout(function() { el.remove(); }, 400); }, 3000);
+    }
+
+    function safeFetch(url, opts) {
+      return fetch(url, opts).then(function(r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      }).catch(function(e) { console.warn('[workforce]', url, e.message); return null; });
+    }
+
+    var agents = [
+      { letter: 'C', name: 'CEO', role: I18N.t('workforce.roleStrategy'), status: 'green' },
+      { letter: 'P', name: 'PM', role: I18N.t('workforce.roleProduct'), status: 'green' },
+      { letter: 'A', name: 'Architect', role: I18N.t('workforce.roleArch'), status: 'green' },
+      { letter: 'F', name: 'Frontend', role: I18N.t('workforce.roleFrontend'), status: 'yellow' },
+      { letter: 'B', name: 'Backend', role: I18N.t('workforce.roleBackend'), status: 'green' },
+      { letter: 'Q', name: 'QA', role: I18N.t('workforce.roleQA'), status: 'green' },
+      { letter: 'R', name: 'Reviewer', role: I18N.t('workforce.roleReview'), status: 'green' }
+    ];
+
+    function renderAgents(data) {
+      var list = data || agents;
+      var row = document.getElementById('agent-row');
+      row.innerHTML = list.map(function(a, i) {
+        var letter = a.letter || a.name.charAt(0);
+        var name = a.name || '--';
+        var role = a.role || a.roleName || '--';
+        var status = a.status === 'busy' ? 'yellow' : (a.status === 'offline' ? 'red' : 'green');
+        return '<div class="glass-card agent-card animate-fade-in-up" style="animation-delay:' + (i * 60) + 'ms">' +
+          '<div class="agent-avatar">' + escapeHtml(letter) + '</div>' +
+          '<div class="agent-name">' + escapeHtml(name) + '</div>' +
+          '<div class="agent-role">' + escapeHtml(role) + '</div>' +
+          '<div style="display:flex;align-items:center;justify-content:center;gap:6px;">' +
+            '<span class="status-dot-inline ' + status + '"></span>' +
+            '<span style="font-size:var(--text-caption);color:var(--text-tertiary);">' + (status === 'green' ? 'Online' : status === 'yellow' ? 'Busy' : 'Offline') + '</span>' +
+          '</div>' +
+        '</div>';
+      }).join('');
+    }
+
+    function loadAgents() {
+      safeFetch(API + '/workforce/agents').then(function(data) {
+        if (data && Array.isArray(data) && data.length > 0) {
+          renderAgents(data);
+        } else if (data && data.agents && Array.isArray(data.agents)) {
+          renderAgents(data.agents);
+        } else {
+          renderAgents();
+        }
+      });
+    }
+
+    var fallbackPlans = [
+      { name: I18N.t('workforce.planApiMigration'), progress: 75, status: 'in_progress', created: '2026-06-07' },
+      { name: I18N.t('workforce.planDashboardRedesign'), progress: 40, status: 'in_progress', created: '2026-06-08' },
+      { name: I18N.t('workforce.planSecurityAudit'), progress: 100, status: 'completed', created: '2026-06-05' }
+    ];
+
+    function renderPlans(plans) {
+      var body = document.getElementById('plans-body');
+      var list = plans || fallbackPlans;
+      if (list.length === 0) {
+        body.innerHTML = '<div style="text-align:center;padding:48px 0;color:var(--text-tertiary);font-size:var(--text-body-sm);">' + (I18N ? I18N.t('common.noData') : 'No data') + '</div>';
+        return;
+      }
+      body.innerHTML = list.map(function(p) {
+        var pct = p.progress || 0;
+        var fillClass = pct >= 100 ? 'success' : (pct >= 50 ? '' : 'warning');
+        var statusColor = p.status === 'completed' ? 'green' : (p.status === 'in_progress' ? 'yellow' : 'red');
+        return '<div class="plan-item">' +
+          '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">' +
+            '<span class="status-dot-inline ' + statusColor + '"></span>' +
+          '</div>' +
+          '<div class="plan-info">' +
+            '<div class="plan-name">' + escapeHtml(p.name || p.title || '--') + '</div>' +
+            '<div class="plan-meta">' + escapeHtml(p.created || '--') + '</div>' +
+          '</div>' +
+          '<div class="plan-progress">' +
+            '<div class="progress-bar"><div class="progress-fill ' + fillClass + '" style="width:' + pct + '%"></div></div>' +
+            '<div style="font-size:var(--text-caption);color:var(--text-tertiary);margin-top:4px;text-align:right;">' + pct + '%</div>' +
+          '</div>' +
+        '</div>';
+      }).join('');
+    }
+
+    function loadPlans() {
+      safeFetch(API + '/workforce/plans').then(function(data) {
+        var plans = null;
+        if (data && Array.isArray(data)) plans = data;
+        else if (data && data.plans) plans = data.plans;
+        renderPlans(plans);
+      });
+    }
+
+    renderAgents();
+    loadAgents();
+    loadPlans();
+  })();
+  </script>
+  <script src="i18n.js"></script>
+  <script src="interact.js"></script>
+</body>
+</html>

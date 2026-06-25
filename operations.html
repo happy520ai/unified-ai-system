@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data:;">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="太极北斗 AI 网关 — 多模型路由、知识库检索、企业级治理">
+  <meta name="theme-color" content="#0f1117">
+  <title data-i18n="ops.title">运维监控 - AI Gateway</title>
+  <link rel="stylesheet" href="console.css">
+  <style>
+    /* ── Operations Page Styles ── */
+    .health-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: var(--space-4);
+      margin-bottom: var(--space-6);
+    }
+    @media (max-width: 900px) {
+      .health-grid { grid-template-columns: 1fr; }
+    }
+    .health-card {
+      padding: var(--space-5);
+    }
+    .health-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: var(--space-4);
+    }
+    .health-card-label {
+      font-size: var(--text-body);
+      font-weight: 500;
+      color: var(--text-secondary);
+    }
+    .health-card-value {
+      font-family: var(--font-display);
+      font-size: var(--text-title);
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    .health-bar {
+      height: 6px;
+      background: rgba(255, 255, 255, 0.06);
+      border-radius: var(--radius-full);
+      overflow: hidden;
+      margin-top: var(--space-3);
+    }
+    .health-bar-fill {
+      height: 100%;
+      border-radius: var(--radius-full);
+      transition: width 0.6s ease, background 0.3s ease;
+    }
+    .health-bar-fill.normal { background: var(--status-success); }
+    .health-bar-fill.warning { background: var(--status-warning); }
+    .health-bar-fill.critical { background: var(--status-danger); }
+    .health-card-sub {
+      font-size: var(--text-body-sm);
+      color: var(--text-tertiary);
+      margin-top: var(--space-3);
+    }
+
+    /* Process table */
+    .process-table-wrap {
+      overflow-x: auto;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--glass-border);
+    }
+    .process-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .process-table th {
+      padding: var(--space-3) var(--space-4);
+      text-align: left;
+      font-size: var(--text-caption);
+      font-weight: 500;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--text-tertiary);
+      background: rgba(255, 255, 255, 0.02);
+      border-bottom: 1px solid var(--glass-border);
+    }
+    .process-table td {
+      padding: var(--space-3) var(--space-4);
+      font-size: var(--text-body);
+      color: var(--text-secondary);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+      height: 48px;
+      vertical-align: middle;
+    }
+    .process-table tr:last-child td { border-bottom: none; }
+    .process-table tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
+      color: var(--text-primary);
+    }
+    .process-name {
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+
+    /* Log list */
+    .log-list {
+      max-height: 520px;
+      overflow-y: auto;
+    }
+    .log-entry {
+      display: flex;
+      align-items: flex-start;
+      gap: var(--space-3);
+      padding: var(--space-3) var(--space-4);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    }
+    .log-entry:last-child { border-bottom: none; }
+    .log-entry:hover { background: rgba(255, 255, 255, 0.015); }
+    .log-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      margin-top: 6px;
+    }
+    .log-dot.info { background: var(--status-info); }
+    .log-dot.warn { background: var(--status-warning); }
+    .log-dot.error { background: var(--status-danger); }
+    .log-dot.debug { background: var(--text-tertiary); }
+    .log-time {
+      font-family: var(--font-mono);
+      font-size: var(--text-body-sm);
+      color: var(--text-tertiary);
+      white-space: nowrap;
+      min-width: 140px;
+      flex-shrink: 0;
+    }
+    .log-msg {
+      font-size: var(--text-body);
+      color: var(--text-secondary);
+      flex: 1;
+      word-break: break-word;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+      flex-shrink: 0;
+    }
+    .status-dot.running { background: var(--status-success); box-shadow: 0 0 6px var(--status-success); }
+    .status-dot.stopped { background: var(--status-danger); }
+    .status-dot.sleeping { background: var(--status-warning); }
+
+    /* Page fade-in */
+    .page-fade { animation: fadeInUp 0.5s ease-out both; }
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Toast */
+    #toast-container {
+      position: fixed;
+      top: 24px;
+      right: 24px;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .toast {
+      padding: 12px 20px;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.08);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255,255,255,0.1);
+      color: var(--text-primary);
+      font-size: 14px;
+      animation: toastIn 0.3s ease-out;
+    }
+    .toast.success { border-color: rgba(52,211,153,0.3); }
+    .toast.error { border-color: rgba(248,113,113,0.3); }
+    @keyframes toastIn {
+      from { opacity: 0; transform: translateY(-8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── Navigation Sidebar ── -->
+  <!-- Sidebar (由共享组件注入) -->
+
+
+  <!-- ── Main Content ── -->
+  <main class="main-content page-fade">
+
+    <!-- Demo Mode Banner -->
+    <div class="glass-panel" style="padding: var(--space-4); margin-bottom: var(--space-6); border-left: 3px solid var(--status-warning);">
+      <div style="display: flex; align-items: center; gap: var(--space-3);">
+        <span style="font-size: 20px;">⚠️</span>
+        <div>
+          <strong style="color: var(--status-warning);">演示模式</strong>
+          <p style="margin: 4px 0 0 0; font-size: var(--text-body-sm); color: var(--text-secondary);">
+            运维监控页面当前为演示模式。CPU/内存/磁盘监控、进程列表和日志追踪需要额外的系统级 API 支持。
+            服务健康状态可通过 <code>/health/check</code> 获取真实数据。
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Page Header -->
+    <div class="page-header">
+      <div class="page-label"><span data-i18n="ops.label">SYSTEM</span></div>
+      <h1 class="page-title" data-i18n="ops.pageTitle">运维监控</h1>
+      <p class="page-subtitle" data-i18n="ops.subtitle">系统健康状态、进程列表与日志追踪</p>
+    </div>
+
+    <!-- Section 1: System Health -->
+    <div class="section">
+      <div class="section-header">
+        <h2 class="section-title" data-i18n="ops.health">系统健康</h2>
+      </div>
+      <div class="health-grid" id="health-grid">
+        <div class="glass-panel health-card reveal">
+          <div class="health-card-header">
+            <span class="health-card-label" data-i18n="ops.cpu">CPU 使用率</span>
+            <span class="health-card-value" id="cpu-value">--</span>
+          </div>
+          <div class="health-bar">
+            <div class="health-bar-fill normal" id="cpu-bar" style="width:0%"></div>
+          </div>
+          <div class="health-card-sub" id="cpu-detail" data-i18n="ops.cpuDetail">加载中...</div>
+        </div>
+        <div class="glass-panel health-card reveal reveal-delay-1">
+          <div class="health-card-header">
+            <span class="health-card-label" data-i18n="ops.memory">内存使用率</span>
+            <span class="health-card-value" id="mem-value">--</span>
+          </div>
+          <div class="health-bar">
+            <div class="health-bar-fill normal" id="mem-bar" style="width:0%"></div>
+          </div>
+          <div class="health-card-sub" id="mem-detail" data-i18n="ops.memDetail">加载中...</div>
+        </div>
+        <div class="glass-panel health-card reveal reveal-delay-2">
+          <div class="health-card-header">
+            <span class="health-card-label" data-i18n="ops.disk">磁盘使用率</span>
+            <span class="health-card-value" id="disk-value">--</span>
+          </div>
+          <div class="health-bar">
+            <div class="health-bar-fill normal" id="disk-bar" style="width:0%"></div>
+          </div>
+          <div class="health-card-sub" id="disk-detail" data-i18n="ops.diskDetail">加载中...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 2: Process List -->
+    <div class="section">
+      <div class="section-header">
+        <h2 class="section-title" data-i18n="ops.processes">进程列表</h2>
+        <button class="btn btn-ghost btn-sm" onclick="loadProcesses()" data-i18n="ops.refresh">刷新</button>
+      </div>
+      <div class="glass-panel reveal" style="padding: 0; overflow: hidden;">
+        <div class="process-table-wrap">
+          <table class="process-table data-table">
+            <thead>
+              <tr>
+                <th data-i18n="ops.colName">进程名</th>
+                <th data-i18n="ops.colPid">PID</th>
+                <th data-i18n="ops.colCpu">CPU%</th>
+                <th data-i18n="ops.colMem">内存</th>
+                <th data-i18n="ops.colStatus">状态</th>
+              </tr>
+            </thead>
+            <tbody id="process-tbody">
+              <tr><td colspan="5" class="text-center text-secondary" style="padding: 32px;" data-i18n="ops.loading">加载中...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 3: System Logs -->
+    <div class="section">
+      <div class="section-header">
+        <h2 class="section-title" data-i18n="ops.logs">系统日志</h2>
+        <button class="btn btn-ghost btn-sm" onclick="loadLogs()" data-i18n="ops.refresh">刷新</button>
+      </div>
+      <div class="glass-panel reveal" style="padding: var(--space-4);">
+        <div class="log-list" id="log-list">
+          <div class="text-secondary text-center" style="padding: 32px;" data-i18n="ops.loading">加载中...</div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Toast container -->
+  <div id="toast-container"></div>
+
+  <script src="components/nav.js"></script>
+  <script src="components/sidebar.js"></script>
+
+  <script>
+  injectSidebar({ activeId: "operations" });
+    /* ── Toast ── */
+    function showToast(msg, type = 'info') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = 'toast ' + type;
+      toast.textContent = msg;
+      container.appendChild(toast);
+      setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 3000);
+    }
+
+    /* ── Safe Fetch ── */
+    async function safeFetch(url, opts = {}) {
+      try {
+        const res = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...opts });
+        if (!res.ok) throw new Error(res.statusText);
+        return await res.json();
+      } catch (e) {
+        console.warn('safeFetch error:', url, e);
+        return null;
+      }
+    }
+
+    /* ── Bar color helper ── */
+    function getBarClass(pct) {
+      if (pct >= 90) return 'critical';
+      if (pct >= 70) return 'warning';
+      return 'normal';
+    }
+
+    /* ── Load system info ── */
+    async function loadSystemInfo() {
+      const data = await safeFetch('/health/check');
+      if (data && data.status === 'ready') {
+        // Show service status from /health/check
+        document.getElementById('cpu-value').textContent = 'N/A';
+        document.getElementById('cpu-bar').style.width = '0%';
+        document.getElementById('cpu-bar').className = 'health-bar-fill normal';
+        document.getElementById('cpu-detail').textContent = '服务状态: ' + (data.data?.status || 'unknown');
+
+        document.getElementById('mem-value').textContent = 'N/A';
+        document.getElementById('mem-bar').style.width = '0%';
+        document.getElementById('mem-bar').className = 'health-bar-fill normal';
+        document.getElementById('mem-detail').textContent = '演示模式：内存监控未配置';
+
+        document.getElementById('disk-value').textContent = 'N/A';
+        document.getElementById('disk-bar').style.width = '0%';
+        document.getElementById('disk-bar').className = 'health-bar-fill normal';
+        document.getElementById('disk-detail').textContent = '演示模式：磁盘监控未配置';
+      } else {
+        // Show demo mode message when API fails
+        document.getElementById('cpu-value').textContent = '--';
+        document.getElementById('cpu-detail').textContent = '演示模式：需要配置系统监控 API';
+        document.getElementById('mem-value').textContent = '--';
+        document.getElementById('mem-detail').textContent = '演示模式：需要配置系统监控 API';
+        document.getElementById('disk-value').textContent = '--';
+        document.getElementById('disk-detail').textContent = '演示模式：需要配置系统监控 API';
+      }
+    }
+
+    /* ── Load processes ── */
+    async function loadProcesses() {
+      const tbody = document.getElementById('process-tbody');
+      // Demo mode: no real process API available
+      tbody.innerHTML = '<tr><td colspan="5" class="text-center text-secondary" style="padding: 32px;">演示模式：进程监控需要配置系统级 API。当前无法获取真实进程列表。</td></tr>';
+    }
+
+    /* ── Load logs ── */
+    async function loadLogs() {
+      const list = document.getElementById('log-list');
+      // Demo mode: no real log API available
+      list.innerHTML = '<div class="text-secondary text-center" style="padding: 32px;">演示模式：日志追踪需要配置系统级 API。当前无法获取真实日志数据。</div>';
+    }
+
+    /* ── Init ── */
+    loadSystemInfo();
+    loadProcesses();
+    loadLogs();
+  </script>
+  <script src="i18n.js"></script>
+  <script src="interact.js"></script>
+</body>
+</html>

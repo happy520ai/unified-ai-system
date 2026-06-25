@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data:;">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="太极北斗 AI 网关 — 多模型路由、知识库检索、企业级治理">
+  <meta name="theme-color" content="#0f1117">
+  <title data-i18n="knowledge.title">知识库</title>
+  <link rel="stylesheet" href="console.css">
+  <link rel="stylesheet" href="knowledge.css">
+</head>
+<body>
+  <div id="toast-container" style="position:fixed;top:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:8px;"></div>
+
+  <!-- Sidebar -->
+
+  <main class="main-content page-enter">
+    <div class="page-header page-header-row">
+      <div>
+        <div class="page-label" data-i18n="knowledge.label">KNOWLEDGE BASE</div>
+        <h1 class="page-title" data-i18n="knowledge.title">知识库</h1>
+        <p class="page-subtitle" data-i18n="knowledge.subtitle">RAG 驱动的文档管理与语义检索</p>
+      </div>
+      <button class="btn btn-primary upload-btn" id="upload-btn" data-i18n="knowledge.uploadDoc">上传文档</button>
+    </div>
+
+    <!-- Upload Zone (toggleable) -->
+    <div class="upload-zone" id="upload-zone">
+      <input type="file" id="file-input" multiple accept=".md,.txt,.pdf,.docx,.xls,.xlsx,.json,.html" style="display:none;">
+      <div class="upload-zone-icon">📄</div>
+      <div class="upload-zone-text" data-i18n="knowledge.dropHere">拖拽文件到此处，或点击选择文件</div>
+      <div class="upload-zone-hint" data-i18n="knowledge.supportedFormats">支持 MD, TXT, PDF, DOCX, XLS, XLSX, JSON, HTML（最大 100MB）</div>
+      <div class="upload-progress" id="upload-progress">
+        <div class="upload-progress-bar"><div class="upload-progress-fill" id="upload-progress-fill"></div></div>
+        <div class="upload-progress-text" id="upload-progress-text"></div>
+      </div>
+    </div>
+
+    <!-- Section 1: Stats Row -->
+    <section class="section">
+      <div class="stats-row stagger">
+        <div class="glass-card stat-mini animate-fade-in-up reveal">
+          <div class="stat-mini-label" data-i18n="knowledge.totalDocs">文档总数</div>
+          <div class="stat-mini-value" id="stat-docs" data-animate-number="0">--</div>
+        </div>
+        <div class="glass-card stat-mini animate-fade-in-up reveal reveal-delay-1">
+          <div class="stat-mini-label" data-i18n="knowledge.totalChunks">分块数量</div>
+          <div class="stat-mini-value" id="stat-chunks" data-animate-number="0">--</div>
+        </div>
+        <div class="glass-card stat-mini animate-fade-in-up reveal reveal-delay-2">
+          <div class="stat-mini-label" data-i18n="knowledge.lastEnriched">最近更新</div>
+          <div class="stat-mini-value stat-enriched-value" id="stat-enriched">--</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 2: Document List -->
+    <section class="section reveal">
+      <div class="section-header">
+        <h2 class="section-title" data-i18n="knowledge.tabDocs">文档列表</h2>
+        <span class="section-count" id="doc-count">--</span>
+      </div>
+      <div class="glass-panel-static reveal docs-panel-inner" id="docs-panel">
+        <div id="docs-body">
+          <div class="loading-placeholder" data-i18n="common.loading">加载中...</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 3: Search Test -->
+    <section class="section reveal reveal-delay-1">
+      <div class="section-header">
+        <h2 class="section-title" data-i18n="knowledge.ragTest">搜索测试</h2>
+      </div>
+      <div class="glass-panel-static search-panel-inner">
+        <div class="search-input-row">
+          <input class="input" id="search-input" data-i18n-ph="knowledge.ragQueryPh" placeholder="例如：系统支持哪些模型提供商？">
+          <button class="btn btn-primary" id="search-btn" data-i18n="knowledge.ragTest">测试检索</button>
+        </div>
+        <div id="search-results"></div>
+      </div>
+    </section>
+  </main>
+
+  <script src="components/nav.js"></script>
+  <script src="components/sidebar.js"></script>
+  <script src="components/utils.js"></script>
+  <script src="i18n.js"></script>
+
+  <script>
+  injectSidebar({ activeId: 'knowledge' });
+  if (typeof I18N !== 'undefined' && I18N.init) I18N.init();
+
+  (function() {
+    'use strict';
+
+    var API = window.location.origin;
+
+    function showToast(msg, type) {
+      type = type || 'info';
+      var c = document.getElementById('toast-container');
+      var colors = { success: '#34d399', error: '#f87171', warning: '#fbbf24', info: '#60a5fa' };
+      var el = document.createElement('div');
+      el.style.cssText = 'pointer-events:auto;display:flex;align-items:center;gap:10px;padding:12px 20px;border-radius:14px;background:rgba(12,12,18,0.92);border:1px solid rgba(255,255,255,0.08);backdrop-filter:blur(40px);color:' + colors[type] + ';font-size:14px;font-weight:500;box-shadow:0 8px 32px rgba(0,0,0,0.4);transform:translateX(120%);opacity:0;transition:all 0.4s cubic-bezier(0.34,1.56,0.64,1);';
+      el.textContent = msg;
+      c.appendChild(el);
+      requestAnimationFrame(function() { el.style.transform = 'translateX(0)'; el.style.opacity = '1'; });
+      setTimeout(function() { el.style.transform = 'translateX(120%)'; el.style.opacity = '0'; setTimeout(function() { el.remove(); }, 400); }, 3000);
+    }
+
+    function safeFetch(url, opts) {
+      return fetch(url, opts).then(function(r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      }).catch(function(e) { console.warn('[knowledge]', url, e.message); return null; });
+    }
+
+    function formatDate(ts) {
+      if (!ts) return '--';
+      return new Date(ts).toLocaleDateString();
+    }
+
+    function formatSize(bytes) {
+      if (!bytes) return '--';
+      if (bytes >= 1048576) return (bytes / 1048576).toFixed(1) + ' MB';
+      if (bytes >= 1024) return (bytes / 1024).toFixed(1) + ' KB';
+      return bytes + ' B';
+    }
+
+    var typeIcons = { pdf: 'P', md: 'M', docx: 'W', txt: 'T', json: 'J', html: 'H', xlsx: 'X', xls: 'X' };
+
+    var fallbackDocs = [
+      { name: 'system-architecture.md', type: 'md', size: 24576, ingested: '2026-06-05', chunks: 42 },
+      { name: 'api-reference.pdf', type: 'pdf', size: 1048576, ingested: '2026-06-03', chunks: 128 },
+      { name: 'user-guide.docx', type: 'docx', size: 524288, ingested: '2026-05-28', chunks: 86 },
+      { name: 'security-policy.md', type: 'md', size: 12288, ingested: '2026-05-20', chunks: 24 },
+      { name: 'deployment-config.json', type: 'json', size: 4096, ingested: '2026-05-15', chunks: 8 }
+    ];
+
+    function renderDocs(docs) {
+      var body = document.getElementById('docs-body');
+      var count = document.getElementById('doc-count');
+      var list = docs || fallbackDocs;
+      count.textContent = list.length + ' docs';
+
+      document.getElementById('stat-docs').textContent = list.length;
+      var totalChunks = list.reduce(function(s, d) { return s + (d.chunks || 0); }, 0);
+      document.getElementById('stat-chunks').textContent = totalChunks;
+      document.getElementById('stat-enriched').textContent = list.length > 0 ? formatDate(list[0].ingested || list[0].ingestedAt) : '--';
+
+      if (list.length === 0) {
+        body.innerHTML = '<div class="loading-placeholder">' + (I18N && I18N.t ? I18N.t('common.noData') : '暂无文档') + '</div>';
+        return;
+      }
+      body.innerHTML = list.map(function(d) {
+        var ext = (d.type || d.name.split('.').pop() || 'txt').toLowerCase();
+        var icon = typeIcons[ext] || 'F';
+        return '<div class="doc-item">' +
+          '<div class="doc-icon">' + icon + '</div>' +
+          '<div class="doc-info">' +
+            '<div class="doc-name">' + escapeHtml(d.name || '--') + '</div>' +
+            '<div class="doc-meta">' +
+              '<span>' + escapeHtml(ext.toUpperCase()) + '</span>' +
+              '<span>' + formatSize(d.size) + '</span>' +
+              '<span>' + formatDate(d.ingested || d.ingestedAt || d.createdAt) + '</span>' +
+            '</div>' +
+          '</div>' +
+          '<button class="btn btn-sm btn-danger delete-doc-btn" data-doc-id="' + escapeHtml(d.id || d._id || d.name) + '">' + (I18N && I18N.t ? I18N.t('common.delete') : '删除') + '</button>' +
+        '</div>';
+      }).join('');
+
+      body.querySelectorAll('.delete-doc-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          var id = btn.getAttribute('data-doc-id');
+          if (!confirm(I18N && I18N.t ? I18N.t('common.confirm') + '?' : '确定删除？')) return;
+          
+          btn.disabled = true;
+          fetch(API + '/knowledge/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ documentId: id })
+          }).then(function(r) {
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            return r.json();
+          }).then(function(json) {
+            btn.disabled = false;
+            if (json.success) {
+              showToast(I18N && I18N.t ? I18N.t('common.success') : '已删除', 'success');
+              btn.closest('.doc-item').remove();
+              loadDocuments(); // Refresh doc list
+            } else {
+              showToast((I18N && I18N.t ? I18N.t('common.error') : '删除失败: ') + json.error, 'error');
+            }
+          }).catch(function(e) {
+            btn.disabled = false;
+            showToast((I18N && I18N.t ? I18N.t('common.error') : '异常: ') + e.message, 'error');
+          });
+        });
+      });
+    }
+
+    function loadDocuments() {
+      safeFetch(API + '/knowledge/documents').then(function(data) {
+        var docs = null;
+        if (data && Array.isArray(data)) docs = data;
+        else if (data && data.documents) docs = data.documents;
+        else if (data && data.docs) docs = data.docs;
+        renderDocs(docs);
+      });
+    }
+
+    /* ── File Upload ── */
+    var uploadBtn = document.getElementById('upload-btn');
+    var uploadZone = document.getElementById('upload-zone');
+    var fileInput = document.getElementById('file-input');
+    var uploadProgress = document.getElementById('upload-progress');
+    var uploadFill = document.getElementById('upload-progress-fill');
+    var uploadText = document.getElementById('upload-progress-text');
+
+    var MAX_FILE_SIZE = 100 * 1024 * 1024; /* 100MB */
+
+    uploadBtn.addEventListener('click', function() {
+      uploadZone.classList.toggle('visible');
+    });
+
+    uploadZone.addEventListener('click', function(e) {
+      if (e.target === uploadZone || e.target.closest('.upload-zone-icon') || e.target.closest('.upload-zone-text')) {
+        fileInput.click();
+      }
+    });
+
+    uploadZone.addEventListener('dragover', function(e) {
+      e.preventDefault();
+      uploadZone.classList.add('dragover');
+    });
+    uploadZone.addEventListener('dragleave', function() {
+      uploadZone.classList.remove('dragover');
+    });
+    uploadZone.addEventListener('drop', function(e) {
+      e.preventDefault();
+      uploadZone.classList.remove('dragover');
+      if (e.dataTransfer.files.length) uploadFiles(e.dataTransfer.files);
+    });
+
+    fileInput.addEventListener('change', function() {
+      if (fileInput.files.length) uploadFiles(fileInput.files);
+      fileInput.value = '';
+    });
+
+    function uploadFiles(files) {
+      var validFiles = [];
+      for (var i = 0; i < files.length; i++) {
+        var f = files[i];
+        if (f.size > MAX_FILE_SIZE) {
+          showToast(f.name + ' > 100MB, ' + (I18N && I18N.t ? I18N.t('knowledge.fileTooLarge') : '已跳过'), 'warning');
+          continue;
+        }
+        validFiles.push(f);
+      }
+      if (validFiles.length === 0) return;
+
+      uploadProgress.classList.add('visible');
+      var total = validFiles.length;
+      var done = 0;
+      var failed = 0;
+
+      validFiles.forEach(function(file) {
+        var formData = new FormData();
+        formData.append('file', file);
+
+        fetch(API + '/knowledge/load/file', {
+          method: 'POST',
+          body: formData
+        }).then(function(r) {
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          return r.json();
+        }).then(function() {
+          done++;
+          updateProgress(done, total);
+          if (done === total) finishUpload(done - failed, failed);
+        }).catch(function(err) {
+          done++;
+          failed++;
+          console.warn('[upload]', file.name, err.message);
+          updateProgress(done, total);
+          if (done === total) finishUpload(done - failed, failed);
+        });
+      });
+    }
+
+    function updateProgress(done, total) {
+      var pct = Math.round((done / total) * 100);
+      uploadFill.style.width = pct + '%';
+      uploadText.textContent = done + ' / ' + total + ' (' + pct + '%)';
+    }
+
+    function finishUpload(success, failed) {
+      setTimeout(function() {
+        uploadProgress.classList.remove('visible');
+        uploadFill.style.width = '0';
+        uploadZone.classList.remove('visible');
+        if (success > 0) {
+          showToast(success + ' ' + (I18N && I18N.t ? I18N.t('knowledge.uploadSuccess') : '个文件上传成功'), 'success');
+          loadDocuments();
+        }
+        if (failed > 0) {
+          showToast(failed + ' ' + (I18N && I18N.t ? I18N.t('knowledge.uploadFailed') : '个文件上传失败'), 'error');
+        }
+      }, 500);
+    }
+
+    /* ── Search ── */
+    document.getElementById('search-btn').addEventListener('click', function() {
+      var query = document.getElementById('search-input').value.trim();
+      if (!query) {
+        showToast(I18N && I18N.t ? I18N.t('common.noData') : '请输入搜索内容', 'warning');
+        return;
+      }
+      var btn = this;
+      btn.disabled = true;
+      var resultsEl = document.getElementById('search-results');
+      resultsEl.innerHTML = '<div class="loading-placeholder">' + (I18N && I18N.t ? I18N.t('common.loading') : '搜索中...') + '</div>';
+
+      safeFetch(API + '/knowledge/retrieve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: query, topK: 5 })
+      }).then(function(data) {
+        btn.disabled = false;
+        var results = [];
+        if (data && data.chunks) results = data.chunks;
+        else if (data && Array.isArray(data)) results = data;
+        if (results.length === 0) {
+          resultsEl.innerHTML = '<div class="loading-placeholder">' + (I18N && I18N.t ? I18N.t('knowledge.noResults') : '未找到相关结果') + '</div>';
+          return;
+        }
+        resultsEl.innerHTML = results.slice(0, 5).map(function(r) {
+          return '<div class="search-result">' +
+            '<div class="search-result-text">' + escapeHtml(r.text || r.content || r.snippet || '--') + '</div>' +
+            '<div class="search-result-meta">' +
+              '<span>' + escapeHtml(r.documentTitle || r.sourceId || '--') + '</span>' +
+              '<span>' + (I18N && I18N.t ? I18N.t('knowledge.relevance') : '相关度') + ': ' + ((r.score || 0) * 100).toFixed(0) + '%</span>' +
+            '</div>' +
+          '</div>';
+        }).join('');
+      });
+    });
+
+    /* Enter to search */
+    document.getElementById('search-input').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') document.getElementById('search-btn').click();
+    });
+
+    renderDocs();
+    loadDocuments();
+  })();
+  </script>
+</body>
+</html>

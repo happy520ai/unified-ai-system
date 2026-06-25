@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data:;">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="太极北斗 AI 网关 — 多模型路由、知识库检索、企业级治理">
+  <meta name="theme-color" content="#0f1117">
+  <title data-i18n="gov.title">权限治理 - AI Gateway</title>
+  <link rel="stylesheet" href="console.css">
+  <style>
+    /* ── Governance Styles ── */
+    .role-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: var(--space-4);
+      margin-bottom: var(--space-6);
+    }
+    @media (max-width: 900px) {
+      .role-grid { grid-template-columns: 1fr; }
+    }
+    .role-card {
+      padding: var(--space-5);
+      cursor: pointer;
+    }
+    .role-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: var(--space-3);
+    }
+    .role-card-name {
+      font-size: var(--text-body-lg);
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .status-dot.active { background: var(--status-success); box-shadow: 0 0 6px var(--status-success); }
+    .status-dot.inactive { background: var(--text-tertiary); }
+    .role-card-stats {
+      display: flex;
+      gap: var(--space-4);
+      margin-bottom: var(--space-3);
+    }
+    .role-card-stat {
+      font-size: var(--text-body-sm);
+      color: var(--text-secondary);
+    }
+    .role-card-stat strong {
+      color: var(--text-primary);
+      font-weight: 500;
+    }
+    .role-permissions {
+      display: none;
+      margin-top: var(--space-4);
+      padding-top: var(--space-4);
+      border-top: 1px solid var(--glass-border);
+    }
+    .role-card.expanded .role-permissions {
+      display: block;
+    }
+    .role-perm-item {
+      display: inline-block;
+      padding: 4px 10px;
+      margin: 4px 4px 4px 0;
+      border-radius: var(--radius-full);
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-size: var(--text-caption);
+    }
+
+    /* User table */
+    .user-table-wrap {
+      overflow-x: auto;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--glass-border);
+    }
+    .user-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .user-table th {
+      padding: var(--space-3) var(--space-4);
+      text-align: left;
+      font-size: var(--text-caption);
+      font-weight: 500;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--text-tertiary);
+      background: rgba(255, 255, 255, 0.02);
+      border-bottom: 1px solid var(--glass-border);
+    }
+    .user-table td {
+      padding: var(--space-3) var(--space-4);
+      font-size: var(--text-body);
+      color: var(--text-secondary);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+      height: 48px;
+      vertical-align: middle;
+    }
+    .user-table tr:last-child td { border-bottom: none; }
+    .user-table tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
+      color: var(--text-primary);
+    }
+    .user-name {
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+
+    /* Audit log */
+    .audit-list {
+      display: flex;
+      flex-direction: column;
+    }
+    .audit-item {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      padding: var(--space-3) var(--space-4);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    }
+    .audit-item:last-child { border-bottom: none; }
+    .audit-item:hover { background: rgba(255, 255, 255, 0.015); }
+    .audit-time {
+      font-family: var(--font-mono);
+      font-size: var(--text-body-sm);
+      color: var(--text-tertiary);
+      min-width: 100px;
+      flex-shrink: 0;
+    }
+    .audit-msg {
+      flex: 1;
+      font-size: var(--text-body);
+      color: var(--text-secondary);
+    }
+
+    /* Page fade-in */
+    .page-fade { animation: fadeInUp 0.5s ease-out both; }
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Toast */
+    #toast-container {
+      position: fixed;
+      top: 24px;
+      right: 24px;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .toast {
+      padding: 12px 20px;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.08);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255,255,255,0.1);
+      color: var(--text-primary);
+      font-size: 14px;
+      animation: toastIn 0.3s ease-out;
+    }
+    .toast.success { border-color: rgba(52,211,153,0.3); }
+    .toast.error { border-color: rgba(248,113,113,0.3); }
+    @keyframes toastIn {
+      from { opacity: 0; transform: translateY(-8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── Navigation Sidebar ── -->
+  <!-- Sidebar (由共享组件注入) -->
+
+
+  <!-- ── Main Content ── -->
+  <main class="main-content page-fade">
+    <!-- Demo Mode Banner -->
+    <div class="glass-panel glass-panel-static" style="margin-bottom: var(--space-6); border-left: 3px solid var(--status-warning); padding: var(--space-4); display: flex; align-items: center; gap: var(--space-3);">
+      <span style="font-size: 20px;">⚠️</span>
+      <div>
+        <strong style="color: var(--text-primary);">演示模式</strong>
+        <span style="color: var(--text-secondary); margin-left: 8px;">此页面显示模拟数据，后端治理 API（/governance/*）未配置。</span>
+      </div>
+    </div>
+
+    <!-- Page Header -->
+    <div class="page-header">
+      <div class="page-label"><span data-i18n="gov.label">GOVERNANCE</span></div>
+      <h1 class="page-title" data-i18n="gov.pageTitle">权限治理</h1>
+      <p class="page-subtitle" data-i18n="gov.subtitle">角色权限管理与审计日志</p>
+    </div>
+
+    <!-- Section 1: Role Cards -->
+    <div class="section">
+      <div class="section-header">
+        <h2 class="section-title" data-i18n="gov.roles">角色</h2>
+      </div>
+      <div class="role-grid" id="role-grid" aria-live="polite">
+        <div class="glass-panel role-card" style="pointer-events:none">
+          <div class="role-card-header">
+            <div class="skeleton skeleton-text" style="width:50%;height:20px"></div>
+            <div class="skeleton" style="width:8px;height:8px;border-radius:50%"></div>
+          </div>
+          <div class="role-card-stats">
+            <div class="skeleton skeleton-text" style="width:40%"></div>
+            <div class="skeleton skeleton-text" style="width:50%"></div>
+          </div>
+        </div>
+        <div class="glass-panel role-card" style="pointer-events:none">
+          <div class="role-card-header">
+            <div class="skeleton skeleton-text" style="width:45%;height:20px"></div>
+            <div class="skeleton" style="width:8px;height:8px;border-radius:50%"></div>
+          </div>
+          <div class="role-card-stats">
+            <div class="skeleton skeleton-text" style="width:35%"></div>
+            <div class="skeleton skeleton-text" style="width:45%"></div>
+          </div>
+        </div>
+        <div class="glass-panel role-card" style="pointer-events:none">
+          <div class="role-card-header">
+            <div class="skeleton skeleton-text" style="width:40%;height:20px"></div>
+            <div class="skeleton" style="width:8px;height:8px;border-radius:50%"></div>
+          </div>
+          <div class="role-card-stats">
+            <div class="skeleton skeleton-text" style="width:30%"></div>
+            <div class="skeleton skeleton-text" style="width:40%"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 2: User List -->
+    <div class="section">
+      <div class="section-header">
+        <h2 class="section-title" data-i18n="gov.users">用户列表</h2>
+      </div>
+      <div class="glass-panel reveal" style="padding: 0; overflow: hidden;">
+        <div class="user-table-wrap">
+          <table class="user-table data-table">
+            <thead>
+              <tr>
+                <th data-i18n="gov.colName">姓名</th>
+                <th data-i18n="gov.colEmail">邮箱</th>
+                <th data-i18n="gov.colRole">角色</th>
+                <th data-i18n="gov.colStatus">状态</th>
+                <th data-i18n="gov.colLastActive">最近活跃</th>
+              </tr>
+            </thead>
+            <tbody id="user-tbody" aria-live="polite">
+              <tr>
+                <td><div class="skeleton skeleton-text" style="width:50%"></div></td>
+                <td><div class="skeleton skeleton-text" style="width:70%"></div></td>
+                <td><div class="skeleton skeleton-text" style="width:40%"></div></td>
+                <td><div class="skeleton skeleton-text" style="width:20%"></div></td>
+                <td><div class="skeleton skeleton-text" style="width:45%"></div></td>
+              </tr>
+              <tr>
+                <td><div class="skeleton skeleton-text" style="width:45%"></div></td>
+                <td><div class="skeleton skeleton-text" style="width:65%"></div></td>
+                <td><div class="skeleton skeleton-text" style="width:35%"></div></td>
+                <td><div class="skeleton skeleton-text" style="width:20%"></div></td>
+                <td><div class="skeleton skeleton-text" style="width:50%"></div></td>
+              </tr>
+              <tr>
+                <td><div class="skeleton skeleton-text" style="width:40%"></div></td>
+                <td><div class="skeleton skeleton-text" style="width:60%"></div></td>
+                <td><div class="skeleton skeleton-text" style="width:38%"></div></td>
+                <td><div class="skeleton skeleton-text" style="width:20%"></div></td>
+                <td><div class="skeleton skeleton-text" style="width:40%"></div></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 3: Audit Log -->
+    <div class="section">
+      <div class="section-header">
+        <h2 class="section-title" data-i18n="gov.audit">审计日志</h2>
+      </div>
+      <div class="glass-panel reveal" style="padding: var(--space-4);">
+        <div class="audit-list" id="audit-list" aria-live="polite">
+          <div class="audit-item" style="pointer-events:none">
+            <div class="skeleton skeleton-text" style="width:60px;flex-shrink:0"></div>
+            <div class="skeleton skeleton-text" style="width:70%"></div>
+          </div>
+          <div class="audit-item" style="pointer-events:none">
+            <div class="skeleton skeleton-text" style="width:60px;flex-shrink:0"></div>
+            <div class="skeleton skeleton-text" style="width:60%"></div>
+          </div>
+          <div class="audit-item" style="pointer-events:none">
+            <div class="skeleton skeleton-text" style="width:60px;flex-shrink:0"></div>
+            <div class="skeleton skeleton-text" style="width:75%"></div>
+          </div>
+          <div class="audit-item" style="pointer-events:none">
+            <div class="skeleton skeleton-text" style="width:60px;flex-shrink:0"></div>
+            <div class="skeleton skeleton-text" style="width:55%"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Toast container -->
+  <div id="toast-container" role="status" aria-live="polite"></div>
+
+  <script src="components/nav.js"></script>
+  <script src="components/sidebar.js"></script>
+  <script src="i18n.js"></script>
+
+  <script>
+  injectSidebar({ activeId: "governance" });
+    /* ── Toast ── */
+    function showToast(msg, type = 'info') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = 'toast ' + type;
+      toast.textContent = msg;
+      container.appendChild(toast);
+      setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 3000);
+    }
+
+    /* ── Safe Fetch ── */
+    async function safeFetch(url, opts = {}) {
+      try {
+        const res = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...opts });
+        if (!res.ok) throw new Error(res.statusText);
+        return await res.json();
+      } catch (e) {
+        console.warn('safeFetch error:', url, e);
+        return null;
+      }
+    }
+
+    /* ── Load roles ── */
+    async function loadRoles() {
+      const data = await safeFetch('/governance/roles');
+      let roles = data?.roles || data || null;
+      if (!roles || !Array.isArray(roles) || roles.length === 0) {
+        roles = [
+          { name: I18N.t('governance.roleAdmin'), users: 3, permissions: 12, status: 'active', perms: ['read', 'write', 'delete', 'admin', 'audit', 'config', 'billing', 'users', 'roles', 'providers', 'neurons', 'deploy'] },
+          { name: I18N.t('governance.roleDeveloper'), users: 8, permissions: 6, status: 'active', perms: ['read', 'write', 'neurons', 'providers', 'config', 'audit'] },
+          { name: I18N.t('governance.roleReadOnly'), users: 5, permissions: 2, status: 'active', perms: ['read', 'audit'] }
+        ];
+      }
+      const grid = document.getElementById('role-grid');
+      grid.innerHTML = roles.map((role, idx) => `
+        <div class="glass-panel role-card" onclick="toggleRoleCard(this)" tabindex="0" role="button" aria-expanded="false" aria-label="${escapeHtml(role.name)}">
+          <div class="role-card-header">
+            <span class="role-card-name">${escapeHtml(role.name)}</span>
+            <span class="status-dot ${escapeHtml(role.status)}" aria-label="${escapeHtml(role.status)}"></span>
+          </div>
+          <div class="role-card-stats">
+            <span class="role-card-stat"><strong>${role.users}</strong> ${I18N.t('governance.userUnit')}</span>
+            <span class="role-card-stat"><strong>${role.permissions}</strong> ${I18N.t('governance.permUnit')}</span>
+          </div>
+          <div class="role-permissions">
+            ${role.perms.map(p => `<span class="role-perm-item">${escapeHtml(p)}</span>`).join('')}
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function toggleRoleCard(card) {
+      card.classList.toggle('expanded');
+      card.setAttribute('aria-expanded', card.classList.contains('expanded'));
+    }
+
+    /* ── Load users ── */
+    async function loadUsers() {
+      const data = await safeFetch('/governance/users');
+      let users = data?.users || data || null;
+      if (!users || !Array.isArray(users) || users.length === 0) {
+        users = [
+          { name: I18N.t('governance.userZhang'), email: 'zhang@example.com', role: I18N.t('governance.roleAdmin'), status: 'active', lastActive: '2 ' + I18N.t('common.minutesAgo') },
+          { name: I18N.t('governance.userLi'), email: 'li@example.com', role: I18N.t('governance.roleDeveloper'), status: 'active', lastActive: '15 ' + I18N.t('common.minutesAgo') },
+          { name: I18N.t('governance.userWang'), email: 'wang@example.com', role: I18N.t('governance.roleDeveloper'), status: 'active', lastActive: '1 ' + I18N.t('common.hoursAgo') },
+          { name: I18N.t('governance.userChen'), email: 'chen@example.com', role: I18N.t('governance.roleReadOnly'), status: 'inactive', lastActive: '3 ' + I18N.t('common.daysAgo') },
+          { name: I18N.t('governance.userZhao'), email: 'zhao@example.com', role: I18N.t('governance.roleDeveloper'), status: 'active', lastActive: '30 ' + I18N.t('common.minutesAgo') }
+        ];
+      }
+      const tbody = document.getElementById('user-tbody');
+      tbody.innerHTML = users.map(u => `
+        <tr>
+          <td class="user-name">${escapeHtml(u.name)}</td>
+          <td>${escapeHtml(u.email)}</td>
+          <td>${escapeHtml(u.role)}</td>
+          <td><span class="status-dot ${escapeHtml(u.status)}" aria-label="${escapeHtml(u.status)}"></span></td>
+          <td class="text-secondary">${escapeHtml(u.lastActive)}</td>
+        </tr>
+      `).join('');
+    }
+
+    /* ── Load audit log ── */
+    async function loadAuditLog() {
+      const data = await safeFetch('/governance/audit-log');
+      let logs = data?.logs || data || null;
+      if (!logs || !Array.isArray(logs) || logs.length === 0) {
+        logs = [
+          { time: '10:32', msg: I18N.t('governance.userZhang') + ' ' + I18N.t('governance.auditPermChange').replace('{role}', I18N.t('governance.roleAdmin')) },
+          { time: '09:45', msg: I18N.t('governance.userLi') + ' ' + I18N.t('governance.auditKeyCreate') },
+          { time: '09:12', msg: I18N.t('governance.auditSessionCleanup').replace('{count}', '3') },
+          { time: I18N.t('governance.auditTimeYesterday'), msg: I18N.t('governance.userWang') + ' ' + I18N.t('governance.auditRoleAssign').replace('{role}', I18N.t('governance.roleDeveloper')) },
+          { time: I18N.t('governance.auditTimeYesterday'), msg: I18N.t('governance.userZhang') + ' ' + I18N.t('governance.auditProviderUpdate') }
+        ];
+      }
+      const list = document.getElementById('audit-list');
+      list.innerHTML = logs.slice(0, 10).map(log => `
+        <div class="audit-item">
+          <span class="audit-time">${escapeHtml(log.time)}</span>
+          <span class="audit-msg">${escapeHtml(log.msg)}</span>
+        </div>
+      `).join('');
+    }
+
+    /* ── Init ── */
+    loadRoles();
+    loadUsers();
+    loadAuditLog();
+  </script>
+  <script src="interact.js"></script>
+</body>
+</html>

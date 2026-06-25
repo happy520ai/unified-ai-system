@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data:;">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="太极北斗 AI 网关 — 多模型路由、知识库检索、企业级治理">
+  <meta name="theme-color" content="#0f1117">
+  <title data-i18n="routing.title">智能路由</title>
+  <link rel="stylesheet" href="console.css">
+  <style>
+    .page-enter { animation: fadeInUp 0.5s var(--ease-out) both; }
+    .mode-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-5); margin-bottom: var(--space-7); }
+    .mode-card { padding: var(--space-5); cursor: pointer; transition: all var(--duration-normal) var(--ease-smooth); }
+    .mode-card:hover { transform: translateY(-2px); }
+    .mode-card-name { font-family: var(--font-display); font-size: 18px; font-weight: 600; color: var(--text-primary); margin-bottom: 6px; }
+    .mode-card-desc { font-size: var(--text-body-sm); color: var(--text-secondary); margin-bottom: var(--space-4); line-height: 1.5; }
+    .mode-card-metric { font-family: var(--font-display); font-size: var(--text-title); font-weight: 600; color: var(--text-primary); }
+    .mode-card-metric-label { font-size: var(--text-caption); color: var(--text-tertiary); margin-top: 2px; }
+    .mode-card-footer { display: flex; align-items: center; justify-content: space-between; margin-top: var(--space-4); padding-top: var(--space-4); border-top: 1px solid rgba(255,255,255,0.04); }
+    .status-dot-inline { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+    .status-dot-inline.green { background: var(--status-success); box-shadow: 0 0 8px var(--status-success); }
+    .status-dot-inline.yellow { background: var(--status-warning); box-shadow: 0 0 8px var(--status-warning); }
+    .status-dot-inline.red { background: var(--status-danger); box-shadow: 0 0 8px var(--status-danger); }
+    .bar-chart { display: flex; flex-direction: column; gap: var(--space-4); }
+    .bar-row { display: flex; align-items: center; gap: var(--space-4); }
+    .bar-label { width: 120px; font-size: var(--text-body-sm); color: var(--text-secondary); flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .bar-track { flex: 1; height: 8px; background: rgba(255,255,255,0.04); border-radius: var(--radius-full); overflow: hidden; }
+    .bar-fill { height: 100%; border-radius: var(--radius-full); background: var(--accent); transition: width 0.8s var(--ease-smooth); }
+    .bar-value { width: 48px; font-size: var(--text-body-sm); color: var(--text-tertiary); text-align: right; flex-shrink: 0; }
+    .btn:active { transform: scale(0.97); }
+    @media (max-width: 1024px) { .mode-cards { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <a href="#page-main" class="skip-link">跳转到主要内容</a>
+  <div id="toast-container" style="position:fixed;top:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:8px;"></div>
+
+  <!-- Sidebar (由共享组件注入) -->
+
+
+  <main class="main-content page-enter">
+    <!-- Demo Mode Banner -->
+    <div class="glass-panel glass-panel-static" style="margin-bottom: var(--space-6); border-left: 3px solid var(--status-warning); padding: var(--space-4); display: flex; align-items: center; gap: var(--space-3);">
+      <span style="font-size: 20px;">⚠️</span>
+      <div>
+        <strong style="color: var(--text-primary);">演示模式</strong>
+        <span style="color: var(--text-secondary); margin-left: 8px;">此页面显示模拟数据，后端 API 未配置。</span>
+      </div>
+    </div>
+
+<div class="page-header">
+      <div class="page-label" data-i18n="routing.label">ROUTING CENTER</div>
+      <h1 class="page-title" data-i18n="routing.title">智能路由</h1>
+      <p class="page-subtitle" data-i18n="routing.subtitle">跨提供商的智能请求路由，自动选择最优模型</p>
+    </div>
+
+    <!-- Section 1: Mode Cards -->
+    <section class="section">
+      <div class="section-header">
+        <h2 class="section-title" data-i18n="routing.currentMode">执行模式</h2>
+      </div>
+      <div class="mode-cards stagger" id="mode-cards">
+        <div class="glass-card mode-card animate-fade-in-up reveal">
+          <div class="mode-card-name" data-i18n="routing.modeStandard">标准模式</div>
+          <div class="mode-card-desc" data-i18n="routing.modeStandardDesc">直接路由到最优模型，快速低成本响应</div>
+          <div class="mode-card-metric" id="metric-standard">98.2%</div>
+          <div class="mode-card-metric-label" data-i18n="routing.successRate">成功率</div>
+          <div class="mode-card-footer">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span class="status-dot status-dot--success" style="width:8px;height:8px;"></span>
+              <span style="font-size:var(--text-body-sm);color:var(--text-secondary)" data-i18n="routing.statusActive">活跃</span>
+            </div>
+            <span style="font-size:var(--text-caption);color:var(--text-tertiary)" id="latency-standard">142ms</span>
+          </div>
+        </div>
+        <div class="glass-card mode-card animate-fade-in-up reveal reveal-delay-1">
+          <div class="mode-card-name" data-i18n="routing.modeGod">上帝模式</div>
+          <div class="mode-card-desc" data-i18n="routing.modeGodDesc">多角色深度分析，多视角汇聚最优答案</div>
+          <div class="mode-card-metric" id="metric-god">96.8%</div>
+          <div class="mode-card-metric-label" data-i18n="routing.successRate">成功率</div>
+          <div class="mode-card-footer">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span class="status-dot status-dot--warning" style="width:8px;height:8px;"></span>
+              <span style="font-size:var(--text-body-sm);color:var(--text-secondary)" data-i18n="routing.statusStandby">待命</span>
+            </div>
+            <span style="font-size:var(--text-caption);color:var(--text-tertiary)" id="latency-god">890ms</span>
+          </div>
+        </div>
+        <div class="glass-card mode-card animate-fade-in-up reveal reveal-delay-2">
+          <div class="mode-card-name" data-i18n="routing.modeTianshu">天枢模式</div>
+          <div class="mode-card-desc" data-i18n="routing.modeTianshuDesc">知识检索加工作流编排，多步骤自主执行</div>
+          <div class="mode-card-metric" id="metric-tianshu">95.4%</div>
+          <div class="mode-card-metric-label" data-i18n="routing.successRate">成功率</div>
+          <div class="mode-card-footer">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span class="status-dot status-dot--warning" style="width:8px;height:8px;"></span>
+              <span style="font-size:var(--text-body-sm);color:var(--text-secondary)" data-i18n="routing.statusStandby">待命</span>
+            </div>
+            <span style="font-size:var(--text-caption);color:var(--text-tertiary)" id="latency-tianshu">1.2s</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 2: Recent Routing Decisions -->
+    <section class="section reveal">
+      <div class="section-header">
+        <h2 class="section-title" data-i18n="routing.recentDecisions">最近路由决策</h2>
+        <span class="section-count" id="decision-count">--</span>
+      </div>
+      <div class="glass-panel-static" style="padding:0;overflow:hidden;">
+        <div class="table-wrap" style="border:none;border-radius:0;">
+          <table class="table data-table">
+            <thead>
+              <tr>
+                <th data-i18n="routing.colTime">时间</th>
+                <th data-i18n="routing.colPrompt">输入</th>
+                <th data-i18n="routing.colMode">模式</th>
+                <th data-i18n="routing.colProvider">提供商</th>
+                <th data-i18n="routing.colLatency">延迟</th>
+              </tr>
+            </thead>
+            <tbody id="decisions-body">
+              <tr><td colspan="5" class="empty-state" data-i18n="common.loading">加载中...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 3: Provider Distribution -->
+    <section class="section reveal reveal-delay-1">
+      <div class="section-header">
+        <h2 class="section-title" data-i18n="routing.providerDistribution">提供商分布</h2>
+      </div>
+      <div class="glass-panel-static" style="padding:var(--space-5);">
+        <div class="bar-chart" id="provider-bars">
+          <div style="text-align:center;padding:var(--space-7) 0;color:var(--text-tertiary);font-size:var(--text-body-sm);" data-i18n="common.loading">加载中...</div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="components/nav.js"></script>
+  <script src="components/sidebar.js"></script>
+
+  <script>
+  injectSidebar({ activeId: "routing" });
+  (function() {
+    var API = window.location.origin;
+
+    function showToast(msg, type) {
+      type = type || 'info';
+      var c = document.getElementById('toast-container');
+      var colors = { success: '#34d399', error: '#f87171', warning: '#fbbf24', info: '#60a5fa' };
+      var el = document.createElement('div');
+      el.style.cssText = 'pointer-events:auto;display:flex;align-items:center;gap:10px;padding:12px 20px;border-radius:14px;background:rgba(12,12,18,0.92);border:1px solid rgba(255,255,255,0.08);backdrop-filter:blur(40px);color:' + colors[type] + ';font-size:14px;font-weight:500;box-shadow:0 8px 32px rgba(0,0,0,0.4);transform:translateX(120%);opacity:0;transition:all 0.4s cubic-bezier(0.34,1.56,0.64,1);';
+      el.textContent = msg;
+      c.appendChild(el);
+      requestAnimationFrame(function() { el.style.transform = 'translateX(0)'; el.style.opacity = '1'; });
+      setTimeout(function() { el.style.transform = 'translateX(120%)'; el.style.opacity = '0'; setTimeout(function() { el.remove(); }, 400); }, 3000);
+    }
+
+    function safeFetch(url, opts) {
+      return fetch(url, opts).then(function(r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      }).catch(function(e) { console.warn('[routing]', url, e.message); return null; });
+    }
+
+    function timeAgo(ts) {
+      if (!ts) return '--';
+      var d = new Date(ts);
+      var diff = Math.floor((Date.now() - d.getTime()) / 1000);
+      if (diff < 60) return diff + 's';
+      if (diff < 3600) return Math.floor(diff / 60) + 'm';
+      if (diff < 86400) return Math.floor(diff / 3600) + 'h';
+      return d.toLocaleDateString();
+    }
+
+    function loadRoutingData() {
+      safeFetch(API + '/routing/data').then(function(data) {
+        var body = document.getElementById('decisions-body');
+        if (!data || !Array.isArray(data) || data.length === 0) {
+          var fallback = [
+            { time: new Date(Date.now() - 120000).toISOString(), prompt: '分析这段代码的性能瓶颈', mode: 'standard', provider: 'OpenAI', latency: 142 },
+            { time: new Date(Date.now() - 300000).toISOString(), prompt: '生成一份安全审计报告', mode: 'god', provider: 'Anthropic', latency: 890 },
+            { time: new Date(Date.now() - 600000).toISOString(), prompt: '解释量子计算的基本原理', mode: 'standard', provider: 'NVIDIA', latency: 98 },
+            { time: new Date(Date.now() - 900000).toISOString(), prompt: '重构用户认证模块', mode: 'tianshu', provider: 'DeepSeek', latency: 1240 },
+            { time: new Date(Date.now() - 1800000).toISOString(), prompt: '翻译技术文档到英文', mode: 'standard', provider: 'OpenAI', latency: 167 }
+          ];
+          renderDecisions(fallback);
+          return;
+        }
+        renderDecisions(data.slice(0, 10));
+      });
+    }
+
+    function renderDecisions(items) {
+      var body = document.getElementById('decisions-body');
+      var count = document.getElementById('decision-count');
+      count.textContent = items.length + ' entries';
+      if (items.length === 0) {
+        body.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:48px 0;color:var(--text-tertiary);">' + (I18N ? I18N.t('common.noData') : 'No data') + '</td></tr>';
+        return;
+      }
+      body.innerHTML = items.map(function(d) {
+        var preview = (d.prompt || d.input || '--').substring(0, 40);
+        return '<tr>' +
+          '<td style="white-space:nowrap;">' + timeAgo(d.time || d.timestamp) + '</td>' +
+          '<td class="truncate" style="max-width:280px;">' + escapeHtml(preview) + '</td>' +
+          '<td>' + escapeHtml(d.mode || '--') + '</td>' +
+          '<td>' + escapeHtml(d.provider || '--') + '</td>' +
+          '<td>' + escapeHtml(d.latency || '--') + 'ms</td>' +
+          '</tr>';
+      }).join('');
+    }
+
+    function loadRoutingStats() {
+      safeFetch(API + '/routing/stats').then(function(data) {
+        var bars = document.getElementById('provider-bars');
+        var providers = [];
+        if (data && data.providers) {
+          if (Array.isArray(data.providers)) {
+            providers = data.providers;
+          } else if (typeof data.providers === 'object') {
+            providers = Object.keys(data.providers).map(function(k) { return { name: k, count: data.providers[k] }; });
+          }
+        }
+        if (providers.length === 0) {
+          providers = [
+            { name: 'OpenAI', count: 42 },
+            { name: 'Anthropic', count: 28 },
+            { name: 'NVIDIA', count: 18 },
+            { name: 'DeepSeek', count: 12 },
+            { name: 'Google', count: 8 },
+            { name: 'Others', count: 5 }
+          ];
+        }
+        var total = providers.reduce(function(s, p) { return s + (p.count || p.requests || 0); }, 0) || 1;
+        bars.innerHTML = providers.map(function(p) {
+          var name = p.name || p.provider || p.id || '--';
+          var count = p.count || p.requests || 0;
+          var pct = Math.round((count / total) * 100);
+          return '<div class="bar-row">' +
+            '<div class="bar-label">' + escapeHtml(name) + '</div>' +
+            '<div class="bar-track"><div class="bar-fill" style="width:' + pct + '%"></div></div>' +
+            '<div class="bar-value">' + pct + '%</div>' +
+            '</div>';
+        }).join('');
+      });
+    }
+
+    loadRoutingData();
+    loadRoutingStats();
+  })();
+  </script>
+  <script src="i18n.js"></script>
+  <script src="interact.js"></script>
+</body>
+</html>

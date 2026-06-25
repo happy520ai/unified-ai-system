@@ -483,7 +483,7 @@ const Interact = window.Interact = {
     const ok = s.sourcesOk || 0;
     const total = s.totalSources || 0;
     el.textContent = `${ok}/${total} sources`;
-    el.style.color = ok === total ? '#34d399' : (ok > 0 ? '#fbbf24' : '#f87171');
+    el.style.color = ok === total ? 'var(--status-success)' : (ok > 0 ? 'var(--status-warning)' : 'var(--status-danger)');
   },
 
   updateHotspotRefreshTime(ts) {

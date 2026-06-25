@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data:;">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="太极北斗 AI 网关 — 多模型路由、知识库检索、企业级治理">
+  <meta name="theme-color" content="#0f1117">
+  <title data-i18n="analytics.title">数据分析</title>
+  <link rel="stylesheet" href="console.css">
+  <style>
+    .page-enter { animation: fadeInUp 0.5s var(--ease-out) both; }
+    .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-4); margin-bottom: var(--space-7); }
+    .kpi-card { padding: var(--space-5); transition: all var(--duration-normal) var(--ease-smooth); }
+    .kpi-card:hover { transform: translateY(-2px); }
+    .kpi-label { font-size: var(--text-body-sm); color: var(--text-tertiary); margin-bottom: var(--space-2); }
+    .kpi-value { font-family: var(--font-display); font-size: var(--text-title); font-weight: 600; color: var(--text-primary); letter-spacing: var(--tracking-tight); }
+    .kpi-change { font-size: var(--text-caption); margin-top: var(--space-2); }
+    .kpi-change.up { color: var(--status-success); }
+    .kpi-change.down { color: var(--status-danger); }
+    .bar-chart { display: flex; flex-direction: column; gap: var(--space-3); }
+    .bar-row { display: flex; align-items: center; gap: var(--space-3); }
+    .bar-day { width: 48px; font-size: var(--text-caption); color: var(--text-tertiary); text-align: right; flex-shrink: 0; }
+    .bar-track { flex: 1; height: 24px; background: rgba(255,255,255,0.03); border-radius: var(--radius-xs); overflow: hidden; position: relative; }
+    .bar-fill { height: 100%; border-radius: var(--radius-xs); background: var(--accent); transition: width 0.8s var(--ease-smooth); display: flex; align-items: center; padding-left: 8px; }
+    .bar-fill-label { font-size: var(--text-caption); color: rgba(255,255,255,0.8); white-space: nowrap; }
+    .btn:active { transform: scale(0.97); }
+    @media (max-width: 1024px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 640px) { .kpi-grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div id="toast-container" style="position:fixed;top:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:8px;"></div>
+
+  <!-- Sidebar (由共享组件注入) -->
+
+
+  <main class="main-content page-enter">
+    <!-- Demo Mode Banner -->
+    <div class="glass-panel glass-panel-static" style="margin-bottom: var(--space-6); border-left: 3px solid var(--status-warning); padding: var(--space-4); display: flex; align-items: center; gap: var(--space-3);">
+      <span style="font-size: 20px;">⚠️</span>
+      <div>
+        <strong style="color: var(--text-primary);">演示模式</strong>
+        <span style="color: var(--text-secondary); margin-left: 8px;">此页面显示模拟数据，后端分析 API 未配置。</span>
+      </div>
+    </div>
+
+    <div class="page-header">
+      <div class="page-label" data-i18n="analytics.label">ANALYTICS</div>
+      <h1 class="page-title" data-i18n="analytics.title">数据分析</h1>
+      <p class="page-subtitle" data-i18n="analytics.subtitle">系统性能分析与使用趋势</p>
+    </div>
+
+    <!-- Section 1: KPI Cards -->
+    <section class="section">
+      <div class="kpi-grid stagger" id="kpi-grid">
+        <div class="glass-card kpi-card animate-fade-in-up reveal">
+          <div class="kpi-label" data-i18n="analytics.totalRequests">总请求量</div>
+          <div class="kpi-value" id="kpi-requests" data-animate-number="0">--</div>
+          <div class="kpi-change up" id="kpi-requests-change"></div>
+        </div>
+        <div class="glass-card kpi-card animate-fade-in-up reveal reveal-delay-1">
+          <div class="kpi-label" data-i18n="analytics.avgLatency">平均延迟</div>
+          <div class="kpi-value" id="kpi-latency" data-animate-number="0">--</div>
+          <div class="kpi-change down" id="kpi-latency-change"></div>
+        </div>
+        <div class="glass-card kpi-card animate-fade-in-up reveal reveal-delay-2">
+          <div class="kpi-label" data-i18n="analytics.successRate">成功率</div>
+          <div class="kpi-value" id="kpi-success" data-animate-number="0">--</div>
+          <div class="kpi-change up" id="kpi-success-change"></div>
+        </div>
+        <div class="glass-card kpi-card animate-fade-in-up reveal reveal-delay-3">
+          <div class="kpi-label" data-i18n="analytics.activeModels">活跃模型</div>
+          <div class="kpi-value" id="kpi-models" data-animate-number="0">--</div>
+          <div class="kpi-change up" id="kpi-models-change"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 2: Usage Chart (Last 7 Days) -->
+    <section class="section reveal">
+      <div class="section-header">
+        <h2 class="section-title" data-i18n="analytics.usageChart">使用趋势</h2>
+        <span class="section-count" data-i18n="analytics.last7Days">最近 7 天</span>
+      </div>
+      <div class="glass-panel-static" style="padding:var(--space-5);">
+        <div class="bar-chart" id="usage-chart"></div>
+      </div>
+    </section>
+
+    <!-- Section 3: Top Models -->
+    <section class="section reveal reveal-delay-1">
+      <div class="section-header">
+        <h2 class="section-title" data-i18n="analytics.topModels">热门模型</h2>
+      </div>
+      <div class="glass-panel-static" style="padding:0;overflow:hidden;">
+        <div class="table-wrap" style="border:none;border-radius:0;">
+          <table class="table data-table">
+            <thead>
+              <tr>
+                <th data-i18n="analytics.modelName">模型</th>
+                <th data-i18n="analytics.provider">提供商</th>
+                <th data-i18n="analytics.usageCount">使用次数</th>
+                <th data-i18n="analytics.avgQuality">平均质量</th>
+              </tr>
+            </thead>
+            <tbody id="models-body">
+              <tr><td colspan="4" class="empty-state" data-i18n="common.loading">加载中...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="components/nav.js"></script>
+  <script src="components/sidebar.js"></script>
+
+  <script>
+  injectSidebar({ activeId: "analytics" });
+  (function() {
+    var API = window.location.origin;
+
+    function showToast(msg, type) {
+      type = type || 'info';
+      var c = document.getElementById('toast-container');
+      var colors = { success: '#34d399', error: '#f87171', warning: '#fbbf24', info: '#60a5fa' };
+      var el = document.createElement('div');
+      el.style.cssText = 'pointer-events:auto;display:flex;align-items:center;gap:10px;padding:12px 20px;border-radius:14px;background:rgba(12,12,18,0.92);border:1px solid rgba(255,255,255,0.08);backdrop-filter:blur(40px);color:' + colors[type] + ';font-size:14px;font-weight:500;box-shadow:0 8px 32px rgba(0,0,0,0.4);transform:translateX(120%);opacity:0;transition:all 0.4s cubic-bezier(0.34,1.56,0.64,1);';
+      el.textContent = msg;
+      c.appendChild(el);
+      requestAnimationFrame(function() { el.style.transform = 'translateX(0)'; el.style.opacity = '1'; });
+      setTimeout(function() { el.style.transform = 'translateX(120%)'; el.style.opacity = '0'; setTimeout(function() { el.remove(); }, 400); }, 3000);
+    }
+
+    function safeFetch(url, opts) {
+      return fetch(url, opts).then(function(r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      }).catch(function(e) { console.warn('[analytics]', url, e.message); return null; });
+    }
+
+    function formatNumber(n) {
+      if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+      if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+      return String(n);
+    }
+
+    function loadSystemInfo() {
+      safeFetch(API + '/system/info').then(function(data) {
+        var totalReq = (data && (data.totalRequests || data.requestCount)) || 12847;
+        var avgLat = (data && (data.avgLatency || data.averageLatency)) || 156;
+        var successRate = (data && (data.successRate || data.success_rate)) || 97.8;
+        var models = (data && (data.totalModels || data.modelCount)) || 148;
+
+        document.getElementById('kpi-requests').textContent = formatNumber(totalReq);
+        document.getElementById('kpi-latency').textContent = avgLat + 'ms';
+        document.getElementById('kpi-success').textContent = successRate + '%';
+        document.getElementById('kpi-models').textContent = models;
+
+        document.getElementById('kpi-requests-change').textContent = '+15.2%';
+        document.getElementById('kpi-latency-change').textContent = '-5.1%';
+        document.getElementById('kpi-success-change').textContent = '+0.3%';
+        document.getElementById('kpi-models-change').textContent = '+12';
+      });
+    }
+
+    function renderUsageChart() {
+      var chart = document.getElementById('usage-chart');
+      var days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+      var values = [1820, 2150, 1960, 2340, 2680, 1540, 1890];
+      var max = Math.max.apply(null, values);
+      chart.innerHTML = values.map(function(v, i) {
+        var pct = Math.round((v / max) * 100);
+        return '<div class="bar-row">' +
+          '<div class="bar-day">' + days[i] + '</div>' +
+          '<div class="bar-track"><div class="bar-fill" style="width:' + pct + '%"><span class="bar-fill-label">' + formatNumber(v) + '</span></div></div>' +
+        '</div>';
+      }).join('');
+    }
+
+    function loadRoutingData() {
+      safeFetch(API + '/routing/data').then(function(data) {
+        var body = document.getElementById('models-body');
+        var models = {};
+        if (data && Array.isArray(data)) {
+          data.forEach(function(d) {
+            var m = d.model || d.modelId || '--';
+            if (!models[m]) models[m] = { name: m, provider: d.provider || '--', count: 0, quality: [] };
+            models[m].count++;
+            if (d.quality) models[m].quality.push(d.quality);
+          });
+        }
+        var list = Object.values(models).sort(function(a, b) { return b.count - a.count; });
+        if (list.length === 0) {
+          list = [
+            { name: 'gpt-4o', provider: 'OpenAI', count: 4280, quality: [92, 88, 95] },
+            { name: 'claude-3.5-sonnet', provider: 'Anthropic', count: 3120, quality: [94, 91, 89] },
+            { name: 'deepseek-v3', provider: 'DeepSeek', count: 2460, quality: [87, 85, 90] },
+            { name: 'gemini-2.5-pro', provider: 'Google', count: 1840, quality: [90, 88, 92] },
+            { name: 'llama-3.3-70b', provider: 'NVIDIA', count: 1147, quality: [82, 80, 85] }
+          ];
+        }
+        body.innerHTML = list.slice(0, 10).map(function(m) {
+          var avgQ = m.quality.length > 0 ? (m.quality.reduce(function(s, v) { return s + v; }, 0) / m.quality.length).toFixed(1) : '--';
+          return '<tr>' +
+            '<td style="font-weight:500;color:var(--text-primary);">' + escapeHtml(m.name) + '</td>' +
+            '<td>' + escapeHtml(m.provider) + '</td>' +
+            '<td>' + formatNumber(m.count) + '</td>' +
+            '<td>' + avgQ + '</td>' +
+          '</tr>';
+        }).join('');
+      });
+    }
+
+    loadSystemInfo();
+    renderUsageChart();
+    loadRoutingData();
+  })();
+  </script>
+  <script src="i18n.js"></script>
+  <script src="interact.js"></script>
+</body>
+</html>

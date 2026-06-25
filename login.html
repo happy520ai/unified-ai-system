@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data:;">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title data-i18n="login.title">登录 - AI Gateway</title>
+  <link rel="stylesheet" href="console.css">
+  <style>
+    /* ── Login Page Styles ── */
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: var(--space-4);
+    }
+
+    .login-container {
+      width: 100%;
+      max-width: 400px;
+    }
+
+    .login-card {
+      padding: var(--space-6);
+    }
+
+    .login-header {
+      text-align: center;
+      margin-bottom: var(--space-6);
+    }
+
+    .login-logo {
+      width: 56px;
+      height: 56px;
+      background: linear-gradient(135deg, var(--accent), #9b8afb);
+      border-radius: var(--radius-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      font-weight: 700;
+      color: white;
+      margin: 0 auto var(--space-4);
+    }
+
+    .login-title {
+      font-family: var(--font-display);
+      font-size: var(--text-heading);
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: var(--space-2);
+    }
+
+    .login-subtitle {
+      font-size: var(--text-body);
+      color: var(--text-secondary);
+    }
+
+    /* Form */
+    .form-group {
+      margin-bottom: var(--space-4);
+    }
+
+    .form-label {
+      display: block;
+      font-size: var(--text-body-sm);
+      color: var(--text-secondary);
+      font-weight: 500;
+      margin-bottom: var(--space-2);
+    }
+
+    .form-input {
+      width: 100%;
+      padding: var(--space-3) var(--space-4);
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--glass-border);
+      background: rgba(0, 0, 0, 0.3);
+      color: var(--text-primary);
+      font-size: var(--text-body);
+      font-family: inherit;
+      transition: all 0.2s ease;
+    }
+
+    .form-input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-soft);
+    }
+
+    .form-input.error {
+      border-color: var(--status-danger);
+      box-shadow: 0 0 0 3px var(--status-danger-soft);
+    }
+
+    .password-wrap {
+      position: relative;
+    }
+
+    .password-toggle {
+      position: absolute;
+      right: var(--space-3);
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      color: var(--text-tertiary);
+      cursor: pointer;
+      font-size: var(--text-body-sm);
+      padding: 4px 8px;
+    }
+
+    .password-toggle:hover {
+      color: var(--text-secondary);
+    }
+
+    .form-error {
+      font-size: var(--text-caption);
+      color: var(--status-danger);
+      margin-top: var(--space-2);
+      display: none;
+    }
+
+    .form-error.visible {
+      display: block;
+    }
+
+    /* Button */
+    .login-btn {
+      width: 100%;
+      padding: var(--space-3) var(--space-5);
+      border-radius: 12px;
+      background: var(--accent);
+      color: white;
+      border: none;
+      font-size: var(--text-body);
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      margin-top: var(--space-4);
+    }
+
+    .login-btn:hover {
+      background: var(--accent-hover);
+      transform: translateY(-1px);
+    }
+
+    .login-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    /* Footer links */
+    .login-footer {
+      text-align: center;
+      margin-top: var(--space-5);
+    }
+
+    .login-links {
+      display: flex;
+      justify-content: center;
+      gap: var(--space-4);
+    }
+
+    .login-link {
+      font-size: var(--text-body-sm);
+      color: var(--text-secondary);
+      text-decoration: none;
+      transition: color 0.2s ease;
+    }
+
+    .login-link:hover {
+      color: var(--accent);
+    }
+
+    /* Page fade-in */
+    .page-fade { animation: fadeIn 0.5s ease-out both; }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    /* Toast */
+    #toast-container {
+      position: fixed;
+      top: 24px;
+      right: 24px;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .toast {
+      padding: 12px 20px;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.08);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255,255,255,0.1);
+      color: var(--text-primary);
+      font-size: 14px;
+      animation: toastIn 0.3s ease-out;
+    }
+    .toast.success { border-color: rgba(52,211,153,0.3); }
+    .toast.error { border-color: rgba(248,113,113,0.3); }
+    @keyframes toastIn {
+      from { opacity: 0; transform: translateY(-8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* RESPONSIVE */
+    @media (max-width: 1024px) {
+      .login-card { padding: var(--space-5); }
+    }
+    @media (max-width: 768px) {
+      body { padding: var(--space-3); align-items: flex-start; padding-top: var(--space-6); }
+      .login-container { max-width: 100%; }
+      .login-card { padding: var(--space-4); }
+      .login-logo { width: 48px; height: 48px; font-size: 18px; }
+      .login-title { font-size: var(--text-body-lg, 1.125rem); }
+      #toast-container { top: 12px; right: 12px; left: 12px; }
+      .toast { font-size: 13px; padding: 10px 16px; }
+    }
+    @media (max-width: 640px) {
+      body { padding: var(--space-2); padding-top: var(--space-5); }
+      .login-card { padding: var(--space-3); }
+      .login-header { margin-bottom: var(--space-4); }
+      .login-logo { width: 44px; height: 44px; font-size: 16px; margin-bottom: var(--space-3); }
+      .login-subtitle { font-size: var(--text-body-sm); }
+      .form-input { padding: var(--space-2) var(--space-3); font-size: var(--text-body-sm); }
+      .login-btn { padding: var(--space-2) var(--space-4); font-size: var(--text-body-sm); }
+      .login-links { flex-direction: column; gap: var(--space-2); align-items: center; }
+    }
+  </style>
+</head>
+<body>
+  <a href="#page-main" class="skip-link">跳转到主要内容</a>
+
+  <div class="login-container page-fade">
+    <div class="glass-panel login-card reveal">
+      <div class="login-header">
+        <div class="login-logo">AI</div>
+        <h1 class="login-title" data-i18n="login.welcome">太极北斗</h1>
+        <p class="login-subtitle" data-i18n="login.subtitle">登录以继续使用 AI Gateway</p>
+      </div>
+
+      <form id="login-form" onsubmit="handleLogin(event)">
+        <div class="form-group">
+          <label class="form-label" for="email" data-i18n="login.email">邮箱</label>
+          <div class="input-group">
+            <input type="email" id="email" class="form-input" placeholder="name@example.com" required>
+          </div>
+          <div class="form-error" id="email-error" data-i18n="login.emailError">请输入有效的邮箱地址</div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="password" data-i18n="login.password">密码</label>
+          <div class="input-group">
+            <div class="password-wrap">
+              <input type="password" id="password" class="form-input" placeholder="********" required>
+              <button type="button" class="password-toggle" onclick="togglePassword()">显示</button>
+            </div>
+          </div>
+          <div class="form-error" id="password-error" data-i18n="login.passwordError">密码至少 6 个字符</div>
+        </div>
+
+        <button type="submit" class="login-btn btn-primary" id="login-btn" data-i18n="login.submit">登录</button>
+      </form>
+    </div>
+
+    <div class="login-footer">
+      <div class="login-links">
+        <a href="#" class="login-link" data-i18n="login.register">注册</a>
+        <a href="#" class="login-link" data-i18n="login.forgot">忘记密码</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast container -->
+  <div id="toast-container"></div>
+
+  <script>
+    /* ── Toast ── */
+    function showToast(msg, type = 'info') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = 'toast ' + type;
+      toast.textContent = msg;
+      container.appendChild(toast);
+      setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 3000);
+    }
+
+    /* ── Toggle password visibility ── */
+    function togglePassword() {
+      const input = document.getElementById('password');
+      const btn = document.querySelector('.password-toggle');
+      if (input.type === 'password') {
+        input.type = 'text';
+        btn.textContent = '隐藏';
+      } else {
+        input.type = 'password';
+        btn.textContent = '显示';
+      }
+    }
+
+    /* ── Form validation ── */
+    function validateEmail(email) {
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    }
+
+    /* ── Resolve auth base URL (same origin by default) ── */
+    function getAuthBaseUrl() {
+      /* login.html served from same origin; API lives on the gateway service */
+      return window.location.origin;
+    }
+
+    async function handleLogin(e) {
+      e.preventDefault();
+
+      const email = document.getElementById('email');
+      const password = document.getElementById('password');
+      const emailError = document.getElementById('email-error');
+      const passwordError = document.getElementById('password-error');
+      const btn = document.getElementById('login-btn');
+
+      /* Reset errors */
+      email.classList.remove('error');
+      password.classList.remove('error');
+      emailError.classList.remove('visible');
+      passwordError.classList.remove('visible');
+
+      let hasError = false;
+
+      if (!validateEmail(email.value)) {
+        email.classList.add('error');
+        emailError.classList.add('visible');
+        hasError = true;
+      }
+
+      if (password.value.length < 6) {
+        password.classList.add('error');
+        passwordError.classList.add('visible');
+        hasError = true;
+      }
+
+      if (hasError) return;
+
+      /* Submit — loading state */
+      btn.disabled = true;
+      btn.textContent = '登录中...';
+
+      try {
+        const resp = await fetch(getAuthBaseUrl() + '/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: email.value, password: password.value }),
+        });
+
+        const json = await resp.json().catch(() => null);
+
+        if (!resp.ok || !json || !json.data) {
+          const errMsg = (json && json.error && json.error.message) || '登录失败，请检查用户名和密码';
+          showToast(errMsg, 'error');
+          btn.disabled = false;
+          btn.textContent = '登录';
+          return;
+        }
+
+        /* Store token in sessionStorage (not localStorage — cleared on tab close) */
+        const token = json.data.token;
+        if (token) {
+          sessionStorage.setItem('auth_token', token);
+        }
+        if (json.data.user) {
+          sessionStorage.setItem('auth_user', JSON.stringify(json.data.user));
+        }
+
+        showToast('登录成功', 'success');
+        setTimeout(() => {
+          window.location.href = 'dashboard.html';
+        }, 600);
+      } catch (networkError) {
+        showToast('网络连接失败，请检查服务是否启动', 'error');
+        btn.disabled = false;
+        btn.textContent = '登录';
+      }
+    }
+
+    /* ── Clear error on input ── */
+    document.getElementById('email').addEventListener('input', function() {
+      this.classList.remove('error');
+      document.getElementById('email-error').classList.remove('visible');
+    });
+
+    document.getElementById('password').addEventListener('input', function() {
+      this.classList.remove('error');
+      document.getElementById('password-error').classList.remove('visible');
+    });
+  </script>
+  <script src="i18n.js"></script>
+  <script src="interact.js"></script>
+</body>
+</html>

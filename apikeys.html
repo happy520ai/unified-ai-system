@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data:;">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="太极北斗 AI 网关 — 多模型路由、知识库检索、企业级治理">
+  <meta name="theme-color" content="#0f1117">
+  <title data-i18n="apikeys.title">API 密钥</title>
+  <link rel="stylesheet" href="console.css">
+  <style>
+    .page-enter { animation: fadeInUp 0.5s var(--ease-out) both; }
+    .status-dot-inline { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+    .status-dot-inline.green { background: var(--status-success); box-shadow: 0 0 8px var(--status-success); }
+    .status-dot-inline.red { background: var(--status-danger); box-shadow: 0 0 8px var(--status-danger); }
+    .status-dot-inline.gray { background: var(--text-tertiary); }
+    .key-prefix { font-family: var(--font-mono); font-size: var(--text-body-sm); color: var(--text-secondary); letter-spacing: 0.5px; }
+    .btn:active { transform: scale(0.97); }
+    .modal-backdrop { position: fixed; inset: 0; z-index: 1000; background: rgba(0,0,0,0.6); backdrop-filter: blur(8px); display: none; align-items: center; justify-content: center; }
+    .modal-backdrop.open { display: flex; }
+    .modal-box { background: rgba(12,12,18,0.95); backdrop-filter: var(--glass-blur-heavy); border: 1px solid var(--glass-border); border-radius: var(--radius-xl); box-shadow: var(--depth-3); padding: var(--space-6); max-width: 480px; width: calc(100% - 32px); animation: scaleIn 0.3s var(--ease-spring) both; }
+    .key-display { background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.06); border-radius: var(--radius-sm); padding: var(--space-3) var(--space-4); font-family: var(--font-mono); font-size: var(--text-body-sm); color: var(--status-success); word-break: break-all; margin: var(--space-4) 0; line-height: 1.6; }
+    .key-warning { font-size: var(--text-caption); color: var(--status-warning); margin-bottom: var(--space-4); }
+
+    /* RESPONSIVE */
+    @media (max-width: 1024px) {
+      .page-header { flex-direction: column; gap: var(--space-3); }
+      .page-header > button { align-self: flex-start; }
+      .glass-panel-static { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    }
+    @media (max-width: 768px) {
+      .main-content { padding: var(--space-4); }
+      .page-header { padding-bottom: var(--space-3); }
+      .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+      .data-table { min-width: 560px; }
+      .data-table th, .data-table td { padding: var(--space-3) var(--space-2); font-size: var(--text-body-sm); }
+      .modal-box { max-width: 100%; width: calc(100% - 16px); padding: var(--space-4); }
+    }
+    @media (max-width: 640px) {
+      .main-content { padding: var(--space-3); }
+      .page-title { font-size: var(--text-heading-sm, 1.25rem); }
+      .page-subtitle { font-size: var(--text-body-sm); }
+      .data-table th, .data-table td { padding: var(--space-2) var(--space-1); font-size: var(--text-caption); }
+      .btn { font-size: var(--text-body-sm); padding: var(--space-2) var(--space-3); }
+      .key-display { font-size: var(--text-caption); padding: var(--space-2) var(--space-3); }
+    }
+  </style>
+</head>
+<body>
+  <div id="toast-container" style="position:fixed;top:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:8px;"></div>
+
+  <!-- Sidebar (由共享组件注入) -->
+
+
+  <main class="main-content page-enter">
+    <div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;">
+      <div>
+        <div class="page-label" data-i18n="apikeys.label">API KEYS</div>
+        <h1 class="page-title" data-i18n="apikeys.title">API 密钥</h1>
+        <p class="page-subtitle" data-i18n="apikeys.subtitle">管理应用接入密钥和权限</p>
+      </div>
+      <button class="btn btn-primary" id="create-key-btn" style="margin-top:8px;" data-i18n="apikeys.createKey">创建密钥</button>
+    </div>
+
+    <!-- Demo Mode Banner -->
+    <div class="glass-panel-static" style="padding: var(--space-4); margin-bottom: var(--space-6); border-left: 3px solid var(--status-warning);">
+      <div style="display: flex; align-items: center; gap: var(--space-3);">
+        <span style="font-size: 20px;">⚠️</span>
+        <div>
+          <strong style="color: var(--status-warning);">演示模式</strong>
+          <p style="margin: 4px 0 0 0; font-size: var(--text-body-sm); color: var(--text-secondary);">
+            API 密钥管理功能需要后端 <code>/enterprise/api-keys</code> 路由支持，当前未配置。
+            此页面仅用于展示 UI 界面，无法创建或管理真实的 API 密钥。
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Keys Table -->
+    <section class="section reveal">
+      <div class="glass-panel-static" style="padding:0;overflow:hidden;">
+        <div class="table-wrap" style="border:none;border-radius:0;">
+          <table class="table data-table">
+            <thead>
+              <tr>
+                <th data-i18n="apikeys.keyName">名称</th>
+                <th data-i18n="apikeys.key">密钥</th>
+                <th data-i18n="apikeys.created">创建时间</th>
+                <th data-i18n="apikeys.lastUsed">最后使用</th>
+                <th data-i18n="apikeys.status">状态</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="keys-body">
+              <tr><td colspan="6" class="empty-state" data-i18n="common.loading">加载中...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Create Key Modal -->
+  <div class="modal-backdrop" id="create-modal">
+    <div class="modal-box">
+      <h3 class="modal-title" data-i18n="apikeys.createNewKey">创建新密钥</h3>
+      <div id="create-form">
+        <div class="input-group" style="margin-bottom:var(--space-4);">
+          <label class="input-label" data-i18n="apikeys.keyNameLabel">密钥名称</label>
+          <input class="input" id="key-name-input" data-i18n-ph="apikeys.keyNamePlaceholder" placeholder="例如：Production App">
+        </div>
+        <div style="display:flex;gap:var(--space-3);justify-content:flex-end;">
+          <button class="btn btn-ghost btn-secondary" id="cancel-create-btn" data-i18n="common.cancel">取消</button>
+          <button class="btn btn-primary" id="confirm-create-btn" data-i18n="apikeys.create">创建</button>
+        </div>
+      </div>
+      <div id="create-result" style="display:none;">
+        <div class="key-warning" data-i18n="apikeys.keyWarning">请立即复制此密钥，它将不会再次显示。</div>
+        <div class="key-display" id="new-key-value"></div>
+        <div style="display:flex;gap:var(--space-3);justify-content:flex-end;">
+          <button class="btn btn-ghost btn-secondary" id="copy-key-btn" data-i18n="apikeys.copy">复制</button>
+          <button class="btn btn-primary" id="close-result-btn" data-i18n="common.close">关闭</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="components/nav.js"></script>
+  <script src="components/sidebar.js"></script>
+
+  <script>
+  injectSidebar({ activeId: "apikeys" });
+  (function() {
+    var API = window.location.origin;
+
+    function showToast(msg, type) {
+      type = type || 'info';
+      var c = document.getElementById('toast-container');
+      var colors = { success: '#34d399', error: '#f87171', warning: '#fbbf24', info: '#60a5fa' };
+      var el = document.createElement('div');
+      el.style.cssText = 'pointer-events:auto;display:flex;align-items:center;gap:10px;padding:12px 20px;border-radius:14px;background:rgba(12,12,18,0.92);border:1px solid rgba(255,255,255,0.08);backdrop-filter:blur(40px);color:' + colors[type] + ';font-size:14px;font-weight:500;box-shadow:0 8px 32px rgba(0,0,0,0.4);transform:translateX(120%);opacity:0;transition:all 0.4s cubic-bezier(0.34,1.56,0.64,1);';
+      el.textContent = msg;
+      c.appendChild(el);
+      requestAnimationFrame(function() { el.style.transform = 'translateX(0)'; el.style.opacity = '1'; });
+      setTimeout(function() { el.style.transform = 'translateX(120%)'; el.style.opacity = '0'; setTimeout(function() { el.remove(); }, 400); }, 3000);
+    }
+
+    function safeFetch(url, opts) {
+      return fetch(url, opts).then(function(r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      }).catch(function(e) { console.warn('[apikeys]', url, e.message); return null; });
+    }
+
+    function formatDate(ts) {
+      if (!ts) return '--';
+      var d = new Date(ts);
+      return d.toLocaleDateString();
+    }
+
+    var modal = document.getElementById('create-modal');
+    document.getElementById('create-key-btn').addEventListener('click', function() {
+      document.getElementById('create-form').style.display = '';
+      document.getElementById('create-result').style.display = 'none';
+      document.getElementById('key-name-input').value = '';
+      modal.classList.add('open');
+    });
+    document.getElementById('cancel-create-btn').addEventListener('click', function() { modal.classList.remove('open'); });
+    document.getElementById('close-result-btn').addEventListener('click', function() { modal.classList.remove('open'); loadKeys(); });
+    modal.addEventListener('click', function(e) { if (e.target === modal) modal.classList.remove('open'); });
+
+    document.getElementById('confirm-create-btn').addEventListener('click', function() {
+      var name = document.getElementById('key-name-input').value.trim();
+      if (!name) { showToast(I18N ? I18N.t('common.noData') : 'Please enter a name', 'warning'); return; }
+      var btn = this;
+      btn.disabled = true;
+      safeFetch(API + '/enterprise/api-keys', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name })
+      }).then(function(data) {
+        btn.disabled = false;
+        if (data && (data.key || data.apiKey)) {
+          document.getElementById('create-form').style.display = 'none';
+          document.getElementById('create-result').style.display = '';
+          document.getElementById('new-key-value').textContent = data.key || data.apiKey;
+          showToast(I18N ? I18N.t('common.success') : 'Key created', 'success');
+        } else {
+          // Demo mode: API not available
+          showToast('演示模式：API 密钥管理功能未配置', 'warning');
+          modal.classList.remove('open');
+        }
+      });
+    });
+
+    document.getElementById('copy-key-btn').addEventListener('click', function() {
+      var key = document.getElementById('new-key-value').textContent;
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(key).then(function() { showToast(I18N ? I18N.t('common.copied') : 'Copied', 'success'); });
+      }
+    });
+
+    function renderKeys(keys) {
+      var body = document.getElementById('keys-body');
+      if (!keys || keys.length === 0) {
+        body.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:48px 0;color:var(--text-tertiary);">' + (I18N ? I18N.t('common.noData') : 'No API keys yet') + '</td></tr>';
+        return;
+      }
+      body.innerHTML = keys.map(function(k) {
+        var prefix = k.prefix || k.keyPrefix || (k.key ? k.key.substring(0, 12) + '...' : 'gw-***');
+        var statusClass = k.revoked || k.status === 'revoked' ? 'red' : (k.lastUsed ? 'green' : 'gray');
+        var statusText = k.revoked || k.status === 'revoked' ? 'Revoked' : 'Active';
+        return '<tr>' +
+          '<td style="font-weight:500;color:var(--text-primary);">' + escapeHtml(k.name || '--') + '</td>' +
+          '<td><span class="key-prefix">' + escapeHtml(prefix) + '</span></td>' +
+          '<td>' + formatDate(k.created || k.createdAt) + '</td>' +
+          '<td>' + formatDate(k.lastUsed || k.lastUsedAt) + '</td>' +
+          '<td style="display:flex;align-items:center;gap:6px;"><span class="status-dot-inline ' + statusClass + '"></span><span style="font-size:var(--text-body-sm);color:var(--text-secondary);">' + statusText + '</span></td>' +
+          '<td><button class="btn btn-sm btn-danger revoke-btn" data-key-id="' + escapeHtml(k.id || k._id || '') + '">' + (I18N ? I18N.t('common.delete') : 'Revoke') + '</button></td>' +
+        '</tr>';
+      }).join('');
+
+      body.querySelectorAll('.revoke-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          var id = btn.getAttribute('data-key-id');
+          if (confirm(I18N ? I18N.t('common.confirm') + '?' : 'Confirm revoke?')) {
+            safeFetch(API + '/enterprise/api-keys/' + id, { method: 'DELETE' }).then(function() {
+              showToast(I18N ? I18N.t('common.success') : 'Key revoked', 'success');
+              loadKeys();
+            });
+          }
+        });
+      });
+    }
+
+    function loadKeys() {
+      safeFetch(API + '/enterprise/api-keys').then(function(data) {
+        var keys = null;
+        if (data && Array.isArray(data)) keys = data;
+        else if (data && data.keys) keys = data.keys;
+        else if (data && data.apiKeys) keys = data.apiKeys;
+        // Demo mode: no real API, show empty state
+        renderKeys(keys || []);
+      });
+    }
+
+    loadKeys();
+  })();
+  </script>
+  <script src="i18n.js"></script>
+  <script src="interact.js"></script>
+</body>
+</html>

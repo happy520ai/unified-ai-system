@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data:;">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="太极北斗 AI 网关 — 多模型路由、知识库检索、企业级治理">
+  <meta name="theme-color" content="#0f1117">
+  <title data-i18n="settings.title">系统设置</title>
+  <link rel="stylesheet" href="console.css">
+  <style>
+    .page-enter { animation: fadeInUp 0.5s var(--ease-out) both; }
+    .settings-section { margin-bottom: var(--space-7); }
+    .setting-row { display: flex; align-items: center; justify-content: space-between; padding: var(--space-5) 0; border-bottom: 1px solid rgba(255,255,255,0.03); gap: var(--space-5); }
+    .setting-row:last-child { border-bottom: none; }
+    .setting-info { flex: 1; min-width: 0; }
+    .setting-label { font-size: var(--text-body); font-weight: 500; color: var(--text-primary); margin-bottom: 2px; }
+    .setting-desc { font-size: var(--text-body-sm); color: var(--text-tertiary); }
+    .setting-control { flex-shrink: 0; display: flex; align-items: center; gap: var(--space-3); }
+    .btn:active { transform: scale(0.97); }
+    @media (max-width: 768px) { .setting-row { flex-direction: column; align-items: flex-start; } .setting-control { width: 100%; } }
+  </style>
+</head>
+<body>
+  <a href="#page-main" class="skip-link">跳转到主要内容</a>
+  <div id="toast-container" style="position:fixed;top:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:8px;"></div>
+
+  <!-- Sidebar (由共享组件注入) -->
+
+
+  <main class="main-content page-enter">
+    <!-- Demo Mode Banner -->
+    <div class="glass-panel glass-panel-static" style="margin-bottom: var(--space-6); border-left: 3px solid var(--status-warning); padding: var(--space-4); display: flex; align-items: center; gap: var(--space-3);">
+      <span style="font-size: 20px;">⚠️</span>
+      <div>
+        <strong style="color: var(--text-primary);">演示模式</strong>
+        <span style="color: var(--text-secondary); margin-left: 8px;">此页面显示模拟数据，后端 API 未配置。</span>
+      </div>
+    </div>
+
+<div class="page-header">
+      <div class="page-label" data-i18n="settings.label">SETTINGS</div>
+      <h1 class="page-title" data-i18n="settings.title">系统设置</h1>
+      <p class="page-subtitle" data-i18n="settings.subtitle">系统配置、提供商管理、备份与恢复</p>
+    </div>
+
+    <!-- Section 1: Provider Configuration -->
+    <section class="section settings-section reveal">
+      <div class="section-header">
+        <h2 class="section-title" data-i18n="settings.providerCfg">基础设置</h2>
+      </div>
+      <div class="glass-panel-static" style="padding:var(--space-5);">
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-label" data-i18n="settings.nvidiaKey">NVIDIA API 密钥</div>
+            <div class="setting-desc" data-i18n="settings.nvidiaKeyDesc">用于 NVIDIA NIM 端点的 API 密钥</div>
+          </div>
+          <div class="setting-control">
+            <input class="input" type="password" id="nvidia-key" style="width:240px;" placeholder="nvapi-...">
+            <span class="text-caption text-tertiary" id="nvidia-status" data-i18n="settings.notSet">未设置</span>
+          </div>
+        </div>
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-label" data-i18n="settings.openaiKey">OpenAI API 密钥</div>
+            <div class="setting-desc" data-i18n="settings.openaiKeyDesc">用于 OpenAI 服务的 API 密钥</div>
+          </div>
+          <div class="setting-control">
+            <input class="input" type="password" id="openai-key" style="width:240px;" placeholder="sk-...">
+            <span class="text-caption text-tertiary" id="openai-status" data-i18n="settings.notSet">未设置</span>
+          </div>
+        </div>
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-label" data-i18n="settings.routeMode">路由模式</div>
+            <div class="setting-desc" data-i18n="settings.routeModeDesc">质量-成本平衡策略</div>
+          </div>
+          <div class="setting-control">
+            <select class="input" id="route-mode" style="width:180px;">
+              <option value="balanced">Balanced</option>
+              <option value="quality">Quality</option>
+              <option value="cost">Cost</option>
+            </select>
+          </div>
+        </div>
+        <div style="margin-top:var(--space-5);display:flex;justify-content:flex-end;">
+          <button class="btn btn-primary" id="save-provider-btn" data-i18n="settings.saveChanges">保存更改</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 2: Security Settings -->
+    <section class="section settings-section reveal reveal-delay-1">
+      <div class="section-header">
+        <h2 class="section-title" data-i18n="settings.securityTitle">安全设置</h2>
+      </div>
+      <div class="glass-panel-static" style="padding:var(--space-5);">
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-label" data-i18n="settings.emailAlert">邮件告警</div>
+            <div class="setting-desc" data-i18n="settings.emailAlertDesc">通过邮件接收系统告警</div>
+          </div>
+          <div class="setting-control">
+            <label class="toggle toggle-switch"><input type="checkbox" id="toggle-email-alert" checked><span class="toggle-track"></span></label>
+          </div>
+        </div>
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-label" data-i18n="settings.alertOnFail">失败告警</div>
+            <div class="setting-desc" data-i18n="settings.alertOnFailDesc">请求失败时发送告警</div>
+          </div>
+          <div class="setting-control">
+            <label class="toggle toggle-switch"><input type="checkbox" id="toggle-alert-fail" checked><span class="toggle-track"></span></label>
+          </div>
+        </div>
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-label" data-i18n="settings.reqTimeout">请求超时</div>
+            <div class="setting-desc" data-i18n="settings.reqTimeoutDesc">最大请求处理时间（毫秒）</div>
+          </div>
+          <div class="setting-control">
+            <input class="input" type="number" id="req-timeout" value="30000" style="width:120px;">
+            <span class="text-caption text-tertiary">ms</span>
+          </div>
+        </div>
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-label" data-i18n="settings.logLevel">日志级别</div>
+            <div class="setting-desc" data-i18n="settings.logLevelDesc">系统日志详细程度</div>
+          </div>
+          <div class="setting-control">
+            <select class="input" id="log-level" style="width:140px;">
+              <option value="error">Error</option>
+              <option value="warn">Warn</option>
+              <option value="info" selected>Info</option>
+              <option value="debug">Debug</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 3: Backup -->
+    <section class="section settings-section reveal reveal-delay-2">
+      <div class="section-header">
+        <h2 class="section-title" data-i18n="settings.backupTitle">备份</h2>
+      </div>
+      <div class="glass-panel-static" style="padding:var(--space-5);">
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-label" data-i18n="settings.lastBackup">最近备份</div>
+            <div class="setting-desc" id="last-backup-time">--</div>
+          </div>
+          <div class="setting-control" style="gap:var(--space-3);">
+            <button class="btn btn-ghost" id="export-backup-btn" data-action="export" data-i18n="settings.exportBackup">导出备份</button>
+            <button class="btn btn-ghost" id="import-backup-btn" data-action="import" data-i18n="settings.importBackup">导入备份</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="components/nav.js"></script>
+  <script src="components/sidebar.js"></script>
+  <script src="components/layout.js"></script>
+
+  <script>
+  injectSidebar({ activeId: "settings" });
+  (function() {
+    var API = window.location.origin;
+
+    function showToast(msg, type) {
+      type = type || 'info';
+      var c = document.getElementById('toast-container');
+      var colors = { success: '#34d399', error: '#f87171', warning: '#fbbf24', info: '#60a5fa' };
+      var el = document.createElement('div');
+      el.style.cssText = 'pointer-events:auto;display:flex;align-items:center;gap:10px;padding:12px 20px;border-radius:14px;background:rgba(12,12,18,0.92);border:1px solid rgba(255,255,255,0.08);backdrop-filter:blur(40px);color:' + colors[type] + ';font-size:14px;font-weight:500;box-shadow:0 8px 32px rgba(0,0,0,0.4);transform:translateX(120%);opacity:0;transition:all 0.4s cubic-bezier(0.34,1.56,0.64,1);';
+      el.textContent = msg;
+      c.appendChild(el);
+      requestAnimationFrame(function() { el.style.transform = 'translateX(0)'; el.style.opacity = '1'; });
+      setTimeout(function() { el.style.transform = 'translateX(120%)'; el.style.opacity = '0'; setTimeout(function() { el.remove(); }, 400); }, 3000);
+    }
+
+    function safeFetch(url, opts) {
+      return fetch(url, opts).then(function(r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      }).catch(function(e) { console.warn('[settings]', url, e.message); return null; });
+    }
+
+    function loadConfig() {
+      safeFetch(API + '/settings/config').then(function(data) {
+        if (!data) return;
+        if (data.nvidiaKey) {
+          document.getElementById('nvidia-key').value = data.nvidiaKey;
+          document.getElementById('nvidia-status').textContent = I18N ? I18N.t('settings.configured') : 'Configured';
+          document.getElementById('nvidia-status').style.color = 'var(--status-success)';
+        }
+        if (data.openaiKey) {
+          document.getElementById('openai-key').value = data.openaiKey;
+          document.getElementById('openai-status').textContent = I18N ? I18N.t('settings.configured') : 'Configured';
+          document.getElementById('openai-status').style.color = 'var(--status-success)';
+        }
+        if (data.routeMode) document.getElementById('route-mode').value = data.routeMode;
+        if (data.emailAlert !== undefined) document.getElementById('toggle-email-alert').checked = data.emailAlert;
+        if (data.alertOnFail !== undefined) document.getElementById('toggle-alert-fail').checked = data.alertOnFail;
+        if (data.reqTimeout) document.getElementById('req-timeout').value = data.reqTimeout;
+        if (data.logLevel) document.getElementById('log-level').value = data.logLevel;
+      });
+    }
+
+    function loadBackup() {
+      safeFetch(API + '/settings/backup').then(function(data) {
+        if (data && data.lastBackup) {
+          document.getElementById('last-backup-time').textContent = new Date(data.lastBackup).toLocaleString();
+        }
+      });
+    }
+
+    document.getElementById('save-provider-btn').addEventListener('click', function() {
+      var btn = this;
+      btn.disabled = true;
+      var config = {
+        nvidiaKey: document.getElementById('nvidia-key').value,
+        openaiKey: document.getElementById('openai-key').value,
+        routeMode: document.getElementById('route-mode').value,
+        emailAlert: document.getElementById('toggle-email-alert').checked,
+        alertOnFail: document.getElementById('toggle-alert-fail').checked,
+        reqTimeout: parseInt(document.getElementById('req-timeout').value) || 30000,
+        logLevel: document.getElementById('log-level').value
+      };
+      safeFetch(API + '/settings/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config)
+      }).then(function(data) {
+        btn.disabled = false;
+        showToast(I18N ? I18N.t('common.success') : 'Settings saved', 'success');
+      });
+    });
+
+    loadConfig();
+    loadBackup();
+  })();
+  </script>
+  <script src="i18n.js"></script>
+  <script src="interact.js"></script>
+</body>
+</html>

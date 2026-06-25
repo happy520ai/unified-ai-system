@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data:;">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="太极北斗 AI 网关 — 多模型路由、知识库检索、企业级治理">
+  <meta name="theme-color" content="#0f1117">
+  <title data-i18n="evidence.title">证据浏览器 - AI Gateway</title>
+  <link rel="stylesheet" href="console.css">
+  <style>
+    /* ── Evidence Browser Styles ── */
+    .filter-bar {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      margin-bottom: var(--space-5);
+      flex-wrap: wrap;
+    }
+    .filter-pills {
+      display: flex;
+      gap: var(--space-2);
+      flex-wrap: wrap;
+    }
+    .filter-pill {
+      padding: 6px 14px;
+      border-radius: var(--radius-full);
+      border: 1px solid var(--glass-border);
+      background: transparent;
+      color: var(--text-secondary);
+      font-size: var(--text-body-sm);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .filter-pill:hover {
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--text-primary);
+    }
+    .filter-pill.active {
+      background: var(--accent-soft);
+      color: var(--accent);
+      border-color: var(--accent);
+    }
+    .filter-input {
+      flex: 1;
+      min-width: 180px;
+      padding: 8px 14px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--glass-border);
+      background: rgba(0, 0, 0, 0.2);
+      color: var(--text-primary);
+      font-size: var(--text-body);
+      font-family: inherit;
+    }
+    .filter-input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-soft);
+    }
+
+    /* Timeline */
+    .timeline {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
+    }
+    .timeline-item {
+      display: grid;
+      grid-template-columns: 140px 1fr;
+      gap: var(--space-4);
+      align-items: start;
+    }
+    @media (max-width: 640px) {
+      .timeline-item { grid-template-columns: 1fr; }
+    }
+    .timeline-time {
+      font-family: var(--font-mono);
+      font-size: var(--text-body-sm);
+      color: var(--text-tertiary);
+      padding-top: var(--space-4);
+      text-align: right;
+    }
+    @media (max-width: 640px) {
+      .timeline-time { text-align: left; padding-top: 0; }
+    }
+    .timeline-card {
+      padding: var(--space-4) var(--space-5);
+    }
+    .timeline-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: var(--space-2);
+    }
+    .timeline-type {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-2);
+      font-size: var(--text-body-sm);
+      font-weight: 500;
+      color: var(--accent);
+    }
+    .timeline-type-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+    }
+    .timeline-summary {
+      font-size: var(--text-body);
+      color: var(--text-primary);
+      margin-bottom: var(--space-2);
+    }
+    .timeline-meta {
+      font-size: var(--text-body-sm);
+      color: var(--text-secondary);
+    }
+    .btn-expand {
+      padding: 4px 12px;
+      border-radius: var(--radius-xs);
+      border: 1px solid var(--glass-border);
+      background: transparent;
+      color: var(--text-secondary);
+      font-size: var(--text-caption);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .btn-expand:hover {
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--text-primary);
+    }
+    .timeline-detail {
+      display: none;
+      margin-top: var(--space-3);
+      padding-top: var(--space-3);
+      border-top: 1px solid var(--glass-border);
+    }
+    .timeline-card.expanded .timeline-detail {
+      display: block;
+    }
+    .detail-json {
+      font-family: var(--font-mono);
+      font-size: var(--text-body-sm);
+      color: var(--text-secondary);
+      background: rgba(0, 0, 0, 0.3);
+      padding: var(--space-3);
+      border-radius: var(--radius-sm);
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    /* Export buttons */
+    .export-bar {
+      display: flex;
+      gap: var(--space-3);
+      margin-top: var(--space-5);
+    }
+
+    /* Page fade-in */
+    .page-fade { animation: fadeInUp 0.5s ease-out both; }
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Toast */
+    #toast-container {
+      position: fixed;
+      top: 24px;
+      right: 24px;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .toast {
+      padding: 12px 20px;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.08);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255,255,255,0.1);
+      color: var(--text-primary);
+      font-size: 14px;
+      animation: toastIn 0.3s ease-out;
+    }
+    .toast.success { border-color: rgba(52,211,153,0.3); }
+    .toast.error { border-color: rgba(248,113,113,0.3); }
+    @keyframes toastIn {
+      from { opacity: 0; transform: translateY(-8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── Navigation Sidebar ── -->
+  <!-- Sidebar (由共享组件注入) -->
+
+
+  <!-- ── Main Content ── -->
+  <main class="main-content page-fade">
+
+    <!-- Page Header -->
+    <div class="page-header">
+      <div class="page-label"><span data-i18n="evidence.label">AUDIT</span></div>
+      <h1 class="page-title" data-i18n="evidence.pageTitle">证据浏览</h1>
+      <p class="page-subtitle" data-i18n="evidence.subtitle">审计追踪与证据链管理</p>
+    </div>
+
+    <!-- Section 1: Filter Bar -->
+    <div class="filter-bar">
+      <div class="filter-pills" id="filter-pills">
+        <button class="filter-pill active" data-type="all" onclick="filterByType('all', this)" data-i18n="evidence.all">全部</button>
+        <button class="filter-pill" data-type="workforce" onclick="filterByType('workforce', this)" data-i18n="evidence.workforce">劳动力</button>
+        <button class="filter-pill" data-type="neuron" onclick="filterByType('neuron', this)" data-i18n="evidence.neuron">神经元</button>
+        <button class="filter-pill" data-type="provider" onclick="filterByType('provider', this)" data-i18n="evidence.provider">Provider</button>
+      </div>
+      <input type="text" class="filter-input" id="search-input" placeholder="搜索..." data-i18n="evidence.search" oninput="filterEvidence()">
+    </div>
+
+    <!-- Section 2: Evidence Timeline -->
+    <div class="section">
+      <div class="timeline" id="timeline">
+        <div class="glass-panel" style="padding: 24px; text-align: center;">
+          <span class="text-secondary" data-i18n="evidence.loading">加载中...</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 3: Export -->
+    <div class="export-bar">
+      <button class="btn btn-secondary" onclick="exportData('json')" data-i18n="evidence.exportJson">导出 JSON</button>
+      <button class="btn btn-secondary" onclick="exportData('csv')" data-i18n="evidence.exportCsv">导出 CSV</button>
+    </div>
+
+  </main>
+
+  <!-- Toast container -->
+  <div id="toast-container"></div>
+
+  <script src="components/nav.js"></script>
+  <script src="components/sidebar.js"></script>
+
+  <script>
+  injectSidebar({ activeId: "evidence" });
+    /* ── Toast ── */
+    function showToast(msg, type = 'info') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = 'toast ' + type;
+      toast.textContent = msg;
+      container.appendChild(toast);
+      setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 3000);
+    }
+
+    /* ── Safe Fetch ── */
+    async function safeFetch(url, opts = {}) {
+      try {
+        const res = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...opts });
+        if (!res.ok) throw new Error(res.statusText);
+        return await res.json();
+      } catch (e) {
+        console.warn('safeFetch error:', url, e);
+        return null;
+      }
+    }
+
+    /* ── State ── */
+    let allEvidence = [];
+    let currentFilter = 'all';
+
+    /* ── Load evidence ── */
+    async function loadEvidence() {
+      const data = await safeFetch('/evidence/list');
+      let items = data?.items || data || null;
+      if (!items || !Array.isArray(items) || items.length === 0) {
+        const now = new Date();
+        items = [
+          { id: 1, type: 'workforce', time: new Date(now - 60000).toISOString(), summary: 'Worker agent-007 完成任务 #1234', detail: { taskId: 1234, agent: 'agent-007', duration: '3m 42s', result: 'success' } },
+          { id: 2, type: 'neuron', time: new Date(now - 180000).toISOString(), summary: '神经元 code-reviewer 注册新版本 v2.3', detail: { neuron: 'code-reviewer', version: 'v2.3', changes: ['improved accuracy', 'reduced latency'] } },
+          { id: 3, type: 'provider', time: new Date(now - 300000).toISOString(), summary: 'Provider OpenAI 健康检查通过', detail: { provider: 'openai', latency: '142ms', models: 12, status: 'healthy' } },
+          { id: 4, type: 'workforce', time: new Date(now - 420000).toISOString(), summary: 'Worker translator-cn 处理批量翻译任务', detail: { taskId: 1235, agent: 'translator-cn', items: 156, duration: '8m 15s' } },
+          { id: 5, type: 'neuron', time: new Date(now - 600000).toISOString(), summary: '神经元 summarizer 被调用 42 次', detail: { neuron: 'summarizer', calls: 42, avgLatency: '890ms', period: '1h' } },
+          { id: 6, type: 'provider', time: new Date(now - 720000).toISOString(), summary: 'Provider Anthropic API 密钥已轮换', detail: { provider: 'anthropic', action: 'key_rotation', by: 'system' } }
+        ];
+      }
+      allEvidence = items;
+      renderTimeline();
+    }
+
+    function renderTimeline() {
+      const timeline = document.getElementById('timeline');
+      const search = document.getElementById('search-input').value.toLowerCase();
+      let items = allEvidence;
+      if (currentFilter !== 'all') {
+        items = items.filter(i => i.type === currentFilter);
+      }
+      if (search) {
+        items = items.filter(i => i.summary.toLowerCase().includes(search));
+      }
+      if (items.length === 0) {
+        timeline.innerHTML = '<div class="glass-panel" style="padding: 24px; text-align: center;"><span class="text-secondary" data-i18n="evidence.empty">暂无数据</span></div>';
+        return;
+      }
+      timeline.innerHTML = items.map((item, idx) => {
+        const t = new Date(item.time);
+        const timeStr = t.toLocaleString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+        const detailJson = JSON.stringify(item.detail, null, 2);
+        const delayClass = idx > 0 ? ' reveal-delay-' + Math.min(idx, 3) : '';
+        return `
+          <div class="timeline-item reveal${delayClass}">
+            <div class="timeline-time">${timeStr}</div>
+            <div class="glass-panel timeline-card" id="ev-${escapeHtml(item.id)}">
+              <div class="timeline-card-header">
+                <span class="timeline-type"><span class="timeline-type-dot"></span>${escapeHtml(item.type)}</span>
+                <button class="btn-expand" onclick="toggleExpand(${escapeHtml(item.id)})">详情</button>
+              </div>
+              <div class="timeline-summary">${escapeHtml(item.summary)}</div>
+              <div class="timeline-detail">
+                <pre class="detail-json">${escapeHtml(detailJson)}</pre>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function toggleExpand(id) {
+      const card = document.getElementById('ev-' + id);
+      if (card) card.classList.toggle('expanded');
+    }
+
+    function filterByType(type, el) {
+      currentFilter = type;
+      document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
+      el.classList.add('active');
+      renderTimeline();
+    }
+
+    function filterEvidence() {
+      renderTimeline();
+    }
+
+    /* ── Export ── */
+    async function exportData(format) {
+      const data = await safeFetch(`/evidence/export?format=${format}`);
+      if (data) {
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `evidence.${format}`;
+        a.click();
+        URL.revokeObjectURL(url);
+        showToast('导出成功', 'success');
+      } else {
+        showToast('导出功能暂不可用', 'error');
+      }
+    }
+
+    /* ── Init ── */
+    loadEvidence();
+  </script>
+  <script src="i18n.js"></script>
+  <script src="interact.js"></script>
+</body>
+</html>

@@ -1,0 +1,1457 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data:;">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="太极北斗 AI 网关 — 多模型路由、知识库检索、企业级治理">
+  <meta name="theme-color" content="#0f1117">
+  <title>总控台 — 太极北斗</title>
+  <link rel="stylesheet" href="console.css">
+  <style>
+    /* ============================================================
+       DASHBOARD — Apple Minimal
+       ============================================================ */
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Layout ── */
+    body { margin: 0; overflow-x: hidden; }
+    .page-wrapper { display: flex; min-height: 100vh; }
+    .page-main {
+      flex: 1;
+      margin-left: calc(var(--sidebar-width) + var(--space-4) + var(--space-4));
+      transition: margin-left var(--duration-slow) var(--ease-spring);
+      position: relative;
+      z-index: 1;
+    }
+    .page-main.sidebar-collapsed {
+      margin-left: calc(var(--sidebar-collapsed) + var(--space-4) + var(--space-4));
+    }
+
+    /* ═══════════════════════════════════════════════
+       STATUS BAR (48px)
+       ═══════════════════════════════════════════════ */
+    .status-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 48px;
+      padding: 0 var(--space-5);
+      background: rgba(255,255,255,0.02);
+      backdrop-filter: var(--glass-blur);
+      -webkit-backdrop-filter: var(--glass-blur);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-lg);
+      margin-bottom: var(--space-6);
+      animation: fadeIn 0.4s var(--ease-out) both;
+    }
+    .status-bar-left {
+      display: flex;
+      align-items: center;
+      gap: var(--space-5);
+    }
+    .status-indicator {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      font-size: var(--text-body-sm);
+      font-weight: 500;
+      color: var(--text-secondary);
+    }
+    .status-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      transition: background 0.3s;
+    }
+    .status-dot.green { background: var(--status-success); }
+    .status-dot.yellow { background: var(--status-warning); }
+    .status-dot.red { background: var(--status-danger); }
+    .status-dot.gray { background: var(--text-faint); }
+    .ws-indicator {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: var(--text-caption);
+      color: var(--text-tertiary);
+    }
+    .ws-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--text-faint);
+      transition: background 0.3s;
+    }
+    .ws-dot.connected { background: var(--status-success); }
+    .status-clock {
+      font-family: var(--font-mono);
+      font-size: var(--text-body-sm);
+      color: var(--text-tertiary);
+      letter-spacing: 0.02em;
+    }
+    .status-bar-right {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+    }
+    .status-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: var(--radius-xs);
+      font-size: var(--text-body-sm);
+      font-weight: 500;
+      border: 1px solid var(--glass-border);
+      background: var(--glass-bg);
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all var(--duration-fast) var(--ease-smooth);
+      text-decoration: none;
+    }
+    .status-btn:hover {
+      background: var(--glass-bg-hover);
+      color: var(--text-primary);
+      border-color: var(--glass-border-hover);
+    }
+    .status-btn svg {
+      width: 14px; height: 14px;
+      stroke: currentColor; fill: none;
+      stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round;
+    }
+
+    /* ═══════════════════════════════════════════════
+       KEY METRICS (4 cards)
+       ═══════════════════════════════════════════════ */
+    .metrics-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: var(--space-4);
+      margin-bottom: var(--space-6);
+      animation: fadeIn 0.5s var(--ease-out) 0.1s both;
+    }
+    .metric-card {
+      background: var(--glass-bg);
+      backdrop-filter: var(--glass-blur);
+      -webkit-backdrop-filter: var(--glass-blur);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-5);
+      transition: all var(--duration-normal) var(--ease-smooth);
+    }
+    .metric-card:hover {
+      background: var(--glass-bg-hover);
+      border-color: var(--glass-border-hover);
+      transform: translateY(-2px);
+      box-shadow: var(--depth-2);
+    }
+    .metric-label {
+      font-size: var(--text-body-sm);
+      color: var(--text-tertiary);
+      margin-bottom: var(--space-2);
+    }
+    .metric-value {
+      font-family: var(--font-display);
+      font-size: clamp(28px, 3.5vw, 40px);
+      font-weight: 600;
+      letter-spacing: var(--tracking-tight);
+      color: var(--text-primary);
+      line-height: 1.1;
+    }
+    .metric-value .unit {
+      font-size: 0.45em;
+      color: var(--text-tertiary);
+      font-weight: 400;
+      margin-left: 2px;
+    }
+    .metric-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: var(--space-3);
+    }
+    .metric-trend {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: var(--text-caption);
+      font-weight: 500;
+    }
+    .metric-trend.up { color: var(--status-success); }
+    .metric-trend.down { color: var(--status-danger); }
+    .metric-trend.flat { color: var(--text-tertiary); }
+    .metric-sparkline {
+      width: 60px;
+      height: 16px;
+      flex-shrink: 0;
+    }
+    .metric-sparkline polyline {
+      fill: none;
+      stroke-width: 1.5;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    /* ═══════════════════════════════════════════════
+       MAIN 2-COLUMN LAYOUT (60/40)
+       ═══════════════════════════════════════════════ */
+    .main-grid {
+      display: grid;
+      grid-template-columns: 3fr 2fr;
+      gap: var(--space-5);
+      margin-bottom: var(--space-6);
+      animation: fadeIn 0.5s var(--ease-out) 0.2s both;
+    }
+
+    .panel {
+      background: var(--glass-bg);
+      backdrop-filter: var(--glass-blur);
+      -webkit-backdrop-filter: var(--glass-blur);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--space-4) var(--space-5);
+      border-bottom: 1px solid var(--glass-border);
+    }
+    .panel-title {
+      font-size: var(--text-body);
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    .panel-meta {
+      font-size: var(--text-caption);
+      color: var(--text-tertiary);
+    }
+    .panel-body {
+      flex: 1;
+      overflow-y: auto;
+      max-height: 480px;
+    }
+    .panel-body::-webkit-scrollbar { width: 4px; }
+    .panel-body::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); border-radius: 4px; }
+
+    /* ── Request Stream Table ── */
+    .req-table { width: 100%; border-collapse: collapse; }
+    .req-table th {
+      font-size: var(--text-caption);
+      font-weight: 500;
+      color: var(--text-faint);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: var(--space-3) var(--space-4);
+      text-align: left;
+      position: sticky;
+      top: 0;
+      background: rgba(8,8,12,0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      z-index: 2;
+      border-bottom: 1px solid var(--glass-border);
+    }
+    .req-table td {
+      padding: var(--space-3) var(--space-4);
+      font-size: var(--text-body-sm);
+      color: var(--text-secondary);
+      border-bottom: 1px solid rgba(255,255,255,0.02);
+      white-space: nowrap;
+    }
+    .req-table tr.req-row {
+      height: 48px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .req-table tr.req-row:hover { background: rgba(255,255,255,0.03); }
+    .req-table tr.req-row.new-row { animation: fadeIn 0.4s var(--ease-out); }
+
+    /* Status dot (not badge) */
+    .status-cell {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .status-cell-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .status-cell-dot.s2xx { background: var(--status-success); }
+    .status-cell-dot.s4xx { background: var(--status-warning); }
+    .status-cell-dot.s5xx { background: var(--status-danger); }
+    .status-cell-dot.pending { background: var(--status-info); }
+
+    .req-empty {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 80px 20px;
+      color: var(--text-faint);
+      font-size: var(--text-body-sm);
+    }
+
+    /* ── Service Health List ── */
+    .svc-list {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      padding: var(--space-4);
+    }
+    .svc-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--space-3) var(--space-3);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: all var(--duration-fast) var(--ease-smooth);
+    }
+    .svc-row:hover { background: rgba(255,255,255,0.03); }
+    .svc-row-left {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+    }
+    .svc-row-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .svc-row-dot.green { background: var(--status-success); }
+    .svc-row-dot.red { background: var(--status-danger); }
+    .svc-row-dot.gray { background: var(--text-faint); }
+    .svc-row-name {
+      font-size: var(--text-body-sm);
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+    .svc-row-right {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+    }
+    .svc-row-time {
+      font-size: var(--text-caption);
+      color: var(--text-tertiary);
+      font-family: var(--font-mono);
+    }
+    /* Expandable detail */
+    .svc-detail {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.3s var(--ease-smooth);
+      padding: 0 var(--space-3);
+    }
+    .svc-detail.open {
+      max-height: 200px;
+      padding: var(--space-3);
+    }
+    .svc-detail-inner {
+      font-size: var(--text-body-sm);
+      color: var(--text-secondary);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+    }
+    .svc-detail-row {
+      display: flex;
+      justify-content: space-between;
+    }
+    .svc-detail-row .label { color: var(--text-tertiary); }
+    .svc-detail-row .value { color: var(--text-primary); font-weight: 500; }
+    .svc-more {
+      text-align: center;
+      padding: var(--space-3);
+      font-size: var(--text-body-sm);
+      color: var(--text-tertiary);
+      cursor: pointer;
+      transition: color var(--duration-fast);
+    }
+    .svc-more:hover { color: var(--accent); }
+
+    /* ═══════════════════════════════════════════════
+       PROVIDER PERFORMANCE (full width bottom)
+       ═══════════════════════════════════════════════ */
+    .bottom-section {
+      animation: fadeIn 0.5s var(--ease-out) 0.3s both;
+    }
+    .prov-panel {
+      background: var(--glass-bg);
+      backdrop-filter: var(--glass-blur);
+      -webkit-backdrop-filter: var(--glass-blur);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      margin-bottom: var(--space-6);
+    }
+    .prov-chart {
+      padding: var(--space-4) var(--space-5);
+    }
+    .prov-bar-row {
+      display: flex;
+      align-items: center;
+      gap: var(--space-4);
+      padding: var(--space-3) 0;
+      border-bottom: 1px solid rgba(255,255,255,0.02);
+    }
+    .prov-bar-row:last-child { border-bottom: none; }
+    .prov-bar-name {
+      width: 120px;
+      flex-shrink: 0;
+      font-size: var(--text-body-sm);
+      color: var(--text-secondary);
+      font-weight: 500;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .prov-bar-track {
+      flex: 1;
+      height: 20px;
+      background: rgba(255,255,255,0.03);
+      border-radius: var(--radius-xs);
+      overflow: hidden;
+    }
+    .prov-bar-fill {
+      height: 100%;
+      border-radius: var(--radius-xs);
+      transition: width 1s var(--ease-out);
+      width: 0;
+      background: var(--accent);
+    }
+    .prov-bar-pct {
+      width: 48px;
+      flex-shrink: 0;
+      font-size: var(--text-body-sm);
+      font-weight: 600;
+      color: var(--text-primary);
+      text-align: right;
+      font-family: var(--font-mono);
+    }
+
+    /* ═══════════════════════════════════════════════
+       SLIDE-OUT DETAIL PANEL
+       ═══════════════════════════════════════════════ */
+    .detail-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.3);
+      z-index: 200;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.3s, visibility 0.3s;
+    }
+    .detail-overlay.open { opacity: 1; visibility: visible; }
+    .detail-panel {
+      position: fixed;
+      top: 0; right: 0; bottom: 0;
+      width: 380px;
+      max-width: 90vw;
+      background: var(--space-surface);
+      backdrop-filter: var(--glass-blur-heavy);
+      -webkit-backdrop-filter: var(--glass-blur-heavy);
+      border-left: 1px solid var(--glass-border);
+      box-shadow: var(--depth-3);
+      z-index: 201;
+      transform: translateX(100%);
+      transition: transform 0.35s var(--ease-spring);
+      display: flex;
+      flex-direction: column;
+    }
+    .detail-panel.open { transform: translateX(0); }
+    .detail-panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--space-5);
+      border-bottom: 1px solid var(--glass-border);
+    }
+    .detail-panel-title {
+      font-size: var(--text-body);
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    .detail-close {
+      width: 28px; height: 28px;
+      border-radius: var(--radius-xs);
+      border: 1px solid var(--glass-border);
+      background: var(--glass-bg);
+      color: var(--text-secondary);
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all var(--duration-fast);
+    }
+    .detail-close:hover { background: var(--glass-bg-hover); color: var(--text-primary); }
+    .detail-close svg {
+      width: 14px; height: 14px;
+      stroke: currentColor; fill: none;
+      stroke-width: 2; stroke-linecap: round;
+    }
+    .detail-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: var(--space-5);
+    }
+    .detail-row {
+      display: flex;
+      justify-content: space-between;
+      padding: var(--space-3) 0;
+      border-bottom: 1px solid rgba(255,255,255,0.03);
+    }
+    .detail-label {
+      font-size: var(--text-body-sm);
+      color: var(--text-tertiary);
+    }
+    .detail-value {
+      font-size: var(--text-body-sm);
+      color: var(--text-primary);
+      font-weight: 500;
+      text-align: right;
+      max-width: 60%;
+      word-break: break-all;
+    }
+
+    /* ═══════════════════════════════════════════════
+       REVEAL
+       ═══════════════════════════════════════════════ */
+    .reveal {
+      opacity: 0;
+      transform: translateY(12px);
+      transition: opacity 0.5s var(--ease-smooth), transform 0.5s var(--ease-smooth);
+    }
+    .reveal.visible { opacity: 1; transform: translateY(0); }
+
+    /* ═══════════════════════════════════════════════
+       DEMO DATA BANNER
+       ═══════════════════════════════════════════════ */
+    .demo-banner {
+      display: none;
+      align-items: center;
+      gap: var(--space-2);
+      padding: var(--space-2) var(--space-4);
+      background: rgba(251, 191, 36, 0.08);
+      border: 1px solid rgba(251, 191, 36, 0.2);
+      border-radius: var(--radius-md);
+      margin-bottom: var(--space-4);
+      animation: fadeIn 0.3s var(--ease-out) both;
+      font-size: var(--text-body-sm);
+      color: rgba(251, 191, 36, 0.9);
+    }
+    .demo-banner.visible { display: flex; }
+    .demo-banner-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: rgba(251, 191, 36, 0.8);
+      flex-shrink: 0;
+      animation: pulse-dot 2s infinite;
+    }
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+    .data-source-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      border-radius: var(--radius-xs);
+      font-size: 11px;
+      font-weight: 500;
+      font-family: var(--font-mono);
+      letter-spacing: 0.02em;
+    }
+    .data-source-tag.live {
+      background: rgba(52, 211, 153, 0.1);
+      color: rgba(52, 211, 153, 0.8);
+      border: 1px solid rgba(52, 211, 153, 0.2);
+    }
+    .data-source-tag.demo {
+      background: rgba(251, 191, 36, 0.1);
+      color: rgba(251, 191, 36, 0.8);
+      border: 1px solid rgba(251, 191, 36, 0.2);
+    }
+    .data-source-tag.offline {
+      background: rgba(239, 68, 68, 0.1);
+      color: rgba(239, 68, 68, 0.8);
+      border: 1px solid rgba(239, 68, 68, 0.2);
+    }
+    .poll-fail-count {
+      font-size: 11px;
+      color: var(--text-tertiary);
+      opacity: 0.7;
+    }
+
+    /* ═══════════════════════════════════════════════
+       RESPONSIVE
+       ═══════════════════════════════════════════════ */
+    @media (max-width: 1200px) {
+      .metrics-row { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 1024px) {
+      .main-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 768px) {
+      .page-main { margin-left: 0 !important; }
+      .sidebar-toggle { display: none; }
+      .metrics-row { grid-template-columns: 1fr; }
+      .status-bar { flex-wrap: wrap; height: auto; padding: var(--space-3) var(--space-4); }
+      .prov-bar-name { width: 80px; }
+    }
+  </style>
+</head>
+<body>
+  <a href="#page-main" class="skip-link">跳转到主要内容</a>
+  <div class="toast-container"></div>
+
+  <!-- Sidebar (由共享组件注入) -->
+
+  <!-- ═══ Main Content ═══ -->
+  <main class="page-main" id="page-main" style="padding: var(--space-6) var(--space-6) var(--space-8);">
+
+    <!-- ── Demo Data Banner ── -->
+    <div class="demo-banner" id="demo-banner">
+      <div class="demo-banner-dot"></div>
+      <span data-i18n="dashboard.demoMode">演示数据模式 — 后端服务未连接，显示模拟数据</span>
+    </div>
+
+    <!-- ── Status Bar ── -->
+    <div class="status-bar" id="status-bar">
+      <div class="status-bar-left">
+        <div class="status-indicator">
+          <div class="status-dot green" id="sys-status-dot"></div>
+          <span id="sys-status-text" data-i18n="dashboard.statusRunning">运行中</span>
+        </div>
+        <span class="data-source-tag demo" id="data-source-tag">DEMO</span>
+        <div class="ws-indicator">
+          <div class="ws-dot" id="ws-dot"></div>
+          <span id="ws-label" data-i18n="dashboard.realtime">实时</span>
+        </div>
+        <div class="status-clock" id="clock">--:--:--</div>
+      </div>
+      <div class="status-bar-right">
+        <a class="status-btn" href="neurons.html">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2"/></svg>
+          <span data-i18n="dashboard.evolveNeuron">进化神经元</span>
+        </a>
+        <a class="status-btn" href="provider-wizard.html">
+          <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <span data-i18n="dashboard.addProvider">添加 Provider</span>
+        </a>
+      </div>
+    </div>
+
+    <!-- ── Key Metrics ── -->
+    <div class="metrics-row reveal" id="metrics-row">
+      <div class="metric-card reveal">
+        <div class="metric-label" data-i18n="dashboard.kpiTotalReqs">请求总量</div>
+        <div class="metric-value" id="kpi-requests" data-animate-number="0">0</div>
+        <div class="metric-footer">
+          <div class="metric-trend flat" id="trend-requests"><span>&#8594;</span><span id="trend-requests-pct">--</span></div>
+          <svg class="metric-sparkline" id="spark-requests" viewBox="0 0 60 16"><polyline stroke="#7c6aef" points="0,14 10,14 20,14 30,14 40,14 50,14 60,14"/></svg>
+        </div>
+      </div>
+      <div class="metric-card reveal reveal-delay-1">
+        <div class="metric-label" data-i18n="dashboard.kpiActiveProviders">活跃 Provider</div>
+        <div class="metric-value" id="kpi-providers" data-animate-number="0">0</div>
+        <div class="metric-footer">
+          <div class="metric-trend flat" id="trend-providers"><span>&#8594;</span><span id="trend-providers-pct">--</span></div>
+          <svg class="metric-sparkline" id="spark-providers" viewBox="0 0 60 16"><polyline stroke="#34d399" points="0,8 10,8 20,8 30,8 40,8 50,8 60,8"/></svg>
+        </div>
+      </div>
+      <div class="metric-card reveal reveal-delay-2">
+        <div class="metric-label" data-i18n="dashboard.kpiNeurons">已注册神经元</div>
+        <div class="metric-value" id="kpi-neurons" data-animate-number="0">0</div>
+        <div class="metric-footer">
+          <div class="metric-trend flat" id="trend-neurons"><span>&#8594;</span><span id="trend-neurons-pct">--</span></div>
+          <svg class="metric-sparkline" id="spark-neurons" viewBox="0 0 60 16"><polyline stroke="#60a5fa" points="0,8 10,8 20,8 30,8 40,8 50,8 60,8"/></svg>
+        </div>
+      </div>
+      <div class="metric-card reveal reveal-delay-3">
+        <div class="metric-label" data-i18n="dashboard.kpiAvgLatency">平均响应</div>
+        <div class="metric-value"><span id="kpi-latency" data-animate-number="0">0</span><span class="unit">ms</span></div>
+        <div class="metric-footer">
+          <div class="metric-trend flat" id="trend-latency"><span>&#8594;</span><span id="trend-latency-pct">--</span></div>
+          <svg class="metric-sparkline" id="spark-latency" viewBox="0 0 60 16"><polyline stroke="#fbbf24" points="0,8 10,8 20,8 30,8 40,8 50,8 60,8"/></svg>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Main 2-Column ── -->
+    <div class="main-grid">
+
+      <!-- Left: Request Stream -->
+      <div class="panel reveal" id="req-panel">
+        <div class="panel-header">
+          <div class="panel-title" data-i18n="dashboard.liveRequests">请求流</div>
+          <div class="panel-meta" id="req-count">0 requests</div>
+        </div>
+        <div class="panel-body" id="req-body">
+          <div class="req-empty" id="req-empty" data-i18n="dashboard.noRequests">等待请求...</div>
+          <table class="req-table data-table" id="req-table" style="display:none;">
+            <thead>
+              <tr>
+                <th data-i18n="dashboard.colTime">Time</th>
+                <th data-i18n="dashboard.colPath">Path</th>
+                <th data-i18n="dashboard.colStatus">Status</th>
+                <th data-i18n="dashboard.colModel">Model</th>
+                <th data-i18n="dashboard.colLatency">Latency</th>
+              </tr>
+            </thead>
+            <tbody id="req-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Right: Service Health -->
+      <div class="panel reveal reveal-delay-1" id="svc-panel">
+        <div class="panel-header">
+          <div class="panel-title" data-i18n="dashboard.serviceHealth">服务状态</div>
+          <div class="panel-meta" id="svc-count">-- services</div>
+        </div>
+        <div class="panel-body">
+          <div class="svc-list" id="svc-list">
+            <div class="req-empty" data-i18n="dashboard.loadingServices">加载中...</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ── Provider Performance ── -->
+    <div class="bottom-section">
+      <div class="prov-panel reveal">
+        <div class="panel-header">
+          <div class="panel-title" data-i18n="dashboard.providerPerf">Provider 性能</div>
+          <div class="panel-meta" id="prov-count">-- providers</div>
+        </div>
+        <div class="prov-chart" id="prov-chart">
+          <div class="req-empty" data-i18n="dashboard.loadingProviders">加载中...</div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- ── Slide-out Detail Panel ── -->
+  <div class="detail-overlay" id="detail-overlay"></div>
+  <div class="detail-panel" id="detail-panel">
+    <div class="detail-panel-header">
+      <div class="detail-panel-title" id="detail-title">--</div>
+      <button class="detail-close btn-secondary" id="detail-close">
+        <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="detail-body" id="detail-body"></div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════
+       JAVASCRIPT
+       ═══════════════════════════════════════════════ -->
+  <script src="components/nav.js"></script>
+  <script src="components/sidebar.js"></script>
+  <script src="components/layout.js"></script>
+
+  <script>
+  (function() {
+    'use strict';
+    injectSidebar({ activeId: "dashboard" });
+
+    /* ── State ── */
+    var S = {
+      ws: null,
+      wsConnected: false,
+      pollTimer: null,
+      requestLog: [],
+      requestPaused: false,
+      maxRequests: 50,
+      isDemoData: true,
+      pollFailCount: 0,
+      firstRealDataReceived: false,
+      metrics: {
+        totalRequests: 0, activeProviders: 0, registeredNeurons: 0, avgLatency: 0,
+        prevRequests: 0, prevProviders: 0, prevNeurons: 0, prevLatency: 0,
+      },
+      sparkData: {
+        requests: [0,0,0,0,0,0,0],
+        providers: [0,0,0,0,0,0,0],
+        neurons: [0,0,0,0,0,0,0],
+        latency: [0,0,0,0,0,0,0],
+      },
+      services: [],
+      providers: [],
+      svcExpanded: null,
+    };
+
+    var origin = window.location.origin || 'http://127.0.0.1:3100';
+    var BASE = origin;
+    var WS_URL = origin.replace(/^http/, 'ws');
+    var $ = function(sel) { return document.querySelector(sel); };
+
+    var dom = {
+      clock: $('#clock'),
+      wsDot: $('#ws-dot'),
+      wsLabel: $('#ws-label'),
+      statusDot: $('#sys-status-dot'),
+      statusText: $('#sys-status-text'),
+      demoBanner: $('#demo-banner'),
+      dataSourceTag: $('#data-source-tag'),
+      reqBody: $('#req-tbody'),
+      reqTable: $('#req-table'),
+      reqEmpty: $('#req-empty'),
+      reqCount: $('#req-count'),
+      svcList: $('#svc-list'),
+      svcCount: $('#svc-count'),
+      provChart: $('#prov-chart'),
+      provCount: $('#prov-count'),
+      detailOverlay: $('#detail-overlay'),
+      detailPanel: $('#detail-panel'),
+      detailTitle: $('#detail-title'),
+      detailBody: $('#detail-body'),
+      detailClose: $('#detail-close'),
+      kpiRequests: $('#kpi-requests'),
+      kpiProviders: $('#kpi-providers'),
+      kpiNeurons: $('#kpi-neurons'),
+      kpiLatency: $('#kpi-latency'),
+      trendRequests: $('#trend-requests'),
+      trendProviders: $('#trend-providers'),
+      trendNeurons: $('#trend-neurons'),
+      trendLatency: $('#trend-latency'),
+      trendRequestsPct: $('#trend-requests-pct'),
+      trendProvidersPct: $('#trend-providers-pct'),
+      trendNeuronsPct: $('#trend-neurons-pct'),
+      trendLatencyPct: $('#trend-latency-pct'),
+    };
+
+    /* ═══════════════════════════════════════════════
+       CLOCK
+       ═══════════════════════════════════════════════ */
+    function updateClock() {
+      var now = new Date();
+      var h = String(now.getHours()).padStart(2, '0');
+      var m = String(now.getMinutes()).padStart(2, '0');
+      var s = String(now.getSeconds()).padStart(2, '0');
+      dom.clock.textContent = h + ':' + m + ':' + s;
+    }
+
+    /* ═══════════════════════════════════════════════
+       SIDEBAR TOGGLE
+       ═══════════════════════════════════════════════ */
+    var sidebar = $('#sidebar');
+    var sidebarToggle = $('#sidebar-toggle');
+    var pageMain = $('#page-main');
+    var sidebarCollapsed = false;
+
+    sidebarToggle.addEventListener('click', function() {
+      sidebarCollapsed = !sidebarCollapsed;
+      sidebar.classList.toggle('collapsed', sidebarCollapsed);
+      pageMain.classList.toggle('sidebar-collapsed', sidebarCollapsed);
+      sidebarToggle.classList.toggle('collapsed', sidebarCollapsed);
+    });
+
+    /* ═══════════════════════════════════════════════
+       WEBSOCKET
+       ═══════════════════════════════════════════════ */
+    function connectWebSocket() {
+      try {
+        S.ws = new WebSocket(WS_URL);
+        S.ws.onopen = function() {
+          S.wsConnected = true;
+          dom.wsDot.classList.add('connected');
+        };
+        S.ws.onmessage = function(e) {
+          try {
+            var data = JSON.parse(e.data);
+            if (data.type === 'chat_response' || data.type === 'request') handleWsRequest(data);
+            if (data.type === 'metrics_update') handleMetricsUpdate(data);
+          } catch (err) { /* ignore */ }
+        };
+        S.ws.onclose = function() {
+          S.wsConnected = false;
+          dom.wsDot.classList.remove('connected');
+          setTimeout(connectWebSocket, 5000);
+        };
+        S.ws.onerror = function() {
+          S.wsConnected = false;
+          dom.wsDot.classList.remove('connected');
+        };
+      } catch (err) {
+        S.wsConnected = false;
+        dom.wsDot.classList.remove('connected');
+      }
+    }
+
+    function handleWsRequest(data) {
+      addRequest({
+        time: data.timestamp || new Date().toISOString(),
+        path: data.path || data.endpoint || '/v1/chat/completions',
+        model: data.model || data.provider || '--',
+        status: data.status || data.status_code || 200,
+        latency: data.latency || data.duration || Math.round(Math.random() * 500 + 50),
+        id: data.id || Date.now(),
+        detail: data,
+      });
+    }
+
+    function handleMetricsUpdate(data) {
+      if (data.total_requests != null) S.metrics.totalRequests = data.total_requests;
+      if (data.active_providers != null) S.metrics.activeProviders = data.active_providers;
+      if (data.registered_neurons != null) S.metrics.registeredNeurons = data.registered_neurons;
+      if (data.avg_latency != null) S.metrics.avgLatency = data.avg_latency;
+      if (!S.firstRealDataReceived) {
+        S.firstRealDataReceived = true;
+        updateDataSource('live');
+      }
+      updateKPIs();
+    }
+
+    /* ═══════════════════════════════════════════════
+       POLLING (8s)
+       ═══════════════════════════════════════════════ */
+    function startPolling() {
+      pollAll();
+      S.pollTimer = setInterval(pollAll, 8000);
+    }
+
+    function pollAll() {
+      Promise.allSettled([pollSystemInfo(), pollServiceBus(), pollNeuronStats(), pollRoutingData()])
+        .then(function() {
+          // After 3 consecutive poll cycles with no real data from system info, show offline
+          if (!S.firstRealDataReceived && S.pollFailCount >= 3) {
+            updateDataSource('offline');
+          }
+        });
+    }
+
+    function fetchJSON(url) {
+      return fetch(url, { signal: AbortSignal.timeout(5000) })
+        .then(function(r) {
+          if (r.status === 404) return { __error: 'not_found' };
+          if (!r.ok) return { __error: 'http_' + r.status };
+          return r.json();
+        })
+        .catch(function(e) {
+          if (e.name === 'AbortError') return { __error: 'timeout' };
+          return { __error: 'network' };
+        });
+    }
+
+    function isRealData(d) {
+      return d && !d.__error;
+    }
+
+    function updateDataSource(state) {
+      // state: 'live' | 'demo' | 'offline'
+      var tag = dom.dataSourceTag;
+      var banner = dom.demoBanner;
+      tag.className = 'data-source-tag ' + state;
+      if (state === 'live') {
+        tag.textContent = 'LIVE';
+        banner.classList.remove('visible');
+        S.isDemoData = false;
+      } else if (state === 'demo') {
+        tag.textContent = 'DEMO';
+        banner.classList.add('visible');
+        S.isDemoData = true;
+      } else {
+        tag.textContent = 'OFFLINE';
+        banner.classList.add('visible');
+        S.isDemoData = true;
+      }
+    }
+
+    function pollSystemInfo() {
+      return fetchJSON(BASE + '/system/info').then(function(d) {
+        if (!isRealData(d)) { S.pollFailCount++; return; }
+        S.pollFailCount = 0;
+        if (!S.firstRealDataReceived) {
+          S.firstRealDataReceived = true;
+          updateDataSource('live');
+        }
+        if (d.total_requests != null) S.metrics.totalRequests = d.total_requests;
+        if (d.active_providers != null) S.metrics.activeProviders = d.active_providers;
+        if (d.providers_count != null) S.metrics.activeProviders = d.providers_count;
+        if (d.registered_neurons != null) S.metrics.registeredNeurons = d.registered_neurons;
+        if (d.neurons_count != null) S.metrics.registeredNeurons = d.neurons_count;
+        if (d.avg_latency != null) S.metrics.avgLatency = Math.round(d.avg_latency);
+        if (d.average_latency_ms != null) S.metrics.avgLatency = Math.round(d.average_latency_ms);
+        if (d.status) updateSystemStatus(d.status);
+        if (d.providers && Array.isArray(d.providers)) { S.providers = d.providers; renderProviders(); }
+        updateKPIs();
+      });
+    }
+
+    function pollServiceBus() {
+      return fetchJSON(BASE + '/service-bus/status').then(function(d) {
+        if (!isRealData(d)) return;
+        if (d.services && Array.isArray(d.services)) {
+          S.services = d.services;
+        } else if (d.loaded_services && Array.isArray(d.loaded_services)) {
+          S.services = d.loaded_services.map(function(name) { return { name: name, status: 'loaded', load_time: '--' }; });
+        } else if (typeof d === 'object') {
+          var arr = [];
+          for (var key in d) {
+            if (d.hasOwnProperty(key) && typeof d[key] === 'object' && d[key] !== null) {
+              arr.push({
+                name: key,
+                status: d[key].status || 'loaded',
+                load_time: d[key].load_time || d[key].loadTime || '--',
+              });
+            }
+          }
+          if (arr.length > 0) S.services = arr;
+        }
+        renderServices();
+      });
+    }
+
+    function pollNeuronStats() {
+      return fetchJSON(BASE + '/neuron/stats').then(function(d) {
+        if (!isRealData(d)) return;
+        if (d.registered != null) S.metrics.registeredNeurons = d.registered;
+        if (d.total != null) S.metrics.registeredNeurons = d.total;
+        if (d.count != null) S.metrics.registeredNeurons = d.count;
+        updateKPIs();
+      });
+    }
+
+    function pollRoutingData() {
+      return fetchJSON(BASE + '/routing/data').then(function(d) {
+        if (!isRealData(d)) return;
+        if (d.recent_requests && Array.isArray(d.recent_requests)) {
+          d.recent_requests.forEach(function(r) { handleWsRequest(r); });
+        }
+        if (d.providers && Array.isArray(d.providers)) { S.providers = d.providers; renderProviders(); }
+      });
+    }
+
+    /* ═══════════════════════════════════════════════
+       KPI UPDATES + ANIMATED COUNTER
+       ═══════════════════════════════════════════════ */
+    function updateKPIs() {
+      var m = S.metrics;
+      animateValue(dom.kpiRequests, m.prevRequests, m.totalRequests, 600);
+      animateValue(dom.kpiProviders, m.prevProviders, m.activeProviders, 400);
+      animateValue(dom.kpiNeurons, m.prevNeurons, m.registeredNeurons, 400);
+      animateValue(dom.kpiLatency, m.prevLatency, m.avgLatency, 500);
+
+      updateTrend(dom.trendRequests, dom.trendRequestsPct, m.prevRequests, m.totalRequests, true);
+      updateTrend(dom.trendProviders, dom.trendProvidersPct, m.prevProviders, m.activeProviders, true);
+      updateTrend(dom.trendNeurons, dom.trendNeuronsPct, m.prevNeurons, m.registeredNeurons, true);
+      updateTrend(dom.trendLatency, dom.trendLatencyPct, m.prevLatency, m.avgLatency, false);
+
+      pushSpark('requests', m.totalRequests);
+      pushSpark('providers', m.activeProviders);
+      pushSpark('neurons', m.registeredNeurons);
+      pushSpark('latency', m.avgLatency);
+      renderSparklines();
+
+      m.prevRequests = m.totalRequests;
+      m.prevProviders = m.activeProviders;
+      m.prevNeurons = m.registeredNeurons;
+      m.prevLatency = m.avgLatency;
+    }
+
+    function animateValue(el, from, to, duration) {
+      if (from === to) return;
+      var start = performance.now();
+      var diff = to - from;
+      function step(ts) {
+        var elapsed = ts - start;
+        var progress = Math.min(elapsed / duration, 1);
+        var eased = 1 - Math.pow(1 - progress, 3);
+        var current = Math.round(from + diff * eased);
+        el.textContent = formatNum(current);
+        if (progress < 1) requestAnimationFrame(step);
+        else el.textContent = formatNum(to);
+      }
+      requestAnimationFrame(step);
+    }
+
+    function formatNum(n) {
+      if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+      if (n >= 10000) return (n / 1000).toFixed(1) + 'K';
+      return String(n);
+    }
+
+    function updateTrend(trendEl, pctEl, prev, current, higherIsBetter) {
+      if (prev === 0 && current === 0) {
+        trendEl.className = 'metric-trend flat';
+        pctEl.textContent = '--';
+        return;
+      }
+      var diff = current - prev;
+      var pct = prev > 0 ? Math.round((diff / prev) * 100) : (current > 0 ? 100 : 0);
+      if (diff > 0) {
+        trendEl.className = 'metric-trend ' + (higherIsBetter ? 'up' : 'down');
+        trendEl.querySelector('span:first-child').innerHTML = '&#8593;';
+        pctEl.textContent = '+' + pct + '%';
+      } else if (diff < 0) {
+        trendEl.className = 'metric-trend ' + (higherIsBetter ? 'down' : 'up');
+        trendEl.querySelector('span:first-child').innerHTML = '&#8595;';
+        pctEl.textContent = pct + '%';
+      } else {
+        trendEl.className = 'metric-trend flat';
+        trendEl.querySelector('span:first-child').innerHTML = '&#8594;';
+        pctEl.textContent = '0%';
+      }
+    }
+
+    /* ── Sparklines ── */
+    function pushSpark(key, val) {
+      S.sparkData[key].push(val);
+      if (S.sparkData[key].length > 7) S.sparkData[key].shift();
+    }
+
+    function renderSparklines() {
+      renderSpark('spark-requests', S.sparkData.requests, '#7c6aef');
+      renderSpark('spark-providers', S.sparkData.providers, '#34d399');
+      renderSpark('spark-neurons', S.sparkData.neurons, '#60a5fa');
+      renderSpark('spark-latency', S.sparkData.latency, '#fbbf24');
+    }
+
+    function renderSpark(id, data, color) {
+      var svg = document.getElementById(id);
+      if (!svg) return;
+      var pl = svg.querySelector('polyline');
+      if (!pl) return;
+      var max = Math.max.apply(null, data.concat([1]));
+      var min = Math.min.apply(null, data.concat([0]));
+      var range = max - min || 1;
+      var points = data.map(function(v, i) {
+        var x = (i / (data.length - 1 || 1)) * 60;
+        var y = 14 - ((v - min) / range) * 12;
+        return x.toFixed(1) + ',' + y.toFixed(1);
+      }).join(' ');
+      pl.setAttribute('points', points);
+      pl.setAttribute('stroke', color);
+    }
+
+    /* ═══════════════════════════════════════════════
+       REQUEST STREAM
+       ═══════════════════════════════════════════════ */
+    function addRequest(entry) {
+      if (S.requestPaused) return;
+      S.requestLog.unshift(entry);
+      if (S.requestLog.length > S.maxRequests) S.requestLog.pop();
+
+      dom.reqEmpty.style.display = 'none';
+      dom.reqTable.style.display = '';
+
+      var tr = document.createElement('tr');
+      tr.className = 'req-row new-row';
+      var time = formatTime(entry.time);
+      var statusClass = getStatusClass(entry.status);
+      var statusText = typeof entry.status === 'number' ? entry.status : (entry.status || '200');
+      var latency = typeof entry.latency === 'number' ? entry.latency + 'ms' : entry.latency;
+
+      tr.innerHTML =
+        '<td style="font-family:var(--font-mono);font-size:12px;color:var(--text-tertiary);">' + time + '</td>' +
+        '<td style="color:var(--text-primary);font-weight:500;max-width:160px;overflow:hidden;text-overflow:ellipsis;">' + escapeHtml(entry.path) + '</td>' +
+        '<td><div class="status-cell"><div class="status-cell-dot ' + statusClass + '"></div></div></td>' +
+        '<td style="color:var(--accent);">' + escapeHtml(entry.model) + '</td>' +
+        '<td style="font-family:var(--font-mono);">' + escapeHtml(latency) + '</td>';
+
+      tr.addEventListener('click', function() { openDetail(entry); });
+
+      if (dom.reqBody.firstChild) dom.reqBody.insertBefore(tr, dom.reqBody.firstChild);
+      else dom.reqBody.appendChild(tr);
+
+      setTimeout(function() { tr.classList.remove('new-row'); }, 500);
+
+      while (dom.reqBody.children.length > 10) dom.reqBody.removeChild(dom.reqBody.lastChild);
+      dom.reqCount.textContent = S.requestLog.length + ' requests';
+    }
+
+    /* ── Pause on hover ── */
+    var reqBody = $('#req-body');
+    if (reqBody) {
+      reqBody.addEventListener('mouseenter', function() { S.requestPaused = true; });
+      reqBody.addEventListener('mouseleave', function() { S.requestPaused = false; });
+    }
+
+    function formatTime(isoStr) {
+      try {
+        var d = new Date(isoStr);
+        return String(d.getHours()).padStart(2, '0') + ':' +
+               String(d.getMinutes()).padStart(2, '0') + ':' +
+               String(d.getSeconds()).padStart(2, '0');
+      } catch (e) { return '--:--:--'; }
+    }
+
+    function getStatusClass(status) {
+      var n = typeof status === 'number' ? status : parseInt(status, 10);
+      if (isNaN(n)) return 'pending';
+      if (n >= 200 && n < 300) return 's2xx';
+      if (n >= 400 && n < 500) return 's4xx';
+      if (n >= 500) return 's5xx';
+      return 'pending';
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '--';
+      return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    /* ═══════════════════════════════════════════════
+       DETAIL PANEL
+       ═══════════════════════════════════════════════ */
+    function openDetail(entry) {
+      dom.detailTitle.textContent = entry.path || 'Request';
+      var html = '';
+      var rows = [
+        ['Time', formatTime(entry.time)],
+        ['Path', entry.path],
+        ['Model', entry.model],
+        ['Status', entry.status],
+        ['Latency', (typeof entry.latency === 'number' ? entry.latency + ' ms' : entry.latency)],
+        ['ID', entry.id],
+      ];
+      rows.forEach(function(r) {
+        html += '<div class="detail-row"><span class="detail-label">' + r[0] + '</span><span class="detail-value">' + escapeHtml(r[1]) + '</span></div>';
+      });
+      if (entry.detail && typeof entry.detail === 'object') {
+        var d = entry.detail;
+        for (var key in d) {
+          if (d.hasOwnProperty(key) && ['type','path','model','status','latency','id','timestamp','endpoint'].indexOf(key) === -1) {
+            var val = typeof d[key] === 'object' ? JSON.stringify(d[key]) : String(d[key]);
+            if (val.length > 200) val = val.substring(0, 200) + '...';
+            html += '<div class="detail-row"><span class="detail-label">' + escapeHtml(key) + '</span><span class="detail-value">' + escapeHtml(val) + '</span></div>';
+          }
+        }
+      }
+      dom.detailBody.innerHTML = html;
+      dom.detailPanel.classList.add('open');
+      dom.detailOverlay.classList.add('open');
+    }
+
+    function closeDetail() {
+      dom.detailPanel.classList.remove('open');
+      dom.detailOverlay.classList.remove('open');
+    }
+    dom.detailClose.addEventListener('click', closeDetail);
+    dom.detailOverlay.addEventListener('click', closeDetail);
+
+    /* ═══════════════════════════════════════════════
+       SERVICE HEALTH
+       ═══════════════════════════════════════════════ */
+    var maxVisibleServices = 8;
+    var showAllServices = false;
+
+    function renderServices() {
+      if (!S.services || S.services.length === 0) return;
+      dom.svcCount.textContent = S.services.length + ' services';
+
+      var visible = showAllServices ? S.services : S.services.slice(0, maxVisibleServices);
+      var html = '';
+
+      visible.forEach(function(svc, idx) {
+        var name = svc.name || svc.service_name || ('Service ' + (idx + 1));
+        var status = (svc.status || 'loaded').toLowerCase();
+        var loadTime = svc.load_time || svc.loadTime || svc.init_time || '--';
+        var dotClass = (status === 'loaded' || status === 'active' || status === 'ready') ? 'green' :
+                       (status === 'error' || status === 'failed') ? 'red' : 'gray';
+
+        html += '<div class="svc-row" data-svc-idx="' + idx + '">' +
+          '<div class="svc-row-left">' +
+            '<div class="svc-row-dot ' + dotClass + '"></div>' +
+            '<span class="svc-row-name">' + escapeHtml(name) + '</span>' +
+          '</div>' +
+          '<div class="svc-row-right">' +
+            '<span class="svc-row-time">' + escapeHtml(String(loadTime)) + '</span>' +
+          '</div>' +
+        '</div>' +
+        '<div class="svc-detail" id="svc-detail-' + idx + '">' +
+          '<div class="svc-detail-inner">' +
+            buildSvcDetail(svc) +
+          '</div>' +
+        '</div>';
+      });
+
+      if (!showAllServices && S.services.length > maxVisibleServices) {
+        html += '<div class="svc-more" id="svc-more" data-i18n="dashboard.showMore">还有 ' +
+          (S.services.length - maxVisibleServices) + ' 个</div>';
+      }
+
+      dom.svcList.innerHTML = html;
+
+      // Click handlers for expandable detail
+      dom.svcList.querySelectorAll('.svc-row').forEach(function(row) {
+        row.addEventListener('click', function() {
+          var idx = row.getAttribute('data-svc-idx');
+          var detail = document.getElementById('svc-detail-' + idx);
+          if (detail) {
+            var wasOpen = detail.classList.contains('open');
+            // Close all
+            dom.svcList.querySelectorAll('.svc-detail').forEach(function(d) { d.classList.remove('open'); });
+            if (!wasOpen) detail.classList.add('open');
+          }
+        });
+      });
+
+      var moreBtn = document.getElementById('svc-more');
+      if (moreBtn) {
+        moreBtn.addEventListener('click', function() {
+          showAllServices = true;
+          renderServices();
+        });
+      }
+    }
+
+    function buildSvcDetail(svc) {
+      var html = '';
+      for (var key in svc) {
+        if (svc.hasOwnProperty(key)) {
+          var val = typeof svc[key] === 'object' ? JSON.stringify(svc[key]) : String(svc[key]);
+          html += '<div class="svc-detail-row"><span class="label">' + escapeHtml(key) + '</span><span class="value">' + escapeHtml(val) + '</span></div>';
+        }
+      }
+      return html;
+    }
+
+    /* ═══════════════════════════════════════════════
+       PROVIDER PERFORMANCE
+       ═══════════════════════════════════════════════ */
+    function renderProviders() {
+      if (!S.providers || S.providers.length === 0) return;
+
+      var providers = S.providers.slice().sort(function(a, b) {
+        var ar = a.success_rate != null ? a.success_rate : (a.successRate || 0);
+        var br = b.success_rate != null ? b.success_rate : (b.successRate || 0);
+        return br - ar;
+      }).slice(0, 6);
+
+      dom.provCount.textContent = S.providers.length + ' providers';
+      var html = '';
+
+      providers.forEach(function(p) {
+        var name = p.name || p.provider || p.id || 'Unknown';
+        var rate = p.success_rate != null ? p.success_rate : (p.successRate || 0);
+        var rateNum = Math.round(rate);
+        var opacity = Math.max(0.2, rateNum / 100);
+
+        html += '<div class="prov-bar-row">' +
+          '<div class="prov-bar-name" title="' + escapeHtml(name) + '">' + escapeHtml(name) + '</div>' +
+          '<div class="prov-bar-track">' +
+            '<div class="prov-bar-fill" data-width="' + rateNum + '" style="width:0%;opacity:' + opacity.toFixed(2) + ';"></div>' +
+          '</div>' +
+          '<div class="prov-bar-pct">' + rateNum + '%</div>' +
+        '</div>';
+      });
+
+      dom.provChart.innerHTML = html;
+
+      requestAnimationFrame(function() {
+        setTimeout(function() {
+          dom.provChart.querySelectorAll('.prov-bar-fill').forEach(function(bar) {
+            bar.style.width = bar.getAttribute('data-width') + '%';
+          });
+        }, 50);
+      });
+    }
+
+    /* ═══════════════════════════════════════════════
+       SYSTEM STATUS
+       ═══════════════════════════════════════════════ */
+    function updateSystemStatus(status) {
+      var s = String(status).toLowerCase();
+      if (s === 'ok' || s === 'healthy' || s === 'running' || s === 'operational') {
+        dom.statusDot.className = 'status-dot green';
+        dom.statusText.textContent = '\u8FD0\u884C\u4E2D';
+      } else if (s === 'degraded' || s === 'warning' || s === 'partial') {
+        dom.statusDot.className = 'status-dot yellow';
+        dom.statusText.textContent = '\u964D\u7EA7';
+      } else if (s === 'error' || s === 'down' || s === 'critical') {
+        dom.statusDot.className = 'status-dot red';
+        dom.statusText.textContent = '\u5F02\u5E38';
+      }
+    }
+
+    /* ═══════════════════════════════════════════════
+       SEED DEMO DATA
+       ═══════════════════════════════════════════════ */
+    function seedDemoData() {
+      S.isDemoData = true;
+      updateDataSource('demo');
+
+      S.metrics.totalRequests = 12847;
+      S.metrics.activeProviders = 7;
+      S.metrics.registeredNeurons = 23;
+      S.metrics.avgLatency = 245;
+      S.metrics.prevRequests = 12600;
+      S.metrics.prevProviders = 7;
+      S.metrics.prevNeurons = 21;
+      S.metrics.prevLatency = 260;
+
+      S.sparkData.requests = [11000, 11200, 11500, 11800, 12000, 12400, 12847];
+      S.sparkData.providers = [6, 6, 7, 7, 7, 7, 7];
+      S.sparkData.neurons = [18, 19, 20, 20, 21, 22, 23];
+      S.sparkData.latency = [310, 295, 280, 270, 265, 255, 245];
+
+      updateKPIs();
+
+      S.services = [
+        { name: 'AI Gateway Core', status: 'loaded', load_time: '12ms' },
+        { name: 'Routing Engine', status: 'loaded', load_time: '8ms' },
+        { name: 'Workforce Engine', status: 'loaded', load_time: '15ms' },
+        { name: 'Knowledge Base', status: 'loaded', load_time: '23ms' },
+        { name: 'Security Layer', status: 'loaded', load_time: '6ms' },
+        { name: 'Neuron Registry', status: 'loaded', load_time: '11ms' },
+        { name: 'Service Bus', status: 'loaded', load_time: '4ms' },
+        { name: 'Evidence Logger', status: 'loaded', load_time: '18ms' },
+      ];
+      renderServices();
+
+      S.providers = [
+        { name: 'OpenAI', success_rate: 98.2 },
+        { name: 'Anthropic', success_rate: 96.8 },
+        { name: 'DeepSeek', success_rate: 94.1 },
+        { name: 'Qwen', success_rate: 92.5 },
+        { name: 'GLM/ZhipuAI', success_rate: 88.3 },
+        { name: 'Moonshot', success_rate: 85.7 },
+      ];
+      renderProviders();
+
+      var paths = ['/v1/chat/completions', '/v1/completions', '/v1/embeddings', '/v1/chat/completions', '/v1/images/generations'];
+      var models = ['gpt-4o', 'claude-3.5-sonnet', 'deepseek-v3', 'qwen-max', 'gpt-4o-mini', 'glm-4-flash'];
+      for (var i = 0; i < 6; i++) {
+        addRequest({
+          time: new Date(Date.now() - i * 15000).toISOString(),
+          path: paths[i % paths.length],
+          model: models[i % models.length],
+          status: i === 2 ? 429 : (i === 5 ? 500 : 200),
+          latency: Math.round(100 + Math.random() * 400),
+          id: Date.now() - i * 1000,
+        });
+      }
+    }
+
+    /* ═══════════════════════════════════════════════
+       INIT
+       ═══════════════════════════════════════════════ */
+    function init() {
+      updateClock();
+      setInterval(updateClock, 1000);
+      seedDemoData();
+      connectWebSocket();
+      startPolling();
+    }
+
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+    else init();
+
+  })();
+  </script>
+
+  <script src="i18n.js"></script>
+  <script src="interact.js"></script>
+
+</body>
+</html>
