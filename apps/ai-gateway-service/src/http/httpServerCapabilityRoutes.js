@@ -3,7 +3,7 @@ import {
   writeJson,
   readJson,
   writeServiceLog,
-  writeCapabilityError,
+  writeErrorResponse,
 } from "./utils/responseUtils.js";
 import {
   createHealth,
@@ -274,7 +274,7 @@ export function createHttpServerCapabilityRoutes(ctx) {
           externalMessageId: result.message_id || null,
         }, { startedAt }));
       } catch (error) {
-        writeCapabilityError({ response, error, startedAt, fallbackCode: "feishu_send_failed" });
+        writeErrorResponse({ response, error, startedAt, fallbackCode: "feishu_send_failed" });
       }
     }
   });
@@ -299,7 +299,7 @@ export function createHttpServerCapabilityRoutes(ctx) {
           externalMessageId: result.msgid || null,
         }, { startedAt }));
       } catch (error) {
-        writeCapabilityError({ response, error, startedAt, fallbackCode: "wecom_send_failed" });
+        writeErrorResponse({ response, error, startedAt, fallbackCode: "wecom_send_failed" });
       }
     }
   });
@@ -406,7 +406,7 @@ export function createHttpServerCapabilityRoutes(ctx) {
       });
       writeJson(response, 200, createOkEnvelope(result, { startedAt }));
     } catch (error) {
-      writeCapabilityError({ response, error, startedAt, fallbackCode: "capability_router_preview_failed" });
+      writeErrorResponse({ response, error, startedAt, fallbackCode: "capability_router_preview_failed" });
     }
   });
 

@@ -101,7 +101,7 @@ export function createSessionStore(options = {}) {
     }).catch((err) => {
       throw err;
     });
-    _saveMutex.set(sessionId, current.catch(() => {}));
+    _saveMutex.set(sessionId, current.catch((err) => { console.warn("[sessionStore] save mutex swallowed error:", err?.message); }));
     return current;
   }
 

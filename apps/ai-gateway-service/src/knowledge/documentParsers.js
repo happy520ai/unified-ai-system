@@ -1,6 +1,6 @@
 import mammoth from "mammoth";
 import { PDFParse } from "pdf-parse";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 
 const MAX_FILE_BYTES = 100 * 1024 * 1024;
 const TEXT_EXTENSIONS = new Set([".txt", ".md", ".markdown", ".json", ".csv", ".log", ".html", ".htm", ".xml", ".yaml", ".yml"]);
@@ -75,21 +75,27 @@ export async function parseKnowledgeFile(file = {}) {
   }
 
   if (EXCEL_EXTENSIONS.has(extension)) {
-    const workbook = XLSX.read(buffer, { type: "buffer" });
-    const text = workbook.SheetNames.map((sheetName) => {
-      const sheet = workbook.Sheets[sheetName];
-      const csv = XLSX.utils.sheet_to_csv(sheet, { blankrows: false });
-      return [`# Sheet: ${sheetName}`, csv].join("\n");
-    }).join("\n\n");
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(buffer);
+    const sheetNames = [];
+    const text = [];
+    workbook.eachSheet((worksheet) => {
+      sheetNames.push(worksheet.name);
+      const rows = [];
+      worksheet.eachRow({ includeEmpty: false }, (row) => {
+        rows.push(row.values.slice(1).map(String).join(","));
+      });
+      text.push(`# Sheet: ${worksheet.name}`, rows.join("\n"));
+    });
 
     return createParsedDocument({
       fileName,
-      parser: "xlsx",
+      parser: "exceljs",
       mimeType: file.mimeType,
       fileSize: buffer.length,
-      text,
+      text: text.join("\n"),
       metadata: {
-        sheetNames: workbook.SheetNames,
+        sheetNames,
       },
     });
   }

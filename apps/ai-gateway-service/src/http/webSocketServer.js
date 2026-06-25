@@ -94,7 +94,7 @@ export function createWebSocketServer(options = {}) {
             const result = ws.onMessage(frame.payload.toString("utf8"), ws);
             // Catch async rejections to prevent unhandled promise rejection crash
             if (result && typeof result.catch === "function") {
-              result.catch(() => {});
+              result.catch((err) => { console.warn("[ws] async message handler error:", err?.message); });
             }
           } else if (frame.type === WS_FRAME_TYPES.CLOSE) {
             ws.close();

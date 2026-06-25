@@ -1,4 +1,5 @@
 import { readJson, writeJson } from "../../entrypoints/entrypointUtils.js";
+import { createErrorEnvelope } from "@unified-ai-system/shared-utils";
 // =============================================================================
 // responseUtils.js — HTTP 响应工具函数
 // 从 httpServer.js 提取的通用响应工具
@@ -17,31 +18,18 @@ export function writeServiceLog(event, details = {}, logger) {
 }
 
 /**
- * 写企业错误响应
+ * 统一错误响应 — 使用 shared-utils createErrorEnvelope
+ * 替代已移除的 writeEnterpriseError 和 writeCapabilityError
  */
-export function writeEnterpriseError({ response, error, startedAt, fallbackCode, writeJsonFn }) {
-  const code = error?.code ?? fallbackCode ?? "enterprise_error";
-  const message = error instanceof Error ? error.message : "Enterprise operation failed";
+export function writeErrorResponse({ response, error, startedAt, fallbackCode }) {
+  const code = error?.code ?? fallbackCode ?? "internal_error";
+  const message = error instanceof Error ? error.message : "Operation failed";
   const status = error?.statusCode ?? 500;
-  writeJsonFn(response, status, {
-    status: "error",
-    error: { code, message },
-    meta: { startedAt, completedAt: Date.now(), durationMs: Date.now() - startedAt },
-  });
-}
-
-/**
- * 写能力错误响应
- */
-export function writeCapabilityError({ response, error, startedAt, fallbackCode, writeJsonFn }) {
-  const code = error?.code ?? fallbackCode ?? "capability_error";
-  const message = error instanceof Error ? error.message : "Capability operation failed";
-  const status = error?.statusCode ?? 500;
-  writeJsonFn(response, status, {
-    status: "error",
-    error: { code, message },
-    meta: { startedAt, completedAt: Date.now(), durationMs: Date.now() - startedAt },
-  });
+  writeJson(response, status, createErrorEnvelope(code, message, {
+    startedAt,
+    category: error?.category ?? "internal",
+    retryable: error?.retryable ?? false,
+  }));
 }
 
 /**

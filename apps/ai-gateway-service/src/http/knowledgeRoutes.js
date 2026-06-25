@@ -14,7 +14,7 @@ import { validators } from "../validation/httpSchemas.js";
  */
 export function createKnowledgeRoutes(application, helpers) {
   const { knowledgeService, userExperienceService } = application;
-  const { readJson, readCapabilityJson, writeJson, writeServiceLog, writeCapabilityError, createOkEnvelope, createErrorEnvelope } = helpers;
+  const { readJson, readCapabilityJson, writeJson, writeServiceLog, writeErrorResponse, createOkEnvelope, createErrorEnvelope } = helpers;
 
   // ── GET /knowledge/health ──
   async function handleKnowledgeHealth(_req, res, { startedAt }) {
@@ -43,7 +43,7 @@ export function createKnowledgeRoutes(application, helpers) {
     try {
       writeJson(res, 200, createOkEnvelope(userExperienceService.retrieveGraph(body), { startedAt }));
     } catch (error) {
-      writeCapabilityError({ response: res, error, startedAt, fallbackCode: "graph_retrieve_failed" });
+      writeErrorResponse({ response: res, error, startedAt, fallbackCode: "graph_retrieve_failed" });
     }
   }
 

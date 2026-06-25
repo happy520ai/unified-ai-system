@@ -1,7 +1,7 @@
 import { constants } from "node:fs";
 import { access, mkdir, open, stat, writeFile } from "node:fs/promises";
 import { dirname, extname, join } from "node:path";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import {
   assertDesktopPath,
   getDesktopDirectory,
@@ -51,7 +51,7 @@ export async function realRun(input = {}, approval, options = {}) {
   await assertDoesNotExist(outputPath);
 
   const fileBuffer = normalized.fileType === "xlsx"
-    ? toXlsxBuffer(normalized.headers, normalized.rows)
+    ? await toXlsxBuffer(normalized.headers, normalized.rows)
     : Buffer.from(`\uFEFF${toCsv(normalized.headers, normalized.rows)}`, "utf8");
   const handle = await open(outputPath, "wx");
   try {
@@ -118,11 +118,14 @@ function toCsv(headers, rows) {
   return [headers, ...rows].map((row) => row.map(csvCell).join(",")).join("\r\n");
 }
 
-function toXlsxBuffer(headers, rows) {
-  const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, "Sheet1");
-  return XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
+async function toXlsxBuffer(headers, rows) {
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet("Sheet1");
+  worksheet.addRow(headers);
+  for (const row of rows) {
+    worksheet.addRow(row);
+  }
+  return Buffer.from(await workbook.xlsx.writeBuffer());
 }
 
 async function assertDoesNotExist(path) {

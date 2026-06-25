@@ -24,140 +24,140 @@ describe("Neon UI Enhancement", () => {
   describe("Design Tokens", () => {
     it("should have correct neon cyan color", () => {
       const css = readCss("futureMinimalTokens.css");
-      assert.ok(css).includes("--future-accent: #00F0FF");
+      assert.ok(css.includes("--future-accent: #00F0FF"), "CSS should contain --future-accent: #00F0FF");
     });
 
     it("should have correct neon violet color", () => {
       const css = readCss("futureMinimalTokens.css");
-      assert.ok(css).includes("--future-accent-strong: #B026FF");
+      assert.ok(css.includes("--future-accent-strong: #B026FF"), "CSS should contain --future-accent-strong: #B026FF");
     });
 
     it("should have correct background color", () => {
       const css = readCss("futureMinimalTokens.css");
-      assert.ok(css).includes("--future-bg: #0A0A0A");
+      assert.ok(css.includes("--future-bg: #0A0A0A"), "CSS should contain --future-bg: #0A0A0A");
     });
 
     it("should have glassmorphism blur", () => {
       const css = readCss("futureMinimalTokens.css");
-      assert.ok(css).includes("--future-glass-blur: 20px");
+      assert.ok(css.includes("--future-glass-blur: 20px"), "CSS should contain --future-glass-blur: 20px");
     });
 
     it("should have neon glow shadows", () => {
       const css = readCss("futureMinimalTokens.css");
-      assert.ok(css).includes("--future-glow-cyan");
-      assert.ok(css).includes("--future-glow-violet");
+      assert.ok(css.includes("--future-glow-cyan"), "CSS should contain --future-glow-cyan");
+      assert.ok(css.includes("--future-glow-violet"), "CSS should contain --future-glow-violet");
     });
 
     it("should have scanline overlay", () => {
       const css = readCss("futureMinimalTokens.css");
-      assert.ok(css).includes("--future-scanline");
+      assert.ok(css.includes("--future-scanline"), "CSS should contain --future-scanline");
     });
 
     it("should have reduced motion support", () => {
       const css = readCss("futureMinimalTokens.css");
-      assert.ok(css).includes("prefers-reduced-motion: reduce");
+      assert.ok(css.includes("prefers-reduced-motion: reduce"), "CSS should contain prefers-reduced-motion: reduce");
     });
   });
 
   describe("Enhanced Components", () => {
     it("should have glass card styles", () => {
       const css = readCss("futureMinimalEnhanced.css");
-      assert.ok(css).includes("backdrop-filter: blur");
-      assert.ok(css).includes("future-glass-bg");
+      assert.ok(css.includes("backdrop-filter: blur"), "CSS should contain backdrop-filter: blur");
+      assert.ok(css.includes("future-glass-bg"), "CSS should contain future-glass-bg");
     });
 
     it("should have KPI tile styles", () => {
       const css = readCss("futureMinimalEnhanced.css");
-      assert.ok(css).includes(".kpi-tile");
-      assert.ok(css).includes(".kpi-tile__value");
-      assert.ok(css).includes(".kpi-tile__delta");
+      assert.ok(css.includes(".kpi-tile"), "CSS should contain .kpi-tile");
+      assert.ok(css.includes(".kpi-tile__value"), "CSS should contain .kpi-tile__value");
+      assert.ok(css.includes(".kpi-tile__delta"), "CSS should contain .kpi-tile__delta");
     });
 
     it("should have status pill styles", () => {
       const css = readCss("futureMinimalEnhanced.css");
-      assert.ok(css).includes(".status-pill");
-      assert.ok(css).includes(".status-pill--online");
-      assert.ok(css).includes(".status-pill--warning");
-      assert.ok(css).includes(".status-pill--critical");
+      assert.ok(css.includes(".status-pill"), "CSS should contain .status-pill");
+      assert.ok(css.includes(".status-pill--online"), "CSS should contain .status-pill--online");
+      assert.ok(css.includes(".status-pill--warning"), "CSS should contain .status-pill--warning");
+      assert.ok(css.includes(".status-pill--critical"), "CSS should contain .status-pill--critical");
     });
 
     it("should have data table styles", () => {
       const css = readCss("futureMinimalEnhanced.css");
-      assert.ok(css).includes(".future-data-table");
+      assert.ok(css.includes(".future-data-table"), "CSS should contain .future-data-table");
     });
 
     it("should have neon text glow", () => {
       const css = readCss("futureMinimalEnhanced.css");
-      assert.ok(css).includes(".neon-text-cyan");
-      assert.ok(css).includes(".neon-text-violet");
+      assert.ok(css.includes(".neon-text-cyan"), "CSS should contain .neon-text-cyan");
+      assert.ok(css.includes(".neon-text-violet"), "CSS should contain .neon-text-violet");
     });
 
     it("should have skeleton loading", () => {
       const css = readCss("futureMinimalEnhanced.css");
-      assert.ok(css).includes(".future-skeleton");
-      assert.ok(css).includes("shimmer");
+      assert.ok(css.includes(".future-skeleton"), "CSS should contain .future-skeleton");
+      assert.ok(css.includes("shimmer"), "CSS should contain shimmer");
     });
   });
 
   describe("Console Enhancement", () => {
     it("should have console panel glassmorphism", () => {
       const css = readCss("consoleEnhanced.css");
-      assert.ok(css).includes("future-os-panel");
-      assert.ok(css).includes("backdrop-filter: blur");
+      assert.ok(css.includes("future-os-panel"), "CSS should contain future-os-panel");
+      assert.ok(css.includes("backdrop-filter: blur"), "CSS should contain backdrop-filter: blur");
     });
 
     it("should have chat message neon", () => {
       const css = readCss("consoleEnhanced.css");
-      assert.ok(css).includes("chat-message--assistant");
-      assert.ok(css).includes("chat-message--user");
+      assert.ok(css.includes("chat-message--assistant"), "CSS should contain chat-message--assistant");
+      assert.ok(css.includes("chat-message--user"), "CSS should contain chat-message--user");
     });
 
     it("should have input neon focus", () => {
       const css = readCss("consoleEnhanced.css");
-      assert.ok(css).includes("chat-input:focus");
-      assert.ok(css).includes("box-shadow: var(--future-glow-cyan)");
+      assert.ok(css.includes("chat-input:focus"), "CSS should contain chat-input:focus");
+      assert.ok(css.includes("box-shadow: var(--future-glow-cyan)"), "CSS should contain box-shadow: var(--future-glow-cyan)");
     });
   });
 
   describe("Neon Components JS", () => {
     it("should export renderKPITile", () => {
       const js = readJs("NeonComponents.js");
-      assert.ok(js).includes("export function renderKPITile");
+      assert.ok(js.includes("export function renderKPITile"), "JS should export renderKPITile");
     });
 
     it("should export renderStatusPill", () => {
       const js = readJs("NeonComponents.js");
-      assert.ok(js).includes("export function renderStatusPill");
+      assert.ok(js.includes("export function renderStatusPill"), "JS should export renderStatusPill");
     });
 
     it("should export renderDataTable", () => {
       const js = readJs("NeonComponents.js");
-      assert.ok(js).includes("export function renderDataTable");
+      assert.ok(js.includes("export function renderDataTable"), "JS should export renderDataTable");
     });
 
     it("should export renderScanlineOverlay", () => {
       const js = readJs("NeonComponents.js");
-      assert.ok(js).includes("export function renderScanlineOverlay");
+      assert.ok(js.includes("export function renderScanlineOverlay"), "JS should export renderScanlineOverlay");
     });
 
     it("should have ARIA labels", () => {
       const js = readJs("NeonComponents.js");
-      assert.ok(js).includes("role=\"status\"");
-      assert.ok(js).includes("aria-label");
-      assert.ok(js).includes("aria-hidden=\"true\"");
+      assert.ok(js.includes('role="status"'), "JS should have role=status");
+      assert.ok(js.includes("aria-label"), "JS should have aria-label");
+      assert.ok(js.includes('aria-hidden="true"'), "JS should have aria-hidden=true");
     });
   });
 
   describe("Integration", () => {
     it("should load enhanced CSS in FutureMinimalOsApp", () => {
       const appJs = readFileSync(resolve(moduleDir, "../ui/future-minimal-os/FutureMinimalOsApp.js"), "utf8");
-      assert.ok(appJs).includes("futureMinimalEnhanced.css");
-      assert.ok(appJs).includes("consoleEnhanced.css");
+      assert.ok(appJs.includes("futureMinimalEnhanced.css"), "App should import futureMinimalEnhanced.css");
+      assert.ok(appJs.includes("consoleEnhanced.css"), "App should import consoleEnhanced.css");
     });
 
     it("should include scanline overlay in shell", () => {
       const shellJs = readFileSync(resolve(moduleDir, "../ui/future-minimal-os/layout/FutureMinimalShell.js"), "utf8");
-      assert.ok(shellJs).includes("renderScanlineOverlay");
+      assert.ok(shellJs.includes("renderScanlineOverlay"), "Shell should use renderScanlineOverlay");
     });
   });
 });

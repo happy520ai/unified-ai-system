@@ -11,7 +11,7 @@
  */
 export function createWorkforceRoutes(application, helpers) {
   const { workforceService, workflowService } = application;
-  const { readCapabilityJson, writeJson, writeServiceLog, writeCapabilityError, createOkEnvelope, createErrorEnvelope } = helpers;
+  const { readCapabilityJson, writeJson, writeServiceLog, writeErrorResponse, createOkEnvelope, createErrorEnvelope } = helpers;
 
   // ── GET /workflow/health ──
   async function handleWorkflowHealth(_req, res, { startedAt }) {
@@ -62,7 +62,7 @@ export function createWorkforceRoutes(application, helpers) {
       writeJson(res, 200, createOkEnvelope(responseData, { startedAt, traceId: body?.context?.traceId }));
     } catch (error) {
       writeServiceLog("workforce_plan_failed", { method: "POST", path: "/workforce/plan", code: error?.code, durationMs: Date.now() - startedAt });
-      writeCapabilityError({ response: res, error, startedAt, fallbackCode: "workforce_plan_failed" });
+      writeErrorResponse({ response: res, error, startedAt, fallbackCode: "workforce_plan_failed" });
     }
   }
 
@@ -76,7 +76,7 @@ export function createWorkforceRoutes(application, helpers) {
       writeJson(res, 200, createOkEnvelope(result, { startedAt, traceId: body?.context?.traceId }));
     } catch (error) {
       writeServiceLog("workforce_real_local_run_failed", { method: "POST", path: "/workforce/run-local", code: error?.code, durationMs: Date.now() - startedAt });
-      writeCapabilityError({ response: res, error, startedAt, fallbackCode: "workforce_real_local_run_failed" });
+      writeErrorResponse({ response: res, error, startedAt, fallbackCode: "workforce_real_local_run_failed" });
     }
   }
 

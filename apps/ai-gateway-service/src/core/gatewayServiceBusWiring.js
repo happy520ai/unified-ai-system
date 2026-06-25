@@ -39,7 +39,7 @@ export function wireServiceBusEvents(bus, getService, caches, EVENTS) {
       if (!payload || !payload.taskId) return;
       const taskQueue = getService("taskQueue");
       if (taskQueue && typeof taskQueue.completeTask === "function") {
-        taskQueue.completeTask(payload.taskId, payload).catch(() => {});
+        taskQueue.completeTask(payload.taskId, payload).catch((err) => { console.warn("[serviceBus] taskQueue.completeTask failed:", err?.message); });
       }
     },
     { priority: 30, label: "serviceBus:chatComplete→taskQueue" }
@@ -58,9 +58,9 @@ export function wireServiceBusEvents(bus, getService, caches, EVENTS) {
         enrichment &&
         typeof enrichment.processNewKnowledge === "function"
       ) {
-        enrichment.processNewKnowledge(payload).catch(() => {});
+        enrichment.processNewKnowledge(payload).catch((err) => { console.warn("[serviceBus] enrichment.processNewKnowledge failed:", err?.message); });
       } else if (enrichment && typeof enrichment.process === "function") {
-        enrichment.process(payload).catch(() => {});
+        enrichment.process(payload).catch((err) => { console.warn("[serviceBus] enrichment.process failed:", err?.message); });
       }
     },
     { priority: 20, label: "serviceBus:knowledgeIngested→enrichment" }
@@ -84,7 +84,7 @@ export function wireServiceBusEvents(bus, getService, caches, EVENTS) {
       // Notify self-evolution pipeline so it can adapt routing.
       const evolution = getService("selfEvolutionPipeline");
       if (evolution && typeof evolution.onProviderCircuitOpen === "function") {
-        evolution.onProviderCircuitOpen(payload).catch(() => {});
+        evolution.onProviderCircuitOpen(payload).catch((err) => { console.warn("[serviceBus] evolution.onProviderCircuitOpen failed:", err?.message); });
       }
     },
     { priority: 15, label: "serviceBus:circuitOpen→cacheAndEvolution" }
@@ -137,9 +137,9 @@ export function wireServiceBusEvents(bus, getService, caches, EVENTS) {
     (payload) => {
       const godReview = getService("godReviewExecutor");
       if (godReview && typeof godReview.reviewEvidence === "function") {
-        godReview.reviewEvidence(payload).catch(() => {});
+        godReview.reviewEvidence(payload).catch((err) => { console.warn("[serviceBus] godReview.reviewEvidence failed:", err?.message); });
       } else if (godReview && typeof godReview.execute === "function") {
-        godReview.execute({ type: "evidence", payload }).catch(() => {});
+        godReview.execute({ type: "evidence", payload }).catch((err) => { console.warn("[serviceBus] godReview.execute failed:", err?.message); });
       }
     },
     { priority: 50, label: "serviceBus:evidence→godReview" }
@@ -151,9 +151,9 @@ export function wireServiceBusEvents(bus, getService, caches, EVENTS) {
     (payload) => {
       const planner = getService("tianshuPlanner");
       if (planner && typeof planner.onIntentClassified === "function") {
-        planner.onIntentClassified(payload).catch(() => {});
+        planner.onIntentClassified(payload).catch((err) => { console.warn("[serviceBus] planner.onIntentClassified failed:", err?.message); });
       } else if (planner && typeof planner.plan === "function") {
-        planner.plan({ type: "intent", payload }).catch(() => {});
+        planner.plan({ type: "intent", payload }).catch((err) => { console.warn("[serviceBus] planner.plan failed:", err?.message); });
       }
     },
     { priority: 45, label: "serviceBus:intent→tianshuPlanner" }
@@ -165,7 +165,7 @@ export function wireServiceBusEvents(bus, getService, caches, EVENTS) {
     (payload) => {
       const godReview = getService("godReviewExecutor");
       if (godReview && typeof godReview.recordTaskFailure === "function") {
-        godReview.recordTaskFailure(payload).catch(() => {});
+        godReview.recordTaskFailure(payload).catch((err) => { console.warn("[serviceBus] godReview.recordTaskFailure failed:", err?.message); });
       }
     },
     { priority: 50, label: "serviceBus:taskFailed→godReview" }

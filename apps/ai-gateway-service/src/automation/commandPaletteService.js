@@ -459,7 +459,7 @@ export class CommandPaletteService {
     });
     this.recentCommands.push(input);
     if (this.recentCommands.length > 20) this.recentCommands = this.recentCommands.slice(-20);
-    this._saveHistory().catch(() => {});
+    this._saveHistory().catch((err) => { console.warn("[commandPalette] saveHistory failed:", err?.message); });
   }
 
   _fail(command, error) {

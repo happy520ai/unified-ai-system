@@ -3,8 +3,8 @@ import { randomUUID } from "node:crypto";
 import { readFile, stat } from "node:fs/promises";
 import { dirname, resolve, join, extname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createErrorEnvelope, createOkEnvelope } from "../../../../packages/shared-utils/src/index.js";
-import { matchForgeRoute } from "../../../../packages/forge-core/src/integration/forge-routes.js";
+import { createErrorEnvelope, createOkEnvelope } from "@unified-ai-system/shared-utils";
+import { matchForgeRoute } from "@unified-ai-system/forge-core/integration/forge-routes.js";
 import { createConsolePage } from "../ui/consolePage.js";
 import { createChatRagRoutes } from "./httpServerChatRagRoutes.js";
 import { createHttpServerCapabilityRoutes } from "./httpServerCapabilityRoutes.js";
@@ -14,6 +14,7 @@ import {
   writeHtml,
   readJson,
   writeServiceLog,
+  writeErrorResponse,
 } from "./utils/responseUtils.js";
 
 import { resolvePermission, isPublicRoute } from "./utils/healthUtils.js";
@@ -68,7 +69,7 @@ export function createGatewayHttpServer(application) {
     readCapabilityJson,
     writeJson,
     writeServiceLog,
-    writeCapabilityError,
+    writeErrorResponse,
     createOkEnvelope,
     createErrorEnvelope,
   };
@@ -193,7 +194,7 @@ export function createGatewayHttpServer(application) {
       // --- CORS handling ---
       const corsAllowedOrigins = (application.runtimeEnv?.CORS_ALLOWED_ORIGINS ?? process.env.CORS_ALLOWED_ORIGINS ?? "http://127.0.0.1:3100,http://localhost:3100").split(",").map((s) => s.trim()).filter(Boolean);
       const requestOrigin = request.headers.origin;
-      if (requestOrigin && (corsAllowedOrigins.includes("*") || corsAllowedOrigins.includes(requestOrigin))) {
+      if (requestOrigin && corsAllowedOrigins.includes(requestOrigin)) {
         response.setHeader("access-control-allow-origin", requestOrigin);
         response.setHeader("access-control-allow-methods", "GET, POST, PUT, DELETE, OPTIONS");
         response.setHeader("access-control-allow-headers", "content-type, authorization, x-request-id, x-tenant-id, x-user-role");

@@ -39,6 +39,32 @@ jobs:
         run: pnpm --filter @unified-ai-system/ai-gateway-service test
         timeout-minutes: 5
 
+  forge-core-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [22]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run forge-core tests
+        run: pnpm --filter @unified-ai-system/forge-core test
+        timeout-minutes: 10
+
   security:
     runs-on: ubuntu-latest
     steps:

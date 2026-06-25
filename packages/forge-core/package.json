@@ -4,6 +4,10 @@
   "description": "Forge — Goal-driven autonomous coding engine, deeply integrated with unified-ai-system",
   "type": "module",
   "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./integration/forge-routes.js": "./src/integration/forge-routes.js"
+  },
   "bin": {
     "forge": "bin/forge.js"
   },

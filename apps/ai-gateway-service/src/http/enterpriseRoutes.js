@@ -11,7 +11,7 @@
  */
 export function createEnterpriseRoutes(application, helpers) {
   const { enterpriseGovernanceService } = application;
-  const { readEnterpriseJson, writeJson, writeEnterpriseError, createOkEnvelope, createErrorEnvelope } = helpers;
+  const { readEnterpriseJson, writeJson, writeErrorResponse, createOkEnvelope, createErrorEnvelope } = helpers;
 
   // ── GET /enterprise/health ──
   async function handleEnterpriseHealth(_req, res, { startedAt }) {
@@ -46,7 +46,7 @@ export function createEnterpriseRoutes(application, helpers) {
       });
       writeJson(res, 200, createOkEnvelope(result, { startedAt }));
     } catch (error) {
-      writeEnterpriseError({ response: res, error, startedAt, fallbackCode: "enterprise_user_upsert_failed" });
+      writeErrorResponse({ response: res, error, startedAt, fallbackCode: "enterprise_user_upsert_failed" });
     }
   }
 
@@ -63,7 +63,7 @@ export function createEnterpriseRoutes(application, helpers) {
       });
       writeJson(res, 200, createOkEnvelope(result, { startedAt }));
     } catch (error) {
-      writeEnterpriseError({ response: res, error, startedAt, fallbackCode: "enterprise_user_revoke_failed" });
+      writeErrorResponse({ response: res, error, startedAt, fallbackCode: "enterprise_user_revoke_failed" });
     }
   }
 

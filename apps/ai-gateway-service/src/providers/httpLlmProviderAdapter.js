@@ -1,6 +1,7 @@
 import { createProviderDescriptor } from "./providerAdapter.js";
 import { createProviderResponse } from "./providerMapping.js";
 import { getOrCreateAgent, fetchWithAgent } from "../http/connectionPool.js";
+import { createPinoLogger } from "../logging/pinoLogger.js";
 import {
   createProviderError,
   createErrorDetails,
@@ -37,6 +38,8 @@ const DEFAULT_TOKEN_PRICING = Object.freeze({
   inputPer1k: 0.0025,
   outputPer1k: 0.01,
 });
+
+const logger = createPinoLogger({ app: "httpLlmProviderAdapter" });
 
 export class HttpLLMProviderAdapter {
   constructor(modelConfig, options = {}) {
@@ -256,10 +259,15 @@ export class HttpLLMProviderAdapter {
     const jitter = delay * (0.8 + Math.random() * 0.4);
     const waitMs = Math.round(jitter);
     const providerName = this.modelConfig.providerDisplayName ?? this.modelConfig.providerId;
-    console.log(
-      `  [retry] ${providerName} stream failed (attempt ${attempt}/${cfg.maxRetries}): ` +
-      `${error?.code ?? error?.message}. Retrying in ${waitMs}ms...`
-    );
+    logger.warn({
+      event: "provider_retry",
+      provider: providerName,
+      attempt,
+      maxRetries: cfg.maxRetries,
+      errorCode: error?.code,
+      errorMessage: error?.message,
+      waitMs,
+    }, `Retry ${providerName} attempt ${attempt}/${cfg.maxRetries} in ${waitMs}ms`);
     await new Promise((resolve) => setTimeout(resolve, waitMs));
   }
 

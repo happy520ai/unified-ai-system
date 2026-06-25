@@ -2,7 +2,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { writeEvidencePair } from "./entrypointUtils.js";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
 import { fetchJson, fetchText, listen, close } from "./entrypointUtils.js";
@@ -96,7 +96,7 @@ try {
         {
           fileName: "phase25a-parser-sheet.xlsx",
           mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-          base64: createXlsxFixtureBase64(),
+          base64: await createXlsxFixtureBase64(),
         },
       ],
     },
@@ -341,14 +341,12 @@ function createEvidence({
 }
 
 
-function createXlsxFixtureBase64() {
-  const workbook = XLSX.utils.book_new();
-  const worksheet = XLSX.utils.aoa_to_sheet([
-    ["marker", "description"],
-    ["phase25a", "spreadsheet parser file import proves Excel upload works"],
-  ]);
-  XLSX.utils.book_append_sheet(workbook, worksheet, "Evidence");
-  const buffer = XLSX.write(workbook, { bookType: "xlsx", type: "buffer" });
+async function createXlsxFixtureBase64() {
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet("Evidence");
+  worksheet.addRow(["marker", "description"]);
+  worksheet.addRow(["phase25a", "spreadsheet parser file import proves Excel upload works"]);
+  const buffer = await workbook.xlsx.writeBuffer();
   return Buffer.from(buffer).toString("base64");
 }
 

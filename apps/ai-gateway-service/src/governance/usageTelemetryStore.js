@@ -22,7 +22,7 @@ export function createUsageTelemetryStore({ stateFile = resolve("apps/ai-gateway
     async recordUsage(entry) {
       const state = await readState(stateFile);
       state.entries.push({ ...entry, recordedAt: new Date().toISOString() });
-      await mkdir(resolve(stateFile, ".."), { recursive: true }).catch(() => {});
+      await mkdir(resolve(stateFile, ".."), { recursive: true }).catch(() => { /* directory may already exist */ });
       await mkdir(resolve("apps/ai-gateway-service/evidence/phase328f"), { recursive: true });
       await writeFile(stateFile, `${JSON.stringify(state, null, 2)}\n`, "utf8");
       return state;
