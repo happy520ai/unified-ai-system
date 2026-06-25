@@ -272,7 +272,12 @@ body::before {
   box-shadow: var(--depth-1);
   transition: background var(--duration-normal) var(--ease-smooth),
               box-shadow var(--duration-normal) var(--ease-smooth),
-              border-color var(--duration-normal) var(--ease-smooth);
+              border-color var(--duration-normal) var(--ease-smooth),
+              transform var(--duration-fast) var(--ease-smooth);
+}
+.glass-panel:hover {
+  border-color: var(--glass-border-hover);
+  box-shadow: var(--depth-2);
 }
 
 .glass-panel:hover {
@@ -672,8 +677,12 @@ body::before {
 }
 .btn-primary:hover {
   background: var(--accent-hover);
-  box-shadow: 0 4px 20px rgba(124, 106, 239, 0.35);
+  box-shadow: var(--shadow-glow-accent);
   transform: translateY(-1px);
+}
+.btn-primary:active {
+  transform: translateY(0) scale(0.98);
+  box-shadow: 0 1px 4px rgba(124, 106, 239, 0.2);
 }
 
 .btn-ghost {
@@ -881,7 +890,7 @@ select.input {
 .table tr:last-child td { border-bottom: none; }
 
 .table tr:hover td {
-  background: var(--glass-bg-faint);
+  background: var(--glass-bg-hover);
   color: var(--text-primary);
 }
 
