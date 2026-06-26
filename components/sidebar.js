@@ -26,9 +26,11 @@ function renderSidebar(options = {}) {
   function renderLink(item) {
     const isActive = item.id === activeId ? " active" : "";
     const ariaCurrent = item.id === activeId ? ' aria-current="page"' : "";
+    const badge = item.badge ? `<span class="sidebar-badge" aria-label="${item.badge} 个通知">${item.badge}</span>` : "";
     return `<a class="sidebar-link${isActive}" href="${item.href}"${ariaCurrent}>
       <svg viewBox="0 0 24 24" aria-hidden="true">${item.icon}</svg>
       <span class="sidebar-link-label" data-i18n="nav.${item.id}">${item.id}</span>
+      ${badge}
     </a>`;
   }
 

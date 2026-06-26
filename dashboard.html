@@ -41,11 +41,12 @@
       justify-content: space-between;
       height: 48px;
       padding: 0 var(--space-5);
-      background: rgba(255,255,255,0.02);
-      backdrop-filter: var(--glass-blur);
-      -webkit-backdrop-filter: var(--glass-blur);
+      background: var(--glass-bg);
+      backdrop-filter: var(--glass-blur-heavy);
+      -webkit-backdrop-filter: var(--glass-blur-heavy);
       border: 1px solid var(--glass-border);
       border-radius: var(--radius-lg);
+      box-shadow: var(--depth-1);
       margin-bottom: var(--space-6);
       animation: fadeIn 0.4s var(--ease-out) both;
     }
@@ -100,9 +101,9 @@
     .status-btn {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
-      padding: 6px 14px;
-      border-radius: var(--radius-xs);
+      gap: var(--space-2);
+      padding: var(--space-2) var(--space-4);
+      border-radius: var(--radius-sm);
       font-size: var(--text-body-sm);
       font-weight: 500;
       border: 1px solid var(--glass-border);

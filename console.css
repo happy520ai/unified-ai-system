@@ -463,6 +463,28 @@ a:hover {
   opacity: 1;
 }
 
+/* ── Sidebar Badge ── */
+.sidebar-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  background: var(--status-danger);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: var(--radius-full);
+  margin-left: auto;
+  box-shadow: 0 0 8px rgba(248,113,113,0.4);
+  animation: badgePulse 2s ease-in-out infinite;
+}
+@keyframes badgePulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+
 .nav-icon {
   width: 20px;
   height: 20px;
