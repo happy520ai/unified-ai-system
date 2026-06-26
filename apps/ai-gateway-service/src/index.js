@@ -24,6 +24,12 @@ if (process.env.NODE_ENV === "production") {
   }
 }
 
+// --- Global error handlers ---
+process.on("uncaughtException", (err) => {
+  logger.fatal({ event: "uncaught_exception", err, stack: err?.stack }, "Uncaught exception — shutting down");
+  process.exit(1);
+});
+
 const application = createGatewayApplication();
 const { host, port } = application.config.aiGatewayService.endpoint;
 const server = createGatewayHttpServer(application);

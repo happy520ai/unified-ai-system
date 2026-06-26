@@ -27,7 +27,8 @@
   "scripts": {
     "start": "node ./src/index.js",
     "check": "node ./src/entrypoints/checkSyntax.js",
-    "build": "pnpm run check",
+    "build": "pnpm run check && node ./src/ui/buildFrontend.js",
+    "build:frontend": "node ./src/ui/buildFrontend.js",
     "inventory:phase323c": "node ../../tools/phase323c/build-phase323c-inventory.mjs",
     "governance:phase323c": "node ../../tools/phase323c/build-phase323c-script-governance.mjs",
     "commands:phase323c": "node ../../tools/phase323c/print-phase323c-recommended-commands.mjs",
