@@ -12,10 +12,31 @@
   <style>
     .page-enter { animation: fadeInUp 0.5s var(--ease-out) both; }
     .mode-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-5); margin-bottom: var(--space-7); }
-    .mode-card { padding: var(--space-5); cursor: pointer; transition: all var(--duration-normal) var(--ease-smooth); }
-    .mode-card:hover { transform: translateY(-2px); }
-    .mode-card-name { font-family: var(--font-display); font-size: 18px; font-weight: 600; color: var(--text-primary); margin-bottom: 6px; }
-    .mode-card-desc { font-size: var(--text-body-sm); color: var(--text-secondary); margin-bottom: var(--space-4); line-height: 1.5; }
+    .mode-card {
+      padding: var(--space-5);
+      cursor: pointer;
+      transition: all var(--duration-normal) var(--ease-smooth);
+      position: relative;
+      overflow: hidden;
+    }
+    .mode-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--accent), var(--accent-light, #a78bfa));
+      transform: scaleX(0);
+      transform-origin: left;
+      transition: transform var(--duration-normal);
+    }
+    .mode-card:hover::before { transform: scaleX(1); }
+    .mode-card:hover {
+      transform: translateY(-3px);
+      box-shadow: var(--shadow-glow-accent);
+    }
+    .mode-card:active { transform: translateY(-1px); }
+    .mode-card-name { font-family: var(--font-display); font-size: var(--text-body-lg); font-weight: 600; color: var(--text-primary); margin-bottom: var(--space-1); }
+    .mode-card-desc { font-size: var(--text-body-sm); color: var(--text-tertiary); margin-bottom: var(--space-4); line-height: 1.5; }
     .mode-card-metric { font-family: var(--font-display); font-size: var(--text-title); font-weight: 600; color: var(--text-primary); }
     .mode-card-metric-label { font-size: var(--text-caption); color: var(--text-tertiary); margin-top: 2px; }
     .mode-card-footer { display: flex; align-items: center; justify-content: space-between; margin-top: var(--space-4); padding-top: var(--space-4); border-top: 1px solid var(--glass-border-faint); }

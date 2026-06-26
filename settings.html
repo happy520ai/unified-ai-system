@@ -17,15 +17,25 @@
       padding: var(--space-5); gap: var(--space-5);
       border-bottom: 1px solid var(--glass-border-faint);
       border-radius: var(--radius-sm);
-      transition: background var(--duration-fast);
+      transition: all var(--duration-fast);
     }
-    .setting-row:hover { background: var(--glass-bg-faint); }
+    .setting-row:hover {
+      background: var(--glass-bg-hover);
+      border-color: var(--glass-border);
+    }
     .setting-row:last-child { border-bottom: none; }
     .setting-info { flex: 1; min-width: 0; }
     .setting-label { font-size: var(--text-body); font-weight: 500; color: var(--text-primary); margin-bottom: var(--space-1); }
     .setting-desc { font-size: var(--text-body-sm); color: var(--text-tertiary); line-height: 1.5; }
     .setting-control { flex-shrink: 0; display: flex; align-items: center; gap: var(--space-3); }
     .btn:active { transform: scale(0.97); }
+    .settings-section .section-title::before {
+      content: '';
+      width: 3px; height: 1em;
+      background: linear-gradient(180deg, var(--accent), var(--accent-light, #a78bfa));
+      border-radius: var(--radius-full);
+      flex-shrink: 0;
+    }
     @media (max-width: 768px) { .setting-row { flex-direction: column; align-items: flex-start; } .setting-control { width: 100%; } }
   </style>
 </head>
