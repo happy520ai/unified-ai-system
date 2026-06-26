@@ -343,7 +343,7 @@ a:hover {
 
 .glass-inset {
   background: var(--inset-bg);
-  border: 1px solid rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--glass-border-faint);
   border-radius: var(--radius-sm);
 }
 
@@ -357,7 +357,7 @@ a:hover {
   top: var(--space-4);
   bottom: var(--space-4);
   width: var(--sidebar-width);
-  background: rgba(255, 255, 255, 0.025);
+  background: var(--glass-bg-faint);
   backdrop-filter: var(--glass-blur-heavy);
   -webkit-backdrop-filter: var(--glass-blur-heavy);
   border: 1px solid var(--glass-border);
@@ -1161,7 +1161,7 @@ input[type="radio"]:focus-visible {
 
 .table td {
   padding: var(--space-3) var(--space-4);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid var(--glass-border-faint);
   color: var(--text-secondary);
 }
 
@@ -1182,7 +1182,7 @@ input[type="radio"]:focus-visible {
   background: var(--inset-bg);
   border-radius: var(--radius-sm);
   padding: 3px;
-  border: 1px solid rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--glass-border-faint);
 }
 
 .tab {
@@ -2033,7 +2033,7 @@ html { scroll-behavior: smooth; }
   justify-content: space-between;
   padding: 10px 14px;
   background: var(--glass-bg-faint);
-  border: 1px solid rgba(255,255,255,0.05);
+  border: 1px solid var(--glass-bg-heavy);
   border-radius: var(--radius-sm);
   transition: all 0.2s ease;
   gap: 12px;
@@ -2259,7 +2259,7 @@ html { scroll-behavior: smooth; }
   align-items: center;
   gap: 10px;
   padding: 12px 14px;
-  background: rgba(255,255,255,0.025);
+  background: var(--glass-bg-faint);
   border: 1px solid var(--glass-border-hover);
   border-radius: var(--radius-md);
   cursor: pointer;
@@ -2297,7 +2297,7 @@ html { scroll-behavior: smooth; }
 }
 .config-provider-card .provider-meta {
   font-size: 11px;
-  color: rgba(255,255,255,0.35);
+  color: var(--text-tertiary);
   margin-top: 1px;
 }
 .config-provider-card .provider-status-dot {
@@ -2374,13 +2374,13 @@ html { scroll-behavior: smooth; }
   justify-content: space-between;
   padding: 8px 12px;
   background: var(--glass-bg-faint);
-  border: 1px solid rgba(255,255,255,0.05);
+  border: 1px solid var(--glass-bg-heavy);
   border-radius: var(--radius-xs);
   font-size: 13px;
 }
 .config-model-item .model-id {
   font-family: 'SF Mono', 'JetBrains Mono', monospace;
-  color: rgba(255,255,255,0.75);
+  color: var(--text-secondary);
 }
 .config-model-item .model-badge-free {
   font-size: 10px;
@@ -2863,9 +2863,9 @@ select:focus {
 .skeleton {
   background: linear-gradient(
     90deg,
-    rgba(255,255,255,0.03) 0%,
+    var(--glass-border-faint) 0%,
     var(--glass-border-hover) 50%,
-    rgba(255,255,255,0.03) 100%
+    var(--glass-border-faint) 100%
   );
   background-size: 800px 100%;
   animation: skeleton-shimmer 1.8s ease-in-out infinite;
@@ -2887,7 +2887,7 @@ select:focus {
   gap: var(--space-3, 12px);
   align-items: center;
   padding: var(--space-3, 12px) 0;
-  border-bottom: 1px solid rgba(255,255,255,0.03);
+  border-bottom: 1px solid var(--glass-border-faint);
 }
 .skeleton-row .skeleton-avatar {
   width: 32px; height: 32px;
