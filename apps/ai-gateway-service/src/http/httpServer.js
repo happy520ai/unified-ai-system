@@ -22,6 +22,8 @@ import { createRequestLogger } from "./requestLogger.js";
 import { createHealthCheckHandler } from "./healthCheck.js";
 import { extractApiVersion } from "./apiVersion.js";
 import { createResponseCache } from "./responseCache.js";
+import { createCompression } from "./compression.js";
+import { createRequestId } from "./requestId.js";
 
 import { resolvePermission, isPublicRoute } from "./utils/healthUtils.js";
 
@@ -134,11 +136,19 @@ export function createGatewayHttpServer(application) {
   const accessLogger = createRequestLogger();
   const healthCheck = createHealthCheckHandler(application);
   const responseCache = createResponseCache({ ttl: 60_000, maxEntries: 500 });
+  const compress = createCompression();
+  const requestId = createRequestId();
 
   return createServer(async (request, response) => {
     const startedAt = Date.now();
     const url = new URL(request.url ?? "/", `http://${request.headers.host ?? "127.0.0.1"}`);
     if (metricsCollector) metricsCollector.incrementConnections();
+
+    // ── Request ID tracing ──
+    const reqId = requestId(request, response);
+
+    // ── Compression ──
+    compress(request, response);
 
     // ── Static files (production) ──
     if (staticHandler(request, response)) return;
