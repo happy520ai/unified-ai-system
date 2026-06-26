@@ -110,7 +110,7 @@
       var c = document.getElementById('toast-container');
       var colors = { success: '#34d399', error: '#f87171', warning: '#fbbf24', info: '#60a5fa' };
       var el = document.createElement('div');
-      el.style.cssText = 'pointer-events:auto;display:flex;align-items:center;gap:10px;padding:12px 20px;border-radius:14px;background:rgba(12,12,18,0.92);border:1px solid rgba(255,255,255,0.08);backdrop-filter:blur(40px);color:' + colors[type] + ';font-size:14px;font-weight:500;box-shadow:0 8px 32px rgba(0,0,0,0.4);transform:translateX(120%);opacity:0;transition:all 0.4s cubic-bezier(0.34,1.56,0.64,1);';
+      el.style.cssText = 'pointer-events:auto;display:flex;align-items:center;gap:10px;padding:12px 20px;border-radius:14px;background:rgba(12,12,18,0.92);border:1px solid var(--glass-bg-active);backdrop-filter:blur(40px);color:' + colors[type] + ';font-size:14px;font-weight:500;box-shadow:0 8px 32px rgba(0,0,0,0.4);transform:translateX(120%);opacity:0;transition:all 0.4s cubic-bezier(0.34,1.56,0.64,1);';
       el.textContent = msg;
       c.appendChild(el);
       requestAnimationFrame(function() { el.style.transform = 'translateX(0)'; el.style.opacity = '1'; });
