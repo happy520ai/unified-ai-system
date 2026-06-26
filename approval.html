@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data:;">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title data-i18n="approval.title">审批中心 - AI Gateway</title>
+  <link rel="stylesheet" href="console.css">
+  <style>
+    /* ── Approval Center Styles ── */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: var(--space-4);
+      margin-bottom: var(--space-6);
+    }
+    @media (max-width: 768px) {
+      .stats-row { grid-template-columns: 1fr; }
+    }
+    .stat-card {
+      padding: var(--space-5);
+    }
+    .stat-card-label {
+      font-size: var(--text-body-sm);
+      color: var(--text-tertiary);
+      margin-bottom: var(--space-2);
+    }
+    .stat-card-value {
+      font-family: var(--font-display);
+      font-size: var(--text-title);
+      font-weight: 600;
+    }
+    .stat-card-value.accent { color: var(--accent); }
+    .stat-card-value.green { color: var(--status-success); }
+    .stat-card-value.red { color: var(--status-danger); }
+
+    /* Approval cards */
+    .approval-list {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
+      margin-bottom: var(--space-6);
+    }
+    .approval-card {
+      padding: var(--space-5);
+    }
+    .approval-card-title {
+      font-size: var(--text-body-lg);
+      font-weight: 500;
+      color: var(--text-primary);
+      margin-bottom: var(--space-2);
+    }
+    .approval-card-meta {
+      font-size: var(--text-body-sm);
+      color: var(--text-secondary);
+      margin-bottom: var(--space-4);
+    }
+    .approval-card-actions {
+      display: flex;
+      gap: var(--space-3);
+    }
+    .btn-approve {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: var(--space-2) var(--space-4);
+      border-radius: 12px;
+      font-size: var(--text-body-sm);
+      font-weight: 500;
+      border: none;
+      cursor: pointer;
+      background: var(--status-success-soft);
+      color: var(--status-success);
+      border: 1px solid rgba(52, 211, 153, 0.2);
+      transition: all 0.2s ease;
+    }
+    .btn-approve:hover {
+      background: rgba(52, 211, 153, 0.2);
+      transform: translateY(-1px);
+    }
+    .btn-reject {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: var(--space-2) var(--space-4);
+      border-radius: 12px;
+      font-size: var(--text-body-sm);
+      font-weight: 500;
+      border: 1px solid rgba(248, 113, 113, 0.2);
+      cursor: pointer;
+      background: transparent;
+      color: var(--status-danger);
+      transition: all 0.2s ease;
+    }
+    .btn-reject:hover {
+      background: var(--status-danger-soft);
+      transform: translateY(-1px);
+    }
+
+    /* History list */
+    .history-list {
+      display: flex;
+      flex-direction: column;
+    }
+    .history-item {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      padding: var(--space-3) var(--space-4);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    }
+    .history-item:last-child { border-bottom: none; }
+    .history-item:hover { background: rgba(255, 255, 255, 0.015); }
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .status-dot.approved { background: var(--status-success); }
+    .status-dot.rejected { background: var(--status-danger); }
+    .history-title {
+      flex: 1;
+      font-size: var(--text-body);
+      color: var(--text-primary);
+    }
+    .history-time {
+      font-size: var(--text-body-sm);
+      color: var(--text-tertiary);
+    }
+
+    /* Empty state */
+    .empty-state {
+      text-align: center;
+      padding: var(--space-7);
+      color: var(--text-tertiary);
+    }
+    .empty-state-text {
+      font-size: var(--text-body);
+    }
+
+    /* Page fade-in */
+    .page-fade { animation: fadeInUp 0.5s ease-out both; }
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Toast */
+    #toast-container {
+      position: fixed;
+      top: 24px;
+      right: 24px;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .toast {
+      padding: 12px 20px;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.08);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255,255,255,0.1);
+      color: var(--text-primary);
+      font-size: 14px;
+      animation: toastIn 0.3s ease-out;
+    }
+    .toast.success { border-color: rgba(52,211,153,0.3); }
+    .toast.error { border-color: rgba(248,113,113,0.3); }
+    @keyframes toastIn {
+      from { opacity: 0; transform: translateY(-8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+  <a href="#page-main" class="skip-link">跳转到主要内容</a>
+
+  <!-- ── Navigation Sidebar ── -->
+  <!-- Sidebar (由共享组件注入) -->
+
+
+  <!-- ── Main Content ── -->
+  <main class="main-content" id="page-main page-fade">
+
+    <!-- Page Header -->
+    <div class="page-header">
+      <div class="page-label"><span data-i18n="approval.label">APPROVAL</span></div>
+      <h1 class="page-title" data-i18n="approval.pageTitle">审批中心</h1>
+      <p class="page-subtitle" data-i18n="approval.subtitle">管理待审批操作，快速批准或拒绝请求</p>
+    </div>
+
+    <!-- Section 1: Stats Row -->
+    <div class="stats-row">
+      <div class="glass-panel stat-card reveal">
+        <div class="stat-card-label" data-i18n="approval.pending">待审批</div>
+        <div class="stat-card-value accent" id="pending-count" data-animate-number="0">--</div>
+      </div>
+      <div class="glass-panel stat-card reveal reveal-delay-1">
+        <div class="stat-card-label" data-i18n="approval.approvedToday">今日已批准</div>
+        <div class="stat-card-value green" id="approved-count" data-animate-number="0">--</div>
+      </div>
+      <div class="glass-panel stat-card reveal reveal-delay-2">
+        <div class="stat-card-label" data-i18n="approval.rejectedToday">今日已拒绝</div>
+        <div class="stat-card-value red" id="rejected-count" data-animate-number="0">--</div>
+      </div>
+    </div>
+
+    <!-- Section 2: Pending Approvals -->
+    <div class="section">
+      <div class="section-header">
+        <h2 class="section-title" data-i18n="approval.pendingList">待审批</h2>
+      </div>
+      <div class="approval-list" id="pending-list">
+        <div class="glass-panel empty-state">
+          <div class="empty-state-text" data-i18n="approval.loading">加载中...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 3: History -->
+    <div class="section">
+      <div class="section-header">
+        <h2 class="section-title" data-i18n="approval.history">审批历史</h2>
+      </div>
+      <div class="glass-panel reveal" style="padding: var(--space-4);">
+        <div class="history-list" id="history-list">
+          <div class="text-secondary text-center" style="padding: 24px;" data-i18n="approval.loading">加载中...</div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Toast container -->
+  <div id="toast-container"></div>
+
+  <script src="components/nav.js"></script>
+  <script src="components/sidebar.js"></script>
+
+  <script>
+  injectSidebar({ activeId: "approval" });
+    /* ── Toast ── */
+    function showToast(msg, type = 'info') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = 'toast ' + type;
+      toast.textContent = msg;
+      container.appendChild(toast);
+      setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 3000);
+    }
+
+    /* ── Safe Fetch ── */
+    async function safeFetch(url, opts = {}) {
+      try {
+        const res = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...opts });
+        if (!res.ok) throw new Error(res.statusText);
+        return await res.json();
+      } catch (e) {
+        console.warn('safeFetch error:', url, e);
+        return null;
+      }
+    }
+
+    /* ── Load pending approvals ── */
+    async function loadApprovals() {
+      const data = await safeFetch('/approvals');
+      let pending = data?.pending || (Array.isArray(data) ? data : null);
+      if (!pending || !Array.isArray(pending)) {
+        pending = [];
+      }
+      document.getElementById('pending-count').textContent = pending.length;
+
+      const list = document.getElementById('pending-list');
+      if (pending.length === 0) {
+        list.innerHTML = `<div class="glass-panel empty-state"><div class="empty-state-text" data-i18n="approval.noPending">暂无待审批事项</div></div>`;
+        return;
+      }
+      list.innerHTML = pending.map(item => `
+        <div class="glass-panel approval-card reveal">
+          <div class="approval-card-title">${escapeHtml(item.title)}</div>
+          <div class="approval-card-meta">${escapeHtml(item.requester)} &middot; ${escapeHtml(item.time)}</div>
+          <div class="approval-card-actions">
+            <button class="btn-approve btn-primary" onclick="approveItem(${escapeHtml(String(item.id))})" data-i18n="approval.approve">批准</button>
+            <button class="btn-reject btn-secondary" onclick="rejectItem(${escapeHtml(String(item.id))})" data-i18n="approval.reject">拒绝</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    /* ── Load history ── */
+    async function loadHistory() {
+      const data = await safeFetch('/approvals/history');
+      let history = data?.history || data || null;
+      if (!history || !Array.isArray(history)) {
+        history = [];
+      }
+      document.getElementById('approved-count').textContent = history.filter(h => h.status === 'approved').length;
+      document.getElementById('rejected-count').textContent = history.filter(h => h.status === 'rejected').length;
+
+      const list = document.getElementById('history-list');
+      if (history.length === 0) {
+        list.innerHTML = `<div class="glass-panel empty-state"><div class="empty-state-text" data-i18n="approval.noHistory">暂无审批历史</div></div>`;
+        return;
+      }
+      list.innerHTML = history.slice(0, 10).map(item => `
+        <div class="history-item">
+          <span class="status-dot ${escapeHtml(item.status)}"></span>
+          <span class="history-title">${escapeHtml(item.title)}</span>
+          <span class="history-time">${escapeHtml(item.time)}</span>
+        </div>
+      `).join('');
+    }
+
+    /* ── Approve/Reject ── */
+    async function approveItem(id) {
+      await safeFetch(`/approvals/${id}/approve`, { method: 'POST' });
+      showToast(I18N.t('approval.toastApproved'), 'success');
+      loadApprovals();
+      loadHistory();
+    }
+
+    async function rejectItem(id) {
+      await safeFetch(`/approvals/${id}/reject`, { method: 'POST' });
+      showToast(I18N.t('approval.toastRejected'), 'error');
+      loadApprovals();
+      loadHistory();
+    }
+
+    /* ── Init ── */
+    loadApprovals();
+    loadHistory();
+  </script>
+  <script src="i18n.js"></script>
+  <script src="interact.js"></script>
+</body>
+</html>

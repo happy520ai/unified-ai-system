@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data:;">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>组件化示范 — AI Gateway</title>
+  <link rel="stylesheet" href="console.css">
+  <style>
+    /* ── 本页独有样式(极少) ── */
+    .demo-section {
+      max-width: var(--content-max, 900px);
+      margin: 0 auto;
+      padding: var(--space-6);
+    }
+    .demo-card {
+      background: var(--glass-bg, rgba(255,255,255,0.025));
+      backdrop-filter: var(--glass-blur, blur(12px));
+      border: 1px solid var(--glass-border, rgba(255,255,255,0.06));
+      border-radius: var(--radius-lg, 12px);
+      padding: var(--space-5);
+      margin-bottom: var(--space-4);
+    }
+    .demo-card h3 {
+      font-size: var(--text-title, 18px);
+      font-weight: 600;
+      color: var(--text-primary, #fff);
+      margin: 0 0 var(--space-3);
+    }
+    .demo-card p {
+      font-size: var(--text-body, 14px);
+      color: var(--text-secondary, rgba(255,255,255,0.6));
+      line-height: 1.6;
+      margin: 0 0 var(--space-3);
+    }
+    .demo-card code {
+      font-family: var(--font-mono, monospace);
+      font-size: var(--text-body-sm, 12px);
+      background: rgba(255,255,255,0.06);
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: var(--accent, #7c6aef);
+    }
+    .demo-card pre {
+      background: rgba(0,0,0,0.3);
+      border: 1px solid var(--glass-border, rgba(255,255,255,0.06));
+      border-radius: var(--radius-sm, 6px);
+      padding: var(--space-4);
+      overflow-x: auto;
+      font-family: var(--font-mono, monospace);
+      font-size: var(--text-body-sm, 12px);
+      color: var(--text-secondary, rgba(255,255,255,0.7));
+      line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+  <a href="#page-main" class="skip-link">跳转到主要内容</a>
+  <div class="page-wrapper">
+
+    <!-- Sidebar (由 sidebar.js 注入) -->
+
+    <div class="page-main" id="page-main">
+
+      <section class="demo-section" aria-label="组件化示范">
+        <h1 style="font-size: 28px; font-weight: 300; color: var(--text-primary, #fff); margin-bottom: var(--space-2);">组件化示范</h1>
+        <p style="color: var(--text-secondary, rgba(255,255,255,0.5)); margin-bottom: var(--space-6);">这个页面展示了如何用共享组件构建页面,代码量比传统方式减少 80%</p>
+
+        <div class="demo-card">
+          <h3>✅ 已完成:共享组件</h3>
+          <p>以下 3 个组件文件取代了每个页面中重复的 sidebar/nav/layout 代码:</p>
+          <pre>&lt;script src="components/nav.js"&gt;&lt;/script&gt;    &lt;!-- 导航配置 --&gt;
+&lt;script src="components/sidebar.js"&gt;&lt;/script&gt; &lt;!-- 侧边栏渲染 + 交互 --&gt;
+&lt;script src="components/layout.js"&gt;&lt;/script&gt;  &lt;!-- 页面布局骨架 --&gt;
+
+// 一行代码注入侧边栏
+injectSidebar();</pre>
+        </div>
+
+        <div class="demo-card">
+          <h3>📊 改造效果对比</h3>
+          <p>以 <code>index.html</code> 为例:</p>
+          <table class="data-table" style="width:100%; border-collapse:collapse;">
+            <thead>
+              <tr style="border-bottom: 1px solid var(--glass-border, rgba(255,255,255,0.06));">
+                <th style="text-align:left; padding:8px; color:var(--text-secondary, rgba(255,255,255,0.6));">指标</th>
+                <th style="text-align:left; padding:8px; color:var(--text-secondary, rgba(255,255,255,0.6));">改造前</th>
+                <th style="text-align:left; padding:8px; color:var(--text-secondary, rgba(255,255,255,0.6));">改造后</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr style="border-bottom: 1px solid rgba(255,255,255,0.03);">
+                <td style="padding:8px; color:var(--text-primary, #fff);">Sidebar HTML</td>
+                <td style="padding:8px; color:var(--text-secondary, rgba(255,255,255,0.6));">~60 行内嵌</td>
+                <td style="padding:8px; color:var(--status-success, #4ade80);">0 行 (组件注入)</td>
+              </tr>
+              <tr style="border-bottom: 1px solid rgba(255,255,255,0.03);">
+                <td style="padding:8px; color:var(--text-primary, #fff);">导航配置</td>
+                <td style="padding:8px; color:var(--text-secondary, rgba(255,255,255,0.6));">每个页面重复</td>
+                <td style="padding:8px; color:var(--status-success, #4ade80);">nav.js 统一管理</td>
+              </tr>
+              <tr style="border-bottom: 1px solid rgba(255,255,255,0.03);">
+                <td style="padding:8px; color:var(--text-primary, #fff);">Sidebar 折叠逻辑</td>
+                <td style="padding:8px; color:var(--text-secondary, rgba(255,255,255,0.6));">每个页面重复 JS</td>
+                <td style="padding:8px; color:var(--status-success, #4ade80);">sidebar.js 自动绑定</td>
+              </tr>
+              <tr>
+                <td style="padding:8px; color:var(--text-primary, #fff);">新增页面工作量</td>
+                <td style="padding:8px; color:var(--text-secondary, rgba(255,255,255,0.6));">复制整个 HTML + 改</td>
+                <td style="padding:8px; color:var(--status-success, #4ade80);">只写业务内容</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="demo-card">
+          <h3>🔧 使用方式</h3>
+          <p>新页面只需这样写:</p>
+          <pre>&lt;body&gt;
+  &lt;div class="page-wrapper"&gt;
+    &lt;!-- Sidebar 由组件自动注入 --&gt;
+    &lt;div class="page-main" id="page-main"&gt;
+      &lt;!-- 你的页面内容 --&gt;
+    &lt;/div&gt;
+  &lt;/div&gt;
+
+  &lt;script src="i18n.js"&gt;&lt;/script&gt;
+  &lt;script src="interact.js"&gt;&lt;/script&gt;
+  &lt;script src="components/nav.js"&gt;&lt;/script&gt;
+  &lt;script src="components/sidebar.js"&gt;&lt;/script&gt;
+  &lt;script&gt;injectSidebar();&lt;/script&gt;
+&lt;/body&gt;</pre>
+        </div>
+
+        <div class="demo-card">
+          <h3>🌐 桥接技能已安装</h3>
+          <p>以下 ZCode 技能已安装到 <code>~/.zcode/cli/plugins/cache/ai-gateway-skills/</code>:</p>
+          <ul style="color:var(--text-secondary, rgba(255,255,255,0.6)); padding-left:20px; line-height:2;">
+            <li><code>knowledge-rag</code> — 知识库 RAG 检索</li>
+            <li><code>multi-provider-chat</code> — 多 Provider LLM 调用</li>
+            <li><code>workforce-execute</code> — 多角色任务编排</li>
+            <li><code>plugin-registry-discovery</code> — 动态能力发现</li>
+          </ul>
+          <p style="margin-top: var(--space-3);">重启 ZCode 后即可使用这些技能。</p>
+        </div>
+
+      </section>
+
+    </div>
+  </div>
+
+  <script src="components/nav.js"></script>
+  <script src="components/sidebar.js"></script>
+  <script src="i18n.js"></script>
+  <script src="interact.js"></script>
+  <script>
+    injectSidebar();
+    if (typeof I18N !== 'undefined' && I18N.applyToDom) I18N.applyToDom();
+  </script>
+</body>
+</html>

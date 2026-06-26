@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data:;">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title data-i18n="shop.title">商城 - AI Gateway</title>
+  <link rel="stylesheet" href="console.css">
+  <style>
+    /* ── E-commerce Styles ── */
+    .product-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: var(--space-4);
+      margin-bottom: var(--space-6);
+    }
+    @media (max-width: 900px) {
+      .product-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 600px) {
+      .product-grid { grid-template-columns: 1fr; }
+    }
+    .product-card {
+      padding: var(--space-5);
+      display: flex;
+      flex-direction: column;
+    }
+    .product-icon {
+      width: 56px;
+      height: 56px;
+      border-radius: var(--radius-md);
+      background: var(--accent-soft);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      margin-bottom: var(--space-4);
+    }
+    .product-name {
+      font-size: var(--text-body-lg);
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: var(--space-2);
+    }
+    .product-desc {
+      font-size: var(--text-body-sm);
+      color: var(--text-secondary);
+      line-height: 1.5;
+      margin-bottom: var(--space-4);
+      flex: 1;
+    }
+    .product-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .product-price {
+      font-family: var(--font-display);
+      font-size: var(--text-heading);
+      font-weight: 600;
+      color: var(--accent);
+    }
+    .product-price-unit {
+      font-size: var(--text-body-sm);
+      color: var(--text-tertiary);
+      font-weight: 400;
+    }
+    .btn-get {
+      padding: 8px 20px;
+      border-radius: 12px;
+      background: var(--accent);
+      color: white;
+      border: none;
+      font-size: var(--text-body-sm);
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .btn-get:hover {
+      background: var(--accent-hover);
+      transform: translateY(-1px);
+    }
+
+    /* Subscriptions table */
+    .subs-table-wrap {
+      overflow-x: auto;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--glass-border);
+    }
+    .subs-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .subs-table th {
+      padding: var(--space-3) var(--space-4);
+      text-align: left;
+      font-size: var(--text-caption);
+      font-weight: 500;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--text-tertiary);
+      background: rgba(255, 255, 255, 0.02);
+      border-bottom: 1px solid var(--glass-border);
+    }
+    .subs-table td {
+      padding: var(--space-3) var(--space-4);
+      font-size: var(--text-body);
+      color: var(--text-secondary);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+      height: 48px;
+      vertical-align: middle;
+    }
+    .subs-table tr:last-child td { border-bottom: none; }
+    .subs-table tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
+      color: var(--text-primary);
+    }
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    .status-dot.active { background: var(--status-success); }
+    .status-dot.expiring { background: var(--status-warning); }
+    .status-dot.expired { background: var(--status-danger); }
+
+    /* Page fade-in */
+    .page-fade { animation: fadeInUp 0.5s ease-out both; }
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Toast */
+    #toast-container {
+      position: fixed;
+      top: 24px;
+      right: 24px;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .toast {
+      padding: 12px 20px;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.08);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255,255,255,0.1);
+      color: var(--text-primary);
+      font-size: 14px;
+      animation: toastIn 0.3s ease-out;
+    }
+    .toast.success { border-color: rgba(52,211,153,0.3); }
+    .toast.error { border-color: rgba(248,113,113,0.3); }
+    @keyframes toastIn {
+      from { opacity: 0; transform: translateY(-8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+  <a href="#page-main" class="skip-link">跳转到主要内容</a>
+
+  <!-- ── Navigation Sidebar ── -->
+  <!-- Sidebar (由共享组件注入) -->
+
+
+  <!-- ── Main Content ── -->
+  <main class="main-content" id="page-main page-fade">
+
+    <!-- Page Header -->
+    <div class="page-header">
+      <div class="page-label"><span data-i18n="shop.label">MARKETPLACE</span></div>
+      <h1 class="page-title" data-i18n="shop.pageTitle">商城</h1>
+      <p class="page-subtitle" data-i18n="shop.subtitle">AI 服务与订阅管理</p>
+    </div>
+
+    <!-- Section 1: Product Grid -->
+    <div class="section">
+      <div class="section-header">
+        <h2 class="section-title" data-i18n="shop.products">产品</h2>
+      </div>
+      <div class="product-grid">
+        <div class="glass-panel product-card reveal">
+          <div class="product-icon">API</div>
+          <div class="product-name" data-i18n="shop.prod1Name">API 调用包</div>
+          <div class="product-desc" data-i18n="shop.prod1Desc">100 万次 API 调用额度，支持所有主流 Provider，自动负载均衡。</div>
+          <div class="product-footer">
+            <div class="product-price">99<span class="product-price-unit">/月</span></div>
+            <button class="btn-get btn-primary" onclick="getProduct('api-package')" data-i18n="shop.get">获取</button>
+          </div>
+        </div>
+        <div class="glass-panel product-card reveal reveal-delay-1">
+          <div class="product-icon">PRO</div>
+          <div class="product-name" data-i18n="shop.prod2Name">专业版</div>
+          <div class="product-desc" data-i18n="shop.prod2Desc">无限神经元、高级路由、优先级支持、审计日志保留 90 天。</div>
+          <div class="product-footer">
+            <div class="product-price">299<span class="product-price-unit">/月</span></div>
+            <button class="btn-get btn-primary" onclick="getProduct('pro-plan')" data-i18n="shop.get">获取</button>
+          </div>
+        </div>
+        <div class="glass-panel product-card reveal reveal-delay-2">
+          <div class="product-icon">ENT</div>
+          <div class="product-name" data-i18n="shop.prod3Name">企业版</div>
+          <div class="product-desc" data-i18n="shop.prod3Desc">私有部署、SLA 保障、专属客户经理、自定义集成。</div>
+          <div class="product-footer">
+            <div class="product-price">定制</div>
+            <button class="btn-get btn-primary" onclick="getProduct('enterprise')" data-i18n="shop.contact">联系</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 2: My Subscriptions -->
+    <div class="section">
+      <div class="section-header">
+        <h2 class="section-title" data-i18n="shop.subscriptions">我的订阅</h2>
+      </div>
+      <div class="glass-panel reveal" style="padding: 0; overflow: hidden;">
+        <div class="subs-table-wrap">
+          <table class="subs-table data-table">
+            <thead>
+              <tr>
+                <th data-i18n="shop.colName">名称</th>
+                <th data-i18n="shop.colPlan">套餐</th>
+                <th data-i18n="shop.colStatus">状态</th>
+                <th data-i18n="shop.colRenewal">续期日</th>
+              </tr>
+            </thead>
+            <tbody id="subs-tbody" aria-live="polite">
+              <tr>
+                <td><div class="skeleton skeleton-text" style="width:60%"></div></td>
+                <td><div class="skeleton skeleton-text" style="width:40%"></div></td>
+                <td><div class="skeleton skeleton-text" style="width:20%"></div></td>
+                <td><div class="skeleton skeleton-text" style="width:50%"></div></td>
+              </tr>
+              <tr>
+                <td><div class="skeleton skeleton-text" style="width:50%"></div></td>
+                <td><div class="skeleton skeleton-text" style="width:35%"></div></td>
+                <td><div class="skeleton skeleton-text" style="width:20%"></div></td>
+                <td><div class="skeleton skeleton-text" style="width:45%"></div></td>
+              </tr>
+              <tr>
+                <td><div class="skeleton skeleton-text" style="width:55%"></div></td>
+                <td><div class="skeleton skeleton-text" style="width:30%"></div></td>
+                <td><div class="skeleton skeleton-text" style="width:20%"></div></td>
+                <td><div class="skeleton skeleton-text" style="width:50%"></div></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Toast container -->
+  <div id="toast-container" role="status" aria-live="polite"></div>
+
+  <script src="components/nav.js"></script>
+  <script src="components/sidebar.js"></script>
+  <script src="i18n.js"></script>
+
+  <script>
+  injectSidebar({ activeId: "ecommerce" });
+    /* ── Toast ── */
+    function showToast(msg, type = 'info') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = 'toast ' + type;
+      toast.textContent = msg;
+      container.appendChild(toast);
+      setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 3000);
+    }
+
+    /* ── Safe Fetch ── */
+    async function safeFetch(url, opts = {}) {
+      try {
+        const res = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...opts });
+        if (!res.ok) throw new Error(res.statusText);
+        return await res.json();
+      } catch (e) {
+        console.warn('safeFetch error:', url, e);
+        return null;
+      }
+    }
+
+    function getProduct(id) {
+      // Demo-only: This page is a visual showcase, not a real e-commerce system.
+      const messages = {
+        'api-package': I18N.current === 'zh' ? '📦 API 调用包 — 演示模式（非真实购买）' : '📦 API Package — Demo only (not real purchase)',
+        'pro-plan': I18N.current === 'zh' ? '⭐ 专业版 — 演示模式（非真实购买）' : '⭐ Pro Plan — Demo only (not real purchase)',
+        'enterprise': I18N.current === 'zh' ? '🏢 企业版 — 演示模式（请联系销售）' : '🏢 Enterprise — Demo only (contact sales)',
+      };
+      showToast(messages[id] || (I18N.current === 'zh' ? '功能演示中' : 'Demo mode'), 'info');
+    }
+
+    /* ── Load subscriptions ── */
+    async function loadSubscriptions() {
+      const data = await safeFetch('/shop/subscriptions');
+      let subs = data?.subscriptions || data || null;
+      if (!subs || !Array.isArray(subs) || subs.length === 0) {
+        subs = [
+          { name: 'API 调用包', plan: '标准版', status: 'active', renewal: '2026-07-15' },
+          { name: '专业版', plan: '年付', status: 'active', renewal: '2026-12-01' },
+          { name: '额外存储', plan: '50GB', status: 'expiring', renewal: '2026-06-20' }
+        ];
+      }
+      const tbody = document.getElementById('subs-tbody');
+      tbody.innerHTML = subs.map(s => `
+        <tr>
+          <td class="text-primary font-medium">${escapeHtml(s.name)}</td>
+          <td>${escapeHtml(s.plan)}</td>
+          <td><span class="status-dot ${escapeHtml(s.status)}"></span></td>
+          <td class="text-secondary">${escapeHtml(s.renewal)}</td>
+        </tr>
+      `).join('');
+    }
+
+    /* ── Init ── */
+    loadSubscriptions();
+  </script>
+  <script src="interact.js"></script>
+</body>
+</html>

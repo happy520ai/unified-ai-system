@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data:;">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title data-i18n="trimode.title">三模执行器 - AI Gateway</title>
+  <link rel="stylesheet" href="console.css">
+  <style>
+    /* ── Tri-Mode Executor Styles ── */
+    .mode-selector {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: var(--space-4);
+      margin-bottom: var(--space-6);
+    }
+    @media (max-width: 768px) {
+      .mode-selector { grid-template-columns: 1fr; }
+    }
+    .mode-card {
+      padding: var(--space-5);
+      cursor: pointer;
+      border: 2px solid var(--glass-border);
+      transition: all 0.3s ease;
+    }
+    .mode-card:hover {
+      background: var(--glass-bg-hover);
+      border-color: var(--glass-border-hover);
+      transform: translateY(-2px);
+    }
+    .mode-card.selected {
+      border-color: var(--accent);
+      background: var(--accent-soft);
+    }
+    .mode-card-title {
+      font-size: var(--text-body-lg);
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: var(--space-2);
+    }
+    .mode-card.selected .mode-card-title {
+      color: var(--accent);
+    }
+    .mode-card-subtitle {
+      font-size: var(--text-body-sm);
+      color: var(--accent);
+      margin-bottom: var(--space-3);
+    }
+    .mode-card-desc {
+      font-size: var(--text-body);
+      color: var(--text-secondary);
+      line-height: 1.6;
+      margin-bottom: var(--space-4);
+    }
+    .mode-card-btn {
+      padding: 8px 16px;
+      border-radius: 12px;
+      border: 1px solid var(--glass-border);
+      background: transparent;
+      color: var(--text-secondary);
+      font-size: var(--text-body-sm);
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .mode-card.selected .mode-card-btn {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: white;
+    }
+    .mode-card-btn:hover {
+      background: rgba(255, 255, 255, 0.06);
+    }
+    .mode-card.selected .mode-card-btn:hover {
+      background: var(--accent-hover);
+    }
+
+    /* Test area */
+    .test-section {
+      padding: var(--space-5);
+      margin-bottom: var(--space-6);
+    }
+    .test-input-wrap {
+      display: flex;
+      gap: var(--space-3);
+      margin-top: var(--space-4);
+    }
+    .test-input {
+      flex: 1;
+      padding: var(--space-3) var(--space-4);
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--glass-border);
+      background: rgba(0, 0, 0, 0.3);
+      color: var(--text-primary);
+      font-size: var(--text-body);
+      font-family: inherit;
+    }
+    .test-input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-soft);
+    }
+    .test-output {
+      margin-top: var(--space-4);
+      padding: var(--space-4);
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--glass-border);
+      min-height: 100px;
+      font-family: var(--font-mono);
+      font-size: var(--text-body-sm);
+      color: var(--text-secondary);
+      white-space: pre-wrap;
+      display: none;
+    }
+    .test-output.visible { display: block; }
+
+    /* Recent decisions table */
+    .decisions-table-wrap {
+      overflow-x: auto;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--glass-border);
+    }
+    .decisions-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .decisions-table th {
+      padding: var(--space-3) var(--space-4);
+      text-align: left;
+      font-size: var(--text-caption);
+      font-weight: 500;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--text-tertiary);
+      background: rgba(255, 255, 255, 0.02);
+      border-bottom: 1px solid var(--glass-border);
+    }
+    .decisions-table td {
+      padding: var(--space-3) var(--space-4);
+      font-size: var(--text-body);
+      color: var(--text-secondary);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+      height: 48px;
+      vertical-align: middle;
+    }
+    .decisions-table tr:last-child td { border-bottom: none; }
+    .decisions-table tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
+      color: var(--text-primary);
+    }
+    .quality-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    .quality-dot.good { background: var(--status-success); }
+    .quality-dot.fair { background: var(--status-warning); }
+    .quality-dot.poor { background: var(--status-danger); }
+
+    /* Page fade-in */
+    .page-fade { animation: fadeInUp 0.5s ease-out both; }
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Toast */
+    #toast-container {
+      position: fixed;
+      top: 24px;
+      right: 24px;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .toast {
+      padding: 12px 20px;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.08);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255,255,255,0.1);
+      color: var(--text-primary);
+      font-size: 14px;
+      animation: toastIn 0.3s ease-out;
+    }
+    .toast.success { border-color: rgba(52,211,153,0.3); }
+    .toast.error { border-color: rgba(248,113,113,0.3); }
+    @keyframes toastIn {
+      from { opacity: 0; transform: translateY(-8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+  <a href="#page-main" class="skip-link">跳转到主要内容</a>
+
+  <!-- ── Navigation Sidebar ── -->
+  <!-- Sidebar (由共享组件注入) -->
+
+
+  <!-- ── Main Content ── -->
+  <main class="main-content" id="page-main page-fade">
+
+    <!-- Page Header -->
+    <div class="page-header">
+      <div class="page-label"><span data-i18n="trimode.label">EXECUTOR</span></div>
+      <h1 class="page-title" data-i18n="trimode.pageTitle">三模执行器</h1>
+      <p class="page-subtitle" data-i18n="trimode.subtitle">Standard / God / Tianshu 三种执行模式</p>
+    </div>
+
+    <!-- Demo Mode Banner -->
+    <div class="glass-panel-static" style="padding: var(--space-4); margin-bottom: var(--space-6); border-left: 3px solid var(--status-warning);">
+      <div style="display: flex; align-items: center; gap: var(--space-3);">
+        <span style="font-size: 20px;">⚠️</span>
+        <div>
+          <strong style="color: var(--status-warning);">演示模式</strong>
+          <p style="margin: 4px 0 0 0; font-size: var(--text-body-sm); color: var(--text-secondary);">
+            三模执行器需要后端 <code>/routing/compare</code> 和 <code>/routing/stats</code> 路由支持，当前未配置。
+            此页面仅用于展示 UI 界面，无法执行真实的三模对比或查看决策历史。
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 1: Mode Selector -->
+    <div class="section">
+      <div class="section-header">
+        <h2 class="section-title" data-i18n="trimode.selectMode">选择模式</h2>
+      </div>
+      <div class="mode-selector">
+        <div class="glass-panel mode-card selected reveal" onclick="selectMode('standard', this)">
+          <div class="mode-card-title">Standard</div>
+          <div class="mode-card-subtitle" data-i18n="trimode.standardSub">快速响应</div>
+          <div class="mode-card-desc" data-i18n="trimode.standardDesc">单模型直接响应，适合简单查询和快速任务。低延迟，低成本。</div>
+          <button class="mode-card-btn" data-i18n="trimode.selected">已选择</button>
+        </div>
+        <div class="glass-panel mode-card reveal reveal-delay-1" onclick="selectMode('god', this)">
+          <div class="mode-card-title">God</div>
+          <div class="mode-card-subtitle" data-i18n="trimode.godSub">深度评审</div>
+          <div class="mode-card-desc" data-i18n="trimode.godDesc">多模型交叉评审，适合复杂决策和重要输出。高准确度，高成本。</div>
+          <button class="mode-card-btn" data-i18n="trimode.select">选择</button>
+        </div>
+        <div class="glass-panel mode-card reveal reveal-delay-2" onclick="selectMode('tianshu', this)">
+          <div class="mode-card-title">Tianshu</div>
+          <div class="mode-card-subtitle" data-i18n="trimode.tianshuSub">智能规划</div>
+          <div class="mode-card-desc" data-i18n="trimode.tianshuDesc">AI 规划分解任务，多步骤执行。适合复杂工作流和长期任务。</div>
+          <button class="mode-card-btn" data-i18n="trimode.select">选择</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 2: Test Area -->
+    <div class="section">
+      <div class="section-header">
+        <h2 class="section-title" data-i18n="trimode.testArea">测试执行</h2>
+      </div>
+      <div class="glass-panel test-section reveal">
+        <p class="text-secondary" data-i18n="trimode.testDesc">输入提示，在当前模式下执行</p>
+        <div class="test-input-wrap">
+          <input type="text" class="test-input" id="test-input" placeholder="输入测试提示...">
+          <button class="btn btn-primary" onclick="executeTest()" data-i18n="trimode.execute">执行</button>
+        </div>
+        <div class="test-output" id="test-output"></div>
+      </div>
+    </div>
+
+    <!-- Section 3: Recent Decisions -->
+    <div class="section">
+      <div class="section-header">
+        <h2 class="section-title" data-i18n="trimode.recentDecisions">最近决策</h2>
+      </div>
+      <div class="glass-panel reveal" style="padding: 0; overflow: hidden;">
+        <div class="decisions-table-wrap">
+          <table class="decisions-table data-table">
+            <thead>
+              <tr>
+                <th data-i18n="trimode.colTime">时间</th>
+                <th data-i18n="trimode.colMode">模式</th>
+                <th data-i18n="trimode.colProvider">Provider</th>
+                <th data-i18n="trimode.colLatency">延迟</th>
+                <th data-i18n="trimode.colQuality">质量</th>
+              </tr>
+            </thead>
+            <tbody id="decisions-tbody">
+              <tr><td colspan="5" class="text-center text-secondary" style="padding: 32px;">...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Toast container -->
+  <div id="toast-container"></div>
+
+  <script src="components/nav.js"></script>
+  <script src="components/sidebar.js"></script>
+
+  <script>
+  injectSidebar({ activeId: "tri-mode" });
+    /* ── Toast ── */
+    function showToast(msg, type = 'info') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = 'toast ' + type;
+      toast.textContent = msg;
+      container.appendChild(toast);
+      setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 3000);
+    }
+
+    /* ── Safe Fetch ── */
+    async function safeFetch(url, opts = {}) {
+      try {
+        const res = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...opts });
+        if (!res.ok) throw new Error(res.statusText);
+        return await res.json();
+      } catch (e) {
+        console.warn('safeFetch error:', url, e);
+        return null;
+      }
+    }
+
+    /* ── State ── */
+    let currentMode = 'standard';
+
+    function selectMode(mode, card) {
+      currentMode = mode;
+      document.querySelectorAll('.mode-card').forEach(c => {
+        c.classList.remove('selected');
+        c.querySelector('.mode-card-btn').textContent = '选择';
+      });
+      card.classList.add('selected');
+      card.querySelector('.mode-card-btn').textContent = '已选择';
+    }
+
+    async function executeTest() {
+      const input = document.getElementById('test-input');
+      const output = document.getElementById('test-output');
+      const prompt = input.value.trim();
+      if (!prompt) {
+        showToast('请输入提示内容', 'error');
+        return;
+      }
+      output.classList.add('visible');
+      output.textContent = '执行中...';
+      const data = await safeFetch('/routing/compare', {
+        method: 'POST',
+        body: JSON.stringify({ prompt, mode: currentMode })
+      });
+      if (data?.response) {
+        output.textContent = data.response;
+      } else {
+        output.textContent = '演示模式：/routing/compare 路由未配置，无法执行真实对比。';
+      }
+    }
+
+    async function loadDecisions() {
+      const data = await safeFetch('/routing/stats');
+      let decisions = data?.recentDecisions || (Array.isArray(data) ? data : []);
+      const tbody = document.getElementById('decisions-tbody');
+      if (!decisions || decisions.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-secondary" style="padding: 32px;">演示模式：/routing/stats 路由未配置，无决策历史数据。</td></tr>';
+        return;
+      }
+      tbody.innerHTML = decisions.slice(0, 10).map(d => `
+        <tr>
+          <td class="text-mono text-secondary">${escapeHtml(d.time)}</td>
+          <td>${escapeHtml(d.mode)}</td>
+          <td>${escapeHtml(d.provider)}</td>
+          <td class="text-mono">${escapeHtml(d.latency)}</td>
+          <td><span class="quality-dot ${escapeHtml(d.quality)}"></span></td>
+        </tr>
+      `).join('');
+    }
+
+    /* ── Init ── */
+    loadDecisions();
+  </script>
+  <script src="i18n.js"></script>
+  <script src="interact.js"></script>
+</body>
+</html>

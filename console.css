@@ -1282,6 +1282,17 @@ select.input {
   font-weight: 600;
   letter-spacing: var(--tracking-tight);
   color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.section-title::before {
+  content: '';
+  width: 3px;
+  height: 1em;
+  background: linear-gradient(180deg, var(--accent), var(--accent-light, #a78bfa));
+  border-radius: var(--radius-full);
+  flex-shrink: 0;
 }
 
 .section-count {
@@ -2141,14 +2152,17 @@ select:focus {
   padding: var(--space-3) var(--space-4);
   font-size: var(--text-body);
   color: var(--text-secondary);
-  border-bottom: 1px solid rgba(255,255,255,0.02);
+  border-bottom: 1px solid var(--glass-border-faint);
   transition: background var(--duration-fast) var(--ease-smooth);
 }
 .data-table tr {
   transition: background var(--duration-fast) var(--ease-smooth);
 }
-.data-table tbody tr:hover {
+.data-table tbody tr:nth-child(even) {
   background: var(--glass-bg-faint);
+}
+.data-table tbody tr:hover {
+  background: var(--glass-bg-hover);
 }
 .data-table tbody tr:hover td {
   color: var(--text-primary);

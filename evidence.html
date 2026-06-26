@@ -103,7 +103,7 @@
     .timeline-type-dot {
       width: 6px;
       height: 6px;
-      border-radius: 50%;
+      border-radius: var(--radius-full);
       background: var(--accent);
     }
     .timeline-summary {
@@ -176,7 +176,7 @@
     }
     .toast {
       padding: 12px 20px;
-      border-radius: 12px;
+      border-radius: var(--radius-md);
       background: rgba(255,255,255,0.08);
       backdrop-filter: blur(20px);
       -webkit-backdrop-filter: blur(20px);
@@ -194,13 +194,14 @@
   </style>
 </head>
 <body>
+  <a href="#page-main" class="skip-link">跳转到主要内容</a>
 
   <!-- ── Navigation Sidebar ── -->
   <!-- Sidebar (由共享组件注入) -->
 
 
   <!-- ── Main Content ── -->
-  <main class="main-content page-fade">
+  <main class="main-content" id="page-main page-fade">
 
     <!-- Page Header -->
     <div class="page-header">

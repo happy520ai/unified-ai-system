@@ -10,9 +10,9 @@
   <link rel="stylesheet" href="console.css">
   <style>
     .page-enter { animation: fadeInUp 0.5s var(--ease-out) both; }
-    .status-dot-inline { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
-    .status-dot-inline.green { background: var(--status-success); box-shadow: 0 0 8px var(--status-success); }
-    .status-dot-inline.red { background: var(--status-danger); box-shadow: 0 0 8px var(--status-danger); }
+    .status-dot-inline { width: 8px; height: 8px; border-radius: var(--radius-full); display: inline-block; flex-shrink: 0; }
+    .status-dot-inline.green { background: var(--status-success); box-shadow: var(--glow-success); }
+    .status-dot-inline.red { background: var(--status-danger); box-shadow: var(--glow-danger); }
     .status-dot-inline.gray { background: var(--text-tertiary); }
     .key-prefix { font-family: var(--font-mono); font-size: var(--text-body-sm); color: var(--text-secondary); letter-spacing: 0.5px; }
     .btn:active { transform: scale(0.97); }
@@ -47,12 +47,13 @@
   </style>
 </head>
 <body>
-  <div id="toast-container" style="position:fixed;top:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:8px;"></div>
+  <a href="#page-main" class="skip-link">跳转到主要内容</a>
+  <div id="toast-container" role="alert" aria-live="assertive" style="position:fixed;top:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:8px;"></div>
 
   <!-- Sidebar (由共享组件注入) -->
 
 
-  <main class="main-content page-enter">
+  <main class="main-content" id="page-main page-enter">
     <div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;">
       <div>
         <div class="page-label" data-i18n="apikeys.label">API KEYS</div>

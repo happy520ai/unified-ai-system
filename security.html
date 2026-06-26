@@ -19,15 +19,15 @@
     .score-ring-bg { fill: none; stroke: rgba(255,255,255,0.05); stroke-width: 6; }
     .score-ring-fill { fill: none; stroke-width: 6; stroke-linecap: round; stroke-dasharray: 377; transition: stroke-dashoffset 1.5s var(--ease-smooth); }
     .score-ring-center { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
-    .checklist-item { display: flex; align-items: center; gap: var(--space-4); padding: var(--space-4) var(--space-5); border-bottom: 1px solid rgba(255,255,255,0.03); }
+    .checklist-item { display: flex; align-items: center; gap: var(--space-4); padding: var(--space-4) var(--space-5); border-bottom: 1px solid var(--glass-border-faint); }
     .checklist-item:last-child { border-bottom: none; }
-    .check-icon { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+    .check-icon { width: 28px; height: 28px; border-radius: var(--radius-full); display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
     .check-icon.pass { background: var(--status-success-soft); color: var(--status-success); }
     .check-icon.fail { background: var(--status-danger-soft); color: var(--status-danger); }
     .check-text { flex: 1; font-size: var(--text-body); color: var(--text-secondary); }
     .check-status { font-size: var(--text-caption); color: var(--text-tertiary); flex-shrink: 0; }
     .event-item { display: flex; align-items: flex-start; gap: var(--space-3); padding: var(--space-3) 0; }
-    .event-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-tertiary); margin-top: 7px; flex-shrink: 0; }
+    .event-dot { width: 6px; height: 6px; border-radius: var(--radius-full); background: var(--text-tertiary); margin-top: 7px; flex-shrink: 0; }
     .event-text { font-size: var(--text-body-sm); color: var(--text-secondary); line-height: 1.5; }
     .event-time { font-size: var(--text-caption); color: var(--text-tertiary); margin-top: 2px; }
     .btn:active { transform: scale(0.97); }
@@ -35,12 +35,13 @@
   </style>
 </head>
 <body>
-  <div id="toast-container" style="position:fixed;top:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:8px;"></div>
+  <a href="#page-main" class="skip-link">跳转到主要内容</a>
+  <div id="toast-container" role="alert" aria-live="assertive" style="position:fixed;top:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:8px;"></div>
 
   <!-- Sidebar (由共享组件注入) -->
 
 
-  <main class="main-content page-enter">
+  <main class="main-content" id="page-main page-enter">
     <!-- Demo Mode Banner -->
     <div class="glass-panel glass-panel-static" style="margin-bottom: var(--space-6); border-left: 3px solid var(--status-warning); padding: var(--space-4); display: flex; align-items: center; gap: var(--space-3);">
       <span style="font-size: 20px;">⚠️</span>

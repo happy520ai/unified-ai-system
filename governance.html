@@ -37,7 +37,7 @@
     .status-dot {
       width: 8px;
       height: 8px;
-      border-radius: 50%;
+      border-radius: var(--radius-full);
       flex-shrink: 0;
     }
     .status-dot.active { background: var(--status-success); box-shadow: 0 0 6px var(--status-success); }
@@ -92,20 +92,20 @@
       letter-spacing: 0.05em;
       text-transform: uppercase;
       color: var(--text-tertiary);
-      background: rgba(255, 255, 255, 0.02);
+      background: var(--glass-bg-faint);
       border-bottom: 1px solid var(--glass-border);
     }
     .user-table td {
       padding: var(--space-3) var(--space-4);
       font-size: var(--text-body);
       color: var(--text-secondary);
-      border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+      border-bottom: 1px solid var(--glass-border-faint);
       height: 48px;
       vertical-align: middle;
     }
     .user-table tr:last-child td { border-bottom: none; }
     .user-table tr:hover td {
-      background: rgba(255, 255, 255, 0.02);
+      background: var(--glass-bg-faint);
       color: var(--text-primary);
     }
     .user-name {
@@ -123,7 +123,7 @@
       align-items: center;
       gap: var(--space-3);
       padding: var(--space-3) var(--space-4);
-      border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+      border-bottom: 1px solid var(--glass-border-faint);
     }
     .audit-item:last-child { border-bottom: none; }
     .audit-item:hover { background: rgba(255, 255, 255, 0.015); }
@@ -159,7 +159,7 @@
     }
     .toast {
       padding: 12px 20px;
-      border-radius: 12px;
+      border-radius: var(--radius-md);
       background: rgba(255,255,255,0.08);
       backdrop-filter: blur(20px);
       -webkit-backdrop-filter: blur(20px);
@@ -177,13 +177,14 @@
   </style>
 </head>
 <body>
+  <a href="#page-main" class="skip-link">跳转到主要内容</a>
 
   <!-- ── Navigation Sidebar ── -->
   <!-- Sidebar (由共享组件注入) -->
 
 
   <!-- ── Main Content ── -->
-  <main class="main-content page-fade">
+  <main class="main-content" id="page-main page-fade">
     <!-- Demo Mode Banner -->
     <div class="glass-panel glass-panel-static" style="margin-bottom: var(--space-6); border-left: 3px solid var(--status-warning); padding: var(--space-4); display: flex; align-items: center; gap: var(--space-3);">
       <span style="font-size: 20px;">⚠️</span>

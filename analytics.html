@@ -21,7 +21,7 @@
     .bar-chart { display: flex; flex-direction: column; gap: var(--space-3); }
     .bar-row { display: flex; align-items: center; gap: var(--space-3); }
     .bar-day { width: 48px; font-size: var(--text-caption); color: var(--text-tertiary); text-align: right; flex-shrink: 0; }
-    .bar-track { flex: 1; height: 24px; background: rgba(255,255,255,0.03); border-radius: var(--radius-xs); overflow: hidden; position: relative; }
+    .bar-track { flex: 1; height: 24px; background: var(--glass-border-faint); border-radius: var(--radius-xs); overflow: hidden; position: relative; }
     .bar-fill { height: 100%; border-radius: var(--radius-xs); background: var(--accent); transition: width 0.8s var(--ease-smooth); display: flex; align-items: center; padding-left: 8px; }
     .bar-fill-label { font-size: var(--text-caption); color: rgba(255,255,255,0.8); white-space: nowrap; }
     .btn:active { transform: scale(0.97); }
@@ -30,12 +30,13 @@
   </style>
 </head>
 <body>
-  <div id="toast-container" style="position:fixed;top:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:8px;"></div>
+  <a href="#page-main" class="skip-link">跳转到主要内容</a>
+  <div id="toast-container" role="alert" aria-live="assertive" style="position:fixed;top:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:8px;"></div>
 
   <!-- Sidebar (由共享组件注入) -->
 
 
-  <main class="main-content page-enter">
+  <main class="main-content" id="page-main page-enter">
     <!-- Demo Mode Banner -->
     <div class="glass-panel glass-panel-static" style="margin-bottom: var(--space-6); border-left: 3px solid var(--status-warning); padding: var(--space-4); display: flex; align-items: center; gap: var(--space-3);">
       <span style="font-size: 20px;">⚠️</span>

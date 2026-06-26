@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data:;">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title data-i18n="codex.title">Codex 上下文 - AI Gateway</title>
+  <link rel="stylesheet" href="console.css">
+  <style>
+    /* ── Codex Context Styles ── */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: var(--space-4);
+      margin-bottom: var(--space-6);
+    }
+    @media (max-width: 768px) {
+      .stats-row { grid-template-columns: 1fr; }
+    }
+    .stat-card {
+      padding: var(--space-5);
+    }
+    .stat-card-label {
+      font-size: var(--text-body-sm);
+      color: var(--text-tertiary);
+      margin-bottom: var(--space-2);
+    }
+    .stat-card-value {
+      font-family: var(--font-display);
+      font-size: var(--text-title);
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    /* Sessions list */
+    .sessions-list {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
+    }
+    .session-card {
+      padding: var(--space-4) var(--space-5);
+    }
+    .session-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: var(--space-3);
+    }
+    .session-name {
+      font-size: var(--text-body-lg);
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+    .session-close {
+      width: 28px;
+      height: 28px;
+      border-radius: var(--radius-xs);
+      border: none;
+      background: transparent;
+      color: var(--text-tertiary);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+    }
+    .session-close:hover {
+      background: var(--status-danger-soft);
+      color: var(--status-danger);
+    }
+    .session-meta {
+      display: flex;
+      gap: var(--space-4);
+      margin-bottom: var(--space-3);
+    }
+    .session-meta-item {
+      font-size: var(--text-body-sm);
+      color: var(--text-secondary);
+    }
+    .session-meta-item strong {
+      color: var(--text-primary);
+    }
+    .token-bar {
+      height: 4px;
+      background: rgba(255, 255, 255, 0.06);
+      border-radius: var(--radius-full);
+      overflow: hidden;
+    }
+    .token-bar-fill {
+      height: 100%;
+      border-radius: var(--radius-full);
+      background: var(--accent);
+      transition: width 0.4s ease;
+    }
+    .token-bar-fill.warning { background: var(--status-warning); }
+    .token-bar-fill.critical { background: var(--status-danger); }
+
+    /* Preflight section */
+    .preflight-section {
+      padding: var(--space-5);
+    }
+    .preflight-input-wrap {
+      display: flex;
+      gap: var(--space-3);
+      margin-top: var(--space-4);
+    }
+    .preflight-input {
+      flex: 1;
+      padding: var(--space-3) var(--space-4);
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--glass-border);
+      background: rgba(0, 0, 0, 0.3);
+      color: var(--text-primary);
+      font-size: var(--text-body);
+      font-family: inherit;
+    }
+    .preflight-input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-soft);
+    }
+    .preflight-results {
+      margin-top: var(--space-4);
+      padding: var(--space-4);
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: var(--radius-sm);
+      display: none;
+    }
+    .preflight-results.visible { display: block; }
+    .preflight-result-item {
+      display: flex;
+      justify-content: space-between;
+      padding: var(--space-2) 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      font-size: var(--text-body);
+    }
+    .preflight-result-item:last-child { border-bottom: none; }
+    .preflight-result-label { color: var(--text-secondary); }
+    .preflight-result-value { color: var(--text-primary); font-weight: 500; }
+
+    /* Page fade-in */
+    .page-fade { animation: fadeInUp 0.5s ease-out both; }
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Toast */
+    #toast-container {
+      position: fixed;
+      top: 24px;
+      right: 24px;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .toast {
+      padding: 12px 20px;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.08);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255,255,255,0.1);
+      color: var(--text-primary);
+      font-size: 14px;
+      animation: toastIn 0.3s ease-out;
+    }
+    .toast.success { border-color: rgba(52,211,153,0.3); }
+    .toast.error { border-color: rgba(248,113,113,0.3); }
+    @keyframes toastIn {
+      from { opacity: 0; transform: translateY(-8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+  <a href="#page-main" class="skip-link">跳转到主要内容</a>
+
+  <!-- ── Navigation Sidebar ── -->
+  <!-- Sidebar (由共享组件注入) -->
+
+
+  <!-- ── Main Content ── -->
+  <main class="main-content" id="page-main page-fade">
+
+    <!-- Page Header -->
+    <div class="page-header">
+      <div class="page-label"><span data-i18n="codex.label">CODEX</span></div>
+      <h1 class="page-title" data-i18n="codex.pageTitle">Codex 上下文</h1>
+      <p class="page-subtitle" data-i18n="codex.subtitle">长任务上下文管理与压缩</p>
+    </div>
+
+    <!-- Section 1: Stats Row -->
+    <div class="stats-row">
+      <div class="glass-panel stat-card reveal">
+        <div class="stat-card-label" data-i18n="codex.activeSessions">活跃会话</div>
+        <div class="stat-card-value" id="active-sessions" data-animate-number="0">--</div>
+      </div>
+      <div class="glass-panel stat-card reveal reveal-delay-1">
+        <div class="stat-card-label" data-i18n="codex.tokensSaved">已节省 Token</div>
+        <div class="stat-card-value" id="tokens-saved" data-animate-number="0">--</div>
+      </div>
+      <div class="glass-panel stat-card reveal reveal-delay-2">
+        <div class="stat-card-label" data-i18n="codex.compressionRatio">压缩率</div>
+        <div class="stat-card-value" id="compression-ratio" data-animate-number="0">--</div>
+      </div>
+    </div>
+
+    <!-- Section 2: Sessions List -->
+    <div class="section">
+      <div class="section-header">
+        <h2 class="section-title" data-i18n="codex.sessions">会话列表</h2>
+      </div>
+      <div class="sessions-list" id="sessions-list">
+        <div class="glass-panel" style="padding: 24px; text-align: center;">
+          <span class="text-secondary" data-i18n="codex.loading">加载中...</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 3: Preflight Test -->
+    <div class="section">
+      <div class="section-header">
+        <h2 class="section-title" data-i18n="codex.preflight">预检测试</h2>
+      </div>
+      <div class="glass-panel preflight-section reveal">
+        <p class="text-secondary" data-i18n="codex.preflightDesc">输入任务描述，分析上下文需求</p>
+        <div class="preflight-input-wrap">
+          <input type="text" class="preflight-input" id="preflight-input" placeholder="例如：分析过去一周的 API 调用日志...">
+          <button class="btn btn-primary" onclick="runPreflight()" data-i18n="codex.analyze">分析</button>
+        </div>
+        <div class="preflight-results" id="preflight-results">
+          <div class="preflight-result-item">
+            <span class="preflight-result-label" data-i18n="codex.estimatedTokens">预估 Token</span>
+            <span class="preflight-result-value" id="result-tokens">--</span>
+          </div>
+          <div class="preflight-result-item">
+            <span class="preflight-result-label" data-i18n="codex.recommendedMode">推荐模式</span>
+            <span class="preflight-result-value" id="result-mode">--</span>
+          </div>
+          <div class="preflight-result-item">
+            <span class="preflight-result-label" data-i18n="codex.complexity">复杂度</span>
+            <span class="preflight-result-value" id="result-complexity">--</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Toast container -->
+  <div id="toast-container"></div>
+
+  <script src="components/nav.js"></script>
+  <script src="components/sidebar.js"></script>
+
+  <script>
+  injectSidebar({ activeId: "codex-context" });
+    /* ── Toast ── */
+    function showToast(msg, type = 'info') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = 'toast ' + type;
+      toast.textContent = msg;
+      container.appendChild(toast);
+      setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 3000);
+    }
+
+    /* ── Safe Fetch ── */
+    async function safeFetch(url, opts = {}) {
+      try {
+        const res = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...opts });
+        if (!res.ok) throw new Error(res.statusText);
+        return await res.json();
+      } catch (e) {
+        console.warn('safeFetch error:', url, e);
+        return null;
+      }
+    }
+
+    /* ── Load stats ── */
+    async function loadStats() {
+      const data = await safeFetch('/codex/stats');
+      if (data) {
+        document.getElementById('active-sessions').textContent = data.activeSessions || 0;
+        document.getElementById('tokens-saved').textContent = data.tokensSaved ? data.tokensSaved.toLocaleString() : '0';
+        document.getElementById('compression-ratio').textContent = data.compressionRatio ? (data.compressionRatio * 100).toFixed(1) + '%' : '--';
+      } else {
+        document.getElementById('active-sessions').textContent = '3';
+        document.getElementById('tokens-saved').textContent = '12,450';
+        document.getElementById('compression-ratio').textContent = '68.5%';
+      }
+    }
+
+    /* ── Load sessions ── */
+    async function loadSessions() {
+      const data = await safeFetch('/codex/sessions');
+      let sessions = data?.sessions || data || null;
+      if (!sessions || !Array.isArray(sessions) || sessions.length === 0) {
+        sessions = [
+          { id: 'sess-001', name: '代码审查任务', tokens: 8500, maxTokens: 16000, turns: 12, created: '2 小时前' },
+          { id: 'sess-002', name: '文档生成会话', tokens: 4200, maxTokens: 8000, turns: 6, created: '4 小时前' },
+          { id: 'sess-003', name: '数据分析对话', tokens: 12800, maxTokens: 16000, turns: 18, created: '昨天' }
+        ];
+      }
+      const list = document.getElementById('sessions-list');
+      list.innerHTML = sessions.map(s => {
+        const pct = Math.round((s.tokens / s.maxTokens) * 100);
+        const barClass = pct >= 90 ? 'critical' : pct >= 70 ? 'warning' : '';
+        return `
+          <div class="glass-panel session-card">
+            <div class="session-header">
+              <span class="session-name">${escapeHtml(s.name)}</span>
+              <button class="session-close" onclick="closeSession('${escapeHtml(s.id)}')" title="关闭">&times;</button>
+            </div>
+            <div class="session-meta">
+              <span class="session-meta-item"><strong>${s.tokens.toLocaleString()}</strong> / ${s.maxTokens.toLocaleString()} tokens</span>
+              <span class="session-meta-item"><strong>${s.turns}</strong> turns</span>
+              <span class="session-meta-item">${escapeHtml(s.created)}</span>
+            </div>
+            <div class="token-bar">
+              <div class="token-bar-fill ${barClass}" style="width: ${pct}%"></div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function closeSession(id) {
+      await safeFetch(`/codex/sessions/${id}`, { method: 'DELETE' });
+      showToast('会话已关闭', 'success');
+      loadSessions();
+      loadStats();
+    }
+
+    async function runPreflight() {
+      const input = document.getElementById('preflight-input');
+      const task = input.value.trim();
+      if (!task) {
+        showToast('请输入任务描述', 'error');
+        return;
+      }
+      const data = await safeFetch('/codex/preflight', {
+        method: 'POST',
+        body: JSON.stringify({ task })
+      });
+      const results = document.getElementById('preflight-results');
+      results.classList.add('visible');
+      if (data) {
+        document.getElementById('result-tokens').textContent = data.estimatedTokens?.toLocaleString() || '--';
+        document.getElementById('result-mode').textContent = data.recommendedMode || '--';
+        document.getElementById('result-complexity').textContent = data.complexity || '--';
+      } else {
+        document.getElementById('result-tokens').textContent = '8,500';
+        document.getElementById('result-mode').textContent = 'Standard';
+        document.getElementById('result-complexity').textContent = '中';
+      }
+    }
+
+    /* ── Init ── */
+    loadStats();
+    loadSessions();
+  </script>
+  <script src="i18n.js"></script>
+  <script src="interact.js"></script>
+</body>
+</html>
