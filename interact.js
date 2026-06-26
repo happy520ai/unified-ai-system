@@ -88,7 +88,7 @@ const Interact = window.Interact = {
     overlay.setAttribute('aria-label', title);
     overlay.style.cssText = `
       position: fixed; inset: 0; z-index: 9998;
-      background: rgba(0,0,0,0.5); backdrop-filter: blur(12px);
+      background: var(--overlay-bg); backdrop-filter: blur(12px);
       display: flex; align-items: center; justify-content: center;
       opacity: 0; transition: opacity 0.3s ease;
     `;
@@ -101,7 +101,7 @@ const Interact = window.Interact = {
       -webkit-backdrop-filter: blur(80px) saturate(200%);
       border: 1px solid var(--glass-border); border-radius: var(--radius-xl);
       padding: 32px; max-width: 420px; width: calc(100% - 32px);
-      box-shadow: 0 16px 64px rgba(0,0,0,0.4), 0 0 0 1px var(--glass-border-faint);
+      box-shadow: var(--depth-3), 0 0 0 1px var(--glass-border-faint);
       transform: scale(0.95) translateY(8px);
       transition: transform 0.35s cubic-bezier(0.34,1.56,0.64,1);
     `;
@@ -109,11 +109,11 @@ const Interact = window.Interact = {
     const confirmText = I18N ? I18N.t('common.confirm') : 'Confirm';
     modal.innerHTML = `
       <h3 style="font-size:18px;font-weight:600;color:rgba(255,255,255,0.92);margin-bottom:12px">${escapeHtml(title)}</h3>
-      <p style="font-size:14px;color:rgba(255,255,255,0.56);line-height:1.6;margin-bottom:28px">${escapeHtml(message)}</p>
+      <p style="font-size:14px;color:var(--text-secondary);line-height:1.6;margin-bottom:28px">${escapeHtml(message)}</p>
       <div style="display:flex;gap:10px;justify-content:flex-end">
         <button class="confirm-cancel" style="
           padding:8px 20px;border-radius:10px;font-size:14px;font-weight:500;cursor:pointer;
-          background:rgba(255,255,255,0.04);color:rgba(255,255,255,0.56);border:1px solid rgba(255,255,255,0.08);
+          background:var(--glass-bg-faint);color:var(--text-secondary);border:1px solid var(--glass-border);
         ">${cancelText}</button>
         <button class="confirm-ok" style="
           padding:8px 20px;border-radius:10px;font-size:14px;font-weight:500;cursor:pointer;
