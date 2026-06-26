@@ -208,8 +208,21 @@ body::before {
 
 /* ── Selection ── */
 ::selection {
-  background: rgba(124, 106, 239, 0.3);
+  background: var(--accent-selection);
   color: var(--text-primary);
+}
+
+/* ── Links ── */
+a {
+  color: var(--accent);
+  text-decoration: none;
+  transition: color var(--duration-fast), border-color var(--duration-fast);
+}
+a:hover {
+  color: var(--accent-hover);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1.5px;
 }
 
 /* ── Scrollbar ── */
@@ -521,12 +534,23 @@ body::before {
 /* ── Page Header ── */
 .page-header {
   margin-bottom: var(--space-7);
+  padding: var(--space-6) 0;
+  position: relative;
+}
+.page-header::before {
+  content: '';
+  position: absolute;
+  top: 0; left: -var(--space-6); right: -var(--space-6);
+  height: 100%;
+  background: linear-gradient(180deg, rgba(124,106,239,0.03) 0%, transparent 100%);
+  pointer-events: none;
+  z-index: -1;
 }
 
 .page-label {
   font-size: var(--text-micro);
-  font-weight: 500;
-  letter-spacing: 0.1em;
+  font-weight: 600;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--accent);
   margin-bottom: var(--space-3);
@@ -2484,27 +2508,28 @@ select:focus {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: var(--space-8, 32px) var(--space-4, 16px);
+  padding: var(--space-9) var(--space-5);
   text-align: center;
-  color: var(--text-tertiary, rgba(255,255,255,0.4));
+  color: var(--text-tertiary);
 }
 .empty-state-icon {
-  width: 48px; height: 48px;
-  margin-bottom: var(--space-4, 16px);
-  opacity: 0.4;
+  width: 56px; height: 56px;
+  margin-bottom: var(--space-5);
+  opacity: 0.3;
   stroke: currentColor;
   fill: none;
   stroke-width: 1.5;
 }
 .empty-state-title {
-  font-size: var(--text-body, 14px);
+  font-size: var(--text-body-lg);
   font-weight: 600;
-  color: var(--text-secondary, rgba(255,255,255,0.6));
-  margin-bottom: var(--space-1, 4px);
+  color: var(--text-secondary);
+  margin-bottom: var(--space-2);
 }
 .empty-state-desc {
-  font-size: var(--text-body-sm, 13px);
-  max-width: 300px;
-  line-height: 1.5;
+  font-size: var(--text-body);
+  max-width: 320px;
+  line-height: 1.6;
+  color: var(--text-tertiary);
 }
 
