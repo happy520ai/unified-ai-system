@@ -12,7 +12,6 @@
     "build": "pnpm run check"
   },
   "dependencies": {
-    "@unified-ai-system/workforce-contracts": "workspace:*",
-    "@unified-ai-system/position-library": "workspace:*"
+    "@unified-ai-system/workforce-contracts": "workspace:*"
   }
 }
