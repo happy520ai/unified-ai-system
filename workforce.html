@@ -12,13 +12,31 @@
   <style>
     .page-enter { animation: fadeInUp 0.5s var(--ease-out) both; }
     .agent-row { display: flex; gap: var(--space-4); overflow-x: auto; padding-bottom: var(--space-2); margin-bottom: var(--space-7); }
-    .agent-card { flex: 0 0 150px; padding: var(--space-5); text-align: center; transition: all var(--duration-normal) var(--ease-smooth); }
-    .agent-card:hover { transform: translateY(-2px); }
+    .agent-card {
+      flex: 0 0 150px; padding: var(--space-5); text-align: center;
+      transition: all var(--duration-normal) var(--ease-smooth);
+      position: relative; overflow: hidden;
+    }
+    .agent-card::after {
+      content: '';
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--accent), var(--accent-light, #a78bfa));
+      transform: scaleX(0);
+      transition: transform var(--duration-normal);
+    }
+    .agent-card:hover::after { transform: scaleX(1); }
+    .agent-card:hover {
+      transform: translateY(-3px);
+      box-shadow: var(--shadow-glow-accent);
+    }
     .agent-avatar {
-      width: 48px; height: 48px; border-radius: var(--radius-full);
-      background: var(--accent-soft); display: flex; align-items: center; justify-content: center;
+      width: 52px; height: 52px; border-radius: var(--radius-full);
+      background: linear-gradient(135deg, var(--accent-soft), rgba(96,165,250,0.12));
+      display: flex; align-items: center; justify-content: center;
       font-size: 20px; font-weight: 600; color: var(--accent); margin: 0 auto var(--space-3);
-      box-shadow: 0 2px 8px rgba(124,106,239,0.15);
+      box-shadow: 0 4px 16px rgba(124,106,239,0.2);
     }
     .agent-name { font-size: var(--text-body); font-weight: 600; color: var(--text-primary); margin-bottom: var(--space-1); }
     .agent-role { font-size: var(--text-caption); color: var(--text-tertiary); margin-bottom: var(--space-3); }
@@ -29,10 +47,10 @@
     .plan-item {
       display: flex; align-items: center; gap: var(--space-5);
       padding: var(--space-5); border-bottom: 1px solid var(--glass-border-faint);
-      border-radius: var(--radius-sm); transition: background var(--duration-fast);
+      border-radius: var(--radius-sm); transition: all var(--duration-fast);
     }
     .plan-item:last-child { border-bottom: none; }
-    .plan-item:hover { background: var(--glass-bg-hover); }
+    .plan-item:hover { background: var(--glass-bg-hover); border-color: var(--glass-border); }
     .plan-info { flex: 1; min-width: 0; }
     .plan-name { font-size: var(--text-body); font-weight: 500; color: var(--text-primary); margin-bottom: 6px; }
     .plan-meta { font-size: var(--text-caption); color: var(--text-tertiary); }

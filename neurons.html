@@ -21,21 +21,26 @@
       display: flex; align-items: center; gap: var(--space-4);
       padding: var(--space-4) var(--space-5);
       border-bottom: 1px solid var(--glass-border-faint);
-      border-radius: var(--radius-sm); transition: background var(--duration-fast);
+      border-radius: var(--radius-sm); transition: all var(--duration-fast);
     }
     .neuron-item:last-child { border-bottom: none; }
-    .neuron-item:hover { background: var(--glass-bg-hover); }
+    .neuron-item:hover { background: var(--glass-bg-hover); border-color: var(--glass-border); }
     .neuron-info { flex: 1; min-width: 0; }
-    .neuron-name { font-size: var(--text-body); font-weight: 500; color: var(--text-primary); margin-bottom: 2px; }
+    .neuron-name { font-size: var(--text-body); font-weight: 500; color: var(--text-primary); margin-bottom: var(--space-1); }
     .neuron-meta { font-size: var(--text-caption); color: var(--text-tertiary); display: flex; align-items: center; gap: var(--space-3); }
-    .neuron-weight { font-family: var(--font-mono); font-size: var(--text-body-sm); color: var(--text-secondary); width: 48px; text-align: center; flex-shrink: 0; }
+    .neuron-weight {
+      font-family: var(--font-mono); font-size: var(--text-body-sm);
+      color: var(--accent); background: var(--accent-soft);
+      padding: var(--space-1) var(--space-2); border-radius: var(--radius-xs);
+      min-width: 48px; text-align: center; flex-shrink: 0;
+    }
     .timeline { display: flex; flex-direction: column; gap: 0; position: relative; padding-left: var(--space-6); }
     .timeline::before { content: ''; position: absolute; left: 11px; top: 8px; bottom: 8px; width: 1px; background: var(--glass-border-hover); }
     .timeline-item { display: flex; align-items: flex-start; gap: var(--space-4); padding: var(--space-3) 0; position: relative; }
-    .timeline-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; position: absolute; left: calc(-1 * var(--space-6) + 7px); top: calc(var(--space-3) + 5px); }
-    .timeline-dot.green { background: var(--status-success); }
-    .timeline-dot.yellow { background: var(--status-warning); }
-    .timeline-dot.red { background: var(--status-danger); }
+    .timeline-dot { width: 10px; height: 10px; border-radius: var(--radius-full); flex-shrink: 0; position: absolute; left: calc(-1 * var(--space-6) + 7px); top: calc(var(--space-3) + 5px); }
+    .timeline-dot.green { background: var(--status-success); box-shadow: var(--glow-success); }
+    .timeline-dot.yellow { background: var(--status-warning); box-shadow: var(--glow-warning); }
+    .timeline-dot.red { background: var(--status-danger); box-shadow: var(--glow-danger); }
     .timeline-dot.gray { background: var(--text-tertiary); }
     .timeline-text { font-size: var(--text-body-sm); color: var(--text-secondary); }
     .timeline-time { font-size: var(--text-caption); color: var(--text-tertiary); margin-top: 2px; }
