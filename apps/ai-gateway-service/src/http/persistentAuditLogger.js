@@ -75,7 +75,7 @@ export function createPersistentAuditLogger(options = {}) {
       details: event.details ?? null,
     };
 
-    const line = JSON.stringify(entry) + "\n";
+    const line = `${JSON.stringify(entry)  }\n`;
 
     // Rotate if needed
     const targetFile = getLogFileName();

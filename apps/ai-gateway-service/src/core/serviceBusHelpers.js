@@ -96,7 +96,7 @@ export async function resolveServiceInstance(name, importFn) {
   let instance = null;
 
   // Strategy 1: default export
-  if (mod.default != null) {
+  if (mod.default !== null) {
     instance =
       typeof mod.default === "function" && isClassLike(mod.default)
         ? tryInstantiate(mod.default)
@@ -104,7 +104,7 @@ export async function resolveServiceInstance(name, importFn) {
   }
 
   // Strategy 2: factory function matching the service name
-  if (instance == null) {
+  if (instance === null) {
     const factoryName = `create${capitalize(name)}`;
     if (typeof mod[factoryName] === "function") {
       try {
@@ -116,7 +116,7 @@ export async function resolveServiceInstance(name, importFn) {
   }
 
   // Strategy 3: singleton accessor
-  if (instance == null) {
+  if (instance === null) {
     const getterName = `get${capitalize(name)}`;
     if (typeof mod[getterName] === "function") {
       try {
@@ -128,7 +128,7 @@ export async function resolveServiceInstance(name, importFn) {
   }
 
   // Strategy 4: named class — try PascalCase version of the name
-  if (instance == null) {
+  if (instance === null) {
     const className = capitalize(name);
     if (typeof mod[className] === "function") {
       instance = tryInstantiate(mod[className]);
@@ -136,7 +136,7 @@ export async function resolveServiceInstance(name, importFn) {
   }
 
   // Strategy 4b: try common export names
-  if (instance == null) {
+  if (instance === null) {
     const commonNames = [
       "Service", "Manager", "Executor", "Registry", "Pipeline", "Engine",
     ];
@@ -144,13 +144,13 @@ export async function resolveServiceInstance(name, importFn) {
       const candidate = mod[capitalize(name) + suffix];
       if (typeof candidate === "function") {
         instance = tryInstantiate(candidate);
-        if (instance != null) break;
+        if (instance !== null) break;
       }
     }
   }
 
   // Strategy 5: module itself (plain object export)
-  if (instance == null && mod != null && typeof mod === "object") {
+  if (instance === null && mod !== null && typeof mod === "object") {
     const hasMethods = Object.values(mod).some(
       (v) => typeof v === "function"
     );
@@ -199,7 +199,7 @@ export async function initializeServices(services, initializedServices, initErro
   const initPromises = [];
 
   for (const [name, entry] of services) {
-    if (entry.instance == null) continue;
+    if (entry.instance === null) continue;
 
     if (typeof entry.instance.init === "function") {
       const p = (async () => {
@@ -247,7 +247,7 @@ export async function shutdownServices(services) {
 
   for (const [name, entry] of services) {
     if (
-      entry.instance != null &&
+      entry.instance !== null &&
       typeof entry.instance.shutdown === "function"
     ) {
       const p = (async () => {
@@ -297,7 +297,7 @@ export function buildStatus(initialized, services, caches, initErrors) {
   const servicesStatus = {};
   for (const [name, entry] of services) {
     servicesStatus[name] = {
-      loaded: entry.instance != null,
+      loaded: entry.instance !== null,
       initialized: entry.initialized,
       initError: entry.initError ? entry.initError.message : null,
       loadTimeMs: entry.loadTimeMs,

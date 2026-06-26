@@ -76,7 +76,7 @@ export function createRateLimiter(options = {}) {
     // Always set rate limit headers
     res.setHeader("X-RateLimit-Limit", String(maxRequests));
     res.setHeader("X-RateLimit-Remaining", String(result.remaining));
-    res.setHeader("X-RateLimit-Window", String(Math.round(windowMs / 1000)) + "s");
+    res.setHeader("X-RateLimit-Window", `${String(Math.round(windowMs / 1000))  }s`);
 
     if (!result.allowed) {
       res.setHeader("Retry-After", String(Math.ceil(result.retryAfterMs / 1000)));

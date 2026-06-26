@@ -250,7 +250,7 @@ export class GatewayEventBus {
       queueMicrotask(() => {
         try {
           const result = entry.fn(payload);
-          if (result != null && typeof result.then === "function") {
+          if (result !== null && typeof result.then === "function") {
             result.catch((err) => {
               this._emitError(event, entry.label, err);
             });

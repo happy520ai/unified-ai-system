@@ -267,7 +267,7 @@ export class GatewayServiceBus {
    */
   hasService(name) {
     const entry = this.services.get(name);
-    return entry != null && entry.instance != null;
+    return entry !== null && entry.instance !== null;
   }
 
   /**

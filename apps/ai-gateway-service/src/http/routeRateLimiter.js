@@ -58,7 +58,7 @@ export function createRouteRateLimiter(options = {}) {
   function getRouteLimiter(pathname) {
     // Find matching route pattern (exact prefix match)
     for (const [pattern, limits] of Object.entries(routeLimits)) {
-      if (pathname === pattern || pathname.startsWith(pattern + "/")) {
+      if (pathname === pattern || pathname.startsWith(`${pattern  }/`)) {
         const key = pattern;
         if (!routeLimiters.has(key)) {
           routeLimiters.set(key, createRateLimiter({

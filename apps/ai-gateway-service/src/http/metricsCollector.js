@@ -163,7 +163,7 @@ export function createMetricsCollector() {
     }
 
     lines.push("# EOF");
-    return lines.join("\n") + "\n";
+    return `${lines.join("\n")  }\n`;
   }
 
   function getSnapshot() {
