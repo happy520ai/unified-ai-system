@@ -96,7 +96,7 @@ export async function resolveServiceInstance(name, importFn) {
   let instance = null;
 
   // Strategy 1: default export
-  if (mod.default != null) {
+  if (mod.default !== undefined && mod.default !== null) {
     instance =
       typeof mod.default === "function" && isClassLike(mod.default)
         ? tryInstantiate(mod.default)
