@@ -1,0 +1,341 @@
+openapi: 3.0.3
+info:
+  title: AI Gateway API
+  description: |
+    Unified AI Gateway — multi-model LLM routing, knowledge RAG, workforce orchestration.
+  version: 0.1.0
+  contact:
+    name: AI Gateway Team
+
+servers:
+  - url: http://127.0.0.1:3100
+    description: Local development
+
+security:
+  - bearerAuth: []
+
+paths:
+  /health/live:
+    get:
+      summary: Liveness probe
+      description: Returns 200 if process is alive. Used by Kubernetes/Docker HEALTHCHECK.
+      tags: [Health]
+      security: []
+      responses:
+        "200":
+          description: Alive
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LivenessResponse"
+
+  /health/ready:
+    get:
+      summary: Readiness probe
+      description: Returns 200 when service is ready to accept traffic (providers configured).
+      tags: [Health]
+      security: []
+      responses:
+        "200":
+          description: Ready
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReadinessResponse"
+        "503":
+          description: Not ready
+
+  /health/check:
+    get:
+      summary: Full health check
+      description: Comprehensive status with dependency checks.
+      tags: [Health]
+      security: []
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+  /chat:
+    post:
+      summary: Chat completion
+      description: Send messages to an LLM provider and get a response.
+      tags: [Chat]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatRequest"
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatResponse"
+        "400":
+          description: Invalid request
+        "429":
+          description: Rate limited
+        "502":
+          description: Provider error
+
+  /chat/stream:
+    post:
+      summary: Chat streaming (SSE)
+      description: Stream chat responses via Server-Sent Events.
+      tags: [Chat]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatRequest"
+      responses:
+        "200":
+          description: SSE stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+
+  /providers:
+    get:
+      summary: List providers
+      description: List all configured LLM providers and their models.
+      tags: [Providers]
+      responses:
+        "200":
+          description: Provider list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProviderListResponse"
+
+  /knowledge/load:
+    post:
+      summary: Load knowledge document
+      description: Upload a document for RAG indexing.
+      tags: [Knowledge]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "200":
+          description: Document loaded
+
+  /knowledge/retrieve:
+    post:
+      summary: Retrieve knowledge
+      description: Search knowledge base for relevant documents.
+      tags: [Knowledge]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [query]
+              properties:
+                query:
+                  type: string
+                mode:
+                  type: string
+                  enum: [keyword, vector, hybrid]
+                  default: keyword
+                topK:
+                  type: integer
+                  default: 5
+      responses:
+        "200":
+          description: Search results
+
+  /workforce/plan:
+    post:
+      summary: Create workforce plan
+      description: Generate a 7-role analysis plan for a goal.
+      tags: [Workforce]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [goal]
+              properties:
+                goal:
+                  type: string
+      responses:
+        "200":
+          description: Plan created
+
+  /workforce/execute:
+    post:
+      summary: Execute workforce plan
+      description: Execute a workforce plan with LLM-driven role analysis.
+      tags: [Workforce]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [goal]
+              properties:
+                goal:
+                  type: string
+      responses:
+        "200":
+          description: Execution complete
+        "422":
+          description: Execution failed
+
+  /forge/goals:
+    get:
+      summary: List Forge goals
+      description: List all goals in the Forge engine.
+      tags: [Forge]
+      responses:
+        "200":
+          description: Goal list
+    post:
+      summary: Submit Forge goal
+      description: Submit a new goal for autonomous coding.
+      tags: [Forge]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [goal]
+              properties:
+                goal:
+                  type: string
+      responses:
+        "200":
+          description: Goal submitted
+
+  /forge/health:
+    get:
+      summary: Forge health
+      description: Check Forge engine health.
+      tags: [Forge]
+      responses:
+        "200":
+          description: Forge status
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    ChatRequest:
+      type: object
+      required: [messages]
+      properties:
+        messages:
+          type: array
+          items:
+            type: object
+            properties:
+              role:
+                type: string
+                enum: [system, user, assistant]
+              content:
+                type: string
+        options:
+          type: object
+          properties:
+            maxOutputTokens:
+              type: integer
+            temperature:
+              type: number
+
+    ChatResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        data:
+          type: object
+          properties:
+            outputText:
+              type: string
+            selectedProvider:
+              type: string
+            selectedModel:
+              type: string
+            usage:
+              type: object
+        meta:
+          type: object
+
+    ProviderListResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        data:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              displayName:
+                type: string
+              kind:
+                type: string
+              models:
+                type: array
+                items:
+                  type: object
+
+    LivenessResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        uptimeMs:
+          type: integer
+        memory:
+          type: object
+        pid:
+          type: integer
+
+    ReadinessResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        uptimeMs:
+          type: integer
+        providerCount:
+          type: integer
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        uptimeMs:
+          type: integer
+        version:
+          type: string
+        checks:
+          type: object
