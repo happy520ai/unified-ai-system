@@ -537,11 +537,12 @@
 
 .chat-bubble {
   animation: fadeInUp .35s var(--ease-spring) both;
-  font-size: 14px;
+  font-size: var(--text-body);
   line-height: 1.7;
-  padding: 12px 16px;
+  padding: var(--space-3) var(--space-4);
   max-width: 82%;
   word-break: break-word;
+  transition: box-shadow var(--duration-fast);
 }
 
 .chat-bubble.chat-user {
@@ -552,6 +553,9 @@
   box-shadow: 0 2px 8px var(--accent-glow), 0 1px 3px var(--shadow-sm);
   color: var(--text-primary);
 }
+.chat-bubble.chat-user:hover {
+  box-shadow: 0 4px 16px var(--accent-glow), 0 2px 6px var(--shadow-sm);
+}
 
 .chat-bubble.chat-ai {
   align-self: flex-start;
@@ -560,6 +564,9 @@
   border-radius: var(--radius-lg) var(--radius-lg) var(--radius-lg) var(--radius-xs);
   box-shadow: var(--depth-1);
   color: var(--text-primary);
+}
+.chat-bubble.chat-ai:hover {
+  box-shadow: var(--depth-2);
 }
 
 .chat-bubble.chat-thinking {
