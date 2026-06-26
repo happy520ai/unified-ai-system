@@ -459,7 +459,9 @@ export class TaskQueueManager {
     };
 
     await fs.mkdir(DATA_DIR, { recursive: true });
-    await fs.writeFile(QUEUE_FILE, JSON.stringify(data, null, 2), "utf-8");
+    const tmpPath = QUEUE_FILE + ".tmp";
+    await fs.writeFile(tmpPath, JSON.stringify(data, null, 2), "utf-8");
+    await fs.rename(tmpPath, QUEUE_FILE);
   }
 
   /* ------------------------------------------------------------------ */

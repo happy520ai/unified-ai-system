@@ -74,10 +74,10 @@ export function createWorktreeIsolation(options = {}) {
       }
 
       const timestamp = Date.now();
-      // Security: sanitize planId for git branch name (alphanumeric, dash, underscore only)
-      const sanitizedPlanId = String(planId).replace(/[^a-zA-Z0-9_-]/g, "-").slice(0, 64);
+      // Security: sanitize planId for both git branch name AND filesystem path
+      const sanitizedPlanId = String(planId).replace(/[^a-zA-Z0-9_-]/g, "-").replace(/^\.+/, "").slice(0, 64);
       const safeBranchName = newBranch || `workforce/${sanitizedPlanId}-${timestamp}`;
-      const worktreePath = resolve(repoRoot, worktreeRoot, `${planId}-${timestamp}`);
+      const worktreePath = resolve(repoRoot, worktreeRoot, `${sanitizedPlanId}-${timestamp}`);
 
       // 确保 worktree 根目录存在
       await mkdir(resolve(repoRoot, worktreeRoot), { recursive: true });

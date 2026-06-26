@@ -78,6 +78,8 @@ export function createMetricsCollector() {
     let p = qIdx >= 0 ? path.slice(0, qIdx) : path;
     // Replace UUIDs with placeholder
     p = p.replace(/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/gi, ":id");
+    // Replace numeric IDs with placeholder
+    p = p.replace(/\/\d+(?=\/|$)/g, "/:id");
     // Truncate to avoid cardinality explosion
     if (p.length > 80) p = p.slice(0, 80);
     return p;
@@ -120,14 +122,14 @@ export function createMetricsCollector() {
     }
 
     // HTTP request duration histogram
+    // Buckets are already cumulative from recording (all le >= durationMs are incremented)
     if (httpRequestDuration.size > 0) {
       lines.push("# HELP http_request_duration_ms HTTP request duration in milliseconds");
       lines.push("# TYPE http_request_duration_ms histogram");
       for (const [key, h] of httpRequestDuration) {
-        let cumulative = 0;
         for (const le of DEFAULT_BUCKETS) {
-          cumulative += h.buckets.get(le) ?? 0;
-          lines.push(`http_request_duration_ms_bucket{${key},le="${le}"} ${cumulative}`);
+          const value = h.buckets.get(le) ?? 0;
+          lines.push(`http_request_duration_ms_bucket{${key},le="${le}"} ${value}`);
         }
         lines.push(`http_request_duration_ms_bucket{${key},le="+Inf"} ${h.count}`);
         lines.push(`http_request_duration_ms_sum{${key}} ${Math.round(h.sum)}`);

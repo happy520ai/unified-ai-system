@@ -78,8 +78,8 @@ const GLOBAL_FORBIDDEN = Object.freeze([
   "auth.json",
   ".git",
   "legacy/",
-  "deploy",
-  "release",
+  "deploy/",
+  "release/",
 ]);
 
 const DEFAULT_STORE_PATH = resolve(process.cwd(), ".data", "workforce", "autonomy-budget.json");

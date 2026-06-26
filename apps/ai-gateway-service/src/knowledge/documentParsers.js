@@ -6,7 +6,7 @@ const MAX_FILE_BYTES = 100 * 1024 * 1024;
 const TEXT_EXTENSIONS = new Set([".txt", ".md", ".markdown", ".json", ".csv", ".log", ".html", ".htm", ".xml", ".yaml", ".yml"]);
 const PDF_EXTENSIONS = new Set([".pdf"]);
 const WORD_EXTENSIONS = new Set([".docx"]);
-const EXCEL_EXTENSIONS = new Set([".xlsx", ".xls"]);
+const EXCEL_EXTENSIONS = new Set([".xlsx"]);
 
 export function getSupportedKnowledgeFileTypes() {
   return {

@@ -54,11 +54,13 @@ export function createRouteRateLimiter(options = {}) {
 
   // Per-route limiters (lazily created)
   const routeLimiters = new Map();
+  // Pre-sort patterns by length descending (most specific first)
+  const sortedPatterns = Object.entries(routeLimits).sort((a, b) => b[0].length - a[0].length);
 
   function getRouteLimiter(pathname) {
-    // Find matching route pattern (exact prefix match)
-    for (const [pattern, limits] of Object.entries(routeLimits)) {
-      if (pathname === pattern || pathname.startsWith(`${pattern  }/`)) {
+    // Find matching route pattern (longest prefix match)
+    for (const [pattern, limits] of sortedPatterns) {
+      if (pathname === pattern || pathname.startsWith(`${pattern}/`)) {
         const key = pattern;
         if (!routeLimiters.has(key)) {
           routeLimiters.set(key, createRateLimiter({

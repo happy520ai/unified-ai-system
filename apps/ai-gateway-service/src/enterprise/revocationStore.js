@@ -71,7 +71,8 @@ export function createRevocationStore(options = {}) {
     return { alreadyRevoked: false, hash, record };
   }
 
-  function isRevoked(tokenOrHash) {
+  async function isRevoked(tokenOrHash) {
+    if (!loaded) await load();
     const hash = normalizeToHash(tokenOrHash);
     return revocations.has(hash);
   }

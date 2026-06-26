@@ -154,10 +154,12 @@ export function createLocalKnowledgeService(options = {}) {
         throw error;
       }
 
-      // Check cache
+      // Check cache (LRU: move to end on hit)
       const cacheKey = `${normalizedQuery}:${(request.sourceIds || []).join(",")}:${request.topK || "default"}:${request.minScore || 0}`;
       const cached = queryCache.get(cacheKey);
       if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+        queryCache.delete(cacheKey);
+        queryCache.set(cacheKey, cached);
         return { ...cached.result, metadata: { ...cached.result.metadata, cacheHit: true } };
       }
 

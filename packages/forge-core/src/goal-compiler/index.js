@@ -112,9 +112,12 @@ export async function compileGoal(store, { goalText, projectRoot }) {
   // Step 2: Build the LLM prompt
   const userPrompt = buildUserPrompt(goalText, tree, keyFiles);
 
-  // Step 3: Call LLM to decompose goal
+  // Step 3: Call LLM to decompose goal (with timeout)
   console.log('[forge:compiler] Decomposing goal via LLM...');
-  const llmResponse = await callLLM(SYSTEM_PROMPT, userPrompt, { maxTokens: 16384, temperature: 0.1 });
+  const llmResponse = await Promise.race([
+    callLLM(SYSTEM_PROMPT, userPrompt, { maxTokens: 16384, temperature: 0.1 }),
+    new Promise((_, reject) => setTimeout(() => reject(new Error("LLM call timed out after 120s")), 120_000)),
+  ]);
 
   // Step 4: Parse the DAG
   let parsed;
@@ -122,12 +125,14 @@ export async function compileGoal(store, { goalText, projectRoot }) {
     console.log(`[forge:compiler] LLM response length: ${llmResponse.length} chars`);
     console.log(`[forge:compiler] Response preview: ${llmResponse.slice(0, 500)}`);
 
-    // Debug: dump full response for diagnosis
-    try {
-      const { writeFileSync } = await import('node:fs');
-      writeFileSync('forge-llm-debug.json', llmResponse, 'utf-8');
-      console.log('[forge:compiler] Full response written to forge-llm-debug.json');
-    } catch { /* best-effort: debug dump must not block main flow */ }
+    // Debug: dump full response for diagnosis (only when FORGE_DEBUG_LLM=true)
+    if (process.env.FORGE_DEBUG_LLM === "true") {
+      try {
+        const { writeFileSync } = await import('node:fs');
+        writeFileSync('forge-llm-debug.json', llmResponse, 'utf-8');
+        console.log('[forge:compiler] Full response written to forge-llm-debug.json');
+      } catch { /* best-effort: debug dump must not block main flow */ }
+    }
 
     // Try multiple JSON extraction strategies
     let jsonStr = llmResponse
