@@ -386,8 +386,8 @@
     .chat-textarea::placeholder { color: var(--text-tertiary); }
 
     .chat-send-btn {
-      width: var(--space-10); height: var(--space-10);
-      border-radius: var(--radius-sm);
+      width: 44px; height: 44px;
+      border-radius: var(--radius-md);
       border: none;
       background: var(--accent);
       color: #fff;
@@ -395,18 +395,32 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      transition: all 0.2s;
+      transition: all var(--duration-fast) var(--ease-smooth);
       flex-shrink: 0;
     }
     .chat-send-btn:hover {
       background: var(--accent-hover);
-      box-shadow: 0 4px 16px rgba(124,106,239,0.3);
+      box-shadow: var(--shadow-glow-accent);
       transform: scale(1.05);
     }
     .chat-send-btn:active { transform: scale(0.95); }
-    .chat-send-btn:disabled { opacity: 0.35; cursor: default; transform: none; box-shadow: none; }
-    .chat-send-btn.stop-btn { background: var(--status-danger); border-radius: var(--radius-sm); }
-    .chat-send-btn.stop-btn:hover { background: #ef4444; box-shadow: 0 4px 16px rgba(248,113,113,0.3); }
+    .chat-send-btn:disabled {
+      opacity: 0.3;
+      cursor: default;
+      transform: none;
+      box-shadow: none;
+      background: var(--glass-bg-active);
+    }
+    .chat-send-btn.stop-btn {
+      background: var(--status-danger);
+      border-radius: var(--radius-md);
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+    .chat-send-btn.stop-btn:hover {
+      background: var(--status-danger);
+      box-shadow: 0 0 16px var(--status-danger-glow);
+      animation: none;
+    }
 
     .composer-hint {
       font-size: 11px;

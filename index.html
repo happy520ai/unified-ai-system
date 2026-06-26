@@ -214,39 +214,56 @@
        HERO
        ═══════════════════════════════════════════════ */
     .hero {
-      min-height: 40vh;
+      min-height: 45vh;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
       text-align: center;
-      padding: var(--space-8) var(--space-6) var(--space-7);
-      animation: fadeIn 0.6s var(--ease-out) both;
+      padding: var(--space-9) var(--space-6) var(--space-8);
+      animation: fadeIn 0.8s var(--ease-out) both;
+      position: relative;
+    }
+    .hero::before {
+      content: '';
+      position: absolute;
+      top: 50%; left: 50%;
+      width: 400px; height: 400px;
+      transform: translate(-50%, -50%);
+      background: radial-gradient(circle, rgba(124,106,239,0.08) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: -1;
     }
     .hero-name {
       font-family: var(--font-display);
-      font-size: clamp(40px, 6vw, 56px);
-      font-weight: 300;
+      font-size: clamp(44px, 7vw, 64px);
+      font-weight: 200;
       letter-spacing: var(--tracking-display);
       line-height: var(--leading-display);
-      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-light, #a78bfa) 50%, #60a5fa 100%);
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-light, #a78bfa) 40%, #60a5fa 80%);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text;
       color: var(--text-primary);
-      margin-bottom: var(--space-2);
+      margin-bottom: var(--space-3);
+      animation: heroGlow 4s ease-in-out infinite;
+    }
+    @keyframes heroGlow {
+      0%, 100% { filter: brightness(1); }
+      50% { filter: brightness(1.1); }
     }
     .hero-sub {
-      font-size: var(--text-body);
+      font-size: var(--text-body-lg);
       color: var(--text-secondary);
-      margin-bottom: var(--space-7);
-      letter-spacing: var(--tracking-normal);
+      margin-bottom: var(--space-8);
+      letter-spacing: var(--tracking-wide);
+      font-weight: 300;
     }
 
     /* ── Stat pills ── */
     .stat-pills {
       display: flex;
-      gap: var(--space-5);
+      gap: var(--space-4);
       justify-content: center;
       flex-wrap: wrap;
     }
@@ -260,6 +277,13 @@
       -webkit-backdrop-filter: var(--glass-blur);
       border: 1px solid var(--glass-border);
       border-radius: var(--radius-full);
+      transition: all var(--duration-normal);
+    }
+    .stat-pill:hover {
+      background: var(--glass-bg-hover);
+      border-color: var(--glass-border-hover);
+      transform: translateY(-1px);
+    }
     }
     .stat-pill-value {
       font-family: var(--font-display);
@@ -299,6 +323,21 @@
       text-decoration: none;
       display: block;
       color: inherit;
+      position: relative;
+      overflow: hidden;
+    }
+    .quick-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--accent), var(--accent-light, #a78bfa));
+      transform: scaleX(0);
+      transform-origin: left;
+      transition: transform var(--duration-normal);
+    }
+    .quick-card:hover::before {
+      transform: scaleX(1);
     }
     .quick-card:hover {
       background: var(--glass-bg-hover);
@@ -307,13 +346,25 @@
       box-shadow: var(--shadow-glow-accent);
     }
     .quick-card:active {
-      transform: translateY(0);
+      transform: translateY(-1px);
+      box-shadow: var(--depth-1);
     }
     .quick-card-icon {
-      width: 40px;
-      height: 40px;
-      margin-bottom: var(--space-4);
-      color: var(--text-secondary);
+      width: 40px; height: 40px;
+      border-radius: var(--radius-sm);
+      background: var(--accent-soft);
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: var(--space-3);
+      color: var(--accent);
+    }
+    .quick-card-icon svg {
+      width: 100%;
+      height: 100%;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 1.5;
+      stroke-linecap: round;
+      stroke-linejoin: round;
     }
     .quick-card-icon svg {
       width: 100%;
@@ -326,10 +377,10 @@
     }
     .quick-card-title {
       font-family: var(--font-display);
-      font-size: var(--text-heading);
+      font-size: var(--text-body-lg);
       font-weight: 600;
       color: var(--text-primary);
-      margin-bottom: var(--space-2);
+      margin-bottom: var(--space-1);
       display: flex;
       align-items: center;
       gap: var(--space-2);
@@ -343,8 +394,20 @@
     }
     .quick-card-desc {
       font-size: var(--text-body-sm);
-      color: var(--text-secondary);
+      color: var(--text-tertiary);
       line-height: var(--leading-normal);
+    }
+    .quick-card-arrow {
+      position: absolute;
+      right: var(--space-4); top: 50%;
+      transform: translateY(-50%);
+      opacity: 0;
+      transition: opacity var(--duration-fast), transform var(--duration-fast);
+      color: var(--accent);
+    }
+    .quick-card:hover .quick-card-arrow {
+      opacity: 1;
+      transform: translateY(-50%) translateX(4px);
     }
 
     /* ═══════════════════════════════════════════════
@@ -605,6 +668,7 @@
           </div>
           <div class="quick-card-title" data-i18n="landing.actChat">开始对话</div>
           <div class="quick-card-desc" data-i18n="landing.actChatDesc">与 AI 团队协作，多角色分析</div>
+          <div class="quick-card-arrow">→</div>
         </a>
 
         <a class="quick-card reveal reveal-delay-1" href="neurons.html">
@@ -613,6 +677,7 @@
           </div>
           <div class="quick-card-title" data-i18n="landing.actNeuron">神经元进化</div>
           <div class="quick-card-desc" data-i18n="landing.actNeuronDesc">创建、训练和部署智能模块</div>
+          <div class="quick-card-arrow">→</div>
         </a>
 
         <a class="quick-card reveal reveal-delay-2" href="provider-wizard.html">
@@ -621,6 +686,7 @@
           </div>
           <div class="quick-card-title" data-i18n="landing.actProvider">Provider 管理</div>
           <div class="quick-card-desc" data-i18n="landing.actProviderDesc">接入 OpenAI、Claude、Gemini 等</div>
+          <div class="quick-card-arrow">→</div>
         </a>
 
         <a class="quick-card reveal reveal-delay-1" href="knowledge.html">
@@ -629,6 +695,7 @@
           </div>
           <div class="quick-card-title" data-i18n="landing.actKnowledge">知识库</div>
           <div class="quick-card-desc" data-i18n="landing.actKnowledgeDesc">RAG 驱动的知识检索</div>
+          <div class="quick-card-arrow">→</div>
         </a>
 
         <a class="quick-card reveal reveal-delay-2" href="team.html">
@@ -637,6 +704,7 @@
           </div>
           <div class="quick-card-title" data-i18n="landing.actTeam">团队协作</div>
           <div class="quick-card-desc" data-i18n="landing.actTeamDesc">管理成员、角色与权限</div>
+          <div class="quick-card-arrow">→</div>
         </a>
 
         <a class="quick-card reveal reveal-delay-3" href="dashboard.html">
@@ -645,6 +713,7 @@
           </div>
           <div class="quick-card-title" data-i18n="landing.actMonitor">系统监控</div>
           <div class="quick-card-desc" data-i18n="landing.actMonitorDesc">实时健康与性能指标</div>
+          <div class="quick-card-arrow">→</div>
         </a>
 
       </div>
