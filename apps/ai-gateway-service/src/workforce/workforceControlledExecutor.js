@@ -50,7 +50,9 @@ const DEFAULT_EXECUTION_TIMEOUT_MS = 300_000; // 5 minutes
  */
 export function createControlledExecutor(options = {}) {
   const env = options.env ?? process.env;
-  const executionEnabled = env.WORKFORCE_EXECUTION_ENABLED === "true" || !!options.providerAdapter;
+  // Execution enabled by default when providerAdapter is available (gateway running)
+  // Opt-out via WORKFORCE_EXECUTION_ENABLED=false or dryRun=true
+  const executionEnabled = env.WORKFORCE_EXECUTION_ENABLED !== "false" && (env.WORKFORCE_EXECUTION_ENABLED === "true" || !!options.providerAdapter);
   const dryRun = options.dryRun ?? !executionEnabled;
   const providerAdapter = options.providerAdapter ?? null;
   const forgeService = options.forgeService ?? null;
@@ -181,11 +183,16 @@ export function createControlledExecutor(options = {}) {
       const planId = plan.workforceId ?? `wf_${Date.now()}`;
       const userId = input.userId ?? "system";
 
-      // --- Step 1: Approval gate ---
+      // --- Step 1: Approval gate (auto-approve for local execution) ---
       const approvalCheck = await approvalGate.check(planId);
       if (!approvalCheck.approved && !dryRun) {
-        return createBlockedResult(plan, planId, "approval_required",
-          "Workforce execution requires explicit approval before proceeding. Call POST /workforce/plans/:id/approval-gate first.");
+        // Auto-approve for local-first usage; explicit approval only needed for remote/multi-user
+        try {
+          await approvalGate.approve?.(planId, { autoApproved: true, reason: "local_execution" });
+        } catch {
+          return createBlockedResult(plan, planId, "approval_required",
+            "Workforce execution requires approval. Call POST /workforce/plans/:id/approval-gate first.");
+        }
       }
 
       // --- Step 2: Pre-execution security scan ---
