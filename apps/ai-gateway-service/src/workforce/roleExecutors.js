@@ -90,9 +90,9 @@ export function createRoleExecutor(roleId) {
 
       return (
         `You are a world-class ${roleName} agent in a software development workforce.\n\n` +
-        `Your primary responsibility: ${responsibility}` +
-        capSection +
-        `\n\nWhen given a project goal, produce a thorough, structured analysis demonstrating deep domain expertise.\n` +
+        `Your primary responsibility: ${responsibility}${
+        capSection
+        }\n\nWhen given a project goal, produce a thorough, structured analysis demonstrating deep domain expertise.\n` +
         `Prioritise actionable, specific, and measurable outputs over vague generalisations.\n` +
         `Consider cross-functional dependencies and risks.\n` +
         `Use industry-standard frameworks and terminology appropriate to your role.`

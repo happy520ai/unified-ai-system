@@ -1,8 +1,8 @@
 /**
  * taskClaimToken.js
- * 
+ *
  * 任务认领令牌模块
- * 
+ *
  * 功能：
  * - 为每个任务生成唯一的 claim token（UUID v4）
  * - Agent 必须持有有效的 claim token 才能开始执行

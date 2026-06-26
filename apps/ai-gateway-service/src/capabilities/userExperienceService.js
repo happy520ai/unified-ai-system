@@ -1,3 +1,5 @@
+import { timingSafeEqual } from "node:crypto";
+
 const MEMORY_SOURCE_ID = "long-term-memory";
 
 export function createUserExperienceService({ config, gatewayService, knowledgeService, workflowService, env = {} }) {
@@ -203,7 +205,6 @@ export function isAuthorized({ enabled, expectedToken }, request) {
     return true;
   }
 
-  const { timingSafeEqual } = require("node:crypto");
   const headerToken = request.headers["x-pme-auth-token"];
   const bearer = String(request.headers.authorization ?? "").replace(/^Bearers+/i, "");
 

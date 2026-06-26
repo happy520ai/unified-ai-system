@@ -229,7 +229,7 @@ export function createSandboxMergeExecutor(options = {}) {
       // --- Step 5: Run role executors INSIDE the sandbox context (full power) ---
       const roleResults = {};
       const executionErrors = [];
-      let context = { plan, priorOutputs: {}, sandbox: { worktreePath, candidateBranch, repoRoot } };
+      const context = { plan, priorOutputs: {}, sandbox: { worktreePath, candidateBranch, repoRoot } };
 
       try {
         const allRoleResults = await executeAllRoles(plan.goal, context);

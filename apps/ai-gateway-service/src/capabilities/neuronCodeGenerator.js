@@ -177,7 +177,7 @@ function callGatewayAI(message, mode = "standard") {
         try {
           const parsed = JSON.parse(data);
           if (parsed.success !== false && (parsed.content || parsed.text || parsed.choices)) {
-            let content =
+            const content =
               parsed.content ||
               parsed.text ||
               parsed.choices?.[0]?.message?.content ||
@@ -232,7 +232,7 @@ function callGatewayAI(message, mode = "standard") {
  */
 async function validateSyntax(code, filePath) {
   // 先写入临时文件，再用 node --check 验证
-  const tmpPath = filePath + ".syntax-check.mjs";
+  const tmpPath = `${filePath  }.syntax-check.mjs`;
   try {
     await writeFile(tmpPath, code, "utf-8");
     await execFileAsync("node", ["--check", tmpPath], { timeout: 10_000 });

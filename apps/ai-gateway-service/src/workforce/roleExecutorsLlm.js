@@ -39,9 +39,9 @@ function createExecutorForLlm(roleId) {
         : "";
       return (
         `You are a world-class ${roleName} agent in a software development workforce.\n\n` +
-        `Your primary responsibility: ${responsibility}` +
-        capSection +
-        `\n\nWhen given a project goal, produce a thorough, structured analysis demonstrating deep domain expertise.\n` +
+        `Your primary responsibility: ${responsibility}${
+        capSection
+        }\n\nWhen given a project goal, produce a thorough, structured analysis demonstrating deep domain expertise.\n` +
         `Prioritise actionable, specific, and measurable outputs over vague generalisations.\n` +
         `Consider cross-functional dependencies and risks.\n` +
         `Use industry-standard frameworks and terminology appropriate to your role.`
@@ -184,7 +184,7 @@ export async function executeRoleWithLLM(roleId, goal, context = {}, providerAda
       return {
         ...parsed,
         llmDriven: true,
-        llmRawText: rawText.length > 5000 ? rawText.slice(0, 5000) + "..." : rawText,
+        llmRawText: rawText.length > 5000 ? `${rawText.slice(0, 5000)  }...` : rawText,
         llmUsage: providerResponse?.usage || null,
         llmLatencyMs: providerResponse?.latencyMs || null,
         templateBaseline: templateOutput,
@@ -194,7 +194,7 @@ export async function executeRoleWithLLM(roleId, goal, context = {}, providerAda
     return {
       ...templateOutput,
       llmDriven: true,
-      llmEnhancedText: rawText.length > 5000 ? rawText.slice(0, 5000) + "..." : rawText,
+      llmEnhancedText: rawText.length > 5000 ? `${rawText.slice(0, 5000)  }...` : rawText,
       llmUsage: providerResponse?.usage || null,
       llmLatencyMs: providerResponse?.latencyMs || null,
       llmStructured: false,

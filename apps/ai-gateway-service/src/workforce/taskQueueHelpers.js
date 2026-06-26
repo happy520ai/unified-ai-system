@@ -263,7 +263,7 @@ export function computeStats(queue, activeTasksArr, completedTasks, agentCount) 
       recentThroughput: recentCompleted,
       throughputWindow: "1h",
       successRate: completed.length + failed.length > 0
-        ? ((completed.length / (completed.length + failed.length)) * 100).toFixed(1) + "%"
+        ? `${((completed.length / (completed.length + failed.length)) * 100).toFixed(1)  }%`
         : "N/A",
     },
     priorityBreakdown,

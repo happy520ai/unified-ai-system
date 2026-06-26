@@ -384,7 +384,7 @@ function envBudgetOverrides(env) {
   const out = {};
   for (const [budgetKey, envKey] of Object.entries(map)) {
     const raw = env[envKey];
-    if (raw == null || raw === "") continue;
+    if (raw === null || raw === "") continue;
     const trimmed = String(raw).trim().toLowerCase();
     if (trimmed === "unlimited" || trimmed === "inf" || trimmed === "infinity") {
       out[budgetKey] = Number.MAX_SAFE_INTEGER;

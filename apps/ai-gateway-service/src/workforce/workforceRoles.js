@@ -71,8 +71,3 @@ export function getRoleCapabilities(roleId) {
 }
 
 
-
-
-
-
-

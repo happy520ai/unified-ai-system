@@ -1,8 +1,8 @@
 /**
  * worktreeIsolation.js
- * 
+ *
  * Git Worktree 隔离模块
- * 
+ *
  * 功能：
  * - 为每个 Workforce 任务创建独立的 git worktree
  * - worktree 路径：.worktrees/{planId}-{timestamp}/

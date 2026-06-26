@@ -1,8 +1,8 @@
 /**
  * externalRunnerProtocol.js
- * 
+ *
  * 外部 Runner 协议模块
- * 
+ *
  * 功能：
  * - 定义 Runner 协议接口：start, status, cancel, getResult
  * - 实现 LocalRunner：在当前进程内执行（用于开发/测试）

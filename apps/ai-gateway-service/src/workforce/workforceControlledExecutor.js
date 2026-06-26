@@ -250,7 +250,7 @@ export function createControlledExecutor(options = {}) {
       // --- Step 8: Execute roles with concurrency cap ---
       const roleResults = {};
       const executionErrors = [];
-      let context = { plan, priorOutputs: {} };
+      const context = { plan, priorOutputs: {} };
 
       try {
         let _timeoutTimer;

@@ -119,7 +119,7 @@ export function callGatewayAI(message, mode = "standard") {
           const parsed = JSON.parse(data);
           if (parsed.success !== false && (parsed.content || parsed.text || parsed.choices)) {
             // 提取 AI 返回的文本内容
-            let content =
+            const content =
               parsed.content ||
               parsed.text ||
               parsed.choices?.[0]?.message?.content ||

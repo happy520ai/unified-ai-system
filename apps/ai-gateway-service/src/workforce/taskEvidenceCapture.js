@@ -1,8 +1,8 @@
 /**
  * taskEvidenceCapture.js
- * 
+ *
  * 每任务证据捕获模块
- * 
+ *
  * 功能：
  * - 为每个 Agent 任务捕获执行证据
  * - 证据内容：
@@ -316,7 +316,7 @@ export function createTaskEvidenceCapture(options = {}) {
  */
 function truncate(text, maxLen) {
   if (!text || text.length <= maxLen) return text;
-  return text.slice(0, maxLen) + "...[truncated]";
+  return `${text.slice(0, maxLen)  }...[truncated]`;
 }
 
 /**

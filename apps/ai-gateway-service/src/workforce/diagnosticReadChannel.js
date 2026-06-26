@@ -117,7 +117,7 @@ export function createDiagnosticReadChannel(options = {}) {
           findings.push({ pattern: p.name, count: matches.length, shape: p.shape });
           // Use a fresh global RegExp instance for replaceAll (the source pattern
           // may have been state-advanced by matchAll).
-          const redactor = new RegExp(p.re.source, p.re.flags.includes("g") ? p.re.flags : p.re.flags + "g");
+          const redactor = new RegExp(p.re.source, p.re.flags.includes("g") ? p.re.flags : `${p.re.flags  }g`);
           sanitized = sanitized.replaceAll(redactor, `[REDACTED:${p.name}]`);
         }
       }

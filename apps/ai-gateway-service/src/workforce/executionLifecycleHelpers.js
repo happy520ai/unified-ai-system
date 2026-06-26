@@ -101,7 +101,7 @@ export function sanitizeResult(result) {
   // 限制大文本字段
   for (const key of Object.keys(sanitized)) {
     if (typeof sanitized[key] === "string" && sanitized[key].length > 10000) {
-      sanitized[key] = sanitized[key].slice(0, 10000) + "...[truncated]";
+      sanitized[key] = `${sanitized[key].slice(0, 10000)  }...[truncated]`;
     }
   }
   return sanitized;

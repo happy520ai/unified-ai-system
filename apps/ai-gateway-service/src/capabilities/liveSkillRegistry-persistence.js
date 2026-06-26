@@ -73,7 +73,7 @@ export async function saveRegistry(registryPath, data) {
   await ensureDir(dirname(registryPath));
   data.updatedAt = now();
   const json = JSON.stringify(data, null, 2);
-  const tmpPath = registryPath + ".tmp";
+  const tmpPath = `${registryPath  }.tmp`;
   await writeFile(tmpPath, json, "utf8");
   // 使用 rename 实现原子写入（在 Windows 上 rename 不是严格原子但足够安全）
   const { rename } = await import("node:fs/promises");
@@ -87,7 +87,7 @@ export async function saveRegistry(registryPath, data) {
  */
 export async function appendExecutionLog(logPath, entry) {
   await ensureDir(dirname(logPath));
-  const line = JSON.stringify(entry) + "\n";
+  const line = `${JSON.stringify(entry)  }\n`;
   const { appendFile } = await import("node:fs/promises");
   await appendFile(logPath, line, "utf8");
 }

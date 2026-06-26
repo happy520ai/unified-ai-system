@@ -1,8 +1,8 @@
 /**
  * securityReviewCheckpoint.js
- * 
+ *
  * 安全审查检查点模块
- * 
+ *
  * 功能：
  * - 在每个 Agent 执行前后进行安全检查
  * - 检查项：

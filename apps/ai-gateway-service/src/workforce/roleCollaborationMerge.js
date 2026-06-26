@@ -52,7 +52,7 @@ export function mergeRoleOutputs(roleOutputs) {
       roleId,
       roleName: role?.name ?? roleId,
       tier: TIER_BY_ROLE[roleId] ?? "unknown",
-      hasOutput: output != null && typeof output === "object",
+      hasOutput: output !== null && typeof output === "object",
       keyDecisions: extractArray(output, "keyDecisions", "decisions"),
       risks: extractArray(output, "risks", "identifiedRisks"),
       tasks: extractArray(output, "tasks", "plannedTasks", "actionItems"),

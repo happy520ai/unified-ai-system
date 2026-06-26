@@ -1,8 +1,8 @@
 /**
  * executionApprovalGate.js
- * 
+ *
  * 显式用户审批模块
- * 
+ *
  * 功能：
  * - 在执行任何 Workforce 计划前，要求用户显式审批
  * - 审批记录包含：planId, userId, timestamp, approvedScopes
@@ -296,7 +296,7 @@ async function readApprovalStore(storePath) {
 async function writeApprovalStore(storePath, store) {
   await mkdir(dirname(storePath), { recursive: true });
   // Atomic write: write to temp file then rename to prevent corruption on crash
-  const tmpPath = storePath + ".tmp";
+  const tmpPath = `${storePath  }.tmp`;
   await writeFile(tmpPath, `${JSON.stringify(store, null, 2)}\n`, "utf8");
   const { rename: renameAsync } = await import("node:fs/promises");
   await renameAsync(tmpPath, storePath);
