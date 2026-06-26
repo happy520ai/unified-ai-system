@@ -281,6 +281,7 @@ export function createChatRoutes(application, helpers) {
       "cache-control": "no-cache",
       connection: "keep-alive",
       "content-type": "text/event-stream; charset=utf-8",
+      "x-accel-buffering": "no", // Prevent Nginx proxy buffering
     });
     if (typeof response.flushHeaders === "function") {
       response.flushHeaders();

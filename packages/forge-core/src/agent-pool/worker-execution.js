@@ -135,18 +135,23 @@ export async function executeWorker(s, assignmentId, entry, worker, task, callba
     const execStart = Date.now();
     const timeoutMs = s.adaptiveTimeout.getTimeout();
 
-    result = await Promise.race([
-      s.circuitBreaker.call(providerKey, async () => {
-        return worker.execute(
-          { ...task, allowed_files: task.allowedFiles, allowedFiles: task.allowedFiles },
-          s.projectRoot,
-          {}
-        );
-      }),
-      new Promise((_, reject) =>
-        setTimeout(() => reject(new Error(`Worker timeout: ${workerRole} exceeded ${timeoutMs}ms (adaptive)`)), timeoutMs)
-      ),
-    ]);
+    let timeoutId;
+    try {
+      result = await Promise.race([
+        s.circuitBreaker.call(providerKey, async () => {
+          return worker.execute(
+            { ...task, allowed_files: task.allowedFiles, allowedFiles: task.allowedFiles },
+            s.projectRoot,
+            {}
+          );
+        }),
+        new Promise((_, reject) => {
+          timeoutId = setTimeout(() => reject(new Error(`Worker timeout: ${workerRole} exceeded ${timeoutMs}ms (adaptive)`)), timeoutMs);
+        }),
+      ]);
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId);
+    }
 
     s.adaptiveTimeout.record(Date.now() - execStart);
 

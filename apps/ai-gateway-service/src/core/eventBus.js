@@ -190,7 +190,7 @@ export class GatewayEventBus {
     const snapshot = arr ? arr.slice() : [];
 
     if (this.history.length >= this.maxHistory) {
-      this.history.shift();
+      this.history.splice(0, this.history.length - this.maxHistory + 1);
     }
     this.history.push({
       event,
@@ -231,7 +231,7 @@ export class GatewayEventBus {
     const snapshot = arr ? arr.slice() : [];
 
     if (this.history.length >= this.maxHistory) {
-      this.history.shift();
+      this.history.splice(0, this.history.length - this.maxHistory + 1);
     }
     this.history.push({
       event,
@@ -243,10 +243,6 @@ export class GatewayEventBus {
     for (let i = 0; i < snapshot.length; i++) {
       const entry = snapshot[i];
 
-      if (entry.once) {
-        this._removeEntry(event, entry.fn);
-      }
-
       queueMicrotask(() => {
         try {
           const result = entry.fn(payload);
@@ -257,6 +253,11 @@ export class GatewayEventBus {
           }
         } catch (err) {
           this._emitError(event, entry.label, err);
+        } finally {
+          // Remove once listeners after execution, not before
+          if (entry.once) {
+            this._removeEntry(event, entry.fn);
+          }
         }
       });
     }

@@ -18,6 +18,7 @@ const DEFAULT_MAX_REQUESTS = 60;
 export function createRateLimiter(options = {}) {
   const windowMs = options.windowMs ?? DEFAULT_WINDOW_MS;
   const maxRequests = options.maxRequests ?? DEFAULT_MAX_REQUESTS;
+  const MAX_BUCKETS = 100_000; // Hard cap to prevent memory exhaustion
   const whitelist = new Set(options.whitelist ?? ["127.0.0.1", "::1", "::ffff:127.0.0.1"]);
   const buckets = new Map();
 
@@ -48,6 +49,10 @@ export function createRateLimiter(options = {}) {
     let bucket = buckets.get(ip);
 
     if (!bucket || now - bucket.windowStart > windowMs) {
+      // Reject new entries if at capacity (DDoS protection)
+      if (buckets.size >= MAX_BUCKETS && !buckets.has(ip)) {
+        return { allowed: false, remaining: 0, retryAfterMs: windowMs };
+      }
       bucket = { windowStart: now, count: 0 };
       buckets.set(ip, bucket);
     }

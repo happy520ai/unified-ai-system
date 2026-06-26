@@ -318,6 +318,7 @@ export class LRUCache {
     const keyGen = options.keyGen || ((args) => JSON.stringify(args));
     const ttl = options.ttl;
     const prefix = options.prefix || "";
+    const pending = new Map(); // Prevent cache stampede
 
     return async function cachedWrapper(...args) {
       const rawKey = keyGen(args);
@@ -328,10 +329,25 @@ export class LRUCache {
         return cache.get(key);
       }
 
+      // Deduplicate concurrent requests for the same key
+      if (pending.has(key)) {
+        return pending.get(key);
+      }
+
       // Slow path — execute, store, return.
-      const result = await fn(...args);
-      cache.set(key, result, ttl);
-      return result;
+      const promise = fn(...args).then(
+        (result) => {
+          cache.set(key, result, ttl);
+          pending.delete(key);
+          return result;
+        },
+        (err) => {
+          pending.delete(key);
+          throw err;
+        }
+      );
+      pending.set(key, promise);
+      return promise;
     };
   }
 }

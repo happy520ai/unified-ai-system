@@ -57,12 +57,22 @@ export function createRequestQueue(options = {}) {
 
   /**
    * 等待并发槽位
+   * @param {number} [timeoutMs=30000] — Max wait time
    */
-  function waitForSlot() {
+  function waitForSlot(timeoutMs = 30_000) {
     if (activeCount < maxConcurrent) return Promise.resolve();
 
-    return new Promise((resolve) => {
-      queue.push(resolve);
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        const idx = queue.indexOf(resolve);
+        if (idx !== -1) queue.splice(idx, 1);
+        reject(new Error(`Request queue timeout: no slot available within ${timeoutMs}ms`));
+      }, timeoutMs);
+
+      queue.push(() => {
+        clearTimeout(timer);
+        resolve();
+      });
     });
   }
 
@@ -71,8 +81,8 @@ export function createRequestQueue(options = {}) {
    */
   function processQueue() {
     while (queue.length > 0 && activeCount < maxConcurrent) {
-      const resolve = queue.shift();
-      resolve();
+      const next = queue.shift();
+      next();
     }
   }
 

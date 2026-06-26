@@ -13,6 +13,18 @@ const pools = new Map();
 const DEFAULT_MAX_SOCKETS = 10;
 const DEFAULT_MAX_FREE_SOCKETS = 5;
 const DEFAULT_KEEP_ALIVE_TIMEOUT = 30_000;
+const AGENT_TTL_MS = 10 * 60 * 1000; // 10 minutes idle eviction
+
+// Periodically evict idle agents
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, agent] of pools) {
+    if (agent._lastUsed && now - agent._lastUsed > AGENT_TTL_MS) {
+      agent.destroy();
+      pools.delete(key);
+    }
+  }
+}, 60_000).unref?.();
 
 /**
  * Get or create an HTTP(S) agent for a given base URL.
@@ -48,6 +60,7 @@ export function getOrCreateAgent(baseUrl, options = {}) {
     pools.set(key, agent);
   }
 
+  agent._lastUsed = Date.now();
   return agent;
 }
 

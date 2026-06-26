@@ -285,6 +285,7 @@ export class AgentPoolManager {
         console.error('[forge:pool] Orphan task reaper error:', err);
       });
     }, this.#s.orphanCheckIntervalMs);
+    this.#s.orphanCheckInterval?.unref?.(); // Don't block process exit
 
     // P9: Register modules with graceful degradation
     const _gdDisabled = new Set();
