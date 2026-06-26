@@ -18,6 +18,8 @@ import {
 } from "./utils/responseUtils.js";
 import { readCapabilityJson, readEnterpriseJson } from "./utils/enterpriseUtils.js";
 import { createStaticFileHandler, hasStaticAssets } from "./staticFileServer.js";
+import { createRequestLogger } from "./requestLogger.js";
+import { createHealthCheckHandler } from "./healthCheck.js";
 
 import { resolvePermission, isPublicRoute } from "./utils/healthUtils.js";
 
@@ -127,6 +129,8 @@ export function createGatewayHttpServer(application) {
 
   // Static file handler for production assets
   const staticHandler = createStaticFileHandler();
+  const accessLogger = createRequestLogger();
+  const healthCheck = createHealthCheckHandler(application);
 
   return createServer(async (request, response) => {
     const startedAt = Date.now();
@@ -135,6 +139,18 @@ export function createGatewayHttpServer(application) {
 
     // ── Static files (production) ──
     if (staticHandler(request, response)) return;
+
+    // ── Health check endpoints ──
+    if (request.method === "GET" && url.pathname === "/health/ready") {
+      healthCheck.handleReady(request, response);
+      accessLogger(request, response, startedAt);
+      return;
+    }
+    if (request.method === "GET" && url.pathname === "/health/live") {
+      healthCheck.handleLive(request, response);
+      accessLogger(request, response, startedAt);
+      return;
+    }
 
     // ── 分布式追踪 ──
     const parentContext = tracer.extractContext(request.headers);
@@ -476,6 +492,9 @@ export function createGatewayHttpServer(application) {
       promClientExporter.recordHttpRequest(request.method, url.pathname, response.statusCode, durationMs);
 
       connectionPool.recordDisconnection(host);
+
+      // Structured access log
+      accessLogger(request, response, startedAt);
     }
   });
 }

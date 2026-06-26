@@ -27,10 +27,10 @@ services:
       - gateway-data:/app/.data
       - gateway-evidence:/app/apps/ai-gateway-service/evidence
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3100/health/check"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3100/health/live"]
       interval: 30s
       timeout: 5s
-      start_period: 10s
+      start_period: 15s
       retries: 3
     networks:
       - gateway-net
@@ -41,6 +41,11 @@ services:
           cpus: "2.0"
         reservations:
           memory: 256M
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=64M
 
   # ── Redis（可选：用于缓存和会话存储）──
   redis:
@@ -55,10 +60,12 @@ services:
     networks:
       - gateway-net
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-changeme}", "ping"]
       interval: 10s
       timeout: 3s
       retries: 3
+    security_opt:
+      - no-new-privileges:true
     profiles:
       - with-redis
 
