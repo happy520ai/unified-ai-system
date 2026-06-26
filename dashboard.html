@@ -192,6 +192,29 @@
       height: 16px;
       flex-shrink: 0;
     }
+
+    /* Skeleton loading */
+    .skeleton {
+      background: linear-gradient(90deg, var(--glass-bg-faint) 25%, var(--glass-border-hover) 50%, var(--glass-bg-faint) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s infinite;
+      border-radius: var(--radius-xs);
+    }
+    @keyframes shimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+    .skeleton-text { height: 14px; width: 80%; margin-bottom: var(--space-2); }
+    .skeleton-number { height: 36px; width: 60%; margin-bottom: var(--space-2); }
+    .skeleton-bar { height: 8px; width: 100%; }
+
+    /* Metric value count-up pulse */
+    .metric-value {
+      transition: color 0.3s;
+    }
+    .metric-value.counting {
+      color: var(--accent-light, #a78bfa);
+    }
     .metric-sparkline polyline {
       fill: none;
       stroke-width: 1.5;

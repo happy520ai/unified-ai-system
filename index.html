@@ -409,25 +409,30 @@
       align-items: flex-start;
       justify-content: center;
       padding-top: 18vh;
-      background: rgba(0,0,0,0.4);
-      backdrop-filter: blur(8px);
-      -webkit-backdrop-filter: blur(8px);
+      background: radial-gradient(ellipse 60% 50% at 50% 30%, rgba(124,106,239,0.06) 0%, transparent 70%),
+                  rgba(0,0,0,0.5);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
     }
     .cmd-overlay.open { display: flex; }
     .cmd-box {
-      width: 520px;
+      width: 540px;
       max-width: 92vw;
-      max-height: 380px;
-      background: rgba(18,18,26,0.96);
+      max-height: 420px;
+      background: var(--modal-bg);
       backdrop-filter: var(--glass-blur-heavy);
       -webkit-backdrop-filter: var(--glass-blur-heavy);
-      border: 1px solid var(--glass-border-hover);
-      border-radius: var(--radius-lg);
-      box-shadow: var(--depth-3);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-xl);
+      box-shadow: 0 24px 80px rgba(0,0,0,0.4), 0 0 0 1px var(--glass-border-faint), 0 0 60px rgba(124,106,239,0.08);
       overflow: hidden;
-      animation: fadeIn 0.2s var(--ease-out);
+      animation: cmdIn 0.25s var(--ease-spring);
       display: flex;
       flex-direction: column;
+    }
+    @keyframes cmdIn {
+      from { opacity: 0; transform: translateY(-12px) scale(0.97); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
     }
     .cmd-input-row {
       display: flex;
@@ -455,10 +460,10 @@
     .cmd-kbd {
       font-size: var(--text-caption);
       color: var(--text-faint);
-      background: rgba(255,255,255,0.05);
-      border: 1px solid rgba(255,255,255,0.08);
-      border-radius: 4px;
-      padding: 2px 6px;
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-xs);
+      padding: var(--space-1) var(--space-2);
       font-family: var(--font-mono);
     }
     .cmd-list {

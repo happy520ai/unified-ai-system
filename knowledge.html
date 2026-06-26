@@ -11,11 +11,12 @@
   <link rel="stylesheet" href="knowledge.css">
 </head>
 <body>
-  <div id="toast-container" style="position:fixed;top:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:8px;"></div>
+  <a href="#page-main" class="skip-link">跳转到主要内容</a>
+  <div id="toast-container" role="alert" aria-live="assertive" style="position:fixed;top:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:8px;"></div>
 
   <!-- Sidebar -->
 
-  <main class="main-content page-enter">
+  <main class="main-content page-enter" id="page-main">
     <div class="page-header page-header-row">
       <div>
         <div class="page-label" data-i18n="knowledge.label">KNOWLEDGE BASE</div>

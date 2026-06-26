@@ -2533,3 +2533,56 @@ select:focus {
   color: var(--text-tertiary);
 }
 
+/* ============================================================
+   LOADING SPINNER
+   ============================================================ */
+.spinner {
+  width: 20px; height: 20px;
+  border: 2px solid var(--glass-border);
+  border-top-color: var(--accent);
+  border-radius: var(--radius-full);
+  animation: spin 0.6s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+.spinner-lg { width: 32px; height: 32px; border-width: 3px; }
+
+/* Pulse dot loader */
+.loading-dots {
+  display: inline-flex; gap: var(--space-1);
+}
+.loading-dots span {
+  width: 6px; height: 6px;
+  background: var(--accent);
+  border-radius: var(--radius-full);
+  animation: dotPulse 1.2s ease-in-out infinite;
+}
+.loading-dots span:nth-child(2) { animation-delay: 0.2s; }
+.loading-dots span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes dotPulse {
+  0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
+  40% { opacity: 1; transform: scale(1.2); }
+}
+
+/* Status pulse */
+.pulse {
+  animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* Skeleton shimmer (reusable) */
+.skeleton {
+  background: linear-gradient(90deg, var(--glass-bg-faint) 25%, var(--glass-border-hover) 50%, var(--glass-bg-faint) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: var(--radius-xs);
+}
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
