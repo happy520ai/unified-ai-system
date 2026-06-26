@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="页面未找到 — 太极北斗 AI 网关">
+  <meta name="theme-color" content="#0f1117">
+  <title>404 — 太极北斗</title>
+  <link rel="stylesheet" href="console.css">
+  <style>
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: var(--space-4);
+    }
+    .error-container {
+      text-align: center;
+      max-width: 480px;
+      animation: fadeInUp 0.6s var(--ease-out) both;
+    }
+    .error-code {
+      font-family: var(--font-display);
+      font-size: clamp(80px, 12vw, 120px);
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--accent), var(--accent-light, #a78bfa), #60a5fa);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      line-height: 1;
+      margin-bottom: var(--space-4);
+      animation: float 3s ease-in-out infinite;
+    }
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-8px); }
+    }
+    .error-title {
+      font-family: var(--font-display);
+      font-size: var(--text-display);
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: var(--space-3);
+    }
+    .error-desc {
+      font-size: var(--text-body-lg);
+      color: var(--text-secondary);
+      line-height: 1.6;
+      margin-bottom: var(--space-7);
+    }
+    .error-actions {
+      display: flex;
+      gap: var(--space-3);
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+  </style>
+</head>
+<body>
+  <div class="error-container">
+    <div class="error-code">404</div>
+    <h1 class="error-title">页面未找到</h1>
+    <p class="error-desc">您访问的页面不存在或已被移动。请检查 URL 是否正确，或返回首页。</p>
+    <div class="error-actions">
+      <a href="/" class="btn btn-primary">返回首页</a>
+      <a href="/chat" class="btn btn-secondary">开始对话</a>
+    </div>
+  </div>
+</body>
+</html>

@@ -1737,6 +1737,45 @@ input[type="radio"]:focus-visible {
   border-radius: var(--radius-full);
 }
 
+/* ── Gradient Border Card ── */
+.gradient-border {
+  position: relative;
+  background: var(--glass-bg);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+}
+.gradient-border::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-lg);
+  padding: 1px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-light, #a78bfa), transparent 60%);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* ── Page Transition ── */
+.page-transition {
+  animation: pageIn 0.4s var(--ease-out) both;
+}
+@keyframes pageIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Glow Card Hover ── */
+.glow-card {
+  transition: all var(--duration-normal) var(--ease-smooth);
+}
+.glow-card:hover {
+  box-shadow: var(--shadow-glow-accent);
+  border-color: var(--accent-border);
+  transform: translateY(-2px);
+}
+
 /* ── Tooltip ── */
 [data-tooltip] {
   position: relative;
@@ -2439,7 +2478,9 @@ select:focus {
   box-shadow: 0 2px 8px rgba(124,106,239,0.2);
 }
 .btn-secondary {
-  background: transparent;
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   color: var(--text-secondary);
   border: 1px solid var(--glass-border);
   padding: var(--space-3) var(--space-5);
@@ -2451,7 +2492,8 @@ select:focus {
 .btn-secondary:hover {
   color: var(--text-primary);
   border-color: var(--glass-border-hover);
-  background: var(--glass-border-faint);
+  background: var(--glass-bg-hover);
+  box-shadow: var(--depth-1);
 }
 .btn-secondary:active {
   transform: scale(0.97);

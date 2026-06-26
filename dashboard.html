@@ -132,8 +132,16 @@
       grid-template-columns: repeat(4, 1fr);
       gap: var(--space-4);
       margin-bottom: var(--space-6);
-      animation: fadeIn 0.5s var(--ease-out) 0.1s both;
     }
+    .metric-card {
+      opacity: 0;
+      transform: translateY(12px);
+      animation: fadeInUp 0.5s var(--ease-out) both;
+    }
+    .metric-card:nth-child(1) { animation-delay: 0.1s; }
+    .metric-card:nth-child(2) { animation-delay: 0.2s; }
+    .metric-card:nth-child(3) { animation-delay: 0.3s; }
+    .metric-card:nth-child(4) { animation-delay: 0.4s; }
     .metric-card {
       background: var(--glass-bg);
       backdrop-filter: var(--glass-blur);
@@ -1090,6 +1098,7 @@
 
     function animateValue(el, from, to, duration) {
       if (from === to) return;
+      el.classList.add('counting');
       var start = performance.now();
       var diff = to - from;
       function step(ts) {
@@ -1098,8 +1107,12 @@
         var eased = 1 - Math.pow(1 - progress, 3);
         var current = Math.round(from + diff * eased);
         el.textContent = formatNum(current);
-        if (progress < 1) requestAnimationFrame(step);
-        else el.textContent = formatNum(to);
+        if (progress < 1) {
+          requestAnimationFrame(step);
+        } else {
+          el.textContent = formatNum(to);
+          el.classList.remove('counting');
+        }
       }
       requestAnimationFrame(step);
     }
