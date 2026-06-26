@@ -195,30 +195,42 @@
 
     /* Markdown-lite styles */
     .bubble-text code {
-      background: rgba(255,255,255,0.06);
-      padding: 2px 6px;
-      border-radius: 4px;
-      font-size: 13px;
-      font-family: 'SF Mono', 'Fira Code', monospace;
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border-faint);
+      padding: 2px 7px;
+      border-radius: var(--radius-xs);
+      font-size: var(--text-body-sm);
+      font-family: var(--font-mono);
+      color: var(--accent-light, #a78bfa);
     }
     .bubble-text pre {
-      background: rgba(0,0,0,0.3);
-      border: 1px solid rgba(255,255,255,0.06);
-      border-radius: 8px;
-      padding: 12px 16px;
+      background: var(--terminal-bg);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-md);
+      padding: var(--space-4);
       overflow-x: auto;
-      margin: 8px 0;
+      margin: var(--space-3) 0;
+      position: relative;
+    }
+    .bubble-text pre::before {
+      content: '';
+      position: absolute;
+      top: var(--space-3); left: var(--space-3);
+      display: flex; gap: var(--space-1);
     }
     .bubble-text pre code {
       background: none;
+      border: none;
       padding: 0;
-      font-size: 13px;
-      line-height: 1.5;
+      font-size: var(--text-body-sm);
+      line-height: 1.6;
+      color: var(--text-primary);
     }
     .bubble-text a {
       color: var(--accent);
       text-decoration: none;
-      border-bottom: 1px solid rgba(124,106,239,0.3);
+      border-bottom: 1px solid var(--accent-glow-subtle);
+      transition: border-color var(--duration-fast);
     }
     .bubble-text a:hover { border-bottom-color: var(--accent); }
 
@@ -255,39 +267,45 @@
 
     /* ── Citations ── */
     .message-citations {
-      margin-top: 10px;
-      padding-top: 8px;
-      border-top: 1px solid rgba(255,255,255,0.06);
+      margin-top: var(--space-3);
+      padding-top: var(--space-3);
+      border-top: 1px solid var(--glass-border);
     }
     .citation-heading {
-      font-size: 11px;
+      font-size: var(--text-micro);
       font-weight: 600;
       color: var(--text-tertiary);
-      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: var(--space-2);
     }
     .citation-card {
-      background: rgba(255,255,255,0.02);
-      border: 1px solid rgba(255,255,255,0.05);
-      border-radius: 8px;
-      margin-bottom: 6px;
+      background: var(--glass-bg-faint);
+      border: 1px solid var(--glass-border-faint);
+      border-radius: var(--radius-sm);
+      margin-bottom: var(--space-2);
       overflow: hidden;
+      transition: border-color var(--duration-fast);
     }
+    .citation-card:hover { border-color: var(--glass-border); }
     .citation-card summary {
-      padding: 8px 12px;
-      font-size: 12px;
+      padding: var(--space-3) var(--space-4);
+      font-size: var(--text-body-sm);
       color: var(--text-secondary);
       cursor: pointer;
       list-style: none;
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: var(--space-2);
+      transition: color var(--duration-fast);
     }
+    .citation-card summary:hover { color: var(--text-primary); }
     .citation-card summary::-webkit-details-marker { display: none; }
     .citation-card summary::before {
       content: '▸';
       font-size: 10px;
-      color: var(--text-tertiary);
-      transition: transform 0.2s;
+      color: var(--accent);
+      transition: transform var(--duration-fast);
     }
     .citation-card[open] summary::before { transform: rotate(90deg); }
     .citation-card-body {
