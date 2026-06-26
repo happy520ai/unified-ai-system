@@ -352,6 +352,15 @@
       backdrop-filter: var(--glass-blur-heavy);
       -webkit-backdrop-filter: var(--glass-blur-heavy);
       flex-shrink: 0;
+      position: relative;
+    }
+    .chat-composer::before {
+      content: '';
+      position: absolute;
+      top: -20px; left: 0; right: 0;
+      height: 20px;
+      background: linear-gradient(to top, rgba(0,0,0,0.1), transparent);
+      pointer-events: none;
     }
 
     .composer-input-row {
@@ -371,7 +380,7 @@
       border-radius: var(--radius-md);
       padding: var(--space-3) var(--space-4);
       font-size: var(--text-body);
-      line-height: 1.5;
+      line-height: 1.6;
       font-family: var(--font-body);
       outline: none;
       transition: border-color var(--duration-fast), box-shadow var(--duration-fast);
@@ -583,7 +592,16 @@
 .model-config-btn {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  transition: all var(--duration-fast);
+}
+.model-config-btn:hover {
+  background: var(--glass-bg-hover);
+  border-color: var(--glass-border-hover);
 }
 .model-config-btn svg {
   opacity: 0.6;
