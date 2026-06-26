@@ -7,12 +7,19 @@ import { createErrorEnvelope } from "@unified-ai-system/shared-utils";
 
 /**
  * Read JSON from HTTP request body
+ * @param {object} request — HTTP request
+ * @param {number} [maxSize] — Max body size in bytes (default: 1MB)
  */
-export async function readJson(request) {
+export async function readJson(request, maxSize = 1_048_576) {
   // If body was already parsed (e.g. by middleware), return it
   if (request.body && typeof request.body === "object") return request.body;
   const chunks = [];
+  let totalSize = 0;
   for await (const chunk of request) {
+    totalSize += chunk.length;
+    if (totalSize > maxSize) {
+      throw new Error(`Request body too large (max ${Math.round(maxSize / 1024)}KB)`);
+    }
     chunks.push(chunk);
   }
   const raw = Buffer.concat(chunks).toString("utf8");

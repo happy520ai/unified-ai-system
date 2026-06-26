@@ -17,6 +17,7 @@ import {
   writeErrorResponse,
 } from "./utils/responseUtils.js";
 import { readCapabilityJson, readEnterpriseJson } from "./utils/enterpriseUtils.js";
+import { createStaticFileHandler, hasStaticAssets } from "./staticFileServer.js";
 
 import { resolvePermission, isPublicRoute } from "./utils/healthUtils.js";
 
@@ -124,10 +125,16 @@ export function createGatewayHttpServer(application) {
     chatStreamRoutes.handlers,
   ];
 
+  // Static file handler for production assets
+  const staticHandler = createStaticFileHandler();
+
   return createServer(async (request, response) => {
     const startedAt = Date.now();
     const url = new URL(request.url ?? "/", `http://${request.headers.host ?? "127.0.0.1"}`);
     if (metricsCollector) metricsCollector.incrementConnections();
+
+    // ── Static files (production) ──
+    if (staticHandler(request, response)) return;
 
     // ── 分布式追踪 ──
     const parentContext = tracer.extractContext(request.headers);

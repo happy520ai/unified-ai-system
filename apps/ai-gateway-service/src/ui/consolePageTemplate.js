@@ -8,19 +8,32 @@ import { consolePageInlineCss } from "./styles/consolePageInlineCss.js";
 import { consolePageInlineJs } from "./scripts/consolePageInlineJs.js";
 import { pageSwitcherClientJs } from "./scripts/pageSwitcherClientJs.js";
 
+import { hasStaticAssets } from "../http/staticFileServer.js";
+
 export function createPhase321AWorkbenchPage() {
+  const useExternalAssets = hasStaticAssets();
+  const cssTag = useExternalAssets
+    ? `<link rel="stylesheet" href="/assets/console.css">`
+    : `<style>${consolePageInlineCss}</style>`;
+  const jsTag = useExternalAssets
+    ? `<script src="/assets/console.js"></script>`
+    : `<script>${consolePageInlineJs}</script>`;
+
   return `<!doctype html>
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="AI Gateway Workbench — 多模型路由、知识库检索、企业级治理">
+  <meta name="theme-color" content="#0f1117">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <title>AI Gateway Workbench</title>
   <style>
 ${workbenchCoreCss}
 ${ownerDesignTokensCss}
 ${ownerOsThemeCss}
-${consolePageInlineCss}
   </style>
+  ${cssTag}
 </head>
 <body data-phase="phase321a-workbench-product-recovery">
   <div class="app" data-workbench-root="phase372-workbench-root" data-phase="phase372-guarded-ui-acceptance">
@@ -469,9 +482,9 @@ ${renderConversationShell()}
     <span id="phase319a-compat-routes">/local-agent/intent-preview /local-agent/operation-plan /plugin-registry</span>
   </div>
 
-  <script>${consolePageInlineJs}</script>
+  ${jsTag}
   <script>${conversationShellClientJs}</script>
-<script>${cardTransitionClientJs}</script>
+  <script>${cardTransitionClientJs}</script>
   <script>${pageSwitcherClientJs}</script>
 </body>
 </html>`;
