@@ -104,6 +104,8 @@ export function createAutonomyBudget(options = {}) {
     ...(options.dailyBudget || {}),
   };
   const forbidden = [...GLOBAL_FORBIDDEN];
+  // Mutex for consume() to prevent TOCTOU race conditions
+  let consumeMutex = Promise.resolve();
   // Optional tier governor. When attached, the tier's per-resource caps clamp
   // the configured budget DOWN (effective cap = min(configured, tier cap)).
   // This is how the 3-throttle governor limits capability per tier.
@@ -149,58 +151,66 @@ export function createAutonomyBudget(options = {}) {
      * Never auto-grants providerRequests if the daily cap is 0 (paid surface).
      */
     async consume(resource, amount = 1) {
-      if (!Object.prototype.hasOwnProperty.call(dailyBudget, resource)) {
-        return { allowed: false, reason: `unknown_resource:${resource}` };
-      }
-      const day = todayKey();
-      const store = await readStore(storePath);
-      const used = (store.usage[day] || emptyUsage())[resource] || 0;
-      // Effective cap = min(configured budget, tier cap if a governor is attached)
-      let cap = dailyBudget[resource];
-      let tierCapSource = null;
-      if (tierGovernor) {
-        try {
-          const tierCaps = await tierGovernor.getCurrentBudgetCaps();
-          if (tierCaps && typeof tierCaps[resource] === "number") {
-            cap = Math.min(cap, tierCaps[resource]);
-            tierCapSource = tierCaps;
-          }
-        } catch {
-          // Governor read failure → fail-open on the configured cap (don't
-          // block work because the tier file is unreadable; budget still applies).
+      // Serialize concurrent consume calls to prevent TOCTOU race
+      let release;
+      const acquired = new Promise((resolve) => { release = resolve; });
+      const prev = consumeMutex;
+      consumeMutex = consumeMutex.then(() => acquired);
+      await prev;
+
+      try {
+        if (!Object.prototype.hasOwnProperty.call(dailyBudget, resource)) {
+          return { allowed: false, reason: `unknown_resource:${resource}` };
         }
-      }
-      if (cap <= 0) {
-        // Hard-locked resource. Either configured to 0, or the current tier
-        // forces it to 0 (e.g. conservative tier blocks paid provider calls).
-        return { allowed: false, reason: `resource_locked:${resource}`, cap, used, tierCapSource };
-      }
-      if (used + amount > cap) {
+        const day = todayKey();
+        const store = await readStore(storePath);
+        const used = (store.usage[day] || emptyUsage())[resource] || 0;
+        // Effective cap = min(configured budget, tier cap if a governor is attached)
+        let cap = dailyBudget[resource];
+        let tierCapSource = null;
+        if (tierGovernor) {
+          try {
+            const tierCaps = await tierGovernor.getCurrentBudgetCaps();
+            if (tierCaps && typeof tierCaps[resource] === "number") {
+              cap = Math.min(cap, tierCaps[resource]);
+              tierCapSource = tierCaps;
+            }
+          } catch {
+            // Governor read failure → fail-open on the configured cap
+          }
+        }
+        if (cap <= 0) {
+          return { allowed: false, reason: `resource_locked:${resource}`, cap, used, tierCapSource };
+        }
+        if (used + amount > cap) {
+          await writeStore(storePath, store);
+          return {
+            allowed: false,
+            reason: "budget_exhausted",
+            resource,
+            used,
+            cap,
+            requested: amount,
+            remaining: Math.max(0, cap - used),
+            tierCapSource,
+          };
+        }
+        // Commit the consumption
+        if (!store.usage[day]) store.usage[day] = emptyUsage();
+        store.usage[day][resource] = used + amount;
+        store.usage[day].lastConsumedAt = new Date().toISOString();
         await writeStore(storePath, store);
         return {
-          allowed: false,
-          reason: "budget_exhausted",
+          allowed: true,
           resource,
-          used,
+          used: store.usage[day][resource],
           cap,
-          requested: amount,
-          remaining: Math.max(0, cap - used),
+          remaining: Math.max(0, cap - store.usage[day][resource]),
           tierCapSource,
         };
+      } finally {
+        release();
       }
-      // Commit the consumption
-      if (!store.usage[day]) store.usage[day] = emptyUsage();
-      store.usage[day][resource] = used + amount;
-      store.usage[day].lastConsumedAt = new Date().toISOString();
-      await writeStore(storePath, store);
-      return {
-        allowed: true,
-        resource,
-        used: store.usage[day][resource],
-        cap,
-        remaining: Math.max(0, cap - store.usage[day][resource]),
-        tierCapSource,
-      };
     },
 
     /**
