@@ -3078,3 +3078,148 @@ select:focus {
   100% { background-position: -200% 0; }
 }
 
+/* ── Skeleton Variants ── */
+.skeleton-text { height: 14px; width: 80%; margin-bottom: var(--space-2); }
+.skeleton-text.short { width: 40%; }
+.skeleton-text.medium { width: 60%; }
+.skeleton-card { height: 120px; }
+.skeleton-row { display: flex; gap: var(--space-3); align-items: center; padding: var(--space-3) 0; }
+.skeleton-avatar { width: 32px; height: 32px; border-radius: var(--radius-full); flex-shrink: 0; }
+
+/* ── Number Counter ── */
+.counter {
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+  transition: color 0.3s;
+}
+.counter.counting {
+  color: var(--accent-light, #a78bfa);
+}
+
+/* ── Error State ── */
+.error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8) var(--space-5);
+  text-align: center;
+  color: var(--status-danger);
+}
+.error-state-icon {
+  width: 48px; height: 48px;
+  margin-bottom: var(--space-4);
+  opacity: 0.6;
+}
+.error-state-title {
+  font-size: var(--text-body-lg);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: var(--space-2);
+}
+.error-state-desc {
+  font-size: var(--text-body);
+  color: var(--text-tertiary);
+  max-width: 360px;
+  line-height: 1.6;
+  margin-bottom: var(--space-5);
+}
+
+/* ── Success State ── */
+.success-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8) var(--space-5);
+  text-align: center;
+  color: var(--status-success);
+}
+.success-state-icon {
+  width: 48px; height: 48px;
+  margin-bottom: var(--space-4);
+  opacity: 0.8;
+}
+
+/* ── Loading Overlay ── */
+.loading-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.3);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  border-radius: inherit;
+  z-index: 10;
+}
+
+/* ── Tag ── */
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-xs);
+  font-size: var(--text-caption);
+  color: var(--text-secondary);
+}
+
+/* ── Avatar ── */
+.avatar {
+  width: 32px; height: 32px;
+  border-radius: var(--radius-full);
+  background: var(--accent-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--text-body-sm);
+  font-weight: 600;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.avatar-sm { width: 24px; height: 24px; font-size: var(--text-caption); }
+.avatar-lg { width: 48px; height: 48px; font-size: var(--text-body); }
+
+/* ── Progress Bar ── */
+.progress-bar {
+  width: 100%;
+  height: 6px;
+  background: var(--glass-bg-faint);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+.progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--accent-light, #a78bfa));
+  border-radius: var(--radius-full);
+  transition: width 0.5s var(--ease-smooth);
+}
+
+/* ── Chip / Pill ── */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-3);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-full);
+  font-size: var(--text-caption);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--duration-fast);
+}
+.chip:hover {
+  background: var(--glass-bg-hover);
+  border-color: var(--glass-border-hover);
+}
+.chip.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
