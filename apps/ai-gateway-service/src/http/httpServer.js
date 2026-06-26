@@ -20,6 +20,8 @@ import { readCapabilityJson, readEnterpriseJson } from "./utils/enterpriseUtils.
 import { createStaticFileHandler, hasStaticAssets } from "./staticFileServer.js";
 import { createRequestLogger } from "./requestLogger.js";
 import { createHealthCheckHandler } from "./healthCheck.js";
+import { extractApiVersion } from "./apiVersion.js";
+import { createResponseCache } from "./responseCache.js";
 
 import { resolvePermission, isPublicRoute } from "./utils/healthUtils.js";
 
@@ -131,6 +133,7 @@ export function createGatewayHttpServer(application) {
   const staticHandler = createStaticFileHandler();
   const accessLogger = createRequestLogger();
   const healthCheck = createHealthCheckHandler(application);
+  const responseCache = createResponseCache({ ttl: 60_000, maxEntries: 500 });
 
   return createServer(async (request, response) => {
     const startedAt = Date.now();
@@ -140,14 +143,26 @@ export function createGatewayHttpServer(application) {
     // ── Static files (production) ──
     if (staticHandler(request, response)) return;
 
+    // ── API versioning ──
+    const { version: apiVersion, path: normalizedPath } = extractApiVersion(url.pathname);
+    url.pathname = normalizedPath;
+    response.setHeader("X-API-Version", apiVersion);
+
     // ── Health check endpoints ──
-    if (request.method === "GET" && url.pathname === "/health/ready") {
+    if (request.method === "GET" && normalizedPath === "/health/ready") {
       healthCheck.handleReady(request, response);
       accessLogger(request, response, startedAt);
       return;
     }
-    if (request.method === "GET" && url.pathname === "/health/live") {
+    if (request.method === "GET" && normalizedPath === "/health/live") {
       healthCheck.handleLive(request, response);
+      accessLogger(request, response, startedAt);
+      return;
+    }
+
+    // ── Cache stats endpoint ──
+    if (request.method === "GET" && normalizedPath === "/cache/stats") {
+      writeJson(response, 200, createOkEnvelope(responseCache.stats(), { startedAt }));
       accessLogger(request, response, startedAt);
       return;
     }
