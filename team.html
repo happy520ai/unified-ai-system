@@ -7,6 +7,8 @@
   <title data-i18n="team.title">团队成员</title>
   <link rel="stylesheet" href="console.css">
   <style>
+    .glass-panel:hover { border-color: var(--glass-border-hover); box-shadow: var(--depth-2); }
+    .section-title::before { content: ""; width: 3px; height: 1em; background: linear-gradient(180deg, var(--accent), var(--accent-light, #a78bfa)); border-radius: var(--radius-full); flex-shrink: 0; }
     .page-enter { animation: fadeInUp 0.5s var(--ease-out) both; }
     .status-dot-inline { width: 8px; height: 8px; border-radius: var(--radius-full); display: inline-block; flex-shrink: 0; }
     .status-dot-inline.green { background: var(--status-success); box-shadow: var(--glow-success); }

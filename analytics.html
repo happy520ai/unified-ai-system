@@ -10,6 +10,8 @@
   <title data-i18n="analytics.title">数据分析</title>
   <link rel="stylesheet" href="console.css">
   <style>
+    .glass-panel:hover { border-color: var(--glass-border-hover); box-shadow: var(--depth-2); }
+    .section-title::before { content: ""; width: 3px; height: 1em; background: linear-gradient(180deg, var(--accent), var(--accent-light, #a78bfa)); border-radius: var(--radius-full); flex-shrink: 0; }
     .page-enter { animation: fadeInUp 0.5s var(--ease-out) both; }
     .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-4); margin-bottom: var(--space-7); }
     .kpi-card { padding: var(--space-5); transition: all var(--duration-normal) var(--ease-smooth); }

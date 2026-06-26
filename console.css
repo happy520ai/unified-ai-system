@@ -677,9 +677,10 @@ a:hover {
 .page-header::before {
   content: '';
   position: absolute;
-  top: 0; left: -var(--space-6); right: -var(--space-6);
+  top: 0; left: calc(-1 * var(--space-6)); right: calc(-1 * var(--space-6));
   height: 100%;
-  background: linear-gradient(180deg, rgba(124,106,239,0.03) 0%, transparent 100%);
+  background: linear-gradient(180deg, rgba(124,106,239,0.04) 0%, transparent 100%);
+  border-radius: var(--radius-lg);
   pointer-events: none;
   z-index: -1;
 }
