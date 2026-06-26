@@ -139,7 +139,7 @@ export function createGatewayHttpServer(application) {
   const compress = createCompression();
   const requestId = createRequestId();
 
-  return createServer(async (request, response) => {
+  const server = createServer(async (request, response) => {
     const startedAt = Date.now();
     const url = new URL(request.url ?? "/", `http://${request.headers.host ?? "127.0.0.1"}`);
     if (metricsCollector) metricsCollector.incrementConnections();
@@ -482,18 +482,20 @@ export function createGatewayHttpServer(application) {
     } catch (error) {
       const statusCode = error?.statusCode ?? 500;
       if (metricsCollector) metricsCollector.recordHttpRequest(request.method, url.pathname, statusCode, Date.now() - startedAt);
-      writeJson(
-        response,
-        statusCode,
-        createErrorEnvelope(
-          error?.code ?? "http_handler_error",
-          error instanceof Error ? error.message : "Unknown HTTP error",
-          {
-            startedAt,
-            category: statusCode === 413 ? "payload" : "internal",
-          },
-        ),
-      );
+      if (!response.writableEnded) {
+        writeJson(
+          response,
+          statusCode,
+          createErrorEnvelope(
+            error?.code ?? "http_handler_error",
+            error instanceof Error ? error.message : "Unknown HTTP error",
+            {
+              startedAt,
+              category: statusCode === 413 ? "payload" : "internal",
+            },
+          ),
+        );
+      }
     } finally {
       if (metricsCollector) metricsCollector.decrementConnections();
 
@@ -522,4 +524,9 @@ export function createGatewayHttpServer(application) {
       accessLogger(request, response, startedAt);
     }
   });
+
+  // Attach WebSocket server to HTTP server for upgrade handling
+  wsServer.attach(server);
+
+  return server;
 }

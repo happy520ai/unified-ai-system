@@ -94,6 +94,11 @@ export async function shutdown(s, { timeoutMs = 30_000 } = {}) {
     try { await s.crossSessionMemory.save(); } catch { /* ignore */ }
   }
 
+  // Close SQLite database connection
+  if (s.store?.close) {
+    try { s.store.close(); } catch { /* ignore */ }
+  }
+
   if (interruptedGoalIds.length > 0) {
     console.log(`[forge:pool] Shutdown complete. ${interruptedGoalIds.length} goal(s) preserved for recovery: ${interruptedGoalIds.join(', ')}`);
   } else {

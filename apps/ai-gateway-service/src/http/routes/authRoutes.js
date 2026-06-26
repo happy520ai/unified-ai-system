@@ -16,8 +16,14 @@ export function createAuthRoutes(application, helpers) {
   const { authTokenService } = application;
   const { readJson, writeJson, writeServiceLog, createOkEnvelope, createErrorEnvelope } = helpers;
 
-  const ADMIN_USERNAME = process.env.ADMIN_USERNAME || "admin";
-  const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "changeme";
+  // In production, credentials MUST be set via environment variables
+  const isProduction = process.env.NODE_ENV === "production";
+  const ADMIN_USERNAME = process.env.ADMIN_USERNAME || (isProduction ? null : "admin");
+  const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || (isProduction ? null : "changeme");
+
+  if (isProduction && (!ADMIN_USERNAME || !ADMIN_PASSWORD)) {
+    console.error("[auth] CRITICAL: ADMIN_USERNAME and ADMIN_PASSWORD must be set in production");
+  }
 
   // ── POST /auth/login ──
   async function handleLogin(req, res, { startedAt, body }) {

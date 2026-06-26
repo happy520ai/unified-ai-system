@@ -187,6 +187,7 @@ export class HttpLLMProviderAdapter {
         providerRequest,
         timeoutMs,
       });
+      throw error; // Re-throw so retry logic in caller can trigger
     } finally {
       clearTimeout(timeoutId);
     }

@@ -72,7 +72,10 @@ export function createFallbackChain(options = {}) {
       }
 
       try {
-        const response = await requestFn(providerId);
+        const breaker = circuitBreakerRegistry?.getOrCreate(providerId);
+        const response = breaker
+          ? await breaker.execute(() => requestFn(providerId))
+          : await requestFn(providerId);
         const latencyMs = Date.now() - attemptStart;
 
         attempts.push({
@@ -81,12 +84,6 @@ export function createFallbackChain(options = {}) {
           latencyMs,
           statusCode: response?.status ?? 200,
         });
-
-        // 记录成功
-        if (circuitBreakerRegistry) {
-          const breaker = circuitBreakerRegistry.getOrCreate(providerId);
-          breaker.recordSuccess?.();
-        }
 
         return {
           response,
@@ -107,12 +104,6 @@ export function createFallbackChain(options = {}) {
           error: error.message,
           errorCode: error.code,
         });
-
-        // 记录失败
-        if (circuitBreakerRegistry) {
-          const breaker = circuitBreakerRegistry.getOrCreate(providerId);
-          breaker.recordFailure?.();
-        }
 
         // 检查是否应该重试
         if (!shouldRetry(error, providerId)) {
