@@ -19,6 +19,14 @@ export function createAdaptiveRouter(options = {}) {
     const { model, taskType, success, latencyMs, qualityScore } = result;
     const key = `${model}::${taskType ?? "general"}`;
 
+    // Evict stale entries
+    const now = Date.now();
+    for (const [k, v] of memory) {
+      if (now - v.lastUpdated > MAX_MEMORY_AGE_MS) {
+        memory.delete(k);
+      }
+    }
+
     if (!memory.has(key)) {
       memory.set(key, {
         model,

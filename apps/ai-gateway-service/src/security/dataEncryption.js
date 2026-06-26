@@ -12,12 +12,20 @@ export function createDataEncryption(options = {}) {
   const tagLength = 16;
 
   let masterKey = options.masterKey ?? process.env.ENCRYPTION_MASTER_KEY;
+  let ephemeralKey = false;
+
+  if (!masterKey) {
+    masterKey = randomBytes(32).toString("hex");
+    ephemeralKey = true;
+    if (process.env.NODE_ENV === "production") {
+      console.error("[dataEncryption] CRITICAL: No ENCRYPTION_MASTER_KEY set. Using ephemeral key — data will be LOST on restart!");
+    } else {
+      console.warn("[dataEncryption] No ENCRYPTION_MASTER_KEY set. Using ephemeral key (dev only).");
+    }
+  }
 
   function deriveKey(salt) {
     return new Promise((resolve, reject) => {
-      if (!masterKey) {
-        masterKey = randomBytes(32).toString("hex");
-      }
       scrypt(masterKey, salt, keyLength, (err, key) => {
         if (err) reject(err);
         else resolve(key);
@@ -75,14 +83,17 @@ export function createDataEncryption(options = {}) {
   function rotateMasterKey(newKey) {
     const oldKey = masterKey;
     masterKey = newKey;
-    return { rotated: true, oldKeyMasked: maskSecret(oldKey ?? ""), newKeyMasked: maskSecret(newKey) };
+    ephemeralKey = false;
+    console.warn("[dataEncryption] Master key rotated. Previously encrypted data may become undecryptable unless re-encrypted.");
+    return { rotated: true, oldKeyMasked: maskSecret(oldKey ?? ""), newKeyMasked: maskSecret(newKey), warning: "Previously encrypted data requires re-encryption" };
   }
 
   function getHealth() {
     return {
-      status: masterKey ? "ready" : "no_master_key",
+      status: masterKey ? (ephemeralKey ? "ephemeral_key" : "ready") : "no_master_key",
       algorithm,
       masterKeyConfigured: !!masterKey,
+      ephemeralKey,
       keyLength,
     };
   }

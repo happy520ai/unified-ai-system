@@ -44,11 +44,12 @@ export function createPrometheusExporter(options = {}) {
     lines.push(`${prefix}_errors_total ${snapshot.totalErrors ?? 0}`);
 
     // Provider 健康分数
+    const sanitizeLabel = (v) => String(v).replace(/[\"\\}\n\r]/g, "_");
     lines.push(`# HELP ${prefix}_provider_health_score Provider health score (0-100)`);
     lines.push(`# TYPE ${prefix}_provider_health_score gauge`);
     if (snapshot.providerScores) {
       for (const [providerId, score] of Object.entries(snapshot.providerScores)) {
-        lines.push(`${prefix}_provider_health_score{provider="${providerId}"} ${score}`);
+        lines.push(`${prefix}_provider_health_score{provider="${sanitizeLabel(providerId)}"} ${score}`);
       }
     }
 

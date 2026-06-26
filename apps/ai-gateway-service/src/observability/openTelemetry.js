@@ -45,15 +45,15 @@ export function createTracer(options = {}) {
 
     activeSpans.set(spanId, span);
 
-    // 返回 span 接口
-    return {
+    // Build span interface (use self-reference for chaining)
+    const spanInterface = {
       getTraceId: () => traceId,
       getSpanId: () => spanId,
       getParentSpanId: () => parentSpanId,
 
       setAttribute: (key, value) => {
         span.attributes[key] = value;
-        return this;
+        return spanInterface;
       },
 
       addEvent: (name, attributes = {}) => {
@@ -62,13 +62,13 @@ export function createTracer(options = {}) {
           timestamp: Date.now(),
           attributes,
         });
-        return this;
+        return spanInterface;
       },
 
       setStatus: (status, message) => {
         span.status = status;
         if (message) span.attributes.statusMessage = message;
-        return this;
+        return spanInterface;
       },
 
       end: () => {
@@ -86,6 +86,7 @@ export function createTracer(options = {}) {
 
       toObject: () => ({ ...span }),
     };
+    return spanInterface;
   }
 
   /**

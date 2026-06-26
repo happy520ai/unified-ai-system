@@ -140,16 +140,16 @@ export function createAgenticLoop(options = {}) {
     // Checkpoint resume
     if (input.resumeFromCheckpoint) {
       try {
-        const { readFileSync, statSync: _statSync } = await import("node:fs");
+        const { readFile: readFileAsync, stat: statAsync } = await import("node:fs/promises");
         const { resolve: resolvePath } = await import("node:path");
         const checkpointPath = resolvePath(input.resumeFromCheckpoint);
         const cpDir = resolvePath(workingDirectory || ".");
         if (!checkpointPath.startsWith(cpDir)) { debugLoop("checkpoint path rejected", "Path outside working directory"); }
         else {
-          const cpStat = _statSync(checkpointPath);
+          const cpStat = await statAsync(checkpointPath);
           if (cpStat.size > 10 * 1024 * 1024) { debugLoop("checkpoint rejected", `File too large: ${cpStat.size} bytes`); }
           else {
-            const cp = JSON.parse(readFileSync(checkpointPath, "utf-8"));
+            const cp = JSON.parse(await readFileAsync(checkpointPath, "utf-8"));
             if (Array.isArray(cp.messages) && cp.messages.length > 0) {
               messages.length = 0; for (const m of cp.messages) messages.push(m);
               totalUsage = cp.totalUsage || totalUsage; iteration = cp.iteration || 0; sessionId = cp.sessionId || sessionId; status = "resumed";
