@@ -12,6 +12,18 @@ cmd /c pnpm verify:phase607r-public-repo-hygiene-preflight
 
 Do not commit secrets, do not run real providers, and do not treat this repository as deployed production software.
 
+## Secret Safety
+
+Before publishing changes, run the Phase 107A compatibility gate:
+
+```powershell
+pnpm verify:phase107a-secret-safety
+```
+
+The gate scans the repository and runtime previews for plaintext credentials.
+It records only masked findings and must pass before secret-safety evidence is
+refreshed.
+
 Operational approvals and execution inputs are local-only. The repository tracks
 `*.input.example.json` and `*.input.template.json`, while real `*.input.json`
 files are ignored by both Git and Docker. Create an input locally only for the

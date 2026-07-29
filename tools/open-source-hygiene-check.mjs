@@ -351,6 +351,29 @@ function checkTrackedBackupArtifacts() {
   return trackedBackups.length;
 }
 
+function checkIgnoredActiveSource() {
+  const git = spawnSync(
+    "git",
+    ["ls-files", "--others", "--ignored", "--exclude-standard", "-z", "--", "apps", "packages", "tools"],
+    { cwd: root, encoding: "utf8", maxBuffer: 128 * 1024 * 1024 }
+  );
+  if (git.status !== 0) {
+    warnings.push("unable to inspect ignored active source files with git");
+    return 0;
+  }
+  const generatedDirPattern = /(^|\/)(?:node_modules|dist|build|coverage|test-results)(\/|$)/;
+  const ignoredSource = git.stdout
+    .split("\0")
+    .filter(Boolean)
+    .filter((file) => /^(?:(?:apps|packages)\/[^/]+\/src\/|tools\/)/.test(file))
+    .filter((file) => !generatedDirPattern.test(file))
+    .filter((file) => sourceExts.has(extname(file)));
+  for (const file of ignoredSource) {
+    errors.push(`active source file is hidden by .gitignore: ${file}`);
+  }
+  return ignoredSource.length;
+}
+
 function checkAutopilotQueue() {
   const queueFile = join(root, "docs/automation/opencode-autopilot-task-queue.json");
   const policyFile = join(root, "docs/project-brain/opencode-autopilot-policy.json");
@@ -429,6 +452,7 @@ const localImportsChecked = checkLocalImports(files);
 const untrackedCount = checkUntrackedRuntimeState();
 const trackedOperatorInputs = checkTrackedOperatorInputs();
 const trackedBackupArtifacts = checkTrackedBackupArtifacts();
+const ignoredActiveSource = checkIgnoredActiveSource();
 const autopilotQueue = checkAutopilotQueue();
 
 const result = {
@@ -444,6 +468,7 @@ const result = {
   untrackedCount,
   trackedOperatorInputs,
   trackedBackupArtifacts,
+  ignoredActiveSource,
   autopilotQueue,
 };
 

@@ -118,7 +118,13 @@ export function findPlainSecretFindings(text, filePath = "") {
       if (!value || isSafePlaceholderSecret(value)) {
         continue;
       }
-      if (pattern.type === "api-key-env-value" && isSafeCodeExpressionValue(value)) {
+      if (isIntentionalSecurityTestFixture(source, match.index, filePath)) {
+        continue;
+      }
+      if (
+        pattern.type === "api-key-env-value" &&
+        (isSourceCodePath(filePath) || isSafeCodeExpressionValue(value))
+      ) {
         continue;
       }
       findings.push({
@@ -154,4 +160,18 @@ function isRepeatedPlaceholder(text) {
 function isSafeCodeExpressionValue(value) {
   const text = cleanSecretValue(value);
   return /^(?:Object|Array|String|Number|Boolean|Math|Date|JSON|RegExp|Promise|Map|Set|WeakMap|WeakSet)\s*\./.test(text);
+}
+
+function isSourceCodePath(filePath) {
+  return /\.[cm]?[jt]sx?$/i.test(String(filePath ?? ""));
+}
+
+function isIntentionalSecurityTestFixture(source, index, filePath) {
+  if (!/\.(?:test|spec)\.[cm]?[jt]sx?$/i.test(String(filePath ?? ""))) {
+    return false;
+  }
+  const lineStart = source.lastIndexOf("\n", index - 1) + 1;
+  const lineEnd = source.indexOf("\n", index);
+  const line = source.slice(lineStart, lineEnd < 0 ? source.length : lineEnd);
+  return /RAW_KEY_PATTERN\.test\s*\(|sanitizeValue\s*\(|\bexpected\s*:\s*true\b/.test(line);
 }

@@ -5,6 +5,8 @@ coverage/
 .turbo/
 .cache/
 cache/
+!/apps/ai-gateway-service/src/cache/
+!/apps/ai-gateway-service/src/cache/**
 temp/
 .codex/
 .codex/config.toml
