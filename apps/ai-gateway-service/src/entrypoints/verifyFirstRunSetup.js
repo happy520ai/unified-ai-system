@@ -107,22 +107,25 @@ function createEvidence({
     setupStepCount: Array.isArray(setupData.steps) && setupData.steps.length >= 6,
     setupAreasPresent: ["health", "modelImport", "chat", "knowledge", "workforce"].every((key) => setupData.readiness?.[key]),
     setupSafetyNoSecrets: setupData.safety?.apiKeyExposed === false && setupData.safety?.providerProbeCalled === false,
-    uiMarkerPresent: uiText.includes("phase104a-first-run-setup"),
+    uiMarkerPresent: uiText.includes("phase104a-first-run-setup") &&
+      uiText.includes("phase372-workbench-root"),
     uiFirstRunCopyPresent: [
-      "首次使用引导",
-      "系统健康检查",
-      "添加模型 / 检测 API Key",
-      "开始聊天",
-      "Agent Workforce",
-      "Knowledge/RAG",
-      "发布前限制",
-      "/setup/readiness",
+      "guided-onboarding-panel",
+      'id="service-chip"',
+      'id="provider-api-key-input"',
+      'id="chat-form"',
+      'id="file-input"',
+      'id="workforce-preview-panel"',
+      'id="help-runbook-panel"',
     ].every((text) => uiText.includes(text)),
     modelImportUnknownGuidance: unknownPreview.body?.data?.status === "needs_provider_selection" &&
-      unknownPreview.body?.data?.userMessage?.includes("无法仅凭 API Key 判断服务商"),
+      unknownPreview.body?.data?.reason === "api_key_prefix_unknown_choose_provider_or_base_url" &&
+      Boolean(unknownPreview.body?.data?.userMessage),
     scriptsPresent: rootScripts["verify:phase104a-first-run-setup"] === "pnpm --filter @unified-ai-system/ai-gateway-service verify:phase104a-first-run-setup" &&
       serviceScripts["verify:phase104a-first-run-setup"] === "node ./src/entrypoints/verifyFirstRunSetup.js",
-    docsPresent: readme.includes("Phase 104A") && agents.includes("verify:phase104a-first-run-setup"),
+    docsPresent: readme.includes("Phase 104A") &&
+      readme.includes("## Local Quick Start") &&
+      agents.includes("verify:phase104a-first-run-setup"),
     noPlainSecretInEvidence: !payloadText.includes(forbiddenSecret),
   };
   const passed = Object.values(checks).every(Boolean);

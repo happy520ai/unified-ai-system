@@ -2,7 +2,7 @@
 
 - Phase: phase-104a-first-run-setup
 - Status: passed
-- Generated at: 2026-04-26T14:31:33.886Z
+- Generated at: 2026-07-29T17:35:44.809Z
 - Setup status: ready
 - Setup step count: 6
 - Readiness keys: health, modelImport, chat, knowledge, workforce

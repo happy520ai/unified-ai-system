@@ -2601,19 +2601,20 @@ preview-only, do not claim global release completion, do not start real
 multi-provider routing or fallback execution, and do not change the default
 NVIDIA `/chat` lane.
 
-`verify:phase104a-first-run-setup` checks the first-run setup wizard and the
-read-only `GET /setup/readiness` route. The route may aggregate existing health,
+`verify:phase104a-first-run-setup` checks the current Workbench first-run tour
+and the read-only `GET /setup/readiness` route. The route may aggregate existing health,
 model import, chat, knowledge, and workforce readiness for ordinary-user
 guidance. It must not call real providers, expose API keys, mutate runtime
 configuration, change the default NVIDIA `/chat` lane, enable real
 multi-provider routing/fallback, or represent Agent Workforce as real execution.
-The `/ui` setup wizard should tell users what to do next when model detection
+The `/ui` first-run path should tell users what to do next when model detection
 or readiness is incomplete.
 
 `verify:phase105a-user-journey` checks the ordinary-user end-to-end product
-journey from `/ui` through setup readiness, Chat readiness, model-import
-guidance, Knowledge/RAG guidance, Agent Workforce plan generation, save,
-history, export, and deletion of the temporary saved plan. Phase 105A must not
+journey from `/ui` through Workbench discovery, setup readiness, Chat readiness,
+model-import guidance, Files guidance, and the Agent Workforce dry-run surface.
+It also verifies plan generation, save, history, export, and deletion through
+the bounded local API. Phase 105A must not
 be described as global release completion, must not bypass API Key redaction,
 must not change the default NVIDIA `/chat` lane, must not enable real fallback
 execution, and must not turn Agent Workforce into real code execution or

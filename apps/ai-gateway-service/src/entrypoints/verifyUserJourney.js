@@ -131,20 +131,21 @@ function createEvidence({
 
   const checks = {
     uiHttpOk: ui.httpStatus === 200,
-    uiSetupWizardPresent: uiText.includes("phase104a-first-run-setup") && uiText.includes("Setup Wizard"),
-    uiUserJourneyMarkerPresent: uiText.includes("phase105a-user-journey") && uiText.includes("ordinary-user-e2e-path"),
+    uiWorkbenchPresent: uiText.includes("phase372-workbench-root") &&
+      uiText.includes("phase105a-user-journey"),
+    uiFirstRunTourPresent: uiText.includes("guided-onboarding-panel") &&
+      uiText.includes("First-run tour"),
     uiCoreEntrypointsPresent: [
-      "Chat readiness",
-      "Model Import / API Key",
-      "Knowledge / RAG",
-      "Agent Workforce",
-      "Error recovery",
+      'id="chat-form"',
+      'id="provider-api-key-input"',
+      'id="file-input"',
+      'id="workforce-preview-panel"',
+      'id="diag-last-error-output"',
     ].every((text) => uiText.includes(text)),
-    uiWorkforceStoreControlsPresent: [
-      "workforce-save",
-      "workforce-history-refresh",
-      "workforce-export-json",
-      "workforce-clear",
+    uiWorkforceDryRunControlsPresent: [
+      'id="workforce-dry-run-task-input"',
+      'id="run-workforce-dry-run-button"',
+      'id="workforce-evidence-timeline-panel"',
     ].every((text) => uiText.includes(text)),
     setupReadinessOk: setupReadiness.httpStatus === 200 &&
       setupData.phase === "phase-104a-first-run-setup" &&
@@ -165,9 +166,10 @@ function createEvidence({
       Boolean(exportData.markdown || exportData.taskPackage?.markdown) &&
       Boolean(exportData.taskPackage?.exportableJson),
     readmeUserPathPresent: readme.includes("Phase 105A") &&
-      readme.includes("普通用户从 0 到 1 使用流程") &&
-      readme.includes("Model Import / API Key failure guidance") &&
-      readme.includes("Agent Workforce task packages"),
+      readme.includes("## Local Quick Start") &&
+      readme.includes("pnpm start:ai-gateway-service") &&
+      readme.includes("http://127.0.0.1:3100/ui") &&
+      readme.includes("Agent Workforce dry-run"),
     agentsBoundaryPresent: agents.includes("verify:phase105a-user-journey") &&
       agents.includes("Phase 105A") &&
       agents.includes("global release completion") &&
@@ -268,8 +270,10 @@ function createEvidenceMarkdown(body) {
 - Phase: ${body.phase}
 - Status: ${body.status}
 - Generated at: ${body.generatedAt}
-- UI setup wizard present: ${body.checks?.uiSetupWizardPresent}
-- UI user journey marker present: ${body.checks?.uiUserJourneyMarkerPresent}
+- UI workbench present: ${body.checks?.uiWorkbenchPresent}
+- UI first-run tour present: ${body.checks?.uiFirstRunTourPresent}
+- UI core entrypoints present: ${body.checks?.uiCoreEntrypointsPresent}
+- UI Workforce dry-run controls present: ${body.checks?.uiWorkforceDryRunControlsPresent}
 - Setup readiness status: ${body.setup?.status}
 - Chat ready: ${body.setup?.chatReady}
 - Model import unknown status: ${body.modelImport?.unknownStatus}

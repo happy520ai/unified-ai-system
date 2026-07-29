@@ -2,9 +2,11 @@
 
 - Phase: phase-105a-user-journey
 - Status: passed
-- Generated at: 2026-04-27T16:58:27.846Z
-- UI setup wizard present: true
-- UI user journey marker present: true
+- Generated at: 2026-07-29T17:36:35.119Z
+- UI workbench present: true
+- UI first-run tour present: true
+- UI core entrypoints present: true
+- UI Workforce dry-run controls present: true
 - Setup readiness status: ready
 - Chat ready: true
 - Model import unknown status: needs_provider_selection

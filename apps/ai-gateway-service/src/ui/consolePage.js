@@ -15,7 +15,7 @@ function createPhase321AWorkbenchPage() {
   <style>${consolePageInlineCss}  </style>
 </head>
 <body data-phase="phase321a-workbench-product-recovery">
-  <div class="app" data-workbench-root="phase372-workbench-root" data-phase="phase372-guarded-ui-acceptance">
+  <div class="app" data-workbench-root="phase372-workbench-root" data-phase="phase372-guarded-ui-acceptance" data-first-run-readiness="phase104a-first-run-setup" data-user-journey="phase105a-user-journey">
     <aside class="sidebar">
       <div class="brand-block">
         <div class="brand-title">小天总控</div>

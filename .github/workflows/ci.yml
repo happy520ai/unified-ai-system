@@ -102,6 +102,23 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Start gateway service
+        env:
+          AI_GATEWAY_PROVIDER_MODE: fake
+          AI_GATEWAY_REAL_PROVIDER_ENABLED: "false"
+          PME_ENTERPRISE_AUTH_ENABLED: "false"
+        run: |
+          pnpm start:ai-gateway-service > "$RUNNER_TEMP/ai-gateway-service.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/ai-gateway-service.pid"
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:3100/health/check > /dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/ai-gateway-service.log"
+          exit 1
+
       - name: Health check
         run: pnpm run health:phase12a
         timeout-minutes: 2
@@ -109,3 +126,10 @@ jobs:
       - name: Safe regression matrix
         run: pnpm run verify:safe-regression-matrix
         timeout-minutes: 3
+
+      - name: Stop gateway service
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/ai-gateway-service.pid" ]; then
+            kill "$(cat "$RUNNER_TEMP/ai-gateway-service.pid")" 2>/dev/null || true
+          fi

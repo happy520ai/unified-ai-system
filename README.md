@@ -12,6 +12,35 @@ cmd /c pnpm verify:phase607r-public-repo-hygiene-preflight
 
 Do not commit secrets, do not run real providers, and do not treat this repository as deployed production software.
 
+## Local Quick Start
+
+Use Node.js 22 and the pnpm version declared in `package.json`. From a fresh
+clone:
+
+```powershell
+corepack enable
+pnpm install --frozen-lockfile
+pnpm start:ai-gateway-service
+```
+
+Open `http://127.0.0.1:3100/ui`. The public-clone path is local-first:
+
+- use Chat only after the page reports an available model;
+- configure a model through the Models page without exposing credentials;
+- register non-sensitive files through the Files page;
+- exercise the Agent Workforce dry-run from Mission Control;
+- inspect failures and service status through Diagnostics.
+
+Keep the first run credential-free. The Phase 104A readiness check and Phase 105A
+ordinary-user journey both use local fake-provider boundaries:
+
+```powershell
+pnpm verify:phase104a-first-run-setup
+pnpm verify:phase105a-user-journey
+```
+
+These checks do not prove production readiness, L5 autonomy, or AGI.
+
 ## Secret Safety
 
 Before publishing changes, run the Phase 107A compatibility gate:

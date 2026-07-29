@@ -1,8 +1,8 @@
 {
   "phase": "phase-104a-first-run-setup",
   "status": "passed",
-  "generatedAt": "2026-04-26T14:31:33.886Z",
-  "serviceUrl": "http://127.0.0.1:51634",
+  "generatedAt": "2026-07-29T17:35:44.809Z",
+  "serviceUrl": "http://127.0.0.1:62880",
   "checks": {
     "setupHttpOk": true,
     "setupSdkOk": true,
