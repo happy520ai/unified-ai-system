@@ -248,11 +248,11 @@ describe('SelfLoopEngine — handlePostExecution', () => {
     StrategyEvolution = mod2.StrategyEvolution;
   });
 
-  it('should ACCEPT when result.success is false (let normal retry handle it)', async () => {
+  it('should enter the error loop when worker execution fails', async () => {
     const engine = new SelfLoopEngine({ verifier: null, store: null, evolution: null, projectRoot: '/tmp' });
     const decision = await engine.handlePostExecution('g1', { id: 't1', type: 'implement' }, { success: false });
-    assert.equal(decision.action, Decision.ACCEPT);
-    assert.ok(decision.reason.includes('worker level'));
+    assert.equal(decision.action, Decision.ADJUST_RETRY);
+    assert.ok(decision.reason.includes('Error-loop'));
   });
 
   it('should ACCEPT when verification passed', async () => {

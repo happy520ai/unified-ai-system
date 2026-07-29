@@ -1,5 +1,7 @@
 import { CREDENTIAL_REF_RESOLVER_RUNTIME_CONTRACT } from "./credentialRefResolverRuntime.contract.js";
-import { RAW_KEY_PATTERN } from "./securityPatterns.js";
+
+const RAW_KEY_PATTERN =
+  /(sk-[A-Za-z0-9_-]{20,}|AKIA[0-9A-Z]{16}|xox[baprs]-|ghp_[A-Za-z0-9_]{20,}|api[_-]?key|bearer\s+[a-z0-9._-]{16,})/i;
 
 export function createCredentialRefResolverRuntime(options = {}) {
   const safeExecutionInvoker = typeof options.safeExecutionInvoker === "function" ? options.safeExecutionInvoker : null;

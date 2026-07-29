@@ -1,4 +1,5 @@
-import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { copyFile, readFile, writeFile } from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { resolve } from "node:path";
@@ -15,15 +16,15 @@ import {
   writeEvidence,
 } from "./verifyAgentWorkforceClosureSupport.js";
 import {
-  phaseDefinitions,
-  ensureBridgeStructure,
-  bridgeStructurePaths,
   createSampleCodexResult,
   createSampleHandoffPrompt,
+  ensureBridgeStructure,
+  importScriptPath,
+  loopScriptPath,
+  phaseDefinitions,
 } from "./verifyAgentWorkforceCodexLoopBridgePhaseDefs.js";
 
 const execFileAsync = promisify(execFile);
-
 
 export async function runCodexLoopBridgeCheck(phase) {
   const definition = phaseDefinitions[phase];
@@ -261,7 +262,6 @@ async function runCodexLoopDryRunTrial() {
     businessStatusUnchanged: beforeStatus === afterStatus,
   };
 }
-
 
 async function readOptional(relativePath) {
   const fullPath = resolve(repoRoot, relativePath);

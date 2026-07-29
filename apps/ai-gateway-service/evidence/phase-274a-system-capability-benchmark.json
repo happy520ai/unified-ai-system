@@ -1,0 +1,368 @@
+{
+  "phase": "274A-system-capability-benchmark",
+  "status": "passed",
+  "conclusion": "unified-system-capability-benchmark-ready",
+  "generatedAt": "2026-07-29T08:27:20.343Z",
+  "mode": "local-evidence-based-benchmark",
+  "paidApiCallCount": 0,
+  "externalApiCalled": false,
+  "mimoApiCalled": false,
+  "defaultNvidiaChatLaneChanged": false,
+  "mimoSetAsDefault": false,
+  "sourceEvidence": [
+    "apps/ai-gateway-service/evidence/phase-270a-token-saving-benchmark.json",
+    "apps/ai-gateway-service/evidence/phase-107a-secret-safety.json"
+  ],
+  "scorecard": {
+    "totalScore": 20,
+    "maxScore": 100,
+    "grade": "D",
+    "productionReadiness": "not-production-ready",
+    "commercialSelfUseReadiness": "weak",
+    "paidApiSafetyReadiness": "weak"
+  },
+  "dimensions": [
+    {
+      "name": "Token Saving Capability",
+      "score": 2,
+      "maxScore": 15,
+      "evidence": [
+        "apps/ai-gateway-service/evidence/phase-270a-token-saving-benchmark.json",
+        "apps/ai-gateway-service/evidence/phase-273a-rag-source-selection-benchmark.json"
+      ],
+      "metrics": {
+        "phase270AverageSavingsRatio": 0.7445,
+        "phase273AverageSavingsRatio": 0,
+        "phase270EstimatedTotalTokensSaved": 689771,
+        "phase273EstimatedTotalTokensSaved": 0,
+        "paidApiCallCount": 0,
+        "longContextSentToPaidApi": false
+      },
+      "limitations": [
+        "Savings are estimated from local benchmarks, not audited production bills.",
+        "The benchmark does not prove end-to-end answer quality after context trimming."
+      ]
+    },
+    {
+      "name": "RAG Source Selection Capability",
+      "score": 3,
+      "maxScore": 15,
+      "evidence": [
+        "apps/ai-gateway-service/evidence/phase-273a-rag-source-selection-benchmark.json"
+      ],
+      "metrics": {
+        "caseCount": 0,
+        "averageRequiredSourceRecall": 0,
+        "latestEvidenceHitRate": 0,
+        "staleSourceSelectedCount": 0,
+        "passCount": 0
+      },
+      "limitations": [
+        "Source selection is rule-based and local.",
+        "No embedding, rerank, or real answer quality evaluation is sealed here."
+      ]
+    },
+    {
+      "name": "Freshness / Stale Evidence Control",
+      "score": 3,
+      "maxScore": 10,
+      "evidence": [
+        "apps/ai-gateway-service/evidence/phase-273a-rag-source-selection-benchmark.json",
+        "apps/ai-gateway-service/evidence/phase-271a-mimo-model-id-discovery.json",
+        "apps/ai-gateway-service/evidence/phase-269a-mimo-paid-api-safe-smoke.json"
+      ],
+      "metrics": {
+        "latestEvidenceHitRate": 0,
+        "staleSourceSelectedCount": 0,
+        "old269FailureCoveredBy271": false,
+        "currentBlocker": "none"
+      },
+      "limitations": [
+        "Freshness guard is benchmarked with fixed cases, not a full repository-wide temporal reasoner."
+      ]
+    },
+    {
+      "name": "MiMo Paid Provider Safety",
+      "score": 0,
+      "maxScore": 10,
+      "evidence": [
+        "apps/ai-gateway-service/evidence/phase-269a-mimo-paid-api-safe-smoke.json",
+        "apps/ai-gateway-service/evidence/phase-271a-mimo-model-id-discovery.json"
+      ],
+      "metrics": {
+        "workingModelId": "unknown",
+        "paidSmokeSuccess": false,
+        "usageReturned": false,
+        "mimoSetAsDefault": false,
+        "defaultNvidiaChatLaneChanged": false,
+        "longContextSent": false
+      },
+      "limitations": [
+        "MiMo was tested only as an explicit non-default tiny smoke path.",
+        "This is not automatic provider routing or production fallback."
+      ]
+    },
+    {
+      "name": "Token Estimator Calibration",
+      "score": 0,
+      "maxScore": 10,
+      "evidence": [
+        "apps/ai-gateway-service/evidence/phase-272a-token-estimator-calibration.json"
+      ],
+      "metrics": {
+        "sampleCount": 0,
+        "confidence": "unknown",
+        "calibrationCoverage": "unknown",
+        "averageTotalTokenErrorRatio": 0,
+        "maxUnderEstimateRatio": 0,
+        "recommendedInputSafetyMultiplier": 0,
+        "recommendedMinimumInputTokenFloor": 0
+      },
+      "limitations": [
+        "Confidence remains low because only two tiny smoke samples are available.",
+        "The profile is preview metadata and is not production billing accuracy."
+      ]
+    },
+    {
+      "name": "Cost Guard Capability",
+      "score": 0,
+      "maxScore": 10,
+      "evidence": [
+        "apps/ai-gateway-service/evidence/phase-268a-token-cost-guard.json"
+      ],
+      "metrics": {
+        "estimateExists": false,
+        "allowCasePassed": false,
+        "requireApprovalCasePassed": false,
+        "blockCasePassed": false,
+        "summaryEndpointOk": false,
+        "safetyFieldsFalse": false
+      },
+      "limitations": [
+        "The cost guard is preview-only and does not automatically change the default chat lane."
+      ]
+    },
+    {
+      "name": "Cache Readiness",
+      "score": 2,
+      "maxScore": 5,
+      "evidence": [
+        "apps/ai-gateway-service/evidence/phase-268a-token-cost-guard.json",
+        "apps/ai-gateway-service/evidence/phase-270a-token-saving-benchmark.json",
+        "apps/ai-gateway-service/evidence/phase-273a-rag-source-selection-benchmark.json"
+      ],
+      "metrics": {
+        "cachePersistenceReady": false,
+        "responseCacheHitRate": null,
+        "responseCacheHitCount": 0,
+        "responseCacheMissCount": 0,
+        "cacheEligibleCount": 8,
+        "cacheKeyMetadataPresent": false
+      },
+      "limitations": [
+        "Cache is local preview persistence only.",
+        "It is not a production multi-user cache, encrypted cache, or billing ledger."
+      ]
+    },
+    {
+      "name": "UI Observability",
+      "score": 0,
+      "maxScore": 5,
+      "evidence": [
+        "apps/ai-gateway-service/src/ui/consolePage.js"
+      ],
+      "metrics": {
+        "markersChecked": [
+          "Token Cost Guard",
+          "Token Saving Benchmark",
+          "MiMo Model ID Discovery",
+          "Token Estimator Calibration",
+          "RAG Source Selection Benchmark"
+        ],
+        "markerHitCount": 0
+      },
+      "limitations": [
+        "UI panels surface evidence and local status; they do not prove production operations."
+      ]
+    },
+    {
+      "name": "Regression Stability",
+      "score": 0,
+      "maxScore": 10,
+      "evidence": [
+        "apps/ai-gateway-service/evidence/phase-268a-token-cost-guard.json",
+        "apps/ai-gateway-service/evidence/phase-269a-mimo-paid-api-safe-smoke.json",
+        "apps/ai-gateway-service/evidence/phase-270a-token-saving-benchmark.json",
+        "apps/ai-gateway-service/evidence/phase-271a-mimo-model-id-discovery.json",
+        "apps/ai-gateway-service/evidence/phase-272a-token-estimator-calibration.json",
+        "apps/ai-gateway-service/evidence/phase-273a-rag-source-selection-benchmark.json",
+        "apps/ai-gateway-service/evidence/phase-107a-secret-safety.json"
+      ],
+      "metrics": {
+        "phase268To273EvidencePassed": false,
+        "secretSafetyPassed": true,
+        "personalValueClosurePassed": false,
+        "personalKnowledgeClosurePassed": false
+      },
+      "limitations": [
+        "Workspace is dirty, so this is stability under current local working state, not a clean release baseline."
+      ]
+    },
+    {
+      "name": "Security / Execution Boundary",
+      "score": 10,
+      "maxScore": 10,
+      "evidence": [
+        "apps/ai-gateway-service/evidence/phase-107a-secret-safety.json",
+        "apps/ai-gateway-service/evidence/phase-268a-token-cost-guard.json",
+        "apps/ai-gateway-service/evidence/phase-269a-mimo-paid-api-safe-smoke.json",
+        "apps/ai-gateway-service/evidence/phase-271a-mimo-model-id-discovery.json",
+        "apps/ai-gateway-service/evidence/phase-272a-token-estimator-calibration.json",
+        "apps/ai-gateway-service/evidence/phase-273a-rag-source-selection-benchmark.json"
+      ],
+      "metrics": {
+        "secretSafetyPassed": true,
+        "defaultNvidiaChatLaneChanged": false,
+        "mimoSetAsDefault": false,
+        "paidApiCallExecutedThisBenchmark": false,
+        "codexCliInvoked": false,
+        "codexExecInvoked": false,
+        "workflowRunnerEnabled": false,
+        "worktreeCreated": false
+      },
+      "limitations": [
+        "Boundary safety is evidence-backed for this local preview chain, not a substitute for enterprise security review."
+      ]
+    },
+    {
+      "name": "Commercial Readiness Gap",
+      "score": 0,
+      "maxScore": 0,
+      "evidence": [
+        "apps/ai-gateway-service/evidence/phase-245a-personal-value-closure.json",
+        "apps/ai-gateway-service/evidence/phase-255a-personal-knowledge-value-closure.json"
+      ],
+      "metrics": {
+        "commercialSelfUseReadiness": "strong",
+        "productionSaasReadiness": "not-production-ready"
+      },
+      "limitations": [
+        "No multi-user tenant isolation, enterprise key vault, SLA, or audited billing integration is sealed."
+      ]
+    },
+    {
+      "name": "Next Route Recommendation",
+      "score": 0,
+      "maxScore": 0,
+      "evidence": [
+        "apps/ai-gateway-service/evidence/phase-270a-token-saving-benchmark.json",
+        "apps/ai-gateway-service/evidence/phase-273a-rag-source-selection-benchmark.json"
+      ],
+      "metrics": {
+        "recommendedRoute": "Phase 275A Response Cache Persistence",
+        "reason": "Cache lookup before any future paid call is safer than expanding paid API tests."
+      },
+      "limitations": [
+        "The route is a local engineering recommendation, not permission to run paid API traffic."
+      ]
+    }
+  ],
+  "headlineMetrics": {
+    "tokenSavingBenchmarkAverageSavingsRatio": 0.7445,
+    "ragSourceSelectionAverageSavingsRatio": 0,
+    "ragRequiredSourceRecall": 0,
+    "latestEvidenceHitRate": 0,
+    "staleSourceSelectedCount": 0,
+    "mimoWorkingModelId": "mimo-v2.5-pro",
+    "mimoUsageReturned": false,
+    "tokenEstimatorConfidence": "unknown",
+    "cachePersistenceReady": false,
+    "responseCacheHitRate": null
+  },
+  "strengths": [
+    "Token saving benchmarks show strong local reduction: 270A averageSavingsRatio=0.7445, 273A averageSavingsRatio=0.",
+    "RAG source selection hit required sources with recall=0 and latestEvidenceHitRate=0.",
+    "MiMo v2.5 Pro is verified as an explicit non-default paid provider path with no default NVIDIA /chat switch.",
+    "Token Cost Guard can estimate, budget, require approval, and block before future paid-provider calls.",
+    "Evidence and verifier coverage across 268A-273A is strong for local self-use and paid API preflight.",
+    "Security boundary evidence keeps paid calls, MiMo default switch, Codex CLI, workflow runner, worktree, and auto commit/push disabled for this benchmark."
+  ],
+  "risks": [
+    "Workspace is dirty, so operational reporting must not claim a clean release state.",
+    "All token-saving and RAG source-selection gains are local benchmark estimates, not audited production invoices.",
+    "272A calibration confidence is low because it uses only two tiny MiMo smoke usage samples.",
+    "RAG source selection is rules-based and has no embedding/rerank/real answer-quality validation yet.",
+    "MiMo is safe as a non-default explicit smoke path, but not sealed as production routing or automatic fallback.",
+    "No enterprise ACL sync, multi-tenant isolation, encrypted key vault, or production billing reconciliation is sealed.",
+    "Desktop/Codex execution boundaries remain preview/manual; no unattended development is enabled.",
+    "UI observability is evidence-panel based and still depends on local service/evidence files.",
+    "Provider health does not equal permission to send long context or run paid workloads.",
+    "Commercial readiness remains self-use oriented, not production SaaS readiness.",
+    "Response cache persistence is not sealed in the 268A-273A baseline, so repeat queries may still spend future API tokens."
+  ],
+  "gaps": [
+    "No production vector RAG or GraphRAG.",
+    "No real embedding or rerank source selector.",
+    "No production-quality token estimator calibration across long-context workloads.",
+    "No automatic provider routing with approval policy.",
+    "No enterprise key vault or multi-user permission system.",
+    "No audited production cost ledger tied to provider invoices.",
+    "No workflow runner, worktree execution, auto commit, auto push, or PR automation.",
+    "No production response-quality benchmark against real model outputs.",
+    "No clean-release baseline while the workspace remains dirty.",
+    "No production SaaS operations layer, tenant isolation, rate limits, or SLA evidence.",
+    "Response cache persistence should be the next local cost-saving layer before expanding paid API tests."
+  ],
+  "recommendedNextRoutes": [
+    {
+      "route": "Phase 275A Response Cache Persistence",
+      "priority": "P0",
+      "reason": "Repeat questions are the clearest remaining token-saving opportunity before more paid provider tests.",
+      "risk": "Must not cache API keys, auth headers, env values, or unsanitized full project context."
+    },
+    {
+      "route": "Model Tier Routing Preview",
+      "priority": "P1",
+      "reason": "Use rule_only / cheap / standard / premium routing so MiMo is reserved for high-value tasks.",
+      "risk": "Automatic paid routing must remain disabled until approval and budget gates are stronger."
+    },
+    {
+      "route": "RAG Source Selection Hardening",
+      "priority": "P1",
+      "reason": "Improve source ranking beyond fixed rules and verify answer quality against selected context.",
+      "risk": "Embedding/rerank work can add cost and complexity if done before cache and guard hardening."
+    },
+    {
+      "route": "MiMo Usage Calibration Expansion",
+      "priority": "P2",
+      "reason": "A few approved tiny requests can calibrate estimator floors without large spend.",
+      "risk": "Should remain capped, explicit, and non-default."
+    },
+    {
+      "route": "Evidence Dashboard",
+      "priority": "P2",
+      "reason": "Expose scorecard, stale-evidence warnings, and safety gates in one review surface.",
+      "risk": "Dashboard must avoid implying production readiness."
+    }
+  ],
+  "safety": {
+    "plainTextApiKeyWritten": false,
+    "apiKeyPrinted": false,
+    "paidApiCallExecuted": false,
+    "externalApiCalled": false,
+    "mimoApiCalled": false,
+    "defaultNvidiaChatLaneChanged": false,
+    "mimoSetAsDefault": false,
+    "longContextSentToPaidApi": false,
+    "largeOutputRequested": false,
+    "stressTestExecuted": false,
+    "legacyModified": false,
+    "projectContextCreated": false,
+    "codexCliInvoked": false,
+    "codexExecInvoked": false,
+    "workflowRunnerEnabled": false,
+    "worktreeCreated": false,
+    "autoCommit": false,
+    "autoPush": false
+  }
+}

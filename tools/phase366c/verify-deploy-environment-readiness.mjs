@@ -1,4 +1,4 @@
-import { exists, writeJson, writeText } from "../phase366-common.mjs";
+import { exists, writeJson, writeText } from "../phase-file-utils.mjs";
 
 const checks = [
   ["project_root_exists", true],

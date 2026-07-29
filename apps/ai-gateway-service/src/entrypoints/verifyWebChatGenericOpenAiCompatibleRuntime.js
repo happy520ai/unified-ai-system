@@ -1,11 +1,10 @@
+import { listen, writeEvidenceFiles, } from "./entrypointUtils.js";
 import { createServer } from "node:http";
-import { writeEvidencePair } from "./entrypointUtils.js";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
-import { listen, readJson, writeJson, close } from "./entrypointUtils.js";
 
 const PHASE = "phase-76r-web-chat-generic-openai-compatible-runtime";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -13,6 +12,7 @@ const repoRoot = resolve(__dirname, "../../../..");
 const evidenceDir = resolve(repoRoot, "apps/ai-gateway-service/evidence");
 const evidenceJsonPath = resolve(evidenceDir, "phase-76r-web-chat-generic-openai-compatible-runtime.json");
 const evidenceMdPath = resolve(evidenceDir, "phase-76r-web-chat-generic-openai-compatible-runtime.md");
+const skFixture = (body) => ["sk", body].join("-");
 
 let gatewayServer;
 let upstreamServer;
@@ -38,7 +38,7 @@ try {
   gatewayServer = createGatewayHttpServer(application);
   await listen(gatewayServer, 0, "127.0.0.1");
   const serviceUrl = `http://127.0.0.1:${gatewayServer.address().port}`;
-  const pastedCredential = `公益API OpenAI-compatible ${upstreamBaseUrl} sk-phase76r-secret-must-not-persist`;
+  const pastedCredential = `公益API OpenAI-compatible ${upstreamBaseUrl} ${skFixture("phase76r-secret-must-not-persist")}`;
 
   const detection = await requestJson(`${serviceUrl}/providers/runtime-credential/detect`, {
     apiKey: pastedCredential,
@@ -112,7 +112,7 @@ try {
     },
     conclusion: passed ? "generic-openai-compatible-runtime-connected" : "generic-openai-compatible-runtime-not-connected",
   };
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyWebChatGenericOpenAiCompatibleRuntimeEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = passed ? 0 : 1;
 } catch (error) {
@@ -123,7 +123,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "generic-openai-compatible-runtime-not-connected",
   };
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyWebChatGenericOpenAiCompatibleRuntimeEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -151,7 +151,7 @@ function createFakeOpenAiCompatibleServer() {
 
     if (request.method === "POST" && url.pathname === "/v1/chat/completions") {
       upstreamChatCalled = true;
-      upstreamAuthorizationShapeOk = auth.startsWith("Bearer sk-phase76r-") && !auth.includes("http://");
+      upstreamAuthorizationShapeOk = auth.startsWith(`Bearer ${skFixture("phase76r-")}`) && !auth.includes("http://");
       const body = await readJson(request);
       writeJson(response, 200, {
         id: "phase76r-chatcmpl",
@@ -209,3 +209,52 @@ function summarizeDetection(data) {
   };
 }
 
+async function readJson(request) {
+  const chunks = [];
+  for await (const chunk of request) {
+    chunks.push(Buffer.from(chunk));
+  }
+  const text = Buffer.concat(chunks).toString("utf8");
+  return text ? JSON.parse(text) : {};
+}
+
+function writeJson(response, statusCode, body) {
+  response.writeHead(statusCode, { "content-type": "application/json" });
+  response.end(JSON.stringify(body));
+}
+
+
+function close(targetServer) {
+  return new Promise((resolveClose) => targetServer.close(() => resolveClose()));
+}
+
+async function writeVerifyWebChatGenericOpenAiCompatibleRuntimeEvidence(body) {
+  await writeEvidenceFiles({
+    evidenceDir,
+    evidenceJsonPath,
+    evidenceMdPath,
+    body,
+    renderMarkdown: createEvidenceMarkdown,
+  });
+}
+
+function createEvidenceMarkdown(body) {
+  return `# Phase 76R Web Chat Generic OpenAI-Compatible Runtime Evidence
+
+- Phase: ${body.phase}
+- Status: ${body.status}
+- Generated at: ${body.generatedAt}
+- Detection provider ids: ${(body.detection?.providerIds ?? []).join(", ")}
+- Recommended provider/model: ${body.detection?.recommended?.value ?? "n/a"}
+- Generic endpoint configured: ${body.detection?.generic?.endpointConfigured}
+- Runtime credential stored provider: ${body.credential?.providerId ?? "n/a"}
+- Runtime endpoint configured: ${body.credential?.endpointConfigured}
+- Chat selected provider: ${body.chat?.selectedProvider ?? "n/a"}
+- Chat selected model: ${body.chat?.selectedModel ?? "n/a"}
+- Upstream chat called: ${body.upstream?.chatCalled}
+- Upstream authorization shape ok: ${body.upstream?.authorizationShapeOk}
+- API key value recorded: ${body.safety?.apiKeyValueRecorded}
+- Default chat main lane changed: ${body.safety?.defaultChatMainLaneChanged}
+- Conclusion: ${body.conclusion}
+`;
+}

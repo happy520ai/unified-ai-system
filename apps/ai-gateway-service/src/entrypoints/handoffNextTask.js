@@ -6,7 +6,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "../../../..");
 
 const title = "只读检查 Personal Operator Console 的真实使用体验，并给出下一步建议";
-const projectRoot = "E:\\AI-Data\\AI网关系统\\unified-ai-system";
+const projectRoot = repoRoot;
 
 const currentStatus = [
   "Phase 237A-245A 自用操作台价值线已封板。",

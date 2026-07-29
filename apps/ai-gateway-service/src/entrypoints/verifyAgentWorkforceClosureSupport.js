@@ -1,3 +1,4 @@
+import { fetchJsonBodyResponse as fetchJson, fetchTextResponse as fetchText, listen, postJsonBodyResponse as postJson } from "./entrypointUtils.js";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -6,7 +7,6 @@ import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
 import { findPlainSecretFindings } from "../security/secretSafety.js";
-import { fetchJson, fetchText, postJson, listen, writeEvidenceWithRenderer } from "./entrypointUtils.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 export const repoRoot = resolve(__dirname, "../../../..");
@@ -86,17 +86,13 @@ export async function assertEvidencePassed(phase) {
   return evidence;
 }
 
-export async function saveEvidence(phase, body) {
-  await writeEvidenceWithRenderer(
-    evidenceDir,
-    resolve(evidenceDir, `${phase}.json`),
-    resolve(evidenceDir, `${phase}.md`),
-    body,
-    renderEvidenceMarkdown,
-  );
+export async function writeEvidence(phase, body) {
+  await mkdir(evidenceDir, { recursive: true });
+  await writeFile(resolve(evidenceDir, `${phase}.json`), `${JSON.stringify(body, null, 2)}\n`, "utf8");
+  await writeFile(resolve(evidenceDir, `${phase}.md`), createEvidenceMarkdown(body), "utf8");
 }
 
-export function renderEvidenceMarkdown(body) {
+export function createEvidenceMarkdown(body) {
   return `# ${body.phase} Evidence
 
 - Phase: ${body.phase}
@@ -236,4 +232,3 @@ export async function createPreviewPlan({ phase, selectedTemplate = "feature-dev
     await new Promise((resolveClose) => server.close(resolveClose));
   }
 }
-

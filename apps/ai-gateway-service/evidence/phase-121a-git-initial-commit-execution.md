@@ -3,7 +3,7 @@
 - Phase: phase-121a-git-initial-commit-execution
 - Status: passed
 - Generated at: 2026-04-27T10:51:39.145Z
-- Git top-level: E:/AI-Data/AI网关系统/unified-ai-system
+- Git top-level: <repository-root>
 - Head subject: Phase121A initial local commit
 - Staged file count: 0
 - Tracked file count: 536

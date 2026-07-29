@@ -33,10 +33,14 @@ export function debugLoop(msg, err) {
 
 // Provider timeout wrapper
 export function withProviderTimeout(providerPromise, timeoutMs = PROVIDER_CALL_TIMEOUT_MS) {
-  return Promise.race([
-    providerPromise,
-    new Promise((_, reject) =>
-      setTimeout(() => reject(new Error(`Provider call timed out after ${timeoutMs}ms`)), timeoutMs)
-    ),
-  ]);
+  let timeoutId;
+  const timeoutPromise = new Promise((_, reject) => {
+    timeoutId = setTimeout(
+      () => reject(new Error(`Provider call timed out after ${timeoutMs}ms`)),
+      timeoutMs,
+    );
+  });
+
+  return Promise.race([Promise.resolve(providerPromise), timeoutPromise])
+    .finally(() => clearTimeout(timeoutId));
 }

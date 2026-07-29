@@ -1,21 +1,11 @@
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 import { findPlainSecretFindings } from "../security/secretSafety.js";
-import {
-  normalizePath,
-  parseJson,
-  parseJsonMaybe,
-  parseLines,
-  normalizeWhitespace,
-  readRequired,
-  readOptional,
-  redactRemoteLine,
-  markdown,
-} from "./verifyReleasePublishExecutionHelpers.js";
+import { renderReleasePublishExecutionEvidence as markdown } from "./releasePublishEvidenceMarkdown.js";
 
 const execFileAsync = promisify(execFile);
 const phase = "phase-136a-release-publish-execution";
@@ -62,8 +52,52 @@ async function run(command, args, options = {}) {
   }
 }
 
+function normalizePath(value) {
+  return String(value ?? "").trim().replace(/\\/g, "/").replace(/\/$/, "");
+}
+
 async function runGit(args) {
   return run("git", ["-c", `safe.directory=${normalizePath(repoRoot)}`, ...args]);
+}
+
+function parseJsonMaybe(text) {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+function parseJson(text, label) {
+  try {
+    return JSON.parse(text);
+  } catch (error) {
+    throw new Error(`${label} is not valid JSON: ${error.message}`);
+  }
+}
+
+function parseLines(text) {
+  return String(text ?? "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+}
+
+function normalizeWhitespace(value) {
+  return String(value ?? "").replace(/\s+/g, " ").trim();
+}
+
+async function readRequired(relativePath) {
+  return readFile(resolve(repoRoot, relativePath), "utf8");
+}
+
+async function readOptional(relativePath) {
+  if (!existsSync(resolve(repoRoot, relativePath))) {
+    return "";
+  }
+
+  return readFile(resolve(repoRoot, relativePath), "utf8");
+}
+
+function redactRemoteLine(line) {
+  return String(line).replace(/:\/\/[^@\s]+@/g, "://[redacted]@");
 }
 
 async function main() {

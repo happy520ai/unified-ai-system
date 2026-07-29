@@ -1,8 +1,17 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join } from "node:path";
 import { homedir } from "node:os";
+import { createPinoLogger } from "../logging/pinoLogger.js";
 
 const STORE_VERSION = 1;
+const logger = createPinoLogger({ app: "runtimeCredentialStore" });
 
 export function createRuntimeCredentialStore({ env = process.env, storagePath } = {}) {
   const persistence = createPersistenceConfig({ env, storagePath });
@@ -67,8 +76,7 @@ export function createRuntimeCredentialStore({ env = process.env, storagePath } 
     listRecords() {
       return Array.from(credentials.values()).map((record) => ({
         providerId: record.providerId,
-        apiKeyPresent: !!record.apiKey,
-        apiKeyPreview: record.apiKey ? `${String(record.apiKey).slice(0, 4)}...${String(record.apiKey).slice(-4)}` : null,
+        apiKeyPresent: Boolean(record.apiKey),
         endpoint: record.endpoint,
         source: record.source,
         setAt: record.setAt,
@@ -169,26 +177,36 @@ function persistCredentials(credentials, persistence) {
       models: normalizeStoredModels(record.models),
     }));
 
+  let tmpPath = null;
   try {
     mkdirSync(dirname(persistence.path), { recursive: true });
-    const tmpPath = `${persistence.path}.${process.pid}.tmp`;
+    tmpPath = `${persistence.path}.${process.pid}.tmp`;
     writeFileSync(tmpPath, JSON.stringify({
       version: STORE_VERSION,
       warning: "Local user credential store. Do not commit or share this file.",
       records,
-    }, null, 2));
+    }, null, 2), { encoding: "utf8", mode: 0o600 });
     renameSync(tmpPath, persistence.path);
     const persistedProviders = new Set(records.map((record) => record.providerId));
     for (const record of credentials.values()) {
       record.persisted = persistedProviders.has(record.providerId);
     }
     return true;
-  } catch {
-    // Clean up orphaned temp file if rename failed
-    try {
-      const tmpPath = `${persistence.path}.${process.pid}.tmp`;
-      if (existsSync(tmpPath)) unlinkSync(tmpPath);
-    } catch { /* ignore cleanup errors */ }
+  } catch (error) {
+    if (tmpPath && existsSync(tmpPath)) {
+      try {
+        unlinkSync(tmpPath);
+      } catch (cleanupError) {
+        logger.warn({
+          event: "runtime_credential_temp_cleanup_failed",
+          err: cleanupError,
+        }, "Failed to clean up a runtime credential temp file.");
+      }
+    }
+    logger.warn({
+      event: "runtime_credential_persist_failed",
+      err: error,
+    }, "Runtime credential persistence failed.");
     for (const record of credentials.values()) {
       record.persisted = false;
     }

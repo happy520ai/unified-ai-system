@@ -2,12 +2,12 @@
   "phase": "Phase323C-5",
   "generatedAt": "2026-05-06T12:12:15.249Z",
   "inputs": {
-    "rootPackagePath": "E:\\AI-Data\\AI网关系统\\unified-ai-system\\package.json",
-    "servicePackagePath": "E:\\AI-Data\\AI网关系统\\unified-ai-system\\apps\\ai-gateway-service\\package.json",
-    "inventoryPath": "E:\\AI-Data\\AI网关系统\\unified-ai-system\\docs\\phase323c-script-entrypoint-inventory.json",
-    "archiveCandidatePath": "E:\\AI-Data\\AI网关系统\\unified-ai-system\\docs\\phase323c-archive-candidate-scripts.json",
-    "governancePath": "E:\\AI-Data\\AI网关系统\\unified-ai-system\\docs\\phase323c-script-governance-policy.md",
-    "entrypointsDir": "E:\\AI-Data\\AI网关系统\\unified-ai-system\\apps\\ai-gateway-service\\src\\entrypoints"
+    "rootPackagePath": "<repository-root>\\package.json",
+    "servicePackagePath": "<repository-root>\\apps\\ai-gateway-service\\package.json",
+    "inventoryPath": "<repository-root>\\docs\\phase323c-script-entrypoint-inventory.json",
+    "archiveCandidatePath": "<repository-root>\\docs\\phase323c-archive-candidate-scripts.json",
+    "governancePath": "<repository-root>\\docs\\phase323c-script-governance-policy.md",
+    "entrypointsDir": "<repository-root>\\apps\\ai-gateway-service\\src\\entrypoints"
   },
   "notes": {
     "staticOnly": true,

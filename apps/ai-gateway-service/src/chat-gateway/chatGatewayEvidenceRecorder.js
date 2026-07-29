@@ -1,4 +1,4 @@
-import { appendFile, mkdir, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -46,18 +46,30 @@ export async function recordChatGatewayEvidence(record = {}, { jsonlPath = defau
 }
 
 export async function getEvidenceById(evidenceId) {
-  const { readFile } = await import("node:fs/promises");
   try {
     const content = await readFile(phase314aJsonlPath, "utf8");
     const lines = content.split("\n").filter(Boolean);
+    let matchingRecord = null;
+    let malformedRecordCount = 0;
+
     for (const line of lines) {
       try {
         const record = JSON.parse(line);
-        if (record.evidenceId === evidenceId) return record;
-      } catch (err) { console.error("[chatGatewayEvidenceRecorder]:", err?.message || err); }
+        if (record.evidenceId === evidenceId) matchingRecord = record;
+      } catch {
+        malformedRecordCount += 1;
+      }
     }
-  } catch (err) { console.error("[chatGatewayEvidenceRecorder]:", err?.message || err); }
-  return null;
+
+    if (malformedRecordCount > 0) {
+      throw new SyntaxError(`Chat gateway evidence log contains ${malformedRecordCount} malformed record(s).`);
+    }
+
+    return matchingRecord;
+  } catch (error) {
+    if (error?.code === "ENOENT") return null;
+    throw error;
+  }
 }
 
 export function sanitizeEvidence(value) {

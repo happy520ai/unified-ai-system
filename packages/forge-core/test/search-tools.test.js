@@ -22,9 +22,7 @@ describe("globTool", () => {
 
   before(async () => {
     mod = await import(`${APPS_SRC}/tools/globTool.js`);
-    const localTmpBase = join(process.cwd(), ".test-tmp-glob");
-    mkdirSync(localTmpBase, { recursive: true });
-    tmpDir = mkdtempSync(join(localTmpBase, "run-"));
+    tmpDir = mkdtempSync(join(process.cwd(), ".test-tmp-glob-"));
     // Create test files
     mkdirSync(join(tmpDir, "src"), { recursive: true });
     mkdirSync(join(tmpDir, "src", "components"), { recursive: true });
@@ -90,9 +88,7 @@ describe("grepTool", () => {
 
   before(async () => {
     mod = await import(`${APPS_SRC}/tools/grepTool.js`);
-    const localTmpBase = join(process.cwd(), ".test-tmp-grep");
-    mkdirSync(localTmpBase, { recursive: true });
-    tmpDir = mkdtempSync(join(localTmpBase, "run-"));
+    tmpDir = mkdtempSync(join(process.cwd(), ".test-tmp-grep-"));
     writeFileSync(join(tmpDir, "test.js"), 'const hello = "world";\nconsole.log(hello);\n');
     writeFileSync(join(tmpDir, "other.txt"), "no match here\nfoo bar\n");
   });
@@ -142,9 +138,7 @@ describe("globTool edge cases", () => {
 
   before(async () => {
     globMod = await import(`${APPS_SRC}/tools/globTool.js`);
-    const localTmpBase = join(process.cwd(), ".test-tmp-globEdge");
-    mkdirSync(localTmpBase, { recursive: true });
-    tmpDir = mkdtempSync(join(localTmpBase, "run-"));
+    tmpDir = mkdtempSync(join(process.cwd(), ".test-tmp-globEdge-"));
     mkdirSync(join(tmpDir, "src"), { recursive: true });
     writeFileSync(join(tmpDir, "src", "a.js"), "export default 1;");
   });
@@ -220,9 +214,7 @@ describe("grepTool edge cases", () => {
 
   before(async () => {
     grepMod = await import(`${APPS_SRC}/tools/grepTool.js`);
-    const localTmpBase = join(process.cwd(), ".test-tmp-grepEdge");
-    mkdirSync(localTmpBase, { recursive: true });
-    tmpDir = mkdtempSync(join(localTmpBase, "run-"));
+    tmpDir = mkdtempSync(join(process.cwd(), ".test-tmp-grepEdge-"));
     writeFileSync(join(tmpDir, "sample.js"), "const foo = 1;\nconst bar = 2;\nconsole.log(foo + bar);\n");
   });
 

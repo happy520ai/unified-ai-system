@@ -1,7 +1,9 @@
+import {
+  readJsonFileSync as readJson,
+} from "./entrypointUtils.js";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { readJson } from "./entrypointUtils.js"
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "../../../..");

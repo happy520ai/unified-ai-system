@@ -1,12 +1,13 @@
 // Deep Polish Batch 14 — 8 fixes, 8 test suites
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "fs";
 import { join } from "path";
 import { fileURLToPath } from "node:url";
+import { createSourceReader } from "./helpers/source-closure.js";
 
 const __testDir = fileURLToPath(new URL(".", import.meta.url));
 const SRC_ROOT = join(__testDir, "..", "..", "..", "apps", "ai-gateway-service", "src");
+const readFileSync = createSourceReader(SRC_ROOT);
 
 function ESM_SRC(file) {
   return readFileSync(join(SRC_ROOT, file), "utf8");
@@ -17,12 +18,11 @@ describe("Batch14 Fix1: generateStream SSRF guard", () => {
   const src = ESM_SRC("providers/httpLlmProviderAdapter.js");
 
   it("has SSRF guard in generateStream method", () => {
-    const gsIdx = src.indexOf("generateStream(providerRequest)");
-    assert.ok(gsIdx >= 0, "generateStream method not found");
-    // Look within 2000 chars of the method start
-    const window = src.slice(gsIdx, gsIdx + 2000);
-    assert.ok(window.includes("isPrivateOrReservedUrl"), "SSRF guard not found in generateStream");
-    assert.ok(window.includes("SSRF blocked"), "SSRF block message not found in generateStream");
+    const helperIdx = src.indexOf("function openStreamWithRetry");
+    assert.ok(helperIdx >= 0, "stream connection helper not found");
+    const window = src.slice(helperIdx, helperIdx + 5000);
+    assert.ok(window.includes("isPrivateOrReservedUrl"), "SSRF guard not found in stream connection helper");
+    assert.ok(window.includes("SSRF blocked"), "SSRF block message not found in stream connection helper");
   });
 
   it("SSRF guard appears at least twice (once per fetch call)", () => {
@@ -32,12 +32,12 @@ describe("Batch14 Fix1: generateStream SSRF guard", () => {
   });
 
   it("SSRF guard in generateStream is before the fetch call", () => {
-    const gsIdx = src.indexOf("generateStream(providerRequest)");
-    const section = src.slice(gsIdx, gsIdx + 2000);
+    const helperIdx = src.indexOf("function openStreamWithRetry");
+    const section = src.slice(helperIdx, helperIdx + 5000);
     const guardIdx = section.indexOf("isPrivateOrReservedUrl");
-    const fetchIdx = section.indexOf("response = await fetch");
-    assert.ok(guardIdx >= 0, "guard not found in generateStream");
-    assert.ok(fetchIdx >= 0, "fetch not found in generateStream");
+    const fetchIdx = section.indexOf("response = await fetchWithAgent");
+    assert.ok(guardIdx >= 0, "guard not found in stream connection helper");
+    assert.ok(fetchIdx >= 0, "pooled fetch not found in stream connection helper");
     assert.ok(guardIdx < fetchIdx, "SSRF guard should be before fetch call");
   });
 });
@@ -103,9 +103,8 @@ describe("Batch14 Fix4: agenticCodingLoop checkpoint size limit", () => {
     );
   });
 
-  it("uses statSync to check file size before reading", () => {
-    assert.ok(src.includes("statSync"), "statSync not found");
-    assert.ok(src.includes("_statSync(checkpointPath)"), "should stat the checkpoint file");
+  it("uses stat to check file size before reading", () => {
+    assert.ok(src.includes("stat(checkpointPath)"), "should stat the checkpoint file");
   });
 
   it("rejects checkpoint if file too large", () => {
@@ -113,11 +112,11 @@ describe("Batch14 Fix4: agenticCodingLoop checkpoint size limit", () => {
     assert.ok(src.includes("File too large"), "should mention file too large");
   });
 
-  it("wraps JSON.parse in an else block after size check", () => {
-    const idx = src.indexOf("MAX_CHECKPOINT_SIZE");
-    const window = src.slice(idx, idx + 400);
-    assert.ok(window.includes("} else {"), "should have else block for safe path");
-    assert.ok(window.includes("JSON.parse"), "should parse JSON in else block");
+  it("parses JSON only after the size check", () => {
+    const sizeCheck = src.indexOf("checkpointStat.size > MAX_CHECKPOINT_SIZE");
+    const parse = src.indexOf("JSON.parse", sizeCheck);
+    assert.ok(sizeCheck >= 0, "size check not found");
+    assert.ok(parse > sizeCheck, "JSON parsing should follow the size check");
   });
 });
 
@@ -157,13 +156,13 @@ describe("Batch14 Fix6: webSocketServer connection cap", () => {
 
   it("checks connections.size against MAX_WS_CONNECTIONS", () => {
     assert.ok(
-      src.includes("connections.size >= MAX_WS_CONNECTIONS"),
+      src.includes("connections.size >= maxConnections"),
       "connection cap check not found"
     );
   });
 
   it("sends 503 and destroys socket when limit reached", () => {
-    const idx = src.indexOf("connections.size >= MAX_WS_CONNECTIONS");
+    const idx = src.indexOf("connections.size >= maxConnections");
     assert.ok(idx >= 0, "cap check not found");
     const window = src.slice(idx, idx + 300);
     assert.ok(window.includes("503"), "should send 503 status");
@@ -185,7 +184,7 @@ describe("Batch14 Fix7: unhandledRejection handler + shutdown timeout", () => {
   it("logs reason instead of crashing", () => {
     const idx = src.indexOf("unhandledRejection");
     const window = src.slice(idx, idx + 300);
-    assert.ok(window.includes("console.error"), "should log the rejection");
+    assert.ok(window.includes("logger.error"), "should log the rejection with the structured logger");
   });
 
   it("shutdown uses forced exit timeout", () => {
@@ -196,7 +195,7 @@ describe("Batch14 Fix7: unhandledRejection handler + shutdown timeout", () => {
   it("forced shutdown timeout is reasonable (10s)", () => {
     const idx = src.indexOf("forceTimer = setTimeout");
     assert.ok(idx >= 0, "forceTimer setTimeout not found");
-    const window = src.slice(idx, idx + 200);
+    const window = src.slice(idx, idx + 500);
     assert.ok(
       window.includes("10_000") || window.includes("10000"),
       "should be 10 seconds"
@@ -209,7 +208,7 @@ describe("Batch14 Fix8: executionApprovalGate atomic write", () => {
   const src = ESM_SRC("workforce/executionApprovalGate.js");
 
   it("writes to .tmp file first", () => {
-    assert.ok(src.includes('.tmp"'), "should write to .tmp file");
+    assert.ok(src.includes(".tmp"), "should write to .tmp file");
     assert.ok(src.includes("tmpPath"), "should use tmpPath variable");
   });
 

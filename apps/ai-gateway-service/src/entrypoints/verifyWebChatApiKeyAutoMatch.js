@@ -1,12 +1,11 @@
-import { mkdir, writeFile } from "node:fs/promises";
-import { writeEvidencePair } from "./entrypointUtils.js";
+import { listen, writeEvidenceFiles, } from "./entrypointUtils.js";
+import { mkdir } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
 import { createConsolePage } from "../ui/consolePage.js";
-import { listen, postJson, close } from "./entrypointUtils.js";
 
 const PHASE = "phase-76o-web-chat-api-key-auto-match";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -34,7 +33,7 @@ try {
   await listen(server, 0, "127.0.0.1");
   const serviceUrl = `http://127.0.0.1:${server.address().port}`;
 
-  const detection = await postJson(`${serviceUrl}/providers/runtime-credential/detect`, {
+  const detection = await postJsonWithStatus(`${serviceUrl}/providers/runtime-credential/detect`, {
     apiKey: "fake-phase76o-secret-must-not-persist",
     source: "phase76o-verify",
   });
@@ -43,14 +42,14 @@ try {
   const localFakeCandidate = (detectedData.detected ?? []).find((item) => item.providerId === "local-fake-provider") ?? {};
   const selectableModels = localFakeCandidate.models ?? [];
   const selectedModel = selectableModels.find((model) => model.modelId === "phase76o-alt-model") ?? selectableModels[0] ?? {};
-  const credential = await postJson(`${serviceUrl}/providers/runtime-credential`, {
+  const credential = await postJsonWithStatus(`${serviceUrl}/providers/runtime-credential`, {
     providerId: localFakeCandidate.providerId,
     modelId: selectedModel.modelId,
     models: selectableModels,
     apiKey: "fake-phase76o-secret-must-not-persist",
     source: "phase76o-verify",
   });
-  const chat = await postJson(`${serviceUrl}/chat`, {
+  const chat = await postJsonWithStatus(`${serviceUrl}/chat`, {
     prompt: "phase76o auto matched key",
     providerId: localFakeCandidate.providerId,
     model: selectedModel.modelId,
@@ -119,7 +118,7 @@ try {
     },
     conclusion: passed ? "web-chat-api-key-auto-match-connected" : "web-chat-api-key-auto-match-not-connected",
   };
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyWebChatApiKeyAutoMatchEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = passed ? 0 : 1;
 } catch (error) {
@@ -130,7 +129,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "web-chat-api-key-auto-match-not-connected",
   };
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyWebChatApiKeyAutoMatchEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -152,6 +151,21 @@ function verifyConsolePageIncludesAutoMatch() {
   };
 }
 
+async function postJsonWithStatus(url, body) {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  const text = await response.text();
+  return {
+    ok: response.ok,
+    httpStatus: response.status,
+    payload: text ? JSON.parse(text) : {},
+  };
+}
 
 async function getJson(url) {
   const response = await fetch(url);
@@ -163,3 +177,43 @@ async function getJson(url) {
   };
 }
 
+
+function close(targetServer) {
+  return new Promise((resolveClose) => targetServer.close(() => resolveClose()));
+}
+
+async function writeVerifyWebChatApiKeyAutoMatchEvidence(body) {
+  await writeEvidenceFiles({
+    evidenceDir,
+    evidenceJsonPath,
+    evidenceMdPath,
+    body,
+    renderMarkdown: createEvidenceMarkdown,
+  });
+}
+
+function createEvidenceMarkdown(body) {
+  return `# Phase 76O Web Chat API Key Auto Match Evidence
+
+- Phase: ${body.phase}
+- Status: ${body.status}
+- Generated at: ${body.generatedAt}
+- Service URL: ${body.serviceUrl ?? "n/a"}
+- UI auto-detect action present: ${body.htmlInspection?.autoDetectButtonPresent}
+- Detect route present in UI: ${body.htmlInspection?.detectRoutePresent}
+- Recommended provider/model: ${body.detection?.recommended?.value ?? "n/a"}
+- Selectable model count: ${body.detection?.selectableModelCount ?? "n/a"}
+- Selected runtime model: ${body.detection?.selectedModelId ?? "n/a"}
+- Detection secret storage: ${body.detection?.secretStorage ?? "n/a"}
+- Runtime credential provider: ${body.credential?.providerId ?? "n/a"}
+- Runtime credential storage: ${body.credential?.secretStorage ?? "n/a"}
+- Runtime model count: ${body.credential?.runtimeModelCount ?? "n/a"}
+- Chat selected provider: ${body.chat?.selectedProvider ?? "n/a"}
+- Chat selected model: ${body.chat?.selectedModel ?? "n/a"}
+- API key value recorded: ${body.safety?.apiKeyValueRecorded}
+- API key persisted: ${body.safety?.apiKeyPersisted}
+- Detection stores secret: ${body.safety?.detectionStoresSecret}
+- Default chat main lane changed: ${body.safety?.defaultChatMainLaneChanged}
+- Conclusion: ${body.conclusion}
+`;
+}

@@ -8,10 +8,15 @@ coverage/
 .cache/
 .tmp/
 .data/
+.agent-memory/
+.agent-sessions/
+.forge/
+.forge-worktrees/
 legacy/
 
 .env
 .env.*
+**/*.input.json
 !.env.example
 
 *.log

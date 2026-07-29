@@ -1,4 +1,3 @@
-import { existsSync, readdirSync } from "node:fs";
 import { readFile, stat } from "node:fs/promises";
 import { resolve } from "node:path";
 import { sleep } from "./entrypointUtils.js";
@@ -186,14 +185,6 @@ export async function inspectPng(pngPath) {
   const buffer = await readFile(pngPath);
   const validPng = buffer.length >= 24 && buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47;
   return { bytes: stats.size, width: validPng ? buffer.readUInt32BE(16) : 0, height: validPng ? buffer.readUInt32BE(20) : 0, validPng };
-}
-
-export function findVersionedBrowserPaths(root, executableName) {
-  if (!existsSync(root)) return [];
-  return readdirSync(root, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => resolve(root, entry.name, executableName))
-    .reverse();
 }
 
 export async function readDevToolsPort(profileDir) {

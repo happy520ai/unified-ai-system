@@ -1,4 +1,4 @@
-import { readJson, writeJson, writeText } from "../phase369-common.mjs";
+import { readJson, writeJson, writeText } from "../phase-file-utils.mjs";
 
 const phase369a = await readJson("apps/ai-gateway-service/evidence/phase369a/no-deploy-product-hardening-decision-result.json");
 const phase369b = await readJson("apps/agent-console/evidence/phase369b/three-mode-workbench-ux-hardening-result.json");

@@ -1,25 +1,17 @@
-/**
- * providerCredentialDetector.js — Re-export facade.
- *
- * Split into four modules for 分层律 compliance (single file ≤ 500 lines):
- *   - providerCatalog.js        — provider catalog data + constants
- *   - providerModelDiscovery.js — matching, candidate creation, model discovery
- *   - providerModelProfiler.js  — normalization, profiling, capability inference
- *   - providerDetectionResult.js — result assembly, warnings, utility helpers
- */
-
 import { PROVIDER_CATALOG } from "./providerCatalog.js";
 import {
-  matchProviderFamilies,
-  createDetectionCandidate,
-  findTokenByPrefix,
-} from "./providerModelDiscovery.js";
-import {
-  pickRecommendedCandidate,
   createCapabilitySummary,
   createDetectionWarnings,
-  extractOpenAiCompatibleBaseUrl,
+  extractRuntimeCredentialEndpoint,
+  pickRecommendedCandidate,
 } from "./providerDetectionResult.js";
+import {
+  createDetectionCandidate,
+  findTokenByPrefix,
+  matchProviderFamilies,
+} from "./providerModelDiscovery.js";
+
+export { extractRuntimeCredentialEndpoint };
 
 export async function detectRuntimeCredentialProviders(application, body = {}) {
   const apiKey = String(body?.apiKey ?? "").trim();
@@ -120,49 +112,3 @@ export function extractRuntimeCredentialSecret(providerId, rawCredential) {
 
   return raw;
 }
-
-export function extractRuntimeCredentialEndpoint(providerId, rawCredential) {
-  const raw = String(rawCredential ?? "").trim();
-  if (!raw) return "";
-
-  const family = PROVIDER_CATALOG.find((item) => item.providerId === providerId);
-  if (family?.endpoint && !family.endpointRequired) {
-    return "";
-  }
-
-  if (providerId === "generic-openai-compatible") {
-    return extractOpenAiCompatibleBaseUrl(raw);
-  }
-
-  return "";
-}
-
-export {
-  PROVIDER_CATALOG,
-} from "./providerCatalog.js";
-export {
-  matchProviderFamilies,
-  createDetectionCandidate,
-  findTokenByPrefix,
-} from "./providerModelDiscovery.js";
-export {
-  normalizeDiscoveredModels,
-  withModelSource,
-  rankDiscoveredModels,
-  createModelCandidates,
-  createModelProfile,
-  inferCapabilities,
-  createExecutionProfile,
-} from "./providerModelProfiler.js";
-export {
-  pickRecommendedCandidate,
-  createCapabilitySummary,
-  createDetectionWarnings,
-  extractOpenAiCompatibleBaseUrl,
-  summarizeModels,
-  dedupeModels,
-  findProviderDescriptor,
-  findProviderModelConfigs,
-  trimSlash,
-  safeJsonParse,
-} from "./providerDetectionResult.js";

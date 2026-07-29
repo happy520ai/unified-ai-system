@@ -1,7 +1,17 @@
+import { close, findRequiredBrowserPath as findBrowserPath, listen, sleep, writeEvidenceFiles } from "./entrypointUtils.js";
+import {
+  closeCdpSilently,
+  connectCdp,
+  createCdpPage,
+  inspectPng,
+  readDevToolsPort,
+  terminateBrowser,
+  waitForExpression,
+  waitForLoadEvent,
+} from "./verifyWebChatBrowserHelpers.js";
 import { spawn } from "node:child_process";
-import { writeEvidencePair } from "./entrypointUtils.js";
 import { createServer } from "node:http";
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -9,8 +19,6 @@ import vm from "node:vm";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
 import { createConsolePage } from "../ui/consolePage.js";
-import { sleep, listen, findBrowserPath, close } from "./entrypointUtils.js";
-import { connectCdp, closeCdpSilently, waitForLoadEvent, waitForExpression, readDevToolsPort, createCdpPage, terminateBrowser, inspectPng } from "./verifyWebChatBrowserHelpers.js";
 
 const PHASE = "phase-88a-web-chat-model-config-first-chat";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -173,7 +181,7 @@ try {
     await closeCdpSilently(cdp);
   }
 
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyWebChatModelConfigFirstChatEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = evidence.status === "passed" ? 0 : 1;
 } catch (error) {
@@ -184,7 +192,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "web-chat-model-config-first-chat-not-connected",
   };
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyWebChatModelConfigFirstChatEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -414,6 +422,49 @@ async function readState(cdp) {
       fetches,
     };
   })()`);
+}
+
+
+
+async function writeVerifyWebChatModelConfigFirstChatEvidence(body) {
+  await writeEvidenceFiles({
+    evidenceDir,
+    evidenceJsonPath,
+    evidenceMdPath,
+    body,
+    renderMarkdown: createEvidenceMarkdown,
+  });
+}
+
+function createEvidenceMarkdown(body) {
+  return `# Phase 88A Web Chat Model Config First Chat Evidence
+
+- Phase: ${body.phase}
+- Status: ${body.status}
+- Generated at: ${body.generatedAt}
+- Service URL: ${body.serviceUrl ?? "n/a"}
+- UI URL: ${body.ui?.url ?? "n/a"}
+- Selected runtime value: ${body.ui?.finalState?.providerSelectValue ?? "n/a"}
+- Preference value: ${body.ui?.finalState?.preferenceValue ?? "n/a"}
+- Composer model ready: ${body.ui?.finalState?.composerModelReady ?? "n/a"}
+- First prompt: ${body.ui?.finalState?.chatStreamFetch?.prompt ?? "n/a"}
+- First chat endpoint: ${body.ui?.finalState?.chatStreamFetch?.path ?? "n/a"}
+- First chat provider/model: ${body.ui?.finalState?.chatStreamFetch?.providerId ?? "n/a"} / ${body.ui?.finalState?.chatStreamFetch?.model ?? "n/a"}
+- Assistant answer includes marker: ${body.ui?.finalState?.assistantAnswerIncludesMarker}
+- Input cleared after send: ${body.ui?.finalState?.inputClearedAfterSend}
+- Send button ready: ${body.ui?.finalState?.sendButtonReady}
+- Focus returned to chat input: ${body.ui?.finalState?.focusReturnedToChatInput}
+- Local mock provider only: ${body.safety?.localMockProviderOnly}
+- Real provider calls: ${body.safety?.realProviderCalls}
+- API key persisted in browser: ${body.safety?.apiKeyPersistedInBrowser}
+- API key persisted in evidence: ${body.safety?.apiKeyPersistedInEvidence}
+- Default chat main lane changed: ${body.safety?.defaultChatMainLaneChanged}
+- Screenshot path: ${body.screenshot?.path ?? "n/a"}
+- Screenshot bytes: ${body.screenshot?.bytes ?? "n/a"}
+- Screenshot dimensions: ${body.screenshot?.width ?? "n/a"}x${body.screenshot?.height ?? "n/a"}
+- Valid PNG: ${body.screenshot?.validPng}
+- Conclusion: ${body.conclusion}
+`;
 }
 
 function safeJsonParse(text) {

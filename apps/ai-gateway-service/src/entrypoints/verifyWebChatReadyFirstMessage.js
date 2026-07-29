@@ -1,9 +1,8 @@
+import { readJsonFile as readJson, writeEvidenceFiles, } from "./entrypointUtils.js";
 import { spawn } from "node:child_process";
-import { writeEvidencePair } from "./entrypointUtils.js";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { readJson } from "./entrypointUtils.js"
 
 const PHASE = "phase-96a-web-chat-ready-first-message";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -93,7 +92,7 @@ try {
   };
 }
 
-await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+await writeVerifyWebChatReadyFirstMessageEvidence(evidence);
 console.log(JSON.stringify(evidence, null, 2));
 process.exitCode = evidence.status === "passed" ? 0 : 1;
 
@@ -125,3 +124,36 @@ async function runNodeScript(scriptPath) {
   });
 }
 
+
+async function writeVerifyWebChatReadyFirstMessageEvidence(body) {
+  await writeEvidenceFiles({
+    evidenceDir,
+    evidenceJsonPath,
+    evidenceMdPath,
+    body,
+    renderMarkdown: createEvidenceMarkdown,
+  });
+}
+
+function createEvidenceMarkdown(body) {
+  return `# Phase 96A Web Chat Ready First Message Evidence
+
+- Phase: ${body.phase}
+- Status: ${body.status}
+- Generated at: ${body.generatedAt}
+- Ready delegated phase: ${body.checks?.readyToChat?.delegatedPhase ?? "n/a"}
+- Ready input focused: ${body.checks?.readyToChat?.focusReturnedToChatInput}
+- Ready composer guidance: ${body.checks?.readyToChat?.composerGuidanceKind ?? "n/a"}
+- First message delegated phase: ${body.checks?.firstMessage?.delegatedPhase ?? "n/a"}
+- First message endpoint: ${body.checks?.firstMessage?.endpoint ?? "n/a"}
+- First message provider/model: ${body.checks?.firstMessage?.providerId ?? "n/a"} / ${body.checks?.firstMessage?.model ?? "n/a"}
+- Input cleared after send: ${body.checks?.firstMessage?.inputClearedAfterSend}
+- Send button ready after answer: ${body.checks?.firstMessage?.sendButtonReady}
+- Focus returned after answer: ${body.checks?.firstMessage?.focusReturnedToChatInput}
+- Assistant answer received: ${body.checks?.firstMessage?.assistantAnswerIncludesMarker}
+- Local mock provider only: ${body.safety?.localMockProviderOnly}
+- Real provider calls: ${body.safety?.realProviderCalls}
+- Default chat main lane changed: ${body.safety?.defaultChatMainLaneChanged}
+- Conclusion: ${body.conclusion}
+`;
+}

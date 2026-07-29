@@ -1,7 +1,6 @@
-﻿import fs from "node:fs";
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { readJson } from "./entrypointUtils.js"
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -35,6 +34,9 @@ function fail(message) {
   process.exit(1);
 }
 
+function readJson(filePath) {
+  return JSON.parse(fs.readFileSync(filePath, "utf8"));
+}
 
 for (const file of requiredFiles) {
   if (!fs.existsSync(file)) {

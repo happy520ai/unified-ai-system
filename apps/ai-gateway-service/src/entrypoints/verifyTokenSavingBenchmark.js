@@ -1,9 +1,9 @@
+import { readCheckedJsonFile } from "./entrypointUtils.js";
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { readJson } from "./entrypointUtils.js"
 
 const PHASE = "270A-token-saving-benchmark";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -40,10 +40,10 @@ const checks = [];
 try {
   const docsText = readRequiredText(docsPath, "docs_exists");
   const uiText = readRequiredText(uiPath, "ui_exists");
-  const evidence = readJson(evidenceJsonPath, "evidence_json_exists");
+  const evidence = readVerifyTokenSavingBenchmarkJson(evidenceJsonPath, "evidence_json_exists");
   const evidenceMarkdown = readRequiredText(evidenceMdPath, "evidence_md_exists");
-  const rootPackage = readJson(rootPackagePath, "root_package_exists");
-  const servicePackage = readJson(servicePackagePath, "service_package_exists");
+  const rootPackage = readVerifyTokenSavingBenchmarkJson(rootPackagePath, "root_package_exists");
+  const servicePackage = readVerifyTokenSavingBenchmarkJson(servicePackagePath, "service_package_exists");
 
   assertCheck("benchmark_script_exists", existsSync(benchmarkScriptPath), benchmarkScriptPath);
   assertCheck("verifier_script_exists", existsSync(verifierPath), verifierPath);
@@ -147,6 +147,9 @@ function readRequiredText(path, checkName) {
   return exists ? readFileSync(path, "utf8") : "";
 }
 
+function readVerifyTokenSavingBenchmarkJson(path, checkName) {
+  return readCheckedJsonFile(path, checkName, readRequiredText, assertCheck);
+}
 
 function assertCheck(name, passed, detail = "") {
   checks.push({

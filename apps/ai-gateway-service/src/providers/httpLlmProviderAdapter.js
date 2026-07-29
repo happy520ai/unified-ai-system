@@ -22,18 +22,12 @@ import {
   openStreamWithRetry,
 } from "./httpProviderMapping.js";
 
-// Re-export for backward compatibility
 export { tryPartialToolArgs };
 
-// ── Retry configuration ──
 const DEFAULT_MAX_RETRIES = 3;
 const DEFAULT_RETRY_BASE_DELAY_MS = 2_000;
 const DEFAULT_RETRY_MAX_DELAY_MS = 30_000;
-
-// ── Array size caps ──
 const MAX_QUALITY_SAMPLES = 1000;
-
-// ── Cost Tracking — default token pricing ──
 const DEFAULT_TOKEN_PRICING = Object.freeze({
   inputPer1k: 0.0025,
   outputPer1k: 0.01,
@@ -48,21 +42,30 @@ export class HttpLLMProviderAdapter {
     this.baseUrl = normalizeBaseUrl(modelConfig.endpoint);
     this.errorPrefix = createErrorPrefix(modelConfig.providerId);
     this._health = {
-      totalRequests: 0, successfulRequests: 0, failedRequests: 0,
-      retriedRequests: 0, totalLatencyMs: 0, errors: {},
-      lastSuccessAt: null, lastFailureAt: null, startedAt: Date.now(),
+      totalRequests: 0,
+      successfulRequests: 0,
+      failedRequests: 0,
+      retriedRequests: 0,
+      totalLatencyMs: 0,
+      errors: {},
+      lastSuccessAt: null,
+      lastFailureAt: null,
+      startedAt: Date.now(),
     };
     this._streamState = null;
     this._qualityScores = [];
     this._costTracker = {
-      totalInputTokens: 0, totalOutputTokens: 0,
-      estimatedCostUsd: 0, pricingPerRequest: [],
+      totalInputTokens: 0,
+      totalOutputTokens: 0,
+      estimatedCostUsd: 0,
+      pricingPerRequest: [],
     };
   }
 
   get descriptor() {
     const apiKey = this.resolveApiKey();
     const baseUrl = this.resolveBaseUrl();
+
     return createProviderDescriptor(this.modelConfig, {
       costTier: "medium",
       latencyTier: "medium",
@@ -87,13 +90,13 @@ export class HttpLLMProviderAdapter {
     if (this.modelConfig.dryRun) {
       return this._dryRunResponse(providerRequest);
     }
-    return this.withRetry(() => this._generateOnce(providerRequest), providerRequest);
+    return this.withRetry(() => this._generateOnce(providerRequest));
   }
 
   async _generateOnce(providerRequest) {
     const startedAt = Date.now();
+    const requestStartedAt = Date.now();
     this._health.totalRequests++;
-    const reqStart = Date.now();
 
     this.assertReady(providerRequest);
     const apiKey = this.resolveApiKey();
@@ -105,26 +108,33 @@ export class HttpLLMProviderAdapter {
 
     try {
       if (isPrivateOrReservedUrl(`${baseUrl}/chat/completions`)) {
-        throw createHttpProviderError({
-          response: null, body: null, providerRequest,
-          message: `SSRF blocked: baseUrl resolves to a private or reserved address.`,
+        throw createProviderError({
+          code: `${this.errorPrefix}_SSRF_BLOCKED`,
+          type: "security",
+          message: "SSRF blocked: provider endpoint resolves to a private or reserved address.",
           retryable: false,
+          details: createErrorDetails(providerRequest),
         });
       }
 
-      const agent = getOrCreateAgent(baseUrl);
       const response = await fetchWithAgent(`${baseUrl}/chat/completions`, {
         method: "POST",
-        headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
+        headers: {
+          authorization: `Bearer ${apiKey}`,
+          "content-type": "application/json",
+        },
         body: JSON.stringify(payload),
-        agent,
-        timeout: controller.signal ? undefined : 60_000,
+        signal: controller.signal,
+        agent: getOrCreateAgent(baseUrl),
+        timeout: timeoutMs,
       });
       const body = await readJsonResponse(response);
 
       if (!response.ok) {
         throw createHttpProviderError({
-          response, body, providerRequest,
+          response,
+          body,
+          providerRequest,
           prefix: this.errorPrefix,
           providerName: this.modelConfig.providerDisplayName ?? this.modelConfig.providerId,
         });
@@ -142,52 +152,29 @@ export class HttpLLMProviderAdapter {
         });
       }
 
-      this._health.successfulRequests++;
-      this._health.totalLatencyMs += Date.now() - reqStart;
-      this._health.lastSuccessAt = new Date().toISOString();
-
       const providerResponse = mapChatCompletionsResponseToProviderResponse(body, {
-        providerRequest, latencyMs: Date.now() - startedAt,
+        providerRequest,
+        latencyMs: Date.now() - startedAt,
       });
 
-      // Score response quality
-      const qualityScore = scoreResponseQuality(providerResponse);
-      this._qualityScores.push(qualityScore);
-      if (this._qualityScores.length > MAX_QUALITY_SAMPLES) {
-        this._qualityScores.splice(0, this._qualityScores.length - MAX_QUALITY_SAMPLES);
-      }
-
-      // Accumulate cost tracking
-      const usage = providerResponse?.usage;
-      if (usage) {
-        const inputTokens = usage.inputTokens ?? 0;
-        const outputTokens = usage.outputTokens ?? 0;
-        const pricing = providerRequest?.options?.tokenPricing ?? DEFAULT_TOKEN_PRICING;
-        const requestCost = (inputTokens / 1000 * pricing.inputPer1k) + (outputTokens / 1000 * pricing.outputPer1k);
-        this._costTracker.totalInputTokens += inputTokens;
-        this._costTracker.totalOutputTokens += outputTokens;
-        this._costTracker.estimatedCostUsd += requestCost;
-        this._costTracker.pricingPerRequest.push({
-          inputTokens, outputTokens, costUsd: requestCost, pricing: { ...pricing },
-        });
-        if (this._costTracker.pricingPerRequest.length > MAX_QUALITY_SAMPLES) {
-          this._costTracker.pricingPerRequest.splice(0, this._costTracker.pricingPerRequest.length - MAX_QUALITY_SAMPLES);
-        }
-      }
+      this._health.successfulRequests++;
+      this._health.totalLatencyMs += Date.now() - requestStartedAt;
+      this._health.lastSuccessAt = new Date().toISOString();
+      this._recordQuality(providerResponse);
+      this._recordCost(providerResponse, providerRequest);
 
       return providerResponse;
     } catch (error) {
       this._health.failedRequests++;
       this._health.lastFailureAt = new Date().toISOString();
-      const errCode = error?.code || "UNKNOWN";
-      this._health.errors[errCode] = (this._health.errors[errCode] || 0) + 1;
+      const errorCode = error?.code || "UNKNOWN";
+      this._health.errors[errorCode] = (this._health.errors[errorCode] || 0) + 1;
       classifyNonStreamError(error, {
         errorPrefix: this.errorPrefix,
         providerName: this.modelConfig.providerDisplayName ?? this.modelConfig.providerId,
         providerRequest,
         timeoutMs,
       });
-      throw error; // Re-throw so retry logic in caller can trigger
     } finally {
       clearTimeout(timeoutId);
     }
@@ -203,72 +190,75 @@ export class HttpLLMProviderAdapter {
     this.assertReady(providerRequest);
     const apiKey = this.resolveApiKey();
     const baseUrl = this.resolveBaseUrl();
-    const cfg = this.resolveRetryConfig();
+    const retryConfig = this.resolveRetryConfig();
     const providerName = this.modelConfig.providerDisplayName ?? this.modelConfig.providerId;
     const timeoutMs = this.options.timeoutMs ?? 10_000;
-
     const payload = {
       ...mapGatewayRequestToChatCompletions(providerRequest),
       stream: true,
     };
 
     const response = await openStreamWithRetry({
-      baseUrl, apiKey, payload, providerRequest,
+      baseUrl,
+      apiKey,
+      payload,
+      providerRequest,
       errorPrefix: this.errorPrefix,
       providerName,
       timeoutMs,
-      maxRetries: cfg.maxRetries,
-      retryDelay: (attempt, error) => this._retryDelay(attempt, cfg, error),
+      maxRetries: retryConfig.maxRetries,
+      retryDelay: (attempt, error) => this._retryDelay(attempt, retryConfig, error),
     });
 
-    // ── Stream phase: no retry once chunks start flowing ──
     this._streamState = {
-      chunksReceived: 0, textLength: 0, toolCallsPartial: [],
-      startedAt: Date.now(), interrupted: false, partialToolArgs: [],
+      chunksReceived: 0,
+      textLength: 0,
+      toolCallsPartial: [],
+      startedAt: Date.now(),
+      interrupted: false,
+      partialToolArgs: [],
     };
 
     try {
       for await (const chunk of readChatCompletionsStream(response, providerRequest)) {
-        if (this._streamState) {
-          this._streamState.chunksReceived++;
-          if (chunk.textDelta) {
-            this._streamState.textLength += chunk.textDelta.length;
-          }
-          if (chunk.raw?.toolCallArgs && this._streamState.toolCallsPartial.length > 0) {
-            const idx = chunk.raw.toolCallIndex ?? 0;
-            const accumulated = this._streamState.toolCallsPartial[idx] ?? "";
-            const partial = tryPartialToolArgs(accumulated);
-            if (partial) {
-              this._streamState.partialToolArgs[idx] = partial;
-            }
+        this._streamState.chunksReceived++;
+        if (chunk.textDelta) {
+          this._streamState.textLength += chunk.textDelta.length;
+        }
+        if (chunk.raw?.toolCallArgs && this._streamState.toolCallsPartial.length > 0) {
+          const index = chunk.raw.toolCallIndex ?? 0;
+          const accumulated = this._streamState.toolCallsPartial[index] ?? "";
+          const partial = tryPartialToolArgs(accumulated);
+          if (partial) {
+            this._streamState.partialToolArgs[index] = partial;
           }
         }
         yield chunk;
       }
-    } catch (streamError) {
-      if (this._streamState) {
-        this._streamState.interrupted = true;
-        this._streamState.interruptedAt = new Date().toISOString();
-      }
-      throw streamError;
+    } catch (error) {
+      this._streamState.interrupted = true;
+      this._streamState.interruptedAt = new Date().toISOString();
+      throw error;
     }
   }
 
-  async _retryDelay(attempt, cfg, error) {
+  async _retryDelay(attempt, config, error) {
     this._health.retriedRequests++;
-    const delay = Math.min(cfg.baseDelayMs * Math.pow(2, attempt - 1), cfg.maxDelayMs);
-    const jitter = delay * (0.8 + Math.random() * 0.4);
-    const waitMs = Math.round(jitter);
+    const delay = Math.min(
+      config.baseDelayMs * Math.pow(2, attempt - 1),
+      config.maxDelayMs,
+    );
+    const waitMs = Math.round(delay * (0.8 + Math.random() * 0.4));
     const providerName = this.modelConfig.providerDisplayName ?? this.modelConfig.providerId;
     logger.warn({
       event: "provider_retry",
       provider: providerName,
       attempt,
-      maxRetries: cfg.maxRetries,
+      maxRetries: config.maxRetries,
       errorCode: error?.code,
       errorMessage: error?.message,
       waitMs,
-    }, `Retry ${providerName} attempt ${attempt}/${cfg.maxRetries} in ${waitMs}ms`);
+    }, `Retry ${providerName} attempt ${attempt}/${config.maxRetries} in ${waitMs}ms`);
     await new Promise((resolve) => setTimeout(resolve, waitMs));
   }
 
@@ -287,16 +277,18 @@ export class HttpLLMProviderAdapter {
     });
   }
 
-  async withRetry(fn, providerRequest) {
-    const cfg = this.resolveRetryConfig();
+  async withRetry(operation) {
+    const config = this.resolveRetryConfig();
     let lastError;
-    for (let attempt = 1; attempt <= cfg.maxRetries; attempt++) {
+    for (let attempt = 1; attempt <= config.maxRetries; attempt++) {
       try {
-        return await fn();
+        return await operation();
       } catch (error) {
-        if (!error?.retryable || attempt >= cfg.maxRetries) throw error;
-        await this._retryDelay(attempt, cfg, error);
+        if (!error?.retryable || attempt >= config.maxRetries) {
+          throw error;
+        }
         lastError = error;
+        await this._retryDelay(attempt, config, error);
       }
     }
     throw lastError;
@@ -310,6 +302,43 @@ export class HttpLLMProviderAdapter {
     };
   }
 
+  _recordQuality(providerResponse) {
+    this._qualityScores.push(scoreResponseQuality(providerResponse));
+    if (this._qualityScores.length > MAX_QUALITY_SAMPLES) {
+      this._qualityScores.splice(0, this._qualityScores.length - MAX_QUALITY_SAMPLES);
+    }
+  }
+
+  _recordCost(providerResponse, providerRequest) {
+    const usage = providerResponse?.usage;
+    if (!usage) return;
+
+    const inputTokens = usage.inputTokens ?? 0;
+    const outputTokens = usage.outputTokens ?? 0;
+    const pricing = providerRequest?.options?.tokenPricing
+      ?? this.options.tokenPricing
+      ?? DEFAULT_TOKEN_PRICING;
+    const requestCost = (
+      (inputTokens / 1000) * pricing.inputPer1k
+      + (outputTokens / 1000) * pricing.outputPer1k
+    );
+    this._costTracker.totalInputTokens += inputTokens;
+    this._costTracker.totalOutputTokens += outputTokens;
+    this._costTracker.estimatedCostUsd += requestCost;
+    this._costTracker.pricingPerRequest.push({
+      inputTokens,
+      outputTokens,
+      costUsd: requestCost,
+      pricing: { ...pricing },
+    });
+    if (this._costTracker.pricingPerRequest.length > MAX_QUALITY_SAMPLES) {
+      this._costTracker.pricingPerRequest.splice(
+        0,
+        this._costTracker.pricingPerRequest.length - MAX_QUALITY_SAMPLES,
+      );
+    }
+  }
+
   assertReady(providerRequest) {
     if (!this.resolveApiKey()) {
       throw createProviderError({
@@ -317,16 +346,21 @@ export class HttpLLMProviderAdapter {
         type: "configuration",
         message: `${this.modelConfig.providerDisplayName ?? this.modelConfig.providerId} API key is not configured.`,
         retryable: false,
-        details: createErrorDetails(providerRequest, { apiKey_present: false }),
+        details: createErrorDetails(providerRequest, {
+          apiKeyPresent: false,
+        }),
       });
     }
+
     if (!this.resolveBaseUrl()) {
       throw createProviderError({
         code: `${this.errorPrefix}_ENDPOINT_MISSING`,
         type: "configuration",
         message: `${this.modelConfig.providerDisplayName ?? this.modelConfig.providerId} endpoint is not configured.`,
         retryable: false,
-        details: createErrorDetails(providerRequest, { endpointConfigured: false }),
+        details: createErrorDetails(providerRequest, {
+          endpointConfigured: false,
+        }),
       });
     }
   }
@@ -341,40 +375,64 @@ export class HttpLLMProviderAdapter {
 
   async warmConnection() {
     const baseUrl = this.resolveBaseUrl();
-    if (!baseUrl) return { warmed: false, error: "No base URL configured" };
-    const startMs = Date.now();
+    if (!baseUrl) {
+      return { warmed: false, error: "No base URL configured" };
+    }
+
+    const startedAt = Date.now();
     try {
       const agent = getOrCreateAgent(baseUrl);
-      await fetchWithAgent(`${baseUrl}/models`, { method: "HEAD", agent, timeout: 5000 });
-      return { warmed: true, latencyMs: Date.now() - startMs };
-    } catch (err) {
-      return { warmed: false, error: err instanceof Error ? err.message : String(err) };
+      await fetchWithAgent(`${baseUrl}/models`, {
+        method: "HEAD",
+        agent,
+        timeout: 5_000,
+      });
+      return { warmed: true, latencyMs: Date.now() - startedAt };
+    } catch (error) {
+      const nestedError = Array.isArray(error?.errors)
+        ? error.errors.find((item) => item?.message || item?.code)
+        : null;
+      return {
+        warmed: false,
+        error: error?.message || nestedError?.message || error?.code || nestedError?.code
+          || error?.name || "Connection warm-up failed",
+      };
     }
   }
 
   get health() {
-    const h = this._health;
+    const health = this._health;
     return {
       providerId: this.modelConfig.providerId,
       modelId: this.modelConfig.modelId,
-      totalRequests: h.totalRequests,
-      successfulRequests: h.successfulRequests,
-      failedRequests: h.failedRequests,
-      retriedRequests: h.retriedRequests,
-      successRate: h.totalRequests > 0 ? h.successfulRequests / h.totalRequests : null,
-      averageLatencyMs: h.successfulRequests > 0 ? Math.round(h.totalLatencyMs / h.successfulRequests) : null,
-      errorDistribution: { ...h.errors },
-      lastSuccessAt: h.lastSuccessAt,
-      lastFailureAt: h.lastFailureAt,
-      uptimeMs: Date.now() - h.startedAt,
+      totalRequests: health.totalRequests,
+      successfulRequests: health.successfulRequests,
+      failedRequests: health.failedRequests,
+      retriedRequests: health.retriedRequests,
+      successRate: health.totalRequests > 0
+        ? health.successfulRequests / health.totalRequests
+        : null,
+      averageLatencyMs: health.successfulRequests > 0
+        ? Math.round(health.totalLatencyMs / health.successfulRequests)
+        : null,
+      errorDistribution: { ...health.errors },
+      lastSuccessAt: health.lastSuccessAt,
+      lastFailureAt: health.lastFailureAt,
+      uptimeMs: Date.now() - health.startedAt,
     };
   }
 
   resetHealth() {
     this._health = {
-      totalRequests: 0, successfulRequests: 0, failedRequests: 0,
-      retriedRequests: 0, totalLatencyMs: 0, errors: {},
-      lastSuccessAt: null, lastFailureAt: null, startedAt: Date.now(),
+      totalRequests: 0,
+      successfulRequests: 0,
+      failedRequests: 0,
+      retriedRequests: 0,
+      totalLatencyMs: 0,
+      errors: {},
+      lastSuccessAt: null,
+      lastFailureAt: null,
+      startedAt: Date.now(),
     };
   }
 
@@ -385,9 +443,15 @@ export class HttpLLMProviderAdapter {
   get qualityStats() {
     const scores = this._qualityScores;
     if (scores.length === 0) {
-      return { averageScore: null, minScore: null, maxScore: null, sampleSize: 0 };
+      return {
+        averageScore: null,
+        minScore: null,
+        maxScore: null,
+        sampleSize: 0,
+      };
     }
-    const sum = scores.reduce((a, b) => a + b, 0);
+
+    const sum = scores.reduce((total, score) => total + score, 0);
     return {
       averageScore: Math.round((sum / scores.length) * 1000) / 1000,
       minScore: Math.min(...scores),
@@ -396,21 +460,27 @@ export class HttpLLMProviderAdapter {
     };
   }
 
-  resetQuality() { this._qualityScores = []; }
+  resetQuality() {
+    this._qualityScores = [];
+  }
 
   get costSummary() {
     return {
       totalInputTokens: this._costTracker.totalInputTokens,
       totalOutputTokens: this._costTracker.totalOutputTokens,
-      estimatedCostUsd: Math.round(this._costTracker.estimatedCostUsd * 1_000_000) / 1_000_000,
+      estimatedCostUsd: Math.round(
+        this._costTracker.estimatedCostUsd * 1_000_000,
+      ) / 1_000_000,
       requestCount: this._costTracker.pricingPerRequest.length,
     };
   }
 
   resetCost() {
     this._costTracker = {
-      totalInputTokens: 0, totalOutputTokens: 0,
-      estimatedCostUsd: 0, pricingPerRequest: [],
+      totalInputTokens: 0,
+      totalOutputTokens: 0,
+      estimatedCostUsd: 0,
+      pricingPerRequest: [],
     };
   }
 }

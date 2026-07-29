@@ -1,8 +1,6 @@
-import { withTimeout } from "@unified-ai-system/shared-utils";
+import { sleep, withTimeout } from "@unified-ai-system/shared-utils";
 import { createProviderDescriptor } from "./providerAdapter.js";
 import { createProviderResponse } from "./providerMapping.js";
-import { sleep } from "../entrypoints/entrypointUtils.js"
-
 
 export function createFakeProvider(modelConfig, options = {}) {
   const fixedLatencyMs = modelConfig.fixedLatencyMs ?? 10;
@@ -86,6 +84,7 @@ function getLastUserText(request) {
 function estimateTokens(text) {
   return Math.max(1, Math.ceil(String(text).length / 4));
 }
+
 
 function createFakeProviderError(providerRequest) {
   const error = new Error("Fake provider was configured to fail for fallback verification.");

@@ -47,7 +47,7 @@
   "workflow": {
     "runHttpStatus": 200,
     "runStatus": "completed",
-    "artifactRelativePath": "C:/Users/Administrator/AppData/Local/Temp/phase77a-integrated-t7hQgh/phase-77a-integrated-report.md",
+    "artifactRelativePath": "<user-home>/AppData/Local/Temp/phase77a-integrated-t7hQgh/phase-77a-integrated-report.md",
     "artifactMarkerPresent": true,
     "artifactSafetyTextPresent": true,
     "arbitraryCommandExecution": false

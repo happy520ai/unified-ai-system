@@ -5,14 +5,7 @@ import { dirname, resolve } from "node:path";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 import { findPlainSecretFindings } from "../security/secretSafety.js";
-import {
-  normalizePath,
-  parseJsonMaybe,
-  parseJson,
-  parseLines,
-  normalizeWhitespace,
-  markdown,
-} from "./verifyReleasePublishPreflight.helpers.js";
+import { renderReleasePublishPreflightEvidence as markdown } from "./releasePublishEvidenceMarkdown.js";
 
 const execFileAsync = promisify(execFile);
 const phase = "phase-135a-release-publish-preflight";
@@ -60,8 +53,36 @@ async function run(command, args, options = {}) {
   }
 }
 
+function normalizePath(value) {
+  return String(value ?? "").trim().replace(/\\/g, "/").replace(/\/$/, "");
+}
+
 async function runGit(args) {
   return run("git", ["-c", `safe.directory=${normalizePath(repoRoot)}`, ...args]);
+}
+
+function parseJsonMaybe(text) {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+function parseJson(text, label) {
+  try {
+    return JSON.parse(text);
+  } catch (error) {
+    throw new Error(`${label} is not valid JSON: ${error.message}`);
+  }
+}
+
+function parseLines(text) {
+  return String(text ?? "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+}
+
+function normalizeWhitespace(value) {
+  return String(value ?? "").replace(/\s+/g, " ").trim();
 }
 
 async function readRequired(relativePath) {
@@ -439,4 +460,3 @@ async function main() {
 }
 
 await main();
-

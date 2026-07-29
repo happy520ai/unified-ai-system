@@ -1,10 +1,11 @@
-import { existsSync, readFileSync } from "node:fs";
-import { mkdirSync } from "node:fs";
+import {
+  readJsonFileSync as readJson,
+} from "./entrypointUtils.js";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { createConsolePage } from "../ui/consolePage.js";
-import { readJson, writeEvidenceSync } from "./entrypointUtils.js"
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "../../../..");
@@ -120,39 +121,7 @@ function hasVisibleButton(source, label) {
   return buttonLabels(source).includes(label);
 }
 
-function createEvidenceMarkdown(evidence) {
-  const failures = checks.filter((item) => !item.pass);
-  return [
-    "# Phase308C Screenshot-driven Chinese UX Cleanup Evidence",
-    "",
-    `Status: ${evidence.status}`,
-    "",
-    `Checks: ${checks.length}`,
-    `Failures: ${failures.length}`,
-    "",
-    "## Actual HTML Check",
-    "",
-    "- `createConsolePage()` was called directly and the returned HTML was checked.",
-    "- Visible Chinese UI regions were checked separately from the English i18n dictionary.",
-    "- Hidden compatibility markers do not satisfy visible button or label checks.",
-    "",
-    "## Safety",
-    "",
-    "- UI / copy / frontend interaction only.",
-    "- No backend route change.",
-    "- No provider, routing, `/chat`, agent-runner, patch runner, or auto review logic change.",
-    "- No full_open, commit, push, deploy, or release.",
-    "- Workspace dirty is informational only; this verifier does not claim clean.",
-    "",
-    "## Failed Checks",
-    "",
-    failures.length ? failures.map((item) => `- ${item.id}${item.detail ? `: ${item.detail}` : ""}`).join("\n") : "- none",
-    ""
-  ].join("\n");
-}
-
-function saveEvidence(status) {
-  const failures = checks.filter((item) => !item.pass);
+function writeEvidence(status, failures) {
   const evidence = {
     ...requiredEvidence,
     status,
@@ -164,10 +133,37 @@ function saveEvidence(status) {
     workspaceDirtyInformationalOnly: true,
     generatedAt: new Date().toISOString()
   };
-  const evidenceDir = dirname(fromRoot(evidenceJsonPath));
-  const jsonPath = fromRoot(evidenceJsonPath);
-  const mdPath = fromRoot(evidenceMdPath);
-  writeEvidenceSync(evidenceDir, jsonPath, mdPath, evidence, createEvidenceMarkdown);
+  writeFileSync(fromRoot(evidenceJsonPath), `${JSON.stringify(evidence, null, 2)}\n`);
+  writeFileSync(
+    fromRoot(evidenceMdPath),
+    [
+      "# Phase308C Screenshot-driven Chinese UX Cleanup Evidence",
+      "",
+      `Status: ${status}`,
+      "",
+      `Checks: ${checks.length}`,
+      `Failures: ${failures.length}`,
+      "",
+      "## Actual HTML Check",
+      "",
+      "- `createConsolePage()` was called directly and the returned HTML was checked.",
+      "- Visible Chinese UI regions were checked separately from the English i18n dictionary.",
+      "- Hidden compatibility markers do not satisfy visible button or label checks.",
+      "",
+      "## Safety",
+      "",
+      "- UI / copy / frontend interaction only.",
+      "- No backend route change.",
+      "- No provider, routing, `/chat`, agent-runner, patch runner, or auto review logic change.",
+      "- No full_open, commit, push, deploy, or release.",
+      "- Workspace dirty is informational only; this verifier does not claim clean.",
+      "",
+      "## Failed Checks",
+      "",
+      failures.length ? failures.map((item) => `- ${item.id}${item.detail ? `: ${item.detail}` : ""}`).join("\n") : "- none",
+      ""
+    ].join("\n")
+  );
 }
 
 function main() {
@@ -388,7 +384,7 @@ function main() {
   });
 
   const failures = checks.filter((item) => !item.pass);
-  saveEvidence(failures.length ? "fail" : "pass");
+  writeEvidence(failures.length ? "fail" : "pass", failures);
   if (failures.length) {
     console.error(`[phase308c] failed checks: ${failures.map((item) => item.id).join(", ")}`);
     process.exit(1);

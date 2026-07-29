@@ -3,7 +3,7 @@
   "assetType": "generated_concept_board",
   "file": "yiyi-concept-board.png",
   "sourceType": "generated_visual_reference",
-  "sourcePath": "yiyi.png",
+  "sourcePath": "apps/ai-gateway-service/src/ui/assets/yiyi/yiyi-concept-board.png",
   "assetPath": "apps/ai-gateway-service/src/ui/assets/yiyi/yiyi-concept-board.png",
   "fileSizeBytes": 2467272,
   "sha256": "6498c6a6b1eb5a788d2bf5fb86d6114dc69d4ac4d42306492a66e96c36ba3116",

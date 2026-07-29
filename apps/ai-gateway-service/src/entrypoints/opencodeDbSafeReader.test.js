@@ -7,7 +7,7 @@ import {
   pickCandidateSession,
 } from "./opencodeDbSafeReader.js";
 
-const repoRoot = "E:/AI-Data/AI网关系统/unified-ai-system";
+const repoRoot = "C:/workspace/unified-ai-system";
 
 test("pickCandidateSession prefers repo-matching sessions updated after send time", () => {
   const selected = pickCandidateSession({

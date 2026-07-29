@@ -25,7 +25,7 @@
 - Cross-tenant code: enterprise_tenant_forbidden
 - Viewer audit status: 403
 - Admin audit status: 200
-- Audit log path: C:\Users\Administrator\AppData\Local\Temp\phase34a-audit-EpwovX\enterprise-audit.jsonl
+- Audit log path: <user-home>\AppData\Local\Temp\phase34a-audit-EpwovX\enterprise-audit.jsonl
 - Audit entry count: 9
 - Expired audit recorded: true
 - Revoked audit recorded: true

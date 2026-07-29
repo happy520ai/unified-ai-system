@@ -13,8 +13,8 @@
 
 ## 前置条件
 
-- 项目根目录：`E:\AI-Data\AI网关系统\unified-ai-system`
-- OpenCode Desktop 路径：`C:\Users\Administrator\AppData\Local\Programs\OpenCode\OpenCode.exe`
+- 项目根目录：`<repository-root>`
+- OpenCode Desktop 路径：`<user-home>\AppData\Local\Programs\OpenCode\OpenCode.exe`
 - 本阶段只做本地配置和 readiness 校验。
 
 ## 禁止事项

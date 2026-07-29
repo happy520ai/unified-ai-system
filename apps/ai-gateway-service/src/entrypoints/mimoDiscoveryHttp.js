@@ -296,7 +296,7 @@ function extractErrorMessage(body) {
   return body?.error?.message ?? body?.message ?? body?.text ?? "";
 }
 
-function sanitizeMessage(value) {
+export function sanitizeMessage(value) {
   return String(value ?? "")
     .replace(/(Bearer\s+)[A-Za-z0-9._-]+/gi, "$1<masked>")
     .replace(/(api[-_]?key\s*[:=]\s*)[A-Za-z0-9._-]+/gi, "$1<masked>")

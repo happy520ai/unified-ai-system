@@ -1,10 +1,9 @@
-import { mkdir, writeFile } from "node:fs/promises";
-import { writeEvidencePair } from "./entrypointUtils.js";
+import { fetchContentResponse as fetchText, listen, requestJsonResponse as fetchJson, writeEvidenceFiles, } from "./entrypointUtils.js";
+import { mkdir } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
-import { fetchJson, fetchText, listen, close } from "./entrypointUtils.js";
 
 const PHASE = "phase-26a-chat-first-web-console";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -75,7 +74,7 @@ try {
     retrieve,
     conclusion: passed ? "chat-first-web-console-connected" : "chat-first-web-console-not-connected",
   });
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyChatFirstWebConsoleEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = passed ? 0 : 1;
 } catch (error) {
@@ -90,7 +89,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "chat-first-web-console-not-connected",
   });
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyChatFirstWebConsoleEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -128,6 +127,15 @@ function isChatFirstConnected({ ui, serviceHealth, fileLoad, retrieve }) {
     topHit?.snippet?.includes("chat first")
   );
 }
+
+
+function close(server) {
+  return new Promise((resolveClose) => {
+    server.close(() => resolveClose());
+  });
+}
+
+
 
 function createEvidence({ status, generatedAt, serviceUrl, ui, serviceHealth, fileLoad, retrieve, conclusion, error }) {
   const retrieveData = retrieve?.body?.data;
@@ -173,3 +181,45 @@ function createEvidence({ status, generatedAt, serviceUrl, ui, serviceHealth, fi
   };
 }
 
+async function writeVerifyChatFirstWebConsoleEvidence(body) {
+  await writeEvidenceFiles({
+    evidenceDir,
+    evidenceJsonPath,
+    evidenceMdPath,
+    body,
+    renderMarkdown: createEvidenceMarkdown,
+  });
+}
+
+function createEvidenceMarkdown(body) {
+  return `# Phase 26A Chat-first Web Console Evidence
+
+- Phase: ${body.phase}
+- Status: ${body.status}
+- Generated at: ${body.generatedAt}
+- UI URL: ${body.ui.url ?? "n/a"}
+- UI HTTP status: ${body.ui.httpStatus ?? "n/a"}
+- Chat-first present: ${body.ui.chatFirstPresent}
+- Workflow preview present: ${body.ui.workflowPreviewPresent}
+- Streaming present: ${body.ui.streamingPresent}
+- Chat input present: ${body.ui.chatInputPresent}
+- Chat file input present: ${body.ui.chatFileInputPresent}
+- Upload button present: ${body.ui.uploadButtonPresent}
+- Auto knowledge enabled present: ${body.ui.autoKnowledgeEnabledPresent}
+- Knowledge injection mode present: ${body.ui.knowledgeInjectionModePresent}
+- No sidebar rail present: ${body.ui.noSidebarRailPresent}
+- File import present: ${body.ui.fileImportPresent}
+- Service health HTTP status: ${body.service.healthHttpStatus ?? "n/a"}
+- Service health status: ${body.service.healthStatus ?? "n/a"}
+- File load HTTP status: ${body.knowledge.fileLoadHttpStatus ?? "n/a"}
+- Loaded source ID: ${body.knowledge.loadedSourceId}
+- Loaded count: ${body.knowledge.loadedCount ?? "n/a"}
+- Retrieve HTTP status: ${body.knowledge.retrieveHttpStatus ?? "n/a"}
+- Retrieve mode: ${body.knowledge.retrieveMode ?? "n/a"}
+- Query: ${body.knowledge.query}
+- Top hit document: ${body.knowledge.topHitDocumentId ?? "n/a"}
+- Snippet present: ${body.knowledge.topHitSnippetPresent}
+- Matched terms: ${body.knowledge.topHitMatchedTerms.join(", ") || "n/a"}
+- Conclusion: ${body.conclusion}
+`;
+}

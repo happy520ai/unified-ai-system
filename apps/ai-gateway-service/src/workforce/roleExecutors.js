@@ -180,3 +180,10 @@ export function executeRoleById(roleId, goal, context = {}) {
   }
   return executorFn(goal, context);
 }
+
+export {
+  buildLlmPromptForRole,
+  executeAllRolesWithLLM,
+  executeRoleWithLLM,
+  tryParseLlmOutput,
+} from "./roleExecutorsLlm.js";

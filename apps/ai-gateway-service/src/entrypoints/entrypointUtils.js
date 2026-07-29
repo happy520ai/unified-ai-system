@@ -7,10 +7,36 @@
 // 所有验证/冒烟脚本必须从此导入，禁止本地重定义。
 // =============================================================================
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
-import { readFile, writeFile, mkdir } from "node:fs/promises";
-import { join, dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync } from "node:fs";
+import { writeFile, mkdir } from "node:fs/promises";
+import { join, resolve } from "node:path";
+import {
+  fetchJsonPayload,
+  listen,
+  listenAtEphemeralUrl,
+  sleep,
+  writeEvidenceFiles,
+} from "@unified-ai-system/shared-utils";
+export {
+  readJson,
+  readCheckedJsonFile,
+  readJsonFile,
+  readJsonFileSync,
+  readJsonFileSyncOrNullWithBom,
+  readJsonSync,
+  readRepoJson,
+  readRepoJsonSync,
+  readRepoJsonSyncWithOptions,
+  readRepoText,
+  readRepoTextNormalized,
+  readRepoTextSync,
+  readRepoTextSyncOrEmpty,
+  readText,
+  readTextFileSync,
+  readTextFileSyncOrEmpty,
+  writeJson,
+  writeRepoJsonSync,
+} from "./entrypointFileUtils.js";
 
 // ── 时间控制 ────────────────────────────────────────────────────────────────
 
@@ -19,9 +45,13 @@ import { fileURLToPath } from "node:url";
  * @param {number} ms
  * @returns {Promise<void>}
  */
-export function sleep(ms) {
-  return new Promise((r) => setTimeout(r, ms));
-}
+export {
+  fetchJsonPayload,
+  listen,
+  listenAtEphemeralUrl,
+  sleep,
+  writeEvidenceFiles,
+};
 
 // ── HTTP 工具 ───────────────────────────────────────────────────────────────
 
@@ -67,6 +97,164 @@ export async function postJson(url, body, options) {
   });
 }
 
+export async function fetchJsonResponse(url) {
+  const response = await fetch(url);
+  const text = await response.text();
+  return {
+    httpStatus: response.status,
+    body: text ? JSON.parse(text) : {},
+  };
+}
+
+export async function requestJsonResponse(url, options = {}) {
+  return requestJsonResponseWithHeaders(url, {
+    ...options,
+    headers: undefined,
+  });
+}
+
+export async function requestJsonResponseWithHeaders(url, options = {}) {
+  const response = await fetch(url, {
+    method: options.method ?? "GET",
+    headers: {
+      "content-type": "application/json",
+      ...(options.headers ?? {}),
+    },
+    body: options.body === undefined ? undefined : JSON.stringify(options.body),
+  });
+  const text = await response.text();
+  return {
+    httpStatus: response.status,
+    body: text ? JSON.parse(text) : {},
+  };
+}
+
+export async function fetchJsonBodyResponse(url) {
+  const response = await fetch(url);
+  return {
+    httpStatus: response.status,
+    body: await response.json(),
+  };
+}
+
+export async function requestJsonBodyResponse(url, options = {}) {
+  const response = await fetch(url, {
+    method: options.method ?? "GET",
+    headers: {
+      "content-type": "application/json",
+      ...(options.headers ?? {}),
+    },
+    body: options.body ? JSON.stringify(options.body) : undefined,
+  });
+  return {
+    httpStatus: response.status,
+    body: await response.json(),
+  };
+}
+
+export async function fetchJsonData(url) {
+  const payload = await fetchJsonPayload(url);
+  return payload.data ?? payload;
+}
+
+export async function fetchJsonDataFromText(url) {
+  const response = await fetch(url);
+  const text = await response.text();
+  const payload = text ? JSON.parse(text) : {};
+  return payload.data ?? payload;
+}
+
+export async function fetchNullableJsonResponse(url) {
+  const response = await fetch(url);
+  const text = await response.text();
+  let body = null;
+  if (text) {
+    try {
+      body = JSON.parse(text);
+    } catch {
+      body = null;
+    }
+  }
+  return {
+    httpStatus: response.status,
+    body,
+  };
+}
+
+export async function fetchTextResponse(url) {
+  const response = await fetch(url);
+  return {
+    httpStatus: response.status,
+    text: await response.text(),
+  };
+}
+
+export async function fetchContentResponse(url) {
+  const response = await fetch(url);
+  return {
+    httpStatus: response.status,
+    contentType: response.headers.get("content-type"),
+    text: await response.text(),
+  };
+}
+
+export async function fetchTextPayload(url) {
+  const response = await fetch(url);
+  return response.text();
+}
+
+export async function postJsonResponse(url, body) {
+  const response = await postJsonRequest(url, body);
+  const text = await response.text();
+  return {
+    httpStatus: response.status,
+    body: text ? JSON.parse(text) : {},
+  };
+}
+
+export async function postJsonBodyResponse(url, body) {
+  const response = await postJsonRequest(url, body);
+  return {
+    httpStatus: response.status,
+    body: await response.json(),
+  };
+}
+
+export async function postJsonData(url, body) {
+  const response = await postJsonRequest(url, body);
+  const payload = await response.json();
+  return payload.data ?? payload;
+}
+
+export async function postJsonDataFromText(url, body) {
+  const response = await postJsonRequest(url, body);
+  const text = await response.text();
+  const payload = text ? JSON.parse(text) : {};
+  return payload.data ?? payload;
+}
+
+export async function postJsonPayload(url, body) {
+  const response = await postJsonRequest(url, body);
+  return response.json();
+}
+
+export async function postJsonStatusPayload(url, body) {
+  const response = await postJsonRequest(url, body);
+  const payload = await response.json();
+  return {
+    httpStatus: response.status,
+    ...payload,
+  };
+}
+
+function postJsonRequest(url, body) {
+  return fetch(url, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
 // ── 文件工具 ────────────────────────────────────────────────────────────────
 
 /**
@@ -74,40 +262,16 @@ export async function postJson(url, body, options) {
  * @param {string} filePath
  * @returns {Promise<unknown|null>}
  */
-export async function readJson(filePath) {
-  try {
-    const text = await readFile(filePath, "utf8");
-    return JSON.parse(text);
-  } catch (err) {
-    if (err.code === "ENOENT" || err.code === "EISDIR") return null;
-    throw err;
-  }
-}
 
 /**
  * 同步读取 JSON 文件，不存在时返回 null
  * @param {string} filePath
  */
-export function readJsonSync(filePath) {
-  try {
-    return JSON.parse(readFileSync(filePath, "utf8"));
-  } catch {
-    return null;
-  }
-}
 
 /**
  * 读取文本文件，不存在时返回 null
  * @param {string} filePath
  */
-export async function readText(filePath) {
-  try {
-    return await readFile(filePath, "utf8");
-  } catch (err) {
-    if (err.code === "ENOENT") return null;
-    throw err;
-  }
-}
 
 // ── 写入工具 ────────────────────────────────────────────────────────────────
 
@@ -116,11 +280,6 @@ export async function readText(filePath) {
  * @param {string} filePath
  * @param {unknown} value
  */
-export async function writeJson(filePath, value) {
-  const { mkdir } = await import("node:fs/promises");
-  await mkdir(dirname(filePath), { recursive: true });
-  await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
-}
 
 // ── Evidence 工具 ───────────────────────────────────────────────────────────
 
@@ -266,13 +425,15 @@ export async function waitForHealth(baseUrl, options = {}) {
  * @returns {string|null}
  */
 export function findBrowserPath() {
-  const candidates =
+  const platformCandidates =
     process.platform === "win32"
       ? [
           "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
           "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
           "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
           "C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe",
+          ...findVersionedBrowserPaths("C:\\Program Files (x86)\\Microsoft\\EdgeCore", "msedge.exe"),
+          ...findVersionedBrowserPaths("C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application", "msedge.exe"),
         ]
       : process.platform === "darwin"
         ? [
@@ -285,10 +446,27 @@ export function findBrowserPath() {
             "/usr/bin/chromium-browser",
             "/usr/bin/chromium",
           ];
+  const candidates = [process.env.PME_BROWSER_PATH, ...platformCandidates].filter(Boolean);
   for (const p of candidates) {
     if (existsSync(p)) return p;
   }
   return null;
+}
+
+export function findRequiredBrowserPath() {
+  const browserPath = findBrowserPath();
+  if (!browserPath) {
+    throw new Error("No supported headless browser found. Set PME_BROWSER_PATH to chrome.exe or msedge.exe.");
+  }
+  return browserPath;
+}
+
+function findVersionedBrowserPaths(root, executableName) {
+  if (!existsSync(root)) return [];
+  return readdirSync(root, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => resolve(root, entry.name, executableName))
+    .reverse();
 }
 
 // ── 服务启动/关闭辅助 ─────────────────────────────────────────────────────────
@@ -300,16 +478,6 @@ export function findBrowserPath() {
  * @param {string} [host="127.0.0.1"]
  * @returns {Promise<void>}
  */
-export function listen(server, port = 0, host = "127.0.0.1") {
-  return new Promise((resolveListen, rejectListen) => {
-    server.once("error", rejectListen);
-    server.listen(port, host, () => {
-      server.off("error", rejectListen);
-      resolveListen();
-    });
-  });
-}
-
 /**
  * 关闭 HTTP 服务
  * @param {import("node:http").Server} server

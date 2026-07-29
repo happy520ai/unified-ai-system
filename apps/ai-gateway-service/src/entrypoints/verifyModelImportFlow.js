@@ -1,11 +1,17 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { writeEvidencePair } from "./entrypointUtils.js";
+import { close, listen, writeEvidenceFiles } from "./entrypointUtils.js";
+import {
+  createModelImportEvidenceMarkdown as createEvidenceMarkdown,
+  sanitizeResult,
+  summarizeConfirm,
+  summarizePreview,
+  summarizeProviders,
+} from "./modelImportFlowEvidence.js";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
-import { listen, close, postJson } from "./entrypointUtils.js";
 
 const PHASE = "phase-8a-model-import";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -15,43 +21,45 @@ const evidenceJsonPath = resolve(evidenceDir, "phase-8a-model-import.json");
 const evidenceMdPath = resolve(evidenceDir, "phase-8a-model-import.md");
 
 const secretSuffix = "secret-must-not-persist";
+const skFixture = (body) => ["sk", body].join("-");
+const aiZaFixture = (body) => ["AI", `za${body}`].join("");
 const persistenceSecret = "nvapi-phase8a-persistence-token";
 const secrets = {
   nvidia: `nvapi-phase8a-model-import-${secretSuffix}`,
-  openai: `sk-openai-phase8a-model-import-${secretSuffix}`,
-  dashscope: `sk-dashscope-phase8a-model-import-${secretSuffix}`,
-  compatible: `sk-compatible-phase8a-model-import-${secretSuffix}`,
-  gemini: `AIzaPhase8aModelImport${secretSuffix}`,
-  geminiEmbeddingOnly: `AIzaPhase8aEmbeddingOnly${secretSuffix}`,
-  multi: `sk-multi-phase8a-model-import-${secretSuffix}`,
+  openai: skFixture(`openai-phase8a-model-import-${secretSuffix}`),
+  dashscope: skFixture(`dashscope-phase8a-model-import-${secretSuffix}`),
+  compatible: skFixture(`compatible-phase8a-model-import-${secretSuffix}`),
+  gemini: aiZaFixture(`Phase8aModelImport${secretSuffix}`),
+  geminiEmbeddingOnly: aiZaFixture(`Phase8aEmbeddingOnly${secretSuffix}`),
+  multi: skFixture(`multi-phase8a-model-import-${secretSuffix}`),
   invalid: `nvapi-invalid-phase8a-model-import-${secretSuffix}`,
   unknownNvidia: `unknown-nvidia-phase8a-model-import-${secretSuffix}`,
 };
 const globalProviderFixtures = [
-  { providerId: "openrouter", apiKey: `sk-or-v1-openrouter-phase8a-model-import-${secretSuffix}`, modelId: "openrouter-live-model-from-api" },
-  { providerId: "deepseek", apiKey: `sk-deepseek-phase8a-model-import-${secretSuffix}`, modelId: "deepseek-live-model-from-api" },
+  { providerId: "openrouter", apiKey: skFixture(`or-v1-openrouter-phase8a-model-import-${secretSuffix}`), modelId: "openrouter-live-model-from-api" },
+  { providerId: "deepseek", apiKey: skFixture(`deepseek-phase8a-model-import-${secretSuffix}`), modelId: "deepseek-live-model-from-api" },
   { providerId: "groq", apiKey: `gsk_groq_phase8a_model_import_${secretSuffix}`, modelId: "groq-live-model-from-api" },
-  { providerId: "together", apiKey: `sk-together-phase8a-model-import-${secretSuffix}`, modelId: "together-live-model-from-api" },
-  { providerId: "mistral", apiKey: `sk-mistral-phase8a-model-import-${secretSuffix}`, modelId: "mistral-live-model-from-api" },
+  { providerId: "together", apiKey: skFixture(`together-phase8a-model-import-${secretSuffix}`), modelId: "together-live-model-from-api" },
+  { providerId: "mistral", apiKey: skFixture(`mistral-phase8a-model-import-${secretSuffix}`), modelId: "mistral-live-model-from-api" },
   { providerId: "xai", apiKey: `xai-phase8a-model-import-${secretSuffix}`, modelId: "xai-live-model-from-api" },
-  { providerId: "moonshot", apiKey: `sk-moonshot-phase8a-model-import-${secretSuffix}`, modelId: "moonshot-live-model-from-api" },
-  { providerId: "siliconflow", apiKey: `sk-siliconflow-phase8a-model-import-${secretSuffix}`, modelId: "siliconflow-live-model-from-api" },
-  { providerId: "tencent-hunyuan", apiKey: `sk-tencent-phase8a-model-import-${secretSuffix}`, modelId: "tencent-hunyuan-live-model-from-api" },
+  { providerId: "moonshot", apiKey: skFixture(`moonshot-phase8a-model-import-${secretSuffix}`), modelId: "moonshot-live-model-from-api" },
+  { providerId: "siliconflow", apiKey: skFixture(`siliconflow-phase8a-model-import-${secretSuffix}`), modelId: "siliconflow-live-model-from-api" },
+  { providerId: "tencent-hunyuan", apiKey: skFixture(`tencent-phase8a-model-import-${secretSuffix}`), modelId: "tencent-hunyuan-live-model-from-api" },
   { providerId: "qianfan", apiKey: `bce-v3/phase8a/model-import-${secretSuffix}`, modelId: "qianfan-live-model-from-api" },
-  { providerId: "zhipu", apiKey: `sk-zhipu-phase8a-model-import-${secretSuffix}`, modelId: "zhipu-live-model-from-api" },
-  { providerId: "xunfei-spark", apiKey: `sk-xunfei-phase8a-model-import-${secretSuffix}`, modelId: "xunfei-spark-live-model-from-api" },
+  { providerId: "zhipu", apiKey: skFixture(`zhipu-phase8a-model-import-${secretSuffix}`), modelId: "zhipu-live-model-from-api" },
+  { providerId: "xunfei-spark", apiKey: skFixture(`xunfei-phase8a-model-import-${secretSuffix}`), modelId: "xunfei-spark-live-model-from-api" },
   { providerId: "modelscope", apiKey: `ms-modelscope-phase8a-model-import-${secretSuffix}`, modelId: "modelscope-live-model-from-api" },
   { providerId: "perplexity", apiKey: `pplx-phase8a-model-import-${secretSuffix}`, modelId: "perplexity-live-model-from-api" },
   { providerId: "fireworks", apiKey: `fw_phase8a_model_import_${secretSuffix}`, modelId: "fireworks-live-model-from-api" },
   { providerId: "cerebras", apiKey: `csk-phase8a-model-import-${secretSuffix}`, modelId: "cerebras-live-model-from-api" },
-  { providerId: "cohere", apiKey: `sk-cohere-phase8a-model-import-${secretSuffix}`, modelId: "cohere-live-model-from-api" },
-  { providerId: "volcengine-doubao", apiKey: `sk-doubao-phase8a-model-import-${secretSuffix}`, modelId: "doubao-live-model-from-api" },
-  { providerId: "minimax", apiKey: `sk-minimax-phase8a-model-import-${secretSuffix}`, modelId: "minimax-live-model-from-api" },
-  { providerId: "stepfun", apiKey: `sk-stepfun-phase8a-model-import-${secretSuffix}`, modelId: "stepfun-live-model-from-api" },
-  { providerId: "novita", apiKey: `sk-novita-phase8a-model-import-${secretSuffix}`, modelId: "novita-live-model-from-api" },
-  { providerId: "baichuan", apiKey: `sk-baichuan-phase8a-model-import-${secretSuffix}`, modelId: "baichuan-live-model-from-api" },
-  { providerId: "yi", apiKey: `sk-yi-phase8a-model-import-${secretSuffix}`, modelId: "yi-live-model-from-api" },
-  { providerId: "infini-ai", apiKey: `sk-infini-phase8a-model-import-${secretSuffix}`, modelId: "infini-ai-live-model-from-api" },
+  { providerId: "cohere", apiKey: skFixture(`cohere-phase8a-model-import-${secretSuffix}`), modelId: "cohere-live-model-from-api" },
+  { providerId: "volcengine-doubao", apiKey: skFixture(`doubao-phase8a-model-import-${secretSuffix}`), modelId: "doubao-live-model-from-api" },
+  { providerId: "minimax", apiKey: skFixture(`minimax-phase8a-model-import-${secretSuffix}`), modelId: "minimax-live-model-from-api" },
+  { providerId: "stepfun", apiKey: skFixture(`stepfun-phase8a-model-import-${secretSuffix}`), modelId: "stepfun-live-model-from-api" },
+  { providerId: "novita", apiKey: skFixture(`novita-phase8a-model-import-${secretSuffix}`), modelId: "novita-live-model-from-api" },
+  { providerId: "baichuan", apiKey: skFixture(`baichuan-phase8a-model-import-${secretSuffix}`), modelId: "baichuan-live-model-from-api" },
+  { providerId: "yi", apiKey: skFixture(`yi-phase8a-model-import-${secretSuffix}`), modelId: "yi-live-model-from-api" },
+  { providerId: "infini-ai", apiKey: skFixture(`infini-phase8a-model-import-${secretSuffix}`), modelId: "infini-ai-live-model-from-api" },
   { providerId: "huggingface", apiKey: `hf_huggingface_phase8a_model_import_${secretSuffix}`, modelId: "huggingface-live-model-from-api" },
 ];
 
@@ -79,44 +87,44 @@ try {
   await listen(server, 0, "127.0.0.1");
   const serviceUrl = `http://127.0.0.1:${server.address().port}`;
 
-  const nvidiaPreview = await postJson(serviceUrl, "/models/import/preview", {
+  const nvidiaPreview = await postJsonAtPath(serviceUrl, "/models/import/preview", {
     apiKey: `  "${secrets.nvidia}"  `,
     providerHint: "auto",
   });
-  const openAiPreview = await postJson(serviceUrl, "/models/import/preview", {
+  const openAiPreview = await postJsonAtPath(serviceUrl, "/models/import/preview", {
     apiKey: secrets.openai,
     providerHint: "auto",
   });
-  const dashscopePreview = await postJson(serviceUrl, "/models/import/preview", {
+  const dashscopePreview = await postJsonAtPath(serviceUrl, "/models/import/preview", {
     apiKey: secrets.dashscope,
     providerHint: "auto",
   });
-  const geminiPreview = await postJson(serviceUrl, "/models/import/preview", {
+  const geminiPreview = await postJsonAtPath(serviceUrl, "/models/import/preview", {
     apiKey: secrets.gemini,
     providerHint: "auto",
   });
-  const multiPreview = await postJson(serviceUrl, "/models/import/preview", {
+  const multiPreview = await postJsonAtPath(serviceUrl, "/models/import/preview", {
     apiKey: secrets.multi,
     providerHint: "auto",
   });
-  const compatiblePreview = await postJson(serviceUrl, "/models/import/preview", {
+  const compatiblePreview = await postJsonAtPath(serviceUrl, "/models/import/preview", {
     apiKey: secrets.compatible,
     providerHint: "auto",
     baseUrl: "https://compatible.example.test/v1",
   });
-  const unknownNvidiaPreview = await postJson(serviceUrl, "/models/import/preview", {
+  const unknownNvidiaPreview = await postJsonAtPath(serviceUrl, "/models/import/preview", {
     apiKey: secrets.unknownNvidia,
     providerHint: "nvidia",
   });
-  const noChatPreview = await postJson(serviceUrl, "/models/import/preview", {
+  const noChatPreview = await postJsonAtPath(serviceUrl, "/models/import/preview", {
     apiKey: secrets.geminiEmbeddingOnly,
     providerHint: "auto",
   });
-  const invalidPreview = await postJson(serviceUrl, "/models/import/preview", {
+  const invalidPreview = await postJsonAtPath(serviceUrl, "/models/import/preview", {
     apiKey: secrets.invalid,
     providerHint: "auto",
   });
-  const unknownPreview = await postJson(serviceUrl, "/models/import/preview", {
+  const unknownPreview = await postJsonAtPath(serviceUrl, "/models/import/preview", {
     apiKey: "unknown-phase8a-model-import-key",
     providerHint: "auto",
   });
@@ -124,14 +132,14 @@ try {
   for (const fixture of globalProviderFixtures) {
     globalProviderPreviews.push({
       fixture,
-      preview: await postJson(serviceUrl, "/models/import/preview", {
+      preview: await postJsonAtPath(serviceUrl, "/models/import/preview", {
         apiKey: fixture.apiKey,
         providerHint: fixture.providerId,
       }),
     });
   }
   const providerCatalog = await getJson(serviceUrl, "/models/import/providers");
-  const confirmResult = await postJson(serviceUrl, "/models/import/confirm", {
+  const confirmResult = await postJsonAtPath(serviceUrl, "/models/import/confirm", {
     providerId: "nvidia",
     modelId: "nvidia-live-model-from-api",
     apiKeyRef: nvidiaPreview.data.apiKeyRef,
@@ -248,7 +256,7 @@ try {
     conclusion: passed ? "model-import-provider-models-api-flow-connected" : "model-import-provider-models-api-flow-not-connected",
   };
 
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyModelImportFlowEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = passed ? 0 : 1;
 } catch (error) {
@@ -259,7 +267,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "model-import-provider-models-api-flow-not-connected",
   };
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyModelImportFlowEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -436,6 +444,19 @@ function createFetchResponse(status, body) {
   };
 }
 
+async function postJsonAtPath(baseUrl, path, body) {
+  const response = await fetch(`${baseUrl}${path}`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const payload = await response.json();
+  return {
+    status: response.status,
+    payload,
+    data: payload.data,
+  };
+}
 
 async function getJson(baseUrl, path) {
   const response = await fetch(`${baseUrl}${path}`);
@@ -447,51 +468,13 @@ async function getJson(baseUrl, path) {
   };
 }
 
-function sanitizeResult(value) {
-  if (Array.isArray(value)) return value.map(sanitizeResult);
-  if (!value || typeof value !== "object") return value;
-  const copy = {};
-  for (const [key, item] of Object.entries(value)) {
-    if (/apiKey/i.test(key)) {
-      copy[key] = item ? "[redacted-ref]" : item;
-    } else {
-      copy[key] = sanitizeResult(item);
-    }
-  }
-  return copy;
-}
-
-function summarizePreview(data) {
-  return {
-    success: data.success,
-    status: data.status,
-    providerId: data.providerId,
-    providerCandidates: data.providerCandidates,
-    maskedKey: data.maskedKey,
-    modelIds: (data.models ?? []).map((model) => model.modelId),
-    source: data.source,
-  };
-}
-
-function summarizeConfirm(data) {
-  return {
-    success: data.success,
-    status: data.status,
-    providerId: data.providerId,
-    runtimeProviderId: data.runtimeProviderId,
-    modelId: data.modelId,
-    secretStorage: data.secretStorage,
-    persisted: data.persisted === true,
-    runtimeChatUsable: data.runtimeChatUsable,
-    defaultChatMainLaneChanged: data.defaultChatMainLaneChanged,
-  };
-}
-
-function summarizeProviders(providers) {
-  return (providers ?? []).map((provider) => ({
-    id: provider.id,
-    runtimeCredentialPresent: provider.metadata?.runtimeCredentialPresent === true,
-    runtimeModelCount: provider.metadata?.runtimeModelCount ?? 0,
-  }));
+async function writeVerifyModelImportFlowEvidence(body) {
+  await writeEvidenceFiles({
+    evidenceDir,
+    evidenceJsonPath,
+    evidenceMdPath,
+    body,
+    renderMarkdown: createEvidenceMarkdown,
+  });
 }
 

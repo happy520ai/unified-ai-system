@@ -31,6 +31,17 @@ export interface ResultEnvelope<TData = unknown> {
 }
 
 export declare function createRequestId(prefix?: string): string;
+export declare function sleep(ms: number): Promise<void>;
+export declare function listen(server: any, port?: number, host?: string): Promise<void>;
+export declare function listenAtEphemeralUrl(server: any, host?: string): Promise<string>;
+export declare function fetchJsonPayload(url: string, options?: Record<string, unknown>): Promise<unknown>;
+export declare function writeEvidenceFiles(params: {
+  evidenceDir: string;
+  evidenceJsonPath: string;
+  evidenceMdPath: string;
+  body: unknown;
+  renderMarkdown: (body: any) => string;
+}): Promise<void>;
 export declare function createOkEnvelope<TData>(
   data: TData,
   params?: { requestId?: string; traceId?: string; startedAt?: number },

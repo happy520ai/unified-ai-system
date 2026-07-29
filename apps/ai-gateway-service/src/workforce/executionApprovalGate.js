@@ -12,7 +12,13 @@
  */
 
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  readFile,
+  rename as renameAsync,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 
 // 默认审批过期时间：24小时（毫秒）
@@ -295,11 +301,18 @@ async function readApprovalStore(storePath) {
  */
 async function writeApprovalStore(storePath, store) {
   await mkdir(dirname(storePath), { recursive: true });
-  // Atomic write: write to temp file then rename to prevent corruption on crash
-  const tmpPath = `${storePath  }.tmp`;
-  await writeFile(tmpPath, `${JSON.stringify(store, null, 2)}\n`, "utf8");
-  const { rename: renameAsync } = await import("node:fs/promises");
-  await renameAsync(tmpPath, storePath);
+  const tmpPath = `${storePath}.${process.pid}.${randomUUID()}.tmp`;
+  try {
+    await writeFile(tmpPath, `${JSON.stringify(store, null, 2)}\n`, "utf8");
+    await renameAsync(tmpPath, storePath);
+  } catch (error) {
+    try {
+      await rm(tmpPath, { force: true });
+    } catch (cleanupError) {
+      error.cleanupError = cleanupError.message;
+    }
+    throw error;
+  }
 }
 
 /**

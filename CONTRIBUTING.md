@@ -10,6 +10,7 @@ Treat this project as local-first and dry-run-first unless a later approved phas
 - Do not expose `.env`, API keys, tokens, credential values, raw endpoint values, or webhook values.
 - Do not change the default `/chat` path or `/chat-gateway/execute` behavior for public-readiness work.
 - Do not run OpenAI, Claude, OpenRouter, MiMo, NVIDIA, or other real Providers by default.
+- Do not commit operational `*.input.json` files. Only examples, templates, and schemas belong in the repository.
 - Do not claim the workspace is clean unless it was explicitly verified.
 - Do not weaken verifier assertions just to make a phase look complete.
 

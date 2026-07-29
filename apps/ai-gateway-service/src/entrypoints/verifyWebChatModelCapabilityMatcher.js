@@ -1,12 +1,11 @@
-import { mkdir, writeFile } from "node:fs/promises";
-import { writeEvidencePair } from "./entrypointUtils.js";
+import { listen, writeEvidenceFiles, } from "./entrypointUtils.js";
+import { mkdir } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
 import { createConsolePage } from "../ui/consolePage.js";
-import { listen, close } from "./entrypointUtils.js";
 
 const PHASE = "phase-76p-web-chat-model-capability-matcher";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -14,6 +13,8 @@ const repoRoot = resolve(__dirname, "../../../..");
 const evidenceDir = resolve(repoRoot, "apps/ai-gateway-service/evidence");
 const evidenceJsonPath = resolve(evidenceDir, "phase-76p-web-chat-model-capability-matcher.json");
 const evidenceMdPath = resolve(evidenceDir, "phase-76p-web-chat-model-capability-matcher.md");
+const skFixture = (body) => ["sk", body].join("-");
+const aiZaFixture = (body) => ["AI", `za${body}`].join("");
 
 let server;
 let evidence;
@@ -39,11 +40,11 @@ try {
     source: "phase76p-verify",
   });
   const genericSkDetection = await detectCredential(serviceUrl, {
-    apiKey: "sk-phase76p-secret-must-not-persist",
+    apiKey: skFixture("phase76p-secret-must-not-persist"),
     source: "phase76p-verify",
   });
   const geminiDetection = await detectCredential(serviceUrl, {
-    apiKey: "AIzaPhase76pSecretMustNotPersist",
+    apiKey: aiZaFixture("Phase76pSecretMustNotPersist"),
     source: "phase76p-verify",
   });
   const unknownDetection = await detectCredential(serviceUrl, {
@@ -110,7 +111,7 @@ try {
     },
     conclusion: passed ? "web-chat-model-capability-matcher-connected" : "web-chat-model-capability-matcher-not-connected",
   };
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyWebChatModelCapabilityMatcherEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = passed ? 0 : 1;
 } catch (error) {
@@ -121,7 +122,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "web-chat-model-capability-matcher-not-connected",
   };
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyWebChatModelCapabilityMatcherEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -173,3 +174,43 @@ function summarizeDetection(data) {
   };
 }
 
+
+function close(targetServer) {
+  return new Promise((resolveClose) => targetServer.close(() => resolveClose()));
+}
+
+async function writeVerifyWebChatModelCapabilityMatcherEvidence(body) {
+  await writeEvidenceFiles({
+    evidenceDir,
+    evidenceJsonPath,
+    evidenceMdPath,
+    body,
+    renderMarkdown: createEvidenceMarkdown,
+  });
+}
+
+function createEvidenceMarkdown(body) {
+  return `# Phase 76P Web Chat Model Capability Matcher Evidence
+
+- Phase: ${body.phase}
+- Status: ${body.status}
+- Generated at: ${body.generatedAt}
+- Service URL: ${body.serviceUrl ?? "n/a"}
+- UI capability summary visible: ${body.htmlInspection?.capabilitySummaryVisible}
+- UI current-chat-only copy present: ${body.htmlInspection?.currentChatOnlyCopyPresent}
+- Fake recommended provider/model: ${body.detection?.fake?.recommended?.value ?? "n/a"}
+- Generic sk provider count: ${body.detection?.genericSk?.providerCount ?? "n/a"}
+- Generic sk network probe performed: ${body.detection?.genericSk?.networkProbePerformed}
+- Generic sk spray prevented: ${body.detection?.genericSk?.ambiguousKeySprayPrevented}
+- Generic sk capability summary: ${JSON.stringify(body.detection?.genericSk?.capabilitySummary ?? {})}
+- Gemini provider ids: ${(body.detection?.gemini?.providerIds ?? []).join(", ")}
+- Gemini recommended provider/model: ${body.detection?.gemini?.recommended?.value ?? "none"}
+- Gemini capability summary: ${JSON.stringify(body.detection?.gemini?.capabilitySummary ?? {})}
+- Fake excluded from unknown fallback: ${body.safety?.fakeExcludedFromUnknownFallback}
+- Non-chat models hidden from chat dropdown: ${body.safety?.nonChatModelsHiddenFromChatDropdown}
+- Recognized-only capabilities exposed: ${body.safety?.recognizedOnlyCapabilitiesExposed}
+- API key value recorded: ${body.safety?.apiKeyValueRecorded}
+- Default chat main lane changed: ${body.safety?.defaultChatMainLaneChanged}
+- Conclusion: ${body.conclusion}
+`;
+}

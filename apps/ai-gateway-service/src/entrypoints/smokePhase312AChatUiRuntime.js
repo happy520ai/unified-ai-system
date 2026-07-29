@@ -1,11 +1,11 @@
+import { listenAtEphemeralUrl as listen } from "./entrypointUtils.js";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
-import { createGatewayHttpServer } from "../http/httpServer.js";import { listen } from "./entrypointUtils.js"
-
+import { createGatewayHttpServer } from "../http/httpServer.js";
 
 const repoRoot = resolve(fileURLToPath(new URL("../../../..", import.meta.url)));
 const evidenceJsonPath = resolve(repoRoot, "apps/ai-gateway-service/evidence/phase-312a-chat-ui-runtime.json");
@@ -149,6 +149,7 @@ if (evidence.status !== "pass") {
     providerCalledInDryRun: evidence.providerCalledInDryRun,
   }, null, 2));
 }
+
 
 function closeServer(targetServer) {
   return new Promise((resolveClose) => targetServer.close(() => resolveClose()));

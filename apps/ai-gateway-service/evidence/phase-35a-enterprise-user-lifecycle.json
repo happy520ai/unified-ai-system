@@ -2,8 +2,8 @@
   "phase": "phase-35a-enterprise-user-lifecycle",
   "status": "passed",
   "generatedAt": "2026-04-26T05:00:56.470Z",
-  "userStorePath": "C:\\Users\\Administrator\\AppData\\Local\\Temp\\phase35a-enterprise-store-5Th5wk\\enterprise-users.json",
-  "auditLogPath": "C:\\Users\\Administrator\\AppData\\Local\\Temp\\phase35a-enterprise-audit-4MnGcC\\enterprise-audit.jsonl",
+  "userStorePath": "<user-home>\\AppData\\Local\\Temp\\phase35a-enterprise-store-5Th5wk\\enterprise-users.json",
+  "auditLogPath": "<user-home>\\AppData\\Local\\Temp\\phase35a-enterprise-audit-4MnGcC\\enterprise-audit.jsonl",
   "enterprise": {
     "healthHttpStatus": 200,
     "userStoreMode": "env-plus-json-file",

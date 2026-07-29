@@ -1,5 +1,5 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { writeEvidencePair } from "./entrypointUtils.js";
+import { fetchJsonResponse as fetchJson, fetchTextResponse as fetchText, listen, postJsonResponse as postJson, writeEvidenceFiles, } from "./entrypointUtils.js";
+import { mkdir, readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
@@ -7,7 +7,6 @@ import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
 import { findPlainSecretFindings } from "../security/secretSafety.js";
-import { fetchJson, fetchText, listen, close, postJson } from "./entrypointUtils.js";
 
 const phase = "phase-139a-agent-workforce-clarify-consensus";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -223,7 +222,7 @@ try {
       : "agent-workforce-clarify-consensus-preview-not-closed",
   };
 
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyAgentWorkforceClarifyConsensusEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = passed ? 0 : 1;
 } catch (error) {
@@ -234,7 +233,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "agent-workforce-clarify-consensus-preview-not-closed",
   };
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyAgentWorkforceClarifyConsensusEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -243,12 +242,61 @@ try {
   }
 }
 
+
+function close(targetServer) {
+  return new Promise((resolveClose) => {
+    targetServer.close(() => resolveClose());
+  });
+}
+
 async function readRequired(relativePath) {
   return readFile(resolve(repoRoot, relativePath), "utf8");
 }
+
+
 
 
 function normalizeWhitespace(value) {
   return String(value ?? "").replace(/\s+/g, " ").trim();
 }
 
+async function writeVerifyAgentWorkforceClarifyConsensusEvidence(body) {
+  await writeEvidenceFiles({
+    evidenceDir,
+    evidenceJsonPath,
+    evidenceMdPath,
+    body,
+    renderMarkdown: createEvidenceMarkdown,
+  });
+}
+
+function createEvidenceMarkdown(body) {
+  return `# Phase 139A Agent Workforce Clarify And Consensus Evidence
+
+- Phase: ${body.phase}
+- Status: ${body.status}
+- Generated at: ${body.generatedAt}
+- Service URL: ${body.serviceUrl ?? "n/a"}
+- Workforce ID: ${body.workforce?.workforceId ?? "n/a"}
+- Plan version: ${body.workforce?.planVersion ?? "n/a"}
+- Clarify question count: ${body.workforce?.clarifyQuestionCount ?? "n/a"}
+- Consensus roles: ${(body.workforce?.consensusRoles ?? []).join(", ")}
+- Plan state: ${body.workforce?.planState?.current ?? "n/a"}
+- Workflow handoff: ${body.workforce?.planState?.workflowRunHandoff?.status ?? "n/a"}
+- UI marker present: ${body.ui?.phaseMarkerPresent ?? false}
+- Code execution: ${body.safety?.codeExecution ?? false}
+- Project file writes: ${body.safety?.projectFileWrites ?? false}
+- Workflow run: ${body.safety?.workflowRun ?? false}
+- Creates worktrees: ${body.safety?.createsWorktrees ?? false}
+- Runs oh-my-codex: ${body.safety?.runsOhMyCodex ?? false}
+- Enables 144 workers: ${body.safety?.enables144Workers ?? false}
+- Plain secret findings: ${body.secretFindingCount ?? "n/a"}
+- Conclusion: ${body.conclusion}
+
+## Checks
+
+${Object.entries(body.checks ?? {})
+  .map(([name, value]) => `- ${name}: ${value ? "passed" : "failed"}`)
+  .join("\n")}
+`;
+}

@@ -1,12 +1,11 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../../../ai-gateway-service/src/application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../../../ai-gateway-service/src/http/httpServer.js";
-import { fetchJson, listen, close, writeEvidenceWithRenderer } from "../../../ai-gateway-service/src/entrypoints/entrypointUtils.js"
-
+import { fetchJsonPayload as fetchJson, listen, writeEvidenceFiles } from "@unified-ai-system/shared-utils";
 
 const PHASE = "phase-8a-streaming-chain";
 const DEFAULT_NVIDIA_MODEL = "meta/llama-3.1-8b-instruct";
@@ -44,7 +43,7 @@ if (!verificationEnv.NVIDIA_API_KEY) {
     nonStreamingResult: null,
     conclusion: "blocked: NVIDIA_API_KEY is not present",
   });
-  await saveEvidence(evidence);
+  await writeVerifyStreamingChainEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } else {
@@ -86,7 +85,7 @@ if (!verificationEnv.NVIDIA_API_KEY) {
       nonStreamingResult,
       conclusion: passed ? "streaming-chain-connected" : "streaming-chain-not-connected",
     });
-    await saveEvidence(evidence);
+    await writeVerifyStreamingChainEvidence(evidence);
     console.log(JSON.stringify(evidence, null, 2));
     process.exitCode = passed ? 0 : 1;
   } catch (error) {
@@ -101,7 +100,7 @@ if (!verificationEnv.NVIDIA_API_KEY) {
       error: error instanceof Error ? error.message : String(error),
       conclusion: "streaming-chain-not-connected",
     });
-    await saveEvidence(evidence);
+    await writeVerifyStreamingChainEvidence(evidence);
     console.log(JSON.stringify(evidence, null, 2));
     process.exitCode = 1;
   } finally {
@@ -198,6 +197,12 @@ function stripQuotes(value) {
   }
 
   return value;
+}
+
+function close(server) {
+  return new Promise((resolveClose) => {
+    server.close(() => resolveClose());
+  });
 }
 
 function runNode({ args, cwd, env, timeoutMs }) {
@@ -297,11 +302,17 @@ function createEvidence({
   };
 }
 
-async function saveEvidence(body) {
-  await writeEvidenceWithRenderer(evidenceDir, evidenceJsonPath, evidenceMdPath, body, renderEvidenceMarkdown);
+async function writeVerifyStreamingChainEvidence(body) {
+  await writeEvidenceFiles({
+    evidenceDir,
+    evidenceJsonPath,
+    evidenceMdPath,
+    body,
+    renderMarkdown: createEvidenceMarkdown,
+  });
 }
 
-function renderEvidenceMarkdown(body) {
+function createEvidenceMarkdown(body) {
   return `# Phase 8A Streaming Chain Evidence
 
 - Phase: ${body.phase}

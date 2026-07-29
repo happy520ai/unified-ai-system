@@ -1,4 +1,5 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { homedir } from "node:os";
 import { dirname, extname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -101,7 +102,7 @@ function normalizePath(value) {
 }
 
 function safeHomeDir() {
-  return process.env.USERPROFILE || process.env.HOME || "C:\\Users\\Administrator";
+  return process.env.USERPROFILE || process.env.HOME || homedir();
 }
 
 function buildCheck(checks, id, pass, detail, severity = "error") {

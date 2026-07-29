@@ -14,12 +14,15 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, symlinkSync, unlinkSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { createSourceReader } from "./helpers/source-closure.js";
 
 const APPS_SRC = "../../../apps/ai-gateway-service/src";
 const SRC_ROOT = resolve(import.meta.dirname || ".", APPS_SRC);
 const PROVIDERS_ROOT = join(SRC_ROOT, "providers");
+const readFileSync = createSourceReader(SRC_ROOT);
 
 // ────────────────────────────────────────────────────────────────
 // 1. SSE writeSseEvent Connection Guard
@@ -66,16 +69,18 @@ describe("file_read symlink traversal protection", () => {
     const fileReadStart = src.indexOf('name: "file_read"');
     assert.ok(fileReadStart > 0, "Should have file_read tool");
 
-    // Check for symlink protection in the next ~2000 chars
-    const section = src.slice(fileReadStart, fileReadStart + 2000);
+    const section = src.slice(fileReadStart, fileReadStart + 2500);
+    const helperStart = src.indexOf("function validateRealPathWithinWorkingDirectory");
+    const helperSection = src.slice(helperStart, helperStart + 1800);
+    assert.ok(helperStart > 0, "Should have a shared real-path validation helper");
     assert.ok(
-      section.includes("realpathSync"),
-      "file_read should use realpathSync for symlink resolution"
+      helperSection.includes("realpathSync") && helperSection.includes("lstatSync"),
+      "real-path validation should resolve symlinks, including dangling entries"
     );
     assert.ok(
-      section.includes("Symlink traversal blocked") ||
-        section.includes("real path escapes"),
-      "file_read should return error for symlink traversal"
+      section.includes("validateRealPathWithinWorkingDirectory")
+        && section.includes("Symlink traversal blocked"),
+      "file_read should apply shared real-path validation"
     );
   });
 });
@@ -94,17 +99,53 @@ describe("file_write symlink traversal protection", () => {
     const fileWriteStart = src.indexOf('name: "file_write"');
     assert.ok(fileWriteStart > 0, "Should have file_write tool");
 
-    // Check for symlink protection in the next ~2000 chars
-    const section = src.slice(fileWriteStart, fileWriteStart + 2000);
+    const section = src.slice(fileWriteStart, fileWriteStart + 2500);
+    const helperStart = src.indexOf("function validateRealPathWithinWorkingDirectory");
+    const helperSection = src.slice(helperStart, helperStart + 1800);
+    assert.ok(helperStart > 0, "Should have a shared real-path validation helper");
     assert.ok(
-      section.includes("realpathSync"),
-      "file_write should use realpathSync for symlink resolution"
+      helperSection.includes("realpathSync") && helperSection.includes("lstatSync"),
+      "real-path validation should resolve symlinks, including dangling entries"
     );
     assert.ok(
-      section.includes("Symlink traversal blocked") ||
-        section.includes("real path escapes"),
-      "file_write should return error for symlink traversal"
+      section.includes("validateRealPathWithinWorkingDirectory")
+        && section.includes("Symlink traversal blocked"),
+      "file_write should apply shared real-path validation"
     );
+  });
+
+  it("blocks a new file write through a symlinked parent directory", async (t) => {
+    const workspaceDir = mkdtempSync(join(tmpdir(), "forge-write-root-"));
+    const outsideDir = mkdtempSync(join(tmpdir(), "forge-write-outside-"));
+    const linkedDir = join(workspaceDir, "linked");
+    const escapedFile = join(outsideDir, "escaped.txt");
+
+    try {
+      try {
+        symlinkSync(outsideDir, linkedDir, process.platform === "win32" ? "junction" : "dir");
+      } catch (error) {
+        if (error?.code === "EPERM" || error?.code === "EACCES") {
+          t.skip(`Symlink creation is unavailable: ${error.code}`);
+          return;
+        }
+        throw error;
+      }
+
+      const mod = await import(`${APPS_SRC}/claude-code-patterns/agentToolRegistry.js`);
+      const tools = mod.createBuiltInTools(workspaceDir);
+      const result = await tools.file_write.execute({
+        file_path: "linked/escaped.txt",
+        content: "must stay inside the workspace",
+      }, {});
+
+      assert.equal(result.status, "error");
+      assert.match(result.error, /Symlink traversal blocked/);
+      assert.equal(existsSync(escapedFile), false, "write must not escape the workspace");
+    } finally {
+      if (existsSync(linkedDir)) unlinkSync(linkedDir);
+      rmSync(workspaceDir, { recursive: true, force: true });
+      rmSync(outsideDir, { recursive: true, force: true });
+    }
   });
 });
 
@@ -257,14 +298,19 @@ describe("sessionStore sessionId validation and mutex", () => {
     const { createSessionStore } = await import(
       `${APPS_SRC}/agentic/sessionStore.js`
     );
-    const store = createSessionStore({ storeDir: join(process.cwd(), ".test-tmp-session-batch7") });
+    const storeDir = mkdtempSync(join(tmpdir(), "forge-session-batch7-"));
+    try {
+      const store = createSessionStore({ storeDir });
 
-    // Attempt path traversal via sessionId
-    await assert.rejects(
-      () => store.save("../../etc/passwd", { goal: "hack" }),
-      /Invalid sessionId/,
-      "Should reject sessionId with path traversal characters"
-    );
+      // Attempt path traversal via sessionId
+      await assert.rejects(
+        () => store.save("../../etc/passwd", { goal: "hack" }),
+        /Invalid sessionId/,
+        "Should reject sessionId with path traversal characters"
+      );
+    } finally {
+      rmSync(storeDir, { recursive: true, force: true });
+    }
   });
 
   it("has per-sessionId mutex for concurrent saves", () => {
@@ -294,20 +340,15 @@ describe("streaming connection pool agent", () => {
       "utf-8"
     );
 
-    // Find the generateStream method
-    const streamStart = src.indexOf("async *generateStream(");
-    assert.ok(streamStart > 0, "Should have generateStream method");
-
-    // Find the fetch call within generateStream
-    const streamSection = src.slice(streamStart, streamStart + 3000);
-    const fetchStart = streamSection.indexOf("await fetch(");
-    assert.ok(fetchStart > 0, "Should have fetch call in generateStream");
-
-    // Find the options object for this fetch
-    const fetchSection = streamSection.slice(fetchStart, fetchStart + 500);
+    const streamStart = src.indexOf("function openStreamWithRetry");
+    assert.ok(streamStart > 0, "Should have stream connection helper");
+    const streamSection = src.slice(streamStart, streamStart + 5000);
+    const fetchStart = streamSection.indexOf("await fetchWithAgent(");
+    assert.ok(fetchStart > 0, "Should use pooled fetch in stream helper");
     assert.ok(
-      fetchSection.includes("agent:") || fetchSection.includes("getOrCreateAgent"),
-      "generateStream should use connection pool agent for fetch"
+      streamSection.includes("const agent = getOrCreateAgent(baseUrl)")
+        && streamSection.includes("agent,"),
+      "stream helper should use a connection pool agent"
     );
   });
 });

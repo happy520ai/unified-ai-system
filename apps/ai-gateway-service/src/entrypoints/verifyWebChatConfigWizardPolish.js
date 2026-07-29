@@ -1,6 +1,5 @@
-﻿import { spawn } from "node:child_process";
-import { existsSync, readdirSync } from "node:fs";
-import { writeEvidencePair } from "./entrypointUtils.js";
+import { findRequiredBrowserPath as findBrowserPath, listen, sleep, writeEvidenceFiles, } from "./entrypointUtils.js";
+import { spawn } from "node:child_process";
 import { mkdtemp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
@@ -9,7 +8,6 @@ import vm from "node:vm";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
 import { createConsolePage } from "../ui/consolePage.js";
-import { sleep, listen, findBrowserPath, close } from "./entrypointUtils.js";
 
 const PHASE = "phase-76c-web-chat-config-wizard-polish";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -95,6 +93,8 @@ try {
 
     const screenshot = await inspectPng(evidencePngPath);
     const passed = initialState.wizardPresent &&
+      initialState.preferenceParseFailed === false &&
+      finalState.preferenceParseFailed === false &&
       initialState.stepCount >= 3 &&
       initialState.summaryCount >= 3 &&
       initialState.userFacingTextVisible &&
@@ -144,7 +144,7 @@ try {
     await closeCdpSilently(cdp);
   }
 
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyWebChatConfigWizardPolishEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = evidence.status === "passed" ? 0 : 1;
 } catch (error) {
@@ -155,7 +155,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "web-chat-config-wizard-not-polished",
   };
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyWebChatConfigWizardPolishEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -203,9 +203,15 @@ async function readState(cdp) {
     const text = document.body.textContent || "";
     const preferenceRaw = localStorage.getItem("pme-moving-earth-provider-preference-v1") || "";
     let preference = null;
-    try { preference = JSON.parse(preferenceRaw || "null"); } catch (err) { console.error("[verifyWebChatConfigWizardPolish]:", err?.message || err); }
+    let preferenceParseFailed = false;
+    try {
+      preference = JSON.parse(preferenceRaw || "null");
+    } catch {
+      preferenceParseFailed = true;
+    }
     return {
       wizardPresent: Boolean(document.querySelector("[data-command-wizard='model-config-v2']")),
+      preferenceParseFailed,
       stepCount: document.querySelectorAll(".chat-config-step").length,
       summaryCount: document.querySelectorAll(".chat-config-summary-item").length,
       feedbackText: document.querySelector("[data-command-feedback]")?.textContent || "",
@@ -224,13 +230,6 @@ async function readState(cdp) {
 }
 
 
-function findVersionedBrowserPaths(root, executableName) {
-  if (!existsSync(root)) return [];
-  return readdirSync(root, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => resolve(root, entry.name, executableName))
-    .reverse();
-}
 
 async function readDevToolsPort(profileDir) {
   const portFile = resolve(profileDir, "DevToolsActivePort");
@@ -341,3 +340,41 @@ async function inspectPng(path) {
   return { bytes: stats.size, width: validPng ? buffer.readUInt32BE(16) : 0, height: validPng ? buffer.readUInt32BE(20) : 0, validPng };
 }
 
+
+function close(targetServer) {
+  return new Promise((resolveClose) => targetServer.close(() => resolveClose()));
+}
+
+async function writeVerifyWebChatConfigWizardPolishEvidence(body) {
+  await writeEvidenceFiles({
+    evidenceDir,
+    evidenceJsonPath,
+    evidenceMdPath,
+    body,
+    renderMarkdown: createEvidenceMarkdown,
+  });
+}
+
+function createEvidenceMarkdown(body) {
+  return `# Phase 76C Web Chat Config Wizard Polish Evidence
+
+- Phase: ${body.phase}
+- Status: ${body.status}
+- Generated at: ${body.generatedAt}
+- Service URL: ${body.serviceUrl ?? "n/a"}
+- Wizard present: ${body.ui?.initialState?.wizardPresent}
+- Step count: ${body.ui?.initialState?.stepCount ?? "n/a"}
+- Summary count: ${body.ui?.initialState?.summaryCount ?? "n/a"}
+- User-facing text visible: ${body.ui?.initialState?.userFacingTextVisible}
+- Selected provider: ${body.ui?.finalState?.selectedProvider ?? "n/a"}
+- Secret persisted: ${body.safety?.secretPersisted}
+- Provider calls: ${body.safety?.providerCalls}
+- Backend business route added: ${body.safety?.backendBusinessRouteAdded}
+- Default chat main lane changed: ${body.safety?.defaultChatMainLaneChanged}
+- Screenshot path: ${body.screenshot?.path ?? "n/a"}
+- Screenshot bytes: ${body.screenshot?.bytes ?? "n/a"}
+- Screenshot dimensions: ${body.screenshot?.width ?? "n/a"}x${body.screenshot?.height ?? "n/a"}
+- Valid PNG: ${body.screenshot?.validPng}
+- Conclusion: ${body.conclusion}
+`;
+}

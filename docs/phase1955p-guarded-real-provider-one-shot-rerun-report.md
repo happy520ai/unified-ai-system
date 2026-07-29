@@ -12,7 +12,7 @@ Phase1955P reruns the guarded NVIDIA one-shot test after Phase1954P changed the 
 
 ## Boundary
 
-The runner may execute only when `docs/phase1955p-owner-approval.input.json` is present and passes the Phase1955P authorization gate.
+The runner may execute only when the operator creates the ignored local file `docs/phase1955p-owner-approval.input.json` from its tracked example and it passes the Phase1955P authorization gate.
 
 The executor does not read raw provider secret values, `.env`, or `auth.json`, and it does not log request headers. Secret resolution remains behind the existing CredentialRef/provider adapter boundary.
 

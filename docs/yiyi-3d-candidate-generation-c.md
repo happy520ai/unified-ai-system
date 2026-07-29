@@ -20,7 +20,7 @@ The image must be an approved local Yiyi reference. Do not use raw user photos. 
 
 Expected local sidecar:
 
-- engine path: `E:/AI-Data/AI-Engines/Hunyuan3D-2.1`
+- engine path: `.tool-external/hunyuan3d-2.1`
 - health endpoint: `http://127.0.0.1:8081/health`
 - generation endpoint: `http://127.0.0.1:8081/generate`
 

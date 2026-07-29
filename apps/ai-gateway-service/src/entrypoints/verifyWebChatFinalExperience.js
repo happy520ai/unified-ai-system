@@ -1,6 +1,5 @@
+import { findRequiredBrowserPath as findBrowserPath, listen, sleep, writeEvidenceFiles, } from "./entrypointUtils.js";
 import { spawn } from "node:child_process";
-import { writeEvidencePair } from "./entrypointUtils.js";
-import { existsSync, readdirSync } from "node:fs";
 import { mkdtemp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
@@ -9,7 +8,6 @@ import vm from "node:vm";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
 import { createConsolePage } from "../ui/consolePage.js";
-import { sleep, listen, findBrowserPath, close } from "./entrypointUtils.js";
 
 const PHASE = "phase-75a-web-chat-final-experience";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -163,7 +161,7 @@ try {
     await closeCdpSilently(cdp);
   }
 
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyWebChatFinalExperienceEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = evidence.status === "passed" ? 0 : 1;
 } catch (error) {
@@ -174,7 +172,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "web-chat-final-experience-not-connected",
   };
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyWebChatFinalExperienceEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -265,13 +263,6 @@ async function readState(cdp) {
 }
 
 
-function findVersionedBrowserPaths(root, executableName) {
-  if (!existsSync(root)) return [];
-  return readdirSync(root, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => resolve(root, entry.name, executableName))
-    .reverse();
-}
 
 async function readDevToolsPort(profileDir) {
   const portFile = resolve(profileDir, "DevToolsActivePort");
@@ -380,5 +371,57 @@ async function inspectPng(path) {
   const buffer = await readFile(path);
   const validPng = buffer.length >= 24 && buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47;
   return { bytes: stats.size, width: validPng ? buffer.readUInt32BE(16) : 0, height: validPng ? buffer.readUInt32BE(20) : 0, validPng };
+}
+
+
+function close(targetServer) {
+  return new Promise((resolveClose) => targetServer.close(() => resolveClose()));
+}
+
+async function writeVerifyWebChatFinalExperienceEvidence(body) {
+  await writeEvidenceFiles({
+    evidenceDir,
+    evidenceJsonPath,
+    evidenceMdPath,
+    body,
+    renderMarkdown: createEvidenceMarkdown,
+  });
+}
+
+function createEvidenceMarkdown(body) {
+  return `# Phase 75A Web Chat Final Experience Evidence
+
+- Phase: ${body.phase}
+- Status: ${body.status}
+- Generated at: ${body.generatedAt}
+- Service URL: ${body.serviceUrl ?? "n/a"}
+- Initial assistant structured: ${body.ui?.initialState?.initialAssistantStructured}
+- Initial scroll button hidden: ${body.ui?.initialState?.scrollBottomButtonHidden}
+- User meta label: ${body.ui?.afterAnswer?.userMetaLabel ?? "n/a"}
+- Assistant meta label: ${body.ui?.afterAnswer?.assistantMetaLabel ?? "n/a"}
+- User meta time present: ${body.ui?.afterAnswer?.userMetaTimePresent}
+- Assistant meta time present: ${body.ui?.afterAnswer?.assistantMetaTimePresent}
+- Action labels: ${(body.ui?.afterAnswer?.actionLabels ?? []).join(", ") || "none"}
+- Citation heading: ${body.ui?.afterAnswer?.citationHeading ?? "n/a"}
+- Citation snippet: ${body.ui?.afterAnswer?.citationSnippet ?? "n/a"}
+- History overflowing: ${body.ui?.afterAnswer?.historyOverflowing}
+- Scroll button visible after manual scroll: ${body.ui?.afterManualScroll?.scrollBottomButtonVisible}
+- Near bottom after recovery: ${body.ui?.afterScrollRecovery?.nearBottom}
+- Screenshot path: ${body.screenshot?.path ?? "n/a"}
+- Screenshot bytes: ${body.screenshot?.bytes ?? "n/a"}
+- Screenshot dimensions: ${body.screenshot?.width ?? "n/a"}x${body.screenshot?.height ?? "n/a"}
+- Valid PNG: ${body.screenshot?.validPng}
+- Browser interaction: ${body.safety?.browserInteraction}
+- Simulated stream only: ${body.safety?.simulatedStreamOnly}
+- Final chat surface only: ${body.safety?.finalChatSurfaceOnly}
+- Fake provider only: ${body.safety?.fakeProviderOnly}
+- Default chat main lane changed: ${body.safety?.defaultChatMainLaneChanged}
+- Backend business route added: ${body.safety?.backendBusinessRouteAdded}
+- Provider calls: ${body.safety?.providerCalls}
+- Runtime mutation: ${body.safety?.runtimeMutation}
+- Release automation: ${body.safety?.releaseAutomation}
+- Infrastructure provisioning: ${body.safety?.infrastructureProvisioning}
+- Conclusion: ${body.conclusion}
+`;
 }
 

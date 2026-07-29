@@ -33,7 +33,7 @@ The action is allowed only by the following explicit approval packet:
 
 Primary target:
 
-`C:\Users\Administrator\Desktop\小天任务表.csv`
+`<user-home>\Desktop\小天任务表.csv`
 
 If that exact file already exists, the runner must create a timestamp fallback:
 

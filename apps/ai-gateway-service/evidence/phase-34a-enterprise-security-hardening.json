@@ -29,7 +29,7 @@
     "viewerAuditStatus": 403,
     "adminDashboardStatus": 200,
     "adminAuditStatus": 200,
-    "auditLogPath": "C:\\Users\\Administrator\\AppData\\Local\\Temp\\phase34a-audit-EpwovX\\enterprise-audit.jsonl",
+    "auditLogPath": "<user-home>\\AppData\\Local\\Temp\\phase34a-audit-EpwovX\\enterprise-audit.jsonl",
     "auditEntryCount": 9,
     "expiredAuditRecorded": true,
     "revokedAuditRecorded": true,

@@ -23,8 +23,8 @@
       "no git remote is configured",
       "GitHub CLI is not installed or not in PATH"
     ],
-    "gitTopLevel": "E:/AI-Data/AI网关系统/unified-ai-system",
-    "expectedProjectRoot": "E:\\AI-Data\\AI网关系统\\unified-ai-system",
+    "gitTopLevel": "<repository-root>",
+    "expectedProjectRoot": "<repository-root>",
     "currentBranch": "master",
     "remoteCount": 0,
     "initialCommitPresent": true,

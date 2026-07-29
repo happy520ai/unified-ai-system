@@ -5,7 +5,8 @@
   "type": "module",
   "main": "./src/index.js",
   "dependencies": {
-    "@unified-ai-system/shared-sdk": "workspace:*"
+    "@unified-ai-system/shared-sdk": "workspace:*",
+    "@unified-ai-system/shared-utils": "workspace:*"
   },
   "scripts": {
     "start": "node ./src/index.js",

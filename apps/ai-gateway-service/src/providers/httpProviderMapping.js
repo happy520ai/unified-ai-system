@@ -348,10 +348,12 @@ export async function openStreamWithRetry({
 
     try {
       if (isPrivateOrReservedUrl(`${baseUrl}/chat/completions`)) {
-        throw createHttpProviderError({
-          response: null, body: null, providerRequest,
-          message: `SSRF blocked: baseUrl resolves to a private or reserved address.`,
+        throw createProviderError({
+          code: `${errorPrefix}_SSRF_BLOCKED`,
+          type: "security",
+          message: "SSRF blocked: provider endpoint resolves to a private or reserved address.",
           retryable: false,
+          details: createErrorDetails(providerRequest),
         });
       }
 
@@ -364,7 +366,8 @@ export async function openStreamWithRetry({
         },
         body: JSON.stringify(payload),
         agent,
-        timeout: controller.signal ? undefined : 60_000,
+        signal: controller.signal,
+        timeout: timeoutMs,
       });
 
       if (!response.ok) {

@@ -1,11 +1,10 @@
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
-import { writeEvidencePair } from "./entrypointUtils.js";
+import { fetchContentResponse as fetchText, listen, writeEvidenceFiles, } from "./entrypointUtils.js";
+import { mkdir, mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
-import { fetchText, listen, close } from "./entrypointUtils.js";
 
 const PHASE = "phase-41a-enterprise-config-wizard";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -63,7 +62,7 @@ try {
     responseText,
     conclusion: passed ? "enterprise-config-wizard-connected" : "enterprise-config-wizard-not-connected",
   });
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyEnterpriseConfigWizardEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = passed ? 0 : 1;
 } catch (error) {
@@ -73,7 +72,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "enterprise-config-wizard-not-connected",
   });
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyEnterpriseConfigWizardEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -101,6 +100,14 @@ function isConfigWizardReady(text, ui) {
     !text.includes(pgvectorUri)
   );
 }
+
+
+function close(targetServer) {
+  return new Promise((resolveClose) => {
+    targetServer.close(() => resolveClose());
+  });
+}
+
 
 function createEvidence({ status, generatedAt, serviceUrl, ui, responseText, conclusion, error }) {
   return {
@@ -132,3 +139,38 @@ function createEvidence({ status, generatedAt, serviceUrl, ui, responseText, con
   };
 }
 
+async function writeVerifyEnterpriseConfigWizardEvidence(body) {
+  await writeEvidenceFiles({
+    evidenceDir,
+    evidenceJsonPath,
+    evidenceMdPath,
+    body,
+    renderMarkdown: createEvidenceMarkdown,
+  });
+}
+
+function createEvidenceMarkdown(body) {
+  return `# Phase 41A Enterprise Config Wizard Evidence
+
+- Phase: ${body.phase}
+- Status: ${body.status}
+- Generated at: ${body.generatedAt}
+- Service URL: ${body.serviceUrl ?? "n/a"}
+- UI HTTP status: ${body.ui?.httpStatus ?? "n/a"}
+- Config wizard panel present: ${body.ui?.configWizardPanelPresent}
+- Config input present: ${body.ui?.configInputPresent}
+- Config check button present: ${body.ui?.configCheckButtonPresent}
+- Config clear button present: ${body.ui?.configClearButtonPresent}
+- Local parser present: ${body.ui?.localParserPresent}
+- Local checker present: ${body.ui?.localCheckerPresent}
+- NVIDIA key marker present: ${body.ui?.requiredNvidiaKeyMarkerPresent}
+- Enterprise token marker present: ${body.ui?.requiredEnterpriseTokenMarkerPresent}
+- pgvector marker present: ${body.ui?.pgvectorMarkerPresent}
+- Uploaded false marker present: ${body.safety?.uploadedFalseMarkerPresent}
+- Values echoed false marker present: ${body.safety?.valuesEchoedFalseMarkerPresent}
+- Response contains NVIDIA key: ${body.safety?.responseContainsNvidiaKey}
+- Response contains admin token: ${body.safety?.responseContainsAdminToken}
+- Response contains pgvector URI: ${body.safety?.responseContainsPgvectorUri}
+- Conclusion: ${body.conclusion}
+`;
+}

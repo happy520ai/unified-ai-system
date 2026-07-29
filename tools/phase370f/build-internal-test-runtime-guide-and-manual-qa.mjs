@@ -1,4 +1,4 @@
-import { writeJson, writeText } from "../phase370-common.mjs";
+import { writeJson, writeText } from "../phase-file-utils.mjs";
 
 const checklist = {
   phase: "Phase370F",

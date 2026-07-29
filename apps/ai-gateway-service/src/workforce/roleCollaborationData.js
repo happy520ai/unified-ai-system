@@ -1,4 +1,4 @@
-import { WORKFORCE_ROLES, ROLE_TIERS, ROLE_COLLABORATION_MAP } from "./workforceRoles.js";
+import { WORKFORCE_ROLES } from "./workforceRoles.js";
 
 // ---------------------------------------------------------------------------
 // Phase identifier

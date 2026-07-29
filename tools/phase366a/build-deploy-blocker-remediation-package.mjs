@@ -1,4 +1,4 @@
-import { readJson, writeJson, writeText } from "../phase366-common.mjs";
+import { readJson, writeJson, writeText } from "../phase-file-utils.mjs";
 
 const phase365b = await readJson("docs/phase365b-deploy-command-final-safety-state.json");
 const blockers = Array.isArray(phase365b.blockers) ? phase365b.blockers : [];

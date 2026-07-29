@@ -73,7 +73,7 @@
 
 **运行命令**：
 ```powershell
-cd E:\AI-Data\AI网关系统\unified-ai-system
+cd <repository-root>
 node tools/verify-world-class-gate.mjs
 # 注意：测退出码时不要接管道（| tail 等），否则取到的是管道末命令的退出码
 ```
@@ -108,7 +108,7 @@ node tools/verify-world-class-gate.mjs
 ## 🚦 防退化基线（每轮结束必须重跑，任何一项从绿变红立即回滚）
 
 ```powershell
-cd E:\AI-Data\AI网关系统\unified-ai-system
+cd <repository-root>
 
 # 1. 测试（必须 ≥ 257/217/40）
 cd apps/ai-gateway-service && pnpm test 2>&1 | grep -E "tests [0-9]|pass [0-9]|fail [0-9]"

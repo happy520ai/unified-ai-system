@@ -3,8 +3,8 @@
 - Phase: phase-35a-enterprise-user-lifecycle
 - Status: passed
 - Generated at: 2026-04-26T05:00:56.470Z
-- User store path: C:\Users\Administrator\AppData\Local\Temp\phase35a-enterprise-store-5Th5wk\enterprise-users.json
-- Audit log path: C:\Users\Administrator\AppData\Local\Temp\phase35a-enterprise-audit-4MnGcC\enterprise-audit.jsonl
+- User store path: <user-home>\AppData\Local\Temp\phase35a-enterprise-store-5Th5wk\enterprise-users.json
+- Audit log path: <user-home>\AppData\Local\Temp\phase35a-enterprise-audit-4MnGcC\enterprise-audit.jsonl
 - Health HTTP status: 200
 - User store mode: env-plus-json-file
 - UI managed users present: true

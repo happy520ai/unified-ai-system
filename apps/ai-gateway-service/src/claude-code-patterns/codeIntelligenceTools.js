@@ -5,6 +5,7 @@
  */
 
 import { buildTool, createInputSchema } from "./toolCore.js";
+import { validateFilePath } from "./builtInCoreTools.js";
 
 // ============================================================
 // Semantic Search Tool (TF-IDF)
@@ -229,7 +230,10 @@ export async function astEditToolImpl(params, context) {
   const { readFile, writeFile } = await import("node:fs/promises");
 
   // Security: validate file path before write operation
-  const validation = validateFilePath(file, { allowWrite: true });
+  const validation = validateFilePath(file, {
+    allowWrite: true,
+    workingDirectory: context.workingDirectory || ".",
+  });
   if (!validation.safe) return { status: "error", error: validation.reason };
   const filePath = resolve(context.workingDirectory || ".", file);
   let content;

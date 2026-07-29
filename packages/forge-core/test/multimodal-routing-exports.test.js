@@ -3,8 +3,8 @@
  *
  * Tests the integration layer for multimodal capabilities:
  *   - Forge index: multimodal function/class exports
- *   - Capability router: executionEnabled for multimodal endpoints
- *   - Safe execution router: multimodal branch routing and adapter handling
+ *   - Capability router: preview-only multimodal boundaries
+ *   - Safe execution router: unsupported providers remain blocked
  *   - Export completeness: all expected multimodal exports present
  *
  * All HTTP calls are mocked — no real provider calls.
@@ -61,7 +61,7 @@ describe('Forge Index - Multimodal Exports', () => {
 
 // ── Capability Router Execution Tests ────────────────────────────────────────
 
-describe('Capability Router - Multimodal Execution', () => {
+describe('Capability Router - Multimodal Preview Boundary', () => {
   let routerMod;
   let rulesMod;
 
@@ -70,29 +70,26 @@ describe('Capability Router - Multimodal Execution', () => {
     rulesMod = await import('../../../apps/ai-gateway-service/src/model-library/modelCapabilityRules.js');
   });
 
-  it('should have executionEnabled true in router status', () => {
+  it('keeps automatic execution disabled in router status', () => {
     const svc = routerMod.createCapabilityRouterService({ providerRegistry: null });
     const status = svc.getStatus();
-    assert.equal(status.executionEnabled, true);
-    assert.equal(status.previewOnly, false);
+    assert.equal(status.executionEnabled, false);
+    assert.equal(status.previewOnly, true);
   });
 
-  it('should return real paths for multimodal endpoint types', () => {
+  it('blocks generic multimodal endpoints without specialized payloads', () => {
     const path = rulesMod.endpointPathFor(rulesMod.ENDPOINT_TYPES.multimodal);
-    assert.ok(!path.startsWith('blocked:'), `Multimodal path should not be blocked, got: ${path}`);
-    assert.equal(path, '/v1/images/generations');
+    assert.equal(path, 'blocked:specialized-multimodal-payload-required');
   });
 
-  it('should return real paths for voice endpoint types', () => {
+  it('blocks generic voice endpoints without specialized payloads', () => {
     const path = rulesMod.endpointPathFor(rulesMod.ENDPOINT_TYPES.voice);
-    assert.ok(!path.startsWith('blocked:'), `Voice path should not be blocked, got: ${path}`);
-    assert.equal(path, '/v1/audio/speech');
+    assert.equal(path, 'blocked:specialized-voice-payload-required');
   });
 
-  it('should return real paths for video endpoint types', () => {
+  it('blocks generic video endpoints without specialized payloads', () => {
     const path = rulesMod.endpointPathFor(rulesMod.ENDPOINT_TYPES.video);
-    assert.ok(!path.startsWith('blocked:'), `Video path should not be blocked, got: ${path}`);
-    assert.equal(path, '/v1/video/generations');
+    assert.equal(path, 'blocked:specialized-video-payload-required');
   });
 
   it('should infer multimodal endpoint type from capabilities', () => {
@@ -127,10 +124,7 @@ describe('Safe Execution Router - Multimodal Branches', () => {
     assert.equal(typeof execRouter.executeCapabilitySafePlan, 'function');
   });
 
-  it('should route non-nvidia chat via OpenAI-compatible provider and fail without key', async () => {
-    // Phase B: multi-provider routing unlocked; non-nvidia chat now routes
-    // through callOpenAICompatibleProvider instead of being blocked.
-    // Without an API key, the provider returns openai_api_key_missing.
+  it('blocks non-NVIDIA chat before any provider call', async () => {
     const result = await execRouter.executeCapabilitySafePlan({
       plan: {
         intentType: 'general_chat',
@@ -150,11 +144,11 @@ describe('Safe Execution Router - Multimodal Branches', () => {
     });
 
     assert.equal(result.success, false);
-    assert.equal(result.code, 'openai_api_key_missing');
+    assert.equal(result.code, 'provider_not_allowed_phase312a');
+    assert.equal(result.meta.providerCalled, false);
   });
 
-  it('should accept multimodal endpoint from non-nvidia provider', async () => {
-    // Create a mock multimodal adapter
+  it('does not invoke a multimodal adapter for a blocked provider', async () => {
     const mockAdapter = {
       generateImage: async () => ({ url: 'https://example.com/img.png', provider: 'openai' }),
     };
@@ -176,13 +170,13 @@ describe('Safe Execution Router - Multimodal Branches', () => {
       multimodalAdapter: mockAdapter,
     });
 
-    assert.equal(result.success, true);
-    assert.equal(result.code, 'gateway_execution_ok');
-    assert.ok(result.meta?.realExternalCall, 'Should have made a real external call to the adapter');
+    assert.equal(result.success, false);
+    assert.equal(result.code, 'provider_not_allowed_phase312a');
+    assert.equal(result.meta?.realExternalCall, false);
     assert.equal(result.meta?.endpointType, 'multimodal');
   });
 
-  it('should fail gracefully when multimodalAdapter is unavailable', async () => {
+  it('returns the same provider boundary when no adapter is supplied', async () => {
     const result = await execRouter.executeCapabilitySafePlan({
       plan: {
         intentType: 'image_understanding',
@@ -201,7 +195,7 @@ describe('Safe Execution Router - Multimodal Branches', () => {
     });
 
     assert.equal(result.success, false);
-    assert.equal(result.code, 'multimodal_adapter_unavailable');
+    assert.equal(result.code, 'provider_not_allowed_phase312a');
   });
 });
 

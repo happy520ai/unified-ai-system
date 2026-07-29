@@ -1,11 +1,10 @@
+import { listenAtEphemeralUrl as listen, writeEvidenceFiles, } from "./entrypointUtils.js";
 import { existsSync, readFileSync } from "node:fs";
-import { writeEvidenceWithRenderer } from "./entrypointUtils.js";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
-import { createGatewayHttpServer } from "../http/httpServer.js";import { listen } from "./entrypointUtils.js"
-
+import { createGatewayHttpServer } from "../http/httpServer.js";
 
 const PHASE = "Phase315A";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -198,7 +197,7 @@ const evidence = {
   workspaceCleanClaimed: false,
 };
 
-await writeEvidence(evidence);
+await writeSmokePhase315AUiAcceptanceEvidence(evidence);
 
 console.log(JSON.stringify({
   status: uiAcceptance.status,
@@ -239,6 +238,7 @@ function parseJson(text) {
     return null;
   }
 }
+
 
 function closeServer(targetServer) {
   return new Promise((resolveClose) => targetServer.close(() => resolveClose()));
@@ -308,6 +308,15 @@ function readExistingEvidence() {
   }
 }
 
+async function writeSmokePhase315AUiAcceptanceEvidence(data) {
+  await writeEvidenceFiles({
+    evidenceDir,
+    evidenceJsonPath,
+    evidenceMdPath,
+    body: data,
+    renderMarkdown,
+  });
+}
 
 function renderMarkdown(data) {
   return `# Phase315A Full System Acceptance

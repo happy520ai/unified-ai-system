@@ -13,13 +13,14 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { createSourceReader } from "./helpers/source-closure.js";
 
 // Resolve source paths via import.meta.url for reliable cross-platform behavior
 const __testDir = fileURLToPath(new URL(".", import.meta.url));
 const SRC_ROOT = join(__testDir, "..", "..", "..", "apps", "ai-gateway-service", "src");
+const readFileSync = createSourceReader(SRC_ROOT);
 // For dynamic import() on Windows, must use file:// URL
 const ESM_SRC = pathToFileURL(SRC_ROOT).href;
 
@@ -28,42 +29,42 @@ const ESM_SRC = pathToFileURL(SRC_ROOT).href;
 describe("Batch11-1: agenticCodingLoop checkpoint resume path validation", () => {
   it("validates checkpoint path against working directory", () => {
     const src = readFileSync(join(SRC_ROOT, "agentic/agenticCodingLoop.js"), "utf-8");
-    const cpStart = src.indexOf("resumeFromCheckpoint", src.indexOf("async function execute("));
-    assert.ok(cpStart > 0, "Checkpoint resume code should exist in execute()");
-    const cpArea = src.slice(cpStart, cpStart + 1400);
+    const cpStart = src.indexOf("export async function readCheckpointForResume");
+    assert.ok(cpStart > 0, "Checkpoint reader should exist");
+    const cpArea = src.slice(cpStart, cpStart + 1600);
 
     assert.ok(cpArea.includes("checkpointPath"), "Should resolve checkpoint path");
-    assert.ok(cpArea.includes("checkpointDir"), "Should resolve checkpoint directory");
-    assert.ok(cpArea.includes("startsWith"), "Should validate path is within allowed directory");
+    assert.ok(cpArea.includes("realpath"), "Should resolve symlinks before validation");
+    assert.ok(cpArea.includes("relative("), "Should compare the checkpoint to the allowed root");
+    assert.ok(cpArea.includes("isAbsolute"), "Should reject absolute relative-path results");
   });
 
   it("rejects paths outside working directory", () => {
     const src = readFileSync(join(SRC_ROOT, "agentic/agenticCodingLoop.js"), "utf-8");
-    const cpStart = src.indexOf("resumeFromCheckpoint", src.indexOf("async function execute("));
-    const cpArea = src.slice(cpStart, cpStart + 1400);
+    const cpStart = src.indexOf("export async function readCheckpointForResume");
+    const cpArea = src.slice(cpStart, cpStart + 1600);
 
-    assert.ok(cpArea.includes("checkpoint path rejected"), "Should log rejection when path is outside working dir");
+    assert.ok(cpArea.includes("CHECKPOINT_PATH_REJECTED"), "Should reject paths outside working dir");
   });
 
   it("uses resolve to normalize paths before comparison", () => {
     const src = readFileSync(join(SRC_ROOT, "agentic/agenticCodingLoop.js"), "utf-8");
-    const cpStart = src.indexOf("resumeFromCheckpoint", src.indexOf("async function execute("));
-    const cpArea = src.slice(cpStart, cpStart + 1400);
+    const cpStart = src.indexOf("export async function readCheckpointForResume");
+    const cpArea = src.slice(cpStart, cpStart + 1600);
 
     assert.ok(cpArea.includes("resolvePath"), "Should use path.resolve for normalization");
     assert.ok(cpArea.includes("workingDirectory"), "Should use workingDirectory as the allowed base");
   });
 
-  it("only reads file when path validation passes (else branch)", () => {
+  it("only reads the file after path validation passes", () => {
     const src = readFileSync(join(SRC_ROOT, "agentic/agenticCodingLoop.js"), "utf-8");
-    const cpStart = src.indexOf("resumeFromCheckpoint", src.indexOf("async function execute("));
-    const cpArea = src.slice(cpStart, cpStart + 1400);
+    const cpStart = src.indexOf("export async function readCheckpointForResume");
+    const cpArea = src.slice(cpStart, cpStart + 1600);
 
-    // The readFileSync should be inside an else block (after the path check)
-    const rejectIdx = cpArea.indexOf("checkpoint path rejected");
-    const readIdx = cpArea.indexOf("readFileSync(checkpointPath");
+    const rejectIdx = cpArea.indexOf("CHECKPOINT_PATH_REJECTED");
+    const readIdx = cpArea.indexOf("readFile(checkpointPath");
     assert.ok(rejectIdx > 0, "Should have path rejection code");
-    assert.ok(readIdx > rejectIdx, "readFileSync should come AFTER path validation");
+    assert.ok(readIdx > rejectIdx, "readFile should come AFTER path validation");
   });
 });
 
@@ -101,21 +102,21 @@ describe("Batch11-2: writeSseHeaders writableEnded/headersSent guard", () => {
   });
 
   it("all three response writers (writeJson, writeHtml, writeSseHeaders) have guards", () => {
-    const src = readFileSync(join(SRC_ROOT, "http/httpServer.js"), "utf-8");
+    const src = readFileSync(join(SRC_ROOT, "http/utils/responseUtils.js"), "utf-8");
 
     // writeJson guard
-    const jsonStart = src.indexOf("function writeJson(");
-    const jsonSrc = src.slice(jsonStart, jsonStart + 200);
+    const jsonStart = src.lastIndexOf("function writeJson(");
+    const jsonSrc = src.slice(jsonStart, jsonStart + 350);
     assert.ok(jsonSrc.includes("writableEnded") || jsonSrc.includes("headersSent"), "writeJson should have guard");
 
     // writeHtml guard
-    const htmlStart = src.indexOf("function writeHtml(");
-    const htmlSrc = src.slice(htmlStart, htmlStart + 200);
+    const htmlStart = src.lastIndexOf("function writeHtml(");
+    const htmlSrc = src.slice(htmlStart, htmlStart + 350);
     assert.ok(htmlSrc.includes("writableEnded") || htmlSrc.includes("headersSent"), "writeHtml should have guard");
 
     // writeSseHeaders guard
-    const sseStart = src.indexOf("function writeSseHeaders(");
-    const sseSrc = src.slice(sseStart, sseStart + 200);
+    const sseStart = src.lastIndexOf("function writeSseHeaders(");
+    const sseSrc = src.slice(sseStart, sseStart + 350);
     assert.ok(sseSrc.includes("writableEnded") || sseSrc.includes("headersSent"), "writeSseHeaders should have guard");
   });
 });
@@ -302,8 +303,9 @@ describe("Batch11-8: userExperienceService auth uses timingSafeEqual", () => {
     const src = readFileSync(join(SRC_ROOT, "capabilities/userExperienceService.js"), "utf-8");
     const fnStart = src.indexOf("function isAuthorized");
     assert.ok(fnStart > 0, "isAuthorized function should exist");
-    const fnSrc = src.slice(fnStart, fnStart + 600);
+    const fnSrc = src.slice(fnStart, fnStart + 900);
 
+    assert.ok(src.includes('import { timingSafeEqual } from "node:crypto"'), "Should import timingSafeEqual");
     assert.ok(fnSrc.includes("timingSafeEqual"), "Should use timingSafeEqual for comparison");
   });
 
@@ -321,7 +323,7 @@ describe("Batch11-8: userExperienceService auth uses timingSafeEqual", () => {
   it("compares token lengths before timingSafeEqual (prevents crash on mismatch)", () => {
     const src = readFileSync(join(SRC_ROOT, "capabilities/userExperienceService.js"), "utf-8");
     const fnStart = src.indexOf("function isAuthorized");
-    const fnSrc = src.slice(fnStart, fnStart + 600);
+    const fnSrc = src.slice(fnStart, fnStart + 900);
 
     assert.ok(fnSrc.includes(".length !==") || fnSrc.includes(".length =="), "Should check lengths before timingSafeEqual");
   });
@@ -329,7 +331,7 @@ describe("Batch11-8: userExperienceService auth uses timingSafeEqual", () => {
   it("uses Buffer.from for comparison inputs", () => {
     const src = readFileSync(join(SRC_ROOT, "capabilities/userExperienceService.js"), "utf-8");
     const fnStart = src.indexOf("function isAuthorized");
-    const fnSrc = src.slice(fnStart, fnStart + 600);
+    const fnSrc = src.slice(fnStart, fnStart + 900);
 
     assert.ok(fnSrc.includes("Buffer.from("), "Should convert strings to Buffers for timingSafeEqual");
   });
@@ -337,7 +339,7 @@ describe("Batch11-8: userExperienceService auth uses timingSafeEqual", () => {
   it("handles non-string inputs safely", () => {
     const src = readFileSync(join(SRC_ROOT, "capabilities/userExperienceService.js"), "utf-8");
     const fnStart = src.indexOf("function isAuthorized");
-    const fnSrc = src.slice(fnStart, fnStart + 600);
+    const fnSrc = src.slice(fnStart, fnStart + 900);
 
     assert.ok(fnSrc.includes('typeof a !== "string"') || fnSrc.includes("typeof a !="), "Should type-check inputs");
     assert.ok(fnSrc.includes("return false"), "Should return false for invalid inputs");

@@ -1,4 +1,4 @@
-import { writeJson, writeText } from "../phase369-common.mjs";
+import { writeJson, writeText } from "../phase-file-utils.mjs";
 
 const journeyMap = {
   phase: "Phase369B",

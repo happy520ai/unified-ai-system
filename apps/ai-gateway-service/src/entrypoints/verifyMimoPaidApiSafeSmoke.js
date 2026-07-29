@@ -1,9 +1,9 @@
+import { readCheckedJsonFile } from "./entrypointUtils.js";
 import { existsSync, readFileSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
-import { readJson } from "./entrypointUtils.js"
 
 const PHASE = "269A-mimo-paid-api-safe-smoke";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -54,9 +54,9 @@ const checks = [];
 try {
   const docsText = readRequiredText(docsPath, "docs_exists");
   const uiText = readRequiredText(uiPath, "ui_exists");
-  const rootPackage = readJson(rootPackagePath, "root_package_exists");
-  const servicePackage = readJson(servicePackagePath, "service_package_exists");
-  const evidence = readJson(evidenceJsonPath, "evidence_json_exists");
+  const rootPackage = readVerifyMimoPaidApiSafeSmokeJson(rootPackagePath, "root_package_exists");
+  const servicePackage = readVerifyMimoPaidApiSafeSmokeJson(servicePackagePath, "service_package_exists");
+  const evidence = readVerifyMimoPaidApiSafeSmokeJson(evidenceJsonPath, "evidence_json_exists");
   const evidenceMarkdown = readRequiredText(evidenceMdPath, "evidence_markdown_exists");
 
   assertCheck("smoke_script_exists", existsSync(smokeScriptPath), smokeScriptPath);
@@ -182,6 +182,9 @@ function readRequiredText(path, checkName) {
   return exists ? readFileSync(path, "utf8") : "";
 }
 
+function readVerifyMimoPaidApiSafeSmokeJson(path, checkName) {
+  return readCheckedJsonFile(path, checkName, readRequiredText, assertCheck);
+}
 
 function assertCheck(name, passed, detail = "") {
   checks.push({

@@ -1,11 +1,10 @@
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
-import { writeEvidencePair } from "./entrypointUtils.js";
+import { fetchContentResponse as fetchText, listen, requestJsonResponseWithHeaders as fetchJson, writeEvidenceFiles, } from "./entrypointUtils.js";
+import { mkdir, mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
-import { fetchJson, fetchText, listen, close } from "./entrypointUtils.js";
 
 const PHASE = "phase-40a-enterprise-deployment-preflight";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -106,7 +105,7 @@ try {
     responseText,
     conclusion: passed ? "enterprise-deployment-preflight-connected" : "enterprise-deployment-preflight-not-connected",
   });
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyEnterpriseDeploymentPreflightEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = passed ? 0 : 1;
 } catch (error) {
@@ -116,7 +115,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "enterprise-deployment-preflight-not-connected",
   });
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyEnterpriseDeploymentPreflightEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -157,6 +156,15 @@ function createHeaders(token) {
     "x-pme-tenant-id": tenantId,
   };
 }
+
+
+function close(targetServer) {
+  return new Promise((resolveClose) => {
+    targetServer.close(() => resolveClose());
+  });
+}
+
+
 
 function createEvidence({
   status,
@@ -211,3 +219,41 @@ function createEvidence({
   };
 }
 
+async function writeVerifyEnterpriseDeploymentPreflightEvidence(body) {
+  await writeEvidenceFiles({
+    evidenceDir,
+    evidenceJsonPath,
+    evidenceMdPath,
+    body,
+    renderMarkdown: createEvidenceMarkdown,
+  });
+}
+
+function createEvidenceMarkdown(body) {
+  return `# Phase 40A Enterprise Deployment Preflight Evidence
+
+- Phase: ${body.phase}
+- Status: ${body.status}
+- Generated at: ${body.generatedAt}
+- Service URL: ${body.serviceUrl ?? "n/a"}
+- User store path: ${body.paths?.userStorePath ?? "n/a"}
+- Audit log path: ${body.paths?.auditLogPath ?? "n/a"}
+- Backup dir: ${body.paths?.backupDir ?? "n/a"}
+- UI preflight panel present: ${body.ui?.preflightPanelPresent}
+- UI preflight button present: ${body.ui?.preflightButtonPresent}
+- Deployment readiness path present: ${body.ui?.deploymentReadinessPathPresent}
+- Startup readiness path present: ${body.ui?.startupReadinessPathPresent}
+- Security readiness path present: ${body.ui?.securityReadinessPathPresent}
+- Vector readiness path present: ${body.ui?.vectorReadinessPathPresent}
+- Service health status: ${body.enterprise?.serviceHealthStatus ?? "n/a"}
+- Missing startup readiness status: ${body.enterprise?.missingStartupReadinessStatus ?? "n/a"}
+- Deployment readiness status: ${body.enterprise?.deploymentReadinessStatus ?? "n/a"}
+- Startup readiness status: ${body.enterprise?.startupReadinessStatus ?? "n/a"}
+- Security readiness status: ${body.enterprise?.securityReadinessStatus ?? "n/a"}
+- Vector readiness mode: ${body.enterprise?.vectorReadinessMode ?? "n/a"}
+- Vector readiness status: ${body.enterprise?.vectorReadinessStatus ?? "n/a"}
+- Response contains NVIDIA key: ${body.enterprise?.responseContainsNvidiaKey}
+- Response contains admin token: ${body.enterprise?.responseContainsAdminToken}
+- Conclusion: ${body.conclusion}
+`;
+}

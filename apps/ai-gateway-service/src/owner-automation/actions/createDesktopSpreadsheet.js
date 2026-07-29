@@ -1,7 +1,7 @@
 import { constants } from "node:fs";
 import { access, mkdir, open, stat, writeFile } from "node:fs/promises";
 import { dirname, extname, join } from "node:path";
-import ExcelJS from "exceljs";
+import * as XLSX from "xlsx";
 import {
   assertDesktopPath,
   getDesktopDirectory,
@@ -51,7 +51,7 @@ export async function realRun(input = {}, approval, options = {}) {
   await assertDoesNotExist(outputPath);
 
   const fileBuffer = normalized.fileType === "xlsx"
-    ? await toXlsxBuffer(normalized.headers, normalized.rows)
+    ? toXlsxBuffer(normalized.headers, normalized.rows)
     : Buffer.from(`\uFEFF${toCsv(normalized.headers, normalized.rows)}`, "utf8");
   const handle = await open(outputPath, "wx");
   try {
@@ -80,7 +80,12 @@ export async function realRun(input = {}, approval, options = {}) {
   };
 }
 
-export { writeEvidenceFileAsync as writeEvidence } from "../../../../../tools/lib/evidenceWriter.mjs";
+export async function writeEvidence(relativePath, data, repoRoot = process.cwd()) {
+  const outputPath = join(repoRoot, relativePath);
+  await mkdir(dirname(outputPath), { recursive: true });
+  await writeFile(outputPath, `${JSON.stringify(data, null, 2)}\n`, "utf8");
+  return outputPath;
+}
 
 function normalizeInput(input = {}) {
   const headers = Array.isArray(input.headers) && input.headers.length > 0 ? input.headers.map(String) : ["任务", "状态", "备注"];
@@ -118,14 +123,11 @@ function toCsv(headers, rows) {
   return [headers, ...rows].map((row) => row.map(csvCell).join(",")).join("\r\n");
 }
 
-async function toXlsxBuffer(headers, rows) {
-  const workbook = new ExcelJS.Workbook();
-  const worksheet = workbook.addWorksheet("Sheet1");
-  worksheet.addRow(headers);
-  for (const row of rows) {
-    worksheet.addRow(row);
-  }
-  return Buffer.from(await workbook.xlsx.writeBuffer());
+function toXlsxBuffer(headers, rows) {
+  const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Sheet1");
+  return XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
 }
 
 async function assertDoesNotExist(path) {

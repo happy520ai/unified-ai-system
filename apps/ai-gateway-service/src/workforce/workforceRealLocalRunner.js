@@ -1,9 +1,8 @@
-﻿import { createHash } from "node:crypto";
+import { createHash } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createWorkforcePlan } from "./workforcePlanner.js";
-import { writeJson } from "../entrypoints/entrypointUtils.js";
 
 export const WORKFORCE_REAL_LOCAL_RUN_PHASE = "Phase1961A";
 export const WORKFORCE_REAL_LOCAL_RUN_MODE = "real-local-workforce-run";
@@ -168,6 +167,11 @@ function createRunId(plan, planId, startedAt) {
   return `wfr_${hash}`;
 }
 
+async function writeJson(relativePath, data) {
+  const absolutePath = resolve(repoRoot, relativePath);
+  await mkdir(dirname(absolutePath), { recursive: true });
+  await writeFile(absolutePath, `${JSON.stringify(redactSecrets(data), null, 2)}\n`, "utf8");
+}
 
 async function writeText(relativePath, text) {
   const absolutePath = resolve(repoRoot, relativePath);

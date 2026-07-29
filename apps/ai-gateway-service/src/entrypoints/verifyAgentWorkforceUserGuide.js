@@ -1,10 +1,9 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { writeEvidencePair } from "./entrypointUtils.js";
+import { fetchJsonResponse as fetchJson, fetchTextResponse as fetchText, listen, writeEvidenceFiles, } from "./entrypointUtils.js";
+import { mkdir, readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
-import { fetchJson, fetchText, listen, close } from "./entrypointUtils.js";
 
 const PHASE = "phase-102e-agent-workforce-user-guide";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -58,7 +57,7 @@ try {
     conclusion: passed ? "agent-workforce-user-guide-closed" : "agent-workforce-user-guide-not-closed",
   });
 
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyAgentWorkforceUserGuideEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = passed ? 0 : 1;
 } catch (error) {
@@ -69,7 +68,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "agent-workforce-user-guide-not-closed",
   });
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyAgentWorkforceUserGuideEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -77,6 +76,15 @@ try {
     await close(server);
   }
 }
+
+
+function close(server) {
+  return new Promise((resolveClose) => {
+    server.close(() => resolveClose());
+  });
+}
+
+
 
 function isUserGuideClosed({ health, agents, ui, readme, agentsDoc, packageJson }) {
   const uiText = ui?.text ?? "";
@@ -171,3 +179,44 @@ function createEvidence({
   };
 }
 
+async function writeVerifyAgentWorkforceUserGuideEvidence(body) {
+  await writeEvidenceFiles({
+    evidenceDir,
+    evidenceJsonPath,
+    evidenceMdPath,
+    body,
+    renderMarkdown: createEvidenceMarkdown,
+  });
+}
+
+function createEvidenceMarkdown(body) {
+  return `# Phase 102E Agent Workforce User Guide Evidence
+
+- Phase: ${body.phase}
+- Status: ${body.status}
+- Generated at: ${body.generatedAt}
+- Service URL: ${body.service.url ?? "n/a"}
+- Workforce health HTTP status: ${body.service.healthHttpStatus ?? "n/a"}
+- Agent count: ${body.service.agentCount ?? "n/a"}
+- UI phase marker present: ${body.ui.phaseMarkerPresent}
+- UI preview wording present: ${body.ui.previewWordingPresent}
+- UI not-executor wording present: ${body.ui.notExecutorWordingPresent}
+- UI no-code wording present: ${body.ui.noCodeExecutionWordingPresent}
+- UI no-file-mutation wording present: ${body.ui.noFileMutationWordingPresent}
+- UI next-use wording present: ${body.ui.nextUseWordingPresent}
+- README Phase 102E present: ${body.docs.readmePhasePresent}
+- README verify command present: ${body.docs.readmeVerifyPresent}
+- README boundary present: ${body.docs.readmeBoundaryPresent}
+- AGENTS verify command present: ${body.docs.agentsVerifyPresent}
+- AGENTS boundary present: ${body.docs.agentsBoundaryPresent}
+- Root script present: ${body.scripts.rootScriptPresent}
+- Real LLM calls: ${body.safety.realLlmCalls}
+- Code execution: ${body.safety.codeExecution}
+- Project file writes: ${body.safety.projectFileWrites}
+- Workflow run: ${body.safety.workflowRun}
+- Default chat lane mutated: ${body.safety.defaultChatLaneMutated}
+- Provider registry mutated: ${body.safety.providerRegistryMutated}
+- Secret values recorded: ${body.safety.secretValuesRecorded}
+- Conclusion: ${body.conclusion}
+`;
+}

@@ -25,8 +25,8 @@
     "projectContextNotCreated": true
   },
   "git": {
-    "repoRoot": "E:\\AI-Data\\AI网关系统\\unified-ai-system",
-    "gitTopLevel": "E:/AI-Data/AI网关系统/unified-ai-system",
+    "repoRoot": "<repository-root>",
+    "gitTopLevel": "<repository-root>",
     "headSubject": "Phase121A initial local commit",
     "statusLineCount": 8,
     "statusPreview": [

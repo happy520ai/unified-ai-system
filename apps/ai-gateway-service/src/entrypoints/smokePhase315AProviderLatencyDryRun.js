@@ -1,5 +1,5 @@
-import { mkdir, writeFile } from "node:fs/promises";
-import { writeEvidenceWithRenderer } from "./entrypointUtils.js";
+import { writeEvidenceFiles } from "./entrypointUtils.js";
+import { mkdir } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { generateEvidenceId } from "../chat-gateway/chatGatewayEvidenceRecorder.js";
@@ -22,7 +22,7 @@ const evidence = buildEvidence({
   dryRunResults: results,
 });
 
-await writeEvidence(evidence);
+await writeSmokePhase315AProviderLatencyDryRunEvidence(evidence);
 
 console.log(JSON.stringify({
   phase: PHASE,
@@ -156,6 +156,15 @@ function phase315AChangedFiles() {
   ];
 }
 
+async function writeSmokePhase315AProviderLatencyDryRunEvidence(data) {
+  await writeEvidenceFiles({
+    evidenceDir,
+    evidenceJsonPath,
+    evidenceMdPath,
+    body: data,
+    renderMarkdown,
+  });
+}
 
 function renderMarkdown(data) {
   return `# Phase315A Provider Latency / Timeout / Retry / Fallback Accountability

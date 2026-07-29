@@ -1,10 +1,12 @@
 import { existsSync } from "node:fs";
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { basename, isAbsolute, relative, resolve } from "node:path";
+import { createPinoLogger } from "../logging/pinoLogger.js";
 
 const BACKUP_TYPE = "pme-enterprise-backup";
 const BACKUP_VERSION = 1;
 const DEFAULT_BACKUP_DIR = ".data/enterprise/backups";
+const logger = createPinoLogger({ app: "enterpriseOpsService" });
 
 export function createEnterpriseOpsService({ env = {}, config, enterpriseGovernanceService, knowledgeInfra, knowledgeService } = {}) {
   const backupDir = resolve(env.PME_ENTERPRISE_BACKUP_DIR ?? DEFAULT_BACKUP_DIR);
@@ -211,8 +213,26 @@ export function createEnterpriseOpsService({ env = {}, config, enterpriseGoverna
         limit: input.auditLimit ?? 1000,
         format: "json",
       });
-      let auditEntries;
-      try { auditEntries = JSON.parse(auditExport.content || "[]"); } catch { auditEntries = []; };
+      let auditEntries = [];
+      let auditParseStatus = "ready";
+      try {
+        const parsedAuditEntries = JSON.parse(auditExport.content || "[]");
+        if (!Array.isArray(parsedAuditEntries)) {
+          throw new TypeError("Enterprise audit export must be a JSON array.");
+        }
+        auditEntries = parsedAuditEntries;
+      } catch (error) {
+        auditParseStatus = "warning";
+        logger.warn(
+          {
+            err: error,
+            event: "enterprise_backup_audit_parse_failed",
+            auditLogPath: auditExport.auditLogPath ?? null,
+          },
+          "Enterprise backup is continuing without parsed audit entries.",
+        );
+      }
+      const backupWarnings = auditParseStatus === "ready" ? [] : ["audit_export_json_invalid"];
       const body = {
         type: BACKUP_TYPE,
         version: BACKUP_VERSION,
@@ -226,6 +246,7 @@ export function createEnterpriseOpsService({ env = {}, config, enterpriseGoverna
         audit: {
           path: auditExport.auditLogPath,
           format: "json",
+          parseStatus: auditParseStatus,
           entryCount: auditEntries.length,
           entries: auditEntries,
         },
@@ -239,7 +260,7 @@ export function createEnterpriseOpsService({ env = {}, config, enterpriseGoverna
       const stats = await stat(backupPath);
 
       return {
-        status: "ready",
+        status: auditParseStatus === "ready" ? "ready" : "warning",
         mode: "enterprise-backup-json-file",
         backupId,
         backupPath,
@@ -247,6 +268,8 @@ export function createEnterpriseOpsService({ env = {}, config, enterpriseGoverna
         byteSize: stats.size,
         generatedAt: now,
         tokenValuesExposed: false,
+        auditParseStatus,
+        warnings: backupWarnings,
         managedStoredUserCount: body.enterpriseUsers.storedUsers.length,
         auditEntryCount: auditEntries.length,
         knowledgeDocumentCount: body.knowledge.health.documentCount,

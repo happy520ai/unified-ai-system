@@ -15,7 +15,7 @@
 - Admin knowledge write status: 200
 - Viewer audit status: 403
 - Admin audit status: 200
-- Audit log path: C:\Users\Administrator\AppData\Local\Temp\phase32a-audit-QsU9BN\enterprise-audit.jsonl
+- Audit log path: <user-home>\AppData\Local\Temp\phase32a-audit-QsU9BN\enterprise-audit.jsonl
 - Audit entry count: 8
 - Denied knowledge write recorded: true
 - Allowed dashboard read recorded: true

@@ -4,10 +4,10 @@
 - Status: passed
 - Generated at: 2026-04-26T05:01:01.157Z
 - Service URL: http://127.0.0.1:61083
-- User store path: C:\Users\Administrator\AppData\Local\Temp\phase37a-enterprise-ops-rsaHX6\users\enterprise-users.json
-- Audit log path: C:\Users\Administrator\AppData\Local\Temp\phase37a-enterprise-ops-rsaHX6\audit\enterprise-audit.jsonl
-- Backup dir: C:\Users\Administrator\AppData\Local\Temp\phase37a-enterprise-ops-rsaHX6\backups
-- Backup path: C:\Users\Administrator\AppData\Local\Temp\phase37a-enterprise-ops-rsaHX6\backups\pme-enterprise-backup-2026-04-26T05-01-01-123Z.json
+- User store path: <user-home>\AppData\Local\Temp\phase37a-enterprise-ops-rsaHX6\users\enterprise-users.json
+- Audit log path: <user-home>\AppData\Local\Temp\phase37a-enterprise-ops-rsaHX6\audit\enterprise-audit.jsonl
+- Backup dir: <user-home>\AppData\Local\Temp\phase37a-enterprise-ops-rsaHX6\backups
+- Backup path: <user-home>\AppData\Local\Temp\phase37a-enterprise-ops-rsaHX6\backups\pme-enterprise-backup-2026-04-26T05-01-01-123Z.json
 - UI ops buttons present: true
 - Readiness HTTP status: 200
 - Readiness status: ready

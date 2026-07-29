@@ -1,11 +1,10 @@
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
-import { writeEvidencePair } from "./entrypointUtils.js";
+import { fetchContentResponse as fetchText, listen, requestJsonResponseWithHeaders as fetchJson, writeEvidenceFiles, } from "./entrypointUtils.js";
+import { mkdir, mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
-import { fetchJson, fetchText, listen, close } from "./entrypointUtils.js";
 
 const PHASE = "phase-36a-enterprise-audit-export";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -109,7 +108,7 @@ try {
     jsonlExport,
     conclusion: passed ? "enterprise-audit-export-connected" : "enterprise-audit-export-not-connected",
   });
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyEnterpriseAuditExportEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = passed ? 0 : 1;
 } catch (error) {
@@ -119,7 +118,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "enterprise-audit-export-not-connected",
   });
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyEnterpriseAuditExportEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -163,6 +162,15 @@ function createHeaders(token) {
   };
 }
 
+
+function close(targetServer) {
+  return new Promise((resolveClose) => {
+    targetServer.close(() => resolveClose());
+  });
+}
+
+
+
 function createEvidence({ status, generatedAt, serviceUrl, auditLogPath, ui, adminDashboard, viewerDeniedWrite, filteredDenied, filteredViewer, jsonExport, jsonlExport, conclusion, error }) {
   return {
     phase: PHASE,
@@ -192,3 +200,38 @@ function createEvidence({ status, generatedAt, serviceUrl, auditLogPath, ui, adm
   };
 }
 
+async function writeVerifyEnterpriseAuditExportEvidence(body) {
+  await writeEvidenceFiles({
+    evidenceDir,
+    evidenceJsonPath,
+    evidenceMdPath,
+    body,
+    renderMarkdown: createEvidenceMarkdown,
+  });
+}
+
+function createEvidenceMarkdown(body) {
+  return `# Phase 36A Enterprise Audit Export Evidence
+
+- Phase: ${body.phase}
+- Status: ${body.status}
+- Generated at: ${body.generatedAt}
+- Service URL: ${body.serviceUrl ?? "n/a"}
+- Audit log path: ${body.auditLogPath ?? "n/a"}
+- UI audit export present: ${body.enterprise?.uiAuditExportPresent}
+- Admin dashboard status: ${body.enterprise?.adminDashboardStatus ?? "n/a"}
+- Viewer denied write status: ${body.enterprise?.viewerDeniedWriteStatus ?? "n/a"}
+- Filtered denied status: ${body.enterprise?.filteredDeniedStatus ?? "n/a"}
+- Filtered denied total matched: ${body.enterprise?.filteredDeniedTotalMatched ?? "n/a"}
+- Filtered viewer status: ${body.enterprise?.filteredViewerStatus ?? "n/a"}
+- Filtered viewer total matched: ${body.enterprise?.filteredViewerTotalMatched ?? "n/a"}
+- JSON export status: ${body.enterprise?.jsonExportStatus ?? "n/a"}
+- JSON export format: ${body.enterprise?.jsonExportFormat ?? "n/a"}
+- JSON export entry count: ${body.enterprise?.jsonExportEntryCount ?? "n/a"}
+- JSONL export status: ${body.enterprise?.jsonlExportStatus ?? "n/a"}
+- JSONL export format: ${body.enterprise?.jsonlExportFormat ?? "n/a"}
+- JSONL export entry count: ${body.enterprise?.jsonlExportEntryCount ?? "n/a"}
+- JSONL export has denied code: ${body.enterprise?.jsonlExportHasDeniedCode}
+- Conclusion: ${body.conclusion}
+`;
+}

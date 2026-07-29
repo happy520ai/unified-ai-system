@@ -1,3 +1,5 @@
+import { PROVIDER_CATALOG } from "./providerCatalog.js";
+
 export function summarizeModels(models) {
   const byCapability = {};
   let chatExecutable = 0;
@@ -149,7 +151,7 @@ export function createDetectionWarnings({ apiKey, detected, recommended, capabil
   }
 
   if (apiKey.startsWith("sk-") && recommended.confidence !== "verified") {
-    return ["generic-sk-key-needs-provider-confirmation"];
+    return ["generic-api-key-needs-provider-confirmation"];
   }
 
   return [];
@@ -186,6 +188,20 @@ export function extractOpenAiCompatibleBaseUrl(rawCredential) {
   }
 
   return url;
+}
+
+export function extractRuntimeCredentialEndpoint(providerId, rawCredential) {
+  const raw = String(rawCredential ?? "").trim();
+  if (!raw) return "";
+
+  const family = PROVIDER_CATALOG.find((item) => item.providerId === providerId);
+  if (family?.endpoint && !family.endpointRequired) {
+    return "";
+  }
+
+  return providerId === "generic-openai-compatible"
+    ? extractOpenAiCompatibleBaseUrl(raw)
+    : "";
 }
 
 export function safeJsonParse(text) {

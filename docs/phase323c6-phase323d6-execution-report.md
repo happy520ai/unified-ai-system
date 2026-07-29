@@ -11,18 +11,18 @@
 ### Phase323C-6
 
 - 已新增只读工具：
-  - [build-phase323c-archive-plan.mjs](/E:/AI-Data/AI网关系统/unified-ai-system/tools/phase323c/build-phase323c-archive-plan.mjs)
-  - [build-phase323c-deprecated-index.mjs](/E:/AI-Data/AI网关系统/unified-ai-system/tools/phase323c/build-phase323c-deprecated-index.mjs)
+  - [build-phase323c-archive-plan.mjs](../tools/phase323c/build-phase323c-archive-plan.mjs)
+  - [build-phase323c-deprecated-index.mjs](../tools/phase323c/build-phase323c-deprecated-index.mjs)
 - 已生成：
-  - [phase323c-6-archive-plan.md](/E:/AI-Data/AI网关系统/unified-ai-system/docs/phase323c-6-archive-plan.md)
-  - [phase323c-6-deprecated-index.json](/E:/AI-Data/AI网关系统/unified-ai-system/docs/phase323c-6-deprecated-index.json)
-  - [phase323c-6-deprecated-index.md](/E:/AI-Data/AI网关系统/unified-ai-system/docs/phase323c-6-deprecated-index.md)
+  - [phase323c-6-archive-plan.md](../docs/phase323c-6-archive-plan.md)
+  - [phase323c-6-deprecated-index.json](../docs/phase323c-6-deprecated-index.json)
+  - [phase323c-6-deprecated-index.md](../docs/phase323c-6-deprecated-index.md)
 - 全程静态分析，未执行任何 archive candidate 脚本。
 
 ### Phase323D-6
 
 - 已生成：
-  - [phase323d-6-bridge-suitability-review.md](/E:/AI-Data/AI网关系统/unified-ai-system/docs/phase323d-6-bridge-suitability-review.md)
+  - [phase323d-6-bridge-suitability-review.md](../docs/phase323d-6-bridge-suitability-review.md)
 - 结论：
   - approvals：`bridge-later`
   - fileContext：`safe-to-bridge`
@@ -37,13 +37,13 @@
 
 ## 修改文件清单
 
-- 新增 [build-phase323c-archive-plan.mjs](/E:/AI-Data/AI网关系统/unified-ai-system/tools/phase323c/build-phase323c-archive-plan.mjs)：生成 Phase323C-6 archive plan。
-- 新增 [build-phase323c-deprecated-index.mjs](/E:/AI-Data/AI网关系统/unified-ai-system/tools/phase323c/build-phase323c-deprecated-index.mjs)：生成 Phase323C-6 deprecated index JSON / Markdown。
-- 新增 [phase323c-6-archive-plan.md](/E:/AI-Data/AI网关系统/unified-ai-system/docs/phase323c-6-archive-plan.md)：沉淀未来归档流程和门槛。
-- 新增 [phase323c-6-deprecated-index.json](/E:/AI-Data/AI网关系统/unified-ai-system/docs/phase323c-6-deprecated-index.json)：沉淀只读弃用索引。
-- 新增 [phase323c-6-deprecated-index.md](/E:/AI-Data/AI网关系统/unified-ai-system/docs/phase323c-6-deprecated-index.md)：提供可读摘要。
-- 新增 [phase323d-6-bridge-suitability-review.md](/E:/AI-Data/AI网关系统/unified-ai-system/docs/phase323d-6-bridge-suitability-review.md)：记录 approvals / fileContext bridge 适配性结论。
-- 新增 [phase323c6-phase323d6-execution-report.md](/E:/AI-Data/AI网关系统/unified-ai-system/docs/phase323c6-phase323d6-execution-report.md)：汇总本轮执行结果。
+- 新增 [build-phase323c-archive-plan.mjs](../tools/phase323c/build-phase323c-archive-plan.mjs)：生成 Phase323C-6 archive plan。
+- 新增 [build-phase323c-deprecated-index.mjs](../tools/phase323c/build-phase323c-deprecated-index.mjs)：生成 Phase323C-6 deprecated index JSON / Markdown。
+- 新增 [phase323c-6-archive-plan.md](../docs/phase323c-6-archive-plan.md)：沉淀未来归档流程和门槛。
+- 新增 [phase323c-6-deprecated-index.json](../docs/phase323c-6-deprecated-index.json)：沉淀只读弃用索引。
+- 新增 [phase323c-6-deprecated-index.md](../docs/phase323c-6-deprecated-index.md)：提供可读摘要。
+- 新增 [phase323d-6-bridge-suitability-review.md](../docs/phase323d-6-bridge-suitability-review.md)：记录 approvals / fileContext bridge 适配性结论。
+- 新增 [phase323c6-phase323d6-execution-report.md](../docs/phase323c6-phase323d6-execution-report.md)：汇总本轮执行结果。
 
 ## 关键边界结论
 

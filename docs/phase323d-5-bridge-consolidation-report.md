@@ -10,7 +10,7 @@
 
 ## 整理方式
 
-- 在 [apps/ai-gateway-service/src/ui/consolePage.js](/E:/AI-Data/AI网关系统/unified-ai-system/apps/ai-gateway-service/src/ui/consolePage.js) 的 bridge zone 内补充极短边界注释：
+- 在 [apps/ai-gateway-service/src/ui/consolePage.js](../apps/ai-gateway-service/src/ui/consolePage.js) 的 bridge zone 内补充极短边界注释：
   - Phase323D bridge zone
   - Chat send intentionally not migrated
   - Do not expose hidden modules

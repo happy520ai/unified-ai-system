@@ -6,6 +6,7 @@
   "main": "./src/index.js",
   "exports": {
     ".": "./src/index.js",
+    "./browserLauncher.js": "./src/browserLauncher.js",
     "./moduleRecognizer.js": "./src/moduleRecognizer.js",
     "./llmBrain.js": "./src/llmBrain.js",
     "./manualParser.js": "./src/manualParser.js",
@@ -13,8 +14,7 @@
     "./webAgent.js": "./src/webAgent.js"
   },
   "scripts": {
-    "check": "node --check src/index.js",
-    "smoke": "node src/__smoke__.mjs"
+    "check": "node --check src/index.js"
   },
   "dependencies": {
     "playwright": "^1.48.0"

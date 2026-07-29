@@ -1,10 +1,9 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { writeEvidencePair } from "./entrypointUtils.js";
+import { fetchJsonResponse as fetchJson, fetchTextResponse as fetchText, listen, postJsonResponse as postJson, writeEvidenceFiles, } from "./entrypointUtils.js";
+import { mkdir, readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
-import { fetchJson, fetchText, listen, close, postJson } from "./entrypointUtils.js";
 
 const PHASE = "phase-106a-delivery-readiness";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -66,7 +65,7 @@ try {
     agents,
     envExample,
   });
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyDeliveryReadinessEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = evidence.status === "passed" ? 0 : 1;
 } catch (error) {
@@ -77,7 +76,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "delivery-readiness-not-ready",
   };
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyDeliveryReadinessEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -225,7 +224,45 @@ function sanitizeForEvidence(value) {
 }
 
 
+
+
+
+function close(server) {
+  return new Promise((resolveClose) => server.close(() => resolveClose()));
+}
+
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+async function writeVerifyDeliveryReadinessEvidence(body) {
+  await writeEvidenceFiles({
+    evidenceDir,
+    evidenceJsonPath,
+    evidenceMdPath,
+    body,
+    renderMarkdown: createEvidenceMarkdown,
+  });
+}
+
+function createEvidenceMarkdown(body) {
+  return `# Phase 106A Delivery Readiness Evidence
+
+- Phase: ${body.phase}
+- Status: ${body.status}
+- Generated at: ${body.generatedAt}
+- UI user journey present: ${body.checks?.uiUserJourneyStillPresent}
+- Setup readiness: ${body.setup?.status}
+- Chat ready: ${body.setup?.chatReady}
+- Model import guidance present: ${body.modelImport?.userGuidancePresent}
+- README zero-start guide: ${body.checks?.readmeZeroStartGuide}
+- Env example present: ${body.checks?.envExamplePresent}
+- Env example likely secret present: ${body.envExample?.likelySecretPresent}
+- AGENTS boundary present: ${body.checks?.agentsBoundaryPresent}
+- Root/service scripts present: ${body.checks?.scriptsPresent}
+- Plaintext API key recorded: ${body.safety?.plaintextApiKeyRecorded}
+- Default chat main lane changed: ${body.safety?.defaultChatMainLaneChanged}
+- Global release claimed: ${body.safety?.globalReleaseClaimed}
+- Conclusion: ${body.conclusion}
+`;
+}

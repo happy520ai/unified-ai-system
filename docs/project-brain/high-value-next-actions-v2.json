@@ -42,7 +42,7 @@
         ],
         "verifierCommands": [
           {
-            "command": "E:\\AI-Data\\openclaw\\nodejs\\node.exe",
+            "command": "node",
             "args": [
               "-e",
               "process.exit(0)"
@@ -88,7 +88,7 @@
         ],
         "verifierCommands": [
           {
-            "command": "E:\\AI-Data\\openclaw\\nodejs\\node.exe",
+            "command": "node",
             "args": [
               "-e",
               "process.exit(0)"
@@ -134,7 +134,7 @@
         ],
         "verifierCommands": [
           {
-            "command": "E:\\AI-Data\\openclaw\\nodejs\\node.exe",
+            "command": "node",
             "args": [
               "-e",
               "process.exit(0)"
@@ -180,7 +180,7 @@
         ],
         "verifierCommands": [
           {
-            "command": "E:\\AI-Data\\openclaw\\nodejs\\node.exe",
+            "command": "node",
             "args": [
               "-e",
               "process.exit(0)"
@@ -226,7 +226,7 @@
         ],
         "verifierCommands": [
           {
-            "command": "E:\\AI-Data\\openclaw\\nodejs\\node.exe",
+            "command": "node",
             "args": [
               "-e",
               "process.exit(0)"
@@ -272,7 +272,7 @@
         ],
         "verifierCommands": [
           {
-            "command": "E:\\AI-Data\\openclaw\\nodejs\\node.exe",
+            "command": "node",
             "args": [
               "-e",
               "process.exit(0)"
@@ -318,7 +318,7 @@
         ],
         "verifierCommands": [
           {
-            "command": "E:\\AI-Data\\openclaw\\nodejs\\node.exe",
+            "command": "node",
             "args": [
               "-e",
               "process.exit(0)"
@@ -364,7 +364,7 @@
         ],
         "verifierCommands": [
           {
-            "command": "E:\\AI-Data\\openclaw\\nodejs\\node.exe",
+            "command": "node",
             "args": [
               "-e",
               "process.exit(0)"
@@ -410,7 +410,7 @@
         ],
         "verifierCommands": [
           {
-            "command": "E:\\AI-Data\\openclaw\\nodejs\\node.exe",
+            "command": "node",
             "args": [
               "-e",
               "process.exit(0)"
@@ -456,7 +456,7 @@
         ],
         "verifierCommands": [
           {
-            "command": "E:\\AI-Data\\openclaw\\nodejs\\node.exe",
+            "command": "node",
             "args": [
               "-e",
               "process.exit(0)"

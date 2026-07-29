@@ -15,7 +15,6 @@
     "cmd /c pnpm run verify:",
     "cmd /c pnpm run phase:auto-next:",
     "cmd /c pnpm run run:phase2001-gvc-task-queue-runner",
-    "cmd /c pnpm run gvc:cycle",
     "cmd /c pnpm run status:phase3979a-opencode-autopilot"
   ],
   "forbiddenPathPrefixes": [

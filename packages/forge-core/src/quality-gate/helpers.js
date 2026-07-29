@@ -88,9 +88,15 @@ export function checkAntiPatterns(code) {
   const findings = [];
   // 1. Empty catch blocks
   {
-    const emptyCatch = /catch\s*\([^)]*\)\s*\{\s*\}/g;
+    const emptyCatch = /catch\s*(?:\([^)]*\))?\s*\{([\s\S]*?)\}/g;
     let m;
     while ((m = emptyCatch.exec(code)) !== null) {
+      const executableBody = m[1]
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .replace(/\/\/[^\r\n]*/g, "")
+        .trim();
+      if (executableBody) continue;
+
       const line = offsetToLine(code, m.index);
       findings.push({
         pattern: 'empty_catch_block', severity: 'warning', line,

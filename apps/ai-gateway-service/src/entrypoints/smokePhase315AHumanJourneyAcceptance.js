@@ -1,11 +1,10 @@
+import { fetchJsonPayload as fetchJson, fetchTextPayload as fetchText, listenAtEphemeralUrl as listen, writeEvidenceFiles, } from "./entrypointUtils.js";
 import { existsSync, readFileSync } from "node:fs";
-import { writeEvidenceWithRenderer } from "./entrypointUtils.js";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
-import { fetchJson, fetchText, listen } from "./entrypointUtils.js";
 
 const PHASE = "Phase315A";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -174,7 +173,7 @@ const evidence = {
   workspaceCleanClaimed: false,
 };
 
-await writeEvidence(evidence);
+await writeSmokePhase315AHumanJourneyAcceptanceEvidence(evidence);
 
 console.log(JSON.stringify({
   status: humanJourney.status,
@@ -329,6 +328,9 @@ function journeyPass(journeyId) {
   return journeyResults.find((item) => item.journeyId === journeyId)?.pass === true;
 }
 
+
+
+
 function closeServer(targetServer) {
   return new Promise((resolveClose) => targetServer.close(() => resolveClose()));
 }
@@ -383,6 +385,15 @@ function readExistingEvidence() {
   }
 }
 
+async function writeSmokePhase315AHumanJourneyAcceptanceEvidence(data) {
+  await writeEvidenceFiles({
+    evidenceDir,
+    evidenceJsonPath,
+    evidenceMdPath,
+    body: data,
+    renderMarkdown,
+  });
+}
 
 function renderMarkdown(data) {
   return `# Phase315A Human Journey Acceptance

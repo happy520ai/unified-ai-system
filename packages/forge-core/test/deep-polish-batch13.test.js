@@ -1,12 +1,13 @@
 // Deep Polish Batch 13 — 8 fixes, 8 test suites
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "fs";
 import { join } from "path";
 import { fileURLToPath } from "node:url";
+import { createSourceReader } from "./helpers/source-closure.js";
 
 const __testDir = fileURLToPath(new URL(".", import.meta.url));
 const SRC_ROOT = join(__testDir, "..", "..", "..", "apps", "ai-gateway-service", "src");
+const readFileSync = createSourceReader(SRC_ROOT);
 
 function ESM_SRC(file) {
   return readFileSync(join(SRC_ROOT, file), "utf8");
@@ -183,9 +184,10 @@ describe("Batch13 Fix7: workforceControlledExecutor timeout", () => {
   const src = ESM_SRC("workforce/workforceControlledExecutor.js");
 
   it("wraps executeAllRoles with Promise.race timeout", () => {
-    const idx = src.indexOf("executeAllRoles(plan.goal");
-    assert.ok(idx >= 0, "executeAllRoles call not found");
-    const window = src.slice(Math.max(0, idx - 200), idx + 300);
+    const idx = src.indexOf("const allRoleResults = await Promise.race");
+    assert.ok(idx >= 0, "Promise.race wrapper not found");
+    const window = src.slice(Math.max(0, idx - 400), idx + 500);
+    assert.ok(window.includes("executeAllRoles(plan.goal"), "executeAllRoles call not found");
     assert.ok(window.includes("Promise.race"), "should use Promise.race");
     assert.ok(window.includes("timed out"), "should have timeout message");
   });
@@ -214,6 +216,12 @@ describe("Batch13 Fix8: agenticCodingLoop provider timeout", () => {
     assert.ok(idx >= 0, "constant not found");
     const line = src.slice(idx, src.indexOf("\n", idx));
     assert.ok(line.includes("120_000") || line.includes("120000"), "should be 120s");
+  });
+
+  it("clears the timeout after the provider settles", () => {
+    const idx = src.indexOf("function withProviderTimeout");
+    const window = src.slice(idx, idx + 800);
+    assert.ok(window.includes("clearTimeout(timeoutId)"), "provider timeout must not leave an active timer");
   });
 
   it("wraps all provider.generate() calls with timeout", () => {

@@ -1,10 +1,9 @@
-import { mkdir, writeFile } from "node:fs/promises";
-import { writeEvidencePair } from "./entrypointUtils.js";
+import { fetchContentResponse as fetchText, listen, writeEvidenceFiles, } from "./entrypointUtils.js";
+import { mkdir } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
-import { fetchText, listen, close } from "./entrypointUtils.js";
 
 const PHASE = "phase-49a-web-chinese-readability";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -97,7 +96,7 @@ try {
     },
     conclusion: passed ? "web-chinese-readability-connected" : "web-chinese-readability-not-connected",
   };
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyWebChineseReadabilityEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = passed ? 0 : 1;
 } catch (error) {
@@ -108,7 +107,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "web-chinese-readability-not-connected",
   };
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyWebChineseReadabilityEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -117,3 +116,44 @@ try {
   }
 }
 
+
+function close(targetServer) {
+  return new Promise((resolveClose) => {
+    targetServer.close(() => resolveClose());
+  });
+}
+
+
+async function writeVerifyWebChineseReadabilityEvidence(body) {
+  await writeEvidenceFiles({
+    evidenceDir,
+    evidenceJsonPath,
+    evidenceMdPath,
+    body,
+    renderMarkdown: createEvidenceMarkdown,
+  });
+}
+
+function createEvidenceMarkdown(body) {
+  return `# Phase 49A Web Chinese Readability Evidence
+
+- Phase: ${body.phase}
+- Status: ${body.status}
+- Generated at: ${body.generatedAt}
+- Service URL: ${body.serviceUrl ?? "n/a"}
+- UI HTTP status: ${body.ui?.httpStatus ?? "n/a"}
+- Required readable text count: ${body.ui?.requiredTextCount ?? "n/a"}
+- Missing readable text: ${(body.ui?.missingText ?? []).join(", ") || "none"}
+- Broken marker count: ${body.ui?.brokenMarkerCount ?? "n/a"}
+- Broken markers: ${(body.ui?.brokenMarkers ?? []).join(", ") || "none"}
+- Chat-first title present: ${body.ui?.chatFirstTitlePresent}
+- Enterprise panel present: ${body.ui?.enterprisePanelPresent}
+- Readable overview present: ${body.ui?.readableOverviewPresent}
+- Backend business route added: ${body.safety?.backendBusinessRouteAdded}
+- Provider calls: ${body.safety?.providerCalls}
+- Runtime mutation: ${body.safety?.runtimeMutation}
+- Release automation: ${body.safety?.releaseAutomation}
+- Infrastructure provisioning: ${body.safety?.infrastructureProvisioning}
+- Conclusion: ${body.conclusion}
+`;
+}

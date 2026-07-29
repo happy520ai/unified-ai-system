@@ -1,10 +1,9 @@
-import { mkdir, writeFile } from "node:fs/promises";
-import { writeEvidenceWithRenderer } from "./entrypointUtils.js";
+import { sleep, writeEvidenceFiles, } from "./entrypointUtils.js";
+import { mkdir } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
-import { sleep } from "./entrypointUtils.js";
 
 const PHASE = "314A";
 const TASK_NAME = "nvidia-task-closure";
@@ -63,7 +62,7 @@ const evidence = {
 if (!realSmokeEnabled) {
   evidence.status = "skipped_not_enabled";
   evidence.blockers.push("PHASE314A_NVIDIA_REAL_SMOKE is not set to 1.");
-  await writeEvidence(evidence);
+  await writeSmokePhase314ANvidiaTaskClosureEvidence(evidence);
   console.log(JSON.stringify({ status: evidence.status, blockers: evidence.blockers }, null, 2));
   process.exit(0);
 }
@@ -71,7 +70,7 @@ if (!realSmokeEnabled) {
 if (!nvidiaApiKeyPresent) {
   evidence.status = "blocked_missing_key";
   evidence.blockers.push("NVIDIA_API_KEY is not present in the environment.");
-  await writeEvidence(evidence);
+  await writeSmokePhase314ANvidiaTaskClosureEvidence(evidence);
   console.error(JSON.stringify({ status: evidence.status, blockers: evidence.blockers }, null, 2));
   process.exit(0);
 }
@@ -139,7 +138,7 @@ evidence.summary = {
   providerCalledInRealSmoke: passedResults.length > 0,
 };
 
-await writeEvidence(evidence);
+await writeSmokePhase314ANvidiaTaskClosureEvidence(evidence);
 console.log(JSON.stringify(evidence, null, 2));
 process.exitCode = evidence.status === "pass" ? 0 : (evidence.status === "partial" ? 0 : 1);
 
@@ -218,10 +217,20 @@ async function runRealSmokeTask(serviceUrl, task) {
   }
 }
 
+
 function closeServer(targetServer) {
   return new Promise((resolve) => targetServer.close(() => resolve()));
 }
 
+async function writeSmokePhase314ANvidiaTaskClosureEvidence(data) {
+  await writeEvidenceFiles({
+    evidenceDir,
+    evidenceJsonPath,
+    evidenceMdPath,
+    body: data,
+    renderMarkdown,
+  });
+}
 
 function renderMarkdown(data) {
   return `# Phase 314A NVIDIA Task Closure Smoke

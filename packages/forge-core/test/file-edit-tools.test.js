@@ -7,7 +7,7 @@
 
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync, mkdirSync, readFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const APPS_SRC = "../../../apps/ai-gateway-service/src";
@@ -22,9 +22,7 @@ describe("fileEditTool", () => {
 
   before(async () => {
     mod = await import(`${APPS_SRC}/tools/fileEditTool.js`);
-    const localTmpBase = join(process.cwd(), ".test-tmp-fileEdit");
-    mkdirSync(localTmpBase, { recursive: true });
-    tmpDir = mkdtempSync(join(localTmpBase, "run-"));
+    tmpDir = mkdtempSync(join(process.cwd(), ".test-tmp-fileEdit-"));
   });
 
   after(() => {
@@ -146,9 +144,7 @@ describe("fileEditTool edge cases", () => {
 
   before(async () => {
     editMod = await import(`${APPS_SRC}/tools/fileEditTool.js`);
-    const localTmpBase = join(process.cwd(), ".test-tmp-editEdge");
-    mkdirSync(localTmpBase, { recursive: true });
-    tmpDir = mkdtempSync(join(localTmpBase, "run-"));
+    tmpDir = mkdtempSync(join(process.cwd(), ".test-tmp-editEdge-"));
   });
 
   after(() => {

@@ -139,16 +139,14 @@ function auditErrorFormat(files) {
 
       // 检查是否在 HTTP 响应上下文中（必须是实际写入 HTTP 响应的代码）：
       // 1. writeJson(res/response, ...) — 直接写 HTTP 响应
-      const writesHttpResponse = /writeJson\s*\(\s*\w*(res|response|reply)\b/i.test(content);
+      const writesHttpResponse = /writeJson\s*\(\s*\w*(?:res|response|reply)\b[\s\S]{0,500}?success\s*:\s*false/i.test(content);
       // 2. response.end(JSON.stringify({...})) — 直接写 HTTP 响应
-      const endsHttpResponse = /(?:res|response)\.end\s*\(\s*JSON\.stringify/i.test(content);
+      const endsHttpResponse = /(?:res|response)\.end\s*\(\s*JSON\.stringify\s*\(\s*\{[\s\S]{0,500}?success\s*:\s*false/i.test(content);
       // 3. 文件定义了错误信封函数 (createErrorEnvelope 等)
-      const hasErrorEnvelope = /createError(Envelope|Response)/.test(content);
-
-      if (writesHttpResponse || endsHttpResponse || hasErrorEnvelope) {
+      if (writesHttpResponse || endsHttpResponse) {
         violations.errorFormat.push({
           file: relPath(f),
-          issue: "uses `success: false` instead of `status: \"error\"`",
+          issue: "writes `success: false` directly instead of a standard error envelope",
         });
       }
     } catch { /* skip */ }
@@ -202,7 +200,7 @@ function auditTodoFixme(files) {
 // ── 剃刀律: 重复函数定义 ────────────────────────────────────────────────────
 
 function auditDuplicateFunctions(files) {
-  const fnMap = new Map(); // fnName -> [files]
+  const fnMap = new Map(); // normalized implementation -> { name, files }
   const TARGET_FNS = new Set([
     "sleep", "fetchJson", "fetchText", "postJson",
     "readJson", "readText", "readJsonSync",
@@ -219,23 +217,25 @@ function auditDuplicateFunctions(files) {
       const content = readFileSync(f, "utf8");
       // 匹配 function xxx( 和 export function xxx(
       const matches = content.matchAll(/(?:export\s+)?function\s+(\w+)\s*\(/g);
-      const fileFns = new Set();
       for (const m of matches) {
-        if (TARGET_FNS.has(m[1])) {
-          fileFns.add(m[1]);
-        }
-      }
-      for (const fn of fileFns) {
-        if (!fnMap.has(fn)) fnMap.set(fn, []);
-        fnMap.get(fn).push(relPath(f));
+        const name = m[1];
+        if (!TARGET_FNS.has(name)) continue;
+        const braceStart = content.indexOf("{", m.index);
+        const bodyEnd = findFunctionEnd(content, braceStart);
+        if (braceStart < 0 || bodyEnd < 0) continue;
+        const normalized = content.slice(m.index, bodyEnd).replace(/\s+/g, " ").trim();
+        const key = `${name}\0${normalized}`;
+        if (!fnMap.has(key)) fnMap.set(key, { name, files: new Set() });
+        fnMap.get(key).files.add(relPath(f));
       }
     } catch { /* skip */ }
   }
 
-  for (const [fn, fileList] of fnMap) {
+  for (const { name, files: fileSet } of fnMap.values()) {
+    const fileList = [...fileSet];
     if (fileList.length >= 2) {
       violations.duplicateFn.push({
-        function: fn,
+        function: name,
         count: fileList.length,
         files: fileList.slice(0, 5), // 只展示前 5 个
         more: fileList.length > 5 ? fileList.length - 5 : 0,
@@ -244,6 +244,50 @@ function auditDuplicateFunctions(files) {
   }
   // 按重复次数降序
   violations.duplicateFn.sort((a, b) => b.count - a.count);
+}
+
+function findFunctionEnd(source, braceStart) {
+  let depth = 0;
+  let quote = null;
+  let escaped = false;
+  let lineComment = false;
+  let blockComment = false;
+
+  for (let index = braceStart; index < source.length; index += 1) {
+    const char = source[index];
+    const next = source[index + 1];
+    if (lineComment) {
+      if (char === "\n") lineComment = false;
+      continue;
+    }
+    if (blockComment) {
+      if (char === "*" && next === "/") {
+        blockComment = false;
+        index += 1;
+      }
+      continue;
+    }
+    if (quote) {
+      if (escaped) escaped = false;
+      else if (char === "\\") escaped = true;
+      else if (char === quote) quote = null;
+      continue;
+    }
+    if (char === "/" && next === "/") {
+      lineComment = true;
+      index += 1;
+    } else if (char === "/" && next === "*") {
+      blockComment = true;
+      index += 1;
+    } else if (char === '"' || char === "'" || char === "`") {
+      quote = char;
+    } else if (char === "{") {
+      depth += 1;
+    } else if (char === "}" && --depth === 0) {
+      return index + 1;
+    }
+  }
+  return -1;
 }
 
 // ── 主流程 ───────────────────────────────────────────────────────────────────

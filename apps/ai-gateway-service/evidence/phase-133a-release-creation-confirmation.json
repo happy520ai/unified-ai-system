@@ -47,8 +47,8 @@
     "requiredConfirmationPhrase": "创建 GitHub Release v0.1.0-rc.1"
   },
   "git": {
-    "repoRoot": "E:\\AI-Data\\AI网关系统\\unified-ai-system",
-    "gitTopLevel": "E:/AI-Data/AI网关系统/unified-ai-system",
+    "repoRoot": "<repository-root>",
+    "gitTopLevel": "<repository-root>",
     "branch": "master",
     "headSha": "bdba42b600d712acb77926774c75254b8c290ea6",
     "headSubject": "Phase133A release creation confirmation",

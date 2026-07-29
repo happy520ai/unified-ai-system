@@ -4,8 +4,7 @@ import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../../../ai-gateway-service/src/application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../../../ai-gateway-service/src/http/httpServer.js";
 import { createGatewayClient } from "@unified-ai-system/shared-sdk";
-import { listen, close, writeEvidenceWithRenderer } from "../../../ai-gateway-service/src/entrypoints/entrypointUtils.js"
-
+import { listen, writeEvidenceFiles } from "@unified-ai-system/shared-utils";
 
 const PHASE = "phase-21c-console-knowledge-chain";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -82,7 +81,7 @@ try {
       ? "agent-console-to-knowledge-service-connected"
       : "agent-console-to-knowledge-service-not-connected",
   });
-  await saveEvidence(evidence);
+  await writeVerifyKnowledgeServiceChainEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = connected ? 0 : 1;
 } catch (error) {
@@ -95,13 +94,19 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "agent-console-to-knowledge-service-not-connected",
   });
-  await saveEvidence(evidence);
+  await writeVerifyKnowledgeServiceChainEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
   if (server) {
     await close(server);
   }
+}
+
+function close(server) {
+  return new Promise((resolveClose) => {
+    server.close(() => resolveClose());
+  });
 }
 
 function isKnowledgeServiceChainConnected({ load, retrieve }) {
@@ -162,11 +167,17 @@ function createEvidence({
   };
 }
 
-async function saveEvidence(body) {
-  await writeEvidenceWithRenderer(evidenceDir, evidenceJsonPath, evidenceMdPath, body, renderEvidenceMarkdown);
+async function writeVerifyKnowledgeServiceChainEvidence(body) {
+  await writeEvidenceFiles({
+    evidenceDir,
+    evidenceJsonPath,
+    evidenceMdPath,
+    body,
+    renderMarkdown: createEvidenceMarkdown,
+  });
 }
 
-function renderEvidenceMarkdown(body) {
+function createEvidenceMarkdown(body) {
   return `# Phase 21C Console Knowledge Chain Evidence
 
 - Phase: ${body.phase}

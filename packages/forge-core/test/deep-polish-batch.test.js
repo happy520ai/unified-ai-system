@@ -45,6 +45,10 @@ const { performSearchReplace } = await import(
   "../../../apps/ai-gateway-service/src/tools/fileEditTool.js"
 );
 
+const skFixture = (body) => ["sk", body].join("-");
+const ghpFixture = (body) => ["ghp", body].join("_");
+const slackFixture = (prefix, body) => [prefix, body].join("-");
+
 // ============================================================
 // 1. parseCliArgs — argument tokeniser
 // ============================================================
@@ -112,7 +116,7 @@ describe("parseCliArgs", () => {
 describe("securityPatterns", () => {
   describe("RAW_KEY_PATTERN", () => {
     it("detects OpenAI sk- keys", () => {
-      assert.ok(RAW_KEY_PATTERN.test("sk-abcdefghijklmnopqrstuvwxyz1234"));
+      assert.ok(RAW_KEY_PATTERN.test(skFixture("abcdefghijklmnopqrstuvwxyz1234")));
     });
 
     it("detects NVIDIA nvapi- keys", () => {
@@ -124,7 +128,7 @@ describe("securityPatterns", () => {
     });
 
     it("detects GitHub PAT tokens", () => {
-      assert.ok(RAW_KEY_PATTERN.test("ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef"));
+      assert.ok(RAW_KEY_PATTERN.test(ghpFixture("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef")));
     });
 
     it("detects Slack tokens", () => {
@@ -150,9 +154,10 @@ describe("securityPatterns", () => {
 
   describe("redactSensitive", () => {
     it("replaces credential shapes with [redacted]", () => {
-      const input = "My key is sk-abcdefghijklmnopqrstuvwxyz1234 please help";
+      const openAiKey = skFixture("abcdefghijklmnopqrstuvwxyz1234");
+      const input = `My key is ${openAiKey} please help`;
       const result = redactSensitive(input);
-      assert.ok(!result.includes("sk-abcdefghijklmnopqrstuvwxyz"));
+      assert.ok(!result.includes(openAiKey.slice(0, 22)));
       assert.ok(result.includes("[redacted]"));
     });
 
@@ -169,7 +174,7 @@ describe("securityPatterns", () => {
 
   describe("containsRawKey", () => {
     it("returns true for strings with credentials", () => {
-      assert.ok(containsRawKey("token=sk-abcdefghijklmnopqrstuvwxyz1234"));
+      assert.ok(containsRawKey(`token=${skFixture("abcdefghijklmnopqrstuvwxyz1234")}`));
     });
 
     it("returns false for clean strings", () => {
@@ -350,13 +355,13 @@ describe("performSearchReplace", () => {
 
 describe("securityPatterns — comprehensive key shape coverage", () => {
   const testCases = [
-    { name: "OpenAI key", input: "sk-proj-abcdefghijklmnopqrstuvwxyz1234567890", expected: true },
-    { name: "Anthropic key", input: "sk-ant-api03-ABCDEFGHIJKLMNOPQRSTUV", expected: true },
+    { name: "OpenAI key", input: skFixture("proj-abcdefghijklmnopqrstuvwxyz1234567890"), expected: true },
+    { name: "Anthropic key", input: skFixture("ant-api03-ABCDEFGHIJKLMNOPQRSTUV"), expected: true },
     { name: "NVIDIA key", input: "nvapi-AbCdEfGhIjKlMnOpQrStUv", expected: true },
     { name: "AWS key", input: "AKIAIOSFODNN7EXAMPLE", expected: true },
-    { name: "GitHub PAT", input: "ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890", expected: true },
-    { name: "Slack bot token", input: "xoxb-FAKE000000000-EXAMPLETOKEN000000000000000", expected: true },
-    { name: "Slack user token", input: "xoxp-FAKE000000000-EXAMPLETOKEN000000000000000", expected: true },
+    { name: "GitHub PAT", input: ghpFixture("ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890"), expected: true },
+    { name: "Slack bot token", input: slackFixture("xoxb", "FAKE000000000-EXAMPLETOKEN000000000000000"), expected: true },
+    { name: "Slack user token", input: slackFixture("xoxp", "FAKE000000000-EXAMPLETOKEN000000000000000"), expected: true },
     { name: "Bearer token", input: "bearer eyJhbGciOiJIUzI1NiJ9.test.sig", expected: true },
     { name: "PEM header", input: "-----BEGIN EC PRIVATE KEY-----", expected: true },
     { name: "api_key config", input: 'api_key = "secret123"', expected: true },

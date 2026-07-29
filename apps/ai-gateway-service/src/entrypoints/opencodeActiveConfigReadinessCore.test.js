@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 
+// @test-scope local
 import { buildOpenCodeActiveConfigReadinessReport } from "./opencodeActiveConfigReadinessCore.js";
 
 const repoRoot = resolve(fileURLToPath(new URL("../../../../", import.meta.url)));

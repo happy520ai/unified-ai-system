@@ -1,11 +1,10 @@
+import { listen, requestJsonResponse as fetchJson, writeEvidenceFiles, } from "./entrypointUtils.js";
 import { existsSync } from "node:fs";
-import { writeEvidencePair } from "./entrypointUtils.js";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
-import { fetchJson, listen, close } from "./entrypointUtils.js";
 
 const PHASE = "phase-7a-1-service-entry";
 const DEFAULT_NVIDIA_MODEL = "meta/llama-3.1-8b-instruct";
@@ -45,7 +44,7 @@ if (!verificationEnv.NVIDIA_API_KEY) {
     chatEnvelope: null,
     conclusion: "blocked: NVIDIA_API_KEY is not present",
   });
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyServiceEntryEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } else {
@@ -94,7 +93,7 @@ if (!verificationEnv.NVIDIA_API_KEY) {
         ? "service-entry-health-and-chat-connected-to-nvidia"
         : "service-entry-health-or-chat-not-connected",
     });
-    await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+    await writeVerifyServiceEntryEvidence(evidence);
     console.log(JSON.stringify(evidence, null, 2));
     process.exitCode = serviceEntryConnected ? 0 : 1;
   } catch (error) {
@@ -110,7 +109,7 @@ if (!verificationEnv.NVIDIA_API_KEY) {
       error: error instanceof Error ? error.message : String(error),
       conclusion: "service-entry-health-or-chat-not-connected",
     });
-    await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+    await writeVerifyServiceEntryEvidence(evidence);
     console.log(JSON.stringify(evidence, null, 2));
     process.exitCode = 1;
   } finally {
@@ -157,6 +156,14 @@ function stripQuotes(value) {
 
   return value;
 }
+
+
+function close(server) {
+  return new Promise((resolveClose) => {
+    server.close(() => resolveClose());
+  });
+}
+
 
 function isServiceEntryConnected({ health, chat }) {
   const healthData = health.body?.data;
@@ -238,6 +245,42 @@ function createEvidence({
   };
 }
 
+async function writeVerifyServiceEntryEvidence(body) {
+  await writeEvidenceFiles({
+    evidenceDir,
+    evidenceJsonPath,
+    evidenceMdPath,
+    body,
+    renderMarkdown: createEvidenceMarkdown,
+  });
+}
+
+function createEvidenceMarkdown(body) {
+  return `# Phase 7A-1 Service Entry Evidence
+
+- Phase: ${body.phase}
+- Status: ${body.status}
+- Generated at: ${body.generatedAt}
+- NVIDIA API key present: ${body.nvidiaApiKeyPresent}
+- NVIDIA model: ${body.nvidiaModel}
+- Service URL: ${body.service.url ?? "n/a"}
+- Health HTTP status: ${body.service.healthHttpStatus ?? "n/a"}
+- Health status: ${body.service.healthStatus ?? "n/a"}
+- Service phase: ${body.service.phase ?? "n/a"}
+- Provider mode: ${body.service.providerMode ?? "n/a"}
+- Real provider enabled: ${body.service.realProviderEnabled ?? "n/a"}
+- Providers: ${body.service.providers.join(", ") || "n/a"}
+- Routes: ${body.service.routes.join(", ") || "n/a"}
+- Chat HTTP status: ${body.chat.httpStatus ?? "n/a"}
+- Chat success: ${body.chat.success ?? "n/a"}
+- Selected provider: ${body.chat.selectedProvider ?? "n/a"}
+- Selected model: ${body.chat.selectedModel ?? "n/a"}
+- Execution mode: ${body.chat.executionMode ?? "n/a"}
+- Execution status: ${body.chat.executionStatus ?? "n/a"}
+- Output text present: ${body.chat.outputTextPresent}
+- Conclusion: ${body.conclusion}
+`;
+}
 
 function compactEnv(env) {
   return Object.fromEntries(

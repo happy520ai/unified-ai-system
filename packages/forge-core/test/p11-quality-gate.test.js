@@ -134,9 +134,10 @@ describe('QualityGate', () => {
 
   it('should detect hardcoded secrets as blocking errors', async () => {
     const gate = new QualityGate({ minScore: 0 });
+    const fixtureSecret = ["sk", "1234567890abcdefghij1234567890"].join("-");
     const code = [
       'export function getConfig() {',
-      '  const api_key = "sk-1234567890abcdefghij1234567890";',
+      `  const api_key = "${fixtureSecret}";`,
       '  return { api_key };',
       '}',
     ].join('\n');

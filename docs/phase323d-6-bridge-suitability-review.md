@@ -3,17 +3,17 @@
 ## 范围
 
 - 本轮只评估 `approvals` 与 `fileContext` 是否适合未来采用 diagnostics / providerConfig 同样的局部 bridge 模式。
-- 本轮不修改 [consolePage.js](/E:/AI-Data/AI网关系统/unified-ai-system/apps/ai-gateway-service/src/ui/consolePage.js)。
+- 本轮不修改 [consolePage.js](../apps/ai-gateway-service/src/ui/consolePage.js)。
 - 本轮不接入 approvals 或 fileContext 到生产 UI。
 - 本轮不修改 `/chat-gateway/execute`、`httpServer.js`、Chat send 或 5 个 Workbench 主模块。
 
 ## 已核对对象
 
-- [consolePage.js](/E:/AI-Data/AI网关系统/unified-ai-system/apps/ai-gateway-service/src/ui/consolePage.js)
-- [apiClient.js](/E:/AI-Data/AI网关系统/unified-ai-system/apps/ai-gateway-service/src/ui/workbench/apiClient.js)
-- [phase319LocalOperationService.js](/E:/AI-Data/AI网关系统/unified-ai-system/apps/ai-gateway-service/src/local-operation/phase319LocalOperationService.js)
-- [approvalStore.js](/E:/AI-Data/AI网关系统/unified-ai-system/apps/ai-gateway-service/src/approval/approvalStore.js)
-- [fileContextStore.js](/E:/AI-Data/AI网关系统/unified-ai-system/apps/ai-gateway-service/src/file-context/fileContextStore.js)
+- [consolePage.js](../apps/ai-gateway-service/src/ui/consolePage.js)
+- [apiClient.js](../apps/ai-gateway-service/src/ui/workbench/apiClient.js)
+- [phase319LocalOperationService.js](../apps/ai-gateway-service/src/local-operation/phase319LocalOperationService.js)
+- [approvalStore.js](../apps/ai-gateway-service/src/approval/approvalStore.js)
+- [fileContextStore.js](../apps/ai-gateway-service/src/file-context/fileContextStore.js)
 
 ## Suitability Matrix
 
@@ -37,7 +37,7 @@
 - 结论：`bridge-later`
 - 原因：
   - 当前 approvals 页面不是单一只读列表，而是直接串联 `POST /local-agent/patch-proposal`、`POST /approvals/create`、`POST /approvals/:id/approve`、`POST /approvals/:id/reject`、`POST /local-operation/apply-approved`。
-  - 其中 `apply-approved` 会进入 [localOperationLoop.js](/E:/AI-Data/AI网关系统/unified-ai-system/apps/ai-gateway-service/src/agent-runner/localOperationLoop.js) 的执行门禁链，虽然默认受 `dryRun`、`allowedFiles`、`forbiddenPaths`、approval gate 限制，但它已经不再是 diagnostics / providerConfig 那种纯状态或配置类 bridge。
+  - 其中 `apply-approved` 会进入 [localOperationLoop.js](../apps/ai-gateway-service/src/agent-runner/localOperationLoop.js) 的执行门禁链，虽然默认受 `dryRun`、`allowedFiles`、`forbiddenPaths`、approval gate 限制，但它已经不再是 diagnostics / providerConfig 那种纯状态或配置类 bridge。
   - 即使只 bridge `GET /approvals`，当前页面交互仍与 approve / reject / apply 混在一起，若不先拆分 UI 风险边界，后续很容易被误扩成“顺手把 apply 也桥接了”。
 - 建议：
   - 下一阶段如要继续推进，先单独做“approvals list / preview 与 apply-approved 风险边界文档”。
@@ -48,17 +48,17 @@
 
 - 结论：`safe-to-bridge`
 - 原因：
-  - 当前 `POST /file-context/select` 走 [fileContextStore.js](/E:/AI-Data/AI网关系统/unified-ai-system/apps/ai-gateway-service/src/file-context/fileContextStore.js)，只做文件元数据标准化与受限登记。
+  - 当前 `POST /file-context/select` 走 [fileContextStore.js](../apps/ai-gateway-service/src/file-context/fileContextStore.js)，只做文件元数据标准化与受限登记。
   - 该链路已有 `BLOCKED_FILE_PATTERN`，会拦截 `.env`、`secret`、`token`、`credential` 等敏感命名。
   - 当前服务响应明确包含 `approvalRequired: true`、`providerCalled: false`、`localExecutionTriggered: false`、`secretContentStored: false`，没有发现 embedding 或 paid API 调用迹象。
-  - [apiClient.js](/E:/AI-Data/AI网关系统/unified-ai-system/apps/ai-gateway-service/src/ui/workbench/apiClient.js) 已有 `selectFileContext(body)`，说明客户端语义面已经具备低风险 bridge 的基础。
+  - [apiClient.js](../apps/ai-gateway-service/src/ui/workbench/apiClient.js) 已有 `selectFileContext(body)`，说明客户端语义面已经具备低风险 bridge 的基础。
 - 风险提醒：
   - 即使是低风险入口，也仍包含文件名 / 路径元数据，后续 bridge 时应继续避免在 UI 中扩大展示敏感路径。
   - 如果未来 fileContext 引入真实文件内容读取、知识入库、embedding 或训练入口，则不再属于本报告的低风险结论。
 
 ## API Client 评估
 
-- 本轮未修改 [apiClient.js](/E:/AI-Data/AI网关系统/unified-ai-system/apps/ai-gateway-service/src/ui/workbench/apiClient.js)。
+- 本轮未修改 [apiClient.js](../apps/ai-gateway-service/src/ui/workbench/apiClient.js)。
 - 原因：
   - `selectFileContext(body)` 与 `listApprovals()` 已存在。
   - 本轮目标是 suitability review，不是提前补一批未来可能不用的方法。

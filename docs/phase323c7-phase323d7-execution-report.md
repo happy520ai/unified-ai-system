@@ -8,10 +8,10 @@
 
 ## Phase323C-7 完成情况
 
-- 新增 [build-phase323c-human-review-checklist.mjs](/E:/AI-Data/AI网关系统/unified-ai-system/tools/phase323c/build-phase323c-human-review-checklist.mjs)
+- 新增 [build-phase323c-human-review-checklist.mjs](../tools/phase323c/build-phase323c-human-review-checklist.mjs)
 - 生成：
-  - [phase323c-7-deprecated-human-review-checklist.json](/E:/AI-Data/AI网关系统/unified-ai-system/docs/phase323c-7-deprecated-human-review-checklist.json)
-  - [phase323c-7-deprecated-human-review-checklist.md](/E:/AI-Data/AI网关系统/unified-ai-system/docs/phase323c-7-deprecated-human-review-checklist.md)
+  - [phase323c-7-deprecated-human-review-checklist.json](../docs/phase323c-7-deprecated-human-review-checklist.json)
+  - [phase323c-7-deprecated-human-review-checklist.md](../docs/phase323c-7-deprecated-human-review-checklist.md)
 - 清单基于 archive review 全量分类生成，数量对齐：
   - forbidden-dangerous: 106
   - unknown-review-required: 481
@@ -21,9 +21,9 @@
 
 ## Phase323D-7 完成情况
 
-- 修改 [consolePage.js](/E:/AI-Data/AI网关系统/unified-ai-system/apps/ai-gateway-service/src/ui/consolePage.js)
+- 修改 [consolePage.js](../apps/ai-gateway-service/src/ui/consolePage.js)
 - `fileContext` 通过 `workbenchApiClient.selectFileContext(payload)` 接入现有 bridge。
-- 未修改 [apiClient.js](/E:/AI-Data/AI网关系统/unified-ai-system/apps/ai-gateway-service/src/ui/workbench/apiClient.js)，因为 `selectFileContext(payload)` 已存在且语义正确。
+- 未修改 [apiClient.js](../apps/ai-gateway-service/src/ui/workbench/apiClient.js)，因为 `selectFileContext(payload)` 已存在且语义正确。
 - 追加前端展示遮罩，避免 blocked 详情直接回显 `.env / secret / token / credential` 敏感文件名或路径。
 - 未接入 approvals，未接入 apply-approved，未接入 Chat send。
 
@@ -35,12 +35,12 @@
 
 ## 修改文件清单
 
-- 新增 [build-phase323c-human-review-checklist.mjs](/E:/AI-Data/AI网关系统/unified-ai-system/tools/phase323c/build-phase323c-human-review-checklist.mjs)
-- 修改 [consolePage.js](/E:/AI-Data/AI网关系统/unified-ai-system/apps/ai-gateway-service/src/ui/consolePage.js)
-- 新增 [phase323d-7-file-context-bridge-report.md](/E:/AI-Data/AI网关系统/unified-ai-system/docs/phase323d-7-file-context-bridge-report.md)
-- 新增 [phase323c7-phase323d7-execution-report.md](/E:/AI-Data/AI网关系统/unified-ai-system/docs/phase323c7-phase323d7-execution-report.md)
-- 新增 [phase323c-7-deprecated-human-review-checklist.json](/E:/AI-Data/AI网关系统/unified-ai-system/docs/phase323c-7-deprecated-human-review-checklist.json)
-- 新增 [phase323c-7-deprecated-human-review-checklist.md](/E:/AI-Data/AI网关系统/unified-ai-system/docs/phase323c-7-deprecated-human-review-checklist.md)
+- 新增 [build-phase323c-human-review-checklist.mjs](../tools/phase323c/build-phase323c-human-review-checklist.mjs)
+- 修改 [consolePage.js](../apps/ai-gateway-service/src/ui/consolePage.js)
+- 新增 [phase323d-7-file-context-bridge-report.md](../docs/phase323d-7-file-context-bridge-report.md)
+- 新增 [phase323c7-phase323d7-execution-report.md](../docs/phase323c7-phase323d7-execution-report.md)
+- 新增 [phase323c-7-deprecated-human-review-checklist.json](../docs/phase323c-7-deprecated-human-review-checklist.json)
+- 新增 [phase323c-7-deprecated-human-review-checklist.md](../docs/phase323c-7-deprecated-human-review-checklist.md)
 
 ## 关键边界结论
 

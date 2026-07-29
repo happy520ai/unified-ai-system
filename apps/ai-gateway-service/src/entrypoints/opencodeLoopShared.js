@@ -1,15 +1,19 @@
 import { spawn, spawnSync } from "node:child_process";
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { containsPlainSecret } from "../security/secretSafety.js";
+import { sleep, writeJson } from "./entrypointUtils.js";
+
+export { sleep, writeJson };
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 export const repoRoot = resolve(__dirname, "../../../..");
 
-const localAppData = process.env.LOCALAPPDATA || "C:/Users/Administrator/AppData/Local";
-const userProfile = process.env.USERPROFILE || "C:/Users/Administrator";
+const userProfile = process.env.USERPROFILE || process.env.HOME || homedir();
+const localAppData = process.env.LOCALAPPDATA || resolve(userProfile, "AppData/Local");
 
 export const openCodeLoopPaths = {
   outboxDir: resolve(repoRoot, ".opencode-handoff/outbox"),
@@ -76,7 +80,6 @@ export async function readJsonIfPresent(pathValue) {
     return null;
   }
 }
-
 
 export async function writeText(pathValue, value) {
   await mkdir(dirname(pathValue), { recursive: true });
@@ -174,8 +177,6 @@ export function defaultDesktopDetection() {
       }).status === 0,
   };
 }
-
-import { sleep, writeJson } from "./entrypointUtils.js";
 
 export function normalizePath(value) {
   return String(value || "").replaceAll("\\", "/").replace(/\/+$/, "").toLowerCase();

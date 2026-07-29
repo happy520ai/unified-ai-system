@@ -1,4 +1,5 @@
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 
 import { stripJsonComments } from "./opencodeToolingReadinessCore.js";
@@ -17,7 +18,7 @@ export const PHASE3994A_ID = "Phase3994A";
 export const PHASE3994A_SLUG = "phase3994a-opencode-active-config-repair";
 
 function safeHomeDir() {
-  return process.env.USERPROFILE || process.env.HOME || "C:\\Users\\Administrator";
+  return process.env.USERPROFILE || process.env.HOME || homedir();
 }
 
 function hasUtf8Bom(path) {

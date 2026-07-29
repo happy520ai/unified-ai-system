@@ -1,5 +1,5 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { writeEvidencePair } from "./entrypointUtils.js";
+import { writeEvidenceFiles } from "./entrypointUtils.js";
+import { mkdir, readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -96,7 +96,7 @@ try {
     result,
     conclusion: passed ? "enterprise-handoff-manifest-ready" : "enterprise-handoff-manifest-not-ready",
   });
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyEnterpriseHandoffManifestEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = passed ? 0 : 1;
 } catch (error) {
@@ -107,7 +107,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "enterprise-handoff-manifest-not-ready",
   });
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyEnterpriseHandoffManifestEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 }
@@ -265,3 +265,33 @@ function createEvidence({ status, generatedAt, result, conclusion, error }) {
   };
 }
 
+async function writeVerifyEnterpriseHandoffManifestEvidence(body) {
+  await writeEvidenceFiles({
+    evidenceDir,
+    evidenceJsonPath,
+    evidenceMdPath,
+    body,
+    renderMarkdown: createEvidenceMarkdown,
+  });
+}
+
+function createEvidenceMarkdown(body) {
+  return `# Phase 42A Enterprise Handoff Manifest Evidence
+
+- Phase: ${body.phase}
+- Status: ${body.status}
+- Generated at: ${body.generatedAt}
+- Manifest path: ${body.handoff?.manifestPath}
+- Env template path: ${body.handoff?.envTemplatePath}
+- Release automation: ${body.handoff?.releaseAutomation}
+- Infrastructure provisioning: ${body.handoff?.infrastructureProvisioning}
+- Secret values recorded: ${body.handoff?.secretValuesRecorded}
+- Files status: ${body.result?.files?.status ?? "n/a"}
+- Scripts status: ${body.result?.scripts?.status ?? "n/a"}
+- Docs status: ${body.result?.docs?.status ?? "n/a"}
+- Env template status: ${body.result?.envTemplate?.status ?? "n/a"}
+- UI status: ${body.result?.ui?.status ?? "n/a"}
+- Boundary status: ${body.result?.boundaries?.status ?? "n/a"}
+- Conclusion: ${body.conclusion}
+`;
+}

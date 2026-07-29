@@ -1,3 +1,6 @@
+import {
+  readJsonFileSync as readJson,
+} from "./entrypointUtils.js";
 import { existsSync, readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
@@ -18,7 +21,6 @@ import {
   AUTO_REVIEW_DEFAULTS,
 } from "../agent-runner/autoReviewPolicy.js";
 import { GO_NO_GO_STATUSES, buildGoNoGoReview } from "../agent-runner/goNoGoReview.js";
-import { readJson } from "./entrypointUtils.js"
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "../../../..");

@@ -1,9 +1,8 @@
+import { writeEvidenceFiles } from "./entrypointUtils.js";
 import { existsSync } from "node:fs";
-import { writeEvidencePair } from "./entrypointUtils.js";
-import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir } from "node:fs/promises";
 import { dirname, extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { readText } from "./entrypointUtils.js"
 
 const PHASE = "phase-78a-global-release-readiness";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -136,7 +135,7 @@ try {
     },
     conclusion: passed ? "global-release-readiness-baseline-connected" : "global-release-readiness-baseline-not-connected",
   };
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyGlobalReleaseReadinessEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = passed ? 0 : 1;
 } catch (error) {
@@ -147,7 +146,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "global-release-readiness-baseline-not-connected",
   };
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyGlobalReleaseReadinessEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 }
@@ -173,6 +172,9 @@ async function readDocStatus(path) {
   };
 }
 
+async function readText(path) {
+  return readFile(resolve(repoRoot, path), "utf8");
+}
 
 async function listEvidenceTextFiles(dir) {
   if (!existsSync(dir)) {
@@ -221,3 +223,31 @@ function toRepoPath(path) {
   return path.replace(`${repoRoot}\\`, "").replaceAll("\\", "/");
 }
 
+async function writeVerifyGlobalReleaseReadinessEvidence(body) {
+  await writeEvidenceFiles({
+    evidenceDir,
+    evidenceJsonPath,
+    evidenceMdPath,
+    body,
+    renderMarkdown: createEvidenceMarkdown,
+  });
+}
+
+function createEvidenceMarkdown(body) {
+  return `# Phase 78A Global Release Readiness Evidence
+
+- Phase: ${body.phase}
+- Status: ${body.status}
+- Generated at: ${body.generatedAt}
+- Required docs present: ${(body.docs ?? []).every((doc) => doc.exists)}
+- Missing scripts: ${(body.scripts?.missing ?? []).join(", ") || "none"}
+- Health local only: ${body.scripts?.healthIsLocalOnly}
+- Mojibake findings: ${body.readability?.mojibakeMarkerCount ?? "n/a"}
+- Secret findings: ${body.secrets?.findingCount ?? "n/a"}
+- Boundary text present: ${body.boundaries?.boundaryTextPresent}
+- Release automation performed: ${body.boundaries?.releaseAutomation}
+- Provider calls performed: ${body.boundaries?.providerCalls}
+- Runtime mutation performed: ${body.boundaries?.runtimeMutation}
+- Conclusion: ${body.conclusion}
+`;
+}

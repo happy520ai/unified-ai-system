@@ -1,24 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { cleanSecretValue, isLikelyMaskedSecret, maskSecret } from "../security/secretSafety.js";
-import {
-  MODEL_IMPORT_SOURCE,
-  MODEL_IMPORT_TIMEOUT_MS,
-  PROVIDER_PROBES,
-  getProviderProbeConfig,
-  listModelImportProviders,
-} from "./providerProbeCatalog.js";
-import { normalizeProviderModels, safeJsonParse } from "./providerModelNormalizer.js";
-import { resolveProviderCandidates } from "./providerCandidateResolver.js";
+import { PROVIDER_PROBES } from "./providerProbeDefinitions.js";
 
-// Re-export the full public surface so existing consumers are unaffected.
-export {
-  MODEL_IMPORT_SOURCE,
-  MODEL_IMPORT_TIMEOUT_MS,
-  getProviderProbeConfig,
-  listModelImportProviders,
-  normalizeProviderModels,
-  resolveProviderCandidates,
-};
+export const MODEL_IMPORT_SOURCE = "provider_models_api";
+export const MODEL_IMPORT_TIMEOUT_MS = 4_000;
+
 
 export function createApiKeyRef() {
   return `model-import-${randomUUID()}`;
@@ -34,6 +20,105 @@ export function maskApiKey(apiKey) {
 
 export function isLikelyMaskedApiKey(value) {
   return isLikelyMaskedSecret(value);
+}
+
+export function resolveProviderCandidates({ apiKey, providerHint = "auto", baseUrl } = {}) {
+  const clean = cleanApiKey(apiKey);
+  const hint = String(providerHint ?? "auto").trim().toLowerCase();
+  const normalizedBaseUrl = normalizeBaseUrl(baseUrl);
+
+  if (!clean) {
+    return [];
+  }
+
+  if (hint && hint !== "auto") {
+    return createHintCandidates(hint, normalizedBaseUrl);
+  }
+
+  if (normalizedBaseUrl) {
+    return [createCandidate("openai-compatible", { baseUrl: normalizedBaseUrl })];
+  }
+
+  if (clean.startsWith("nvapi-")) {
+    return [createCandidate("nvidia")];
+  }
+
+  if (clean.startsWith("sk-or-v1-")) {
+    return [createCandidate("openrouter")];
+  }
+
+  if (clean.startsWith("gsk_")) {
+    return [createCandidate("groq")];
+  }
+
+  if (clean.startsWith("xai-")) {
+    return [createCandidate("xai")];
+  }
+
+  if (clean.startsWith("csk-")) {
+    return [createCandidate("cerebras")];
+  }
+
+  if (clean.startsWith("pplx-")) {
+    return [createCandidate("perplexity")];
+  }
+
+  if (clean.startsWith("fw_")) {
+    return [createCandidate("fireworks")];
+  }
+
+  if (clean.startsWith("ms-")) {
+    return [createCandidate("modelscope")];
+  }
+
+  if (clean.startsWith("bce-v3/")) {
+    return [createCandidate("qianfan")];
+  }
+
+  if (clean.startsWith("sk-ant-")) {
+    return [createCandidate("anthropic")];
+  }
+
+  if (clean.startsWith("hf_")) {
+    return [createCandidate("huggingface")];
+  }
+
+  if (clean.startsWith("AIza")) {
+    return [createCandidate("gemini")];
+  }
+
+  if (clean.startsWith("sk-")) {
+    const candidates = createOpenAiStyleCandidates();
+    candidates.push(createCandidate("openai-compatible", { baseUrl: normalizedBaseUrl }));
+    return candidates;
+  }
+
+  return [];
+}
+
+function createOpenAiStyleCandidates() {
+  return [
+    createCandidate("openai"),
+    createCandidate("dashscope"),
+    createCandidate("deepseek"),
+    createCandidate("together"),
+    createCandidate("mistral"),
+    createCandidate("moonshot"),
+    createCandidate("siliconflow"),
+    createCandidate("tencent-hunyuan"),
+    createCandidate("zhipu"),
+    createCandidate("xunfei-spark"),
+    createCandidate("qianfan"),
+    createCandidate("modelscope"),
+    createCandidate("cohere"),
+    createCandidate("volcengine-doubao"),
+    createCandidate("minimax"),
+    createCandidate("stepfun"),
+    createCandidate("novita"),
+    createCandidate("baichuan"),
+    createCandidate("yi"),
+    createCandidate("infini-ai"),
+  ];
 }
 
 export async function probeProviderModels({ candidate, apiKey, fetchImpl = globalThis.fetch, timeoutMs = MODEL_IMPORT_TIMEOUT_MS } = {}) {
@@ -126,6 +211,54 @@ export async function probeProviderModels({ candidate, apiKey, fetchImpl = globa
   }
 }
 
+export function normalizeProviderModels({ providerId, defaultCapabilities = ["chat"], body } = {}) {
+  const rawModels = readRawModels(body);
+  return rawModels
+    .map((model) => normalizeProviderModel({ providerId, defaultCapabilities, model }))
+    .filter(Boolean);
+}
+
+export function getProviderProbeConfig(providerId) {
+  return PROVIDER_PROBES[providerId] ?? null;
+}
+
+export function listModelImportProviders() {
+  return Object.values(PROVIDER_PROBES).map((config) => ({
+    providerId: config.providerId,
+    displayName: config.displayName,
+    providerGroup: config.providerGroup ?? config.providerId,
+    baseUrl: config.requiresBaseUrl ? null : config.baseUrl,
+    requiresBaseUrl: Boolean(config.requiresBaseUrl),
+    modelsPath: config.modelsPath,
+    auth: config.auth,
+    defaultCapabilities: [...(config.defaultCapabilities ?? [])],
+  }));
+}
+
+function createHintCandidates(hint, baseUrl) {
+  if (PROVIDER_PROBES[hint]) {
+    return [createCandidate(hint, { baseUrl })];
+  }
+
+  if (hint === "openai_compatible" || hint === "compatible" || hint === "generic-openai-compatible") {
+    return [createCandidate("openai-compatible", { baseUrl })];
+  }
+
+  return [];
+}
+
+function createCandidate(providerId, options = {}) {
+  const config = PROVIDER_PROBES[providerId] ?? {};
+  const baseUrl = normalizeBaseUrl(options.baseUrl || config.baseUrl);
+  return {
+    providerId,
+    providerDisplayName: config.displayName ?? providerId,
+    providerGroup: config.providerGroup ?? providerId,
+    baseUrl,
+    requiresBaseUrl: Boolean(config.requiresBaseUrl && !baseUrl),
+  };
+}
+
 function createModelListUrl({ config, baseUrl, apiKey }) {
   const path = config.modelsPath ?? "/models";
   const url = `${baseUrl}${path}`;
@@ -155,6 +288,131 @@ function createModelListHeaders({ config, apiKey }) {
   };
 }
 
+function readRawModels(body) {
+  if (Array.isArray(body)) return body;
+  if (Array.isArray(body?.data)) return body.data;
+  if (Array.isArray(body?.models)) return body.models;
+  return [];
+}
+
+function normalizeProviderModel({ providerId, defaultCapabilities, model }) {
+  const rawId = String(model?.id ?? model?.modelId ?? model?.name ?? "").trim();
+  const modelId = providerId === "gemini" ? rawId.replace(/^models\//, "") : rawId;
+  if (!modelId) return null;
+
+  const displayName = String(model?.displayName ?? model?.display_name ?? model?.modelDisplayName ?? modelId);
+  const capabilities = normalizeCapabilities(model?.capabilities ?? createCapabilitiesFromModelMetadata(providerId, model, defaultCapabilities));
+  const modalities = createModalitiesFromModelMetadata(model, capabilities);
+
+  return {
+    providerId,
+    modelId,
+    displayName,
+    capabilities,
+    source: MODEL_IMPORT_SOURCE,
+    status: "discovered",
+    metadata: {
+      ownedBy: model?.owned_by ?? model?.owner ?? model?.publisher,
+      rawName: model?.name,
+      supportedGenerationMethods: model?.supportedGenerationMethods,
+      modalities,
+      providerReturnedModel: true,
+    },
+  };
+}
+
+function createCapabilitiesFromModelMetadata(providerId, model, defaultCapabilities) {
+  if (providerId === "gemini" && Array.isArray(model?.supportedGenerationMethods)) {
+    const methods = model.supportedGenerationMethods.map((item) => String(item).toLowerCase());
+    const capabilities = [];
+    if (methods.some((item) => item.includes("generatecontent"))) capabilities.push("chat", "summary");
+    if (methods.some((item) => item.includes("embedcontent"))) capabilities.push("embedding");
+    return capabilities.length ? capabilities : defaultCapabilities;
+  }
+
+  const inferred = new Set();
+  const modalities = [
+    ...readStringList(model?.input_modalities),
+    ...readStringList(model?.output_modalities),
+    ...readStringList(model?.modalities),
+    ...readStringList(model?.architecture?.input_modalities),
+    ...readStringList(model?.architecture?.output_modalities),
+  ].map((item) => item.toLowerCase());
+  const haystack = [
+    model?.id,
+    model?.modelId,
+    model?.name,
+    model?.displayName,
+    model?.display_name,
+    model?.description,
+    model?.owned_by,
+    ...modalities,
+  ].map((item) => String(item ?? "").toLowerCase()).join(" ");
+
+  if (modalities.includes("text")) inferred.add("chat");
+  if (modalities.some((item) => item.includes("image"))) inferred.add("vision");
+  if (modalities.some((item) => item.includes("audio"))) inferred.add("audio");
+  if (modalities.some((item) => item.includes("video"))) inferred.add("video");
+  if (/\b(embed|embedding|text-embedding|bge-|gte-|e5-)\b/.test(haystack)) inferred.add("embedding");
+  if (/\b(rerank|reranker)\b/.test(haystack)) inferred.add("rerank");
+  if (/\b(whisper|transcribe|speech|tts|audio)\b/.test(haystack)) inferred.add("audio");
+  if (/\b(vision|vl|image-input|gpt-4o|qwen-vl|glm-4v|pixtral|llava)\b/.test(haystack)) inferred.add("vision");
+  if (/\b(image|dall-e|imagen|sdxl|stable-diffusion|flux|midjourney|text-to-image)\b/.test(haystack)) inferred.add("image");
+  if (/\b(video|sora|wan-|text-to-video|veo)\b/.test(haystack)) inferred.add("video");
+  if (/\b(code|coder|coding|codestral|devstral)\b/.test(haystack)) inferred.add("coding");
+  if (/\b(reason|reasoning|r1|o1|o3|o4|thinking)\b/.test(haystack)) inferred.add("reasoning");
+
+  if (inferred.size) {
+    if (inferred.has("vision") || inferred.has("coding") || inferred.has("reasoning")) {
+      inferred.add("chat");
+    }
+    return Array.from(inferred);
+  }
+
+  return defaultCapabilities;
+}
+
+function normalizeCapabilities(value) {
+  const list = Array.isArray(value) ? value : [];
+  const normalized = Array.from(new Set(list.map((item) => String(item ?? "").trim()).filter(Boolean)));
+  return normalized.length ? normalized : ["chat"];
+}
+
+function createModalitiesFromModelMetadata(model, capabilities) {
+  const inputs = new Set(readStringList(model?.input_modalities));
+  const outputs = new Set(readStringList(model?.output_modalities));
+  for (const item of readStringList(model?.architecture?.input_modalities)) inputs.add(item);
+  for (const item of readStringList(model?.architecture?.output_modalities)) outputs.add(item);
+
+  const capabilitySet = new Set((capabilities ?? []).map((item) => String(item).toLowerCase()));
+  if (capabilitySet.has("chat") || capabilitySet.has("completion") || capabilitySet.has("reasoning")) {
+    inputs.add("text");
+    outputs.add("text");
+  }
+  if (capabilitySet.has("vision")) inputs.add("image");
+  if (capabilitySet.has("image")) outputs.add("image");
+  if (capabilitySet.has("audio")) {
+    inputs.add("audio");
+    outputs.add("audio");
+  }
+  if (capabilitySet.has("video")) outputs.add("video");
+  if (capabilitySet.has("embedding")) {
+    inputs.add("text");
+    outputs.add("embedding");
+  }
+  return {
+    input: Array.from(inputs).filter(Boolean),
+    output: Array.from(outputs).filter(Boolean),
+  };
+}
+
+function readStringList(value) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => String(item ?? "").trim())
+    .filter(Boolean);
+}
+
 function createProbeResult(result) {
   return {
     ok: Boolean(result.ok),
@@ -169,4 +427,13 @@ function createProbeResult(result) {
 
 function normalizeBaseUrl(value) {
   return String(value ?? "").trim().replace(/\/+$/, "");
+}
+
+function safeJsonParse(text) {
+  if (!text) return {};
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { rawText: text };
+  }
 }

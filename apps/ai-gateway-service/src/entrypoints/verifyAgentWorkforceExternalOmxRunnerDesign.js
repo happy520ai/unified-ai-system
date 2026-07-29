@@ -1,5 +1,5 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { writeEvidencePair } from "./entrypointUtils.js";
+import { fetchJsonResponse as fetchJson, fetchTextResponse as fetchText, listen, postJsonResponse as postJson, writeEvidenceFiles, } from "./entrypointUtils.js";
+import { mkdir, readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
@@ -7,7 +7,6 @@ import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
 import { findPlainSecretFindings } from "../security/secretSafety.js";
-import { fetchJson, fetchText, listen, close, postJson } from "./entrypointUtils.js";
 
 const phase = "phase-145a-external-omx-runner-design";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -244,7 +243,7 @@ try {
     conclusion: passed ? "external-omx-runner-design-preview-closed" : "external-omx-runner-design-preview-not-closed",
   };
 
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyAgentWorkforceExternalOmxRunnerDesignEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = passed ? 0 : 1;
 } catch (error) {
@@ -255,7 +254,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "external-omx-runner-design-preview-not-closed",
   };
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyAgentWorkforceExternalOmxRunnerDesignEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -264,7 +263,60 @@ try {
   }
 }
 
+
+function close(targetServer) {
+  return new Promise((resolveClose) => {
+    targetServer.close(() => resolveClose());
+  });
+}
+
 async function readRequired(relativePath) {
   return readFile(resolve(repoRoot, relativePath), "utf8");
 }
 
+
+
+
+async function writeVerifyAgentWorkforceExternalOmxRunnerDesignEvidence(body) {
+  await writeEvidenceFiles({
+    evidenceDir,
+    evidenceJsonPath,
+    evidenceMdPath,
+    body,
+    renderMarkdown: createEvidenceMarkdown,
+  });
+}
+
+function createEvidenceMarkdown(body) {
+  return `# Phase 145A External OMX Runner Design Evidence
+
+- Phase: ${body.phase}
+- Status: ${body.status}
+- Generated at: ${body.generatedAt}
+- Service URL: ${body.serviceUrl ?? "n/a"}
+- Plan ID: ${body.workforce?.planId ?? "n/a"}
+- Workforce ID: ${body.workforce?.workforceId ?? "n/a"}
+- Runner enabled: ${body.workforce?.runnerEnabled ?? false}
+- Execution enabled: ${body.workforce?.executionEnabled ?? false}
+- Design only: ${body.workforce?.designOnly ?? true}
+- Proposed endpoint count: ${body.workforce?.proposedEndpointCount ?? "n/a"}
+- Required preflight check count: ${body.workforce?.requiredPreflightCheckCount ?? "n/a"}
+- Blocked reason count: ${body.workforce?.blockedReasonCount ?? "n/a"}
+- Execution readiness status: ${body.workforce?.executionReadinessOverallStatus ?? "n/a"}
+- Runner endpoint execution: ${body.safety?.runnerEndpointExecution ?? false}
+- Git workspace inspection: ${body.safety?.gitWorkspaceInspection ?? false}
+- Code execution: ${body.safety?.codeExecution ?? false}
+- Project file writes: ${body.safety?.projectFileWrites ?? false}
+- Workflow run: ${body.safety?.workflowRun ?? false}
+- Creates worktrees: ${body.safety?.createsWorktrees ?? false}
+- Runs oh-my-codex: ${body.safety?.runsOhMyCodex ?? false}
+- Plain secret findings: ${body.secretFindingCount ?? "n/a"}
+- Conclusion: ${body.conclusion}
+
+## Checks
+
+${Object.entries(body.checks ?? {})
+  .map(([name, value]) => `- ${name}: ${value ? "passed" : "failed"}`)
+  .join("\n")}
+`;
+}

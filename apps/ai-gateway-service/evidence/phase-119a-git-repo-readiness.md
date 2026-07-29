@@ -3,7 +3,7 @@
 - Phase: phase-119a-git-repo-readiness
 - Status: passed
 - Generated at: 2026-04-27T10:50:51.557Z
-- Git top-level: E:/AI-Data/AI网关系统/unified-ai-system
+- Git top-level: <repository-root>
 - Remote configured: false
 - Initial commit present: true
 - GitHub CLI available: false

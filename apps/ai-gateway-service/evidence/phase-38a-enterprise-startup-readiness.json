@@ -4,9 +4,9 @@
   "generatedAt": "2026-04-26T05:01:03.507Z",
   "serviceUrl": "http://127.0.0.1:61556",
   "paths": {
-    "userStorePath": "C:\\Users\\Administrator\\AppData\\Local\\Temp\\phase38a-enterprise-startup-2aq03l\\users\\enterprise-users.json",
-    "auditLogPath": "C:\\Users\\Administrator\\AppData\\Local\\Temp\\phase38a-enterprise-startup-2aq03l\\audit\\enterprise-audit.jsonl",
-    "backupDir": "C:\\Users\\Administrator\\AppData\\Local\\Temp\\phase38a-enterprise-startup-2aq03l\\backups"
+    "userStorePath": "<user-home>\\AppData\\Local\\Temp\\phase38a-enterprise-startup-2aq03l\\users\\enterprise-users.json",
+    "auditLogPath": "<user-home>\\AppData\\Local\\Temp\\phase38a-enterprise-startup-2aq03l\\audit\\enterprise-audit.jsonl",
+    "backupDir": "<user-home>\\AppData\\Local\\Temp\\phase38a-enterprise-startup-2aq03l\\backups"
   },
   "enterprise": {
     "uiHttpStatus": 200,

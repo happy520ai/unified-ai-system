@@ -39,7 +39,7 @@ describe("RevocationStore - basic operations", () => {
     const fakeHash = "a".repeat(64);
     const result = await store.revoke(fakeHash, { source: "api_key", revokedBy: "admin" });
     assert.strictEqual(result.alreadyRevoked, false);
-    assert.ok(store.isRevoked(fakeHash));
+    assert.ok(await store.isRevoked(fakeHash));
   });
 
   it("detects already-revoked token", async () => {
@@ -53,15 +53,15 @@ describe("RevocationStore - basic operations", () => {
     const rawKey = "uai-" + "c".repeat(64);
     await store.revoke(rawKey, { source: "api_key" });
     // Should be revoked when checked with raw key
-    assert.ok(store.isRevoked(rawKey));
+    assert.ok(await store.isRevoked(rawKey));
     // Should also be revoked when checked with the computed hash
     const { createHash } = await import("node:crypto");
     const hash = createHash("sha256").update(rawKey).digest("hex");
-    assert.ok(store.isRevoked(hash));
+    assert.ok(await store.isRevoked(hash));
   });
 
-  it("returns false for non-revoked token", () => {
-    assert.strictEqual(store.isRevoked("d".repeat(64)), false);
+  it("returns false for non-revoked token", async () => {
+    assert.strictEqual(await store.isRevoked("d".repeat(64)), false);
   });
 
   it("persists to disk via atomic write (.tmp + rename)", async () => {
@@ -96,8 +96,8 @@ describe("RevocationStore - basic operations", () => {
     const freshStore = createRevocationStore({ storePath });
     await freshStore.load();
 
-    assert.ok(freshStore.isRevoked(hash1));
-    assert.ok(freshStore.isRevoked(hash2));
+    assert.ok(await freshStore.isRevoked(hash1));
+    assert.ok(await freshStore.isRevoked(hash2));
     assert.strictEqual(freshStore.getStats().totalRevocations, 2);
   });
 
@@ -144,7 +144,7 @@ describe("RevocationStore - basic operations", () => {
     const deepStore = createRevocationStore({ storePath: deepPath });
     await deepStore.load();
     await deepStore.revoke("a".repeat(64), { source: "api_key" });
-    assert.ok(deepStore.isRevoked("a".repeat(64)));
+    assert.ok(await deepStore.isRevoked("a".repeat(64)));
   });
 });
 
@@ -173,7 +173,7 @@ describe("RevocationStore - concurrent operations", () => {
     // Verify all are revoked
     for (let i = 0; i < 10; i++) {
       const hash = i.toString(16).padStart(64, "0");
-      assert.ok(store.isRevoked(hash), `Hash ${i} should be revoked`);
+      assert.ok(await store.isRevoked(hash), `Hash ${i} should be revoked`);
     }
   });
 });

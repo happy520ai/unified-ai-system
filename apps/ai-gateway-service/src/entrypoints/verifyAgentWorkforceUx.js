@@ -1,10 +1,9 @@
-import { mkdir, writeFile } from "node:fs/promises";
-import { writeEvidencePair } from "./entrypointUtils.js";
+import { fetchTextResponse as fetchText, listen, requestJsonResponse as fetchJson, writeEvidenceFiles, } from "./entrypointUtils.js";
+import { mkdir } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
-import { fetchJson, fetchText, listen, close } from "./entrypointUtils.js";
 
 const PHASE = "phase-102b-agent-workforce-ux";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -70,7 +69,7 @@ try {
     conclusion: passed ? "agent-workforce-ux-ready" : "agent-workforce-ux-not-ready",
   });
 
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyAgentWorkforceUxEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = passed ? 0 : 1;
 } catch (error) {
@@ -81,7 +80,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "agent-workforce-ux-not-ready",
   });
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyAgentWorkforceUxEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -89,6 +88,15 @@ try {
     await close(server);
   }
 }
+
+
+function close(server) {
+  return new Promise((resolveClose) => {
+    server.close(() => resolveClose());
+  });
+}
+
+
 
 function isWorkforceUxReady({ emptyGoal, plan, serviceHealth, knowledgeHealth, modelImportProviders, ui }) {
   const planData = plan?.body?.data;
@@ -198,3 +206,47 @@ function createEvidence({
   };
 }
 
+async function writeVerifyAgentWorkforceUxEvidence(body) {
+  await writeEvidenceFiles({
+    evidenceDir,
+    evidenceJsonPath,
+    evidenceMdPath,
+    body,
+    renderMarkdown: createEvidenceMarkdown,
+  });
+}
+
+function createEvidenceMarkdown(body) {
+  return `# Phase 102B Agent Workforce UX Evidence
+
+- Phase: ${body.phase}
+- Status: ${body.status}
+- Generated at: ${body.generatedAt}
+- Empty goal HTTP status: ${body.validation.emptyGoalHttpStatus ?? "n/a"}
+- Empty goal code: ${body.validation.emptyGoalCode ?? "n/a"}
+- Normal goal HTTP status: ${body.validation.normalGoalHttpStatus ?? "n/a"}
+- Plan version: ${body.validation.planVersion ?? "n/a"}
+- Created at present: ${body.validation.createdAtPresent}
+- Summary present: ${body.validation.summaryPresent}
+- User-friendly status: ${body.validation.userFriendlyStatus ?? "n/a"}
+- Selected roles: ${body.validation.selectedRoleCount ?? "n/a"}
+- Tasks: ${body.validation.taskCount ?? "n/a"}
+- Deliverables: ${body.validation.deliverableCount ?? "n/a"}
+- Acceptance criteria: ${body.validation.acceptanceCriteriaCount ?? "n/a"}
+- Risks: ${body.validation.riskCount ?? "n/a"}
+- Next actions: ${body.validation.nextActionCount ?? "n/a"}
+- UI panel present: ${body.ui.panelPresent}
+- UI status present: ${body.ui.statusPresent}
+- UI rendered output present: ${body.ui.renderedOutputPresent}
+- UI copy Markdown present: ${body.ui.copyMarkdownPresent}
+- UI example buttons present: ${body.ui.exampleButtonsPresent}
+- Real LLM calls: ${body.safety.realLlmCalls}
+- Code execution: ${body.safety.codeExecution}
+- Project file writes: ${body.safety.projectFileWrites}
+- Workflow run: ${body.safety.workflowRun}
+- Default chat lane mutated: ${body.safety.defaultChatLaneMutated}
+- Provider registry mutated: ${body.safety.providerRegistryMutated}
+- Secret values recorded: ${body.safety.secretValuesRecorded}
+- Conclusion: ${body.conclusion}
+`;
+}

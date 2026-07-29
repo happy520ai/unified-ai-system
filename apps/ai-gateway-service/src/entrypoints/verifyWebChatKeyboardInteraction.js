@@ -1,6 +1,5 @@
+import { findRequiredBrowserPath as findBrowserPath, listen, sleep, writeEvidenceFiles, } from "./entrypointUtils.js";
 import { spawn } from "node:child_process";
-import { writeEvidencePair } from "./entrypointUtils.js";
-import { existsSync, readdirSync } from "node:fs";
 import { mkdtemp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
@@ -9,7 +8,6 @@ import vm from "node:vm";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
 import { createConsolePage } from "../ui/consolePage.js";
-import { sleep, listen, close, findBrowserPath } from "./entrypointUtils.js";
 
 const PHASE = "phase-64a-web-chat-keyboard-interaction";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -168,7 +166,7 @@ try {
     await closeCdpSilently(cdp);
   }
 
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyWebChatKeyboardInteractionEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = evidence.status === "passed" ? 0 : 1;
 } catch (error) {
@@ -179,7 +177,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "web-chat-keyboard-interaction-not-connected",
   };
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyWebChatKeyboardInteractionEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -263,13 +261,6 @@ async function readState(cdp) {
 }
 
 
-function findVersionedBrowserPaths(root, executableName) {
-  if (!existsSync(root)) return [];
-  return readdirSync(root, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => resolve(root, entry.name, executableName))
-    .reverse();
-}
 
 async function readDevToolsPort(profileDir) {
   const portFile = resolve(profileDir, "DevToolsActivePort");
@@ -415,5 +406,56 @@ async function inspectPng(path) {
     height: validPng ? buffer.readUInt32BE(20) : 0,
     validPng,
   };
+}
+
+
+function close(targetServer) {
+  return new Promise((resolveClose) => {
+    targetServer.close(() => resolveClose());
+  });
+}
+
+async function writeVerifyWebChatKeyboardInteractionEvidence(body) {
+  await writeEvidenceFiles({
+    evidenceDir,
+    evidenceJsonPath,
+    evidenceMdPath,
+    body,
+    renderMarkdown: createEvidenceMarkdown,
+  });
+}
+
+function createEvidenceMarkdown(body) {
+  return `# Phase 64A Web Chat Keyboard Interaction Evidence
+
+- Phase: ${body.phase}
+- Status: ${body.status}
+- Generated at: ${body.generatedAt}
+- Service URL: ${body.serviceUrl ?? "n/a"}
+- Enter prompt: ${body.ui?.enterPrompt ?? "n/a"}
+- Shift+Enter prompt: ${body.ui?.shiftEnterPrompt ?? "n/a"}
+- After Enter user text: ${body.ui?.afterEnter?.lastUserText ?? "n/a"}
+- After Enter assistant text: ${body.ui?.afterEnter?.latestAssistantText ?? "n/a"}
+- After Enter active element: ${body.ui?.afterEnter?.activeElementId ?? "n/a"}
+- After Shift+Enter user text: ${body.ui?.afterShiftEnter?.lastUserText ?? "n/a"}
+- After Shift+Enter assistant text: ${body.ui?.afterShiftEnter?.latestAssistantText ?? "n/a"}
+- After Shift+Enter active element: ${body.ui?.afterShiftEnter?.activeElementId ?? "n/a"}
+- RAG stream request count: ${body.ui?.ragStreamCount ?? "n/a"}
+- Screenshot path: ${body.screenshot?.path ?? "n/a"}
+- Screenshot bytes: ${body.screenshot?.bytes ?? "n/a"}
+- Screenshot dimensions: ${body.screenshot?.width ?? "n/a"}x${body.screenshot?.height ?? "n/a"}
+- Valid PNG: ${body.screenshot?.validPng}
+- Browser interaction: ${body.safety?.browserInteraction}
+- Simulated stream only: ${body.safety?.simulatedStreamOnly}
+- Keyboard interaction only: ${body.safety?.keyboardInteractionOnly}
+- Fake provider only: ${body.safety?.fakeProviderOnly}
+- Default chat main lane changed: ${body.safety?.defaultChatMainLaneChanged}
+- Backend business route added: ${body.safety?.backendBusinessRouteAdded}
+- Provider calls: ${body.safety?.providerCalls}
+- Runtime mutation: ${body.safety?.runtimeMutation}
+- Release automation: ${body.safety?.releaseAutomation}
+- Infrastructure provisioning: ${body.safety?.infrastructureProvisioning}
+- Conclusion: ${body.conclusion}
+`;
 }
 

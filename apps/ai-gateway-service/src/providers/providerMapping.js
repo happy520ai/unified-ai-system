@@ -12,7 +12,6 @@ export function createProviderRequest({ request, target }) {
 export function createProviderResponse({
   text,
   message,
-  toolCalls = null,
   usage,
   latencyMs,
   executionStatus = "success",
@@ -22,7 +21,6 @@ export function createProviderResponse({
   return {
     text,
     message,
-    toolCalls,
     usage,
     latencyMs,
     executionStatus,

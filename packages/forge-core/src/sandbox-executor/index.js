@@ -21,7 +21,7 @@
  */
 
 import { spawn } from 'node:child_process';
-import { resolve } from 'node:path';
+import { delimiter, dirname, resolve } from 'node:path';
 import {
   SandboxLevel,
   getMaxLevelForPlatform,
@@ -235,6 +235,10 @@ export class SandboxExecutor {
         : ['-c', command];
 
       const childEnv = { ...process.env, ...(opts.env ?? {}) };
+      const pathKey = Object.keys(childEnv).find(key => key.toLowerCase() === 'path') ?? 'PATH';
+      childEnv[pathKey] = [dirname(process.execPath), childEnv[pathKey]]
+        .filter(Boolean)
+        .join(delimiter);
       const cwd = effectiveCwd;
 
       let child;
@@ -244,6 +248,7 @@ export class SandboxExecutor {
           env: childEnv,
           stdio: ['ignore', 'pipe', 'pipe'],
           windowsHide: true,
+          windowsVerbatimArguments: this.#platform === 'win32',
         });
       } catch (err) {
         resolvePromise(this.#buildResult({

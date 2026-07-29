@@ -13,15 +13,17 @@
 
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { createSourceReader } from "./helpers/source-closure.js";
 
 // Resolve source paths via import.meta.url for reliable cross-platform behavior
 const __testDir = fileURLToPath(new URL(".", import.meta.url));
 const SRC_ROOT = join(__testDir, "..", "..", "..", "apps", "ai-gateway-service", "src");
+const readFileSync = createSourceReader(SRC_ROOT);
 // For dynamic import() on Windows, must use file:// URL
 const ESM_SRC = pathToFileURL(SRC_ROOT).href;
 

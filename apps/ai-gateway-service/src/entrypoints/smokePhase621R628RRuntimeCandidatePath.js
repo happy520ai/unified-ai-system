@@ -1,9 +1,9 @@
+import { fetchJsonPayload as fetchJson, listenAtEphemeralUrl as listen, postJsonPayload as postJson } from "./entrypointUtils.js";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
-import { fetchJson, postJson, listen } from "./entrypointUtils.js";
 
 const PHASE = "Phase621R-628R";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -150,9 +150,11 @@ function expect(condition, id, detail = "") {
   checks.push({ id, pass: Boolean(condition), detail: String(detail || "") });
 }
 
+
 async function closeServer(server) {
   await new Promise((resolveClose) => server.close(resolveClose));
 }
+
 
 
 function renderMarkdown(data) {

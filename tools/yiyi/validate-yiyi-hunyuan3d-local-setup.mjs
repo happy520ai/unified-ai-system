@@ -1,9 +1,10 @@
 import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { dirname, relative, resolve } from "node:path";
+import { defaultConfig, resolveHunyuan3dSourceDir } from "./hunyuan3d-local-config.mjs";
 
 const task = "Yiyi-Local-Hunyuan3D-Setup-B";
-const enginePath = "E:/AI-Data/AI-Engines/Hunyuan3D-2.1";
+const enginePath = resolveHunyuan3dSourceDir();
 const generationConfigPath = "apps/ai-gateway-service/src/ui/assets/yiyi/generation/yiyi-3d-generation-config.json";
 const manifestPath = "apps/ai-gateway-service/src/ui/assets/yiyi/model/yiyi-avatar-manifest.json";
 const resultPath = "apps/ai-gateway-service/evidence/yiyi/hunyuan3d-local-setup-validation-result.json";
@@ -23,6 +24,11 @@ async function main() {
   const manifest = await readJson(manifestPath);
   const serialized = JSON.stringify({ config, manifest });
   const enginePathInConfig = config.localEngine?.enginePath || "";
+  const enginePathEnvInConfig = config.localEngine?.enginePathEnv || "";
+  const enginePathRelativeToRepo = relative(resolve("."), resolve(enginePath)).replaceAll("\\", "/");
+  const enginePathUsesExternalToolingBoundary =
+    enginePathRelativeToRepo.startsWith("../") ||
+    enginePathRelativeToRepo === defaultConfig.sourceDir;
   const result = {
     task,
     completed: true,
@@ -31,7 +37,8 @@ async function main() {
     engineReadmeExists: existsSync(resolve(enginePath, "README.md")),
     generationConfigExists: existsSync(resolve(generationConfigPath)),
     enginePathInConfig,
-    enginePathOutsideMainProject: /^E:\/AI-Data\/AI-Engines\/Hunyuan3D-2\.1$/i.test(enginePathInConfig),
+    enginePathEnvInConfig,
+    enginePathUsesExternalToolingBoundary,
     localEngineEnabled: config.localEngine?.enabled === true,
     configProviderCallsMade: config.safety?.providerCallsMade === true,
     configNonNvidiaProviderCallsMade: config.safety?.nonNvidiaProviderCallsMade === true,
@@ -57,7 +64,18 @@ async function main() {
   ensure(result.enginePathExists, "Hunyuan3D engine path must exist.");
   ensure(result.engineReadmeExists, "Hunyuan3D README must exist.");
   ensure(result.generationConfigExists, "generation config must exist.");
-  ensure(result.enginePathOutsideMainProject, "enginePath must point outside unified-ai-system.");
+  ensure(
+    result.enginePathUsesExternalToolingBoundary,
+    "enginePath must be outside the repository or under the ignored .tool-external directory.",
+  );
+  ensure(
+    enginePathInConfig === defaultConfig.sourceDir,
+    "generation config must use the portable default Hunyuan3D source directory.",
+  );
+  ensure(
+    enginePathEnvInConfig === "YIYI_HUNYUAN3D_SOURCE_DIR",
+    "generation config must document the Hunyuan3D source directory environment override.",
+  );
   ensure(result.localEngineEnabled === false, "local Hunyuan3D sidecar must remain disabled by default.");
   ensure(result.configProviderCallsMade === false, "config must not record provider calls.");
   ensure(result.configNonNvidiaProviderCallsMade === false, "config must not record non-NVIDIA provider calls.");

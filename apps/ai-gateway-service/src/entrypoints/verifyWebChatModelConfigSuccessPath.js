@@ -1,5 +1,15 @@
+import { close, findRequiredBrowserPath as findBrowserPath, listen, writeEvidenceFiles } from "./entrypointUtils.js";
+import {
+  closeCdpSilently,
+  connectCdp,
+  createCdpPage,
+  inspectPng,
+  readDevToolsPort,
+  terminateBrowser,
+  waitForExpression,
+  waitForLoadEvent,
+} from "./verifyWebChatBrowserHelpers.js";
 import { spawn } from "node:child_process";
-import { writeEvidencePair } from "./entrypointUtils.js";
 import { createServer } from "node:http";
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -9,17 +19,6 @@ import vm from "node:vm";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
 import { createConsolePage } from "../ui/consolePage.js";
-import { sleep, listen, findBrowserPath, close } from "./entrypointUtils.js";
-import {
-  connectCdp,
-  closeCdpSilently,
-  createCdpPage,
-  inspectPng,
-  readDevToolsPort,
-  terminateBrowser,
-  waitForExpression,
-  waitForLoadEvent,
-} from "./verifyWebChatModelConfigSuccessPathHelpers.js";
 
 const PHASE = "phase-86a-web-chat-model-config-success-path";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -183,7 +182,7 @@ try {
     await closeCdpSilently(cdp);
   }
 
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyWebChatModelConfigSuccessPathEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = evidence.status === "passed" ? 0 : 1;
 } catch (error) {
@@ -194,7 +193,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "web-chat-model-config-success-path-not-connected",
   };
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyWebChatModelConfigSuccessPathEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -395,6 +394,47 @@ async function readState(cdp) {
   })()`);
 }
 
+
+
+async function writeVerifyWebChatModelConfigSuccessPathEvidence(body) {
+  await writeEvidenceFiles({
+    evidenceDir,
+    evidenceJsonPath,
+    evidenceMdPath,
+    body,
+    renderMarkdown: createEvidenceMarkdown,
+  });
+}
+
+function createEvidenceMarkdown(body) {
+  return `# Phase 86A Web Chat Model Config Success Path Evidence
+
+- Phase: ${body.phase}
+- Status: ${body.status}
+- Generated at: ${body.generatedAt}
+- Service URL: ${body.serviceUrl ?? "n/a"}
+- UI URL: ${body.ui?.url ?? "n/a"}
+- Preview provider hint: ${body.ui?.finalState?.previewFetch?.providerHint ?? "n/a"}
+- Preview base URL present: ${Boolean(body.ui?.finalState?.previewFetch?.baseUrl)}
+- Confirm provider: ${body.ui?.finalState?.confirmFetch?.providerId ?? "n/a"}
+- Chat provider/model: ${body.ui?.finalState?.chatFetch?.providerId ?? "n/a"} / ${body.ui?.finalState?.chatFetch?.model ?? "n/a"}
+- Selected runtime value: ${body.ui?.finalState?.providerSelectValue ?? "n/a"}
+- Runtime credential present: ${body.ui?.finalState?.runtimeCredentialPresent}
+- Preference value: ${body.ui?.finalState?.preferenceValue ?? "n/a"}
+- Focus returned to chat input: ${body.ui?.finalState?.focusReturnedToChatInput}
+- API key value recorded: ${body.safety?.apiKeyValueRecorded}
+- API key persisted in browser: ${body.safety?.apiKeyPersistedInBrowser}
+- API key persisted in evidence: ${body.safety?.apiKeyPersistedInEvidence}
+- Local mock provider only: ${body.safety?.localMockProviderOnly}
+- Real provider calls: ${body.safety?.realProviderCalls}
+- Default chat main lane changed: ${body.safety?.defaultChatMainLaneChanged}
+- Screenshot path: ${body.screenshot?.path ?? "n/a"}
+- Screenshot bytes: ${body.screenshot?.bytes ?? "n/a"}
+- Screenshot dimensions: ${body.screenshot?.width ?? "n/a"}x${body.screenshot?.height ?? "n/a"}
+- Valid PNG: ${body.screenshot?.validPng}
+- Conclusion: ${body.conclusion}
+`;
+}
 
 function safeJsonParse(text) {
   if (!text) return {};

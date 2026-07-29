@@ -1,4 +1,4 @@
-import { writeJson, writeText } from "../phase366-common.mjs";
+import { writeJson, writeText } from "../phase-file-utils.mjs";
 
 const template = {
   templateOnly: true,

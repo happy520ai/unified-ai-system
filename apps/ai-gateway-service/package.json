@@ -5,30 +5,27 @@
   "type": "module",
   "main": "./src/index.js",
   "dependencies": {
-    "@unified-ai-system/forge-core": "workspace:*",
-    "@unified-ai-system/shared-config": "workspace:*",
-    "@unified-ai-system/shared-contracts": "workspace:*",
-    "@unified-ai-system/shared-utils": "workspace:*",
     "@unified-ai-system/codex-context-gateway": "workspace:*",
     "@unified-ai-system/context-codec-core": "workspace:*",
     "@unified-ai-system/employee-brain-adapter": "workspace:*",
+    "@unified-ai-system/forge-core": "workspace:*",
     "@unified-ai-system/im-connector-feishu": "workspace:*",
     "@unified-ai-system/im-connector-wecom": "workspace:*",
+    "@unified-ai-system/shared-config": "workspace:*",
+    "@unified-ai-system/shared-contracts": "workspace:*",
     "@unified-ai-system/shared-sdk": "workspace:*",
+    "@unified-ai-system/shared-utils": "workspace:*",
     "@unified-ai-system/taiji-beidou-engine": "workspace:*",
     "@unified-ai-system/workforce-scheduler": "workspace:*",
     "mammoth": "^1.12.0",
     "pdf-parse": "^2.4.5",
-    "pino": "^10.3.1",
-    "prom-client": "^15.1.3",
-    "exceljs": "^4.4.0",
-    "zod": "^4.4.3"
+    "pino": "10.3.1",
+    "xlsx": "^0.18.5"
   },
   "scripts": {
     "start": "node ./src/index.js",
     "check": "node ./src/entrypoints/checkSyntax.js",
-    "build": "pnpm run check && node ./src/ui/buildFrontend.js",
-    "build:frontend": "node ./src/ui/buildFrontend.js",
+    "build": "pnpm run check",
     "inventory:phase323c": "node ../../tools/phase323c/build-phase323c-inventory.mjs",
     "governance:phase323c": "node ../../tools/phase323c/build-phase323c-script-governance.mjs",
     "commands:phase323c": "node ../../tools/phase323c/print-phase323c-recommended-commands.mjs",
@@ -458,13 +455,11 @@
     "verify:phase292a-architecture-refactor-readiness-plan": "node ./src/entrypoints/verifyArchitectureRefactorReadinessPlan.js",
     "verify:phase2145a-chat-truthfulness-and-model-gate": "node ./src/entrypoints/verifyPhase2145AChatTruthfulnessAndModelGate.js",
     "smoke:phase2145a-chat-truthfulness-and-model-gate:dry-run": "node ./src/entrypoints/verifyPhase2145AChatTruthfulnessAndModelGate.js",
-    "test": "node --test src/**/*.test.js tests/*.test.js",
-    "test:unit": "node --test src/**/*.test.js",
-    "test:e2e": "node --test tests/e2e-http.test.js",
-    "test:chaos": "node --test tests/chaos-foundation.test.js",
-    "test:coverage": "c8 --reporter=text --reporter=html --reporter=json-summary node --test src/**/*.test.js tests/*.test.js"
-  },
-  "devDependencies": {
-    "c8": "^10.1.0"
+    "test": "node ./src/entrypoints/runTestSuite.js",
+    "test:unit": "node ./src/entrypoints/runTestSuite.js --scope=unit",
+    "test:node": "node ./src/entrypoints/runTestSuite.js --framework=node",
+    "test:vitest": "node ./src/entrypoints/runTestSuite.js --framework=vitest",
+    "test:local": "node ./src/entrypoints/runTestSuite.js --scope=local",
+    "test:all": "node ./src/entrypoints/runTestSuite.js --scope=all"
   }
 }

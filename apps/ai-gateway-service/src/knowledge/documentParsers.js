@@ -1,12 +1,12 @@
 import mammoth from "mammoth";
 import { PDFParse } from "pdf-parse";
-import ExcelJS from "exceljs";
+import * as XLSX from "xlsx";
 
 const MAX_FILE_BYTES = 100 * 1024 * 1024;
 const TEXT_EXTENSIONS = new Set([".txt", ".md", ".markdown", ".json", ".csv", ".log", ".html", ".htm", ".xml", ".yaml", ".yml"]);
 const PDF_EXTENSIONS = new Set([".pdf"]);
 const WORD_EXTENSIONS = new Set([".docx"]);
-const EXCEL_EXTENSIONS = new Set([".xlsx"]);
+const EXCEL_EXTENSIONS = new Set([".xlsx", ".xls"]);
 
 export function getSupportedKnowledgeFileTypes() {
   return {
@@ -75,27 +75,21 @@ export async function parseKnowledgeFile(file = {}) {
   }
 
   if (EXCEL_EXTENSIONS.has(extension)) {
-    const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(buffer);
-    const sheetNames = [];
-    const text = [];
-    workbook.eachSheet((worksheet) => {
-      sheetNames.push(worksheet.name);
-      const rows = [];
-      worksheet.eachRow({ includeEmpty: false }, (row) => {
-        rows.push(row.values.slice(1).map(String).join(","));
-      });
-      text.push(`# Sheet: ${worksheet.name}`, rows.join("\n"));
-    });
+    const workbook = XLSX.read(buffer, { type: "buffer" });
+    const text = workbook.SheetNames.map((sheetName) => {
+      const sheet = workbook.Sheets[sheetName];
+      const csv = XLSX.utils.sheet_to_csv(sheet, { blankrows: false });
+      return [`# Sheet: ${sheetName}`, csv].join("\n");
+    }).join("\n\n");
 
     return createParsedDocument({
       fileName,
-      parser: "exceljs",
+      parser: "xlsx",
       mimeType: file.mimeType,
       fileSize: buffer.length,
-      text: text.join("\n"),
+      text,
       metadata: {
-        sheetNames,
+        sheetNames: workbook.SheetNames,
       },
     });
   }
@@ -131,15 +125,6 @@ function createParsedDocument({ fileName, parser, mimeType, fileSize, text, meta
 
 function decodeBase64(value) {
   const raw = typeof value === "string" ? value.trim() : "";
-  // Pre-check: reject absurdly large strings before allocating a Buffer
-  // 100 MB binary → ~133 MB base64; cap at 150 MB string to prevent memory exhaustion
-  const MAX_BASE64_STRING_LENGTH = 150 * 1024 * 1024;
-  if (raw.length > MAX_BASE64_STRING_LENGTH) {
-    throw createParserError("KNOWLEDGE_FILE_TOO_LARGE", "Base64 input exceeds maximum safe length.", {
-      stringLength: raw.length,
-      maxLength: MAX_BASE64_STRING_LENGTH,
-    });
-  }
   const base64 = raw.includes(",") && raw.startsWith("data:") ? raw.slice(raw.indexOf(",") + 1) : raw;
   return Buffer.from(base64, "base64");
 }

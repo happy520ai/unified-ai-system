@@ -3,7 +3,6 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 import { createConsolePage } from "../ui/consolePage.js";
-import { writeEvidenceWithRenderer } from "./entrypointUtils.js";
 
 const PHASE = "phase-82a-web-chat-model-availability-guide";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -55,7 +54,7 @@ try {
     },
     conclusion: passed ? "web-chat-model-availability-guide-connected" : "web-chat-model-availability-guide-not-connected",
   };
-  await saveEvidence(evidence);
+  await writeEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = passed ? 0 : 1;
 } catch (error) {
@@ -66,7 +65,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "web-chat-model-availability-guide-not-connected",
   };
-  await saveEvidence(evidence);
+  await writeEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 }
@@ -77,18 +76,10 @@ function extractInlineScript(html) {
   return match[1];
 }
 
-async function saveEvidence(evidence) {
-  await writeEvidenceWithRenderer(
-    evidenceDir,
-    evidenceJsonPath,
-    evidenceMdPath,
-    evidence,
-    renderEvidenceMarkdown,
-  );
-}
-
-function renderEvidenceMarkdown(evidence) {
-  return [
+async function writeEvidence(evidence) {
+  await mkdir(evidenceDir, { recursive: true });
+  await writeFile(evidenceJsonPath, JSON.stringify(evidence, null, 2));
+  await writeFile(evidenceMdPath, [
     `# ${PHASE}`,
     "",
     `- Status: ${evidence.status}`,
@@ -102,5 +93,5 @@ function renderEvidenceMarkdown(evidence) {
     `- Provider calls: ${Boolean(evidence.safety?.providerCalls)}`,
     `- Conclusion: ${evidence.conclusion}`,
     "",
-  ].join("\n");
+  ].join("\n"));
 }

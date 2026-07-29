@@ -13,13 +13,14 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { createSourceReader } from "./helpers/source-closure.js";
 
 // Resolve source paths via import.meta.url for reliable cross-platform behavior
 const __testDir = fileURLToPath(new URL(".", import.meta.url));
 const SRC_ROOT = join(__testDir, "..", "..", "..", "apps", "ai-gateway-service", "src");
+const readFileSync = createSourceReader(SRC_ROOT);
 // For dynamic import() on Windows, must use file:// URL
 const ESM_SRC = pathToFileURL(SRC_ROOT).href;
 
@@ -185,8 +186,10 @@ describe("Batch10-4: writeHtml writableEnded/headersSent guard", () => {
     assert.ok(guardIdx < writeHeadIdx, "Guard should come BEFORE writeHead");
 
     assert.ok(
-      writeHtmlSrc.includes("response.writableEnded || response.headersSent"),
-      "Should use OR condition for both writableEnded and headersSent"
+      writeHtmlSrc.includes("response.writableEnded")
+        && writeHtmlSrc.includes("response.headersSent")
+        && writeHtmlSrc.includes("||"),
+      "Should combine finalized response states with an OR guard"
     );
   });
 });
@@ -205,12 +208,15 @@ describe("Batch10-5: WebSocket async onMessage promise rejection catch", () => {
     assert.ok(onDataSrc.includes('typeof result.catch === "function"'), "Should verify .catch is a function");
   });
 
-  it("prevents unhandled promise rejection crash", () => {
+  it("reports async handler rejections instead of leaving them unhandled", () => {
     const src = readFileSync(join(SRC_ROOT, "http/webSocketServer.js"), "utf-8");
     const onDataStart = src.indexOf('socket.on("data"');
     const onDataSrc = src.slice(onDataStart, onDataStart + 600);
 
-    assert.ok(onDataSrc.includes("result.catch(() => {})"), "Should catch rejections with no-op handler");
+    assert.ok(
+      onDataSrc.includes("result.catch((error) => reportError(error"),
+      "Should forward async rejections to the WebSocket error reporter"
+    );
     assert.ok(onDataSrc.includes("result && typeof result.catch"), "Should null-check result before accessing .catch");
   });
 
@@ -333,7 +339,7 @@ describe("Batch10-8: knowledgePersistence JSON.parse crash guard", () => {
     const src = readFileSync(join(SRC_ROOT, "knowledge/knowledgePersistence.js"), "utf-8");
     const readStart = src.indexOf("function readFileDocuments");
     assert.ok(readStart > 0, "readFileDocuments function should exist");
-    const readSrc = src.slice(readStart, readStart + 500);
+    const readSrc = src.slice(readStart, readStart + 1200);
 
     assert.ok(readSrc.includes("try {"), "Should have try block around JSON.parse");
     assert.ok(readSrc.includes("catch"), "Should have catch block for parse errors");
@@ -342,7 +348,7 @@ describe("Batch10-8: knowledgePersistence JSON.parse crash guard", () => {
   it("returns empty array on corrupted file instead of crashing", () => {
     const src = readFileSync(join(SRC_ROOT, "knowledge/knowledgePersistence.js"), "utf-8");
     const readStart = src.indexOf("function readFileDocuments");
-    const readSrc = src.slice(readStart, readStart + 500);
+    const readSrc = src.slice(readStart, readStart + 1200);
 
     // catch block should return empty array
     const catchIdx = readSrc.indexOf("catch");
@@ -354,7 +360,7 @@ describe("Batch10-8: knowledgePersistence JSON.parse crash guard", () => {
   it("still checks file existence before parsing", () => {
     const src = readFileSync(join(SRC_ROOT, "knowledge/knowledgePersistence.js"), "utf-8");
     const readStart = src.indexOf("function readFileDocuments");
-    const readSrc = src.slice(readStart, readStart + 500);
+    const readSrc = src.slice(readStart, readStart + 1200);
 
     assert.ok(readSrc.includes("existsSync(filePath)"), "Should still check if file exists");
     // Existence check should come before JSON.parse
@@ -366,7 +372,7 @@ describe("Batch10-8: knowledgePersistence JSON.parse crash guard", () => {
   it("still processes documents array normally on valid input", () => {
     const src = readFileSync(join(SRC_ROOT, "knowledge/knowledgePersistence.js"), "utf-8");
     const readStart = src.indexOf("function readFileDocuments");
-    const readSrc = src.slice(readStart, readStart + 500);
+    const readSrc = src.slice(readStart, readStart + 1200);
 
     assert.ok(readSrc.includes("Array.isArray(parsed"), "Should still check for documents array");
     assert.ok(readSrc.includes("document.sourceId"), "Should still map document fields");

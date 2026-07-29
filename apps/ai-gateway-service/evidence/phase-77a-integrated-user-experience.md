@@ -21,7 +21,7 @@
 - Score breakdown present: true
 - Enterprise overview HTTP status: 200
 - Workflow run status: completed
-- Workflow artifact: C:/Users/Administrator/AppData/Local/Temp/phase77a-integrated-t7hQgh/phase-77a-integrated-report.md
+- Workflow artifact: <user-home>/AppData/Local/Temp/phase77a-integrated-t7hQgh/phase-77a-integrated-report.md
 - Artifact marker present: true
 - Artifact safety text present: true
 - Default chat main lane changed: false

@@ -1,7 +1,11 @@
+import {
+  readRepoTextSync as readText,
+  readRepoJsonSync as readJson,
+  writeRepoJsonSync as writeJson,
+} from "./entrypointUtils.js";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { readJson, readText, writeJson } from "./entrypointUtils.js"
 
 const PHASE = "273A-rag-source-selection-benchmark";
 const __dirname = dirname(fileURLToPath(import.meta.url));

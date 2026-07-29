@@ -4,6 +4,47 @@ export function createRequestId(prefix = "req") {
   return `${prefix}_${time}_${rand}`;
 }
 
+export function sleep(ms) {
+  return new Promise((resolveSleep) => setTimeout(resolveSleep, ms));
+}
+
+export function listen(server, port = 0, host = "127.0.0.1") {
+  return new Promise((resolveListen, rejectListen) => {
+    server.once("error", rejectListen);
+    server.listen(port, host, () => {
+      server.off("error", rejectListen);
+      resolveListen();
+    });
+  });
+}
+
+export async function listenAtEphemeralUrl(server, host = "127.0.0.1") {
+  await listen(server, 0, host);
+  const address = server.address();
+  if (!address || typeof address === "string") {
+    throw new Error("Server did not expose an ephemeral TCP port.");
+  }
+  return `http://${host}:${address.port}`;
+}
+
+export async function fetchJsonPayload(url, options) {
+  const response = await fetch(url, options);
+  return response.json();
+}
+
+export async function writeEvidenceFiles({
+  evidenceDir,
+  evidenceJsonPath,
+  evidenceMdPath,
+  body,
+  renderMarkdown,
+}) {
+  const { mkdir, writeFile } = await import("node:fs/promises");
+  await mkdir(evidenceDir, { recursive: true });
+  await writeFile(evidenceJsonPath, `${JSON.stringify(body, null, 2)}\n`, "utf8");
+  await writeFile(evidenceMdPath, renderMarkdown(body), "utf8");
+}
+
 export function createOkEnvelope(data, params = {}) {
   return {
     status: "ok",

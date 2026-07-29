@@ -1,6 +1,5 @@
+import { findRequiredBrowserPath as findBrowserPath, listen, sleep, writeEvidenceFiles, } from "./entrypointUtils.js";
 import { spawn } from "node:child_process";
-import { writeEvidencePair } from "./entrypointUtils.js";
-import { existsSync, readdirSync } from "node:fs";
 import { mkdtemp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
@@ -9,7 +8,6 @@ import vm from "node:vm";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
 import { createConsolePage } from "../ui/consolePage.js";
-import { sleep, listen, findBrowserPath, close } from "./entrypointUtils.js";
 
 const PHASE = "phase-91a-web-chat-model-config-restore-recovery";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -196,7 +194,7 @@ try {
     await closeCdpSilently(cdp);
   }
 
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyWebChatModelConfigRestoreRecoveryEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = evidence.status === "passed" ? 0 : 1;
 } catch (error) {
@@ -207,7 +205,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "web-chat-model-config-restore-recovery-not-actionable",
   };
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyWebChatModelConfigRestoreRecoveryEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -288,13 +286,6 @@ async function waitForRecoveryState(cdp) {
 }
 
 
-function findVersionedBrowserPaths(root, executableName) {
-  if (!existsSync(root)) return [];
-  return readdirSync(root, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => resolve(root, entry.name, executableName))
-    .reverse();
-}
 
 async function readDevToolsPort(profileDir) {
   const portFile = resolve(profileDir, "DevToolsActivePort");
@@ -414,5 +405,44 @@ async function terminateBrowser(targetProcess) {
   const exited = new Promise((resolveExit) => targetProcess.once("exit", () => resolveExit(true)));
   targetProcess.kill();
   await Promise.race([exited, sleep(2000)]);
+}
+
+
+function close(targetServer) {
+  return new Promise((resolveClose) => targetServer.close(() => resolveClose()));
+}
+
+async function writeVerifyWebChatModelConfigRestoreRecoveryEvidence(body) {
+  await writeEvidenceFiles({
+    evidenceDir,
+    evidenceJsonPath,
+    evidenceMdPath,
+    body,
+    renderMarkdown: createEvidenceMarkdown,
+  });
+}
+
+function createEvidenceMarkdown(body) {
+  return `# Phase 91A Web Chat Model Config Restore Recovery Evidence
+
+- Phase: ${body.phase}
+- Status: ${body.status}
+- Generated at: ${body.generatedAt}
+- Service URL: ${body.serviceUrl ?? "n/a"}
+- Provider select value: ${body.ui?.state?.providerSelectValue ?? "n/a"}
+- Restored from local: ${body.ui?.state?.modelRestoredFromLocal ?? "n/a"}
+- Recovery required: ${body.ui?.state?.modelRecoveryRequired ?? "n/a"}
+- Probe text: ${body.ui?.state?.modelProbeText ?? "n/a"}
+- Preference text: ${body.ui?.state?.modelPreferenceText ?? "n/a"}
+- Config button: ${body.ui?.state?.modelConfigButtonText ?? "n/a"}
+- Guide: ${body.ui?.state?.modelGuideText ?? "n/a"}
+- Fetches: ${(body.ui?.state?.fetches ?? []).join(", ")}
+- Screenshot path: ${body.screenshot?.path ?? "n/a"}
+- Screenshot bytes: ${body.screenshot?.bytes ?? "n/a"}
+- Valid PNG: ${body.screenshot?.validPng}
+- Real provider calls: ${body.safety?.realProviderCalls}
+- Default chat main lane changed: ${body.safety?.defaultChatMainLaneChanged}
+- Conclusion: ${body.conclusion}
+`;
 }
 

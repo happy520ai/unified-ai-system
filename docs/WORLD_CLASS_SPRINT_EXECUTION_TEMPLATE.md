@@ -45,7 +45,7 @@
 每一轮开始前，先跑这组命令并记录输出到 `docs/world-class-baseline-<date>.md`：
 
 ```powershell
-cd E:\AI-Data\AI网关系统\unified-ai-system
+cd <repository-root>
 
 # 1. 测试基线（当前 257 tests / 217 pass / 40 fail）
 cd apps/ai-gateway-service && pnpm test 2>&1 | grep -E "tests [0-9]|pass [0-9]|fail [0-9]"

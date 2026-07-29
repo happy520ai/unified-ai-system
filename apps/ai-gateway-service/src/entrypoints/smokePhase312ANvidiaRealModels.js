@@ -1,8 +1,7 @@
+import { listenAtEphemeralUrl as listen, sleep } from "./entrypointUtils.js";
 import { mkdir, writeFile } from "node:fs/promises";
-import { writeEvidenceWithRenderer } from "./entrypointUtils.js";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { sleep, listen } from "./entrypointUtils.js";
 
 import { createModelLibraryStore } from "../model-library/modelLibraryStore.js";
 import { ENDPOINT_TYPES } from "../model-library/modelCapabilityRules.js";
@@ -43,7 +42,7 @@ const evidence = {
 if (!evidence.realSmokeEnabled) {
   evidence.status = "skipped-not-enabled";
   evidence.blockers.push("real_smoke_not_enabled");
-  await writeEvidenceWithRenderer(dirname(evidenceJsonPath), evidenceJsonPath, evidenceMdPath, evidence, renderMarkdown);
+  await writeEvidence(evidence);
   console.log(JSON.stringify({ status: evidence.status, blockers: evidence.blockers }, null, 2));
   process.exit(0);
 }
@@ -51,7 +50,7 @@ if (!evidence.realSmokeEnabled) {
 if (!evidence.apiKeyPresent) {
   evidence.status = "fail";
   evidence.blockers.push("nvidia_api_key_missing");
-  await writeEvidenceWithRenderer(dirname(evidenceJsonPath), evidenceJsonPath, evidenceMdPath, evidence, renderMarkdown);
+  await writeEvidence(evidence);
   console.error(JSON.stringify({ status: evidence.status, blockers: evidence.blockers }, null, 2));
   process.exit(1);
 }
@@ -61,7 +60,7 @@ evidence.candidateModelIds = candidates.map((model) => model.modelId);
 if (candidates.length === 0) {
   evidence.status = "fail";
   evidence.blockers.push("no_smoke_candidates");
-  await writeEvidenceWithRenderer(dirname(evidenceJsonPath), evidenceJsonPath, evidenceMdPath, evidence, renderMarkdown);
+  await writeEvidence(evidence);
   console.error(JSON.stringify({ status: evidence.status, blockers: evidence.blockers }, null, 2));
   process.exit(1);
 }
@@ -126,7 +125,7 @@ if (failedSelectable.length > 0 || failedResults.length > 0) {
   evidence.sealed = false;
 }
 
-await writeEvidenceWithRenderer(dirname(evidenceJsonPath), evidenceJsonPath, evidenceMdPath, evidence, renderMarkdown);
+await writeEvidence(evidence);
 if (evidence.status !== "pass") {
   console.error(JSON.stringify({
     status: evidence.status,
@@ -183,6 +182,7 @@ function summarizeGatewaySmoke(response) {
     blockers: data.blockers ?? [],
   };
 }
+
 
 function closeServer(server) {
   return new Promise((resolveClose) => server.close(() => resolveClose()));
@@ -291,6 +291,12 @@ function classifySmokeStatus(result) {
   return "blocked";
 }
 
+
+async function writeEvidence(evidence) {
+  await mkdir(dirname(evidenceJsonPath), { recursive: true });
+  await writeFile(evidenceJsonPath, `${JSON.stringify(evidence, null, 2)}\n`, "utf8");
+  await writeFile(evidenceMdPath, renderMarkdown(evidence), "utf8");
+}
 
 function renderMarkdown(evidence) {
   return [

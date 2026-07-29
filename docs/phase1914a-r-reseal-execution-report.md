@@ -10,10 +10,10 @@ C. blocker
 - null
 
 D. fresh created desktop file paths
-- C:\Users\Administrator\Desktop\PME-AI-Gateway-owner-local-action-phase1914a-r-20260519-103447.csv
-- C:\Users\Administrator\Desktop\phase1914a-r-owner-local-action-batch-test-1-20260519-103447.txt
-- C:\Users\Administrator\Desktop\phase1914a-r-owner-local-action-batch-test-2-20260519-103447.txt
-- C:\Users\Administrator\Desktop\phase1914a-r-owner-local-action-batch-test-3-20260519-103447.txt
+- <user-home>\Desktop\PME-AI-Gateway-owner-local-action-phase1914a-r-20260519-103447.csv
+- <user-home>\Desktop\phase1914a-r-owner-local-action-batch-test-1-20260519-103447.txt
+- <user-home>\Desktop\phase1914a-r-owner-local-action-batch-test-2-20260519-103447.txt
+- <user-home>\Desktop\phase1914a-r-owner-local-action-batch-test-3-20260519-103447.txt
 
 E. file_exists_check
 - true

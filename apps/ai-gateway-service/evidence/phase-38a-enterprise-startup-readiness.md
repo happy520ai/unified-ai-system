@@ -4,9 +4,9 @@
 - Status: passed
 - Generated at: 2026-04-26T05:01:03.507Z
 - Service URL: http://127.0.0.1:61556
-- User store path: C:\Users\Administrator\AppData\Local\Temp\phase38a-enterprise-startup-2aq03l\users\enterprise-users.json
-- Audit log path: C:\Users\Administrator\AppData\Local\Temp\phase38a-enterprise-startup-2aq03l\audit\enterprise-audit.jsonl
-- Backup dir: C:\Users\Administrator\AppData\Local\Temp\phase38a-enterprise-startup-2aq03l\backups
+- User store path: <user-home>\AppData\Local\Temp\phase38a-enterprise-startup-2aq03l\users\enterprise-users.json
+- Audit log path: <user-home>\AppData\Local\Temp\phase38a-enterprise-startup-2aq03l\audit\enterprise-audit.jsonl
+- Backup dir: <user-home>\AppData\Local\Temp\phase38a-enterprise-startup-2aq03l\backups
 - UI startup readiness present: true
 - Missing startup readiness status: 401
 - Startup HTTP status: 200

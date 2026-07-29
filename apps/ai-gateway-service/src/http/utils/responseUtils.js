@@ -30,40 +30,56 @@ export async function readJson(request, maxSize = 1_048_576) {
  * Write JSON HTTP response
  */
 export function writeJson(response, status, data) {
+  if (response.writableEnded || response.destroyed || response.headersSent) {
+    return false;
+  }
   const body = JSON.stringify(data);
   response.writeHead(status, {
     "Content-Type": "application/json; charset=utf-8",
     "Content-Length": Buffer.byteLength(body),
   });
   response.end(body);
+  return true;
 }
 
 /**
  * Write HTML response
  */
 export function writeHtml(response, status, html) {
+  if (response.writableEnded || response.destroyed || response.headersSent) {
+    return false;
+  }
   response.writeHead(status, { "Content-Type": "text/html; charset=utf-8" });
   response.end(html);
+  return true;
 }
 
 /**
  * Write SSE headers for streaming responses
  */
 export function writeSseHeaders(response) {
+  if (response.writableEnded || response.destroyed || response.headersSent) {
+    return false;
+  }
   response.writeHead(200, {
     "Content-Type": "text/event-stream",
     "Cache-Control": "no-cache",
     "Connection": "keep-alive",
     "X-Accel-Buffering": "no",
   });
+  if (typeof response.flushHeaders === "function") {
+    response.flushHeaders();
+  }
+  return true;
 }
 
 /**
  * Write a single SSE event
  */
 export function writeSseEvent(response, event, data) {
-  if (response.writableEnded) return;
+  if (response.writableEnded || response.destroyed) return false;
   response.write(`event: ${event}\ndata: ${typeof data === "string" ? data : JSON.stringify(data)}\n\n`);
+  return true;
 }
 
 const MAX_BODY_SIZE = 10 * 1024 * 1024; // 10MB

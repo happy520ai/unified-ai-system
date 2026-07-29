@@ -1,6 +1,5 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { readJson } from "../entrypoints/entrypointUtils.js";
 
 const REQUIRED_SCRIPT_PAIRS = [
   ["benchmark:token-saving", "benchmark:token-saving"],
@@ -59,3 +58,6 @@ export function auditPackageScripts(repoRoot) {
   };
 }
 
+function readJson(filePath) {
+  return JSON.parse(readFileSync(filePath, "utf8"));
+}

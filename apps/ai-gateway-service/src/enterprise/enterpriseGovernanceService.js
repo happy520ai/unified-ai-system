@@ -2,23 +2,26 @@ import { appendFile, mkdir } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import {
   DEFAULT_ROLES,
-  parseUsers,
-  addUser,
   addStoredUser,
-  normalizeStoredUser,
-  findStoredUser,
-  loadStoredUsers,
-  saveStoredUsers,
   createSanitizedUsers,
-  sanitizeUser,
-  sanitizeIdentity,
+  findStoredUser,
   hashToken,
+  loadStoredUsers,
+  normalizeStoredUser,
+  parseUsers,
+  sanitizeIdentity,
+  sanitizeUser,
+  saveStoredUsers,
 } from "./enterpriseUserStore.js";
-import { readAuditFile, filterAuditEntries, sanitizeAuditFilters } from "./enterpriseAuditHelpers.js";
+import {
+  filterAuditEntries,
+  readAuditFile,
+  sanitizeAuditFilters,
+} from "./enterpriseAuditHelpers.js";
 
 const DEFAULT_AUDIT_LIMIT = 200;
 
-export function createEnterpriseGovernanceService({ env = {}, auditLogPath, auditHashChain = null, revocationStore = null } = {}) {
+export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {}) {
   const authEnabled = readBoolean(env.PME_ENTERPRISE_AUTH_ENABLED, Boolean(env.PME_AUTH_TOKEN || env.PME_ENTERPRISE_USERS_JSON || env.PME_ENTERPRISE_USER_STORE_PATH));
   const userStorePath = env.PME_ENTERPRISE_USER_STORE_PATH ?? resolve(".data/enterprise/users.json");
   const users = parseUsers(env);
@@ -50,9 +53,7 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath, audi
           mode: "jsonl-file",
           path: auditPath,
           inMemoryEntryCount: auditEntries.length,
-          hashChain: auditHashChain ? { enabled: true, entryCount: auditHashChain.getEntryCount(), lastHash: auditHashChain.getLastHash().slice(0, 12) } : { enabled: false },
         },
-        revocationStore: revocationStore ? { enabled: true, ...revocationStore.getStats() } : { enabled: false },
       };
     },
 
@@ -120,7 +121,7 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath, audi
       };
     },
 
-    async revokeUser(input = {}, actorIdentity) {
+    revokeUser(input = {}, actorIdentity) {
       const target = findStoredUser(storedUsers, input);
       if (!target) {
         const error = new Error("Enterprise user was not found in the managed user store.");
@@ -133,14 +134,6 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath, audi
       target.updatedAt = new Date().toISOString();
       saveStoredUsers(userStorePath, storedUsers);
       addStoredUser(users, target);
-
-      if (revocationStore) {
-        await revocationStore.revoke(target.tokenHash, {
-          source: "enterprise_user",
-          revokedBy: actorIdentity?.userId ?? "system",
-          reason: "enterprise_user_revoked",
-        });
-      }
 
       return {
         status: "ready",
@@ -186,7 +179,7 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath, audi
         };
       }
 
-      if (configured.revoked || revokedTokens.has(token) || revokedTokens.has(tokenHash) || (revocationStore && revocationStore.isRevoked(token))) {
+      if (configured.revoked || revokedTokens.has(token) || revokedTokens.has(tokenHash)) {
         return {
           authenticated: false,
           statusCode: 401,
@@ -283,9 +276,6 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath, audi
 
       await mkdir(dirname(auditPath), { recursive: true });
       await appendFile(auditPath, `${JSON.stringify(entry)}\n`, "utf8");
-      if (auditHashChain) {
-        await auditHashChain.append(entry);
-      }
       return entry;
     },
 
@@ -321,7 +311,12 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath, audi
 }
 
 function createIdentity({ userId, tenantId, role, permissions }) {
-  return { userId, tenantId, role, permissions };
+  return {
+    userId,
+    tenantId,
+    role,
+    permissions,
+  };
 }
 
 function readToken(request) {
@@ -329,6 +324,7 @@ function readToken(request) {
   if (typeof headerToken === "string" && headerToken.trim()) {
     return headerToken.trim();
   }
+
   const bearer = String(request.headers.authorization ?? "").replace(/^Bearer\s+/i, "").trim();
   return bearer || null;
 }
@@ -406,18 +402,6 @@ function createSecurityReadiness({ authEnabled, users, revokedTokens, userStoreP
   };
 }
 
-function isUserRevoked(user, revokedTokens) {
-  return Boolean(user.revoked || revokedTokens.has(user.token) || revokedTokens.has(user.tokenHash));
-}
-
-function isExpired(expiresAt) {
-  if (!expiresAt) {
-    return false;
-  }
-  const timestamp = Date.parse(expiresAt);
-  return Number.isFinite(timestamp) && timestamp <= Date.now();
-}
-
 function parseRevokedTokens(value) {
   return new Set(
     String(value ?? "")
@@ -427,9 +411,23 @@ function parseRevokedTokens(value) {
   );
 }
 
+function isUserRevoked(user, revokedTokens) {
+  return Boolean(user.revoked || revokedTokens.has(user.token) || revokedTokens.has(user.tokenHash));
+}
+
+function isExpired(expiresAt) {
+  if (!expiresAt) {
+    return false;
+  }
+
+  const timestamp = Date.parse(expiresAt);
+  return Number.isFinite(timestamp) && timestamp <= Date.now();
+}
+
 function readBoolean(value, fallback) {
   if (value === undefined || value === "") {
     return fallback;
   }
+
   return value === "1" || String(value).toLowerCase() === "true";
 }

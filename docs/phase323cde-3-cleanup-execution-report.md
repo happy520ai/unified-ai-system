@@ -10,8 +10,8 @@
 
 ### 已完成
 
-- 新增只读工具 [tools/phase323c/print-phase323c-recommended-commands.mjs](/E:/AI-Data/AI网关系统/unified-ai-system/tools/phase323c/print-phase323c-recommended-commands.mjs)
-- 在根 [package.json](/E:/AI-Data/AI网关系统/unified-ai-system/package.json) 新增 3 个不覆盖旧语义的 alias：
+- 新增只读工具 [tools/phase323c/print-phase323c-recommended-commands.mjs](../tools/phase323c/print-phase323c-recommended-commands.mjs)
+- 在根 [package.json](../package.json) 新增 3 个不覆盖旧语义的 alias：
   - `inventory:phase323c`
   - `governance:phase323c`
   - `commands:phase323c`
@@ -28,7 +28,7 @@
 
 ### 已完成
 
-- 在 [apps/ai-gateway-service/src/ui/consolePage.js](/E:/AI-Data/AI网关系统/unified-ai-system/apps/ai-gateway-service/src/ui/consolePage.js) 新增 diagnostics 局部 bridge
+- 在 [apps/ai-gateway-service/src/ui/consolePage.js](../apps/ai-gateway-service/src/ui/consolePage.js) 新增 diagnostics 局部 bridge
 - 将 diagnostics 状态读取切换为 `workbenchApiClient.getDiagnosticsStatus()`
 - 保持 Chat send、providerConfig、approvals、fileContext 页面逻辑不变
 
@@ -54,11 +54,11 @@
 
 ## 修改文件
 
-- [tools/phase323c/print-phase323c-recommended-commands.mjs](/E:/AI-Data/AI网关系统/unified-ai-system/tools/phase323c/print-phase323c-recommended-commands.mjs)
-- [package.json](/E:/AI-Data/AI网关系统/unified-ai-system/package.json)
-- [apps/ai-gateway-service/src/ui/consolePage.js](/E:/AI-Data/AI网关系统/unified-ai-system/apps/ai-gateway-service/src/ui/consolePage.js)
-- [docs/phase323d-3-diagnostics-api-client-integration-report.md](/E:/AI-Data/AI网关系统/unified-ai-system/docs/phase323d-3-diagnostics-api-client-integration-report.md)
-- [docs/phase323cde-3-cleanup-execution-report.md](/E:/AI-Data/AI网关系统/unified-ai-system/docs/phase323cde-3-cleanup-execution-report.md)
+- [tools/phase323c/print-phase323c-recommended-commands.mjs](../tools/phase323c/print-phase323c-recommended-commands.mjs)
+- [package.json](../package.json)
+- [apps/ai-gateway-service/src/ui/consolePage.js](../apps/ai-gateway-service/src/ui/consolePage.js)
+- [docs/phase323d-3-diagnostics-api-client-integration-report.md](../docs/phase323d-3-diagnostics-api-client-integration-report.md)
+- [docs/phase323cde-3-cleanup-execution-report.md](../docs/phase323cde-3-cleanup-execution-report.md)
 
 ## 禁止区域确认
 

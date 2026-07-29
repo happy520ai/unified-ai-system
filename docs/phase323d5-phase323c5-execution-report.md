@@ -8,10 +8,10 @@
 
 ## Phase323C-5 完成情况
 
-- 新增只读工具 [tools/phase323c/build-phase323c-archive-review.mjs](/E:/AI-Data/AI网关系统/unified-ai-system/tools/phase323c/build-phase323c-archive-review.mjs)
+- 新增只读工具 [tools/phase323c/build-phase323c-archive-review.mjs](../tools/phase323c/build-phase323c-archive-review.mjs)
 - 生成：
-  - [docs/phase323c-5-archive-candidate-review.json](/E:/AI-Data/AI网关系统/unified-ai-system/docs/phase323c-5-archive-candidate-review.json)
-  - [docs/phase323c-5-archive-candidate-review-report.md](/E:/AI-Data/AI网关系统/unified-ai-system/docs/phase323c-5-archive-candidate-review-report.md)
+  - [docs/phase323c-5-archive-candidate-review.json](../docs/phase323c-5-archive-candidate-review.json)
+  - [docs/phase323c-5-archive-candidate-review-report.md](../docs/phase323c-5-archive-candidate-review-report.md)
 - 分类结果：
   - protected-core: 25
   - active-support: 50
@@ -26,7 +26,7 @@
 
 ## Phase323D-5 完成情况
 
-- 在 [apps/ai-gateway-service/src/ui/consolePage.js](/E:/AI-Data/AI网关系统/unified-ai-system/apps/ai-gateway-service/src/ui/consolePage.js) 的 bridge zone 内新增边界注释
+- 在 [apps/ai-gateway-service/src/ui/consolePage.js](../apps/ai-gateway-service/src/ui/consolePage.js) 的 bridge zone 内新增边界注释
 - 新增局部 helper：`postJsonViaBridge(path, body)`
 - providerConfig 的 `save/test` bridge 改为统一调用 `postJsonViaBridge(...)`
 - diagnostics bridge 保持原行为
@@ -43,12 +43,12 @@
 
 ## 修改文件清单
 
-- [tools/phase323c/build-phase323c-archive-review.mjs](/E:/AI-Data/AI网关系统/unified-ai-system/tools/phase323c/build-phase323c-archive-review.mjs)
-- [apps/ai-gateway-service/src/ui/consolePage.js](/E:/AI-Data/AI网关系统/unified-ai-system/apps/ai-gateway-service/src/ui/consolePage.js)
-- [docs/phase323c-5-archive-candidate-review.json](/E:/AI-Data/AI网关系统/unified-ai-system/docs/phase323c-5-archive-candidate-review.json)
-- [docs/phase323c-5-archive-candidate-review-report.md](/E:/AI-Data/AI网关系统/unified-ai-system/docs/phase323c-5-archive-candidate-review-report.md)
-- [docs/phase323d-5-bridge-consolidation-report.md](/E:/AI-Data/AI网关系统/unified-ai-system/docs/phase323d-5-bridge-consolidation-report.md)
-- [docs/phase323d5-phase323c5-execution-report.md](/E:/AI-Data/AI网关系统/unified-ai-system/docs/phase323d5-phase323c5-execution-report.md)
+- [tools/phase323c/build-phase323c-archive-review.mjs](../tools/phase323c/build-phase323c-archive-review.mjs)
+- [apps/ai-gateway-service/src/ui/consolePage.js](../apps/ai-gateway-service/src/ui/consolePage.js)
+- [docs/phase323c-5-archive-candidate-review.json](../docs/phase323c-5-archive-candidate-review.json)
+- [docs/phase323c-5-archive-candidate-review-report.md](../docs/phase323c-5-archive-candidate-review-report.md)
+- [docs/phase323d-5-bridge-consolidation-report.md](../docs/phase323d-5-bridge-consolidation-report.md)
+- [docs/phase323d5-phase323c5-execution-report.md](../docs/phase323d5-phase323c5-execution-report.md)
 
 ## 验证结论
 

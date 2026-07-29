@@ -4,7 +4,7 @@ import { createPinoLogger } from "../logging/pinoLogger.js";
 const gatewayLogger = createPinoLogger({ app: "ai-gateway-service", level: "info" });
 
 export function writeGatewayLog(event, details = {}) {
-  gatewayLogger.info(event, details);
+  gatewayLogger.info({ event, ...details }, event);
 }
 
 export function createFallbackAttempts(selection, runtimeConfig) {
@@ -73,7 +73,7 @@ export function createGatewayResponse(request, selection, providerResult, starte
 
   return {
     id: request.context.requestId,
-    message: providerResult.text,
+    message: providerResult.message,
     text: providerResult.text,
     outputText: execution.outputText,
     model: target.modelId,

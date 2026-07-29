@@ -58,7 +58,7 @@ function nextActionFor(classification, exactPathResults) {
     return "files appear missing from desktop; rerun Phase1914A-R once or manually restore files";
   }
   if (classification === "desktop_directory_not_visible_to_process") {
-    return 'restart Codex with explicit desktop access: codex --model gpt-5.5 --sandbox workspace-write --ask-for-approval on-request --add-dir "C:\\Users\\Administrator\\Desktop"';
+    return 'restart Codex with explicit desktop access: codex --model gpt-5.5 --sandbox workspace-write --ask-for-approval on-request --add-dir "%USERPROFILE%\\Desktop"';
   }
   if (classification === "partial_exact_paths_visible") {
     return "do not continue Phase1920A; inspect which files are missing and decide whether to rerun Phase1914A-R";

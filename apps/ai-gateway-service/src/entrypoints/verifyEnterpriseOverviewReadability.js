@@ -1,11 +1,10 @@
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
-import { writeEvidencePair } from "./entrypointUtils.js";
+import { fetchContentResponse as fetchText, listen, requestJsonResponseWithHeaders as fetchJson, writeEvidenceFiles, } from "./entrypointUtils.js";
+import { mkdir, mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
-import { fetchJson, fetchText, listen, close } from "./entrypointUtils.js";
 
 const PHASE = "phase-48a-enterprise-overview-readability";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -67,7 +66,7 @@ try {
     responseText,
     conclusion: passed ? "enterprise-overview-readable-summary-connected" : "enterprise-overview-readable-summary-not-connected",
   });
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyEnterpriseOverviewReadabilityEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = passed ? 0 : 1;
 } catch (error) {
@@ -77,7 +76,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "enterprise-overview-readable-summary-not-connected",
   });
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyEnterpriseOverviewReadabilityEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -124,6 +123,15 @@ function createHeaders(token) {
   };
 }
 
+
+function close(targetServer) {
+  return new Promise((resolveClose) => {
+    targetServer.close(() => resolveClose());
+  });
+}
+
+
+
 function createEvidence({ status, generatedAt, serviceUrl, ui, overview, responseText, conclusion, error }) {
   const data = overview?.body?.data;
   return {
@@ -166,3 +174,45 @@ function createEvidence({ status, generatedAt, serviceUrl, ui, overview, respons
   };
 }
 
+async function writeVerifyEnterpriseOverviewReadabilityEvidence(body) {
+  await writeEvidenceFiles({
+    evidenceDir,
+    evidenceJsonPath,
+    evidenceMdPath,
+    body,
+    renderMarkdown: createEvidenceMarkdown,
+  });
+}
+
+function createEvidenceMarkdown(body) {
+  return `# Phase 48A Enterprise Overview Readability Evidence
+
+- Phase: ${body.phase}
+- Status: ${body.status}
+- Generated at: ${body.generatedAt}
+- Service URL: ${body.serviceUrl ?? "n/a"}
+- UI HTTP status: ${body.ui?.httpStatus ?? "n/a"}
+- Readable summary marker present: ${body.ui?.readableSummaryMarkerPresent}
+- Summary container present: ${body.ui?.summaryContainerPresent}
+- Summary button present: ${body.ui?.summaryButtonPresent}
+- Summary renderer present: ${body.ui?.summaryRendererPresent}
+- Raw JSON preserved: ${body.ui?.rawJsonPreserved}
+- Route path: ${body.route?.path}
+- Authorized HTTP status: ${body.route?.authorizedHttpStatus ?? "n/a"}
+- Route status: ${body.route?.status ?? "n/a"}
+- Route mode: ${body.route?.mode ?? "n/a"}
+- Deployment status: ${body.summary?.deploymentStatus ?? "n/a"}
+- Startup status: ${body.summary?.startupStatus ?? "n/a"}
+- Security status: ${body.summary?.securityStatus ?? "n/a"}
+- Acceptance status: ${body.summary?.acceptanceStatus ?? "n/a"}
+- Release-candidate status: ${body.summary?.releaseCandidateStatus ?? "n/a"}
+- Read-only route: ${body.summary?.readOnlyRoute}
+- Provider calls: ${body.summary?.providerCalls}
+- Runtime mutation: ${body.summary?.runtimeMutation}
+- Release automation: ${body.summary?.releaseAutomation}
+- Infrastructure provisioning: ${body.summary?.infrastructureProvisioning}
+- Response contains auditor token: ${body.safety?.responseContainsAuditorToken}
+- Response contains NVIDIA key: ${body.safety?.responseContainsNvidiaKey}
+- Conclusion: ${body.conclusion}
+`;
+}

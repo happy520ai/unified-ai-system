@@ -1,25 +1,25 @@
 # Phase 89A Web Chat Model Config Restart Persistence Evidence
 
 - Phase: phase-89a-web-chat-model-config-restart-persistence
-- Status: passed
-- Generated at: 2026-04-26T10:24:49.357Z
-- Service URL: http://127.0.0.1:51762
-- Same port restart: true
-- Runtime credential store mode: local-file
-- Runtime credential store path present: true
-- Persisted providers: generic-openai-compatible
-- Persisted model ids: phase89-persisted-chat-model
-- Reload provider/model: generic-openai-compatible / phase89-persisted-chat-model
-- Reload answer marker: true
-- Restart provider/model: generic-openai-compatible / phase89-persisted-chat-model
-- Restart answer marker: true
-- Stream chat request count: 2
-- Local mock provider only: true
-- Real provider calls: false
-- API key persisted in evidence: false
-- Default chat main lane changed: false
-- Screenshot path: apps/ai-gateway-service/evidence/phase-89a-web-chat-model-config-restart-persistence.png
-- Screenshot bytes: 138640
-- Screenshot dimensions: 1424x1105
-- Valid PNG: true
-- Conclusion: web-chat-model-config-restart-persistence-connected
+- Status: failed
+- Generated at: 2026-07-29T08:10:59.148Z
+- Service URL: n/a
+- Same port restart: undefined
+- Runtime credential store mode: n/a
+- Runtime credential store path present: undefined
+- Persisted providers: none
+- Persisted model ids: none
+- Reload provider/model: n/a / n/a
+- Reload answer marker: undefined
+- Restart provider/model: n/a / n/a
+- Restart answer marker: undefined
+- Stream chat request count: n/a
+- Local mock provider only: undefined
+- Real provider calls: undefined
+- API key persisted in evidence: undefined
+- Default chat main lane changed: undefined
+- Screenshot path: n/a
+- Screenshot bytes: n/a
+- Screenshot dimensions: n/axn/a
+- Valid PNG: undefined
+- Conclusion: web-chat-model-config-restart-persistence-not-connected

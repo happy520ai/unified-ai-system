@@ -1,30 +1,25 @@
-/**
- * NVIDIA catalog discovery orchestrator.
- *
- * Static data (model lists, source URLs, allowlists) lives in
- * ./nvidiaCatalogData.js; pure helper functions (record creation, parsing,
- * deduplication) live in ./nvidiaCatalogHelpers.js.  This file wires them
- * together and exposes the three public entry points.
- */
-
-import { inferCapabilitiesFromModel } from "./modelCapabilityRules.js";
-
 import {
-  CHAT_MODELS,
-  NVIDIA_PROVIDER,
-  NVIDIA_TOOL_MODELS,
+  endpointPathFor,
+  inferCapabilitiesFromModel,
+  inferEndpointType,
+  normalizeCapabilities,
+  primaryCapability,
+  uiGroupFor,
+} from "./modelCapabilityRules.js";
+
+import { CHAT_MODELS, NVIDIA_TOOL_MODELS } from "./nvidiaCatalogSeeds.js";
+import {
+  LIVE_MODEL_ID_BLOCKLIST,
+  LIVE_PROVIDER_PREFIX_ALLOWLIST,
   OFFICIAL_SOURCE_URLS,
-} from "./nvidiaCatalogData.js";
+} from "./nvidiaCatalogSources.js";
 
-import {
-  createRecord,
-  dedupeRecords,
-  mergeLiveModelIds,
-  parseModelIdsFromDocs,
-} from "./nvidiaCatalogHelpers.js";
-
-// Re-export so existing consumers keep working unchanged.
-export { NVIDIA_PROVIDER };
+export const NVIDIA_PROVIDER = Object.freeze({
+  providerId: "nvidia",
+  providerName: "NVIDIA NIM API Catalog",
+  defaultBaseUrl: "https://integrate.api.nvidia.com/v1",
+  retrievalBaseUrl: "https://ai.api.nvidia.com/v1",
+});
 
 export function discoverNvidiaCatalog({ allowNetwork = false, fetchImpl = globalThis.fetch } = {}) {
   const seedRecords = createSeedCatalogRecords();
@@ -107,4 +102,97 @@ export function createSeedCatalogRecords() {
     })),
     ...NVIDIA_TOOL_MODELS.map((entry) => createRecord(entry)),
   ]);
+}
+
+function createRecord(entry) {
+  const capabilities = normalizeCapabilities(entry.capabilities ?? inferCapabilitiesFromModel(entry));
+  const endpointType = entry.endpointType ?? inferEndpointType(capabilities, entry);
+  const endpointPath = entry.endpointPath ?? endpointPathFor(endpointType);
+  const publisher = entry.publisher ?? String(entry.modelId).split("/")[0] ?? "nvidia";
+  const downloadableOnly = Boolean(entry.downloadableOnly || endpointType === "downloadable_only");
+  const deprecatedSoon = Boolean(entry.deprecatedSoon);
+  const commercialSafe = entry.commercialSafe === undefined ? true : Boolean(entry.commercialSafe);
+
+  return {
+    providerId: NVIDIA_PROVIDER.providerId,
+    providerName: NVIDIA_PROVIDER.providerName,
+    modelId: entry.modelId,
+    displayName: entry.displayName ?? toDisplayName(entry.modelId),
+    publisher,
+    source: entry.source ?? "nvidia-catalog-seed",
+    sourceUrlOrDiscoveryNote: entry.sourceUrlOrDiscoveryNote ?? OFFICIAL_SOURCE_URLS.llmApis,
+    catalogStatus: "catalog_known",
+    endpointType,
+    endpointPath,
+    capabilities,
+    primaryCapability: primaryCapability(capabilities),
+    chatSelectable: false,
+    taskToolSelectable: false,
+    uiVisibleInChat: true,
+    uiGroup: uiGroupFor(capabilities),
+    freeEndpoint: Boolean(entry.freeEndpoint),
+    partnerEndpoint: Boolean(entry.partnerEndpoint),
+    downloadableOnly,
+    deprecatedSoon,
+    deprecationNote: deprecatedSoon ? "Marked deprecated or deprecated-free-endpoint in NVIDIA catalog/search evidence." : "",
+    commercialSafe,
+    usageRestriction: entry.usageRestriction ?? "",
+    requiresSpecialPayload: Boolean(entry.requiresSpecialPayload),
+    testStatus: "unverified",
+    lastSmokeAt: null,
+    lastSmokeResult: null,
+    notes: entry.notes ?? "Known catalog record. Not selectable until a real smoke pass is recorded.",
+  };
+}
+
+function mergeLiveModelIds(records, liveIds) {
+  const existing = new Map(records.map((record) => [record.modelId, record]));
+  for (const modelId of liveIds) {
+    if (!existing.has(modelId)) {
+      existing.set(modelId, createRecord({
+        modelId,
+        capabilities: inferCapabilitiesFromModel({ modelId }),
+        source: "nvidia-api-docs-live-discovery",
+        sourceUrlOrDiscoveryNote: OFFICIAL_SOURCE_URLS.llmApis,
+        freeEndpoint: true,
+        partnerEndpoint: !modelId.startsWith("nvidia/"),
+      }));
+    }
+  }
+  return Array.from(existing.values());
+}
+
+function parseModelIdsFromDocs(text) {
+  const matches = Array.from(String(text || "").matchAll(/\b([a-z0-9][a-z0-9_.-]+)\s*\/\s*([a-z0-9][a-z0-9_.:-]+)/gi));
+  return Array.from(new Set(matches
+    .map((match) => `${match[1].toLowerCase()}/${match[2].toLowerCase()}`)
+    .filter(isPlausibleLiveModelId))).sort();
+}
+
+function isPlausibleLiveModelId(modelId) {
+  const [provider, model] = String(modelId).split("/");
+  if (!LIVE_PROVIDER_PREFIX_ALLOWLIST.includes(provider)) return false;
+  if (!model || model.length < 3) return false;
+  if (LIVE_MODEL_ID_BLOCKLIST.some((pattern) => pattern.test(modelId))) return false;
+  return true;
+}
+
+function dedupeRecords(records) {
+  const byId = new Map();
+  for (const record of records) {
+    byId.set(record.modelId, {
+      ...(byId.get(record.modelId) ?? {}),
+      ...record,
+      capabilities: normalizeCapabilities([...(byId.get(record.modelId)?.capabilities ?? []), ...(record.capabilities ?? [])]),
+    });
+  }
+  return Array.from(byId.values()).sort((a, b) => a.modelId.localeCompare(b.modelId));
+}
+
+function toDisplayName(modelId) {
+  return String(modelId)
+    .split("/")
+    .pop()
+    .replace(/[-_]/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
 }

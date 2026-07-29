@@ -8,14 +8,10 @@
     ".": "./src/index.js",
     "./integration/forge-routes.js": "./src/integration/forge-routes.js"
   },
-  "bin": {
-    "forge": "bin/forge.js"
-  },
   "scripts": {
-    "test": "node --test test/*.test.js",
-    "test:coverage": "c8 --reporter=text --reporter=html --reporter=json-summary node --test test/*.test.js",
-    "test:coverage:check": "c8 --check-coverage --lines 60 --branches 40 --functions 50 node --test test/*.test.js",
-    "forge": "node bin/forge.js",
+    "test": "node --test --test-concurrency=4 test/*.test.js",
+    "test:coverage": "c8 --reporter=text --reporter=html --reporter=json-summary node --test --test-concurrency=4 test/*.test.js",
+    "test:coverage:check": "c8 --check-coverage --lines 60 --branches 40 --functions 50 node --test --test-concurrency=4 test/*.test.js",
     "rebuild:native": "node -e \"const p=require.resolve('better-sqlite3/package.json');const d=require('path').dirname(p);require('child_process').execSync('npx --yes node-gyp rebuild',{cwd:d,stdio:'inherit'})\"",
     "postinstall": "node -e \"try{require('better-sqlite3');console.log('[forge] better-sqlite3 native OK')}catch(e){console.log('[forge] Rebuilding better-sqlite3...');const p=require.resolve('better-sqlite3/package.json');const d=require('path').dirname(p);require('child_process').execSync('npx --yes node-gyp rebuild',{cwd:d,stdio:'inherit'})}\""
   },

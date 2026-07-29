@@ -32,6 +32,10 @@ export const defaultConfig = {
   },
 };
 
+export function resolveHunyuan3dSourceDir(env = process.env) {
+  return env.YIYI_HUNYUAN3D_SOURCE_DIR || env.YIYI_3D_ENGINE_PATH || defaultConfig.sourceDir;
+}
+
 export function abs(path) {
   return resolve(path);
 }

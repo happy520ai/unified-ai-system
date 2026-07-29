@@ -1,3 +1,4 @@
+import { fetchJsonResponse as fetchJson, fetchTextResponse as fetchText, listen, postJsonResponse as postJson } from "./entrypointUtils.js";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -6,7 +7,6 @@ import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
 import { findPlainSecretFindings } from "../security/secretSafety.js";
-import { fetchJson, fetchText, listen, close, postJson, writeEvidenceWithRenderer } from "./entrypointUtils.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "../../../..");
@@ -187,7 +187,7 @@ export async function runExternalRunnerPreviewVerification(config) {
       conclusion: passed ? config.passConclusion : config.failConclusion,
     };
 
-    await saveEvidence(config.phase, config.evidenceTitle, evidence);
+    await writeEvidence(config.phase, config.evidenceTitle, evidence);
     console.log(JSON.stringify(evidence, null, 2));
     process.exitCode = passed ? 0 : 1;
   } catch (error) {
@@ -198,7 +198,7 @@ export async function runExternalRunnerPreviewVerification(config) {
       error: error instanceof Error ? error.message : String(error),
       conclusion: config.failConclusion,
     };
-    await saveEvidence(config.phase, config.evidenceTitle, evidence);
+    await writeEvidence(config.phase, config.evidenceTitle, evidence);
     console.log(JSON.stringify(evidence, null, 2));
     process.exitCode = 1;
   } finally {
@@ -213,17 +213,22 @@ async function readRequired(relativePath) {
 }
 
 
-async function saveEvidence(phase, title, body) {
-  await writeEvidenceWithRenderer(
-    evidenceDir,
-    resolve(evidenceDir, `${phase}.json`),
-    resolve(evidenceDir, `${phase}.md`),
-    body,
-    (b) => renderEvidenceMarkdown(title, b),
-  );
+
+
+
+function close(targetServer) {
+  return new Promise((resolveClose) => {
+    targetServer.close(() => resolveClose());
+  });
 }
 
-function renderEvidenceMarkdown(title, body) {
+async function writeEvidence(phase, title, body) {
+  await mkdir(evidenceDir, { recursive: true });
+  await writeFile(resolve(evidenceDir, `${phase}.json`), `${JSON.stringify(body, null, 2)}\n`, "utf8");
+  await writeFile(resolve(evidenceDir, `${phase}.md`), createEvidenceMarkdown(title, body), "utf8");
+}
+
+function createEvidenceMarkdown(title, body) {
   return `# ${title}
 
 - Phase: ${body.phase}

@@ -1,9 +1,12 @@
+import {
+  readRepoJson as readJson,
+  readRepoText as readText,
+} from "./entrypointUtils.js";
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readCodexDesktopStatus } from "./codexDesktopStatus.js";
 import { readCodexLoopStatus } from "./codexLoopStatus.js";
-import { readJson, readText } from "./entrypointUtils.js"
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "../../../..");

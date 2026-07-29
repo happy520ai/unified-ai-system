@@ -59,7 +59,6 @@ node --check tools/phase3979a/read-opencode-autopilot-status.mjs
 node --check tools/phase3979a/verify-opencode-autopilot-governor.mjs
 cmd /c pnpm run verify:phase3979a-opencode-autopilot-governor
 cmd /c pnpm run status:phase3979a-opencode-autopilot
-cmd /c pnpm run verify:gvc-safe-overnight-mode
 ```
 
 ## Expected Outputs

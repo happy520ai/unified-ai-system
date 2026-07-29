@@ -1,13 +1,11 @@
+import { findRequiredBrowserPath as findBrowserPath, listen, sleep, writeEvidenceFiles, } from "./entrypointUtils.js";
 import { spawn } from "node:child_process";
-import { writeEvidencePair } from "./entrypointUtils.js";
-import { existsSync, readdirSync } from "node:fs";
 import { mkdtemp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
-import { sleep, listen, close, findBrowserPath } from "./entrypointUtils.js";
 
 const PHASE = "phase-61a-web-chat-complete-readability";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -168,7 +166,7 @@ try {
     await closeCdpSilently(cdp);
   }
 
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyWebChatCompleteReadabilityEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = evidence.status === "passed" ? 0 : 1;
 } catch (error) {
@@ -179,7 +177,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "web-chat-complete-readability-not-connected",
   };
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyWebChatCompleteReadabilityEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -298,13 +296,6 @@ async function runScenario(cdp, { scenario, prompt, waitExpression }) {
 }
 
 
-function findVersionedBrowserPaths(root, executableName) {
-  if (!existsSync(root)) return [];
-  return readdirSync(root, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => resolve(root, entry.name, executableName))
-    .reverse();
-}
 
 async function readDevToolsPort(profileDir) {
   const portFile = resolve(profileDir, "DevToolsActivePort");
@@ -454,5 +445,51 @@ async function inspectPng(path) {
     height: validPng ? buffer.readUInt32BE(20) : 0,
     validPng,
   };
+}
+
+
+function close(targetServer) {
+  return new Promise((resolveClose) => {
+    targetServer.close(() => resolveClose());
+  });
+}
+
+async function writeVerifyWebChatCompleteReadabilityEvidence(body) {
+  await writeEvidenceFiles({
+    evidenceDir,
+    evidenceJsonPath,
+    evidenceMdPath,
+    body,
+    renderMarkdown: createEvidenceMarkdown,
+  });
+}
+
+function createEvidenceMarkdown(body) {
+  return `# Phase 61A Web Chat Complete Readability Evidence
+
+- Phase: ${body.phase}
+- Status: ${body.status}
+- Generated at: ${body.generatedAt}
+- Service URL: ${body.serviceUrl ?? "n/a"}
+- Fallback success assistant text: ${body.ui?.fallbackSuccess?.latestAssistantText ?? "n/a"}
+- Fallback success system hint: ${body.ui?.fallbackSuccess?.latestSystemText ?? "n/a"}
+- Fallback failure assistant text: ${body.ui?.fallbackFailure?.latestAssistantText ?? "n/a"}
+- Empty stream assistant text: ${body.ui?.emptyStream?.latestAssistantText ?? "n/a"}
+- Fetches: ${JSON.stringify(body.ui?.fetches ?? [])}
+- Screenshot path: ${body.screenshot?.path ?? "n/a"}
+- Screenshot bytes: ${body.screenshot?.bytes ?? "n/a"}
+- Screenshot dimensions: ${body.screenshot?.width ?? "n/a"}x${body.screenshot?.height ?? "n/a"}
+- Valid PNG: ${body.screenshot?.validPng}
+- Browser interaction: ${body.safety?.browserInteraction}
+- Simulated chat failures only: ${body.safety?.simulatedChatFailuresOnly}
+- Fake provider only: ${body.safety?.fakeProviderOnly}
+- Default chat main lane changed: ${body.safety?.defaultChatMainLaneChanged}
+- Backend business route added: ${body.safety?.backendBusinessRouteAdded}
+- Provider calls: ${body.safety?.providerCalls}
+- Runtime mutation: ${body.safety?.runtimeMutation}
+- Release automation: ${body.safety?.releaseAutomation}
+- Infrastructure provisioning: ${body.safety?.infrastructureProvisioning}
+- Conclusion: ${body.conclusion}
+`;
 }
 

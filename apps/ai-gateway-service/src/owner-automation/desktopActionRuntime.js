@@ -3,7 +3,6 @@ import { dirname, join } from "node:path";
 import { dryRun as createDryRun, realRun as createRealRun } from "./actions/createDesktopSpreadsheet.js";
 import { dryRun as batchDryRun, realRun as batchRealRun } from "./actions/batchCreateDesktopSpreadsheets.js";
 import { createOwnerAutomationError } from "./desktopActionSafety.js";
-import { writeEvidenceFileAsync } from "../../../../tools/lib/evidenceWriter.mjs";
 
 export const OWNER_AUTOMATION_ACTIONS = Object.freeze({
   create_desktop_spreadsheet: Object.freeze({
@@ -55,7 +54,7 @@ export async function realRunDesktopAction({ actionId, input, approval, evidence
     result,
   };
   const evidencePath = join("apps/ai-gateway-service/evidence", String(evidencePhase).toLowerCase(), `${actionId}-real-run-result.json`);
-  await writeEvidenceFileAsync(evidencePath, evidence);
+  await writeEvidence(evidencePath, evidence);
   return {
     ...result,
     evidencePath,
@@ -70,3 +69,8 @@ export function getAction(actionId) {
   return action;
 }
 
+async function writeEvidence(relativePath, evidence) {
+  const outputPath = join(process.cwd(), relativePath);
+  await mkdir(dirname(outputPath), { recursive: true });
+  await writeFile(outputPath, `${JSON.stringify(evidence, null, 2)}\n`, "utf8");
+}

@@ -11,12 +11,15 @@ export function redactSecrets(value) {
       .replace(/nvapi-[0-9A-Za-z_-]{8,}/g, "nvapi-****redacted")
       .replace(/(api[_-]?key|token|secret|password)\s*[:=]\s*["']?[^"'\s]+/gi, "$1=****redacted");
   }
+
   if (Array.isArray(value)) {
     return value.map(redactSecrets);
   }
+
   if (value && typeof value === "object") {
     return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, redactSecrets(item)]));
   }
+
   return value;
 }
 
@@ -41,19 +44,19 @@ export function createStoreSafety() {
 
 export async function readStore(storePath) {
   try {
-    const content = await readFile(storePath, "utf8");
-    if (!content || !content.trim()) {
-      return { version: STORE_VERSION, updatedAt: null, plans: [] };
-    }
-    const parsed = JSON.parse(content);
+    const parsed = JSON.parse(await readFile(storePath, "utf8"));
     return {
       version: parsed.version === STORE_VERSION ? parsed.version : STORE_VERSION,
       updatedAt: parsed.updatedAt,
       plans: Array.isArray(parsed.plans) ? parsed.plans.map(redactSecrets) : [],
     };
   } catch (error) {
-    if (error?.code === "ENOENT" || error instanceof SyntaxError) {
-      return { version: STORE_VERSION, updatedAt: null, plans: [] };
+    if (error?.code === "ENOENT") {
+      return {
+        version: STORE_VERSION,
+        updatedAt: null,
+        plans: [],
+      };
     }
     throw error;
   }
@@ -76,7 +79,7 @@ export function normalizePlanId(planId) {
   const value = String(planId || "").trim();
   if (!/^wfp_[a-f0-9]{12}$/.test(value)) {
     throw createStoreError("WORKFORCE_PLAN_ID_INVALID", "Workforce plan id is invalid.", {
-      userMessage: "Plan ID format is invalid.",
+      userMessage: "?? ID ??????",
       planId: value,
     });
   }
@@ -86,15 +89,17 @@ export function normalizePlanId(planId) {
 export function normalizePlan(plan) {
   if (!plan || typeof plan !== "object" || Array.isArray(plan)) {
     throw createStoreError("WORKFORCE_PLAN_REQUIRED", "Workforce plan is required.", {
-      userMessage: "Please provide an AI workforce plan.",
+      userMessage: "?????? AI ?????????",
     });
   }
+
   const goal = typeof plan.goal === "string" ? plan.goal.trim() : "";
   if (!goal) {
     throw createStoreError("WORKFORCE_PLAN_GOAL_REQUIRED", "Workforce plan goal is required.", {
-      userMessage: "Please enter a goal for the workforce plan.",
+      userMessage: "??????????????",
     });
   }
+
   return redactSecrets(plan);
 }
 
@@ -140,7 +145,13 @@ export function createDefaultLifecyclePreview(savedAt) {
   return {
     current: "saved",
     persisted: true,
-    history: [{ state: "saved", at: savedAt, note: "Plan package saved for preview review." }],
+    history: [
+      {
+        state: "saved",
+        at: savedAt,
+        note: "Plan package saved for preview review.",
+      },
+    ],
     allowedTransitions: ["draft", "clarified", "saved", "exported", "handoff-disabled", "consensus_ready", "export_ready", "archived"],
     executionEnabled: true,
     workflowRunEnabled: true,
@@ -154,7 +165,14 @@ export function createUpdatedLifecycle(lifecycle, state, note, updatedAt) {
     ...base,
     current: state,
     persisted: true,
-    history: [...history, { state, at: updatedAt, note }],
+    history: [
+      ...history,
+      {
+        state,
+        at: updatedAt,
+        note,
+      },
+    ],
     allowedTransitions: ["draft", "clarified", "saved", "exported", "handoff-disabled", "consensus_ready", "export_ready", "archived"],
     executionEnabled: true,
     workflowRunEnabled: true,

@@ -1,10 +1,9 @@
-import { mkdir, writeFile } from "node:fs/promises";
-import { writeEvidencePair } from "./entrypointUtils.js";
+import { listen, requestJsonResponse as fetchJson, writeEvidenceFiles, } from "./entrypointUtils.js";
+import { mkdir } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
-import { fetchJson, listen, close } from "./entrypointUtils.js";
 
 const PHASE = "phase-21a-knowledge-entry";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -55,7 +54,7 @@ try {
     retrieve,
     conclusion: connected ? "local-knowledge-entry-connected" : "local-knowledge-entry-not-connected",
   });
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyKnowledgeEntryEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = connected ? 0 : 1;
 } catch (error) {
@@ -69,7 +68,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "local-knowledge-entry-not-connected",
   });
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyKnowledgeEntryEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -77,6 +76,14 @@ try {
     await close(server);
   }
 }
+
+
+function close(server) {
+  return new Promise((resolveClose) => {
+    server.close(() => resolveClose());
+  });
+}
+
 
 function isKnowledgeEntryConnected({ health, sources, retrieve }) {
   return (
@@ -139,3 +146,36 @@ function createEvidence({
   };
 }
 
+async function writeVerifyKnowledgeEntryEvidence(body) {
+  await writeEvidenceFiles({
+    evidenceDir,
+    evidenceJsonPath,
+    evidenceMdPath,
+    body,
+    renderMarkdown: createEvidenceMarkdown,
+  });
+}
+
+function createEvidenceMarkdown(body) {
+  return `# Phase 21A Knowledge Entry Evidence
+
+- Phase: ${body.phase}
+- Status: ${body.status}
+- Generated at: ${body.generatedAt}
+- Service URL: ${body.service.url ?? "n/a"}
+- Knowledge health HTTP status: ${body.knowledge.healthHttpStatus ?? "n/a"}
+- Knowledge health status: ${body.knowledge.healthStatus ?? "n/a"}
+- Knowledge mode: ${body.knowledge.mode ?? "n/a"}
+- Storage: ${body.knowledge.storage ?? "n/a"}
+- Embedding: ${body.knowledge.embedding ?? "n/a"}
+- Source count: ${body.knowledge.sourceCount ?? "n/a"}
+- Document count: ${body.knowledge.documentCount ?? "n/a"}
+- Supported modes: ${body.knowledge.supportedModes.join(", ") || "n/a"}
+- Source IDs: ${body.knowledge.sourceIds.join(", ") || "n/a"}
+- Retrieve HTTP status: ${body.knowledge.retrieveHttpStatus ?? "n/a"}
+- Retrieve mode: ${body.knowledge.retrieveMode ?? "n/a"}
+- Retrieved chunks: ${body.knowledge.chunkCount}
+- Top chunk document: ${body.knowledge.topChunkDocumentId ?? "n/a"}
+- Conclusion: ${body.conclusion}
+`;
+}

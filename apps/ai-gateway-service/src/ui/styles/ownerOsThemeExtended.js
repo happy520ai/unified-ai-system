@@ -1,29 +1,28 @@
-export const ownerOsThemeExtendedCss = `
-    .owner-automation-advanced-record {
+export const ownerOsThemeExtendedCss = `    .owner-automation-advanced-record {
       margin-top: 4px;
       border: 1px solid var(--owner-os-line);
-      border-radius: 12px;
+      border-radius: 8px;
       padding: 10px 12px;
-      background: var(--owner-os-panel-strong);
+      background: rgb(255 255 255 / 48%);
     }
 
     .owner-automation-advanced-record summary {
       cursor: pointer;
       color: var(--owner-os-muted);
-      font-weight: 700;
+      font-weight: 800;
     }
 
     .owner-automation-command-palette {
-      border-color: #ffe0b2;
-      background: #fff8f2;
+      border-color: rgb(125 211 252 / 34%);
+      background: linear-gradient(135deg, rgb(15 118 110 / 8%), rgb(23 114 69 / 7%), rgb(255 255 255 / 60%));
     }
 
     .five-capability-panel {
       display: grid;
       gap: 16px;
-      border: 1px solid var(--owner-os-line);
-      border-radius: 16px;
-      background: var(--owner-os-panel);
+      border: 1px solid rgb(15 118 110 / 22%);
+      border-radius: 8px;
+      background: linear-gradient(135deg, rgb(15 118 110 / 10%), rgb(255 255 255 / 68%)), rgb(255 255 255 / 72%);
       padding: 18px;
     }
 
@@ -37,9 +36,8 @@ export const ownerOsThemeExtendedCss = `
     .five-capability-head h3 {
       margin: 4px 0 8px;
       color: var(--owner-os-text);
-      font-size: 20px;
+      font-size: 24px;
       line-height: 1.25;
-      font-weight: 700;
     }
 
     .five-capability-head p,
@@ -68,8 +66,8 @@ export const ownerOsThemeExtendedCss = `
       gap: 8px;
       min-height: 132px;
       border: 1px solid var(--owner-os-line);
-      border-radius: var(--radius-card);
-      background: var(--owner-os-panel);
+      border-radius: 8px;
+      background: rgb(255 255 255 / 74%);
       padding: 12px;
     }
 
@@ -80,19 +78,21 @@ export const ownerOsThemeExtendedCss = `
 
     .five-capability-card span {
       width: fit-content;
-      border-radius: var(--radius-pill);
-      background: #f0faf4;
+      border: 1px solid rgb(23 114 69 / 22%);
+      border-radius: 999px;
+      background: rgb(233 248 239 / 82%);
       color: var(--owner-os-success);
       padding: 4px 8px;
       font-size: 12px;
-      font-weight: 700;
+      font-weight: 900;
     }
 
     .five-capability-result {
       display: grid;
       gap: 10px;
-      border-radius: var(--radius-card);
-      background: #f0faf4;
+      border: 1px solid rgb(23 114 69 / 22%);
+      border-radius: 8px;
+      background: rgb(233 248 239 / 72%);
       padding: 14px;
     }
 
@@ -102,23 +102,23 @@ export const ownerOsThemeExtendedCss = `
 
     .five-capability-result strong {
       color: var(--owner-os-success);
-      font-size: 17px;
+      font-size: 18px;
     }
 
     .five-capability-result-grid span {
       min-height: 64px;
       color: var(--owner-os-soft);
       font-size: 12px;
-      font-weight: 700;
+      font-weight: 850;
       line-height: 1.45;
     }
 
     .owner-neural-skill-preview {
       display: grid;
       gap: 12px;
-      border: 1px solid var(--owner-os-line);
-      border-radius: 16px;
-      background: var(--owner-os-panel);
+      border: 1px solid rgb(125 211 252 / 28%);
+      border-radius: 8px;
+      background: linear-gradient(135deg, rgb(15 118 110 / 8%), rgb(23 114 69 / 7%), rgb(255 255 255 / 60%));
       padding: 16px;
     }
 
@@ -133,12 +133,13 @@ export const ownerOsThemeExtendedCss = `
     .owner-neural-skill-preview-heading span {
       color: var(--owner-os-accent);
       font-size: 13px;
-      font-weight: 700;
+      font-weight: 900;
     }
 
     .owner-neural-skill-preview-heading strong {
-      border-radius: var(--radius-pill);
-      background: #f0faf4;
+      border: 1px solid rgb(134 239 172 / 30%);
+      border-radius: 999px;
+      background: rgb(134 239 172 / 10%);
       color: var(--owner-os-success);
       padding: 5px 9px;
       font-size: 12px;
@@ -161,16 +162,16 @@ export const ownerOsThemeExtendedCss = `
     .owner-neural-skill-preview-grid div {
       display: grid;
       gap: 6px;
-      border: 1px solid var(--owner-os-line);
-      border-radius: 12px;
-      background: var(--owner-os-panel);
+      border: 1px solid rgb(164 188 224 / 20%);
+      border-radius: 8px;
+      background: rgb(255 255 255 / 58%);
       padding: 12px;
       min-height: 82px;
     }
 
     .owner-neural-skill-preview-grid span {
       color: var(--owner-os-text);
-      font-weight: 600;
+      font-weight: 850;
       line-height: 1.45;
     }
 
@@ -195,9 +196,9 @@ export const ownerOsThemeExtendedCss = `
     .owner-automation-command-card {
       display: grid;
       gap: 12px;
-      border: 1px solid var(--owner-os-line);
-      border-radius: var(--radius-card);
-      background: var(--owner-os-panel);
+      border: 1px solid rgb(164 188 224 / 20%);
+      border-radius: 8px;
+      background: rgb(255 255 255 / 60%);
       padding: 16px;
     }
 
@@ -208,7 +209,7 @@ export const ownerOsThemeExtendedCss = `
 
     .owner-automation-command-card-main strong {
       color: var(--owner-os-text);
-      font-size: 19px;
+      font-size: 21px;
       line-height: 1.3;
     }
 
@@ -220,7 +221,7 @@ export const ownerOsThemeExtendedCss = `
 
     .owner-automation-command-status {
       color: var(--owner-os-success) !important;
-      font-weight: 700;
+      font-weight: 800;
     }
 
     .owner-automation-command-actions {
@@ -233,34 +234,34 @@ export const ownerOsThemeExtendedCss = `
     .owner-command-disabled-real-run,
     .owner-command-enabled-real-run {
       min-height: 38px;
-      border: 1px solid var(--owner-os-line);
-      border-radius: 12px;
-      background: var(--owner-os-panel);
+      border: 1px solid rgb(125 211 252 / 32%);
+      border-radius: 8px;
+      background: rgb(125 211 252 / 10%);
       color: var(--owner-os-soft);
       padding: 8px 12px;
-      font-weight: 700;
+      font-weight: 850;
     }
 
     .owner-command-disabled-real-run {
-      border-color: #ffe0b2;
-      background: #fff8f0;
+      border-color: rgb(252 211 77 / 26%);
+      background: rgb(252 211 77 / 9%);
       color: var(--owner-os-warn);
       cursor: not-allowed;
       opacity: 0.88;
     }
 
     .owner-command-enabled-real-run {
-      border-color: #c8e6c9;
-      background: #f0faf4;
+      border-color: rgb(134 239 172 / 36%);
+      background: rgb(134 239 172 / 12%);
       color: var(--owner-os-success);
     }
 
     .owner-command-real-run-lock {
       display: grid;
       gap: 6px;
-      border: 1px solid #ffe0b2;
-      border-radius: 12px;
-      background: #fff8f0;
+      border: 1px solid rgb(252 211 77 / 24%);
+      border-radius: 8px;
+      background: rgb(252 211 77 / 8%);
       color: var(--owner-os-muted);
       padding: 10px 12px;
       line-height: 1.55;
@@ -279,15 +280,15 @@ export const ownerOsThemeExtendedCss = `
 
     .owner-automation-command-details {
       border: 1px solid var(--owner-os-line);
-      border-radius: 12px;
-      background: var(--owner-os-panel-strong);
+      border-radius: 8px;
+      background: rgb(255 255 255 / 52%);
       padding: 10px 12px;
     }
 
     .owner-automation-command-details summary {
       cursor: pointer;
       color: var(--owner-os-muted);
-      font-weight: 700;
+      font-weight: 850;
     }
 
     .owner-automation-command-details p {
@@ -297,8 +298,8 @@ export const ownerOsThemeExtendedCss = `
     }
 
     .owner-command-preview-drawer {
-      border-color: var(--owner-os-line);
-      background: var(--owner-os-panel);
+      border-color: rgb(125 211 252 / 34%);
+      background: rgb(255 255 255 / 56%);
     }
 
     .owner-command-preview-drawer-body {
@@ -309,7 +310,7 @@ export const ownerOsThemeExtendedCss = `
 
     .owner-command-preview-primary {
       color: var(--owner-os-text) !important;
-      font-weight: 700;
+      font-weight: 850;
     }
 
     .owner-command-preview-grid {
@@ -319,9 +320,9 @@ export const ownerOsThemeExtendedCss = `
     }
 
     .owner-command-preview-grid div {
-      border: 1px solid var(--owner-os-line);
-      border-radius: 12px;
-      background: var(--owner-os-panel-strong);
+      border: 1px solid rgb(125 211 252 / 22%);
+      border-radius: 8px;
+      background: rgb(15 118 110 / 7%);
       padding: 10px;
     }
 
@@ -329,7 +330,7 @@ export const ownerOsThemeExtendedCss = `
       display: block;
       color: var(--owner-os-muted);
       font-size: 12px;
-      font-weight: 600;
+      font-weight: 800;
     }
 
     .owner-command-preview-grid strong {
@@ -342,13 +343,13 @@ export const ownerOsThemeExtendedCss = `
 
     .owner-command-preview-muted {
       color: var(--owner-os-warn) !important;
-      font-weight: 700;
+      font-weight: 800;
     }
 
     .owner-daily-report-panel strong,
     .owner-action-log strong {
       color: var(--owner-os-text);
-      font-size: 17px;
+      font-size: 18px;
     }
 
     .owner-report-note {
@@ -358,7 +359,7 @@ export const ownerOsThemeExtendedCss = `
     }
 
     .owner-action-log {
-      background: var(--owner-os-panel);
+      background: rgb(255 255 255 / 54%);
     }
 
     @media (max-width: 980px) {
@@ -375,8 +376,8 @@ export const ownerOsThemeExtendedCss = `
 
     @media (max-width: 640px) {
       .owner-os-shell { min-height: auto; padding: 18px; }
-      .owner-os-hero h2 { font-size: 26px; }
-      .owner-primary-cta span { font-size: 15px; }
+      .owner-os-hero h2 { font-size: 30px; }
+      .owner-primary-cta span { font-size: 16px; }
       .owner-state-rail { grid-template-columns: 1fr; }
       .owner-readiness-matrix { grid-template-columns: 1fr; }
       .five-capability-grid,

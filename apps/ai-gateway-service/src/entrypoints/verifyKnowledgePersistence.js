@@ -1,11 +1,10 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { writeEvidencePair } from "./entrypointUtils.js";
+import { listen, requestJsonResponse as fetchJson, writeEvidenceFiles, } from "./entrypointUtils.js";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
-import { fetchJson, listen, close } from "./entrypointUtils.js";
 
 const PHASE = "phase-27-knowledge-persistence";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -36,7 +35,7 @@ try {
     secondRun,
     conclusion: connected ? "knowledge-persistence-connected" : "knowledge-persistence-not-connected",
   });
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyKnowledgePersistenceEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = connected ? 0 : 1;
 } catch (error) {
@@ -49,7 +48,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "knowledge-persistence-failed",
   });
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyKnowledgePersistenceEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -167,6 +166,14 @@ async function runRetrieveOnly(env) {
   }
 }
 
+
+function close(server) {
+  return new Promise((resolveClose) => {
+    server.close(() => resolveClose());
+  });
+}
+
+
 function isPersistenceConnected({ firstRun, secondRun }) {
   const firstHealth = firstRun?.afterHealth?.body?.data;
   const secondHealth = secondRun?.health?.body?.data;
@@ -234,3 +241,41 @@ function createEvidence({ status, generatedAt, persistenceDir, firstRun, secondR
   };
 }
 
+async function writeVerifyKnowledgePersistenceEvidence(body) {
+  await writeEvidenceFiles({
+    evidenceDir,
+    evidenceJsonPath,
+    evidenceMdPath,
+    body,
+    renderMarkdown: createEvidenceMarkdown,
+  });
+}
+
+function createEvidenceMarkdown(body) {
+  return `# Phase 27 Knowledge Persistence Evidence
+
+- Phase: ${body.phase}
+- Status: ${body.status}
+- Generated at: ${body.generatedAt}
+- Storage mode: ${body.persistence.storageMode ?? "n/a"}
+- Durable: ${body.persistence.durable ?? "n/a"}
+- File status: ${body.persistence.fileStatus ?? "n/a"}
+- SQLite status: ${body.persistence.sqliteStatus ?? "n/a"}
+- File document count: ${body.persistence.fileDocumentCount ?? "n/a"}
+- SQLite document count: ${body.persistence.sqliteDocumentCount ?? "n/a"}
+- Vector note: ${body.persistence.vectorNote ?? "n/a"}
+- Load HTTP status: ${body.firstRun.loadHttpStatus ?? "n/a"}
+- Loaded count: ${body.firstRun.loadedCount ?? "n/a"}
+- First retrieve top hit: ${body.firstRun.topHitDocumentId ?? "n/a"}
+- Vector infra mode: ${body.firstRun.vectorInfraMode ?? "n/a"}
+- Vector infra status: ${body.firstRun.vectorInfraStatus ?? "n/a"}
+- Restart health HTTP status: ${body.secondRun.healthHttpStatus ?? "n/a"}
+- Restart source present: ${body.secondRun.sourcePresent}
+- Restart retrieve HTTP status: ${body.secondRun.retrieveHttpStatus ?? "n/a"}
+- Restart top hit: ${body.secondRun.topHitDocumentId ?? "n/a"}
+- Marker matched after restart: ${body.secondRun.markerMatched}
+- Snippet present after restart: ${body.secondRun.snippetPresent}
+- Matched terms after restart: ${body.secondRun.matchedTerms.join(", ") || "n/a"}
+- Conclusion: ${body.conclusion}
+`;
+}

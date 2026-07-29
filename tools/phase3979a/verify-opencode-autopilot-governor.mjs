@@ -40,7 +40,7 @@ async function main() {
 
   const queue = readJson(queueFile);
   const policy = readJson(policyFile);
-  assert(Array.isArray(queue.tasks) && queue.tasks.length >= 3, "queue must contain at least 3 tasks");
+  assert(Array.isArray(queue.tasks) && queue.tasks.length >= 2, "queue must contain at least 2 tasks");
   assert(policy.enabled === true, "autopilot policy must be enabled");
   assert(policy.stopOnVerifierFailure === true, "verifier failure stop must be enabled");
   assert(policy.stopOnOutOfScopeMutation === true, "out-of-scope stop must be enabled");

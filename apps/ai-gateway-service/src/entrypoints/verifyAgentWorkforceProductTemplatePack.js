@@ -1,13 +1,12 @@
+import { fetchJsonBodyResponse as fetchJson, fetchTextResponse as fetchText, listen, postJsonBodyResponse as postJson, writeEvidenceFiles, } from "./entrypointUtils.js";
 import { existsSync } from "node:fs";
-import { writeEvidencePair } from "./entrypointUtils.js";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
 import { findPlainSecretFindings } from "../security/secretSafety.js";
-import { fetchJson, fetchText, postJson, listen } from "./entrypointUtils.js";
 
 const phase = "phase-153a-agent-workforce-product-template-pack";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -231,7 +230,7 @@ try {
     conclusion: passed ? "agent-workforce-product-template-pack-preview-complete" : "agent-workforce-product-template-pack-preview-incomplete",
   };
 
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyAgentWorkforceProductTemplatePackEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = passed ? 0 : 1;
 } catch (error) {
@@ -242,7 +241,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "agent-workforce-product-template-pack-preview-incomplete",
   };
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyAgentWorkforceProductTemplatePackEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -255,3 +254,44 @@ async function readRequired(relativePath) {
   return readFile(resolve(repoRoot, relativePath), "utf8");
 }
 
+async function writeVerifyAgentWorkforceProductTemplatePackEvidence(body) {
+  await writeEvidenceFiles({
+    evidenceDir,
+    evidenceJsonPath,
+    evidenceMdPath,
+    body,
+    renderMarkdown: createEvidenceMarkdown,
+  });
+}
+
+function createEvidenceMarkdown(body) {
+  return `# Phase 153A Agent Workforce Product Template Pack Evidence
+
+- Phase: ${body.phase}
+- Status: ${body.status}
+- Generated at: ${body.generatedAt}
+- Template pack enabled: ${body.templatePack?.templatePackEnabled ?? "n/a"}
+- Execution enabled: ${body.templatePack?.executionEnabled ?? false}
+- Selected template: ${body.templatePack?.selectedTemplateId ?? "n/a"}
+- Exported selected template: ${body.persistence?.exportedSelectedTemplateId ?? "n/a"}
+- Calls oh-my-codex: ${body.safety?.callsOhMyCodex ?? false}
+- Creates worktrees: ${body.safety?.createsWorktrees ?? false}
+- Workflow run handoff: ${body.safety?.workflowRunHandoff ?? false}
+- External runner dispatch: ${body.safety?.realExternalRunnerDispatch ?? false}
+- Default NVIDIA chat lane changed: ${body.safety?.defaultNvidiaChatLaneChanged ?? false}
+- Plain secret findings: ${body.secretFindingCount ?? "n/a"}
+- Conclusion: ${body.conclusion}
+
+## Templates
+
+${(body.templatePack?.templateIds ?? []).map((item) => `- ${item}`).join("\n")}
+
+## Blocked Reasons
+
+${(body.templatePack?.blockedReasons ?? []).map((item) => `- ${item}`).join("\n")}
+
+## Checks
+
+${Object.entries(body.checks ?? {}).map(([name, value]) => `- ${name}: ${value ? "passed" : "failed"}`).join("\n")}
+`;
+}

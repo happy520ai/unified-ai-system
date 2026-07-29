@@ -2,14 +2,15 @@
  * Test suite for One-Byte Compression Algorithm
  */
 
-import { 
+import { describe, it } from 'vitest';
+
+import {
   compress, 
   decompress, 
   compressMultiple, 
   decompressMultiple, 
   testRoundtrip, 
-  deterministicByte,
-  demonstrate 
+  deterministicByte
 } from './oneByteCompression.js';
 
 // Test helper function
@@ -159,7 +160,17 @@ function testPerformance() {
   console.log(`  ✓ Performance: ${iterations} operations in ${duration}ms (${opsPerSecond} ops/sec)`);
 }
 
-// Run all tests
+// Run all checks as one group while preserving the standalone helper exports.
+describe('One-Byte Compression Algorithm', () => {
+  it('handles basic compression and decompression', testBasicCompression);
+  it('handles multiple data items', testMultipleCompression);
+  it('passes roundtrip checks', testRoundtripFunction);
+  it('generates deterministic byte values', testDeterministicByte);
+  it('handles large data', testLargeDataCompression);
+  it('handles edge cases', testEdgeCases);
+  it('completes the performance loop', testPerformance);
+});
+
 function runAllTests() {
   console.log('=== One-Byte Compression Algorithm Tests ===\n');
   
@@ -192,9 +203,3 @@ export {
   testEdgeCases,
   testPerformance
 };
-
-// Run tests if this file is executed directly
-if (import.meta.url === `file:///${process.argv[1].replace(/\\/g, '/')}`) {
-  runAllTests();
-  demonstrate();
-}

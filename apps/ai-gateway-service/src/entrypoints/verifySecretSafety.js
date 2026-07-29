@@ -1,12 +1,11 @@
-import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
-import { writeEvidencePair } from "./entrypointUtils.js";
+import { listen, writeEvidenceFiles, } from "./entrypointUtils.js";
+import { mkdir, readdir, readFile, stat } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { dirname, extname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
 import { findPlainSecretFindings, maskSecret } from "../security/secretSafety.js";
-import { fetchJson, fetchText, listen, close, postJson } from "./entrypointUtils.js";
 
 const PHASE = "phase-107a-secret-safety";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -64,9 +63,9 @@ try {
 
   const serviceUrl = `http://127.0.0.1:${server.address().port}`;
   const [ui, setupReadiness, modelImportPreview, rootPackage, servicePackage, readme, agents, envExample, envEnterpriseExample] = await Promise.all([
-    fetchText(`${serviceUrl}/ui`, { expectStatus: 200, label: "GET /ui" }),
-    fetchJson(`${serviceUrl}/setup/readiness`, { expectStatus: 200, label: "GET /setup/readiness" }),
-    postJson(`${serviceUrl}/models/import/preview`, {
+    fetchTextWithRetry(`${serviceUrl}/ui`, { expectStatus: 200, label: "GET /ui" }),
+    fetchJsonWithRetry(`${serviceUrl}/setup/readiness`, { expectStatus: 200, label: "GET /setup/readiness" }),
+    postJsonWithRetry(`${serviceUrl}/models/import/preview`, {
       apiKey: forbiddenSecret,
       providerHint: "auto",
     }, { expectStatus: 200, label: "POST /models/import/preview" }),
@@ -92,7 +91,7 @@ try {
     envEnterpriseExample,
     scan,
   });
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifySecretSafetyEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = evidence.status === "passed" ? 0 : 1;
 } catch (error) {
@@ -103,7 +102,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "secret-safety-not-ready",
   };
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifySecretSafetyEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -272,7 +271,7 @@ function isTextFile(filePath) {
 }
 
 function shouldSkipDirectory(name) {
-  return [".git", "node_modules", "dist", "build", "coverage", ".next", ".cache", "test", "__tests__", "evidence"].includes(name);
+  return [".git", "node_modules", "dist", "build", "coverage", ".next", ".cache"].includes(name);
 }
 
 function sanitizeForEvidence(value) {
@@ -287,6 +286,44 @@ function sanitizeForEvidence(value) {
     }
   }
   return output;
+}
+
+async function fetchTextWithRetry(url, options = {}) {
+  return retryHttpRead(options.label ?? url, async () => {
+    const response = await fetch(url);
+    return {
+      httpStatus: response.status,
+      text: await response.text(),
+    };
+  }, options);
+}
+
+async function fetchJsonWithRetry(url, options = {}) {
+  return retryHttpRead(options.label ?? url, async () => {
+    const response = await fetch(url);
+    const text = await response.text();
+    return {
+      httpStatus: response.status,
+      body: text ? JSON.parse(text) : {},
+      text,
+    };
+  }, options);
+}
+
+async function postJsonWithRetry(url, body, options = {}) {
+  return retryHttpRead(options.label ?? url, async () => {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const text = await response.text();
+    return {
+      httpStatus: response.status,
+      body: text ? JSON.parse(text) : {},
+      text,
+    };
+  }, options);
 }
 
 async function retryHttpRead(label, read, options = {}) {
@@ -345,7 +382,44 @@ function delay(ms) {
   return new Promise((resolveDelay) => setTimeout(resolveDelay, ms));
 }
 
+
+function close(server) {
+  return new Promise((resolveClose) => server.close(() => resolveClose()));
+}
+
 function toRepoPath(filePath) {
   return relative(repoRoot, filePath).replace(/\\/g, "/");
 }
 
+async function writeVerifySecretSafetyEvidence(body) {
+  await writeEvidenceFiles({
+    evidenceDir,
+    evidenceJsonPath,
+    evidenceMdPath,
+    body,
+    renderMarkdown: createEvidenceMarkdown,
+  });
+}
+
+function createEvidenceMarkdown(body) {
+  return `# Phase 107A Secret Safety Evidence
+
+- Phase: ${body.phase}
+- Status: ${body.status}
+- Generated at: ${body.generatedAt}
+- UI HTTP OK: ${body.checks?.uiHttpOk}
+- Setup readiness OK: ${body.checks?.setupReadinessOk}
+- Model import masks unknown key: ${body.checks?.modelImportMasksUnknownKey}
+- Model import response contains plaintext key: ${!body.checks?.modelImportNoPlainSecretInResponse}
+- Env example contains plaintext secrets: ${!body.checks?.envExampleNoPlainSecrets}
+- Enterprise env example contains plaintext secrets: ${!body.checks?.envEnterpriseExampleNoPlainSecrets}
+- README contains plaintext secrets: ${!body.checks?.readmeNoPlainSecrets}
+- AGENTS contains plaintext secrets: ${!body.checks?.agentsNoPlainSecrets}
+- Repository scan finding count: ${body.scan?.findingCount}
+- Scripts present: ${body.checks?.scriptsPresent}
+- Plaintext API key recorded: ${body.safety?.plaintextApiKeyRecorded}
+- Production secret vault claimed: ${body.safety?.productionSecretVaultClaimed}
+- Default chat main lane changed: ${body.safety?.defaultChatMainLaneChanged}
+- Conclusion: ${body.conclusion}
+`;
+}

@@ -1,5 +1,7 @@
 import { describe, it, before } from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -152,29 +154,40 @@ describe('VerificationEngine', () => {
 
   it('should verify test-project-v2 passes basic checks', async () => {
     const mockStore = { logEvent: () => {} };
-    const engine = new VerificationEngine(mockStore, projectRoot);
+    const fixtureRoot = await mkdtemp(join(tmpdir(), 'forge-verification-'));
+    await mkdir(join(fixtureRoot, 'src'));
+    await writeFile(
+      join(fixtureRoot, 'package.json'),
+      JSON.stringify({
+        name: 'test-project-v2',
+        private: true,
+        type: 'module',
+        main: 'src/index.js',
+      }),
+      'utf8',
+    );
+    await writeFile(
+      join(fixtureRoot, 'src/index.js'),
+      'export const fixtureReady = true;\n',
+      'utf8',
+    );
+    const engine = new VerificationEngine(mockStore, fixtureRoot);
 
-    // Run Tiers 1-2 (static analysis + unit tests) on the test project
-    const result = await engine.verify('g1', 't1', { maxTier: 2 });
+    try {
+      const result = await engine.verify('g1', 't1', { maxTier: 2 });
 
-    assert.ok(result.tiers.length >= 1, 'Should run at least one tier');
+      assert.ok(result.tiers.length >= 1, 'Should run at least one tier');
 
-    // The test project should have valid package.json
-    const tier1 = result.tiers.find(t => t.tier === 1);
-    if (tier1) {
+      const tier1 = result.tiers.find(t => t.tier === 1);
       const pkgCheck = tier1.checks.find(c => c.name === 'package.json');
-      if (pkgCheck) {
-        assert.strictEqual(pkgCheck.status, 'PASS', 'package.json should be valid');
-      }
-    }
+      assert.strictEqual(pkgCheck?.status, 'PASS', 'package.json should be valid');
+      const syntaxCheck = tier1.checks.find(c => c.name === 'Module Syntax');
+      assert.strictEqual(syntaxCheck?.status, 'PASS', 'module entry should have valid syntax');
 
-    // Unit tests should pass
-    const tier2 = result.tiers.find(t => t.tier === 2);
-    if (tier2) {
-      const testCheck = tier2.checks.find(c => c.name === 'npm test');
-      if (testCheck) {
-        assert.strictEqual(testCheck.status, 'PASS', 'npm test should pass');
-      }
+      const tier2 = result.tiers.find(t => t.tier === 2);
+      assert.ok(['PASS', 'SKIP'].includes(tier2?.status), 'test-runner discovery should not fail');
+    } finally {
+      await rm(fixtureRoot, { recursive: true, force: true });
     }
   });
 });

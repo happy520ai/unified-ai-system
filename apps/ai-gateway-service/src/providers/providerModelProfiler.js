@@ -2,6 +2,7 @@ import {
   CAPABILITY_ORDER,
   CHAT_EXCLUSIVE_BLOCKERS,
 } from "./providerCatalog.js";
+import { dedupeModels } from "./providerDetectionResult.js";
 
 export function normalizeDiscoveredModels(body) {
   const rawModels = Array.isArray(body?.data)

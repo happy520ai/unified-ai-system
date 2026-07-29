@@ -443,6 +443,8 @@ Verify the controlled Codex loop dry-run path.
 
 export {
   phaseDefinitions,
+  importScriptPath,
+  loopScriptPath,
   ensureBridgeStructure,
   bridgeStructurePaths,
   createSampleCodexResult,

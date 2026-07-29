@@ -12,7 +12,7 @@
 
 - 采用方案 A：内联等价桥接。
 - 原因：`/ui` 当前仍是 inline HTML + inline script，直接引入 ESM `apiClient.js` 会增加运行时加载风险，不符合本轮“只允许一个生产接入变量”的边界。
-- 做法：在 [apps/ai-gateway-service/src/ui/consolePage.js](/E:/AI-Data/AI网关系统/unified-ai-system/apps/ai-gateway-service/src/ui/consolePage.js) 内新增 `createWorkbenchApiBridge()`，只暴露 `getDiagnosticsStatus()`。
+- 做法：在 [apps/ai-gateway-service/src/ui/consolePage.js](../apps/ai-gateway-service/src/ui/consolePage.js) 内新增 `createWorkbenchApiBridge()`，只暴露 `getDiagnosticsStatus()`。
 - `loadDiagnostics()` 从直接调用 `requestJson("/workbench/diagnostics/status")` 改为调用 `workbenchApiClient.getDiagnosticsStatus()`。
 
 ## 保持不变的事项
@@ -29,7 +29,7 @@
 
 ## 代码改动摘要
 
-- [apps/ai-gateway-service/src/ui/consolePage.js](/E:/AI-Data/AI网关系统/unified-ai-system/apps/ai-gateway-service/src/ui/consolePage.js)
+- [apps/ai-gateway-service/src/ui/consolePage.js](../apps/ai-gateway-service/src/ui/consolePage.js)
   - 新增 `createWorkbenchApiBridge()`
   - 新增 `workbenchApiClient`
   - `loadDiagnostics()` 改为通过 bridge 获取 diagnostics 数据

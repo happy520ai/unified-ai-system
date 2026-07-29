@@ -2,7 +2,7 @@
 
 - Phase: phase-76q-web-chat-user-api-catalog-coverage
 - Status: passed
-- Generated at: 2026-04-26T06:56:37.336Z
+- Generated at: 2026-07-29T08:46:21.587Z
 - Source workbook inspected: 免费api汇总.xlsx
 - API key values recorded: false
 - Observed provider families: iFlytek Spark, Baidu Qianfan, Tencent Hunyuan, Coze, Zhipu AI, SiliconFlow, DashScope, ModelScope, Google Gemini, Cloudflare Workers AI, Groq, Hugging Face, OpenAI, generic OpenAI-compatible relay

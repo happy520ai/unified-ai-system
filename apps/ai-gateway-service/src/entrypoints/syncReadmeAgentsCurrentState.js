@@ -1,12 +1,12 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { agentsBlock } from "./syncAgentsBlockData.js";
+import { readmeBlock } from "./syncReadmeBlockData.js";
 
 const repoRoot = resolve(fileURLToPath(new URL("../../../..", import.meta.url)));
 const readmePath = resolve(repoRoot, "README.md");
 const agentsPath = resolve(repoRoot, "AGENTS.md");
-import { readmeBlock } from "./syncReadmeBlockData.js";
-import { agentsBlock } from "./syncAgentsBlockData.js";
 
 const readmePreamble = [
   "# unified-ai-system / AI Gateway Workbench",

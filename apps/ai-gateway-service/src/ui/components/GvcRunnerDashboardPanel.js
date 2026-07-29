@@ -2,7 +2,6 @@ import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildRunnerCommandDryRunMatrix } from "../../gvc/runnerCommandBridgeDryRun.js";
-import { readJson } from "../../entrypoints/entrypointUtils.js";
 
 const repoRoot = resolve(fileURLToPath(new URL("../../../../../", import.meta.url)));
 
@@ -144,7 +143,7 @@ export function renderGvcRunnerDashboardPanel() {
                   <div>
                     <div class="eyebrow">GVC Runner</div>
                     <h3>Runner 状态面板</h3>
-                    <p>只读展示本地 timed runner 状态；这里不会启动、暂停、停止runner，也不会调用 Provider。</p>
+                    <p>只读展示本地 timed runner 状态；这里不会启动、暂停、停止 runner，也不会调用 Provider。</p>
                   </div>
                   <span class="tour-chip">read-only</span>
                 </div>
@@ -152,8 +151,8 @@ export function renderGvcRunnerDashboardPanel() {
                   <span>runner 是否运行 <strong>${escapeHtml(snapshot.runnerRunning ? "running" : snapshot.runnerStatus)}</strong></span>
                   <span>当前是否 paused <strong>${escapeHtml(snapshot.paused)}</strong></span>
                   <span>今日 loop 次数 <strong>${escapeHtml(`${snapshot.loopsCompletedToday}/${snapshot.dailyLoopLimit}`)}</strong></span>
-                  <span>最近执行任务<strong>${escapeHtml(snapshot.lastSelectedTaskId ?? "none")}</strong></span>
-                  <span>最近blocker <strong>${escapeHtml(snapshot.currentBlocker)}</strong></span>
+                  <span>最近执行任务 <strong>${escapeHtml(snapshot.lastSelectedTaskId ?? "none")}</strong></span>
+                  <span>最近 blocker <strong>${escapeHtml(snapshot.currentBlocker)}</strong></span>
                   <span>history records <strong>${escapeHtml(snapshot.historyRecordCount)}</strong></span>
                 </div>
                 <div class="radar-grid" data-gvc-runner-real-mutation-status="true">
@@ -185,7 +184,7 @@ ${safetyRows}
                     <div>
                       <div class="eyebrow">GVC Cycle</div>
                       <h3>Cycle Controller 只读状态</h3>
-                      <p>展示 freshness gate、planner refresh、batch audit 和final seal；这里只读，不会改runner-control，也不会启动 runner。</p>
+                      <p>展示 freshness gate、planner refresh、batch audit 与 final seal；这里只读，不会写 runner-control，也不会启动 runner。</p>
                     </div>
                     <span class="tour-chip">read-only</span>
                   </div>
@@ -223,7 +222,7 @@ ${commandPreviewCards}
                   </div>
                   <div class="scenario-dry-run-result" id="gvc-runner-command-preview-result" data-gvc-runner-command-preview-result="true" hidden>
                     <h3 id="gvc-runner-command-preview-title">Command preview</h3>
-                    <p id="gvc-runner-command-preview-copy">选择暂停、继续或停止后，这里只显示dry-run command preview。</p>
+                    <p id="gvc-runner-command-preview-copy">选择暂停、继续或停止后，这里只显示 dry-run command preview。</p>
                     <div class="comparison-footer" data-gvc-runner-command-preview-boundary="true">
                       <span>wouldWriteControlFile=true</span>
                       <span>realWritePerformed=false</span>
@@ -247,6 +246,15 @@ function commandLabel(commandIntent) {
   return "停止 preview";
 }
 
+function readJson(relativePath) {
+  const filePath = resolve(repoRoot, relativePath);
+  if (!existsSync(filePath)) return null;
+  try {
+    return JSON.parse(readFileSync(filePath, "utf8").replace(/^\uFEFF/, ""));
+  } catch {
+    return null;
+  }
+}
 
 function escapeHtml(value) {
   return String(value ?? "")

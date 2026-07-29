@@ -1,34 +1,39 @@
-import { describe, it } from "node:test";
-import assert from "node:assert/strict";
-import { createSqliteVecStore } from "./sqliteVecStore.js";
+import { describe, it, expect } from "vitest";
+import { createSqliteVecStore, safeParseMetadata } from "./sqliteVecStore.js";
 
 describe("sqlite-vec-store", () => {
   it("creates store instance", () => {
     const store = createSqliteVecStore({ dbPath: ":memory:" });
-    assert.ok(store !== undefined);
-    assert.equal(typeof store.isAvailable, "function");
-    assert.equal(typeof store.upsertDocument, "function");
-    assert.equal(typeof store.query, "function");
+    expect(store).toBeDefined();
+    expect(store.isAvailable).toBeInstanceOf(Function);
+    expect(store.upsertDocument).toBeInstanceOf(Function);
+    expect(store.query).toBeInstanceOf(Function);
   });
 
   it("reports readiness", () => {
     const store = createSqliteVecStore({ dbPath: ":memory:" });
     const readiness = store.getReadiness();
-    assert.equal(readiness.id, "sqlite-vec");
-    assert.ok(readiness.status !== undefined);
+    expect(readiness.id).toBe("sqlite-vec");
+    expect(readiness.status).toBeDefined();
   });
 
   it("returns 0 documents when empty", () => {
     const store = createSqliteVecStore({ dbPath: ":memory:" });
     const count = store.getDocumentCount();
-    assert.equal(count, 0);
+    expect(count).toBe(0);
   });
 
   it("has correct interface methods", () => {
     const store = createSqliteVecStore({ dbPath: ":memory:" });
-    assert.equal(typeof store.upsertDocuments, "function");
-    assert.equal(typeof store.deleteDocument, "function");
-    assert.equal(typeof store.getDocumentCount, "function");
-    assert.equal(typeof store.close, "function");
+    expect(store.upsertDocuments).toBeInstanceOf(Function);
+    expect(store.deleteDocument).toBeInstanceOf(Function);
+    expect(store.getDocumentCount).toBeInstanceOf(Function);
+    expect(store.close).toBeInstanceOf(Function);
+  });
+
+  it("treats malformed or non-object metadata as empty", () => {
+    expect(safeParseMetadata("{broken")).toEqual({});
+    expect(safeParseMetadata("[]")).toEqual({});
+    expect(safeParseMetadata('{"source":"test"}')).toEqual({ source: "test" });
   });
 });

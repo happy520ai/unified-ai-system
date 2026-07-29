@@ -1,10 +1,9 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { writeEvidencePair } from "./entrypointUtils.js";
+import { fetchJsonResponse as fetchJson, fetchTextResponse as fetchText, listen, postJsonResponse as postJson, writeEvidenceFiles, } from "./entrypointUtils.js";
+import { mkdir, readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
-import { fetchJson, fetchText, listen, close, postJson } from "./entrypointUtils.js";
 
 const PHASE = "phase-105a-user-journey";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -82,7 +81,7 @@ try {
     readme,
     agents,
   });
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyUserJourneyEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = evidence.status === "passed" ? 0 : 1;
 } catch (error) {
@@ -93,7 +92,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "user-journey-not-ready",
   };
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyUserJourneyEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -235,6 +234,8 @@ function sanitizeForEvidence(value) {
 }
 
 
+
+
 async function deleteJson(url) {
   const response = await fetch(url, {
     method: "DELETE",
@@ -246,3 +247,39 @@ async function deleteJson(url) {
   };
 }
 
+
+function close(server) {
+  return new Promise((resolveClose) => server.close(() => resolveClose()));
+}
+
+async function writeVerifyUserJourneyEvidence(body) {
+  await writeEvidenceFiles({
+    evidenceDir,
+    evidenceJsonPath,
+    evidenceMdPath,
+    body,
+    renderMarkdown: createEvidenceMarkdown,
+  });
+}
+
+function createEvidenceMarkdown(body) {
+  return `# Phase 105A User Journey Evidence
+
+- Phase: ${body.phase}
+- Status: ${body.status}
+- Generated at: ${body.generatedAt}
+- UI setup wizard present: ${body.checks?.uiSetupWizardPresent}
+- UI user journey marker present: ${body.checks?.uiUserJourneyMarkerPresent}
+- Setup readiness status: ${body.setup?.status}
+- Chat ready: ${body.setup?.chatReady}
+- Model import unknown status: ${body.modelImport?.unknownStatus}
+- Model import user guidance present: ${body.modelImport?.userGuidancePresent}
+- Workforce plan/save/list/export/delete: ${body.checks?.workforcePlanSaveExportDeleteOk}
+- README user path present: ${body.checks?.readmeUserPathPresent}
+- AGENTS boundary present: ${body.checks?.agentsBoundaryPresent}
+- Plaintext API key recorded: ${body.safety?.plaintextApiKeyRecorded}
+- Default chat main lane changed: ${body.safety?.defaultChatMainLaneChanged}
+- Workforce execution enabled: ${body.safety?.workforceExecution}
+- Conclusion: ${body.conclusion}
+`;
+}

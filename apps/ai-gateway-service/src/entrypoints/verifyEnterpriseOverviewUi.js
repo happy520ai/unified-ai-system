@@ -1,11 +1,10 @@
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
-import { writeEvidencePair } from "./entrypointUtils.js";
+import { fetchContentResponse as fetchText, listen, requestJsonResponseWithHeaders as fetchJson, writeEvidenceFiles, } from "./entrypointUtils.js";
+import { mkdir, mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
-import { fetchJson, fetchText, listen, close } from "./entrypointUtils.js";
 
 const PHASE = "phase-47a-enterprise-overview-ui";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -69,7 +68,7 @@ try {
     responseText,
     conclusion: passed ? "enterprise-overview-ui-connected" : "enterprise-overview-ui-not-connected",
   });
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyEnterpriseOverviewUiEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = passed ? 0 : 1;
 } catch (error) {
@@ -79,7 +78,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "enterprise-overview-ui-not-connected",
   });
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyEnterpriseOverviewUiEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -142,6 +141,15 @@ function createHeaders(token) {
     "x-pme-tenant-id": tenantId,
   };
 }
+
+
+function close(targetServer) {
+  return new Promise((resolveClose) => {
+    targetServer.close(() => resolveClose());
+  });
+}
+
+
 
 function createEvidence({ status, generatedAt, serviceUrl, ui, missingAuth, overview, responseText, conclusion, error }) {
   const data = overview?.body?.data;
@@ -209,3 +217,62 @@ function createEvidence({ status, generatedAt, serviceUrl, ui, missingAuth, over
   };
 }
 
+async function writeVerifyEnterpriseOverviewUiEvidence(body) {
+  await writeEvidenceFiles({
+    evidenceDir,
+    evidenceJsonPath,
+    evidenceMdPath,
+    body,
+    renderMarkdown: createEvidenceMarkdown,
+  });
+}
+
+function createEvidenceMarkdown(body) {
+  return `# Phase 47A Enterprise Overview UI Evidence
+
+- Phase: ${body.phase}
+- Status: ${body.status}
+- Generated at: ${body.generatedAt}
+- Service URL: ${body.serviceUrl ?? "n/a"}
+- UI HTTP status: ${body.ui?.httpStatus ?? "n/a"}
+- UI panel present: ${body.ui?.panelPresent}
+- Route present in UI: ${body.ui?.routePresent}
+- Route path: ${body.route?.path}
+- Missing auth HTTP status: ${body.route?.missingAuthHttpStatus ?? "n/a"}
+- Authorized HTTP status: ${body.route?.authorizedHttpStatus ?? "n/a"}
+- Route mode: ${body.route?.mode ?? "n/a"}
+- Overview status: ${body.route?.status ?? "n/a"}
+- Blocker count: ${body.route?.blockerCount ?? "n/a"}
+- Warning count: ${body.route?.warningCount ?? "n/a"}
+- Deployment readiness status: ${body.readiness?.deploymentStatus ?? "n/a"}
+- Startup readiness status: ${body.readiness?.startupStatus ?? "n/a"}
+- Security readiness status: ${body.readiness?.securityStatus ?? "n/a"}
+- Vector readiness mode: ${body.readiness?.vectorMode ?? "n/a"}
+- Vector readiness status: ${body.readiness?.vectorStatus ?? "n/a"}
+- Acceptance source phase: ${body.acceptance?.sourcePhase ?? "n/a"}
+- Acceptance source status: ${body.acceptance?.sourceStatus ?? "n/a"}
+- Acceptance evidence required: ${body.acceptance?.requiredCount ?? "n/a"}
+- Acceptance evidence passed: ${body.acceptance?.passedCount ?? "n/a"}
+- Acceptance evidence missing: ${body.acceptance?.missingCount ?? "n/a"}
+- Acceptance evidence failed: ${body.acceptance?.failedCount ?? "n/a"}
+- Release-candidate source phase: ${body.releaseCandidate?.sourcePhase ?? "n/a"}
+- Release-candidate source status: ${body.releaseCandidate?.sourceStatus ?? "n/a"}
+- Release-candidate mode: ${body.releaseCandidate?.mode ?? "n/a"}
+- Package created: ${body.releaseCandidate?.packageCreated}
+- Release created: ${body.releaseCandidate?.releaseCreated}
+- Artifact published: ${body.releaseCandidate?.artifactPublished}
+- Release-candidate evidence required: ${body.releaseCandidate?.evidenceRequiredCount ?? "n/a"}
+- Release-candidate evidence passed: ${body.releaseCandidate?.evidencePassedCount ?? "n/a"}
+- Release-candidate evidence missing: ${body.releaseCandidate?.evidenceMissingCount ?? "n/a"}
+- Release-candidate evidence failed: ${body.releaseCandidate?.evidenceFailedCount ?? "n/a"}
+- Read-only route: ${body.safety?.readOnlyRoute}
+- Provider calls: ${body.safety?.providerCalls}
+- Runtime mutation: ${body.safety?.runtimeMutation}
+- Release automation: ${body.safety?.releaseAutomation}
+- Infrastructure provisioning: ${body.safety?.infrastructureProvisioning}
+- Secret values recorded: ${body.safety?.secretValuesRecorded}
+- Response contains auditor token: ${body.safety?.responseContainsAuditorToken}
+- Response contains NVIDIA key: ${body.safety?.responseContainsNvidiaKey}
+- Conclusion: ${body.conclusion}
+`;
+}

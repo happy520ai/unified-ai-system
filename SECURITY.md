@@ -17,6 +17,7 @@ This repository is a local-first, dry-run-first AI Gateway Workbench. Default cl
 - Do not change `/chat` or `/chat-gateway/execute` as part of public-readiness work.
 - Do not run OpenAI, Claude, OpenRouter, MiMo, NVIDIA, or any other real Provider by default.
 - Do not treat this repository as a deployed production service.
+- Do not commit `*.input.json`; use the tracked example or template as the starting point for a local, short-lived approval.
 
 ## Response Posture
 

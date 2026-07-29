@@ -163,8 +163,10 @@ async function embedWithGemini({ apiKey, baseUrl, model, taskType, text, title }
   let body;
   try {
     body = textBody ? JSON.parse(textBody) : {};
-  } catch (parseErr) {
-    throw new Error(`Gemini embedding probe returned non-JSON body (HTTP ${response.status}): ${textBody.slice(0, 200)}`);
+  } catch {
+    throw new Error(
+      `Gemini embedding probe returned a non-JSON body (HTTP ${response.status}): ${textBody.slice(0, 200)}`,
+    );
   }
 
   if (!response.ok) {

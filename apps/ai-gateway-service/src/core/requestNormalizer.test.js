@@ -1,5 +1,4 @@
-import { describe, it } from "node:test";
-import assert from "node:assert/strict";
+import { describe, it, expect } from "vitest";
 import { normalizeGatewayRequest } from "./requestNormalizer.js";
 
 describe("request-normalizer", () => {
@@ -7,23 +6,23 @@ describe("request-normalizer", () => {
     const result = normalizeGatewayRequest({
       messages: [{ role: "user", content: "hello" }],
     });
-    assert.equal(result.messages.length, 1);
-    assert.equal(result.messages[0].role, "user");
-    assert.equal(result.messages[0].content, "hello");
-    assert.ok(result.context.requestId !== undefined);
-    assert.equal(result.taskType, "chat");
+    expect(result.messages.length).toBe(1);
+    expect(result.messages[0].role).toBe("user");
+    expect(result.messages[0].content).toBe("hello");
+    expect(result.context.requestId).toBeDefined();
+    expect(result.taskType).toBe("chat");
   });
 
   it("throws for missing messages", () => {
-    assert.throws(() => normalizeGatewayRequest({}));
+    expect(() => normalizeGatewayRequest({})).toThrow();
   });
 
   it("throws for empty messages", () => {
-    assert.throws(() => normalizeGatewayRequest({ messages: [] }));
+    expect(() => normalizeGatewayRequest({ messages: [] })).toThrow();
   });
 
   it("throws for invalid message", () => {
-    assert.throws(() => normalizeGatewayRequest({ messages: [null] }));
+    expect(() => normalizeGatewayRequest({ messages: [null] })).toThrow();
   });
 
   it("normalizes task type", () => {
@@ -31,13 +30,13 @@ describe("request-normalizer", () => {
       messages: [{ role: "user", content: "hello" }],
       taskType: "reasoning",
     });
-    assert.equal(result.taskType, "reasoning");
+    expect(result.taskType).toBe("reasoning");
   });
 
   it("throws for unsupported task type", () => {
-    assert.throws(() => normalizeGatewayRequest({
+    expect(() => normalizeGatewayRequest({
       messages: [{ role: "user", content: "hello" }],
       taskType: "unsupported",
-    }));
+    })).toThrow();
   });
 });

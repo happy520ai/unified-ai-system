@@ -1,3 +1,6 @@
+import {
+  readJsonFileSync as readJson,
+} from "./entrypointUtils.js";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -5,7 +8,6 @@ import { fileURLToPath } from "node:url";
 import { classifyLocalAgentIntent } from "../agent-runner/localAgentIntentClassifier.js";
 import { createLocalAgentApprovalPreview, isLocalAgentApprovalPreviewReady } from "../agent-runner/localAgentApprovalPreview.js";
 import { createLocalAgentIntentExplainer } from "../agent-runner/localAgentIntentExplainer.js";
-import { readJson } from "./entrypointUtils.js"
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "../../../..");

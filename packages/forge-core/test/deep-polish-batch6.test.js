@@ -7,11 +7,12 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { createSourceReader } from "./helpers/source-closure.js";
 
 const APPS_SRC = "../../../apps/ai-gateway-service/src";
 const SRC_ROOT = resolve(import.meta.dirname || ".", APPS_SRC);
+const readFileSync = createSourceReader(SRC_ROOT);
 
 // ────────────────────────────────────────────────────────────────
 // 1. sessionMemory TOCTOU Race Fix
@@ -238,35 +239,30 @@ describe("executeStream context compaction", () => {
   it("executeStream path includes manageHistory call", () => {
     const src = readFileSync(join(SRC_ROOT, "agentic", "agenticCodingLoop.js"), "utf-8");
 
-    // Find the executeStream function
-    const streamStart = src.indexOf("executeStream");
-    assert.ok(streamStart > 0, "Should have executeStream function");
-
-    // The execute function should have manageHistory
+    const compactStart = src.indexOf("function compactIfNeeded");
     const executeStart = src.indexOf("async function execute(");
-    const executeSection = src.slice(executeStart, executeStart + 8000);
-    assert.ok(
-      executeSection.includes("manageHistory"),
-      "execute() should call manageHistory"
-    );
+    const streamStart = src.indexOf("async function* executeStream(");
+    assert.ok(compactStart > 0, "Should have compactIfNeeded helper");
+    assert.ok(executeStart > compactStart, "Should have execute function");
+    assert.ok(streamStart > executeStart, "Should have executeStream function");
+
+    const compactSection = src.slice(compactStart, executeStart);
+    const executeSection = src.slice(executeStart, streamStart);
+    const streamSection = src.slice(streamStart, src.indexOf("\n  return {", streamStart));
+    assert.ok(compactSection.includes("manageHistory"), "shared compaction helper should call manageHistory");
+    assert.ok(executeSection.includes("compactIfNeeded(messages)"), "execute() should use shared compaction");
+    assert.ok(streamSection.includes("compactIfNeeded(messages)"), "executeStream() should use shared compaction");
 
     // Count manageHistory occurrences — should be at least 2 (one in execute, one in executeStream)
-    const matches = [...src.matchAll(/manageHistory/g)];
-    assert.ok(
-      matches.length >= 2,
-      `manageHistory should appear in both execute and executeStream (found ${matches.length} occurrences)`
-    );
   });
 
   it("executeStream path includes compactMessages call", () => {
     const src = readFileSync(join(SRC_ROOT, "agentic", "agenticCodingLoop.js"), "utf-8");
 
-    // compactMessages should appear in both execute and executeStream
-    const matches = [...src.matchAll(/compactMessages/g)];
-    assert.ok(
-      matches.length >= 2,
-      `compactMessages should appear in both paths (found ${matches.length} occurrences)`
-    );
+    const compactStart = src.indexOf("function compactIfNeeded");
+    const executeStart = src.indexOf("async function execute(");
+    const compactSection = src.slice(compactStart, executeStart);
+    assert.ok(compactSection.includes("compactMessages"), "shared compaction helper should call compactMessages");
   });
 });
 

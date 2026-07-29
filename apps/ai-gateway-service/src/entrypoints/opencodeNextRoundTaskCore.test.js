@@ -8,7 +8,7 @@ test("buildOpenCodeNextRoundTask turns review-required findings into a structure
     previousTask: {
       taskId: "phase3990a-opencode-controlled-loop-bridge",
       title: "Phase3990A OpenCode Controlled Loop Bridge",
-      projectRoot: "E:/AI-Data/AI网关系统/unified-ai-system/.opencode-handoff/outbox",
+      projectRoot: "C:/workspace/unified-ai-system/.opencode-handoff/outbox",
     },
     review: {
       goNoGo: "review-required",
@@ -31,7 +31,7 @@ test("buildOpenCodeNextRoundTask turns review-required findings into a structure
   });
 
   assert.equal(result.task.taskId, "phase3992a-opencode-feedback-driven-next-round");
-  assert.equal(result.task.projectRoot, "E:/AI-Data/AI网关系统/unified-ai-system");
+  assert.equal(result.task.projectRoot, "C:/workspace/unified-ai-system");
   assert.equal(result.task.sourceReviewDecision, "review-required");
   assert.match(result.task.markdown, /Commands Run/);
   assert.match(result.task.markdown, /Changed Files/);
@@ -43,7 +43,7 @@ test("buildOpenCodeNextRoundTask turns review-required findings into a structure
 test("buildOpenCodeNextRoundTask blocks when the latest review is not review-required", () => {
   assert.throws(
     () => buildOpenCodeNextRoundTask({
-      previousTask: { projectRoot: "E:/AI-Data/AI网关系统/unified-ai-system" },
+      previousTask: { projectRoot: "C:/workspace/unified-ai-system" },
       review: { goNoGo: "go" },
       feedbackMarkdown: "# feedback",
     }),

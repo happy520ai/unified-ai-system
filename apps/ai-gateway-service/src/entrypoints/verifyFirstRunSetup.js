@@ -1,11 +1,10 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { writeEvidencePair } from "./entrypointUtils.js";
+import { fetchJsonResponse as fetchJson, fetchTextResponse as fetchText, listen, postJsonResponse as postJson, writeEvidenceFiles, } from "./entrypointUtils.js";
+import { mkdir, readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGatewayClient } from "@unified-ai-system/shared-sdk";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
-import { fetchJson, fetchText, listen, close, postJson } from "./entrypointUtils.js";
 
 const PHASE = "phase-104a-first-run-setup";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -59,7 +58,7 @@ try {
     readme,
     agents,
   });
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyFirstRunSetupEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = evidence.status === "passed" ? 0 : 1;
 } catch (error) {
@@ -70,7 +69,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "first-run-setup-not-ready",
   };
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyFirstRunSetupEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -174,3 +173,41 @@ function sanitizeForEvidence(value) {
   return output;
 }
 
+
+
+
+
+function close(server) {
+  return new Promise((resolveClose) => server.close(() => resolveClose()));
+}
+
+async function writeVerifyFirstRunSetupEvidence(body) {
+  await writeEvidenceFiles({
+    evidenceDir,
+    evidenceJsonPath,
+    evidenceMdPath,
+    body,
+    renderMarkdown: createEvidenceMarkdown,
+  });
+}
+
+function createEvidenceMarkdown(body) {
+  return `# Phase 104A First-run Setup Evidence
+
+- Phase: ${body.phase}
+- Status: ${body.status}
+- Generated at: ${body.generatedAt}
+- Setup status: ${body.setup?.status}
+- Setup step count: ${body.setup?.stepCount}
+- Readiness keys: ${(body.setup?.readinessKeys ?? []).join(", ")}
+- UI setup marker: ${body.checks?.uiMarkerPresent}
+- UI first-run copy: ${body.checks?.uiFirstRunCopyPresent}
+- SDK setup readiness: ${body.checks?.setupSdkOk}
+- Unknown API key guidance: ${body.modelImport?.unknownStatus} / ${body.modelImport?.userGuidancePresent}
+- Root/service scripts present: ${body.checks?.scriptsPresent}
+- Plaintext API key recorded: ${body.safety?.plaintextApiKeyRecorded}
+- Default chat main lane changed: ${body.safety?.defaultChatMainLaneChanged}
+- Workforce execution enabled: ${body.safety?.workforceExecution}
+- Conclusion: ${body.conclusion}
+`;
+}

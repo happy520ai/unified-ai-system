@@ -1,3 +1,4 @@
+import { fetchNullableJsonResponse as fetchJson } from "./entrypointUtils.js";
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { execFile } from "node:child_process";
@@ -15,7 +16,6 @@ import {
   repoRoot,
   writeEvidence,
 } from "./verifyAgentWorkforceClosureSupport.js";
-import { fetchJson } from "./entrypointUtils.js";
 
 const execFileAsync = promisify(execFile);
 const scriptPath = "tools/agent-workforce/pull-codex-handoff.ps1";
@@ -302,6 +302,7 @@ async function runClipboardRealTrial() {
     businessStatusUnchanged: beforeStatus === afterStatus,
   };
 }
+
 
 async function runCommand(command, args, timeout = 60000) {
   try {

@@ -1,11 +1,10 @@
-import { mkdir, writeFile } from "node:fs/promises";
-import { writeEvidencePair } from "./entrypointUtils.js";
+import { fetchTextResponse as fetchText, listen, requestJsonResponse as fetchJson, writeEvidenceFiles, } from "./entrypointUtils.js";
+import { mkdir } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGatewayClient } from "@unified-ai-system/shared-sdk";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
-import { fetchJson, fetchText, listen, close } from "./entrypointUtils.js";
 
 const PHASE = "phase-102a-agent-workforce-skeleton";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -86,7 +85,7 @@ try {
     conclusion: connected ? "agent-workforce-skeleton-connected" : "agent-workforce-skeleton-not-connected",
   });
 
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyAgentWorkforceSkeletonEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = connected ? 0 : 1;
 } catch (error) {
@@ -97,7 +96,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "agent-workforce-skeleton-not-connected",
   });
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyAgentWorkforceSkeletonEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -105,6 +104,15 @@ try {
     await close(server);
   }
 }
+
+
+function close(server) {
+  return new Promise((resolveClose) => {
+    server.close(() => resolveClose());
+  });
+}
+
+
 
 function isWorkforceSkeletonConnected({
   health,
@@ -244,3 +252,47 @@ function createEvidence({
   };
 }
 
+async function writeVerifyAgentWorkforceSkeletonEvidence(body) {
+  await writeEvidenceFiles({
+    evidenceDir,
+    evidenceJsonPath,
+    evidenceMdPath,
+    body,
+    renderMarkdown: createEvidenceMarkdown,
+  });
+}
+
+function createEvidenceMarkdown(body) {
+  return `# Phase 102A Agent Workforce Skeleton Evidence
+
+- Phase: ${body.phase}
+- Status: ${body.status}
+- Generated at: ${body.generatedAt}
+- Service URL: ${body.service.url ?? "n/a"}
+- Workforce health HTTP status: ${body.workforce.healthHttpStatus ?? "n/a"}
+- Workforce agents HTTP status: ${body.workforce.agentsHttpStatus ?? "n/a"}
+- Workforce plan HTTP status: ${body.workforce.planHttpStatus ?? "n/a"}
+- Role count: ${body.workforce.roleCount ?? "n/a"}
+- Selected roles: ${body.workforce.selectedRoleCount ?? "n/a"}
+- Task count: ${body.workforce.taskCount ?? "n/a"}
+- Assignment count: ${body.workforce.assignmentCount ?? "n/a"}
+- Deliverable count: ${body.workforce.deliverableCount ?? "n/a"}
+- Acceptance criteria count: ${body.workforce.acceptanceCriteriaCount ?? "n/a"}
+- Risk count: ${body.workforce.riskCount ?? "n/a"}
+- Next action count: ${body.workforce.nextActionCount ?? "n/a"}
+- SDK plan matches HTTP plan: ${body.sdk.sdkPlanMatchesHttpPlan}
+- UI panel present: ${body.ui.panelPresent}
+- UI button present: ${body.ui.buttonPresent}
+- UI route wired: ${body.ui.routeWired}
+- Adjacent /knowledge health HTTP status: ${body.adjacentCapabilities.knowledgeHealthHttpStatus ?? "n/a"}
+- Adjacent /models/import/providers HTTP status: ${body.adjacentCapabilities.modelImportProvidersHttpStatus ?? "n/a"}
+- Real LLM calls: ${body.safety.realLlmCalls}
+- Code execution: ${body.safety.codeExecution}
+- Project file writes: ${body.safety.projectFileWrites}
+- Workflow run: ${body.safety.workflowRun}
+- Default chat lane mutated: ${body.safety.defaultChatLaneMutated}
+- Provider registry mutated: ${body.safety.providerRegistryMutated}
+- Secret values recorded: ${body.safety.secretValuesRecorded}
+- Conclusion: ${body.conclusion}
+`;
+}

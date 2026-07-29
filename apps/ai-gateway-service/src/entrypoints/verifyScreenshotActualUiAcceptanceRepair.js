@@ -1,9 +1,11 @@
+import {
+  readJsonFileSync as readJson,
+} from "./entrypointUtils.js";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { createConsolePage } from "../ui/consolePage.js";
-import { readJson, writeEvidenceSync } from "./entrypointUtils.js"
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "../../../..");
@@ -91,7 +93,7 @@ function visibleTextIncludes(source, text) {
   return stripTags(source).includes(text);
 }
 
-function saveEvidence(status, failures) {
+function writeEvidence(status, failures) {
   const evidence = {
     ...requiredEvidence,
     status,
@@ -279,7 +281,7 @@ function main() {
   });
 
   const failures = checks.filter((item) => !item.pass);
-  saveEvidence(failures.length ? "fail" : "pass", failures);
+  writeEvidence(failures.length ? "fail" : "pass", failures);
   if (failures.length) {
     console.error(`[phase308d] failed checks: ${failures.map((item) => item.id).join(", ")}`);
     process.exit(1);

@@ -1,8 +1,8 @@
-import { existsSync, readFileSync } from "node:fs";
+import { readRepoJsonOrNull as readJson } from "./componentFileUtils.js";
+import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { routeQualityRound2Copy } from "../copy/routeQualityRound2Copy.js";
-import { readJson } from "../../entrypoints/entrypointUtils.js";
 
 const repoRoot = resolve(fileURLToPath(new URL("../../../../../", import.meta.url)));
 

@@ -3,7 +3,6 @@ import { renderInternalEmployeeCommunicationPanel } from "./InternalEmployeeComm
 import { renderBranchExecutionPreviewPanel } from "./BranchExecutionPreviewPanel.js";
 import { renderLongHorizonHardeningPanel } from "./LongHorizonHardeningPanel.js";
 import { renderCodexContextGatewayPanel } from "./CodexContextGatewayPanel.js";
-import { renderGlobalModelLibraryPanel } from "./GlobalModelLibraryPanel.js";
 import { renderUserOwnedProviderExpansionPanel } from "./UserOwnedProviderExpansionPanel.js";
 import { renderModelRoutingPanel } from "./ModelRoutingPanel.js";
 import { renderRealModelRoutingPanel } from "./RealModelRoutingPanel.js";
@@ -23,6 +22,7 @@ import { renderRouteQualityRound2Panel } from "./RouteQualityRound2Panel.js";
 import { renderLocalSelfUseRoutingV1Panel } from "./LocalSelfUseRoutingV1Panel.js";
 import { renderFutureMinimalOsPanel } from "./FutureMinimalOsPanel.js";
 import { renderTaijiBeidouMissionControlVisualizationPanel } from "./TaijiBeidouMissionControlVisualizationPanel.js";
+import { renderOwnerAdvancedDrawer } from "./OwnerAdvancedDrawer.js";
 import { renderOwnerBossViewPanel } from "./OwnerBossViewPanel.js";
 import { renderNeuralFabricReadOnlyPanel } from "./NeuralFabricReadOnlyPanel.js";
 import { renderGvcRunnerDashboardPanel } from "./GvcRunnerDashboardPanel.js";
@@ -34,18 +34,19 @@ export function renderMissionControlPanel() {
             <section class="mission-control" id="mission-control" data-mission-control-root="true">
 ${renderOwnerBossViewPanel()}
 
+${renderOwnerAdvancedDrawer(`
               <section class="world-class-first-screen-lock" id="world-class-first-screen-lock" data-phase1916-1919a-entry="true" aria-label="小天世界级第一屏">
                 <div class="eyebrow">真实可用总控</div>
                 <h2>一句话交给小天</h2>
                 <div class="mission-input-row">
                   <label for="world-class-owner-task-input">今天要处理什么？</label>
-                  <input id="world-class-owner-task-input" type="text" value="" placeholder="例如：检查今天系统状态，并告诉我下一步做什么？" aria-label="一句话交给小天" />
+                  <input id="world-class-owner-task-input" type="text" value="" placeholder="例如：检查今天系统状态，并告诉我下一步做什么" aria-label="一句话交给小天" />
                   <button type="button" class="primary" id="world-class-owner-task-preview-button">开始本地检查</button>
                 </div>
                 <div class="arena-strip" data-world-class-status="true">
                   <strong>今日小天系统检查</strong>
                   <span>当前系统状态：本地真实可用</span>
-                  <span>下一步建议：绑定可用 Provider credentialRef 后再做一次one-shot</span>
+                  <span>下一步建议：绑定可用 Provider credentialRef 后再做一次 one-shot</span>
                   <span>生产部署和公开发布已排除</span>
                 </div>
                 <details class="drilldown-panel" data-world-class-three-mode>
@@ -63,7 +64,7 @@ ${renderOwnerBossViewPanel()}
                     <span>Provider 调用：未发生</span>
                     <span>Secret 读取：未发生</span>
                     <span>部署：未发生</span>
-                    <span>默认链路：chat-gateway/execute 未修改</span>
+                    <span>默认链路：/chat-gateway/execute 未修改</span>
                     <span>Phase 噪音默认隐藏</span>
                   </div>
                 </details>
@@ -86,8 +87,8 @@ ${renderTianshuCapabilityAtomPreviewPanel()}
                 <div>
                   <div class="eyebrow">PME AI Gateway</div>
                   <h2>Mission Control</h2>
-                  <p>多模型、多智能体、可治理、可审计、可回放。AI Gateway 任务指挥台。</p>
-                  <div class="mission-tagline">功能定位：Mission Control · internal dry-run boundary</div>
+                  <p>多模型、多智能体、可治理、可审计、可回放的 AI Gateway 任务指挥台。</p>
+                  <div class="mission-tagline">功能型 Mission Control · internal dry-run boundary</div>
                 </div>
                 <div class="radar-grid">
                   <span>Current Mode <strong>Mission</strong></span>
@@ -108,8 +109,6 @@ ${renderBranchExecutionPreviewPanel()}
 ${renderLongHorizonHardeningPanel()}
 
 ${renderCodexContextGatewayPanel()}
-
-${renderGlobalModelLibraryPanel()}
 
 ${renderUserOwnedProviderExpansionPanel()}
 
@@ -175,7 +174,7 @@ ${renderTaijiBeidouProductionOpsPanel()}
                   </button>
                 </div>
                 <div class="tour-copy" id="guided-onboarding-copy">
-                  Mission Control 用来理解意图、推荐模式、解释风险并保留证据；当前处于internal-test、no-provider-call、no-deploy 边界。
+                  Mission Control 用来理解意图、推荐模式、解释风险并保留证据；当前处于 internal-test、no-provider-call、no-deploy 边界。
                 </div>
               </section>
 
@@ -187,7 +186,7 @@ ${renderTaijiBeidouProductionOpsPanel()}
                   <div class="mission-input-row">
                     <div>
                       <div class="eyebrow">Agent recommendation</div>
-                      <strong>建议先用 Tianshu dry-run 做任务规划；复杂审查再切换God Arena。</strong>
+                      <strong>建议先用 Tianshu dry-run 做任务规划；复杂审查再切到 God Arena。</strong>
                     </div>
                     <span class="life-dot" aria-hidden="true"></span>
                   </div>
@@ -195,7 +194,7 @@ ${renderTaijiBeidouProductionOpsPanel()}
                     <article class="mission-card" id="mission-normal-mode-card">
                       <span class="agent-orbit"></span>
                       <strong>Normal</strong>
-                      <p>直接对话模式。只允许已验证、可选择、允许Chat 的模型进入普通聊天。</p>
+                      <p>直接对话模式。只允许已验证、可选择、允许 Chat 的模型进入普通聊天。</p>
                       <small>providerCalled=false until user sends</small>
                     </article>
                     <article class="mission-card" id="mission-god-arena-card">
@@ -296,7 +295,7 @@ ${renderTaijiBeidouProductionOpsPanel()}
                       <article class="comparison-card" data-plan-card="deep">
                         <div class="comparison-badge">Deep Review</div>
                         <strong>Deep Review Plan</strong>
-                        <p>质量要求更高时使用；必要时可升级God Mode review。</p>
+                        <p>质量要求更高时使用；必要时可升级到 God Mode review。</p>
                         <small>fallbackAvailable=true · dryRunOnly=true</small>
                       </article>
                     </div>
@@ -315,7 +314,7 @@ ${renderTaijiBeidouProductionOpsPanel()}
                     <strong>它保护什么</strong>
                     <p>拦截 prompt injection、secret 泄露、provider 越权、危险动作和预算风险。</p>
                     <strong>它不做什么</strong>
-                    <p>不代表生产安全审计完成，也不会自动执行真正provider 调用。</p>
+                    <p>不代表生产安全审计完成，也不会自动执行真实 provider 调用。</p>
                   </div>
                   <div class="shield-list">
                     <span>Prompt Injection Guard <strong>active</strong></span>
@@ -415,6 +414,7 @@ ${renderTaijiBeidouProductionOpsPanel()}
                   </article>
                 </div>
               </section>
+`)}
             </section>`;
 }
 

@@ -5,11 +5,26 @@
  */
 
 import { existsSync, mkdirSync } from "node:fs";
+import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
 
+const require = createRequire(import.meta.url);
 const DEFAULT_DB_PATH = ".data/knowledge/vectors.sqlite";
 const DEFAULT_DIMENSION = 384; // MiniLM-L6 default
 const DEFAULT_TOP_K = 5;
+
+export function safeParseMetadata(value) {
+  if (!value) return {};
+  if (typeof value === "object" && !Array.isArray(value)) return value;
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? parsed
+      : {};
+  } catch {
+    return {};
+  }
+}
 
 /**
  * Create a SQLite-vec vector store instance.
@@ -189,7 +204,7 @@ export function createSqliteVecStore(options = {}) {
         sourceId: row.source_id,
         title: row.title,
         content: row.content,
-        metadata: row.metadata ? JSON.parse(row.metadata) : {},
+        metadata: safeParseMetadata(row.metadata),
         score: similarity,
       };
     });

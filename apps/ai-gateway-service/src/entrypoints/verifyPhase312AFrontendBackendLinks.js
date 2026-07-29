@@ -1,3 +1,4 @@
+import { listenAtEphemeralUrl as listen } from "./entrypointUtils.js";
 import { existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
@@ -5,8 +6,7 @@ import { fileURLToPath } from "node:url";
 
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
-import { listTaskToolModels } from "../model-library/unifiedModelRegistry.js";import { listen } from "./entrypointUtils.js"
-
+import { listTaskToolModels } from "../model-library/unifiedModelRegistry.js";
 
 const repoRoot = resolve(fileURLToPath(new URL("../../../..", import.meta.url)));
 const evidenceJsonPath = resolve(repoRoot, "apps/ai-gateway-service/evidence/phase-312a-frontend-backend-links.json");
@@ -143,6 +143,7 @@ if (evidence.status !== "pass") {
     nonChatDirectChat: evidence.nonChatDirectChat,
   }, null, 2));
 }
+
 
 function closeServer(server) {
   return new Promise((resolveClose) => server.close(() => resolveClose()));

@@ -27,8 +27,6 @@ const missionControlFiles = [
   "apps/ai-gateway-service/src/ui/consolePage.js",
   "apps/ai-gateway-service/src/workforce/workforcePlanner.js",
   "apps/ai-gateway-service/src/workforce/workforceService.js",
-  "packages/workforce-execution-fabric/src/index.js",
-  "packages/employee-communication-bus/src/index.js",
 ];
 
 export function selectRelevantFiles({ task, gitDiff, profile = "codex-context-gateway", maxFiles = 42 }) {

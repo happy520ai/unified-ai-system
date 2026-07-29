@@ -12,7 +12,7 @@
       "viewer",
       "auditor"
     ],
-    "auditLogPath": "C:\\Users\\Administrator\\AppData\\Local\\Temp\\phase32a-audit-QsU9BN\\enterprise-audit.jsonl",
+    "auditLogPath": "<user-home>\\AppData\\Local\\Temp\\phase32a-audit-QsU9BN\\enterprise-audit.jsonl",
     "auditEntryCount": 8
   },
   "auth": {

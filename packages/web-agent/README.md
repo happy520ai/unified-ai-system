@@ -12,6 +12,5 @@ import {} from "@unified-ai-system/web-agent";
 
 ```bash
 # From repo root
-pnpm --filter @unified-ai-system/web-agent test
 pnpm --filter @unified-ai-system/web-agent check
 ```

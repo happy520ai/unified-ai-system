@@ -1,8 +1,12 @@
+import {
+  readRepoTextSync as readText,
+  readRepoJsonSync as readJson,
+  writeRepoJsonSync as writeJson,
+} from "./entrypointUtils.js";
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { readJson, readText, writeJson } from "./entrypointUtils.js"
 
 const PHASE = "275A-response-cache-hardening";
 const __dirname = dirname(fileURLToPath(import.meta.url));

@@ -17,14 +17,15 @@ describe('SandboxExecutor', () => {
 
   // ── SandboxLevel enum ────────────────────────────────────────────────────
 
-  it('SandboxLevel is frozen with exactly 4 entries', () => {
+  it('SandboxLevel is frozen with all supported entries', () => {
     assert.ok(Object.isFrozen(SandboxLevel));
     const keys = Object.keys(SandboxLevel);
-    assert.equal(keys.length, 4);
+    assert.equal(keys.length, 5);
     assert.equal(SandboxLevel.NONE, 'none');
     assert.equal(SandboxLevel.PROCESS, 'process');
     assert.equal(SandboxLevel.FILESYSTEM, 'filesystem');
     assert.equal(SandboxLevel.FULL, 'full');
+    assert.equal(SandboxLevel.WORKTREE, 'worktree');
   });
 
   // ── Constructor ──────────────────────────────────────────────────────────
@@ -73,7 +74,7 @@ describe('SandboxExecutor', () => {
   it('should capture stdout from child process', async () => {
     const sb = new SandboxExecutor({ level: 'process' });
     // Avoid quoting issues — use quote-free node -e expression
-    const result = await sb.execute('node -e console.log(42)');
+    const result = await sb.execute('node -e "console.log(42)"');
     assert.equal(result.exitCode, 0);
     assert.ok(result.stdout.includes('42'));
   });

@@ -1,11 +1,10 @@
+import { listenAtEphemeralUrl as listen, sleep, writeEvidenceFiles, } from "./entrypointUtils.js";
 import { existsSync, readFileSync } from "node:fs";
-import { writeEvidenceWithRenderer } from "./entrypointUtils.js";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
-import { sleep, listen } from "./entrypointUtils.js";
 
 const PHASE = "Phase315A";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -127,7 +126,7 @@ const evidence = {
   workspaceCleanClaimed: false,
 };
 
-await writeEvidence(evidence);
+await writeSmokePhase315AChatGatewayAcceptanceEvidence(evidence);
 
 console.log(JSON.stringify({
   status: chatGatewayAcceptance.status,
@@ -322,9 +321,11 @@ function dryRunResultPass(caseId, results) {
   return results.find((item) => item.caseId === caseId)?.pass === true;
 }
 
+
 function closeServer(targetServer) {
   return new Promise((resolveClose) => targetServer.close(() => resolveClose()));
 }
+
 
 function containsSecretLikeValue(source) {
   return /\b(nvapi|sk|pk|ak|sk-proj)[A-Za-z0-9._-]{12,}\b/i.test(String(source ?? ""));
@@ -345,6 +346,15 @@ function readExistingEvidence() {
   }
 }
 
+async function writeSmokePhase315AChatGatewayAcceptanceEvidence(data) {
+  await writeEvidenceFiles({
+    evidenceDir,
+    evidenceJsonPath,
+    evidenceMdPath,
+    body: data,
+    renderMarkdown,
+  });
+}
 
 function renderMarkdown(data) {
   return `# Phase315A Full System Acceptance

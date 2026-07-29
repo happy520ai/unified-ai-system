@@ -3,7 +3,7 @@
 - Phase: phase-122a-github-remote-publish-preflight
 - Status: passed
 - Generated at: 2026-04-27T11:32:05.491Z
-- Git top-level: E:/AI-Data/AI网关系统/unified-ai-system
+- Git top-level: <repository-root>
 - Branch: master
 - Head subject: Phase122A GitHub remote publish preflight
 - Staged file count: 0

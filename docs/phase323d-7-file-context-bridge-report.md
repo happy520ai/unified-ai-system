@@ -9,7 +9,7 @@
 ## 接入方式
 
 - 延续 Phase323D-5 的局部 bridge 结构。
-- 在 [consolePage.js](/E:/AI-Data/AI网关系统/unified-ai-system/apps/ai-gateway-service/src/ui/consolePage.js) 的 `createWorkbenchApiBridge()` 中补充：
+- 在 [consolePage.js](../apps/ai-gateway-service/src/ui/consolePage.js) 的 `createWorkbenchApiBridge()` 中补充：
   - `selectFileContext(body)`
 - 在 `handleFilesSelected(event)` 中将原有直接 `requestJson("/file-context/select", ...)` 替换为：
   - `workbenchApiClient.selectFileContext(payload)`

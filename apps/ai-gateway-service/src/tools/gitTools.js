@@ -125,10 +125,6 @@ function createGitDiffTool(defaultCwd) {
 
     async execute(params) {
       const cwd = resolveSafeCwd(defaultCwd);
-      if (!isGitRepo(cwd)) {
-        return { success: false, error: `Not a git repository: ${cwd}`, code: "NOT_A_GIT_REPO" };
-      }
-
       if (params.base) {
         const check = validateGitRef(params.base, "base");
         if (!check.valid) return { success: false, error: check.error };
@@ -138,6 +134,9 @@ function createGitDiffTool(defaultCwd) {
         if (!check.valid) return { success: false, error: check.error };
         params.contextLines = check.value;
       }
+      if (!isGitRepo(cwd)) {
+        return { success: false, error: `Not a git repository: ${cwd}`, code: "NOT_A_GIT_REPO" };
+      }
 
       const args = ["diff"];
 
@@ -145,23 +144,32 @@ function createGitDiffTool(defaultCwd) {
       if (params.base) args.push(params.base);
       if (params.contextLines != null) args.push(`-U${params.contextLines}`);
 
-      // Stat summary first
-      const statArgs = [...args, "--stat"];
-      const stat = runGit(statArgs.join(" "), cwd);
+      try {
+        // Stat summary first
+        const statArgs = [...args, "--stat"];
+        const stat = runGit(statArgs.join(" "), cwd);
 
-      // Full diff (truncated if too long)
-      if (params.path) args.push("--", params.path);
-      let diff = runGit(args.join(" "), cwd);
-      if (diff.length > MAX_OUTPUT_CHARS) {
-        diff = diff.slice(0, MAX_OUTPUT_CHARS) + "\n... [diff truncated]";
+        // Full diff (truncated if too long)
+        if (params.path) args.push("--", params.path);
+        let diff = runGit(args.join(" "), cwd);
+        if (diff.length > MAX_OUTPUT_CHARS) {
+          diff = diff.slice(0, MAX_OUTPUT_CHARS) + "\n... [diff truncated]";
+        }
+
+        return {
+          success: true,
+          stat: stat.trim(),
+          diff: diff.trim(),
+          staged: params.staged || false,
+        };
+      } catch (error) {
+        return {
+          success: false,
+          code: "GIT_DIFF_FAILED",
+          error: (error instanceof Error ? error.message : String(error)).slice(0, 1_000),
+          staged: params.staged || false,
+        };
       }
-
-      return {
-        success: true,
-        stat: stat.trim(),
-        diff: diff.trim(),
-        staged: params.staged || false,
-      };
     },
   });
 }
@@ -186,10 +194,6 @@ function createGitLogTool(defaultCwd) {
 
     async execute(params) {
       const cwd = resolveSafeCwd(defaultCwd);
-      if (!isGitRepo(cwd)) {
-        return { success: false, error: `Not a git repository: ${cwd}`, code: "NOT_A_GIT_REPO" };
-      }
-
       if (params.branch) {
         const check = validateGitRef(params.branch, "branch");
         if (!check.valid) return { success: false, error: check.error };
@@ -201,6 +205,9 @@ function createGitLogTool(defaultCwd) {
       if (params.since) {
         const check = validateGitRef(params.since, "since");
         if (!check.valid) return { success: false, error: check.error };
+      }
+      if (!isGitRepo(cwd)) {
+        return { success: false, error: `Not a git repository: ${cwd}`, code: "NOT_A_GIT_REPO" };
       }
 
       const count = Math.min(params.count || 10, 50);

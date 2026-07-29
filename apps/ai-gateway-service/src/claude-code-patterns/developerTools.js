@@ -12,7 +12,12 @@ import { createImageAnalysisTool, createImageReadTool } from "../tools/imageAnal
 import { createWebSearchTool } from "../tools/webSearchTool.js";
 import { createGitTools } from "../tools/gitTools.js";
 import { createLspTools } from "../tools/lspTool.js";
-import { createFileReadTool, createFileWriteTool, createShellExecTool } from "./builtInCoreTools.js";
+import {
+  createFileReadTool,
+  createFileWriteTool,
+  createShellExecTool,
+  validateFilePath,
+} from "./builtInCoreTools.js";
 import { webFetchTool, codeRunTool } from "./sandboxTools.js";
 import { createSemanticSearchTool, createAstEditTool } from "./codeIntelligenceTools.js";
 
@@ -35,7 +40,10 @@ export function createCodeFormatTool(workingDirectory = process.cwd()) {
       const { resolve } = await import("node:path");
       const filePath = resolve(workingDirectory, params.path);
       // Security: validate file path before write operation
-      const validation = validateFilePath(params.path, { allowWrite: true });
+      const validation = validateFilePath(params.path, {
+        allowWrite: true,
+        workingDirectory,
+      });
       if (!validation.safe) return { success: false, error: validation.reason };
       const content = readFileSync(filePath, "utf-8");
       const indentSize = params.indent_size || 2;
@@ -89,11 +97,14 @@ export function createGenerateTestTool(workingDirectory = process.cwd()) {
       const { resolve, basename, dirname, extname } = await import("node:path");
 
       // Security: validate file paths before write operation
-      const sourceValidation = validateFilePath(params.source_path);
+      const sourceValidation = validateFilePath(params.source_path, { workingDirectory });
       if (!sourceValidation.safe) return { success: false, error: sourceValidation.reason };
       const sourcePath = resolve(workingDirectory, params.source_path);
       if (params.test_path) {
-        const testValidation = validateFilePath(params.test_path, { allowWrite: true });
+        const testValidation = validateFilePath(params.test_path, {
+          allowWrite: true,
+          workingDirectory,
+        });
         if (!testValidation.safe) return { success: false, error: testValidation.reason };
       }
       const content = readFileSync(sourcePath, "utf-8");

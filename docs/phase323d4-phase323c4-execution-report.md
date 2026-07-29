@@ -8,11 +8,11 @@
 
 ## Phase323C-4 完成情况
 
-- 新增工具 [tools/phase323c/build-phase323c-service-command-index.mjs](/E:/AI-Data/AI网关系统/unified-ai-system/tools/phase323c/build-phase323c-service-command-index.mjs)
+- 新增工具 [tools/phase323c/build-phase323c-service-command-index.mjs](../tools/phase323c/build-phase323c-service-command-index.mjs)
 - 生成：
-  - [docs/phase323c-service-recommended-command-index.md](/E:/AI-Data/AI网关系统/unified-ai-system/docs/phase323c-service-recommended-command-index.md)
-  - [docs/phase323c-service-command-governance-policy.md](/E:/AI-Data/AI网关系统/unified-ai-system/docs/phase323c-service-command-governance-policy.md)
-- 在 [apps/ai-gateway-service/package.json](/E:/AI-Data/AI网关系统/unified-ai-system/apps/ai-gateway-service/package.json) 新增 3 个 service alias：
+  - [docs/phase323c-service-recommended-command-index.md](../docs/phase323c-service-recommended-command-index.md)
+  - [docs/phase323c-service-command-governance-policy.md](../docs/phase323c-service-command-governance-policy.md)
+- 在 [apps/ai-gateway-service/package.json](../apps/ai-gateway-service/package.json) 新增 3 个 service alias：
   - `inventory:phase323c`
   - `governance:phase323c`
   - `commands:phase323c`
@@ -22,7 +22,7 @@
 
 ## Phase323D-4 完成情况
 
-- 在 [apps/ai-gateway-service/src/ui/consolePage.js](/E:/AI-Data/AI网关系统/unified-ai-system/apps/ai-gateway-service/src/ui/consolePage.js) 现有 bridge 上补充 ProviderConfig 三个方法：
+- 在 [apps/ai-gateway-service/src/ui/consolePage.js](../apps/ai-gateway-service/src/ui/consolePage.js) 现有 bridge 上补充 ProviderConfig 三个方法：
   - `getProviderConfigStatus()`
   - `saveProviderConfig(payload)`
   - `testProviderConfig(payload)`
@@ -44,18 +44,18 @@
 
 ## 修改文件清单
 
-- [tools/phase323c/build-phase323c-service-command-index.mjs](/E:/AI-Data/AI网关系统/unified-ai-system/tools/phase323c/build-phase323c-service-command-index.mjs)
-- [apps/ai-gateway-service/package.json](/E:/AI-Data/AI网关系统/unified-ai-system/apps/ai-gateway-service/package.json)
-- [apps/ai-gateway-service/src/ui/consolePage.js](/E:/AI-Data/AI网关系统/unified-ai-system/apps/ai-gateway-service/src/ui/consolePage.js)
-- [docs/phase323d-4-provider-config-api-client-integration-report.md](/E:/AI-Data/AI网关系统/unified-ai-system/docs/phase323d-4-provider-config-api-client-integration-report.md)
-- [docs/phase323c-4-service-command-consolidation-report.md](/E:/AI-Data/AI网关系统/unified-ai-system/docs/phase323c-4-service-command-consolidation-report.md)
-- [docs/phase323d4-phase323c4-execution-report.md](/E:/AI-Data/AI网关系统/unified-ai-system/docs/phase323d4-phase323c4-execution-report.md)
-- [docs/phase323c-service-recommended-command-index.md](/E:/AI-Data/AI网关系统/unified-ai-system/docs/phase323c-service-recommended-command-index.md)
-- [docs/phase323c-service-command-governance-policy.md](/E:/AI-Data/AI网关系统/unified-ai-system/docs/phase323c-service-command-governance-policy.md)
-- [docs/phase323c-script-entrypoint-inventory.json](/E:/AI-Data/AI网关系统/unified-ai-system/docs/phase323c-script-entrypoint-inventory.json)
-- [docs/phase323c-script-entrypoint-inventory.md](/E:/AI-Data/AI网关系统/unified-ai-system/docs/phase323c-script-entrypoint-inventory.md)
-- [docs/phase323c-script-governance-policy.md](/E:/AI-Data/AI网关系统/unified-ai-system/docs/phase323c-script-governance-policy.md)
-- [docs/phase323c-recommended-command-index.md](/E:/AI-Data/AI网关系统/unified-ai-system/docs/phase323c-recommended-command-index.md)
+- [tools/phase323c/build-phase323c-service-command-index.mjs](../tools/phase323c/build-phase323c-service-command-index.mjs)
+- [apps/ai-gateway-service/package.json](../apps/ai-gateway-service/package.json)
+- [apps/ai-gateway-service/src/ui/consolePage.js](../apps/ai-gateway-service/src/ui/consolePage.js)
+- [docs/phase323d-4-provider-config-api-client-integration-report.md](../docs/phase323d-4-provider-config-api-client-integration-report.md)
+- [docs/phase323c-4-service-command-consolidation-report.md](../docs/phase323c-4-service-command-consolidation-report.md)
+- [docs/phase323d4-phase323c4-execution-report.md](../docs/phase323d4-phase323c4-execution-report.md)
+- [docs/phase323c-service-recommended-command-index.md](../docs/phase323c-service-recommended-command-index.md)
+- [docs/phase323c-service-command-governance-policy.md](../docs/phase323c-service-command-governance-policy.md)
+- [docs/phase323c-script-entrypoint-inventory.json](../docs/phase323c-script-entrypoint-inventory.json)
+- [docs/phase323c-script-entrypoint-inventory.md](../docs/phase323c-script-entrypoint-inventory.md)
+- [docs/phase323c-script-governance-policy.md](../docs/phase323c-script-governance-policy.md)
+- [docs/phase323c-recommended-command-index.md](../docs/phase323c-recommended-command-index.md)
 
 ## 验证结论
 

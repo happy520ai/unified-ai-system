@@ -1,12 +1,13 @@
 // Deep Polish Batch 15 — 8 fixes, 8 test suites
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "fs";
 import { join } from "path";
 import { fileURLToPath } from "node:url";
+import { createSourceReader } from "./helpers/source-closure.js";
 
 const __testDir = fileURLToPath(new URL(".", import.meta.url));
 const SRC_ROOT = join(__testDir, "..", "..", "..", "apps", "ai-gateway-service", "src");
+const readFileSync = createSourceReader(SRC_ROOT);
 
 function ESM_SRC(file) {
   return readFileSync(join(SRC_ROOT, file), "utf8");
@@ -93,22 +94,22 @@ describe("Batch15 Fix3: getProvider API key redaction", () => {
   const src = ESM_SRC("providers/providerOnboardingService.js");
 
   it("destructures apiKey out before spreading", () => {
-    const fnIdx = src.indexOf("async getProvider(providerId)");
+    const fnIdx = src.indexOf("function getProvider(");
     assert.ok(fnIdx >= 0, "getProvider should exist");
-    const fnSrc = src.slice(fnIdx, fnIdx + 500);
+    const fnSrc = src.slice(fnIdx, fnIdx + 700);
     assert.ok(fnSrc.includes("const { apiKey"), "should destructure apiKey");
     assert.ok(fnSrc.includes("...safeProvider"), "should spread safe provider (no apiKey)");
   });
 
   it("also destructures secretKey", () => {
-    const fnIdx = src.indexOf("async getProvider(providerId)");
-    const fnSrc = src.slice(fnIdx, fnIdx + 500);
+    const fnIdx = src.indexOf("function getProvider(");
+    const fnSrc = src.slice(fnIdx, fnIdx + 700);
     assert.ok(fnSrc.includes("secretKey"), "should also destructure secretKey");
   });
 
   it("no raw ...provider spread in getProvider return", () => {
-    const fnIdx = src.indexOf("async getProvider(providerId)");
-    const fnSrc = src.slice(fnIdx, fnIdx + 500);
+    const fnIdx = src.indexOf("function getProvider(");
+    const fnSrc = src.slice(fnIdx, fnIdx + 700);
     assert.ok(!fnSrc.includes("...provider,"), "should not spread raw provider");
   });
 });

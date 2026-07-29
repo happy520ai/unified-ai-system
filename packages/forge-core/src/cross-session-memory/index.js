@@ -329,7 +329,9 @@ export class CrossSessionMemory {
       }
     }
 
+    const errorFixCount = this.#errorFixes.length;
     this.#errorFixes = compactErrorFixes(this.#errorFixes);
+    removed += errorFixCount - this.#errorFixes.length;
     this.#lastConsolidation = Date.now();
     return { consolidated, removed };
   }

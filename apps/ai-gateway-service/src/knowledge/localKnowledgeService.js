@@ -1,22 +1,58 @@
 import { createKnowledgePersistence } from "./knowledgePersistence.js";
 import {
-  DEFAULT_PHASE,
-  DEFAULT_DOCUMENTS,
-  normalizeDocuments,
-  markSystemDocument,
-  markUserDocument,
-  isUserDocument,
-  mergeDocuments,
-  normalizeRequiredString,
-  normalizeOptionalString,
-  toDocumentKey,
-  toDocumentRef,
-  toScoredChunk,
+  clampTopK,
   compareChunks,
   normalizeQuery,
   tokenize,
-  clampTopK,
-} from "./localKnowledgeHelpers.js";
+  toDocumentRef,
+  toScoredChunk,
+} from "./localKnowledgeRetrieval.js";
+
+const DEFAULT_PHASE = "phase-21a-knowledge-entry";
+const DEFAULT_DOCUMENTS = [
+  {
+    sourceId: "unified-ai-system-defaults",
+    documentId: "default-command-set",
+    title: "PME 移动地球 frozen default command set",
+    uri: "unified-ai-system://docs/default-command-set",
+    text:
+      "PME 移动地球 frozen default command set includes help:phase14a, dev:phase7b, status:phase10a, " +
+      "health:phase12a, doctor:phase13a, logs:phase16a, restart:phase11a, idle:phase15a, " +
+      "stop:phase9c, verify:phase7a, verify:phase8a-4, verify:phase21, verify:phase21a, " +
+      "verify:phase21b, and verify:phase21c. dev:phase7b and restart:phase11a are " +
+      "long-running managed entries. status, doctor, logs, and help are read-only entries.",
+  },
+  {
+    sourceId: "unified-ai-system-boundaries",
+    documentId: "nvidia-single-provider-boundary",
+    title: "NVIDIA single-provider boundary",
+    uri: "unified-ai-system://docs/nvidia-single-provider-boundary",
+    text:
+      "The current PME 移动地球 AI Gateway baseline remains NVIDIA single provider only. The real-operation " +
+      "chain is agent-console to ai-gateway-service to NVIDIA. This does not complete or enter " +
+      "DataEyes, multi-provider execution, fallback execution, scoring/evaluation, governance, " +
+      "dashboard, streaming, release automation, or production knowledge platform scope.",
+  },
+  {
+    sourceId: "unified-ai-system-operations",
+    documentId: "managed-startup-and-logs",
+    title: "Managed startup, status, logs, and idle",
+    uri: "unified-ai-system://docs/managed-operations",
+    text:
+      "Phase 9C manages startup with PID ownership. status:phase10a reads only the managed state. " +
+      "logs:phase16a reads only the managed logPath recorded in state. idle:phase15a composes " +
+      "stop:phase9c followed by status:phase10a, returning the chain to stopped.",
+  },
+  {
+    sourceId: "unified-ai-system-defect-standby",
+    documentId: "defect-report-template",
+    title: "Defect-driven standby template",
+    uri: "unified-ai-system://docs/defect-report-template",
+    text:
+      "Daily use is now in defect-driven standby. Report one concrete issue at a time with: " +
+      "reproduction command, actual failure, expected behavior, single failure point, and key output.",
+  },
+];
 
 export function createLocalKnowledgeService(options = {}) {
   const phase = options.phase ?? DEFAULT_PHASE;
@@ -154,12 +190,10 @@ export function createLocalKnowledgeService(options = {}) {
         throw error;
       }
 
-      // Check cache (LRU: move to end on hit)
+      // Check cache
       const cacheKey = `${normalizedQuery}:${(request.sourceIds || []).join(",")}:${request.topK || "default"}:${request.minScore || 0}`;
       const cached = queryCache.get(cacheKey);
       if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
-        queryCache.delete(cacheKey);
-        queryCache.set(cacheKey, cached);
         return { ...cached.result, metadata: { ...cached.result.metadata, cacheHit: true } };
       }
 
@@ -216,34 +250,70 @@ export function createLocalKnowledgeService(options = {}) {
 
       return result;
     },
-
-    deleteDocument(docId) {
-      if (!docId || typeof docId !== "string") {
-        const error = new Error("Knowledge delete requires a valid documentId.");
-        error.code = "KNOWLEDGE_DELETE_DOCID_REQUIRED";
-        error.category = "validation";
-        throw error;
-      }
-      const beforeCount = documents.length;
-      documents = documents.filter((document) => toDocumentKey(document) !== docId);
-      const deleted = beforeCount - documents.length;
-      if (deleted === 0) {
-        const error = new Error(`Document '${docId}' not found.`);
-        error.code = "KNOWLEDGE_DOCUMENT_NOT_FOUND";
-        error.category = "knowledge";
-        throw error;
-      }
-      persistence.saveDocuments(documents.filter(isUserDocument));
-      return {
-        phase,
-        status: "deleted",
-        documentId: docId,
-        remainingCount: documents.length,
-      };
-    },
-
     close() {
       persistence.close();
     },
   };
+}
+
+function normalizeDocuments(documents) {
+  return documents.map((document, index) => ({
+    sourceId: document.sourceId ?? "default",
+    sourceTitle: document.sourceTitle,
+    documentId: document.documentId ?? `document-${index + 1}`,
+    title: document.title ?? `Document ${index + 1}`,
+    uri: document.uri,
+    text: String(document.text ?? document.content ?? ""),
+    metadata: document.metadata ?? {},
+  }));
+}
+
+function markSystemDocument(document) {
+  return {
+    ...document,
+    persistenceScope: "system",
+  };
+}
+
+function markUserDocument(document) {
+  return {
+    ...document,
+    persistenceScope: "user",
+  };
+}
+
+function isUserDocument(document) {
+  return document.persistenceScope === "user";
+}
+
+function mergeDocuments(baseDocuments, extraDocuments) {
+  const merged = new Map();
+
+  for (const document of [...baseDocuments, ...extraDocuments]) {
+    merged.set(toDocumentKey(document), document);
+  }
+
+  return Array.from(merged.values());
+}
+
+function normalizeRequiredString(value, message) {
+  const normalized = typeof value === "string" ? value.trim() : "";
+
+  if (!normalized) {
+    const error = new Error(message);
+    error.code = "KNOWLEDGE_LOAD_VALIDATION_ERROR";
+    error.category = "validation";
+    throw error;
+  }
+
+  return normalized;
+}
+
+function normalizeOptionalString(value) {
+  const normalized = typeof value === "string" ? value.trim() : "";
+  return normalized || undefined;
+}
+
+function toDocumentKey(document) {
+  return `${document.sourceId}:${document.documentId}`;
 }

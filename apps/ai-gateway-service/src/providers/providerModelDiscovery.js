@@ -19,6 +19,7 @@ import {
   findProviderDescriptor,
   findProviderModelConfigs,
   extractOpenAiCompatibleBaseUrl,
+  extractRuntimeCredentialEndpoint,
   trimSlash,
   safeJsonParse,
 } from "./providerDetectionResult.js";

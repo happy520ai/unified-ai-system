@@ -18,7 +18,7 @@ export const PRODUCT_TEMPLATES = [
     samplePrompts: ["Plan a new dashboard filter feature for internal users.", "Plan a safe API settings feature with frontend and backend work split."],
     expectedPlanSections: ["Goal clarification", "Role tiers", "Implementation planning", "Review package", "Acceptance checklist"],
     sampleAcceptanceChecklist: ["Requirements and non-goals are clarified.", "Architecture impact is listed before implementation planning.", "Frontend and backend tasks are separated.", "Tests and user acceptance criteria are stated."],
-    execution: "enabled",
+    execution: "disabled",
   },
   {
     id: "bug-fix",
@@ -32,7 +32,7 @@ export const PRODUCT_TEMPLATES = [
     samplePrompts: ["Plan a regression-safe fix for a login error message.", "Plan a fix for a saved-plan history item that fails to reload."],
     expectedPlanSections: ["Reproduction", "Impact scope", "Root-cause analysis", "Fix plan", "Regression checklist"],
     sampleAcceptanceChecklist: ["Reproduction steps are clear.", "Affected users and surfaces are listed.", "Root-cause hypotheses are separated from the fix plan.", "Regression checks cover the reported path and nearby paths."],
-    execution: "enabled",
+    execution: "disabled",
   },
   {
     id: "documentation",
@@ -46,7 +46,7 @@ export const PRODUCT_TEMPLATES = [
     samplePrompts: ["Plan API documentation for a read-only status endpoint.", "Plan a quick-start guide for a local preview console."],
     expectedPlanSections: ["Audience", "Outline", "Examples", "Review package", "Acceptance checklist"],
     sampleAcceptanceChecklist: ["Target readers and assumptions are named.", "Document outline is ordered for first-time users.", "Examples are concrete and copyable.", "Acceptance checks are understandable without developer context."],
-    execution: "enabled",
+    execution: "disabled",
   },
   {
     id: "code-review",
@@ -60,7 +60,7 @@ export const PRODUCT_TEMPLATES = [
     samplePrompts: ["Plan a review of a small API contract change.", "Plan a review of a persistence-layer patch for saved plans."],
     expectedPlanSections: ["Risk review", "Maintainability", "Security", "Test coverage", "Change boundary"],
     sampleAcceptanceChecklist: ["Behavioral risks are listed first.", "Security and secret-safety checks are included.", "Missing or weak tests are called out.", "Review output stays within the requested change boundary."],
-    execution: "enabled",
+    execution: "disabled",
   },
   {
     id: "release-checklist",
@@ -74,7 +74,7 @@ export const PRODUCT_TEMPLATES = [
     samplePrompts: ["Plan a local release-readiness checklist for a UI-only preview.", "Plan a regression checklist before publishing a draft prerelease."],
     expectedPlanSections: ["Verification matrix", "Evidence index", "Secret safety", "Rollback plan", "Boundary statement"],
     sampleAcceptanceChecklist: ["Required verification commands are listed.", "Evidence files and expected statuses are named.", "Secret-safety and redaction boundaries are explicit.", "Rollback or stop condition is described."],
-    execution: "enabled",
+    execution: "disabled",
   },
   {
     id: "research-design-study",
@@ -88,7 +88,7 @@ export const PRODUCT_TEMPLATES = [
     samplePrompts: ["Plan a design study for an external runner protocol without execution.", "Plan a technical selection study for a local-only evidence format."],
     expectedPlanSections: ["Study goal", "Candidate options", "Comparison criteria", "Risk list", "Recommendation"],
     sampleAcceptanceChecklist: ["Study goal and decision boundary are clear.", "Candidate options are compared on the same dimensions.", "Risks and unknowns are visible.", "Recommendation is stated with a reason and non-goals."],
-    execution: "enabled",
+    execution: "disabled",
   },
 ];
 
@@ -99,5 +99,3 @@ export function getTemplateById(templateId) {
 export function listTemplates() {
   return PRODUCT_TEMPLATES.map((t) => ({ id: t.id, name: t.name, description: t.description }));
 }
-
-

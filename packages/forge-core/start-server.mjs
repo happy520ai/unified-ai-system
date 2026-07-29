@@ -3,13 +3,14 @@
  * Forge Server Launcher — boots the full Forge stack with API Server + Web Console.
  */
 
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { Forge, AgentPoolManager, GoalTransfer, KnowledgeBase, GatewayBridge, UserManager, ForgeServer } from './src/index.js';
 
-const projectRoot = resolve(
-  process.env.FORGE_PROJECT_ROOT ||
-  'E:\\AI-Data\\AI\u7F51\u5173\u7CFB\u7EDF\\unified-ai-system\\packages\\forge-core\\test-project-v2'
-);
+const packageRoot = dirname(fileURLToPath(import.meta.url));
+const projectRoot = process.env.FORGE_PROJECT_ROOT
+  ? resolve(process.env.FORGE_PROJECT_ROOT)
+  : resolve(packageRoot, 'test-project-v2');
 const port = parseInt(process.env.FORGE_API_PORT) || 4500;
 
 // Ensure LLM API keys are set
@@ -50,8 +51,8 @@ console.log(`[forge] Pool attached: maxConcurrent=${agentPool.getStatus().maxCon
 // Create a default admin user if no users exist
 const users = userMgr.listUsers();
 if (users.length === 0) {
-  const admin = userMgr.createUser({ username: 'admin', displayName: 'Admin', role: 'admin' });
-  console.log(`[forge] Created default admin user — API Key: ${admin.api_key}`);
+  userMgr.createUser({ username: 'admin', displayName: 'Admin', role: 'admin' });
+  console.log('[forge] Created default admin user; API key omitted from logs.');
 }
 
 // 3. Start API Server

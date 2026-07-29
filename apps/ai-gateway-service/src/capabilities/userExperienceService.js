@@ -205,16 +205,27 @@ export function isAuthorized({ enabled, expectedToken }, request) {
     return true;
   }
 
-  const headerToken = request.headers["x-pme-auth-token"];
-  const bearer = String(request.headers.authorization ?? "").replace(/^Bearers+/i, "");
-
-  function safeCompare(a, b) {
-    if (typeof a !== "string" || typeof b !== "string") return false;
-    if (a.length !== b.length) return false;
-    return timingSafeEqual(Buffer.from(a), Buffer.from(b));
-  }
+  const headers = request?.headers ?? {};
+  const headerToken = headers["x-pme-auth-token"];
+  const bearer = typeof headers.authorization === "string"
+    ? headers.authorization.replace(/^Bearer\s+/i, "")
+    : undefined;
 
   return safeCompare(headerToken, expectedToken) || safeCompare(bearer, expectedToken);
+}
+
+function safeCompare(a, b) {
+  if (typeof a !== "string" || typeof b !== "string") {
+    return false;
+  }
+
+  const aBuffer = Buffer.from(a);
+  const bBuffer = Buffer.from(b);
+  if (aBuffer.length !== bBuffer.length) {
+    return false;
+  }
+
+  return timingSafeEqual(aBuffer, bBuffer);
 }
 
 export function getRequestContext(request) {

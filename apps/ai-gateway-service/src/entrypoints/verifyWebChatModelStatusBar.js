@@ -1,6 +1,5 @@
+import { findRequiredBrowserPath as findBrowserPath, listen, sleep, writeEvidenceFiles, } from "./entrypointUtils.js";
 import { spawn } from "node:child_process";
-import { writeEvidencePair } from "./entrypointUtils.js";
-import { existsSync, readdirSync } from "node:fs";
 import { mkdtemp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
@@ -9,7 +8,6 @@ import vm from "node:vm";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
 import { createConsolePage } from "../ui/consolePage.js";
-import { sleep, listen, findBrowserPath, close } from "./entrypointUtils.js";
 
 const PHASE = "phase-76h-web-chat-model-status-bar";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -149,7 +147,7 @@ try {
     await closeCdpSilently(cdp);
   }
 
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyWebChatModelStatusBarEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = evidence.status === "passed" ? 0 : 1;
 } catch (error) {
@@ -160,7 +158,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "web-chat-model-status-bar-not-connected",
   };
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyWebChatModelStatusBarEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -218,13 +216,6 @@ async function readState(cdp) {
 }
 
 
-function findVersionedBrowserPaths(root, executableName) {
-  if (!existsSync(root)) return [];
-  return readdirSync(root, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => resolve(root, entry.name, executableName))
-    .reverse();
-}
 
 async function readDevToolsPort(profileDir) {
   const portFile = resolve(profileDir, "DevToolsActivePort");
@@ -333,5 +324,49 @@ async function inspectPng(path) {
   const buffer = await readFile(path);
   const validPng = buffer.length >= 24 && buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47;
   return { bytes: stats.size, width: validPng ? buffer.readUInt32BE(16) : 0, height: validPng ? buffer.readUInt32BE(20) : 0, validPng };
+}
+
+
+function close(targetServer) {
+  return new Promise((resolveClose) => targetServer.close(() => resolveClose()));
+}
+
+async function writeVerifyWebChatModelStatusBarEvidence(body) {
+  await writeEvidenceFiles({
+    evidenceDir,
+    evidenceJsonPath,
+    evidenceMdPath,
+    body,
+    renderMarkdown: createEvidenceMarkdown,
+  });
+}
+
+function createEvidenceMarkdown(body) {
+  return `# Phase 76H Web Chat Model Status Bar Evidence
+
+- Phase: ${body.phase}
+- Status: ${body.status}
+- Generated at: ${body.generatedAt}
+- Service URL: ${body.serviceUrl ?? "n/a"}
+- Status bar present: ${body.ui?.initialState?.statusBarPresent}
+- Config button present: ${body.ui?.initialState?.configButtonPresent}
+- Config button text: ${body.ui?.initialState?.configButtonText ?? "n/a"}
+- Config button aria-label: ${body.ui?.initialState?.configButtonAriaLabel ?? "n/a"}
+- Quick add-model chip present: ${body.ui?.initialState?.quickAddModelChipPresent}
+- Wizard opened from composer: ${body.ui?.openedState?.wizardPresent}
+- Final model probe status: ${body.ui?.finalState?.modelProbeStatus ?? "n/a"}
+- Final model value: ${body.ui?.finalState?.modelValue ?? "n/a"}
+- Final model label: ${body.ui?.finalState?.modelLabelText ?? "n/a"}
+- Final probe text: ${body.ui?.finalState?.modelProbeText ?? "n/a"}
+- Probe used /chat: ${body.ui?.finalState?.fetches?.includes?.("/chat") ?? false}
+- Fake provider only: ${body.safety?.fakeProviderOnly}
+- Backend business route added: ${body.safety?.backendBusinessRouteAdded}
+- Default chat main lane changed: ${body.safety?.defaultChatMainLaneChanged}
+- Screenshot path: ${body.screenshot?.path ?? "n/a"}
+- Screenshot bytes: ${body.screenshot?.bytes ?? "n/a"}
+- Screenshot dimensions: ${body.screenshot?.width ?? "n/a"}x${body.screenshot?.height ?? "n/a"}
+- Valid PNG: ${body.screenshot?.validPng}
+- Conclusion: ${body.conclusion}
+`;
 }
 

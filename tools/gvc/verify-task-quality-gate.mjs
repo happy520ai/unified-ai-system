@@ -2,7 +2,6 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { scoreNextActionQuality, writeQualityScores } from "./score-next-action-quality.mjs";
-import { writeEvidenceFile } from "../lib/evidenceWriter.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -78,7 +77,7 @@ const result = {
   checks,
 };
 
-writeEvidenceFile("apps/ai-gateway-service/evidence/phase2034-gvc-task-quality-gate/task-quality-verify-result.json", result, repoRoot);
+writeEvidence("phase2034-gvc-task-quality-gate/task-quality-verify-result.json", result);
 console.log(JSON.stringify({ status: result.status, blocker: result.blocker, lowValueTaskBlocked: result.lowValueTaskBlocked, highValueLowRiskTaskAllowed: result.highValueLowRiskTaskAllowed }, null, 2));
 if (failedChecks.length > 0) process.exit(1);
 
@@ -92,3 +91,8 @@ function readJson(relativePath) {
   return JSON.parse(readFileSync(filePath, "utf8").replace(/^\uFEFF/, ""));
 }
 
+function writeEvidence(relativePath, value) {
+  const filePath = resolve(`apps/ai-gateway-service/evidence/${relativePath}`);
+  mkdirSync(path.dirname(filePath), { recursive: true });
+  writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+}

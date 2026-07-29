@@ -3,7 +3,7 @@
 ## Result
 
 - task: Yiyi-Local-Hunyuan3D-Setup-B
-- enginePath: E:/AI-Data/AI-Engines/Hunyuan3D-2.1
+- enginePath: .tool-external/hunyuan3d-2.1
 - installAllowed: true
 - generationAllowedOnThisMachine: false
 - blocker: insufficient_vram_for_hunyuan3d_generation

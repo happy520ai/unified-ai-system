@@ -5,6 +5,8 @@
  */
 
 import { buildTool, createInputSchema } from "./toolCore.js";
+import { lstatSync, realpathSync } from "node:fs";
+import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 
 // ============================================================
 // 内置工具定义
@@ -14,7 +16,7 @@ import { buildTool, createInputSchema } from "./toolCore.js";
  * 文件路径安全验证 — 防止路径遍历和敏感路径访问
  * Returns { safe: true } or { safe: false, reason: "..." }
  */
-export function validateFilePath(filePath, { allowWrite = false } = {}) {
+export function validateFilePath(filePath, { allowWrite = false, workingDirectory } = {}) {
   if (!filePath || typeof filePath !== "string") {
     return { safe: false, reason: "file_path must be a non-empty string" };
   }
@@ -53,7 +55,64 @@ export function validateFilePath(filePath, { allowWrite = false } = {}) {
     }
   }
 
+  if (workingDirectory) {
+    const rootPath = resolve(workingDirectory);
+    const targetPath = resolve(rootPath, filePath);
+    const pathFromRoot = relative(rootPath, targetPath);
+    if (
+      pathFromRoot === ".."
+      || pathFromRoot.startsWith(`..${sep}`)
+      || isAbsolute(pathFromRoot)
+    ) {
+      return { safe: false, reason: "file_path escapes the working directory" };
+    }
+  }
+
   return { safe: true };
+}
+
+function isPathWithinRoot(rootPath, targetPath) {
+  const pathFromRoot = relative(rootPath, targetPath);
+  return (
+    pathFromRoot === ""
+    || (
+      pathFromRoot !== ".."
+      && !pathFromRoot.startsWith(`..${sep}`)
+      && !isAbsolute(pathFromRoot)
+    )
+  );
+}
+
+function validateRealPathWithinWorkingDirectory(targetPath, workingDirectory) {
+  try {
+    const realRoot = realpathSync(workingDirectory);
+    let existingPath = targetPath;
+
+    while (true) {
+      try {
+        lstatSync(existingPath);
+        break;
+      } catch (error) {
+        if (error?.code !== "ENOENT" && error?.code !== "ENOTDIR") throw error;
+        const parentPath = dirname(existingPath);
+        if (parentPath === existingPath) {
+          return { safe: false, reason: "no existing ancestor could be resolved" };
+        }
+        existingPath = parentPath;
+      }
+    }
+
+    const realExistingPath = realpathSync(existingPath);
+    if (!isPathWithinRoot(realRoot, realExistingPath)) {
+      return { safe: false, reason: "real path escapes working directory" };
+    }
+    return { safe: true };
+  } catch (error) {
+    return {
+      safe: false,
+      reason: `real path resolution failed: ${error?.message || String(error)}`,
+    };
+  }
 }
 
 /** Maximum file size for file_read: 10 MB */
@@ -90,7 +149,7 @@ export function createFileReadTool(workingDirectory = process.cwd()) {
       const { file_path, offset, limit } = params;
 
       // Security: validate path
-      const validation = validateFilePath(file_path);
+      const validation = validateFilePath(file_path, { workingDirectory });
       if (!validation.safe) {
         return { status: "error", error: `Path validation failed: ${validation.reason}` };
       }
@@ -98,17 +157,12 @@ export function createFileReadTool(workingDirectory = process.cwd()) {
       // Resolve to absolute path — relative to workingDirectory
       const resolvedPath = resolve(workingDirectory, file_path);
 
-    // Security: resolve symlinks and verify real path stays within workingDirectory
-    try {
-      const { realpathSync } = await import("node:fs");
-      const { sep } = await import("node:path");
-      const realPath = realpathSync(resolvedPath);
-      const resolvedWorkdir = realpathSync(workingDirectory);
-      if (!realPath.startsWith(resolvedWorkdir + sep) && realPath !== resolvedWorkdir) {
-        return { status: "error", error: "Symlink traversal blocked: real path escapes working directory" };
-      }
-    } catch {
-      // realpathSync may fail for non-existent files — allow readFileSync to throw the proper error
+    const realPathValidation = validateRealPathWithinWorkingDirectory(resolvedPath, workingDirectory);
+    if (!realPathValidation.safe) {
+      return {
+        status: "error",
+        error: `Symlink traversal blocked: ${realPathValidation.reason}`,
+      };
     }
 
     // Security: check file size before reading
@@ -193,7 +247,7 @@ export function createFileWriteTool(workingDirectory = process.cwd()) {
     const { file_path, content, mode = "overwrite" } = params;
 
     // Security: validate path
-    const validation = validateFilePath(file_path, { allowWrite: true });
+    const validation = validateFilePath(file_path, { allowWrite: true, workingDirectory });
     if (!validation.safe) {
       return { status: "error", error: `Path validation failed: ${validation.reason}` };
     }
@@ -211,17 +265,19 @@ export function createFileWriteTool(workingDirectory = process.cwd()) {
 
     // Security: resolve symlinks and verify real path stays within workingDirectory
     try {
-      const { realpathSync, existsSync: _existsSync } = await import("node:fs");
-      const { sep } = await import("node:path");
-      if (_existsSync(resolvedPath)) {
-        const realPath = realpathSync(resolvedPath);
-        const resolvedWorkdir = realpathSync(workingDirectory);
-        if (!realPath.startsWith(resolvedWorkdir + sep) && realPath !== resolvedWorkdir) {
-          return { status: "error", error: "Symlink traversal blocked: real path escapes working directory" };
-        }
+      const realPathValidation = validateRealPathWithinWorkingDirectory(resolvedPath, workingDirectory);
+      if (!realPathValidation.safe) {
+        return {
+          status: "error",
+          error: `Symlink traversal blocked: ${realPathValidation.reason}`,
+        };
       }
     } catch {
       // realpathSync may fail for non-existent paths — directory check below handles creation
+      return {
+        status: "error",
+        error: "Symlink traversal blocked: real path validation failed",
+      };
     }
 
     const dir = dirname(resolvedPath);

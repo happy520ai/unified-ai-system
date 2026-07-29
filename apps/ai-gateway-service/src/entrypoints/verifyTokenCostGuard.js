@@ -1,7 +1,7 @@
+import { listen, postJsonStatusPayload as postJson, writeEvidenceFiles, } from "./entrypointUtils.js";
 import { execFileSync } from "node:child_process";
-import { writeEvidenceWithRenderer } from "./entrypointUtils.js";
 import { existsSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
@@ -10,7 +10,6 @@ import { createGatewayHttpServer } from "../http/httpServer.js";
 import { createConsolePage } from "../ui/consolePage.js";
 import { createTokenBudgetPolicy } from "../cost/tokenBudgetPolicy.js";
 import { checkTokenCostGuard } from "../cost/tokenCostGuard.js";
-import { listen, postJson, close } from "./entrypointUtils.js";
 
 const PHASE = "268A-token-cost-guard";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -245,7 +244,7 @@ try {
     },
   };
 
-  await writeEvidenceWithRenderer(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence, renderEvidenceMarkdown);
+  await writeVerifyTokenCostGuardEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = passed ? 0 : 1;
 } catch (error) {
@@ -270,7 +269,7 @@ try {
       autoPush: false,
     },
   };
-  await writeEvidence(fallback);
+  await writeVerifyTokenCostGuardEvidence(fallback);
   console.log(JSON.stringify(fallback, null, 2));
   process.exitCode = 1;
 } finally {
@@ -393,6 +392,20 @@ async function getJson(url) {
 }
 
 
+
+function close(targetServer) {
+  return new Promise((resolveClose) => targetServer.close(() => resolveClose()));
+}
+
+async function writeVerifyTokenCostGuardEvidence(evidence) {
+  await writeEvidenceFiles({
+    evidenceDir,
+    evidenceJsonPath,
+    evidenceMdPath,
+    body: evidence,
+    renderMarkdown: renderEvidenceMarkdown,
+  });
+}
 
 function renderEvidenceMarkdown(evidence) {
   return `# Phase 268A Token Cost Guard Evidence

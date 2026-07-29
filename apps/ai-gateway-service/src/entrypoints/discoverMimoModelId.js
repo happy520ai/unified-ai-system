@@ -5,28 +5,27 @@ import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { checkTokenCostGuard } from "../cost/tokenCostGuard.js";
 import {
-  discoverModelsEndpoint,
-  trySmokeWithAuthStyles,
-  createSmokeSummary,
-  classifyBlocker,
-  MAX_PAID_CALLS,
   MAX_OUTPUT_TOKENS,
+  MAX_PAID_CALLS,
+  PROMPT,
+  PROVIDER_ID,
+  classifyBlocker,
+  createSmokeSummary,
+  discoverModelsEndpoint,
+  sanitizeMessage,
+  trySmokeWithAuthStyles,
 } from "./mimoDiscoveryHttp.js";
 import {
   buildDiscoveryEvidence,
-  createPassedEvidenceFromPriorTextSmoke,
   createBlockedEvidence,
-  createModelsEndpointSummary,
-  createSafetySummary,
   createCandidates,
+  createModelsEndpointSummary,
+  createPassedEvidenceFromPriorTextSmoke,
+  createSafetySummary,
 } from "./mimoDiscoveryEvidence.js";
 
 const PHASE = "271A-mimo-model-id-discovery";
-const PROVIDER_ID = "mimo";
 const DEFAULT_MIMO_BASE_URL = "https://token-plan-cn.xiaomimimo.com/v1";
-const PROMPT = "Say MIMO_SMOKE_OK";
-const TEMPERATURE = 0;
-export { MAX_PAID_CALLS, MAX_OUTPUT_TOKENS };
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "../../../..");
 const evidenceDir = resolve(repoRoot, "apps/ai-gateway-service/evidence");
@@ -71,16 +70,16 @@ try {
     if (priorTextSmoke) {
       await finish(priorTextSmoke);
     } else {
-      const discovery = await discoverWorkingModelId({
-        baseUrl: configuration.baseUrl,
-        apiKey: configuration.apiKey,
-        configuredModelId: configuration.configuredModelId,
-        runtimeModelIds: configuration.runtimeModelIds,
-        priorFailedModelId: configuration.priorFailedModelId,
-        initialPaidApiCallCount: Number(previous271Evidence?.smoke?.paidApiCallCount ?? 0),
-      });
-      const evidence = buildDiscoveryEvidence(baseEvidence, discovery);
-      await finish(evidence);
+    const discovery = await discoverWorkingModelId({
+      baseUrl: configuration.baseUrl,
+      apiKey: configuration.apiKey,
+      configuredModelId: configuration.configuredModelId,
+      runtimeModelIds: configuration.runtimeModelIds,
+      priorFailedModelId: configuration.priorFailedModelId,
+      initialPaidApiCallCount: Number(previous271Evidence?.smoke?.paidApiCallCount ?? 0),
+    });
+    const evidence = buildDiscoveryEvidence(baseEvidence, discovery);
+    await finish(evidence);
     }
   }
 } catch (error) {
@@ -183,7 +182,12 @@ function runGuard(model) {
       provider: PROVIDER_ID,
       model,
       modelTier: "cheap",
-      messages: [{ role: "user", content: PROMPT }],
+      messages: [
+        {
+          role: "user",
+          content: PROMPT,
+        },
+      ],
       maxOutputTokens: MAX_OUTPUT_TOKENS,
     });
     return {
@@ -216,7 +220,11 @@ async function discoverWorkingModelId({ baseUrl, apiKey, configuredModelId, runt
   if (modelsEndpoint.available && modelsEndpoint.matchingModels.length) {
     const modelId = modelsEndpoint.matchingModels[0];
     const smoke = await trySmokeWithAuthStyles({
-      baseUrl, apiKey, modelId, paidApiCallCount, candidateAttempts,
+      baseUrl,
+      apiKey,
+      modelId,
+      paidApiCallCount,
+      candidateAttempts,
     });
     paidApiCallCount = smoke.paidApiCallCount;
     successfulSmokeCallCount += smoke.success ? 1 : 0;
@@ -245,7 +253,11 @@ async function discoverWorkingModelId({ baseUrl, apiKey, configuredModelId, runt
     }
 
     const smoke = await trySmokeWithAuthStyles({
-      baseUrl, apiKey, modelId: candidate, paidApiCallCount, candidateAttempts,
+      baseUrl,
+      apiKey,
+      modelId: candidate,
+      paidApiCallCount,
+      candidateAttempts,
     });
     paidApiCallCount = smoke.paidApiCallCount;
     successfulSmokeCallCount += smoke.success ? 1 : 0;
@@ -284,14 +296,6 @@ function readJsonIfExists(path) {
   } catch {
     return null;
   }
-}
-
-function sanitizeMessage(value) {
-  return String(value ?? "")
-    .replace(/(Bearer\s+)[A-Za-z0-9._-]+/gi, "$1<masked>")
-    .replace(/(api[-_]?key\s*[:=]\s*)[A-Za-z0-9._-]+/gi, "$1<masked>")
-    .replace(/(authorization\s*[:=]\s*)[A-Za-z0-9._\-\s]+/gi, "$1<masked>")
-    .slice(0, 500);
 }
 
 async function finish(evidence) {

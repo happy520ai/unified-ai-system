@@ -1,5 +1,5 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { writeEvidencePair } from "./entrypointUtils.js";
+import { fetchJsonResponse as fetchJson, fetchTextResponse as fetchText, listen, postJsonResponse as postJson, writeEvidenceFiles, } from "./entrypointUtils.js";
+import { mkdir, readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
@@ -7,7 +7,6 @@ import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
 import { findPlainSecretFindings } from "../security/secretSafety.js";
-import { fetchJson, fetchText, listen, close, postJson } from "./entrypointUtils.js";
 
 const phase = "phase-142a-workforce-omx-handoff-preview";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -197,7 +196,7 @@ try {
     conclusion: passed ? "workforce-omx-handoff-preview-closed" : "workforce-omx-handoff-preview-not-closed",
   };
 
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyAgentWorkforceOmxHandoffPreviewEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = passed ? 0 : 1;
 } catch (error) {
@@ -208,7 +207,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "workforce-omx-handoff-preview-not-closed",
   };
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyAgentWorkforceOmxHandoffPreviewEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -217,7 +216,57 @@ try {
   }
 }
 
+
+function close(targetServer) {
+  return new Promise((resolveClose) => {
+    targetServer.close(() => resolveClose());
+  });
+}
+
 async function readRequired(relativePath) {
   return readFile(resolve(repoRoot, relativePath), "utf8");
 }
 
+
+
+
+async function writeVerifyAgentWorkforceOmxHandoffPreviewEvidence(body) {
+  await writeEvidenceFiles({
+    evidenceDir,
+    evidenceJsonPath,
+    evidenceMdPath,
+    body,
+    renderMarkdown: createEvidenceMarkdown,
+  });
+}
+
+function createEvidenceMarkdown(body) {
+  return `# Phase 142A Workforce OMX Handoff Preview Evidence
+
+- Phase: ${body.phase}
+- Status: ${body.status}
+- Generated at: ${body.generatedAt}
+- Service URL: ${body.serviceUrl ?? "n/a"}
+- Plan ID: ${body.workforce?.planId ?? "n/a"}
+- Workforce ID: ${body.workforce?.workforceId ?? "n/a"}
+- OMX handoff status: ${body.workforce?.omxHandoffStatus ?? "n/a"}
+- Recommended workflow: ${body.workforce?.recommendedWorkflow ?? "n/a"}
+- Suggested command count: ${body.workforce?.suggestedCommandCount ?? "n/a"}
+- Blocked reason count: ${body.workforce?.blockedReasonCount ?? "n/a"}
+- Code execution: ${body.safety?.codeExecution ?? false}
+- Project file writes: ${body.safety?.projectFileWrites ?? false}
+- Workflow run: ${body.safety?.workflowRun ?? false}
+- Creates worktrees: ${body.safety?.createsWorktrees ?? false}
+- Installs oh-my-codex: ${body.safety?.installsOhMyCodex ?? false}
+- Runs oh-my-codex: ${body.safety?.runsOhMyCodex ?? false}
+- Dependency added: ${body.safety?.dependencyAdded ?? false}
+- Plain secret findings: ${body.secretFindingCount ?? "n/a"}
+- Conclusion: ${body.conclusion}
+
+## Checks
+
+${Object.entries(body.checks ?? {})
+  .map(([name, value]) => `- ${name}: ${value ? "passed" : "failed"}`)
+  .join("\n")}
+`;
+}

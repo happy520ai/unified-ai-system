@@ -26,8 +26,8 @@ export function renderOwnerAutomationResultCard(copy = ownerAutomationFileAction
                       <summary>${escapeHtml(copy.advancedRecordTitle)}</summary>
                       <ul>
                         <li><span>${escapeHtml(copy.filePathLine)}</span></li>
-                        <li>动作证据。<code>${escapeHtml(copy.sourceEvidencePath)}</code></li>
-                        <li>展示证据。<code>${escapeHtml(copy.integrationEvidencePath)}</code></li>
+                        <li>动作证据：<code>${escapeHtml(copy.sourceEvidencePath)}</code></li>
+                        <li>展示证据：<code>${escapeHtml(copy.integrationEvidencePath)}</code></li>
                       </ul>
                     </details>
                   </section>`;

@@ -1,7 +1,5 @@
 export function buildNeuralRelevancePreview(input = {}) {
   const files = scoreItems(input.files || [
-    "packages/neural-fabric-runtime/src/index.js",
-    "packages/neural-fabric-runtime/specs/neural-op.schema.json",
     "docs/phase1308a-codex-context-gateway-neural-relevance-preview.md",
   ]);
   const evidence = scoreItems(input.evidence || [

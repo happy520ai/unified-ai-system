@@ -1,10 +1,10 @@
+import { sleep } from "./entrypointUtils.js";
 import { existsSync, readFileSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
-import { sleep } from "./entrypointUtils.js";
 
 const PHASE = "Phase315A";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -213,8 +213,18 @@ function readMainEvidenceFallback() {
   if (existsSync(evidenceJsonPath)) {
     try {
       return JSON.parse(readFileSync(evidenceJsonPath, "utf8"));
-    } catch (err) { console.error("[smokePhase315ANvidiaLatencyTimeout]:", err?.message || err); }
+    } catch (error) {
+      return {
+        ...createPendingEvidence(),
+        blocker: "main-evidence-read-failed",
+        evidenceReadError: redactSecrets(error instanceof Error ? error.message : String(error)),
+      };
+    }
   }
+  return createPendingEvidence();
+}
+
+function createPendingEvidence() {
   return {
     phase: PHASE,
     status: "pending",
@@ -247,6 +257,7 @@ function summarizeBy(items, field) {
     return summary;
   }, {});
 }
+
 
 function closeServer(targetServer) {
   return new Promise((resolveClose) => targetServer.close(() => resolveClose()));

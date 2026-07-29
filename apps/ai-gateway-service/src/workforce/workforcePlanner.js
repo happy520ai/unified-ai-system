@@ -1,52 +1,55 @@
 import { WORKFORCE_PHASE, listWorkforceRoles } from "./workforceRoles.js";
-import { PRODUCT_TEMPLATES as IMPORTED_TEMPLATES, PRODUCT_TEMPLATE_PHASE, getTemplateById, listTemplates } from "./workforceTemplates.js";
 import {
-  PRODUCT_TEMPLATES,
-  normalizeGoal,
-  createWorkforceId,
-  createRoleTask,
-  normalizeSelectedTemplate,
-  createTemplateContext,
-  createProductTemplatesPreview,
-  createDeliverables,
-  createRoleTiers,
-  createClarifyQuestions,
-  createClarificationAnswers,
   createAnsweredClarifications,
+  createClarificationAnswers,
+  createClarifyQuestions,
+  createDeliverables,
+  createProductTemplatesPreview,
+  createRoleTask,
+  createRoleTiers,
+  createTemplateContext,
   createUnresolvedClarifications,
+  createWorkforceId,
+  normalizeGoal,
+  normalizeSelectedTemplate,
 } from "./workforcePlanner-core.js";
 import {
+  createApprovalGatePreview,
   createConsensusPreview,
-  createHookEventsPreview,
   createEventLedgerPreview,
-  createPlanState,
+  createHookEventsPreview,
   createLifecyclePreview,
   createOmxHandoffPreview,
-  createWorkforceHudPreview,
+  createPlanState,
   createReviewPackagePreview,
-  createApprovalGatePreview,
+  createWorkforceHudPreview,
 } from "./workforcePlanner-previews.js";
 import {
+  createAgentWorkforcePreviewFinalUxSeal,
+  createExecutionApprovalRecordPreview,
   createExecutionReadinessPreflight,
   createExternalOmxRunnerDesign,
-  createRunnerRequestQueuePreview,
-  createExecutionApprovalRecordPreview,
   createExternalRunnerProtocolFreeze,
-  createAgentWorkforcePreviewFinalUxSeal,
+  createRunnerRequestQueuePreview,
 } from "./workforcePlanner-runner.js";
 import {
   createCodexDesktopHandoffPack,
-  createManualCodexExecutionLoop,
   createCodexResultReviewPreview,
-  createSafeDesktopRunnerDesign,
   createHandoffPackageManifest,
+  createManualCodexExecutionLoop,
+  createSafeDesktopRunnerDesign,
 } from "./workforcePlanner-codex.js";
 import {
-  formatWorkforcePlanMarkdown,
   createExportableWorkforcePlan,
+  formatWorkforcePlanMarkdown,
 } from "./workforcePlanner-format.js";
 
-export { PRODUCT_TEMPLATES, PRODUCT_TEMPLATE_PHASE, getTemplateById, listTemplates };
+export {
+  PRODUCT_TEMPLATES,
+  PRODUCT_TEMPLATE_PHASE,
+  getTemplateById,
+  listTemplates,
+} from "./workforceTemplates.js";
 
 export function createWorkforcePlan(input = {}) {
   const goal = normalizeGoal(input.goal);
@@ -175,5 +178,3 @@ export function createWorkforcePlan(input = {}) {
   plan.exportableJson = createExportableWorkforcePlan(plan);
   return plan;
 }
-
-

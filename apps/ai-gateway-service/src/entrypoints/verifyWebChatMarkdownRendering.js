@@ -1,6 +1,5 @@
+import { findRequiredBrowserPath as findBrowserPath, listen, sleep, writeEvidenceFiles, } from "./entrypointUtils.js";
 import { spawn } from "node:child_process";
-import { writeEvidencePair } from "./entrypointUtils.js";
-import { existsSync, readdirSync } from "node:fs";
 import { mkdtemp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
@@ -9,7 +8,6 @@ import vm from "node:vm";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
 import { createConsolePage } from "../ui/consolePage.js";
-import { sleep, listen, close, findBrowserPath } from "./entrypointUtils.js";
 
 const PHASE = "phase-68a-web-chat-markdown-rendering";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -175,7 +173,7 @@ try {
     await closeCdpSilently(cdp);
   }
 
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyWebChatMarkdownRenderingEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = evidence.status === "passed" ? 0 : 1;
 } catch (error) {
@@ -186,7 +184,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "web-chat-markdown-rendering-not-connected",
   };
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyWebChatMarkdownRenderingEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -289,13 +287,6 @@ async function readState(cdp) {
 }
 
 
-function findVersionedBrowserPaths(root, executableName) {
-  if (!existsSync(root)) return [];
-  return readdirSync(root, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => resolve(root, entry.name, executableName))
-    .reverse();
-}
 
 async function readDevToolsPort(profileDir) {
   const portFile = resolve(profileDir, "DevToolsActivePort");
@@ -441,5 +432,58 @@ async function inspectPng(path) {
     height: validPng ? buffer.readUInt32BE(20) : 0,
     validPng,
   };
+}
+
+
+function close(targetServer) {
+  return new Promise((resolveClose) => {
+    targetServer.close(() => resolveClose());
+  });
+}
+
+async function writeVerifyWebChatMarkdownRenderingEvidence(body) {
+  await writeEvidenceFiles({
+    evidenceDir,
+    evidenceJsonPath,
+    evidenceMdPath,
+    body,
+    renderMarkdown: createEvidenceMarkdown,
+  });
+}
+
+function createEvidenceMarkdown(body) {
+  return `# Phase 68A Web Chat Markdown Rendering Evidence
+
+- Phase: ${body.phase}
+- Status: ${body.status}
+- Generated at: ${body.generatedAt}
+- Service URL: ${body.serviceUrl ?? "n/a"}
+- Prompt: ${body.ui?.prompt ?? "n/a"}
+- Paragraph count: ${body.ui?.afterAnswer?.paragraphCount ?? "n/a"}
+- Bullet count: ${body.ui?.afterAnswer?.bulletCount ?? "n/a"}
+- Numbered count: ${body.ui?.afterAnswer?.numberedCount ?? "n/a"}
+- Code block count: ${body.ui?.afterAnswer?.codeBlockCount ?? "n/a"}
+- Code text: ${body.ui?.afterAnswer?.codeText ?? "n/a"}
+- Safe link count: ${body.ui?.afterAnswer?.safeLinkCount ?? "n/a"}
+- Unsafe link count: ${body.ui?.afterAnswer?.unsafeLinkCount ?? "n/a"}
+- Unsafe text present: ${body.ui?.afterAnswer?.unsafeTextPresent}
+- Raw answer preserved for copy: ${body.safety?.rawAnswerPreservedForCopy}
+- Screenshot path: ${body.screenshot?.path ?? "n/a"}
+- Screenshot bytes: ${body.screenshot?.bytes ?? "n/a"}
+- Screenshot dimensions: ${body.screenshot?.width ?? "n/a"}x${body.screenshot?.height ?? "n/a"}
+- Valid PNG: ${body.screenshot?.validPng}
+- Browser interaction: ${body.safety?.browserInteraction}
+- Simulated stream only: ${body.safety?.simulatedStreamOnly}
+- Markdown rendering only: ${body.safety?.markdownRenderingOnly}
+- Unsafe links rendered as text: ${body.safety?.unsafeLinksRenderedAsText}
+- Fake provider only: ${body.safety?.fakeProviderOnly}
+- Default chat main lane changed: ${body.safety?.defaultChatMainLaneChanged}
+- Backend business route added: ${body.safety?.backendBusinessRouteAdded}
+- Provider calls: ${body.safety?.providerCalls}
+- Runtime mutation: ${body.safety?.runtimeMutation}
+- Release automation: ${body.safety?.releaseAutomation}
+- Infrastructure provisioning: ${body.safety?.infrastructureProvisioning}
+- Conclusion: ${body.conclusion}
+`;
 }
 

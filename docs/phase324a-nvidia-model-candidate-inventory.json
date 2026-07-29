@@ -1,19 +1,19 @@
 {
   "generatedAt": "2026-05-06T12:28:02.676Z",
   "sourceFiles": [
-    "E:\\AI-Data\\AI网关系统\\unified-ai-system\\apps\\ai-gateway-service\\src\\model-library\\unifiedModelRegistry.js",
-    "E:\\AI-Data\\AI网关系统\\unified-ai-system\\apps\\ai-gateway-service\\src\\model-library\\modelUsabilityMatrix.js",
-    "E:\\AI-Data\\AI网关系统\\unified-ai-system\\apps\\ai-gateway-service\\src\\model-library\\modelVerificationStateStore.js",
-    "E:\\AI-Data\\AI网关系统\\unified-ai-system\\apps\\ai-gateway-service\\src\\model-library\\modelSelectableGate.js",
-    "E:\\AI-Data\\AI网关系统\\unified-ai-system\\apps\\ai-gateway-service\\src\\model-library\\modelCapabilityBuckets.js",
-    "E:\\AI-Data\\AI网关系统\\unified-ai-system\\apps\\ai-gateway-service\\src\\model-library\\nvidiaCatalogDiscovery.js",
-    "E:\\AI-Data\\AI网关系统\\unified-ai-system\\apps\\ai-gateway-service\\evidence\\phase-312a-model-library-state.json",
-    "E:\\AI-Data\\AI网关系统\\unified-ai-system\\apps\\ai-gateway-service\\evidence\\phase-313a-model-verification-state.json",
-    "E:\\AI-Data\\AI网关系统\\unified-ai-system\\apps\\ai-gateway-service\\evidence\\phase-313a-model-usability-matrix.json",
-    "E:\\AI-Data\\AI网关系统\\unified-ai-system\\apps\\ai-gateway-service\\evidence\\phase-322a-workbench-chat-gateway-real-nvidia.json",
-    "E:\\AI-Data\\AI网关系统\\unified-ai-system\\docs\\phase323d11-phase323c11-execution-report.md",
-    "E:\\AI-Data\\AI网关系统\\unified-ai-system\\package.json",
-    "E:\\AI-Data\\AI网关系统\\unified-ai-system\\apps\\ai-gateway-service\\package.json"
+    "<repository-root>\\apps\\ai-gateway-service\\src\\model-library\\unifiedModelRegistry.js",
+    "<repository-root>\\apps\\ai-gateway-service\\src\\model-library\\modelUsabilityMatrix.js",
+    "<repository-root>\\apps\\ai-gateway-service\\src\\model-library\\modelVerificationStateStore.js",
+    "<repository-root>\\apps\\ai-gateway-service\\src\\model-library\\modelSelectableGate.js",
+    "<repository-root>\\apps\\ai-gateway-service\\src\\model-library\\modelCapabilityBuckets.js",
+    "<repository-root>\\apps\\ai-gateway-service\\src\\model-library\\nvidiaCatalogDiscovery.js",
+    "<repository-root>\\apps\\ai-gateway-service\\evidence\\phase-312a-model-library-state.json",
+    "<repository-root>\\apps\\ai-gateway-service\\evidence\\phase-313a-model-verification-state.json",
+    "<repository-root>\\apps\\ai-gateway-service\\evidence\\phase-313a-model-usability-matrix.json",
+    "<repository-root>\\apps\\ai-gateway-service\\evidence\\phase-322a-workbench-chat-gateway-real-nvidia.json",
+    "<repository-root>\\docs\\phase323d11-phase323c11-execution-report.md",
+    "<repository-root>\\package.json",
+    "<repository-root>\\apps\\ai-gateway-service\\package.json"
   ],
   "summary": {
     "phase313EvidenceTotalModels": 148,

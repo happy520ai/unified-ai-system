@@ -1,11 +1,10 @@
-import { mkdir, writeFile } from "node:fs/promises";
-import { writeEvidencePair } from "./entrypointUtils.js";
+import { fetchContentResponse as fetchText, listen, writeEvidenceFiles, } from "./entrypointUtils.js";
+import { mkdir } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGatewayClient } from "@unified-ai-system/shared-sdk";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
-import { fetchText, listen, close } from "./entrypointUtils.js";
 
 const PHASE = "phase-29a-service-rag-chat";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -93,7 +92,7 @@ try {
     ragChat,
     conclusion: passed ? "service-rag-chat-connected" : "service-rag-chat-not-connected",
   });
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyRagChatServiceEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = passed ? 0 : 1;
 } catch (error) {
@@ -108,7 +107,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "service-rag-chat-not-connected",
   });
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyRagChatServiceEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -146,6 +145,14 @@ function isRagChatConnected({ ui, health, load, ragChat }) {
     answer.includes(marker)
   );
 }
+
+
+function close(targetServer) {
+  return new Promise((resolveClose) => {
+    targetServer.close(() => resolveClose());
+  });
+}
+
 
 function createEvidence({ status, generatedAt, serviceUrl, ui, health, load, ragChat, conclusion, error }) {
   const data = ragChat?.data ?? {};
@@ -191,3 +198,44 @@ function createEvidence({ status, generatedAt, serviceUrl, ui, health, load, rag
   };
 }
 
+async function writeVerifyRagChatServiceEvidence(body) {
+  await writeEvidenceFiles({
+    evidenceDir,
+    evidenceJsonPath,
+    evidenceMdPath,
+    body,
+    renderMarkdown: createEvidenceMarkdown,
+  });
+}
+
+function createEvidenceMarkdown(body) {
+  return `# Phase 29A Service RAG Chat Evidence
+
+- Phase: ${body.phase}
+- Status: ${body.status}
+- Generated at: ${body.generatedAt}
+- Service URL: ${body.service.url ?? "n/a"}
+- Health status: ${body.service.healthStatus ?? "n/a"}
+- RAG route present: ${body.service.ragRoutePresent}
+- UI URL: ${body.ui.url ?? "n/a"}
+- UI HTTP status: ${body.ui.httpStatus ?? "n/a"}
+- UI title present: ${body.ui.titlePresent}
+- Service RAG UI present: ${body.ui.serviceRagPresent}
+- Loaded source ID: ${body.knowledge.loadedSourceId ?? "n/a"}
+- Loaded count: ${body.knowledge.loadedCount ?? "n/a"}
+- Query: ${body.knowledge.query}
+- Knowledge retrieved: ${body.knowledge.retrieved}
+- Citation count: ${body.knowledge.citationCount}
+- Top hit document: ${body.knowledge.topHitDocumentId ?? "n/a"}
+- First citation document: ${body.knowledge.firstCitationDocumentId ?? "n/a"}
+- First citation snippet present: ${body.knowledge.firstCitationSnippetPresent}
+- Marker matched in citation and answer: ${body.knowledge.markerMatched}
+- RAG enabled: ${body.chat.ragEnabled}
+- RAG mode: ${body.chat.ragMode ?? "n/a"}
+- Knowledge injected: ${body.chat.knowledgeInjected}
+- Selected provider: ${body.chat.selectedProvider ?? "n/a"}
+- Selected model: ${body.chat.selectedModel ?? "n/a"}
+- Answer present: ${body.chat.answerPresent}
+- Conclusion: ${body.conclusion}
+`;
+}

@@ -1,11 +1,10 @@
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
-import { writeEvidencePair } from "./entrypointUtils.js";
+import { fetchContentResponse as fetchText, listen, requestJsonResponseWithHeaders as fetchJson, writeEvidenceFiles, } from "./entrypointUtils.js";
+import { mkdir, mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
-import { fetchJson, fetchText, listen, close } from "./entrypointUtils.js";
 
 const PHASE = "phase-34a-enterprise-security-hardening";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -139,7 +138,7 @@ try {
     adminAudit,
     conclusion: passed ? "enterprise-security-hardening-connected" : "enterprise-security-hardening-not-connected",
   });
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyEnterpriseSecurityHardeningEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = passed ? 0 : 1;
 } catch (error) {
@@ -149,7 +148,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "enterprise-security-hardening-not-connected",
   });
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyEnterpriseSecurityHardeningEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -208,6 +207,15 @@ function createHeaders(token, selectedTenantId = tenantId) {
     "x-pme-tenant-id": selectedTenantId,
   };
 }
+
+
+function close(targetServer) {
+  return new Promise((resolveClose) => {
+    targetServer.close(() => resolveClose());
+  });
+}
+
+
 
 function createEvidence({
   status,
@@ -271,3 +279,49 @@ function createEvidence({
   };
 }
 
+async function writeVerifyEnterpriseSecurityHardeningEvidence(body) {
+  await writeEvidenceFiles({
+    evidenceDir,
+    evidenceJsonPath,
+    evidenceMdPath,
+    body,
+    renderMarkdown: createEvidenceMarkdown,
+  });
+}
+
+function createEvidenceMarkdown(body) {
+  return `# Phase 34A Enterprise Security Hardening Evidence
+
+- Phase: ${body.phase}
+- Status: ${body.status}
+- Generated at: ${body.generatedAt}
+- Service URL: ${body.serviceUrl ?? "n/a"}
+- UI HTTP status: ${body.ui?.httpStatus ?? "n/a"}
+- Security readiness button present: ${body.ui?.securityReadinessButtonPresent}
+- Auth enabled: ${body.enterprise?.authEnabled}
+- Token expiry supported: ${body.enterprise?.tokenExpirySupported}
+- Token revocation supported: ${body.enterprise?.tokenRevocationSupported}
+- Admin readiness HTTP status: ${body.enterprise?.adminReadinessHttpStatus ?? "n/a"}
+- Admin readiness status: ${body.enterprise?.adminReadinessStatus ?? "n/a"}
+- Auditor readiness HTTP status: ${body.enterprise?.auditorReadinessHttpStatus ?? "n/a"}
+- Missing readiness status: ${body.enterprise?.missingReadinessStatus ?? "n/a"}
+- Active user count: ${body.enterprise?.activeUserCount ?? "n/a"}
+- Expired user count: ${body.enterprise?.expiredUserCount ?? "n/a"}
+- Revoked user count: ${body.enterprise?.revokedUserCount ?? "n/a"}
+- Token values exposed: ${body.enterprise?.tokenValuesExposed}
+- Expired token status: ${body.enterprise?.expiredSessionStatus ?? "n/a"}
+- Expired token code: ${body.enterprise?.expiredSessionCode ?? "n/a"}
+- Revoked token status: ${body.enterprise?.revokedSessionStatus ?? "n/a"}
+- Revoked token code: ${body.enterprise?.revokedSessionCode ?? "n/a"}
+- Cross-tenant status: ${body.enterprise?.crossTenantStatus ?? "n/a"}
+- Cross-tenant code: ${body.enterprise?.crossTenantCode ?? "n/a"}
+- Viewer audit status: ${body.enterprise?.viewerAuditStatus ?? "n/a"}
+- Admin audit status: ${body.enterprise?.adminAuditStatus ?? "n/a"}
+- Audit log path: ${body.enterprise?.auditLogPath ?? "n/a"}
+- Audit entry count: ${body.enterprise?.auditEntryCount ?? "n/a"}
+- Expired audit recorded: ${body.enterprise?.expiredAuditRecorded}
+- Revoked audit recorded: ${body.enterprise?.revokedAuditRecorded}
+- Cross-tenant audit recorded: ${body.enterprise?.crossTenantAuditRecorded}
+- Conclusion: ${body.conclusion}
+`;
+}

@@ -12,13 +12,13 @@
 - Workflow panel present: true
 - Workflow run present: true
 - Workflow mode: local-safe
-- Output directory: C:/Users/Administrator/AppData/Local/Temp/phase30a-workflow-lfWeYM
+- Output directory: <user-home>/AppData/Local/Temp/phase30a-workflow-lfWeYM
 - Arbitrary command execution: false
 - Broad file system scan: false
 - Action count: 3
 - Planned step count: 3
 - Run status: completed
-- Artifact path: C:/Users/Administrator/AppData/Local/Temp/phase30a-workflow-lfWeYM/phase-30a-workflow-report.md
+- Artifact path: <user-home>/AppData/Local/Temp/phase30a-workflow-lfWeYM/phase-30a-workflow-report.md
 - Artifact bytes: 1554
 - Artifact marker present: true
 - Artifact safety text present: true

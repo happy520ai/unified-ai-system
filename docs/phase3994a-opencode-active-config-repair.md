@@ -6,7 +6,7 @@ Phase3994A fixes the real restart surface for OpenCode MCP, LSP, and plugin load
 
 - repo root `opencode.jsonc` / `opencode.json`
 - project `.opencode/opencode.jsonc` / `.opencode/opencode.json`
-- global `C:\Users\Administrator\.config\opencode\opencode.jsonc` / `opencode.json`
+- global `<user-home>\.config\opencode\opencode.jsonc` / `opencode.json`
 
 ## Root Cause
 
@@ -48,6 +48,6 @@ node --test apps\ai-gateway-service\src\entrypoints\opencodeActiveConfigReadines
 
 OpenCode Desktop must be fully closed and restarted after repair for the running app process to reload global and project .opencode config. This phase verifies file-level readiness; it does not claim a real GUI MCP/LSP/plugin invocation unless that is manually tested after restart.
 
-The launcher `tools/phase3993a/start-opencode-with-lsp.cmd` now sets `OPENCODE_CONFIG_DIR` and `OPENCODE_CONFIG` before starting OpenCode. This forces the desktop sidecar to load `C:\Users\Administrator\.config\opencode\opencode.json` plus the project `.opencode/opencode.json`, then opens the `E:\AI-Data\AI网关系统\unified-ai-system` workspace.
+The launcher `tools/phase3993a/start-opencode-with-lsp.cmd` now sets `OPENCODE_CONFIG_DIR` and `OPENCODE_CONFIG` before starting OpenCode. This forces the desktop sidecar to load `<user-home>\.config\opencode\opencode.json` plus the project `.opencode/opencode.json`, then opens the `<repository-root>` workspace.
 
-The Windows user environment is also configured with `OPENCODE_CONFIG_DIR=C:\Users\Administrator\.config\opencode`, `OPENCODE_EXPERIMENTAL=true`, and `OPENCODE_EXPERIMENTAL_LSP_TOOL=true` so future OpenCode launches use the same global config directory. `OPENCODE_CONFIG` is intentionally not persisted globally because it is project-specific.
+The Windows user environment is also configured with `OPENCODE_CONFIG_DIR=<user-home>\.config\opencode`, `OPENCODE_EXPERIMENTAL=true`, and `OPENCODE_EXPERIMENTAL_LSP_TOOL=true` so future OpenCode launches use the same global config directory. `OPENCODE_CONFIG` is intentionally not persisted globally because it is project-specific.

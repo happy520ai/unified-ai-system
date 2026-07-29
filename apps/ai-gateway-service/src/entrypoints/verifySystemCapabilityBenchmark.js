@@ -3,7 +3,6 @@ import { existsSync, readFileSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { readJson } from "./entrypointUtils.js"
 
 const PHASE = "274A-system-capability-benchmark";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -183,6 +182,10 @@ function readRequiredText(path, checkName) {
   return readFileSync(path, "utf8");
 }
 
+function readJson(path, checkName) {
+  const text = readRequiredText(path, checkName);
+  return JSON.parse(text);
+}
 
 function assertSafetyFalse(safety = {}) {
   const keys = [

@@ -3,7 +3,7 @@
 - Phase: phase-125a-github-auth-preflight
 - Status: passed
 - Generated at: 2026-04-27T11:52:28.986Z
-- Git top-level: E:/AI-Data/AI网关系统/unified-ai-system
+- Git top-level: <repository-root>
 - Branch: master
 - Head subject: Phase124A GitHub CLI install
 - Staged file count: 0

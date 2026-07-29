@@ -54,8 +54,8 @@
     "retainedPublishedAt": "2026-04-27T17:14:03Z"
   },
   "git": {
-    "repoRoot": "E:\\AI-Data\\AI网关系统\\unified-ai-system",
-    "gitTopLevel": "E:/AI-Data/AI网关系统/unified-ai-system",
+    "repoRoot": "<repository-root>",
+    "gitTopLevel": "<repository-root>",
     "branch": "master",
     "headSha": "84b4de7f2d3243d07084277992eae2c2feee28a5",
     "headSubject": "Phase136A release publish execution",

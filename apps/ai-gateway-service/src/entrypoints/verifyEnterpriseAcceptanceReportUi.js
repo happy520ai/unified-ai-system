@@ -1,11 +1,10 @@
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
-import { writeEvidencePair } from "./entrypointUtils.js";
+import { fetchContentResponse as fetchText, listen, requestJsonResponseWithHeaders as fetchJson, writeEvidenceFiles, } from "./entrypointUtils.js";
+import { mkdir, mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
-import { fetchJson, fetchText, listen, close } from "./entrypointUtils.js";
 
 const PHASE = "phase-44a-enterprise-acceptance-ui";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -69,7 +68,7 @@ try {
     responseText,
     conclusion: passed ? "enterprise-acceptance-ui-connected" : "enterprise-acceptance-ui-not-connected",
   });
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyEnterpriseAcceptanceReportUiEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = passed ? 0 : 1;
 } catch (error) {
@@ -79,7 +78,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "enterprise-acceptance-ui-not-connected",
   });
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyEnterpriseAcceptanceReportUiEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -125,6 +124,15 @@ function createHeaders(token) {
     "x-pme-tenant-id": tenantId,
   };
 }
+
+
+function close(targetServer) {
+  return new Promise((resolveClose) => {
+    targetServer.close(() => resolveClose());
+  });
+}
+
+
 
 function createEvidence({ status, generatedAt, serviceUrl, ui, missingAuth, acceptance, responseText, conclusion, error }) {
   const data = acceptance?.body?.data;
@@ -174,3 +182,48 @@ function createEvidence({ status, generatedAt, serviceUrl, ui, missingAuth, acce
   };
 }
 
+async function writeVerifyEnterpriseAcceptanceReportUiEvidence(body) {
+  await writeEvidenceFiles({
+    evidenceDir,
+    evidenceJsonPath,
+    evidenceMdPath,
+    body,
+    renderMarkdown: createEvidenceMarkdown,
+  });
+}
+
+function createEvidenceMarkdown(body) {
+  return `# Phase 44A Enterprise Acceptance UI Evidence
+
+- Phase: ${body.phase}
+- Status: ${body.status}
+- Generated at: ${body.generatedAt}
+- Service URL: ${body.serviceUrl ?? "n/a"}
+- UI HTTP status: ${body.ui?.httpStatus ?? "n/a"}
+- UI panel present: ${body.ui?.panelPresent}
+- Report route present in UI: ${body.ui?.reportRoutePresent}
+- Route path: ${body.route?.path}
+- Missing auth HTTP status: ${body.route?.missingAuthHttpStatus ?? "n/a"}
+- Authorized HTTP status: ${body.route?.authorizedHttpStatus ?? "n/a"}
+- Route mode: ${body.route?.mode ?? "n/a"}
+- Report path: ${body.route?.reportPath ?? "n/a"}
+- Report markdown present: ${body.route?.reportMarkdownPresent}
+- Source phase: ${body.acceptance?.sourcePhase ?? "n/a"}
+- Source status: ${body.acceptance?.sourceStatus ?? "n/a"}
+- Source conclusion: ${body.acceptance?.sourceConclusion ?? "n/a"}
+- Evidence required: ${body.acceptance?.requiredCount ?? "n/a"}
+- Evidence passed: ${body.acceptance?.passedCount ?? "n/a"}
+- Evidence missing: ${body.acceptance?.missingCount ?? "n/a"}
+- Evidence failed: ${body.acceptance?.failedCount ?? "n/a"}
+- Command status: ${body.acceptance?.commandStatus ?? "n/a"}
+- Boundary status: ${body.acceptance?.boundaryStatus ?? "n/a"}
+- Read-only route: ${body.safety?.readOnlyRoute}
+- Provider calls: ${body.safety?.providerCalls}
+- Release automation: ${body.safety?.releaseAutomation}
+- Infrastructure provisioning: ${body.safety?.infrastructureProvisioning}
+- Secret values recorded: ${body.safety?.secretValuesRecorded}
+- Response contains auditor token: ${body.safety?.responseContainsAuditorToken}
+- Response contains NVIDIA key: ${body.safety?.responseContainsNvidiaKey}
+- Conclusion: ${body.conclusion}
+`;
+}

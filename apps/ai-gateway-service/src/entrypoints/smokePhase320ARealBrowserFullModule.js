@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -9,9 +10,14 @@ const repoRoot = resolve(__dirname, "../../../..");
 const evidenceDir = resolve(repoRoot, "apps/ai-gateway-service/evidence");
 const evidenceJsonPath = resolve(evidenceDir, "phase-320a-real-browser-full-module-acceptance.json");
 const evidenceMdPath = resolve(evidenceDir, "phase-320a-real-browser-full-module-acceptance.md");
-const browserSkillPath = "C:/Users/Administrator/.codex/plugins/cache/openai-bundled/browser-use/0.1.0-alpha1/skills/browser/SKILL.md";
-const playwrightSkillPath = "C:/Users/Administrator/.codex/skills/playwright/SKILL.md";
-const playwrightWrapperPath = "C:/Users/Administrator/.codex/skills/playwright/scripts/playwright_cli.sh";
+const codexHome = resolve(process.env.CODEX_HOME || resolve(homedir(), ".codex"));
+const browserSkillPath =
+  process.env.CODEX_BROWSER_SKILL_PATH || resolve(codexHome, "skills/browser/SKILL.md");
+const playwrightSkillPath =
+  process.env.CODEX_PLAYWRIGHT_SKILL_PATH || resolve(codexHome, "skills/playwright/SKILL.md");
+const playwrightWrapperPath =
+  process.env.CODEX_PLAYWRIGHT_WRAPPER_PATH ||
+  resolve(codexHome, "skills/playwright/scripts/playwright_cli.sh");
 
 const checks = [];
 function expect(condition, id, detail = "") {

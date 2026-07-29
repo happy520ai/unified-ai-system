@@ -1,4 +1,4 @@
-import { exists, readJson, writeJson, writeText } from "../phase366-common.mjs";
+import { exists, readJson, writeJson, writeText } from "../phase-file-utils.mjs";
 
 const phase365f = await readJson("docs/phase365f-launch-result-state.json");
 const phase366a = await readJson("apps/ai-gateway-service/evidence/phase366a/deploy-blocker-remediation-result.json");

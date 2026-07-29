@@ -15,7 +15,7 @@ Trigger: daily at 20:00 local machine time.
 Action:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "cd 'E:\AI-Data\AI网关系统\unified-ai-system'; cmd /c pnpm run nightly:phase638-safe-runner"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "cd '<repository-root>'; cmd /c pnpm run nightly:phase638-safe-runner"
 ```
 
 ## Boundary

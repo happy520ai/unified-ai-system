@@ -19,8 +19,8 @@
     "projectContextNotCreated": true
   },
   "git": {
-    "repoRoot": "E:\\AI-Data\\AI网关系统\\unified-ai-system",
-    "gitTopLevel": "E:/AI-Data/AI网关系统/unified-ai-system",
+    "repoRoot": "<repository-root>",
+    "gitTopLevel": "<repository-root>",
     "gitDir": ".git",
     "branch": "master",
     "remoteConfigured": false,

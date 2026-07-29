@@ -6,6 +6,8 @@
  */
 
 import { randomUUID } from "node:crypto";
+import { readFile, realpath, stat } from "node:fs/promises";
+import { isAbsolute, relative, resolve as resolvePath, sep } from "node:path";
 import {
   hasToolCalls, extractToolCalls, executeToolCalls,
   buildAssistantMessageWithToolCalls, summarizeToolUsage,
@@ -30,6 +32,39 @@ import {
   buildProviderRequest, buildResult, createErrorResult, syncMcpToolsToRegistry,
 } from "./agenticCodingLoop-helpers.js";
 import { createStreamEvent, truncateForEvent } from "./agenticCodingLoop-stream.js";
+
+const MAX_CHECKPOINT_SIZE = 10 * 1024 * 1024;
+
+export async function readCheckpointForResume(checkpointInput, workingDirectory) {
+  const rootPath = await realpath(resolvePath(workingDirectory || "."));
+  const checkpointPath = await realpath(resolvePath(String(checkpointInput)));
+  const relativePath = relative(rootPath, checkpointPath);
+  const outsideRoot = (
+    relativePath === ".."
+    || relativePath.startsWith(`..${sep}`)
+    || isAbsolute(relativePath)
+  );
+
+  if (outsideRoot) {
+    const error = new Error("Path outside working directory.");
+    error.code = "CHECKPOINT_PATH_REJECTED";
+    throw error;
+  }
+
+  const checkpointStat = await stat(checkpointPath);
+  if (!checkpointStat.isFile()) {
+    const error = new Error("Checkpoint path is not a file.");
+    error.code = "CHECKPOINT_FILE_REJECTED";
+    throw error;
+  }
+  if (checkpointStat.size > MAX_CHECKPOINT_SIZE) {
+    const error = new Error(`File too large: ${checkpointStat.size} bytes.`);
+    error.code = "CHECKPOINT_SIZE_REJECTED";
+    throw error;
+  }
+
+  return JSON.parse(await readFile(checkpointPath, "utf8"));
+}
 
 /**
  * Create an Agentic Coding Loop instance.
@@ -140,23 +175,20 @@ export function createAgenticLoop(options = {}) {
     // Checkpoint resume
     if (input.resumeFromCheckpoint) {
       try {
-        const { readFile: readFileAsync, stat: statAsync } = await import("node:fs/promises");
-        const { resolve: resolvePath } = await import("node:path");
-        const checkpointPath = resolvePath(input.resumeFromCheckpoint);
-        const cpDir = resolvePath(workingDirectory || ".");
-        if (!checkpointPath.startsWith(cpDir)) { debugLoop("checkpoint path rejected", "Path outside working directory"); }
-        else {
-          const cpStat = await statAsync(checkpointPath);
-          if (cpStat.size > 10 * 1024 * 1024) { debugLoop("checkpoint rejected", `File too large: ${cpStat.size} bytes`); }
-          else {
-            const cp = JSON.parse(await readFileAsync(checkpointPath, "utf-8"));
-            if (Array.isArray(cp.messages) && cp.messages.length > 0) {
-              messages.length = 0; for (const m of cp.messages) messages.push(m);
-              totalUsage = cp.totalUsage || totalUsage; iteration = cp.iteration || 0; sessionId = cp.sessionId || sessionId; status = "resumed";
-            }
-          }
+        const cp = await readCheckpointForResume(
+          input.resumeFromCheckpoint,
+          workingDirectory,
+        );
+        if (Array.isArray(cp.messages) && cp.messages.length > 0) {
+          messages.length = 0; for (const m of cp.messages) messages.push(m);
+          totalUsage = cp.totalUsage || totalUsage; iteration = cp.iteration || 0; sessionId = cp.sessionId || sessionId; status = "resumed";
         }
-      } catch (_e) { debugLoop("checkpoint restore failed", _e); }
+      } catch (error) {
+        const event = String(error?.code || "").startsWith("CHECKPOINT_")
+          ? "checkpoint rejected"
+          : "checkpoint restore failed";
+        debugLoop(event, error);
+      }
     }
 
     // Planning phase

@@ -1,20 +1,16 @@
 {
   "phaseId": "Phase3979A-OpenCode-Autopilot-Governor",
-  "status": "passed",
+  "status": "idle",
   "resumeReady": true,
-  "roundsCompleted": 3,
-  "completedTaskIds": [
-    "phase3979a-autopilot-baseline-preflight",
-    "phase3979a-autopilot-queue-health",
-    "phase3979a-autopilot-cycle-readiness"
-  ],
+  "roundsCompleted": 0,
+  "completedTaskIds": [],
   "blockedTaskIds": [],
-  "currentTaskId": "phase3979a-autopilot-cycle-readiness",
-  "nextTaskId": null,
+  "currentTaskId": null,
+  "nextTaskId": "phase3979a-autopilot-baseline-preflight",
   "totalEstimatedRequestsUsed": 0,
   "totalEstimatedCostUsdUsed": 0,
   "lastBlocker": null,
-  "lastReportPath": "apps/ai-gateway-service/evidence/phase3979a-opencode-autopilot-governor/latest-run.json",
-  "lastUpdatedAt": "2026-05-30T01:13:02.994Z",
+  "lastReportPath": null,
+  "lastUpdatedAt": null,
   "notes": []
 }

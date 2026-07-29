@@ -1,11 +1,10 @@
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
-import { writeEvidencePair } from "./entrypointUtils.js";
+import { fetchContentResponse as fetchText, listen, requestJsonResponseWithHeaders as fetchJson, writeEvidenceFiles, } from "./entrypointUtils.js";
+import { mkdir, mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
-import { fetchJson, fetchText, listen, close } from "./entrypointUtils.js";
 
 const PHASE = "phase-33a-enterprise-admin-console";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -106,7 +105,7 @@ try {
     adminAudit,
     conclusion: passed ? "enterprise-admin-console-connected" : "enterprise-admin-console-not-connected",
   });
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyEnterpriseAdminConsoleEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = passed ? 0 : 1;
 } catch (error) {
@@ -116,7 +115,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "enterprise-admin-console-not-connected",
   });
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyEnterpriseAdminConsoleEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -166,6 +165,15 @@ function createHeaders(token) {
     "x-pme-tenant-id": tenantId,
   };
 }
+
+
+function close(targetServer) {
+  return new Promise((resolveClose) => {
+    targetServer.close(() => resolveClose());
+  });
+}
+
+
 
 function createEvidence({
   status,
@@ -218,3 +226,41 @@ function createEvidence({
   };
 }
 
+async function writeVerifyEnterpriseAdminConsoleEvidence(body) {
+  await writeEvidenceFiles({
+    evidenceDir,
+    evidenceJsonPath,
+    evidenceMdPath,
+    body,
+    renderMarkdown: createEvidenceMarkdown,
+  });
+}
+
+function createEvidenceMarkdown(body) {
+  return `# Phase 33A Enterprise Admin Console Evidence
+
+- Phase: ${body.phase}
+- Status: ${body.status}
+- Generated at: ${body.generatedAt}
+- Service URL: ${body.serviceUrl ?? "n/a"}
+- UI HTTP status: ${body.ui?.httpStatus ?? "n/a"}
+- Enterprise panel present: ${body.ui?.enterprisePanelPresent}
+- Enterprise health button present: ${body.ui?.enterpriseHealthButtonPresent}
+- Enterprise session button present: ${body.ui?.enterpriseSessionButtonPresent}
+- Enterprise roles button present: ${body.ui?.enterpriseRolesButtonPresent}
+- Enterprise audit button present: ${body.ui?.enterpriseAuditButtonPresent}
+- Auth enabled: ${body.enterprise?.authEnabled}
+- Missing session status: ${body.enterprise?.missingSessionStatus ?? "n/a"}
+- Admin session status: ${body.enterprise?.adminSessionStatus ?? "n/a"}
+- Admin user: ${body.enterprise?.adminUserId ?? "n/a"}
+- Admin tenant: ${body.enterprise?.adminTenantId ?? "n/a"}
+- Role count: ${body.enterprise?.roleCount ?? "n/a"}
+- Admin dashboard status: ${body.enterprise?.dashboardHttpStatus ?? "n/a"}
+- Viewer knowledge write status: ${body.enterprise?.viewerKnowledgeWriteStatus ?? "n/a"}
+- Audit status: ${body.enterprise?.auditHttpStatus ?? "n/a"}
+- Audit entry count: ${body.enterprise?.auditEntryCount ?? "n/a"}
+- Allowed dashboard recorded: ${body.enterprise?.allowedDashboardRecorded}
+- Denied knowledge write recorded: ${body.enterprise?.deniedKnowledgeWriteRecorded}
+- Conclusion: ${body.conclusion}
+`;
+}

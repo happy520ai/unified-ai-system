@@ -1,27 +1,6 @@
-// =============================================================================
-// healthUtils.js — 健康检查工具函数
-// 从 httpServer.js 提取的健康检查相关工具
-// =============================================================================
+import { listModelImportProviders } from "../../model-import/providerProbeRegistry.js";
 
-/**
- * 创建健康检查响应
- */
 export function createHealth(application) {
-  const {
-    gatewayService,
-    knowledgeService,
-    knowledgeInfra,
-    workflowService,
-    workforceService,
-    enterpriseGovernanceService,
-    metricsCollector,
-    circuitBreakerRegistry,
-    auditHashChain,
-    authRateLimiter,
-    revocationStore,
-    config,
-  } = application;
-
   return {
     app: "ai-gateway-service",
     status: "ready",
@@ -30,51 +9,121 @@ export function createHealth(application) {
       "GET /health/check",
       "GET /ui",
       "GET /console",
-      "POST /chat",
-      "POST /chat/stream",
-      "POST /chat/rag",
+      "POST /agent-runner/intent-approval-preview",
+      "POST /agent-runner/local-operation",
+      "GET /setup/readiness",
+      "GET /enterprise/health",
+      "GET /enterprise/session",
+      "GET /enterprise/roles",
+      "GET /enterprise/users",
+      "POST /enterprise/users",
+      "POST /enterprise/users/revoke",
+      "GET /enterprise/security/readiness",
+      "GET /enterprise/audit",
+      "GET /enterprise/audit/export",
+      "GET /enterprise/acceptance/report",
+      "GET /enterprise/release-candidate/dry-run",
+      "GET /enterprise/overview",
+      "GET /enterprise/deployment/readiness",
+      "GET /enterprise/startup/readiness",
+      "POST /enterprise/backup",
+      "POST /enterprise/restore/validate",
+      "GET /dashboard/status",
+      "GET /auth/status",
       "GET /providers",
+      "GET /provider-config/status",
+      "POST /provider-config/save",
+      "POST /provider-config/test",
+      "GET /model-library",
+      "POST /model-library/refresh",
+      "POST /model-library/test-model",
+      "POST /model-library/task-default",
+      "GET /connectors",
       "GET /config/runtime",
+      "POST /providers/runtime-credential/detect",
+      "POST /providers/runtime-credential",
+      "GET /models/import/providers",
+      "POST /models/import/preview",
+      "POST /models/import/confirm",
+      "GET /models/capability-router/status",
+      "POST /models/capability-router/preview",
+      "GET /codex-handoff/next-task",
+      "GET /codex-loop/status",
+      "GET /cost/health",
+      "POST /cost/estimate",
+      "POST /cost/guard/check",
+      "GET /cost/summary",
+      "GET /cache/health",
+      "POST /cache/lookup",
+      "POST /cache/write",
+      "POST /cache/invalidate",
+      "GET /cache/summary",
+      "GET /cache/audit",
+      "POST /routing/answer-path/preview",
+      "POST /routing/quality-cost/preview",
+      "POST /codex-handoff/next-task",
+      "GET /route/modes",
       "GET /knowledge/health",
       "GET /knowledge/infra/readiness",
       "GET /knowledge/sources",
-      "POST /knowledge/load",
-      "POST /knowledge/retrieve",
+      "GET /knowledge/file-types",
+      "GET /workflow/health",
+      "GET /workflow/actions",
       "GET /workforce/health",
-      "GET /enterprise/health",
-      "GET /setup/readiness",
-      "GET /api-docs",
-      "GET /slo",
-      "GET /observability/status",
-      "GET /metrics",
+      "GET /workforce/agents",
+      "GET /workforce/plans",
+      "GET /workforce/plans/:id",
+      "GET /workforce/plans/:id/export",
+      "POST /workforce/plans/:id/clarifications",
+      "POST /workforce/plans/:id/lifecycle",
+      "GET /workforce/plans/:id/review-package",
+      "POST /workforce/plans/:id/approval-gate",
+      "POST /chat",
+      "POST /chat/stream",
+      "POST /chat/rag",
+      "POST /chat/rag/stream",
+      "POST /connectors/import/text",
+      "POST /evaluation/score",
+      "POST /knowledge/load",
+      "POST /knowledge/load/file",
+      "POST /knowledge/graph/retrieve",
+      "POST /knowledge/retrieve",
+      "GET /memory/list",
+      "POST /memory/save",
+      "POST /memory/retrieve",
+      "POST /workflow/plan",
+      "POST /workflow/run",
+      "POST /workforce/plan",
+      "POST /workforce/run-local",
+      "GET /real-capabilities/status",
+      "POST /real-capabilities/activate-five",
+      "POST /chat-gateway/execute",
+      "POST /chat/gateway",
+      "POST /three-mode/execute",
+      "GET /chat-gateway/latency-policy",
+      "POST /chat-gateway/latency-dry-run",
+      "POST /workforce/plans/save",
+      "DELETE /workforce/plans/:id",
+      "POST /route",
     ],
-    knowledge: knowledgeService.getHealth(),
-    knowledgeInfra: knowledgeInfra.getReadiness(),
-    workflow: workflowService.getHealth(),
-    workforce: workforceService.getHealth(),
-    enterprise: enterpriseGovernanceService.getHealth(),
-    providerMode: config.aiGatewayService.providerMode,
-    realProviderEnabled: config.aiGatewayService.realProviderEnabled,
-    providers: gatewayService.getProviderDescriptors(),
-    securityInfra: {
-      auditHashChain: auditHashChain ? { enabled: true, entryCount: auditHashChain.getEntryCount() } : { enabled: false },
-      revocationStore: revocationStore ? { enabled: true, ...revocationStore.getStats() } : { enabled: false },
-      authRateLimiter: authRateLimiter ? { enabled: true, ...authRateLimiter.getStats() } : { enabled: false },
-      metricsCollector: metricsCollector ? { enabled: true } : { enabled: false },
-      circuitBreakerRegistry: circuitBreakerRegistry ? { enabled: true, breakers: circuitBreakerRegistry.getStats() } : { enabled: false },
-    },
-    memory: process.memoryUsage(),
+    knowledge: application.knowledgeService.getHealth(),
+    knowledgeInfra: application.knowledgeInfra.getReadiness(),
+    workflow: application.workflowService.getHealth(),
+    workforce: application.workforceService.getHealth(),
+    enterprise: application.enterpriseGovernanceService.getHealth(),
+    providerMode: application.config.aiGatewayService.providerMode,
+    realProviderEnabled: application.config.aiGatewayService.realProviderEnabled,
+    providers: application.gatewayService.getProviderDescriptors(),
   };
 }
 
-/**
- * 创建设置就绪响应
- */
 export function createSetupReadiness(application) {
   const health = createHealth(application);
+  const providerCatalog = listModelImportProviders();
   const providerDescriptors = application.gatewayService.getProviderDescriptors();
   const knowledgeHealth = application.knowledgeService.getHealth();
   const workforceHealth = application.workforceService.getHealth();
+  const modelImportReady = providerCatalog.length > 0;
   const chatReady = providerDescriptors.length > 0 && health.status === "ready";
   const knowledgeReady = knowledgeHealth.status === "ready" || knowledgeHealth.ready === true;
   const workforceReady = workforceHealth.status === "ready" && workforceHealth.ready === true;
@@ -82,12 +131,88 @@ export function createSetupReadiness(application) {
   return {
     phase: "phase-104a-first-run-setup",
     status: "ready",
+    userMessage: "首次使用只需要按步骤完成健康检查、模型检测，然后就可以开始聊天；知识库和 Agent Workforce 可以按需打开。",
+    steps: [
+      {
+        stepId: "service-health",
+        title: "系统健康检查",
+        status: health.status === "ready" ? "ready" : "needs_attention",
+        ready: health.status === "ready",
+        nextAction: "如果不是 ready，先运行 health / doctor / logs 查看服务状态。",
+      },
+      {
+        stepId: "model-import",
+        title: "添加模型 / 检测 API Key",
+        status: modelImportReady ? "ready" : "needs_attention",
+        ready: modelImportReady,
+        nextAction: "粘贴 API Key 后点击识别可用模型；识别不了时选择 provider 或填写 Base URL。",
+      },
+      {
+        stepId: "chat",
+        title: "开始聊天",
+        status: chatReady ? "ready" : "needs_attention",
+        ready: chatReady,
+        nextAction: "模型检测通过后直接在聊天框输入问题，也可以先用服务端默认路由试聊。",
+      },
+      {
+        stepId: "workforce",
+        title: "Agent Workforce 计划预览",
+        status: workforceReady ? "ready" : "needs_attention",
+        ready: workforceReady,
+        nextAction: "输入目标生成 AI 团队计划；当前只做计划预览，不执行代码、不修改文件。",
+      },
+      {
+        stepId: "knowledge-rag",
+        title: "Knowledge / RAG 可选",
+        status: knowledgeReady ? "ready" : "needs_attention",
+        ready: knowledgeReady,
+        nextAction: "拖入文档或使用知识库接口装载资料；聊天会在需要时检索本地知识。",
+      },
+      {
+        stepId: "release-boundary",
+        title: "发布前限制说明",
+        status: "preview",
+        ready: true,
+        nextAction: "当前不是全球发布完成态；多 provider 自动路由、真实 fallback、真实多 Agent 执行仍需后续明确主线。",
+      },
+    ],
     readiness: {
-      health: { ready: health.status === "ready", status: health.status },
-      chat: { ready: chatReady, providerCount: providerDescriptors.length },
-      knowledge: { ready: knowledgeReady, mode: knowledgeHealth.mode ?? "local-keyword" },
-      workforce: { ready: workforceReady, mode: workforceHealth.mode, roleCount: workforceHealth.roleCount },
+      health: {
+        ready: health.status === "ready",
+        status: health.status,
+        service: health.app,
+      },
+      modelImport: {
+        ready: modelImportReady,
+        providerCatalogCount: providerCatalog.length,
+        nextAction: "使用 /models/import/preview 真实调用 provider models/list，不靠 API Key 文本猜模型。",
+      },
+      chat: {
+        ready: chatReady,
+        providerCount: providerDescriptors.length,
+        defaultLane: "NVIDIA single-provider / server-side configured route remains unchanged",
+        nextAction: "普通用户直接从聊天框开始；失败时先按模型配置提示处理。",
+      },
+      knowledge: {
+        ready: knowledgeReady,
+        mode: knowledgeHealth.mode ?? "local-keyword",
+        storage: knowledgeHealth.storage ?? "local",
+        nextAction: "可选导入资料后再提问，默认仍是 local keyword retrieval。",
+      },
+      workforce: {
+        ready: workforceReady,
+        mode: workforceHealth.mode,
+        roleCount: workforceHealth.roleCount,
+        nextAction: "适合做需求拆解、角色分工、任务包导出；不会自动执行。",
+      },
     },
+    limitations: [
+      "Agent Workforce is plan preview only; it does not run code or modify project files.",
+      "Model import discovers models through provider models/list; it does not guess models from API key text.",
+      "Default /chat main lane remains unchanged.",
+      "This readiness check does not call real providers and does not expose API keys.",
+      "This is not a claim that global release, SSO/IAM, real fallback execution, or production multi-agent execution is complete.",
+    ],
     safety: {
       apiKeyExposed: false,
       providerProbeCalled: false,
@@ -95,100 +220,5 @@ export function createSetupReadiness(application) {
       workforceExecution: false,
       projectFileWrites: false,
     },
-    memory: process.memoryUsage(),
   };
-}
-
-/**
- * 解析权限
- */
-export function resolvePermission(method, pathname) {
-  // 公开路由
-  if (isPublicRoute(pathname)) return "public";
-
-  // 企业路由
-  if (pathname.startsWith("/enterprise/")) return "enterprise:admin";
-
-  // 知识库路由
-  if (pathname.startsWith("/knowledge/")) return "knowledge:read";
-
-  // Workforce 路由
-  if (pathname.startsWith("/workforce/")) return "workflow:run";
-
-  // 默认需要认证
-  return "authenticated";
-}
-
-/**
- * 判断是否为公开路由
- */
-export function isPublicRoute(pathname) {
-  return (
-    pathname === "/" ||
-    pathname === "/ui" ||
-    pathname === "/console" ||
-    pathname === "/api-docs" ||
-    pathname === "/api-docs/spec.json" ||
-    pathname === "/slo" ||
-    pathname === "/observability/status" ||
-    pathname === "/connection-pool" ||
-    pathname === "/health" ||
-    pathname === "/health/check" ||
-    pathname === "/metrics" ||
-    pathname === "/auth/login" ||
-    pathname === "/auth/status" ||
-    pathname === "/auth/token" ||
-    pathname === "/auth/refresh" ||
-    pathname === "/auth/revoke" ||
-    pathname === "/setup/readiness" ||
-    pathname === "/ws/info" ||
-    pathname === "/providers" ||
-    pathname === "/config/runtime" ||
-    pathname === "/route/modes" ||
-    pathname === "/knowledge/health" ||
-    pathname === "/knowledge/infra/readiness" ||
-    pathname === "/knowledge/sources" ||
-    pathname === "/knowledge/file-types" ||
-    pathname === "/forge/health" ||
-    pathname === "/workforce/health" ||
-    pathname === "/enterprise/health" ||
-    pathname === "/enterprise/session" ||
-    pathname === "/enterprise/roles" ||
-    pathname === "/enterprise/security/readiness" ||
-    pathname === "/enterprise/overview" ||
-    pathname === "/cost/health" ||
-    pathname === "/cache/health" ||
-    pathname === "/dashboard/status" ||
-    pathname === "/models/capability-router/status" ||
-    pathname === "/models/library" ||
-    pathname.endsWith(".html") ||
-    pathname.endsWith(".css") ||
-    pathname.endsWith(".js") ||
-    pathname.endsWith(".svg") ||
-    pathname.endsWith(".png") ||
-    pathname.endsWith(".ico")
-  );
-}
-
-/**
- * 读取审计过滤器
- */
-export function readAuditFilters(url) {
-  const filters = {};
-  if (url.searchParams.has("userId")) filters.userId = url.searchParams.get("userId");
-  if (url.searchParams.has("action")) filters.action = url.searchParams.get("action");
-  if (url.searchParams.has("outcome")) filters.outcome = url.searchParams.get("outcome");
-  if (url.searchParams.has("method")) filters.method = url.searchParams.get("method");
-  if (url.searchParams.has("path")) filters.path = url.searchParams.get("path");
-  if (url.searchParams.has("limit")) filters.limit = readBoundedInteger(url.searchParams.get("limit"), 200, 1, 2000);
-  return filters;
-}
-
-/**
- * 读取有界整数
- */
-function readBoundedInteger(value, fallback, min, max) {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return fallback;
-  return Math.max(min, Math.min(max, Math.round(parsed)));
 }

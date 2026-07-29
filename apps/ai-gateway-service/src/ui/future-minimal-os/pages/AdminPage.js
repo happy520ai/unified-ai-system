@@ -1,5 +1,5 @@
-import { renderStatusPill, renderKPITile, renderDataTable } from "./components/NeonComponents.js";
-import { renderBadge, renderProgressBar } from "./components/NeonFeedbackComponents.js";
+import { renderStatusPill, renderKPITile, renderDataTable } from "../components/NeonComponents.js";
+import { renderBadge, renderProgressBar } from "../components/NeonFeedbackComponents.js";
 
 /**
  * Admin Page — Neon glassmorphism admin interface

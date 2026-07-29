@@ -1,9 +1,8 @@
+import { readJsonFile as readJson, writeEvidenceFiles, } from "./entrypointUtils.js";
 import { spawn } from "node:child_process";
-import { writeEvidencePair } from "./entrypointUtils.js";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { readJson } from "./entrypointUtils.js"
 
 const PHASE = "phase-100a-web-chat-model-config-stage-freeze";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -97,7 +96,7 @@ try {
   };
 }
 
-await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+await writeVerifyWebChatModelConfigStageFreezeEvidence(evidence);
 console.log(JSON.stringify(evidence, null, 2));
 process.exitCode = evidence.status === "passed" ? 0 : 1;
 
@@ -191,3 +190,37 @@ async function runNodeScript(scriptPath) {
   });
 }
 
+
+async function writeVerifyWebChatModelConfigStageFreezeEvidence(body) {
+  await writeEvidenceFiles({
+    evidenceDir,
+    evidenceJsonPath,
+    evidenceMdPath,
+    body,
+    renderMarkdown: createEvidenceMarkdown,
+  });
+}
+
+function createEvidenceMarkdown(body) {
+  const checks = body.chainChecks ?? {};
+  const delegates = body.delegatedChecks ?? {};
+  return `# Phase 100A Web Chat Model Config Stage Freeze Evidence
+
+- Phase: ${body.phase}
+- Status: ${body.status}
+- Generated at: ${body.generatedAt}
+- Provider model import: ${delegates.providerModelImport?.status ?? "n/a"}
+- Explicit model list probe: ${delegates.explicitModelListProbe?.status ?? "n/a"}
+- Model config aggregate: ${delegates.modelConfigAggregate?.status ?? "n/a"}
+- Visual final: ${delegates.visualFinal?.status ?? "n/a"}
+- Models from provider APIs: ${checks.modelsFromProviderApis}
+- Ambiguous keys do not auto-pick OpenAI: ${checks.ambiguousKeysDoNotAutoPickOpenAi}
+- Explicit deep probe works: ${checks.explicitDeepProbeWorks}
+- Model config regression passed: ${checks.modelConfigRegressionPassed}
+- Visual journey passed: ${checks.visualJourneyPassed}
+- No real provider calls: ${checks.noRealProviderCalls}
+- No secret leakage: ${checks.noSecretLeakage}
+- Default chat lane unchanged: ${checks.defaultChatLaneUnchanged}
+- Conclusion: ${body.conclusion}
+`;
+}

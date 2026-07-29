@@ -3,7 +3,7 @@
 - Phase: phase-127a-github-remote-target-preflight
 - Status: passed
 - Generated at: 2026-04-27T15:42:39.181Z
-- Git top-level: E:/AI-Data/AI网关系统/unified-ai-system
+- Git top-level: <repository-root>
 - Branch: master
 - Head subject: Phase126A GitHub auth ready
 - Staged file count: 0

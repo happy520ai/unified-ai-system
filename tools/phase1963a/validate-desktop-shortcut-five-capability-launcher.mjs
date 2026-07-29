@@ -1,11 +1,12 @@
 import { writeJson } from "../phase1903a/ownerAutomationSealCommon.mjs";
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { resolve } from "node:path";
 
 const phase = "Phase1963A";
 const evidencePath = "apps/ai-gateway-service/evidence/phase1963a/desktop-shortcut-five-capability-launcher-result.json";
-const shortcutPath = "C:\\Users\\Administrator\\Desktop\\AI Gateway Workbench.lnk";
+const shortcutPath = resolve(homedir(), "Desktop", "AI Gateway Workbench.lnk");
 const launcherPath = "tools/windows/start-ai-gateway-workbench.ps1";
 const launcherText = readFileSync(resolve(process.cwd(), launcherPath), "utf8");
 let shortcut = null;

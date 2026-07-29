@@ -50,38 +50,38 @@
   // ===== LSP: code intelligence for JS/TS/frontend/config work =====
   "lsp": {
     "typescript": {
-      "command": ["C:\\Users\\Administrator\\.config\\opencode\\node_modules\\.bin\\typescript-language-server.cmd", "--stdio"],
+      "command": ["{env:USERPROFILE}\\.config\\opencode\\node_modules\\.bin\\typescript-language-server.cmd", "--stdio"],
       "extensions": [".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx"]
     },
     "eslint": {
-      "command": ["C:\\Users\\Administrator\\.config\\opencode\\node_modules\\.bin\\vscode-eslint-language-server.cmd", "--stdio"],
+      "command": ["{env:USERPROFILE}\\.config\\opencode\\node_modules\\.bin\\vscode-eslint-language-server.cmd", "--stdio"],
       "extensions": [".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx"]
     },
     "html": {
-      "command": ["C:\\Users\\Administrator\\.config\\opencode\\node_modules\\.bin\\vscode-html-language-server.cmd", "--stdio"],
+      "command": ["{env:USERPROFILE}\\.config\\opencode\\node_modules\\.bin\\vscode-html-language-server.cmd", "--stdio"],
       "extensions": [".html", ".htm"]
     },
     "css": {
-      "command": ["C:\\Users\\Administrator\\.config\\opencode\\node_modules\\.bin\\vscode-css-language-server.cmd", "--stdio"],
+      "command": ["{env:USERPROFILE}\\.config\\opencode\\node_modules\\.bin\\vscode-css-language-server.cmd", "--stdio"],
       "extensions": [".css", ".scss", ".less"]
     },
     "tailwindcss": {
-      "command": ["C:\\Users\\Administrator\\.config\\opencode\\node_modules\\.bin\\tailwindcss-language-server.cmd", "--stdio"],
+      "command": ["{env:USERPROFILE}\\.config\\opencode\\node_modules\\.bin\\tailwindcss-language-server.cmd", "--stdio"],
       "extensions": [".html", ".css", ".js", ".jsx", ".ts", ".tsx"]
     },
     "json": {
-      "command": ["C:\\Users\\Administrator\\.config\\opencode\\node_modules\\.bin\\vscode-json-language-server.cmd", "--stdio"],
+      "command": ["{env:USERPROFILE}\\.config\\opencode\\node_modules\\.bin\\vscode-json-language-server.cmd", "--stdio"],
       "extensions": [".json", ".jsonc"]
     },
     "markdown": {
-      "command": ["C:\\Users\\Administrator\\.config\\opencode\\node_modules\\.bin\\vscode-markdown-language-server.cmd", "--stdio"],
+      "command": ["{env:USERPROFILE}\\.config\\opencode\\node_modules\\.bin\\vscode-markdown-language-server.cmd", "--stdio"],
       "extensions": [".md", ".mdx"]
     }
   },
 
   "formatter": {
     "prettier": {
-      "command": ["C:\\Users\\Administrator\\.config\\opencode\\node_modules\\.bin\\prettier.cmd", "--write"],
+      "command": ["{env:USERPROFILE}\\.config\\opencode\\node_modules\\.bin\\prettier.cmd", "--write", "$FILE"],
       "extensions": [".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".json", ".jsonc", ".css", ".scss", ".html", ".md"]
     }
   },
@@ -173,7 +173,7 @@
     // Structured reasoning helper. Local npm MCP; useful for weaker multi-agent models.
     "sequential_thinking": {
       "type": "local",
-      "command": ["C:\\Users\\Administrator\\.config\\opencode\\node_modules\\.bin\\mcp-server-sequential-thinking.cmd"],
+      "command": ["{env:USERPROFILE}\\.config\\opencode\\node_modules\\.bin\\mcp-server-sequential-thinking.cmd"],
       "enabled": true,
       "timeout": 10000
     },
@@ -181,7 +181,7 @@
     // Project-scoped file context. OpenCode permissions still require approval for edits.
     "filesystem_project": {
       "type": "local",
-      "command": ["C:\\Users\\Administrator\\.config\\opencode\\node_modules\\.bin\\mcp-server-filesystem.cmd", "E:\\AI-Data\\AI网关系统\\unified-ai-system"],
+      "command": ["{env:USERPROFILE}\\.config\\opencode\\node_modules\\.bin\\mcp-server-filesystem.cmd", "."],
       "enabled": true,
       "timeout": 10000
     },
@@ -189,7 +189,7 @@
     // Lightweight memory graph for durable task notes. Keep usage non-secret.
     "memory": {
       "type": "local",
-      "command": ["C:\\Users\\Administrator\\.config\\opencode\\node_modules\\.bin\\mcp-server-memory.cmd"],
+      "command": ["{env:USERPROFILE}\\.config\\opencode\\node_modules\\.bin\\mcp-server-memory.cmd"],
       "enabled": true,
       "timeout": 10000
     },
@@ -198,7 +198,7 @@
     "playwright": {
       "type": "local",
       "command": [
-        "C:\\Users\\Administrator\\.config\\opencode\\node_modules\\.bin\\playwright-mcp.cmd",
+        "{env:USERPROFILE}\\.config\\opencode\\node_modules\\.bin\\playwright-mcp.cmd",
         "--browser",
         "chrome",
         "--isolated",
@@ -209,7 +209,7 @@
         "--timeout-navigation",
         "60000",
         "--output-dir",
-        "E:\\AI-Data\\AI网关系统\\unified-ai-system\\.opencode\\playwright-output"
+        ".opencode/playwright-output"
       ],
       "enabled": true,
       "timeout": 20000

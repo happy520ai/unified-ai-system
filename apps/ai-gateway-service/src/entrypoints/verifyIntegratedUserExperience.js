@@ -1,11 +1,10 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { writeEvidencePair } from "./entrypointUtils.js";
+import { fetchContentResponse as fetchText, listen, requestJsonBodyResponse as fetchJson, writeEvidenceFiles, } from "./entrypointUtils.js";
+import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
-import { fetchJson, fetchText, listen, close } from "./entrypointUtils.js";
 
 const PHASE = "phase-77a-integrated-user-experience";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -112,7 +111,7 @@ try {
     artifactText,
     conclusion: passed ? "integrated-user-experience-connected" : "integrated-user-experience-not-connected",
   });
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyIntegratedUserExperienceEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = passed ? 0 : 1;
 } catch (error) {
@@ -131,7 +130,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "integrated-user-experience-not-connected",
   });
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyIntegratedUserExperienceEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -189,6 +188,15 @@ function isIntegratedExperienceConnected({
     artifactText.includes("No arbitrary shell command was executed.")
   );
 }
+
+
+function close(targetServer) {
+  return new Promise((resolveClose) => {
+    targetServer.close(() => resolveClose());
+  });
+}
+
+
 
 function createEvidence({
   status,
@@ -268,3 +276,47 @@ function createEvidence({
   };
 }
 
+async function writeVerifyIntegratedUserExperienceEvidence(body) {
+  await writeEvidenceFiles({
+    evidenceDir,
+    evidenceJsonPath,
+    evidenceMdPath,
+    body,
+    renderMarkdown: createEvidenceMarkdown,
+  });
+}
+
+function createEvidenceMarkdown(body) {
+  return `# Phase 77A Integrated User Experience Evidence
+
+- Phase: ${body.phase}
+- Status: ${body.status}
+- Generated at: ${body.generatedAt}
+- Service URL: ${body.service.url ?? "n/a"}
+- UI HTTP status: ${body.ui.httpStatus ?? "n/a"}
+- Model wizard present: ${body.ui.modelWizardPresent}
+- Enterprise command present: ${body.ui.enterpriseCommandPresent}
+- Workflow command present: ${body.ui.workflowCommandPresent}
+- Model import provider count: ${body.modelImport.providerCount}
+- DashScope provider present: ${body.modelImport.keyProvidersPresent.dashscope}
+- Zhipu provider present: ${body.modelImport.keyProvidersPresent.zhipu}
+- Hugging Face provider present: ${body.modelImport.keyProvidersPresent.huggingface}
+- OpenAI-compatible provider present: ${body.modelImport.keyProvidersPresent.openaiCompatible}
+- Gemini provider present: ${body.modelImport.keyProvidersPresent.gemini}
+- Knowledge loaded count: ${body.knowledge.loadedCount ?? "n/a"}
+- Knowledge retrieve top hit: ${body.knowledge.topHitDocumentId ?? "n/a"}
+- Snippet present: ${body.knowledge.snippetPresent}
+- Highlight count: ${body.knowledge.highlightCount ?? "n/a"}
+- Score breakdown present: ${body.knowledge.scoreBreakdownPresent}
+- Enterprise overview HTTP status: ${body.enterprise.overviewHttpStatus ?? "n/a"}
+- Workflow run status: ${body.workflow.runStatus ?? "n/a"}
+- Workflow artifact: ${body.workflow.artifactRelativePath ?? "n/a"}
+- Artifact marker present: ${body.workflow.artifactMarkerPresent}
+- Artifact safety text present: ${body.workflow.artifactSafetyTextPresent}
+- Default chat main lane changed: ${body.boundaries.defaultChatMainLaneChanged}
+- Arbitrary shell execution: ${body.boundaries.arbitraryShellExecution}
+- Broad file system scan: ${body.boundaries.broadFileSystemScan}
+- Provider API key logged: ${body.boundaries.providerApiKeyLogged}
+- Conclusion: ${body.conclusion}
+`;
+}

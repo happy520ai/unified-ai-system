@@ -4,9 +4,9 @@
 - Status: passed
 - Generated at: 2026-04-26T05:01:06.014Z
 - Service URL: http://127.0.0.1:62034
-- User store path: C:\Users\Administrator\AppData\Local\Temp\phase40a-enterprise-preflight-AJTt8X\users\enterprise-users.json
-- Audit log path: C:\Users\Administrator\AppData\Local\Temp\phase40a-enterprise-preflight-AJTt8X\audit\enterprise-audit.jsonl
-- Backup dir: C:\Users\Administrator\AppData\Local\Temp\phase40a-enterprise-preflight-AJTt8X\backups
+- User store path: <user-home>\AppData\Local\Temp\phase40a-enterprise-preflight-AJTt8X\users\enterprise-users.json
+- Audit log path: <user-home>\AppData\Local\Temp\phase40a-enterprise-preflight-AJTt8X\audit\enterprise-audit.jsonl
+- Backup dir: <user-home>\AppData\Local\Temp\phase40a-enterprise-preflight-AJTt8X\backups
 - UI preflight panel present: true
 - UI preflight button present: true
 - Deployment readiness path present: true

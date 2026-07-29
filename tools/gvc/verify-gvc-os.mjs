@@ -119,7 +119,7 @@ async function main() {
       taskId: "phase2000-gvc-os-auth-json-read",
       title: "Attempt to read auth.json by nested path",
       riskLevel: "L2",
-      touches: ["C:/Users/Administrator/.codex/auth.json"],
+      touches: ["C:/Users/example/.codex/auth.json"],
       operations: ["auth_json_read"],
     },
   });

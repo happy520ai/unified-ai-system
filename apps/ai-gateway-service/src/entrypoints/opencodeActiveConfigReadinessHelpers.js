@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 
 import { stripJsonComments } from "./opencodeToolingReadinessCore.js";
@@ -31,7 +32,7 @@ const REQUIRED_MCP = [
 ];
 
 function safeHomeDir() {
-  return process.env.USERPROFILE || process.env.HOME || "C:\\Users\\Administrator";
+  return process.env.USERPROFILE || process.env.HOME || homedir();
 }
 
 function hasUtf8Bom(path) {
@@ -77,8 +78,15 @@ export function readPair(jsonPath, jsoncPath) {
   };
 }
 
-function normalizePath(value) {
-  return resolve(String(value || "")).toLowerCase();
+function expandEnvironmentTemplates(value) {
+  return String(value || "").replace(
+    /\{env:([A-Za-z_][A-Za-z0-9_]*)\}/gu,
+    (_match, name) => process.env[name] || "",
+  );
+}
+
+function normalizePath(value, base = process.cwd()) {
+  return resolve(base, expandEnvironmentTemplates(value)).toLowerCase();
 }
 
 export function compareKeys(leftConfig, rightConfig, keys = MIRROR_KEYS) {
@@ -126,12 +134,15 @@ export function inspectMcp(config, repoRoot) {
         enabled: server.enabled !== false,
         timeout: server.timeout,
         command,
-        commandExists: command.length > 0 && existsSync(command[0]),
+        commandExists: command.length > 0 && existsSync(expandEnvironmentTemplates(command[0])),
         projectScoped:
-          name !== "filesystem_project" || command.some((part) => normalizePath(part) === normalizePath(repoRoot)),
+          name !== "filesystem_project" ||
+          command.some((part) => normalizePath(part, repoRoot) === normalizePath(repoRoot)),
         playwrightOutputScoped:
           name !== "playwright" ||
-          command.some((part) => normalizePath(part).startsWith(normalizePath(join(repoRoot, ".opencode")))),
+          command.some((part) =>
+            normalizePath(part, repoRoot).startsWith(normalizePath(join(repoRoot, ".opencode"))),
+          ),
       });
     } else if (server.type === "remote") {
       remoteServers.push({

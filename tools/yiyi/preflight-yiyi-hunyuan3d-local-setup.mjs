@@ -1,11 +1,12 @@
 import { existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { dirname, parse, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import os from "node:os";
+import { resolveHunyuan3dSourceDir } from "./hunyuan3d-local-config.mjs";
 
 const task = "Yiyi-Local-Hunyuan3D-Setup-B";
-const enginePath = "E:/AI-Data/AI-Engines/Hunyuan3D-2.1";
+const enginePath = resolveHunyuan3dSourceDir();
 const evidencePath = "apps/ai-gateway-service/evidence/yiyi/hunyuan3d-local-setup-preflight.json";
 const docsPath = "docs/yiyi-hunyuan3d-local-setup-preflight.md";
 
@@ -47,6 +48,8 @@ function parseDriveFree(psOutput) {
 }
 
 async function main() {
+  const engineRoot = parse(resolve(enginePath)).root;
+  const driveName = /^[A-Za-z]:\\$/u.test(engineRoot) ? engineRoot[0] : null;
   const systemInfo = {
     platform: os.platform(),
     release: os.release(),
@@ -65,11 +68,13 @@ async function main() {
     "-c",
     "import json\ntry:\n import torch\n print(json.dumps({'torchInstalled': True, 'torchVersion': torch.__version__, 'cudaAvailable': torch.cuda.is_available(), 'cudaVersion': torch.version.cuda, 'deviceCount': torch.cuda.device_count()}))\nexcept Exception as exc:\n print(json.dumps({'torchInstalled': False, 'error': str(exc)}))",
   ]);
-  const driveCheck = run("powershell", [
-    "-NoProfile",
-    "-Command",
-    "$d=Get-PSDrive -Name E; [Console]::OutputEncoding=[System.Text.Encoding]::UTF8; @{name=$d.Name; freeBytes=$d.Free; usedBytes=$d.Used} | ConvertTo-Json -Compress",
-  ]);
+  const driveCheck = driveName
+    ? run("powershell", [
+      "-NoProfile",
+      "-Command",
+      `$d=Get-PSDrive -Name ${driveName}; [Console]::OutputEncoding=[System.Text.Encoding]::UTF8; @{name=$d.Name; freeBytes=$d.Free; usedBytes=$d.Used} | ConvertTo-Json -Compress`,
+    ])
+    : { command: null, status: null, stdout: "", stderr: "unsupported_drive_root", ok: false };
   const freeBytes = driveCheck.ok ? parseDriveFree(driveCheck.stdout) : null;
   const freeGb = freeBytes == null ? null : Number((freeBytes / 1024 / 1024 / 1024).toFixed(2));
   const maxVramGb = gpus.reduce((max, gpu) => Math.max(max, gpu.memoryTotalGb), 0);
@@ -79,7 +84,7 @@ async function main() {
     generatedAt: new Date().toISOString(),
     enginePath,
     enginePathExists: existsSync(resolve(enginePath)),
-    aiEnginesRootExists: existsSync(resolve("E:/AI-Data/AI-Engines")),
+    engineParentExists: existsSync(dirname(resolve(enginePath))),
     systemInfo,
     nvidiaSmi,
     gpus,
@@ -90,7 +95,7 @@ async function main() {
     gitVersion,
     torchCheck,
     disk: {
-      drive: "E:",
+      drive: engineRoot,
       freeBytes,
       freeGb,
       enoughForSourceAndEnv: freeGb == null ? false : freeGb > 30,
@@ -138,7 +143,7 @@ async function main() {
 
 - platform: ${systemInfo.platform} ${systemInfo.release} ${systemInfo.arch}
 - memory: ${systemInfo.freeMemoryGb} GB free / ${systemInfo.totalMemoryGb} GB total
-- E drive free: ${freeGb ?? "unknown"} GB
+- engine drive free: ${freeGb ?? "unknown"} GB
 
 ## GPU
 

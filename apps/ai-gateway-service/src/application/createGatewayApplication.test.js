@@ -1,61 +1,54 @@
-import { describe, it, before, after } from "node:test";
-import assert from "node:assert/strict";
+import { describe, it, expect, beforeAll } from "vitest";
 import { createGatewayApplication } from "./createGatewayApplication.js";
 
 describe("gateway-application", () => {
   let app;
 
-  before(() => {
+  beforeAll(() => {
     app = createGatewayApplication();
   });
 
-  after(() => {
-    if (app?.forgeService?.shutdown) {
-      app.forgeService.shutdown();
-    }
-  });
-
   it("creates application with all services", () => {
-    assert.ok(app.gatewayService);
-    assert.ok(app.knowledgeService);
-    assert.ok(app.workflowService);
-    assert.ok(app.workforceService);
-    assert.ok(app.enterpriseGovernanceService);
-    assert.ok(app.modelImportService);
-    assert.ok(app.modelLibraryStore);
-    assert.ok(app.providerConfigRoutes);
-    assert.ok(app.runtimeCredentialStore);
-    assert.ok(app.userExperienceService);
-    assert.ok(app.capabilityRouterService);
+    expect(app.gatewayService).toBeDefined();
+    expect(app.knowledgeService).toBeDefined();
+    expect(app.workflowService).toBeDefined();
+    expect(app.workforceService).toBeDefined();
+    expect(app.enterpriseGovernanceService).toBeDefined();
+    expect(app.modelImportService).toBeDefined();
+    expect(app.modelLibraryStore).toBeDefined();
+    expect(app.providerConfigRoutes).toBeDefined();
+    expect(app.runtimeCredentialStore).toBeDefined();
+    expect(app.userExperienceService).toBeDefined();
+    expect(app.capabilityRouterService).toBeDefined();
   });
 
   it("has correct config", () => {
-    assert.equal(app.config.aiGatewayService.endpoint.host, "127.0.0.1");
-    assert.equal(app.config.aiGatewayService.endpoint.port, 3100);
+    expect(app.config.aiGatewayService.endpoint.host).toBe("127.0.0.1");
+    expect(app.config.aiGatewayService.endpoint.port).toBe(3100);
   });
 
   it("has provider registry with providers", () => {
     const providers = app.gatewayService.getProviderDescriptors();
-    assert.ok(providers.length > 0, `Expected providers > 0, got ${providers.length}`);
+    expect(providers.length).toBeGreaterThan(0);
   });
 
   it("has knowledge service ready", () => {
     const health = app.knowledgeService.getHealth();
-    assert.equal(health.status, "ready");
+    expect(health.status).toBe("ready");
   });
 
   it("has workflow service ready", () => {
     const health = app.workflowService.getHealth();
-    assert.equal(health.status, "ready");
+    expect(health.status).toBe("ready");
   });
 
   it("has workforce service ready", () => {
     const health = app.workforceService.getHealth();
-    assert.equal(health.status, "ready");
+    expect(health.status).toBe("ready");
   });
 
   it("has enterprise governance ready", () => {
     const health = app.enterpriseGovernanceService.getHealth();
-    assert.equal(health.status, "ready");
+    expect(health.status).toBe("ready");
   });
 });

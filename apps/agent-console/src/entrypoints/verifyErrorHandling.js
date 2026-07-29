@@ -1,12 +1,11 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../../../ai-gateway-service/src/application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../../../ai-gateway-service/src/http/httpServer.js";
-import { listen, close, writeEvidenceWithRenderer } from "../../../ai-gateway-service/src/entrypoints/entrypointUtils.js"
-
+import { listen, writeEvidenceFiles } from "@unified-ai-system/shared-utils";
 
 const PHASE = "phase-7d-error-logging";
 const DEFAULT_NVIDIA_MODEL = "meta/llama-3.1-8b-instruct";
@@ -90,7 +89,7 @@ try {
   process.exitCode = 1;
 } finally {
   console.error = originalConsoleError;
-  await saveEvidence(evidence);
+  await writeVerifyErrorHandlingEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
 }
 
@@ -205,6 +204,12 @@ function stripQuotes(value) {
   }
 
   return value;
+}
+
+function close(server) {
+  return new Promise((resolveClose) => {
+    server.close(() => resolveClose());
+  });
 }
 
 function runNode({ args, cwd, env, timeoutMs }) {
@@ -323,11 +328,17 @@ function summarizeLogs(logs) {
   };
 }
 
-async function saveEvidence(body) {
-  await writeEvidenceWithRenderer(evidenceDir, evidenceJsonPath, evidenceMdPath, body, renderEvidenceMarkdown);
+async function writeVerifyErrorHandlingEvidence(body) {
+  await writeEvidenceFiles({
+    evidenceDir,
+    evidenceJsonPath,
+    evidenceMdPath,
+    body,
+    renderMarkdown: createEvidenceMarkdown,
+  });
 }
 
-function renderEvidenceMarkdown(body) {
+function createEvidenceMarkdown(body) {
   return `# Phase 7D Error Handling and Logging Evidence
 
 - Phase: ${body.phase}

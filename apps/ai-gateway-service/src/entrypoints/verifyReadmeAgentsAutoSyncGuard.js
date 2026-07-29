@@ -1,8 +1,11 @@
+import {
+  readRepoTextNormalized as readText,
+  readRepoJson as readJson,
+} from "./entrypointUtils.js";
 import { existsSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { readJson, readText } from "./entrypointUtils.js"
 
 const repoRoot = resolve(fileURLToPath(new URL("../../../..", import.meta.url)));
 const scriptName = "verify:phase306c-readme-agents-auto-sync-guard";

@@ -1,6 +1,9 @@
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
+import { createPinoLogger } from "../logging/pinoLogger.js";
+
+const logger = createPinoLogger({ app: "enterpriseUserStore" });
 
 export const DEFAULT_ROLES = {
   admin: ["*"],
@@ -105,12 +108,24 @@ export function parseUsers(env) {
     let parsed;
     try {
       parsed = JSON.parse(env.PME_ENTERPRISE_USERS_JSON);
-    } catch (parseErr) {
-      console.error("[enterpriseGovernance] Failed to parse PME_ENTERPRISE_USERS_JSON:", parseErr.message);
+    } catch (error) {
+      logger.warn(
+        {
+          err: error,
+          event: "enterprise_users_env_parse_failed",
+        },
+        "Failed to parse PME_ENTERPRISE_USERS_JSON; ignoring invalid entries.",
+      );
       parsed = [];
     }
     if (!Array.isArray(parsed)) {
-      console.error("[enterpriseGovernance] PME_ENTERPRISE_USERS_JSON must be an array, got:", typeof parsed);
+      logger.warn(
+        {
+          event: "enterprise_users_env_type_invalid",
+          valueType: typeof parsed,
+        },
+        "PME_ENTERPRISE_USERS_JSON must be an array; ignoring invalid entries.",
+      );
       parsed = [];
     }
     for (const user of parsed) {
@@ -176,8 +191,15 @@ export function loadStoredUsers(path) {
   let parsed;
   try {
     parsed = JSON.parse(text);
-  } catch (parseErr) {
-    console.error("[enterpriseGovernance] Failed to parse user store file:", parseErr.message);
+  } catch (error) {
+    logger.warn(
+      {
+        err: error,
+        event: "enterprise_user_store_parse_failed",
+        path,
+      },
+      "Failed to parse user store file; using no stored users.",
+    );
     return [];
   }
   const users = Array.isArray(parsed?.users) ? parsed.users : [];
@@ -251,4 +273,3 @@ export function sanitizeIdentity(identity) {
     role: identity.role,
   };
 }
-

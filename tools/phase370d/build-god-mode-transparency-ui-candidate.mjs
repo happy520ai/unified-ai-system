@@ -1,4 +1,4 @@
-import { readJson, writeJson, writeText } from "../phase370-common.mjs";
+import { readJson, writeJson, writeText } from "../phase-file-utils.mjs";
 
 const taxonomy = await readJson("docs/phase369d-three-mode-failure-taxonomy.json");
 

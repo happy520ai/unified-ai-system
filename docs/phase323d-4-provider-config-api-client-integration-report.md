@@ -12,7 +12,7 @@
 
 - 采用方案 A：内联等价 bridge。
 - 原因：`/ui` 仍是 inline HTML + inline script，本轮继续优先保证运行时稳定，不强行引入 ESM 模块加载。
-- 做法：在 [apps/ai-gateway-service/src/ui/consolePage.js](/E:/AI-Data/AI网关系统/unified-ai-system/apps/ai-gateway-service/src/ui/consolePage.js) 的现有 `workbenchApiClient` bridge 上补充：
+- 做法：在 [apps/ai-gateway-service/src/ui/consolePage.js](../apps/ai-gateway-service/src/ui/consolePage.js) 的现有 `workbenchApiClient` bridge 上补充：
   - `getProviderConfigStatus()`
   - `saveProviderConfig(payload)`
   - `testProviderConfig(payload)`

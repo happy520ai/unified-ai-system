@@ -1,32 +1,22 @@
 import { createProviderRequest } from "../providers/providerMapping.js";
-import { normalizeGatewayRequest } from "./requestNormalizer.js";
-import { createRequestQueue } from "../providers/requestQueue.js";
 import {
-  writeGatewayLog,
-  createFallbackAttempts,
   createAttemptSelection,
-  shouldTryFallback,
+  createFallbackAttempts,
   createFallbackExhaustedError,
   createGatewayResponse,
-  createStreamEvent,
-  createRouteSuccessEnvelope,
   createRouteFailureEnvelope,
+  createRouteSuccessEnvelope,
+  createStreamEvent,
+  shouldTryFallback,
+  writeGatewayLog,
 } from "./gatewayServiceHelpers.js";
+import { normalizeGatewayRequest } from "./requestNormalizer.js";
 
-export { createRouteFailureEnvelope } from "./gatewayServiceHelpers.js";
 
 export class GatewayService {
   constructor({ providerRegistry, runtimeConfig = {} }) {
     this.providerRegistry = providerRegistry;
     this.runtimeConfig = runtimeConfig;
-    // 请求队列：限制并发，避免触发 provider 速率限制
-    // NVIDIA 免费 tier 速率限制严格，并发设为 1（串行处理）
-    this.requestQueue = createRequestQueue({
-      maxConcurrent: runtimeConfig.maxConcurrent ?? 1,
-      maxRetries: runtimeConfig.maxRetries ?? 1,
-      baseDelayMs: 1000,
-      maxDelayMs: 10000,
-    });
   }
 
   async execute(input) {
@@ -36,13 +26,8 @@ export class GatewayService {
 
     try {
       request = normalizeGatewayRequest(input);
-
-      // 使用请求队列限制并发
       const baseSelection = this.providerRegistry.select(request);
-      const attemptResult = await this.requestQueue.execute(
-        () => this.#executeWithFallback(request, baseSelection, startedAt),
-        { providerId: baseSelection.selected?.target?.providerId, model: baseSelection.selected?.target?.modelId }
-      );
+      const attemptResult = await this.#executeWithFallback(request, baseSelection, startedAt);
       selection = attemptResult.selection;
       const providerResult = attemptResult.providerResult;
       writeGatewayLog("provider_call_completed", {
@@ -52,7 +37,6 @@ export class GatewayService {
         model: selection.selected.target.modelId,
         executionStatus: providerResult.executionStatus ?? "success",
         durationMs: Date.now() - startedAt,
-        queueStats: this.requestQueue.getStatus(),
       });
       const response = createGatewayResponse(request, selection, providerResult, startedAt, this.runtimeConfig, attemptResult.warnings);
 
@@ -69,7 +53,6 @@ export class GatewayService {
         code: error?.code,
         message: error instanceof Error ? error.message : "Gateway route execution failed.",
         durationMs: Date.now() - startedAt,
-        queueStats: this.requestQueue.getStatus(),
       });
       return createRouteFailureEnvelope(error, {
         request,
@@ -263,3 +246,5 @@ export class GatewayService {
     throw lastError ?? createFallbackExhaustedError();
   }
 }
+
+export { createRouteFailureEnvelope };

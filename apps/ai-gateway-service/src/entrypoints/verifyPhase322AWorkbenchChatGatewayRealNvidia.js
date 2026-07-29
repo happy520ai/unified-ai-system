@@ -1,8 +1,11 @@
+import {
+  readJsonSync as readJson,
+  readRepoTextSyncOrEmpty as readText,
+} from "./entrypointUtils.js";
 import { existsSync, readFileSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { readJson, readText } from "./entrypointUtils.js"
 
 const PHASE = "Phase322A";
 const __dirname = dirname(fileURLToPath(import.meta.url));

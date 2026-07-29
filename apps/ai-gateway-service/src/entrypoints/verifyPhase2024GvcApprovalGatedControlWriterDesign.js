@@ -1,8 +1,11 @@
+import {
+  readJsonFileSyncOrNullWithBom as readJson,
+  readTextFileSyncOrEmpty as readText,
+} from "./entrypointUtils.js";
 import { existsSync, readFileSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { readJson, readText } from "./entrypointUtils.js"
 
 const repoRoot = resolve(fileURLToPath(new URL("../../../..", import.meta.url)));
 const evidenceDir = resolve(repoRoot, "apps/ai-gateway-service/evidence/phase2024-gvc-approval-gated-control-writer-design");

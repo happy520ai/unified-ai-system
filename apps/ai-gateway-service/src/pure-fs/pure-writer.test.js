@@ -8,9 +8,13 @@
  *  4. The API mirrors the real fs module for familiarity.
  */
 
-const fs = require('fs');
-const path = require('path');
-const { createPureFileSystem } = require('./pure-writer');
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { randomUUID } from "node:crypto";
+import { describe, expect, test } from "vitest";
+
+import { createPureFileSystem } from "./pure-writer.js";
 
 // ── Helper: snapshot the real filesystem so we can prove nothing changed ──
 
@@ -98,12 +102,12 @@ describe('Pure File Writer', () => {
 
   test('no files appear in the OS temp directory', () => {
     const vfs = createPureFileSystem();
-    const tmpDir = require('os').tmpdir();
-    const tmpSnapshot = snapshotDirectory(tmpDir);
+    const tempPath = path.join(os.tmpdir(), `pure-writer-${randomUUID()}.txt`);
 
-    vfs.writeFile('/tmp/test.txt', 'should not exist');
+    expect(fs.existsSync(tempPath)).toBe(false);
+    vfs.writeFile(tempPath, 'should remain virtual');
 
-    expect(snapshotDirectory(tmpDir)).toBe(tmpSnapshot);
+    expect(fs.existsSync(tempPath)).toBe(false);
   });
 
   test('result object is marked as virtual (not on disk)', () => {

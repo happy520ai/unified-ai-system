@@ -1,6 +1,6 @@
+import { writeEvidenceFiles } from "./entrypointUtils.js";
 import { existsSync } from "node:fs";
-import { writeEvidencePair } from "./entrypointUtils.js";
-import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile } from "node:fs/promises";
 import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { findPlainSecretFindings } from "../security/secretSafety.js";
@@ -29,7 +29,7 @@ try {
     envExample,
     ciFiles,
   });
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyCicdGateDesignEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = evidence.status === "passed" ? 0 : 1;
 } catch (error) {
@@ -40,7 +40,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "cicd-gate-design-not-closed",
   };
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyCicdGateDesignEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 }
@@ -167,3 +167,37 @@ function normalizeWhitespace(text) {
   return String(text ?? "").replace(/\s+/g, " ");
 }
 
+async function writeVerifyCicdGateDesignEvidence(body) {
+  await writeEvidenceFiles({
+    evidenceDir,
+    evidenceJsonPath,
+    evidenceMdPath,
+    body,
+    renderMarkdown: createEvidenceMarkdown,
+  });
+}
+
+function createEvidenceMarkdown(body) {
+  return `# Phase 111B CI/CD Gate Design Evidence
+
+- Phase: ${body.phase}
+- Status: ${body.status}
+- Generated at: ${body.generatedAt}
+- README phase present: ${body.checks?.readmePhasePresent}
+- README records Docker runtime status: ${body.checks?.readmeDockerRuntimeStatus}
+- README records design boundary: ${body.checks?.readmeDesignBoundary}
+- README CI/CD gate list complete: ${body.checks?.readmeGateListComplete}
+- AGENTS boundary present: ${body.checks?.agentsBoundaryPresent}
+- Scripts present: ${body.checks?.scriptsPresent}
+- Minimal Phase117A gate may exist: ${body.checks?.phase117aGateMayExist}
+- CI files: ${(body.cicd?.ciFiles ?? []).join(", ") || "none"}
+- Docker runtime still blocked by Docker CLI: ${body.docker?.runtimeStillBlockedByDockerCli}
+- Phase 115A Docker runtime passed: ${body.docker?.phase115aDockerRuntimePassed}
+- Fake Docker runtime pass recorded: ${body.docker?.fakeRuntimePassRecorded}
+- Cloud deployment complete: ${body.cicd?.cloudDeploymentComplete}
+- Release automation complete: ${body.cicd?.releaseAutomationComplete}
+- Global release complete: ${body.cicd?.globalReleaseComplete}
+- Plaintext API key recorded: ${body.safety?.plaintextApiKeyRecorded}
+- Conclusion: ${body.conclusion}
+`;
+}

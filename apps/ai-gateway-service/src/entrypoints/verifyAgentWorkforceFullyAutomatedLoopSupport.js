@@ -1,5 +1,6 @@
+import { fetchJsonBodyResponse as fetchJson, postJsonBodyResponse as postJson } from "./entrypointUtils.js";
 import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { resolve } from "node:path";
@@ -18,58 +19,9 @@ import {
 } from "./verifyAgentWorkforceClosureSupport.js";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
-import { fetchJson, postJson } from "./entrypointUtils.js";
-import { prepareSampleCodexResult, parseJsonOutput } from "./verifyFullyAutomatedLoopHelpers.js";
+import { fullyAutomatedLoopPhaseDefinitions as phaseDefinitions } from "./agentWorkforceFullyAutomatedLoopPhases.js";
 
 const execFileAsync = promisify(execFile);
-
-const phaseDefinitions = {
-  "phase-225a-agent-workforce-auto-save-latest-plan": {
-    conclusion: "agent-workforce-auto-save-latest-plan-complete",
-    runAutoSaveTrial: true,
-  },
-  "phase-226a-goal-to-handoff-automation": {
-    conclusion: "goal-to-handoff-automation-complete",
-    scriptPath: "tools/agent-workforce/goal-to-codex-handoff.ps1",
-    runGoalToHandoffTrial: true,
-  },
-  "phase-227a-auto-result-waiter-importer": {
-    conclusion: "auto-result-waiter-importer-complete",
-    scriptPath: "tools/agent-workforce/wait-and-import-codex-result.ps1",
-    runWaitImportTrial: true,
-  },
-  "phase-228a-one-click-manual-bridge-loop": {
-    conclusion: "one-click-manual-bridge-loop-complete",
-    scriptPath: "tools/agent-workforce/run-manual-bridge-loop.ps1",
-    runManualLoopTrial: true,
-  },
-  "phase-229a-controlled-codex-exec-auto-loop": {
-    conclusion: "controlled-codex-exec-auto-loop-dry-run-complete",
-    scriptPath: "tools/agent-workforce/run-controlled-codex-auto-loop.ps1",
-    runControlledDryRunTrial: true,
-  },
-  "phase-230a-desktop-fully-automated-control-bat": {
-    conclusion: "desktop-fully-automated-control-bat-complete",
-    checkDesktopBat: true,
-  },
-  "phase-231a-auto-loop-documentation": {
-    conclusion: "auto-loop-documentation-complete",
-    checkDocs: true,
-  },
-  "phase-232a-fully-automated-controlled-loop-closure": {
-    conclusion: "fully-automated-controlled-loop-closure-complete",
-    checkClosure: true,
-    requiredEvidence: [
-      "phase-225a-agent-workforce-auto-save-latest-plan",
-      "phase-226a-goal-to-handoff-automation",
-      "phase-227a-auto-result-waiter-importer",
-      "phase-228a-one-click-manual-bridge-loop",
-      "phase-229a-controlled-codex-exec-auto-loop",
-      "phase-230a-desktop-fully-automated-control-bat",
-      "phase-231a-auto-loop-documentation",
-    ],
-  },
-};
 
 export async function runFullyAutomatedLoopCheck(phase) {
   const definition = phaseDefinitions[phase];
@@ -431,6 +383,45 @@ async function checkDesktopBat() {
   return { path, exists: existsSync(path), text, selfTestPassed, statusOncePassed };
 }
 
+async function prepareSampleCodexResult() {
+  const inboxDir = resolve(repoRoot, ".codex-handoff/inbox");
+  await mkdir(inboxDir, { recursive: true });
+  const text = `# Codex Result
+
+## Summary
+Sample/manual bridge result for verification.
+
+## Changed Files
+- none
+
+## Commands Run
+- none
+
+## Tests Passed
+- passed
+
+## Evidence Paths
+- .codex-handoff/inbox/latest-codex-result.md
+
+## Known Issues
+- none
+
+## Boundary Check
+- legacy/ modified: no
+- PROJECT_CONTEXT.md created: no
+- oh-my-codex / OMX called: no
+- worktree created: no
+- workflow run hookup: no
+- default NVIDIA /chat lane changed: no
+- secret exposed: no
+- failed verification: no
+
+## Next Steps
+- Import and review feedback.
+`;
+  await writeFile(resolve(inboxDir, "latest-codex-result.md"), text, "utf8");
+}
+
 async function createTestServer(phase) {
   const storePath = resolve(tmpdir(), "unified-ai-system", `${phase}-${Date.now()}-workforce-plans.json`);
   const application = createGatewayApplication({
@@ -457,6 +448,7 @@ async function createTestServer(phase) {
 }
 
 
+
 async function runPowerShell(relativeScriptPath, args = []) {
   return execFileAsync(
     "powershell",
@@ -465,3 +457,15 @@ async function runPowerShell(relativeScriptPath, args = []) {
   );
 }
 
+function parseJsonOutput(text) {
+  const trimmed = String(text || "").trim();
+  for (let start = 0; start < trimmed.length; start += 1) {
+    if (trimmed[start] !== "{") continue;
+    try {
+      return JSON.parse(trimmed.slice(start).trim());
+    } catch {
+      // Keep scanning: PowerShell commands may print status lines before JSON.
+    }
+  }
+  return {};
+}

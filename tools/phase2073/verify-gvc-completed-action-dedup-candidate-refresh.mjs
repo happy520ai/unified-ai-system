@@ -17,11 +17,9 @@ function check(id, pass, detail = "") {
 const packageJson = readJson("package.json") || {};
 const state = readJson("docs/project-brain/timed-runner-state.json") || {};
 const phase2072 = readJson("apps/ai-gateway-service/evidence/phase2072-gvc-high-value-autonomy-seal/result.json") || {};
-const priorNextActions = readJson("docs/project-brain/high-value-next-actions.json") || {};
 const completedTaskIds = Array.from(new Set([
   ...(Array.isArray(state.completedTaskIds) ? state.completedTaskIds.filter((taskId) => String(taskId).startsWith("phase2071-")) : []),
   ...(Array.isArray(phase2072.highValueActionIds) ? phase2072.highValueActionIds : []),
-  ...(Array.isArray(priorNextActions.actions) ? priorNextActions.actions.map((action) => action.taskId).filter((taskId) => String(taskId).startsWith("phase2071-")) : []),
 ].filter(Boolean)));
 
 const rejectedCandidates = [

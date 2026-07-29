@@ -17,12 +17,13 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import { join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createSourceReader } from "./helpers/source-closure.js";
 
 const __testDir = fileURLToPath(new URL(".", import.meta.url));
 const FORGE_SRC = join(__testDir, "..", "src");
+const readFileSync = createSourceReader(FORGE_SRC);
 
 // ----------------------------------------------------------------
 // 1. agent-pool: undefined context/state ReferenceError fix
@@ -183,8 +184,8 @@ describe("Batch12-6: worker/base path traversal guard for read actions", () => {
   it("checks path BEFORE the mutating-action-only restriction", () => {
     const src = readFileSync(join(FORGE_SRC, "worker", "base.js"), "utf-8");
     // Use the method definition as anchor
-    const execIdx = src.indexOf("executeAction(action, projectRoot, task) {");
-    assert.ok(execIdx > 0, "Should find executeAction method definition");
+    const execIdx = src.indexOf("async function executeAction(");
+    assert.ok(execIdx > 0, "Should find executeAction function definition");
     const area = src.slice(execIdx, execIdx + 1000);
 
     const traversalIdx = area.indexOf("Path traversal");

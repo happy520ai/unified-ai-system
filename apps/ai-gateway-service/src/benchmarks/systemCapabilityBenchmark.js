@@ -2,26 +2,26 @@ import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  numberOrZero,
-  roundNumber,
-  readJsonIfExists,
-  readTextIfExists,
-  calculateGrade,
-  calculateCacheHitRate,
-  hasAnyTrue,
-} from "./benchmarkUtils.js";
-import {
-  scoreTokenSaving,
-  scoreRagSourceSelection,
-  scoreFreshness,
-  scoreMimoSafety,
+  scoreCacheReadiness,
   scoreCalibration,
   scoreCostGuard,
-  scoreCacheReadiness,
+  scoreFreshness,
+  scoreMimoSafety,
+  scoreRagSourceSelection,
   scoreSecurityBoundary,
+  scoreTokenSaving,
 } from "./benchmarkScoring.js";
-import { renderSystemCapabilityBenchmarkMarkdown } from "./benchmarkMarkdown.js";
+import {
+  calculateCacheHitRate,
+  calculateGrade,
+  hasAnyTrue,
+  numberOrZero,
+  readJsonIfExists,
+  readTextIfExists,
+  roundNumber,
+} from "./benchmarkUtils.js";
 
+export { renderSystemCapabilityBenchmarkMarkdown } from "./benchmarkMarkdown.js";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const defaultRepoRoot = resolve(__dirname, "../../../..");
 
@@ -416,7 +416,7 @@ function createGaps(headlineMetrics) {
     "No audited production cost ledger tied to provider invoices.",
     "No workflow runner, worktree execution, auto commit, auto push, or PR automation.",
     "No production response-quality benchmark against real model outputs.",
-    "No clean-release baseline while a workspace remains dirty.",
+    "No clean-release baseline while the workspace remains dirty.",
     "No production SaaS operations layer, tenant isolation, rate limits, or SLA evidence.",
   ];
   if (headlineMetrics.cachePersistenceReady) {
@@ -465,8 +465,26 @@ function createRecommendedNextRoutes(headlineMetrics) {
 }
 
 function createSafetySummary() {
-  const keys = ["plainTextApiKeyWritten", "apiKeyPrinted", "paidApiCallExecuted", "externalApiCalled", "mimoApiCalled", "defaultNvidiaChatLaneChanged", "mimoSetAsDefault", "longContextSentToPaidApi", "largeOutputRequested", "stressTestExecuted", "legacyModified", "projectContextCreated", "codexCliInvoked", "codexExecInvoked", "workflowRunnerEnabled", "worktreeCreated", "autoCommit", "autoPush"];
-  return Object.fromEntries(keys.map((k) => [k, false]));
+  return {
+    plainTextApiKeyWritten: false,
+    apiKeyPrinted: false,
+    paidApiCallExecuted: false,
+    externalApiCalled: false,
+    mimoApiCalled: false,
+    defaultNvidiaChatLaneChanged: false,
+    mimoSetAsDefault: false,
+    longContextSentToPaidApi: false,
+    largeOutputRequested: false,
+    stressTestExecuted: false,
+    legacyModified: false,
+    projectContextCreated: false,
+    codexCliInvoked: false,
+    codexExecInvoked: false,
+    workflowRunnerEnabled: false,
+    worktreeCreated: false,
+    autoCommit: false,
+    autoPush: false,
+  };
 }
 
 function calculatePaidApiSafetyReadiness(dimensions) {
@@ -479,5 +497,3 @@ function calculatePaidApiSafetyReadiness(dimensions) {
   if (ratio >= 0.7) return "medium";
   return "weak";
 }
-
-export { renderSystemCapabilityBenchmarkMarkdown };

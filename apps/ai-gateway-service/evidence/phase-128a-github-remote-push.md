@@ -3,7 +3,7 @@
 - Phase: phase-128a-github-remote-push
 - Status: passed
 - Generated at: 2026-04-27T15:53:51.583Z
-- Git top-level: E:/AI-Data/AI网关系统/unified-ai-system
+- Git top-level: <repository-root>
 - Branch: master
 - Head: 411b845c2c95c308cd50abd5ca6d7913f49e7e2b
 - Head subject: Phase128A GitHub remote push

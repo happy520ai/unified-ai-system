@@ -2,9 +2,9 @@
   "phase": "Phase323C-1",
   "generatedAt": "2026-05-06T12:12:15.179Z",
   "inputs": {
-    "rootPackagePath": "E:\\AI-Data\\AI网关系统\\unified-ai-system\\package.json",
-    "servicePackagePath": "E:\\AI-Data\\AI网关系统\\unified-ai-system\\apps\\ai-gateway-service\\package.json",
-    "entrypointsDir": "E:\\AI-Data\\AI网关系统\\unified-ai-system\\apps\\ai-gateway-service\\src\\entrypoints"
+    "rootPackagePath": "<repository-root>\\package.json",
+    "servicePackagePath": "<repository-root>\\apps\\ai-gateway-service\\package.json",
+    "entrypointsDir": "<repository-root>\\apps\\ai-gateway-service\\src\\entrypoints"
   },
   "summary": {
     "rootScriptCount": 446,

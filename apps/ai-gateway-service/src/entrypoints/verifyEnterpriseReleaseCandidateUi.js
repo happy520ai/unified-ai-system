@@ -1,11 +1,10 @@
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
-import { writeEvidencePair } from "./entrypointUtils.js";
+import { fetchContentResponse as fetchText, listen, requestJsonResponseWithHeaders as fetchJson, writeEvidenceFiles, } from "./entrypointUtils.js";
+import { mkdir, mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
-import { fetchJson, fetchText, listen, close } from "./entrypointUtils.js";
 
 const PHASE = "phase-46a-enterprise-release-candidate-ui";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -69,7 +68,7 @@ try {
     responseText,
     conclusion: passed ? "enterprise-release-candidate-ui-connected" : "enterprise-release-candidate-ui-not-connected",
   });
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyEnterpriseReleaseCandidateUiEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = passed ? 0 : 1;
 } catch (error) {
@@ -79,7 +78,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "enterprise-release-candidate-ui-not-connected",
   });
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyEnterpriseReleaseCandidateUiEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -138,6 +137,15 @@ function createHeaders(token) {
   };
 }
 
+
+function close(targetServer) {
+  return new Promise((resolveClose) => {
+    targetServer.close(() => resolveClose());
+  });
+}
+
+
+
 function createEvidence({ status, generatedAt, serviceUrl, ui, missingAuth, releaseCandidate, responseText, conclusion, error }) {
   const data = releaseCandidate?.body?.data;
   return {
@@ -191,3 +199,54 @@ function createEvidence({ status, generatedAt, serviceUrl, ui, missingAuth, rele
   };
 }
 
+async function writeVerifyEnterpriseReleaseCandidateUiEvidence(body) {
+  await writeEvidenceFiles({
+    evidenceDir,
+    evidenceJsonPath,
+    evidenceMdPath,
+    body,
+    renderMarkdown: createEvidenceMarkdown,
+  });
+}
+
+function createEvidenceMarkdown(body) {
+  return `# Phase 46A Enterprise Release Candidate UI Evidence
+
+- Phase: ${body.phase}
+- Status: ${body.status}
+- Generated at: ${body.generatedAt}
+- Service URL: ${body.serviceUrl ?? "n/a"}
+- UI HTTP status: ${body.ui?.httpStatus ?? "n/a"}
+- UI panel present: ${body.ui?.panelPresent}
+- Route present in UI: ${body.ui?.routePresent}
+- Route path: ${body.route?.path}
+- Missing auth HTTP status: ${body.route?.missingAuthHttpStatus ?? "n/a"}
+- Authorized HTTP status: ${body.route?.authorizedHttpStatus ?? "n/a"}
+- Route mode: ${body.route?.mode ?? "n/a"}
+- Evidence path: ${body.route?.evidencePath ?? "n/a"}
+- Source phase: ${body.releaseCandidate?.sourcePhase ?? "n/a"}
+- Source status: ${body.releaseCandidate?.sourceStatus ?? "n/a"}
+- Source conclusion: ${body.releaseCandidate?.sourceConclusion ?? "n/a"}
+- Source mode: ${body.releaseCandidate?.mode ?? "n/a"}
+- Package created: ${body.releaseCandidate?.packageCreated}
+- Release created: ${body.releaseCandidate?.releaseCreated}
+- Artifact published: ${body.releaseCandidate?.artifactPublished}
+- Evidence required: ${body.releaseCandidate?.evidenceRequiredCount ?? "n/a"}
+- Evidence passed: ${body.releaseCandidate?.evidencePassedCount ?? "n/a"}
+- Evidence missing: ${body.releaseCandidate?.evidenceMissingCount ?? "n/a"}
+- Evidence failed: ${body.releaseCandidate?.evidenceFailedCount ?? "n/a"}
+- Docs status: ${body.releaseCandidate?.docsStatus ?? "n/a"}
+- Scripts status: ${body.releaseCandidate?.scriptsStatus ?? "n/a"}
+- Boundary status: ${body.releaseCandidate?.boundaryStatus ?? "n/a"}
+- Secret scan status: ${body.releaseCandidate?.secretScanStatus ?? "n/a"}
+- Read-only route: ${body.safety?.readOnlyRoute}
+- Provider calls: ${body.safety?.providerCalls}
+- Runtime mutation: ${body.safety?.runtimeMutation}
+- Release automation: ${body.safety?.releaseAutomation}
+- Infrastructure provisioning: ${body.safety?.infrastructureProvisioning}
+- Secret values recorded: ${body.safety?.secretValuesRecorded}
+- Response contains auditor token: ${body.safety?.responseContainsAuditorToken}
+- Response contains NVIDIA key: ${body.safety?.responseContainsNvidiaKey}
+- Conclusion: ${body.conclusion}
+`;
+}

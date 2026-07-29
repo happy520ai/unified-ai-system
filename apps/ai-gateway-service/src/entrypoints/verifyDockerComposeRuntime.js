@@ -1,11 +1,11 @@
+import { writeEvidenceFiles } from "./entrypointUtils.js";
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 import { findPlainSecretFindings } from "../security/secretSafety.js";
-import { fetchText, writeEvidenceWithRenderer } from "./entrypointUtils.js";
 
 const execFileAsync = promisify(execFile);
 const phase = "phase-116a-docker-compose-runtime";
@@ -43,13 +43,28 @@ async function run(command, args, options = {}) {
   }
 }
 
+async function fetchTextWithTimeout(url, timeoutMs = 3000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    return {
+      ok: response.ok,
+      status: response.status,
+      text: await response.text(),
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function fetchWithRetry(url, options = {}) {
   const attempts = options.attempts ?? 60;
   const delayMs = options.delayMs ?? 1000;
   let lastError = "";
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {
-      const result = await fetchText(url, options.timeoutMs ?? 3000);
+      const result = await fetchTextWithTimeout(url, options.timeoutMs ?? 3000);
       if (result.ok) {
         return result;
       }
@@ -76,7 +91,7 @@ function tailLines(text, count = 40) {
 
 async function isPortOccupiedBeforeCompose() {
   try {
-    const health = await fetchText(`${baseUrl}/health/check`, 1000);
+    const health = await fetchTextWithTimeout(`${baseUrl}/health/check`, 1000);
     return health.ok;
   } catch {
     return false;
@@ -255,7 +270,7 @@ async function main() {
         ? "docker-compose-runtime-passed"
         : "docker-compose-runtime-failed",
     };
-    await saveEvidence(evidence);
+    await writeVerifyDockerComposeRuntimeEvidence(evidence);
     console.log(JSON.stringify(evidence, null, 2));
     process.exitCode = passed ? 0 : 1;
   } catch (error) {
@@ -289,7 +304,7 @@ async function main() {
       error: error instanceof Error ? error.message : String(error),
       conclusion: "docker-compose-runtime-failed",
     };
-    await saveEvidence(evidence);
+    await writeVerifyDockerComposeRuntimeEvidence(evidence);
     console.log(JSON.stringify(evidence, null, 2));
     process.exitCode = 1;
   } finally {
@@ -303,14 +318,14 @@ async function main() {
   }
 }
 
-async function saveEvidence(evidence) {
-  await writeEvidenceWithRenderer(
+async function writeVerifyDockerComposeRuntimeEvidence(evidence) {
+  await writeEvidenceFiles({
     evidenceDir,
-    resolve(evidenceDir, `${phase}.json`),
-    resolve(evidenceDir, `${phase}.md`),
-    evidence,
-    markdown,
-  );
+    evidenceJsonPath: resolve(evidenceDir, `${phase}.json`),
+    evidenceMdPath: resolve(evidenceDir, `${phase}.md`),
+    body: evidence,
+    renderMarkdown: markdown,
+  });
 }
 
 function markdown(evidence) {

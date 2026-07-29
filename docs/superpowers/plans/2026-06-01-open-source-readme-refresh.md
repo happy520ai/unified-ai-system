@@ -25,10 +25,10 @@
 ### Task 1: Add Root Open-Source Governance Files
 
 **Files:**
-- Create: `E:/AI-Data/AI网关系统/unified-ai-system/LICENSE`
-- Create: `E:/AI-Data/AI网关系统/unified-ai-system/SECURITY.md`
-- Create: `E:/AI-Data/AI网关系统/unified-ai-system/CONTRIBUTING.md`
-- Create: `E:/AI-Data/AI网关系统/unified-ai-system/CODE_OF_CONDUCT.md`
+- Create: `<repository-root>/LICENSE`
+- Create: `<repository-root>/SECURITY.md`
+- Create: `<repository-root>/CONTRIBUTING.md`
+- Create: `<repository-root>/CODE_OF_CONDUCT.md`
 
 - [ ] **Step 1: Create the Apache-2.0 license file**
 
@@ -122,7 +122,7 @@ Expected result:
 ### Task 2: Update Public Repository Metadata
 
 **Files:**
-- Modify: `E:/AI-Data/AI网关系统/unified-ai-system/package.json`
+- Modify: `<repository-root>/package.json`
 
 - [ ] **Step 1: Add public repository metadata without changing package publication posture**
 
@@ -164,7 +164,7 @@ Expected:
 ### Task 3: Rewrite the Public-Facing README
 
 **Files:**
-- Modify: `E:/AI-Data/AI网关系统/unified-ai-system/README.md`
+- Modify: `<repository-root>/README.md`
 
 - [ ] **Step 1: Preserve the verifier-required first-screen posture**
 
@@ -255,9 +255,9 @@ Expected result:
 ### Task 4: Validate, Sync, And Repair
 
 **Files:**
-- Verify: `E:/AI-Data/AI网关系统/unified-ai-system/README.md`
-- Verify: `E:/AI-Data/AI网关系统/unified-ai-system/package.json`
-- Verify: `E:/AI-Data/AI网关系统/unified-ai-system/AGENTS.md`
+- Verify: `<repository-root>/README.md`
+- Verify: `<repository-root>/package.json`
+- Verify: `<repository-root>/AGENTS.md`
 
 - [ ] **Step 1: Run Phase632 preflight**
 

@@ -1,0 +1,360 @@
+{
+  "phase": "270A-token-saving-benchmark",
+  "status": "passed",
+  "conclusion": "token-saving-benchmark-ready",
+  "generatedAt": "2026-07-29T08:21:15.679Z",
+  "mode": "estimate-only",
+  "defaultNvidiaChatLaneChanged": false,
+  "mimoSetAsDefault": false,
+  "paidApiCallCount": 0,
+  "paidApiCallMaxAllowed": 1,
+  "longContextSentToPaidApi": false,
+  "cases": [
+    {
+      "caseId": "project-status-query",
+      "mode": "estimate-only",
+      "userQuestion": "现在项目做到哪一步了？下一步应该做什么？",
+      "naiveEstimatedInputTokens": 174679,
+      "optimizedEstimatedInputTokens": 2255,
+      "naiveEstimatedOutputTokens": 500,
+      "optimizedEstimatedOutputTokens": 500,
+      "naiveEstimatedTotalTokens": 175179,
+      "optimizedEstimatedTotalTokens": 2755,
+      "estimatedTokensSaved": 172424,
+      "savingsRatio": 0.9871,
+      "decision": "allow",
+      "recommendedActions": [
+        "use_cache",
+        "local_retrieval_first",
+        "reduce_context",
+        "use_knowledge_retrieval_first"
+      ],
+      "cacheEligible": true,
+      "servedFromCache": false,
+      "cacheKey": "token-guard:phase-268a-preview-v1:0d32ba87e1cce90dbe56c03b18f89767",
+      "modelTierRecommendation": "cheap",
+      "maxOutputTokens": 500,
+      "strategy": "Use latest evidence plus architecture/readthrough summaries instead of full docs.",
+      "estimatedCostUsd": 0.000855,
+      "selectedSourceCount": 3
+    },
+    {
+      "caseId": "current-blocker-query",
+      "mode": "estimate-only",
+      "userQuestion": "当前 blocker 是什么？",
+      "naiveEstimatedInputTokens": 185585,
+      "optimizedEstimatedInputTokens": 737,
+      "naiveEstimatedOutputTokens": 300,
+      "optimizedEstimatedOutputTokens": 300,
+      "naiveEstimatedTotalTokens": 185885,
+      "optimizedEstimatedTotalTokens": 1037,
+      "estimatedTokensSaved": 184848,
+      "savingsRatio": 0.996,
+      "decision": "allow",
+      "recommendedActions": [
+        "use_cache",
+        "local_retrieval_first",
+        "reduce_context",
+        "use_knowledge_retrieval_first"
+      ],
+      "cacheEligible": true,
+      "servedFromCache": false,
+      "cacheKey": "token-guard:phase-268a-preview-v1:26266548b1d9d738c1006056a01c44c8",
+      "modelTierRecommendation": "cheap",
+      "maxOutputTokens": 300,
+      "strategy": "Query latest evidence and ready-state/reset evidence only.",
+      "estimatedCostUsd": 0.00039,
+      "selectedSourceCount": 3
+    },
+    {
+      "caseId": "codex-next-task-generation",
+      "mode": "estimate-only",
+      "userQuestion": "生成下一条 Codex 任务。",
+      "naiveEstimatedInputTokens": 185587,
+      "optimizedEstimatedInputTokens": 2253,
+      "naiveEstimatedOutputTokens": 700,
+      "optimizedEstimatedOutputTokens": 700,
+      "naiveEstimatedTotalTokens": 186287,
+      "optimizedEstimatedTotalTokens": 2953,
+      "estimatedTokensSaved": 183334,
+      "savingsRatio": 0.9879,
+      "decision": "allow",
+      "recommendedActions": [
+        "use_cache",
+        "local_retrieval_first",
+        "reduce_context",
+        "use_knowledge_retrieval_first"
+      ],
+      "cacheEligible": true,
+      "servedFromCache": false,
+      "cacheKey": "token-guard:phase-268a-preview-v1:70c7f53bb5e9abf9d5d5fc1950181aa0",
+      "modelTierRecommendation": "standard",
+      "maxOutputTokens": 700,
+      "strategy": "Use Action Queue, Decision Dashboard, boundary list, and latest phase evidence.",
+      "estimatedCostUsd": 0.00874,
+      "selectedSourceCount": 4
+    },
+    {
+      "caseId": "mimo-paid-smoke-small-request",
+      "mode": "estimate-only",
+      "userQuestion": "Reply with exactly: MIMO_SMOKE_OK",
+      "naiveEstimatedInputTokens": 14,
+      "optimizedEstimatedInputTokens": 14,
+      "naiveEstimatedOutputTokens": 16,
+      "optimizedEstimatedOutputTokens": 16,
+      "naiveEstimatedTotalTokens": 30,
+      "optimizedEstimatedTotalTokens": 30,
+      "estimatedTokensSaved": 0,
+      "savingsRatio": 0,
+      "decision": "allow",
+      "recommendedActions": [
+        "use_cache"
+      ],
+      "cacheEligible": true,
+      "servedFromCache": false,
+      "cacheKey": "token-guard:phase-268a-preview-v1:363ffe798c55fa89205499064d0ff7ba",
+      "modelTierRecommendation": "cheap",
+      "maxOutputTokens": 16,
+      "strategy": "Tiny explicit smoke shape only; Phase 270A does not call MiMo.",
+      "paidApiCallCount": 0,
+      "estimatedCostUsd": 0.000016,
+      "actualUsageComparison": {
+        "usageReturned": false,
+        "phase269Status": "missing",
+        "phase269Failure": null,
+        "estimatedTotalTokens": 30,
+        "actualTotalTokens": null,
+        "absoluteDeltaTokens": null,
+        "note": "No actual usage comparison is available because prior MiMo smoke did not return usage."
+      }
+    },
+    {
+      "caseId": "repeat-question-cache-hit",
+      "mode": "estimate-only-cache-simulation",
+      "userQuestion": "现在项目做到哪一步了？下一步应该做什么？",
+      "naiveEstimatedInputTokens": 667,
+      "optimizedEstimatedInputTokens": 0,
+      "naiveEstimatedOutputTokens": 400,
+      "optimizedEstimatedOutputTokens": 0,
+      "naiveEstimatedTotalTokens": 1067,
+      "optimizedEstimatedTotalTokens": 0,
+      "estimatedTokensSaved": 1067,
+      "savingsRatio": 1,
+      "decision": "allow",
+      "recommendedActions": [
+        "use_cache"
+      ],
+      "cacheEligible": true,
+      "servedFromCache": true,
+      "cacheKey": "token-guard:phase-268a-preview-v1:d8876699e08b4f79e05078843e9bb85a",
+      "modelTierRecommendation": "cheap",
+      "maxOutputTokens": 400,
+      "strategy": "Same question plus same selected source hash can avoid the second paid request if response cache is later persisted.",
+      "estimatedCostUsd": 0.000453,
+      "estimatedApiTokensSaved": 1067,
+      "firstRun": {
+        "cacheEligible": true,
+        "servedFromCache": false,
+        "estimatedTotalTokens": 1067,
+        "cacheKey": "token-guard:phase-268a-preview-v1:d8876699e08b4f79e05078843e9bb85a"
+      },
+      "secondRun": {
+        "cacheEligible": true,
+        "servedFromCache": true,
+        "estimatedApiTokensSaved": 1067,
+        "cacheKey": "token-guard:phase-268a-preview-v1:d8876699e08b4f79e05078843e9bb85a"
+      }
+    },
+    {
+      "caseId": "long-context-intercept",
+      "mode": "estimate-only",
+      "userQuestion": "请基于全部项目资料给出完整审查。",
+      "naiveEstimatedInputTokens": 144040,
+      "optimizedEstimatedInputTokens": 52,
+      "naiveEstimatedOutputTokens": 3000,
+      "optimizedEstimatedOutputTokens": 600,
+      "naiveEstimatedTotalTokens": 147040,
+      "optimizedEstimatedTotalTokens": 652,
+      "estimatedTokensSaved": 146388,
+      "savingsRatio": 0.9956,
+      "decision": "block",
+      "recommendedActions": [
+        "use_cache",
+        "reduce_context",
+        "use_knowledge_retrieval_first",
+        "cap_output_tokens",
+        "lower_model_tier",
+        "split_request",
+        "use_rag_first"
+      ],
+      "cacheEligible": true,
+      "servedFromCache": false,
+      "cacheKey": "token-guard:phase-268a-preview-v1:7a5480eca2de0199f46213b11c0008a5",
+      "modelTierRecommendation": "block_or_require_approval_before_premium",
+      "maxOutputTokens": 3000,
+      "strategy": "Block or require approval before any long context paid call; reduce context and use RAG first.",
+      "estimatedCostUsd": 1.5304
+    },
+    {
+      "caseId": "model-tier-routing",
+      "mode": "estimate-only",
+      "userQuestion": "把任务分成 rule_only / cheap / standard / premium。",
+      "naiveEstimatedInputTokens": 62,
+      "optimizedEstimatedInputTokens": 62,
+      "naiveEstimatedOutputTokens": 1200,
+      "optimizedEstimatedOutputTokens": 1190,
+      "naiveEstimatedTotalTokens": 1262,
+      "optimizedEstimatedTotalTokens": 1252,
+      "estimatedTokensSaved": 10,
+      "savingsRatio": 0.4435,
+      "decision": "allow",
+      "recommendedActions": [
+        "lower_model_tier",
+        "route_rule_only_locally",
+        "reserve_premium_for_architecture_review"
+      ],
+      "cacheEligible": true,
+      "servedFromCache": false,
+      "cacheKey": "token-guard:phase-268a-preview-v1:4a5ff018b93179dc08182cb055c7f43f",
+      "modelTierRecommendation": {
+        "rule_only": "local",
+        "cheap": "cheap",
+        "standard": "standard",
+        "premium": "premium",
+        "guidance": "Simple status checks must not default to premium; deep architecture review may justify premium."
+      },
+      "maxOutputTokens": 0,
+      "strategy": "Route rule-only and simple status work away from premium models; keep MiMo/premium only for high-value reasoning.",
+      "modelTierDowngradeOpportunities": 3,
+      "tierTasks": [
+        {
+          "task": "Check whether PROJECT_CONTEXT.md exists",
+          "category": "rule_only",
+          "recommendedTier": "local",
+          "avoidedTier": "premium",
+          "prompt": "Does PROJECT_CONTEXT.md exist?"
+        },
+        {
+          "task": "Summarize latest evidence status",
+          "category": "cheap",
+          "recommendedTier": "cheap",
+          "avoidedTier": "premium",
+          "prompt": "Summarize latest phase evidence in three bullets."
+        },
+        {
+          "task": "Draft a bounded next-task handoff",
+          "category": "standard",
+          "recommendedTier": "standard",
+          "avoidedTier": "premium",
+          "prompt": "Draft the next Codex task with safety boundaries."
+        },
+        {
+          "task": "Deep architecture tradeoff review",
+          "category": "premium",
+          "recommendedTier": "premium",
+          "avoidedTier": "premium",
+          "prompt": "Review architecture tradeoffs and risks."
+        }
+      ],
+      "premiumAllCostUsd": 0.03662,
+      "recommendedTierCostUsd": 0.020378,
+      "estimatedCostSavedUsd": 0.016242
+    },
+    {
+      "caseId": "output-cap-control",
+      "mode": "estimate-only",
+      "userQuestion": "请总结当前项目状态和下一步路线。",
+      "naiveEstimatedInputTokens": 1116,
+      "optimizedEstimatedInputTokens": 1116,
+      "naiveEstimatedOutputTokens": 2000,
+      "optimizedEstimatedOutputTokens": 300,
+      "naiveEstimatedTotalTokens": 3116,
+      "optimizedEstimatedTotalTokens": 1416,
+      "estimatedTokensSaved": 1700,
+      "savingsRatio": 0.5456,
+      "decision": "allow",
+      "recommendedActions": [
+        "cap_output_tokens",
+        "use_cache"
+      ],
+      "cacheEligible": true,
+      "servedFromCache": false,
+      "cacheKey": "token-guard:phase-268a-preview-v1:85272a87208d79a1eda0e3a1e783f33f",
+      "modelTierRecommendation": "cheap",
+      "maxOutputTokens": 300,
+      "strategy": "Use a 300-token answer cap for status summaries; do not request long output unless a human explicitly asks.",
+      "estimatedCostUsd": 0.000464,
+      "simulatedUncappedMaxOutputTokens": 2000,
+      "recommendedMaxOutputTokens": 300,
+      "outputTokenCapSavings": 1700
+    }
+  ],
+  "summary": {
+    "caseCount": 8,
+    "averageSavingsRatio": 0.7445,
+    "maxSavingsRatio": 1,
+    "estimatedTotalNaiveTokens": 699866,
+    "estimatedTotalOptimizedTokens": 10095,
+    "estimatedTotalTokensSaved": 689771,
+    "cacheEligibleCount": 8,
+    "blockedCount": 1,
+    "requireApprovalCount": 0,
+    "modelTierDowngradeOpportunities": 3
+  },
+  "gaps": [
+    "Token estimation is approximate and not yet calibrated with successful MiMo usage because Phase 269A did not return usage.",
+    "Knowledge/RAG selected-context quality is simulated with local snippets; there is not yet an automatic source ranking benchmark.",
+    "Cache policy can generate stable keys, but response cache persistence is not implemented in this benchmark.",
+    "Model tier routing is a recommendation, not yet enforced for the default /chat lane.",
+    "Output cap savings are estimate-only; no long output request was sent or billed.",
+    "Budget decisions are local preview guard decisions, not production billing controls."
+  ],
+  "betterPlan": [
+    {
+      "route": "Route A",
+      "title": "Local token guard + benchmark first",
+      "recommendation": "do-first",
+      "value": "Keeps risk low while improving estimates, cache policy, UI, and evidence."
+    },
+    {
+      "route": "Route C",
+      "title": "RAG source selection optimization",
+      "recommendation": "do-next",
+      "value": "Reduces the largest waste source: sending broad docs when a few evidence snippets are enough."
+    },
+    {
+      "route": "Route D",
+      "title": "Cache persistence",
+      "recommendation": "do-next",
+      "value": "Turns repeated status/blocker/action questions into zero paid-token repeats when source hashes match."
+    },
+    {
+      "route": "Route B",
+      "title": "Tiny MiMo usage calibration",
+      "recommendation": "do-after-a-c-d",
+      "value": "Use at most three tiny requests to calibrate estimated tokens against provider usage."
+    },
+    {
+      "route": "Route E",
+      "title": "Model tier routing",
+      "recommendation": "do-after-benchmark-policy-hardening",
+      "value": "Prevents simple status and rule-only work from reaching premium paid models."
+    }
+  ],
+  "safety": {
+    "plainTextApiKeyWritten": false,
+    "apiKeyPrinted": false,
+    "defaultNvidiaChatLaneChanged": false,
+    "mimoSetAsDefault": false,
+    "legacyModified": false,
+    "projectContextCreated": false,
+    "codexCliInvoked": false,
+    "codexExecInvoked": false,
+    "workflowRunnerEnabled": false,
+    "worktreeCreated": false,
+    "autoCommit": false,
+    "autoPush": false,
+    "longContextSentToPaidApi": false,
+    "largeOutputRequested": false
+  }
+}

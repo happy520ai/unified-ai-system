@@ -3,7 +3,7 @@
 - Phase: phase-120a-git-initial-commit-preflight
 - Status: passed
 - Generated at: 2026-04-27T10:51:14.509Z
-- Git top-level: E:/AI-Data/AI网关系统/unified-ai-system
+- Git top-level: <repository-root>
 - Initial commit present: true
 - Remote configured: false
 - Staged file count: 0

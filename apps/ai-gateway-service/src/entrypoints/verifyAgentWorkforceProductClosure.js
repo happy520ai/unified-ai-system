@@ -1,10 +1,9 @@
-import { mkdir, writeFile } from "node:fs/promises";
-import { writeEvidencePair } from "./entrypointUtils.js";
+import { fetchTextResponse as fetchText, listen, requestJsonResponse as fetchJson, writeEvidenceFiles, } from "./entrypointUtils.js";
+import { mkdir } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
-import { fetchJson, fetchText, listen, close } from "./entrypointUtils.js";
 
 const PHASE = "phase-102c-agent-workforce-product-closure";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -96,7 +95,7 @@ try {
     conclusion: passed ? "agent-workforce-product-preview-closed" : "agent-workforce-product-preview-not-closed",
   });
 
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyAgentWorkforceProductClosureEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = passed ? 0 : 1;
 } catch (error) {
@@ -107,7 +106,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "agent-workforce-product-preview-not-closed",
   });
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyAgentWorkforceProductClosureEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -115,6 +114,15 @@ try {
     await close(server);
   }
 }
+
+
+function close(server) {
+  return new Promise((resolveClose) => {
+    server.close(() => resolveClose());
+  });
+}
+
+
 
 function isProductClosureReady({
   health,
@@ -263,3 +271,50 @@ function createEvidence({
   };
 }
 
+async function writeVerifyAgentWorkforceProductClosureEvidence(body) {
+  await writeEvidenceFiles({
+    evidenceDir,
+    evidenceJsonPath,
+    evidenceMdPath,
+    body,
+    renderMarkdown: createEvidenceMarkdown,
+  });
+}
+
+function createEvidenceMarkdown(body) {
+  return `# Phase 102C Agent Workforce Product Closure Evidence
+
+- Phase: ${body.phase}
+- Status: ${body.status}
+- Generated at: ${body.generatedAt}
+- Health HTTP status: ${body.validation.healthHttpStatus ?? "n/a"}
+- Agents HTTP status: ${body.validation.agentsHttpStatus ?? "n/a"}
+- Agent count: ${body.validation.agentCount ?? "n/a"}
+- Normal goal HTTP status: ${body.validation.normalGoalHttpStatus ?? "n/a"}
+- Plan version: ${body.validation.planVersion ?? "n/a"}
+- Created at present: ${body.validation.createdAtPresent}
+- Summary present: ${body.validation.summaryPresent}
+- Limitations count: ${body.validation.limitationsCount ?? "n/a"}
+- Markdown present: ${body.validation.markdownPresent}
+- Exportable JSON present: ${body.validation.exportableJsonPresent}
+- Recommended next step present: ${body.validation.recommendedNextStepPresent}
+- Empty goal code: ${body.validation.emptyGoalCode ?? "n/a"}
+- Long goal code: ${body.validation.longGoalCode ?? "n/a"}
+- Non-string goal code: ${body.validation.nonStringGoalCode ?? "n/a"}
+- UI panel present: ${body.ui.panelPresent}
+- UI example goals present: ${body.ui.exampleGoalsPresent}
+- UI copy Markdown present: ${body.ui.copyMarkdownPresent}
+- UI export JSON present: ${body.ui.exportJsonPresent}
+- UI clear present: ${body.ui.clearPresent}
+- UI max length hint present: ${body.ui.maxLengthHintPresent}
+- UI preview boundary present: ${body.ui.previewBoundaryPresent}
+- Real LLM calls: ${body.safety.realLlmCalls}
+- Code execution: ${body.safety.codeExecution}
+- Project file writes: ${body.safety.projectFileWrites}
+- Workflow run: ${body.safety.workflowRun}
+- Default chat lane mutated: ${body.safety.defaultChatLaneMutated}
+- Provider registry mutated: ${body.safety.providerRegistryMutated}
+- Secret values recorded: ${body.safety.secretValuesRecorded}
+- Conclusion: ${body.conclusion}
+`;
+}

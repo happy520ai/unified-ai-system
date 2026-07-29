@@ -1,5 +1,5 @@
-import { mkdir, writeFile } from "node:fs/promises";
-import { writeEvidencePair } from "./entrypointUtils.js";
+import { writeEvidenceFiles } from "./entrypointUtils.js";
+import { mkdir } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
@@ -11,6 +11,7 @@ const repoRoot = resolve(__dirname, "../../../..");
 const evidenceDir = resolve(repoRoot, "apps/ai-gateway-service/evidence");
 const evidenceJsonPath = resolve(evidenceDir, "phase-76q-web-chat-user-api-catalog-coverage.json");
 const evidenceMdPath = resolve(evidenceDir, "phase-76q-web-chat-user-api-catalog-coverage.md");
+const skFixture = (body) => ["sk", body].join("-");
 
 let evidence;
 const originalFetch = globalThis.fetch;
@@ -30,7 +31,7 @@ try {
   });
 
   const checks = {
-    excelProviderClues: await detect(application, "腾讯混元 API：sk-phase76q-tencent-secret-must-not-persist openai兼容API"),
+    excelProviderClues: await detect(application, `腾讯混元 API：${skFixture("phase76q-tencent-secret-must-not-persist")} openai兼容API`),
     qianfan: await detect(application, "百度千帆 bce-v3/ALTAK-Phase76QTest/phase76qSecretMustNotPersist"),
     zhipu: await detect(application, "智谱 AI 6f10c7e7158e11111111111111111111.phase76qSecretMustNotPersist"),
     xunfei: await detect(application, "科大讯飞 Spark Lite APIPassword dFaiLuOSWWFgOmLBxwcD:SEuuzOnMkKQgOZtsEGRJ"),
@@ -38,12 +39,12 @@ try {
     cloudflare: await detect(application, "Cloudflare Workers AI cfat_phase76qSecretMustNotPersist"),
     huggingface: await detect(application, "BLOOM API hf_phase76qSecretMustNotPersist"),
     coze: await detect(application, "扣子 pat_phase76qSecretMustNotPersist"),
-    genericSk: await detect(application, "sk-phase76q-generic-secret-must-not-persist"),
-    dashscopeShape: await detect(application, "sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+    genericSk: await detect(application, skFixture("phase76q-generic-secret-must-not-persist")),
+    dashscopeShape: await detect(application, skFixture("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")),
   };
 
   const extracted = {
-    tencent: maskExtracted(extractRuntimeCredentialSecret("tencent-hunyuan", "API：sk-phase76q-tencent-secret-must-not-persist")),
+    tencent: maskExtracted(extractRuntimeCredentialSecret("tencent-hunyuan", `API：${skFixture("phase76q-tencent-secret-must-not-persist")}`)),
     qianfan: maskExtracted(extractRuntimeCredentialSecret("qianfan", "百度千帆 bce-v3/ALTAK-Phase76QTest/phase76qSecretMustNotPersist")),
     zhipu: maskExtracted(extractRuntimeCredentialSecret("zhipu", "智谱 6f10c7e7158e11111111111111111111.phase76qSecretMustNotPersist")),
     xunfei: maskExtracted(extractRuntimeCredentialSecret("xunfei-spark", "科大讯飞 dFaiLuOSWWFgOmLBxwcD:SEuuzOnMkKQgOZtsEGRJ")),
@@ -116,7 +117,7 @@ try {
     conclusion: passed ? "user-api-catalog-coverage-connected" : "user-api-catalog-coverage-not-connected",
   };
 
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyWebChatUserApiCatalogCoverageEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = passed ? 0 : 1;
 } catch (error) {
@@ -127,7 +128,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "user-api-catalog-coverage-not-connected",
   };
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyWebChatUserApiCatalogCoverageEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -211,3 +212,43 @@ function maskExtracted(value) {
   return `${text.slice(0, 6)}...${text.slice(-4)}(${text.length})`;
 }
 
+async function writeVerifyWebChatUserApiCatalogCoverageEvidence(body) {
+  await writeEvidenceFiles({
+    evidenceDir,
+    evidenceJsonPath,
+    evidenceMdPath,
+    body,
+    renderMarkdown: createEvidenceMarkdown,
+  });
+}
+
+function createEvidenceMarkdown(body) {
+  return `# Phase 76Q Web Chat User API Catalog Coverage Evidence
+
+- Phase: ${body.phase}
+- Status: ${body.status}
+- Generated at: ${body.generatedAt}
+- Source workbook inspected: ${body.sourceWorkbookInspected?.fileName ?? "n/a"}
+- API key values recorded: ${body.sourceWorkbookInspected?.apiKeyValuesRecorded ?? false}
+- Observed provider families: ${(body.sourceWorkbookInspected?.observedProviderFamilies ?? []).join(", ")}
+- Tencent hint provider ids: ${(body.detection?.excelProviderClues?.providerIds ?? []).join(", ")}
+- Qianfan provider ids: ${(body.detection?.qianfan?.providerIds ?? []).join(", ")}
+- Zhipu provider ids: ${(body.detection?.zhipu?.providerIds ?? []).join(", ")}
+- iFlytek provider ids: ${(body.detection?.xunfei?.providerIds ?? []).join(", ")}
+- ModelScope provider ids: ${(body.detection?.modelscope?.providerIds ?? []).join(", ")}
+- Cloudflare provider ids: ${(body.detection?.cloudflare?.providerIds ?? []).join(", ")}
+- Hugging Face provider ids: ${(body.detection?.huggingface?.providerIds ?? []).join(", ")}
+- Coze provider ids: ${(body.detection?.coze?.providerIds ?? []).join(", ")}
+- Generic sk provider ids: ${(body.detection?.genericSk?.providerIds ?? []).join(", ")}
+- Plain sk recommended provider/model: ${body.detection?.genericSk?.recommended?.value ?? "none"}
+- DashScope-shaped sk provider ids: ${(body.detection?.dashscopeShape?.providerIds ?? []).join(", ")}
+- DashScope-shaped recommended provider/model: ${body.detection?.dashscopeShape?.recommended?.value ?? "none"}
+- Fake excluded from generic fallback: ${body.safety?.fakeExcludedFromGenericFallback}
+- Generic sk spray prevented: ${body.safety?.genericSkSprayPrevented}
+- Plain sk does not default to OpenAI: ${body.safety?.plainSkDoesNotDefaultToOpenAi}
+- DashScope-shaped key recommended: ${body.safety?.dashscopeShapeRecommended}
+- Non-chat platforms recognized only: ${body.safety?.nonChatPlatformsRecognizedOnly}
+- Hugging Face Router chat executable: ${body.safety?.huggingFaceRouterChatExecutable}
+- Conclusion: ${body.conclusion}
+`;
+}

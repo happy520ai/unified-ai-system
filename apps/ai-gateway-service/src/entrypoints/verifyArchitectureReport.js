@@ -1,3 +1,7 @@
+import {
+  readRepoText as readText,
+  readRepoJson as readJson,
+} from "./entrypointUtils.js";
 import { existsSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -8,7 +12,6 @@ import {
   noProjectContext,
   repoRoot,
 } from "./verifyAgentWorkforceClosureSupport.js";
-import { readJson, readText } from "./entrypointUtils.js"
 
 const phase = "phase-267a-architecture-report";
 const reportPath = "docs/UNIFIED_AI_SYSTEM_ARCHITECTURE_REPORT.md";

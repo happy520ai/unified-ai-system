@@ -3,7 +3,7 @@
 - Phase: phase-123a-github-cli-readiness
 - Status: passed
 - Generated at: 2026-04-27T11:41:27.082Z
-- Git top-level: E:/AI-Data/AI网关系统/unified-ai-system
+- Git top-level: <repository-root>
 - Branch: master
 - Head subject: Phase123A GitHub CLI readiness
 - Staged file count: 0

@@ -1,82 +1,12 @@
-# =============================================================================
-# docker-compose.yml — AI Gateway 一键部署
-# 用法: docker compose up -d
-# 带 Redis: docker compose --profile with-redis up -d
-# =============================================================================
-
 services:
-  # ── AI Gateway 主服务 ──
-  gateway:
+  ai-gateway-service:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: ai-gateway
-    restart: unless-stopped
-    ports:
-      - "3100:3100"
     env_file:
       - .env
     environment:
-      NODE_ENV: production
-      AI_GATEWAY_HOST: 0.0.0.0
-      AI_GATEWAY_PORT: 3100
-      AI_GATEWAY_PROVIDER_MODE: auto
-      KNOWLEDGE_STORAGE_MODE: local
-      KNOWLEDGE_INFRA_MODE: local-keyword
-    volumes:
-      - gateway-data:/app/.data
-      - gateway-evidence:/app/apps/ai-gateway-service/evidence
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3100/health/live"]
-      interval: 30s
-      timeout: 5s
-      start_period: 15s
-      retries: 3
-    networks:
-      - gateway-net
-    deploy:
-      resources:
-        limits:
-          memory: 1G
-          cpus: "2.0"
-        reservations:
-          memory: 256M
-    security_opt:
-      - no-new-privileges:true
-    read_only: true
-    tmpfs:
-      - /tmp:size=64M
-
-  # ── Redis（可选：用于缓存和会话存储）──
-  redis:
-    image: redis:7-alpine
-    container_name: ai-gateway-redis
-    restart: unless-stopped
-    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:-changeme}"]
+      AI_GATEWAY_SERVICE_HOST: 0.0.0.0
+      AI_GATEWAY_SERVICE_PORT: 3100
     ports:
-      - "127.0.0.1:6379:6379"
-    volumes:
-      - redis-data:/data
-    networks:
-      - gateway-net
-    healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-changeme}", "ping"]
-      interval: 10s
-      timeout: 3s
-      retries: 3
-    security_opt:
-      - no-new-privileges:true
-    profiles:
-      - with-redis
-
-volumes:
-  gateway-data:
-    driver: local
-  gateway-evidence:
-    driver: local
-  redis-data:
-    driver: local
-
-networks:
-  gateway-net:
-    driver: bridge
+      - "3100:3100"

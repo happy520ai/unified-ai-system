@@ -2,7 +2,7 @@
 // 真实技能注册表 (Live Skill Registry)
 // 管理已注册的神经元技能包，支持注册、查询、执行和吊销
 //
-// 与 neural-fabric-runtime 的 mock-only skillRegistry 不同，
+// 与 retired-mock-registry 的 mock-only skillRegistry 不同，
 // 这个注册表支持真实的技能注册、查询、执行和吊销。
 // =============================================================================
 

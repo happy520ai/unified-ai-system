@@ -1,5 +1,25 @@
+import {
+  close,
+  findRequiredBrowserPath as findBrowserPath,
+  listen,
+  writeEvidenceFiles,
+} from "./entrypointUtils.js";
+import {
+  closeCdpSilently,
+  configureModel,
+  connectCdp,
+  createCdpPage,
+  inspectPng,
+  installFetchRecorderOnNewDocument,
+  navigateAndWait,
+  readDevToolsPort,
+  readPersistedStoreSummary,
+  sendChat,
+  terminateBrowser,
+  waitForChatResult,
+  waitForExpression,
+} from "./verifyWebChatModelConfigRestartPersistenceHelpers.js";
 import { spawn } from "node:child_process";
-import { writeEvidencePair } from "./entrypointUtils.js";
 import { existsSync } from "node:fs";
 import { createServer } from "node:http";
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
@@ -10,22 +30,6 @@ import vm from "node:vm";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
 import { createConsolePage } from "../ui/consolePage.js";
-import { sleep, listen, findBrowserPath, close } from "./entrypointUtils.js";
-import {
-  configureModel,
-  sendChat,
-  waitForChatResult,
-  navigateAndWait,
-  installFetchRecorderOnNewDocument,
-  readPersistedStoreSummary,
-  inspectPng,
-  readDevToolsPort,
-  createCdpPage,
-  connectCdp,
-  closeCdpSilently,
-  waitForExpression,
-  terminateBrowser,
-} from "./verifyWebChatModelConfigRestartPersistenceHelpers.js";
 
 const PHASE = "phase-89a-web-chat-model-config-restart-persistence";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -36,7 +40,6 @@ const evidenceMdPath = resolve(evidenceDir, "phase-89a-web-chat-model-config-res
 const evidencePngPath = resolve(evidenceDir, "phase-89a-web-chat-model-config-restart-persistence.png");
 const testApiKey = "phase89-persistable-api-key-not-for-evidence";
 const chatModelId = "phase89-persisted-chat-model";
-const selectedPreviewValue = `openai-compatible::${chatModelId}`;
 const expectedRuntimeValue = `generic-openai-compatible::${chatModelId}`;
 const reloadPrompt = "first reload chat marker";
 const restartPrompt = "first restart chat marker";
@@ -189,7 +192,7 @@ try {
     await closeCdpSilently(cdp);
   }
 
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyWebChatModelConfigRestartPersistenceEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = evidence.status === "passed" ? 0 : 1;
 } catch (error) {
@@ -200,7 +203,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "web-chat-model-config-restart-persistence-not-connected",
   };
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyWebChatModelConfigRestartPersistenceEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -308,6 +311,19 @@ function createMockOpenAiCompatibleProvider(requests) {
   });
 }
 
+function summarizeMockRequests(requests) {
+  const streamRequests = requests.filter((request) => request.method === "POST" && request.url === "/v1/chat/completions" && request.stream);
+  return {
+    requestCount: requests.length,
+    modelListRequestCount: requests.filter((request) => request.method === "GET" && request.url === "/v1/models").length,
+    nonStreamChatRequestCount: requests.filter((request) => request.method === "POST" && request.url === "/v1/chat/completions" && !request.stream).length,
+    streamChatRequestCount: streamRequests.length,
+    streamModels: Array.from(new Set(streamRequests.map((request) => request.model).filter(Boolean))),
+    prompts: requests.map((request) => request.prompt).filter(Boolean),
+    authorizationRedacted: requests.every((request) => !request.hasAuthorization || request.authorizationRedacted === "Bearer ***"),
+  };
+}
+
 function sendJson(response, statusCode, body) {
   response.writeHead(statusCode, { "content-type": "application/json; charset=utf-8" });
   response.end(JSON.stringify(body));
@@ -320,6 +336,8 @@ function verifyEmbeddedScriptSyntax() {
   new vm.Script(match[1], { filename: "consolePage-inline.js" });
 }
 
+
+
 async function reservePort() {
   const probe = createServer();
   await listen(probe, 0, "127.0.0.1");
@@ -328,17 +346,43 @@ async function reservePort() {
   return port;
 }
 
-function summarizeMockRequests(requests) {
-  const streamRequests = requests.filter((request) => request.method === "POST" && request.url === "/v1/chat/completions" && request.stream);
-  return {
-    requestCount: requests.length,
-    modelListRequestCount: requests.filter((request) => request.method === "GET" && request.url === "/v1/models").length,
-    nonStreamChatRequestCount: requests.filter((request) => request.method === "POST" && request.url === "/v1/chat/completions" && !request.stream).length,
-    streamChatRequestCount: streamRequests.length,
-    streamModels: Array.from(new Set(streamRequests.map((request) => request.model).filter(Boolean))),
-    prompts: requests.map((request) => request.prompt).filter(Boolean),
-    authorizationRedacted: requests.every((request) => !request.hasAuthorization || request.authorizationRedacted === "Bearer ***"),
-  };
+async function writeVerifyWebChatModelConfigRestartPersistenceEvidence(body) {
+  await writeEvidenceFiles({
+    evidenceDir,
+    evidenceJsonPath,
+    evidenceMdPath,
+    body,
+    renderMarkdown: createEvidenceMarkdown,
+  });
+}
+
+function createEvidenceMarkdown(body) {
+  return `# Phase 89A Web Chat Model Config Restart Persistence Evidence
+
+- Phase: ${body.phase}
+- Status: ${body.status}
+- Generated at: ${body.generatedAt}
+- Service URL: ${body.service?.url ?? "n/a"}
+- Same port restart: ${body.service?.samePortRestart}
+- Runtime credential store mode: ${body.service?.runtimeCredentialStoreMode ?? "n/a"}
+- Runtime credential store path present: ${body.service?.runtimeCredentialStorePathPresent}
+- Persisted providers: ${(body.persistedStore?.providers ?? []).join(", ") || "none"}
+- Persisted model ids: ${(body.persistedStore?.modelIds ?? []).join(", ") || "none"}
+- Reload provider/model: ${body.ui?.reloadState?.chatStreamFetch?.providerId ?? "n/a"} / ${body.ui?.reloadState?.chatStreamFetch?.model ?? "n/a"}
+- Reload answer marker: ${body.ui?.reloadState?.assistantAnswerIncludesExpectedMarker}
+- Restart provider/model: ${body.ui?.restartState?.chatStreamFetch?.providerId ?? "n/a"} / ${body.ui?.restartState?.chatStreamFetch?.model ?? "n/a"}
+- Restart answer marker: ${body.ui?.restartState?.assistantAnswerIncludesExpectedMarker}
+- Stream chat request count: ${body.mockProvider?.streamChatRequestCount ?? "n/a"}
+- Local mock provider only: ${body.safety?.localMockProviderOnly}
+- Real provider calls: ${body.safety?.realProviderCalls}
+- API key persisted in evidence: ${body.safety?.apiKeyPersistedInEvidence}
+- Default chat main lane changed: ${body.safety?.defaultChatMainLaneChanged}
+- Screenshot path: ${body.screenshot?.path ?? "n/a"}
+- Screenshot bytes: ${body.screenshot?.bytes ?? "n/a"}
+- Screenshot dimensions: ${body.screenshot?.width ?? "n/a"}x${body.screenshot?.height ?? "n/a"}
+- Valid PNG: ${body.screenshot?.validPng}
+- Conclusion: ${body.conclusion}
+`;
 }
 
 function safeJsonParse(text) {

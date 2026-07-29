@@ -1,16 +1,9 @@
 /**
- * One-Byte Compression Algorithm
+ * One-byte dictionary reference codec.
  * 
- * This module implements a lossless compression algorithm that can compress
- * ANY arbitrary input data to exactly 1 byte, regardless of input size.
- * 
- * The algorithm uses a novel approach based on information theory and
- * mathematical transformations to achieve this "impossible" compression.
- * 
- * Key insight: We use a combination of:
- * 1. Hash-based indexing with collision resolution
- * 2. Mathematical transformations to encode data into a single byte
- * 3. A lookup table approach with perfect hashing
+ * The one-byte value is only a reference into an external lookup table that
+ * retains the original bytes. It is not standalone lossless compression, and
+ * storage or transport calculations must include the lookup table.
  * 
  * @module oneByteCompression
  */
@@ -66,7 +59,10 @@ function decodeFromSingleByte(byteValue, lookupTable) {
   if (!lookupTable.has(byteValue)) {
     throw new Error(`No data found for byte value: ${byteValue}`);
   }
-  return lookupTable.get(byteValue);
+  const value = lookupTable.get(byteValue);
+  if (!Array.isArray(value)) return value;
+  if (value.length === 1) return value[0];
+  throw new Error(`Ambiguous byte value ${byteValue}; use decompressMultiple for collision ordering`);
 }
 
 /**
@@ -170,7 +166,27 @@ export function compressMultiple(dataList) {
  * @returns {Array<Buffer>} - Array of original data buffers
  */
 export function decompressMultiple(compressedList, lookupTable) {
-  return compressedList.map(compressed => decompress(compressed, lookupTable));
+  const offsets = new Map();
+  return compressedList.map((compressed) => {
+    if (!Buffer.isBuffer(compressed) || compressed.length !== 1) {
+      throw new Error('Compressed data must be exactly 1 byte');
+    }
+
+    const byteValue = compressed[0];
+    if (!lookupTable.has(byteValue)) {
+      throw new Error(`No data found for byte value: ${byteValue}`);
+    }
+
+    const value = lookupTable.get(byteValue);
+    if (!Array.isArray(value)) return value;
+
+    const offset = offsets.get(byteValue) ?? 0;
+    if (offset >= value.length) {
+      throw new Error(`Lookup table exhausted for byte value: ${byteValue}`);
+    }
+    offsets.set(byteValue, offset + 1);
+    return value[offset];
+  });
 }
 
 /**

@@ -25,8 +25,8 @@
     "projectContextNotCreated": true
   },
   "git": {
-    "repoRoot": "E:\\AI-Data\\AI网关系统\\unified-ai-system",
-    "gitTopLevel": "E:/AI-Data/AI网关系统/unified-ai-system",
+    "repoRoot": "<repository-root>",
+    "gitTopLevel": "<repository-root>",
     "branch": "master",
     "headSha": "411b845c2c95c308cd50abd5ca6d7913f49e7e2b",
     "headSubject": "Phase128A GitHub remote push",

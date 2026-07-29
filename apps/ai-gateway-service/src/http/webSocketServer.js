@@ -8,19 +8,33 @@ import { createHash } from "node:crypto";
 
 const WS_MAGIC_STRING = "258EAFA5-E914-47DA-95CA-5AB9FFC3B2E8";
 const WS_FRAME_TYPES = { TEXT: 0x01, BINARY: 0x02, CLOSE: 0x08, PING: 0x09, PONG: 0x0a };
+const MAX_WS_CONNECTIONS = 100;
+const MAX_WS_PAYLOAD = 16 * 1024 * 1024;
+const DEFAULT_ALLOWED_ORIGINS = [
+  "http://127.0.0.1:3100",
+  "http://localhost:3100",
+];
 
 /**
  * Create a WebSocket server that upgrades HTTP connections.
  * @param {Object} options
  * @param {Function} options.onConnection - Called when a client connects
  * @param {Function} options.onMessage - Called when a message is received
- * @param {Function} [options.authenticate] - Optional auth check: (request) => boolean | Promise<boolean>
+ * @param {Function} [options.authenticate] - Optional auth check
+ * @param {string[]} [options.allowedOrigins] - Browser origins allowed to upgrade
  * @param {Function} options.onClose - Called when a connection closes
+ * @param {Function} options.onError - Called when frame handling or close fails
  * @returns {Object} WebSocket server with attach() method
  */
 export function createWebSocketServer(options = {}) {
   const connections = new Set();
-  const MAX_WS_CONNECTIONS = 100;
+  const configuredMax = Number(options.maxConnections);
+  const maxConnections = Number.isInteger(configuredMax) && configuredMax > 0
+    ? Math.min(configuredMax, MAX_WS_CONNECTIONS)
+    : MAX_WS_CONNECTIONS;
+  const allowedOrigins = Array.isArray(options.allowedOrigins) && options.allowedOrigins.length > 0
+    ? options.allowedOrigins
+    : DEFAULT_ALLOWED_ORIGINS;
 
   function attach(httpServer) {
     httpServer.on("upgrade", async (request, socket, head) => {
@@ -29,26 +43,26 @@ export function createWebSocketServer(options = {}) {
         return;
       }
 
-      // --- Origin validation ---
-      const allowedOrigins = options.allowedOrigins ?? ["http://127.0.0.1:3100", "http://localhost:3100"];
+      const reportError = (error, context = {}) => {
+        options.onError?.(error, { path: request.url, ...context });
+      };
       const origin = request.headers.origin;
-      if (origin && !allowedOrigins.includes("*") && !allowedOrigins.includes(origin)) {
-        socket.write("HTTP/1.1 403 Forbidden\r\n\r\n");
-        socket.destroy();
+      const wildcardAllowed = allowedOrigins.includes("*") && process.env.NODE_ENV !== "production";
+      if (origin && !wildcardAllowed && !allowedOrigins.includes(origin)) {
+        rejectUpgrade(socket, "403 Forbidden");
         return;
       }
 
-      // Authentication gate (if configured)
       if (options.authenticate) {
-        let authorized = false;
         try {
-          authorized = await options.authenticate(request);
-        } catch {
-          authorized = false;
-        }
-        if (!authorized) {
-          socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
-          socket.destroy();
+          const authorized = await options.authenticate(request);
+          if (!authorized) {
+            rejectUpgrade(socket, "401 Unauthorized");
+            return;
+          }
+        } catch (error) {
+          reportError(error, { event: "ws_authentication_failed" });
+          rejectUpgrade(socket, "401 Unauthorized");
           return;
         }
       }
@@ -56,6 +70,21 @@ export function createWebSocketServer(options = {}) {
       const key = request.headers["sec-websocket-key"];
       if (!key) {
         socket.destroy();
+        return;
+      }
+
+      if (connections.size >= maxConnections) {
+        socket.write(
+          "HTTP/1.1 503 Service Unavailable\r\n"
+          + "Connection: close\r\n"
+          + "Retry-After: 5\r\n"
+          + "Content-Length: 0\r\n\r\n",
+        );
+        socket.destroy();
+        options.onError?.(
+          new Error("WebSocket connection limit reached."),
+          { event: "ws_connection_limit", maxConnections },
+        );
         return;
       }
 
@@ -70,14 +99,7 @@ export function createWebSocketServer(options = {}) {
         `Sec-WebSocket-Accept: ${acceptKey}\r\n\r\n`
       );
 
-      // Connection cap: reject if too many connections
-      if (connections.size >= MAX_WS_CONNECTIONS) {
-        socket.write("HTTP/1.1 503 Service Unavailable\r\n\r\n");
-        socket.destroy();
-        return;
-      }
-
-      const ws = createWebSocketConnection(socket);
+      const ws = createWebSocketConnection(socket, reportError);
       connections.add(ws);
 
       if (options.onConnection) {
@@ -92,17 +114,16 @@ export function createWebSocketServer(options = {}) {
           const frame = decodeFrame(buffer);
           if (frame.type === WS_FRAME_TYPES.TEXT) {
             const result = ws.onMessage(frame.payload.toString("utf8"), ws);
-            // Catch async rejections to prevent unhandled promise rejection crash
             if (result && typeof result.catch === "function") {
-              result.catch((err) => { console.warn("[ws] async message handler error:", err?.message); });
+              result.catch((error) => reportError(error, { event: "ws_message_rejected" }));
             }
           } else if (frame.type === WS_FRAME_TYPES.CLOSE) {
             ws.close();
           } else if (frame.type === WS_FRAME_TYPES.PING) {
             ws.sendPong(frame.payload);
           }
-        } catch (e) {
-          // Invalid frame, ignore
+        } catch (error) {
+          reportError(error, { event: "ws_frame_rejected" });
         }
       });
 
@@ -129,13 +150,22 @@ export function createWebSocketServer(options = {}) {
   }
 
   function getConnections() {
-    return connections;
+    return new Set(connections);
   }
 
   return { attach, broadcast, getConnectionCount, getConnections };
 }
 
-function createWebSocketConnection(socket) {
+function rejectUpgrade(socket, status) {
+  socket.write(
+    `HTTP/1.1 ${status}\r\n`
+    + "Connection: close\r\n"
+    + "Content-Length: 0\r\n\r\n",
+  );
+  socket.destroy();
+}
+
+function createWebSocketConnection(socket, reportError = () => {}) {
   return {
     socket,
     send(data) {
@@ -149,7 +179,10 @@ function createWebSocketConnection(socket) {
       try {
         socket.write(encodeFrame(Buffer.alloc(0), WS_FRAME_TYPES.CLOSE));
         socket.end();
-      } catch (err) { console.error("[webSocketServer]:", err?.message || err); }
+      } catch (error) {
+        reportError(error, { event: "ws_close_failed" });
+        socket.destroy();
+      }
     },
     onMessage: null,
     onClose: null,
@@ -190,25 +223,31 @@ function decodeFrame(buffer) {
   let offset = 2;
 
   if (payloadLength === 126) {
+    if (buffer.length < 4) throw new Error("Incomplete WebSocket frame header");
     payloadLength = buffer.readUInt16BE(2);
     offset = 4;
   } else if (payloadLength === 127) {
+    if (buffer.length < 10) throw new Error("Incomplete WebSocket frame header");
     payloadLength = Number(buffer.readBigUInt64BE(2));
     offset = 10;
   }
 
-  const MAX_WS_PAYLOAD = 16 * 1024 * 1024; // 16 MB
-  if (payloadLength > MAX_WS_PAYLOAD) {
+  if (!Number.isSafeInteger(payloadLength) || payloadLength > MAX_WS_PAYLOAD) {
     throw new Error("WebSocket frame payload exceeds maximum size (16MB)");
   }
-  if (offset + payloadLength > buffer.length) {
-    throw new Error("Incomplete WebSocket frame");
+  if (!masked) {
+    throw new Error("Client WebSocket frames must be masked");
   }
 
   let maskKey = null;
   if (masked) {
-    maskKey = Buffer.from(buffer.subarray(offset, offset + 4));
+    if (buffer.length < offset + 4) throw new Error("Incomplete WebSocket mask");
+    maskKey = buffer.slice(offset, offset + 4);
     offset += 4;
+  }
+
+  if (offset + payloadLength > buffer.length) {
+    throw new Error("Incomplete WebSocket frame");
   }
 
   const payload = Buffer.from(buffer.subarray(offset, offset + payloadLength));

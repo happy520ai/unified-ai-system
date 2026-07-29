@@ -9,22 +9,22 @@
 
 ## 新增工具
 
-- [tools/phase323c/build-phase323c-service-command-index.mjs](/E:/AI-Data/AI网关系统/unified-ai-system/tools/phase323c/build-phase323c-service-command-index.mjs)
+- [tools/phase323c/build-phase323c-service-command-index.mjs](../tools/phase323c/build-phase323c-service-command-index.mjs)
 
 该工具只读以下输入：
 
-- [apps/ai-gateway-service/package.json](/E:/AI-Data/AI网关系统/unified-ai-system/apps/ai-gateway-service/package.json)
-- [docs/phase323c-script-entrypoint-inventory.json](/E:/AI-Data/AI网关系统/unified-ai-system/docs/phase323c-script-entrypoint-inventory.json)
-- [docs/phase323c-script-governance-policy.md](/E:/AI-Data/AI网关系统/unified-ai-system/docs/phase323c-script-governance-policy.md)
+- [apps/ai-gateway-service/package.json](../apps/ai-gateway-service/package.json)
+- [docs/phase323c-script-entrypoint-inventory.json](../docs/phase323c-script-entrypoint-inventory.json)
+- [docs/phase323c-script-governance-policy.md](../docs/phase323c-script-governance-policy.md)
 
 输出：
 
-- [docs/phase323c-service-recommended-command-index.md](/E:/AI-Data/AI网关系统/unified-ai-system/docs/phase323c-service-recommended-command-index.md)
-- [docs/phase323c-service-command-governance-policy.md](/E:/AI-Data/AI网关系统/unified-ai-system/docs/phase323c-service-command-governance-policy.md)
+- [docs/phase323c-service-recommended-command-index.md](../docs/phase323c-service-recommended-command-index.md)
+- [docs/phase323c-service-command-governance-policy.md](../docs/phase323c-service-command-governance-policy.md)
 
 ## Service alias
 
-已在 [apps/ai-gateway-service/package.json](/E:/AI-Data/AI网关系统/unified-ai-system/apps/ai-gateway-service/package.json) 新增 3 个 alias：
+已在 [apps/ai-gateway-service/package.json](../apps/ai-gateway-service/package.json) 新增 3 个 alias：
 
 - `inventory:phase323c`
 - `governance:phase323c`

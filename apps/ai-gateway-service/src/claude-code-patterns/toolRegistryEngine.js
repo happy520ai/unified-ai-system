@@ -6,7 +6,7 @@
 
 import { randomUUID } from "node:crypto";
 import vm from "node:vm";
-import { createToolUseContext } from "./toolCore.js";
+import { buildTool, createToolUseContext } from "./toolCore.js";
 import { createBuiltInTools } from "./developerTools.js";
 import { createGitTools } from "../tools/gitTools.js";
 import { createLspTools } from "../tools/lspTool.js";

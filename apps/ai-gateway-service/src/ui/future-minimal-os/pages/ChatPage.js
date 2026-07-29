@@ -1,5 +1,5 @@
-import { renderStatusPill, renderKPITile } from "./components/NeonComponents.js";
-import { renderToast } from "./components/NeonFeedbackComponents.js";
+import { renderStatusPill, renderKPITile } from "../components/NeonComponents.js";
+import { renderToast } from "../components/NeonFeedbackComponents.js";
 
 /**
  * Chat Page — Neon glassmorphism chat interface

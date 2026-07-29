@@ -4,7 +4,7 @@
 - Status: passed
 - Generated at: 2026-04-26T05:00:58.789Z
 - Service URL: http://127.0.0.1:60578
-- Audit log path: C:\Users\Administrator\AppData\Local\Temp\phase36a-audit-YQWpgf\enterprise-audit.jsonl
+- Audit log path: <user-home>\AppData\Local\Temp\phase36a-audit-YQWpgf\enterprise-audit.jsonl
 - UI audit export present: true
 - Admin dashboard status: 200
 - Viewer denied write status: 403

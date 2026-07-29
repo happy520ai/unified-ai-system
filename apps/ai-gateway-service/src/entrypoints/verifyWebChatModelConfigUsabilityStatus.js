@@ -1,6 +1,6 @@
+import { writeEvidenceFiles } from "./entrypointUtils.js";
 import { spawn } from "node:child_process";
-import { writeEvidencePair } from "./entrypointUtils.js";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -67,7 +67,7 @@ try {
     conclusion: passed ? "web-chat-model-config-usability-status-clear" : "web-chat-model-config-usability-status-not-clear",
   };
 
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyWebChatModelConfigUsabilityStatusEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = passed ? 0 : 1;
 } catch (error) {
@@ -78,7 +78,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "web-chat-model-config-usability-status-not-clear",
   };
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyWebChatModelConfigUsabilityStatusEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 }
@@ -107,6 +107,42 @@ function runNodeScript(scriptPath) {
   });
 }
 
+async function writeVerifyWebChatModelConfigUsabilityStatusEvidence(body) {
+  await writeEvidenceFiles({
+    evidenceDir,
+    evidenceJsonPath,
+    evidenceMdPath,
+    body,
+    renderMarkdown: createEvidenceMarkdown,
+  });
+}
+
+function createEvidenceMarkdown(body) {
+  return `# Phase 87A Web Chat Model Config Usability Status Evidence
+
+- Phase: ${body.phase}
+- Status: ${body.status}
+- Generated at: ${body.generatedAt}
+- Upstream phase: ${body.upstreamPhase ?? "n/a"}
+- Upstream status: ${body.upstreamStatus ?? "n/a"}
+- Provider explained: ${body.checks?.providerExplained}
+- Model explained: ${body.checks?.modelExplained}
+- Runtime explained: ${body.checks?.runtimeExplained}
+- Chat probe explained: ${body.checks?.chatProbeExplained}
+- Chat ready explained: ${body.checks?.chatReadyExplained}
+- Secret safety explained: ${body.checks?.secretSafetyExplained}
+- Persisted choice explained: ${body.checks?.persistedChoiceExplained}
+- Browser secret safety explained: ${body.checks?.browserSecretSafetyExplained}
+- Composer ready dataset: ${body.checks?.composerReadyDataset}
+- Composer provider dataset: ${body.ui?.composerModelProviderId ?? "n/a"}
+- Composer model dataset: ${body.ui?.composerModelId ?? "n/a"}
+- Local mock provider only: ${body.safety?.localMockProviderOnly}
+- Real provider calls: ${body.safety?.realProviderCalls}
+- API key persisted in evidence: ${body.safety?.apiKeyPersistedInEvidence}
+- Default chat main lane changed: ${body.safety?.defaultChatMainLaneChanged}
+- Conclusion: ${body.conclusion}
+`;
+}
 
 function redactLongText(value) {
   const text = String(value || "");

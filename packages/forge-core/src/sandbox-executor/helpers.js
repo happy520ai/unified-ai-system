@@ -204,6 +204,10 @@ export function isPathDenied(targetPath, denied) {
  */
 export function resolveEffectiveLevel(override, defaultLevel, platform) {
   const requested = override ?? defaultLevel;
+  if (requested === SandboxLevel.WORKTREE) {
+    return SandboxLevel.WORKTREE;
+  }
+
   const maxLevel = getMaxLevelForPlatform(platform);
   const levels = [SandboxLevel.NONE, SandboxLevel.PROCESS, SandboxLevel.FILESYSTEM, SandboxLevel.FULL];
   const requestedIdx = levels.indexOf(requested);

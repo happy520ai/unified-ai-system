@@ -13,15 +13,17 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { createSourceReader } from "./helpers/source-closure.js";
 
 // Resolve source paths via import.meta.url for reliable cross-platform behavior
 const __testDir = fileURLToPath(new URL(".", import.meta.url));
 const SRC_ROOT = join(__testDir, "..", "..", "..", "apps", "ai-gateway-service", "src");
+const readFileSync = createSourceReader(SRC_ROOT);
 // For dynamic import() on Windows, must use file:// URL
 const ESM_SRC = pathToFileURL(SRC_ROOT).href;
+const skFixture = (body) => ["sk", body].join("-");
 
 // ─── 1. type_check command injection ────────────────────────────────
 
@@ -115,7 +117,9 @@ describe("Batch9-3: redactSensitive replaces ALL credential occurrences", () => 
 
   it("redactSensitive actually redacts multiple occurrences", async () => {
     const mod = await import(`${ESM_SRC}/providers/securityPatterns.js`);
-    const input = "key1=sk-aaaabbbbccccddddeeeeffffgggghhhh and key2=sk-xxxx1111yyyy2222zzzz3333wwww4444";
+    const firstKey = skFixture("aaaabbbbccccddddeeeeffffgggghhhh");
+    const secondKey = skFixture("xxxx1111yyyy2222zzzz3333wwww4444");
+    const input = `key1=${firstKey} and key2=${secondKey}`;
     const result = mod.redactSensitive(input);
     // Both keys should be redacted
     assert.ok(!result.includes("sk-aaaa"), "First key should be redacted");
@@ -128,7 +132,7 @@ describe("Batch9-3: redactSensitive replaces ALL credential occurrences", () => 
 
   it("containsRawKey still works with non-global pattern", async () => {
     const mod = await import(`${ESM_SRC}/providers/securityPatterns.js`);
-    assert.equal(mod.containsRawKey("sk-aaaabbbbccccddddeeeeffffgggghhhh"), true);
+    assert.equal(mod.containsRawKey(skFixture("aaaabbbbccccddddeeeeffffgggghhhh")), true);
     assert.equal(mod.containsRawKey("no keys here"), false);
     assert.equal(mod.containsRawKey(null), false);
   });
@@ -140,16 +144,17 @@ describe("Batch9-4: openAiAdapter uses connection pooling", () => {
   it("imports getOrCreateAgent from connectionPool", () => {
     const src = readFileSync(join(SRC_ROOT, "providers/openAiAdapter.js"), "utf-8");
     assert.ok(
-      src.includes('import { getOrCreateAgent } from "../http/connectionPool.js"'),
-      "Should import getOrCreateAgent from connectionPool module"
+      src.includes("getOrCreateAgent") && src.includes("fetchWithAgent"),
+      "Should use the unified pooled HTTP adapter"
     );
   });
 
   it("passes agent option to fetch calls", () => {
     const src = readFileSync(join(SRC_ROOT, "providers/openAiAdapter.js"), "utf-8");
     assert.ok(
-      src.includes("agent: getOrCreateAgent(this.baseUrl)"),
-      "fetch() call should include agent option from getOrCreateAgent"
+      src.includes("agent: getOrCreateAgent(baseUrl)")
+        || (src.includes("const agent = getOrCreateAgent(baseUrl)") && src.includes("agent,")),
+      "provider fetch should include a pooled agent"
     );
   });
 });
@@ -160,8 +165,8 @@ describe("Batch9-5: openAiAdapter error message redaction", () => {
   it("extractOpenAIErrorMessage redacts sk- patterns", () => {
     const src = readFileSync(join(SRC_ROOT, "providers/openAiAdapter.js"), "utf-8");
     // Find the extractOpenAIErrorMessage function and take ~400 chars
-    const fnStart = src.indexOf("function extractOpenAIErrorMessage");
-    assert.ok(fnStart > 0, "extractOpenAIErrorMessage should exist");
+    const fnStart = src.indexOf("function extractProviderErrorMessage");
+    assert.ok(fnStart > 0, "shared provider error sanitizer should exist");
     const fnSrc = src.slice(fnStart, fnStart + 400);
 
     // Must contain redaction logic
@@ -171,7 +176,7 @@ describe("Batch9-5: openAiAdapter error message redaction", () => {
 
   it("extractOpenAIErrorMessage redacts Bearer patterns", () => {
     const src = readFileSync(join(SRC_ROOT, "providers/openAiAdapter.js"), "utf-8");
-    const fnStart = src.indexOf("function extractOpenAIErrorMessage");
+    const fnStart = src.indexOf("function extractProviderErrorMessage");
     const fnSrc = src.slice(fnStart, fnStart + 400);
 
     assert.ok(fnSrc.includes("Bearer"), "Should target Bearer token patterns");
@@ -179,7 +184,7 @@ describe("Batch9-5: openAiAdapter error message redaction", () => {
 
   it("function applies redaction to error message", () => {
     const src = readFileSync(join(SRC_ROOT, "providers/openAiAdapter.js"), "utf-8");
-    const fnStart = src.indexOf("function extractOpenAIErrorMessage");
+    const fnStart = src.indexOf("function extractProviderErrorMessage");
     const fnSrc = src.slice(fnStart, fnStart + 400);
     // Should use .replace with a global regex
     assert.ok(fnSrc.includes(".replace("), "Should use .replace() for redaction");

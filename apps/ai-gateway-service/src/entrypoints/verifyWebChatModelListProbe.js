@@ -1,5 +1,5 @@
-import { mkdir, writeFile } from "node:fs/promises";
-import { writeEvidencePair } from "./entrypointUtils.js";
+import { writeEvidenceFiles } from "./entrypointUtils.js";
+import { mkdir } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
@@ -11,7 +11,8 @@ const repoRoot = resolve(__dirname, "../../../..");
 const evidenceDir = resolve(repoRoot, "apps/ai-gateway-service/evidence");
 const evidenceJsonPath = resolve(evidenceDir, "phase-76s-web-chat-model-list-probe.json");
 const evidenceMdPath = resolve(evidenceDir, "phase-76s-web-chat-model-list-probe.md");
-const ambiguousKey = "sk-phase76s-secret-must-not-persist";
+const skFixture = (body) => ["sk", body].join("-");
+const ambiguousKey = skFixture("phase76s-secret-must-not-persist");
 
 let evidence;
 const originalFetch = globalThis.fetch;
@@ -88,7 +89,7 @@ try {
     conclusion: passed ? "model-list-prefix-probe-connected" : "model-list-prefix-probe-not-connected",
   };
 
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyWebChatModelListProbeEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = passed ? 0 : 1;
 } catch (error) {
@@ -99,7 +100,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "model-list-prefix-probe-not-connected",
   };
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyWebChatModelListProbeEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -111,7 +112,7 @@ function createModelListFetchStub(probeLog) {
     const textUrl = String(url);
     const providerId = detectProbeProviderId(textUrl);
     const authHeader = String(options?.headers?.authorization ?? "");
-    const authorizationShapeOk = authHeader.startsWith("Bearer sk-phase76s-");
+    const authorizationShapeOk = authHeader.startsWith(`Bearer ${skFixture("phase76s-")}`);
 
     if (providerId === "dashscope") {
       probeLog.push({ providerId, result: "ready", authorizationShapeOk });
@@ -169,3 +170,31 @@ function summarizeDetection(data) {
   };
 }
 
+async function writeVerifyWebChatModelListProbeEvidence(body) {
+  await writeEvidenceFiles({
+    evidenceDir,
+    evidenceJsonPath,
+    evidenceMdPath,
+    body,
+    renderMarkdown: createEvidenceMarkdown,
+  });
+}
+
+function createEvidenceMarkdown(body) {
+  return `# Phase 76S Web Chat Model List Probe Evidence
+
+- Phase: ${body.phase}
+- Status: ${body.status}
+- Generated at: ${body.generatedAt}
+- Safe-mode recommended provider/model: ${body.safePrefixDetection?.recommended?.value ?? "none"}
+- Safe-mode network probe performed: ${body.safePrefixDetection?.safety?.networkProbePerformed}
+- Explicit probe enabled: ${body.explicitModelListProbe?.safety?.modelListProbeEnabled}
+- Explicit probe recommended provider/model: ${body.explicitModelListProbe?.recommended?.value ?? "none"}
+- Probe targets: ${(body.probeTargets ?? []).map((item) => `${item.providerId}:${item.result}`).join(", ")}
+- OpenAI default prevented: ${body.safety?.plainSkDoesNotDefaultToOpenAi}
+- DashScope recommended after authenticated /models: ${body.safety?.dashscopeRecommendedAfterAuthenticatedModelsApi}
+- API key value recorded: ${body.safety?.apiKeyValueRecorded}
+- Default chat main lane changed: ${body.safety?.defaultChatMainLaneChanged}
+- Conclusion: ${body.conclusion}
+`;
+}

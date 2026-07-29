@@ -14,7 +14,7 @@ application, automatic commit/push, or production-grade RAG.
 Start from the project root:
 
 ```powershell
-cd E:\AI-Data\AI网关系统\unified-ai-system
+cd <repository-root>
 cmd /c pnpm run status:phase10a
 cmd /c pnpm run health:phase12a
 ```

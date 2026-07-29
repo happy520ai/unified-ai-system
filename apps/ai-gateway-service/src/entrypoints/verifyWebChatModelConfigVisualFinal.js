@@ -1,6 +1,6 @@
+import { writeEvidenceFiles } from "./entrypointUtils.js";
 import { spawn } from "node:child_process";
-import { writeEvidencePair } from "./entrypointUtils.js";
-import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, stat } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -94,7 +94,7 @@ try {
   };
 }
 
-await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+await writeVerifyWebChatModelConfigVisualFinalEvidence(evidence);
 console.log(JSON.stringify(evidence, null, 2));
 process.exitCode = evidence.status === "passed" ? 0 : 1;
 
@@ -143,3 +143,36 @@ async function inspectPng(path) {
   };
 }
 
+async function writeVerifyWebChatModelConfigVisualFinalEvidence(body) {
+  await writeEvidenceFiles({
+    evidenceDir,
+    evidenceJsonPath,
+    evidenceMdPath,
+    body,
+    renderMarkdown: createEvidenceMarkdown,
+  });
+}
+
+function createEvidenceMarkdown(body) {
+  return `# Phase 99A Web Chat Model Config Visual Final Evidence
+
+- Phase: ${body.phase}
+- Status: ${body.status}
+- Generated at: ${body.generatedAt}
+- Delegated Phase98A status: ${body.delegatedCheck?.status ?? "n/a"}
+- Screenshot: ${body.delegatedCheck?.screenshot ?? "n/a"}
+- Screenshot bytes: ${body.screenshot?.bytes ?? "n/a"}
+- Screenshot size: ${body.screenshot?.width ?? "n/a"}x${body.screenshot?.height ?? "n/a"}
+- Composer prompt readable: ${body.visualChecks?.composerPromptReadable}
+- Wizard readable: ${body.visualChecks?.wizardReadable}
+- Success readable: ${body.visualChecks?.successReadable}
+- Ready-to-chat readable: ${body.visualChecks?.readyToChatReadable}
+- Local mock provider only: ${body.safety?.localMockProviderOnly}
+- Real provider calls: ${body.safety?.realProviderCalls}
+- API key persisted in browser: ${body.safety?.apiKeyPersistedInBrowser}
+- API key persisted in evidence: ${body.safety?.apiKeyPersistedInEvidence}
+- Default chat main lane changed: ${body.safety?.defaultChatMainLaneChanged}
+- Backend business route added: ${body.safety?.backendBusinessRouteAdded}
+- Conclusion: ${body.conclusion}
+`;
+}

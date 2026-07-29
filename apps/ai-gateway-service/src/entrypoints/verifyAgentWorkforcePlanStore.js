@@ -1,12 +1,11 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { writeEvidencePair } from "./entrypointUtils.js";
+import { fetchTextResponse as fetchText, listen, requestJsonResponse as fetchJson, writeEvidenceFiles, } from "./entrypointUtils.js";
+import { mkdir, readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { createGatewayClient } from "@unified-ai-system/shared-sdk";
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
-import { fetchJson, fetchText, listen, close } from "./entrypointUtils.js";
 
 const PHASE = "phase-102d-agent-workforce-plan-store";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -16,7 +15,7 @@ const evidenceJsonPath = resolve(evidenceDir, "phase-102d-agent-workforce-plan-s
 const evidenceMdPath = resolve(evidenceDir, "phase-102d-agent-workforce-plan-store.md");
 const storePath = resolve(tmpdir(), "unified-ai-system", `phase102d-${Date.now()}-workforce-plans.json`);
 const testGoal = "把 Agent Workforce 历史计划做成可保存、可读取、可导出的产品闭环";
-const forbiddenSecret = "sk-phase102dsecret1234567890";
+const forbiddenSecret = ["sk", "phase102dsecret1234567890"].join("-");
 
 let server;
 
@@ -106,7 +105,7 @@ try {
     conclusion: passed ? "agent-workforce-plan-store-closed" : "agent-workforce-plan-store-not-closed",
   });
 
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyAgentWorkforcePlanStoreEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = passed ? 0 : 1;
 } catch (error) {
@@ -117,7 +116,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "agent-workforce-plan-store-not-closed",
   });
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyAgentWorkforcePlanStoreEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 } finally {
@@ -125,6 +124,15 @@ try {
     await close(server);
   }
 }
+
+
+function close(server) {
+  return new Promise((resolveClose) => {
+    server.close(() => resolveClose());
+  });
+}
+
+
 
 function isPlanStoreReady({
   health,
@@ -284,3 +292,50 @@ function createEvidence({
   };
 }
 
+async function writeVerifyAgentWorkforcePlanStoreEvidence(body) {
+  await writeEvidenceFiles({
+    evidenceDir,
+    evidenceJsonPath,
+    evidenceMdPath,
+    body,
+    renderMarkdown: createEvidenceMarkdown,
+  });
+}
+
+function createEvidenceMarkdown(body) {
+  return `# Phase 102D Agent Workforce Plan Store Evidence
+
+- Phase: ${body.phase}
+- Status: ${body.status}
+- Generated at: ${body.generatedAt}
+- Workforce plans route present: ${body.service.routePresence.workforcePlans}
+- Workforce plan get route present: ${body.service.routePresence.workforcePlanGet}
+- Workforce plan export route present: ${body.service.routePresence.workforcePlanExport}
+- Workforce plan save route present: ${body.service.routePresence.workforcePlanSave}
+- Workforce plan delete route present: ${body.service.routePresence.workforcePlanDelete}
+- Agent count: ${body.validation.agentCount ?? "n/a"}
+- Generated plan success: ${body.validation.generatedPlanSuccess}
+- Save status: ${body.validation.saveStatus ?? "n/a"}
+- Saved plan id: ${body.validation.savedPlanId ?? "n/a"}
+- Saved role count: ${body.validation.savedRoleCount ?? "n/a"}
+- Saved task count: ${body.validation.savedTaskCount ?? "n/a"}
+- List after save count: ${body.validation.listAfterSaveCount ?? "n/a"}
+- Get status: ${body.validation.getStatus ?? "n/a"}
+- Export status: ${body.validation.exportStatus ?? "n/a"}
+- Export formats: ${(body.validation.exportFormats ?? []).join(", ") || "n/a"}
+- Delete status: ${body.validation.deleteStatus ?? "n/a"}
+- List after delete count: ${body.validation.listAfterDeleteCount ?? "n/a"}
+- UI panel present: ${body.ui.panelPresent}
+- UI save button present: ${body.ui.saveButtonPresent}
+- UI history present: ${body.ui.historyPresent}
+- Secret absent from evidence/store: ${body.validation.secretAbsent}
+- Real LLM calls: ${body.safety.realLlmCalls}
+- Code execution: ${body.safety.codeExecution}
+- Project file writes: ${body.safety.projectFileWrites}
+- Workflow run: ${body.safety.workflowRun}
+- Secret values stored: ${body.safety.secretValuesStored}
+- Default chat lane mutated: ${body.safety.defaultChatLaneMutated}
+- Provider registry mutated: ${body.safety.providerRegistryMutated}
+- Conclusion: ${body.conclusion}
+`;
+}

@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
-import { readFile, rm } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import {
   buildRuntimeRegistry,
@@ -11,10 +11,6 @@ import {
   sampleNaturalLanguageIntakes,
 } from "@unified-ai-system/taiji-beidou-engine";
 import {
-  runWorkforceRealLocal,
-  WORKFORCE_REAL_LOCAL_RUN_MODE,
-} from "../workforce/workforceRealLocalRunner.js";
-import {
   FIVE_CAPABILITY_EVIDENCE_DIR,
   FIVE_CAPABILITY_MARKDOWN_PATH,
   FIVE_CAPABILITY_MODE,
@@ -24,17 +20,14 @@ import {
   createSafetyBoundary,
   inspectCli,
   redactSecrets,
-  saveEvidence,
-  writeText,
-} from "./fiveCapabilityActivationHelpers.js";
+  rollbackGvcEvidenceWrite,
+  writeEvidence,
+} from "./fiveCapabilityActivationSupport.js";
+import {
+  runWorkforceRealLocal,
+  WORKFORCE_REAL_LOCAL_RUN_MODE,
+} from "../workforce/workforceRealLocalRunner.js";
 
-export {
-  FIVE_CAPABILITY_PHASE,
-  FIVE_CAPABILITY_MODE,
-  FIVE_CAPABILITY_EVIDENCE_DIR,
-  FIVE_CAPABILITY_RESULT_PATH,
-  FIVE_CAPABILITY_MARKDOWN_PATH,
-} from "./fiveCapabilityActivationHelpers.js";
 
 export function createFiveCapabilityActivationService({ repoRoot, workforceService, application }) {
   const root = repoRoot || process.cwd();
@@ -134,7 +127,7 @@ export function createFiveCapabilityActivationService({ repoRoot, workforceServi
         "五大能力已进入真实可用激活状态：Workforce 本地执行完成，Three-Mode 真实 Provider 执行器已就绪，Taiji/Beidou 本地沙箱运行完成，GVC 完成受控低风险真实写入，Codex CLI 桥接检测通过；未读取密钥，未部署发布，未提交推送。",
     });
 
-    await saveEvidence(root, result);
+    await writeEvidence(root, result);
     return result;
   }
 
@@ -326,11 +319,11 @@ export function createFiveCapabilityActivationService({ repoRoot, workforceServi
   };
 }
 
-export async function rollbackGvcEvidenceWrite({ repoRoot, files = [] } = {}) {
-  const rootPath = repoRoot || process.cwd();
-  for (const file of files) {
-    const normalized = String(file || "").replaceAll("\\", "/");
-    if (!normalized.startsWith(FIVE_CAPABILITY_EVIDENCE_DIR) || normalized.includes("..")) continue;
-    await rm(resolve(rootPath, normalized), { force: true });
-  }
-}
+export {
+  FIVE_CAPABILITY_EVIDENCE_DIR,
+  FIVE_CAPABILITY_MARKDOWN_PATH,
+  FIVE_CAPABILITY_MODE,
+  FIVE_CAPABILITY_PHASE,
+  FIVE_CAPABILITY_RESULT_PATH,
+  rollbackGvcEvidenceWrite,
+};

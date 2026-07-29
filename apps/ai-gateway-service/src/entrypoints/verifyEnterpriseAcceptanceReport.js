@@ -1,5 +1,5 @@
+import { writeEvidenceFiles } from "./entrypointUtils.js";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { writeEvidencePair } from "./entrypointUtils.js";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -159,7 +159,7 @@ try {
     boundarySummary,
     conclusion: passed ? "enterprise-acceptance-report-ready" : "enterprise-acceptance-report-not-ready",
   });
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyEnterpriseAcceptanceReportEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = passed ? 0 : 1;
 } catch (error) {
@@ -174,7 +174,7 @@ try {
     error: error instanceof Error ? error.message : String(error),
     conclusion: "enterprise-acceptance-report-not-ready",
   });
-  await writeEvidencePair(evidenceDir, evidenceJsonPath, evidenceMdPath, evidence);
+  await writeVerifyEnterpriseAcceptanceReportEvidence(evidence);
   console.log(JSON.stringify(evidence, null, 2));
   process.exitCode = 1;
 }
@@ -402,3 +402,36 @@ function createEvidence({
   };
 }
 
+async function writeVerifyEnterpriseAcceptanceReportEvidence(body) {
+  await writeEvidenceFiles({
+    evidenceDir,
+    evidenceJsonPath,
+    evidenceMdPath,
+    body,
+    renderMarkdown: createEvidenceMarkdown,
+  });
+}
+
+function createEvidenceMarkdown(body) {
+  return `# Phase 43A Enterprise Acceptance Report Evidence
+
+- Phase: ${body.phase}
+- Status: ${body.status}
+- Generated at: ${body.generatedAt}
+- Report path: ${body.reportPath}
+- Evidence required: ${body.evidence?.requiredCount}
+- Evidence passed: ${body.evidence?.passedCount}
+- Evidence missing: ${body.evidence?.missingCount}
+- Evidence failed: ${body.evidence?.failedCount}
+- Required docs present: ${body.docs?.present?.length ?? 0}
+- Required docs missing: ${body.docs?.missing?.length ?? 0}
+- Command status: ${body.commands?.status}
+- Boundary status: ${body.boundaries?.status}
+- Read-only summary: ${body.safety?.readOnlySummary}
+- Provider calls: ${body.safety?.providerCalls}
+- Release automation: ${body.safety?.releaseAutomation}
+- Infrastructure provisioning: ${body.safety?.infrastructureProvisioning}
+- Secret values recorded: ${body.safety?.secretValuesRecorded}
+- Conclusion: ${body.conclusion}
+`;
+}

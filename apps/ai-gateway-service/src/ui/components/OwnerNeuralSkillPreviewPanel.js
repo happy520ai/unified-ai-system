@@ -13,7 +13,7 @@ export function renderOwnerNeuralSkillPreviewPanel() {
                       <strong>只读预览</strong>
                     </div>
                     <p class="owner-neural-skill-preview-summary">
-                      这里展示本地 Neural Skill 的预览状态，来自 ${ownerNeuralSkillPreview.registryMode}，不会启动真实模型，也不会接入主链路                    </p>
+                      这里展示本地 Neural Skill 的预览状态，来自 ${ownerNeuralSkillPreview.registryMode}，不会启动真实模型，也不会接入主链。                    </p>
                     <div class="owner-neural-skill-preview-grid">
                       <div>
                         <span>当前没有真实训练</span>
@@ -24,7 +24,7 @@ export function renderOwnerNeuralSkillPreviewPanel() {
                         <strong>mainChainIntegrated=false</strong>
                       </div>
                       <div>
-                        <span>当前为dry-run / inference-only preview</span>
+                        <span>当前为 dry-run / inference-only preview</span>
                         <strong>providerCallsMade=false</strong>
                       </div>
                     </div>

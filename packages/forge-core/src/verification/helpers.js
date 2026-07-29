@@ -3,9 +3,12 @@
  * extracted from the VerificationEngine class for reusability and testability.
  */
 
-import { execSync } from 'node:child_process';
+import { execFileSync, execSync } from 'node:child_process';
 import { readFile, access, readdir } from 'node:fs/promises';
 import { join, extname, basename } from 'node:path';
+import { runSmokeTest } from './smokeTest.js';
+
+export { runSmokeTest } from './smokeTest.js';
 
 /** Patterns that indicate potentially dangerous code */
 export const UNSAFE_PATTERNS = [
@@ -58,12 +61,15 @@ export function findLineNumber(content, regex) {
 export function runCheck(name, command, projectRoot, timeout = 60000) {
   const start = Date.now();
   try {
-    const output = execSync(command, {
+    const options = {
       cwd: projectRoot,
       encoding: 'utf-8',
       timeout,
       stdio: ['pipe', 'pipe', 'pipe'],
-    });
+    };
+    const output = Array.isArray(command)
+      ? execFileSync(command[0], command.slice(1), options)
+      : execSync(command, options);
     return { name, status: 'PASS', output: output.slice(0, 3000), durationMs: Date.now() - start };
   } catch (err) {
     const output = (err.stderr || err.stdout || err.message || '').slice(0, 3000);
@@ -277,66 +283,6 @@ export async function analyzeDiff(filesModified, projectRoot) {
 }
 
 /**
- * Run a smoke test by spawning the server and checking its response.
- */
-export async function runSmokeTest(projectRoot) {
-  const start = Date.now();
-  const port = 30000 + Math.floor(Math.random() * 10000);
-
-  try {
-    const { spawn } = await import('node:child_process');
-    const serverProcess = spawn('node', ['src/server.js'], {
-      cwd: projectRoot,
-      env: { ...process.env, PORT: String(port) },
-      stdio: ['pipe', 'pipe', 'pipe'],
-      timeout: 15000,
-    });
-
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
-    try {
-      const res = await fetch(`http://127.0.0.1:${port}/`, {
-        signal: AbortSignal.timeout(5000),
-      });
-
-      const body = await res.text();
-      serverProcess.kill('SIGTERM');
-
-      if (res.ok) {
-        return {
-          name: 'Smoke Test',
-          status: 'PASS',
-          output: `Server responded ${res.status}: ${body.slice(0, 500)}`,
-          durationMs: Date.now() - start,
-        };
-      } else {
-        return {
-          name: 'Smoke Test',
-          status: 'FAIL',
-          output: `Server responded ${res.status}: ${body.slice(0, 500)}`,
-          durationMs: Date.now() - start,
-        };
-      }
-    } catch (fetchErr) {
-      serverProcess.kill('SIGTERM');
-      return {
-        name: 'Smoke Test',
-        status: 'FAIL',
-        output: `Server did not respond on port ${port}: ${fetchErr.message}`,
-        durationMs: Date.now() - start,
-      };
-    }
-  } catch (err) {
-    return {
-      name: 'Smoke Test',
-      status: 'FAIL',
-      output: `Failed to start server: ${err.message}`,
-      durationMs: Date.now() - start,
-    };
-  }
-}
-
-/**
  * Run Tier 1: Static Analysis checks.
  */
 export async function runStaticAnalysis(projectRoot) {
@@ -352,13 +298,30 @@ export async function runStaticAnalysis(projectRoot) {
   }
 
   if (await hasFile('package.json', projectRoot)) {
-    checks.push(runCheck('package.json', 'node -e "JSON.parse(require(\'fs\').readFileSync(\'./package.json\',\'utf8\'))"', projectRoot, 10000));
-  }
-
-  if (await hasFile('package.json', projectRoot)) {
     const pkg = await readPkg(projectRoot);
+    checks.push({
+      name: 'package.json',
+      status: pkg ? 'PASS' : 'FAIL',
+      output: pkg ? 'package.json parsed successfully' : 'package.json is not valid JSON',
+      durationMs: 0,
+    });
     if (pkg?.type === 'module') {
-      checks.push(runCheck('Module Syntax', 'node --check src/server.js 2>&1 || true', projectRoot, 15000));
+      const entryPath = typeof pkg.main === 'string' ? pkg.main : 'src/index.js';
+      if (await hasFile(entryPath, projectRoot)) {
+        checks.push(runCheck(
+          'Module Syntax',
+          [process.execPath, '--check', entryPath],
+          projectRoot,
+          15000,
+        ));
+      } else {
+        checks.push({
+          name: 'Module Syntax',
+          status: 'SKIP',
+          output: `Module entry not found: ${entryPath}`,
+          durationMs: 0,
+        });
+      }
     }
   }
 
