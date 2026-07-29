@@ -41,6 +41,20 @@ pnpm verify:phase105a-user-journey
 
 These checks do not prove production readiness, L5 autonomy, or AGI.
 
+## Docker Compose Local Runtime
+
+Phase 116A verifies a local Compose build, service health, setup readiness, and
+the Workbench UI without making a Provider request. On Windows PowerShell:
+
+```powershell
+Copy-Item .env.example .env
+pnpm verify:phase116a-docker-compose-runtime
+```
+
+The verifier uses an isolated Compose project and tears it down after the
+checks. Keep port `3100` free while it runs. A passing local container check is
+not evidence of cloud deployment or production readiness.
+
 ## Secret Safety
 
 Before publishing changes, run the Phase 107A compatibility gate:

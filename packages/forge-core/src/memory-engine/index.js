@@ -178,14 +178,9 @@ export class MemoryEngine {
       }
     }
 
-    // Sort: tier priority first, then importance, then recency
-    allResults.sort((a, b) => {
-      if (a._tierPriority !== b._tierPriority) return a._tierPriority - b._tierPriority;
-      const aImportance = a.importance ?? 50;
-      const bImportance = b.importance ?? 50;
-      if (aImportance !== bImportance) return bImportance - aImportance;
-      return b.timestamp - a.timestamp;
-    });
+    // Each tier already returns relevance-ranked results. Stable sorting by
+    // tier keeps that ranking intact while preserving the hot-to-cold policy.
+    allResults.sort((a, b) => a._tierPriority - b._tierPriority);
 
     // Apply token budget
     const entries = [];

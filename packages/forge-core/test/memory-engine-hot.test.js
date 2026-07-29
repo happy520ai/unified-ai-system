@@ -227,7 +227,7 @@ describe('MemoryEngine', () => {
     it('should return entries matching text query', () => {
       const me = new MemoryEngine();
       me.remember('React is used for frontend', { tags: ['frontend'] });
-      me.remember('Node.js powers the backend', { tags: ['backend'] });
+      me.remember('Node.js powers the backend', { tags: ['backend'], importance: 80 });
       me.remember('Database uses PostgreSQL', { tags: ['database'] });
 
       const result = me.recall('frontend');
