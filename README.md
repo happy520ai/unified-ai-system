@@ -22,6 +22,9 @@
   <a href="LICENSE">
     <img alt="License" src="https://img.shields.io/github/license/happy520ai/unified-ai-system?style=flat-square" />
   </a>
+  <a href="https://codespaces.new/happy520ai/unified-ai-system?quickstart=1">
+    <img alt="Open in GitHub Codespaces" src="https://github.com/codespaces/badge.svg" />
+  </a>
 </p>
 
 Unified AI System is a self-hosted AI gateway that brings multi-model routing,
@@ -63,6 +66,10 @@ pnpm gateway demo
 The demo starts the gateway on a temporary local port, verifies health, sends
 one fake-provider chat request, and shuts the process down. It never calls a
 real provider.
+
+The Codespaces button prepares Node.js 22, pnpm 9.15.4, and the workspace
+dependencies in a browser terminal. Its container configuration pins the
+gateway to fake-provider mode; run `pnpm gateway demo` after setup completes.
 
 ## Operate From The Terminal
 

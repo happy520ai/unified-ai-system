@@ -1,0 +1,18 @@
+{
+  "name": "Unified AI System",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:1-22-bookworm",
+  "containerEnv": {
+    "AI_GATEWAY_PROVIDER_MODE": "fake",
+    "AI_GATEWAY_REAL_PROVIDER_ENABLED": "false"
+  },
+  "forwardPorts": [
+    3100
+  ],
+  "portsAttributes": {
+    "3100": {
+      "label": "Unified AI Gateway",
+      "onAutoForward": "notify"
+    }
+  },
+  "postCreateCommand": "corepack enable && corepack prepare pnpm@9.15.4 --activate && pnpm install --frozen-lockfile"
+}

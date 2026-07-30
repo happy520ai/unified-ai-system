@@ -19,6 +19,9 @@
   <a href="LICENSE">
     <img alt="License" src="https://img.shields.io/github/license/happy520ai/unified-ai-system?style=flat-square" />
   </a>
+  <a href="https://codespaces.new/happy520ai/unified-ai-system?quickstart=1">
+    <img alt="在 GitHub Codespaces 中打开" src="https://github.com/codespaces/badge.svg" />
+  </a>
 </p>
 
 Unified AI System 是一个可自行部署的 AI 能力网关，把多模型路由、受治理的
@@ -58,6 +61,10 @@ pnpm gateway demo
 
 演示会在临时本地端口启动网关，完成健康检查和一次 Fake Provider 对话，然后
 自动关闭进程。它不会调用任何真实 Provider。
+
+上方 Codespaces 按钮会在浏览器终端准备 Node.js 22、pnpm 9.15.4 和工作区
+依赖。容器配置固定使用 Fake Provider 模式；准备完成后运行
+`pnpm gateway demo` 即可。
 
 ## 使用终端操作
 
