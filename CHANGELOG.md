@@ -7,6 +7,16 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- A dependency-free JavaScript chat example that checks gateway safety, pins
+  the local fake provider, and verifies fake execution before printing output.
+
+### Changed
+
+- Extended public-clone verification to execute the JavaScript example against
+  the credential-free gateway path.
+
 ## [0.3.2] - 2026-07-30
 
 ### Added
