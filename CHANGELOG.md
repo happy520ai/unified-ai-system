@@ -11,12 +11,15 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 - GitHub community templates, project roadmap, support guide, and launch kit.
 - A real Workbench screenshot and repository social preview.
+- A concise project vision and a complete Simplified Chinese README.
 
 ### Changed
 
 - Refreshed the public Workbench identity around the Unified AI System brand.
 - Replaced stale repository guidance with the maintained public checks.
 - Improved repository metadata, topics, and community entry points.
+- Reordered the main README around the real product, a 60-second container
+  trial, verified capabilities, and honest boundaries.
 
 ## [0.1.0] - 2026-07-30
 

@@ -1,131 +1,90 @@
 # Unified AI System
 
 <p align="center">
-  <strong>The open control plane for a future powered by many models, many agents, and human intent.</strong>
-  <br />
-  面向多模型、多智能体与人类意图的开放智能控制平面。
+  <strong>The open, local-first control plane for models, agents, knowledge, tools, and human intent.</strong>
+</p>
+
+<p align="center">
+  <a href="README.md">English</a> |
+  <a href="README.zh-CN.md">简体中文</a>
 </p>
 
 <p align="center">
   <a href="https://github.com/happy520ai/unified-ai-system/actions/workflows/ci.yml">
-    <img alt="CI" src="https://github.com/happy520ai/unified-ai-system/actions/workflows/ci.yml/badge.svg" />
+    <img alt="CI" src="https://img.shields.io/github/actions/workflow/status/happy520ai/unified-ai-system/ci.yml?branch=master&style=flat-square&label=CI" />
   </a>
   <a href="https://github.com/happy520ai/unified-ai-system/actions/workflows/docker-build-push.yml">
-    <img alt="Container" src="https://github.com/happy520ai/unified-ai-system/actions/workflows/docker-build-push.yml/badge.svg" />
+    <img alt="Container" src="https://img.shields.io/github/actions/workflow/status/happy520ai/unified-ai-system/docker-build-push.yml?branch=master&style=flat-square&label=container" />
   </a>
-  <a href="LICENSE">Apache-2.0</a>
+  <a href="https://github.com/happy520ai/unified-ai-system/releases/latest">
+    <img alt="Release" src="https://img.shields.io/github/v/release/happy520ai/unified-ai-system?style=flat-square" />
+  </a>
+  <a href="LICENSE">
+    <img alt="License" src="https://img.shields.io/github/license/happy520ai/unified-ai-system?style=flat-square" />
+  </a>
 </p>
+
+Unified AI System is a self-hosted AI gateway that brings multi-model routing,
+governed agents, knowledge, tools, approvals, and observability into one
+operating surface.
+
+It starts locally without an API key. Real providers remain explicit opt-in,
+and human authority stays inside the execution path.
 
 <p align="center">
-  <a href="#start-in-minutes">Quick start</a> |
-  <a href="ROADMAP.md">Roadmap</a> |
-  <a href="https://github.com/happy520ai/unified-ai-system/discussions">Discussions</a> |
-  <a href="CONTRIBUTING.md">Contributing</a>
+  <a href="docs/assets/workbench-overview.png">
+    <img
+      src="docs/assets/workbench-overview.png"
+      alt="Unified AI System Gateway Mission Control Workbench"
+      width="100%"
+    />
+  </a>
 </p>
 
-> **Intelligence is becoming abundant. The ability to own, route, govern, and
-> trust it is not.**
+## Try It In 60 Seconds
 
-Unified AI System exists to change that.
+Run the public container:
 
-We are building an open, local-first gateway where models, tools, agents,
-knowledge, and governed automation can work as one system without taking
-control away from the people who operate it.
+```bash
+docker run --rm --publish 3100:3100 \
+  ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:master
+```
 
-**我们相信，未来不会只属于某一个模型、某一家平台或某一种智能。**
+Open [http://127.0.0.1:3100/ui](http://127.0.0.1:3100/ui), or call the gateway:
 
-真正重要的基础设施，是让每个人和每个组织都能自由选择模型、组合能力、
-治理智能体、审计执行过程，并始终保有对数据、成本、权限与最终决策的控制权。
+```bash
+curl --request POST http://127.0.0.1:3100/chat \
+  --header "content-type: application/json" \
+  --data "{\"prompt\":\"Hello from Unified AI System\"}"
+```
 
-**One gateway. Many intelligences. Human authority at the center.**
+The first run uses a deterministic local fake provider. It sends no request to
+an external model.
 
-<p align="center">
-  <img
-    src="docs/assets/workbench-overview.png"
-    alt="Unified AI System local-first Gateway Mission Control Workbench"
-    width="100%"
-  />
-</p>
+## What You Get
 
-## The Mission
-
-The next foundational layer of AI should not be another closed chat box.
-
-It should be an open control plane that can:
-
-- connect intelligence without locking users into one provider;
-- coordinate agents without dissolving accountability;
-- automate meaningful work without hiding risk;
-- carry knowledge and context without surrendering data ownership;
-- turn every important action into something observable, governable, and
-  reversible.
-
-Unified AI System is our attempt to build that layer in the open.
-
-## Why This Matters
-
-AI capability is expanding faster than the systems required to control it.
-Models live behind incompatible APIs. Agents operate in isolated frameworks.
-Tools, memory, permissions, cost controls, and audit trails are repeatedly
-rebuilt as disconnected pieces.
-
-That fragmentation is not merely inconvenient. It makes advanced AI harder to
-trust, harder to move, and harder to place under meaningful human governance.
-
-We believe the enduring breakthrough will come from making intelligence
-**composable, portable, inspectable, and accountable**. A powerful model is a
-component. A trustworthy system is the achievement.
-
-## The Future We Are Building
-
-| Direction | What it means |
+| Capability | Current public preview |
 | --- | --- |
-| **Model freedom** | Applications choose the best available intelligence instead of being trapped by one vendor. |
-| **Agent collaboration** | Specialized agents can plan, communicate, use tools, and contribute through explicit contracts. |
-| **Governed execution** | Permissions, approvals, budgets, evidence, and rollback are part of execution, not an afterthought. |
-| **Local sovereignty** | A useful system can start locally, without mandatory cloud dependence or provider credentials. |
-| **Open evolution** | Providers, protocols, tools, evaluators, and safety mechanisms can improve through public contribution. |
-| **Human authority** | People remain able to understand, interrupt, redirect, and own the systems acting on their behalf. |
+| **AI gateway** | Chat, streaming, health, diagnostics, explicit provider selection, and routing foundations. |
+| **Governed agents** | Structured planning and workforce modules with approval, permission, and evidence surfaces. |
+| **Knowledge and context** | Retrieval, context shaping, reusable knowledge, and memory-oriented modules. |
+| **Mission Control** | A browser Workbench for operating and inspecting the local gateway. |
+| **Extension layer** | Shared contracts, SDKs, provider adapters, tools, and MCP packaging. |
+| **Local-first runtime** | Credential-free startup plus an anonymously pullable multi-architecture container. |
 
-The long-term ambition is an open foundation for increasingly general,
-cooperative, and dependable machine intelligence.
+## Why It Is Different
 
-That ambition is deliberately larger than the current implementation. We will
-not call aspiration achievement: **AGI is not a marketing adjective here. It
-is an evidence standard that must be earned.**
+- **A control plane, not another chat skin.** Models, agents, knowledge, tools,
+  permissions, and evidence belong in one governed execution path.
+- **Useful before cloud configuration.** A fresh clone and the public container
+  can prove the complete local path without provider credentials.
+- **Human authority is architectural.** Real execution is explicit, observable,
+  interruptible, and designed to remain accountable.
 
-Follow the public [roadmap](ROADMAP.md) to see what is verifiable now, what is
-being hardened next, and where contributors can have the most leverage.
+Read the longer [project vision](VISION.md) and the
+[public roadmap](ROADMAP.md).
 
-## What Exists Today
-
-Unified AI System is already a runnable open-source engineering workbench:
-
-- **Unified gateway** for chat, streaming, routing, health, and diagnostics.
-- **Local Workbench** for operating the gateway from a browser at `/ui`.
-- **Provider layer** with explicit model selection and real-provider opt-in.
-- **Agent and workforce modules** for structured planning and collaboration.
-- **Knowledge and context systems** for retrieval, context shaping, and reuse.
-- **Governance surfaces** for approval, permission, evidence, diagnostics, and
-  observability.
-- **Shared contracts and SDKs** for building reusable integrations.
-- **Credential-free verification** through a deterministic local fake provider.
-- **Public container** built for `linux/amd64` and `linux/arm64`.
-
-## Reality Before Rhetoric
-
-Great infrastructure earns trust by making its boundaries visible.
-
-| Question | Verified answer |
-| --- | --- |
-| Can anyone view and clone the repository? | **Yes.** It is public under Apache-2.0. |
-| Can a fresh clone run without an API key? | **Yes.** Installation, health, UI, and fake-provider chat are verified. |
-| Can anyone pull the container image? | **Yes.** The `master` image is anonymously pullable from GHCR. |
-| Is there a hosted public API? | **No.** Users run a local or self-hosted instance. |
-| Can users connect real providers? | **Yes.** They supply their own credentials and explicitly enable execution. |
-| Is this production-certified, L5, or established AGI? | **No such claim is made.** Those claims require independent evidence beyond local tests. |
-
-## Start In Minutes
+## Run From Source
 
 Requirements:
 
@@ -143,38 +102,11 @@ pnpm verify:public-clone
 pnpm start
 ```
 
-Open:
+Useful local endpoints:
 
 - Workbench: [http://127.0.0.1:3100/ui](http://127.0.0.1:3100/ui)
 - Health: [http://127.0.0.1:3100/health/check](http://127.0.0.1:3100/health/check)
 - Setup readiness: [http://127.0.0.1:3100/setup/readiness](http://127.0.0.1:3100/setup/readiness)
-
-The default configuration makes no external provider request.
-
-## Run The Public Container
-
-```bash
-docker run --rm --publish 3100:3100 \
-  ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:master
-```
-
-Then open `http://127.0.0.1:3100/ui`.
-
-The container defaults to the local fake provider. Use `--env-file .env` only
-after reviewing [Provider setup](docs/providers.md).
-
-## Call The Gateway
-
-After starting the service:
-
-```bash
-curl --request POST http://127.0.0.1:3100/chat \
-  --header "content-type: application/json" \
-  --data "{\"prompt\":\"Hello from a public clone\"}"
-```
-
-This request stays on the local fake provider unless a real provider has been
-explicitly configured.
 
 ## Architecture
 
@@ -195,31 +127,53 @@ flowchart LR
     E --> H
 ```
 
-The system is a modular monolith today: one deployable gateway with internal
-ownership boundaries and reusable workspace packages. This keeps local use
-simple while leaving clear paths for protocols, SDKs, and future service
-separation.
+The system is currently a modular monolith: one deployable gateway with clear
+internal ownership boundaries and reusable workspace packages. See the
+[architecture guide](docs/architecture.md) for details.
 
-Read the [architecture guide](docs/architecture.md) for details.
+## Honest Boundaries
 
-## Principles
+| Question | Verified answer |
+| --- | --- |
+| Can anyone clone and inspect the project? | **Yes.** The repository is public under Apache-2.0. |
+| Can a clean clone run without an API key? | **Yes.** Health, UI, and fake-provider chat are verified. |
+| Is the container publicly pullable? | **Yes.** The `master` image is available from GHCR. |
+| Is there a hosted public API? | **No.** Users run a local or self-hosted instance. |
+| Can users connect real providers? | **Yes.** They supply credentials and explicitly enable execution. |
+| Is this production-certified, L5, or established AGI? | **No such claim is made.** Those claims require operational and independent evidence beyond local tests. |
 
-- **Open by design.** Core behavior should be inspectable, extensible, and
-  discussable in public.
-- **Local first.** The first useful experience should not require credentials
-  or surrender control to a remote platform.
-- **Provider neutral.** Models are replaceable capabilities, not permanent
-  architectural owners.
-- **Governance native.** Approval, permission, cost, evidence, and rollback
-  belong inside the execution path.
-- **Evidence over theater.** Tests, reproducible runs, and independent
-  evaluation matter more than ambitious labels.
-- **Reversible progress.** Powerful automation must remain interruptible and
-  recoverable.
-- **Humans remain responsible.** The system can extend judgment; it must not
-  erase ownership of decisions.
+Real provider calls are disabled by default. Begin with
+[`.env.example`](.env.example) and the
+[provider guide](docs/providers.md), and never commit credentials.
 
-## Repository
+## Verify The Project
+
+```bash
+pnpm check
+pnpm test
+pnpm check:public
+pnpm verify:public-clone
+```
+
+Every push to `master` runs Linux CI and a real container startup smoke test.
+The container path checks health, setup readiness, UI delivery, and
+fake-provider chat before the multi-architecture image is published.
+
+## Build With Us
+
+The project is early enough for focused contributions to shape its foundations.
+Current entry points include:
+
+- [Add a credential-free JavaScript chat example](https://github.com/happy520ai/unified-ai-system/issues/2)
+- [Document how to add and test a provider adapter](https://github.com/happy520ai/unified-ai-system/issues/3)
+- [Audit Workbench keyboard navigation and focus states](https://github.com/happy520ai/unified-ai-system/issues/4)
+
+Read [CONTRIBUTING.md](CONTRIBUTING.md), join
+[Discussions](https://github.com/happy520ai/unified-ai-system/discussions), or
+send a focused pull request. Security reports belong in
+[SECURITY.md](SECURITY.md).
+
+## Repository Map
 
 ```text
 apps/
@@ -233,60 +187,20 @@ docs/                     Public user and architecture documentation
 tools/                    Maintained repository and runtime checks
 ```
 
-Historical phase documents, generated evidence, and retired verifier trees are
-kept off `master`. The pre-cleanup engineering history remains available on
-[`codex/archive-before-public-core-cleanup-20260730`](https://github.com/happy520ai/unified-ai-system/tree/codex/archive-before-public-core-cleanup-20260730).
+Historical phase documents and generated evidence stay off `master`. The
+pre-cleanup engineering history remains available on the
+[archive branch](https://github.com/happy520ai/unified-ai-system/tree/codex/archive-before-public-core-cleanup-20260730).
 
-## Verification
+## Project Links
 
-```bash
-pnpm check                 # Check every workspace package
-pnpm test                  # Run maintained workspace tests
-pnpm check:public          # Validate public-repository hygiene
-pnpm verify:public-clone   # Start, probe, chat with, and stop the gateway
-```
+- [v0.1.0 Public Preview](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.1.0)
+- [Documentation](docs/README.md)
+- [Roadmap](ROADMAP.md)
+- [Vision](VISION.md)
+- [Support](SUPPORT.md)
+- [Launch kit](docs/launch-kit.md)
 
-Every push to `master` also runs Linux CI and a real container startup smoke
-test. The container test checks health, setup readiness, UI delivery, and local
-fake-provider chat before publishing the multi-architecture image.
-
-## Real Providers
-
-Real provider calls are disabled by default. Users must provide their own
-credentials, select a provider, and explicitly opt into real execution.
-
-Never commit credentials or authorization inputs. Begin with
-[`.env.example`](.env.example) and the
-[provider guide](docs/providers.md).
-
-## Build With Us
-
-The project is ambitious, but it is still early enough for one excellent
-contribution to reshape its foundations.
-
-You can help by:
-
-- building provider and tool adapters;
-- improving agent protocols and workforce coordination;
-- designing rigorous evaluations and safety gates;
-- advancing local knowledge, memory, and context systems;
-- making the Workbench clearer and more capable;
-- strengthening deployment, observability, and documentation;
-- challenging assumptions with evidence.
-
-Read [CONTRIBUTING.md](CONTRIBUTING.md), open an issue, or send a focused pull
-request. Security reports belong in [SECURITY.md](SECURITY.md).
-
-If this direction resonates, star the repository and help turn an ambitious
-open system into dependable public infrastructure.
-
-Share the project with accurate, ready-to-use copy from the
-[launch kit](docs/launch-kit.md), or start a conversation in
-[GitHub Discussions](https://github.com/happy520ai/unified-ai-system/discussions).
-
----
-
-**The future of AI should not be a black box owned by a few. It should be an
-open system that many people can inspect, extend, govern, and trust.**
+If this direction is useful, star the repository so more builders can find it,
+then tell us what the next trustworthy capability should be.
 
 Licensed under [Apache-2.0](LICENSE).
