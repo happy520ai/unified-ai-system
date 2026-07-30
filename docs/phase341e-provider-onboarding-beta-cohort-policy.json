@@ -1,9 +1,0 @@
-{
-  "phase": "Phase341E",
-  "providerCohortPolicyDefined": true,
-  "onboardingBetaReady": true,
-  "explicitTesterAllowListRequired": true,
-  "noProviderCallFromUi": true,
-  "credentialRefOnly": true,
-  "productionDefaultEnabled": false
-}

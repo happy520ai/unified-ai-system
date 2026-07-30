@@ -1,9 +1,0 @@
-{
-  "phase": "Phase341F",
-  "billingVisibilityPolicyDefined": true,
-  "estimateOnlyBillingReady": true,
-  "actualBillingConnected": false,
-  "legalInvoiceGenerated": false,
-  "visibleTo": "internal_beta_reviewers_only",
-  "productionDefaultEnabled": false
-}

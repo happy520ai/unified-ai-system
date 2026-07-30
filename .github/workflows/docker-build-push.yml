@@ -49,8 +49,8 @@ jobs:
       - name: Workspace check
         run: pnpm -r --if-present check
 
-      - name: Secret safety
-        run: pnpm verify:phase107a-secret-safety
+      - name: Public repository hygiene
+        run: pnpm check:public
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3

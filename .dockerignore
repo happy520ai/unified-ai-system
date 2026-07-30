@@ -25,3 +25,4 @@ legacy/
 
 apps/*/evidence/*.png
 apps/*/evidence/*.tmp
+apps/*/evidence/**

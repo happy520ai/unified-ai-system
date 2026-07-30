@@ -1,9 +1,0 @@
-{
-  "phase": "Phase342F",
-  "shadowConfigOnly": true,
-  "runtimeExposureChanged": false,
-  "providerRealCallExecuted": false,
-  "secretValueExposed": false,
-  "visibleTo": "internal_beta_reviewers_only",
-  "actualBillingConnected": false
-}

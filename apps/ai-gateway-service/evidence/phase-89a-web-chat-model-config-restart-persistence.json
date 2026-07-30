@@ -1,7 +1,0 @@
-{
-  "phase": "phase-89a-web-chat-model-config-restart-persistence",
-  "status": "failed",
-  "generatedAt": "2026-07-29T08:10:59.148Z",
-  "error": "Timed out waiting for expression: document.getElementById('provider-select') !== null; lastError=none",
-  "conclusion": "web-chat-model-config-restart-persistence-not-connected"
-}

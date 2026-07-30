@@ -1,7 +1,0 @@
-# Phase364D Release Command Preflight
-
-DO NOT EXECUTE IN PHASE364
-REQUIRES FINAL MANUAL EXECUTION CONFIRMATION
-DEPLOY NOT EXECUTED BY THIS SCRIPT
-
-Suggested commands are documentation only.

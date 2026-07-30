@@ -1,9 +1,0 @@
-{
-  "phase": "Phase343E",
-  "runtimeFlagDesignGenerated": true,
-  "defaultEnabled": false,
-  "rollbackFlagPresent": true,
-  "perUserPolicyRequired": true,
-  "shadowConfigOnly": true,
-  "flagName": "providerOnboardingGuardedBeta"
-}

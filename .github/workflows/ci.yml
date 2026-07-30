@@ -10,64 +10,17 @@ permissions:
   contents: read
 
 jobs:
-  test:
+  quality:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        node-version: [22]
+    timeout-minutes: 30
+
     steps:
       - uses: actions/checkout@v4
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
-
-      - name: Setup Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node-version }}
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Syntax check
-        run: pnpm -r --if-present check
-
-      - name: Run tests
-        run: pnpm --filter @unified-ai-system/ai-gateway-service test
-        timeout-minutes: 5
-
-  forge-core-test:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        node-version: [22]
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Setup Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ matrix.node-version }}
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Run forge-core tests
-        run: pnpm --filter @unified-ai-system/forge-core test
-        timeout-minutes: 10
-
-  security:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+          version: 9.15.4
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -78,58 +31,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Open-source hygiene
-        run: pnpm run check:open-source-hygiene
+      - name: Workspace checks
+        run: pnpm check
 
-      - name: Secret safety check
-        run: pnpm run verify:phase107a-secret-safety
-        timeout-minutes: 3
+      - name: Maintained tests
+        run: pnpm test
 
-  health:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+      - name: Public repository hygiene
+        run: pnpm check:public
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Start gateway service
-        env:
-          AI_GATEWAY_PROVIDER_MODE: fake
-          AI_GATEWAY_REAL_PROVIDER_ENABLED: "false"
-          PME_ENTERPRISE_AUTH_ENABLED: "false"
-        run: |
-          pnpm start:ai-gateway-service > "$RUNNER_TEMP/ai-gateway-service.log" 2>&1 &
-          echo $! > "$RUNNER_TEMP/ai-gateway-service.pid"
-          for attempt in {1..30}; do
-            if curl --fail --silent http://127.0.0.1:3100/health/check > /dev/null; then
-              exit 0
-            fi
-            sleep 1
-          done
-          cat "$RUNNER_TEMP/ai-gateway-service.log"
-          exit 1
-
-      - name: Health check
-        run: pnpm run health:phase12a
-        timeout-minutes: 2
-
-      - name: Safe regression matrix
-        run: pnpm run verify:safe-regression-matrix
-        timeout-minutes: 3
-
-      - name: Stop gateway service
-        if: always()
-        run: |
-          if [ -f "$RUNNER_TEMP/ai-gateway-service.pid" ]; then
-            kill "$(cat "$RUNNER_TEMP/ai-gateway-service.pid")" 2>/dev/null || true
-          fi
+      - name: Public clone runtime
+        run: pnpm verify:public-clone

@@ -63,3 +63,11 @@ temp_phase*_backup/
 *.backup.*
 .phase*-service.*.log
 .aider*
+
+# Generated local verification output is not source code.
+apps/*/evidence/**
+!apps/*/evidence/README.md
+
+# Historical phase artifacts belong on the archive branch.
+docs/phase*
+tools/phase*
