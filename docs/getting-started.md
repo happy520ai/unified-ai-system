@@ -1,5 +1,18 @@
 # Getting Started
 
+## One-Command Container Demo
+
+With Docker installed, prove the terminal path without cloning the repository
+or configuring credentials:
+
+```bash
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:latest pnpm gateway demo
+```
+
+The disposable container starts the gateway on an isolated port, verifies
+health, sends one deterministic fake-provider chat request, prints the result,
+and exits. No real provider is called.
+
 ## Requirements
 
 - Git
@@ -65,12 +78,12 @@ The HTTP API remains available directly, and the optional Workbench is at
 
 ## Run The Public Container
 
-Docker users can run the anonymously pullable `master` image without cloning
+Docker users can run the anonymously pullable `latest` image without cloning
 or configuring credentials:
 
 ```bash
 docker run --rm --publish 3100:3100 \
-  ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:master
+  ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:latest
 ```
 
 For a local image build, run `docker compose up --build`. The Compose file

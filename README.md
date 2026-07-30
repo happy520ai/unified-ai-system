@@ -1,7 +1,7 @@
 # Unified AI System
 
 <p align="center">
-  <strong>The open, local-first control plane for models, agents, knowledge, tools, and human intent.</strong>
+  <strong>A terminal-first, self-hosted AI gateway for models, agents, knowledge, and tools.</strong>
 </p>
 
 <p align="center">
@@ -27,12 +27,9 @@
   </a>
 </p>
 
-Unified AI System is a self-hosted AI gateway that brings multi-model routing,
-governed agents, knowledge, tools, approvals, and observability into one
-operating surface.
-
-It starts locally without an API key. Real providers remain explicit opt-in,
-and human authority stays inside the execution path.
+Run and govern models, agents, knowledge, and tools through one open gateway.
+The first verified request needs no account or API key; real providers remain
+explicit opt-in and human authority stays inside the execution path.
 
 <p align="center">
   <a href="docs/assets/terminal-demo.png">
@@ -45,14 +42,25 @@ and human authority stays inside the execution path.
 </p>
 
 <p align="center">
-  <a href="docs/cli.md"><strong>Use the terminal CLI</strong></a>
+  <a href="#one-command-demo"><strong>Run the one-command demo</strong></a>
   ·
   <a href="https://github.com/happy520ai/unified-ai-system/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22good%20first%20issue%22">Pick a good first issue</a>
 </p>
 
-## Prove The Local Path
+## One-Command Demo
 
-Run one isolated, credential-free terminal demo:
+With Docker installed, run the complete terminal demo without cloning the
+repository:
+
+```bash
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:latest pnpm gateway demo
+```
+
+The container starts an isolated gateway, verifies health, sends one
+fake-provider chat request, prints the result, and removes itself. It never
+calls a real provider.
+
+To run the same path from source:
 
 ```bash
 git clone https://github.com/happy520ai/unified-ai-system.git
@@ -62,10 +70,6 @@ corepack prepare pnpm@9.15.4 --activate
 pnpm install --frozen-lockfile
 pnpm gateway demo
 ```
-
-The demo starts the gateway on a temporary local port, verifies health, sends
-one fake-provider chat request, and shuts the process down. It never calls a
-real provider.
 
 The Codespaces button prepares Node.js 22, pnpm 9.15.4, and the workspace
 dependencies in a browser terminal. Its container configuration pins the
@@ -97,7 +101,7 @@ Run the public container:
 
 ```bash
 docker run --rm --publish 3100:3100 \
-  ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:master
+  ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:latest
 ```
 
 Call it directly from another terminal:
@@ -108,8 +112,8 @@ curl --request POST http://127.0.0.1:3100/chat \
   --data "{\"prompt\":\"Hello from Unified AI System\"}"
 ```
 
-The default runtime uses a deterministic local fake provider. The optional
-Workbench remains available at
+The default runtime uses a deterministic local fake provider. The browser UI
+is not required; the optional Workbench remains available at
 [http://127.0.0.1:3100/ui](http://127.0.0.1:3100/ui).
 
 ## What You Get

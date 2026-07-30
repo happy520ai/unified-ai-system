@@ -4,6 +4,17 @@ The terminal CLI is the primary operator entry point for a source checkout.
 It uses the existing gateway and shared SDK rather than maintaining a separate
 runtime.
 
+## Try It Without A Clone
+
+The public container includes both the CLI and gateway runtime:
+
+```bash
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:latest pnpm gateway demo
+```
+
+This disposable command uses the local fake provider, prints one verified
+response, and exits without leaving a service process behind.
+
 ## Command Map
 
 ```text

@@ -1,7 +1,7 @@
 # Unified AI System
 
 <p align="center">
-  <strong>连接模型、智能体、知识、工具与人类意图的开放式本地优先控制平面。</strong>
+  <strong>面向模型、智能体、知识与工具的终端优先、自托管 AI 能力网关。</strong>
 </p>
 
 <p align="center">
@@ -24,11 +24,9 @@
   </a>
 </p>
 
-Unified AI System 是一个可自行部署的 AI 能力网关，把多模型路由、受治理的
-智能体、知识、工具、审批与可观测性放进同一个操作界面。
-
-它无需 API Key 即可在本地启动。真实 Provider 必须由用户主动配置和启用，
-人类的最终控制权始终位于执行链路之中。
+通过一个开放网关运行和治理模型、智能体、知识与工具。第一次完整验证无需
+账号或 API Key；真实 Provider 始终需要显式启用，人类的最终控制权保留在
+执行链路之中。
 
 <p align="center">
   <a href="docs/assets/terminal-demo.png">
@@ -41,14 +39,23 @@ Unified AI System 是一个可自行部署的 AI 能力网关，把多模型路�
 </p>
 
 <p align="center">
-  <a href="docs/cli.md"><strong>使用终端 CLI</strong></a>
+  <a href="#一行命令完成演示"><strong>运行一行命令 Demo</strong></a>
   ·
   <a href="https://github.com/happy520ai/unified-ai-system/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22good%20first%20issue%22">认领新手任务</a>
 </p>
 
-## 先证明本地链路
+## 一行命令完成演示
 
-运行一次隔离、无需凭证并且自动清理的终端演示：
+已经安装 Docker 时，无需克隆仓库即可运行完整终端 Demo：
+
+```bash
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:latest pnpm gateway demo
+```
+
+容器会启动隔离网关、验证健康状态、发送一次 Fake Provider 对话、打印结果并
+自动删除自身。整个过程不会调用任何真实 Provider。
+
+从源码运行同一条验证链路：
 
 ```bash
 git clone https://github.com/happy520ai/unified-ai-system.git
@@ -58,9 +65,6 @@ corepack prepare pnpm@9.15.4 --activate
 pnpm install --frozen-lockfile
 pnpm gateway demo
 ```
-
-演示会在临时本地端口启动网关，完成健康检查和一次 Fake Provider 对话，然后
-自动关闭进程。它不会调用任何真实 Provider。
 
 上方 Codespaces 按钮会在浏览器终端准备 Node.js 22、pnpm 9.15.4 和工作区
 依赖。容器配置固定使用 Fake Provider 模式；准备完成后运行
@@ -91,7 +95,7 @@ pnpm gateway doctor
 
 ```bash
 docker run --rm --publish 3100:3100 \
-  ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:master
+  ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:latest
 ```
 
 在另一个终端直接调用网关：
@@ -102,7 +106,7 @@ curl --request POST http://127.0.0.1:3100/chat \
   --data "{\"prompt\":\"你好，Unified AI System\"}"
 ```
 
-默认运行时使用确定性的本地 Fake Provider。可选 Workbench 仍然位于
+默认运行时使用确定性的本地 Fake Provider，不依赖浏览器 UI。可选 Workbench 位于
 [http://127.0.0.1:3100/ui](http://127.0.0.1:3100/ui)。
 
 ## 当前具备什么

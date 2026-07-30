@@ -7,6 +7,19 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- A one-command, disposable terminal demo inside the public container image.
+- OCI source, description, and license metadata for the published image.
+
+### Changed
+
+- Made the no-clone container demo the primary README quickstart.
+- Reframed the browser Workbench as an optional surface rather than a required
+  product entry point.
+- Extended the container workflow to verify the bundled CLI demo before
+  publishing an image.
+
 ## [0.2.0] - 2026-07-30
 
 ### Added
