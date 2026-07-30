@@ -17,8 +17,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 - Made the no-clone container demo the primary README quickstart.
 - Reframed the browser Workbench as an optional surface rather than a required
   product entry point.
-- Extended the container workflow to verify the bundled CLI demo before
-  publishing an image.
+- Extended the container workflow to verify the bundled CLI before publishing,
+  then anonymously pull the published SHA image and run the terminal demo again.
 
 ## [0.2.0] - 2026-07-30
 

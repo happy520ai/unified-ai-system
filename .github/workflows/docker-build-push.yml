@@ -145,3 +145,30 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64,linux/arm64
+
+      - name: Verify published terminal demo anonymously
+        if: github.event_name != 'pull_request' && (github.event.inputs.push != 'false')
+        shell: bash
+        run: |
+          set -euo pipefail
+          anonymous_config="$(mktemp -d)"
+          cleanup() {
+            rm -rf "${anonymous_config}"
+          }
+          trap cleanup EXIT
+          export DOCKER_CONFIG="${anonymous_config}"
+          image="${REGISTRY}/${IMAGE_NAME}:sha-${GITHUB_SHA::7}"
+          for attempt in $(seq 1 6); do
+            if docker pull "${image}"; then
+              break
+            fi
+            if [ "${attempt}" -eq 6 ]; then
+              exit 1
+            fi
+            sleep 5
+          done
+          docker run --rm \
+            --env AI_GATEWAY_PROVIDER_MODE=fake \
+            --env AI_GATEWAY_REAL_PROVIDER_ENABLED=false \
+            "${image}" \
+            pnpm gateway demo --json
