@@ -393,7 +393,9 @@ export const consolePageInlineJsPart02 = `        ? "下一步看这里：" + ta
     }
 
     function renderTopbar() {
-      const healthStatus = state.diagnostics?.health?.serviceStatus || "unknown";
+      const healthStatus = state.diagnostics?.health?.serviceStatus
+        || state.diagnostics?.health?.status
+        || "unknown";
       const provider = Array.isArray(state.providerStatus?.providers) ? state.providerStatus.providers[0] : null;
       const providerStatus = provider?.keyStatus || "unknown";
       byId("service-chip").textContent = "服务状态：" + (healthStatus === "ready" ? "可用" : healthStatus);

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions and ideas
+    url: https://github.com/happy520ai/unified-ai-system/discussions
+    about: Ask for help, share an idea, or discuss architecture.
+  - name: Security policy
+    url: https://github.com/happy520ai/unified-ai-system/security/policy
+    about: Read the private vulnerability reporting guidance.

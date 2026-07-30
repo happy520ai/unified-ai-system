@@ -1,47 +1,79 @@
 # Contributing
 
-## Default Posture
+Thank you for helping build an open control plane for models, agents, tools,
+knowledge, and governed automation.
 
-Treat this project as local-first and dry-run-first unless a later approved phase explicitly says otherwise.
+## Start Here
 
-## Hard Boundaries
+1. Search existing issues and discussions before opening a new thread.
+2. Use Discussions for questions, ideas, and early design exploration.
+3. Use Issues for reproducible bugs and scoped implementation work.
+4. Keep pull requests focused, reviewable, and tied to an observable outcome.
 
-- Do not modify `legacy/`.
-- Do not expose `.env`, API keys, tokens, credential values, raw endpoint values, or webhook values.
-- Do not change the default `/chat` path or `/chat-gateway/execute` behavior for public-readiness work.
-- Do not run OpenAI, Claude, OpenRouter, MiMo, NVIDIA, or other real Providers by default.
-- Do not commit operational `*.input.json` files. Only examples, templates, and schemas belong in the repository.
-- Do not claim the workspace is clean unless it was explicitly verified.
-- Do not weaken verifier assertions just to make a phase look complete.
+## Local Development
 
-## Safe Contribution Areas
+Requirements:
 
-- Documentation cleanup
-- README polish
-- Verifier and evidence consistency fixes
-- Dry-run workflow improvements
-- UI copy and operator-facing clarity improvements that do not break established safety boundaries
+- Node.js 20 or newer. Node.js 22 is recommended.
+- pnpm 9.15.4 or newer.
 
-## Before You Finish
-
-Run these commands:
-
-```powershell
-pnpm run preflight:phase632-token-saving
-pnpm sync:readme-agents-current-state
-pnpm verify:phase606r-open-source-minimum-readiness-lock
-pnpm verify:phase607r-public-repo-hygiene-preflight
-pnpm verify:phase306c-readme-agents-auto-sync-guard
+```bash
+git clone https://github.com/happy520ai/unified-ai-system.git
+cd unified-ai-system
+corepack enable
+corepack prepare pnpm@9.15.4 --activate
+pnpm install --frozen-lockfile
+pnpm verify:public-clone
+pnpm start
 ```
 
-If your work touches verifier scripts, also run:
+The default fake provider requires no API key and makes no external provider
+request.
 
-```powershell
-node --check <changed-verifier-file>
+## Good Contribution Areas
+
+- Provider and tool adapters
+- Agent protocols and workforce coordination
+- Evaluation, safety, approval, and evidence systems
+- Knowledge, memory, retrieval, and context shaping
+- Workbench usability and accessibility
+- Deployment, observability, examples, and documentation
+
+## Safety Boundaries
+
+- Never commit `.env`, provider keys, tokens, raw webhooks, or private
+  authorization records.
+- Keep the local fake provider as the credential-free default.
+- Real provider calls require explicit, scoped authorization.
+- Do not silently change `/chat`, provider selection, deployment, or release
+  behavior.
+- Do not claim production readiness, L5 autonomy, or AGI without independent
+  evidence.
+- Generated runtime evidence does not belong on `master`.
+
+## Required Checks
+
+Run all four checks before opening a pull request:
+
+```bash
+pnpm check
+pnpm test
+pnpm check:public
+pnpm verify:public-clone
 ```
 
-## Collaboration Notes
+The clean-clone verifier must complete without credentials and leave no service
+process behind.
 
-- Keep changes small, reviewable, and reversible.
-- Prefer evidence-backed statements over optimistic claims.
-- If a change needs real credentials, real Provider requests, deployment, release, or persistent config writes, split it into a separately approved phase rather than sneaking it into a general contribution.
+## Pull Requests
+
+A useful pull request explains:
+
+- the user or operator problem;
+- what changed and why;
+- how the behavior was verified;
+- any safety, compatibility, or migration impact;
+- screenshots for visible Workbench changes.
+
+By contributing, you agree that your contribution is licensed under
+[Apache-2.0](LICENSE).

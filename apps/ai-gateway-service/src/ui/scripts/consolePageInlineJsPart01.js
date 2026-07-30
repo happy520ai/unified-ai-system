@@ -329,7 +329,7 @@ export const consolePageInlineJsPart01 = `
         node.classList.toggle("is-active", node.getAttribute("data-nav") === pageId);
       });
       const titles = {
-        chat: "小天总控台",
+        chat: "Gateway Mission Control",
         models: "模型",
         approvals: "任务",
         files: "安全",
@@ -338,7 +338,7 @@ export const consolePageInlineJsPart01 = `
         repair: "安全修复",
         help: "使用帮助"
       };
-      byId("page-title").textContent = titles[pageId] || "小天总控";
+      byId("page-title").textContent = titles[pageId] || "Unified AI System";
       applyYiyiContext(pageId);
     }
 

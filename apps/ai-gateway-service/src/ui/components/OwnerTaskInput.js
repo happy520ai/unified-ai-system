@@ -1,6 +1,6 @@
 export function renderOwnerTaskInput(copy) {
   return `
-                <div class="owner-task-input-panel" data-owner-task-input-panel="true" aria-label="老板任务输入入口">
+                <div class="owner-task-input-panel" data-owner-task-input-panel="true" aria-label="网关任务输入入口">
                   <label for="owner-task-input">${copy.taskInputLabel}</label>
                   <textarea
                     id="owner-task-input"
@@ -12,5 +12,4 @@ export function renderOwnerTaskInput(copy) {
                   <small id="owner-task-input-help">${copy.taskInputHelp}</small>
                 </div>`;
 }
-
 

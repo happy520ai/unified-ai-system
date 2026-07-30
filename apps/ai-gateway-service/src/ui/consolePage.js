@@ -18,10 +18,10 @@ function createPhase321AWorkbenchPage() {
   <div class="app" data-workbench-root="phase372-workbench-root" data-phase="phase372-guarded-ui-acceptance" data-first-run-readiness="phase104a-first-run-setup" data-user-journey="phase105a-user-journey">
     <aside class="sidebar">
       <div class="brand-block">
-        <div class="brand-title">小天总控</div>
-        <div class="brand-copy">一个入口处理聊天、知识库、本地动作和模型连接；生产部署与公开发布不在本轮范围内。</div>
+        <div class="brand-title">Unified AI System</div>
+        <div class="brand-copy">模型、智能体、知识与可治理自动化的本地优先网关。</div>
       </div>
-      <nav class="nav-list" aria-label="小天总控主导航">
+      <nav class="nav-list" aria-label="Unified AI System 主导航">
         <button type="button" class="nav-button is-active" data-nav="chat">总控台</button>
         <button type="button" class="nav-button" data-nav="models">模型</button>
         <button type="button" class="nav-button" data-nav="approvals">任务</button>
@@ -29,14 +29,14 @@ function createPhase321AWorkbenchPage() {
         <button type="button" class="nav-button" data-nav="diagnostics">设置</button>
       </nav>
       <div class="sidebar-note">
-        当前阶段只保留有实际用途的入口，不提供危险授权、代码提交、对外发布或上线操作。所有界面都按“禁止部署”的产品完善口径展示。
+        默认使用本地假模型。真实 Provider 调用必须显式配置并授权；生产、L5 与 AGI 结论必须由独立证据支持。
       </div>
     </aside>
     <div class="main-shell">
       <header class="topbar">
         <div>
-          <h1 id="page-title">小天总控台</h1>
-          <div class="topbar-copy">真实能力走明确边界：本地动作可执行，模型调用受控，密钥读取和生产动作默认拦截。</div>
+          <h1 id="page-title">Gateway Mission Control</h1>
+          <div class="topbar-copy">One control plane for models, agents, knowledge, and governed execution.</div>
         </div>
         <div class="topbar-status">
           <span class="status-chip" id="service-chip">服务状态：读取中</span>

@@ -6,6 +6,9 @@ The public documentation is intentionally small and task-oriented.
 - [Architecture](architecture.md)
 - [Provider setup](providers.md)
 - [Troubleshooting](troubleshooting.md)
+- [Project roadmap](../ROADMAP.md)
+- [Support](../SUPPORT.md)
+- [Launch kit](launch-kit.md)
 - [Historical archive](history.md)
 
 Generated phase reports and runtime evidence are not maintained on `master`.

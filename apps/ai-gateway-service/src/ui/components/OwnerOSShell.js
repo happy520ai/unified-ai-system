@@ -26,7 +26,7 @@ function renderReadinessMatrix(items) {
 
 export function renderOwnerOSShell(copy) {
   return `
-              <section class="owner-os-shell owner-boss-view" id="owner-boss-view-panel" data-owner-os-shell="true" data-owner-boss-view-entry="true" data-owner-boss-mode="one-button" aria-label="小天总控 OS">
+              <section class="owner-os-shell owner-boss-view" id="owner-boss-view-panel" data-owner-os-shell="true" data-owner-boss-view-entry="true" data-owner-boss-mode="one-button" aria-label="Unified AI System control plane">
                 <span class="owner-os-ambient" aria-hidden="true"></span>
                 <div class="owner-os-content">
 ${renderOwnerHeroCommand(copy)}
@@ -44,7 +44,7 @@ ${renderStateRail(copy.feedbackStates)}
                     </div>
                   </div>
 
-                  <div class="owner-summary-grid" data-owner-daily-report="true" aria-label="老板日报三项结果">
+                  <div class="owner-summary-grid" data-owner-daily-report="true" aria-label="网关能力摘要">
 ${renderOwnerSignalCard({
   id: "owner-today-completed-card",
   kind: "today-completed",
@@ -74,10 +74,10 @@ ${renderOwnerNeuralSkillPreviewPanel()}
 ${renderOwnerAutomationResultCard(copy.ownerAutomationFileActionResult)}
 ${renderOwnerAutomationCommandPalette(copy.ownerAutomationCommandPalette)}
 
-                  <div class="owner-action-log" aria-label="按钮反馈记录">
-                    <strong>按钮反馈</strong>
+                  <div class="owner-action-log" aria-label="运行反馈记录">
+                    <strong>运行反馈</strong>
                     <ul data-owner-action-log>
-                      <li>未开始。点击主按钮后，这里会显示小天已经开始检查、检查完成、是否发现问题，以及下一步。</li>
+                      <li>尚未运行。点击主按钮后，这里会显示检查进度、发现的问题和下一步。</li>
                     </ul>
                   </div>
                 </div>

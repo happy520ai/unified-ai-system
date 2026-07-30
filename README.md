@@ -16,6 +16,13 @@
   <a href="LICENSE">Apache-2.0</a>
 </p>
 
+<p align="center">
+  <a href="#start-in-minutes">Quick start</a> |
+  <a href="ROADMAP.md">Roadmap</a> |
+  <a href="https://github.com/happy520ai/unified-ai-system/discussions">Discussions</a> |
+  <a href="CONTRIBUTING.md">Contributing</a>
+</p>
+
 > **Intelligence is becoming abundant. The ability to own, route, govern, and
 > trust it is not.**
 
@@ -31,6 +38,14 @@ control away from the people who operate it.
 治理智能体、审计执行过程，并始终保有对数据、成本、权限与最终决策的控制权。
 
 **One gateway. Many intelligences. Human authority at the center.**
+
+<p align="center">
+  <img
+    src="docs/assets/workbench-overview.png"
+    alt="Unified AI System local-first Gateway Mission Control Workbench"
+    width="100%"
+  />
+</p>
 
 ## The Mission
 
@@ -78,6 +93,9 @@ cooperative, and dependable machine intelligence.
 That ambition is deliberately larger than the current implementation. We will
 not call aspiration achievement: **AGI is not a marketing adjective here. It
 is an evidence standard that must be earned.**
+
+Follow the public [roadmap](ROADMAP.md) to see what is verifiable now, what is
+being hardened next, and where contributors can have the most leverage.
 
 ## What Exists Today
 
@@ -261,6 +279,10 @@ request. Security reports belong in [SECURITY.md](SECURITY.md).
 
 If this direction resonates, star the repository and help turn an ambitious
 open system into dependable public infrastructure.
+
+Share the project with accurate, ready-to-use copy from the
+[launch kit](docs/launch-kit.md), or start a conversation in
+[GitHub Discussions](https://github.com/happy520ai/unified-ai-system/discussions).
 
 ---
 

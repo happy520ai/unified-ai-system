@@ -1,0 +1,55 @@
+name: Feature request
+description: Propose a focused improvement to the public product.
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What user or operator problem should this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome
+      description: Describe observable behavior, not only an implementation.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed approach
+      description: Include alternatives or tradeoffs when useful.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Gateway and routing
+        - Providers and tools
+        - Agents and workforce
+        - Knowledge and context
+        - Governance and evaluation
+        - Workbench
+        - Deployment and observability
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: safety
+    attributes:
+      label: Safety and compatibility
+      description: Note provider calls, credentials, permissions, cost, or migration impact.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched for an existing issue or discussion.
+          required: true
+        - label: This proposal does not depend on hidden credentials or unsafe defaults.
+          required: true

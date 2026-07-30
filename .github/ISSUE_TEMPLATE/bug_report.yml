@@ -1,0 +1,67 @@
+name: Bug report
+description: Report a reproducible defect in the gateway, Workbench, or tooling.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve Unified AI System. Remove secrets and private
+        endpoints from every log or screenshot before submitting.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What happened, and what did you expect instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+      placeholder: |
+        1. Run ...
+        2. Open ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      placeholder: v0.1.0 or git SHA
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      placeholder: Windows 11, Node.js 22.x, pnpm 9.15.4
+    validations:
+      required: true
+  - type: dropdown
+    id: provider
+    attributes:
+      label: Provider mode
+      options:
+        - Local fake provider
+        - Real provider explicitly enabled
+        - Not provider-related
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Sanitized logs
+      description: Never include keys, tokens, credentials, or private endpoints.
+      render: shell
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Safety check
+      options:
+        - label: I removed secrets and private authorization data.
+          required: true
+        - label: I searched for an existing issue or discussion.
+          required: true

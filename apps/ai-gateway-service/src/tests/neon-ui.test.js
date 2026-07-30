@@ -147,5 +147,11 @@ describe("Neon UI Enhancement", () => {
       const shellJs = readFileSync(resolve(moduleDir, "../ui/future-minimal-os/layout/FutureMinimalShell.js"), "utf8");
       assert.ok(shellJs.length > 100, "Shell module should have content");
     });
+
+    it("should support current and legacy service health fields", () => {
+      const consoleJs = readFileSync(resolve(moduleDir, "../ui/scripts/consolePageInlineJsPart02.js"), "utf8");
+      assert.ok(consoleJs.includes("health?.serviceStatus"), "Console should support the legacy health field");
+      assert.ok(consoleJs.includes("health?.status"), "Console should support the current health field");
+    });
   });
 });
