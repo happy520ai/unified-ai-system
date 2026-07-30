@@ -7,6 +7,21 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-07-30
+
+### Added
+
+- A square project icon in the official MCP Registry metadata for richer client
+  and directory presentation.
+- Stable GitHub repository identity, MCP package subfolder, and project website
+  metadata for downstream discovery services.
+
+### Changed
+
+- Moved the one-command Codex MCP path ahead of the general gateway demo in the
+  public README.
+- Pinned public container examples to the reproducible `0.3.2` release.
+
 ## [0.3.1] - 2026-07-30
 
 ### Added
@@ -127,7 +142,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 - It is not presented as production-certified, L5 autonomous, or established
   AGI. Those claims require independent evidence beyond local verification.
 
-[Unreleased]: https://github.com/happy520ai/unified-ai-system/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/happy520ai/unified-ai-system/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/happy520ai/unified-ai-system/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/happy520ai/unified-ai-system/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/happy520ai/unified-ai-system/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/happy520ai/unified-ai-system/compare/v0.1.1...v0.2.0

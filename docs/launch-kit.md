@@ -23,7 +23,7 @@ real providers remain explicit opt-in.
 The terminal is the primary interface. One Docker command proves the isolated
 path without a clone or API key:
 
-`docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:latest pnpm gateway demo`
+`docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.3.2 pnpm gateway demo`
 
 The `serve`, `status`, `chat`, and `doctor` commands provide a practical local
 workflow. Chat fails closed if a real provider may be active unless that one
@@ -48,7 +48,7 @@ API Key 即可通过本地假模型完成启动与验证，真实 Provider 始�
 终端是当前主入口。一条 Docker 命令即可在无需克隆仓库或配置 API Key 的
 情况下验证隔离链路：
 
-`docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:latest pnpm gateway demo`
+`docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.3.2 pnpm gateway demo`
 
 `serve`、`status`、`chat` 和 `doctor` 组成可持续使用的本地工作流。当网关可能
 使用真实 Provider 时，Chat 会默认拒绝发送，只有为本次命令显式授权后才会

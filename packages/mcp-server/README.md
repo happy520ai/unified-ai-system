@@ -42,7 +42,7 @@ cloning or changing MCP configuration, then use `/mcp` to inspect the server.
 No clone or API key is required:
 
 ```bash
-codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:latest
+codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.3.2
 ```
 
 The dedicated image starts the MCP server by default; no command override is
@@ -60,7 +60,7 @@ args = [
   "run",
   "--rm",
   "-i",
-  "ghcr.io/happy520ai/unified-ai-system/mcp-server:latest",
+  "ghcr.io/happy520ai/unified-ai-system/mcp-server:0.3.2",
 ]
 startup_timeout_sec = 45
 tool_timeout_sec = 60
