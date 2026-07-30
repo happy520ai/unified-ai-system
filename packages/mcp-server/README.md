@@ -67,6 +67,19 @@ tool_timeout_sec = 60
 default_tools_approval_mode = "writes"
 ```
 
+## Try It In Codex
+
+Restart Codex after adding the server, then run `/mcp verbose` to confirm that
+all eight tools are connected. A useful first task is:
+
+> Use the Unified AI System MCP tools to check gateway health and readiness,
+> then send `MCP_READY` through gateway chat only if the gateway proves
+> fake-only mode. Report the provider, model, execution mode, and response.
+
+The [60-second Codex MCP quickstart](../../docs/codex-mcp-quickstart.md)
+includes two more safe tasks, expected evidence, diagnostics, and the removal
+command.
+
 ## Connect To An Existing Safe Gateway
 
 Set `AI_GATEWAY_MCP_URL` to use an already running instance:
