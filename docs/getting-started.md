@@ -31,13 +31,24 @@ The public-clone verifier starts the gateway on a free local port, checks
 health, setup readiness, UI delivery, and fake-provider chat, then stops the
 service.
 
+## Run The Terminal Demo
+
+```bash
+pnpm demo
+```
+
+The demo starts an isolated gateway on a temporary local port, verifies its
+health, sends one deterministic fake-provider chat request, and then shuts the
+process down. It does not require an API key or call a real provider.
+
 ## Run
 
 ```bash
 pnpm start
 ```
 
-Open `http://127.0.0.1:3100/ui`.
+Call the HTTP API directly, or open the optional Workbench at
+`http://127.0.0.1:3100/ui`.
 
 No API key is required for the default local fake provider.
 

@@ -32,16 +32,33 @@ It starts locally without an API key. Real providers remain explicit opt-in,
 and human authority stays inside the execution path.
 
 <p align="center">
-  <a href="docs/assets/workbench-overview.png">
+  <a href="docs/assets/terminal-demo.png">
     <img
-      src="docs/assets/workbench-overview.png"
-      alt="Unified AI System Gateway Mission Control Workbench"
+      src="docs/assets/terminal-demo.png"
+      alt="Unified AI System credential-free terminal demo"
       width="100%"
     />
   </a>
 </p>
 
-## Try It In 60 Seconds
+## Prove The Local Path
+
+Run one isolated, credential-free terminal demo:
+
+```bash
+git clone https://github.com/happy520ai/unified-ai-system.git
+cd unified-ai-system
+corepack enable
+corepack prepare pnpm@9.15.4 --activate
+pnpm install --frozen-lockfile
+pnpm demo
+```
+
+The demo starts the gateway on a temporary local port, verifies health, sends
+one fake-provider chat request, and shuts the process down. It never calls a
+real provider.
+
+## Run The Gateway
 
 Run the public container:
 
@@ -50,7 +67,7 @@ docker run --rm --publish 3100:3100 \
   ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:master
 ```
 
-Open [http://127.0.0.1:3100/ui](http://127.0.0.1:3100/ui), or call the gateway:
+Call it directly from another terminal:
 
 ```bash
 curl --request POST http://127.0.0.1:3100/chat \
@@ -58,8 +75,9 @@ curl --request POST http://127.0.0.1:3100/chat \
   --data "{\"prompt\":\"Hello from Unified AI System\"}"
 ```
 
-The first run uses a deterministic local fake provider. It sends no request to
-an external model.
+The default runtime uses a deterministic local fake provider. The optional
+Workbench remains available at
+[http://127.0.0.1:3100/ui](http://127.0.0.1:3100/ui).
 
 ## What You Get
 
@@ -68,8 +86,9 @@ an external model.
 | **AI gateway** | Chat, streaming, health, diagnostics, explicit provider selection, and routing foundations. |
 | **Governed agents** | Structured planning and workforce modules with approval, permission, and evidence surfaces. |
 | **Knowledge and context** | Retrieval, context shaping, reusable knowledge, and memory-oriented modules. |
-| **Mission Control** | A browser Workbench for operating and inspecting the local gateway. |
-| **Extension layer** | Shared contracts, SDKs, provider adapters, tools, and MCP packaging. |
+| **Terminal and API** | A self-cleaning terminal demo plus direct HTTP and shared SDK access. |
+| **Optional Workbench** | A browser surface for operating and inspecting the local gateway. |
+| **Extension layer** | Shared contracts, SDKs, context modules, provider adapters, and tools. |
 | **Local-first runtime** | Credential-free startup plus an anonymously pullable multi-architecture container. |
 
 ## Why It Is Different
@@ -83,6 +102,10 @@ an external model.
 
 Read the longer [project vision](VISION.md) and the
 [public roadmap](ROADMAP.md).
+
+If this is the kind of open AI infrastructure you want to exist, star the
+repository and join the
+[architecture discussion](https://github.com/happy520ai/unified-ai-system/discussions).
 
 ## Run From Source
 
@@ -99,6 +122,7 @@ corepack enable
 corepack prepare pnpm@9.15.4 --activate
 pnpm install --frozen-lockfile
 pnpm verify:public-clone
+pnpm demo
 pnpm start
 ```
 
@@ -108,11 +132,18 @@ Useful local endpoints:
 - Health: [http://127.0.0.1:3100/health/check](http://127.0.0.1:3100/health/check)
 - Setup readiness: [http://127.0.0.1:3100/setup/readiness](http://127.0.0.1:3100/setup/readiness)
 
+<details>
+<summary>Optional browser Workbench preview</summary>
+
+![Unified AI System browser Workbench](docs/assets/workbench-overview.png)
+
+</details>
+
 ## Architecture
 
 ```mermaid
 flowchart LR
-    H["Human intent"] --> W["Workbench and API"]
+    H["Human intent"] --> W["Terminal, API, and optional Workbench"]
     W --> G["Governance and approval"]
     G --> R["AI Gateway"]
     R --> M["Model routing"]

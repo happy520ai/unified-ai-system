@@ -42,3 +42,6 @@ jobs:
 
       - name: Public clone runtime
         run: pnpm verify:public-clone
+
+      - name: Terminal demo
+        run: pnpm demo -- --json

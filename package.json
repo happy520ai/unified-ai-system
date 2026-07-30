@@ -16,6 +16,7 @@
   "scripts": {
     "start": "pnpm start:ai-gateway-service",
     "dev": "pnpm start:ai-gateway-service",
+    "demo": "node ./tools/terminal-demo.mjs",
     "start:ai-gateway-service": "pnpm --filter @unified-ai-system/ai-gateway-service start",
     "start:agent-console": "pnpm --filter @unified-ai-system/agent-console start",
     "build": "pnpm -r --if-present build",

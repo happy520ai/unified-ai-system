@@ -28,16 +28,32 @@ Unified AI System 是一个可自行部署的 AI 能力网关，把多模型路�
 人类的最终控制权始终位于执行链路之中。
 
 <p align="center">
-  <a href="docs/assets/workbench-overview.png">
+  <a href="docs/assets/terminal-demo.png">
     <img
-      src="docs/assets/workbench-overview.png"
-      alt="Unified AI System Gateway Mission Control 工作台"
+      src="docs/assets/terminal-demo.png"
+      alt="Unified AI System 无凭证终端演示"
       width="100%"
     />
   </a>
 </p>
 
-## 60 秒开始体验
+## 先证明本地链路
+
+运行一次隔离、无需凭证并且自动清理的终端演示：
+
+```bash
+git clone https://github.com/happy520ai/unified-ai-system.git
+cd unified-ai-system
+corepack enable
+corepack prepare pnpm@9.15.4 --activate
+pnpm install --frozen-lockfile
+pnpm demo
+```
+
+演示会在临时本地端口启动网关，完成健康检查和一次 Fake Provider 对话，然后
+自动关闭进程。它不会调用任何真实 Provider。
+
+## 持续运行网关
 
 直接运行公开容器：
 
@@ -46,7 +62,7 @@ docker run --rm --publish 3100:3100 \
   ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:master
 ```
 
-打开 [http://127.0.0.1:3100/ui](http://127.0.0.1:3100/ui)，或直接调用网关：
+在另一个终端直接调用网关：
 
 ```bash
 curl --request POST http://127.0.0.1:3100/chat \
@@ -54,7 +70,8 @@ curl --request POST http://127.0.0.1:3100/chat \
   --data "{\"prompt\":\"你好，Unified AI System\"}"
 ```
 
-首次运行使用确定性的本地 Fake Provider，不会向任何外部模型发送请求。
+默认运行时使用确定性的本地 Fake Provider。可选 Workbench 仍然位于
+[http://127.0.0.1:3100/ui](http://127.0.0.1:3100/ui)。
 
 ## 当前具备什么
 
@@ -63,8 +80,9 @@ curl --request POST http://127.0.0.1:3100/chat \
 | **AI 网关** | Chat、流式响应、健康检查、诊断、显式 Provider 选择与路由基础。 |
 | **受治理智能体** | 结构化规划与 Workforce 模块，以及审批、权限和执行证据界面。 |
 | **知识与上下文** | 检索、上下文塑形、知识复用和面向记忆的模块。 |
-| **Mission Control** | 用于操作和检查本地网关的浏览器 Workbench。 |
-| **扩展层** | 共享协议、SDK、Provider 适配器、工具与 MCP 封装。 |
+| **终端与 API** | 自动清理的终端演示，以及直接 HTTP 和共享 SDK 访问。 |
+| **可选 Workbench** | 用于操作和检查本地网关的浏览器界面。 |
+| **扩展层** | 共享协议、SDK、上下文模块、Provider 适配器与工具。 |
 | **本地优先运行时** | 无凭证启动，以及可匿名拉取的多架构容器。 |
 
 ## 为什么要做这个项目
@@ -77,6 +95,9 @@ curl --request POST http://127.0.0.1:3100/chat \
   能够追责。
 
 更完整的长期方向请阅读[项目愿景](VISION.md)和[公开路线图](ROADMAP.md)。
+
+如果你也希望这样的开放 AI 基础设施真正成长起来，请为仓库点一个 Star，并参与
+[架构讨论](https://github.com/happy520ai/unified-ai-system/discussions)。
 
 ## 从源码运行
 
@@ -93,6 +114,7 @@ corepack enable
 corepack prepare pnpm@9.15.4 --activate
 pnpm install --frozen-lockfile
 pnpm verify:public-clone
+pnpm demo
 pnpm start
 ```
 
@@ -102,11 +124,18 @@ pnpm start
 - 健康检查：[http://127.0.0.1:3100/health/check](http://127.0.0.1:3100/health/check)
 - 配置就绪检查：[http://127.0.0.1:3100/setup/readiness](http://127.0.0.1:3100/setup/readiness)
 
+<details>
+<summary>可选浏览器 Workbench 预览</summary>
+
+![Unified AI System 浏览器 Workbench](docs/assets/workbench-overview.png)
+
+</details>
+
 ## 架构
 
 ```mermaid
 flowchart LR
-    H["人类意图"] --> W["Workbench 与 API"]
+    H["人类意图"] --> W["终端、API 与可选 Workbench"]
     W --> G["治理与审批"]
     G --> R["AI Gateway"]
     R --> M["模型路由"]

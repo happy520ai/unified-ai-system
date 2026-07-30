@@ -12,6 +12,9 @@ and the project uses [Semantic Versioning](https://semver.org/).
 - GitHub community templates, project roadmap, support guide, and launch kit.
 - A real Workbench screenshot and repository social preview.
 - A concise project vision and a complete Simplified Chinese README.
+- A credential-free `pnpm demo` terminal path with isolated startup, verified
+  fake-provider chat, and automatic process cleanup.
+- A real terminal-demo image for the repository's primary product preview.
 
 ### Changed
 
@@ -20,6 +23,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 - Improved repository metadata, topics, and community entry points.
 - Reordered the main README around the real product, a 60-second container
   trial, verified capabilities, and honest boundaries.
+- Made the terminal and API the primary README experience while keeping the
+  browser Workbench available as an optional operator surface.
 
 ## [0.1.0] - 2026-07-30
 
