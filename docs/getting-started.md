@@ -73,6 +73,28 @@ refuses to send when a real provider may be active unless the operator adds
 `--allow-real-provider` explicitly for that request. See the complete
 [terminal CLI reference](cli.md).
 
+## Call The Gateway From JavaScript
+
+Keep `pnpm gateway serve` running, then use the standalone
+[JavaScript chat example](examples/javascript-chat.mjs) from another terminal:
+
+```bash
+node docs/examples/javascript-chat.mjs "Hello from JavaScript"
+```
+
+Expected output:
+
+```text
+provider: local-fake-provider
+mode: fake
+response: [fake:local-fake-provider/local-fake-model] Hello from JavaScript
+```
+
+The example uses only built-in Node.js APIs. It checks gateway health before
+sending, refuses to continue if a real provider may be enabled, pins the
+request to the local fake provider, and verifies fake execution in the
+response.
+
 The HTTP API remains available directly. No browser UI is exposed by default;
 terminal and API workflows are the supported public path.
 

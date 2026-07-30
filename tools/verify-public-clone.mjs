@@ -8,6 +8,10 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const serviceRoot = resolve(repoRoot, "apps/ai-gateway-service");
 const serviceEntrypoint = resolve(serviceRoot, "src/index.js");
 const mcpSmokeEntrypoint = resolve(repoRoot, "tools/mcp-smoke.mjs");
+const javascriptExampleEntrypoint = resolve(
+  repoRoot,
+  "docs/examples/javascript-chat.mjs",
+);
 
 function delay(milliseconds) {
   return new Promise((resolvePromise) => setTimeout(resolvePromise, milliseconds));
@@ -102,6 +106,38 @@ async function runMcpSmoke() {
   return { exitCode, body };
 }
 
+async function runJavaScriptExample(baseUrl) {
+  let stdout = "";
+  let stderr = "";
+  const child = spawn(
+    process.execPath,
+    [javascriptExampleEntrypoint, "Public clone JavaScript example"],
+    {
+      cwd: repoRoot,
+      windowsHide: true,
+      env: {
+        ...process.env,
+        AI_GATEWAY_SERVICE_URL: baseUrl,
+      },
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
+  child.stdout.setEncoding("utf8");
+  child.stderr.setEncoding("utf8");
+  child.stdout.on("data", (chunk) => {
+    stdout = `${stdout}${chunk}`.slice(-4_000);
+  });
+  child.stderr.on("data", (chunk) => {
+    stderr = `${stderr}${chunk}`.slice(-4_000);
+  });
+  const [exitCode] = await once(child, "exit");
+  return {
+    exitCode,
+    stdout: stdout.trim(),
+    stderr: stderr.trim(),
+  };
+}
+
 const mcpSmoke = await runMcpSmoke();
 const port = await findFreePort();
 const baseUrl = `http://127.0.0.1:${port}`;
@@ -140,6 +176,7 @@ try {
   const setup = await fetchJson(`${baseUrl}/setup/readiness`);
   const uiResponse = await fetch(`${baseUrl}/ui`);
   const consoleResponse = await fetch(`${baseUrl}/console`);
+  const javascriptExample = await runJavaScriptExample(baseUrl);
   const chat = await fetchJson(`${baseUrl}/chat`, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -157,6 +194,10 @@ try {
     chatUsesFakeProvider:
       chat.body?.data?.executionMode === "fake"
       && chat.body?.data?.selectedProvider === "local-fake-provider",
+    javascriptExampleReady: javascriptExample.exitCode === 0,
+    javascriptExampleUsesFakeProvider:
+      javascriptExample.stdout.includes("provider: local-fake-provider")
+      && javascriptExample.stdout.includes("mode: fake"),
     mcpStdioReady:
       mcpSmoke.exitCode === 0
       && mcpSmoke.body?.ok === true
@@ -171,6 +212,7 @@ try {
     checks,
     realProviderCallsMade: false,
     realProviderEnabled: health.body?.data?.realProviderEnabled ?? null,
+    javascriptExample,
     mcp: mcpSmoke.body,
   };
   if (!result.ok) process.exitCode = 1;
