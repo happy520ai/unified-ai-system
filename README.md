@@ -41,6 +41,12 @@ and human authority stays inside the execution path.
   </a>
 </p>
 
+<p align="center">
+  <a href="https://github.com/happy520ai/unified-ai-system/discussions/5"><strong>Help shape the terminal-first CLI</strong></a>
+  ·
+  <a href="https://github.com/happy520ai/unified-ai-system/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22good%20first%20issue%22">Pick a good first issue</a>
+</p>
+
 ## Prove The Local Path
 
 Run one isolated, credential-free terminal demo:
@@ -105,7 +111,7 @@ Read the longer [project vision](VISION.md) and the
 
 If this is the kind of open AI infrastructure you want to exist, star the
 repository and join the
-[architecture discussion](https://github.com/happy520ai/unified-ai-system/discussions).
+[terminal-first CLI design discussion](https://github.com/happy520ai/unified-ai-system/discussions/5).
 
 ## Run From Source
 

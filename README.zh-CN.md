@@ -37,6 +37,12 @@ Unified AI System 是一个可自行部署的 AI 能力网关，把多模型路�
   </a>
 </p>
 
+<p align="center">
+  <a href="https://github.com/happy520ai/unified-ai-system/discussions/5"><strong>参与设计终端优先 CLI</strong></a>
+  ·
+  <a href="https://github.com/happy520ai/unified-ai-system/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22good%20first%20issue%22">认领新手任务</a>
+</p>
+
 ## 先证明本地链路
 
 运行一次隔离、无需凭证并且自动清理的终端演示：
@@ -97,7 +103,7 @@ curl --request POST http://127.0.0.1:3100/chat \
 更完整的长期方向请阅读[项目愿景](VISION.md)和[公开路线图](ROADMAP.md)。
 
 如果你也希望这样的开放 AI 基础设施真正成长起来，请为仓库点一个 Star，并参与
-[架构讨论](https://github.com/happy520ai/unified-ai-system/discussions)。
+[终端优先 CLI 设计讨论](https://github.com/happy520ai/unified-ai-system/discussions/5)。
 
 ## 从源码运行
 
