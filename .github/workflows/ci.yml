@@ -43,6 +43,11 @@ jobs:
       - name: Public clone runtime
         run: pnpm verify:public-clone
 
+      - name: Codex MCP server
+        run: |
+          pnpm verify:mcp
+          pnpm smoke:mcp --json
+
       - name: Terminal CLI
         run: |
           pnpm gateway doctor --json

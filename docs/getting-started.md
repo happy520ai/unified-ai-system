@@ -76,6 +76,22 @@ refuses to send when a real provider may be active unless the operator adds
 The HTTP API remains available directly. No browser UI is exposed by default;
 terminal and API workflows are the supported public path.
 
+## Connect Codex Through MCP
+
+Add the anonymously pullable container as a local stdio MCP server:
+
+```bash
+codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:latest pnpm mcp
+```
+
+Restart Codex and use `/mcp` to inspect the connected tools. From a trusted
+source checkout, the project-level `.codex/config.toml` starts the same server
+with `pnpm mcp`.
+
+The MCP server starts an isolated fake-provider gateway, verifies its safety
+state, and stops it with the MCP session. Run `pnpm verify:mcp` to exercise the
+official MCP client handshake and every exposed tool.
+
 ## Run The Public Container
 
 Docker users can run the anonymously pullable `latest` image without cloning

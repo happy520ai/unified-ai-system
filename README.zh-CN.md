@@ -89,6 +89,22 @@ pnpm gateway doctor
 `--allow-real-provider` 才会继续。完整命令、退出码与安全行为见
 [CLI 文档](docs/cli.md)。
 
+## 通过 MCP 接入 Codex
+
+使用一条匿名容器命令，把网关添加为本地 MCP Server：
+
+```bash
+codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:latest pnpm mcp
+```
+
+重启 Codex 后，使用 `/mcp` 查看 8 个工具，覆盖网关健康、就绪状态、
+Fake Provider 对话、知识基础设施、Workflow 与 Workforce 状态。可信任的
+源码工作区已经包含项目级 Codex 配置，无需重复维护另一份配置。
+
+MCP 会自动启动隔离网关，并在会话结束后清理进程；只要网关可能调用真实
+Provider，它就会拒绝启动或发送对话。完整说明见
+[MCP Server 指南](packages/mcp-server/README.md)。
+
 ## 持续运行网关
 
 直接运行公开容器：
@@ -117,6 +133,7 @@ curl --request POST http://127.0.0.1:3100/chat \
 | **受治理智能体** | 结构化规划与 Workforce 模块，以及审批、权限和执行证据界面。 |
 | **知识与上下文** | 检索、上下文塑形、知识复用和面向记忆的模块。 |
 | **终端与 API** | Demo、启动、状态、Chat 与诊断命令，以及直接 HTTP 和共享 SDK 访问。 |
+| **Codex 与 MCP** | 经过测试的 8 工具 stdio MCP Server、项目级 Codex 配置与免克隆 Docker 命令。 |
 | **扩展层** | 共享协议、SDK、上下文模块、Provider 适配器与工具。 |
 | **本地优先运行时** | 无凭证启动，以及可匿名拉取的多架构容器。 |
 
@@ -162,7 +179,7 @@ pnpm gateway serve
 
 ```mermaid
 flowchart LR
-    H["人类意图"] --> W["终端与 API"]
+    H["人类意图"] --> W["终端、API 与 MCP"]
     W --> G["治理与审批"]
     G --> R["AI Gateway"]
     R --> M["模型路由"]
@@ -201,10 +218,11 @@ pnpm check
 pnpm test
 pnpm check:public
 pnpm verify:public-clone
+pnpm verify:mcp
 ```
 
 每次推送到 `master` 都会运行 Linux CI 和真实容器启动冒烟测试，包括健康检查、
-配置就绪、终端优先公开边界和 Fake Provider Chat。
+配置就绪、终端优先公开边界、Fake Provider Chat、MCP 握手、工具发现与进程清理。
 
 ## 参与建设
 
@@ -221,6 +239,7 @@ pnpm verify:public-clone
 ## 项目入口
 
 - [v0.2.0 终端 CLI 预览版](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.2.0)
+- [Codex MCP Server](packages/mcp-server/README.md)
 - [文档索引](docs/README.md)
 - [公开路线图](ROADMAP.md)
 - [项目愿景](VISION.md)

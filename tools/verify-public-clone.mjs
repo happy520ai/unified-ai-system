@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const serviceRoot = resolve(repoRoot, "apps/ai-gateway-service");
 const serviceEntrypoint = resolve(serviceRoot, "src/index.js");
+const mcpSmokeEntrypoint = resolve(repoRoot, "tools/mcp-smoke.mjs");
 
 function delay(milliseconds) {
   return new Promise((resolvePromise) => setTimeout(resolvePromise, milliseconds));
@@ -65,6 +66,43 @@ async function stopChild(child) {
   }
 }
 
+async function runMcpSmoke() {
+  let stdout = "";
+  let stderr = "";
+  const child = spawn(process.execPath, [mcpSmokeEntrypoint, "--json"], {
+    cwd: repoRoot,
+    windowsHide: true,
+    env: {
+      ...process.env,
+      AI_GATEWAY_PROVIDER_MODE: "fake",
+      AI_GATEWAY_REAL_PROVIDER_ENABLED: "false",
+      PME_ENTERPRISE_AUTH_ENABLED: "false",
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  child.stdout.setEncoding("utf8");
+  child.stderr.setEncoding("utf8");
+  child.stdout.on("data", (chunk) => {
+    stdout = `${stdout}${chunk}`.slice(-16_000);
+  });
+  child.stderr.on("data", (chunk) => {
+    stderr = `${stderr}${chunk}`.slice(-8_000);
+  });
+  const [exitCode] = await once(child, "exit");
+  let body;
+  try {
+    body = JSON.parse(stdout);
+  } catch {
+    body = {
+      ok: false,
+      error: "MCP smoke output was not valid JSON.",
+      outputTail: `${stdout}\n${stderr}`.trim().slice(-4_000),
+    };
+  }
+  return { exitCode, body };
+}
+
+const mcpSmoke = await runMcpSmoke();
 const port = await findFreePort();
 const baseUrl = `http://127.0.0.1:${port}`;
 let stdout = "";
@@ -119,6 +157,12 @@ try {
     chatUsesFakeProvider:
       chat.body?.data?.executionMode === "fake"
       && chat.body?.data?.selectedProvider === "local-fake-provider",
+    mcpStdioReady:
+      mcpSmoke.exitCode === 0
+      && mcpSmoke.body?.ok === true
+      && mcpSmoke.body?.toolCount === 8
+      && mcpSmoke.body?.executionMode === "fake"
+      && mcpSmoke.body?.managedGatewayCleanedUp === true,
   };
 
   result = {
@@ -127,6 +171,7 @@ try {
     checks,
     realProviderCallsMade: false,
     realProviderEnabled: health.body?.data?.realProviderEnabled ?? null,
+    mcp: mcpSmoke.body,
   };
   if (!result.ok) process.exitCode = 1;
 } catch (error) {

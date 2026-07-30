@@ -95,6 +95,23 @@ command refuses to send when a real provider may be active unless the operator
 adds `--allow-real-provider` explicitly for that request. Read the
 [CLI reference](docs/cli.md) for commands, exit codes, and safety behavior.
 
+## Connect Codex Through MCP
+
+Run the gateway as a local MCP server with one anonymous container command:
+
+```bash
+codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:latest pnpm mcp
+```
+
+Restart Codex, then use `/mcp` to inspect eight tools for gateway health,
+readiness, fake-provider chat, knowledge, workflows, and workforce status. A
+trusted source checkout also includes project-level Codex configuration, so
+`pnpm mcp` is discovered without maintaining a second config.
+
+The MCP path starts its own isolated gateway and removes it when the session
+ends. It fails closed if a gateway may call a real provider. See the
+[MCP server guide](packages/mcp-server/README.md).
+
 ## Run The Gateway
 
 Run the public container:
@@ -124,6 +141,7 @@ by default.
 | **Governed agents** | Structured planning and workforce modules with approval, permission, and evidence surfaces. |
 | **Knowledge and context** | Retrieval, context shaping, reusable knowledge, and memory-oriented modules. |
 | **Terminal and API** | CLI commands for demo, startup, status, chat, and diagnostics, plus direct HTTP and shared SDK access. |
+| **Codex and MCP** | A stdio MCP server with eight tested tools, project-level Codex configuration, and a no-clone Docker command. |
 | **Extension layer** | Shared contracts, SDKs, context modules, provider adapters, and tools. |
 | **Local-first runtime** | Credential-free startup plus an anonymously pullable multi-architecture container. |
 
@@ -171,7 +189,7 @@ Useful local endpoints:
 
 ```mermaid
 flowchart LR
-    H["Human intent"] --> W["Terminal and API"]
+    H["Human intent"] --> W["Terminal, API, and MCP"]
     W --> G["Governance and approval"]
     G --> R["AI Gateway"]
     R --> M["Model routing"]
@@ -212,12 +230,13 @@ pnpm check
 pnpm test
 pnpm check:public
 pnpm verify:public-clone
+pnpm verify:mcp
 ```
 
 Every push to `master` runs Linux CI and a real container startup smoke test.
 The container path checks health, setup readiness, the terminal-only public
-surface, and fake-provider chat before the multi-architecture image is
-published.
+surface, fake-provider chat, the MCP handshake, tool discovery, and managed
+process cleanup before the multi-architecture image is published.
 
 ## Build With Us
 
@@ -239,7 +258,9 @@ send a focused pull request. Security reports belong in
 apps/
   agent-console/          Terminal CLI and operator interaction
   ai-gateway-service/     Main gateway runtime and HTTP API
-packages/                 Contracts, SDKs, configuration, and engines
+packages/
+  mcp-server/             Codex-ready stdio MCP server
+  ...                     Contracts, SDKs, configuration, and engines
 docs/                     Public user and architecture documentation
 tools/                    Maintained repository and runtime checks
 ```
@@ -251,6 +272,7 @@ pre-cleanup engineering history remains available on the
 ## Project Links
 
 - [v0.2.0 Terminal CLI Preview](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.2.0)
+- [Codex MCP server](packages/mcp-server/README.md)
 - [Documentation](docs/README.md)
 - [Roadmap](ROADMAP.md)
 - [Vision](VISION.md)

@@ -21,11 +21,13 @@ COPY packages packages
 
 RUN pnpm install --frozen-lockfile \
   --filter @unified-ai-system/ai-gateway-service... \
-  --filter @unified-ai-system/agent-console...
+  --filter @unified-ai-system/agent-console... \
+  --filter @unified-ai-system/mcp-server...
 
 COPY apps/ai-gateway-service apps/ai-gateway-service
 COPY apps/agent-console apps/agent-console
 COPY tools/terminal-demo.mjs tools/terminal-demo.mjs
+COPY tools/mcp-smoke.mjs tools/mcp-smoke.mjs
 
 EXPOSE 3100
 

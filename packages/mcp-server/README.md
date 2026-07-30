@@ -1,0 +1,85 @@
+# Unified AI System MCP Server
+
+Connect Codex and other MCP hosts to the credential-free Unified AI System
+preview over stdio.
+
+The server starts an isolated local gateway automatically, pins it to the
+deterministic fake provider, exposes eight tools, and removes the gateway when
+the MCP session ends. It does not enable or authorize real provider calls.
+
+## Tools
+
+| Tool | Behavior |
+| --- | --- |
+| `gateway_health` | Inspect gateway health and provider safety state. |
+| `gateway_readiness` | Inspect first-run and chat readiness. |
+| `gateway_chat` | Send one fake-provider-only chat request. |
+| `knowledge_readiness` | Inspect local knowledge infrastructure. |
+| `workflow_health` | Inspect the governed workflow subsystem. |
+| `workflow_actions` | List workflow action definitions. |
+| `workforce_health` | Inspect the workforce subsystem. |
+| `workforce_agents` | List workforce agent descriptors. |
+
+All inspection tools are read-only. The chat tool checks the gateway safety
+state before every request and fails closed unless `realProviderEnabled` is
+exactly `false` and the response proves `executionMode: "fake"`.
+
+## Run From Source
+
+From the repository root:
+
+```bash
+pnpm install --frozen-lockfile
+pnpm mcp
+```
+
+The project-level [`.codex/config.toml`](../../.codex/config.toml) registers
+that command automatically in trusted Codex projects. Restart Codex after
+cloning or changing MCP configuration, then use `/mcp` to inspect the server.
+
+## Add To Codex With Docker
+
+No clone or API key is required:
+
+```bash
+codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:latest pnpm mcp
+```
+
+The equivalent `config.toml` entry is:
+
+```toml
+[mcp_servers.unified_ai_system]
+command = "docker"
+args = [
+  "run",
+  "--rm",
+  "-i",
+  "ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:latest",
+  "pnpm",
+  "mcp",
+]
+startup_timeout_sec = 45
+tool_timeout_sec = 60
+default_tools_approval_mode = "writes"
+```
+
+## Connect To An Existing Safe Gateway
+
+Set `AI_GATEWAY_MCP_URL` to use an already running instance:
+
+```bash
+AI_GATEWAY_MCP_URL=http://127.0.0.1:3100 pnpm mcp
+```
+
+Startup is rejected if that gateway may call a real provider. Authentication
+and real-provider execution are intentionally outside this preview surface.
+
+## Verify
+
+The test launches the server through the official MCP v2 client, completes the
+stdio handshake, lists all eight tools, calls every tool, proves fake-provider
+chat, closes the client, and confirms that the managed gateway stopped:
+
+```bash
+pnpm verify:mcp
+```

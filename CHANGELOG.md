@@ -14,13 +14,19 @@ and the project uses [Semantic Versioning](https://semver.org/).
 - Repository and container guards that keep historical phase artifact roots
   out of the public product tree.
 - Public-clone verification for the terminal-only default route surface.
+- A Codex-ready stdio MCP server with eight governed inspection and
+  fake-provider chat tools.
+- Project-level Codex MCP configuration plus source and Docker startup paths.
+- Official MCP v2 client coverage and a dependency-free container MCP smoke
+  test with managed-process cleanup verification.
 
 ### Changed
 
 - Made the no-clone container demo the primary README quickstart.
 - Made the terminal and HTTP API the only default public product surfaces.
 - Extended the container workflow to verify the bundled CLI before publishing,
-  then anonymously pull the published SHA image and run the terminal demo again.
+  then anonymously pull the published SHA image and run both terminal and MCP
+  demos again.
 - Moved generated capability references under ignored `.data/` runtime state.
 
 ### Removed

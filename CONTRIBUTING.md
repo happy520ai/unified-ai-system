@@ -37,6 +37,7 @@ request.
 - Evaluation, safety, approval, and evidence systems
 - Knowledge, memory, retrieval, and context shaping
 - Terminal CLI and future TUI workflows
+- MCP tools, host compatibility, and protocol-level verification
 - Deployment, observability, examples, and documentation
 
 ## Safety Boundaries
@@ -64,6 +65,8 @@ pnpm verify:public-clone
 
 The clean-clone verifier must complete without credentials and leave no service
 process behind.
+
+Changes under `packages/mcp-server` must also pass `pnpm verify:mcp`.
 
 ## Pull Requests
 

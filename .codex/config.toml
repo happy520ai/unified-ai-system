@@ -1,0 +1,8 @@
+[mcp_servers.unified_ai_system]
+command = "pnpm"
+args = ["mcp"]
+startup_timeout_sec = 45
+tool_timeout_sec = 60
+default_tools_approval_mode = "writes"
+enabled = true
+required = false

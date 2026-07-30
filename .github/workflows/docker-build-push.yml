@@ -62,6 +62,11 @@ jobs:
             --env AI_GATEWAY_REAL_PROVIDER_ENABLED=false \
             unified-ai-system-smoke \
             pnpm gateway demo --json
+          docker run --rm \
+            --env AI_GATEWAY_PROVIDER_MODE=fake \
+            --env AI_GATEWAY_REAL_PROVIDER_ENABLED=false \
+            unified-ai-system-smoke \
+            pnpm smoke:mcp --json
           container_id="$(docker run --detach \
             --publish 127.0.0.1::3100 \
             --env AI_GATEWAY_PROVIDER_MODE=fake \
@@ -173,3 +178,8 @@ jobs:
             --env AI_GATEWAY_REAL_PROVIDER_ENABLED=false \
             "${image}" \
             pnpm gateway demo --json
+          docker run --rm \
+            --env AI_GATEWAY_PROVIDER_MODE=fake \
+            --env AI_GATEWAY_REAL_PROVIDER_ENABLED=false \
+            "${image}" \
+            pnpm smoke:mcp --json

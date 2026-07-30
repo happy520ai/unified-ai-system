@@ -11,6 +11,8 @@ support them.
 
 - Credential-free local startup through the deterministic fake provider
 - Terminal CLI for demo, startup, status, chat, and environment diagnostics
+- Codex-ready stdio MCP server with fake-provider-only chat and read-only
+  gateway, knowledge, workflow, and workforce inspection
 - Unified chat, streaming, routing, health, and diagnostics
 - Provider adapters with explicit real-provider opt-in
 - Agent, workforce, knowledge, context, and governance modules
@@ -22,6 +24,7 @@ support them.
 ## Next: A Dependable Developer Platform
 
 - Stabilize and document the public HTTP and SDK contracts
+- Expand the MCP contract beyond the current safe inspection preview
 - Expand CLI and TUI coverage for agents, knowledge, routing, and approvals
 - Make provider adapters easier to add, test, and distribute
 - Publish focused examples for routing, agents, RAG, approvals, and evaluation

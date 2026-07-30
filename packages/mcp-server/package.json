@@ -1,0 +1,31 @@
+{
+  "name": "@unified-ai-system/mcp-server",
+  "version": "0.2.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "bin": {
+    "unified-ai-system-mcp": "./src/index.js"
+  },
+  "main": "./src/server.js",
+  "exports": {
+    ".": "./src/server.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/server": "2.0.0",
+    "@unified-ai-system/shared-sdk": "workspace:*",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/client": "2.0.0"
+  },
+  "scripts": {
+    "start": "node ./src/index.js",
+    "check": "node --check ./src/index.js && node --check ./src/runtime.js && node --check ./src/server.js && node --check ./src/server.test.js",
+    "build": "pnpm run check",
+    "test": "node --test ./src/server.test.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -8,8 +8,8 @@ cache/
 !/apps/ai-gateway-service/src/cache/
 !/apps/ai-gateway-service/src/cache/**
 temp/
-.codex/
-.codex/config.toml
+.codex/*
+!.codex/config.toml
 .codex-context/
 .codex-handoff/
 .codex-localappdata/

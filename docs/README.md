@@ -4,6 +4,7 @@ The public documentation is intentionally small and task-oriented.
 
 - [Getting started](getting-started.md)
 - [Terminal CLI](cli.md)
+- [Codex MCP server](../packages/mcp-server/README.md)
 - [Architecture](architecture.md)
 - [Provider setup](providers.md)
 - [Troubleshooting](troubleshooting.md)

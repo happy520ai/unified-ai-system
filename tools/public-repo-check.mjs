@@ -34,7 +34,12 @@ const requiredFiles = [
   "apps/ai-gateway-service/src/index.js",
   "apps/agent-console/evidence/README.md",
   "apps/ai-gateway-service/evidence/README.md",
+  "packages/mcp-server/package.json",
+  "packages/mcp-server/src/index.js",
+  "packages/mcp-server/src/server.test.js",
+  ".codex/config.toml",
   "docs/getting-started.md",
+  "tools/mcp-smoke.mjs",
   "tools/verify-public-clone.mjs",
 ];
 
@@ -71,6 +76,9 @@ const requiredScripts = [
   "start",
   "check",
   "test",
+  "mcp",
+  "verify:mcp",
+  "smoke:mcp",
   "check:public",
   "verify:public-clone",
 ];
