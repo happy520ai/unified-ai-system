@@ -19,6 +19,9 @@
   <a href="https://github.com/happy520ai/unified-ai-system/releases/latest">
     <img alt="Release" src="https://img.shields.io/github/v/release/happy520ai/unified-ai-system?style=flat-square" />
   </a>
+  <a href="https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.3.1">
+    <img alt="Official MCP Registry: active" src="https://img.shields.io/badge/Official_MCP_Registry-active-1f883d?style=flat-square" />
+  </a>
   <a href="LICENSE">
     <img alt="License" src="https://img.shields.io/github/license/happy520ai/unified-ai-system?style=flat-square" />
   </a>
@@ -110,8 +113,9 @@ the direct Node entrypoint is discovered without maintaining a second config.
 
 The dedicated MCP image starts its own isolated gateway and removes it when the
 session ends. It fails closed if a gateway may call a real provider. See the
-[MCP server guide](packages/mcp-server/README.md) and the official Registry
-metadata in [`server.json`](server.json).
+[MCP server guide](packages/mcp-server/README.md), the
+[active official Registry entry](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.3.1),
+and its source metadata in [`server.json`](server.json).
 
 ## Run The Gateway
 
@@ -272,6 +276,7 @@ pre-cleanup engineering history remains available on the
 
 ## Project Links
 
+- [Official MCP Registry entry](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.3.1)
 - [v0.3.1 MCP Registry Distribution](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.3.1)
 - [v0.3.0 Terminal and Codex MCP Preview](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.3.0)
 - [v0.2.0 Terminal CLI Preview](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.2.0)

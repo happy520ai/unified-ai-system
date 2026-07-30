@@ -16,6 +16,9 @@
   <a href="https://github.com/happy520ai/unified-ai-system/releases/latest">
     <img alt="Release" src="https://img.shields.io/github/v/release/happy520ai/unified-ai-system?style=flat-square" />
   </a>
+  <a href="https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.3.1">
+    <img alt="官方 MCP Registry：active" src="https://img.shields.io/badge/Official_MCP_Registry-active-1f883d?style=flat-square" />
+  </a>
   <a href="LICENSE">
     <img alt="License" src="https://img.shields.io/github/license/happy520ai/unified-ai-system?style=flat-square" />
   </a>
@@ -104,8 +107,9 @@ Fake Provider 对话、知识基础设施、Workflow 与 Workforce 状态。可�
 
 专用 MCP 镜像会自动启动隔离网关，并在会话结束后清理进程；只要网关可能调用
 真实 Provider，它就会拒绝启动或发送对话。完整说明见
-[MCP Server 指南](packages/mcp-server/README.md)和
-[`server.json`](server.json) 中的官方 Registry 元数据。
+[MCP Server 指南](packages/mcp-server/README.md)、
+[官方 Registry active 条目](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.3.1)
+和 [`server.json`](server.json) 中的源元数据。
 
 ## 持续运行网关
 
@@ -240,6 +244,7 @@ pnpm verify:mcp
 
 ## 项目入口
 
+- [官方 MCP Registry 条目](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.3.1)
 - [v0.3.1 MCP Registry 分发版](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.3.1)
 - [v0.3.0 终端与 Codex MCP 预览版](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.3.0)
 - [v0.2.0 终端 CLI 预览版](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.2.0)
