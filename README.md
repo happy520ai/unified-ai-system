@@ -1,6 +1,120 @@
 # unified-ai-system / AI Gateway Workbench
 
-Public repo preflight status: dry-run / local preview / governance demo. Default: no real Provider calls. Users bringing their own API key remains a future controlled path, not the default clone path. This README makes no general availability claim and no deployment promise.
+<p align="center">
+  <strong>Build AI systems that can act, while keeping people in control.</strong>
+  <br />
+  An evidence-first, local-first workbench for models, agents, tools, and context.
+  <br />
+  面向模型、智能体、工具与上下文协同的可治理 AI 能力网关。
+</p>
+
+<p align="center">
+  <img alt="Apache-2.0 license" src="https://img.shields.io/badge/license-Apache--2.0-0B7285?style=flat-square" />
+  <img alt="Node.js 20 or newer" src="https://img.shields.io/badge/Node.js-%3E%3D20-339933?style=flat-square&logo=nodedotjs&logoColor=white" />
+  <img alt="pnpm 9.15.4" src="https://img.shields.io/badge/pnpm-9.15.4-F69220?style=flat-square&logo=pnpm&logoColor=white" />
+  <img alt="Local-first preview" src="https://img.shields.io/badge/mode-local--first%20preview-2563EB?style=flat-square" />
+  <img alt="Provider calls are gated" src="https://img.shields.io/badge/provider%20calls-gated-7C3AED?style=flat-square" />
+</p>
+
+<p align="center">
+  <a href="#local-quick-start">Quick start</a>
+  ·
+  <a href="#architecture">Architecture</a>
+  ·
+  <a href="#trust-model">Trust model</a>
+  ·
+  <a href="#engineering-status">Engineering status</a>
+</p>
+
+> **Current status:** Public repo preflight status: dry-run / local preview / governance demo. Default: no real Provider calls. Users bringing their own API key remains a future controlled path, not the default clone path. This README makes no general availability claim and no deployment promise.
+
+> The hard part is not calling a model. It is controlling what happens next.
+
+Modern AI products need more than a prompt box. They need stable contracts,
+bounded execution, human approval, budget controls, failure recovery, and
+evidence that explains what actually happened. Unified AI System is an
+open-source engineering workbench for that control layer.
+
+The long-term direction is an enterprise AI capability gateway that can
+coordinate models, agents, tools, and organizational workflows without turning
+autonomy into an unauditable black box. The repository starts with the less
+glamorous parts that serious systems depend on: explicit boundaries, local
+verification, reversible operations, and honest maturity gates.
+
+## Why This Project
+
+| Capability plane | What it brings |
+| --- | --- |
+| **AI Gateway** | A shared service boundary for model access, adapters, contracts, configuration, and diagnostics. |
+| **Mission Control** | Operator-facing visibility for bounded workflows, workforce previews, approvals, and system state. |
+| **Governed execution** | Dry-run defaults, scoped authorization, file boundaries, budgets, rollback notes, and emergency stops. |
+| **Codex Context Gateway** | Targeted project context, relevant-file selection, freshness checks, prompt packs, and token-budget enforcement. |
+| **Evidence layer** | Verifiers and structured evidence that separate a passing command from a justified engineering claim. |
+
+This is designed for teams exploring AI infrastructure, agent orchestration,
+developer tooling, local AI operations, and governance-first automation. It is
+also a research surface for a practical question: how far can increasingly
+capable systems go while remaining inspectable and interruptible?
+
+## Architecture
+
+```mermaid
+flowchart LR
+    O["Operator or application"] --> W["Workbench UI and API"]
+    W --> G["AI Gateway service"]
+    G --> P["Contracts, policy, approval, budget"]
+    P --> X["Models, tools, and agents (gated)"]
+    G --> M["Mission Control and Workforce dry-run"]
+
+    R["Repository state and evidence"] --> C["Codex Context Gateway"]
+    C --> K["Bounded context and prompt packs"]
+
+    G --> E["Evidence, diagnostics, and rollback"]
+    C --> E
+```
+
+The runtime and context planes are intentionally bounded. The Codex Context
+Gateway is an independent context workflow, not a hidden connection to the main
+chat route or Provider runtime.
+
+## Repository Map
+
+```text
+apps/
+  agent-console/          Upper-level operator interaction
+  ai-gateway-service/     Gateway service and Workbench behavior
+  static-showcase/        Reference-only standalone UI prototype
+packages/
+  shared-contracts/       Public protocol types
+  shared-sdk/             Reusable clients and adapters
+  shared-config/          Shared configuration contracts and defaults
+  shared-utils/           Implementation-neutral helpers
+docs/                     Architecture, runbooks, and evidence guidance
+tools/                    Local verifiers and maintenance scripts
+```
+
+Focused migration is preferred over bulk copying. Historical sources, when
+present, remain read-only references.
+
+## Trust Model
+
+What the current repository supports:
+
+- local installation and local Workbench exploration;
+- credential-free first-run and fake-provider verification paths;
+- bounded dry-run workflows, diagnostics, and structured evidence;
+- approval-gated designs for higher-risk operations.
+
+What it does **not** currently claim:
+
+- production deployment or general availability;
+- enterprise L5 autonomy;
+- AGI or independently validated general intelligence;
+- permission to run real Provider calls by default.
+
+Ambition is welcome here, but claims must follow evidence. Local checks,
+readiness tooling, and architecture are reported separately from production,
+L5, and AGI milestones.
 
 Start with local dry-run checks only:
 
@@ -14,8 +128,8 @@ Do not commit secrets, do not run real providers, and do not treat this reposito
 
 ## Local Quick Start
 
-Use Node.js 22 and the pnpm version declared in `package.json`. From a fresh
-clone:
+Use Node.js 22 (Node.js 20 or newer is supported) and pnpm 9.15.4. From a
+fresh clone:
 
 ```powershell
 corepack enable
@@ -23,7 +137,8 @@ pnpm install --frozen-lockfile
 pnpm start:ai-gateway-service
 ```
 
-Open `http://127.0.0.1:3100/ui`. The public-clone path is local-first:
+Open [http://127.0.0.1:3100/ui](http://127.0.0.1:3100/ui). The public-clone
+path is local-first:
 
 - use Chat only after the page reports an available model;
 - configure a model through the Models page without exposing credentials;
@@ -73,7 +188,33 @@ files are ignored by both Git and Docker. Create an input locally only for the
 specific gated action you intend to authorize, then remove it when the action is
 complete.
 
+## Join the Work
+
+Thoughtful architecture critiques, focused bug reports, reproducible failure
+cases, and narrowly scoped pull requests are welcome. A useful contribution
+should improve product value or evidence quality without weakening approval,
+secret-safety, or rollback boundaries.
+
+- [Contributing guide](CONTRIBUTING.md)
+- [Security policy](SECURITY.md)
+- [Changelog](CHANGELOG.md)
+- [Open an issue](https://github.com/happy520ai/unified-ai-system/issues)
+
+Licensed under Apache-2.0.
+
 <!-- BEGIN UNIFIED_AI_SYSTEM_CURRENT_STATE -->
+## Engineering Status
+
+The public README stays focused on the product. The generated phase ledger and
+complete safety boundary remain available below for maintainers and auditors.
+
+- Runtime posture: local-first.
+- Provider posture: fake/local by default; real calls remain explicitly gated.
+- Claim posture: no production, L5, or AGI claim.
+
+<details>
+<summary><strong>Open the full generated engineering ledger</strong></summary>
+
 ## Current State Sync
 
 Managed block maintained by `sync:readme-agents-current-state`.
@@ -416,4 +557,6 @@ cmd /c pnpm run doctor:phase13a
 ### Current blocker
 
 - none
+
+</details>
 <!-- END UNIFIED_AI_SYSTEM_CURRENT_STATE -->
