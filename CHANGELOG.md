@@ -7,6 +7,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-07-30
+
 ### Added
 
 - GitHub community templates, project roadmap, support guide, and launch kit.
@@ -45,5 +47,6 @@ and the project uses [Semantic Versioning](https://semver.org/).
 - It is not presented as production-certified, L5 autonomous, or established
   AGI. Those claims require independent evidence beyond local verification.
 
-[Unreleased]: https://github.com/happy520ai/unified-ai-system/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/happy520ai/unified-ai-system/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/happy520ai/unified-ai-system/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/happy520ai/unified-ai-system/releases/tag/v0.1.0

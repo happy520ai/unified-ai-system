@@ -199,7 +199,7 @@ pnpm verify:public-clone
 
 ## 项目入口
 
-- [v0.1.0 Public Preview](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.1.0)
+- [v0.1.1 终端优先预览版](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.1.1)
 - [文档索引](docs/README.md)
 - [公开路线图](ROADMAP.md)
 - [项目愿景](VISION.md)

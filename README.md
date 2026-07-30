@@ -230,7 +230,7 @@ pre-cleanup engineering history remains available on the
 
 ## Project Links
 
-- [v0.1.0 Public Preview](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.1.0)
+- [v0.1.1 Terminal-First Preview](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.1.1)
 - [Documentation](docs/README.md)
 - [Roadmap](ROADMAP.md)
 - [Vision](VISION.md)
