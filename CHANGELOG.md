@@ -7,6 +7,30 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-07-30
+
+### Added
+
+- A dedicated multi-architecture MCP OCI image whose default command starts
+  the stdio server without a command override.
+- Official MCP Registry metadata in `server.json`, including the verified
+  GitHub namespace, OCI package, and stdio transport.
+- Pinned, checksum-verified MCP Registry publishing through GitHub Actions
+  OIDC on version tags.
+- Protocol smoke coverage that talks to the default command of both local and
+  anonymously pulled MCP container images.
+
+### Changed
+
+- Simplified the no-clone Codex command to use the dedicated MCP image.
+- Extended public repository guards to keep project, Registry, image, and
+  protocol versions aligned.
+
+### Fixed
+
+- Made the MCP image and project-level Codex configuration invoke the Node
+  entrypoint directly so package-manager banners cannot corrupt stdio JSON-RPC.
+
 ## [0.3.0] - 2026-07-30
 
 ### Added
@@ -103,7 +127,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 - It is not presented as production-certified, L5 autonomous, or established
   AGI. Those claims require independent evidence beyond local verification.
 
-[Unreleased]: https://github.com/happy520ai/unified-ai-system/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/happy520ai/unified-ai-system/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/happy520ai/unified-ai-system/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/happy520ai/unified-ai-system/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/happy520ai/unified-ai-system/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/happy520ai/unified-ai-system/compare/v0.1.0...v0.1.1

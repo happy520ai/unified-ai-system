@@ -1,6 +1,6 @@
 [mcp_servers.unified_ai_system]
-command = "pnpm"
-args = ["mcp"]
+command = "node"
+args = ["packages/mcp-server/src/index.js"]
 startup_timeout_sec = 45
 tool_timeout_sec = 60
 default_tools_approval_mode = "writes"

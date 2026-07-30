@@ -81,16 +81,18 @@ terminal and API workflows are the supported public path.
 Add the anonymously pullable container as a local stdio MCP server:
 
 ```bash
-codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:latest pnpm mcp
+codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:latest
 ```
 
 Restart Codex and use `/mcp` to inspect the connected tools. From a trusted
-source checkout, the project-level `.codex/config.toml` starts the same server
-with `pnpm mcp`.
+source checkout, the project-level `.codex/config.toml` starts the same Node
+entrypoint directly.
 
 The MCP server starts an isolated fake-provider gateway, verifies its safety
 state, and stops it with the MCP session. Run `pnpm verify:mcp` to exercise the
-official MCP client handshake and every exposed tool.
+official MCP client handshake and every exposed tool. The dedicated image is
+described in the root [`server.json`](../server.json) for Registry-compatible
+installation.
 
 ## Run The Public Container
 

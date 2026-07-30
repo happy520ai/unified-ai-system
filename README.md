@@ -100,17 +100,18 @@ adds `--allow-real-provider` explicitly for that request. Read the
 Run the gateway as a local MCP server with one anonymous container command:
 
 ```bash
-codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:latest pnpm mcp
+codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:latest
 ```
 
 Restart Codex, then use `/mcp` to inspect eight tools for gateway health,
 readiness, fake-provider chat, knowledge, workflows, and workforce status. A
 trusted source checkout also includes project-level Codex configuration, so
-`pnpm mcp` is discovered without maintaining a second config.
+the direct Node entrypoint is discovered without maintaining a second config.
 
-The MCP path starts its own isolated gateway and removes it when the session
-ends. It fails closed if a gateway may call a real provider. See the
-[MCP server guide](packages/mcp-server/README.md).
+The dedicated MCP image starts its own isolated gateway and removes it when the
+session ends. It fails closed if a gateway may call a real provider. See the
+[MCP server guide](packages/mcp-server/README.md) and the official Registry
+metadata in [`server.json`](server.json).
 
 ## Run The Gateway
 
@@ -271,6 +272,7 @@ pre-cleanup engineering history remains available on the
 
 ## Project Links
 
+- [v0.3.1 MCP Registry Distribution](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.3.1)
 - [v0.3.0 Terminal and Codex MCP Preview](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.3.0)
 - [v0.2.0 Terminal CLI Preview](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.2.0)
 - [Codex MCP server](packages/mcp-server/README.md)

@@ -29,6 +29,7 @@ const requiredFiles = [
   "SECURITY.md",
   "CONTRIBUTING.md",
   "package.json",
+  "server.json",
   "pnpm-lock.yaml",
   "pnpm-workspace.yaml",
   "apps/ai-gateway-service/src/index.js",
@@ -72,6 +73,7 @@ for (const path of tracked) {
 
 const rootPackage = readJson("package.json");
 const servicePackage = readJson("apps/ai-gateway-service/package.json");
+const registryMetadata = readJson("server.json");
 const requiredScripts = [
   "start",
   "check",
@@ -94,6 +96,48 @@ const serviceScriptCount = Object.keys(servicePackage.scripts ?? {}).length;
 if (rootScriptCount > 20) addError("root_script_surface_too_large", "package.json", String(rootScriptCount));
 if (serviceScriptCount > 20) {
   addError("service_script_surface_too_large", "apps/ai-gateway-service/package.json", String(serviceScriptCount));
+}
+
+const expectedRegistryName = "io.github.happy520ai/unified-ai-system";
+const expectedRegistryImage =
+  `ghcr.io/happy520ai/unified-ai-system/mcp-server:${rootPackage.version}`;
+if (registryMetadata.name !== expectedRegistryName) {
+  addError("mcp_registry_name_invalid", "server.json#name");
+}
+if (registryMetadata.version !== rootPackage.version) {
+  addError(
+    "mcp_registry_version_mismatch",
+    "server.json#version",
+    `${registryMetadata.version} != ${rootPackage.version}`,
+  );
+}
+if (registryMetadata.packages?.[0]?.registryType !== "oci") {
+  addError("mcp_registry_package_type_invalid", "server.json#packages[0]");
+}
+if (registryMetadata.packages?.[0]?.identifier !== expectedRegistryImage) {
+  addError(
+    "mcp_registry_image_mismatch",
+    "server.json#packages[0].identifier",
+    registryMetadata.packages?.[0]?.identifier ?? "",
+  );
+}
+if (registryMetadata.packages?.[0]?.transport?.type !== "stdio") {
+  addError(
+    "mcp_registry_transport_invalid",
+    "server.json#packages[0].transport.type",
+  );
+}
+
+const dockerfile = readFileSync(resolve(repoRoot, "Dockerfile"), "utf8");
+if (
+  !dockerfile.includes(
+    `io.modelcontextprotocol.server.name="${expectedRegistryName}"`,
+  )
+) {
+  addError("mcp_registry_oci_label_missing", "Dockerfile");
+}
+if (!dockerfile.includes("FROM runtime AS mcp")) {
+  addError("mcp_container_target_missing", "Dockerfile");
 }
 
 const readme = readFileSync(resolve(repoRoot, "README.md"), "utf8");

@@ -1,6 +1,6 @@
 {
   "name": "unified-ai-system",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "license": "Apache-2.0",
   "repository": {
@@ -18,7 +18,7 @@
     "dev": "pnpm start:ai-gateway-service",
     "demo": "node ./tools/terminal-demo.mjs",
     "gateway": "node ./apps/agent-console/src/cli.js",
-    "mcp": "pnpm --filter @unified-ai-system/mcp-server start",
+    "mcp": "node ./packages/mcp-server/src/index.js",
     "verify:mcp": "pnpm --filter @unified-ai-system/mcp-server test",
     "smoke:mcp": "node ./tools/mcp-smoke.mjs",
     "start:ai-gateway-service": "pnpm --filter @unified-ai-system/ai-gateway-service start",

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { spawn } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { once } from "node:events";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -21,6 +21,15 @@ const expectedTools = [
   "workforce_agents",
 ].sort();
 const jsonOutput = process.argv.includes("--json");
+const dockerImageArgument = process.argv.find((argument) =>
+  argument.startsWith("--docker-image="));
+const dockerImage = dockerImageArgument
+  ? dockerImageArgument.slice("--docker-image=".length).trim()
+  : null;
+
+if (dockerImageArgument && !dockerImage) {
+  throw new Error("--docker-image requires a non-empty image reference.");
+}
 
 function delay(milliseconds) {
   return new Promise((resolvePromise) => {
@@ -48,6 +57,14 @@ function createRpcSession(child) {
   let buffer = "";
   const pending = new Map();
 
+  function rejectPending(error) {
+    for (const request of pending.values()) {
+      clearTimeout(request.timer);
+      request.reject(error);
+    }
+    pending.clear();
+  }
+
   child.stdout.setEncoding("utf8");
   child.stdout.on("data", (chunk) => {
     buffer += chunk;
@@ -61,12 +78,9 @@ function createRpcSession(child) {
       try {
         message = JSON.parse(line);
       } catch (error) {
-        for (const request of pending.values()) {
-          request.reject(
-            new Error(`MCP stdout contained non-JSON data: ${error.message}`),
-          );
-        }
-        pending.clear();
+        rejectPending(
+          new Error(`MCP stdout contained non-JSON data: ${error.message}`),
+        );
         continue;
       }
 
@@ -85,6 +99,9 @@ function createRpcSession(child) {
         }
       }
     }
+  });
+  child.once("error", (error) => {
+    rejectPending(new Error(`MCP process failed to start: ${error.message}`));
   });
 
   function send(message) {
@@ -117,6 +134,83 @@ function createRpcSession(child) {
   };
 }
 
+function runDockerCommand(args) {
+  return new Promise((resolvePromise) => {
+    execFile(
+      "docker",
+      args,
+      { windowsHide: true },
+      (error, stdout, stderr) => {
+        resolvePromise({
+          ok: !error,
+          stdout: stdout?.trim() ?? "",
+          stderr: stderr?.trim() ?? "",
+        });
+      },
+    );
+  });
+}
+
+async function ensureContainerRemoved(containerName) {
+  if (!containerName) return true;
+  const inspected = await runDockerCommand(["inspect", containerName]);
+  if (!inspected.ok) return true;
+  await runDockerCommand(["rm", "--force", containerName]);
+  const finalInspection = await runDockerCommand(["inspect", containerName]);
+  return !finalInspection.ok;
+}
+
+function createMcpProcess() {
+  if (!dockerImage) {
+    return {
+      child: spawn(process.execPath, [serverEntrypoint], {
+        cwd: repoRoot,
+        windowsHide: true,
+        env: {
+          ...process.env,
+          AI_GATEWAY_MCP_URL: "",
+          AI_GATEWAY_PROVIDER_MODE: "fake",
+          AI_GATEWAY_REAL_PROVIDER_ENABLED: "false",
+          PME_ENTERPRISE_AUTH_ENABLED: "false",
+        },
+        stdio: ["pipe", "pipe", "pipe"],
+      }),
+      containerName: null,
+    };
+  }
+
+  const containerName =
+    `unified-ai-system-mcp-smoke-${process.pid}-${Date.now()}`;
+  return {
+    child: spawn(
+      "docker",
+      [
+        "run",
+        "--rm",
+        "--name",
+        containerName,
+        "-i",
+        "--env",
+        "AI_GATEWAY_MCP_URL=",
+        "--env",
+        "AI_GATEWAY_PROVIDER_MODE=fake",
+        "--env",
+        "AI_GATEWAY_REAL_PROVIDER_ENABLED=false",
+        "--env",
+        "PME_ENTERPRISE_AUTH_ENABLED=false",
+        dockerImage,
+      ],
+      {
+        cwd: repoRoot,
+        windowsHide: true,
+        env: process.env,
+        stdio: ["pipe", "pipe", "pipe"],
+      },
+    ),
+    containerName,
+  };
+}
+
 function parseToolPayload(result) {
   const text = result?.content?.find((item) => item.type === "text")?.text;
   if (typeof text !== "string") {
@@ -142,18 +236,7 @@ async function stopChild(child) {
 
 async function runSmoke() {
   let stderr = "";
-  const child = spawn(process.execPath, [serverEntrypoint], {
-    cwd: repoRoot,
-    windowsHide: true,
-    env: {
-      ...process.env,
-      AI_GATEWAY_MCP_URL: "",
-      AI_GATEWAY_PROVIDER_MODE: "fake",
-      AI_GATEWAY_REAL_PROVIDER_ENABLED: "false",
-      PME_ENTERPRISE_AUTH_ENABLED: "false",
-    },
-    stdio: ["pipe", "pipe", "pipe"],
-  });
+  const { child, containerName } = createMcpProcess();
   child.stderr.setEncoding("utf8");
   child.stderr.on("data", (chunk) => {
     stderr = `${stderr}${chunk}`.slice(-8_000);
@@ -167,7 +250,7 @@ async function runSmoke() {
       capabilities: {},
       clientInfo: {
         name: "unified-ai-system-mcp-smoke",
-        version: "0.2.0",
+        version: "0.3.1",
       },
     });
     rpc.notify("notifications/initialized");
@@ -212,10 +295,12 @@ async function runSmoke() {
     }
 
     const exitCode = await stopChild(child);
-    const managedGatewayCleanedUp =
-      typeof baseUrl === "string" && await waitForClosed(baseUrl);
+    const managedGatewayCleanedUp = containerName
+      ? exitCode === 0 && await ensureContainerRemoved(containerName)
+      : typeof baseUrl === "string" && await waitForClosed(baseUrl);
     const result = {
       ok: exitCode === 0 && managedGatewayCleanedUp,
+      runtime: containerName ? "container" : "source",
       protocolVersion: initialize.protocolVersion,
       toolCount: toolNames.length,
       tools: toolNames,
@@ -228,9 +313,11 @@ async function runSmoke() {
     return result;
   } catch (error) {
     await stopChild(child);
+    await ensureContainerRemoved(containerName);
     process.exitCode = 1;
     return {
       ok: false,
+      runtime: containerName ? "container" : "source",
       error: error instanceof Error ? error.message : String(error),
       realProviderCallsMade: false,
       stderrTail: stderr.trim().slice(-4_000),

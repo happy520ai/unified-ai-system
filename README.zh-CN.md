@@ -94,16 +94,18 @@ pnpm gateway doctor
 使用一条匿名容器命令，把网关添加为本地 MCP Server：
 
 ```bash
-codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:latest pnpm mcp
+codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:latest
 ```
 
 重启 Codex 后，使用 `/mcp` 查看 8 个工具，覆盖网关健康、就绪状态、
 Fake Provider 对话、知识基础设施、Workflow 与 Workforce 状态。可信任的
-源码工作区已经包含项目级 Codex 配置，无需重复维护另一份配置。
+源码工作区已经包含直接启动 Node 入口的项目级 Codex 配置，无需重复维护另一份
+配置。
 
-MCP 会自动启动隔离网关，并在会话结束后清理进程；只要网关可能调用真实
-Provider，它就会拒绝启动或发送对话。完整说明见
-[MCP Server 指南](packages/mcp-server/README.md)。
+专用 MCP 镜像会自动启动隔离网关，并在会话结束后清理进程；只要网关可能调用
+真实 Provider，它就会拒绝启动或发送对话。完整说明见
+[MCP Server 指南](packages/mcp-server/README.md)和
+[`server.json`](server.json) 中的官方 Registry 元数据。
 
 ## 持续运行网关
 
@@ -238,6 +240,7 @@ pnpm verify:mcp
 
 ## 项目入口
 
+- [v0.3.1 MCP Registry 分发版](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.3.1)
 - [v0.3.0 终端与 Codex MCP 预览版](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.3.0)
 - [v0.2.0 终端 CLI 预览版](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.2.0)
 - [Codex MCP Server](packages/mcp-server/README.md)

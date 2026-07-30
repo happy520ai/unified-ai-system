@@ -16,11 +16,15 @@ on:
 
 permissions:
   contents: read
+  id-token: write
   packages: write
 
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}/ai-gateway-service
+  MCP_IMAGE_NAME: ${{ github.repository }}/mcp-server
+  MCP_PUBLISHER_VERSION: v1.8.0
+  MCP_PUBLISHER_LINUX_AMD64_SHA256: 1370446bbe74d562608e8005a6ccce02d146a661fbd78674e11cc70b9618d6cf
 
 jobs:
   build-and-push:
@@ -57,6 +61,10 @@ jobs:
         run: |
           set -euo pipefail
           docker build --tag unified-ai-system-smoke .
+          docker build \
+            --target mcp \
+            --tag unified-ai-system-mcp-smoke \
+            .
           docker run --rm \
             --env AI_GATEWAY_PROVIDER_MODE=fake \
             --env AI_GATEWAY_REAL_PROVIDER_ENABLED=false \
@@ -67,6 +75,9 @@ jobs:
             --env AI_GATEWAY_REAL_PROVIDER_ENABLED=false \
             unified-ai-system-smoke \
             pnpm smoke:mcp --json
+          node tools/mcp-smoke.mjs \
+            --docker-image=unified-ai-system-mcp-smoke \
+            --json
           container_id="$(docker run --detach \
             --publish 127.0.0.1::3100 \
             --env AI_GATEWAY_PROVIDER_MODE=fake \
@@ -140,6 +151,19 @@ jobs:
             type=sha,prefix=sha-
             type=raw,value=latest,enable={{is_default_branch}}
 
+      - name: Extract MCP metadata (tags, labels)
+        id: mcp-meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.MCP_IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=sha,prefix=sha-
+            type=raw,value=latest,enable={{is_default_branch}}
+
       - name: Build and push Docker image
         uses: docker/build-push-action@v7
         with:
@@ -148,11 +172,26 @@ jobs:
           push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push != 'false') }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=gateway
+          cache-to: type=gha,mode=max,scope=gateway
           platforms: linux/amd64,linux/arm64
 
-      - name: Verify published terminal demo anonymously
+      - name: Build and push MCP image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ./Dockerfile
+          target: mcp
+          push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push != 'false') }}
+          tags: ${{ steps.mcp-meta.outputs.tags }}
+          labels: ${{ steps.mcp-meta.outputs.labels }}
+          cache-from: |
+            type=gha,scope=mcp
+            type=gha,scope=gateway
+          cache-to: type=gha,mode=max,scope=mcp
+          platforms: linux/amd64,linux/arm64
+
+      - name: Verify published images anonymously
         if: github.event_name != 'pull_request' && (github.event.inputs.push != 'false')
         shell: bash
         run: |
@@ -164,15 +203,21 @@ jobs:
           trap cleanup EXIT
           export DOCKER_CONFIG="${anonymous_config}"
           image="${REGISTRY}/${IMAGE_NAME}:sha-${GITHUB_SHA::7}"
-          for attempt in $(seq 1 6); do
-            if docker pull "${image}"; then
-              break
-            fi
-            if [ "${attempt}" -eq 6 ]; then
-              exit 1
-            fi
-            sleep 5
-          done
+          mcp_image="${REGISTRY}/${MCP_IMAGE_NAME}:sha-${GITHUB_SHA::7}"
+          pull_with_retry() {
+            local target_image="$1"
+            for attempt in $(seq 1 6); do
+              if docker pull "${target_image}"; then
+                return 0
+              fi
+              if [ "${attempt}" -eq 6 ]; then
+                return 1
+              fi
+              sleep 5
+            done
+          }
+          pull_with_retry "${image}"
+          pull_with_retry "${mcp_image}"
           docker run --rm \
             --env AI_GATEWAY_PROVIDER_MODE=fake \
             --env AI_GATEWAY_REAL_PROVIDER_ENABLED=false \
@@ -183,3 +228,38 @@ jobs:
             --env AI_GATEWAY_REAL_PROVIDER_ENABLED=false \
             "${image}" \
             pnpm smoke:mcp --json
+          node tools/mcp-smoke.mjs \
+            --docker-image="${mcp_image}" \
+            --json
+
+      - name: Install MCP Registry publisher
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="mcp-publisher_linux_amd64.tar.gz"
+          curl --fail --location \
+            --output "${archive}" \
+            "https://github.com/modelcontextprotocol/registry/releases/download/${MCP_PUBLISHER_VERSION}/${archive}"
+          echo "${MCP_PUBLISHER_LINUX_AMD64_SHA256}  ${archive}" | sha256sum --check
+          tar -xzf "${archive}" mcp-publisher
+          chmod +x mcp-publisher
+
+      - name: Validate MCP Registry metadata
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF#refs/tags/v}"
+          expected_image="${REGISTRY}/${MCP_IMAGE_NAME}:${version}"
+          test "$(jq -r '.version' server.json)" = "${version}"
+          test "$(jq -r '.packages[0].identifier' server.json)" = "${expected_image}"
+          ./mcp-publisher validate server.json
+
+      - name: Authenticate to MCP Registry
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: ./mcp-publisher login github-oidc
+
+      - name: Publish to MCP Registry
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: ./mcp-publisher publish server.json

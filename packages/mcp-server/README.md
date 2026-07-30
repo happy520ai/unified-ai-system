@@ -30,7 +30,7 @@ From the repository root:
 
 ```bash
 pnpm install --frozen-lockfile
-pnpm mcp
+node packages/mcp-server/src/index.js
 ```
 
 The project-level [`.codex/config.toml`](../../.codex/config.toml) registers
@@ -42,8 +42,14 @@ cloning or changing MCP configuration, then use `/mcp` to inspect the server.
 No clone or API key is required:
 
 ```bash
-codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:latest pnpm mcp
+codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:latest
 ```
+
+The dedicated image starts the MCP server by default; no command override is
+required, and it invokes Node directly so package-manager output cannot pollute
+the JSON-RPC stream. Its OCI identity and stdio transport are declared in the
+repository root [`server.json`](../../server.json) for the official MCP
+Registry.
 
 The equivalent `config.toml` entry is:
 
@@ -54,9 +60,7 @@ args = [
   "run",
   "--rm",
   "-i",
-  "ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:latest",
-  "pnpm",
-  "mcp",
+  "ghcr.io/happy520ai/unified-ai-system/mcp-server:latest",
 ]
 startup_timeout_sec = 45
 tool_timeout_sec = 60
@@ -68,7 +72,7 @@ default_tools_approval_mode = "writes"
 Set `AI_GATEWAY_MCP_URL` to use an already running instance:
 
 ```bash
-AI_GATEWAY_MCP_URL=http://127.0.0.1:3100 pnpm mcp
+AI_GATEWAY_MCP_URL=http://127.0.0.1:3100 node packages/mcp-server/src/index.js
 ```
 
 Startup is rejected if that gateway may call a real provider. Authentication
