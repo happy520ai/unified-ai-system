@@ -33,7 +33,7 @@ body:
         - Agents and workforce
         - Knowledge and context
         - Governance and evaluation
-        - Workbench
+        - CLI and TUI
         - Deployment and observability
         - Documentation
         - Other

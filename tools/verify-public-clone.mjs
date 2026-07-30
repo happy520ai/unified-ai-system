@@ -101,7 +101,7 @@ try {
   const health = await waitForReady(baseUrl, child);
   const setup = await fetchJson(`${baseUrl}/setup/readiness`);
   const uiResponse = await fetch(`${baseUrl}/ui`);
-  const uiText = await uiResponse.text();
+  const consoleResponse = await fetch(`${baseUrl}/console`);
   const chat = await fetchJson(`${baseUrl}/chat`, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -111,7 +111,9 @@ try {
   const checks = {
     healthReady: health.status === 200 && health.body?.data?.status === "ready",
     setupReady: setup.status === 200 && setup.body?.data?.status === "ready",
-    uiReady: uiResponse.status === 200 && /AI Gateway Workbench/i.test(uiText),
+    terminalFirstSurface:
+      uiResponse.status === 404
+      && consoleResponse.status === 404,
     fakeProviderDefault: health.body?.data?.realProviderEnabled === false,
     chatReady: chat.status === 200 && chat.body?.success === true && chat.body?.code === "ROUTE_OK",
     chatUsesFakeProvider:

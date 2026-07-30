@@ -3,7 +3,6 @@ import { renderInternalEmployeeCommunicationPanel } from "./InternalEmployeeComm
 import { renderBranchExecutionPreviewPanel } from "./BranchExecutionPreviewPanel.js";
 import { renderLongHorizonHardeningPanel } from "./LongHorizonHardeningPanel.js";
 import { renderCodexContextGatewayPanel } from "./CodexContextGatewayPanel.js";
-import { renderUserOwnedProviderExpansionPanel } from "./UserOwnedProviderExpansionPanel.js";
 import { renderModelRoutingPanel } from "./ModelRoutingPanel.js";
 import { renderRealModelRoutingPanel } from "./RealModelRoutingPanel.js";
 import { renderModelRoutingSurrogateSoakPanel } from "./ModelRoutingSurrogateSoakPanel.js";
@@ -19,7 +18,6 @@ import { renderTaijiBeidouLocalDogfoodingMainlinePanel } from "./TaijiBeidouLoca
 import { renderTaijiBeidouRealLocalDogfoodingIntakePanel } from "./TaijiBeidouRealLocalDogfoodingIntakePanel.js";
 import { renderRouteQualityAuditPanel } from "./RouteQualityAuditPanel.js";
 import { renderRouteQualityRound2Panel } from "./RouteQualityRound2Panel.js";
-import { renderLocalSelfUseRoutingV1Panel } from "./LocalSelfUseRoutingV1Panel.js";
 import { renderFutureMinimalOsPanel } from "./FutureMinimalOsPanel.js";
 import { renderTaijiBeidouMissionControlVisualizationPanel } from "./TaijiBeidouMissionControlVisualizationPanel.js";
 import { renderOwnerAdvancedDrawer } from "./OwnerAdvancedDrawer.js";
@@ -110,8 +108,6 @@ ${renderLongHorizonHardeningPanel()}
 
 ${renderCodexContextGatewayPanel()}
 
-${renderUserOwnedProviderExpansionPanel()}
-
 ${renderModelRoutingPanel()}
 
 ${renderRealModelRoutingPanel()}
@@ -125,8 +121,6 @@ ${renderGlobalModelOpsPanel()}
 ${renderRouteQualityAuditPanel()}
 
 ${renderRouteQualityRound2Panel()}
-
-${renderLocalSelfUseRoutingV1Panel()}
 
 ${renderTaijiBeidouPanel()}
 

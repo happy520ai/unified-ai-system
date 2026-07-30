@@ -92,6 +92,7 @@ jobs:
           const health = await readJson("/health/check");
           const setup = await readJson("/setup/readiness");
           const ui = await fetch(`${baseUrl}/ui`);
+          const consoleRoute = await fetch(`${baseUrl}/console`);
           const chat = await readJson("/chat", {
             method: "POST",
             headers: { "content-type": "application/json" },
@@ -100,7 +101,7 @@ jobs:
           const checks = {
             health: health.status === 200 && health.body?.data?.status === "ready",
             setup: setup.status === 200 && setup.body?.data?.status === "ready",
-            ui: ui.status === 200,
+            terminalFirstSurface: ui.status === 404 && consoleRoute.status === 404,
             fakeProviderDisabledRealCalls: health.body?.data?.realProviderEnabled === false,
             chat: chat.status === 200
               && chat.body?.success === true

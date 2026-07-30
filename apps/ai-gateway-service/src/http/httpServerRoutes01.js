@@ -4,7 +4,7 @@ export async function dispatchHttpRoutes01(context) {
   const {
     createErrorEnvelope, createOkEnvelope, getSafeRuntimeConfig, createRouteFailureEnvelope,
     createLocalAgentIntentExplainer, runLocalOperationLoop, getSupportedKnowledgeFileTypes, parseKnowledgeFile,
-    listModelImportProviders, detectRuntimeCredentialProviders, createConsolePage, getRequestContext,
+    listModelImportProviders, detectRuntimeCredentialProviders, getRequestContext,
     createNextCodexTask, writeNextCodexTaskOutbox, readCodexLoopStatus, checkTokenCostGuard,
     appendEstimateRecord, readTokenCostSummary, readLatestMimoTokenCalibrationProfile, createResponseCacheKey,
     createResponseCachePolicy, invalidateCache, lookupCache, readResponseCacheSummary,
@@ -12,7 +12,7 @@ export async function dispatchHttpRoutes01(context) {
     getEvidenceById, TASK_MATRIX, LATENCY_DRY_RUN_CASES, PHASE315A_TIMEOUT_TYPES,
     PHASE315A_LATENCY_RISK_LEVELS, PHASE315A_COMPLETION_CONFIDENCE, executeThreeModeRequest, evaluateTaijiBeidouChatGatewayExecutePreviewHook,
     evaluateTaijiBeidouChatPreviewHook, handleChatLocalActionRoute, routeChatActionProposal, buildModelUsabilityMatrix,
-    createModelVerificationPlan, getPluginRegistry, readJson, writeHtml,
+    createModelVerificationPlan, getPluginRegistry, readJson,
     writeJson, writeSseEvent, writeSseHeaders, writeServiceLog,
     createHealth, createSetupReadiness, runPhase312AChatGateway, runPhase314ADryRunTask,
     runPhase315ALatencyDryRun, testPhase312AModel, createProviders, setRuntimeProviderCredential,
@@ -28,11 +28,6 @@ export async function dispatchHttpRoutes01(context) {
     modelImportService, modelLibraryStore, providerConfigRoutes, userExperienceService,
     workforceService, workflowService, wsServer,
   } = context;
-
-  if (request.method === "GET" && (url.pathname === "/ui" || url.pathname === "/console")) {
-    writeHtml(response, 200, createConsolePage());
-    return;
-  }
 
   if (request.method === "POST" && url.pathname === "/agent-runner/intent-approval-preview") {
     let body;

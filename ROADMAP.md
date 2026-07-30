@@ -12,7 +12,6 @@ support them.
 - Credential-free local startup through the deterministic fake provider
 - Terminal CLI for demo, startup, status, chat, and environment diagnostics
 - Unified chat, streaming, routing, health, and diagnostics
-- Optional browser Workbench for approval and inspection workflows
 - Provider adapters with explicit real-provider opt-in
 - Agent, workforce, knowledge, context, and governance modules
 - Shared contracts and SDK foundations
@@ -26,8 +25,6 @@ support them.
 - Expand CLI and TUI coverage for agents, knowledge, routing, and approvals
 - Make provider adapters easier to add, test, and distribute
 - Publish focused examples for routing, agents, RAG, approvals, and evaluation
-- Keep the optional Workbench focused on workflows that benefit from visual
-  approval, audit, and comparison
 - Add durable workflow state and clearer recovery semantics
 - Expand deployment guidance, telemetry, and operational diagnostics
 - Establish repeatable external evaluation packages and independent review

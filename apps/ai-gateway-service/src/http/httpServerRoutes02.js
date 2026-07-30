@@ -4,7 +4,7 @@ export async function dispatchHttpRoutes02(context) {
   const {
     createErrorEnvelope, createOkEnvelope, getSafeRuntimeConfig, createRouteFailureEnvelope,
     createLocalAgentIntentExplainer, runLocalOperationLoop, getSupportedKnowledgeFileTypes, parseKnowledgeFile,
-    listModelImportProviders, detectRuntimeCredentialProviders, createConsolePage, getRequestContext,
+    listModelImportProviders, detectRuntimeCredentialProviders, getRequestContext,
     createNextCodexTask, writeNextCodexTaskOutbox, readCodexLoopStatus, checkTokenCostGuard,
     appendEstimateRecord, readTokenCostSummary, readLatestMimoTokenCalibrationProfile, createResponseCacheKey,
     createResponseCachePolicy, invalidateCache, lookupCache, readResponseCacheSummary,
@@ -12,7 +12,7 @@ export async function dispatchHttpRoutes02(context) {
     getEvidenceById, TASK_MATRIX, LATENCY_DRY_RUN_CASES, PHASE315A_TIMEOUT_TYPES,
     PHASE315A_LATENCY_RISK_LEVELS, PHASE315A_COMPLETION_CONFIDENCE, executeThreeModeRequest, evaluateTaijiBeidouChatGatewayExecutePreviewHook,
     evaluateTaijiBeidouChatPreviewHook, handleChatLocalActionRoute, routeChatActionProposal, buildModelUsabilityMatrix,
-    createModelVerificationPlan, getPluginRegistry, readJson, writeHtml,
+    createModelVerificationPlan, getPluginRegistry, readJson,
     writeJson, writeSseEvent, writeSseHeaders, writeServiceLog,
     createHealth, createSetupReadiness, runPhase312AChatGateway, runPhase314ADryRunTask,
     runPhase315ALatencyDryRun, testPhase312AModel, createProviders, setRuntimeProviderCredential,

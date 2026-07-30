@@ -282,7 +282,6 @@ async function runStatus(options, output) {
     realProviderEnabled: health.realProviderEnabled === true,
     providers,
     chatReady: readiness.readiness?.chat?.ready === true,
-    workbenchUrl: `${options.url}/ui`,
   };
 
   if (options.json) {

@@ -2,8 +2,6 @@ import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { renderBugIntakeGovernancePanel } from "../components/BugIntakeGovernancePanel.js";
-import { renderLocalSelfUseRoutingV1Panel } from "../components/LocalSelfUseRoutingV1Panel.js";
-import { renderOwnerTrialFeedbackPanel } from "../components/OwnerTrialFeedbackPanel.js";
 import { renderScenarioDryRunResultPanel } from "../components/ScenarioDryRunResultPanel.js";
 import { futureMinimalOsCopy } from "./copy/futureMinimalOsCopy.js";
 import { renderErrorState } from "./components/ErrorState.js";
@@ -68,8 +66,6 @@ function renderSampleBridge(copy) {
                   <button type="button" class="ghost future-sample-button" id="start-sample-dry-run-button" data-scenario-action="start">${copy.sample.action}</button>
 ${renderScenarioDryRunResultPanel()}
                 </section>
-${renderLocalSelfUseRoutingV1Panel()}
-${renderOwnerTrialFeedbackPanel()}
 ${renderBugIntakeGovernancePanel()}`;
 }
 

@@ -44,7 +44,7 @@ export function reviewCapabilityRuntimeEligibility(manifest, artifacts = {}) {
       selfApprovalAllowed: false,
     },
     requiredEvidenceRefs: artifacts.evidenceRefs || [],
-    rollbackRef: artifacts.rollbackRef || `capabilities/_generated_dry_run/${manifest?.capabilityId}/rollback-plan.json`,
+    rollbackRef: artifacts.rollbackRef || `.data/capabilities/generated-dry-run/${manifest?.capabilityId}/rollback-plan.json`,
     providerCallsAllowed: false,
     secretReadAllowed: false,
     deployAllowed: false,

@@ -71,3 +71,9 @@ apps/*/evidence/**
 # Historical phase artifacts belong on the archive branch.
 docs/phase*
 tools/phase*
+
+# Generated phase-era ledgers and previews are not public product source.
+/capabilities/
+/local-self-use/
+/model-routing/
+/provider-expansion/

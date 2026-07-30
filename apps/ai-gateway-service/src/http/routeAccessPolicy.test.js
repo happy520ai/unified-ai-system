@@ -3,7 +3,6 @@ import { isPublicRoute } from "./routeAccessPolicy.js";
 
 describe("route access policy", () => {
   it.each([
-    "/ui",
     "/health/check",
     "/setup/readiness",
     "/auth/status",
@@ -12,6 +11,8 @@ describe("route access policy", () => {
   });
 
   it.each([
+    "/ui",
+    "/console",
     "/approvals/create",
     "/local-operation/apply-approved",
     "/agent-runner/local-operation",

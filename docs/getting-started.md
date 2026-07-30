@@ -41,8 +41,8 @@ pnpm verify:public-clone
 ```
 
 The public-clone verifier starts the gateway on a free local port, checks
-health, setup readiness, UI delivery, and fake-provider chat, then stops the
-service.
+health, setup readiness, the terminal-only public surface, and fake-provider
+chat, then stops the service.
 
 ## Prove The Terminal Path
 
@@ -73,8 +73,8 @@ refuses to send when a real provider may be active unless the operator adds
 `--allow-real-provider` explicitly for that request. See the complete
 [terminal CLI reference](cli.md).
 
-The HTTP API remains available directly, and the optional Workbench is at
-`http://127.0.0.1:3100/ui`.
+The HTTP API remains available directly. No browser UI is exposed by default;
+terminal and API workflows are the supported public path.
 
 ## Run The Public Container
 

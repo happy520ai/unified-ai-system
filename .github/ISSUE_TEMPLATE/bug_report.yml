@@ -1,5 +1,5 @@
 name: Bug report
-description: Report a reproducible defect in the gateway, Workbench, or tooling.
+description: Report a reproducible defect in the gateway, CLI, API, or tooling.
 title: "[Bug]: "
 labels:
   - bug

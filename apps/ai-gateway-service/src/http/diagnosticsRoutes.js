@@ -136,8 +136,6 @@ export function createDiagnosticsRoutes(application) {
       phase: "phase-7a-1-service-entry",
       routes: [
         "GET /health/check",
-        "GET /ui",
-        "GET /console",
         "POST /chat",
         "POST /chat/stream",
         "POST /chat/rag",

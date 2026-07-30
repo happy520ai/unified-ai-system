@@ -1,5 +1,5 @@
 export function generateScaffoldPlan(spec, manifest) {
-  const base = `capabilities/_generated_dry_run/${manifest.capabilityId}`;
+  const base = `.data/capabilities/generated-dry-run/${manifest.capabilityId}`;
   return {
     scaffoldPlanVersion: "phase651-666-scaffold-plan-v1",
     capabilityId: manifest.capabilityId,

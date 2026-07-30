@@ -112,9 +112,9 @@ curl --request POST http://127.0.0.1:3100/chat \
   --data "{\"prompt\":\"Hello from Unified AI System\"}"
 ```
 
-The default runtime uses a deterministic local fake provider. The browser UI
-is not required; the optional Workbench remains available at
-[http://127.0.0.1:3100/ui](http://127.0.0.1:3100/ui).
+The default runtime uses a deterministic local fake provider. Terminal and API
+workflows are the public product surface; no browser UI is required or exposed
+by default.
 
 ## What You Get
 
@@ -124,7 +124,6 @@ is not required; the optional Workbench remains available at
 | **Governed agents** | Structured planning and workforce modules with approval, permission, and evidence surfaces. |
 | **Knowledge and context** | Retrieval, context shaping, reusable knowledge, and memory-oriented modules. |
 | **Terminal and API** | CLI commands for demo, startup, status, chat, and diagnostics, plus direct HTTP and shared SDK access. |
-| **Optional Workbench** | A browser surface for operating and inspecting the local gateway. |
 | **Extension layer** | Shared contracts, SDKs, context modules, provider adapters, and tools. |
 | **Local-first runtime** | Credential-free startup plus an anonymously pullable multi-architecture container. |
 
@@ -165,22 +164,14 @@ pnpm gateway serve
 
 Useful local endpoints:
 
-- Workbench: [http://127.0.0.1:3100/ui](http://127.0.0.1:3100/ui)
 - Health: [http://127.0.0.1:3100/health/check](http://127.0.0.1:3100/health/check)
 - Setup readiness: [http://127.0.0.1:3100/setup/readiness](http://127.0.0.1:3100/setup/readiness)
-
-<details>
-<summary>Optional browser Workbench preview</summary>
-
-![Unified AI System browser Workbench](docs/assets/workbench-overview.png)
-
-</details>
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-    H["Human intent"] --> W["Terminal, API, and optional Workbench"]
+    H["Human intent"] --> W["Terminal and API"]
     W --> G["Governance and approval"]
     G --> R["AI Gateway"]
     R --> M["Model routing"]
@@ -204,7 +195,7 @@ internal ownership boundaries and reusable workspace packages. See the
 | Question | Verified answer |
 | --- | --- |
 | Can anyone clone and inspect the project? | **Yes.** The repository is public under Apache-2.0. |
-| Can a clean clone run without an API key? | **Yes.** Health, UI, and fake-provider chat are verified. |
+| Can a clean clone run without an API key? | **Yes.** Health and fake-provider chat are verified. |
 | Is the container publicly pullable? | **Yes.** The `master` image is available from GHCR. |
 | Is there a hosted public API? | **No.** Users run a local or self-hosted instance. |
 | Can users connect real providers? | **Yes.** They supply credentials and explicitly enable execution. |
@@ -224,8 +215,9 @@ pnpm verify:public-clone
 ```
 
 Every push to `master` runs Linux CI and a real container startup smoke test.
-The container path checks health, setup readiness, UI delivery, and
-fake-provider chat before the multi-architecture image is published.
+The container path checks health, setup readiness, the terminal-only public
+surface, and fake-provider chat before the multi-architecture image is
+published.
 
 ## Build With Us
 
@@ -234,7 +226,7 @@ Current entry points include:
 
 - [Add a credential-free JavaScript chat example](https://github.com/happy520ai/unified-ai-system/issues/2)
 - [Document how to add and test a provider adapter](https://github.com/happy520ai/unified-ai-system/issues/3)
-- [Audit Workbench keyboard navigation and focus states](https://github.com/happy520ai/unified-ai-system/issues/4)
+- [Help shape the next terminal-first CLI commands](https://github.com/happy520ai/unified-ai-system/discussions/5)
 
 Read [CONTRIBUTING.md](CONTRIBUTING.md), join
 [Discussions](https://github.com/happy520ai/unified-ai-system/discussions), or
@@ -246,11 +238,8 @@ send a focused pull request. Security reports belong in
 ```text
 apps/
   agent-console/          Terminal CLI and operator interaction
-  ai-gateway-service/     Main gateway runtime and Workbench
+  ai-gateway-service/     Main gateway runtime and HTTP API
 packages/                 Contracts, SDKs, configuration, and engines
-capabilities/             Capability manifests used by the local system
-model-routing/            Routing policies and model metadata
-local-self-use/           Local operating helpers
 docs/                     Public user and architecture documentation
 tools/                    Maintained repository and runtime checks
 ```

@@ -4,9 +4,9 @@ Unified AI System is a modular monolith with reusable workspace packages.
 
 ## Runtime
 
-- `apps/ai-gateway-service` owns HTTP routes, the Workbench, provider
+- `apps/ai-gateway-service` owns HTTP routes, gateway runtime, provider
   orchestration, knowledge, agents, and operational controls.
-- `apps/agent-console` owns the separate operator console.
+- `apps/agent-console` owns the terminal operator interface.
 - `packages/*` provide contracts, configuration, SDKs, context, workforce,
   routing, and engine modules.
 

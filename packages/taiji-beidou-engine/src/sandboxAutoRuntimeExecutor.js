@@ -31,7 +31,7 @@ export function executeSandboxAutoRuntime(input = {}) {
     blockedReason = "dry_run_adapter_failed";
   }
 
-  const evidenceRef = `capabilities/_runtime_evidence/${capability.capabilityId}/runtime-evidence.json`;
+  const evidenceRef = `.data/capabilities/runtime-evidence/${capability.capabilityId}/runtime-evidence.json`;
   return {
     capabilityId: capability.capabilityId,
     runtimeKind: "sandbox_local",

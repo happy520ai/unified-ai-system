@@ -4,9 +4,7 @@
  */
 export function isPublicRoute(pathname) {
   return (
-    pathname === "/ui"
-    || pathname === "/console"
-    || pathname === "/health"
+    pathname === "/health"
     || pathname === "/health/check"
     || pathname === "/setup/readiness"
     || pathname === "/auth/status"

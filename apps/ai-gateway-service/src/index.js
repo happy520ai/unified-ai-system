@@ -17,8 +17,6 @@ server.listen(port, host, () => {
     url: `http://${host}:${port}`,
     routes: [
       "GET /health/check",
-      "GET /ui",
-      "GET /console",
       "GET /providers",
       "GET /config/runtime",
       "GET /route/modes",

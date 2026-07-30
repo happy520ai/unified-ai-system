@@ -13,6 +13,10 @@ coverage/
 .forge/
 .forge-worktrees/
 legacy/
+capabilities/
+local-self-use/
+model-routing/
+provider-expansion/
 
 .env
 .env.*

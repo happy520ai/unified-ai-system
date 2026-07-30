@@ -122,9 +122,10 @@ describe("Batch13 Fix4: isPublicRoute hardened", () => {
     }
   });
 
-  it("still keeps safe read-only routes public", () => {
+  it("keeps bootstrap routes public without exposing retired browser surfaces", () => {
     const fnBody = getPublicRouteBody();
-    assert.ok(fnBody.includes('"/ui"'), "/ui should remain public");
+    assert.ok(!fnBody.includes('"/ui"'), "/ui should not be public");
+    assert.ok(!fnBody.includes('"/console"'), "/console should not be public");
     assert.ok(fnBody.includes('"/health/check"'), "/health/check should remain public");
     assert.ok(fnBody.includes('"/setup/readiness"'), "/setup/readiness should remain public");
     assert.ok(fnBody.includes('"/auth/status"'), "/auth/status should remain public");

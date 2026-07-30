@@ -11,14 +11,26 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 - A one-command, disposable terminal demo inside the public container image.
 - OCI source, description, and license metadata for the published image.
+- Repository and container guards that keep historical phase artifact roots
+  out of the public product tree.
+- Public-clone verification for the terminal-only default route surface.
 
 ### Changed
 
 - Made the no-clone container demo the primary README quickstart.
-- Reframed the browser Workbench as an optional surface rather than a required
-  product entry point.
+- Made the terminal and HTTP API the only default public product surfaces.
 - Extended the container workflow to verify the bundled CLI before publishing,
   then anonymously pull the published SHA image and run the terminal demo again.
+- Moved generated capability references under ignored `.data/` runtime state.
+
+### Removed
+
+- Retired the default `/ui` and `/console` browser routes after visual
+  verification found the legacy Workbench unsuitable for the public preview.
+- Removed 168 generated phase ledgers, dry-run results, routing evidence files,
+  and provider-expansion artifacts from the public product tree.
+- Removed historical read-only UI panels that only rendered those generated
+  artifacts, along with the obsolete Workbench screenshot.
 
 ## [0.2.0] - 2026-07-30
 

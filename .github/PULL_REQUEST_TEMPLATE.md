@@ -24,7 +24,8 @@ deployment, public contracts, or migration behavior.
 
 ## Screenshots
 
-Include before and after screenshots for visible Workbench changes.
+Include terminal transcripts or before and after screenshots when visible
+behavior changes.
 
 ## Checklist
 

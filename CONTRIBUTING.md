@@ -36,7 +36,7 @@ request.
 - Agent protocols and workforce coordination
 - Evaluation, safety, approval, and evidence systems
 - Knowledge, memory, retrieval, and context shaping
-- Workbench usability and accessibility
+- Terminal CLI and future TUI workflows
 - Deployment, observability, examples, and documentation
 
 ## Safety Boundaries
@@ -73,7 +73,7 @@ A useful pull request explains:
 - what changed and why;
 - how the behavior was verified;
 - any safety, compatibility, or migration impact;
-- screenshots for visible Workbench changes.
+- terminal transcripts or screenshots when visible behavior changes.
 
 By contributing, you agree that your contribution is licensed under
 [Apache-2.0](LICENSE).

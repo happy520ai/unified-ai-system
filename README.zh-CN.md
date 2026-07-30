@@ -106,8 +106,8 @@ curl --request POST http://127.0.0.1:3100/chat \
   --data "{\"prompt\":\"你好，Unified AI System\"}"
 ```
 
-默认运行时使用确定性的本地 Fake Provider，不依赖浏览器 UI。可选 Workbench 位于
-[http://127.0.0.1:3100/ui](http://127.0.0.1:3100/ui)。
+默认运行时使用确定性的本地 Fake Provider。终端与 API 是公开产品入口；系统
+默认不暴露浏览器 UI，运行网关也不依赖它。
 
 ## 当前具备什么
 
@@ -117,7 +117,6 @@ curl --request POST http://127.0.0.1:3100/chat \
 | **受治理智能体** | 结构化规划与 Workforce 模块，以及审批、权限和执行证据界面。 |
 | **知识与上下文** | 检索、上下文塑形、知识复用和面向记忆的模块。 |
 | **终端与 API** | Demo、启动、状态、Chat 与诊断命令，以及直接 HTTP 和共享 SDK 访问。 |
-| **可选 Workbench** | 用于操作和检查本地网关的浏览器界面。 |
 | **扩展层** | 共享协议、SDK、上下文模块、Provider 适配器与工具。 |
 | **本地优先运行时** | 无凭证启动，以及可匿名拉取的多架构容器。 |
 
@@ -156,22 +155,14 @@ pnpm gateway serve
 
 本地入口：
 
-- Workbench：[http://127.0.0.1:3100/ui](http://127.0.0.1:3100/ui)
 - 健康检查：[http://127.0.0.1:3100/health/check](http://127.0.0.1:3100/health/check)
 - 配置就绪检查：[http://127.0.0.1:3100/setup/readiness](http://127.0.0.1:3100/setup/readiness)
-
-<details>
-<summary>可选浏览器 Workbench 预览</summary>
-
-![Unified AI System 浏览器 Workbench](docs/assets/workbench-overview.png)
-
-</details>
 
 ## 架构
 
 ```mermaid
 flowchart LR
-    H["人类意图"] --> W["终端、API 与可选 Workbench"]
+    H["人类意图"] --> W["终端与 API"]
     W --> G["治理与审批"]
     G --> R["AI Gateway"]
     R --> M["模型路由"]
@@ -194,7 +185,7 @@ flowchart LR
 | 问题 | 已验证答案 |
 | --- | --- |
 | 所有人都可以克隆和查看项目吗？ | **可以。** 仓库采用 Apache-2.0 协议公开。 |
-| 全新克隆无需 API Key 就能运行吗？ | **可以。** 健康检查、UI 和 Fake Provider Chat 已验证。 |
+| 全新克隆无需 API Key 就能运行吗？ | **可以。** 健康检查和 Fake Provider Chat 已验证。 |
 | 容器可以公开拉取吗？ | **可以。** GHCR 提供 `master` 镜像。 |
 | 当前提供公网托管 API 吗？ | **不提供。** 用户运行本地或自行部署的实例。 |
 | 可以连接真实 Provider 吗？ | **可以。** 用户自行提供凭证并显式启用执行。 |
@@ -213,7 +204,7 @@ pnpm verify:public-clone
 ```
 
 每次推送到 `master` 都会运行 Linux CI 和真实容器启动冒烟测试，包括健康检查、
-配置就绪、UI 返回和 Fake Provider Chat。
+配置就绪、终端优先公开边界和 Fake Provider Chat。
 
 ## 参与建设
 
@@ -221,7 +212,7 @@ pnpm verify:public-clone
 
 - [增加一个无凭证 JavaScript Chat 示例](https://github.com/happy520ai/unified-ai-system/issues/2)
 - [说明如何增加和测试 Provider 适配器](https://github.com/happy520ai/unified-ai-system/issues/3)
-- [审计 Workbench 键盘导航与焦点状态](https://github.com/happy520ai/unified-ai-system/issues/4)
+- [一起设计下一批终端优先 CLI 命令](https://github.com/happy520ai/unified-ai-system/discussions/5)
 
 阅读[贡献指南](CONTRIBUTING.md)、加入
 [Discussions](https://github.com/happy520ai/unified-ai-system/discussions)，或提交一个

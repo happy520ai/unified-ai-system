@@ -28,9 +28,6 @@ import {
   detectRuntimeCredentialProviders,
 } from "../providers/providerCredentialDetector.js";
 import {
-  createConsolePage,
-} from "../ui/consolePage.js";
-import {
   getRequestContext,
 } from "../capabilities/userExperienceService.js";
 import {
@@ -128,7 +125,6 @@ import {
 } from "./routeAccessPolicy.js";
 import {
   readJson,
-  writeHtml,
   writeJson,
   writeSseEvent,
   writeSseHeaders,
@@ -182,7 +178,7 @@ const OWNER_AUTOMATION_CHAT_PROPOSAL_FLAG = "OWNER_AUTOMATION_CHAT_PROPOSAL_ENAB
 const HTTP_ROUTE_DEPENDENCIES = Object.freeze({
   createErrorEnvelope, createOkEnvelope, getSafeRuntimeConfig, createRouteFailureEnvelope,
   createLocalAgentIntentExplainer, runLocalOperationLoop, getSupportedKnowledgeFileTypes, parseKnowledgeFile,
-  listModelImportProviders, detectRuntimeCredentialProviders, createConsolePage, getRequestContext,
+  listModelImportProviders, detectRuntimeCredentialProviders, getRequestContext,
   createNextCodexTask, writeNextCodexTaskOutbox, readCodexLoopStatus, checkTokenCostGuard,
   appendEstimateRecord, readTokenCostSummary, readLatestMimoTokenCalibrationProfile, createResponseCacheKey,
   createResponseCachePolicy, invalidateCache, lookupCache, readResponseCacheSummary,
@@ -190,7 +186,7 @@ const HTTP_ROUTE_DEPENDENCIES = Object.freeze({
   getEvidenceById, TASK_MATRIX, LATENCY_DRY_RUN_CASES, PHASE315A_TIMEOUT_TYPES,
   PHASE315A_LATENCY_RISK_LEVELS, PHASE315A_COMPLETION_CONFIDENCE, executeThreeModeRequest, evaluateTaijiBeidouChatGatewayExecutePreviewHook,
   evaluateTaijiBeidouChatPreviewHook, handleChatLocalActionRoute, routeChatActionProposal, buildModelUsabilityMatrix,
-  createModelVerificationPlan, getPluginRegistry, readJson, writeHtml,
+  createModelVerificationPlan, getPluginRegistry, readJson,
   writeJson, writeSseEvent, writeSseHeaders, writeServiceLog,
   createHealth, createSetupReadiness, runPhase312AChatGateway, runPhase314ADryRunTask,
   runPhase315ALatencyDryRun, testPhase312AModel, createProviders, setRuntimeProviderCredential,
