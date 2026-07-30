@@ -11,6 +11,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 - A dependency-free JavaScript chat example that checks gateway safety, pins
   the local fake provider, and verifies fake execution before printing output.
+- A 60-second Codex MCP quickstart with copy-ready safety, chat, workflow, and
+  workforce inspection tasks plus diagnostics and removal.
 
 ### Changed
 

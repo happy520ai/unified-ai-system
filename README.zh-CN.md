@@ -68,6 +68,15 @@ Fake Provider 对话、知识基础设施、Workflow 与 Workforce 状态。可�
 [官方 Registry active 条目](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.3.2)
 和 [`server.json`](server.json) 中的源元数据。
 
+在 Codex 中可以先尝试这个任务：
+
+> 使用 Unified AI System MCP 工具检查网关健康状态和就绪状态；只有网关明确证明
+> 处于纯 Fake 模式时，才通过 Gateway Chat 发送 `MCP_READY`。报告 Provider、
+> Model、执行模式和响应。
+
+按照 [60 秒 Codex MCP 快速上手](docs/codex-mcp-quickstart.md)可以继续完成三个
+安全任务，并查看预期证据、诊断方法和卸载命令。
+
 ## 一行命令完成演示
 
 已经安装 Docker 时，无需克隆仓库即可运行完整终端 Demo：

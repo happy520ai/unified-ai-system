@@ -71,6 +71,15 @@ session ends. It fails closed if a gateway may call a real provider. See the
 [active official Registry entry](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.3.2),
 and its source metadata in [`server.json`](server.json).
 
+First task to try in Codex:
+
+> Use the Unified AI System MCP tools to check gateway health and readiness,
+> then send `MCP_READY` through gateway chat only if the gateway proves
+> fake-only mode. Report the provider, model, execution mode, and response.
+
+Follow the [60-second Codex MCP quickstart](docs/codex-mcp-quickstart.md) for
+three safe tasks, expected evidence, diagnostics, and removal.
+
 ## One-Command Demo
 
 With Docker installed, run the complete terminal demo without cloning the
