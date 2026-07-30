@@ -59,6 +59,19 @@ Open:
 
 The default configuration makes no external provider request.
 
+## Run The Public Container
+
+The `master` image is anonymously pullable from GitHub Container Registry:
+
+```bash
+docker run --rm --publish 3100:3100 \
+  ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:master
+```
+
+Then open `http://127.0.0.1:3100/ui`. The container also defaults to the local
+fake provider. Use `--env-file .env` only after reviewing
+[Provider setup](docs/providers.md).
+
 ## Call The Local Gateway
 
 After starting the service:

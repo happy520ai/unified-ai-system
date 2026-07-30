@@ -13,15 +13,11 @@ RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/ai-gateway-service/package.json apps/ai-gateway-service/package.json
 COPY apps/agent-console/package.json apps/agent-console/package.json
-COPY packages/shared-config/package.json packages/shared-config/package.json
-COPY packages/shared-contracts/package.json packages/shared-contracts/package.json
-COPY packages/shared-sdk/package.json packages/shared-sdk/package.json
-COPY packages/shared-utils/package.json packages/shared-utils/package.json
+COPY packages packages
 
 RUN pnpm install --frozen-lockfile --filter @unified-ai-system/ai-gateway-service...
 
 COPY apps/ai-gateway-service apps/ai-gateway-service
-COPY packages packages
 
 EXPOSE 3100
 

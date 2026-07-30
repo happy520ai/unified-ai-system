@@ -40,3 +40,17 @@ pnpm start
 Open `http://127.0.0.1:3100/ui`.
 
 No API key is required for the default local fake provider.
+
+## Run The Public Container
+
+Docker users can run the anonymously pullable `master` image without cloning
+or configuring credentials:
+
+```bash
+docker run --rm --publish 3100:3100 \
+  ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:master
+```
+
+For a local image build, run `docker compose up --build`. The Compose file
+treats `.env` as optional, so the credential-free fake provider works from a
+fresh clone.
