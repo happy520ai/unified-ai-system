@@ -1,6 +1,6 @@
 {
   "name": "unified-ai-system",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "private": true,
   "license": "Apache-2.0",
   "repository": {
@@ -17,6 +17,7 @@
     "start": "pnpm start:ai-gateway-service",
     "dev": "pnpm start:ai-gateway-service",
     "demo": "node ./tools/terminal-demo.mjs",
+    "gateway": "node ./apps/agent-console/src/cli.js",
     "start:ai-gateway-service": "pnpm --filter @unified-ai-system/ai-gateway-service start",
     "start:agent-console": "pnpm --filter @unified-ai-system/agent-console start",
     "build": "pnpm -r --if-present build",

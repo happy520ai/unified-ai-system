@@ -1,6 +1,6 @@
 {
   "name": "@unified-ai-system/agent-console",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "main": "./src/index.js",
@@ -10,8 +10,9 @@
   },
   "scripts": {
     "start": "node ./src/index.js",
-    "check": "node --check ./src/index.js && node --check ./src/entrypoints/verifyNvidiaServiceChain.js && node --check ./src/entrypoints/verifyErrorHandling.js && node --check ./src/entrypoints/verifyStreamingChain.js && node --check ./src/entrypoints/verifyKnowledgeServiceChain.js",
+    "check": "node --check ./src/index.js && node --check ./src/cli.js && node --check ./src/cli-core.js && node --check ./src/cli.test.js && node --check ./src/entrypoints/verifyNvidiaServiceChain.js && node --check ./src/entrypoints/verifyErrorHandling.js && node --check ./src/entrypoints/verifyStreamingChain.js && node --check ./src/entrypoints/verifyKnowledgeServiceChain.js",
     "build": "pnpm run check",
+    "test": "node --test ./src/cli.test.js",
     "test:service-chain": "node ./src/entrypoints/verifyNvidiaServiceChain.js && node ./src/entrypoints/verifyErrorHandling.js && node ./src/entrypoints/verifyStreamingChain.js && node ./src/entrypoints/verifyKnowledgeServiceChain.js"
   }
 }

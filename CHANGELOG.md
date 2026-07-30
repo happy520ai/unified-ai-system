@@ -7,6 +7,29 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-07-30
+
+### Added
+
+- A formal `pnpm gateway` terminal CLI with `demo`, `serve`, `status`, `chat`,
+  `doctor`, `help`, and `version` commands.
+- Machine-readable `--json` output for automation and operator diagnostics.
+- Focused CLI tests for argument validation, gateway readiness, fake-provider
+  chat, offline diagnostics, and real-provider authorization.
+- A task-oriented terminal CLI reference.
+
+### Changed
+
+- Made the terminal CLI the primary source workflow while keeping the browser
+  Workbench as an optional operator surface.
+- Extended Linux CI to run the CLI doctor and isolated terminal demo.
+
+### Security
+
+- `gateway chat` now fails closed when a real provider may be active. The
+  request is not sent unless the operator adds `--allow-real-provider`
+  explicitly for that command.
+
 ## [0.1.1] - 2026-07-30
 
 ### Added
@@ -47,6 +70,7 @@ and the project uses [Semantic Versioning](https://semver.org/).
 - It is not presented as production-certified, L5 autonomous, or established
   AGI. Those claims require independent evidence beyond local verification.
 
-[Unreleased]: https://github.com/happy520ai/unified-ai-system/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/happy520ai/unified-ai-system/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/happy520ai/unified-ai-system/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/happy520ai/unified-ai-system/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/happy520ai/unified-ai-system/releases/tag/v0.1.0

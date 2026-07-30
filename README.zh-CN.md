@@ -38,7 +38,7 @@ Unified AI System 是一个可自行部署的 AI 能力网关，把多模型路�
 </p>
 
 <p align="center">
-  <a href="https://github.com/happy520ai/unified-ai-system/discussions/5"><strong>参与设计终端优先 CLI</strong></a>
+  <a href="docs/cli.md"><strong>使用终端 CLI</strong></a>
   ·
   <a href="https://github.com/happy520ai/unified-ai-system/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22good%20first%20issue%22">认领新手任务</a>
 </p>
@@ -53,11 +53,30 @@ cd unified-ai-system
 corepack enable
 corepack prepare pnpm@9.15.4 --activate
 pnpm install --frozen-lockfile
-pnpm demo
+pnpm gateway demo
 ```
 
 演示会在临时本地端口启动网关，完成健康检查和一次 Fake Provider 对话，然后
 自动关闭进程。它不会调用任何真实 Provider。
+
+## 使用终端操作
+
+源码仓库提供的是可实际使用的终端入口，而不只是一张演示截图：
+
+```bash
+# 终端 1
+pnpm gateway serve
+
+# 终端 2
+pnpm gateway status
+pnpm gateway chat "你好，Unified AI System"
+pnpm gateway doctor
+```
+
+`demo`、`status`、`chat`、`doctor` 和 `version` 都支持 `--json`。如果网关可能
+使用真实 Provider，`chat` 会在发送请求之前停止；只有为本次命令显式增加
+`--allow-real-provider` 才会继续。完整命令、退出码与安全行为见
+[CLI 文档](docs/cli.md)。
 
 ## 持续运行网关
 
@@ -86,7 +105,7 @@ curl --request POST http://127.0.0.1:3100/chat \
 | **AI 网关** | Chat、流式响应、健康检查、诊断、显式 Provider 选择与路由基础。 |
 | **受治理智能体** | 结构化规划与 Workforce 模块，以及审批、权限和执行证据界面。 |
 | **知识与上下文** | 检索、上下文塑形、知识复用和面向记忆的模块。 |
-| **终端与 API** | 自动清理的终端演示，以及直接 HTTP 和共享 SDK 访问。 |
+| **终端与 API** | Demo、启动、状态、Chat 与诊断命令，以及直接 HTTP 和共享 SDK 访问。 |
 | **可选 Workbench** | 用于操作和检查本地网关的浏览器界面。 |
 | **扩展层** | 共享协议、SDK、上下文模块、Provider 适配器与工具。 |
 | **本地优先运行时** | 无凭证启动，以及可匿名拉取的多架构容器。 |
@@ -120,8 +139,8 @@ corepack enable
 corepack prepare pnpm@9.15.4 --activate
 pnpm install --frozen-lockfile
 pnpm verify:public-clone
-pnpm demo
-pnpm start
+pnpm gateway demo
+pnpm gateway serve
 ```
 
 本地入口：
@@ -199,7 +218,7 @@ pnpm verify:public-clone
 
 ## 项目入口
 
-- [v0.1.1 终端优先预览版](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.1.1)
+- [v0.2.0 终端 CLI 预览版](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.2.0)
 - [文档索引](docs/README.md)
 - [公开路线图](ROADMAP.md)
 - [项目愿景](VISION.md)

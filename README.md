@@ -42,7 +42,7 @@ and human authority stays inside the execution path.
 </p>
 
 <p align="center">
-  <a href="https://github.com/happy520ai/unified-ai-system/discussions/5"><strong>Help shape the terminal-first CLI</strong></a>
+  <a href="docs/cli.md"><strong>Use the terminal CLI</strong></a>
   ·
   <a href="https://github.com/happy520ai/unified-ai-system/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22good%20first%20issue%22">Pick a good first issue</a>
 </p>
@@ -57,12 +57,32 @@ cd unified-ai-system
 corepack enable
 corepack prepare pnpm@9.15.4 --activate
 pnpm install --frozen-lockfile
-pnpm demo
+pnpm gateway demo
 ```
 
 The demo starts the gateway on a temporary local port, verifies health, sends
 one fake-provider chat request, and shuts the process down. It never calls a
 real provider.
+
+## Operate From The Terminal
+
+The source checkout includes a real terminal interface rather than only a
+scripted screenshot:
+
+```bash
+# Terminal 1
+pnpm gateway serve
+
+# Terminal 2
+pnpm gateway status
+pnpm gateway chat "Hello from Unified AI System"
+pnpm gateway doctor
+```
+
+`demo`, `status`, `chat`, `doctor`, and `version` support `--json`. The chat
+command refuses to send when a real provider may be active unless the operator
+adds `--allow-real-provider` explicitly for that request. Read the
+[CLI reference](docs/cli.md) for commands, exit codes, and safety behavior.
 
 ## Run The Gateway
 
@@ -92,7 +112,7 @@ Workbench remains available at
 | **AI gateway** | Chat, streaming, health, diagnostics, explicit provider selection, and routing foundations. |
 | **Governed agents** | Structured planning and workforce modules with approval, permission, and evidence surfaces. |
 | **Knowledge and context** | Retrieval, context shaping, reusable knowledge, and memory-oriented modules. |
-| **Terminal and API** | A self-cleaning terminal demo plus direct HTTP and shared SDK access. |
+| **Terminal and API** | CLI commands for demo, startup, status, chat, and diagnostics, plus direct HTTP and shared SDK access. |
 | **Optional Workbench** | A browser surface for operating and inspecting the local gateway. |
 | **Extension layer** | Shared contracts, SDKs, context modules, provider adapters, and tools. |
 | **Local-first runtime** | Credential-free startup plus an anonymously pullable multi-architecture container. |
@@ -128,8 +148,8 @@ corepack enable
 corepack prepare pnpm@9.15.4 --activate
 pnpm install --frozen-lockfile
 pnpm verify:public-clone
-pnpm demo
-pnpm start
+pnpm gateway demo
+pnpm gateway serve
 ```
 
 Useful local endpoints:
@@ -214,7 +234,7 @@ send a focused pull request. Security reports belong in
 
 ```text
 apps/
-  agent-console/          Operator-facing console
+  agent-console/          Terminal CLI and operator interaction
   ai-gateway-service/     Main gateway runtime and Workbench
 packages/                 Contracts, SDKs, configuration, and engines
 capabilities/             Capability manifests used by the local system
@@ -230,7 +250,7 @@ pre-cleanup engineering history remains available on the
 
 ## Project Links
 
-- [v0.1.1 Terminal-First Preview](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.1.1)
+- [v0.2.0 Terminal CLI Preview](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.2.0)
 - [Documentation](docs/README.md)
 - [Roadmap](ROADMAP.md)
 - [Vision](VISION.md)
