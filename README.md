@@ -159,7 +159,7 @@ Read the longer [project vision](VISION.md) and the
 
 If this is the kind of open AI infrastructure you want to exist, star the
 repository and join the
-[terminal-first CLI design discussion](https://github.com/happy520ai/unified-ai-system/discussions/5).
+[Codex MCP launch discussion](https://github.com/happy520ai/unified-ai-system/discussions/6).
 
 ## Run From Source
 
@@ -271,6 +271,7 @@ pre-cleanup engineering history remains available on the
 
 ## Project Links
 
+- [v0.3.0 Terminal and Codex MCP Preview](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.3.0)
 - [v0.2.0 Terminal CLI Preview](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.2.0)
 - [Codex MCP server](packages/mcp-server/README.md)
 - [Documentation](docs/README.md)

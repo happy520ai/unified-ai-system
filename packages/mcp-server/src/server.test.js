@@ -35,7 +35,7 @@ async function waitForClosed(baseUrl) {
 test("stdio server exposes safe tools and cleans up its managed gateway", async () => {
   const client = new Client({
     name: "unified-ai-system-mcp-test",
-    version: "0.2.0",
+    version: "0.3.0",
   });
   const transport = new StdioClientTransport({
     command: process.execPath,

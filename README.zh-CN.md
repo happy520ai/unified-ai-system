@@ -149,7 +149,7 @@ curl --request POST http://127.0.0.1:3100/chat \
 更完整的长期方向请阅读[项目愿景](VISION.md)和[公开路线图](ROADMAP.md)。
 
 如果你也希望这样的开放 AI 基础设施真正成长起来，请为仓库点一个 Star，并参与
-[终端优先 CLI 设计讨论](https://github.com/happy520ai/unified-ai-system/discussions/5)。
+[Codex MCP 发布讨论](https://github.com/happy520ai/unified-ai-system/discussions/6)。
 
 ## 从源码运行
 
@@ -238,6 +238,7 @@ pnpm verify:mcp
 
 ## 项目入口
 
+- [v0.3.0 终端与 Codex MCP 预览版](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.3.0)
 - [v0.2.0 终端 CLI 预览版](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.2.0)
 - [Codex MCP Server](packages/mcp-server/README.md)
 - [文档索引](docs/README.md)

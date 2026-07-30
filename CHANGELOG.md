@@ -7,6 +7,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-30
+
 ### Added
 
 - A one-command, disposable terminal demo inside the public container image.
@@ -101,7 +103,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 - It is not presented as production-certified, L5 autonomous, or established
   AGI. Those claims require independent evidence beyond local verification.
 
-[Unreleased]: https://github.com/happy520ai/unified-ai-system/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/happy520ai/unified-ai-system/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/happy520ai/unified-ai-system/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/happy520ai/unified-ai-system/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/happy520ai/unified-ai-system/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/happy520ai/unified-ai-system/releases/tag/v0.1.0
