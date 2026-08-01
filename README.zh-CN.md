@@ -245,9 +245,11 @@ pnpm verify:mcp
 
 当前适合开始贡献的任务：
 
-- [增加一个无凭证 JavaScript Chat 示例](https://github.com/happy520ai/unified-ai-system/issues/2)
+- [为 Docker MCP Server 补充通用客户端配置](https://github.com/happy520ai/unified-ai-system/issues/9)
+- [为无凭证快速上手补充 PowerShell 示例](https://github.com/happy520ai/unified-ai-system/issues/10)
 - [说明如何增加和测试 Provider 适配器](https://github.com/happy520ai/unified-ai-system/issues/3)
-- [一起设计下一批终端优先 CLI 命令](https://github.com/happy520ai/unified-ai-system/discussions/5)
+
+你也可以[一起设计下一批终端优先 CLI 命令](https://github.com/happy520ai/unified-ai-system/discussions/5)。
 
 阅读[贡献指南](CONTRIBUTING.md)、加入
 [Discussions](https://github.com/happy520ai/unified-ai-system/discussions)，或提交一个

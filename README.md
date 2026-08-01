@@ -259,9 +259,11 @@ process cleanup before the multi-architecture image is published.
 The project is early enough for focused contributions to shape its foundations.
 Current entry points include:
 
-- [Add a credential-free JavaScript chat example](https://github.com/happy520ai/unified-ai-system/issues/2)
+- [Document a generic MCP client configuration](https://github.com/happy520ai/unified-ai-system/issues/9)
+- [Add PowerShell examples to the credential-free quickstart](https://github.com/happy520ai/unified-ai-system/issues/10)
 - [Document how to add and test a provider adapter](https://github.com/happy520ai/unified-ai-system/issues/3)
-- [Help shape the next terminal-first CLI commands](https://github.com/happy520ai/unified-ai-system/discussions/5)
+
+You can also [help shape the next terminal-first CLI commands](https://github.com/happy520ai/unified-ai-system/discussions/5).
 
 Read [CONTRIBUTING.md](CONTRIBUTING.md), join
 [Discussions](https://github.com/happy520ai/unified-ai-system/discussions), or
