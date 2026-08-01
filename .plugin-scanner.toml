@@ -1,0 +1,22 @@
+[scanner]
+profile = "public-marketplace"
+
+# The Codex plugin archive is a Docker-backed integration. These paths are
+# excluded by .codexignore and are not shipped to plugin users.
+ignore_paths = [
+  ".agent-memory/**",
+  ".agent-sessions/**",
+  ".codex-context/**",
+  ".data/**",
+  ".pnpm-store/**",
+  "node_modules/**",
+  "apps/**",
+  "deploy/**",
+  "docs/**",
+  "packages/**",
+  "tools/**",
+  ".devcontainer/**",
+  ".opencode/**",
+  ".codex/**",
+  ".env*",
+]
