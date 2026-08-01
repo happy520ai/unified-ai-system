@@ -747,8 +747,8 @@ footer span:first-child {
   }
 
   .command-line code {
-    max-height: 44px;
-    overflow: hidden;
+    max-height: none;
+    overflow: visible;
     font-size: 11px;
   }
 
