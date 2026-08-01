@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Unified AI System | Terminal-first AI gateway</title>
+    <meta
+      name="description"
+      content="A terminal-first, self-hosted AI gateway and eight-tool MCP server for Codex, Cursor, and Cline. Run the verified demo without an account or API key."
+    />
+    <meta name="theme-color" content="#081011" />
+    <link rel="canonical" href="https://happy520ai.github.io/unified-ai-system/" />
+    <link rel="icon" type="image/png" href="assets/mcp-icon.png" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Unified AI System | Terminal-first AI gateway" />
+    <meta
+      property="og:description"
+      content="One self-hosted gateway for models, agents, knowledge, and tools. Connect Codex, Cursor, or Cline without an API key for the first verified path."
+    />
+    <meta property="og:url" content="https://happy520ai.github.io/unified-ai-system/" />
+    <meta
+      property="og:image"
+      content="https://happy520ai.github.io/unified-ai-system/assets/social-preview.png"
+    />
+    <meta property="og:image:width" content="1280" />
+    <meta property="og:image:height" content="640" />
+    <meta property="og:image:alt" content="Unified AI System terminal demo" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <link rel="stylesheet" href="site.css" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareSourceCode",
+        "name": "Unified AI System",
+        "description": "Terminal-first, self-hosted AI gateway and MCP server for Codex, Cursor, and Cline.",
+        "codeRepository": "https://github.com/happy520ai/unified-ai-system",
+        "license": "https://www.apache.org/licenses/LICENSE-2.0",
+        "programmingLanguage": "TypeScript",
+        "runtimePlatform": "Docker",
+        "version": "0.3.2"
+      }
+    </script>
+    <script src="site.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <header class="site-header">
+      <a class="brand" href="#top" aria-label="Unified AI System home">
+        <img src="assets/mcp-icon.png" alt="" width="32" height="32" />
+        <span>Unified AI System</span>
+      </a>
+      <nav aria-label="Primary navigation">
+        <a href="#connect">Connect</a>
+        <a href="#proof">Proof</a>
+        <a href="https://github.com/happy520ai/unified-ai-system/blob/master/README.zh-CN.md">中文</a>
+        <a class="nav-command" href="https://github.com/happy520ai/unified-ai-system">GitHub</a>
+      </nav>
+    </header>
+
+    <main id="main">
+      <section class="hero" id="top" aria-labelledby="hero-title">
+        <div class="hero-shade" aria-hidden="true"></div>
+        <div class="hero-inner">
+          <p class="eyebrow">OPEN SOURCE / TERMINAL FIRST</p>
+          <h1 id="hero-title">Unified AI System</h1>
+          <p class="hero-copy">
+            A self-hosted AI gateway for models, agents, knowledge, and tools.
+            Connect Codex, Cursor, or Cline through one governed MCP boundary.
+          </p>
+          <div class="hero-actions">
+            <a class="primary-action" href="#connect">Connect your agent</a>
+            <a class="secondary-action" href="https://github.com/happy520ai/unified-ai-system/releases/tag/v0.3.2">View v0.3.2</a>
+          </div>
+          <div class="command-line" aria-label="Credential-free Docker demo command">
+            <span aria-hidden="true">$</span>
+            <code id="demo-command">docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.3.2 pnpm gateway demo</code>
+            <button type="button" data-copy-target="demo-command">Copy</button>
+          </div>
+          <p class="safety-note">
+            The first verified path is fake-provider only. Real-provider execution remains explicit and scoped.
+          </p>
+        </div>
+      </section>
+
+      <section class="evidence-rail" aria-label="Project evidence">
+        <div><strong>0</strong><span>accounts required</span></div>
+        <div><strong>8</strong><span>governed MCP tools</span></div>
+        <div><strong>2</strong><span>CPU architectures</span></div>
+        <div><strong>Apache-2.0</strong><span>open source</span></div>
+      </section>
+
+      <section class="section connect-section" id="connect" aria-labelledby="connect-title">
+        <div class="section-heading">
+          <p class="eyebrow dark">ONE RUNTIME / THREE CLIENTS</p>
+          <h2 id="connect-title">Meet your agent where it works.</h2>
+          <p>
+            Every path below starts the same published, credential-free MCP container.
+            No repository clone is required.
+          </p>
+        </div>
+
+        <div class="client-switcher">
+          <div class="tabs" role="tablist" aria-label="MCP client">
+            <button id="tab-codex" type="button" role="tab" aria-selected="true" aria-controls="panel-codex" data-client="codex">Codex</button>
+            <button id="tab-cursor" type="button" role="tab" aria-selected="false" aria-controls="panel-cursor" data-client="cursor" tabindex="-1">Cursor</button>
+            <button id="tab-cline" type="button" role="tab" aria-selected="false" aria-controls="panel-cline" data-client="cline" tabindex="-1">Cline</button>
+          </div>
+
+          <div class="client-panel" id="panel-codex" role="tabpanel" aria-labelledby="tab-codex">
+            <div>
+              <p class="panel-label">DIRECT MCP CONNECTION</p>
+              <h3>Codex</h3>
+              <p>Register the published stdio server, restart Codex, then inspect it with <code>/mcp</code>.</p>
+            </div>
+            <div class="code-block">
+              <code id="codex-command">codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.3.2</code>
+              <button type="button" data-copy-target="codex-command">Copy</button>
+            </div>
+          </div>
+
+          <div class="client-panel" id="panel-cursor" role="tabpanel" aria-labelledby="tab-cursor" hidden>
+            <div>
+              <p class="panel-label">GENERATED LOCAL CONFIG</p>
+              <h3>Cursor</h3>
+              <p>Generate a local Cursor MCP configuration without writing provider credentials.</p>
+            </div>
+            <div class="code-block">
+              <code id="cursor-command">pnpm dlx add-mcp@2.0.0 "docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.3.2" --name unified-ai-system -a cursor -y</code>
+              <button type="button" data-copy-target="cursor-command">Copy</button>
+            </div>
+          </div>
+
+          <div class="client-panel" id="panel-cline" role="tabpanel" aria-labelledby="tab-cline" hidden>
+            <div>
+              <p class="panel-label">DIRECT MCP INSTALLATION</p>
+              <h3>Cline</h3>
+              <p>Install the same published server through the Cline CLI with an isolated stdio transport.</p>
+            </div>
+            <div class="code-block">
+              <code id="cline-command">cline mcp install unified-ai-system --yes --json -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.3.2</code>
+              <button type="button" data-copy-target="cline-command">Copy</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section capability-section" aria-labelledby="capability-title">
+        <div class="section-heading compact">
+          <p class="eyebrow dark">THE GATEWAY BOUNDARY</p>
+          <h2 id="capability-title">Useful by default. Explicit when it matters.</h2>
+        </div>
+        <div class="capability-grid">
+          <article>
+            <span>01</span>
+            <h3>Inspect</h3>
+            <p>Health, readiness, workflows, knowledge, and workforce state stay visible through read-only MCP tools.</p>
+          </article>
+          <article>
+            <span>02</span>
+            <h3>Route</h3>
+            <p>One gateway surface separates agent clients from provider selection, model routing, and execution policy.</p>
+          </article>
+          <article>
+            <span>03</span>
+            <h3>Control</h3>
+            <p>The local fake provider is the credential-free default. Real calls require explicit, scoped authorization.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="flow-band" aria-labelledby="flow-title">
+        <div class="flow-copy">
+          <p class="eyebrow">A SMALLER TRUST SURFACE</p>
+          <h2 id="flow-title">One boundary between agents and execution.</h2>
+        </div>
+        <ol class="flow" aria-label="Gateway request flow">
+          <li><span>Clients</span><strong>Codex / Cursor / Cline</strong></li>
+          <li><span>Protocol</span><strong>8-tool MCP server</strong></li>
+          <li><span>Gateway</span><strong>Policy and routing</strong></li>
+          <li><span>Execution</span><strong>Fake by default</strong></li>
+        </ol>
+      </section>
+
+      <section class="section proof-section" id="proof" aria-labelledby="proof-title">
+        <div class="section-heading compact">
+          <p class="eyebrow dark">PUBLIC EVIDENCE</p>
+          <h2 id="proof-title">Verify the path, not the promise.</h2>
+          <p>Source, registry metadata, containers, and checks are public and independently inspectable.</p>
+        </div>
+        <div class="proof-list">
+          <a href="https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.3.2">
+            <span>Official MCP Registry</span><strong>Active entry</strong>
+          </a>
+          <a href="https://github.com/happy520ai/unified-ai-system/actions/workflows/ci.yml">
+            <span>Repository CI</span><strong>Checks and tests</strong>
+          </a>
+          <a href="https://github.com/happy520ai/unified-ai-system/pkgs/container/unified-ai-system%2Fmcp-server">
+            <span>Published MCP image</span><strong>amd64 + arm64</strong>
+          </a>
+          <a href="https://github.com/happy520ai/unified-ai-system/blob/master/docs/codex-mcp-quickstart.md">
+            <span>60-second quickstart</span><strong>Three verification tasks</strong>
+          </a>
+        </div>
+      </section>
+
+      <section class="closing-band" aria-labelledby="closing-title">
+        <p class="eyebrow">PUBLIC ENGINEERING PREVIEW</p>
+        <h2 id="closing-title">Start with one command. Keep human authority in the loop.</h2>
+        <div class="closing-actions">
+          <a class="primary-action light" href="https://github.com/happy520ai/unified-ai-system">Explore on GitHub</a>
+          <a class="secondary-action light" href="https://github.com/happy520ai/unified-ai-system/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22good%20first%20issue%22">Find a first issue</a>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <span>Unified AI System</span>
+      <span>Apache-2.0</span>
+      <span>Production readiness, L5 autonomy, and AGI require independent evidence.</span>
+    </footer>
+  </body>
+</html>
