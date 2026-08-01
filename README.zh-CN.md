@@ -13,6 +13,9 @@
   <a href="https://github.com/happy520ai/unified-ai-system/actions/workflows/ci.yml">
     <img alt="CI" src="https://img.shields.io/github/actions/workflow/status/happy520ai/unified-ai-system/ci.yml?branch=master&style=flat-square&label=CI" />
   </a>
+  <a href="https://github.com/happy520ai/unified-ai-system/actions/workflows/hol-plugin-scanner.yml">
+    <img alt="HOL Plugin Scanner" src="https://img.shields.io/github/actions/workflow/status/happy520ai/unified-ai-system/hol-plugin-scanner.yml?branch=master&style=flat-square&label=plugin%20scan" />
+  </a>
   <a href="https://github.com/happy520ai/unified-ai-system/releases/latest">
     <img alt="Release" src="https://img.shields.io/github/v/release/happy520ai/unified-ai-system?style=flat-square" />
   </a>
@@ -42,14 +45,33 @@
 </p>
 
 <p align="center">
-  <a href="#通过-mcp-接入-codex"><strong>一行命令接入 Codex</strong></a>
+  <a href="#安装-codex-插件"><strong>安装 Codex 插件</strong></a>
   ·
   <a href="#一行命令完成演示">运行网关 Demo</a>
   ·
   <a href="https://github.com/happy520ai/unified-ai-system/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22good%20first%20issue%22">认领新手任务</a>
 </p>
 
-## 通过 MCP 接入 Codex
+## 安装 Codex 插件
+
+除 Codex 外，已发布的插件只需要 Docker 作为运行依赖。先把这个仓库添加为
+Codex Marketplace 来源：
+
+```bash
+codex plugin marketplace add happy520ai/unified-ai-system --ref master
+```
+
+重启 ChatGPT 桌面应用，在 ChatGPT Work 或 Codex 中打开 **Plugins**，选择
+**Unified AI System** Marketplace 并安装插件。插件会加载专用网关 Skill，
+并在隔离容器中启动无需凭据的 MCP Runtime。使用
+`codex plugin marketplace list` 可以检查已添加的来源。
+
+仓库使用 HOL Plugin Scanner 作为发布门禁，最低要求为 80 分，并且不允许存在
+High 或 Critical Finding。公开配置和扫描策略分别位于
+[`.codex-plugin/plugin.json`](.codex-plugin/plugin.json) 与
+[`.plugin-scanner.toml`](.plugin-scanner.toml)。
+
+### 直接连接 MCP
 
 使用一条匿名容器命令，把网关添加为本地 MCP Server：
 

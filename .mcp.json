@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "unified-ai-system": {
+      "command": "docker",
+      "args": [
+        "run",
+        "--rm",
+        "-i",
+        "ghcr.io/happy520ai/unified-ai-system/mcp-server:0.3.2"
+      ],
+      "startup_timeout_sec": 120,
+      "tool_timeout_sec": 60
+    }
+  }
+}

@@ -16,6 +16,9 @@
   <a href="https://github.com/happy520ai/unified-ai-system/actions/workflows/docker-build-push.yml">
     <img alt="Container" src="https://img.shields.io/github/actions/workflow/status/happy520ai/unified-ai-system/docker-build-push.yml?branch=master&style=flat-square&label=container" />
   </a>
+  <a href="https://github.com/happy520ai/unified-ai-system/actions/workflows/hol-plugin-scanner.yml">
+    <img alt="HOL Plugin Scanner" src="https://img.shields.io/github/actions/workflow/status/happy520ai/unified-ai-system/hol-plugin-scanner.yml?branch=master&style=flat-square&label=plugin%20scan" />
+  </a>
   <a href="https://github.com/happy520ai/unified-ai-system/releases/latest">
     <img alt="Release" src="https://img.shields.io/github/v/release/happy520ai/unified-ai-system?style=flat-square" />
   </a>
@@ -45,14 +48,33 @@ explicit opt-in and human authority stays inside the execution path.
 </p>
 
 <p align="center">
-  <a href="#connect-codex-through-mcp"><strong>Connect Codex in one command</strong></a>
+  <a href="#install-the-codex-plugin"><strong>Install the Codex plugin</strong></a>
   ·
   <a href="#one-command-demo">Run the gateway demo</a>
   ·
   <a href="https://github.com/happy520ai/unified-ai-system/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22good%20first%20issue%22">Pick a good first issue</a>
 </p>
 
-## Connect Codex Through MCP
+## Install The Codex Plugin
+
+Docker is the only runtime dependency for the published integration. Add this
+repository as a Codex marketplace source:
+
+```bash
+codex plugin marketplace add happy520ai/unified-ai-system --ref master
+```
+
+Restart the ChatGPT desktop app, open **Plugins** from ChatGPT Work or Codex,
+choose the **Unified AI System** marketplace, and install the plugin. The bundle
+adds a focused gateway skill and starts its credential-free MCP runtime in an
+isolated container. Use `codex plugin marketplace list` to inspect the source.
+
+The plugin is gated by the HOL Plugin Scanner with a required score of at least
+80 and no high or critical findings. Its public configuration and scan policy
+live in [`.codex-plugin/plugin.json`](.codex-plugin/plugin.json) and
+[`.plugin-scanner.toml`](.plugin-scanner.toml).
+
+### Direct MCP Connection
 
 Run the gateway as a local MCP server with one anonymous container command:
 
