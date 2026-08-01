@@ -19,6 +19,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: HOL Plugin Scanner
+        id: hol-scan
+        continue-on-error: true
         uses: hashgraph-online/ai-plugin-scanner-action@8f0a503ca2a70c1968a9a883e11fdff5737b7909 # v1.2.514
         with:
           plugin_dir: "."
@@ -28,4 +30,32 @@ jobs:
           min_score: 80
           fail_on_severity: high
           format: sarif
-          upload_sarif: true
+          upload_sarif: false
+
+      - name: Report scanner findings
+        if: always()
+        shell: bash
+        run: |
+          if [[ ! -s ai-plugin-scanner.sarif ]]; then
+            echo "No scanner SARIF report was produced."
+            exit 0
+          fi
+
+          jq -r '
+            .runs[].results[]?
+            | "[\(.level // "unknown")] \(.ruleId // "unknown-rule") \(.locations[0].physicalLocation.artifactLocation.uri // "unknown-path"):\(.locations[0].physicalLocation.region.startLine // 0) - \(.message.text // "No finding message")"
+          ' ai-plugin-scanner.sarif
+
+      - name: Upload scanner SARIF
+        if: ${{ always() && hashFiles('ai-plugin-scanner.sarif') != '' }}
+        uses: github/codeql-action/upload-sarif@e46ed2cbd01164d986452f91f178727624ae40d7 # v4
+        with:
+          sarif_file: ai-plugin-scanner.sarif
+          category: ai-plugin-scanner
+
+      - name: Enforce scanner result
+        if: steps.hol-scan.outcome == 'failure'
+        shell: bash
+        run: |
+          echo "HOL Plugin Scanner reported a blocking result."
+          exit 1
