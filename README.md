@@ -102,6 +102,21 @@ First task to try in Codex:
 Follow the [60-second Codex MCP quickstart](docs/codex-mcp-quickstart.md) for
 three safe tasks, expected evidence, diagnostics, and removal.
 
+### Generate Codex And Cursor Configs
+
+With Node.js, pnpm, and Docker available, [add-mcp](https://github.com/neon-solutions/add-mcp)
+can write the pinned container command into both project-level client configs:
+
+```bash
+pnpm dlx add-mcp@2.0.0 "docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.3.2" --name unified-ai-system -a codex -a cursor -y
+```
+
+This exact command was verified with `add-mcp` 2.0.0 in an empty directory. It
+created `.codex/config.toml` and `.cursor/mcp.json` without provider
+credentials. Remove an `-a` option when configuring only one client, review
+the generated file, and restart that client. Other `add-mcp` targets are not
+claimed here as verified.
+
 ## Connect Cline Through MCP
 
 Cline can install the same published server without cloning the repository:

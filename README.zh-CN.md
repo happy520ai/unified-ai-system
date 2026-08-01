@@ -99,6 +99,21 @@ Fake Provider 对话、知识基础设施、Workflow 与 Workforce 状态。可�
 按照 [60 秒 Codex MCP 快速上手](docs/codex-mcp-quickstart.md)可以继续完成三个
 安全任务，并查看预期证据、诊断方法和卸载命令。
 
+### 生成 Codex 与 Cursor 配置
+
+已经安装 Node.js、pnpm 与 Docker 时，可以使用
+[add-mcp](https://github.com/neon-solutions/add-mcp)把固定版本的容器命令同时写入
+两个客户端的项目级配置：
+
+```bash
+pnpm dlx add-mcp@2.0.0 "docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.3.2" --name unified-ai-system -a codex -a cursor -y
+```
+
+这条完整命令已经使用 `add-mcp` 2.0.0 在空目录中完成验证，会生成
+`.codex/config.toml` 与 `.cursor/mcp.json`，不会写入 Provider 凭据。只配置一个
+客户端时删除另一个 `-a` 参数；重启客户端前先检查生成的文件。这里不宣称已经
+验证 `add-mcp` 支持的其他客户端。
+
 ## 通过 MCP 接入 Cline
 
 Cline 无需克隆仓库即可安装同一个已发布的 MCP Server：
