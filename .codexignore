@@ -20,4 +20,5 @@ tools/
 .opencode/
 .codex/
 .plugin-scanner.toml
+glama.json
 .env*
