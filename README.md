@@ -48,12 +48,29 @@ explicit opt-in and human authority stays inside the execution path.
 </p>
 
 <p align="center">
-  <a href="#install-the-codex-plugin"><strong>Install the Codex plugin</strong></a>
+  <a href="#try-it-in-60-seconds"><strong>Try it in 60 seconds</strong></a>
   ·
-  <a href="#one-command-demo">Run the gateway demo</a>
+  <a href="#install-the-codex-plugin">Connect Codex</a>
   ·
   <a href="https://github.com/happy520ai/unified-ai-system/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22good%20first%20issue%22">Pick a good first issue</a>
 </p>
+
+## Try It in 60 Seconds
+
+With Docker installed, run the complete gateway path without cloning the
+repository:
+
+```bash
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.3.2 pnpm gateway demo
+```
+
+The container starts an isolated gateway, proves health and readiness, sends
+one deterministic fake-provider request, prints the result, and removes
+itself. The expected output confirms `execution: fake`, real calls disabled,
+and process cleanup. No account, API key, or browser UI is involved.
+
+If that verified path is useful, [star the repository](https://github.com/happy520ai/unified-ai-system)
+and connect the same runtime to Codex below.
 
 ## Install The Codex Plugin
 
@@ -128,34 +145,6 @@ cline mcp install unified-ai-system --yes --json -- docker run --rm -i ghcr.io/h
 The command was verified with Cline CLI `3.0.48` in an isolated configuration.
 See the [agent-readable installation guide](llms-install.md) for expected JSON,
 a safe verification task, and removal steps.
-
-## One-Command Demo
-
-With Docker installed, run the complete terminal demo without cloning the
-repository:
-
-```bash
-docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.3.2 pnpm gateway demo
-```
-
-The container starts an isolated gateway, verifies health, sends one
-fake-provider chat request, prints the result, and removes itself. It never
-calls a real provider.
-
-To run the same path from source:
-
-```bash
-git clone https://github.com/happy520ai/unified-ai-system.git
-cd unified-ai-system
-corepack enable
-corepack prepare pnpm@9.15.4 --activate
-pnpm install --frozen-lockfile
-pnpm gateway demo
-```
-
-The Codespaces button prepares Node.js 22, pnpm 9.15.4, and the workspace
-dependencies in a browser terminal. Its container configuration pins the
-gateway to fake-provider mode; run `pnpm gateway demo` after setup completes.
 
 ## Operate From The Terminal
 
@@ -244,6 +233,10 @@ pnpm verify:public-clone
 pnpm gateway demo
 pnpm gateway serve
 ```
+
+The Codespaces button prepares Node.js 22, pnpm 9.15.4, and the workspace
+dependencies in a browser terminal. Its container configuration pins the
+gateway to fake-provider mode; run `pnpm gateway demo` after setup completes.
 
 Useful local endpoints:
 

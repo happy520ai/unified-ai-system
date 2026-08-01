@@ -45,12 +45,27 @@
 </p>
 
 <p align="center">
-  <a href="#安装-codex-插件"><strong>安装 Codex 插件</strong></a>
+  <a href="#60-秒完成验证"><strong>60 秒完成验证</strong></a>
   ·
-  <a href="#一行命令完成演示">运行网关 Demo</a>
+  <a href="#安装-codex-插件">接入 Codex</a>
   ·
   <a href="https://github.com/happy520ai/unified-ai-system/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22good%20first%20issue%22">认领新手任务</a>
 </p>
+
+## 60 秒完成验证
+
+已安装 Docker 时，无需克隆仓库即可运行完整网关链路：
+
+```bash
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.3.2 pnpm gateway demo
+```
+
+容器会启动隔离网关，验证健康与就绪状态，发送一次确定性 Fake Provider
+请求，打印结果后自动清理。预期输出会明确显示 `execution: fake`、真实
+调用已禁用以及进程已清理。全程不需账号、API Key 或浏览器 UI。
+
+如果这条可验证路径对你有用，请为[仓库点一个 Star](https://github.com/happy520ai/unified-ai-system)，
+然后继续将同一运行时接入 Codex。
 
 ## 安装 Codex 插件
 
@@ -124,32 +139,6 @@ cline mcp install unified-ai-system --yes --json -- docker run --rm -i ghcr.io/h
 
 这条命令已经使用 Cline CLI `3.0.48` 和隔离配置完成验证。面向智能体的
 [安装指南](llms-install.md)包含预期 JSON、安全验证任务和卸载步骤。
-
-## 一行命令完成演示
-
-已经安装 Docker 时，无需克隆仓库即可运行完整终端 Demo：
-
-```bash
-docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.3.2 pnpm gateway demo
-```
-
-容器会启动隔离网关、验证健康状态、发送一次 Fake Provider 对话、打印结果并
-自动删除自身。整个过程不会调用任何真实 Provider。
-
-从源码运行同一条验证链路：
-
-```bash
-git clone https://github.com/happy520ai/unified-ai-system.git
-cd unified-ai-system
-corepack enable
-corepack prepare pnpm@9.15.4 --activate
-pnpm install --frozen-lockfile
-pnpm gateway demo
-```
-
-上方 Codespaces 按钮会在浏览器终端准备 Node.js 22、pnpm 9.15.4 和工作区
-依赖。容器配置固定使用 Fake Provider 模式；准备完成后运行
-`pnpm gateway demo` 即可。
 
 ## 使用终端操作
 
@@ -234,6 +223,10 @@ pnpm verify:public-clone
 pnpm gateway demo
 pnpm gateway serve
 ```
+
+上方 Codespaces 按钮会在浏览器终端准备 Node.js 22、pnpm 9.15.4 和工作区
+依赖。容器配置固定使用 Fake Provider 模式；准备完成后运行
+`pnpm gateway demo` 即可。
 
 本地入口：
 
