@@ -1,0 +1,29 @@
+# Unified AI System
+
+> A terminal-first, self-hosted AI gateway and eight-tool MCP server for Codex, Cursor, and Cline.
+
+Unified AI System provides one governed boundary for models, agents, knowledge, workflows, and tools. The first verified path uses a local fake provider, requires no account or API key, and makes no real-provider calls.
+
+## Start here
+
+- [Project homepage](https://happy520ai.github.io/unified-ai-system/)
+- [Source repository](https://github.com/happy520ai/unified-ai-system)
+- [60-second Codex MCP quickstart](https://github.com/happy520ai/unified-ai-system/blob/master/docs/codex-mcp-quickstart.md)
+- [Getting started](https://github.com/happy520ai/unified-ai-system/blob/master/docs/getting-started.md)
+- [Architecture](https://github.com/happy520ai/unified-ai-system/blob/master/docs/architecture.md)
+- [Security policy](https://github.com/happy520ai/unified-ai-system/blob/master/SECURITY.md)
+
+## Public distributions
+
+- [Release v0.3.2](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.3.2)
+- [Official MCP Registry entry](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.3.2)
+- MCP container: `ghcr.io/happy520ai/unified-ai-system/mcp-server:0.3.2`
+- Gateway demo container: `ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.3.2`
+
+## Verified boundaries
+
+- Eight MCP tools cover gateway health, readiness, fake-provider chat, knowledge, workflows, and workforce status.
+- The credential-free default uses `local-fake-provider` in `fake` execution mode.
+- Real-provider execution requires explicit, scoped authorization.
+- Production readiness, L5 autonomy, and AGI require independent evidence.
+- License: Apache-2.0.
