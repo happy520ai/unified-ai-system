@@ -77,6 +77,17 @@ Fake Provider 对话、知识基础设施、Workflow 与 Workforce 状态。可�
 按照 [60 秒 Codex MCP 快速上手](docs/codex-mcp-quickstart.md)可以继续完成三个
 安全任务，并查看预期证据、诊断方法和卸载命令。
 
+## 通过 MCP 接入 Cline
+
+Cline 无需克隆仓库即可安装同一个已发布的 MCP Server：
+
+```bash
+cline mcp install unified-ai-system --yes --json -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.3.2
+```
+
+这条命令已经使用 Cline CLI `3.0.48` 和隔离配置完成验证。面向智能体的
+[安装指南](llms-install.md)包含预期 JSON、安全验证任务和卸载步骤。
+
 ## 一行命令完成演示
 
 已经安装 Docker 时，无需克隆仓库即可运行完整终端 Demo：

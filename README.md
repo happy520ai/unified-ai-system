@@ -80,6 +80,18 @@ First task to try in Codex:
 Follow the [60-second Codex MCP quickstart](docs/codex-mcp-quickstart.md) for
 three safe tasks, expected evidence, diagnostics, and removal.
 
+## Connect Cline Through MCP
+
+Cline can install the same published server without cloning the repository:
+
+```bash
+cline mcp install unified-ai-system --yes --json -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.3.2
+```
+
+The command was verified with Cline CLI `3.0.48` in an isolated configuration.
+See the [agent-readable installation guide](llms-install.md) for expected JSON,
+a safe verification task, and removal steps.
+
 ## One-Command Demo
 
 With Docker installed, run the complete terminal demo without cloning the
