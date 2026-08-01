@@ -30,6 +30,7 @@ jobs:
           min_score: 80
           fail_on_severity: high
           format: sarif
+          output: ai-plugin-scanner.sarif
           upload_sarif: false
 
       - name: Report scanner findings
