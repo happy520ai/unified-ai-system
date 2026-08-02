@@ -143,7 +143,9 @@ codex plugin marketplace add happy520ai/unified-ai-system --ref master
 仓库使用 HOL Plugin Scanner 作为发布门禁，最低要求为 80 分，并且不允许存在
 High 或 Critical Finding。公开配置和扫描策略分别位于
 [`.codex-plugin/plugin.json`](.codex-plugin/plugin.json) 与
-[`.plugin-scanner.toml`](.plugin-scanner.toml)。
+[`.plugin-scanner.toml`](.plugin-scanner.toml)。插件内置的 MCP 命令固定到经过
+审阅的 `0.4.0` 多架构 OCI 摘要，同时禁用容器网络并移除 Linux Capabilities；
+完整证据见[镜像内容审查](docs/security/mcp-image-review-0.4.0.md)。
 
 ### Agent Skill
 

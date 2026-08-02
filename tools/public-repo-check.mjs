@@ -39,7 +39,9 @@ const requiredFiles = [
   "packages/mcp-server/package.json",
   "packages/mcp-server/src/index.js",
   "packages/mcp-server/src/server.test.js",
+  ".codex-plugin/plugin.json",
   ".codex/config.toml",
+  ".mcp.json",
   ".github/workflows/indexnow.yml",
   "docs/assets/social-preview.png",
   "docs/codex-mcp-docker-quickstart.html",
@@ -48,6 +50,7 @@ const requiredFiles = [
   "docs/index.html",
   "docs/index.zh-CN.html",
   "docs/indexnow.json",
+  "docs/security/mcp-image-review-0.4.0.md",
   "docs/d6ce2ffbc1353aa5c0284e1efc2d6d5b66e3d048c764c07f.txt",
   "docs/robots.txt",
   "docs/sitemap.xml",
@@ -91,6 +94,8 @@ for (const path of tracked) {
 const rootPackage = readJson("package.json");
 const servicePackage = readJson("apps/ai-gateway-service/package.json");
 const registryMetadata = readJson("server.json");
+const pluginManifest = readJson(".codex-plugin/plugin.json");
+const pluginMcpConfig = readJson(".mcp.json");
 const requiredScripts = [
   "start",
   "check",
@@ -144,6 +149,46 @@ if (registryMetadata.packages?.[0]?.transport?.type !== "stdio") {
     "mcp_registry_transport_invalid",
     "server.json#packages[0].transport.type",
   );
+}
+
+if (pluginManifest.version !== rootPackage.version) {
+  addError(
+    "codex_plugin_version_mismatch",
+    ".codex-plugin/plugin.json#version",
+    `${pluginManifest.version} != ${rootPackage.version}`,
+  );
+}
+
+for (const [value, code] of [
+  [pluginManifest.description, "codex_plugin_nine_tools_missing"],
+  [pluginManifest.interface?.shortDescription, "codex_plugin_short_description_stale"],
+]) {
+  if (!/nine (?:governed )?MCP tools/i.test(value ?? "")) {
+    addError(code, ".codex-plugin/plugin.json");
+  }
+}
+
+if (!/prompt enhancement/i.test(pluginManifest.description ?? "")) {
+  addError("codex_plugin_prompt_enhancement_missing", ".codex-plugin/plugin.json");
+}
+
+const pluginMcpArgs = pluginMcpConfig.mcpServers?.["unified-ai-system"]?.args ?? [];
+const expectedPluginImage =
+  "ghcr.io/happy520ai/unified-ai-system/mcp-server@sha256:c185d124d1f672b5cf210a7b7d4c7dbdc907b81a5f7b62fe312a0dc18839e045";
+for (const [marker, code] of [
+  ["--network", "codex_plugin_network_hardening_missing"],
+  ["none", "codex_plugin_network_none_missing"],
+  ["--cap-drop", "codex_plugin_capability_hardening_missing"],
+  ["ALL", "codex_plugin_capability_drop_all_missing"],
+  ["--security-opt", "codex_plugin_privilege_hardening_missing"],
+  ["no-new-privileges", "codex_plugin_no_new_privileges_missing"],
+  [expectedPluginImage, "codex_plugin_reviewed_image_missing"],
+]) {
+  if (!pluginMcpArgs.includes(marker)) addError(code, ".mcp.json");
+}
+
+if (pluginMcpArgs.some((value) => /\/mcp-server:[^/]+$/.test(value))) {
+  addError("codex_plugin_mutable_image_reference", ".mcp.json");
 }
 
 const dockerfile = readFileSync(resolve(repoRoot, "Dockerfile"), "utf8");
@@ -367,10 +412,15 @@ const chineseReadme = readFileSync(resolve(repoRoot, "README.zh-CN.md"), "utf8")
 const requiredAgentSkillMarkers = [
   ["name: unified-ai-gateway", "agent_skill_name_missing"],
   ["source_repo: happy520ai/unified-ai-system", "agent_skill_source_missing"],
+  ["gateway_prompt_enhance", "agent_skill_prompt_enhancement_missing"],
   ["production readiness, L5 autonomy, or AGI", "agent_skill_evidence_boundary_missing"],
   [
-    "https://github.com/happy520ai/unified-ai-system/blob/master/docs/security/mcp-image-review-0.3.2.md",
+    "https://github.com/happy520ai/unified-ai-system/blob/master/docs/security/mcp-image-review-0.4.0.md",
     "agent_skill_image_review_link_missing",
+  ],
+  [
+    "sha256:c185d124d1f672b5cf210a7b7d4c7dbdc907b81a5f7b62fe312a0dc18839e045",
+    "agent_skill_reviewed_image_digest_missing",
   ],
 ];
 

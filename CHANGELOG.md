@@ -7,6 +7,19 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- Synchronized the Codex plugin manifest, bundled MCP configuration, and agent
+  skill with the `0.4.0` nine-tool release.
+
+### Security
+
+- Pinned the bundled Codex MCP configuration to the reviewed immutable `0.4.0`
+  multi-platform OCI index and added network, capability, and privilege
+  hardening.
+- Added an anonymous layer-by-layer content review for both the linux/amd64 and
+  linux/arm64 MCP images.
+
 ## [0.4.0] - 2026-08-02
 
 ### Added

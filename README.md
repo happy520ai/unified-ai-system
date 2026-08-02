@@ -155,7 +155,10 @@ isolated container. Use `codex plugin marketplace list` to inspect the source.
 The plugin is gated by the HOL Plugin Scanner with a required score of at least
 80 and no high or critical findings. Its public configuration and scan policy
 live in [`.codex-plugin/plugin.json`](.codex-plugin/plugin.json) and
-[`.plugin-scanner.toml`](.plugin-scanner.toml).
+[`.plugin-scanner.toml`](.plugin-scanner.toml). The bundled MCP command pins the
+reviewed `0.4.0` multi-platform OCI digest, disables container networking, and
+drops Linux capabilities; see the
+[image content review](docs/security/mcp-image-review-0.4.0.md).
 
 ### Agent Skill
 

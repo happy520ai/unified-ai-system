@@ -52,7 +52,7 @@ Start a fresh Cline session and ask:
 
 Accept the installation only when all of these conditions hold:
 
-- The server exposes eight tools.
+- The server exposes nine tools, including provider-free prompt enhancement.
 - `gateway_health` reports a ready managed gateway.
 - `realProviderCallsAllowed` and `realProviderEnabled` are both `false`.
 - `gateway_chat` reports `local-fake-provider` and execution mode `fake`.
