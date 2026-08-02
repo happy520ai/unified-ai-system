@@ -20,7 +20,7 @@
     "mammoth": "^1.12.0",
     "pdf-parse": "^2.4.5",
     "pino": "10.3.1",
-    "xlsx": "^0.18.5"
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "scripts": {
     "start": "node ./src/index.js",
