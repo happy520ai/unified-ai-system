@@ -314,6 +314,102 @@ h1 {
   font-size: 13px;
 }
 
+.prompt-demo-section {
+  padding: 88px max(24px, calc((100% - var(--max-width)) / 2));
+  background: #dfe8e2;
+  color: var(--text-dark);
+}
+
+.prompt-demo-inner {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.72fr) minmax(0, 1.28fr);
+  align-items: center;
+  gap: 58px;
+}
+
+.prompt-demo-copy {
+  min-width: 0;
+}
+
+.prompt-demo-copy h2 {
+  margin: 0;
+  font-size: 42px;
+  line-height: 1.1;
+  font-weight: 810;
+}
+
+.prompt-demo-copy > p:not(.eyebrow) {
+  margin: 20px 0 0;
+  color: #52605c;
+  font-size: 16px;
+  line-height: 1.7;
+}
+
+.prompt-demo-facts {
+  margin: 30px 0 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-top: 1px solid #aebbb3;
+  border-bottom: 1px solid #aebbb3;
+}
+
+.prompt-demo-facts > div {
+  min-width: 0;
+  padding: 15px 13px 16px 0;
+  border-right: 1px solid #aebbb3;
+}
+
+.prompt-demo-facts > div + div {
+  padding-left: 13px;
+}
+
+.prompt-demo-facts > div:last-child {
+  border-right: 0;
+}
+
+.prompt-demo-facts dt {
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.prompt-demo-facts dd {
+  margin: 7px 0 0;
+  overflow-wrap: anywhere;
+  color: var(--text-dark);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  font-weight: 760;
+  line-height: 1.4;
+}
+
+.inline-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 24px;
+  color: #0a7057;
+  font-size: 14px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.inline-action:hover {
+  color: #064c3c;
+}
+
+.prompt-demo-visual {
+  min-width: 0;
+  display: block;
+}
+
+.prompt-demo-visual img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
 .section {
   background: var(--paper);
   color: var(--text-dark);
@@ -990,6 +1086,11 @@ footer a:hover {
     border-bottom: 1px solid #cbd3ce;
   }
 
+  .prompt-demo-inner {
+    grid-template-columns: 1fr;
+    gap: 38px;
+  }
+
   .section {
     padding-top: 86px;
     padding-bottom: 86px;
@@ -1165,6 +1266,29 @@ footer a:hover {
 
   .evidence-rail span {
     font-size: 11px;
+  }
+
+  .prompt-demo-section {
+    padding: 70px 18px;
+  }
+
+  .prompt-demo-copy h2 {
+    font-size: 36px;
+  }
+
+  .prompt-demo-facts {
+    grid-template-columns: 1fr;
+  }
+
+  .prompt-demo-facts > div,
+  .prompt-demo-facts > div + div {
+    padding: 14px 0;
+    border-right: 0;
+    border-bottom: 1px solid #aebbb3;
+  }
+
+  .prompt-demo-facts > div:last-child {
+    border-bottom: 0;
   }
 
   .section {
