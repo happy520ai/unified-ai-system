@@ -50,7 +50,7 @@
     />
     <meta name="twitter:image:alt" content="Unified AI System terminal demo" />
 
-    <link rel="stylesheet" href="site.css?v=5068d86a" />
+    <link rel="stylesheet" href="site.css?v=prompt-lab-1" />
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
@@ -64,7 +64,7 @@
         "version": "0.4.0"
       }
     </script>
-    <script src="site.js" defer></script>
+    <script src="site.js?v=prompt-lab-1" defer></script>
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
@@ -75,6 +75,7 @@
         <span>Unified AI System</span>
       </a>
       <nav aria-label="Primary navigation">
+        <a href="#enhance">Enhance</a>
         <a href="#connect">Connect</a>
         <a href="#proof">Proof</a>
         <a href="terminal-first-ai-gateway.html">Why terminal-first</a>
@@ -100,7 +101,7 @@
             work and connects Codex, Cursor, or Cline through one governed MCP boundary.
           </p>
           <div class="hero-actions">
-            <a class="primary-action" href="#connect">Connect your agent</a>
+            <a class="primary-action" href="#enhance">Try prompt enhancement</a>
             <a class="secondary-action" href="https://github.com/happy520ai/unified-ai-system/releases/tag/v0.4.0">View v0.4.0</a>
           </div>
           <div class="command-line" aria-label="Credential-free Docker demo command">
@@ -140,15 +141,67 @@
               Inspect the enhancement contract <span aria-hidden="true">&rarr;</span>
             </a>
           </div>
-          <a class="prompt-demo-visual" href="assets/prompt-enhancement-demo.png" aria-label="Open the full prompt enhancement output">
-            <img
-              src="assets/prompt-enhancement-demo.png"
-              alt="Unified AI System local prompt enhancement output"
-              width="1600"
-              height="900"
-              loading="lazy"
-            />
-          </a>
+          <div
+            class="prompt-lab"
+            data-prompt-lab
+            data-count-template="{count} / {max}"
+            data-ready-template="Generated locally · {profile} · {language} · provider call: none"
+            data-waiting-label="Waiting for input"
+            data-error-prefix="Check the request:"
+            data-load-error="Unable to load the local enhancer."
+            data-copy-success="Copied"
+            data-copy-unavailable="Unavailable"
+          >
+            <form class="prompt-lab-form" data-prompt-form>
+              <div class="prompt-lab-toolbar">
+                <label for="prompt-input">Rough request</label>
+                <label class="prompt-lab-profile" for="prompt-profile">
+                  <span>Profile</span>
+                  <select id="prompt-profile" data-prompt-profile>
+                    <option value="auto">Auto</option>
+                    <option value="general">General</option>
+                    <option value="coding">Coding</option>
+                    <option value="analysis">Analysis</option>
+                    <option value="writing">Writing</option>
+                    <option value="research">Research</option>
+                    <option value="planning">Planning</option>
+                  </select>
+                </label>
+              </div>
+              <textarea
+                id="prompt-input"
+                data-prompt-input
+                rows="4"
+                spellcheck="true"
+                aria-describedby="prompt-character-count"
+              >Build a small API for my team</textarea>
+              <div class="prompt-lab-actions">
+                <span id="prompt-character-count" data-prompt-count>0 / 20000</span>
+                <button class="prompt-lab-run" type="submit">Enhance locally</button>
+              </div>
+            </form>
+
+            <section class="prompt-lab-result" aria-labelledby="prompt-result-title">
+              <div class="prompt-lab-result-header">
+                <div>
+                  <span id="prompt-result-title">Structured prompt</span>
+                  <strong data-prompt-result-meta>Loading local engine</strong>
+                </div>
+                <button type="button" data-prompt-copy disabled>Copy</button>
+              </div>
+              <pre tabindex="0"><code data-prompt-output>Loading the deterministic engine...</code></pre>
+              <div class="prompt-lab-questions" data-prompt-questions-panel hidden>
+                <span>Useful questions</span>
+                <ul data-prompt-questions></ul>
+              </div>
+              <p class="prompt-lab-status" data-prompt-status role="status" aria-live="polite">
+                Loading the local engine. No request will leave this page.
+              </p>
+            </section>
+            <noscript>
+              <a class="prompt-lab-noscript" href="assets/prompt-enhancement-demo.png">Open the verified static output</a>
+            </noscript>
+          </div>
         </div>
       </section>
 

@@ -51,7 +51,7 @@
     />
     <meta name="twitter:image:alt" content="Unified AI System 终端演示" />
 
-    <link rel="stylesheet" href="site.css?v=5068d86a" />
+    <link rel="stylesheet" href="site.css?v=prompt-lab-1" />
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
@@ -66,7 +66,7 @@
         "version": "0.4.0"
       }
     </script>
-    <script src="site.js" defer></script>
+    <script src="site.js?v=prompt-lab-1" defer></script>
   </head>
   <body>
     <a class="skip-link" href="#main">跳到主要内容</a>
@@ -77,6 +77,7 @@
         <span>Unified AI System</span>
       </a>
       <nav aria-label="主要导航">
+        <a href="#enhance">体验增强</a>
         <a href="#connect">接入</a>
         <a href="#proof">证据</a>
         <a href="terminal-first-ai-gateway.html">为何终端优先</a>
@@ -102,7 +103,7 @@
             连接 Codex、Cursor 或 Cline。
           </p>
           <div class="hero-actions">
-            <a class="primary-action" href="#connect">接入你的智能体</a>
+            <a class="primary-action" href="#enhance">立即体验提示增强</a>
             <a class="secondary-action" href="https://github.com/happy520ai/unified-ai-system/releases/tag/v0.4.0">查看 v0.4.0</a>
           </div>
           <div class="command-line" aria-label="无需凭据的 Docker 演示命令">
@@ -141,15 +142,67 @@
               查看提示增强行为 <span aria-hidden="true">&rarr;</span>
             </a>
           </div>
-          <a class="prompt-demo-visual" href="assets/prompt-enhancement-demo.png" aria-label="打开完整提示增强输出">
-            <img
-              src="assets/prompt-enhancement-demo.png"
-              alt="Unified AI System 本地自然语言提示增强输出"
-              width="1600"
-              height="900"
-              loading="lazy"
-            />
-          </a>
+          <div
+            class="prompt-lab"
+            data-prompt-lab
+            data-count-template="{count} / {max}"
+            data-ready-template="本地生成 · {profile} · {language} · Provider 调用：无"
+            data-waiting-label="等待输入"
+            data-error-prefix="请检查输入："
+            data-load-error="无法载入本地增强引擎。"
+            data-copy-success="已复制"
+            data-copy-unavailable="不可用"
+          >
+            <form class="prompt-lab-form" data-prompt-form>
+              <div class="prompt-lab-toolbar">
+                <label for="prompt-input-zh">自然语言需求</label>
+                <label class="prompt-lab-profile" for="prompt-profile-zh">
+                  <span>任务类型</span>
+                  <select id="prompt-profile-zh" data-prompt-profile>
+                    <option value="auto">自动识别</option>
+                    <option value="general">通用</option>
+                    <option value="coding">编程</option>
+                    <option value="analysis">分析</option>
+                    <option value="writing">写作</option>
+                    <option value="research">研究</option>
+                    <option value="planning">规划</option>
+                  </select>
+                </label>
+              </div>
+              <textarea
+                id="prompt-input-zh"
+                data-prompt-input
+                rows="4"
+                spellcheck="true"
+                aria-describedby="prompt-character-count-zh"
+              >帮团队做一个小型 API</textarea>
+              <div class="prompt-lab-actions">
+                <span id="prompt-character-count-zh" data-prompt-count>0 / 20000</span>
+                <button class="prompt-lab-run" type="submit">本地增强</button>
+              </div>
+            </form>
+
+            <section class="prompt-lab-result" aria-labelledby="prompt-result-title-zh">
+              <div class="prompt-lab-result-header">
+                <div>
+                  <span id="prompt-result-title-zh">结构化提示词</span>
+                  <strong data-prompt-result-meta>正在载入本地引擎</strong>
+                </div>
+                <button type="button" data-prompt-copy disabled>复制</button>
+              </div>
+              <pre tabindex="0"><code data-prompt-output>正在载入确定性增强引擎...</code></pre>
+              <div class="prompt-lab-questions" data-prompt-questions-panel hidden>
+                <span>值得补充的问题</span>
+                <ul data-prompt-questions></ul>
+              </div>
+              <p class="prompt-lab-status" data-prompt-status role="status" aria-live="polite">
+                正在载入本地引擎，任何输入都不会离开当前页面。
+              </p>
+            </section>
+            <noscript>
+              <a class="prompt-lab-noscript" href="assets/prompt-enhancement-demo.png">打开已验证的静态输出</a>
+            </noscript>
+          </div>
         </div>
       </section>
 

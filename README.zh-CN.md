@@ -38,7 +38,7 @@
 结构化任务，同时完整保留原始输入。
 
 <p align="center">
-  <a href="docs/assets/prompt-enhancement-demo.png">
+  <a href="https://happy520ai.github.io/unified-ai-system/index.zh-CN.html#enhance">
     <img
       src="docs/assets/prompt-enhancement-demo.png"
       alt="Unified AI System 本地自然语言提示增强演示"
@@ -46,7 +46,7 @@
     />
   </a>
   <br />
-  <sub>v0.4.0 本地真实输出：确定性增强、不调用 Provider、不需要凭证。<a href="docs/prompt-enhancement.md">阅读提示增强指南</a>。</sub>
+  <sub>v0.4.0 本地真实输出：确定性增强、不调用 Provider、不需要凭证。<a href="https://happy520ai.github.io/unified-ai-system/index.zh-CN.html#enhance">在线体验浏览器本地预览</a>，或<a href="docs/prompt-enhancement.md">阅读行为契约</a>。</sub>
 </p>
 
 <p align="center">

@@ -43,7 +43,9 @@ a {
 }
 
 button:focus-visible,
-a:focus-visible {
+a:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
   outline: 3px solid var(--amber);
   outline-offset: 3px;
 }
@@ -399,15 +401,180 @@ h1 {
   color: #064c3c;
 }
 
-.prompt-demo-visual {
+.prompt-lab {
   min-width: 0;
-  display: block;
+  overflow: hidden;
+  border: 1px solid #354344;
+  border-radius: 8px;
+  background: var(--ink-raised);
+  color: var(--white);
+  box-shadow: 0 24px 60px rgba(8, 16, 17, 0.18);
 }
 
-.prompt-demo-visual img {
+.prompt-lab-form {
+  padding: 18px;
+  border-bottom: 1px solid var(--line-dark);
+}
+
+.prompt-lab-toolbar,
+.prompt-lab-actions,
+.prompt-lab-result-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.prompt-lab-toolbar > label:first-child,
+.prompt-lab-result-header span,
+.prompt-lab-questions > span {
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.prompt-lab-profile {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  color: #aeb9b7;
+  font-size: 11px;
+  font-weight: 760;
+}
+
+.prompt-lab-profile select {
+  min-width: 116px;
+  height: 34px;
+  padding: 0 30px 0 10px;
+  border: 1px solid #455354;
+  border-radius: 5px;
+  background: #172122;
+  color: var(--white);
+  font: inherit;
+}
+
+.prompt-lab textarea {
   width: 100%;
-  height: auto;
+  min-height: 112px;
+  margin-top: 12px;
+  resize: vertical;
+  border: 1px solid #455354;
+  border-radius: 6px;
+  background: #0a1213;
+  color: var(--white);
+  padding: 13px 14px;
+  font: 14px/1.55 Inter, ui-sans-serif, system-ui, sans-serif;
+}
+
+.prompt-lab textarea::placeholder {
+  color: #7f8b89;
+}
+
+.prompt-lab-actions {
+  margin-top: 12px;
+}
+
+.prompt-lab-actions > span {
+  color: #8f9b99;
+  font: 11px/1.4 "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
+.prompt-lab button {
+  min-height: 34px;
+  border: 1px solid #526161;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--white);
+  padding: 7px 11px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.prompt-lab button:hover:not(:disabled) {
+  border-color: var(--mint);
+  color: var(--mint);
+}
+
+.prompt-lab button:disabled {
+  cursor: wait;
+  opacity: 0.48;
+}
+
+.prompt-lab .prompt-lab-run {
+  border-color: var(--mint);
+  background: var(--mint);
+  color: var(--ink);
+}
+
+.prompt-lab button.prompt-lab-run:hover:not(:disabled) {
+  border-color: #8af0ca;
+  background: #8af0ca;
+  color: var(--ink);
+}
+
+.prompt-lab-result {
+  padding: 18px;
+}
+
+.prompt-lab-result-header > div {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.prompt-lab-result-header strong {
+  color: var(--cyan);
+  overflow-wrap: anywhere;
+  font: 11px/1.35 "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
+.prompt-lab-result pre {
+  min-height: 278px;
+  max-height: 320px;
+  margin: 14px 0 0;
+  overflow: auto;
+  border: 1px solid #2b393a;
+  border-radius: 6px;
+  background: #070d0e;
+  padding: 15px;
+  color: #dce7e3;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: 12px/1.58 "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
+.prompt-lab-questions {
+  margin-top: 14px;
+  border-left: 3px solid var(--amber);
+  padding: 2px 0 2px 13px;
+}
+
+.prompt-lab-questions[hidden] {
+  display: none;
+}
+
+.prompt-lab-questions ul {
+  margin: 7px 0 0;
+  padding-left: 18px;
+  color: #c4cecb;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.prompt-lab-status {
+  min-height: 18px;
+  margin: 13px 0 0;
+  color: #93a19e;
+  font: 11px/1.5 "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
+.prompt-lab-noscript {
   display: block;
+  padding: 12px 18px;
+  border-top: 1px solid var(--line-dark);
+  color: var(--amber);
+  font-size: 12px;
 }
 
 .section {
@@ -1289,6 +1456,43 @@ footer a:hover {
 
   .prompt-demo-facts > div:last-child {
     border-bottom: 0;
+  }
+
+  .prompt-lab-form,
+  .prompt-lab-result {
+    padding: 14px;
+  }
+
+  .prompt-lab-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .prompt-lab-profile {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .prompt-lab-profile select {
+    flex: 1;
+    max-width: 190px;
+  }
+
+  .prompt-lab textarea {
+    min-height: 104px;
+    font-size: 13px;
+  }
+
+  .prompt-lab-result pre {
+    min-height: 250px;
+    max-height: 360px;
+    padding: 13px;
+    font-size: 11px;
+  }
+
+  .prompt-lab-status {
+    min-height: 34px;
   }
 
   .section {

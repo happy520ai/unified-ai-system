@@ -41,7 +41,7 @@ Rough natural-language requests can be structured locally before any model is
 called, while the original request remains visible and unchanged.
 
 <p align="center">
-  <a href="docs/assets/prompt-enhancement-demo.png">
+  <a href="https://happy520ai.github.io/unified-ai-system/#enhance">
     <img
       src="docs/assets/prompt-enhancement-demo.png"
       alt="Unified AI System local natural-language prompt enhancement demo"
@@ -49,7 +49,7 @@ called, while the original request remains visible and unchanged.
     />
   </a>
   <br />
-  <sub>Actual v0.4.0 local output: deterministic enhancement, no provider call, no credential required. <a href="docs/prompt-enhancement.md">Read the prompt enhancement guide</a>.</sub>
+  <sub>Actual v0.4.0 local output: deterministic enhancement, no provider call, no credential required. <a href="https://happy520ai.github.io/unified-ai-system/#enhance">Try the browser-local preview</a> or <a href="docs/prompt-enhancement.md">read the contract</a>.</sub>
 </p>
 
 <p align="center">

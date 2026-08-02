@@ -48,3 +48,120 @@ for (const button of document.querySelectorAll('[data-copy-target]')) {
     }
   });
 }
+
+const promptLab = document.querySelector("[data-prompt-lab]");
+
+if (promptLab) {
+  void initializePromptLab(promptLab).catch((error) => {
+    const status = promptLab.querySelector("[data-prompt-status]");
+    if (status) {
+      status.textContent = `${promptLab.dataset.loadError ?? "Unable to load the local enhancer."} ${error.message}`;
+    }
+  });
+}
+
+async function initializePromptLab(lab) {
+  const {
+    MAX_PROMPT_INPUT_LENGTH,
+    enhanceNaturalLanguagePrompt,
+  } = await import("./prompt-enhancer.js?v=prompt-lab-1");
+  const form = lab.querySelector("[data-prompt-form]");
+  const input = lab.querySelector("[data-prompt-input]");
+  const profile = lab.querySelector("[data-prompt-profile]");
+  const count = lab.querySelector("[data-prompt-count]");
+  const output = lab.querySelector("[data-prompt-output]");
+  const resultMeta = lab.querySelector("[data-prompt-result-meta]");
+  const questions = lab.querySelector("[data-prompt-questions]");
+  const questionsPanel = lab.querySelector("[data-prompt-questions-panel]");
+  const status = lab.querySelector("[data-prompt-status]");
+  const copyButton = lab.querySelector("[data-prompt-copy]");
+
+  if (
+    !form
+    || !input
+    || !profile
+    || !count
+    || !output
+    || !resultMeta
+    || !questions
+    || !questionsPanel
+    || !status
+    || !copyButton
+  ) {
+    throw new Error("Prompt lab markup is incomplete.");
+  }
+
+  input.maxLength = MAX_PROMPT_INPUT_LENGTH;
+
+  const updateCount = () => {
+    count.textContent = formatTemplate(lab.dataset.countTemplate, {
+      count: input.value.length,
+      max: MAX_PROMPT_INPUT_LENGTH,
+    });
+  };
+
+  const render = () => {
+    updateCount();
+
+    try {
+      const result = enhanceNaturalLanguagePrompt({
+        input: input.value,
+        profile: profile.value,
+      });
+
+      output.textContent = result.enhancedPrompt;
+      resultMeta.textContent = `${result.profile} · ${result.language}`;
+      status.textContent = formatTemplate(lab.dataset.readyTemplate, {
+        profile: result.profile,
+        language: result.language,
+      });
+      questions.replaceChildren(
+        ...result.clarifyingQuestions.map((question) => {
+          const item = document.createElement("li");
+          item.textContent = question;
+          return item;
+        }),
+      );
+      questionsPanel.hidden = result.clarifyingQuestions.length === 0;
+      copyButton.disabled = false;
+    } catch (error) {
+      output.textContent = "";
+      resultMeta.textContent = lab.dataset.waitingLabel ?? "Waiting for input";
+      status.textContent = `${lab.dataset.errorPrefix ?? "Check the request:"} ${error.message}`;
+      questions.replaceChildren();
+      questionsPanel.hidden = true;
+      copyButton.disabled = true;
+    }
+  };
+
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    render();
+  });
+  input.addEventListener("input", updateCount);
+  copyButton.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(output.textContent);
+      showTemporaryButtonText(copyButton, lab.dataset.copySuccess ?? "Copied");
+    } catch {
+      showTemporaryButtonText(copyButton, lab.dataset.copyUnavailable ?? "Unavailable");
+    }
+  });
+
+  render();
+}
+
+function formatTemplate(template = "", values) {
+  return Object.entries(values).reduce(
+    (result, [key, value]) => result.replaceAll(`{${key}}`, String(value)),
+    template,
+  );
+}
+
+function showTemporaryButtonText(button, text) {
+  const previous = button.textContent;
+  button.textContent = text;
+  window.setTimeout(() => {
+    button.textContent = previous;
+  }, 1400);
+}
