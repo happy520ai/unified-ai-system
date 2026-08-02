@@ -20,7 +20,7 @@
   <a href="https://github.com/happy520ai/unified-ai-system/releases/latest">
     <img alt="Release" src="https://img.shields.io/github/v/release/happy520ai/unified-ai-system?style=flat-square" />
   </a>
-  <a href="https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.3.3">
+  <a href="https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.4.0">
     <img alt="官方 MCP Registry：active" src="https://img.shields.io/badge/Official_MCP_Registry-active-1f883d?style=flat-square" />
   </a>
   <a href="LICENSE">
@@ -34,6 +34,8 @@
 通过一个开放网关运行和治理模型、智能体、知识与工具。第一次完整验证无需
 账号或 API Key；真实 Provider 始终需要显式启用，人类的最终控制权保留在
 执行链路之中。
+用户即使只输入粗略自然语言，也可以在调用模型之前通过本地增强将需求整理成
+结构化任务，同时完整保留原始输入。
 
 <p align="center">
   <a href="docs/assets/terminal-demo.png">
@@ -60,7 +62,7 @@
 已安装 Docker 时，无需克隆仓库即可运行完整网关链路：
 
 ```bash
-docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.3.3 pnpm gateway demo
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.0 pnpm gateway demo
 ```
 
 容器会启动隔离网关，验证健康与就绪状态，发送一次确定性 Fake Provider
@@ -167,25 +169,23 @@ Provider。该路径已使用 `skills` 1.5.21 在空目录完成验证。安装�
 使用一条匿名容器命令，把网关添加为本地 MCP Server：
 
 ```bash
-codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.3.3
+codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.0
 ```
 
-重启 Codex 后，使用 `/mcp` 查看固定 `0.3.3` 镜像的 8 个工具，覆盖网关健康、
-就绪状态、Fake Provider 对话、知识基础设施、Workflow 与 Workforce 状态。
-可信任的源码工作区还会通过项目级 Codex 配置加载尚未发布的第 9 个工具
-`gateway_prompt_enhance`，无需重复维护另一份配置。
+重启 Codex 后，使用 `/mcp` 查看固定 `0.4.0` 镜像的 9 个工具，覆盖网关健康、
+就绪状态、无需 Provider 的提示增强、Fake Provider 对话、知识基础设施、
+Workflow 与 Workforce 状态。源码工作区会通过项目级 Codex 配置暴露相同工具集。
 
 专用 MCP 镜像会自动启动隔离网关，并在会话结束后清理进程；只要网关可能调用
 真实 Provider，它就会拒绝启动或发送对话。完整说明见
 [MCP Server 指南](packages/mcp-server/README.md)、
-[官方 Registry active 条目](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.3.3)
+[官方 Registry active 条目](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.4.0)
 和 [`server.json`](server.json) 中的源元数据。
 
 在 Codex 中可以先尝试这个任务：
 
-> 使用 Unified AI System MCP 工具检查网关健康状态和就绪状态；只有网关明确证明
-> 处于纯 Fake 模式时，才通过 Gateway Chat 发送 `MCP_READY`。报告 Provider、
-> Model、执行模式和响应。
+> 使用 `gateway_prompt_enhance` 把“帮团队做一个小型 API”整理成编程提示词。
+> 展示被保留的原始需求、识别出的语言、增强结果，以及没有调用 Provider 的证据。
 
 按照 [Codex MCP Docker 60 秒中文教程](https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.zh-CN.html)
 可以完成接入、检查和首次安全调用；[源码快速上手](docs/codex-mcp-quickstart.md)
@@ -198,7 +198,7 @@ codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified
 两个客户端的项目级配置：
 
 ```bash
-pnpm dlx add-mcp@2.0.0 "docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.3.3" --name unified-ai-system -a codex -a cursor -y
+pnpm dlx add-mcp@2.0.0 "docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.0" --name unified-ai-system -a codex -a cursor -y
 ```
 
 这条完整命令已经使用 `add-mcp` 2.0.0 在空目录中完成验证，会生成
@@ -211,7 +211,7 @@ pnpm dlx add-mcp@2.0.0 "docker run --rm -i ghcr.io/happy520ai/unified-ai-system/
 Cline 无需克隆仓库即可安装同一个已发布的 MCP Server：
 
 ```bash
-cline mcp install unified-ai-system --yes --json -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.3.3
+cline mcp install unified-ai-system --yes --json -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.0
 ```
 
 这条命令已经使用 Cline CLI `3.0.48` 和隔离配置完成验证。面向智能体的
@@ -223,7 +223,7 @@ cline mcp install unified-ai-system --yes --json -- docker run --rm -i ghcr.io/h
 
 ```bash
 docker run --rm --publish 3100:3100 \
-  ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.3.3
+  ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.0
 ```
 
 在另一个终端直接调用网关：
@@ -331,8 +331,8 @@ pnpm verify:mcp
 
 ## 项目入口
 
-- [官方 MCP Registry 条目](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.3.3)
-- [v0.3.3 Codex 插件与项目站](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.3.3)
+- [官方 MCP Registry 条目](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.4.0)
+- [v0.4.0 Codex 插件与项目站](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.4.0)
 - [v0.3.2 发现元数据版](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.3.2)
 - [v0.3.1 MCP Registry 分发版](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.3.1)
 - [v0.3.0 终端与 Codex MCP 预览版](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.3.0)

@@ -6,7 +6,7 @@ With Docker installed, prove the terminal path without cloning the repository
 or configuring credentials:
 
 ```bash
-docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.3.3 pnpm gateway demo
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.0 pnpm gateway demo
 ```
 
 The disposable container starts the gateway on an isolated port, verifies
@@ -107,7 +107,7 @@ terminal and API workflows are the supported public path.
 Add the anonymously pullable container as a local stdio MCP server:
 
 ```bash
-codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.3.3
+codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.0
 ```
 
 Restart Codex and use `/mcp` to inspect the connected tools. From a trusted
@@ -127,7 +127,7 @@ or configuring credentials:
 
 ```bash
 docker run --rm --publish 3100:3100 \
-  ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.3.3
+  ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.0
 ```
 
 For a local image build, run `docker compose up --build`. The Compose file

@@ -29,7 +29,7 @@ if (!args.has("--submit")) {
   });
 } else {
   const keyResponse = await fetch(keyLocation, {
-    headers: { "user-agent": "unified-ai-system-indexnow/0.3.3" },
+    headers: { "user-agent": "unified-ai-system-indexnow/0.4.0" },
   });
   const liveKey = (await keyResponse.text()).trim();
   if (!keyResponse.ok || liveKey !== key) {
@@ -42,7 +42,7 @@ if (!args.has("--submit")) {
     method: "POST",
     headers: {
       "content-type": "application/json; charset=utf-8",
-      "user-agent": "unified-ai-system-indexnow/0.3.3",
+      "user-agent": "unified-ai-system-indexnow/0.4.0",
     },
     body: JSON.stringify(payload),
   });

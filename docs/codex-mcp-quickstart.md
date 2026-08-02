@@ -13,7 +13,7 @@ Requirements:
 Register the pinned MCP image:
 
 ```bash
-codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.3.3
+codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.0
 ```
 
 The image starts its own temporary gateway over stdio, pins chat to the
@@ -35,10 +35,11 @@ Restart Codex after adding the server. In the Codex terminal UI, run:
 /mcp verbose
 ```
 
-The server should be connected and expose these eight tools:
+The server should be connected and expose these nine tools:
 
 - `gateway_health`
 - `gateway_readiness`
+- `gateway_prompt_enhance`
 - `gateway_chat`
 - `knowledge_readiness`
 - `workflow_health`
@@ -46,9 +47,15 @@ The server should be connected and expose these eight tools:
 - `workforce_health`
 - `workforce_agents`
 
-## 3. Try Three Safe Tasks
+## 3. Try Four Safe Tasks
 
 Paste each task into Codex as a normal prompt.
+
+### Structure A Natural-Language Request
+
+> Use `gateway_prompt_enhance` to turn "build a small API for my team" into a
+> coding prompt. Show the preserved original request, detected language,
+> enhanced prompt, and proof that no provider was called.
 
 ### Check The Safety Boundary
 
@@ -76,6 +83,7 @@ A successful run proves that:
 
 - Codex loaded the stdio MCP server.
 - The managed local gateway started and passed its health boundary.
+- Prompt enhancement ran locally without calling a provider.
 - Chat remained on the deterministic fake provider.
 - Knowledge, workflow, and workforce inspection surfaces were readable.
 

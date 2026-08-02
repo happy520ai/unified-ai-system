@@ -25,9 +25,8 @@ All inspection tools are read-only. The chat tool checks the gateway safety
 state before every request and fails closed unless `realProviderEnabled` is
 exactly `false` and the response proves `executionMode: "fake"`.
 
-The current source build exposes nine tools. The pinned `0.3.3` image below is
-the stable eight-tool release; `gateway_prompt_enhance` will enter a tagged
-container release after the unreleased changes are versioned.
+The source build and pinned `0.4.0` image both expose all nine tools, including
+the provider-free `gateway_prompt_enhance` preview.
 
 ## Run From Source
 
@@ -47,7 +46,7 @@ cloning or changing MCP configuration, then use `/mcp` to inspect the server.
 No clone or API key is required:
 
 ```bash
-codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.3.3
+codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.0
 ```
 
 The dedicated image starts the MCP server by default; no command override is
@@ -65,7 +64,7 @@ args = [
   "run",
   "--rm",
   "-i",
-  "ghcr.io/happy520ai/unified-ai-system/mcp-server:0.3.3",
+  "ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.0",
 ]
 startup_timeout_sec = 45
 tool_timeout_sec = 60
@@ -75,13 +74,13 @@ default_tools_approval_mode = "writes"
 ## Try It In Codex
 
 Restart Codex after adding the server, then run `/mcp verbose` to inspect the
-connected tools. A useful first task for a source checkout is:
+connected tools. A useful first task is:
 
 > Use `gateway_prompt_enhance` to turn "build a small API for my team" into a
 > coding prompt. Show the preserved original request, detected language,
 > enhanced prompt, and proof that no provider was called.
 
-For the pinned `0.3.3` container, use the stable fake-chat task:
+Then prove the fake-chat safety boundary:
 
 > Use the Unified AI System MCP tools to check gateway health and readiness,
 > then send `MCP_READY` through gateway chat only if the gateway proves

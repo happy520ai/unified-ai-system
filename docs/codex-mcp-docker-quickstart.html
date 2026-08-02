@@ -6,7 +6,7 @@
     <title>Run an MCP server in Codex with Docker | 60-second guide</title>
     <meta
       name="description"
-      content="Connect Codex to a self-hosted MCP server with one Docker command, verify eight tools, make a credential-free test call, and remove it cleanly."
+      content="Connect Codex to a self-hosted MCP server with one Docker command, verify nine tools, enhance a prompt locally, and make a credential-free test call."
     />
     <meta name="robots" content="index, follow, max-image-preview:large" />
     <meta name="theme-color" content="#081011" />
@@ -39,7 +39,7 @@
     <meta property="og:title" content="Run an MCP server in Codex with Docker" />
     <meta
       property="og:description"
-      content="A credential-free, 60-second path from Codex to a pinned eight-tool MCP server."
+      content="A credential-free, 60-second path from Codex to a pinned nine-tool MCP server."
     />
     <meta
       property="og:url"
@@ -77,7 +77,7 @@
         "@context": "https://schema.org",
         "@type": "HowTo",
         "name": "Run an MCP server in Codex with Docker",
-        "description": "Connect Codex to a pinned, credential-free MCP server and verify its eight tools.",
+        "description": "Connect Codex to a pinned, credential-free MCP server and verify its nine tools.",
         "totalTime": "PT1M",
         "datePublished": "2026-08-02",
         "dateModified": "2026-08-02",
@@ -147,13 +147,13 @@
           <p class="eyebrow">60-SECOND GUIDE / AUGUST 2026</p>
           <h1>Run an MCP server in Codex with Docker</h1>
           <p class="article-hero-copy">
-            Register one pinned container, inspect eight tools, and make a
+            Register one pinned container, inspect nine tools, and make a
             credential-free test call without cloning a repository or adding
             a provider API key.
           </p>
           <div class="article-meta" aria-label="Guide details">
             <span>1 minute setup</span>
-            <span>8 MCP tools</span>
+            <span>9 MCP tools</span>
             <span>Fake provider by default</span>
           </div>
         </div>
@@ -173,7 +173,7 @@
           <span>Contents</span>
           <a href="#prerequisites">Prerequisites</a>
           <a href="#add">1. Add the server</a>
-          <a href="#verify">2. Verify eight tools</a>
+          <a href="#verify">2. Verify nine tools</a>
           <a href="#first-call">3. Make a safe call</a>
           <a href="#boundary">What this proves</a>
           <a href="#troubleshooting">Troubleshoot and remove</a>
@@ -203,7 +203,7 @@
             </p>
             <div class="article-code">
               <span aria-hidden="true">$</span>
-              <code id="codex-add-command">codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.3.3</code>
+              <code id="codex-add-command">codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.0</code>
               <button type="button" data-copy-target="codex-add-command">Copy</button>
             </div>
             <p>
@@ -223,10 +223,10 @@
             <p>
               Open a fresh Codex session after registering the server, then run
               <code>/mcp verbose</code> in the terminal UI. The connection should
-              report these eight tools:
+              report these nine tools:
             </p>
             <div class="article-boundary-list">
-              <div><strong>Gateway</strong><span><code>gateway_health</code>, <code>gateway_readiness</code>, <code>gateway_chat</code></span></div>
+              <div><strong>Gateway</strong><span><code>gateway_health</code>, <code>gateway_readiness</code>, <code>gateway_prompt_enhance</code>, <code>gateway_chat</code></span></div>
               <div><strong>Knowledge</strong><span><code>knowledge_readiness</code></span></div>
               <div><strong>Workflows</strong><span><code>workflow_health</code>, <code>workflow_actions</code></span></div>
               <div><strong>Workforce</strong><span><code>workforce_health</code>, <code>workforce_agents</code></span></div>
@@ -239,14 +239,14 @@
 
           <section id="first-call">
             <p class="eyebrow dark">STEP 03 / PROVE THE PATH</p>
-            <h2>Ask for evidence before chat.</h2>
+            <h2>Enhance a request, then ask for execution evidence.</h2>
             <p>
-              Paste this as a normal Codex prompt. It checks the safety boundary
-              before invoking chat and asks Codex to report the execution facts.
+              Paste this as a normal Codex prompt. It first proves provider-free
+              prompt enhancement, then checks the safety boundary before chat.
             </p>
             <div class="article-code">
               <span aria-hidden="true">&gt;</span>
-              <code id="codex-test-prompt">Use the Unified AI System MCP tools. Check gateway health and readiness first, then send MCP_READY through gateway chat only if the gateway proves fake-only mode. Report the selected provider, model, execution mode, and response. Clearly label it as fake-provider output.</code>
+              <code id="codex-test-prompt">First use gateway_prompt_enhance to turn "build a small API for my team" into a coding prompt and prove no provider was called. Then check gateway health and readiness, and send MCP_READY through gateway chat only if the gateway proves fake-only mode. Report the selected provider, model, execution mode, and response.</code>
               <button type="button" data-copy-target="codex-test-prompt">Copy</button>
             </div>
             <div class="article-principles">
@@ -275,10 +275,11 @@
               A successful run proves that Codex loaded the stdio server, the
               managed gateway passed its health boundary, and the published
               fake-provider path returned a response. It also exposes read-only
-              knowledge, workflow, and workforce inspection surfaces.
+              provider-free prompt enhancement plus knowledge, workflow, and
+              workforce inspection surfaces.
             </p>
             <div class="article-boundary-list">
-              <div><strong>Proved</strong><span>Published image, MCP connection, eight tools, fake-provider request</span></div>
+              <div><strong>Proved</strong><span>Published image, MCP connection, nine tools, local prompt enhancement, fake-provider request</span></div>
               <div><strong>Not authorized</strong><span>Paid providers, workflow execution, agent dispatch, data mutation</span></div>
               <div><strong>Not claimed</strong><span>Production readiness, L5 autonomy, or AGI</span></div>
             </div>
@@ -308,7 +309,7 @@
             </div>
             <p class="article-note">
               See the <a href="https://github.com/happy520ai/unified-ai-system/blob/master/docs/codex-mcp-quickstart.md">source quickstart</a>
-              for three safe tasks and the <a href="https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.3.3">official MCP Registry entry</a>
+              for three safe tasks and the <a href="https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.4.0">official MCP Registry entry</a>
               for the published package metadata.
             </p>
           </section>

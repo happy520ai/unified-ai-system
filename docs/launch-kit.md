@@ -7,31 +7,34 @@ https://github.com/happy520ai/unified-ai-system
 
 ## One Sentence
 
-Unified AI System is an open, terminal-first AI gateway for multi-model
-routing, governed agents, knowledge, tools, and human-controlled automation.
+Unified AI System is an open, terminal-first AI gateway that turns rough
+natural language into structured work before models, agents, and tools run.
 
 ## English Launch Post
 
-AI is becoming more capable, but the infrastructure needed to own, route, and
-govern it is still fragmented.
+Most people do not write perfect prompts, and they should not have to learn a
+prompting dialect before an AI system can understand useful work.
 
-Today I am opening Unified AI System: a local-first gateway that brings models,
-agents, knowledge, tools, approvals, and evidence into one control plane. A
-fresh clone runs without an API key through a deterministic fake provider, and
-real providers remain explicit opt-in.
+Unified AI System v0.4.0 adds deterministic, provider-free prompt enhancement
+to its local-first AI gateway. A rough English or Chinese request can be turned
+into explicit requirements, output constraints, completion criteria, and
+clarifying questions while the original request remains visible.
 
-The terminal is the primary interface. One Docker command proves the isolated
-path without a clone or API key:
+The same capability is available through the terminal CLI, HTTP API, shared
+SDK, opt-in chat path, and a ninth MCP tool for Codex, Cursor, and Cline. The
+preview itself calls no model, needs no API key, and cannot enable a provider.
 
-`docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.3.3 pnpm gateway demo`
+Connect the published MCP server to Codex with one command:
 
-The `serve`, `status`, `chat`, and `doctor` commands provide a practical local
-workflow. Chat fails closed if a real provider may be active unless that one
-command is explicitly authorized.
+`codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.0`
 
-This is an early public engineering preview, not a production or AGI claim. I
-am looking for builders who care about model freedom, agent interoperability,
-local sovereignty, and evidence-based AI governance.
+Or run the CLI from source and compare the original request with its structured
+preview using `pnpm gateway enhance "Build a small API for my team" --profile coding`.
+Plain chat remains unchanged unless enhancement is explicitly enabled.
+
+This is an engineering preview, not a claim that prompt transformation
+guarantees model quality, production readiness, L5 autonomy, or AGI. I would
+value feedback on the enhancement format, MCP ergonomics, and safety boundary.
 
 Repository: https://github.com/happy520ai/unified-ai-system
 
@@ -39,25 +42,27 @@ Agent Skill: `npx skills add happy520ai/unified-ai-system --skill unified-ai-gat
 
 ## 中文发布文案
 
-AI 能力正在快速增长，但真正稀缺的，是让人能够拥有、连接、调度和治理这些
-智能的开放基础设施。
+多数用户不会写所谓“完美提示词”，也不应该先学习一套提示词方言，AI 系统才能
+理解他们真正想完成的工作。
 
-今天正式公开 Unified AI System：一个本地优先的 AI 能力网关，把多模型路由、
-智能体协作、知识、工具、审批和执行证据放进同一个控制平面。全新克隆无需
-API Key 即可通过本地假模型完成启动与验证，真实 Provider 始终需要用户主动
-配置和授权。
+Unified AI System v0.4.0 为本地优先的 AI 能力网关加入了确定性、无需 Provider
+的自然语言增强。用户输入粗略中文或英文需求后，网关会补全执行要求、输出约束、
+验收标准和澄清问题，同时完整保留原始输入。
 
-终端是当前主入口。一条 Docker 命令即可在无需克隆仓库或配置 API Key 的
-情况下验证隔离链路：
+这项能力已经进入终端 CLI、HTTP API、共享 SDK、显式启用的 Chat，以及面向
+Codex、Cursor 和 Cline 的第 9 个 MCP 工具。增强预览本身不调用模型、不需要
+API Key，也不能启用任何 Provider。
 
-`docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.3.3 pnpm gateway demo`
+一条命令即可把已发布的 MCP Server 接入 Codex：
 
-`serve`、`status`、`chat` 和 `doctor` 组成可持续使用的本地工作流。当网关可能
-使用真实 Provider 时，Chat 会默认拒绝发送，只有为本次命令显式授权后才会
-继续。
+`codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.0`
 
-这还是一个早期公开工程预览，不是生产、L5 或 AGI 宣称。欢迎关注模型自由、
-Agent 协议、本地数据主权和可信 AI 治理的开发者一起参与。
+也可以从源码运行 CLI，通过
+`pnpm gateway enhance "帮团队做一个小型 API" --profile coding` 对照原始需求与
+结构化结果。普通 Chat 默认保持不变，只有显式启用时才会增强。
+
+这是公开工程预览，不代表提示转换可以保证模型效果，也不是生产、L5 或 AGI
+宣称。欢迎针对增强格式、MCP 使用体验和安全边界提出技术反馈。
 
 项目地址：https://github.com/happy520ai/unified-ai-system
 
@@ -70,34 +75,35 @@ Agent Skill：`npx skills add happy520ai/unified-ai-system --skill unified-ai-ga
 Title:
 
 ```text
-Show HN: Unified AI System - a local-first gateway for models, agents, and governed automation
+Show HN: A local AI gateway that improves rough prompts before calling a model
 ```
 
 Opening:
 
 ```text
-I built Unified AI System to explore what an open control plane for AI could
-look like: provider-neutral model routing, agent collaboration, knowledge,
-tools, approvals, and evidence in one local-first gateway.
+I built a deterministic prompt-enhancement path into Unified AI System because
+many users know what they want but not how to express it as a precise model
+instruction. It structures rough English or Chinese requests locally, preserves
+the original input, and calls no provider.
 
-One Docker command runs an isolated, credential-free request using a
-deterministic fake provider, then cleans itself up. The terminal CLI also
-supports startup, status, chat, and diagnostics. Real provider calls are
-explicit opt-in. The project is an early public engineering preview, and I
-would value feedback on the architecture, developer experience, and
-governance model.
+The capability is available through CLI, HTTP, SDK, opt-in chat, and a ninth
+MCP tool for Codex, Cursor, and Cline. The gateway is self-hosted, fake-provider
+by default, and real calls remain explicit opt-in. I would value feedback on
+whether the generated structure is useful and where the safety boundary should
+sit.
 ```
 
 ## Short Social Post
 
 ```text
-Open-sourcing Unified AI System: a local-first gateway for multi-model routing,
-governed agents, knowledge, tools, and human-controlled automation.
+Unified AI System v0.4.0 turns rough natural language into structured work
+before a model is called.
 
-No API key is required for the first run. Real providers are explicit opt-in.
-One-command Docker demo plus a terminal CLI for demo, serve, status, chat, and
-doctor.
-Early public preview, built in the open.
+English + Chinese profiles. Original request preserved. No provider call for
+the preview. Available through CLI, HTTP, SDK, opt-in chat, and a ninth MCP tool
+for Codex, Cursor, and Cline.
+
+Self-hosted, Apache-2.0, and fake-provider by default.
 
 https://github.com/happy520ai/unified-ai-system
 ```

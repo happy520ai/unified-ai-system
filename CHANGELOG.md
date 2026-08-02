@@ -7,18 +7,22 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-08-02
+
 ### Added
 
 - A deterministic, provider-free natural-language prompt enhancement engine
   with Chinese and English task profiles, clarification guidance, and explicit
   completion criteria.
 - `POST /prompts/enhance`, shared SDK contracts, `pnpm gateway enhance`,
-  opt-in `chat --enhance`, and a source-build MCP enhancement tool.
+  opt-in `chat --enhance`, and a ninth MCP enhancement tool.
 
 ### Changed
 
 - Redirected internal audit, security, context-selection, and Codex handoff
   checks from the retired Workbench to the maintained terminal CLI.
+- Promoted the published MCP distribution to nine tools and pinned public
+  container, Registry, CLI, and project-site references to `0.4.0`.
 
 ### Removed
 
@@ -193,7 +197,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 - It is not presented as production-certified, L5 autonomous, or established
   AGI. Those claims require independent evidence beyond local verification.
 
-[Unreleased]: https://github.com/happy520ai/unified-ai-system/compare/v0.3.3...HEAD
+[Unreleased]: https://github.com/happy520ai/unified-ai-system/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/happy520ai/unified-ai-system/compare/v0.3.3...v0.4.0
 [0.3.3]: https://github.com/happy520ai/unified-ai-system/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/happy520ai/unified-ai-system/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/happy520ai/unified-ai-system/compare/v0.3.0...v0.3.1
