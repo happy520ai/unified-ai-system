@@ -40,6 +40,7 @@ const requiredFiles = [
   "packages/mcp-server/src/server.test.js",
   ".codex/config.toml",
   "docs/assets/social-preview.png",
+  "docs/codex-mcp-docker-quickstart.html",
   "docs/getting-started.md",
   "docs/index.html",
   "docs/robots.txt",
@@ -197,6 +198,31 @@ if (!projectSite.includes('href="terminal-first-ai-gateway.html"')) {
 const sitemap = readFileSync(resolve(repoRoot, "docs/sitemap.xml"), "utf8");
 if (!sitemap.includes(terminalFirstArticleUrl)) {
   addError("terminal_first_sitemap_entry_missing", "docs/sitemap.xml");
+}
+
+const codexDockerGuidePath = "docs/codex-mcp-docker-quickstart.html";
+const codexDockerGuide = readFileSync(resolve(repoRoot, codexDockerGuidePath), "utf8");
+const codexDockerGuideUrl =
+  "https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.html";
+const requiredCodexGuideMarkers = [
+  [codexDockerGuideUrl, "codex_docker_canonical_missing"],
+  ['property="og:type" content="article"', "codex_docker_open_graph_type_missing"],
+  ['"@type": "HowTo"', "codex_docker_structured_data_missing"],
+  ["codex mcp add unified-ai-system -- docker run --rm -i", "codex_docker_add_command_missing"],
+  ["codex mcp remove unified-ai-system", "codex_docker_remove_command_missing"],
+  ["Not claimed", "codex_docker_evidence_boundary_missing"],
+];
+
+for (const [marker, code] of requiredCodexGuideMarkers) {
+  if (!codexDockerGuide.includes(marker)) addError(code, codexDockerGuidePath);
+}
+
+if (!projectSite.includes('href="codex-mcp-docker-quickstart.html"')) {
+  addError("codex_docker_home_link_missing", "docs/index.html");
+}
+
+if (!sitemap.includes(codexDockerGuideUrl)) {
+  addError("codex_docker_sitemap_entry_missing", "docs/sitemap.xml");
 }
 
 const textExtensions = new Set([

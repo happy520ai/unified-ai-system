@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Run an MCP server in Codex with Docker | 60-second guide</title>
+    <meta
+      name="description"
+      content="Connect Codex to a self-hosted MCP server with one Docker command, verify eight tools, make a credential-free test call, and remove it cleanly."
+    />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <meta name="theme-color" content="#081011" />
+    <link
+      rel="canonical"
+      href="https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.html"
+    />
+    <link rel="sitemap" type="application/xml" href="sitemap.xml" />
+    <link rel="alternate" type="text/plain" href="llms.txt" title="LLM-readable project summary" />
+    <link rel="icon" type="image/png" href="assets/mcp-icon.png" />
+
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="Unified AI System" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:title" content="Run an MCP server in Codex with Docker" />
+    <meta
+      property="og:description"
+      content="A credential-free, 60-second path from Codex to a pinned eight-tool MCP server."
+    />
+    <meta
+      property="og:url"
+      content="https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.html"
+    />
+    <meta
+      property="og:image"
+      content="https://happy520ai.github.io/unified-ai-system/assets/social-preview.png"
+    />
+    <meta
+      property="og:image:secure_url"
+      content="https://happy520ai.github.io/unified-ai-system/assets/social-preview.png"
+    />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1280" />
+    <meta property="og:image:height" content="640" />
+    <meta property="og:image:alt" content="Unified AI System terminal demo" />
+    <meta property="article:published_time" content="2026-08-02T00:00:00+00:00" />
+    <meta property="article:modified_time" content="2026-08-02T00:00:00+00:00" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Run an MCP server in Codex with Docker" />
+    <meta
+      name="twitter:description"
+      content="Add, inspect, verify, and remove a pinned MCP server from Codex in about a minute."
+    />
+    <meta
+      name="twitter:image"
+      content="https://happy520ai.github.io/unified-ai-system/assets/social-preview.png"
+    />
+    <meta name="twitter:image:alt" content="Unified AI System terminal demo" />
+
+    <link rel="stylesheet" href="site.css" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "HowTo",
+        "name": "Run an MCP server in Codex with Docker",
+        "description": "Connect Codex to a pinned, credential-free MCP server and verify its eight tools.",
+        "totalTime": "PT1M",
+        "datePublished": "2026-08-02",
+        "dateModified": "2026-08-02",
+        "image": "https://happy520ai.github.io/unified-ai-system/assets/social-preview.png",
+        "tool": [
+          {
+            "@type": "HowToTool",
+            "name": "Codex CLI"
+          },
+          {
+            "@type": "HowToTool",
+            "name": "Docker"
+          }
+        ],
+        "step": [
+          {
+            "@type": "HowToStep",
+            "name": "Register the MCP server",
+            "text": "Use codex mcp add to register the pinned Unified AI System container.",
+            "url": "https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.html#add"
+          },
+          {
+            "@type": "HowToStep",
+            "name": "Confirm the connection",
+            "text": "Restart Codex and inspect the connection with /mcp verbose.",
+            "url": "https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.html#verify"
+          },
+          {
+            "@type": "HowToStep",
+            "name": "Make a safe test call",
+            "text": "Check health and readiness before sending MCP_READY through fake-provider chat.",
+            "url": "https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.html#first-call"
+          }
+        ]
+      }
+    </script>
+    <script src="site.js" defer></script>
+  </head>
+  <body class="article-page">
+    <a class="skip-link" href="#article">Skip to guide</a>
+
+    <header class="site-header">
+      <a class="brand" href="./" aria-label="Unified AI System home">
+        <img src="assets/mcp-icon.png" alt="" width="32" height="32" />
+        <span>Unified AI System</span>
+      </a>
+      <nav aria-label="Primary navigation">
+        <a href="./">Project</a>
+        <a href="#add">Add</a>
+        <a href="#verify">Verify</a>
+        <a href="terminal-first-ai-gateway.html">Why terminal-first</a>
+        <a
+          class="nav-command"
+          href="https://github.com/happy520ai/unified-ai-system"
+          aria-label="Star Unified AI System on GitHub"
+        >
+          Star on GitHub
+        </a>
+      </nav>
+    </header>
+
+    <main id="article">
+      <header class="article-hero">
+        <div class="article-hero-shade" aria-hidden="true"></div>
+        <div class="article-hero-inner">
+          <p class="eyebrow">60-SECOND GUIDE / AUGUST 2026</p>
+          <h1>Run an MCP server in Codex with Docker</h1>
+          <p class="article-hero-copy">
+            Register one pinned container, inspect eight tools, and make a
+            credential-free test call without cloning a repository or adding
+            a provider API key.
+          </p>
+          <div class="article-meta" aria-label="Guide details">
+            <span>1 minute setup</span>
+            <span>8 MCP tools</span>
+            <span>Fake provider by default</span>
+          </div>
+        </div>
+      </header>
+
+      <section class="article-summary" aria-label="Summary">
+        <strong>Short version</strong>
+        <p>
+          Run one <code>codex mcp add</code> command, restart Codex, and use
+          <code>/mcp verbose</code>. The server starts an isolated local gateway
+          and removes it when the MCP session ends.
+        </p>
+      </section>
+
+      <div class="article-layout">
+        <aside class="article-toc" aria-label="Guide contents">
+          <span>Contents</span>
+          <a href="#prerequisites">Prerequisites</a>
+          <a href="#add">1. Add the server</a>
+          <a href="#verify">2. Verify eight tools</a>
+          <a href="#first-call">3. Make a safe call</a>
+          <a href="#boundary">What this proves</a>
+          <a href="#troubleshooting">Troubleshoot and remove</a>
+        </aside>
+
+        <article class="article-body">
+          <section id="prerequisites">
+            <p class="article-lede">
+              You need the Codex CLI and a running Docker engine. The published
+              integration needs nothing else for its first verified request.
+            </p>
+            <p>
+              The container is public and available for <code>linux/amd64</code>
+              and <code>linux/arm64</code>. It does not read a provider key for
+              the default path. Chat stays on a deterministic local fake provider
+              unless a separate, explicit real-provider authorization is supplied.
+            </p>
+          </section>
+
+          <section id="add">
+            <p class="eyebrow dark">STEP 01 / REGISTER</p>
+            <h2>Add the pinned MCP server.</h2>
+            <p>
+              Run this command in a terminal. Everything after <code>--</code>
+              is the stdio server command Codex will start when it opens the MCP
+              connection.
+            </p>
+            <div class="article-code">
+              <span aria-hidden="true">$</span>
+              <code id="codex-add-command">codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.3.3</code>
+              <button type="button" data-copy-target="codex-add-command">Copy</button>
+            </div>
+            <p>
+              Confirm that Codex stored the expected image and arguments before
+              starting a session:
+            </p>
+            <div class="article-code">
+              <span aria-hidden="true">$</span>
+              <code id="codex-get-command">codex mcp get unified-ai-system --json</code>
+              <button type="button" data-copy-target="codex-get-command">Copy</button>
+            </div>
+          </section>
+
+          <section id="verify">
+            <p class="eyebrow dark">STEP 02 / INSPECT</p>
+            <h2>Restart Codex and verify the tools.</h2>
+            <p>
+              Open a fresh Codex session after registering the server, then run
+              <code>/mcp verbose</code> in the terminal UI. The connection should
+              report these eight tools:
+            </p>
+            <div class="article-boundary-list">
+              <div><strong>Gateway</strong><span><code>gateway_health</code>, <code>gateway_readiness</code>, <code>gateway_chat</code></span></div>
+              <div><strong>Knowledge</strong><span><code>knowledge_readiness</code></span></div>
+              <div><strong>Workflows</strong><span><code>workflow_health</code>, <code>workflow_actions</code></span></div>
+              <div><strong>Workforce</strong><span><code>workforce_health</code>, <code>workforce_agents</code></span></div>
+            </div>
+            <p class="article-note">
+              Existing Codex sessions do not hot-load a newly added project MCP
+              definition. Restarting the session is part of the setup.
+            </p>
+          </section>
+
+          <section id="first-call">
+            <p class="eyebrow dark">STEP 03 / PROVE THE PATH</p>
+            <h2>Ask for evidence before chat.</h2>
+            <p>
+              Paste this as a normal Codex prompt. It checks the safety boundary
+              before invoking chat and asks Codex to report the execution facts.
+            </p>
+            <div class="article-code">
+              <span aria-hidden="true">&gt;</span>
+              <code id="codex-test-prompt">Use the Unified AI System MCP tools. Check gateway health and readiness first, then send MCP_READY through gateway chat only if the gateway proves fake-only mode. Report the selected provider, model, execution mode, and response. Clearly label it as fake-provider output.</code>
+              <button type="button" data-copy-target="codex-test-prompt">Copy</button>
+            </div>
+            <div class="article-principles">
+              <div>
+                <span>01</span>
+                <h3>Connected</h3>
+                <p>Codex can complete MCP initialize, tools/list, and tools/call.</p>
+              </div>
+              <div>
+                <span>02</span>
+                <h3>Fake-only</h3>
+                <p>The gateway identifies the local fake provider and fake execution mode.</p>
+              </div>
+              <div>
+                <span>03</span>
+                <h3>Disposable</h3>
+                <p>The managed gateway and container stop with the MCP session.</p>
+              </div>
+            </div>
+          </section>
+
+          <section id="boundary">
+            <p class="eyebrow dark">EVIDENCE BOUNDARY</p>
+            <h2>Know exactly what the test proves.</h2>
+            <p>
+              A successful run proves that Codex loaded the stdio server, the
+              managed gateway passed its health boundary, and the published
+              fake-provider path returned a response. It also exposes read-only
+              knowledge, workflow, and workforce inspection surfaces.
+            </p>
+            <div class="article-boundary-list">
+              <div><strong>Proved</strong><span>Published image, MCP connection, eight tools, fake-provider request</span></div>
+              <div><strong>Not authorized</strong><span>Paid providers, workflow execution, agent dispatch, data mutation</span></div>
+              <div><strong>Not claimed</strong><span>Production readiness, L5 autonomy, or AGI</span></div>
+            </div>
+          </section>
+
+          <section id="troubleshooting">
+            <p class="eyebrow dark">DIAGNOSE / REMOVE</p>
+            <h2>Keep the setup inspectable.</h2>
+            <p>
+              If the server does not appear, confirm Docker first, inspect the
+              stored MCP definition, and use <code>/mcp verbose</code> after a
+              fresh Codex start.
+            </p>
+            <div class="article-code">
+              <span aria-hidden="true">$</span>
+              <code id="codex-diagnose-command">docker info</code>
+              <button type="button" data-copy-target="codex-diagnose-command">Copy</button>
+            </div>
+            <p>
+              Remove the entry when you are finished. The next Codex session will
+              no longer start the server.
+            </p>
+            <div class="article-code">
+              <span aria-hidden="true">$</span>
+              <code id="codex-remove-command">codex mcp remove unified-ai-system</code>
+              <button type="button" data-copy-target="codex-remove-command">Copy</button>
+            </div>
+            <p class="article-note">
+              See the <a href="https://github.com/happy520ai/unified-ai-system/blob/master/docs/codex-mcp-quickstart.md">source quickstart</a>
+              for three safe tasks and the <a href="https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.3.3">official MCP Registry entry</a>
+              for the published package metadata.
+            </p>
+          </section>
+        </article>
+      </div>
+
+      <section class="article-closing" aria-labelledby="article-closing-title">
+        <p class="eyebrow">OPEN SOURCE / APACHE-2.0</p>
+        <h2 id="article-closing-title">Run the path. Inspect the evidence. Improve it with us.</h2>
+        <div class="closing-actions">
+          <a class="primary-action" href="https://github.com/happy520ai/unified-ai-system">
+            Star on GitHub
+          </a>
+          <a class="secondary-action" href="./">Open the project page</a>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <span>Unified AI System</span>
+      <a href="terminal-first-ai-gateway.html">Why terminal-first</a>
+      <span>Codex MCP Docker quickstart</span>
+      <span>Apache-2.0</span>
+    </footer>
+  </body>
+</html>

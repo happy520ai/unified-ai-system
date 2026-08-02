@@ -5,6 +5,7 @@ The public documentation is intentionally small and task-oriented.
 - [Getting started](getting-started.md)
 - [Terminal CLI](cli.md)
 - [Codex MCP quickstart](codex-mcp-quickstart.md)
+- [Codex MCP Docker web guide](codex-mcp-docker-quickstart.html)
 - [Codex MCP server](../packages/mcp-server/README.md)
 - [Architecture](architecture.md)
 - [Why an AI gateway should be terminal-first](terminal-first-ai-gateway.html)
