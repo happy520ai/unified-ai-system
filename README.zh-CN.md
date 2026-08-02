@@ -38,13 +38,15 @@
 结构化任务，同时完整保留原始输入。
 
 <p align="center">
-  <a href="docs/assets/terminal-demo.png">
+  <a href="docs/assets/prompt-enhancement-demo.png">
     <img
-      src="docs/assets/terminal-demo.png"
-      alt="Unified AI System 无凭证终端演示"
+      src="docs/assets/prompt-enhancement-demo.png"
+      alt="Unified AI System 本地自然语言提示增强演示"
       width="100%"
     />
   </a>
+  <br />
+  <sub>v0.4.0 本地真实输出：确定性增强、不调用 Provider、不需要凭证。<a href="docs/prompt-enhancement.md">阅读提示增强指南</a>。</sub>
 </p>
 
 <p align="center">
@@ -67,7 +69,8 @@ docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.0 pn
 
 容器会启动隔离网关，验证健康与就绪状态，发送一次确定性 Fake Provider
 请求，打印结果后自动清理。预期输出会明确显示 `execution: fake`、真实
-调用已禁用以及进程已清理。全程不需账号、API Key 或浏览器 UI。
+调用已禁用以及进程已清理。全程不需账号、API Key 或浏览器 UI。可查看
+[无凭证终端验证图](docs/assets/terminal-demo.png)。
 
 如果这条可验证路径对你有用，请为[仓库点一个 Star](https://github.com/happy520ai/unified-ai-system)，
 然后选择下面的终端或 MCP 路径。

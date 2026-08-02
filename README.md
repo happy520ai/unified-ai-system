@@ -41,13 +41,15 @@ Rough natural-language requests can be structured locally before any model is
 called, while the original request remains visible and unchanged.
 
 <p align="center">
-  <a href="docs/assets/terminal-demo.png">
+  <a href="docs/assets/prompt-enhancement-demo.png">
     <img
-      src="docs/assets/terminal-demo.png"
-      alt="Unified AI System credential-free terminal demo"
+      src="docs/assets/prompt-enhancement-demo.png"
+      alt="Unified AI System local natural-language prompt enhancement demo"
       width="100%"
     />
   </a>
+  <br />
+  <sub>Actual v0.4.0 local output: deterministic enhancement, no provider call, no credential required. <a href="docs/prompt-enhancement.md">Read the prompt enhancement guide</a>.</sub>
 </p>
 
 <p align="center">
@@ -72,7 +74,8 @@ docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.0 pn
 The container starts an isolated gateway, proves health and readiness, sends
 one deterministic fake-provider request, prints the result, and removes
 itself. The expected output confirms `execution: fake`, real calls disabled,
-and process cleanup. No account, API key, or browser UI is involved.
+and process cleanup. No account, API key, or browser UI is involved. See the
+[credential-free terminal proof](docs/assets/terminal-demo.png).
 
 If that verified path is useful, [star the repository](https://github.com/happy520ai/unified-ai-system)
 and choose a terminal or MCP path below.
