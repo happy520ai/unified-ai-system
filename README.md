@@ -292,6 +292,7 @@ internal ownership boundaries and reusable workspace packages. See the
 | Can a clean clone run without an API key? | **Yes.** Health and fake-provider chat are verified. |
 | Is the container publicly pullable? | **Yes.** The `master` image is available from GHCR. |
 | Is there a hosted public API? | **No.** Users run a local or self-hosted instance. |
+| Is a browser UI bundled? | **No.** The retired Workbench was removed; CLI, API, SDK, and MCP are the supported surfaces. |
 | Can users connect real providers? | **Yes.** They supply credentials and explicitly enable execution. |
 | Is this production-certified, L5, or established AGI? | **No such claim is made.** Those claims require operational and independent evidence beyond local tests. |
 

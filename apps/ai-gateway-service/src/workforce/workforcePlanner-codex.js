@@ -1,6 +1,6 @@
 export function createCodexDesktopHandoffPack(plan) {
   const allowedFiles = [
-    "apps/ai-gateway-service/src/ui/consolePage.js",
+    "apps/agent-console/src/cli-core.js",
     "apps/ai-gateway-service/src/workforce/workforcePlanner.js",
     "apps/ai-gateway-service/src/workforce/workforcePlanStore.js",
     "packages/shared-contracts/src/contracts/workforce.ts",
@@ -9,13 +9,11 @@ export function createCodexDesktopHandoffPack(plan) {
     "docs/USER_MANUAL.md",
   ];
   const verificationCommands = [
-    "cmd /c pnpm run verify:phase201a-codex-desktop-handoff-pack",
-    "cmd /c pnpm run verify:phase202a-manual-codex-execution-loop",
-    "cmd /c pnpm run verify:phase203a-codex-result-import-review",
-    "cmd /c pnpm run verify:phase204a-safe-desktop-runner-design",
-    "cmd /c pnpm run verify:phase199a-real-ui-trial-runtime-sync",
-    "cmd /c pnpm run verify:phase107a-secret-safety",
-    "cmd /c pnpm -r --if-present check",
+    "pnpm --filter @unified-ai-system/agent-console check",
+    "pnpm --filter @unified-ai-system/agent-console test",
+    "pnpm --filter @unified-ai-system/ai-gateway-service check",
+    "pnpm check:public",
+    "pnpm verify:public-clone",
   ];
   return {
     phase: "phase-201a-codex-desktop-handoff-pack",
@@ -45,7 +43,7 @@ export function createCodexDesktopHandoffPack(plan) {
       "Do not add real external runner dispatch",
       "Do not change the default NVIDIA /chat lane",
       "Do not treat approval-preview as execution approval",
-      "Do not write plaintext API keys to UI, logs, docs, or evidence",
+      "Do not write plaintext API keys to terminal output, logs, docs, or evidence",
     ],
     recommendedFiles: allowedFiles,
     implementationConstraints: [

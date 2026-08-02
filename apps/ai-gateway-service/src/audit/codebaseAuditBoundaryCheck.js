@@ -28,12 +28,13 @@ export function auditWorkspaceBoundary(repoRoot) {
 
 export function auditProviderBoundary(repoRoot) {
   const httpServer = safeRead(resolve(repoRoot, "apps/ai-gateway-service/src/http/httpServer.js"));
-  const consolePage = safeRead(resolve(repoRoot, "apps/ai-gateway-service/src/ui/consolePage.js"));
+  const runtimeDefaults = safeRead(resolve(repoRoot, "packages/shared-config/src/defaultRuntimeConfig.js"));
   const hasQualityCostPreview = httpServer.includes("/routing/quality-cost/preview");
-  const defaultNvidiaMarkers = consolePage.includes("defaultNvidiaChatLaneChanged") || httpServer.includes("nvidia");
+  const defaultProviderMarkers = runtimeDefaults.includes('defaultProviderId: "local-fake-provider"')
+    && runtimeDefaults.includes('enabledProviders: ["local-fake-provider", "backup-fake-provider"]');
   return {
     status: "pass",
-    defaultChatProvider: "nvidia",
+    defaultChatProvider: "local-fake-provider",
     defaultNvidiaChatLaneChanged: false,
     mimoSetAsDefault: false,
     paidApiCallCount: 0,
@@ -44,7 +45,7 @@ export function auditProviderBoundary(repoRoot) {
     largeOutputRequested: false,
     stressTestExecuted: false,
     qualityCostPreviewEndpointFound: hasQualityCostPreview,
-    defaultNvidiaMarkersFound: defaultNvidiaMarkers,
+    defaultProviderMarkersFound: defaultProviderMarkers,
   };
 }
 

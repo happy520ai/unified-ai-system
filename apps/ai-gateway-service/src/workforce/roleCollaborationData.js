@@ -188,8 +188,8 @@ export const HANDOFF_PROTOCOLS = {
     },
     template: {
       insertionPoint: {
-        module: "ai-gateway-service",
-        path: "src/ui/workforcePanel.js",
+        module: "target-application",
+        path: "src/components/",
       },
       apiContracts: [
         { method: "GET", path: "/api/workforce/plan", responseShape: "{ plan: object }" },

@@ -99,7 +99,7 @@ export function normalizeCodexDesktopHandoffPack(source, plan = {}) {
   const allowedFiles = Array.isArray(base.allowedFiles) && base.allowedFiles.length
     ? base.allowedFiles
     : [
-      "apps/ai-gateway-service/src/ui/consolePage.js",
+      "apps/agent-console/src/cli-core.js",
       "apps/ai-gateway-service/src/workforce/workforcePlanner.js",
       "apps/ai-gateway-service/src/workforce/workforcePlanStore.js",
       "packages/shared-contracts/src/contracts/workforce.ts",
@@ -110,13 +110,11 @@ export function normalizeCodexDesktopHandoffPack(source, plan = {}) {
   const verificationCommands = Array.isArray(base.verificationCommands) && base.verificationCommands.length
     ? base.verificationCommands
     : [
-      "cmd /c pnpm run verify:phase201a-codex-desktop-handoff-pack",
-      "cmd /c pnpm run verify:phase202a-manual-codex-execution-loop",
-      "cmd /c pnpm run verify:phase203a-codex-result-import-review",
-      "cmd /c pnpm run verify:phase204a-safe-desktop-runner-design",
-      "cmd /c pnpm run verify:phase199a-real-ui-trial-runtime-sync",
-      "cmd /c pnpm run verify:phase107a-secret-safety",
-      "cmd /c pnpm -r --if-present check",
+      "pnpm --filter @unified-ai-system/agent-console check",
+      "pnpm --filter @unified-ai-system/agent-console test",
+      "pnpm --filter @unified-ai-system/ai-gateway-service check",
+      "pnpm check:public",
+      "pnpm verify:public-clone",
     ];
   return redactSecrets({
     ...base,

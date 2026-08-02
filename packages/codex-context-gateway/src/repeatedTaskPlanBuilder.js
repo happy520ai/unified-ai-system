@@ -51,9 +51,9 @@ export const PHASE596_TASKS = Object.freeze([
   },
   {
     taskId: "phase596-task9",
-    title: "Mission Control Usage Note",
+    title: "Terminal Operator Usage Note",
     expectedOutputDoc: "docs/phase596-task9-mission-control-usage-note.md",
-    topic: "Mission Control operator panel status",
+    topic: "terminal operator workflow status",
     optional: true,
   },
   {
@@ -74,9 +74,9 @@ export const PHASE596_ALLOWED_GENERATED_FILES = Object.freeze([
   "README.md",
   "AGENTS.md",
   "apps/ai-gateway-service/src/entrypoints/syncReadmeAgentsCurrentState.js",
-  "apps/ai-gateway-service/src/ui/components/CodexContextGatewayPanel.js",
-  "apps/ai-gateway-service/src/ui/copy/codexContextGatewayCopy.js",
-  "apps/ai-gateway-service/src/ui/consolePage.js",
+  "apps/agent-console/src/cli-core.js",
+  "apps/agent-console/src/cli.js",
+  "docs/cli.md",
 ]);
 
 export function buildRepeatedTaskPlan(options = {}) {
@@ -103,14 +103,12 @@ export function buildRepeatedTaskPlan(options = {}) {
     "Codex base_url",
   ];
   const validationCommands = [
-    "pnpm verify:phase596a-t-codex-context-repeated-usage-benchmark",
-    "pnpm verify:phase595a-t-codex-context-real-usage-trial",
-    "pnpm verify:phase594a-t-usage-workflow-runner-integration-preview",
-    "pnpm verify:phase593a-t-codex-context-gateway-operator-panel",
-    "pnpm verify:phase592a-t-codex-context-gateway-token-budget-manager",
-    "pnpm verify:phase107a-secret-safety",
-    "pnpm verify:phase321a-workbench-product-recovery",
-    "pnpm -r --if-present check",
+    "pnpm --filter @unified-ai-system/codex-context-gateway check",
+    "pnpm --filter @unified-ai-system/agent-console check",
+    "pnpm --filter @unified-ai-system/agent-console test",
+    "pnpm check",
+    "pnpm check:public",
+    "pnpm verify:public-clone",
   ];
   const tasks = PHASE596_TASKS.map((task) => ({
     ...task,

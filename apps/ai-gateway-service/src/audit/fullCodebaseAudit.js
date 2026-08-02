@@ -19,17 +19,12 @@ import { scanForPlaintextSecrets } from "./codebaseAuditSecretScanner.js";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "../../../..");
 
-const UI_MARKERS = [
-  "Token Cost Guard",
-  "Token Saving Benchmark",
-  "MiMo Model ID Discovery",
-  "Token Estimator Calibration",
-  "RAG Source Selection Benchmark",
-  "Unified System Capability Benchmark",
-  "Response Cache Persistence Hardening",
-  "Provider-Agnostic Quality-Cost Answer Router",
-  "Public Knowledge Library Import Preview",
-  "Full Codebase Audit",
+const TERMINAL_MARKERS = [
+  '"chat"',
+  '"demo"',
+  '"doctor"',
+  '"serve"',
+  '"status"',
 ];
 
 const NODE_CHECK_FILES = [
@@ -41,9 +36,7 @@ const NODE_CHECK_FILES = [
   "apps/ai-gateway-service/src/audit/codebaseAuditPhaseEvidence.js",
   "apps/ai-gateway-service/src/audit/codebaseAuditBoundaryCheck.js",
   "apps/ai-gateway-service/src/audit/codebaseAuditRepairPlan.js",
-  "apps/ai-gateway-service/src/entrypoints/runFullCodebaseAudit.js",
-  "apps/ai-gateway-service/src/entrypoints/verifyFullCodebaseAudit.js",
-  "apps/ai-gateway-service/src/ui/consolePage.js",
+  "apps/agent-console/src/cli-core.js",
   "apps/ai-gateway-service/src/http/httpServer.js",
 ];
 
@@ -57,7 +50,7 @@ export function runFullCodebaseAudit() {
   const phaseEvidence = auditPhaseEvidence(repoRoot);
   const providerBoundary = auditProviderBoundary(repoRoot);
   const httpBoundary = auditHttpBoundary(repoRoot);
-  const uiAudit = auditUiObservability();
+  const terminalAudit = auditTerminalOperatorSurface();
   const docsAudit = auditDocumentationConsistency(fileScan.docsFiles);
   const nodeChecks = runNodeChecks();
 
@@ -126,7 +119,7 @@ export function runFullCodebaseAudit() {
     ]),
     createDimension("Secret Safety", secretScan.status, [`findingCount=${secretScan.findingCount}`]),
     createDimension("Provider Boundary", providerBoundary.status, [
-      "defaultChatProvider=nvidia",
+      `defaultChatProvider=${providerBoundary.defaultChatProvider}`,
       `defaultNvidiaChatLaneChanged=${providerBoundary.defaultNvidiaChatLaneChanged}`,
       `mimoSetAsDefault=${providerBoundary.mimoSetAsDefault}`,
     ]),
@@ -136,7 +129,7 @@ export function runFullCodebaseAudit() {
       `requiredPassed=${phaseEvidence.verifiersPassedCount}`,
       `optional278=${phaseEvidence.optionalResults[0]?.status ?? "unknown"}`,
     ]),
-    createDimension("UI Observability", uiAudit.status, [`uiPanelsChecked=${uiAudit.uiPanelsChecked}`]),
+    createDimension("Terminal Operator Surface", terminalAudit.status, [`commandsChecked=${terminalAudit.commandsChecked}`]),
     createDimension("HTTP Boundary", httpBoundary.status, [`httpEndpointsChecked=${httpBoundary.httpEndpointsChecked}`]),
     createDimension("Documentation Consistency", docsAudit.status, [`docsChecked=${docsAudit.docsChecked}`]),
     createDimension("Repair Safety", "pass", [
@@ -152,7 +145,7 @@ export function runFullCodebaseAudit() {
     packageScriptsChecked: packageScripts.packageScriptsChecked,
     phaseEvidenceChecked: phaseEvidence.phaseEvidenceChecked,
     docsChecked: docsAudit.docsChecked,
-    uiPanelsChecked: uiAudit.uiPanelsChecked,
+    terminalCommandsChecked: terminalAudit.commandsChecked,
     httpEndpointsChecked: httpBoundary.httpEndpointsChecked,
     issuesFoundCount: issues.length,
     ...issueCounts,
@@ -199,14 +192,14 @@ export function runFullCodebaseAudit() {
     manualRequired: repairPlan.manualRequired,
     commands: [
       ...nodeChecks.results.map((item) => ({ command: `node --check ${item.file}`, status: item.status })),
-      { command: "cmd /c pnpm run health:phase12a", status: "passed" },
-      { command: "cmd /c pnpm run doctor:phase13a", status: "passed" },
-      { command: "cmd /c pnpm -r --if-present check", status: "passed" },
+      { command: "pnpm gateway doctor --json", status: "required" },
+      { command: "pnpm check", status: "required" },
+      { command: "pnpm check:public", status: "required" },
     ],
     scans: {
       packageScripts,
       phaseEvidence,
-      uiAudit,
+      terminalAudit,
       httpBoundary,
       docsAudit,
       providerBoundary,
@@ -284,7 +277,7 @@ export function renderFullCodebaseAuditMarkdown(evidence) {
 - packageScriptsChecked: ${summary.packageScriptsChecked}
 - phaseEvidenceChecked: ${summary.phaseEvidenceChecked}
 - docsChecked: ${summary.docsChecked}
-- uiPanelsChecked: ${summary.uiPanelsChecked}
+- terminalCommandsChecked: ${summary.terminalCommandsChecked}
 - httpEndpointsChecked: ${summary.httpEndpointsChecked}
 - issuesFoundCount: ${summary.issuesFoundCount}
 - criticalIssues: ${summary.criticalIssues}
@@ -302,7 +295,7 @@ ${evidence.dimensions.map((dimension) => `- ${dimension.name}: ${dimension.statu
 
 ## Repairs
 
-No business-code repair was applied by the audit runner. The Phase 279A additions are audit, verifier, documentation, evidence, scripts, and UI observability surfaces.
+No business-code repair was applied by the audit runner. The Phase 279A additions are audit, verifier, documentation, evidence, scripts, and terminal observability surfaces.
 
 ## Remaining Risks
 
@@ -342,12 +335,12 @@ function runNodeChecks() {
   };
 }
 
-function auditUiObservability() {
-  const uiText = safeRead("apps/ai-gateway-service/src/ui/consolePage.js");
-  const missing = UI_MARKERS.filter((marker) => !uiText.includes(marker));
+function auditTerminalOperatorSurface() {
+  const terminalText = safeRead("apps/agent-console/src/cli-core.js");
+  const missing = TERMINAL_MARKERS.filter((marker) => !terminalText.includes(marker));
   return {
     status: missing.length === 0 ? "pass" : "fail",
-    uiPanelsChecked: UI_MARKERS.length,
+    commandsChecked: TERMINAL_MARKERS.length,
     missing,
   };
 }

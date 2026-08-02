@@ -239,7 +239,7 @@ export async function buildPhase592RegressionFixtures({ repoRoot }) {
       tokenBudgetRespected: budget.budget.respected,
       includesMissionControl:
         task.profile !== "mission-control-workforce" ||
-        selection.files.some((item) => item.path.includes("workforce") || item.path.includes("consolePage")),
+        selection.files.some((item) => item.path.includes("workforce") || item.path.includes("cli-core")),
     };
   });
   return {

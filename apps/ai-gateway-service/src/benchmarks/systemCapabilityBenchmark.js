@@ -43,8 +43,8 @@ const evidencePaths = {
 export function runSystemCapabilityBenchmark(options = {}) {
   const repoRoot = options.repoRoot ?? defaultRepoRoot;
   const sources = loadSourceEvidence(repoRoot);
-  const uiText = readTextIfExists(resolve(repoRoot, "apps/ai-gateway-service/src/ui/consolePage.js"));
-  const dimensions = createDimensions(sources, uiText);
+  const operatorText = readTextIfExists(resolve(repoRoot, "apps/agent-console/src/cli-core.js"));
+  const dimensions = createDimensions(sources, operatorText);
   const totalScore = roundNumber(dimensions.reduce((sum, item) => sum + Number(item.score ?? 0), 0), 2);
   const scorecard = {
     totalScore,
@@ -92,7 +92,7 @@ function loadSourceEvidence(repoRoot) {
   );
 }
 
-function createDimensions(sources, uiText) {
+function createDimensions(sources, operatorText) {
   const tokenSaving = sources.tokenSavingBenchmark.data;
   const rag = sources.ragSourceSelectionBenchmark.data;
   const mimo269 = sources.mimoPaidSmoke.data;
@@ -119,14 +119,14 @@ function createDimensions(sources, uiText) {
     costGuard,
   ].every((item) => item?.status === "passed");
 
-  const uiMarkers = [
-    "Token Cost Guard",
-    "Token Saving Benchmark",
-    "MiMo Model ID Discovery",
-    "Token Estimator Calibration",
-    "RAG Source Selection Benchmark",
+  const operatorMarkers = [
+    '"chat"',
+    '"demo"',
+    '"doctor"',
+    '"serve"',
+    '"status"',
   ];
-  const uiHitCount = uiMarkers.filter((marker) => uiText.includes(marker)).length;
+  const operatorHitCount = operatorMarkers.filter((marker) => operatorText.includes(marker)).length;
 
   const dimensions = [
     {
@@ -257,16 +257,16 @@ function createDimensions(sources, uiText) {
       ],
     },
     {
-      name: "UI Observability",
-      score: uiHitCount,
+      name: "Terminal Operator Surface",
+      score: operatorHitCount,
       maxScore: 5,
-      evidence: ["apps/ai-gateway-service/src/ui/consolePage.js"],
+      evidence: ["apps/agent-console/src/cli-core.js"],
       metrics: {
-        markersChecked: uiMarkers,
-        markerHitCount: uiHitCount,
+        markersChecked: operatorMarkers,
+        markerHitCount: operatorHitCount,
       },
       limitations: [
-        "UI panels surface evidence and local status; they do not prove production operations.",
+        "CLI commands expose local status and diagnostics; they do not prove production operations.",
       ],
     },
     {

@@ -39,7 +39,7 @@ export function scanCodebaseFiles(repoRoot) {
     packageFiles: relativeFiles.filter((file) => file.endsWith("package.json")),
     docsFiles: relativeFiles.filter((file) => file.startsWith("docs/") && file.endsWith(".md")),
     evidenceFiles: relativeFiles.filter((file) => file.includes("/evidence/") && /\.(json|md)$/i.test(file)),
-    uiFiles: relativeFiles.filter((file) => file.endsWith("src/ui/consolePage.js")),
+    operatorInterfaceFiles: relativeFiles.filter((file) => file.endsWith("apps/agent-console/src/cli-core.js")),
     httpFiles: relativeFiles.filter((file) => file.endsWith("src/http/httpServer.js")),
     packageScriptsChecked: relativeFiles.filter((file) => file.endsWith("package.json")).length,
   };

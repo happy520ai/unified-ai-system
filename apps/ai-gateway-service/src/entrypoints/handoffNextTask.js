@@ -5,25 +5,26 @@ import { fileURLToPath } from "node:url";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "../../../..");
 
-const title = "只读检查 Personal Operator Console 的真实使用体验，并给出下一步建议";
+const title = "只读验证终端优先网关的真实使用体验，并给出下一步建议";
 const projectRoot = repoRoot;
 
 const currentStatus = [
-  "Phase 237A-245A 自用操作台价值线已封板。",
-  "Phase 246A-255A 自用 Knowledge/RAG 价值线已封板。",
-  "Phase 256A-265A Controlled Codex One-shot Readiness 已封板。",
-  "当前系统是 preview-only 的个人项目操作台、项目知识查询助手、Codex 单次执行前安全门。",
-  "当前不是自动执行系统。",
+  "公开产品面是 Terminal CLI、HTTP API、共享 SDK 与 MCP 服务。",
+  "CLI 提供 demo、serve、status、chat、doctor、help 与 version 命令。",
+  "默认运行本地 fake provider；真实 provider 调用必须显式授权。",
+  "浏览器 /ui 与 /console 已退役，公开验证要求它们保持 404。",
+  "当前系统不宣称生产认证、L5 自主或 AGI。",
 ];
 
-const roundGoal = "只读检查当前 /ui Personal Operator Console 是否真的方便日常使用，并给出最影响使用体验的 3 个问题和下一步建议。";
+const roundGoal = "只读验证终端 CLI 的安装诊断、无凭证演示、状态输出与安全边界，并给出最影响首次使用体验的 3 个问题。";
 
-const whyNow = "当前系统已经完成自用价值线、知识库价值线和 one-shot readiness，但还需要通过真实使用观察确认 UI 是否容易看懂、任务队列是否能指导下一步、边界是否清楚。";
+const whyNow = "公开项目已经采用 terminal-first 定位，需要持续确认真实命令、文档承诺和无凭证验证链保持一致。";
 
 const allowedScope = [
-  "读取 apps/ai-gateway-service/src/ui/consolePage.js",
-  "检查 http://127.0.0.1:3100/ui 是否可访问",
-  "检查 Personal Operator Console、当前状态、决策面板、任务队列、审查与证据、知识库价值、单次执行准备是否清楚",
+  "读取 apps/agent-console/src/cli-core.js 与 docs/cli.md",
+  "运行 CLI help、version、doctor 与 credential-free demo",
+  "运行公开克隆验证，确认 fake provider、MCP 工具发现和进程清理",
+  "确认 /ui 与 /console 保持退役状态，不恢复浏览器产品面",
 ];
 
 const blockedScope = [
@@ -37,34 +38,39 @@ const blockedScope = [
   "不接真实 Codex exec",
   "不调用 codex CLI",
   "不接 workflow runner",
-  "不改变默认 NVIDIA /chat 主链",
+  "不改变默认 /chat 路由或 provider 选择",
   "不写入真实 API key",
+  "不允许真实 provider 调用",
   "不把 preview-only 写成 production-ready",
   "不把未提交工作区写成已清理状态",
 ];
 
 const requiredCommands = [
-  "cmd /c pnpm run status:phase10a",
-  "cmd /c pnpm run health:phase12a",
-  "cmd /c pnpm run doctor:phase13a",
+  "pnpm gateway help",
+  "pnpm gateway version --json",
+  "pnpm gateway doctor --json",
+  "pnpm gateway demo --json",
+  "pnpm verify:public-clone",
 ];
 
 const stopConditions = [
-  "如果 /ui 不可访问，立即停止并报告。",
-  "如果 Personal Operator Console 找不到，立即停止并报告。",
+  "如果 demo 不是 fake-provider 执行，立即停止并报告。",
+  "如果检测到真实 provider 调用或凭证读取，立即停止并报告。",
+  "如果托管网关进程未清理，立即停止并报告。",
+  "如果 /ui 或 /console 意外返回可用浏览器界面，立即停止并报告回归。",
   "如果发现需要修改文件，本轮不要修改，只输出建议。",
   "如果发现任务会进入真实 Codex exec、worktree、workflow runner、auto commit/push，立即停止。",
 ];
 
 const outputFormat = [
-  "A. /ui 是否可访问",
-  "B. Personal Operator Console 是否存在",
-  "C. 当前状态是否容易看懂",
-  "D. 决策面板是否容易看懂",
-  "E. 任务队列是否能指导我生成下一条 Codex 任务",
-  "F. 审查与证据是否能指导我审查 Codex 返回结果",
-  "G. 知识库价值边界是否清楚",
-  "H. 单次执行准备是否明确不是执行",
+  "A. CLI help 与 version 是否清楚",
+  "B. doctor 是否给出可操作诊断",
+  "C. demo 是否无需凭证并明确使用 fake provider",
+  "D. MCP 工具发现与托管进程清理是否通过",
+  "E. /ui 与 /console 是否保持 404",
+  "F. 真实 provider 授权边界是否清楚",
+  "G. 首次使用路径是否与 docs/cli.md 一致",
+  "H. 是否存在误导性的生产、L5 或 AGI 声明",
   "I. 最影响使用体验的 3 个问题",
   "J. 建议下一条 Codex 任务",
   "K. 是否修改文件：必须为否",
@@ -73,7 +79,7 @@ const outputFormat = [
 
 export function createNextCodexTask({ createdAt = new Date().toISOString() } = {}) {
   const task = {
-    taskId: "personal-operator-console-readonly-usage-check",
+    taskId: "terminal-first-gateway-readonly-usage-check",
     title,
     createdAt,
     mode: "manual-handoff-only",

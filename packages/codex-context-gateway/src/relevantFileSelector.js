@@ -24,7 +24,7 @@ const gatewayCoreFiles = [
 ];
 
 const missionControlFiles = [
-  "apps/ai-gateway-service/src/ui/consolePage.js",
+  "apps/agent-console/src/cli-core.js",
   "apps/ai-gateway-service/src/workforce/workforcePlanner.js",
   "apps/ai-gateway-service/src/workforce/workforceService.js",
 ];

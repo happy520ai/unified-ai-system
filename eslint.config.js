@@ -10,8 +10,6 @@ export default [
       "dist/**",
       "legacy/**",
       "**/*.test.js",
-      "apps/ai-gateway-service/src/ui/scripts/**",
-      "apps/ai-gateway-service/src/ui/styles/**",
     ],
   },
   {

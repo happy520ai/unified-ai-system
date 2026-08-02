@@ -11,9 +11,9 @@ export const PHASE595_ALLOWED_GENERATED_FILES = Object.freeze([
   "README.md",
   "AGENTS.md",
   "apps/ai-gateway-service/src/entrypoints/syncReadmeAgentsCurrentState.js",
-  "apps/ai-gateway-service/src/ui/components/CodexContextGatewayPanel.js",
-  "apps/ai-gateway-service/src/ui/copy/codexContextGatewayCopy.js",
-  "apps/ai-gateway-service/src/ui/consolePage.js",
+  "apps/agent-console/src/cli-core.js",
+  "apps/agent-console/src/cli.js",
+  "docs/cli.md",
 ]);
 
 export function buildRelevantFileUsagePolicy(options = {}) {

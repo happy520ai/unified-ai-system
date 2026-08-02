@@ -7,6 +7,17 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- Redirected internal audit, security, context-selection, and Codex handoff
+  checks from the retired Workbench to the maintained terminal CLI.
+
+### Removed
+
+- Removed the dormant browser UI source tree, its unused build and route
+  staging, and UI-only tests. The supported terminal, HTTP, SDK, and MCP
+  runtime paths are unchanged, while `/ui` and `/console` remain verified 404s.
+
 ## [0.3.3] - 2026-08-02
 
 ### Added
