@@ -153,6 +153,11 @@ Provider。该路径已使用 `skills` 1.5.21 在空目录完成验证。安装�
 [Skill 源文件](skills/unified-ai-gateway/SKILL.md)或
 [skills.sh 页面](https://skills.sh/happy520ai/unified-ai-system/unified-ai-gateway)。
 
+经过加固的目录版本也已通过
+[源码验证与安全审查](https://github.com/sickn33/agentic-awesome-skills/pull/1061)，并发布到
+[Agentic Awesome Skills](https://github.com/sickn33/agentic-awesome-skills/blob/main/skills/unified-ai-gateway/SKILL.md)
+社区目录。
+
 ### Codex 直接连接 MCP
 
 使用一条匿名容器命令，把网关添加为本地 MCP Server：

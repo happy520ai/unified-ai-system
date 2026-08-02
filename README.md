@@ -164,6 +164,11 @@ empty directory. Review the [skill source](skills/unified-ai-gateway/SKILL.md)
 or open its [skills.sh listing](https://skills.sh/happy520ai/unified-ai-system/unified-ai-gateway)
 before installation.
 
+A hardened catalog variant is also published in
+[Agentic Awesome Skills](https://github.com/sickn33/agentic-awesome-skills/blob/main/skills/unified-ai-gateway/SKILL.md)
+after its [source validation and security review](https://github.com/sickn33/agentic-awesome-skills/pull/1061)
+passed.
+
 ### Direct Codex MCP
 
 Run the gateway as a local MCP server with one anonymous container command:
