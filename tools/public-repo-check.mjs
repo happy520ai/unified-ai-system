@@ -274,9 +274,9 @@ if (!Array.isArray(indexNowConfig.urlList) || indexNowConfig.urlList.length === 
 const indexNowWorkflowPath = ".github/workflows/indexnow.yml";
 const indexNowWorkflow = readFileSync(resolve(repoRoot, indexNowWorkflowPath), "utf8");
 const requiredIndexNowWorkflowMarkers = [
-  ['workflows: ["pages-build-deployment"]', "indexnow_pages_trigger_missing"],
-  ["github.event.workflow_run.conclusion == 'success'", "indexnow_success_gate_missing"],
-  ["github.event.workflow_run.head_branch == 'master'", "indexnow_branch_gate_missing"],
+  ["page_build:", "indexnow_pages_trigger_missing"],
+  ["github.event.build.status == 'built'", "indexnow_success_gate_missing"],
+  ["TRIGGER_SHA: ${{ github.event.build.commit }}", "indexnow_pages_commit_missing"],
   ['git merge-base --is-ancestor "$TRIGGER_SHA" HEAD', "indexnow_ancestor_gate_missing"],
   ['git diff --quiet "${TRIGGER_SHA}^" "$TRIGGER_SHA" -- docs', "indexnow_docs_change_gate_missing"],
   ["node tools/submit-indexnow.mjs --submit", "indexnow_submit_command_missing"],
@@ -285,8 +285,8 @@ const requiredIndexNowWorkflowMarkers = [
 for (const [marker, code] of requiredIndexNowWorkflowMarkers) {
   if (!indexNowWorkflow.includes(marker)) addError(code, indexNowWorkflowPath);
 }
-if (indexNowWorkflow.includes("ref: ${{ github.event.workflow_run.head_sha")) {
-  addError("indexnow_untrusted_checkout", indexNowWorkflowPath);
+if (indexNowWorkflow.includes("workflow_run:")) {
+  addError("indexnow_privileged_workflow_chain", indexNowWorkflowPath);
 }
 if (!sitemap.includes(terminalFirstArticleUrl)) {
   addError("terminal_first_sitemap_entry_missing", "docs/sitemap.xml");

@@ -1,9 +1,7 @@
 name: IndexNow
 
 on:
-  workflow_run:
-    workflows: ["pages-build-deployment"]
-    types: [completed]
+  page_build:
   workflow_dispatch:
     inputs:
       submit:
@@ -16,20 +14,19 @@ permissions:
   contents: read
 
 concurrency:
-  group: indexnow-${{ github.event.workflow_run.head_sha || github.sha }}
+  group: indexnow-${{ github.event.build.commit || github.sha }}
   cancel-in-progress: true
 
 jobs:
   notify:
     if: >-
       github.event_name == 'workflow_dispatch' ||
-      (github.event.workflow_run.conclusion == 'success' &&
-       github.event.workflow_run.head_branch == 'master')
+      github.event.build.status == 'built'
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
     steps:
-      - name: Check out the deployed revision
+      - name: Check out the default branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
@@ -39,7 +36,7 @@ jobs:
         shell: bash
         env:
           EVENT_NAME: ${{ github.event_name }}
-          TRIGGER_SHA: ${{ github.event.workflow_run.head_sha }}
+          TRIGGER_SHA: ${{ github.event.build.commit }}
         run: |
           if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
