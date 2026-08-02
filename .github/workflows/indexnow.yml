@@ -32,20 +32,26 @@ jobs:
       - name: Check out the deployed revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
-          fetch-depth: 2
+          fetch-depth: 0
 
       - name: Detect public site changes
         id: site
         shell: bash
         env:
           EVENT_NAME: ${{ github.event_name }}
+          TRIGGER_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
-          elif ! git rev-parse HEAD^ >/dev/null 2>&1; then
+          elif [[ ! "$TRIGGER_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "Invalid Pages workflow SHA." >&2
+            exit 1
+          elif ! git merge-base --is-ancestor "$TRIGGER_SHA" HEAD; then
+            echo "Pages workflow SHA is not on the checked-out default branch." >&2
+            exit 1
+          elif ! git rev-parse "${TRIGGER_SHA}^" >/dev/null 2>&1; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
-          elif git diff --quiet HEAD^ HEAD -- docs; then
+          elif git diff --quiet "${TRIGGER_SHA}^" "$TRIGGER_SHA" -- docs; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else
             echo "changed=true" >> "$GITHUB_OUTPUT"
