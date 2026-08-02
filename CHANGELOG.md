@@ -7,17 +7,37 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-08-02
+
 ### Added
 
 - A dependency-free JavaScript chat example that checks gateway safety, pins
   the local fake provider, and verifies fake execution before printing output.
 - A 60-second Codex MCP quickstart with copy-ready safety, chat, workflow, and
   workforce inspection tasks plus diagnostics and removal.
+- A Codex plugin distribution with marketplace metadata, project-level MCP
+  configuration, and a catalog-ready operating skill.
+- A terminal-first project site with search metadata, a sitemap, an LLM-readable
+  project summary, and direct setup paths for Codex, Cursor, and Cline.
+- Cline installation guidance, cross-client configuration generation, and
+  Glama discovery metadata.
 
 ### Changed
 
 - Extended public-clone verification to execute the JavaScript example against
   the credential-free gateway path.
+- Moved the public README and project site toward the verified gateway demo,
+  explicit agent connection paths, and a clearer contribution call to action.
+- Pointed package, plugin, and official MCP Registry website metadata at the
+  public project site.
+- Pinned public container examples and Registry metadata to `0.3.3`.
+
+### Security
+
+- Added a reproducible content review for the immutable `0.3.2` MCP image used
+  by the hardened Codex skill setup path.
+- Added the HOL plugin scanner and strengthened executable-file inventory,
+  special-mode preservation, and scanner finding visibility.
 
 ## [0.3.2] - 2026-07-30
 
@@ -154,7 +174,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 - It is not presented as production-certified, L5 autonomous, or established
   AGI. Those claims require independent evidence beyond local verification.
 
-[Unreleased]: https://github.com/happy520ai/unified-ai-system/compare/v0.3.2...HEAD
+[Unreleased]: https://github.com/happy520ai/unified-ai-system/compare/v0.3.3...HEAD
+[0.3.3]: https://github.com/happy520ai/unified-ai-system/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/happy520ai/unified-ai-system/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/happy520ai/unified-ai-system/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/happy520ai/unified-ai-system/compare/v0.2.0...v0.3.0

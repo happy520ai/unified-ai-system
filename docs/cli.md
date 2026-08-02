@@ -9,7 +9,7 @@ runtime.
 The public container includes both the CLI and gateway runtime:
 
 ```bash
-docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.3.2 pnpm gateway demo
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.3.3 pnpm gateway demo
 ```
 
 This disposable command uses the local fake provider, prints one verified

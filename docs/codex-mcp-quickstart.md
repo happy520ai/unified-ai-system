@@ -13,7 +13,7 @@ Requirements:
 Register the pinned MCP image:
 
 ```bash
-codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.3.2
+codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.3.3
 ```
 
 The image starts its own temporary gateway over stdio, pins chat to the

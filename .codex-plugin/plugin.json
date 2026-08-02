@@ -1,12 +1,12 @@
 {
   "name": "unified-ai-system",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "Connect Codex to a self-hosted AI gateway through eight governed MCP tools.",
   "author": {
     "name": "happy520ai",
     "url": "https://github.com/happy520ai"
   },
-  "homepage": "https://github.com/happy520ai/unified-ai-system/tree/master/packages/mcp-server",
+  "homepage": "https://happy520ai.github.io/unified-ai-system/",
   "repository": "https://github.com/happy520ai/unified-ai-system",
   "license": "Apache-2.0",
   "keywords": [
@@ -28,7 +28,7 @@
       "Interactive",
       "Read"
     ],
-    "websiteURL": "https://github.com/happy520ai/unified-ai-system",
+    "websiteURL": "https://happy520ai.github.io/unified-ai-system/",
     "privacyPolicyURL": "https://github.com/happy520ai/unified-ai-system/blob/master/PRIVACY.md",
     "termsOfServiceURL": "https://github.com/happy520ai/unified-ai-system/blob/master/LICENSE",
     "defaultPrompt": "Check Unified AI System health and show the safest available next action.",

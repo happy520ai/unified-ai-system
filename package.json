@@ -1,13 +1,13 @@
 {
   "name": "unified-ai-system",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "private": true,
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/happy520ai/unified-ai-system.git"
   },
-  "homepage": "https://github.com/happy520ai/unified-ai-system",
+  "homepage": "https://happy520ai.github.io/unified-ai-system/",
   "bugs": {
     "url": "https://github.com/happy520ai/unified-ai-system/issues"
   },

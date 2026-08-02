@@ -22,7 +22,7 @@
   <a href="https://github.com/happy520ai/unified-ai-system/releases/latest">
     <img alt="Release" src="https://img.shields.io/github/v/release/happy520ai/unified-ai-system?style=flat-square" />
   </a>
-  <a href="https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.3.2">
+  <a href="https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.3.3">
     <img alt="Official MCP Registry: active" src="https://img.shields.io/badge/Official_MCP_Registry-active-1f883d?style=flat-square" />
   </a>
   <a href="LICENSE">
@@ -61,7 +61,7 @@ With Docker installed, run the complete gateway path without cloning the
 repository:
 
 ```bash
-docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.3.2 pnpm gateway demo
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.3.3 pnpm gateway demo
 ```
 
 The container starts an isolated gateway, proves health and readiness, sends
@@ -96,7 +96,7 @@ live in [`.codex-plugin/plugin.json`](.codex-plugin/plugin.json) and
 Run the gateway as a local MCP server with one anonymous container command:
 
 ```bash
-codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.3.2
+codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.3.3
 ```
 
 Restart Codex, then use `/mcp` to inspect eight tools for gateway health,
@@ -107,7 +107,7 @@ the direct Node entrypoint is discovered without maintaining a second config.
 The dedicated MCP image starts its own isolated gateway and removes it when the
 session ends. It fails closed if a gateway may call a real provider. See the
 [MCP server guide](packages/mcp-server/README.md), the
-[active official Registry entry](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.3.2),
+[active official Registry entry](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.3.3),
 and its source metadata in [`server.json`](server.json).
 
 First task to try in Codex:
@@ -125,7 +125,7 @@ With Node.js, pnpm, and Docker available, [add-mcp](https://github.com/neon-solu
 can write the pinned container command into both project-level client configs:
 
 ```bash
-pnpm dlx add-mcp@2.0.0 "docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.3.2" --name unified-ai-system -a codex -a cursor -y
+pnpm dlx add-mcp@2.0.0 "docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.3.3" --name unified-ai-system -a codex -a cursor -y
 ```
 
 This exact command was verified with `add-mcp` 2.0.0 in an empty directory. It
@@ -139,7 +139,7 @@ claimed here as verified.
 Cline can install the same published server without cloning the repository:
 
 ```bash
-cline mcp install unified-ai-system --yes --json -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.3.2
+cline mcp install unified-ai-system --yes --json -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.3.3
 ```
 
 The command was verified with Cline CLI `3.0.48` in an isolated configuration.
@@ -172,7 +172,7 @@ Run the public container:
 
 ```bash
 docker run --rm --publish 3100:3100 \
-  ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.3.2
+  ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.3.3
 ```
 
 Call it directly from another terminal:
@@ -331,7 +331,8 @@ pre-cleanup engineering history remains available on the
 
 ## Project Links
 
-- [Official MCP Registry entry](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.3.2)
+- [Official MCP Registry entry](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.3.3)
+- [v0.3.3 Codex Plugin and Project Site](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.3.3)
 - [v0.3.2 Discovery Metadata](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.3.2)
 - [v0.3.1 MCP Registry Distribution](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.3.1)
 - [v0.3.0 Terminal and Codex MCP Preview](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.3.0)

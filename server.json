@@ -2,7 +2,7 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.happy520ai/unified-ai-system",
   "title": "Unified AI System",
-  "description": "Terminal-first AI gateway for Codex with eight governed MCP tools and local fake-provider startup.",
+  "description": "Terminal-first AI gateway with eight governed MCP tools for Codex, Cursor, Cline; no-key local path.",
   "icons": [
     {
       "src": "https://raw.githubusercontent.com/happy520ai/unified-ai-system/master/docs/assets/mcp-icon.png",
@@ -18,12 +18,12 @@
     "id": "1222678439",
     "subfolder": "packages/mcp-server"
   },
-  "websiteUrl": "https://github.com/happy520ai/unified-ai-system#readme",
-  "version": "0.3.2",
+  "websiteUrl": "https://happy520ai.github.io/unified-ai-system/",
+  "version": "0.3.3",
   "packages": [
     {
       "registryType": "oci",
-      "identifier": "ghcr.io/happy520ai/unified-ai-system/mcp-server:0.3.2",
+      "identifier": "ghcr.io/happy520ai/unified-ai-system/mcp-server:0.3.3",
       "transport": {
         "type": "stdio"
       }
