@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { resolvePermission } from "./utils/enterpriseUtils.js";
 import { isPublicRoute } from "./routeAccessPolicy.js";
 
 describe("route access policy", () => {
@@ -24,5 +25,10 @@ describe("route access policy", () => {
     "/three-mode/execute",
   ])("requires authorization for mutation route: %s", (pathname) => {
     expect(isPublicRoute(pathname)).toBe(false);
+  });
+
+  it("governs prompt enhancement with the existing chat permission", () => {
+    expect(isPublicRoute("/prompts/enhance")).toBe(false);
+    expect(resolvePermission("POST", "/prompts/enhance")).toBe("chat:use");
   });
 });

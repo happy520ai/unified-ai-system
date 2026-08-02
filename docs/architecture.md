@@ -28,6 +28,7 @@ Unified AI System is a modular monolith with reusable workspace packages.
 Client
   -> terminal, HTTP, SDK, or MCP adapter
   -> HTTP route
+  -> optional deterministic prompt enhancement (explicit opt-in)
   -> normalized gateway request
   -> provider selection and policy
   -> local fake or explicitly enabled provider
@@ -38,6 +39,8 @@ The repository does not provide a centrally hosted public endpoint. Each user
 runs or deploys an instance they control.
 
 The default MCP command is self-contained: it allocates a local port, starts a
-fake-provider gateway, serves eight stdio tools, and tears the child process
-down when the host disconnects. An explicit `AI_GATEWAY_MCP_URL` can point it
-at an existing safe gateway.
+fake-provider gateway, serves the governed stdio tools, and tears the child
+process down when the host disconnects. The current source build has nine tools,
+including provider-free prompt enhancement; the pinned `0.3.3` release has the
+original eight. An explicit `AI_GATEWAY_MCP_URL` can point the server at an
+existing safe gateway.

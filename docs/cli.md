@@ -21,6 +21,7 @@ response, and exits without leaving a service process behind.
 pnpm gateway demo [prompt]    isolated credential-free proof
 pnpm gateway serve            start the local gateway
 pnpm gateway status           inspect health and chat readiness
+pnpm gateway enhance [prompt] preview a structured prompt without a model call
 pnpm gateway chat [prompt]    send one request to a running gateway
 pnpm gateway doctor           check the toolchain and connection
 pnpm gateway help             show command help
@@ -47,11 +48,35 @@ pnpm gateway serve
 ```bash
 # Terminal 2
 pnpm gateway status
+pnpm gateway enhance "Build a small API" --profile coding
+pnpm gateway chat "Build a small API" --enhance --profile coding
 pnpm gateway chat "Hello from the terminal"
 ```
 
-The default runtime uses the deterministic local fake provider and requires no
-API key.
+The enhancement preview is local and provider-free. The default chat runtime
+uses the deterministic local fake provider and requires no API key.
+
+## Natural-Language Enhancement
+
+Preview the exact structured prompt before sending it to a model:
+
+```bash
+pnpm gateway enhance "Help me compare two deployment options"
+pnpm gateway enhance "Write a launch plan" --profile planning --json
+```
+
+Profiles are `auto`, `general`, `coding`, `analysis`, `writing`, `research`,
+and `planning`. `auto` detects a profile from the request.
+
+Apply the same transformation to one chat request only with explicit opt-in:
+
+```bash
+pnpm gateway chat "Build a Node API with tests" --enhance --profile coding
+```
+
+Without `--enhance`, the chat prompt is not rewritten. Enhancement never
+enables a provider or bypasses the real-provider authorization check. See the
+[prompt enhancement guide](prompt-enhancement.md) for HTTP and SDK examples.
 
 ## Diagnostics
 
@@ -73,7 +98,7 @@ pnpm gateway status --url http://127.0.0.1:4100 --timeout 5000
 
 ## Machine Output
 
-`demo`, `status`, `chat`, `doctor`, and `version` support `--json`:
+`demo`, `status`, `enhance`, `chat`, `doctor`, and `version` support `--json`:
 
 ```bash
 pnpm gateway doctor --json

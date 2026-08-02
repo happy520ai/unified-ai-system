@@ -389,7 +389,7 @@ export function resolvePermission(method, pathname) {
     return "workflow:run";
   }
 
-  if (pathname === "/chat" || pathname === "/chat/stream" || pathname === "/chat/rag" || pathname === "/chat/rag/stream" || pathname === "/route" || pathname === "/gateway/route" || pathname === "/gateway/mock") {
+  if (pathname === "/prompts/enhance" || pathname === "/chat" || pathname === "/chat/stream" || pathname === "/chat/rag" || pathname === "/chat/rag/stream" || pathname === "/route" || pathname === "/gateway/route" || pathname === "/gateway/mock") {
     return "chat:use";
   }
 

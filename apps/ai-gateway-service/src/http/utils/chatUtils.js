@@ -1,3 +1,8 @@
+import {
+  enhanceNaturalLanguagePrompt,
+  summarizePromptEnhancement,
+} from "../../prompts/naturalLanguagePromptEnhancer.js";
+
 export function normalizeChatBody(body, config) {
   const defaultTarget = resolveDefaultChatTarget(config);
   const currentPageSelection = normalizeCurrentPageModelSelection(body?.currentPageModelSelection);
@@ -31,13 +36,13 @@ export function normalizeChatBody(body, config) {
   }
 
   if (Array.isArray(body?.messages)) {
-    return {
+    return applyPromptEnhancement({
       ...body,
       taskType: "chat",
       providerId,
       model: modelId,
       metadata,
-    };
+    }, body?.promptEnhancement);
   }
 
   const prompt = body?.prompt ?? body?.query;
@@ -46,7 +51,7 @@ export function normalizeChatBody(body, config) {
     return body;
   }
 
-  return {
+  return applyPromptEnhancement({
     context: body.context,
     taskType: "chat",
     providerId,
@@ -59,7 +64,57 @@ export function normalizeChatBody(body, config) {
     ],
     options: body.options,
     metadata,
+  }, body?.promptEnhancement);
+}
+
+export function applyPromptEnhancement(chatBody, options) {
+  if (!options || typeof options !== "object" || options.enabled !== true) {
+    return chatBody;
+  }
+
+  const messages = Array.isArray(chatBody?.messages) ? [...chatBody.messages] : [];
+  const targetIndex = findLastUserMessageIndex(messages);
+  if (targetIndex === -1) {
+    const error = new Error("Prompt enhancement requires a user message with text content.");
+    error.code = "PROMPT_ENHANCEMENT_USER_MESSAGE_REQUIRED";
+    error.category = "validation";
+    error.retryable = false;
+    throw error;
+  }
+
+  const targetMessage = messages[targetIndex];
+  const result = enhanceNaturalLanguagePrompt({
+    input: targetMessage.content,
+    profile: options.profile,
+    language: options.language,
+  });
+  messages[targetIndex] = {
+    ...targetMessage,
+    content: result.enhancedPrompt,
   };
+
+  return {
+    ...chatBody,
+    messages,
+    metadata: {
+      ...(chatBody.metadata ?? {}),
+      promptEnhancement: summarizePromptEnhancement(result),
+    },
+  };
+}
+
+function findLastUserMessageIndex(messages) {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (
+      message?.role === "user"
+      && typeof message.content === "string"
+      && message.content.trim().length > 0
+    ) {
+      return index;
+    }
+  }
+  return -1;
 }
 
 export function normalizeCurrentPageModelSelection(selection) {

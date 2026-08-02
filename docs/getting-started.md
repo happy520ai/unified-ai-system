@@ -65,12 +65,16 @@ In another terminal:
 
 ```bash
 pnpm gateway status
+pnpm gateway enhance "Help me plan a small API" --profile planning
+pnpm gateway chat "Help me plan a small API" --enhance --profile planning
 pnpm gateway chat "Hello from Unified AI System"
 ```
 
-No API key is required for the default local fake provider. The chat command
+Prompt enhancement is deterministic and does not call a provider. No API key
+is required for the default local fake provider. The chat command
 refuses to send when a real provider may be active unless the operator adds
 `--allow-real-provider` explicitly for that request. See the complete
+[prompt enhancement guide](prompt-enhancement.md) and
 [terminal CLI reference](cli.md).
 
 ## Call The Gateway From JavaScript

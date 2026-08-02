@@ -11,6 +11,59 @@ import type { RoutingDecision } from "./routing.js";
 
 export type GatewayResponseFormat = "text" | "json";
 export type GatewayFinishReason = "stop" | "length" | "tool_call" | "filtered" | "error";
+export type PromptEnhancementProfile = "general" | "coding" | "analysis" | "writing" | "research" | "planning";
+export type PromptEnhancementProfileOption = "auto" | PromptEnhancementProfile;
+export type PromptEnhancementLanguage = "zh-CN" | "en";
+export type PromptEnhancementLanguageOption = "auto" | PromptEnhancementLanguage;
+
+export interface PromptEnhancementOptions {
+  enabled: boolean;
+  profile?: PromptEnhancementProfileOption;
+  language?: PromptEnhancementLanguageOption;
+}
+
+export interface PromptEnhancementRequest {
+  input: string;
+  profile?: PromptEnhancementProfileOption;
+  language?: PromptEnhancementLanguageOption;
+  context?: RequestContext;
+}
+
+export interface PromptEnhancementSummary {
+  applied: true;
+  profile: PromptEnhancementProfile;
+  language: PromptEnhancementLanguage;
+  engine: "local-deterministic";
+  version: string;
+  providerCalled: false;
+  originalPreserved: boolean;
+}
+
+export interface PromptEnhancementSection {
+  id: "execution" | "output" | "acceptance";
+  title: string;
+  items: string[];
+}
+
+export interface PromptEnhancementResult {
+  original: string;
+  enhancedPrompt: string;
+  requestedProfile: PromptEnhancementProfileOption;
+  profile: PromptEnhancementProfile;
+  language: PromptEnhancementLanguage;
+  changed: boolean;
+  sections: PromptEnhancementSection[];
+  clarifyingQuestions: string[];
+  signals: Record<string, boolean>;
+  metadata: {
+    engine: "local-deterministic";
+    version: string;
+    providerCalled: false;
+    credentialRequired: false;
+    originalPreserved: boolean;
+    deterministic: true;
+  };
+}
 
 export interface GatewayGenerationOptions {
   temperature?: number;
@@ -28,6 +81,7 @@ export interface GatewayRequest {
   model?: string;
   providerId?: string;
   options?: GatewayGenerationOptions;
+  promptEnhancement?: PromptEnhancementOptions;
   knowledge?: {
     enabled: boolean;
     query?: string;
@@ -80,6 +134,7 @@ export interface GatewayRouteData extends GatewayResponse {
   executionStatus: GatewayExecutionStatus;
   outputText: string;
   warnings: GatewayWarning[];
+  promptEnhancement?: PromptEnhancementSummary;
 }
 
 export interface GatewayRouteError {

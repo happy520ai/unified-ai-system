@@ -13,6 +13,7 @@ const serverEntrypoint = resolve(
 const expectedTools = [
   "gateway_health",
   "gateway_readiness",
+  "gateway_prompt_enhance",
   "gateway_chat",
   "knowledge_readiness",
   "workflow_health",
@@ -280,6 +281,24 @@ async function runSmoke() {
       throw new Error("MCP gateway health did not prove a safe managed runtime.");
     }
 
+    const enhancement = parseToolPayload(
+      await rpc.request("tools/call", {
+        name: "gateway_prompt_enhance",
+        arguments: {
+          input: "Build a Node API with tests",
+          profile: "coding",
+        },
+      }),
+    );
+    if (
+      enhancement.ok !== true
+      || enhancement.result?.data?.profile !== "coding"
+      || enhancement.result?.data?.metadata?.providerCalled !== false
+      || !enhancement.result?.data?.enhancedPrompt?.includes("Build a Node API with tests")
+    ) {
+      throw new Error("MCP prompt enhancement did not prove local deterministic transformation.");
+    }
+
     const chat = parseToolPayload(
       await rpc.request("tools/call", {
         name: "gateway_chat",
@@ -306,6 +325,7 @@ async function runSmoke() {
       tools: toolNames,
       provider: chat.result.data.selectedProvider,
       executionMode: chat.result.data.executionMode,
+      promptEnhancementProviderCalled: enhancement.result.data.metadata.providerCalled,
       realProviderCallsMade: false,
       managedGatewayCleanedUp,
     };

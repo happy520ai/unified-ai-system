@@ -38,6 +38,29 @@ test("parseCliArgs supports terminal commands and machine output", () => {
   assert.equal(parsed.json, true);
 });
 
+test("parseCliArgs supports prompt enhancement commands and profiles", () => {
+  const preview = parseCliArgs([
+    "enhance",
+    "build",
+    "an",
+    "API",
+    "--profile=coding",
+  ], {});
+  assert.equal(preview.command, "enhance");
+  assert.equal(preview.positionals.join(" "), "build an API");
+  assert.equal(preview.profile, "coding");
+
+  const chat = parseCliArgs([
+    "chat",
+    "build an API",
+    "--enhance",
+    "--profile",
+    "coding",
+  ], {});
+  assert.equal(chat.enhance, true);
+  assert.equal(chat.profile, "coding");
+});
+
 test("parseCliArgs rejects ambiguous or unsafe option combinations", () => {
   assert.throws(
     () => parseCliArgs(["status", "--allow-real-provider"], {}),
@@ -56,6 +79,18 @@ test("parseCliArgs rejects ambiguous or unsafe option combinations", () => {
     (error) =>
       error instanceof CliUsageError
       && error.message.includes("not supported by serve"),
+  );
+  assert.throws(
+    () => parseCliArgs(["status", "--profile", "coding"], {}),
+    (error) =>
+      error instanceof CliUsageError
+      && error.message.includes("only valid with enhance"),
+  );
+  assert.throws(
+    () => parseCliArgs(["enhance", "hello", "--profile", "magic"], {}),
+    (error) =>
+      error instanceof CliUsageError
+      && error.message.includes("Unsupported enhancement profile"),
   );
 });
 
@@ -101,6 +136,56 @@ test("chat sends one request to a proven fake-provider runtime", async (context)
   assert.equal(output.outputText, "mock response");
   assert.equal(output.executionMode, "fake");
   assert.equal(output.realProviderAuthorized, false);
+});
+
+test("enhance previews a structured prompt without checking or calling a provider", async (context) => {
+  const gateway = await createMockGateway({ realProviderEnabled: true });
+  context.after(gateway.close);
+
+  const result = await runCliProcess([
+    "enhance",
+    "build an API",
+    "--profile",
+    "coding",
+    "--json",
+    "--url",
+    gateway.url,
+  ]);
+
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(gateway.promptEnhancementRequestCount, 1);
+  assert.equal(gateway.chatRequestCount, 0);
+  const output = JSON.parse(result.stdout);
+  assert.equal(output.original, "build an API");
+  assert.equal(output.profile, "coding");
+  assert.match(output.enhancedPrompt, /Execution requirements/);
+  assert.equal(output.metadata.providerCalled, false);
+});
+
+test("chat opts into gateway enhancement only with --enhance", async (context) => {
+  const gateway = await createMockGateway();
+  context.after(gateway.close);
+
+  const result = await runCliProcess([
+    "chat",
+    "build an API",
+    "--enhance",
+    "--profile",
+    "coding",
+    "--json",
+    "--url",
+    gateway.url,
+  ]);
+
+  assert.equal(result.code, 0, result.stderr);
+  assert.deepEqual(gateway.lastPromptEnhancement, {
+    enabled: true,
+    profile: "coding",
+    language: "auto",
+  });
+  const output = JSON.parse(result.stdout);
+  assert.equal(output.promptEnhancement.applied, true);
+  assert.equal(output.promptEnhancement.profile, "coding");
 });
 
 test("chat blocks a real-provider runtime until explicitly authorized", async (context) => {
@@ -156,7 +241,9 @@ test("doctor treats an offline gateway as optional", async () => {
 
 async function createMockGateway(options = {}) {
   let chatRequestCount = 0;
+  let promptEnhancementRequestCount = 0;
   let lastPrompt = null;
+  let lastPromptEnhancement = null;
   const realProviderEnabled = options.realProviderEnabled === true;
   const server = createServer(async (request, response) => {
     if (request.method === "GET" && request.url === "/health/check") {
@@ -192,6 +279,7 @@ async function createMockGateway(options = {}) {
       chatRequestCount += 1;
       const body = await readJsonBody(request);
       lastPrompt = body.messages?.[0]?.content ?? null;
+      lastPromptEnhancement = body.promptEnhancement ?? null;
       return writeJson(response, 200, {
         success: true,
         data: {
@@ -204,6 +292,41 @@ async function createMockGateway(options = {}) {
             : "local-fake-model",
           executionMode: realProviderEnabled ? "real" : "fake",
           executionStatus: "completed",
+          ...(body.promptEnhancement?.enabled
+            ? {
+                promptEnhancement: {
+                  applied: true,
+                  profile: body.promptEnhancement.profile ?? "general",
+                  language: "en",
+                  engine: "local-deterministic",
+                  version: "prompt-enhancer-v1",
+                  providerCalled: false,
+                  originalPreserved: true,
+                },
+              }
+            : {}),
+        },
+      });
+    }
+
+    if (request.method === "POST" && request.url === "/prompts/enhance") {
+      promptEnhancementRequestCount += 1;
+      const body = await readJsonBody(request);
+      return writeJson(response, 200, {
+        status: "ok",
+        data: {
+          original: body.input,
+          enhancedPrompt: `# Task\n\n${body.input}\n\n# Execution requirements`,
+          profile: body.profile === "auto" ? "general" : body.profile,
+          language: "en",
+          clarifyingQuestions: [],
+          metadata: {
+            engine: "local-deterministic",
+            providerCalled: false,
+            credentialRequired: false,
+            originalPreserved: true,
+            deterministic: true,
+          },
         },
       });
     }
@@ -225,8 +348,14 @@ async function createMockGateway(options = {}) {
     get chatRequestCount() {
       return chatRequestCount;
     },
+    get promptEnhancementRequestCount() {
+      return promptEnhancementRequestCount;
+    },
     get lastPrompt() {
       return lastPrompt;
+    },
+    get lastPromptEnhancement() {
+      return lastPromptEnhancement;
     },
     close: () =>
       new Promise((resolvePromise, reject) => {

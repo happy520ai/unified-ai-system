@@ -79,11 +79,11 @@ and choose a terminal or MCP path below.
 
 | Capability | Current public preview |
 | --- | --- |
-| **AI gateway** | Chat, streaming, health, diagnostics, explicit provider selection, and routing foundations. |
+| **AI gateway** | Chat, streaming, local natural-language prompt enhancement, diagnostics, explicit provider selection, and routing foundations. |
 | **Governed agents** | Structured planning and workforce modules with approval, permission, and evidence surfaces. |
 | **Knowledge and context** | Retrieval, context shaping, reusable knowledge, and memory-oriented modules. |
-| **Terminal and API** | CLI commands for demo, startup, status, chat, and diagnostics, plus direct HTTP and shared SDK access. |
-| **Codex and MCP** | A stdio MCP server with eight tested tools, project-level Codex configuration, and a no-clone Docker command. |
+| **Terminal and API** | CLI commands for prompt enhancement, demo, startup, status, chat, and diagnostics, plus direct HTTP and shared SDK access. |
+| **Codex and MCP** | A tested stdio MCP server with governed health, prompt enhancement, fake chat, knowledge, workflow, and workforce tools. |
 | **Extension layer** | Shared contracts, SDKs, context modules, provider adapters, and tools. |
 | **Local-first runtime** | Credential-free startup plus an anonymously pullable multi-architecture container. |
 
@@ -114,14 +114,21 @@ pnpm gateway serve
 
 # Terminal 2
 pnpm gateway status
+pnpm gateway enhance "Build a small API for my team" --profile coding
+pnpm gateway chat "Build a small API for my team" --enhance --profile coding
 pnpm gateway chat "Hello from Unified AI System"
 pnpm gateway doctor
 ```
 
-`demo`, `status`, `chat`, `doctor`, and `version` support `--json`. The chat
+`enhance` previews a structured prompt locally through the gateway without
+calling a model. `chat --enhance` explicitly applies that transformation to
+the final user message; plain `chat` remains unchanged. `demo`, `status`,
+`enhance`, `chat`, `doctor`, and `version` support `--json`. The chat
 command refuses to send when a real provider may be active unless the operator
 adds `--allow-real-provider` explicitly for that request. Read the
-[CLI reference](docs/cli.md) for commands, exit codes, and safety behavior.
+[prompt enhancement guide](docs/prompt-enhancement.md) and
+[CLI reference](docs/cli.md) for commands, profiles, exit codes, and safety
+behavior.
 
 ## Connect Codex, Cursor, And Cline
 
@@ -177,9 +184,10 @@ Run the gateway as a local MCP server with one anonymous container command:
 codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.3.3
 ```
 
-Restart Codex, then use `/mcp` to inspect eight tools for gateway health,
-readiness, fake-provider chat, knowledge, workflows, and workforce status. A
-trusted source checkout also includes project-level Codex configuration, so
+Restart Codex, then use `/mcp` to inspect the pinned `0.3.3` image's eight tools
+for gateway health, readiness, fake-provider chat, knowledge, workflows, and
+workforce status. A trusted source checkout also includes project-level Codex
+configuration and adds the unreleased ninth tool, `gateway_prompt_enhance`, so
 the direct Node entrypoint is discovered without maintaining a second config.
 
 The dedicated MCP image starts its own isolated gateway and removes it when the

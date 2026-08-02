@@ -1,6 +1,6 @@
 # Unified AI System
 
-> A terminal-first, self-hosted AI gateway and eight-tool MCP server for Codex, Cursor, and Cline.
+> A terminal-first, self-hosted AI gateway and governed MCP server for Codex, Cursor, and Cline.
 
 Unified AI System provides one governed boundary for models, agents, knowledge, workflows, and tools. The first verified path uses a local fake provider, requires no account or API key, and makes no real-provider calls.
 
@@ -15,6 +15,7 @@ Unified AI System provides one governed boundary for models, agents, knowledge, 
 - [Installable Agent Skill](https://skills.sh/happy520ai/unified-ai-system/unified-ai-gateway)
 - [60-second Codex MCP quickstart](https://github.com/happy520ai/unified-ai-system/blob/master/docs/codex-mcp-quickstart.md)
 - [Getting started](https://github.com/happy520ai/unified-ai-system/blob/master/docs/getting-started.md)
+- [Natural-language prompt enhancement](https://github.com/happy520ai/unified-ai-system/blob/master/docs/prompt-enhancement.md)
 - [Architecture](https://github.com/happy520ai/unified-ai-system/blob/master/docs/architecture.md)
 - [Security policy](https://github.com/happy520ai/unified-ai-system/blob/master/SECURITY.md)
 
@@ -28,7 +29,8 @@ Unified AI System provides one governed boundary for models, agents, knowledge, 
 
 ## Verified boundaries
 
-- Eight MCP tools cover gateway health, readiness, fake-provider chat, knowledge, workflows, and workforce status.
+- The stable v0.3.3 MCP image exposes eight tools; the current source adds a ninth, provider-free prompt enhancement tool.
+- Plain chat requests remain unchanged unless prompt enhancement is explicitly enabled.
 - The credential-free default uses `local-fake-provider` in `fake` execution mode.
 - Real-provider execution requires explicit, scoped authorization.
 - Production readiness, L5 autonomy, and AGI require independent evidence.

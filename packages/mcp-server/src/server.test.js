@@ -75,6 +75,23 @@ test("stdio server exposes safe tools and cleans up its managed gateway", async 
     assert.equal(readiness.ok, true);
     assert.equal(readiness.result.data.readiness.chat.ready, true);
 
+    const enhancement = parseToolResult(
+      await client.callTool({
+        name: "gateway_prompt_enhance",
+        arguments: {
+          input: "Build a Node API with tests",
+          profile: "coding",
+        },
+      }),
+    );
+    assert.equal(enhancement.ok, true);
+    assert.equal(enhancement.result.data.profile, "coding");
+    assert.equal(enhancement.result.data.metadata.providerCalled, false);
+    assert.match(
+      enhancement.result.data.enhancedPrompt,
+      /Build a Node API with tests/,
+    );
+
     const chat = parseToolResult(
       await client.callTool({
         name: "gateway_chat",

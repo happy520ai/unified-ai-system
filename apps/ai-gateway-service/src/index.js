@@ -25,6 +25,7 @@ server.listen(port, host, () => {
       "GET /knowledge/sources",
       "GET /ws/info",
       "WS /ws",
+      "POST /prompts/enhance",
       "POST /chat",
       "POST /chat/stream",
       "POST /knowledge/load",

@@ -347,6 +347,36 @@ export async function dispatchHttpRoutes06(context) {
       }
     }
 
+    const isChatStreamRoute = url.pathname === "/chat/stream";
+    const promptEnhancementRequested = body?.promptEnhancement?.enabled === true;
+    let gatewayInput = body;
+    if (url.pathname === "/chat" || isChatStreamRoute) {
+      try {
+        gatewayInput = normalizeChatBody(body, application.config);
+      } catch (error) {
+        if (!promptEnhancementRequested) throw error;
+        writeServiceLog("prompt_enhancement_failed", {
+          method: request.method,
+          path: url.pathname,
+          code: error?.code,
+          durationMs: Date.now() - startedAt,
+        });
+        if (isChatStreamRoute) {
+          writeSseHeaders(response);
+          writeSseEvent(response, "error", {
+            code: error?.code ?? "PROMPT_ENHANCEMENT_FAILED",
+            message: error instanceof Error ? error.message : "Prompt enhancement failed.",
+          });
+          if (!response.writableEnded && !response.destroyed) response.end();
+        } else {
+          writeJson(response, 400, createRouteFailureEnvelope(error, { startedAt }));
+        }
+        return;
+      }
+    }
+
+    const promptEnhancement = gatewayInput?.metadata?.promptEnhancement ?? null;
+
     if (url.pathname === "/chat/stream") {
       let clientClosed = false;
       response.on("close", () => {
@@ -355,7 +385,7 @@ export async function dispatchHttpRoutes06(context) {
       writeSseHeaders(response);
 
       let failed = false;
-      for await (const event of gatewayService.executeStream(normalizeChatBody(body, application.config))) {
+      for await (const event of gatewayService.executeStream(gatewayInput)) {
         if (clientClosed) break;
         if (event.type === "error") {
           failed = true;
@@ -363,7 +393,7 @@ export async function dispatchHttpRoutes06(context) {
           break;
         }
 
-        writeSseEvent(response, event.type, event);
+        writeSseEvent(response, event.type, decorateStreamEvent(event, promptEnhancement));
       }
 
       writeServiceLog(failed ? "request_stream_failed" : "request_stream_completed", {
@@ -375,7 +405,16 @@ export async function dispatchHttpRoutes06(context) {
       return;
     }
 
-    const result = await gatewayService.execute(url.pathname === "/chat" ? normalizeChatBody(body, application.config) : body);
+    let result = await gatewayService.execute(url.pathname === "/chat" ? gatewayInput : body);
+    if (url.pathname === "/chat" && promptEnhancement) {
+      result = {
+        ...result,
+        data: {
+          ...(result.data ?? {}),
+          promptEnhancement,
+        },
+      };
+    }
     writeServiceLog(result.success ? "request_completed" : "request_failed", {
       method: request.method,
       path: url.pathname,
@@ -402,4 +441,15 @@ export async function dispatchHttpRoutes06(context) {
 
 
   return ROUTE_NOT_HANDLED;
+}
+
+function decorateStreamEvent(event, promptEnhancement) {
+  if (!promptEnhancement) return event;
+  return {
+    ...event,
+    meta: {
+      ...(event.meta ?? {}),
+      promptEnhancement,
+    },
+  };
 }

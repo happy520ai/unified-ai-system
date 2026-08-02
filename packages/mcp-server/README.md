@@ -4,7 +4,7 @@ Connect Codex and other MCP hosts to the credential-free Unified AI System
 preview over stdio.
 
 The server starts an isolated local gateway automatically, pins it to the
-deterministic fake provider, exposes eight tools, and removes the gateway when
+deterministic fake provider, exposes governed tools, and removes the gateway when
 the MCP session ends. It does not enable or authorize real provider calls.
 
 ## Tools
@@ -13,6 +13,7 @@ the MCP session ends. It does not enable or authorize real provider calls.
 | --- | --- |
 | `gateway_health` | Inspect gateway health and provider safety state. |
 | `gateway_readiness` | Inspect first-run and chat readiness. |
+| `gateway_prompt_enhance` | Structure a natural-language request locally without a provider call. |
 | `gateway_chat` | Send one fake-provider-only chat request. |
 | `knowledge_readiness` | Inspect local knowledge infrastructure. |
 | `workflow_health` | Inspect the governed workflow subsystem. |
@@ -23,6 +24,10 @@ the MCP session ends. It does not enable or authorize real provider calls.
 All inspection tools are read-only. The chat tool checks the gateway safety
 state before every request and fails closed unless `realProviderEnabled` is
 exactly `false` and the response proves `executionMode: "fake"`.
+
+The current source build exposes nine tools. The pinned `0.3.3` image below is
+the stable eight-tool release; `gateway_prompt_enhance` will enter a tagged
+container release after the unreleased changes are versioned.
 
 ## Run From Source
 
@@ -69,8 +74,14 @@ default_tools_approval_mode = "writes"
 
 ## Try It In Codex
 
-Restart Codex after adding the server, then run `/mcp verbose` to confirm that
-all eight tools are connected. A useful first task is:
+Restart Codex after adding the server, then run `/mcp verbose` to inspect the
+connected tools. A useful first task for a source checkout is:
+
+> Use `gateway_prompt_enhance` to turn "build a small API for my team" into a
+> coding prompt. Show the preserved original request, detected language,
+> enhanced prompt, and proof that no provider was called.
+
+For the pinned `0.3.3` container, use the stable fake-chat task:
 
 > Use the Unified AI System MCP tools to check gateway health and readiness,
 > then send `MCP_READY` through gateway chat only if the gateway proves
@@ -94,8 +105,9 @@ and real-provider execution are intentionally outside this preview surface.
 ## Verify
 
 The test launches the server through the official MCP v2 client, completes the
-stdio handshake, lists all eight tools, calls every tool, proves fake-provider
-chat, closes the client, and confirms that the managed gateway stopped:
+stdio handshake, lists all source-build tools, calls every tool, proves local
+prompt enhancement and fake-provider chat, closes the client, and confirms
+that the managed gateway stopped:
 
 ```bash
 pnpm verify:mcp

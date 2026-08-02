@@ -7,6 +7,14 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- A deterministic, provider-free natural-language prompt enhancement engine
+  with Chinese and English task profiles, clarification guidance, and explicit
+  completion criteria.
+- `POST /prompts/enhance`, shared SDK contracts, `pnpm gateway enhance`,
+  opt-in `chat --enhance`, and a source-build MCP enhancement tool.
+
 ### Changed
 
 - Redirected internal audit, security, context-selection, and Codex handoff

@@ -27,10 +27,20 @@ const COMMANDS = new Set([
   "chat",
   "demo",
   "doctor",
+  "enhance",
   "help",
   "serve",
   "status",
   "version",
+]);
+const ENHANCEMENT_PROFILES = new Set([
+  "auto",
+  "general",
+  "coding",
+  "analysis",
+  "writing",
+  "research",
+  "planning",
 ]);
 
 const COMMAND_ALIASES = new Map([
@@ -62,6 +72,9 @@ export function parseCliArgs(
     timeoutMs: 30_000,
     timeoutProvided: false,
     prompt: null,
+    enhance: false,
+    profile: "auto",
+    profileProvided: false,
     allowRealProvider: false,
     host: null,
     port: null,
@@ -103,6 +116,16 @@ export function parseCliArgs(
     }
     if (flag === "--allow-real-provider") {
       options.allowRealProvider = true;
+      continue;
+    }
+    if (flag === "--enhance") {
+      options.enhance = true;
+      continue;
+    }
+    if (flag === "--profile") {
+      options.profile = readFlagValue(argv, index, flag, inlineValue);
+      options.profileProvided = true;
+      if (inlineValue === null) index += 1;
       continue;
     }
     if (flag === "--url") {
@@ -190,6 +213,8 @@ export async function runCli(
         return await runStatus(options, output);
       case "doctor":
         return await runDoctor(options, runtime, output);
+      case "enhance":
+        return await runEnhance(options, output, runtime.stdin ?? process.stdin);
       case "chat":
         return await runChat(options, output, runtime.stdin ?? process.stdin);
       default:
@@ -203,6 +228,41 @@ export async function runCli(
       stderr,
     });
   }
+}
+
+async function runEnhance(options, output, stdin) {
+  const prompt = await resolvePrompt(options, stdin, { required: true });
+  const client = createGatewayClient({
+    baseUrl: options.url,
+    timeoutMs: options.timeoutMs,
+  });
+  const response = await client.enhancePrompt({
+    input: prompt,
+    profile: options.profile,
+    language: "auto",
+  });
+  const enhancement = unwrapEnvelope(response);
+  if (typeof enhancement.enhancedPrompt !== "string") {
+    throw new Error("The gateway did not return an enhanced prompt.");
+  }
+
+  const result = {
+    ok: true,
+    gatewayUrl: options.url,
+    original: enhancement.original,
+    enhancedPrompt: enhancement.enhancedPrompt,
+    profile: enhancement.profile,
+    language: enhancement.language,
+    clarifyingQuestions: enhancement.clarifyingQuestions ?? [],
+    metadata: enhancement.metadata ?? {},
+  };
+
+  if (options.json) {
+    output.write(`${JSON.stringify(result, null, 2)}\n`);
+  } else {
+    renderEnhancement(result, output);
+  }
+  return 0;
 }
 
 async function runDemo(options, runtime) {
@@ -418,6 +478,15 @@ async function runChat(options, output, stdin) {
         command: "chat",
         realProviderAuthorized: options.allowRealProvider,
       },
+      ...(options.enhance
+        ? {
+            promptEnhancement: {
+              enabled: true,
+              profile: options.profile,
+              language: "auto",
+            },
+          }
+        : {}),
     }),
   );
 
@@ -436,6 +505,7 @@ async function runChat(options, output, stdin) {
     executionMode: data.executionMode ?? "unknown",
     executionStatus: data.executionStatus ?? "unknown",
     realProviderAuthorized: options.allowRealProvider,
+    promptEnhancement: data.promptEnhancement ?? { applied: false },
   };
 
   if (options.json) {
@@ -490,8 +560,25 @@ function renderChat(result, output) {
     "",
     `  ${output.cyan(">")} ${result.prompt}`,
     `  ${output.yellow("<")} ${result.outputText}`,
+    ...(result.promptEnhancement.applied
+      ? [`  ${output.green("[enhanced]")} ${result.promptEnhancement.profile}/${result.promptEnhancement.language}`]
+      : []),
     "",
     `  ${output.green("[done]")} ${result.selectedProvider ?? "unknown"}/${result.selectedModel ?? "unknown"} | ${result.executionMode}`,
+    "",
+  ];
+  output.write(`${lines.join("\n")}\n`);
+}
+
+function renderEnhancement(result, output) {
+  const lines = [
+    "",
+    output.bold("Enhanced prompt"),
+    output.muted(`${result.profile} | ${result.language} | local deterministic engine`),
+    "",
+    result.enhancedPrompt,
+    "",
+    output.green("[ready] Preview only; no model or provider was called."),
     "",
   ];
   output.write(`${lines.join("\n")}\n`);
@@ -508,6 +595,7 @@ Commands:
   demo [prompt]    Run an isolated credential-free demonstration
   serve            Start the local gateway
   status           Inspect gateway and chat readiness
+  enhance [prompt] Preview a structured prompt without calling a model
   chat [prompt]    Send one chat request to a running gateway
   doctor           Check the local toolchain and gateway connection
   help             Show this help
@@ -516,7 +604,9 @@ Commands:
 Options:
   --url <url>                 Gateway URL (default: ${DEFAULT_GATEWAY_URL})
   --timeout <ms>              Request timeout, up to 300000
-  --prompt <text>             Prompt for demo or chat
+  --prompt <text>             Prompt for demo, enhance, or chat
+  --enhance                   Explicitly enhance a chat prompt in the gateway
+  --profile <name>            auto, general, coding, analysis, writing, research, planning
   --allow-real-provider       Authorize one chat command to use a real provider
   --host <host>               Host override for serve
   --port <port>               Port override for serve
@@ -528,6 +618,8 @@ Examples:
   pnpm gateway demo
   pnpm gateway serve
   pnpm gateway status
+  pnpm gateway enhance "Build me an API"
+  pnpm gateway chat "Build me an API" --enhance --profile coding
   pnpm gateway chat "Hello from the terminal"
   pnpm gateway doctor --json
 
@@ -559,7 +651,7 @@ function validateOptions(options) {
   }
 
   if (
-    !["chat", "demo"].includes(options.command)
+    !["chat", "demo", "enhance"].includes(options.command)
     && (options.prompt !== null || options.positionals.length > 0)
   ) {
     throw new CliUsageError(
@@ -567,7 +659,7 @@ function validateOptions(options) {
     );
   }
   if (
-    ["chat", "demo"].includes(options.command)
+    ["chat", "demo", "enhance"].includes(options.command)
     && options.prompt !== null
     && options.positionals.length > 0
   ) {
@@ -580,6 +672,21 @@ function validateOptions(options) {
       "--allow-real-provider is only valid with the chat command.",
     );
   }
+  if (options.enhance && options.command !== "chat") {
+    throw new CliUsageError("--enhance is only valid with the chat command.");
+  }
+  if (!ENHANCEMENT_PROFILES.has(options.profile)) {
+    throw new CliUsageError(`Unsupported enhancement profile: ${options.profile}`);
+  }
+  if (
+    options.profileProvided
+    && options.command !== "enhance"
+    && !(options.command === "chat" && options.enhance)
+  ) {
+    throw new CliUsageError(
+      "--profile is only valid with enhance or chat --enhance.",
+    );
+  }
   if (
     (options.host !== null || options.port !== null)
     && options.command !== "serve"
@@ -588,17 +695,17 @@ function validateOptions(options) {
   }
   if (
     (options.urlProvided || options.timeoutProvided)
-    && !["chat", "doctor", "status"].includes(options.command)
+    && !["chat", "doctor", "enhance", "status"].includes(options.command)
   ) {
     throw new CliUsageError(
-      "--url and --timeout are only valid with chat, doctor, or status.",
+      "--url and --timeout are only valid with chat, doctor, enhance, or status.",
     );
   }
   if (options.json && options.command === "serve") {
     throw new CliUsageError("--json is not supported by serve.");
   }
 
-  if (["chat", "doctor", "status"].includes(options.command)) {
+  if (["chat", "doctor", "enhance", "status"].includes(options.command)) {
     let parsedUrl;
     try {
       parsedUrl = new URL(options.url);
@@ -713,7 +820,7 @@ function reportFailure({ error, options, argv, stderr }) {
   const message = error instanceof Error ? error.message : String(error);
   const hint =
     error?.hint
-    ?? (["chat", "status"].includes(options?.command)
+    ?? (["chat", "enhance", "status"].includes(options?.command)
       ? "Start the gateway with: pnpm gateway serve"
       : null);
 

@@ -16,6 +16,9 @@ import type {
   ModelImportConfirmResult,
   ModelImportPreviewRequest,
   ModelImportPreviewResult,
+  PromptEnhancementOptions,
+  PromptEnhancementRequest,
+  PromptEnhancementResult,
   RagChatRequest,
   RagChatResult,
   MessageDto,
@@ -54,6 +57,7 @@ export interface GatewayClient {
   readonly baseUrl: string;
   health(): Promise<ResultEnvelope<GatewayHealth>>;
   setupReadiness(): Promise<ResultEnvelope<SetupReadinessResult>>;
+  enhancePrompt(request: PromptEnhancementRequest): Promise<ResultEnvelope<PromptEnhancementResult>>;
   chat(request: GatewayChatRequest): Promise<GatewayChatResult>;
   ragChat(request: RagChatRequest): Promise<RagChatResult>;
   chatStream(request: GatewayChatRequest): AsyncIterable<GatewayStreamEvent>;
@@ -86,6 +90,7 @@ export interface GatewayChatRequestOptions {
   messages?: MessageDto[];
   context?: RequestContext;
   options?: GatewayGenerationOptions;
+  promptEnhancement?: PromptEnhancementOptions;
   metadata?: ContractMetadata;
 }
 

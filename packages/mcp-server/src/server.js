@@ -11,6 +11,7 @@ export const MCP_SERVER_VERSION = "0.3.3";
 export const MCP_TOOL_NAMES = Object.freeze([
   "gateway_health",
   "gateway_readiness",
+  "gateway_prompt_enhance",
   "gateway_chat",
   "knowledge_readiness",
   "workflow_health",
@@ -22,6 +23,7 @@ export const MCP_TOOL_NAMES = Object.freeze([
 const SERVER_INSTRUCTIONS = [
   "Use this server to inspect and exercise a local Unified AI System gateway.",
   "The preview is fake-provider only: never represent its responses as real provider output.",
+  "Use gateway_prompt_enhance to structure a natural-language request without calling a model.",
   "Prefer gateway_health and gateway_readiness before gateway_chat.",
   "The workflow and workforce tools are read-only inspection surfaces.",
   "No tool enables providers, executes workforce plans, or writes knowledge.",
@@ -177,6 +179,44 @@ export function createUnifiedAiMcpServer(runtime, options = {}) {
   for (const definition of readTools) {
     registerReadTool(server, runtime, definition);
   }
+
+  server.registerTool(
+    "gateway_prompt_enhance",
+    {
+      title: "Natural-language prompt enhancement",
+      description:
+        "Turn a plain-language request into a structured prompt locally without provider credentials or provider calls.",
+      inputSchema: z.object({
+        input: z
+          .string()
+          .trim()
+          .min(1)
+          .max(20_000)
+          .describe("The natural-language request to preserve and structure"),
+        profile: z
+          .enum(["auto", "general", "coding", "analysis", "writing", "research", "planning"])
+          .optional()
+          .describe("Optional task profile; auto detects a profile from the request"),
+        language: z
+          .enum(["auto", "zh-CN", "en"])
+          .optional()
+          .describe("Output language; auto follows the input language"),
+      }),
+      annotations: READ_ONLY_ANNOTATIONS,
+    },
+    async ({ input, profile, language }) => {
+      try {
+        const response = await client.enhancePrompt({
+          input,
+          profile: profile ?? "auto",
+          language: language ?? "auto",
+        });
+        return createToolResult("gateway_prompt_enhance", runtime, response);
+      } catch (error) {
+        return createToolError("gateway_prompt_enhance", error);
+      }
+    },
+  );
 
   server.registerTool(
     "gateway_chat",

@@ -165,6 +165,7 @@ import {
   ROUTE_NOT_HANDLED,
   dispatchHttpRouteGroups,
 } from "./httpRouteDispatch.js";
+import { dispatchPromptEnhancementRoutes } from "./promptEnhancementRoutes.js";
 import { dispatchHttpRoutes01 } from "./httpServerRoutes01.js";
 import { dispatchHttpRoutes02 } from "./httpServerRoutes02.js";
 import { dispatchHttpRoutes03 } from "./httpServerRoutes03.js";
@@ -197,6 +198,7 @@ const HTTP_ROUTE_DEPENDENCIES = Object.freeze({
   createRagPrompt, createRagChatData, OWNER_AUTOMATION_CHAT_PROPOSAL_FLAG,
 });
 const HTTP_ROUTE_GROUPS = Object.freeze([
+  dispatchPromptEnhancementRoutes,
   dispatchHttpRoutes01,
   dispatchHttpRoutes02,
   dispatchHttpRoutes03,

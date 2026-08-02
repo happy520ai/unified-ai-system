@@ -177,11 +177,42 @@ try {
   const uiResponse = await fetch(`${baseUrl}/ui`);
   const consoleResponse = await fetch(`${baseUrl}/console`);
   const javascriptExample = await runJavaScriptExample(baseUrl);
+  const promptEnhancement = await fetchJson(`${baseUrl}/prompts/enhance`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      input: "Build a Node API with tests",
+      profile: "coding",
+    }),
+  });
   const chat = await fetchJson(`${baseUrl}/chat`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ prompt: "Public clone smoke test" }),
   });
+  const enhancedChat = await fetchJson(`${baseUrl}/chat`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      prompt: "Build a Node API with tests",
+      promptEnhancement: {
+        enabled: true,
+        profile: "coding",
+      },
+    }),
+  });
+  const enhancedChatStreamResponse = await fetch(`${baseUrl}/chat/stream`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      prompt: "Build a Node API with tests",
+      promptEnhancement: {
+        enabled: true,
+        profile: "coding",
+      },
+    }),
+  });
+  const enhancedChatStreamText = await enhancedChatStreamResponse.text();
 
   const checks = {
     healthReady: health.status === 200 && health.body?.data?.status === "ready",
@@ -190,10 +221,29 @@ try {
       uiResponse.status === 404
       && consoleResponse.status === 404,
     fakeProviderDefault: health.body?.data?.realProviderEnabled === false,
+    promptEnhancementReady:
+      promptEnhancement.status === 200
+      && promptEnhancement.body?.status === "ok"
+      && promptEnhancement.body?.data?.original === "Build a Node API with tests"
+      && promptEnhancement.body?.data?.profile === "coding"
+      && promptEnhancement.body?.data?.enhancedPrompt?.includes("Build a Node API with tests")
+      && promptEnhancement.body?.data?.metadata?.providerCalled === false,
     chatReady: chat.status === 200 && chat.body?.success === true && chat.body?.code === "ROUTE_OK",
+    chatDefaultEnhancementOff: chat.body?.data?.promptEnhancement === undefined,
     chatUsesFakeProvider:
       chat.body?.data?.executionMode === "fake"
       && chat.body?.data?.selectedProvider === "local-fake-provider",
+    enhancedChatReady:
+      enhancedChat.status === 200
+      && enhancedChat.body?.success === true
+      && enhancedChat.body?.data?.promptEnhancement?.applied === true
+      && enhancedChat.body?.data?.promptEnhancement?.profile === "coding"
+      && enhancedChat.body?.data?.executionMode === "fake"
+      && enhancedChat.body?.data?.outputText?.includes("# Execution requirements"),
+    enhancedChatStreamReady:
+      enhancedChatStreamResponse.status === 200
+      && enhancedChatStreamText.includes('"promptEnhancement":{"applied":true')
+      && enhancedChatStreamText.includes("# Execution requirements"),
     javascriptExampleReady: javascriptExample.exitCode === 0,
     javascriptExampleUsesFakeProvider:
       javascriptExample.stdout.includes("provider: local-fake-provider")
@@ -201,7 +251,7 @@ try {
     mcpStdioReady:
       mcpSmoke.exitCode === 0
       && mcpSmoke.body?.ok === true
-      && mcpSmoke.body?.toolCount === 8
+      && mcpSmoke.body?.toolCount === 9
       && mcpSmoke.body?.executionMode === "fake"
       && mcpSmoke.body?.managedGatewayCleanedUp === true,
   };

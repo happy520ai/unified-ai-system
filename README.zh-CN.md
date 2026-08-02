@@ -74,11 +74,11 @@ docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.3.3 pn
 
 | 能力 | 当前公开预览版 |
 | --- | --- |
-| **AI 网关** | Chat、流式响应、健康检查、诊断、显式 Provider 选择与路由基础。 |
+| **AI 网关** | Chat、流式响应、本地自然语言提示增强、诊断、显式 Provider 选择与路由基础。 |
 | **受治理智能体** | 结构化规划与 Workforce 模块，以及审批、权限和执行证据界面。 |
 | **知识与上下文** | 检索、上下文塑形、知识复用和面向记忆的模块。 |
-| **终端与 API** | Demo、启动、状态、Chat 与诊断命令，以及直接 HTTP 和共享 SDK 访问。 |
-| **Codex 与 MCP** | 经过测试的 8 工具 stdio MCP Server、项目级 Codex 配置与免克隆 Docker 命令。 |
+| **终端与 API** | 提示增强、Demo、启动、状态、Chat 与诊断命令，以及直接 HTTP 和共享 SDK 访问。 |
+| **Codex 与 MCP** | 经过测试的 stdio MCP Server，覆盖健康、提示增强、Fake Chat、知识、Workflow 与 Workforce。 |
 | **扩展层** | 共享协议、SDK、上下文模块、Provider 适配器与工具。 |
 | **本地优先运行时** | 无凭证启动，以及可匿名拉取的多架构容器。 |
 
@@ -106,14 +106,18 @@ pnpm gateway serve
 
 # 终端 2
 pnpm gateway status
+pnpm gateway enhance "帮我做一个团队使用的小型 API" --profile coding
+pnpm gateway chat "帮我做一个团队使用的小型 API" --enhance --profile coding
 pnpm gateway chat "你好，Unified AI System"
 pnpm gateway doctor
 ```
 
-`demo`、`status`、`chat`、`doctor` 和 `version` 都支持 `--json`。如果网关可能
+`enhance` 会通过网关在本地预览结构化提示词，不调用任何模型；只有显式使用
+`chat --enhance` 才会增强最后一条用户消息，普通 `chat` 保持原样。
+`demo`、`status`、`enhance`、`chat`、`doctor` 和 `version` 都支持 `--json`。如果网关可能
 使用真实 Provider，`chat` 会在发送请求之前停止；只有为本次命令显式增加
 `--allow-real-provider` 才会继续。完整命令、退出码与安全行为见
-[CLI 文档](docs/cli.md)。
+[提示增强指南](docs/prompt-enhancement.md)与 [CLI 文档](docs/cli.md)。
 
 ## 接入 Codex、Cursor 与 Cline
 
@@ -166,10 +170,10 @@ Provider。该路径已使用 `skills` 1.5.21 在空目录完成验证。安装�
 codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.3.3
 ```
 
-重启 Codex 后，使用 `/mcp` 查看 8 个工具，覆盖网关健康、就绪状态、
-Fake Provider 对话、知识基础设施、Workflow 与 Workforce 状态。可信任的
-源码工作区已经包含直接启动 Node 入口的项目级 Codex 配置，无需重复维护另一份
-配置。
+重启 Codex 后，使用 `/mcp` 查看固定 `0.3.3` 镜像的 8 个工具，覆盖网关健康、
+就绪状态、Fake Provider 对话、知识基础设施、Workflow 与 Workforce 状态。
+可信任的源码工作区还会通过项目级 Codex 配置加载尚未发布的第 9 个工具
+`gateway_prompt_enhance`，无需重复维护另一份配置。
 
 专用 MCP 镜像会自动启动隔离网关，并在会话结束后清理进程；只要网关可能调用
 真实 Provider，它就会拒绝启动或发送对话。完整说明见

@@ -33,6 +33,16 @@ export function createGatewayClient(options) {
         timeoutMs,
       });
     },
+    enhancePrompt(request) {
+      return requestJson({
+        baseUrl,
+        path: "/prompts/enhance",
+        method: "POST",
+        body: request,
+        headers,
+        timeoutMs,
+      });
+    },
     chat(request) {
       return requestJson({
         baseUrl,
@@ -275,6 +285,9 @@ export function createGatewayChatRequest(options) {
     taskType: "chat",
     messages,
     options: options.options ?? {},
+    ...(options.promptEnhancement
+      ? { promptEnhancement: options.promptEnhancement }
+      : {}),
     metadata: options.metadata ?? {},
   };
 }
