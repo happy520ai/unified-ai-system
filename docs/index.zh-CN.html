@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Unified AI System｜终端优先的开源 AI 能力网关</title>
+    <meta
+      name="description"
+      content="面向 Codex、Cursor 和 Cline 的终端优先、自托管 AI 能力网关与 8 工具 MCP Server。首次验证无需账号或 API Key。"
+    />
+    <meta name="theme-color" content="#081011" />
+    <link rel="canonical" href="https://happy520ai.github.io/unified-ai-system/index.zh-CN.html" />
+    <link rel="alternate" hreflang="en" href="https://happy520ai.github.io/unified-ai-system/" />
+    <link rel="alternate" hreflang="zh-CN" href="https://happy520ai.github.io/unified-ai-system/index.zh-CN.html" />
+    <link rel="alternate" hreflang="x-default" href="https://happy520ai.github.io/unified-ai-system/" />
+    <link rel="sitemap" type="application/xml" href="sitemap.xml" />
+    <link rel="alternate" type="text/plain" href="llms.txt" title="面向 LLM 的项目摘要" />
+    <link rel="icon" type="image/png" href="assets/mcp-icon.png" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Unified AI System" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:locale:alternate" content="en_US" />
+    <meta property="og:title" content="Unified AI System｜终端优先的开源 AI 能力网关" />
+    <meta
+      property="og:description"
+      content="用一个自托管网关连接模型、智能体、知识与工具。首次完整验证无需账号或 API Key。"
+    />
+    <meta property="og:url" content="https://happy520ai.github.io/unified-ai-system/index.zh-CN.html" />
+    <meta
+      property="og:image"
+      content="https://happy520ai.github.io/unified-ai-system/assets/social-preview.png"
+    />
+    <meta
+      property="og:image:secure_url"
+      content="https://happy520ai.github.io/unified-ai-system/assets/social-preview.png"
+    />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1280" />
+    <meta property="og:image:height" content="640" />
+    <meta property="og:image:alt" content="Unified AI System 终端演示" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Unified AI System｜终端优先的开源 AI 能力网关" />
+    <meta
+      name="twitter:description"
+      content="用一个自托管 MCP 边界连接 Codex、Cursor 或 Cline，首次验证无需账号或 API Key。"
+    />
+    <meta
+      name="twitter:image"
+      content="https://happy520ai.github.io/unified-ai-system/assets/social-preview.png"
+    />
+    <meta name="twitter:image:alt" content="Unified AI System 终端演示" />
+
+    <link rel="stylesheet" href="site.css" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareSourceCode",
+        "name": "Unified AI System",
+        "description": "面向 Codex、Cursor 和 Cline 的终端优先、自托管 AI 能力网关与 MCP Server。",
+        "inLanguage": "zh-CN",
+        "codeRepository": "https://github.com/happy520ai/unified-ai-system",
+        "license": "https://www.apache.org/licenses/LICENSE-2.0",
+        "programmingLanguage": "JavaScript",
+        "runtimePlatform": "Docker",
+        "version": "0.3.3"
+      }
+    </script>
+    <script src="site.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">跳到主要内容</a>
+
+    <header class="site-header">
+      <a class="brand" href="#top" aria-label="Unified AI System 主页">
+        <img src="assets/mcp-icon.png" alt="" width="32" height="32" />
+        <span>Unified AI System</span>
+      </a>
+      <nav aria-label="主要导航">
+        <a href="#connect">接入</a>
+        <a href="#proof">证据</a>
+        <a href="terminal-first-ai-gateway.html">为何终端优先</a>
+        <a href="index.html" lang="en">English</a>
+        <a
+          class="nav-command"
+          href="https://github.com/happy520ai/unified-ai-system"
+          aria-label="在 GitHub 上 Star Unified AI System"
+        >
+          在 GitHub 上 Star
+        </a>
+      </nav>
+    </header>
+
+    <main id="main">
+      <section class="hero" id="top" aria-labelledby="hero-title">
+        <div class="hero-shade" aria-hidden="true"></div>
+        <div class="hero-inner">
+          <p class="eyebrow">开源 / 终端优先</p>
+          <h1 id="hero-title">Unified AI System</h1>
+          <p class="hero-copy">
+            面向模型、智能体、知识与工具的自托管 AI 能力网关。
+            通过一个可治理的 MCP 边界连接 Codex、Cursor 或 Cline。
+          </p>
+          <div class="hero-actions">
+            <a class="primary-action" href="#connect">接入你的智能体</a>
+            <a class="secondary-action" href="https://github.com/happy520ai/unified-ai-system/releases/tag/v0.3.3">查看 v0.3.3</a>
+          </div>
+          <div class="command-line" aria-label="无需凭据的 Docker 演示命令">
+            <span aria-hidden="true">$</span>
+            <code id="demo-command-zh">docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.3.3 pnpm gateway demo</code>
+            <button type="button" data-copy-target="demo-command-zh" data-copy-success="已复制" data-copy-unavailable="不可用">复制</button>
+          </div>
+          <p class="safety-note">
+            首次验证只使用 Fake Provider。真实 Provider 执行必须显式启用并限定范围。
+          </p>
+        </div>
+      </section>
+
+      <section class="evidence-rail" aria-label="项目证据">
+        <div><strong>0</strong><span>首次验证所需账号</span></div>
+        <div><strong>8</strong><span>可治理的 MCP 工具</span></div>
+        <div><strong>2</strong><span>CPU 架构镜像</span></div>
+        <div><strong>Apache-2.0</strong><span>开源许可</span></div>
+      </section>
+
+      <section class="section connect-section" id="connect" aria-labelledby="connect-title">
+        <div class="section-heading">
+          <p class="eyebrow dark">一个运行时 / 三种客户端</p>
+          <h2 id="connect-title">在智能体工作的地方接入网关。</h2>
+          <p>
+            以下方式都会启动同一个已发布、无需凭据的 MCP 容器，不需要克隆仓库。
+          </p>
+        </div>
+
+        <div class="client-switcher">
+          <div class="tabs" role="tablist" aria-label="MCP 客户端">
+            <button id="tab-codex-zh" type="button" role="tab" aria-selected="true" aria-controls="panel-codex-zh" data-client="codex">Codex</button>
+            <button id="tab-cursor-zh" type="button" role="tab" aria-selected="false" aria-controls="panel-cursor-zh" data-client="cursor" tabindex="-1">Cursor</button>
+            <button id="tab-cline-zh" type="button" role="tab" aria-selected="false" aria-controls="panel-cline-zh" data-client="cline" tabindex="-1">Cline</button>
+          </div>
+
+          <div class="client-panel" id="panel-codex-zh" role="tabpanel" aria-labelledby="tab-codex-zh">
+            <div>
+              <p class="panel-label">直接连接 MCP</p>
+              <h3>Codex</h3>
+              <p>注册已发布的 stdio Server，重启 Codex，然后通过 <code>/mcp</code> 检查连接。</p>
+            </div>
+            <div class="code-block">
+              <code id="codex-command-zh">codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.3.3</code>
+              <button type="button" data-copy-target="codex-command-zh" data-copy-success="已复制" data-copy-unavailable="不可用">复制</button>
+            </div>
+          </div>
+
+          <div class="client-panel" id="panel-cursor-zh" role="tabpanel" aria-labelledby="tab-cursor-zh" hidden>
+            <div>
+              <p class="panel-label">生成本地配置</p>
+              <h3>Cursor</h3>
+              <p>生成本地 Cursor MCP 配置，不写入任何 Provider 凭据。</p>
+            </div>
+            <div class="code-block">
+              <code id="cursor-command-zh">pnpm dlx add-mcp@2.0.0 "docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.3.3" --name unified-ai-system -a cursor -y</code>
+              <button type="button" data-copy-target="cursor-command-zh" data-copy-success="已复制" data-copy-unavailable="不可用">复制</button>
+            </div>
+          </div>
+
+          <div class="client-panel" id="panel-cline-zh" role="tabpanel" aria-labelledby="tab-cline-zh" hidden>
+            <div>
+              <p class="panel-label">直接安装 MCP</p>
+              <h3>Cline</h3>
+              <p>通过 Cline CLI 安装同一个 Server，并使用隔离的 stdio 传输。</p>
+            </div>
+            <div class="code-block">
+              <code id="cline-command-zh">cline mcp install unified-ai-system --yes --json -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.3.3</code>
+              <button type="button" data-copy-target="cline-command-zh" data-copy-success="已复制" data-copy-unavailable="不可用">复制</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section capability-section" aria-labelledby="capability-title">
+        <div class="section-heading compact">
+          <p class="eyebrow dark">网关边界</p>
+          <h2 id="capability-title">默认即可验证，关键执行必须明确。</h2>
+        </div>
+        <div class="capability-grid">
+          <article>
+            <span>01</span>
+            <h3>检查</h3>
+            <p>通过只读 MCP 工具查看健康、就绪、工作流、知识和 Workforce 状态。</p>
+          </article>
+          <article>
+            <span>02</span>
+            <h3>路由</h3>
+            <p>一个网关边界将智能体客户端与 Provider 选择、模型路由和执行策略分离。</p>
+          </article>
+          <article>
+            <span>03</span>
+            <h3>控制</h3>
+            <p>本地 Fake Provider 是无凭据默认值；真实调用需要显式、限定范围的授权。</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="flow-band" aria-labelledby="flow-title">
+        <div class="flow-copy">
+          <p class="eyebrow">更小的信任面</p>
+          <h2 id="flow-title">在智能体与真实执行之间建立一个边界。</h2>
+        </div>
+        <ol class="flow" aria-label="网关请求链路">
+          <li><span>客户端</span><strong>Codex / Cursor / Cline</strong></li>
+          <li><span>协议</span><strong>8 工具 MCP Server</strong></li>
+          <li><span>网关</span><strong>策略与路由</strong></li>
+          <li><span>执行</span><strong>默认 Fake</strong></li>
+        </ol>
+      </section>
+
+      <section class="section proof-section" id="proof" aria-labelledby="proof-title">
+        <div class="section-heading compact">
+          <p class="eyebrow dark">公开证据</p>
+          <h2 id="proof-title">验证执行链路，而不是相信口号。</h2>
+          <p>源码、Registry 元数据、容器和检查结果都公开，可独立核验。</p>
+        </div>
+        <div class="proof-list">
+          <a href="https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.3.3">
+            <span>官方 MCP Registry</span><strong>Active 条目</strong>
+          </a>
+          <a href="https://github.com/happy520ai/unified-ai-system/actions/workflows/ci.yml">
+            <span>仓库 CI</span><strong>检查与测试</strong>
+          </a>
+          <a href="https://github.com/happy520ai/unified-ai-system/pkgs/container/unified-ai-system%2Fmcp-server">
+            <span>已发布 MCP 镜像</span><strong>amd64 + arm64</strong>
+          </a>
+          <a href="codex-mcp-docker-quickstart.html">
+            <span>Codex + Docker 快速上手</span><strong>60 秒完成接入与验证</strong>
+          </a>
+        </div>
+      </section>
+
+      <section class="closing-band" aria-labelledby="closing-title">
+        <p class="eyebrow">公开工程预览</p>
+        <h2 id="closing-title">从一条命令开始，把最终控制权留给人。</h2>
+        <div class="closing-actions">
+          <a
+            class="primary-action light"
+            href="https://github.com/happy520ai/unified-ai-system"
+            aria-label="在 GitHub 上 Star Unified AI System"
+          >
+            在 GitHub 上 Star
+          </a>
+          <a class="secondary-action light" href="https://github.com/happy520ai/unified-ai-system/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22good%20first%20issue%22">认领新手任务</a>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <span>Unified AI System</span>
+      <span>Apache-2.0</span>
+      <a href="index.html" lang="en">English</a>
+      <a href="codex-mcp-docker-quickstart.html">Codex Docker 快速上手</a>
+      <a href="terminal-first-ai-gateway.html">为何终端优先</a>
+      <span>生产就绪、L5 自主和 AGI 均需要独立证据。</span>
+    </footer>
+  </body>
+</html>

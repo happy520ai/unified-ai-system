@@ -43,6 +43,7 @@ const requiredFiles = [
   "docs/codex-mcp-docker-quickstart.html",
   "docs/getting-started.md",
   "docs/index.html",
+  "docs/index.zh-CN.html",
   "docs/robots.txt",
   "docs/sitemap.xml",
   "docs/terminal-first-ai-gateway.html",
@@ -175,6 +176,27 @@ if (!projectSite.includes(socialPreviewUrl)) {
   addError("social_preview_url_missing", "docs/index.html");
 }
 
+const chineseProjectSitePath = "docs/index.zh-CN.html";
+const chineseProjectSite = readFileSync(resolve(repoRoot, chineseProjectSitePath), "utf8");
+const chineseProjectSiteUrl =
+  "https://happy520ai.github.io/unified-ai-system/index.zh-CN.html";
+const requiredChineseSiteMarkers = [
+  [chineseProjectSiteUrl, "chinese_home_canonical_missing"],
+  ['lang="zh-CN"', "chinese_home_language_missing"],
+  ['property="og:locale" content="zh_CN"', "chinese_home_locale_missing"],
+  ['"inLanguage": "zh-CN"', "chinese_home_structured_language_missing"],
+  ["docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:", "chinese_home_demo_missing"],
+  ["生产就绪、L5 自主和 AGI", "chinese_home_evidence_boundary_missing"],
+];
+
+for (const [marker, code] of requiredChineseSiteMarkers) {
+  if (!chineseProjectSite.includes(marker)) addError(code, chineseProjectSitePath);
+}
+
+if (!projectSite.includes('href="index.zh-CN.html"')) {
+  addError("chinese_home_english_link_missing", "docs/index.html");
+}
+
 const terminalFirstArticlePath = "docs/terminal-first-ai-gateway.html";
 const terminalFirstArticle = readFileSync(resolve(repoRoot, terminalFirstArticlePath), "utf8");
 const terminalFirstArticleUrl =
@@ -196,6 +218,9 @@ if (!projectSite.includes('href="terminal-first-ai-gateway.html"')) {
 }
 
 const sitemap = readFileSync(resolve(repoRoot, "docs/sitemap.xml"), "utf8");
+if (!sitemap.includes(chineseProjectSiteUrl)) {
+  addError("chinese_home_sitemap_entry_missing", "docs/sitemap.xml");
+}
 if (!sitemap.includes(terminalFirstArticleUrl)) {
   addError("terminal_first_sitemap_entry_missing", "docs/sitemap.xml");
 }

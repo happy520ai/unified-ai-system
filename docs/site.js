@@ -39,12 +39,12 @@ for (const button of document.querySelectorAll('[data-copy-target]')) {
     try {
       await navigator.clipboard.writeText(target.textContent.trim());
       const previous = button.textContent;
-      button.textContent = "Copied";
+      button.textContent = button.dataset.copySuccess ?? "Copied";
       window.setTimeout(() => {
         button.textContent = previous;
       }, 1400);
     } catch {
-      button.textContent = "Unavailable";
+      button.textContent = button.dataset.copyUnavailable ?? "Unavailable";
     }
   });
 }

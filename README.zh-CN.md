@@ -6,7 +6,8 @@
 
 <p align="center">
   <a href="README.md">English</a> |
-  <a href="README.zh-CN.md">简体中文</a>
+  <a href="README.zh-CN.md">简体中文</a> |
+  <a href="https://happy520ai.github.io/unified-ai-system/index.zh-CN.html">中文项目主页</a>
 </p>
 
 <p align="center">

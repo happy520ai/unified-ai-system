@@ -3,6 +3,7 @@
 The public documentation is intentionally small and task-oriented.
 
 - [Getting started](getting-started.md)
+- [中文项目主页](index.zh-CN.html)
 - [Terminal CLI](cli.md)
 - [Codex MCP quickstart](codex-mcp-quickstart.md)
 - [Codex MCP Docker web guide](codex-mcp-docker-quickstart.html)
