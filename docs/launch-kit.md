@@ -59,6 +59,8 @@ Agent 协议、本地数据主权和可信 AI 治理的开发者一起参与。
 
 项目地址：https://github.com/happy520ai/unified-ai-system
 
+Codex MCP Docker 中文教程：https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.zh-CN.html
+
 ## Show HN
 
 Title:

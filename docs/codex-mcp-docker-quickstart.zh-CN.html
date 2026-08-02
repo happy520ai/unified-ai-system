@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Codex 接入 MCP Server：Docker 60 秒中文教程</title>
+    <meta
+      name="description"
+      content="使用一条 Docker 命令把 Codex 接入自托管 MCP Server，检查 8 个工具，完成无需 API Key 的安全测试，并可随时卸载。"
+    />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <meta name="theme-color" content="#081011" />
+    <link
+      rel="canonical"
+      href="https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.zh-CN.html"
+    />
+    <link
+      rel="alternate"
+      hreflang="en"
+      href="https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.html"
+    />
+    <link
+      rel="alternate"
+      hreflang="zh-CN"
+      href="https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.zh-CN.html"
+    />
+    <link
+      rel="alternate"
+      hreflang="x-default"
+      href="https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.html"
+    />
+    <link rel="sitemap" type="application/xml" href="sitemap.xml" />
+    <link rel="alternate" type="text/plain" href="llms.txt" title="面向 LLM 的项目摘要" />
+    <link rel="icon" type="image/png" href="assets/mcp-icon.png" />
+
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="Unified AI System" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:locale:alternate" content="en_US" />
+    <meta property="og:title" content="Codex 接入 MCP Server：Docker 60 秒中文教程" />
+    <meta
+      property="og:description"
+      content="一条命令连接 Codex 与固定版本的 8 工具 MCP Server，首次验证无需账号或 API Key。"
+    />
+    <meta
+      property="og:url"
+      content="https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.zh-CN.html"
+    />
+    <meta
+      property="og:image"
+      content="https://happy520ai.github.io/unified-ai-system/assets/social-preview.png"
+    />
+    <meta
+      property="og:image:secure_url"
+      content="https://happy520ai.github.io/unified-ai-system/assets/social-preview.png"
+    />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1280" />
+    <meta property="og:image:height" content="640" />
+    <meta property="og:image:alt" content="Unified AI System 终端演示" />
+    <meta property="article:published_time" content="2026-08-02T00:00:00+00:00" />
+    <meta property="article:modified_time" content="2026-08-02T00:00:00+00:00" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Codex 接入 MCP Server：Docker 60 秒中文教程" />
+    <meta
+      name="twitter:description"
+      content="添加、检查、验证并卸载一个固定版本的 Codex MCP Server，全程约一分钟。"
+    />
+    <meta
+      name="twitter:image"
+      content="https://happy520ai.github.io/unified-ai-system/assets/social-preview.png"
+    />
+    <meta name="twitter:image:alt" content="Unified AI System 终端演示" />
+
+    <link rel="stylesheet" href="site.css" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "HowTo",
+        "name": "使用 Docker 将 Codex 接入 MCP Server",
+        "description": "将 Codex 连接到固定版本、无需凭据的 MCP Server，并验证其中的 8 个工具。",
+        "inLanguage": "zh-CN",
+        "totalTime": "PT1M",
+        "datePublished": "2026-08-02",
+        "dateModified": "2026-08-02",
+        "image": "https://happy520ai.github.io/unified-ai-system/assets/social-preview.png",
+        "tool": [
+          {
+            "@type": "HowToTool",
+            "name": "Codex CLI"
+          },
+          {
+            "@type": "HowToTool",
+            "name": "Docker"
+          }
+        ],
+        "step": [
+          {
+            "@type": "HowToStep",
+            "name": "注册 MCP Server",
+            "text": "使用 codex mcp add 注册固定版本的 Unified AI System 容器。",
+            "url": "https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.zh-CN.html#add"
+          },
+          {
+            "@type": "HowToStep",
+            "name": "确认连接",
+            "text": "重启 Codex，然后使用 /mcp verbose 检查连接和工具列表。",
+            "url": "https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.zh-CN.html#verify"
+          },
+          {
+            "@type": "HowToStep",
+            "name": "完成安全测试",
+            "text": "先检查健康状态和就绪状态，仅在纯 Fake 模式下通过 Gateway Chat 发送 MCP_READY。",
+            "url": "https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.zh-CN.html#first-call"
+          }
+        ]
+      }
+    </script>
+    <script src="site.js" defer></script>
+  </head>
+  <body class="article-page">
+    <a class="skip-link" href="#article">跳到教程正文</a>
+
+    <header class="site-header">
+      <a class="brand" href="index.zh-CN.html" aria-label="Unified AI System 中文主页">
+        <img src="assets/mcp-icon.png" alt="" width="32" height="32" />
+        <span>Unified AI System</span>
+      </a>
+      <nav aria-label="主导航">
+        <a href="index.zh-CN.html">项目主页</a>
+        <a href="#add">接入</a>
+        <a href="#verify">验证</a>
+        <a href="codex-mcp-docker-quickstart.html" lang="en">English</a>
+        <a
+          class="nav-command"
+          href="https://github.com/happy520ai/unified-ai-system"
+          aria-label="在 GitHub 上 Star Unified AI System"
+        >
+          在 GitHub 上 Star
+        </a>
+      </nav>
+    </header>
+
+    <main id="article">
+      <header class="article-hero">
+        <div class="article-hero-shade" aria-hidden="true"></div>
+        <div class="article-hero-inner">
+          <p class="eyebrow">60 秒中文教程 / 2026 年 8 月</p>
+          <h1>用 Docker 将 Codex 接入 MCP Server</h1>
+          <p class="article-hero-copy">
+            注册一个固定版本的容器，检查 8 个工具，并在无需克隆仓库、无需配置
+            Provider API Key 的情况下完成首次安全调用。
+          </p>
+          <div class="article-meta" aria-label="教程信息">
+            <span>约 1 分钟</span>
+            <span>8 个 MCP 工具</span>
+            <span>默认 Fake Provider</span>
+          </div>
+        </div>
+      </header>
+
+      <section class="article-summary" aria-label="摘要">
+        <strong>最短路径</strong>
+        <p>
+          执行一条 <code>codex mcp add</code> 命令，重启 Codex，再运行
+          <code>/mcp verbose</code>。MCP 会话启动时自动拉起隔离网关，会话结束后自动清理。
+        </p>
+      </section>
+
+      <div class="article-layout">
+        <aside class="article-toc" aria-label="教程目录">
+          <span>目录</span>
+          <a href="#prerequisites">准备工作</a>
+          <a href="#add">1. 注册 MCP Server</a>
+          <a href="#verify">2. 验证 8 个工具</a>
+          <a href="#first-call">3. 完成安全调用</a>
+          <a href="#boundary">测试证明了什么</a>
+          <a href="#troubleshooting">诊断与卸载</a>
+        </aside>
+
+        <article class="article-body">
+          <section id="prerequisites">
+            <p class="article-lede">
+              只需要 Codex CLI 和正在运行的 Docker Engine。首次验证不需要其他依赖。
+            </p>
+            <p>
+              公开容器同时支持 <code>linux/amd64</code> 与 <code>linux/arm64</code>。
+              默认路径不会读取 Provider Key；除非另行提供明确、受限的真实 Provider 授权，
+              Chat 始终使用确定性的本地 Fake Provider。
+            </p>
+          </section>
+
+          <section id="add">
+            <p class="eyebrow dark">步骤 01 / 注册</p>
+            <h2>添加固定版本的 MCP Server。</h2>
+            <p>
+              在终端执行下面的命令。<code>--</code> 后面的内容，就是 Codex 建立 MCP
+              连接时启动的 stdio Server 命令。
+            </p>
+            <div class="article-code">
+              <span aria-hidden="true">$</span>
+              <code id="codex-add-command-zh">codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.3.3</code>
+              <button type="button" data-copy-target="codex-add-command-zh" data-copy-success="已复制" data-copy-unavailable="不可用">复制</button>
+            </div>
+            <p>在启动新会话前，先确认 Codex 保存了预期的镜像和参数：</p>
+            <div class="article-code">
+              <span aria-hidden="true">$</span>
+              <code id="codex-get-command-zh">codex mcp get unified-ai-system --json</code>
+              <button type="button" data-copy-target="codex-get-command-zh" data-copy-success="已复制" data-copy-unavailable="不可用">复制</button>
+            </div>
+          </section>
+
+          <section id="verify">
+            <p class="eyebrow dark">步骤 02 / 检查</p>
+            <h2>重启 Codex，确认 8 个工具。</h2>
+            <p>
+              注册完成后打开一个新的 Codex 会话，在终端界面运行
+              <code>/mcp verbose</code>。连接应显示以下 8 个工具：
+            </p>
+            <div class="article-boundary-list">
+              <div><strong>Gateway</strong><span><code>gateway_health</code>、<code>gateway_readiness</code>、<code>gateway_chat</code></span></div>
+              <div><strong>Knowledge</strong><span><code>knowledge_readiness</code></span></div>
+              <div><strong>Workflows</strong><span><code>workflow_health</code>、<code>workflow_actions</code></span></div>
+              <div><strong>Workforce</strong><span><code>workforce_health</code>、<code>workforce_agents</code></span></div>
+            </div>
+            <p class="article-note">
+              已经打开的 Codex 会话不会热加载刚注册的 MCP 定义，因此重启会话是安装步骤的一部分。
+            </p>
+          </section>
+
+          <section id="first-call">
+            <p class="eyebrow dark">步骤 03 / 验证链路</p>
+            <h2>先索取证据，再发送 Chat。</h2>
+            <p>
+              把下面的内容作为普通 Codex Prompt 发送。它会先检查安全边界，再调用
+              Gateway Chat，并要求 Codex 报告实际执行信息。
+            </p>
+            <div class="article-code">
+              <span aria-hidden="true">&gt;</span>
+              <code id="codex-test-prompt-zh">使用 Unified AI System MCP 工具。先检查网关健康状态和就绪状态；只有网关明确证明处于纯 Fake 模式时，才通过 Gateway Chat 发送 MCP_READY。报告 Provider、Model、执行模式和响应，并明确标注这是 Fake Provider 输出。</code>
+              <button type="button" data-copy-target="codex-test-prompt-zh" data-copy-success="已复制" data-copy-unavailable="不可用">复制</button>
+            </div>
+            <div class="article-principles">
+              <div>
+                <span>01</span>
+                <h3>连接成立</h3>
+                <p>Codex 能完成 MCP initialize、tools/list 和 tools/call。</p>
+              </div>
+              <div>
+                <span>02</span>
+                <h3>纯 Fake 模式</h3>
+                <p>网关明确报告本地 Fake Provider 和 Fake 执行模式。</p>
+              </div>
+              <div>
+                <span>03</span>
+                <h3>自动清理</h3>
+                <p>受管网关与容器会跟随 MCP 会话一起停止。</p>
+              </div>
+            </div>
+          </section>
+
+          <section id="boundary">
+            <p class="eyebrow dark">证据边界</p>
+            <h2>准确理解这次测试证明了什么。</h2>
+            <p>
+              成功运行可以证明：Codex 已加载 stdio Server，受管网关通过健康边界，
+              已发布的 Fake Provider 路径返回了响应；同时可以读取 Knowledge、Workflow
+              和 Workforce 的只读检查面。
+            </p>
+            <div class="article-boundary-list">
+              <div><strong>已经证明</strong><span>公开镜像、MCP 连接、8 个工具、Fake Provider 请求</span></div>
+              <div><strong>没有授权</strong><span>付费 Provider、Workflow 执行、Agent 派发、数据修改</span></div>
+              <div><strong>没有宣称</strong><span>生产就绪、L5 自主或 AGI</span></div>
+            </div>
+          </section>
+
+          <section id="troubleshooting">
+            <p class="eyebrow dark">诊断 / 卸载</p>
+            <h2>让安装过程始终可检查、可撤销。</h2>
+            <p>
+              如果看不到 Server，先确认 Docker，再检查保存的 MCP 定义，并在重新启动
+              Codex 后使用 <code>/mcp verbose</code>。
+            </p>
+            <div class="article-code">
+              <span aria-hidden="true">$</span>
+              <code id="codex-diagnose-command-zh">docker info</code>
+              <button type="button" data-copy-target="codex-diagnose-command-zh" data-copy-success="已复制" data-copy-unavailable="不可用">复制</button>
+            </div>
+            <p>不再使用时可以直接移除。下一个 Codex 会话将不再启动该 Server。</p>
+            <div class="article-code">
+              <span aria-hidden="true">$</span>
+              <code id="codex-remove-command-zh">codex mcp remove unified-ai-system</code>
+              <button type="button" data-copy-target="codex-remove-command-zh" data-copy-success="已复制" data-copy-unavailable="不可用">复制</button>
+            </div>
+            <p class="article-note">
+              更多安全任务见<a href="https://github.com/happy520ai/unified-ai-system/blob/master/docs/codex-mcp-quickstart.md">源码快速上手</a>；
+              已发布包的元数据可在<a href="https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.3.3">官方 MCP Registry 条目</a>中独立核验。
+            </p>
+          </section>
+        </article>
+      </div>
+
+      <section class="article-closing" aria-labelledby="article-closing-title">
+        <p class="eyebrow">开源 / APACHE-2.0</p>
+        <h2 id="article-closing-title">运行真实链路，检查真实证据，一起把网关做得更好。</h2>
+        <div class="closing-actions">
+          <a class="primary-action" href="https://github.com/happy520ai/unified-ai-system">
+            在 GitHub 上 Star
+          </a>
+          <a class="secondary-action" href="index.zh-CN.html">打开中文项目主页</a>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <span>Unified AI System</span>
+      <a href="terminal-first-ai-gateway.html">为何终端优先</a>
+      <a href="codex-mcp-docker-quickstart.html" lang="en">English</a>
+      <span>Codex MCP Docker 中文教程</span>
+      <span>Apache-2.0</span>
+    </footer>
+  </body>
+</html>

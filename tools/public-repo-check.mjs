@@ -41,6 +41,7 @@ const requiredFiles = [
   ".codex/config.toml",
   "docs/assets/social-preview.png",
   "docs/codex-mcp-docker-quickstart.html",
+  "docs/codex-mcp-docker-quickstart.zh-CN.html",
   "docs/getting-started.md",
   "docs/index.html",
   "docs/index.zh-CN.html",
@@ -270,6 +271,9 @@ const codexDockerGuidePath = "docs/codex-mcp-docker-quickstart.html";
 const codexDockerGuide = readFileSync(resolve(repoRoot, codexDockerGuidePath), "utf8");
 const codexDockerGuideUrl =
   "https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.html";
+const chineseCodexDockerGuidePath = "docs/codex-mcp-docker-quickstart.zh-CN.html";
+const chineseCodexDockerGuideUrl =
+  "https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.zh-CN.html";
 const requiredCodexGuideMarkers = [
   [codexDockerGuideUrl, "codex_docker_canonical_missing"],
   ['property="og:type" content="article"', "codex_docker_open_graph_type_missing"],
@@ -289,6 +293,43 @@ if (!projectSite.includes('href="codex-mcp-docker-quickstart.html"')) {
 
 if (!sitemap.includes(codexDockerGuideUrl)) {
   addError("codex_docker_sitemap_entry_missing", "docs/sitemap.xml");
+}
+
+const chineseCodexDockerGuide = readFileSync(
+  resolve(repoRoot, chineseCodexDockerGuidePath),
+  "utf8",
+);
+const requiredChineseCodexGuideMarkers = [
+  [chineseCodexDockerGuideUrl, "chinese_codex_docker_canonical_missing"],
+  ['lang="zh-CN"', "chinese_codex_docker_language_missing"],
+  ['property="og:locale" content="zh_CN"', "chinese_codex_docker_locale_missing"],
+  ['"@type": "HowTo"', "chinese_codex_docker_structured_data_missing"],
+  ['"inLanguage": "zh-CN"', "chinese_codex_docker_structured_language_missing"],
+  ["codex mcp add unified-ai-system -- docker run --rm -i", "chinese_codex_docker_add_command_missing"],
+  ["codex mcp remove unified-ai-system", "chinese_codex_docker_remove_command_missing"],
+  ["生产就绪、L5 自主或 AGI", "chinese_codex_docker_evidence_boundary_missing"],
+];
+
+for (const [marker, code] of requiredChineseCodexGuideMarkers) {
+  if (!chineseCodexDockerGuide.includes(marker)) {
+    addError(code, chineseCodexDockerGuidePath);
+  }
+}
+
+if (!chineseProjectSite.includes('href="codex-mcp-docker-quickstart.zh-CN.html"')) {
+  addError("chinese_codex_docker_home_link_missing", chineseProjectSitePath);
+}
+
+if (!codexDockerGuide.includes('hreflang="zh-CN"')) {
+  addError("codex_docker_chinese_alternate_missing", codexDockerGuidePath);
+}
+
+if (!chineseCodexDockerGuide.includes('hreflang="en"')) {
+  addError("chinese_codex_docker_english_alternate_missing", chineseCodexDockerGuidePath);
+}
+
+if (!sitemap.includes(chineseCodexDockerGuideUrl)) {
+  addError("chinese_codex_docker_sitemap_entry_missing", "docs/sitemap.xml");
 }
 
 const textExtensions = new Set([

@@ -112,8 +112,9 @@ Fake Provider 对话、知识基础设施、Workflow 与 Workforce 状态。可�
 > 处于纯 Fake 模式时，才通过 Gateway Chat 发送 `MCP_READY`。报告 Provider、
 > Model、执行模式和响应。
 
-按照 [60 秒 Codex MCP 快速上手](docs/codex-mcp-quickstart.md)可以继续完成三个
-安全任务，并查看预期证据、诊断方法和卸载命令。
+按照 [Codex MCP Docker 60 秒中文教程](https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.zh-CN.html)
+可以完成接入、检查和首次安全调用；[源码快速上手](docs/codex-mcp-quickstart.md)
+还提供三个安全任务，以及预期证据、诊断方法和卸载命令。
 
 ### 生成 Codex 与 Cursor 配置
 
