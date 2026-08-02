@@ -39,7 +39,11 @@ const requiredFiles = [
   "packages/mcp-server/src/index.js",
   "packages/mcp-server/src/server.test.js",
   ".codex/config.toml",
+  "docs/assets/social-preview.png",
   "docs/getting-started.md",
+  "docs/index.html",
+  "docs/robots.txt",
+  "docs/sitemap.xml",
   "tools/mcp-smoke.mjs",
   "tools/verify-public-clone.mjs",
 ];
@@ -143,6 +147,30 @@ if (!dockerfile.includes("FROM runtime AS mcp")) {
 const readme = readFileSync(resolve(repoRoot, "README.md"), "utf8");
 if (readme.includes("BEGIN UNIFIED_AI_SYSTEM_CURRENT_STATE")) {
   addError("generated_ledger_in_public_readme", "README.md");
+}
+
+const projectSite = readFileSync(resolve(repoRoot, "docs/index.html"), "utf8");
+const requiredSocialMetadata = [
+  ['property="og:image"', "open_graph_image_missing"],
+  ['property="og:image:secure_url"', "open_graph_secure_image_missing"],
+  [
+    'property="og:image:type" content="image/png"',
+    "open_graph_image_type_missing",
+  ],
+  ['name="twitter:card" content="summary_large_image"', "twitter_large_card_missing"],
+  ['name="twitter:title"', "twitter_title_missing"],
+  ['name="twitter:description"', "twitter_description_missing"],
+  ['name="twitter:image"', "twitter_image_missing"],
+];
+
+for (const [marker, code] of requiredSocialMetadata) {
+  if (!projectSite.includes(marker)) addError(code, "docs/index.html");
+}
+
+const socialPreviewUrl =
+  "https://happy520ai.github.io/unified-ai-system/assets/social-preview.png";
+if (!projectSite.includes(socialPreviewUrl)) {
+  addError("social_preview_url_missing", "docs/index.html");
 }
 
 const textExtensions = new Set([
