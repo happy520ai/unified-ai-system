@@ -44,10 +44,13 @@ const requiredFiles = [
   "docs/getting-started.md",
   "docs/index.html",
   "docs/index.zh-CN.html",
+  "docs/indexnow.json",
+  "docs/d6ce2ffbc1353aa5c0284e1efc2d6d5b66e3d048c764c07f.txt",
   "docs/robots.txt",
   "docs/sitemap.xml",
   "docs/terminal-first-ai-gateway.html",
   "tools/mcp-smoke.mjs",
+  "tools/submit-indexnow.mjs",
   "tools/verify-public-clone.mjs",
 ];
 
@@ -220,6 +223,44 @@ if (!projectSite.includes('href="terminal-first-ai-gateway.html"')) {
 const sitemap = readFileSync(resolve(repoRoot, "docs/sitemap.xml"), "utf8");
 if (!sitemap.includes(chineseProjectSiteUrl)) {
   addError("chinese_home_sitemap_entry_missing", "docs/sitemap.xml");
+}
+
+const indexNowConfigPath = "docs/indexnow.json";
+const indexNowConfig = readJson(indexNowConfigPath);
+const expectedIndexNowEndpoint = "https://api.indexnow.org/indexnow";
+const expectedIndexNowHost = "happy520ai.github.io";
+const expectedIndexNowPrefix =
+  "https://happy520ai.github.io/unified-ai-system/";
+if (indexNowConfig.endpoint !== expectedIndexNowEndpoint) {
+  addError("indexnow_endpoint_invalid", `${indexNowConfigPath}#endpoint`);
+}
+if (indexNowConfig.host !== expectedIndexNowHost) {
+  addError("indexnow_host_invalid", `${indexNowConfigPath}#host`);
+}
+if (!/^[A-Za-z0-9-]{8,128}\.txt$/.test(indexNowConfig.keyFile ?? "")) {
+  addError("indexnow_key_file_invalid", `${indexNowConfigPath}#keyFile`);
+}
+const indexNowKeyPath = `docs/${indexNowConfig.keyFile ?? ""}`;
+if (!trackedSet.has(indexNowKeyPath) || !existsSync(resolve(repoRoot, indexNowKeyPath))) {
+  addError("indexnow_key_file_missing", indexNowKeyPath);
+} else {
+  const key = readFileSync(resolve(repoRoot, indexNowKeyPath), "utf8").trim();
+  if (`${key}.txt` !== indexNowConfig.keyFile) {
+    addError("indexnow_key_file_mismatch", indexNowKeyPath);
+  }
+}
+if (!Array.isArray(indexNowConfig.urlList) || indexNowConfig.urlList.length === 0) {
+  addError("indexnow_url_list_missing", `${indexNowConfigPath}#urlList`);
+} else {
+  for (const url of indexNowConfig.urlList) {
+    if (typeof url !== "string" || !url.startsWith(expectedIndexNowPrefix)) {
+      addError("indexnow_url_outside_site", `${indexNowConfigPath}#urlList`, String(url));
+      continue;
+    }
+    if (!sitemap.includes(`<loc>${url}</loc>`)) {
+      addError("indexnow_url_missing_from_sitemap", "docs/sitemap.xml", url);
+    }
+  }
 }
 if (!sitemap.includes(terminalFirstArticleUrl)) {
   addError("terminal_first_sitemap_entry_missing", "docs/sitemap.xml");
