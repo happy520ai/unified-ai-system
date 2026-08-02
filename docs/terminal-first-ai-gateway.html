@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Why an AI gateway should be terminal-first | Unified AI System</title>
+    <meta
+      name="description"
+      content="A practical design case for terminal-first AI gateways: stable automation, explicit authority, observable execution, and an optional enterprise console."
+    />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <meta name="theme-color" content="#081011" />
+    <link
+      rel="canonical"
+      href="https://happy520ai.github.io/unified-ai-system/terminal-first-ai-gateway.html"
+    />
+    <link rel="sitemap" type="application/xml" href="sitemap.xml" />
+    <link rel="alternate" type="text/plain" href="llms.txt" title="LLM-readable project summary" />
+    <link rel="icon" type="image/png" href="assets/mcp-icon.png" />
+
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="Unified AI System" />
+    <meta property="og:locale" content="en_US" />
+    <meta
+      property="og:title"
+      content="Why an AI gateway should be terminal-first"
+    />
+    <meta
+      property="og:description"
+      content="CLI, API, and MCP form the durable product surface. A browser console should serve governance, not become the gateway itself."
+    />
+    <meta
+      property="og:url"
+      content="https://happy520ai.github.io/unified-ai-system/terminal-first-ai-gateway.html"
+    />
+    <meta
+      property="og:image"
+      content="https://happy520ai.github.io/unified-ai-system/assets/social-preview.png"
+    />
+    <meta
+      property="og:image:secure_url"
+      content="https://happy520ai.github.io/unified-ai-system/assets/social-preview.png"
+    />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1280" />
+    <meta property="og:image:height" content="640" />
+    <meta property="og:image:alt" content="Unified AI System terminal demo" />
+    <meta property="article:published_time" content="2026-08-02T00:00:00+00:00" />
+    <meta property="article:modified_time" content="2026-08-02T00:00:00+00:00" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Why an AI gateway should be terminal-first" />
+    <meta
+      name="twitter:description"
+      content="A practical architecture for automation, observability, and human authority across AI execution."
+    />
+    <meta
+      name="twitter:image"
+      content="https://happy520ai.github.io/unified-ai-system/assets/social-preview.png"
+    />
+    <meta name="twitter:image:alt" content="Unified AI System terminal demo" />
+
+    <link rel="stylesheet" href="site.css" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "TechArticle",
+        "headline": "Why an AI gateway should be terminal-first",
+        "description": "A practical design case for terminal-first AI gateways with an optional enterprise console.",
+        "datePublished": "2026-08-02",
+        "dateModified": "2026-08-02",
+        "author": {
+          "@type": "Organization",
+          "name": "Unified AI System contributors",
+          "url": "https://github.com/happy520ai/unified-ai-system"
+        },
+        "mainEntityOfPage": "https://happy520ai.github.io/unified-ai-system/terminal-first-ai-gateway.html",
+        "image": "https://happy520ai.github.io/unified-ai-system/assets/social-preview.png",
+        "isPartOf": {
+          "@type": "WebSite",
+          "name": "Unified AI System",
+          "url": "https://happy520ai.github.io/unified-ai-system/"
+        }
+      }
+    </script>
+    <script src="site.js" defer></script>
+  </head>
+  <body class="article-page">
+    <a class="skip-link" href="#article">Skip to article</a>
+
+    <header class="site-header">
+      <a class="brand" href="./" aria-label="Unified AI System home">
+        <img src="assets/mcp-icon.png" alt="" width="32" height="32" />
+        <span>Unified AI System</span>
+      </a>
+      <nav aria-label="Primary navigation">
+        <a href="./">Project</a>
+        <a href="#principles">Principles</a>
+        <a href="#boundary">Product boundary</a>
+        <a
+          class="nav-command"
+          href="https://github.com/happy520ai/unified-ai-system"
+          aria-label="Star Unified AI System on GitHub"
+        >
+          Star on GitHub
+        </a>
+      </nav>
+    </header>
+
+    <main id="article">
+      <header class="article-hero">
+        <div class="article-hero-shade" aria-hidden="true"></div>
+        <div class="article-hero-inner">
+          <p class="eyebrow">DESIGN NOTE / AUGUST 2026</p>
+          <h1>Why an AI gateway should be terminal-first</h1>
+          <p class="article-hero-copy">
+            The durable product is the execution contract: CLI, API, and MCP.
+            A browser console can make governance easier, but it should not be
+            the only way to operate the gateway.
+          </p>
+          <div class="article-meta" aria-label="Article details">
+            <span>6 minute read</span>
+            <span>Open source</span>
+            <span>Apache-2.0</span>
+          </div>
+        </div>
+      </header>
+
+      <section class="article-summary" aria-label="Summary">
+        <strong>Short version</strong>
+        <p>
+          Build the gateway around stable commands and protocols. Add a focused
+          enterprise console later for policy, approvals, audit, cost, and access
+          control. Do not make a changing dashboard the runtime contract.
+        </p>
+      </section>
+
+      <div class="article-layout">
+        <aside class="article-toc" aria-label="Article contents">
+          <span>Contents</span>
+          <a href="#contract">The interface contract</a>
+          <a href="#principles">Three design principles</a>
+          <a href="#boundary">The product boundary</a>
+          <a href="#proof">A runnable proof</a>
+          <a href="#enterprise">Where UI belongs</a>
+        </aside>
+
+        <article class="article-body">
+          <section id="contract">
+            <p class="article-lede">
+              An AI gateway sits between agent clients and real execution. That
+              position makes predictability more important than visual novelty.
+            </p>
+            <p>
+              A terminal-first product can be called by a person, a shell script,
+              CI, an IDE, or another agent. The same operation can emit readable
+              output for an operator and structured JSON for automation. Stable
+              exit codes, explicit flags, and versioned protocols become a public
+              contract that does not depend on a browser session.
+            </p>
+            <p>
+              Terminal-first does not mean terminal-only. It means the CLI, HTTP
+              API, SDK, and MCP tools remain complete enough to operate and verify
+              the system without a dashboard. Every UI action should eventually
+              map back to one of those inspectable capabilities.
+            </p>
+          </section>
+
+          <section id="principles">
+            <p class="eyebrow dark">THREE DESIGN PRINCIPLES</p>
+            <h2>Optimize the boundary, not the chrome.</h2>
+            <div class="article-principles">
+              <div>
+                <span>01</span>
+                <h3>Automate the same path humans use</h3>
+                <p>
+                  Commands need non-interactive modes, documented exit codes,
+                  machine-readable output, and deterministic defaults.
+                </p>
+              </div>
+              <div>
+                <span>02</span>
+                <h3>Make authority explicit</h3>
+                <p>
+                  Paid or real-provider execution should require a visible,
+                  scoped authorization instead of inheriting ambient UI state.
+                </p>
+              </div>
+              <div>
+                <span>03</span>
+                <h3>Return evidence, not reassurance</h3>
+                <p>
+                  Health, provider, model, execution mode, and cleanup state
+                  should be inspectable in output and through read-only tools.
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <section id="boundary">
+            <p class="eyebrow dark">THE PRODUCT BOUNDARY</p>
+            <h2>One core, several operator surfaces.</h2>
+            <div class="article-flow" aria-label="Terminal-first gateway architecture">
+              <div><span>Clients</span><strong>Codex / Cursor / Cline</strong></div>
+              <div><span>Contracts</span><strong>CLI / API / SDK / MCP</strong></div>
+              <div><span>Gateway</span><strong>Policy / routing / evidence</strong></div>
+              <div><span>Execution</span><strong>Fake by default</strong></div>
+            </div>
+            <p>
+              This separation keeps the runtime useful when a browser is absent,
+              makes integration tests reproducible, and lets future interfaces
+              evolve without silently changing provider or approval behavior.
+            </p>
+          </section>
+
+          <section id="proof">
+            <p class="eyebrow dark">RUN THE CLAIM</p>
+            <h2>A first request should be disposable.</h2>
+            <p>
+              Unified AI System publishes a credential-free Docker path. It starts
+              an isolated gateway, proves health and readiness, sends one local
+              fake-provider request, reports the execution mode, and cleans up.
+            </p>
+            <div class="article-code">
+              <span aria-hidden="true">$</span>
+              <code id="article-demo-command">docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.3.3 pnpm gateway demo</code>
+              <button type="button" data-copy-target="article-demo-command">Copy</button>
+            </div>
+            <p class="article-note">
+              No account or API key is required for this verified path. Real
+              provider calls are outside the default demo boundary.
+            </p>
+          </section>
+
+          <section id="enterprise">
+            <p class="eyebrow dark">WHERE UI BELONGS</p>
+            <h2>Use a console for governance density.</h2>
+            <p>
+              Enterprise teams still benefit from a browser interface. The useful
+              surface is not another chat page. It is a focused operator console
+              for role-based access, approval queues, policy, audit history,
+              budgets, usage, and fleet health.
+            </p>
+            <div class="article-boundary-list">
+              <div><strong>Core now</strong><span>CLI, API, SDK, MCP, deterministic local proof</span></div>
+              <div><strong>Optional next</strong><span>Interactive TUI for repeated operator workflows</span></div>
+              <div><strong>Enterprise later</strong><span>RBAC, approvals, audit, cost, policy, observability</span></div>
+            </div>
+            <p>
+              That ordering keeps the open-source gateway easy to evaluate while
+              leaving room for an enterprise console that earns its complexity.
+              Production readiness, L5 autonomy, and AGI remain claims that require
+              independent evidence beyond repository tests.
+            </p>
+          </section>
+        </article>
+      </div>
+
+      <section class="article-closing" aria-labelledby="article-closing-title">
+        <p class="eyebrow">TRY THE PUBLIC PREVIEW</p>
+        <h2 id="article-closing-title">Inspect the gateway before you trust the promise.</h2>
+        <div class="closing-actions">
+          <a class="primary-action" href="https://github.com/happy520ai/unified-ai-system">
+            Star on GitHub
+          </a>
+          <a class="secondary-action" href="./">Open the project page</a>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <span>Unified AI System</span>
+      <span>Terminal-first design note</span>
+      <span>Apache-2.0</span>
+    </footer>
+  </body>
+</html>

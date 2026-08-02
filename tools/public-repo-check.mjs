@@ -44,6 +44,7 @@ const requiredFiles = [
   "docs/index.html",
   "docs/robots.txt",
   "docs/sitemap.xml",
+  "docs/terminal-first-ai-gateway.html",
   "tools/mcp-smoke.mjs",
   "tools/verify-public-clone.mjs",
 ];
@@ -171,6 +172,31 @@ const socialPreviewUrl =
   "https://happy520ai.github.io/unified-ai-system/assets/social-preview.png";
 if (!projectSite.includes(socialPreviewUrl)) {
   addError("social_preview_url_missing", "docs/index.html");
+}
+
+const terminalFirstArticlePath = "docs/terminal-first-ai-gateway.html";
+const terminalFirstArticle = readFileSync(resolve(repoRoot, terminalFirstArticlePath), "utf8");
+const terminalFirstArticleUrl =
+  "https://happy520ai.github.io/unified-ai-system/terminal-first-ai-gateway.html";
+const requiredArticleMarkers = [
+  [terminalFirstArticleUrl, "terminal_first_canonical_missing"],
+  ['property="og:type" content="article"', "terminal_first_open_graph_type_missing"],
+  ['"@type": "TechArticle"', "terminal_first_structured_data_missing"],
+  ["docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:", "terminal_first_demo_missing"],
+  ["Production readiness, L5 autonomy, and AGI", "terminal_first_evidence_boundary_missing"],
+];
+
+for (const [marker, code] of requiredArticleMarkers) {
+  if (!terminalFirstArticle.includes(marker)) addError(code, terminalFirstArticlePath);
+}
+
+if (!projectSite.includes('href="terminal-first-ai-gateway.html"')) {
+  addError("terminal_first_home_link_missing", "docs/index.html");
+}
+
+const sitemap = readFileSync(resolve(repoRoot, "docs/sitemap.xml"), "utf8");
+if (!sitemap.includes(terminalFirstArticleUrl)) {
+  addError("terminal_first_sitemap_entry_missing", "docs/sitemap.xml");
 }
 
 const textExtensions = new Set([

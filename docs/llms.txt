@@ -7,6 +7,7 @@ Unified AI System provides one governed boundary for models, agents, knowledge, 
 ## Start here
 
 - [Project homepage](https://happy520ai.github.io/unified-ai-system/)
+- [Why an AI gateway should be terminal-first](https://happy520ai.github.io/unified-ai-system/terminal-first-ai-gateway.html)
 - [Source repository](https://github.com/happy520ai/unified-ai-system)
 - [60-second Codex MCP quickstart](https://github.com/happy520ai/unified-ai-system/blob/master/docs/codex-mcp-quickstart.md)
 - [Getting started](https://github.com/happy520ai/unified-ai-system/blob/master/docs/getting-started.md)

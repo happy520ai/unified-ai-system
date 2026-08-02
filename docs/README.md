@@ -7,6 +7,7 @@ The public documentation is intentionally small and task-oriented.
 - [Codex MCP quickstart](codex-mcp-quickstart.md)
 - [Codex MCP server](../packages/mcp-server/README.md)
 - [Architecture](architecture.md)
+- [Why an AI gateway should be terminal-first](terminal-first-ai-gateway.html)
 - [Provider setup](providers.md)
 - [Troubleshooting](troubleshooting.md)
 - [Project vision](../VISION.md)
