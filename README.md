@@ -1,12 +1,13 @@
 # Unified AI System
 
 <p align="center">
-  <strong>A terminal-first, self-hosted AI gateway for models, agents, knowledge, and tools.</strong>
+  <strong>A terminal-first, self-hosted AI and MCP gateway for models, agents, knowledge, and tools.</strong>
 </p>
 
 <p align="center">
   <a href="README.md">English</a> |
-  <a href="README.zh-CN.md">简体中文</a>
+  <a href="README.zh-CN.md">简体中文</a> |
+  <a href="https://happy520ai.github.io/unified-ai-system/">Project Site</a>
 </p>
 
 <p align="center">
@@ -50,11 +51,11 @@ explicit opt-in and human authority stays inside the execution path.
 <p align="center">
   <a href="#try-it-in-60-seconds"><strong>Try it in 60 seconds</strong></a>
   ·
-  <a href="#install-the-codex-plugin">Connect Codex</a>
+  <a href="#why-it-is-different">Why it is different</a>
   ·
-  <a href="#install-the-agent-skill">Install the Agent Skill</a>
+  <a href="#operate-from-the-terminal">Use the CLI</a>
   ·
-  <a href="https://github.com/happy520ai/unified-ai-system/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22good%20first%20issue%22">Pick a good first issue</a>
+  <a href="#connect-codex-cursor-and-cline">Connect Codex, Cursor, or Cline</a>
 </p>
 
 ## Try It in 60 Seconds
@@ -72,138 +73,7 @@ itself. The expected output confirms `execution: fake`, real calls disabled,
 and process cleanup. No account, API key, or browser UI is involved.
 
 If that verified path is useful, [star the repository](https://github.com/happy520ai/unified-ai-system)
-and connect the same runtime to Codex below.
-
-## Install The Codex Plugin
-
-Docker is the only runtime dependency for the published integration. Add this
-repository as a Codex marketplace source:
-
-```bash
-codex plugin marketplace add happy520ai/unified-ai-system --ref master
-```
-
-Restart the ChatGPT desktop app, open **Plugins** from ChatGPT Work or Codex,
-choose the **Unified AI System** marketplace, and install the plugin. The bundle
-adds a focused gateway skill and starts its credential-free MCP runtime in an
-isolated container. Use `codex plugin marketplace list` to inspect the source.
-
-The plugin is gated by the HOL Plugin Scanner with a required score of at least
-80 and no high or critical findings. Its public configuration and scan policy
-live in [`.codex-plugin/plugin.json`](.codex-plugin/plugin.json) and
-[`.plugin-scanner.toml`](.plugin-scanner.toml).
-
-### Install The Agent Skill
-
-To add only the reviewed operating workflow to the current project, use the
-cross-agent `skills` CLI:
-
-```bash
-npx skills add happy520ai/unified-ai-system --skill unified-ai-gateway --agent codex --copy --yes
-```
-
-The command clones the public repository and copies the exact skill into
-`.agents/skills/unified-ai-gateway`. It does not run Docker, register an MCP
-server, or access a provider. The path was verified with `skills` 1.5.21 in an
-empty directory. Review the [skill source](skills/unified-ai-gateway/SKILL.md)
-or open its [skills.sh listing](https://skills.sh/happy520ai/unified-ai-system/unified-ai-gateway)
-before installation.
-
-### Direct MCP Connection
-
-Run the gateway as a local MCP server with one anonymous container command:
-
-```bash
-codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.3.3
-```
-
-Restart Codex, then use `/mcp` to inspect eight tools for gateway health,
-readiness, fake-provider chat, knowledge, workflows, and workforce status. A
-trusted source checkout also includes project-level Codex configuration, so
-the direct Node entrypoint is discovered without maintaining a second config.
-
-The dedicated MCP image starts its own isolated gateway and removes it when the
-session ends. It fails closed if a gateway may call a real provider. See the
-[MCP server guide](packages/mcp-server/README.md), the
-[active official Registry entry](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.3.3),
-and its source metadata in [`server.json`](server.json).
-
-First task to try in Codex:
-
-> Use the Unified AI System MCP tools to check gateway health and readiness,
-> then send `MCP_READY` through gateway chat only if the gateway proves
-> fake-only mode. Report the provider, model, execution mode, and response.
-
-Follow the [60-second Codex MCP quickstart](docs/codex-mcp-quickstart.md) for
-three safe tasks, expected evidence, diagnostics, and removal.
-
-### Generate Codex And Cursor Configs
-
-With Node.js, pnpm, and Docker available, [add-mcp](https://github.com/neon-solutions/add-mcp)
-can write the pinned container command into both project-level client configs:
-
-```bash
-pnpm dlx add-mcp@2.0.0 "docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.3.3" --name unified-ai-system -a codex -a cursor -y
-```
-
-This exact command was verified with `add-mcp` 2.0.0 in an empty directory. It
-created `.codex/config.toml` and `.cursor/mcp.json` without provider
-credentials. Remove an `-a` option when configuring only one client, review
-the generated file, and restart that client. Other `add-mcp` targets are not
-claimed here as verified.
-
-## Connect Cline Through MCP
-
-Cline can install the same published server without cloning the repository:
-
-```bash
-cline mcp install unified-ai-system --yes --json -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.3.3
-```
-
-The command was verified with Cline CLI `3.0.48` in an isolated configuration.
-See the [agent-readable installation guide](llms-install.md) for expected JSON,
-a safe verification task, and removal steps.
-
-## Operate From The Terminal
-
-The source checkout includes a real terminal interface rather than only a
-scripted screenshot:
-
-```bash
-# Terminal 1
-pnpm gateway serve
-
-# Terminal 2
-pnpm gateway status
-pnpm gateway chat "Hello from Unified AI System"
-pnpm gateway doctor
-```
-
-`demo`, `status`, `chat`, `doctor`, and `version` support `--json`. The chat
-command refuses to send when a real provider may be active unless the operator
-adds `--allow-real-provider` explicitly for that request. Read the
-[CLI reference](docs/cli.md) for commands, exit codes, and safety behavior.
-
-## Run The Gateway
-
-Run the public container:
-
-```bash
-docker run --rm --publish 3100:3100 \
-  ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.3.3
-```
-
-Call it directly from another terminal:
-
-```bash
-curl --request POST http://127.0.0.1:3100/chat \
-  --header "content-type: application/json" \
-  --data "{\"prompt\":\"Hello from Unified AI System\"}"
-```
-
-The default runtime uses a deterministic local fake provider. Terminal and API
-workflows are the public product surface; no browser UI is required or exposed
-by default.
+and choose a terminal or MCP path below.
 
 ## What You Get
 
@@ -232,6 +102,143 @@ Read the longer [project vision](VISION.md) and the
 If this is the kind of open AI infrastructure you want to exist, star the
 repository and join the
 [Codex MCP launch discussion](https://github.com/happy520ai/unified-ai-system/discussions/6).
+
+## Operate From The Terminal
+
+The source checkout includes a real terminal interface rather than only a
+scripted screenshot:
+
+```bash
+# Terminal 1
+pnpm gateway serve
+
+# Terminal 2
+pnpm gateway status
+pnpm gateway chat "Hello from Unified AI System"
+pnpm gateway doctor
+```
+
+`demo`, `status`, `chat`, `doctor`, and `version` support `--json`. The chat
+command refuses to send when a real provider may be active unless the operator
+adds `--allow-real-provider` explicitly for that request. Read the
+[CLI reference](docs/cli.md) for commands, exit codes, and safety behavior.
+
+## Connect Codex, Cursor, And Cline
+
+Choose the smallest integration that fits. Use the plugin for the complete
+Codex bundle, direct MCP for the runtime alone, or the skill when you only want
+the reviewed operating workflow.
+
+### Codex Plugin
+
+Docker is the only runtime dependency for the published integration. Add this
+repository as a Codex marketplace source:
+
+```bash
+codex plugin marketplace add happy520ai/unified-ai-system --ref master
+```
+
+Restart the ChatGPT desktop app, open **Plugins** from ChatGPT Work or Codex,
+choose the **Unified AI System** marketplace, and install the plugin. The bundle
+adds a focused gateway skill and starts its credential-free MCP runtime in an
+isolated container. Use `codex plugin marketplace list` to inspect the source.
+
+The plugin is gated by the HOL Plugin Scanner with a required score of at least
+80 and no high or critical findings. Its public configuration and scan policy
+live in [`.codex-plugin/plugin.json`](.codex-plugin/plugin.json) and
+[`.plugin-scanner.toml`](.plugin-scanner.toml).
+
+### Agent Skill
+
+To add only the reviewed operating workflow to the current project, use the
+cross-agent `skills` CLI:
+
+```bash
+npx skills add happy520ai/unified-ai-system --skill unified-ai-gateway --agent codex --copy --yes
+```
+
+The command clones the public repository and copies the exact skill into
+`.agents/skills/unified-ai-gateway`. It does not run Docker, register an MCP
+server, or access a provider. The path was verified with `skills` 1.5.21 in an
+empty directory. Review the [skill source](skills/unified-ai-gateway/SKILL.md)
+or open its [skills.sh listing](https://skills.sh/happy520ai/unified-ai-system/unified-ai-gateway)
+before installation.
+
+### Direct Codex MCP
+
+Run the gateway as a local MCP server with one anonymous container command:
+
+```bash
+codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.3.3
+```
+
+Restart Codex, then use `/mcp` to inspect eight tools for gateway health,
+readiness, fake-provider chat, knowledge, workflows, and workforce status. A
+trusted source checkout also includes project-level Codex configuration, so
+the direct Node entrypoint is discovered without maintaining a second config.
+
+The dedicated MCP image starts its own isolated gateway and removes it when the
+session ends. It fails closed if a gateway may call a real provider. See the
+[MCP server guide](packages/mcp-server/README.md), the
+[active official Registry entry](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.3.3),
+and its source metadata in [`server.json`](server.json).
+
+First task to try in Codex:
+
+> Use the Unified AI System MCP tools to check gateway health and readiness,
+> then send `MCP_READY` through gateway chat only if the gateway proves
+> fake-only mode. Report the provider, model, execution mode, and response.
+
+Follow the [60-second Codex MCP quickstart](docs/codex-mcp-quickstart.md) for
+three safe tasks, expected evidence, diagnostics, and removal.
+
+### Codex And Cursor Configs
+
+With Node.js, pnpm, and Docker available, [add-mcp](https://github.com/neon-solutions/add-mcp)
+can write the pinned container command into both project-level client configs:
+
+```bash
+pnpm dlx add-mcp@2.0.0 "docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.3.3" --name unified-ai-system -a codex -a cursor -y
+```
+
+This exact command was verified with `add-mcp` 2.0.0 in an empty directory. It
+created `.codex/config.toml` and `.cursor/mcp.json` without provider
+credentials. Remove an `-a` option when configuring only one client, review
+the generated file, and restart that client. Other `add-mcp` targets are not
+claimed here as verified.
+
+### Cline MCP
+
+Cline can install the same published server without cloning the repository:
+
+```bash
+cline mcp install unified-ai-system --yes --json -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.3.3
+```
+
+The command was verified with Cline CLI `3.0.48` in an isolated configuration.
+See the [agent-readable installation guide](llms-install.md) for expected JSON,
+a safe verification task, and removal steps.
+
+## Run The Gateway
+
+Run the public container:
+
+```bash
+docker run --rm --publish 3100:3100 \
+  ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.3.3
+```
+
+Call it directly from another terminal:
+
+```bash
+curl --request POST http://127.0.0.1:3100/chat \
+  --header "content-type: application/json" \
+  --data "{\"prompt\":\"Hello from Unified AI System\"}"
+```
+
+The default runtime uses a deterministic local fake provider. Terminal and API
+workflows are the public product surface; no browser UI is required or exposed
+by default.
 
 ## Run From Source
 

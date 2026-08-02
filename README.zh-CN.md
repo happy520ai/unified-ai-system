@@ -1,7 +1,7 @@
 # Unified AI System
 
 <p align="center">
-  <strong>面向模型、智能体、知识与工具的终端优先、自托管 AI 能力网关。</strong>
+  <strong>面向模型、智能体、知识与工具的终端优先、自托管 AI 与 MCP 网关。</strong>
 </p>
 
 <p align="center">
@@ -48,11 +48,11 @@
 <p align="center">
   <a href="#60-秒完成验证"><strong>60 秒完成验证</strong></a>
   ·
-  <a href="#安装-codex-插件">接入 Codex</a>
+  <a href="#为什么要做这个项目">为什么不同</a>
   ·
-  <a href="#安装-agent-skill">安装 Agent Skill</a>
+  <a href="#使用终端操作">使用终端</a>
   ·
-  <a href="https://github.com/happy520ai/unified-ai-system/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22good%20first%20issue%22">认领新手任务</a>
+  <a href="#codex-插件">接入 Codex、Cursor 或 Cline</a>
 </p>
 
 ## 60 秒完成验证
@@ -68,12 +68,62 @@ docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.3.3 pn
 调用已禁用以及进程已清理。全程不需账号、API Key 或浏览器 UI。
 
 如果这条可验证路径对你有用，请为[仓库点一个 Star](https://github.com/happy520ai/unified-ai-system)，
-然后继续将同一运行时接入 Codex。
+然后选择下面的终端或 MCP 路径。
 
-## 安装 Codex 插件
+## 当前具备什么
 
-除 Codex 外，已发布的插件只需要 Docker 作为运行依赖。先把这个仓库添加为
-Codex Marketplace 来源：
+| 能力 | 当前公开预览版 |
+| --- | --- |
+| **AI 网关** | Chat、流式响应、健康检查、诊断、显式 Provider 选择与路由基础。 |
+| **受治理智能体** | 结构化规划与 Workforce 模块，以及审批、权限和执行证据界面。 |
+| **知识与上下文** | 检索、上下文塑形、知识复用和面向记忆的模块。 |
+| **终端与 API** | Demo、启动、状态、Chat 与诊断命令，以及直接 HTTP 和共享 SDK 访问。 |
+| **Codex 与 MCP** | 经过测试的 8 工具 stdio MCP Server、项目级 Codex 配置与免克隆 Docker 命令。 |
+| **扩展层** | 共享协议、SDK、上下文模块、Provider 适配器与工具。 |
+| **本地优先运行时** | 无凭证启动，以及可匿名拉取的多架构容器。 |
+
+## 为什么要做这个项目
+
+- **它是控制平面，不是另一个聊天外壳。** 模型、智能体、知识、工具、权限和
+  执行证据应当进入同一条可治理链路。
+- **在配置云服务之前就能使用。** 全新克隆和公开容器都可以在没有 Provider
+  凭证的情况下验证完整本地路径。
+- **人类控制权属于架构本身。** 真实执行必须显式启用、可观察、可中断并且
+  能够追责。
+
+更完整的长期方向请阅读[项目愿景](VISION.md)和[公开路线图](ROADMAP.md)。
+
+如果你也希望这样的开放 AI 基础设施真正成长起来，请为仓库点一个 Star，并参与
+[Codex MCP 发布讨论](https://github.com/happy520ai/unified-ai-system/discussions/6)。
+
+## 使用终端操作
+
+源码仓库提供的是可实际使用的终端入口，而不只是一张演示截图：
+
+```bash
+# 终端 1
+pnpm gateway serve
+
+# 终端 2
+pnpm gateway status
+pnpm gateway chat "你好，Unified AI System"
+pnpm gateway doctor
+```
+
+`demo`、`status`、`chat`、`doctor` 和 `version` 都支持 `--json`。如果网关可能
+使用真实 Provider，`chat` 会在发送请求之前停止；只有为本次命令显式增加
+`--allow-real-provider` 才会继续。完整命令、退出码与安全行为见
+[CLI 文档](docs/cli.md)。
+
+## 接入 Codex、Cursor 与 Cline
+
+选择满足需求的最小接入方式：完整 Codex 组合使用插件，只连接运行时使用
+Direct MCP，只需要经过审阅的操作流程时安装 Agent Skill。
+
+### Codex 插件
+
+已发布的 Codex 集成只需要 Docker 作为运行依赖。先把这个仓库添加为 Codex
+Marketplace 来源：
 
 ```bash
 codex plugin marketplace add happy520ai/unified-ai-system --ref master
@@ -89,7 +139,7 @@ High 或 Critical Finding。公开配置和扫描策略分别位于
 [`.codex-plugin/plugin.json`](.codex-plugin/plugin.json) 与
 [`.plugin-scanner.toml`](.plugin-scanner.toml)。
 
-### 安装 Agent Skill
+### Agent Skill
 
 只把经过审阅的操作流程加入当前项目时，可以使用跨 Agent 的 `skills` CLI：
 
@@ -103,7 +153,7 @@ Provider。该路径已使用 `skills` 1.5.21 在空目录完成验证。安装�
 [Skill 源文件](skills/unified-ai-gateway/SKILL.md)或
 [skills.sh 页面](https://skills.sh/happy520ai/unified-ai-system/unified-ai-gateway)。
 
-### 直接连接 MCP
+### Codex 直接连接 MCP
 
 使用一条匿名容器命令，把网关添加为本地 MCP Server：
 
@@ -132,7 +182,7 @@ Fake Provider 对话、知识基础设施、Workflow 与 Workforce 状态。可�
 可以完成接入、检查和首次安全调用；[源码快速上手](docs/codex-mcp-quickstart.md)
 还提供三个安全任务，以及预期证据、诊断方法和卸载命令。
 
-### 生成 Codex 与 Cursor 配置
+### Codex 与 Cursor 配置
 
 已经安装 Node.js、pnpm 与 Docker 时，可以使用
 [add-mcp](https://github.com/neon-solutions/add-mcp)把固定版本的容器命令同时写入
@@ -147,7 +197,7 @@ pnpm dlx add-mcp@2.0.0 "docker run --rm -i ghcr.io/happy520ai/unified-ai-system/
 客户端时删除另一个 `-a` 参数；重启客户端前先检查生成的文件。这里不宣称已经
 验证 `add-mcp` 支持的其他客户端。
 
-## 通过 MCP 接入 Cline
+### Cline MCP
 
 Cline 无需克隆仓库即可安装同一个已发布的 MCP Server：
 
@@ -157,25 +207,6 @@ cline mcp install unified-ai-system --yes --json -- docker run --rm -i ghcr.io/h
 
 这条命令已经使用 Cline CLI `3.0.48` 和隔离配置完成验证。面向智能体的
 [安装指南](llms-install.md)包含预期 JSON、安全验证任务和卸载步骤。
-
-## 使用终端操作
-
-源码仓库提供的是可实际使用的终端入口，而不只是一张演示截图：
-
-```bash
-# 终端 1
-pnpm gateway serve
-
-# 终端 2
-pnpm gateway status
-pnpm gateway chat "你好，Unified AI System"
-pnpm gateway doctor
-```
-
-`demo`、`status`、`chat`、`doctor` 和 `version` 都支持 `--json`。如果网关可能
-使用真实 Provider，`chat` 会在发送请求之前停止；只有为本次命令显式增加
-`--allow-real-provider` 才会继续。完整命令、退出码与安全行为见
-[CLI 文档](docs/cli.md)。
 
 ## 持续运行网关
 
@@ -196,32 +227,6 @@ curl --request POST http://127.0.0.1:3100/chat \
 
 默认运行时使用确定性的本地 Fake Provider。终端与 API 是公开产品入口；系统
 默认不暴露浏览器 UI，运行网关也不依赖它。
-
-## 当前具备什么
-
-| 能力 | 当前公开预览版 |
-| --- | --- |
-| **AI 网关** | Chat、流式响应、健康检查、诊断、显式 Provider 选择与路由基础。 |
-| **受治理智能体** | 结构化规划与 Workforce 模块，以及审批、权限和执行证据界面。 |
-| **知识与上下文** | 检索、上下文塑形、知识复用和面向记忆的模块。 |
-| **终端与 API** | Demo、启动、状态、Chat 与诊断命令，以及直接 HTTP 和共享 SDK 访问。 |
-| **Codex 与 MCP** | 经过测试的 8 工具 stdio MCP Server、项目级 Codex 配置与免克隆 Docker 命令。 |
-| **扩展层** | 共享协议、SDK、上下文模块、Provider 适配器与工具。 |
-| **本地优先运行时** | 无凭证启动，以及可匿名拉取的多架构容器。 |
-
-## 为什么要做这个项目
-
-- **它是控制平面，不是另一个聊天外壳。** 模型、智能体、知识、工具、权限和
-  执行证据应当进入同一条可治理链路。
-- **在配置云服务之前就能使用。** 全新克隆和公开容器都可以在没有 Provider
-  凭证的情况下验证完整本地路径。
-- **人类控制权属于架构本身。** 真实执行必须显式启用、可观察、可中断并且
-  能够追责。
-
-更完整的长期方向请阅读[项目愿景](VISION.md)和[公开路线图](ROADMAP.md)。
-
-如果你也希望这样的开放 AI 基础设施真正成长起来，请为仓库点一个 Star，并参与
-[Codex MCP 发布讨论](https://github.com/happy520ai/unified-ai-system/discussions/6)。
 
 ## 从源码运行
 
