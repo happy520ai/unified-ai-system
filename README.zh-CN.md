@@ -50,6 +50,8 @@
   ·
   <a href="#安装-codex-插件">接入 Codex</a>
   ·
+  <a href="#安装-agent-skill">安装 Agent Skill</a>
+  ·
   <a href="https://github.com/happy520ai/unified-ai-system/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22good%20first%20issue%22">认领新手任务</a>
 </p>
 
@@ -86,6 +88,20 @@ codex plugin marketplace add happy520ai/unified-ai-system --ref master
 High 或 Critical Finding。公开配置和扫描策略分别位于
 [`.codex-plugin/plugin.json`](.codex-plugin/plugin.json) 与
 [`.plugin-scanner.toml`](.plugin-scanner.toml)。
+
+### 安装 Agent Skill
+
+只把经过审阅的操作流程加入当前项目时，可以使用跨 Agent 的 `skills` CLI：
+
+```bash
+npx skills add happy520ai/unified-ai-system --skill unified-ai-gateway --agent codex --copy --yes
+```
+
+这条命令会克隆公开仓库，并把完全一致的 Skill 复制到
+`.agents/skills/unified-ai-gateway`；它不会运行 Docker、注册 MCP Server 或访问
+Provider。该路径已使用 `skills` 1.5.21 在空目录完成验证。安装前可以先查看
+[Skill 源文件](skills/unified-ai-gateway/SKILL.md)或
+[skills.sh 页面](https://skills.sh/happy520ai/unified-ai-system/unified-ai-gateway)。
 
 ### 直接连接 MCP
 

@@ -52,6 +52,8 @@ explicit opt-in and human authority stays inside the execution path.
   ·
   <a href="#install-the-codex-plugin">Connect Codex</a>
   ·
+  <a href="#install-the-agent-skill">Install the Agent Skill</a>
+  ·
   <a href="https://github.com/happy520ai/unified-ai-system/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22good%20first%20issue%22">Pick a good first issue</a>
 </p>
 
@@ -90,6 +92,22 @@ The plugin is gated by the HOL Plugin Scanner with a required score of at least
 80 and no high or critical findings. Its public configuration and scan policy
 live in [`.codex-plugin/plugin.json`](.codex-plugin/plugin.json) and
 [`.plugin-scanner.toml`](.plugin-scanner.toml).
+
+### Install The Agent Skill
+
+To add only the reviewed operating workflow to the current project, use the
+cross-agent `skills` CLI:
+
+```bash
+npx skills add happy520ai/unified-ai-system --skill unified-ai-gateway --agent codex --copy --yes
+```
+
+The command clones the public repository and copies the exact skill into
+`.agents/skills/unified-ai-gateway`. It does not run Docker, register an MCP
+server, or access a provider. The path was verified with `skills` 1.5.21 in an
+empty directory. Review the [skill source](skills/unified-ai-gateway/SKILL.md)
+or open its [skills.sh listing](https://skills.sh/happy520ai/unified-ai-system/unified-ai-gateway)
+before installation.
 
 ### Direct MCP Connection
 

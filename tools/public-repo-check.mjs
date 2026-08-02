@@ -50,6 +50,7 @@ const requiredFiles = [
   "docs/robots.txt",
   "docs/sitemap.xml",
   "docs/terminal-first-ai-gateway.html",
+  "skills/unified-ai-gateway/SKILL.md",
   "tools/mcp-smoke.mjs",
   "tools/submit-indexnow.mjs",
   "tools/verify-public-clone.mjs",
@@ -330,6 +331,47 @@ if (!chineseCodexDockerGuide.includes('hreflang="en"')) {
 
 if (!sitemap.includes(chineseCodexDockerGuideUrl)) {
   addError("chinese_codex_docker_sitemap_entry_missing", "docs/sitemap.xml");
+}
+
+const agentSkillPath = "skills/unified-ai-gateway/SKILL.md";
+const agentSkill = readFileSync(resolve(repoRoot, agentSkillPath), "utf8");
+const skillsShUrl =
+  "https://skills.sh/happy520ai/unified-ai-system/unified-ai-gateway";
+const skillsInstallCommand =
+  "npx skills add happy520ai/unified-ai-system --skill unified-ai-gateway --agent codex --copy --yes";
+const chineseReadme = readFileSync(resolve(repoRoot, "README.zh-CN.md"), "utf8");
+const requiredAgentSkillMarkers = [
+  ["name: unified-ai-gateway", "agent_skill_name_missing"],
+  ["source_repo: happy520ai/unified-ai-system", "agent_skill_source_missing"],
+  ["production readiness, L5 autonomy, or AGI", "agent_skill_evidence_boundary_missing"],
+  [
+    "https://github.com/happy520ai/unified-ai-system/blob/master/docs/security/mcp-image-review-0.3.2.md",
+    "agent_skill_image_review_link_missing",
+  ],
+];
+
+for (const [marker, code] of requiredAgentSkillMarkers) {
+  if (!agentSkill.includes(marker)) addError(code, agentSkillPath);
+}
+
+if (/\]\(\.\.?\//.test(agentSkill)) {
+  addError("agent_skill_relative_link_not_portable", agentSkillPath);
+}
+
+for (const [content, path, code] of [
+  [readme, "README.md", "agent_skill_install_missing_from_readme"],
+  [chineseReadme, "README.zh-CN.md", "agent_skill_install_missing_from_chinese_readme"],
+]) {
+  if (!content.includes(skillsInstallCommand)) addError(code, path);
+  if (!content.includes(skillsShUrl)) addError(`${code}_listing`, path);
+}
+
+if (!projectSite.includes(skillsShUrl)) {
+  addError("agent_skill_listing_missing_from_site", "docs/index.html");
+}
+
+if (!chineseProjectSite.includes(skillsShUrl)) {
+  addError("agent_skill_listing_missing_from_chinese_site", chineseProjectSitePath);
 }
 
 const textExtensions = new Set([

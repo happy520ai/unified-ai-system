@@ -35,6 +35,8 @@ local sovereignty, and evidence-based AI governance.
 
 Repository: https://github.com/happy520ai/unified-ai-system
 
+Agent Skill: `npx skills add happy520ai/unified-ai-system --skill unified-ai-gateway --agent codex --copy --yes`
+
 ## 中文发布文案
 
 AI 能力正在快速增长，但真正稀缺的，是让人能够拥有、连接、调度和治理这些
@@ -60,6 +62,8 @@ Agent 协议、本地数据主权和可信 AI 治理的开发者一起参与。
 项目地址：https://github.com/happy520ai/unified-ai-system
 
 Codex MCP Docker 中文教程：https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.zh-CN.html
+
+Agent Skill：`npx skills add happy520ai/unified-ai-system --skill unified-ai-gateway --agent codex --copy --yes`
 
 ## Show HN
 

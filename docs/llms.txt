@@ -12,6 +12,7 @@ Unified AI System provides one governed boundary for models, agents, knowledge, 
 - [Codex MCP Docker 中文教程](https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.zh-CN.html)
 - [Why an AI gateway should be terminal-first](https://happy520ai.github.io/unified-ai-system/terminal-first-ai-gateway.html)
 - [Source repository](https://github.com/happy520ai/unified-ai-system)
+- [Installable Agent Skill](https://skills.sh/happy520ai/unified-ai-system/unified-ai-gateway)
 - [60-second Codex MCP quickstart](https://github.com/happy520ai/unified-ai-system/blob/master/docs/codex-mcp-quickstart.md)
 - [Getting started](https://github.com/happy520ai/unified-ai-system/blob/master/docs/getting-started.md)
 - [Architecture](https://github.com/happy520ai/unified-ai-system/blob/master/docs/architecture.md)
@@ -21,6 +22,7 @@ Unified AI System provides one governed boundary for models, agents, knowledge, 
 
 - [Release v0.3.3](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.3.3)
 - [Official MCP Registry entry](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.3.3)
+- Agent Skill: `npx skills add happy520ai/unified-ai-system --skill unified-ai-gateway --agent codex --copy --yes`
 - MCP container: `ghcr.io/happy520ai/unified-ai-system/mcp-server:0.3.3`
 - Gateway demo container: `ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.3.3`
 

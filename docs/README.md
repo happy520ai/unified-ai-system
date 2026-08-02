@@ -9,6 +9,7 @@ The public documentation is intentionally small and task-oriented.
 - [Codex MCP Docker web guide](codex-mcp-docker-quickstart.html)
 - [Codex MCP Docker 中文教程](codex-mcp-docker-quickstart.zh-CN.html)
 - [Codex MCP server](../packages/mcp-server/README.md)
+- [Installable Agent Skill](https://skills.sh/happy520ai/unified-ai-system/unified-ai-gateway)
 - [Architecture](architecture.md)
 - [Why an AI gateway should be terminal-first](terminal-first-ai-gateway.html)
 - [Provider setup](providers.md)

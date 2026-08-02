@@ -1,17 +1,18 @@
 ---
 name: unified-ai-gateway
 description: Operate and evaluate Unified AI System through eight governed MCP tools while preserving fake-provider, authorization, and evidence boundaries.
-category: ai-ml
-risk: critical
-source: https://github.com/happy520ai/unified-ai-system/tree/master/skills/unified-ai-gateway
-source_repo: happy520ai/unified-ai-system
-source_type: official
-date_added: "2026-08-01"
-author: happy520ai
-tags: [ai-gateway, codex, mcp, self-hosted, governance]
-tools: [codex]
 license: Apache-2.0
-license_source: https://github.com/happy520ai/unified-ai-system/blob/master/LICENSE
+metadata:
+  author: happy520ai
+  category: ai-ml
+  date_added: "2026-08-01"
+  license_source: https://github.com/happy520ai/unified-ai-system/blob/master/LICENSE
+  risk: critical
+  source: https://github.com/happy520ai/unified-ai-system/tree/master/skills/unified-ai-gateway
+  source_repo: happy520ai/unified-ai-system
+  source_type: official
+  tags: "ai-gateway, codex, mcp, self-hosted, governance"
+  tools: codex
 ---
 
 # Unified AI Gateway
@@ -76,7 +77,7 @@ deletion is another filesystem change and requires approval for the exact path.
 
 5. Read every generated inventory and report the inspection before proceeding.
    Compare it with the versioned
-   [image content review](../../docs/security/mcp-image-review-0.3.2.md).
+   [image content review](https://github.com/happy520ai/unified-ai-system/blob/master/docs/security/mcp-image-review-0.3.2.md).
    Require linux/amd64 manifest digest
    `sha256:cc17e923335f953631f59fb6a5ffcdce0e12e16c5abf362f1d28747452adadee`,
    config digest
@@ -217,4 +218,4 @@ Agent:
 - [Unified AI System](https://github.com/happy520ai/unified-ai-system)
 - [60-second Codex MCP quickstart](https://github.com/happy520ai/unified-ai-system/blob/master/docs/codex-mcp-quickstart.md)
 - [MCP server guide](https://github.com/happy520ai/unified-ai-system/blob/master/packages/mcp-server/README.md)
-- [MCP image content review](../../docs/security/mcp-image-review-0.3.2.md)
+- [MCP image content review](https://github.com/happy520ai/unified-ai-system/blob/master/docs/security/mcp-image-review-0.3.2.md)
