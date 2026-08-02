@@ -19,6 +19,7 @@
     "demo": "node ./tools/terminal-demo.mjs",
     "gateway": "node ./apps/agent-console/src/cli.js",
     "mcp": "node ./packages/mcp-server/src/index.js",
+    "notify:indexnow": "node tools/submit-indexnow.mjs",
     "verify:mcp": "pnpm --filter @unified-ai-system/mcp-server test",
     "smoke:mcp": "node ./tools/mcp-smoke.mjs",
     "start:ai-gateway-service": "pnpm --filter @unified-ai-system/ai-gateway-service start",

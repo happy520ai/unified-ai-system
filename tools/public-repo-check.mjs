@@ -40,6 +40,7 @@ const requiredFiles = [
   "packages/mcp-server/src/index.js",
   "packages/mcp-server/src/server.test.js",
   ".codex/config.toml",
+  ".github/workflows/indexnow.yml",
   "docs/assets/social-preview.png",
   "docs/codex-mcp-docker-quickstart.html",
   "docs/codex-mcp-docker-quickstart.zh-CN.html",
@@ -95,6 +96,7 @@ const requiredScripts = [
   "check",
   "test",
   "mcp",
+  "notify:indexnow",
   "verify:mcp",
   "smoke:mcp",
   "check:public",
@@ -267,6 +269,20 @@ if (!Array.isArray(indexNowConfig.urlList) || indexNowConfig.urlList.length === 
       addError("indexnow_url_missing_from_sitemap", "docs/sitemap.xml", url);
     }
   }
+}
+
+const indexNowWorkflowPath = ".github/workflows/indexnow.yml";
+const indexNowWorkflow = readFileSync(resolve(repoRoot, indexNowWorkflowPath), "utf8");
+const requiredIndexNowWorkflowMarkers = [
+  ['workflows: ["pages-build-deployment"]', "indexnow_pages_trigger_missing"],
+  ["github.event.workflow_run.conclusion == 'success'", "indexnow_success_gate_missing"],
+  ["github.event.workflow_run.head_branch == 'master'", "indexnow_branch_gate_missing"],
+  ["git diff --quiet HEAD^ HEAD -- docs", "indexnow_docs_change_gate_missing"],
+  ["node tools/submit-indexnow.mjs --submit", "indexnow_submit_command_missing"],
+];
+
+for (const [marker, code] of requiredIndexNowWorkflowMarkers) {
+  if (!indexNowWorkflow.includes(marker)) addError(code, indexNowWorkflowPath);
 }
 if (!sitemap.includes(terminalFirstArticleUrl)) {
   addError("terminal_first_sitemap_entry_missing", "docs/sitemap.xml");
