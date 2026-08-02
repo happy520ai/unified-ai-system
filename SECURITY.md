@@ -1,24 +1,48 @@
 # Security Policy
 
-## Scope
+Unified AI System accepts coordinated, private vulnerability reports. Do not
+open a public issue for a suspected security problem.
 
-This repository is a local-first, dry-run-first AI Gateway Workbench. Default clone/read workflows must not require real Provider calls, deployed infrastructure access, or secret material.
+## Supported Versions
 
-## Reporting A Vulnerability
+| Version | Security fixes |
+| --- | --- |
+| `0.3.x` | Supported |
+| `0.2.x` and earlier | Not supported |
 
-- For non-sensitive issues, open a GitHub issue: <https://github.com/happy520ai/unified-ai-system/issues>
-- Do not paste API keys, tokens, `.env` contents, raw endpoint values, credential values, or private logs into public reports.
-- Redact machine-specific paths, screenshots, and runtime captures before sharing.
-- If an issue is sensitive, open a minimal public issue without exploit details and request a private follow-up path.
+Reports about `master` are welcome, but released versions are the supported
+distribution boundary.
 
-## Supported Contribution Boundary
+## Report A Vulnerability
 
-- Do not modify `legacy/`.
-- Do not change `/chat` or `/chat-gateway/execute` as part of public-readiness work.
-- Do not run OpenAI, Claude, OpenRouter, MiMo, NVIDIA, or any other real Provider by default.
-- Do not treat this repository as a deployed production service.
-- Do not commit `*.input.json`; use the tracked example or template as the starting point for a local, short-lived approval.
+Use GitHub's private
+[Report a vulnerability](https://github.com/happy520ai/unified-ai-system/security/advisories/new)
+form. Include:
 
-## Response Posture
+- the affected component and version;
+- reproduction steps or a minimal proof of concept;
+- the expected impact and required preconditions;
+- any practical mitigation you have identified.
 
-This repository does not currently promise a production incident-response SLA. Reports are reviewed on a best-effort basis within the project's existing maintenance capacity.
+Never include provider keys, access tokens, private endpoints, raw webhooks,
+or authorization records. Sanitize logs and examples before submitting them.
+
+## Response Targets
+
+The project aims to acknowledge a report within three business days and share
+an initial assessment within seven business days. These are best-effort
+targets, not a commercial support SLA. Remediation and disclosure timing will
+depend on severity, exploitability, and release risk.
+
+## Research Boundaries
+
+Use the credential-free fake provider and infrastructure you own or are
+authorized to test. Do not make unapproved real-provider calls, access other
+people's data, degrade shared services, or use social engineering. Stop and
+report privately if testing exposes credentials or sensitive data.
+
+## Coordinated Disclosure
+
+Please allow time for validation and a supported fix before public disclosure.
+After remediation, the project may publish a GitHub Security Advisory and will
+credit reporters who request attribution.
