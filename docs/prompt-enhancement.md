@@ -36,6 +36,19 @@ curl --request POST http://127.0.0.1:3100/prompts/enhance \
 For a copy-paste walkthrough on macOS, Linux, Git Bash, and Windows
 PowerShell, see the [curl quickstart](examples/prompt-enhancement-curl.md).
 
+### Python Standard Library
+
+After starting the gateway, run the dependency-free Python example:
+
+```bash
+python docs/examples/prompt-enhancement.py "Help me plan a small API for my team" --profile planning --language en
+```
+
+The script uses only Python's standard library and prints the JSON response.
+Check `data.metadata.providerCalled` in the response; it should be `false` for
+this local, deterministic route. The [Python example](examples/prompt-enhancement.py)
+also accepts `--base-url` when the gateway is running somewhere else.
+
 Supported profiles are `auto`, `general`, `coding`, `analysis`, `writing`,
 `research`, and `planning`. Supported language settings are `auto`, `zh-CN`,
 and `en`. Input is limited to 20,000 characters.
