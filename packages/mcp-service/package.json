@@ -1,0 +1,32 @@
+{
+  "name": "@unified-ai-system/mcp-service",
+  "version": "0.4.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "description": "Self-starting MCP service supervisor for Unified AI System: process supervision, file logging, health endpoints, and platform-specific auto-start installers (Windows Task Scheduler, systemd, launchd).",
+  "main": "./src/daemon.js",
+  "bin": {
+    "unified-ai-system-mcp-service": "./bin/install.js"
+  },
+  "exports": {
+    ".": "./src/daemon.js",
+    "./supervisor": "./src/supervisor.js",
+    "./logger": "./src/logger.js",
+    "./health": "./src/health-server.js",
+    "./installer": "./src/installer.js",
+    "./workbuddy": "./src/workbuddy-register.js"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/client": "2.0.0",
+    "@unified-ai-system/mcp-server": "workspace:*"
+  },
+  "scripts": {
+    "check": "node --check ./src/daemon.js && node --check ./src/supervisor.js && node --check ./src/logger.js && node --check ./src/health-server.js && node --check ./src/installer.js && node --check ./src/installer-windows.js && node --check ./src/installer-systemd.js && node --check ./src/installer-launchd.js && node --check ./src/workbuddy-register.js && node --check ./bin/install.js && node --check ./bin/start-service.js",
+    "build": "pnpm run check",
+    "test": "node --test ./src/supervisor.test.js ./src/logger.test.js ./src/workbuddy-register.test.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

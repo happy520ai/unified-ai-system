@@ -14,8 +14,8 @@
   "type": "module",
   "packageManager": "pnpm@9.15.4",
   "scripts": {
-    "start": "pnpm start:ai-gateway-service",
-    "dev": "pnpm start:ai-gateway-service",
+    "start": "pnpm --filter @unified-ai-system/ai-gateway-service start",
+    "dev": "pnpm --filter @unified-ai-system/ai-gateway-service start",
     "demo": "node ./tools/terminal-demo.mjs",
     "gateway": "node ./apps/agent-console/src/cli.js",
     "mcp": "node ./packages/mcp-server/src/index.js",
@@ -23,26 +23,21 @@
     "notify:indexnow": "node tools/submit-indexnow.mjs",
     "verify:mcp": "pnpm --filter @unified-ai-system/mcp-server test",
     "smoke:mcp": "node ./tools/mcp-smoke.mjs",
-    "start:ai-gateway-service": "pnpm --filter @unified-ai-system/ai-gateway-service start",
-    "start:agent-console": "pnpm --filter @unified-ai-system/agent-console start",
     "build": "pnpm -r --if-present build",
     "check": "pnpm -r --if-present check",
     "test": "pnpm -r --if-present test",
     "check:public": "node tools/public-repo-check.mjs",
-    "check:open-source-hygiene": "pnpm check:public",
-    "verify:public-clone": "node tools/verify-public-clone.mjs"
+    "verify:public-clone": "node tools/verify-public-clone.mjs",
+    "growth:campaign": "node ./tools/star-growth-check.mjs campaign --output docs/star-growth-latest.md --daily-output docs/star-growth-daily.md --check-output docs/star-growth-check.md",
+    "growth:blast": "pnpm growth:sync-thread && pnpm growth:publish",
+    "growth:sync-thread": "node ./tools/star-growth-sync-thread.mjs",
+    "growth:publish": "node ./tools/star-growth-publish-kit.mjs --output docs/star-growth-publish-output.md",
+    "growth:evidence-pack": "node ./tools/star-growth-append-evidence-pack.mjs",
+    "growth:feedback": "node ./tools/star-growth-feedback.mjs --output docs/star-growth-feedback.md"
   },
   "engines": {
     "node": ">=20",
     "pnpm": ">=9"
-  },
-  "pnpm": {
-    "overrides": {
-      "brace-expansion@2": "2.1.3",
-      "brace-expansion@5": "5.0.8",
-      "postcss@8": "8.5.18",
-      "vite@8": "8.0.16"
-    }
   },
   "devDependencies": {
     "vitest": "^4.1.10"
