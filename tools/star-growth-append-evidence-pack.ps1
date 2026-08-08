@@ -119,7 +119,7 @@ function Replace-Or-Append-WeeklyEntry {
       "### $Today"
       ""
       "- Repository: https://github.com/$Repo"
-      "- Snapshot: $($Snapshot.Stars) stars / $($Snapshot.Forks) forks / $($Snapshot.Watchers) watchers / $($Snapshot.OpenIssues) open issues (non-PR) / $($Snapshot.OpenPullRequests) open PRs"
+      "- Snapshot: $($Snapshot.Stars) stars / $($Snapshot.Forks) forks / $($Snapshot.Watchers) subscribers / $($Snapshot.OpenIssues) open issues (non-PR) / $($Snapshot.OpenPullRequests) open PRs"
       "- Community reports: $($FeedbackSummary.total) total, $($FeedbackSummary.open) open, $($FeedbackSummary.closed) closed"
       "- GitHub community-feedback label: $($IssueSummary.total) total / $($IssueSummary.open) open / $($IssueSummary.closed) closed"
       "- PR funnel state: CLEAN $($PrSummary.CLEAN), BLOCKED $($PrSummary.BLOCKED), DIRTY $($PrSummary.DIRTY), UNKNOWN $($PrSummary.UNKNOWN)"
@@ -147,7 +147,7 @@ function Replace-Or-Append-WeeklyEntry {
       $todayHeader
       ""
       "- Repository: https://github.com/$Repo"
-      "- Snapshot: $($Snapshot.Stars) stars / $($Snapshot.Forks) forks / $($Snapshot.Watchers) watchers / $($Snapshot.OpenIssues) open issues (non-PR) / $($Snapshot.OpenPullRequests) open PRs"
+      "- Snapshot: $($Snapshot.Stars) stars / $($Snapshot.Forks) forks / $($Snapshot.Watchers) subscribers / $($Snapshot.OpenIssues) open issues (non-PR) / $($Snapshot.OpenPullRequests) open PRs"
       "- Community reports: $($FeedbackSummary.total) total, $($FeedbackSummary.open) open, $($FeedbackSummary.closed) closed"
       "- GitHub community-feedback label: $($IssueSummary.total) total / $($IssueSummary.open) open / $($IssueSummary.closed) closed"
       "- PR funnel state: CLEAN $($PrSummary.CLEAN), BLOCKED $($PrSummary.BLOCKED), DIRTY $($PrSummary.DIRTY), UNKNOWN $($PrSummary.UNKNOWN)"
@@ -166,7 +166,7 @@ function Replace-Or-Append-WeeklyEntry {
     $todayHeader
     ""
     "- Repository: https://github.com/$Repo"
-    "- Snapshot: $($Snapshot.Stars) stars / $($Snapshot.Forks) forks / $($Snapshot.Watchers) watchers / $($Snapshot.OpenIssues) open issues (non-PR) / $($Snapshot.OpenPullRequests) open PRs"
+    "- Snapshot: $($Snapshot.Stars) stars / $($Snapshot.Forks) forks / $($Snapshot.Watchers) subscribers / $($Snapshot.OpenIssues) open issues (non-PR) / $($Snapshot.OpenPullRequests) open PRs"
     "- Community reports: $($FeedbackSummary.total) total, $($FeedbackSummary.open) open, $($FeedbackSummary.closed) closed"
     "- GitHub community-feedback label: $($IssueSummary.total) total / $($IssueSummary.open) open / $($IssueSummary.closed) closed"
     "- PR funnel state: CLEAN $($PrSummary.CLEAN), BLOCKED $($PrSummary.BLOCKED), DIRTY $($PrSummary.DIRTY), UNKNOWN $($PrSummary.UNKNOWN)"
@@ -208,7 +208,7 @@ try {
   $snapshot = @{
     Stars = if (Get-IntFromText -Text $latestRaw -Metric "Stars") { Get-IntFromText -Text $latestRaw -Metric "Stars" } else { [int]$repoStatsRaw.stargazers_count }
     Forks = if (Get-IntFromText -Text $latestRaw -Metric "Forks") { Get-IntFromText -Text $latestRaw -Metric "Forks" } else { [int]$repoStatsRaw.forks_count }
-    Watchers = if (Get-IntFromText -Text $latestRaw -Metric "Watchers") { Get-IntFromText -Text $latestRaw -Metric "Watchers" } else { [int]$repoStatsRaw.subscribers_count }
+    Watchers = if (Get-IntFromText -Text $latestRaw -Metric "Subscribers") { Get-IntFromText -Text $latestRaw -Metric "Subscribers" } elseif (Get-IntFromText -Text $latestRaw -Metric "Watchers") { Get-IntFromText -Text $latestRaw -Metric "Watchers" } else { [int]$repoStatsRaw.subscribers_count }
     OpenIssues = if (Get-IntFromText -Text $latestRaw -Metric "Open issues (non-PR)") { Get-IntFromText -Text $latestRaw -Metric "Open issues (non-PR)" } else { $openIssues }
     OpenPullRequests = if (Get-IntFromText -Text $latestRaw -Metric "Open pull requests") { Get-IntFromText -Text $latestRaw -Metric "Open pull requests" } else { $openPullRequests }
   }
@@ -224,11 +224,11 @@ try {
 
   # update snapshot lines
   for ($i = 0; $i -lt $lines.Length; $i++) {
-    if ($lines[$i] -match "^- Stars:") { $lines[$i] = "- Stars: $($snapshot.Stars)" }
-    if ($lines[$i] -match "^- Forks:") { $lines[$i] = "- Forks: $($snapshot.Forks)" }
-    if ($lines[$i] -match "^- Watchers:") { $lines[$i] = "- Watchers: $($snapshot.Watchers)" }
-    if ($lines[$i] -match "^- Open issues (non-PR):") { $lines[$i] = "- Open issues (non-PR): $($snapshot.OpenIssues)" }
-    if ($lines[$i] -match "^- Open pull requests:") { $lines[$i] = "- Open pull requests: $($snapshot.OpenPullRequests)" }
+    if ($lines[$i] -match "^- Stars:\s*\d") { $lines[$i] = "- Stars: $($snapshot.Stars)" }
+    if ($lines[$i] -match "^- Forks:\s*\d") { $lines[$i] = "- Forks: $($snapshot.Forks)" }
+    if ($lines[$i] -match "^- (?:Subscribers|Watchers):\s*\d") { $lines[$i] = "- Subscribers: $($snapshot.Watchers)" }
+    if ($lines[$i] -match "^- Open issues \(non-PR\):\s*\d") { $lines[$i] = "- Open issues (non-PR): $($snapshot.OpenIssues)" }
+    if ($lines[$i] -match "^- Open pull requests:\s*\d") { $lines[$i] = "- Open pull requests: $($snapshot.OpenPullRequests)" }
     if ($lines[$i] -match "^- Snapshot date:") { $lines[$i] = "- Snapshot date: $today" }
   }
 
@@ -239,7 +239,7 @@ try {
 
   Write-Host "Updated evidence pack: $EvidencePackFile"
   Write-Host "Date: $today"
-  Write-Host "Snapshot: stars=$($snapshot.Stars), forks=$($snapshot.Forks), watchers=$($snapshot.Watchers)"
+  Write-Host "Snapshot: stars=$($snapshot.Stars), forks=$($snapshot.Forks), subscribers=$($snapshot.Watchers)"
 }
 catch {
   throw $_

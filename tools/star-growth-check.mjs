@@ -84,24 +84,36 @@ function parseDate(iso) {
   return new Date(iso).toISOString().slice(0, 10);
 }
 
-function safeParseMetric(lines, metricName) {
+function formatLocalDate(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function safeParseMetric(lines, ...metricNames) {
   if (!lines) {
     return null;
   }
-  const dashRegex = new RegExp(
-    `-\\s*${metricName}\\s*:\\s*(\\d+)(?:\\s*\\([^)]*\\))?`,
-    "i"
-  );
-  const tableRegex = new RegExp(
-    `\\|\\s*${metricName}\\s*\\|\\s*(\\d+)(?:\\s*\\([^)]*\\))?\\s*\\|`,
-    "i"
-  );
-  const dashMatch = lines.match(dashRegex);
-  if (dashMatch) {
-    return Number.parseInt(dashMatch[1], 10);
+  for (const metricName of metricNames) {
+    const dashRegex = new RegExp(
+      `-\\s*${metricName}\\s*:\\s*(\\d+)(?:\\s*\\([^)]*\\))?`,
+      "i"
+    );
+    const tableRegex = new RegExp(
+      `\\|\\s*${metricName}\\s*\\|\\s*(\\d+)(?:\\s*\\([^)]*\\))?\\s*\\|`,
+      "i"
+    );
+    const dashMatch = lines.match(dashRegex);
+    if (dashMatch) {
+      return Number.parseInt(dashMatch[1], 10);
+    }
+    const tableMatch = lines.match(tableRegex);
+    if (tableMatch) {
+      return Number.parseInt(tableMatch[1], 10);
+    }
   }
-  const tableMatch = lines.match(tableRegex);
-  return tableMatch ? Number.parseInt(tableMatch[1], 10) : null;
+  return null;
 }
 
 function readSnapshotMetrics(path) {
@@ -111,7 +123,7 @@ function readSnapshotMetrics(path) {
     return {
       stars: safeParseMetric(raw, "Stars"),
       forks: safeParseMetric(raw, "Forks"),
-      watchers: safeParseMetric(raw, "Watchers"),
+      watchers: safeParseMetric(raw, "Subscribers", "Watchers"),
       openIssues: safeParseMetric(raw, "Open issues"),
       openPullRequests: safeParseMetric(raw, "Open pull requests"),
     };
@@ -208,7 +220,7 @@ function renderRepoSection(repoStats, date, prefix, previousStats = null) {
   lines.push(
     addDeltaLine(
       prefix,
-      "Watchers",
+      "Subscribers",
       repoStats.watchers,
       previousStats?.watchers
     )
@@ -308,7 +320,7 @@ function generateSummaryReport(repoStats, rows, date) {
   lines.push("");
   lines.push(`- Stars: ${repoStats.stars}`);
   lines.push(`- Forks: ${repoStats.forks}`);
-  lines.push(`- Watchers: ${repoStats.watchers}`);
+  lines.push(`- Subscribers: ${repoStats.watchers}`);
   lines.push(`- Open issues (non-PR): ${repoStats.openIssues}`);
   if (typeof repoStats.openPullRequests === "number") {
     lines.push(`- Open pull requests: ${repoStats.openPullRequests}`);
@@ -325,7 +337,7 @@ function generateSummaryReport(repoStats, rows, date) {
   lines.push("");
   lines.push("### English");
   lines.push(
-    `Current status: ${repoStats.stars} stars, ${repoStats.forks} forks, ${repoStats.watchers} watchers.`
+    `Current status: ${repoStats.stars} stars, ${repoStats.forks} forks, ${repoStats.watchers} subscribers.`
   );
   lines.push("I refreshed the growth snapshot and published one reproducible command:");
   lines.push("");
@@ -349,7 +361,7 @@ function generateEvidenceReport(repoStats, rows, date, previousStats = null) {
   lines.push("| --- | --- |");
   lines.push(`| Stars | ${repoStats.stars}${formatDelta(repoStats.stars, previous?.stars)} |`);
   lines.push(`| Forks | ${repoStats.forks}${formatDelta(repoStats.forks, previous?.forks)} |`);
-  lines.push(`| Watchers | ${repoStats.watchers}${formatDelta(repoStats.watchers, previous?.watchers)} |`);
+  lines.push(`| Subscribers | ${repoStats.watchers}${formatDelta(repoStats.watchers, previous?.watchers)} |`);
   lines.push(`| Open issues (non-PR) | ${repoStats.openIssues}${formatDelta(repoStats.openIssues, previous?.openIssues)} |`);
   if (typeof repoStats.openPullRequests === "number") {
     lines.push(`| Open pull requests | ${repoStats.openPullRequests}${formatDelta(repoStats.openPullRequests, previous?.openPullRequests)} |`);
@@ -370,7 +382,7 @@ async function run() {
 
   const action =
     options.action === "status" ? "check" : options.action;
-  const date = new Date().toISOString().slice(0, 10);
+  const date = formatLocalDate();
 
   if (!["check", "daily", "evidence", "summary", "campaign"].includes(action)) {
     console.error(`Unsupported growth action: ${action}`);

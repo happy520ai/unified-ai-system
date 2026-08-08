@@ -49,7 +49,7 @@ try {
     Date              = Get-DateFromSnapshot -Text $latestRaw
     Stars             = Parse-Int -Text $latestRaw -MetricName "Stars"
     Forks             = Parse-Int -Text $latestRaw -MetricName "Forks"
-    Watchers          = Parse-Int -Text $latestRaw -MetricName "Watchers"
+    Watchers          = Parse-Int -Text $latestRaw -MetricName "Subscribers"
     OpenIssues        = Parse-Int -Text $latestRaw -MetricName "Open issues (non-PR)"
     OpenPullRequests  = Parse-Int -Text $latestRaw -MetricName "Open pull requests"
   }
@@ -68,7 +68,7 @@ try {
     $metrics.OpenPullRequests = $openPulls
   }
 
-  Write-Host ("Snapshot: stars={0}, forks={1}, watchers={2}, openIssues={3}, openPRs={4}" -f $metrics.Stars, $metrics.Forks, $metrics.Watchers, $metrics.OpenIssues, $metrics.OpenPullRequests)
+  Write-Host ("Snapshot: stars={0}, forks={1}, subscribers={2}, openIssues={3}, openPRs={4}" -f $metrics.Stars, $metrics.Forks, $metrics.Watchers, $metrics.OpenIssues, $metrics.OpenPullRequests)
 
   $comment = @"
 ## Campaign Thread Refresh - $($metrics.Date)
@@ -76,7 +76,7 @@ try {
 Updated snapshot:
 - Stars: $($metrics.Stars)
 - Forks: $($metrics.Forks)
-- Watchers: $($metrics.Watchers)
+- Subscribers: $($metrics.Watchers)
 - Open issues (non-PR): $($metrics.OpenIssues)
 - Open pull requests: $($metrics.OpenPullRequests)
 

@@ -118,7 +118,7 @@ try {
   [void]$lines.Add("")
   [void]$lines.Add("- Stars: $($repoStats.stargazers_count)")
   [void]$lines.Add("- Forks: $($repoStats.forks_count)")
-  [void]$lines.Add("- Watchers: $($repoStats.subscribers_count)")
+  [void]$lines.Add("- Subscribers: $($repoStats.subscribers_count)")
   [void]$lines.Add("- Open issues (non-PR): $openIssues")
   if ($null -ne $openPrs) {
     [void]$lines.Add("- Open pull requests: $openPrs")
@@ -134,7 +134,7 @@ try {
   [void]$lines.Add("## Suggested community post")
   [void]$lines.Add("")
   [void]$lines.Add("### English")
-  [void]$lines.Add("Current status: $($repoStats.stargazers_count) stars, $($repoStats.forks_count) forks, $($repoStats.subscribers_count) watchers.")
+  [void]$lines.Add("Current status: $($repoStats.stargazers_count) stars, $($repoStats.forks_count) forks, $($repoStats.subscribers_count) subscribers.")
   [void]$lines.Add("I refreshed the growth snapshot and published one reproducible command:")
   [void]$lines.Add("")
   [void]$lines.Add('```text')

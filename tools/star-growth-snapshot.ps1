@@ -39,7 +39,7 @@ function Load-PreviousMetrics {
   $dashMatches = @{
     Stars = [regex]::Match($raw, '-\s*Stars:\s*(\d+)(?:\s*\([^)]*\))?')
     Forks = [regex]::Match($raw, '-\s*Forks:\s*(\d+)(?:\s*\([^)]*\))?')
-    Watchers = [regex]::Match($raw, '-\s*Watchers:\s*(\d+)(?:\s*\([^)]*\))?')
+    Watchers = [regex]::Match($raw, '-\s*(?:Subscribers|Watchers):\s*(\d+)(?:\s*\([^)]*\))?')
     OpenIssues = [regex]::Match($raw, '-\s*Open issues \(non-PR\):\s*(\d+)(?:\s*\([^)]*\))?')
     OpenPullRequests = [regex]::Match($raw, '-\s*Open pull requests:\s*(\d+)(?:\s*\([^)]*\))?')
   }
@@ -53,7 +53,7 @@ function Load-PreviousMetrics {
   $tableMatches = @{
     Stars = [regex]::Match($raw, '\|\s*Stars\s*\|\s*(\d+)(?:\s*\([^)]*\))?\s*\|')
     Forks = [regex]::Match($raw, '\|\s*Forks\s*\|\s*(\d+)(?:\s*\([^)]*\))?\s*\|')
-    Watchers = [regex]::Match($raw, '\|\s*Watchers\s*\|\s*(\d+)(?:\s*\([^)]*\))?\s*\|')
+    Watchers = [regex]::Match($raw, '\|\s*(?:Subscribers|Watchers)\s*\|\s*(\d+)(?:\s*\([^)]*\))?\s*\|')
     OpenIssues = [regex]::Match($raw, '\|\s*Open issues \(non-PR\)\s*\|\s*(\d+)(?:\s*\([^)]*\))?\s*\|')
     OpenPullRequests = [regex]::Match($raw, '\|\s*Open pull requests\s*\|\s*(\d+)(?:\s*\([^)]*\))?\s*\|')
   }
@@ -173,7 +173,7 @@ try {
     "| --- | --- |",
     "| Stars | $($repoStats.stargazers_count)$(Format-Delta -Current $repoStats.stargazers_count -Previous $previous.Stars) |",
     "| Forks | $($repoStats.forks_count)$(Format-Delta -Current $repoStats.forks_count -Previous $previous.Forks) |",
-    "| Watchers | $($repoStats.subscribers_count)$(Format-Delta -Current $repoStats.subscribers_count -Previous $previous.Watchers) |",
+    "| Subscribers | $($repoStats.subscribers_count)$(Format-Delta -Current $repoStats.subscribers_count -Previous $previous.Watchers) |",
     "| Open issues (non-PR) | $openIssues$(Format-Delta -Current $openIssues -Previous $previous.OpenIssues) |"
   )
 
