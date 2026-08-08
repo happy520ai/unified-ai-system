@@ -60,6 +60,16 @@ Unified AI System 是一个公开的模型、代理、知识和工具网关。
 docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.1 pnpm gateway demo
 ```
 
+一条命令体验自然语言增强：
+
+```bash
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.1 \
+  pnpm gateway demo "给我做一个团队 API" --enhance --profile coding
+```
+
+它会启动隔离的 fake-provider 网关，在本地增强请求、输出结构化提示词，
+随后自动清理进程，全程不需要 API Key。
+
 你应该看到：
 
 - 本地 fake-provider 执行

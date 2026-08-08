@@ -280,7 +280,11 @@ async function runDemo(options, runtime) {
   return runChildProcess(
     runtime.spawnProcess ?? spawn,
     process.execPath,
-    args,
+    [
+      ...args,
+      ...(options.enhance ? ["--enhance"] : []),
+      ...(options.profileProvided ? ["--profile", options.profile] : []),
+    ],
     {
       cwd: repoRoot,
       env,
@@ -605,7 +609,7 @@ Options:
   --url <url>                 Gateway URL (default: ${DEFAULT_GATEWAY_URL})
   --timeout <ms>              Request timeout, up to 300000
   --prompt <text>             Prompt for demo, enhance, or chat
-  --enhance                   Explicitly enhance a chat prompt in the gateway
+  --enhance                   Enhance a chat or demo prompt locally
   --profile <name>            auto, general, coding, analysis, writing, research, planning
   --allow-real-provider       Authorize one chat command to use a real provider
   --host <host>               Host override for serve
@@ -616,6 +620,7 @@ Options:
 
 Examples:
   pnpm gateway demo
+  pnpm gateway demo "Build me an API" --enhance --profile coding
   pnpm gateway serve
   pnpm gateway status
   pnpm gateway enhance "Build me an API"
@@ -672,8 +677,10 @@ function validateOptions(options) {
       "--allow-real-provider is only valid with the chat command.",
     );
   }
-  if (options.enhance && options.command !== "chat") {
-    throw new CliUsageError("--enhance is only valid with the chat command.");
+  if (options.enhance && !["chat", "demo"].includes(options.command)) {
+    throw new CliUsageError(
+      "--enhance is only valid with the chat or demo command.",
+    );
   }
   if (!ENHANCEMENT_PROFILES.has(options.profile)) {
     throw new CliUsageError(`Unsupported enhancement profile: ${options.profile}`);
@@ -682,9 +689,10 @@ function validateOptions(options) {
     options.profileProvided
     && options.command !== "enhance"
     && !(options.command === "chat" && options.enhance)
+    && !(options.command === "demo" && options.enhance)
   ) {
     throw new CliUsageError(
-      "--profile is only valid with enhance or chat --enhance.",
+      "--profile is only valid with enhance or chat/demo --enhance.",
     );
   }
   if (

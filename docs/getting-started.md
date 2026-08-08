@@ -54,6 +54,15 @@ The demo starts an isolated gateway on a temporary local port, verifies its
 health, sends one deterministic fake-provider chat request, and then shuts the
 process down. It does not require an API key or call a real provider.
 
+To see natural-language enhancement and fake-provider execution in one command:
+
+```bash
+pnpm gateway demo "Help me plan a small API" --enhance --profile planning
+```
+
+The command prints the structured prompt, proves `providerCalled: false`, and
+cleans up the isolated gateway automatically.
+
 ## Try Prompt Enhancement With curl
 
 If you want to inspect the natural-language transformation directly, use the
