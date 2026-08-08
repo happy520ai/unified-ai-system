@@ -76,7 +76,7 @@ pnpm growth:evidence-pack
 
 ### 2026-08-09
 
-- Current public snapshot verified at 3 stars / 1 fork / 0 subscribers / 2 open issues / 4 open PRs.
+- Current public snapshot verified at 3 stars / 1 fork / 0 subscribers / 1 open issue / 4 open PRs.
 - Submitted the public MCP listing to [awesome-mcp.tools](https://awesome-mcp.tools/submit); review is tracked in [adw0rd/awesome-mcp-servers#36](https://github.com/adw0rd/awesome-mcp-servers/issues/36).
 - Submitted the public MCP listing to [MCP Hub](https://www.aimcp.info/en/submit); the form confirmed successful submission and review pending. No contact email or subscription was provided.
 - Submitted the public MCP listing to [mcpservers.org](https://mcpservers.org/submit) using the free plan; the form confirmed successful submission and stated that review is expected within 12 hours. No premium plan or payment was selected.
@@ -84,7 +84,7 @@ pnpm growth:evidence-pack
 - Refreshed public onboarding Discussions [#1](https://github.com/happy520ai/unified-ai-system/discussions/1), [#5](https://github.com/happy520ai/unified-ai-system/discussions/5), [#6](https://github.com/happy520ai/unified-ai-system/discussions/6), and [#23](https://github.com/happy520ai/unified-ai-system/discussions/23) to `v0.4.1`; verification found no remaining `v0.4.0` references in those four bodies.
 - Released `v0.4.2` with the one-command `--enhance` demo, aligned Docker tags, and matching MCP Registry metadata.
 - The current external funnel includes eight open collection PRs: [awesome-codex-skills#206](https://github.com/composio-community/awesome-codex-skills/pull/206), [awesome-cli-apps#347](https://github.com/toolleeo/awesome-cli-apps-in-a-csv/pull/347), [Awesome-LLMOps#710](https://github.com/tensorchord/Awesome-LLMOps/pull/710), [awesome-mcp-devtools#257](https://github.com/punkpeye/awesome-mcp-devtools/pull/257), [awesome-mcp-servers-devops#65](https://github.com/WagnerAgent/awesome-mcp-servers-devops/pull/65), [Awesome-MCP-ZH#422](https://github.com/yzfly/Awesome-MCP-ZH/pull/422), [awesome-mcp-servers#11745](https://github.com/punkpeye/awesome-mcp-servers/pull/11745), and [awesome-ai-tools#1941](https://github.com/mahseema/awesome-ai-tools/pull/1941). All remain pending review; none is counted as a merge or Star result.
-- Latest maintenance snapshot: 3 stars / 1 fork / 0 subscribers / 2 open issues / 0 open PRs. Dependabot PR #12 was superseded by merged PR #49; PR #13 remains closed because better-sqlite3 13 requires Node >=22 while the project supports Node 20.
+- Latest maintenance snapshot: 3 stars / 1 fork / 0 subscribers / 1 open issue / 0 open PRs. Dependabot PR #12 was superseded by merged PR #49; PR #13 remains closed because better-sqlite3 13 requires Node >=22 while the project supports Node 20.
 - Rewrote `README.zh-CN.md` from mojibake into a UTF-8 quickstart aligned with the verified English entrypoint, and added a public-repository guard against invalid Chinese README encoding.
 - Added a GitHub Codespaces one-click entry to both README languages, backed by the existing provider-free devcontainer and public-clone verification path.
 - GitHub traffic snapshot for the available 14-day window: 150 repository views / 34 unique visitors and 879 clones / 218 unique cloners. Top referrers were `github.com` (48 views / 13 uniques) and `happy520ai.github.io` (18 views / 2 uniques). These are exposure signals, not verified Star growth.
