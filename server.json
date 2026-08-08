@@ -19,11 +19,11 @@
     "subfolder": "packages/mcp-server"
   },
   "websiteUrl": "https://happy520ai.github.io/unified-ai-system/",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "packages": [
     {
       "registryType": "oci",
-      "identifier": "ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.2",
+      "identifier": "ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.3",
       "transport": {
         "type": "stdio"
       }

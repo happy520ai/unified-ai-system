@@ -5,7 +5,7 @@ Use this runbook for one tight, reproducible promotion cycle.
 ## Morning
 
 - [ ] Run `pnpm growth:campaign` to refresh metrics and keep issue `#20` current.
-- [ ] Capture one baseline output from `docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.2 pnpm gateway demo`.
+- [ ] Capture one baseline output from `docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 pnpm gateway demo`.
 - [ ] Pick one template from `docs/community-promotion-pack.md` or `docs/growth-post-templates.md`.
 - [ ] Write one explicit ask for feedback, including OS and one output line.
 - [ ] If you already have a new report, run `pnpm growth:feedback` or `pnpm growth:evidence-pack`.

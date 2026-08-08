@@ -9,6 +9,21 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 No unreleased public changes.
 
+## [0.4.3] - 2026-08-09
+
+### Added
+
+- Added explicit `--language auto|zh-CN|en` control to CLI prompt enhancement,
+  enhanced chat, and the isolated demo workflow.
+- Added a copy-ready Windows PowerShell JSON example that exposes the
+  provider-free enhancement evidence fields.
+
+### Changed
+
+- Published the CLI, Docker image, MCP package metadata, and public examples
+  under one consistent `0.4.3` release version.
+- Synchronized public Codex and MCP onboarding paths with the current release.
+
 ## [0.4.2] - 2026-08-09
 
 ### Added
@@ -239,7 +254,8 @@ No unreleased public changes.
 - It is not presented as production-certified, L5 autonomous, or established
   AGI. Those claims require independent evidence beyond local verification.
 
-[Unreleased]: https://github.com/happy520ai/unified-ai-system/compare/v0.4.2...HEAD
+[Unreleased]: https://github.com/happy520ai/unified-ai-system/compare/v0.4.3...HEAD
+[0.4.3]: https://github.com/happy520ai/unified-ai-system/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/happy520ai/unified-ai-system/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/happy520ai/unified-ai-system/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/happy520ai/unified-ai-system/compare/v0.3.3...v0.4.0

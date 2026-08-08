@@ -32,7 +32,7 @@
   <a href="https://github.com/happy520ai/unified-ai-system/releases/latest">
     <img alt="Release" src="https://img.shields.io/github/v/release/happy520ai/unified-ai-system?style=flat-square" />
   </a>
-  <a href="https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.4.2">
+  <a href="https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.4.3">
     <img alt="Official MCP Registry: active" src="https://img.shields.io/badge/Official_MCP_Registry-active-1f883d?style=flat-square" />
   </a>
   <a href="LICENSE">
@@ -64,7 +64,7 @@ This is not a chat UI wrapper. It is a control plane for AI workflow execution.
     />
   </a>
   <br />
-  <sub>v0.4.2: deterministic enhancement, no API key, no provider call.</sub>
+  <sub>v0.4.3: deterministic enhancement, no API key, no provider call.</sub>
 </p>
 
 ## Try It in 60 Seconds
@@ -72,7 +72,7 @@ This is not a chat UI wrapper. It is a control plane for AI workflow execution.
 Verify the project without signing in:
 
 ```bash
-docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.2 pnpm gateway demo
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 pnpm gateway demo
 ```
 
 Expected behavior:
@@ -86,7 +86,7 @@ Expected behavior:
 One-command natural-language enhancement preview:
 
 ```bash
-docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.2 \
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 \
   pnpm gateway demo "Build a small API for my team" --enhance --profile coding
 ```
 
@@ -119,7 +119,7 @@ docker run --rm --publish 3100:3100 \
   --env AI_GATEWAY_SERVICE_HOST=0.0.0.0 \
   --env AI_GATEWAY_PROVIDER_MODE=fake \
   --env AI_GATEWAY_REAL_PROVIDER_ENABLED=false \
-  ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.2
+  ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3
 ```
 
 Keep that process running while you send the curl request. The response
@@ -145,7 +145,7 @@ pnpm gateway chat "Hello from Unified AI System"
 Published MCP command:
 
 ```bash
-codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.2
+codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.3
 ```
 
 Restart Codex, run `/mcp verbose` to verify the nine tools, then follow the
@@ -233,8 +233,8 @@ CI on `master` runs Linux checks, container startup smoke tests, MCP discovery, 
 
 ## Project Links
 
-- [Official MCP Registry entry](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.4.2)
-- [Release v0.4.2](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.4.2)
+- [Official MCP Registry entry](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.4.3)
+- [Release v0.4.3](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.4.3)
 - [Codex MCP server README](packages/mcp-server/README.md)
 - [Roadmap](ROADMAP.md)
 - [Vision](VISION.md)
