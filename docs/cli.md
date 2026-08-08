@@ -80,6 +80,21 @@ pnpm gateway enhance "Write a launch plan" --profile planning --json
 pnpm gateway enhance "帮我规划一个小型 API" --profile planning --language zh-CN
 ```
 
+On Windows PowerShell, parse the JSON output and inspect the provider-free
+evidence directly:
+
+```powershell
+$json = pnpm gateway enhance "帮我规划一个小型 API" --profile planning --language zh-CN --json
+if ($LASTEXITCODE -ne 0) { throw "Prompt enhancement failed." }
+$result = $json | ConvertFrom-Json
+$result | Select-Object original, profile, language
+$result.metadata | Select-Object providerCalled, credentialRequired, deterministic
+```
+
+The expected evidence is `providerCalled: false`,
+`credentialRequired: false`, and `deterministic: true`. Start the gateway with
+`pnpm gateway serve` first, or use the [60-second container quickstart](../README.md#try-it-in-60-seconds).
+
 Profiles are `auto`, `general`, `coding`, `analysis`, `writing`, `research`,
 and `planning`. `auto` detects a profile from the request.
 
