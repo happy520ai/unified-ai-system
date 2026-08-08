@@ -92,6 +92,7 @@ pnpm growth:evidence-pack
 - Repaired the public `v0.3.3` and `v0.4.1` release entrypoints so historical pages clearly direct new users to the current `v0.4.2` quickstart; no runtime or version change was made.
 - Added [good first issue #58](https://github.com/happy520ai/unified-ai-system/issues/58) for a provider-free PowerShell JSON example and linked it from both README languages, creating a concrete newcomer contribution path.
 - Cleaned the public [Issue #20](https://github.com/happy520ai/unified-ai-system/issues/20) by removing 14 duplicate or outdated maintainer comments; verification left 11 current comments and zero `v0.4.0`, `v0.4.1`, or stale Issue #44 matches.
+- Updated the high-reach [awesome-mcp-servers#11745](https://github.com/punkpeye/awesome-mcp-servers/pull/11745) entry from `mcp-server:0.4.1` to `mcp-server:0.4.2`; its upstream submission check passed, while the PR remains open and is not counted as a merge or Star result.
 
 ## Monthly Update Template
 
