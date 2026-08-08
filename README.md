@@ -76,13 +76,34 @@ Expected behavior:
 
 Prompt enhancement example:
 
+Start the gateway first (from a source checkout):
+
+```bash
+pnpm gateway serve
+```
+
+Then, in another terminal:
+
 ```bash
 pnpm gateway enhance "Build a small API for my team" --profile coding
 pnpm gateway chat "Build a small API for my team" --enhance --profile coding
 ```
 
-For a credential-free HTTP stream, use the [curl SSE example](docs/examples/streaming-chat-curl.md)
-to inspect `start`, `chunk`, and `done` events with `executionMode=fake`.
+For a no-clone prompt-enhancement walkthrough, start the published gateway
+image and follow the [provider-free curl example](docs/examples/prompt-enhancement-curl.md):
+
+```bash
+docker run --rm --publish 3100:3100 \
+  --env AI_GATEWAY_SERVICE_HOST=0.0.0.0 \
+  --env AI_GATEWAY_PROVIDER_MODE=fake \
+  --env AI_GATEWAY_REAL_PROVIDER_ENABLED=false \
+  ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.1
+```
+
+Keep that process running while you send the curl request. The response
+includes `metadata.providerCalled=false`. For a credential-free HTTP stream,
+use the [curl SSE example](docs/examples/streaming-chat-curl.md) to inspect
+`start`, `chunk`, and `done` events with `executionMode=fake`.
 
 ## Use It
 
