@@ -61,6 +61,10 @@ cross-platform [curl quickstart](examples/prompt-enhancement-curl.md). It
 shows the original input, enhanced prompt, selected profile, and the explicit
 `metadata.providerCalled=false` proof without configuring a provider.
 
+For Server-Sent Events, use the [credential-free streaming quickstart](examples/streaming-chat-curl.md)
+to inspect `start`, `chunk`, and `done` events with
+`executionMode=fake`.
+
 ## Run From The Terminal
 
 ```bash
