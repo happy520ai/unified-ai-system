@@ -90,6 +90,7 @@ pnpm growth:evidence-pack
 - GitHub traffic snapshot for the available 14-day window: 150 repository views / 34 unique visitors and 879 clones / 218 unique cloners. Top referrers were `github.com` (48 views / 13 uniques) and `happy520ai.github.io` (18 views / 2 uniques). These are exposure signals, not verified Star growth.
 - Refreshed the public `v0.4.2` release notes with the 60-second provider-free command, Codespaces and prompt-guide links, Issue #20 feedback, and a verified-use Star CTA; no runtime or version change was made.
 - Repaired the public `v0.3.3` and `v0.4.1` release entrypoints so historical pages clearly direct new users to the current `v0.4.2` quickstart; no runtime or version change was made.
+- Added [good first issue #58](https://github.com/happy520ai/unified-ai-system/issues/58) for a provider-free PowerShell JSON example and linked it from both README languages, creating a concrete newcomer contribution path.
 
 ## Monthly Update Template
 
