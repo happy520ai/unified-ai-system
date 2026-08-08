@@ -49,7 +49,7 @@ Unified AI System 是一个公开的模型、代理、知识和工具网关。
     />
   </a>
   <br />
-  <sub>v0.4.2 预览：确定性增强、无需 API Key、不会触发真实 provider 调用。</sub>
+  <sub>v0.4.2：确定性增强、无需 API Key、不会触发真实 provider 调用。</sub>
 </p>
 
 ## 60 秒体验
