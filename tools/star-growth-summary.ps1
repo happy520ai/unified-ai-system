@@ -136,7 +136,7 @@ try {
   [void]$lines.Add("I refreshed the growth snapshot and published one reproducible command:")
   [void]$lines.Add("")
   [void]$lines.Add('```text')
-  [void]$lines.Add('docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.0 pnpm gateway demo')
+  [void]$lines.Add('docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.1 pnpm gateway demo')
   [void]$lines.Add("")
   [void]$lines.Add('Repo: https://github.com/happy520ai/unified-ai-system')
   [void]$lines.Add('```')

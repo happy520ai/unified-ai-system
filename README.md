@@ -26,7 +26,7 @@
   <a href="https://github.com/happy520ai/unified-ai-system/releases/latest">
     <img alt="Release" src="https://img.shields.io/github/v/release/happy520ai/unified-ai-system?style=flat-square" />
   </a>
-  <a href="https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.4.0">
+  <a href="https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.4.1">
     <img alt="Official MCP Registry: active" src="https://img.shields.io/badge/Official_MCP_Registry-active-1f883d?style=flat-square" />
   </a>
   <a href="LICENSE">
@@ -55,7 +55,7 @@ This is not a chat UI wrapper. It is a control plane for AI workflow execution.
     />
   </a>
   <br />
-  <sub>v0.4.0 preview: deterministic enhancement, no API key, no provider call.</sub>
+  <sub>v0.4.1 preview: deterministic enhancement, no API key, no provider call.</sub>
 </p>
 
 ## Try It in 60 Seconds
@@ -63,7 +63,7 @@ This is not a chat UI wrapper. It is a control plane for AI workflow execution.
 Verify the project without signing in:
 
 ```bash
-docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.0 pnpm gateway demo
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.1 pnpm gateway demo
 ```
 
 Expected behavior:
@@ -99,7 +99,7 @@ pnpm gateway chat "Hello from Unified AI System"
 Published MCP command:
 
 ```bash
-codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.0
+codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.1
 ```
 
 ### Installable Agent Skill
@@ -171,8 +171,8 @@ CI on `master` runs Linux checks, container startup smoke tests, MCP discovery, 
 
 ## Project Links
 
-- [Official MCP Registry entry](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.4.0)
-- [Release v0.4.0](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.4.0)
+- [Official MCP Registry entry](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.4.1)
+- [Release v0.4.1](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.4.1)
 - [Codex MCP server README](packages/mcp-server/README.md)
 - [Roadmap](ROADMAP.md)
 - [Vision](VISION.md)

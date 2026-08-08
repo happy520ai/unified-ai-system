@@ -5,7 +5,7 @@ import { existsSync, readFileSync } from "node:fs";
 
 const repo = "happy520ai/unified-ai-system";
 const demoCommand =
-  "docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.0 pnpm gateway demo";
+  "docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.1 pnpm gateway demo";
 
 const externalPrs = [
   ["sickn33/agentic-awesome-skills", 1073],

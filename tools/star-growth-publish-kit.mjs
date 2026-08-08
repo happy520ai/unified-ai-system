@@ -10,7 +10,7 @@ const outputFile = output || "docs/star-growth-publish-output.md";
 const date = new Date().toISOString().slice(0, 10);
 const repoUrl = "https://github.com/happy520ai/unified-ai-system";
 const demoCommand =
-  "docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.0 pnpm gateway demo";
+  "docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.1 pnpm gateway demo";
 const issueTemplate =
   "https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml";
 
