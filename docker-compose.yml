@@ -11,3 +11,16 @@ services:
       AI_GATEWAY_SERVICE_PORT: 3100
     ports:
       - "3100:3100"
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - >-
+          fetch("http://127.0.0.1:3100/health/check").then((response) => {
+          if (!response.ok) process.exit(1);
+          }).catch(() => process.exit(1));
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 5s

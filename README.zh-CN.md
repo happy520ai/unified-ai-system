@@ -150,6 +150,24 @@ pnpm gateway demo "帮我为团队设计一个小型 API" --enhance --profile co
 
 仓库的 devcontainer 默认保持 provider-free。Codespaces 的可用性和使用额度由 GitHub 控制。
 
+### Docker Compose
+
+如果使用源码目录，可以通过 Compose 启动网关并等待就绪检查：
+
+```bash
+docker compose up --build -d
+docker compose ps
+curl http://127.0.0.1:3100/health/check
+```
+
+只有 `/health/check` 成功响应后，服务才会显示为 `healthy`。使用完成后执行：
+
+```bash
+docker compose down
+```
+
+Compose 将 `.env` 视为可选配置，并保持 provider 行为显式；无凭据的 fake-provider 路径仍是默认路径。
+
 ## 帮助项目成长
 
 如果这个项目对你有帮助，请：
