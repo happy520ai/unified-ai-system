@@ -85,6 +85,7 @@ pnpm growth:evidence-pack
 - The current external funnel includes [punkpeye/awesome-mcp-servers#11745](https://github.com/punkpeye/awesome-mcp-servers/pull/11745), [TensorBlock/awesome-mcp-servers#1616](https://github.com/TensorBlock/awesome-mcp-servers/pull/1616), and [mahseema/awesome-ai-tools#1941](https://github.com/mahseema/awesome-ai-tools/pull/1941).
 - Latest maintenance snapshot: 3 stars / 1 fork / 0 subscribers / 1 open issue / 0 open PRs. Dependabot PR #12 was superseded by merged PR #49; PR #13 remains closed because better-sqlite3 13 requires Node >=22 while the project supports Node 20.
 - Rewrote `README.zh-CN.md` from mojibake into a UTF-8 quickstart aligned with the verified English entrypoint, and added a public-repository guard against invalid Chinese README encoding.
+- Added a GitHub Codespaces one-click entry to both README languages, backed by the existing provider-free devcontainer and public-clone verification path.
 
 ## Monthly Update Template
 
