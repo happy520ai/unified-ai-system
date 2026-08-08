@@ -17,7 +17,7 @@
     "check": "node --check src/index.js"
   },
   "dependencies": {
-    "playwright": "^1.48.0"
+    "playwright": "^1.62.1"
   },
   "peerDependencies": {
     "@unified-ai-system/ai-gateway-service": "workspace:*"
