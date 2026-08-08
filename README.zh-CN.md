@@ -168,6 +168,8 @@ pnpm gateway demo "帮我为团队设计一个小型 API" --enhance --profile co
 - [增长证据包](docs/star-growth-evidence-pack.md)
 - [增长清单](docs/star-growth-checklist.md)
 - [使用验证 Issue 模板](.github/ISSUE_TEMPLATE/usage-verification-report.yml)
+- [适合新贡献者的 Issue #58](https://github.com/happy520ai/unified-ai-system/issues/58)
+- [贡献指南](CONTRIBUTING.md)
 - [Codex for Open Source 申请草稿](docs/codex-for-open-source-application.md)
 - [Codex for Open Source 提交文案](docs/codex-for-open-source-submit.md)
 
