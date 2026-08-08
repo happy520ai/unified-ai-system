@@ -88,6 +88,7 @@ pnpm growth:evidence-pack
 - Rewrote `README.zh-CN.md` from mojibake into a UTF-8 quickstart aligned with the verified English entrypoint, and added a public-repository guard against invalid Chinese README encoding.
 - Added a GitHub Codespaces one-click entry to both README languages, backed by the existing provider-free devcontainer and public-clone verification path.
 - GitHub traffic snapshot for the available 14-day window: 150 repository views / 34 unique visitors and 879 clones / 218 unique cloners. Top referrers were `github.com` (48 views / 13 uniques) and `happy520ai.github.io` (18 views / 2 uniques). These are exposure signals, not verified Star growth.
+- Refreshed the public `v0.4.2` release notes with the 60-second provider-free command, Codespaces and prompt-guide links, Issue #20 feedback, and a verified-use Star CTA; no runtime or version change was made.
 
 ## Monthly Update Template
 
