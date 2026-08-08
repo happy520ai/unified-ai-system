@@ -13,7 +13,7 @@ Use this file as the single source of truth for public growth evidence.
 - Stars: 3
 - Forks: 1
 - Subscribers: 0
-- Open issues (non-PR): 2
+- Open issues (non-PR): 1
 - Open pull requests: 4
 - Latest release: v0.4.2
 - MCP official registry entry: [v0.4.2](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.4.2)
