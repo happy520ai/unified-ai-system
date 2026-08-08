@@ -60,7 +60,7 @@ Chinese version:
 
 docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.2 pnpm gateway demo
 
-默认使用本地 fake-provider，无需 API Key。
+默认使用本地 fake provider，无需 API Key。
 仓库：https://github.com/happy520ai/unified-ai-system
 ```
 
