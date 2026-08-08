@@ -54,6 +54,13 @@ The demo starts an isolated gateway on a temporary local port, verifies its
 health, sends one deterministic fake-provider chat request, and then shuts the
 process down. It does not require an API key or call a real provider.
 
+## Try Prompt Enhancement With curl
+
+If you want to inspect the natural-language transformation directly, use the
+cross-platform [curl quickstart](examples/prompt-enhancement-curl.md). It
+shows the original input, enhanced prompt, selected profile, and the explicit
+`metadata.providerCalled=false` proof without configuring a provider.
+
 ## Run From The Terminal
 
 ```bash

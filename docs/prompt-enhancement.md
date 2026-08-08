@@ -33,6 +33,9 @@ curl --request POST http://127.0.0.1:3100/prompts/enhance \
   }'
 ```
 
+For a copy-paste walkthrough on macOS, Linux, Git Bash, and Windows
+PowerShell, see the [curl quickstart](examples/prompt-enhancement-curl.md).
+
 Supported profiles are `auto`, `general`, `coding`, `analysis`, `writing`,
 `research`, and `planning`. Supported language settings are `auto`, `zh-CN`,
 and `en`. Input is limited to 20,000 characters.
