@@ -30,7 +30,30 @@ pnpm gateway enhance "Build a small API for my team" --profile coding
 Repo: https://github.com/happy520ai/unified-ai-system
 ```
 
-## 4) 60-Second Baseline (中文)
+## 4) Python Standard Library (English)
+
+```text
+Prefer Python? Start the gateway, then run:
+
+python docs/examples/prompt-enhancement.py "Help me plan a small API for my team" --profile planning --language en
+
+It uses only Python's standard library and returns deterministic prompt
+enhancement JSON without a provider key.
+Repo: https://github.com/happy520ai/unified-ai-system
+```
+
+## 5) Python 标准库入口（中文）
+
+```text
+偏好 Python？启动网关后执行：
+
+python docs/examples/prompt-enhancement.py "帮我为团队规划一个小型 API" --profile planning --language zh-CN
+
+该示例只使用 Python 标准库，不需要 provider key，并返回确定性的提示词增强 JSON。
+仓库：https://github.com/happy520ai/unified-ai-system
+```
+
+## 6) 60-Second Baseline (中文)
 
 ```text
 我在 60 秒内验证了 Unified AI System：
@@ -41,7 +64,7 @@ docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.2 pn
 仓库：https://github.com/happy520ai/unified-ai-system
 ```
 
-## 5) Add a Conversion CTA (中文)
+## 7) Add a Conversion CTA (中文)
 
 ```text
 如果这条命令对你有帮助，请帮我做 3 件事：
@@ -51,7 +74,7 @@ docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.2 pn
 3) 邀请一位同事也跑一次并分享结果
 ```
 
-## 6) Usage Report Prompt (中文)
+## 8) Usage Report Prompt (中文)
 
 ```text
 如果你已经跑过了，请提交一条简要反馈：
@@ -63,7 +86,7 @@ docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.2 pn
 https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml
 ```
 
-## 7) Community Workflow
+## 9) Community Workflow
 
 ```text
 1. 发布 1 条英文说明 + 1 条中文/社区说明
