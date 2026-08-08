@@ -74,6 +74,16 @@ Expected behavior:
 - no API key or account needed
 - container exits automatically
 
+One-command natural-language enhancement preview:
+
+```bash
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.1 \
+  pnpm gateway demo "Build a small API for my team" --enhance --profile coding
+```
+
+This starts an isolated fake-provider gateway, enhances the request locally,
+prints the structured prompt, and cleans up without an API key.
+
 Prompt enhancement example:
 
 Start the gateway first (from a source checkout):

@@ -14,6 +14,12 @@ const serviceEntrypoint = resolve(
 const prompt =
   process.env.AI_GATEWAY_DEMO_PROMPT ?? "Hello from Unified AI System";
 const jsonOutput = process.argv.includes("--json");
+const enhancementEnabled = process.argv.includes("--enhance");
+const profileFlagIndex = process.argv.indexOf("--profile");
+const enhancementProfile =
+  profileFlagIndex >= 0 && process.argv[profileFlagIndex + 1]
+    ? process.argv[profileFlagIndex + 1]
+    : "general";
 const colorEnabled =
   !jsonOutput
   && process.stdout.isTTY
@@ -109,6 +115,12 @@ function renderDemo(result) {
     `  ${color.green("[ready]")} real calls    disabled`,
     "",
     `  ${color.cyan(">")} ${result.prompt}`,
+    ...(result.promptEnhancement
+      ? [
+          `  ${color.green("[enhanced]")} ${result.promptEnhancement.profile}/${result.promptEnhancement.language}`,
+          `  ${result.promptEnhancement.enhancedPrompt}`,
+        ]
+      : []),
     `  ${color.yellow("<")} ${result.outputText}`,
     "",
     `  ${color.green("[done]")} ${result.latencyMs} ms | no API key | process cleaned up`,
@@ -156,11 +168,50 @@ async function runDemo() {
       throw new Error("Demo safety check failed: real providers are enabled.");
     }
 
+    let promptEnhancement = null;
+    if (enhancementEnabled) {
+      const enhancement = await fetchJson(`${baseUrl}/prompts/enhance`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          input: prompt,
+          profile: enhancementProfile,
+          language: "auto",
+        }),
+      });
+      const data = enhancement.body?.data;
+      if (
+        enhancement.status !== 200
+        || enhancement.body?.status !== "ok"
+        || typeof data?.enhancedPrompt !== "string"
+        || data.metadata?.providerCalled !== false
+      ) {
+        throw new Error("The local prompt enhancement did not complete safely.");
+      }
+      promptEnhancement = {
+        original: data.original,
+        enhancedPrompt: data.enhancedPrompt,
+        profile: data.profile,
+        language: data.language,
+        metadata: data.metadata,
+      };
+    }
+
     const startedAt = Date.now();
     const chat = await fetchJson(`${baseUrl}/chat`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ prompt }),
+      body: JSON.stringify({
+        prompt,
+        ...(promptEnhancement
+          ? {
+              promptEnhancement: {
+                enabled: true,
+                profile: promptEnhancement.profile,
+              },
+            }
+          : {}),
+      }),
     });
     const latencyMs = Date.now() - startedAt;
 
@@ -181,6 +232,7 @@ async function runDemo() {
       executionMode: chat.body.data.executionMode,
       executionStatus: chat.body.data.executionStatus,
       prompt,
+      promptEnhancement,
       outputText: chat.body.data.outputText,
       latencyMs,
       realProviderCallsMade: false,

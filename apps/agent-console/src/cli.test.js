@@ -59,6 +59,16 @@ test("parseCliArgs supports prompt enhancement commands and profiles", () => {
   ], {});
   assert.equal(chat.enhance, true);
   assert.equal(chat.profile, "coding");
+
+  const demo = parseCliArgs([
+    "demo",
+    "build an API",
+    "--enhance",
+    "--profile",
+    "coding",
+  ], {});
+  assert.equal(demo.enhance, true);
+  assert.equal(demo.profile, "coding");
 });
 
 test("parseCliArgs rejects ambiguous or unsafe option combinations", () => {
@@ -160,6 +170,25 @@ test("enhance previews a structured prompt without checking or calling a provide
   assert.equal(output.profile, "coding");
   assert.match(output.enhancedPrompt, /Execution requirements/);
   assert.equal(output.metadata.providerCalled, false);
+});
+
+test("demo can enhance a prompt in one isolated fake-provider run", async () => {
+  const result = await runCliProcess([
+    "demo",
+    "build an API",
+    "--enhance",
+    "--profile",
+    "coding",
+    "--json",
+  ]);
+
+  assert.equal(result.code, 0, result.stderr);
+  const output = JSON.parse(result.stdout);
+  assert.equal(output.executionMode, "fake");
+  assert.equal(output.realProviderCallsMade, false);
+  assert.equal(output.promptEnhancement.profile, "coding");
+  assert.equal(output.promptEnhancement.metadata.providerCalled, false);
+  assert.match(output.promptEnhancement.enhancedPrompt, /Execution requirements/);
 });
 
 test("chat opts into gateway enhancement only with --enhance", async (context) => {

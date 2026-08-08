@@ -15,6 +15,13 @@ docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.1 pn
 This disposable command uses the local fake provider, prints one verified
 response, and exits without leaving a service process behind.
 
+Preview natural-language enhancement in the same isolated run:
+
+```bash
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.1 \
+  pnpm gateway demo "Build a small API for my team" --enhance --profile coding
+```
+
 ## Command Map
 
 ```text
@@ -27,6 +34,10 @@ pnpm gateway doctor           check the toolchain and connection
 pnpm gateway help             show command help
 pnpm gateway version          show the CLI version
 ```
+
+Add `--enhance --profile <name>` to `demo` to structure the prompt locally
+before the fake-provider response. This path does not require a second
+terminal.
 
 `health` is an alias for `status`, and `start` is an alias for `serve`.
 
