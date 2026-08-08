@@ -1,7 +1,7 @@
 # Unified AI System
 
 <p align="center">
-  <strong>面向确定性提示词增强、受治理执行和可复现验证的开源 AI 网关。</strong>
+  <strong>面向自然语言增强、受治理执行与可复现验证的开源 AI 网关。</strong>
 </p>
 
 <p align="center">
@@ -12,34 +12,38 @@
 
 <p align="center">
   <a href="https://github.com/happy520ai/unified-ai-system/stargazers">
-    <img alt="GitHub stars" src="https://img.shields.io/github/stars/happy520ai/unified-ai-system?style=flat-square&label=Stars" />
+    <img alt="GitHub Stars" src="https://img.shields.io/github/stars/happy520ai/unified-ai-system?style=flat-square&label=Stars" />
   </a>
   <a href="https://github.com/happy520ai/unified-ai-system/actions/workflows/ci.yml">
     <img alt="CI" src="https://img.shields.io/github/actions/workflow/status/happy520ai/unified-ai-system/ci.yml?branch=master&style=flat-square&label=CI" />
+  </a>
+  <a href="https://github.com/happy520ai/unified-ai-system/actions/workflows/docker-build-push.yml">
+    <img alt="Container" src="https://img.shields.io/github/actions/workflow/status/happy520ai/unified-ai-system/docker-build-push.yml?branch=master&style=flat-square&label=container" />
   </a>
   <a href="https://github.com/happy520ai/unified-ai-system/releases/latest">
     <img alt="Release" src="https://img.shields.io/github/v/release/happy520ai/unified-ai-system?style=flat-square" />
   </a>
   <a href="https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.4.2">
-    <img alt="Official MCP Registry: active" src="https://img.shields.io/badge/Official_MCP_Registry-active-1f883d?style=flat-square" />
+    <img alt="Official MCP Registry" src="https://img.shields.io/badge/Official_MCP_Registry-active-1f883d?style=flat-square" />
   </a>
   <a href="LICENSE">
-    <img alt="License" src="https://img.shields.io/github/license/happy520ai/unified-ai-system?style=flat-square" />
+    <img alt="Apache-2.0 License" src="https://img.shields.io/github/license/happy520ai/unified-ai-system?style=flat-square" />
   </a>
 </p>
 
-Unified AI System 是一个公开的模型、代理、知识和工具网关。
-它会在模型调用前把自然语言整理成更可执行的意图，并保持 provider 边界清晰、可验证、可审计。
+Unified AI System 是一个面向模型、智能体、知识与工具的开源 AI 网关。
+它把用户的自然语言需求整理成更清晰、更可执行的意图，再交给模型或工作流处理，同时保留明确的 provider 边界和可审计的验证证据。
 
-这不是一个聊天界面外壳，而是一个面向 AI 工作流执行的控制平面。
+它不是一个聊天页面包装器，而是一个面向 AI 工作流执行的控制平面。
 
-## 为什么它有用
+## 为什么使用它
 
-- 给不太会写提示词的人一个更稳定的入口。
-- 支持清洁克隆验证，无需登录或密钥。
-- 提供 curl 与 Python 标准库的免 Provider HTTP 示例。
-- 提供 CLI、HTTP API、SDK、MCP、Codex、Cursor、Cline 入口。
-- 明确边界：不宣称 AGI、不宣称 L5、不隐藏 provider 行为。
+- 不擅长写提示词的用户，也能从自然语言开始工作。
+- 无需账号或密钥即可完成干净克隆验证。
+- 提供 curl、Python 标准库和 JavaScript 的无 provider 示例。
+- 同时支持 CLI、HTTP API、SDK、MCP、Codex、Cursor 和 Cline。
+- 默认使用本地 fake provider，真实 provider 必须显式启用。
+- 不声称 AGI、L5 或生产就绪，只展示可以复现的行为。
 
 <p align="center">
   <a href="https://happy520ai.github.io/unified-ai-system/#enhance">
@@ -55,57 +59,55 @@ Unified AI System 是一个公开的模型、代理、知识和工具网关。
 
 ## 60 秒体验
 
-无需登录，直接验证：
+无需登录，直接验证发布镜像：
 
 ```bash
 docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.2 pnpm gateway demo
 ```
 
-一条命令体验自然语言增强：
+你将看到：
+
+- 本地 fake provider 执行
+- 明确的 `execution: fake`
+- 可重复的输出
+- 不需要 API Key 或账号
+- 容器自动退出并清理
+
+用一条命令体验自然语言增强：
 
 ```bash
 docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.2 \
-  pnpm gateway demo "给我做一个团队 API" --enhance --profile coding
+  pnpm gateway demo "帮我为团队设计一个小型 API" --enhance --profile coding
 ```
 
-它会启动隔离的 fake-provider 网关，在本地增强请求、输出结构化提示词，
-随后自动清理进程，全程不需要 API Key。
+网关会在本地增强请求、输出结构化提示词，然后自动清理隔离进程，全程不调用真实 provider。
 
-你应该看到：
+## 常用工作流
 
-- 本地 fake-provider 执行
-- 明确的 `execution: fake`
-- 可复现输出
-- 不需要 API Key 或账号
-- 容器自动退出
+### 终端
 
-提示词增强示例：
-
-```bash
-pnpm gateway enhance "给我做一个团队 API" --profile coding
-pnpm gateway chat "给我做一个团队 API" --enhance --profile coding
-```
-
-## 如何使用
-
-### 终端工作流
-
-安装后：
+从源码安装后：
 
 ```bash
 pnpm gateway serve
 pnpm gateway status
 pnpm gateway doctor
-pnpm gateway chat "Hello from Unified AI System"
+pnpm gateway enhance "帮我为团队设计一个小型 API" --profile coding
+pnpm gateway chat "帮我为团队设计一个小型 API" --enhance --profile coding
 ```
 
-### MCP / Codex / Cursor / Cline
+完整的 HTTP 示例见[自然语言增强指南](docs/prompt-enhancement.md)，其中包含跨平台 curl、Python 和 SDK 用法。
 
-发布好的 MCP 命令：
+### MCP、Codex、Cursor、Cline
+
+直接添加已发布的 MCP 镜像：
 
 ```bash
 codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.2
 ```
+
+重启 Codex 后运行 `/mcp` 检查连接，再参考 [Codex MCP 60 秒快速开始](docs/codex-mcp-quickstart.md)。
+项目提供九个工具，包括健康检查、自然语言增强、聊天、知识、工作流和 workforce 能力。
 
 ### 可安装的 Agent Skill
 
@@ -114,9 +116,9 @@ codex plugin marketplace add happy520ai/unified-ai-system --ref master
 npx skills add happy520ai/unified-ai-system --skill unified-ai-gateway --agent codex --copy --yes
 ```
 
-Skill 主页：https://skills.sh/happy520ai/unified-ai-system/unified-ai-gateway
+Skill 主页：<https://skills.sh/happy520ai/unified-ai-system/unified-ai-gateway>
 
-本地源码运行：
+### 从源码运行
 
 ```bash
 git clone https://github.com/happy520ai/unified-ai-system.git
@@ -128,16 +130,18 @@ pnpm verify:public-clone
 pnpm gateway demo
 ```
 
-## 如何参与
+Node.js 20 或更高版本受支持，Node.js 22 是依赖兼容性更广的推荐版本。
 
-如果这个项目对你有帮助，欢迎 star 仓库，并尽量把反馈做成可验证的内容：
+## 帮助项目成长
 
-1. 跑一条可复现命令并保留输出。
-2. 发一条带仓库链接的短帖。
-3. 在 issue #20 留下 OS 和一行输出。
-4. 把结果写进 `docs/star-growth-evidence-pack.md`。
+如果这个项目对你有帮助，请：
 
-推荐链接：
+1. 运行一条可复现命令并保留输出。
+2. 给仓库点 Star，并分享仓库链接。
+3. 在 [Issue #20](https://github.com/happy520ai/unified-ai-system/issues/20) 留下操作系统和一行输出。
+4. 将真实反馈转化为文档、测试或代码改进。
+
+推广材料与验证入口：
 
 - [文档总览](docs/README.md)
 - [Launch Kit](docs/launch-kit.md)
@@ -146,23 +150,21 @@ pnpm gateway demo
 - [增长仪表板](docs/star-growth-dashboard.md)
 - [增长证据包](docs/star-growth-evidence-pack.md)
 - [增长清单](docs/star-growth-checklist.md)
-- [使用验证 issue 模板](.github/ISSUE_TEMPLATE/usage-verification-report.yml)
+- [使用验证 Issue 模板](.github/ISSUE_TEMPLATE/usage-verification-report.yml)
 - [Codex for Open Source 申请草稿](docs/codex-for-open-source-application.md)
 - [Codex for Open Source 提交文案](docs/codex-for-open-source-submit.md)
 
 ## 诚实边界
 
-我们把已验证内容和未声明内容分开：
+- 干净克隆和 fake provider 路径：**已验证**
+- 托管的公共 API：**没有**
+- 默认真实 provider 执行：**没有**，必须显式启用
+- 仓库内置浏览器聊天 UI：**没有**，CLI、API 和 MCP 是一等入口
+- 生产就绪、AGI、L5：**不声称**
 
-- 清洁克隆 + fake-provider 路径：**是**
-- 对外托管的公共 API：**否**
-- 默认真实 provider 执行：**否**，必须显式开启
-- 本仓库内置浏览器聊天 UI：**否**（CLI/API/MCP 优先）
-- 生产就绪 / AGI / L5：**不宣称**
+真实 provider 默认关闭。请参考 `.env.example` 和[provider 配置指南](docs/providers.md)进行显式配置。
 
-真实 provider 调用默认关闭。请通过 `.env.example` 和 `docs/providers.md` 安全配置。
-
-## 校验项目
+## 验证项目
 
 ```bash
 pnpm check
@@ -172,13 +174,13 @@ pnpm verify:public-clone
 pnpm verify:mcp
 ```
 
-`master` 上的 CI 会运行 Linux 检查、容器启动烟雾测试、MCP 发现和进程清理检查。
+`master` 上的 CI 会执行 Linux 检查、容器启动 smoke test、MCP 发现和进程清理验证。
 
-## 主要链接
+## 项目链接
 
 - [官方 MCP Registry 条目](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.4.2)
 - [Release v0.4.2](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.4.2)
-- [Codex MCP server README](packages/mcp-server/README.md)
+- [Codex MCP Server README](packages/mcp-server/README.md)
 - [Roadmap](ROADMAP.md)
 - [Vision](VISION.md)
 - [Support](SUPPORT.md)
