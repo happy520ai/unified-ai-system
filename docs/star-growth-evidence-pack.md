@@ -15,8 +15,8 @@ Use this file as the single source of truth for public growth evidence.
 - Subscribers: 0
 - Open issues (non-PR): 1
 - Open pull requests: 0
-- Latest release: v0.4.2
-- MCP official registry entry: [v0.4.2](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.4.2)
+- Latest release: v0.4.3
+- MCP official registry entry: [v0.4.3](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.4.3)
 
 ## How We Prove Growth
 
@@ -76,26 +76,28 @@ pnpm growth:evidence-pack
 
 ### 2026-08-09
 
-- Current public snapshot verified at 3 stars / 1 fork / 0 subscribers / 1 open issue / 4 open PRs.
+- Latest public snapshot verified at 3 stars / 1 fork / 0 subscribers / 1 open issue / 0 open PRs.
 - Submitted the public MCP listing to [awesome-mcp.tools](https://awesome-mcp.tools/submit); review is tracked in [adw0rd/awesome-mcp-servers#36](https://github.com/adw0rd/awesome-mcp-servers/issues/36).
 - Submitted the public MCP listing to [MCP Hub](https://www.aimcp.info/en/submit); the form confirmed successful submission and review pending. No contact email or subscription was provided.
 - Submitted the public MCP listing to [mcpservers.org](https://mcpservers.org/submit) using the free plan; the form confirmed successful submission and stated that review is expected within 12 hours. No premium plan or payment was selected.
 - Fresh local baseline: `pnpm gateway demo` returned `execution fake`, `real calls disabled`, and `[done] 29 ms | no API key | process cleaned up`; the output is also recorded in [issue #20](https://github.com/happy520ai/unified-ai-system/issues/20).
 - Refreshed public onboarding Discussions [#1](https://github.com/happy520ai/unified-ai-system/discussions/1), [#5](https://github.com/happy520ai/unified-ai-system/discussions/5), [#6](https://github.com/happy520ai/unified-ai-system/discussions/6), and [#23](https://github.com/happy520ai/unified-ai-system/discussions/23) to `v0.4.1`; verification found no remaining `v0.4.0` references in those four bodies.
 - Released `v0.4.2` with the one-command `--enhance` demo, aligned Docker tags, and matching MCP Registry metadata.
+- Released `v0.4.3` with explicit CLI enhancement language control, the PowerShell JSON evidence path, aligned fixed images, and matching MCP Registry metadata.
 - The current external funnel includes eight open collection PRs: [awesome-codex-skills#206](https://github.com/composio-community/awesome-codex-skills/pull/206), [awesome-cli-apps#347](https://github.com/toolleeo/awesome-cli-apps-in-a-csv/pull/347), [Awesome-LLMOps#710](https://github.com/tensorchord/Awesome-LLMOps/pull/710), [awesome-mcp-devtools#257](https://github.com/punkpeye/awesome-mcp-devtools/pull/257), [awesome-mcp-servers-devops#65](https://github.com/WagnerAgent/awesome-mcp-servers-devops/pull/65), [Awesome-MCP-ZH#422](https://github.com/yzfly/Awesome-MCP-ZH/pull/422), [awesome-mcp-servers#11745](https://github.com/punkpeye/awesome-mcp-servers/pull/11745), and [awesome-ai-tools#1941](https://github.com/mahseema/awesome-ai-tools/pull/1941). All remain pending review; none is counted as a merge or Star result.
 - Latest maintenance snapshot: 3 stars / 1 fork / 0 subscribers / 1 open issue / 0 open PRs. Dependabot PR #12 was superseded by merged PR #49; PR #13 remains closed because better-sqlite3 13 requires Node >=22 while the project supports Node 20.
 - Rewrote `README.zh-CN.md` from mojibake into a UTF-8 quickstart aligned with the verified English entrypoint, and added a public-repository guard against invalid Chinese README encoding.
 - Added a GitHub Codespaces one-click entry to both README languages, backed by the existing provider-free devcontainer and public-clone verification path.
 - GitHub traffic snapshot for the available 14-day window: 150 repository views / 34 unique visitors and 879 clones / 218 unique cloners. Top referrers were `github.com` (48 views / 13 uniques) and `happy520ai.github.io` (18 views / 2 uniques). These are exposure signals, not verified Star growth.
 - Refreshed the public `v0.4.2` release notes with the 60-second provider-free command, Codespaces and prompt-guide links, Issue #20 feedback, and a verified-use Star CTA; no runtime or version change was made.
-- Repaired the public `v0.3.3` and `v0.4.1` release entrypoints so historical pages clearly direct new users to the current `v0.4.2` quickstart; no runtime or version change was made.
+- Repaired the public `v0.3.3` and `v0.4.1` release entrypoints so historical pages clearly direct new users to the current `v0.4.3` quickstart; no runtime or version change was made.
 - Added [good first issue #58](https://github.com/happy520ai/unified-ai-system/issues/58) for a provider-free PowerShell JSON example and linked it from both README languages, creating a concrete newcomer contribution path.
 - Implemented the provider-free PowerShell JSON enhancement example requested by [issue #58](https://github.com/happy520ai/unified-ai-system/issues/58), including explicit `providerCalled`, `credentialRequired`, and `deterministic` evidence fields.
 - Cleaned the public [Issue #20](https://github.com/happy520ai/unified-ai-system/issues/20) by removing 14 duplicate or outdated maintainer comments; verification left 11 current comments and zero `v0.4.0`, `v0.4.1`, or stale Issue #44 matches.
 - Updated the high-reach [awesome-mcp-servers#11745](https://github.com/punkpeye/awesome-mcp-servers/pull/11745) entry from `mcp-server:0.4.1` to `mcp-server:0.4.2`; its upstream submission check passed, while the PR remains open and is not counted as a merge or Star result.
+- Updated the high-reach [awesome-mcp-servers#11745](https://github.com/punkpeye/awesome-mcp-servers/pull/11745) entry from `mcp-server:0.4.2` to `mcp-server:0.4.3`; its upstream submission check passed, while the PR remains open and is not counted as a merge or Star result.
 - Added explicit CLI `--language` control for `enhance`, `chat --enhance`, and `demo --enhance`, covering `auto`, `zh-CN`, and `en`; this is a user-facing capability improvement, not Star-growth evidence.
-- Synchronized public Discussions [#1](https://github.com/happy520ai/unified-ai-system/discussions/1), [#5](https://github.com/happy520ai/unified-ai-system/discussions/5), [#6](https://github.com/happy520ai/unified-ai-system/discussions/6), and [#23](https://github.com/happy520ai/unified-ai-system/discussions/23) to v0.4.2; a live scan found zero stale v0.4.0/v0.4.1 or old container-tag references.
+- Synchronized public Discussions [#1](https://github.com/happy520ai/unified-ai-system/discussions/1), [#5](https://github.com/happy520ai/unified-ai-system/discussions/5), [#6](https://github.com/happy520ai/unified-ai-system/discussions/6), and [#23](https://github.com/happy520ai/unified-ai-system/discussions/23) to v0.4.3; a live scan found zero stale v0.4.0/v0.4.1/v0.4.2 or old container-tag references.
 
 ## Monthly Update Template
 
