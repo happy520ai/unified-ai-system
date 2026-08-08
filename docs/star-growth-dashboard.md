@@ -47,7 +47,7 @@ Default content for one post cycle:
 ```text
 I verified Unified AI System in 60 seconds:
 
-docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.1 pnpm gateway demo
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.2 pnpm gateway demo
 
 No API key is required for the baseline check.
 Repo: https://github.com/happy520ai/unified-ai-system
@@ -58,7 +58,7 @@ Chinese version:
 ```text
 我在 60 秒内验证了 Unified AI System：
 
-docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.1 pnpm gateway demo
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.2 pnpm gateway demo
 
 默认使用本地 fake-provider，无需 API Key。
 仓库：https://github.com/happy520ai/unified-ai-system
