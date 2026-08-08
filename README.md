@@ -43,6 +43,7 @@ This is not a chat UI wrapper. It is a control plane for AI workflow execution.
 
 - Prompt enhancement for teammates who do not write perfect prompts.
 - Clean-clone verification without credentials or hidden setup.
+- Provider-free HTTP examples for curl and Python's standard library.
 - CLI, HTTP API, SDK, MCP, Codex, Cursor, and Cline entry points.
 - Clear boundaries: no AGI claim, no L5 claim, no silent provider behavior.
 

@@ -37,6 +37,7 @@ Unified AI System 是一个公开的模型、代理、知识和工具网关。
 
 - 给不太会写提示词的人一个更稳定的入口。
 - 支持清洁克隆验证，无需登录或密钥。
+- 提供 curl 与 Python 标准库的免 Provider HTTP 示例。
 - 提供 CLI、HTTP API、SDK、MCP、Codex、Cursor、Cline 入口。
 - 明确边界：不宣称 AGI、不宣称 L5、不隐藏 provider 行为。
 
