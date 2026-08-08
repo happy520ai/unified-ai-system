@@ -11,6 +11,26 @@ From a source checkout:
 pnpm gateway serve
 ```
 
+Or use the published gateway image without cloning the repository:
+
+```bash
+docker run --rm --publish 3100:3100 \
+  --env AI_GATEWAY_SERVICE_HOST=0.0.0.0 \
+  --env AI_GATEWAY_PROVIDER_MODE=fake \
+  --env AI_GATEWAY_REAL_PROVIDER_ENABLED=false \
+  ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.1
+```
+
+On Windows PowerShell:
+
+```powershell
+docker run --rm --publish 3100:3100 `
+  --env AI_GATEWAY_SERVICE_HOST=0.0.0.0 `
+  --env AI_GATEWAY_PROVIDER_MODE=fake `
+  --env AI_GATEWAY_REAL_PROVIDER_ENABLED=false `
+  ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.1
+```
+
 Keep that process running. The examples below use the default local endpoint
 at `http://127.0.0.1:3100`.
 
