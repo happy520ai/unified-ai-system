@@ -55,7 +55,7 @@ This is not a chat UI wrapper. It is a control plane for AI workflow execution.
     />
   </a>
   <br />
-  <sub>v0.4.2 preview: deterministic enhancement, no API key, no provider call.</sub>
+  <sub>v0.4.2: deterministic enhancement, no API key, no provider call.</sub>
 </p>
 
 ## Try It in 60 Seconds
