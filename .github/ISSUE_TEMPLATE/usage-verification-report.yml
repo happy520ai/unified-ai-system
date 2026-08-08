@@ -1,0 +1,66 @@
+name: Usage verification report
+description: Share a reproducible run report from the 60-second demo or any command.
+title: "[Usage Report]: "
+labels:
+  - community-feedback
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for trying Unified AI System.
+
+        Please share exactly what you ran and what you observed. This keeps the project practical for non-experts and easy to verify for everyone.
+  - type: textarea
+    id: command
+    attributes:
+      label: Command run
+      description: Paste the full command that you executed.
+      placeholder: docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.0 pnpm gateway demo
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Output snippet
+      description: Paste 3-12 lines of output. Remove private values.
+      render: shell
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      placeholder: Windows 11 + PowerShell 7 + Node 20
+    validations:
+      required: true
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Execution mode
+      options:
+        - Local fake-provider
+        - Real provider explicitly enabled
+        - Other / unknown
+    validations:
+      required: true
+  - type: textarea
+    id: expectation
+    attributes:
+      label: What did you expect to happen?
+      placeholder: "Output should include `execution: fake` and finish in one run."
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened instead?
+      placeholder: "Observed error / mismatch / missing expected text."
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submit
+      options:
+        - label: I removed secrets and private endpoints from the output.
+          required: true

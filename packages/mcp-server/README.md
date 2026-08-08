@@ -71,6 +71,9 @@ tool_timeout_sec = 60
 default_tools_approval_mode = "writes"
 ```
 
+For clients that accept the standard JSON `mcpServers` shape, use the
+[generic MCP client configuration guide](../../docs/mcp-generic-client.md).
+
 ## Try It In Codex
 
 Restart Codex after adding the server, then run `/mcp verbose` to inspect the

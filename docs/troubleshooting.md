@@ -33,3 +33,6 @@ pnpm verify:public-clone
 
 The command exits non-zero and prints a bounded service-output tail when a
 startup or endpoint check fails.
+
+For a Windows Docker smoke test with cleanup, use the
+[PowerShell quickstart](getting-started.md#windows-powershell).

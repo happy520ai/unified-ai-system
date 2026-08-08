@@ -1,24 +1,45 @@
 # Documentation
 
-The public documentation is intentionally small and task-oriented.
+Public documentation is grouped by task so the repo stays easy to scan.
+
+## Get Started
 
 - [Getting started](getting-started.md)
-- [中文项目主页](index.zh-CN.html)
 - [Terminal CLI](cli.md)
 - [Codex MCP quickstart](codex-mcp-quickstart.md)
-- [Codex MCP Docker web guide](codex-mcp-docker-quickstart.html)
-- [Codex MCP Docker 中文教程](codex-mcp-docker-quickstart.zh-CN.html)
-- [Codex MCP server](../packages/mcp-server/README.md)
-- [Installable Agent Skill](https://skills.sh/happy520ai/unified-ai-system/unified-ai-gateway)
-- [Architecture](architecture.md)
-- [Why an AI gateway should be terminal-first](terminal-first-ai-gateway.html)
+- [Generic MCP client configuration](mcp-generic-client.md)
+- [Codex MCP Docker web guide (English)](codex-mcp-docker-quickstart.html)
+- [Codex MCP Docker guide (Chinese)](codex-mcp-docker-quickstart.zh-CN.html)
 - [Provider setup](providers.md)
 - [Troubleshooting](troubleshooting.md)
+- [Chinese site documentation](index.zh-CN.html)
+
+## Product References
+
+- [Architecture](architecture.md)
+- [Codex MCP server](../packages/mcp-server/README.md)
+- [Installable Agent Skill](https://skills.sh/happy520ai/unified-ai-system/unified-ai-gateway)
 - [Project vision](../VISION.md)
 - [Project roadmap](../ROADMAP.md)
-- [简体中文 README](../README.zh-CN.md)
-- [Support](../SUPPORT.md)
-- [Launch kit](launch-kit.md)
-- [Historical archive](history.md)
+- [Chinese README](../README.zh-CN.md)
+- [Why terminal-first is right](terminal-first-ai-gateway.html)
 
-Generated phase reports and runtime evidence are not maintained on `master`.
+## Growth & Outreach
+
+- [Launch kit](launch-kit.md)
+- [Community promotion pack](community-promotion-pack.md)
+- [Growth post templates](growth-post-templates.md)
+- [Growth playbook](star-growth-playbook.md)
+- [Growth dashboard](star-growth-dashboard.md)
+- [Growth evidence pack](star-growth-evidence-pack.md)
+- [Growth checklist](star-growth-checklist.md)
+- [Codex for Open Source application draft](codex-for-open-source-application.md)
+- [Codex for Open Source submission copy](codex-for-open-source-submit.md)
+
+## Maintenance
+
+- [Support](../SUPPORT.md)
+- [CONTRIBUTING](../CONTRIBUTING.md)
+- [CODE OF CONDUCT](../CODE_OF_CONDUCT.md)
+- [Security policy](../SECURITY.md)
+- [Usage verification issue template](../.github/ISSUE_TEMPLATE/usage-verification-report.yml)

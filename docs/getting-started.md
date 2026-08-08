@@ -120,6 +120,72 @@ official MCP client handshake and every exposed tool. The dedicated image is
 described in the root [`server.json`](../server.json) for Registry-compatible
 installation.
 
+For clients that use a JSON `mcpServers` configuration, see the
+[generic MCP client guide](mcp-generic-client.md).
+
+## Windows PowerShell
+
+This credential-free smoke test uses a deterministic container name, waits
+for the real health endpoint, calls the HTTP API, prints the fake-provider
+evidence, and removes the container even when a request fails:
+
+```powershell
+$ErrorActionPreference = "Stop"
+$container = "unified-ai-system-gateway-demo"
+$port = 3100
+$image = "ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.0"
+
+docker rm -f $container 2>$null | Out-Null
+try {
+  docker run --detach --name $container `
+    --publish "${port}:3100" `
+    --env AI_GATEWAY_SERVICE_HOST=0.0.0.0 `
+    $image
+  if ($LASTEXITCODE -ne 0) { throw "Docker could not start $container." }
+
+  $health = $null
+  for ($attempt = 1; $attempt -le 30; $attempt++) {
+    try {
+      $health = Invoke-RestMethod `
+        -Uri "http://127.0.0.1:$port/health/check" `
+        -TimeoutSec 2
+      if ($health.data.status -eq "ready") { break }
+    } catch {
+      Start-Sleep -Seconds 1
+    }
+  }
+  if ($health.data.status -ne "ready") {
+    docker logs --tail 40 $container
+    throw "Gateway did not become ready."
+  }
+
+  $payload = @{
+    prompt = "Help me plan a small API"
+    promptEnhancement = @{ enabled = $true; profile = "planning" }
+  } | ConvertTo-Json -Depth 4
+  $result = Invoke-RestMethod `
+    -Method Post `
+    -Uri "http://127.0.0.1:$port/chat" `
+    -ContentType "application/json" `
+    -Body $payload
+
+  [pscustomobject]@{
+    provider = $result.data.selectedProvider
+    model = $result.data.selectedModel
+    execution = $result.data.executionMode
+    enhanced = $result.data.promptEnhancement.applied
+    response = $result.data.outputText
+  } | Format-List
+} finally {
+  docker rm -f $container 2>$null | Out-Null
+}
+```
+
+Expected evidence includes `execution: fake` and
+`provider: local-fake-provider`. This example does not read credentials or
+call a real provider. For a short cross-platform check, use the
+[one-command container demo](#one-command-container-demo) above.
+
 ## Run The Public Container
 
 Docker users can run the anonymously pullable `latest` image without cloning
