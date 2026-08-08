@@ -16,7 +16,7 @@ Primary maintainer
 
 ## 3) Why does this repository qualify? (<=500 chars)
 
-Unified AI System is an open-source AI infrastructure project for real workflow execution. It connects MCP, Codex, Cline, and Cursor through CLI/API/SDK surfaces, deterministic local prompt enhancement, explicit provider boundaries, and auditable telemetry. It is Apache-2.0 licensed, actively maintained with releases, issues, and pull requests. It currently has 3 GitHub stars and 1 fork, and addresses a practical ecosystem need: safer, easier-to-operate AI workflows for teams.
+Unified AI System is an Apache-2.0 open-source AI infrastructure project that gives teams a governed path from ordinary language to executable model work. It connects MCP, Codex, Cline, and Cursor through CLI/API/SDK surfaces, deterministic provider-free prompt enhancement, explicit provider boundaries, and reproducible verification. It has 3 GitHub stars and 1 fork, is listed in the official MCP Registry, and addresses a practical gap in safe, operable AI workflows.
 
 ## 4) I'm interested in
 
@@ -33,4 +33,4 @@ API credits will support maintainer automation for prompt-enhancement regression
 
 ## 7) Anything else we should know? (<=500 chars)
 
-This is an early but active infrastructure project. We report verified behavior rather than claiming AGI or production readiness: credential-free clean-clone checks, fake-provider demos, explicit provider opt-in, reproducible tests, and published releases. Support would help us improve security review, maintainer response time, contributor onboarding, and long-term reliability.
+This is an early but actively maintained infrastructure project. I report verified behavior rather than claiming AGI or production readiness: credential-free clean-clone checks, fake-provider demos, explicit provider opt-in, reproducible tests, and published releases. Support would help improve security review, maintainer response time, contributor onboarding, and long-term reliability.
