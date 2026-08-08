@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env node
+#!/usr/bin/env node
 import { execSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -31,7 +31,7 @@ function ensureGhAvailable() {
 }
 
 function escapeMetric(metric) {
-  return metric.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&");
+  return metric.replace(/[()]/g, "\\$&");
 }
 
 function parseIntMetric(lines, metric) {
@@ -39,9 +39,9 @@ function parseIntMetric(lines, metric) {
   const dashRegex = new RegExp(`^\\s*-\\s*${metricPattern}\\s*:\\s*(\\d+)`, "im");
   const tableRegex = new RegExp(`\\|\\s*${metricPattern}\\s*\\|\\s*(\\d+)`, "im");
   const line = lines.match(dashRegex)?.[1] ?? lines.match(tableRegex)?.[1];
-  if (!line) return null;
-  const match = /(\\d+)/.exec(line);
-  return match ? Number.parseInt(match[1], 10) : null;
+  if (line === undefined) return null;
+  const value = Number.parseInt(line, 10);
+  return Number.isFinite(value) ? value : null;
 }
 
 function readLatestMetrics(filePath) {
@@ -78,7 +78,7 @@ function buildCommentBody(metrics) {
     "- OS / command output line",
     "",
     "If this saved you time, help this project grow:",
-    "1) Star the repo: https://github.com/${repo}",
+    `1) Star the repo: https://github.com/${repo}`,
     "2) Post one output line + OS in this thread:",
     `   https://github.com/${repo}/issues/20`,
     "3) Run the verification form for one structured report:",
@@ -89,7 +89,7 @@ function buildCommentBody(metrics) {
     "<!-- unified-ai-system-growth-thread -->",
   ];
 
-  return `${lines.join("\\n")}`;
+  return lines.join("\n");
 }
 
 function buildPsCommand() {
@@ -111,7 +111,7 @@ function syncThread() {
   }
 
   const metrics = readLatestMetrics(evidenceOutput);
-  if (!metrics.stars || metrics.stars < 0) {
+  if (typeof metrics.stars !== "number" || metrics.stars < 0) {
     throw new Error("Invalid star count in generated evidence snapshot.");
   }
 
