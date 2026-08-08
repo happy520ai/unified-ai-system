@@ -12,7 +12,6 @@ import assert from "node:assert/strict";
 import { writeFileSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { once } from "node:events";
 import test from "node:test";
 import { createSupervisor } from "./supervisor.js";
 
@@ -61,6 +60,14 @@ function fakeLogger() {
   };
 }
 
+async function waitForLog(calls, predicate, timeoutMs = 5_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (calls.some(predicate)) return;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+}
+
 test("supervisor spawns child and surfaces status", async () => {
   const { dir, script } = makeEchoScript();
   const log = fakeLogger();
@@ -96,13 +103,15 @@ test("supervisor restarts a crashing child", async () => {
     shutdownGraceMs: 200,
   });
   try {
-    await new Promise((resolve) => setTimeout(resolve, 600));
+    await waitForLog(log.calls, (call) =>
+      call.msg?.includes?.("child crashed; scheduling restart")
+    );
     const crashCount = log.calls.filter((c) =>
       c.msg?.includes?.("child crashed; scheduling restart")
     ).length;
     assert.ok(crashCount >= 1, "should detect at least one crash");
-    await sup.stop();
   } finally {
+    await sup.stop();
     rmSync(dir, { recursive: true, force: true });
   }
 });
