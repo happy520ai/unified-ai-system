@@ -78,6 +78,7 @@ pnpm growth:evidence-pack
 
 - Current public snapshot verified at 3 stars / 1 fork / 0 watchers / 1 open issue / 4 open PRs.
 - Submitted the public MCP listing to [awesome-mcp.tools](https://awesome-mcp.tools/submit); review is tracked in [adw0rd/awesome-mcp-servers#36](https://github.com/adw0rd/awesome-mcp-servers/issues/36).
+- Submitted the public MCP listing to [MCP Hub](https://www.aimcp.info/en/submit); the form confirmed successful submission and review pending. No contact email or subscription was provided.
 - The current external funnel includes [punkpeye/awesome-mcp-servers#11745](https://github.com/punkpeye/awesome-mcp-servers/pull/11745), [TensorBlock/awesome-mcp-servers#1616](https://github.com/TensorBlock/awesome-mcp-servers/pull/1616), and [mahseema/awesome-ai-tools#1941](https://github.com/mahseema/awesome-ai-tools/pull/1941).
 
 ## Monthly Update Template
