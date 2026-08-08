@@ -126,6 +126,10 @@ Published MCP command:
 codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.1
 ```
 
+Restart Codex, run `/mcp verbose` to verify the nine tools, then follow the
+[60-second Codex MCP quickstart](docs/codex-mcp-quickstart.md) for a safe first
+prompt-enhancement call and removal command.
+
 ### Installable Agent Skill
 
 ```bash
