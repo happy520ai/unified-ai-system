@@ -9,6 +9,22 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 No unreleased public changes.
 
+## [0.4.2] - 2026-08-09
+
+### Added
+
+- Added a one-command terminal demo that enhances a natural-language request
+  locally and runs the credential-free fake chat path.
+- Added explicit `--enhance` and `--profile` support to the demo workflow,
+  with JSON output suitable for reproducible onboarding and automation.
+
+### Changed
+
+- Published the CLI, Docker image, MCP package metadata, and public examples
+  under one consistent `0.4.2` release version.
+- Kept provider calls disabled in the public demo path and added verification
+  that prompt enhancement does not silently invoke a real provider.
+
 ## [0.4.1] - 2026-08-08
 
 ### Added
@@ -223,7 +239,8 @@ No unreleased public changes.
 - It is not presented as production-certified, L5 autonomous, or established
   AGI. Those claims require independent evidence beyond local verification.
 
-[Unreleased]: https://github.com/happy520ai/unified-ai-system/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/happy520ai/unified-ai-system/compare/v0.4.2...HEAD
+[0.4.2]: https://github.com/happy520ai/unified-ai-system/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/happy520ai/unified-ai-system/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/happy520ai/unified-ai-system/compare/v0.3.3...v0.4.0
 [0.3.3]: https://github.com/happy520ai/unified-ai-system/compare/v0.3.2...v0.3.3

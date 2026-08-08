@@ -13,7 +13,7 @@ import os from "node:os";
 
 export const SERVICE_ID = "unified-ai-system";
 export const SERVICE_TITLE = "Unified AI System";
-export const SERVICE_VERSION = "0.4.1";
+export const SERVICE_VERSION = "0.4.2";
 export const TOOL_NAMES = [
   "gateway_health",
   "gateway_readiness",

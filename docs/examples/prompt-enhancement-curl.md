@@ -18,7 +18,7 @@ docker run --rm --publish 3100:3100 \
   --env AI_GATEWAY_SERVICE_HOST=0.0.0.0 \
   --env AI_GATEWAY_PROVIDER_MODE=fake \
   --env AI_GATEWAY_REAL_PROVIDER_ENABLED=false \
-  ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.1
+  ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.2
 ```
 
 On Windows PowerShell:
@@ -28,7 +28,7 @@ docker run --rm --publish 3100:3100 `
   --env AI_GATEWAY_SERVICE_HOST=0.0.0.0 `
   --env AI_GATEWAY_PROVIDER_MODE=fake `
   --env AI_GATEWAY_REAL_PROVIDER_ENABLED=false `
-  ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.1
+  ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.2
 ```
 
 Keep that process running. The examples below use the default local endpoint
