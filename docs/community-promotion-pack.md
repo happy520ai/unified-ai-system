@@ -5,7 +5,7 @@
 ```text
 If your team uses AI tools but prompt quality is unstable, this is a quick proof:
 
-docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.0 pnpm gateway demo
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.1 pnpm gateway demo
 
 What you should see:
 - no API key required for baseline
@@ -40,7 +40,7 @@ If this helped you, share one reproducible output line, then:
    https://github.com/happy520ai/unified-ai-system/issues/20
 3) Ask one teammate to run the same command once
 
-docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.0 pnpm gateway demo
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.1 pnpm gateway demo
 ```
 
 ## 4) Follow-up Reply

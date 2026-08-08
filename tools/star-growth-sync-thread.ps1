@@ -6,7 +6,7 @@
 $ErrorActionPreference = "Stop"
 $repo = $Repo
 $issue = $IssueNumber
-$demoCommand = "docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.0 pnpm gateway demo"
+$demoCommand = "docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.1 pnpm gateway demo"
 
 function Test-GhAvailable {
   gh --version | Out-Null

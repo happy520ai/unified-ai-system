@@ -7,18 +7,31 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+No unreleased public changes.
+
+## [0.4.1] - 2026-08-08
+
+### Added
+
+- Added generic JSON `mcpServers` configuration and Windows PowerShell
+  quickstarts for the credential-free gateway and MCP paths.
+- Added a provider adapter contribution guide with current contracts,
+  credential-free tests, catalog boundaries, and review checklist.
+- Added supervised MCP service packaging, public growth snapshots, and a
+  reproducible community verification workflow.
+
 ### Changed
 
-- Synchronized the Codex plugin manifest, bundled MCP configuration, and agent
-  skill with the `0.4.0` nine-tool release.
+- Kept the local fake provider as the default and made public verification
+  prove prompt enhancement, MCP discovery, process cleanup, and no real
+  provider calls.
+- Updated public dependency overrides and package metadata for the v0.4.1
+  multi-platform image and MCP Registry release.
 
 ### Security
 
-- Pinned the bundled Codex MCP configuration to the reviewed immutable `0.4.0`
-  multi-platform OCI index and added network, capability, and privilege
-  hardening.
-- Added an anonymous layer-by-layer content review for both the linux/amd64 and
-  linux/arm64 MCP images.
+- The public dependency scan is clean at release preparation time; real
+  provider execution remains explicitly disabled by default.
 
 ## [0.4.0] - 2026-08-02
 
@@ -210,7 +223,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 - It is not presented as production-certified, L5 autonomous, or established
   AGI. Those claims require independent evidence beyond local verification.
 
-[Unreleased]: https://github.com/happy520ai/unified-ai-system/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/happy520ai/unified-ai-system/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/happy520ai/unified-ai-system/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/happy520ai/unified-ai-system/compare/v0.3.3...v0.4.0
 [0.3.3]: https://github.com/happy520ai/unified-ai-system/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/happy520ai/unified-ai-system/compare/v0.3.1...v0.3.2

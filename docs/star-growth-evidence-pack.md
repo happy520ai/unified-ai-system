@@ -15,8 +15,8 @@ Use this file as the single source of truth for public growth evidence.
 - Watchers: 0
 - Open issues (non-PR): 4
 - Open pull requests: 4
-- Latest release: v0.4.0
-- MCP official registry entry: [v0.4.0](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.4.0)
+- Latest release: v0.4.1
+- MCP official registry entry: [v0.4.1](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.4.1)
 
 ## How We Prove Growth
 

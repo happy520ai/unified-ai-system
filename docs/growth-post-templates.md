@@ -5,7 +5,7 @@
 ```text
 I used this 60-second check for a reproducible AI baseline:
 
-docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.0 pnpm gateway demo
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.1 pnpm gateway demo
 
 No API key is required.
 Repo: https://github.com/happy520ai/unified-ai-system
@@ -35,7 +35,7 @@ Repo: https://github.com/happy520ai/unified-ai-system
 ```text
 我在 60 秒内验证了 Unified AI System：
 
-docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.0 pnpm gateway demo
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.1 pnpm gateway demo
 
 默认使用本地 fake-provider，无需 API Key。
 仓库：https://github.com/happy520ai/unified-ai-system

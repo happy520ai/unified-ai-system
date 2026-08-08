@@ -50,7 +50,7 @@ try {
     "",
     "I verified Unified AI System in 60 seconds:",
     "",
-    "docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.0 pnpm gateway demo",
+    "docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.1 pnpm gateway demo",
     "",
     "No API key is needed for verification.",
     "",
@@ -60,7 +60,7 @@ try {
   $chinesePost = @(
     "今天（$today）我在 60 秒内完成了 Unified AI System 的本地验证：",
     "",
-    "docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.0 pnpm gateway demo",
+    "docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.1 pnpm gateway demo",
     "",
     "默认本地 fake-provider，不需要 API Key，命令可复现。",
     "",
