@@ -93,6 +93,9 @@ docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.2 \
 This starts an isolated fake-provider gateway, enhances the request locally,
 prints the structured prompt, and cleans up without an API key.
 
+Use `--language zh-CN` or `--language en` when the enhancement output should
+follow an explicit language instead of automatic detection.
+
 Prompt enhancement example:
 
 Start the gateway first (from a source checkout):

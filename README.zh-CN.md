@@ -89,6 +89,7 @@ docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.2 \
 ```
 
 网关会在本地增强请求、输出结构化提示词，然后自动清理隔离进程，全程不调用真实 provider。
+如果需要指定输出语言，可以使用 `--language zh-CN` 或 `--language en`；省略时默认自动检测。
 
 ## 常用工作流
 
