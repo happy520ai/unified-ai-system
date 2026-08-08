@@ -31,7 +31,20 @@ This converts intent into:
 Repo: https://github.com/happy520ai/unified-ai-system
 ```
 
-## 3) Conversion CTA
+## 3) Python Standard Library
+
+```text
+Prefer Python? After starting a local gateway, run:
+
+python docs/examples/prompt-enhancement.py "Help me plan a small API for my team" --profile planning --language en
+
+This uses only Python's standard library and prints a deterministic JSON
+response. Check data.metadata.providerCalled=false; no provider key is needed.
+
+Repo: https://github.com/happy520ai/unified-ai-system
+```
+
+## 4) Conversion CTA
 
 ```text
 If this helped you, share one reproducible output line, then:
@@ -43,7 +56,7 @@ If this helped you, share one reproducible output line, then:
 docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.2 pnpm gateway demo
 ```
 
-## 4) Follow-up Reply
+## 5) Follow-up Reply
 
 ```text
 Thanks for trying it.
