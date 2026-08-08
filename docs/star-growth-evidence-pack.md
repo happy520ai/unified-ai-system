@@ -5,7 +5,7 @@ Use this file as the single source of truth for public growth evidence.
 ## Repository Snapshot
 
 - Repository: https://github.com/happy520ai/unified-ai-system
-- Snapshot date: 2026-08-08
+- Snapshot date: 2026-08-09
 - Source of truth: `gh api repos/happy520ai/unified-ai-system --jq ...`
 
 ## Current Public Signals
@@ -13,7 +13,7 @@ Use this file as the single source of truth for public growth evidence.
 - Stars: 3
 - Forks: 1
 - Watchers: 0
-- Open issues (non-PR): 4
+- Open issues (non-PR): 1
 - Open pull requests: 4
 - Latest release: v0.4.1
 - MCP official registry entry: [v0.4.1](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.4.1)
@@ -73,6 +73,12 @@ pnpm growth:evidence-pack
 
 - Current public snapshot verified at 3 stars / 1 fork / 0 watchers / 4 open issues / 4 open PRs.
 - The public thread remains open for reproducible output and follow-up feedback.
+
+### 2026-08-09
+
+- Current public snapshot verified at 3 stars / 1 fork / 0 watchers / 1 open issue / 4 open PRs.
+- Submitted the public MCP listing to [awesome-mcp.tools](https://awesome-mcp.tools/submit); review is tracked in [adw0rd/awesome-mcp-servers#36](https://github.com/adw0rd/awesome-mcp-servers/issues/36).
+- The current external funnel includes [punkpeye/awesome-mcp-servers#11745](https://github.com/punkpeye/awesome-mcp-servers/pull/11745), [TensorBlock/awesome-mcp-servers#1616](https://github.com/TensorBlock/awesome-mcp-servers/pull/1616), and [mahseema/awesome-ai-tools#1941](https://github.com/mahseema/awesome-ai-tools/pull/1941).
 
 ## Monthly Update Template
 

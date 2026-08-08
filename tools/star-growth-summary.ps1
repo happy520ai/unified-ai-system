@@ -71,7 +71,9 @@ try {
     "punkpeye/awesome-mcp-devtools#257",
     "WagnerAgent/awesome-mcp-servers-devops#65",
     "yzfly/Awesome-MCP-ZH#422",
-    "punkpeye/awesome-mcp-servers#11207",
+    "punkpeye/awesome-mcp-servers#11745",
+    "TensorBlock/awesome-mcp-servers#1616",
+    "mahseema/awesome-ai-tools#1941",
     "docker/mcp-registry#4584",
     "up-for-grabs/up-for-grabs.net#5995"
   )

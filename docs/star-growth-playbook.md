@@ -1,6 +1,6 @@
 # Star Growth Playbook
 
-Last verified: 2026-08-08
+Last verified: 2026-08-09
 
 This repo grows best when every public post is tied to a reproducible command and a concrete user result.
 Keep the loop small: verify, publish, collect, improve.
