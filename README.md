@@ -81,6 +81,9 @@ pnpm gateway enhance "Build a small API for my team" --profile coding
 pnpm gateway chat "Build a small API for my team" --enhance --profile coding
 ```
 
+For a credential-free HTTP stream, use the [curl SSE example](docs/examples/streaming-chat-curl.md)
+to inspect `start`, `chunk`, and `done` events with `executionMode=fake`.
+
 ## Use It
 
 ### Terminal Workflow

@@ -213,6 +213,16 @@ try {
     }),
   });
   const enhancedChatStreamText = await enhancedChatStreamResponse.text();
+  const streamingChatResponse = await fetch(`${baseUrl}/chat/stream`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      prompt: "Say hello in one short sentence",
+      providerId: "local-fake-provider",
+      model: "local-fake-model",
+    }),
+  });
+  const streamingChatText = await streamingChatResponse.text();
 
   const checks = {
     healthReady: health.status === 200 && health.body?.data?.status === "ready",
@@ -244,6 +254,15 @@ try {
       enhancedChatStreamResponse.status === 200
       && enhancedChatStreamText.includes('"promptEnhancement":{"applied":true')
       && enhancedChatStreamText.includes("# Execution requirements"),
+    streamingChatReady:
+      streamingChatResponse.status === 200
+      && streamingChatText.includes("event: start")
+      && streamingChatText.includes("event: chunk")
+      && streamingChatText.includes("event: done")
+      && streamingChatText.includes('"selectedProvider":"local-fake-provider"')
+      && streamingChatText.includes('"executionMode":"fake"')
+      && streamingChatText.includes('"executionStatus":"success"')
+      && streamingChatText.includes("Say hello in one short sentence"),
     javascriptExampleReady: javascriptExample.exitCode === 0,
     javascriptExampleUsesFakeProvider:
       javascriptExample.stdout.includes("provider: local-fake-provider")
