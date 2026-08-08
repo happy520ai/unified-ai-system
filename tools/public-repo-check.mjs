@@ -449,6 +449,17 @@ const skillsShUrl =
 const skillsInstallCommand =
   "npx skills add happy520ai/unified-ai-system --skill unified-ai-gateway --agent codex --copy --yes";
 const chineseReadme = readFileSync(resolve(repoRoot, "README.zh-CN.md"), "utf8");
+const requiredChineseReadmeMarkers = [
+  ["面向自然语言增强", "chinese_readme_title_missing"],
+  ["60 秒体验", "chinese_readme_quickstart_missing"],
+  ["不声称 AGI", "chinese_readme_evidence_boundary_missing"],
+];
+if (chineseReadme.includes("\uFFFD")) {
+  addError("chinese_readme_invalid_utf8", "README.zh-CN.md");
+}
+for (const [marker, code] of requiredChineseReadmeMarkers) {
+  if (!chineseReadme.includes(marker)) addError(code, "README.zh-CN.md");
+}
 const requiredAgentSkillMarkers = [
   ["name: unified-ai-gateway", "agent_skill_name_missing"],
   ["source_repo: happy520ai/unified-ai-system", "agent_skill_source_missing"],
