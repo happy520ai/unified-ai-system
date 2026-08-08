@@ -6,7 +6,15 @@ const repo = "happy520ai/unified-ai-system";
 const latestFile = "docs/star-growth-latest.md";
 const feedbackFile = "docs/star-growth-feedback.md";
 const evidencePackFile = "docs/star-growth-evidence-pack.md";
-const today = new Date().toISOString().slice(0, 10);
+
+function formatLocalDate(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+const today = formatLocalDate();
 
 const issueCommand = `gh issue list --repo ${repo} --label community-feedback --state all --json number,state`;
 
@@ -37,15 +45,16 @@ function safeGetJson(command) {
 }
 
 function parseMetric(raw, metricName) {
+  const escapedMetric = metricName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const re = new RegExp(
-    `\\|\\s*${metricName.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\$&")}\\s*\\|\\s*(\\d+)`,
+    `\\|\\s*${escapedMetric}\\s*\\|\\s*(\\d+)`,
     "i"
   );
   const match = raw ? raw.match(re) : null;
   if (match) return Number.parseInt(match[1], 10);
 
   const dashRe = new RegExp(
-    `-\\s*${metricName}\\s*:\\s*(\\d+)`,
+    `-\\s*${escapedMetric}\\s*:\\s*(\\d+)`,
     "i"
   );
   const dashMatch = raw ? raw.match(dashRe) : null;
@@ -56,7 +65,7 @@ function parseSnapshot(raw) {
   return {
     stars: parseMetric(raw, "Stars"),
     forks: parseMetric(raw, "Forks"),
-    watchers: parseMetric(raw, "Watchers"),
+    watchers: parseMetric(raw, "Subscribers") ?? parseMetric(raw, "Watchers"),
     openIssues: parseMetric(raw, "Open issues (non-PR)"),
     openPullRequests: parseMetric(raw, "Open pull requests"),
   };
@@ -78,17 +87,19 @@ function replaceSignalLines(lines, metrics) {
   const replacements = [
     `- Stars: ${metrics.stars}`,
     `- Forks: ${metrics.forks}`,
-    `- Watchers: ${metrics.watchers}`,
+    `- Subscribers: ${metrics.watchers}`,
     `- Open issues (non-PR): ${metrics.openIssues}`,
     `- Open pull requests: ${metrics.openPullRequests}`,
   ];
+  const isNumericSignal = (line, label) =>
+    line.startsWith(`- ${label}:`) && /\d/.test(line);
 
   return lines.map((line) => {
-    if (line.startsWith("- Stars:")) return replacements[0];
-    if (line.startsWith("- Forks:")) return replacements[1];
-    if (line.startsWith("- Watchers:")) return replacements[2];
-    if (line.startsWith("- Open issues (non-PR):")) return replacements[3];
-    if (line.startsWith("- Open pull requests:")) return replacements[4];
+    if (isNumericSignal(line, "Stars")) return replacements[0];
+    if (isNumericSignal(line, "Forks")) return replacements[1];
+    if (isNumericSignal(line, "Subscribers") || isNumericSignal(line, "Watchers")) return replacements[2];
+    if (isNumericSignal(line, "Open issues (non-PR)")) return replacements[3];
+    if (isNumericSignal(line, "Open pull requests")) return replacements[4];
     return line;
   });
 }
@@ -112,7 +123,7 @@ function appendLogSection(lines, snapshot, feedbackSummary, issueSummary, prSumm
     `### ${today}`,
     "",
     "- Repository: https://github.com/happy520ai/unified-ai-system",
-    `- Snapshot: ${snapshot.stars} stars / ${snapshot.forks} forks / ${snapshot.watchers} watchers / ${snapshot.openIssues} open issues (non-PR) / ${snapshot.openPullRequests} open PRs`,
+    `- Snapshot: ${snapshot.stars} stars / ${snapshot.forks} forks / ${snapshot.watchers} subscribers / ${snapshot.openIssues} open issues (non-PR) / ${snapshot.openPullRequests} open PRs`,
     `- Community reports: ${feedbackSummary.total} total, ${feedbackSummary.open} open, ${feedbackSummary.closed} closed`,
     `- Verified reports source: ${issueSummary.total} total + ${issueSummary.open} open + ${issueSummary.closed} closed`,
     "- Evidence action taken:",
@@ -149,7 +160,7 @@ function buildSection(snapshot, feedbackSummary, issueSummary, prSummaryText) {
     `### ${today}`,
     "",
     `- Repository: https://github.com/happy520ai/unified-ai-system`,
-    `- Snapshot: ${snapshot.stars} stars / ${snapshot.forks} forks / ${snapshot.watchers} watchers / ${snapshot.openIssues} open issues (non-PR) / ${snapshot.openPullRequests} open PRs`,
+    `- Snapshot: ${snapshot.stars} stars / ${snapshot.forks} forks / ${snapshot.watchers} subscribers / ${snapshot.openIssues} open issues (non-PR) / ${snapshot.openPullRequests} open PRs`,
     `- Community reports: ${feedbackSummary.total} total, ${feedbackSummary.open} open, ${feedbackSummary.closed} closed`,
     `- GitHub community-feedback label: ${issueSummary.total} total / ${issueSummary.open} open / ${issueSummary.closed} closed`,
     `- PR funnel state: ${prSummaryText}`,
@@ -188,7 +199,7 @@ async function run() {
 
   const current = readFileSync(evidencePackFile, "utf8");
   const lines = current.split(/\r?\n/);
-  const updatedSignalLines = replaceSignalLines(lines);
+  const updatedSignalLines = replaceSignalLines(lines, snapshot);
 
   // keep a single-source "Current Snapshot date"
   const snapshotDateLine = `- Snapshot date: ${today}`;
@@ -206,7 +217,7 @@ async function run() {
   console.log(`Updated evidence pack: ${evidencePackFile}`);
   console.log(`Date: ${today}`);
   console.log(
-    `Snapshot: stars=${snapshot.stars}, forks=${snapshot.forks}, watchers=${snapshot.watchers}`
+    `Snapshot: stars=${snapshot.stars}, forks=${snapshot.forks}, subscribers=${snapshot.watchers}`
   );
 }
 

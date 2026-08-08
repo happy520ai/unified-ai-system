@@ -12,8 +12,8 @@ Use this file as the single source of truth for public growth evidence.
 
 - Stars: 3
 - Forks: 1
-- Watchers: 0
-- Open issues (non-PR): 1
+- Subscribers: 0
+- Open issues (non-PR): 2
 - Open pull requests: 4
 - Latest release: v0.4.2
 - MCP official registry entry: [v0.4.2](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.4.2)
@@ -71,12 +71,12 @@ pnpm growth:evidence-pack
 
 ### 2026-08-08
 
-- Current public snapshot verified at 3 stars / 1 fork / 0 watchers / 4 open issues / 4 open PRs.
+- Current public snapshot verified at 3 stars / 1 fork / 0 subscribers / 4 open issues / 4 open PRs.
 - The public thread remains open for reproducible output and follow-up feedback.
 
 ### 2026-08-09
 
-- Current public snapshot verified at 3 stars / 1 fork / 0 watchers / 1 open issue / 4 open PRs.
+- Current public snapshot verified at 3 stars / 1 fork / 0 subscribers / 1 open issue / 4 open PRs.
 - Submitted the public MCP listing to [awesome-mcp.tools](https://awesome-mcp.tools/submit); review is tracked in [adw0rd/awesome-mcp-servers#36](https://github.com/adw0rd/awesome-mcp-servers/issues/36).
 - Submitted the public MCP listing to [MCP Hub](https://www.aimcp.info/en/submit); the form confirmed successful submission and review pending. No contact email or subscription was provided.
 - Fresh local baseline: `pnpm gateway demo` returned `execution fake`, `real calls disabled`, and `[done] 29 ms | no API key | process cleaned up`; the output is also recorded in [issue #20](https://github.com/happy520ai/unified-ai-system/issues/20).
@@ -92,7 +92,7 @@ pnpm growth:evidence-pack
 ## Repo
 - Stars: <count>
 - Forks: <count>
-- Watchers: <count>
+- Subscribers: <count>
 
 ## Evidence
 - External mentions: <links / channels>

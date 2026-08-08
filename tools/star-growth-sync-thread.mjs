@@ -34,14 +34,17 @@ function escapeMetric(metric) {
   return metric.replace(/[()]/g, "\\$&");
 }
 
-function parseIntMetric(lines, metric) {
-  const metricPattern = escapeMetric(metric);
-  const dashRegex = new RegExp(`^\\s*-\\s*${metricPattern}\\s*:\\s*(\\d+)`, "im");
-  const tableRegex = new RegExp(`\\|\\s*${metricPattern}\\s*\\|\\s*(\\d+)`, "im");
-  const line = lines.match(dashRegex)?.[1] ?? lines.match(tableRegex)?.[1];
-  if (line === undefined) return null;
-  const value = Number.parseInt(line, 10);
-  return Number.isFinite(value) ? value : null;
+function parseIntMetric(lines, ...metrics) {
+  for (const metric of metrics) {
+    const metricPattern = escapeMetric(metric);
+    const dashRegex = new RegExp(`^\\s*-\\s*${metricPattern}\\s*:\\s*(\\d+)`, "im");
+    const tableRegex = new RegExp(`\\|\\s*${metricPattern}\\s*\\|\\s*(\\d+)`, "im");
+    const line = lines.match(dashRegex)?.[1] ?? lines.match(tableRegex)?.[1];
+    if (line === undefined) continue;
+    const value = Number.parseInt(line, 10);
+    if (Number.isFinite(value)) return value;
+  }
+  return null;
 }
 
 function readLatestMetrics(filePath) {
@@ -51,7 +54,7 @@ function readLatestMetrics(filePath) {
     date: snapshotLine,
     stars: parseIntMetric(raw, "Stars"),
     forks: parseIntMetric(raw, "Forks"),
-    watchers: parseIntMetric(raw, "Watchers"),
+    watchers: parseIntMetric(raw, "Subscribers", "Watchers"),
     openIssues: parseIntMetric(raw, "Open issues (non-PR)"),
     openPullRequests: parseIntMetric(raw, "Open pull requests"),
   };
@@ -64,7 +67,7 @@ function buildCommentBody(metrics) {
     "Updated snapshot:",
     `- Stars: ${metrics.stars}`,
     `- Forks: ${metrics.forks}`,
-    `- Watchers: ${metrics.watchers}`,
+    `- Subscribers: ${metrics.watchers}`,
     `- Open issues (non-PR): ${metrics.openIssues}`,
     `- Open pull requests: ${metrics.openPullRequests}`,
     "",

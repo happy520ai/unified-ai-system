@@ -75,7 +75,7 @@ try {
   [void]$lines.Add("## Repository")
   [void]$lines.Add(("- Stars: {0}" -f $repoStats.stargazers_count))
   [void]$lines.Add(("- Forks: {0}" -f $repoStats.forks_count))
-  [void]$lines.Add(("- Watchers: {0}" -f $repoStats.subscribers_count))
+  [void]$lines.Add(("- Subscribers: {0}" -f $repoStats.subscribers_count))
   $openIssues = if ($null -ne $issueCounts.OpenIssues) { $issueCounts.OpenIssues } else { $repoStats.open_issues_count }
   $openPrs = $issueCounts.OpenPullRequests
   [void]$lines.Add(("- Open issues (non-PR): {0}" -f $openIssues))

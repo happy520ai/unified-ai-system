@@ -76,7 +76,7 @@ try {
   [void]$lines.Add("")
   [void]$lines.Add("- Stars: $($repoStats.stargazers_count)")
   [void]$lines.Add("- Forks: $($repoStats.forks_count)")
-  [void]$lines.Add("- Watchers: $($repoStats.subscribers_count)")
+  [void]$lines.Add("- Subscribers: $($repoStats.subscribers_count)")
   [void]$lines.Add("- Open issues (non-PR): $openIssues")
   if ($null -ne $openPrs) {
     [void]$lines.Add("- Open pull requests: $openPrs")
