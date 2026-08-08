@@ -21,7 +21,7 @@
     "@unified-ai-system/shared-config": "workspace:*",
     "better-sqlite3": "^11.10.0",
     "chalk": "^6.0.0",
-    "ora": "^8.0.0"
+    "ora": "^9.4.1"
   },
   "devDependencies": {
     "c8": "^10.1.0"
