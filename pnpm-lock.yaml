@@ -168,8 +168,8 @@ importers:
         specifier: workspace:*
         version: link:../../apps/ai-gateway-service
       playwright:
-        specifier: ^1.48.0
-        version: 1.60.0
+        specifier: ^1.62.1
+        version: 1.62.1
 
   packages/workforce-contracts: {}
 
@@ -964,14 +964,14 @@ packages:
     resolution: {integrity: sha512-wQ0b/W4Fr01qtpHlqSqspcj3EhBvimsdh0KlHhH8HRZnMsEa0ea2fTULOXOS9ccQr3om+GcGRk4e+isrZWV8qQ==}
     engines: {node: '>=16.20.0'}
 
-  playwright-core@1.60.0:
-    resolution: {integrity: sha512-9bW6zvX/m0lEbgTKJ6YppOKx8H3VOPBMOCFh2irXFOT4BbHgrx5hPjwJYLT40Lu+4qtD36qKc/Hn56StUW57IA==}
-    engines: {node: '>=18'}
+  playwright-core@1.62.1:
+    resolution: {integrity: sha512-wPYSwEBJY9GHraISXqyqtx0na0LpO3XEX7jNDhntbex7tzUS7kLnZsOlFruFJB4Hi/rhDMjXGqHewDZ68nYZVw==}
+    engines: {node: '>=20'}
     hasBin: true
 
-  playwright@1.60.0:
-    resolution: {integrity: sha512-hheHdokM8cdqCb0lcE3s+zT4t4W+vvjpGxsZlDnikarzx8tSzMebh3UiFtgqwFwnTnjYQcsyMF8ei2mCO/tpeA==}
-    engines: {node: '>=18'}
+  playwright@1.62.1:
+    resolution: {integrity: sha512-0M+L3LAD8/nm554LOla9Ayx0j0tmFZ0FBcoQ7F1VuVHpM/XpiC8RcDzBQB8W5+hA8L22THxELzeF+2WcUzvcLg==}
+    engines: {node: '>=20'}
     hasBin: true
 
   postcss@8.5.26:
@@ -1973,11 +1973,11 @@ snapshots:
 
   pkce-challenge@5.0.1: {}
 
-  playwright-core@1.60.0: {}
+  playwright-core@1.62.1: {}
 
-  playwright@1.60.0:
+  playwright@1.62.1:
     dependencies:
-      playwright-core: 1.60.0
+      playwright-core: 1.62.1
     optionalDependencies:
       fsevents: 2.3.2
 
