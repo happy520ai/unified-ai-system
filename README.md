@@ -183,6 +183,26 @@ pnpm gateway demo "Build a small API for my team" --enhance --profile coding
 The repository's devcontainer keeps the default path provider-free. Codespaces
 availability and usage limits are controlled by GitHub.
 
+### Docker Compose
+
+For a source checkout, start the gateway with a readiness check:
+
+```bash
+docker compose up --build -d
+docker compose ps
+curl http://127.0.0.1:3100/health/check
+```
+
+The service becomes `healthy` only after `/health/check` responds successfully.
+When finished, stop it with:
+
+```bash
+docker compose down
+```
+
+The Compose file treats `.env` as optional and leaves provider behavior explicit;
+the credential-free fake-provider path remains the default.
+
 ## Help It Grow
 
 If the project is useful, star the repository and keep the loop factual:

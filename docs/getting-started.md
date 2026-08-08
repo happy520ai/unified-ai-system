@@ -216,6 +216,15 @@ docker run --rm --publish 3100:3100 \
   ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3
 ```
 
-For a local image build, run `docker compose up --build`. The Compose file
-treats `.env` as optional, so the credential-free fake provider works from a
-fresh clone.
+For a local image build with readiness reporting, run:
+
+```bash
+docker compose up --build -d
+docker compose ps
+curl http://127.0.0.1:3100/health/check
+```
+
+The service reports `healthy` only after the health endpoint responds
+successfully. The Compose file treats `.env` as optional, so the
+credential-free fake provider works from a fresh clone. Stop the service with
+`docker compose down` when finished.

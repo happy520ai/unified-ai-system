@@ -40,6 +40,9 @@ jobs:
       - name: Public repository hygiene
         run: pnpm check:public
 
+      - name: Docker Compose manifest
+        run: docker compose config --quiet
+
       - name: Public clone runtime
         run: pnpm verify:public-clone
 
