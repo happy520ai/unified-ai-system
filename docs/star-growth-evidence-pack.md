@@ -87,6 +87,7 @@ pnpm growth:evidence-pack
 - Latest maintenance snapshot: 3 stars / 1 fork / 0 subscribers / 1 open issue / 0 open PRs. Dependabot PR #12 was superseded by merged PR #49; PR #13 remains closed because better-sqlite3 13 requires Node >=22 while the project supports Node 20.
 - Rewrote `README.zh-CN.md` from mojibake into a UTF-8 quickstart aligned with the verified English entrypoint, and added a public-repository guard against invalid Chinese README encoding.
 - Added a GitHub Codespaces one-click entry to both README languages, backed by the existing provider-free devcontainer and public-clone verification path.
+- GitHub traffic snapshot for the available 14-day window: 150 repository views / 34 unique visitors and 879 clones / 218 unique cloners. Top referrers were `github.com` (48 views / 13 uniques) and `happy520ai.github.io` (18 views / 2 uniques). These are exposure signals, not verified Star growth.
 
 ## Monthly Update Template
 
