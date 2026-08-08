@@ -11,7 +11,7 @@ const evidenceOutput = "docs/star-growth-latest.md";
 const dailyOutput = "docs/star-growth-daily.md";
 const checkOutput = "docs/star-growth-check.md";
 const demoCommand =
-  "docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.2 pnpm gateway demo";
+  "docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 pnpm gateway demo";
 
 function run(cmd) {
   return execSync(cmd, {

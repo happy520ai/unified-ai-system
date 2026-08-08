@@ -29,7 +29,7 @@
   <a href="https://github.com/happy520ai/unified-ai-system/releases/latest">
     <img alt="Release" src="https://img.shields.io/github/v/release/happy520ai/unified-ai-system?style=flat-square" />
   </a>
-  <a href="https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.4.2">
+  <a href="https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.4.3">
     <img alt="Official MCP Registry" src="https://img.shields.io/badge/Official_MCP_Registry-active-1f883d?style=flat-square" />
   </a>
   <a href="LICENSE">
@@ -62,7 +62,7 @@ Unified AI System 是一个面向模型、智能体、知识与工具的开源 A
     />
   </a>
   <br />
-  <sub>v0.4.2：确定性增强、无需 API Key、不会触发真实 provider 调用。</sub>
+  <sub>v0.4.3：确定性增强、无需 API Key、不会触发真实 provider 调用。</sub>
 </p>
 
 ## 60 秒体验
@@ -70,7 +70,7 @@ Unified AI System 是一个面向模型、智能体、知识与工具的开源 A
 无需登录，直接验证发布镜像：
 
 ```bash
-docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.2 pnpm gateway demo
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 pnpm gateway demo
 ```
 
 你将看到：
@@ -84,7 +84,7 @@ docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.2 pn
 用一条命令体验自然语言增强：
 
 ```bash
-docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.2 \
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 \
   pnpm gateway demo "帮我为团队设计一个小型 API" --enhance --profile coding
 ```
 
@@ -112,7 +112,7 @@ pnpm gateway chat "帮我为团队设计一个小型 API" --enhance --profile co
 直接添加已发布的 MCP 镜像：
 
 ```bash
-codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.2
+codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.3
 ```
 
 重启 Codex 后运行 `/mcp` 检查连接，再参考 [Codex MCP 60 秒快速开始](docs/codex-mcp-quickstart.md)。
@@ -198,8 +198,8 @@ pnpm verify:mcp
 
 ## 项目链接
 
-- [官方 MCP Registry 条目](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.4.2)
-- [Release v0.4.2](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.4.2)
+- [官方 MCP Registry 条目](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.4.3)
+- [Release v0.4.3](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.4.3)
 - [Codex MCP Server README](packages/mcp-server/README.md)
 - [Roadmap](ROADMAP.md)
 - [Vision](VISION.md)
