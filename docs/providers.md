@@ -26,3 +26,8 @@ pricing, and terms are controlled by each external provider and can change.
 
 Leave `AI_GATEWAY_REAL_PROVIDER_ENABLED=false` to guarantee that the normal
 gateway path does not call an external model provider.
+
+Contributors adding a provider adapter should follow the
+[provider adapter contribution guide](provider-adapter-contribution.md). It
+covers the current contracts, catalog boundaries, credential-free tests, and
+required public checks.

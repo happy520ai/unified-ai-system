@@ -43,6 +43,11 @@ request.
 - MCP tools, host compatibility, and protocol-level verification
 - Deployment, observability, examples, and documentation
 
+For provider-specific work, start with the
+[provider adapter contribution guide](docs/provider-adapter-contribution.md).
+It explains the current adapter contract, runtime registration path, safe
+testing pattern, and review checklist.
+
 ## Safety Boundaries
 
 - Never commit `.env`, provider keys, tokens, raw webhooks, or private

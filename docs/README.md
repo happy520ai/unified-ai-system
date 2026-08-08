@@ -42,4 +42,5 @@ Public documentation is grouped by task so the repo stays easy to scan.
 - [CONTRIBUTING](../CONTRIBUTING.md)
 - [CODE OF CONDUCT](../CODE_OF_CONDUCT.md)
 - [Security policy](../SECURITY.md)
+- [Provider adapter contribution guide](provider-adapter-contribution.md)
 - [Usage verification issue template](../.github/ISSUE_TEMPLATE/usage-verification-report.yml)
