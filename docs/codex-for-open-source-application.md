@@ -4,36 +4,34 @@
 
 - Last name: Chen
 - First name: Jiongjiong
-- Email: chenjiong0202@gmail.com
+- Email: chenjiongjiong0202@gmail.com
 - GitHub username: `happy520ai` (public profile required)
 - Repository: `https://github.com/happy520ai/unified-ai-system`
 
 ## 2) Role
 
-Primary maintainer / Core maintainer
+Primary maintainer
 
 ## 3) Why this repository qualifies? (<=500 chars)
 
-Unified AI System is open-source infrastructure for AI workflows: MCP/Codex/Cline/Cursor integration, CLI/API/SDK entrypoints, deterministic local prompt enhancement, provider governance, and auditable execution telemetry. It is Apache-2.0 licensed, has active issue/PR maintenance workflows, and as of 2026-08-08 it has 3 stars and 1 fork. It solves a real need for safe, maintainable AI control-plane tooling.
+Unified AI System is an open-source AI infrastructure project for real workflow execution. It connects MCP, Codex, Cline, and Cursor through CLI/API/SDK surfaces, deterministic local prompt enhancement, explicit provider boundaries, and auditable telemetry. It is Apache-2.0 licensed, actively maintained with releases, issues, and pull requests. It currently has 3 GitHub stars and 1 fork, and addresses a practical ecosystem need: safer, easier-to-operate AI workflows for teams.
 
 ## 4) I'm interested in (select all)
 
-- Codex for Open Source
 - Codex Security
 - API credits for my project
 
 ## 5) OpenAI Organization ID
 
-If you do not yet have an OpenAI organization:
-`Personal account (no org yet; will use personal quota)`
+Enter the actual Organization ID shown in the OpenAI Platform settings. Do not invent an ID or paste an API key. If the account has no organization, resolve that with OpenAI support or the form before submitting.
 
 ## 6) How will you use API credits for your project? (<=500 chars)
 
-Credits will be used for repository maintenance automation: prompt-enhancement regression checks, release safety checks, MCP/CLI verification hardening, issue and PR triage, and better documentation. The goal is to convert repetitive maintainer workload into reproducible workflows and improve quality, response speed, and long-term stability.
+API credits will support maintainer automation for prompt-enhancement regression checks, MCP and CLI verification, release safety checks, issue and pull-request triage, and documentation. This will reduce repetitive work, improve review and release quality, and make a provider-neutral AI gateway easier for contributors and teams to use.
 
 ## 7) Anything else we should know? (<=500 chars)
 
-This is an early but active infrastructure project. We avoid AGI and production claims and report only verified behavior: clean-clone checks, fake-provider demo, explicit provider opt-in, and evidence-first maintenance. Credits will support release quality, review throughput, and community onboarding, making the project more reliable for long-term teams.
+This is an early but active infrastructure project. We report verified behavior rather than claiming AGI or production readiness: credential-free clean-clone checks, fake-provider demos, explicit provider opt-in, reproducible tests, and published releases. Support would help us improve security review, maintainer response time, contributor onboarding, and long-term reliability.
 
 ## 8) Fast submit tips
 
