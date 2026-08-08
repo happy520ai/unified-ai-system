@@ -11,6 +11,12 @@
 </p>
 
 <p align="center">
+  <a href="https://codespaces.new/happy520ai/unified-ai-system?quickstart=1">
+    <img alt="在 GitHub Codespaces 中打开" src="https://github.com/codespaces/badge.svg" />
+  </a>
+</p>
+
+<p align="center">
   <a href="https://github.com/happy520ai/unified-ai-system/stargazers">
     <img alt="GitHub Stars" src="https://img.shields.io/github/stars/happy520ai/unified-ai-system?style=flat-square&label=Stars" />
   </a>
@@ -131,6 +137,15 @@ pnpm gateway demo
 ```
 
 Node.js 20 或更高版本受支持，Node.js 22 是依赖兼容性更广的推荐版本。
+
+如果不想配置本地环境，可以直接使用 [GitHub Codespaces](https://codespaces.new/happy520ai/unified-ai-system?quickstart=1)。工作区准备完成后运行：
+
+```bash
+pnpm verify:public-clone
+pnpm gateway demo "帮我为团队设计一个小型 API" --enhance --profile coding
+```
+
+仓库的 devcontainer 默认保持 provider-free。Codespaces 的可用性和使用额度由 GitHub 控制。
 
 ## 帮助项目成长
 

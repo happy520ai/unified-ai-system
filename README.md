@@ -11,6 +11,12 @@
 </p>
 
 <p align="center">
+  <a href="https://codespaces.new/happy520ai/unified-ai-system?quickstart=1">
+    <img alt="Open in GitHub Codespaces" src="https://github.com/codespaces/badge.svg" />
+  </a>
+</p>
+
+<p align="center">
   <a href="https://github.com/happy520ai/unified-ai-system/stargazers">
     <img alt="GitHub stars" src="https://img.shields.io/github/stars/happy520ai/unified-ai-system?style=flat-square&label=Stars" />
   </a>
@@ -161,6 +167,16 @@ pnpm install --frozen-lockfile
 pnpm verify:public-clone
 pnpm gateway demo
 ```
+
+For a prepared cloud workspace, use [GitHub Codespaces](https://codespaces.new/happy520ai/unified-ai-system?quickstart=1), then run:
+
+```bash
+pnpm verify:public-clone
+pnpm gateway demo "Build a small API for my team" --enhance --profile coding
+```
+
+The repository's devcontainer keeps the default path provider-free. Codespaces
+availability and usage limits are controlled by GitHub.
 
 ## Help It Grow
 
