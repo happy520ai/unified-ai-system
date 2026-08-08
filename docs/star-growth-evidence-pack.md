@@ -15,8 +15,8 @@ Use this file as the single source of truth for public growth evidence.
 - Watchers: 0
 - Open issues (non-PR): 1
 - Open pull requests: 4
-- Latest release: v0.4.1
-- MCP official registry entry: [v0.4.1](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.4.1)
+- Latest release: v0.4.2
+- MCP official registry entry: [v0.4.2](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.4.2)
 
 ## How We Prove Growth
 
@@ -81,6 +81,7 @@ pnpm growth:evidence-pack
 - Submitted the public MCP listing to [MCP Hub](https://www.aimcp.info/en/submit); the form confirmed successful submission and review pending. No contact email or subscription was provided.
 - Fresh local baseline: `pnpm gateway demo` returned `execution fake`, `real calls disabled`, and `[done] 29 ms | no API key | process cleaned up`; the output is also recorded in [issue #20](https://github.com/happy520ai/unified-ai-system/issues/20).
 - Refreshed public onboarding Discussions [#1](https://github.com/happy520ai/unified-ai-system/discussions/1), [#5](https://github.com/happy520ai/unified-ai-system/discussions/5), [#6](https://github.com/happy520ai/unified-ai-system/discussions/6), and [#23](https://github.com/happy520ai/unified-ai-system/discussions/23) to `v0.4.1`; verification found no remaining `v0.4.0` references in those four bodies.
+- Released `v0.4.2` with the one-command `--enhance` demo, aligned Docker tags, and matching MCP Registry metadata.
 - The current external funnel includes [punkpeye/awesome-mcp-servers#11745](https://github.com/punkpeye/awesome-mcp-servers/pull/11745), [TensorBlock/awesome-mcp-servers#1616](https://github.com/TensorBlock/awesome-mcp-servers/pull/1616), and [mahseema/awesome-ai-tools#1941](https://github.com/mahseema/awesome-ai-tools/pull/1941).
 
 ## Monthly Update Template
