@@ -20,6 +20,11 @@ const enhancementProfile =
   profileFlagIndex >= 0 && process.argv[profileFlagIndex + 1]
     ? process.argv[profileFlagIndex + 1]
     : "general";
+const languageFlagIndex = process.argv.indexOf("--language");
+const enhancementLanguage =
+  languageFlagIndex >= 0 && process.argv[languageFlagIndex + 1]
+    ? process.argv[languageFlagIndex + 1]
+    : "auto";
 const colorEnabled =
   !jsonOutput
   && process.stdout.isTTY
@@ -176,7 +181,7 @@ async function runDemo() {
         body: JSON.stringify({
           input: prompt,
           profile: enhancementProfile,
-          language: "auto",
+          language: enhancementLanguage,
         }),
       });
       const data = enhancement.body?.data;
@@ -208,6 +213,7 @@ async function runDemo() {
               promptEnhancement: {
                 enabled: true,
                 profile: promptEnhancement.profile,
+                language: promptEnhancement.language,
               },
             }
           : {}),

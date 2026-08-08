@@ -42,6 +42,7 @@ const ENHANCEMENT_PROFILES = new Set([
   "research",
   "planning",
 ]);
+const ENHANCEMENT_LANGUAGES = new Set(["auto", "zh-CN", "en"]);
 
 const COMMAND_ALIASES = new Map([
   ["health", "status"],
@@ -75,6 +76,8 @@ export function parseCliArgs(
     enhance: false,
     profile: "auto",
     profileProvided: false,
+    language: "auto",
+    languageProvided: false,
     allowRealProvider: false,
     host: null,
     port: null,
@@ -125,6 +128,12 @@ export function parseCliArgs(
     if (flag === "--profile") {
       options.profile = readFlagValue(argv, index, flag, inlineValue);
       options.profileProvided = true;
+      if (inlineValue === null) index += 1;
+      continue;
+    }
+    if (flag === "--language") {
+      options.language = readFlagValue(argv, index, flag, inlineValue);
+      options.languageProvided = true;
       if (inlineValue === null) index += 1;
       continue;
     }
@@ -239,7 +248,7 @@ async function runEnhance(options, output, stdin) {
   const response = await client.enhancePrompt({
     input: prompt,
     profile: options.profile,
-    language: "auto",
+    language: options.language,
   });
   const enhancement = unwrapEnvelope(response);
   if (typeof enhancement.enhancedPrompt !== "string") {
@@ -284,6 +293,7 @@ async function runDemo(options, runtime) {
       ...args,
       ...(options.enhance ? ["--enhance"] : []),
       ...(options.profileProvided ? ["--profile", options.profile] : []),
+      ...(options.languageProvided ? ["--language", options.language] : []),
     ],
     {
       cwd: repoRoot,
@@ -487,7 +497,7 @@ async function runChat(options, output, stdin) {
             promptEnhancement: {
               enabled: true,
               profile: options.profile,
-              language: "auto",
+              language: options.language,
             },
           }
         : {}),
@@ -611,6 +621,7 @@ Options:
   --prompt <text>             Prompt for demo, enhance, or chat
   --enhance                   Enhance a chat or demo prompt locally
   --profile <name>            auto, general, coding, analysis, writing, research, planning
+  --language <name>           auto, zh-CN, en (for prompt enhancement)
   --allow-real-provider       Authorize one chat command to use a real provider
   --host <host>               Host override for serve
   --port <port>               Port override for serve
@@ -621,9 +632,11 @@ Options:
 Examples:
   pnpm gateway demo
   pnpm gateway demo "Build me an API" --enhance --profile coding
+  pnpm gateway demo "帮我设计一个 API" --enhance --profile coding --language zh-CN
   pnpm gateway serve
   pnpm gateway status
   pnpm gateway enhance "Build me an API"
+  pnpm gateway enhance "帮我规划一个小型 API" --language zh-CN
   pnpm gateway chat "Build me an API" --enhance --profile coding
   pnpm gateway chat "Hello from the terminal"
   pnpm gateway doctor --json
@@ -685,6 +698,9 @@ function validateOptions(options) {
   if (!ENHANCEMENT_PROFILES.has(options.profile)) {
     throw new CliUsageError(`Unsupported enhancement profile: ${options.profile}`);
   }
+  if (!ENHANCEMENT_LANGUAGES.has(options.language)) {
+    throw new CliUsageError(`Unsupported enhancement language: ${options.language}`);
+  }
   if (
     options.profileProvided
     && options.command !== "enhance"
@@ -693,6 +709,16 @@ function validateOptions(options) {
   ) {
     throw new CliUsageError(
       "--profile is only valid with enhance or chat/demo --enhance.",
+    );
+  }
+  if (
+    options.languageProvided
+    && options.command !== "enhance"
+    && !(options.command === "chat" && options.enhance)
+    && !(options.command === "demo" && options.enhance)
+  ) {
+    throw new CliUsageError(
+      "--language is only valid with enhance or chat/demo --enhance.",
     );
   }
   if (

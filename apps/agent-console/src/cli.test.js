@@ -56,9 +56,12 @@ test("parseCliArgs supports prompt enhancement commands and profiles", () => {
     "--enhance",
     "--profile",
     "coding",
+    "--language",
+    "zh-CN",
   ], {});
   assert.equal(chat.enhance, true);
   assert.equal(chat.profile, "coding");
+  assert.equal(chat.language, "zh-CN");
 
   const demo = parseCliArgs([
     "demo",
@@ -101,6 +104,18 @@ test("parseCliArgs rejects ambiguous or unsafe option combinations", () => {
     (error) =>
       error instanceof CliUsageError
       && error.message.includes("Unsupported enhancement profile"),
+  );
+  assert.throws(
+    () => parseCliArgs(["enhance", "hello", "--language", "fr"], {}),
+    (error) =>
+      error instanceof CliUsageError
+      && error.message.includes("Unsupported enhancement language"),
+  );
+  assert.throws(
+    () => parseCliArgs(["chat", "hello", "--language", "zh-CN"], {}),
+    (error) =>
+      error instanceof CliUsageError
+      && error.message.includes("only valid with enhance"),
   );
 });
 
@@ -157,6 +172,8 @@ test("enhance previews a structured prompt without checking or calling a provide
     "build an API",
     "--profile",
     "coding",
+    "--language",
+    "zh-CN",
     "--json",
     "--url",
     gateway.url,
@@ -168,8 +185,10 @@ test("enhance previews a structured prompt without checking or calling a provide
   const output = JSON.parse(result.stdout);
   assert.equal(output.original, "build an API");
   assert.equal(output.profile, "coding");
+  assert.equal(output.language, "zh-CN");
   assert.match(output.enhancedPrompt, /Execution requirements/);
   assert.equal(output.metadata.providerCalled, false);
+  assert.equal(gateway.lastPromptEnhancementLanguage, "zh-CN");
 });
 
 test("demo can enhance a prompt in one isolated fake-provider run", async () => {
@@ -179,6 +198,8 @@ test("demo can enhance a prompt in one isolated fake-provider run", async () => 
     "--enhance",
     "--profile",
     "coding",
+    "--language",
+    "zh-CN",
     "--json",
   ]);
 
@@ -187,8 +208,9 @@ test("demo can enhance a prompt in one isolated fake-provider run", async () => 
   assert.equal(output.executionMode, "fake");
   assert.equal(output.realProviderCallsMade, false);
   assert.equal(output.promptEnhancement.profile, "coding");
+  assert.equal(output.promptEnhancement.language, "zh-CN");
   assert.equal(output.promptEnhancement.metadata.providerCalled, false);
-  assert.match(output.promptEnhancement.enhancedPrompt, /Execution requirements/);
+  assert.match(output.promptEnhancement.enhancedPrompt, /执行要求/);
 });
 
 test("chat opts into gateway enhancement only with --enhance", async (context) => {
@@ -201,6 +223,8 @@ test("chat opts into gateway enhancement only with --enhance", async (context) =
     "--enhance",
     "--profile",
     "coding",
+    "--language",
+    "zh-CN",
     "--json",
     "--url",
     gateway.url,
@@ -210,11 +234,12 @@ test("chat opts into gateway enhancement only with --enhance", async (context) =
   assert.deepEqual(gateway.lastPromptEnhancement, {
     enabled: true,
     profile: "coding",
-    language: "auto",
+    language: "zh-CN",
   });
   const output = JSON.parse(result.stdout);
   assert.equal(output.promptEnhancement.applied, true);
   assert.equal(output.promptEnhancement.profile, "coding");
+  assert.equal(output.promptEnhancement.language, "zh-CN");
 });
 
 test("chat blocks a real-provider runtime until explicitly authorized", async (context) => {
@@ -273,6 +298,7 @@ async function createMockGateway(options = {}) {
   let promptEnhancementRequestCount = 0;
   let lastPrompt = null;
   let lastPromptEnhancement = null;
+  let lastPromptEnhancementLanguage = null;
   const realProviderEnabled = options.realProviderEnabled === true;
   const server = createServer(async (request, response) => {
     if (request.method === "GET" && request.url === "/health/check") {
@@ -326,7 +352,7 @@ async function createMockGateway(options = {}) {
                 promptEnhancement: {
                   applied: true,
                   profile: body.promptEnhancement.profile ?? "general",
-                  language: "en",
+                  language: body.promptEnhancement.language ?? "auto",
                   engine: "local-deterministic",
                   version: "prompt-enhancer-v1",
                   providerCalled: false,
@@ -341,13 +367,14 @@ async function createMockGateway(options = {}) {
     if (request.method === "POST" && request.url === "/prompts/enhance") {
       promptEnhancementRequestCount += 1;
       const body = await readJsonBody(request);
+      lastPromptEnhancementLanguage = body.language ?? "auto";
       return writeJson(response, 200, {
         status: "ok",
         data: {
           original: body.input,
           enhancedPrompt: `# Task\n\n${body.input}\n\n# Execution requirements`,
           profile: body.profile === "auto" ? "general" : body.profile,
-          language: "en",
+          language: body.language ?? "auto",
           clarifyingQuestions: [],
           metadata: {
             engine: "local-deterministic",
@@ -385,6 +412,9 @@ async function createMockGateway(options = {}) {
     },
     get lastPromptEnhancement() {
       return lastPromptEnhancement;
+    },
+    get lastPromptEnhancementLanguage() {
+      return lastPromptEnhancementLanguage;
     },
     close: () =>
       new Promise((resolvePromise, reject) => {

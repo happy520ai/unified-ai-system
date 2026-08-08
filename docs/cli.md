@@ -39,6 +39,9 @@ Add `--enhance --profile <name>` to `demo` to structure the prompt locally
 before the fake-provider response. This path does not require a second
 terminal.
 
+Use `--language auto`, `--language zh-CN`, or `--language en` to select the
+enhancement output language explicitly. `auto` follows the input language.
+
 `health` is an alias for `status`, and `start` is an alias for `serve`.
 
 ## First Run
@@ -74,6 +77,7 @@ Preview the exact structured prompt before sending it to a model:
 ```bash
 pnpm gateway enhance "Help me compare two deployment options"
 pnpm gateway enhance "Write a launch plan" --profile planning --json
+pnpm gateway enhance "帮我规划一个小型 API" --profile planning --language zh-CN
 ```
 
 Profiles are `auto`, `general`, `coding`, `analysis`, `writing`, `research`,
@@ -83,6 +87,7 @@ Apply the same transformation to one chat request only with explicit opt-in:
 
 ```bash
 pnpm gateway chat "Build a Node API with tests" --enhance --profile coding
+pnpm gateway chat "帮我设计一个 API" --enhance --profile coding --language zh-CN
 ```
 
 Without `--enhance`, the chat prompt is not rewritten. Enhancement never
