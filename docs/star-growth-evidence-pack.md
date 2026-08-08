@@ -80,6 +80,7 @@ pnpm growth:evidence-pack
 - Submitted the public MCP listing to [awesome-mcp.tools](https://awesome-mcp.tools/submit); review is tracked in [adw0rd/awesome-mcp-servers#36](https://github.com/adw0rd/awesome-mcp-servers/issues/36).
 - Submitted the public MCP listing to [MCP Hub](https://www.aimcp.info/en/submit); the form confirmed successful submission and review pending. No contact email or subscription was provided.
 - Fresh local baseline: `pnpm gateway demo` returned `execution fake`, `real calls disabled`, and `[done] 29 ms | no API key | process cleaned up`; the output is also recorded in [issue #20](https://github.com/happy520ai/unified-ai-system/issues/20).
+- Refreshed public onboarding Discussions [#1](https://github.com/happy520ai/unified-ai-system/discussions/1), [#5](https://github.com/happy520ai/unified-ai-system/discussions/5), [#6](https://github.com/happy520ai/unified-ai-system/discussions/6), and [#23](https://github.com/happy520ai/unified-ai-system/discussions/23) to `v0.4.1`; verification found no remaining `v0.4.0` references in those four bodies.
 - The current external funnel includes [punkpeye/awesome-mcp-servers#11745](https://github.com/punkpeye/awesome-mcp-servers/pull/11745), [TensorBlock/awesome-mcp-servers#1616](https://github.com/TensorBlock/awesome-mcp-servers/pull/1616), and [mahseema/awesome-ai-tools#1941](https://github.com/mahseema/awesome-ai-tools/pull/1941).
 
 ## Monthly Update Template
