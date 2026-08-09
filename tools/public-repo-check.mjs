@@ -50,6 +50,8 @@ const requiredFiles = [
   "docs/index.html",
   "docs/index.zh-CN.html",
   "docs/indexnow.json",
+  "docs/prompt-enhancement.html",
+  "docs/prompt-enhancement.zh-CN.html",
   "docs/examples/prompt-enhancement.go",
   "docs/security/mcp-image-review-0.4.0.md",
   "docs/d6ce2ffbc1353aa5c0284e1efc2d6d5b66e3d048c764c07f.txt",
@@ -271,6 +273,28 @@ const requiredPromptLabMarkers = [
   ["data-prompt-output", "prompt_lab_output_missing"],
   ["data-prompt-copy", "prompt_lab_copy_missing"],
 ];
+
+const promptEnhancementPages = [
+  ["docs/prompt-enhancement.html", "natural_language_enhancement_page_missing", [
+    "Natural-Language Prompt Enhancement",
+    "providerCalled=false",
+    "gateway_prompt_enhance",
+    "prompt-enhancement-demo.png",
+  ]],
+  ["docs/prompt-enhancement.zh-CN.html", "chinese_natural_language_enhancement_page_missing", [
+    "自然语言提示词增强",
+    "providerCalled=false",
+    "gateway_prompt_enhance",
+    "prompt-enhancement-demo.png",
+  ]],
+];
+
+for (const [path, code, markers] of promptEnhancementPages) {
+  const page = readFileSync(resolve(repoRoot, path), "utf8");
+  for (const marker of markers) {
+    if (!page.includes(marker)) addError(code, path, marker);
+  }
+}
 
 for (const [marker, code] of requiredPromptLabMarkers) {
   if (!projectSite.includes(marker)) addError(code, "docs/index.html");

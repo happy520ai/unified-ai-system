@@ -94,6 +94,7 @@ language, and proves `providerCalled=false`, `credentialRequired=false`, and
 ## Choose Your First Path
 
 - **No install:** [try the browser Prompt Lab](https://happy520ai.github.io/unified-ai-system/#enhance).
+- **Understand the core capability:** read the [natural-language prompt enhancement guide](https://happy520ai.github.io/unified-ai-system/prompt-enhancement.html).
 - **Reproducible demo:** [run the 60-second Docker path](#try-it-in-60-seconds).
 - **Codex or MCP:** follow the [60-second MCP quickstart](docs/codex-mcp-quickstart.md).
 - **Something failed:** use the [first-run troubleshooting matrix](docs/first-run-troubleshooting.md).

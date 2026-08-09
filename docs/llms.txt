@@ -16,6 +16,8 @@ Unified AI System provides one governed boundary for models, agents, knowledge, 
 - [60-second Codex MCP quickstart](https://github.com/happy520ai/unified-ai-system/blob/master/docs/codex-mcp-quickstart.md)
 - [Getting started](https://github.com/happy520ai/unified-ai-system/blob/master/docs/getting-started.md)
 - [Natural-language prompt enhancement](https://github.com/happy520ai/unified-ai-system/blob/master/docs/prompt-enhancement.md)
+- [Prompt enhancement guide](https://happy520ai.github.io/unified-ai-system/prompt-enhancement.html)
+- [Chinese prompt enhancement guide](https://happy520ai.github.io/unified-ai-system/prompt-enhancement.zh-CN.html)
 - [Architecture](https://github.com/happy520ai/unified-ai-system/blob/master/docs/architecture.md)
 - [Security policy](https://github.com/happy520ai/unified-ai-system/blob/master/SECURITY.md)
 

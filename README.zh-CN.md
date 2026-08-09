@@ -87,6 +87,7 @@ docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 pn
 ## 选择入口
 
 - **无需安装：** [直接体验在线 Prompt Lab](https://happy520ai.github.io/unified-ai-system/#enhance)。
+- **了解核心能力：** 阅读[自然语言提示词增强指南](https://happy520ai.github.io/unified-ai-system/prompt-enhancement.zh-CN.html)。
 - **可复现演示：** [运行 60 秒 Docker 体验](README.zh-CN.md#60-秒体验)。
 - **连接 Codex 或 MCP：** 阅读 [60 秒 MCP 快速开始](docs/codex-mcp-quickstart.md)。
 - **遇到问题：** 查看[中文首次运行排障矩阵](docs/first-run-troubleshooting.zh-CN.md)。

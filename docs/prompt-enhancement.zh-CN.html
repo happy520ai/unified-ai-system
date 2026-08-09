@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>自然语言提示词增强 | Unified AI System</title>
+    <meta
+      name="description"
+      content="使用确定性、无需 provider 的 AI 网关，把普通自然语言需求整理成更容易检查和执行的提示词。"
+    />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <meta name="theme-color" content="#081011" />
+    <link rel="canonical" href="https://happy520ai.github.io/unified-ai-system/prompt-enhancement.zh-CN.html" />
+    <link rel="alternate" hreflang="en" href="https://happy520ai.github.io/unified-ai-system/prompt-enhancement.html" />
+    <link rel="alternate" hreflang="zh-CN" href="https://happy520ai.github.io/unified-ai-system/prompt-enhancement.zh-CN.html" />
+    <link rel="alternate" hreflang="x-default" href="https://happy520ai.github.io/unified-ai-system/prompt-enhancement.html" />
+    <link rel="sitemap" type="application/xml" href="sitemap.xml" />
+    <link rel="alternate" type="text/plain" href="llms.txt" title="LLM 可读项目摘要" />
+    <link rel="icon" type="image/png" href="assets/mcp-icon.png" />
+
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="Unified AI System" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:title" content="把普通需求变成更容易检查的提示词" />
+    <meta
+      property="og:description"
+      content="面向 CLI、HTTP、MCP、Codex、Cursor 和 Cline 的确定性、无需 provider 的自然语言增强路径。"
+    />
+    <meta property="og:url" content="https://happy520ai.github.io/unified-ai-system/prompt-enhancement.zh-CN.html" />
+    <meta property="og:image" content="https://happy520ai.github.io/unified-ai-system/assets/prompt-enhancement-demo.png" />
+    <meta property="og:image:secure_url" content="https://happy520ai.github.io/unified-ai-system/assets/prompt-enhancement-demo.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1280" />
+    <meta property="og:image:height" content="640" />
+    <meta property="og:image:alt" content="Unified AI System 提示词增强演示" />
+    <meta property="article:published_time" content="2026-08-09T00:00:00+00:00" />
+    <meta property="article:modified_time" content="2026-08-09T00:00:00+00:00" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="把普通需求变成更容易检查的提示词" />
+    <meta name="twitter:description" content="查看网关如何在不调用 provider 的情况下补充执行要求、输出约束和完成标准。" />
+    <meta name="twitter:image" content="https://happy520ai.github.io/unified-ai-system/assets/prompt-enhancement-demo.png" />
+    <meta name="twitter:image:alt" content="Unified AI System 提示词增强演示" />
+
+    <link rel="stylesheet" href="site.css" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "TechArticle",
+        "headline": "自然语言提示词增强",
+        "description": "使用确定性、无需 provider 的 AI 网关，把普通自然语言需求整理成更容易检查和执行的提示词。",
+        "datePublished": "2026-08-09",
+        "dateModified": "2026-08-09",
+        "inLanguage": "zh-CN",
+        "author": {
+          "@type": "Organization",
+          "name": "Unified AI System contributors",
+          "url": "https://github.com/happy520ai/unified-ai-system"
+        },
+        "mainEntityOfPage": "https://happy520ai.github.io/unified-ai-system/prompt-enhancement.zh-CN.html",
+        "image": "https://happy520ai.github.io/unified-ai-system/assets/prompt-enhancement-demo.png",
+        "isPartOf": {
+          "@type": "WebSite",
+          "name": "Unified AI System",
+          "url": "https://happy520ai.github.io/unified-ai-system/"
+        }
+      }
+    </script>
+    <script src="site.js" defer></script>
+  </head>
+  <body class="article-page">
+    <a class="skip-link" href="#article">跳到正文</a>
+
+    <header class="site-header">
+      <a class="brand" href="index.zh-CN.html" aria-label="Unified AI System 中文主页">
+        <img src="assets/mcp-icon.png" alt="" width="32" height="32" />
+        <span>Unified AI System</span>
+      </a>
+      <nav aria-label="主导航">
+        <a href="index.zh-CN.html">项目</a>
+        <a href="#difference">变化</a>
+        <a href="#run">运行</a>
+        <a href="#integrate">接入</a>
+        <a href="prompt-enhancement.html" lang="en">English</a>
+        <a
+          class="nav-command"
+          href="https://github.com/happy520ai/unified-ai-system"
+          aria-label="在 GitHub 为 Unified AI System 点 Star"
+        >
+          GitHub Star
+        </a>
+      </nav>
+    </header>
+
+    <main id="article">
+      <header class="article-hero">
+        <div class="article-hero-shade" aria-hidden="true"></div>
+        <div class="article-hero-inner">
+          <p class="eyebrow">核心能力 / 2026 年 8 月</p>
+          <h1>把普通需求变成更容易检查的提示词。</h1>
+          <p class="article-hero-copy">
+            直接输入自然语言。网关保留原始请求，并补充执行要求、输出要求、澄清策略和完成标准，帮助模型更稳定地工作。
+          </p>
+          <div class="article-meta" aria-label="能力详情">
+            <span>无需 provider 预览</span>
+            <span>确定性引擎</span>
+            <span>Apache-2.0</span>
+          </div>
+        </div>
+      </header>
+
+      <section class="article-summary" aria-label="摘要">
+        <strong>简要说明</strong>
+        <p>
+          第一步不要求用户掌握提示词工程。增强器会在可选的模型调用之前，让需求变得更容易检查，同时保持 provider 选择和授权边界明确。
+        </p>
+      </section>
+
+      <div class="article-layout">
+        <aside class="article-toc" aria-label="文章目录">
+          <span>目录</span>
+          <a href="#difference">发生了什么变化</a>
+          <a href="#run">运行预览</a>
+          <a href="#integrate">接入方式</a>
+          <a href="#mcp">通过 MCP 使用</a>
+          <a href="#boundary">明确边界</a>
+        </aside>
+
+        <article class="article-body">
+          <section id="difference">
+            <p class="article-lede">
+              简短需求可以是很好的起点，但不一定是完整的执行契约。自然语言增强会在不替换用户原话的前提下补充结构。
+            </p>
+            <div class="article-principles">
+              <div>
+                <span>01</span>
+                <h3>保留原始请求</h3>
+                <p>原始输入始终可见，并逐字包含在增强提示词中。</p>
+              </div>
+              <div>
+                <span>02</span>
+                <h3>补充执行细节</h3>
+                <p>补充约束、边界情况、假设和可落地的推进方式。</p>
+              </div>
+              <div>
+                <span>03</span>
+                <h3>让完成可检查</h3>
+                <p>要求输出可检查、可验证，避免没有证据的“已经完成”。</p>
+              </div>
+            </div>
+            <div class="article-code">
+              <pre><code>原始请求：帮我为团队设计一个小型 API
+
+增强提示词（节选）：
+# 执行要求
+- 保持兼容性，并覆盖错误路径和边界情况。
+# 输出要求
+- 提供可运行代码，并附带验证步骤。
+# 完成标准
+- 让结果可检查、可复现。</code></pre>
+            </div>
+          </section>
+
+          <section id="run">
+            <p class="eyebrow dark">运行预览</p>
+            <h2>无需账号或 API Key 即可体验。</h2>
+            <p>
+              可以直接打开浏览器 Prompt Lab，也可以运行已发布容器，获得能够在其他机器复现的终端记录。
+            </p>
+            <div class="closing-actions">
+              <a class="primary-action" href="index.zh-CN.html#enhance">打开浏览器 Prompt Lab</a>
+              <a class="secondary-action" href="https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml&amp;title=%5BUsage%20Report%5D%20Prompt%20Lab">分享验证结果</a>
+            </div>
+            <div class="article-code">
+              <span aria-hidden="true">$</span>
+              <code id="prompt-demo-command-zh">docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 pnpm gateway demo "帮我为团队设计一个小型 API" --enhance --profile coding --json</code>
+              <button type="button" data-copy-target="prompt-demo-command-zh">复制</button>
+            </div>
+            <p class="article-note">
+              成功预览会报告 <code>providerCalled=false</code>、<code>credentialRequired=false</code> 和
+              <code>deterministic=true</code>。它只使用本地 fake provider，不会调用真实 provider。
+            </p>
+          </section>
+
+          <section id="integrate">
+            <p class="eyebrow dark">HTTP 与 SDK</p>
+            <h2>在自己的工作流中复用同一份契约。</h2>
+            <p>
+              增强接口不会触发 provider。它返回原始请求、增强提示词、识别出的 profile 和语言、澄清问题以及安全元数据。
+            </p>
+            <div class="article-code">
+              <pre><code>curl --request POST http://127.0.0.1:3100/prompts/enhance \
+  --header "content-type: application/json" \
+  --data '{
+    "input": "帮我为团队设计一个小型 API",
+    "profile": "coding",
+    "language": "zh-CN"
+  }'</code></pre>
+            </div>
+            <p>
+              同一接口也可以通过 shared SDK 使用。聊天增强是显式 opt-in，因此升级网关不会悄悄改变已有的 <code>/chat</code> 行为。
+            </p>
+            <div class="article-boundary-list">
+              <div><strong>Profiles</strong><span>general、coding、analysis、writing、research、planning</span></div>
+              <div><strong>语言</strong><span>auto、zh-CN、en</span></div>
+              <div><strong>输入上限</strong><span>20,000 个字符</span></div>
+            </div>
+          </section>
+
+          <section id="mcp">
+            <p class="eyebrow dark">MCP / CODEX / IDE</p>
+            <h2>把增强能力作为受治理工具暴露出去。</h2>
+            <p>
+              已发布 MCP Server 暴露 <code>gateway_prompt_enhance</code>，同时提供健康、就绪、聊天、知识、工作流和 workforce 工具。将固定版本容器接入 Codex、Cursor 或 Cline 后，先检查工具列表，再发起调用。
+            </p>
+            <div class="article-flow" aria-label="提示词增强请求链路">
+              <div><span>输入</span><strong>自然语言需求</strong></div>
+              <div><span>网关</span><strong>Profile / 语言 / 策略</strong></div>
+              <div><span>输出</span><strong>可检查的增强提示词</strong></div>
+              <div><span>下一步</span><strong>人或模型执行</strong></div>
+            </div>
+            <p>
+              具体接入方式请阅读 <a href="codex-mcp-docker-quickstart.zh-CN.html">Codex MCP Docker 中文快速开始</a>，其中包含固定镜像和九工具验证路径。
+            </p>
+          </section>
+
+          <section id="boundary">
+            <p class="eyebrow dark">安全与治理</p>
+            <h2>结构更清晰，不等于承诺更聪明。</h2>
+            <p>
+              这是确定性的启发式转换。它改善一致性和可检查性，但不保证每个模型或任务都会因此表现更好。
+            </p>
+            <div class="article-boundary-list">
+              <div><strong>会做什么</strong><span>保留输入、补充结构、报告元数据，并提出有限的澄清问题。</span></div>
+              <div><strong>不会做什么</strong><span>调用 provider、编造执行结果，或开启真实 provider 访问。</span></div>
+              <div><strong>仍然需要</strong><span>明确授权、模型判断，以及独立证据来支持生产级结论。</span></div>
+            </div>
+            <p>
+              生产就绪、L5 自主和 AGI 不能由这次预览证明。项目明确写出这些边界，因为可信赖的网关也应该让自己的限制可见。
+            </p>
+          </section>
+        </article>
+      </div>
+
+      <section class="article-closing" aria-labelledby="article-closing-title-zh">
+        <p class="eyebrow">从一条需求开始</p>
+        <h2 id="article-closing-title-zh">让下一次模型调用更容易检查。</h2>
+        <div class="closing-actions">
+          <a class="primary-action" href="index.zh-CN.html#enhance">打开 Prompt Lab</a>
+          <a class="secondary-action" href="https://github.com/happy520ai/unified-ai-system">在 GitHub 点 Star</a>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <span>Unified AI System</span>
+      <span>自然语言提示词增强</span>
+      <a href="codex-mcp-docker-quickstart.zh-CN.html">Codex Docker 中文快速开始</a>
+      <span>Apache-2.0</span>
+    </footer>
+  </body>
+</html>
