@@ -15,6 +15,15 @@ Use the
 for reproducible defects. Include the operating system, Node.js and pnpm
 versions, exact command, expected result, and sanitized logs.
 
+## Verified Usage
+
+After a successful Prompt Lab or provider-free demo run, share the smallest
+reproducible result through the
+[Usage Report form](https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml).
+Include the command or browser path, your environment, and one relevant
+output line. Prompt Lab evidence can be copied or downloaded; review it first
+and never include provider keys, tokens, or private data.
+
 ## Security
 
 Do not disclose vulnerabilities, credentials, private endpoints, or
