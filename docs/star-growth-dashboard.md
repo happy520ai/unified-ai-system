@@ -71,6 +71,7 @@ docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 pn
   - emits `docs/star-growth-latest.md` / `docs/star-growth-daily.md` / `docs/star-growth-check.md` / `docs/star-growth-feedback.md`
 - GitHub Action: [Star Growth Thread Sync workflow](../.github/workflows/star-growth-sync-thread.yml)
   - runs weekly on Monday UTC 04:00
-  - refreshes launch-thread state on issue `#20`
+  - refreshes the maintainer launch-thread snapshot on issue `#20`
+  - does not count that thread as an independent community usage report
 
 This dashboard keeps outreach honest: every post maps to a generated artifact.

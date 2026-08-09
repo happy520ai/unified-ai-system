@@ -27,7 +27,9 @@ pnpm growth:blast
 
 2. Publish one English post and one Chinese or community post using the copy packs.
 3. Ask for OS + one output line, and keep the ask explicit.
-4. Log the result in issue `#20` and in the usage verification template.
+4. Submit OS + one output line through the structured Usage Report. The
+   maintainer launch thread (`#20`) is a snapshot channel, not a substitute
+   for an independent community report.
 5. Turn one repeated pain point into a repo improvement.
 
 ## Weekly Maintenance
