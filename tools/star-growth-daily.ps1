@@ -1,4 +1,4 @@
-﻿param([string]$OutputFile = "docs/star-growth-daily.md")
+﻿param([string]$OutputFile = ".tmp/growth/star-growth-daily.md")
 
 $ErrorActionPreference = "Stop"
 $originalOutputEncoding = [Console]::OutputEncoding
@@ -97,7 +97,7 @@ try {
   [void]$lines.Add("")
   [void]$lines.Add("- Ask at least one reviewer to run the command and paste output.")
   [void]$lines.Add("- Reply to every technical comment in thread within 24h.")
-  [void]$lines.Add("- Update [docs/star-growth-checklist.md](star-growth-checklist.md) after posting.")
+  [void]$lines.Add("- Keep generated snapshots under the ignored .tmp/growth/ directory.")
 
   $notes = $lines -join [Environment]::NewLine
 

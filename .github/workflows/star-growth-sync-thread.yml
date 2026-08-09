@@ -34,4 +34,3 @@ jobs:
         run: |
           pnpm --version
           node ./tools/star-growth-sync-thread.mjs
-          node ./tools/star-growth-append-evidence-pack.mjs

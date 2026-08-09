@@ -90,7 +90,7 @@ Repo: https://github.com/happy520ai/unified-ai-system
 2. Publish one English + one community post from this pack in different channels.
 3. Ask for one reproducible output line.
 4. Reply within 24 hours.
-5. Update `docs/star-growth-checklist.md` and `docs/star-growth-evidence-pack.md`.
+5. Keep the generated snapshot under the ignored `.tmp/growth/` directory; do not commit metrics ledgers.
 
 ## Suggested Hashtags
 

@@ -1,5 +1,5 @@
 param(
-  [string]$OutputFile = "docs/star-growth-feedback.md",
+  [string]$OutputFile = ".tmp/growth/star-growth-feedback.md",
   [int]$Top = 10
 )
 

@@ -1,5 +1,5 @@
 ﻿param(
-  [string]$OutputFile = "docs/star-growth-latest.md"
+  [string]$OutputFile = ".tmp/growth/star-growth-latest.md"
 )
 
 $ErrorActionPreference = "Stop"

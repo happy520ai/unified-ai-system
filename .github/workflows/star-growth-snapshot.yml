@@ -26,23 +26,24 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          node tools/star-growth-check.mjs evidence --output docs/star-growth-latest.md
-          node tools/star-growth-check.mjs daily --output docs/star-growth-daily.md
-          node tools/star-growth-check.mjs check --output docs/star-growth-check.md
-          node tools/star-growth-feedback.mjs --output docs/star-growth-feedback.md
+          mkdir -p .tmp/growth
+          node tools/star-growth-check.mjs evidence --output .tmp/growth/star-growth-latest.md
+          node tools/star-growth-check.mjs daily --output .tmp/growth/star-growth-daily.md
+          node tools/star-growth-check.mjs check --output .tmp/growth/star-growth-check.md
+          node tools/star-growth-feedback.mjs --output .tmp/growth/star-growth-feedback.md
 
           echo "## Star Growth Snapshot" >> "$GITHUB_STEP_SUMMARY"
-          cat docs/star-growth-check.md >> "$GITHUB_STEP_SUMMARY"
+          cat .tmp/growth/star-growth-check.md >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "### Feedback Snapshot" >> "$GITHUB_STEP_SUMMARY"
-          cat docs/star-growth-feedback.md >> "$GITHUB_STEP_SUMMARY"
+          cat .tmp/growth/star-growth-feedback.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload growth snapshot artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: star-growth-snapshot-${{ github.run_number }}
           path: |
-            docs/star-growth-latest.md
-            docs/star-growth-daily.md
-            docs/star-growth-check.md
-            docs/star-growth-feedback.md
+            .tmp/growth/star-growth-latest.md
+            .tmp/growth/star-growth-daily.md
+            .tmp/growth/star-growth-check.md
+            .tmp/growth/star-growth-feedback.md

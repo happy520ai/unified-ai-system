@@ -45,7 +45,7 @@ try {
   pnpm growth:campaign
   pnpm growth:feedback
 
-  $latestRaw = Get-Content -Path docs/star-growth-latest.md -Raw -Encoding UTF8
+  $latestRaw = Get-Content -Path .tmp/growth/star-growth-latest.md -Raw -Encoding UTF8
   $metrics = [ordered]@{
     Date              = Get-DateFromSnapshot -Text $latestRaw
     Stars             = Parse-Int -Text $latestRaw -MetricName "Stars"

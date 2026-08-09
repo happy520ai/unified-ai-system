@@ -28,12 +28,11 @@
     "test": "pnpm -r --if-present test",
     "check:public": "node tools/public-repo-check.mjs",
     "verify:public-clone": "node tools/verify-public-clone.mjs",
-    "growth:campaign": "node ./tools/star-growth-check.mjs campaign --output docs/star-growth-latest.md --daily-output docs/star-growth-daily.md --check-output docs/star-growth-check.md",
+    "growth:campaign": "node ./tools/star-growth-check.mjs campaign --output .tmp/growth/star-growth-latest.md --daily-output .tmp/growth/star-growth-daily.md --check-output .tmp/growth/star-growth-check.md",
     "growth:blast": "pnpm growth:sync-thread && pnpm growth:publish",
     "growth:sync-thread": "node ./tools/star-growth-sync-thread.mjs",
-    "growth:publish": "node ./tools/star-growth-publish-kit.mjs --output docs/star-growth-publish-output.md",
-    "growth:evidence-pack": "node ./tools/star-growth-append-evidence-pack.mjs",
-    "growth:feedback": "node ./tools/star-growth-feedback.mjs --output docs/star-growth-feedback.md"
+    "growth:publish": "node ./tools/star-growth-publish-kit.mjs --output .tmp/growth/star-growth-publish-output.md",
+    "growth:feedback": "node ./tools/star-growth-feedback.mjs --output .tmp/growth/star-growth-feedback.md"
   },
   "engines": {
     "node": ">=20",

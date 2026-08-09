@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { execSync } from "node:child_process";
-import { writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
 
 const repo = "happy520ai/unified-ai-system";
 const reportLabel = "community-feedback";
@@ -14,7 +15,7 @@ function parseArgs() {
     help: args.includes("-h") || args.includes("--help"),
     output: args.includes("--output")
       ? args[args.indexOf("--output") + 1]
-      : "docs/star-growth-feedback.md",
+      : ".tmp/growth/star-growth-feedback.md",
     top: (() => {
       const index = args.indexOf("--top");
       if (index < 0) {
@@ -181,6 +182,7 @@ async function run() {
   );
 
   const markdown = `${lines.join("\n")}\n`;
+  mkdirSync(dirname(options.output), { recursive: true });
   writeFileSync(options.output, markdown, "utf8");
   console.log(markdown);
 }

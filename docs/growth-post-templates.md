@@ -117,7 +117,5 @@ https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verifi
 1. 发布 1 条英文说明 + 1 条中文/社区说明
 2. 明确索要输出截图或一行输出（含 OS）
 3. 24 小时内回复每条反馈
-4. 更新：
-   - docs/star-growth-checklist.md
-   - docs/star-growth-evidence-pack.md
+4. 将生成的快照保存在被忽略的 `.tmp/growth/` 目录，不要把指标台账提交到产品仓库。
 ```

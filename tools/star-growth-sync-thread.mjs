@@ -7,9 +7,9 @@ import path from "node:path";
 
 const repo = "happy520ai/unified-ai-system";
 const issueNumber = 20;
-const evidenceOutput = "docs/star-growth-latest.md";
-const dailyOutput = "docs/star-growth-daily.md";
-const checkOutput = "docs/star-growth-check.md";
+const evidenceOutput = ".tmp/growth/star-growth-latest.md";
+const dailyOutput = ".tmp/growth/star-growth-daily.md";
+const checkOutput = ".tmp/growth/star-growth-check.md";
 const promptLabUrl = "https://happy520ai.github.io/unified-ai-system/#enhance";
 const usageReportUrl =
   "https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml";

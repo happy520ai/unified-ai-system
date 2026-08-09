@@ -1,4 +1,4 @@
-﻿param([string]$OutputFile = "docs/star-growth-summary.md")
+﻿param([string]$OutputFile = ".tmp/growth/star-growth-summary.md")
 
 $ErrorActionPreference = "Stop"
 $originalOutputEncoding = [Console]::OutputEncoding

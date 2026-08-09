@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 
-import { writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
 
 const args = process.argv.slice(2);
 const outputArgIndex = args.indexOf("--output");
 const output = outputArgIndex >= 0 ? args[outputArgIndex + 1] : null;
-const outputFile = output || "docs/star-growth-publish-output.md";
+const outputFile = output || ".tmp/growth/star-growth-publish-output.md";
 
 const date = new Date().toISOString().slice(0, 10);
 const repoUrl = "https://github.com/happy520ai/unified-ai-system";
@@ -57,5 +58,6 @@ const fileContent = [
   ]),
 ].join("\n");
 
+mkdirSync(dirname(outputFile), { recursive: true });
 writeFileSync(outputFile, `${fileContent}\n`, "utf8");
 console.log(`Saved to ${outputFile}`);

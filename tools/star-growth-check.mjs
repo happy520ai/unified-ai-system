@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { execSync } from "node:child_process";
-import { writeFileSync } from "node:fs";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
 
 const repo = "happy520ai/unified-ai-system";
 const repoUrl = "https://github.com/happy520ai/unified-ai-system";
@@ -10,6 +10,13 @@ const usageReportUrl =
   "https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml";
 const demoCommand =
   "docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 pnpm gateway demo \"Build a small API for my team\" --enhance --profile coding";
+const defaultGrowthOutputDir = ".tmp/growth";
+const defaultLatestSnapshotFile = `${defaultGrowthOutputDir}/star-growth-latest.md`;
+
+function writeReport(filePath, content) {
+  mkdirSync(dirname(filePath), { recursive: true });
+  writeFileSync(filePath, content, "utf8");
+}
 
 const externalPrs = [
   ["sickn33/agentic-awesome-skills", 1073],
@@ -347,7 +354,7 @@ function generateDailyReport(repoStats, rows, date, previousStats = null) {
   lines.push(
     "- Reply to every technical comment in thread within 24 hours."
   );
-  lines.push("- Update docs/star-growth-checklist.md after publishing.");
+  lines.push("- Keep generated snapshots under the ignored .tmp/growth/ directory.");
   lines.push("");
   lines.push("## External PR funnel snapshot");
   lines.push(...renderPrRowsTable(rows));
@@ -465,11 +472,11 @@ async function run() {
   const repoStats = await getRepoStats();
   const rows = await getExternalPrRows();
 
-  const previous = readSnapshotMetrics("docs/star-growth-latest.md");
+  const previous = readSnapshotMetrics(defaultLatestSnapshotFile);
 
   if (action === "check") {
     const report = generateCheckReport(repoStats, rows, date, previous);
-    if (options.output) writeFileSync(options.output, report, "utf8");
+    if (options.output) writeReport(options.output, report);
     console.log(report);
     return;
   }
@@ -477,7 +484,7 @@ async function run() {
   if (action === "daily") {
     if (!options.output) throw new Error("daily action requires --output path");
     const report = generateDailyReport(repoStats, rows, date, previous);
-    writeFileSync(options.output, report, "utf8");
+    writeReport(options.output, report);
     console.log(report);
     return;
   }
@@ -485,26 +492,26 @@ async function run() {
   if (action === "evidence") {
     if (!options.output) throw new Error("evidence action requires --output path");
     const report = generateEvidenceReport(repoStats, rows, date, previous);
-    writeFileSync(options.output, report, "utf8");
+    writeReport(options.output, report);
     console.log(report);
     return;
   }
 
   if (action === "summary") {
     const report = generateSummaryReport(repoStats, rows, date);
-    if (options.output) writeFileSync(options.output, report, "utf8");
+    if (options.output) writeReport(options.output, report);
     console.log(report);
     return;
   }
 
-  const evidenceOutput = options.output ?? "docs/star-growth-latest.md";
-  const dailyOutput = options.dailyOutput ?? "docs/star-growth-daily.md";
+  const evidenceOutput = options.output ?? `${defaultGrowthOutputDir}/star-growth-latest.md`;
+  const dailyOutput = options.dailyOutput ?? `${defaultGrowthOutputDir}/star-growth-daily.md`;
   const checkOutput = options.checkOutput ?? null;
 
-  writeFileSync(evidenceOutput, generateEvidenceReport(repoStats, rows, date, previous), "utf8");
-  writeFileSync(dailyOutput, generateDailyReport(repoStats, rows, date, previous), "utf8");
+  writeReport(evidenceOutput, generateEvidenceReport(repoStats, rows, date, previous));
+  writeReport(dailyOutput, generateDailyReport(repoStats, rows, date, previous));
   if (checkOutput) {
-    writeFileSync(checkOutput, generateCheckReport(repoStats, rows, date, previous), "utf8");
+    writeReport(checkOutput, generateCheckReport(repoStats, rows, date, previous));
   }
 
   const updatedFiles = [
