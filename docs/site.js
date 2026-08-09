@@ -64,7 +64,7 @@ async function initializePromptLab(lab) {
   const {
     MAX_PROMPT_INPUT_LENGTH,
     enhanceNaturalLanguagePrompt,
-  } = await import("./prompt-enhancer.js?v=prompt-lab-5");
+  } = await import("./prompt-enhancer.js?v=prompt-lab-6");
   const form = lab.querySelector("[data-prompt-form]");
   const input = lab.querySelector("[data-prompt-input]");
   const profile = lab.querySelector("[data-prompt-profile]");
@@ -137,8 +137,14 @@ async function initializePromptLab(lab) {
         enhancedPrompt: result.enhancedPrompt,
         profile: result.profile,
         language: result.language,
-        providerCalled: false,
-        deterministic: true,
+        metadata: {
+          engine: result.metadata.engine,
+          version: result.metadata.version,
+          providerCalled: result.metadata.providerCalled,
+          credentialRequired: result.metadata.credentialRequired,
+          originalPreserved: result.metadata.originalPreserved,
+          deterministic: result.metadata.deterministic,
+        },
       };
     } catch (error) {
       output.textContent = "";
