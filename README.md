@@ -99,12 +99,14 @@ language, and proves `providerCalled=false`, `credentialRequired=false`, and
 
 ## Choose Your First Path
 
-- **No install:** [try the browser Prompt Lab](https://happy520ai.github.io/unified-ai-system/#enhance).
-- **Understand the core capability:** read the [natural-language prompt enhancement guide](https://happy520ai.github.io/unified-ai-system/prompt-enhancement.html).
-- **Reproducible demo:** [run the 60-second Docker path](#try-it-in-60-seconds).
-- **Codex or MCP:** follow the [60-second MCP quickstart](https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.html) or read the [source guide](docs/codex-mcp-quickstart.md).
-- **Something failed:** use the [first-run troubleshooting matrix](docs/first-run-troubleshooting.md).
-- **Contribute:** submit a [structured usage report](https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml) or choose an [open good first issue](https://github.com/happy520ai/unified-ai-system/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22good%20first%20issue%22).
+| Your goal | Start here | What you get |
+| --- | --- | --- |
+| Try it before installing | [Browser Prompt Lab](https://happy520ai.github.io/unified-ai-system/#enhance) | A local, deterministic preview with no account or API key. |
+| Verify the published runtime | [60-second Docker demo](#try-it-in-60-seconds) | A disposable fake-provider run with visible evidence and cleanup. |
+| Connect an agent client | [Codex and MCP quickstart](https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.html) | A pinned MCP container and nine inspectable tools. |
+| Integrate with an application | [Prompt enhancement guide](https://happy520ai.github.io/unified-ai-system/prompt-enhancement.html) | CLI, HTTP, SDK, curl, Python, and JavaScript paths. |
+| Diagnose a first-run problem | [Troubleshooting matrix](docs/first-run-troubleshooting.md) | Shell-specific checks without exposing credentials. |
+| Contribute or report a run | [Usage report](https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml) or [good first issue](https://github.com/happy520ai/unified-ai-system/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22good%20first%20issue%22) | A reproducible feedback path for users and maintainers. |
 
 ## Why People Use It
 
