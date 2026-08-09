@@ -33,6 +33,17 @@ PS> docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.
 如果 PowerShell 报告 `docker : The term 'docker' is not recognized`，请安装
 Docker Desktop，或使用下面的 [Codespaces 无 Docker 路径](#codespaces-无-docker)。
 
+如果需要修改端口，PowerShell 的续行符必须放在第一行末尾：
+
+```powershell
+# Windows PowerShell
+PS> docker run --rm --publish 3210:3100 `
+>> ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.5 pnpm gateway demo
+[ready] provider      local-fake-provider
+[ready] execution     fake
+[done] ... | no API key | process cleaned up
+```
+
 ### macOS/Linux Bash 或 Zsh
 
 ```bash
@@ -46,6 +57,17 @@ $ docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.5 
 
 如果 Shell 报告 `docker: command not found`，可以使用浏览器 [Prompt
 Lab](https://happy520ai.github.io/unified-ai-system/#enhance)，或继续使用下面的源码路径。
+
+Bash 或 Zsh 使用反斜杠续行：
+
+```bash
+# macOS/Linux Bash 或 Zsh
+$ docker run --rm --publish 3210:3100 \
+> ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.5 pnpm gateway demo
+[ready] provider      local-fake-provider
+[ready] execution     fake
+[done] ... | no API key | process cleaned up
+```
 
 ### Codespaces 无 Docker
 
@@ -62,6 +84,9 @@ $ pnpm gateway demo
 
 仓库的 devcontainer 默认保持 provider-free。若工作区尚未完成启动，请等待终端
 准备就绪后重试，不要为了首次验证添加 provider Key。
+
+如果首次验证早于依赖安装完成，请等待安装任务结束后重试同一命令；不要通过开启
+真实 provider 来修复本地启动问题。
 
 ## 提交可复现问题
 

@@ -34,6 +34,18 @@ PS> docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.
 If PowerShell reports `docker : The term 'docker' is not recognized`, install
 Docker Desktop or use the [Codespaces fallback](#codespaces-without-docker).
 
+For a port override, keep the PowerShell continuation mark at the end of the
+first line:
+
+```powershell
+# Windows PowerShell
+PS> docker run --rm --publish 3210:3100 `
+>> ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.5 pnpm gateway demo
+[ready] provider      local-fake-provider
+[ready] execution     fake
+[done] ... | no API key | process cleaned up
+```
+
 ### macOS/Linux Bash or Zsh
 
 ```bash
@@ -48,6 +60,17 @@ $ docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.5 
 If the shell reports `docker: command not found`, use the browser [Prompt
 Lab](https://happy520ai.github.io/unified-ai-system/#enhance) or the source
 checkout path below.
+
+The equivalent Bash or Zsh continuation uses a backslash instead:
+
+```bash
+# macOS/Linux Bash or Zsh
+$ docker run --rm --publish 3210:3100 \
+> ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.5 pnpm gateway demo
+[ready] provider      local-fake-provider
+[ready] execution     fake
+[done] ... | no API key | process cleaned up
+```
 
 ### Codespaces Without Docker
 
@@ -65,6 +88,10 @@ $ pnpm gateway demo
 The repository's devcontainer keeps the default provider-free path. If the
 workspace has not finished bootstrapping, wait for the terminal to become
 ready, then rerun the command without adding a provider key.
+
+If the first verification starts before dependencies finish installing, wait
+for the install task to complete and rerun the same command. Do not switch on a
+real provider to repair a local bootstrap problem.
 
 ## Report A Reproducible Problem
 
