@@ -36,6 +36,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Install browser for Prompt Lab smoke test
+        run: pnpm --filter @unified-ai-system/web-agent exec playwright install --with-deps chromium
+
       - name: Workspace checks
         run: pnpm check
 
