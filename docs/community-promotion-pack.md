@@ -20,7 +20,10 @@ Repo: https://github.com/happy520ai/unified-ai-system
 ```text
 Want rough language to become executable tasks?
 
-pnpm gateway enhance "Build a small API for my team" --profile coding
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 pnpm gateway demo "Build a small API for my team" --enhance --profile coding
+
+This is a no-clone, no-API-key first run. The container exits after printing
+the result.
 
 This converts intent into:
 - assumptions

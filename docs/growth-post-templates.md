@@ -26,7 +26,9 @@ If this command worked for you:
 ```text
 Want rough prompts to become executable tasks?
 
-pnpm gateway enhance "Build a small API for my team" --profile coding
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 pnpm gateway demo "Build a small API for my team" --enhance --profile coding
+
+No clone or provider key is required; the container exits after the preview.
 Repo: https://github.com/happy520ai/unified-ai-system
 ```
 
