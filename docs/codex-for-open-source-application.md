@@ -14,7 +14,7 @@ Primary maintainer
 
 ## 3) Why this repository qualifies? (<=500 chars)
 
-Unified AI System is an Apache-2.0 open-source AI infrastructure project that gives teams a governed path from ordinary language to executable model work. It connects MCP, Codex, Cline, and Cursor through CLI/API/SDK surfaces, deterministic provider-free prompt enhancement, explicit provider boundaries, and reproducible verification. It has 3 GitHub stars and 1 fork, is listed in the official MCP Registry, and addresses a practical gap in safe, operable AI workflows.
+Unified AI System is an Apache-2.0 self-hosted AI gateway and MCP server that I maintain. It gives teams a credential-free local path from natural-language requests to structured prompt enhancement and governed model execution across CLI, HTTP, SDK, MCP, Codex, Cline, and Cursor. It is listed in the official MCP Registry. The repository has 3 stars and 1 fork, plus 1,607 clones from 338 unique cloners in GitHub's latest 14-day window. It addresses a safety and interoperability gap.
 
 ## 4) I'm interested in (select all options shown by the form)
 
