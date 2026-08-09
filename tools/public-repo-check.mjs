@@ -213,6 +213,32 @@ if (readme.includes("BEGIN UNIFIED_AI_SYSTEM_CURRENT_STATE")) {
   addError("generated_ledger_in_public_readme", "README.md");
 }
 
+const currentVersionMarker = String(rootPackage.version);
+const versionedPublicEntryPoints = [
+  "README.md",
+  "README.zh-CN.md",
+  "docs/index.html",
+  "docs/index.zh-CN.html",
+  "docs/codex-mcp-docker-quickstart.html",
+  "docs/codex-mcp-docker-quickstart.zh-CN.html",
+  "docs/getting-started.md",
+  "docs/llms.txt",
+  ".github/ISSUE_TEMPLATE/usage-verification-report.yml",
+  "docs/prompt-enhancement.html",
+  "docs/prompt-enhancement.zh-CN.html",
+];
+
+for (const path of versionedPublicEntryPoints) {
+  const content = readFileSync(resolve(repoRoot, path), "utf8");
+  if (!content.includes(currentVersionMarker)) {
+    addError(
+      "public_entry_point_version_stale",
+      path,
+      `Expected current package version ${currentVersionMarker}`,
+    );
+  }
+}
+
 const projectSite = readFileSync(resolve(repoRoot, "docs/index.html"), "utf8");
 const browserPromptEnhancerPath = "docs/prompt-enhancer.js";
 const browserPromptEnhancer = readFileSync(
