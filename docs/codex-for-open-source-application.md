@@ -19,6 +19,7 @@ Unified AI System is an Apache-2.0 open-source AI infrastructure project that gi
 ## 4) I'm interested in (select all)
 
 - Codex Security
+- ChatGPT Pro with Codex
 - API credits for my project
 
 ## 5) OpenAI Organization ID
