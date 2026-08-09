@@ -7,7 +7,12 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-No unreleased public changes.
+### Documentation
+
+- Refreshed contributor and security guidance for the current `0.4.x` release
+  line and removed closed first-run issue links from public entry points.
+- Routed the bilingual README Codex links to the deployed Docker quickstarts
+  while keeping the repository source guide available for contributors.
 
 ## [0.4.5] - 2026-08-09
 
