@@ -73,6 +73,9 @@ jobs:
       - name: Go prompt enhancement example
         run: go run docs/examples/prompt-enhancement.go --help
 
+      - name: Shared SDK prompt enhancement example
+        run: node --check docs/examples/shared-sdk-prompt-enhancement.mjs
+
       - name: C# prompt enhancement example
         run: |
           dotnet restore docs/examples/prompt-enhancement.csproj

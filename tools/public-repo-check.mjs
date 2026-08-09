@@ -55,6 +55,7 @@ const requiredFiles = [
   "docs/examples/prompt-enhancement.go",
   "docs/examples/prompt-enhancement.cs",
   "docs/examples/prompt-enhancement.csproj",
+  "docs/examples/shared-sdk-prompt-enhancement.mjs",
   "docs/security/mcp-image-review-0.4.0.md",
   "docs/d6ce2ffbc1353aa5c0284e1efc2d6d5b66e3d048c764c07f.txt",
   "docs/robots.txt",

@@ -62,6 +62,19 @@ It accepts `--base-url`, `--profile`, and `--language`. It exits non-zero when
 the gateway is unreachable, returns invalid data, or does not prove
 `providerCalled=false`, `credentialRequired=false`, and `deterministic=true`.
 
+### Shared SDK Example
+
+After installing the workspace dependencies and starting the gateway, run the
+[Shared SDK example](examples/shared-sdk-prompt-enhancement.mjs):
+
+```bash
+pnpm gateway serve
+node docs/examples/shared-sdk-prompt-enhancement.mjs "Help me plan a small API for my team" --profile planning --language en
+```
+
+The example uses `createGatewayClient`, verifies provider-free readiness, and
+checks the same enhancement contract through `@unified-ai-system/shared-sdk`.
+
 ### Go Standard Library
 
 The dependency-free Go example performs the same provider-free checks using
