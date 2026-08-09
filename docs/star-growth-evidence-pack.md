@@ -119,6 +119,7 @@ pnpm growth:evidence-pack
 - 2026-08-09 public snapshot: 3 stars / 1 fork / 0 subscribers / 2 open issues; no verified Star increase since the prior snapshot. The browser Prompt Lab, Codespaces path, official MCP Registry entry, and external collection PRs remain discoverability routes, not Star results until independently observed.
 - Added `docs/first-run-troubleshooting.md` and linked it from both README entrypoint lists and `CONTRIBUTING.md`; it covers Docker, port, PowerShell, provider-free, MCP reload, and network fallback paths without changing runtime behavior.
 - Closed [good first issue #91](https://github.com/happy520ai/unified-ai-system/issues/91) after publishing the baseline matrix, then opened [good first issue #92](https://github.com/happy520ai/unified-ai-system/issues/92) for shell-specific troubleshooting transcripts; the newcomer path remains open and scoped.
+- Added the Chinese counterpart `docs/first-run-troubleshooting.zh-CN.md` and linked it from the Chinese README and documentation index, keeping the provider-free safety boundaries and current commands aligned with the English page.
 
 ## Monthly Update Template
 
