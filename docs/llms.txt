@@ -21,6 +21,22 @@ Unified AI System provides one governed boundary for models, agents, knowledge, 
 - [Architecture](https://github.com/happy520ai/unified-ai-system/blob/master/docs/architecture.md)
 - [Security policy](https://github.com/happy520ai/unified-ai-system/blob/master/SECURITY.md)
 
+## Prompt enhancement profiles
+
+The provider-free deterministic enhancer preserves the original request and
+adds a task-specific execution contract:
+
+- `planning`: milestones, dependencies, risks, owners, and completion signals.
+- `coding`: compatibility boundaries, error paths, runnable changes, and verification.
+- `analysis`: comparison criteria, evidence, uncertainty, risks, and a next action.
+- `writing`: audience, purpose, tone, structure, and a complete usable draft.
+- `research`: source expectations, date scope, cross-checking, and uncertainty.
+- `general`: ordered steps, practical structure, and direct coverage of the request.
+
+Every preview reports `providerCalled=false`, `credentialRequired=false`, and
+`deterministic=true`; real-provider execution is a separate explicitly
+authorized path.
+
 ## Public distributions
 
 - [Release v0.4.3](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.4.3)
