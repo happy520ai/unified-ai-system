@@ -80,7 +80,7 @@ jobs:
               trap "kill $pid 2>/dev/null || true" EXIT
               ready=false
               for attempt in $(seq 1 30); do
-                if pnpm gateway status --json >/tmp/status.json 2>/dev/null; then
+                if pnpm --silent gateway status --json >/tmp/status.json 2>/dev/null; then
                   ready=true
                   break
                 fi
@@ -90,7 +90,7 @@ jobs:
                 cat /tmp/gateway.log
                 exit 1
               fi
-              pnpm gateway enhance "Container evidence test" --profile coding --language en --evidence
+              pnpm --silent gateway enhance "Container evidence test" --profile coding --language en --evidence
             '
           )"
           EVIDENCE_JSON="${enhancement_evidence}" node --input-type=module <<'NODE'
