@@ -1,4 +1,4 @@
-# Unified AI System
+# Unified AI System: Self-Hosted AI Gateway & MCP Server
 
 <p align="center">
   <strong>Open-source AI gateway for deterministic prompt enhancement, governed execution, and reproducible verification.</strong>

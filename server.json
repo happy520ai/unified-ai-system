@@ -1,8 +1,8 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.happy520ai/unified-ai-system",
-  "title": "Unified AI System",
-  "description": "Terminal-first AI gateway with nine governed MCP tools for Codex, Cursor, Cline; no-key local path.",
+  "title": "Unified AI System MCP Gateway",
+  "description": "Terminal-first self-hosted AI gateway and MCP server with nine governed tools for Codex, Cursor, and Cline; includes provider-free natural-language prompt enhancement with no API key.",
   "icons": [
     {
       "src": "https://raw.githubusercontent.com/happy520ai/unified-ai-system/master/docs/assets/mcp-icon.png",

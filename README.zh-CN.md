@@ -1,4 +1,4 @@
-# Unified AI System
+# Unified AI System：自托管 AI 网关与 MCP Server
 
 <p align="center">
   <strong>面向自然语言增强、受治理执行与可复现验证的开源 AI 网关。</strong>
