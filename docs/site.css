@@ -557,6 +557,13 @@ h1 {
   gap: 4px;
 }
 
+.prompt-lab-result-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
 .prompt-lab-result-header strong {
   color: var(--cyan);
   overflow-wrap: anywhere;

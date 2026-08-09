@@ -64,7 +64,7 @@ async function initializePromptLab(lab) {
   const {
     MAX_PROMPT_INPUT_LENGTH,
     enhanceNaturalLanguagePrompt,
-  } = await import("./prompt-enhancer.js?v=prompt-lab-4");
+  } = await import("./prompt-enhancer.js?v=prompt-lab-5");
   const form = lab.querySelector("[data-prompt-form]");
   const input = lab.querySelector("[data-prompt-input]");
   const profile = lab.querySelector("[data-prompt-profile]");
@@ -76,6 +76,7 @@ async function initializePromptLab(lab) {
   const questionsPanel = lab.querySelector("[data-prompt-questions-panel]");
   const status = lab.querySelector("[data-prompt-status]");
   const copyButton = lab.querySelector("[data-prompt-copy]");
+  const evidenceButton = lab.querySelector("[data-prompt-copy-evidence]");
   const examples = [...lab.querySelectorAll("[data-prompt-example]")];
 
   if (
@@ -90,11 +91,13 @@ async function initializePromptLab(lab) {
     || !questionsPanel
     || !status
     || !copyButton
+    || !evidenceButton
   ) {
     throw new Error("Prompt lab markup is incomplete.");
   }
 
   input.maxLength = MAX_PROMPT_INPUT_LENGTH;
+  let latestEvidence = null;
 
   const updateCount = () => {
     count.textContent = formatTemplate(lab.dataset.countTemplate, {
@@ -128,6 +131,15 @@ async function initializePromptLab(lab) {
       );
       questionsPanel.hidden = result.clarifyingQuestions.length === 0;
       copyButton.disabled = false;
+      evidenceButton.disabled = false;
+      latestEvidence = {
+        input: input.value,
+        enhancedPrompt: result.enhancedPrompt,
+        profile: result.profile,
+        language: result.language,
+        providerCalled: false,
+        deterministic: true,
+      };
     } catch (error) {
       output.textContent = "";
       resultMeta.textContent = lab.dataset.waitingLabel ?? "Waiting for input";
@@ -135,6 +147,8 @@ async function initializePromptLab(lab) {
       questions.replaceChildren();
       questionsPanel.hidden = true;
       copyButton.disabled = true;
+      evidenceButton.disabled = true;
+      latestEvidence = null;
     }
   };
 
@@ -155,14 +169,35 @@ async function initializePromptLab(lab) {
   }
   copyButton.addEventListener("click", async () => {
     try {
-      await navigator.clipboard.writeText(output.textContent);
+      await copyText(output.textContent);
       showTemporaryButtonText(copyButton, lab.dataset.copySuccess ?? "Copied");
     } catch {
       showTemporaryButtonText(copyButton, lab.dataset.copyUnavailable ?? "Unavailable");
     }
   });
+  evidenceButton.addEventListener("click", async () => {
+    if (!latestEvidence) return;
+
+    try {
+      await copyText(JSON.stringify(latestEvidence, null, 2));
+      showTemporaryButtonText(
+        evidenceButton,
+        lab.dataset.evidenceCopySuccess ?? lab.dataset.copySuccess ?? "Copied",
+      );
+    } catch {
+      showTemporaryButtonText(
+        evidenceButton,
+        lab.dataset.evidenceCopyUnavailable ?? lab.dataset.copyUnavailable ?? "Unavailable",
+      );
+    }
+  });
 
   render();
+}
+
+async function copyText(value) {
+  if (!navigator.clipboard?.writeText) throw new Error("Clipboard unavailable.");
+  await navigator.clipboard.writeText(value);
 }
 
 function formatTemplate(template = "", values) {

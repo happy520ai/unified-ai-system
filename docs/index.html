@@ -50,7 +50,7 @@
     />
     <meta name="twitter:image:alt" content="Unified AI System terminal demo" />
 
-    <link rel="stylesheet" href="site.css?v=prompt-lab-4" />
+    <link rel="stylesheet" href="site.css?v=prompt-lab-5" />
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
@@ -64,7 +64,7 @@
         "version": "0.4.3"
       }
     </script>
-    <script src="site.js?v=prompt-lab-4" defer></script>
+    <script src="site.js?v=prompt-lab-5" defer></script>
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
@@ -151,6 +151,8 @@
             data-load-error="Unable to load the local enhancer."
             data-copy-success="Copied"
             data-copy-unavailable="Unavailable"
+            data-evidence-copy-success="Evidence copied"
+            data-evidence-copy-unavailable="Unavailable"
           >
             <form class="prompt-lab-form" data-prompt-form>
               <div class="prompt-lab-toolbar">
@@ -201,7 +203,10 @@
                   <span id="prompt-result-title">Structured prompt</span>
                   <strong data-prompt-result-meta>Loading local engine</strong>
                 </div>
-                <button type="button" data-prompt-copy disabled>Copy</button>
+                <div class="prompt-lab-result-actions">
+                  <button type="button" data-prompt-copy disabled>Copy</button>
+                  <button type="button" data-prompt-copy-evidence disabled>Copy evidence</button>
+                </div>
               </div>
               <pre tabindex="0"><code data-prompt-output>Loading the deterministic engine...</code></pre>
               <div class="prompt-lab-questions" data-prompt-questions-panel hidden>
