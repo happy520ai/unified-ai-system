@@ -10,6 +10,9 @@ const issueNumber = 20;
 const evidenceOutput = "docs/star-growth-latest.md";
 const dailyOutput = "docs/star-growth-daily.md";
 const checkOutput = "docs/star-growth-check.md";
+const promptLabUrl = "https://happy520ai.github.io/unified-ai-system/#enhance";
+const usageReportUrl =
+  "https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml";
 const demoCommand =
   "docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 pnpm gateway demo \"Build a small API for my team\" --enhance --profile coding";
 
@@ -49,7 +52,9 @@ function parseIntMetric(lines, ...metrics) {
 
 function readLatestMetrics(filePath) {
   const raw = readFileSync(filePath, "utf8");
-  const snapshotLine = /Generated:\\s*(\\d{4}-\\d{2}-\\d{2})/.exec(raw)?.[1] ?? "today";
+  const snapshotLine =
+    /Generated:\\s*(\\d{4}-\\d{2}-\\d{2})/.exec(raw)?.[1] ??
+    new Date().toISOString().slice(0, 10);
   return {
     date: snapshotLine,
     stars: parseIntMetric(raw, "Stars"),
@@ -76,14 +81,18 @@ function buildCommentBody(metrics) {
     demoCommand,
     "```",
     "",
-    "If you run it, please share one output line + OS:",
-    "- please include whether you saw `execution: fake`",
-    "- OS / command output line",
+    `Try it without installing anything in the browser Prompt Lab: ${promptLabUrl}`,
+    "",
+    "Minimum Usage Report context:",
+    "- command and 3-12 output lines",
+    "- environment (OS, shell, or client)",
+    "- execution mode",
+    "- expectation and actual result are optional",
+    `Report link: ${usageReportUrl}`,
     "",
     "If this saved you time, help this project grow:",
     `1) Star the repo: https://github.com/${repo}`,
-    "2) Submit one output line + OS through the structured Usage Report:",
-    `   https://github.com/${repo}/issues/new?template=usage-verification-report.yml`,
+    "2) Share the smallest reproducible report you can provide.",
     "3) Ask one teammate to run the same command and share their output.",
     "",
     `Repo: https://github.com/${repo}`,

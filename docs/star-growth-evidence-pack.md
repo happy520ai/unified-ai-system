@@ -144,6 +144,7 @@ pnpm growth:evidence-pack
 - Removed one maintainer-authored malformed v0.4.3 comment from Discussion #23 and published a clean replacement at [comment 17950864](https://github.com/happy520ai/unified-ai-system/discussions/23#discussioncomment-17950864) with the current enhancement command and feedback path; this repairs public documentation quality and is not Star-growth evidence.
 - Simplified the Usage Report template so a community member can submit the minimum command, output, environment, and execution mode while expectation/actual details remain optional; this targets the zero-community-report bottleneck and is a conversion improvement, not Star-growth evidence.
 - Aligned `growth:campaign`, `growth:publish`, and `growth:sync-thread` so generated outreach uses the verified natural-language enhancement command instead of the weaker baseline-only demo; this prevents future promotion drift and is not Star-growth evidence.
+- Updated `growth:sync-thread` to publish the Prompt Lab link and the new minimum Usage Report fields in its single editable Issue #20 comment; this keeps recurring outreach aligned with the lower-friction feedback funnel and is not Star-growth evidence.
 
 ## Monthly Update Template
 
