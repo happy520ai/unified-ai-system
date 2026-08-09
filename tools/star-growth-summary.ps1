@@ -75,7 +75,8 @@ try {
     "TensorBlock/awesome-mcp-servers#1616",
     "mahseema/awesome-ai-tools#1941",
     "docker/mcp-registry#4584",
-    "up-for-grabs/up-for-grabs.net#5995"
+    "up-for-grabs/up-for-grabs.net#5995",
+    "frechdi/awesome-self-hosted-ai#7"
   )
 
   $rows = @()
