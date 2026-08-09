@@ -603,6 +603,22 @@ h1 {
   font: 11px/1.5 "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 }
 
+.prompt-lab-growth {
+  margin: 9px 0 0;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.prompt-lab-growth a {
+  color: var(--cyan);
+  font-weight: 760;
+  text-decoration: none;
+}
+
+.prompt-lab-growth a:hover {
+  color: var(--mint);
+}
+
 .prompt-lab-noscript {
   display: block;
   padding: 12px 18px;
