@@ -7,6 +7,8 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const usageReportUrl =
+  "https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml";
 const serviceEntrypoint = resolve(
   repoRoot,
   "apps/ai-gateway-service/src/index.js",
@@ -131,6 +133,7 @@ function renderDemo(result) {
     `  ${color.green("[done]")} ${result.latencyMs} ms | no API key | process cleaned up`,
     color.muted('  Next: pnpm gateway demo "Help me plan a small API" --enhance --profile planning'),
     color.muted("  If this helps, star the project: https://github.com/happy520ai/unified-ai-system"),
+    color.muted(`  Share OS + one output line: ${usageReportUrl}`),
     "",
   ];
   process.stdout.write(`${lines.join("\n")}\n`);
