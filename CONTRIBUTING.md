@@ -5,8 +5,7 @@ knowledge, and governed automation.
 
 ## Start Here
 
-New contributors can start with [#92: shell-specific troubleshooting](https://github.com/happy520ai/unified-ai-system/issues/92), [#93: another dependency-free prompt example](https://github.com/happy520ai/unified-ai-system/issues/93), or [#94: Prompt Lab browser smoke coverage](https://github.com/happy520ai/unified-ai-system/issues/94).
-If those tasks are taken, browse the [other open good first issues](https://github.com/happy520ai/unified-ai-system/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22good%20first%20issue%22).
+New contributors can start with [#92: shell-specific troubleshooting](https://github.com/happy520ai/unified-ai-system/issues/92), submit a [structured usage report](https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml), or browse the [open good first issues](https://github.com/happy520ai/unified-ai-system/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22good%20first%20issue%22).
 When a first-run command fails, capture the details using the [first-run troubleshooting matrix](docs/first-run-troubleshooting.md) before opening an issue.
 
 1. Search existing issues and discussions before opening a new thread.
@@ -29,8 +28,7 @@ pnpm check:public
 Choose one bounded task:
 
 - [#92: shell-specific troubleshooting](https://github.com/happy520ai/unified-ai-system/issues/92) updates documentation and sanitized transcripts.
-- [#93: another dependency-free prompt example](https://github.com/happy520ai/unified-ai-system/issues/93) adds one standard-library client and a focused check.
-- [#94: Prompt Lab browser smoke coverage](https://github.com/happy520ai/unified-ai-system/issues/94) protects the public first-run flow.
+- A [structured usage report](https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml) adds a reproducible environment, output line, or first-run correction.
 
 Before opening a pull request, run the focused check for your change and then
 the four repository gates below. Keep the default fake provider enabled; no
