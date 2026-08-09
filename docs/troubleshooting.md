@@ -7,8 +7,16 @@ port.
 
 ## Native Dependency Installation Fails
 
-Use Node.js 22 first. On Windows, install Python and Visual Studio Build Tools
-when `better-sqlite3` must compile locally.
+Use Node.js 22 first. The install hook tries `pnpm dlx node-gyp rebuild` and
+then falls back to `npx`. To retry it explicitly from the repository root:
+
+```bash
+pnpm --filter @unified-ai-system/forge-core run rebuild:native
+```
+
+On Windows, install Python and Visual Studio Build Tools when
+`better-sqlite3` must compile locally. Keep the package manager (`pnpm` or
+`npm`) available on `PATH` so the fallback can be selected.
 
 ## The UI Opens But No Real Model Is Available
 

@@ -12,8 +12,8 @@
     "test": "node --test --test-concurrency=4 test/*.test.js",
     "test:coverage": "c8 --reporter=text --reporter=html --reporter=json-summary node --test --test-concurrency=4 test/*.test.js",
     "test:coverage:check": "c8 --check-coverage --lines 60 --branches 40 --functions 50 node --test --test-concurrency=4 test/*.test.js",
-    "rebuild:native": "node -e \"const p=require.resolve('better-sqlite3/package.json');const d=require('path').dirname(p);require('child_process').execSync('npx --yes node-gyp rebuild',{cwd:d,stdio:'inherit'})\"",
-    "postinstall": "node -e \"try{require('better-sqlite3');console.log('[forge] better-sqlite3 native OK')}catch(e){console.log('[forge] Rebuilding better-sqlite3...');const p=require.resolve('better-sqlite3/package.json');const d=require('path').dirname(p);require('child_process').execSync('npx --yes node-gyp rebuild',{cwd:d,stdio:'inherit'})}\""
+    "rebuild:native": "node ./scripts/rebuild-native.mjs --force",
+    "postinstall": "node ./scripts/rebuild-native.mjs"
   },
   "dependencies": {
     "@unified-ai-system/shared-utils": "workspace:*",
