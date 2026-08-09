@@ -213,7 +213,7 @@ Compose 将 `.env` 视为可选配置，并保持 provider 行为显式；无凭
 
 1. 运行一条可复现命令并保留输出。
 2. 给仓库点 Star，并分享仓库链接。
-3. 在 [Issue #20](https://github.com/happy520ai/unified-ai-system/issues/20) 留下操作系统和一行输出。
+3. 通过[结构化 Usage Report](https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml)提交操作系统和一行输出。
 4. 将真实反馈转化为文档、测试或代码改进。
 
 推广材料与验证入口：

@@ -58,7 +58,8 @@ $DemoCommand
     starEn = @"
 Use this once and spread the signal:
 1) Star: $RepoUrl
-2) Share one output line + OS in issue [`#20](https://github.com/happy520ai/unified-ai-system/issues/20)
+2) Submit one output line + OS through the structured Usage Report:
+   https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml
 3) Ask one teammate to run the same command
 
 $DemoCommand
@@ -66,7 +67,8 @@ $DemoCommand
     starZh = @"
 如果它对你有价值，请快速帮我扩散：
 1) 点赞：https://github.com/happy520ai/unified-ai-system
-2) 在 issue [`#20](https://github.com/happy520ai/unified-ai-system/issues/20) 留下命令输出 + OS
+2) 通过结构化 Usage Report 留下命令输出 + OS：
+   https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml
 3) 邀请一位同事一起跑一次
 
 $DemoCommand

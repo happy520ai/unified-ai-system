@@ -16,8 +16,8 @@ Repo: https://github.com/happy520ai/unified-ai-system
 ```text
 If this command worked for you:
 1) Star the repo: https://github.com/happy520ai/unified-ai-system
-2) Comment one output line + OS in issue #20:
-   https://github.com/happy520ai/unified-ai-system/issues/20
+2) Submit one output line + OS through the structured Usage Report:
+   https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml
 3) Invite one teammate to run the same command once.
 ```
 
@@ -69,8 +69,8 @@ docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 pn
 ```text
 如果这条命令对你有帮助，请帮我做 3 件事：
 1) 点赞星标： https://github.com/happy520ai/unified-ai-system
-2) 在 issue #20 留下 OS + 一行命令输出：
-   https://github.com/happy520ai/unified-ai-system/issues/20
+2) 通过结构化 Usage Report 留下 OS + 一行命令输出：
+   https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml
 3) 邀请一位同事也跑一次并分享结果
 ```
 

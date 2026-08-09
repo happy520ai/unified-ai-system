@@ -49,8 +49,8 @@ Repo: https://github.com/happy520ai/unified-ai-system
 ```text
 If this helped you, share one reproducible output line, then:
 1) Star: https://github.com/happy520ai/unified-ai-system
-2) Leave OS + output in issue #20:
-   https://github.com/happy520ai/unified-ai-system/issues/20
+2) Submit OS + output through the structured Usage Report:
+   https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml
 3) Ask one teammate to run the same command once
 
 docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 pnpm gateway demo
@@ -61,8 +61,8 @@ docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 pn
 ```text
 Thanks for trying it.
 - If output looks good, I'll publish a follow-up fix within 24h.
-- If anything is unclear, please post OS + output line in issue #20:
-  https://github.com/happy520ai/unified-ai-system/issues/20.
+- If anything is unclear, please submit OS + output through the structured Usage Report:
+  https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml.
 
 Repo: https://github.com/happy520ai/unified-ai-system
 ```

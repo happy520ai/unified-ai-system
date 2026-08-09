@@ -4,6 +4,10 @@ import { writeFileSync } from "node:fs";
 import { existsSync, readFileSync } from "node:fs";
 
 const repo = "happy520ai/unified-ai-system";
+const repoUrl = "https://github.com/happy520ai/unified-ai-system";
+const promptLabUrl = "https://happy520ai.github.io/unified-ai-system/#enhance";
+const usageReportUrl =
+  "https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml";
 const demoCommand =
   "docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 pnpm gateway demo";
 
@@ -289,7 +293,9 @@ function generateDailyReport(repoStats, rows, date, previousStats = null) {
   lines.push(demoCommand);
   lines.push("");
   lines.push("No API key is needed for baseline verification.");
-  lines.push("Repo: https://github.com/happy520ai/unified-ai-system");
+  lines.push(`Try the browser Prompt Lab (no install): ${promptLabUrl}`);
+  lines.push(`Repo: ${repoUrl}`);
+  lines.push(`Share one output line + OS: ${usageReportUrl}`);
   lines.push("");
   lines.push("### 24h Action");
   lines.push("- Ask at least one reviewer to run the command and paste output.");
@@ -344,7 +350,9 @@ function generateSummaryReport(repoStats, rows, date) {
   lines.push("```text");
   lines.push(demoCommand);
   lines.push("");
-  lines.push("Repo: https://github.com/happy520ai/unified-ai-system");
+  lines.push(`Prompt Lab: ${promptLabUrl}`);
+  lines.push(`Repo: ${repoUrl}`);
+  lines.push(`Usage report: ${usageReportUrl}`);
   lines.push("```");
   return `${lines.join("\n")}\n`;
 }

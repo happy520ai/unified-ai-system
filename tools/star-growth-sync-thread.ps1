@@ -92,10 +92,9 @@ If you run it, please share one output line + OS:
 
 If this saved you time, help this project grow:
 1) Star the repo: https://github.com/$repo
-2) Post one output line + OS in this thread: https://github.com/$repo/issues/20
-3) Run the verification form for one structured report:
+2) Submit one output line + OS through the structured Usage Report:
    https://github.com/$repo/issues/new?template=usage-verification-report.yml
-4) Ask one teammate to run the same command and share their output.
+3) Ask one teammate to run the same command and share their output.
 
 Repo: https://github.com/$repo
 <!-- unified-ai-system-growth-thread -->

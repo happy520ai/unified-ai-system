@@ -249,7 +249,7 @@ If the project is useful, star the repository and keep the loop factual:
 
 1. Run one reproducible command and keep the output.
 2. Share one short post with the repo link.
-3. Ask for OS + one output line in issue #20.
+3. Submit OS + one output line through the [structured Usage Report](https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml).
 4. Save one verified result in `docs/star-growth-evidence-pack.md`.
 
 Useful links:
