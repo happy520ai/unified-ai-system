@@ -130,6 +130,8 @@ pnpm growth:evidence-pack
 - Added sanitized PowerShell, Bash/Zsh, and Codespaces first-run transcripts in both troubleshooting pages; Issue #92 remains open for independent environment reports and follow-up improvements.
 - Posted one maintainer follow-up on each new external catalog PR, linking current provider-free verification evidence and inviting list-specific wording or category corrections; these are review nudges, not merges or Star results.
 - Added a concise bilingual profile guide to the README, grounded in verified `planning`, `coding`, and `analysis` enhancement output; it explains user value without adding a runtime claim.
+- Fresh directory audit: a new DeepYard submission for the public repository returned `ok=true` with the review destination `/thanks`; this confirms form receipt only, not approval, public indexing, or Star growth.
+- MCP.Directory's public submission endpoint returned HTTP 409 with `This repository has already been submitted`; no public search result was found for the repository during this audit, so the existing record is treated as pending/unverified rather than a listing or Star result.
 
 ## Monthly Update Template
 
