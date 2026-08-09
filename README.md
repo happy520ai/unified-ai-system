@@ -40,8 +40,14 @@
   </a>
 </p>
 
-Unified AI System is a public gateway for models, agents, knowledge, and tools.
-It is built for teams that want rough natural language turned into executable intent before a model call, with explicit provider opt-in and evidence-first verification.
+Unified AI System turns a rough request into a structured, reviewable prompt before execution. It gives teams one self-hosted surface for CLI, HTTP, SDK, MCP, Codex, Cursor, and Cline while keeping provider calls explicit.
+
+| You start with | You can inspect | Default first run |
+| --- | --- | --- |
+| `Build a small API for my team` | requirements, constraints, outputs, and ambiguity questions | local, deterministic, no API key |
+
+It is built for teams that want executable intent before a model call, with
+explicit provider opt-in and evidence-first verification.
 
 This is not a chat UI wrapper. It is a control plane for AI workflow execution.
 
