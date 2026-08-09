@@ -231,14 +231,9 @@ docker compose down
 
 Compose 将 `.env` 视为可选配置，并保持 provider 行为显式；无凭据的 fake-provider 路径仍是默认路径。
 
-## 帮助项目成长
+## 分享可验证结果
 
-如果这个项目对你有帮助，请：
-
-1. 运行一条可复现命令并保留输出。
-2. 给仓库点 Star，并分享仓库链接。
-3. 通过[结构化 Usage Report](https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml)提交操作系统和一行输出。
-4. 将真实反馈转化为文档、测试或代码改进。
+如果这个项目对你的工作流有帮助，请运行一条可复现路径、[给仓库点 Star](https://github.com/happy520ai/unified-ai-system)，再通过[结构化使用报告](https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml)分享最小且有用的结果。
 
 如果希望直接生成可复核的 CLI 证据包，可在增强 demo 后追加 `--evidence`：
 
@@ -251,22 +246,13 @@ pnpm gateway demo "帮我为团队设计一个小型 API" --enhance --profile co
 如果使用浏览器 Prompt Lab，可以点击“复制证据”或“下载证据”，再把 JSON 粘贴或附加到同一模板里的可选 Prompt Lab evidence 字段。
 如果希望其他浏览器复现同一个本地场景，可以点击“复制分享链接”；分享前请检查原始请求，因为 URL 片段会包含输入文本。
 
-推广材料与验证入口：
+## 下一步
 
-- [文档总览](docs/README.md)
-- [Launch Kit](docs/launch-kit.md)
-- [社区推广包](docs/community-promotion-pack.md)
-- [发布模板](docs/growth-post-templates.md)
-- [增长仪表板](docs/star-growth-dashboard.md)
-- [增长证据包](docs/star-growth-evidence-pack.md)
-- [增长清单](docs/star-growth-checklist.md)
-- [使用验证 Issue 模板](.github/ISSUE_TEMPLATE/usage-verification-report.yml)
-- [引用本项目](CITATION.cff)
-- [Go 标准库提示词增强示例](docs/examples/prompt-enhancement.go)
-- [C#/.NET 标准库提示词增强示例](docs/examples/prompt-enhancement.cs)
-- [贡献指南](CONTRIBUTING.md)
-- [Codex for Open Source 申请草稿](docs/codex-for-open-source-application.md)
-- [Codex for Open Source 提交文案](docs/codex-for-open-source-submit.md)
+- [文档总览](docs/README.md)：安装、CLI、自然语言增强与 provider 配置。
+- [Codex MCP 快速开始](docs/codex-mcp-quickstart.md)：最快接入 Codex 与 MCP。
+- [贡献指南](CONTRIBUTING.md)：聚焦改动与安全验证要求。
+- [使用报告模板](.github/ISSUE_TEMPLATE/usage-verification-report.yml)：提交可复现反馈。
+- [引用本项目](CITATION.cff)、[路线图](ROADMAP.md)与[支持页面](SUPPORT.md)。
 
 ## 诚实边界
 

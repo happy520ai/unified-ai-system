@@ -10,12 +10,7 @@ It keeps the workflow factual: verify first, post once, collect one output line,
 - Documentation: [docs/README.md](README.md)
 - Community promotion pack: [docs/community-promotion-pack.md](community-promotion-pack.md)
 - Growth post templates: [docs/growth-post-templates.md](growth-post-templates.md)
-- Growth dashboard: [docs/star-growth-dashboard.md](star-growth-dashboard.md)
-- Growth evidence pack: [docs/star-growth-evidence-pack.md](star-growth-evidence-pack.md)
-- Growth checklist: [docs/star-growth-checklist.md](star-growth-checklist.md)
 - Usage verification issue template: [`.github/ISSUE_TEMPLATE/usage-verification-report.yml`](../.github/ISSUE_TEMPLATE/usage-verification-report.yml)
-- Codex OSS application draft: [docs/codex-for-open-source-application.md](codex-for-open-source-application.md)
-- Codex OSS submission copy: [docs/codex-for-open-source-submit.md](codex-for-open-source-submit.md)
 
 ## 30-Minute Loop
 
@@ -31,13 +26,6 @@ pnpm growth:blast
    maintainer launch thread (`#20`) is a snapshot channel, not a substitute
    for an independent community report.
 5. Turn one repeated pain point into a repo improvement.
-
-## Weekly Maintenance
-
-- `pnpm growth:campaign`
-- `pnpm growth:feedback`
-- `pnpm growth:sync-thread`
-- `pnpm growth:evidence-pack`
 
 ## What To Keep Visible
 

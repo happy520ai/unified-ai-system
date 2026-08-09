@@ -270,14 +270,11 @@ docker compose down
 The Compose file treats `.env` as optional and leaves provider behavior explicit;
 the credential-free fake-provider path remains the default.
 
-## Help It Grow
+## Share a Verified Result
 
-If the project is useful, star the repository and keep the loop factual:
-
-1. Run one reproducible command and keep the output.
-2. Share one short post with the repo link.
-3. Submit OS + one output line through the [structured Usage Report](https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml).
-4. Save one verified result in `docs/star-growth-evidence-pack.md`.
+If the project helps your workflow, run one reproducible path, [star the
+repository](https://github.com/happy520ai/unified-ai-system), and share the
+smallest useful result through the [structured Usage Report](https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml).
 
 For a ready-to-review CLI packet, append `--evidence` to the enhanced demo:
 
@@ -294,22 +291,13 @@ Use `Copy share link` when you want another browser to reproduce the same local
 input, profile, and language; review the prompt first because the URL fragment
 contains the input text.
 
-Useful links:
+## Next Steps
 
-- [Documentation](docs/README.md)
-- [Launch kit](docs/launch-kit.md)
-- [Community promotion pack](docs/community-promotion-pack.md)
-- [Growth post templates](docs/growth-post-templates.md)
-- [Growth dashboard](docs/star-growth-dashboard.md)
-- [Growth evidence pack](docs/star-growth-evidence-pack.md)
-- [Growth checklist](docs/star-growth-checklist.md)
-- [Usage verification issue template](.github/ISSUE_TEMPLATE/usage-verification-report.yml)
-- [Cite this project](CITATION.cff)
-- [Go standard-library prompt enhancement example](docs/examples/prompt-enhancement.go)
-- [C#/.NET standard-library prompt enhancement example](docs/examples/prompt-enhancement.cs)
-- [Contributing guide](CONTRIBUTING.md)
-- [Codex for Open Source application draft](docs/codex-for-open-source-application.md)
-- [Codex for Open Source submission copy](docs/codex-for-open-source-submit.md)
+- [Documentation](docs/README.md) for setup, the CLI, prompt enhancement, and providers.
+- [Codex MCP quickstart](docs/codex-mcp-quickstart.md) for the fastest agent-tool integration.
+- [Contributing guide](CONTRIBUTING.md) for focused changes and safe verification.
+- [Usage Report template](.github/ISSUE_TEMPLATE/usage-verification-report.yml) for reproducible feedback.
+- [Cite this project](CITATION.cff), [Roadmap](ROADMAP.md), and [Support](SUPPORT.md).
 
 ## Honest Boundaries
 

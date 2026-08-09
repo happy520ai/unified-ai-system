@@ -26,17 +26,12 @@ Public documentation is grouped by task so the repo stays easy to scan.
 - [Chinese README](../README.zh-CN.md)
 - [Why terminal-first is right](terminal-first-ai-gateway.html)
 
-## Growth & Outreach
+## Share And Contribute
 
 - [Launch kit](launch-kit.md)
 - [Community promotion pack](community-promotion-pack.md)
 - [Growth post templates](growth-post-templates.md)
-- [Growth playbook](star-growth-playbook.md)
-- [Growth dashboard](star-growth-dashboard.md)
-- [Growth evidence pack](star-growth-evidence-pack.md)
-- [Growth checklist](star-growth-checklist.md)
-- [Codex for Open Source application draft](codex-for-open-source-application.md)
-- [Codex for Open Source submission copy](codex-for-open-source-submit.md)
+- [Usage verification issue template](../.github/ISSUE_TEMPLATE/usage-verification-report.yml)
 
 ## Maintenance
 
