@@ -4,6 +4,7 @@ import { writeFileSync } from "node:fs";
 
 const repo = "happy520ai/unified-ai-system";
 const reportLabel = "community-feedback";
+const maintainerLogins = new Set(["happy520ai"]);
 const issuesCommand = `gh issue list --repo ${repo} --label ${reportLabel} --state all --json number,title,state,url,createdAt,body,author,closedAt`;
 const today = new Date().toISOString().slice(0, 10);
 
@@ -109,6 +110,12 @@ async function run() {
   }
 
   const issues = Array.isArray(result.data) ? result.data : [];
+  const maintainerIssues = issues.filter((issue) =>
+    maintainerLogins.has(issue.author?.login)
+  );
+  const communityIssues = issues.filter(
+    (issue) => !maintainerLogins.has(issue.author?.login)
+  );
   const openCount = issues.filter((issue) => issue.state === "open").length;
   const closedCount = issues.filter((issue) => issue.state === "closed").length;
   const sortedIssues = [...issues].sort((a, b) => {
@@ -122,9 +129,14 @@ async function run() {
   lines.push(`# Usage Verification Feedback (${today})`);
   lines.push("");
   lines.push("## Report Snapshot");
-  lines.push(`- Total feedback reports: ${issues.length}`);
+  lines.push(`- Total submitted reports: ${issues.length}`);
+  lines.push(`- Community reports: ${communityIssues.length}`);
+  lines.push(`- Maintainer verification reports: ${maintainerIssues.length}`);
   lines.push(`- Open: ${openCount}`);
   lines.push(`- Closed: ${closedCount}`);
+  lines.push(
+    "- Community counts exclude reports submitted by the repository maintainer."
+  );
   lines.push("");
 
   if (topIssues.length === 0) {
@@ -134,14 +146,19 @@ async function run() {
       "- https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml"
     );
   } else {
-    lines.push("## Latest Verified Feedback");
+    lines.push("## Latest Reports");
     lines.push("");
-    lines.push("| Date | Reporter | Mode | Command | Environment | Issue |");
-    lines.push("| --- | --- | --- | --- | --- | --- |");
+    lines.push(
+      "| Date | Source | Reporter | Mode | Command | Environment | Issue |"
+    );
+    lines.push("| --- | --- | --- | --- | --- | --- | --- |");
     for (const issue of topIssues) {
       const summary = loadIssueSummary(issue);
       const issueDate = issue.createdAt?.slice(0, 10) ?? "N/A";
       const reporter = issue.author?.login ?? "unknown";
+      const source = maintainerLogins.has(reporter)
+        ? "maintainer"
+        : "community";
       const command = escapeForMarkdown(
         summary.commandPreview || "command not provided"
       );
@@ -149,7 +166,7 @@ async function run() {
         summary.environment || "environment not provided"
       );
       lines.push(
-        `| ${issueDate} | @${reporter} | ${escapeForMarkdown(summary.mode || "N/A")} | ${command} | ${environment} | [#${issue.number}](${issue.url}) |`
+        `| ${issueDate} | ${source} | @${reporter} | ${escapeForMarkdown(summary.mode || "N/A")} | ${command} | ${environment} | [#${issue.number}](${issue.url}) |`
       );
     }
     lines.push("");
