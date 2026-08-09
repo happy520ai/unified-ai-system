@@ -24,7 +24,7 @@ command when reporting a failure.
 
 ```powershell
 # Windows PowerShell
-PS> docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 pnpm gateway demo
+PS> docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.4 pnpm gateway demo
 [ready] provider      local-fake-provider
 [ready] execution     fake
 [ready] real calls    disabled
@@ -38,7 +38,7 @@ Docker Desktop or use the [Codespaces fallback](#codespaces-without-docker).
 
 ```bash
 # macOS/Linux Bash or Zsh
-$ docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 pnpm gateway demo
+$ docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.4 pnpm gateway demo
 [ready] provider      local-fake-provider
 [ready] execution     fake
 [ready] real calls    disabled

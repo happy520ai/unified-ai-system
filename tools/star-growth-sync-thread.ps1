@@ -1,4 +1,4 @@
-﻿param(
+param(
   [string]$IssueNumber = "20",
   [string]$Repo = "happy520ai/unified-ai-system"
 )
@@ -6,7 +6,7 @@
 $ErrorActionPreference = "Stop"
 $repo = $Repo
 $issue = $IssueNumber
-$demoCommand = 'docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 pnpm gateway demo "Build a small API for my team" --enhance --profile coding'
+$demoCommand = 'docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.4 pnpm gateway demo "Build a small API for my team" --enhance --profile coding'
 $evidenceCommand = 'pnpm gateway demo "Build a small API for my team" --enhance --profile coding --evidence'
 
 function Test-GhAvailable {

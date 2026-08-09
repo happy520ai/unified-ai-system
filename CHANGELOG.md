@@ -9,6 +9,18 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 No unreleased public changes.
 
+## [0.4.4] - 2026-08-09
+
+### Added
+
+- Added human-readable CLI output for optional clarification questions and
+  provider-free safety evidence after prompt enhancement.
+
+### Changed
+
+- Synchronized the public Docker, MCP, Codex, and documentation entry points
+  with the `0.4.4` patch release.
+
 ## [0.4.3] - 2026-08-09
 
 ### Added
@@ -254,7 +266,8 @@ No unreleased public changes.
 - It is not presented as production-certified, L5 autonomous, or established
   AGI. Those claims require independent evidence beyond local verification.
 
-[Unreleased]: https://github.com/happy520ai/unified-ai-system/compare/v0.4.3...HEAD
+[Unreleased]: https://github.com/happy520ai/unified-ai-system/compare/v0.4.4...HEAD
+[0.4.4]: https://github.com/happy520ai/unified-ai-system/compare/v0.4.3...v0.4.4
 [0.4.3]: https://github.com/happy520ai/unified-ai-system/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/happy520ai/unified-ai-system/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/happy520ai/unified-ai-system/compare/v0.4.0...v0.4.1

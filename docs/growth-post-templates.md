@@ -1,11 +1,11 @@
-﻿# Promotion Templates (Copy/Paste)
+# Promotion Templates (Copy/Paste)
 
 ## 1) 60-Second Prompt Enhancement (English)
 
 ```text
 I used this 60-second check to turn a rough request into a structured task:
 
-docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 pnpm gateway demo "Build a small API for my team" --enhance --profile coding
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.4 pnpm gateway demo "Build a small API for my team" --enhance --profile coding
 
 No API key or clone is required; the local fake-provider path is deterministic.
 Repo: https://github.com/happy520ai/unified-ai-system
@@ -26,7 +26,7 @@ If this command worked for you:
 ```text
 Want rough prompts to become executable tasks?
 
-docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 pnpm gateway demo "Build a small API for my team" --enhance --profile coding
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.4 pnpm gateway demo "Build a small API for my team" --enhance --profile coding
 
 No clone or provider key is required; the container exits after the preview.
 Repo: https://github.com/happy520ai/unified-ai-system
@@ -83,7 +83,7 @@ python docs/examples/prompt-enhancement.py "帮我为团队规划一个小型 AP
 ```text
 我在 60 秒内验证了 Unified AI System 的自然语言增强：
 
-docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 pnpm gateway demo "帮我为团队设计一个小型 API" --enhance --profile coding --language zh-CN
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.4 pnpm gateway demo "帮我为团队设计一个小型 API" --enhance --profile coding --language zh-CN
 
 默认使用本地 fake-provider，无需 API Key，会同时展示原始请求和结构化提示词。
 仓库：https://github.com/happy520ai/unified-ai-system

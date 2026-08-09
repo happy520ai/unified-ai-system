@@ -14,7 +14,7 @@ const promptLabUrl = "https://happy520ai.github.io/unified-ai-system/#enhance";
 const usageReportUrl =
   "https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml";
 const demoCommand =
-  "docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 pnpm gateway demo \"Build a small API for my team\" --enhance --profile coding";
+  "docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.4 pnpm gateway demo \"Build a small API for my team\" --enhance --profile coding";
 const evidenceCommand =
   "pnpm gateway demo \"Build a small API for my team\" --enhance --profile coding --evidence";
 

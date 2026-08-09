@@ -6,7 +6,7 @@ they are not production certification or a claim of universal safety.
 
 ## Current entry points
 
-- [Current release v0.4.3](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.4.3)
+- [Current release v0.4.4](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.4.4)
 - [Latest CI and container checks](https://github.com/happy520ai/unified-ai-system/actions)
 - [Security policy](../../SECURITY.md)
 - [Provider-free public-clone verification](../getting-started.md#verify)

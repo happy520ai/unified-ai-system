@@ -9,8 +9,8 @@ authors:
 repository-code: "https://github.com/happy520ai/unified-ai-system"
 url: "https://happy520ai.github.io/unified-ai-system/"
 license: Apache-2.0
-version: "0.4.3"
-date-released: "2026-08-08"
+version: "0.4.4"
+date-released: "2026-08-09"
 keywords:
   - artificial intelligence
   - AI gateway

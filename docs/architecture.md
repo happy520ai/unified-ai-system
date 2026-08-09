@@ -40,6 +40,6 @@ runs or deploys an instance they control.
 
 The default MCP command is self-contained: it allocates a local port, starts a
 fake-provider gateway, serves the governed stdio tools, and tears the child
-process down when the host disconnects. The source build and pinned `0.4.3`
+process down when the host disconnects. The source build and pinned `0.4.4`
 release both expose nine tools, including provider-free prompt enhancement. An
 explicit `AI_GATEWAY_MCP_URL` can point the server at an existing safe gateway.
