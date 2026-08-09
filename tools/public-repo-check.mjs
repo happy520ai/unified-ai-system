@@ -272,6 +272,7 @@ const requiredPromptLabMarkers = [
   ["data-prompt-form", "prompt_lab_form_missing"],
   ["data-prompt-output", "prompt_lab_output_missing"],
   ["data-prompt-copy", "prompt_lab_copy_missing"],
+  ["data-prompt-download-evidence", "prompt_lab_download_evidence_missing"],
 ];
 
 const promptEnhancementPages = [

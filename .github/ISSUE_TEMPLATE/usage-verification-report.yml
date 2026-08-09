@@ -32,7 +32,7 @@ body:
     id: prompt_lab_evidence
     attributes:
       label: Prompt Lab evidence (optional)
-      description: If you used the browser Prompt Lab, paste the JSON copied by the Copy evidence button.
+      description: If you used the browser Prompt Lab, paste the JSON from Copy evidence or the downloaded evidence file.
       render: json
   - type: input
     id: environment

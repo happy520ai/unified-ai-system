@@ -77,6 +77,7 @@ async function initializePromptLab(lab) {
   const status = lab.querySelector("[data-prompt-status]");
   const copyButton = lab.querySelector("[data-prompt-copy]");
   const evidenceButton = lab.querySelector("[data-prompt-copy-evidence]");
+  const downloadEvidenceButton = lab.querySelector("[data-prompt-download-evidence]");
   const examples = [...lab.querySelectorAll("[data-prompt-example]")];
 
   if (
@@ -92,6 +93,7 @@ async function initializePromptLab(lab) {
     || !status
     || !copyButton
     || !evidenceButton
+    || !downloadEvidenceButton
   ) {
     throw new Error("Prompt lab markup is incomplete.");
   }
@@ -132,6 +134,7 @@ async function initializePromptLab(lab) {
       questionsPanel.hidden = result.clarifyingQuestions.length === 0;
       copyButton.disabled = false;
       evidenceButton.disabled = false;
+      downloadEvidenceButton.disabled = false;
       latestEvidence = {
         input: input.value,
         enhancedPrompt: result.enhancedPrompt,
@@ -154,6 +157,7 @@ async function initializePromptLab(lab) {
       questionsPanel.hidden = true;
       copyButton.disabled = true;
       evidenceButton.disabled = true;
+      downloadEvidenceButton.disabled = true;
       latestEvidence = null;
     }
   };
@@ -196,6 +200,25 @@ async function initializePromptLab(lab) {
         lab.dataset.evidenceCopyUnavailable ?? lab.dataset.copyUnavailable ?? "Unavailable",
       );
     }
+  });
+  downloadEvidenceButton.addEventListener("click", () => {
+    if (!latestEvidence) return;
+
+    const blob = new Blob([JSON.stringify(latestEvidence, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "unified-ai-system-prompt-evidence.json";
+    document.body.append(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    showTemporaryButtonText(
+      downloadEvidenceButton,
+      lab.dataset.evidenceDownloadSuccess ?? "Downloaded",
+    );
   });
 
   render();
