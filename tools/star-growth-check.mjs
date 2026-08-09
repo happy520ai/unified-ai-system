@@ -147,6 +147,24 @@ function addDeltaLine(prefix, label, value, previousValue) {
   return `${prefix} ${label}: ${value}${formatDelta(value, previousValue)}`;
 }
 
+function trafficSummary(result, entryKey) {
+  if (!result.ok || !result.data || !Number.isFinite(result.data.count)) {
+    return null;
+  }
+  const entries = Array.isArray(result.data[entryKey])
+    ? result.data[entryKey]
+    : [];
+  const dates = entries
+    .map((entry) => entry?.timestamp)
+    .filter((timestamp) => typeof timestamp === "string")
+    .sort();
+  return {
+    count: result.data.count,
+    uniques: Number.isFinite(result.data.uniques) ? result.data.uniques : null,
+    through: dates.at(-1)?.slice(0, 10) ?? null,
+  };
+}
+
 async function getRepoStats() {
   const result = safeGetJson(`gh api repos/${repo}`);
   if (!result.ok) {
@@ -164,6 +182,14 @@ async function getRepoStats() {
   const openIssues = hasOpenItems
     ? openItems.length - (openPullRequests ?? 0)
     : null;
+  const views = trafficSummary(
+    safeGetJson(`gh api repos/${repo}/traffic/views`),
+    "views"
+  );
+  const clones = trafficSummary(
+    safeGetJson(`gh api repos/${repo}/traffic/clones`),
+    "clones"
+  );
 
   return {
     stars: result.data.stargazers_count,
@@ -176,6 +202,11 @@ async function getRepoStats() {
         ? null
         : openPullRequests,
     updated: parseDate(result.data.updated_at),
+    traffic: {
+      views,
+      clones,
+      available: Boolean(views || clones),
+    },
   };
 }
 
@@ -245,6 +276,19 @@ function renderRepoSection(repoStats, date, prefix, previousStats = null) {
         repoStats.openPullRequests,
         previousStats?.openPullRequests
       )
+    );
+  }
+  const traffic = repoStats.traffic;
+  if (traffic?.available) {
+    const through = traffic.views?.through ?? traffic.clones?.through ?? "N/A";
+    const views = traffic.views
+      ? `${traffic.views.count} views / ${traffic.views.uniques ?? "N/A"} uniques`
+      : "views unavailable";
+    const clones = traffic.clones
+      ? `${traffic.clones.count} clones / ${traffic.clones.uniques ?? "N/A"} uniques`
+      : "clones unavailable";
+    lines.push(
+      `${prefix} GitHub traffic snapshot through ${through}: ${views}; ${clones}.`
     );
   }
   lines.push(`${prefix} Last updated: ${repoStats.updated}`);
@@ -331,6 +375,13 @@ function generateSummaryReport(repoStats, rows, date) {
   if (typeof repoStats.openPullRequests === "number") {
     lines.push(`- Open pull requests: ${repoStats.openPullRequests}`);
   }
+  if (repoStats.traffic?.available) {
+    const through =
+      repoStats.traffic.views?.through ?? repoStats.traffic.clones?.through ?? "N/A";
+    lines.push(
+      `- GitHub traffic snapshot through ${through}: ${repoStats.traffic.views?.count ?? "N/A"} views / ${repoStats.traffic.views?.uniques ?? "N/A"} uniques; ${repoStats.traffic.clones?.count ?? "N/A"} clones / ${repoStats.traffic.clones?.uniques ?? "N/A"} uniques.`
+    );
+  }
   lines.push("");
   lines.push("## PR Funnel Signals");
   lines.push(`- CLEAN: ${clean}`);
@@ -373,6 +424,17 @@ function generateEvidenceReport(repoStats, rows, date, previousStats = null) {
   lines.push(`| Open issues (non-PR) | ${repoStats.openIssues}${formatDelta(repoStats.openIssues, previous?.openIssues)} |`);
   if (typeof repoStats.openPullRequests === "number") {
     lines.push(`| Open pull requests | ${repoStats.openPullRequests}${formatDelta(repoStats.openPullRequests, previous?.openPullRequests)} |`);
+  }
+  if (repoStats.traffic?.available) {
+    const through =
+      repoStats.traffic.views?.through ?? repoStats.traffic.clones?.through ?? "N/A";
+    lines.push(`| GitHub traffic snapshot through | ${through} |`);
+    lines.push(
+      `| Views / unique viewers | ${repoStats.traffic.views?.count ?? "N/A"} / ${repoStats.traffic.views?.uniques ?? "N/A"} |`
+    );
+    lines.push(
+      `| Clones / unique cloners | ${repoStats.traffic.clones?.count ?? "N/A"} / ${repoStats.traffic.clones?.uniques ?? "N/A"} |`
+    );
   }
   lines.push(`| Last updated | ${repoStats.updated} |`);
   lines.push("");
