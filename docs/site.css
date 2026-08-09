@@ -605,6 +605,9 @@ h1 {
 
 .prompt-lab-growth {
   margin: 9px 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
   font-size: 11px;
   line-height: 1.45;
 }
