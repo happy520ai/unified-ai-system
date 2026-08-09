@@ -1,6 +1,8 @@
 node_modules/
 dist/
 build/
+docs/examples/bin/
+docs/examples/obj/
 coverage/
 .turbo/
 .cache/

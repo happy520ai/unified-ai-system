@@ -263,6 +263,7 @@ pnpm gateway demo "帮我为团队设计一个小型 API" --enhance --profile co
 - [使用验证 Issue 模板](.github/ISSUE_TEMPLATE/usage-verification-report.yml)
 - [引用本项目](CITATION.cff)
 - [Go 标准库提示词增强示例](docs/examples/prompt-enhancement.go)
+- [C#/.NET 标准库提示词增强示例](docs/examples/prompt-enhancement.cs)
 - [贡献指南](CONTRIBUTING.md)
 - [Codex for Open Source 申请草稿](docs/codex-for-open-source-application.md)
 - [Codex for Open Source 提交文案](docs/codex-for-open-source-submit.md)

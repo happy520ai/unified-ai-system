@@ -76,6 +76,20 @@ before calling `/prompts/enhance`, preserves the original request, and exits
 non-zero unless the response proves `providerCalled=false`,
 `credentialRequired=false`, and `deterministic=true`.
 
+### C# / .NET Standard Library
+
+The .NET example uses only `HttpClient` and `System.Text.Json`. It checks the
+provider-free health state, preserves the original request, and exits non-zero
+unless the response proves `providerCalled=false`, `credentialRequired=false`,
+and `deterministic=true`:
+
+```bash
+dotnet run --project docs/examples/prompt-enhancement.csproj -- \
+  "Help me plan a small API for my team" --profile planning --language en
+```
+
+It targets .NET 6 or newer and requires no NuGet package or provider key.
+
 Supported profiles are `auto`, `general`, `coding`, `analysis`, `writing`,
 `research`, and `planning`. Supported language settings are `auto`, `zh-CN`,
 and `en`. Input is limited to 20,000 characters.

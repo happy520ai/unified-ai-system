@@ -53,6 +53,8 @@ const requiredFiles = [
   "docs/prompt-enhancement.html",
   "docs/prompt-enhancement.zh-CN.html",
   "docs/examples/prompt-enhancement.go",
+  "docs/examples/prompt-enhancement.cs",
+  "docs/examples/prompt-enhancement.csproj",
   "docs/security/mcp-image-review-0.4.0.md",
   "docs/d6ce2ffbc1353aa5c0284e1efc2d6d5b66e3d048c764c07f.txt",
   "docs/robots.txt",
@@ -244,6 +246,31 @@ if (/\"(?:github\.com|golang\.org|gopkg\.in)\//.test(goPromptEnhancer)) {
     "go_prompt_enhancer_external_dependency",
     goPromptEnhancerPath,
     "The public example must use only Go's standard library.",
+  );
+}
+const dotnetPromptEnhancerPath = "docs/examples/prompt-enhancement.cs";
+const dotnetPromptEnhancer = readFileSync(
+  resolve(repoRoot, dotnetPromptEnhancerPath),
+  "utf8",
+);
+for (const marker of [
+  "HttpClient",
+  "System.Text.Json",
+  "/health/check",
+  "/prompts/enhance",
+  "ProviderCalled",
+  "CredentialRequired",
+  "Deterministic",
+]) {
+  if (!dotnetPromptEnhancer.includes(marker)) {
+    addError("dotnet_prompt_enhancer_marker_missing", dotnetPromptEnhancerPath, marker);
+  }
+}
+if (dotnetPromptEnhancer.includes("PackageReference")) {
+  addError(
+    "dotnet_prompt_enhancer_external_dependency",
+    dotnetPromptEnhancerPath,
+    "The public example must use only the .NET standard library.",
   );
 }
 const browserPromptEnhancerBanner =

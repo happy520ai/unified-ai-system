@@ -306,6 +306,7 @@ Useful links:
 - [Usage verification issue template](.github/ISSUE_TEMPLATE/usage-verification-report.yml)
 - [Cite this project](CITATION.cff)
 - [Go standard-library prompt enhancement example](docs/examples/prompt-enhancement.go)
+- [C#/.NET standard-library prompt enhancement example](docs/examples/prompt-enhancement.cs)
 - [Contributing guide](CONTRIBUTING.md)
 - [Codex for Open Source application draft](docs/codex-for-open-source-application.md)
 - [Codex for Open Source submission copy](docs/codex-for-open-source-submit.md)
