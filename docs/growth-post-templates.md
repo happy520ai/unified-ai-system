@@ -44,7 +44,30 @@ enhancement JSON without a provider key.
 Repo: https://github.com/happy520ai/unified-ai-system
 ```
 
-## 5) Python 标准库入口（中文）
+## 5) C# / .NET Standard Library (English)
+
+```text
+Prefer C# or .NET? Start the gateway, then run:
+
+dotnet run --project docs/examples/prompt-enhancement.csproj -- "Help me plan a small API for my team" --profile planning --language en
+
+The example uses only the .NET standard library and proves the local response
+is deterministic and provider-free before printing JSON.
+Repo: https://github.com/happy520ai/unified-ai-system
+```
+
+## 6) C# / .NET 标准库入口（中文）
+
+```text
+偏好 C# 或 .NET？启动网关后执行：
+
+dotnet run --project docs/examples/prompt-enhancement.csproj -- "帮我为团队规划一个小型 API" --profile planning --language zh-CN
+
+该示例只使用 .NET 标准库，并在输出 JSON 前验证本地、确定性和 provider-free 响应。
+仓库：https://github.com/happy520ai/unified-ai-system
+```
+
+## 7) Python 标准库入口（中文）
 
 ```text
 偏好 Python？启动网关后执行：
@@ -55,7 +78,7 @@ python docs/examples/prompt-enhancement.py "帮我为团队规划一个小型 AP
 仓库：https://github.com/happy520ai/unified-ai-system
 ```
 
-## 6) 60-Second Prompt Enhancement (中文)
+## 8) 60-Second Prompt Enhancement (中文)
 
 ```text
 我在 60 秒内验证了 Unified AI System 的自然语言增强：
@@ -66,7 +89,7 @@ docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 pn
 仓库：https://github.com/happy520ai/unified-ai-system
 ```
 
-## 7) Add a Conversion CTA (中文)
+## 9) Add a Conversion CTA (中文)
 
 ```text
 如果这条命令对你有帮助，请帮我做 3 件事：
@@ -76,7 +99,7 @@ docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 pn
 3) 邀请一位同事也跑一次并分享结果
 ```
 
-## 8) Usage Report Prompt (中文)
+## 10) Usage Report Prompt (中文)
 
 ```text
 如果你已经跑过了，请提交一条简要反馈：
@@ -88,7 +111,7 @@ docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 pn
 https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml
 ```
 
-## 9) Community Workflow
+## 11) Community Workflow
 
 ```text
 1. 发布 1 条英文说明 + 1 条中文/社区说明

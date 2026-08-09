@@ -47,7 +47,21 @@ response. Check data.metadata.providerCalled=false; no provider key is needed.
 Repo: https://github.com/happy520ai/unified-ai-system
 ```
 
-## 4) Conversion CTA
+## 4) C# / .NET Standard Library
+
+```text
+Prefer C# or .NET? After starting a local gateway, run:
+
+dotnet run --project docs/examples/prompt-enhancement.csproj -- "Help me plan a small API for my team" --profile planning --language en
+
+This uses only HttpClient and System.Text.Json. It checks provider-free health,
+preserves the original request, and exits non-zero unless the response proves
+providerCalled=false, credentialRequired=false, and deterministic=true.
+
+Repo: https://github.com/happy520ai/unified-ai-system
+```
+
+## 5) Conversion CTA
 
 ```text
 If this helped you, share one reproducible output line, then:
@@ -59,7 +73,7 @@ If this helped you, share one reproducible output line, then:
 docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 pnpm gateway demo "Build a small API for my team" --enhance --profile coding
 ```
 
-## 5) Follow-up Reply
+## 6) Follow-up Reply
 
 ```text
 Thanks for trying it.
