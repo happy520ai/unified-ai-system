@@ -65,6 +65,11 @@ export interface PromptEnhancementResult {
   };
 }
 
+export interface PromptEnhancementContractFixture {
+  request: PromptEnhancementRequest;
+  response: PromptEnhancementResult;
+}
+
 export interface GatewayGenerationOptions {
   temperature?: number;
   topP?: number;

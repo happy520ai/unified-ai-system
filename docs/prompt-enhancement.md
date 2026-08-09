@@ -86,6 +86,20 @@ node docs/examples/shared-sdk-cancellation.mjs
 It uses a loopback stub and proves that caller cancellation preserves its own
 cause while an internal timeout exposes a `TimeoutError` cause.
 
+### Provider-Free Contract Fixture
+
+To inspect the stable request and response shape without starting the gateway,
+run the dependency-free contract fixture:
+
+```bash
+node docs/examples/prompt-enhancement-contract.mjs
+```
+
+It preserves the original request, profile, language, and enhanced prompt while
+asserting `providerCalled=false`, `credentialRequired=false`, and
+`deterministic=true`. The command makes no network request and exits non-zero if
+the public contract changes unexpectedly.
+
 ### Go Standard Library
 
 The dependency-free Go example performs the same provider-free checks using

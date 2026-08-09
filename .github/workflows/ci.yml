@@ -79,6 +79,9 @@ jobs:
       - name: Shared SDK cancellation example
         run: node docs/examples/shared-sdk-cancellation.mjs
 
+      - name: Prompt enhancement contract fixture
+        run: node docs/examples/prompt-enhancement-contract.mjs
+
       - name: C# prompt enhancement example
         run: |
           dotnet restore docs/examples/prompt-enhancement.csproj
