@@ -102,7 +102,7 @@ language, and proves `providerCalled=false`, `credentialRequired=false`, and
 - **No install:** [try the browser Prompt Lab](https://happy520ai.github.io/unified-ai-system/#enhance).
 - **Understand the core capability:** read the [natural-language prompt enhancement guide](https://happy520ai.github.io/unified-ai-system/prompt-enhancement.html).
 - **Reproducible demo:** [run the 60-second Docker path](#try-it-in-60-seconds).
-- **Codex or MCP:** follow the [60-second MCP quickstart](docs/codex-mcp-quickstart.md).
+- **Codex or MCP:** follow the [60-second MCP quickstart](https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.html) or read the [source guide](docs/codex-mcp-quickstart.md).
 - **Something failed:** use the [first-run troubleshooting matrix](docs/first-run-troubleshooting.md).
 - **Contribute:** submit a [structured usage report](https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml) or choose an [open good first issue](https://github.com/happy520ai/unified-ai-system/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22good%20first%20issue%22).
 
@@ -222,7 +222,7 @@ codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified
 ```
 
 Restart Codex, run `/mcp verbose` to verify the nine tools, then follow the
-[60-second Codex MCP quickstart](docs/codex-mcp-quickstart.md) for a safe first
+[60-second Codex MCP quickstart](https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.html) for a safe first
 prompt-enhancement call and removal command.
 
 ### Installable Agent Skill
@@ -300,7 +300,7 @@ contains the input text.
 ## Next Steps
 
 - [Documentation](docs/README.md) for setup, the CLI, prompt enhancement, and providers.
-- [Codex MCP quickstart](docs/codex-mcp-quickstart.md) for the fastest agent-tool integration.
+- [Codex MCP quickstart](https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.html) for the fastest agent-tool integration; the [source guide](docs/codex-mcp-quickstart.md) is kept in the repository.
 - [Contributing guide](CONTRIBUTING.md) for focused changes and safe verification.
 - [Usage Report template](.github/ISSUE_TEMPLATE/usage-verification-report.yml) for reproducible feedback.
 - [Cite this project](CITATION.cff), [Roadmap](ROADMAP.md), and [Support](SUPPORT.md).

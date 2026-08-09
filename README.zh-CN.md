@@ -95,7 +95,7 @@ docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.5 pn
 - **无需安装：** [直接体验在线 Prompt Lab](https://happy520ai.github.io/unified-ai-system/#enhance)。
 - **了解核心能力：** 阅读[自然语言提示词增强指南](https://happy520ai.github.io/unified-ai-system/prompt-enhancement.zh-CN.html)。
 - **可复现演示：** [运行 60 秒 Docker 体验](README.zh-CN.md#60-秒体验)。
-- **连接 Codex 或 MCP：** 阅读 [60 秒 MCP 快速开始](docs/codex-mcp-quickstart.md)。
+- **连接 Codex 或 MCP：** 阅读[60 秒 MCP 快速开始](https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.zh-CN.html)，也可以查看[源码指南](docs/codex-mcp-quickstart.md)。
 - **遇到问题：** 查看[中文首次运行排障矩阵](docs/first-run-troubleshooting.zh-CN.md)。
 - **参与贡献：** 可以提交一份[结构化使用报告](https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml)，或从[开放的 good first issue](https://github.com/happy520ai/unified-ai-system/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22good%20first%20issue%22)开始。
 
@@ -184,7 +184,7 @@ go run docs/examples/prompt-enhancement.go "帮我为团队规划一个小型 AP
 codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.5
 ```
 
-重启 Codex 后运行 `/mcp` 检查连接，再参考 [Codex MCP 60 秒快速开始](docs/codex-mcp-quickstart.md)。
+重启 Codex 后运行 `/mcp` 检查连接，再参考 [Codex MCP 60 秒快速开始](https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.zh-CN.html)。
 项目提供九个工具，包括健康检查、自然语言增强、聊天、知识、工作流和 workforce 能力。
 
 ### 可安装的 Agent Skill
@@ -255,7 +255,7 @@ pnpm gateway demo "帮我为团队设计一个小型 API" --enhance --profile co
 ## 下一步
 
 - [文档总览](docs/README.md)：安装、CLI、自然语言增强与 provider 配置。
-- [Codex MCP 快速开始](docs/codex-mcp-quickstart.md)：最快接入 Codex 与 MCP。
+- [Codex MCP 快速开始](https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.zh-CN.html)：最快接入 Codex 与 MCP；仓库内同时保留[源码指南](docs/codex-mcp-quickstart.md)。
 - [贡献指南](CONTRIBUTING.md)：聚焦改动与安全验证要求。
 - [使用报告模板](.github/ISSUE_TEMPLATE/usage-verification-report.yml)：提交可复现反馈。
 - [引用本项目](CITATION.cff)、[路线图](ROADMAP.md)与[支持页面](SUPPORT.md)。
