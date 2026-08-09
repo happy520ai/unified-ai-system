@@ -287,8 +287,9 @@ pnpm gateway demo "Build a small API for my team" --enhance --profile coding --e
 
 Review the original request and output before sharing the generated JSON.
 
-For the browser Prompt Lab, use its `Copy evidence` action and paste the JSON
-into the optional Prompt Lab evidence field in the same report.
+For the browser Prompt Lab, use its `Copy evidence` or `Download evidence`
+action, then paste or attach the JSON in the optional Prompt Lab evidence field
+of the same report.
 
 Useful links:
 

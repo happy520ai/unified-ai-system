@@ -248,7 +248,7 @@ pnpm gateway demo "帮我为团队设计一个小型 API" --enhance --profile co
 
 分享前请检查原始请求和输出内容。
 
-如果使用浏览器 Prompt Lab，请点击其中的“复制证据”，再把 JSON 粘贴到同一模板里的可选 Prompt Lab evidence 字段。
+如果使用浏览器 Prompt Lab，可以点击“复制证据”或“下载证据”，再把 JSON 粘贴或附加到同一模板里的可选 Prompt Lab evidence 字段。
 
 推广材料与验证入口：
 
