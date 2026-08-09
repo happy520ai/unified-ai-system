@@ -47,10 +47,11 @@ Unified AI System 是一个面向模型、智能体、知识与工具的开源 A
 **最快验证方式，无需账号：**
 
 ```bash
-docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 pnpm gateway demo
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 pnpm gateway demo "帮我为团队设计一个小型 API" --enhance --profile coding
 ```
 
-命令会输出确定性的 `execution: fake` 结果并自动退出。如果它对你的工作流有帮助，欢迎[给仓库点 Star](https://github.com/happy520ai/unified-ai-system)，并通过[使用验证模板分享一行可复现结果](https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml&title=%5BUsage%20Report%5D%20Quickstart)。
+命令会保留原始请求、输出结构化 coding 提示词、报告确定性的
+`execution: fake` 结果并自动退出。如果它对你的工作流有帮助，欢迎[给仓库点 Star](https://github.com/happy520ai/unified-ai-system)，并通过[使用验证模板分享一行可复现结果](https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml&title=%5BUsage%20Report%5D%20Quickstart)。
 
 **自然语言增强会补充什么：**
 

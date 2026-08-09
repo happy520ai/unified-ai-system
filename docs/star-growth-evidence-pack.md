@@ -140,6 +140,7 @@ pnpm growth:evidence-pack
 - Added a Codex/MCP evidence-capture step to the [60-second quickstart](codex-mcp-quickstart.md), including the exact provider-free metadata fields and a structured usage-report link; this reduces reporting friction and is not evidence of Star growth.
 - Replaced the promotion-pack prompt-enhancement entrypoint with a one-line, no-clone Docker command and aligned the copy/paste templates; the equivalent local `gateway demo --enhance` path passed provider-free verification, so this is a conversion improvement rather than Star-growth evidence.
 - Published a fresh onboarding update in [Issue #20](https://github.com/happy520ai/unified-ai-system/issues/20#issuecomment-5230669204) with the no-clone enhancement command, provider-free evidence boundary, and Usage Report links; this is verified outreach, not a community usage report or Star result.
+- Updated the English and Chinese README first-run commands so the first copy/paste demonstrates natural-language enhancement directly, instead of making visitors discover the differentiated path further down the page; the local command passed provider-free verification, so this is a conversion improvement rather than Star-growth evidence.
 
 ## Monthly Update Template
 

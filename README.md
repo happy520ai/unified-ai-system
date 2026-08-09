@@ -50,11 +50,13 @@ This is not a chat UI wrapper. It is a control plane for AI workflow execution.
 **Fastest proof, no account required:**
 
 ```bash
-docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 pnpm gateway demo
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 pnpm gateway demo "Build a small API for my team" --enhance --profile coding
 ```
 
-It prints a deterministic `execution: fake` result and exits cleanly. If that
-is useful to your workflow, [star the repository](https://github.com/happy520ai/unified-ai-system) and [share one reproducible result](https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml&title=%5BUsage%20Report%5D%20Quickstart).
+It preserves the original request, prints a structured coding prompt, reports
+deterministic `execution: fake`, and exits cleanly. If that is useful to your
+workflow, [star the repository](https://github.com/happy520ai/unified-ai-system)
+and [share one reproducible result](https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml&title=%5BUsage%20Report%5D%20Quickstart).
 
 **What enhancement adds:**
 
