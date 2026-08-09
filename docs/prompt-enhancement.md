@@ -72,8 +72,9 @@ pnpm gateway serve
 node docs/examples/shared-sdk-prompt-enhancement.mjs "Help me plan a small API for my team" --profile planning --language en
 ```
 
-The example uses `createGatewayClient`, verifies provider-free readiness, and
-checks the same enhancement contract through `@unified-ai-system/shared-sdk`.
+The example uses the repository's `createGatewayClient` implementation, verifies
+provider-free readiness, and checks the same enhancement contract without adding
+an external runtime dependency.
 
 ### Go Standard Library
 

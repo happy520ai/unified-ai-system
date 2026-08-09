@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { createGatewayClient } from "@unified-ai-system/shared-sdk";
+import { createGatewayClient } from "../../packages/shared-sdk/src/index.js";
 
 const DEFAULT_GATEWAY_URL =
   process.env.AI_GATEWAY_BASE_URL || "http://127.0.0.1:3100";
