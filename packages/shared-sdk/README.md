@@ -31,6 +31,12 @@ const response = await gateway.chat(createGatewayChatRequest({
 `enhancePrompt` is deterministic and provider-free. Chat enhancement is
 explicit opt-in; requests without `promptEnhancement.enabled` are unchanged.
 
+All request methods reject with `GatewayClientError` when the gateway cannot
+complete a request. The error preserves `statusCode` and `responseBody` for
+HTTP failures and exposes the original transport or parsing error as `cause`.
+The client trims surrounding whitespace and trailing slashes from `baseUrl` so
+the same configuration works in local scripts and deployed environments.
+
 ## Development
 
 ```bash
