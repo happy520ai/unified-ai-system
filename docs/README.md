@@ -6,6 +6,7 @@ Public documentation is grouped by task so the repo stays easy to scan.
 
 - [Getting started](getting-started.md)
 - [Terminal CLI](cli.md)
+- [Natural-language prompt enhancement](prompt-enhancement.md)
 - [Codex MCP quickstart](codex-mcp-quickstart.md)
 - [Generic MCP client configuration](mcp-generic-client.md)
 - [Codex MCP Docker web guide (English)](codex-mcp-docker-quickstart.html)

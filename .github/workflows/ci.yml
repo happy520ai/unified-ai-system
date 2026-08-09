@@ -28,6 +28,11 @@ jobs:
           node-version: 22
           cache: pnpm
 
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version: "1.23.x"
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
@@ -55,3 +60,6 @@ jobs:
         run: |
           pnpm gateway doctor --json
           pnpm gateway demo --json
+
+      - name: Go prompt enhancement example
+        run: go run docs/examples/prompt-enhancement.go --help

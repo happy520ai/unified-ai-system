@@ -118,6 +118,13 @@ before printing the enhanced JSON:
 node docs/examples/prompt-enhancement.mjs "Help me plan a small API for my team" --profile planning --language en
 ```
 
+Prefer Go? The standard-library example checks provider-free readiness and
+prints JSON evidence before showing the enhanced prompt:
+
+```bash
+go run docs/examples/prompt-enhancement.go "Help me plan a small API for my team" --profile planning --language en
+```
+
 For a no-clone prompt-enhancement walkthrough, start the published gateway
 image and follow the [provider-free curl example](docs/examples/prompt-enhancement-curl.md):
 

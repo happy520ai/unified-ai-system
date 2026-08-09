@@ -62,6 +62,20 @@ It accepts `--base-url`, `--profile`, and `--language`. It exits non-zero when
 the gateway is unreachable, returns invalid data, or does not prove
 `providerCalled=false`, `credentialRequired=false`, and `deterministic=true`.
 
+### Go Standard Library
+
+The dependency-free Go example performs the same provider-free checks using
+only Go's standard library:
+
+```bash
+go run docs/examples/prompt-enhancement.go "Help me plan a small API for my team" --profile planning --language en
+```
+
+It accepts `--base-url`, `--profile`, and `--language`, checks `/health/check`
+before calling `/prompts/enhance`, preserves the original request, and exits
+non-zero unless the response proves `providerCalled=false`,
+`credentialRequired=false`, and `deterministic=true`.
+
 Supported profiles are `auto`, `general`, `coding`, `analysis`, `writing`,
 `research`, and `planning`. Supported language settings are `auto`, `zh-CN`,
 and `en`. Input is limited to 20,000 characters.

@@ -112,6 +112,13 @@ pnpm gateway chat "帮我为团队设计一个小型 API" --enhance --profile co
 node docs/examples/prompt-enhancement.mjs "帮我为团队规划一个小型 API" --profile planning --language zh-CN
 ```
 
+如果偏好 Go，可运行只使用标准库的示例；它会先验证网关处于
+provider-free 模式，再输出包含安全证据的增强 JSON：
+
+```bash
+go run docs/examples/prompt-enhancement.go "帮我为团队规划一个小型 API" --profile planning --language zh-CN
+```
+
 完整的 HTTP 示例见[自然语言增强指南](docs/prompt-enhancement.md)，其中包含跨平台 curl、Python、Node.js 和 SDK 用法。
 
 ### MCP、Codex、Cursor、Cline
