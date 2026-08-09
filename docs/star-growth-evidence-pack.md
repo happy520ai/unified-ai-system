@@ -13,7 +13,7 @@ Use this file as the single source of truth for public growth evidence.
 - Stars: 3
 - Forks: 1
 - Subscribers: 0
-- Open issues (non-PR): 1
+- Open issues (non-PR): 2
 - Open pull requests: 0
 - Latest release: v0.4.3
 - MCP official registry entry: [v0.4.3](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.4.3)
@@ -80,6 +80,7 @@ pnpm growth:evidence-pack
 - Submitted the public MCP listing to [awesome-mcp.tools](https://awesome-mcp.tools/submit); review is tracked in [adw0rd/awesome-mcp-servers#36](https://github.com/adw0rd/awesome-mcp-servers/issues/36).
 - Submitted the public MCP listing to [MCP Hub](https://www.aimcp.info/en/submit); the form confirmed successful submission and review pending. No contact email or subscription was provided.
 - Submitted the public MCP listing to [mcpservers.org](https://mcpservers.org/submit) using the free plan; the form confirmed successful submission and stated that review is expected within 12 hours. No premium plan or payment was selected.
+- The mcpservers.org response returned submission `5661` with `status=pending`, `plan=free`, and `paymentStatus=not_required`; this confirms receipt only, not a public listing or Star growth.
 - Fresh local baseline: `pnpm gateway demo` returned `execution fake`, `real calls disabled`, and `[done] 29 ms | no API key | process cleaned up`; the output is also recorded in [issue #20](https://github.com/happy520ai/unified-ai-system/issues/20).
 - Refreshed public onboarding Discussions [#1](https://github.com/happy520ai/unified-ai-system/discussions/1), [#5](https://github.com/happy520ai/unified-ai-system/discussions/5), [#6](https://github.com/happy520ai/unified-ai-system/discussions/6), and [#23](https://github.com/happy520ai/unified-ai-system/discussions/23) to `v0.4.1`; verification found no remaining `v0.4.0` references in those four bodies.
 - Released `v0.4.2` with the one-command `--enhance` demo, aligned Docker tags, and matching MCP Registry metadata.
