@@ -137,6 +137,7 @@ pnpm growth:evidence-pack
 - Improved the bilingual browser Prompt Lab with a cache-busted `Copy evidence` action that copies the original request, enhanced prompt, profile, language, and the enhancer's engine/version metadata including provider-free and deterministic fields as shareable JSON. This reduces friction for independent usage reports; it is a conversion improvement, not evidence of Star growth.
 - Extended the public usage-report issue template with an optional JSON field for Prompt Lab evidence, so users can paste the copied verification object without inventing a format; this improves feedback quality and is not a Star result.
 - Published a fresh bilingual onboarding update in [Issue #20](https://github.com/happy520ai/unified-ai-system/issues/20#issuecomment-5230561163) linking the live Prompt Lab, the new evidence-copy action, and the structured usage-report template. This is a verified outreach action, not a community report or Star result.
+- Added a Codex/MCP evidence-capture step to the [60-second quickstart](codex-mcp-quickstart.md), including the exact provider-free metadata fields and a structured usage-report link; this reduces reporting friction and is not evidence of Star growth.
 
 ## Monthly Update Template
 

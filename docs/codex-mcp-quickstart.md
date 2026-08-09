@@ -57,6 +57,26 @@ Paste each task into Codex as a normal prompt.
 > coding prompt. Show the preserved original request, detected language,
 > enhanced prompt, and proof that no provider was called.
 
+### Capture A Shareable Evidence Record
+
+After the tool returns, ask Codex to emit one JSON object containing only the
+fields below. This makes a first-run result easy to review or paste into the
+[usage report template](https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml&title=%5BUsage%20Report%5D%20Codex%20MCP%20Quickstart):
+
+```text
+Return one JSON object with these fields from the gateway_prompt_enhance result:
+input, enhancedPrompt, profile, language, and metadata.engine,
+metadata.version, metadata.providerCalled, metadata.credentialRequired,
+metadata.originalPreserved, metadata.deterministic. Do not add credentials,
+environment variables, or private request data.
+```
+
+The expected safety evidence includes `providerCalled: false`,
+`credentialRequired: false`, `originalPreserved: true`, and
+`deterministic: true`. A report is optional, but sharing one real output helps
+maintainers improve the onboarding path without turning a successful command
+into an unsupported adoption or Star claim.
+
 ### Check The Safety Boundary
 
 > Use the Unified AI System MCP tools to inspect gateway health and readiness.
