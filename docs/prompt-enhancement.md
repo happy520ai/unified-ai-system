@@ -88,7 +88,7 @@ dotnet run --project docs/examples/prompt-enhancement.csproj -- \
   "Help me plan a small API for my team" --profile planning --language en
 ```
 
-It targets .NET 6 or newer and requires no NuGet package or provider key.
+It targets .NET 8 or newer and requires no NuGet package or provider key.
 
 Supported profiles are `auto`, `general`, `coding`, `analysis`, `writing`,
 `research`, and `planning`. Supported language settings are `auto`, `zh-CN`,
