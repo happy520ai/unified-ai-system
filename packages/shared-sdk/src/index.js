@@ -10,7 +10,7 @@ export class GatewayClientError extends Error {
   }
 }
 
-export function createGatewayClient(options) {
+export function createGatewayClient(options = {}) {
   const baseUrl = normalizeBaseUrl(options.baseUrl);
   const headers = options.headers ?? {};
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
@@ -293,11 +293,11 @@ export function createGatewayChatRequest(options) {
 }
 
 function normalizeBaseUrl(baseUrl) {
-  if (!baseUrl) {
+  if (typeof baseUrl !== "string" || baseUrl.trim().length === 0) {
     throw new GatewayClientError("Gateway baseUrl is required");
   }
 
-  return baseUrl.replace(/\/+$/, "");
+  return baseUrl.trim().replace(/\/+$/, "");
 }
 
 function createPromptMessages(prompt) {
