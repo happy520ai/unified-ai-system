@@ -47,6 +47,15 @@ This is not a chat UI wrapper. It is a control plane for AI workflow execution.
 
 **Start here:** [try the browser Prompt Lab](https://happy520ai.github.io/unified-ai-system/#enhance) with no install, [run the 60-second demo](#try-it-in-60-seconds), [open it in Codespaces](https://codespaces.new/happy520ai/unified-ai-system?quickstart=1), and [star the repository](https://github.com/happy520ai/unified-ai-system) if it helps your workflow. Share one verified result in [Issue #20](https://github.com/happy520ai/unified-ai-system/issues/20).
 
+**Fastest proof, no account required:**
+
+```bash
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 pnpm gateway demo
+```
+
+It prints a deterministic `execution: fake` result and exits cleanly. If that
+is useful to your workflow, [star the repository](https://github.com/happy520ai/unified-ai-system) and [share one reproducible result](https://github.com/happy520ai/unified-ai-system/issues/20).
+
 ## Choose Your First Path
 
 - **No install:** [try the browser Prompt Lab](https://happy520ai.github.io/unified-ai-system/#enhance).

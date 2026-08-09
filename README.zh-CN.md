@@ -44,6 +44,14 @@ Unified AI System 是一个面向模型、智能体、知识与工具的开源 A
 
 **从这里开始：** [直接体验在线 Prompt Lab](https://happy520ai.github.io/unified-ai-system/#enhance)，无需安装；然后[运行 60 秒体验](README.zh-CN.md#60-秒体验)或[在 Codespaces 中打开](https://codespaces.new/happy520ai/unified-ai-system?quickstart=1)。如果它对你的工作有帮助，欢迎[给仓库点 Star](https://github.com/happy520ai/unified-ai-system)，并在 [Issue #20](https://github.com/happy520ai/unified-ai-system/issues/20) 分享一行可复现结果。
 
+**最快验证方式，无需账号：**
+
+```bash
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 pnpm gateway demo
+```
+
+命令会输出确定性的 `execution: fake` 结果并自动退出。如果它对你的工作流有帮助，欢迎[给仓库点 Star](https://github.com/happy520ai/unified-ai-system)，并[分享一行可复现结果](https://github.com/happy520ai/unified-ai-system/issues/20)。
+
 ## 选择入口
 
 - **无需安装：** [直接体验在线 Prompt Lab](https://happy520ai.github.io/unified-ai-system/#enhance)。

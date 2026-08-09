@@ -123,6 +123,8 @@ pnpm growth:evidence-pack
 - Added the Chinese counterpart `docs/first-run-troubleshooting.zh-CN.md` and linked it from the Chinese README and documentation index, keeping the provider-free safety boundaries and current commands aligned with the English page.
 - Updated the non-JSON terminal demo to show the next prompt-enhancement command and a conditional project Star link after a successful provider-free run; JSON output and gateway behavior remain unchanged, and both normal and enhanced demos were verified locally.
 - Repaired the live contributor entrypoints in both README languages and `CONTRIBUTING.md` to point to open [good first issue #92](https://github.com/happy520ai/unified-ai-system/issues/92) instead of the completed #91; historical evidence entries remain unchanged.
+- Moved a provider-free, one-command verification and its conditional Star/feedback CTA into the first-screen section of both README languages; the detailed 60-second walkthrough remains below, and this is a conversion improvement rather than evidence of Star growth.
+- Refreshed the repository growth campaign snapshot and corrected the dashboard's stale open-issue count from 1 to the live value of 2; Stars remain 3 and no Star increase is claimed.
 
 ## Monthly Update Template
 
