@@ -136,6 +136,7 @@ pnpm growth:evidence-pack
 - Submitted [Protodex/mcp-directory issue #38](https://github.com/LuciferForge/mcp-directory/issues/38) with the public repository URL, MCP Registry URL, homepage, and provider-free description. The official submission page states that entries are reviewed before inclusion; this open issue is pending review and is not a verified listing or Star result.
 - Improved the bilingual browser Prompt Lab with a cache-busted `Copy evidence` action that copies the original request, enhanced prompt, profile, language, `providerCalled=false`, and `deterministic=true` as shareable JSON. This reduces friction for independent usage reports; it is a conversion improvement, not evidence of Star growth.
 - Extended the public usage-report issue template with an optional JSON field for Prompt Lab evidence, so users can paste the copied verification object without inventing a format; this improves feedback quality and is not a Star result.
+- Published a fresh bilingual onboarding update in [Issue #20](https://github.com/happy520ai/unified-ai-system/issues/20#issuecomment-5230561163) linking the live Prompt Lab, the new evidence-copy action, and the structured usage-report template. This is a verified outreach action, not a community report or Star result.
 
 ## Monthly Update Template
 
