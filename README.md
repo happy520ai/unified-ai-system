@@ -237,7 +237,7 @@ Useful links:
 - [Growth checklist](docs/star-growth-checklist.md)
 - [Usage verification issue template](.github/ISSUE_TEMPLATE/usage-verification-report.yml)
 - [Cite this project](CITATION.cff)
-- [Good first issue #81: Go prompt enhancement example](https://github.com/happy520ai/unified-ai-system/issues/81)
+- [Go standard-library prompt enhancement example](docs/examples/prompt-enhancement.go)
 - [Contributing guide](CONTRIBUTING.md)
 - [Codex for Open Source application draft](docs/codex-for-open-source-application.md)
 - [Codex for Open Source submission copy](docs/codex-for-open-source-submit.md)
