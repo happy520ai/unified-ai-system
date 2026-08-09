@@ -69,9 +69,11 @@ test("parseCliArgs supports prompt enhancement commands and profiles", () => {
     "--enhance",
     "--profile",
     "coding",
+    "--evidence",
   ], {});
   assert.equal(demo.enhance, true);
   assert.equal(demo.profile, "coding");
+  assert.equal(demo.evidence, true);
 });
 
 test("parseCliArgs rejects ambiguous or unsafe option combinations", () => {
@@ -110,6 +112,12 @@ test("parseCliArgs rejects ambiguous or unsafe option combinations", () => {
     (error) =>
       error instanceof CliUsageError
       && error.message.includes("Unsupported enhancement language"),
+  );
+  assert.throws(
+    () => parseCliArgs(["chat", "hello", "--evidence"], {}),
+    (error) =>
+      error instanceof CliUsageError
+      && error.message.includes("only valid with the demo"),
   );
   assert.throws(
     () => parseCliArgs(["chat", "hello", "--language", "zh-CN"], {}),
@@ -211,6 +219,28 @@ test("demo can enhance a prompt in one isolated fake-provider run", async () => 
   assert.equal(output.promptEnhancement.language, "zh-CN");
   assert.equal(output.promptEnhancement.metadata.providerCalled, false);
   assert.match(output.promptEnhancement.enhancedPrompt, /执行要求/);
+});
+
+test("demo can emit report-ready evidence without changing fake execution", async () => {
+  const result = await runCliProcess([
+    "demo",
+    "build an API",
+    "--enhance",
+    "--profile",
+    "coding",
+    "--evidence",
+  ]);
+
+  assert.equal(result.code, 0, result.stderr);
+  const evidence = JSON.parse(result.stdout);
+  assert.equal(evidence.schema, "unified-ai-system/usage-report/v1");
+  assert.match(evidence.command, /--enhance --profile coding/);
+  assert.equal(evidence.mode, "fake");
+  assert.equal(evidence.providerCalled, false);
+  assert.equal(evidence.credentialRequired, false);
+  assert.equal(evidence.deterministic, true);
+  assert.equal(evidence.original, "build an API");
+  assert.equal(evidence.reviewBeforeSharing, true);
 });
 
 test("chat opts into gateway enhancement only with --enhance", async (context) => {

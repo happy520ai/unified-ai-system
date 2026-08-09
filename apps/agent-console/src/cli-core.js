@@ -66,6 +66,7 @@ export function parseCliArgs(
     command: null,
     positionals: [],
     json: false,
+    evidence: false,
     help: false,
     version: false,
     url: env.AI_GATEWAY_SERVICE_URL ?? "http://127.0.0.1:3100",
@@ -107,6 +108,10 @@ export function parseCliArgs(
 
     if (flag === "--json") {
       options.json = true;
+      continue;
+    }
+    if (flag === "--evidence") {
+      options.evidence = true;
       continue;
     }
     if (flag === "--help" || flag === "-h") {
@@ -277,6 +282,7 @@ async function runEnhance(options, output, stdin) {
 async function runDemo(options, runtime) {
   const args = [demoEntrypoint];
   if (options.json) args.push("--json");
+  if (options.evidence) args.push("--evidence");
 
   const prompt = await resolvePrompt(options, runtime.stdin ?? process.stdin, {
     required: false,
@@ -626,6 +632,7 @@ Options:
   --host <host>               Host override for serve
   --port <port>               Port override for serve
   --json                      Emit machine-readable output
+  --evidence                  Emit report-ready usage evidence for demo
   -h, --help                  Show help
   -v, --version               Show version
 
@@ -694,6 +701,9 @@ function validateOptions(options) {
     throw new CliUsageError(
       "--enhance is only valid with the chat or demo command.",
     );
+  }
+  if (options.evidence && options.command !== "demo") {
+    throw new CliUsageError("--evidence is only valid with the demo command.");
   }
   if (!ENHANCEMENT_PROFILES.has(options.profile)) {
     throw new CliUsageError(`Unsupported enhancement profile: ${options.profile}`);

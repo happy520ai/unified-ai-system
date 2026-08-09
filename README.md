@@ -254,6 +254,14 @@ If the project is useful, star the repository and keep the loop factual:
 3. Submit OS + one output line through the [structured Usage Report](https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml).
 4. Save one verified result in `docs/star-growth-evidence-pack.md`.
 
+For a ready-to-review CLI packet, append `--evidence` to the enhanced demo:
+
+```bash
+pnpm gateway demo "Build a small API for my team" --enhance --profile coding --evidence
+```
+
+Review the original request and output before sharing the generated JSON.
+
 For the browser Prompt Lab, use its `Copy evidence` action and paste the JSON
 into the optional Prompt Lab evidence field in the same report.
 

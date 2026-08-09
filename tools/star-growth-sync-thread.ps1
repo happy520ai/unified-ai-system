@@ -7,6 +7,7 @@ $ErrorActionPreference = "Stop"
 $repo = $Repo
 $issue = $IssueNumber
 $demoCommand = 'docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 pnpm gateway demo "Build a small API for my team" --enhance --profile coding'
+$evidenceCommand = "$demoCommand --evidence"
 
 function Test-GhAvailable {
   gh --version | Out-Null
@@ -88,6 +89,12 @@ $demoCommand
 
 Try it without installing anything in the browser Prompt Lab:
 https://happy520ai.github.io/unified-ai-system/#enhance
+
+After a successful run, append ``--evidence`` to emit report-ready JSON; review
+the original request and output before sharing.
+```
+$evidenceCommand
+```
 
 If you run it, please share the command, 3-12 output lines, OS or client, and
 execution mode through the structured Usage Report:

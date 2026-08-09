@@ -16,6 +16,7 @@ const serviceEntrypoint = resolve(
 const prompt =
   process.env.AI_GATEWAY_DEMO_PROMPT ?? "Hello from Unified AI System";
 const jsonOutput = process.argv.includes("--json");
+const evidenceOutput = process.argv.includes("--evidence");
 const enhancementEnabled = process.argv.includes("--enhance");
 const profileFlagIndex = process.argv.indexOf("--profile");
 const enhancementProfile =
@@ -29,6 +30,7 @@ const enhancementLanguage =
     : "auto";
 const colorEnabled =
   !jsonOutput
+  && !evidenceOutput
   && process.stdout.isTTY
   && !("NO_COLOR" in process.env)
   && process.env.TERM !== "dumb";
@@ -137,6 +139,40 @@ function renderDemo(result) {
     "",
   ];
   process.stdout.write(`${lines.join("\n")}\n`);
+}
+
+function buildEvidence(result) {
+  const commandParts = ["pnpm gateway demo", JSON.stringify(result.prompt)];
+  if (result.promptEnhancement) {
+    commandParts.push(
+      "--enhance",
+      "--profile",
+      result.promptEnhancement.profile,
+      "--language",
+      result.promptEnhancement.language,
+    );
+  }
+
+  return {
+    schema: "unified-ai-system/usage-report/v1",
+    command: commandParts.join(" "),
+    environment: `${process.platform}; Node ${process.version}`,
+    mode: result.executionMode,
+    providerCalled: result.realProviderCallsMade,
+    credentialRequired: false,
+    deterministic: true,
+    original: result.prompt,
+    ...(result.promptEnhancement
+      ? {
+          enhancedPrompt: result.promptEnhancement.enhancedPrompt,
+          profile: result.promptEnhancement.profile,
+          language: result.promptEnhancement.language,
+        }
+      : {}),
+    outputPreview: result.outputText.split(/\r?\n/).slice(0, 12).join("\n"),
+    reportUrl: usageReportUrl,
+    reviewBeforeSharing: true,
+  };
 }
 
 async function runDemo() {
@@ -249,7 +285,9 @@ async function runDemo() {
       realProviderCallsMade: false,
     };
 
-    if (jsonOutput) {
+    if (evidenceOutput) {
+      process.stdout.write(`${JSON.stringify(buildEvidence(result), null, 2)}\n`);
+    } else if (jsonOutput) {
       process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
     } else {
       renderDemo(result);

@@ -22,6 +22,16 @@ docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 \
   pnpm gateway demo "Build a small API for my team" --enhance --profile coding
 ```
 
+After a successful run, emit a compact JSON packet ready for the Usage Report:
+
+```bash
+pnpm gateway demo "Build a small API for my team" --enhance --profile coding --evidence
+```
+
+The packet includes the reproduction command, environment, fake execution mode,
+provider boundary, original request, enhanced prompt, output preview, and the
+report link. Review the original request and output before sharing it.
+
 ## Command Map
 
 ```text
@@ -135,6 +145,9 @@ pnpm gateway status --url http://127.0.0.1:4100 --timeout 5000
 pnpm gateway doctor --json
 pnpm gateway chat "Return a short answer" --json
 ```
+
+`demo --evidence` emits report-ready JSON without changing the demo's
+credential-free fake-provider behavior.
 
 Exit code `0` means the command completed, `1` means an environment or runtime
 failure, and `2` means invalid input or a safety refusal.
