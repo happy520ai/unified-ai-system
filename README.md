@@ -222,7 +222,7 @@ Useful links:
 - [Growth evidence pack](docs/star-growth-evidence-pack.md)
 - [Growth checklist](docs/star-growth-checklist.md)
 - [Usage verification issue template](.github/ISSUE_TEMPLATE/usage-verification-report.yml)
-- [Good first issue #58](https://github.com/happy520ai/unified-ai-system/issues/58)
+- [Good first issue #75: Node.js prompt enhancement example](https://github.com/happy520ai/unified-ai-system/issues/75)
 - [Contributing guide](CONTRIBUTING.md)
 - [Codex for Open Source application draft](docs/codex-for-open-source-application.md)
 - [Codex for Open Source submission copy](docs/codex-for-open-source-submit.md)
