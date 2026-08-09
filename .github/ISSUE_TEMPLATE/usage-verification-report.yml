@@ -26,6 +26,12 @@ body:
       render: shell
     validations:
       required: true
+  - type: textarea
+    id: prompt_lab_evidence
+    attributes:
+      label: Prompt Lab evidence (optional)
+      description: If you used the browser Prompt Lab, paste the JSON copied by the Copy evidence button.
+      render: json
   - type: input
     id: environment
     attributes:
