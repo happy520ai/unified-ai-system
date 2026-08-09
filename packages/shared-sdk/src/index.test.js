@@ -245,7 +245,65 @@ test("wraps timeout aborts while preserving the transport cause", async () => {
         error instanceof GatewayClientError &&
         error.message === "Gateway request failed" &&
         error.statusCode === undefined &&
-        error.cause instanceof Error,
+        error.cause instanceof Error &&
+        error.cause.name === "TimeoutError",
+    );
+  } finally {
+    await closeServer(server);
+  }
+});
+
+test("preserves caller cancellation for JSON requests", async () => {
+  const { server, baseUrl } = await startServer((_request, response) => {
+    setTimeout(() => {
+      if (!response.destroyed) response.end(JSON.stringify({ ok: true }));
+    }, 100);
+  });
+  const controller = new AbortController();
+  const gateway = createGatewayClient({ baseUrl, signal: controller.signal, timeoutMs: 1_000 });
+
+  try {
+    const request = gateway.health();
+    setTimeout(() => controller.abort(), 10);
+
+    await assert.rejects(
+      request,
+      (error) =>
+        error instanceof GatewayClientError &&
+        error.message === "Gateway request failed" &&
+        error.cause?.name === "AbortError",
+    );
+  } finally {
+    await closeServer(server);
+  }
+});
+
+test("preserves caller cancellation for chat streams", async () => {
+  const { server, baseUrl } = await startServer((_request, response) => {
+    response.writeHead(200, { "content-type": "text/event-stream" });
+    setTimeout(() => {
+      if (!response.destroyed) response.end(["event: done", 'data: {"ok":true}', ""].join("\n"));
+    }, 100);
+  });
+  const controller = new AbortController();
+  const gateway = createGatewayClient({ baseUrl, signal: controller.signal, timeoutMs: 1_000 });
+
+  try {
+    const stream = gateway.chatStream({
+      messages: [{ role: "user", content: "Hello" }],
+    });
+    setTimeout(() => controller.abort(), 10);
+
+    await assert.rejects(
+      (async () => {
+        for await (const _event of stream) {
+          // The request should abort before the delayed event is written.
+        }
+      })(),
+      (error) =>
+        error instanceof GatewayClientError &&
+        error.message === "Gateway stream request failed" &&
+        error.cause?.name === "AbortError",
     );
   } finally {
     await closeServer(server);

@@ -51,6 +51,7 @@ export interface GatewayClientOptions {
   baseUrl: string;
   headers?: Record<string, string>;
   timeoutMs?: number;
+  signal?: AbortSignal;
 }
 
 export interface GatewayClient {
@@ -99,6 +100,7 @@ export function createGatewayClientOptions(options: GatewayClientOptions): Gatew
     baseUrl: options.baseUrl,
     headers: options.headers ?? {},
     timeoutMs: options.timeoutMs,
+    signal: options.signal,
   };
 }
 

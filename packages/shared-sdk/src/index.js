@@ -14,6 +14,11 @@ export function createGatewayClient(options = {}) {
   const baseUrl = normalizeBaseUrl(options.baseUrl);
   const headers = options.headers ?? {};
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const signal = options.signal;
+  const requestJson = (requestOptions) =>
+    requestJsonImpl({ baseUrl, headers, timeoutMs, signal, ...requestOptions });
+  const requestSse = (requestOptions) =>
+    requestSseImpl({ baseUrl, headers, timeoutMs, signal, ...requestOptions });
 
   return {
     baseUrl,
@@ -313,9 +318,16 @@ function createPromptMessages(prompt) {
   ];
 }
 
-async function requestJson({ baseUrl, path, method = "GET", body, headers, timeoutMs }) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+async function requestJsonImpl({
+  baseUrl,
+  path,
+  method = "GET",
+  body,
+  headers,
+  signal,
+  timeoutMs,
+}) {
+  const requestController = createRequestController({ signal, timeoutMs });
 
   try {
     const response = await fetch(`${baseUrl}${path}`, {
@@ -325,7 +337,7 @@ async function requestJson({ baseUrl, path, method = "GET", body, headers, timeo
         ...headers,
       },
       body: body === undefined ? undefined : JSON.stringify(body),
-      signal: controller.signal,
+      signal: requestController.signal,
     });
     const responseBody = await readResponseBody(response);
 
@@ -344,13 +356,20 @@ async function requestJson({ baseUrl, path, method = "GET", body, headers, timeo
 
     throw new GatewayClientError("Gateway request failed", { cause: error });
   } finally {
-    clearTimeout(timeout);
+    requestController.cleanup();
   }
 }
 
-async function* requestSse({ baseUrl, path, method = "GET", body, headers, timeoutMs }) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+async function* requestSseImpl({
+  baseUrl,
+  path,
+  method = "GET",
+  body,
+  headers,
+  signal,
+  timeoutMs,
+}) {
+  const requestController = createRequestController({ signal, timeoutMs });
 
   try {
     const response = await fetch(`${baseUrl}${path}`, {
@@ -360,7 +379,7 @@ async function* requestSse({ baseUrl, path, method = "GET", body, headers, timeo
         ...headers,
       },
       body: body === undefined ? undefined : JSON.stringify(body),
-      signal: controller.signal,
+      signal: requestController.signal,
     });
 
     if (!response.ok) {
@@ -393,8 +412,33 @@ async function* requestSse({ baseUrl, path, method = "GET", body, headers, timeo
 
     throw new GatewayClientError("Gateway stream request failed", { cause: error });
   } finally {
-    clearTimeout(timeout);
+    requestController.cleanup();
   }
+}
+
+function createRequestController({ signal, timeoutMs }) {
+  const controller = new AbortController();
+  const onCallerAbort = () => controller.abort(signal.reason);
+
+  if (signal?.aborted) {
+    onCallerAbort();
+  } else {
+    signal?.addEventListener("abort", onCallerAbort, { once: true });
+  }
+
+  const timeout = setTimeout(() => {
+    const timeoutError = new Error(`Gateway request timed out after ${timeoutMs}ms`);
+    timeoutError.name = "TimeoutError";
+    controller.abort(timeoutError);
+  }, timeoutMs);
+
+  return {
+    signal: controller.signal,
+    cleanup() {
+      clearTimeout(timeout);
+      signal?.removeEventListener("abort", onCallerAbort);
+    },
+  };
 }
 
 async function* readSseEvents(stream) {
