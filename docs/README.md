@@ -8,6 +8,8 @@ Public documentation is grouped by task so the repo stays easy to scan.
 - [Terminal CLI](cli.md)
 - [Natural-language prompt enhancement](prompt-enhancement.md)
 - [Codex MCP quickstart](codex-mcp-quickstart.md)
+- [MCP client compatibility matrix](mcp-client-compatibility.md)
+- [MCP 客户端兼容性矩阵（中文）](mcp-client-compatibility.zh-CN.md)
 - [Generic MCP client configuration](mcp-generic-client.md)
 - [Codex MCP Docker web guide (English)](codex-mcp-docker-quickstart.html)
 - [Codex MCP Docker guide (Chinese)](codex-mcp-docker-quickstart.zh-CN.html)

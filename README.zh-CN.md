@@ -97,6 +97,7 @@ docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.6 pn
 | 安装前先体验 | [在线 Prompt Lab](https://happy520ai.github.io/unified-ai-system/#enhance) | 无需账号或 API Key 的本地确定性预览。 |
 | 验证已发布运行时 | [60 秒 Docker 体验](README.zh-CN.md#60-秒体验) | 可见证据、自动清理的 fake provider 一次性运行。 |
 | 接入智能体客户端 | [Codex 与 MCP 快速开始](https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.zh-CN.html) | 固定版本 MCP 容器与 9 个可检查工具。 |
+| 选择客户端路径 | [MCP 客户端兼容性矩阵](docs/mcp-client-compatibility.zh-CN.md) | 安装命令、首次检查和明确的证据边界。 |
 | 集成到应用 | [自然语言提示词增强指南](https://happy520ai.github.io/unified-ai-system/prompt-enhancement.zh-CN.html) | CLI、HTTP、SDK、curl、Python 和 JavaScript 路径。 |
 | 排查首次运行问题 | [首次运行排障矩阵](docs/first-run-troubleshooting.zh-CN.md) | 针对不同 Shell 的检查，不暴露凭据。 |
 | 贡献或报告运行结果 | [结构化使用报告](https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml) 或 [入门任务 #106](https://github.com/happy520ai/unified-ai-system/issues/106) | 用户与维护者都能复现的反馈入口。 |
