@@ -127,6 +127,7 @@ pnpm growth:evidence-pack
 - Refreshed the repository growth campaign snapshot and corrected the dashboard's stale open-issue count from 1 to the live value of 2; Stars remain 3 and no Star increase is claimed.
 - Added sanitized PowerShell, Bash/Zsh, and Codespaces first-run transcripts in both troubleshooting pages; Issue #92 remains open for independent environment reports and follow-up improvements.
 - Posted one maintainer follow-up on each new external catalog PR, linking current provider-free verification evidence and inviting list-specific wording or category corrections; these are review nudges, not merges or Star results.
+- Added a concise bilingual profile guide to the README, grounded in verified `planning`, `coding`, and `analysis` enhancement output; it explains user value without adding a runtime claim.
 
 ## Monthly Update Template
 

@@ -56,6 +56,15 @@ docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 pn
 It prints a deterministic `execution: fake` result and exits cleanly. If that
 is useful to your workflow, [star the repository](https://github.com/happy520ai/unified-ai-system) and [share one reproducible result](https://github.com/happy520ai/unified-ai-system/issues/20).
 
+**What enhancement adds:**
+
+- `planning`: milestones, dependencies, risks, owners, and completion signals.
+- `coding`: compatibility boundaries, error paths, runnable changes, and verification.
+- `analysis`: comparison criteria, evidence, uncertainty, risks, and a next action.
+
+Every preview preserves the original request and reports `providerCalled=false`
+and `deterministic=true` in its metadata.
+
 ## Choose Your First Path
 
 - **No install:** [try the browser Prompt Lab](https://happy520ai.github.io/unified-ai-system/#enhance).

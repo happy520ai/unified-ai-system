@@ -52,6 +52,15 @@ docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 pn
 
 命令会输出确定性的 `execution: fake` 结果并自动退出。如果它对你的工作流有帮助，欢迎[给仓库点 Star](https://github.com/happy520ai/unified-ai-system)，并[分享一行可复现结果](https://github.com/happy520ai/unified-ai-system/issues/20)。
 
+**自然语言增强会补充什么：**
+
+- `planning`：里程碑、依赖、风险、负责人和完成信号。
+- `coding`：兼容性边界、错误路径、可运行修改和验证方法。
+- `analysis`：比较维度、证据、不确定性、风险和下一步行动。
+
+每次预览都会保留原始请求，并在 metadata 中报告
+`providerCalled=false` 和 `deterministic=true`。
+
 ## 选择入口
 
 - **无需安装：** [直接体验在线 Prompt Lab](https://happy520ai.github.io/unified-ai-system/#enhance)。
