@@ -74,6 +74,13 @@ test("parseCliArgs supports prompt enhancement commands and profiles", () => {
   assert.equal(demo.enhance, true);
   assert.equal(demo.profile, "coding");
   assert.equal(demo.evidence, true);
+
+  const evidence = parseCliArgs([
+    "enhance",
+    "build an API",
+    "--evidence",
+  ], {});
+  assert.equal(evidence.evidence, true);
 });
 
 test("parseCliArgs rejects ambiguous or unsafe option combinations", () => {
@@ -117,7 +124,7 @@ test("parseCliArgs rejects ambiguous or unsafe option combinations", () => {
     () => parseCliArgs(["chat", "hello", "--evidence"], {}),
     (error) =>
       error instanceof CliUsageError
-      && error.message.includes("only valid with the demo"),
+      && error.message.includes("only valid with the demo or enhance"),
   );
   assert.throws(
     () => parseCliArgs(["chat", "hello", "--language", "zh-CN"], {}),
@@ -221,6 +228,36 @@ test("enhance human output explains optional questions and safety evidence", asy
   assert.match(result.stdout, /credentials not required/);
   assert.match(result.stdout, /deterministic yes/);
   assert.match(result.stdout, /Original request preserved/);
+});
+
+test("enhance can emit report-ready provider-free evidence", async (context) => {
+  const gateway = await createMockGateway();
+  context.after(gateway.close);
+
+  const result = await runCliProcess([
+    "enhance",
+    "build an API",
+    "--profile",
+    "coding",
+    "--language",
+    "en",
+    "--evidence",
+    "--url",
+    gateway.url,
+  ]);
+
+  assert.equal(result.code, 0, result.stderr);
+  const evidence = JSON.parse(result.stdout);
+  assert.equal(evidence.schema, "unified-ai-system/usage-report/v1");
+  assert.match(evidence.command, /pnpm gateway enhance/);
+  assert.equal(evidence.mode, "prompt-enhancement");
+  assert.equal(evidence.providerCalled, false);
+  assert.equal(evidence.credentialRequired, false);
+  assert.equal(evidence.deterministic, true);
+  assert.equal(evidence.original, "build an API");
+  assert.equal(evidence.profile, "coding");
+  assert.equal(evidence.language, "en");
+  assert.equal(evidence.reviewBeforeSharing, true);
 });
 
 test("demo can enhance a prompt in one isolated fake-provider run", async () => {

@@ -32,6 +32,13 @@ The packet includes the reproduction command, environment, fake execution mode,
 provider boundary, original request, enhanced prompt, output preview, and the
 report link. Review the original request and output before sharing it.
 
+The direct enhancement command can emit the same report-ready packet without
+running a chat request:
+
+```bash
+pnpm gateway enhance "Build a small API for my team" --profile coding --evidence
+```
+
 ## Command Map
 
 ```text
@@ -151,7 +158,8 @@ pnpm gateway chat "Return a short answer" --json
 ```
 
 `demo --evidence` emits report-ready JSON without changing the demo's
-credential-free fake-provider behavior.
+credential-free fake-provider behavior. `enhance --evidence` emits a
+provider-free prompt-enhancement packet and does not send a chat request.
 
 Exit code `0` means the command completed, `1` means an environment or runtime
 failure, and `2` means invalid input or a safety refusal.

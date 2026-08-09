@@ -18,6 +18,8 @@ const serviceEntrypoint = resolve(
 const demoEntrypoint = resolve(repoRoot, "tools/terminal-demo.mjs");
 const workspaceManifest = resolve(repoRoot, "pnpm-workspace.yaml");
 const rootPackage = readJson(resolve(repoRoot, "package.json"));
+const usageReportUrl =
+  "https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml";
 
 export const CLI_VERSION = rootPackage.version;
 export const DEFAULT_GATEWAY_URL =
@@ -271,12 +273,52 @@ async function runEnhance(options, output, stdin) {
     metadata: enhancement.metadata ?? {},
   };
 
-  if (options.json) {
+  if (options.evidence) {
+    output.write(`${JSON.stringify(buildEnhancementEvidence(result), null, 2)}\n`);
+  } else if (options.json) {
     output.write(`${JSON.stringify(result, null, 2)}\n`);
   } else {
     renderEnhancement(result, output);
   }
   return 0;
+}
+
+function buildEnhancementEvidence(result) {
+  const metadata = result.metadata ?? {};
+  const providerFreeEvidence =
+    metadata.providerCalled === false
+    && metadata.credentialRequired === false
+    && metadata.deterministic === true;
+
+  if (!providerFreeEvidence) {
+    throw new Error(
+      "The gateway did not return complete provider-free enhancement evidence.",
+    );
+  }
+
+  return {
+    schema: "unified-ai-system/usage-report/v1",
+    command: [
+      "pnpm gateway enhance",
+      JSON.stringify(result.original),
+      "--profile",
+      result.profile,
+      "--language",
+      result.language,
+    ].join(" "),
+    environment: `${process.platform}; Node ${process.version}`,
+    mode: "prompt-enhancement",
+    providerCalled: false,
+    credentialRequired: false,
+    deterministic: true,
+    original: result.original,
+    enhancedPrompt: result.enhancedPrompt,
+    profile: result.profile,
+    language: result.language,
+    clarifyingQuestions: result.clarifyingQuestions,
+    reportUrl: usageReportUrl,
+    reviewBeforeSharing: true,
+  };
 }
 
 async function runDemo(options, runtime) {
@@ -654,7 +696,7 @@ Options:
   --host <host>               Host override for serve
   --port <port>               Port override for serve
   --json                      Emit machine-readable output
-  --evidence                  Emit report-ready usage evidence for demo
+  --evidence                  Emit report-ready usage evidence for demo/enhance
   -h, --help                  Show help
   -v, --version               Show version
 
@@ -724,8 +766,10 @@ function validateOptions(options) {
       "--enhance is only valid with the chat or demo command.",
     );
   }
-  if (options.evidence && options.command !== "demo") {
-    throw new CliUsageError("--evidence is only valid with the demo command.");
+  if (options.evidence && !["demo", "enhance"].includes(options.command)) {
+    throw new CliUsageError(
+      "--evidence is only valid with the demo or enhance command.",
+    );
   }
   if (!ENHANCEMENT_PROFILES.has(options.profile)) {
     throw new CliUsageError(`Unsupported enhancement profile: ${options.profile}`);
