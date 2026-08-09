@@ -64,7 +64,7 @@ async function initializePromptLab(lab) {
   const {
     MAX_PROMPT_INPUT_LENGTH,
     enhanceNaturalLanguagePrompt,
-  } = await import("./prompt-enhancer.js?v=prompt-lab-2");
+  } = await import("./prompt-enhancer.js?v=prompt-lab-3");
   const form = lab.querySelector("[data-prompt-form]");
   const input = lab.querySelector("[data-prompt-input]");
   const profile = lab.querySelector("[data-prompt-profile]");
