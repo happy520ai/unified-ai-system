@@ -67,6 +67,30 @@ and [share one reproducible result](https://github.com/happy520ai/unified-ai-sys
 Every preview preserves the original request and reports `providerCalled=false`
 and `deterministic=true` in its metadata.
 
+## See the Difference
+
+One short request becomes a more inspectable starting point without calling a
+provider:
+
+```text
+Original: Build a small API for my team
+
+Enhanced prompt (excerpt):
+# Execution requirements
+- Understand the existing code, interfaces, and constraints.
+- Preserve compatibility and cover errors and edge cases.
+
+# Output requirements
+- Provide runnable code or precise change points with verification steps.
+
+# Completion criteria
+- Make the result inspectable, actionable, and reproducible.
+```
+
+The full preview preserves the original wording, reports its profile and
+language, and proves `providerCalled=false`, `credentialRequired=false`, and
+`deterministic=true`.
+
 ## Choose Your First Path
 
 - **No install:** [try the browser Prompt Lab](https://happy520ai.github.io/unified-ai-system/#enhance).

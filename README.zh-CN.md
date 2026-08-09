@@ -62,6 +62,28 @@ docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 pn
 每次预览都会保留原始请求，并在 metadata 中报告
 `providerCalled=false` 和 `deterministic=true`。
 
+## 先看实际变化
+
+一条简短需求会在不调用 provider 的情况下，变成更容易检查和执行的起点：
+
+```text
+原始请求：帮我为团队设计一个小型 API
+
+增强提示词（节选）：
+# 执行要求
+- 先理解现有代码、接口和约束。
+- 保持兼容性，并覆盖错误路径和边界情况。
+
+# 输出要求
+- 提供可运行代码或明确的修改点，并附带验证步骤。
+
+# 完成标准
+- 让结果可检查、可执行、可复现。
+```
+
+完整预览会保留原始措辞，报告 profile 和语言，并证明
+`providerCalled=false`、`credentialRequired=false`、`deterministic=true`。
+
 ## 选择入口
 
 - **无需安装：** [直接体验在线 Prompt Lab](https://happy520ai.github.io/unified-ai-system/#enhance)。
