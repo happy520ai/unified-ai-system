@@ -64,10 +64,11 @@ async function initializePromptLab(lab) {
   const {
     MAX_PROMPT_INPUT_LENGTH,
     enhanceNaturalLanguagePrompt,
-  } = await import("./prompt-enhancer.js?v=prompt-lab-3");
+  } = await import("./prompt-enhancer.js?v=prompt-lab-4");
   const form = lab.querySelector("[data-prompt-form]");
   const input = lab.querySelector("[data-prompt-input]");
   const profile = lab.querySelector("[data-prompt-profile]");
+  const language = lab.querySelector("[data-prompt-language]");
   const count = lab.querySelector("[data-prompt-count]");
   const output = lab.querySelector("[data-prompt-output]");
   const resultMeta = lab.querySelector("[data-prompt-result-meta]");
@@ -81,6 +82,7 @@ async function initializePromptLab(lab) {
     !form
     || !input
     || !profile
+    || !language
     || !count
     || !output
     || !resultMeta
@@ -108,6 +110,7 @@ async function initializePromptLab(lab) {
       const result = enhanceNaturalLanguagePrompt({
         input: input.value,
         profile: profile.value,
+        language: language.value,
       });
 
       output.textContent = result.enhancedPrompt;
