@@ -16,11 +16,14 @@ Primary maintainer
 
 Unified AI System is an Apache-2.0 open-source AI infrastructure project that gives teams a governed path from ordinary language to executable model work. It connects MCP, Codex, Cline, and Cursor through CLI/API/SDK surfaces, deterministic provider-free prompt enhancement, explicit provider boundaries, and reproducible verification. It has 3 GitHub stars and 1 fork, is listed in the official MCP Registry, and addresses a practical gap in safe, operable AI workflows.
 
-## 4) I'm interested in (select all)
+## 4) I'm interested in (select all options shown by the form)
 
 - Codex Security
-- ChatGPT Pro with Codex
 - API credits for my project
+
+The official program page describes six months of ChatGPT Pro with Codex as a
+program benefit; do not treat it as a separate checkbox unless the live form
+shows one.
 
 ## 5) OpenAI Organization ID
 
