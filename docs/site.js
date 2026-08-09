@@ -64,7 +64,7 @@ async function initializePromptLab(lab) {
   const {
     MAX_PROMPT_INPUT_LENGTH,
     enhanceNaturalLanguagePrompt,
-  } = await import("./prompt-enhancer.js?v=prompt-lab-6");
+  } = await import("./prompt-enhancer.js?v=prompt-lab-7");
   const form = lab.querySelector("[data-prompt-form]");
   const input = lab.querySelector("[data-prompt-input]");
   const profile = lab.querySelector("[data-prompt-profile]");
@@ -78,6 +78,7 @@ async function initializePromptLab(lab) {
   const copyButton = lab.querySelector("[data-prompt-copy]");
   const evidenceButton = lab.querySelector("[data-prompt-copy-evidence]");
   const downloadEvidenceButton = lab.querySelector("[data-prompt-download-evidence]");
+  const shareButton = lab.querySelector("[data-prompt-share]");
   const examples = [...lab.querySelectorAll("[data-prompt-example]")];
 
   if (
@@ -94,6 +95,7 @@ async function initializePromptLab(lab) {
     || !copyButton
     || !evidenceButton
     || !downloadEvidenceButton
+    || !shareButton
   ) {
     throw new Error("Prompt lab markup is incomplete.");
   }
@@ -135,6 +137,7 @@ async function initializePromptLab(lab) {
       copyButton.disabled = false;
       evidenceButton.disabled = false;
       downloadEvidenceButton.disabled = false;
+      shareButton.disabled = false;
       latestEvidence = {
         input: input.value,
         enhancedPrompt: result.enhancedPrompt,
@@ -158,6 +161,7 @@ async function initializePromptLab(lab) {
       copyButton.disabled = true;
       evidenceButton.disabled = true;
       downloadEvidenceButton.disabled = true;
+      shareButton.disabled = true;
       latestEvidence = null;
     }
   };
@@ -221,7 +225,52 @@ async function initializePromptLab(lab) {
     );
   });
 
+  shareButton.addEventListener("click", async () => {
+    try {
+      const url = new URL(window.location.href);
+      const params = new URLSearchParams({
+        prompt: input.value,
+        profile: profile.value,
+        language: language.value,
+      });
+      url.search = "";
+      url.hash = `enhance?${params.toString()}`;
+      await copyText(url.toString());
+      showTemporaryButtonText(
+        shareButton,
+        lab.dataset.shareCopySuccess ?? lab.dataset.copySuccess ?? "Copied",
+      );
+    } catch {
+      showTemporaryButtonText(
+        shareButton,
+        lab.dataset.shareCopyUnavailable ?? lab.dataset.copyUnavailable ?? "Unavailable",
+      );
+    }
+  });
+
+  const sharedState = readPromptLabShareState();
+  if (sharedState?.prompt) input.value = sharedState.prompt;
+  if (sharedState?.profile && [...profile.options].some((option) => option.value === sharedState.profile)) {
+    profile.value = sharedState.profile;
+  }
+  if (sharedState?.language && [...language.options].some((option) => option.value === sharedState.language)) {
+    language.value = sharedState.language;
+  }
+  if (sharedState) lab.scrollIntoView({ block: "start" });
+
   render();
+}
+
+function readPromptLabShareState() {
+  const prefix = "#enhance?";
+  if (!window.location.hash.startsWith(prefix)) return null;
+
+  const params = new URLSearchParams(window.location.hash.slice(prefix.length));
+  return {
+    prompt: params.get("prompt") ?? "",
+    profile: params.get("profile") ?? "",
+    language: params.get("language") ?? "",
+  };
 }
 
 async function copyText(value) {

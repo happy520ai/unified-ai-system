@@ -290,6 +290,9 @@ Review the original request and output before sharing the generated JSON.
 For the browser Prompt Lab, use its `Copy evidence` or `Download evidence`
 action, then paste or attach the JSON in the optional Prompt Lab evidence field
 of the same report.
+Use `Copy share link` when you want another browser to reproduce the same local
+input, profile, and language; review the prompt first because the URL fragment
+contains the input text.
 
 Useful links:
 
