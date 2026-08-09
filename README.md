@@ -53,7 +53,7 @@ This is not a chat UI wrapper. It is a control plane for AI workflow execution.
 - **Reproducible demo:** [run the 60-second Docker path](#try-it-in-60-seconds).
 - **Codex or MCP:** follow the [60-second MCP quickstart](docs/codex-mcp-quickstart.md).
 - **Something failed:** use the [first-run troubleshooting matrix](docs/first-run-troubleshooting.md).
-- **Contribute:** start with [good first issue #91](https://github.com/happy520ai/unified-ai-system/issues/91).
+- **Contribute:** start with [good first issue #92](https://github.com/happy520ai/unified-ai-system/issues/92).
 
 ## Why People Use It
 

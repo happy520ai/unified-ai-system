@@ -5,7 +5,7 @@ knowledge, and governed automation.
 
 ## Start Here
 
-New contributors can start with [good first issue #91](https://github.com/happy520ai/unified-ai-system/issues/91).
+New contributors can start with [good first issue #92](https://github.com/happy520ai/unified-ai-system/issues/92).
 If that task is taken, browse the [other open good first issues](https://github.com/happy520ai/unified-ai-system/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22good%20first%20issue%22).
 When a first-run command fails, capture the details using the [first-run troubleshooting matrix](docs/first-run-troubleshooting.md) before opening an issue.
 

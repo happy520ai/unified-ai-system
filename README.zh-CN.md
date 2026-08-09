@@ -50,7 +50,7 @@ Unified AI System 是一个面向模型、智能体、知识与工具的开源 A
 - **可复现演示：** [运行 60 秒 Docker 体验](README.zh-CN.md#60-秒体验)。
 - **连接 Codex 或 MCP：** 阅读 [60 秒 MCP 快速开始](docs/codex-mcp-quickstart.md)。
 - **遇到问题：** 查看[中文首次运行排障矩阵](docs/first-run-troubleshooting.zh-CN.md)。
-- **参与贡献：** 从 [good first issue #91](https://github.com/happy520ai/unified-ai-system/issues/91) 开始。
+- **参与贡献：** 从 [good first issue #92](https://github.com/happy520ai/unified-ai-system/issues/92) 开始。
 
 ## 为什么使用它
 

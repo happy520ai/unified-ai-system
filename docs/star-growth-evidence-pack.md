@@ -122,6 +122,7 @@ pnpm growth:evidence-pack
 - Closed [good first issue #91](https://github.com/happy520ai/unified-ai-system/issues/91) after publishing the baseline matrix, then opened [good first issue #92](https://github.com/happy520ai/unified-ai-system/issues/92) for shell-specific troubleshooting transcripts; the newcomer path remains open and scoped.
 - Added the Chinese counterpart `docs/first-run-troubleshooting.zh-CN.md` and linked it from the Chinese README and documentation index, keeping the provider-free safety boundaries and current commands aligned with the English page.
 - Updated the non-JSON terminal demo to show the next prompt-enhancement command and a conditional project Star link after a successful provider-free run; JSON output and gateway behavior remain unchanged, and both normal and enhanced demos were verified locally.
+- Repaired the live contributor entrypoints in both README languages and `CONTRIBUTING.md` to point to open [good first issue #92](https://github.com/happy520ai/unified-ai-system/issues/92) instead of the completed #91; historical evidence entries remain unchanged.
 
 ## Monthly Update Template
 
