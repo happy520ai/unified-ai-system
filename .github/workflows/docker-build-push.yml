@@ -70,6 +70,44 @@ jobs:
             --env AI_GATEWAY_REAL_PROVIDER_ENABLED=false \
             unified-ai-system-smoke \
             pnpm gateway demo --json
+          enhancement_evidence="$(docker run --rm \
+            --env AI_GATEWAY_PROVIDER_MODE=fake \
+            --env AI_GATEWAY_REAL_PROVIDER_ENABLED=false \
+            unified-ai-system-smoke \
+            sh -c '
+              pnpm gateway serve >/tmp/gateway.log 2>&1 &
+              pid=$!
+              trap "kill $pid 2>/dev/null || true" EXIT
+              ready=false
+              for attempt in $(seq 1 30); do
+                if pnpm gateway status --json >/tmp/status.json 2>/dev/null; then
+                  ready=true
+                  break
+                fi
+                sleep 1
+              done
+              if [ "$ready" != true ]; then
+                cat /tmp/gateway.log
+                exit 1
+              fi
+              pnpm gateway enhance "Container evidence test" --profile coding --language en --evidence
+            '
+          )"
+          EVIDENCE_JSON="${enhancement_evidence}" node --input-type=module <<'NODE'
+          const evidence = JSON.parse(process.env.EVIDENCE_JSON);
+          const checks = {
+            schema: evidence.schema === "unified-ai-system/usage-report/v1",
+            mode: evidence.mode === "prompt-enhancement",
+            providerCalled: evidence.providerCalled === false,
+            credentialRequired: evidence.credentialRequired === false,
+            deterministic: evidence.deterministic === true,
+            original: evidence.original === "Container evidence test",
+            enhancedPrompt: typeof evidence.enhancedPrompt === "string"
+              && evidence.enhancedPrompt.length > 0,
+          };
+          console.log(JSON.stringify(checks));
+          if (!Object.values(checks).every(Boolean)) process.exit(1);
+          NODE
           docker run --rm \
             --env AI_GATEWAY_PROVIDER_MODE=fake \
             --env AI_GATEWAY_REAL_PROVIDER_ENABLED=false \
