@@ -579,6 +579,22 @@ for (const [content, path, code] of [
 ]) {
   if (!content.includes(codespacesUrl)) addError(code, path);
 }
+for (const [content, path, marker, code] of [
+  [
+    readme,
+    "README.md",
+    'pnpm gateway demo "Build a small API for my team" --enhance --profile coding --evidence',
+    "codespaces_first_run_missing_from_readme",
+  ],
+  [
+    chineseReadme,
+    "README.zh-CN.md",
+    'pnpm gateway demo "帮我为团队设计一个小型 API" --enhance --profile coding --evidence',
+    "codespaces_first_run_missing_from_chinese_readme",
+  ],
+]) {
+  if (!content.includes(marker)) addError(code, path);
+}
 const requiredChineseReadmeMarkers = [
   ["面向自然语言增强", "chinese_readme_title_missing"],
   ["60 秒体验", "chinese_readme_quickstart_missing"],

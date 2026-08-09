@@ -246,15 +246,16 @@ pnpm verify:public-clone
 pnpm gateway demo
 ```
 
-For a prepared cloud workspace, use [GitHub Codespaces](https://codespaces.new/happy520ai/unified-ai-system?quickstart=1), then run:
+For a prepared cloud workspace, use [GitHub Codespaces](https://codespaces.new/happy520ai/unified-ai-system?quickstart=1). See the value first:
 
 ```bash
-pnpm verify:public-clone
-pnpm gateway demo "Build a small API for my team" --enhance --profile coding
+pnpm gateway demo "Build a small API for my team" --enhance --profile coding --evidence
 ```
 
-The repository's devcontainer keeps the default path provider-free. Codespaces
-availability and usage limits are controlled by GitHub.
+For the complete credential-free clone check, run `pnpm verify:public-clone`
+after the demo. The repository's devcontainer keeps the default path
+provider-free. Codespaces availability and usage limits are controlled by
+GitHub.
 
 ### Docker Compose
 
