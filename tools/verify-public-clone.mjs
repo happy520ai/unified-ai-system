@@ -12,6 +12,10 @@ const javascriptExampleEntrypoint = resolve(
   repoRoot,
   "docs/examples/javascript-chat.mjs",
 );
+const sharedSdkExampleEntrypoint = resolve(
+  repoRoot,
+  "docs/examples/shared-sdk-prompt-enhancement.mjs",
+);
 
 function delay(milliseconds) {
   return new Promise((resolvePromise) => setTimeout(resolvePromise, milliseconds));
@@ -138,6 +142,52 @@ async function runJavaScriptExample(baseUrl) {
   };
 }
 
+async function runSharedSdkExample(baseUrl) {
+  let stdout = "";
+  let stderr = "";
+  const child = spawn(
+    process.execPath,
+    [
+      sharedSdkExampleEntrypoint,
+      "Build a Node API with tests",
+      "--profile",
+      "coding",
+      "--language",
+      "en",
+    ],
+    {
+      cwd: repoRoot,
+      windowsHide: true,
+      env: {
+        ...process.env,
+        AI_GATEWAY_BASE_URL: baseUrl,
+      },
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
+  child.stdout.setEncoding("utf8");
+  child.stderr.setEncoding("utf8");
+  child.stdout.on("data", (chunk) => {
+    stdout = `${stdout}${chunk}`.slice(-8_000);
+  });
+  child.stderr.on("data", (chunk) => {
+    stderr = `${stderr}${chunk}`.slice(-4_000);
+  });
+  const [exitCode] = await once(child, "exit");
+  let body = null;
+  try {
+    body = JSON.parse(stdout);
+  } catch {
+    // The checks below report the captured output when the example is invalid.
+  }
+  return {
+    exitCode,
+    body,
+    stdout: stdout.trim(),
+    stderr: stderr.trim(),
+  };
+}
+
 const mcpSmoke = await runMcpSmoke();
 const port = await findFreePort();
 const baseUrl = `http://127.0.0.1:${port}`;
@@ -177,6 +227,7 @@ try {
   const uiResponse = await fetch(`${baseUrl}/ui`);
   const consoleResponse = await fetch(`${baseUrl}/console`);
   const javascriptExample = await runJavaScriptExample(baseUrl);
+  const sharedSdkExample = await runSharedSdkExample(baseUrl);
   const promptEnhancement = await fetchJson(`${baseUrl}/prompts/enhance`, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -267,6 +318,13 @@ try {
     javascriptExampleUsesFakeProvider:
       javascriptExample.stdout.includes("provider: local-fake-provider")
       && javascriptExample.stdout.includes("mode: fake"),
+    sharedSdkExampleReady:
+      sharedSdkExample.exitCode === 0
+      && sharedSdkExample.body?.client === "@unified-ai-system/shared-sdk"
+      && sharedSdkExample.body?.original === "Build a Node API with tests"
+      && sharedSdkExample.body?.metadata?.providerCalled === false
+      && sharedSdkExample.body?.metadata?.credentialRequired === false
+      && sharedSdkExample.body?.metadata?.deterministic === true,
     mcpStdioReady:
       mcpSmoke.exitCode === 0
       && mcpSmoke.body?.ok === true
@@ -282,6 +340,7 @@ try {
     realProviderCallsMade: false,
     realProviderEnabled: health.body?.data?.realProviderEnabled ?? null,
     javascriptExample,
+    sharedSdkExample,
     mcp: mcpSmoke.body,
   };
   if (!result.ok) process.exitCode = 1;
