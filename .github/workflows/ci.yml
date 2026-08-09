@@ -76,6 +76,9 @@ jobs:
       - name: Shared SDK prompt enhancement example
         run: node --check docs/examples/shared-sdk-prompt-enhancement.mjs
 
+      - name: Shared SDK cancellation example
+        run: node docs/examples/shared-sdk-cancellation.mjs
+
       - name: C# prompt enhancement example
         run: |
           dotnet restore docs/examples/prompt-enhancement.csproj

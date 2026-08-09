@@ -76,6 +76,16 @@ The example uses the repository's `createGatewayClient` implementation, verifies
 provider-free readiness, and checks the same enhancement contract without adding
 an external runtime dependency.
 
+To inspect cancellation behavior without starting a gateway or configuring a
+provider, run the [Shared SDK cancellation example](examples/shared-sdk-cancellation.mjs):
+
+```bash
+node docs/examples/shared-sdk-cancellation.mjs
+```
+
+It uses a loopback stub and proves that caller cancellation preserves its own
+cause while an internal timeout exposes a `TimeoutError` cause.
+
 ### Go Standard Library
 
 The dependency-free Go example performs the same provider-free checks using

@@ -56,6 +56,15 @@ HTTP failures and exposes the original transport or parsing error as `cause`.
 Caller cancellation preserves the underlying abort reason; internal timeouts
 use a cause named `TimeoutError`, so callers can distinguish the two when the
 runtime provides those names.
+
+Run the provider-free loopback proof from the repository root:
+
+```bash
+node docs/examples/shared-sdk-cancellation.mjs
+```
+
+The example makes no external provider request and exits non-zero unless both
+error paths expose the expected cause.
 The client trims surrounding whitespace and trailing slashes from `baseUrl` so
 the same configuration works in local scripts and deployed environments.
 
