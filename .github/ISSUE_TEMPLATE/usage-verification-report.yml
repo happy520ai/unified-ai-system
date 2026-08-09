@@ -10,6 +10,8 @@ body:
         Thanks for trying Unified AI System.
 
         Please share exactly what you ran and what you observed. This keeps the project practical for non-experts and easy to verify for everyone.
+
+        Minimum report: command, 3-12 output lines, environment, and execution mode. The expectation and actual-result fields are optional follow-up context.
   - type: textarea
     id: command
     attributes:
@@ -54,15 +56,11 @@ body:
     attributes:
       label: What did you expect to happen?
       placeholder: "Output should include `execution: fake` and finish in one run."
-    validations:
-      required: true
   - type: textarea
     id: actual
     attributes:
       label: What happened instead?
       placeholder: "Observed error / mismatch / missing expected text."
-    validations:
-      required: true
   - type: checkboxes
     id: checks
     attributes:

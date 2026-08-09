@@ -142,6 +142,7 @@ pnpm growth:evidence-pack
 - Published a clean replacement onboarding update in [Issue #20](https://github.com/happy520ai/unified-ai-system/issues/20#issuecomment-5230702028) with the no-clone enhancement command, provider-free evidence boundary, and Usage Report links; the earlier malformed comment was removed, and this is verified outreach rather than a community usage report or Star result.
 - Updated the English and Chinese README first-run commands so the first copy/paste demonstrates natural-language enhancement directly, instead of making visitors discover the differentiated path further down the page; the local command passed provider-free verification, so this is a conversion improvement rather than Star-growth evidence.
 - Removed one maintainer-authored malformed v0.4.3 comment from Discussion #23 and published a clean replacement at [comment 17950864](https://github.com/happy520ai/unified-ai-system/discussions/23#discussioncomment-17950864) with the current enhancement command and feedback path; this repairs public documentation quality and is not Star-growth evidence.
+- Simplified the Usage Report template so a community member can submit the minimum command, output, environment, and execution mode while expectation/actual details remain optional; this targets the zero-community-report bottleneck and is a conversion improvement, not Star-growth evidence.
 
 ## Monthly Update Template
 
