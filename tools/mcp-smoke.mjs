@@ -251,7 +251,7 @@ async function runSmoke() {
       capabilities: {},
       clientInfo: {
         name: "unified-ai-system-mcp-smoke",
-        version: "0.4.5",
+        version: "0.4.6",
       },
     });
     rpc.notify("notifications/initialized");

@@ -14,6 +14,21 @@ and the project uses [Semantic Versioning](https://semver.org/).
 - Routed the bilingual README Codex links to the deployed Docker quickstarts
   while keeping the repository source guide available for contributors.
 
+## [0.4.6] - 2026-08-10
+
+### Added
+
+- Added caller-controlled `AbortSignal` support to Shared SDK JSON requests and
+  `chatStream` calls without changing existing method signatures.
+- Added deterministic cancellation coverage for JSON and streaming requests.
+
+### Changed
+
+- Preserved caller abort reasons through `GatewayClientError.cause` and named
+  internal timeout causes `TimeoutError` so applications can distinguish them.
+- Documented the cancellation contract and synchronized public release entry
+  points with `0.4.6`.
+
 ## [0.4.5] - 2026-08-09
 
 ### Added
@@ -284,7 +299,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 - It is not presented as production-certified, L5 autonomous, or established
   AGI. Those claims require independent evidence beyond local verification.
 
-[Unreleased]: https://github.com/happy520ai/unified-ai-system/compare/v0.4.5...HEAD
+[Unreleased]: https://github.com/happy520ai/unified-ai-system/compare/v0.4.6...HEAD
+[0.4.6]: https://github.com/happy520ai/unified-ai-system/compare/v0.4.5...v0.4.6
 [0.4.5]: https://github.com/happy520ai/unified-ai-system/compare/v0.4.4...v0.4.5
 [0.4.4]: https://github.com/happy520ai/unified-ai-system/compare/v0.4.3...v0.4.4
 [0.4.3]: https://github.com/happy520ai/unified-ai-system/compare/v0.4.2...v0.4.3

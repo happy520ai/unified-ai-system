@@ -169,7 +169,7 @@ const response = await gateway.chat(createGatewayChatRequest({
 
 ## Codex And MCP
 
-The source build and pinned `0.4.5` container expose
+The source build and pinned `0.4.6` container expose
 `gateway_prompt_enhance` as a read-only MCP tool. It returns a preview without
 checking provider health because it cannot call a provider.
 
