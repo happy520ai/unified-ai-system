@@ -29,7 +29,7 @@
   <a href="https://github.com/happy520ai/unified-ai-system/releases/latest">
     <img alt="Release" src="https://img.shields.io/github/v/release/happy520ai/unified-ai-system?style=flat-square" />
   </a>
-  <a href="https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.4.4">
+  <a href="https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.4.5">
     <img alt="Official MCP Registry" src="https://img.shields.io/badge/Official_MCP_Registry-active-1f883d?style=flat-square" />
   </a>
   <a href="LICENSE">
@@ -47,7 +47,7 @@ Unified AI System 是一个面向模型、智能体、知识与工具的开源 A
 **最快验证方式，无需账号：**
 
 ```bash
-docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.4 pnpm gateway demo "帮我为团队设计一个小型 API" --enhance --profile coding
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.5 pnpm gateway demo "帮我为团队设计一个小型 API" --enhance --profile coding
 ```
 
 命令会保留原始请求、输出结构化 coding 提示词、报告确定性的
@@ -111,7 +111,7 @@ docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.4 pn
     />
   </a>
   <br />
-  <sub>v0.4.4：确定性增强、无需 API Key、不会触发真实 provider 调用。</sub>
+  <sub>v0.4.5：确定性增强、无需 API Key、不会触发真实 provider 调用。</sub>
 </p>
 
 ## 60 秒体验
@@ -119,7 +119,7 @@ docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.4 pn
 无需登录，直接验证发布镜像：
 
 ```bash
-docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.4 pnpm gateway demo
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.5 pnpm gateway demo
 ```
 
 你将看到：
@@ -133,7 +133,7 @@ docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.4 pn
 用一条命令体验自然语言增强：
 
 ```bash
-docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.4 \
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.5 \
   pnpm gateway demo "帮我为团队设计一个小型 API" --enhance --profile coding
 ```
 
@@ -175,7 +175,7 @@ go run docs/examples/prompt-enhancement.go "帮我为团队规划一个小型 AP
 直接添加已发布的 MCP 镜像：
 
 ```bash
-codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.4
+codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.5
 ```
 
 重启 Codex 后运行 `/mcp` 检查连接，再参考 [Codex MCP 60 秒快速开始](docs/codex-mcp-quickstart.md)。
@@ -278,8 +278,8 @@ pnpm verify:mcp
 
 ## 项目链接
 
-- [官方 MCP Registry 条目](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.4.4)
-- [Release v0.4.4](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.4.4)
+- [官方 MCP Registry 条目](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.4.5)
+- [Release v0.4.5](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.4.5)
 - [Codex MCP Server README](packages/mcp-server/README.md)
 - [Roadmap](ROADMAP.md)
 - [Vision](VISION.md)

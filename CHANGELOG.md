@@ -9,6 +9,19 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 No unreleased public changes.
 
+## [0.4.5] - 2026-08-09
+
+### Added
+
+- Added `enhance --evidence` for a report-ready, provider-free prompt
+  enhancement packet containing the original request, enhanced prompt, and
+  verification metadata.
+
+### Changed
+
+- Documented the direct enhancement evidence path and synchronized public
+  Docker, MCP, Codex, and documentation entry points with `0.4.5`.
+
 ## [0.4.4] - 2026-08-09
 
 ### Added
@@ -266,7 +279,8 @@ No unreleased public changes.
 - It is not presented as production-certified, L5 autonomous, or established
   AGI. Those claims require independent evidence beyond local verification.
 
-[Unreleased]: https://github.com/happy520ai/unified-ai-system/compare/v0.4.4...HEAD
+[Unreleased]: https://github.com/happy520ai/unified-ai-system/compare/v0.4.5...HEAD
+[0.4.5]: https://github.com/happy520ai/unified-ai-system/compare/v0.4.4...v0.4.5
 [0.4.4]: https://github.com/happy520ai/unified-ai-system/compare/v0.4.3...v0.4.4
 [0.4.3]: https://github.com/happy520ai/unified-ai-system/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/happy520ai/unified-ai-system/compare/v0.4.1...v0.4.2

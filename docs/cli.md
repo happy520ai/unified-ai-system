@@ -9,7 +9,7 @@ runtime.
 The public container includes both the CLI and gateway runtime:
 
 ```bash
-docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.4 pnpm gateway demo "Build a small API for my team" --enhance --profile coding
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.5 pnpm gateway demo "Build a small API for my team" --enhance --profile coding
 ```
 
 This disposable command uses the local fake provider, prints one verified
@@ -18,7 +18,7 @@ response, and exits without leaving a service process behind.
 Preview natural-language enhancement in the same isolated run:
 
 ```bash
-docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.4 \
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.5 \
   pnpm gateway demo "Build a small API for my team" --enhance --profile coding
 ```
 

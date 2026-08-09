@@ -7,7 +7,7 @@ import {
 import * as z from "zod/v4";
 
 export const MCP_SERVER_NAME = "unified-ai-system";
-export const MCP_SERVER_VERSION = "0.4.4";
+export const MCP_SERVER_VERSION = "0.4.5";
 export const MCP_TOOL_NAMES = Object.freeze([
   "gateway_health",
   "gateway_readiness",

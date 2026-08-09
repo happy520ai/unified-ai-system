@@ -5,7 +5,7 @@
 ```text
 If your team uses AI tools but prompt quality is unstable, this is a quick proof:
 
-docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.4 pnpm gateway demo "Build a small API for my team" --enhance --profile coding
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.5 pnpm gateway demo "Build a small API for my team" --enhance --profile coding
 
 What you should see:
 - no API key required
@@ -20,7 +20,7 @@ Repo: https://github.com/happy520ai/unified-ai-system
 ```text
 Want rough language to become executable tasks?
 
-docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.4 pnpm gateway demo "Build a small API for my team" --enhance --profile coding
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.5 pnpm gateway demo "Build a small API for my team" --enhance --profile coding
 
 This is a no-clone, no-API-key first run. The container exits after printing
 the result.
@@ -70,7 +70,7 @@ If this helped you, share one reproducible output line, then:
    https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml
 3) Ask one teammate to run the same command once
 
-docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.4 pnpm gateway demo "Build a small API for my team" --enhance --profile coding
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.5 pnpm gateway demo "Build a small API for my team" --enhance --profile coding
 ```
 
 ## 6) Follow-up Reply
