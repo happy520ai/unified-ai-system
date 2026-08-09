@@ -100,6 +100,7 @@ pnpm growth:evidence-pack
 - Updated the high-reach [awesome-mcp-servers#11745](https://github.com/punkpeye/awesome-mcp-servers/pull/11745) entry from `mcp-server:0.4.2` to `mcp-server:0.4.3`; its upstream submission check passed, while the PR remains open and is not counted as a merge or Star result.
 - Added explicit CLI `--language` control for `enhance`, `chat --enhance`, and `demo --enhance`, covering `auto`, `zh-CN`, and `en`; this is a user-facing capability improvement, not Star-growth evidence.
 - Synchronized public Discussions [#1](https://github.com/happy520ai/unified-ai-system/discussions/1), [#5](https://github.com/happy520ai/unified-ai-system/discussions/5), [#6](https://github.com/happy520ai/unified-ai-system/discussions/6), and [#23](https://github.com/happy520ai/unified-ai-system/discussions/23) to v0.4.3; a live scan found zero stale v0.4.0/v0.4.1/v0.4.2 or old container-tag references.
+- Published the dependency-free Node.js prompt-enhancement path in [Issue #20 comment](https://github.com/happy520ai/unified-ai-system/issues/20#issuecomment-5229116145) after PR #77 merged; this is a verified outreach action, not a community report or Star-growth result.
 
 ## Monthly Update Template
 
