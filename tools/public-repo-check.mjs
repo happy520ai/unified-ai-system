@@ -232,6 +232,16 @@ if (browserPromptEnhancer !== `${browserPromptEnhancerBanner}${runtimePromptEnha
   );
 }
 
+for (const marker of ["任务", "代码"]) {
+  if (!browserPromptEnhancer.includes(marker)) {
+    addError(
+      "browser_prompt_enhancer_chinese_content_missing",
+      browserPromptEnhancerPath,
+      `Expected Chinese marker: ${marker}`,
+    );
+  }
+}
+
 const requiredPromptLabMarkers = [
   ["data-prompt-lab", "prompt_lab_missing"],
   ["data-prompt-form", "prompt_lab_form_missing"],
