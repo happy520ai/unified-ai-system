@@ -1,6 +1,6 @@
 ﻿param(
     [string]$RepoUrl = "https://github.com/happy520ai/unified-ai-system",
-    [string]$DemoCommand = "docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 pnpm gateway demo",
+    [string]$DemoCommand = 'docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 pnpm gateway demo "Build a small API for my team" --enhance --profile coding',
     [string]$IssueTemplate = "https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml",
     [string]$OutputFile = "docs/star-growth-publish-output.md"
 )
@@ -18,7 +18,7 @@ I verified Unified AI System in 60 seconds:
 
 $DemoCommand
 
-No API key is needed for baseline check.
+No API key is needed for the local prompt-enhancement preview.
 Repo: $RepoUrl
 "@
     githubZh = @"
@@ -39,7 +39,7 @@ $IssueTemplate
 "@
     twitterLike = @"
 Built a terminal-first AI gateway with deterministic local verification:
-- fake-provider baseline
+- prompt enhancement with a local fake-provider
 - explicit provider boundaries
 - CLI + MCP + Codex / Cursor / Cline
 

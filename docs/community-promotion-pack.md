@@ -1,16 +1,16 @@
 ﻿# Community Promotion Pack
 
-## 1) 60-Second Baseline
+## 1) 60-Second Prompt Enhancement
 
 ```text
 If your team uses AI tools but prompt quality is unstable, this is a quick proof:
 
-docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 pnpm gateway demo
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 pnpm gateway demo "Build a small API for my team" --enhance --profile coding
 
 What you should see:
-- no API key required for baseline
-- local deterministic fake-provider path
-- clear command output
+- no API key required
+- the original request preserved alongside an enhanced prompt
+- assumptions, constraints, outputs, and ambiguity questions
 
 Repo: https://github.com/happy520ai/unified-ai-system
 ```
@@ -56,7 +56,7 @@ If this helped you, share one reproducible output line, then:
    https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml
 3) Ask one teammate to run the same command once
 
-docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 pnpm gateway demo
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 pnpm gateway demo "Build a small API for my team" --enhance --profile coding
 ```
 
 ## 5) Follow-up Reply

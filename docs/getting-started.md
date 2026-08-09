@@ -6,12 +6,13 @@ With Docker installed, prove the terminal path without cloning the repository
 or configuring credentials:
 
 ```bash
-docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 pnpm gateway demo
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 pnpm gateway demo "Build a small API for my team" --enhance --profile coding
 ```
 
 The disposable container starts the gateway on an isolated port, verifies
-health, sends one deterministic fake-provider chat request, prints the result,
-and exits. No real provider is called.
+health, turns the natural-language request into a structured prompt, sends one
+deterministic fake-provider chat request, prints the result, and exits. No real
+provider is called.
 
 ## Requirements
 

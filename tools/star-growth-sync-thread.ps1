@@ -6,7 +6,7 @@
 $ErrorActionPreference = "Stop"
 $repo = $Repo
 $issue = $IssueNumber
-$demoCommand = "docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 pnpm gateway demo"
+$demoCommand = 'docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 pnpm gateway demo "Build a small API for my team" --enhance --profile coding'
 
 function Test-GhAvailable {
   gh --version | Out-Null
@@ -41,7 +41,7 @@ try {
   Test-GhAvailable
 
   Write-Host "Running campaign refresh..."
-  pnpm growth:campaign:ps
+  pnpm growth:campaign
   pnpm growth:feedback
 
   $latestRaw = Get-Content -Path docs/star-growth-latest.md -Raw -Encoding UTF8
@@ -80,15 +80,18 @@ Updated snapshot:
 - Open issues (non-PR): $($metrics.OpenIssues)
 - Open pull requests: $($metrics.OpenPullRequests)
 
-I verified the baseline command is still:
+I verified the prompt-enhancement command is still:
 
 ```
 $demoCommand
 ```
 
-If you run it, please share one output line + OS:
-- please include whether you saw `execution: fake`
-- OS / command output line
+Try it without installing anything in the browser Prompt Lab:
+https://happy520ai.github.io/unified-ai-system/#enhance
+
+If you run it, please share the command, 3-12 output lines, OS or client, and
+execution mode through the structured Usage Report:
+https://github.com/$repo/issues/new?template=usage-verification-report.yml
 
 If this saved you time, help this project grow:
 1) Star the repo: https://github.com/$repo

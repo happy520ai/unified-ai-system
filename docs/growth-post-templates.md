@@ -1,13 +1,13 @@
 ﻿# Promotion Templates (Copy/Paste)
 
-## 1) 60-Second Verification (English)
+## 1) 60-Second Prompt Enhancement (English)
 
 ```text
-I used this 60-second check for a reproducible AI baseline:
+I used this 60-second check to turn a rough request into a structured task:
 
-docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 pnpm gateway demo
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 pnpm gateway demo "Build a small API for my team" --enhance --profile coding
 
-No API key is required.
+No API key or clone is required; the local fake-provider path is deterministic.
 Repo: https://github.com/happy520ai/unified-ai-system
 ```
 
@@ -55,14 +55,14 @@ python docs/examples/prompt-enhancement.py "帮我为团队规划一个小型 AP
 仓库：https://github.com/happy520ai/unified-ai-system
 ```
 
-## 6) 60-Second Baseline (中文)
+## 6) 60-Second Prompt Enhancement (中文)
 
 ```text
-我在 60 秒内验证了 Unified AI System：
+我在 60 秒内验证了 Unified AI System 的自然语言增强：
 
-docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 pnpm gateway demo
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 pnpm gateway demo "帮我为团队设计一个小型 API" --enhance --profile coding --language zh-CN
 
-默认使用本地 fake-provider，无需 API Key。
+默认使用本地 fake-provider，无需 API Key，会同时展示原始请求和结构化提示词。
 仓库：https://github.com/happy520ai/unified-ai-system
 ```
 
