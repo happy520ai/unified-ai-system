@@ -14,6 +14,28 @@ When a first-run command fails, capture the details using the [first-run trouble
 3. Use Issues for reproducible bugs and scoped implementation work.
 4. Keep pull requests focused, reviewable, and tied to an observable outcome.
 
+## First Contribution Path
+
+Use this short path when you want to make a first change without learning the
+whole repository first:
+
+```bash
+corepack enable
+corepack prepare pnpm@9.15.4 --activate
+pnpm install --frozen-lockfile
+pnpm check:public
+```
+
+Choose one bounded task:
+
+- [#92: shell-specific troubleshooting](https://github.com/happy520ai/unified-ai-system/issues/92) updates documentation and sanitized transcripts.
+- [#93: another dependency-free prompt example](https://github.com/happy520ai/unified-ai-system/issues/93) adds one standard-library client and a focused check.
+- [#94: Prompt Lab browser smoke coverage](https://github.com/happy520ai/unified-ai-system/issues/94) protects the public first-run flow.
+
+Before opening a pull request, run the focused check for your change and then
+the four repository gates below. Keep the default fake provider enabled; no
+API key or real provider call is needed for these contribution paths.
+
 ## Local Development
 
 Requirements:
