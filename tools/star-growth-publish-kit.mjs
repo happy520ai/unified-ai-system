@@ -10,14 +10,14 @@ const outputFile = output || "docs/star-growth-publish-output.md";
 const date = new Date().toISOString().slice(0, 10);
 const repoUrl = "https://github.com/happy520ai/unified-ai-system";
 const demoCommand =
-  "docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 pnpm gateway demo";
+  "docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 pnpm gateway demo \"Build a small API for my team\" --enhance --profile coding";
 const issueTemplate =
   "https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml";
 
 const posts = {
-  githubEn: `I verified Unified AI System in 60 seconds:\n\n${demoCommand}\n\nNo API key is needed for baseline check.\nRepo: ${repoUrl}`,
+  githubEn: `I verified Unified AI System in 60 seconds:\n\n${demoCommand}\n\nNo API key is needed for the local enhancement preview.\nRepo: ${repoUrl}`,
   xEn: `Unified AI System 60s baseline:\n${demoCommand}\n\n- Local fake-provider\n- Deterministic output\n- MCP + CLI + Codex / Cursor / Cline\n- Repo: ${repoUrl}`,
-  githubPlain: `I verified Unified AI System in 60 seconds:\n\n${demoCommand}\n\nDefault path uses local fake-provider.\nNo API key required.\nRepo: ${repoUrl}`,
+  githubPlain: `I verified Unified AI System in 60 seconds:\n\n${demoCommand}\n\nThe local fake-provider preserves the original request and prints a structured prompt.\nNo API key required.\nRepo: ${repoUrl}`,
   twitterLike: `Built a terminal-first AI gateway with deterministic local verification:\n- fake-provider baseline\n- explicit provider boundaries\n- CLI + MCP + Codex / Cursor / Cline\n\nRepo: ${repoUrl}\n${demoCommand}`,
   redditEn: `Open-source AI infrastructure update:\n- local fake-provider verification in 60 seconds\n- prompt enhancement turns rough language into structured intent\n- explicit approval & provider policy\n\nRepo: ${repoUrl}\n${demoCommand}`,
   discordEn: `Want to try a verifiable AI gateway?\nTry:\n${demoCommand}\n\nIf it works, share one output line and open:\n${issueTemplate}`,

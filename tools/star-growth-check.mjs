@@ -9,7 +9,7 @@ const promptLabUrl = "https://happy520ai.github.io/unified-ai-system/#enhance";
 const usageReportUrl =
   "https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml";
 const demoCommand =
-  "docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 pnpm gateway demo";
+  "docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 pnpm gateway demo \"Build a small API for my team\" --enhance --profile coding";
 
 const externalPrs = [
   ["sickn33/agentic-awesome-skills", 1073],
@@ -336,7 +336,7 @@ function generateDailyReport(repoStats, rows, date, previousStats = null) {
   lines.push("");
   lines.push(demoCommand);
   lines.push("");
-  lines.push("No API key is needed for baseline verification.");
+  lines.push("No API key is needed for the local enhancement preview.");
   lines.push(`Try the browser Prompt Lab (no install): ${promptLabUrl}`);
   lines.push(`Repo: ${repoUrl}`);
   lines.push(`Share one output line + OS: ${usageReportUrl}`);

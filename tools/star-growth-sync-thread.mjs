@@ -11,7 +11,7 @@ const evidenceOutput = "docs/star-growth-latest.md";
 const dailyOutput = "docs/star-growth-daily.md";
 const checkOutput = "docs/star-growth-check.md";
 const demoCommand =
-  "docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 pnpm gateway demo";
+  "docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 pnpm gateway demo \"Build a small API for my team\" --enhance --profile coding";
 
 function run(cmd) {
   return execSync(cmd, {
@@ -71,7 +71,7 @@ function buildCommentBody(metrics) {
     `- Open issues (non-PR): ${metrics.openIssues}`,
     `- Open pull requests: ${metrics.openPullRequests}`,
     "",
-    "I verified the baseline command is still:",
+    "I verified the prompt-enhancement command is still:",
     "```",
     demoCommand,
     "```",
