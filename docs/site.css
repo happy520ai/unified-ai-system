@@ -77,9 +77,11 @@ textarea:focus-visible {
   border-bottom: 1px solid rgba(248, 250, 247, 0.18);
   background: rgba(8, 16, 17, 0.88);
   backdrop-filter: blur(12px);
+  min-width: 0;
 }
 
 .brand {
+  min-width: 0;
   display: inline-flex;
   align-items: center;
   gap: 10px;
@@ -92,7 +94,15 @@ textarea:focus-visible {
   border-radius: 6px;
 }
 
+.brand span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .site-header nav {
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 28px;
@@ -169,6 +179,7 @@ p {
 
 h1 {
   max-width: 900px;
+  width: min(900px, 100%);
   margin: 0;
   font-size: 76px;
   line-height: 0.98;
@@ -177,6 +188,7 @@ h1 {
 
 .hero-copy {
   max-width: 720px;
+  width: min(720px, 100%);
   margin: 24px 0 0;
   color: #d9e1de;
   font-size: 21px;
@@ -425,6 +437,20 @@ h1 {
   gap: 16px;
 }
 
+.prompt-lab-examples {
+  margin-top: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+}
+
+.prompt-lab-examples > span {
+  margin-right: 2px;
+  color: #8f9b99;
+  font: 11px/1.4 "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
 .prompt-lab-toolbar > label:first-child,
 .prompt-lab-result-header span,
 .prompt-lab-questions > span {
@@ -493,6 +519,14 @@ h1 {
 .prompt-lab button:hover:not(:disabled) {
   border-color: var(--mint);
   color: var(--mint);
+}
+
+.prompt-lab-examples button {
+  min-height: 30px;
+  padding: 5px 9px;
+  border-color: #39494a;
+  color: #c7d2cf;
+  font-size: 11px;
 }
 
 .prompt-lab button:disabled {
@@ -1353,7 +1387,12 @@ footer a:hover {
   }
 
   .site-header .nav-command {
-    padding: 8px 11px;
+    max-width: 132px;
+    overflow: hidden;
+    padding: 8px 9px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 12px;
   }
 
   .hero {
@@ -1378,6 +1417,12 @@ footer a:hover {
   h1 {
     font-size: 48px;
     line-height: 1;
+  }
+
+  .hero-inner > h1,
+  .hero-inner > .hero-copy {
+    width: 100%;
+    max-width: none;
   }
 
   .hero-copy {
@@ -1477,6 +1522,20 @@ footer a:hover {
   .prompt-lab-profile select {
     flex: 1;
     max-width: 190px;
+  }
+
+  .prompt-lab-examples {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .prompt-lab-examples > span {
+    margin: 0;
+  }
+
+  .prompt-lab-examples button {
+    width: 100%;
+    text-align: left;
   }
 
   .prompt-lab textarea {

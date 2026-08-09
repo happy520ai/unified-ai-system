@@ -75,6 +75,7 @@ async function initializePromptLab(lab) {
   const questionsPanel = lab.querySelector("[data-prompt-questions-panel]");
   const status = lab.querySelector("[data-prompt-status]");
   const copyButton = lab.querySelector("[data-prompt-copy]");
+  const examples = [...lab.querySelectorAll("[data-prompt-example]")];
 
   if (
     !form
@@ -139,6 +140,16 @@ async function initializePromptLab(lab) {
     render();
   });
   input.addEventListener("input", updateCount);
+  for (const example of examples) {
+    example.addEventListener("click", () => {
+      input.value = example.dataset.promptExample ?? "";
+      if (example.dataset.promptExampleProfile) {
+        profile.value = example.dataset.promptExampleProfile;
+      }
+      render();
+      input.focus();
+    });
+  }
   copyButton.addEventListener("click", async () => {
     try {
       await navigator.clipboard.writeText(output.textContent);
