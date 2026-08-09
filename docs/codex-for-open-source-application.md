@@ -4,7 +4,7 @@
 
 - Last name: Chen
 - First name: Jiongjiong
-- Email: chenjiongjiong0202@gmail.com
+- Email: use the email associated with the ChatGPT account
 - GitHub username: `happy520ai` (public profile required)
 - Repository: `https://github.com/happy520ai/unified-ai-system`
 
@@ -14,16 +14,16 @@ Primary maintainer
 
 ## 3) Why this repository qualifies? (<=500 chars)
 
-Unified AI System is an Apache-2.0 self-hosted AI gateway and MCP server that I maintain. It gives teams a credential-free local path from natural-language requests to structured prompt enhancement and governed model execution across CLI, HTTP, SDK, MCP, Codex, Cline, and Cursor. It is listed in the official MCP Registry. The repository has 3 stars and 1 fork, plus 1,607 clones from 338 unique cloners in GitHub's latest 14-day window. It addresses a safety and interoperability gap.
+Unified AI System is a public Apache-2.0, self-hosted MCP/AI gateway that helps developers turn plain-language requests into structured, reviewable prompts for Codex, Cursor, and Cline. It provides a provider-free first run, reproducible CLI/MCP workflows, CI and public-clone verification, and documented maintainer workflows. It is early-stage (3 stars, 1 fork at submission), but targets a broad developer need and is actively maintained.
 
 ## 4) I'm interested in (select all options shown by the form)
 
-- Codex Security
+- ChatGPT Pro with Codex, if shown as a selectable option
 - API credits for my project
+- Codex Security, if the form shows it and the use case is selected
 
 The official program page describes six months of ChatGPT Pro with Codex as a
-program benefit; do not treat it as a separate checkbox unless the live form
-shows one.
+program benefit. Select it separately only if the live form presents it.
 
 ## 5) OpenAI Organization ID
 
@@ -31,11 +31,11 @@ Enter the actual Organization ID shown in the OpenAI Platform settings. Do not i
 
 ## 6) How will you use API credits for your project? (<=500 chars)
 
-API credits will support maintainer automation for prompt-enhancement regression checks, MCP and CLI verification, release safety checks, issue and pull-request triage, and documentation. This will reduce repetitive work, improve review and release quality, and make a provider-neutral AI gateway easier for contributors and teams to use.
+API credits would support a public, opt-in maintainer workflow for Unified AI System: CI-based PR triage and review summaries, release-note/changelog drafting, issue classification, and evaluation of our deterministic natural-language prompt enhancement. Provider calls would remain explicitly authorized, use public or synthetic test data, and produce reproducible examples and documentation.
 
 ## 7) Anything else we should know? (<=500 chars)
 
-This is an early but actively maintained infrastructure project. I report verified behavior rather than claiming AGI or production readiness: credential-free clean-clone checks, fake-provider demos, explicit provider opt-in, reproducible tests, and published releases. Support would help improve security review, maintainer response time, contributor onboarding, and long-term reliability.
+I am the GitHub owner and primary maintainer of this public Apache-2.0 repository. The project is early-stage, so I report conservative, verifiable metrics rather than claiming production scale: 3 stars, 1 fork, and 2 open issues at submission. It has a credential-free fake-provider default, public docs, CI checks, a release, and a working MCP integration. I welcome review and can provide maintainer verification.
 
 ## 8) Fast submit tips
 
