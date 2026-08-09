@@ -228,6 +228,7 @@ test("enhance human output explains optional questions and safety evidence", asy
   assert.match(result.stdout, /credentials not required/);
   assert.match(result.stdout, /deterministic yes/);
   assert.match(result.stdout, /Original request preserved/);
+  assert.match(result.stdout, /--evidence for a shareable report/);
 });
 
 test("enhance can emit report-ready provider-free evidence", async (context) => {

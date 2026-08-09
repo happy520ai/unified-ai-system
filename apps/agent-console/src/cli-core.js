@@ -661,7 +661,7 @@ function renderEnhancement(result, output) {
     "",
     `  ${safetyLabel} provider call ${metadata.providerCalled === false ? "none" : "check JSON"} | credentials ${metadata.credentialRequired === false ? "not required" : "check JSON"} | deterministic ${metadata.deterministic === true ? "yes" : "check JSON"}`,
     metadata.originalPreserved === true
-      ? output.muted("  Original request preserved. Use --json for report-ready evidence.")
+      ? output.muted("  Original request preserved. Use --evidence for a shareable report, or --json for raw output.")
       : output.muted("  Review the JSON metadata before sharing this result."),
     "",
   ];
