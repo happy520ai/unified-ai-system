@@ -7,8 +7,8 @@ open a public issue for a suspected security problem.
 
 | Version | Security fixes |
 | --- | --- |
-| `0.3.x` | Supported |
-| `0.2.x` and earlier | Not supported |
+| `0.4.x` | Supported |
+| `0.3.x` and earlier | Not supported |
 
 Reports about `master` are welcome, but released versions are the supported
 distribution boundary.

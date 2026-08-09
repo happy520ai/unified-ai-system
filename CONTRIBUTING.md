@@ -5,7 +5,7 @@ knowledge, and governed automation.
 
 ## Start Here
 
-New contributors can start with [#92: shell-specific troubleshooting](https://github.com/happy520ai/unified-ai-system/issues/92), submit a [structured usage report](https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml), or browse the [open good first issues](https://github.com/happy520ai/unified-ai-system/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22good%20first%20issue%22).
+New contributors can start by submitting a [structured usage report](https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml), joining a [GitHub Discussion](https://github.com/happy520ai/unified-ai-system/discussions), or browsing the [open good first issues](https://github.com/happy520ai/unified-ai-system/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22good%20first%20issue%22).
 When a first-run command fails, capture the details using the [first-run troubleshooting matrix](docs/first-run-troubleshooting.md) before opening an issue.
 
 1. Search existing issues and discussions before opening a new thread.
@@ -27,8 +27,8 @@ pnpm check:public
 
 Choose one bounded task:
 
-- [#92: shell-specific troubleshooting](https://github.com/happy520ai/unified-ai-system/issues/92) updates documentation and sanitized transcripts.
 - A [structured usage report](https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml) adds a reproducible environment, output line, or first-run correction.
+- A focused [good first issue](https://github.com/happy520ai/unified-ai-system/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22good%20first%20issue%22) adds a small, reviewable improvement.
 
 Before opening a pull request, run the focused check for your change and then
 the four repository gates below. Keep the default fake provider enabled; no
