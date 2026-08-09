@@ -199,6 +199,30 @@ test("enhance previews a structured prompt without checking or calling a provide
   assert.equal(gateway.lastPromptEnhancementLanguage, "zh-CN");
 });
 
+test("enhance human output explains optional questions and safety evidence", async (context) => {
+  const gateway = await createMockGateway({
+    clarifyingQuestions: ["What output format and level of detail do you want?"],
+  });
+  context.after(gateway.close);
+
+  const result = await runCliProcess([
+    "enhance",
+    "build an API",
+    "--profile",
+    "coding",
+    "--url",
+    gateway.url,
+  ]);
+
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stdout, /Questions to refine \(optional\)/);
+  assert.match(result.stdout, /What output format and level of detail do you want\?/);
+  assert.match(result.stdout, /provider call none/);
+  assert.match(result.stdout, /credentials not required/);
+  assert.match(result.stdout, /deterministic yes/);
+  assert.match(result.stdout, /Original request preserved/);
+});
+
 test("demo can enhance a prompt in one isolated fake-provider run", async () => {
   const result = await runCliProcess([
     "demo",
@@ -405,7 +429,7 @@ async function createMockGateway(options = {}) {
           enhancedPrompt: `# Task\n\n${body.input}\n\n# Execution requirements`,
           profile: body.profile === "auto" ? "general" : body.profile,
           language: body.language ?? "auto",
-          clarifyingQuestions: [],
+          clarifyingQuestions: options.clarifyingQuestions ?? [],
           metadata: {
             engine: "local-deterministic",
             providerCalled: false,

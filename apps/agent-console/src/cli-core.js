@@ -591,14 +591,36 @@ function renderChat(result, output) {
 }
 
 function renderEnhancement(result, output) {
+  const clarifyingQuestions = Array.isArray(result.clarifyingQuestions)
+    ? result.clarifyingQuestions
+    : [];
+  const metadata = result.metadata ?? {};
+  const safetyProven =
+    metadata.providerCalled === false
+    && metadata.credentialRequired === false
+    && metadata.deterministic === true;
+  const safetyLabel = safetyProven
+    ? output.green("[safe]")
+    : output.yellow("[check]");
+  const questionLines = clarifyingQuestions.length > 0
+    ? [
+        "",
+        output.bold("Questions to refine (optional)"),
+        ...clarifyingQuestions.map((question, index) => `  ${index + 1}. ${question}`),
+      ]
+    : [];
   const lines = [
     "",
     output.bold("Enhanced prompt"),
     output.muted(`${result.profile} | ${result.language} | local deterministic engine`),
     "",
     result.enhancedPrompt,
+    ...questionLines,
     "",
-    output.green("[ready] Preview only; no model or provider was called."),
+    `  ${safetyLabel} provider call ${metadata.providerCalled === false ? "none" : "check JSON"} | credentials ${metadata.credentialRequired === false ? "not required" : "check JSON"} | deterministic ${metadata.deterministic === true ? "yes" : "check JSON"}`,
+    metadata.originalPreserved === true
+      ? output.muted("  Original request preserved. Use --json for report-ready evidence.")
+      : output.muted("  Review the JSON metadata before sharing this result."),
     "",
   ];
   output.write(`${lines.join("\n")}\n`);

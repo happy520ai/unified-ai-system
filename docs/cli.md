@@ -105,6 +105,10 @@ The expected evidence is `providerCalled: false`,
 `credentialRequired: false`, and `deterministic: true`. Start the gateway with
 `pnpm gateway serve` first, or use the [60-second container quickstart](../README.md#try-it-in-60-seconds).
 
+Human-readable output also shows up to three optional questions that can make
+the request more precise, followed by the provider-free safety evidence. Use
+`--json` when another tool or the Usage Report needs the complete response.
+
 Profiles are `auto`, `general`, `coding`, `analysis`, `writing`, `research`,
 and `planning`. `auto` detects a profile from the request.
 
