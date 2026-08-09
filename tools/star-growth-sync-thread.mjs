@@ -15,7 +15,8 @@ const usageReportUrl =
   "https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml";
 const demoCommand =
   "docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 pnpm gateway demo \"Build a small API for my team\" --enhance --profile coding";
-const evidenceCommand = `${demoCommand} --evidence`;
+const evidenceCommand =
+  "pnpm gateway demo \"Build a small API for my team\" --enhance --profile coding --evidence";
 
 function run(cmd) {
   return execSync(cmd, {
@@ -84,7 +85,7 @@ function buildCommentBody(metrics) {
     "",
     `Try it without installing anything in the browser Prompt Lab: ${promptLabUrl}`,
     "",
-    "After a successful run, append `--evidence` to emit report-ready JSON; review the original request and output before sharing.",
+    "For a source checkout, append `--evidence` to the local command to emit report-ready JSON; review the original request and output before sharing.",
     "```",
     evidenceCommand,
     "```",
