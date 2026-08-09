@@ -194,6 +194,7 @@ Compose 将 `.env` 视为可选配置，并保持 provider 行为显式；无凭
 - [增长证据包](docs/star-growth-evidence-pack.md)
 - [增长清单](docs/star-growth-checklist.md)
 - [使用验证 Issue 模板](.github/ISSUE_TEMPLATE/usage-verification-report.yml)
+- [引用本项目](CITATION.cff)
 - [适合新贡献者的 Issue #81：Go 提示词增强示例](https://github.com/happy520ai/unified-ai-system/issues/81)
 - [贡献指南](CONTRIBUTING.md)
 - [Codex for Open Source 申请草稿](docs/codex-for-open-source-application.md)

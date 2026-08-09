@@ -109,6 +109,7 @@ pnpm growth:evidence-pack
 - Replaced the closed README contribution link to Issue #75 with the live [good first issue #81](https://github.com/happy520ai/unified-ai-system/issues/81) for a dependency-free Go prompt-enhancement example in both README languages; this improves contributor conversion but is not a Star-growth result.
 - Added a direct no-install [browser Prompt Lab](https://happy520ai.github.io/unified-ai-system/#enhance) CTA to both README languages; the live Pages site returned `200` and exposed the enhancement section and generated browser engine. This improves first-run conversion but is not a Star-growth result.
 - Added a public-repository regression guard for Chinese browser-enhancer markers (`任务` and `代码`) so generated encoding drift fails `pnpm check:public` instead of reaching the public site.
+- Added standard `CITATION.cff` metadata and bilingual README links so researchers and technical writers can cite the v0.4.3 project accurately; this improves long-term discoverability but is not a Star-growth result.
 
 ## Monthly Update Template
 

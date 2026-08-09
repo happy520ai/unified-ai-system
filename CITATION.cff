@@ -1,0 +1,20 @@
+cff-version: 1.2.0
+title: "Unified AI System"
+message: "If you use Unified AI System in your work, please cite this project."
+type: software
+abstract: "A self-hosted AI gateway for deterministic prompt enhancement, governed execution, MCP integration, and reproducible verification."
+authors:
+  - family-names: "Chen"
+    given-names: "Jiongjiong"
+repository-code: "https://github.com/happy520ai/unified-ai-system"
+url: "https://happy520ai.github.io/unified-ai-system/"
+license: Apache-2.0
+version: "0.4.3"
+date-released: "2026-08-08"
+keywords:
+  - artificial intelligence
+  - AI gateway
+  - Model Context Protocol
+  - prompt enhancement
+  - self-hosted software
+  - reproducible verification
