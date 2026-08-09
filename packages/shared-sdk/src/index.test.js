@@ -195,3 +195,24 @@ test("surfaces stream error events as GatewayClientError", async () => {
     await closeServer(server);
   }
 });
+
+test("wraps timeout aborts while preserving the transport cause", async () => {
+  const { server, baseUrl } = await startServer((_request, response) => {
+    setTimeout(() => {
+      if (!response.destroyed) response.end(JSON.stringify({ ok: true }));
+    }, 100);
+  });
+
+  try {
+    await assert.rejects(
+      createGatewayClient({ baseUrl, timeoutMs: 10 }).health(),
+      (error) =>
+        error instanceof GatewayClientError &&
+        error.message === "Gateway request failed" &&
+        error.statusCode === undefined &&
+        error.cause instanceof Error,
+    );
+  } finally {
+    await closeServer(server);
+  }
+});
