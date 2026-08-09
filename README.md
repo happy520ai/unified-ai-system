@@ -111,6 +111,13 @@ pnpm gateway enhance "Build a small API for my team" --profile coding
 pnpm gateway chat "Build a small API for my team" --enhance --profile coding
 ```
 
+Prefer Node.js? The dependency-free example verifies the provider-free response
+before printing the enhanced JSON:
+
+```bash
+node docs/examples/prompt-enhancement.mjs "Help me plan a small API for my team" --profile planning --language en
+```
+
 For a no-clone prompt-enhancement walkthrough, start the published gateway
 image and follow the [provider-free curl example](docs/examples/prompt-enhancement-curl.md):
 

@@ -49,6 +49,19 @@ Check `data.metadata.providerCalled` in the response; it should be `false` for
 this local, deterministic route. The [Python example](examples/prompt-enhancement.py)
 also accepts `--base-url` when the gateway is running somewhere else.
 
+### Node.js Standard Library
+
+The equivalent Node.js example uses only built-in modules and verifies the
+gateway's provider-free health and enhancement metadata before printing JSON:
+
+```bash
+node docs/examples/prompt-enhancement.mjs "Help me plan a small API for my team" --profile planning --language en
+```
+
+It accepts `--base-url`, `--profile`, and `--language`. It exits non-zero when
+the gateway is unreachable, returns invalid data, or does not prove
+`providerCalled=false`, `credentialRequired=false`, and `deterministic=true`.
+
 Supported profiles are `auto`, `general`, `coding`, `analysis`, `writing`,
 `research`, and `planning`. Supported language settings are `auto`, `zh-CN`,
 and `en`. Input is limited to 20,000 characters.

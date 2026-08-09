@@ -105,7 +105,14 @@ pnpm gateway enhance "帮我为团队设计一个小型 API" --profile coding
 pnpm gateway chat "帮我为团队设计一个小型 API" --enhance --profile coding
 ```
 
-完整的 HTTP 示例见[自然语言增强指南](docs/prompt-enhancement.md)，其中包含跨平台 curl、Python 和 SDK 用法。
+如果偏好 Node.js，可运行只使用内置模块的示例；它会先验证 provider-free
+响应，再输出增强后的 JSON：
+
+```bash
+node docs/examples/prompt-enhancement.mjs "帮我为团队规划一个小型 API" --profile planning --language zh-CN
+```
+
+完整的 HTTP 示例见[自然语言增强指南](docs/prompt-enhancement.md)，其中包含跨平台 curl、Python、Node.js 和 SDK 用法。
 
 ### MCP、Codex、Cursor、Cline
 
