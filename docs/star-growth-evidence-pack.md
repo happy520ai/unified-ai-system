@@ -107,6 +107,7 @@ pnpm growth:evidence-pack
 - Submitted the public project to the [DeepYard directory](https://deepyard.dev/submit) under `MCP Servers`; the public Formspree endpoint returned `302 Found` to `/thanks`. This confirms form receipt only; listing approval and any Star change remain unverified.
 - Submitted the public project to the [AgentNDX MCP directory](https://agentndx.ai/submit/) with the public GitHub URL, Pages homepage, and `MCP` protocol; the public form returned `302 Found` to `/submit?success=1`. No contact email or paid placement was used; indexing, review, and any Star change remain unverified.
 - Replaced the closed README contribution link to Issue #75 with the live [good first issue #81](https://github.com/happy520ai/unified-ai-system/issues/81) for a dependency-free Go prompt-enhancement example in both README languages; this improves contributor conversion but is not a Star-growth result.
+- Added a direct no-install [browser Prompt Lab](https://happy520ai.github.io/unified-ai-system/#enhance) CTA to both README languages; the live Pages site returned `200` and exposed the enhancement section and generated browser engine. This improves first-run conversion but is not a Star-growth result.
 
 ## Monthly Update Template
 

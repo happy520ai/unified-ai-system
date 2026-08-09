@@ -42,7 +42,7 @@ Unified AI System 是一个面向模型、智能体、知识与工具的开源 A
 
 它不是一个聊天页面包装器，而是一个面向 AI 工作流执行的控制平面。
 
-**从这里开始：** [运行 60 秒体验](README.zh-CN.md#60-秒体验) · [在 Codespaces 中打开](https://codespaces.new/happy520ai/unified-ai-system?quickstart=1)。如果它对你的工作有帮助，欢迎[给仓库点 Star](https://github.com/happy520ai/unified-ai-system)，并在 [Issue #20](https://github.com/happy520ai/unified-ai-system/issues/20) 分享一行可复现结果。
+**从这里开始：** [直接体验在线 Prompt Lab](https://happy520ai.github.io/unified-ai-system/#enhance)，无需安装；然后[运行 60 秒体验](README.zh-CN.md#60-秒体验)或[在 Codespaces 中打开](https://codespaces.new/happy520ai/unified-ai-system?quickstart=1)。如果它对你的工作有帮助，欢迎[给仓库点 Star](https://github.com/happy520ai/unified-ai-system)，并在 [Issue #20](https://github.com/happy520ai/unified-ai-system/issues/20) 分享一行可复现结果。
 
 ## 为什么使用它
 

@@ -45,7 +45,7 @@ It is built for teams that want rough natural language turned into executable in
 
 This is not a chat UI wrapper. It is a control plane for AI workflow execution.
 
-**Start here:** [run the 60-second demo](#try-it-in-60-seconds), [open it in Codespaces](https://codespaces.new/happy520ai/unified-ai-system?quickstart=1), and [star the repository](https://github.com/happy520ai/unified-ai-system) if it helps your workflow. Share one verified result in [Issue #20](https://github.com/happy520ai/unified-ai-system/issues/20).
+**Start here:** [try the browser Prompt Lab](https://happy520ai.github.io/unified-ai-system/#enhance) with no install, [run the 60-second demo](#try-it-in-60-seconds), [open it in Codespaces](https://codespaces.new/happy520ai/unified-ai-system?quickstart=1), and [star the repository](https://github.com/happy520ai/unified-ai-system) if it helps your workflow. Share one verified result in [Issue #20](https://github.com/happy520ai/unified-ai-system/issues/20).
 
 ## Why People Use It
 
