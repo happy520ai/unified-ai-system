@@ -23,13 +23,32 @@ const request: PromptEnhancementRequest = {
 
 const consumePreview = (
   fixture: PromptEnhancementContractFixture,
-): PromptEnhancementResult => fixture.response;
+): PromptEnhancementResult => {
+  const { original, profile, language, enhancedPrompt, metadata } = fixture.response;
+
+  const providerCalled: false = metadata.providerCalled;
+  const credentialRequired: false = metadata.credentialRequired;
+  const deterministic: true = metadata.deterministic;
+
+  console.log({
+    original,
+    profile,
+    language,
+    enhancedPrompt,
+    providerCalled,
+    credentialRequired,
+    deterministic,
+  });
+
+  return fixture.response;
+};
 ```
 
 The provider-free runtime proof is available at
 [`docs/examples/prompt-enhancement-contract.mjs`](../../docs/examples/prompt-enhancement-contract.mjs).
-It preserves the original request and asserts
-`providerCalled=false`, `credentialRequired=false`, and `deterministic=true`.
+It preserves the original request and asserts `original`, `profile`, `language`,
+and `enhancedPrompt`, plus `providerCalled=false`, `credentialRequired=false`,
+`originalPreserved=true`, and `deterministic=true`.
 
 ## Development
 
