@@ -44,6 +44,13 @@ Unified AI System 是一个面向模型、智能体、知识与工具的开源 A
 
 **从这里开始：** [直接体验在线 Prompt Lab](https://happy520ai.github.io/unified-ai-system/#enhance)，无需安装；然后[运行 60 秒体验](README.zh-CN.md#60-秒体验)或[在 Codespaces 中打开](https://codespaces.new/happy520ai/unified-ai-system?quickstart=1)。如果它对你的工作有帮助，欢迎[给仓库点 Star](https://github.com/happy520ai/unified-ai-system)，并在 [Issue #20](https://github.com/happy520ai/unified-ai-system/issues/20) 分享一行可复现结果。
 
+## 选择入口
+
+- **无需安装：** [直接体验在线 Prompt Lab](https://happy520ai.github.io/unified-ai-system/#enhance)。
+- **可复现演示：** [运行 60 秒 Docker 体验](README.zh-CN.md#60-秒体验)。
+- **连接 Codex 或 MCP：** 阅读 [60 秒 MCP 快速开始](docs/codex-mcp-quickstart.md)。
+- **参与贡献：** 从 [good first issue #91](https://github.com/happy520ai/unified-ai-system/issues/91) 开始。
+
 ## 为什么使用它
 
 - 不擅长写提示词的用户，也能从自然语言开始工作。
