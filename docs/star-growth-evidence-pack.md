@@ -121,6 +121,7 @@ pnpm growth:evidence-pack
 - Added `docs/first-run-troubleshooting.md` and linked it from both README entrypoint lists and `CONTRIBUTING.md`; it covers Docker, port, PowerShell, provider-free, MCP reload, and network fallback paths without changing runtime behavior.
 - Closed [good first issue #91](https://github.com/happy520ai/unified-ai-system/issues/91) after publishing the baseline matrix, then opened [good first issue #92](https://github.com/happy520ai/unified-ai-system/issues/92) for shell-specific troubleshooting transcripts; the newcomer path remains open and scoped.
 - Added the Chinese counterpart `docs/first-run-troubleshooting.zh-CN.md` and linked it from the Chinese README and documentation index, keeping the provider-free safety boundaries and current commands aligned with the English page.
+- Updated the non-JSON terminal demo to show the next prompt-enhancement command and a conditional project Star link after a successful provider-free run; JSON output and gateway behavior remain unchanged, and both normal and enhanced demos were verified locally.
 
 ## Monthly Update Template
 

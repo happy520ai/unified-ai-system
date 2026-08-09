@@ -129,6 +129,8 @@ function renderDemo(result) {
     `  ${color.yellow("<")} ${result.outputText}`,
     "",
     `  ${color.green("[done]")} ${result.latencyMs} ms | no API key | process cleaned up`,
+    color.muted('  Next: pnpm gateway demo "Help me plan a small API" --enhance --profile planning'),
+    color.muted("  If this helps, star the project: https://github.com/happy520ai/unified-ai-system"),
     "",
   ];
   process.stdout.write(`${lines.join("\n")}\n`);
