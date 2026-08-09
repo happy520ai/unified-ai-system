@@ -133,6 +133,41 @@ test("sends the expected method, path, headers, and JSON body", async () => {
   }
 });
 
+test("returns an empty object for an empty successful response", async () => {
+  const { server, baseUrl } = await startServer((_request, response) => {
+    response.writeHead(204);
+    response.end();
+  });
+
+  try {
+    assert.deepEqual(await createGatewayClient({ baseUrl }).health(), {});
+  } finally {
+    await closeServer(server);
+  }
+});
+
+test("forwards custom headers without mutating the caller's headers", async () => {
+  let requestHeaders;
+  const headers = { "x-test-client": "shared-sdk", authorization: "Bearer test" };
+  const { server, baseUrl } = await startServer((request, response) => {
+    requestHeaders = request.headers;
+    response.writeHead(200, { "content-type": "application/json" });
+    response.end(JSON.stringify({ ok: true }));
+  });
+
+  try {
+    assert.deepEqual(await createGatewayClient({ baseUrl, headers }).health(), { ok: true });
+    assert.equal(requestHeaders["x-test-client"], "shared-sdk");
+    assert.equal(requestHeaders.authorization, "Bearer test");
+    assert.deepEqual(headers, {
+      "x-test-client": "shared-sdk",
+      authorization: "Bearer test",
+    });
+  } finally {
+    await closeServer(server);
+  }
+});
+
 test("parses multiple server-sent events from chatStream", async () => {
   const { server, baseUrl } = await startServer((_request, response) => {
     response.writeHead(200, { "content-type": "text/event-stream" });
