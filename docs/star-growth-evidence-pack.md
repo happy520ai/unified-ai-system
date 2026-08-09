@@ -132,6 +132,7 @@ pnpm growth:evidence-pack
 - Added a concise bilingual profile guide to the README, grounded in verified `planning`, `coding`, and `analysis` enhancement output; it explains user value without adding a runtime claim.
 - Fresh directory audit: a new DeepYard submission for the public repository returned `ok=true` with the review destination `/thanks`; this confirms form receipt only, not approval, public indexing, or Star growth.
 - MCP.Directory's public submission endpoint returned HTTP 409 with `This repository has already been submitted`; no public search result was found for the repository during this audit, so the existing record is treated as pending/unverified rather than a listing or Star result.
+- Submitted [AI Native Landscape issue #15](https://github.com/rootsongjc/ai-native-landscape/issues/15) with bilingual project metadata, the `platform-infra / llm-routing-gateways` classification, and public verification links. The issue is open and pending review; it is a directory submission, not a verified listing or Star result.
 
 ## Monthly Update Template
 
