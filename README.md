@@ -45,7 +45,7 @@ It is built for teams that want rough natural language turned into executable in
 
 This is not a chat UI wrapper. It is a control plane for AI workflow execution.
 
-**Start here:** [try the browser Prompt Lab](https://happy520ai.github.io/unified-ai-system/#enhance) with no install, [run the 60-second demo](#try-it-in-60-seconds), [open it in Codespaces](https://codespaces.new/happy520ai/unified-ai-system?quickstart=1), and [star the repository](https://github.com/happy520ai/unified-ai-system) if it helps your workflow. Share one verified result in [Issue #20](https://github.com/happy520ai/unified-ai-system/issues/20).
+**Start here:** [try the browser Prompt Lab](https://happy520ai.github.io/unified-ai-system/#enhance) with no install, [run the 60-second demo](#try-it-in-60-seconds), [open it in Codespaces](https://codespaces.new/happy520ai/unified-ai-system?quickstart=1), and [star the repository](https://github.com/happy520ai/unified-ai-system) if it helps your workflow. [Share one verified result](https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml&title=%5BUsage%20Report%5D%20Quickstart) through the structured report template.
 
 **Fastest proof, no account required:**
 
@@ -54,7 +54,7 @@ docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 pn
 ```
 
 It prints a deterministic `execution: fake` result and exits cleanly. If that
-is useful to your workflow, [star the repository](https://github.com/happy520ai/unified-ai-system) and [share one reproducible result](https://github.com/happy520ai/unified-ai-system/issues/20).
+is useful to your workflow, [star the repository](https://github.com/happy520ai/unified-ai-system) and [share one reproducible result](https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml&title=%5BUsage%20Report%5D%20Quickstart).
 
 **What enhancement adds:**
 
