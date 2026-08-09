@@ -239,6 +239,16 @@ for (const path of versionedPublicEntryPoints) {
   }
 }
 
+for (const path of ["docs/index.html", "docs/index.zh-CN.html"]) {
+  const content = readFileSync(resolve(repoRoot, path), "utf8");
+  if (!content.includes('pnpm gateway demo "')) {
+    addError("public_home_demo_input_missing", path);
+  }
+  if (!content.includes("--enhance --profile coding --json")) {
+    addError("public_home_demo_flags_missing", path);
+  }
+}
+
 const projectSite = readFileSync(resolve(repoRoot, "docs/index.html"), "utf8");
 const browserPromptEnhancerPath = "docs/prompt-enhancer.js";
 const browserPromptEnhancer = readFileSync(
