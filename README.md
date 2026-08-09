@@ -98,7 +98,7 @@ language, and proves `providerCalled=false`, `credentialRequired=false`, and
 - **Reproducible demo:** [run the 60-second Docker path](#try-it-in-60-seconds).
 - **Codex or MCP:** follow the [60-second MCP quickstart](docs/codex-mcp-quickstart.md).
 - **Something failed:** use the [first-run troubleshooting matrix](docs/first-run-troubleshooting.md).
-- **Contribute:** start with [#92 troubleshooting](https://github.com/happy520ai/unified-ai-system/issues/92), [#93 another standard-library example](https://github.com/happy520ai/unified-ai-system/issues/93), or [#94 Prompt Lab smoke coverage](https://github.com/happy520ai/unified-ai-system/issues/94).
+- **Contribute:** start with [#92 troubleshooting](https://github.com/happy520ai/unified-ai-system/issues/92) or [#93 another standard-library example](https://github.com/happy520ai/unified-ai-system/issues/93).
 
 ## Why People Use It
 

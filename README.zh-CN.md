@@ -91,7 +91,7 @@ docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 pn
 - **可复现演示：** [运行 60 秒 Docker 体验](README.zh-CN.md#60-秒体验)。
 - **连接 Codex 或 MCP：** 阅读 [60 秒 MCP 快速开始](docs/codex-mcp-quickstart.md)。
 - **遇到问题：** 查看[中文首次运行排障矩阵](docs/first-run-troubleshooting.zh-CN.md)。
-- **参与贡献：** 可以从 [#92 首次运行排障](https://github.com/happy520ai/unified-ai-system/issues/92)、[#93 新增标准库示例](https://github.com/happy520ai/unified-ai-system/issues/93) 或 [#94 Prompt Lab 浏览器冒烟测试](https://github.com/happy520ai/unified-ai-system/issues/94) 开始。
+- **参与贡献：** 可以从 [#92 首次运行排障](https://github.com/happy520ai/unified-ai-system/issues/92) 或 [#93 新增标准库示例](https://github.com/happy520ai/unified-ai-system/issues/93) 开始。
 
 ## 为什么使用它
 
