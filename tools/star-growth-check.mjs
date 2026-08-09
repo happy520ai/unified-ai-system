@@ -96,11 +96,8 @@ function parseDate(iso) {
   return new Date(iso).toISOString().slice(0, 10);
 }
 
-function formatLocalDate(date = new Date()) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+function formatReportDate(date = new Date()) {
+  return date.toISOString().slice(0, 10);
 }
 
 function safeParseMetric(lines, ...metricNames) {
@@ -460,7 +457,7 @@ async function run() {
 
   const action =
     options.action === "status" ? "check" : options.action;
-  const date = formatLocalDate();
+  const date = formatReportDate();
 
   if (!["check", "daily", "evidence", "summary", "campaign"].includes(action)) {
     console.error(`Unsupported growth action: ${action}`);
