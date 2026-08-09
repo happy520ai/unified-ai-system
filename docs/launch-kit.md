@@ -43,3 +43,6 @@ public product tree.
 - Keep claims factual.
 - Do not claim AGI, L5, or production readiness.
 - Prefer one small reproducible proof over a large marketing post.
+- The scheduled growth sync updates the single managed comment marked
+  `<!-- unified-ai-system-growth-thread -->` in Issue #20; it creates one only
+  when the marker does not exist.

@@ -17,12 +17,17 @@ const demoCommand =
   "docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.6 pnpm gateway demo \"Build a small API for my team\" --enhance --profile coding";
 const evidenceCommand =
   "pnpm gateway demo \"Build a small API for my team\" --enhance --profile coding --evidence";
+const managedCommentMarker = "<!-- unified-ai-system-growth-thread -->";
 
 function run(cmd) {
   return execSync(cmd, {
     stdio: "pipe",
     encoding: "utf8",
   }).trim();
+}
+
+function runJson(cmd) {
+  return JSON.parse(run(cmd));
 }
 
 function ensureGhAvailable() {
@@ -103,10 +108,38 @@ function buildCommentBody(metrics) {
     "3) Ask one teammate to run the same command and share their output.",
     "",
     `Repo: https://github.com/${repo}`,
-    "<!-- unified-ai-system-growth-thread -->",
+    managedCommentMarker,
   ];
 
   return lines.join("\n");
+}
+
+function findManagedComment() {
+  const pages = runJson(
+    `gh api --paginate --slurp "repos/${repo}/issues/${issueNumber}/comments?per_page=100"`
+  );
+  const comments = pages.flat();
+  return (
+    comments
+      .filter((comment) => comment.body?.includes(managedCommentMarker))
+      .sort((left, right) => left.created_at.localeCompare(right.created_at))
+      .at(-1) ?? null
+  );
+}
+
+function syncManagedComment(payloadPath) {
+  const existing = findManagedComment();
+  if (existing) {
+    run(
+      `gh api -X PATCH "repos/${repo}/issues/comments/${existing.id}" --input "${payloadPath}"`
+    );
+    return "updated";
+  }
+
+  run(
+    `gh api -X POST "repos/${repo}/issues/${issueNumber}/comments" --input "${payloadPath}"`
+  );
+  return "created";
 }
 
 function buildPsCommand() {
@@ -133,14 +166,13 @@ function syncThread() {
   }
 
   const tempDir = mkdtempSync(path.join(tmpdir(), "growth-thread-"));
-  const payloadPath = path.join(tempDir, "issue-comment.md");
+  const payloadPath = path.join(tempDir, "issue-comment.json");
   const body = buildCommentBody(metrics);
-  writeFileSync(payloadPath, body, "utf8");
+  writeFileSync(payloadPath, JSON.stringify({ body }), "utf8");
 
   try {
-    run(
-      `gh issue comment ${issueNumber} --repo ${repo} --body-file "${payloadPath}" --edit-last --create-if-none`
-    );
+    const action = syncManagedComment(payloadPath);
+    console.log(`Campaign thread comment ${action}.`);
   } finally {
     rmSync(tempDir, { recursive: true, force: true });
   }

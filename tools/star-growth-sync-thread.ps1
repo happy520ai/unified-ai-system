@@ -6,6 +6,7 @@ param(
 $ErrorActionPreference = "Stop"
 $repo = $Repo
 $issue = $IssueNumber
+$managedCommentMarker = '<!-- unified-ai-system-growth-thread -->'
 $demoCommand = 'docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.6 pnpm gateway demo "Build a small API for my team" --enhance --profile coding'
 $evidenceCommand = 'pnpm gateway demo "Build a small API for my team" --enhance --profile coding --evidence'
 
@@ -107,13 +108,32 @@ If this saved you time, help this project grow:
 3) Ask one teammate to run the same command and share their output.
 
 Repo: https://github.com/$repo
-<!-- unified-ai-system-growth-thread -->
+$managedCommentMarker
 "@
 
   $tmp = New-TemporaryFile
-  [System.IO.File]::WriteAllText($tmp.FullName, $comment, [System.Text.UTF8Encoding]::new($false))
-  gh issue comment $issue --repo $repo --body-file $tmp.FullName --edit-last --create-if-none
-  Remove-Item $tmp.FullName -Force
+  try {
+    $commentPayload = @{ body = $comment } | ConvertTo-Json -Compress
+    [System.IO.File]::WriteAllText($tmp.FullName, $commentPayload, [System.Text.UTF8Encoding]::new($false))
+
+    $commentPages = gh api --paginate --slurp "repos/$repo/issues/$issue/comments?per_page=100" | ConvertFrom-Json
+    $comments = foreach ($page in @($commentPages)) {
+      foreach ($item in @($page)) { $item }
+    }
+    $managed = @($comments | Where-Object { $_.body -like "*$managedCommentMarker*" } | Sort-Object created_at | Select-Object -Last 1)
+
+    if ($managed.Count -gt 0) {
+      gh api -X PATCH "repos/$repo/issues/comments/$($managed[0].id)" --input $tmp.FullName | Out-Null
+      Write-Host "Campaign thread comment updated."
+    }
+    else {
+      gh api -X POST "repos/$repo/issues/$issue/comments" --input $tmp.FullName | Out-Null
+      Write-Host "Campaign thread comment created."
+    }
+  }
+  finally {
+    Remove-Item $tmp.FullName -Force -ErrorAction SilentlyContinue
+  }
 
   Write-Host "Campaign thread synced and refreshed."
 }
