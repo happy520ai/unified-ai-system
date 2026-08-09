@@ -104,6 +104,7 @@ pnpm growth:evidence-pack
 - Published a follow-up onboarding update in [Issue #20 comment](https://github.com/happy520ai/unified-ai-system/issues/20#issuecomment-5229222664) linking the live Go good-first issue and requesting reproducible user output; this is a verified outreach action, not a community report or Star-growth result.
 - Normalized the public [v0.4.3 Release notes](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.4.3) from literal `\\n` escapes to rendered Markdown line breaks and retained the current Node.js onboarding CTA; the immutable tag and runtime were unchanged.
 - Submitted the public project to the [DeepYard directory](https://deepyard.dev/submit) under `MCP Servers`; the public Formspree endpoint returned `302 Found` to `/thanks`. This confirms form receipt only; listing approval and any Star change remain unverified.
+- Submitted the public project to the [AgentNDX MCP directory](https://agentndx.ai/submit/) with the public GitHub URL, Pages homepage, and `MCP` protocol; the public form returned `302 Found` to `/submit?success=1`. No contact email or paid placement was used; indexing, review, and any Star change remain unverified.
 - Replaced the closed README contribution link to Issue #75 with the live [good first issue #81](https://github.com/happy520ai/unified-ai-system/issues/81) for a dependency-free Go prompt-enhancement example in both README languages; this improves contributor conversion but is not a Star-growth result.
 
 ## Monthly Update Template
