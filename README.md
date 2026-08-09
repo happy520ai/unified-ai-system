@@ -252,6 +252,9 @@ If the project is useful, star the repository and keep the loop factual:
 3. Submit OS + one output line through the [structured Usage Report](https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml).
 4. Save one verified result in `docs/star-growth-evidence-pack.md`.
 
+For the browser Prompt Lab, use its `Copy evidence` action and paste the JSON
+into the optional Prompt Lab evidence field in the same report.
+
 Useful links:
 
 - [Documentation](docs/README.md)

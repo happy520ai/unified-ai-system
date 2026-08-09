@@ -216,6 +216,8 @@ Compose 将 `.env` 视为可选配置，并保持 provider 行为显式；无凭
 3. 通过[结构化 Usage Report](https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml)提交操作系统和一行输出。
 4. 将真实反馈转化为文档、测试或代码改进。
 
+如果使用浏览器 Prompt Lab，请点击其中的“复制证据”，再把 JSON 粘贴到同一模板里的可选 Prompt Lab evidence 字段。
+
 推广材料与验证入口：
 
 - [文档总览](docs/README.md)
