@@ -64,8 +64,9 @@ fields below. This makes a first-run result easy to review or paste into the
 [usage report template](https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml&title=%5BUsage%20Report%5D%20Codex%20MCP%20Quickstart):
 
 ```text
-Return one JSON object with these fields from the gateway_prompt_enhance result:
-input, enhancedPrompt, profile, language, and metadata.engine,
+Return one JSON object from the gateway_prompt_enhance result. Map
+result.original to input, then include: input, enhancedPrompt, profile, language,
+and metadata.engine,
 metadata.version, metadata.providerCalled, metadata.credentialRequired,
 metadata.originalPreserved, metadata.deterministic. Do not add credentials,
 environment variables, or private request data.
