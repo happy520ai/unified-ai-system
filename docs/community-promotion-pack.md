@@ -84,6 +84,27 @@ Thanks for trying it.
 Repo: https://github.com/happy520ai/unified-ai-system
 ```
 
+## 7) Directory Submission
+
+For MCP discovery directories, submit only the public repository name, URL,
+and an accurate description. Never include provider keys, `.env` contents,
+private authorization records, or raw webhook data.
+
+Suggested public submission:
+
+```text
+Name: Unified AI System MCP Gateway
+URL: https://github.com/happy520ai/unified-ai-system
+Description: Self-hosted MCP and AI gateway for Codex, Cursor, and Cline. It turns ordinary language into structured prompts locally, exposes MCP tools, and keeps provider calls explicit. The first run is provider-free and requires no API key.
+```
+
+One currently open submission form is:
+
+- MCP Server Directory: https://mcpserver.cc/submit
+
+An HTTP success response means the entry was submitted for review; it does not
+prove publication, traffic, or Star growth. Record the review status separately.
+
 ## Sequence Guide
 
 1. Run `pnpm growth:campaign`.
