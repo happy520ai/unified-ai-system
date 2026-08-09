@@ -19,15 +19,15 @@ function writeReport(filePath, content) {
 }
 
 const externalPrs = [
-  ["sickn33/agentic-awesome-skills", 1073],
+  ["sickn33/agentic-awesome-skills", 1125],
   ["composio-community/awesome-codex-skills", 206],
   ["toolleeo/awesome-cli-apps-in-a-csv", 347],
   ["tensorchord/Awesome-LLMOps", 710],
   ["punkpeye/awesome-mcp-devtools", 257],
   ["WagnerAgent/awesome-mcp-servers-devops", 65],
-  ["yzfly/Awesome-MCP-ZH", 422],
+  ["yzfly/Awesome-MCP-ZH", 442],
   ["punkpeye/awesome-mcp-servers", 11745],
-  ["TensorBlock/awesome-mcp-servers", 1616],
+  ["hashgraph-online/awesome-codex-plugins", 355],
   ["mahseema/awesome-ai-tools", 1941],
   ["docker/mcp-registry", 4584],
   ["up-for-grabs/up-for-grabs.net", 5995],

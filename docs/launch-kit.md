@@ -14,11 +14,15 @@ It keeps the workflow factual: verify first, post once, collect one output line,
 
 ## 30-Minute Loop
 
-1. Run:
+1. Generate the current local campaign snapshot:
 
 ```bash
-pnpm growth:blast
+pnpm growth:campaign
 ```
+
+The snapshot is written under the ignored `.tmp/growth/` directory. It records
+current repository and promotion status without adding a metrics ledger to the
+public product tree.
 
 2. Publish one English post and one Chinese or community post using the copy packs.
 3. Ask for OS + one output line, and keep the ask explicit.
