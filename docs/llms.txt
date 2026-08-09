@@ -20,6 +20,7 @@ Unified AI System provides one governed boundary for models, agents, knowledge, 
 - [Chinese prompt enhancement guide](https://happy520ai.github.io/unified-ai-system/prompt-enhancement.zh-CN.html)
 - [Architecture](https://github.com/happy520ai/unified-ai-system/blob/master/docs/architecture.md)
 - [Security policy](https://github.com/happy520ai/unified-ai-system/blob/master/SECURITY.md)
+- [Security evidence index](https://github.com/happy520ai/unified-ai-system/blob/master/docs/security/README.md)
 
 ## Prompt enhancement profiles
 
