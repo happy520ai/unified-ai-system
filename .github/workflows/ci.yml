@@ -33,6 +33,11 @@ jobs:
         with:
           go-version: "1.23.x"
 
+      - name: Setup .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          dotnet-version: "6.0.x"
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
@@ -66,3 +71,9 @@ jobs:
 
       - name: Go prompt enhancement example
         run: go run docs/examples/prompt-enhancement.go --help
+
+      - name: C# prompt enhancement example
+        run: |
+          dotnet restore docs/examples/prompt-enhancement.csproj
+          dotnet build docs/examples/prompt-enhancement.csproj --no-restore --nologo
+          dotnet run --project docs/examples/prompt-enhancement.csproj --no-build -- --help
