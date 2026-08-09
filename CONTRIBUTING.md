@@ -5,8 +5,8 @@ knowledge, and governed automation.
 
 ## Start Here
 
-New contributors can start with [good first issue #92](https://github.com/happy520ai/unified-ai-system/issues/92).
-If that task is taken, browse the [other open good first issues](https://github.com/happy520ai/unified-ai-system/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22good%20first%20issue%22).
+New contributors can start with [#92: shell-specific troubleshooting](https://github.com/happy520ai/unified-ai-system/issues/92), [#93: another dependency-free prompt example](https://github.com/happy520ai/unified-ai-system/issues/93), or [#94: Prompt Lab browser smoke coverage](https://github.com/happy520ai/unified-ai-system/issues/94).
+If those tasks are taken, browse the [other open good first issues](https://github.com/happy520ai/unified-ai-system/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22good%20first%20issue%22).
 When a first-run command fails, capture the details using the [first-run troubleshooting matrix](docs/first-run-troubleshooting.md) before opening an issue.
 
 1. Search existing issues and discussions before opening a new thread.
