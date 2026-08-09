@@ -149,6 +149,7 @@ pnpm growth:evidence-pack
 - Added `pnpm gateway demo ... --evidence` to emit a report-ready `usage-report/v1` JSON packet with the reproduction command, environment, fake execution mode, provider boundary, original request, output preview, and report link; targeted CLI tests and a real fake-provider run passed, so this lowers feedback friction but is not evidence of Star growth.
 - Updated the single editable [Issue #20 campaign comment](https://github.com/happy520ai/unified-ai-system/issues/20#issuecomment-5230702028) to expose the new `--evidence` command and review-before-sharing guidance; the public comment was verified without a duplicate or malformed newline, and this is not evidence of Star growth.
 - Updated the GitHub repository description to include reproducible, shareable verification while preserving the MCP/Codex/provider-free discovery terms; this is metadata discoverability work, not evidence of Star growth.
+- Added a bilingual README "See the Difference" / "先看实际变化" section with a real provider-free prompt-enhancement excerpt, so a new visitor can understand the product value before running a command. Commit [5cc68e09](https://github.com/happy520ai/unified-ai-system/commit/5cc68e0960dc277713120dd72662930e72fe8a30) passed CI, Docker, public-clone, and Pages checks; the live snapshot remains 3 Stars / 1 Fork / 0 Subscribers, so this is a conversion improvement and not evidence of Star growth.
 
 ## Monthly Update Template
 
