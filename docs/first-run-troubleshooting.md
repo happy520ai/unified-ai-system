@@ -14,6 +14,58 @@ The default path does not require an API key or a real provider.
 | MCP tools do not appear in Codex | The client has not reloaded its MCP configuration. | Restart Codex or open a new task, then run `/mcp verbose`. From a checkout, run `pnpm verify:mcp`. |
 | GHCR or Docker is unavailable | The published container cannot be pulled from the current network. | Use the browser [Prompt Lab](https://happy520ai.github.io/unified-ai-system/#enhance), or install dependencies and run the source verification path locally. |
 
+## Copy-Paste Transcripts
+
+The following short transcripts are sanitized expected paths. They contain no
+credentials; timings and model text can vary. Keep the shell label beside each
+command when reporting a failure.
+
+### Windows PowerShell
+
+```powershell
+# Windows PowerShell
+PS> docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 pnpm gateway demo
+[ready] provider      local-fake-provider
+[ready] execution     fake
+[ready] real calls    disabled
+[done] ... | no API key | process cleaned up
+```
+
+If PowerShell reports `docker : The term 'docker' is not recognized`, install
+Docker Desktop or use the [Codespaces fallback](#codespaces-without-docker).
+
+### macOS/Linux Bash or Zsh
+
+```bash
+# macOS/Linux Bash or Zsh
+$ docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 pnpm gateway demo
+[ready] provider      local-fake-provider
+[ready] execution     fake
+[ready] real calls    disabled
+[done] ... | no API key | process cleaned up
+```
+
+If the shell reports `docker: command not found`, use the browser [Prompt
+Lab](https://happy520ai.github.io/unified-ai-system/#enhance) or the source
+checkout path below.
+
+### Codespaces Without Docker
+
+```bash
+# GitHub Codespaces terminal (Bash)
+$ pnpm install --frozen-lockfile
+$ pnpm verify:public-clone
+{ "ok": true, "realProviderCallsMade": false, "managedGatewayCleanedUp": true }
+$ pnpm gateway demo
+[ready] provider      local-fake-provider
+[ready] execution     fake
+[done] ... | no API key | process cleaned up
+```
+
+The repository's devcontainer keeps the default provider-free path. If the
+workspace has not finished bootstrapping, wait for the terminal to become
+ready, then rerun the command without adding a provider key.
+
 ## Report A Reproducible Problem
 
 Open an issue with:

@@ -125,6 +125,8 @@ pnpm growth:evidence-pack
 - Repaired the live contributor entrypoints in both README languages and `CONTRIBUTING.md` to point to open [good first issue #92](https://github.com/happy520ai/unified-ai-system/issues/92) instead of the completed #91; historical evidence entries remain unchanged.
 - Moved a provider-free, one-command verification and its conditional Star/feedback CTA into the first-screen section of both README languages; the detailed 60-second walkthrough remains below, and this is a conversion improvement rather than evidence of Star growth.
 - Refreshed the repository growth campaign snapshot and corrected the dashboard's stale open-issue count from 1 to the live value of 2; Stars remain 3 and no Star increase is claimed.
+- Added sanitized PowerShell, Bash/Zsh, and Codespaces first-run transcripts in both troubleshooting pages; Issue #92 remains open for independent environment reports and follow-up improvements.
+- Posted one maintainer follow-up on each new external catalog PR, linking current provider-free verification evidence and inviting list-specific wording or category corrections; these are review nudges, not merges or Star results.
 
 ## Monthly Update Template
 

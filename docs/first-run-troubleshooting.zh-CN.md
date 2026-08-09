@@ -14,6 +14,55 @@
 | Codex 中看不到 MCP 工具 | 客户端还没有重新加载 MCP 配置。 | 重启 Codex 或打开新任务，然后运行 `/mcp verbose`；源码目录中可运行 `pnpm verify:mcp`。 |
 | GHCR 或 Docker 当前不可用 | 当前网络无法拉取公开容器。 | 使用浏览器 [Prompt Lab](https://happy520ai.github.io/unified-ai-system/#enhance)，或安装依赖后运行源码验证路径。 |
 
+## 可复制的运行转录
+
+下面是经过脱敏的预期路径，不包含任何凭据；耗时和模型文本可能不同。
+提交问题时，请在每条命令旁边保留操作系统和 Shell 信息。
+
+### Windows PowerShell
+
+```powershell
+# Windows PowerShell
+PS> docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 pnpm gateway demo
+[ready] provider      local-fake-provider
+[ready] execution     fake
+[ready] real calls    disabled
+[done] ... | no API key | process cleaned up
+```
+
+如果 PowerShell 报告 `docker : The term 'docker' is not recognized`，请安装
+Docker Desktop，或使用下面的 [Codespaces 无 Docker 路径](#codespaces-无-docker)。
+
+### macOS/Linux Bash 或 Zsh
+
+```bash
+# macOS/Linux Bash 或 Zsh
+$ docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.3 pnpm gateway demo
+[ready] provider      local-fake-provider
+[ready] execution     fake
+[ready] real calls    disabled
+[done] ... | no API key | process cleaned up
+```
+
+如果 Shell 报告 `docker: command not found`，可以使用浏览器 [Prompt
+Lab](https://happy520ai.github.io/unified-ai-system/#enhance)，或继续使用下面的源码路径。
+
+### Codespaces 无 Docker
+
+```bash
+# GitHub Codespaces 终端（Bash）
+$ pnpm install --frozen-lockfile
+$ pnpm verify:public-clone
+{ "ok": true, "realProviderCallsMade": false, "managedGatewayCleanedUp": true }
+$ pnpm gateway demo
+[ready] provider      local-fake-provider
+[ready] execution     fake
+[done] ... | no API key | process cleaned up
+```
+
+仓库的 devcontainer 默认保持 provider-free。若工作区尚未完成启动，请等待终端
+准备就绪后重试，不要为了首次验证添加 provider Key。
+
 ## 提交可复现问题
 
 请提供：
