@@ -6,6 +6,40 @@ import {
   enhanceNaturalLanguagePrompt,
 } from "./naturalLanguagePromptEnhancer.js";
 
+const SIGNAL_REQUIREMENTS = {
+  en: {
+    format: "Use the output format requested in the original request exactly; do not wrap it in irrelevant material.",
+    constraints: "Treat explicit constraints in the original request as hard boundaries and preserve them one by one.",
+    audience: "Adapt terminology, depth, and explanations to the audience named in the original request.",
+    success: "Turn the requested success criteria, acceptance checks, metrics, or targets into inspectable completion conditions.",
+    evidence: "Provide the requested verifiable sources, citations, links, or dates near the relevant claims.",
+    environment: "Honor the runtime, framework, operating system, and version conditions named in the original request.",
+  },
+  "zh-CN": {
+    format: "严格使用原始请求指定的输出格式，不额外包裹无关内容。",
+    constraints: "将原始请求中的明确约束视为硬边界，并逐项保留。",
+    audience: "根据原始请求中指定的受众调整术语、深度和解释方式。",
+    success: "把原始请求中的成功、验收、指标或目标值转化为可检查的完成标准。",
+    evidence: "按原始请求提供可核查的来源、引用、链接或日期信息。",
+    environment: "遵守原始请求中指定的运行环境、框架、系统和版本条件。",
+  },
+};
+
+const SIGNAL_CASES = [
+  { signal: "format", language: "en", input: "Return the answer as JSON." },
+  { signal: "format", language: "zh-CN", input: "请用表格回答。" },
+  { signal: "constraints", language: "en", input: "You must preserve whitespace." },
+  { signal: "constraints", language: "zh-CN", input: "不得联网。" },
+  { signal: "audience", language: "en", input: "Explain this for a beginner." },
+  { signal: "audience", language: "zh-CN", input: "面向新手解释。" },
+  { signal: "success", language: "en", input: "The acceptance criterion is no regressions." },
+  { signal: "success", language: "zh-CN", input: "验收标准是零回归。" },
+  { signal: "evidence", language: "en", input: "Cite the source." },
+  { signal: "evidence", language: "zh-CN", input: "请附上来源。" },
+  { signal: "environment", language: "en", input: "Run this on Linux." },
+  { signal: "environment", language: "zh-CN", input: "请在容器中运行。" },
+];
+
 describe("natural-language prompt enhancer", () => {
   it("structures a Chinese coding request while preserving the original", () => {
     const input = "帮我写一个 Node.js API，需要包含错误处理和测试";
@@ -72,6 +106,39 @@ describe("natural-language prompt enhancer", () => {
     expect(result.enhancedPrompt).toContain(
       "Provide the requested verifiable sources, citations, links, or dates near the relevant claims.",
     );
+  });
+
+  it.each(SIGNAL_CASES)(
+    "detects only the $signal signal for a $language fixture",
+    ({ signal, language, input }) => {
+      const result = enhanceNaturalLanguagePrompt({ input, profile: "general", language });
+      const enabledSignals = Object.entries(result.signals)
+        .filter(([, enabled]) => enabled)
+        .map(([name]) => name);
+      const compiledItems = result.sections.flatMap((section) => section.items);
+
+      expect(enabledSignals).toEqual([signal]);
+      expect(compiledItems).toContain(SIGNAL_REQUIREMENTS[language][signal]);
+      expect(result.original).toBe(input);
+      expect(result.enhancedPrompt).toContain(input);
+      expect(result.metadata).toMatchObject({
+        providerCalled: false,
+        originalPreserved: true,
+        deterministic: true,
+      });
+    },
+  );
+
+  it.each([
+    { input: "Keep the sourceCode property unchanged.", signal: "evidence" },
+    { input: "Use customerId as the field name.", signal: "audience" },
+  ])("does not match signal words embedded in identifiers: $input", ({ input, signal }) => {
+    const result = enhanceNaturalLanguagePrompt({ input, profile: "general", language: "en" });
+
+    expect(result.signals[signal]).toBe(false);
+    expect(result.original).toBe(input);
+    expect(result.metadata.providerCalled).toBe(false);
+    expect(result.metadata.deterministic).toBe(true);
   });
 
   it.each([
