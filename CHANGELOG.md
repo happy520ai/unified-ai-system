@@ -9,6 +9,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Documentation
 
+- Refreshed the reproducible social preview around the MCP gateway, Codex,
+  prompt enhancement, and the nine governed tools.
 - Added copy-ready Windows PowerShell request-file commands to the bilingual
   README and community promotion paths.
 - Added a dedicated MCP client report template with required client, version,

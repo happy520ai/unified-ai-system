@@ -15,6 +15,7 @@
   },
   "scripts": {
     "check": "node --check src/index.js",
+    "render:social-preview": "node test/render-social-preview.mjs",
     "test": "node test/prompt-lab-smoke.test.js"
   },
   "dependencies": {

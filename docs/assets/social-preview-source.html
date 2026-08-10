@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Unified AI System social preview</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: "Segoe UI", Arial, sans-serif;
+        background: #07100f;
+        color: #f1f5f4;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        width: 1280px;
+        height: 640px;
+        margin: 0;
+        overflow: hidden;
+      }
+
+      body {
+        position: relative;
+        background: #07100f;
+      }
+
+      .frame {
+        position: relative;
+        display: grid;
+        grid-template-columns: 1.02fr 0.98fr;
+        gap: 50px;
+        width: 100%;
+        height: 100%;
+        padding: 68px 70px 60px;
+        border-top: 8px solid #59f0b5;
+      }
+
+      .copy {
+        display: flex;
+        min-width: 0;
+        flex-direction: column;
+      }
+
+      .eyebrow {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin: 0 0 27px;
+        color: #77f2c0;
+        font-size: 18px;
+        font-weight: 700;
+        line-height: 1;
+        text-transform: uppercase;
+      }
+
+      .eyebrow::before {
+        width: 13px;
+        height: 13px;
+        content: "";
+        background: #59f0b5;
+        box-shadow: 0 0 22px rgba(89, 240, 181, 0.55);
+      }
+
+      h1 {
+        max-width: 560px;
+        margin: 0;
+        color: #ffffff;
+        font-size: 72px;
+        font-weight: 760;
+        line-height: 0.99;
+        letter-spacing: 0;
+      }
+
+      .promise {
+        max-width: 540px;
+        margin: 30px 0 0;
+        color: #c7d4d0;
+        font-size: 27px;
+        font-weight: 450;
+        line-height: 1.34;
+        letter-spacing: 0;
+      }
+
+      .clients {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-top: 28px;
+        color: #f3c56c;
+        font-family: Consolas, "Courier New", monospace;
+        font-size: 18px;
+        font-weight: 700;
+      }
+
+      .clients span {
+        color: #52615d;
+      }
+
+      .proof {
+        display: flex;
+        gap: 20px;
+        margin-top: auto;
+        color: #9eb0aa;
+        font-family: Consolas, "Courier New", monospace;
+        font-size: 14px;
+        font-weight: 700;
+        line-height: 1;
+        text-transform: uppercase;
+      }
+
+      .proof strong {
+        color: #ecf4f1;
+        font-weight: 700;
+      }
+
+      .terminal {
+        align-self: center;
+        width: 100%;
+        overflow: hidden;
+        border: 1px solid #28443c;
+        border-radius: 6px;
+        background: #0b1513;
+        box-shadow: 16px 18px 0 #10251f;
+      }
+
+      .terminal-bar {
+        display: flex;
+        align-items: center;
+        height: 54px;
+        padding: 0 20px;
+        border-bottom: 1px solid #243a34;
+        background: #101d1a;
+      }
+
+      .terminal-mark {
+        display: grid;
+        width: 25px;
+        height: 25px;
+        margin-right: 12px;
+        place-items: center;
+        border: 1px solid #59f0b5;
+        color: #59f0b5;
+        font-family: Consolas, "Courier New", monospace;
+        font-size: 13px;
+        font-weight: 700;
+      }
+
+      .terminal-title {
+        color: #a7bbb5;
+        font-family: Consolas, "Courier New", monospace;
+        font-size: 15px;
+      }
+
+      .status {
+        width: 8px;
+        height: 8px;
+        margin-left: auto;
+        border-radius: 50%;
+        background: #59f0b5;
+      }
+
+      .terminal-body {
+        padding: 30px 30px 31px;
+        font-family: Consolas, "Courier New", monospace;
+        font-size: 16px;
+        line-height: 1.72;
+      }
+
+      .command {
+        margin: 0 0 25px;
+        color: #eaf7f3;
+        font-size: 17px;
+      }
+
+      .prompt {
+        color: #59f0b5;
+      }
+
+      .row {
+        display: grid;
+        grid-template-columns: 104px minmax(0, 1fr);
+        gap: 12px;
+        margin: 9px 0;
+      }
+
+      .label {
+        color: #6f8780;
+      }
+
+      .value {
+        color: #d5dfdc;
+      }
+
+      .value.accent {
+        color: #f3c56c;
+      }
+
+      .value.success {
+        color: #78edbb;
+      }
+
+      .terminal-footer {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-top: 26px;
+        padding-top: 21px;
+        border-top: 1px solid #243a34;
+        color: #9db0aa;
+        font-size: 14px;
+      }
+
+      .terminal-footer::before {
+        width: 9px;
+        height: 9px;
+        content: "";
+        background: #59f0b5;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="frame" aria-label="Unified AI System social preview">
+      <section class="copy">
+        <p class="eyebrow">Open-source MCP gateway</p>
+        <h1>Unified AI System</h1>
+        <p class="promise">Natural language in. Structured, reviewable prompts out.</p>
+        <div class="clients">CODEX <span>/</span> CURSOR <span>/</span> CLINE</div>
+        <div class="proof">
+          <span><strong>9</strong> governed tools</span>
+          <span>No API key</span>
+          <span>Self-hosted</span>
+        </div>
+      </section>
+
+      <section class="terminal" aria-label="Prompt enhancement terminal evidence">
+        <header class="terminal-bar">
+          <span class="terminal-mark">&gt;_</span>
+          <span class="terminal-title">gateway / prompt-enhance</span>
+          <span class="status" aria-hidden="true"></span>
+        </header>
+        <div class="terminal-body">
+          <p class="command"><span class="prompt">$</span> gateway_prompt_enhance</p>
+          <div class="row"><span class="label">input</span><span class="value">Build a small API for my team</span></div>
+          <div class="row"><span class="label">profile</span><span class="value accent">coding</span></div>
+          <div class="row"><span class="label">provider</span><span class="value">not called</span></div>
+          <div class="row"><span class="label">tools</span><span class="value">9 ready</span></div>
+          <div class="row"><span class="label">result</span><span class="value success">structured prompt + evidence</span></div>
+          <div class="terminal-footer">Local verification complete</div>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>
