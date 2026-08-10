@@ -59,6 +59,16 @@ docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.6 pn
 命令会保留原始请求、输出结构化 coding 提示词、报告确定性的
 `execution: fake` 结果并自动退出。如果它对你的工作流有帮助，欢迎[给仓库点 Star](https://github.com/happy520ai/unified-ai-system)，并通过[使用验证模板分享一行可复现结果](https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml&title=%5BUsage%20Report%5D%20Quickstart)。
 
+也可以不克隆仓库，直接把自然语言请求管道传入已发布镜像：
+
+```bash
+printf '%s' "帮我规划一个小型 API 的发布" \
+  | docker run --rm -i ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.6 \
+      pnpm gateway demo --enhance --profile planning --language zh-CN --json
+```
+
+这条命令仍使用一次性的本地 fake provider，输出结果后自动退出。
+
 **自然语言增强会补充什么：**
 
 - `planning`：里程碑、依赖、风险、负责人和完成信号。

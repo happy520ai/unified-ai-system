@@ -143,6 +143,20 @@ Get-Content .\request.txt -Raw |
 The input is trimmed before it is sent to the gateway. Chat still performs its
 normal provider safety check, and stdin does not authorize a real provider.
 
+### Published Image Pipeline
+
+The disposable `demo` command can read stdin inside the published image, so a
+request can be verified without a source checkout or API key:
+
+```bash
+printf '%s' "Plan a launch for a small API" \
+  | docker run --rm -i ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.6 \
+      pnpm gateway demo --enhance --profile planning --language en --json
+```
+
+`demo` starts the temporary fake-provider gateway for this one request. The
+container exits after printing the structured result.
+
 Apply the same transformation to one chat request only with explicit opt-in:
 
 ```bash

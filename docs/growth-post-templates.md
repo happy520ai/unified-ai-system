@@ -73,6 +73,18 @@ and provider-free.
 Repo: https://github.com/happy520ai/unified-ai-system
 ```
 
+## No-Clone Docker Pipeline (English)
+
+```text
+No checkout or API key needed:
+
+printf '%s' "Plan a launch for a small API" | docker run --rm -i ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.6 pnpm gateway demo --enhance --profile planning --language en --json
+
+The published image reads stdin, preserves the original request, and prints
+deterministic fake-provider evidence before exiting.
+Repo: https://github.com/happy520ai/unified-ai-system
+```
+
 ## 6) C# / .NET 标准库入口（中文）
 
 ```text

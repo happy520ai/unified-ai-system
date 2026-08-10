@@ -14,6 +14,8 @@ const demoCommand =
   "docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.6 pnpm gateway demo \"Build a small API for my team\" --enhance --profile coding";
 const pipeCommand =
   "cat request.txt | pnpm gateway enhance --profile auto --json";
+const dockerPipeCommand =
+  "printf '%s' \"Plan a launch for a small API\" | docker run --rm -i ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.6 pnpm gateway demo --enhance --profile planning --language en --json";
 const issueTemplate =
   "https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml";
 
@@ -24,6 +26,7 @@ const posts = {
   twitterLike: `Built a terminal-first AI gateway with deterministic local verification:\n- natural-language prompt enhancement\n- explicit provider boundaries\n- CLI + MCP + Codex / Cursor / Cline\n\nRepo: ${repoUrl}\n${demoCommand}`,
   redditEn: `Open-source AI infrastructure update:\n- local fake-provider verification in 60 seconds\n- prompt enhancement turns rough language into structured intent\n- explicit approval & provider policy\n\nRepo: ${repoUrl}\n${demoCommand}`,
   shellPipelineEn: `Already have requests in files or shell pipelines?\n\n${pipeCommand}\n\nAfter starting the local gateway, stdin becomes a provider-free prompt-enhancement path.\nRepo: ${repoUrl}`,
+  noCloneDockerPipelineEn: `No checkout or API key needed:\n\n${dockerPipeCommand}\n\nThe published image reads stdin, preserves the original request, and prints deterministic fake-provider evidence before exiting.\nRepo: ${repoUrl}`,
   discordEn: `Want to try a verifiable AI gateway?\nTry:\n${demoCommand}\n\nIf it works, share one output line and open:\n${issueTemplate}`,
 };
 

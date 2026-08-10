@@ -19,6 +19,8 @@ const evidenceCommand =
   "pnpm gateway demo \"Build a small API for my team\" --enhance --profile coding --evidence";
 const pipeCommand =
   "cat request.txt | pnpm gateway enhance --profile auto --json";
+const dockerPipeCommand =
+  "printf '%s' \"Plan a launch for a small API\" | docker run --rm -i ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.6 pnpm gateway demo --enhance --profile planning --language en --json";
 const managedCommentMarker = "<!-- unified-ai-system-growth-thread -->";
 
 function run(cmd) {
@@ -100,6 +102,11 @@ function buildCommentBody(metrics) {
     "For a source checkout, stdin also accepts a request from a file after the gateway starts:",
     "```",
     pipeCommand,
+    "```",
+    "",
+    "No-clone Docker pipeline:",
+    "```",
+    dockerPipeCommand,
     "```",
     "",
     "Minimum Usage Report context:",

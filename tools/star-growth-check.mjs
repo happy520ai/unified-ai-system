@@ -12,6 +12,8 @@ const demoCommand =
   "docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.6 pnpm gateway demo \"Build a small API for my team\" --enhance --profile coding";
 const pipeCommand =
   "cat request.txt | pnpm gateway enhance --profile auto --json";
+const dockerPipeCommand =
+  "printf '%s' \"Plan a launch for a small API\" | docker run --rm -i ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.6 pnpm gateway demo --enhance --profile planning --language en --json";
 const defaultGrowthOutputDir = ".tmp/growth";
 const defaultLatestSnapshotFile = `${defaultGrowthOutputDir}/star-growth-latest.md`;
 
@@ -350,6 +352,9 @@ function generateDailyReport(repoStats, rows, date, previousStats = null) {
   lines.push("");
   lines.push("For a source checkout, pipe a request from a file after starting the gateway:");
   lines.push(pipeCommand);
+  lines.push("");
+  lines.push("For a no-clone Docker path, pipe a request into the published image:");
+  lines.push(dockerPipeCommand);
   lines.push("");
   lines.push("### 24h Action");
   lines.push("- Ask at least one reviewer to run the command and paste output.");
