@@ -9,7 +9,7 @@ const promptLabUrl = "https://happy520ai.github.io/unified-ai-system/#enhance";
 const usageReportUrl =
   "https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml";
 const demoCommand =
-  "docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.7 pnpm gateway demo \"Build a small API for my team\" --enhance --profile coding";
+  "docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.7 pnpm gateway demo \"Build a small API for my team\" --enhance --profile coding --evidence";
 const pipeCommand =
   "cat request.txt | pnpm gateway enhance --profile auto --json";
 const dockerPipeCommand =
@@ -36,6 +36,7 @@ const externalPrs = [
   ["docker/mcp-registry", 4584],
   ["up-for-grabs/up-for-grabs.net", 5995],
   ["frechdi/awesome-self-hosted-ai", 7],
+  ["agentskillexchange/skills", 34],
 ];
 
 const mergeStateMap = {

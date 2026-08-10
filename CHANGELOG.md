@@ -13,6 +13,11 @@ and the project uses [Semantic Versioning](https://semver.org/).
   CLI, and isolated-demo evidence packets so shared reports show what the
   local enhancer carried into the structured prompt.
 
+### Changed
+
+- Updated the growth campaign command to emit evidence packets and track the
+  Agent Skill Exchange submission in the external PR funnel.
+
 ## [0.4.7] - 2026-08-10
 
 ### Added
