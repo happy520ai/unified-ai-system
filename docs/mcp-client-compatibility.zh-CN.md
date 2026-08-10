@@ -28,7 +28,7 @@
 2. 调用 `gateway_health` 和 `gateway_readiness`。
 3. 只有在就绪状态证明真实 Provider 已禁用时，才继续调用
    `gateway_chat`，并把结果标记为 fake-provider 输出。
-4. 在[使用报告模板](https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml)
+4. 在[MCP 客户端报告模板](https://github.com/happy520ai/unified-ai-system/issues/new?template=mcp-client-report.yml)
    中记录客户端、操作系统、命令、工具数量和一行脱敏输出。
 
 不要把 Provider Key 加入公开安装命令。本矩阵不宣称生产就绪、L5 自主、

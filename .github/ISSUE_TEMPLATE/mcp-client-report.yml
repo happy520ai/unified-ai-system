@@ -1,0 +1,83 @@
+name: MCP client report
+description: Share a reproducible Codex, Cursor, Cline, or generic MCP client run.
+title: "[MCP Client Report]: "
+labels:
+  - community-feedback
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for testing Unified AI System from an MCP client.
+
+        This template records one client run so the compatibility matrix can
+        distinguish documented setup from independently observed behavior.
+        Do not include provider keys, tokens, private prompts, or private URLs.
+  - type: input
+    id: client
+    attributes:
+      label: MCP client
+      description: Name the host you actually used.
+      placeholder: Codex CLI, Cursor, Cline, or generic MCP stdio host
+    validations:
+      required: true
+  - type: input
+    id: client_version
+    attributes:
+      label: Client version
+      placeholder: 1.2.3 or commit / build identifier
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Operating system and shell
+      placeholder: Windows 11 + PowerShell 7, macOS + zsh, or Ubuntu + bash
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: Install or configuration command
+      description: Paste the command or sanitized configuration used.
+      render: shell
+    validations:
+      required: true
+  - type: input
+    id: tool_count
+    attributes:
+      label: Observed tool count
+      placeholder: 9
+    validations:
+      required: true
+  - type: textarea
+    id: health_readiness
+    attributes:
+      label: Sanitized health/readiness output
+      description: Include one or two lines proving the checks you ran. Remove private values.
+      render: text
+    validations:
+      required: true
+  - type: dropdown
+    id: execution_mode
+    attributes:
+      label: Execution mode observed
+      options:
+        - local-fake-provider
+        - real provider explicitly enabled
+        - other / unknown
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes or limitations
+      description: Mention any client-specific behavior, errors, or follow-up needed.
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Before submit
+      options:
+        - label: I removed provider keys, tokens, private prompts, and private endpoints.
+          required: true
+        - label: I understand this report documents one observed run and does not certify every client or production readiness.
+          required: true

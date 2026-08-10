@@ -30,7 +30,7 @@ runtime claims require an actual report from that client.
 3. Continue to `gateway_chat` only when readiness proves real-provider execution
    is disabled; label the result as fake-provider output.
 4. Record the client, operating system, command, tool count, and one sanitized
-   output line in the [usage report template](https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml).
+   output line in the [MCP client report template](https://github.com/happy520ai/unified-ai-system/issues/new?template=mcp-client-report.yml).
 
 Do not add provider keys to the published install command. The matrix does not
 claim production readiness, L5 autonomy, AGI, or universal client support.

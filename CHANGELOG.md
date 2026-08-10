@@ -11,6 +11,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 - Added copy-ready Windows PowerShell request-file commands to the bilingual
   README and community promotion paths.
+- Added a dedicated MCP client report template with required client, version,
+  environment, tool-count, and sanitized health/readiness evidence fields.
 
 ## [0.4.8] - 2026-08-10
 
