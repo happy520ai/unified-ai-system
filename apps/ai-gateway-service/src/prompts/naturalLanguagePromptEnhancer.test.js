@@ -45,6 +45,35 @@ describe("natural-language prompt enhancer", () => {
     );
   });
 
+  it("compiles detected request signals into explicit prompt requirements", () => {
+    const result = enhanceNaturalLanguagePrompt({
+      input: "Return JSON for beginner users on Windows with Docker. You must cite the source and include a success criterion.",
+      profile: "general",
+      language: "en",
+    });
+
+    expect(result.signals).toEqual({
+      format: true,
+      constraints: true,
+      audience: true,
+      success: true,
+      evidence: true,
+      environment: true,
+    });
+    expect(result.sections[0].items).toContain(
+      "Treat explicit constraints in the original request as hard boundaries and preserve them one by one.",
+    );
+    expect(result.sections[1].items).toContain(
+      "Use the output format requested in the original request exactly; do not wrap it in irrelevant material.",
+    );
+    expect(result.sections[2].items).toContain(
+      "Turn the requested success criteria, acceptance checks, metrics, or targets into inspectable completion conditions.",
+    );
+    expect(result.enhancedPrompt).toContain(
+      "Provide the requested verifiable sources, citations, links, or dates near the relevant claims.",
+    );
+  });
+
   it.each([
     ["general", "Summarize the key decisions from this request."],
     ["coding", "Implement a small API endpoint with tests."],

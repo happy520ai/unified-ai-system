@@ -7,6 +7,13 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Compiled detected request signals for format, constraints, audience,
+  environment, evidence, and success criteria into the structured prompt
+  sections, so explicit user intent is carried forward instead of only being
+  used to decide clarification questions.
+
 ### Documentation
 
 - Refreshed contributor and security guidance for the current `0.4.x` release

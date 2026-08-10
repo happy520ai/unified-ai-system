@@ -79,6 +79,7 @@ export function enhanceNaturalLanguagePrompt(request) {
     input: normalized.input,
     language,
     profile,
+    signals,
   });
   const clarifyingQuestions = createClarifyingQuestions({
     language,
@@ -197,27 +198,46 @@ function detectSignals(input) {
   );
 }
 
-function createSections({ language, profile }) {
+function createSections({ language, profile, signals }) {
   const localized = PROFILE_CONTENT[language];
   const profileContent = localized.profiles[profile] ?? localized.profiles.general;
+  const signalContent = localized.signalItems;
 
   return [
     {
       id: "execution",
       title: localized.executionTitle,
-      items: [...localized.execution, ...profileContent.execution],
+      items: [
+        ...localized.execution,
+        ...profileContent.execution,
+        ...selectSignalItems(signalContent.execution, signals),
+      ],
     },
     {
       id: "output",
       title: localized.outputTitle,
-      items: [...localized.output, ...profileContent.output],
+      items: [
+        ...localized.output,
+        ...profileContent.output,
+        ...selectSignalItems(signalContent.output, signals),
+      ],
     },
     {
       id: "acceptance",
       title: localized.acceptanceTitle,
-      items: [...localized.acceptance, ...profileContent.acceptance],
+      items: [
+        ...localized.acceptance,
+        ...profileContent.acceptance,
+        ...selectSignalItems(signalContent.acceptance, signals),
+      ],
     },
   ];
+}
+
+function selectSignalItems(rules, signals) {
+  return rules
+    .filter(({ when }) => signals[when])
+    .map(({ item }) => item);
 }
 
 function createClarifyingQuestions({ language, profile, signals }) {
@@ -282,6 +302,20 @@ const PROFILE_CONTENT = Object.freeze({
     outputTitle: "# 输出要求",
     acceptanceTitle: "# 完成标准",
     clarificationPolicy: "如果缺少信息但仍可可靠推进，请明确最小假设后继续；只有缺失信息会阻止正确结果时，才先提出最多 3 个具体问题。",
+    signalItems: {
+      execution: [
+        { when: "constraints", item: "将原始请求中的明确约束视为硬边界，并逐项保留。" },
+        { when: "audience", item: "根据原始请求中指定的受众调整术语、深度和解释方式。" },
+        { when: "environment", item: "遵守原始请求中指定的运行环境、框架、系统和版本条件。" },
+      ],
+      output: [
+        { when: "format", item: "严格使用原始请求指定的输出格式，不额外包裹无关内容。" },
+        { when: "evidence", item: "按原始请求提供可核查的来源、引用、链接或日期信息。" },
+      ],
+      acceptance: [
+        { when: "success", item: "把原始请求中的成功、验收、指标或目标值转化为可检查的完成标准。" },
+      ],
+    },
     profileNames: {
       general: "通用任务",
       coding: "软件工程",
@@ -359,6 +393,20 @@ const PROFILE_CONTENT = Object.freeze({
     outputTitle: "# Output requirements",
     acceptanceTitle: "# Completion criteria",
     clarificationPolicy: "If missing information does not prevent reliable progress, state the minimum assumptions and continue. Ask no more than three specific questions only when the missing information blocks a correct result.",
+    signalItems: {
+      execution: [
+        { when: "constraints", item: "Treat explicit constraints in the original request as hard boundaries and preserve them one by one." },
+        { when: "audience", item: "Adapt terminology, depth, and explanations to the audience named in the original request." },
+        { when: "environment", item: "Honor the runtime, framework, operating system, and version conditions named in the original request." },
+      ],
+      output: [
+        { when: "format", item: "Use the output format requested in the original request exactly; do not wrap it in irrelevant material." },
+        { when: "evidence", item: "Provide the requested verifiable sources, citations, links, or dates near the relevant claims." },
+      ],
+      acceptance: [
+        { when: "success", item: "Turn the requested success criteria, acceptance checks, metrics, or targets into inspectable completion conditions." },
+      ],
+    },
     profileNames: {
       general: "General task",
       coding: "Software engineering",

@@ -9,6 +9,12 @@ This is a deterministic heuristic transformation. It improves consistency and
 inspectability; it is not a guarantee that every model or task will perform
 better.
 
+When the request contains recognizable signals, the enhancer carries them into
+the structured sections as explicit requirements. That includes requested
+formats, hard constraints, audience, runtime or version conditions, evidence
+requirements, and success criteria. Missing signals can still produce up to
+three targeted clarification questions when they block a reliable result.
+
 ## Preview From The Terminal
 
 Start the gateway, then preview an enhancement without calling a model:
