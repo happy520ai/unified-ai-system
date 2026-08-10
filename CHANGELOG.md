@@ -7,6 +7,12 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Added detected request signals and compiled-section summaries to browser,
+  CLI, and isolated-demo evidence packets so shared reports show what the
+  local enhancer carried into the structured prompt.
+
 ## [0.4.7] - 2026-08-10
 
 ### Added

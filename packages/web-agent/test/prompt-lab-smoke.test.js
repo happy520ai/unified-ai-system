@@ -98,6 +98,15 @@ async function assertPromptLab(page, baseUrl, pathname) {
   assert.equal(evidence.metadata.originalPreserved, true);
   assert.equal(evidence.profile, "planning");
   assert.equal(typeof evidence.input, "string");
+  assert.deepEqual(
+    Object.keys(evidence.detectedSignals).sort(),
+    ["audience", "constraints", "environment", "evidence", "format", "success"],
+  );
+  assert.equal(evidence.compiledSections.length, 3);
+  assert.equal(
+    evidence.compiledSections.every((section) => section.itemCount > 0),
+    true,
+  );
 
   await shareButton.click();
   const shareUrl = await page.evaluate(() => navigator.clipboard.readText());

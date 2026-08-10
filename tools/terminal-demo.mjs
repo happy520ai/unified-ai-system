@@ -167,12 +167,24 @@ function buildEvidence(result) {
           enhancedPrompt: result.promptEnhancement.enhancedPrompt,
           profile: result.promptEnhancement.profile,
           language: result.promptEnhancement.language,
+          detectedSignals: result.promptEnhancement.detectedSignals,
+          compiledSections: result.promptEnhancement.compiledSections,
         }
       : {}),
     outputPreview: result.outputText.split(/\r?\n/).slice(0, 12).join("\n"),
     reportUrl: usageReportUrl,
     reviewBeforeSharing: true,
   };
+}
+
+function summarizeCompiledSections(sections) {
+  return Array.isArray(sections)
+    ? sections.map((section) => ({
+        id: section.id,
+        title: section.title,
+        itemCount: Array.isArray(section.items) ? section.items.length : 0,
+      }))
+    : [];
 }
 
 async function runDemo() {
@@ -239,6 +251,8 @@ async function runDemo() {
         enhancedPrompt: data.enhancedPrompt,
         profile: data.profile,
         language: data.language,
+        detectedSignals: data.signals ?? {},
+        compiledSections: summarizeCompiledSections(data.sections),
         metadata: data.metadata,
       };
     }

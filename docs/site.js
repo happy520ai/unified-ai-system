@@ -143,6 +143,12 @@ async function initializePromptLab(lab) {
         enhancedPrompt: result.enhancedPrompt,
         profile: result.profile,
         language: result.language,
+        detectedSignals: result.signals,
+        compiledSections: result.sections.map((section) => ({
+          id: section.id,
+          title: section.title,
+          itemCount: section.items.length,
+        })),
         metadata: {
           engine: result.metadata.engine,
           version: result.metadata.version,

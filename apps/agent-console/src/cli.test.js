@@ -278,6 +278,11 @@ test("enhance can emit report-ready provider-free evidence", async (context) => 
   assert.equal(evidence.original, "build an API");
   assert.equal(evidence.profile, "coding");
   assert.equal(evidence.language, "en");
+  assert.deepEqual(
+    Object.keys(evidence.detectedSignals).sort(),
+    ["audience", "constraints", "environment", "evidence", "format", "success"],
+  );
+  assert.equal(evidence.compiledSections.length, 3);
   assert.equal(evidence.reviewBeforeSharing, true);
 });
 
@@ -342,6 +347,8 @@ test("demo can emit report-ready evidence without changing fake execution", asyn
   assert.equal(evidence.credentialRequired, false);
   assert.equal(evidence.deterministic, true);
   assert.equal(evidence.original, "build an API");
+  assert.equal(typeof evidence.detectedSignals.format, "boolean");
+  assert.equal(evidence.compiledSections.length, 3);
   assert.equal(evidence.reviewBeforeSharing, true);
 });
 
@@ -508,6 +515,19 @@ async function createMockGateway(options = {}) {
           profile: body.profile === "auto" ? "general" : body.profile,
           language: body.language ?? "auto",
           clarifyingQuestions: options.clarifyingQuestions ?? [],
+          signals: {
+            format: false,
+            constraints: false,
+            audience: false,
+            environment: false,
+            evidence: false,
+            success: false,
+          },
+          sections: [
+            { id: "execution", title: "# Execution requirements", items: ["mock"] },
+            { id: "output", title: "# Output requirements", items: ["mock"] },
+            { id: "acceptance", title: "# Completion criteria", items: ["mock"] },
+          ],
           metadata: {
             engine: "local-deterministic",
             providerCalled: false,

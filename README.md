@@ -315,7 +315,10 @@ For a ready-to-review CLI packet, append `--evidence` to the enhanced demo:
 pnpm gateway demo "Build a small API for my team" --enhance --profile coding --evidence
 ```
 
-Review the original request and output before sharing the generated JSON.
+Review the original request and output before sharing the generated JSON. The
+packet also records `detectedSignals` and the item count for each
+`compiledSections` entry, so a reviewer can see which request signals were
+carried into the structured prompt without reading internal logs.
 
 For the browser Prompt Lab, use its `Copy evidence` or `Download evidence`
 action, then paste or attach the JSON in the optional Prompt Lab evidence field

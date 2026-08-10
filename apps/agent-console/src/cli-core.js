@@ -269,6 +269,8 @@ async function runEnhance(options, output, stdin) {
     enhancedPrompt: enhancement.enhancedPrompt,
     profile: enhancement.profile,
     language: enhancement.language,
+    detectedSignals: enhancement.signals ?? {},
+    compiledSections: summarizeCompiledSections(enhancement.sections),
     clarifyingQuestions: enhancement.clarifyingQuestions ?? [],
     metadata: enhancement.metadata ?? {},
   };
@@ -315,10 +317,22 @@ function buildEnhancementEvidence(result) {
     enhancedPrompt: result.enhancedPrompt,
     profile: result.profile,
     language: result.language,
+    detectedSignals: result.detectedSignals,
+    compiledSections: result.compiledSections,
     clarifyingQuestions: result.clarifyingQuestions,
     reportUrl: usageReportUrl,
     reviewBeforeSharing: true,
   };
+}
+
+function summarizeCompiledSections(sections) {
+  return Array.isArray(sections)
+    ? sections.map((section) => ({
+        id: section.id,
+        title: section.title,
+        itemCount: Array.isArray(section.items) ? section.items.length : 0,
+      }))
+    : [];
 }
 
 async function runDemo(options, runtime) {
