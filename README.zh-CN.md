@@ -153,7 +153,7 @@ docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.7 pn
 
 ```bash
 docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.7 \
-  pnpm gateway demo "帮我为团队设计一个小型 API" --enhance --profile coding
+  pnpm gateway demo "帮我为团队设计一个小型 API" --enhance --profile coding --evidence
 ```
 
 网关会在本地增强请求、输出结构化提示词，然后自动清理隔离进程，全程不调用真实 provider。

@@ -150,7 +150,7 @@ One-command natural-language enhancement preview:
 
 ```bash
 docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.7 \
-  pnpm gateway demo "Build a small API for my team" --enhance --profile coding
+  pnpm gateway demo "Build a small API for my team" --enhance --profile coding --evidence
 ```
 
 This starts an isolated fake-provider gateway, enhances the request locally,

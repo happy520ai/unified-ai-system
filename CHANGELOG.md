@@ -24,6 +24,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
   separating protocol integration evidence from client-specific certification.
 - Updated the bilingual README first-run commands to emit shareable evidence
   packets by default.
+- Aligned repeated README and community quickstart snippets with the same
+  evidence-producing command.
 
 ## [0.4.7] - 2026-08-10
 

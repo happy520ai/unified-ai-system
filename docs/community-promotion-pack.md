@@ -88,7 +88,7 @@ If this helped you, share one reproducible output line, then:
    https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml
 3) Ask one teammate to run the same command once
 
-docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.7 pnpm gateway demo "Build a small API for my team" --enhance --profile coding
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.7 pnpm gateway demo "Build a small API for my team" --enhance --profile coding --evidence
 ```
 
 ## 7) Follow-up Reply
