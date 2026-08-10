@@ -16,6 +16,7 @@
 
 | 客户端路径 | 安装或配置 | 首次检查 | 证据边界 |
 | --- | --- | --- | --- |
+| Node MCP SDK 测试宿主 | 运行 `pnpm verify:mcp`。 | `@modelcontextprotocol/client` 测试宿主会列出 9 个工具，调用 health/readiness、提示词增强、fake-provider chat 和状态工具，然后关闭托管网关。 | 这是由 CI 覆盖的真实 stdio 协议集成证据，不代表已认证 Codex、Cursor 或 Cline 的界面行为。 |
 | Codex | `codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.7` | 运行 `codex mcp get unified-ai-system --json`，重启 Codex，再使用 `/mcp verbose`。 | 仓库已验证 MCP stdio 服务和托管网关；除非有贡献者报告，否则不宣称 Codex CLI 会话已验证。 |
 | Cursor | `pnpm dlx add-mcp@2.0.0 "docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.7" --name unified-ai-system -a cursor -y` | 打开 MCP 工具检查器，先运行 `gateway_health`，再运行 `gateway_readiness`。 | 命令和发布镜像已有文档；Cursor 客户端运行时仍需要真实证据。 |
 | Cline | `cline mcp install unified-ai-system --yes --json -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.7` | 启动全新的 Cline 会话，列出 9 个工具，并在聊天前检查健康和就绪状态。 | 安装契约已有文档；Cline 客户端运行时需要真实使用报告。 |

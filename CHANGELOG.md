@@ -18,6 +18,11 @@ and the project uses [Semantic Versioning](https://semver.org/).
 - Updated the growth campaign command to emit evidence packets and track the
   Agent Skill Exchange submission in the external PR funnel.
 
+### Documentation
+
+- Added a Node MCP SDK test-host row to the bilingual compatibility matrix,
+  separating protocol integration evidence from client-specific certification.
+
 ## [0.4.7] - 2026-08-10
 
 ### Added

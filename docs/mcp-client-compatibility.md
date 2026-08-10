@@ -21,6 +21,7 @@ runtime claims require an actual report from that client.
 | Cursor | `pnpm dlx add-mcp@2.0.0 "docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.7" --name unified-ai-system -a cursor -y` | Open the MCP tool inspector and run `gateway_health`, then `gateway_readiness`. | The command and published image are documented. Cursor client runtime support remains an evidence-needed path. |
 | Cline | `cline mcp install unified-ai-system --yes --json -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.7` | Start a fresh Cline session, list the nine tools, and check health/readiness before chat. | The installation contract is documented. Cline client runtime support requires an actual Cline usage report. |
 | Generic MCP stdio host | Add the `mcpServers.unified-ai-system` entry from [generic client configuration](mcp-generic-client.md). | Restart the host, confirm the nine tools, call `gateway_health`, then `gateway_readiness`. | The JSON configuration and MCP server path are covered by the repository's provider-free verification. |
+| Node MCP SDK test host | Run `pnpm verify:mcp`. | The `@modelcontextprotocol/client` harness lists the nine tools, calls health/readiness, prompt enhancement, fake-provider chat, and status tools, then closes the managed gateway. | This is real stdio protocol integration evidence covered by CI. It does not certify Codex, Cursor, or Cline UI behavior. |
 
 ## Safe Verification Sequence
 
