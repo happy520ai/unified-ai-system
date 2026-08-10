@@ -22,7 +22,7 @@ do not inflate usage, Stars, or production readiness.
 
 ## 3) Why this repository qualifies? (<=500 chars)
 
-Unified AI System is a public Apache-2.0, self-hosted MCP/AI gateway that helps developers turn plain-language requests into structured, reviewable prompts for Codex, Cursor, and Cline. It provides a provider-free first run, reproducible CLI/MCP workflows, CI and public-clone verification, and documented maintainer workflows. It is early-stage (3 stars, 1 fork, 1 open issue), but targets a broad developer need and is actively maintained.
+Unified AI System is a public Apache-2.0, self-hosted MCP/AI gateway that helps developers turn plain-language requests into structured, reviewable prompts for Codex, Cursor, and Cline. It provides a provider-free first run, reproducible CLI/MCP workflows, CI and public-clone verification, and documented maintainer workflows. It is early-stage (3 stars, 1 fork, 2 open issues), but targets a broad developer need and is actively maintained.
 
 ## 4) I'm interested in (select all options shown by the form)
 
@@ -43,7 +43,7 @@ API credits would support a public, opt-in maintainer workflow for Unified AI Sy
 
 ## 7) Anything else we should know? (<=500 chars)
 
-I am the GitHub owner and primary maintainer of this public Apache-2.0 repository. The project is early-stage, so I report conservative, verifiable metrics rather than claiming production scale: 3 stars, 1 fork, and 1 open issue. It has a credential-free fake-provider default, public docs, CI checks, a v0.4.6 release, and a working MCP integration. I welcome review and can provide maintainer verification.
+I am the GitHub owner and primary maintainer of this public Apache-2.0 repository. The project is early-stage, so I report conservative, verifiable metrics rather than claiming production scale: 3 stars, 1 fork, and 2 open issues. It has a credential-free fake-provider default, public docs, CI checks, a v0.4.6 release, and a working MCP integration. I welcome review and can provide maintainer verification.
 
 ## 8) Fast submit tips
 

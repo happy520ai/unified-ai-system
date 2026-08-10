@@ -43,4 +43,3 @@ Public documentation is grouped by task so the repo stays easy to scan.
 - [Security policy](../SECURITY.md)
 - [Security evidence index](security/README.md)
 - [Provider adapter contribution guide](provider-adapter-contribution.md)
-- [Usage verification issue template](../.github/ISSUE_TEMPLATE/usage-verification-report.yml)
