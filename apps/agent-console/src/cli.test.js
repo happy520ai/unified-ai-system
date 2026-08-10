@@ -206,6 +206,26 @@ test("enhance previews a structured prompt without checking or calling a provide
   assert.equal(gateway.lastPromptEnhancementLanguage, "zh-CN");
 });
 
+test("enhance accepts a prompt from stdin when no positional prompt is supplied", async (context) => {
+  const gateway = await createMockGateway();
+  context.after(gateway.close);
+
+  const result = await runCliProcess([
+    "enhance",
+    "--profile",
+    "planning",
+    "--json",
+    "--url",
+    gateway.url,
+  ], "Plan a launch\n");
+
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(gateway.promptEnhancementRequestCount, 1);
+  const output = JSON.parse(result.stdout);
+  assert.equal(output.original, "Plan a launch");
+  assert.equal(output.profile, "planning");
+});
+
 test("enhance human output explains optional questions and safety evidence", async (context) => {
   const gateway = await createMockGateway({
     clarifyingQuestions: ["What output format and level of detail do you want?"],
@@ -518,7 +538,7 @@ async function createMockGateway(options = {}) {
   };
 }
 
-function runCliProcess(args) {
+function runCliProcess(args, input = "") {
   return new Promise((resolvePromise, reject) => {
     const child = spawn(process.execPath, [cliEntrypoint, ...args], {
       cwd: repoRoot,
@@ -556,7 +576,7 @@ function runCliProcess(args) {
         stderr,
       });
     });
-    child.stdin.end();
+    child.stdin.end(input);
   });
 }
 

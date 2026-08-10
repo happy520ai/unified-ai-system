@@ -119,6 +119,30 @@ the request more precise, followed by the provider-free safety evidence. Use
 Profiles are `auto`, `general`, `coding`, `analysis`, `writing`, `research`,
 and `planning`. `auto` detects a profile from the request.
 
+### Pipe A Request
+
+When no positional prompt or `--prompt` value is supplied, `demo`, `enhance`,
+and `chat` read the request from stdin. This makes the gateway easy to attach
+to shell pipelines, text files, and editor scripts:
+
+```bash
+printf '%s' "Plan a launch for a small API" \
+  | pnpm gateway enhance --profile planning --language en
+cat request.txt | pnpm gateway enhance --profile auto --json
+```
+
+On Windows PowerShell:
+
+```powershell
+'帮我为团队规划一个小型 API 的发布' |
+  pnpm gateway enhance --profile planning --language zh-CN
+Get-Content .\request.txt -Raw |
+  pnpm gateway enhance --profile auto --json
+```
+
+The input is trimmed before it is sent to the gateway. Chat still performs its
+normal provider safety check, and stdin does not authorize a real provider.
+
 Apply the same transformation to one chat request only with explicit opt-in:
 
 ```bash

@@ -173,6 +173,17 @@ pnpm gateway enhance "Build a small API for my team" --profile coding
 pnpm gateway chat "Build a small API for my team" --enhance --profile coding
 ```
 
+The CLI also accepts a request from stdin, which is useful for shell pipelines
+and text files:
+
+```bash
+printf '%s' "Plan a launch for a small API" \
+  | pnpm gateway enhance --profile planning --language en
+cat request.txt | pnpm gateway enhance --profile auto --json
+```
+
+PowerShell users can pipe the same path with `Get-Content .\request.txt -Raw`.
+
 Prefer Node.js? The dependency-free example verifies the provider-free response
 before printing the enhanced JSON:
 

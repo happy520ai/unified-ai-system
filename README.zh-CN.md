@@ -283,6 +283,27 @@ pnpm verify:public-clone
 pnpm verify:mcp
 ```
 
+## 管道式自然语言输入
+
+当没有提供位置参数或 `--prompt` 时，`demo`、`enhance` 和 `chat` 会从
+stdin 读取请求，适合接入 Shell 管道、文本文件和编辑器脚本：
+
+```bash
+printf '%s' "帮我规划一个小型 API 的发布" |
+  pnpm gateway enhance --profile planning --language zh-CN
+cat request.txt | pnpm gateway enhance --profile auto --json
+```
+
+PowerShell 可以这样使用：
+
+```powershell
+Get-Content .\request.txt -Raw |
+  pnpm gateway enhance --profile auto --json
+```
+
+输入会在发送到网关前去除首尾空白。`chat` 仍会执行正常的 provider
+安全检查；从 stdin 读取请求不会授权真实 provider。
+
 `master` 上的 CI 会执行 Linux 检查、容器启动 smoke test、MCP 发现和进程清理验证。
 
 ## 项目链接

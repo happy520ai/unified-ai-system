@@ -712,6 +712,11 @@ Examples:
   pnpm gateway chat "Hello from the terminal"
   pnpm gateway doctor --json
 
+Pipe input:
+  With no prompt argument, demo, enhance, and chat read the request from stdin.
+  printf '%s' "Plan a launch" | pnpm gateway enhance --profile planning
+  Get-Content .\\request.txt -Raw | pnpm gateway enhance --profile planning
+
 Safety:
   chat refuses to send when a real provider may be active unless
   --allow-real-provider is supplied explicitly.
