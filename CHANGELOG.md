@@ -7,6 +7,11 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Documentation
+
+- Added copy-ready Windows PowerShell request-file commands to the bilingual
+  README and community promotion paths.
+
 ## [0.4.8] - 2026-08-10
 
 ### Added

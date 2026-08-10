@@ -26,6 +26,14 @@ docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.8 pn
 This is a no-clone, no-API-key first run. The container exits after printing
 the result.
 
+Windows PowerShell request-file path:
+
+```powershell
+Get-Content .\request.txt -Raw |
+  docker run --rm -i ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.8 `
+    pnpm --silent gateway demo --enhance --profile planning --language en --json
+```
+
 This converts intent into:
 - assumptions
 - constraints

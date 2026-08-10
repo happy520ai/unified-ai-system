@@ -67,6 +67,14 @@ printf '%s' "帮我规划一个小型 API 的发布" \
       pnpm --silent gateway demo --enhance --profile planning --language zh-CN --json
 ```
 
+PowerShell 读取请求文件的等价写法：
+
+```powershell
+Get-Content .\request.txt -Raw |
+  docker run --rm -i ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.8 `
+    pnpm --silent gateway demo --enhance --profile planning --language zh-CN --json
+```
+
 这条命令仍使用一次性的本地 fake provider，输出结果后自动退出。
 
 <details>

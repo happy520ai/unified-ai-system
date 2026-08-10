@@ -165,6 +165,14 @@ printf '%s' "Plan a launch for a small API" \
       pnpm --silent gateway demo --enhance --profile planning --language en --json
 ```
 
+PowerShell equivalent for a request file:
+
+```powershell
+Get-Content .\request.txt -Raw |
+  docker run --rm -i ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.8 `
+    pnpm --silent gateway demo --enhance --profile planning --language en --json
+```
+
 The container still uses the disposable fake-provider path and exits after the
 result is printed.
 
