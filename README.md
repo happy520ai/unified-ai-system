@@ -161,7 +161,7 @@ the repository:
 ```bash
 printf '%s' "Plan a launch for a small API" \
   | docker run --rm -i ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.6 \
-      pnpm gateway demo --enhance --profile planning --language en --json
+      pnpm --silent gateway demo --enhance --profile planning --language en --json
 ```
 
 The container still uses the disposable fake-provider path and exits after the

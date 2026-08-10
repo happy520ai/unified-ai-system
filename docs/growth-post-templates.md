@@ -78,7 +78,7 @@ Repo: https://github.com/happy520ai/unified-ai-system
 ```text
 No checkout or API key needed:
 
-printf '%s' "Plan a launch for a small API" | docker run --rm -i ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.6 pnpm gateway demo --enhance --profile planning --language en --json
+printf '%s' "Plan a launch for a small API" | docker run --rm -i ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.6 pnpm --silent gateway demo --enhance --profile planning --language en --json
 
 The published image reads stdin, preserves the original request, and prints
 deterministic fake-provider evidence before exiting.

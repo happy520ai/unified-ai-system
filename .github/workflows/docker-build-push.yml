@@ -74,7 +74,7 @@ jobs:
             --env AI_GATEWAY_PROVIDER_MODE=fake \
             --env AI_GATEWAY_REAL_PROVIDER_ENABLED=false \
             unified-ai-system-smoke \
-            pnpm gateway demo --enhance --profile coding --language en --json)"
+            pnpm --silent gateway demo --enhance --profile coding --language en --json)"
           PIPED_EVIDENCE_JSON="${piped_evidence}" node --input-type=module <<'NODE'
           const evidence = JSON.parse(process.env.PIPED_EVIDENCE_JSON);
           const enhancement = evidence.promptEnhancement;
