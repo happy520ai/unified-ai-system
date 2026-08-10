@@ -31,7 +31,7 @@
   </a>
 </p>
 
-Unified AI System 会在执行前，把一句自然语言需求整理成结构化、可审阅的提示词。它为 OpenAI SDK、CLI、HTTP、MCP、Codex、Cursor 和 Cline 提供统一的自托管入口，同时让 provider 调用保持显式。
+Unified AI System 会在执行前，把一句自然语言需求整理成结构化、可审阅的提示词。它为 OpenAI 兼容 SDK、MCP、A2A、CLI 和 HTTP 提供统一的自托管入口，同时让 provider 调用保持显式。
 
 <p align="center">
   <a href="https://happy520ai.github.io/unified-ai-system/#enhance?prompt=%E5%B8%AE%E6%88%91%E4%B8%BA%E5%9B%A2%E9%98%9F%E8%AE%BE%E8%AE%A1%E4%B8%80%E4%B8%AA%E5%B0%8F%E5%9E%8B+API&amp;profile=coding&amp;language=zh-CN">
@@ -73,7 +73,9 @@ docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.9 pn
 | 接入智能体客户端 | [Codex 与 MCP 快速开始](https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.zh-CN.html) | 固定版本 MCP 容器与 9 个可检查工具。 |
 | 选择客户端路径 | [MCP 客户端兼容性矩阵](docs/mcp-client-compatibility.zh-CN.md) | 安装命令、首次检查和明确的证据边界。 |
 | 集成到应用 | [自然语言提示词增强指南](https://happy520ai.github.io/unified-ai-system/prompt-enhancement.zh-CN.html) | CLI、HTTP、SDK、curl、Python 和 JavaScript 路径。 |
-| 保留现有 OpenAI 客户端 | [OpenAI 兼容 API](docs/openai-compatible-api.zh-CN.md) | 把 `baseURL` 指向 `/v1`，使用文本 Chat Completions、流式响应和模型发现。 |
+| 保留现有 OpenAI 客户端 | [OpenAI 兼容 API](docs/openai-compatible-api.zh-CN.md) | 把 `baseURL` 指向 `/v1`，使用文本 Chat Completions、Responses、流式响应和模型发现。 |
+| 接入其他智能体 | [A2A v1.0 网关](docs/a2a-protocol.zh-CN.md) | 发现 Agent Card，并通过 JSON-RPC 执行可追踪的 fake-provider 任务。 |
+| 检查协议覆盖 | [协议兼容性矩阵](docs/protocol-client-compatibility.zh-CN.md) | 区分官方 SDK 证据和具名客户端认证。 |
 | 检查增强契约 | [无凭据评估](docs/prompt-enhancement.md#prompt-enhancement-evaluation) | 用 8 个代表性案例检查 profile、语言、信号、确定性和零 Provider 调用。 |
 | 排查首次运行问题 | [首次运行排障矩阵](docs/first-run-troubleshooting.zh-CN.md) | 针对不同 Shell 的检查，不暴露凭据。 |
 | 贡献或报告运行结果 | [结构化使用报告](https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml) 或 [入门任务 #106](https://github.com/happy520ai/unified-ai-system/issues/106) | 用户与维护者都能复现的反馈入口。 |
@@ -186,6 +188,15 @@ codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified
 
 重启 Codex 后运行 `/mcp` 检查连接，再参考 [Codex MCP 60 秒快速开始](https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.zh-CN.html)。
 项目提供九个工具，包括健康检查、自然语言增强、聊天、知识、工作流和 workforce 能力。
+
+需要通过 URL 接入的 MCP 客户端，可以使用源码提供的仅本机监听 Streamable HTTP 入口：
+
+```bash
+pnpm mcp:http
+# http://127.0.0.1:3210/mcp
+```
+
+远程绑定的鉴权要求与发布版本边界见 [MCP Server 指南](packages/mcp-server/README.md#streamable-http)。
 
 ### 可安装的 Agent Skill
 

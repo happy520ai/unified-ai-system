@@ -5,6 +5,7 @@
   "type": "module",
   "main": "./src/index.js",
   "dependencies": {
+    "@a2a-js/sdk": "1.0.1",
     "@unified-ai-system/codex-context-gateway": "workspace:*",
     "@unified-ai-system/context-codec-core": "workspace:*",
     "@unified-ai-system/employee-brain-adapter": "workspace:*",

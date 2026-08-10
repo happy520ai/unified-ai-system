@@ -4,13 +4,14 @@ Unified AI System 为现有聊天应用提供一组聚焦的 OpenAI 兼容接口
 
 - `GET /v1/models`
 - `POST /v1/chat/completions`
+- `POST /v1/responses`
 - 普通响应与 `stream: true` 流式响应
 - OpenAI 风格 JSON 错误和 `data: [DONE]` 流式结束标记
 - 可选的本地自然语言提示词增强
 
-这是核心 Chat Completions 兼容层，不是完整 OpenAI API。工具调用、图片或
-音频输入、JSON 响应格式和流式 usage 统计尚未支持；网关会返回明确错误，
-不会静默忽略这些参数。
+这是聚焦文本能力的兼容层，不是完整 OpenAI API。工具调用、图片/音频/文件
+输入、JSON 响应格式、后台 Responses、已存响应查询和流式 usage 统计尚未支持；
+网关会返回明确错误，不会静默忽略这些参数。
 
 ## 启动网关
 
@@ -27,7 +28,7 @@ pnpm gateway serve
 ## JavaScript SDK
 
 无凭据验证器会使用官方 OpenAI JavaScript SDK `7.4.0` 运行这组接口，覆盖模型列表、
-普通与流式 Chat Completions、提示词增强扩展和结构化错误。
+普通与流式 Chat Completions、普通与流式 Responses、提示词增强扩展和结构化错误。
 
 ```bash
 npm install openai
@@ -48,6 +49,20 @@ const completion = await client.chat.completions.create({
 
 console.log(completion.choices[0].message.content);
 console.log(completion.unified_ai);
+```
+
+同一个客户端可以直接使用 Responses API：
+
+```js
+const response = await client.responses.create({
+  model: "local-fake-model",
+  instructions: "简洁回答",
+  input: "帮我规划一个小型 API 迁移",
+  store: false,
+});
+
+console.log(response.output_text);
+console.log(response.unified_ai);
 ```
 
 可以对本地网关直接运行同一个受检示例：
@@ -97,6 +112,8 @@ for await (const chunk of stream) {
 ```
 
 线上协议使用纯 `data:` SSE 记录，并以 `data: [DONE]` 结束。
+Responses 流使用 `response.output_text.delta`、`response.completed` 等命名事件，
+最后使用同样的结束标记。
 
 ## 自然语言增强
 
@@ -140,6 +157,23 @@ curl http://127.0.0.1:3100/v1/chat/completions \
 响应包含标准 Chat Completions 字段，并增加 `unified_ai` 对象，展示实际选择
 的 provider、模型、执行模式、执行状态和网关请求 ID，让 fake 与真实执行
 保持可见。
+
+## Responses API 文本档位
+
+| 字段 | 行为 |
+| --- | --- |
+| `model` | 网关存在已启用默认模型时可省略。 |
+| `input` | 必填文本，或非空的文本消息项数组。 |
+| `instructions` | 可选系统指令字符串。 |
+| `stream` | 可选布尔值，使用标准 Responses 事件名。 |
+| `temperature`、`top_p`、`max_output_tokens` | 映射到网关生成参数。 |
+| `metadata` | 保留在响应和网关请求元数据中。 |
+| `text.format` | 仅支持 `{ "type": "text" }`。 |
+| `store` | 可省略、设为 `false` 或 `null`；尚未实现响应查询。 |
+| `unified_ai` | 支持相同的 provider 选择和本地提示词增强控制。 |
+
+响应包含已完成的 assistant 消息、`output_text`、token usage 和 `unified_ai`
+执行证据。这个档位尚未实现会话状态、响应查询/删除、工具、后台执行和非文本内容。
 
 ## 无凭据验证
 

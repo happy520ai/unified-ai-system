@@ -48,6 +48,28 @@ for await (const chunk of stream) {
   streamMetadata ??= chunk.unified_ai ?? null;
 }
 
+const response = await client.responses.create({
+  model: "local-fake-model",
+  instructions: "Answer briefly",
+  input: "Official OpenAI Responses SDK compatibility test",
+  store: false,
+});
+
+const responseStream = await client.responses.create({
+  model: "local-fake-model",
+  input: "Stream through the official Responses SDK",
+  store: false,
+  stream: true,
+});
+let responseStreamedContent = "";
+let responseStreamCompleted = false;
+for await (const event of responseStream) {
+  if (event.type === "response.output_text.delta") {
+    responseStreamedContent += event.delta;
+  }
+  responseStreamCompleted ||= event.type === "response.completed";
+}
+
 let invalidRequest = null;
 try {
   await client.chat.completions.create({
@@ -90,6 +112,17 @@ const checks = {
     && streamFinished
     && streamMetadata?.execution_mode === "fake"
     && streamMetadata?.selected_provider === "local-fake-provider",
+  responses:
+    response.object === "response"
+    && response.status === "completed"
+    && response.model === "local-fake-model"
+    && response.output_text.includes("Official OpenAI Responses SDK compatibility test")
+    && response.output[0]?.type === "message"
+    && response.unified_ai?.execution_mode === "fake"
+    && response.unified_ai?.selected_provider === "local-fake-provider",
+  responsesStreaming:
+    responseStreamedContent.includes("Stream through the official Responses SDK")
+    && responseStreamCompleted,
   structuredError:
     invalidRequest?.isBadRequestError === true
     && invalidRequest?.class === "BadRequestError"

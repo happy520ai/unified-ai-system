@@ -31,4 +31,15 @@ describe("route access policy", () => {
     expect(isPublicRoute("/prompts/enhance")).toBe(false);
     expect(resolvePermission("POST", "/prompts/enhance")).toBe("chat:use");
   });
+
+  it("keeps A2A discovery public while governing task execution", () => {
+    expect(isPublicRoute("/.well-known/agent-card.json")).toBe(true);
+    expect(isPublicRoute("/a2a/jsonrpc")).toBe(false);
+    expect(resolvePermission("POST", "/a2a/jsonrpc")).toBe("chat:use");
+  });
+
+  it("governs both OpenAI-compatible generation routes", () => {
+    expect(resolvePermission("POST", "/v1/chat/completions")).toBe("chat:use");
+    expect(resolvePermission("POST", "/v1/responses")).toBe("chat:use");
+  });
 });

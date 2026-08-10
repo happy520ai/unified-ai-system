@@ -166,11 +166,14 @@ import {
   dispatchHttpRouteGroups,
 } from "./httpRouteDispatch.js";
 import { dispatchPromptEnhancementRoutes } from "./promptEnhancementRoutes.js";
+import { createA2AGateway } from "./a2aGateway.js";
+import { dispatchA2ARoutes } from "./a2aRoutes.js";
 import {
   createOpenAiError,
   dispatchOpenAiCompatibilityRoutes,
   isOpenAiCompatibilityRoute,
 } from "./openAiCompatibilityRoutes.js";
+import { dispatchOpenAiResponsesRoutes } from "./openAiResponsesRoutes.js";
 import { dispatchHttpRoutes01 } from "./httpServerRoutes01.js";
 import { dispatchHttpRoutes02 } from "./httpServerRoutes02.js";
 import { dispatchHttpRoutes03 } from "./httpServerRoutes03.js";
@@ -203,8 +206,10 @@ const HTTP_ROUTE_DEPENDENCIES = Object.freeze({
   createRagPrompt, createRagChatData, OWNER_AUTOMATION_CHAT_PROPOSAL_FLAG,
 });
 const HTTP_ROUTE_GROUPS = Object.freeze([
+  dispatchA2ARoutes,
   dispatchPromptEnhancementRoutes,
   dispatchOpenAiCompatibilityRoutes,
+  dispatchOpenAiResponsesRoutes,
   dispatchHttpRoutes01,
   dispatchHttpRoutes02,
   dispatchHttpRoutes03,
@@ -219,6 +224,10 @@ export function createGatewayHttpServer(application) {
   const fileContextStore = createFileContextStore();
   const phase319LocalOperation = createPhase319LocalOperationService();
   const rateLimiter = createRateLimiter({ windowMs: 60_000, maxRequests: 120 });
+  const a2aGateway = createA2AGateway({
+    gatewayService,
+    env: { ...process.env, ...application.runtimeEnv },
+  });
 
   const connectorFeishuDryRun = !(application.runtimeEnv?.FEISHU_WEBHOOK_URL || process.env.FEISHU_WEBHOOK_URL);
   const connectorWeComDryRun = !(application.runtimeEnv?.WECOM_WEBHOOK_URL || process.env.WECOM_WEBHOOK_URL);
@@ -335,6 +344,7 @@ export function createGatewayHttpServer(application) {
         connectorFeishuDryRun,
         connectorWeComDryRun,
         capabilityRouterService,
+        a2aGateway,
         codexExecCrsRuntimeCandidate,
         enterpriseGovernanceService,
         enterpriseOpsService,

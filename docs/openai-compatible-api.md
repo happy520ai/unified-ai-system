@@ -5,14 +5,15 @@ chat applications:
 
 - `GET /v1/models`
 - `POST /v1/chat/completions`
+- `POST /v1/responses`
 - non-streaming and `stream: true` responses
 - OpenAI-style JSON errors and `data: [DONE]` stream termination
 - optional local natural-language prompt enhancement
 
-This is a core Chat Completions compatibility layer, not an implementation of
-the entire OpenAI API. Tool calls, image/audio inputs, JSON response formats,
-and streamed usage totals are rejected with an explicit error rather than
-silently ignored.
+This is a focused text compatibility layer, not an implementation of the entire
+OpenAI API. Tool calls, image/audio/file inputs, JSON response formats,
+background Responses, stored response retrieval, and streamed usage totals are
+rejected with an explicit error rather than silently ignored.
 
 ## Start The Gateway
 
@@ -31,7 +32,8 @@ repository does not operate a public hosted gateway.
 
 The credential-free verifier runs this surface through the official OpenAI
 JavaScript SDK `7.4.0`, including model listing, regular and streaming Chat
-Completions, the prompt-enhancement extension, and structured errors.
+Completions, regular and streaming Responses, the prompt-enhancement extension,
+and structured errors.
 
 ```bash
 npm install openai
@@ -52,6 +54,20 @@ const completion = await client.chat.completions.create({
 
 console.log(completion.choices[0].message.content);
 console.log(completion.unified_ai);
+```
+
+The same client can use the Responses API:
+
+```js
+const response = await client.responses.create({
+  model: "local-fake-model",
+  instructions: "Answer briefly",
+  input: "Plan a small API migration",
+  store: false,
+});
+
+console.log(response.output_text);
+console.log(response.unified_ai);
 ```
 
 Run the same checked example against a local gateway:
@@ -102,6 +118,8 @@ for await (const chunk of stream) {
 ```
 
 The wire format uses data-only SSE records and ends with `data: [DONE]`.
+Responses streams use named events such as `response.output_text.delta` and
+`response.completed`, followed by the same termination marker.
 
 ## Natural-Language Enhancement
 
@@ -147,6 +165,25 @@ detection.
 Responses include standard Chat Completions fields plus a `unified_ai` object
 with the selected provider, selected model, execution mode, execution status,
 and gateway request ID. This metadata makes fake and real execution visible.
+
+## Responses API Text Profile
+
+| Field | Behavior |
+| --- | --- |
+| `model` | Optional when the gateway has an enabled default model. |
+| `input` | Required text or a non-empty array of text message items. |
+| `instructions` | Optional system instruction string. |
+| `stream` | Optional boolean; emits standard Responses event names. |
+| `temperature`, `top_p`, `max_output_tokens` | Mapped to gateway generation options. |
+| `metadata` | Preserved in the response and gateway request metadata. |
+| `text.format` | Only `{ "type": "text" }` is supported. |
+| `store` | Omit it, use `false`, or use `null`; response retrieval is not implemented. |
+| `unified_ai` | Supports the same provider and local prompt-enhancement controls. |
+
+The response includes a completed assistant message, `output_text`, token
+usage, and `unified_ai` execution evidence. Conversation state, response
+retrieval/deletion, tools, background execution, and non-text content are not
+implemented in this profile.
 
 ## Verify Without Credentials
 

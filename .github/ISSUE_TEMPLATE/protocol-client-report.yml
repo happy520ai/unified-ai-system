@@ -1,0 +1,93 @@
+name: Protocol client report
+description: Share a reproducible MCP, OpenAI-compatible, A2A, or HTTP client run.
+title: "[Protocol Client Report]: "
+labels:
+  - community-feedback
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This report turns a documented compatibility path into observed client evidence.
+        Do not include provider keys, access tokens, private prompts, or private URLs.
+  - type: dropdown
+    id: protocol
+    attributes:
+      label: Protocol surface
+      options:
+        - MCP stdio
+        - MCP Streamable HTTP
+        - OpenAI Chat Completions
+        - OpenAI Responses
+        - A2A v1.0 JSON-RPC
+        - Native HTTP
+    validations:
+      required: true
+  - type: input
+    id: client
+    attributes:
+      label: Client name
+      placeholder: Product, library, CLI, or integration name
+    validations:
+      required: true
+  - type: input
+    id: client_version
+    attributes:
+      label: Client version
+      placeholder: 1.2.3 or commit / build identifier
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Operating system and runtime
+      placeholder: Windows 11 + Node 22, macOS, or Ubuntu
+    validations:
+      required: true
+  - type: textarea
+    id: configuration
+    attributes:
+      label: Sanitized configuration or command
+      description: Remove tokens, keys, private prompts, and private endpoint names.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: operations
+    attributes:
+      label: Operations exercised
+      placeholder: Discovery, list tools, chat, response stream, SendMessage, GetTask...
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: Sanitized result
+      description: Include the smallest output that proves the observed behavior and execution mode.
+      render: text
+    validations:
+      required: true
+  - type: dropdown
+    id: execution_mode
+    attributes:
+      label: Execution mode observed
+      options:
+        - local-fake-provider
+        - real provider explicitly enabled
+        - no model execution
+        - unknown
+    validations:
+      required: true
+  - type: textarea
+    id: limitations
+    attributes:
+      label: Limitations or failures
+      description: Record unsupported fields, client-specific behavior, and failed operations.
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Before submit
+      options:
+        - label: I removed all credentials, private prompts, and private endpoint names.
+          required: true
+        - label: I understand this report proves one client/version/environment combination only.
+          required: true

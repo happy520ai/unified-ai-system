@@ -19,6 +19,7 @@
     "demo": "node ./tools/terminal-demo.mjs",
     "gateway": "node ./apps/agent-console/src/cli.js",
     "mcp": "node ./packages/mcp-server/src/index.js",
+    "mcp:http": "node ./packages/mcp-server/src/http-entry.js",
     "sync:prompt-demo": "node tools/sync-prompt-enhancer-browser.mjs",
     "notify:indexnow": "node tools/submit-indexnow.mjs",
     "verify:mcp": "pnpm --filter @unified-ai-system/mcp-server test",
@@ -48,6 +49,7 @@
     }
   },
   "devDependencies": {
+    "@a2a-js/sdk": "1.0.1",
     "openai": "7.4.0",
     "vitest": "^4.1.10"
   }

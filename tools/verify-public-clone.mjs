@@ -20,6 +20,10 @@ const openAiSdkExampleEntrypoint = resolve(
   repoRoot,
   "docs/examples/openai-sdk-chat.mjs",
 );
+const a2aSdkExampleEntrypoint = resolve(
+  repoRoot,
+  "docs/examples/a2a-sdk-client.mjs",
+);
 
 function delay(milliseconds) {
   return new Promise((resolvePromise) => setTimeout(resolvePromise, milliseconds));
@@ -227,6 +231,41 @@ async function runOpenAiSdkExample(baseUrl) {
   };
 }
 
+async function runA2ASdkExample(baseUrl) {
+  let stdout = "";
+  let stderr = "";
+  const child = spawn(process.execPath, [a2aSdkExampleEntrypoint], {
+    cwd: repoRoot,
+    windowsHide: true,
+    env: {
+      ...process.env,
+      AI_GATEWAY_SERVICE_URL: baseUrl,
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  child.stdout.setEncoding("utf8");
+  child.stderr.setEncoding("utf8");
+  child.stdout.on("data", (chunk) => {
+    stdout = `${stdout}${chunk}`.slice(-16_000);
+  });
+  child.stderr.on("data", (chunk) => {
+    stderr = `${stderr}${chunk}`.slice(-8_000);
+  });
+  const [exitCode] = await once(child, "exit");
+  let body = null;
+  try {
+    body = JSON.parse(stdout);
+  } catch {
+    // The checks below report the captured output when the example is invalid.
+  }
+  return {
+    exitCode,
+    body,
+    stdout: stdout.trim(),
+    stderr: stderr.trim(),
+  };
+}
+
 const mcpSmoke = await runMcpSmoke();
 const port = await findFreePort();
 const baseUrl = `http://127.0.0.1:${port}`;
@@ -268,6 +307,7 @@ try {
   const javascriptExample = await runJavaScriptExample(baseUrl);
   const sharedSdkExample = await runSharedSdkExample(baseUrl);
   const openAiSdkExample = await runOpenAiSdkExample(baseUrl);
+  const a2aSdkExample = await runA2ASdkExample(baseUrl);
   const promptEnhancement = await fetchJson(`${baseUrl}/prompts/enhance`, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -438,6 +478,15 @@ try {
       && Object.values(openAiSdkExample.body?.checks ?? {}).every(Boolean)
       && openAiSdkExample.body?.invalidRequest?.status === 400
       && openAiSdkExample.body?.realProviderCallsMade === false,
+    officialA2ASdkReady:
+      a2aSdkExample.exitCode === 0
+      && a2aSdkExample.body?.ok === true
+      && a2aSdkExample.body?.client === "@a2a-js/sdk"
+      && a2aSdkExample.body?.sdkVersion === "1.0.1"
+      && a2aSdkExample.body?.protocolVersion === "1.0"
+      && a2aSdkExample.body?.transport === "JSONRPC"
+      && Object.values(a2aSdkExample.body?.checks ?? {}).every(Boolean)
+      && a2aSdkExample.body?.realProviderCallsMade === false,
     mcpStdioReady:
       mcpSmoke.exitCode === 0
       && mcpSmoke.body?.ok === true
@@ -455,6 +504,7 @@ try {
     javascriptExample,
     sharedSdkExample,
     openAiSdkExample,
+    a2aSdkExample,
     mcp: mcpSmoke.body,
   };
   if (!result.ok) process.exitCode = 1;

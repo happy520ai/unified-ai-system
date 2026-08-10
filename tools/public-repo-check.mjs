@@ -33,10 +33,18 @@ const requiredFiles = [
   "pnpm-lock.yaml",
   "pnpm-workspace.yaml",
   "apps/ai-gateway-service/src/index.js",
+  "apps/ai-gateway-service/src/http/a2aGateway.js",
+  "apps/ai-gateway-service/src/http/a2aGateway.test.js",
+  "apps/ai-gateway-service/src/http/a2aRoutes.js",
+  "apps/ai-gateway-service/src/http/openAiResponsesRoutes.js",
+  "apps/ai-gateway-service/src/http/openAiResponsesRoutes.test.js",
   "apps/agent-console/src/cli-core.js",
   "apps/agent-console/evidence/README.md",
   "apps/ai-gateway-service/evidence/README.md",
   "packages/mcp-server/package.json",
+  "packages/mcp-server/src/http-entry.js",
+  "packages/mcp-server/src/http.js",
+  "packages/mcp-server/src/http.test.js",
   "packages/mcp-server/src/index.js",
   "packages/mcp-server/src/server.test.js",
   ".codex-plugin/plugin.json",
@@ -57,6 +65,7 @@ const requiredFiles = [
   "docs/examples/prompt-enhancement.csproj",
   "docs/examples/shared-sdk-prompt-enhancement.mjs",
   "docs/examples/openai-sdk-chat.mjs",
+  "docs/examples/a2a-sdk-client.mjs",
   "docs/examples/shared-sdk-cancellation.mjs",
   "docs/examples/prompt-enhancement-contract.mjs",
   "docs/security/mcp-image-review-0.4.9.md",
@@ -64,6 +73,11 @@ const requiredFiles = [
   "docs/robots.txt",
   "docs/sitemap.xml",
   "docs/terminal-first-ai-gateway.html",
+  "docs/a2a-protocol.md",
+  "docs/a2a-protocol.zh-CN.md",
+  "docs/protocol-client-compatibility.md",
+  "docs/protocol-client-compatibility.zh-CN.md",
+  ".github/ISSUE_TEMPLATE/protocol-client-report.yml",
   "skills/unified-ai-gateway/SKILL.md",
   "tools/mcp-smoke.mjs",
   "tools/submit-indexnow.mjs",
@@ -110,6 +124,7 @@ const requiredScripts = [
   "check",
   "test",
   "mcp",
+  "mcp:http",
   "notify:indexnow",
   "verify:mcp",
   "smoke:mcp",
@@ -125,7 +140,7 @@ for (const script of requiredScripts) {
 
 const rootScriptCount = Object.keys(rootPackage.scripts ?? {}).length;
 const serviceScriptCount = Object.keys(servicePackage.scripts ?? {}).length;
-if (rootScriptCount > 20) addError("root_script_surface_too_large", "package.json", String(rootScriptCount));
+if (rootScriptCount > 21) addError("root_script_surface_too_large", "package.json", String(rootScriptCount));
 if (serviceScriptCount > 20) {
   addError("service_script_surface_too_large", "apps/ai-gateway-service/package.json", String(serviceScriptCount));
 }

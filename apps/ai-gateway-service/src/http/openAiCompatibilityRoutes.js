@@ -28,7 +28,9 @@ const UNSUPPORTED_FIELDS = Object.freeze([
 ]);
 
 export function isOpenAiCompatibilityRoute(pathname) {
-  return pathname === CHAT_COMPLETIONS_PATH || pathname === MODELS_PATH;
+  return pathname === CHAT_COMPLETIONS_PATH
+    || pathname === MODELS_PATH
+    || pathname === "/v1/responses";
 }
 
 export async function dispatchOpenAiCompatibilityRoutes(context) {
@@ -471,7 +473,7 @@ function listAvailableModels(descriptors) {
     .map((model) => ({ descriptor, model })));
 }
 
-function createUnifiedAiMetadata(data, meta, promptEnhancement) {
+export function createUnifiedAiMetadata(data, meta, promptEnhancement) {
   return {
     request_id: meta?.requestId ?? data.id ?? data.requestId ?? null,
     selected_provider: data.selectedProvider ?? null,
@@ -495,7 +497,7 @@ function writeOpenAiSseData(response, data) {
   }
 }
 
-function resolveOpenAiErrorStatus(error) {
+export function resolveOpenAiErrorStatus(error) {
   const category = error?.category ?? error?.type;
   if (category === "validation" || category === "routing") return 400;
   if (category === "auth") return 401;
@@ -531,7 +533,7 @@ function readNumberInRange(value, param, min, max) {
   return value;
 }
 
-function createValidationError(message, param) {
+export function createValidationError(message, param) {
   const error = new Error(message);
   error.code = "invalid_request";
   error.category = "validation";
@@ -539,7 +541,7 @@ function createValidationError(message, param) {
   return error;
 }
 
-function createUnsupportedError(message, param) {
+export function createUnsupportedError(message, param) {
   const error = createValidationError(message, param);
   error.code = "unsupported_parameter";
   return error;

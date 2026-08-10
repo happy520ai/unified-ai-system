@@ -9,5 +9,6 @@ export function isPublicRoute(pathname) {
     || pathname === "/setup/readiness"
     || pathname === "/auth/status"
     || pathname === "/enterprise/health"
+    || pathname === "/.well-known/agent-card.json"
   );
 }
