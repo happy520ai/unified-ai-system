@@ -12,7 +12,9 @@ Copy the following into the official form. Selection is not guaranteed; provide 
 
 ## 2) Role
 
-Primary maintainer
+I am the primary maintainer and original author. I own architecture,
+implementation, issue and PR triage, CI, releases, security response,
+documentation, and the public roadmap.
 
 ## 2a) Positioning for review
 
@@ -24,7 +26,7 @@ do not inflate usage, Stars, or production readiness.
 
 ## 3) Why does this repository qualify? (<=500 chars)
 
-Unified AI System is a public Apache-2.0 AI gateway that gives developers one local-first interface for multi-provider access, natural-language prompt enhancement, routing, observability, SDKs, and MCP/Codex integration. It currently has 3 GitHub stars and 1 fork. Though early-stage, it is actively maintained, credential-free by default, and reproducibly tested from a public clone, lowering the barrier to trustworthy AI tooling.
+Unified AI System is an Apache-2.0, self-hosted OpenAI-compatible AI gateway and MCP server for Codex, Cursor, and Cline. v0.4.9 is reproducibly verified with the official OpenAI JS SDK 7.4.0, public CI, anonymous multi-architecture containers, and the official MCP Registry. It has 3 stars and 1 fork today; its ecosystem value is lowering the barrier to inspectable, credential-free AI tooling.
 
 ## 4) I'm interested in (select all options shown by the form)
 
@@ -41,8 +43,16 @@ Enter the actual Organization ID shown in the OpenAI Platform settings. Do not i
 
 ## 6) How will you use API credits for your project? (<=500 chars)
 
-API credits will fund reproducible provider integration and regression tests; evaluations of prompt enhancement, model routing, tool calling, and streaming; CI checks for SDK/MCP compatibility; and maintainer automation for issue triage, PR review, release notes, and security remediation. I will use scoped test budgets, publish non-sensitive evaluation results, and keep the credential-free fake provider as the default.
+API credits will fund bounded, reproducible interoperability and regression tests for OpenAI-compatible chat, streaming, prompt enhancement, routing, tool calling, and SDK/MCP clients. I will also use Codex for issue triage, PR review, release automation, security remediation, and bilingual maintenance. Tests will use scoped budgets; non-sensitive eval results will be published, while the credential-free fake provider remains the default.
 
 ## 7) Anything else we should know? (<=500 chars)
 
-I am applying as an independent maintainer of an early-stage public project. The repository is Apache-2.0, has public CI, bilingual docs, a credential-free quickstart, an official MCP Registry package, and a documented multi-architecture container review. I welcome verification, security feedback, and measurable milestones. Support will be used for open-source maintenance, not private workloads or unsupported AGI claims.
+I am an independent primary maintainer building this project in public. The repository has Apache-2.0 licensing, bilingual docs, reproducible clean-clone checks, multi-architecture images, a reviewed immutable MCP plugin image, and an official MCP Registry release. Support would be used only for public maintenance and measurable security/quality milestones, not private workloads or unsupported AGI/production claims.
+
+## 8) Verified evidence snapshot (2026-08-10)
+
+- Public repository: `https://github.com/happy520ai/unified-ai-system`
+- Release: `https://github.com/happy520ai/unified-ai-system/releases/tag/v0.4.9`
+- Official MCP Registry: `https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.4.9`
+- Current visible metrics: 3 Stars, 1 fork
+- Do not report a monthly download count until a public package metric is available.
