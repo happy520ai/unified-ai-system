@@ -82,6 +82,9 @@ jobs:
       - name: Prompt enhancement contract fixture
         run: node docs/examples/prompt-enhancement-contract.mjs
 
+      - name: Prompt enhancement evaluation
+        run: pnpm eval:prompt-enhancement -- --json
+
       - name: C# prompt enhancement example
         run: |
           dotnet restore docs/examples/prompt-enhancement.csproj

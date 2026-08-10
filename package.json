@@ -23,6 +23,7 @@
     "notify:indexnow": "node tools/submit-indexnow.mjs",
     "verify:mcp": "pnpm --filter @unified-ai-system/mcp-server test",
     "smoke:mcp": "node ./tools/mcp-smoke.mjs",
+    "eval:prompt-enhancement": "node ./tools/prompt-enhancement-eval.mjs",
     "build": "pnpm -r --if-present build",
     "check": "pnpm -r --if-present check",
     "test": "pnpm -r --if-present test",

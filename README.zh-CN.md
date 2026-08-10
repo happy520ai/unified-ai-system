@@ -117,6 +117,7 @@ Get-Content .\request.txt -Raw |
 | 接入智能体客户端 | [Codex 与 MCP 快速开始](https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.zh-CN.html) | 固定版本 MCP 容器与 9 个可检查工具。 |
 | 选择客户端路径 | [MCP 客户端兼容性矩阵](docs/mcp-client-compatibility.zh-CN.md) | 安装命令、首次检查和明确的证据边界。 |
 | 集成到应用 | [自然语言提示词增强指南](https://happy520ai.github.io/unified-ai-system/prompt-enhancement.zh-CN.html) | CLI、HTTP、SDK、curl、Python 和 JavaScript 路径。 |
+| 检查增强契约 | [无凭据评估](docs/prompt-enhancement.md#prompt-enhancement-evaluation) | 用 8 个代表性案例检查 profile、语言、信号、确定性和零 Provider 调用。 |
 | 排查首次运行问题 | [首次运行排障矩阵](docs/first-run-troubleshooting.zh-CN.md) | 针对不同 Shell 的检查，不暴露凭据。 |
 | 贡献或报告运行结果 | [结构化使用报告](https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml) 或 [入门任务 #106](https://github.com/happy520ai/unified-ai-system/issues/106) | 用户与维护者都能复现的反馈入口。 |
 | 验证 MCP 客户端 | [MCP 客户端报告](https://github.com/happy520ai/unified-ai-system/issues/new?template=mcp-client-report.yml) | 记录一次 Codex、Cursor、Cline 或通用 stdio 客户端运行。 |

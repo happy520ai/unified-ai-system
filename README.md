@@ -107,6 +107,7 @@ language, and proves `providerCalled=false`, `credentialRequired=false`, and
 | Connect an agent client | [Codex and MCP quickstart](https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.html) | A pinned MCP container and nine inspectable tools. |
 | Choose a client path | [MCP compatibility matrix](docs/mcp-client-compatibility.md) | Install commands, first checks, and honest evidence boundaries. |
 | Integrate with an application | [Prompt enhancement guide](https://happy520ai.github.io/unified-ai-system/prompt-enhancement.html) | CLI, HTTP, SDK, curl, Python, and JavaScript paths. |
+| Inspect the enhancement contract | [Credential-free evaluation](docs/prompt-enhancement.md#prompt-enhancement-evaluation) | Eight representative cases for profiles, languages, signals, determinism, and zero provider calls. |
 | Diagnose a first-run problem | [Troubleshooting matrix](docs/first-run-troubleshooting.md) | Shell-specific checks without exposing credentials. |
 | Verify an MCP client | [MCP client report](https://github.com/happy520ai/unified-ai-system/issues/new?template=mcp-client-report.yml) | Record one Codex, Cursor, Cline, or generic stdio run with a small evidence set. |
 | Contribute or report a run | [Usage report](https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml) or [good first issue #106](https://github.com/happy520ai/unified-ai-system/issues/106) | A reproducible feedback path for users and maintainers. |

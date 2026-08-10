@@ -106,6 +106,20 @@ asserting `providerCalled=false`, `credentialRequired=false`, and
 `deterministic=true`. The command makes no network request and exits non-zero if
 the public contract changes unexpectedly.
 
+### Prompt Enhancement Evaluation
+
+Run the repository's broader, credential-free regression baseline:
+
+```bash
+pnpm eval:prompt-enhancement
+```
+
+The evaluation covers representative coding, analysis, planning, writing,
+research, general, English, and Chinese requests. It checks profile and
+language behavior, signal compilation, original-input preservation,
+determinism, and `providerCalls=0`. This is a contract and safety baseline,
+not a claim that every model will produce a better answer.
+
 ### Go Standard Library
 
 The dependency-free Go example performs the same provider-free checks using

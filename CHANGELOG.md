@@ -16,6 +16,12 @@ and the project uses [Semantic Versioning](https://semver.org/).
 - Routed the bilingual Codex MCP quickstarts to the dedicated client report
   flow so client evidence is captured with the right context.
 
+### Verification
+
+- Added `pnpm eval:prompt-enhancement`, a credential-free contract evaluation
+  covering representative profiles, language detection, signal compilation,
+  original-input preservation, determinism, and zero provider calls.
+
 ## [0.4.8] - 2026-08-10
 
 ### Added
