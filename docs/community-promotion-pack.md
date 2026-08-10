@@ -61,7 +61,23 @@ providerCalled=false, credentialRequired=false, and deterministic=true.
 Repo: https://github.com/happy520ai/unified-ai-system
 ```
 
-## 5) Conversion CTA
+## 5) Codex / MCP
+
+```text
+Want to verify the gateway inside Codex?
+
+codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.6
+
+Restart Codex, run /mcp verbose, and confirm the nine published tools. Then
+use gateway_prompt_enhance for a provider-free natural-language test.
+
+Guide: https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.html
+Chinese guide: https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.zh-CN.html
+Usage report: https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml
+Repo: https://github.com/happy520ai/unified-ai-system
+```
+
+## 6) Conversion CTA
 
 ```text
 If this helped you, share one reproducible output line, then:
@@ -73,7 +89,7 @@ If this helped you, share one reproducible output line, then:
 docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.6 pnpm gateway demo "Build a small API for my team" --enhance --profile coding
 ```
 
-## 6) Follow-up Reply
+## 7) Follow-up Reply
 
 ```text
 Thanks for trying it.
@@ -84,7 +100,7 @@ Thanks for trying it.
 Repo: https://github.com/happy520ai/unified-ai-system
 ```
 
-## 7) Directory Submission
+## 8) Directory Submission
 
 For MCP discovery directories, submit only the public repository name, URL,
 and an accurate description. Never include provider keys, `.env` contents,
