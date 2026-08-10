@@ -11,9 +11,13 @@ they are not production certification or a claim of universal safety.
 - [Security policy](../../SECURITY.md)
 - [Provider-free public-clone verification](../getting-started.md#verify)
 
-Use the current release and its published workflow results when evaluating the
-gateway. The versioned reviews below are historical snapshots retained for
+Use the current release, its image review, and its published workflow results
+when evaluating the gateway. Older versioned reviews are retained for
 reproducibility.
+
+## Current review
+
+- [MCP image review 0.4.8](mcp-image-review-0.4.8.md)
 
 ## Historical reviews
 

@@ -58,7 +58,7 @@ const requiredFiles = [
   "docs/examples/shared-sdk-prompt-enhancement.mjs",
   "docs/examples/shared-sdk-cancellation.mjs",
   "docs/examples/prompt-enhancement-contract.mjs",
-  "docs/security/mcp-image-review-0.4.0.md",
+  "docs/security/mcp-image-review-0.4.8.md",
   "docs/d6ce2ffbc1353aa5c0284e1efc2d6d5b66e3d048c764c07f.txt",
   "docs/robots.txt",
   "docs/sitemap.xml",
@@ -182,7 +182,7 @@ if (!/prompt enhancement/i.test(pluginManifest.description ?? "")) {
 
 const pluginMcpArgs = pluginMcpConfig.mcpServers?.["unified-ai-system"]?.args ?? [];
 const expectedPluginImage =
-  "ghcr.io/happy520ai/unified-ai-system/mcp-server@sha256:c185d124d1f672b5cf210a7b7d4c7dbdc907b81a5f7b62fe312a0dc18839e045";
+  "ghcr.io/happy520ai/unified-ai-system/mcp-server@sha256:e405192087d1f8734ea873b56046d87d565947b18c8654426a954880254a90bd";
 for (const [marker, code] of [
   ["--network", "codex_plugin_network_hardening_missing"],
   ["none", "codex_plugin_network_none_missing"],
@@ -197,6 +197,48 @@ for (const [marker, code] of [
 
 if (pluginMcpArgs.some((value) => /\/mcp-server:[^/]+$/.test(value))) {
   addError("codex_plugin_mutable_image_reference", ".mcp.json");
+}
+
+const mcpSmoke = readFileSync(resolve(repoRoot, "tools/mcp-smoke.mjs"), "utf8");
+for (const [marker, code] of [
+  ['"--pull",\n        "never"', "mcp_smoke_pull_never_missing"],
+  ['"--network",\n        "none"', "mcp_smoke_network_none_missing"],
+  ['"--cap-drop",\n        "ALL"', "mcp_smoke_capability_drop_missing"],
+  [
+    '"--security-opt",\n        "no-new-privileges"',
+    "mcp_smoke_no_new_privileges_missing",
+  ],
+]) {
+  if (!mcpSmoke.includes(marker)) addError(code, "tools/mcp-smoke.mjs");
+}
+
+const currentImageReviewPath = "docs/security/mcp-image-review-0.4.8.md";
+const currentImageReview = readFileSync(
+  resolve(repoRoot, currentImageReviewPath),
+  "utf8",
+);
+for (const [marker, code] of [
+  [expectedPluginImage.split("@")[1], "mcp_image_review_index_digest_missing"],
+  [
+    "sha256:d3b34a8d1dbc6cd1c4215a405b0f59e49ccb008500b792e8a7be2f5b805379b3",
+    "mcp_image_review_amd64_manifest_missing",
+  ],
+  [
+    "sha256:77e7196245fe2ad5f94f0dde819fa84ca20a8a89836e35f31e544f3677676f5e",
+    "mcp_image_review_arm64_manifest_missing",
+  ],
+  [
+    "c3f9d044768ceba69101f86ef2bda62275d1b75d",
+    "mcp_image_review_revision_missing",
+  ],
+  [
+    "Credential-like file artifacts under `/app` | `0` | `0`",
+    "mcp_image_review_credential_result_missing",
+  ],
+]) {
+  if (!currentImageReview.includes(marker)) {
+    addError(code, currentImageReviewPath);
+  }
 }
 
 const dockerfile = readFileSync(resolve(repoRoot, "Dockerfile"), "utf8");
@@ -646,11 +688,11 @@ const requiredAgentSkillMarkers = [
   ["gateway_prompt_enhance", "agent_skill_prompt_enhancement_missing"],
   ["production readiness, L5 autonomy, or AGI", "agent_skill_evidence_boundary_missing"],
   [
-    "https://github.com/happy520ai/unified-ai-system/blob/master/docs/security/mcp-image-review-0.4.0.md",
+    "https://github.com/happy520ai/unified-ai-system/blob/master/docs/security/mcp-image-review-0.4.8.md",
     "agent_skill_image_review_link_missing",
   ],
   [
-    "sha256:c185d124d1f672b5cf210a7b7d4c7dbdc907b81a5f7b62fe312a0dc18839e045",
+    "sha256:e405192087d1f8734ea873b56046d87d565947b18c8654426a954880254a90bd",
     "agent_skill_reviewed_image_digest_missing",
   ],
 ];

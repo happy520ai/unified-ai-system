@@ -220,6 +220,9 @@ codex plugin marketplace add happy520ai/unified-ai-system --ref master
 npx skills add happy520ai/unified-ai-system --skill unified-ai-gateway --agent codex --copy --yes
 ```
 
+The plugin pins the [reviewed immutable v0.4.8 MCP image](docs/security/mcp-image-review-0.4.8.md)
+and starts it without container networking or Linux capabilities.
+
 Skill hub: https://skills.sh/happy520ai/unified-ai-system/unified-ai-gateway
 
 For local source work:

@@ -25,6 +25,11 @@ and the project uses [Semantic Versioning](https://semver.org/).
 - Added `pnpm eval:prompt-enhancement`, a credential-free contract evaluation
   covering representative profiles, language detection, signal compilation,
   original-input preservation, determinism, and zero provider calls.
+- Reviewed the published `v0.4.8` MCP image for both Linux architectures and
+  moved the Codex plugin from the historical `v0.4.0` image to the reviewed
+  immutable `v0.4.8` index.
+- Hardened container MCP smoke tests with the same no-network, dropped-
+  capability, and no-new-privileges boundary used by the Codex plugin.
 
 ## [0.4.8] - 2026-08-10
 

@@ -161,6 +161,9 @@ codex plugin marketplace add happy520ai/unified-ai-system --ref master
 npx skills add happy520ai/unified-ai-system --skill unified-ai-gateway --agent codex --copy --yes
 ```
 
+插件固定使用[已审查的 v0.4.8 不可变 MCP 镜像](docs/security/mcp-image-review-0.4.8.md)，
+启动时禁用容器网络并移除 Linux capabilities。
+
 Skill 主页：<https://skills.sh/happy520ai/unified-ai-system/unified-ai-gateway>
 
 ### 从源码运行
