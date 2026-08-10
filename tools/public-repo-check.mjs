@@ -547,6 +547,35 @@ const requiredChineseCodexGuideMarkers = [
   ["生产就绪、L5 自主或 AGI", "chinese_codex_docker_evidence_boundary_missing"],
 ];
 
+for (const [path, page, codePrefix] of [
+  [codexDockerGuidePath, codexDockerGuide, "codex_docker"],
+  [chineseCodexDockerGuidePath, chineseCodexDockerGuide, "chinese_codex_docker"],
+]) {
+  const articleModifiedTime = page.match(
+    /<meta property="article:modified_time" content="([^"]+)"/,
+  )?.[1];
+  const structuredModifiedDate = page.match(
+    /"dateModified":\s*"(\d{4}-\d{2}-\d{2})"/,
+  )?.[1];
+  if (!articleModifiedTime) {
+    addError(`${codePrefix}_modified_time_missing`, path);
+  }
+  if (!structuredModifiedDate) {
+    addError(`${codePrefix}_structured_modified_date_missing`, path);
+  }
+  if (
+    articleModifiedTime &&
+    structuredModifiedDate &&
+    articleModifiedTime.slice(0, 10) !== structuredModifiedDate
+  ) {
+    addError(
+      `${codePrefix}_modified_time_mismatch`,
+      path,
+      `${articleModifiedTime} != ${structuredModifiedDate}`,
+    );
+  }
+}
+
 for (const [marker, code] of requiredChineseCodexGuideMarkers) {
   if (!chineseCodexDockerGuide.includes(marker)) {
     addError(code, chineseCodexDockerGuidePath);
