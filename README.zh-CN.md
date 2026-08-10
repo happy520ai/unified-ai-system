@@ -69,7 +69,8 @@ printf '%s' "帮我规划一个小型 API 的发布" \
 
 这条命令仍使用一次性的本地 fake provider，输出结果后自动退出。
 
-**自然语言增强会补充什么：**
+<details>
+<summary>查看自然语言增强会补充什么</summary>
 
 - `planning`：里程碑、依赖、风险、负责人和完成信号。
 - `coding`：兼容性边界、错误路径、可运行修改和验证方法。
@@ -77,8 +78,6 @@ printf '%s' "帮我规划一个小型 API 的发布" \
 
 每次预览都会保留原始请求，并在 metadata 中报告
 `providerCalled=false` 和 `deterministic=true`。
-
-## 先看实际变化
 
 一条简短需求会在不调用 provider 的情况下，变成更容易检查和执行的起点：
 
@@ -99,6 +98,7 @@ printf '%s' "帮我规划一个小型 API 的发布" \
 
 完整预览会保留原始措辞，报告 profile 和语言，并证明
 `providerCalled=false`、`credentialRequired=false`、`deterministic=true`。
+</details>
 
 ## 选择入口
 

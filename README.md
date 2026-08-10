@@ -64,7 +64,8 @@ deterministic `execution: fake`, and exits cleanly. If that is useful to your
 workflow, [star the repository](https://github.com/happy520ai/unified-ai-system)
 and [share one reproducible result](https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml&title=%5BUsage%20Report%5D%20Quickstart).
 
-**What enhancement adds:**
+<details>
+<summary>See what prompt enhancement adds</summary>
 
 - `planning`: milestones, dependencies, risks, owners, and completion signals.
 - `coding`: compatibility boundaries, error paths, runnable changes, and verification.
@@ -72,8 +73,6 @@ and [share one reproducible result](https://github.com/happy520ai/unified-ai-sys
 
 Every preview preserves the original request and reports `providerCalled=false`
 and `deterministic=true` in its metadata.
-
-## See the Difference
 
 One short request becomes a more inspectable starting point without calling a
 provider:
@@ -96,6 +95,7 @@ Enhanced prompt (excerpt):
 The full preview preserves the original wording, reports its profile and
 language, and proves `providerCalled=false`, `credentialRequired=false`, and
 `deterministic=true`.
+</details>
 
 ## Choose Your First Path
 
