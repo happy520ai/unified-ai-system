@@ -150,7 +150,10 @@ It targets .NET 8 or newer and requires no NuGet package or provider key.
 
 Supported profiles are `auto`, `general`, `coding`, `analysis`, `writing`,
 `research`, and `planning`. Supported language settings are `auto`, `zh-CN`,
-and `en`. Input is limited to 20,000 characters.
+and `en`. In `auto` mode, an explicit output-language request such as
+`Please answer in Chinese` or `请用英文回答` takes precedence over character-based
+language detection. An explicit API or CLI `language` value remains authoritative.
+Input is limited to 20,000 characters.
 
 ## Opt In For Chat
 

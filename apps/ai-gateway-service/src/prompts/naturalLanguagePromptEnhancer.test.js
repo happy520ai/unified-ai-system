@@ -121,6 +121,43 @@ describe("natural-language prompt enhancer", () => {
     expect(detectProfile("Hello there")).toBe("general");
   });
 
+  it.each([
+    ["Please answer in Chinese with a short checklist.", "zh-CN", "# 任务"],
+    ["Translate this release note into Chinese.", "zh-CN", "# 任务"],
+    ["请用英文回答，并保留 API 名称。", "en", "# Task"],
+    ["把这份发布说明翻译成英文。", "en", "# Task"],
+  ])("honors explicit output-language intent in auto mode", (input, language, heading) => {
+    const result = enhanceNaturalLanguagePrompt({ input });
+
+    expect(result.original).toBe(input);
+    expect(result.language).toBe(language);
+    expect(result.enhancedPrompt).toContain(heading);
+    expect(result.metadata).toMatchObject({
+      providerCalled: false,
+      originalPreserved: true,
+      deterministic: true,
+    });
+  });
+
+  it("keeps an explicit language option authoritative", () => {
+    const result = enhanceNaturalLanguagePrompt({
+      input: "Please answer in Chinese.",
+      language: "en",
+    });
+
+    expect(result.language).toBe("en");
+    expect(result.enhancedPrompt).toContain("# Task");
+  });
+
+  it.each([
+    ["Use Chinese fonts in the landing page.", "en"],
+    ["Write an essay in Chinese history.", "en"],
+    ["比较英文和中文字体的可读性。", "zh-CN"],
+    ["制作一个翻译成英文教程的示例。", "zh-CN"],
+  ])("does not treat a language name as output intent without a boundary", (input, language) => {
+    expect(detectLanguage(input)).toBe(language);
+  });
+
   it("rejects empty, oversized, and unsupported requests", () => {
     expect(() => enhanceNaturalLanguagePrompt({ input: "   " })).toThrowError(
       /non-empty input string/,

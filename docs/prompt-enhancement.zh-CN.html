@@ -239,6 +239,11 @@ node docs/examples/shared-sdk-prompt-enhancement.mjs "帮我为团队设计一�
             <p>
               如果不想启动网关，也可以运行<a href="https://github.com/happy520ai/unified-ai-system/blob/master/docs/examples/shared-sdk-cancellation.mjs">本地回环取消示例</a>，查看调用方取消与 SDK <code>TimeoutError</code> 原因的区别。
             </p>
+            <p>
+              在 <code>auto</code> 模式下，<code>Please answer in Chinese</code>
+              或<code>请用英文回答</code>这类明确的输出语言要求会优先于字符比例检测；
+              如果 API 或 CLI 已传入 <code>language</code>，仍以显式参数为准。
+            </p>
             <div class="article-boundary-list">
               <div><strong>Profiles</strong><span>general、coding、analysis、writing、research、planning</span></div>
               <div><strong>语言</strong><span>auto、zh-CN、en</span></div>

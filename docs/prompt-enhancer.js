@@ -66,6 +66,27 @@ const SIGNAL_PATTERNS = Object.freeze({
   environment: /\b(node|browser|windows|linux|macos|docker|cloud|framework|version|runtime)\b|运行环境|框架|版本|浏览器|系统|容器/i,
 });
 
+const REQUESTED_LANGUAGE_PATTERNS = Object.freeze([
+  {
+    language: "zh-CN",
+    patterns: [
+      /\b(?:answer|reply|respond|write|output|return|provide|produce|render|translate)(?:\s+\w+){0,3}\s+(?:in|into)\s+(?:simplified\s+|traditional\s+)?chinese\b(?=\s*(?:[,.!?;:]|$|\b(?:with|and|using|while|but)\b))/i,
+      /\b(?:use|using)\s+(?:simplified\s+|traditional\s+)?chinese\b(?=\s*(?:[,.!?;:]|$))/i,
+      /(?:请|请你)?(?:用|使用|以)(?:简体中文|繁体中文|中文)(?:回答|回复|输出|撰写|说明|作答)?(?=\s*(?:[，,。.!！?？；;：:]|$))/,
+      /(?:翻译|改写)(?:成|为)(?:简体中文|繁体中文|中文)(?=\s*(?:[，,。.!！?？；;：:]|$))/,
+    ],
+  },
+  {
+    language: "en",
+    patterns: [
+      /\b(?:answer|reply|respond|write|output|return|provide|produce|render|translate)(?:\s+\w+){0,3}\s+(?:in|into)\s+english\b(?=\s*(?:[,.!?;:]|$|\b(?:with|and|using|while|but)\b))/i,
+      /\b(?:use|using)\s+english\b(?=\s*(?:[,.!?;:]|$))/i,
+      /(?:请|请你)?(?:用|使用|以)(?:英语|英文)(?:回答|回复|输出|撰写|说明|作答)?(?=\s*(?:[，,。.!！?？；;：:]|$))/,
+      /(?:翻译|改写)(?:成|为)(?:英语|英文)(?=\s*(?:[，,。.!！?？；;：:]|$))/,
+    ],
+  },
+]);
+
 export function enhanceNaturalLanguagePrompt(request) {
   const normalized = normalizeEnhancementRequest(request);
   const language = normalized.language === "auto"
@@ -175,6 +196,11 @@ export function normalizeEnhancementRequest(request) {
 }
 
 export function detectLanguage(input) {
+  const requestedLanguage = REQUESTED_LANGUAGE_PATTERNS.find(({ patterns }) =>
+    patterns.some((pattern) => pattern.test(input))
+  )?.language;
+  if (requestedLanguage) return requestedLanguage;
+
   const cjkCount = (input.match(/[\u3400-\u9fff]/g) ?? []).length;
   const latinCount = (input.match(/[A-Za-z]/g) ?? []).length;
   return cjkCount > 0 && cjkCount >= latinCount * 0.2 ? "zh-CN" : "en";

@@ -271,6 +271,12 @@ node docs/examples/shared-sdk-prompt-enhancement.mjs "Help me plan a small API f
               <a href="https://github.com/happy520ai/unified-ai-system/blob/master/docs/examples/shared-sdk-cancellation.mjs">loopback cancellation example</a>.
               It distinguishes caller cancellation from the SDK's <code>TimeoutError</code> cause.
             </p>
+            <p>
+              In <code>auto</code> mode, explicit instructions such as
+              <code>Please answer in Chinese</code> or <code>请用英文回答</code>
+              take precedence over character-based language detection. A
+              supplied API or CLI <code>language</code> value still wins.
+            </p>
             <div class="article-boundary-list">
               <div><strong>Profiles</strong><span>general, coding, analysis, writing, research, planning</span></div>
               <div><strong>Languages</strong><span>auto, zh-CN, en</span></div>
