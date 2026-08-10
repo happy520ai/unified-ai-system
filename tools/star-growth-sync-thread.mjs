@@ -21,6 +21,7 @@ const pipeCommand =
   "cat request.txt | pnpm gateway enhance --profile auto --json";
 const dockerPipeCommand =
   "printf '%s' \"Plan a launch for a small API\" | docker run --rm -i ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.8 pnpm --silent gateway demo --enhance --profile planning --language en --json";
+const evaluationCommand = "pnpm eval:prompt-enhancement -- --json";
 const managedCommentMarker = "<!-- unified-ai-system-growth-thread -->";
 
 function run(cmd) {
@@ -108,6 +109,12 @@ function buildCommentBody(metrics) {
     "```",
     dockerPipeCommand,
     "```",
+    "",
+    "Credential-free enhancement contract baseline:",
+    "```",
+    evaluationCommand,
+    "```",
+    "This checks eight representative English/Chinese cases, signal compilation, determinism, original-input preservation, and zero provider calls.",
     "",
     "Minimum Usage Report context:",
     "- command and 3-12 output lines",
