@@ -22,6 +22,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 - Added a Node MCP SDK test-host row to the bilingual compatibility matrix,
   separating protocol integration evidence from client-specific certification.
+- Updated the bilingual README first-run commands to emit shareable evidence
+  packets by default.
 
 ## [0.4.7] - 2026-08-10
 

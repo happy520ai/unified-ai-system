@@ -53,11 +53,11 @@ provider 边界和以证据为中心的验证。
 **最快验证方式，无需账号：**
 
 ```bash
-docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.7 pnpm gateway demo "帮我为团队设计一个小型 API" --enhance --profile coding
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.7 pnpm gateway demo "帮我为团队设计一个小型 API" --enhance --profile coding --evidence
 ```
 
 命令会保留原始请求、输出结构化 coding 提示词、报告确定性的
-`execution: fake` 结果并自动退出。如果它对你的工作流有帮助，欢迎[给仓库点 Star](https://github.com/happy520ai/unified-ai-system)，并通过[使用验证模板分享一行可复现结果](https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml&title=%5BUsage%20Report%5D%20Quickstart)。
+`execution: fake` 结果，生成可分享的证据包并自动退出。如果它对你的工作流有帮助，欢迎[给仓库点 Star](https://github.com/happy520ai/unified-ai-system)，并通过[使用验证模板分享一行可复现结果](https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml&title=%5BUsage%20Report%5D%20Quickstart)。
 
 也可以不克隆仓库，直接把自然语言请求管道传入已发布镜像：
 
