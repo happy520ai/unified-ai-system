@@ -7,6 +7,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.4.9] - 2026-08-10
+
 ### Added
 
 - Added `GET /v1/models` and `POST /v1/chat/completions` as a focused
@@ -14,6 +16,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
   standard error envelopes, visible execution metadata, and optional local
   prompt enhancement.
 - Added public protocol types and bilingual OpenAI SDK integration guides.
+- Added a credential-free end-to-end example that verifies the gateway with
+  the official OpenAI JavaScript SDK `7.4.0`.
 
 ### Changed
 
@@ -22,6 +26,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
   current ToolSDK and awesome-ai-gateway submissions.
 - Replaced status-only PR follow-up advice with a contributor-safe policy:
   answer technical feedback, but do not repeatedly ping waiting maintainers.
+- Aligned source development and full verification on Node.js 22, matching the
+  existing CI and container runtime.
 
 ### Documentation
 
@@ -51,6 +57,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
   immutable `v0.4.8` index.
 - Hardened container MCP smoke tests with the same no-network, dropped-
   capability, and no-new-privileges boundary used by the Codex plugin.
+- Added official-SDK checks for source, locally built container, and anonymously
+  pulled published-image paths, including structured 400 error verification.
 
 ## [0.4.8] - 2026-08-10
 
@@ -385,7 +393,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 - It is not presented as production-certified, L5 autonomous, or established
   AGI. Those claims require independent evidence beyond local verification.
 
-[Unreleased]: https://github.com/happy520ai/unified-ai-system/compare/v0.4.8...HEAD
+[Unreleased]: https://github.com/happy520ai/unified-ai-system/compare/v0.4.9...HEAD
+[0.4.9]: https://github.com/happy520ai/unified-ai-system/compare/v0.4.8...v0.4.9
 [0.4.8]: https://github.com/happy520ai/unified-ai-system/compare/v0.4.7...v0.4.8
 [0.4.7]: https://github.com/happy520ai/unified-ai-system/compare/v0.4.6...v0.4.7
 [0.4.6]: https://github.com/happy520ai/unified-ai-system/compare/v0.4.5...v0.4.6

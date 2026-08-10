@@ -29,6 +29,10 @@ repository does not operate a public hosted gateway.
 
 ## JavaScript SDK
 
+The credential-free verifier runs this surface through the official OpenAI
+JavaScript SDK `7.4.0`, including model listing, regular and streaming Chat
+Completions, the prompt-enhancement extension, and structured errors.
+
 ```bash
 npm install openai
 ```
@@ -48,6 +52,12 @@ const completion = await client.chat.completions.create({
 
 console.log(completion.choices[0].message.content);
 console.log(completion.unified_ai);
+```
+
+Run the same checked example against a local gateway:
+
+```bash
+node docs/examples/openai-sdk-chat.mjs
 ```
 
 When enterprise authentication is enabled, use its scoped bearer token as
@@ -144,6 +154,6 @@ and gateway request ID. This metadata makes fake and real execution visible.
 pnpm verify:public-clone
 ```
 
-The verifier starts an isolated gateway, exercises model listing, regular and
-streaming Chat Completions, checks prompt enhancement, confirms fake-provider
-execution, and terminates the service process.
+The verifier starts an isolated gateway, exercises the protocol directly and
+through the official OpenAI JavaScript SDK `7.4.0`, confirms fake-provider
+execution, checks structured errors, and terminates the service process.

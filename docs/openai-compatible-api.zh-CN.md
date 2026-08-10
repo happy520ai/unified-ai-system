@@ -26,6 +26,9 @@ pnpm gateway serve
 
 ## JavaScript SDK
 
+无凭据验证器会使用官方 OpenAI JavaScript SDK `7.4.0` 运行这组接口，覆盖模型列表、
+普通与流式 Chat Completions、提示词增强扩展和结构化错误。
+
 ```bash
 npm install openai
 ```
@@ -45,6 +48,12 @@ const completion = await client.chat.completions.create({
 
 console.log(completion.choices[0].message.content);
 console.log(completion.unified_ai);
+```
+
+可以对本地网关直接运行同一个受检示例：
+
+```bash
+node docs/examples/openai-sdk-chat.mjs
 ```
 
 启用企业鉴权后，把作用域受限的 Bearer Token 作为 `apiKey`。客户端不需要
@@ -138,5 +147,5 @@ curl http://127.0.0.1:3100/v1/chat/completions \
 pnpm verify:public-clone
 ```
 
-验证器会启动隔离网关，执行模型列表、普通与流式 Chat Completions、提示词
-增强检查，确认使用 fake provider，并在结束后关闭服务进程。
+验证器会启动隔离网关，直接并通过官方 OpenAI JavaScript SDK `7.4.0` 执行协议检查，
+确认使用 fake provider、检查结构化错误，并在结束后关闭服务进程。

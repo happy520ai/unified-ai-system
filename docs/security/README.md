@@ -6,14 +6,14 @@ they are not production certification or a claim of universal safety.
 
 ## Current entry points
 
-- [Current release v0.4.8](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.4.8)
+- [Current release v0.4.9](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.4.9)
 - [Latest CI and container checks](https://github.com/happy520ai/unified-ai-system/actions)
 - [Security policy](../../SECURITY.md)
 - [Provider-free public-clone verification](../getting-started.md#verify)
 
-Use the current release, its image review, and its published workflow results
-when evaluating the gateway. Older versioned reviews are retained for
-reproducibility.
+Use the current release workflow and the latest available image review when
+evaluating the gateway. The Codex plugin remains pinned to the reviewed
+immutable `0.4.8` image until a newer image review is published.
 
 ## Current review
 

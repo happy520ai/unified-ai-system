@@ -184,6 +184,8 @@ jobs:
           console.log(JSON.stringify(checks));
           if (!Object.values(checks).every(Boolean)) process.exit(1);
           NODE
+          AI_GATEWAY_SERVICE_URL="${SMOKE_BASE_URL}" \
+            node docs/examples/openai-sdk-chat.mjs
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4
@@ -255,7 +257,11 @@ jobs:
         run: |
           set -euo pipefail
           anonymous_config="$(mktemp -d)"
+          container_id=""
           cleanup() {
+            if [ -n "${container_id}" ]; then
+              docker rm --force "${container_id}" >/dev/null 2>&1 || true
+            fi
             rm -rf "${anonymous_config}"
           }
           trap cleanup EXIT
@@ -289,6 +295,25 @@ jobs:
           node tools/mcp-smoke.mjs \
             --docker-image="${mcp_image}" \
             --json
+          container_id="$(docker run --detach \
+            --publish 127.0.0.1::3100 \
+            --env AI_GATEWAY_PROVIDER_MODE=fake \
+            --env AI_GATEWAY_REAL_PROVIDER_ENABLED=false \
+            "${image}")"
+          host_port="$(docker port "${container_id}" 3100/tcp | sed 's/.*://')"
+          published_base_url="http://127.0.0.1:${host_port}"
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent "${published_base_url}/health/check" >/dev/null; then
+              break
+            fi
+            if [ "${attempt}" -eq 30 ]; then
+              docker logs "${container_id}"
+              exit 1
+            fi
+            sleep 1
+          done
+          AI_GATEWAY_SERVICE_URL="${published_base_url}" \
+            node docs/examples/openai-sdk-chat.mjs
 
       - name: Install MCP Registry publisher
         if: startsWith(github.ref, 'refs/tags/v')

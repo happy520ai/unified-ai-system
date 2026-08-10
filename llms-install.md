@@ -14,7 +14,7 @@ does not require a provider API key.
 Run exactly this command:
 
 ```bash
-cline mcp install unified-ai-system --yes --json -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.8
+cline mcp install unified-ai-system --yes --json -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.9
 ```
 
 A successful installation returns JSON with:
@@ -30,7 +30,7 @@ A successful installation returns JSON with:
       "run",
       "--rm",
       "-i",
-      "ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.8"
+      "ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.9"
     ]
   },
   "warnings": []
@@ -63,7 +63,7 @@ If the first connection takes too long while Docker downloads the image, pull
 it once and reconnect:
 
 ```bash
-docker pull ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.8
+docker pull ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.9
 ```
 
 To remove the server, run `cline mcp`, choose **Delete server**, and select

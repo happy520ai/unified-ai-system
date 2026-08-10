@@ -56,6 +56,7 @@ const requiredFiles = [
   "docs/examples/prompt-enhancement.cs",
   "docs/examples/prompt-enhancement.csproj",
   "docs/examples/shared-sdk-prompt-enhancement.mjs",
+  "docs/examples/openai-sdk-chat.mjs",
   "docs/examples/shared-sdk-cancellation.mjs",
   "docs/examples/prompt-enhancement-contract.mjs",
   "docs/security/mcp-image-review-0.4.8.md",

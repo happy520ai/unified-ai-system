@@ -1,6 +1,6 @@
 {
   "name": "unified-ai-system",
-  "version": "0.4.8",
+  "version": "0.4.9",
   "private": true,
   "license": "Apache-2.0",
   "repository": {
@@ -36,7 +36,7 @@
     "growth:feedback": "node ./tools/star-growth-feedback.mjs --output .tmp/growth/star-growth-feedback.md"
   },
   "engines": {
-    "node": ">=20",
+    "node": ">=22",
     "pnpm": ">=9"
   },
   "pnpm": {
@@ -48,6 +48,7 @@
     }
   },
   "devDependencies": {
+    "openai": "7.4.0",
     "vitest": "^4.1.10"
   }
 }

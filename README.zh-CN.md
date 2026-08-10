@@ -23,7 +23,7 @@
   <a href="https://github.com/happy520ai/unified-ai-system/releases/latest">
     <img alt="Release" src="https://img.shields.io/github/v/release/happy520ai/unified-ai-system?style=flat-square" />
   </a>
-  <a href="https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.4.8">
+  <a href="https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.4.9">
     <img alt="Official MCP Registry" src="https://img.shields.io/badge/Official_MCP_Registry-active-1f883d?style=flat-square" />
   </a>
   <a href="LICENSE">
@@ -55,7 +55,7 @@ API Key，也不会调用 provider。
 也可以用已发布容器运行同一条验证：
 
 ```bash
-docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.8 pnpm gateway demo "帮我为团队设计一个小型 API" --enhance --profile coding --evidence
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.9 pnpm gateway demo "帮我为团队设计一个小型 API" --enhance --profile coding --evidence
 ```
 
 证据会确认原始请求被保留、结果具有确定性，并显示
@@ -93,7 +93,7 @@ docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.8 pn
 无需登录，直接验证发布镜像：
 
 ```bash
-docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.8 pnpm gateway demo
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.9 pnpm gateway demo
 ```
 
 你将看到：
@@ -107,7 +107,7 @@ docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.8 pn
 用一条命令体验自然语言增强：
 
 ```bash
-docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.8 \
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.9 \
   pnpm gateway demo "帮我为团队设计一个小型 API" --enhance --profile coding --evidence
 ```
 
@@ -165,6 +165,13 @@ const result = await client.chat.completions.create({
 console.log(result.choices[0].message.content);
 ```
 
+无凭据门禁使用官方 OpenAI JavaScript SDK `7.4.0` 验证这条路径。源码网关运行时，
+可以直接复现：
+
+```bash
+node docs/examples/openai-sdk-chat.mjs
+```
+
 这个聚焦的兼容层支持文本完成、流式响应、模型列表和可选的本地提示词增强。
 Python 示例、支持字段、鉴权方式和明确限制见
 [OpenAI 兼容 API 指南](docs/openai-compatible-api.zh-CN.md)。
@@ -174,7 +181,7 @@ Python 示例、支持字段、鉴权方式和明确限制见
 直接添加已发布的 MCP 镜像：
 
 ```bash
-codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.8
+codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.9
 ```
 
 重启 Codex 后运行 `/mcp` 检查连接，再参考 [Codex MCP 60 秒快速开始](https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.zh-CN.html)。
@@ -204,7 +211,7 @@ pnpm verify:public-clone
 pnpm gateway demo
 ```
 
-Node.js 20 或更高版本受支持，Node.js 22 是依赖兼容性更广的推荐版本。
+源码开发和完整验证需要 Node.js 22 或更高版本；Docker 快速路径不需要本地 Node.js。
 
 如果不想配置本地环境，可以直接使用 [GitHub Codespaces](https://codespaces.new/happy520ai/unified-ai-system?quickstart=1)。工作区准备完成后先运行一条命令查看结果：
 
@@ -301,8 +308,8 @@ Get-Content .\request.txt -Raw |
 
 ## 项目链接
 
-- [官方 MCP Registry 条目](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.4.8)
-- [Release v0.4.8](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.4.8)
+- [官方 MCP Registry 条目](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.4.9)
+- [Release v0.4.9](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.4.9)
 - [Codex MCP Server README](packages/mcp-server/README.md)
 - [Roadmap](ROADMAP.md)
 - [Vision](VISION.md)
