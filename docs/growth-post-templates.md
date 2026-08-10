@@ -56,6 +56,23 @@ is deterministic and provider-free before printing JSON.
 Repo: https://github.com/happy520ai/unified-ai-system
 ```
 
+## Shell Pipeline (English)
+
+```text
+Already have requests in files or shell pipelines?
+
+Start the gateway, then pass a request without putting it in shell arguments:
+
+cat request.txt | pnpm gateway enhance --profile auto --json
+
+PowerShell:
+Get-Content .\request.txt -Raw | pnpm gateway enhance --profile auto --json
+
+The original request stays visible and the local response remains deterministic
+and provider-free.
+Repo: https://github.com/happy520ai/unified-ai-system
+```
+
 ## 6) C# / .NET 标准库入口（中文）
 
 ```text
