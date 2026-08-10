@@ -31,6 +31,41 @@ public product tree.
    for an independent community report.
 5. Turn one repeated pain point into a repo improvement.
 
+## Zero-Budget Human Test Loop
+
+Use this loop before submitting to another directory or publishing another
+announcement. It is designed to measure real use, not automated discovery
+traffic.
+
+1. Choose one audience and one concrete promise, such as “turn a rough request
+   into a reviewable coding prompt in 60 seconds.”
+2. Invite ten people who plausibly have that problem. Ask for one actual run,
+   not a Star or a repost.
+3. Count a tester only when they complete the browser Prompt Lab or the
+   provider-free Docker demo and can report the operating system plus one
+   observed result.
+4. After a successful run, invite the tester to Star the repo and share the
+   reproducible result. Never present a directory submission, clone, or bot
+   visit as user adoption.
+5. If ten invitations produce no runs, revise the audience or message before
+   changing product code. If three people report the same friction, fix that
+   friction and publish the verification command.
+
+Suggested first message:
+
+```text
+Could you run this once and tell me whether the output is useful on your OS?
+It needs no API key and exits after the local verification:
+
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.9 pnpm gateway demo "Build a small API for my team" --enhance --profile coding --evidence
+
+I am looking for one real result, not a promotional repost.
+```
+
+Track only four numbers for this loop: invitations, completed runs, useful
+feedback reports, and external Stars. Keep the snapshot outside the public
+product tree.
+
 ## What To Keep Visible
 
 - The 60-second command
