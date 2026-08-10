@@ -244,11 +244,14 @@ for (const path of versionedPublicEntryPoints) {
 
 for (const path of ["docs/index.html", "docs/index.zh-CN.html"]) {
   const content = readFileSync(resolve(repoRoot, path), "utf8");
-  if (!content.includes('pnpm gateway demo "')) {
+  if (!/pnpm (?:--silent )?gateway demo \"/.test(content)) {
     addError("public_home_demo_input_missing", path);
   }
   if (!content.includes("--enhance --profile coding --json")) {
     addError("public_home_demo_flags_missing", path);
+  }
+  if (!content.includes("pnpm --silent gateway demo")) {
+    addError("public_home_demo_machine_readable_missing", path);
   }
 }
 

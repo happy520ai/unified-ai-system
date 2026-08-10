@@ -303,6 +303,26 @@ test("demo can enhance a prompt in one isolated fake-provider run", async () => 
   assert.match(output.promptEnhancement.enhancedPrompt, /执行要求/);
 });
 
+test("demo accepts a prompt from stdin when no positional prompt is supplied", async () => {
+  const result = await runCliProcess([
+    "demo",
+    "--enhance",
+    "--profile",
+    "planning",
+    "--language",
+    "en",
+    "--json",
+  ], "Plan a launch\n");
+
+  assert.equal(result.code, 0, result.stderr);
+  const output = JSON.parse(result.stdout);
+  assert.equal(output.executionMode, "fake");
+  assert.equal(output.prompt, "Plan a launch");
+  assert.equal(output.promptEnhancement.original, "Plan a launch");
+  assert.equal(output.promptEnhancement.profile, "planning");
+  assert.equal(output.promptEnhancement.metadata.providerCalled, false);
+});
+
 test("demo can emit report-ready evidence without changing fake execution", async () => {
   const result = await runCliProcess([
     "demo",
