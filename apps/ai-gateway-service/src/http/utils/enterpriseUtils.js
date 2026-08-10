@@ -333,7 +333,7 @@ export function resolvePermission(method, pathname) {
     pathname === "/cache/audit" ||
     pathname === "/routing/answer-path/preview" ||
     pathname === "/routing/quality-cost/preview" ||
-    (method === "GET" && (pathname === "/codex-handoff/next-task" || pathname === "/codex-loop/status"))
+    (method === "GET" && (pathname === "/codex-handoff/next-task" || pathname === "/codex-loop/status" || pathname === "/v1/models"))
   ) {
     return "provider:read";
   }
@@ -389,7 +389,7 @@ export function resolvePermission(method, pathname) {
     return "workflow:run";
   }
 
-  if (pathname === "/prompts/enhance" || pathname === "/chat" || pathname === "/chat/stream" || pathname === "/chat/rag" || pathname === "/chat/rag/stream" || pathname === "/route" || pathname === "/gateway/route" || pathname === "/gateway/mock") {
+  if (pathname === "/prompts/enhance" || pathname === "/v1/chat/completions" || pathname === "/chat" || pathname === "/chat/stream" || pathname === "/chat/rag" || pathname === "/chat/rag/stream" || pathname === "/route" || pathname === "/gateway/route" || pathname === "/gateway/mock") {
     return "chat:use";
   }
 

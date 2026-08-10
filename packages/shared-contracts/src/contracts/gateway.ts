@@ -210,3 +210,107 @@ export interface GatewayResponse {
 
 export type GatewayResult = GatewayRouteResult;
 export type GatewayChatResult = GatewayRouteResult;
+
+export type OpenAiCompatibleMessageRole = "developer" | "system" | "user" | "assistant";
+
+export interface OpenAiCompatibleTextPart {
+  type: "text";
+  text: string;
+}
+
+export interface OpenAiCompatibleMessage {
+  role: OpenAiCompatibleMessageRole;
+  content: string | OpenAiCompatibleTextPart[];
+  name?: string;
+}
+
+export interface OpenAiCompatibleExtension {
+  provider_id?: string;
+  prompt_enhancement?: boolean | PromptEnhancementOptions;
+}
+
+export interface OpenAiCompatibleChatCompletionRequest {
+  model: string;
+  messages: OpenAiCompatibleMessage[];
+  stream?: boolean;
+  temperature?: number;
+  top_p?: number;
+  max_tokens?: number;
+  max_completion_tokens?: number;
+  stop?: string | string[];
+  n?: 1;
+  response_format?: { type: "text" };
+  unified_ai?: OpenAiCompatibleExtension;
+}
+
+export interface OpenAiCompatibleUsage {
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+}
+
+export interface OpenAiCompatibleMetadata {
+  request_id: string | null;
+  selected_provider: string | null;
+  selected_model: string | null;
+  execution_mode: GatewayExecutionMode | null;
+  execution_status: GatewayExecutionStatus | null;
+  prompt_enhancement?: PromptEnhancementSummary;
+}
+
+export interface OpenAiCompatibleChatCompletion {
+  id: string;
+  object: "chat.completion";
+  created: number;
+  model: string;
+  choices: Array<{
+    index: number;
+    message: { role: "assistant"; content: string };
+    logprobs: null;
+    finish_reason: "stop" | "length" | "content_filter" | "tool_calls";
+  }>;
+  usage: OpenAiCompatibleUsage;
+  system_fingerprint: null;
+  unified_ai: OpenAiCompatibleMetadata;
+}
+
+export interface OpenAiCompatibleChatCompletionChunk {
+  id: string;
+  object: "chat.completion.chunk";
+  created: number;
+  model: string;
+  choices: Array<{
+    index: number;
+    delta: { role?: "assistant"; content?: string };
+    logprobs: null;
+    finish_reason: "stop" | null;
+  }>;
+  system_fingerprint: null;
+  unified_ai: OpenAiCompatibleMetadata;
+}
+
+export interface OpenAiCompatibleModel {
+  id: string;
+  object: "model";
+  created: number;
+  owned_by: string;
+  unified_ai: {
+    provider_id: string;
+    provider_type: string;
+    execution_mode: "fake" | "real";
+  };
+}
+
+export interface OpenAiCompatibleModelList {
+  object: "list";
+  data: OpenAiCompatibleModel[];
+}
+
+export interface OpenAiCompatibleErrorResponse {
+  error: {
+    message: string;
+    type: "authentication_error" | "invalid_request_error" | "rate_limit_error" | "api_error";
+    param: string | null;
+    code: string;
+  };
+}

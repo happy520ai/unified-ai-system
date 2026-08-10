@@ -166,6 +166,11 @@ import {
   dispatchHttpRouteGroups,
 } from "./httpRouteDispatch.js";
 import { dispatchPromptEnhancementRoutes } from "./promptEnhancementRoutes.js";
+import {
+  createOpenAiError,
+  dispatchOpenAiCompatibilityRoutes,
+  isOpenAiCompatibilityRoute,
+} from "./openAiCompatibilityRoutes.js";
 import { dispatchHttpRoutes01 } from "./httpServerRoutes01.js";
 import { dispatchHttpRoutes02 } from "./httpServerRoutes02.js";
 import { dispatchHttpRoutes03 } from "./httpServerRoutes03.js";
@@ -199,6 +204,7 @@ const HTTP_ROUTE_DEPENDENCIES = Object.freeze({
 });
 const HTTP_ROUTE_GROUPS = Object.freeze([
   dispatchPromptEnhancementRoutes,
+  dispatchOpenAiCompatibilityRoutes,
   dispatchHttpRoutes01,
   dispatchHttpRoutes02,
   dispatchHttpRoutes03,
@@ -287,13 +293,20 @@ export function createGatewayHttpServer(application) {
           code: enterpriseDecision.code,
           identity: enterpriseDecision.identity,
         });
+        const authError = {
+          code: enterpriseDecision.code ?? "enterprise_auth_required",
+          message: enterpriseDecision.message ?? "Enterprise authorization failed.",
+          category: "auth",
+        };
         writeJson(
           response,
           enterpriseDecision.statusCode ?? 401,
-          createErrorEnvelope(enterpriseDecision.code ?? "enterprise_auth_required", enterpriseDecision.message ?? "Enterprise authorization failed.", {
-            startedAt,
-            category: "auth",
-          }),
+          isOpenAiCompatibilityRoute(url.pathname)
+            ? createOpenAiError(authError)
+            : createErrorEnvelope(authError.code, authError.message, {
+                startedAt,
+                category: authError.category,
+              }),
         );
         return;
       }

@@ -7,6 +7,14 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Added `GET /v1/models` and `POST /v1/chat/completions` as a focused
+  OpenAI-compatible inbound API with text completions, data-only SSE streaming,
+  standard error envelopes, visible execution metadata, and optional local
+  prompt enhancement.
+- Added public protocol types and bilingual OpenAI SDK integration guides.
+
 ### Changed
 
 - Made the growth dashboard distinguish merged directory submissions from
@@ -32,6 +40,9 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Verification
 
+- Extended the credential-free public-clone verifier with model listing,
+  regular and enhanced Chat Completions, OpenAI-compatible streaming, fake-
+  provider evidence, and process cleanup.
 - Added `pnpm eval:prompt-enhancement`, a credential-free contract evaluation
   covering representative profiles, language detection, signal compilation,
   original-input preservation, determinism, and zero provider calls.

@@ -7,6 +7,8 @@ Public documentation is grouped by task so the repo stays easy to scan.
 - [Getting started](getting-started.md)
 - [Terminal CLI](cli.md)
 - [Natural-language prompt enhancement](prompt-enhancement.md)
+- [OpenAI-compatible API](openai-compatible-api.md)
+- [OpenAI 兼容 API（中文）](openai-compatible-api.zh-CN.md)
 - [Codex MCP quickstart](codex-mcp-quickstart.md)
 - [MCP client compatibility matrix](mcp-client-compatibility.md)
 - [MCP 客户端兼容性矩阵（中文）](mcp-client-compatibility.zh-CN.md)

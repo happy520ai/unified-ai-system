@@ -274,6 +274,36 @@ try {
     }),
   });
   const streamingChatText = await streamingChatResponse.text();
+  const openAiModels = await fetchJson(`${baseUrl}/v1/models`);
+  const openAiChat = await fetchJson(`${baseUrl}/v1/chat/completions`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      model: "local-fake-model",
+      messages: [{ role: "user", content: "OpenAI-compatible public clone test" }],
+    }),
+  });
+  const enhancedOpenAiChat = await fetchJson(`${baseUrl}/v1/chat/completions`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      model: "local-fake-model",
+      messages: [{ role: "user", content: "Build a Node API with tests" }],
+      unified_ai: {
+        prompt_enhancement: { enabled: true, profile: "coding", language: "en" },
+      },
+    }),
+  });
+  const openAiStreamResponse = await fetch(`${baseUrl}/v1/chat/completions`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      model: "local-fake-model",
+      messages: [{ role: "user", content: "Stream through the compatibility API" }],
+      stream: true,
+    }),
+  });
+  const openAiStreamText = await openAiStreamResponse.text();
 
   const checks = {
     healthReady: health.status === 200 && health.body?.data?.status === "ready",
@@ -314,6 +344,39 @@ try {
       && streamingChatText.includes('"executionMode":"fake"')
       && streamingChatText.includes('"executionStatus":"success"')
       && streamingChatText.includes("Say hello in one short sentence"),
+    openAiModelsReady:
+      openAiModels.status === 200
+      && openAiModels.body?.object === "list"
+      && openAiModels.body?.data?.some((model) =>
+        model.id === "local-fake-model"
+        && model.owned_by === "local-fake-provider"
+        && model.unified_ai?.execution_mode === "fake"
+      ),
+    openAiChatReady:
+      openAiChat.status === 200
+      && openAiChat.body?.object === "chat.completion"
+      && openAiChat.body?.model === "local-fake-model"
+      && openAiChat.body?.choices?.[0]?.message?.role === "assistant"
+      && openAiChat.body?.choices?.[0]?.message?.content?.includes("OpenAI-compatible public clone test")
+      && openAiChat.body?.choices?.[0]?.finish_reason === "stop",
+    openAiChatUsesFakeProvider:
+      openAiChat.body?.unified_ai?.selected_provider === "local-fake-provider"
+      && openAiChat.body?.unified_ai?.execution_mode === "fake"
+      && openAiChat.body?.unified_ai?.execution_status === "success",
+    enhancedOpenAiChatReady:
+      enhancedOpenAiChat.status === 200
+      && enhancedOpenAiChat.body?.unified_ai?.prompt_enhancement?.applied === true
+      && enhancedOpenAiChat.body?.unified_ai?.prompt_enhancement?.profile === "coding"
+      && enhancedOpenAiChat.body?.choices?.[0]?.message?.content?.includes("# Execution requirements"),
+    openAiChatStreamReady:
+      openAiStreamResponse.status === 200
+      && openAiStreamText.includes('"object":"chat.completion.chunk"')
+      && openAiStreamText.includes('"delta":{"role":"assistant","content":""}')
+      && openAiStreamText.includes('"selected_provider":"local-fake-provider"')
+      && openAiStreamText.includes('"execution_mode":"fake"')
+      && openAiStreamText.includes('"finish_reason":"stop"')
+      && openAiStreamText.endsWith("data: [DONE]\n\n")
+      && !openAiStreamText.includes("event:"),
     javascriptExampleReady: javascriptExample.exitCode === 0,
     javascriptExampleUsesFakeProvider:
       javascriptExample.stdout.includes("provider: local-fake-provider")

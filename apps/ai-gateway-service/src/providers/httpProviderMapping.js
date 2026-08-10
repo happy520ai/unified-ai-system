@@ -155,7 +155,9 @@ export function mapGatewayRequestToChatCompletions(providerRequest) {
         return mapped;
       }),
     temperature: request.options?.temperature,
+    top_p: request.options?.topP,
     max_tokens: maxOutputTokens,
+    stop: request.options?.stopSequences,
     stream: false,
   };
 

@@ -31,7 +31,7 @@
   </a>
 </p>
 
-Unified AI System 会在执行前，把一句自然语言需求整理成结构化、可审阅的提示词。它为 CLI、HTTP、SDK、MCP、Codex、Cursor 和 Cline 提供统一的自托管入口，同时让 provider 调用保持显式。
+Unified AI System 会在执行前，把一句自然语言需求整理成结构化、可审阅的提示词。它为 OpenAI SDK、CLI、HTTP、MCP、Codex、Cursor 和 Cline 提供统一的自托管入口，同时让 provider 调用保持显式。
 
 <p align="center">
   <a href="https://happy520ai.github.io/unified-ai-system/#enhance?prompt=%E5%B8%AE%E6%88%91%E4%B8%BA%E5%9B%A2%E9%98%9F%E8%AE%BE%E8%AE%A1%E4%B8%80%E4%B8%AA%E5%B0%8F%E5%9E%8B+API&amp;profile=coding&amp;language=zh-CN">
@@ -73,6 +73,7 @@ docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.8 pn
 | 接入智能体客户端 | [Codex 与 MCP 快速开始](https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.zh-CN.html) | 固定版本 MCP 容器与 9 个可检查工具。 |
 | 选择客户端路径 | [MCP 客户端兼容性矩阵](docs/mcp-client-compatibility.zh-CN.md) | 安装命令、首次检查和明确的证据边界。 |
 | 集成到应用 | [自然语言提示词增强指南](https://happy520ai.github.io/unified-ai-system/prompt-enhancement.zh-CN.html) | CLI、HTTP、SDK、curl、Python 和 JavaScript 路径。 |
+| 保留现有 OpenAI 客户端 | [OpenAI 兼容 API](docs/openai-compatible-api.zh-CN.md) | 把 `baseURL` 指向 `/v1`，使用文本 Chat Completions、流式响应和模型发现。 |
 | 检查增强契约 | [无凭据评估](docs/prompt-enhancement.md#prompt-enhancement-evaluation) | 用 8 个代表性案例检查 profile、语言、信号、确定性和零 Provider 调用。 |
 | 排查首次运行问题 | [首次运行排障矩阵](docs/first-run-troubleshooting.zh-CN.md) | 针对不同 Shell 的检查，不暴露凭据。 |
 | 贡献或报告运行结果 | [结构化使用报告](https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml) 或 [入门任务 #106](https://github.com/happy520ai/unified-ai-system/issues/106) | 用户与维护者都能复现的反馈入口。 |
@@ -83,7 +84,7 @@ docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.8 pn
 - 不擅长写提示词的用户，也能从自然语言开始工作。
 - 无需账号或密钥即可完成干净克隆验证。
 - 提供 curl、Python 标准库和 JavaScript 的无 provider 示例。
-- 同时支持 CLI、HTTP API、SDK、MCP、Codex、Cursor 和 Cline。
+- 同时支持 OpenAI SDK、CLI、HTTP API、共享 SDK、MCP、Codex、Cursor 和 Cline。
 - 默认使用本地 fake provider，真实 provider 必须显式启用。
 - 不声称 AGI、L5 或生产就绪，只展示可以复现的行为。
 
@@ -142,6 +143,31 @@ go run docs/examples/prompt-enhancement.go "帮我为团队规划一个小型 AP
 ```
 
 完整的 HTTP 示例见[自然语言增强指南](docs/prompt-enhancement.md)，其中包含跨平台 curl、Python、Node.js 和 SDK 用法。
+
+### 现有 OpenAI SDK
+
+先用 `pnpm gateway serve` 启动源码网关，然后保留现有 OpenAI 客户端，只修改
+它的 base URL：
+
+```js
+import OpenAI from "openai";
+
+const client = new OpenAI({
+  baseURL: "http://127.0.0.1:3100/v1",
+  apiKey: process.env.PME_AUTH_TOKEN || "local-development",
+});
+
+const result = await client.chat.completions.create({
+  model: "local-fake-model",
+  messages: [{ role: "user", content: "帮我为团队设计一个小型 API" }],
+});
+
+console.log(result.choices[0].message.content);
+```
+
+这个聚焦的兼容层支持文本完成、流式响应、模型列表和可选的本地提示词增强。
+Python 示例、支持字段、鉴权方式和明确限制见
+[OpenAI 兼容 API 指南](docs/openai-compatible-api.zh-CN.md)。
 
 ### MCP、Codex、Cursor、Cline
 

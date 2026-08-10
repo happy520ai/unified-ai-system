@@ -77,6 +77,8 @@ export function createHealth(application) {
       "GET /workforce/plans/:id/review-package",
       "POST /workforce/plans/:id/approval-gate",
       "POST /prompts/enhance",
+      "GET /v1/models",
+      "POST /v1/chat/completions",
       "POST /chat",
       "POST /chat/stream",
       "POST /chat/rag",

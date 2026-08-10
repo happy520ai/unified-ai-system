@@ -28,7 +28,7 @@
   </a>
 </p>
 
-Unified AI System turns a rough request into a structured, reviewable prompt before execution. It gives teams one self-hosted surface for CLI, HTTP, SDK, MCP, Codex, Cursor, and Cline while keeping provider calls explicit.
+Unified AI System turns a rough request into a structured, reviewable prompt before execution. It gives teams one self-hosted surface for OpenAI SDKs, CLI, HTTP, MCP, Codex, Cursor, and Cline while keeping provider calls explicit.
 
 <p align="center">
   <a href="https://happy520ai.github.io/unified-ai-system/#enhance?prompt=Build+a+small+API+for+my+team&amp;profile=coding&amp;language=en">
@@ -70,6 +70,7 @@ Useful in a real workflow? [Star the repository](https://github.com/happy520ai/u
 | Connect an agent client | [Codex and MCP quickstart](https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.html) | A pinned MCP container and nine inspectable tools. |
 | Choose a client path | [MCP compatibility matrix](docs/mcp-client-compatibility.md) | Install commands, first checks, and honest evidence boundaries. |
 | Integrate with an application | [Prompt enhancement guide](https://happy520ai.github.io/unified-ai-system/prompt-enhancement.html) | CLI, HTTP, SDK, curl, Python, and JavaScript paths. |
+| Keep an existing OpenAI client | [OpenAI-compatible API](docs/openai-compatible-api.md) | Point `baseURL` at `/v1` for text Chat Completions, streaming, and model discovery. |
 | Inspect the enhancement contract | [Credential-free evaluation](docs/prompt-enhancement.md#prompt-enhancement-evaluation) | Eight representative cases for profiles, languages, signals, determinism, and zero provider calls. |
 | Diagnose a first-run problem | [Troubleshooting matrix](docs/first-run-troubleshooting.md) | Shell-specific checks without exposing credentials. |
 | Verify an MCP client | [MCP client report](https://github.com/happy520ai/unified-ai-system/issues/new?template=mcp-client-report.yml) | Record one Codex, Cursor, Cline, or generic stdio run with a small evidence set. |
@@ -80,7 +81,7 @@ Useful in a real workflow? [Star the repository](https://github.com/happy520ai/u
 - Prompt enhancement for teammates who do not write perfect prompts.
 - Clean-clone verification without credentials or hidden setup.
 - Provider-free HTTP examples for curl and Python's standard library.
-- CLI, HTTP API, SDK, MCP, Codex, Cursor, and Cline entry points.
+- OpenAI SDK, CLI, HTTP API, shared SDK, MCP, Codex, Cursor, and Cline entry points.
 - Clear boundaries: no AGI claim, no L5 claim, no silent provider behavior.
 
 ## Try It in 60 Seconds
@@ -157,6 +158,32 @@ cat request.txt | pnpm gateway enhance --profile auto --json
 ```
 
 PowerShell users can pipe the same path with `Get-Content .\request.txt -Raw`.
+
+### Existing OpenAI SDKs
+
+Start the source gateway with `pnpm gateway serve`, then keep your existing
+OpenAI client and change only its base URL:
+
+```js
+import OpenAI from "openai";
+
+const client = new OpenAI({
+  baseURL: "http://127.0.0.1:3100/v1",
+  apiKey: process.env.PME_AUTH_TOKEN || "local-development",
+});
+
+const result = await client.chat.completions.create({
+  model: "local-fake-model",
+  messages: [{ role: "user", content: "Build a small API for my team" }],
+});
+
+console.log(result.choices[0].message.content);
+```
+
+The focused compatibility layer supports text completions, streaming, model
+listing, and optional local prompt enhancement. See the
+[OpenAI-compatible API guide](docs/openai-compatible-api.md) for Python,
+supported fields, auth behavior, and explicit limitations.
 
 Prefer Node.js? The dependency-free example verifies the provider-free response
 before printing the enhanced JSON:
