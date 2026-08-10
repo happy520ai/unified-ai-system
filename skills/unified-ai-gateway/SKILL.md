@@ -27,10 +27,10 @@ installations require the manual setup below.
 
 ## Version Note
 
-The current public project release is `v0.4.9`; the latest reviewed immutable
-MCP image remains `v0.4.8`. The inspection procedure below pins its recorded
-digests; those values must not be silently replaced with a mutable tag. For a
-normal provider-free demo, use the current `v0.4.9` command in the
+The current public project release and latest reviewed immutable MCP image are
+both `v0.4.9`. The inspection procedure below pins its recorded digests; those
+values must not be silently replaced with a mutable tag. For a normal
+provider-free demo, use the current `v0.4.9` command in the
 [project README](https://github.com/happy520ai/unified-ai-system#try-it-in-60-seconds).
 A new content review is required before changing this pinned procedure.
 
@@ -40,7 +40,7 @@ A new content review is required before changing this pinned procedure.
 2. If the nine tools are already visible, skip setup and do not register a
    duplicate server.
 3. Explain the first stage: it downloads one reviewed platform from the
-   immutable `0.4.8` multi-platform index into Docker's cache, inspects its
+   immutable `0.4.9` multi-platform index into Docker's cache, inspects its
    metadata and layer history, creates but never starts a temporary container,
    exports its root filesystem, removes that temporary container, and writes an
    inspection inventory to a temporary directory. The reviewed platforms are
@@ -50,7 +50,7 @@ A new content review is required before changing this pinned procedure.
    the inspection. Do not execute the image or register it yet:
 
 ```bash
-IMAGE='ghcr.io/happy520ai/unified-ai-system/mcp-server@sha256:e405192087d1f8734ea873b56046d87d565947b18c8654426a954880254a90bd'
+IMAGE='ghcr.io/happy520ai/unified-ai-system/mcp-server@sha256:751a0d32acd2d6b1da6ad9ac67987fbd1ff36ce26b7160014d8605f18b7907b3'
 PLATFORM='linux/amd64' # Use linux/arm64 only on a reviewed ARM64 engine.
 REVIEW_DIR="$(mktemp -d)"
 
@@ -87,19 +87,19 @@ deletion is another filesystem change and requires approval for the exact path.
 
 5. Read every generated inventory and report the inspection before proceeding.
    Compare it with the versioned
-   [image content review](https://github.com/happy520ai/unified-ai-system/blob/master/docs/security/mcp-image-review-0.4.8.md).
+   [image content review](https://github.com/happy520ai/unified-ai-system/blob/master/docs/security/mcp-image-review-0.4.9.md).
    Require OCI index digest
-   `sha256:e405192087d1f8734ea873b56046d87d565947b18c8654426a954880254a90bd`.
+   `sha256:751a0d32acd2d6b1da6ad9ac67987fbd1ff36ce26b7160014d8605f18b7907b3`.
    For linux/amd64, require manifest digest
-   `sha256:d3b34a8d1dbc6cd1c4215a405b0f59e49ccb008500b792e8a7be2f5b805379b3`
+   `sha256:ff6cf988b01d5fb2e97aabe8e952f6a303dcffe650df5b4dcb0ba3d51ee88c06`
    and config digest
-   `sha256:af5c9998ee4a5e2181e9903eab46d8c0e89d94936b60156ec636778c625b7b70`.
+   `sha256:0c2c0c7b9c7fb7ca24c73d9a903bcf719b079a0b285a3a3269ee3ae059905e97`.
    For linux/arm64, require manifest digest
-   `sha256:77e7196245fe2ad5f94f0dde819fa84ca20a8a89836e35f31e544f3677676f5e`
+   `sha256:90318b9e373820f863c1c1addc759be4b5ce186f2ecb6232ee502fad7c6613de`
    and config digest
-   `sha256:c7bf502f368d97de74fb0aebacbb06721587ed33629745b7fc12e13c6e035e47`.
+   `sha256:c2047eb63fdc42bcb16d53fca17d78a4a6fb355cf6320b9aa6688e594371054f`.
    Require source `https://github.com/happy520ai/unified-ai-system`, revision
-   `c3f9d044768ceba69101f86ef2bda62275d1b75d`, version `0.4.8`, license
+   `342a47313927870bcc696be13c9e5fb922062dac`, version `0.4.9`, license
    `Apache-2.0`, entrypoint `docker-entrypoint.sh`, and command
    `node packages/mcp-server/src/index.js`.
 
@@ -121,7 +121,7 @@ deletion is another filesystem change and requires approval for the exact path.
    disabled, then inspect the stored configuration:
 
 ```bash
-IMAGE='ghcr.io/happy520ai/unified-ai-system/mcp-server@sha256:e405192087d1f8734ea873b56046d87d565947b18c8654426a954880254a90bd'
+IMAGE='ghcr.io/happy520ai/unified-ai-system/mcp-server@sha256:751a0d32acd2d6b1da6ad9ac67987fbd1ff36ce26b7160014d8605f18b7907b3'
 PLATFORM='linux/amd64' # Match the reviewed platform inspected above.
 codex mcp add unified-ai-system -- docker run --rm -i --pull never --platform "$PLATFORM" --network none --cap-drop ALL --security-opt no-new-privileges "$IMAGE"
 codex mcp get unified-ai-system --json
@@ -194,7 +194,7 @@ Agent:
 - Treat MCP registration, image pulls, container creation, networking, and
   teardown as host-state changes that require informed user approval.
 - Never substitute a mutable tag, a different OCI index, or an unreviewed
-  platform manifest for the reviewed `0.4.8` identities. Keep download and
+  platform manifest for the reviewed `0.4.9` identities. Keep download and
   inspection approval separate from registration and activation approval.
 - Keep `--pull never` in the registered command. If the reviewed image is
   absent from the local cache, fail closed and return to the first approval
@@ -214,7 +214,7 @@ Agent:
 - The credential-free chat tool proves only the deterministic local fake path.
 - It does not configure real providers or handle provider credentials.
 - The published MCP image requires Docker.
-- The reviewed `0.4.8` path covers linux/amd64 and linux/arm64. Do not activate
+- The reviewed `0.4.9` path covers linux/amd64 and linux/arm64. Do not activate
   another platform image without a separate content review.
 - The image runs as the container's default root user and bundles the gateway
   source, package-manager tooling, native dependencies, and base-image
@@ -237,4 +237,4 @@ Agent:
 - [Unified AI System](https://github.com/happy520ai/unified-ai-system)
 - [60-second Codex MCP quickstart](https://github.com/happy520ai/unified-ai-system/blob/master/docs/codex-mcp-quickstart.md)
 - [MCP server guide](https://github.com/happy520ai/unified-ai-system/blob/master/packages/mcp-server/README.md)
-- [MCP image content review](https://github.com/happy520ai/unified-ai-system/blob/master/docs/security/mcp-image-review-0.4.8.md)
+- [MCP image content review](https://github.com/happy520ai/unified-ai-system/blob/master/docs/security/mcp-image-review-0.4.9.md)

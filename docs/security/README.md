@@ -12,15 +12,16 @@ they are not production certification or a claim of universal safety.
 - [Provider-free public-clone verification](../getting-started.md#verify)
 
 Use the current release workflow and the latest available image review when
-evaluating the gateway. The Codex plugin remains pinned to the reviewed
-immutable `0.4.8` image until a newer image review is published.
+evaluating the gateway. The Codex plugin pins the reviewed immutable `0.4.9`
+image.
 
 ## Current review
 
-- [MCP image review 0.4.8](mcp-image-review-0.4.8.md)
+- [MCP image review 0.4.9](mcp-image-review-0.4.9.md)
 
 ## Historical reviews
 
+- [MCP image review 0.4.8](mcp-image-review-0.4.8.md)
 - [MCP image review 0.4.0](mcp-image-review-0.4.0.md)
 - [MCP image review 0.3.2](mcp-image-review-0.3.2.md)
 

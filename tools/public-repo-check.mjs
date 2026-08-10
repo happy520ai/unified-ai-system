@@ -59,7 +59,7 @@ const requiredFiles = [
   "docs/examples/openai-sdk-chat.mjs",
   "docs/examples/shared-sdk-cancellation.mjs",
   "docs/examples/prompt-enhancement-contract.mjs",
-  "docs/security/mcp-image-review-0.4.8.md",
+  "docs/security/mcp-image-review-0.4.9.md",
   "docs/d6ce2ffbc1353aa5c0284e1efc2d6d5b66e3d048c764c07f.txt",
   "docs/robots.txt",
   "docs/sitemap.xml",
@@ -183,7 +183,7 @@ if (!/prompt enhancement/i.test(pluginManifest.description ?? "")) {
 
 const pluginMcpArgs = pluginMcpConfig.mcpServers?.["unified-ai-system"]?.args ?? [];
 const expectedPluginImage =
-  "ghcr.io/happy520ai/unified-ai-system/mcp-server@sha256:e405192087d1f8734ea873b56046d87d565947b18c8654426a954880254a90bd";
+  "ghcr.io/happy520ai/unified-ai-system/mcp-server@sha256:751a0d32acd2d6b1da6ad9ac67987fbd1ff36ce26b7160014d8605f18b7907b3";
 for (const [marker, code] of [
   ["--network", "codex_plugin_network_hardening_missing"],
   ["none", "codex_plugin_network_none_missing"],
@@ -213,7 +213,7 @@ for (const [marker, code] of [
   if (!mcpSmoke.includes(marker)) addError(code, "tools/mcp-smoke.mjs");
 }
 
-const currentImageReviewPath = "docs/security/mcp-image-review-0.4.8.md";
+const currentImageReviewPath = "docs/security/mcp-image-review-0.4.9.md";
 const currentImageReview = readFileSync(
   resolve(repoRoot, currentImageReviewPath),
   "utf8",
@@ -221,15 +221,31 @@ const currentImageReview = readFileSync(
 for (const [marker, code] of [
   [expectedPluginImage.split("@")[1], "mcp_image_review_index_digest_missing"],
   [
-    "sha256:d3b34a8d1dbc6cd1c4215a405b0f59e49ccb008500b792e8a7be2f5b805379b3",
+    "sha256:ff6cf988b01d5fb2e97aabe8e952f6a303dcffe650df5b4dcb0ba3d51ee88c06",
     "mcp_image_review_amd64_manifest_missing",
   ],
   [
-    "sha256:77e7196245fe2ad5f94f0dde819fa84ca20a8a89836e35f31e544f3677676f5e",
+    "sha256:90318b9e373820f863c1c1addc759be4b5ce186f2ecb6232ee502fad7c6613de",
     "mcp_image_review_arm64_manifest_missing",
   ],
   [
-    "c3f9d044768ceba69101f86ef2bda62275d1b75d",
+    "sha256:0c2c0c7b9c7fb7ca24c73d9a903bcf719b079a0b285a3a3269ee3ae059905e97",
+    "mcp_image_review_amd64_config_missing",
+  ],
+  [
+    "sha256:c2047eb63fdc42bcb16d53fca17d78a4a6fb355cf6320b9aa6688e594371054f",
+    "mcp_image_review_arm64_config_missing",
+  ],
+  [
+    "0d4635a83683f488d7d6ab2657cd90af01f143641c76df9f3eb4f43ee7109aab",
+    "mcp_image_review_amd64_inventory_missing",
+  ],
+  [
+    "f90f4cb9754e640538e912c6470e55828b962e67952e94129682e25cb3a95e4c",
+    "mcp_image_review_arm64_inventory_missing",
+  ],
+  [
+    "342a47313927870bcc696be13c9e5fb922062dac",
     "mcp_image_review_revision_missing",
   ],
   [
@@ -689,11 +705,11 @@ const requiredAgentSkillMarkers = [
   ["gateway_prompt_enhance", "agent_skill_prompt_enhancement_missing"],
   ["production readiness, L5 autonomy, or AGI", "agent_skill_evidence_boundary_missing"],
   [
-    "https://github.com/happy520ai/unified-ai-system/blob/master/docs/security/mcp-image-review-0.4.8.md",
+    "https://github.com/happy520ai/unified-ai-system/blob/master/docs/security/mcp-image-review-0.4.9.md",
     "agent_skill_image_review_link_missing",
   ],
   [
-    "sha256:e405192087d1f8734ea873b56046d87d565947b18c8654426a954880254a90bd",
+    "sha256:751a0d32acd2d6b1da6ad9ac67987fbd1ff36ce26b7160014d8605f18b7907b3",
     "agent_skill_reviewed_image_digest_missing",
   ],
 ];

@@ -7,6 +7,17 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- Moved the Codex plugin and manual Agent Skill procedure to the reviewed
+  immutable `v0.4.9` MCP image index.
+
+### Verification
+
+- Reviewed both published `v0.4.9` Linux platforms without starting them,
+  including OCI identities, flattened filesystems, native binaries, lifecycle
+  hooks, privileged files, internal links, and credential-like artifacts.
+
 ## [0.4.9] - 2026-08-10
 
 ### Added

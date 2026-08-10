@@ -14,7 +14,7 @@
         "ALL",
         "--security-opt",
         "no-new-privileges",
-        "ghcr.io/happy520ai/unified-ai-system/mcp-server@sha256:e405192087d1f8734ea873b56046d87d565947b18c8654426a954880254a90bd"
+        "ghcr.io/happy520ai/unified-ai-system/mcp-server@sha256:751a0d32acd2d6b1da6ad9ac67987fbd1ff36ce26b7160014d8605f18b7907b3"
       ],
       "startup_timeout_sec": 120,
       "tool_timeout_sec": 60
