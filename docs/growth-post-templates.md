@@ -5,7 +5,7 @@
 ```text
 I used this 60-second check to turn a rough request into a structured task:
 
-docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.6 pnpm gateway demo "Build a small API for my team" --enhance --profile coding
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.7 pnpm gateway demo "Build a small API for my team" --enhance --profile coding
 
 No API key or clone is required; the local fake-provider path is deterministic.
 Repo: https://github.com/happy520ai/unified-ai-system
@@ -26,7 +26,7 @@ If this command worked for you:
 ```text
 Want rough prompts to become executable tasks?
 
-docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.6 pnpm gateway demo "Build a small API for my team" --enhance --profile coding
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.7 pnpm gateway demo "Build a small API for my team" --enhance --profile coding
 
 No clone or provider key is required; the container exits after the preview.
 Repo: https://github.com/happy520ai/unified-ai-system
@@ -78,7 +78,7 @@ Repo: https://github.com/happy520ai/unified-ai-system
 ```text
 No checkout or API key needed:
 
-printf '%s' "Plan a launch for a small API" | docker run --rm -i ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.6 pnpm --silent gateway demo --enhance --profile planning --language en --json
+printf '%s' "Plan a launch for a small API" | docker run --rm -i ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.7 pnpm --silent gateway demo --enhance --profile planning --language en --json
 
 The published image reads stdin, preserves the original request, and prints
 deterministic fake-provider evidence before exiting.
@@ -112,7 +112,7 @@ python docs/examples/prompt-enhancement.py "帮我为团队规划一个小型 AP
 ```text
 我在 60 秒内验证了 Unified AI System 的自然语言增强：
 
-docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.6 pnpm gateway demo "帮我为团队设计一个小型 API" --enhance --profile coding --language zh-CN
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.7 pnpm gateway demo "帮我为团队设计一个小型 API" --enhance --profile coding --language zh-CN
 
 默认使用本地 fake-provider，无需 API Key，会同时展示原始请求和结构化提示词。
 仓库：https://github.com/happy520ai/unified-ai-system

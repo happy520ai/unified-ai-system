@@ -5,7 +5,7 @@
 ```text
 If your team uses AI tools but prompt quality is unstable, this is a quick proof:
 
-docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.6 pnpm gateway demo "Build a small API for my team" --enhance --profile coding
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.7 pnpm gateway demo "Build a small API for my team" --enhance --profile coding
 
 What you should see:
 - no API key required
@@ -20,7 +20,7 @@ Repo: https://github.com/happy520ai/unified-ai-system
 ```text
 Want rough language to become executable tasks?
 
-docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.6 pnpm gateway demo "Build a small API for my team" --enhance --profile coding
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.7 pnpm gateway demo "Build a small API for my team" --enhance --profile coding
 
 This is a no-clone, no-API-key first run. The container exits after printing
 the result.
@@ -66,7 +66,7 @@ Repo: https://github.com/happy520ai/unified-ai-system
 ```text
 Want to verify the gateway inside Codex?
 
-codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.6
+codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.7
 
 Restart Codex, run /mcp verbose, and confirm the nine published tools. Then
 use gateway_prompt_enhance for a provider-free natural-language test.
@@ -86,7 +86,7 @@ If this helped you, share one reproducible output line, then:
    https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml
 3) Ask one teammate to run the same command once
 
-docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.6 pnpm gateway demo "Build a small API for my team" --enhance --profile coding
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.7 pnpm gateway demo "Build a small API for my team" --enhance --profile coding
 ```
 
 ## 7) Follow-up Reply

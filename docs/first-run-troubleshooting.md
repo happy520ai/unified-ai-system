@@ -24,7 +24,7 @@ command when reporting a failure.
 
 ```powershell
 # Windows PowerShell
-PS> docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.6 pnpm gateway demo
+PS> docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.7 pnpm gateway demo
 [ready] provider      local-fake-provider
 [ready] execution     fake
 [ready] real calls    disabled
@@ -40,7 +40,7 @@ first line:
 ```powershell
 # Windows PowerShell
 PS> docker run --rm --publish 3210:3100 `
->> ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.6 pnpm gateway demo
+>> ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.7 pnpm gateway demo
 [ready] provider      local-fake-provider
 [ready] execution     fake
 [done] ... | no API key | process cleaned up
@@ -50,7 +50,7 @@ PS> docker run --rm --publish 3210:3100 `
 
 ```bash
 # macOS/Linux Bash or Zsh
-$ docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.6 pnpm gateway demo
+$ docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.7 pnpm gateway demo
 [ready] provider      local-fake-provider
 [ready] execution     fake
 [ready] real calls    disabled
@@ -66,7 +66,7 @@ The equivalent Bash or Zsh continuation uses a backslash instead:
 ```bash
 # macOS/Linux Bash or Zsh
 $ docker run --rm --publish 3210:3100 \
-> ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.6 pnpm gateway demo
+> ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.7 pnpm gateway demo
 [ready] provider      local-fake-provider
 [ready] execution     fake
 [done] ... | no API key | process cleaned up

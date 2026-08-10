@@ -43,7 +43,7 @@ API credits would support a public, opt-in maintainer workflow for Unified AI Sy
 
 ## 7) Anything else we should know? (<=500 chars)
 
-I am the GitHub owner and primary maintainer of this public Apache-2.0 repository. The project is early-stage, so I report conservative, verifiable metrics rather than claiming production scale: 3 stars, 1 fork, and 2 open issues. It has a credential-free fake-provider default, public docs, CI checks, a v0.4.6 release, and a working MCP integration. I welcome review and can provide maintainer verification.
+I am the GitHub owner and primary maintainer of this public Apache-2.0 repository. The project is early-stage, so I report conservative, verifiable metrics rather than claiming production scale: 3 stars, 1 fork, and 2 open issues. It has a credential-free fake-provider default, public docs, CI checks, a v0.4.7 release, and a working MCP integration. I welcome review and can provide maintainer verification.
 
 ## 8) Fast submit tips
 

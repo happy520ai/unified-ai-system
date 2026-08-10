@@ -38,7 +38,7 @@ export function createHealthServer(options = {}) {
     port = Number(process.env.MCP_SERVICE_HEALTH_PORT ?? 7788),
     supervisor,
     logger,
-    serviceVersion = "0.4.6",
+    serviceVersion = "0.4.7",
     serviceName = "unified-ai-system-mcp-service",
     onShutdown = null,
   } = options;
