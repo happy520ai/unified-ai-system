@@ -30,6 +30,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 - Made the first-run CLI and browser paths produce inspectable, provider-free
   evidence that users can share without credentials.
+- Removed the duplicate legacy `package.json` pnpm override block so current
+  pnpm runs no longer emit an ignored-configuration warning.
 - Refined the public onboarding and community promotion paths around one
   reproducible proof instead of unverifiable adoption claims.
 - Updated the growth campaign command to emit evidence packets and track the
