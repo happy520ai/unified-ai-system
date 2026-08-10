@@ -18,7 +18,7 @@ Repo: https://github.com/happy520ai/unified-ai-system
 
 ## 2) Prompt Enhancement
 
-```text
+~~~~text
 Want rough language to become executable tasks?
 
 docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.8 pnpm gateway demo "Build a small API for my team" --enhance --profile coding --evidence
@@ -42,7 +42,7 @@ This converts intent into:
 - detected signals and compiled sections for review
 
 Repo: https://github.com/happy520ai/unified-ai-system
-```
+~~~~
 
 ## 3) Python Standard Library
 

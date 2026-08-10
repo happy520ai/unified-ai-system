@@ -37,6 +37,8 @@ const externalPrs = [
   ["up-for-grabs/up-for-grabs.net", 5995],
   ["frechdi/awesome-self-hosted-ai", 7],
   ["agentskillexchange/skills", 34],
+  ["toolsdk-ai/toolsdk-mcp-registry", 434],
+  ["cuihuan/awesome-ai-gateway", 48],
 ];
 
 const mergeStateMap = {
@@ -241,9 +243,12 @@ async function getExternalPrRows() {
     rows.push({
       repo: repoName,
       pr: prNumber,
-      state: pullResult.data.state,
+      title: pullResult.data.title ?? "Untitled pull request",
+      state: pullResult.data.merged_at ? "merged" : pullResult.data.state,
       mergeState:
-        mergeStateMap[pullResult.data.mergeable_state] ?? "UNKNOWN",
+        pullResult.data.merged_at
+          ? "MERGED"
+          : mergeStateMap[pullResult.data.mergeable_state] ?? "UNKNOWN",
       updated: parseDate(pullResult.data.updated_at),
       comments: pullResult.data.comments ?? 0,
     });
@@ -308,12 +313,13 @@ function renderRepoSection(repoStats, date, prefix, previousStats = null) {
 
 function renderPrRowsTable(rows) {
   const lines = [];
-  lines.push("| Repository | PR | State | Merge State | Updated | Comments |");
-  lines.push("| --- | --- | --- | --- | --- | --- |");
+  lines.push("| Repository | PR | Listing | State | Merge State | Updated | Comments |");
+  lines.push("| --- | --- | --- | --- | --- | --- | --- |");
   for (const row of rows) {
     const url = `https://github.com/${row.repo}/pull/${row.pr}`;
+    const title = String(row.title ?? "Unavailable").replaceAll("|", "\\|");
     lines.push(
-      `| [${row.repo}](${url}) | [#${row.pr}](${url}) | ${row.state} | ${row.mergeState} | ${row.updated} | ${row.comments} |`
+      `| [${row.repo}](${url}) | [#${row.pr}](${url}) | ${title} | ${row.state} | ${row.mergeState} | ${row.updated} | ${row.comments} |`
     );
   }
   return lines;
@@ -358,10 +364,11 @@ function generateDailyReport(repoStats, rows, date, previousStats = null) {
   lines.push(dockerPipeCommand);
   lines.push("");
   lines.push("### 24h Action");
-  lines.push("- Ask at least one reviewer to run the command and paste output.");
+  lines.push("- Ask one new user outside active PR threads to run the command and paste output.");
   lines.push(
-    "- Reply to every technical comment in thread within 24 hours."
+    "- Reply to technical feedback with a concrete answer or change within 24 hours."
   );
+  lines.push("- Do not post status-only pings on PRs that are waiting for maintainer review.");
   lines.push("- Keep generated snapshots under the ignored .tmp/growth/ directory.");
   lines.push("");
   lines.push("## External PR funnel snapshot");
@@ -378,6 +385,9 @@ function generateSummaryReport(repoStats, rows, date) {
   const blocked = countMergeState(rows, "BLOCKED");
   const dirty = countMergeState(rows, "DIRTY");
   const unknown = countMergeState(rows, "UNKNOWN");
+  const merged = rows.filter((row) => row.state === "merged").length;
+  const closed = rows.filter((row) => row.state === "closed").length;
+  const open = rows.filter((row) => row.state === "open").length;
 
   const lines = [];
   lines.push(`# Weekly Growth Summary (${date})`);
@@ -400,6 +410,9 @@ function generateSummaryReport(repoStats, rows, date) {
   }
   lines.push("");
   lines.push("## PR Funnel Signals");
+  lines.push(`- Open: ${open}`);
+  lines.push(`- Merged: ${merged}`);
+  lines.push(`- Closed without merge: ${closed}`);
   lines.push(`- CLEAN: ${clean}`);
   lines.push(`- BLOCKED: ${blocked}`);
   lines.push(`- DIRTY: ${dirty}`);

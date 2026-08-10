@@ -22,7 +22,7 @@ do not inflate usage, Stars, or production readiness.
 
 ## 3) Why this repository qualifies? (<=500 chars)
 
-Unified AI System is a public Apache-2.0, self-hosted MCP/AI gateway that helps developers turn plain-language requests into structured, reviewable prompts for Codex, Cursor, and Cline. It provides a provider-free first run, reproducible CLI/MCP workflows, CI and public-clone verification, and documented maintainer workflows. It is early-stage (3 stars, 1 fork, 2 open issues), but targets a broad developer need and is actively maintained.
+Unified AI System is a public Apache-2.0 AI gateway that gives developers one local-first interface for multi-provider access, natural-language prompt enhancement, routing, observability, SDKs, and MCP/Codex integration. It currently has 3 GitHub stars and 1 fork. Though early-stage, it is actively maintained, credential-free by default, and reproducibly tested from a public clone, lowering the barrier to trustworthy AI tooling.
 
 ## 4) I'm interested in (select all options shown by the form)
 
@@ -39,11 +39,11 @@ Enter the actual Organization ID shown in the OpenAI Platform settings. Do not i
 
 ## 6) How will you use API credits for your project? (<=500 chars)
 
-API credits would support a public, opt-in maintainer workflow for Unified AI System: CI-based PR triage and review summaries, release-note/changelog drafting, issue classification, and evaluation of our deterministic natural-language prompt enhancement. Provider calls would remain explicitly authorized, use public or synthetic test data, and produce reproducible examples and documentation.
+API credits will fund reproducible provider integration and regression tests; evaluations of prompt enhancement, model routing, tool calling, and streaming; CI checks for SDK/MCP compatibility; and maintainer automation for issue triage, PR review, release notes, and security remediation. I will use scoped test budgets, publish non-sensitive evaluation results, and keep the credential-free fake provider as the default.
 
 ## 7) Anything else we should know? (<=500 chars)
 
-I am the GitHub owner and primary maintainer of this public Apache-2.0 repository. The project is early-stage, so I report conservative, verifiable metrics rather than claiming production scale: 3 stars, 1 fork, and 2 open issues. It has a credential-free fake-provider default, public docs, CI checks, a v0.4.8 release, and a working MCP integration. I welcome review and can provide maintainer verification.
+I am applying as an independent maintainer of an early-stage public project. The repository is Apache-2.0, has public CI, bilingual docs, a credential-free quickstart, an official MCP Registry package, and a documented multi-architecture container review. I welcome verification, security feedback, and measurable milestones. Support will be used for open-source maintenance, not private workloads or unsupported AGI claims.
 
 ## 8) Fast submit tips
 

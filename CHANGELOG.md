@@ -7,6 +7,14 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- Made the growth dashboard distinguish merged directory submissions from
+  pull requests closed without merge, show listing titles, and include the
+  current ToolSDK and awesome-ai-gateway submissions.
+- Replaced status-only PR follow-up advice with a contributor-safe policy:
+  answer technical feedback, but do not repeatedly ping waiting maintainers.
+
 ### Documentation
 
 - Simplified the bilingual README first screen around one visual proof, one
@@ -19,6 +27,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
   environment, tool-count, and sanitized health/readiness evidence fields.
 - Routed the bilingual Codex MCP quickstarts to the dedicated client report
   flow so client evidence is captured with the right context.
+- Refreshed the public Codex for Open Source application copy and the v0.4.8
+  Showcase and MCP compatibility contribution entry points.
 
 ### Verification
 
