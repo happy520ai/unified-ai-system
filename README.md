@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/happy520ai/unified-ai-system/stargazers">
+  <a href="https://github.com/happy520ai/unified-ai-system">
     <img alt="GitHub stars" src="https://img.shields.io/github/stars/happy520ai/unified-ai-system?style=flat-square&label=Stars" />
   </a>
   <a href="https://github.com/happy520ai/unified-ai-system/actions/workflows/ci.yml">
