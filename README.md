@@ -32,7 +32,7 @@
   <a href="https://github.com/happy520ai/unified-ai-system/releases/latest">
     <img alt="Release" src="https://img.shields.io/github/v/release/happy520ai/unified-ai-system?style=flat-square" />
   </a>
-  <a href="https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.4.7">
+  <a href="https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.4.8">
     <img alt="Official MCP Registry: active" src="https://img.shields.io/badge/Official_MCP_Registry-active-1f883d?style=flat-square" />
   </a>
   <a href="LICENSE">
@@ -56,7 +56,7 @@ This is not a chat UI wrapper. It is a control plane for AI workflow execution.
 **Fastest proof, no account required:**
 
 ```bash
-docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.7 pnpm gateway demo "Build a small API for my team" --enhance --profile coding --evidence
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.8 pnpm gateway demo "Build a small API for my team" --enhance --profile coding --evidence
 ```
 
 It preserves the original request, prints a structured coding prompt, reports
@@ -127,7 +127,7 @@ language, and proves `providerCalled=false`, `credentialRequired=false`, and
     />
   </a>
   <br />
-  <sub>v0.4.7: deterministic enhancement, no API key, no provider call.</sub>
+  <sub>v0.4.8: deterministic enhancement, no API key, no provider call.</sub>
 </p>
 
 ## Try It in 60 Seconds
@@ -135,7 +135,7 @@ language, and proves `providerCalled=false`, `credentialRequired=false`, and
 Verify the project without signing in:
 
 ```bash
-docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.7 pnpm gateway demo
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.8 pnpm gateway demo
 ```
 
 Expected behavior:
@@ -149,7 +149,7 @@ Expected behavior:
 One-command natural-language enhancement preview:
 
 ```bash
-docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.7 \
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.8 \
   pnpm gateway demo "Build a small API for my team" --enhance --profile coding --evidence
 ```
 
@@ -161,7 +161,7 @@ the repository:
 
 ```bash
 printf '%s' "Plan a launch for a small API" \
-  | docker run --rm -i ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.7 \
+  | docker run --rm -i ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.8 \
       pnpm --silent gateway demo --enhance --profile planning --language en --json
 ```
 
@@ -219,7 +219,7 @@ docker run --rm --publish 3100:3100 \
   --env AI_GATEWAY_SERVICE_HOST=0.0.0.0 \
   --env AI_GATEWAY_PROVIDER_MODE=fake \
   --env AI_GATEWAY_REAL_PROVIDER_ENABLED=false \
-  ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.7
+  ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.8
 ```
 
 Keep that process running while you send the curl request. The response
@@ -245,7 +245,7 @@ pnpm gateway chat "Hello from Unified AI System"
 Published MCP command:
 
 ```bash
-codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.7
+codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.8
 ```
 
 Restart Codex, run `/mcp verbose` to verify the nine tools, then follow the
@@ -362,8 +362,8 @@ CI on `master` runs Linux checks, container startup smoke tests, MCP discovery, 
 
 ## Project Links
 
-- [Official MCP Registry entry](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.4.7)
-- [Release v0.4.7](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.4.7)
+- [Official MCP Registry entry](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.4.8)
+- [Release v0.4.8](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.4.8)
 - [Codex MCP server README](packages/mcp-server/README.md)
 - [Roadmap](ROADMAP.md)
 - [Vision](VISION.md)

@@ -25,7 +25,7 @@ All inspection tools are read-only. The chat tool checks the gateway safety
 state before every request and fails closed unless `realProviderEnabled` is
 exactly `false` and the response proves `executionMode: "fake"`.
 
-The source build and pinned `0.4.7` image both expose all nine tools, including
+The source build and pinned `0.4.8` image both expose all nine tools, including
 the provider-free `gateway_prompt_enhance` preview.
 
 ## Run From Source
@@ -46,7 +46,7 @@ cloning or changing MCP configuration, then use `/mcp` to inspect the server.
 No clone or API key is required:
 
 ```bash
-codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.7
+codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.8
 ```
 
 The dedicated image starts the MCP server by default; no command override is
@@ -64,7 +64,7 @@ args = [
   "run",
   "--rm",
   "-i",
-  "ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.7",
+  "ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.8",
 ]
 startup_timeout_sec = 45
 tool_timeout_sec = 60

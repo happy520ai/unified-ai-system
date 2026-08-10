@@ -23,7 +23,7 @@
 
 ```powershell
 # Windows PowerShell
-PS> docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.7 pnpm gateway demo
+PS> docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.8 pnpm gateway demo
 [ready] provider      local-fake-provider
 [ready] execution     fake
 [ready] real calls    disabled
@@ -38,7 +38,7 @@ Docker Desktop，或使用下面的 [Codespaces 无 Docker 路径](#codespaces-�
 ```powershell
 # Windows PowerShell
 PS> docker run --rm --publish 3210:3100 `
->> ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.7 pnpm gateway demo
+>> ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.8 pnpm gateway demo
 [ready] provider      local-fake-provider
 [ready] execution     fake
 [done] ... | no API key | process cleaned up
@@ -48,7 +48,7 @@ PS> docker run --rm --publish 3210:3100 `
 
 ```bash
 # macOS/Linux Bash 或 Zsh
-$ docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.7 pnpm gateway demo
+$ docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.8 pnpm gateway demo
 [ready] provider      local-fake-provider
 [ready] execution     fake
 [ready] real calls    disabled
@@ -63,7 +63,7 @@ Bash 或 Zsh 使用反斜杠续行：
 ```bash
 # macOS/Linux Bash 或 Zsh
 $ docker run --rm --publish 3210:3100 \
-> ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.7 pnpm gateway demo
+> ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.8 pnpm gateway demo
 [ready] provider      local-fake-provider
 [ready] execution     fake
 [done] ... | no API key | process cleaned up

@@ -7,16 +7,26 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.4.8] - 2026-08-10
+
 ### Added
 
 - Added detected request signals and compiled-section summaries to browser,
   CLI, and isolated-demo evidence packets so shared reports show what the
   local enhancer carried into the structured prompt.
+- Published the evidence-first Prompt Lab workflow with detected signals,
+  compiled sections, shareable state, and a structured feedback handoff.
+- Added a verified Node MCP SDK test-host path to the client compatibility
+  evidence.
 - Made the browser Prompt Lab feedback link copy the current evidence packet
   before opening the usage-report form, with profile and language in the title.
 
 ### Changed
 
+- Made the first-run CLI and browser paths produce inspectable, provider-free
+  evidence that users can share without credentials.
+- Refined the public onboarding and community promotion paths around one
+  reproducible proof instead of unverifiable adoption claims.
 - Updated the growth campaign command to emit evidence packets and track the
   Agent Skill Exchange submission in the external PR funnel.
 
@@ -330,7 +340,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 - It is not presented as production-certified, L5 autonomous, or established
   AGI. Those claims require independent evidence beyond local verification.
 
-[Unreleased]: https://github.com/happy520ai/unified-ai-system/compare/v0.4.7...HEAD
+[Unreleased]: https://github.com/happy520ai/unified-ai-system/compare/v0.4.8...HEAD
+[0.4.8]: https://github.com/happy520ai/unified-ai-system/compare/v0.4.7...v0.4.8
 [0.4.7]: https://github.com/happy520ai/unified-ai-system/compare/v0.4.6...v0.4.7
 [0.4.6]: https://github.com/happy520ai/unified-ai-system/compare/v0.4.5...v0.4.6
 [0.4.5]: https://github.com/happy520ai/unified-ai-system/compare/v0.4.4...v0.4.5

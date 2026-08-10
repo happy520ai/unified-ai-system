@@ -17,7 +17,7 @@ body:
     attributes:
       label: Command run
       description: Paste the full command that you executed.
-      placeholder: docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.7 pnpm gateway demo --enhance --profile coding --json
+      placeholder: docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.8 pnpm gateway demo --enhance --profile coding --json
     validations:
       required: true
   - type: textarea

@@ -29,7 +29,7 @@
   <a href="https://github.com/happy520ai/unified-ai-system/releases/latest">
     <img alt="Release" src="https://img.shields.io/github/v/release/happy520ai/unified-ai-system?style=flat-square" />
   </a>
-  <a href="https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.4.7">
+  <a href="https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.4.8">
     <img alt="Official MCP Registry" src="https://img.shields.io/badge/Official_MCP_Registry-active-1f883d?style=flat-square" />
   </a>
   <a href="LICENSE">
@@ -53,7 +53,7 @@ provider 边界和以证据为中心的验证。
 **最快验证方式，无需账号：**
 
 ```bash
-docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.7 pnpm gateway demo "帮我为团队设计一个小型 API" --enhance --profile coding --evidence
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.8 pnpm gateway demo "帮我为团队设计一个小型 API" --enhance --profile coding --evidence
 ```
 
 命令会保留原始请求、输出结构化 coding 提示词、报告确定性的
@@ -63,7 +63,7 @@ docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.7 pn
 
 ```bash
 printf '%s' "帮我规划一个小型 API 的发布" \
-  | docker run --rm -i ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.7 \
+  | docker run --rm -i ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.8 \
       pnpm --silent gateway demo --enhance --profile planning --language zh-CN --json
 ```
 
@@ -130,7 +130,7 @@ printf '%s' "帮我规划一个小型 API 的发布" \
     />
   </a>
   <br />
-  <sub>v0.4.7：确定性增强、无需 API Key、不会触发真实 provider 调用。</sub>
+  <sub>v0.4.8：确定性增强、无需 API Key、不会触发真实 provider 调用。</sub>
 </p>
 
 ## 60 秒体验
@@ -138,7 +138,7 @@ printf '%s' "帮我规划一个小型 API 的发布" \
 无需登录，直接验证发布镜像：
 
 ```bash
-docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.7 pnpm gateway demo
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.8 pnpm gateway demo
 ```
 
 你将看到：
@@ -152,7 +152,7 @@ docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.7 pn
 用一条命令体验自然语言增强：
 
 ```bash
-docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.7 \
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.8 \
   pnpm gateway demo "帮我为团队设计一个小型 API" --enhance --profile coding --evidence
 ```
 
@@ -194,7 +194,7 @@ go run docs/examples/prompt-enhancement.go "帮我为团队规划一个小型 AP
 直接添加已发布的 MCP 镜像：
 
 ```bash
-codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.7
+codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.8
 ```
 
 重启 Codex 后运行 `/mcp` 检查连接，再参考 [Codex MCP 60 秒快速开始](https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.zh-CN.html)。
@@ -318,8 +318,8 @@ Get-Content .\request.txt -Raw |
 
 ## 项目链接
 
-- [官方 MCP Registry 条目](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.4.7)
-- [Release v0.4.7](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.4.7)
+- [官方 MCP Registry 条目](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.4.8)
+- [Release v0.4.8](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.4.8)
 - [Codex MCP Server README](packages/mcp-server/README.md)
 - [Roadmap](ROADMAP.md)
 - [Vision](VISION.md)
