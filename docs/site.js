@@ -79,6 +79,7 @@ async function initializePromptLab(lab) {
   const evidenceButton = lab.querySelector("[data-prompt-copy-evidence]");
   const downloadEvidenceButton = lab.querySelector("[data-prompt-download-evidence]");
   const shareButton = lab.querySelector("[data-prompt-share]");
+  const feedbackLink = lab.querySelector("[data-prompt-feedback]");
   const examples = [...lab.querySelectorAll("[data-prompt-example]")];
 
   if (
@@ -96,6 +97,7 @@ async function initializePromptLab(lab) {
     || !evidenceButton
     || !downloadEvidenceButton
     || !shareButton
+    || !feedbackLink
   ) {
     throw new Error("Prompt lab markup is incomplete.");
   }
@@ -252,6 +254,27 @@ async function initializePromptLab(lab) {
         lab.dataset.shareCopyUnavailable ?? lab.dataset.copyUnavailable ?? "Unavailable",
       );
     }
+  });
+
+  feedbackLink.addEventListener("click", async (event) => {
+    if (!latestEvidence) return;
+
+    event.preventDefault();
+    try {
+      await copyText(JSON.stringify(latestEvidence, null, 2));
+    } catch {
+      // The issue form remains usable when clipboard permissions are unavailable.
+    }
+
+    const url = new URL(feedbackLink.href, window.location.href);
+    url.searchParams.set(
+      "title",
+      formatTemplate(
+        lab.dataset.feedbackTitleTemplate ?? "[Usage Report] Prompt Lab ({profile}/{language})",
+        latestEvidence,
+      ),
+    );
+    window.location.assign(url.toString());
   });
 
   const sharedState = readPromptLabShareState();

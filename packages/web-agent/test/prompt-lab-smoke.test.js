@@ -85,8 +85,10 @@ async function assertPromptLab(page, baseUrl, pathname) {
 
   const evidenceButton = page.locator("[data-prompt-copy-evidence]");
   const shareButton = page.locator("[data-prompt-share]");
+  const feedbackLink = page.locator("[data-prompt-feedback]");
   assert.equal(await evidenceButton.isDisabled(), false);
   assert.equal(await shareButton.isDisabled(), false);
+  assert.equal(await feedbackLink.count(), 1);
   assert.notEqual((await page.locator("[data-prompt-output]").textContent()).trim(), "");
   assert.match(await page.locator("[data-prompt-status]").textContent(), /none|provider/i);
 
@@ -112,6 +114,24 @@ async function assertPromptLab(page, baseUrl, pathname) {
   const shareUrl = await page.evaluate(() => navigator.clipboard.readText());
   assert.match(shareUrl, /#enhance\?/);
   assert.match(shareUrl, /profile=planning/);
+
+  await feedbackLink.click().catch(() => {});
+  const clipboardPage = await page.context().newPage();
+  let feedbackEvidence;
+  try {
+    await clipboardPage.goto(`${baseUrl}/index.html`, { waitUntil: "domcontentloaded" });
+    feedbackEvidence = JSON.parse(
+      await clipboardPage.evaluate(() => navigator.clipboard.readText()),
+    );
+  } finally {
+    await clipboardPage.close();
+  }
+  assert.equal(feedbackEvidence.metadata.providerCalled, false);
+  assert.equal(feedbackEvidence.profile, "planning");
+  assert.equal(
+    externalRequests.some((url) => /issues\/new/.test(url) && /Prompt(?:%20|\+)Lab/.test(url)),
+    true,
+  );
   assert.equal(
     externalRequests.some((url) => /openai|anthropic|googleapis|cohere|mistral/i.test(url)),
     false,

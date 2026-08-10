@@ -12,6 +12,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 - Added detected request signals and compiled-section summaries to browser,
   CLI, and isolated-demo evidence packets so shared reports show what the
   local enhancer carried into the structured prompt.
+- Made the browser Prompt Lab feedback link copy the current evidence packet
+  before opening the usage-report form, with profile and language in the title.
 
 ### Changed
 
