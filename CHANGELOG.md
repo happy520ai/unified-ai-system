@@ -9,6 +9,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Documentation
 
+- Simplified the bilingual README first screen around one visual proof, one
+  prefilled no-install Prompt Lab path, and one published-container command.
 - Refreshed the reproducible social preview around the MCP gateway, Codex,
   prompt enhancement, and the nine governed tools.
 - Added copy-ready Windows PowerShell request-file commands to the bilingual

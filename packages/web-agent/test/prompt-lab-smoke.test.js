@@ -112,8 +112,20 @@ async function assertPromptLab(page, baseUrl, pathname) {
 
   await shareButton.click();
   const shareUrl = await page.evaluate(() => navigator.clipboard.readText());
+  const sharedInput = await page.locator("[data-prompt-input]").inputValue();
   assert.match(shareUrl, /#enhance\?/);
   assert.match(shareUrl, /profile=planning/);
+
+  const sharedPage = await page.context().newPage();
+  try {
+    await sharedPage.goto(shareUrl, { waitUntil: "networkidle" });
+    await sharedPage.locator("[data-prompt-copy-evidence]:not([disabled])").waitFor();
+    assert.equal(await sharedPage.locator("[data-prompt-input]").inputValue(), sharedInput);
+    assert.equal(await sharedPage.locator("[data-prompt-profile]").inputValue(), "planning");
+    assert.match(await sharedPage.locator("[data-prompt-output]").textContent(), /Task|任务/);
+  } finally {
+    await sharedPage.close();
+  }
 
   await feedbackLink.click().catch(() => {});
   const clipboardPage = await page.context().newPage();

@@ -11,23 +11,11 @@
 </p>
 
 <p align="center">
-  <a href="https://codespaces.new/happy520ai/unified-ai-system?quickstart=1">
-    <img alt="Open in GitHub Codespaces" src="https://github.com/codespaces/badge.svg" />
-  </a>
-</p>
-
-<p align="center">
   <a href="https://github.com/happy520ai/unified-ai-system/stargazers">
     <img alt="GitHub stars" src="https://img.shields.io/github/stars/happy520ai/unified-ai-system?style=flat-square&label=Stars" />
   </a>
   <a href="https://github.com/happy520ai/unified-ai-system/actions/workflows/ci.yml">
     <img alt="CI" src="https://img.shields.io/github/actions/workflow/status/happy520ai/unified-ai-system/ci.yml?branch=master&style=flat-square&label=CI" />
-  </a>
-  <a href="https://github.com/happy520ai/unified-ai-system/actions/workflows/docker-build-push.yml">
-    <img alt="Container" src="https://img.shields.io/github/actions/workflow/status/happy520ai/unified-ai-system/docker-build-push.yml?branch=master&style=flat-square&label=container" />
-  </a>
-  <a href="https://github.com/happy520ai/unified-ai-system/actions/workflows/hol-plugin-scanner.yml">
-    <img alt="HOL Plugin Scanner" src="https://img.shields.io/github/actions/workflow/status/happy520ai/unified-ai-system/hol-plugin-scanner.yml?branch=master&style=flat-square&label=plugin%20scan" />
   </a>
   <a href="https://github.com/happy520ai/unified-ai-system/releases/latest">
     <img alt="Release" src="https://img.shields.io/github/v/release/happy520ai/unified-ai-system?style=flat-square" />
@@ -42,61 +30,36 @@
 
 Unified AI System turns a rough request into a structured, reviewable prompt before execution. It gives teams one self-hosted surface for CLI, HTTP, SDK, MCP, Codex, Cursor, and Cline while keeping provider calls explicit.
 
-| You start with | You can inspect | Default first run |
-| --- | --- | --- |
-| `Build a small API for my team` | requirements, constraints, outputs, and ambiguity questions | local, deterministic, no API key |
+<p align="center">
+  <a href="https://happy520ai.github.io/unified-ai-system/#enhance?prompt=Build+a+small+API+for+my+team&amp;profile=coding&amp;language=en">
+    <img
+      src="docs/assets/prompt-enhancement-demo.png"
+      alt="Unified AI System turns a rough request into a structured coding prompt"
+      width="100%"
+    />
+  </a>
+  <br />
+  <sub>The original request stays visible. The local enhancer adds execution requirements, output requirements, and completion criteria.</sub>
+</p>
 
-It is built for teams that want executable intent before a model call, with
-explicit provider opt-in and evidence-first verification.
+## Try Before Installing
 
-This is not a chat UI wrapper. It is a control plane for AI workflow execution.
+[**Open a ready-to-run coding example in the browser Prompt Lab**](https://happy520ai.github.io/unified-ai-system/#enhance?prompt=Build+a+small+API+for+my+team&profile=coding&language=en)
 
-**Start here:** [try the browser Prompt Lab](https://happy520ai.github.io/unified-ai-system/#enhance) with no install, [run the 60-second demo](#try-it-in-60-seconds), [open it in Codespaces](https://codespaces.new/happy520ai/unified-ai-system?quickstart=1), and [star the repository](https://github.com/happy520ai/unified-ai-system) if it helps your workflow. [Share one verified result](https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml&title=%5BUsage%20Report%5D%20Quickstart) through the structured report template.
+The link loads a real request and renders the enhanced prompt locally. No
+account, API key, or provider call is required.
 
-**Fastest proof, no account required:**
+Run the same proof against the published container:
 
 ```bash
 docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.8 pnpm gateway demo "Build a small API for my team" --enhance --profile coding --evidence
 ```
 
-It preserves the original request, prints a structured coding prompt, reports
-deterministic `execution: fake`, emits a shareable evidence packet, and exits
-cleanly. If that is useful to your
-workflow, [star the repository](https://github.com/happy520ai/unified-ai-system)
-and [share one reproducible result](https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml&title=%5BUsage%20Report%5D%20Quickstart).
+The evidence confirms that the original request was preserved, the result is
+deterministic, and `providerCalled=false`. Codex, Cursor, Cline, and generic
+stdio clients can reach the same gateway through nine governed MCP tools.
 
-<details>
-<summary>See what prompt enhancement adds</summary>
-
-- `planning`: milestones, dependencies, risks, owners, and completion signals.
-- `coding`: compatibility boundaries, error paths, runnable changes, and verification.
-- `analysis`: comparison criteria, evidence, uncertainty, risks, and a next action.
-
-Every preview preserves the original request and reports `providerCalled=false`
-and `deterministic=true` in its metadata.
-
-One short request becomes a more inspectable starting point without calling a
-provider:
-
-```text
-Original: Build a small API for my team
-
-Enhanced prompt (excerpt):
-# Execution requirements
-- Understand the existing code, interfaces, and constraints.
-- Preserve compatibility and cover errors and edge cases.
-
-# Output requirements
-- Provide runnable code or precise change points with verification steps.
-
-# Completion criteria
-- Make the result inspectable, actionable, and reproducible.
-```
-
-The full preview preserves the original wording, reports its profile and
-language, and proves `providerCalled=false`, `credentialRequired=false`, and
-`deterministic=true`.
-</details>
+Useful in a real workflow? [Star the repository](https://github.com/happy520ai/unified-ai-system) or [share one reproducible result](https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml&title=%5BUsage%20Report%5D%20Quickstart).
 
 ## Choose Your First Path
 
@@ -119,18 +82,6 @@ language, and proves `providerCalled=false`, `credentialRequired=false`, and
 - Provider-free HTTP examples for curl and Python's standard library.
 - CLI, HTTP API, SDK, MCP, Codex, Cursor, and Cline entry points.
 - Clear boundaries: no AGI claim, no L5 claim, no silent provider behavior.
-
-<p align="center">
-  <a href="https://happy520ai.github.io/unified-ai-system/#enhance">
-    <img
-      src="docs/assets/prompt-enhancement-demo.png"
-      alt="Unified AI System local prompt enhancement demo"
-      width="100%"
-    />
-  </a>
-  <br />
-  <sub>v0.4.8: deterministic enhancement, no API key, no provider call.</sub>
-</p>
 
 ## Try It in 60 Seconds
 

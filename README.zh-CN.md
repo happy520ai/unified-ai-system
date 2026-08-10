@@ -11,12 +11,6 @@
 </p>
 
 <p align="center">
-  <a href="https://codespaces.new/happy520ai/unified-ai-system?quickstart=1">
-    <img alt="在 GitHub Codespaces 中打开" src="https://github.com/codespaces/badge.svg" />
-  </a>
-</p>
-
-<p align="center">
   <a href="https://github.com/happy520ai/unified-ai-system/stargazers">
     <img alt="GitHub Stars" src="https://img.shields.io/github/stars/happy520ai/unified-ai-system?style=flat-square&label=Stars" />
   </a>
@@ -39,74 +33,36 @@
 
 Unified AI System 会在执行前，把一句自然语言需求整理成结构化、可审阅的提示词。它为 CLI、HTTP、SDK、MCP、Codex、Cursor 和 Cline 提供统一的自托管入口，同时让 provider 调用保持显式。
 
-| 你从什么开始 | 你可以检查什么 | 默认首次运行 |
-| --- | --- | --- |
-| `帮我为团队设计一个小型 API` | 要求、约束、输出和歧义问题 | 本地处理、确定性输出、无需 API Key |
+<p align="center">
+  <a href="https://happy520ai.github.io/unified-ai-system/#enhance?prompt=%E5%B8%AE%E6%88%91%E4%B8%BA%E5%9B%A2%E9%98%9F%E8%AE%BE%E8%AE%A1%E4%B8%80%E4%B8%AA%E5%B0%8F%E5%9E%8B+API&amp;profile=coding&amp;language=zh-CN">
+    <img
+      src="docs/assets/prompt-enhancement-demo.png"
+      alt="Unified AI System 把一句自然语言需求整理成结构化 coding 提示词"
+      width="100%"
+    />
+  </a>
+  <br />
+  <sub>原始需求保持可见；本地增强器会补充执行要求、输出要求和完成标准。</sub>
+</p>
 
-它适合希望在模型调用前先得到可执行意图的团队，并提供明确的
-provider 边界和以证据为中心的验证。
+## 无需安装，直接体验
 
-它不是一个聊天页面包装器，而是一个面向 AI 工作流执行的控制平面。
+[**在浏览器 Prompt Lab 中打开一个可直接运行的 coding 示例**](https://happy520ai.github.io/unified-ai-system/#enhance?prompt=%E5%B8%AE%E6%88%91%E4%B8%BA%E5%9B%A2%E9%98%9F%E8%AE%BE%E8%AE%A1%E4%B8%80%E4%B8%AA%E5%B0%8F%E5%9E%8B+API&profile=coding&language=zh-CN)
 
-**从这里开始：** [直接体验在线 Prompt Lab](https://happy520ai.github.io/unified-ai-system/#enhance)，无需安装；然后[运行 60 秒体验](README.zh-CN.md#60-秒体验)或[在 Codespaces 中打开](https://codespaces.new/happy520ai/unified-ai-system?quickstart=1)。如果它对你的工作有帮助，欢迎[给仓库点 Star](https://github.com/happy520ai/unified-ai-system)，并通过[结构化使用验证模板分享一行可复现结果](https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml&title=%5BUsage%20Report%5D%20Quickstart)。
+链接会自动载入真实请求，并在浏览器本地生成增强结果，不需要账号、
+API Key，也不会调用 provider。
 
-**最快验证方式，无需账号：**
+也可以用已发布容器运行同一条验证：
 
 ```bash
 docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.8 pnpm gateway demo "帮我为团队设计一个小型 API" --enhance --profile coding --evidence
 ```
 
-命令会保留原始请求、输出结构化 coding 提示词、报告确定性的
-`execution: fake` 结果，生成可分享的证据包并自动退出。如果它对你的工作流有帮助，欢迎[给仓库点 Star](https://github.com/happy520ai/unified-ai-system)，并通过[使用验证模板分享一行可复现结果](https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml&title=%5BUsage%20Report%5D%20Quickstart)。
+证据会确认原始请求被保留、结果具有确定性，并显示
+`providerCalled=false`。Codex、Cursor、Cline 和通用 stdio 客户端可以
+通过同一个网关访问九个受治理 MCP 工具。
 
-也可以不克隆仓库，直接把自然语言请求管道传入已发布镜像：
-
-```bash
-printf '%s' "帮我规划一个小型 API 的发布" \
-  | docker run --rm -i ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.8 \
-      pnpm --silent gateway demo --enhance --profile planning --language zh-CN --json
-```
-
-PowerShell 读取请求文件的等价写法：
-
-```powershell
-Get-Content .\request.txt -Raw |
-  docker run --rm -i ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.8 `
-    pnpm --silent gateway demo --enhance --profile planning --language zh-CN --json
-```
-
-这条命令仍使用一次性的本地 fake provider，输出结果后自动退出。
-
-<details>
-<summary>查看自然语言增强会补充什么</summary>
-
-- `planning`：里程碑、依赖、风险、负责人和完成信号。
-- `coding`：兼容性边界、错误路径、可运行修改和验证方法。
-- `analysis`：比较维度、证据、不确定性、风险和下一步行动。
-
-每次预览都会保留原始请求，并在 metadata 中报告
-`providerCalled=false` 和 `deterministic=true`。
-
-一条简短需求会在不调用 provider 的情况下，变成更容易检查和执行的起点：
-
-```text
-原始请求：帮我为团队设计一个小型 API
-
-增强提示词（节选）：
-# 执行要求
-- 先理解现有代码、接口和约束。
-- 保持兼容性，并覆盖错误路径和边界情况。
-
-# 输出要求
-- 提供可运行代码或明确的修改点，并附带验证步骤。
-
-# 完成标准
-- 让结果可检查、可执行、可复现。
-```
-
-完整预览会保留原始措辞，报告 profile 和语言，并证明
-`providerCalled=false`、`credentialRequired=false`、`deterministic=true`。
-</details>
+在真实工作流中有帮助？欢迎[给仓库点 Star](https://github.com/happy520ai/unified-ai-system)，或[分享一条可复现结果](https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml&title=%5BUsage%20Report%5D%20Quickstart)。
 
 ## 选择入口
 
@@ -130,18 +86,6 @@ Get-Content .\request.txt -Raw |
 - 同时支持 CLI、HTTP API、SDK、MCP、Codex、Cursor 和 Cline。
 - 默认使用本地 fake provider，真实 provider 必须显式启用。
 - 不声称 AGI、L5 或生产就绪，只展示可以复现的行为。
-
-<p align="center">
-  <a href="https://happy520ai.github.io/unified-ai-system/#enhance">
-    <img
-      src="docs/assets/prompt-enhancement-demo.png"
-      alt="Unified AI System 本地提示词增强演示"
-      width="100%"
-    />
-  </a>
-  <br />
-  <sub>v0.4.8：确定性增强、无需 API Key、不会触发真实 provider 调用。</sub>
-</p>
 
 ## 60 秒体验
 
