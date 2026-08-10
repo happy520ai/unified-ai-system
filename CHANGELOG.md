@@ -13,6 +13,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
   README and community promotion paths.
 - Added a dedicated MCP client report template with required client, version,
   environment, tool-count, and sanitized health/readiness evidence fields.
+- Routed the bilingual Codex MCP quickstarts to the dedicated client report
+  flow so client evidence is captured with the right context.
 
 ## [0.4.8] - 2026-08-10
 

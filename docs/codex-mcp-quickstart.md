@@ -61,7 +61,7 @@ Paste each task into Codex as a normal prompt.
 
 After the tool returns, ask Codex to emit one JSON object containing only the
 fields below. This makes a first-run result easy to review or paste into the
-[usage report template](https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml&title=%5BUsage%20Report%5D%20Codex%20MCP%20Quickstart):
+[MCP client report template](https://github.com/happy520ai/unified-ai-system/issues/new?template=mcp-client-report.yml&title=%5BMCP%20Client%20Report%5D%20Codex%20MCP%20Quickstart):
 
 ```text
 Return one JSON object from the gateway_prompt_enhance result. Map
