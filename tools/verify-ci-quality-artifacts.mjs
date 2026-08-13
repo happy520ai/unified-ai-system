@@ -333,9 +333,11 @@ function collectTrendConsistencyChecks(qualityParsed, requireTrendHealth = false
     const checkLabel = `quality-scorecard:${key}`;
     const missingSeverity = requireTrendHealth ? "high" : "medium";
     if (!check || typeof check !== "object") {
-      issues.push(
-        `${checkLabel} result missing from quality summary${requireTrendHealth ? " while trend health is required" : ""}`,
-      );
+      if (requireTrendHealth) {
+        issues.push(
+          `${checkLabel} result missing from quality summary${requireTrendHealth ? " while trend health is required" : ""}`,
+        );
+      }
       issueCodes.push({
         code: `${key}_missing`,
         severity: missingSeverity,
@@ -373,10 +375,6 @@ function collectTrendConsistencyChecks(qualityParsed, requireTrendHealth = false
       continue;
     }
 
-    if (!check.ok) {
-      issues.push(`${checkLabel} failed with status=${check.status ?? "unknown"}`);
-    }
-
     if (Array.isArray(check.issueCodes)) {
       for (const issue of check.issueCodes) {
         issueCodes.push({
@@ -392,13 +390,40 @@ function collectTrendConsistencyChecks(qualityParsed, requireTrendHealth = false
 
   const normalizedIssueCodes = normalizeIssueCodes(issueCodes, "verify-ci-quality-artifacts");
   const issueCodeSummary = summarizeIssueCodes(normalizedIssueCodes);
+  const checksEntries = Object.values(checksSummary);
+  const hasMissingRequired = requiredChecks.some((checkKey) => checksSummary[checkKey]?.status === "missing");
+  const hasNotCollected = checksEntries.some(
+    (entry) => String(entry?.status ?? "").toLowerCase() === "not_collected",
+  );
+  const hasCheckFail = checksEntries.some(
+    (entry) => !entry || entry.status === "missing" || entry.ok === false,
+  );
+  const status = hasCheckFail || (requireTrendHealth && hasNotCollected)
+    ? "fail"
+    : hasNotCollected
+      ? "degraded"
+      : "pass";
+  const ok = status === "pass" || (!requireTrendHealth && status === "degraded");
+
+  if (!ok) {
+    if (requireTrendHealth) {
+      issues.push("quality trend consistency checks failed in strict trend-health mode");
+    } else {
+      issues.push("quality trend consistency checks failed in compatibility mode");
+    }
+  }
 
   return {
     issues,
     issueCodes: normalizedIssueCodes,
     issueCodeSummary,
     checks: checksSummary,
-    ok: normalizedIssueCodes.length === 0,
+    checksRequired: requiredChecks,
+    hasMissingRequired,
+    hasNotCollected,
+    status,
+    ok,
+    requiresTrendHealth: requireTrendHealth,
   };
 }
 

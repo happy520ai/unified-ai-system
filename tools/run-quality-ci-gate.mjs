@@ -143,16 +143,17 @@ function summarizeTrendBundle(result) {
 }
 
 function summarizeTrendConsistency(result, requireTrendHealth = false) {
+  const defaultChecksRequired = [
+    "trendDigestHealth",
+    "trendSummaryGuardrails",
+    "trendDigestCheckConsistency",
+  ];
   const checks = result?.parsedOutput?.checks?.trendConsistency || {};
   const consistencyChecks = checks?.checks;
   const issueCodes = Array.isArray(checks?.issueCodes) ? checks.issueCodes : [];
   const requiredChecks = Array.isArray(checks?.checksRequired) && checks.checksRequired.length > 0
     ? checks.checksRequired
-    : [
-      "trendDigestHealth",
-      "trendSummaryGuardrails",
-      "trendDigestCheckConsistency",
-    ];
+    : defaultChecksRequired;
   const issueCodeSummary = checks?.issueCodeSummary && typeof checks.issueCodeSummary === "object"
     ? checks.issueCodeSummary
     : summarizeIssueCodes(issueCodes);
@@ -165,38 +166,38 @@ function summarizeTrendConsistency(result, requireTrendHealth = false) {
       issueCodes: [],
       issueCodeSummary,
       checks: {},
-      checksRequired: [],
+      checksRequired: defaultChecksRequired,
+      hasMissingRequired: true,
+      hasNotCollected: false,
+      requiresTrendHealth: requireTrendHealth,
     };
   }
 
   const checksEntries = Object.values(consistencyChecks);
-  const hasMissingRequired = requiredChecks.some((key) => {
-    const check = consistencyChecks[key];
-    return !check || typeof check !== "object";
-  });
-  const hasCheckFail = checksEntries.some(
-    (entry) => entry?.ok === false || entry?.status === "missing",
-  );
-  const hasNotCollected = checksEntries.some(
-    (entry) => String(entry?.status ?? "").toLowerCase() === "not_collected",
-  );
-  const hasTrendGap = hasMissingRequired || hasNotCollected;
-  const status = hasCheckFail || (requireTrendHealth && hasTrendGap)
-    ? "fail"
-    : hasTrendGap
-      ? "degraded"
-      : "pass";
-
-  const ok = status === "pass" || (!requireTrendHealth && status === "degraded");
-
-  const checksSummaryStatus = hasTrendGap || hasCheckFail
-    ? {
-      requireTrendHealth,
-      hasMissingRequired,
-      hasNotCollected,
-      status,
-    }
-    : undefined;
+  const hasMissingRequired = Object.prototype.hasOwnProperty.call(checks, "hasMissingRequired")
+    ? Boolean(checks.hasMissingRequired)
+    : requiredChecks.some((key) => {
+      const check = consistencyChecks[key];
+      return !check || typeof check !== "object";
+    });
+  const hasNotCollected = Object.prototype.hasOwnProperty.call(checks, "hasNotCollected")
+    ? Boolean(checks.hasNotCollected)
+    : checksEntries.some((entry) => String(entry?.status ?? "").toLowerCase() === "not_collected");
+  const status = Object.prototype.hasOwnProperty.call(checks, "status") && checks.status
+    ? checks.status
+    : (() => {
+      const hasCheckFail = checksEntries.some(
+        (entry) => entry?.ok === false || entry?.status === "missing",
+      );
+      return hasCheckFail || (requireTrendHealth && (hasMissingRequired || hasNotCollected))
+        ? "fail"
+        : hasMissingRequired || hasNotCollected
+          ? "degraded"
+          : "pass";
+    })();
+  const ok = Object.prototype.hasOwnProperty.call(checks, "ok")
+    ? checks.ok
+    : status === "pass" || (!requireTrendHealth && status === "degraded");
 
   return {
     status,
@@ -206,8 +207,9 @@ function summarizeTrendConsistency(result, requireTrendHealth = false) {
     checksRequired: requiredChecks,
     issueCodes: issueCodes.slice(0, 16),
     issueCodeSummary,
+    hasMissingRequired,
+    hasNotCollected,
     requiresTrendHealth: requireTrendHealth,
-    ...checksSummaryStatus,
   };
 }
 

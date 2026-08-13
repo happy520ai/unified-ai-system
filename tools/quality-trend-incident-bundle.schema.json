@@ -79,6 +79,9 @@
         "checks": {
           "type": "object"
         },
+        "status": {
+          "type": "string"
+        },
         "issueCodes": {
           "type": "array"
         },
@@ -106,6 +109,18 @@
         "checksRequired": {
           "type": "array",
           "items": { "type": "string" }
+        },
+        "hasMissingRequired": {
+          "type": "boolean"
+        },
+        "hasNotCollected": {
+          "type": "boolean"
+        },
+        "requiresTrendHealth": {
+          "type": "boolean"
+        },
+        "source": {
+          "type": "string"
         }
       }
     },

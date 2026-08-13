@@ -35,6 +35,11 @@ Normalization guidance:
   - `incidentBundle.issueCodes`
   - `incidentBundle.issueCodeSummary`
   - `checks.trendConsistency`
+  - `checks.trendConsistency.status`
+  - `checks.trendConsistency.checksRequired`
+  - `checks.trendConsistency.hasMissingRequired`
+  - `checks.trendConsistency.hasNotCollected`
+  - `checks.trendConsistency.requiresTrendHealth`
 - `tools/run-quality-ci-gate.mjs`
   - `issueCodes`
   - `issueCodeSummary`
