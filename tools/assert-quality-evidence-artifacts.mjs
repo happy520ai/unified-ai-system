@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { existsSync, readFileSync, statSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { dirname, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -11,6 +11,7 @@ function parseArgs() {
   const args = process.argv.slice(2);
   const values = {
     showHelp: false,
+    policyReport: false,
     configPath: null,
     requiredArtifacts: [],
     requiredJsonArtifacts: [],
@@ -28,6 +29,11 @@ function parseArgs() {
 
     if (arg === "--json") {
       values.outputJson = true;
+      continue;
+    }
+
+    if (arg === "--policy-report") {
+      values.policyReport = true;
       continue;
     }
 
@@ -126,6 +132,7 @@ function printUsage() {
     "  [--max-age-minutes <N>]                          Optional freshness check for timestamped artifacts",
     "  [--max-timestamp-skew-minutes <N>]                Optional timestamp skew check",
     "  --json                                            Print machine-readable output",
+    "  --policy-report                                   Include policy trace in text mode",
     "  --help                                            Show usage",
   ];
   process.stdout.write(`${lines.join("\n")}\n`);
@@ -230,6 +237,117 @@ function mergePolicy(basePolicy, overridePolicy) {
   return merged;
 }
 
+function policyPathLabel(policyPath) {
+  if (!policyPath || typeof policyPath !== "string") {
+    return policyPath;
+  }
+
+  const normalized = resolve(repoRoot, policyPath);
+  if (normalized === repoRoot) {
+    return policyPath;
+  }
+
+  if (normalized.startsWith(`${repoRoot}${sep}`)) {
+    return relative(repoRoot, normalized).replaceAll("\\", "/");
+  }
+
+  return policyPath;
+}
+
+const POLICY_LIST_KEYS = [
+  "requiredArtifacts",
+  "requiredJsonArtifacts",
+  "requiredTimestampedArtifacts",
+  "requiredTimestampFieldArtifacts",
+  "requiredFields",
+];
+
+const POLICY_SCALAR_KEYS = [
+  "policy",
+  "description",
+  "maxAgeMinutes",
+  "maxTimestampSkewMinutes",
+];
+
+function extractPolicyContribution(inputPolicy) {
+  const policy = isObject(inputPolicy) ? inputPolicy : {};
+  const contribution = {};
+
+  for (const key of POLICY_LIST_KEYS) {
+    const value = policy[key];
+    if (Array.isArray(value) && value.length > 0) {
+      contribution[key] = value.map((entry) => (isObject(entry) ? { ...entry } : `${entry}`));
+    }
+  }
+
+  for (const key of POLICY_SCALAR_KEYS) {
+    if (key in policy) {
+      contribution[key] = policy[key];
+    }
+  }
+
+  return contribution;
+}
+
+function mergePolicySourceMeta(baseMeta, ownPath, ownContribution) {
+  if (!isObject(baseMeta)) {
+    return {
+      inheritanceChain: [ownPath],
+      contributions: [
+        {
+          path: ownPath,
+          policy: ownContribution,
+        },
+      ],
+    };
+  }
+
+  const baseChain = Array.isArray(baseMeta.inheritanceChain) ? baseMeta.inheritanceChain : [];
+  const baseContributions = Array.isArray(baseMeta.contributions) ? baseMeta.contributions : [];
+
+  return {
+    inheritanceChain: [...baseChain, ownPath],
+    contributions: [...baseContributions, { path: ownPath, policy: ownContribution }],
+  };
+}
+
+function buildPolicySourceReport(policyMeta = null, finalPolicy = {}) {
+  const meta = isObject(policyMeta) ? policyMeta : {};
+  const contributions = Array.isArray(meta.contributions) ? meta.contributions : [];
+  const sourceByKey = {};
+  const allKeys = [...POLICY_LIST_KEYS, ...POLICY_SCALAR_KEYS];
+
+  for (const key of allKeys) {
+    const entries = [];
+    for (const contribution of contributions) {
+      if (!isObject(contribution.policy)) {
+        continue;
+      }
+      if (Object.prototype.hasOwnProperty.call(contribution.policy, key)) {
+        entries.push({
+          source: policyPathLabel(contribution.path),
+          value: contribution.policy[key],
+        });
+      }
+    }
+    if (entries.length > 0) {
+      sourceByKey[key] = entries;
+    }
+  }
+
+  return {
+    chain: Array.isArray(meta.inheritanceChain)
+      ? meta.inheritanceChain.map((entry) => policyPathLabel(entry))
+      : [],
+    contributions: contributions.map((contribution) => ({
+      source: policyPathLabel(contribution.path),
+      policy: contribution.policy ?? {},
+    })),
+    sourceByKey,
+    finalPolicy,
+  };
+}
+
 const policyCache = new Map();
 let policySchemaCache = null;
 let policySchemaError = null;
@@ -267,7 +385,14 @@ function loadPolicySchema() {
 
 function readPolicy(policyPath, visited = new Set()) {
   if (!policyPath) {
-    return { ok: true, policy: {} };
+    return {
+      ok: true,
+      policy: {},
+      policySourceMeta: {
+        inheritanceChain: [],
+        contributions: [],
+      },
+    };
   }
 
   const absolutePolicy = resolve(repoRoot, policyPath);
@@ -277,6 +402,10 @@ function readPolicy(policyPath, visited = new Set()) {
       errors: [`policy missing: ${policyPath}`],
       policy: {},
       path: policyPath,
+      policySourceMeta: {
+        inheritanceChain: [policyPath],
+        contributions: [],
+      },
     };
   }
 
@@ -285,6 +414,10 @@ function readPolicy(policyPath, visited = new Set()) {
       ok: false,
       errors: [`policy inheritance cycle detected at ${absolutePolicy}`],
       policy: {},
+      policySourceMeta: {
+        inheritanceChain: [policyPath],
+        contributions: [],
+      },
       path: policyPath,
     };
   }
@@ -305,24 +438,44 @@ function readPolicy(policyPath, visited = new Set()) {
         ok: false,
         errors: [`policy is not an object: ${policyPath}`],
         policy: {},
+        policySourceMeta: {
+          inheritanceChain: [policyPath],
+          contributions: [],
+        },
         path: policyPath,
       };
       policyCache.set(absolutePolicy, result);
       return result;
     }
 
+    const ownContribution = extractPolicyContribution(parsed);
     let mergedPolicy = { ...parsed };
     delete mergedPolicy.extends;
+    let policySourceMeta = {
+      inheritanceChain: [policyPath],
+      contributions: [
+        {
+          path: policyPath,
+          policy: ownContribution,
+        },
+      ],
+    };
 
     const parentSpec = typeof parsed.extends === "string" ? parsed.extends.trim() : null;
     if (parentSpec) {
       const parentPath = resolve(dirname(absolutePolicy), parentSpec);
       const parentResult = readPolicy(parentPath, nextVisited);
       if (!parentResult.ok) {
+        policySourceMeta = mergePolicySourceMeta(
+          parentResult.policySourceMeta,
+          policyPath,
+          ownContribution,
+        );
         const result = {
           ok: false,
           errors: parentResult.errors,
           policy: mergePolicy(parentResult.policy, parsed),
+          policySourceMeta,
           path: policyPath,
         };
         delete result.policy.extends;
@@ -331,11 +484,13 @@ function readPolicy(policyPath, visited = new Set()) {
       }
 
       mergedPolicy = mergePolicy(parentResult.policy, parsed);
+      policySourceMeta = mergePolicySourceMeta(parentResult.policySourceMeta, policyPath, ownContribution);
     }
 
     const result = {
       ok: true,
       policy: mergedPolicy,
+      policySourceMeta,
       path: policyPath,
     };
     policyCache.set(absolutePolicy, result);
@@ -345,6 +500,10 @@ function readPolicy(policyPath, visited = new Set()) {
       ok: false,
       errors: [`policy parse failed: ${policyPath}: ${String(error.message)}`],
       policy: {},
+      policySourceMeta: {
+        inheritanceChain: [policyPath],
+        contributions: [],
+      },
       path: policyPath,
     };
     policyCache.set(absolutePolicy, result);
@@ -580,6 +739,7 @@ function main() {
   const policyResult = readPolicy(args.configPath);
   const policy = policyResult.policy ?? {};
   const policyErrors = [...(policyResult.errors ?? []), ...validatePolicy(policyResult.policy)];
+  const policySourceReport = buildPolicySourceReport(policyResult.policySourceMeta ?? null, policy);
 
   const policyRequiredArtifacts = Array.isArray(policy.requiredArtifacts) ? policy.requiredArtifacts : [];
   const policyRequiredJsonArtifacts = Array.isArray(policy.requiredJsonArtifacts) ? policy.requiredJsonArtifacts : [];
@@ -715,6 +875,7 @@ function main() {
     maxAgeMinutes,
     maxTimestampSkewMinutes,
     policyErrors,
+    policySourceReport,
     issues,
     artifacts: results.map((artifact) => formatArtifactResult(artifact.path, artifact)),
   };
@@ -722,6 +883,16 @@ function main() {
   if (args.outputJson) {
     process.stdout.write(`${JSON.stringify(output, null, 2)}\n`);
   } else {
+    if (args.policyReport) {
+      process.stdout.write("Policy resolution trace:\n");
+      if (policySourceReport.chain.length === 0) {
+        process.stdout.write("  <no policy loaded>\n");
+      } else {
+        policySourceReport.chain.forEach((pathItem, index) => {
+          process.stdout.write(`  ${index + 1}. ${pathItem}\n`);
+        });
+      }
+    }
     printTextResult(results, issues.concat(policyErrors));
   }
 

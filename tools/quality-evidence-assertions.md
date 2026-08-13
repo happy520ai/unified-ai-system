@@ -35,8 +35,18 @@ CI and scheduled trend workflows call:
 node ./tools/assert-quality-evidence-artifacts.mjs \
   --config <policy>.json \
   --json \
+  [--policy-report] \
   --max-age-minutes "${QUALITY_EVIDENCE_MAX_AGE_MINUTES}" \
   --max-timestamp-skew-minutes "${QUALITY_EVIDENCE_MAX_TIMESTAMP_SKEW_MINUTES}"
 ```
+
+The JSON output includes a machine-verifiable `policySourceReport` section for every run:
+
+- `chain`: the resolved inheritance chain (parent to child).
+- `contributions`: contributions from each policy file (`path` + provided fields).
+- `sourceByKey`: per policy field, ordered source chain entries showing who set/overrode each value.
+- `finalPolicy`: the fully merged policy that was actually applied.
+
+Use `--policy-report` in text output to print the resolved policy chain for easier manual audit.
 
 This keeps the shell workflow stable while allowing policy evolution in JSON.
