@@ -121,7 +121,9 @@ Use this lightweight drill to verify the request-circuit breaker behavior in a n
 - `AI_GATEWAY_GATEWAY_ERROR_CIRCUIT_RESET_MS=30000`
 - `AI_GATEWAY_GATEWAY_ERROR_CIRCUIT_HALF_OPEN_MAX_CALLS=1`
 - `AI_GATEWAY_GATEWAY_ERROR_CIRCUIT_BYPASS_ROUTES=/health,/health/check,/healthz,/ready,/setup/readiness,/metrics,/dashboard/status`
-  - 你可以按实例实际情况增加可观测专用路由，例如 `/dashboard/status`；此变量会做去重与标准化处理（去空格、补齐前导斜杠、清理尾随斜杠、压缩重复斜杠）。
+  - You can add observability-only routes as needed, such as `/dashboard/status`; this
+    value is normalized (trim spaces, ensure leading slash, remove trailing slash, and
+    collapse duplicate slashes).
 2. Generate repeated 5xx-like failures on a route that is already connected to this gateway path (or run synthetic failure hooks if available).
 
 3. Observe the transition:
