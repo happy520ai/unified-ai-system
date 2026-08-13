@@ -389,13 +389,13 @@ export function createGatewayHttpServer(application) {
     applySecurityHeaders(response);
     request.maxBodyBytes = maxRequestBodyBytes;
     applyCorsHeaders(response, request.headers.origin, corsAllowedOrigins, corsMaxAgeSeconds);
-    const markRequestSuccess = () => {
+    const markRequestSuccess = ({ recordServerFailure = true } = {}) => {
       if (canBypassGatewayErrorCircuit) {
         const bypassSnapshot = gatewayErrorCircuit.getStateSnapshot();
         resilienceMetrics.recordGatewayErrorCircuitState?.(bypassSnapshot?.state, bypassSnapshot);
         return;
       }
-      if (response.statusCode >= 500) {
+      if (recordServerFailure && response.statusCode >= 500) {
         gatewayErrorCircuit.recordFailure();
         resilienceMetrics.recordGatewayErrorCircuitFailure?.();
         const failureSnapshot = gatewayErrorCircuit.getStateSnapshot();
@@ -514,7 +514,7 @@ export function createGatewayHttpServer(application) {
           limit: maxInFlightRequests,
         }),
       );
-      markRequestSuccess();
+      markRequestSuccess({ recordServerFailure: false });
       return;
     }
 

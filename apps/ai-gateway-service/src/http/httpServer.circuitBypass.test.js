@@ -260,6 +260,55 @@ describe("gateway error circuit bypass routes", () => {
     }
   });
 
+  it("does not open the gateway-error circuit for controlled overload rejection", async () => {
+    let releaseFirstAudit;
+    let signalFirstAudit;
+    const firstAuditEntered = new Promise((resolve) => {
+      signalFirstAudit = resolve;
+    });
+    const firstAuditRelease = new Promise((resolve) => {
+      releaseFirstAudit = resolve;
+    });
+    let auditCalls = 0;
+    const server = createGatewayHttpServer(createGatewayApplication({
+      runtimeEnv: {
+        AI_GATEWAY_MAX_IN_FLIGHT_REQUESTS: "1",
+      },
+      enterpriseGovernanceService: {
+        async recordAudit() {
+          auditCalls += 1;
+          if (auditCalls === 1) {
+            signalFirstAudit();
+            await firstAuditRelease;
+          }
+        },
+      },
+    }));
+
+    await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address();
+    try {
+      const firstRequest = sendRequest(address.port, "/dashboard/status");
+      await firstAuditEntered;
+
+      const overload = await sendRequest(address.port, "/dashboard/status");
+      expect(overload.statusCode).toBe(503);
+      expect(JSON.parse(overload.body)?.error?.code).toBe("service_overloaded");
+
+      releaseFirstAudit();
+      expect((await firstRequest).statusCode).toBe(200);
+
+      const metrics = await sendRequest(address.port, "/metrics");
+      expect(metrics.body).toContain('ai_gateway_gateway_error_circuit_state{state="closed"} 1');
+      expect(metrics.body).toContain('ai_gateway_gateway_error_circuit_state{state="open"} 0');
+    } finally {
+      releaseFirstAudit?.();
+      await new Promise((resolve, reject) => {
+        server.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
+  });
+
   it("supports additional configured bypass routes for circuit-open mode", async () => {
     const server = createGatewayHttpServer(createGatewayApplication({
       runtimeEnv: {
