@@ -145,6 +145,7 @@ Run locally with custom allowlist:
 
 ```bash
 node ./tools/check-language-policy.mjs --allowlist tools/language-policy-allowlist.json --json
+node ./tools/language-policy-expiry-report.mjs --json --warn-within-days 30
 ```
 
 ## 7. Automated enforcement

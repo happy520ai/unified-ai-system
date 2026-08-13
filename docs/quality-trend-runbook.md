@@ -18,6 +18,7 @@ For immediate triage, the minimum evidence set is:
   - `.tmp/quality-trend-recommendations.md` (if smoke failed)
   - `.tmp/quality-trend-incident-bundle.md`
   - `.tmp/quality-trend-incident-bundle.json`
+  - `.tmp/language-policy-expiry.json`
 
 - From workflow `quality trend snapshot`:
   - `.tmp/quality-trend-health-smoke.json`
@@ -30,6 +31,7 @@ For immediate triage, the minimum evidence set is:
   - `.tmp/quality-trend-incident-bundle.json`
   - `.tmp/quality-trend-verify-artifacts.json`
   - `.tmp/language-policy-check.json`
+  - `.tmp/language-policy-expiry.json`
 
 If any required file is missing after a failed run, treat evidence completeness as a blocker and rerun with artifacts enabled.
 
@@ -60,6 +62,8 @@ When `blocked: true`, block the change and create a fix ticket for unstable root
    - `.tmp/quality-trend-check.json`
    - `.tmp/quality-trend-recommendations.md` (if smoke failed)
    - `.tmp/quality-trend-incident-bundle.md` / `.tmp/quality-trend-incident-bundle.json` (if smoke failed)
+  - `.tmp/language-policy-check.json`
+  - `.tmp/language-policy-expiry.json`
 2. Confirm which gate failed:
    - `guardrail state` and `checks` fields in guardrail JSON.
    - `trendState`, `unstableReasons`, and `recommendation` in digest/check JSON.

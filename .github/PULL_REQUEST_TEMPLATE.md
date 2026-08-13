@@ -15,6 +15,12 @@ For each changed runtime/module boundary, summarize the language decision:
 - **Compatibility and rollback scope:** (where this can break and rollback plan)
 - **Policy impact:** (fake-provider/default behavior/contract/evidence)
 - **Risk closure:** (gates/tests/monitoring proving safe behavior)
+- **Language-policy exceptions:** if any runtime JS exceptions are used, list:
+  - exception type/value
+  - justification
+  - owner
+  - removalBy date
+  - migration plan and PR/issue link
 
 ## Verification
 
@@ -47,6 +53,7 @@ behavior changes.
 - [ ] Language selection section is completed with alternatives and compatibility impact.
 - [ ] Language was selected via [Language Selection Playbook](/docs/language-selection-playbook.md):
   workload profile, alternatives, compatibility impact, and migration/rollback scope are documented.
+- [ ] If any language-policy exception is used, the PR body includes owner, removalBy, justification, and migration plan with a target date.
 - [ ] Production, L5, and AGI claims remain evidence-based.
 - [ ] If trend guardrails are enabled, `.tmp/quality-trend-guardrail.json` was inspected and any `issues` are explained in the PR body.
 - [ ] If trend gate is unstable, `.tmp/quality-trend-summary.md` and `.tmp/quality-ci-verification.json` were reviewed for root-cause evidence.

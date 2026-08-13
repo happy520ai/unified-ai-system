@@ -91,6 +91,7 @@ Current CI pipelines publish:
 - `.tmp/quality-evidence-artifacts.json` (`ci.yml`)
 - `.tmp/quality-trend-required-artifacts.json` (`quality-trend.yml`)
 - `.tmp/language-policy-check.json` (`quality-trend.yml`)
+- `.tmp/language-policy-expiry.json` (`quality-trend.yml` / `ci.yml`)
 
 For failed trend runs, the evidence completeness gate in `quality-trend` workflows now treats all files in the list above as required for triage continuity.
 
@@ -121,12 +122,20 @@ In CI and scheduled trend jobs, default limits are:
 
 ## Incident bundle contract
 
-`language-policy-check.json` produced in trend/CI workflows includes:
+`language-policy-check.json` and `language-policy-expiry.json` produced in trend/CI workflows include:
 
 - `allowed`: list of exception-based JS/runtime language allowances with owner/removalBy metadata.
 - `allowlistIssues`: allowlist parse/validation failures (including expired exceptions).
 - `allowlistWarnings`: legacy field/deprecation warnings.
 - `inspected`: file-count/refs metadata used for trend evidence traceability.
+
+`language-policy-expiry.json` adds near-term governance context:
+
+- `summary.total`: total number of declared exceptions.
+- `summary.expiredCount`: number of exceptions already past their `removalBy` date.
+- `summary.nearExpiryCount`: number of exceptions in the warning window (`warnWithinDays`).
+- `expired`: explicit per-entry list with `value`, `removalBy`, and `daysUntilRemoval` < 0.
+- `nearExpiry`: explicit per-entry list where `daysUntilRemoval` is within the warning window.
 
 For structured investigation, the smoke failure bundle follows
 `tools/quality-trend-incident-bundle.schema.json` and is emitted as:

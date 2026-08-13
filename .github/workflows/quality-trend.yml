@@ -80,6 +80,11 @@ jobs:
           set -o pipefail
           node ./tools/check-language-policy.mjs --json 2>&1 | tee .tmp/language-policy-check.json
 
+      - name: Language policy exception expiry report
+        if: always()
+        run: |
+          node ./tools/language-policy-expiry-report.mjs --json --warn-within-days 30 2>&1 | tee .tmp/language-policy-expiry.json
+
       - name: Restore quality trend history cache
         uses: actions/cache@v4
         with:
@@ -223,6 +228,49 @@ jobs:
             ' || true
           fi
 
+          if [ -f .tmp/language-policy-expiry.json ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "## Language policy expiry check" >> "$GITHUB_STEP_SUMMARY"
+            node --input-type=module --eval '
+              import { readFileSync } from "node:fs";
+
+              const parsed = JSON.parse(readFileSync(".tmp/language-policy-expiry.json", "utf8"));
+              const expired = Array.isArray(parsed.expired) ? parsed.expired : [];
+              const nearExpiry = Array.isArray(parsed.nearExpiry) ? parsed.nearExpiry : [];
+              const issues = Array.isArray(parsed.issues) ? parsed.issues : [];
+              const warnings = Array.isArray(parsed.warnings) ? parsed.warnings : [];
+              const summary = parsed.summary || {};
+
+              console.log(`**Expiry summary:** scanned=${summary.total ?? 0}, expired=${summary.expiredCount ?? expired.length}, near-expiry=${summary.nearExpiryCount ?? nearExpiry.length}`);
+              if (issues.length > 0) {
+                console.log("**Expiry report issues:**");
+                for (const issue of issues) {
+                  console.log(`- ${String(issue)}`);
+                }
+              }
+              if (warnings.length > 0) {
+                console.log("**Expiry report warnings:**");
+                for (const warning of warnings) {
+                  console.log(`- ${String(warning)}`);
+                }
+              }
+              if (expired.length > 0) {
+                console.log("**Expired exceptions (must be removed before merge):**");
+                for (const exception of expired) {
+                  console.log(`- ${exception.type}:${exception.value} (owner=${exception.owner}, removalBy=${exception.removalBy})`);
+                }
+              }
+              if (nearExpiry.length > 0) {
+                console.log("**Near-expiry exceptions:**");
+                for (const exception of nearExpiry) {
+                  console.log(
+                    `- ${exception.type}:${exception.value} (owner=${exception.owner}, daysUntilRemoval=${exception.daysUntilRemoval}, removalBy=${exception.removalBy}, justification=${exception.justification})`,
+                  );
+                }
+              }
+            ' || true
+          fi
+
       - name: Append quality trend smoke output to workflow summary
         if: always()
         run: |
@@ -309,5 +357,6 @@ jobs:
             .tmp/quality-trend-verify-artifacts.json
             .tmp/quality-trend-health-smoke.json
             .tmp/language-policy-check.json
+            .tmp/language-policy-expiry.json
           retention-days: 180
 
