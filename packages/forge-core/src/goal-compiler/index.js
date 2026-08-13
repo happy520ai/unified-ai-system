@@ -14,6 +14,7 @@ import { buildDAG } from './dag-builder.js';
 import { callLLM } from '../llm-client.js';
 
 const LANGUAGE_PRIORITY = ['ts', 'js', 'python', 'go', 'rust', 'java'];
+const DEFAULT_LANGUAGE_FALLBACK = 'other';
 const EXT_TO_LANGUAGE = Object.freeze({
   '.ts': 'ts',
   '.tsx': 'ts',
@@ -25,6 +26,15 @@ const EXT_TO_LANGUAGE = Object.freeze({
   '.go': 'go',
   '.rs': 'rust',
   '.java': 'java',
+});
+const LANGUAGE_LABELS = Object.freeze({
+  ts: 'TypeScript',
+  js: 'JavaScript',
+  python: 'Python',
+  go: 'Go',
+  rust: 'Rust',
+  java: 'Java',
+  other: 'language best determined from file/task context',
 });
 const GOAL_TEXT_LANGUAGE_PATTERNS = [
   { pattern: /\b(type\s*script|typescript|ts)\b/, language: 'ts' },
@@ -42,6 +52,7 @@ function normalizeLanguageCandidate(value) {
   if (v === 'javascript' || v === 'nodejs' || v === 'node.js') return 'js';
   if (v === 'py' || v === 'python') return 'python';
   if (v === 'golang' || v === 'go') return 'go';
+  if (v === 'other' || v === 'unknown') return 'other';
   if (v === 'rust' || v === 'java') return v;
   if (v === 'ts') return 'ts';
   if (v === 'js') return 'js';
@@ -50,7 +61,7 @@ function normalizeLanguageCandidate(value) {
 
 function inferLanguageFromText(text) {
   const normalized = String(text || '').toLowerCase();
-  const extMatch = normalized.match(/\b[\w.-]+\.(ts|tsx|js|jsx|py|go|rs|java)\b/g);
+  const extMatch = normalized.match(/\b[\w.-]+\.(ts|tsx|js|mjs|cjs|jsx|py|go|rs|java)\b/g);
   if (extMatch?.length > 0) {
     const extension = extMatch[0].slice(extMatch[0].lastIndexOf('.')).toLowerCase();
     const matchLang = EXT_TO_LANGUAGE[extension];
@@ -68,7 +79,7 @@ function inferTaskLanguage(task, fallbackLanguage = 'js', goalText = '') {
   if (fromFiles) return fromFiles;
   const fromText = inferLanguageFromText(`${task?.name ?? ''} ${task?.prompt ?? ''} ${goalText ?? ''}`);
   if (fromText) return fromText;
-  return normalizeLanguageCandidate(fallbackLanguage) || 'js';
+  return normalizeLanguageCandidate(fallbackLanguage) || DEFAULT_LANGUAGE_FALLBACK;
 }
 
 function inferLanguageFromAllowedFiles(patterns) {
@@ -100,17 +111,25 @@ function inferLanguageFromTree(tree) {
   for (const language of LANGUAGE_PRIORITY) {
     if ((counts.get(language) || 0) > 0) return language;
   }
-  return 'js';
+  return DEFAULT_LANGUAGE_FALLBACK;
+}
+
+function describeLanguage(language) {
+  return LANGUAGE_LABELS[normalizeLanguageCandidate(language)] || LANGUAGE_LABELS.other;
 }
 
 function buildLanguagePreferenceText(language, taskLanguage = null) {
-  const normalizedLanguage = normalizeLanguageCandidate(language) || 'js';
+  const normalizedLanguage = normalizeLanguageCandidate(language) || DEFAULT_LANGUAGE_FALLBACK;
+  const normalizedTaskLanguage = normalizeLanguageCandidate(taskLanguage);
   if (!taskLanguage || normalizeLanguageCandidate(taskLanguage) === normalizedLanguage) {
-    return `Default implementation language: ${normalizedLanguage === 'ts' ? 'TypeScript' : normalizedLanguage === 'js' ? 'JavaScript' : normalizedLanguage}.`;
+    return `Default implementation language: ${describeLanguage(normalizedLanguage)}.`;
   }
-  const normalizedTaskLanguage = normalizeLanguageCandidate(taskLanguage) || normalizedLanguage;
-  const taskMap = { ts: 'TypeScript', js: 'JavaScript', python: 'Python', go: 'Go', rust: 'Rust', java: 'Java' };
-  return `Primary task language: ${taskMap[normalizedTaskLanguage] ?? normalizedTaskLanguage}. Project default remains ${taskMap[normalizedLanguage] ?? normalizedLanguage}.`;
+  if (normalizedLanguage === DEFAULT_LANGUAGE_FALLBACK) {
+    return `Primary task language: ${describeLanguage(normalizedTaskLanguage)}. ` +
+      'Project default is unclear; rely on task-specific hints (allowedFiles, goal wording, existing file context).';
+  }
+  return `Primary task language: ${describeLanguage(normalizedTaskLanguage)}. ` +
+    `Project default remains ${describeLanguage(normalizedLanguage)}.`;
 }
 
 const MAX_PROBE_FILES = 80;
@@ -317,10 +336,12 @@ export async function compileGoal(store, { goalText, projectRoot }) {
   return { goalId, taskCount: tasks.length, summary: parsed.summary };
 }
 
-function buildUserPrompt(goalText, tree, keyFiles, preferredLanguage = 'js') {
+function buildUserPrompt(goalText, tree, keyFiles, preferredLanguage = DEFAULT_LANGUAGE_FALLBACK) {
   let prompt = `## Goal\n${goalText}\n\n`;
-  if (preferredLanguage) {
-    prompt += `## Preferred Language\n${preferredLanguage}\n\n`;
+  if (preferredLanguage && preferredLanguage !== DEFAULT_LANGUAGE_FALLBACK) {
+    prompt += `## Preferred Language\n${describeLanguage(preferredLanguage)}\n\n`;
+  } else {
+    prompt += `## Preferred Language\nPrefer the language implied by task files and project context.\n\n`;
   }
   prompt += `## Project File Tree (first ${tree.length} entries)\n\`\`\`\n${tree.join('\n')}\n\`\`\`\n\n`;
 

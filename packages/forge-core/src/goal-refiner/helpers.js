@@ -46,6 +46,7 @@ export const ENTRY_POINT_CANDIDATES = [
 ];
 
 const LANGUAGE_PRIORITY = ['ts', 'js', 'python', 'go', 'rust', 'java'];
+const DEFAULT_LANGUAGE_FALLBACK = 'other';
 const LANGUAGE_LABELS = Object.freeze({
   ts: 'TypeScript',
   js: 'JavaScript',
@@ -53,6 +54,7 @@ const LANGUAGE_LABELS = Object.freeze({
   go: 'Go',
   rust: 'Rust',
   java: 'Java',
+  other: 'language best determined from file/task context',
 });
 const EXT_TO_LANGUAGE = Object.freeze({
   '.ts': 'ts',
@@ -83,6 +85,7 @@ function normalizeLanguageCandidate(value) {
   if (v === 'javascript' || v === 'nodejs' || v === 'node.js') return 'js';
   if (v === 'py' || v === 'python') return 'python';
   if (v === 'golang' || v === 'go') return 'go';
+  if (v === 'other' || v === 'unknown') return 'other';
   if (v === 'rust' || v === 'java') return v;
   if (v === 'ts') return 'ts';
   if (v === 'js') return 'js';
@@ -302,7 +305,7 @@ export function inferPreferredLanguage(profile = {}, goalText = '') {
     if (count > 0) return language;
   }
 
-  return 'js';
+  return DEFAULT_LANGUAGE_FALLBACK;
 }
 
 /**
@@ -312,7 +315,7 @@ export function inferPreferredLanguage(profile = {}, goalText = '') {
  * @returns {string}
  */
 export function preferredLanguageLabel(language) {
-  return LANGUAGE_LABELS[normalizeLanguageCandidate(language)] || 'JavaScript';
+  return LANGUAGE_LABELS[normalizeLanguageCandidate(language)] || LANGUAGE_LABELS.other;
 }
 
 /**
@@ -323,15 +326,20 @@ export function preferredLanguageLabel(language) {
  * @returns {string}
  */
 export function buildLanguagePreferenceText(language, taskLanguage = null) {
-  const normalizedLanguage = normalizeLanguageCandidate(language);
+  const normalizedLanguage = normalizeLanguageCandidate(language) || DEFAULT_LANGUAGE_FALLBACK;
   const normalizedTaskLanguage = normalizeLanguageCandidate(taskLanguage);
   const defaultLabel = preferredLanguageLabel(normalizedLanguage);
 
   if (!normalizedTaskLanguage || normalizedTaskLanguage === normalizedLanguage) {
-    return `Default implementation language: ${defaultLabel}. If a task explicitly targets another language file, follow that file's language.`;
+    return `Default implementation language: ${defaultLabel}. ` +
+      'If a task explicitly targets another language file, follow that file\'s language.';
   }
 
   const taskLabel = preferredLanguageLabel(normalizedTaskLanguage);
+  if (normalizedLanguage === DEFAULT_LANGUAGE_FALLBACK) {
+    return `Primary task language: ${taskLabel}. ` +
+      'Project default is unclear; infer the default from task files and context.';
+  }
   return `Primary task language: ${taskLabel}. Project default remains ${defaultLabel}. If this conflicts with an explicitly targeted file language, follow that file language.`;
 }
 
@@ -343,7 +351,7 @@ export function buildLanguagePreferenceText(language, taskLanguage = null) {
  * @param {string} goalText
  * @returns {string}
  */
-export function inferTaskLanguage(task = {}, fallbackLanguage = 'js', goalText = '') {
+export function inferTaskLanguage(task = {}, fallbackLanguage = DEFAULT_LANGUAGE_FALLBACK, goalText = '') {
   const taskLanguageFromFiles = inferLanguageFromAllowedFiles(task?.allowedFiles ?? []);
   if (taskLanguageFromFiles) return taskLanguageFromFiles;
 
@@ -351,7 +359,7 @@ export function inferTaskLanguage(task = {}, fallbackLanguage = 'js', goalText =
   const hint = inferLanguageFromTextGoalHint(taskText);
   if (hint) return hint;
 
-  return normalizeLanguageCandidate(fallbackLanguage) || 'js';
+  return normalizeLanguageCandidate(fallbackLanguage) || DEFAULT_LANGUAGE_FALLBACK;
 }
 
 /**

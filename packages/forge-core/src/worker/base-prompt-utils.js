@@ -30,7 +30,10 @@ export function buildPrompt(task, contextBlock, extraContext, opts) {
     prompt += `\n## Constraints\n${task.constraints.map((constraint) => `- ${constraint}`).join('\n')}\n`;
   }
   if (task.language) {
-    prompt += `\n## Primary Language\nPrimary implementation language: ${task.language}.\n`;
+    const normalizedLanguage = String(task.language).trim().toLowerCase();
+    if (normalizedLanguage && normalizedLanguage !== 'other' && normalizedLanguage !== 'unknown') {
+      prompt += `\n## Primary Language\nPrimary implementation language: ${task.language}.\n`;
+    }
   }
   if (isMutation) {
     prompt += `\n**IMPORTANT: This is a ${task.type} task. You MUST include ${mutationActionStr} actions to create/modify files. ` +

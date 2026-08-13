@@ -138,4 +138,25 @@ describe('legacy compileGoal language propagation', () => {
       await rm(projectRoot, { recursive: true, force: true });
     }
   });
+
+  it('keeps language as other when no supported language signals exist', async () => {
+    const store = createMockStore();
+    const projectRoot = await makeProjectWithFiles(['README.md']);
+    globalThis.fetch = mockFetchForJson(dagWithAllowedFiles(['docs/**/*.md'], [], 'documentation'));
+
+    try {
+      const result = await compileGoal(store, { goalText: 'Improve repository documentation', projectRoot });
+      assert.ok(result.goalId);
+      const dags = store.getDags();
+      const implementTask = dags[0].tasks.find(task => task.type === 'implement');
+      assert.equal(implementTask?.language, 'other');
+      assert.ok(
+        implementTask?.constraints?.some((text) => text.includes('Default implementation language')),
+        'uncertain language should still carry default language guidance',
+      );
+    } finally {
+      restoreFetch();
+      await rm(projectRoot, { recursive: true, force: true });
+    }
+  });
 });

@@ -30,7 +30,7 @@ export function buildDAG(parsedTasks) {
       constraints: Array.isArray(t.constraints) ? [...t.constraints] : [],
       allowedFiles: t.allowedFiles ?? ['**/*'],
       estimatedMin: t.estimatedMin ?? 10,
-      language: inferTaskLanguage(t, 'js'),
+      language: inferTaskLanguage(t, DEFAULT_LANGUAGE_FALLBACK),
     });
   }
 
@@ -107,7 +107,7 @@ function mergeOverlappingTasks(tasks) {
             name: `${current.name}; ${next.name}`,
             prompt: `${current.prompt}\n\n---\n\n${next.prompt}`,
             allowedFiles: [...new Set([...current.allowedFiles, ...next.allowedFiles])],
-          }, current.language || next.language || 'js'),
+          }, current.language || next.language || DEFAULT_LANGUAGE_FALLBACK),
         };
         mergedIds.add(next.id);
         idRemap.set(next.id, current.id);
@@ -171,6 +171,7 @@ const EXT_TO_LANGUAGE = Object.freeze({
   '.java': 'java',
 });
 
+const DEFAULT_LANGUAGE_FALLBACK = 'other';
 const LANG_PRIORITY = ['ts', 'js', 'python', 'go', 'rust', 'java'];
 
 const TASK_LANGUAGE_PATTERNS = [
@@ -189,6 +190,7 @@ function normalizeLanguageCandidate(value) {
   if (v === 'javascript' || v === 'nodejs' || v === 'node.js') return 'js';
   if (v === 'py' || v === 'python') return 'python';
   if (v === 'golang' || v === 'go') return 'go';
+  if (v === 'other' || v === 'unknown') return 'other';
   if (v === 'rust' || v === 'java') return v;
   if (v === 'ts') return 'ts';
   if (v === 'js') return 'js';
@@ -224,12 +226,12 @@ function inferLanguageFromTextHint(text) {
   return null;
 }
 
-function inferTaskLanguage(task, fallbackLanguage = 'js') {
+function inferTaskLanguage(task, fallbackLanguage = DEFAULT_LANGUAGE_FALLBACK) {
   const fromFiles = inferLanguageFromAllowedFiles(task?.allowedFiles ?? []);
   if (fromFiles) return fromFiles;
   const fromText = inferLanguageFromTextHint(`${task?.name ?? ''} ${task?.prompt ?? ''}`);
   if (fromText) return fromText;
-  return normalizeLanguageCandidate(fallbackLanguage) || 'js';
+  return normalizeLanguageCandidate(fallbackLanguage) || DEFAULT_LANGUAGE_FALLBACK;
 }
 
 function detectCycles(tasks, deps) {
