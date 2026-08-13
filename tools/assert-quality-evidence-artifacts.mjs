@@ -883,6 +883,9 @@ function main() {
   if (args.outputJson) {
     process.stdout.write(`${JSON.stringify(output, null, 2)}\n`);
   } else {
+  if (args.outputJson) {
+    process.stdout.write(`${JSON.stringify(output, null, 2)}\n`);
+  } else {
     if (args.policyReport) {
       process.stdout.write("Policy resolution trace:\n");
       if (policySourceReport.chain.length === 0) {
@@ -891,6 +894,20 @@ function main() {
         policySourceReport.chain.forEach((pathItem, index) => {
           process.stdout.write(`  ${index + 1}. ${pathItem}\n`);
         });
+      }
+
+      const sourceByKey = Object.entries(policySourceReport.sourceByKey);
+      if (sourceByKey.length > 0) {
+        process.stdout.write("Policy field provenance:\n");
+        for (const [key, entries] of sourceByKey) {
+          process.stdout.write(`  ${key}:\n`);
+          for (const entry of entries) {
+            const valuePreview = typeof entry.value === "string"
+              ? entry.value
+              : JSON.stringify(entry.value);
+            process.stdout.write(`    - ${entry.source} => ${valuePreview}\n`);
+          }
+        }
       }
     }
     printTextResult(results, issues.concat(policyErrors));
