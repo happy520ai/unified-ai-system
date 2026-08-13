@@ -291,6 +291,149 @@ function summarizeIssueCodes(issueCodes) {
   return summary;
 }
 
+function normalizeStringList(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  const normalized = [];
+  const seen = new Set();
+  for (const entry of value) {
+    const normalizedEntry = String(entry);
+    if (!seen.has(normalizedEntry)) {
+      normalized.push(normalizedEntry);
+      seen.add(normalizedEntry);
+    }
+  }
+  normalized.sort();
+  return normalized;
+}
+
+function compareTrendConsistencyArtifacts(qualityTrendConsistency, incidentTrendConsistency, requireTrendHealth) {
+  const issues = [];
+  const issueCodes = [];
+
+  const addIssue = (code, message, severity = "high", artifactPath = null) => {
+    issues.push(message);
+    issueCodes.push({
+      code,
+      severity,
+      message,
+      artifactPath,
+      source: "verify-ci-quality-artifacts",
+    });
+  };
+
+  if (!incidentTrendConsistency || typeof incidentTrendConsistency !== "object") {
+    addIssue(
+      "trend_consistency_parity_missing_in_incident_bundle",
+      "incident bundle trendConsistency payload is missing or invalid",
+      "high",
+      ".tmp/quality-trend-incident-bundle.json",
+    );
+    return { issues, issueCodes };
+  }
+
+  const qualityChecksRequired = normalizeStringList(qualityTrendConsistency?.checksRequired);
+  const incidentChecksRequired = normalizeStringList(incidentTrendConsistency?.checksRequired);
+
+  if (JSON.stringify(qualityChecksRequired) !== JSON.stringify(incidentChecksRequired)) {
+    addIssue(
+      "trend_consistency_parity_checks_required_mismatch",
+      `trendConsistency.checksRequired mismatch: verification=[${qualityChecksRequired.join(", ")}] incident=[${incidentChecksRequired.join(", ")}]`,
+      requireTrendHealth ? "high" : "medium",
+      ".tmp/quality-ci-verification.json",
+    );
+  }
+
+  if (String(qualityTrendConsistency?.status ?? "") !== String(incidentTrendConsistency?.status ?? "")) {
+    addIssue(
+      "trend_consistency_parity_status_mismatch",
+      `trendConsistency.status mismatch: verification=${String(qualityTrendConsistency?.status ?? "missing")} incident=${String(incidentTrendConsistency?.status ?? "missing")}`,
+      "high",
+      ".tmp/quality-ci-verification.json",
+    );
+  }
+
+  const requiredChecks = qualityChecksRequired.length > 0
+    ? qualityChecksRequired
+    : ["trendDigestHealth", "trendSummaryGuardrails", "trendDigestCheckConsistency"];
+  const qualityChecks = qualityTrendConsistency?.checks || {};
+  const incidentChecks = incidentTrendConsistency?.checks || {};
+
+  for (const key of requiredChecks) {
+    const verificationCheck = qualityChecks[key];
+    const incidentCheck = incidentChecks[key];
+
+    if (!verificationCheck && incidentCheck) {
+      addIssue(
+        "trend_consistency_parity_missing_verification_check",
+        `trendConsistency check "${key}" present in incident bundle but missing from verification`,
+        requireTrendHealth ? "high" : "medium",
+        ".tmp/quality-ci-verification.json",
+      );
+      continue;
+    }
+    if (verificationCheck && !incidentCheck) {
+      addIssue(
+        "trend_consistency_parity_missing_incident_check",
+        `trendConsistency check "${key}" present in verification but missing from incident bundle`,
+        "high",
+        ".tmp/quality-trend-incident-bundle.json",
+      );
+      continue;
+    }
+    if (!verificationCheck && !incidentCheck) {
+      continue;
+    }
+
+    if (String(verificationCheck?.status ?? "") !== String(incidentCheck?.status ?? "")) {
+      addIssue(
+        "trend_consistency_parity_check_status_mismatch",
+        `trendConsistency check "${key}" status mismatch: verification=${String(verificationCheck?.status ?? "missing")} incident=${String(incidentCheck?.status ?? "missing")}`,
+        "high",
+        ".tmp/quality-trend-incident-bundle.json",
+      );
+    }
+    if (Boolean(verificationCheck?.ok) !== Boolean(incidentCheck?.ok)) {
+      addIssue(
+        "trend_consistency_parity_check_ok_mismatch",
+        `trendConsistency check "${key}" ok mismatch: verification=${Boolean(verificationCheck?.ok)} incident=${Boolean(incidentCheck?.ok)}`,
+        "high",
+        ".tmp/quality-trend-incident-bundle.json",
+      );
+    }
+  }
+
+  if (Boolean(qualityTrendConsistency?.hasMissingRequired) !== Boolean(incidentTrendConsistency?.hasMissingRequired)) {
+    addIssue(
+      "trend_consistency_parity_has_missing_required_mismatch",
+      `trendConsistency.hasMissingRequired mismatch: verification=${Boolean(qualityTrendConsistency?.hasMissingRequired)} incident=${Boolean(incidentTrendConsistency?.hasMissingRequired)}`,
+      "high",
+      ".tmp/quality-trend-incident-bundle.json",
+    );
+  }
+
+  if (Boolean(qualityTrendConsistency?.hasNotCollected) !== Boolean(incidentTrendConsistency?.hasNotCollected)) {
+    addIssue(
+      "trend_consistency_parity_has_not_collected_mismatch",
+      `trendConsistency.hasNotCollected mismatch: verification=${Boolean(qualityTrendConsistency?.hasNotCollected)} incident=${Boolean(incidentTrendConsistency?.hasNotCollected)}`,
+      "high",
+      ".tmp/quality-trend-incident-bundle.json",
+    );
+  }
+
+  if (Boolean(qualityTrendConsistency?.requiresTrendHealth) !== Boolean(incidentTrendConsistency?.requiresTrendHealth)) {
+    addIssue(
+      "trend_consistency_parity_requires_trend_health_mismatch",
+      `trendConsistency.requiresTrendHealth mismatch: verification=${Boolean(qualityTrendConsistency?.requiresTrendHealth)} incident=${Boolean(incidentTrendConsistency?.requiresTrendHealth)}`,
+      "high",
+      ".tmp/quality-trend-incident-bundle.json",
+    );
+  }
+
+  return { issues, issueCodes };
+}
+
 function validateIncidentBundleMarkdownText(markdownText) {
   const issues = [];
   if (typeof markdownText !== "string" || markdownText.length === 0) {
@@ -536,6 +679,7 @@ function verifyIncidentBundle(args) {
   return {
     jsonPath: args.incidentBundleJsonPath,
     mdPath: args.incidentBundleMdPath,
+    parsedBundle: bundle,
     jsonPresent: jsonExists,
     mdPresent: mdExists,
     schemaVersion: bundle?.schemaVersion ?? null,
@@ -582,6 +726,11 @@ function main() {
   const qualityIssuesFinal = [...qualityIssues];
   const drillIssuesFinal = [...drillIssues];
   const incidentBundleIssuesFinal = [...incidentBundle.issues];
+  const trendConsistencyParity = compareTrendConsistencyArtifacts(
+    trendConsistency,
+    incidentBundle.parsedBundle?.trendConsistency,
+    args.requireTrendHealth,
+  );
 
   if (qualityParsed?.trendHealth && typeof qualityParsed.trendHealth === "object") {
     const trendBlocked = Boolean(qualityParsed.trendHealth.blocked);
@@ -607,9 +756,10 @@ function main() {
   const finalIssues = qualityIssuesFinal.concat(drillIssuesFinal);
   finalIssues.push(...incidentBundleIssuesFinal);
   finalIssues.push(...trendConsistency.issues);
+  finalIssues.push(...trendConsistencyParity.issues);
 
   const issueCodes = normalizeIssueCodes(
-    [...incidentBundle.issueCodes, ...trendConsistency.issueCodes],
+    [...incidentBundle.issueCodes, ...trendConsistency.issueCodes, ...trendConsistencyParity.issueCodes],
     "verify-ci-quality-artifacts",
   );
   const issueCodeSummary = summarizeIssueCodes(issueCodes);
