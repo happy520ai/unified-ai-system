@@ -33,6 +33,7 @@ function parseArgs() {
     trendGuardrailPath: ".tmp/quality-trend-guardrail.json",
     trendDigestPath: ".tmp/quality-trend-digest.md",
     trendDigestJsonPath: ".tmp/quality-trend-digest.json",
+    trendCheckPath: ".tmp/quality-trend-check.json",
     qualityScorecardPath: ".tmp/quality-scorecard.json",
     drillPath: ".tmp/circuit-recovery-drill-dry-run.json",
     qualityVerificationPath: ".tmp/quality-ci-verification.json",
@@ -80,6 +81,11 @@ function parseArgs() {
     }
     if (arg === "--guardrail") {
       values.trendGuardrailPath = args[index + 1] ?? values.trendGuardrailPath;
+      index += 1;
+      continue;
+    }
+    if (arg === "--check") {
+      values.trendCheckPath = args[index + 1] ?? values.trendCheckPath;
       index += 1;
       continue;
     }
@@ -196,6 +202,7 @@ function printUsage() {
     "  --trend <path>             Trend history input path (default .tmp/quality-trend.json)",
     "  --summary <path>           Trend summary output path (default .tmp/quality-trend-summary.md)",
     "  --guardrail <path>         Guardrail output path (default .tmp/quality-trend-guardrail.json)",
+    "  --check <path>             Trend-check output JSON path (default .tmp/quality-trend-check.json)",
     "  --quality <path>           Input quality-scorecard path (default .tmp/quality-scorecard.json)",
     "  --drill <path>             Input drill path (default .tmp/circuit-recovery-drill-dry-run.json)",
     "  --verification <path>       Output verification path (default .tmp/quality-ci-verification.json)",
@@ -356,7 +363,7 @@ function buildTrendCheckArgs(options) {
   return args;
 }
 
-function runTrendEvaluation(label, options) {
+function runTrendEvaluation(label, options, includeCheckOutput = false) {
   const executionLog = [];
 
   const summary = runCommand("quality:trend-summary", buildTrendSummaryArgs(options));
@@ -383,6 +390,18 @@ function runTrendEvaluation(label, options) {
     output: check.output,
     parsedOutput: parseJson(check.output),
   });
+
+  const checkPayload = check.parsedOutput ?? parseJson(check.output);
+  if (includeCheckOutput && options.trendCheckPath) {
+    if (checkPayload !== null) {
+      writeTextFile(
+        options.trendCheckPath,
+        `${JSON.stringify(checkPayload, null, 2)}\n`,
+      );
+    } else if (check.output) {
+      writeTextFile(options.trendCheckPath, `${check.output}\n`);
+    }
+  }
 
   return {
     label,
@@ -429,6 +448,7 @@ function main() {
 
   const steps = [];
   const artifacts = new Set([
+    options.trendCheckPath,
     options.qualityScorecardPath,
     options.drillPath,
     options.qualityVerificationPath,
@@ -570,7 +590,7 @@ function main() {
     console.log("\nSkipping optional trend-log step (--no-trend-log).");
   }
 
-  const postcheck = runTrendEvaluation("post-run", options);
+  const postcheck = runTrendEvaluation("post-run", options, true);
   steps.push(postcheck);
   const finalCheckResult = postcheck.checkResult || {};
   const success = postcheck.ok;

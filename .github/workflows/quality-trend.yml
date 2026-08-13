@@ -81,37 +81,42 @@ jobs:
           restore-keys: |
             quality-trend-${{ github.ref_name }}-${{ runner.os }}-
 
-      - name: Run quality CI gate
-        id: quality_gate
-        continue-on-error: true
-        run: pnpm quality:ci -- --json --require-score "${QUALITY_THRESHOLD}"
-
-      - name: Append quality trend record
-        if: always()
+      - name: Run quality trend smoke health check
         continue-on-error: true
         run: |
-          pnpm quality:trend-log \
-            --quality .tmp/quality-scorecard.json \
-            --verification .tmp/quality-ci-verification.json \
-            --drill .tmp/circuit-recovery-drill-dry-run.json \
+          SMOKE_ARGS=(
+            --json
+            --require-score "${QUALITY_THRESHOLD}"
             --trend .tmp/quality-trend.json
+            --summary .tmp/quality-trend-summary.md
+            --guardrail .tmp/quality-trend-guardrail.json
+            --quality .tmp/quality-scorecard.json
+            --drill .tmp/circuit-recovery-drill-dry-run.json
+            --verification .tmp/quality-ci-verification.json
+            --digest-output .tmp/quality-trend-digest.md
+            --digest-json .tmp/quality-trend-digest.json
+            --check .tmp/quality-trend-check.json
+            --max-consecutive-failures "${QUALITY_TREND_MAX_CONSECUTIVE_FAILURES}"
+            --max-score-drop-points "${QUALITY_TREND_MAX_SCORE_DROP_POINTS}"
+            --min-pass-rate-percent "${QUALITY_TREND_MIN_PASS_RATE_PERCENT}"
+          )
 
-      - name: Render quality trend summary
-        if: always()
-        continue-on-error: true
-        run: |
-          STABLE_STATE_FLAG=""
           if [ "${QUALITY_TREND_REQUIRE_STABLE_STATE}" = "true" ]; then
-            STABLE_STATE_FLAG="--require-stable-state"
+            SMOKE_ARGS+=("--require-stable-state")
           fi
-          pnpm quality:trend-summary -- \
-            --trend .tmp/quality-trend.json \
-            --output .tmp/quality-trend-summary.md \
-            --guard-output .tmp/quality-trend-guardrail.json \
-            --max-consecutive-failures "${QUALITY_TREND_MAX_CONSECUTIVE_FAILURES}" \
-            --max-score-drop-points "${QUALITY_TREND_MAX_SCORE_DROP_POINTS}" \
-            --min-pass-rate-percent "${QUALITY_TREND_MIN_PASS_RATE_PERCENT}" \
-            ${STABLE_STATE_FLAG}
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] &&
+             [ "${{ github.event.inputs.enforce_trend_guardrails }}" = "true" ]; then
+            SMOKE_ARGS+=("--enforce-guardrails")
+          fi
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] &&
+             ( [ "${{ github.event.inputs.quality_trend_hard_block }}" = "true" ] ||
+               [ "${QUALITY_TREND_HARD_BLOCK}" = "true" ] ); then
+            SMOKE_ARGS+=("--hard-block")
+          fi
+
+          pnpm quality:trend-health-smoke -- "${SMOKE_ARGS[@]}"
 
       - name: Append quality trend guardrail configuration to summary
         if: always()
@@ -126,81 +131,25 @@ jobs:
             echo "- hard block: ${QUALITY_TREND_HARD_BLOCK}"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Render quality trend digest
+      - name: Append quality trend artifacts to workflow summary
         if: always()
-        continue-on-error: true
         run: |
-          STABLE_STATE_FLAG=""
-          if [ "${QUALITY_TREND_REQUIRE_STABLE_STATE}" = "true" ]; then
-            STABLE_STATE_FLAG="--require-stable-state"
+          if [ -f .tmp/quality-trend-summary.md ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "## Quality trend summary" >> "$GITHUB_STEP_SUMMARY"
+            cat .tmp/quality-trend-summary.md >> "$GITHUB_STEP_SUMMARY"
           fi
-          pnpm quality:trend-digest -- --trend .tmp/quality-trend.json --output .tmp/quality-trend-digest.md --json-output .tmp/quality-trend-digest.json --max-consecutive-failures "${QUALITY_TREND_MAX_CONSECUTIVE_FAILURES}" --max-score-drop-points "${QUALITY_TREND_MAX_SCORE_DROP_POINTS}" --min-pass-rate-percent "${QUALITY_TREND_MIN_PASS_RATE_PERCENT}" ${STABLE_STATE_FLAG}
 
-      - name: Evaluate quality trend health
-        if: always()
-        continue-on-error: true
-        run: |
-          pnpm quality:trend-check -- \
-            --digest .tmp/quality-trend-digest.json \
-            --guardrail .tmp/quality-trend-guardrail.json \
-            --summary .tmp/quality-trend-summary.md \
-            --max-summary-reasons 8 \
-            --json > .tmp/quality-trend-check.json
+          if [ -f .tmp/quality-trend-digest.md ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "## Quality trend digest" >> "$GITHUB_STEP_SUMMARY"
+            cat .tmp/quality-trend-digest.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
           if [ -f .tmp/quality-trend-check.json ]; then
             echo "" >> "$GITHUB_STEP_SUMMARY"
             echo "## Quality trend check" >> "$GITHUB_STEP_SUMMARY"
             cat .tmp/quality-trend-check.json >> "$GITHUB_STEP_SUMMARY"
-          fi
-
-      - name: Append quality trend digest to workflow summary
-        if: always()
-        run: |
-          if [ -f .tmp/quality-trend-digest.md ]; then
-            echo "" >> "$GITHUB_STEP_SUMMARY"
-            echo "## Quality Trend Digest" >> "$GITHUB_STEP_SUMMARY"
-            cat .tmp/quality-trend-digest.md >> "$GITHUB_STEP_SUMMARY"
-          fi
-
-      - name: Enforce quality trend guardrails
-        if: |
-          always() &&
-          github.event_name == 'workflow_dispatch' &&
-          github.event.inputs.enforce_trend_guardrails == 'true'
-        run: |
-          STABLE_STATE_FLAG=""
-          if [ "${QUALITY_TREND_REQUIRE_STABLE_STATE}" = "true" ]; then
-            STABLE_STATE_FLAG="--require-stable-state"
-          fi
-          pnpm quality:trend-summary -- \
-            --trend .tmp/quality-trend.json \
-            --output .tmp/quality-trend-summary.md \
-            --guard-output .tmp/quality-trend-guardrail.json \
-            --max-consecutive-failures "${QUALITY_TREND_MAX_CONSECUTIVE_FAILURES}" \
-            --max-score-drop-points "${QUALITY_TREND_MAX_SCORE_DROP_POINTS}" \
-            --min-pass-rate-percent "${QUALITY_TREND_MIN_PASS_RATE_PERCENT}" \
-            ${STABLE_STATE_FLAG} \
-            --enforce-guardrails
-
-      - name: Enforce quality trend check gate
-        if: |
-          always() &&
-          (
-            env.QUALITY_TREND_HARD_BLOCK == 'true' ||
-            (github.event_name == 'workflow_dispatch' && github.event.inputs.enforce_trend_guardrails == 'true')
-          )
-        run: |
-          pnpm quality:trend-check -- \
-            --digest .tmp/quality-trend-digest.json \
-            --guardrail .tmp/quality-trend-guardrail.json \
-            --summary .tmp/quality-trend-summary.md \
-            --max-summary-reasons 8 \
-            --hard-block
-
-      - name: Append trend summary to workflow summary
-        if: always()
-        run: |
-          if [ -f .tmp/quality-trend-summary.md ]; then
-            cat .tmp/quality-trend-summary.md >> "$GITHUB_STEP_SUMMARY"
           fi
 
       - name: Upload quality trend artifact
