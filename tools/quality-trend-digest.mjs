@@ -24,6 +24,8 @@ function parseArgs() {
     longWindow: 30,
     maxConsecutiveFailures: 3,
     maxScoreDropPoints: 20,
+    minPassRatePercent: 70,
+    requireStableState: false,
   };
 
   for (let index = 0; index < args.length; index += 1) {
@@ -71,6 +73,15 @@ function parseArgs() {
         values.maxScoreDropPoints,
       );
       index += 1;
+      continue;
+    }
+    if (arg === "--min-pass-rate-percent") {
+      values.minPassRatePercent = toPositiveInteger(args[index + 1], values.minPassRatePercent);
+      index += 1;
+      continue;
+    }
+    if (arg === "--require-stable-state") {
+      values.requireStableState = true;
       continue;
     }
   }
@@ -243,8 +254,14 @@ function buildDigest(trend, args) {
   const latestRecord = records[records.length - 1] ?? null;
 
   const trendStateLabel = (() => {
-    const longCritical = longSummary.issueCount > 0 || longSummary.passRatePercent < 70;
-    const shortCritical = shortSummary.issueCount > 0 || shortSummary.consecutiveFailuresAtEnd > 0 || shortSummary.passRatePercent < 70;
+    const shortPassRateBreach = args.requireStableState
+      && shortSummary.passRatePercent < args.minPassRatePercent;
+    const longPassRateBreach = args.requireStableState
+      && longSummary.passRatePercent < args.minPassRatePercent;
+    const longCritical = longSummary.issueCount > 0 || longPassRateBreach;
+    const shortCritical = shortSummary.issueCount > 0
+      || shortSummary.consecutiveFailuresAtEnd > 0
+      || shortPassRateBreach;
     if (shortCritical || longCritical) {
       return "unstable";
     }
@@ -266,6 +283,8 @@ function buildDigest(trend, args) {
     thresholds: {
       maxConsecutiveFailures: args.maxConsecutiveFailures,
       maxScoreDropPoints: args.maxScoreDropPoints,
+      minPassRatePercent: args.minPassRatePercent,
+      requireStableState: args.requireStableState,
     },
     state: trendStateLabel,
     shortWindow: shortSummary,
@@ -304,7 +323,7 @@ function buildDigestMarkdown(digest) {
   lines.push(`- Operational state: ${digest.state}`);
   lines.push(`- Short window: last ${digest.shortWindow.windowSize} runs`);
   lines.push(`- Long window: last ${digest.longWindow.windowSize} runs`);
-  lines.push(`- Thresholds: consecutiveFailures>=${digest.thresholds.maxConsecutiveFailures}, singleRunDrop>${digest.thresholds.maxScoreDropPoints}`);
+  lines.push(`- Thresholds: consecutiveFailures>=${digest.thresholds.maxConsecutiveFailures}, singleRunDrop>${digest.thresholds.maxScoreDropPoints}, minPassRate=${digest.thresholds.minPassRatePercent}%, requireStableState=${digest.thresholds.requireStableState}`);
 
   lines.push("");
   lines.push("## Latest run risk snapshot");

@@ -31,6 +31,7 @@ Tip: In CI/scheduled trend workflows, `--require-stable-state` is controlled by 
 The digest now includes:
 
 - `state`: quick stability state (`stable` / `unstable`) for operational triage.
+- `thresholds`: full threshold bundle used by digest evaluation (`consecutiveFailures`, `singleRunDrop`, `minPassRatePercent`, `requireStableState`).
 - `sample.latestRun`: latest run score, required score checks, verification outcome and drill status.
 - `passRatePercent`: pass ratio for both short and long windows.
 - `verificationIssueCount`: count of verification issues accumulated in each window.
