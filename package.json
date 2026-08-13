@@ -38,7 +38,8 @@
     "drill:gateway-circuit": "node ./tools/circuit-recovery-drill.mjs --json",
     "drill:gateway-circuit:dry-run": "node ./tools/circuit-recovery-drill.mjs --dry-run --json",
     "quality:ci": "node ./tools/run-quality-ci-gate.mjs",
-    "quality:verify-artifacts": "node ./tools/verify-ci-quality-artifacts.mjs"
+    "quality:verify-artifacts": "node ./tools/verify-ci-quality-artifacts.mjs",
+    "quality:trend-log": "node ./tools/quality-trend-log.mjs"
   },
   "engines": {
     "node": ">=22",

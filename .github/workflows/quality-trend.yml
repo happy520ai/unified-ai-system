@@ -1,0 +1,54 @@
+name: Quality Trend Snapshot
+
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  trend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6
+        with:
+          version: 9.15.4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run quality CI gate
+        id: quality_gate
+        continue-on-error: true
+        run: pnpm quality:ci -- --json --require-score 165
+
+      - name: Append quality trend record
+        if: always()
+        continue-on-error: true
+        run: |
+          pnpm quality:trend-log \
+            --quality .tmp/quality-scorecard.json \
+            --verification .tmp/quality-ci-verification.json \
+            --drill .tmp/circuit-recovery-drill-dry-run.json \
+            --trend .tmp/quality-trend.json
+
+      - name: Upload quality trend artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: quality-trend
+          path: .tmp/quality-trend.json
+          retention-days: 180
