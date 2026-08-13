@@ -82,6 +82,26 @@ describe("dispatchHttpRoutes02 healthz readiness", () => {
     expect(context.response.payload.readinessFailures).toContain("gateway-error-circuit");
   });
 
+  it("returns unready when the gateway error circuit is half-open", async () => {
+    const context = createEnvelopeContext({
+      resilienceMetrics: {
+        snapshot: () => ({ currentInFlight: 5, gatewayErrorCircuitState: "half-open" }),
+      },
+    });
+    context.response = {
+      ...context.response,
+      status: undefined,
+      payload: undefined,
+    };
+
+    await dispatchHttpRoutes02(context);
+
+    expect(context.response.status).toBe(503);
+    expect(context.response.payload.ok).toBe(false);
+    expect(context.response.payload.code).toBe("service_unready");
+    expect(context.response.payload.readinessFailures).toContain("gateway-error-circuit");
+  });
+
   it("returns ready payload when saturation is below threshold", async () => {
     const context = createEnvelopeContext({
       resilienceMetrics: {

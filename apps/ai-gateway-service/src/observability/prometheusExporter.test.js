@@ -38,6 +38,7 @@ describe("prometheusExporter", () => {
         gatewayErrorCircuitOpenAt: 1600000000000,
         gatewayErrorCircuitRejections: 3,
         gatewayErrorCircuitFailures: 7,
+        gatewayErrorCircuitSuccesses: 11,
       },
     });
 
@@ -45,6 +46,8 @@ describe("prometheusExporter", () => {
     expect(text).toContain("ai_gateway_gateway_error_circuit_state{state=\"closed\"} 0");
     expect(text).toContain("ai_gateway_gateway_error_circuit_rejections_total 3");
     expect(text).toContain("ai_gateway_gateway_error_circuit_failures_total 7");
+    expect(text).toContain("ai_gateway_gateway_error_circuit_success_total 11");
+    expect(text).toMatch(/ai_gateway_gateway_error_circuit_open_seconds [1-9][0-9]*\.\d{2}/);
   });
 
   it("emits readiness status and failure metrics", () => {

@@ -751,8 +751,6 @@ function createGatewayResilienceMetrics() {
     },
     recordGatewayErrorCircuitSuccess() {
       counters.gatewayErrorCircuitSuccesses += 1;
-      counters.gatewayErrorCircuitState = "closed";
-      counters.gatewayErrorCircuitOpenAt = 0;
     },
     recordReadinessCheck(readinessFailures = []) {
       const normalizedReasons = Array.isArray(readinessFailures)
