@@ -534,11 +534,22 @@ export function createGatewayHttpServer(application) {
         }),
       );
     } catch (error) {
+      const normalizedError = createNormalizedHttpError(error);
+      const elapsedMs = Date.now() - startedAt;
       resilienceMetrics.recordUnhandledError();
+      resilienceMetrics.recordUnhandledErrorByCode?.(normalizedError.code);
+      writeServiceLog("request_unhandled_error", {
+        requestId,
+        method: request.method,
+        path: pathname,
+        statusCode: normalizedError.statusCode,
+        code: normalizedError.code,
+        category: normalizedError.category,
+        elapsedMs,
+      });
       if (response.writableEnded || response.headersSent) {
         return;
       }
-      const normalizedError = createNormalizedHttpError(error);
       writeJson(
         response,
         normalizedError.statusCode,
@@ -596,6 +607,7 @@ function createGatewayResilienceMetrics() {
     overloadRejected: 0,
     timeoutTriggered: 0,
     unhandledErrors: 0,
+    unhandledErrorCodes: Object.create(null),
     maxInFlightObserved: 0,
     currentInFlight: 0,
     readinessCheckCount: 0,
@@ -634,6 +646,10 @@ function createGatewayResilienceMetrics() {
     recordUnhandledError() {
       counters.unhandledErrors += 1;
     },
+    recordUnhandledErrorByCode(errorCode) {
+      const normalizedCode = typeof errorCode === "string" && errorCode.trim() ? errorCode.trim() : "unknown";
+      counters.unhandledErrorCodes[normalizedCode] = (counters.unhandledErrorCodes[normalizedCode] ?? 0) + 1;
+    },
     recordReadinessCheck(readinessFailures = []) {
       const normalizedReasons = Array.isArray(readinessFailures)
         ? readinessFailures
@@ -660,6 +676,7 @@ function createGatewayResilienceMetrics() {
         ...counters,
         readinessFailureReasons: { ...counters.readinessFailureReasons },
         lastReadinessFailures: [...counters.lastReadinessFailures],
+        unhandledErrorCodes: { ...counters.unhandledErrorCodes },
       };
     },
   };

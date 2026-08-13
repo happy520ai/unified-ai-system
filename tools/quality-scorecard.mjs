@@ -259,6 +259,32 @@ function checkErrorNormalization() {
   }
 }
 
+function checkUnhandledErrorTelemetry() {
+  try {
+    const serverSource = readTextFile("apps/ai-gateway-service/src/http/httpServer.js");
+    const exporterSource = readTextFile("apps/ai-gateway-service/src/observability/prometheusExporter.js");
+    const requiredMarkers = [
+      "recordUnhandledErrorByCode",
+      "request_unhandled_error",
+      "unhandledErrorCodes",
+      "gateway_resilience_error_events_total",
+      "elapsedMs",
+    ];
+    const missingMarkers = requiredMarkers.filter(
+      (marker) => !(serverSource.includes(marker) || exporterSource.includes(marker)),
+    );
+    return {
+      ok: missingMarkers.length === 0,
+      details: JSON.stringify({ missingMarkers }),
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      details: String(error.message),
+    };
+  }
+}
+
 function checkWorkflowGuardrails() {
   try {
     const workflow = readTextFile(".github/workflows/ci.yml");
@@ -303,6 +329,7 @@ function checkMetricsInstrumentation() {
       "gateway_readiness_failures",
       "gateway_readiness_events_total",
       "gateway_resilience_events_total",
+      "gateway_resilience_error_events_total",
       "gateway_resilience_in_flight_peak",
       "applySecurityHeaders",
     ];
@@ -423,6 +450,7 @@ async function main() {
   const runtimeHardeningCheck = checkRuntimeHardening();
   const requestBodyGuardrailsCheck = checkRequestBodyGuardrails();
   const errorNormalizationCheck = checkErrorNormalization();
+  const unhandledErrorTelemetryCheck = checkUnhandledErrorTelemetry();
   const metricsCheck = checkMetricsInstrumentation();
   const healthzCheck = checkHealthzReadinessProbe();
   const runbookVisibilityCheck = checkReadinessRunbookVisibility();
@@ -438,6 +466,7 @@ async function main() {
     workflowGuardrails: workflowCheck,
     requestBodyGuardrails: requestBodyGuardrailsCheck,
     errorNormalization: errorNormalizationCheck,
+    unhandledErrorTelemetry: unhandledErrorTelemetryCheck,
     healthzProbe: healthzCheck,
     readinessRunbookVisibility: runbookVisibilityCheck,
   };
@@ -506,6 +535,14 @@ async function main() {
     5,
     errorNormalizationCheck.ok,
     errorNormalizationCheck.details,
+  );
+  score += addGate(
+    gates,
+    "Unhandled error telemetry",
+    "critical request faults are categorized and visible in /metrics",
+    5,
+    unhandledErrorTelemetryCheck.ok,
+    unhandledErrorTelemetryCheck.details,
   );
   score += addGate(
     gates,

@@ -67,6 +67,16 @@ export function createPrometheusExporter(options = {}) {
     lines.push(`${prefix}_gateway_resilience_events_total{type="overload_rejected"} ${resilience?.overloadRejected ?? 0}`);
     lines.push(`${prefix}_gateway_resilience_events_total{type="timeout_triggered"} ${resilience?.timeoutTriggered ?? 0}`);
     lines.push(`${prefix}_gateway_resilience_events_total{type="unhandled_errors"} ${resilience?.unhandledErrors ?? 0}`);
+    lines.push(`# HELP ${prefix}_gateway_resilience_error_events_total Unhandled errors by normalized code`);
+    lines.push(`# TYPE ${prefix}_gateway_resilience_error_events_total counter`);
+    const unhandledErrorCodes = resilience?.unhandledErrorCodes;
+    if (unhandledErrorCodes && typeof unhandledErrorCodes === "object") {
+      for (const [errorCode, count] of Object.entries(unhandledErrorCodes)) {
+        lines.push(
+          `${prefix}_gateway_resilience_error_events_total{type="unhandled_error",code="${sanitizeMetricLabel(errorCode)}"} ${count}`,
+        );
+      }
+    }
     lines.push(`# HELP ${prefix}_gateway_resilience_in_flight_instant Concurrent in-flight requests`);
     lines.push(`# TYPE ${prefix}_gateway_resilience_in_flight_instant gauge`);
     lines.push(`${prefix}_gateway_resilience_in_flight_instant ${resilience?.currentInFlight ?? 0}`);
