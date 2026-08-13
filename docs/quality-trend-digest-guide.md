@@ -121,6 +121,13 @@ In CI and scheduled trend jobs, default limits are:
 
 ## Incident bundle contract
 
+`language-policy-check.json` produced in trend/CI workflows includes:
+
+- `allowed`: list of exception-based JS/runtime language allowances with owner/removalBy metadata.
+- `allowlistIssues`: allowlist parse/validation failures (including expired exceptions).
+- `allowlistWarnings`: legacy field/deprecation warnings.
+- `inspected`: file-count/refs metadata used for trend evidence traceability.
+
 For structured investigation, the smoke failure bundle follows
 `tools/quality-trend-incident-bundle.schema.json` and is emitted as:
 

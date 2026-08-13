@@ -171,9 +171,24 @@ jobs:
 
               const parsed = JSON.parse(readFileSync(".tmp/language-policy-check.json", "utf8"));
               const violations = Array.isArray(parsed.violations) ? parsed.violations : [];
+              const allowed = Array.isArray(parsed.allowed) ? parsed.allowed : [];
+              const allowlistIssues = Array.isArray(parsed.allowlistIssues) ? parsed.allowlistIssues : [];
+              const allowlistWarnings = Array.isArray(parsed.allowlistWarnings) ? parsed.allowlistWarnings : [];
               const inspected = parsed.inspected || {};
 
               console.log(`**Inspected files:** ${inspected.added ?? "unknown"}`);
+              if (allowlistIssues.length > 0) {
+                console.log("**Language policy allowlist issues:**");
+                for (const issue of allowlistIssues) {
+                  console.log(`- ${String(issue)}`);
+                }
+              }
+              if (allowlistWarnings.length > 0) {
+                console.log("**Language policy allowlist warnings:**");
+                for (const warning of allowlistWarnings) {
+                  console.log(`- ${String(warning)}`);
+                }
+              }
               if (violations.length === 0) {
                 console.log("PASS: no language policy violations.");
               } else {
@@ -184,6 +199,25 @@ jobs:
                   const extension = item.extension ?? "unknown";
                   const reason = item.reason ?? "unknown";
                   console.log(`- ${boundary}: ${file} (${extension}) ${reason}`);
+                }
+              }
+
+              if (allowed.length > 0) {
+                console.log("**Language policy exceptions used:**");
+                for (const item of allowed) {
+                  const boundary = item.boundary ?? "unknown";
+                  const file = item.file ?? "unknown";
+                  const exception = item.exception ?? {};
+                  const type = exception.type ?? "unknown";
+                  const value = exception.value ?? "unknown";
+                  const owner = exception.owner ?? "unknown";
+                  const removalBy = exception.removalBy ?? "unknown";
+                  const justification = exception.justification ?? "unknown";
+                  const pr = exception.pr ? ` | pr=${exception.pr}` : "";
+                  const issueId = exception.issueId ? ` | issue=${exception.issueId}` : "";
+                  console.log(
+                    `- ${boundary}: ${file} | ${type}:${value} | owner=${owner} | removalBy=${removalBy} | ${justification}${pr}${issueId}`,
+                  );
                 }
               }
             ' || true
