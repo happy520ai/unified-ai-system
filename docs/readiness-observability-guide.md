@@ -71,7 +71,7 @@ groups:
 Run this locally if you want to verify observability readiness checks:
 
 ```bash
-node tools/quality-scorecard.mjs --require-score 130
+node tools/quality-scorecard.mjs --require-score 140
 ```
 
 Current checks include:
