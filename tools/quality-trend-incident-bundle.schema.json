@@ -124,6 +124,38 @@
         }
       }
     },
+    "languagePolicyReview": {
+      "type": "object",
+      "required": [
+        "summary",
+        "reviewStatus",
+        "issues",
+        "actionItems"
+      ],
+      "properties": {
+        "summary": {
+          "type": "object",
+          "properties": {
+            "checkPresent": { "type": "boolean" },
+            "expiryPresent": { "type": "boolean" },
+            "allowed": { "type": "number" },
+            "violations": { "type": "number" },
+            "expiredExceptions": { "type": "number" },
+            "nearExpiryExceptions": { "type": "number" },
+            "allowlistWarnings": { "type": "number" },
+            "allowlistIssues": { "type": "number" },
+            "preferredLanguage": { "type": "string" }
+          }
+        },
+        "reviewStatus": { "type": "string" },
+        "issues": {
+          "type": "array"
+        },
+        "actionItems": {
+          "type": "array"
+        }
+      }
+    },
     "failedSteps": {
       "type": "array"
     },

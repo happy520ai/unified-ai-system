@@ -462,6 +462,109 @@ function collectStepIssues(step) {
   return issues;
 }
 
+function buildLanguagePolicyReview(languagePolicyCheck, languagePolicyExpiry) {
+  const issues = [];
+  const actionItems = [];
+  const summary = {
+    checkPresent: Boolean(languagePolicyCheck),
+    expiryPresent: Boolean(languagePolicyExpiry),
+    allowed: 0,
+    violations: 0,
+    expiredExceptions: 0,
+    nearExpiryExceptions: 0,
+    allowlistWarnings: 0,
+    allowlistIssues: 0,
+  };
+
+  if (!languagePolicyCheck) {
+    issues.push("Missing language-policy-check artifact at runtime; cannot evaluate preferred-language enforcement.");
+    actionItems.push("Generate language-policy-check output before finalizing merge quality review.");
+  } else {
+    summary.allowed = Array.isArray(languagePolicyCheck.allowed) ? languagePolicyCheck.allowed.length : 0;
+    summary.violations = Array.isArray(languagePolicyCheck.violations)
+      ? languagePolicyCheck.violations.length
+      : 0;
+    summary.allowlistWarnings = Array.isArray(languagePolicyCheck.allowlistWarnings)
+      ? languagePolicyCheck.allowlistWarnings.length
+      : 0;
+    summary.allowlistIssues = Array.isArray(languagePolicyCheck.allowlistIssues)
+      ? languagePolicyCheck.allowlistIssues.length
+      : 0;
+    summary.preferredLanguage = "TypeScript (for apps/packages runtime surfaces)";
+
+    if (Array.isArray(languagePolicyCheck.violations) && languagePolicyCheck.violations.length > 0) {
+      for (const violation of languagePolicyCheck.violations.slice(0, 20)) {
+        const file = violation?.file ?? "unknown";
+        const boundary = violation?.boundary ?? "unknown";
+        const extension = violation?.extension ?? "unknown";
+        const reason = violation?.reason ?? "policy mismatch";
+        const recommendation = violation?.recommendation?.migrationHint
+          || "convert file to TypeScript where feasible";
+        issues.push(`${boundary}: ${file} uses ${extension}; ${reason}`);
+        actionItems.push(
+          `${file}: adopt ${recommendation} (default for boundary=${boundary}: ${summary.preferredLanguage})`,
+        );
+      }
+    }
+
+    for (const warning of Array.isArray(languagePolicyCheck.allowlistWarnings) ? languagePolicyCheck.allowlistWarnings : []) {
+      issues.push(`language policy warning: ${warning}`);
+      actionItems.push(`Fix allowlist warning: ${warning}`);
+    }
+
+    for (const issue of Array.isArray(languagePolicyCheck.allowlistIssues) ? languagePolicyCheck.allowlistIssues : []) {
+      issues.push(`language policy check issue: ${issue}`);
+      actionItems.push(`Remedy allowlist issue: ${issue}`);
+    }
+  }
+
+  if (!languagePolicyExpiry) {
+    issues.push("Missing language-policy-expiry artifact at runtime; cannot enforce migration timelines.");
+    actionItems.push("Run language-policy-expiry before final language-policy sign-off.");
+  } else {
+    summary.expiredExceptions = Array.isArray(languagePolicyExpiry.expired)
+      ? languagePolicyExpiry.expired.length
+      : 0;
+    summary.nearExpiryExceptions = Array.isArray(languagePolicyExpiry.nearExpiry)
+      ? languagePolicyExpiry.nearExpiry.length
+      : 0;
+
+    if (Array.isArray(languagePolicyExpiry.expired) && languagePolicyExpiry.expired.length > 0) {
+      for (const exception of languagePolicyExpiry.expired.slice(0, 20)) {
+        const file = `${exception.type ?? "unknown"}:${exception.value ?? "unknown"}`;
+        const removalBy = exception?.removalBy ?? "unknown";
+        const owner = exception?.owner ?? "unknown";
+        const migrationPlan = exception?.migrationPlan ?? "unknown";
+        issues.push(`expired language exception: ${file} (owner=${owner}, removalBy=${removalBy})`);
+        actionItems.push(
+          `${file}: execute migrationPlan="${migrationPlan}" and close exception before removal date ${removalBy}.`,
+        );
+      }
+    }
+
+    for (const exception of Array.isArray(languagePolicyExpiry.nearExpiry) ? languagePolicyExpiry.nearExpiry.slice(0, 8) : []) {
+      const file = `${exception.type ?? "unknown"}:${exception.value ?? "unknown"}`;
+      const daysUntilRemoval = exception?.daysUntilRemoval ?? "unknown";
+      issues.push(`language exception near expiry: ${file} (daysUntilRemoval=${daysUntilRemoval})`);
+      actionItems.push(`Track ${file}: daysUntilRemoval=${daysUntilRemoval}; confirm migration/closure owner is set.`);
+    }
+  }
+
+  const hasIssues = issues.length > 0;
+
+  return {
+    summary,
+    reviewStatus: hasIssues || !languagePolicyCheck
+      || !languagePolicyExpiry
+      || languagePolicyCheck.ok === false
+      || (Array.isArray(languagePolicyExpiry?.expired) && languagePolicyExpiry.expired.length > 0)
+      ? "language-policy-issues"
+      : "language-policy-ok",
+    issues,
+    actionItems: [...new Set(actionItems)],
+  };
+}
+
 function readMaybeJson(relativePath) {
   const raw = readTextArtifact(relativePath);
   if (raw === null) return null;
@@ -503,6 +606,16 @@ function buildIncidentBundle(options, steps, reason, detail) {
       issueLines.push(issue);
     }
   }
+  const languagePolicyCheck = readMaybeJson(options.languagePolicyCheckPath);
+  const languagePolicyExpiry = readMaybeJson(options.languagePolicyExpiryPath);
+  const languagePolicyReview = buildLanguagePolicyReview(languagePolicyCheck, languagePolicyExpiry);
+  const policyIssues = Array.isArray(languagePolicyReview?.issues)
+    ? languagePolicyReview.issues
+    : [];
+  const policyActions = Array.isArray(languagePolicyReview?.actionItems)
+    ? languagePolicyReview.actionItems
+    : [];
+  const allIssues = [...issueLines, ...policyIssues];
 
   const trendSummary = {
     status: finalCheck.status ?? "unknown",
@@ -535,12 +648,15 @@ function buildIncidentBundle(options, steps, reason, detail) {
     },
     trendHealth: trendSummary,
     trendConsistency: verification?.trendConsistency || null,
+    languagePolicyReview,
     failedSteps: failedStepSummary,
-    extractedIssues: issueLines.slice(0, 30),
+    extractedIssues: allIssues.slice(0, 30),
     artifacts: [
       artifactDescriptor(options.qualityScorecardPath, qualityScorecard),
       artifactDescriptor(options.drillPath, drill),
       artifactDescriptor(options.qualityVerificationPath, verification),
+      artifactDescriptor(options.languagePolicyCheckPath, languagePolicyCheck),
+      artifactDescriptor(options.languagePolicyExpiryPath, languagePolicyExpiry),
       artifactDescriptor(options.trendPath, trendLog),
       artifactDescriptor(options.trendSummaryPath, null),
       artifactDescriptor(options.trendGuardrailPath, trendGuardrail),
@@ -603,6 +719,23 @@ function buildIncidentBundle(options, steps, reason, detail) {
       ? finalCheck.reasons.slice(0, 20).map((trendReason) => `- ${trendReason}`)
       : ["- no trend reasons recorded"]),
     "",
+    "## Language policy review",
+    `- Preferred language context: ${languagePolicyReview?.summary?.preferredLanguage ?? "TypeScript for apps/packages"}`,
+    `- Language policy check artifact: ${languagePolicyReview?.summary?.checkPresent ? "present" : "missing"}`,
+    `- Language policy expiry artifact: ${languagePolicyReview?.summary?.expiryPresent ? "present" : "missing"}`,
+    `- Check allowed entries: ${languagePolicyReview?.summary?.allowed ?? 0}`,
+    `- Active violations: ${languagePolicyReview?.summary?.violations ?? 0}`,
+    `- Expired exceptions: ${languagePolicyReview?.summary?.expiredExceptions ?? 0}`,
+    `- Near-expiry exceptions: ${languagePolicyReview?.summary?.nearExpiryExceptions ?? 0}`,
+    `- Allowlist warnings: ${languagePolicyReview?.summary?.allowlistWarnings ?? 0}`,
+    `- Allowlist issues: ${languagePolicyReview?.summary?.allowlistIssues ?? 0}`,
+    "",
+    "## Language policy issues",
+    ...(policyIssues.length > 0 ? policyIssues.slice(0, 20).map((entry) => `- ${entry}`) : ["- no policy issues extracted"]),
+    "",
+    "## Language policy recommended actions",
+    ...(policyActions.length > 0 ? policyActions.slice(0, 20).map((entry) => `- ${entry}`) : ["- no immediate policy actions"]),
+    "",
     "## Artifacts",
     ...bundleJson.artifacts.map((artifact) => `- ${artifact.path} (${artifact.exists ? `${artifact.type} / ${artifact.size} chars` : "missing"})`),
     "",
@@ -628,6 +761,15 @@ function buildFailureRecommendations(options, steps, reason, detail) {
     || steps.find((step) => step.label === "trend-check")
     || null;
   const finalCheck = finalTrendCheck?.checkResult || {};
+  const languagePolicyCheck = readMaybeJson(options.languagePolicyCheckPath);
+  const languagePolicyExpiry = readMaybeJson(options.languagePolicyExpiryPath);
+  const languagePolicyReview = buildLanguagePolicyReview(languagePolicyCheck, languagePolicyExpiry);
+  const policyIssues = Array.isArray(languagePolicyReview?.issues)
+    ? languagePolicyReview.issues
+    : [];
+  const policyActions = Array.isArray(languagePolicyReview?.actionItems)
+    ? languagePolicyReview.actionItems
+    : [];
   const lines = [];
 
   lines.push("# Quality Trend Failure Remediation");
@@ -665,6 +807,14 @@ function buildFailureRecommendations(options, steps, reason, detail) {
     lines.push("");
   }
 
+  if (policyIssues.length > 0) {
+    lines.push("## Language policy issues");
+    for (const policyIssue of policyIssues.slice(0, 20)) {
+      lines.push(`- ${policyIssue}`);
+    }
+    lines.push("");
+  }
+
   if (Array.isArray(finalCheck.reasons) && finalCheck.reasons.length > 0) {
     lines.push("## Trend check reasons");
     for (const trendReason of finalCheck.reasons.slice(0, 16)) {
@@ -679,6 +829,15 @@ function buildFailureRecommendations(options, steps, reason, detail) {
     lines.push("");
   }
 
+  lines.push("## Language selection actions");
+  for (const action of policyActions.slice(0, 20)) {
+    lines.push(`- ${action}`);
+  }
+  if (policyActions.length === 0) {
+    lines.push("- no specific language migration actions are currently required");
+  }
+  lines.push("");
+
   lines.push("## Immediate remediation actions");
   lines.push("- Re-run the smoke locally with exact inputs: `pnpm quality:trend-health-smoke -- --json --require-score " + `${options.qualityThreshold}` + "`");
   lines.push("- Collect a full evidence bundle by keeping all `.tmp/*trend*` outputs and `quality-ci-verification.json`.");
@@ -688,11 +847,15 @@ function buildFailureRecommendations(options, steps, reason, detail) {
   lines.push("  - `.tmp/quality-trend-digest.md`");
   lines.push("  - `.tmp/quality-trend-digest.json`");
   lines.push("  - `.tmp/quality-trend-check.json`");
+  lines.push("  - `.tmp/language-policy-check.json`");
+  lines.push("  - `.tmp/language-policy-expiry.json`");
   lines.push("");
   lines.push("## Focused commands");
   lines.push("- `pnpm quality:trend-summary -- --json --trend .tmp/quality-trend.json --output .tmp/quality-trend-summary.md --guard-output .tmp/quality-trend-guardrail.json --max-consecutive-failures ... --max-score-drop-points ... --min-pass-rate-percent ...`");
   lines.push("- `pnpm quality:trend-digest -- --json --trend .tmp/quality-trend.json --output .tmp/quality-trend-digest.md --json-output .tmp/quality-trend-digest.json --short-window 7 --long-window 30`");
   lines.push("- `pnpm quality:trend-check -- --json --digest .tmp/quality-trend-digest.json --guardrail .tmp/quality-trend-guardrail.json --summary .tmp/quality-trend-summary.md --max-summary-reasons 8`");
+  lines.push("- `pnpm check:language-policy -- --json --head HEAD~1`");
+  lines.push("- `pnpm report:language-policy-expiry -- --json`");
   lines.push("");
   lines.push("## Closure checks");
   lines.push("- Verify `pnpm quality:ci:trend-health -- --json --require-score " + `${options.qualityThreshold}` + "` passes.");
