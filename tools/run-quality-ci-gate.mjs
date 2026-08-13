@@ -10,12 +10,17 @@ function parseArgs() {
   const values = {
     qualityThreshold: 165,
     outputJson: false,
+    requireTrendHealth: false,
   };
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
     if (arg === "--json") {
       values.outputJson = true;
+      continue;
+    }
+    if (arg === "--require-trend-health") {
+      values.requireTrendHealth = true;
       continue;
     }
     if (arg === "--require-score") {
@@ -102,6 +107,20 @@ function summarizeDrill(result) {
   };
 }
 
+function summarizeTrendHealth(result) {
+  if (!result || typeof result !== "object") {
+    return { status: "not_available", blocked: false };
+  }
+  const trendHealth = result.parsedOutput?.trendHealth;
+  if (!trendHealth || typeof trendHealth !== "object") {
+    return { status: "missing", blocked: false };
+  }
+  return {
+    status: String(trendHealth.status ?? "unknown"),
+    blocked: Boolean(trendHealth.blocked),
+  };
+}
+
 function publishStepSummary(summary) {
   const stepSummaryPath = process.env.GITHUB_STEP_SUMMARY;
   if (!stepSummaryPath) {
@@ -115,11 +134,14 @@ function publishStepSummary(summary) {
     `- Quality score: ${summary.quality.score}/${summary.quality.maxScore} (${summary.quality.percent}%, pass=${String(summary.quality.pass)})`,
     `- Dry-run drill: ${summary.drill.statusValue ?? "unknown"}`,
     `- Artifact verification: ${summary.verification.ok ? "PASS" : "FAIL"}`,
+    `- Trend health required in artifacts: ${summary.requireTrendHealth ? "yes" : "no"}`,
+    `- Trend health: ${summary.trendHealth.status}${summary.trendHealth.blocked ? " (blocked)" : ""}`,
     "",
     "| Check | Status |",
     "| --- | --- |",
     `| quality:score | ${summary.quality.parsed ? "parsed" : "not parsed"} |`,
     `| drill:dry-run | ${summary.drill.parsed ? "parsed" : "not parsed"} |`,
+    `| trend health | ${summary.trendHealth.status} |`,
     `| artifacts verified | ${summary.verification.ok ? "pass" : "fail"} |`,
     "",
   ];
@@ -154,7 +176,16 @@ function main() {
 
   const verifyResult = runNodeScript(
     "./tools/verify-ci-quality-artifacts.mjs",
-    ["--json", "--quality", qualityPath, "--drill", drillPath, "--require-score", String(args.qualityThreshold)],
+    [
+      "--json",
+      "--quality",
+      qualityPath,
+      "--drill",
+      drillPath,
+      "--require-score",
+      String(args.qualityThreshold),
+      ...(args.requireTrendHealth ? ["--require-trend-health"] : []),
+    ],
     30000,
   );
   writeIfPossible(verificationPath, verifyResult.rawStdout);
@@ -164,6 +195,8 @@ function main() {
     qualityThreshold: args.qualityThreshold,
     quality: summarizeQuality(qualityResult),
     drill: summarizeDrill(drillResult),
+    trendHealth: summarizeTrendHealth(qualityResult),
+    requireTrendHealth: args.requireTrendHealth,
     verification: {
       ok: verifyResult.ok,
       status: verifyResult.status,
