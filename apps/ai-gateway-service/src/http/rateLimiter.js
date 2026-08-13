@@ -1,11 +1,18 @@
 /**
  * Rate Limiter Middleware
- * Simple sliding-window rate limiter per IP address.
- * No external dependencies required.
+ * Sliding-window rate limiter per IP address.
+ *
+ * Two storage modes:
+ *  - "memory" (default): in-process Map, no dependencies, single-instance.
+ *  - "sqlite": cross-process-safe counting via SQLite atomic upsert, so
+ *    multiple gateway instances sharing one DB enforce a combined limit.
  */
+
+import { createRateLimiterSqliteBackend } from "./rateLimiter-sqlite.js";
 
 const DEFAULT_WINDOW_MS = 60_000; // 1 minute
 const DEFAULT_MAX_REQUESTS = 60;
+const DEFAULT_SQLITE_PATH = ".data/rate-limits.sqlite";
 
 /**
  * Create a rate limiter middleware.
@@ -13,17 +20,37 @@ const DEFAULT_MAX_REQUESTS = 60;
  * @param {number} options.windowMs - Window duration in ms (default 60s)
  * @param {number} options.maxRequests - Max requests per window (default 60)
  * @param {string[]} options.whitelist - IPs exempt from limiting
+ * @param {string} [options.storeMode] - "memory" (default) or "sqlite"
+ * @param {string} [options.storePath] - SQLite DB path (default ".data/rate-limits.sqlite")
+ * @param {string} [options.storeNamespace] - Isolates this limiter within a shared DB (default "default")
  * @returns {Function} middleware(req, res, next) or null if allowed
  */
 export function createRateLimiter(options = {}) {
   const windowMs = options.windowMs ?? DEFAULT_WINDOW_MS;
   const maxRequests = options.maxRequests ?? DEFAULT_MAX_REQUESTS;
   const whitelist = new Set(options.whitelist ?? ["127.0.0.1", "::1", "::ffff:127.0.0.1"]);
+  const storeMode = String(options.storeMode ?? "memory").trim().toLowerCase();
   const buckets = new Map();
+
+  const backend = storeMode === "sqlite"
+    ? createRateLimiterSqliteBackend({
+      dbPath: options.storePath ?? DEFAULT_SQLITE_PATH,
+      namespace: options.storeNamespace ?? "default",
+    })
+    : null;
 
   // Cleanup expired buckets every 5 minutes
   const cleanupInterval = setInterval(() => {
     const now = Date.now();
+    if (backend) {
+      const oldestIndex = Math.floor(now / windowMs) - 1;
+      try {
+        backend.cleanup(oldestIndex);
+      } catch {
+        // cleanup is best-effort; never break limiting on cleanup failure
+      }
+      return;
+    }
     for (const [ip, bucket] of buckets) {
       if (now - bucket.windowStart > windowMs * 2) {
         buckets.delete(ip);
@@ -45,8 +72,20 @@ export function createRateLimiter(options = {}) {
     }
 
     const now = Date.now();
-    let bucket = buckets.get(ip);
 
+    if (backend) {
+      // Fixed-window atomic counting (cross-process safe).
+      const windowIndex = Math.floor(now / windowMs);
+      const count = backend.increment(ip, windowIndex);
+      if (count > maxRequests) {
+        const retryAfterMs = (windowIndex + 1) * windowMs - now;
+        return { allowed: false, remaining: 0, retryAfterMs: Math.max(0, retryAfterMs) };
+      }
+      return { allowed: true, remaining: maxRequests - count, retryAfterMs: 0 };
+    }
+
+    // In-memory sliding window (single-instance).
+    let bucket = buckets.get(ip);
     if (!bucket || now - bucket.windowStart > windowMs) {
       bucket = { windowStart: now, count: 0 };
       buckets.set(ip, bucket);
@@ -99,13 +138,32 @@ export function createRateLimiter(options = {}) {
    * Get current stats.
    */
   function getStats() {
+    if (backend) {
+      const oldestIndex = Math.floor(Date.now() / windowMs) - 1;
+      return {
+        activeBuckets: backend.activeCount(oldestIndex),
+        windowMs,
+        maxRequests,
+        whitelistSize: whitelist.size,
+        storeMode: "sqlite",
+      };
+    }
     return {
       activeBuckets: buckets.size,
       windowMs,
       maxRequests,
       whitelistSize: whitelist.size,
+      storeMode: "memory",
     };
   }
 
-  return { check, apply, getStats };
+  /**
+   * Release resources (stop the cleanup timer and close the SQLite handle).
+   */
+  function close() {
+    clearInterval(cleanupInterval);
+    if (backend) backend.close();
+  }
+
+  return { check, apply, getStats, close };
 }

@@ -50,6 +50,9 @@ export function createRouteRateLimiter(options = {}) {
     windowMs: options.globalWindowMs ?? 60_000,
     maxRequests: options.globalMaxRequests ?? 120,
     whitelist,
+    storeMode: options.storeMode,
+    storePath: options.storePath,
+    storeNamespace: options.storeNamespace ? `${options.storeNamespace}:global` : "global",
   });
 
   // Per-route limiters (lazily created)
@@ -67,6 +70,9 @@ export function createRouteRateLimiter(options = {}) {
             windowMs: limits.windowMs,
             maxRequests: limits.maxRequests,
             whitelist,
+            storeMode: options.storeMode,
+            storePath: options.storePath,
+            storeNamespace: options.storeNamespace ? `${options.storeNamespace}:${pattern}` : `route:${pattern}`,
           }));
         }
         return { limiter: routeLimiters.get(key), pattern: key, limits };
