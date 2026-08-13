@@ -31,6 +31,20 @@ When `blocked: true`, block the change and create a fix ticket for unstable root
 4. Compare latest two scorecards:
    - `pnpm quality:trend-summary -- --trend .tmp/quality-trend.json --output .tmp/quality-trend-summary.md --guard-output .tmp/quality-trend-guardrail.json`.
 
+### 1.1) 3-minute operator triage with incident bundle
+
+- Open `.tmp/quality-trend-incident-bundle.md` and confirm:
+  - `Failure phase`
+  - `Final trend status` and `Final trend severity`
+  - `Failed steps` section
+  - `Trend reasons` section
+  - `Artifacts` coverage includes bundle and verification files
+- Open `.tmp/quality-trend-incident-bundle.json` and confirm:
+  - `schemaVersion === 1`
+  - `trendHealth.blocked === false` (or document why it is expected)
+  - `artifacts` list has `quality-trend-digest.json`, `quality-trend-check.json`, and `quality-scorecard.json` records.
+- Re-check `.tmp/quality-trend-check.json` after any local fix to confirm `blocked` clears.
+
 ## 2) Remediation matrix
 
 - Unstable with consecutive failures:

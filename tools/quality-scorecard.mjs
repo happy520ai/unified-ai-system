@@ -99,6 +99,62 @@ function readJsonFile(path) {
   }
 }
 
+function validateSchemaInstance(instance, schema) {
+  const issues = [];
+  if (!schema || typeof schema !== "object" || schema === null) {
+    return issues;
+  }
+  const required = Array.isArray(schema.required) ? schema.required : [];
+  for (const key of required) {
+    if (!(key in (instance || {}))) {
+      issues.push(`missing field: ${key}`);
+    }
+  }
+
+  const properties = schema.properties || {};
+  for (const [field, definition] of Object.entries(properties)) {
+    if (!(field in (instance || {})) || definition == null) {
+      continue;
+    }
+    const value = instance[field];
+    const type = definition.type;
+    if (!type) {
+      continue;
+    }
+    if (type === "array" && !Array.isArray(value)) {
+      issues.push(`${field} expected array`);
+      continue;
+    }
+    if (type === "object" && (value === null || typeof value !== "object" || Array.isArray(value))) {
+      issues.push(`${field} expected object`);
+      continue;
+    }
+    if (type === "string" && typeof value !== "string") {
+      issues.push(`${field} expected string`);
+      continue;
+    }
+    if (type === "number" && typeof value !== "number") {
+      issues.push(`${field} expected number`);
+      continue;
+    }
+    if (type === "boolean" && typeof value !== "boolean") {
+      issues.push(`${field} expected boolean`);
+      continue;
+    }
+
+    if (type === "object" && definition.required && Array.isArray(definition.required)) {
+      const nestedRequired = definition.required;
+      for (const nestedKey of nestedRequired) {
+        if (!Object.prototype.hasOwnProperty.call(value, nestedKey)) {
+          issues.push(`${field}.${nestedKey} missing`);
+        }
+      }
+    }
+  }
+
+  return issues;
+}
+
 function addGate(gates, name, description, weight, ok, details = "") {
   gates.push({
     name,
@@ -667,6 +723,7 @@ function checkTrendIncidentBundleSchema() {
   const jsonPath = ".tmp/quality-trend-incident-bundle.json";
   const mdPath = ".tmp/quality-trend-incident-bundle.md";
   const bundle = readJsonFile(jsonPath);
+  const schema = readJsonFile("tools/quality-trend-incident-bundle.schema.json");
   const bundleMarkdown = (() => {
     try {
       return readTextFile(mdPath);
@@ -735,6 +792,16 @@ function checkTrendIncidentBundleSchema() {
   const mdAndJsonPaired = bundleMarkdown && bundle;
   if (!mdAndJsonPaired) {
     issueTags.push("pairIncomplete");
+  }
+  if (bundle.schemaVersion !== 1) {
+    issueTags.push("schemaVersion");
+  }
+  const schemaIssues = validateSchemaInstance(bundle, schema);
+  if (schemaIssues.length > 0) {
+    issueTags.push(`schema:${schemaIssues.join(";")}`);
+  }
+  if (!schema) {
+    issueTags.push("schemaMissing");
   }
 
   const malformed = missingRootKeys.length > 0 || issueTags.length > 0;

@@ -502,6 +502,7 @@ function buildIncidentBundle(options, steps, reason, detail) {
   const trendLog = readMaybeJson(options.trendPath);
   const drill = readMaybeJson(options.drillPath);
   const bundleJson = {
+    schemaVersion: 1,
     executedAtUtc: new Date().toISOString(),
     failureReason: reason,
     failureDetail: detail,

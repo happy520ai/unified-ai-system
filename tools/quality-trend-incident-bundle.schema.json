@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "executedAtUtc",
+    "failureReason",
+    "failureDetail",
+    "qualityThreshold",
+    "thresholds",
+    "trendHealth",
+    "failedSteps",
+    "extractedIssues",
+    "artifacts",
+    "recommendationText"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "number"
+    },
+    "executedAtUtc": {
+      "type": "string"
+    },
+    "failureReason": {
+      "type": "string"
+    },
+    "failureDetail": {
+      "type": "string"
+    },
+    "qualityThreshold": {
+      "type": "number"
+    },
+    "thresholds": {
+      "type": "object",
+      "required": [
+        "maxConsecutiveFailures",
+        "maxScoreDropPoints",
+        "minPassRatePercent",
+        "shortWindow",
+        "longWindow",
+        "requireStableState"
+      ],
+      "properties": {
+        "maxConsecutiveFailures": { "type": "number" },
+        "maxScoreDropPoints": { "type": "number" },
+        "minPassRatePercent": { "type": "number" },
+        "shortWindow": { "type": "number" },
+        "longWindow": { "type": "number" },
+        "requireStableState": { "type": "boolean" }
+      }
+    },
+    "trendHealth": {
+      "type": "object",
+      "required": [
+        "status",
+        "severity",
+        "blocked",
+        "reasons",
+        "recommendation"
+      ],
+      "properties": {
+        "status": { "type": "string" },
+        "severity": { "type": "string" },
+        "blocked": { "type": "boolean" },
+        "reasons": { "type": "array" },
+        "recommendation": { "type": "string" }
+      }
+    },
+    "failedSteps": {
+      "type": "array"
+    },
+    "extractedIssues": {
+      "type": "array"
+    },
+    "artifacts": {
+      "type": "array"
+    },
+    "recommendationText": {
+      "type": "array"
+    }
+  }
+}

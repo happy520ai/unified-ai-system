@@ -95,3 +95,27 @@ Current CI pipelines publish:
 4. Open `.tmp/quality-trend-recommendations.md` for prioritized commands and focus areas.
 5. Open `.tmp/quality-trend-incident-bundle.md` for consolidated failure context and evidence manifest.
 6. Re-run CI locally after applying fixes before the next merge or release.
+
+## Incident bundle contract
+
+For structured investigation, the smoke failure bundle follows
+`tools/quality-trend-incident-bundle.schema.json` and is emitted as:
+
+- `.tmp/quality-trend-incident-bundle.json` (machine-readable evidence)
+- `.tmp/quality-trend-incident-bundle.md` (operator-readable handoff)
+
+The schema defines required fields used by CI quality checks and runbooks:
+
+- `schemaVersion`
+- `executedAtUtc`
+- `failureReason`
+- `failureDetail`
+- `qualityThreshold`
+- `thresholds`
+- `trendHealth`
+- `failedSteps`
+- `extractedIssues`
+- `artifacts`
+
+If the schema contract is malformed, `quality:score` will fail the incident-bundle
+gate (when the JSON is present) and expose details in the scorecard checks.
