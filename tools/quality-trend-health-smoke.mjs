@@ -554,6 +554,10 @@ function buildIncidentBundle(options, steps, reason, detail) {
     `- Final trend severity: ${bundleJson.trendHealth.severity}`,
     `- Blocked: ${bundleJson.trendHealth.blocked}`,
     `- Final trend consistency status: ${bundleJson.trendConsistency?.status ?? "missing"}`,
+    `- Final trend consistency checks required: ${(bundleJson.trendConsistency?.checksRequired ?? []).join(", ") || "not recorded"}`,
+    `- Final trend consistency hasMissingRequired: ${Boolean(bundleJson.trendConsistency?.hasMissingRequired)}`,
+    `- Final trend consistency hasNotCollected: ${Boolean(bundleJson.trendConsistency?.hasNotCollected)}`,
+    `- Final trend consistency requiresTrendHealth: ${Boolean(bundleJson.trendConsistency?.requiresTrendHealth)}`,
     "",
     "## Trend consistency checks",
     ...(Array.isArray(bundleJson.trendConsistency?.checksRequired)

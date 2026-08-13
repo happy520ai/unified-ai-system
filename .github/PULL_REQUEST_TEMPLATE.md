@@ -32,6 +32,8 @@ behavior changes.
 - [ ] The default fake provider still works without credentials.
 - [ ] No secret, token, private endpoint, or authorization record is included.
 - [ ] Public behavior and documentation agree.
+- [ ] Changes follow the module ownership policy (TypeScript-first for new work in
+  apps/packages, Node.js ESM for tools, JSON/Markdown for schemas/docs).
 - [ ] Production, L5, and AGI claims remain evidence-based.
 - [ ] If trend guardrails are enabled, `.tmp/quality-trend-guardrail.json` was inspected and any `issues` are explained in the PR body.
 - [ ] If trend gate is unstable, `.tmp/quality-trend-summary.md` and `.tmp/quality-ci-verification.json` were reviewed for root-cause evidence.

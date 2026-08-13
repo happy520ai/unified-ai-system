@@ -25,10 +25,12 @@ Unified AI System is a modular monolith with reusable workspace packages.
 
 ## Language and ownership policy
 
-- `apps/ai-gateway-service` and `apps/agent-console` use **TypeScript** for
-  production runtime behavior, API contracts, and operator tooling integration.
-- `packages/*` use **TypeScript** for reusable contracts, SDKs, shared helpers,
-  engines, and cross-cutting utilities.
+- `apps/ai-gateway-service` and `apps/agent-console` prioritize **TypeScript**
+  for new runtime modules and active refactors, while existing JavaScript modules
+  remain supported during migration.
+- `packages/*` prioritize **TypeScript** for reusable contracts, SDKs, shared
+  helpers, engines, and cross-cutting utilities, while preserving current
+  JavaScript modules where migration is not yet planned.
 - `tools/*.mjs` use **Node.js (ESM JavaScript)** for build, quality, smoke,
   and release tooling where script agility and ecosystem interoperability are the
   priority.

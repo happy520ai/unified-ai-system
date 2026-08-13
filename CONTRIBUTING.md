@@ -83,10 +83,12 @@ testing pattern, and review checklist.
 
 ## Language and Module Ownership
 
-- `apps/ai-gateway-service` and `apps/agent-console` changes should stay in
-  TypeScript unless a strong technical reason is documented in the PR.
+- `apps/ai-gateway-service` and `apps/agent-console` changes should prefer
+  TypeScript for new work; existing JavaScript code paths are permitted during
+  migration and should be modernized with incremental PRs.
 - `packages/*` should remain TypeScript-first for contracts, SDKs, helpers, and
-  shared engines.
+  shared engines; existing JavaScript modules are acceptable while migration is
+  actively tracked.
 - `tools/*.mjs` should use Node.js ESM JavaScript for orchestration, quality,
   and release tooling.
 - Use JSON for schema/data contracts and Markdown for evidence, runbooks, and
