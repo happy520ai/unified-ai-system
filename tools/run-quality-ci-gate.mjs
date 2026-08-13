@@ -121,6 +121,27 @@ function summarizeTrendHealth(result) {
   };
 }
 
+function summarizeTrendBundle(result) {
+  const checks = result?.parsedOutput?.checks || {};
+  const bundleCheck = checks.trendIncidentBundleSchema;
+  if (!bundleCheck || typeof bundleCheck !== "object") {
+    return {
+      status: "missing",
+      ok: false,
+      source: ".tmp/quality-trend-incident-bundle.json",
+      missing: true,
+      malformed: false,
+    };
+  }
+  return {
+    status: bundleCheck.missing ? "not_collected" : bundleCheck.status,
+    ok: Boolean(bundleCheck.ok),
+    malformed: Boolean(bundleCheck.malformed),
+    source: bundleCheck.source ?? ".tmp/quality-trend-incident-bundle.json",
+    missing: Boolean(bundleCheck.missing),
+  };
+}
+
 function publishStepSummary(summary) {
   const stepSummaryPath = process.env.GITHUB_STEP_SUMMARY;
   if (!stepSummaryPath) {
@@ -136,11 +157,13 @@ function publishStepSummary(summary) {
     `- Artifact verification: ${summary.verification.ok ? "PASS" : "FAIL"}`,
     `- Trend health required in artifacts: ${summary.requireTrendHealth ? "yes" : "no"}`,
     `- Trend health: ${summary.trendHealth.status}${summary.trendHealth.blocked ? " (blocked)" : ""}`,
+    `- Incident bundle: ${summary.trendIncidentBundle.status}${summary.trendIncidentBundle.missing ? " (not collected)" : ""}`,
     "",
     "| Check | Status |",
     "| --- | --- |",
     `| quality:score | ${summary.quality.parsed ? "parsed" : "not parsed"} |`,
     `| drill:dry-run | ${summary.drill.parsed ? "parsed" : "not parsed"} |`,
+    `| incident bundle | ${summary.trendIncidentBundle.ok ? "pass" : "fail"} (${summary.trendIncidentBundle.status}) |`,
     `| trend health | ${summary.trendHealth.status} |`,
     `| artifacts verified | ${summary.verification.ok ? "pass" : "fail"} |`,
     "",
@@ -196,6 +219,7 @@ function main() {
     quality: summarizeQuality(qualityResult),
     drill: summarizeDrill(drillResult),
     trendHealth: summarizeTrendHealth(qualityResult),
+    trendIncidentBundle: summarizeTrendBundle(qualityResult),
     requireTrendHealth: args.requireTrendHealth,
     verification: {
       ok: verifyResult.ok,
