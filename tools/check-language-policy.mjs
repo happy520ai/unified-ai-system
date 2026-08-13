@@ -25,12 +25,14 @@ const DEFAULT_ALLOWED_EXTENSIONS = new Set([
 ]);
 
 const DEFAULT_DENIED_JS_EXTENSIONS = new Set([".js", ".cjs", ".mjs"]);
+const DEFAULT_LANGUAGE_POLICY_ALLOWLIST = resolve(repoRoot, "tools/language-policy-allowlist.json");
 
 function parseArgs() {
   const args = process.argv.slice(2);
   const values = {
     baseRef: null,
     headRef: "HEAD",
+    allowlistPath: DEFAULT_LANGUAGE_POLICY_ALLOWLIST,
     allowJsInLegacyPaths: false,
     outputJson: false,
   };
@@ -49,6 +51,11 @@ function parseArgs() {
     }
     if (arg === "--json") {
       values.outputJson = true;
+      continue;
+    }
+    if (arg === "--allowlist") {
+      values.allowlistPath = args[index + 1] ?? values.allowlistPath;
+      index += 1;
       continue;
     }
     if (arg === "--allow-legacy-js") {
@@ -143,19 +150,129 @@ function normalizePath(path) {
   return path.replaceAll("\\", "/");
 }
 
+function escapeRegexSegment(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function toGlobRegex(pattern) {
+  const normalized = pattern.replaceAll("\\", "/");
+  const escaped = escapeRegexSegment(normalized)
+    .replace(/\\\*/g, ".*")
+    .replace(/\\\?/g, ".");
+  return new RegExp(`^${escaped}$`);
+}
+
+function parseAllowlistFile(allowlistPath) {
+  const path = resolve(repoRoot, allowlistPath);
+  if (!existsSync(path)) {
+    return {
+      ok: true,
+      allowlist: {
+        allowedFiles: [],
+        allowedPathPrefixes: [],
+        allowedPathPatterns: [],
+      },
+      issues: [],
+    };
+  }
+
+  try {
+    const parsed = JSON.parse(readFileSync(path, "utf8"));
+    const allowedFiles = Array.isArray(parsed?.allowedFiles)
+      ? parsed.allowedFiles.map((entry) => `${entry}`.replaceAll("\\", "/"))
+      : [];
+    const allowedPathPrefixes = Array.isArray(parsed?.allowedPathPrefixes)
+      ? parsed.allowedPathPrefixes.map((entry) => `${entry}`.replaceAll("\\", "/"))
+      : [];
+    const allowedPathPatterns = Array.isArray(parsed?.allowedPathPatterns)
+      ? parsed.allowedPathPatterns.map((entry) => `${entry}`.replaceAll("\\", "/"))
+      : [];
+
+    return {
+      ok: true,
+      allowlist: {
+        allowedFiles,
+        allowedPathPrefixes,
+        allowedPathPatterns,
+      },
+      issues: [],
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      allowlist: {
+        allowedFiles: [],
+        allowedPathPrefixes: [],
+        allowedPathPatterns: [],
+      },
+      issues: [`failed to parse allowlist: ${String(error.message)}`],
+    };
+  }
+}
+
+function isAllowedByPolicy(path, allowlist) {
+  if (!allowlist) {
+    return false;
+  }
+
+  const normalized = path.replaceAll("\\", "/");
+  if (Array.isArray(allowlist.allowedFiles) && allowlist.allowedFiles.includes(normalized)) {
+    return true;
+  }
+
+  if (Array.isArray(allowlist.allowedPathPrefixes)) {
+    for (const prefix of allowlist.allowedPathPrefixes) {
+      if (prefix && normalized.startsWith(prefix)) {
+        return true;
+      }
+    }
+  }
+
+  if (Array.isArray(allowlist.allowedPathPatterns)) {
+    for (const rawPattern of allowlist.allowedPathPatterns) {
+      if (!rawPattern || typeof rawPattern !== "string") {
+        continue;
+      }
+      const matcher = toGlobRegex(rawPattern);
+      if (matcher.test(normalized)) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
 function main() {
   const args = parseArgs();
   const resolvedBaseRef = args.baseRef ?? discoverBaseRefFromEnvironment() ?? "HEAD~1";
+  const allowlistResult = parseAllowlistFile(args.allowlistPath);
   const commandLine = process.argv.slice(2);
   let output = {
     ok: true,
     violations: [],
+    allowed: [],
+    allowlistPath: args.allowlistPath,
+    allowlistIssues: allowlistResult.issues,
     inspected: {
       baseRef: resolvedBaseRef,
       headRef: args.headRef,
       commandLine,
     },
   };
+
+  if (!allowlistResult.ok) {
+    output.ok = false;
+    if (allowlistResult.issues.length > 0) {
+      process.stderr.write(`language policy check failed to parse allowlist: ${allowlistResult.issues.join(", ")}\n`);
+    }
+    process.exitCode = 1;
+    if (args.outputJson) {
+      process.stdout.write(`${JSON.stringify(output, null, 2)}\n`);
+      return;
+    }
+    return;
+  }
 
   let lines = [];
   try {
@@ -193,13 +310,20 @@ function main() {
 
     if (DEFAULT_DENIED_JS_EXTENSIONS.has(extension)) {
       const isAllowedLegacyPath = args.allowJsInLegacyPaths && path.startsWith(`${boundary}/`) && path.includes("/legacy/");
-      if (!isAllowedLegacyPath) {
+      const isAllowedByException = isAllowedByPolicy(path, allowlistResult.allowlist);
+      if (!isAllowedLegacyPath && !isAllowedByException) {
         output.violations.push({
           file: path,
           boundary,
           reason: "runtime path uses JS; apps/packages default should be TypeScript",
           extension,
           remedy: "convert to .ts/.tsx or provide explicit migration justification in PR language section",
+        });
+      } else if (isAllowedByException) {
+        output.allowed.push({
+          file: path,
+          boundary,
+          reason: "allowed by language-policy allowlist",
         });
       }
     }
@@ -214,7 +338,13 @@ function main() {
   }
 
   if (output.ok) {
-    process.stdout.write(`language policy check passed: no new js artifacts added to apps/packages.\n`);
+    process.stdout.write(`language policy check passed: no blocking js artifacts added to apps/packages.\n`);
+    if (output.allowed.length > 0) {
+      process.stdout.write("allowed-by-config exceptions used:\n");
+      for (const item of output.allowed) {
+        process.stdout.write(`- ${item.boundary}: ${item.file}\n`);
+      }
+    }
     return;
   }
 

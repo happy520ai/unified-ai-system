@@ -104,7 +104,24 @@ When a PR touches non-default language files in runtime paths, attach:
 - A one-line risk closure plan
 - Evidence that `QUALITY` checks still pass after the change
 
-## 6. Automated enforcement
+### 6. Exception list
+
+Runtime exceptions are maintained in:
+
+- `tools/language-policy-allowlist.json`
+
+Supported allowlist controls:
+
+- `allowedFiles`: explicit file paths under `apps/*` or `packages/*` allowed to
+  keep JS for now.
+- `allowedPathPrefixes`: narrow path prefixes for temporary migration windows.
+- `allowedPathPatterns`: lightweight glob-like patterns using `*`/`?` for bounded
+  exceptions.
+
+Every allowlist entry should include PR justification, ownership, and a planned
+removal boundary.
+
+## 7. Automated enforcement
 
 Run the repository language policy check as part of `pnpm check`:
 
