@@ -43,6 +43,10 @@ When `blocked: true`, block the change and create a fix ticket for unstable root
   - `schemaVersion === 1`
   - `trendHealth.blocked === false` (or document why it is expected)
   - `artifacts` list has `quality-trend-digest.json`, `quality-trend-check.json`, and `quality-scorecard.json` records.
+- Open `.tmp/quality-ci-verification.json` and confirm:
+  - `trendConsistency` exists and `trendConsistency.ok === true`
+  - `trendConsistency.checks.trendDigestHealth`, `trendConsistency.checks.trendSummaryGuardrails`, and `trendConsistency.checks.trendDigestCheckConsistency` are present with `ok === true`
+- Correlate `.tmp/quality-ci-verification.json` `issueCodes` with incident bundle `Extracted issues` to ensure no high-severity trend-consistency regression is lost.
 - Re-check `.tmp/quality-trend-check.json` after any local fix to confirm `blocked` clears.
 
 ## 2) Remediation matrix

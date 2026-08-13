@@ -34,11 +34,15 @@ Normalization guidance:
   - `issueCodeSummary`
   - `incidentBundle.issueCodes`
   - `incidentBundle.issueCodeSummary`
+  - `checks.trendConsistency`
 - `tools/run-quality-ci-gate.mjs`
   - `issueCodes`
   - `issueCodeSummary`
   - `trendIncidentBundle.issueCodes`
   - `trendIncidentBundle.issueCodeSummary`
+  - `trendConsistency.checks`
+  - `trendConsistency.issueCodes`
+  - `trendConsistency.issueCodeSummary`
 - `tools/quality-scorecard.mjs`
   - `issueCodes`
   - `issueCodeSummary`
