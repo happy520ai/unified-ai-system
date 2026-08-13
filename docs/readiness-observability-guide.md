@@ -241,13 +241,17 @@ pnpm quality:trend-summary -- --trend .tmp/quality-trend.json --output .tmp/qual
 The CI workflow now stores the following additional trend artifacts per run:
 
 - `.tmp/quality-trend.json`
+- `.tmp/quality-scorecard.json`
+- `.tmp/circuit-recovery-drill-dry-run.json`
 - `.tmp/quality-trend-summary.md`
 - `.tmp/quality-trend-guardrail.json`
 - `.tmp/quality-trend-check.json`
 - `.tmp/quality-trend-digest.json`
+- `.tmp/quality-ci-verification.json`
 - `.tmp/quality-trend-recommendations.md`
 - `.tmp/quality-trend-incident-bundle.md`
 - `.tmp/quality-trend-incident-bundle.json`
+- `.tmp/quality-trend-verify-artifacts.json`
 
 If you inspect workflow artifacts, you can load:
 
@@ -258,6 +262,7 @@ If you inspect workflow artifacts, you can load:
 - `.tmp/quality-trend-incident-bundle.md` and `.tmp/quality-trend-incident-bundle.json` for structured triage evidence.
 - Incident bundle fields must match `tools/quality-trend-incident-bundle.schema.json` (schemaVersion, thresholds, trendHealth, artifacts, failedSteps, etc.).
 - Incident bundle payloads should also include `trendConsistency` (checks plus issue summary) so trend check parity is auditable.
+- `.tmp/quality-trend-verify-artifacts.json` records parity check outputs including missing/mismatched consistency issues and is useful for root-cause review after a failed quality run.
 
 For full triage sequence and owners, follow:
 

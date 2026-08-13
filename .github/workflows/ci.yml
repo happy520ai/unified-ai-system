@@ -115,6 +115,7 @@ jobs:
 
       - name: Verify quality trend artifact parity
         run: |
+          set -o pipefail
           VERIFY_ARGS=(
             --json
             --quality .tmp/quality-scorecard.json
@@ -130,7 +131,16 @@ jobs:
             VERIFY_ARGS+=("--require-trend-health")
           fi
 
-          pnpm quality:verify-artifacts -- "${VERIFY_ARGS[@]}"
+          pnpm quality:verify-artifacts -- "${VERIFY_ARGS[@]}" | tee .tmp/quality-trend-verify-artifacts.json
+
+      - name: Append quality artifact verification to workflow summary
+        if: always()
+        run: |
+          if [ -f .tmp/quality-trend-verify-artifacts.json ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "## Quality artifact verification result" >> "$GITHUB_STEP_SUMMARY"
+            cat .tmp/quality-trend-verify-artifacts.json >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Append quality trend guardrail configuration to summary
         if: always()
@@ -179,14 +189,15 @@ jobs:
           fi
 
       - name: Upload quality scorecard artifact
-        if: always()
         uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: quality-scorecard
           path: |
             .tmp/quality-scorecard.json
             .tmp/circuit-recovery-drill-dry-run.json
             .tmp/quality-ci-verification.json
+            .tmp/quality-trend-verify-artifacts.json
             .tmp/quality-trend.json
             .tmp/quality-trend-summary.md
             .tmp/quality-trend-guardrail.json
