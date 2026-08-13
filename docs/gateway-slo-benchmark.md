@@ -1,7 +1,8 @@
 # Gateway SLO Benchmark
 
-`gateway-slo-benchmark.mjs` is a credential-free black-box performance and
-fault-isolation gate for the OpenAI-compatible chat-completions route.
+`gateway-slo-benchmark.mjs` is a credential-free black-box performance,
+streaming-quality, and fault-isolation gate for the OpenAI-compatible
+chat-completions route.
 
 ## Why Node ESM
 
@@ -29,9 +30,12 @@ The default run:
 - constructs a minimal child environment that does not forward credential
   variables;
 - forces `providerMode=fake` and `realProviderEnabled=false`;
-- warms up the route, then runs 80 requests with concurrency 8;
-- validates every response against the OpenAI chat-completion shape;
-- records p50, p95, p99, throughput, errors, timeouts, and status codes;
+- warms up both response modes, then runs 80 non-streaming and 80 streaming
+  requests with concurrency 8;
+- validates every JSON response and every SSE stream against its OpenAI shape;
+- records p50, p95, p99, throughput, errors, timeouts, status codes, response
+  headers, first SSE event, first non-empty content delta, complete response,
+  inter-content-chunk intervals, usage chunks, finish reasons, and `[DONE]`;
 - sends malformed JSON and an oversized payload, then proves normal traffic and
   health recover;
 - terminates the managed gateway in a `finally` path;
@@ -47,6 +51,11 @@ industry-performance claim:
 | p95 | <= 750 ms |
 | p99 | <= 1500 ms |
 | Successful throughput | >= 10 requests/s |
+| Streaming error rate | 0 |
+| Streaming protocol-valid responses | 100% |
+| Streaming first-content p95 | <= 1000 ms |
+| Streaming total-response p95 | <= 2500 ms |
+| Successful streaming throughput | >= 5 requests/s |
 
 Override a limit with a CLI option, or use `none` to observe a latency or
 throughput metric without gating it.
@@ -75,10 +84,19 @@ Fault probes are automatic only for the managed local gateway. Add
 ## Metric semantics
 
 - Latency uses a monotonic clock and includes HTTP response body receipt and
-  JSON parsing.
+  JSON or SSE parsing.
 - Percentiles use nearest-rank selection over successful, protocol-valid
   responses.
 - Successful throughput is successful responses divided by measured wall time.
+- Streaming first-content latency is measured to the first non-empty
+  `choices[0].delta.content`. It is a protocol-level TTFT proxy, not proof of
+  an upstream model's internal token emission timestamp.
+- Inter-content-chunk latency is measured between non-empty content deltas. A
+  local transport may coalesce multiple SSE events, so zero intervals are valid
+  observations and should not be presented as provider token cadence.
+- A valid managed stream requires SSE content type, parseable
+  `chat.completion.chunk` events, content, finish reason, requested usage chunk,
+  `[DONE]`, and fake execution metadata.
 - Error rate includes non-200 responses, invalid protocol shapes, fake-mode
   safety failures in managed mode, transport errors, and timeouts.
 - Warmup samples are reported separately and excluded from measured metrics.
@@ -89,10 +107,11 @@ Fault probes are automatic only for the managed local gateway. Add
 ## Comparison boundary
 
 A defensible gateway comparison must use the same host class, network path,
-model or deterministic upstream, request payload, concurrency, request count,
-timeout, and warmup policy. Run multiple trials and compare distributions, not
-one best result. The local fake-provider run proves repeatability and regression
-control; it does not prove production readiness or superiority by itself.
+model or deterministic upstream, request payload, streaming mode, concurrency,
+request count, timeout, and warmup policy. Run multiple trials and compare
+distributions, not one best result. The local fake-provider run proves
+repeatability and regression control; it does not prove production readiness or
+superiority by itself.
 
 The dimensions align with capabilities documented by major gateway vendors:
 

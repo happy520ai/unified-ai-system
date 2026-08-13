@@ -394,6 +394,12 @@ jobs:
             cat .tmp/gateway-demo.json >> "$GITHUB_STEP_SUMMARY"
           fi
 
+          if [ -f .tmp/gateway-slo-benchmark.json ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "## Gateway SLO benchmark" >> "$GITHUB_STEP_SUMMARY"
+            cat .tmp/gateway-slo-benchmark.json >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Upload quality scorecard artifact
         uses: actions/upload-artifact@v4
         if: always()
@@ -420,6 +426,8 @@ jobs:
             .tmp/mcp-smoke.json
             .tmp/gateway-doctor.json
             .tmp/gateway-demo.json
+            .tmp/gateway-slo-benchmark.json
+            .tmp/gateway-slo-benchmark.log
             .tmp/language-policy-check.json
             .tmp/language-policy-expiry.json
           retention-days: 30

@@ -24,6 +24,9 @@ const PROFILES = Object.freeze({
     maxP95Ms: 750,
     maxP99Ms: 1_500,
     minThroughputRps: 10,
+    maxStreamTtftP95Ms: 1_000,
+    maxStreamTotalP95Ms: 2_500,
+    minStreamThroughputRps: 5,
     maxErrorRate: 0,
   }),
   observe: Object.freeze({
@@ -34,6 +37,9 @@ const PROFILES = Object.freeze({
     maxP95Ms: null,
     maxP99Ms: null,
     minThroughputRps: null,
+    maxStreamTtftP95Ms: null,
+    maxStreamTotalP95Ms: null,
+    minStreamThroughputRps: null,
     maxErrorRate: 0,
   }),
 });
@@ -65,10 +71,12 @@ async function runBenchmark(options) {
   let managedGatewayCleanedUp = null;
   let health = null;
   let warmup = null;
+  let streamingWarmup = null;
   let faultIsolation = createSkippedFaultResult(options.faultProbes
     ? "Benchmark execution did not reach the fault probes."
     : "Fault probes were not requested for an external target.");
   let measurement = null;
+  let streamingMeasurement = null;
   let fatalError = null;
   let endpointUrl = options.target;
 
@@ -87,6 +95,15 @@ async function runBenchmark(options) {
       model: options.model,
       requireFakeExecution: options.managed,
       label: "warmup",
+    });
+    streamingWarmup = await executeStreamBatch({
+      endpointUrl,
+      requests: options.warmup,
+      concurrency: Math.min(options.concurrency, options.warmup),
+      timeoutMs: options.timeoutMs,
+      model: options.model,
+      requireFakeExecution: options.managed,
+      label: "streaming-warmup",
     });
 
     if (options.faultProbes) {
@@ -108,6 +125,15 @@ async function runBenchmark(options) {
       requireFakeExecution: options.managed,
       label: "measurement",
     });
+    streamingMeasurement = await executeStreamBatch({
+      endpointUrl,
+      requests: options.requests,
+      concurrency: options.concurrency,
+      timeoutMs: options.timeoutMs,
+      model: options.model,
+      requireFakeExecution: options.managed,
+      label: "streaming-measurement",
+    });
   } catch (error) {
     fatalError = normalizeError(error);
   } finally {
@@ -120,8 +146,10 @@ async function runBenchmark(options) {
     options,
     health,
     warmup,
+    streamingWarmup,
     faultIsolation,
     measurement,
+    streamingMeasurement,
     fatalError,
     managedGatewayCleanedUp,
   });
@@ -147,12 +175,18 @@ async function runBenchmark(options) {
       concurrency: options.concurrency,
       warmupRequests: options.warmup,
       timeoutMs: options.timeoutMs,
-      payload: "OpenAI-compatible non-streaming chat completion",
+      payloads: [
+        "OpenAI-compatible non-streaming chat completion",
+        "OpenAI-compatible SSE streaming chat completion with usage",
+      ],
     },
     thresholds: {
       maxP95Ms: options.maxP95Ms,
       maxP99Ms: options.maxP99Ms,
       minThroughputRps: options.minThroughputRps,
+      maxStreamTtftP95Ms: options.maxStreamTtftP95Ms,
+      maxStreamTotalP95Ms: options.maxStreamTotalP95Ms,
+      minStreamThroughputRps: options.minStreamThroughputRps,
       maxErrorRate: options.maxErrorRate,
     },
     environment: {
@@ -169,13 +203,18 @@ async function runBenchmark(options) {
       observedExecutionMode: measurement?.observedExecutionModes?.length === 1
         ? measurement.observedExecutionModes[0]
         : measurement?.observedExecutionModes ?? [],
+      observedStreamingExecutionMode: streamingMeasurement?.observedExecutionModes?.length === 1
+        ? streamingMeasurement.observedExecutionModes[0]
+        : streamingMeasurement?.observedExecutionModes ?? [],
       realProviderCallsMade: options.managed ? false : null,
       credentialEnvironmentForwarded: false,
       managedGatewayCleanedUp,
     },
     warmup,
+    streamingWarmup,
     faultIsolation,
     measurement,
+    streamingMeasurement,
     checks,
     issueCodes: checks.filter((check) => !check.passed).map((check) => check.code),
     fatalError,
@@ -183,6 +222,7 @@ async function runBenchmark(options) {
     industryAlignment: [
       "OpenAI-compatible protocol correctness",
       "latency percentiles (p50/p95/p99)",
+      "streaming time to first content delta and inter-chunk latency",
       "throughput and error rate",
       "timeout classification",
       "fault isolation and recovery",
@@ -301,6 +341,29 @@ async function executeBatch({ endpointUrl, requests, concurrency, timeoutMs, mod
   return summarizeBatch(results, wallDurationMs);
 }
 
+async function executeStreamBatch({ endpointUrl, requests, concurrency, timeoutMs, model, requireFakeExecution, label }) {
+  const results = new Array(requests);
+  let cursor = 0;
+  const batchStarted = performance.now();
+  const workers = Array.from({ length: Math.min(concurrency, requests) }, async () => {
+    while (true) {
+      const index = cursor;
+      cursor += 1;
+      if (index >= requests) return;
+      results[index] = await executeStreamingChatRequest({
+        endpointUrl,
+        timeoutMs,
+        model,
+        requireFakeExecution,
+        sequence: index,
+        label,
+      });
+    }
+  });
+  await Promise.all(workers);
+  return summarizeStreamBatch(results, performance.now() - batchStarted);
+}
+
 async function executeChatRequest({ endpointUrl, timeoutMs, model, requireFakeExecution, sequence, label }) {
   const started = performance.now();
   try {
@@ -342,6 +405,169 @@ async function executeChatRequest({ endpointUrl, timeoutMs, model, requireFakeEx
       timedOut: normalized?.name === "AbortError" || normalized?.code === "REQUEST_TIMEOUT",
       transportError: normalized?.code ?? normalized?.name ?? "request_failed",
     };
+  }
+}
+
+async function executeStreamingChatRequest({ endpointUrl, timeoutMs, model, requireFakeExecution, sequence, label }) {
+  const started = performance.now();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(new Error("Streaming request timeout.")), timeoutMs);
+  timer.unref?.();
+
+  try {
+    const response = await fetch(endpointUrl, {
+      method: "POST",
+      headers: { "content-type": "application/json", accept: "text/event-stream" },
+      body: JSON.stringify({
+        model,
+        stream: true,
+        stream_options: { include_usage: true },
+        messages: [{ role: "user", content: `${label} gateway benchmark request ${sequence}` }],
+      }),
+      signal: controller.signal,
+    });
+    const headersAt = performance.now();
+    const contentType = response.headers.get("content-type") ?? "";
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error("Streaming response body is unavailable.");
+
+    const decoder = new TextDecoder();
+    const executionModes = new Set();
+    const interContentChunkMs = [];
+    let buffer = "";
+    let bytesReceived = 0;
+    let eventCount = 0;
+    let objectChunkCount = 0;
+    let contentChunkCount = 0;
+    let contentCharacters = 0;
+    let parseErrors = 0;
+    let errorPayloads = 0;
+    let firstEventAt = null;
+    let firstContentAt = null;
+    let previousContentAt = null;
+    let finishReasonSeen = false;
+    let usageChunkSeen = false;
+    let doneSeen = false;
+
+    const consumeEvent = (block) => {
+      const data = block
+        .split(/\r?\n/)
+        .filter((line) => line.startsWith("data:"))
+        .map((line) => line.slice(5).trimStart())
+        .join("\n")
+        .trim();
+      if (!data) return;
+
+      const observedAt = performance.now();
+      firstEventAt ??= observedAt;
+      if (data === "[DONE]") {
+        doneSeen = true;
+        return;
+      }
+
+      eventCount += 1;
+      let payload;
+      try {
+        payload = JSON.parse(data);
+      } catch {
+        parseErrors += 1;
+        return;
+      }
+      if (payload?.error) errorPayloads += 1;
+      if (payload?.object === "chat.completion.chunk") objectChunkCount += 1;
+      if (payload?.unified_ai?.execution_mode) executionModes.add(payload.unified_ai.execution_mode);
+      if (payload?.usage && typeof payload.usage === "object") usageChunkSeen = true;
+
+      const choice = Array.isArray(payload?.choices) ? payload.choices[0] : null;
+      if (choice?.finish_reason !== null && choice?.finish_reason !== undefined) finishReasonSeen = true;
+      const content = choice?.delta?.content;
+      if (typeof content === "string" && content.length > 0) {
+        firstContentAt ??= observedAt;
+        if (previousContentAt !== null) interContentChunkMs.push(observedAt - previousContentAt);
+        previousContentAt = observedAt;
+        contentChunkCount += 1;
+        contentCharacters += content.length;
+      }
+    };
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      bytesReceived += value.byteLength;
+      buffer += decoder.decode(value, { stream: true });
+      const blocks = buffer.split(/\r?\n\r?\n/);
+      buffer = blocks.pop() ?? "";
+      for (const block of blocks) consumeEvent(block);
+    }
+    buffer += decoder.decode();
+    if (buffer.trim()) consumeEvent(buffer);
+
+    const completedAt = performance.now();
+    const observedExecutionModes = [...executionModes].sort();
+    const protocolValid = response.status === 200
+      && contentType.toLowerCase().includes("text/event-stream")
+      && objectChunkCount > 0
+      && contentChunkCount > 0
+      && finishReasonSeen
+      && usageChunkSeen
+      && doneSeen
+      && parseErrors === 0
+      && errorPayloads === 0;
+    const safetyValid = !requireFakeExecution
+      || (observedExecutionModes.length === 1 && observedExecutionModes[0] === "fake");
+
+    return {
+      status: response.status,
+      ok: protocolValid && safetyValid,
+      protocolValid,
+      safetyValid,
+      timedOut: false,
+      transportError: null,
+      responseHeadersMs: headersAt - started,
+      timeToFirstEventMs: firstEventAt === null ? null : firstEventAt - started,
+      timeToFirstContentDeltaMs: firstContentAt === null ? null : firstContentAt - started,
+      totalResponseMs: completedAt - started,
+      interContentChunkMs,
+      eventCount,
+      objectChunkCount,
+      contentChunkCount,
+      contentCharacters,
+      bytesReceived,
+      finishReasonSeen,
+      usageChunkSeen,
+      doneSeen,
+      parseErrors,
+      errorPayloads,
+      observedExecutionModes,
+    };
+  } catch (error) {
+    const normalized = normalizeError(error);
+    return {
+      status: null,
+      ok: false,
+      protocolValid: false,
+      safetyValid: false,
+      timedOut: controller.signal.aborted || normalized?.name === "AbortError" || normalized?.code === "REQUEST_TIMEOUT",
+      transportError: normalized?.code ?? normalized?.name ?? "stream_request_failed",
+      responseHeadersMs: null,
+      timeToFirstEventMs: null,
+      timeToFirstContentDeltaMs: null,
+      totalResponseMs: performance.now() - started,
+      interContentChunkMs: [],
+      eventCount: 0,
+      objectChunkCount: 0,
+      contentChunkCount: 0,
+      contentCharacters: 0,
+      bytesReceived: 0,
+      finishReasonSeen: false,
+      usageChunkSeen: false,
+      doneSeen: false,
+      parseErrors: 0,
+      errorPayloads: 0,
+      observedExecutionModes: [],
+    };
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -420,6 +646,57 @@ function summarizeBatch(results, wallDurationMs) {
   };
 }
 
+function summarizeStreamBatch(results, wallDurationMs) {
+  const successful = results.filter((result) => result.ok);
+  const statusCodes = {};
+  for (const result of results) {
+    const key = result.status === null ? "transport_error" : String(result.status);
+    statusCodes[key] = (statusCodes[key] ?? 0) + 1;
+  }
+  const observedExecutionModes = [...new Set(results.flatMap((result) => result.observedExecutionModes))].sort();
+  const attempted = results.length;
+  const succeeded = successful.length;
+  const failed = attempted - succeeded;
+  const contentCharacters = successful.reduce((sum, result) => sum + result.contentCharacters, 0);
+  const bytesReceived = successful.reduce((sum, result) => sum + result.bytesReceived, 0);
+  return {
+    attempted,
+    succeeded,
+    failed,
+    protocolValid: results.filter((result) => result.protocolValid).length,
+    safetyValid: results.filter((result) => result.safetyValid).length,
+    transportErrors: results.filter((result) => result.transportError !== null).length,
+    timeouts: results.filter((result) => result.timedOut).length,
+    errorRate: ratio(failed, attempted),
+    protocolValidityRate: ratio(results.filter((result) => result.protocolValid).length, attempted),
+    wallDurationMs: round(wallDurationMs),
+    throughputRps: wallDurationMs > 0 ? round((succeeded * 1_000) / wallDurationMs) : 0,
+    contentCharacters,
+    contentCharactersPerSecond: wallDurationMs > 0 ? round((contentCharacters * 1_000) / wallDurationMs) : 0,
+    bytesReceived,
+    eventCount: successful.reduce((sum, result) => sum + result.eventCount, 0),
+    contentChunkCount: successful.reduce((sum, result) => sum + result.contentChunkCount, 0),
+    responseHeadersMs: summarizeMetric(successful.map((result) => result.responseHeadersMs)),
+    timeToFirstEventMs: summarizeMetric(successful.map((result) => result.timeToFirstEventMs)),
+    timeToFirstContentDeltaMs: summarizeMetric(successful.map((result) => result.timeToFirstContentDeltaMs)),
+    totalResponseMs: summarizeMetric(successful.map((result) => result.totalResponseMs)),
+    interContentChunkMs: summarizeMetric(successful.flatMap((result) => result.interContentChunkMs)),
+    statusCodes,
+    observedExecutionModes,
+    protocolSignals: {
+      finishReason: results.filter((result) => result.finishReasonSeen).length,
+      usageChunk: results.filter((result) => result.usageChunkSeen).length,
+      doneSentinel: results.filter((result) => result.doneSeen).length,
+      parseErrors: results.reduce((sum, result) => sum + result.parseErrors, 0),
+      errorPayloads: results.reduce((sum, result) => sum + result.errorPayloads, 0),
+    },
+  };
+}
+
+function summarizeMetric(values) {
+  return summarizeLatency(values.filter(Number.isFinite).sort((a, b) => a - b));
+}
+
 function summarizeLatency(sorted) {
   if (sorted.length === 0) {
     return { samples: 0, min: null, mean: null, p50: null, p95: null, p99: null, max: null };
@@ -435,12 +712,15 @@ function summarizeLatency(sorted) {
   };
 }
 
-function createChecks({ options, health, warmup, faultIsolation, measurement, fatalError, managedGatewayCleanedUp }) {
+function createChecks({ options, health, warmup, streamingWarmup, faultIsolation, measurement, streamingMeasurement, fatalError, managedGatewayCleanedUp }) {
   const checks = [
     check("benchmark_completed", fatalError === null, "benchmark execution completes without a fatal error", fatalError?.message ?? "complete"),
     check("warmup_healthy", warmup?.failed === 0, "warmup has zero failed requests", warmup?.failed ?? null),
+    check("streaming_warmup_healthy", streamingWarmup?.failed === 0, "streaming warmup has zero failed requests", streamingWarmup?.failed ?? null),
     check("protocol_valid", measurement?.protocolValidityRate === 1, "all measured responses satisfy the OpenAI chat-completion shape", measurement?.protocolValidityRate ?? null),
+    check("streaming_protocol_valid", streamingMeasurement?.protocolValidityRate === 1, "all measured streams contain valid SSE chunks, usage, finish reason, and DONE sentinel", streamingMeasurement?.protocolValidityRate ?? null),
     check("error_rate_within_limit", measurement !== null && measurement.errorRate <= options.maxErrorRate, `error rate <= ${options.maxErrorRate}`, measurement?.errorRate ?? null),
+    check("streaming_error_rate_within_limit", streamingMeasurement !== null && streamingMeasurement.errorRate <= options.maxErrorRate, `streaming error rate <= ${options.maxErrorRate}`, streamingMeasurement?.errorRate ?? null),
   ];
 
   if (options.maxP95Ms !== null) {
@@ -455,12 +735,24 @@ function createChecks({ options, health, warmup, faultIsolation, measurement, fa
     const actualThroughputRps = measurement?.throughputRps;
     checks.push(check("throughput_within_limit", Number.isFinite(actualThroughputRps) && actualThroughputRps >= options.minThroughputRps, `successful throughput >= ${options.minThroughputRps} requests/s`, actualThroughputRps ?? null));
   }
+  if (options.maxStreamTtftP95Ms !== null) {
+    const actualStreamTtftP95Ms = streamingMeasurement?.timeToFirstContentDeltaMs?.p95;
+    checks.push(check("streaming_ttft_p95_within_limit", Number.isFinite(actualStreamTtftP95Ms) && actualStreamTtftP95Ms <= options.maxStreamTtftP95Ms, `streaming first-content p95 <= ${options.maxStreamTtftP95Ms} ms`, actualStreamTtftP95Ms ?? null));
+  }
+  if (options.maxStreamTotalP95Ms !== null) {
+    const actualStreamTotalP95Ms = streamingMeasurement?.totalResponseMs?.p95;
+    checks.push(check("streaming_total_p95_within_limit", Number.isFinite(actualStreamTotalP95Ms) && actualStreamTotalP95Ms <= options.maxStreamTotalP95Ms, `streaming total-response p95 <= ${options.maxStreamTotalP95Ms} ms`, actualStreamTotalP95Ms ?? null));
+  }
+  if (options.minStreamThroughputRps !== null) {
+    const actualStreamThroughputRps = streamingMeasurement?.throughputRps;
+    checks.push(check("streaming_throughput_within_limit", Number.isFinite(actualStreamThroughputRps) && actualStreamThroughputRps >= options.minStreamThroughputRps, `successful streaming throughput >= ${options.minStreamThroughputRps} requests/s`, actualStreamThroughputRps ?? null));
+  }
   if (options.faultProbes) {
     checks.push(check("fault_isolation_recovered", faultIsolation?.status === "passed", "malformed and oversized requests are isolated and valid traffic recovers", faultIsolation?.status ?? null));
   }
   if (options.managed) {
     checks.push(
-      check("managed_fake_only", health?.body?.data?.providerMode === "fake" && health?.body?.data?.realProviderEnabled === false && measurement?.observedExecutionModes?.length === 1 && measurement.observedExecutionModes[0] === "fake", "managed run stays on the fake provider with real providers disabled", measurement?.observedExecutionModes ?? null),
+      check("managed_fake_only", health?.body?.data?.providerMode === "fake" && health?.body?.data?.realProviderEnabled === false && measurement?.observedExecutionModes?.length === 1 && measurement.observedExecutionModes[0] === "fake" && streamingMeasurement?.observedExecutionModes?.length === 1 && streamingMeasurement.observedExecutionModes[0] === "fake", "managed non-streaming and streaming runs stay on the fake provider with real providers disabled", { nonStreaming: measurement?.observedExecutionModes ?? null, streaming: streamingMeasurement?.observedExecutionModes ?? null }),
       check("managed_gateway_cleaned_up", managedGatewayCleanedUp === true, "managed gateway process exits after the benchmark", managedGatewayCleanedUp),
     );
   }
@@ -514,6 +806,9 @@ function createConfig(args) {
     maxP95Ms: optionalNonNegativeNumber(args.maxP95Ms, profile.maxP95Ms, "max-p95-ms"),
     maxP99Ms: optionalNonNegativeNumber(args.maxP99Ms, profile.maxP99Ms, "max-p99-ms"),
     minThroughputRps: optionalNonNegativeNumber(args.minThroughputRps, profile.minThroughputRps, "min-rps"),
+    maxStreamTtftP95Ms: optionalNonNegativeNumber(args.maxStreamTtftP95Ms, profile.maxStreamTtftP95Ms, "max-stream-ttft-p95-ms"),
+    maxStreamTotalP95Ms: optionalNonNegativeNumber(args.maxStreamTotalP95Ms, profile.maxStreamTotalP95Ms, "max-stream-total-p95-ms"),
+    minStreamThroughputRps: optionalNonNegativeNumber(args.minStreamThroughputRps, profile.minStreamThroughputRps, "min-stream-rps"),
     maxErrorRate: boundedRatio(args.maxErrorRate, profile.maxErrorRate, "max-error-rate"),
     faultProbes: args.skipFaultProbes ? false : (managed || args.faultProbes),
     output: resolve(repoRoot, args.output ?? DEFAULT_OUTPUT),
@@ -534,6 +829,9 @@ function parseArgs(argv) {
     ["--max-p95-ms", "maxP95Ms"],
     ["--max-p99-ms", "maxP99Ms"],
     ["--min-rps", "minThroughputRps"],
+    ["--max-stream-ttft-p95-ms", "maxStreamTtftP95Ms"],
+    ["--max-stream-total-p95-ms", "maxStreamTotalP95Ms"],
+    ["--min-stream-rps", "minStreamThroughputRps"],
     ["--max-error-rate", "maxErrorRate"],
     ["--output", "output"],
   ]);
@@ -680,12 +978,15 @@ function delay(milliseconds) {
 
 function printSummary(result, output) {
   const metrics = result.measurement;
+  const streaming = result.streamingMeasurement;
   process.stdout.write([
     `Gateway SLO benchmark: ${result.status}`,
     `Mode: ${result.mode}`,
     `Requests: ${metrics?.succeeded ?? 0}/${metrics?.attempted ?? 0} successful`,
     `Latency: p50=${metrics?.latencyMs?.p50 ?? "n/a"}ms p95=${metrics?.latencyMs?.p95 ?? "n/a"}ms p99=${metrics?.latencyMs?.p99 ?? "n/a"}ms`,
     `Throughput: ${metrics?.throughputRps ?? 0} requests/s`,
+    `Streaming: first-content p95=${streaming?.timeToFirstContentDeltaMs?.p95 ?? "n/a"}ms total p95=${streaming?.totalResponseMs?.p95 ?? "n/a"}ms`,
+    `Streaming throughput: ${streaming?.throughputRps ?? 0} requests/s`,
     `Fault isolation: ${result.faultIsolation.status}`,
     `Evidence: ${output}`,
     result.issueCodes.length > 0 ? `Issues: ${result.issueCodes.join(", ")}` : "Issues: none",
@@ -693,5 +994,5 @@ function printSummary(result, output) {
 }
 
 function printHelp() {
-  process.stdout.write(`Credential-free OpenAI-compatible gateway SLO benchmark.\n\nUsage:\n  node tools/gateway-slo-benchmark.mjs [options]\n\nOptions:\n  --profile <ci|observe>       Managed runs default to ci; external runs to observe.\n  --target <endpoint-url>      Complete external chat-completions endpoint; disables managed mode.\n  --model <id>                 Model sent in the request (default: local-fake-model).\n  --requests <count>           Measured request count.\n  --concurrency <count>        Concurrent workers.\n  --warmup <count>             Warmup request count.\n  --timeout-ms <ms>            Per-request timeout.\n  --max-p95-ms <ms|none>       Fail-closed p95 threshold.\n  --max-p99-ms <ms|none>       Fail-closed p99 threshold.\n  --min-rps <rps|none>         Fail-closed successful-throughput threshold.\n  --max-error-rate <0..1>      Maximum measured error ratio.\n  --fault-probes               Enable malformed/oversized probes for an external target.\n  --skip-fault-probes          Disable fault probes.\n  --output <path>              JSON evidence path.\n  --json                       Emit compact JSON to stdout.\n  --help                       Show this help.\n\nNo authorization headers or provider credentials are accepted.\n`);
+  process.stdout.write(`Credential-free OpenAI-compatible gateway SLO benchmark.\n\nUsage:\n  node tools/gateway-slo-benchmark.mjs [options]\n\nOptions:\n  --profile <ci|observe>       Managed runs default to ci; external runs to observe.\n  --target <endpoint-url>      Complete external chat-completions endpoint; disables managed mode.\n  --model <id>                 Model sent in the request (default: local-fake-model).\n  --requests <count>           Measured request count per response mode.\n  --concurrency <count>        Concurrent workers.\n  --warmup <count>             Warmup request count per response mode.\n  --timeout-ms <ms>            Per-request timeout.\n  --max-p95-ms <ms|none>       Fail-closed non-streaming p95 threshold.\n  --max-p99-ms <ms|none>       Fail-closed non-streaming p99 threshold.\n  --min-rps <rps|none>         Fail-closed non-streaming throughput threshold.\n  --max-stream-ttft-p95-ms <ms|none> Streaming first-content p95 threshold.\n  --max-stream-total-p95-ms <ms|none> Streaming total-response p95 threshold.\n  --min-stream-rps <rps|none>  Fail-closed streaming-throughput threshold.\n  --max-error-rate <0..1>      Maximum measured error ratio for each mode.\n  --fault-probes               Enable malformed/oversized probes for an external target.\n  --skip-fault-probes          Disable fault probes.\n  --output <path>              JSON evidence path.\n  --json                       Emit compact JSON to stdout.\n  --help                       Show this help.\n\nNo authorization headers or provider credentials are accepted.\n`);
 }
