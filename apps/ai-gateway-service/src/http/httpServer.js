@@ -186,6 +186,7 @@ import { dispatchHttpRoutes03 } from "./httpServerRoutes03.js";
 import { dispatchHttpRoutes04 } from "./httpServerRoutes04.js";
 import { dispatchHttpRoutes05 } from "./httpServerRoutes05.js";
 import { dispatchHttpRoutes06 } from "./httpServerRoutes06.js";
+import { createOpenTelemetryRuntime } from "../observability/openTelemetry.js";
 
 const logger = createLogger({ app: "ai-gateway-service", level: "info" });
 const writeServiceLog = (event, details = {}) => logger.info(event, details);
@@ -322,8 +323,10 @@ export function createGatewayHttpServer(application) {
     resetTimeoutMs: gatewayErrorCircuitResetMs,
     halfOpenMaxCalls: gatewayErrorCircuitHalfOpenMaxCalls,
   });
+  const openTelemetry = createOpenTelemetryRuntime({ env: requestConfig });
+  const tracedGatewayService = openTelemetry.instrumentGatewayService(gatewayService);
   const a2aGateway = createA2AGateway({
-    gatewayService,
+    gatewayService: tracedGatewayService,
     workforceService: application.workforceService,
     env: { ...process.env, ...application.runtimeEnv },
   });
@@ -375,11 +378,13 @@ export function createGatewayHttpServer(application) {
     },
   });
 
-  return createServer(async (request, response) => {
+  const server = createServer(async (request, response) => {
     const startedAt = Date.now();
     const url = new URL(request.url ?? "/", `http://${request.headers.host ?? "127.0.0.1"}`);
+    const httpTrace = openTelemetry.startHttpRequest({ request, response, url, startedAt });
     const requestId = `${startedAt}-${Math.random().toString(16).slice(2)}`;
     request.headers["x-request-id"] = requestId;
+    if (httpTrace.traceId) request.headers["x-trace-id"] = httpTrace.traceId;
     response.setHeader("x-request-id", requestId);
     applySecurityHeaders(response);
     request.maxBodyBytes = maxRequestBodyBytes;
@@ -584,38 +589,38 @@ export function createGatewayHttpServer(application) {
         });
       }
 
-      const routeResult = await dispatchHttpRouteGroups(HTTP_ROUTE_GROUPS, {
-        ...HTTP_ROUTE_DEPENDENCIES,
-        application,
-        request,
-        response,
-        url,
-        startedAt,
-        resilienceMetrics,
-        approvalStore,
-        fileContextStore,
-        phase319LocalOperation,
-        connectorFeishuDryRun,
-        connectorWeComDryRun,
-        capabilityRouterService,
-        a2aGateway,
-        codexExecCrsRuntimeCandidate,
-        enterpriseGovernanceService,
-        enterpriseOpsService,
-        fiveCapabilityActivationService,
-        gatewayService,
-        knowledgeService,
-        modelImportService,
-        modelLibraryStore,
-        providerConfigRoutes,
-        userExperienceService,
-        workforceService,
-        workflowService,
-        wsServer,
-        healthzInFlightThreshold,
-        healthzInFlightDegradationPercent,
-        rateLimiter,
-      });
+      const routeResult = await httpTrace.run(() => dispatchHttpRouteGroups(HTTP_ROUTE_GROUPS, {
+          ...HTTP_ROUTE_DEPENDENCIES,
+          application,
+          request,
+          response,
+          url,
+          startedAt,
+          resilienceMetrics,
+          approvalStore,
+          fileContextStore,
+          phase319LocalOperation,
+          connectorFeishuDryRun,
+          connectorWeComDryRun,
+          capabilityRouterService,
+          a2aGateway,
+          codexExecCrsRuntimeCandidate,
+          enterpriseGovernanceService,
+          enterpriseOpsService,
+          fiveCapabilityActivationService,
+          gatewayService: tracedGatewayService,
+          knowledgeService,
+          modelImportService,
+          modelLibraryStore,
+          providerConfigRoutes,
+          userExperienceService,
+          workforceService,
+          workflowService,
+          wsServer,
+          healthzInFlightThreshold,
+          healthzInFlightDegradationPercent,
+          rateLimiter,
+        }));
       if (routeResult !== ROUTE_NOT_HANDLED) {
         markRequestSuccess();
         return;
@@ -642,6 +647,7 @@ export function createGatewayHttpServer(application) {
       resilienceMetrics.recordUnhandledErrorByCode?.(normalizedError.code);
       writeServiceLog("request_unhandled_error", {
         requestId,
+        traceId: httpTrace.traceId,
         method: request.method,
         path: pathname,
         statusCode: normalizedError.statusCode,
@@ -663,6 +669,14 @@ export function createGatewayHttpServer(application) {
       );
     }
   });
+  server.on("close", () => {
+    void openTelemetry.shutdown().catch((error) => {
+      writeServiceLog("opentelemetry_shutdown_failed", {
+        code: error?.code ?? error?.name ?? "otel_shutdown_failed",
+      });
+    });
+  });
+  return server;
 }
 
 function createNormalizedHttpError(error) {
@@ -971,9 +985,9 @@ function applyCorsHeaders(response, origin, allowedOrigins, maxAgeSeconds) {
     if (allowOrigin !== "*") {
       response.setHeader("Access-Control-Allow-Credentials", "true");
     }
-    response.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Request-ID, X-Request-Context, X-Client-ID");
+    response.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type, Traceparent, Tracestate, X-Request-ID, X-Request-Context, X-Client-ID");
     response.setHeader("Access-Control-Allow-Methods", "GET,HEAD,POST,PUT,PATCH,DELETE,OPTIONS");
-    response.setHeader("Access-Control-Expose-Headers", "X-Request-ID, RateLimit-Limit, RateLimit-Remaining, RateLimit-Window, Retry-After");
+    response.setHeader("Access-Control-Expose-Headers", "Traceparent, Tracestate, X-Request-ID, X-Trace-ID, RateLimit-Limit, RateLimit-Remaining, RateLimit-Window, Retry-After");
     response.setHeader("Access-Control-Max-Age", String(Math.max(0, maxAgeSeconds)));
     response.setHeader("Vary", "Origin");
   } else {

@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { createServer } from "node:net";
+import { createServer as createHttpServer } from "node:http";
+import { createServer as createNetServer } from "node:net";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -87,6 +88,12 @@ const CHECK_ISSUE_CATALOG = {
     severity: "high",
     message: "Gateway health check endpoint did not return ready status.",
     artifactPath: "/health/check",
+  },
+  openTelemetryReady: {
+    code: "public_clone_opentelemetry_invalid",
+    severity: "high",
+    message: "Gateway did not export privacy-safe W3C-linked spans to the local OTLP collector.",
+    artifactPath: "local OTLP /v1/traces collector",
   },
   setupReady: {
     code: "public_clone_setup_readiness_failed",
@@ -246,7 +253,7 @@ function delay(milliseconds) {
 }
 
 async function findFreePort() {
-  const server = createServer();
+  const server = createNetServer();
   server.unref();
   await new Promise((resolvePromise, reject) => {
     server.once("error", reject);
@@ -257,6 +264,106 @@ async function findFreePort() {
   await new Promise((resolvePromise) => server.close(resolvePromise));
   if (!port) throw new Error("Unable to allocate a local test port.");
   return port;
+}
+
+async function startOtlpCollector() {
+  const payloads = [];
+  const server = createHttpServer(async (request, response) => {
+    if (request.method !== "POST" || request.url !== "/v1/traces") {
+      response.writeHead(404, { connection: "close" });
+      response.end();
+      return;
+    }
+
+    const chunks = [];
+    let size = 0;
+    for await (const chunk of request) {
+      size += chunk.length;
+      if (size > 2_000_000) {
+        response.writeHead(413, { connection: "close" });
+        response.end();
+        return;
+      }
+      chunks.push(chunk);
+    }
+
+    try {
+      payloads.push(JSON.parse(Buffer.concat(chunks).toString("utf8")));
+      response.writeHead(200, {
+        "content-type": "application/json",
+        connection: "close",
+      });
+      response.end("{}");
+    } catch {
+      response.writeHead(400, { connection: "close" });
+      response.end();
+    }
+  });
+  server.unref();
+  await new Promise((resolvePromise, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolvePromise);
+  });
+  const address = server.address();
+  const port = typeof address === "object" && address ? address.port : null;
+  if (!port) throw new Error("Unable to start the local OTLP collector.");
+
+  return {
+    endpoint: `http://127.0.0.1:${port}/v1/traces`,
+    payloads,
+    async close() {
+      server.closeIdleConnections?.();
+      await new Promise((resolvePromise) => server.close(resolvePromise));
+    },
+  };
+}
+
+function flattenOtlpSpans(payloads) {
+  return payloads.flatMap((payload) =>
+    (payload?.resourceSpans ?? []).flatMap((resourceSpan) =>
+      (resourceSpan.scopeSpans ?? resourceSpan.instrumentationLibrarySpans ?? []).flatMap(
+        (scopeSpan) => scopeSpan.spans ?? [],
+      ),
+    ),
+  );
+}
+
+function otlpIdToHex(value) {
+  if (typeof value !== "string" || value.length === 0) return "";
+  if (/^[0-9a-f]+$/iu.test(value)) return value.toLowerCase();
+  try {
+    return Buffer.from(value, "base64").toString("hex");
+  } catch {
+    return "";
+  }
+}
+
+function readOtlpAttribute(span, key) {
+  const value = span?.attributes?.find((attribute) => attribute.key === key)?.value;
+  if (!value) return undefined;
+  return value.stringValue
+    ?? value.intValue
+    ?? value.doubleValue
+    ?? value.boolValue
+    ?? value.arrayValue
+    ?? value.kvlistValue;
+}
+
+async function waitForTraceEvidence(collector, traceId) {
+  const deadline = Date.now() + 10_000;
+  while (Date.now() < deadline) {
+    const spans = flattenOtlpSpans(collector.payloads);
+    const traceSpans = spans.filter((span) => otlpIdToHex(span.traceId) === traceId);
+    const hasServerSpan = traceSpans.some(
+      (span) => span.kind === 2 || span.kind === "SPAN_KIND_SERVER",
+    );
+    const hasGenAiSpan = traceSpans.some(
+      (span) => readOtlpAttribute(span, "gen_ai.operation.name") !== undefined,
+    );
+    if (hasServerSpan && hasGenAiSpan) return spans;
+    await delay(100);
+  }
+  throw new Error("Gateway did not export linked HTTP and GenAI spans within 10 seconds.");
 }
 
 async function fetchJson(url, options) {
@@ -520,6 +627,7 @@ async function runA2ASdkExample(baseUrl) {
 const mcpSmoke = await runMcpSmoke();
 const port = await findFreePort();
 const baseUrl = `http://127.0.0.1:${port}`;
+const otlpCollector = await startOtlpCollector();
 let stdout = "";
 let stderr = "";
 const child = spawn(process.execPath, [serviceEntrypoint], {
@@ -535,6 +643,13 @@ const child = spawn(process.execPath, [serviceEntrypoint], {
     AI_GATEWAY_DEFAULT_PROVIDER: "local-fake-provider",
     AI_GATEWAY_DEFAULT_MODEL: "local-fake-model",
     AI_GATEWAY_ENABLED_PROVIDERS: "local-fake-provider,backup-fake-provider",
+    AI_GATEWAY_OTEL_ENABLED: "true",
+    AI_GATEWAY_OTEL_EXPORTER_MODE: "simple",
+    AI_GATEWAY_OTEL_SAMPLE_RATIO: "1",
+    AI_GATEWAY_OTEL_SERVICE_NAME: "public-clone-ai-gateway",
+    OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: otlpCollector.endpoint,
+    OTEL_EXPORTER_OTLP_HEADERS: "",
+    OTEL_EXPORTER_OTLP_TRACES_HEADERS: "",
     PME_ENTERPRISE_AUTH_ENABLED: "false",
   },
   stdio: ["ignore", "pipe", "pipe"],
@@ -637,8 +752,83 @@ try {
   });
   const openAiStreamText = await openAiStreamResponse.text();
 
+  const propagatedTraceId = "4bf92f3577b34da6a3ce929d0e0e4736";
+  const propagatedParentSpanId = "00f067aa0ba902b7";
+  const privacyProbe = "OTEL_PRIVATE_PROBE_7a1f5c92";
+  const tracedResponse = await fetch(`${baseUrl}/v1/chat/completions`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      traceparent: `00-${propagatedTraceId}-${propagatedParentSpanId}-01`,
+    },
+    body: JSON.stringify({
+      model: "local-fake-model",
+      messages: [{ role: "user", content: privacyProbe }],
+    }),
+  });
+  const tracedResponseTraceparent = tracedResponse.headers.get("traceparent") ?? "";
+  const tracedResponseTraceId = tracedResponse.headers.get("x-trace-id") ?? "";
+  await tracedResponse.text();
+
+  const invalidTraceResponse = await fetch(`${baseUrl}/health/check`, {
+    headers: {
+      traceparent: "00-00000000000000000000000000000000-0000000000000000-01",
+    },
+  });
+  const invalidResponseTraceparent = invalidTraceResponse.headers.get("traceparent") ?? "";
+  await invalidTraceResponse.text();
+
+  const exportedSpans = await waitForTraceEvidence(otlpCollector, propagatedTraceId);
+  const propagatedSpans = exportedSpans.filter(
+    (span) => otlpIdToHex(span.traceId) === propagatedTraceId,
+  );
+  const serverSpan = propagatedSpans.find(
+    (span) => span.kind === 2 || span.kind === "SPAN_KIND_SERVER",
+  );
+  const genAiSpan = propagatedSpans.find(
+    (span) => readOtlpAttribute(span, "gen_ai.operation.name") !== undefined,
+  );
+  const invalidResponseTraceId = invalidResponseTraceparent.split("-")[1] ?? "";
+  const openTelemetry = {
+    collectorRequestCount: otlpCollector.payloads.length,
+    exportedSpanCount: exportedSpans.length,
+    status: tracedResponse.status,
+    traceIdPropagated:
+      tracedResponseTraceparent.split("-")[1] === propagatedTraceId
+      && tracedResponseTraceId === propagatedTraceId,
+    invalidTraceRegenerated:
+      /^[0-9a-f]{32}$/u.test(invalidResponseTraceId)
+      && invalidResponseTraceId !== "00000000000000000000000000000000",
+    serverParentPreserved:
+      otlpIdToHex(serverSpan?.parentSpanId) === propagatedParentSpanId,
+    genAiChildLinked:
+      otlpIdToHex(genAiSpan?.parentSpanId) === otlpIdToHex(serverSpan?.spanId),
+    genAiAttributes:
+      typeof readOtlpAttribute(genAiSpan, "gen_ai.operation.name") === "string"
+      && readOtlpAttribute(genAiSpan, "gen_ai.request.model") === "local-fake-model"
+      && readOtlpAttribute(genAiSpan, "gen_ai.provider.name") === "local-fake-provider"
+      && readOtlpAttribute(genAiSpan, "gen_ai.usage.input_tokens") !== undefined
+      && readOtlpAttribute(genAiSpan, "gen_ai.usage.output_tokens") !== undefined,
+    contentPrivacyPreserved:
+      !JSON.stringify(otlpCollector.payloads).includes(privacyProbe),
+    realProviderCallsMade: false,
+  };
+
   const checks = {
     healthReady: health.status === 200 && health.body?.data?.status === "ready",
+    openTelemetryReady:
+      openTelemetry.status === 200
+      && openTelemetry.collectorRequestCount > 0
+      && openTelemetry.exportedSpanCount > 0
+      && [
+        openTelemetry.traceIdPropagated,
+        openTelemetry.invalidTraceRegenerated,
+        openTelemetry.serverParentPreserved,
+        openTelemetry.genAiChildLinked,
+        openTelemetry.genAiAttributes,
+        openTelemetry.contentPrivacyPreserved,
+      ].every(Boolean)
+      && openTelemetry.realProviderCallsMade === false,
     setupReady: setup.status === 200 && setup.body?.data?.status === "ready",
     terminalFirstSurface:
       uiResponse.status === 404
@@ -766,6 +956,7 @@ try {
     checks,
     realProviderCallsMade: false,
     realProviderEnabled: health.body?.data?.realProviderEnabled ?? null,
+    openTelemetry,
     javascriptExample,
     sharedSdkExample,
     openAiSdkExample,
@@ -795,6 +986,7 @@ try {
   process.exitCode = 1;
 } finally {
   await stopChild(child);
+  await otlpCollector.close();
 }
 
 process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);

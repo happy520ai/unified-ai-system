@@ -359,3 +359,45 @@ Check the parity rules:
 - `artifacts` in incident bundle includes the exact trend verification files above so rebuildability is auditable.
 
 Use `docs/quality-trend-runbook.md` and `docs/quality-trend-digest-guide.md` as the authoritative triage workflow once this checklist passes or fails.
+
+## 7) Distributed tracing with OpenTelemetry
+
+The gateway uses the official OpenTelemetry JavaScript SDK and OTLP HTTP trace
+exporter. Incoming W3C `traceparent` and `tracestate` headers are extracted with
+the standard propagator. Responses expose `traceparent`, `tracestate` when
+present, and `x-trace-id` so an operator can correlate a request with exported
+spans.
+
+The runtime creates an HTTP server span plus child GenAI execution and streaming
+spans. GenAI spans contain operational metadata such as provider, request and
+response model, finish reason, and token usage. Prompt text, message content,
+model output, API keys, authorization headers, and exporter authorization headers
+are not attached to spans.
+
+Telemetry is fail-open for request availability and fail-closed for export:
+
+- tracing can remain enabled without starting any network exporter;
+- export starts only when `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`,
+  `AI_GATEWAY_OTEL_EXPORTER_OTLP_ENDPOINT`, or `OTEL_EXPORTER_OTLP_ENDPOINT` is
+  explicitly configured;
+- exporter URLs containing credentials or URL fragments are rejected;
+- `batch` is the runtime default; `simple` exists for deterministic local and CI
+  verification only;
+- parent-based ratio sampling preserves an upstream sampling decision and uses
+  `AI_GATEWAY_OTEL_SAMPLE_RATIO` for root traces;
+- exporter shutdown errors are logged without endpoint, headers, or credentials.
+
+Recommended local collector configuration:
+
+```bash
+AI_GATEWAY_OTEL_ENABLED=true
+AI_GATEWAY_OTEL_SERVICE_NAME=unified-ai-gateway
+AI_GATEWAY_OTEL_SAMPLE_RATIO=1
+AI_GATEWAY_OTEL_EXPORTER_MODE=batch
+OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://127.0.0.1:4318/v1/traces
+```
+
+`pnpm verify:public-clone` starts a credential-free local OTLP receiver and
+requires runtime evidence for valid W3C parent preservation, invalid all-zero
+context regeneration, HTTP-to-GenAI parent/child linkage, semantic GenAI
+attributes, and content privacy. This check never enables a real provider.
