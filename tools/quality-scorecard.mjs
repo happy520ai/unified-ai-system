@@ -1230,9 +1230,15 @@ async function main() {
     if (requireScore > 0) {
       outputLines.push(`Required score: ${requireScore}`);
     }
+    outputLines.push(
+      `Issue summary: total=${issueCodeSummary.total}, high=${issueCodeSummary.high}, medium=${issueCodeSummary.medium}, low=${issueCodeSummary.low}, info=${issueCodeSummary.info}, unknown=${issueCodeSummary.unknown}`,
+    );
+    if (issueCodeSummary.blocking) {
+      outputLines.push(`Blocking issues: ${issueCodeSummary.high}`);
+    }
     outputLines.push("");
     for (const gate of gates) {
-  outputLines.push(
+      outputLines.push(
         `${gate.ok ? "PASS" : "FAIL"} ${gate.name} (${gate.weight}) - ${gate.description}`,
       );
       if (gate.details) {
