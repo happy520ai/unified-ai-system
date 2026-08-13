@@ -1214,7 +1214,7 @@ function main() {
   const bootstrapTrendHealth = options.requireTrendHealth && !options.skipHistorical && !hasHistoricalTrend;
 
   if (hasHistoricalTrend) {
-    const precheck = runTrendEvaluation("historical-baseline", options);
+    const precheck = runTrendEvaluation("historical-baseline", options, true);
     steps.push(precheck);
     if (!precheck.ok) {
       console.log("\nHistorical trend precheck reported issues (non-blocking).");
