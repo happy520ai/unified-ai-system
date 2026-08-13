@@ -29,6 +29,8 @@ Public documentation is grouped by task so the repo stays easy to scan.
 - [Architecture](architecture.md)
 - [Codex MCP server](../packages/mcp-server/README.md)
 - [Installable Agent Skill](https://skills.sh/happy520ai/unified-ai-system/unified-ai-gateway)
+- [Readiness & observability](readiness-observability-guide.md)
+- [Quality trend digest guide](quality-trend-digest-guide.md)
 - [Project vision](../VISION.md)
 - [Project roadmap](../ROADMAP.md)
 - [Chinese README](../README.zh-CN.md)
