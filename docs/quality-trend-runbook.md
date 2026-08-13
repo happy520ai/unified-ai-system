@@ -63,8 +63,24 @@ When `blocked: true`, block the change and create a fix ticket for unstable root
   - `trendConsistency.checks.trendDigestHealth`, `trendConsistency.checks.trendSummaryGuardrails`, and `trendConsistency.checks.trendDigestCheckConsistency` are present with object payload.
   - `trendConsistency.ok` must be true in strict trend-health mode. In compatibility mode, `trendConsistency.status === "degraded"` is acceptable as warning-only behavior, surfaced through `quality_trend_consistency_degraded` in issue codes.
   - Under `--require-trend-health`, none of those trend-consistency checks may be `status: "not_collected"`.
-- Correlate `.tmp/quality-ci-verification.json` `issueCodes` with incident bundle `Extracted issues` to ensure no high-severity trend-consistency regression is lost.
-- Re-check `.tmp/quality-trend-check.json` after any local fix to confirm `blocked` clears.
+  - Correlate `.tmp/quality-ci-verification.json` `issueCodes` with incident bundle `Extracted issues` to ensure no high-severity trend-consistency regression is lost.
+  - Re-check `.tmp/quality-trend-check.json` after any local fix to confirm `blocked` clears.
+
+### 1.2) Trend-consistency field trace table
+
+- `trendConsistency.checksRequired`
+  - Primary source: `.tmp/quality-ci-verification.json`
+  - Should include: `trendDigestHealth`, `trendSummaryGuardrails`, `trendDigestCheckConsistency`
+- `trendConsistency.status`
+  - Source: `.tmp/quality-ci-verification.json` (propagated from quality trend checks)
+- `trendConsistency.ok`
+  - Source: `.tmp/quality-ci-verification.json`
+- `trendConsistency.issueCodes` / `trendConsistency.issueCodeSummary`
+  - Source: `.tmp/quality-ci-verification.json` normalized from check outputs
+- `trendConsistency.hasMissingRequired` / `trendConsistency.hasNotCollected`
+  - Source: `.tmp/quality-ci-verification.json` strictness flags
+- `trendConsistency.requiresTrendHealth`
+  - Source: `.tmp/quality-ci-verification.json` run mode flag (`--require-trend-health`)
 
 ## 2) Remediation matrix
 
