@@ -101,7 +101,7 @@ export async function dispatchHttpRoutes02(context) {
           {
             startedAt,
             category: "health",
-            ...payload,
+            details: payload,
           },
         ),
       );

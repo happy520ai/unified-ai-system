@@ -96,11 +96,12 @@ Current checks include:
 
 ## 4) Incident response checklist
 
-1. Check `readinessFailures` in `/healthz` payload.
+1. Check `error.details.readinessFailures` in `/healthz` (or `/ready`) when status is 503.
 2. Compare `gateway_readiness_events_total` against reasons (`knowledge`, `workflow`, `service-dependency`, `inflight-saturation`, `gateway-error-circuit`).
 3. Confirm `healthzInFlightThreshold` and in-flight counts in `saturation`.
 4. Correlate with `/ready`, then `/health`, then dependency routes.
 5. For recoverable degradation, wait and recheck; for dependency breaks, follow corresponding service rollback and warm restart.
+6. Note that during gateway request circuit open, `/health`, `/health/check`, `/healthz`, `/ready`, and `/metrics` remain reachable to provide recovery telemetry.
 
 ## 5) Request-circuit failure drill (manual verification)
 
@@ -116,14 +117,14 @@ Use this lightweight drill to verify the request-circuit breaker behavior in a n
 2. Generate repeated 5xx-like failures on a route that is already connected to this gateway path (or run synthetic failure hooks if available).
 
 3. Observe the transition:
-- `GET /healthz` returns `503` with `readinessFailures` containing `gateway-error-circuit`.
+- `GET /healthz` and `/ready` remain reachable and return `503` with `error.details.readinessFailures` containing `gateway-error-circuit`.
 - `GET /metrics` shows `ai_gateway_gateway_error_circuit_state{state="open"} 1`.
 
 4. Wait for `AI_GATEWAY_GATEWAY_ERROR_CIRCUIT_RESET_MS` and send one probe request:
-- `GET /healthz` (or a light-weight route) should become accepted again when `state="half-open"` appears.
+- `GET /healthz` and `/metrics` (or a light-weight route) should become accepted again when `state="half-open"` appears.
 
 5. Confirm recovery criteria:
-- Half-open success path closes the breaker and `readinessFailures` no longer includes `gateway-error-circuit`.
+- Half-open success path closes the breaker and `error.details.readinessFailures` no longer includes `gateway-error-circuit`.
 - Check `ai_gateway_gateway_error_circuit_success_total` increments.
 
 ### Example commands

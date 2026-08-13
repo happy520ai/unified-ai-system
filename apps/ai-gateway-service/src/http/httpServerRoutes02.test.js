@@ -4,15 +4,24 @@ import { dispatchHttpRoutes02 } from "./httpServerRoutes02.js";
 function createEnvelopeContext(overrides = {}) {
   return {
     createErrorEnvelope: (code, message, details) => ({
-      ok: false,
-      code,
-      message,
-      ...details,
+      status: "error",
+      error: {
+        code,
+        message,
+        category: details?.category,
+        retryable: details?.retryable ?? false,
+        details: details?.details,
+      },
     }),
     createOkEnvelope: (data, details) => ({
-      ok: true,
+      status: "ok",
       data,
-      ...details,
+      meta: {
+        requestId: details?.requestId,
+        traceId: details?.traceId,
+        createdAt: details?.startedAt ? new Date(details.startedAt).toISOString() : undefined,
+        durationMs: details?.startedAt === undefined ? undefined : Date.now() - details.startedAt,
+      },
     }),
     writeJson: (response, status, payload) => {
       response.status = status;
@@ -55,11 +64,11 @@ describe("dispatchHttpRoutes02 healthz readiness", () => {
     await dispatchHttpRoutes02(context);
 
     expect(context.response.status).toBe(503);
-    expect(context.response.payload.ok).toBe(false);
-    expect(context.response.payload.code).toBe("service_unready");
-    expect(context.response.payload.saturation.inFlight).toBe(90);
-    expect(context.response.payload.saturation.threshold).toBe(80);
-    expect(context.response.payload.readinessFailures).toContain("inflight-saturation");
+    expect(context.response.payload.status).toBe("error");
+    expect(context.response.payload.error.code).toBe("service_unready");
+    expect(context.response.payload.error.details.saturation.inFlight).toBe(90);
+    expect(context.response.payload.error.details.saturation.threshold).toBe(80);
+    expect(context.response.payload.error.details.readinessFailures).toContain("inflight-saturation");
   });
 
   it("returns unready when the gateway error circuit is open", async () => {
@@ -77,9 +86,9 @@ describe("dispatchHttpRoutes02 healthz readiness", () => {
     await dispatchHttpRoutes02(context);
 
     expect(context.response.status).toBe(503);
-    expect(context.response.payload.ok).toBe(false);
-    expect(context.response.payload.code).toBe("service_unready");
-    expect(context.response.payload.readinessFailures).toContain("gateway-error-circuit");
+    expect(context.response.payload.status).toBe("error");
+    expect(context.response.payload.error.code).toBe("service_unready");
+    expect(context.response.payload.error.details.readinessFailures).toContain("gateway-error-circuit");
   });
 
   it("returns unready when the gateway error circuit is half-open", async () => {
@@ -97,9 +106,9 @@ describe("dispatchHttpRoutes02 healthz readiness", () => {
     await dispatchHttpRoutes02(context);
 
     expect(context.response.status).toBe(503);
-    expect(context.response.payload.ok).toBe(false);
-    expect(context.response.payload.code).toBe("service_unready");
-    expect(context.response.payload.readinessFailures).toContain("gateway-error-circuit");
+    expect(context.response.payload.status).toBe("error");
+    expect(context.response.payload.error.code).toBe("service_unready");
+    expect(context.response.payload.error.details.readinessFailures).toContain("gateway-error-circuit");
   });
 
   it("returns ready payload when saturation is below threshold", async () => {
@@ -117,7 +126,7 @@ describe("dispatchHttpRoutes02 healthz readiness", () => {
     await dispatchHttpRoutes02(context);
 
     expect(context.response.status).toBe(200);
-    expect(context.response.payload.ok).toBe(true);
+    expect(context.response.payload.status).toBe("ok");
     expect(context.response.payload.data.status).toBe("ready");
     expect(context.response.payload.data.saturation.inFlight).toBe(20);
   });
@@ -139,7 +148,7 @@ describe("dispatchHttpRoutes02 healthz readiness", () => {
     await dispatchHttpRoutes02(context);
 
     expect(context.response.status).toBe(200);
-    expect(context.response.payload.ok).toBe(true);
+    expect(context.response.payload.status).toBe("ok");
     expect(context.response.payload.data.status).toBe("ready");
   });
 
@@ -159,9 +168,9 @@ describe("dispatchHttpRoutes02 healthz readiness", () => {
     await dispatchHttpRoutes02(context);
 
     expect(context.response.status).toBe(503);
-    expect(context.response.payload.ok).toBe(false);
-    expect(context.response.payload.code).toBe("service_unready");
-    expect(context.response.payload.readinessFailures).toContain("service-dependency");
+    expect(context.response.payload.status).toBe("error");
+    expect(context.response.payload.error.code).toBe("service_unready");
+    expect(context.response.payload.error.details.readinessFailures).toContain("service-dependency");
   });
 });
 
@@ -372,8 +381,8 @@ describe("dispatchHttpRoutes02 metrics readiness visibility", () => {
 
     await dispatchHttpRoutes02(healthzContext);
     expect(healthzContext.response.status).toBe(503);
-    expect(healthzContext.response.payload.ok).toBe(false);
-    expect(healthzContext.response.payload.readinessFailures).toContain("gateway-error-circuit");
+    expect(healthzContext.response.payload.status).toBe("error");
+    expect(healthzContext.response.payload.error.details.readinessFailures).toContain("gateway-error-circuit");
 
     let metricsText = "";
     let metricsStatus = undefined;

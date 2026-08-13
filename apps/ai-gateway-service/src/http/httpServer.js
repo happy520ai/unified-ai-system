@@ -237,6 +237,15 @@ const HTTP_ROUTE_GROUPS = Object.freeze([
   dispatchHttpRoutes06,
 ]);
 
+const CIRCUIT_BYPASS_ROUTES = Object.freeze(new Set([
+  "/health",
+  "/health/check",
+  "/healthz",
+  "/ready",
+  "/setup/readiness",
+  "/metrics",
+]));
+
 export function createGatewayHttpServer(application) {
   const { capabilityRouterService, codexExecCrsRuntimeCandidate, enterpriseGovernanceService, enterpriseOpsService, fiveCapabilityActivationService, gatewayService, knowledgeService, modelImportService, modelLibraryStore, providerConfigRoutes, runtimeCredentialStore, userExperienceService, workforceService, workflowService } = application;
   const approvalStore = createApprovalStore();
@@ -373,7 +382,8 @@ export function createGatewayHttpServer(application) {
     const allowedByGatewayErrorCircuit = gatewayErrorCircuit.canProcessRequest();
     const circuitSnapshot = gatewayErrorCircuit.getStateSnapshot();
     resilienceMetrics.recordGatewayErrorCircuitState?.(circuitSnapshot?.state, circuitSnapshot);
-    if (!allowedByGatewayErrorCircuit) {
+    const canBypassGatewayErrorCircuit = CIRCUIT_BYPASS_ROUTES.has(url.pathname);
+    if (!allowedByGatewayErrorCircuit && !canBypassGatewayErrorCircuit) {
       resilienceMetrics.recordGatewayErrorCircuitRejections();
       const retryAfterSeconds = Math.max(
         1,
