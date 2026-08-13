@@ -146,7 +146,7 @@ export function createGenerateTestTool(workingDirectory = process.cwd()) {
           testContent += `    assert.strictEqual(typeof ${fn}, "function");\n`;
           testContent += `  });\n\n`;
           testContent += `  it("should handle basic input", () => {\n`;
-          testContent += `    // TODO: Add meaningful test assertions\n`;
+          testContent += `    // Add focused assertions for the returned value here.\n`;
           testContent += `    const result = ${fn}();\n`;
           testContent += `    assert.ok(result !== undefined);\n`;
           testContent += `  });\n`;
