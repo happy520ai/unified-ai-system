@@ -25,6 +25,7 @@
     "@unified-ai-system/shared-utils": "workspace:*",
     "@unified-ai-system/taiji-beidou-engine": "workspace:*",
     "@unified-ai-system/workforce-scheduler": "workspace:*",
+    "ipaddr.js": "2.5.0",
     "mammoth": "^1.12.0",
     "pdf-parse": "^2.4.5",
     "pg": "8.23.0",

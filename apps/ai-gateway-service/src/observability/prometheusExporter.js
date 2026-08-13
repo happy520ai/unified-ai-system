@@ -68,6 +68,14 @@ export function createPrometheusExporter(options = {}) {
     lines.push(`# HELP ${prefix}_rate_limit_stats_age_seconds Age of the last distributed rate-limit statistics snapshot, or -1 when unavailable`);
     lines.push(`# TYPE ${prefix}_rate_limit_stats_age_seconds gauge`);
     lines.push(`${prefix}_rate_limit_stats_age_seconds{mode="${rateLimitStoreMode}"} ${rateLimitStatsAgeSeconds}`);
+    const rateLimitSubjectMode = sanitizeMetricLabel(globalRateLimiterStats?.subjectMode ?? "network");
+    const trustedProxyCount = Number(globalRateLimiterStats?.trustedProxyCount ?? 0);
+    lines.push(`# HELP ${prefix}_rate_limit_subject_mode Configured request identity mode for rate-limit subjects`);
+    lines.push(`# TYPE ${prefix}_rate_limit_subject_mode gauge`);
+    lines.push(`${prefix}_rate_limit_subject_mode{mode="${rateLimitSubjectMode}"} 1`);
+    lines.push(`# HELP ${prefix}_trusted_proxy_cidrs Number of configured trusted proxy CIDR ranges`);
+    lines.push(`# TYPE ${prefix}_trusted_proxy_cidrs gauge`);
+    lines.push(`${prefix}_trusted_proxy_cidrs ${Number.isFinite(trustedProxyCount) ? trustedProxyCount : 0}`);
 
     // 錯誤總數
     lines.push(`# HELP ${prefix}_errors_total Total number of errors`);

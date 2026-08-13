@@ -5,6 +5,7 @@ import {
   type PostgresPoolLike,
 } from "./postgresIdempotencyCoordinator.ts";
 import { createSqliteIdempotencyCoordinator } from "./sqliteIdempotencyCoordinator.ts";
+import { createRequestIdentityResolver, parseTrustedProxyCidrs } from "./requestIdentity.ts";
 
 type IdempotencyRequest = {
   headers?: IncomingHttpHeaders;
@@ -58,6 +59,8 @@ export type IdempotencyCoordinatorOptions = {
   leaseMs?: number;
   inFlightWaitMs?: number;
   pollIntervalMs?: number;
+  trustedProxyCidrs?: string[];
+  maxForwardedHops?: number;
 };
 
 type StoredOutcome =
@@ -124,14 +127,40 @@ export function createIdempotencyCoordinator(options: IdempotencyCoordinatorOpti
     1,
     16 * 1_048_576,
   );
+  const configuredSecret = options.secret ?? env.AI_GATEWAY_IDEMPOTENCY_HMAC_SECRET;
+  if ((storeMode === "sqlite" || storeMode === "postgres")
+    && (!configuredSecret || Buffer.byteLength(configuredSecret) < 32)) {
+    throw new Error(`AI_GATEWAY_IDEMPOTENCY_HMAC_SECRET must contain at least 32 bytes in ${storeMode} mode.`);
+  }
+  const secret = storeMode === "memory"
+    ? createHash("sha256").update(configuredSecret ?? randomBytes(32)).digest()
+    : configuredSecret!;
+  const identityResolver = createRequestIdentityResolver({
+    subjectMode: "credential-or-network",
+    secret,
+    trustedProxyCidrs: options.trustedProxyCidrs ?? parseTrustedProxyCidrs(env.AI_GATEWAY_TRUSTED_PROXY_CIDRS),
+    maxForwardedHops: readBoundedNumber(
+      options.maxForwardedHops ?? env.AI_GATEWAY_MAX_FORWARDED_HOPS,
+      32,
+      1,
+      128,
+    ),
+  });
+  const createScopedIdentity = (input: {
+    request?: IdempotencyRequest;
+    route: string;
+    key: string;
+    secret: string | Buffer;
+  }) => createIdentity({
+    route: input.route,
+    key: input.key,
+    secret: input.secret,
+    requestSubject: identityResolver.resolve(input.request).subject,
+  });
   if (storeMode === "postgres") {
     const connectionString = options.postgresConnectionString ?? env.AI_GATEWAY_IDEMPOTENCY_POSTGRES_URL;
-    const secret = options.secret ?? env.AI_GATEWAY_IDEMPOTENCY_HMAC_SECRET;
     if (!connectionString && !options.postgresPool) {
       throw new Error("AI_GATEWAY_IDEMPOTENCY_POSTGRES_URL is required when the idempotency store mode is postgres.");
-    }
-    if (!secret || Buffer.byteLength(secret) < 32) {
-      throw new Error("AI_GATEWAY_IDEMPOTENCY_HMAC_SECRET must contain at least 32 bytes in postgres mode.");
     }
     return createPostgresIdempotencyCoordinator({
       connectionString,
@@ -152,18 +181,14 @@ export function createIdempotencyCoordinator(options: IdempotencyCoordinatorOpti
         30_000,
       ),
       normalizeKey,
-      createIdentity,
+      createIdentity: createScopedIdentity,
       createFingerprint,
     });
   }
   if (storeMode === "sqlite") {
     const sqlitePath = options.sqlitePath ?? env.AI_GATEWAY_IDEMPOTENCY_SQLITE_PATH;
-    const secret = options.secret ?? env.AI_GATEWAY_IDEMPOTENCY_HMAC_SECRET;
     if (!sqlitePath) {
       throw new Error("AI_GATEWAY_IDEMPOTENCY_SQLITE_PATH is required when the idempotency store mode is sqlite.");
-    }
-    if (!secret || Buffer.byteLength(secret) < 32) {
-      throw new Error("AI_GATEWAY_IDEMPOTENCY_HMAC_SECRET must contain at least 32 bytes in sqlite mode.");
     }
     return createSqliteIdempotencyCoordinator({
       sqlitePath,
@@ -176,11 +201,10 @@ export function createIdempotencyCoordinator(options: IdempotencyCoordinatorOpti
       inFlightWaitMs: readBoundedNumber(options.inFlightWaitMs ?? env.AI_GATEWAY_IDEMPOTENCY_WAIT_MS, 30_000, 0, 120_000),
       pollIntervalMs: readBoundedNumber(options.pollIntervalMs ?? env.AI_GATEWAY_IDEMPOTENCY_POLL_MS, 50, 10, 1_000),
       normalizeKey,
-      createIdentity,
+      createIdentity: createScopedIdentity,
       createFingerprint,
     });
   }
-  const secret = options.secret ?? randomBytes(32);
   const entries = new Map<string, Entry>();
 
   return {
@@ -196,7 +220,7 @@ export function createIdempotencyCoordinator(options: IdempotencyCoordinatorOpti
       }
 
       pruneExpired(entries, now());
-      const identity = createIdentity({ request, route, key: keyResult.value, secret });
+      const identity = createScopedIdentity({ request, route, key: keyResult.value, secret });
       const fingerprint = createFingerprint(payload);
       const existing = entries.get(identity);
 
@@ -360,24 +384,20 @@ function normalizeKey(rawKey: unknown): { ok: true; value: string } | { ok: fals
 }
 
 function createIdentity({
-  request,
   route,
   key,
   secret,
+  requestSubject,
 }: {
-  request?: IdempotencyRequest;
   route: string;
   key: string;
   secret: string | Buffer;
+  requestSubject: string;
 }): string {
-  const credential = request?.headers?.authorization ?? request?.headers?.["x-api-key"];
-  const caller = typeof credential === "string" && credential
-    ? `credential:${credential}`
-    : `network:${request?.socket?.remoteAddress ?? "anonymous"}`;
   return createHmac("sha256", secret)
     .update(String(route ?? ""))
     .update("\0")
-    .update(caller)
+    .update(requestSubject)
     .update("\0")
     .update(key)
     .digest("hex");

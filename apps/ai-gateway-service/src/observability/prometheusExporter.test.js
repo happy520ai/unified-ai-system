@@ -130,7 +130,12 @@ describe("prometheusExporter", () => {
         storeMode: "postgres",
         available: false,
         distributed: true,
-        global: { activeBuckets: 5, statsUpdatedAt: Date.now() - 1_000 },
+        global: {
+          activeBuckets: 5,
+          statsUpdatedAt: Date.now() - 1_000,
+          subjectMode: "credential-or-network",
+          trustedProxyCount: 2,
+        },
         routes: {},
       },
     });
@@ -138,6 +143,8 @@ describe("prometheusExporter", () => {
     expect(text).toContain('ai_gateway_rate_limit_active_buckets{scope="global"} 5');
     expect(text).toContain('ai_gateway_rate_limit_store_available{mode="postgres"} 0');
     expect(text).toMatch(/ai_gateway_rate_limit_stats_age_seconds\{mode="postgres"\} 1\.\d{3}/);
+    expect(text).toContain('ai_gateway_rate_limit_subject_mode{mode="credential-or-network"} 1');
+    expect(text).toContain("ai_gateway_trusted_proxy_cidrs 2");
     expect(text).not.toContain("subject_hash");
   });
 });

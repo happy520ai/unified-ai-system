@@ -192,6 +192,7 @@ import { createOpenTelemetryRuntime } from "../observability/openTelemetry.js";
 import { createIdempotencyCoordinator } from "./idempotencyCoordinator.ts";
 import { createGatewayLifecycle } from "./gatewayLifecycle.ts";
 import { bindGatewayExecution, createHttpRequestExecutionScope } from "./httpRequestExecution.ts";
+import { createRequestIdentityResolver, parseTrustedProxyCidrs } from "./requestIdentity.ts";
 
 const logger = createLogger({ app: "ai-gateway-service", level: "info" });
 const writeServiceLog = (event, details = {}) => logger.info(event, details);
@@ -1153,6 +1154,22 @@ function createRouteAwareRateLimiter(runtimeEnv = {}) {
     1_000_000,
     parsePositiveInteger(runtimeEnv.AI_GATEWAY_RATE_LIMIT_POSTGRES_MAX_BUCKETS, 100_000),
   );
+  const subjectMode = parseRateLimitSubjectMode(runtimeEnv.AI_GATEWAY_RATE_LIMIT_SUBJECT_MODE);
+  const trustedProxyCidrs = parseTrustedProxyCidrs(runtimeEnv.AI_GATEWAY_TRUSTED_PROXY_CIDRS);
+  const maxForwardedHops = Math.min(
+    128,
+    parsePositiveInteger(runtimeEnv.AI_GATEWAY_MAX_FORWARDED_HOPS, 32),
+  );
+  if (subjectMode === "credential-or-network" && (!postgresSecret || Buffer.byteLength(postgresSecret) < 32)) {
+    throw new Error("AI_GATEWAY_RATE_LIMIT_HMAC_SECRET must contain at least 32 bytes in credential-or-network subject mode.");
+  }
+  const identityResolver = createRequestIdentityResolver({
+    subjectMode,
+    secret: postgresSecret,
+    trustedProxyCidrs,
+    maxForwardedHops,
+  });
+  const identityConfig = identityResolver.getConfig();
   if (storeMode === "postgres") {
     if (!postgresConnectionString) {
       throw new Error("AI_GATEWAY_RATE_LIMIT_POSTGRES_URL is required when the rate-limit store mode is postgres.");
@@ -1167,6 +1184,9 @@ function createRouteAwareRateLimiter(runtimeEnv = {}) {
     postgresPoolMax,
     postgresStatementTimeoutMs,
     postgresMaxBuckets,
+    resolveSubject: (request) => identityResolver.resolve(request),
+    subjectMode: identityConfig.subjectMode,
+    trustedProxyCount: identityConfig.trustedProxyCount,
   };
   const routeLimits = parseRouteRateLimitConfig(runtimeEnv.AI_GATEWAY_ROUTE_RATE_LIMITS);
 
@@ -1241,6 +1261,12 @@ function parseRateLimitStoreMode(value) {
   const normalized = String(value ?? DEFAULT_RATE_LIMIT_STORE_MODE).toLowerCase();
   if (["memory", "sqlite", "postgres"].includes(normalized)) return normalized;
   throw new Error(`Unsupported rate-limit store mode: ${normalized}`);
+}
+
+function parseRateLimitSubjectMode(value) {
+  const normalized = String(value ?? "network").trim().toLowerCase();
+  if (normalized === "network" || normalized === "credential-or-network") return normalized;
+  throw new Error(`Unsupported rate-limit subject mode: ${normalized}`);
 }
 
 function parseRateLimitWhitelist(value, fallback) {

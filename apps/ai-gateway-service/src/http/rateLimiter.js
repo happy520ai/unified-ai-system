@@ -80,7 +80,7 @@ export function createRateLimiter(options = {}) {
       }
       return;
     }
-    if (postgresStore) {
+    if (postgresStore && (ownsPostgresStore || options.managePostgresStore)) {
       void postgresStore.cleanup();
       return;
     }
@@ -148,8 +148,13 @@ export function createRateLimiter(options = {}) {
    * @returns {null|import("node:http").ServerResponse}
    */
   function apply(req, res) {
-    const ip = req.socket?.remoteAddress || "unknown";
-    const result = check(ip);
+    const identity = options.resolveSubject?.(req);
+    const directAddress = req.socket?.remoteAddress ?? "unknown";
+    const clientAddress = identity?.clientAddress ?? directAddress;
+    const subject = identity?.subject ?? directAddress;
+    const result = whitelist.has(clientAddress)
+      ? { allowed: true, remaining: maxRequests, retryAfterMs: 0, resetAfterMs: 0 }
+      : check(subject);
     if (result && typeof result.then === "function") {
       return result.then((resolved) => applyResult(resolved, res));
     }
@@ -199,6 +204,8 @@ export function createRateLimiter(options = {}) {
         windowMs,
         maxRequests,
         whitelistSize: whitelist.size,
+        subjectMode: options.subjectMode ?? "network",
+        trustedProxyCount: options.trustedProxyCount ?? 0,
         storeMode: "sqlite",
       };
     }
@@ -208,6 +215,8 @@ export function createRateLimiter(options = {}) {
         windowMs,
         maxRequests,
         whitelistSize: whitelist.size,
+        subjectMode: options.subjectMode ?? "network",
+        trustedProxyCount: options.trustedProxyCount ?? 0,
       };
     }
     return {
@@ -215,6 +224,8 @@ export function createRateLimiter(options = {}) {
       windowMs,
       maxRequests,
       whitelistSize: whitelist.size,
+      subjectMode: options.subjectMode ?? "network",
+      trustedProxyCount: options.trustedProxyCount ?? 0,
       storeMode: "memory",
     };
   }

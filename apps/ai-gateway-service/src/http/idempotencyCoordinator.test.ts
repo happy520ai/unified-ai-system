@@ -101,4 +101,41 @@ describe("idempotency coordinator", () => {
     expect(result).toMatchObject({ accepted: false, statusCode: 400, code: "IDEMPOTENCY_KEY_INVALID" });
     expect(calls).toBe(0);
   });
+
+  it("uses the first untrusted client in a configured proxy chain for network identity", async () => {
+    const coordinator = createIdempotencyCoordinator({
+      secret: "0123456789abcdef0123456789abcdef",
+      trustedProxyCidrs: ["10.0.0.0/8"],
+    });
+    let calls = 0;
+    const proxiedRequest = (client: string) => ({
+      headers: { "idempotency-key": "proxied-key", "x-forwarded-for": client },
+      socket: { remoteAddress: "10.0.0.5" },
+    });
+
+    await coordinator.execute({ request: proxiedRequest("198.51.100.1"), route: "/chat", payload: {}, operation: async () => ({ call: ++calls }) });
+    await coordinator.execute({ request: proxiedRequest("198.51.100.2"), route: "/chat", payload: {}, operation: async () => ({ call: ++calls }) });
+    const replay = await coordinator.execute({ request: proxiedRequest("198.51.100.1"), route: "/chat", payload: {}, operation: async () => ({ call: ++calls }) });
+
+    expect(calls).toBe(2);
+    expect(replay).toMatchObject({ status: "replayed", value: { call: 1 } });
+  });
+
+  it("ignores spoofed forwarding headers from an untrusted direct peer", async () => {
+    const coordinator = createIdempotencyCoordinator({
+      secret: "0123456789abcdef0123456789abcdef",
+      trustedProxyCidrs: ["10.0.0.0/8"],
+    });
+    let calls = 0;
+    const untrustedRequest = (spoofedClient: string) => ({
+      headers: { "idempotency-key": "spoofed-key", "x-forwarded-for": spoofedClient },
+      socket: { remoteAddress: "203.0.113.9" },
+    });
+
+    await coordinator.execute({ request: untrustedRequest("198.51.100.1"), route: "/chat", payload: {}, operation: async () => ({ call: ++calls }) });
+    const replay = await coordinator.execute({ request: untrustedRequest("198.51.100.2"), route: "/chat", payload: {}, operation: async () => ({ call: ++calls }) });
+
+    expect(calls).toBe(1);
+    expect(replay).toMatchObject({ status: "replayed", value: { call: 1 } });
+  });
 });

@@ -58,6 +58,9 @@ export function createRouteRateLimiter(options = {}) {
     storeMode: options.storeMode,
     storePath: options.storePath,
     postgresStore,
+    resolveSubject: options.resolveSubject,
+    subjectMode: options.subjectMode,
+    trustedProxyCount: options.trustedProxyCount,
   };
 
   // Global fallback limiter
@@ -66,6 +69,7 @@ export function createRouteRateLimiter(options = {}) {
     maxRequests: options.globalMaxRequests ?? 120,
     whitelist,
     ...storeOptions,
+    managePostgresStore: true,
     storeNamespace: options.storeNamespace ? `${options.storeNamespace}:global` : "global",
   });
 

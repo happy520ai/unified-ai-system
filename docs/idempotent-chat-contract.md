@@ -58,6 +58,8 @@ while `x-request-id` identifies the current HTTP transport attempt.
 | `AI_GATEWAY_IDEMPOTENCY_POLL_MS` | `50` | 10 to 1000 milliseconds |
 | `AI_GATEWAY_IDEMPOTENCY_POSTGRES_POOL_MAX` | `4` | 1 to 32 connections per gateway process |
 | `AI_GATEWAY_IDEMPOTENCY_POSTGRES_STATEMENT_TIMEOUT_MS` | `5000` | 100 milliseconds to 30 seconds |
+| `AI_GATEWAY_TRUSTED_PROXY_CIDRS` | empty | Comma-separated direct proxy CIDRs allowed to supply `X-Forwarded-For`. Empty means trust no forwarding headers. |
+| `AI_GATEWAY_MAX_FORWARDED_HOPS` | `32` | 1 to 128 addresses before the chain is rejected and the direct peer is used. |
 
 Retention is bounded but response bodies may contain sensitive model output, so
 operators should keep the TTL and result limit no larger than their retry and
@@ -76,6 +78,7 @@ privacy requirements require.
 - PostgreSQL availability is part of the keyed-request safety boundary. Initialization or transaction failure returns `503 IDEMPOTENCY_STORE_UNAVAILABLE` before provider execution; completion uncertainty returns `created-unconfirmed` after provider execution.
 - The PostgreSQL runtime creates its fixed `public.ai_gateway_idempotency_entries` table, fencing sequence, and indexes idempotently. Production operators may pre-provision these objects and then grant the gateway role only `SELECT`, `INSERT`, `UPDATE`, `DELETE`, and sequence `USAGE`.
 - Neither mode claims globally exactly-once execution. A provider can finish while the gateway loses the response or durable completion write; unknown outcomes require reconciliation.
+- Credential-scoped keys use an HMAC-derived caller identity. Requests without credentials use the network identity defined by the [trusted proxy and request identity contract](./trusted-proxy-identity-contract.md); untrusted or malformed forwarding chains fall back to the direct socket peer.
 - `Idempotency-Key` is an established industry convention, but the related IETF document expired as an Internet-Draft in April 2026 and is not represented here as a final RFC.
 
 This design follows the caller-intent and payload-consistency principles used by

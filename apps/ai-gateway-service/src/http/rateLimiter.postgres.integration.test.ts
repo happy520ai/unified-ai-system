@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { createRateLimiter } from "./rateLimiter.js";
+import { createRequestIdentityResolver } from "./requestIdentity.ts";
 
 const connectionString = process.env.AI_GATEWAY_TEST_POSTGRES_URL;
 const SHARED_SECRET = "0123456789abcdef0123456789abcdef";
@@ -60,5 +61,34 @@ describePostgres("real PostgreSQL distributed rate limiting", () => {
     await first.close();
     await second.close();
     await isolated.close();
+  }, 15_000);
+
+  it("shares a credential quota across network addresses and independent pools", async () => {
+    const namespace = `credential:${randomUUID()}`;
+    const first = createRateLimiter(options(namespace, { maxRequests: 1 }));
+    const second = createRateLimiter(options(namespace, { maxRequests: 1 }));
+    const resolver = createRequestIdentityResolver({
+      subjectMode: "credential-or-network",
+      hmacSecret: SHARED_SECRET,
+      trustedProxyCidrs: [],
+    });
+    const credential = "Bearer integration-credential-never-store-raw";
+    const firstIdentity = resolver.resolve({
+      headers: { authorization: credential },
+      socket: { remoteAddress: "10.30.0.1" },
+    });
+    const secondIdentity = resolver.resolve({
+      headers: { authorization: credential },
+      socket: { remoteAddress: "10.30.0.2" },
+    });
+
+    expect(firstIdentity.clientAddress).not.toBe(secondIdentity.clientAddress);
+    expect(firstIdentity.requestSubject).toBe(secondIdentity.requestSubject);
+    expect(firstIdentity.requestSubject).not.toContain("integration-credential");
+    await expect(first.check(firstIdentity.requestSubject)).resolves.toMatchObject({ allowed: true, remaining: 0 });
+    await expect(second.check(secondIdentity.requestSubject)).resolves.toMatchObject({ allowed: false, remaining: 0 });
+
+    await first.close();
+    await second.close();
   }, 15_000);
 });

@@ -206,4 +206,11 @@ capacity. This controls gateway request counts, not provider token billing or a
 tenant-wide quota unless the deployment's trusted proxy and partition policy
 make the request subject tenant-specific.
 
+Configure request identity according to the
+[trusted proxy and request identity contract](./trusted-proxy-identity-contract.md).
+Every ingress hop must overwrite rather than append client-supplied forwarding
+headers, and every gateway replica must receive the same trusted CIDRs, hop
+bound, subject mode, and HMAC secret. A stale or over-broad CIDR list can turn a
+network boundary into attacker-controlled identity input.
+
 \n

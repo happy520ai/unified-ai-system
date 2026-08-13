@@ -859,6 +859,64 @@ function checkDistributedRateLimitSafety() {
   }
 }
 
+function checkTrustedProxyIdentitySafety() {
+  try {
+    const identitySource = readTextFile("apps/ai-gateway-service/src/http/requestIdentity.ts");
+    const identityTestSource = readTextFile("apps/ai-gateway-service/src/http/requestIdentity.test.ts");
+    const idempotencySource = readTextFile("apps/ai-gateway-service/src/http/idempotencyCoordinator.ts");
+    const idempotencyTestSource = readTextFile("apps/ai-gateway-service/src/http/idempotencyCoordinator.test.ts");
+    const integrationTestSource = readTextFile("apps/ai-gateway-service/src/http/rateLimiter.postgres.integration.test.ts");
+    const limiterSource = readTextFile("apps/ai-gateway-service/src/http/rateLimiter.js");
+    const serverSource = readTextFile("apps/ai-gateway-service/src/http/httpServer.js");
+    const exporterSource = readTextFile("apps/ai-gateway-service/src/observability/prometheusExporter.js");
+    const contractSource = readTextFile("docs/trusted-proxy-identity-contract.md");
+    const packageSource = readTextFile("apps/ai-gateway-service/package.json");
+    const envSource = readTextFile(".env.example");
+    const enterpriseEnvSource = readTextFile(".env.enterprise.example");
+    const source = [
+      identitySource,
+      identityTestSource,
+      idempotencySource,
+      idempotencyTestSource,
+      integrationTestSource,
+      limiterSource,
+      serverSource,
+      exporterSource,
+      contractSource,
+    ].join("\n");
+    const requiredMarkers = [
+      "createRequestIdentityResolver",
+      "x-forwarded-for",
+      "trustedProxyCidrs",
+      "maxForwardedHops",
+      "credential-or-network",
+      "createHmac",
+      "ignores spoofed forwarding headers",
+      "right to left",
+      "shares a credential quota across network addresses and independent pools",
+      "rate_limit_subject_mode",
+      "trusted_proxy_cidrs",
+      "Trusted proxy and request identity contract",
+    ];
+    const requiredEnvMarkers = [
+      "AI_GATEWAY_RATE_LIMIT_SUBJECT_MODE=network",
+      "AI_GATEWAY_TRUSTED_PROXY_CIDRS=",
+      "AI_GATEWAY_MAX_FORWARDED_HOPS=32",
+    ];
+    const missingMarkers = requiredMarkers.filter((marker) => !source.includes(marker));
+    const missingEnvMarkers = requiredEnvMarkers.filter(
+      (marker) => !envSource.includes(marker) || !enterpriseEnvSource.includes(marker),
+    );
+    const exactDependency = packageSource.includes('"ipaddr.js": "2.5.0"');
+    return {
+      ok: missingMarkers.length === 0 && missingEnvMarkers.length === 0 && exactDependency,
+      details: JSON.stringify({ missingMarkers, missingEnvMarkers, exactDependency }),
+    };
+  } catch (error) {
+    return { ok: false, details: String(error.message) };
+  }
+}
+
 function checkGatewayErrorCircuitBreaker() {
   try {
     const serverSource = readTextFile("apps/ai-gateway-service/src/http/httpServer.js");
@@ -1788,6 +1846,7 @@ async function main() {
   const metricsCheck = checkMetricsInstrumentation();
   const distributedIdempotencyCheck = checkDistributedIdempotencySafety();
   const distributedRateLimitCheck = checkDistributedRateLimitSafety();
+  const trustedProxyIdentityCheck = checkTrustedProxyIdentitySafety();
   const gatewayErrorCircuitBreakerCheck = checkGatewayErrorCircuitBreaker();
   const healthzCheck = checkHealthzReadinessProbe();
   const runbookVisibilityCheck = checkReadinessRunbookVisibility();
@@ -1819,6 +1878,7 @@ async function main() {
     metrics: metricsCheck,
     distributedIdempotency: distributedIdempotencyCheck,
     distributedRateLimit: distributedRateLimitCheck,
+    trustedProxyIdentity: trustedProxyIdentityCheck,
     pluginHardening: pluginCheck,
     workflowGuardrails: workflowCheck,
     requestBodyGuardrails: requestBodyGuardrailsCheck,
@@ -1915,6 +1975,14 @@ async function main() {
     10,
     distributedRateLimitCheck.ok,
     distributedRateLimitCheck.details,
+  );
+  score += addGate(
+    gates,
+    "Trusted proxy request identity",
+    "Forwarding headers must be deny-by-default, CIDR bounded, spoof tested, credential-HMAC partitioned, and observable",
+    10,
+    trustedProxyIdentityCheck.ok,
+    trustedProxyIdentityCheck.details,
   );
   score += addGate(
     gates,

@@ -17,6 +17,8 @@ The gateway returns request-quota hints on rate-limited and successful HTTP resp
 
 The gateway exposes these headers through CORS. It does not expose IP addresses, user IDs, database namespaces, or other rate-limit partition keys.
 
+Request partitioning follows the [trusted proxy and request identity contract](./trusted-proxy-identity-contract.md). The default `network` mode does not trust forwarding headers unless the direct peer belongs to an explicitly configured trusted proxy CIDR. Optional `credential-or-network` mode HMACs an `Authorization` or `x-api-key` credential and falls back to the resolved network address.
+
 ## Retry algorithm
 
 1. Retry only idempotent operations automatically. For provider-backed `POST /chat`, use the [idempotent chat request contract](./idempotent-chat-contract.md).
@@ -47,4 +49,5 @@ if (response.status === 429) {
 - PostgreSQL mode uses database-clock fixed windows and atomic counters. It stores an HMAC-derived subject identity rather than the raw request IP, and isolates global and route quotas by namespace.
 - PostgreSQL store or capacity failure returns `503 RATE_LIMIT_STORE_UNAVAILABLE` or `503 RATE_LIMIT_STORE_CAPACITY`; the request does not proceed to provider execution. A `429 RATE_LIMITED` means the shared quota itself was exceeded.
 - PostgreSQL mode requires `AI_GATEWAY_RATE_LIMIT_POSTGRES_URL` and a shared `AI_GATEWAY_RATE_LIMIT_HMAC_SECRET` of at least 32 bytes. Load both from a secret manager and require certificate-verified TLS outside a trusted local network.
+- Trusted proxy safety depends on the ingress overwriting `X-Forwarded-For` and on operators keeping `AI_GATEWAY_TRUSTED_PROXY_CIDRS` current. The gateway deliberately ignores the RFC 7239 `Forwarded` header so two proxy-header formats cannot create ambiguous precedence.
 - The gateway intentionally does not emit the evolving IETF `RateLimit` structured field as if it were a final RFC contract.
