@@ -28,7 +28,11 @@ const EXT_TO_LANGUAGE = Object.freeze({
 });
 const GOAL_TEXT_LANGUAGE_PATTERNS = [
   { pattern: /\b(type\s*script|typescript|ts)\b/, language: 'ts' },
-  { pattern: /\b(java\s*cript|javascript|js|node\.js|nodejs)\b/, language: 'js' },
+  { pattern: /\b(java\s*script|javascript|js|node\.js|nodejs)\b/, language: 'js' },
+  { pattern: /\b(python|py)\b/, language: 'python' },
+  { pattern: /\b(go|golang)\b/, language: 'go' },
+  { pattern: /\brust\b/, language: 'rust' },
+  { pattern: /\bjava\b/, language: 'java' },
 ];
 
 function normalizeLanguageCandidate(value) {
@@ -48,7 +52,8 @@ function inferLanguageFromText(text) {
   const normalized = String(text || '').toLowerCase();
   const extMatch = normalized.match(/\b[\w.-]+\.(ts|tsx|js|jsx|py|go|rs|java)\b/g);
   if (extMatch?.length > 0) {
-    const matchLang = normalizeLanguageCandidate(extMatch[0].slice(extMatch[0].lastIndexOf('.') + 1));
+    const extension = extMatch[0].slice(extMatch[0].lastIndexOf('.')).toLowerCase();
+    const matchLang = EXT_TO_LANGUAGE[extension];
     if (matchLang) return matchLang;
   }
 
