@@ -88,6 +88,13 @@ Run this locally if you want to verify observability readiness checks:
 pnpm quality:ci:trend-health -- --json --require-score 165
 ```
 
+For a full trend-health smoke loop that runs CI, verification, optional trend-log,
+summary, digest, and final trend check in one command, use:
+
+```bash
+pnpm quality:trend-health-smoke -- --require-score 165
+```
+
 Current checks include:
 
 - resilience metrics instrumentation markers

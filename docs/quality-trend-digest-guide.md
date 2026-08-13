@@ -35,6 +35,12 @@ Tip: In CI/scheduled trend workflows, `--require-stable-state` is controlled by 
 Set `QUALITY_REQUIRE_TREND_HEALTH=true` to enforce trend-health failure when trend evidence is not collected (recommended for strict CI).
 To hard-fail critical trend drift, set repo variable `QUALITY_TREND_HARD_BLOCK=true` for CI, or pass `quality_trend_hard_block=true` when dispatching the `Quality Trend Snapshot` workflow.
 
+For local full-chain smoke checks, run:
+
+```bash
+pnpm quality:trend-health-smoke -- --require-score 165
+```
+
 ## What changed in the digest output
 
 The digest now includes:

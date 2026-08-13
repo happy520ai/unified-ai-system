@@ -67,4 +67,16 @@ pnpm quality:ci:trend-health -- --json --require-score 165
 pnpm quality:verify-artifacts:trend-health -- --json --quality .tmp/quality-scorecard.json --drill .tmp/circuit-recovery-drill-dry-run.json --require-score 165
 ```
 
+### 6) One-shot trend health smoke
+
+Run a single command to execute CI trend-health quality gate, write verification evidence,
+append trend history, and regenerate summary/digest/check artifacts:
+
+```bash
+pnpm quality:trend-health-smoke -- --require-score 165
+```
+
+To skip trend history append for dry local checks: add `--no-trend-log`.
+To include structured output for CI-like automation: add `--json`.
+
 
