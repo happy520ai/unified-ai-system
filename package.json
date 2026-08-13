@@ -41,7 +41,8 @@
     "quality:verify-artifacts": "node ./tools/verify-ci-quality-artifacts.mjs",
     "quality:trend-log": "node ./tools/quality-trend-log.mjs",
     "quality:trend-summary": "node ./tools/quality-trend-summary.mjs",
-    "quality:trend-digest": "node ./tools/quality-trend-digest.mjs"
+    "quality:trend-digest": "node ./tools/quality-trend-digest.mjs",
+    "quality:trend-check": "node ./tools/quality-trend-check.mjs"
   },
   "engines": {
     "node": ">=22",

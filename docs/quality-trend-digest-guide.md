@@ -22,6 +22,13 @@ pnpm quality:trend-digest -- \
   --max-score-drop-points 20 \
   --min-pass-rate-percent 70 \
   --require-stable-state
+
+pnpm quality:trend-check -- \
+  --digest .tmp/quality-trend-digest.json \
+  --guardrail .tmp/quality-trend-guardrail.json \
+  --summary .tmp/quality-trend-summary.md \
+  --max-summary-reasons 8 \
+  --json
 ```
 
 Tip: In CI/scheduled trend workflows, `--require-stable-state` is controlled by `QUALITY_TREND_REQUIRE_STABLE_STATE` (default `true`), and pass-rate + stability thresholds can be set through repository variables (`QUALITY_TREND_MIN_PASS_RATE_PERCENT`, `QUALITY_TREND_MAX_CONSECUTIVE_FAILURES`, `QUALITY_TREND_MAX_SCORE_DROP_POINTS`).
@@ -49,12 +56,19 @@ The digest now includes:
     - `pnpm quality:trend-summary -- --trend .tmp/quality-trend.json --output .tmp/quality-trend-summary.md --guard-output .tmp/quality-trend-guardrail.json --max-consecutive-failures 3 --max-score-drop-points 20 --min-pass-rate-percent 70 --require-stable-state --enforce-guardrails`
     - `pnpm quality:ci -- --json --require-score 165`
 
+## Policy behavior
+
+- CI/cron pipelines run `quality:trend-check` as an informational pass/fail signal and write JSON output to `.tmp/quality-trend-check.json`.
+- `--hard-block` enables explicit fail in manual enforcement workflows when a check is critical.
+- `--allow-warnings` downgrades warning-level blocking to a non-blocking state while keeping the warning visible.
+
 ## CI artifacts
 
 Current CI pipelines publish:
 
 - `.tmp/quality-trend-digest.md`
 - `.tmp/quality-trend-digest.json`
+- `.tmp/quality-trend-check.json`
 - existing trend and quality artifacts (`.tmp/quality-trend.json`, `.tmp/quality-scorecard.json`, `.tmp/quality-ci-verification.json`)
 
 ## Escalation flow
