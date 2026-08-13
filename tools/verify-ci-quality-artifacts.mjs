@@ -272,6 +272,8 @@ function verifyIncidentBundle(args) {
     }
   } else if (jsonExists && !mdExists) {
     issues.push(`incident bundle markdown missing: ${args.incidentBundleMdPath}`);
+  } else if (mdExists && !jsonExists) {
+    issues.push(`incident bundle json missing for markdown artifact: ${args.incidentBundleJsonPath}`);
   }
 
   if (jsonExists) {
