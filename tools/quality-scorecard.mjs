@@ -128,7 +128,15 @@ function gateWeightToSeverity(weight) {
   return "low";
 }
 
-function buildIssueCodesFromQualitySummary(gates, trendHealth, drillResult, requireScore, scoreValue, maxScore) {
+function buildIssueCodesFromQualitySummary(
+  gates,
+  trendHealth,
+  drillResult,
+  requireScore,
+  scoreValue,
+  maxScore,
+  trendConsistency,
+) {
   const issueCodes = [];
   const addIssue = (code, message, options = {}) => {
     issueCodes.push({
@@ -181,6 +189,26 @@ function buildIssueCodesFromQualitySummary(gates, trendHealth, drillResult, requ
     });
   }
 
+  if (trendConsistency && trendConsistency.status && trendConsistency.status !== "pass") {
+    addIssue(
+      `quality_trend_consistency_${normalizeIssueCode(trendConsistency.status)}`,
+      `quality trend consistency status is ${trendConsistency.status}`,
+      {
+        severity: trendConsistency.ok ? "medium" : "high",
+        artifactPath: trendConsistency.source ?? "quality-scorecard",
+      },
+    );
+  }
+
+  if (Array.isArray(trendConsistency?.issueCodes)) {
+    issueCodes.push(
+      ...normalizeIssueCodes(
+        trendConsistency.issueCodes,
+        trendConsistency.source ?? QUALITY_SCORECARD_ISSUE_SOURCE,
+      ),
+    );
+  }
+
   const dryRunStatus = drillResult?.status;
   if (drillResult && dryRunStatus !== "dry-run") {
     addIssue(
@@ -194,6 +222,55 @@ function buildIssueCodesFromQualitySummary(gates, trendHealth, drillResult, requ
   }
 
   return normalizeIssueCodes(issueCodes);
+}
+
+function buildTrendConsistencySummary(
+  trendDigestHealthCheck,
+  trendSummaryGuardrailsCheck,
+  trendDigestCheckConsistencyCheck,
+) {
+  const checks = {
+    trendDigestHealth: trendDigestHealthCheck,
+    trendSummaryGuardrails: trendSummaryGuardrailsCheck,
+    trendDigestCheckConsistency: trendDigestCheckConsistencyCheck,
+  };
+  const checksRequired = [
+    "trendDigestHealth",
+    "trendSummaryGuardrails",
+    "trendDigestCheckConsistency",
+  ];
+
+  const checkEntries = Object.values(checks);
+  const hasMissingRequired = checksRequired.some((checkName) => !checks[checkName]);
+  const hasNotCollected = checkEntries.some(
+    (entry) => String(entry?.status ?? "").toLowerCase() === "not_collected",
+  );
+  const hasFailingCheck = checkEntries.some(
+    (entry) => !entry || entry?.status === "missing" || entry?.ok === false,
+  );
+
+  const issueCodes = normalizeIssueCodes(
+    checkEntries.flatMap((entry) => (Array.isArray(entry?.issueCodes) ? entry.issueCodes : [])),
+    "quality-trend-consistency",
+  );
+  const issueCodeSummary = summarizeIssueCodes(issueCodes);
+  const status = hasFailingCheck
+    ? "fail"
+    : hasMissingRequired || hasNotCollected
+      ? "degraded"
+      : "pass";
+
+  return {
+    status,
+    ok: status === "pass",
+    source: ".tmp/quality-scorecard.json",
+    checks,
+    checksRequired,
+    issueCodes,
+    issueCodeSummary,
+    hasMissingRequired,
+    hasNotCollected,
+  };
 }
 
 function parseArgs() {
@@ -1757,6 +1834,12 @@ async function main() {
     trendIncidentBundleSchemaCheck.details,
   );
 
+  const trendConsistency = buildTrendConsistencySummary(
+    trendDigestHealthCheck,
+    trendSummaryGuardrailsCheck,
+    trendDigestCheckConsistencyCheck,
+  );
+
   const maxScore = gates.reduce((sum, item) => sum + item.weight, 0);
   const issueCodes = normalizeIssueCodes([
     ...buildIssueCodesFromQualitySummary(
@@ -1766,6 +1849,7 @@ async function main() {
       requireScore,
       score,
       maxScore,
+      trendConsistency,
     ),
     ...publicRepoCheck.issueCodes,
     ...verifyPublicCloneCheck.issueCodes,
@@ -1793,6 +1877,7 @@ async function main() {
       source: trendHardBlockArtifactCheck.source,
       missing: trendHardBlockArtifactCheck.missing || false,
     },
+    trendConsistency,
     threshold:
       requireScore > 0
         ? { required: requireScore, passed: score >= requireScore }
@@ -1817,6 +1902,7 @@ async function main() {
     if (requireScore > 0) {
       outputLines.push(`Required score: ${requireScore}`);
     }
+    outputLines.push(`Trend consistency: ${summary.trendConsistency.status}`);
     outputLines.push(
       `Issue summary: total=${issueCodeSummary.total}, high=${issueCodeSummary.high}, medium=${issueCodeSummary.medium}, low=${issueCodeSummary.low}, info=${issueCodeSummary.info}, unknown=${issueCodeSummary.unknown}`,
     );
