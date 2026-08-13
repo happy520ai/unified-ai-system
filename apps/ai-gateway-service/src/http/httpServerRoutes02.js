@@ -69,7 +69,10 @@ export async function dispatchHttpRoutes02(context) {
       ? Number(healthzInFlightDegradationPercent)
       : null;
     const saturated = saturationThreshold > 0 && currentInFlight >= saturationThreshold;
-    const readinessFailures = collectReadinessFailures(healthSnapshot, readinessSnapshot, { saturated });
+    const readinessFailures = collectReadinessFailures(healthSnapshot, readinessSnapshot, {
+      saturated,
+      gatewayErrorCircuitState: resilienceSnapshot?.gatewayErrorCircuitState,
+    });
     resilienceMetrics?.recordReadinessCheck?.(readinessFailures);
     const degraded = saturated || readinessFailures.length > 0;
 
@@ -162,7 +165,10 @@ export async function dispatchHttpRoutes02(context) {
       ? Number(healthzInFlightThreshold)
       : 0;
     const saturated = saturationThreshold > 0 && currentInFlight >= saturationThreshold;
-    const readinessFailures = collectReadinessFailures(healthSnapshot, readinessSnapshot, { saturated });
+    const readinessFailures = collectReadinessFailures(healthSnapshot, readinessSnapshot, {
+      saturated,
+      gatewayErrorCircuitState: resilienceSnapshot?.gatewayErrorCircuitState,
+    });
     const snapshot = {
       totalRequests: stats.totalRequests ?? 0,
       activeConnections: wsServer?.getConnectionCount?.() ?? 0,
@@ -555,6 +561,9 @@ function collectReadinessFailures(healthSnapshot, readinessSnapshot, context = {
   }
   if (context?.saturated) {
     readinessFailures.push("inflight-saturation");
+  }
+  if (context?.gatewayErrorCircuitState && context.gatewayErrorCircuitState !== "closed") {
+    readinessFailures.push("gateway-error-circuit");
   }
 
   return Array.from(new Set(readinessFailures));

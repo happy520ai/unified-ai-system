@@ -30,6 +30,23 @@ describe("prometheusExporter", () => {
     expect(text).toContain("ai_gateway_memory_usage_bytes");
   });
 
+  it("exposes gateway error circuit resilience metrics", () => {
+    const exporter = createPrometheusExporter({ prefix: "ai_gateway" });
+    const text = exporter.formatMetrics({
+      resilience: {
+        gatewayErrorCircuitState: "open",
+        gatewayErrorCircuitOpenAt: 1600000000000,
+        gatewayErrorCircuitRejections: 3,
+        gatewayErrorCircuitFailures: 7,
+      },
+    });
+
+    expect(text).toContain("ai_gateway_gateway_error_circuit_state{state=\"open\"} 1");
+    expect(text).toContain("ai_gateway_gateway_error_circuit_state{state=\"closed\"} 0");
+    expect(text).toContain("ai_gateway_gateway_error_circuit_rejections_total 3");
+    expect(text).toContain("ai_gateway_gateway_error_circuit_failures_total 7");
+  });
+
   it("emits readiness status and failure metrics", () => {
     const exporter = createPrometheusExporter({ prefix: "ai_gateway" });
     const text = exporter.formatMetrics({

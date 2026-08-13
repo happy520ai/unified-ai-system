@@ -77,6 +77,28 @@ export function createPrometheusExporter(options = {}) {
         );
       }
     }
+    lines.push(`# HELP ${prefix}_gateway_error_circuit_state Current gateway-level circuit breaker state (1 for active state)`);
+    lines.push(`# TYPE ${prefix}_gateway_error_circuit_state gauge`);
+    const currentCircuitState = resilience?.gatewayErrorCircuitState ?? "closed";
+    const circuitOpenSince = Number.isFinite(Number(resilience?.gatewayErrorCircuitOpenAt))
+      ? Math.max(0, Number(resilience.gatewayErrorCircuitOpenAt))
+      : 0;
+    const circuitState = String(currentCircuitState);
+    lines.push(`${prefix}_gateway_error_circuit_state{state="closed"} ${circuitState === "closed" ? 1 : 0}`);
+    lines.push(`${prefix}_gateway_error_circuit_state{state="half-open"} ${circuitState === "half-open" ? 1 : 0}`);
+    lines.push(`${prefix}_gateway_error_circuit_state{state="open"} ${circuitState === "open" ? 1 : 0}`);
+    lines.push(`# HELP ${prefix}_gateway_error_circuit_open_seconds Seconds since gateway circuit opened`);
+    lines.push(`# TYPE ${prefix}_gateway_error_circuit_open_seconds gauge`);
+    lines.push(`${prefix}_gateway_error_circuit_open_seconds ${circuitOpenSince > 0 ? ((Date.now() - circuitOpenSince) / 1000).toFixed(2) : 0}`);
+    lines.push(`# HELP ${prefix}_gateway_error_circuit_rejections_total Rejections while circuit denies requests`);
+    lines.push(`# TYPE ${prefix}_gateway_error_circuit_rejections_total counter`);
+    lines.push(`${prefix}_gateway_error_circuit_rejections_total ${resilience?.gatewayErrorCircuitRejections ?? 0}`);
+    lines.push(`# HELP ${prefix}_gateway_error_circuit_failures_total Consecutive failures counted by gateway circuit`);
+    lines.push(`# TYPE ${prefix}_gateway_error_circuit_failures_total counter`);
+    lines.push(`${prefix}_gateway_error_circuit_failures_total ${resilience?.gatewayErrorCircuitFailures ?? 0}`);
+    lines.push(`# HELP ${prefix}_gateway_error_circuit_success_total Requests recovered by gateway circuit`);
+    lines.push(`# TYPE ${prefix}_gateway_error_circuit_success_total counter`);
+    lines.push(`${prefix}_gateway_error_circuit_success_total ${resilience?.gatewayErrorCircuitSuccesses ?? 0}`);
     lines.push(`# HELP ${prefix}_gateway_resilience_in_flight_instant Concurrent in-flight requests`);
     lines.push(`# TYPE ${prefix}_gateway_resilience_in_flight_instant gauge`);
     lines.push(`${prefix}_gateway_resilience_in_flight_instant ${resilience?.currentInFlight ?? 0}`);

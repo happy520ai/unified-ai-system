@@ -198,6 +198,10 @@ const DEFAULT_MAX_IN_FLIGHT_REQUESTS = 500;
 const DEFAULT_MAX_REQUEST_BODY_BYTES = 2_097_152; // 2 MB
 const DEFAULT_HEALTHZ_IN_FLIGHT_DEGRADATION_PERCENT = 90;
 const DEFAULT_CORS_ALLOWED_ORIGINS = Object.freeze(["http://127.0.0.1:3100", "http://localhost:3100"]);
+const DEFAULT_GATEWAY_ERROR_CIRCUIT_FAILURE_THRESHOLD = 12;
+const DEFAULT_GATEWAY_ERROR_CIRCUIT_SUCCESS_THRESHOLD = 2;
+const DEFAULT_GATEWAY_ERROR_CIRCUIT_RESET_MS = 30_000;
+const DEFAULT_GATEWAY_ERROR_CIRCUIT_HALF_OPEN_MAX_CALLS = 1;
 const HTTP_ROUTE_DEPENDENCIES = Object.freeze({
   createErrorEnvelope, createOkEnvelope, getSafeRuntimeConfig, createRouteFailureEnvelope,
   createLocalAgentIntentExplainer, runLocalOperationLoop, getSupportedKnowledgeFileTypes, parseKnowledgeFile,
@@ -272,8 +276,34 @@ export function createGatewayHttpServer(application) {
     requestConfig.AI_GATEWAY_CORS_MAX_AGE_SECONDS,
     86400,
   );
+  const gatewayErrorCircuitFailureThreshold = parsePositiveInteger(
+    requestConfig.AI_GATEWAY_GATEWAY_ERROR_CIRCUIT_FAILURE_THRESHOLD,
+    DEFAULT_GATEWAY_ERROR_CIRCUIT_FAILURE_THRESHOLD,
+  );
+  const gatewayErrorCircuitSuccessThreshold = parsePositiveInteger(
+    requestConfig.AI_GATEWAY_GATEWAY_ERROR_CIRCUIT_SUCCESS_THRESHOLD,
+    DEFAULT_GATEWAY_ERROR_CIRCUIT_SUCCESS_THRESHOLD,
+  );
+  const gatewayErrorCircuitResetMs = parsePositiveInteger(
+    requestConfig.AI_GATEWAY_GATEWAY_ERROR_CIRCUIT_RESET_MS,
+    DEFAULT_GATEWAY_ERROR_CIRCUIT_RESET_MS,
+  );
+  const requestedGatewayErrorCircuitHalfOpenMaxCalls = parsePositiveInteger(
+    requestConfig.AI_GATEWAY_GATEWAY_ERROR_CIRCUIT_HALF_OPEN_MAX_CALLS,
+    DEFAULT_GATEWAY_ERROR_CIRCUIT_HALF_OPEN_MAX_CALLS,
+  );
+  const gatewayErrorCircuitHalfOpenMaxCalls = Math.max(
+    requestedGatewayErrorCircuitHalfOpenMaxCalls,
+    gatewayErrorCircuitSuccessThreshold,
+  );
   const inFlightRequests = new Set();
   const resilienceMetrics = createGatewayResilienceMetrics();
+  const gatewayErrorCircuit = createGatewayErrorCircuitBreaker({
+    failureThreshold: gatewayErrorCircuitFailureThreshold,
+    successThreshold: gatewayErrorCircuitSuccessThreshold,
+    resetTimeoutMs: gatewayErrorCircuitResetMs,
+    halfOpenMaxCalls: gatewayErrorCircuitHalfOpenMaxCalls,
+  });
   const a2aGateway = createA2AGateway({
     gatewayService,
     workforceService: application.workforceService,
@@ -336,6 +366,31 @@ export function createGatewayHttpServer(application) {
     applySecurityHeaders(response);
     request.maxBodyBytes = maxRequestBodyBytes;
     applyCorsHeaders(response, request.headers.origin, corsAllowedOrigins, corsMaxAgeSeconds);
+    const markRequestSuccess = () => {
+      gatewayErrorCircuit.recordSuccess();
+      resilienceMetrics.recordGatewayErrorCircuitSuccess?.();
+    };
+    const allowedByGatewayErrorCircuit = gatewayErrorCircuit.canProcessRequest();
+    const circuitSnapshot = gatewayErrorCircuit.getStateSnapshot();
+    resilienceMetrics.recordGatewayErrorCircuitState?.(circuitSnapshot?.state, circuitSnapshot);
+    if (!allowedByGatewayErrorCircuit) {
+      resilienceMetrics.recordGatewayErrorCircuitRejections();
+      const retryAfterSeconds = Math.max(
+        1,
+        Math.ceil((circuitSnapshot.retryAfterMs ?? gatewayErrorCircuitResetMs) / 1000),
+      );
+      response.setHeader("Retry-After", String(retryAfterSeconds));
+      writeJson(
+        response,
+        503,
+        createErrorEnvelope("gateway_unavailable", "Gateway request circuit is open. Retry shortly.", {
+          startedAt,
+          category: "availability",
+          retryAfterMs: circuitSnapshot.retryAfterMs ?? gatewayErrorCircuitResetMs,
+        }),
+      );
+      return;
+    }
 
     if (request.method === "OPTIONS") {
       const origin = request.headers.origin;
@@ -343,6 +398,7 @@ export function createGatewayHttpServer(application) {
       if (!isCorsPreflight && !origin) {
         response.writeHead(204);
         response.end();
+        markRequestSuccess();
         return;
       }
       const isAllowedCorsOrigin = isCorsOriginAllowed(origin, corsAllowedOrigins);
@@ -356,10 +412,12 @@ export function createGatewayHttpServer(application) {
             origin,
           }),
         );
+        markRequestSuccess();
         return;
       }
       response.statusCode = 204;
       response.end();
+      markRequestSuccess();
       return;
     }
 
@@ -388,6 +446,7 @@ export function createGatewayHttpServer(application) {
           receivedBytes: requestBodyLimit,
         }),
       );
+      markRequestSuccess();
       return;
     }
 
@@ -409,6 +468,7 @@ export function createGatewayHttpServer(application) {
           limit: maxInFlightRequests,
         }),
       );
+      markRequestSuccess();
       return;
     }
 
@@ -419,6 +479,8 @@ export function createGatewayHttpServer(application) {
     const timeoutHandle = setTimeout(() => {
       if (!response.writableEnded && !response.headersSent) {
         resilienceMetrics.recordTimeoutTriggered();
+        gatewayErrorCircuit.recordFailure();
+        resilienceMetrics.recordGatewayErrorCircuitFailure();
         writeJson(
           response,
           408,
@@ -442,6 +504,7 @@ export function createGatewayHttpServer(application) {
       const rateLimitResult = routeRateLimiter.apply(request, response);
       if (rateLimitResult) {
         resilienceMetrics.recordRateLimitRejected();
+        markRequestSuccess();
         return;
       }
       writeServiceLog("request_received", {
@@ -472,11 +535,12 @@ export function createGatewayHttpServer(application) {
           enterpriseDecision.statusCode ?? 401,
           isOpenAiCompatibilityRoute(url.pathname)
             ? createOpenAiError(authError)
-          : createErrorEnvelope(authError.code, authError.message, {
+            : createErrorEnvelope(authError.code, authError.message, {
               startedAt,
               category: authError.category,
             }),
         );
+        markRequestSuccess();
         return;
       }
 
@@ -523,7 +587,11 @@ export function createGatewayHttpServer(application) {
         healthzInFlightDegradationPercent,
         rateLimiter,
       });
-      if (routeResult !== ROUTE_NOT_HANDLED) return;
+      if (routeResult !== ROUTE_NOT_HANDLED) {
+        markRequestSuccess();
+        return;
+      }
+      markRequestSuccess();
 
       writeJson(
         response,
@@ -533,10 +601,15 @@ export function createGatewayHttpServer(application) {
           category: "routing",
         }),
       );
+      markRequestSuccess();
     } catch (error) {
       const normalizedError = createNormalizedHttpError(error);
       const elapsedMs = Date.now() - startedAt;
       resilienceMetrics.recordUnhandledError();
+      if (normalizedError.statusCode >= 500) {
+        gatewayErrorCircuit.recordFailure();
+        resilienceMetrics.recordGatewayErrorCircuitFailure?.();
+      }
       resilienceMetrics.recordUnhandledErrorByCode?.(normalizedError.code);
       writeServiceLog("request_unhandled_error", {
         requestId,
@@ -568,12 +641,16 @@ function createNormalizedHttpError(error) {
     if (error.code && typeof error.code === "string") {
       const normalizedCode = error.code;
       const status = Number(error.statusCode);
-      const normalizedStatusCode = Number.isFinite(status) && status >= 400 && status <= 599
+        const normalizedStatusCode = Number.isFinite(status) && status >= 400 && status <= 599
         ? status
         : normalizedCode === "request_invalid_json"
           ? 400
           : normalizedCode === "request_payload_too_large"
             ? 413
+            : normalizedCode === "gateway_unavailable"
+              ? 503
+              : normalizedCode.startsWith("circuit")
+                ? 503
             : 500;
       return {
         code: normalizedCode,
@@ -608,6 +685,11 @@ function createGatewayResilienceMetrics() {
     timeoutTriggered: 0,
     unhandledErrors: 0,
     unhandledErrorCodes: Object.create(null),
+    gatewayErrorCircuitState: "closed",
+    gatewayErrorCircuitFailures: 0,
+    gatewayErrorCircuitRejections: 0,
+    gatewayErrorCircuitSuccesses: 0,
+    gatewayErrorCircuitOpenAt: 0,
     maxInFlightObserved: 0,
     currentInFlight: 0,
     readinessCheckCount: 0,
@@ -650,6 +732,28 @@ function createGatewayResilienceMetrics() {
       const normalizedCode = typeof errorCode === "string" && errorCode.trim() ? errorCode.trim() : "unknown";
       counters.unhandledErrorCodes[normalizedCode] = (counters.unhandledErrorCodes[normalizedCode] ?? 0) + 1;
     },
+    recordGatewayErrorCircuitState(state) {
+      const normalizedState = typeof state === "string" && state.trim() ? state.trim() : "unknown";
+      counters.gatewayErrorCircuitState = normalizedState;
+      if (normalizedState !== "open") {
+        counters.gatewayErrorCircuitOpenAt = 0;
+        return;
+      }
+      if (!counters.gatewayErrorCircuitOpenAt) {
+        counters.gatewayErrorCircuitOpenAt = Date.now();
+      }
+    },
+    recordGatewayErrorCircuitRejections() {
+      counters.gatewayErrorCircuitRejections += 1;
+    },
+    recordGatewayErrorCircuitFailure() {
+      counters.gatewayErrorCircuitFailures += 1;
+    },
+    recordGatewayErrorCircuitSuccess() {
+      counters.gatewayErrorCircuitSuccesses += 1;
+      counters.gatewayErrorCircuitState = "closed";
+      counters.gatewayErrorCircuitOpenAt = 0;
+    },
     recordReadinessCheck(readinessFailures = []) {
       const normalizedReasons = Array.isArray(readinessFailures)
         ? readinessFailures
@@ -679,6 +783,115 @@ function createGatewayResilienceMetrics() {
         unhandledErrorCodes: { ...counters.unhandledErrorCodes },
       };
     },
+  };
+}
+
+function createGatewayErrorCircuitBreaker(options = {}) {
+  const {
+    failureThreshold = 1,
+    successThreshold = 1,
+    halfOpenMaxCalls = 1,
+    resetTimeoutMs = 30_000,
+    now = Date.now,
+  } = options;
+  const state = {
+    CLOSED: "closed",
+    HALF_OPEN: "half-open",
+    OPEN: "open",
+  };
+
+  let currentState = state.CLOSED;
+  let consecutiveFailures = 0;
+  let halfOpenSuccesses = 0;
+  let halfOpenAttempts = 0;
+  let openedAt = 0;
+
+  function isOpenExpired() {
+    return openedAt > 0 && (now() - openedAt) >= resetTimeoutMs;
+  }
+
+  function transitionTo(nextState) {
+    if (currentState === nextState) {
+      return;
+    }
+    currentState = nextState;
+    if (nextState === state.CLOSED) {
+      consecutiveFailures = 0;
+      halfOpenSuccesses = 0;
+      halfOpenAttempts = 0;
+      openedAt = 0;
+    } else if (nextState === state.HALF_OPEN) {
+      halfOpenSuccesses = 0;
+      halfOpenAttempts = 0;
+      openedAt = 0;
+    } else if (nextState === state.OPEN && openedAt === 0) {
+      openedAt = now();
+    }
+  }
+
+  function refreshState() {
+    if (currentState === state.OPEN && isOpenExpired()) {
+      transitionTo(state.HALF_OPEN);
+    }
+  }
+
+  function canProcessRequest() {
+    refreshState();
+    if (currentState === state.OPEN) {
+      return false;
+    }
+    if (currentState === state.HALF_OPEN && halfOpenAttempts >= halfOpenMaxCalls) {
+      return false;
+    }
+    if (currentState === state.HALF_OPEN) {
+      halfOpenAttempts += 1;
+    }
+    return true;
+  }
+
+  function recordFailure() {
+    if (currentState === state.CLOSED) {
+      consecutiveFailures += 1;
+      if (consecutiveFailures >= failureThreshold) {
+        transitionTo(state.OPEN);
+      }
+      return;
+    }
+    if (currentState === state.HALF_OPEN) {
+      transitionTo(state.OPEN);
+    }
+  }
+
+  function recordSuccess() {
+    if (currentState === state.OPEN) {
+      return;
+    }
+    if (currentState === state.HALF_OPEN) {
+      halfOpenSuccesses += 1;
+      if (halfOpenSuccesses >= successThreshold) {
+        transitionTo(state.CLOSED);
+      }
+      return;
+    }
+    consecutiveFailures = 0;
+  }
+
+  function getStateSnapshot() {
+    refreshState();
+    return {
+      state: currentState,
+      retryAfterMs: currentState === state.OPEN ? Math.max(0, resetTimeoutMs - (now() - openedAt)) : 0,
+      halfOpenAttempts,
+      consecutiveFailures,
+      halfOpenSuccesses,
+    };
+  }
+
+  return {
+    canProcessRequest,
+    recordFailure,
+    recordSuccess,
+    getStateSnapshot,
   };
 }
 

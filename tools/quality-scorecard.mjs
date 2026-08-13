@@ -330,6 +330,11 @@ function checkMetricsInstrumentation() {
       "gateway_readiness_events_total",
       "gateway_resilience_events_total",
       "gateway_resilience_error_events_total",
+      "gateway_error_circuit_state",
+      "gateway_error_circuit_open_seconds",
+      "gateway_error_circuit_rejections_total",
+      "gateway_error_circuit_failures_total",
+      "gateway_error_circuit_success_total",
       "gateway_resilience_in_flight_peak",
       "applySecurityHeaders",
     ];
@@ -339,6 +344,38 @@ function checkMetricsInstrumentation() {
         || routeSource.includes(marker)
         || exporterSource.includes(marker)
       ),
+    );
+    return {
+      ok: missingMarkers.length === 0,
+      details: JSON.stringify({ missingMarkers }),
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      details: String(error.message),
+    };
+  }
+}
+
+function checkGatewayErrorCircuitBreaker() {
+  try {
+    const serverSource = readTextFile("apps/ai-gateway-service/src/http/httpServer.js");
+    const exporterSource = readTextFile("apps/ai-gateway-service/src/observability/prometheusExporter.js");
+    const requiredMarkers = [
+      "createGatewayErrorCircuitBreaker",
+      "canProcessRequest",
+      "recordGatewayErrorCircuitState",
+      "recordGatewayErrorCircuitRejections",
+      "recordGatewayErrorCircuitFailure",
+      "AI_GATEWAY_GATEWAY_ERROR_CIRCUIT_FAILURE_THRESHOLD",
+      "gateway_error_circuit_state",
+      "gateway_error_circuit_rejections_total",
+      "gateway_error_circuit_open_seconds",
+      "gateway_error_circuit_success_total",
+      "gateway_error_circuit_failures_total",
+    ];
+    const missingMarkers = requiredMarkers.filter(
+      (marker) => !(serverSource.includes(marker) || exporterSource.includes(marker)),
     );
     return {
       ok: missingMarkers.length === 0,
@@ -452,6 +489,7 @@ async function main() {
   const errorNormalizationCheck = checkErrorNormalization();
   const unhandledErrorTelemetryCheck = checkUnhandledErrorTelemetry();
   const metricsCheck = checkMetricsInstrumentation();
+  const gatewayErrorCircuitBreakerCheck = checkGatewayErrorCircuitBreaker();
   const healthzCheck = checkHealthzReadinessProbe();
   const runbookVisibilityCheck = checkReadinessRunbookVisibility();
 
@@ -467,6 +505,7 @@ async function main() {
     requestBodyGuardrails: requestBodyGuardrailsCheck,
     errorNormalization: errorNormalizationCheck,
     unhandledErrorTelemetry: unhandledErrorTelemetryCheck,
+    gatewayErrorCircuitBreaker: gatewayErrorCircuitBreakerCheck,
     healthzProbe: healthzCheck,
     readinessRunbookVisibility: runbookVisibilityCheck,
   };
@@ -543,6 +582,14 @@ async function main() {
     5,
     unhandledErrorTelemetryCheck.ok,
     unhandledErrorTelemetryCheck.details,
+  );
+  score += addGate(
+    gates,
+    "Gateway-level failure circuit",
+    "repeated failures can trip a dedicated request circuit breaker",
+    5,
+    gatewayErrorCircuitBreakerCheck.ok,
+    gatewayErrorCircuitBreakerCheck.details,
   );
   score += addGate(
     gates,
