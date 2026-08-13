@@ -41,6 +41,8 @@ function parseArgs() {
     qualityScorecardPath: ".tmp/quality-scorecard.json",
     drillPath: ".tmp/circuit-recovery-drill-dry-run.json",
     qualityVerificationPath: ".tmp/quality-ci-verification.json",
+    languagePolicyCheckPath: ".tmp/language-policy-check.json",
+    languagePolicyExpiryPath: ".tmp/language-policy-expiry.json",
     maxConsecutiveFailures: parsePositiveInteger(process.env.QUALITY_TREND_MAX_CONSECUTIVE_FAILURES, 3),
     maxScoreDropPoints: parsePositiveInteger(process.env.QUALITY_TREND_MAX_SCORE_DROP_POINTS, 20),
     minPassRatePercent: parsePositiveInteger(process.env.QUALITY_TREND_MIN_PASS_RATE_PERCENT, 70),
@@ -99,6 +101,16 @@ function parseArgs() {
     }
     if (arg === "--check") {
       values.trendCheckPath = args[index + 1] ?? values.trendCheckPath;
+      index += 1;
+      continue;
+    }
+    if (arg === "--language-policy-check") {
+      values.languagePolicyCheckPath = args[index + 1] ?? values.languagePolicyCheckPath;
+      index += 1;
+      continue;
+    }
+    if (arg === "--language-policy-expiry") {
+      values.languagePolicyExpiryPath = args[index + 1] ?? values.languagePolicyExpiryPath;
       index += 1;
       continue;
     }
@@ -233,6 +245,8 @@ function printUsage() {
     "  --summary <path>           Trend summary output path (default .tmp/quality-trend-summary.md)",
     "  --guardrail <path>         Guardrail output path (default .tmp/quality-trend-guardrail.json)",
     "  --check <path>             Trend-check output JSON path (default .tmp/quality-trend-check.json)",
+    "  --language-policy-check <path> Language policy check artifact path (default .tmp/language-policy-check.json)",
+    "  --language-policy-expiry <path> Language policy expiry artifact path (default .tmp/language-policy-expiry.json)",
     "  --recommendations <path>    Failure remediation output path (default .tmp/quality-trend-recommendations.md)",
     "  --incident-bundle <path>    Failure bundle markdown path (default .tmp/quality-trend-incident-bundle.md)",
     "  --incident-bundle-json <path> Failure bundle JSON path (default .tmp/quality-trend-incident-bundle.json)",
@@ -395,6 +409,10 @@ function buildTrendCheckArgs(options) {
     options.trendGuardrailPath,
     "--summary",
     options.trendSummaryPath,
+    "--language-policy-check",
+    options.languagePolicyCheckPath,
+    "--language-policy-expiry",
+    options.languagePolicyExpiryPath,
     "--max-summary-reasons",
     String(options.maxSummaryReasons),
     "--json",
@@ -800,6 +818,8 @@ function main() {
     options.trendPath,
     options.trendSummaryPath,
     options.trendGuardrailPath,
+    options.languagePolicyCheckPath,
+    options.languagePolicyExpiryPath,
     options.trendDigestPath,
     options.trendDigestJsonPath,
   ]);
