@@ -3,8 +3,10 @@ import { Readable } from "node:stream";
 import { describe, expect, it, vi } from "vitest";
 import { ROUTE_NOT_HANDLED } from "./httpRouteDispatch.js";
 import {
+  createOpenAiChatCompletionChunk,
   dispatchOpenAiCompatibilityRoutes,
   normalizeOpenAiChatCompletionRequest,
+  normalizeOpenAiCompletionRequest,
 } from "./openAiCompatibilityRoutes.js";
 
 const descriptors = [
@@ -40,6 +42,49 @@ describe("OpenAI compatibility routes", () => {
         unified_ai: expect.objectContaining({ execution_mode: "fake" }),
       }),
     ]);
+  });
+
+  it("returns a model detail record for GET /v1/models/{id}", async () => {
+    const response = createResponseRecorder();
+    await dispatchOpenAiCompatibilityRoutes(createContext({
+      method: "GET",
+      path: "/v1/models/local-fake-model",
+      response,
+    }));
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body.object).toBe("model");
+    expect(response.body.id).toBe("local-fake-model");
+    expect(response.body.owned_by).toBe("local-fake-provider");
+  });
+
+  it("returns an engine detail record for GET /v1/engines/{id}", async () => {
+    const response = createResponseRecorder();
+    await dispatchOpenAiCompatibilityRoutes(createContext({
+      method: "GET",
+      path: "/v1/engines/local-fake-model",
+      response,
+    }));
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body.object).toBe("engine");
+    expect(response.body.id).toBe("local-fake-model");
+    expect(response.body.owner).toBe("local-fake-provider");
+  });
+
+  it("returns route-detail 404 when the model id is unknown", async () => {
+    const response = createResponseRecorder();
+    await dispatchOpenAiCompatibilityRoutes(createContext({
+      method: "GET",
+      path: "/v1/models/missing-model",
+      response,
+    }));
+
+    expect(response.statusCode).toBe(404);
+    expect(response.body.error).toEqual(expect.objectContaining({
+      code: "model_not_found",
+      param: "model_id",
+    }));
   });
 
   it("maps text chat requests and local prompt enhancement to the gateway", async () => {
@@ -89,6 +134,214 @@ describe("OpenAI compatibility routes", () => {
     }));
   });
 
+  it("accepts trailing slash chat paths", async () => {
+    const response = createResponseRecorder();
+    const gatewayService = createGatewayService();
+    await dispatchOpenAiCompatibilityRoutes(createContext({
+      path: "/v1/chat/completions/",
+      body: {
+        model: "local-fake-model",
+        messages: [{ role: "user", content: "How do I normalize paths?" }],
+      },
+      gatewayService,
+      response,
+    }));
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body.object).toBe("chat.completion");
+    expect(gatewayService.execute).toHaveBeenCalledTimes(1);
+  });
+
+  it("accepts root alias model list path", async () => {
+    const response = createResponseRecorder();
+    await dispatchOpenAiCompatibilityRoutes(createContext({
+      method: "GET",
+      path: "/models",
+      response,
+    }));
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body.object).toBe("list");
+    expect(response.body.data).toEqual([
+      expect.objectContaining({
+        id: "local-fake-model",
+        object: "model",
+        owned_by: "local-fake-provider",
+        unified_ai: expect.objectContaining({ execution_mode: "fake" }),
+      }),
+    ]);
+  });
+
+  it("lists legacy engine entries for /v1/engines", async () => {
+    const response = createResponseRecorder();
+    await dispatchOpenAiCompatibilityRoutes(createContext({
+      method: "GET",
+      path: "/v1/engines",
+      response,
+    }));
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body.object).toBe("list");
+    expect(response.body.data).toEqual([
+      expect.objectContaining({
+        id: "local-fake-model",
+        object: "engine",
+        owned_by: "local-fake-provider",
+        unified_ai: expect.objectContaining({ execution_mode: "fake" }),
+      }),
+    ]);
+  });
+
+  it("accepts root alias engine list path", async () => {
+    const response = createResponseRecorder();
+    await dispatchOpenAiCompatibilityRoutes(createContext({
+      method: "GET",
+      path: "/engines",
+      response,
+    }));
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body.object).toBe("list");
+  });
+
+  it("supports root alias model detail path", async () => {
+    const response = createResponseRecorder();
+    await dispatchOpenAiCompatibilityRoutes(createContext({
+      method: "GET",
+      path: "/models/local-fake-model",
+      response,
+    }));
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body.object).toBe("model");
+    expect(response.body.id).toBe("local-fake-model");
+  });
+
+  it("accepts root client alias chat path without /v1", async () => {
+    const response = createResponseRecorder();
+    const gatewayService = createGatewayService();
+    await dispatchOpenAiCompatibilityRoutes(createContext({
+      path: "/chat/completions",
+      body: {
+        model: "local-fake-model",
+        messages: [{ role: "user", content: "Root alias check." }],
+      },
+      gatewayService,
+      response,
+    }));
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body.object).toBe("chat.completion");
+    expect(gatewayService.execute).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses Azure-style deployment path as model fallback for chat", async () => {
+    const response = createResponseRecorder();
+    const gatewayService = createGatewayService();
+    await dispatchOpenAiCompatibilityRoutes(createContext({
+      path: "/openai/deployments/local-fake-model/chat/completions/",
+      body: {
+        messages: [{ role: "user", content: "Run this query from deployment path." }],
+      },
+      gatewayService,
+      response,
+    }));
+
+    expect(response.statusCode).toBe(200);
+    const gatewayInput = gatewayService.execute.mock.calls[0][0];
+    expect(gatewayInput.model).toBe("local-fake-model");
+    expect(response.body.object).toBe("chat.completion");
+  });
+
+  it("uses Azure-style deployment path as model fallback for completions", async () => {
+    const response = createResponseRecorder();
+    const gatewayService = createGatewayService();
+    await dispatchOpenAiCompatibilityRoutes(createContext({
+      path: "/openai/deployments/local-fake-model/completions",
+      body: {
+        prompt: "Rewrite this sentence.",
+      },
+      gatewayService,
+      response,
+    }));
+
+    const gatewayInput = gatewayService.execute.mock.calls[0][0];
+    expect(gatewayInput.model).toBe("local-fake-model");
+    expect(response.statusCode).toBe(200);
+    expect(response.body.object).toBe("text_completion");
+  });
+
+  it("supports legacy engine chat/completions path with model inference", async () => {
+    const response = createResponseRecorder();
+    const gatewayService = createGatewayService();
+    await dispatchOpenAiCompatibilityRoutes(createContext({
+      path: "/v1/engines/local-fake-model/chat/completions",
+      body: {
+        messages: [{ role: "user", content: "Model comes from engine path." }],
+      },
+      gatewayService,
+      response,
+    }));
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body.object).toBe("chat.completion");
+    expect(gatewayService.execute).toHaveBeenCalledTimes(1);
+    expect(gatewayService.execute.mock.calls[0][0].model).toBe("local-fake-model");
+  });
+
+  it("supports legacy engine completions path with model inference", async () => {
+    const response = createResponseRecorder();
+    const gatewayService = createGatewayService();
+    await dispatchOpenAiCompatibilityRoutes(createContext({
+      path: "/v1/engines/local-fake-model/completions",
+      body: {
+        prompt: "Legacy engine completions path.",
+      },
+      gatewayService,
+      response,
+    }));
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body.object).toBe("text_completion");
+    expect(gatewayService.execute).toHaveBeenCalledTimes(1);
+    expect(gatewayService.execute.mock.calls[0][0].model).toBe("local-fake-model");
+  });
+
+  it("maps legacy completion prompts to the same gateway path", async () => {
+    const response = createResponseRecorder();
+    const gatewayService = createGatewayService();
+    await dispatchOpenAiCompatibilityRoutes(createContext({
+      body: {
+        model: "local-fake-model",
+        prompt: "Rewrite this request in better prose.",
+      },
+      path: "/v1/completions",
+      gatewayService,
+      response,
+    }));
+
+    const gatewayInput = gatewayService.execute.mock.calls[0][0];
+    expect(gatewayInput.providerId).toBe("local-fake-provider");
+    expect(gatewayInput.model).toBe("local-fake-model");
+    expect(gatewayInput.messages).toEqual([
+      { role: "user", content: "Rewrite this request in better prose." },
+    ]);
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body.object).toBe("text_completion");
+    expect(response.body.choices[0]).toEqual({
+      text: "[fake:local-fake-provider/local-fake-model] completed",
+      index: 0,
+      logprobs: null,
+      finish_reason: "stop",
+    });
+    expect(response.body.usage).toEqual({
+      prompt_tokens: 8,
+      completion_tokens: 4,
+      total_tokens: 12,
+    });
+  });
+
   it("emits OpenAI data-only SSE chunks followed by DONE", async () => {
     const response = createResponseRecorder();
     await dispatchOpenAiCompatibilityRoutes(createContext({
@@ -108,6 +361,44 @@ describe("OpenAI compatibility routes", () => {
     expect(response.text).toContain('"finish_reason":"stop"');
     expect(response.text).toMatch(/data: \[DONE\]\n\n$/);
     expect(response.text).not.toContain("event:");
+  });
+
+  it("emits a final estimated usage chunk when stream usage is requested", async () => {
+    const response = createResponseRecorder();
+    await dispatchOpenAiCompatibilityRoutes(createContext({
+      body: {
+        model: "local-fake-model",
+        messages: [{ role: "user", content: "Hello" }],
+        stream: true,
+        stream_options: { include_usage: true },
+      },
+      response,
+    }));
+
+    expect(response.statusCode).toBe(200);
+    expect(response.text).toContain('"choices":[],"usage":{');
+    expect(response.text).toContain('"usage_estimated":true');
+    expect(response.text).toMatch(/data: \[DONE\]\n\n$/);
+  });
+
+  it("streams legacy completion chunks in text_completion format", async () => {
+    const response = createResponseRecorder();
+    await dispatchOpenAiCompatibilityRoutes(createContext({
+      body: {
+        model: "local-fake-model",
+        prompt: "Build a migration plan",
+        stream: true,
+      },
+      path: "/v1/completions",
+      response,
+    }));
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers["Content-Type"]).toBe("text/event-stream");
+    expect(response.text).toContain('"object":"text_completion"');
+    expect(response.text).toContain('"text":"Hello"');
+    expect(response.text).toContain('"finish_reason":"stop"');
+    expect(response.text).toMatch(/data: \[DONE\]\n\n$/);
   });
 
   it("rejects unsupported multimodal content without calling a provider", async () => {
@@ -134,6 +425,63 @@ describe("OpenAI compatibility routes", () => {
       param: "messages[0].content[0]",
     }));
     expect(gatewayService.execute).not.toHaveBeenCalled();
+  });
+
+  it("accepts OpenAI JSON object and JSON schema response formats", () => {
+    const jsonObject = normalizeOpenAiChatCompletionRequest({
+      model: "local-fake-model",
+      messages: [{ role: "user", content: "Return JSON" }],
+      response_format: { type: "json_object" },
+    }, descriptors);
+    expect(jsonObject.options.responseFormat).toBe("json");
+    expect(jsonObject.metadata.openAiCompatibility.responseFormat).toEqual({
+      type: "json_object",
+    });
+
+    const jsonSchema = normalizeOpenAiChatCompletionRequest({
+      model: "local-fake-model",
+      messages: [{ role: "user", content: "Return typed JSON" }],
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "GatewayResult",
+          strict: true,
+          schema: {
+            type: "object",
+            properties: { ok: { type: "boolean" } },
+            required: ["ok"],
+          },
+        },
+      },
+    }, descriptors);
+    expect(jsonSchema.options.responseFormat).toBe("json");
+    expect(jsonSchema.metadata.openAiCompatibility.responseFormat).toEqual(
+      expect.objectContaining({ type: "json_schema" }),
+    );
+  });
+
+  it("rejects malformed or unsupported response formats", async () => {
+    for (const responseFormat of [
+      "json_object",
+      { type: "yaml" },
+      { type: "json_schema", json_schema: { name: "MissingSchema" } },
+    ]) {
+      const response = createResponseRecorder();
+      const gatewayService = createGatewayService();
+      await dispatchOpenAiCompatibilityRoutes(createContext({
+        body: {
+          model: "local-fake-model",
+          messages: [{ role: "user", content: "Hello" }],
+          response_format: responseFormat,
+        },
+        gatewayService,
+        response,
+      }));
+
+      expect(response.statusCode).toBe(400);
+      expect(response.body.error.type).toBe("invalid_request_error");
+      expect(gatewayService.execute).not.toHaveBeenCalled();
+    }
   });
 
   it("rejects invalid gateway extensions instead of silently ignoring them", async () => {
@@ -164,6 +512,32 @@ describe("OpenAI compatibility routes", () => {
 });
 
 describe("OpenAI request normalization", () => {
+  it("serializes streaming function-call deltas and finish reasons", () => {
+    const toolCallsDelta = [{
+      index: 0,
+      id: "call_1",
+      type: "function",
+      function: { name: "lookup", arguments: "{}" },
+    }];
+    const delta = createOpenAiChatCompletionChunk({
+      type: "chunk",
+      requestId: "req_1",
+      selectedModel: "local-fake-model",
+      rawProviderMeta: { toolCallsDelta, finishReason: "tool_calls" },
+    });
+    const done = createOpenAiChatCompletionChunk({
+      type: "done",
+      requestId: "req_1",
+      selectedModel: "local-fake-model",
+      rawProviderMeta: { toolCallsDelta, finishReason: "tool_calls" },
+    });
+
+    expect(delta.choices[0].delta.tool_calls).toEqual(toolCallsDelta);
+    expect(delta.choices[0].finish_reason).toBeNull();
+    expect(done.choices[0].delta).toEqual({});
+    expect(done.choices[0].finish_reason).toBe("tool_calls");
+  });
+
   it("accepts developer messages and text content parts", () => {
     const request = normalizeOpenAiChatCompletionRequest({
       model: "local-fake-model",
@@ -177,6 +551,103 @@ describe("OpenAI request normalization", () => {
       { role: "system", content: "Be concise" },
       { role: "user", content: "Hello" },
     ]);
+  });
+
+  it("treats SDK-serialized null optionals as unset", () => {
+    const request = normalizeOpenAiChatCompletionRequest({
+      model: "local-fake-model",
+      messages: [{ role: "user", content: "Hello" }],
+      tools: null,
+      tool_choice: null,
+      parallel_tool_calls: null,
+      logprobs: false,
+      top_logprobs: null,
+    }, descriptors);
+
+    expect(request.model).toBe("local-fake-model");
+  });
+
+  it("normalizes OpenAI function tools and tool selection", () => {
+    const request = normalizeOpenAiChatCompletionRequest({
+      model: "local-fake-model",
+      messages: [{ role: "user", content: "Inspect the workspace" }],
+      tools: [{
+        type: "function",
+        function: {
+          name: "read_file",
+          description: "Read one file",
+          parameters: {
+            type: "object",
+            properties: { path: { type: "string" } },
+            required: ["path"],
+          },
+          strict: true,
+        },
+      }],
+      tool_choice: { type: "function", function: { name: "read_file" } },
+      parallel_tool_calls: false,
+    }, descriptors);
+
+    expect(request.tools).toHaveLength(1);
+    expect(request.tools[0].function.name).toBe("read_file");
+    expect(request.toolChoice).toEqual({ type: "function", function: { name: "read_file" } });
+    expect(request.parallelToolCalls).toBe(false);
+    expect(request.metadata.openAiCompatibility.toolCount).toBe(1);
+  });
+
+  it("normalizes assistant tool calls and tool result messages", () => {
+    const request = normalizeOpenAiChatCompletionRequest({
+      model: "local-fake-model",
+      messages: [{
+        role: "assistant",
+        content: null,
+        tool_calls: [{
+          id: "call_1",
+          type: "function",
+          function: { name: "read_file", arguments: "{\"path\":\"README.md\"}" },
+        }],
+      }, {
+        role: "tool",
+        tool_call_id: "call_1",
+        content: "contents",
+      }],
+      tools: [{
+        type: "function",
+        function: { name: "read_file", parameters: { type: "object" } },
+      }],
+    }, descriptors);
+
+    expect(request.messages[0].toolCalls[0].id).toBe("call_1");
+    expect(request.messages[1].toolCallId).toBe("call_1");
+  });
+
+  it("rejects malformed tools and unknown named tool choices", () => {
+    expect(() => normalizeOpenAiChatCompletionRequest({
+      model: "local-fake-model",
+      messages: [{ role: "user", content: "Hello" }],
+      tools: [{ type: "function", function: { name: "bad name" } }],
+    }, descriptors)).toThrow(/function\.name/);
+
+    expect(() => normalizeOpenAiChatCompletionRequest({
+      model: "local-fake-model",
+      messages: [{ role: "user", content: "Hello" }],
+      tools: [{ type: "function", function: { name: "known_tool" } }],
+      tool_choice: { type: "function", function: { name: "missing_tool" } },
+    }, descriptors)).toThrow(/unknown tool/);
+  });
+
+  it("accepts completion prompts as string and array", () => {
+    const byString = normalizeOpenAiCompletionRequest({
+      model: "local-fake-model",
+      prompt: "Build this in plain text",
+    }, descriptors);
+    expect(byString.messages).toEqual([{ role: "user", content: "Build this in plain text" }]);
+
+    const byArray = normalizeOpenAiCompletionRequest({
+      model: "local-fake-model",
+      prompt: ["Build this", " in steps."],
+    }, descriptors);
+    expect(byArray.messages).toEqual([{ role: "user", content: "Build this in steps." }]);
   });
 });
 

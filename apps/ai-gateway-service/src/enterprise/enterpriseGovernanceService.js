@@ -6,13 +6,14 @@ import {
   createSanitizedUsers,
   findStoredUser,
   hashToken,
-  loadStoredUsers,
+  loadStoredUsers as jsonLoadStoredUsers,
   normalizeStoredUser,
   parseUsers,
   sanitizeIdentity,
   sanitizeUser,
-  saveStoredUsers,
+  saveStoredUsers as jsonSaveStoredUsers,
 } from "./enterpriseUserStore.js";
+import { createSqliteUserStoreBackend } from "./enterpriseUserStore-sqlite.js";
 import {
   filterAuditEntries,
   readAuditFile,
@@ -24,6 +25,13 @@ const DEFAULT_AUDIT_LIMIT = 200;
 export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {}) {
   const authEnabled = readBoolean(env.PME_ENTERPRISE_AUTH_ENABLED, Boolean(env.PME_AUTH_TOKEN || env.PME_ENTERPRISE_USERS_JSON || env.PME_ENTERPRISE_USER_STORE_PATH));
   const userStorePath = env.PME_ENTERPRISE_USER_STORE_PATH ?? resolve(".data/enterprise/users.json");
+  // Storage backend: "sqlite" uses node:sqlite (ACID + cross-process safe),
+  // default "json" keeps the original file backend (backwards compatible).
+  const userStoreBackend = env.PME_ENTERPRISE_USER_STORE_MODE === "sqlite"
+    ? createSqliteUserStoreBackend(userStorePath)
+    : null;
+  const loadStoredUsers = userStoreBackend ? userStoreBackend.loadStoredUsers : jsonLoadStoredUsers;
+  const saveStoredUsers = userStoreBackend ? userStoreBackend.saveStoredUsers : jsonSaveStoredUsers;
   const users = parseUsers(env);
   const storedUsers = loadStoredUsers(userStorePath);
   for (const user of storedUsers) {
@@ -110,7 +118,11 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
         storedUsers.push(normalized);
       }
 
-      saveStoredUsers(userStorePath, storedUsers);
+      if (userStoreBackend) {
+        userStoreBackend.upsert(normalized);
+      } else {
+        saveStoredUsers(userStorePath, storedUsers);
+      }
       addStoredUser(users, normalized);
 
       return {
@@ -132,7 +144,11 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
 
       target.revoked = true;
       target.updatedAt = new Date().toISOString();
-      saveStoredUsers(userStorePath, storedUsers);
+      if (userStoreBackend) {
+        userStoreBackend.upsert(target);
+      } else {
+        saveStoredUsers(userStorePath, storedUsers);
+      }
       addStoredUser(users, target);
 
       return {

@@ -145,11 +145,12 @@ export function mapGatewayRequestToChatCompletions(providerRequest) {
       )
       .map((message) => {
         const mapped = { role: message.role, content: message.content || "" };
-        if (message.role === "assistant" && Array.isArray(message.tool_calls)) {
-          mapped.tool_calls = message.tool_calls;
+        const toolCalls = message.toolCalls ?? message.tool_calls;
+        if (message.role === "assistant" && Array.isArray(toolCalls)) {
+          mapped.tool_calls = toolCalls;
         }
         if (message.role === "tool") {
-          mapped.tool_call_id = message.tool_call_id || "";
+          mapped.tool_call_id = message.toolCallId ?? message.tool_call_id ?? "";
           if (message.name) mapped.name = message.name;
         }
         return mapped;
@@ -166,6 +167,13 @@ export function mapGatewayRequestToChatCompletions(providerRequest) {
   }
   if (request.toolChoice) {
     body.tool_choice = request.toolChoice;
+  }
+  if (typeof request.parallelToolCalls === "boolean") {
+    body.parallel_tool_calls = request.parallelToolCalls;
+  }
+  const responseFormat = request.metadata?.openAiCompatibility?.responseFormat;
+  if (responseFormat) {
+    body.response_format = responseFormat;
   }
 
   if (target.providerId === "mimo") {
@@ -252,9 +260,12 @@ function parseStreamLine(line) {
 
   try {
     const parsed = JSON.parse(data);
-    const textDelta = parsed?.choices?.[0]?.delta?.content ?? "";
+    const choice = parsed?.choices?.[0];
+    const textDelta = choice?.delta?.content ?? "";
+    const toolCallsDelta = choice?.delta?.tool_calls;
+    const finishReason = choice?.finish_reason;
 
-    if (!textDelta) {
+    if (!textDelta && !Array.isArray(toolCallsDelta) && !finishReason) {
       return null;
     }
 
@@ -263,7 +274,8 @@ function parseStreamLine(line) {
       raw: {
         id: parsed?.id,
         model: parsed?.model,
-        finishReason: parsed?.choices?.[0]?.finish_reason,
+        finishReason,
+        ...(Array.isArray(toolCallsDelta) ? { toolCallsDelta } : {}),
       },
     };
   } catch {

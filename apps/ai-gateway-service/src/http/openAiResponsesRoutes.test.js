@@ -67,6 +67,57 @@ describe("OpenAI Responses compatibility routes", () => {
     }));
   });
 
+  it("supports Azure-style Responses path and infers deployment model", async () => {
+    const response = createResponseRecorder();
+    const gatewayService = createGatewayService();
+    await dispatchOpenAiResponsesRoutes(createContext({
+      path: "/openai/deployments/local-fake-model/responses",
+      body: {
+        input: "Draft a concise checklist.",
+      },
+      gatewayService,
+      response,
+    }));
+
+    const gatewayInput = gatewayService.execute.mock.calls[0][0];
+    expect(gatewayInput.model).toBe("local-fake-model");
+    expect(response.statusCode).toBe(200);
+    expect(response.body.object).toBe("response");
+  });
+
+  it("accepts trailing slash for responses path", async () => {
+    const response = createResponseRecorder();
+    await dispatchOpenAiResponsesRoutes(createContext({
+      path: "/v1/responses/",
+      body: {
+        model: "local-fake-model",
+        input: "Trim my wording.",
+      },
+      response,
+    }));
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body.object).toBe("response");
+  });
+
+  it("accepts root responses path without /v1", async () => {
+    const response = createResponseRecorder();
+    const gatewayService = createGatewayService();
+    await dispatchOpenAiResponsesRoutes(createContext({
+      path: "/responses",
+      body: {
+        model: "local-fake-model",
+        input: "Use root responses path.",
+      },
+      gatewayService,
+      response,
+    }));
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body.object).toBe("response");
+    expect(response.body.model).toBe("local-fake-model");
+  });
+
   it("emits Responses SSE events and a completed response", async () => {
     const response = createResponseRecorder();
     await dispatchOpenAiResponsesRoutes(createContext({
@@ -160,14 +211,14 @@ describe("OpenAI Responses request normalization", () => {
   });
 });
 
-function createContext({ body, gatewayService = createGatewayService(), response }) {
+function createContext({ body, gatewayService = createGatewayService(), response, path = "/v1/responses" }) {
   const request = Readable.from([Buffer.from(JSON.stringify(body))]);
   request.method = "POST";
   return {
     request,
     response,
     startedAt: Date.now(),
-    url: new URL("http://127.0.0.1/v1/responses"),
+    url: new URL(`http://127.0.0.1${path}`),
     gatewayService,
     writeServiceLog: vi.fn(),
   };

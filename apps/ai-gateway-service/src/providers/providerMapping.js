@@ -16,6 +16,7 @@ export function createProviderResponse({
   latencyMs,
   executionStatus = "success",
   warnings = [],
+  toolCalls,
   raw,
 }) {
   return {
@@ -25,6 +26,7 @@ export function createProviderResponse({
     latencyMs,
     executionStatus,
     warnings,
+    ...(Array.isArray(toolCalls) ? { toolCalls } : {}),
     raw,
   };
 }

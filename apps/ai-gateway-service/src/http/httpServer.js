@@ -174,6 +174,7 @@ import {
   isOpenAiCompatibilityRoute,
 } from "./openAiCompatibilityRoutes.js";
 import { dispatchOpenAiResponsesRoutes } from "./openAiResponsesRoutes.js";
+import { dispatchMultimodalRoutes } from "./multimodalRoutes.js";
 import { dispatchHttpRoutes01 } from "./httpServerRoutes01.js";
 import { dispatchHttpRoutes02 } from "./httpServerRoutes02.js";
 import { dispatchHttpRoutes03 } from "./httpServerRoutes03.js";
@@ -208,6 +209,7 @@ const HTTP_ROUTE_DEPENDENCIES = Object.freeze({
 const HTTP_ROUTE_GROUPS = Object.freeze([
   dispatchA2ARoutes,
   dispatchPromptEnhancementRoutes,
+  dispatchMultimodalRoutes,
   dispatchOpenAiCompatibilityRoutes,
   dispatchOpenAiResponsesRoutes,
   dispatchHttpRoutes01,
@@ -226,6 +228,7 @@ export function createGatewayHttpServer(application) {
   const rateLimiter = createRateLimiter({ windowMs: 60_000, maxRequests: 120 });
   const a2aGateway = createA2AGateway({
     gatewayService,
+    workforceService: application.workforceService,
     env: { ...process.env, ...application.runtimeEnv },
   });
 
@@ -241,7 +244,7 @@ export function createGatewayHttpServer(application) {
       .map((origin) => origin.trim())
       .filter(Boolean),
     authenticate(request) {
-      return enterpriseGovernanceService.authorize(request, "chat:use").allowed;
+      return enterpriseGovernanceService.authorize(request, "chat:use");
     },
     onConnection(ws) {
       logger.info("ws_connected", { connectionCount: wsServer.getConnectionCount() });
@@ -253,7 +256,7 @@ export function createGatewayHttpServer(application) {
         if (data.type === "chat" && data.prompt) {
           const result = await gatewayService.execute({
             messages: [{ role: "user", content: data.prompt }],
-            metadata: { source: "websocket" },
+            metadata: { source: "websocket", userId: ws.identity?.userId },
           });
           ws.send(JSON.stringify({ type: "chat_response", data: result }));
         } else if (data.type === "ping") {

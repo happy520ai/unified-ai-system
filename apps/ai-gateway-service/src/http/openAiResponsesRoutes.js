@@ -11,6 +11,8 @@ import {
 import { readJson, writeJson, writeSseHeaders } from "./utils/responseUtils.js";
 
 export const RESPONSES_PATH = "/v1/responses";
+const OPENAI_AZURE_RESPONSES = /^\/openai\/deployments\/([^/]+)\/responses\/?$/;
+const RESPONSES_PATH_ALIAS = "/responses";
 
 const UNSUPPORTED_RESPONSE_FIELDS = Object.freeze([
   ["background", (value) => value === false || value === null],
@@ -36,6 +38,22 @@ const UNSUPPORTED_RESPONSE_FIELDS = Object.freeze([
   ["prompt_cache_retention", (value) => value === null],
 ]);
 
+function normalizeOpenAiResponsesPath(pathname) {
+  const path = typeof pathname === "string" ? pathname : "";
+  const noTrailingSlash = path.length > 1 ? path.replace(/\/+$/, "") : path;
+  const azureMatch = noTrailingSlash.match(OPENAI_AZURE_RESPONSES);
+  if (azureMatch) {
+    return { path: RESPONSES_PATH, modelFromPath: azureMatch[1] };
+  }
+  if (noTrailingSlash === RESPONSES_PATH_ALIAS) {
+    return { path: RESPONSES_PATH };
+  }
+  if (noTrailingSlash === "/v1" || noTrailingSlash.startsWith("/v1/")) {
+    return { path: noTrailingSlash };
+  }
+  return { path: noTrailingSlash };
+}
+
 export async function dispatchOpenAiResponsesRoutes(context) {
   const {
     gatewayService,
@@ -45,8 +63,12 @@ export async function dispatchOpenAiResponsesRoutes(context) {
     url,
     writeServiceLog,
   } = context;
+  const normalized = normalizeOpenAiResponsesPath(url.pathname);
 
-  if (request.method !== "POST" || url.pathname !== RESPONSES_PATH) {
+  if (
+    request.method !== "POST"
+    || normalized.path !== RESPONSES_PATH
+  ) {
     return ROUTE_NOT_HANDLED;
   }
 
@@ -62,16 +84,27 @@ export async function dispatchOpenAiResponsesRoutes(context) {
     return;
   }
 
+  const shouldInjectModel = (
+    normalized.modelFromPath
+    && body
+    && typeof body === "object"
+    && !Array.isArray(body)
+    && !body.model
+  );
+  const normalizedBody = shouldInjectModel
+    ? { ...body, model: normalized.modelFromPath }
+    : body;
+
   let gatewayInput;
   try {
     gatewayInput = normalizeOpenAiResponseRequest(
-      body,
+      normalizedBody,
       gatewayService.getProviderDescriptors(),
     );
   } catch (error) {
     writeServiceLog?.("openai_response_validation_failed", {
       method: request.method,
-      path: url.pathname,
+      path: normalized.path,
       code: error?.code,
       param: error?.param,
       durationMs: Date.now() - startedAt,
@@ -80,9 +113,9 @@ export async function dispatchOpenAiResponsesRoutes(context) {
     return;
   }
 
-  if (body.stream === true) {
+  if (normalizedBody.stream === true) {
     await streamOpenAiResponse({
-      body,
+      body: normalizedBody,
       gatewayInput,
       gatewayService,
       request,
@@ -102,7 +135,7 @@ export async function dispatchOpenAiResponsesRoutes(context) {
     };
     writeServiceLog?.("openai_response_failed", {
       method: request.method,
-      path: url.pathname,
+      path: normalized.path,
       code: error.code,
       durationMs: Date.now() - startedAt,
     });
@@ -111,13 +144,13 @@ export async function dispatchOpenAiResponsesRoutes(context) {
   }
 
   const openAiResponse = createOpenAiResponse(result, {
-    body,
+    body: normalizedBody,
     createdAt: Math.floor(startedAt / 1000),
     promptEnhancement: gatewayInput.metadata?.promptEnhancement,
   });
   writeServiceLog?.("openai_response_completed", {
     method: request.method,
-    path: url.pathname,
+    path: normalized.path,
     provider: result.data?.selectedProvider,
     model: result.data?.selectedModel,
     executionMode: result.data?.executionMode,

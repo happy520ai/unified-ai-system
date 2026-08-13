@@ -1,11 +1,17 @@
 import { describe, it, expect, beforeAll } from "vitest";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { createWorkforceService } from "./workforceService.js";
 
 describe("workforce-service", () => {
   let service;
 
   beforeAll(() => {
-    service = createWorkforceService();
+    // Isolate the plan store so the test never touches the shared default
+    // store path, which can EPERM under sandboxed filesystems.
+    const storePath = join(mkdtempSync(join(tmpdir(), "workforce-svc-")), "workforce-plans.json");
+    service = createWorkforceService({ env: { WORKFORCE_PLAN_STORE_PATH: storePath } });
   });
 
   it("reports health as ready", () => {

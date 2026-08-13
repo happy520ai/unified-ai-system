@@ -33,7 +33,7 @@ const representativeEntries = [
   {
     providerId: "anthropic",
     modelId: "claude-sonnet-4.5",
-    availableForChat: false,
+    availableForChat: true,
     testOnly: false,
     capabilities: ["chat", "vision", "coding", "reasoning", "tool-use", "summary"],
   },

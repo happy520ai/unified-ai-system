@@ -104,4 +104,39 @@ describe("websocket server", () => {
     expect(websocket.getConnectionCount()).toBe(1);
     socket.emit("close");
   });
+
+  it("preserves the authenticated identity on the connection", async () => {
+    const transport = new EventEmitter();
+    const websocket = createWebSocketServer({
+      authenticate: async () => ({ allowed: true, identity: { userId: "alice" } }),
+    });
+    websocket.attach(transport);
+    const socket = new MockSocket();
+
+    upgrade(transport, socket);
+    await new Promise(setImmediate);
+
+    expect(socket.writes.join("")).toContain("101 Switching Protocols");
+    const connections = websocket.getConnections();
+    expect(connections.size).toBe(1);
+    const ws = [...connections][0];
+    expect(ws.identity).toEqual({ userId: "alice" });
+
+    socket.emit("close");
+  });
+
+  it("rejects an object auth result with allowed:false", async () => {
+    const transport = new EventEmitter();
+    const websocket = createWebSocketServer({
+      authenticate: async () => ({ allowed: false, identity: { userId: "bob" } }),
+    });
+    websocket.attach(transport);
+    const socket = new MockSocket();
+
+    upgrade(transport, socket);
+    await new Promise(setImmediate);
+
+    expect(socket.writes.join("")).toContain("401 Unauthorized");
+    expect(socket.destroyed).toBe(true);
+  });
 });

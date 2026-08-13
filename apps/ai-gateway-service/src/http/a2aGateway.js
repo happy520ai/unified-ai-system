@@ -66,8 +66,9 @@ function readTextMessage(message) {
 }
 
 class GatewayAgentExecutor {
-  constructor(gatewayService) {
+  constructor(gatewayService, workforceService = null) {
     this.gatewayService = gatewayService;
+    this.workforceService = workforceService;
     this.cancelledTaskIds = new Set();
     this.taskContexts = new Map();
   }
@@ -96,7 +97,51 @@ class GatewayAgentExecutor {
       }));
 
       const input = readTextMessage(userMessage);
-      const enhancement = requestContext.request.metadata?.unifiedAi?.promptEnhancement;
+      const unifiedAiMeta = requestContext.request.metadata?.unifiedAi ?? {};
+      const enhancement = unifiedAiMeta.promptEnhancement;
+      const executionMode = unifiedAiMeta.executionMode ?? "fake-provider";
+
+      // Workforce mode: route to workforce agent execution instead of gateway chat
+      if (executionMode === "workforce" && this.workforceService) {
+        const workforceResult = await this.workforceService.execute({
+          goal: input,
+          context: { source: "a2a-v1", taskId, contextId },
+        });
+
+        if (this.cancelledTaskIds.has(taskId)) return;
+
+        const workforceText = formatWorkforceResult(workforceResult);
+        const completionMessage = agentMessage({ contextId, taskId, text: workforceText });
+
+        eventBus.publish(AgentEvent.artifactUpdate({
+          taskId,
+          contextId,
+          artifact: {
+            artifactId: randomUUID(),
+            name: "workforce-analysis",
+            description: "Workforce role-based analysis from Unified AI System.",
+            parts: [textPart(workforceText)],
+            metadata: {
+              executionMode: "workforce",
+              llmDriven: workforceResult.llmDriven ?? false,
+              roleCount: Object.keys(workforceResult.roleOutputs ?? {}).length,
+            },
+            extensions: [],
+          },
+          append: false,
+          lastChunk: true,
+          metadata: {},
+        }));
+        eventBus.publish(AgentEvent.statusUpdate({
+          taskId,
+          contextId,
+          status: status(TaskState.TASK_STATE_COMPLETED, completionMessage),
+          metadata: {},
+        }));
+        return;
+      }
+
+      // Default: fake-provider chat path (unchanged for backward compatibility)
       let gatewayInput = {
         taskType: "chat",
         messages: [{ role: "user", content: input }],
@@ -200,7 +245,7 @@ function normalizePublicBaseUrl(env) {
   return url.toString().replace(/\/+$/, "");
 }
 
-export function createA2AGateway({ gatewayService, env = process.env }) {
+export function createA2AGateway({ gatewayService, workforceService = null, env = process.env }) {
   const publicBaseUrl = normalizePublicBaseUrl(env);
   const enterpriseAuthEnabled = env.PME_ENTERPRISE_AUTH_ENABLED === "true";
   const securitySchemes = enterpriseAuthEnabled
@@ -223,7 +268,7 @@ export function createA2AGateway({ gatewayService, env = process.env }) {
   const agentCard = {
     name: "Unified AI System Gateway Agent",
     description:
-      "A governed A2A v1.0 gateway agent for credential-free fake-provider tasks and optional local prompt enhancement.",
+      "A governed A2A v1.0 gateway agent for credential-free fake-provider tasks, optional local prompt enhancement, and workforce role-based analysis.",
     supportedInterfaces: [
       {
         url: `${publicBaseUrl}${A2A_JSONRPC_PATH}`,
@@ -272,13 +317,24 @@ export function createA2AGateway({ gatewayService, env = process.env }) {
         outputModes: ["text/plain"],
         securityRequirements,
       },
+      {
+        id: "workforce-analysis",
+        name: "Workforce role-based analysis",
+        description:
+          "Execute a goal through 7 specialized workforce roles (CEO, PM, Architect, Frontend, Backend, QA, Reviewer) when executionMode=workforce is set in message metadata.",
+        tags: ["workforce", "analysis", "multi-role", "planning"],
+        examples: ["Analyze this project goal from multiple role perspectives"],
+        inputModes: ["text/plain"],
+        outputModes: ["text/plain"],
+        securityRequirements,
+      },
     ],
     signatures: [],
   };
   const requestHandler = new DefaultRequestHandler(
     agentCard,
     new InMemoryTaskStore(),
-    new GatewayAgentExecutor(gatewayService),
+    new GatewayAgentExecutor(gatewayService, workforceService),
   );
   return {
     agentCard,
@@ -287,6 +343,44 @@ export function createA2AGateway({ gatewayService, env = process.env }) {
     requestHandler,
     transportHandler: new JsonRpcTransportHandler(requestHandler),
   };
+}
+
+function formatWorkforceResult(result) {
+  const lines = [
+    `# Workforce Analysis${result.llmDriven ? " (LLM-Enhanced)" : " (Template)"}`,
+    "",
+    `Goal: ${result.goal ?? "N/A"}`,
+    `Status: ${result.status ?? "completed"}`,
+    "",
+  ];
+
+  const roleOutputs = result.roleOutputs ?? {};
+  for (const [roleId, output] of Object.entries(roleOutputs)) {
+    lines.push(`## ${roleId}`);
+    if (output?.roleMeta?.goal) {
+      lines.push(`Goal: ${output.roleMeta.goal}`);
+    }
+    const summary = output?.summary ?? output?.roleMeta?.goal ?? "Analysis completed";
+    lines.push(summary);
+    lines.push("");
+  }
+
+  if (result.crossRoleDependencies?.length) {
+    lines.push("## Cross-Role Dependencies");
+    for (const dep of result.crossRoleDependencies) {
+      lines.push(`- ${dep.from} → ${dep.to}: ${dep.dependency}`);
+    }
+    lines.push("");
+  }
+
+  if (result.llmStats) {
+    lines.push("## LLM Statistics");
+    lines.push(`- Total calls: ${result.llmStats.totalCalls ?? 0}`);
+    lines.push(`- Successful: ${result.llmStats.successfulCalls ?? 0}`);
+    lines.push(`- Fallbacks: ${result.llmStats.fallbackCalls ?? 0}`);
+  }
+
+  return lines.join("\n");
 }
 
 export const a2aGatewayInternals = {

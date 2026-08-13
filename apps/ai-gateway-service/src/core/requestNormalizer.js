@@ -56,7 +56,8 @@ function normalizeMessages(messages) {
       role: normalizeRole(message.role),
       content: message.content,
       name: message.name,
-      toolCallId: message.toolCallId,
+      toolCallId: message.toolCallId ?? message.tool_call_id,
+      toolCalls: message.toolCalls ?? message.tool_calls,
       metadata: message.metadata ?? {},
     };
   });

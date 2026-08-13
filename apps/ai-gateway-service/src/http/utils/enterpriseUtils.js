@@ -103,6 +103,11 @@ export async function readEnterpriseReleaseCandidateDryRun() {
   };
 }
 
+function normalizePermissionPath(pathname) {
+  const path = typeof pathname === "string" ? pathname : "";
+  return path.length > 1 ? path.replace(/\/+$/, "") : path;
+}
+
 export async function readEnterpriseOverview(application) {
   const [acceptanceReport, releaseCandidate] = await Promise.all([
     readEnterpriseAcceptanceReport(),
@@ -266,130 +271,167 @@ export function buildPhase319FeatureStatus() {
 }
 
 export function resolvePermission(method, pathname) {
-  if (isPublicRoute(pathname)) {
+  const normalizedPath = normalizePermissionPath(pathname);
+  const normalizedMethod = (method || "").toUpperCase();
+
+  if (isPublicRoute(normalizedPath)) {
     return "public:read";
   }
 
-  if (pathname === "/enterprise/session") {
+  if (normalizedPath === "/enterprise/session") {
     return "session:read";
   }
 
-  if (pathname === "/enterprise/roles") {
+  if (normalizedPath === "/enterprise/roles") {
     return "audit:read";
   }
 
-  if (pathname === "/enterprise/users" || pathname === "/enterprise/users/revoke") {
+  if (normalizedPath === "/enterprise/users" || normalizedPath === "/enterprise/users/revoke") {
     return "user:admin";
   }
 
-  if (pathname === "/enterprise/security/readiness") {
+  if (normalizedPath === "/enterprise/security/readiness") {
     return "audit:read";
   }
 
-  if (pathname === "/enterprise/audit" || pathname === "/enterprise/audit/export") {
+  if (normalizedPath === "/enterprise/audit" || normalizedPath === "/enterprise/audit/export") {
     return "audit:read";
   }
 
-  if (pathname === "/enterprise/acceptance/report" || pathname === "/enterprise/release-candidate/dry-run" || pathname === "/enterprise/overview") {
+  if (normalizedPath === "/enterprise/acceptance/report" || normalizedPath === "/enterprise/release-candidate/dry-run" || normalizedPath === "/enterprise/overview") {
     return "audit:read";
   }
 
-  if (pathname === "/enterprise/deployment/readiness" || pathname === "/enterprise/startup/readiness") {
+  if (normalizedPath === "/enterprise/deployment/readiness" || normalizedPath === "/enterprise/startup/readiness") {
     return "audit:read";
   }
 
-  if (pathname === "/enterprise/backup" || pathname === "/enterprise/restore/validate") {
+  if (normalizedPath === "/enterprise/backup" || normalizedPath === "/enterprise/restore/validate") {
     return "user:admin";
   }
 
   if (
-    pathname === "/dashboard/status" ||
-    pathname === "/workflow/health" ||
-    pathname === "/workflow/actions" ||
-    pathname === "/workforce/health" ||
-    pathname === "/workforce/agents" ||
-    (method === "GET" && (pathname === "/workforce/plans" || /^\/workforce\/plans\/[^/]+(\/export|\/review-package)?$/.test(pathname)))
+    normalizedPath === "/dashboard/status" ||
+    normalizedPath === "/metrics" ||
+    normalizedPath === "/observability/status" ||
+    normalizedPath === "/workflow/health" ||
+    normalizedPath === "/workflow/actions" ||
+    normalizedPath === "/workforce/health" ||
+    normalizedPath === "/workforce/agents" ||
+    (normalizedMethod === "GET" && (normalizedPath === "/workforce/plans" || /^\/workforce\/plans\/[^/]+(\/export|\/review-package)?$/.test(normalizedPath)))
   ) {
     return "dashboard:read";
   }
 
   if (
-    pathname === "/providers" ||
-    pathname === "/providers/runtime-credential/detect" ||
-    pathname === "/config/runtime" ||
-    pathname === "/route/modes" ||
-    pathname === "/models/import/providers" ||
-    pathname === "/models/capability-router/status" ||
-    pathname === "/models/capability-router/preview" ||
-    pathname === "/cost/health" ||
-    pathname === "/cost/estimate" ||
-    pathname === "/cost/guard/check" ||
-    pathname === "/cost/summary" ||
-    pathname === "/cache/health" ||
-    pathname === "/cache/lookup" ||
-    pathname === "/cache/write" ||
-    pathname === "/cache/invalidate" ||
-    pathname === "/cache/summary" ||
-    pathname === "/cache/audit" ||
-    pathname === "/routing/answer-path/preview" ||
-    pathname === "/routing/quality-cost/preview" ||
-    (method === "GET" && (pathname === "/codex-handoff/next-task" || pathname === "/codex-loop/status" || pathname === "/v1/models"))
+    normalizedPath === "/providers" ||
+    normalizedPath === "/providers/runtime-credential/detect" ||
+    normalizedPath === "/config/runtime" ||
+    normalizedPath === "/route/modes" ||
+    normalizedPath === "/models/import/providers" ||
+    normalizedPath === "/models/capability-router/status" ||
+    normalizedPath === "/models/capability-router/preview" ||
+    normalizedPath === "/cost/health" ||
+    normalizedPath === "/cost/estimate" ||
+    normalizedPath === "/cost/guard/check" ||
+    normalizedPath === "/cost/summary" ||
+    normalizedPath === "/usage/summary" ||
+    normalizedPath === "/usage/logs" ||
+    normalizedPath === "/cache/health" ||
+    normalizedPath === "/cache/lookup" ||
+    normalizedPath === "/cache/write" ||
+    normalizedPath === "/cache/invalidate" ||
+    normalizedPath === "/cache/summary" ||
+    normalizedPath === "/cache/audit" ||
+    normalizedPath === "/routing/answer-path/preview" ||
+    normalizedPath === "/routing/quality-cost/preview" ||
+    (normalizedMethod === "GET" && (normalizedPath === "/codex-handoff/next-task" || normalizedPath === "/codex-loop/status" || normalizedPath === "/v1/models" || normalizedPath === "/models" || normalizedPath === "/v1/engines" || normalizedPath === "/engines"))
+    || (normalizedMethod === "GET" && /^\/v1\/models\/[^/]+$/.test(normalizedPath))
+    || (normalizedMethod === "GET" && /^\/models\/[^/]+$/.test(normalizedPath))
+    || (normalizedMethod === "GET" && /^\/v1\/engines\/[^/]+$/.test(normalizedPath))
+    || (normalizedMethod === "GET" && /^\/engines\/[^/]+$/.test(normalizedPath))
   ) {
     return "provider:read";
   }
 
-  if (pathname === "/providers/runtime-credential" || pathname === "/models/import/preview" || pathname === "/models/import/confirm") {
+  if (normalizedPath === "/providers/runtime-credential" || normalizedPath === "/models/import/preview" || normalizedPath === "/models/import/confirm") {
     return "provider:write";
   }
 
-  if (pathname.startsWith("/knowledge/") && method === "GET") {
+  if (normalizedPath.startsWith("/knowledge/") && normalizedMethod === "GET") {
     return "knowledge:read";
   }
 
-  if (pathname === "/knowledge/load" || pathname === "/knowledge/load/file") {
+  if (normalizedPath === "/knowledge/load" || normalizedPath === "/knowledge/load/file") {
     return "knowledge:write";
   }
 
-  if (pathname === "/knowledge/retrieve" || pathname === "/knowledge/graph/retrieve") {
+  if (normalizedPath === "/knowledge/retrieve" || normalizedPath === "/knowledge/graph/retrieve") {
     return "knowledge:read";
   }
 
-  if (pathname === "/memory/save") {
+  if (normalizedPath === "/memory/save") {
     return "memory:write";
   }
 
-  if (pathname === "/memory/list" || pathname === "/memory/retrieve") {
+  if (normalizedPath === "/memory/list" || normalizedPath === "/memory/retrieve") {
     return "knowledge:read";
   }
 
-  if (pathname === "/connectors" || pathname === "/connectors/import/text") {
-    return pathname === "/connectors" ? "provider:read" : "connector:write";
+  if (normalizedPath === "/connectors" || normalizedPath === "/connectors/import/text") {
+    return normalizedPath === "/connectors" ? "provider:read" : "connector:write";
   }
 
-  if (pathname === "/evaluation/score") {
+  if (normalizedPath === "/evaluation/score") {
     return "evaluation:run";
   }
 
-  if (pathname === "/workflow/plan" || pathname === "/workflow/run") {
+  if (normalizedPath === "/workflow/plan" || normalizedPath === "/workflow/run") {
     return "workflow:run";
   }
 
-  if (method === "POST" && pathname === "/codex-handoff/next-task") {
+  if (normalizedMethod === "POST" && normalizedPath === "/codex-handoff/next-task") {
     return "workflow:run";
   }
 
   if (
-    pathname === "/workforce/plan" ||
-    pathname === "/workforce/run-local" ||
-    pathname === "/real-capabilities/activate-five" ||
-    pathname === "/workforce/plans/save" ||
-    (method === "POST" && /^\/workforce\/plans\/[^/]+\/(clarifications|lifecycle|approval-gate)$/.test(pathname)) ||
-    (method === "DELETE" && /^\/workforce\/plans\/[^/]+$/.test(pathname))
+    normalizedPath === "/workforce/plan" ||
+    normalizedPath === "/workforce/run-local" ||
+    normalizedPath === "/real-capabilities/activate-five" ||
+    normalizedPath === "/workforce/plans/save" ||
+    (normalizedMethod === "POST" && /^\/workforce\/plans\/[^/]+\/(clarifications|lifecycle|approval-gate)$/.test(normalizedPath)) ||
+    (normalizedMethod === "DELETE" && /^\/workforce\/plans\/[^/]+$/.test(normalizedPath))
   ) {
     return "workflow:run";
   }
 
-  if (pathname === "/prompts/enhance" || pathname === "/v1/chat/completions" || pathname === "/v1/responses" || pathname === "/a2a/jsonrpc" || pathname === "/chat" || pathname === "/chat/stream" || pathname === "/chat/rag" || pathname === "/chat/rag/stream" || pathname === "/route" || pathname === "/gateway/route" || pathname === "/gateway/mock") {
+  if (
+    normalizedPath === "/v1/images/generations" ||
+    normalizedPath === "/images/generations" ||
+    normalizedPath === "/v1/embeddings" ||
+    normalizedPath === "/embeddings" ||
+    normalizedPath === "/v1/audio/speech" ||
+    normalizedPath === "/audio/speech" ||
+    normalizedPath === "/v1/audio/transcriptions" ||
+    normalizedPath === "/audio/transcriptions" ||
+    /^\/openai\/deployments\/[^/]+\/(chat\/completions|completions|responses)(\/?)$/.test(normalizedPath) ||
+    /^\/v1\/engines\/[^/]+\/(chat\/completions|completions)(\/?)$/.test(normalizedPath) ||
+    normalizedPath === "/chat/completions" ||
+    normalizedPath === "/completions" ||
+    normalizedPath === "/responses" ||
+    normalizedPath === "/prompts/enhance"
+    || normalizedPath === "/v1/chat/completions"
+    || normalizedPath === "/v1/completions"
+    || normalizedPath === "/v1/responses"
+    || normalizedPath === "/a2a/jsonrpc"
+    || normalizedPath === "/chat"
+    || normalizedPath === "/chat/stream"
+    || normalizedPath === "/chat/rag"
+    || normalizedPath === "/chat/rag/stream"
+    || normalizedPath === "/route"
+    || normalizedPath === "/gateway/route"
+    || normalizedPath === "/gateway/mock"
+  ) {
     return "chat:use";
   }
 

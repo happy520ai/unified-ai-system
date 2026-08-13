@@ -53,12 +53,20 @@ export function createWebSocketServer(options = {}) {
         return;
       }
 
+      let identity = null;
       if (options.authenticate) {
         try {
-          const authorized = await options.authenticate(request);
+          const auth = await options.authenticate(request);
+          // Accept either a boolean (legacy) or { allowed, identity } object.
+          const authorized = auth && typeof auth === "object"
+            ? auth.allowed !== false
+            : Boolean(auth);
           if (!authorized) {
             rejectUpgrade(socket, "401 Unauthorized");
             return;
+          }
+          if (auth && typeof auth === "object") {
+            identity = auth.identity ?? null;
           }
         } catch (error) {
           reportError(error, { event: "ws_authentication_failed" });
@@ -100,6 +108,7 @@ export function createWebSocketServer(options = {}) {
       );
 
       const ws = createWebSocketConnection(socket, reportError);
+      if (identity) ws.identity = identity;
       connections.add(ws);
 
       if (options.onConnection) {

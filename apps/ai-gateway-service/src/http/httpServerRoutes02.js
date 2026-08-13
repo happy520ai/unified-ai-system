@@ -1,4 +1,5 @@
 import { ROUTE_NOT_HANDLED } from "./httpRouteDispatch.js";
+import { createPrometheusExporter } from "../observability/prometheusExporter.js";
 
 export async function dispatchHttpRoutes02(context) {
   const {
@@ -56,6 +57,62 @@ export async function dispatchHttpRoutes02(context) {
 
   if (request.method === "GET" && url.pathname === "/setup/readiness") {
     writeJson(response, 200, createOkEnvelope(createSetupReadiness(application), { startedAt }));
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/usage/summary") {
+    const requestLogger = application?.requestLogger;
+    if (!requestLogger) {
+      writeJson(response, 200, createOkEnvelope({ enabled: false, reason: "usage_ledger_not_configured" }, { startedAt }));
+      return;
+    }
+    writeJson(response, 200, createOkEnvelope({
+      enabled: true,
+      stats: requestLogger.getStats({}),
+      health: requestLogger.getHealth(),
+    }, { startedAt }));
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/usage/logs") {
+    const requestLogger = application?.requestLogger;
+    if (!requestLogger) {
+      writeJson(response, 200, createOkEnvelope({ enabled: false, reason: "usage_ledger_not_configured" }, { startedAt }));
+      return;
+    }
+    const limit = Math.min(Math.max(Number.parseInt(url.searchParams.get("limit") ?? "50", 10) || 50, 1), 500);
+    const filter = {
+      limit,
+      provider: url.searchParams.get("provider") ?? undefined,
+      model: url.searchParams.get("model") ?? undefined,
+      statusCode: url.searchParams.get("statusCode") ? Number(url.searchParams.get("statusCode")) : undefined,
+    };
+    const records = requestLogger.query(filter);
+    writeJson(response, 200, createOkEnvelope({
+      enabled: true,
+      count: records.length,
+      records,
+    }, { startedAt }));
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/metrics") {
+    const exporter = createPrometheusExporter({ prefix: "ai_gateway" });
+    const stats = application?.requestLogger?.getStats?.({}) ?? {};
+    const snapshot = {
+      totalRequests: stats.totalRequests ?? 0,
+      activeConnections: wsServer?.getConnectionCount?.() ?? 0,
+      latency: stats.avgLatencyMs
+        ? { p50: stats.avgLatencyMs, p95: stats.avgLatencyMs, p99: stats.avgLatencyMs }
+        : undefined,
+      totalErrors: Math.round((stats.totalRequests ?? 0) * (stats.errorRate ?? 0)),
+      providerScores: application?.healthScorer?.getAllScores?.() ?? {},
+    };
+    const body = exporter.formatMetrics(snapshot);
+    if (!response.headersSent) {
+      response.writeHead(200, { "content-type": "text/plain; version=0.0.4; charset=utf-8" });
+    }
+    response.end(body);
     return;
   }
 

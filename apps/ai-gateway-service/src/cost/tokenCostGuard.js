@@ -253,3 +253,28 @@ function extractLastUserMessage(messages) {
     .find((message) => message?.role !== "assistant" && typeof message?.content === "string")
     ?.content ?? "";
 }
+
+/**
+ * Enforce the token-cost guard for real execution (opt-in).
+ *
+ * `checkTokenCostGuard` is preview-only: it estimates and recommends, but never
+ * blocks. This wrapper turns the same decision into an allow/deny signal so the
+ * gateway can optionally refuse a request before any provider call is made.
+ * A "require_approval" decision is treated as allowed only when the caller has
+ * already recorded a high-cost approval.
+ *
+ * @param {object} input - same shape as checkTokenCostGuard input
+ * @param {object} [options]
+ * @returns {{ allowed: boolean, decision: string, reasons: string[], estimate: object }}
+ */
+export function enforceTokenCostGuard(input = {}, options = {}) {
+  const result = checkTokenCostGuard(input, options);
+  // checkTokenCostGuard already folds `userApprovedHighCost` into the decision
+  // (an approved request resolves to "allow"), so only "allow" is executable.
+  return {
+    allowed: result.decision === "allow",
+    decision: result.decision,
+    reasons: result.reasons,
+    estimate: result.estimate,
+  };
+}

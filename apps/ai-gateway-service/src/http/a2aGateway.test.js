@@ -71,3 +71,52 @@ describe("A2A gateway profile", () => {
     })).toThrow("text/plain");
   });
 });
+
+describe("A2A gateway executor — fake-provider safety boundary", () => {
+  function requestContext() {
+    return {
+      contextId: "ctx-1",
+      taskId: "task-1",
+      request: { metadata: {} },
+      userMessage: {
+        parts: [{ content: { $case: "text", value: "hello" }, mediaType: "text/plain" }],
+      },
+    };
+  }
+
+  it("rejects a result that is not proven fake-provider", async () => {
+    const gatewayService = {
+      execute: vi.fn(async () => ({
+        success: true,
+        data: { executionMode: "real", selectedProvider: "openai", outputText: "hi" },
+      })),
+    };
+    const executor = new a2aGatewayInternals.GatewayAgentExecutor(gatewayService);
+    const eventBus = { publish: vi.fn() };
+
+    await expect(executor.execute(requestContext(), eventBus))
+      .rejects.toThrow("fake-provider proof");
+  });
+
+  it("completes when the gateway returns proven fake execution", async () => {
+    const gatewayService = {
+      execute: vi.fn(async () => ({
+        success: true,
+        data: {
+          executionMode: "fake",
+          selectedProvider: "local-fake-provider",
+          outputText: "fake reply",
+        },
+      })),
+    };
+    const executor = new a2aGatewayInternals.GatewayAgentExecutor(gatewayService);
+    const eventBus = { publish: vi.fn() };
+
+    await executor.execute(requestContext(), eventBus);
+
+    expect(eventBus.publish).toHaveBeenCalled();
+    const allCalls = JSON.stringify(eventBus.publish.mock.calls);
+    expect(allCalls).toContain("fake reply");
+    expect(allCalls).toContain('"state":3'); // TASK_STATE_COMPLETED
+  });
+});

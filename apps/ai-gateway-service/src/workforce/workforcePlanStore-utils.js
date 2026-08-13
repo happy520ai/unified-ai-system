@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { STORE_VERSION } from "./workforcePlanStore-constants.js";
 
@@ -64,7 +64,17 @@ export async function readStore(storePath) {
 
 export async function writeStore(storePath, store) {
   await mkdir(dirname(storePath), { recursive: true });
-  await writeFile(storePath, `${JSON.stringify(redactSecrets(store), null, 2)}\n`, "utf8");
+  // Atomic write: write to a unique temp file in the same directory, then
+  // rename over the target. This prevents a partially-written store file from
+  // being observed if the process is interrupted mid-write.
+  const tempPath = `${storePath}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2, 6)}.tmp`;
+  try {
+    await writeFile(tempPath, `${JSON.stringify(redactSecrets(store), null, 2)}\n`, "utf8");
+    await rename(tempPath, storePath);
+  } catch (error) {
+    try { await unlink(tempPath); } catch { /* best-effort cleanup */ }
+    throw error;
+  }
 }
 
 export function createPlanId(plan, savedAt) {

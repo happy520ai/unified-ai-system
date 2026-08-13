@@ -6,6 +6,7 @@ import {
   runWorkforceRealLocal,
   createRealLocalSafetySummary,
 } from "./workforceRealLocalRunner.js";
+import { executeAllRolesWithLLM } from "./roleExecutorsLlm.js";
 
 export function createWorkforceService(options = {}) {
   const planStore = createWorkforcePlanStore(options);
@@ -35,6 +36,29 @@ export function createWorkforceService(options = {}) {
     },
     plan(input) {
       return createWorkforcePlan(input);
+    },
+    async execute(input = {}, options = {}) {
+      const goal = typeof input === "string" ? input : input.goal;
+      if (!goal || typeof goal !== "string" || goal.trim().length === 0) {
+        const error = new Error("Workforce execute requires a goal.");
+        error.code = "WORKFORCE_GOAL_REQUIRED";
+        error.category = "validation";
+        throw error;
+      }
+
+      const context = input.context ?? {};
+      const providerAdapter = options.providerAdapter ?? null;
+      const llmOptions = options.llmOptions ?? {};
+
+      const result = await executeAllRolesWithLLM(goal, context, providerAdapter, llmOptions);
+
+      return {
+        phase: WORKFORCE_PHASE,
+        status: "completed",
+        goal,
+        ...result,
+        safety: createSafetySummary(),
+      };
     },
     async runLocal(input = {}) {
       return runWorkforceRealLocal(input, { planStore });
