@@ -1309,6 +1309,8 @@ async function main() {
     ...publicRepoCheck.issueCodes,
     ...verifyPublicCloneCheck.issueCodes,
     ...circuitDrillDryRunCheck.issueCodes,
+    ...trendHardBlockArtifactCheck.issueCodes,
+    ...trendIncidentBundleSchemaCheck.issueCodes,
   ], QUALITY_SCORECARD_ISSUE_SOURCE);
   const issueCodeSummary = summarizeIssueCodes(issueCodes);
 
