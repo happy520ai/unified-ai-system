@@ -433,15 +433,31 @@ function main() {
   const verificationIssueCodes = Array.isArray(verificationParsedOutput?.issueCodes)
     ? verificationParsedOutput.issueCodes
     : incidentBundleSummary?.issueCodes;
-  const issueCodes = flattenIssueCodes({
-    issueCodes: verificationIssueCodes ?? [],
-    source: ".tmp/quality-ci-verification.json",
-  });
-  const issueCodeSummary = summarizeIssueCodes(issueCodes);
   const trendConsistency = summarizeTrendConsistency(
     verifyResult,
     args.requireTrendHealth,
   );
+  const trendConsistencyWarnings = trendConsistency.status === "degraded" && !args.requireTrendHealth
+    ? [
+      {
+        code: "quality_trend_consistency_degraded",
+        severity: "medium",
+        message: `trend consistency checks are degraded: ${(
+          trendConsistency.checksRequired ?? []
+        ).join(", ") || "required checks available"}`,
+        artifactPath: ".tmp/quality-scorecard.json",
+        source: "quality-ci-verification",
+      },
+    ]
+    : [];
+  const issueCodes = flattenIssueCodes({
+    issueCodes: [
+      ...(verificationIssueCodes ?? []),
+      ...trendConsistencyWarnings,
+    ],
+    source: ".tmp/quality-ci-verification.json",
+  });
+  const issueCodeSummary = summarizeIssueCodes(issueCodes);
 
   const summary = {
     ok: qualityResult.ok && drillResult.ok && verifyResult.ok,

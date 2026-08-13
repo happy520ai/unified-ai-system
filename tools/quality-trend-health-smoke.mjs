@@ -553,14 +553,20 @@ function buildIncidentBundle(options, steps, reason, detail) {
     `- Final trend status: ${bundleJson.trendHealth.status}`,
     `- Final trend severity: ${bundleJson.trendHealth.severity}`,
     `- Blocked: ${bundleJson.trendHealth.blocked}`,
+    `- Final trend consistency status: ${bundleJson.trendConsistency?.status ?? "missing"}`,
     "",
     "## Trend consistency checks",
     ...(Array.isArray(bundleJson.trendConsistency?.checksRequired)
       ? bundleJson.trendConsistency.checksRequired.map((checkKey) => {
         const check = bundleJson.trendConsistency?.checks?.[checkKey] ?? {};
         const status = check?.status ?? "missing";
-        const checkOk = check?.ok === true ? "pass" : "fail";
-        return `- ${checkKey}: ${checkOk} (${status})`;
+        const statusText = String(status).toLowerCase();
+        const checkResult = check?.ok === false || statusText === "missing"
+          ? "fail"
+          : statusText === "not_collected"
+            ? "warn"
+            : "pass";
+        return `- ${checkKey}: ${checkResult} (${status})`;
       })
       : ["- no trend consistency checks recorded"]),
     "",
