@@ -216,6 +216,15 @@ function summarizeWindow(records, windowSize, args) {
       largestDrop: issues.largestDrop,
       largestDropRun: issues.largestDropRun,
     },
+    verificationIssueCount: selected.reduce(
+      (total, item) => total + (Array.isArray(item?.verification?.issues)
+        ? item.verification.issues.length
+        : 0),
+      0,
+    ),
+    passRatePercent: selected.length === 0 ? 0 : Number(
+      ((selected.reduce((sum, item) => (item?.overall?.pass ? sum + 1 : sum), 0) / selected.length) * 100).toFixed(1),
+    ),
   };
 }
 
@@ -231,6 +240,16 @@ function buildDigest(trend, args) {
   const totalRecords = records.length;
   const shortSummary = summarizeWindow(records, args.shortWindow, args);
   const longSummary = summarizeWindow(records, args.longWindow, args);
+  const latestRecord = records[records.length - 1] ?? null;
+
+  const trendStateLabel = (() => {
+    const longCritical = longSummary.issueCount > 0 || longSummary.passRatePercent < 70;
+    const shortCritical = shortSummary.issueCount > 0 || shortSummary.consecutiveFailuresAtEnd > 0 || shortSummary.passRatePercent < 70;
+    if (shortCritical || longCritical) {
+      return "unstable";
+    }
+    return "stable";
+  })();
 
   const trendTrend = (() => {
     if (shortSummary.scoreDelta === null || longSummary.scoreDelta === null) return "unknown";
@@ -248,11 +267,30 @@ function buildDigest(trend, args) {
       maxConsecutiveFailures: args.maxConsecutiveFailures,
       maxScoreDropPoints: args.maxScoreDropPoints,
     },
+    state: trendStateLabel,
     shortWindow: shortSummary,
     longWindow: longSummary,
     trendState: trendTrend,
     sample: {
-      latest: records[records.length - 1] ?? null,
+      latest: latestRecord,
+      latestRun: {
+        score: latestRecord?.quality?.score ?? null,
+        maxScore: latestRecord?.quality?.maxScore ?? null,
+        pass: latestRecord?.quality?.pass ?? null,
+        requiredScore: latestRecord?.quality?.requiredScore ?? null,
+        requiredScoreMet: latestRecord?.quality?.requiredScoreMet ?? null,
+        runNumber: latestRecord?.runNumber ?? "local",
+        runId: latestRecord?.runId ?? null,
+        overallPass: latestRecord?.overall?.pass ?? false,
+        verificationOk: latestRecord?.verification?.ok ?? false,
+        verificationIssueCount: latestRecord?.verification?.issues?.length ?? 0,
+        verificationIssues: Array.isArray(latestRecord?.verification?.issues)
+          ? latestRecord.verification.issues.slice(0, 3)
+          : [],
+        drillStatus: latestRecord?.drill?.status ?? "n/a",
+        drillRecommendation: latestRecord?.drill?.recommendation ?? null,
+      },
+      recordedAtUtc: latestRecord?.recordedAtUtc ?? null,
     },
   };
 }
@@ -263,9 +301,34 @@ function buildDigestMarkdown(digest) {
   lines.push("");
   lines.push(`- Total records: ${digest.totalRecords}`);
   lines.push(`- Trend health state: ${digest.trendState}`);
+  lines.push(`- Operational state: ${digest.state}`);
   lines.push(`- Short window: last ${digest.shortWindow.windowSize} runs`);
   lines.push(`- Long window: last ${digest.longWindow.windowSize} runs`);
   lines.push(`- Thresholds: consecutiveFailures>=${digest.thresholds.maxConsecutiveFailures}, singleRunDrop>${digest.thresholds.maxScoreDropPoints}`);
+
+  lines.push("");
+  lines.push("## Latest run risk snapshot");
+  lines.push(`- Latest run: ${digest.sample.latestRun.runNumber}`);
+  lines.push(`- Overall pass: ${digest.sample.latestRun.overallPass}`);
+  lines.push(`- Required score met: ${digest.sample.latestRun.requiredScoreMet}`);
+  lines.push(`- Verification passed: ${digest.sample.latestRun.verificationOk}`);
+  lines.push(`- Verification issue count: ${digest.sample.latestRun.verificationIssueCount}`);
+  lines.push(`- Drill status: ${digest.sample.latestRun.drillStatus}`);
+  lines.push(`- Drill recommendation: ${digest.sample.latestRun.drillRecommendation ?? "n/a"}`);
+  if (digest.sample.latestRun.verificationIssues?.length > 0) {
+    lines.push("- Latest run issue sample:");
+    for (const issue of digest.sample.latestRun.verificationIssues) {
+      lines.push(`  - ${issue}`);
+    }
+  }
+  lines.push("");
+  if (digest.state !== "stable") {
+    lines.push("## Recommended next actions");
+    lines.push("- Open `.tmp/quality-trend-summary.md` and compare the last 14 runs for immediate regression context.");
+    lines.push("- If `overall` is failing, inspect `.tmp/quality-ci-verification.json` and first failing gate details.");
+    lines.push("- If drill status is not `dry-run` or not `recovered`, rerun `pnpm drill:gateway-circuit --json` in the target environment.");
+    lines.push("- Verify the latest commit and rerun `pnpm quality:ci -- --json --require-score 165` before merge/release.");
+  }
 
   for (const entry of [digest.shortWindow, digest.longWindow]) {
     lines.push("");
@@ -275,11 +338,13 @@ function buildDigestMarkdown(digest) {
     lines.push(`- Latest score: ${entry.latestScore === null ? "unknown" : entry.latestScore}`);
     lines.push(`- Earliest score: ${entry.earliestScore === null ? "unknown" : entry.earliestScore}`);
     lines.push(`- Score delta (end - start): ${entry.scoreDelta === null ? "unknown" : entry.scoreDelta}`);
+    lines.push(`- Pass rate: ${entry.passRatePercent === null ? "unknown" : `${entry.passRatePercent}%`}`);
     lines.push(`- Avg score: ${entry.avgScorePercent === null ? "unknown" : entry.avgScorePercent}`);
     lines.push(`- Max score: ${entry.maxScore === null ? "unknown" : entry.maxScore}`);
     lines.push(`- Min score: ${entry.minScore === null ? "unknown" : entry.minScore}`);
     lines.push(`- Consecutive failures at run end: ${entry.consecutiveFailuresAtEnd}`);
     lines.push(`- Trend issues in window: ${entry.issueCount}`);
+    lines.push(`- Verification issues in window: ${entry.verificationIssueCount}`);
     lines.push(`- Largest single-run drop: ${entry.issueBreakdown.largestDrop}`);
     if (entry.issueBreakdown.largestDropRun) {
       lines.push(`- Largest drop run id: ${entry.issueBreakdown.largestDropRun.rightRunId || "n/a"} (${formatDate(entry.issueBreakdown.largestDropRun.recordedAtUtc)})`);
