@@ -19,6 +19,7 @@ jobs:
       QUALITY_TREND_MAX_SCORE_DROP_POINTS: ${{ vars.QUALITY_TREND_MAX_SCORE_DROP_POINTS || '20' }}
       QUALITY_TREND_MIN_PASS_RATE_PERCENT: ${{ vars.QUALITY_TREND_MIN_PASS_RATE_PERCENT || '70' }}
       QUALITY_TREND_REQUIRE_STABLE_STATE: ${{ vars.QUALITY_TREND_REQUIRE_STABLE_STATE || 'true' }}
+      QUALITY_TREND_HARD_BLOCK: ${{ vars.QUALITY_TREND_HARD_BLOCK || 'false' }}
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -121,6 +122,18 @@ jobs:
             echo "## Quality trend check" >> "$GITHUB_STEP_SUMMARY"
             cat .tmp/quality-trend-check.json >> "$GITHUB_STEP_SUMMARY"
           fi
+
+      - name: Enforce quality trend health gate
+        if: |
+          always() &&
+          env.QUALITY_TREND_HARD_BLOCK == 'true'
+        run: |
+          pnpm quality:trend-check -- \
+            --digest .tmp/quality-trend-digest.json \
+            --guardrail .tmp/quality-trend-guardrail.json \
+            --summary .tmp/quality-trend-summary.md \
+            --max-summary-reasons 8 \
+            --hard-block
 
       - name: Append quality trend guardrail configuration to summary
         if: always()

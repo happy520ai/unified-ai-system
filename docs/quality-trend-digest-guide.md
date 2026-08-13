@@ -56,11 +56,16 @@ The digest now includes:
     - `pnpm quality:trend-summary -- --trend .tmp/quality-trend.json --output .tmp/quality-trend-summary.md --guard-output .tmp/quality-trend-guardrail.json --max-consecutive-failures 3 --max-score-drop-points 20 --min-pass-rate-percent 70 --require-stable-state --enforce-guardrails`
     - `pnpm quality:ci -- --json --require-score 165`
 
+For a full incident playbook, see:
+
+- [Quality trend runbook](quality-trend-runbook.md)
+
 ## Policy behavior
 
 - CI/cron pipelines run `quality:trend-check` as an informational pass/fail signal and write JSON output to `.tmp/quality-trend-check.json`.
 - `--hard-block` enables explicit fail in manual enforcement workflows when a check is critical.
 - `--allow-warnings` downgrades warning-level blocking to a non-blocking state while keeping the warning visible.
+- In repository variables, set `QUALITY_TREND_HARD_BLOCK=true` to fail CI on critical trend check signals.
 
 ## CI artifacts
 

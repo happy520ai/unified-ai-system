@@ -31,6 +31,7 @@ Public documentation is grouped by task so the repo stays easy to scan.
 - [Installable Agent Skill](https://skills.sh/happy520ai/unified-ai-system/unified-ai-gateway)
 - [Readiness & observability](readiness-observability-guide.md)
 - [Quality trend digest guide](quality-trend-digest-guide.md)
+- [Quality trend runbook](quality-trend-runbook.md)
 - [Project vision](../VISION.md)
 - [Project roadmap](../ROADMAP.md)
 - [Chinese README](../README.zh-CN.md)

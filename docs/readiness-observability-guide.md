@@ -114,7 +114,7 @@ Use this lightweight drill to verify the request-circuit breaker behavior in a n
 - `AI_GATEWAY_GATEWAY_ERROR_CIRCUIT_RESET_MS=30000`
 - `AI_GATEWAY_GATEWAY_ERROR_CIRCUIT_HALF_OPEN_MAX_CALLS=1`
 - `AI_GATEWAY_GATEWAY_ERROR_CIRCUIT_BYPASS_ROUTES=/health,/health/check,/healthz,/ready,/setup/readiness,/metrics`
-  - 也可追加自定义观�?健康路径（例�?`/dashboard/status`）；该变量会做去重与格式化（去掉空白、补齐前导斜杠、清理尾随斜杠、压缩重复斜杠）�?
+  - 也可追加自定义观�?健康路径（例�?`/dashboard/status`）；该变量会做去重与格式化（去掉空白、补齐前导斜杠、清理尾随斜杠、压缩重复斜杠）�?
 2. Generate repeated 5xx-like failures on a route that is already connected to this gateway path (or run synthetic failure hooks if available).
 
 3. Observe the transition:
@@ -229,12 +229,22 @@ The CI workflow now stores the following additional trend artifacts per run:
 - `.tmp/quality-trend.json`
 - `.tmp/quality-trend-summary.md`
 - `.tmp/quality-trend-guardrail.json`
+- `.tmp/quality-trend-check.json`
+- `.tmp/quality-trend-digest.json`
 
-If you inspect workflow artifacts, you can load the guardrail JSON to see threshold checks
-used in CI diagnostics and trend stability reviews.
+If you inspect workflow artifacts, you can load:
+
+- `.tmp/quality-trend-guardrail.json` for threshold checks and guardrail status used in CI diagnostics.
+- `.tmp/quality-trend-digest.json` for machine-readable digest state.
+- `.tmp/quality-trend-check.json` for policy-level status, severity, and recommendation.
+
+For full triage sequence and owners, follow:
+
+- [Quality trend runbook](quality-trend-runbook.md)
 
 Default guardrail thresholds are `--max-consecutive-failures 3` and `--max-score-drop-points 20` in the CI trend generation step. A breach sets `guardrail pass: fail` in the summary and can fail the CI job due `--enforce-guardrails`.
 
+Set `QUALITY_TREND_HARD_BLOCK=true` to upgrade critical trend-check signals into a hard CI block.
 ## 6.1) Trend health check command (new)
 
 Use this command for a policy-level health signal after digest/summary generation:
