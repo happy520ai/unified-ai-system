@@ -494,6 +494,7 @@ function checkReadinessRunbookVisibility() {
 function checkCircuitRecoveryDrill() {
   try {
     const packageSource = readTextFile("package.json");
+    const scriptSource = readTextFile("tools/circuit-recovery-drill.mjs");
     const readinessGuideSource = readTextFile("docs/readiness-observability-guide.md");
     const requiredPackageMarkers = [
       "\"drill:gateway-circuit\"",
@@ -505,11 +506,16 @@ function checkCircuitRecoveryDrill() {
     ];
     const missingPackage = requiredPackageMarkers.filter((marker) => !packageSource.includes(marker));
     const missingGuide = requiredGuideMarkers.filter((marker) => !readinessGuideSource.includes(marker));
+    const missingScriptMarkers = [
+      "expected",
+      "recommendation",
+    ].filter((marker) => !scriptSource.includes(marker));
     return {
-      ok: missingPackage.length === 0 && missingGuide.length === 0,
+      ok: missingPackage.length === 0 && missingGuide.length === 0 && missingScriptMarkers.length === 0,
       details: JSON.stringify({
         missingPackage,
         missingGuide,
+        missingScriptMarkers,
       }),
     };
   } catch (error) {
@@ -569,6 +575,7 @@ async function main() {
     gatewayErrorCircuitBreaker: gatewayErrorCircuitBreakerCheck,
     healthzProbe: healthzCheck,
     readinessRunbookVisibility: runbookVisibilityCheck,
+    circuitRecoveryDrill: circuitRecoveryDrillCheck,
   };
 
   let score = 0;

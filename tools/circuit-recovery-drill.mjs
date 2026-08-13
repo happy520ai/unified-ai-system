@@ -213,6 +213,11 @@ async function main() {
     metricsRoute: args.metricsRoute,
     status: "unknown",
     steps: [],
+    expected: [
+      "trip-route should return a 5xx response",
+      "probe route should show open state in metrics",
+      "after open-wait, circuit should enter half-open or closed",
+    ],
   };
 
   const baseline = await readProbe(base, args.probeRoute);
@@ -308,6 +313,13 @@ async function main() {
     name: "finalCircuitState",
     state: summarizeCircuit(postRecovery.text),
   });
+  const finalProbe = await readProbe(base, args.probeRoute);
+  summary.finalProbeStatus = finalProbe.statusCode;
+  summary.finalReadinessFailures = finalProbe.payload?.error?.details?.readinessFailures ?? [];
+  summary.finalHealthReady = finalProbe.ready;
+  summary.recommendation = finalProbe.ready
+    ? "recovered: traffic can continue after confirming dependency health"
+    : "investigate service dependency health and dependency recovery path before routing traffic";
   emitResult(summary, args.json);
 }
 

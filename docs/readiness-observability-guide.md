@@ -147,6 +147,26 @@ Useful flags:
 - `--poll-limit` (default: `20`)
 - `--poll-interval-ms` (default: `1000`)
 
+Example JSON fragment:
+
+```json
+{
+  "status": "recovered",
+  "expected": [
+    "trip-route should return a 5xx response",
+    "probe route should show open state in metrics",
+    "after open-wait, circuit should enter half-open or closed"
+  ],
+  "recommendation": "recovered: traffic can continue after confirming dependency health"
+}
+```
+
+Interpretation:
+- `trip-failed`: the trip route is not producing a server-side failure in the target environment.
+- `open-poll-timeout`: circuit did not enter `open` within probe window.
+- `recovery-timeout`: circuit never reached `half-open`/`closed`.
+- `recovered`: drill succeeded and probe payload is ready again (`finalHealthReady=true`).
+
 ### Example commands
 
 ```bash
