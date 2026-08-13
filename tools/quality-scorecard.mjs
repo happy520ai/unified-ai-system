@@ -979,6 +979,7 @@ function checkTrendIncidentBundleSchema() {
     "qualityThreshold",
     "thresholds",
     "trendHealth",
+    "trendConsistency",
     "failedSteps",
     "artifacts",
   ];

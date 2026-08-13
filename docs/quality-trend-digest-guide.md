@@ -119,3 +119,7 @@ The schema defines required fields used by CI quality checks and runbooks:
 
 If the schema contract is malformed, `quality:score` will fail the incident-bundle
 gate (when the JSON is present) and expose details in the scorecard checks.
+
+The schema now requires `trendConsistency` to be present in failure bundles so that
+`quality-ci-verification.json` trend-consistency status is carried forward into
+incident evidence for triage.

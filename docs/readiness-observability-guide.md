@@ -255,6 +255,7 @@ If you inspect workflow artifacts, you can load:
 - `.tmp/quality-trend-recommendations.md` for the operator action list when a smoke check fails.
 - `.tmp/quality-trend-incident-bundle.md` and `.tmp/quality-trend-incident-bundle.json` for structured triage evidence.
 - Incident bundle fields must match `tools/quality-trend-incident-bundle.schema.json` (schemaVersion, thresholds, trendHealth, artifacts, failedSteps, etc.).
+- Incident bundle payloads should also include `trendConsistency` (checks plus issue summary) so trend trend check parity is auditable.
 
 For full triage sequence and owners, follow:
 

@@ -9,6 +9,7 @@
     "qualityThreshold",
     "thresholds",
     "trendHealth",
+    "trendConsistency",
     "failedSteps",
     "extractedIssues",
     "artifacts",
