@@ -109,6 +109,14 @@
     },
     {
       "artifactPath": ".tmp/quality-trend-incident-bundle.json",
+      "fieldPath": "languagePolicyReview.reviewStatus"
+    },
+    {
+      "artifactPath": ".tmp/quality-trend-incident-bundle.json",
+      "fieldPath": "languagePolicyReview.summary.preferredLanguage"
+    },
+    {
+      "artifactPath": ".tmp/quality-trend-incident-bundle.json",
       "fieldPath": "recommendationText"
     },
     {

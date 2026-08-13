@@ -10,6 +10,7 @@
     "thresholds",
     "trendHealth",
     "trendConsistency",
+    "languagePolicyReview",
     "failedSteps",
     "extractedIssues",
     "artifacts",

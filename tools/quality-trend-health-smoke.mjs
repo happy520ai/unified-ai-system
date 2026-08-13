@@ -468,6 +468,7 @@ function buildLanguagePolicyReview(languagePolicyCheck, languagePolicyExpiry) {
   const summary = {
     checkPresent: Boolean(languagePolicyCheck),
     expiryPresent: Boolean(languagePolicyExpiry),
+    preferredLanguage: "TypeScript (for apps/packages runtime surfaces)",
     allowed: 0,
     violations: 0,
     expiredExceptions: 0,
@@ -490,8 +491,6 @@ function buildLanguagePolicyReview(languagePolicyCheck, languagePolicyExpiry) {
     summary.allowlistIssues = Array.isArray(languagePolicyCheck.allowlistIssues)
       ? languagePolicyCheck.allowlistIssues.length
       : 0;
-    summary.preferredLanguage = "TypeScript (for apps/packages runtime surfaces)";
-
     if (Array.isArray(languagePolicyCheck.violations) && languagePolicyCheck.violations.length > 0) {
       for (const violation of languagePolicyCheck.violations.slice(0, 20)) {
         const file = violation?.file ?? "unknown";
