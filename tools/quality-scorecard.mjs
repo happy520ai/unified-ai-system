@@ -623,10 +623,13 @@ function checkTrendHardBlockArtifact() {
     return {
       ok: true,
       details:
-        "quality-trend-check.json not present yet; generate it via quality:trend-check if evaluating CI-grade gates.",
+        "quality-trend-check.json not present in this run; generate via quality:trend-check to populate trend health evidence.",
       blocked: false,
-      status: "missing",
+      status: "not_collected",
       missing: true,
+      severity: "unknown",
+      reasons: [],
+      source: ".tmp/quality-trend-check.json",
     };
   }
 
@@ -636,11 +639,13 @@ function checkTrendHardBlockArtifact() {
     blocked: isBlocked,
     status: trendCheck.status ?? "unknown",
     severity: trendCheck.severity ?? "unknown",
+    source: ".tmp/quality-trend-check.json",
     reasonsCount: Array.isArray(trendCheck.reasons) ? trendCheck.reasons.length : 0,
     details: JSON.stringify({
       status: trendCheck.status ?? "unknown",
       severity: trendCheck.severity ?? "unknown",
       blocked: isBlocked,
+      source: ".tmp/quality-trend-check.json",
       reasonsCount: Array.isArray(trendCheck.reasons) ? trendCheck.reasons.length : 0,
     }),
   };
@@ -853,6 +858,16 @@ async function main() {
     maxScore,
     percent: Math.round((score / maxScore) * 100),
     pass: score === maxScore,
+    trendHealth: {
+      status: trendHardBlockArtifactCheck.status,
+      severity: trendHardBlockArtifactCheck.severity,
+      blocked: trendHardBlockArtifactCheck.blocked,
+      reasons: Array.isArray(trendHardBlockArtifactCheck.reasons)
+        ? trendHardBlockArtifactCheck.reasons.slice(0, 10)
+        : [],
+      source: trendHardBlockArtifactCheck.source,
+      missing: trendHardBlockArtifactCheck.missing || false,
+    },
     threshold:
       requireScore > 0
         ? { required: requireScore, passed: score >= requireScore }
