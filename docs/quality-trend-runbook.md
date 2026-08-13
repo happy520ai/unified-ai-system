@@ -95,6 +95,7 @@ When `blocked: true`, block the change and create a fix ticket for unstable root
 - Open `.tmp/quality-trend-incident-bundle.json` and confirm:
   - `schemaVersion === 1`
   - `trendHealth.blocked === false` (or document why it is expected)
+  - `languagePolicyReview.reviewStatus` is `language-policy-ok` or `language-policy-issues` with remediation evidence.
   - `trendConsistency.checksRequired` includes:
     - `trendDigestHealth`
     - `trendSummaryGuardrails`
@@ -102,6 +103,7 @@ When `blocked: true`, block the change and create a fix ticket for unstable root
   - `trendConsistency.hasMissingRequired` and `trendConsistency.hasNotCollected` match the actual check list state and status.
   - `trendConsistency.requiresTrendHealth` reflects current smoke mode.
   - `artifacts` list has `quality-trend-digest.json`, `quality-trend-check.json`, and `quality-scorecard.json` records.
+  - `languagePolicyReview.summary.preferredLanguage` is expected for this change scope.
 - Open `.tmp/quality-ci-verification.json` and confirm:
   - `trendConsistency.status` is expected to be:
     - `pass` in strict trend-health mode (`--require-trend-health` runs), or
