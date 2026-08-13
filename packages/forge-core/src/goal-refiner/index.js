@@ -24,6 +24,7 @@ import {
   analyzeGoalClarity,
   inferPreferredLanguage,
   buildLanguagePreferenceText,
+  inferTaskLanguage,
 } from './helpers.js';
 import {
   buildInitialPrompt,
@@ -154,9 +155,14 @@ export class GoalRefiner {
     const languageConstraint = buildLanguagePreferenceText(preferredLanguage);
     if (Array.isArray(finalDag.tasks)) {
       finalDag.tasks = finalDag.tasks.map((task) => {
-        if (task.type !== 'implement' && task.type !== 'refactor') return task;
+        if (task.type !== 'implement' && task.type !== 'refactor' && task.type !== 'test') return task;
         const nextConstraints = Array.isArray(task.constraints) ? [...task.constraints] : [];
-        if (!nextConstraints.includes(languageConstraint)) nextConstraints.push(languageConstraint);
+        const taskLanguage = inferTaskLanguage(task, preferredLanguage, goalText);
+        const effectiveConstraint = buildLanguagePreferenceText(preferredLanguage, taskLanguage);
+        if (!nextConstraints.includes(effectiveConstraint)) nextConstraints.push(effectiveConstraint);
+        if (languageConstraint !== effectiveConstraint && !nextConstraints.includes(languageConstraint)) {
+          nextConstraints.push(languageConstraint);
+        }
         return { ...task, constraints: nextConstraints };
       });
     }

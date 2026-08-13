@@ -67,6 +67,15 @@ const EXT_TO_LANGUAGE = Object.freeze({
   '.java': 'java',
 });
 
+const GOAL_TEXT_LANGUAGE_PATTERNS = [
+  { pattern: /\b(type\s*script|typescript|ts)\b/, language: 'ts' },
+  { pattern: /\b(java\s*script|javascript|js|node\.js|nodejs)\b/, language: 'js' },
+  { pattern: /\b(python|py)\b/, language: 'python' },
+  { pattern: /\b(go|golang)\b/, language: 'go' },
+  { pattern: /\brust\b/, language: 'rust' },
+  { pattern: /\bjava\b/, language: 'java' },
+];
+
 function normalizeLanguageCandidate(value) {
   if (!value) return null;
   const v = String(value).toLowerCase();
@@ -77,6 +86,34 @@ function normalizeLanguageCandidate(value) {
   if (v === 'rust' || v === 'java') return v;
   if (v === 'ts') return 'ts';
   if (v === 'js') return 'js';
+  return null;
+}
+
+function inferLanguageFromTextGoalHint(text) {
+  const normalized = String(text || '').toLowerCase();
+  for (const { pattern, language } of GOAL_TEXT_LANGUAGE_PATTERNS) {
+    if (pattern.test(normalized)) return language;
+  }
+  return null;
+}
+
+function inferLanguageFromAllowedFiles(patterns) {
+  const languageVotes = new Map();
+  const items = Array.isArray(patterns) ? patterns : [];
+  for (const pattern of items) {
+    const match = String(pattern).toLowerCase().match(/\.(ts|tsx|js|mjs|cjs|jsx|py|go|rs|java)\b/g);
+    if (!match || match.length === 0) continue;
+
+    for (const ext of match) {
+      const mapped = EXT_TO_LANGUAGE[ext];
+      if (!mapped) continue;
+      languageVotes.set(mapped, (languageVotes.get(mapped) || 0) + 1);
+    }
+  }
+
+  for (const language of LANGUAGE_PRIORITY) {
+    if ((languageVotes.get(language) || 0) > 0) return language;
+  }
   return null;
 }
 
@@ -243,6 +280,9 @@ export function inferPreferredLanguage(profile = {}, goalText = '') {
     if (normalized) return normalized;
   }
 
+  const textHint = inferLanguageFromTextGoalHint(lower);
+  if (textHint) return textHint;
+
   // 2) Prefer detected languages from codebase profile, with TypeScript over JavaScript.
   const profileLanguages = new Set((profile.languages || []).map((language) => normalizeLanguageCandidate(language)).filter(Boolean));
   if (profileLanguages.size > 0) {
@@ -279,11 +319,39 @@ export function preferredLanguageLabel(language) {
  * Build language selection text used in constraints and prompts.
  *
  * @param {string} language
+ * @param {string|null|undefined} taskLanguage
  * @returns {string}
  */
-export function buildLanguagePreferenceText(language) {
-  const label = preferredLanguageLabel(language);
-  return `Default implementation language: ${label}. If a task explicitly targets another language file, follow that file's language.`;
+export function buildLanguagePreferenceText(language, taskLanguage = null) {
+  const normalizedLanguage = normalizeLanguageCandidate(language);
+  const normalizedTaskLanguage = normalizeLanguageCandidate(taskLanguage);
+  const defaultLabel = preferredLanguageLabel(normalizedLanguage);
+
+  if (!normalizedTaskLanguage || normalizedTaskLanguage === normalizedLanguage) {
+    return `Default implementation language: ${defaultLabel}. If a task explicitly targets another language file, follow that file's language.`;
+  }
+
+  const taskLabel = preferredLanguageLabel(normalizedTaskLanguage);
+  return `Primary task language: ${taskLabel}. Project default remains ${defaultLabel}. If this conflicts with an explicitly targeted file language, follow that file language.`;
+}
+
+/**
+ * Infer task-local language by combining allowedFiles and task text hints.
+ *
+ * @param {object} task
+ * @param {string} fallbackLanguage
+ * @param {string} goalText
+ * @returns {string}
+ */
+export function inferTaskLanguage(task = {}, fallbackLanguage = 'js', goalText = '') {
+  const taskLanguageFromFiles = inferLanguageFromAllowedFiles(task?.allowedFiles ?? []);
+  if (taskLanguageFromFiles) return taskLanguageFromFiles;
+
+  const taskText = `${task?.name ?? ''} ${task?.prompt ?? ''} ${goalText ?? ''}`;
+  const hint = inferLanguageFromTextGoalHint(taskText);
+  if (hint) return hint;
+
+  return normalizeLanguageCandidate(fallbackLanguage) || 'js';
 }
 
 /**
