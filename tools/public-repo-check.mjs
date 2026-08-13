@@ -5,6 +5,99 @@ import { fileURLToPath } from "node:url";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const errors = [];
+const ISSUE_SOURCE = "public-repo-check";
+
+function normalizeIssueCode(raw) {
+  const slug = String(raw ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  return slug.length === 0 ? "unknown_issue" : slug;
+}
+
+function normalizeSeverity(raw) {
+  const normalized = String(raw ?? "").toLowerCase();
+  if (["high", "medium", "low", "info", "unknown"].includes(normalized)) {
+    return normalized;
+  }
+  return "unknown";
+}
+
+function summarizeIssueCodes(issueCodes) {
+  const summary = {
+    total: 0,
+    high: 0,
+    medium: 0,
+    low: 0,
+    info: 0,
+    unknown: 0,
+    blocking: false,
+  };
+  if (!Array.isArray(issueCodes)) return summary;
+  for (const issue of issueCodes) {
+    const severity = normalizeSeverity(issue?.severity);
+    if (severity === "high") summary.high += 1;
+    else if (severity === "medium") summary.medium += 1;
+    else if (severity === "low") summary.low += 1;
+    else if (severity === "info") summary.info += 1;
+    else summary.unknown += 1;
+    summary.total += 1;
+  }
+  summary.blocking = summary.high > 0;
+  return summary;
+}
+
+function inferSeverityFromCode(code) {
+  const normalized = String(code ?? "").toLowerCase();
+  if (
+    normalized.includes("missing")
+    || normalized.includes("invalid")
+    || normalized.includes("mismatch")
+    || normalized.includes("outside")
+    || normalized.includes("mutable")
+    || normalized.includes("stale")
+    || normalized.includes("hardening_missing")
+    || normalized.includes("mutation")
+    || normalized.includes("error")
+    || normalized.includes("violation")
+  ) return "high";
+
+  if (
+    normalized.includes("tracked")
+    || normalized.includes("machine_readable")
+    || normalized.includes("marker_missing")
+    || normalized.includes("link_missing")
+    || normalized.includes("entry_missing")
+  ) return "medium";
+
+  return "low";
+}
+
+function buildIssueCodesFromErrors(reports) {
+  if (!Array.isArray(reports) || reports.length === 0) return [];
+  const normalized = [];
+  const seen = new Set();
+  for (const report of reports) {
+    if (!report || typeof report !== "object") continue;
+    const code = normalizeIssueCode(report.code);
+    const severity = normalizeSeverity(inferSeverityFromCode(code));
+    const message = report.details
+      ? `${report.code}: ${String(report.path)} ${report.details}`
+      : `${report.code}: ${String(report.path)}`;
+    const key = `${code}:${severity}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    normalized.push({
+      code,
+      severity,
+      message,
+      artifactPath: report.path,
+      source: ISSUE_SOURCE,
+    });
+  }
+  return normalized;
+}
 
 function readJson(path) {
   return JSON.parse(readFileSync(resolve(repoRoot, path), "utf8"));
@@ -849,6 +942,9 @@ const result = {
   serviceScriptCount,
   errors,
 };
+const issueCodes = buildIssueCodesFromErrors(errors);
+result.issueCodes = issueCodes;
+result.issueCodeSummary = summarizeIssueCodes(issueCodes);
 
 process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
 if (!result.ok) process.exitCode = 1;

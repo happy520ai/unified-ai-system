@@ -6,10 +6,61 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const MCP_SMOKE_SOURCE = "mcp-smoke";
 const serverEntrypoint = resolve(
   repoRoot,
   "packages/mcp-server/src/index.js",
 );
+function normalizeIssueCode(raw) {
+  const slug = String(raw ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  return slug.length === 0 ? "unknown_issue" : slug;
+}
+
+function summarizeIssueCodes(issueCodes) {
+  const summary = {
+    total: 0,
+    high: 0,
+    medium: 0,
+    low: 0,
+    info: 0,
+    unknown: 0,
+    blocking: false,
+  };
+  if (!Array.isArray(issueCodes)) return summary;
+  for (const issue of issueCodes) {
+    const severity = issue?.severity === "high"
+      ? "high"
+      : issue?.severity === "medium"
+        ? "medium"
+        : issue?.severity === "low"
+          ? "low"
+          : issue?.severity === "info"
+            ? "info"
+            : "unknown";
+    if (severity === "high") summary.high += 1;
+    else if (severity === "medium") summary.medium += 1;
+    else if (severity === "low") summary.low += 1;
+    else if (severity === "info") summary.info += 1;
+    else summary.unknown += 1;
+    summary.total += 1;
+  }
+  summary.blocking = summary.high > 0;
+  return summary;
+}
+
+function createIssueCode(code, message, severity = "high", artifactPath = null) {
+  return {
+    code: normalizeIssueCode(code),
+    severity,
+    message,
+    artifactPath,
+    source: MCP_SMOKE_SOURCE,
+  };
+}
 const expectedTools = [
   "gateway_health",
   "gateway_readiness",
@@ -250,6 +301,7 @@ async function stopChild(child) {
 }
 
 async function runSmoke() {
+  const issueCodes = [];
   let stderr = "";
   const { child, containerName } = createMcpProcess();
   child.stderr.setEncoding("utf8");
@@ -273,6 +325,14 @@ async function runSmoke() {
     const listed = await rpc.request("tools/list");
     const toolNames = listed.tools.map((tool) => tool.name).sort();
     if (JSON.stringify(toolNames) !== JSON.stringify(expectedTools)) {
+      issueCodes.push(
+        createIssueCode(
+          "mcp_tool_set_mismatch",
+          `Unexpected MCP tools: ${JSON.stringify(toolNames)}.`,
+          "high",
+          "tools/mcp-smoke.mjs",
+        ),
+      );
       throw new Error(
         `Unexpected MCP tools: ${JSON.stringify(toolNames)}.`,
       );
@@ -292,6 +352,14 @@ async function runSmoke() {
       || health.result?.data?.status !== "ready"
       || health.result?.data?.realProviderEnabled !== false
     ) {
+      issueCodes.push(
+        createIssueCode(
+          "mcp_gateway_health_invalid",
+          "MCP gateway health did not prove a safe managed runtime.",
+          "high",
+          "gateway_health",
+        ),
+      );
       throw new Error("MCP gateway health did not prove a safe managed runtime.");
     }
 
@@ -310,6 +378,14 @@ async function runSmoke() {
       || enhancement.result?.data?.metadata?.providerCalled !== false
       || !enhancement.result?.data?.enhancedPrompt?.includes("Build a Node API with tests")
     ) {
+      issueCodes.push(
+        createIssueCode(
+          "mcp_prompt_enhance_invalid",
+          "MCP prompt enhancement did not prove local deterministic transformation.",
+          "high",
+          "gateway_prompt_enhance",
+        ),
+      );
       throw new Error("MCP prompt enhancement did not prove local deterministic transformation.");
     }
 
@@ -324,6 +400,14 @@ async function runSmoke() {
       || chat.result?.data?.executionMode !== "fake"
       || chat.result?.data?.selectedProvider !== "local-fake-provider"
     ) {
+      issueCodes.push(
+        createIssueCode(
+          "mcp_chat_invalid",
+          "MCP chat did not prove fake-provider execution.",
+          "high",
+          "gateway_chat",
+        ),
+      );
       throw new Error("MCP chat did not prove fake-provider execution.");
     }
 
@@ -342,16 +426,41 @@ async function runSmoke() {
       promptEnhancementProviderCalled: enhancement.result.data.metadata.providerCalled,
       realProviderCallsMade: false,
       managedGatewayCleanedUp,
+      issueCodes,
+      issueCodeSummary: summarizeIssueCodes(issueCodes),
     };
+    if (!result.ok) {
+      issueCodes.push(
+        createIssueCode(
+          "mcp_runtime_cleanup_failed",
+          "MCP smoke did not finish with guaranteed cleanup/readiness-close conditions.",
+          "medium",
+          containerName ? containerName : "gateway_health",
+        ),
+      );
+    }
     if (!result.ok) process.exitCode = 1;
+    result.issueCodeSummary = summarizeIssueCodes(issueCodes);
     return result;
   } catch (error) {
     await stopChild(child);
     await ensureContainerRemoved(containerName);
+    if (issueCodes.length === 0) {
+      issueCodes.push(
+        createIssueCode(
+          "mcp_smoke_unknown_failure",
+          error instanceof Error ? error.message : String(error),
+          "high",
+          "mcp-smoke",
+        ),
+      );
+    }
     process.exitCode = 1;
     return {
       ok: false,
       runtime: containerName ? "container" : "source",
+      issueCodes,
+      issueCodeSummary: summarizeIssueCodes(issueCodes),
       error: error instanceof Error ? error.message : String(error),
       realProviderCallsMade: false,
       stderrTail: stderr.trim().slice(-4_000),

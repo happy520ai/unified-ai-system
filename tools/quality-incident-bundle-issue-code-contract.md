@@ -63,6 +63,12 @@
 - `quality-trend-check`（新增）输出顶层字段：
   - `issueCodes`
   - `issueCodeSummary`
+- `public-repo-check`（新增）输出顶层字段：
+  - `issueCodes`
+  - `issueCodeSummary`
+- `mcp-smoke`（新增）输出顶层字段：
+  - `issueCodes`
+  - `issueCodeSummary`
 
 ## 告警接入建议
 
