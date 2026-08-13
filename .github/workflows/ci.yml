@@ -60,14 +60,8 @@ jobs:
       - name: Public clone runtime
         run: pnpm verify:public-clone
 
-      - name: Quality scorecard
-        run: |
-          set -o pipefail
-          mkdir -p .tmp
-          pnpm quality:score -- --json --require-score 140 | tee .tmp/quality-scorecard.json
-
-      - name: Circuit recovery dry-run
-        run: pnpm drill:gateway-circuit:dry-run | tee .tmp/circuit-recovery-drill-dry-run.json
+      - name: Quality CI gate
+        run: pnpm quality:ci -- --json --require-score 165
 
       - name: Upload quality scorecard artifact
         if: always()
@@ -79,9 +73,6 @@ jobs:
             .tmp/circuit-recovery-drill-dry-run.json
             .tmp/quality-ci-verification.json
           retention-days: 30
-
-      - name: Verify quality artifacts
-        run: pnpm quality:verify-artifacts -- --json | tee .tmp/quality-ci-verification.json
 
       - name: Codex MCP server
         run: |
