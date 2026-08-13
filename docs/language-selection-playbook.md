@@ -154,6 +154,8 @@ Run the repository language policy check as part of `pnpm check`:
 
 - `pnpm check:language-policy` checks added files under `apps/*` and `packages/*`
   and reports non-TypeScript additions unless they are explicitly justified.
+  It now also runs `language-policy-expiry-report` to fail fast on malformed/expired
+  exceptions and surface near-expiry governance warnings during local checks.
 
 This check is intentionally strict for new runtime additions and expects migration
 to TypeScript-first defaults in PR-level diff scope.
