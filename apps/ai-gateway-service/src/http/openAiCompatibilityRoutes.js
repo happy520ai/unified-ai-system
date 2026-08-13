@@ -5,6 +5,7 @@ import { readJson, writeJson, writeSseHeaders } from "./utils/responseUtils.js";
 const CHAT_COMPLETIONS_PATH = "/v1/chat/completions";
 const COMPLETIONS_PATH = "/v1/completions";
 const RESPONSES_PATH = "/v1/responses";
+const ANTHROPIC_MESSAGES_PATH = "/v1/messages";
 const MODELS_PATH = "/v1/models";
 const ENGINES_PATH = "/v1/engines";
 const CHAT_COMPLETIONS_PATH_ALIAS = "/chat/completions";
@@ -156,6 +157,11 @@ export function isOpenAiCompatibilityRoute(pathname) {
   return normalizeOpenAiPath(pathname).isOpenAi;
 }
 
+export function isAnthropicMessagesRoute(pathname) {
+  if (typeof pathname !== "string") return false;
+  return pathname.replace(/\/+$/, "") === ANTHROPIC_MESSAGES_PATH;
+}
+
 export async function dispatchOpenAiCompatibilityRoutes(context) {
   const {
     gatewayService,
@@ -227,6 +233,26 @@ export async function dispatchOpenAiCompatibilityRoutes(context) {
       durationMs: Date.now() - startedAt,
     });
     writeJson(response, 200, engineDetail);
+    return;
+  }
+
+  if (request.method === "POST" && normalizedPath === ANTHROPIC_MESSAGES_PATH) {
+    await handleAnthropicMessages({
+      gatewayService,
+      request,
+      response,
+      startedAt,
+      writeServiceLog,
+    });
+    return;
+  }
+
+  if (normalizedPath === ANTHROPIC_MESSAGES_PATH) {
+    writeJson(response, 405, createAnthropicError({
+      code: "method_not_allowed",
+      category: "validation",
+      message: "Only POST is supported for /v1/messages.",
+    }));
     return;
   }
 
@@ -410,6 +436,485 @@ export async function dispatchOpenAiCompatibilityRoutes(context) {
     message: "This OpenAI-compatible endpoint is not implemented in this profile.",
     param: normalized.path,
   }));
+}
+
+async function handleAnthropicMessages({
+  gatewayService,
+  request,
+  response,
+  startedAt,
+  writeServiceLog,
+}) {
+  let body;
+  try {
+    body = await readJson(request);
+  } catch {
+    writeJson(response, 400, createAnthropicError({
+      code: "invalid_json",
+      category: "validation",
+      message: "Request body must be valid JSON.",
+    }));
+    return;
+  }
+
+  let gatewayInput;
+  try {
+    gatewayInput = normalizeAnthropicMessageRequest(
+      body,
+      gatewayService.getProviderDescriptors(),
+    );
+  } catch (error) {
+    writeServiceLog?.("anthropic_messages_validation_failed", {
+      method: request.method,
+      path: ANTHROPIC_MESSAGES_PATH,
+      code: error?.code,
+      param: error?.param,
+      durationMs: Date.now() - startedAt,
+    });
+    writeJson(response, 400, createAnthropicError(error));
+    return;
+  }
+
+  if (body.stream === true) {
+    await streamAnthropicMessage({
+      body,
+      gatewayInput,
+      gatewayService,
+      request,
+      response,
+      startedAt,
+      writeServiceLog,
+    });
+    return;
+  }
+
+  const result = await gatewayService.execute(gatewayInput);
+  if (!result.success) {
+    const error = result.error ?? {
+      code: result.code,
+      message: result.message,
+      category: "provider",
+    };
+    writeServiceLog?.("anthropic_messages_failed", {
+      method: request.method,
+      path: ANTHROPIC_MESSAGES_PATH,
+      code: error.code,
+      durationMs: Date.now() - startedAt,
+    });
+    writeJson(response, resolveOpenAiErrorStatus(error), createAnthropicError(
+      error,
+      result.meta?.requestId,
+    ));
+    return;
+  }
+
+  writeServiceLog?.("anthropic_messages_completed", {
+    method: request.method,
+    path: ANTHROPIC_MESSAGES_PATH,
+    provider: result.data?.selectedProvider,
+    model: result.data?.selectedModel,
+    executionMode: result.data?.executionMode,
+    durationMs: Date.now() - startedAt,
+  });
+  writeJson(response, 200, createAnthropicMessage(result, {
+    requestedModel: body.model,
+    messages: gatewayInput.messages,
+  }));
+}
+
+export function normalizeAnthropicMessageRequest(body, descriptors = []) {
+  if (!isRecord(body)) {
+    throw createAnthropicValidationError("Request body must be a JSON object.", null);
+  }
+
+  const supportedFields = new Set([
+    "model",
+    "max_tokens",
+    "messages",
+    "system",
+    "stop_sequences",
+    "stream",
+    "temperature",
+    "top_p",
+    "metadata",
+    "unified_ai",
+    "provider_id",
+    "prompt_enhancement",
+  ]);
+  for (const field of Object.keys(body)) {
+    if (!supportedFields.has(field)) {
+      throw createAnthropicUnsupportedError(
+        `${field} is not supported by this Anthropic compatibility profile.`,
+        field,
+      );
+    }
+  }
+
+  const requestedModel = readRequiredString(body.model, "model");
+  if (!Number.isInteger(body.max_tokens) || body.max_tokens < 1) {
+    throw createAnthropicValidationError(
+      "max_tokens must be a positive integer.",
+      "max_tokens",
+    );
+  }
+  validateOptionalBoolean(body.stream, "stream");
+
+  const conversation = normalizeAnthropicMessages(body.messages);
+  const system = normalizeAnthropicSystem(body.system);
+  const messages = system ? [{ role: "system", content: system }, ...conversation] : conversation;
+  const target = resolveOpenAiModelTarget(requestedModel, descriptors);
+  const extension = normalizeUnifiedAiExtension(body);
+  const options = {
+    maxOutputTokens: body.max_tokens,
+  };
+
+  if (body.temperature !== undefined) {
+    options.temperature = readNumberInRange(body.temperature, "temperature", 0, 1);
+  }
+  if (body.top_p !== undefined) {
+    options.topP = readNumberInRange(body.top_p, "top_p", 0, 1);
+  }
+  if (body.stop_sequences !== undefined) {
+    if (
+      !Array.isArray(body.stop_sequences)
+      || body.stop_sequences.length > 4
+      || body.stop_sequences.some((item) => typeof item !== "string" || item.length === 0)
+    ) {
+      throw createAnthropicValidationError(
+        "stop_sequences must be an array of at most four non-empty strings.",
+        "stop_sequences",
+      );
+    }
+    if (body.stop_sequences.length > 0) {
+      options.stopSequences = [...body.stop_sequences];
+    }
+  }
+
+  let metadataUserIdPresent = false;
+  if (body.metadata !== undefined) {
+    if (!isRecord(body.metadata)) {
+      throw createAnthropicValidationError("metadata must be an object.", "metadata");
+    }
+    for (const key of Object.keys(body.metadata)) {
+      if (key !== "user_id") {
+        throw createAnthropicUnsupportedError(
+          `metadata.${key} is not supported by this Anthropic compatibility profile.`,
+          `metadata.${key}`,
+        );
+      }
+    }
+    if (
+      body.metadata.user_id !== undefined
+      && (typeof body.metadata.user_id !== "string" || body.metadata.user_id.length > 256)
+    ) {
+      throw createAnthropicValidationError(
+        "metadata.user_id must be a string no longer than 256 characters.",
+        "metadata.user_id",
+      );
+    }
+    metadataUserIdPresent = typeof body.metadata.user_id === "string";
+  }
+
+  const gatewayInput = {
+    taskType: "chat",
+    messages,
+    model: target.modelId,
+    providerId: extension.providerId ?? target.providerId,
+    options,
+    metadata: {
+      source: "anthropic-compatible-api",
+      anthropicCompatibility: {
+        requestedModel,
+        stream: body.stream === true,
+        systemPresent: Boolean(system),
+        metadataUserIdPresent,
+      },
+    },
+  };
+
+  return extension.promptEnhancement?.enabled === true
+    ? applyPromptEnhancement(gatewayInput, extension.promptEnhancement)
+    : gatewayInput;
+}
+
+function normalizeAnthropicMessages(messages) {
+  if (!Array.isArray(messages) || messages.length === 0) {
+    throw createAnthropicValidationError(
+      "messages must contain at least one message.",
+      "messages",
+    );
+  }
+
+  return messages.map((message, index) => {
+    const param = `messages[${index}]`;
+    if (!isRecord(message)) {
+      throw createAnthropicValidationError(`${param} must be an object.`, param);
+    }
+    for (const key of Object.keys(message)) {
+      if (key !== "role" && key !== "content") {
+        throw createAnthropicUnsupportedError(
+          `${param}.${key} is not supported by this Anthropic compatibility profile.`,
+          `${param}.${key}`,
+        );
+      }
+    }
+    if (message.role !== "user" && message.role !== "assistant") {
+      throw createAnthropicValidationError(
+        `${param}.role must be 'user' or 'assistant'.`,
+        `${param}.role`,
+      );
+    }
+    return {
+      role: message.role,
+      content: normalizeAnthropicTextContent(message.content, `${param}.content`),
+    };
+  });
+}
+
+function normalizeAnthropicSystem(system) {
+  if (system === undefined || system === null) return "";
+  return normalizeAnthropicTextContent(system, "system");
+}
+
+function normalizeAnthropicTextContent(content, param) {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content) || content.length === 0) {
+    throw createAnthropicValidationError(
+      `${param} must be a string or a non-empty array of text blocks.`,
+      param,
+    );
+  }
+
+  return content.map((block, index) => {
+    const blockParam = `${param}[${index}]`;
+    if (!isRecord(block)) {
+      throw createAnthropicValidationError(`${blockParam} must be an object.`, blockParam);
+    }
+    if (block.type !== "text") {
+      throw createAnthropicUnsupportedError(
+        `${blockParam}.type '${String(block.type)}' is not supported; only text blocks are enabled.`,
+        `${blockParam}.type`,
+      );
+    }
+    for (const key of Object.keys(block)) {
+      if (key !== "type" && key !== "text") {
+        throw createAnthropicUnsupportedError(
+          `${blockParam}.${key} is not supported by this Anthropic compatibility profile.`,
+          `${blockParam}.${key}`,
+        );
+      }
+    }
+    return readRequiredString(block.text, `${blockParam}.text`);
+  }).join("");
+}
+
+export function createAnthropicMessage(result, options = {}) {
+  const data = result.data ?? {};
+  const text = data.message?.content ?? data.outputText ?? data.text ?? "";
+  const usage = data.usage ?? {};
+  const requestId = result.meta?.requestId ?? data.id;
+
+  return {
+    id: toAnthropicMessageId(data.id ?? requestId),
+    type: "message",
+    role: "assistant",
+    model: data.selectedModel ?? data.model ?? options.requestedModel,
+    content: [{ type: "text", text: String(text) }],
+    stop_reason: normalizeAnthropicStopReason(data.finishReason),
+    stop_sequence: data.stopSequence ?? null,
+    usage: {
+      input_tokens: usage.inputTokens ?? estimateAnthropicInputTokens(options.messages),
+      output_tokens: usage.outputTokens ?? estimateCompatibilityTokens(text),
+    },
+    unified_ai: createAnthropicUnifiedAiMetadata(data, requestId),
+  };
+}
+
+export function createAnthropicError(error, requestId) {
+  const category = error?.category ?? error?.type;
+  const type = category === "auth"
+    ? "authentication_error"
+    : category === "rate_limit"
+      ? "rate_limit_error"
+      : category === "validation" || category === "routing"
+        ? "invalid_request_error"
+        : "api_error";
+  return {
+    type: "error",
+    error: {
+      type,
+      message: error?.message ?? "Anthropic-compatible request failed.",
+    },
+    ...(requestId ? { request_id: requestId } : {}),
+  };
+}
+
+async function streamAnthropicMessage({
+  body,
+  gatewayInput,
+  gatewayService,
+  request,
+  response,
+  startedAt,
+  writeServiceLog,
+}) {
+  let clientClosed = false;
+  let failed = false;
+  let started = false;
+  let contentBlockStarted = false;
+  let messageId = null;
+  let selectedModel = body.model;
+  let selectedProvider = null;
+  let executionMode = null;
+  let outputText = "";
+  let finalEvent = null;
+  const inputTokens = estimateAnthropicInputTokens(gatewayInput.messages);
+
+  response.on("close", () => {
+    clientClosed = true;
+  });
+  writeSseHeaders(response);
+
+  const ensureStarted = (event = {}) => {
+    if (started || clientClosed) return;
+    messageId = toAnthropicMessageId(event.requestId);
+    selectedModel = event.selectedModel ?? selectedModel;
+    selectedProvider = event.selectedProvider ?? selectedProvider;
+    executionMode = event.executionMode ?? executionMode;
+    writeAnthropicSseEvent(response, "message_start", {
+      type: "message_start",
+      message: {
+        id: messageId,
+        type: "message",
+        role: "assistant",
+        model: selectedModel,
+        content: [],
+        stop_reason: null,
+        stop_sequence: null,
+        usage: { input_tokens: inputTokens, output_tokens: 0 },
+        unified_ai: createAnthropicUnifiedAiMetadata({
+          selectedProvider,
+          selectedModel,
+          executionMode,
+        }, event.requestId),
+      },
+    });
+    writeAnthropicSseEvent(response, "content_block_start", {
+      type: "content_block_start",
+      index: 0,
+      content_block: { type: "text", text: "" },
+    });
+    contentBlockStarted = true;
+    started = true;
+  };
+
+  for await (const event of gatewayService.executeStream(gatewayInput)) {
+    if (clientClosed) break;
+    if (event.type === "error") {
+      failed = true;
+      writeAnthropicSseEvent(
+        response,
+        "error",
+        createAnthropicError(event.envelope?.error ?? event.envelope, event.requestId),
+      );
+      break;
+    }
+
+    ensureStarted(event);
+    selectedModel = event.selectedModel ?? selectedModel;
+    selectedProvider = event.selectedProvider ?? selectedProvider;
+    executionMode = event.executionMode ?? executionMode;
+    if (event.type === "chunk" && typeof event.textDelta === "string" && event.textDelta) {
+      outputText += event.textDelta;
+      writeAnthropicSseEvent(response, "content_block_delta", {
+        type: "content_block_delta",
+        index: 0,
+        delta: { type: "text_delta", text: event.textDelta },
+      });
+    }
+    if (event.type === "done") finalEvent = event;
+  }
+
+  writeServiceLog?.(failed ? "anthropic_messages_stream_failed" : "anthropic_messages_stream_completed", {
+    method: request.method,
+    path: ANTHROPIC_MESSAGES_PATH,
+    model: selectedModel,
+    provider: selectedProvider,
+    executionMode,
+    durationMs: Date.now() - startedAt,
+  });
+
+  if (!clientClosed) {
+    if (!failed) {
+      ensureStarted(finalEvent ?? {});
+      if (contentBlockStarted) {
+        writeAnthropicSseEvent(response, "content_block_stop", {
+          type: "content_block_stop",
+          index: 0,
+        });
+      }
+      writeAnthropicSseEvent(response, "message_delta", {
+        type: "message_delta",
+        delta: {
+          stop_reason: normalizeAnthropicStopReason(finalEvent?.rawProviderMeta?.finishReason),
+          stop_sequence: null,
+        },
+        usage: { output_tokens: estimateCompatibilityTokens(outputText) },
+      });
+      writeAnthropicSseEvent(response, "message_stop", { type: "message_stop" });
+    }
+    response.end();
+  }
+}
+
+function writeAnthropicSseEvent(response, eventName, data) {
+  if (!response.writableEnded && !response.destroyed) {
+    response.write(`event: ${eventName}\ndata: ${JSON.stringify(data)}\n\n`);
+  }
+}
+
+function createAnthropicValidationError(message, param) {
+  return Object.assign(new Error(message), {
+    code: "invalid_request",
+    category: "validation",
+    param,
+  });
+}
+
+function createAnthropicUnsupportedError(message, param) {
+  return Object.assign(new Error(message), {
+    code: "unsupported_parameter",
+    category: "validation",
+    param,
+  });
+}
+
+function toAnthropicMessageId(value) {
+  const normalized = String(value ?? Date.now().toString(36))
+    .replace(/[^a-zA-Z0-9_-]/g, "")
+    .slice(0, 96);
+  return normalized.startsWith("msg_") ? normalized : `msg_${normalized || "generated"}`;
+}
+
+function normalizeAnthropicStopReason(value) {
+  if (value === "max_tokens" || value === "length") return "max_tokens";
+  if (value === "tool_use" || value === "tool_calls") return "tool_use";
+  if (value === "stop_sequence") return "stop_sequence";
+  return "end_turn";
+}
+
+function estimateAnthropicInputTokens(messages = []) {
+  const text = (messages ?? []).map((message) => message?.content ?? "").join("\n");
+  return estimateCompatibilityTokens(text);
+}
+
+function createAnthropicUnifiedAiMetadata(data = {}, requestId) {
+  return {
+    provider_id: data.selectedProvider ?? data.providerId ?? null,
+    model: data.selectedModel ?? data.model ?? null,
+    execution_mode: data.executionMode ?? null,
+    request_id: requestId ?? null,
+  };
 }
 
 export function normalizeOpenAiChatCompletionRequest(body, descriptors = []) {

@@ -20,6 +20,10 @@ const openAiSdkExampleEntrypoint = resolve(
   repoRoot,
   "docs/examples/openai-sdk-chat.mjs",
 );
+const anthropicSdkExampleEntrypoint = resolve(
+  repoRoot,
+  "docs/examples/anthropic-sdk-messages.mjs",
+);
 const a2aSdkExampleEntrypoint = resolve(
   repoRoot,
   "docs/examples/a2a-sdk-client.mjs",
@@ -197,6 +201,12 @@ const CHECK_ISSUE_CATALOG = {
     severity: "high",
     message: "Official OpenAI SDK compatibility example did not pass all checks.",
     artifactPath: "docs/examples/openai-sdk-chat.mjs",
+  },
+  officialAnthropicSdkReady: {
+    code: "public_clone_anthropic_sdk_invalid",
+    severity: "high",
+    message: "Official Anthropic SDK compatibility example did not pass all checks.",
+    artifactPath: "docs/examples/anthropic-sdk-messages.mjs",
   },
   officialA2ASdkReady: {
     code: "public_clone_a2a_sdk_invalid",
@@ -437,6 +447,41 @@ async function runOpenAiSdkExample(baseUrl) {
   };
 }
 
+async function runAnthropicSdkExample(baseUrl) {
+  let stdout = "";
+  let stderr = "";
+  const child = spawn(process.execPath, [anthropicSdkExampleEntrypoint], {
+    cwd: repoRoot,
+    windowsHide: true,
+    env: {
+      ...process.env,
+      AI_GATEWAY_SERVICE_URL: baseUrl,
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  child.stdout.setEncoding("utf8");
+  child.stderr.setEncoding("utf8");
+  child.stdout.on("data", (chunk) => {
+    stdout = `${stdout}${chunk}`.slice(-16_000);
+  });
+  child.stderr.on("data", (chunk) => {
+    stderr = `${stderr}${chunk}`.slice(-8_000);
+  });
+  const [exitCode] = await once(child, "exit");
+  let body = null;
+  try {
+    body = JSON.parse(stdout);
+  } catch {
+    // The checks below report the captured output when the example is invalid.
+  }
+  return {
+    exitCode,
+    body,
+    stdout: stdout.trim(),
+    stderr: stderr.trim(),
+  };
+}
+
 async function runA2ASdkExample(baseUrl) {
   let stdout = "";
   let stderr = "";
@@ -513,6 +558,7 @@ try {
   const javascriptExample = await runJavaScriptExample(baseUrl);
   const sharedSdkExample = await runSharedSdkExample(baseUrl);
   const openAiSdkExample = await runOpenAiSdkExample(baseUrl);
+  const anthropicSdkExample = await runAnthropicSdkExample(baseUrl);
   const a2aSdkExample = await runA2ASdkExample(baseUrl);
   const promptEnhancement = await fetchJson(`${baseUrl}/prompts/enhance`, {
     method: "POST",
@@ -684,6 +730,16 @@ try {
       && Object.values(openAiSdkExample.body?.checks ?? {}).every(Boolean)
       && openAiSdkExample.body?.invalidRequest?.status === 400
       && openAiSdkExample.body?.realProviderCallsMade === false,
+    officialAnthropicSdkReady:
+      anthropicSdkExample.exitCode === 0
+      && anthropicSdkExample.body?.ok === true
+      && anthropicSdkExample.body?.client === "@anthropic-ai/sdk"
+      && anthropicSdkExample.body?.sdkVersion === "0.116.0"
+      && anthropicSdkExample.body?.model === "local-fake-model"
+      && anthropicSdkExample.body?.executionMode === "fake"
+      && Object.values(anthropicSdkExample.body?.checks ?? {}).every(Boolean)
+      && anthropicSdkExample.body?.invalidRequest?.status === 400
+      && anthropicSdkExample.body?.realProviderCallsMade === false,
     officialA2ASdkReady:
       a2aSdkExample.exitCode === 0
       && a2aSdkExample.body?.ok === true
@@ -713,6 +769,7 @@ try {
     javascriptExample,
     sharedSdkExample,
     openAiSdkExample,
+    anthropicSdkExample,
     a2aSdkExample,
     mcp: mcpSmoke.body,
   };

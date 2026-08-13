@@ -34,7 +34,8 @@ export function safeParseMetadata(value) {
  * @returns {Object} Vector store instance
  */
 export function createSqliteVecStore(options = {}) {
-  const dbPath = resolve(options.dbPath || DEFAULT_DB_PATH);
+  const requestedDbPath = options.dbPath || DEFAULT_DB_PATH;
+  const dbPath = requestedDbPath === ":memory:" ? requestedDbPath : resolve(requestedDbPath);
   const dimension = options.dimension || DEFAULT_DIMENSION;
   let db = null;
 
@@ -42,7 +43,11 @@ export function createSqliteVecStore(options = {}) {
     if (db) return db;
 
     try {
-      const { Database } = require("better-sqlite3");
+      const loaded = require("better-sqlite3");
+      const Database = loaded.Database ?? loaded.default ?? loaded;
+      if (typeof Database !== "function") {
+        throw new TypeError("better-sqlite3 did not expose a database constructor.");
+      }
       const dir = dirname(dbPath);
       if (!existsSync(dir)) {
         mkdirSync(dir, { recursive: true });

@@ -81,6 +81,7 @@ export function createHealth(application) {
       "POST /prompts/enhance",
       "GET /v1/models",
       "POST /v1/chat/completions",
+      "POST /v1/messages",
       "POST /chat",
       "POST /chat/stream",
       "POST /chat/rag",

@@ -423,6 +423,7 @@ export function resolvePermission(method, pathname) {
     || normalizedPath === "/v1/chat/completions"
     || normalizedPath === "/v1/completions"
     || normalizedPath === "/v1/responses"
+    || normalizedPath === "/v1/messages"
     || normalizedPath === "/a2a/jsonrpc"
     || normalizedPath === "/chat"
     || normalizedPath === "/chat/stream"

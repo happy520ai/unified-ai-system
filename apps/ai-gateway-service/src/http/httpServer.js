@@ -172,8 +172,10 @@ import { dispatchPromptEnhancementRoutes } from "./promptEnhancementRoutes.js";
 import { createA2AGateway } from "./a2aGateway.js";
 import { dispatchA2ARoutes } from "./a2aRoutes.js";
 import {
+  createAnthropicError,
   createOpenAiError,
   dispatchOpenAiCompatibilityRoutes,
+  isAnthropicMessagesRoute,
   isOpenAiCompatibilityRoute,
 } from "./openAiCompatibilityRoutes.js";
 import { dispatchOpenAiResponsesRoutes } from "./openAiResponsesRoutes.js";
@@ -454,7 +456,9 @@ export function createGatewayHttpServer(application) {
     resilienceMetrics.recordRequestStarted(inFlightRequests.size);
 
     const pathname = url.pathname;
-    const isStreamingRoute = pathname.endsWith("/stream") || pathname === "/v1/chat/completions";
+    const isStreamingRoute = pathname.endsWith("/stream")
+      || pathname === "/v1/chat/completions"
+      || isAnthropicMessagesRoute(pathname);
     const bodyBytesLimit = maxRequestBodyBytes > 0 ? maxRequestBodyBytes : DEFAULT_MAX_REQUEST_BODY_BYTES;
     const requestBodyLimit = parseContentLength(request.headers["content-length"], bodyBytesLimit);
     if (requestBodyLimit > bodyBytesLimit) {
@@ -556,12 +560,14 @@ export function createGatewayHttpServer(application) {
         writeJson(
           response,
           enterpriseDecision.statusCode ?? 401,
-          isOpenAiCompatibilityRoute(url.pathname)
-            ? createOpenAiError(authError)
-            : createErrorEnvelope(authError.code, authError.message, {
-              startedAt,
-              category: authError.category,
-            }),
+          isAnthropicMessagesRoute(url.pathname)
+            ? createAnthropicError(authError, requestId)
+            : isOpenAiCompatibilityRoute(url.pathname)
+              ? createOpenAiError(authError)
+              : createErrorEnvelope(authError.code, authError.message, {
+                startedAt,
+                category: authError.category,
+              }),
         );
         markRequestSuccess();
         return;

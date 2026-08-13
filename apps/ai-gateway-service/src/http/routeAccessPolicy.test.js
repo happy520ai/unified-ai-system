@@ -44,6 +44,7 @@ describe("route access policy", () => {
     expect(resolvePermission("POST", "/v1/chat/completions")).toBe("chat:use");
     expect(resolvePermission("POST", "/v1/completions")).toBe("chat:use");
     expect(resolvePermission("POST", "/v1/responses")).toBe("chat:use");
+    expect(resolvePermission("POST", "/v1/messages")).toBe("chat:use");
   });
 
   it("governs multimodal-compatible routes with chat execution permission", () => {

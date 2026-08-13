@@ -3,8 +3,10 @@ import { Readable } from "node:stream";
 import { describe, expect, it, vi } from "vitest";
 import { ROUTE_NOT_HANDLED } from "./httpRouteDispatch.js";
 import {
+  createAnthropicMessage,
   createOpenAiChatCompletionChunk,
   dispatchOpenAiCompatibilityRoutes,
+  normalizeAnthropicMessageRequest,
   normalizeOpenAiChatCompletionRequest,
   normalizeOpenAiCompletionRequest,
 } from "./openAiCompatibilityRoutes.js";
@@ -648,6 +650,125 @@ describe("OpenAI request normalization", () => {
       prompt: ["Build this", " in steps."],
     }, descriptors);
     expect(byArray.messages).toEqual([{ role: "user", content: "Build this in steps." }]);
+  });
+
+  it("normalizes Anthropic text messages and system blocks without retaining user identifiers", () => {
+    const request = normalizeAnthropicMessageRequest({
+      model: "local-fake-model",
+      max_tokens: 128,
+      system: [{ type: "text", text: "Answer briefly." }],
+      messages: [{
+        role: "user",
+        content: [{ type: "text", text: "Hello from Anthropic." }],
+      }],
+      metadata: { user_id: "private-user-reference" },
+      temperature: 0.4,
+      stop_sequences: ["STOP"],
+    }, descriptors);
+
+    expect(request.messages).toEqual([
+      { role: "system", content: "Answer briefly." },
+      { role: "user", content: "Hello from Anthropic." },
+    ]);
+    expect(request.options).toMatchObject({
+      maxOutputTokens: 128,
+      temperature: 0.4,
+      stopSequences: ["STOP"],
+    });
+    expect(request.metadata.source).toBe("anthropic-compatible-api");
+    expect(request.metadata.anthropicCompatibility.metadataUserIdPresent).toBe(true);
+    expect(JSON.stringify(request)).not.toContain("private-user-reference");
+  });
+
+  it("serves Anthropic Messages in the official response shape", async () => {
+    const response = createResponseRecorder();
+    await dispatchOpenAiCompatibilityRoutes(createContext({
+      body: {
+        model: "local-fake-model",
+        max_tokens: 64,
+        messages: [{ role: "user", content: "Hello" }],
+      },
+      path: "/v1/messages",
+      response,
+    }));
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toMatchObject({
+      type: "message",
+      role: "assistant",
+      model: "local-fake-model",
+      stop_reason: "end_turn",
+      content: [{ type: "text" }],
+      usage: { input_tokens: 8, output_tokens: 4 },
+      unified_ai: {
+        provider_id: "local-fake-provider",
+        execution_mode: "fake",
+      },
+    });
+    expect(response.body.id).toMatch(/^msg_/);
+  });
+
+  it("emits the Anthropic SSE message lifecycle", async () => {
+    const response = createResponseRecorder();
+    await dispatchOpenAiCompatibilityRoutes(createContext({
+      body: {
+        model: "local-fake-model",
+        max_tokens: 64,
+        stream: true,
+        messages: [{ role: "user", content: "Stream" }],
+      },
+      path: "/v1/messages",
+      response,
+    }));
+
+    expect(response.statusCode).toBe(200);
+    expect(Object.entries(response.headers).some(([name, value]) => (
+      name.toLowerCase() === "content-type" && String(value).includes("text/event-stream")
+    ))).toBe(true);
+    expect(response.text).toContain("event: message_start");
+    expect(response.text).toContain("event: content_block_start");
+    expect(response.text).toContain('"type":"text_delta","text":"Hello"');
+    expect(response.text).toContain("event: content_block_stop");
+    expect(response.text).toContain("event: message_delta");
+    expect(response.text).toContain("event: message_stop");
+  });
+
+  it("rejects unsupported Anthropic tools and non-text content without pretending compatibility", () => {
+    expect(() => normalizeAnthropicMessageRequest({
+      model: "local-fake-model",
+      max_tokens: 64,
+      messages: [{ role: "user", content: "Hello" }],
+      tools: [],
+    }, descriptors)).toThrow(/tools is not supported/);
+
+    expect(() => normalizeAnthropicMessageRequest({
+      model: "local-fake-model",
+      max_tokens: 64,
+      messages: [{
+        role: "user",
+        content: [{ type: "image", source: { type: "base64" } }],
+      }],
+    }, descriptors)).toThrow(/only text blocks are enabled/);
+  });
+
+  it("creates Anthropic response objects from gateway results", () => {
+    const response = createAnthropicMessage({
+      success: true,
+      data: {
+        id: "request-abc",
+        message: { content: "Result" },
+        selectedProvider: "local-fake-provider",
+        selectedModel: "local-fake-model",
+        executionMode: "fake",
+        finishReason: "length",
+        usage: { inputTokens: 3, outputTokens: 2 },
+      },
+      meta: { requestId: "request-abc" },
+    });
+
+    expect(response.id).toBe("msg_request-abc");
+    expect(response.stop_reason).toBe("max_tokens");
+    expect(response.usage).toEqual({ input_tokens: 3, output_tokens: 2 });
   });
 });
 
