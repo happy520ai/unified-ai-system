@@ -13,6 +13,101 @@ import { join, relative, extname } from 'node:path';
 import { buildDAG } from './dag-builder.js';
 import { callLLM } from '../llm-client.js';
 
+const LANGUAGE_PRIORITY = ['ts', 'js', 'python', 'go', 'rust', 'java'];
+const EXT_TO_LANGUAGE = Object.freeze({
+  '.ts': 'ts',
+  '.tsx': 'ts',
+  '.js': 'js',
+  '.mjs': 'js',
+  '.cjs': 'js',
+  '.jsx': 'js',
+  '.py': 'python',
+  '.go': 'go',
+  '.rs': 'rust',
+  '.java': 'java',
+});
+const GOAL_TEXT_LANGUAGE_PATTERNS = [
+  { pattern: /\b(type\s*script|typescript|ts)\b/, language: 'ts' },
+  { pattern: /\b(java\s*cript|javascript|js|node\.js|nodejs)\b/, language: 'js' },
+];
+
+function normalizeLanguageCandidate(value) {
+  if (!value) return null;
+  const v = String(value).toLowerCase();
+  if (v === 'typescript') return 'ts';
+  if (v === 'javascript' || v === 'nodejs' || v === 'node.js') return 'js';
+  if (v === 'py' || v === 'python') return 'python';
+  if (v === 'golang' || v === 'go') return 'go';
+  if (v === 'rust' || v === 'java') return v;
+  if (v === 'ts') return 'ts';
+  if (v === 'js') return 'js';
+  return null;
+}
+
+function inferLanguageFromText(text) {
+  const normalized = String(text || '').toLowerCase();
+  const extMatch = normalized.match(/\b[\w.-]+\.(ts|tsx|js|jsx|py|go|rs|java)\b/g);
+  if (extMatch?.length > 0) {
+    const matchLang = normalizeLanguageCandidate(extMatch[0].slice(extMatch[0].lastIndexOf('.') + 1));
+    if (matchLang) return matchLang;
+  }
+
+  for (const { pattern, language } of GOAL_TEXT_LANGUAGE_PATTERNS) {
+    if (pattern.test(normalized)) return language;
+  }
+  return null;
+}
+
+function inferTaskLanguage(task, fallbackLanguage = 'js', goalText = '') {
+  const fromFiles = inferLanguageFromAllowedFiles(task?.allowedFiles ?? []);
+  if (fromFiles) return fromFiles;
+  const fromText = inferLanguageFromText(`${task?.name ?? ''} ${task?.prompt ?? ''} ${goalText ?? ''}`);
+  if (fromText) return fromText;
+  return normalizeLanguageCandidate(fallbackLanguage) || 'js';
+}
+
+function inferLanguageFromAllowedFiles(patterns) {
+  const languageVotes = new Map();
+  const list = Array.isArray(patterns) ? patterns : [];
+  for (const pattern of list) {
+    const matches = String(pattern).toLowerCase().match(/\.(ts|tsx|js|mjs|cjs|jsx|py|go|rs|java)\b/g);
+    if (!matches || matches.length === 0) continue;
+    for (const ext of matches) {
+      const mapped = EXT_TO_LANGUAGE[ext];
+      if (!mapped) continue;
+      languageVotes.set(mapped, (languageVotes.get(mapped) || 0) + 1);
+    }
+  }
+
+  for (const language of LANGUAGE_PRIORITY) {
+    if ((languageVotes.get(language) || 0) > 0) return language;
+  }
+  return null;
+}
+
+function inferLanguageFromTree(tree) {
+  const counts = new Map();
+  for (const rel of tree) {
+    const language = EXT_TO_LANGUAGE[extname(rel).toLowerCase()];
+    if (!language) continue;
+    counts.set(language, (counts.get(language) || 0) + 1);
+  }
+  for (const language of LANGUAGE_PRIORITY) {
+    if ((counts.get(language) || 0) > 0) return language;
+  }
+  return 'js';
+}
+
+function buildLanguagePreferenceText(language, taskLanguage = null) {
+  const normalizedLanguage = normalizeLanguageCandidate(language) || 'js';
+  if (!taskLanguage || normalizeLanguageCandidate(taskLanguage) === normalizedLanguage) {
+    return `Default implementation language: ${normalizedLanguage === 'ts' ? 'TypeScript' : normalizedLanguage === 'js' ? 'JavaScript' : normalizedLanguage}.`;
+  }
+  const normalizedTaskLanguage = normalizeLanguageCandidate(taskLanguage) || normalizedLanguage;
+  const taskMap = { ts: 'TypeScript', js: 'JavaScript', python: 'Python', go: 'Go', rust: 'Rust', java: 'Java' };
+  return `Primary task language: ${taskMap[normalizedTaskLanguage] ?? normalizedTaskLanguage}. Project default remains ${taskMap[normalizedLanguage] ?? normalizedLanguage}.`;
+}
+
 const MAX_PROBE_FILES = 80;
 const IGNORED_DIRS = new Set(['.git', 'node_modules', 'dist', 'build', 'coverage', '.next', '.turbo', 'legacy']);
 
@@ -110,7 +205,9 @@ export async function compileGoal(store, { goalText, projectRoot }) {
   const { tree, keyFiles } = await probeCodebase(projectRoot);
 
   // Step 2: Build the LLM prompt
-  const userPrompt = buildUserPrompt(goalText, tree, keyFiles);
+  const preferredLanguage = inferLanguageFromText(goalText) || inferLanguageFromTree(tree);
+  const languageConstraintText = buildLanguagePreferenceText(preferredLanguage);
+  const userPrompt = buildUserPrompt(goalText, tree, keyFiles, preferredLanguage);
 
   // Step 3: Call LLM to decompose goal (with timeout)
   console.log('[forge:compiler] Decomposing goal via LLM...');
@@ -185,6 +282,22 @@ export async function compileGoal(store, { goalText, projectRoot }) {
   }
 
   // Step 5: Build and store the DAG
+  if (Array.isArray(parsed.tasks)) {
+    parsed.tasks = parsed.tasks.map((task) => {
+      const taskLanguage = inferTaskLanguage(task, preferredLanguage, goalText);
+      const shouldAttachConstraint = ['implement', 'test', 'refactor'].includes(task.type);
+      let constraints = Array.isArray(task.constraints) ? [...task.constraints] : [];
+      if (shouldAttachConstraint) {
+        const langConstraint = buildLanguagePreferenceText(preferredLanguage, taskLanguage);
+        if (!constraints.includes(langConstraint)) constraints.push(langConstraint);
+        if (languageConstraintText !== langConstraint && !constraints.includes(languageConstraintText)) {
+          constraints.push(languageConstraintText);
+        }
+      }
+      return { ...task, language: taskLanguage, constraints };
+    });
+  }
+
   const { tasks, deps } = buildDAG(parsed.tasks);
 
   store.insertTaskDAG(goalId, tasks, deps);
@@ -199,8 +312,11 @@ export async function compileGoal(store, { goalText, projectRoot }) {
   return { goalId, taskCount: tasks.length, summary: parsed.summary };
 }
 
-function buildUserPrompt(goalText, tree, keyFiles) {
+function buildUserPrompt(goalText, tree, keyFiles, preferredLanguage = 'js') {
   let prompt = `## Goal\n${goalText}\n\n`;
+  if (preferredLanguage) {
+    prompt += `## Preferred Language\n${preferredLanguage}\n\n`;
+  }
   prompt += `## Project File Tree (first ${tree.length} entries)\n\`\`\`\n${tree.join('\n')}\n\`\`\`\n\n`;
 
   if (keyFiles.length > 0) {
