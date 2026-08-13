@@ -33,3 +33,5 @@ behavior changes.
 - [ ] No secret, token, private endpoint, or authorization record is included.
 - [ ] Public behavior and documentation agree.
 - [ ] Production, L5, and AGI claims remain evidence-based.
+- [ ] If trend guardrails are enabled, `.tmp/quality-trend-guardrail.json` was inspected and any `issues` are explained in the PR body.
+- [ ] If trend gate is unstable, `.tmp/quality-trend-summary.md` and `.tmp/quality-ci-verification.json` were reviewed for root-cause evidence.
