@@ -538,15 +538,19 @@ function checkTrendDigestOperations() {
     const trendGuideSource = readTextFile("docs/quality-trend-digest-guide.md");
     const trendScriptSource = readTextFile("tools/quality-trend-digest.mjs");
     const summaryScriptSource = readTextFile("tools/quality-trend-summary.mjs");
+    const checkScriptSource = readTextFile("tools/quality-trend-check.mjs");
 
     const requiredPackageMarkers = [
       "\"quality:trend-digest\"",
+      "\"quality:trend-check\"",
       "quality-trend-digest.md",
     ];
     const requiredWorkflowMarkers = [
       "quality:trend-digest --",
       "quality-trend-digest.md",
       "quality-trend-digest.json",
+      "quality-trend-check.json",
+      "quality:trend-check --",
       "Append quality trend digest to workflow summary",
       "Upload quality scorecard artifact",
     ];
@@ -554,11 +558,14 @@ function checkTrendDigestOperations() {
       "quality trend digest",
       "pnpm quality:trend-digest",
       "quality-trend-digest.json",
+      "quality:trend-check",
     ];
     const requiredScriptMarkers = [
       "Operational state",
       "Latest run risk snapshot",
       "Recommended next actions",
+      "Quality trend check status",
+      "quality trend hard block",
     ];
 
     const missingPackage = requiredPackageMarkers.filter((marker) => !packageSource.includes(marker));
@@ -567,7 +574,11 @@ function checkTrendDigestOperations() {
     );
     const missingGuide = requiredGuideMarkers.filter((marker) => !trendGuideSource.includes(marker) && !readinessGuideSource.includes(marker));
     const missingSource = requiredScriptMarkers.filter(
-      (marker) => !trendScriptSource.includes(marker) && !summaryScriptSource.includes(marker),
+      (marker) => (
+        !trendScriptSource.includes(marker)
+        && !summaryScriptSource.includes(marker)
+        && !checkScriptSource.includes(marker)
+      ),
     );
 
     return {

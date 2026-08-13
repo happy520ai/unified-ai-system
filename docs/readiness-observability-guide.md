@@ -234,3 +234,31 @@ If you inspect workflow artifacts, you can load the guardrail JSON to see thresh
 used in CI diagnostics and trend stability reviews.
 
 Default guardrail thresholds are `--max-consecutive-failures 3` and `--max-score-drop-points 20` in the CI trend generation step. A breach sets `guardrail pass: fail` in the summary and can fail the CI job due `--enforce-guardrails`.
+
+## 6.1) Trend health check command (new)
+
+Use this command for a policy-level health signal after digest/summary generation:
+
+```bash
+pnpm quality:trend-check -- \
+  --digest .tmp/quality-trend-digest.json \
+  --guardrail .tmp/quality-trend-guardrail.json \
+  --summary .tmp/quality-trend-summary.md \
+  --max-summary-reasons 8 \
+  --json
+```
+
+The output includes:
+
+- status (`stable`, `unstable-warning`, `unstable-critical`, etc.)
+- severity (`none`/`info`/`warning`/`critical`)
+- blocked (`true`/`false`)
+- reasons and a short recommendation
+
+Current CI artifacts include:
+
+- `.tmp/quality-trend-check.json`
+- `.tmp/quality-trend-digest.json`
+- `.tmp/quality-trend-guardrail.json`
+
+Use this output for pre-merge triage when trend score is noisy but verification still passes.
