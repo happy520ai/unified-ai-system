@@ -43,4 +43,8 @@ if (response.status === 429) {
 - These fields describe gateway request quotas, not provider token quotas or provider billing limits.
 - A successful response does not guarantee that later requests will be accepted; capacity and policy can change.
 - Memory-backed limits are process-local. Use the configured SQLite backend when multiple gateway processes must share a request counter.
+- SQLite mode is same-host only. Use `AI_GATEWAY_RATE_LIMIT_STORE_MODE=postgres` when gateway replicas on different hosts must enforce one shared request quota.
+- PostgreSQL mode uses database-clock fixed windows and atomic counters. It stores an HMAC-derived subject identity rather than the raw request IP, and isolates global and route quotas by namespace.
+- PostgreSQL store or capacity failure returns `503 RATE_LIMIT_STORE_UNAVAILABLE` or `503 RATE_LIMIT_STORE_CAPACITY`; the request does not proceed to provider execution. A `429 RATE_LIMITED` means the shared quota itself was exceeded.
+- PostgreSQL mode requires `AI_GATEWAY_RATE_LIMIT_POSTGRES_URL` and a shared `AI_GATEWAY_RATE_LIMIT_HMAC_SECRET` of at least 32 bytes. Load both from a secret manager and require certificate-verified TLS outside a trusted local network.
 - The gateway intentionally does not emit the evolving IETF `RateLimit` structured field as if it were a final RFC contract.

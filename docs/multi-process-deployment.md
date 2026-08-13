@@ -169,4 +169,41 @@ still needs independently verified database failover, TLS identity, retention,
 backup/restore, disaster recovery, replica convergence, provider reconciliation,
 and load-balancer behavior.
 
+## Cross-host PostgreSQL request quotas
+
+Memory rate limits are process-local and SQLite counters are same-host only.
+Cross-host replicas can enforce one shared fixed-window request quota with the
+same PostgreSQL cluster:
+
+```bash
+AI_GATEWAY_RATE_LIMIT_STORE_MODE=postgres
+AI_GATEWAY_RATE_LIMIT_POSTGRES_URL=<load-from-secret-manager>
+AI_GATEWAY_RATE_LIMIT_HMAC_SECRET=<load-the-same-32-byte-or-longer-secret>
+AI_GATEWAY_RATE_LIMIT_STORE_NAMESPACE=http
+```
+
+The store uses database time, atomic updates, and separate namespaces for the
+global fallback and each route policy. It HMACs the request subject before
+storage, so the table does not contain raw IP partition keys. A short advisory
+transaction lock is used only when creating a new bucket or enforcing capacity;
+requests to an existing hot bucket use one atomic update and do not take that
+global capacity lock.
+
+Operational bounds:
+
+```bash
+AI_GATEWAY_RATE_LIMIT_POSTGRES_POOL_MAX=4
+AI_GATEWAY_RATE_LIMIT_POSTGRES_STATEMENT_TIMEOUT_MS=5000
+AI_GATEWAY_RATE_LIMIT_POSTGRES_MAX_BUCKETS=100000
+```
+
+If the store cannot prove a counter update, the gateway returns
+`503 RATE_LIMIT_STORE_UNAVAILABLE`; when the bounded active-bucket capacity is
+full it returns `503 RATE_LIMIT_STORE_CAPACITY`. Neither condition fails open to
+provider traffic. Monitor `ai_gateway_rate_limit_store_available`, active
+buckets, statistics age, pool saturation, statement timeouts, and database
+capacity. This controls gateway request counts, not provider token billing or a
+tenant-wide quota unless the deployment's trusted proxy and partition policy
+make the request subject tenant-specific.
+
 \n

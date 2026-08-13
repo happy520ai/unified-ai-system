@@ -86,11 +86,13 @@ export async function dispatchHttpRoutes02(context) {
     const saturated = saturationThreshold > 0 && currentInFlight >= saturationThreshold;
     const lifecycle = gatewayLifecycle?.snapshot?.() ?? null;
     const idempotency = await readIdempotencyHealth(idempotencyCoordinator);
+    const rateLimit = await readRateLimitHealth(rateLimiter);
     const readinessFailures = collectReadinessFailures(healthSnapshot, readinessSnapshot, {
       saturated,
       gatewayErrorCircuitState: resilienceSnapshot?.gatewayErrorCircuitState,
       lifecycleState: lifecycle?.state,
       idempotencyStoreUnavailable: idempotency?.storeMode === "postgres" && idempotency?.available !== true,
+      rateLimitStoreUnavailable: rateLimit?.storeMode === "postgres" && rateLimit?.available !== true,
     });
     resilienceMetrics?.recordReadinessCheck?.(readinessFailures);
     const degraded = saturated || readinessFailures.length > 0;
@@ -105,6 +107,7 @@ export async function dispatchHttpRoutes02(context) {
       isReady: !degraded,
       lifecycle,
       idempotency,
+      rateLimit,
       saturation: {
         inFlight: currentInFlight,
         threshold: saturationThreshold,
@@ -188,16 +191,18 @@ export async function dispatchHttpRoutes02(context) {
     const saturated = saturationThreshold > 0 && currentInFlight >= saturationThreshold;
     const lifecycle = gatewayLifecycle?.snapshot?.() ?? null;
     const idempotency = await readIdempotencyHealth(idempotencyCoordinator);
+    const rateLimit = await readRateLimitHealth(rateLimiter);
     const readinessFailures = collectReadinessFailures(healthSnapshot, readinessSnapshot, {
       saturated,
       gatewayErrorCircuitState: readinessResilienceSnapshot?.gatewayErrorCircuitState,
       lifecycleState: lifecycle?.state,
       idempotencyStoreUnavailable: idempotency?.storeMode === "postgres" && idempotency?.available !== true,
+      rateLimitStoreUnavailable: rateLimit?.storeMode === "postgres" && rateLimit?.available !== true,
     });
     const snapshot = {
       totalRequests: stats.totalRequests ?? 0,
       activeConnections: wsServer?.getConnectionCount?.() ?? 0,
-      rateLimiter: rateLimiter?.getStats?.() ?? null,
+      rateLimiter: rateLimit,
       resilience: readinessResilienceSnapshot ?? null,
       health: healthSnapshot,
       readiness: readinessSnapshot,
@@ -600,6 +605,9 @@ function collectReadinessFailures(healthSnapshot, readinessSnapshot, context = {
   if (context?.idempotencyStoreUnavailable) {
     readinessFailures.push("idempotency-store-unavailable");
   }
+  if (context?.rateLimitStoreUnavailable) {
+    readinessFailures.push("rate-limit-store-unavailable");
+  }
 
   return Array.from(new Set(readinessFailures));
 }
@@ -608,4 +616,10 @@ async function readIdempotencyHealth(coordinator) {
   if (!coordinator) return null;
   if (typeof coordinator.checkHealth === "function") return coordinator.checkHealth();
   return coordinator.getStats?.() ?? null;
+}
+
+async function readRateLimitHealth(rateLimiter) {
+  if (!rateLimiter) return null;
+  if (typeof rateLimiter.checkHealth === "function") return rateLimiter.checkHealth();
+  return rateLimiter.getStats?.() ?? null;
 }

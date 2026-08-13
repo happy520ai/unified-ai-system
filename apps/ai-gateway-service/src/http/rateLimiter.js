@@ -9,6 +9,10 @@
  */
 
 import { createRateLimiterSqliteBackend } from "./rateLimiter-sqlite.js";
+import {
+  PostgresRateLimitStoreError,
+  createPostgresRateLimitStore,
+} from "./postgresRateLimitStore.ts";
 
 const DEFAULT_WINDOW_MS = 60_000; // 1 minute
 const DEFAULT_MAX_REQUESTS = 60;
@@ -41,25 +45,43 @@ export function createRateLimiter(options = {}) {
   const maxRequests = options.maxRequests ?? DEFAULT_MAX_REQUESTS;
   const whitelist = new Set(options.whitelist ?? ["127.0.0.1", "::1", "::ffff:127.0.0.1"]);
   const storeMode = String(options.storeMode ?? "memory").trim().toLowerCase();
+  if (!["memory", "sqlite", "postgres"].includes(storeMode)) {
+    throw new Error(`Unsupported rate-limit store mode: ${storeMode}`);
+  }
   const buckets = new Map();
 
-  const backend = storeMode === "sqlite"
+  const sqliteBackend = storeMode === "sqlite"
     ? createRateLimiterSqliteBackend({
       dbPath: options.storePath ?? DEFAULT_SQLITE_PATH,
       namespace: options.storeNamespace ?? "default",
+    })
+    : null;
+  const ownsPostgresStore = storeMode === "postgres" && !options.postgresStore;
+  const postgresStore = storeMode === "postgres"
+    ? options.postgresStore ?? createPostgresRateLimitStore({
+      connectionString: options.postgresConnectionString,
+      pool: options.postgresPool,
+      secret: options.postgresSecret,
+      poolMax: options.postgresPoolMax ?? 4,
+      statementTimeoutMs: options.postgresStatementTimeoutMs ?? 5_000,
+      maxBuckets: options.postgresMaxBuckets ?? 100_000,
     })
     : null;
 
   // Cleanup expired buckets every 5 minutes
   const cleanupInterval = setInterval(() => {
     const now = Date.now();
-    if (backend) {
+    if (sqliteBackend) {
       const oldestIndex = Math.floor(now / windowMs) - 1;
       try {
-        backend.cleanup(oldestIndex);
+        sqliteBackend.cleanup(oldestIndex);
       } catch {
         // cleanup is best-effort; never break limiting on cleanup failure
       }
+      return;
+    }
+    if (postgresStore) {
+      void postgresStore.cleanup();
       return;
     }
     for (const [ip, bucket] of buckets) {
@@ -84,15 +106,21 @@ export function createRateLimiter(options = {}) {
 
     const now = Date.now();
 
-    if (backend) {
+    if (sqliteBackend) {
       // Fixed-window atomic counting (cross-process safe).
       const windowIndex = Math.floor(now / windowMs);
-      const count = backend.increment(ip, windowIndex);
+      const count = sqliteBackend.increment(ip, windowIndex);
       const resetAfterMs = Math.max(0, (windowIndex + 1) * windowMs - now);
       if (count > maxRequests) {
         return { allowed: false, remaining: 0, retryAfterMs: resetAfterMs, resetAfterMs };
       }
       return { allowed: true, remaining: maxRequests - count, retryAfterMs: 0, resetAfterMs };
+    }
+
+    if (postgresStore) {
+      return postgresStore.increment(options.storeNamespace ?? "default", ip, windowMs)
+        .then(({ count, resetAfterMs }) => createCountResult(count, resetAfterMs, maxRequests))
+        .catch((error) => createStoreFailureResult(error));
     }
 
     // In-memory sliding window (single-instance).
@@ -122,6 +150,13 @@ export function createRateLimiter(options = {}) {
   function apply(req, res) {
     const ip = req.socket?.remoteAddress || "unknown";
     const result = check(ip);
+    if (result && typeof result.then === "function") {
+      return result.then((resolved) => applyResult(resolved, res));
+    }
+    return applyResult(result, res);
+  }
+
+  function applyResult(result, res) {
 
     // Always set rate limit headers
     res.setHeader(RATE_LIMIT_RESPONSE_HEADERS.limit, String(maxRequests));
@@ -135,13 +170,16 @@ export function createRateLimiter(options = {}) {
 
     if (!result.allowed) {
       res.setHeader(RATE_LIMIT_RESPONSE_HEADERS.retryAfter, String(Math.ceil(result.retryAfterMs / 1000)));
-      res.writeHead(429, { "content-type": "application/json" });
+      const statusCode = result.statusCode ?? 429;
+      const code = result.code ?? "RATE_LIMITED";
+      res.writeHead(statusCode, { "content-type": "application/json" });
       res.end(JSON.stringify({
         status: "error",
         error: {
-          code: "RATE_LIMITED",
-          message: `Rate limit exceeded. Try again in ${Math.ceil(result.retryAfterMs / 1000)}s.`,
+          code,
+          message: result.message ?? `Rate limit exceeded. Try again in ${Math.ceil(result.retryAfterMs / 1000)}s.`,
           retryAfterMs: result.retryAfterMs,
+          retryable: true,
         },
       }));
       return res;
@@ -154,14 +192,22 @@ export function createRateLimiter(options = {}) {
    * Get current stats.
    */
   function getStats() {
-    if (backend) {
+    if (sqliteBackend) {
       const oldestIndex = Math.floor(Date.now() / windowMs) - 1;
       return {
-        activeBuckets: backend.activeCount(oldestIndex),
+        activeBuckets: sqliteBackend.activeCount(oldestIndex),
         windowMs,
         maxRequests,
         whitelistSize: whitelist.size,
         storeMode: "sqlite",
+      };
+    }
+    if (postgresStore) {
+      return {
+        ...postgresStore.getStats(options.storeNamespace ?? "default"),
+        windowMs,
+        maxRequests,
+        whitelistSize: whitelist.size,
       };
     }
     return {
@@ -173,13 +219,46 @@ export function createRateLimiter(options = {}) {
     };
   }
 
+  async function checkHealth() {
+    if (!postgresStore) return { ...getStats(), available: true, distributed: false };
+    return {
+      ...await postgresStore.checkHealth(options.storeNamespace ?? "default"),
+      windowMs,
+      maxRequests,
+      whitelistSize: whitelist.size,
+    };
+  }
+
   /**
    * Release resources (stop the cleanup timer and close the SQLite handle).
    */
-  function close() {
+  async function close() {
     clearInterval(cleanupInterval);
-    if (backend) backend.close();
+    if (sqliteBackend) sqliteBackend.close();
+    if (ownsPostgresStore) await postgresStore.close();
   }
 
-  return { check, apply, getStats, close };
+  return { check, apply, getStats, checkHealth, close };
+}
+
+function createCountResult(count, resetAfterMs, maxRequests) {
+  if (count > maxRequests) {
+    return { allowed: false, remaining: 0, retryAfterMs: resetAfterMs, resetAfterMs };
+  }
+  return { allowed: true, remaining: maxRequests - count, retryAfterMs: 0, resetAfterMs };
+}
+
+function createStoreFailureResult(error) {
+  const capacity = error instanceof PostgresRateLimitStoreError && error.code === "RATE_LIMIT_STORE_CAPACITY";
+  return {
+    allowed: false,
+    remaining: 0,
+    retryAfterMs: 1_000,
+    resetAfterMs: 1_000,
+    statusCode: 503,
+    code: capacity ? "RATE_LIMIT_STORE_CAPACITY" : "RATE_LIMIT_STORE_UNAVAILABLE",
+    message: capacity
+      ? "The bounded distributed rate-limit store is at capacity."
+      : "The distributed rate-limit store is unavailable.",
+  };
 }

@@ -122,4 +122,22 @@ describe("prometheusExporter", () => {
     expect(text).toMatch(/ai_gateway_idempotency_stats_age_seconds\{mode="postgres"\} 2\.\d{3}/);
     expect(text).not.toContain("connectionString");
   });
+
+  it("renders PostgreSQL rate-limit store health without partition keys", () => {
+    const exporter = createPrometheusExporter({ prefix: "ai_gateway" });
+    const text = exporter.formatMetrics({
+      rateLimiter: {
+        storeMode: "postgres",
+        available: false,
+        distributed: true,
+        global: { activeBuckets: 5, statsUpdatedAt: Date.now() - 1_000 },
+        routes: {},
+      },
+    });
+
+    expect(text).toContain('ai_gateway_rate_limit_active_buckets{scope="global"} 5');
+    expect(text).toContain('ai_gateway_rate_limit_store_available{mode="postgres"} 0');
+    expect(text).toMatch(/ai_gateway_rate_limit_stats_age_seconds\{mode="postgres"\} 1\.\d{3}/);
+    expect(text).not.toContain("subject_hash");
+  });
 });

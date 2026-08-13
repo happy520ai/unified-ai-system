@@ -17,6 +17,7 @@ export function createPrometheusExporter(options = {}) {
    */
   function formatMetrics(snapshot) {
     const lines = [];
+    const sanitizeMetricLabel = (value) => String(value).replace(/["\\}\n\r]/g, "_");
 
     // 總請求
     lines.push(`# HELP ${prefix}_requests_total Total number of requests`);
@@ -41,13 +42,32 @@ export function createPrometheusExporter(options = {}) {
     lines.push(`# HELP ${prefix}_rate_limit_active_buckets Active rate limiter buckets`);
     lines.push(`# TYPE ${prefix}_rate_limit_active_buckets gauge`);
     const rateLimiterStats = snapshot.rateLimiter;
-    lines.push(`${prefix}_rate_limit_active_buckets{scope="global"} ${rateLimiterStats?.activeBuckets ?? 0}`);
+    const globalRateLimiterStats = rateLimiterStats?.global ?? rateLimiterStats;
+    lines.push(`${prefix}_rate_limit_active_buckets{scope="global"} ${globalRateLimiterStats?.activeBuckets ?? 0}`);
     if (rateLimiterStats?.routes) {
       for (const [route, routeStats] of Object.entries(rateLimiterStats.routes)) {
         const safeRoute = String(route).replace(/[^A-Za-z0-9_./-]/g, "_");
         lines.push(`${prefix}_rate_limit_active_buckets{scope="route",route="${safeRoute}"} ${routeStats?.activeBuckets ?? 0}`);
       }
     }
+    const rateLimitStoreMode = sanitizeMetricLabel(
+      rateLimiterStats?.storeMode ?? globalRateLimiterStats?.storeMode ?? "memory",
+    );
+    const rateLimitStoreAvailable = rateLimitStoreMode === "postgres"
+      ? (rateLimiterStats?.available === true ? 1 : 0)
+      : 1;
+    const rateLimitStatsUpdatedAt = Number(
+      rateLimiterStats?.statsUpdatedAt ?? globalRateLimiterStats?.statsUpdatedAt,
+    );
+    const rateLimitStatsAgeSeconds = Number.isFinite(rateLimitStatsUpdatedAt) && rateLimitStatsUpdatedAt > 0
+      ? Math.max(0, (Date.now() - rateLimitStatsUpdatedAt) / 1000).toFixed(3)
+      : -1;
+    lines.push(`# HELP ${prefix}_rate_limit_store_available Whether the configured rate-limit store is reachable`);
+    lines.push(`# TYPE ${prefix}_rate_limit_store_available gauge`);
+    lines.push(`${prefix}_rate_limit_store_available{mode="${rateLimitStoreMode}"} ${rateLimitStoreAvailable}`);
+    lines.push(`# HELP ${prefix}_rate_limit_stats_age_seconds Age of the last distributed rate-limit statistics snapshot, or -1 when unavailable`);
+    lines.push(`# TYPE ${prefix}_rate_limit_stats_age_seconds gauge`);
+    lines.push(`${prefix}_rate_limit_stats_age_seconds{mode="${rateLimitStoreMode}"} ${rateLimitStatsAgeSeconds}`);
 
     // 錯誤總數
     lines.push(`# HELP ${prefix}_errors_total Total number of errors`);
@@ -56,7 +76,6 @@ export function createPrometheusExporter(options = {}) {
 
     // 抗壓護欄統計（限流、過載、超時、超大請求）
     const resilience = snapshot.resilience;
-    const sanitizeMetricLabel = (value) => String(value).replace(/["\\}\n\r]/g, "_");
     lines.push(`# HELP ${prefix}_gateway_resilience_requests_total Total gateway requests seen`);
     lines.push(`# TYPE ${prefix}_gateway_resilience_requests_total counter`);
     lines.push(`${prefix}_gateway_resilience_requests_total ${resilience?.totalRequests ?? 0}`);

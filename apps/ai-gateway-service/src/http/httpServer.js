@@ -600,7 +600,7 @@ export function createGatewayHttpServer(application) {
 
     try {
       // Rate limiting
-      const rateLimitResult = routeRateLimiter.apply(request, response);
+      const rateLimitResult = await routeRateLimiter.apply(request, response);
       if (rateLimitResult) {
         resilienceMetrics.recordRateLimitRejected();
         markRequestSuccess();
@@ -764,6 +764,7 @@ export function createGatewayHttpServer(application) {
   server.shutdownResources = () => {
     shutdownResourcesPromise ??= (async () => {
       await idempotencyCoordinator.close();
+      await rateLimiter.close();
       await openTelemetry.shutdown();
     })();
     return shutdownResourcesPromise;
@@ -1141,6 +1142,32 @@ function createRouteAwareRateLimiter(runtimeEnv = {}) {
   const storeNamespace = runtimeEnv.AI_GATEWAY_RATE_LIMIT_STORE_NAMESPACE?.trim()
     ? runtimeEnv.AI_GATEWAY_RATE_LIMIT_STORE_NAMESPACE.trim()
     : "http";
+  const postgresConnectionString = runtimeEnv.AI_GATEWAY_RATE_LIMIT_POSTGRES_URL?.trim() || undefined;
+  const postgresSecret = runtimeEnv.AI_GATEWAY_RATE_LIMIT_HMAC_SECRET;
+  const postgresPoolMax = Math.min(32, parsePositiveInteger(runtimeEnv.AI_GATEWAY_RATE_LIMIT_POSTGRES_POOL_MAX, 4));
+  const postgresStatementTimeoutMs = Math.min(30_000, Math.max(100, parsePositiveInteger(
+    runtimeEnv.AI_GATEWAY_RATE_LIMIT_POSTGRES_STATEMENT_TIMEOUT_MS,
+    5_000,
+  )));
+  const postgresMaxBuckets = Math.min(
+    1_000_000,
+    parsePositiveInteger(runtimeEnv.AI_GATEWAY_RATE_LIMIT_POSTGRES_MAX_BUCKETS, 100_000),
+  );
+  if (storeMode === "postgres") {
+    if (!postgresConnectionString) {
+      throw new Error("AI_GATEWAY_RATE_LIMIT_POSTGRES_URL is required when the rate-limit store mode is postgres.");
+    }
+    if (!postgresSecret || Buffer.byteLength(postgresSecret) < 32) {
+      throw new Error("AI_GATEWAY_RATE_LIMIT_HMAC_SECRET must contain at least 32 bytes in postgres mode.");
+    }
+  }
+  const distributedStoreOptions = {
+    postgresConnectionString,
+    postgresSecret,
+    postgresPoolMax,
+    postgresStatementTimeoutMs,
+    postgresMaxBuckets,
+  };
   const routeLimits = parseRouteRateLimitConfig(runtimeEnv.AI_GATEWAY_ROUTE_RATE_LIMITS);
 
   if (!useRouteLimits) {
@@ -1151,6 +1178,7 @@ function createRouteAwareRateLimiter(runtimeEnv = {}) {
       storeMode,
       storePath,
       storeNamespace,
+      ...distributedStoreOptions,
     });
   }
 
@@ -1162,6 +1190,7 @@ function createRouteAwareRateLimiter(runtimeEnv = {}) {
     storeMode,
     storePath,
     storeNamespace,
+    ...distributedStoreOptions,
   });
 }
 
@@ -1210,7 +1239,8 @@ function parseBoolean(value, fallback) {
 
 function parseRateLimitStoreMode(value) {
   const normalized = String(value ?? DEFAULT_RATE_LIMIT_STORE_MODE).toLowerCase();
-  return normalized === "sqlite" ? "sqlite" : DEFAULT_RATE_LIMIT_STORE_MODE;
+  if (["memory", "sqlite", "postgres"].includes(normalized)) return normalized;
+  throw new Error(`Unsupported rate-limit store mode: ${normalized}`);
 }
 
 function parseRateLimitWhitelist(value, fallback) {

@@ -229,6 +229,29 @@ describe("dispatchHttpRoutes02 healthz readiness", () => {
     });
     expect(context.response.payload.error.details.idempotency).not.toHaveProperty("connectionString");
   });
+
+  it("returns unready when the PostgreSQL rate-limit store is unavailable", async () => {
+    const context = createEnvelopeContext({
+      rateLimiter: {
+        checkHealth: async () => ({
+          storeMode: "postgres",
+          available: false,
+          distributed: true,
+          activeBuckets: 2,
+        }),
+      },
+    });
+
+    await dispatchHttpRoutes02(context);
+
+    expect(context.response.status).toBe(503);
+    expect(context.response.payload.error.details.readinessFailures).toContain("rate-limit-store-unavailable");
+    expect(context.response.payload.error.details.rateLimit).toMatchObject({
+      storeMode: "postgres",
+      available: false,
+      distributed: true,
+    });
+  });
 });
 
 describe("dispatchHttpRoutes02 metrics readiness visibility", () => {

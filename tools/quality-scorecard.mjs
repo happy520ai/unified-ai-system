@@ -766,7 +766,7 @@ function checkDistributedIdempotencySafety() {
       "idempotency_store_available",
       "coalesces one provider operation across coordinators",
       "real PostgreSQL idempotency integration",
-      "PostgreSQL distributed idempotency integration",
+      "PostgreSQL distributed state integration",
       "AI_GATEWAY_TEST_POSTGRES_URL",
       "postgres:17-alpine",
       "PostgreSQL mode adds cross-host atomic claims",
@@ -791,6 +791,71 @@ function checkDistributedIdempotencySafety() {
       ok: false,
       details: String(error.message),
     };
+  }
+}
+
+function checkDistributedRateLimitSafety() {
+  try {
+    const storeSource = readTextFile("apps/ai-gateway-service/src/http/postgresRateLimitStore.ts");
+    const limiterSource = readTextFile("apps/ai-gateway-service/src/http/rateLimiter.js");
+    const routeLimiterSource = readTextFile("apps/ai-gateway-service/src/http/routeRateLimiter.js");
+    const serverSource = readTextFile("apps/ai-gateway-service/src/http/httpServer.js");
+    const routeSource = readTextFile("apps/ai-gateway-service/src/http/httpServerRoutes02.js");
+    const exporterSource = readTextFile("apps/ai-gateway-service/src/observability/prometheusExporter.js");
+    const unitTestSource = readTextFile("apps/ai-gateway-service/src/http/rateLimiter.postgres.test.ts");
+    const integrationTestSource = readTextFile("apps/ai-gateway-service/src/http/rateLimiter.postgres.integration.test.ts");
+    const workflowSource = readTextFile(".github/workflows/ci.yml");
+    const contractSource = readTextFile("docs/rate-limit-client-contract.md");
+    const deploymentSource = readTextFile("docs/multi-process-deployment.md");
+    const envSource = readTextFile(".env.example");
+    const enterpriseEnvSource = readTextFile(".env.enterprise.example");
+    const source = [
+      storeSource,
+      limiterSource,
+      routeLimiterSource,
+      serverSource,
+      routeSource,
+      exporterSource,
+      unitTestSource,
+      integrationTestSource,
+      workflowSource,
+      contractSource,
+      deploymentSource,
+    ].join("\n");
+    const requiredMarkers = [
+      "createPostgresRateLimitStore",
+      "clock_timestamp()",
+      "rate-limit:increment-existing",
+      "rate-limit:capacity-lock",
+      "createHmac",
+      "RATE_LIMIT_STORE_UNAVAILABLE",
+      "RATE_LIMIT_STORE_CAPACITY",
+      "await routeRateLimiter.apply",
+      "await rateLimiter.close()",
+      "rate-limit-store-unavailable",
+      "rate_limit_store_available",
+      "real PostgreSQL distributed rate limiting",
+      "PostgreSQL distributed state integration",
+      "Cross-host PostgreSQL request quotas",
+    ];
+    const requiredEnvMarkers = [
+      "AI_GATEWAY_RATE_LIMIT_STORE_MODE=memory",
+      "AI_GATEWAY_RATE_LIMIT_POSTGRES_URL=<set-in-local-secret-store>",
+      "AI_GATEWAY_RATE_LIMIT_HMAC_SECRET=<set-32-byte-or-longer-secret-in-local-secret-store>",
+      "AI_GATEWAY_RATE_LIMIT_POSTGRES_POOL_MAX=4",
+      "AI_GATEWAY_RATE_LIMIT_POSTGRES_STATEMENT_TIMEOUT_MS=5000",
+      "AI_GATEWAY_RATE_LIMIT_POSTGRES_MAX_BUCKETS=100000",
+    ];
+    const missingMarkers = requiredMarkers.filter((marker) => !source.includes(marker));
+    const missingEnvMarkers = requiredEnvMarkers.filter(
+      (marker) => !envSource.includes(marker) || !enterpriseEnvSource.includes(marker),
+    );
+    return {
+      ok: missingMarkers.length === 0 && missingEnvMarkers.length === 0,
+      details: JSON.stringify({ missingMarkers, missingEnvMarkers }),
+    };
+  } catch (error) {
+    return { ok: false, details: String(error.message) };
   }
 }
 
@@ -1722,6 +1787,7 @@ async function main() {
   const unhandledErrorTelemetryCheck = checkUnhandledErrorTelemetry();
   const metricsCheck = checkMetricsInstrumentation();
   const distributedIdempotencyCheck = checkDistributedIdempotencySafety();
+  const distributedRateLimitCheck = checkDistributedRateLimitSafety();
   const gatewayErrorCircuitBreakerCheck = checkGatewayErrorCircuitBreaker();
   const healthzCheck = checkHealthzReadinessProbe();
   const runbookVisibilityCheck = checkReadinessRunbookVisibility();
@@ -1752,6 +1818,7 @@ async function main() {
     runtimeHardening: runtimeHardeningCheck,
     metrics: metricsCheck,
     distributedIdempotency: distributedIdempotencyCheck,
+    distributedRateLimit: distributedRateLimitCheck,
     pluginHardening: pluginCheck,
     workflowGuardrails: workflowCheck,
     requestBodyGuardrails: requestBodyGuardrailsCheck,
@@ -1840,6 +1907,14 @@ async function main() {
     10,
     distributedIdempotencyCheck.ok,
     distributedIdempotencyCheck.details,
+  );
+  score += addGate(
+    gates,
+    "Cross-host rate-limit safety",
+    "PostgreSQL quotas must use database-clock atomic counters, HMAC subjects, bounded fail-closed capacity, readiness, metrics, and real integration evidence",
+    10,
+    distributedRateLimitCheck.ok,
+    distributedRateLimitCheck.details,
   );
   score += addGate(
     gates,

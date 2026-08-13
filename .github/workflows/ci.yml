@@ -101,10 +101,13 @@ jobs:
       - name: Maintained tests
         run: pnpm test
 
-      - name: PostgreSQL distributed idempotency integration
+      - name: PostgreSQL distributed state integration
         env:
           AI_GATEWAY_TEST_POSTGRES_URL: postgresql://gateway_test:gateway_test_password@127.0.0.1:5432/gateway_test
-        run: pnpm exec vitest run apps/ai-gateway-service/src/http/idempotencyCoordinator.postgres.integration.test.ts
+        run: >-
+          pnpm exec vitest run
+          apps/ai-gateway-service/src/http/idempotencyCoordinator.postgres.integration.test.ts
+          apps/ai-gateway-service/src/http/rateLimiter.postgres.integration.test.ts
 
       - name: Public repository hygiene
         run: pnpm check:public
