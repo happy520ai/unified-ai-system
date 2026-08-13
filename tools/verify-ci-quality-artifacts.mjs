@@ -226,14 +226,42 @@ function readTextLoose(path) {
   }
 }
 
+function validateIncidentBundleMarkdownText(markdownText) {
+  const issues = [];
+  if (typeof markdownText !== "string" || markdownText.length === 0) {
+    return issues;
+  }
+  if (!/^#\s+Quality Trend Incident Bundle/im.test(markdownText)) {
+    issues.push("incident bundle markdown missing required title");
+  }
+  if (!/##\s+Failed steps/i.test(markdownText)) {
+    issues.push("incident bundle markdown missing Failed steps section");
+  }
+  if (!/##\s+Extracted issues/i.test(markdownText)) {
+    issues.push("incident bundle markdown missing Extracted issues section");
+  }
+  if (!/##\s+Trend reasons/i.test(markdownText)) {
+    issues.push("incident bundle markdown missing Trend reasons section");
+  }
+  if (!/##\s+Artifacts/i.test(markdownText)) {
+    issues.push("incident bundle markdown missing Artifacts section");
+  }
+  if (!/Final trend status:/i.test(markdownText)) {
+    issues.push("incident bundle markdown missing Final trend status");
+  }
+  return issues;
+}
+
 function verifyIncidentBundle(args) {
   const issues = [];
   const bundleText = readTextLoose(args.incidentBundleMdPath);
   const bundle = readJsonLoose(args.incidentBundleJsonPath);
   const schema = readJsonLoose(args.incidentBundleSchemaPath);
+  const markdownText = bundleText && typeof bundleText === "string" ? bundleText : "";
 
   const jsonExists = Boolean(bundle);
   const mdExists = typeof bundleText === "string" && bundleText.length > 0;
+  const markdownValidationIssues = mdExists ? validateIncidentBundleMarkdownText(markdownText) : [];
 
   if (args.requireIncidentBundle) {
     if (!jsonExists) {
@@ -255,8 +283,14 @@ function verifyIncidentBundle(args) {
       if (schemaIssues.length > 0) {
         issues.push(`incident bundle schema validation failed: ${schemaIssues.join(", ")}`);
       }
+      if (markdownValidationIssues.length > 0) {
+        issues.push(`incident bundle markdown validation failed: ${markdownValidationIssues.join(", ")}`);
+      }
     } else if (args.requireIncidentBundle || args.requireTrendHealth) {
       issues.push(`incident bundle schema missing: ${args.incidentBundleSchemaPath}`);
+      if (jsonExists && markdownValidationIssues.length > 0) {
+        issues.push(`incident bundle markdown validation failed: ${markdownValidationIssues.join(", ")}`);
+      }
     }
   }
 
@@ -266,6 +300,8 @@ function verifyIncidentBundle(args) {
     jsonPresent: jsonExists,
     mdPresent: mdExists,
     schemaVersion: bundle?.schemaVersion ?? null,
+    markdownValid: markdownValidationIssues.length === 0,
+    markdownValidationIssues,
     valid: issues.length === 0,
     issues,
   };

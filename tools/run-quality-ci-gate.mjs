@@ -153,6 +153,11 @@ function summarizeIncidentBundleFromVerification(qualityResult, verifyResult) {
       ok: Boolean(incidentBundle.valid),
       jsonPath: incidentBundle.jsonPath ?? ".tmp/quality-trend-incident-bundle.json",
       mdPath: incidentBundle.mdPath ?? ".tmp/quality-trend-incident-bundle.md",
+      schemaVersion: incidentBundle.schemaVersion ?? null,
+      markdownValid: Boolean(incidentBundle.markdownValid),
+      markdownValidationIssues: Array.isArray(incidentBundle.markdownValidationIssues)
+        ? incidentBundle.markdownValidationIssues.slice(0, 8)
+        : [],
       malformed: !incidentBundle.valid,
       source: incidentBundle.jsonPath ?? ".tmp/quality-trend-incident-bundle.json",
       missing: !hasAny,
@@ -178,6 +183,7 @@ function publishStepSummary(summary) {
     `- Trend health required in artifacts: ${summary.requireTrendHealth ? "yes" : "no"}`,
     `- Trend health: ${summary.trendHealth.status}${summary.trendHealth.blocked ? " (blocked)" : ""}`,
     `- Incident bundle: ${summary.trendIncidentBundle.status}${summary.trendIncidentBundle.missing ? " (not collected)" : ""}`,
+    `- Incident bundle markdown: ${summary.trendIncidentBundle.markdownValid === undefined ? "not checked" : (summary.trendIncidentBundle.markdownValid ? "valid" : "invalid")}`,
     "",
     "| Check | Status |",
     "| --- | --- |",
