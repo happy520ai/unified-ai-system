@@ -26,6 +26,8 @@ const DEFAULT_ALLOWED_EXTENSIONS = new Set([
 
 const DEFAULT_DENIED_JS_EXTENSIONS = new Set([".js", ".cjs", ".mjs"]);
 const DEFAULT_LANGUAGE_POLICY_ALLOWLIST = resolve(repoRoot, "tools/language-policy-allowlist.json");
+const DEFAULT_LANGUAGE_POLICY_EXCEPTION_TYPES = new Set(["file", "pathPrefix", "pathPattern"]);
+const REQUIRED_EXCEPTION_FIELDS = ["type", "value", "justification", "owner", "removalBy"];
 
 function parseArgs() {
   const args = process.argv.slice(2);
@@ -168,79 +170,162 @@ function parseAllowlistFile(allowlistPath) {
     return {
       ok: true,
       allowlist: {
-        allowedFiles: [],
-        allowedPathPrefixes: [],
-        allowedPathPatterns: [],
+        exceptions: [],
       },
       issues: [],
+      warnings: [],
     };
   }
 
   try {
     const parsed = JSON.parse(readFileSync(path, "utf8"));
-    const allowedFiles = Array.isArray(parsed?.allowedFiles)
-      ? parsed.allowedFiles.map((entry) => `${entry}`.replaceAll("\\", "/"))
-      : [];
-    const allowedPathPrefixes = Array.isArray(parsed?.allowedPathPrefixes)
-      ? parsed.allowedPathPrefixes.map((entry) => `${entry}`.replaceAll("\\", "/"))
-      : [];
-    const allowedPathPatterns = Array.isArray(parsed?.allowedPathPatterns)
-      ? parsed.allowedPathPatterns.map((entry) => `${entry}`.replaceAll("\\", "/"))
-      : [];
+    const allowlist = {
+      exceptions: [],
+    };
+    const issues = [];
+    const warnings = [];
+    const todayUtc = new Date();
+    todayUtc.setUTCHours(0, 0, 0, 0);
+
+    const legacyFieldPairs = [
+      { field: "allowedFiles", type: "file" },
+      { field: "allowedPathPrefixes", type: "pathPrefix" },
+      { field: "allowedPathPatterns", type: "pathPattern" },
+    ];
+
+    for (const pair of legacyFieldPairs) {
+      const entries = parsed?.[pair.field];
+      if (!Array.isArray(entries)) {
+        continue;
+      }
+      if (entries.length > 0) {
+        warnings.push(
+          `${pair.field} is deprecated; migrate entries to exceptions[] with justification, owner, and removalBy`,
+        );
+      }
+      entries.forEach((entry, index) => {
+        if (typeof entry !== "string" || entry.trim().length === 0) {
+          issues.push(`invalid ${pair.field}[${index}] type: expected non-empty string`);
+          return;
+        }
+        allowlist.exceptions.push({
+          type: pair.type,
+          value: `${entry}`.replaceAll("\\", "/"),
+          justification: "legacy allowance",
+          owner: "unassigned",
+          removalBy: "1970-01-01",
+          fromLegacyField: pair.field,
+          legacyIndex: index,
+        });
+      });
+    }
+
+    if (parsed?.exceptions != null) {
+      if (!Array.isArray(parsed.exceptions)) {
+        issues.push(`invalid exceptions type: expected an array`);
+      } else {
+        parsed.exceptions.forEach((entry, index) => {
+          if (entry == null || typeof entry !== "object" || Array.isArray(entry)) {
+            issues.push(`invalid exceptions[${index}] type: expected object`);
+            return;
+          }
+
+          const normalizedEntry = {
+            type: `${entry.type ?? ""}`.trim(),
+            value: `${entry.value ?? ""}`.trim(),
+            justification: `${entry.justification ?? ""}`.trim(),
+            owner: `${entry.owner ?? ""}`.trim(),
+            removalBy: `${entry.removalBy ?? ""}`.trim(),
+          };
+
+          if (!DEFAULT_LANGUAGE_POLICY_EXCEPTION_TYPES.has(normalizedEntry.type)) {
+            issues.push(`exceptions[${index}].type invalid: "${normalizedEntry.type || "<empty>"}"`);
+          }
+
+          const missingFields = REQUIRED_EXCEPTION_FIELDS.filter((field) => {
+            const rawValue = `${entry?.[field] ?? ""}`.trim();
+            return rawValue.length === 0;
+          });
+          if (missingFields.length > 0) {
+            issues.push(`exceptions[${index}] missing required field(s): ${missingFields.join(", ")}`);
+            return;
+          }
+
+          const removalDate = new Date(`${normalizedEntry.removalBy}T00:00:00Z`);
+          if (Number.isNaN(removalDate.getTime())) {
+            issues.push(`exceptions[${index}].removalBy invalid date: "${normalizedEntry.removalBy}"`);
+            return;
+          }
+          if (removalDate < todayUtc) {
+            issues.push(`exceptions[${index}] expired on ${normalizedEntry.removalBy}; update or remove`);
+            return;
+          }
+
+          allowlist.exceptions.push({
+            ...normalizedEntry,
+            pr: entry.pr ? `${entry.pr}` : "",
+            issueId: entry.issueId ? `${entry.issueId}` : "",
+            notes: entry.notes ? `${entry.notes}` : "",
+          });
+        });
+      }
+    }
 
     return {
-      ok: true,
-      allowlist: {
-        allowedFiles,
-        allowedPathPrefixes,
-        allowedPathPatterns,
-      },
-      issues: [],
+      ok: issues.length === 0,
+      allowlist,
+      issues,
+      warnings,
     };
   } catch (error) {
     return {
       ok: false,
       allowlist: {
-        allowedFiles: [],
-        allowedPathPrefixes: [],
-        allowedPathPatterns: [],
+        exceptions: [],
       },
       issues: [`failed to parse allowlist: ${String(error.message)}`],
+      warnings: [],
     };
   }
 }
 
 function isAllowedByPolicy(path, allowlist) {
-  if (!allowlist) {
-    return false;
+  if (!allowlist || !Array.isArray(allowlist.exceptions)) {
+    return null;
   }
 
   const normalized = path.replaceAll("\\", "/");
-  if (Array.isArray(allowlist.allowedFiles) && allowlist.allowedFiles.includes(normalized)) {
-    return true;
-  }
-
-  if (Array.isArray(allowlist.allowedPathPrefixes)) {
-    for (const prefix of allowlist.allowedPathPrefixes) {
-      if (prefix && normalized.startsWith(prefix)) {
-        return true;
-      }
+  for (const exception of allowlist.exceptions) {
+    if (!exception || typeof exception !== "object") {
+      continue;
     }
-  }
 
-  if (Array.isArray(allowlist.allowedPathPatterns)) {
-    for (const rawPattern of allowlist.allowedPathPatterns) {
-      if (!rawPattern || typeof rawPattern !== "string") {
-        continue;
+    const type = `${exception.type ?? ""}`;
+    const value = `${exception.value ?? ""}`.replaceAll("\\", "/");
+    if (!value) {
+      continue;
+    }
+
+    if (type === "file" || type === "pathPrefix") {
+      if (normalized.startsWith(value)) {
+        return exception;
       }
-      const matcher = toGlobRegex(rawPattern);
+      continue;
+    }
+
+    if (type === "pathPattern") {
+      const matcher = toGlobRegex(value);
       if (matcher.test(normalized)) {
-        return true;
+        return exception;
       }
     }
   }
 
-  return false;
+  return null;
+}
+
+function formatAllowedByException(item) {
+  return `type=${item.type}, value=${item.value}, justification=${item.justification}, owner=${item.owner}, removalBy=${item.removalBy}`;
 }
 
 function main() {
@@ -248,12 +333,13 @@ function main() {
   const resolvedBaseRef = args.baseRef ?? discoverBaseRefFromEnvironment() ?? "HEAD~1";
   const allowlistResult = parseAllowlistFile(args.allowlistPath);
   const commandLine = process.argv.slice(2);
-  let output = {
+  const output = {
     ok: true,
     violations: [],
     allowed: [],
     allowlistPath: args.allowlistPath,
-    allowlistIssues: allowlistResult.issues,
+    allowlistIssues: [...allowlistResult.issues],
+    allowlistWarnings: [...allowlistResult.warnings],
     inspected: {
       baseRef: resolvedBaseRef,
       headRef: args.headRef,
@@ -272,6 +358,10 @@ function main() {
       return;
     }
     return;
+  }
+
+  if (allowlistResult.warnings.length > 0) {
+    output.notice = `language policy allowlist warning(s): ${allowlistResult.warnings.join(", ")}`;
   }
 
   let lines = [];
@@ -310,8 +400,8 @@ function main() {
 
     if (DEFAULT_DENIED_JS_EXTENSIONS.has(extension)) {
       const isAllowedLegacyPath = args.allowJsInLegacyPaths && path.startsWith(`${boundary}/`) && path.includes("/legacy/");
-      const isAllowedByException = isAllowedByPolicy(path, allowlistResult.allowlist);
-      if (!isAllowedLegacyPath && !isAllowedByException) {
+      const matchedException = isAllowedByPolicy(path, allowlistResult.allowlist);
+      if (!isAllowedLegacyPath && !matchedException) {
         output.violations.push({
           file: path,
           boundary,
@@ -319,11 +409,20 @@ function main() {
           extension,
           remedy: "convert to .ts/.tsx or provide explicit migration justification in PR language section",
         });
-      } else if (isAllowedByException) {
+      } else if (matchedException) {
         output.allowed.push({
           file: path,
           boundary,
-          reason: "allowed by language-policy allowlist",
+          reason: "allowed by language-policy exception",
+          exception: {
+            type: matchedException.type,
+            value: matchedException.value,
+            justification: matchedException.justification,
+            owner: matchedException.owner,
+            removalBy: matchedException.removalBy,
+            pr: matchedException.pr ?? "",
+            issueId: matchedException.issueId ?? "",
+          },
         });
       }
     }
@@ -338,11 +437,11 @@ function main() {
   }
 
   if (output.ok) {
-    process.stdout.write(`language policy check passed: no blocking js artifacts added to apps/packages.\n`);
+    process.stdout.write("language policy check passed: no blocking js artifacts added to apps/packages.\n");
     if (output.allowed.length > 0) {
       process.stdout.write("allowed-by-config exceptions used:\n");
       for (const item of output.allowed) {
-        process.stdout.write(`- ${item.boundary}: ${item.file}\n`);
+        process.stdout.write(`- ${item.boundary}: ${item.file} (${formatAllowedByException(item.exception)})\n`);
       }
     }
     return;

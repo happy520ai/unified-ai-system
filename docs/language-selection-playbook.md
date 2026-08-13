@@ -110,16 +110,42 @@ Runtime exceptions are maintained in:
 
 - `tools/language-policy-allowlist.json`
 
-Supported allowlist controls:
+Current schema:
 
-- `allowedFiles`: explicit file paths under `apps/*` or `packages/*` allowed to
-  keep JS for now.
-- `allowedPathPrefixes`: narrow path prefixes for temporary migration windows.
-- `allowedPathPatterns`: lightweight glob-like patterns using `*`/`?` for bounded
-  exceptions.
+```json
+{
+  "exceptions": [
+    {
+      "type": "file | pathPrefix | pathPattern",
+      "value": "apps/xxx/legacy/path.js",
+      "justification": "why this file remains JS temporarily",
+      "owner": "team-or-individual",
+      "removalBy": "YYYY-MM-DD",
+      "pr": "optional PR URL",
+      "issueId": "optional issue/track ID",
+      "notes": "optional migration note"
+    }
+  ]
+}
+```
 
-Every allowlist entry should include PR justification, ownership, and a planned
-removal boundary.
+- `type`: one of `file`, `pathPrefix`, `pathPattern`.
+- `value`: path or glob-like pattern (`*` and `?` supported).
+- `justification`, `owner`, `removalBy`: must be present for non-legacy entries.
+- `removalBy` must be a future date in `YYYY-MM-DD` form.
+- `pr` and `issueId` are optional but recommended for audit traceability.
+- `allowedFiles`, `allowedPathPrefixes`, and `allowedPathPatterns` are still
+  accepted in this cycle but treated as deprecated legacy fields and will be
+  phased out.
+
+Every exception must include ownership, PR evidence, and a planned removal
+boundary; expired exceptions fail the check and require cleanup before merge.
+
+Run locally with custom allowlist:
+
+```bash
+node ./tools/check-language-policy.mjs --allowlist tools/language-policy-allowlist.json --json
+```
 
 ## 7. Automated enforcement
 
