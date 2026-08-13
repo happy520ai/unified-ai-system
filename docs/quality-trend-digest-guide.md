@@ -96,6 +96,19 @@ For failed trend runs, the evidence completeness gate in `quality-trend` workflo
 The CI gates now also validate artifact integrity (JSON parseability and non-empty payloads) via
 `tools/assert-quality-evidence-artifacts.mjs`, not just filename presence.
 
+The CI assertion is now a structured gate:
+
+- `--required-json-artifact` ensures JSON parseability for structured outputs.
+- `--required-timestamped-artifact` checks the artifact timestamp freshness and cross-artifact skew.
+- `--required-timestamp-field` lets non-standard timestamp fields be checked (for example `generatedAtUtc` / `startedAt` / `updatedAtUtc`).
+- `--required-field` validates critical structured keys exist before upload/triage.
+- `QUALITY_EVIDENCE_MAX_AGE_MINUTES` and `QUALITY_EVIDENCE_MAX_TIMESTAMP_SKEW_MINUTES` provide runtime threshold control.
+
+In CI and scheduled trend jobs, default limits are:
+
+- maximum age: `180` minutes
+- maximum timestamp skew: `15` minutes
+
 ## Escalation flow
 
 1. Confirm whether this is a score drift or verification issue in the latest run.

@@ -55,6 +55,8 @@ jobs:
       QUALITY_TREND_MIN_PASS_RATE_PERCENT: ${{ github.event.inputs.min_pass_rate_percent || vars.QUALITY_TREND_MIN_PASS_RATE_PERCENT || '70' }}
       QUALITY_TREND_REQUIRE_STABLE_STATE: ${{ github.event.inputs.require_stable_state || vars.QUALITY_TREND_REQUIRE_STABLE_STATE || 'true' }}
       QUALITY_TREND_HARD_BLOCK: ${{ github.event.inputs.quality_trend_hard_block || vars.QUALITY_TREND_HARD_BLOCK || 'false' }}
+      QUALITY_EVIDENCE_MAX_AGE_MINUTES: ${{ vars.QUALITY_EVIDENCE_MAX_AGE_MINUTES || '180' }}
+      QUALITY_EVIDENCE_MAX_TIMESTAMP_SKEW_MINUTES: ${{ vars.QUALITY_EVIDENCE_MAX_TIMESTAMP_SKEW_MINUTES || '15' }}
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -216,19 +218,53 @@ jobs:
         run: |
           node ./tools/assert-quality-evidence-artifacts.mjs \
             --json \
-            --required-artifact .tmp/quality-trend.json \
-            --required-artifact .tmp/quality-scorecard.json \
-            --required-artifact .tmp/circuit-recovery-drill-dry-run.json \
-            --required-artifact .tmp/quality-ci-verification.json \
-            --required-artifact .tmp/quality-trend-health-smoke.json \
+            --max-age-minutes "${QUALITY_EVIDENCE_MAX_AGE_MINUTES}" \
+            --max-timestamp-skew-minutes "${QUALITY_EVIDENCE_MAX_TIMESTAMP_SKEW_MINUTES}" \
+            --required-json-artifact .tmp/quality-trend.json \
+            --required-json-artifact .tmp/quality-scorecard.json \
+            --required-json-artifact .tmp/circuit-recovery-drill-dry-run.json \
+            --required-json-artifact .tmp/quality-ci-verification.json \
+            --required-json-artifact .tmp/quality-trend-health-smoke.json \
+            --required-json-artifact .tmp/quality-trend-guardrail.json \
+            --required-json-artifact .tmp/quality-trend-digest.json \
+            --required-json-artifact .tmp/quality-trend-check.json \
+            --required-json-artifact .tmp/quality-trend-incident-bundle.json \
+            --required-json-artifact .tmp/quality-trend-verify-artifacts.json \
+            --required-timestamped-artifact .tmp/quality-trend.json \
+            --required-timestamped-artifact .tmp/quality-scorecard.json \
+            --required-timestamped-artifact .tmp/circuit-recovery-drill-dry-run.json \
+            --required-timestamped-artifact .tmp/quality-ci-verification.json \
+            --required-timestamped-artifact .tmp/quality-trend-health-smoke.json \
+            --required-timestamped-artifact .tmp/quality-trend-guardrail.json \
+            --required-timestamped-artifact .tmp/quality-trend-digest.json \
+            --required-timestamped-artifact .tmp/quality-trend-incident-bundle.json \
+            --required-timestamped-artifact .tmp/quality-trend-verify-artifacts.json \
+            --required-timestamp-field .tmp/quality-trend-guardrail.json:generatedAtUtc \
+            --required-timestamp-field .tmp/quality-trend-digest.json:generatedAtUtc \
+            --required-timestamp-field .tmp/quality-trend.json:updatedAtUtc \
+            --required-timestamp-field .tmp/circuit-recovery-drill-dry-run.json:startedAt \
+            --required-field .tmp/quality-scorecard.json:checks \
+            --required-field .tmp/quality-scorecard.json:trendConsistency \
+            --required-field .tmp/quality-ci-verification.json:quality \
+            --required-field .tmp/quality-ci-verification.json:trendConsistency \
+            --required-field .tmp/quality-trend-verify-artifacts.json:ok \
+            --required-field .tmp/quality-trend-check.json:status \
+            --required-field .tmp/quality-trend-check.json:recommendation \
+            --required-field .tmp/quality-trend-check.json:issueCodes \
+            --required-field .tmp/quality-trend-guardrail.json:guardrails.state \
+            --required-field .tmp/quality-trend-digest.json:state \
+            --required-field .tmp/quality-trend-digest.json:thresholds \
+            --required-field .tmp/quality-trend-incident-bundle.json:schemaVersion \
+            --required-field .tmp/quality-trend-incident-bundle.json:trendHealth.status \
+            --required-field .tmp/quality-trend-incident-bundle.json:recommendationText \
+            --required-field .tmp/quality-trend-health-smoke.json:executedAtUtc \
+            --required-field .tmp/quality-trend-health-smoke.json:steps \
+            --required-field .tmp/quality-trend.json:records \
+            --required-field .tmp/circuit-recovery-drill-dry-run.json:status \
             --required-artifact .tmp/quality-trend-summary.md \
-            --required-artifact .tmp/quality-trend-guardrail.json \
             --required-artifact .tmp/quality-trend-digest.md \
-            --required-artifact .tmp/quality-trend-digest.json \
-            --required-artifact .tmp/quality-trend-check.json \
             --required-artifact .tmp/quality-trend-incident-bundle.md \
-            --required-artifact .tmp/quality-trend-incident-bundle.json \
-            --required-artifact .tmp/quality-trend-verify-artifacts.json \
+            --required-artifact .tmp/quality-trend-recommendations.md \
             | tee .tmp/quality-trend-required-artifacts.json
 
       - name: Upload quality trend artifact

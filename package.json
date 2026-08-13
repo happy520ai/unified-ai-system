@@ -45,7 +45,8 @@
     "quality:trend-summary": "node ./tools/quality-trend-summary.mjs",
     "quality:trend-digest": "node ./tools/quality-trend-digest.mjs",
     "quality:trend-check": "node ./tools/quality-trend-check.mjs",
-    "quality:trend-health-smoke": "node ./tools/quality-trend-health-smoke.mjs"
+    "quality:trend-health-smoke": "node ./tools/quality-trend-health-smoke.mjs",
+    "quality:assert-evidence": "node ./tools/assert-quality-evidence-artifacts.mjs"
   },
   "engines": {
     "node": ">=22",
