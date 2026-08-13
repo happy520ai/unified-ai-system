@@ -90,6 +90,15 @@ function readTextFile(path) {
   return readFileSync(resolve(repoRoot, path), "utf8");
 }
 
+function readJsonFile(path) {
+  try {
+    const raw = readTextFile(path);
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
 function addGate(gates, name, description, weight, ok, details = "") {
   gates.push({
     name,
@@ -608,6 +617,35 @@ function checkTrendDigestOperations() {
   }
 }
 
+function checkTrendHardBlockArtifact() {
+  const trendCheck = readJsonFile(".tmp/quality-trend-check.json");
+  if (!trendCheck) {
+    return {
+      ok: true,
+      details:
+        "quality-trend-check.json not present yet; generate it via quality:trend-check if evaluating CI-grade gates.",
+      blocked: false,
+      status: "missing",
+      missing: true,
+    };
+  }
+
+  const isBlocked = Boolean(trendCheck.blocked);
+  return {
+    ok: !isBlocked,
+    blocked: isBlocked,
+    status: trendCheck.status ?? "unknown",
+    severity: trendCheck.severity ?? "unknown",
+    reasonsCount: Array.isArray(trendCheck.reasons) ? trendCheck.reasons.length : 0,
+    details: JSON.stringify({
+      status: trendCheck.status ?? "unknown",
+      severity: trendCheck.severity ?? "unknown",
+      blocked: isBlocked,
+      reasonsCount: Array.isArray(trendCheck.reasons) ? trendCheck.reasons.length : 0,
+    }),
+  };
+}
+
 async function main() {
   const { outputJson, requireScore } = parseArgs();
   const rootPackage = JSON.parse(readTextFile("package.json"));
@@ -648,6 +686,7 @@ async function main() {
   const runbookVisibilityCheck = checkReadinessRunbookVisibility();
   const circuitRecoveryDrillCheck = checkCircuitRecoveryDrill();
   const trendDigestOperationsCheck = checkTrendDigestOperations();
+  const trendHardBlockArtifactCheck = checkTrendHardBlockArtifact();
 
   const gateResults = {
     publicRepoCheck: repoCheck,
@@ -667,6 +706,7 @@ async function main() {
     readinessRunbookVisibility: runbookVisibilityCheck,
     circuitRecoveryDrill: circuitRecoveryDrillCheck,
     trendDigestOperations: trendDigestOperationsCheck,
+    trendHardBlockArtifact: trendHardBlockArtifactCheck,
   };
 
   const drillDryRunParsed = circuitDrillDryRun.parseableOutput ?? {};
@@ -797,6 +837,14 @@ async function main() {
     8,
     trendDigestOperationsCheck.ok,
     trendDigestOperationsCheck.details,
+  );
+  score += addGate(
+    gates,
+    "Trend hard-block policy outcome",
+    "trend hard-block checks must not report blocking when CI-grade gate artifacts are present",
+    7,
+    trendHardBlockArtifactCheck.ok,
+    trendHardBlockArtifactCheck.details,
   );
 
   const maxScore = gates.reduce((sum, item) => sum + item.weight, 0);
