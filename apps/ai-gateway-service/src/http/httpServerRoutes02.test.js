@@ -345,6 +345,63 @@ describe("dispatchHttpRoutes02 metrics readiness visibility", () => {
     expect(metricsText).toContain("ai_gateway_gateway_error_circuit_state{state=\"half-open\"} 1");
   });
 
+  it("keeps readiness reason consistency between /healthz and /metrics for half-open circuit", async () => {
+    const sharedSnapshot = {
+      currentInFlight: 10,
+      gatewayErrorCircuitState: "half-open",
+      readinessCheckCount: 2,
+      readinessReadyChecks: 0,
+      readinessDegradedChecks: 2,
+      readinessFailureReasons: {
+        "gateway-error-circuit": 1,
+      },
+    };
+
+    const healthzContext = createEnvelopeContext({
+      request: { method: "GET" },
+      url: { pathname: "/healthz" },
+      resilienceMetrics: {
+        snapshot: () => sharedSnapshot,
+      },
+    });
+    healthzContext.response = {
+      ...healthzContext.response,
+      status: undefined,
+      payload: undefined,
+    };
+
+    await dispatchHttpRoutes02(healthzContext);
+    expect(healthzContext.response.status).toBe(503);
+    expect(healthzContext.response.payload.ok).toBe(false);
+    expect(healthzContext.response.payload.readinessFailures).toContain("gateway-error-circuit");
+
+    let metricsText = "";
+    let metricsStatus = undefined;
+    const metricsContext = createEnvelopeContext({
+      request: { method: "GET" },
+      response: {
+        status: undefined,
+        payload: undefined,
+        end(body) {
+          metricsText = body;
+          metricsStatus = 200;
+        },
+      },
+      url: { pathname: "/metrics" },
+      resilienceMetrics: {
+        snapshot: () => sharedSnapshot,
+      },
+    });
+
+    await dispatchHttpRoutes02(metricsContext);
+
+    expect(metricsStatus).toBe(200);
+    expect(metricsText).toContain("ai_gateway_gateway_readiness_status{state=\"ready\"} 0");
+    expect(metricsText).toContain("ai_gateway_gateway_readiness_status{state=\"degraded\"} 1");
+    expect(metricsText).toContain('ai_gateway_gateway_readiness_failures{reason="gateway-error-circuit"} 1');
+    expect(metricsText).toContain("ai_gateway_gateway_error_circuit_state{state=\"half-open\"} 1");
+  });
+
   it("emits ready state in /metrics when system is healthy", async () => {
     let metricsText = "";
     let metricsStatus = undefined;

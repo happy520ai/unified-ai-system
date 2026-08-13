@@ -406,12 +406,14 @@ function checkHealthzReadinessProbe() {
   try {
     const routeSource = readTextFile("apps/ai-gateway-service/src/http/httpServerRoutes02.js");
     const serverSource = readTextFile("apps/ai-gateway-service/src/http/httpServer.js");
+    const exporterSource = readTextFile("apps/ai-gateway-service/src/observability/prometheusExporter.js");
     const policySource = readTextFile("apps/ai-gateway-service/src/http/routeAccessPolicy.js");
     const envSource = readTextFile(".env.example");
     const requiredRouteMarkers = [
       "/healthz",
       "service_unready",
       "readinessFailures",
+      "gateway-error-circuit",
       "inflight-saturation",
       "readinessFailureCount",
       "isReady",
@@ -424,6 +426,15 @@ function checkHealthzReadinessProbe() {
     const requiredEnvMarkers = [
       "AI_GATEWAY_HEALTHZ_IN_FLIGHT_DEGRADATION_PERCENT",
     ];
+    const requiredMetricsMarkers = [
+      "gateway_readiness_status{state=\"ready\"",
+      "gateway_readiness_status{state=\"degraded\"",
+      "gateway_readiness_failures{reason=\"",
+      "gateway_readiness_failures ",
+      "gateway_error_circuit_state{state=\"open\"",
+      "gateway_error_circuit_state{state=\"half-open\"",
+      "gateway_error_circuit_state{state=\"closed\"",
+    ];
     const requiredPolicyMarkers = [
       "pathname === \"/healthz\"",
       "pathname === \"/ready\"",
@@ -431,12 +442,17 @@ function checkHealthzReadinessProbe() {
     const missingRouteMarkers = requiredRouteMarkers.filter(
       (marker) => !routeSource.includes(marker) && !serverSource.includes(marker),
     );
+    const missingMetricsMarkers = requiredMetricsMarkers.filter(
+      (marker) => !exporterSource.includes(marker),
+    );
     const missingEnvMarkers = requiredEnvMarkers.filter((marker) => !envSource.includes(marker));
     const missingPolicyMarkers = requiredPolicyMarkers.filter((marker) => !policySource.includes(marker));
     return {
-      ok: missingRouteMarkers.length === 0 && missingEnvMarkers.length === 0 && missingPolicyMarkers.length === 0,
+      ok: missingRouteMarkers.length === 0 && missingMetricsMarkers.length === 0
+        && missingEnvMarkers.length === 0 && missingPolicyMarkers.length === 0,
       details: JSON.stringify({
         missingRouteMarkers,
+        missingMetricsMarkers,
         missingEnvMarkers,
         missingPolicyMarkers,
       }),
