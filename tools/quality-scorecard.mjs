@@ -664,13 +664,22 @@ function checkTrendHardBlockArtifact() {
 }
 
 function checkTrendIncidentBundleSchema() {
-  const path = ".tmp/quality-trend-incident-bundle.json";
-  const bundle = readJsonFile(path);
+  const jsonPath = ".tmp/quality-trend-incident-bundle.json";
+  const mdPath = ".tmp/quality-trend-incident-bundle.md";
+  const bundle = readJsonFile(jsonPath);
+  const bundleMarkdown = (() => {
+    try {
+      return readTextFile(mdPath);
+    } catch {
+      return "";
+    }
+  })();
+
   if (!bundle) {
     return {
       ok: true,
       status: "not_collected",
-      source: path,
+      source: jsonPath,
       missing: true,
       malformed: false,
       details: "quality-trend-incident-bundle.json is absent in this run; generated on trend-health smoke failure only.",
@@ -709,18 +718,37 @@ function checkTrendIncidentBundleSchema() {
   if (hasInvalidArtifacts) {
     issueTags.push("artifacts");
   }
+  if (!bundleMarkdown) {
+    issueTags.push("markdownMissing");
+  } else {
+    const hasExpectedTitle = /^#\s+Quality Trend Incident Bundle/im.test(bundleMarkdown);
+    if (!hasExpectedTitle) {
+      issueTags.push("markdownTitle");
+    }
+    if (!/##\s+Artifacts/i.test(bundleMarkdown)) {
+      issueTags.push("markdownArtifactsSection");
+    }
+    if (!/##\s+Failed steps/i.test(bundleMarkdown)) {
+      issueTags.push("markdownFailedStepsSection");
+    }
+  }
+  const mdAndJsonPaired = bundleMarkdown && bundle;
+  if (!mdAndJsonPaired) {
+    issueTags.push("pairIncomplete");
+  }
 
   const malformed = missingRootKeys.length > 0 || issueTags.length > 0;
   return {
     ok: !malformed,
     status: malformed ? "malformed" : "ok",
-    source: path,
+    source: jsonPath,
     missing: false,
     malformed,
     details: JSON.stringify({
       missingRootKeys,
       issueTags,
       artifactEntries: artifacts.length,
+      markdownPresent: Boolean(bundleMarkdown),
       malformed,
     }),
   };
