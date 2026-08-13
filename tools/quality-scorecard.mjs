@@ -4,6 +4,143 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const QUALITY_SCORECARD_ISSUE_SOURCE = "quality-scorecard";
+
+function normalizeIssueCode(raw) {
+  const slug = String(raw ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  return slug.length === 0 ? "unknown_issue" : slug;
+}
+
+function normalizeSeverity(raw) {
+  const normalized = String(raw ?? "").toLowerCase();
+  if (["high", "medium", "low", "info", "unknown"].includes(normalized)) {
+    return normalized;
+  }
+  return "unknown";
+}
+
+function summarizeIssueCodes(issueCodes) {
+  const summary = {
+    total: 0,
+    high: 0,
+    medium: 0,
+    low: 0,
+    info: 0,
+    unknown: 0,
+    blocking: false,
+  };
+  if (!Array.isArray(issueCodes)) return summary;
+  for (const issue of issueCodes) {
+    const severity = normalizeSeverity(issue?.severity);
+    if (severity === "high") summary.high += 1;
+    else if (severity === "medium") summary.medium += 1;
+    else if (severity === "low") summary.low += 1;
+    else if (severity === "info") summary.info += 1;
+    else summary.unknown += 1;
+    summary.total += 1;
+  }
+  summary.blocking = summary.high > 0;
+  return summary;
+}
+
+function normalizeIssueCodes(rawIssueCodes, fallbackSource = QUALITY_SCORECARD_ISSUE_SOURCE) {
+  const issueCodes = Array.isArray(rawIssueCodes) ? rawIssueCodes : [];
+  const normalized = [];
+  const seen = new Set();
+  for (const issue of issueCodes) {
+    const code = normalizeIssueCode(issue?.code);
+    const severity = normalizeSeverity(issue?.severity);
+    const key = `${code}:${severity}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    normalized.push({
+      code,
+      severity,
+      message: issue?.message ? String(issue.message) : "",
+      artifactPath: issue?.artifactPath ?? null,
+      source: issue?.source ?? fallbackSource,
+    });
+  }
+  return normalized;
+}
+
+function gateWeightToSeverity(weight) {
+  if (weight >= 25) return "high";
+  if (weight >= 10) return "medium";
+  return "low";
+}
+
+function buildIssueCodesFromQualitySummary(gates, trendHealth, drillResult, requireScore, scoreValue, maxScore) {
+  const issueCodes = [];
+  const addIssue = (code, message, options = {}) => {
+    issueCodes.push({
+      code: normalizeIssueCode(code),
+      severity: normalizeSeverity(options.severity),
+      message,
+      artifactPath: options.artifactPath ?? "quality-scorecard",
+      source: options.source ?? QUALITY_SCORECARD_ISSUE_SOURCE,
+    });
+  };
+
+  for (const gate of gates) {
+    if (!gate.ok) {
+      addIssue(
+        `quality_gate_${normalizeIssueCode(gate.name)}`,
+        `${gate.name}: ${gate.details ?? "gate failed"}`,
+        {
+          severity: gateWeightToSeverity(gate.weight ?? 0),
+          artifactPath: gate.name,
+        },
+      );
+    }
+  }
+
+  if (requireScore > 0 && typeof scoreValue === "number" && typeof maxScore === "number" && scoreValue < requireScore) {
+    addIssue(
+      "quality_score_threshold_not_met",
+      `quality score ${scoreValue}/${maxScore} is below required ${requireScore}`,
+      {
+        severity: "high",
+      },
+    );
+  }
+
+  if (trendHealth && trendHealth.status && trendHealth.status !== "ok") {
+    addIssue(
+      `quality_trend_health_${trendHealth.status}`,
+      `trend health status is ${trendHealth.status}`,
+      {
+        severity: trendHealth.blocked ? "high" : "medium",
+        artifactPath: trendHealth.source ?? "quality-scorecard",
+      },
+    );
+  }
+
+  if (trendHealth?.blocked) {
+    addIssue("quality_trend_health_blocked", "quality trend hard block is active", {
+      severity: "high",
+      artifactPath: trendHealth.source ?? "quality-scorecard",
+    });
+  }
+
+  const dryRunStatus = drillResult?.status;
+  if (drillResult && dryRunStatus !== "dry-run") {
+    addIssue(
+      "quality_dry_run_invalid_status",
+      `circuit recovery dry-run status is ${String(dryRunStatus)}`,
+      {
+        severity: "medium",
+        artifactPath: "tools/circuit-recovery-drill.mjs",
+      },
+    );
+  }
+
+  return normalizeIssueCodes(issueCodes);
+}
 
 function parseArgs() {
   const args = process.argv.slice(2);
@@ -1033,6 +1170,16 @@ async function main() {
   );
 
   const maxScore = gates.reduce((sum, item) => sum + item.weight, 0);
+  const issueCodes = buildIssueCodesFromQualitySummary(
+    gates,
+    trendHardBlockArtifactCheck,
+    drillDryRunParsed,
+    requireScore,
+    score,
+    maxScore,
+  );
+  const issueCodeSummary = summarizeIssueCodes(issueCodes);
+
   const summary = {
     score,
     maxScore,
@@ -1056,6 +1203,8 @@ async function main() {
     checks: gates,
     executedChecks: gateResults,
     drillDryRun: drillDryRunParsed,
+    issueCodes,
+    issueCodeSummary,
     executedAtUtc: new Date().toISOString(),
   };
 

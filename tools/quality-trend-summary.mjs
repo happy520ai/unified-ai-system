@@ -117,6 +117,129 @@ function trendArrow(delta) {
   return "flat";
 }
 
+function normalizeSeverity(raw) {
+  const normalized = String(raw ?? "").toLowerCase();
+  if (["high", "medium", "low", "info", "unknown"].includes(normalized)) {
+    return normalized;
+  }
+  return "unknown";
+}
+
+function summarizeIssueCodes(issueCodes) {
+  const summary = {
+    total: 0,
+    high: 0,
+    medium: 0,
+    low: 0,
+    info: 0,
+    unknown: 0,
+    blocking: false,
+  };
+  if (!Array.isArray(issueCodes)) {
+    return summary;
+  }
+  for (const issue of issueCodes) {
+    const severity = normalizeSeverity(issue?.severity);
+    if (severity === "high") summary.high += 1;
+    else if (severity === "medium") summary.medium += 1;
+    else if (severity === "low") summary.low += 1;
+    else if (severity === "info") summary.info += 1;
+    else summary.unknown += 1;
+    summary.total += 1;
+  }
+  summary.blocking = summary.high > 0;
+  return summary;
+}
+
+function normalizeIssueCodes(rawIssueCodes, fallbackSource = "quality-trend-summary") {
+  const issueCodes = Array.isArray(rawIssueCodes) ? rawIssueCodes : [];
+  const normalized = [];
+  const seen = new Set();
+  for (const issue of issueCodes) {
+    const code = issue?.code ? String(issue.code) : "unknown";
+    const severity = normalizeSeverity(issue?.severity);
+    const key = `${code}:${severity}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    normalized.push({
+      code,
+      severity,
+      message: issue?.message ? String(issue.message) : "",
+      artifactPath: issue?.artifactPath ?? null,
+      source: issue?.source ?? fallbackSource,
+    });
+  }
+  return normalized;
+}
+
+function reasonToIssueCode(issueText) {
+  const issue = String(issueText ?? "").toLowerCase();
+  if (issue.includes("consecutive failures")) {
+    return {
+      code: "trend_consecutive_failures",
+      severity: "high",
+      message: issueText,
+      artifactPath: ".tmp/quality-trend.json",
+    };
+  }
+  if (issue.includes("single-run score drop")) {
+    return {
+      code: "trend_score_drop_single_run",
+      severity: "medium",
+      message: issueText,
+      artifactPath: ".tmp/quality-trend.json",
+    };
+  }
+  if (issue.includes("window pass rate")) {
+    return {
+      code: "trend_window_pass_rate",
+      severity: "medium",
+      message: issueText,
+      artifactPath: ".tmp/quality-trend.json",
+    };
+  }
+  if (issue.includes("stable-state-required")) {
+    return {
+      code: "trend_stable_state_required",
+      severity: "high",
+      message: issueText,
+      artifactPath: ".tmp/quality-trend.json",
+    };
+  }
+  return {
+    code: "trend_guardrail_unknown_issue",
+    severity: "info",
+    message: issueText,
+    artifactPath: ".tmp/quality-trend.json",
+  };
+}
+
+function buildIssueCodesFromGuardrails(guardrails, enforceGuardrails) {
+  const issueCodes = [];
+  for (const issue of guardrails.issues ?? []) {
+    issueCodes.push(reasonToIssueCode(issue));
+  }
+  if (!guardrails.pass) {
+    issueCodes.push({
+      code: "trend_guardrails_unstable",
+      severity: "high",
+      message: "trend guardrails are not in a stable state",
+      artifactPath: ".tmp/quality-trend-guardrail.json",
+    });
+    if (enforceGuardrails) {
+      issueCodes.push({
+        code: "trend_guardrails_enforced_failure",
+        severity: "high",
+        message: "trend guardrails enforcement failed",
+        artifactPath: ".tmp/quality-trend-guardrail.json",
+      });
+    }
+  }
+  return normalizeIssueCodes(
+    issueCodes.map((item) => ({ ...item, source: "quality-trend-summary" })),
+  );
+}
+
 function evaluateGuardrails(records, args) {
   const lookback = args.limit > 0 ? records.slice(-args.limit) : records;
   const latest = lookback[lookback.length - 1] ?? null;
@@ -325,6 +448,7 @@ function appendToSummary(summaryPath, content) {
 }
 
 function buildGuardSummary(args, trend, guardrails) {
+  const issueCodes = buildIssueCodesFromGuardrails(guardrails, args.enforceGuardrails);
   return {
     generatedAtUtc: new Date().toISOString(),
     trendFile: args.trendPath,
@@ -351,6 +475,8 @@ function buildGuardSummary(args, trend, guardrails) {
         requireStableState: args.requireStableState,
       },
     },
+    issueCodes,
+    issueCodeSummary: summarizeIssueCodes(issueCodes),
   };
 }
 

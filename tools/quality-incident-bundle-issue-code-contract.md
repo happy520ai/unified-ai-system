@@ -54,6 +54,15 @@
   - `issueCodeSummary`
   - `trendIncidentBundle.issueCodes`
   - `trendIncidentBundle.issueCodeSummary`
+- `quality-scorecard`（新增）输出顶层字段：
+  - `issueCodes`
+  - `issueCodeSummary`
+- `quality-trend-summary`（新增）输出顶层字段：
+  - `issueCodes`（当 `--guard-output` 生效时输出）
+  - `issueCodeSummary`
+- `quality-trend-check`（新增）输出顶层字段：
+  - `issueCodes`
+  - `issueCodeSummary`
 
 ## 告警接入建议
 

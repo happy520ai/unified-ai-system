@@ -11,6 +11,105 @@ const SEVERITY_SCORE = {
   critical: 3,
 };
 
+function normalizeSeverity(raw) {
+  const normalized = String(raw ?? "").toLowerCase();
+  if (["high", "medium", "low", "info", "unknown", "warning", "critical"].includes(normalized)) {
+    return normalized === "warning" ? "medium" : normalized === "critical" ? "high" : normalized;
+  }
+  return "unknown";
+}
+
+function summarizeIssueCodes(issueCodes) {
+  const summary = {
+    total: 0,
+    high: 0,
+    medium: 0,
+    low: 0,
+    info: 0,
+    unknown: 0,
+    blocking: false,
+  };
+  if (!Array.isArray(issueCodes)) return summary;
+  for (const issue of issueCodes) {
+    const severity = normalizeSeverity(issue?.severity);
+    if (severity === "high") summary.high += 1;
+    else if (severity === "medium") summary.medium += 1;
+    else if (severity === "low") summary.low += 1;
+    else if (severity === "info") summary.info += 1;
+    else summary.unknown += 1;
+    summary.total += 1;
+  }
+  summary.blocking = summary.high > 0;
+  return summary;
+}
+
+function reasonToIssueCode(reasonText) {
+  const reason = String(reasonText ?? "").toLowerCase();
+  if (reason.includes("consecutive failures")) {
+    return {
+      code: "trend_consecutive_failures",
+      severity: "high",
+      message: reasonText,
+      artifactPath: ".tmp/quality-trend-guardrail.json",
+    };
+  }
+  if (reason.includes("single-run score drop")) {
+    return {
+      code: "trend_score_drop_single_run",
+      severity: "medium",
+      message: reasonText,
+      artifactPath: ".tmp/quality-trend-guardrail.json",
+    };
+  }
+  if (reason.includes("window pass rate")) {
+    return {
+      code: "trend_window_pass_rate",
+      severity: "medium",
+      message: reasonText,
+      artifactPath: ".tmp/quality-trend-guardrail.json",
+    };
+  }
+  if (reason.includes("stable-state-required")) {
+    return {
+      code: "trend_stable_state_required",
+      severity: "high",
+      message: reasonText,
+      artifactPath: ".tmp/quality-trend-guardrail.json",
+    };
+  }
+  return {
+    code: "trend_issue_unknown",
+    severity: "info",
+    message: reasonText,
+    artifactPath: ".tmp/quality-trend-guardrail.json",
+  };
+}
+
+function buildIssueCodesFromTrendCheck(summary) {
+  const issueCodes = [];
+  const reasonIssues = Array.isArray(summary?.reasons) ? summary.reasons : [];
+  for (const reason of reasonIssues) {
+    issueCodes.push({
+      ...reasonToIssueCode(reason),
+      source: "quality-trend-check",
+    });
+  }
+  if (summary?.blocked) {
+    issueCodes.push({
+      code: "trend_check_blocked",
+      severity: "high",
+      message: "quality trend check is blocked",
+      artifactPath: ".tmp/quality-trend-guardrail.json",
+      source: "quality-trend-check",
+    });
+  }
+  return issueCodes.filter((value, index, array) => {
+    const key = `${value.code}:${value.severity}`;
+    const firstIndex = array.findIndex((item) => `${item.code}:${item.severity}` === key);
+    return firstIndex === index;
+  });
+}
+
 function toPositiveInteger(raw, fallback) {
   if (raw === undefined) return fallback;
   const parsed = Number(raw);
@@ -240,11 +339,15 @@ function summarize() {
   }
 
   const previewReasons = summary.reasons.slice(0, args.maxSummaryReasons);
+  const issueCodes = buildIssueCodesFromTrendCheck(summary);
+  const issueCodeSummary = summarizeIssueCodes(issueCodes);
   const payload = {
     status: summary.status,
     severity: summary.severity,
     blocked: summary.blocked,
     reasons: summary.reasons,
+    issueCodes,
+    issueCodeSummary,
     recommendation: summary.recommendation,
     inputs: {
       digestPath: args.digestPath,
