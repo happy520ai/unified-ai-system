@@ -68,7 +68,46 @@
       }
     },
     "trendConsistency": {
-      "type": "object"
+      "type": "object",
+      "required": [
+        "checks",
+        "issueCodes",
+        "issueCodeSummary",
+        "checksRequired"
+      ],
+      "properties": {
+        "checks": {
+          "type": "object"
+        },
+        "issueCodes": {
+          "type": "array"
+        },
+        "issueCodeSummary": {
+          "type": "object",
+          "required": [
+            "total",
+            "high",
+            "medium",
+            "low",
+            "info",
+            "unknown",
+            "blocking"
+          ],
+          "properties": {
+            "total": { "type": "number" },
+            "high": { "type": "number" },
+            "medium": { "type": "number" },
+            "low": { "type": "number" },
+            "info": { "type": "number" },
+            "unknown": { "type": "number" },
+            "blocking": { "type": "boolean" }
+          }
+        },
+        "checksRequired": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
     },
     "failedSteps": {
       "type": "array"
