@@ -634,19 +634,21 @@ function checkTrendHardBlockArtifact() {
   }
 
   const isBlocked = Boolean(trendCheck.blocked);
+  const reasons = Array.isArray(trendCheck.reasons) ? trendCheck.reasons : [];
   return {
     ok: !isBlocked,
     blocked: isBlocked,
     status: trendCheck.status ?? "unknown",
     severity: trendCheck.severity ?? "unknown",
     source: ".tmp/quality-trend-check.json",
-    reasonsCount: Array.isArray(trendCheck.reasons) ? trendCheck.reasons.length : 0,
+    reasonsCount: reasons.length,
+    reasons,
     details: JSON.stringify({
       status: trendCheck.status ?? "unknown",
       severity: trendCheck.severity ?? "unknown",
       blocked: isBlocked,
       source: ".tmp/quality-trend-check.json",
-      reasonsCount: Array.isArray(trendCheck.reasons) ? trendCheck.reasons.length : 0,
+      reasons,
     }),
   };
 }
@@ -902,7 +904,7 @@ async function main() {
     process.stdout.write(`${outputLines.join("\n")}\n`);
   }
 
-  if (requireScore > 0 && score < requireScore) {
+  if (trendHardBlockArtifactCheck.blocked || (requireScore > 0 && score < requireScore)) {
     process.exitCode = 1;
   }
 }

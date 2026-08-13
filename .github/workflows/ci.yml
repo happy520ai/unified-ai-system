@@ -135,6 +135,25 @@ jobs:
             --max-summary-reasons 8 \
             --hard-block
 
+      - name: Refresh quality scorecard with trend health
+        if: always()
+        run: |
+          if [ -f .tmp/quality-trend-check.json ]; then
+            pnpm quality:score -- --json --require-score "${QUALITY_THRESHOLD}" > .tmp/quality-scorecard.json
+          else
+            echo "quality-trend-check.json missing; keep existing scorecard artifact."
+          fi
+
+      - name: Re-verify quality artifacts with trend health
+        if: always()
+        run: |
+          if [ -f .tmp/quality-scorecard.json ] && [ -f .tmp/circuit-recovery-drill-dry-run.json ]; then
+            pnpm quality:verify-artifacts -- --json --quality .tmp/quality-scorecard.json --drill .tmp/circuit-recovery-drill-dry-run.json --require-score "${QUALITY_THRESHOLD}" --require-trend-health > .tmp/quality-ci-verification.json
+          else
+            echo "required quality artifacts missing for re-verification."
+            exit 1
+          fi
+
       - name: Append quality trend guardrail configuration to summary
         if: always()
         run: |

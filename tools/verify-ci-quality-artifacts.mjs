@@ -11,6 +11,7 @@ function parseArgs() {
     drillPath: ".tmp/circuit-recovery-drill-dry-run.json",
     outputJson: false,
     requireScore: 0,
+    requireTrendHealth: false,
   };
 
   for (let index = 0; index < args.length; index += 1) {
@@ -35,6 +36,10 @@ function parseArgs() {
         values.requireScore = Number(raw);
       }
       index += 1;
+      continue;
+    }
+    if (arg === "--require-trend-health") {
+      values.requireTrendHealth = true;
       continue;
     }
   }
@@ -152,6 +157,19 @@ function main() {
   const drillParsed = drill.ok ? drill.parsed : null;
   const qualityIssuesFinal = [...qualityIssues];
   const drillIssuesFinal = [...drillIssues];
+
+  if (qualityParsed?.trendHealth && typeof qualityParsed.trendHealth === "object") {
+    const trendBlocked = Boolean(qualityParsed.trendHealth.blocked);
+    if (trendBlocked) {
+      qualityIssuesFinal.push(
+        `quality trend health is blocked (status=${qualityParsed.trendHealth.status ?? "unknown"})`,
+      );
+    }
+    const trendStatus = qualityParsed.trendHealth.status;
+    if (args.requireTrendHealth && trendStatus === "not_collected") {
+      qualityIssuesFinal.push("quality scorecard missing trend health evidence (trend-health status not collected)");
+    }
+  }
 
   if (args.requireScore > 0 && qualityParsed?.score != null) {
     if (qualityParsed.score < args.requireScore) {
