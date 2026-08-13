@@ -317,7 +317,7 @@ function validateIncidentBundleMarkdownText(markdownText) {
   return issues;
 }
 
-function collectTrendConsistencyChecks(qualityParsed) {
+function collectTrendConsistencyChecks(qualityParsed, requireTrendHealth = false) {
   const checks = qualityParsed?.executedChecks ?? {};
   const requiredChecks = [
     "trendDigestHealth",
@@ -331,11 +331,14 @@ function collectTrendConsistencyChecks(qualityParsed) {
   for (const key of requiredChecks) {
     const check = checks[key];
     const checkLabel = `quality-scorecard:${key}`;
+    const missingSeverity = requireTrendHealth ? "high" : "medium";
     if (!check || typeof check !== "object") {
-      issues.push(`${checkLabel} result missing from quality summary`);
+      issues.push(
+        `${checkLabel} result missing from quality summary${requireTrendHealth ? " while trend health is required" : ""}`,
+      );
       issueCodes.push({
         code: `${key}_missing`,
-        severity: "medium",
+        severity: missingSeverity,
         message: `${checkLabel} did not emit executable check result`,
         artifactPath: "tools/quality-scorecard.mjs",
         source: "quality-scorecard",
@@ -355,6 +358,20 @@ function collectTrendConsistencyChecks(qualityParsed) {
       malformed: Boolean(check.malformed),
       issueCount: Array.isArray(check.issueCodes) ? check.issueCodes.length : 0,
     };
+
+    const statusText = String(check.status ?? "").toLowerCase();
+    if (requireTrendHealth && statusText === "not_collected") {
+      issues.push(`${checkLabel} was not collected in this quality run while trend health is required`);
+      issueCodes.push({
+        code: `${key}_not_collected`,
+        severity: "high",
+        message: `${checkLabel} result is not_collected while trend health is required`,
+        artifactPath: "tools/quality-scorecard.mjs",
+        source: "quality-scorecard",
+      });
+      checksSummary[key].ok = false;
+      continue;
+    }
 
     if (!check.ok) {
       issues.push(`${checkLabel} failed with status=${check.status ?? "unknown"}`);
@@ -511,7 +528,10 @@ function main() {
   const quality = readJson(args.qualityPath);
   const drill = readJson(args.drillPath);
   const incidentBundle = verifyIncidentBundle(args);
-  const trendConsistency = collectTrendConsistencyChecks(quality.parsed);
+  const trendConsistency = collectTrendConsistencyChecks(
+    quality.parsed,
+    args.requireTrendHealth,
+  );
 
   const qualityIssues = [];
   const drillIssues = [];

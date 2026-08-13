@@ -46,6 +46,7 @@ When `blocked: true`, block the change and create a fix ticket for unstable root
 - Open `.tmp/quality-ci-verification.json` and confirm:
   - `trendConsistency` exists and `trendConsistency.ok === true`
   - `trendConsistency.checks.trendDigestHealth`, `trendConsistency.checks.trendSummaryGuardrails`, and `trendConsistency.checks.trendDigestCheckConsistency` are present with `ok === true`
+  - Under `--require-trend-health`, none of those trend-consistency checks may be `status: "not_collected"`.
 - Correlate `.tmp/quality-ci-verification.json` `issueCodes` with incident bundle `Extracted issues` to ensure no high-severity trend-consistency regression is lost.
 - Re-check `.tmp/quality-trend-check.json` after any local fix to confirm `blocked` clears.
 
