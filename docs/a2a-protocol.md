@@ -24,6 +24,12 @@ pnpm gateway serve
 node docs/examples/a2a-sdk-client.mjs
 ```
 
+Use the consolidated mainstream-client certification pass:
+
+```bash
+pnpm exec node tools/verify-client-runtimes.mjs --client a2a-official
+```
+
 The example uses the official A2A JavaScript SDK to discover the Agent Card,
 call `SendMessage`, retrieve the result with `GetTask`, and find it with
 `ListTasks`.

@@ -1,8 +1,10 @@
 node_modules/
 dist/
 build/
-docs/examples/bin/
-docs/examples/obj/
+docs/examples/**/bin/
+docs/examples/**/obj/
+__pycache__/
+*.py[cod]
 coverage/
 .turbo/
 .cache/
@@ -45,6 +47,8 @@ temp_phase*_backup/
 .pnpm-tmp/
 .serena/
 .test-session-memory-*/
+packages/forge-core/.test-*/
+.workbuddy/
 .tool-appdata/
 .tool-cache/
 .tool-corepack/

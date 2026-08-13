@@ -1,0 +1,126 @@
+{
+  "openai-groq-openai": {
+    "name": "Groq OpenAI-compatible API profile",
+    "protocol": "OpenAI-compatible",
+    "transport": "HTTP /v1 + /chat/completions + /models",
+    "mode": "manual",
+    "tags": [
+      "openai",
+      "openai-compatible",
+      "provider:groq",
+      "language:python",
+      "language:js",
+      "global",
+      "route-compatibility"
+    ],
+    "command": "Groq SDK or client sample against local /v1",
+    "evidenceNotes": "Verify chat/models compatibility using your local Groq OpenAI-compatible profile."
+  },
+  "openai-fireworks-openai": {
+    "name": "Fireworks OpenAI-compatible API profile",
+    "protocol": "OpenAI-compatible",
+    "transport": "HTTP /v1 + /chat/completions + /responses",
+    "mode": "manual",
+    "tags": [
+      "openai",
+      "openai-compatible",
+      "provider:fireworks",
+      "language:python",
+      "global",
+      "route-compatibility"
+    ],
+    "command": "Fireworks OpenAI-compatible client profile against local gateway",
+    "evidenceNotes": "Validate model list, chat completions, and /responses route behavior."
+  },
+  "openai-together-openai": {
+    "name": "TogetherAI OpenAI-compatible API profile",
+    "protocol": "OpenAI-compatible",
+    "transport": "HTTP /v1 + /chat/completions + /models",
+    "mode": "manual",
+    "tags": [
+      "openai",
+      "openai-compatible",
+      "provider:together",
+      "language:python",
+      "language:go",
+      "global",
+      "route-compatibility"
+    ],
+    "command": "TogetherAI OpenAI API compatible profile sample against local /v1",
+    "evidenceNotes": "Collect sanitized list/chat proof and confirm route compatibility."
+  },
+  "openai-mistral-openai": {
+    "name": "Mistral/Lepton AI OpenAI-compatible profile",
+    "protocol": "OpenAI-compatible",
+    "transport": "HTTP /v1 + /chat/completions + /models",
+    "mode": "manual",
+    "tags": [
+      "openai",
+      "openai-compatible",
+      "provider:mistral",
+      "language:python",
+      "global",
+      "route-compatibility"
+    ],
+    "command": "Mistral openai-compatible client sample against local /v1",
+    "evidenceNotes": "Run model listing + chat checks in your local Mistral-to-OpenAI wrapper."
+  },
+  "openai-nvidia-nim-openai": {
+    "name": "NVIDIA NIM OpenAI-compatible profile",
+    "protocol": "OpenAI-compatible",
+    "transport": "HTTP /v1 + /chat/completions + /responses",
+    "mode": "manual",
+    "tags": [
+      "openai",
+      "openai-compatible",
+      "provider:nvidia",
+      "language:python",
+      "language:js",
+      "global",
+      "route-compatibility"
+    ],
+    "command": "NVIDIA NIM OpenAI-compatible profile sample against local /v1",
+    "evidenceNotes": "Validate that NIM-compatible clients can point at local gateway without wrapper changes."
+  },
+  "openai-lm-studio": {
+    "name": "LM Studio OpenAI-compatible API profile",
+    "protocol": "OpenAI-compatible",
+    "transport": "HTTP /v1 + /chat/completions + /models",
+    "mode": "manual",
+    "tags": [
+      "openai",
+      "openai-compatible",
+      "provider:lm-studio",
+      "language:desktop",
+      "global",
+      "route-compatibility"
+    ],
+    "command": "LM Studio OpenAI API profile against local /v1 endpoint",
+    "evidenceNotes": "Verify LM Studio compatibility profile for chat and model discovery."
+  },
+  "openai-text-generation-webui": {
+    "name": "Text Generation Web UI OpenAI-compatible profile",
+    "protocol": "OpenAI-compatible",
+    "transport": "HTTP /v1 + /v1/models + /chat/completions",
+    "mode": "manual",
+    "tags": [
+      "openai",
+      "openai-compatible",
+      "provider:text-generation-webui",
+      "language:desktop",
+      "global",
+      "route-compatibility"
+    ],
+    "command": "Text Generation WebUI OpenAI-compatible path against local gateway",
+    "evidenceNotes": "Confirm web-ui compatibility layer can drive the gateway with /v1 chat model APIs."
+  },
+  "mcp-augmentcode": {
+    "name": "AugmentCode MCP host",
+    "protocol": "MCP",
+    "transport": "stdio",
+    "mode": "manual",
+    "tags": ["mcp", "agent-host", "code-editor", "global", "mainstream"],
+    "command": "AugmentCode MCP host profile with unified-ai-system",
+    "evidenceNotes": "Run startup and tool-list readiness check for this host profile."
+  }
+}

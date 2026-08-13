@@ -14,15 +14,27 @@ function addError(code, path, details = "") {
   errors.push({ code, path, details });
 }
 
-const tracked = execFileSync("git", ["ls-files", "-z"], {
-  cwd: repoRoot,
-  encoding: "utf8",
-  windowsHide: true,
-})
-  .split("\0")
-  .filter(Boolean);
+function listGitFiles(args) {
+  return execFileSync("git", ["ls-files", "-z", ...args], {
+    cwd: repoRoot,
+    encoding: "utf8",
+    windowsHide: true,
+  })
+    .split("\0")
+    .filter(Boolean);
+}
+
+const tracked = listGitFiles([]);
+const publicCandidates = listGitFiles([
+  "--cached",
+  "--others",
+  "--exclude-standard",
+]);
 
 const trackedSet = new Set(tracked);
+const untrackedPublicCandidates = publicCandidates.filter(
+  (path) => !trackedSet.has(path),
+);
 const requiredFiles = [
   "README.md",
   "LICENSE",
@@ -107,7 +119,7 @@ const forbiddenTrackedPatterns = [
   [/\.input\.json$/i, "private_input_tracked"],
 ];
 
-for (const path of tracked) {
+for (const path of publicCandidates) {
   if (path === ".env.example" || path === ".env.enterprise.example") continue;
   for (const [pattern, code] of forbiddenTrackedPatterns) {
     if (pattern.test(path)) addError(code, path);
@@ -806,7 +818,7 @@ function normalizeMachineUser(value) {
 }
 
 let scannedTextFiles = 0;
-for (const path of tracked) {
+for (const path of publicCandidates) {
   const absolutePath = resolve(repoRoot, path);
   if (!existsSync(absolutePath) || statSync(absolutePath).size > 1_000_000) continue;
   if (!textExtensions.has(extname(path).toLowerCase()) && !path.startsWith(".env.")) continue;
@@ -830,6 +842,8 @@ for (const path of tracked) {
 const result = {
   ok: errors.length === 0,
   trackedFiles: tracked.length,
+  candidateFiles: publicCandidates.length,
+  untrackedCandidateFiles: untrackedPublicCandidates.length,
   scannedTextFiles,
   rootScriptCount,
   serviceScriptCount,

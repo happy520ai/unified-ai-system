@@ -21,6 +21,12 @@ body:
     validations:
       required: true
   - type: input
+    id: registry_client_id
+    attributes:
+      label: Registry client ID (optional)
+      placeholder: codex-mcp, mcp-generic-stdio, cursor-mcp
+      description: If this client exists in client-runtime-registry.mjs, fill this ID.
+  - type: input
     id: client_version
     attributes:
       label: Client version
@@ -82,6 +88,17 @@ body:
     attributes:
       label: Notes or limitations
       description: Mention any client-specific behavior, errors, or follow-up needed.
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence output
+      description: Paste the small JSON/Markdown snippet from an automated run, or link to a file with result, command, and checks.
+      render: shell
+  - type: input
+    id: evidence_file
+    attributes:
+      label: Evidence JSON file path
+      placeholder: docs/client-runtime-evidence/codex-mcp.json
   - type: checkboxes
     id: safety
     attributes:

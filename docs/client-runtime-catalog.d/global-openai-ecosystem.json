@@ -1,0 +1,128 @@
+{
+  "openai-jan-ai": {
+    "name": "Jan AI / MCP OpenAI-compatible profile",
+    "protocol": "OpenAI-compatible",
+    "transport": "HTTP /v1 + /chat/completions + /models",
+    "mode": "manual",
+    "tags": ["openai", "openai-compatible", "language:desktop", "language:javascript", "global", "mainstream"],
+    "command": "Jan AI with local gateway /v1 endpoint in model settings",
+    "evidenceNotes": "Record model list and chat completion against local fake gateway and confirm response metadata."
+  },
+  "openai-openwebui": {
+    "name": "OpenWebUI OpenAI-compatible profile",
+    "protocol": "OpenAI-compatible",
+    "transport": "HTTP /v1 + /v1/models + /chat/completions + /responses",
+    "mode": "manual",
+    "tags": ["openai", "openai-compatible", "desktop", "global", "gateway-wrapper", "mainstream"],
+    "command": "OpenWebUI point base URL to local /v1 and run one chat flow",
+    "evidenceNotes": "Validate model discovery, completion, and gateway execution profile visibility in OpenWebUI logs."
+  },
+  "openai-librechat": {
+    "name": "LibreChat OpenAI-compatible profile",
+    "protocol": "OpenAI-compatible",
+    "transport": "HTTP /v1 + /v1/models + /chat/completions + /responses",
+    "mode": "manual",
+    "tags": ["openai", "openai-compatible", "language:javascript", "global", "mainstream"],
+    "command": "LibreChat with OpenAI-compatible provider pointed at local /v1",
+    "evidenceNotes": "Run minimal chat and model discovery validation in local LibreChat flow."
+  },
+  "openai-anythingllm": {
+    "name": "AnythingLLM OpenAI-compatible profile",
+    "protocol": "OpenAI-compatible",
+    "transport": "HTTP /v1 + /chat/completions + /completions + /models",
+    "mode": "manual",
+    "tags": ["openai", "openai-compatible", "language:javascript", "global", "mainstream"],
+    "command": "AnythingLLM with local /v1 endpoint and one non-streaming chat run",
+    "evidenceNotes": "Collect successful model list and chat completion output proving compatible route behavior."
+  },
+  "openai-flowise": {
+    "name": "Flowise OpenAI-compatible profile",
+    "protocol": "OpenAI-compatible",
+    "transport": "HTTP /v1 + /chat/completions + /models",
+    "mode": "manual",
+    "tags": ["openai", "openai-compatible", "language:javascript", "global", "gateway-wrapper"],
+    "command": "Flowise OpenAI connector pointed at local /v1",
+    "evidenceNotes": "Run a minimal workflow test and confirm completion/profile metadata from unified gateway."
+  },
+  "openai-dify": {
+    "name": "Dify OpenAI-compatible profile",
+    "protocol": "OpenAI-compatible",
+    "transport": "HTTP /v1 + /chat/completions + /models + /responses",
+    "mode": "manual",
+    "tags": ["openai", "openai-compatible", "language:python", "language:javascript", "global", "mainstream"],
+    "command": "Dify LLM provider set to local /v1 OpenAI-compatible endpoint",
+    "evidenceNotes": "Validate model retrieval, prompt routing, and one completion response in local gateway mode."
+  },
+  "openai-n8n-node": {
+    "name": "n8n OpenAI-compatible node profile",
+    "protocol": "OpenAI-compatible",
+    "transport": "HTTP /v1 + /chat/completions + /models",
+    "mode": "manual",
+    "tags": ["openai", "openai-compatible", "automation", "language:javascript", "global", "mainstream"],
+    "command": "n8n OpenAI node against local /v1 in a minimal workflow",
+    "evidenceNotes": "Run a one-node test workflow and keep output proving successful model call and response payload."
+  },
+  "openai-botpress": {
+    "name": "Botpress OpenAI-compatible profile",
+    "protocol": "OpenAI-compatible",
+    "transport": "HTTP /v1 + /chat/completions + /models",
+    "mode": "manual",
+    "tags": ["openai", "openai-compatible", "language:javascript", "global", "gateway-wrapper"],
+    "command": "Botpress OpenAI connector pointed at local gateway endpoint",
+    "evidenceNotes": "Run a basic conversation node and verify response path + unified metadata in returned result."
+  },
+  "openai-lobechat": {
+    "name": "LobeChat OpenAI-compatible profile",
+    "protocol": "OpenAI-compatible",
+    "transport": "HTTP /v1 + /chat/completions + /models + /responses",
+    "mode": "manual",
+    "tags": ["openai", "openai-compatible", "global", "language:javascript", "mainstream"],
+    "command": "LobeChat provider config using local /v1",
+    "evidenceNotes": "Validate that chat/completions and model discovery work with the local fake provider endpoint."
+  },
+  "openai-localai": {
+    "name": "LocalAI OpenAI-compatible API profile",
+    "protocol": "OpenAI-compatible",
+    "transport": "HTTP /v1 + /chat/completions + /completions + /models",
+    "mode": "manual",
+    "tags": ["openai", "openai-compatible", "language:docker", "global", "route-compatibility"],
+    "command": "LocalAI OpenAI-compatible proxy profile against local /v1",
+    "evidenceNotes": "Validate route compatibility and unified fake execution metadata for local text completion calls."
+  },
+  "openai-azure-sdk-js-compat": {
+    "name": "Azure OpenAI JS client profile",
+    "protocol": "OpenAI-compatible",
+    "transport": "HTTP /openai/deployments + /chat/completions + alias routes",
+    "mode": "automated",
+    "tags": ["openai", "openai-compatible", "azure", "language:javascript", "global"],
+    "command": "node docs/examples/client-runtime-smoke.mjs --client=openai-azure-sdk-js-compat",
+    "evidenceNotes": "Run the official AzureOpenAI JavaScript client against the local deployment route and verify fake-provider output."
+  },
+  "openai-azure-sdk-python-compat": {
+    "name": "Azure OpenAI Python client profile",
+    "protocol": "OpenAI-compatible",
+    "transport": "HTTP /openai/deployments + /chat/completions + /responses",
+    "mode": "automated",
+    "tags": ["openai", "openai-compatible", "azure", "language:python", "global"],
+    "command": "python docs/examples/client-runtime-smoke.py --client=openai-azure-sdk-python-compat --base-url <url>",
+    "evidenceNotes": "Run deployment-style smoke test and confirm response format and fake execution evidence."
+  },
+  "openai-azure-sdk-dotnet-compat": {
+    "name": "Azure OpenAI .NET client profile",
+    "protocol": "OpenAI-compatible",
+    "transport": "HTTP /openai/deployments + /chat/completions",
+    "mode": "manual",
+    "tags": ["openai", "openai-compatible", "azure", "language:dotnet", "global"],
+    "command": "Azure OpenAI .NET sample against local gateway",
+    "evidenceNotes": "Validate deployment route compatibility and successful text completion from local fake provider."
+  },
+  "openai-openllm": {
+    "name": "OpenLLM / OpenAI-compatible proxy profile",
+    "protocol": "OpenAI-compatible",
+    "transport": "HTTP /v1 + /models + /chat/completions + /responses",
+    "mode": "manual",
+    "tags": ["openai", "openai-compatible", "language:python", "global", "gateway-wrapper"],
+    "command": "OpenLLM or OpenLLM-compatible proxy with local /v1",
+    "evidenceNotes": "Run model list and chat completion compatibility checks through local gateway."
+  }
+}

@@ -56,10 +56,10 @@ docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.9 pn
 ```
 
 The evidence confirms that the original request was preserved, the result is
-deterministic, and `providerCalled=false`. Codex, Cursor, Cline, and generic
-stdio clients can reach the same gateway through nine governed MCP tools. The
-source build also provides a protocol-tested MCP Streamable HTTP endpoint for
-clients that connect by URL.
+deterministic, and `providerCalled=false`. Codex, VS Code, Claude Code, Gemini
+CLI, OpenCode, Cursor, Cline, Continue, and generic stdio clients can reach the
+same gateway through twelve governed MCP tools. The source build also provides a
+protocol-tested MCP Streamable HTTP endpoint for clients that connect by URL.
 
 Useful in a real workflow? [Star the repository](https://github.com/happy520ai/unified-ai-system) or [share one reproducible result](https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml&title=%5BUsage%20Report%5D%20Quickstart).
 
@@ -69,12 +69,15 @@ Useful in a real workflow? [Star the repository](https://github.com/happy520ai/u
 | --- | --- | --- |
 | Try it before installing | [Browser Prompt Lab](https://happy520ai.github.io/unified-ai-system/#enhance) | A local, deterministic preview with no account or API key. |
 | Verify the published runtime | [60-second Docker demo](#try-it-in-60-seconds) | A disposable fake-provider run with visible evidence and cleanup. |
-| Connect an agent client | [Codex and MCP quickstart](https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.html) | A pinned MCP container and nine inspectable tools. |
+| Connect an agent client | [Codex and MCP quickstart](https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.html) | A pinned MCP container and twelve inspectable tools. |
 | Choose a client path | [MCP compatibility matrix](docs/mcp-client-compatibility.md) | Install commands, first checks, and honest evidence boundaries. |
 | Integrate with an application | [Prompt enhancement guide](https://happy520ai.github.io/unified-ai-system/prompt-enhancement.html) | CLI, HTTP, SDK, curl, Python, and JavaScript paths. |
-| Keep an existing OpenAI client | [OpenAI-compatible API](docs/openai-compatible-api.md) | Point `baseURL` at `/v1` for text Chat Completions, Responses, streaming, and model discovery. |
+| Keep an existing OpenAI client | [OpenAI-compatible API](docs/openai-compatible-api.md) | Point `baseURL` at `/v1` for Chat Completions, function tools, Responses, streaming, and model discovery. |
 | Connect another agent | [A2A v1.0 gateway](docs/a2a-protocol.md) | Discover an Agent Card and execute tracked fake-provider tasks over JSON-RPC. |
-| Check protocol coverage | [Protocol compatibility matrix](docs/protocol-client-compatibility.md) | Separate official SDK evidence from named-client certification. |
+| Check client runtime certification | [Client runtime certification](docs/client-runtime-certification.md) | Current evidence-backed catalog state: 52 verified, 2,084 pending manual evidence, and 0 failed across 2,136 unique entries. |
+| Run mainstream certification one-by-one | [Client runtime certification](docs/client-runtime-certification.md) | Run `node tools/verify-client-runtimes-serial.mjs --client tag:mainstream` for sequential reports and explicit manual evidence states. |
+| Run global protocol coverage | [Client runtime certification](docs/client-runtime-certification.md) | Run `node tools/run-global-client-discovery.mjs --source-manifest docs/client-runtime-catalog-sources-worldwide.json --execute --serial --max 0`. |
+| Run strict global certification | [Client runtime certification](docs/client-runtime-certification.md) | Add `--require-manual-evidence --manual-evidence docs/client-runtime-evidence.example.json` to fail on missing manual proof. |
 | Inspect the enhancement contract | [Credential-free evaluation](docs/prompt-enhancement.md#prompt-enhancement-evaluation) | Eight representative cases for profiles, languages, signals, determinism, and zero provider calls. |
 | Diagnose a first-run problem | [Troubleshooting matrix](docs/first-run-troubleshooting.md) | Shell-specific checks without exposing credentials. |
 | Verify an MCP client | [MCP client report](https://github.com/happy520ai/unified-ai-system/issues/new?template=mcp-client-report.yml) | Record one Codex, Cursor, Cline, or generic stdio run with a small evidence set. |
@@ -85,8 +88,10 @@ Useful in a real workflow? [Star the repository](https://github.com/happy520ai/u
 - Prompt enhancement for teammates who do not write perfect prompts.
 - Clean-clone verification without credentials or hidden setup.
 - Provider-free HTTP examples for curl and Python's standard library.
-- OpenAI SDK, CLI, HTTP API, shared SDK, MCP, Codex, Cursor, and Cline entry points.
+- OpenAI SDK, CLI, HTTP API, shared SDK, MCP, Codex, Cursor, Cline, and Continue entry points.
 - Clear boundaries: no AGI claim, no L5 claim, no silent provider behavior.
+- Protocol-first onboarding: any OpenAI-compatible MCP, A2A, or HTTP client can be onboarded
+  via a short setup + reproducible report path; we prioritize verification over marketing claims.
 
 ## Try It in 60 Seconds
 
@@ -247,7 +252,7 @@ Published MCP command:
 codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.9
 ```
 
-Restart Codex, run `/mcp verbose` to verify the nine tools, then follow the
+Restart Codex, run `/mcp verbose` to verify the twelve tools, then follow the
 [60-second Codex MCP quickstart](https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.html) for a safe first
 prompt-enhancement call and removal command.
 

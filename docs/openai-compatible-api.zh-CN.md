@@ -7,11 +7,12 @@ Unified AI System 为现有聊天应用提供一组聚焦的 OpenAI 兼容接口
 - `POST /v1/responses`
 - 普通响应与 `stream: true` 流式响应
 - OpenAI 风格 JSON 错误和 `data: [DONE]` 流式结束标记
+- Chat Completions 函数工具、工具选择、工具结果消息和流式 `tool_calls` 增量
 - 可选的本地自然语言提示词增强
 
-这是聚焦文本能力的兼容层，不是完整 OpenAI API。工具调用、图片/音频/文件
-输入、JSON 响应格式、后台 Responses、已存响应查询和流式 usage 统计尚未支持；
-网关会返回明确错误，不会静默忽略这些参数。
+这是聚焦文本、函数工具和专用多模态路由的兼容层，不是完整 OpenAI API。
+尚未支持的 Responses 工具、后台 Responses、已存响应查询和多模态 Chat 内容会返回
+明确错误，不会被静默忽略。
 
 ## 启动网关
 
@@ -143,20 +144,26 @@ curl http://127.0.0.1:3100/v1/chat/completions \
 | 字段 | 行为 |
 | --- | --- |
 | `model` | 必填，使用 `GET /v1/models` 返回的 ID。 |
-| `messages` | 文本 `developer`、`system`、`user`、`assistant` 消息。 |
+| `messages` | 文本 `developer`、`system`、`user`、`assistant` 消息，assistant `tool_calls`，以及带 `tool_call_id` 的 `tool` 结果消息。 |
 | `stream` | 可选布尔值。 |
 | `temperature` | 0 到 2。 |
 | `top_p` | 0 到 1。 |
 | `max_tokens`、`max_completion_tokens` | 正整数输出上限。 |
 | `stop` | 字符串或非空字符串数组。 |
 | `n` | 仅支持 `1`。 |
-| `response_format` | 仅支持 `{ "type": "text" }`。 |
+| `tools` | 最多 128 个 OpenAI 函数声明，会校验名称、描述和 JSON Schema 参数。 |
+| `tool_choice` | 支持 `none`、`auto`、`required` 和 `tools` 中已声明的指定函数。 |
+| `parallel_tool_calls` | 可选布尔值，会转发给选定 Provider。 |
+| `response_format` | 支持 `text`、`json_object` 和经过校验的 `json_schema` 对象；标准化对象会转发给真实 OpenAI 兼容 provider。 |
+| `stream_options.include_usage` | 与 `stream=true` 一起支持；最终 usage 块为估算值，并以 `unified_ai.usage_estimated=true` 标记。 |
 | `unified_ai.provider_id` | 可选的网关 provider 显式选择。 |
 | `unified_ai.prompt_enhancement` | 可选的本地增强控制。 |
 
 响应包含标准 Chat Completions 字段，并增加 `unified_ai` 对象，展示实际选择
 的 provider、模型、执行模式、执行状态和网关请求 ID，让 fake 与真实执行
 保持可见。
+非流式响应会保留 assistant `tool_calls`；流式响应会输出带索引的 `tool_calls` 增量，
+并在 Provider 选择函数时以 `finish_reason: "tool_calls"` 结束。
 
 ## Responses API 文本档位
 

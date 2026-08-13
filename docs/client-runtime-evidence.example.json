@@ -1,0 +1,39 @@
+{
+  "openai-litellm": {
+    "clientId": "openai-litellm",
+    "status": "verified",
+    "command": "python -m litellm examples... --base-url http://127.0.0.1:xxxxx",
+    "notes": "Litellm sample completed and returned completion id and fake execution metadata.",
+    "checks": {
+      "status200": true,
+      "fakeExecution": true,
+      "routeAlias": true
+    },
+    "evidencePath": "apps/ai-gateway-service/evidence/client-runtime-verifications/20260811-client-litellm.json"
+  },
+  "openai-java": {
+    "clientId": "openai-java",
+    "status": "manual-failed",
+    "command": "java -jar target/openai-java-smoke.jar",
+    "notes": "Auth header mismatch against /openai/deployments until client option updated.",
+    "checks": {
+      "status200": false,
+      "error": "unsupported deployment path"
+    },
+    "evidencePath": "apps/ai-gateway-service/evidence/client-runtime-verifications/20260811-openai-java.json"
+  },
+  "mcp-windsurf": {
+    "clientId": "mcp-windsurf",
+    "status": "manual",
+    "command": "windsurf --config ... + MCP stdio profile",
+    "notes": "Pending: run Windsurf MCP integration and capture a startup/readiness log.",
+    "evidencePath": "apps/ai-gateway-service/evidence/client-runtime-verifications/mcp-windsurf.md"
+  },
+  "openai-semantic-kernel": {
+    "clientId": "openai-semantic-kernel",
+    "status": "manual",
+    "command": "dotnet run --project samples/SemanticKernelSmoke --endpoint http://127.0.0.1:3100/v1",
+    "notes": "Pending: provide a minimal tool run for list-models/chat/completions evidence.",
+    "evidencePath": "apps/ai-gateway-service/evidence/client-runtime-verifications/openai-semantic-kernel.json"
+  }
+}

@@ -34,6 +34,21 @@ const enhanced = await client.chat.completions.create({
   },
 });
 
+const legacyCompletion = await client.completions.create({
+  model: "local-fake-model",
+  prompt: "Legacy /v1/completions compatibility test",
+});
+
+const legacyStream = await client.completions.create({
+  model: "local-fake-model",
+  prompt: "Stream through legacy completions endpoint",
+  stream: true,
+});
+let legacyStreamed = "";
+for await (const chunk of legacyStream) {
+  legacyStreamed += chunk.choices[0]?.text || "";
+}
+
 const stream = await client.chat.completions.create({
   model: "local-fake-model",
   messages: [{ role: "user", content: "Stream through the official OpenAI SDK" }],
@@ -100,8 +115,16 @@ const checks = {
     && completion.model === "local-fake-model"
     && completion.choices[0]?.message?.content?.includes("Official OpenAI SDK compatibility test")
     && completion.choices[0]?.finish_reason === "stop"
-    && completion.unified_ai?.execution_mode === "fake"
-    && completion.unified_ai?.selected_provider === "local-fake-provider",
+      && completion.unified_ai?.execution_mode === "fake"
+      && completion.unified_ai?.selected_provider === "local-fake-provider",
+  legacyCompletion:
+    legacyCompletion.object === "text_completion"
+    && legacyCompletion.model === "local-fake-model"
+    && legacyCompletion.choices[0]?.text?.includes("[fake:local-fake-provider/local-fake-model]")
+    && legacyCompletion.unified_ai?.execution_mode === "fake"
+    && legacyCompletion.unified_ai?.selected_provider === "local-fake-provider",
+  legacyStreaming:
+    legacyStreamed.length > 0,
   promptEnhancement:
     enhanced.unified_ai?.prompt_enhancement?.applied === true
     && enhanced.unified_ai?.prompt_enhancement?.profile === "coding"

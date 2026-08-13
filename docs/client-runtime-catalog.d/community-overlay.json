@@ -1,0 +1,20 @@
+{
+  "mcp-windsurf-plus": {
+    "name": "Windsurf MCP host profile (extended)",
+    "protocol": "MCP",
+    "transport": "stdio",
+    "mode": "manual",
+    "tags": ["mcp", "agent-host", "code-editor", "mainstream"],
+    "command": "Windsurf MCP host with unified-ai-system server",
+    "evidenceNotes": "Startup, tool discovery, and read/write flow checks."
+  },
+  "cursor-desktop": {
+    "name": "Cursor CLI profile",
+    "protocol": "MCP",
+    "transport": "stdio",
+    "mode": "manual",
+    "tags": ["mcp", "agent-host", "code-editor", "mainstream"],
+    "command": "Cursor desktop host with unified-ai-system MCP configuration",
+    "evidenceNotes": "Run Cursor startup and tool list verification against local MCP host."
+  }
+}

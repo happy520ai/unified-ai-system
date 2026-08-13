@@ -1,0 +1,128 @@
+{
+  "openai-langchain-py": {
+    "name": "LangChain Python OpenAI profile",
+    "protocol": "OpenAI-compatible",
+    "transport": "HTTP /v1 + /chat/completions + /models",
+    "mode": "automated",
+    "tags": ["openai", "openai-compatible", "framework:langchain", "language:python", "global", "mainstream"],
+    "command": "python docs/examples/client-runtime-smoke.py --client=openai-langchain-py --base-url <url>",
+    "evidenceNotes": "Run a minimal LangChain chat + model discovery flow and collect chat + model output."
+  },
+  "openai-langchain-dotnet": {
+    "name": "LangChain .NET OpenAI profile",
+    "protocol": "OpenAI-compatible",
+    "transport": "HTTP /v1 + /chat/completions + /models",
+    "mode": "manual",
+    "tags": ["openai", "openai-compatible", "framework:langchain", "language:dotnet", "global", "mainstream"],
+    "command": "LangChain .NET OpenAI wrapper against local /v1",
+    "evidenceNotes": "Validate model discovery and chat completion compatibility in .NET LangChain profile."
+  },
+  "openai-langchain-java": {
+    "name": "LangChain Java OpenAI profile",
+    "protocol": "OpenAI-compatible",
+    "transport": "HTTP /v1 + /chat/completions + /models",
+    "mode": "manual",
+    "tags": ["openai", "openai-compatible", "framework:langchain", "language:java", "global", "mainstream"],
+    "command": "LangChain Java OpenAI wrapper against local /v1",
+    "evidenceNotes": "Run one chain/chat invocation and confirm response + model list behavior."
+  },
+  "openai-langchain-go": {
+    "name": "LangChain Go OpenAI profile",
+    "protocol": "OpenAI-compatible",
+    "transport": "HTTP /v1 + /chat/completions + /models",
+    "mode": "manual",
+    "tags": ["openai", "openai-compatible", "framework:langchain", "language:go", "global"],
+    "command": "LangChain Go OpenAI wrapper against local /v1",
+    "evidenceNotes": "Run minimal model + chat checks in the Go LangChain client."
+  },
+  "openai-langchain-ruby": {
+    "name": "LangChain Ruby OpenAI profile",
+    "protocol": "OpenAI-compatible",
+    "transport": "HTTP /v1 + /chat/completions + /models",
+    "mode": "manual",
+    "tags": ["openai", "openai-compatible", "framework:langchain", "language:ruby", "global"],
+    "command": "LangChain Ruby OpenAI wrapper against local /v1",
+    "evidenceNotes": "Run LangChain Ruby chat completion sample and verify response profile."
+  },
+  "openai-dspy": {
+    "name": "DSPy OpenAI client profile",
+    "protocol": "OpenAI-compatible",
+    "transport": "HTTP /v1 + /chat/completions + /models",
+    "mode": "automated",
+    "tags": ["openai", "openai-compatible", "framework:dspy", "language:python", "global", "mainstream"],
+    "command": "python docs/examples/client-runtime-smoke.py --client=openai-dspy --base-url <url>",
+    "evidenceNotes": "Run a minimal predictor call and verify local gateway invocation metadata."
+  },
+  "openai-promptfoo": {
+    "name": "Promptfoo OpenAI-compatible provider profile",
+    "protocol": "OpenAI-compatible",
+    "transport": "HTTP /v1 + /models + /chat/completions",
+    "mode": "automated",
+    "tags": ["openai", "openai-compatible", "tooling", "language:javascript", "global", "mainstream"],
+    "command": "node docs/examples/client-runtime-smoke.mjs --client=openai-promptfoo",
+    "evidenceNotes": "Run one Promptfoo evaluation against the local fake provider with telemetry, sharing, updates, and remote generation disabled."
+  },
+  "openai-haystack": {
+    "name": "Haystack OpenAI-compatible provider profile",
+    "protocol": "OpenAI-compatible",
+    "transport": "HTTP /v1 + /chat/completions + /models",
+    "mode": "automated",
+    "tags": ["openai", "openai-compatible", "framework:haystack", "language:python", "global"],
+    "command": "python docs/examples/client-runtime-smoke.py --client=openai-haystack --base-url <url>",
+    "evidenceNotes": "Run one Haystack OpenAIChatGenerator request through the local fake provider and verify the returned ChatMessage."
+  },
+  "openai-guidance": {
+    "name": "Guidance OpenAI-compatible profile",
+    "protocol": "OpenAI-compatible",
+    "transport": "HTTP /v1 + /completions + /chat/completions + /models",
+    "mode": "automated",
+    "tags": ["openai", "openai-compatible", "language:python", "global", "mainstream"],
+    "command": "python docs/examples/client-runtime-smoke.py --client=openai-guidance --base-url <url>",
+    "evidenceNotes": "Run one Guidance chat generation against the local fake provider and verify streamed output."
+  },
+  "openai-llm-cli": {
+    "name": "llm CLI (OpenAI-compatible provider profile)",
+    "protocol": "OpenAI-compatible",
+    "transport": "HTTP /v1 + /chat/completions + /models",
+    "mode": "manual",
+    "tags": ["openai", "openai-compatible", "tooling", "language:cli", "language:python", "global"],
+    "command": "llm CLI configured with OPENAI_BASE_URL=http://127.0.0.1:3100/v1",
+    "evidenceNotes": "Run one model list and one prompt command to validate OpenAI-compatible compatibility."
+  },
+  "openai-instructor": {
+    "name": "Instructor OpenAI-compatible profile",
+    "protocol": "OpenAI-compatible",
+    "transport": "HTTP /v1 + /chat/completions + /models",
+    "mode": "automated",
+    "tags": ["openai", "openai-compatible", "language:python", "framework:instructor", "global", "mainstream"],
+    "command": "python docs/examples/client-runtime-smoke.py --client=openai-instructor --base-url <url>",
+    "evidenceNotes": "Run one Instructor JSON Schema request and verify the parsed Pydantic output from the local fake provider."
+  },
+  "openai-llamaindex-js-plus": {
+    "name": "LlamaIndex JS OpenAI-compatible profile (plus)",
+    "protocol": "OpenAI-compatible",
+    "transport": "HTTP /v1 + /chat/completions + /models",
+    "mode": "manual",
+    "tags": ["openai", "openai-compatible", "framework:llamaindex", "language:javascript", "global", "gateway-wrapper"],
+    "command": "LlamaIndex JS workflow against local /v1 endpoint",
+    "evidenceNotes": "Run list-models and response generation in LlamaIndex JS minimal pipeline."
+  },
+  "openai-llamaindex-python-plus": {
+    "name": "LlamaIndex Python OpenAI-compatible profile (plus)",
+    "protocol": "OpenAI-compatible",
+    "transport": "HTTP /v1 + /chat/completions + /models",
+    "mode": "manual",
+    "tags": ["openai", "openai-compatible", "framework:llamaindex", "language:python", "global", "gateway-wrapper"],
+    "command": "LlamaIndex Python workflow against local /v1 endpoint",
+    "evidenceNotes": "Run list-models and response generation in LlamaIndex Python minimal workflow."
+  },
+  "openai-lmql": {
+    "name": "LMQL OpenAI-compatible profile",
+    "protocol": "OpenAI-compatible",
+    "transport": "HTTP /v1 + /chat/completions + /responses + /models",
+    "mode": "manual",
+    "tags": ["openai", "openai-compatible", "language:python", "language:javascript", "global", "route-compatibility"],
+    "command": "LMQL sample against local /v1 OpenAI-compatible endpoint",
+    "evidenceNotes": "Run LMQL query and verify response metadata + route behavior."
+  }
+}

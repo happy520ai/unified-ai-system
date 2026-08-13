@@ -24,9 +24,14 @@
 | 客户端路径 | 安装或配置 | 首次检查 | 证据边界 |
 | --- | --- | --- | --- |
 | Node MCP SDK 测试宿主 | 运行 `pnpm verify:mcp`。 | `@modelcontextprotocol/client` 测试宿主会验证 stdio 和 Streamable HTTP、列出 9 个工具、调用受治理工具、检查 HTTP 访问控制并关闭托管网关。 | 这是真实协议集成证据，不代表已经认证第三方客户端界面。 |
-| Codex | `codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.9` | 运行 `codex mcp get unified-ai-system --json`，重启 Codex，再使用 `/mcp verbose`。 | 仓库已验证 MCP stdio 服务和托管网关；除非有贡献者报告，否则不宣称 Codex CLI 会话已验证。 |
-| Cursor | `pnpm dlx add-mcp@2.0.0 "docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.9" --name unified-ai-system -a cursor -y` | 打开 MCP 工具检查器，先运行 `gateway_health`，再运行 `gateway_readiness`。 | 命令和发布镜像已有文档；Cursor 客户端运行时仍需要真实证据。 |
-| Cline | `cline mcp install unified-ai-system --yes --json -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.9` | 启动全新的 Cline 会话，列出 9 个工具，并在聊天前检查健康和就绪状态。 | 安装契约已有文档；Cline 客户端运行时需要真实使用报告。 |
+| Codex | `codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.9` | 运行 `codex mcp get unified-ai-system --json`，重启 Codex，再使用 `/mcp verbose`。 | 自动化源码档案已验证官方 Codex App Server `0.147.0`、全部 9 个工具、一次无需 Provider 的增强调用和无模型回合清理。 |
+| VS Code | 在隔离的 VS Code 配置中加入源码 MCP Server。 | 检查 `vscode.lm.tools`，再通过 `vscode.lm.invokeTool` 调用 `gateway_prompt_enhance`。 | VS Code `1.118.1` Extension Host 发现全部 9 个工具，完成增强调用，没有模型或 Provider 请求，并完成清理。 |
+| Claude Code | 按[客户端运行时认证](client-runtime-certification.md)安装固定版本宿主。 | 认证器执行 Claude Code 的 `mcp add` 和 `mcp list`。 | Claude Code `2.1.227` 发出真实 MCP 握手和 `tools/list`，发现 9 个工具，没有模型或 Provider 调用，并完成清理。 |
+| Gemini CLI | 按[客户端运行时认证](client-runtime-certification.md)安装固定版本宿主。 | 认证器执行 `mcp add`、连接探针和最小 ACP 初始化。 | Gemini CLI `0.54.4` 使用真实 MCP 客户端发现 9 个工具，没有发送提示词或调用模型，并完成清理。 |
+| OpenCode CLI | 按[客户端运行时认证](client-runtime-certification.md)安装固定版本宿主。 | 认证器在隔离内联配置下执行 `opencode --pure mcp list`。 | OpenCode `1.18.16` 发现 9 个工具，没有加载外部插件或配置，没有模型或 Provider 调用，并完成清理。 |
+| Cursor Agent CLI | 配置 `.cursor/mcp.json`，再按[客户端运行时认证](client-runtime-certification.md)使用固定版本宿主。 | 认证器执行 `mcp enable` 和 `mcp list-tools unified-ai-system`。 | Cursor Agent CLI `2026.08.04-aaa8809` 协商 MCP `2025-11-25`，无需账号凭据或模型请求即发现 9 个工具，并完成清理。 |
+| Cline CLI | `cline mcp install unified-ai-system --yes --json -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.9` | 按[客户端运行时认证](client-runtime-certification.md)运行隔离的固定版本档案。 | Cline `3.0.52` 发现 9 个工具，并通过本地 fake 模型仅调用只读 `gateway_health`；未启用或调用真实 Provider，清理已验证。 |
+| Continue CLI | 在本地 `config.yaml` 中声明 Server，或按[客户端运行时认证](client-runtime-certification.md)运行固定版本档案。 | 认证器使用本地 fake 模型执行 `cn --config ... -p`。 | Continue `1.5.47` 协商 MCP `2025-11-25`，发现 9 个工具，仅调用只读 `gateway_health`，真实 Provider 尝试为 0，并完成清理。 |
 | 通用 MCP stdio 宿主 | 按[通用客户端配置](mcp-generic-client.md)加入 `mcpServers.unified-ai-system`。 | 重启宿主，确认 9 个工具，调用 `gateway_health`，再调用 `gateway_readiness`。 | JSON 配置和 MCP 服务路径由仓库的 provider-free 验证覆盖。 |
 | 通用 MCP Streamable HTTP 宿主 | 运行 `pnpm mcp:http`，配置 `http://127.0.0.1:3210/mcp`。 | 列出 9 个工具，再调用 `gateway_health` 和 `gateway_readiness`。 | 源码端点已通过协议测试；具名客户端只有提交真实运行报告后才算已认证。 |
 
