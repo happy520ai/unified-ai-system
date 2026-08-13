@@ -1,101 +1,130 @@
-# 多进程部署指南（横向扩展 / HA 数据层）
+# Multi-process deployment guide
 
-> 本文说明如何用**多个 gateway 进程 + 共享 SQLite 存储 + nginx 负载均衡**做横向扩展。
-> 诚实边界：当前完成的是**数据层就绪**（状态存储支持跨进程 SQLite）。完整 HA 还需把内存态（healthScorer、限流、RBAC 用户角色）无状态化或外置，本文只覆盖数据层这一半。
+This guide covers multiple gateway processes on one host with local SQLite
+state and a reverse proxy. It does not claim complete high availability or
+cross-host consensus.
 
----
+## Deployment boundary
 
-## 一、为什么需要 SQLite 后端
+Node.js `node:sqlite` provides synchronous access to a file-backed SQLite
+database. WAL mode allows readers and a writer to make progress concurrently,
+but SQLite still permits only one writer at a time.
 
-gateway 原本用本地 JSON 文件存状态（计划、用户、凭据），配合进程内互斥锁。这在**单进程**下够用，但**多进程部署时每个实例各自写自己的文件**，状态会分裂、互相覆盖。
+`node:sqlite` is still experimental in Node 22.18.0. Treat SQLite-backed modes
+as opt-in same-host deployment capabilities, pin the Node patch release, and
+rerun the repository gates before upgrading the runtime.
 
-SQLite（`node:sqlite`，Node 22 内置）提供 ACID + WAL，多个进程可以安全地读写**同一个数据库文件**，是数据层横向扩展的基础。
+All processes that use one WAL database must run on the same host and open the
+same local filesystem path. Do not place a WAL database on NFS, SMB, a cloud
+filesystem, or another network filesystem. SQLite WAL uses a shared-memory
+index and is explicitly not a cross-host coordination protocol.
 
----
+Use PostgreSQL, Redis with an atomic lease design, or another reviewed
+distributed store before deploying stateful gateway replicas across hosts.
 
-## 二、三个 SQLite 开关
+## Existing same-host SQLite stores
 
-| 状态存储 | 模式开关 | 路径开关 | 默认路径（未配置时） |
-| --- | --- | --- | --- |
-| 计划（workforcePlanStore） | `WORKFORCE_PLAN_STORE_MODE=sqlite` | `WORKFORCE_PLAN_STORE_PATH` | `<tmpdir>/unified-ai-system/workforce-plans.json` |
-| 用户/令牌（enterpriseGovernanceService） | `PME_ENTERPRISE_USER_STORE_MODE=sqlite` | `PME_ENTERPRISE_USER_STORE_PATH` | `.data/enterprise/users.json` |
-| 运行时凭据（runtimeCredentialStore） | `PME_RUNTIME_CREDENTIAL_STORE_MODE=sqlite` | `PME_RUNTIME_CREDENTIAL_STORE_PATH` | `<LOCALAPPDATA>/PME-Moving-Earth/unified-ai-system/runtime-credentials.json` |
+These switches preserve the existing local defaults unless `sqlite` is
+selected explicitly.
 
-> 说明：模式开关设为 `sqlite` 时，**路径开关指向的文件会被当作 SQLite 数据库**。建议路径改用 `.db` 扩展名以表意清晰（如 `/data/gateway/plans.db`）。默认（不设模式开关）仍是原 JSON 文件后端，行为不变。
+| State | Mode variable | Path variable |
+| --- | --- | --- |
+| Workforce plans | `WORKFORCE_PLAN_STORE_MODE=sqlite` | `WORKFORCE_PLAN_STORE_PATH` |
+| Enterprise users | `PME_ENTERPRISE_USER_STORE_MODE=sqlite` | `PME_ENTERPRISE_USER_STORE_PATH` |
+| Runtime credentials | `PME_RUNTIME_CREDENTIAL_STORE_MODE=sqlite` | `PME_RUNTIME_CREDENTIAL_STORE_PATH` |
+| Chat idempotency | `AI_GATEWAY_IDEMPOTENCY_STORE_MODE=sqlite` | `AI_GATEWAY_IDEMPOTENCY_SQLITE_PATH` |
 
----
+Use a `.db` extension for operational clarity. Do not point one store type at
+another store's database unless its schema and lifecycle have been reviewed for
+that deployment.
 
-## 三、部署步骤
+## Idempotent chat coordination
 
-### 1. 准备共享存储目录
-
-所有实例都要能访问同一个目录（本地多实例用同一路径；跨机器用共享卷，如 NFS / 云磁盘）：
+Every gateway process that serves provider-backed `POST /chat` traffic must
+use the same three values:
 
 ```bash
-mkdir -p /data/gateway/state
+AI_GATEWAY_IDEMPOTENCY_STORE_MODE=sqlite
+AI_GATEWAY_IDEMPOTENCY_SQLITE_PATH=/data/gateway/idempotency.db
+AI_GATEWAY_IDEMPOTENCY_HMAC_SECRET=<load-the-same-32-byte-or-longer-secret>
 ```
 
-### 2. 配置三个 SQLite 开关（写入 `.env`）
+Load the HMAC secret through the deployment secret manager. Never commit it,
+print it, pass it in command-line arguments, or include it in support bundles.
+
+The SQLite coordinator uses short `BEGIN IMMEDIATE` transactions to atomically
+claim a caller/key/route tuple. Provider network calls happen outside database
+transactions. A lease heartbeat keeps a live owner current. If ownership
+becomes uncertain, the row becomes an `unknown` tombstone and the gateway
+refuses a second provider call until the record expires or an operator
+reconciles the operation.
+
+Optional bounds:
 
 ```bash
-# 计划存储
-WORKFORCE_PLAN_STORE_MODE=sqlite
-WORKFORCE_PLAN_STORE_PATH=/data/gateway/state/workforce-plans.db
-
-# 用户/令牌
-PME_ENTERPRISE_USER_STORE_MODE=sqlite
-PME_ENTERPRISE_USER_STORE_PATH=/data/gateway/state/enterprise-users.db
-
-# 运行时凭据
-PME_RUNTIME_CREDENTIAL_STORE_MODE=sqlite
-PME_RUNTIME_CREDENTIAL_STORE_PATH=/data/gateway/state/runtime-credentials.db
+AI_GATEWAY_IDEMPOTENCY_TTL_MS=600000
+AI_GATEWAY_IDEMPOTENCY_MAX_ENTRIES=1000
+AI_GATEWAY_IDEMPOTENCY_MAX_RESULT_BYTES=1048576
+AI_GATEWAY_IDEMPOTENCY_LEASE_MS=300000
+AI_GATEWAY_IDEMPOTENCY_WAIT_MS=30000
+AI_GATEWAY_IDEMPOTENCY_POLL_MS=50
 ```
 
-### 3. 启动多个实例（不同端口）
+See [the idempotent chat contract](./idempotent-chat-contract.md) for response
+headers, conflict behavior, and retry rules.
+
+## Example same-host layout
+
+Create a restricted local state directory:
 
 ```bash
-# 实例 1
+install -d -m 0700 /data/gateway
+```
+
+Run two processes with distinct ports and the same store configuration:
+
+```bash
 AI_GATEWAY_SERVICE_PORT=3100 pnpm gateway serve &
-# 实例 2
 AI_GATEWAY_SERVICE_PORT=3101 pnpm gateway serve &
-# 实例 3
-AI_GATEWAY_SERVICE_PORT=3102 pnpm gateway serve &
 ```
 
-每个实例指向同一份 `.env`（同一组 SQLite 文件），状态即共享。
-
-### 4. nginx 负载均衡（改造 `deploy/nginx.conf` 的 upstream）
+A reverse proxy can then balance requests:
 
 ```nginx
 upstream ai_gateway {
     server 127.0.0.1:3100;
     server 127.0.0.1:3101;
-    server 127.0.0.1:3102;
     keepalive 32;
 }
 ```
 
-其余 TLS / WebSocket / SSE 配置保持不变（`deploy/nginx.conf` 已含）。
+Keep the existing TLS, WebSocket, and SSE proxy settings. Graceful process
+draining and a load-balancer health check are still required during restart.
 
----
+## Operational rules
 
-## 四、注意事项
+1. Keep each SQLite database and its WAL/SHM files on a restricted local volume.
+2. Configure every process in the deployment with the same backend mode.
+3. Back up or snapshot only with a SQLite-aware procedure; copying the main
+   database while WAL writes are active is not a consistent backup.
+4. Monitor `SQLITE_BUSY`, disk capacity, WAL growth, idempotency store
+   saturation, in-progress responses, and unknown tombstones.
+5. Keep provider timeouts below the configured lease or retain the heartbeat.
+6. Treat `created-unconfirmed` and
+   `IDEMPOTENCY_PREVIOUS_ATTEMPT_UNKNOWN` as reconciliation events, not
+   permission to retry with a new key.
+7. Exercise process termination and restart with the fake provider before any
+   authorized real-provider rollout.
 
-1. **SQLite 文件权限**：运行时凭据含明文 API key，SQLite 后端已自动 `chmod 0o600`。计划/用户存储不强制，但建议放在权限受限的目录。
-2. **WAL 多进程安全**：SQLite 后端已启用 `PRAGMA journal_mode=WAL`，多进程并发读写安全。
-3. **内存态仍是单实例**：`healthScorer`（provider 健康分数）、`rateLimiter`（限流计数）、`advancedRBAC`（用户角色）是内存态，多实例下各自独立、不共享。这些是下一步"无状态化/外置"的范畴。
-4. **不要混用后端**：同一批实例必须用同一种存储模式（都 `sqlite` 或都 `json`），不要一个 sqlite 一个 json。
+## Honest readiness status
 
----
+The repository now has a tested same-host, multi-process idempotency path for
+non-streaming provider-backed chat. That is stronger than process-local
+deduplication, but it is not cross-host HA, global exactly-once execution,
+session affinity, or provider-side reconciliation.
 
-## 五、当前状态与下一步
+A cross-host architecture needs a separate design and evidence for atomic
+ownership, fencing tokens, clock behavior, failover, retention, encryption,
+backup, and disaster recovery.
 
-| 项 | 状态 |
-| --- | --- |
-| 四个状态存储支持 SQLite | ✅ 已实现（env 开关，默认 json 向后兼容） |
-| 读改写原子化（跨进程无 lost update） | ✅ 四个后端全部改为原子 upsert/remove，经多进程并发验证（workforcePlanStore 3 进程并发 30/30） |
-| 多进程共享状态 | ✅ 数据层完整 |
-| 内存态无状态化 / 外置 | ⚠️ 部分（`advancedRBAC` 已 SQLite 化；`rateLimiter` 计数高频、`healthScorer` 软状态无需共享） |
-| 完整 HA（会话亲和、故障转移） | ❌ 未做 |
-
-**下一步建议**：`rateLimiter` 计数外置（高频，建议 Redis 而非 SQLite）、会话亲和 + 故障转移，即可接近完整 HA。
+\n

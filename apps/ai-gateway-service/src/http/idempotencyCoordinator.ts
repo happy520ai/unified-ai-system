@@ -1,5 +1,6 @@
 import { createHash, createHmac, randomBytes } from "node:crypto";
 import type { IncomingHttpHeaders, ServerResponse } from "node:http";
+import { createSqliteIdempotencyCoordinator } from "./sqliteIdempotencyCoordinator.ts";
 
 type IdempotencyRequest = {
   headers?: IncomingHttpHeaders;
@@ -10,8 +11,9 @@ type IdempotencyResponse = Pick<ServerResponse, "getHeader" | "setHeader">;
 
 export type IdempotencyAcceptedOutcome<T> = {
   accepted: true;
-  status: "bypassed" | "created" | "replayed";
+  status: "bypassed" | "created" | "created-unconfirmed" | "replayed";
   replayed: boolean;
+  replayable: boolean;
   value: T;
 };
 
@@ -23,6 +25,7 @@ export type IdempotencyRejectedOutcome = {
   code: string;
   message: string;
   retryable: boolean;
+  replayable: false;
   retryAfterSeconds?: number;
 };
 
@@ -42,6 +45,11 @@ export type IdempotencyCoordinatorOptions = {
   ttlMs?: number;
   maxEntries?: number;
   maxResultBytes?: number;
+  storeMode?: "memory" | "sqlite";
+  sqlitePath?: string;
+  leaseMs?: number;
+  inFlightWaitMs?: number;
+  pollIntervalMs?: number;
 };
 
 type StoredOutcome =
@@ -66,12 +74,15 @@ export type IdempotencyCoordinator = {
     ttlMs: number;
     maxEntries: number;
     maxResultBytes: number;
+    storeMode: "memory" | "sqlite";
   };
+  close(): void;
 };
 
 export const IDEMPOTENCY_RESPONSE_HEADERS = Object.freeze({
   status: "Idempotency-Status",
   replayed: "Idempotency-Replayed",
+  replayable: "Idempotency-Replayable",
 });
 
 const DEFAULT_TTL_MS = 10 * 60 * 1000;
@@ -82,7 +93,7 @@ const MAX_KEY_LENGTH = 255;
 export function createIdempotencyCoordinator(options: IdempotencyCoordinatorOptions = {}): IdempotencyCoordinator {
   const env = options.env ?? process.env;
   const now = options.now ?? Date.now;
-  const secret = options.secret ?? randomBytes(32);
+  const storeMode = options.storeMode ?? normalizeStoreMode(env.AI_GATEWAY_IDEMPOTENCY_STORE_MODE);
   const ttlMs = readBoundedNumber(
     options.ttlMs ?? env.AI_GATEWAY_IDEMPOTENCY_TTL_MS,
     DEFAULT_TTL_MS,
@@ -101,13 +112,38 @@ export function createIdempotencyCoordinator(options: IdempotencyCoordinatorOpti
     1,
     16 * 1_048_576,
   );
+  if (storeMode === "sqlite") {
+    const sqlitePath = options.sqlitePath ?? env.AI_GATEWAY_IDEMPOTENCY_SQLITE_PATH;
+    const secret = options.secret ?? env.AI_GATEWAY_IDEMPOTENCY_HMAC_SECRET;
+    if (!sqlitePath) {
+      throw new Error("AI_GATEWAY_IDEMPOTENCY_SQLITE_PATH is required when the idempotency store mode is sqlite.");
+    }
+    if (!secret || Buffer.byteLength(secret) < 32) {
+      throw new Error("AI_GATEWAY_IDEMPOTENCY_HMAC_SECRET must contain at least 32 bytes in sqlite mode.");
+    }
+    return createSqliteIdempotencyCoordinator({
+      sqlitePath,
+      secret,
+      now,
+      ttlMs,
+      maxEntries,
+      maxResultBytes,
+      leaseMs: readBoundedNumber(options.leaseMs ?? env.AI_GATEWAY_IDEMPOTENCY_LEASE_MS, 300_000, 1_000, 30 * 60 * 1000),
+      inFlightWaitMs: readBoundedNumber(options.inFlightWaitMs ?? env.AI_GATEWAY_IDEMPOTENCY_WAIT_MS, 30_000, 0, 120_000),
+      pollIntervalMs: readBoundedNumber(options.pollIntervalMs ?? env.AI_GATEWAY_IDEMPOTENCY_POLL_MS, 50, 10, 1_000),
+      normalizeKey,
+      createIdentity,
+      createFingerprint,
+    });
+  }
+  const secret = options.secret ?? randomBytes(32);
   const entries = new Map<string, Entry>();
 
   return {
     async execute<T>({ request, route, payload, operation }: IdempotencyExecution<T>): Promise<IdempotencyOutcome<T>> {
       const rawKey = request?.headers?.["idempotency-key"];
       if (rawKey === undefined) {
-        return accepted("bypassed", false, await operation());
+        return accepted("bypassed", false, await operation(), false);
       }
 
       const keyResult = normalizeKey(rawKey);
@@ -164,7 +200,8 @@ export function createIdempotencyCoordinator(options: IdempotencyCoordinatorOpti
         });
       entries.set(identity, entry);
 
-      return accepted("created", false, await entry.promise as T);
+      const value = await entry.promise as T;
+      return accepted("created", false, value, entry.outcome?.type === "value");
     },
 
     getStats() {
@@ -177,8 +214,10 @@ export function createIdempotencyCoordinator(options: IdempotencyCoordinatorOpti
         else if (entry.outcome?.type === "value") replayable += 1;
         else tombstones += 1;
       }
-      return { entries: entries.size, inFlight, replayable, tombstones, ttlMs, maxEntries, maxResultBytes };
+      return { entries: entries.size, inFlight, replayable, tombstones, ttlMs, maxEntries, maxResultBytes, storeMode: "memory" };
     },
+
+    close() {},
   };
 }
 
@@ -189,6 +228,7 @@ export function applyIdempotencyResponseHeaders(
   if (!response || outcome?.status === "bypassed") return;
   response.setHeader(IDEMPOTENCY_RESPONSE_HEADERS.status, outcome?.accepted ? outcome.status : "rejected");
   response.setHeader(IDEMPOTENCY_RESPONSE_HEADERS.replayed, String(outcome?.replayed === true));
+  response.setHeader(IDEMPOTENCY_RESPONSE_HEADERS.replayable, String(outcome?.accepted === true && outcome.replayable));
 
   const existing = response.getHeader?.("Access-Control-Expose-Headers");
   const exposed = new Set(
@@ -201,8 +241,13 @@ export function applyIdempotencyResponseHeaders(
   response.setHeader("Access-Control-Expose-Headers", [...exposed].join(", "));
 }
 
-function accepted<T>(status: IdempotencyAcceptedOutcome<T>["status"], replayed: boolean, value: T): IdempotencyAcceptedOutcome<T> {
-  return { accepted: true, status, replayed, value };
+function accepted<T>(
+  status: IdempotencyAcceptedOutcome<T>["status"],
+  replayed: boolean,
+  value: T,
+  replayable = true,
+): IdempotencyAcceptedOutcome<T> {
+  return { accepted: true, status, replayed, replayable, value };
 }
 
 function rejected(
@@ -220,6 +265,7 @@ function rejected(
     code,
     message,
     retryable,
+    replayable: false,
     ...(retryAfterSeconds ? { retryAfterSeconds } : {}),
   };
 }
@@ -318,4 +364,10 @@ function readBoundedNumber(value: unknown, fallback: number, min: number, max: n
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return fallback;
   return Math.max(min, Math.min(max, Math.round(parsed)));
+}
+
+function normalizeStoreMode(value: string | undefined): "memory" | "sqlite" {
+  if (value === undefined || value === "" || value === "memory") return "memory";
+  if (value === "sqlite") return "sqlite";
+  throw new Error(`Unsupported idempotency store mode: ${value}`);
 }
