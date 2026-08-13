@@ -198,6 +198,14 @@ const DEFAULT_MAX_IN_FLIGHT_REQUESTS = 500;
 const DEFAULT_MAX_REQUEST_BODY_BYTES = 2_097_152; // 2 MB
 const DEFAULT_HEALTHZ_IN_FLIGHT_DEGRADATION_PERCENT = 90;
 const DEFAULT_CORS_ALLOWED_ORIGINS = Object.freeze(["http://127.0.0.1:3100", "http://localhost:3100"]);
+const DEFAULT_GATEWAY_ERROR_CIRCUIT_BYPASS_ROUTES = Object.freeze([
+  "/health",
+  "/health/check",
+  "/healthz",
+  "/ready",
+  "/setup/readiness",
+  "/metrics",
+]);
 const DEFAULT_GATEWAY_ERROR_CIRCUIT_FAILURE_THRESHOLD = 12;
 const DEFAULT_GATEWAY_ERROR_CIRCUIT_SUCCESS_THRESHOLD = 2;
 const DEFAULT_GATEWAY_ERROR_CIRCUIT_RESET_MS = 30_000;
@@ -237,14 +245,9 @@ const HTTP_ROUTE_GROUPS = Object.freeze([
   dispatchHttpRoutes06,
 ]);
 
-const CIRCUIT_BYPASS_ROUTES = Object.freeze(new Set([
-  "/health",
-  "/health/check",
-  "/healthz",
-  "/ready",
-  "/setup/readiness",
-  "/metrics",
-]));
+const CIRCUIT_BYPASS_ROUTES = Object.freeze(new Set(
+  DEFAULT_GATEWAY_ERROR_CIRCUIT_BYPASS_ROUTES.map((route) => normalizeBypassRoute(route)),
+));
 
 export function createGatewayHttpServer(application) {
   const { capabilityRouterService, codexExecCrsRuntimeCandidate, enterpriseGovernanceService, enterpriseOpsService, fiveCapabilityActivationService, gatewayService, knowledgeService, modelImportService, modelLibraryStore, providerConfigRoutes, runtimeCredentialStore, userExperienceService, workforceService, workflowService } = application;
@@ -253,6 +256,10 @@ export function createGatewayHttpServer(application) {
   const phase319LocalOperation = createPhase319LocalOperationService();
   const rateLimiter = createRouteAwareRateLimiter(application.runtimeEnv ?? process.env);
   const requestConfig = application.runtimeEnv ?? process.env;
+  const circuitBypassRoutes = createGatewayErrorCircuitBypassRoutes(
+    requestConfig.AI_GATEWAY_GATEWAY_ERROR_CIRCUIT_BYPASS_ROUTES,
+    CIRCUIT_BYPASS_ROUTES,
+  );
   const requestTimeoutMs = parsePositiveInteger(
     requestConfig.AI_GATEWAY_REQUEST_TIMEOUT_MS,
     DEFAULT_REQUEST_TIMEOUT_MS,
@@ -382,7 +389,8 @@ export function createGatewayHttpServer(application) {
     const allowedByGatewayErrorCircuit = gatewayErrorCircuit.canProcessRequest();
     const circuitSnapshot = gatewayErrorCircuit.getStateSnapshot();
     resilienceMetrics.recordGatewayErrorCircuitState?.(circuitSnapshot?.state, circuitSnapshot);
-    const canBypassGatewayErrorCircuit = CIRCUIT_BYPASS_ROUTES.has(url.pathname);
+    const normalizedPathname = normalizeBypassRoute(url.pathname);
+    const canBypassGatewayErrorCircuit = normalizedPathname && circuitBypassRoutes.has(normalizedPathname);
     if (!allowedByGatewayErrorCircuit && !canBypassGatewayErrorCircuit) {
       resilienceMetrics.recordGatewayErrorCircuitRejections();
       const retryAfterSeconds = Math.max(
@@ -1082,6 +1090,46 @@ function parseRouteRateLimitConfig(value) {
   }
 
   return Object.keys(routeLimits).length > 0 ? routeLimits : undefined;
+}
+
+function createGatewayErrorCircuitBypassRoutes(rawRoutes, fallbackRoutes) {
+  const fallback = fallbackRoutes?.[Symbol.iterator]
+    ? Array.from(fallbackRoutes)
+    : [];
+  const fallbackSet = new Set(
+    fallback
+      .map((route) => normalizeBypassRoute(route))
+      .filter((route) => typeof route === "string" && route.length > 0),
+  );
+
+  if (typeof rawRoutes !== "string" || !rawRoutes.trim()) {
+    return new Set(fallbackSet);
+  }
+
+  const parsed = rawRoutes
+    .split(",")
+    .map((route) => normalizeBypassRoute(route))
+    .filter((route) => typeof route === "string" && route.length > 0);
+  return new Set([...fallbackSet, ...parsed]);
+}
+
+function normalizeBypassRoute(route) {
+  if (typeof route !== "string") {
+    return "";
+  }
+
+  const trimmed = route.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  const pathOnly = trimmed.split("?")[0].split("#")[0];
+  const withLeadingSlash = pathOnly.startsWith("/") ? pathOnly : `/${pathOnly}`;
+  if (withLeadingSlash === "/") {
+    return "/";
+  }
+
+  return withLeadingSlash.replace(/\/+$/u, "");
 }
 
 function parseJson(value) {

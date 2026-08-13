@@ -202,4 +202,36 @@ describe("gateway error circuit bypass routes", () => {
       });
     }
   });
+
+  it("supports additional configured bypass routes for circuit-open mode", async () => {
+    const server = createGatewayHttpServer(createGatewayApplication({
+      runtimeEnv: {
+        AI_GATEWAY_GATEWAY_ERROR_CIRCUIT_RESET_MS: "50",
+        AI_GATEWAY_GATEWAY_ERROR_CIRCUIT_BYPASS_ROUTES: " /dashboard/status/ , /healthz",
+      },
+    }));
+
+    await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address();
+    try {
+      const firstFailure = await sendRequest(address.port, "/provider-config/save", "POST", "{}");
+      expect(firstFailure.statusCode).toBeGreaterThanOrEqual(500);
+
+      const dashboardStatus = await sendRequest(address.port, "/dashboard/status");
+      expect(dashboardStatus.statusCode).toBe(200);
+      const dashboardPayload = JSON.parse(dashboardStatus.body);
+      expect(dashboardPayload.status).toBe("ok");
+      expect(dashboardPayload.data?.route).toBe("/dashboard/status");
+
+      const extraReadiness = await sendRequest(address.port, "/healthz");
+      expect(extraReadiness.statusCode).toBe(503);
+      const extraReadinessPayload = JSON.parse(extraReadiness.body);
+      expect(extraReadinessPayload?.error?.code).toBe("service_unready");
+      expect(extraReadinessPayload?.error?.details?.readinessFailures).toContain("gateway-error-circuit");
+    } finally {
+      await new Promise((resolve, reject) => {
+        server.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
+  });
 });
