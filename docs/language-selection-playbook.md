@@ -103,3 +103,13 @@ When a PR touches non-default language files in runtime paths, attach:
 - The scored decision table
 - A one-line risk closure plan
 - Evidence that `QUALITY` checks still pass after the change
+
+## 6. Automated enforcement
+
+Run the repository language policy check as part of `pnpm check`:
+
+- `pnpm check:language-policy` checks added files under `apps/*` and `packages/*`
+  and reports non-TypeScript additions unless they are explicitly justified.
+
+This check is intentionally strict for new runtime additions and expects migration
+to TypeScript-first defaults in PR-level diff scope.
