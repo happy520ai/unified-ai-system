@@ -5,6 +5,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const policySchemaPath = resolve(repoRoot, "tools/quality-evidence-policy.schema.json");
 
 function parseArgs() {
   const args = process.argv.slice(2);
@@ -230,6 +231,39 @@ function mergePolicy(basePolicy, overridePolicy) {
 }
 
 const policyCache = new Map();
+let policySchemaCache = null;
+let policySchemaError = null;
+
+function isInteger(value) {
+  return Number.isInteger(value);
+}
+
+function readJsonFile(filePath) {
+  const raw = readFileSync(filePath, "utf8");
+  return JSON.parse(raw);
+}
+
+function loadPolicySchema() {
+  if (policySchemaCache !== null) {
+    return policySchemaCache;
+  }
+
+  if (!existsSync(policySchemaPath)) {
+    policySchemaCache = null;
+    return null;
+  }
+
+  try {
+    const parsed = readJsonFile(policySchemaPath);
+    policySchemaError = null;
+    policySchemaCache = isObject(parsed) ? parsed : null;
+    return policySchemaCache;
+  } catch {
+    policySchemaError = `policy schema parse failed: ${policySchemaPath}`;
+    policySchemaCache = null;
+    return null;
+  }
+}
 
 function readPolicy(policyPath, visited = new Set()) {
   if (!policyPath) {
@@ -320,6 +354,19 @@ function readPolicy(policyPath, visited = new Set()) {
 
 function validatePolicy(policy) {
   const issues = [];
+  const schema = loadPolicySchema();
+  if (policySchemaError) {
+    issues.push(policySchemaError);
+  }
+
+  if (schema && schema.additionalProperties === false && isObject(schema) && isObject(policy)) {
+    const allowedKeys = new Set(Object.keys(schema.properties ?? {}));
+    for (const key of Object.keys(policy)) {
+      if (!allowedKeys.has(key)) {
+        issues.push(`policy contains unsupported property: ${key}`);
+      }
+    }
+  }
 
   if (!isObject(policy)) {
     return [`policy must be an object.`];
@@ -331,7 +378,7 @@ function validatePolicy(policy) {
       continue;
     }
     const parsed = Number(policy[field]);
-    if (!Number.isInteger(parsed) || parsed <= 0) {
+    if (!isInteger(parsed) || parsed <= 0) {
       issues.push(`policy.${field} must be a positive integer`);
     }
   }

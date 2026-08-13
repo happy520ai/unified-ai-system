@@ -7,6 +7,7 @@ The quality evidence gate is driven by policy files under `tools/` so CI does no
 - `tools/quality-evidence-assertions.base.json`: shared policy used by all quality workflows.
 - `tools/quality-evidence-assertions.ci.json`: CI-only extensions.
 - `tools/quality-evidence-assertions.quality-trend.json`: trend workflow-only extensions.
+- `tools/quality-evidence-policy.schema.json`: JSON schema that defines the policy contract.
 
 ## Inheritance
 
@@ -15,6 +16,16 @@ Policies can use an `extends` field pointing to another policy file. Child value
 - `requiredArtifacts`, `requiredJsonArtifacts`, `requiredTimestampedArtifacts`: concatenated and de-duplicated.
 - `requiredFields`, `requiredTimestampFieldArtifacts`: de-duplicated by `(artifactPath, fieldPath)`.
 - Scalar fields (`maxAgeMinutes`, `maxTimestampSkewMinutes`, etc.) are inherited unless overridden by child.
+
+## Schema validation
+
+The assertion script validates policy files against:
+
+- `tools/quality-evidence-policy.schema.json`
+- Additional runtime checks (such as de-duplicating and checking nested field shapes)
+
+A policy with unsupported properties or invalid field structure will fail early with explicit
+`policy ...` errors before artifact assertion begins.
 
 ## Command usage
 
