@@ -719,6 +719,7 @@ function buildIncidentBundle(options, steps, reason, detail) {
       : ["- no trend reasons recorded"]),
     "",
     "## Language policy review",
+    `- Review status: ${languagePolicyReview?.reviewStatus ?? "unknown"}`,
     `- Preferred language context: ${languagePolicyReview?.summary?.preferredLanguage ?? "TypeScript for apps/packages"}`,
     `- Language policy check artifact: ${languagePolicyReview?.summary?.checkPresent ? "present" : "missing"}`,
     `- Language policy expiry artifact: ${languagePolicyReview?.summary?.expiryPresent ? "present" : "missing"}`,
@@ -829,6 +830,8 @@ function buildFailureRecommendations(options, steps, reason, detail) {
   }
 
   lines.push("## Language selection actions");
+  lines.push(`- Language-policy review status: ${languagePolicyReview?.reviewStatus ?? "unknown"}`);
+  lines.push(`- Language selection context: ${languagePolicyReview?.summary?.preferredLanguage ?? "TypeScript for apps/packages"}`);
   for (const action of policyActions.slice(0, 20)) {
     lines.push(`- ${action}`);
   }
