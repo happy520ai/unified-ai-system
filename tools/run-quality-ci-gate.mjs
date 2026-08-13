@@ -153,6 +153,7 @@ function summarizeIncidentBundleFromVerification(qualityResult, verifyResult) {
       ok: Boolean(incidentBundle.valid),
       jsonPath: incidentBundle.jsonPath ?? ".tmp/quality-trend-incident-bundle.json",
       mdPath: incidentBundle.mdPath ?? ".tmp/quality-trend-incident-bundle.md",
+      requireIncidentBundle: Boolean(incidentBundle.requireIncidentBundle),
       schemaVersion: incidentBundle.schemaVersion ?? null,
       markdownValid: Boolean(incidentBundle.markdownValid),
       markdownValidationIssues: Array.isArray(incidentBundle.markdownValidationIssues)
@@ -223,6 +224,15 @@ function main() {
   );
   writeIfPossible(drillPath, drillResult.rawStdout);
 
+  const qualityParsedOutput = qualityResult.parsedOutput;
+  const trendHealth = qualityParsedOutput?.trendHealth;
+  const requireIncidentBundle = Boolean(
+    args.requireTrendHealth && trendHealth && (
+      trendHealth.status === "not_collected"
+      || trendHealth.blocked === true
+    ),
+  );
+
   const verifyResult = runNodeScript(
     "./tools/verify-ci-quality-artifacts.mjs",
     [
@@ -237,6 +247,7 @@ function main() {
       ".tmp/quality-trend-incident-bundle.md",
       "--incident-bundle-schema",
       "tools/quality-trend-incident-bundle.schema.json",
+      ...(requireIncidentBundle ? ["--require-incident-bundle"] : []),
       "--require-score",
       String(args.qualityThreshold),
       ...(args.requireTrendHealth ? ["--require-trend-health"] : []),
