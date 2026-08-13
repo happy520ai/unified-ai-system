@@ -252,6 +252,7 @@ The CI workflow now stores the following additional trend artifacts per run:
 - `.tmp/quality-trend-incident-bundle.md`
 - `.tmp/quality-trend-incident-bundle.json`
 - `.tmp/quality-trend-verify-artifacts.json`
+- `.tmp/quality-trend-health-smoke.json` (quality trend workflow smoke command output with flags and summary)
 
 If you inspect workflow artifacts, you can load:
 

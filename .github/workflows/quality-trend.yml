@@ -84,6 +84,9 @@ jobs:
       - name: Run quality trend smoke health check
         continue-on-error: ${{ (github.event_name == 'schedule' && env.QUALITY_TREND_HARD_BLOCK != 'true') || (github.event_name == 'workflow_dispatch' && github.event.inputs.enforce_trend_guardrails != 'true' && github.event.inputs.quality_trend_hard_block != 'true' && env.QUALITY_TREND_HARD_BLOCK != 'true') }}
         run: |
+          set -o pipefail
+          mkdir -p .tmp
+          touch .tmp/quality-trend-health-smoke.json
           SMOKE_ARGS=(
             --json
             --require-score "${QUALITY_THRESHOLD}"
@@ -119,7 +122,7 @@ jobs:
             SMOKE_ARGS+=("--hard-block")
           fi
 
-          pnpm quality:trend-health-smoke -- "${SMOKE_ARGS[@]}"
+          pnpm quality:trend-health-smoke -- "${SMOKE_ARGS[@]}" | tee .tmp/quality-trend-health-smoke.json
 
       - name: Verify quality trend artifact parity
         if: always()
@@ -151,6 +154,15 @@ jobs:
             echo "" >> "$GITHUB_STEP_SUMMARY"
             echo "## Quality artifact verification result" >> "$GITHUB_STEP_SUMMARY"
             cat .tmp/quality-trend-verify-artifacts.json >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Append quality trend smoke output to workflow summary
+        if: always()
+        run: |
+          if [ -f .tmp/quality-trend-health-smoke.json ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "## Quality trend smoke output" >> "$GITHUB_STEP_SUMMARY"
+            cat .tmp/quality-trend-health-smoke.json >> "$GITHUB_STEP_SUMMARY"
           fi
 
       - name: Append quality trend guardrail configuration to summary
@@ -218,4 +230,5 @@ jobs:
             .tmp/circuit-recovery-drill-dry-run.json
             .tmp/quality-ci-verification.json
             .tmp/quality-trend-verify-artifacts.json
+            .tmp/quality-trend-health-smoke.json
           retention-days: 180
