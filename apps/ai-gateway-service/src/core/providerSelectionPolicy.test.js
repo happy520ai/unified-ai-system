@@ -107,10 +107,12 @@ describe("provider-selection-policy", () => {
     healthScorer.recordSuccess("provider-a", 100);
     healthScorer.recordFailure("provider-b", "error");
 
+    let randomIndex = 0;
     const policy = createPriorityProviderSelectionPolicy({
       mode: "health-weighted",
       healthScorer,
       useLoadBalancer: true,
+      random: () => ((randomIndex++ % 100) + 0.5) / 100,
     });
     const candidates = [
       { target: { providerId: "provider-a", modelId: "m1" }, providerPriority: 100, modelPriority: 100 },

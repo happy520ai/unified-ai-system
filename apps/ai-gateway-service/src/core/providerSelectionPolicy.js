@@ -5,6 +5,7 @@ export function createPriorityProviderSelectionPolicy(config = {}) {
   // Health-weighted mode: use health scorer to rank candidates by observed performance
   const healthScorer = config.healthScorer ?? null;
   const useLoadBalancer = config.useLoadBalancer ?? false;
+  const random = typeof config.random === "function" ? config.random : Math.random;
 
   const policyName = resolvePolicyName(routeMode);
 
@@ -47,7 +48,7 @@ export function createPriorityProviderSelectionPolicy(config = {}) {
       // In health-weighted mode with load balancer, use weighted random for primary selection
       let selected;
       if (routeMode === "health-weighted" && useLoadBalancer && healthScorer && rankedCandidates.length > 1) {
-        selected = selectByWeightedRandom(rankedCandidates, healthScorer);
+        selected = selectByWeightedRandom(rankedCandidates, healthScorer, random);
       } else {
         selected = rankedCandidates[0];
       }
@@ -109,13 +110,13 @@ function compareCandidateHealthThenPriority(a, b, healthScorer) {
   return a.modelPriority - b.modelPriority;
 }
 
-function selectByWeightedRandom(rankedCandidates, healthScorer) {
+function selectByWeightedRandom(rankedCandidates, healthScorer, randomSource) {
   const scored = rankedCandidates.map((c) => ({
     candidate: c,
     weight: Math.max(1, healthScorer.getScore(c.target.providerId)),
   }));
   const totalWeight = scored.reduce((sum, s) => sum + s.weight, 0);
-  let random = Math.random() * totalWeight;
+  let random = randomSource() * totalWeight;
   for (const s of scored) {
     random -= s.weight;
     if (random <= 0) return s.candidate;
