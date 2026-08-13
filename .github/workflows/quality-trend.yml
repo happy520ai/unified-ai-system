@@ -75,6 +75,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Language policy check
+        run: |
+          set -o pipefail
+          node ./tools/check-language-policy.mjs --json 2>&1 | tee .tmp/language-policy-check.json
+
       - name: Restore quality trend history cache
         uses: actions/cache@v4
         with:
@@ -156,6 +161,32 @@ jobs:
             echo "" >> "$GITHUB_STEP_SUMMARY"
             echo "## Quality artifact verification result" >> "$GITHUB_STEP_SUMMARY"
             cat .tmp/quality-trend-verify-artifacts.json >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          if [ -f .tmp/language-policy-check.json ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "## Language policy check" >> "$GITHUB_STEP_SUMMARY"
+            node --input-type=module --eval '
+              import { readFileSync } from "node:fs";
+
+              const parsed = JSON.parse(readFileSync(".tmp/language-policy-check.json", "utf8"));
+              const violations = Array.isArray(parsed.violations) ? parsed.violations : [];
+              const inspected = parsed.inspected || {};
+
+              console.log(`**Inspected files:** ${inspected.added ?? "unknown"}`);
+              if (violations.length === 0) {
+                console.log("PASS: no language policy violations.");
+              } else {
+                console.log(`FAIL: ${violations.length} violation(s).`);
+                for (const item of violations) {
+                  const boundary = item.boundary ?? "unknown";
+                  const file = item.file ?? "unknown";
+                  const extension = item.extension ?? "unknown";
+                  const reason = item.reason ?? "unknown";
+                  console.log(`- ${boundary}: ${file} (${extension}) ${reason}`);
+                }
+              }
+            ' || true
           fi
 
       - name: Append quality trend smoke output to workflow summary
@@ -243,5 +274,6 @@ jobs:
             .tmp/quality-ci-verification.json
             .tmp/quality-trend-verify-artifacts.json
             .tmp/quality-trend-health-smoke.json
+            .tmp/language-policy-check.json
           retention-days: 180
 

@@ -90,6 +90,7 @@ Current CI pipelines publish:
 - `.tmp/quality-trend-health-smoke.json` (quality-trend workflow smoke output)
 - `.tmp/quality-evidence-artifacts.json` (`ci.yml`)
 - `.tmp/quality-trend-required-artifacts.json` (`quality-trend.yml`)
+- `.tmp/language-policy-check.json` (`quality-trend.yml`)
 
 For failed trend runs, the evidence completeness gate in `quality-trend` workflows now treats all files in the list above as required for triage continuity.
 

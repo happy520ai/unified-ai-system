@@ -29,6 +29,7 @@ For immediate triage, the minimum evidence set is:
   - `.tmp/quality-trend-incident-bundle.md`
   - `.tmp/quality-trend-incident-bundle.json`
   - `.tmp/quality-trend-verify-artifacts.json`
+  - `.tmp/language-policy-check.json`
 
 If any required file is missing after a failed run, treat evidence completeness as a blocker and rerun with artifacts enabled.
 
