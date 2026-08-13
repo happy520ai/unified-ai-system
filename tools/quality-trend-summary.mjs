@@ -238,6 +238,7 @@ function buildTrendReport({ trend, limit, guardrails }) {
     markdown += `- Latest score delta: ${guardrails.checks.latestScoreDelta > 0 ? "+" : ""}${guardrails.checks.latestScoreDelta}\n`;
   }
   markdown += `- Guardrails enabled: ${guardrails.pass ? "pass" : "fail"}\n`;
+  markdown += `- Stable state: ${guardrails.pass ? "stable" : "unstable"}\n`;
   markdown += `- Trend pass rate (${guardrails.checks.lookbackSize} runs): ${guardrails.checks.passRate}%\n`;
   if (guardrails.issues.length > 0) {
     markdown += "- Guardrail issues:\n";
@@ -340,6 +341,7 @@ function buildGuardSummary(args, trend, guardrails) {
         || args.requireStableState,
       enforce: args.enforceGuardrails,
       pass: guardrails.pass,
+      state: guardrails.pass ? "stable" : "unstable",
       issues: guardrails.issues,
       checks: guardrails.checks,
       thresholds: {
