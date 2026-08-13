@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { createChatRoutes } from "./httpServerChatRoutes.js";
+import { createErrorEnvelope, createOkEnvelope } from "@unified-ai-system/shared-utils";
+import { createRouteFailureEnvelope } from "../core/gatewayService.js";
+import { dispatchHttpRoutes06 } from "./httpServerRoutes06.js";
+import { createIdempotencyCoordinator } from "./idempotencyCoordinator.ts";
+import { readJson, writeJson } from "./utils/responseUtils.js";
 
 function createResponse() {
   const headers = new Map<string, string>();
@@ -28,76 +32,80 @@ function createResponse() {
   };
 }
 
-function createRequest(key: string) {
+function createRequest(key: string, body: unknown) {
   return {
     method: "POST",
+    body,
     headers: { "idempotency-key": key, authorization: "Bearer test-tenant" },
     socket: { remoteAddress: "127.0.0.1" },
   };
 }
 
-function createContext(execute: ReturnType<typeof vi.fn>) {
+function createContext(execute: ReturnType<typeof vi.fn>, key: string, body: unknown) {
+  const response = createResponse();
   return {
-    application: {
-      config: {
-        aiGatewayService: {
-          providerSelection: { mode: "fixed", defaultProviderId: "fake", defaultModelId: "fake-model" },
-          providerModels: [],
-        },
-      },
-      runtimeEnv: {},
-    },
-    gatewayService: { execute, executeStream: vi.fn() },
-    circuitBreakerRegistry: null,
-    metricsCollector: null,
-    wsServer: { getConnectionCount: () => 0 },
+    createErrorEnvelope,
+    createOkEnvelope,
+    createRouteFailureEnvelope,
+    readJson,
+    writeJson,
+    writeServiceLog: vi.fn(),
+    normalizeChatBody: (value: unknown) => value,
+    evaluateTaijiBeidouChatPreviewHook: () => ({ action: "continue" }),
+    extractChatPrompt: () => "hello",
+    routeChatActionProposal: () => ({ action: "continue" }),
+    application: { config: {}, runtimeEnv: {} },
+    gatewayService: { execute },
+    idempotencyCoordinator: createIdempotencyCoordinator({ secret: "production-route-test" }),
+    request: createRequest(key, body),
+    response,
+    url: new URL("http://127.0.0.1/chat"),
+    startedAt: Date.now(),
   };
 }
 
-describe("POST /chat idempotency contract", () => {
-  it("replays the first gateway result without a second provider execution", async () => {
+describe("production POST /chat idempotency contract", () => {
+  it("replays through dispatchHttpRoutes06 without a second provider execution", async () => {
     const execute = vi.fn(async () => ({
       success: true,
       code: "OK",
       data: { text: "hello", selectedProvider: "fake" },
       meta: { requestId: "provider-request-1" },
     }));
-    const handler = createChatRoutes(createContext(execute)).handlers.get("POST /chat");
     const body = { messages: [{ role: "user", content: "hello" }] };
-    const first = createResponse();
-    const second = createResponse();
+    const first = createContext(execute, "idem-chat-1", body);
+    const second = { ...createContext(execute, "idem-chat-1", body), idempotencyCoordinator: first.idempotencyCoordinator };
 
-    await handler!(createRequest("idem-chat-1"), first, { startedAt: Date.now(), body });
-    await handler!(createRequest("idem-chat-1"), second, { startedAt: Date.now(), body });
+    await dispatchHttpRoutes06(first);
+    await dispatchHttpRoutes06(second);
+    first.idempotencyCoordinator.close();
 
-    expect(first.statusCode).toBe(200);
-    expect(second.statusCode).toBe(200);
-    expect(first.headers.get("idempotency-status")).toBe("created");
-    expect(second.headers.get("idempotency-status")).toBe("replayed");
-    expect(second.headers.get("idempotency-replayed")).toBe("true");
-    expect(second.headers.get("access-control-expose-headers")).toContain("Idempotency-Replayed");
-    expect(second.payload).toEqual(first.payload);
+    expect(first.response.statusCode).toBe(200);
+    expect(second.response.statusCode).toBe(200);
+    expect(first.response.headers.get("idempotency-status")).toBe("created");
+    expect(second.response.headers.get("idempotency-status")).toBe("replayed");
+    expect(second.response.headers.get("idempotency-replayed")).toBe("true");
+    expect(second.response.headers.get("idempotency-replayable")).toBe("true");
+    expect(second.response.payload).toEqual(first.response.payload);
     expect(execute).toHaveBeenCalledTimes(1);
   });
 
-  it("returns 409 when the same key is reused with a different body", async () => {
+  it("rejects different payload reuse before the production provider call", async () => {
     const execute = vi.fn(async () => ({ success: true, code: "OK", data: {}, meta: { requestId: "request-1" } }));
-    const handler = createChatRoutes(createContext(execute)).handlers.get("POST /chat");
-    const first = createResponse();
-    const conflict = createResponse();
+    const firstBody = { messages: [{ role: "user", content: "first" }] };
+    const first = createContext(execute, "idem-chat-2", firstBody);
+    const conflict = {
+      ...createContext(execute, "idem-chat-2", { messages: [{ role: "user", content: "different" }] }),
+      idempotencyCoordinator: first.idempotencyCoordinator,
+    };
 
-    await handler!(createRequest("idem-chat-2"), first, {
-      startedAt: Date.now(),
-      body: { messages: [{ role: "user", content: "first" }] },
-    });
-    await handler!(createRequest("idem-chat-2"), conflict, {
-      startedAt: Date.now(),
-      body: { messages: [{ role: "user", content: "different" }] },
-    });
+    await dispatchHttpRoutes06(first);
+    await dispatchHttpRoutes06(conflict);
+    first.idempotencyCoordinator.close();
 
-    expect(conflict.statusCode).toBe(409);
-    expect((conflict.payload as { error: { code: string } }).error.code).toBe("IDEMPOTENCY_KEY_REUSED");
-    expect(conflict.headers.get("idempotency-status")).toBe("rejected");
+    expect(conflict.response.statusCode).toBe(409);
+    expect((conflict.response.payload as { error: { code: string } }).error.code).toBe("IDEMPOTENCY_KEY_REUSED");
+    expect(conflict.response.headers.get("idempotency-status")).toBe("rejected");
     expect(execute).toHaveBeenCalledTimes(1);
   });
 });

@@ -188,6 +188,7 @@ import { dispatchHttpRoutes04 } from "./httpServerRoutes04.js";
 import { dispatchHttpRoutes05 } from "./httpServerRoutes05.js";
 import { dispatchHttpRoutes06 } from "./httpServerRoutes06.js";
 import { createOpenTelemetryRuntime } from "../observability/openTelemetry.js";
+import { createIdempotencyCoordinator } from "./idempotencyCoordinator.ts";
 
 const logger = createLogger({ app: "ai-gateway-service", level: "info" });
 const writeServiceLog = (event, details = {}) => logger.info(event, details);
@@ -325,6 +326,7 @@ export function createGatewayHttpServer(application) {
     halfOpenMaxCalls: gatewayErrorCircuitHalfOpenMaxCalls,
   });
   const openTelemetry = createOpenTelemetryRuntime({ env: requestConfig });
+  const idempotencyCoordinator = createIdempotencyCoordinator({ env: requestConfig });
   const tracedGatewayService = openTelemetry.instrumentGatewayService(gatewayService);
   const a2aGateway = createA2AGateway({
     gatewayService: tracedGatewayService,
@@ -635,6 +637,7 @@ export function createGatewayHttpServer(application) {
           healthzInFlightThreshold,
           healthzInFlightDegradationPercent,
           rateLimiter,
+          idempotencyCoordinator,
         }));
       if (routeResult !== ROUTE_NOT_HANDLED) {
         markRequestSuccess();
@@ -685,6 +688,7 @@ export function createGatewayHttpServer(application) {
     }
   });
   server.on("close", () => {
+    idempotencyCoordinator.close();
     void openTelemetry.shutdown().catch((error) => {
       writeServiceLog("opentelemetry_shutdown_failed", {
         code: error?.code ?? error?.name ?? "otel_shutdown_failed",
