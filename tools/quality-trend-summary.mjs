@@ -4,12 +4,28 @@ import { fileURLToPath } from "node:url";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
+function toPositiveInteger(raw, currentValue) {
+  if (raw === undefined) return currentValue;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed)) {
+    return currentValue;
+  }
+  const value = Math.floor(parsed);
+  if (value <= 0) return currentValue;
+  return value;
+}
+
 function parseArgs() {
   const args = process.argv.slice(2);
   const values = {
     trendPath: ".tmp/quality-trend.json",
     outputPath: ".tmp/quality-trend-summary.md",
     limit: 14,
+    guardOutputPath: null,
+    enforceGuardrails: false,
+    maxConsecutiveFailures: null,
+    maxScoreDropPoints: null,
+    outputJson: false,
   };
 
   for (let index = 0; index < args.length; index += 1) {
@@ -25,12 +41,37 @@ function parseArgs() {
       continue;
     }
     if (arg === "--limit") {
-      const raw = args[index + 1];
-      const parsed = Number(raw);
-      if (Number.isFinite(parsed) && parsed > 0) {
-        values.limit = Math.floor(parsed);
-      }
+      values.limit = toPositiveInteger(args[index + 1], values.limit);
       index += 1;
+      continue;
+    }
+    if (arg === "--guard-output") {
+      values.guardOutputPath = args[index + 1] ?? values.guardOutputPath;
+      index += 1;
+      continue;
+    }
+    if (arg === "--max-consecutive-failures") {
+      values.maxConsecutiveFailures = toPositiveInteger(
+        args[index + 1],
+        values.maxConsecutiveFailures,
+      );
+      index += 1;
+      continue;
+    }
+    if (arg === "--max-score-drop-points") {
+      values.maxScoreDropPoints = toPositiveInteger(
+        args[index + 1],
+        values.maxScoreDropPoints,
+      );
+      index += 1;
+      continue;
+    }
+    if (arg === "--enforce-guardrails") {
+      values.enforceGuardrails = true;
+      continue;
+    }
+    if (arg === "--json") {
+      values.outputJson = true;
       continue;
     }
   }
@@ -65,17 +106,9 @@ function trendArrow(delta) {
   return "flat";
 }
 
-function buildTrendReport({ trend, limit }) {
-  const records = Array.isArray(trend?.records) ? trend.records : [];
-  const latest = records.slice(-limit).reverse();
-  const latestRecord = latest[0] ?? null;
-
-  let markdown = "";
-  markdown += "# Quality Trend Summary\n\n";
-  markdown += `- Total records: ${records.length}\n`;
-  markdown += `- Reporting window: last ${Math.min(limit, records.length)} runs\n`;
-  markdown += `- Schema version: ${trend?.schemaVersion ?? 1}\n`;
-  markdown += `- Latest generated: ${formatDate(latestRecord?.recordedAtUtc)}\n\n`;
+function evaluateGuardrails(records, args) {
+  const latest = records[records.length - 1] ?? null;
+  const previous = records[records.length - 2] ?? null;
 
   const consecutiveFailures = (() => {
     let count = 0;
@@ -86,7 +119,102 @@ function buildTrendReport({ trend, limit }) {
     return count;
   })();
 
-  markdown += `- Consecutive failures (newest-first): ${consecutiveFailures}\n\n`;
+  const latestScore = typeof latest?.quality?.score === "number" ? latest.quality.score : null;
+  const previousScore = typeof previous?.quality?.score === "number"
+    ? previous.quality.score
+    : null;
+  const latestScoreDelta = (latestScore === null || previousScore === null)
+    ? null
+    : latestScore - previousScore;
+  const latestDrop = latestScoreDelta === null ? null : -latestScoreDelta;
+
+  const largestDrop = (() => {
+    if (records.length < 2) return null;
+    let drop = 0;
+    for (let index = 1; index < records.length; index += 1) {
+      const left = records[index - 1];
+      const right = records[index];
+      const leftScore = typeof left?.quality?.score === "number" ? left.quality.score : null;
+      const rightScore = typeof right?.quality?.score === "number" ? right.quality.score : null;
+      if (leftScore === null || rightScore === null) {
+        continue;
+      }
+      const candidate = leftScore - rightScore;
+      if (candidate > drop) drop = candidate;
+    }
+    return drop;
+  })();
+
+  const issues = [];
+
+  if (
+    args.maxConsecutiveFailures !== null &&
+    consecutiveFailures >= args.maxConsecutiveFailures
+  ) {
+    issues.push(
+      `consecutive failures ${consecutiveFailures} exceeds threshold ${args.maxConsecutiveFailures}`,
+    );
+  }
+
+  if (
+    args.maxScoreDropPoints !== null &&
+    latestDrop !== null &&
+    latestDrop > args.maxScoreDropPoints
+  ) {
+    issues.push(
+      `single-run score drop ${latestDrop} exceeds threshold ${args.maxScoreDropPoints}`,
+    );
+  }
+
+  return {
+    pass: issues.length === 0,
+    issues,
+    checks: {
+      consecutiveFailures,
+      latestScore,
+      previousScore,
+      latestScoreDelta,
+      latestSingleRunDrop: latestDrop,
+      largestSingleRunDrop: largestDrop,
+      maxConsecutiveFailures: args.maxConsecutiveFailures,
+      maxScoreDropPoints: args.maxScoreDropPoints,
+    },
+  };
+}
+
+function buildTrendReport({ trend, limit, guardrails }) {
+  const records = Array.isArray(trend?.records) ? trend.records : [];
+  const latest = records.slice(-limit).reverse();
+  const latestRecord = latest[0] ?? null;
+
+  let markdown = "";
+  markdown += "# Quality Trend Summary\n\n";
+  markdown += `- Total records: ${records.length}\n`;
+  markdown += `- Reporting window: last ${Math.min(limit, records.length)} runs\n`;
+  markdown += `- Schema version: ${trend?.schemaVersion ?? 1}\n`;
+  markdown += `- Latest generated: ${formatDate(latestRecord?.recordedAtUtc)}\n`;
+  markdown += `- Consecutive failures (newest-first): ${guardrails.checks.consecutiveFailures}\n`;
+  if (guardrails.checks.latestScoreDelta === null) {
+    markdown += "- Latest score delta: unknown\n";
+  } else {
+    markdown += `- Latest score delta: ${guardrails.checks.latestScoreDelta > 0 ? "+" : ""}${guardrails.checks.latestScoreDelta}\n`;
+  }
+  markdown += `- Guardrails enabled: ${guardrails.pass ? "pass" : "fail"}\n`;
+  if (guardrails.issues.length > 0) {
+    markdown += "- Guardrail issues:\n";
+    for (const issue of guardrails.issues) {
+      markdown += `  - ${issue}\n`;
+    }
+  } else {
+    markdown += "- Guardrail issues: none\n";
+  }
+  if (guardrails.checks.latestSingleRunDrop !== null) {
+    markdown += `- Latest score drop: ${guardrails.checks.latestSingleRunDrop}\n`;
+  }
+  if (guardrails.checks.largestSingleRunDrop !== null) {
+    markdown += `- Largest single run drop (full history): ${guardrails.checks.largestSingleRunDrop}\n`;
+  }
+  markdown += "\n";
 
   if (latest.length === 0) {
     markdown += "No trend data available.\n";
@@ -104,7 +232,10 @@ function buildTrendReport({ trend, limit }) {
     const percent = item.quality?.percent;
     const pass = String(item.quality?.pass ?? false);
     const runLabel = item.runNumber ? `#${item.runNumber}` : "local";
-    const runDetails = [item.runId ? `id=${item.runId}` : null, item.sha ? `sha=${item.sha.slice(0, 7)}` : null]
+    const runDetails = [
+      item.runId ? `id=${item.runId}` : null,
+      item.sha ? `sha=${item.sha.slice(0, 7)}` : null,
+    ]
       .filter(Boolean)
       .join(" ");
     const drift = (typeof score === "number" && typeof prev?.quality?.score === "number")
@@ -128,6 +259,14 @@ function writeTrendReport(report, outputPath) {
   return absolutePath;
 }
 
+function writeTrendJson(payload, outputPath) {
+  const absolutePath = resolve(repoRoot, outputPath);
+  const dirnamePath = dirname(absolutePath);
+  mkdirSync(resolve(dirnamePath), { recursive: true });
+  writeFileSync(absolutePath, `${JSON.stringify(payload, null, 2)}\n`);
+  return absolutePath;
+}
+
 function publishStepSummary(content) {
   const stepSummaryPath = process.env.GITHUB_STEP_SUMMARY;
   if (!stepSummaryPath) return;
@@ -136,6 +275,29 @@ function publishStepSummary(content) {
 
 function appendToSummary(summaryPath, content) {
   writeFileSync(summaryPath, `${content}\n`, { flag: "a" });
+}
+
+function buildGuardSummary(args, trend, guardrails) {
+  return {
+    generatedAtUtc: new Date().toISOString(),
+    trendFile: args.trendPath,
+    outputFile: args.outputPath,
+    totalRecords: Array.isArray(trend?.records) ? trend.records.length : 0,
+    reportingWindow: Math.min(args.limit, Array.isArray(trend?.records) ? trend.records.length : 0),
+    schemaVersion: trend?.schemaVersion ?? 1,
+    latestRecord: Array.isArray(trend?.records) ? trend.records[trend.records.length - 1] : null,
+    guardrails: {
+      enabled: args.maxConsecutiveFailures !== null || args.maxScoreDropPoints !== null,
+      enforce: args.enforceGuardrails,
+      pass: guardrails.pass,
+      issues: guardrails.issues,
+      checks: guardrails.checks,
+      thresholds: {
+        maxConsecutiveFailures: args.maxConsecutiveFailures,
+        maxScoreDropPoints: args.maxScoreDropPoints,
+      },
+    },
+  };
 }
 
 function main() {
@@ -147,11 +309,24 @@ function main() {
     return;
   }
 
-  const report = buildTrendReport({ trend, limit: args.limit });
+  const guardrails = evaluateGuardrails(trend.records, args);
+  const report = buildTrendReport({ trend, limit: args.limit, guardrails });
   const absolute = writeTrendReport(report, args.outputPath);
   publishStepSummary(report);
+  const guardSummary = buildGuardSummary(args, trend, guardrails);
+  if (args.guardOutputPath) {
+    writeTrendJson(guardSummary, args.guardOutputPath);
+  }
+  if (args.outputJson) {
+    process.stdout.write(`${JSON.stringify(guardSummary, null, 2)}\n`);
+  }
   process.stdout.write(`quality trend summary written: ${absolute}\n`);
   process.stdout.write(`records total: ${trend.records.length}\n`);
+
+  if (!guardrails.pass && args.enforceGuardrails) {
+    process.stdout.write(`trend guardrail failed: ${guardrails.issues.length} issue(s)\n`);
+    process.exitCode = 1;
+  }
 }
 
 main();

@@ -10,6 +10,21 @@ on:
         required: false
         default: "165"
         type: string
+      enforce_trend_guardrails:
+        description: Fail if trend guardrails are triggered
+        required: false
+        default: false
+        type: boolean
+      max_consecutive_failures:
+        description: Guardrail threshold for consecutive trend failures
+        required: false
+        default: "3"
+        type: string
+      max_score_drop_points:
+        description: Guardrail threshold for single-run score drop points
+        required: false
+        default: "20"
+        type: string
 
 permissions:
   contents: read
@@ -54,7 +69,21 @@ jobs:
       - name: Render quality trend summary
         if: always()
         continue-on-error: true
-        run: pnpm quality:trend-summary -- --trend .tmp/quality-trend.json --output .tmp/quality-trend-summary.md
+        run: pnpm quality:trend-summary -- --trend .tmp/quality-trend.json --output .tmp/quality-trend-summary.md --guard-output .tmp/quality-trend-guardrail.json
+
+      - name: Enforce quality trend guardrails
+        if: |
+          always() &&
+          github.event_name == 'workflow_dispatch' &&
+          github.event.inputs.enforce_trend_guardrails == 'true'
+        run: |
+          pnpm quality:trend-summary -- \
+            --trend .tmp/quality-trend.json \
+            --output .tmp/quality-trend-summary.md \
+            --guard-output .tmp/quality-trend-guardrail.json \
+            --max-consecutive-failures "${{ github.event.inputs.max_consecutive_failures || '3' }}" \
+            --max-score-drop-points "${{ github.event.inputs.max_score_drop_points || '20' }}" \
+            --enforce-guardrails
 
       - name: Append trend summary to workflow summary
         if: always()
@@ -71,4 +100,5 @@ jobs:
           path: |
             .tmp/quality-trend.json
             .tmp/quality-trend-summary.md
+            .tmp/quality-trend-guardrail.json
           retention-days: 180

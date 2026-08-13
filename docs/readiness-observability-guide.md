@@ -200,3 +200,24 @@ done
 
 curl -sS -D - "http://127.0.0.1:3210/healthz" | awk '/Retry-After/ {print}'
 ```
+
+## 3.1) Trend guardrails (new)
+
+The workflow now supports optional trend guardrails to prevent quality regressions from being treated as noise after a passing threshold.
+
+```bash
+pnpm quality:trend-summary -- --trend .tmp/quality-trend.json --output .tmp/quality-trend-summary.md
+```
+
+Use the following options to enforce regression guardrails:
+
+- `--max-consecutive-failures <N>`: fail when latest consecutive failures is greater than or equal to N
+- `--max-score-drop-points <N>`: fail when latest score drop over one run is greater than N
+- `--guard-output <path>`: write guardrail evaluation JSON for audit and archiving
+- `--enforce-guardrails`: exit non-zero when any guardrail issue is triggered
+
+Example:
+
+```bash
+pnpm quality:trend-summary -- --trend .tmp/quality-trend.json --output .tmp/quality-trend-summary.md --guard-output .tmp/quality-trend-guardrail.json --max-consecutive-failures 3 --max-score-drop-points 20 --enforce-guardrails
+```
