@@ -14,6 +14,17 @@ const DEFAULT_WINDOW_MS = 60_000; // 1 minute
 const DEFAULT_MAX_REQUESTS = 60;
 const DEFAULT_SQLITE_PATH = ".data/rate-limits.sqlite";
 
+export const RATE_LIMIT_RESPONSE_HEADERS = Object.freeze({
+  limit: "X-RateLimit-Limit",
+  remaining: "X-RateLimit-Remaining",
+  window: "X-RateLimit-Window",
+  reset: "X-RateLimit-Reset",
+  requestLimit: "x-ratelimit-limit-requests",
+  requestRemaining: "x-ratelimit-remaining-requests",
+  requestReset: "x-ratelimit-reset-requests",
+  retryAfter: "Retry-After",
+});
+
 /**
  * Create a rate limiter middleware.
  * @param {Object} options
@@ -64,11 +75,11 @@ export function createRateLimiter(options = {}) {
   /**
    * Check if a request from this IP should be allowed.
    * @param {string} ip
-   * @returns {{ allowed: boolean, remaining: number, retryAfterMs: number }}
+   * @returns {{ allowed: boolean, remaining: number, retryAfterMs: number, resetAfterMs: number }}
    */
   function check(ip) {
     if (whitelist.has(ip)) {
-      return { allowed: true, remaining: maxRequests, retryAfterMs: 0 };
+      return { allowed: true, remaining: maxRequests, retryAfterMs: 0, resetAfterMs: 0 };
     }
 
     const now = Date.now();
@@ -77,11 +88,11 @@ export function createRateLimiter(options = {}) {
       // Fixed-window atomic counting (cross-process safe).
       const windowIndex = Math.floor(now / windowMs);
       const count = backend.increment(ip, windowIndex);
+      const resetAfterMs = Math.max(0, (windowIndex + 1) * windowMs - now);
       if (count > maxRequests) {
-        const retryAfterMs = (windowIndex + 1) * windowMs - now;
-        return { allowed: false, remaining: 0, retryAfterMs: Math.max(0, retryAfterMs) };
+        return { allowed: false, remaining: 0, retryAfterMs: resetAfterMs, resetAfterMs };
       }
-      return { allowed: true, remaining: maxRequests - count, retryAfterMs: 0 };
+      return { allowed: true, remaining: maxRequests - count, retryAfterMs: 0, resetAfterMs };
     }
 
     // In-memory sliding window (single-instance).
@@ -92,13 +103,13 @@ export function createRateLimiter(options = {}) {
     }
 
     bucket.count++;
+    const resetAfterMs = Math.max(0, windowMs - (now - bucket.windowStart));
 
     if (bucket.count > maxRequests) {
-      const retryAfterMs = windowMs - (now - bucket.windowStart);
-      return { allowed: false, remaining: 0, retryAfterMs: Math.max(0, retryAfterMs) };
+      return { allowed: false, remaining: 0, retryAfterMs: resetAfterMs, resetAfterMs };
     }
 
-    return { allowed: true, remaining: maxRequests - bucket.count, retryAfterMs: 0 };
+    return { allowed: true, remaining: maxRequests - bucket.count, retryAfterMs: 0, resetAfterMs };
   }
 
   /**
@@ -113,12 +124,17 @@ export function createRateLimiter(options = {}) {
     const result = check(ip);
 
     // Always set rate limit headers
-    res.setHeader("X-RateLimit-Limit", String(maxRequests));
-    res.setHeader("X-RateLimit-Remaining", String(result.remaining));
-    res.setHeader("X-RateLimit-Window", String(Math.round(windowMs / 1000)) + "s");
+    res.setHeader(RATE_LIMIT_RESPONSE_HEADERS.limit, String(maxRequests));
+    res.setHeader(RATE_LIMIT_RESPONSE_HEADERS.remaining, String(result.remaining));
+    res.setHeader(RATE_LIMIT_RESPONSE_HEADERS.window, String(Math.round(windowMs / 1000)) + "s");
+    const resetAfterSeconds = Math.max(0, Math.ceil(result.resetAfterMs / 1000));
+    res.setHeader(RATE_LIMIT_RESPONSE_HEADERS.reset, String(Math.ceil((Date.now() + result.resetAfterMs) / 1000)));
+    res.setHeader(RATE_LIMIT_RESPONSE_HEADERS.requestLimit, String(maxRequests));
+    res.setHeader(RATE_LIMIT_RESPONSE_HEADERS.requestRemaining, String(result.remaining));
+    res.setHeader(RATE_LIMIT_RESPONSE_HEADERS.requestReset, `${resetAfterSeconds}s`);
 
     if (!result.allowed) {
-      res.setHeader("Retry-After", String(Math.ceil(result.retryAfterMs / 1000)));
+      res.setHeader(RATE_LIMIT_RESPONSE_HEADERS.retryAfter, String(Math.ceil(result.retryAfterMs / 1000)));
       res.writeHead(429, { "content-type": "application/json" });
       res.end(JSON.stringify({
         status: "error",

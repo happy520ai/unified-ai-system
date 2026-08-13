@@ -113,6 +113,7 @@ import {
 } from "../local-operation/phase319LocalOperationService.js";
 import {
   createRateLimiter,
+  RATE_LIMIT_RESPONSE_HEADERS,
 } from "./rateLimiter.js";
 import {
   createRouteRateLimiter,
@@ -1001,7 +1002,16 @@ function applyCorsHeaders(response, origin, allowedOrigins, maxAgeSeconds) {
     }
     response.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type, Traceparent, Tracestate, X-Request-ID, X-Request-Context, X-Client-ID");
     response.setHeader("Access-Control-Allow-Methods", "GET,HEAD,POST,PUT,PATCH,DELETE,OPTIONS");
-    response.setHeader("Access-Control-Expose-Headers", "Traceparent, Tracestate, X-Request-ID, X-Trace-ID, RateLimit-Limit, RateLimit-Remaining, RateLimit-Window, Retry-After");
+    response.setHeader("Access-Control-Expose-Headers", [
+      "Traceparent",
+      "Tracestate",
+      "X-Request-ID",
+      "X-Trace-ID",
+      "RateLimit-Limit",
+      "RateLimit-Remaining",
+      "RateLimit-Window",
+      ...Object.values(RATE_LIMIT_RESPONSE_HEADERS),
+    ].join(", "));
     response.setHeader("Access-Control-Max-Age", String(Math.max(0, maxAgeSeconds)));
     response.setHeader("Vary", "Origin");
   } else {

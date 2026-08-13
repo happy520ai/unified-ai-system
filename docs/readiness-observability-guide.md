@@ -215,6 +215,8 @@ done
 curl -sS -D - "http://127.0.0.1:3210/healthz" | awk '/Retry-After/ {print}'
 ```
 
+Client and browser retry behavior is documented in the [rate-limit client contract](./rate-limit-client-contract.md).
+
 ## 3.1) Trend guardrails (new)
 
 The workflow now supports optional trend guardrails to prevent quality regressions from being treated as noise after a passing threshold.
