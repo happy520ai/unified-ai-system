@@ -10,6 +10,7 @@ function parseArgs() {
     qualityPath: ".tmp/quality-scorecard.json",
     drillPath: ".tmp/circuit-recovery-drill-dry-run.json",
     outputJson: false,
+    requireScore: 0,
   };
 
   for (let index = 0; index < args.length; index += 1) {
@@ -25,6 +26,14 @@ function parseArgs() {
     }
     if (arg === "--drill") {
       values.drillPath = args[index + 1] ?? values.drillPath;
+      index += 1;
+      continue;
+    }
+    if (arg === "--require-score") {
+      const raw = args[index + 1];
+      if (raw && /^\d+$/.test(raw)) {
+        values.requireScore = Number(raw);
+      }
       index += 1;
       continue;
     }
@@ -139,43 +148,59 @@ function main() {
     drillIssues.push(...verifyDrill(drill.parsed));
   }
 
-  const issues = qualityIssues.concat(drillIssues);
+  const qualityParsed = quality.ok ? quality.parsed : null;
+  const drillParsed = drill.ok ? drill.parsed : null;
+  const qualityIssuesFinal = [...qualityIssues];
+  const drillIssuesFinal = [...drillIssues];
+
+  if (args.requireScore > 0 && qualityParsed?.score != null) {
+    if (qualityParsed.score < args.requireScore) {
+      qualityIssuesFinal.push(`quality score ${qualityParsed.score} below required ${args.requireScore}`);
+    }
+  } else if (args.requireScore > 0 && !qualityParsed) {
+    qualityIssuesFinal.push(`quality score could not be verified; required score is ${args.requireScore}`);
+  }
+
+  const finalIssues = qualityIssuesFinal.concat(drillIssuesFinal);
+
   const result = {
-    ok: issues.length === 0,
+    ok: finalIssues.length === 0,
     artifacts: {
       quality: {
         path: quality.path,
-        valid: quality.ok && qualityIssues.length === 0,
+        valid: quality.ok && qualityIssuesFinal.length === 0,
       },
       drill: {
         path: drill.path,
-        valid: drill.ok && drillIssues.length === 0,
+        valid: drill.ok && drillIssuesFinal.length === 0,
       },
     },
     checks: {
-      qualityScore: quality.ok ? quality.parsed?.score : null,
-      qualityMaxScore: quality.ok ? quality.parsed?.maxScore : null,
-      drillStatus: drill.ok ? drill.parsed?.status : null,
-      drillRecommendationPresent: drill.ok ? typeof drill.parsed?.recommendation === "string" : false,
+      qualityScore: qualityParsed?.score ?? null,
+      qualityMaxScore: qualityParsed?.maxScore ?? null,
+      drillStatus: drillParsed?.status ?? null,
+      drillRecommendationPresent: typeof drillParsed?.recommendation === "string",
+      requiredScore: args.requireScore,
+      requiredScoreMet: args.requireScore > 0 ? (qualityParsed?.score ?? 0) >= args.requireScore : true,
     },
-    issues,
+    issues: finalIssues,
     executedAtUtc: new Date().toISOString(),
   };
 
   if (args.outputJson) {
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
   } else {
-    const prefix = issues.length === 0 ? "PASS" : "FAIL";
+    const prefix = finalIssues.length === 0 ? "PASS" : "FAIL";
     process.stdout.write(`Quality artifact verification: ${prefix}\n`);
-    if (issues.length > 0) {
+    if (finalIssues.length > 0) {
       process.stdout.write("Issues:\n");
-      for (const issue of issues) {
+      for (const issue of finalIssues) {
         process.stdout.write(`- ${issue}\n`);
       }
     }
   }
 
-  process.exitCode = issues.length === 0 ? 0 : 1;
+  process.exitCode = finalIssues.length === 0 ? 0 : 1;
 }
 
 main();

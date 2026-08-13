@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -102,6 +102,34 @@ function summarizeDrill(result) {
   };
 }
 
+function publishStepSummary(summary) {
+  const stepSummaryPath = process.env.GITHUB_STEP_SUMMARY;
+  if (!stepSummaryPath) {
+    return;
+  }
+  const lines = [
+    "## Quality CI Gate",
+    "",
+    `- Overall result: ${summary.ok ? "PASS" : "FAIL"}`,
+    `- Quality score threshold: ${summary.qualityThreshold}`,
+    `- Quality score: ${summary.quality.score}/${summary.quality.maxScore} (${summary.quality.percent}%, pass=${String(summary.quality.pass)})`,
+    `- Dry-run drill: ${summary.drill.statusValue ?? "unknown"}`,
+    `- Artifact verification: ${summary.verification.ok ? "PASS" : "FAIL"}`,
+    "",
+    "| Check | Status |",
+    "| --- | --- |",
+    `| quality:score | ${summary.quality.parsed ? "parsed" : "not parsed"} |`,
+    `| drill:dry-run | ${summary.drill.parsed ? "parsed" : "not parsed"} |`,
+    `| artifacts verified | ${summary.verification.ok ? "pass" : "fail"} |`,
+    "",
+  ];
+  appendFileSync(
+    stepSummaryPath,
+    `${lines.join("\n")}\n`,
+    "utf8",
+  );
+}
+
 function main() {
   const args = parseArgs();
   const qualityPath = ".tmp/quality-scorecard.json";
@@ -126,7 +154,7 @@ function main() {
 
   const verifyResult = runNodeScript(
     "./tools/verify-ci-quality-artifacts.mjs",
-    ["--json", "--quality", qualityPath, "--drill", drillPath],
+    ["--json", "--quality", qualityPath, "--drill", drillPath, "--require-score", String(args.qualityThreshold)],
     30000,
   );
   writeIfPossible(verificationPath, verifyResult.rawStdout);
@@ -152,6 +180,7 @@ function main() {
     process.stdout.write(`Dry-run drill status=${String(summary.drill.statusValue)}\n`);
   }
 
+  publishStepSummary(summary);
   process.exitCode = summary.ok ? 0 : 1;
 }
 
