@@ -516,6 +516,7 @@ function buildIncidentBundle(options, steps, reason, detail) {
       requireStableState: options.requireStableState,
     },
     trendHealth: trendSummary,
+    trendConsistency: verification?.trendConsistency || null,
     failedSteps: failedStepSummary,
     extractedIssues: issueLines.slice(0, 30),
     artifacts: [
@@ -552,6 +553,16 @@ function buildIncidentBundle(options, steps, reason, detail) {
     `- Final trend status: ${bundleJson.trendHealth.status}`,
     `- Final trend severity: ${bundleJson.trendHealth.severity}`,
     `- Blocked: ${bundleJson.trendHealth.blocked}`,
+    "",
+    "## Trend consistency checks",
+    ...(Array.isArray(bundleJson.trendConsistency?.checksRequired)
+      ? bundleJson.trendConsistency.checksRequired.map((checkKey) => {
+        const check = bundleJson.trendConsistency?.checks?.[checkKey] ?? {};
+        const status = check?.status ?? "missing";
+        const checkOk = check?.ok === true ? "pass" : "fail";
+        return `- ${checkKey}: ${checkOk} (${status})`;
+      })
+      : ["- no trend consistency checks recorded"]),
     "",
     "## Failed steps",
     ...(failedStepSummary.length > 0 ? failedStepSummary.map((entry) => `- ${entry}`) : ["- no failed steps recorded"]),

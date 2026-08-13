@@ -66,6 +66,9 @@
         "recommendation": { "type": "string" }
       }
     },
+    "trendConsistency": {
+      "type": "object"
+    },
     "failedSteps": {
       "type": "array"
     },
