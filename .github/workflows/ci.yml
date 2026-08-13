@@ -156,7 +156,7 @@ jobs:
             VERIFY_ARGS+=("--require-trend-health")
           fi
 
-          pnpm quality:verify-artifacts -- "${VERIFY_ARGS[@]}" | tee .tmp/quality-trend-verify-artifacts.json
+          node ./tools/verify-ci-quality-artifacts.mjs "${VERIFY_ARGS[@]}" | tee .tmp/quality-trend-verify-artifacts.json
 
       - name: Append quality artifact verification to workflow summary
         if: always()
