@@ -551,6 +551,9 @@ function checkTrendDigestOperations() {
       "quality-trend-digest.json",
       "quality-trend-check.json",
       "quality:trend-check --",
+      "QUALITY_TREND_HARD_BLOCK",
+      "quality_trend_hard_block",
+      "--hard-block",
       "Append quality trend digest to workflow summary",
       "Upload quality scorecard artifact",
     ];
@@ -559,6 +562,8 @@ function checkTrendDigestOperations() {
       "pnpm quality:trend-digest",
       "quality-trend-digest.json",
       "quality:trend-check",
+      "QUALITY_TREND_HARD_BLOCK=true",
+      "quality_trend_hard_block=true",
     ];
     const requiredScriptMarkers = [
       "Operational state",
