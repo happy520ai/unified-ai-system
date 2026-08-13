@@ -34,8 +34,9 @@ function parseArgs() {
 function runCommand(name, command, args, options = {}) {
   const startTime = Date.now();
   const { timeoutMs = 120000 } = options;
+  const resolvedCommand = command === "node" ? process.execPath : command;
   try {
-    const result = spawnSync(command, args, {
+    const result = spawnSync(resolvedCommand, args, {
       cwd: repoRoot,
       timeout: timeoutMs,
       encoding: "utf8",

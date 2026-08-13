@@ -20,7 +20,6 @@
     "gateway": "node ./apps/agent-console/src/cli.js",
     "mcp": "node ./packages/mcp-server/src/index.js",
     "mcp:http": "node ./packages/mcp-server/src/http-entry.js",
-    "sync:prompt-demo": "node tools/sync-prompt-enhancer-browser.mjs",
     "notify:indexnow": "node tools/submit-indexnow.mjs",
     "verify:mcp": "pnpm --filter @unified-ai-system/mcp-server test",
     "smoke:mcp": "node ./tools/mcp-smoke.mjs",
@@ -35,7 +34,6 @@
     "growth:blast": "pnpm growth:sync-thread && pnpm growth:publish",
     "growth:sync-thread": "node ./tools/star-growth-sync-thread.mjs",
     "growth:publish": "node ./tools/star-growth-publish-kit.mjs --output .tmp/growth/star-growth-publish-output.md",
-    "growth:feedback": "node ./tools/star-growth-feedback.mjs --output .tmp/growth/star-growth-feedback.md",
     "quality:score": "node tools/quality-scorecard.mjs"
   },
   "engines": {
