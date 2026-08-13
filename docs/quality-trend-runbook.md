@@ -12,6 +12,11 @@ Use this runbook when trend signals indicate drift or instability in CI, schedul
   - Action: hard stop for merge/release until evidence is captured and risk is remediated.
 - `status: degraded` (trend consistency gap when trend health is not strictly required)
   - Action: keep running CI, attach remediation tasks, and monitor next run; treat as warning in incident bundle and smoke output.
+- `trendConsistency.hasMissingRequired === true` or `trendConsistency.hasNotCollected === true`
+  - Action: in compatibility mode this is warning-grade (`degraded`); in strict trend-health mode this is fail-grade (`fail`).
+
+Quick rule:
+`degraded` is expected in compatibility mode when consistency data is incomplete; `fail` is expected when trend-health is required.
 
 When `blocked: true`, block the change and create a fix ticket for unstable root cause.
 
@@ -44,6 +49,12 @@ When `blocked: true`, block the change and create a fix ticket for unstable root
 - Open `.tmp/quality-trend-incident-bundle.json` and confirm:
   - `schemaVersion === 1`
   - `trendHealth.blocked === false` (or document why it is expected)
+  - `trendConsistency.checksRequired` includes:
+    - `trendDigestHealth`
+    - `trendSummaryGuardrails`
+    - `trendDigestCheckConsistency`
+  - `trendConsistency.hasMissingRequired` and `trendConsistency.hasNotCollected` match the actual check list state and status.
+  - `trendConsistency.requiresTrendHealth` reflects current smoke mode.
   - `artifacts` list has `quality-trend-digest.json`, `quality-trend-check.json`, and `quality-scorecard.json` records.
 - Open `.tmp/quality-ci-verification.json` and confirm:
   - `trendConsistency.status` is expected to be:
