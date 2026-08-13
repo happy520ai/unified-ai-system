@@ -99,6 +99,11 @@ jobs:
           set -o pipefail
           pnpm verify:public-clone 2>&1 | tee .tmp/public-clone-verify.log
 
+      - name: Gateway SLO and fault-isolation benchmark
+        run: |
+          set -o pipefail
+          pnpm benchmark:gateway:slo -- --json --output .tmp/gateway-slo-benchmark.json | tee .tmp/gateway-slo-benchmark.log
+
       - name: Run quality trend smoke health check
         run: |
           set -o pipefail
