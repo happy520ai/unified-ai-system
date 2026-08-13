@@ -35,6 +35,7 @@ function parseArgs() {
     trendDigestPath: ".tmp/quality-trend-digest.md",
     trendDigestJsonPath: ".tmp/quality-trend-digest.json",
     trendCheckPath: ".tmp/quality-trend-check.json",
+    trendRecommendationsPath: ".tmp/quality-trend-recommendations.md",
     qualityScorecardPath: ".tmp/quality-scorecard.json",
     drillPath: ".tmp/circuit-recovery-drill-dry-run.json",
     qualityVerificationPath: ".tmp/quality-ci-verification.json",
@@ -96,6 +97,11 @@ function parseArgs() {
     }
     if (arg === "--check") {
       values.trendCheckPath = args[index + 1] ?? values.trendCheckPath;
+      index += 1;
+      continue;
+    }
+    if (arg === "--recommendations") {
+      values.trendRecommendationsPath = args[index + 1] ?? values.trendRecommendationsPath;
       index += 1;
       continue;
     }
@@ -215,6 +221,7 @@ function printUsage() {
     "  --summary <path>           Trend summary output path (default .tmp/quality-trend-summary.md)",
     "  --guardrail <path>         Guardrail output path (default .tmp/quality-trend-guardrail.json)",
     "  --check <path>             Trend-check output JSON path (default .tmp/quality-trend-check.json)",
+    "  --recommendations <path>    Failure remediation output path (default .tmp/quality-trend-recommendations.md)",
     "  --quality <path>           Input quality-scorecard path (default .tmp/quality-scorecard.json)",
     "  --drill <path>             Input drill path (default .tmp/circuit-recovery-drill-dry-run.json)",
     "  --verification <path>       Output verification path (default .tmp/quality-ci-verification.json)",
@@ -375,6 +382,121 @@ function buildTrendCheckArgs(options) {
   return args;
 }
 
+function collectFailedSteps(steps) {
+  const failed = [];
+  for (const step of steps) {
+    if (!step.ok) {
+      failed.push(step);
+      continue;
+    }
+    if (step.checkResult && step.checkResult.blocked) {
+      failed.push(step);
+    }
+  }
+  return failed;
+}
+
+function collectStepIssues(step) {
+  const issues = [];
+  if (!step || !step.checkResult) return issues;
+
+  if (step.label === "quality-ci" && Array.isArray(step.checkResult.issues)) {
+    for (const issue of step.checkResult.issues) {
+      issues.push(typeof issue === "string" ? issue : JSON.stringify(issue));
+    }
+    return issues;
+  }
+  if (step.label === "artifacts-verify" && Array.isArray(step.checkResult.issues)) {
+    for (const issue of step.checkResult.issues) {
+      issues.push(typeof issue === "string" ? issue : JSON.stringify(issue));
+    }
+    return issues;
+  }
+  if (typeof step.checkResult.status === "boolean") {
+    issues.push(`step ${step.label} status=${step.checkResult.status}`);
+  }
+  return issues;
+}
+
+function buildFailureRecommendations(options, steps, reason, detail) {
+  const finalTrendCheck = steps.find((step) => step.label === "post-run")
+    || steps.find((step) => step.label === "trend-check")
+    || null;
+  const finalCheck = finalTrendCheck?.checkResult || {};
+  const lines = [];
+
+  lines.push("# Quality Trend Failure Remediation");
+  lines.push("");
+  lines.push(`- Failed phase: ${reason}`);
+  if (detail) {
+    lines.push(`- Detail: ${detail}`);
+  }
+  lines.push(`- Timestamp: ${new Date().toISOString()}`);
+  lines.push("");
+
+  const failedSteps = collectFailedSteps(steps);
+  if (failedSteps.length > 0) {
+    lines.push("## Failed step list");
+    for (const step of failedSteps) {
+      const commandEntries = Array.isArray(step.steps) ? step.steps : [];
+      const command = commandEntries[0]?.command ?? step.label;
+      const status = commandEntries[0]?.status ?? "unknown";
+      lines.push(`- ${command} (status ${status})`);
+    }
+    lines.push("");
+  }
+
+  const issueLines = [];
+  for (const step of steps) {
+    for (const issue of collectStepIssues(step)) {
+      issueLines.push(issue);
+    }
+  }
+  if (issueLines.length > 0) {
+    lines.push("## Extracted issues");
+    for (const issue of issueLines.slice(0, 16)) {
+      lines.push(`- ${issue}`);
+    }
+    lines.push("");
+  }
+
+  if (Array.isArray(finalCheck.reasons) && finalCheck.reasons.length > 0) {
+    lines.push("## Trend check reasons");
+    for (const trendReason of finalCheck.reasons.slice(0, 16)) {
+      lines.push(`- ${trendReason}`);
+    }
+    lines.push("");
+  }
+
+  if (typeof finalCheck.recommendation === "string" && finalCheck.recommendation.length > 0) {
+    lines.push("## Trend check recommendation");
+    lines.push(`- ${finalCheck.recommendation}`);
+    lines.push("");
+  }
+
+  lines.push("## Immediate remediation actions");
+  lines.push("- Re-run the smoke locally with exact inputs: `pnpm quality:trend-health-smoke -- --json --require-score " + `${options.qualityThreshold}` + "`");
+  lines.push("- Collect a full evidence bundle by keeping all `.tmp/*trend*` outputs and `quality-ci-verification.json`.");
+  lines.push("- Inspect the latest trend artifacts:");
+  lines.push("  - `.tmp/quality-trend-summary.md`");
+  lines.push("  - `.tmp/quality-trend-guardrail.json`");
+  lines.push("  - `.tmp/quality-trend-digest.md`");
+  lines.push("  - `.tmp/quality-trend-digest.json`");
+  lines.push("  - `.tmp/quality-trend-check.json`");
+  lines.push("");
+  lines.push("## Focused commands");
+  lines.push("- `pnpm quality:trend-summary -- --json --trend .tmp/quality-trend.json --output .tmp/quality-trend-summary.md --guard-output .tmp/quality-trend-guardrail.json --max-consecutive-failures ... --max-score-drop-points ... --min-pass-rate-percent ...`");
+  lines.push("- `pnpm quality:trend-digest -- --json --trend .tmp/quality-trend.json --output .tmp/quality-trend-digest.md --json-output .tmp/quality-trend-digest.json --short-window 7 --long-window 30`");
+  lines.push("- `pnpm quality:trend-check -- --json --digest .tmp/quality-trend-digest.json --guardrail .tmp/quality-trend-guardrail.json --summary .tmp/quality-trend-summary.md --max-summary-reasons 8`");
+  lines.push("");
+  lines.push("## Closure checks");
+  lines.push("- Verify `pnpm quality:ci:trend-health -- --json --require-score " + `${options.qualityThreshold}` + "` passes.");
+  lines.push("- Verify `pnpm quality:verify-artifacts:trend-health -- --json --quality .tmp/quality-scorecard.json --drill .tmp/circuit-recovery-drill-dry-run.json --require-score " + `${options.qualityThreshold}` + "` passes.");
+  lines.push("- Re-run CI and confirm trend summary/check artifacts are stable in workflow summary.");
+
+  writeTextFile(options.trendRecommendationsPath, `${lines.join("\n")}\n`);
+}
+
 function runTrendEvaluation(label, options, includeCheckOutput = false) {
   const executionLog = [];
 
@@ -438,6 +560,10 @@ function emitFailureSummary(options, steps, artifacts, reason, detail) {
   if (options.outputJson) {
     process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
   }
+  if (options.trendRecommendationsPath) {
+    buildFailureRecommendations(options, steps, reason, detail);
+    console.log(`\nRemediation guidance written to: ${options.trendRecommendationsPath}`);
+  }
   console.log(`\nQUALITY TREND SMOKE: FAIL (${reason})`);
   if (detail) {
     console.log(detail);
@@ -461,6 +587,7 @@ function main() {
   const steps = [];
   const artifacts = new Set([
     options.trendCheckPath,
+    options.trendRecommendationsPath,
     options.qualityScorecardPath,
     options.drillPath,
     options.qualityVerificationPath,

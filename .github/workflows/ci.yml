@@ -90,6 +90,7 @@ jobs:
             --digest-output .tmp/quality-trend-digest.md
             --digest-json .tmp/quality-trend-digest.json
             --check .tmp/quality-trend-check.json
+            --recommendations .tmp/quality-trend-recommendations.md
             --max-consecutive-failures "${QUALITY_TREND_MAX_CONSECUTIVE_FAILURES}"
             --max-score-drop-points "${QUALITY_TREND_MAX_SCORE_DROP_POINTS}"
             --min-pass-rate-percent "${QUALITY_TREND_MIN_PASS_RATE_PERCENT}"
@@ -144,6 +145,12 @@ jobs:
             cat .tmp/quality-trend-check.json >> "$GITHUB_STEP_SUMMARY"
           fi
 
+          if [ -f .tmp/quality-trend-recommendations.md ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "## Quality trend remediation recommendations" >> "$GITHUB_STEP_SUMMARY"
+            cat .tmp/quality-trend-recommendations.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Upload quality scorecard artifact
         if: always()
         uses: actions/upload-artifact@v4
@@ -159,6 +166,7 @@ jobs:
             .tmp/quality-trend-digest.md
             .tmp/quality-trend-digest.json
             .tmp/quality-trend-check.json
+            .tmp/quality-trend-recommendations.md
           retention-days: 30
 
       - name: Codex MCP server
