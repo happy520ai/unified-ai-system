@@ -130,6 +130,7 @@
       "required": [
         "summary",
         "reviewStatus",
+        "fitness",
         "issues",
         "actionItems"
       ],
@@ -146,6 +147,40 @@
             "allowlistWarnings": { "type": "number" },
             "allowlistIssues": { "type": "number" },
             "preferredLanguage": { "type": "string" }
+          }
+        },
+        "fitness": {
+          "type": "object",
+          "required": [
+            "score",
+            "riskLevel",
+            "target",
+            "blocked",
+            "counts",
+            "reasons"
+          ],
+          "properties": {
+            "score": {
+              "type": "number"
+            },
+            "riskLevel": {
+              "type": "string"
+            },
+            "target": {
+              "type": "number"
+            },
+            "blocked": {
+              "type": "boolean"
+            },
+            "counts": {
+              "type": "object"
+            },
+            "reasons": {
+              "type": "array"
+            },
+            "preferredLanguage": {
+              "type": "string"
+            }
           }
         },
         "reviewStatus": { "type": "string" },

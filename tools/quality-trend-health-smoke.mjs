@@ -43,6 +43,7 @@ function parseArgs() {
     qualityVerificationPath: ".tmp/quality-ci-verification.json",
     languagePolicyCheckPath: ".tmp/language-policy-check.json",
     languagePolicyExpiryPath: ".tmp/language-policy-expiry.json",
+    languagePolicyScoreTarget: parsePositiveInteger(process.env.QUALITY_LANGUAGE_POLICY_SCORE_TARGET, 80),
     maxConsecutiveFailures: parsePositiveInteger(process.env.QUALITY_TREND_MAX_CONSECUTIVE_FAILURES, 3),
     maxScoreDropPoints: parsePositiveInteger(process.env.QUALITY_TREND_MAX_SCORE_DROP_POINTS, 20),
     minPassRatePercent: parsePositiveInteger(process.env.QUALITY_TREND_MIN_PASS_RATE_PERCENT, 70),
@@ -111,6 +112,11 @@ function parseArgs() {
     }
     if (arg === "--language-policy-expiry") {
       values.languagePolicyExpiryPath = args[index + 1] ?? values.languagePolicyExpiryPath;
+      index += 1;
+      continue;
+    }
+    if (arg === "--language-policy-score-target") {
+      values.languagePolicyScoreTarget = parsePositiveInteger(args[index + 1], values.languagePolicyScoreTarget);
       index += 1;
       continue;
     }
@@ -247,6 +253,7 @@ function printUsage() {
     "  --check <path>             Trend-check output JSON path (default .tmp/quality-trend-check.json)",
     "  --language-policy-check <path> Language policy check artifact path (default .tmp/language-policy-check.json)",
     "  --language-policy-expiry <path> Language policy expiry artifact path (default .tmp/language-policy-expiry.json)",
+    "  --language-policy-score-target <N> Minimum language policy fitness score threshold (default 80)",
     "  --recommendations <path>    Failure remediation output path (default .tmp/quality-trend-recommendations.md)",
     "  --incident-bundle <path>    Failure bundle markdown path (default .tmp/quality-trend-incident-bundle.md)",
     "  --incident-bundle-json <path> Failure bundle JSON path (default .tmp/quality-trend-incident-bundle.json)",
@@ -423,6 +430,10 @@ function buildTrendCheckArgs(options) {
   if (options.hardBlock) {
     args.push("--hard-block");
   }
+  args.push(
+    "--language-policy-score-target",
+    String(options.languagePolicyScoreTarget ?? 80),
+  );
   return args;
 }
 
@@ -462,9 +473,12 @@ function collectStepIssues(step) {
   return issues;
 }
 
-function buildLanguagePolicyReview(languagePolicyCheck, languagePolicyExpiry) {
+function buildLanguagePolicyReview(languagePolicyCheck, languagePolicyExpiry, languagePolicyFitness = null) {
   const issues = [];
   const actionItems = [];
+  const safeFitness = languagePolicyFitness && typeof languagePolicyFitness === "object"
+    ? languagePolicyFitness
+    : null;
   const summary = {
     checkPresent: Boolean(languagePolicyCheck),
     expiryPresent: Boolean(languagePolicyExpiry),
@@ -559,6 +573,15 @@ function buildLanguagePolicyReview(languagePolicyCheck, languagePolicyExpiry) {
       || (Array.isArray(languagePolicyExpiry?.expired) && languagePolicyExpiry.expired.length > 0)
       ? "language-policy-issues"
       : "language-policy-ok",
+    fitness: {
+      score: safeFitness?.score ?? null,
+      target: safeFitness?.target ?? 80,
+      riskLevel: safeFitness?.riskLevel ?? "unknown",
+      blocked: safeFitness?.blocked ?? false,
+      counts: safeFitness?.counts ?? {},
+      reasons: Array.isArray(safeFitness?.reasons) ? safeFitness.reasons : [],
+      preferredLanguage: safeFitness?.preferredLanguage ?? summary.preferredLanguage,
+    },
     issues,
     actionItems: [...new Set(actionItems)],
   };
@@ -607,12 +630,19 @@ function buildIncidentBundle(options, steps, reason, detail) {
   }
   const languagePolicyCheck = readMaybeJson(options.languagePolicyCheckPath);
   const languagePolicyExpiry = readMaybeJson(options.languagePolicyExpiryPath);
-  const languagePolicyReview = buildLanguagePolicyReview(languagePolicyCheck, languagePolicyExpiry);
-  const policyIssues = Array.isArray(languagePolicyReview?.issues)
-    ? languagePolicyReview.issues
+  const languagePolicyFitness = finalCheck?.metrics?.languagePolicy ?? null;
+  const languagePolicyReviewWithFitness = buildLanguagePolicyReview(
+    languagePolicyCheck,
+    languagePolicyExpiry,
+    languagePolicyFitness,
+  );
+  const policySummaryFitness = languagePolicyReviewWithFitness.fitness || {};
+
+  const policyIssues = Array.isArray(languagePolicyReviewWithFitness?.issues)
+    ? languagePolicyReviewWithFitness.issues
     : [];
-  const policyActions = Array.isArray(languagePolicyReview?.actionItems)
-    ? languagePolicyReview.actionItems
+  const policyActions = Array.isArray(languagePolicyReviewWithFitness?.actionItems)
+    ? languagePolicyReviewWithFitness.actionItems
     : [];
   const allIssues = [...issueLines, ...policyIssues];
 
@@ -647,7 +677,7 @@ function buildIncidentBundle(options, steps, reason, detail) {
     },
     trendHealth: trendSummary,
     trendConsistency: verification?.trendConsistency || null,
-    languagePolicyReview,
+    languagePolicyReview: languagePolicyReviewWithFitness,
     failedSteps: failedStepSummary,
     extractedIssues: allIssues.slice(0, 30),
     artifacts: [
@@ -688,6 +718,10 @@ function buildIncidentBundle(options, steps, reason, detail) {
     `- Blocked: ${bundleJson.trendHealth.blocked}`,
     `- Final trend consistency status: ${bundleJson.trendConsistency?.status ?? "missing"}`,
     `- Final trend consistency checks required: ${(bundleJson.trendConsistency?.checksRequired ?? []).join(", ") || "not recorded"}`,
+    `- Language policy fitness score: ${policySummaryFitness?.score === null ? "n/a" : `${policySummaryFitness.score}/100`}`,
+    `- Language policy fitness target: ${policySummaryFitness?.target ?? 80}`,
+    `- Language policy fitness risk: ${policySummaryFitness?.riskLevel ?? "unknown"}`,
+    `- Language policy fitness blocked: ${Boolean(policySummaryFitness?.blocked)}`,
     `- Final trend consistency hasMissingRequired: ${Boolean(bundleJson.trendConsistency?.hasMissingRequired)}`,
     `- Final trend consistency hasNotCollected: ${Boolean(bundleJson.trendConsistency?.hasNotCollected)}`,
     `- Final trend consistency requiresTrendHealth: ${Boolean(bundleJson.trendConsistency?.requiresTrendHealth)}`,
@@ -719,16 +753,16 @@ function buildIncidentBundle(options, steps, reason, detail) {
       : ["- no trend reasons recorded"]),
     "",
     "## Language policy review",
-    `- Review status: ${languagePolicyReview?.reviewStatus ?? "unknown"}`,
-    `- Preferred language context: ${languagePolicyReview?.summary?.preferredLanguage ?? "TypeScript for apps/packages"}`,
-    `- Language policy check artifact: ${languagePolicyReview?.summary?.checkPresent ? "present" : "missing"}`,
-    `- Language policy expiry artifact: ${languagePolicyReview?.summary?.expiryPresent ? "present" : "missing"}`,
-    `- Check allowed entries: ${languagePolicyReview?.summary?.allowed ?? 0}`,
-    `- Active violations: ${languagePolicyReview?.summary?.violations ?? 0}`,
-    `- Expired exceptions: ${languagePolicyReview?.summary?.expiredExceptions ?? 0}`,
-    `- Near-expiry exceptions: ${languagePolicyReview?.summary?.nearExpiryExceptions ?? 0}`,
-    `- Allowlist warnings: ${languagePolicyReview?.summary?.allowlistWarnings ?? 0}`,
-    `- Allowlist issues: ${languagePolicyReview?.summary?.allowlistIssues ?? 0}`,
+    `- Review status: ${languagePolicyReviewWithFitness?.reviewStatus ?? "unknown"}`,
+    `- Preferred language context: ${languagePolicyReviewWithFitness?.summary?.preferredLanguage ?? "TypeScript for apps/packages"}`,
+    `- Language policy check artifact: ${languagePolicyReviewWithFitness?.summary?.checkPresent ? "present" : "missing"}`,
+    `- Language policy expiry artifact: ${languagePolicyReviewWithFitness?.summary?.expiryPresent ? "present" : "missing"}`,
+    `- Check allowed entries: ${languagePolicyReviewWithFitness?.summary?.allowed ?? 0}`,
+    `- Active violations: ${languagePolicyReviewWithFitness?.summary?.violations ?? 0}`,
+    `- Expired exceptions: ${languagePolicyReviewWithFitness?.summary?.expiredExceptions ?? 0}`,
+    `- Near-expiry exceptions: ${languagePolicyReviewWithFitness?.summary?.nearExpiryExceptions ?? 0}`,
+    `- Allowlist warnings: ${languagePolicyReviewWithFitness?.summary?.allowlistWarnings ?? 0}`,
+    `- Allowlist issues: ${languagePolicyReviewWithFitness?.summary?.allowlistIssues ?? 0}`,
     "",
     "## Language policy issues",
     ...(policyIssues.length > 0 ? policyIssues.slice(0, 20).map((entry) => `- ${entry}`) : ["- no policy issues extracted"]),
@@ -763,7 +797,8 @@ function buildFailureRecommendations(options, steps, reason, detail) {
   const finalCheck = finalTrendCheck?.checkResult || {};
   const languagePolicyCheck = readMaybeJson(options.languagePolicyCheckPath);
   const languagePolicyExpiry = readMaybeJson(options.languagePolicyExpiryPath);
-  const languagePolicyReview = buildLanguagePolicyReview(languagePolicyCheck, languagePolicyExpiry);
+  const languagePolicyFitness = finalCheck?.metrics?.languagePolicy || null;
+  const languagePolicyReview = buildLanguagePolicyReview(languagePolicyCheck, languagePolicyExpiry, languagePolicyFitness);
   const policyIssues = Array.isArray(languagePolicyReview?.issues)
     ? languagePolicyReview.issues
     : [];
@@ -832,6 +867,9 @@ function buildFailureRecommendations(options, steps, reason, detail) {
   lines.push("## Language selection actions");
   lines.push(`- Language-policy review status: ${languagePolicyReview?.reviewStatus ?? "unknown"}`);
   lines.push(`- Language selection context: ${languagePolicyReview?.summary?.preferredLanguage ?? "TypeScript for apps/packages"}`);
+  lines.push(`- Language policy fitness score: ${languagePolicyReview?.fitness?.score ?? "n/a"}`);
+  lines.push(`- Language policy fitness risk: ${languagePolicyReview?.fitness?.riskLevel ?? "unknown"}`);
+  lines.push(`- Language policy fitness target: ${languagePolicyReview?.fitness?.target ?? 80}`);
   for (const action of policyActions.slice(0, 20)) {
     lines.push(`- ${action}`);
   }
@@ -855,7 +893,7 @@ function buildFailureRecommendations(options, steps, reason, detail) {
   lines.push("## Focused commands");
   lines.push("- `pnpm quality:trend-summary -- --json --trend .tmp/quality-trend.json --output .tmp/quality-trend-summary.md --guard-output .tmp/quality-trend-guardrail.json --max-consecutive-failures ... --max-score-drop-points ... --min-pass-rate-percent ...`");
   lines.push("- `pnpm quality:trend-digest -- --json --trend .tmp/quality-trend.json --output .tmp/quality-trend-digest.md --json-output .tmp/quality-trend-digest.json --short-window 7 --long-window 30`");
-  lines.push("- `pnpm quality:trend-check -- --json --digest .tmp/quality-trend-digest.json --guardrail .tmp/quality-trend-guardrail.json --summary .tmp/quality-trend-summary.md --max-summary-reasons 8`");
+  lines.push("- `pnpm quality:trend-check -- --json --digest .tmp/quality-trend-digest.json --guardrail .tmp/quality-trend-guardrail.json --summary .tmp/quality-trend-summary.md --language-policy-score-target 80 --max-summary-reasons 8`");
   lines.push("- `pnpm check:language-policy -- --json --head HEAD~1`");
   lines.push("- `pnpm report:language-policy-expiry -- --json`");
   lines.push("");
@@ -1156,6 +1194,13 @@ function main() {
   }
   if (finalCheckResult?.severity) {
     console.log(`Final trend severity: ${finalCheckResult.severity}`);
+  }
+  const finalLanguagePolicyFitness = finalCheckResult?.metrics?.languagePolicy;
+  if (finalLanguagePolicyFitness) {
+    console.log(
+      `Final language policy fitness: ${finalLanguagePolicyFitness.score ?? "n/a"}/100`
+      + ` (risk=${finalLanguagePolicyFitness.riskLevel ?? "unknown"}, target=${finalLanguagePolicyFitness.target ?? 80})`,
+    );
   }
 
   process.exitCode = success ? 0 : 1;

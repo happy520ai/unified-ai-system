@@ -45,6 +45,41 @@ export const ENTRY_POINT_CANDIDATES = [
   'server.js', 'server.ts',
 ];
 
+const LANGUAGE_PRIORITY = ['ts', 'js', 'python', 'go', 'rust', 'java'];
+const LANGUAGE_LABELS = Object.freeze({
+  ts: 'TypeScript',
+  js: 'JavaScript',
+  python: 'Python',
+  go: 'Go',
+  rust: 'Rust',
+  java: 'Java',
+});
+const EXT_TO_LANGUAGE = Object.freeze({
+  '.ts': 'ts',
+  '.tsx': 'ts',
+  '.js': 'js',
+  '.mjs': 'js',
+  '.cjs': 'js',
+  '.jsx': 'js',
+  '.py': 'python',
+  '.go': 'go',
+  '.rs': 'rust',
+  '.java': 'java',
+});
+
+function normalizeLanguageCandidate(value) {
+  if (!value) return null;
+  const v = String(value).toLowerCase();
+  if (v === 'typescript') return 'ts';
+  if (v === 'javascript' || v === 'nodejs' || v === 'node.js') return 'js';
+  if (v === 'py' || v === 'python') return 'python';
+  if (v === 'golang' || v === 'go') return 'go';
+  if (v === 'rust' || v === 'java') return v;
+  if (v === 'ts') return 'ts';
+  if (v === 'js') return 'js';
+  return null;
+}
+
 // ── Known framework signatures inside package.json dependencies ───────────
 
 /** @type {Record<string, string>} */
@@ -158,6 +193,7 @@ Review checklist:
  * @property {boolean} monorepo        — workspace / lerna / nx detected
  * @property {Record<string, number>} fileCountsByExt
  * @property {number}  totalFileCount
+ * @property {string}  [preferredLanguage]
  * @property {string[]} entryPoints    — entry point files that were actually read
  * @property {{ path: string, content: string }[]} entryPointContents
  */
@@ -180,6 +216,75 @@ Review checklist:
  */
 
 // ── Deep Codebase Probe ───────────────────────────────────────────────────
+
+/**
+ * Infer the best code language for implementation tasks.
+ *
+ * @param {CodebaseProfile} profile
+ * @param {string} [goalText]
+ * @returns {string}
+ */
+export function inferPreferredLanguage(profile = {}, goalText = '') {
+  const lower = String(goalText || '').toLowerCase();
+
+  // 1) Prefer explicit file extensions / language words in the goal.
+  const extMatch = lower.match(/\b[\w.-]+\.(ts|tsx|js|jsx|py|go|rs|java)\b/g);
+  if (extMatch && extMatch.length > 0) {
+    for (const matched of extMatch) {
+      const ext = `.${matched.split('.').pop()}`;
+      const fromExt = EXT_TO_LANGUAGE[ext];
+      if (fromExt) return fromExt;
+    }
+  }
+
+  const tokenMatch = lower.match(/\b(?:typescript|javascript|python|golang|go|rust|java|node\.js|nodejs|py)\b/g);
+  if (tokenMatch && tokenMatch.length > 0) {
+    const normalized = normalizeLanguageCandidate(tokenMatch[0]);
+    if (normalized) return normalized;
+  }
+
+  // 2) Prefer detected languages from codebase profile, with TypeScript over JavaScript.
+  const profileLanguages = new Set((profile.languages || []).map((language) => normalizeLanguageCandidate(language)).filter(Boolean));
+  if (profileLanguages.size > 0) {
+    for (const language of LANGUAGE_PRIORITY) {
+      if (profileLanguages.has(language)) return language;
+    }
+    return [...profileLanguages][0];
+  }
+
+  // 3) Fallback to dominant file extension counts.
+  const extCounts = profile.fileCountsByExt || {};
+  for (const language of LANGUAGE_PRIORITY) {
+    const mappedExts = Object.entries(EXT_TO_LANGUAGE)
+      .filter(([, mapped]) => mapped === language)
+      .map(([ext]) => ext);
+    const count = mappedExts.reduce((sum, ext) => sum + (extCounts[ext] || 0), 0);
+    if (count > 0) return language;
+  }
+
+  return 'js';
+}
+
+/**
+ * Convert a normalized language code to display text.
+ *
+ * @param {string} language
+ * @returns {string}
+ */
+export function preferredLanguageLabel(language) {
+  return LANGUAGE_LABELS[normalizeLanguageCandidate(language)] || 'JavaScript';
+}
+
+/**
+ * Build language selection text used in constraints and prompts.
+ *
+ * @param {string} language
+ * @returns {string}
+ */
+export function buildLanguagePreferenceText(language) {
+  const label = preferredLanguageLabel(language);
+  return `Default implementation language: ${label}. If a task explicitly targets another language file, follow that file's language.`;
+}
 
 /**
  * Walk the project tree, read key files, and produce a CodebaseProfile.

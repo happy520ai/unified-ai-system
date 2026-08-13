@@ -45,6 +45,96 @@ function summarizeIssueCodes(issueCodes) {
   return summary;
 }
 
+function computeLanguagePolicyFitness(languagePolicyCheck, languagePolicyExpiry, target = 80) {
+  const counts = {
+    allowed: Array.isArray(languagePolicyCheck?.allowed) ? languagePolicyCheck.allowed.length : 0,
+    violations: Array.isArray(languagePolicyCheck?.violations) ? languagePolicyCheck.violations.length : 0,
+    allowlistWarnings: Array.isArray(languagePolicyCheck?.allowlistWarnings) ? languagePolicyCheck.allowlistWarnings.length : 0,
+    allowlistIssues: Array.isArray(languagePolicyCheck?.allowlistIssues) ? languagePolicyCheck.allowlistIssues.length : 0,
+    expiredExceptions: Array.isArray(languagePolicyExpiry?.expired) ? languagePolicyExpiry.expired.length : 0,
+    nearExpiryExceptions: Array.isArray(languagePolicyExpiry?.nearExpiry) ? languagePolicyExpiry.nearExpiry.length : 0,
+  };
+
+  if (!languagePolicyCheck || !languagePolicyExpiry) {
+    return {
+      score: 0,
+      riskLevel: "critical",
+      blocked: true,
+      counts,
+      target,
+      reasons: ["language policy artifacts missing; score is unavailable."],
+      preferredLanguage: "TypeScript (for apps/packages runtime surfaces)",
+    };
+  }
+
+  const base = 100;
+  const penalties = {
+    violation: 32,
+    allowlistWarning: 6,
+    allowlistIssue: 10,
+    expiredException: 20,
+    nearExpiryException: 5,
+    checkFailed: 12,
+    missingMeta: 8,
+  };
+  let score = base
+    - counts.violations * penalties.violation
+    - counts.allowlistWarnings * penalties.allowlistWarning
+    - counts.allowlistIssues * penalties.allowlistIssue
+    - counts.expiredExceptions * penalties.expiredException
+    - Math.min(counts.nearExpiryExceptions, 12) * penalties.nearExpiryException;
+
+  if (languagePolicyCheck.ok === false) {
+    score -= penalties.checkFailed;
+  }
+  if (!Array.isArray(languagePolicyCheck?.issues)) {
+    score -= penalties.missingMeta;
+  }
+
+  const clamped = Math.max(0, Math.min(100, score));
+  const riskLevel = clamped >= 85
+    ? "healthy"
+    : clamped >= 70
+      ? "attention"
+      : clamped >= 55
+        ? "warning"
+        : "critical";
+  const blocked = clamped < 60 || counts.violations > 0 || counts.expiredExceptions > 0;
+
+  const reasons = [];
+  const issueCount = Array.isArray(languagePolicyCheck?.issues) ? languagePolicyCheck.issues.length : 0;
+  if (issueCount > 0) {
+    reasons.push(`language policy check metadata issues remain: ${issueCount}`);
+  }
+  if (counts.violations > 0) {
+    reasons.push(`language policy rule violations remain: ${counts.violations}`);
+  }
+  if (counts.expiredExceptions > 0) {
+    reasons.push(`language policy exceptions expired: ${counts.expiredExceptions}`);
+  }
+  if (counts.allowlistIssues > 0) {
+    reasons.push(`language policy exception metadata issues: ${counts.allowlistIssues}`);
+  }
+  if (counts.nearExpiryExceptions > 0) {
+    reasons.push(`language policy exceptions near expiry: ${counts.nearExpiryExceptions}`);
+  }
+  if (counts.violations > 0) {
+    reasons.push(
+      `language policy score reduction: -${counts.violations * penalties.violation} from ${counts.violations} violation(s)`,
+    );
+  }
+
+  return {
+    score: clamped,
+      riskLevel,
+      blocked,
+      counts,
+      target,
+      reasons,
+      preferredLanguage: "TypeScript (for apps/packages runtime surfaces)",
+  };
+}
+
 function reasonToIssueCode(reasonText) {
   const reason = String(reasonText ?? "").toLowerCase();
   if (reason.includes("consecutive failures")) {
@@ -415,6 +505,7 @@ function parseArgs() {
     allowWarnings: false,
     outputJson: false,
     maxSummaryReasons: 5,
+    languagePolicyScoreTarget: 80,
   };
 
   for (let index = 0; index < args.length; index += 1) {
@@ -457,6 +548,12 @@ function parseArgs() {
         args[index + 1],
         output.maxSummaryReasons,
       );
+      index += 1;
+      continue;
+    }
+    if (arg === "--language-policy-score-target") {
+      const target = Number(args[index + 1]);
+      output.languagePolicyScoreTarget = Number.isFinite(target) ? target : output.languagePolicyScoreTarget;
       index += 1;
       continue;
     }
@@ -607,6 +704,11 @@ function summarize() {
   const guardrail = readJson(args.guardrailPath);
   const languagePolicyCheck = readJson(args.languagePolicyCheckPath ?? LANGUAGE_POLICY_DEFAULT_CHECK_ARTIFACT);
   const languagePolicyExpiry = readJson(args.languagePolicyExpiryPath ?? LANGUAGE_POLICY_DEFAULT_EXPIRY_ARTIFACT);
+  const languagePolicyFitness = computeLanguagePolicyFitness(
+    languagePolicyCheck,
+    languagePolicyExpiry,
+    args.languagePolicyScoreTarget,
+  );
   const languagePolicyFinding = classifyLanguagePolicyArtifacts(
     languagePolicyCheck,
     languagePolicyExpiry,
@@ -640,14 +742,40 @@ function summarize() {
     return;
   }
 
-  const previewReasons = summary.reasons.slice(0, args.maxSummaryReasons);
   const issueCodes = buildIssueCodesFromTrendCheck(summary, languagePolicyFinding?.issueCodes);
+  const languagePolicyFitnessBelowTarget = languagePolicyFitness?.score < args.languagePolicyScoreTarget;
+  const languagePolicyFitnessReasons = Array.isArray(languagePolicyFitness?.reasons)
+    ? languagePolicyFitness.reasons
+    : [];
+  if (languagePolicyFitnessBelowTarget) {
+    languagePolicyFitnessReasons.push(
+      `Language policy fitness ${languagePolicyFitness.score}/100 below target ${args.languagePolicyScoreTarget}.`,
+    );
+  }
+
+  if (languagePolicyFitnessBelowTarget) {
+    const severity = languagePolicyFitness.riskLevel === "critical" || languagePolicyFitness.riskLevel === "warning"
+      ? "high"
+      : "medium";
+    issueCodes.push({
+      code: "language_policy_fitness_low",
+      severity,
+      message: `language policy fitness ${languagePolicyFitness.score}/100 below target ${args.languagePolicyScoreTarget}`,
+      artifactPath: args.languagePolicyCheckPath ?? LANGUAGE_POLICY_DEFAULT_CHECK_ARTIFACT,
+      source: "quality-trend-check",
+    });
+  }
+
+  const allReasons = [
+    ...new Set([...summary.reasons, ...languagePolicyFitnessReasons]),
+  ];
+  const summaryReasons = allReasons.slice(0, args.maxSummaryReasons);
   const issueCodeSummary = summarizeIssueCodes(issueCodes);
   const payload = {
     status: summary.status,
     severity: summary.severity,
-    blocked: summary.blocked,
-    reasons: summary.reasons,
+    blocked: summary.blocked || Boolean(languagePolicyFitness?.blocked) || languagePolicyFitnessBelowTarget,
+    reasons: allReasons,
     issueCodes,
     issueCodeSummary,
     recommendation: summary.recommendation,
@@ -664,6 +792,7 @@ function summarize() {
       state: digest?.state,
       totalRecords: digest?.totalRecords,
       thresholds: digest?.thresholds ?? guardrail?.guardrails?.checks?.thresholds ?? null,
+      languagePolicy: languagePolicyFitness,
     },
   };
 
@@ -678,9 +807,9 @@ function summarize() {
     process.stdout.write(`Quality trend check status: ${payload.status}\n`);
     process.stdout.write(`Severity: ${payload.severity}\n`);
     process.stdout.write(`Blocked: ${payload.blocked}\n`);
-    if (previewReasons.length > 0) {
+    if (summaryReasons.length > 0) {
       process.stdout.write("Top reasons:\n");
-      for (const reason of previewReasons) {
+      for (const reason of summaryReasons) {
         process.stdout.write(`- ${reason}\n`);
       }
     } else {

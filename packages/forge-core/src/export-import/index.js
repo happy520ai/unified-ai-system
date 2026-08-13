@@ -176,6 +176,9 @@ export class GoalTransfer {
       allowedFiles: t.allowed_files
         ? (typeof t.allowed_files === 'string' ? JSON.parse(t.allowed_files) : t.allowed_files)
         : [],
+      constraints: t.constraints
+        ? (typeof t.constraints === 'string' ? JSON.parse(t.constraints) : t.constraints)
+        : [],
       estimatedMin: t.estimated_min ?? null,
     }));
 

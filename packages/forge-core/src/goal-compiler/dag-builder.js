@@ -27,6 +27,7 @@ export function buildDAG(parsedTasks) {
       type: t.type,
       agentRole: t.agentRole ?? defaultAgentRole(t.type),
       prompt: t.prompt ?? '',
+      constraints: Array.isArray(t.constraints) ? [...t.constraints] : [],
       allowedFiles: t.allowedFiles ?? ['**/*'],
       estimatedMin: t.estimatedMin ?? 10,
     });
@@ -97,6 +98,7 @@ function mergeOverlappingTasks(tasks) {
           type: current.type,
           agentRole: current.agentRole,
           prompt: `${current.prompt}\n\n---\n\n${next.prompt}`,
+          constraints: [...new Set([...(current.constraints || []), ...(next.constraints || [])])],
           allowedFiles: [...new Set([...current.allowedFiles, ...next.allowedFiles])],
           estimatedMin: Math.max(current.estimatedMin, next.estimatedMin),
           dependsOn: [...new Set([...(current.dependsOn || []), ...(next.dependsOn || [])])].filter(d => d !== current.id),

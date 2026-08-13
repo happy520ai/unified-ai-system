@@ -89,6 +89,22 @@
     },
     {
       "artifactPath": ".tmp/quality-trend-check.json",
+      "fieldPath": "metrics.languagePolicy.score"
+    },
+    {
+      "artifactPath": ".tmp/quality-trend-check.json",
+      "fieldPath": "metrics.languagePolicy.riskLevel"
+    },
+    {
+      "artifactPath": ".tmp/quality-trend-incident-bundle.json",
+      "fieldPath": "languagePolicyReview.fitness.score"
+    },
+    {
+      "artifactPath": ".tmp/quality-trend-incident-bundle.json",
+      "fieldPath": "languagePolicyReview.fitness.riskLevel"
+    },
+    {
+      "artifactPath": ".tmp/quality-trend-check.json",
       "fieldPath": "recommendation"
     },
     {

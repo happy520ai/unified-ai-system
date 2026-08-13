@@ -26,6 +26,9 @@ export function buildPrompt(task, contextBlock, extraContext, opts) {
     `## Instructions\nIMPORTANT: When editing files, your oldString must match the EXACT text in the file including all whitespace and indentation.\n` +
     `If you are unsure of the exact content, use a "read" action first to read the file, then use "edit" or "write".\n` +
     `Prefer "write" (full file content) over "edit" when making substantial changes.\n\n### Actions:\n${actionList}`;
+  if (Array.isArray(task.constraints) && task.constraints.length > 0) {
+    prompt += `\n## Constraints\n${task.constraints.map((constraint) => `- ${constraint}`).join('\n')}\n`;
+  }
   if (isMutation) {
     prompt += `\n**IMPORTANT: This is a ${task.type} task. You MUST include ${mutationActionStr} actions to create/modify files. ` +
       `Do NOT only read files or run commands — produce the actual code changes.**\n`;
