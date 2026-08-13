@@ -269,6 +269,20 @@ If you inspect workflow artifacts, you can load:
   - `.tmp/mcp-smoke.json`
   - `.tmp/gateway-doctor.json`
   - `.tmp/gateway-demo.json`
+- Docker build-and-push evidence files available in `docker-smoke-evidence` and `docker-published-evidence` artifacts:
+  - `.tmp/docker-smoke-gateway-demo.json`
+  - `.tmp/docker-smoke-piped-demo.json`
+  - `.tmp/docker-smoke-container-evidence.json`
+  - `.tmp/docker-smoke-mcp-smoke.json`
+  - `.tmp/docker-smoke-tools-mcp-smoke.json`
+  - `.tmp/docker-smoke-openai-sdk-chat.log`
+  - `.tmp/docker-smoke-container-runtime.log`
+  - `.tmp/docker-smoke-base-url.json`
+  - `.tmp/docker-published-gateway-demo.json`
+  - `.tmp/docker-published-mcp-smoke.json`
+  - `.tmp/docker-published-tools-mcp-smoke.json`
+  - `.tmp/docker-published-openai-sdk-chat.log`
+  - `.tmp/docker-published-runtime.log`
 
 For full triage sequence and owners, follow:
 

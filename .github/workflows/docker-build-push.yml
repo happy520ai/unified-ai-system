@@ -60,6 +60,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          set -o pipefail
+          mkdir -p .tmp
+          touch \
+            .tmp/docker-smoke-gateway-demo.json \
+            .tmp/docker-smoke-piped-demo.json \
+            .tmp/docker-smoke-container-evidence.json \
+            .tmp/docker-smoke-mcp-smoke.json \
+            .tmp/docker-smoke-tools-mcp-smoke.json \
+            .tmp/docker-smoke-openai-sdk-chat.log \
+            .tmp/docker-smoke-container-runtime.log \
+            .tmp/docker-smoke-base-url.json
           docker build --tag unified-ai-system-smoke .
           docker build \
             --target mcp \
@@ -69,12 +80,14 @@ jobs:
             --env AI_GATEWAY_PROVIDER_MODE=fake \
             --env AI_GATEWAY_REAL_PROVIDER_ENABLED=false \
             unified-ai-system-smoke \
-            pnpm gateway demo --json
-          piped_evidence="$(printf '%s' 'Container stdin evidence test' | docker run --rm -i \
+            pnpm gateway demo --json 2>&1 | tee .tmp/docker-smoke-gateway-demo.json
+          piped_evidence="$(printf '%s' 'Container stdin evidence test' | \
+            docker run --rm -i \
             --env AI_GATEWAY_PROVIDER_MODE=fake \
             --env AI_GATEWAY_REAL_PROVIDER_ENABLED=false \
             unified-ai-system-smoke \
-            pnpm --silent gateway demo --enhance --profile coding --language en --json)"
+            pnpm --silent gateway demo --enhance --profile coding --language en --json \
+            2>&1 | tee .tmp/docker-smoke-piped-demo.json)"
           PIPED_EVIDENCE_JSON="${piped_evidence}" node --input-type=module <<'NODE'
           const evidence = JSON.parse(process.env.PIPED_EVIDENCE_JSON);
           const enhancement = evidence.promptEnhancement;
@@ -111,8 +124,7 @@ jobs:
                 exit 1
               fi
               pnpm --silent gateway enhance "Container evidence test" --profile coding --language en --evidence
-            '
-          )"
+            ' | tee .tmp/docker-smoke-container-evidence.json)"
           EVIDENCE_JSON="${enhancement_evidence}" node --input-type=module <<'NODE'
           const evidence = JSON.parse(process.env.EVIDENCE_JSON);
           const checks = {
@@ -132,10 +144,10 @@ jobs:
             --env AI_GATEWAY_PROVIDER_MODE=fake \
             --env AI_GATEWAY_REAL_PROVIDER_ENABLED=false \
             unified-ai-system-smoke \
-            pnpm smoke:mcp --json
+            pnpm smoke:mcp --json 2>&1 | tee .tmp/docker-smoke-mcp-smoke.json
           node tools/mcp-smoke.mjs \
             --docker-image=unified-ai-system-mcp-smoke \
-            --json
+            --json 2>&1 | tee .tmp/docker-smoke-tools-mcp-smoke.json
           container_id="$(docker run --detach \
             --publish 127.0.0.1::3100 \
             --env AI_GATEWAY_PROVIDER_MODE=fake \
@@ -152,11 +164,13 @@ jobs:
               break
             fi
             if [ "${attempt}" -eq 30 ]; then
+              docker logs "${container_id}" > .tmp/docker-smoke-container-runtime.log
               docker logs "${container_id}"
               exit 1
             fi
             sleep 1
           done
+          echo "{ \"smokeBaseUrl\": \"${SMOKE_BASE_URL}\" }" > .tmp/docker-smoke-base-url.json
           node --input-type=module <<'NODE'
           const baseUrl = process.env.SMOKE_BASE_URL;
           const readJson = async (path, options) => {
@@ -185,7 +199,7 @@ jobs:
           if (!Object.values(checks).every(Boolean)) process.exit(1);
           NODE
           AI_GATEWAY_SERVICE_URL="${SMOKE_BASE_URL}" \
-            node docs/examples/openai-sdk-chat.mjs
+            node docs/examples/openai-sdk-chat.mjs 2>&1 | tee .tmp/docker-smoke-openai-sdk-chat.log
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4
@@ -256,6 +270,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          set -o pipefail
+          mkdir -p .tmp
+          touch \
+            .tmp/docker-published-gateway-demo.json \
+            .tmp/docker-published-mcp-smoke.json \
+            .tmp/docker-published-tools-mcp-smoke.json \
+            .tmp/docker-published-openai-sdk-chat.log \
+            .tmp/docker-published-runtime.log
           anonymous_config="$(mktemp -d)"
           container_id=""
           cleanup() {
@@ -286,15 +308,15 @@ jobs:
             --env AI_GATEWAY_PROVIDER_MODE=fake \
             --env AI_GATEWAY_REAL_PROVIDER_ENABLED=false \
             "${image}" \
-            pnpm gateway demo --json
+            pnpm gateway demo --json 2>&1 | tee .tmp/docker-published-gateway-demo.json
           docker run --rm \
             --env AI_GATEWAY_PROVIDER_MODE=fake \
             --env AI_GATEWAY_REAL_PROVIDER_ENABLED=false \
             "${image}" \
-            pnpm smoke:mcp --json
+            pnpm smoke:mcp --json 2>&1 | tee .tmp/docker-published-mcp-smoke.json
           node tools/mcp-smoke.mjs \
             --docker-image="${mcp_image}" \
-            --json
+            --json 2>&1 | tee .tmp/docker-published-tools-mcp-smoke.json
           container_id="$(docker run --detach \
             --publish 127.0.0.1::3100 \
             --env AI_GATEWAY_PROVIDER_MODE=fake \
@@ -307,13 +329,113 @@ jobs:
               break
             fi
             if [ "${attempt}" -eq 30 ]; then
+              docker logs "${container_id}" > .tmp/docker-published-runtime.log
               docker logs "${container_id}"
               exit 1
             fi
             sleep 1
           done
           AI_GATEWAY_SERVICE_URL="${published_base_url}" \
-            node docs/examples/openai-sdk-chat.mjs
+            node docs/examples/openai-sdk-chat.mjs 2>&1 | tee .tmp/docker-published-openai-sdk-chat.log
+
+      - name: Append docker workflow evidence to workflow summary
+        if: always()
+        run: |
+          {
+            echo "## Docker smoke evidence"
+            echo ""
+            if [ -f .tmp/docker-smoke-gateway-demo.json ]; then
+              echo "### Container smoke gateway demo"
+              cat .tmp/docker-smoke-gateway-demo.json
+            fi
+            if [ -f .tmp/docker-smoke-piped-demo.json ]; then
+              echo ""
+              echo "### Container smoke piped demo"
+              cat .tmp/docker-smoke-piped-demo.json
+            fi
+            if [ -f .tmp/docker-smoke-container-evidence.json ]; then
+              echo ""
+              echo "### Container smoke enhancement evidence"
+              cat .tmp/docker-smoke-container-evidence.json
+            fi
+            if [ -f .tmp/docker-smoke-mcp-smoke.json ]; then
+              echo ""
+              echo "### Container smoke MCP smoke"
+              cat .tmp/docker-smoke-mcp-smoke.json
+            fi
+            if [ -f .tmp/docker-smoke-tools-mcp-smoke.json ]; then
+              echo ""
+              echo "### Container smoke tools MCP smoke"
+              cat .tmp/docker-smoke-tools-mcp-smoke.json
+            fi
+            if [ -f .tmp/docker-smoke-openai-sdk-chat.log ]; then
+              echo ""
+              echo "### Container smoke OpenAI SDK chat"
+              cat .tmp/docker-smoke-openai-sdk-chat.log
+            fi
+            if [ -f .tmp/docker-smoke-container-runtime.log ]; then
+              echo ""
+              echo "### Container smoke runtime logs"
+              cat .tmp/docker-smoke-container-runtime.log
+            fi
+            if [ -f .tmp/docker-smoke-base-url.json ]; then
+              echo ""
+              echo "### Container smoke base URL"
+              cat .tmp/docker-smoke-base-url.json
+            fi
+            if [ -f .tmp/docker-published-gateway-demo.json ]; then
+              echo ""
+              echo "### Published image gateway demo"
+              cat .tmp/docker-published-gateway-demo.json
+            fi
+            if [ -f .tmp/docker-published-mcp-smoke.json ]; then
+              echo ""
+              echo "### Published image MCP smoke"
+              cat .tmp/docker-published-mcp-smoke.json
+            fi
+            if [ -f .tmp/docker-published-tools-mcp-smoke.json ]; then
+              echo ""
+              echo "### Published image tools MCP smoke"
+              cat .tmp/docker-published-tools-mcp-smoke.json
+            fi
+            if [ -f .tmp/docker-published-openai-sdk-chat.log ]; then
+              echo ""
+              echo "### Published image OpenAI SDK chat"
+              cat .tmp/docker-published-openai-sdk-chat.log
+            fi
+            if [ -f .tmp/docker-published-runtime.log ]; then
+              echo ""
+              echo "### Published image runtime logs"
+              cat .tmp/docker-published-runtime.log
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload local docker smoke evidence artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-smoke-evidence
+          path: |
+            .tmp/docker-smoke-gateway-demo.json
+            .tmp/docker-smoke-piped-demo.json
+            .tmp/docker-smoke-container-evidence.json
+            .tmp/docker-smoke-mcp-smoke.json
+            .tmp/docker-smoke-tools-mcp-smoke.json
+            .tmp/docker-smoke-openai-sdk-chat.log
+            .tmp/docker-smoke-container-runtime.log
+            .tmp/docker-smoke-base-url.json
+
+      - name: Upload published docker evidence artifacts
+        if: github.event_name != 'pull_request' && (github.event.inputs.push != 'false')
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-published-evidence
+          path: |
+            .tmp/docker-published-gateway-demo.json
+            .tmp/docker-published-mcp-smoke.json
+            .tmp/docker-published-tools-mcp-smoke.json
+            .tmp/docker-published-openai-sdk-chat.log
+            .tmp/docker-published-runtime.log
 
       - name: Install MCP Registry publisher
         if: startsWith(github.ref, 'refs/tags/v')
