@@ -307,6 +307,44 @@ describe("dispatchHttpRoutes02 metrics readiness visibility", () => {
     expect(metricsText).toContain("ai_gateway_gateway_error_circuit_state{state=\"open\"} 1");
   });
 
+  it("adds half-open readiness degradation in /metrics when circuit is half-open", async () => {
+    let metricsText = "";
+    let metricsStatus = undefined;
+    const context = createEnvelopeContext({
+      request: { method: "GET" },
+      response: {
+        status: undefined,
+        payload: undefined,
+        end(body) {
+          metricsText = body;
+          metricsStatus = 200;
+        },
+      },
+      url: { pathname: "/metrics" },
+      healthzInFlightThreshold: 120,
+      resilienceMetrics: {
+        snapshot: () => ({
+          currentInFlight: 10,
+          readinessCheckCount: 2,
+          readinessReadyChecks: 0,
+          readinessDegradedChecks: 2,
+          readinessFailureReasons: {
+            "gateway-error-circuit": 1,
+          },
+          gatewayErrorCircuitState: "half-open",
+        }),
+      },
+    });
+
+    await dispatchHttpRoutes02(context);
+
+    expect(metricsStatus).toBe(200);
+    expect(metricsText).toContain("ai_gateway_gateway_readiness_status{state=\"ready\"} 0");
+    expect(metricsText).toContain("ai_gateway_gateway_readiness_status{state=\"degraded\"} 1");
+    expect(metricsText).toContain('ai_gateway_gateway_readiness_failures{reason="gateway-error-circuit"} 1');
+    expect(metricsText).toContain("ai_gateway_gateway_error_circuit_state{state=\"half-open\"} 1");
+  });
+
   it("emits ready state in /metrics when system is healthy", async () => {
     let metricsText = "";
     let metricsStatus = undefined;

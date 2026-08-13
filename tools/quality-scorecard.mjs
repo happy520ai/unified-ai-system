@@ -384,6 +384,7 @@ function checkGatewayErrorCircuitBreaker() {
       "Request-circuit failure drill",
       "curl -sS",
       "sed -n",
+      "awk '/Retry-After/",
     ];
     const missingMarkers = requiredMarkers.filter(
       (marker) => !(serverSource.includes(marker) || exporterSource.includes(marker)

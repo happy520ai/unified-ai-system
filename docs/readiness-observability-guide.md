@@ -137,4 +137,6 @@ while true; do
   curl -i -sS "http://127.0.0.1:3210/healthz" | sed -n '1,12p'
   sleep 1
 done
+
+curl -sS -D - "http://127.0.0.1:3210/healthz" | awk '/Retry-After/ {print}'
 ```
