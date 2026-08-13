@@ -27,6 +27,7 @@
     "eval:prompt-enhancement": "node ./tools/prompt-enhancement-eval.mjs",
     "build": "pnpm -r --if-present build",
     "check": "pnpm -r --if-present check",
+    "typecheck": "tsc -p tsconfig.json",
     "test": "pnpm -r --if-present test",
     "check:public": "node tools/public-repo-check.mjs",
     "verify:public-clone": "node tools/verify-public-clone.mjs",
@@ -50,7 +51,9 @@
   },
   "devDependencies": {
     "@a2a-js/sdk": "1.0.1",
+    "@types/node": "^22.10.0",
     "openai": "7.4.0",
+    "typescript": "^5.6.3",
     "vitest": "^4.1.10"
   }
 }
