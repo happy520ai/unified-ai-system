@@ -383,8 +383,13 @@ export function createGatewayHttpServer(application) {
     request.maxBodyBytes = maxRequestBodyBytes;
     applyCorsHeaders(response, request.headers.origin, corsAllowedOrigins, corsMaxAgeSeconds);
     const markRequestSuccess = () => {
+      const stateBeforeSuccess = gatewayErrorCircuit.getStateSnapshot()?.state;
       gatewayErrorCircuit.recordSuccess();
-      resilienceMetrics.recordGatewayErrorCircuitSuccess?.();
+      const stateAfterSuccess = gatewayErrorCircuit.getStateSnapshot();
+      if (stateBeforeSuccess === "half-open") {
+        resilienceMetrics.recordGatewayErrorCircuitSuccess?.();
+      }
+      resilienceMetrics.recordGatewayErrorCircuitState?.(stateAfterSuccess?.state, stateAfterSuccess);
     };
     const allowedByGatewayErrorCircuit = gatewayErrorCircuit.canProcessRequest();
     const circuitSnapshot = gatewayErrorCircuit.getStateSnapshot();

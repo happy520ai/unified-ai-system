@@ -45,20 +45,34 @@ export const ENTRY_POINT_CANDIDATES = [
   'server.js', 'server.ts',
 ];
 
-const LANGUAGE_PRIORITY = ['ts', 'js', 'python', 'go', 'rust', 'java'];
-const DEFAULT_LANGUAGE_FALLBACK = 'other';
-const LANGUAGE_LABELS = Object.freeze({
+export const LANGUAGE_PRIORITY = [
+  'ts', 'js', 'python', 'go', 'rust', 'java', 'csharp', 'kotlin',
+  'swift', 'cpp', 'c', 'ruby', 'php', 'powershell', 'shell',
+];
+export const DEFAULT_LANGUAGE_FALLBACK = 'other';
+export const LANGUAGE_LABELS = Object.freeze({
   ts: 'TypeScript',
   js: 'JavaScript',
   python: 'Python',
   go: 'Go',
   rust: 'Rust',
   java: 'Java',
+  csharp: 'C#',
+  cpp: 'C++',
+  c: 'C',
+  kotlin: 'Kotlin',
+  swift: 'Swift',
+  ruby: 'Ruby',
+  php: 'PHP',
+  shell: 'POSIX shell',
+  powershell: 'PowerShell',
   other: 'language best determined from file/task context',
 });
-const EXT_TO_LANGUAGE = Object.freeze({
+export const EXT_TO_LANGUAGE = Object.freeze({
   '.ts': 'ts',
   '.tsx': 'ts',
+  '.mts': 'ts',
+  '.cts': 'ts',
   '.js': 'js',
   '.mjs': 'js',
   '.cjs': 'js',
@@ -67,32 +81,217 @@ const EXT_TO_LANGUAGE = Object.freeze({
   '.go': 'go',
   '.rs': 'rust',
   '.java': 'java',
+  '.cs': 'csharp',
+  '.cpp': 'cpp',
+  '.cc': 'cpp',
+  '.cxx': 'cpp',
+  '.hpp': 'cpp',
+  '.hh': 'cpp',
+  '.hxx': 'cpp',
+  '.c': 'c',
+  '.h': 'c',
+  '.kt': 'kotlin',
+  '.kts': 'kotlin',
+  '.swift': 'swift',
+  '.rb': 'ruby',
+  '.php': 'php',
+  '.sh': 'shell',
+  '.bash': 'shell',
+  '.zsh': 'shell',
+  '.ps1': 'powershell',
+  '.psm1': 'powershell',
+  '.psd1': 'powershell',
 });
 
 const GOAL_TEXT_LANGUAGE_PATTERNS = [
+  { pattern: /\.(?:ts|tsx|mts|cts)\b/, language: 'ts' },
+  { pattern: /\.(?:js|mjs|cjs|jsx)\b/, language: 'js' },
+  { pattern: /\.py\b/, language: 'python' },
+  { pattern: /\.go\b/, language: 'go' },
+  { pattern: /\.rs\b/, language: 'rust' },
+  { pattern: /\.java\b/, language: 'java' },
+  { pattern: /\.cs\b/, language: 'csharp' },
+  { pattern: /\.(?:cpp|cc|cxx|hpp|hh|hxx)\b/, language: 'cpp' },
+  { pattern: /\.(?:c|h)\b/, language: 'c' },
+  { pattern: /\.(?:kt|kts)\b/, language: 'kotlin' },
+  { pattern: /\.swift\b/, language: 'swift' },
+  { pattern: /\.rb\b/, language: 'ruby' },
+  { pattern: /\.php\b/, language: 'php' },
+  { pattern: /\.(?:sh|bash|zsh)\b/, language: 'shell' },
+  { pattern: /\.(?:ps1|psm1|psd1)\b/, language: 'powershell' },
   { pattern: /\b(type\s*script|typescript|ts)\b/, language: 'ts' },
   { pattern: /\b(java\s*script|javascript|js|node\.js|nodejs)\b/, language: 'js' },
   { pattern: /\b(python|py)\b/, language: 'python' },
-  { pattern: /\b(go|golang)\b/, language: 'go' },
+  { pattern: /\b(?:golang|go language|in go|using go)\b/, language: 'go' },
   { pattern: /\brust\b/, language: 'rust' },
   { pattern: /\bjava\b/, language: 'java' },
+  { pattern: /(?:\bc\s*sharp\b|\bcsharp\b|\bc#|\.net\b|\bdotnet\b)/, language: 'csharp' },
+  { pattern: /(?:\bc\+\+|\bcpp\b)/, language: 'cpp' },
+  { pattern: /\bc language\b/, language: 'c' },
+  { pattern: /\bkotlin\b/, language: 'kotlin' },
+  { pattern: /\bswift\b/, language: 'swift' },
+  { pattern: /\bruby\b/, language: 'ruby' },
+  { pattern: /\bphp\b/, language: 'php' },
+  { pattern: /\b(?:powershell|pwsh)\b/, language: 'powershell' },
+  { pattern: /\b(?:posix shell|shell script|bash|zsh)\b/, language: 'shell' },
 ];
 
-function normalizeLanguageCandidate(value) {
+export function normalizeLanguageCandidate(value) {
   if (!value) return null;
-  const v = String(value).toLowerCase();
-  if (v === 'typescript') return 'ts';
-  if (v === 'javascript' || v === 'nodejs' || v === 'node.js') return 'js';
-  if (v === 'py' || v === 'python') return 'python';
-  if (v === 'golang' || v === 'go') return 'go';
-  if (v === 'other' || v === 'unknown') return 'other';
-  if (v === 'rust' || v === 'java') return v;
-  if (v === 'ts') return 'ts';
-  if (v === 'js') return 'js';
-  return null;
+  const normalized = String(value).trim().toLowerCase();
+  const aliases = {
+    typescript: 'ts', ts: 'ts',
+    javascript: 'js', js: 'js', nodejs: 'js', 'node.js': 'js',
+    python: 'python', py: 'python',
+    golang: 'go', go: 'go',
+    rust: 'rust', rs: 'rust',
+    java: 'java',
+    'c#': 'csharp', csharp: 'csharp', dotnet: 'csharp', '.net': 'csharp',
+    'c++': 'cpp', cpp: 'cpp',
+    c: 'c',
+    kotlin: 'kotlin', kt: 'kotlin',
+    swift: 'swift',
+    ruby: 'ruby', rb: 'ruby',
+    php: 'php',
+    shell: 'shell', sh: 'shell', bash: 'shell', zsh: 'shell',
+    powershell: 'powershell', pwsh: 'powershell', ps1: 'powershell',
+    other: 'other', unknown: 'other',
+  };
+  return aliases[normalized] || null;
 }
 
-function inferLanguageFromTextGoalHint(text) {
+export const LANGUAGE_PROFILES = Object.freeze({
+  ts: {
+    label: 'TypeScript',
+    extension: 'ts',
+    moduleRule: 'Use the project\'s TypeScript module convention; prefer ESM for new modules and preserve established CommonJS boundaries.',
+    styleRules: ['Use strict, explicit types at public boundaries.', 'Prefer small typed functions and exhaustive narrowing.', 'Handle asynchronous failures explicitly.'],
+    importGuideline: 'Do not import JavaScript runtime globals as dependencies; import only declared packages, Node modules, and project symbols.',
+  },
+  js: {
+    label: 'JavaScript',
+    extension: 'js',
+    moduleRule: 'Preserve the project\'s ESM or CommonJS convention; use ESM for new modules when no convention exists.',
+    styleRules: ['Use modern JavaScript without implicit globals.', 'Prefer small testable functions and explicit asynchronous error handling.', 'Document public contracts where types are not self-evident.'],
+    importGuideline: 'Do not import JavaScript runtime globals as dependencies; import only declared packages, Node modules, and project symbols.',
+  },
+  python: {
+    label: 'Python',
+    extension: 'py',
+    moduleRule: 'Use normal Python imports and preserve the project package layout.',
+    styleRules: ['Use type hints on public boundaries where practical.', 'Use context managers and explicit exception handling.', 'Follow the project formatter and PEP 8 naming.'],
+    importGuideline: 'Do not import Python built-ins as dependencies; import only standard-library, declared third-party, and project modules.',
+  },
+  go: {
+    label: 'Go',
+    extension: 'go',
+    moduleRule: 'Use the existing Go package layout and keep imports minimal.',
+    styleRules: ['Return and wrap errors explicitly.', 'Keep interfaces consumer-focused and small.', 'Use idiomatic Go naming and formatting.'],
+    importGuideline: 'Import only required standard-library or go.mod packages.',
+  },
+  rust: {
+    label: 'Rust',
+    extension: 'rs',
+    moduleRule: 'Use the existing crate/module layout and minimal use declarations.',
+    styleRules: ['Model recoverable failures with Result and absence with Option.', 'Make ownership and lifetime choices explicit at boundaries.', 'Follow rustfmt and clippy conventions.'],
+    importGuideline: 'Use only required modules and Cargo dependencies; do not import prelude names as external dependencies.',
+  },
+  java: {
+    label: 'Java',
+    extension: 'java',
+    moduleRule: 'Preserve package declarations and the project build layout.',
+    styleRules: ['Keep classes and methods focused.', 'Use explicit nullability and immutable state where practical.', 'Follow the project formatter and API documentation conventions.'],
+    importGuideline: 'Do not import java.lang classes explicitly; import required JDK and declared dependency types such as java.util.List normally.',
+  },
+  csharp: {
+    label: 'C#',
+    extension: 'cs',
+    moduleRule: 'Preserve namespaces, project references, and the repository\'s target framework.',
+    styleRules: ['Use nullable reference types consistently.', 'Prefer async/await with CancellationToken on cancellable public operations.', 'Follow established .NET naming and analyzer rules.'],
+    importGuideline: 'Use only required namespaces and project/package references; do not invent NuGet dependencies.',
+  },
+  cpp: {
+    label: 'C++',
+    extension: 'cpp',
+    moduleRule: 'Preserve the build system, include boundaries, and configured C++ standard.',
+    styleRules: ['Use RAII and value semantics by default.', 'Make ownership explicit and avoid unchecked raw-resource management.', 'Follow the project formatter and warning policy.'],
+    importGuideline: 'Include only required standard or project headers and do not invent link-time dependencies.',
+  },
+  c: {
+    label: 'C',
+    extension: 'c',
+    moduleRule: 'Preserve header/source boundaries, ABI constraints, and the configured C standard.',
+    styleRules: ['Make ownership and lifetime rules explicit.', 'Check allocation, I/O, and bounds failures.', 'Follow the repository warning and formatting policy.'],
+    importGuideline: 'Include only required standard or project headers and preserve platform guards.',
+  },
+  kotlin: {
+    label: 'Kotlin',
+    extension: 'kt',
+    moduleRule: 'Preserve package declarations and Gradle/Maven source-set conventions.',
+    styleRules: ['Use null safety and sealed models deliberately.', 'Prefer coroutines only where the project already supports them.', 'Follow Kotlin naming and formatting conventions.'],
+    importGuideline: 'Import only required Kotlin/JDK or declared dependency symbols.',
+  },
+  swift: {
+    label: 'Swift',
+    extension: 'swift',
+    moduleRule: 'Preserve Swift package or Xcode target boundaries.',
+    styleRules: ['Use value types and protocol-oriented design where appropriate.', 'Use structured concurrency and explicit error propagation.', 'Follow Swift API design guidelines.'],
+    importGuideline: 'Import only required Apple SDK or declared package modules.',
+  },
+  ruby: {
+    label: 'Ruby',
+    extension: 'rb',
+    moduleRule: 'Preserve the project require/autoload convention and gem boundaries.',
+    styleRules: ['Prefer small objects and explicit failure behavior.', 'Follow the project RuboCop style if configured.', 'Avoid monkey patches outside established extension points.'],
+    importGuideline: 'Require only standard-library, Gemfile, or project modules.',
+  },
+  php: {
+    label: 'PHP',
+    extension: 'php',
+    moduleRule: 'Preserve namespaces, Composer autoloading, and the configured PHP version.',
+    styleRules: ['Use strict types when consistent with the project.', 'Use explicit exceptions and typed public APIs.', 'Follow the configured PSR and formatter rules.'],
+    importGuideline: 'Use only declared Composer packages and project symbols.',
+  },
+  shell: {
+    label: 'POSIX shell',
+    extension: 'sh',
+    moduleRule: 'Preserve the target shell and repository script conventions.',
+    styleRules: ['Quote expansions and handle command failures deliberately.', 'Prefer simple pipelines and explicit cleanup traps.', 'Keep portability constraints visible.'],
+    importGuideline: 'Source only trusted repository scripts and require external commands explicitly.',
+  },
+  powershell: {
+    label: 'PowerShell',
+    extension: 'ps1',
+    moduleRule: 'Preserve module boundaries and the declared PowerShell edition/version.',
+    styleRules: ['Use approved verbs and explicit parameter validation.', 'Use terminating errors and try/catch for recoverable operations.', 'Avoid string-built commands and quote literal paths safely.'],
+    importGuideline: 'Import only required installed or repository modules; do not assume optional modules exist.',
+  },
+  other: {
+    label: 'language determined from task context',
+    extension: 'ext',
+    moduleRule: 'Use the target project\'s native module, package, and build conventions.',
+    styleRules: ['Preserve local conventions and dependency boundaries.', 'Use explicit error handling and readable names.', 'Document reusable public behavior.'],
+    importGuideline: 'Do not invent dependencies or import language runtime built-ins as third-party modules.',
+  },
+});
+
+export function resolveLanguageProfile(languageOrTask = DEFAULT_LANGUAGE_FALLBACK) {
+  const candidate = typeof languageOrTask === 'object'
+    ? languageOrTask?.language
+    : languageOrTask;
+  const language = normalizeLanguageCandidate(candidate) || DEFAULT_LANGUAGE_FALLBACK;
+  return LANGUAGE_PROFILES[language] || LANGUAGE_PROFILES.other;
+}
+
+export function getLanguageFileExtension(languageOrTask) {
+  return resolveLanguageProfile(languageOrTask).extension;
+}
+
+export function buildImportConstraintText(languageOrTask) {
+  return resolveLanguageProfile(languageOrTask).importGuideline;
+}
+
+export function inferLanguageFromTextGoalHint(text) {
   const normalized = String(text || '').toLowerCase();
   for (const { pattern, language } of GOAL_TEXT_LANGUAGE_PATTERNS) {
     if (pattern.test(normalized)) return language;
@@ -100,11 +299,11 @@ function inferLanguageFromTextGoalHint(text) {
   return null;
 }
 
-function inferLanguageFromAllowedFiles(patterns) {
+export function inferLanguageFromAllowedFiles(patterns) {
   const languageVotes = new Map();
   const items = Array.isArray(patterns) ? patterns : [];
   for (const pattern of items) {
-    const match = String(pattern).toLowerCase().match(/\.(ts|tsx|js|mjs|cjs|jsx|py|go|rs|java)\b/g);
+    const match = String(pattern).toLowerCase().match(/\.(ts|tsx|mts|cts|js|mjs|cjs|jsx|py|go|rs|java|cs|cpp|cc|cxx|hpp|hh|hxx|c|h|kt|kts|swift|rb|php|sh|bash|zsh|ps1|psm1|psd1)\b/g);
     if (!match || match.length === 0) continue;
 
     for (const ext of match) {
@@ -114,10 +313,13 @@ function inferLanguageFromAllowedFiles(patterns) {
     }
   }
 
-  for (const language of LANGUAGE_PRIORITY) {
-    if ((languageVotes.get(language) || 0) > 0) return language;
-  }
-  return null;
+  if (languageVotes.size === 0) return null;
+  return [...languageVotes.entries()]
+    .sort((left, right) => {
+      const voteDifference = right[1] - left[1];
+      if (voteDifference !== 0) return voteDifference;
+      return LANGUAGE_PRIORITY.indexOf(left[0]) - LANGUAGE_PRIORITY.indexOf(right[0]);
+    })[0][0];
 }
 
 // ── Known framework signatures inside package.json dependencies ───────────
@@ -266,6 +468,8 @@ Review checklist:
  */
 export function inferPreferredLanguage(profile = {}, goalText = '') {
   const lower = String(goalText || '').toLowerCase();
+  const explicitLanguage = inferLanguageFromTextGoalHint(lower);
+  if (explicitLanguage) return explicitLanguage;
 
   // 1) Prefer explicit file extensions / language words in the goal.
   const extMatch = lower.match(/\b[\w.-]+\.(ts|tsx|js|jsx|py|go|rs|java)\b/g);
@@ -277,32 +481,36 @@ export function inferPreferredLanguage(profile = {}, goalText = '') {
     }
   }
 
-  const tokenMatch = lower.match(/\b(?:typescript|javascript|python|golang|go|rust|java|node\.js|nodejs|py)\b/g);
+  const tokenMatch = lower.match(/\b(?:typescript|javascript|python|golang|rust|java|node\.js|nodejs|py)\b/g);
   if (tokenMatch && tokenMatch.length > 0) {
     const normalized = normalizeLanguageCandidate(tokenMatch[0]);
     if (normalized) return normalized;
   }
 
-  const textHint = inferLanguageFromTextGoalHint(lower);
-  if (textHint) return textHint;
+  // 2) Prefer the dominant detected language; priority only breaks ties.
+  const languageCounts = new Map();
+  for (const [extension, count] of Object.entries(profile.fileCountsByExt || {})) {
+    const language = EXT_TO_LANGUAGE[String(extension).toLowerCase()];
+    const numericCount = Number(count);
+    if (!language || !Number.isFinite(numericCount) || numericCount <= 0) continue;
+    languageCounts.set(language, (languageCounts.get(language) || 0) + numericCount);
+  }
+  if (languageCounts.size > 0) {
+    return [...languageCounts.entries()]
+      .sort((left, right) => {
+        const countDifference = right[1] - left[1];
+        if (countDifference !== 0) return countDifference;
+        return LANGUAGE_PRIORITY.indexOf(left[0]) - LANGUAGE_PRIORITY.indexOf(right[0]);
+      })[0][0];
+  }
 
-  // 2) Prefer detected languages from codebase profile, with TypeScript over JavaScript.
+  // 3) Fall back to the ordered language list when counts are unavailable.
   const profileLanguages = new Set((profile.languages || []).map((language) => normalizeLanguageCandidate(language)).filter(Boolean));
   if (profileLanguages.size > 0) {
     for (const language of LANGUAGE_PRIORITY) {
       if (profileLanguages.has(language)) return language;
     }
     return [...profileLanguages][0];
-  }
-
-  // 3) Fallback to dominant file extension counts.
-  const extCounts = profile.fileCountsByExt || {};
-  for (const language of LANGUAGE_PRIORITY) {
-    const mappedExts = Object.entries(EXT_TO_LANGUAGE)
-      .filter(([, mapped]) => mapped === language)
-      .map(([ext]) => ext);
-    const count = mappedExts.reduce((sum, ext) => sum + (extCounts[ext] || 0), 0);
-    if (count > 0) return language;
   }
 
   return DEFAULT_LANGUAGE_FALLBACK;
@@ -315,7 +523,7 @@ export function inferPreferredLanguage(profile = {}, goalText = '') {
  * @returns {string}
  */
 export function preferredLanguageLabel(language) {
-  return LANGUAGE_LABELS[normalizeLanguageCandidate(language)] || LANGUAGE_LABELS.other;
+  return resolveLanguageProfile(language).label;
 }
 
 /**

@@ -83,7 +83,7 @@ Each finding is an object:
 {
   "severity": "critical" | "warning" | "info",
   "category": "correctness" | "security" | "performance" | "maintainability" | "error-handling" | "consistency",
-  "file": "relative/path/to/file.js",
+  "file": "relative/path/to/file.ext",
   "line": 42,
   "title": "Short title of the finding",
   "description": "Detailed explanation of the issue and why it matters.",

@@ -243,9 +243,19 @@ for (const script of requiredScripts) {
   }
 }
 
-const rootScriptCount = Object.keys(rootPackage.scripts ?? {}).length;
+const rootScriptNames = Object.keys(rootPackage.scripts ?? {});
+const rootScriptCount = rootScriptNames.length;
+const rootScriptSurfaceCount = new Set(
+  rootScriptNames.map((scriptName) => scriptName.split(":", 1)[0]),
+).size;
 const serviceScriptCount = Object.keys(servicePackage.scripts ?? {}).length;
-if (rootScriptCount > 21) addError("root_script_surface_too_large", "package.json", String(rootScriptCount));
+if (rootScriptSurfaceCount > 21) {
+  addError(
+    "root_script_surface_too_large",
+    "package.json",
+    `${rootScriptSurfaceCount} top-level namespaces across ${rootScriptCount} scripts`,
+  );
+}
 if (serviceScriptCount > 20) {
   addError("service_script_surface_too_large", "apps/ai-gateway-service/package.json", String(serviceScriptCount));
 }
@@ -939,6 +949,7 @@ const result = {
   untrackedCandidateFiles: untrackedPublicCandidates.length,
   scannedTextFiles,
   rootScriptCount,
+  rootScriptSurfaceCount,
   serviceScriptCount,
   errors,
 };

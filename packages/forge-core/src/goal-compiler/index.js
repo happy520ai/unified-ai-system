@@ -12,69 +12,25 @@ import { readdir, readFile, stat } from 'node:fs/promises';
 import { join, relative, extname } from 'node:path';
 import { buildDAG } from './dag-builder.js';
 import { callLLM } from '../llm-client.js';
-
-const LANGUAGE_PRIORITY = ['ts', 'js', 'python', 'go', 'rust', 'java'];
-const DEFAULT_LANGUAGE_FALLBACK = 'other';
-const EXT_TO_LANGUAGE = Object.freeze({
-  '.ts': 'ts',
-  '.tsx': 'ts',
-  '.js': 'js',
-  '.mjs': 'js',
-  '.cjs': 'js',
-  '.jsx': 'js',
-  '.py': 'python',
-  '.go': 'go',
-  '.rs': 'rust',
-  '.java': 'java',
-});
-const LANGUAGE_LABELS = Object.freeze({
-  ts: 'TypeScript',
-  js: 'JavaScript',
-  python: 'Python',
-  go: 'Go',
-  rust: 'Rust',
-  java: 'Java',
-  other: 'language best determined from file/task context',
-});
-const GOAL_TEXT_LANGUAGE_PATTERNS = [
-  { pattern: /\b(type\s*script|typescript|ts)\b/, language: 'ts' },
-  { pattern: /\b(java\s*script|javascript|js|node\.js|nodejs)\b/, language: 'js' },
-  { pattern: /\b(python|py)\b/, language: 'python' },
-  { pattern: /\b(go|golang)\b/, language: 'go' },
-  { pattern: /\brust\b/, language: 'rust' },
-  { pattern: /\bjava\b/, language: 'java' },
-];
+import {
+  DEFAULT_LANGUAGE_FALLBACK,
+  EXT_TO_LANGUAGE,
+  LANGUAGE_LABELS,
+  LANGUAGE_PRIORITY,
+  inferLanguageFromAllowedFiles as inferLanguageFromAllowedFilesPolicy,
+  inferLanguageFromTextGoalHint,
+  normalizeLanguageCandidate as normalizeLanguageCandidatePolicy,
+} from '../goal-refiner/helpers.js';
 
 function normalizeLanguageCandidate(value) {
-  if (!value) return null;
-  const v = String(value).toLowerCase();
-  if (v === 'typescript') return 'ts';
-  if (v === 'javascript' || v === 'nodejs' || v === 'node.js') return 'js';
-  if (v === 'py' || v === 'python') return 'python';
-  if (v === 'golang' || v === 'go') return 'go';
-  if (v === 'other' || v === 'unknown') return 'other';
-  if (v === 'rust' || v === 'java') return v;
-  if (v === 'ts') return 'ts';
-  if (v === 'js') return 'js';
-  return null;
+  return normalizeLanguageCandidatePolicy(value);
 }
 
 function inferLanguageFromText(text) {
-  const normalized = String(text || '').toLowerCase();
-  const extMatch = normalized.match(/\b[\w.-]+\.(ts|tsx|js|mjs|cjs|jsx|py|go|rs|java)\b/g);
-  if (extMatch?.length > 0) {
-    const extension = extMatch[0].slice(extMatch[0].lastIndexOf('.')).toLowerCase();
-    const matchLang = EXT_TO_LANGUAGE[extension];
-    if (matchLang) return matchLang;
-  }
-
-  for (const { pattern, language } of GOAL_TEXT_LANGUAGE_PATTERNS) {
-    if (pattern.test(normalized)) return language;
-  }
-  return null;
+  return inferLanguageFromTextGoalHint(text);
 }
 
-function inferTaskLanguage(task, fallbackLanguage = 'js', goalText = '') {
+function inferTaskLanguage(task, fallbackLanguage = DEFAULT_LANGUAGE_FALLBACK, goalText = '') {
   const fromFiles = inferLanguageFromAllowedFiles(task?.allowedFiles ?? []);
   if (fromFiles) return fromFiles;
   const fromText = inferLanguageFromText(`${task?.name ?? ''} ${task?.prompt ?? ''} ${goalText ?? ''}`);
@@ -83,22 +39,7 @@ function inferTaskLanguage(task, fallbackLanguage = 'js', goalText = '') {
 }
 
 function inferLanguageFromAllowedFiles(patterns) {
-  const languageVotes = new Map();
-  const list = Array.isArray(patterns) ? patterns : [];
-  for (const pattern of list) {
-    const matches = String(pattern).toLowerCase().match(/\.(ts|tsx|js|mjs|cjs|jsx|py|go|rs|java)\b/g);
-    if (!matches || matches.length === 0) continue;
-    for (const ext of matches) {
-      const mapped = EXT_TO_LANGUAGE[ext];
-      if (!mapped) continue;
-      languageVotes.set(mapped, (languageVotes.get(mapped) || 0) + 1);
-    }
-  }
-
-  for (const language of LANGUAGE_PRIORITY) {
-    if ((languageVotes.get(language) || 0) > 0) return language;
-  }
-  return null;
+  return inferLanguageFromAllowedFilesPolicy(patterns);
 }
 
 function inferLanguageFromTree(tree) {
@@ -108,10 +49,13 @@ function inferLanguageFromTree(tree) {
     if (!language) continue;
     counts.set(language, (counts.get(language) || 0) + 1);
   }
-  for (const language of LANGUAGE_PRIORITY) {
-    if ((counts.get(language) || 0) > 0) return language;
-  }
-  return DEFAULT_LANGUAGE_FALLBACK;
+  if (counts.size === 0) return DEFAULT_LANGUAGE_FALLBACK;
+  return [...counts.entries()]
+    .sort((left, right) => {
+      const countDifference = right[1] - left[1];
+      if (countDifference !== 0) return countDifference;
+      return LANGUAGE_PRIORITY.indexOf(left[0]) - LANGUAGE_PRIORITY.indexOf(right[0]);
+    })[0][0];
 }
 
 function describeLanguage(language) {

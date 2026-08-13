@@ -5,6 +5,17 @@ import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 
 import { compileGoal } from '../src/goal-compiler/index.js';
+import {
+  getLanguageFileExtension,
+  inferPreferredLanguage,
+  inferTaskLanguage,
+  resolveLanguageProfile,
+} from '../src/goal-refiner/helpers.js';
+import {
+  buildGenerationPrompt,
+  scoreCodeQuality,
+} from '../src/iterative-refiner/helpers.js';
+import { buildPrompt } from '../src/worker/base-prompt-utils.js';
 
 const ORIGINAL_FETCH = globalThis.fetch;
 
@@ -130,8 +141,8 @@ describe('legacy compileGoal language propagation', () => {
       const implementTask = dags[0].tasks.find(task => task.type === 'implement');
       assert.equal(implementTask?.language, 'python');
       assert.ok(
-        implementTask?.constraints?.some((text) => text.includes('Primary task language')),
-        'language-specific constraint should be added',
+        implementTask?.constraints?.some((text) => text.includes('language') && text.includes('Python')),
+        'language-specific Python constraint should be added',
       );
     } finally {
       restoreFetch();
@@ -158,5 +169,62 @@ describe('legacy compileGoal language propagation', () => {
       restoreFetch();
       await rm(projectRoot, { recursive: true, force: true });
     }
+  });
+});
+
+describe('shared language execution policy', () => {
+  it('normalizes extended language targets and emits native extensions', () => {
+    assert.equal(inferTaskLanguage({ allowedFiles: ['src/**/*.cs'] }, 'js'), 'csharp');
+    assert.equal(inferTaskLanguage({ prompt: 'Implement this in PowerShell' }, 'js'), 'powershell');
+    assert.equal(getLanguageFileExtension('csharp'), 'cs');
+    assert.equal(getLanguageFileExtension('unknown-language'), 'ext');
+    assert.equal(resolveLanguageProfile('c++').label, 'C++');
+  });
+
+  it('chooses the dominant codebase language when task text is neutral', () => {
+    const language = inferPreferredLanguage({
+      languages: ['ts', 'python'],
+      fileCountsByExt: { '.ts': 2, '.py': 30 },
+    }, 'Improve request validation');
+
+    assert.equal(language, 'python');
+  });
+
+  it('builds Python-native generation and action guidance', () => {
+    const task = {
+      type: 'implement',
+      language: 'python',
+      prompt: 'Create a configuration loader',
+    };
+    const generationPrompt = buildGenerationPrompt(task, 1);
+    const workerPrompt = buildPrompt(task, '', '', {
+      tools: ['read', 'write'],
+      role: 'coder',
+      errorPatternLearner: null,
+    });
+
+    assert.match(generationPrompt, /PEP 8/);
+    assert.doesNotMatch(generationPrompt, /Use ESM syntax/);
+    assert.match(workerPrompt, /relative\/path\.py/);
+    assert.match(workerPrompt, /Primary implementation language: Python/);
+  });
+
+  it('scores Python error handling and declarations with Python rules', () => {
+    const code = [
+      'from pathlib import Path',
+      '',
+      'class ConfigLoader:',
+      '    """Load configuration files safely."""',
+      '    def load(self, path: Path) -> str:',
+      '        try:',
+      '            return path.read_text()',
+      '        except OSError as error:',
+      '            raise RuntimeError("load failed") from error',
+    ].join('\n');
+    const result = scoreCodeQuality(code, { language: 'python' });
+
+    assert.equal(result.checks.find((check) => check.name === 'has_exports')?.passed, true);
+    assert.equal(result.checks.find((check) => check.name === 'has_error_handling')?.passed, true);
+    assert.equal(result.checks.find((check) => check.name === 'has_comments')?.passed, true);
   });
 });

@@ -883,9 +883,6 @@ function main() {
   if (args.outputJson) {
     process.stdout.write(`${JSON.stringify(output, null, 2)}\n`);
   } else {
-  if (args.outputJson) {
-    process.stdout.write(`${JSON.stringify(output, null, 2)}\n`);
-  } else {
     if (args.policyReport) {
       process.stdout.write("Policy resolution trace:\n");
       if (policySourceReport.chain.length === 0) {

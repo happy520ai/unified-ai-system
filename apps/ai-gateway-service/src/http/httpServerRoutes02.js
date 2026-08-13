@@ -185,8 +185,10 @@ export async function dispatchHttpRoutes02(context) {
       providerScores: application?.healthScorer?.getAllScores?.() ?? {},
     };
     const body = exporter.formatMetrics(snapshot);
-    if (!response.headersSent) {
+    if (!response.headersSent && typeof response.writeHead === "function") {
       response.writeHead(200, { "content-type": "text/plain; version=0.0.4; charset=utf-8" });
+    } else if (!response.headersSent) {
+      response.statusCode = 200;
     }
     response.end(body);
     return;

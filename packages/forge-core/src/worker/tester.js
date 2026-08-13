@@ -6,6 +6,139 @@ import { BaseWorker } from './base.js';
  * Tester Worker — writes and runs tests for implemented changes.
  * Dynamically detects the project's test framework from package.json.
  */
+import { normalizeLanguageCandidate } from '../goal-refiner/helpers.js';
+
+const NATIVE_TEST_FRAMEWORKS = Object.freeze({
+  python: {
+    framework: 'Python unittest',
+    testCommand: 'python -m unittest discover',
+    imports: 'Use Python standard-library unittest unless the repository already configures pytest.',
+    exampleLanguage: 'python',
+    example: [
+      'from unittest import TestCase',
+      'from src.my_module import MyClass',
+      '',
+      'class MyClassTest(TestCase):',
+      '    def test_method_returns_expected_value(self):',
+      '        self.assertEqual(MyClass().method(), expected)',
+    ].join('\n'),
+  },
+  go: {
+    framework: 'Go testing',
+    testCommand: 'go test ./...',
+    imports: 'Import testing plus only packages required by the test.',
+    exampleLanguage: 'go',
+    example: [
+      'package mypackage',
+      '',
+      'import "testing"',
+      '',
+      'func TestMethodReturnsExpectedValue(t *testing.T) {',
+      '    if got := NewMyType().Method(); got != expected {',
+      '        t.Fatalf("Method() = %v, want %v", got, expected)',
+      '    }',
+      '}',
+    ].join('\n'),
+  },
+  rust: {
+    framework: 'Rust built-in test harness',
+    testCommand: 'cargo test',
+    imports: 'Keep unit tests beside the module when appropriate; use integration tests under tests/.',
+    exampleLanguage: 'rust',
+    example: [
+      '#[cfg(test)]',
+      'mod tests {',
+      '    use super::*;',
+      '',
+      '    #[test]',
+      '    fn method_returns_expected_value() {',
+      '        assert_eq!(MyType::new().method(), expected);',
+      '    }',
+      '}',
+    ].join('\n'),
+  },
+  java: {
+    framework: 'project-configured JUnit',
+    testCommand: './mvnw test or ./gradlew test, matching the repository build',
+    imports: 'Use the JUnit version declared by Maven or Gradle; do not add a new test dependency.',
+    exampleLanguage: 'java',
+    example: [
+      'import org.junit.jupiter.api.Test;',
+      'import static org.junit.jupiter.api.Assertions.assertEquals;',
+      '',
+      'class MyClassTest {',
+      '    @Test',
+      '    void methodReturnsExpectedValue() {',
+      '        assertEquals(expected, new MyClass().method());',
+      '    }',
+      '}',
+    ].join('\n'),
+  },
+  csharp: {
+    framework: 'project-configured .NET test framework',
+    testCommand: 'dotnet test',
+    imports: 'Use the existing xUnit, NUnit, or MSTest package and assertion style.',
+    exampleLanguage: 'csharp',
+    example: '// Read the test project first, then follow its existing test attributes and assertions.',
+  },
+  kotlin: {
+    framework: 'project-configured Kotlin/JUnit test framework',
+    testCommand: './gradlew test or ./mvnw test, matching the repository build',
+    imports: 'Use the test framework and source set already declared by Gradle or Maven.',
+    exampleLanguage: 'kotlin',
+    example: '// Read existing Kotlin tests and preserve their JUnit/Kotest conventions.',
+  },
+  swift: {
+    framework: 'Swift Testing or XCTest',
+    testCommand: 'swift test',
+    imports: 'Use the framework already configured by the Swift package or Xcode target.',
+    exampleLanguage: 'swift',
+    example: '// Read Package.swift and existing tests before choosing Swift Testing or XCTest.',
+  },
+  ruby: {
+    framework: 'project-configured Ruby test framework',
+    testCommand: 'bundle exec rake test or bundle exec rspec, matching the repository',
+    imports: 'Use the Gemfile-selected Minitest or RSpec conventions.',
+    exampleLanguage: 'ruby',
+    example: '# Read existing tests first and preserve their helper and matcher conventions.',
+  },
+  php: {
+    framework: 'project-configured PHP test framework',
+    testCommand: 'vendor/bin/phpunit or composer test, matching composer.json',
+    imports: 'Use Composer autoloading and the PHPUnit/Pest version already declared.',
+    exampleLanguage: 'php',
+    example: '// Read composer.json and existing tests before choosing PHPUnit or Pest syntax.',
+  },
+  cpp: {
+    framework: 'project-configured C++ test harness',
+    testCommand: 'ctest --test-dir build --output-on-failure when CTest is configured',
+    imports: 'Read CMake, Meson, Bazel, or Make configuration and use the existing test library.',
+    exampleLanguage: 'cpp',
+    example: '// Preserve the repository test target, fixture, namespace, and assertion macros.',
+  },
+  c: {
+    framework: 'project-configured C test harness',
+    testCommand: 'use the repository build-system test target',
+    imports: 'Read the build manifest and use the existing C test library without adding dependencies.',
+    exampleLanguage: 'c',
+    example: '/* Preserve the repository test runner and assertion macros. */',
+  },
+  shell: {
+    framework: 'project-configured shell test harness',
+    testCommand: 'use the repository test script; use bats only when configured',
+    imports: 'Source only the repository test helper files required by the test.',
+    exampleLanguage: 'bash',
+    example: '# Preserve the target shell and existing test harness conventions.',
+  },
+  powershell: {
+    framework: 'Pester',
+    testCommand: 'Invoke-Pester',
+    imports: 'Use the installed/configured Pester version and repository helper modules.',
+    exampleLanguage: 'powershell',
+    example: '# Read existing *.Tests.ps1 files and preserve their Describe/It conventions.',
+  },
+});
+
 export class TesterWorker extends BaseWorker {
   constructor() {
     super({
@@ -26,25 +159,25 @@ Your workflow:
 Testing principles:
 - Test both happy paths and edge cases
 - Use the project's existing test framework (check package.json for test runner)
-- Test files MUST be named *.test.js and placed in the test/ directory
+- Test files SHOULD follow project convention (matching existing test naming and language in this project).
 - Include assertions for error cases, boundary values, and null/undefined handling
 - Each test should have a descriptive name explaining what it validates
 
 CRITICAL SYNTAX RULES:
-- describe() callbacks MUST be closed with }); — NOT just } alone
-- it() callbacks do NOT receive a "t" parameter. Use plain it('name', () => { ... }) — do NOT use it('name', (t) => { t.end() })
-- For async tests, return a Promise or use async/await — do NOT use setTimeout + t.end()
+- Follow the selected language and the repository's existing test framework exactly.
+- For JavaScript/TypeScript, close describe()/it() callbacks with }); and do not mix node:test, Jest, Vitest, Mocha, or AVA assertion styles.
+- Use the language's native asynchronous-test mechanism; do not use arbitrary sleeps as synchronization.
 - Every opening { must have a matching }, every ( must have a matching )
 - Before outputting the "write" action, mentally verify: count all { and } brackets, count all ( and ) parens — they must match
-- NEVER import JS built-in globals (Map, Set, Array, Promise, Object, Error, JSON, Math, Date, console, Buffer, URL, setTimeout, etc.) — they are always available without imports
-- Only import from actual packages listed in package.json dependencies, or from project source files using relative paths (e.g., '../src/cache.js')
+- Do not import runtime built-ins as module dependencies. Import only packages and project symbols.
+- Only import from actual packages listed in package.json dependencies, or from project source files using relative paths (e.g., '../src/cache.<ext>')
 - Import the EXACT class/function name that is exported from the source file — read the source file first to check the export statement
 
 Available actions:
-- {"type": "read", "path": "src/file.js"} — read a file to understand the implementation
-- {"type": "write", "path": "test/name.test.js", "content": "full test file content"} — CREATE a test file (REQUIRED!)
-- {"type": "edit", "path": "test/name.test.js", "oldString": "...", "newString": "..."} — modify existing test file
-- {"type": "bash", "command": "npm test"} — run tests (do this AFTER writing test files)
+- {"type": "read", "path": "src/file.ext"} — read a file to understand the implementation
+- {"type": "write", "path": "test/name.ext", "content": "full test file content"} — CREATE a test file (REQUIRED!)
+- {"type": "edit", "path": "test/name.ext", "oldString": "...", "newString": "..."} — modify existing test file
+- {"type": "bash", "command": "project test command"} — run tests (do this AFTER writing test files)
 
 End with:
 ---SUMMARY---
@@ -58,7 +191,12 @@ Test files created: list of files. Test results: X passed, Y failed.
    * Detect the project's test framework from package.json and inject framework-specific
    * instructions into the prompt.
    */
-  async _getExtraContext(projectRoot, _task) {
+  async _getExtraContext(projectRoot, task = {}) {
+    const nativeFramework = this.#detectNativeFramework(task);
+    if (nativeFramework) {
+      return this.#buildFrameworkHint(nativeFramework, { scripts: {} });
+    }
+
     try {
       const pkgPath = join(projectRoot, 'package.json');
       const pkgRaw = await readFile(pkgPath, 'utf-8');
@@ -70,14 +208,21 @@ Test files created: list of files. Test results: X passed, Y failed.
       };
 
       // Detect test framework
-      const framework = this.#detectFramework(allDeps, pkg);
+      const framework = this.#detectFramework(allDeps, pkg, task);
 
       // Build framework-specific instructions
       return this.#buildFrameworkHint(framework, pkg);
     } catch {
-      // If package.json is missing or unreadable, fall back to node:test
-      return 'No package.json found. Use Node.js built-in test runner: import { describe, it } from \'node:test\'; import assert from \'node:assert\';';
+      const framework = this.#detectFramework({}, { scripts: {} }, task);
+      return this.#buildFrameworkHint(framework, { scripts: {} });
     }
+  }
+
+  #detectNativeFramework(task) {
+    const language = normalizeLanguageCandidate(task?.language);
+    if (!language || language === 'js' || language === 'ts' || language === 'other') return null;
+    const framework = NATIVE_TEST_FRAMEWORKS[language];
+    return framework ? { ...framework, detectionBasis: 'the task language and repository-native conventions' } : null;
   }
 
   /**
@@ -86,8 +231,10 @@ Test files created: list of files. Test results: X passed, Y failed.
    * @param {object} pkg — parsed package.json
    * @returns {{ framework: string, testCommand: string, imports: string, example: string }}
    */
-  #detectFramework(deps, pkg) {
+  #detectFramework(deps, pkg, task = {}) {
     const testScript = pkg.scripts?.test || '';
+    const sourceFileExt = this.#resolveSourceFileExtension(deps, task);
+    const sourceImport = `../src/myclass.${sourceFileExt}`;
 
     // Jest
     if (deps.jest || testScript.includes('jest')) {
@@ -95,6 +242,7 @@ Test files created: list of files. Test results: X passed, Y failed.
         framework: 'jest',
         testCommand: 'npx jest',
         imports: '// Jest globals (describe, it, expect, beforeEach, afterEach) are available without imports',
+        exampleLanguage: sourceFileExt,
         example: `describe('MyClass', () => {
   it('should do something', () => {
     const obj = new MyClass();
@@ -114,8 +262,9 @@ Test files created: list of files. Test results: X passed, Y failed.
         framework: 'vitest',
         testCommand: 'npx vitest run',
         imports: "import { describe, it, expect } from 'vitest';",
+        exampleLanguage: sourceFileExt,
         example: `import { describe, it, expect } from 'vitest';
-import { MyClass } from '../src/myclass.js';
+import { MyClass } from '${sourceImport}';
 
 describe('MyClass', () => {
   it('should do something', () => {
@@ -132,12 +281,13 @@ describe('MyClass', () => {
       return {
         framework: 'mocha',
         testCommand: hasChai ? 'npx mocha' : 'npx mocha',
+        exampleLanguage: sourceFileExt,
         imports: hasChai
           ? "import { expect } from 'chai';"
           : "import assert from 'node:assert';",
         example: hasChai
           ? `import { expect } from 'chai';
-import { MyClass } from '../src/myclass.js';
+import { MyClass } from '${sourceImport}';
 
 describe('MyClass', () => {
   it('should do something', () => {
@@ -146,7 +296,7 @@ describe('MyClass', () => {
   });
 });`
           : `import assert from 'node:assert';
-import { MyClass } from '../src/myclass.js';
+import { MyClass } from '${sourceImport}';
 
 describe('MyClass', () => {
   it('should do something', () => {
@@ -163,8 +313,9 @@ describe('MyClass', () => {
         framework: 'ava',
         testCommand: 'npx ava',
         imports: "import test from 'ava';",
+        exampleLanguage: sourceFileExt,
         example: `import test from 'ava';
-import { MyClass } from '../src/myclass.js';
+import { MyClass } from '${sourceImport}';
 
 test('should do something', t => {
   const obj = new MyClass();
@@ -178,9 +329,10 @@ test('should do something', t => {
       framework: 'node:test',
       testCommand: 'node --test',
       imports: "import { describe, it } from 'node:test';\nimport assert from 'node:assert';",
+      exampleLanguage: sourceFileExt,
       example: `import { describe, it } from 'node:test';
 import assert from 'node:assert';
-import { MyClass } from '../src/myclass.js';
+import { MyClass } from '${sourceImport}';
 
 describe('MyClass', () => {
   it('should do something', () => {
@@ -198,13 +350,30 @@ describe('MyClass', () => {
   }
 
   /**
+   * Resolve source extension for test examples from available dependency context.
+   * @param {object} deps
+   * @returns {string}
+   */
+  #resolveSourceFileExtension(deps, task = {}) {
+    const taskLanguage = normalizeLanguageCandidate(task?.language);
+    if (taskLanguage === 'ts') return 'ts';
+    if (taskLanguage === 'js') return 'js';
+    if (!deps) return 'js';
+    return deps.typescript || deps['ts-jest'] || deps['ts-node'] || deps['ts-loader'] || deps.tsx
+      ? 'ts'
+      : 'js';
+  }
+
+  /**
    * Build the framework hint text to inject into the prompt.
    */
   #buildFrameworkHint(framework, pkg) {
     const testCmd = pkg.scripts?.test || framework.testCommand;
+    const codeFenceLanguage = framework.exampleLanguage || 'text';
+    const detectionBasis = framework.detectionBasis || 'package.json analysis';
     return `## Detected Test Framework: ${framework.framework}
 
-Based on package.json analysis, this project uses **${framework.framework}** as its test framework.
+Based on ${detectionBasis}, this project uses **${framework.framework}** as its test framework.
 
 ### Import Statements
 ${framework.imports}
@@ -213,7 +382,7 @@ ${framework.imports}
 Run tests with: \`${testCmd}\`
 
 ### Example Test Structure
-\`\`\`js
+\`\`\`${codeFenceLanguage}
 ${framework.example}
 \`\`\`
 

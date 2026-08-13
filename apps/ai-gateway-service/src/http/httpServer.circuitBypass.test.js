@@ -54,11 +54,14 @@ function createGatewayApplication(overrides = {}) {
     healthScorer: {
       getAllScores: () => ({}),
     },
-    ...overrides,
+    userExperienceService: {
+      getDashboard: () => ({ route: "/dashboard/status" }),
+    },
   };
 
   return {
     ...application,
+    ...overrides,
     runtimeEnv: {
       ...application.runtimeEnv,
       ...(overrides.runtimeEnv ?? {}),
@@ -67,7 +70,6 @@ function createGatewayApplication(overrides = {}) {
       ...application.enterpriseGovernanceService,
       ...(overrides.enterpriseGovernanceService ?? {}),
     },
-    ...overrides,
   };
 }
 

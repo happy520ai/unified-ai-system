@@ -61,6 +61,7 @@ jobs:
 
       - name: Language policy check
         run: |
+          mkdir -p .tmp
           set -o pipefail
           node ./tools/check-language-policy.mjs --json 2>&1 | tee .tmp/language-policy-check.json
 
