@@ -88,8 +88,13 @@ Current CI pipelines publish:
 - On trend-health smoke failure, include `.tmp/quality-trend-incident-bundle.md` and `.tmp/quality-trend-incident-bundle.json` for structured handoff.
 - `.tmp/quality-trend-verify-artifacts.json`
 - `.tmp/quality-trend-health-smoke.json` (quality-trend workflow smoke output)
+- `.tmp/quality-evidence-artifacts.json` (`ci.yml`)
+- `.tmp/quality-trend-required-artifacts.json` (`quality-trend.yml`)
 
 For failed trend runs, the evidence completeness gate in `quality-trend` workflows now treats all files in the list above as required for triage continuity.
+
+The CI gates now also validate artifact integrity (JSON parseability and non-empty payloads) via
+`tools/assert-quality-evidence-artifacts.mjs`, not just filename presence.
 
 ## Escalation flow
 

@@ -114,7 +114,7 @@ jobs:
             SMOKE_ARGS+=("--hard-block")
           fi
 
-          pnpm quality:trend-health-smoke -- "${SMOKE_ARGS[@]}"
+          pnpm quality:trend-health-smoke -- "${SMOKE_ARGS[@]}" | tee .tmp/quality-trend-health-smoke.json
 
       - name: Verify quality trend artifact parity
         run: |
@@ -143,6 +143,15 @@ jobs:
             echo "" >> "$GITHUB_STEP_SUMMARY"
             echo "## Quality artifact verification result" >> "$GITHUB_STEP_SUMMARY"
             cat .tmp/quality-trend-verify-artifacts.json >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Append quality trend smoke output to workflow summary
+        if: always()
+        run: |
+          if [ -f .tmp/quality-trend-health-smoke.json ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "## Quality trend smoke output" >> "$GITHUB_STEP_SUMMARY"
+            cat .tmp/quality-trend-health-smoke.json >> "$GITHUB_STEP_SUMMARY"
           fi
 
       - name: Append quality trend guardrail configuration to summary
@@ -194,38 +203,22 @@ jobs:
       - name: Assert required quality evidence artifacts
         if: always()
         run: |
-          required_files=(
-            .tmp/quality-scorecard.json
-            .tmp/circuit-recovery-drill-dry-run.json
-            .tmp/quality-ci-verification.json
-            .tmp/quality-trend-verify-artifacts.json
-            .tmp/quality-trend.json
-            .tmp/quality-trend-summary.md
-            .tmp/quality-trend-guardrail.json
-            .tmp/quality-trend-digest.md
-            .tmp/quality-trend-digest.json
-            .tmp/quality-trend-check.json
-            .tmp/quality-trend-incident-bundle.md
-            .tmp/quality-trend-incident-bundle.json
-          )
-
-          missing_files=()
-          for artifact in "${required_files[@]}"; do
-            if [ ! -s "${artifact}" ]; then
-              missing_files+=("${artifact}")
-            fi
-          done
-          if [ ${#missing_files[@]} -gt 0 ]; then
-            {
-              echo "## Required quality evidence artifacts missing"
-              for artifact in "${missing_files[@]}"; do
-                echo "- ${artifact}"
-              done
-            } >> "$GITHUB_STEP_SUMMARY"
-            echo "Required quality evidence artifacts missing:"
-            printf ' - %s\n' "${missing_files[@]}"
-            exit 1
-          fi
+          node ./tools/assert-quality-evidence-artifacts.mjs \
+            --json \
+            --required-artifact .tmp/quality-scorecard.json \
+            --required-artifact .tmp/circuit-recovery-drill-dry-run.json \
+            --required-artifact .tmp/quality-ci-verification.json \
+            --required-artifact .tmp/quality-trend-verify-artifacts.json \
+            --required-artifact .tmp/quality-trend.json \
+            --required-artifact .tmp/quality-trend-summary.md \
+            --required-artifact .tmp/quality-trend-guardrail.json \
+            --required-artifact .tmp/quality-trend-digest.md \
+            --required-artifact .tmp/quality-trend-digest.json \
+            --required-artifact .tmp/quality-trend-check.json \
+            --required-artifact .tmp/quality-trend-incident-bundle.md \
+            --required-artifact .tmp/quality-trend-incident-bundle.json \
+            --required-artifact .tmp/quality-trend-health-smoke.json \
+            | tee .tmp/quality-evidence-artifacts.json
 
       - name: Codex MCP server
         if: always()
@@ -293,6 +286,8 @@ jobs:
             .tmp/quality-trend-recommendations.md
             .tmp/quality-trend-incident-bundle.md
             .tmp/quality-trend-incident-bundle.json
+            .tmp/quality-trend-health-smoke.json
+            .tmp/quality-evidence-artifacts.json
             .tmp/public-clone-verify.log
             .tmp/mcp-verify.log
             .tmp/mcp-smoke.json
