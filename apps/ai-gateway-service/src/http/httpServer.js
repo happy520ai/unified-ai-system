@@ -784,7 +784,7 @@ function createGatewayResilienceMetrics() {
   };
 }
 
-function createGatewayErrorCircuitBreaker(options = {}) {
+export function createGatewayErrorCircuitBreaker(options = {}) {
   const {
     failureThreshold = 1,
     successThreshold = 1,
