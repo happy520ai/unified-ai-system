@@ -82,7 +82,7 @@ jobs:
             quality-trend-${{ github.ref_name }}-${{ runner.os }}-
 
       - name: Run quality trend smoke health check
-        continue-on-error: true
+        continue-on-error: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.enforce_trend_guardrails != 'true' && github.event.inputs.quality_trend_hard_block != 'true' && env.QUALITY_TREND_HARD_BLOCK != 'true') }}
         run: |
           SMOKE_ARGS=(
             --json

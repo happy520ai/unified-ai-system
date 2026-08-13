@@ -28,6 +28,7 @@ function parseArgs() {
     showHelp: false,
     unknownArgs: [],
     qualityThreshold: parsePositiveInteger(process.env.QUALITY_THRESHOLD, 165),
+    requireTrendHealth: parseBoolean(process.env.QUALITY_REQUIRE_TREND_HEALTH, true),
     trendPath: ".tmp/quality-trend.json",
     trendSummaryPath: ".tmp/quality-trend-summary.md",
     trendGuardrailPath: ".tmp/quality-trend-guardrail.json",
@@ -67,6 +68,15 @@ function parseArgs() {
     }
     if (arg.startsWith("--require-score=")) {
       values.qualityThreshold = parsePositiveInteger(arg.slice("--require-score=".length), values.qualityThreshold);
+      continue;
+    }
+    if (arg === "--trend-health") {
+      values.requireTrendHealth = parseBoolean(args[index + 1], values.requireTrendHealth);
+      index += 1;
+      continue;
+    }
+    if (arg === "--no-trend-health") {
+      values.requireTrendHealth = false;
       continue;
     }
     if (arg === "--trend") {
@@ -199,6 +209,8 @@ function printUsage() {
     "",
     "Options:",
     "  --require-score <N>        Quality score threshold for quality:ci:trend-health",
+    "  --trend-health <boolean>   Enable trend health mode (default true)",
+    "  --no-trend-health          Disable trend health mode; use quality:ci fallback for compatibility",
     "  --trend <path>             Trend history input path (default .tmp/quality-trend.json)",
     "  --summary <path>           Trend summary output path (default .tmp/quality-trend-summary.md)",
     "  --guardrail <path>         Guardrail output path (default .tmp/quality-trend-guardrail.json)",
@@ -470,16 +482,17 @@ function main() {
   }
 
   const ciResult = runCommand(
-    "quality:ci:trend-health",
+    options.requireTrendHealth ? "quality:ci:trend-health" : "quality:ci",
     ["--json", "--require-score", String(options.qualityThreshold)],
     240000,
   );
+  const ciCommand = options.requireTrendHealth ? "quality:ci:trend-health" : "quality:ci";
   steps.push({
     label: "quality-ci",
     ok: ciResult.ok,
     steps: [
       {
-        command: "quality:ci:trend-health",
+        command: ciCommand,
         ok: ciResult.ok,
         status: ciResult.status,
         output: ciResult.output,
@@ -489,12 +502,15 @@ function main() {
     checkResult: parseJson(ciResult.output),
   });
   if (!ciResult.ok) {
-    emitFailureSummary(options, steps, artifacts, "quality-ci-failed", "quality:ci:trend-health failed");
+    emitFailureSummary(options, steps, artifacts, "quality-ci-failed", `${ciCommand} failed`);
     return;
   }
 
+  const verifyCommand = options.requireTrendHealth
+    ? "quality:verify-artifacts:trend-health"
+    : "quality:verify-artifacts";
   const verifyResult = runCommand(
-    "quality:verify-artifacts:trend-health",
+    verifyCommand,
     [
       "--json",
       "--quality",
@@ -542,7 +558,7 @@ function main() {
       steps,
       artifacts,
       "verify-artifacts-failed",
-      "quality:verify-artifacts:trend-health failed",
+      `${verifyCommand} failed`,
     );
     return;
   }

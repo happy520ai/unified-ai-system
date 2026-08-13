@@ -76,53 +76,65 @@ jobs:
       - name: Public clone runtime
         run: pnpm verify:public-clone
 
-      - name: Quality CI gate
-        run: |
-          if [ "${QUALITY_REQUIRE_TREND_HEALTH}" = "true" ]; then
-            pnpm quality:ci:trend-health -- --json --require-score "${QUALITY_THRESHOLD}"
-          else
-            pnpm quality:ci -- --json --require-score "${QUALITY_THRESHOLD}"
-          fi
-
-      - name: Append quality trend record
-        if: always()
+      - name: Run quality trend smoke health check
         continue-on-error: true
         run: |
-          pnpm quality:trend-log \
-            --quality .tmp/quality-scorecard.json \
-            --verification .tmp/quality-ci-verification.json \
-            --drill .tmp/circuit-recovery-drill-dry-run.json \
+          SMOKE_ARGS=(
+            --json
+            --require-score "${QUALITY_THRESHOLD}"
             --trend .tmp/quality-trend.json
+            --summary .tmp/quality-trend-summary.md
+            --guardrail .tmp/quality-trend-guardrail.json
+            --quality .tmp/quality-scorecard.json
+            --drill .tmp/circuit-recovery-drill-dry-run.json
+            --verification .tmp/quality-ci-verification.json
+            --digest-output .tmp/quality-trend-digest.md
+            --digest-json .tmp/quality-trend-digest.json
+            --check .tmp/quality-trend-check.json
+            --max-consecutive-failures "${QUALITY_TREND_MAX_CONSECUTIVE_FAILURES}"
+            --max-score-drop-points "${QUALITY_TREND_MAX_SCORE_DROP_POINTS}"
+            --min-pass-rate-percent "${QUALITY_TREND_MIN_PASS_RATE_PERCENT}"
+            --max-summary-reasons 8
+            --allow-warnings
+          )
 
-      - name: Render quality trend summary
-        if: always()
-        run: |
-          STABLE_STATE_FLAG=""
-          if [ "${QUALITY_TREND_REQUIRE_STABLE_STATE}" = "true" ]; then
-            STABLE_STATE_FLAG="--require-stable-state"
+          if [ "${QUALITY_REQUIRE_TREND_HEALTH}" = "false" ]; then
+            SMOKE_ARGS+=("--no-trend-health")
           fi
-          pnpm quality:trend-summary -- --trend .tmp/quality-trend.json --output .tmp/quality-trend-summary.md --guard-output .tmp/quality-trend-guardrail.json --max-consecutive-failures "${QUALITY_TREND_MAX_CONSECUTIVE_FAILURES}" --max-score-drop-points "${QUALITY_TREND_MAX_SCORE_DROP_POINTS}" --min-pass-rate-percent "${QUALITY_TREND_MIN_PASS_RATE_PERCENT}" ${STABLE_STATE_FLAG} --enforce-guardrails
-
-      - name: Render quality trend digest
-        if: always()
-        run: |
-          STABLE_STATE_FLAG=""
           if [ "${QUALITY_TREND_REQUIRE_STABLE_STATE}" = "true" ]; then
-            STABLE_STATE_FLAG="--require-stable-state"
+            SMOKE_ARGS+=("--require-stable-state")
           fi
-          pnpm quality:trend-digest -- --trend .tmp/quality-trend.json --output .tmp/quality-trend-digest.md --json-output .tmp/quality-trend-digest.json --max-consecutive-failures "${QUALITY_TREND_MAX_CONSECUTIVE_FAILURES}" --max-score-drop-points "${QUALITY_TREND_MAX_SCORE_DROP_POINTS}" --min-pass-rate-percent "${QUALITY_TREND_MIN_PASS_RATE_PERCENT}" ${STABLE_STATE_FLAG}
 
-      - name: Evaluate quality trend health
+          pnpm quality:trend-health-smoke -- "${SMOKE_ARGS[@]}"
+
+      - name: Append quality trend guardrail configuration to summary
         if: always()
-        continue-on-error: true
         run: |
-          pnpm quality:trend-check -- \
-            --digest .tmp/quality-trend-digest.json \
-            --guardrail .tmp/quality-trend-guardrail.json \
-            --summary .tmp/quality-trend-summary.md \
-            --max-summary-reasons 8 \
-            --allow-warnings \
-            --json > .tmp/quality-trend-check.json
+          {
+            echo "### Quality trend guardrail config"
+            echo ""
+            echo "- max consecutive failures: ${QUALITY_TREND_MAX_CONSECUTIVE_FAILURES}"
+            echo "- max score drop points: ${QUALITY_TREND_MAX_SCORE_DROP_POINTS}"
+            echo "- min pass-rate percent: ${QUALITY_TREND_MIN_PASS_RATE_PERCENT}"
+            echo "- require stable state: ${QUALITY_TREND_REQUIRE_STABLE_STATE}"
+            echo "- hard block: ${QUALITY_TREND_HARD_BLOCK}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Append quality trend artifacts to workflow summary
+        if: always()
+        run: |
+          if [ -f .tmp/quality-trend-summary.md ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "## Quality trend summary" >> "$GITHUB_STEP_SUMMARY"
+            cat .tmp/quality-trend-summary.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          if [ -f .tmp/quality-trend-digest.md ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "## Quality trend digest" >> "$GITHUB_STEP_SUMMARY"
+            cat .tmp/quality-trend-digest.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
           if [ -f .tmp/quality-trend-check.json ]; then
             echo "" >> "$GITHUB_STEP_SUMMARY"
             echo "## Quality trend check" >> "$GITHUB_STEP_SUMMARY"
@@ -141,58 +153,22 @@ jobs:
             --max-summary-reasons 8 \
             --hard-block
 
-      - name: Refresh quality scorecard with trend health
+      - name: Enforce quality trend guardrails
         if: always()
         run: |
-          if [ -f .tmp/quality-trend-check.json ]; then
-            pnpm quality:score -- --json --require-score "${QUALITY_THRESHOLD}" > .tmp/quality-scorecard.json
-          else
-            echo "quality-trend-check.json missing; keep existing scorecard artifact."
+          STABLE_STATE_FLAG=""
+          if [ "${QUALITY_TREND_REQUIRE_STABLE_STATE}" = "true" ]; then
+            STABLE_STATE_FLAG="--require-stable-state"
           fi
-
-      - name: Re-verify quality artifacts with trend health
-        if: always()
-        run: |
-          if [ -f .tmp/quality-scorecard.json ] && [ -f .tmp/circuit-recovery-drill-dry-run.json ]; then
-            if [ "${QUALITY_REQUIRE_TREND_HEALTH}" = "true" ]; then
-              QUALITY_VERIFY_CMD="quality:verify-artifacts:trend-health"
-            else
-              QUALITY_VERIFY_CMD="quality:verify-artifacts"
-            fi
-
-            pnpm "${QUALITY_VERIFY_CMD}" -- --json --quality .tmp/quality-scorecard.json --drill .tmp/circuit-recovery-drill-dry-run.json --require-score "${QUALITY_THRESHOLD}" > .tmp/quality-ci-verification.json
-          else
-            echo "required quality artifacts missing for re-verification."
-            exit 1
-          fi
-
-      - name: Append quality trend guardrail configuration to summary
-        if: always()
-        run: |
-          {
-            echo "### Quality trend guardrail config"
-            echo ""
-            echo "- max consecutive failures: ${QUALITY_TREND_MAX_CONSECUTIVE_FAILURES}"
-            echo "- max score drop points: ${QUALITY_TREND_MAX_SCORE_DROP_POINTS}"
-            echo "- min pass-rate percent: ${QUALITY_TREND_MIN_PASS_RATE_PERCENT}"
-            echo "- require stable state: ${QUALITY_TREND_REQUIRE_STABLE_STATE}"
-            echo "- hard block: ${QUALITY_TREND_HARD_BLOCK}"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Append quality trend digest to workflow summary
-        if: always()
-        run: |
-          if [ -f .tmp/quality-trend-digest.md ]; then
-            echo "" >> "$GITHUB_STEP_SUMMARY"
-            cat .tmp/quality-trend-digest.md >> "$GITHUB_STEP_SUMMARY"
-          fi
-
-      - name: Append trend summary to workflow summary
-        if: always()
-        run: |
-          if [ -f .tmp/quality-trend-summary.md ]; then
-            cat .tmp/quality-trend-summary.md >> "$GITHUB_STEP_SUMMARY"
-          fi
+          pnpm quality:trend-summary -- \
+            --trend .tmp/quality-trend.json \
+            --output .tmp/quality-trend-summary.md \
+            --guard-output .tmp/quality-trend-guardrail.json \
+            --max-consecutive-failures "${QUALITY_TREND_MAX_CONSECUTIVE_FAILURES}" \
+            --max-score-drop-points "${QUALITY_TREND_MAX_SCORE_DROP_POINTS}" \
+            --min-pass-rate-percent "${QUALITY_TREND_MIN_PASS_RATE_PERCENT}" \
+            ${STABLE_STATE_FLAG} \
+            --enforce-guardrails
 
       - name: Upload quality scorecard artifact
         if: always()

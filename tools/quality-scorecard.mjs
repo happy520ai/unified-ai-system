@@ -302,7 +302,7 @@ function checkWorkflowGuardrails() {
       "pnpm check:public",
       "pnpm verify:public-clone",
       "pnpm smoke:mcp",
-      "pnpm quality:ci",
+      "pnpm quality:trend-health-smoke",
       "quality-scorecard.json",
       "circuit-recovery-drill-dry-run.json",
       "quality-ci-verification.json",
@@ -555,15 +555,14 @@ function checkTrendDigestOperations() {
       "quality-trend-digest.md",
     ];
     const requiredWorkflowMarkers = [
-      "quality:trend-digest --",
+      "quality:trend-health-smoke --",
       "quality-trend-digest.md",
       "quality-trend-digest.json",
       "quality-trend-check.json",
-      "quality:trend-check --",
       "QUALITY_TREND_HARD_BLOCK",
       "quality_trend_hard_block",
       "--hard-block",
-      "Append quality trend digest to workflow summary",
+      "Append quality trend artifacts to workflow summary",
       "Upload quality scorecard artifact",
     ];
     const requiredGuideMarkers = [
