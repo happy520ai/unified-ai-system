@@ -23,6 +23,20 @@ Unified AI System is a modular monolith with reusable workspace packages.
   real providers are disabled.
 - Generated evidence is local runtime output and is not source code.
 
+## Language and ownership policy
+
+- `apps/ai-gateway-service` and `apps/agent-console` use **TypeScript** for
+  production runtime behavior, API contracts, and operator tooling integration.
+- `packages/*` use **TypeScript** for reusable contracts, SDKs, shared helpers,
+  engines, and cross-cutting utilities.
+- `tools/*.mjs` use **Node.js (ESM JavaScript)** for build, quality, smoke,
+  and release tooling where script agility and ecosystem interoperability are the
+  priority.
+- **JSON** defines protocol, schema, and runtime contract artifacts.
+- **Markdown** is reserved for runbooks, evidence, and protocol/operator docs.
+- New runtime language introductions (for example Rust/Go or Python services) must
+  have a measured reason in PR, benchmark motivation, and a migration boundary.
+
 ## Request Flow
 
 ```text
