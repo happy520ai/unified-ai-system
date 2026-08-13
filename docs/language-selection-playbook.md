@@ -12,6 +12,8 @@ language for maintainability, safety, and runtime outcomes in this repository.
   `tools/*.mjs` should remain Node.js ESM JavaScript.
 - JSON is used for machine-consumable data contracts; Markdown is used for
   evidence, runbooks, and operator documentation.
+- Scripted demonstrations and protocol examples are expected in JavaScript when
+  they are CLI-first, local-first, or intentionally user-facing sample code.
 
 ## 2. Language choice decision matrix
 
@@ -22,6 +24,21 @@ For each candidate language, evaluate each change against:
 - `operability`: deployment, observability, and support tooling availability
 - `safety`: error model, type guarantees, and policy boundary separation
 - `migration debt`: effort to migrate or integrate with existing modules
+- `ecosystem fit`: existing dependencies, observability stack, and deployment
+  compatibility in this repository.
+
+Use this quick scorecard before editing code:
+
+```text
+1. Domain fit:
+2. Maintenance:
+3. Operability:
+4. Safety:
+5. Migration debt:
+6. Ecosystem fit:
+```
+
+Each criterion uses 1-5 and sums must justify the decision versus alternatives.
 
 ### Recommended default result
 
@@ -33,9 +50,19 @@ For each candidate language, evaluate each change against:
   that quantifies clear boundary and operational gains, plus an explicit migration
   and compatibility plan.
 
+### Hard exclusion list
+
+- A new runtime language should not be introduced in `apps/*` or `packages/*`
+  when it weakens fake-provider defaults or contract boundary consistency.
+- New runtime languages must not cross-process call provider credentials without
+  explicit threat and compatibility review.
+- If a language has no measurable boundary benefit and only novelty value,
+  reject by default.
+
 ## 3. Decision record required for each PR
 
-Before merging a PR that touches runtime code (including tools, packages, or apps),
+Before merging any PR that changes runtime behavior or operational scripts
+(including `apps/*`, `packages/*`, or `tools/*.mjs`),
 record the following in the PR description:
 
 1. Changed code boundary and reason this boundary is stable.
@@ -44,6 +71,16 @@ record the following in the PR description:
    runtime behavior, and migration cost).
 4. Compatibility impact and rollback boundary.
 5. Evidence or rationale (benchmark/ops plan/complexity estimate).
+
+### Required evidence template
+
+- **Workload:** (one sentence)
+- **Primary path:** (file(s))
+- **Alternative A (B, C, ...):** (language + 1-line reason)
+- **Chosen language:** (why, with at least 2 scored criteria)
+- **Compatibility/rollback boundary:** (what is impacted and how rollback is validated)
+- **Policy impact:** (fake-provider, public contract, evidence artifacts)
+- **Quantified risk mitigation:** (exact test/gate/monitoring that closes key risks)
 
 ## 4. Hard block conditions
 
@@ -60,3 +97,9 @@ Language selection is not a free choice for novelty.
 If a PR introduces new runtime language files under `apps/*` or `packages/*`, add a
 reviewable note in the PR body linking to this playbook and explaining why existing
 TypeScript-first defaults were not used.
+
+When a PR touches non-default language files in runtime paths, attach:
+
+- The scored decision table
+- A one-line risk closure plan
+- Evidence that `QUALITY` checks still pass after the change

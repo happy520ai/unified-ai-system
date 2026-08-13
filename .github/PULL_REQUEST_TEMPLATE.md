@@ -6,6 +6,16 @@ Describe the user or operator problem.
 
 Summarize the focused implementation.
 
+## Language Selection
+
+For each changed runtime/module boundary, summarize the language decision:
+
+- **Language choice rationale:** (why this language is the best fit)
+- **Alternatives considered:** (A/B/C with trade-offs)
+- **Compatibility and rollback scope:** (where this can break and rollback plan)
+- **Policy impact:** (fake-provider/default behavior/contract/evidence)
+- **Risk closure:** (gates/tests/monitoring proving safe behavior)
+
 ## Verification
 
 List the commands and observable results used to verify the change.
@@ -34,6 +44,7 @@ behavior changes.
 - [ ] Public behavior and documentation agree.
 - [ ] Changes follow the module ownership policy (TypeScript-first for new work in
   apps/packages, Node.js ESM for tools, JSON/Markdown for schemas/docs).
+- [ ] Language selection section is completed with alternatives and compatibility impact.
 - [ ] Language was selected via [Language Selection Playbook](/docs/language-selection-playbook.md):
   workload profile, alternatives, compatibility impact, and migration/rollback scope are documented.
 - [ ] Production, L5, and AGI claims remain evidence-based.

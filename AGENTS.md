@@ -23,7 +23,9 @@
 - For every PR that touches runtime code or scripts, follow
   [Language Selection Playbook](/docs/language-selection-playbook.md):
   define the workload, compare alternatives, document why the selected language is
-  the best fit, and capture rollback/compatibility impact.
+  the best fit, and capture rollback/compatibility impact.  
+  PRs that do not include a `Language Selection` section using the playbook
+  checklist are not considered merge-ready.
 
 ## Public Repository Rules
 
