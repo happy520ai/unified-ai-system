@@ -39,6 +39,8 @@
     "drill:gateway-circuit:dry-run": "node ./tools/circuit-recovery-drill.mjs --dry-run --json",
     "quality:ci": "node ./tools/run-quality-ci-gate.mjs",
     "quality:verify-artifacts": "node ./tools/verify-ci-quality-artifacts.mjs",
+    "quality:verify-artifacts:trend-health": "node ./tools/verify-ci-quality-artifacts.mjs -- --require-trend-health",
+    "quality:ci:trend-health": "pnpm quality:ci -- --require-trend-health",
     "quality:trend-log": "node ./tools/quality-trend-log.mjs",
     "quality:trend-summary": "node ./tools/quality-trend-summary.mjs",
     "quality:trend-digest": "node ./tools/quality-trend-digest.mjs",

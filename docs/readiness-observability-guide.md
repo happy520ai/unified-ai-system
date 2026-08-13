@@ -85,7 +85,7 @@ groups:
 Run this locally if you want to verify observability readiness checks:
 
 ```bash
-pnpm quality:ci -- --json --require-score 165 --require-trend-health
+pnpm quality:ci:trend-health -- --json --require-score 165
 ```
 
 Current checks include:
@@ -158,7 +158,7 @@ pnpm quality:verify-artifacts -- --json
 Use trend-health strict mode when validating CI parity:
 
 ```bash
-pnpm quality:verify-artifacts -- --json --quality .tmp/quality-scorecard.json --drill .tmp/circuit-recovery-drill-dry-run.json --require-score 165 --require-trend-health
+pnpm quality:verify-artifacts:trend-health -- --json --quality .tmp/quality-scorecard.json --drill .tmp/circuit-recovery-drill-dry-run.json --require-score 165
 ```
 
 Useful flags:

@@ -32,7 +32,7 @@ When `blocked: true`, block the change and create a fix ticket for unstable root
 
 - Unstable with consecutive failures:
   - Investigate commit set covering latest runs.
-  - Rerun `pnpm quality:ci -- --json --require-score <threshold> --require-trend-health`.
+- Rerun `pnpm quality:ci:trend-health -- --json --require-score <threshold>`.
 - Single-run sharp score drops:
   - Inspect check-by-check changes between latest scorecards.
   - Check dependent service/environment changes and revert if regression is external.
@@ -44,9 +44,9 @@ When `blocked: true`, block the change and create a fix ticket for unstable root
 
 - `blocked` returns to `false`.
 - Latest check result is `stable` or non-critical (`warning` allowed only if allowed by policy).
-- Latest run passes `pnpm quality:ci -- --json --require-score <threshold> --require-trend-health`.
+- Latest run passes `pnpm quality:ci:trend-health -- --json --require-score <threshold>`.
 - Run trend-validated artifact verification:
-  - `pnpm quality:verify-artifacts -- --json --quality .tmp/quality-scorecard.json --drill .tmp/circuit-recovery-drill-dry-run.json --require-score <threshold> --require-trend-health`.
+  - `pnpm quality:verify-artifacts:trend-health -- --json --quality .tmp/quality-scorecard.json --drill .tmp/circuit-recovery-drill-dry-run.json --require-score <threshold>`.
 - PR summary references `.tmp/quality-trend-check.json` rationale and remediation evidence.
 
 ## 4) Operational escalation
@@ -63,8 +63,8 @@ pnpm quality:trend-summary -- --trend .tmp/quality-trend.json --output .tmp/qual
 pnpm quality:trend-digest -- --trend .tmp/quality-trend.json --output .tmp/quality-trend-digest.md --json-output .tmp/quality-trend-digest.json
 pnpm quality:trend-check -- --digest .tmp/quality-trend-digest.json --guardrail .tmp/quality-trend-guardrail.json --summary .tmp/quality-trend-summary.md --json
 pnpm quality:trend-check -- --digest .tmp/quality-trend-digest.json --guardrail .tmp/quality-trend-guardrail.json --summary .tmp/quality-trend-summary.md --max-summary-reasons 8 --hard-block
-pnpm quality:ci -- --json --require-score 165 --require-trend-health
-pnpm quality:verify-artifacts -- --json --quality .tmp/quality-scorecard.json --drill .tmp/circuit-recovery-drill-dry-run.json --require-score 165 --require-trend-health
+pnpm quality:ci:trend-health -- --json --require-score 165
+pnpm quality:verify-artifacts:trend-health -- --json --quality .tmp/quality-scorecard.json --drill .tmp/circuit-recovery-drill-dry-run.json --require-score 165
 ```
 
 
