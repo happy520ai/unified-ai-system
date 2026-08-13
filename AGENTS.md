@@ -20,6 +20,10 @@
   evidence, and operator documentation.
 - Introducing a new runtime language (for example Go or Rust) requires a measured
   rationale, migration boundary, and compatibility plan in the PR.
+- For every PR that touches runtime code or scripts, follow
+  [Language Selection Playbook](docs/language-selection-playbook.md):
+  define the workload, compare alternatives, document why the selected language is
+  the best fit, and capture rollback/compatibility impact.
 
 ## Public Repository Rules
 

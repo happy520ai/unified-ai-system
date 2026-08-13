@@ -34,6 +34,8 @@ behavior changes.
 - [ ] Public behavior and documentation agree.
 - [ ] Changes follow the module ownership policy (TypeScript-first for new work in
   apps/packages, Node.js ESM for tools, JSON/Markdown for schemas/docs).
+- [ ] Language was selected via [Language Selection Playbook](docs/language-selection-playbook.md):
+  workload profile, alternatives, compatibility impact, and migration/rollback scope are documented.
 - [ ] Production, L5, and AGI claims remain evidence-based.
 - [ ] If trend guardrails are enabled, `.tmp/quality-trend-guardrail.json` was inspected and any `issues` are explained in the PR body.
 - [ ] If trend gate is unstable, `.tmp/quality-trend-summary.md` and `.tmp/quality-ci-verification.json` were reviewed for root-cause evidence.
