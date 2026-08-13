@@ -178,7 +178,7 @@ function checkPluginHardening() {
 function checkRuntimeHardening() {
   try {
     const source = readTextFile("apps/ai-gateway-service/src/http/httpServer.js");
-  const requiredMarkers = [
+    const requiredMarkers = [
       "AI_GATEWAY_REQUEST_TIMEOUT_MS",
       "AI_GATEWAY_MAX_IN_FLIGHT_REQUESTS",
       "AI_GATEWAY_MAX_REQUEST_BODY_BYTES",
@@ -187,6 +187,9 @@ function checkRuntimeHardening() {
       "request_timeout",
       "service_overloaded",
       "parseContentLength",
+      "Access-Control-Allow-Origin",
+      "Access-Control-Allow-Methods",
+      "AI_GATEWAY_CORS_ALLOWED_ORIGINS",
       "createGatewayResilienceMetrics",
       "Content-Security-Policy",
       "Permissions-Policy",
@@ -195,6 +198,32 @@ function checkRuntimeHardening() {
       "Cache-Control",
     ];
     const missingMarkers = requiredMarkers.filter((marker) => !source.includes(marker));
+    return {
+      ok: missingMarkers.length === 0,
+      details: JSON.stringify({ missingMarkers }),
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      details: String(error.message),
+    };
+  }
+}
+
+function checkRequestBodyGuardrails() {
+  try {
+    const serverSource = readTextFile("apps/ai-gateway-service/src/http/httpServer.js");
+    const utilsSource = readTextFile("apps/ai-gateway-service/src/http/utils/responseUtils.js");
+    const requiredMarkers = [
+      "request.maxBodyBytes",
+      "resolveRequestBodyLimit",
+      "request_invalid_json",
+      "request_payload_too_large",
+      "AI_GATEWAY_MAX_REQUEST_BODY_BYTES",
+    ];
+    const missingMarkers = requiredMarkers.filter(
+      (marker) => !(serverSource.includes(marker) || utilsSource.includes(marker)),
+    );
     return {
       ok: missingMarkers.length === 0,
       details: JSON.stringify({ missingMarkers }),
@@ -369,6 +398,7 @@ async function main() {
   const pluginCheck = checkPluginHardening();
   const workflowCheck = checkWorkflowGuardrails();
   const runtimeHardeningCheck = checkRuntimeHardening();
+  const requestBodyGuardrailsCheck = checkRequestBodyGuardrails();
   const metricsCheck = checkMetricsInstrumentation();
   const healthzCheck = checkHealthzReadinessProbe();
   const runbookVisibilityCheck = checkReadinessRunbookVisibility();
@@ -382,6 +412,7 @@ async function main() {
     metrics: metricsCheck,
     pluginHardening: pluginCheck,
     workflowGuardrails: workflowCheck,
+    requestBodyGuardrails: requestBodyGuardrailsCheck,
     healthzProbe: healthzCheck,
     readinessRunbookVisibility: runbookVisibilityCheck,
   };
@@ -426,6 +457,14 @@ async function main() {
     10,
     runtimeHardeningCheck.ok,
     runtimeHardeningCheck.details,
+  );
+  score += addGate(
+    gates,
+    "Request body guardrails",
+    "request body parsing uses configured limits and returns explicit parse/size errors",
+    5,
+    requestBodyGuardrailsCheck.ok,
+    requestBodyGuardrailsCheck.details,
   );
   score += addGate(
     gates,

@@ -197,6 +197,7 @@ const DEFAULT_STREAMING_TIMEOUT_MS = 300_000;
 const DEFAULT_MAX_IN_FLIGHT_REQUESTS = 500;
 const DEFAULT_MAX_REQUEST_BODY_BYTES = 2_097_152; // 2 MB
 const DEFAULT_HEALTHZ_IN_FLIGHT_DEGRADATION_PERCENT = 90;
+const DEFAULT_CORS_ALLOWED_ORIGINS = Object.freeze(["http://127.0.0.1:3100", "http://localhost:3100"]);
 const HTTP_ROUTE_DEPENDENCIES = Object.freeze({
   createErrorEnvelope, createOkEnvelope, getSafeRuntimeConfig, createRouteFailureEnvelope,
   createLocalAgentIntentExplainer, runLocalOperationLoop, getSupportedKnowledgeFileTypes, parseKnowledgeFile,
@@ -263,6 +264,14 @@ export function createGatewayHttpServer(application) {
     requestConfig.AI_GATEWAY_MAX_REQUEST_BODY_BYTES,
     DEFAULT_MAX_REQUEST_BODY_BYTES,
   );
+  const corsAllowedOrigins = parseAllowedOrigins(
+    requestConfig.AI_GATEWAY_CORS_ALLOWED_ORIGINS,
+    DEFAULT_CORS_ALLOWED_ORIGINS,
+  );
+  const corsMaxAgeSeconds = parsePositiveInteger(
+    requestConfig.AI_GATEWAY_CORS_MAX_AGE_SECONDS,
+    86400,
+  );
   const inFlightRequests = new Set();
   const resilienceMetrics = createGatewayResilienceMetrics();
   const a2aGateway = createA2AGateway({
@@ -325,6 +334,35 @@ export function createGatewayHttpServer(application) {
     request.headers["x-request-id"] = requestId;
     response.setHeader("x-request-id", requestId);
     applySecurityHeaders(response);
+    request.maxBodyBytes = maxRequestBodyBytes;
+    applyCorsHeaders(response, request.headers.origin, corsAllowedOrigins, corsMaxAgeSeconds);
+
+    if (request.method === "OPTIONS") {
+      const origin = request.headers.origin;
+      const isCorsPreflight = Boolean(request.headers["access-control-request-method"]);
+      if (!isCorsPreflight && !origin) {
+        response.writeHead(204);
+        response.end();
+        return;
+      }
+      const isAllowedCorsOrigin = isCorsOriginAllowed(origin, corsAllowedOrigins);
+      if (!isAllowedCorsOrigin) {
+        writeJson(
+          response,
+          403,
+          createErrorEnvelope("cors_origin_restricted", "Request origin is not allowed for CORS.", {
+            startedAt,
+            category: "security",
+            origin,
+          }),
+        );
+        return;
+      }
+      response.statusCode = 204;
+      response.end();
+      return;
+    }
+
     inFlightRequests.add(requestId);
     const refreshInFlightGauge = () => resilienceMetrics.recordInFlight(inFlightRequests.size);
     refreshInFlightGauge();
@@ -497,16 +535,57 @@ export function createGatewayHttpServer(application) {
       );
     } catch (error) {
       resilienceMetrics.recordUnhandledError();
+      if (response.writableEnded || response.headersSent) {
+        return;
+      }
+      const normalizedError = createNormalizedHttpError(error);
       writeJson(
         response,
-        500,
-        createErrorEnvelope("http_handler_error", error instanceof Error ? error.message : "Unknown HTTP error", {
+        normalizedError.statusCode,
+        createErrorEnvelope(normalizedError.code, normalizedError.message, {
           startedAt,
-          category: "internal",
+          category: normalizedError.category,
+          ...normalizedError.details,
         }),
       );
     }
   });
+}
+
+function createNormalizedHttpError(error) {
+  if (error instanceof Error) {
+    if (error.code && typeof error.code === "string") {
+      const normalizedCode = error.code;
+      const status = Number(error.statusCode);
+      const normalizedStatusCode = Number.isFinite(status) && status >= 400 && status <= 599
+        ? status
+        : normalizedCode === "request_invalid_json"
+          ? 400
+          : normalizedCode === "request_payload_too_large"
+            ? 413
+            : 500;
+      return {
+        code: normalizedCode,
+        statusCode: normalizedStatusCode,
+        category: normalizedCode === "request_invalid_json" || normalizedCode === "request_payload_too_large"
+          ? "request"
+          : "internal",
+        message: error.message || "Unknown HTTP error",
+        details: {
+          ...(error.retryable ? { retryable: error.retryable } : {}),
+          ...(typeof error.limit === "number" ? { limit: error.limit } : {}),
+          ...(typeof error.receivedBytes === "number" ? { receivedBytes: error.receivedBytes } : {}),
+        },
+      };
+    }
+  }
+  return {
+    code: "http_handler_error",
+    statusCode: 500,
+    category: "internal",
+    message: error instanceof Error ? error.message : "Unknown HTTP error",
+    details: {},
+  };
 }
 
 function createGatewayResilienceMetrics() {
@@ -599,6 +678,50 @@ function applySecurityHeaders(response) {
   response.setHeader("X-Permitted-Cross-Domain-Policies", "none");
   response.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
   response.setHeader("Pragma", "no-cache");
+}
+
+function parseAllowedOrigins(rawValue, fallback) {
+  if (typeof rawValue !== "string") {
+    return [...fallback];
+  }
+
+  const parsed = rawValue
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  if (parsed.length === 0) {
+    return [...fallback];
+  }
+
+  return Array.from(new Set(parsed));
+}
+
+function isCorsOriginAllowed(origin, allowedOrigins) {
+  if (!origin) {
+    return false;
+  }
+  if (allowedOrigins.includes("*")) {
+    return true;
+  }
+  return allowedOrigins.includes(origin.trim());
+}
+
+function applyCorsHeaders(response, origin, allowedOrigins, maxAgeSeconds) {
+  if (isCorsOriginAllowed(origin, allowedOrigins)) {
+    const allowOrigin = allowedOrigins.includes("*") ? "*" : origin?.trim();
+    response.setHeader("Access-Control-Allow-Origin", allowOrigin ?? "*");
+    if (allowOrigin !== "*") {
+      response.setHeader("Access-Control-Allow-Credentials", "true");
+    }
+    response.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Request-ID, X-Request-Context, X-Client-ID");
+    response.setHeader("Access-Control-Allow-Methods", "GET,HEAD,POST,PUT,PATCH,DELETE,OPTIONS");
+    response.setHeader("Access-Control-Expose-Headers", "X-Request-ID, RateLimit-Limit, RateLimit-Remaining, RateLimit-Window, Retry-After");
+    response.setHeader("Access-Control-Max-Age", String(Math.max(0, maxAgeSeconds)));
+    response.setHeader("Vary", "Origin");
+  } else {
+    response.setHeader("Vary", "Origin");
+  }
 }
 
 function createRouteAwareRateLimiter(runtimeEnv = {}) {
