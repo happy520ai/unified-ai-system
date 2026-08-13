@@ -263,6 +263,12 @@ If you inspect workflow artifacts, you can load:
 - Incident bundle fields must match `tools/quality-trend-incident-bundle.schema.json` (schemaVersion, thresholds, trendHealth, artifacts, failedSteps, etc.).
 - Incident bundle payloads should also include `trendConsistency` (checks plus issue summary) so trend check parity is auditable.
 - `.tmp/quality-trend-verify-artifacts.json` records parity check outputs including missing/mismatched consistency issues and is useful for root-cause review after a failed quality run.
+- Runtime verification evidence files available in the `quality-scorecard` artifact:
+  - `.tmp/public-clone-verify.log`
+  - `.tmp/mcp-verify.log`
+  - `.tmp/mcp-smoke.json`
+  - `.tmp/gateway-doctor.json`
+  - `.tmp/gateway-demo.json`
 
 For full triage sequence and owners, follow:
 

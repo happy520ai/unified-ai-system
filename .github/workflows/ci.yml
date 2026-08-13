@@ -74,7 +74,10 @@ jobs:
         run: docker compose config --quiet
 
       - name: Public clone runtime
-        run: pnpm verify:public-clone
+        if: always()
+        run: |
+          set -o pipefail
+          pnpm verify:public-clone 2>&1 | tee .tmp/public-clone-verify.log
 
       - name: Run quality trend smoke health check
         run: |
@@ -188,6 +191,53 @@ jobs:
             cat .tmp/quality-trend-incident-bundle.md >> "$GITHUB_STEP_SUMMARY"
           fi
 
+      - name: Codex MCP server
+        if: always()
+        run: |
+          set -o pipefail
+          pnpm verify:mcp 2>&1 | tee .tmp/mcp-verify.log
+          pnpm smoke:mcp --json 2>&1 | tee .tmp/mcp-smoke.json
+
+      - name: Terminal CLI
+        if: always()
+        run: |
+          set -o pipefail
+          pnpm gateway doctor --json 2>&1 | tee .tmp/gateway-doctor.json
+          pnpm gateway demo --json 2>&1 | tee .tmp/gateway-demo.json
+
+      - name: Append runtime verification artifacts to workflow summary
+        if: always()
+        run: |
+          if [ -f .tmp/public-clone-verify.log ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "## Public clone verification" >> "$GITHUB_STEP_SUMMARY"
+            cat .tmp/public-clone-verify.log >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          if [ -f .tmp/mcp-verify.log ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "## MCP verification log" >> "$GITHUB_STEP_SUMMARY"
+            cat .tmp/mcp-verify.log >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          if [ -f .tmp/mcp-smoke.json ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "## MCP smoke result" >> "$GITHUB_STEP_SUMMARY"
+            cat .tmp/mcp-smoke.json >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          if [ -f .tmp/gateway-doctor.json ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "## Gateway doctor result" >> "$GITHUB_STEP_SUMMARY"
+            cat .tmp/gateway-doctor.json >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          if [ -f .tmp/gateway-demo.json ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "## Gateway demo result" >> "$GITHUB_STEP_SUMMARY"
+            cat .tmp/gateway-demo.json >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Upload quality scorecard artifact
         uses: actions/upload-artifact@v4
         if: always()
@@ -207,17 +257,12 @@ jobs:
             .tmp/quality-trend-recommendations.md
             .tmp/quality-trend-incident-bundle.md
             .tmp/quality-trend-incident-bundle.json
+            .tmp/public-clone-verify.log
+            .tmp/mcp-verify.log
+            .tmp/mcp-smoke.json
+            .tmp/gateway-doctor.json
+            .tmp/gateway-demo.json
           retention-days: 30
-
-      - name: Codex MCP server
-        run: |
-          pnpm verify:mcp
-          pnpm smoke:mcp --json
-
-      - name: Terminal CLI
-        run: |
-          pnpm gateway doctor --json
-          pnpm gateway demo --json
 
       - name: Go prompt enhancement example
         run: go run docs/examples/prompt-enhancement.go --help
