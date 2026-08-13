@@ -74,6 +74,7 @@ type StatsSnapshot = {
 const TABLE = "public.ai_gateway_idempotency_entries";
 const CLAIM_LOCK_NAMESPACE = 1_431_193_303;
 const CLAIM_LOCK_KEY = 1_768_841_005;
+const INITIALIZE_LOCK_KEY = 1_768_841_006;
 
 const INITIALIZE_SQL = `/* idempotency:init */
   CREATE SEQUENCE IF NOT EXISTS public.ai_gateway_idempotency_fencing_seq AS bigint;
@@ -209,7 +210,7 @@ export function createPostgresIdempotencyCoordinator(options: PostgresCoordinato
     if (closed) throw new Error("The PostgreSQL idempotency coordinator is closed.");
     if (!readyPromise) {
       readyPromise = poolPromise.then(async (pool) => {
-        await pool.query(INITIALIZE_SQL);
+        await initializePool(pool);
         stats = { ...stats, available: true };
         scheduleStatsRefresh(pool, true);
         return pool;
@@ -222,6 +223,31 @@ export function createPostgresIdempotencyCoordinator(options: PostgresCoordinato
       readyPromise = null;
       stats = { ...stats, available: false };
       throw error;
+    }
+  }
+
+  async function initializePool(pool: PostgresPoolLike): Promise<void> {
+    const client = await pool.connect();
+    let locked = false;
+    try {
+      await client.query(
+        "/* idempotency:init-lock */ SELECT pg_advisory_lock($1, $2)",
+        [CLAIM_LOCK_NAMESPACE, INITIALIZE_LOCK_KEY],
+      );
+      locked = true;
+      await client.query(INITIALIZE_SQL);
+    } finally {
+      if (locked) {
+        try {
+          await client.query(
+            "/* idempotency:init-unlock */ SELECT pg_advisory_unlock($1, $2)",
+            [CLAIM_LOCK_NAMESPACE, INITIALIZE_LOCK_KEY],
+          );
+        } catch {
+          // Session termination releases the lock if an explicit unlock cannot complete.
+        }
+      }
+      client.release();
     }
   }
 

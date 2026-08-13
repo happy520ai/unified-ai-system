@@ -755,6 +755,8 @@ function checkDistributedIdempotencySafety() {
       "AI_GATEWAY_IDEMPOTENCY_POSTGRES_STATEMENT_TIMEOUT_MS",
       '"pg": "8.23.0"',
       "pg_advisory_xact_lock",
+      "idempotency:init-lock",
+      "pg_advisory_unlock",
       "fencing_token",
       "clock_timestamp()",
       "created-unconfirmed",
