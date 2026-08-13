@@ -548,6 +548,7 @@ function checkTrendDigestOperations() {
     const trendScriptSource = readTextFile("tools/quality-trend-digest.mjs");
     const summaryScriptSource = readTextFile("tools/quality-trend-summary.mjs");
     const checkScriptSource = readTextFile("tools/quality-trend-check.mjs");
+    const smokeScriptSource = readTextFile("tools/quality-trend-health-smoke.mjs");
 
     const requiredPackageMarkers = [
       "\"quality:trend-digest\"",
@@ -559,6 +560,7 @@ function checkTrendDigestOperations() {
       "quality-trend-digest.md",
       "quality-trend-digest.json",
       "quality-trend-check.json",
+      "quality-trend-recommendations.md",
       "QUALITY_TREND_HARD_BLOCK",
       "quality_trend_hard_block",
       "--hard-block",
@@ -570,6 +572,7 @@ function checkTrendDigestOperations() {
       "pnpm quality:trend-digest",
       "quality-trend-digest.json",
       "quality:trend-check",
+      "quality-trend-recommendations.md",
       "QUALITY_TREND_HARD_BLOCK=true",
       "quality_trend_hard_block=true",
     ];
@@ -579,6 +582,7 @@ function checkTrendDigestOperations() {
       "Recommended next actions",
       "Quality trend check status",
       "quality trend hard block",
+      "Quality Trend Failure Remediation",
     ];
 
     const missingPackage = requiredPackageMarkers.filter((marker) => !packageSource.includes(marker));
@@ -591,6 +595,7 @@ function checkTrendDigestOperations() {
         !trendScriptSource.includes(marker)
         && !summaryScriptSource.includes(marker)
         && !checkScriptSource.includes(marker)
+        && !smokeScriptSource.includes(marker)
       ),
     );
 

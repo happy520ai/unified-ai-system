@@ -243,12 +243,14 @@ The CI workflow now stores the following additional trend artifacts per run:
 - `.tmp/quality-trend-guardrail.json`
 - `.tmp/quality-trend-check.json`
 - `.tmp/quality-trend-digest.json`
+- `.tmp/quality-trend-recommendations.md`
 
 If you inspect workflow artifacts, you can load:
 
 - `.tmp/quality-trend-guardrail.json` for threshold checks and guardrail status used in CI diagnostics.
 - `.tmp/quality-trend-digest.json` for machine-readable digest state.
 - `.tmp/quality-trend-check.json` for policy-level status, severity, and recommendation.
+- `.tmp/quality-trend-recommendations.md` for the operator action list when a smoke check fails.
 
 For full triage sequence and owners, follow:
 
@@ -284,5 +286,6 @@ Current CI artifacts include:
 - `.tmp/quality-trend-check.json`
 - `.tmp/quality-trend-digest.json`
 - `.tmp/quality-trend-guardrail.json`
+- `.tmp/quality-trend-recommendations.md`
 
 Use this output for pre-merge triage when trend score is noisy but verification still passes.

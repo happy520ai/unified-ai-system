@@ -20,9 +20,11 @@ When `blocked: true`, block the change and create a fix ticket for unstable root
    - `.tmp/quality-trend-guardrail.json`
    - `.tmp/quality-trend-digest.json`
    - `.tmp/quality-trend-check.json`
+   - `.tmp/quality-trend-recommendations.md` (if smoke failed)
 2. Confirm which gate failed:
    - `guardrail state` and `checks` fields in guardrail JSON.
    - `trendState`, `unstableReasons`, and `recommendation` in digest/check JSON.
+   - Follow the prioritized command list in `.tmp/quality-trend-recommendations.md` when present.
 3. Check quality verification payload:
    - `.tmp/quality-ci-verification.json` for the first failing gate.
 4. Compare latest two scorecards:
