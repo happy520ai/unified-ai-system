@@ -9,6 +9,18 @@
 - `packages/shared-config` owns shared configuration.
 - `packages/shared-utils` owns implementation-neutral helpers.
 
+## Language and Module Policy
+
+- For new changes, `apps/agent-console` and `apps/ai-gateway-service` should
+  prefer TypeScript for runtime behavior and refactors.
+- `packages/*` should remain TypeScript-first for contracts, SDKs, shared engines,
+  and utility layers.
+- Tooling scripts under `tools/*.mjs` should remain Node.js ESM JavaScript.
+- Use JSON for schema and contract payloads, and Markdown for runbooks,
+  evidence, and operator documentation.
+- Introducing a new runtime language (for example Go or Rust) requires a measured
+  rationale, migration boundary, and compatibility plan in the PR.
+
 ## Public Repository Rules
 
 - Keep application entrypoints under `apps/`.
