@@ -142,10 +142,17 @@ function summarizeTrendBundle(result) {
   };
 }
 
-function summarizeTrendConsistency(result) {
+function summarizeTrendConsistency(result, requireTrendHealth = false) {
   const checks = result?.parsedOutput?.checks?.trendConsistency || {};
   const consistencyChecks = checks?.checks;
   const issueCodes = Array.isArray(checks?.issueCodes) ? checks.issueCodes : [];
+  const requiredChecks = Array.isArray(checks?.checksRequired) && checks.checksRequired.length > 0
+    ? checks.checksRequired
+    : [
+      "trendDigestHealth",
+      "trendSummaryGuardrails",
+      "trendDigestCheckConsistency",
+    ];
   const issueCodeSummary = checks?.issueCodeSummary && typeof checks.issueCodeSummary === "object"
     ? checks.issueCodeSummary
     : summarizeIssueCodes(issueCodes);
@@ -163,17 +170,29 @@ function summarizeTrendConsistency(result) {
   }
 
   const checksEntries = Object.values(consistencyChecks);
-  const hasCheckFail = checksEntries.some((entry) => entry?.ok === false || entry?.status === "missing");
-  const status = hasCheckFail ? "fail" : "pass";
+  const hasMissingRequired = requiredChecks.some((key) => {
+    const check = consistencyChecks[key];
+    return !check || typeof check !== "object";
+  });
+  const hasCheckFail = checksEntries.some(
+    (entry) => entry?.ok === false || entry?.status === "missing",
+  );
+  const hasNotCollected = checksEntries.some(
+    (entry) => String(entry?.status ?? "").toLowerCase() === "not_collected",
+  );
+  const status = hasCheckFail || (requireTrendHealth && (hasMissingRequired || hasNotCollected))
+    ? "fail"
+    : "pass";
 
   return {
     status,
     ok: status === "pass",
     source: ".tmp/quality-scorecard.json",
     checks: consistencyChecks,
-    checksRequired: Array.isArray(checks.checksRequired) ? checks.checksRequired : [],
+    checksRequired: requiredChecks,
     issueCodes: issueCodes.slice(0, 16),
     issueCodeSummary,
+    requiresTrendHealth: requireTrendHealth,
   };
 }
 
@@ -393,7 +412,10 @@ function main() {
     source: ".tmp/quality-ci-verification.json",
   });
   const issueCodeSummary = summarizeIssueCodes(issueCodes);
-  const trendConsistency = summarizeTrendConsistency(verifyResult);
+  const trendConsistency = summarizeTrendConsistency(
+    verifyResult,
+    args.requireTrendHealth,
+  );
 
   const summary = {
     ok: qualityResult.ok && drillResult.ok && verifyResult.ok,
