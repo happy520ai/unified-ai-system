@@ -104,6 +104,11 @@ jobs:
           set -o pipefail
           pnpm benchmark:gateway:slo -- --json --output .tmp/gateway-slo-benchmark.json | tee .tmp/gateway-slo-benchmark.log
 
+      - name: Gateway open-loop soak and backpressure benchmark
+        run: |
+          set -o pipefail
+          pnpm benchmark:gateway:soak -- --json --output .tmp/gateway-soak-benchmark.json | tee .tmp/gateway-soak-benchmark.log
+
       - name: Run quality trend smoke health check
         run: |
           set -o pipefail
@@ -400,6 +405,12 @@ jobs:
             cat .tmp/gateway-slo-benchmark.json >> "$GITHUB_STEP_SUMMARY"
           fi
 
+          if [ -f .tmp/gateway-soak-benchmark.json ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "## Gateway open-loop soak benchmark" >> "$GITHUB_STEP_SUMMARY"
+            cat .tmp/gateway-soak-benchmark.json >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Upload quality scorecard artifact
         uses: actions/upload-artifact@v4
         if: always()
@@ -428,6 +439,8 @@ jobs:
             .tmp/gateway-demo.json
             .tmp/gateway-slo-benchmark.json
             .tmp/gateway-slo-benchmark.log
+            .tmp/gateway-soak-benchmark.json
+            .tmp/gateway-soak-benchmark.log
             .tmp/language-policy-check.json
             .tmp/language-policy-expiry.json
           retention-days: 30
