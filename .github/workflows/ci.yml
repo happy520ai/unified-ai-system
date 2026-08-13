@@ -296,10 +296,11 @@ jobs:
                   const owner = exception.owner ?? "unknown";
                   const removalBy = exception.removalBy ?? "unknown";
                   const justification = exception.justification ?? "unknown";
+                  const migrationPlan = exception.migrationPlan ?? "unknown";
                   const pr = exception.pr ? ` | pr=${exception.pr}` : "";
                   const issueId = exception.issueId ? ` | issue=${exception.issueId}` : "";
                   console.log(
-                    `- ${boundary}: ${file} | ${type}:${value} | owner=${owner} | removalBy=${removalBy} | ${justification}${pr}${issueId}`,
+                    `- ${boundary}: ${file} | ${type}:${value} | owner=${owner} | removalBy=${removalBy} | migrationPlan=${migrationPlan} | ${justification}${pr}${issueId}`,
                   );
                 }
               }
@@ -335,14 +336,20 @@ jobs:
               if (expired.length > 0) {
                 console.log("**Expired exceptions (must be removed before merge):**");
                 for (const exception of expired) {
-                  console.log(`- ${exception.type}:${exception.value} (owner=${exception.owner}, removalBy=${exception.removalBy})`);
+                  const owner = exception.owner ?? "unknown";
+                  const migrationPlan = exception.migrationPlan ?? "unknown";
+                  const pr = exception.pr ? `, pr=${exception.pr}` : "";
+                  const issueId = exception.issueId ? `, issue=${exception.issueId}` : "";
+                  console.log(
+                    `- ${exception.type}:${exception.value} (owner=${owner}, removalBy=${exception.removalBy}, migrationPlan=${migrationPlan}${pr}${issueId})`,
+                  );
                 }
               }
               if (nearExpiry.length > 0) {
                 console.log("**Near-expiry exceptions:**");
                 for (const exception of nearExpiry) {
                   console.log(
-                    `- ${exception.type}:${exception.value} (owner=${exception.owner}, daysUntilRemoval=${exception.daysUntilRemoval}, removalBy=${exception.removalBy}, justification=${exception.justification})`,
+                    `- ${exception.type}:${exception.value} (owner=${exception.owner}, migrationPlan=${exception.migrationPlan ?? "unknown"}, daysUntilRemoval=${exception.daysUntilRemoval}, removalBy=${exception.removalBy}, justification=${exception.justification}, pr=${exception.pr ?? ""}${exception.pr && exception.issueId ? ", " : ""}issue=${exception.issueId ?? ""})`,
                   );
                 }
               }

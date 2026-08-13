@@ -124,8 +124,8 @@ In CI and scheduled trend jobs, default limits are:
 
 `language-policy-check.json` and `language-policy-expiry.json` produced in trend/CI workflows include:
 
-- `allowed`: list of exception-based JS/runtime language allowances with owner/removalBy metadata.
-- `allowlistIssues`: allowlist parse/validation failures (including expired exceptions).
+- `allowed`: list of exception-based JS/runtime language allowances with owner/removalBy/migrationPlan metadata.
+- `allowlistIssues`: allowlist parse/validation failures (including expired exceptions and missing evidence trace).
 - `allowlistWarnings`: legacy field/deprecation warnings.
 - `inspected`: file-count/refs metadata used for trend evidence traceability.
 
@@ -134,8 +134,9 @@ In CI and scheduled trend jobs, default limits are:
 - `summary.total`: total number of declared exceptions.
 - `summary.expiredCount`: number of exceptions already past their `removalBy` date.
 - `summary.nearExpiryCount`: number of exceptions in the warning window (`warnWithinDays`).
-- `expired`: explicit per-entry list with `value`, `removalBy`, and `daysUntilRemoval` < 0.
+- `expired`: explicit per-entry list with `value`, `removalBy`, `daysUntilRemoval`, `migrationPlan`, and trace fields (`pr`/`issueId`) when set.
 - `nearExpiry`: explicit per-entry list where `daysUntilRemoval` is within the warning window.
+- `warnings`: script-level quality warnings (deprecations/evidence quality notices).
 
 For structured investigation, the smoke failure bundle follows
 `tools/quality-trend-incident-bundle.schema.json` and is emitted as:
