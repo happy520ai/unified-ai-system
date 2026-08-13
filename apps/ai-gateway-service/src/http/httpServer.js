@@ -591,8 +591,14 @@ function applySecurityHeaders(response) {
   response.setHeader("Referrer-Policy", "no-referrer");
   response.setHeader("X-Frame-Options", "DENY");
   response.setHeader("X-XSS-Protection", "0");
+  response.setHeader("Content-Security-Policy", "default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; object-src 'none'; script-src 'none'; style-src 'none'; img-src 'self' data:; connect-src 'self'");
   response.setHeader("Cross-Origin-Opener-Policy", "same-origin");
   response.setHeader("Cross-Origin-Resource-Policy", "same-origin");
+  response.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
+  response.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=(), gyroscope=(), magnetometer=(), payment=(), usb=()");
+  response.setHeader("X-Permitted-Cross-Domain-Policies", "none");
+  response.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+  response.setHeader("Pragma", "no-cache");
 }
 
 function createRouteAwareRateLimiter(runtimeEnv = {}) {
