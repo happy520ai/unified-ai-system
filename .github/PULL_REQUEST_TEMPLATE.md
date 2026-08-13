@@ -15,12 +15,21 @@ For each changed runtime/module boundary, summarize the language decision:
 - **Compatibility and rollback scope:** (where this can break and rollback plan)
 - **Policy impact:** (fake-provider/default behavior/contract/evidence)
 - **Risk closure:** (gates/tests/monitoring proving safe behavior)
+- **Language suitability score:** score each row from 1-5 (attach total and decision rationale)
+
+  - domain fit:
+  - maintenance:
+  - operability:
+  - safety:
+  - migration debt:
+  - ecosystem fit:
 - **Language-policy exceptions:** if any runtime JS exceptions are used, list:
   - exception type/value
   - justification
   - owner
   - removalBy date
   - migration plan and PR/issue link
+- If PRs involve `apps/*` or `packages/*` with `.js/.cjs/.mjs`, attach the corresponding `language-policy` evidence snippet (from `.tmp/language-policy-check.json` or CI artifact report) and explicitly state why exception is needed.
 
 ## Verification
 
@@ -58,4 +67,5 @@ behavior changes.
 - [ ] If trend guardrails are enabled, `.tmp/quality-trend-guardrail.json` was inspected and any `issues` are explained in the PR body.
 - [ ] If trend gate is unstable, `.tmp/quality-trend-summary.md` and `.tmp/quality-ci-verification.json` were reviewed for root-cause evidence.
 - [ ] If `quality:trend-check` is enabled in CI, `.tmp/quality-trend-check.json` was reviewed and warnings/blocking are justified.
+- [ ] If changes touch `apps/*` or `packages/*`, a language suitability score is attached and any runtime JS exception is explicitly linked to an allowlist exception.
 - [ ] If trend checks are blocked or warning, attach mitigation evidence in PR body (or link to `docs/quality-trend-runbook.md`) including `quality-trend-check.json` and summary artifacts.
