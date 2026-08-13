@@ -218,6 +218,44 @@ function publishStepSummary(summary) {
   );
 }
 
+function flattenIssueCodes(trendIncidentBundle) {
+  const issueCodes = Array.isArray(trendIncidentBundle?.issueCodes) ? trendIncidentBundle.issueCodes : [];
+  const source = trendIncidentBundle?.source ?? null;
+  const normalized = [];
+  const seen = new Set();
+
+  for (const issue of issueCodes) {
+    const code = issue?.code ? String(issue.code) : "unknown";
+    const severity = issue?.severity ? String(issue.severity) : "unknown";
+    const key = `${code}:${severity}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    normalized.push({
+      code,
+      severity,
+      message: issue?.message ?? "",
+      artifactPath: issue?.artifactPath ?? null,
+      source: issue?.source ?? source,
+    });
+  }
+
+  if (issueCodes.some((issue) => String(issue?.severity ?? "unknown") === "high")) {
+    const synthetic = {
+      code: "incident_bundle_blocking_failure",
+      severity: "high",
+      message: "One or more high-severity incident bundle issues are blocking CI quality gate",
+      artifactPath: null,
+      source,
+    };
+    const syntheticKey = `${synthetic.code}:${synthetic.severity}`;
+    if (!seen.has(syntheticKey)) {
+      seen.add(syntheticKey);
+      normalized.push(synthetic);
+    }
+  }
+  return normalized;
+}
+
 function main() {
   const args = parseArgs();
   const qualityPath = ".tmp/quality-scorecard.json";
@@ -271,14 +309,17 @@ function main() {
     30000,
   );
   writeIfPossible(verificationPath, verifyResult.rawStdout);
+  const incidentBundleSummary = summarizeIncidentBundleFromVerification(qualityResult, verifyResult);
+  const issueCodes = flattenIssueCodes(incidentBundleSummary);
 
   const summary = {
     ok: qualityResult.ok && drillResult.ok && verifyResult.ok,
+    issueCodes,
     qualityThreshold: args.qualityThreshold,
     quality: summarizeQuality(qualityResult),
     drill: summarizeDrill(drillResult),
     trendHealth: summarizeTrendHealth(qualityResult),
-    trendIncidentBundle: summarizeIncidentBundleFromVerification(qualityResult, verifyResult),
+    trendIncidentBundle: incidentBundleSummary,
     requireTrendHealth: args.requireTrendHealth,
     verification: {
       ok: verifyResult.ok,
