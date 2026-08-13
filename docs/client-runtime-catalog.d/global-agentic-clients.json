@@ -60,7 +60,7 @@
     "mode": "automated",
     "tags": ["mcp", "agent-host", "code-editor", "global", "mainstream"],
     "command": "node docs/examples/client-runtime-smoke.mjs --client=mcp-vscode",
-    "evidenceNotes": "Launch an isolated VS Code Extension Host, start the configured MCP server, discover all nine tools through vscode.lm.tools, invoke prompt enhancement through vscode.lm.invokeTool, and verify cleanup without a model request."
+    "evidenceNotes": "Launch an isolated VS Code Extension Host, start the configured MCP server, discover all 12 tools through vscode.lm.tools, invoke prompt enhancement through vscode.lm.invokeTool, and verify cleanup without a model request."
   },
   "mcp-claude-code": {
     "name": "Claude Code MCP host profile",
@@ -69,7 +69,7 @@
     "mode": "automated",
     "tags": ["mcp", "agent-host", "cli-host", "anthropic", "official", "global", "mainstream"],
     "command": "node docs/examples/client-runtime-smoke.mjs --client=mcp-claude-code",
-    "evidenceNotes": "Run the official Claude Code CLI in an isolated home and capture MCP handshake plus nine-tool discovery without a model request."
+    "evidenceNotes": "Run the official Claude Code CLI in an isolated home and capture MCP handshake plus 12-tool discovery without a model request."
   },
   "mcp-gemini-cli": {
     "name": "Gemini CLI MCP host profile",
@@ -78,7 +78,7 @@
     "mode": "automated",
     "tags": ["mcp", "agent-host", "cli-host", "google", "official", "global", "mainstream"],
     "command": "node docs/examples/client-runtime-smoke.mjs --client=mcp-gemini-cli",
-    "evidenceNotes": "Run the official Gemini CLI in an isolated trusted workspace and capture MCP handshake plus nine-tool discovery without a model request."
+    "evidenceNotes": "Run the official Gemini CLI in an isolated trusted workspace and capture MCP handshake plus 12-tool discovery without a model request."
   },
   "mcp-opencode-cli": {
     "name": "OpenCode CLI MCP host profile",
@@ -87,7 +87,7 @@
     "mode": "automated",
     "tags": ["mcp", "agent-host", "cli-host", "opencode", "official", "global", "mainstream"],
     "command": "node docs/examples/client-runtime-smoke.mjs --client=mcp-opencode-cli",
-    "evidenceNotes": "Run the official OpenCode CLI with an isolated inline configuration and capture MCP handshake plus nine-tool discovery without plugins or a model request."
+    "evidenceNotes": "Run the official OpenCode CLI with an isolated inline configuration and capture MCP handshake plus 12-tool discovery without plugins or a model request."
   },
   "mcp-jetbrains": {
     "name": "JetBrains MCP host profile",

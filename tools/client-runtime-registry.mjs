@@ -150,7 +150,7 @@ export const clientRuntimeCatalog = [
     tags: ["mcp", "anthropic", "agent-host", "cli-host", "official", "mainstream"],
     command: "node docs/examples/client-runtime-smoke.mjs --client=mcp-claude-code",
     evidenceNotes:
-      "Run the official Claude Code CLI in an isolated home, add the gateway through its MCP command, and record handshake plus nine-tool discovery without a model request.",
+      "Run the official Claude Code CLI in an isolated home, add the gateway through its MCP command, and record handshake plus 12-tool discovery without a model request.",
   },
   {
     id: "mcp-gemini-cli",
@@ -161,7 +161,7 @@ export const clientRuntimeCatalog = [
     tags: ["mcp", "google", "agent-host", "cli-host", "official", "mainstream"],
     command: "node docs/examples/client-runtime-smoke.mjs --client=mcp-gemini-cli",
     evidenceNotes:
-      "Run the official Gemini CLI in an isolated trusted workspace, add the gateway through its MCP command, and record handshake plus nine-tool discovery without a model request.",
+      "Run the official Gemini CLI in an isolated trusted workspace, add the gateway through its MCP command, and record handshake plus 12-tool discovery without a model request.",
   },
   {
     id: "mcp-opencode-cli",
@@ -172,7 +172,7 @@ export const clientRuntimeCatalog = [
     tags: ["mcp", "opencode", "agent-host", "cli-host", "official", "mainstream"],
     command: "node docs/examples/client-runtime-smoke.mjs --client=mcp-opencode-cli",
     evidenceNotes:
-      "Run the official OpenCode CLI with an isolated inline MCP configuration, and record handshake plus nine-tool discovery without plugins or a model request.",
+      "Run the official OpenCode CLI with an isolated inline MCP configuration, and record handshake plus 12-tool discovery without plugins or a model request.",
   },
   {
     id: "cursor-mcp",
@@ -183,7 +183,7 @@ export const clientRuntimeCatalog = [
     tags: ["mcp", "cursor", "agent-host", "cli-host", "official", "mainstream"],
     command: "node docs/examples/client-runtime-smoke.mjs --client=cursor-mcp",
     evidenceNotes:
-      "Run the official Cursor Agent CLI in an isolated workspace, load the gateway from .cursor/mcp.json, and record handshake plus nine-tool discovery through mcp list-tools without account credentials or a model request.",
+      "Run the official Cursor Agent CLI in an isolated workspace, load the gateway from .cursor/mcp.json, and record handshake plus 12-tool discovery through mcp list-tools without account credentials or a model request.",
   },
   {
     id: "cline-mcp",
@@ -194,7 +194,7 @@ export const clientRuntimeCatalog = [
     tags: ["mcp", "cline", "agent-host", "cli-host", "official", "mainstream"],
     command: "node docs/examples/client-runtime-smoke.mjs --client=cline-mcp",
     evidenceNotes:
-      "Run the official Cline CLI in an isolated data directory with only the local fake OpenAI-compatible model, discover all nine tools, and invoke only read-only gateway_health; no real provider is enabled or called.",
+      "Run the official Cline CLI in an isolated data directory with only the local fake OpenAI-compatible model, discover all 12 tools, and invoke only read-only gateway_health; no real provider is enabled or called.",
   },
   {
     id: "openai-python-root-alias",
@@ -403,7 +403,7 @@ export const clientRuntimeCatalog = [
     tags: ["mcp", "agent-host", "generic", "streamable-http", "mainstream"],
     command: "generic MCP Streamable HTTP host against /mcp endpoint",
     evidenceNotes:
-      "Use your preferred streamable HTTP MCP host and attach nine-tool + readiness proof.",
+      "Use your preferred streamable HTTP MCP host and attach 12-tool + readiness proof.",
   },
   {
     id: "mcp-claude-desktop",
@@ -446,7 +446,7 @@ export const clientRuntimeCatalog = [
     tags: ["mcp", "continue", "agent-host", "cli-host", "coding-assistant", "official", "stdio", "mainstream"],
     command: "node docs/examples/client-runtime-smoke.mjs --client=mcp-continue",
     evidenceNotes:
-      "Run the official Continue CLI with an isolated local configuration and fake OpenAI-compatible model, discover all nine tools, and invoke only read-only gateway_health; no real provider is enabled or called.",
+      "Run the official Continue CLI with an isolated local configuration and fake OpenAI-compatible model, discover all 12 tools, and invoke only read-only gateway_health; no real provider is enabled or called.",
   },
   {
     id: "mcp-chatgpt-desktop",
@@ -785,4 +785,3 @@ export function getClientDefinition(id, catalog = clientRuntimeCatalog) {
   if (!clientId) return null;
   return catalog.find((client) => client.id === clientId) || null;
 }
-

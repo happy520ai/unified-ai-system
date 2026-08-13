@@ -48,7 +48,7 @@ authorized path.
 
 ## Verified boundaries
 
-- The stable v0.4.9 MCP image and current source both expose nine tools, including provider-free prompt enhancement.
+- The stable v0.4.9 MCP image and current source both expose twelve tools, including provider-free prompt enhancement.
 - Plain chat requests remain unchanged unless prompt enhancement is explicitly enabled.
 - The credential-free default uses `local-fake-provider` in `fake` execution mode.
 - Real-provider execution requires explicit, scoped authorization.

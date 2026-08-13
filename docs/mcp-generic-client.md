@@ -33,7 +33,7 @@ terminal-only flag.
 
 1. Save the configuration in the location required by your MCP host.
 2. Restart the host so it reloads its MCP configuration.
-3. Open the host's MCP or tool inspector and confirm the nine tools are listed:
+3. Open the host's MCP or tool inspector and confirm the 12 tools are listed:
    `gateway_health`, `gateway_readiness`, `gateway_prompt_enhance`,
    `gateway_chat`, `knowledge_readiness`, `workflow_health`,
    `workflow_actions`, `workforce_health`, and `workforce_agents`.
