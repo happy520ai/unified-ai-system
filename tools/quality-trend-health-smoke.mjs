@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -36,6 +36,8 @@ function parseArgs() {
     trendDigestJsonPath: ".tmp/quality-trend-digest.json",
     trendCheckPath: ".tmp/quality-trend-check.json",
     trendRecommendationsPath: ".tmp/quality-trend-recommendations.md",
+    trendIncidentBundlePath: ".tmp/quality-trend-incident-bundle.md",
+    trendIncidentBundleJsonPath: ".tmp/quality-trend-incident-bundle.json",
     qualityScorecardPath: ".tmp/quality-scorecard.json",
     drillPath: ".tmp/circuit-recovery-drill-dry-run.json",
     qualityVerificationPath: ".tmp/quality-ci-verification.json",
@@ -102,6 +104,16 @@ function parseArgs() {
     }
     if (arg === "--recommendations") {
       values.trendRecommendationsPath = args[index + 1] ?? values.trendRecommendationsPath;
+      index += 1;
+      continue;
+    }
+    if (arg === "--incident-bundle") {
+      values.trendIncidentBundlePath = args[index + 1] ?? values.trendIncidentBundlePath;
+      index += 1;
+      continue;
+    }
+    if (arg === "--incident-bundle-json") {
+      values.trendIncidentBundleJsonPath = args[index + 1] ?? values.trendIncidentBundleJsonPath;
       index += 1;
       continue;
     }
@@ -222,6 +234,8 @@ function printUsage() {
     "  --guardrail <path>         Guardrail output path (default .tmp/quality-trend-guardrail.json)",
     "  --check <path>             Trend-check output JSON path (default .tmp/quality-trend-check.json)",
     "  --recommendations <path>    Failure remediation output path (default .tmp/quality-trend-recommendations.md)",
+    "  --incident-bundle <path>    Failure bundle markdown path (default .tmp/quality-trend-incident-bundle.md)",
+    "  --incident-bundle-json <path> Failure bundle JSON path (default .tmp/quality-trend-incident-bundle.json)",
     "  --quality <path>           Input quality-scorecard path (default .tmp/quality-scorecard.json)",
     "  --drill <path>             Input drill path (default .tmp/circuit-recovery-drill-dry-run.json)",
     "  --verification <path>       Output verification path (default .tmp/quality-ci-verification.json)",
@@ -251,6 +265,18 @@ function parseJson(raw) {
   try {
     return JSON.parse(raw);
   } catch {
+    return null;
+  }
+}
+
+function readTextArtifact(relativePath) {
+  const absolutePath = resolve(repoRoot, relativePath);
+  if (!existsSync(absolutePath)) {
+    return null;
+  }
+  try {
+    return readFileSync(absolutePath, "utf8");
+  } catch (error) {
     return null;
   }
 }
@@ -418,6 +444,145 @@ function collectStepIssues(step) {
   return issues;
 }
 
+function readMaybeJson(relativePath) {
+  const raw = readTextArtifact(relativePath);
+  if (raw === null) return null;
+  return parseJson(raw);
+}
+
+function artifactDescriptor(path, parsedArtifact) {
+  const raw = readTextArtifact(path);
+  const size = raw === null ? 0 : raw.length;
+  const marker = parsedArtifact === null ? "text" : "json";
+  return {
+    path,
+    exists: raw !== null,
+    size: size,
+    type: raw === null ? "missing" : marker,
+    missing: raw === null,
+    parsed: parsedArtifact !== null,
+  };
+}
+
+function buildIncidentBundle(options, steps, reason, detail) {
+  const finalTrendCheck = steps.find((step) => step.label === "post-run")
+    || steps.find((step) => step.label === "trend-check")
+    || null;
+  const finalCheck = finalTrendCheck?.checkResult || {};
+  const recommendationText = readTextArtifact(options.trendRecommendationsPath) || "";
+
+  const failedSteps = collectFailedSteps(steps);
+  const failedStepSummary = failedSteps.map((step) => {
+    const commandEntries = Array.isArray(step.steps) ? step.steps : [];
+    const command = commandEntries[0]?.command ?? step.label;
+    const status = commandEntries[0]?.status ?? "unknown";
+    return `${command} status=${status}`;
+  });
+
+  const issueLines = [];
+  for (const step of steps) {
+    for (const issue of collectStepIssues(step)) {
+      issueLines.push(issue);
+    }
+  }
+
+  const trendSummary = {
+    status: finalCheck.status ?? "unknown",
+    severity: finalCheck.severity ?? "unknown",
+    blocked: Boolean(finalCheck.blocked),
+    reasons: Array.isArray(finalCheck.reasons) ? finalCheck.reasons : [],
+    recommendation: finalCheck.recommendation ?? "No recommendation available",
+  };
+
+  const qualityScorecard = readMaybeJson(options.qualityScorecardPath);
+  const trendDigest = readMaybeJson(options.trendDigestJsonPath);
+  const trendGuardrail = readMaybeJson(options.trendGuardrailPath);
+  const trendCheckArtifact = readMaybeJson(options.trendCheckPath);
+  const verification = readMaybeJson(options.qualityVerificationPath);
+  const trendLog = readMaybeJson(options.trendPath);
+  const drill = readMaybeJson(options.drillPath);
+  const bundleJson = {
+    executedAtUtc: new Date().toISOString(),
+    failureReason: reason,
+    failureDetail: detail,
+    qualityThreshold: options.qualityThreshold,
+    thresholds: {
+      maxConsecutiveFailures: options.maxConsecutiveFailures,
+      maxScoreDropPoints: options.maxScoreDropPoints,
+      minPassRatePercent: options.minPassRatePercent,
+      shortWindow: options.shortWindow,
+      longWindow: options.longWindow,
+      requireStableState: options.requireStableState,
+    },
+    trendHealth: trendSummary,
+    failedSteps: failedStepSummary,
+    extractedIssues: issueLines.slice(0, 30),
+    artifacts: [
+      artifactDescriptor(options.qualityScorecardPath, qualityScorecard),
+      artifactDescriptor(options.drillPath, drill),
+      artifactDescriptor(options.qualityVerificationPath, verification),
+      artifactDescriptor(options.trendPath, trendLog),
+      artifactDescriptor(options.trendSummaryPath, null),
+      artifactDescriptor(options.trendGuardrailPath, trendGuardrail),
+      artifactDescriptor(options.trendDigestPath, readMaybeJson(options.trendDigestPath)),
+      artifactDescriptor(options.trendDigestJsonPath, trendDigest),
+      artifactDescriptor(options.trendCheckPath, trendCheckArtifact),
+      artifactDescriptor(options.trendRecommendationsPath, null),
+      artifactDescriptor(options.trendIncidentBundlePath, null),
+      artifactDescriptor(options.trendIncidentBundleJsonPath, null),
+    ],
+    recommendationText: recommendationText
+      .split("\n")
+      .filter(Boolean)
+      .slice(0, 36),
+  };
+
+  writeTextFile(
+    options.trendIncidentBundleJsonPath,
+    `${JSON.stringify(bundleJson, null, 2)}\n`,
+  );
+
+  const lines = [
+    "# Quality Trend Incident Bundle",
+    "",
+    `- Timestamp: ${bundleJson.executedAtUtc}`,
+    `- Failure phase: ${bundleJson.failureReason}`,
+    `- Trigger threshold: ${bundleJson.qualityThreshold}`,
+    `- Final trend status: ${bundleJson.trendHealth.status}`,
+    `- Final trend severity: ${bundleJson.trendHealth.severity}`,
+    `- Blocked: ${bundleJson.trendHealth.blocked}`,
+    "",
+    "## Failed steps",
+    ...(failedStepSummary.length > 0 ? failedStepSummary.map((entry) => `- ${entry}`) : ["- no failed steps recorded"]),
+    "",
+    "## Extracted issues",
+    ...(issueLines.length > 0 ? issueLines.slice(0, 30).map((issue) => `- ${issue}`) : ["- no issues extracted"]),
+    "",
+    "## Trend reasons",
+    ...(Array.isArray(finalCheck.reasons) && finalCheck.reasons.length > 0
+      ? finalCheck.reasons.slice(0, 20).map((trendReason) => `- ${trendReason}`)
+      : ["- no trend reasons recorded"]),
+    "",
+    "## Artifacts",
+    ...bundleJson.artifacts.map((artifact) => `- ${artifact.path} (${artifact.exists ? `${artifact.type} / ${artifact.size} chars` : "missing"})`),
+    "",
+    "## Remediation file",
+    ...(recommendationText
+      ? recommendationText
+        .split("\n")
+        .filter((entry) => entry.trim().length > 0)
+        .slice(0, 140)
+        .map((entry) => (entry.trim().length > 0 ? `- ${entry}` : ""))
+      : ["- no remediation file available"]),
+    "",
+  ];
+
+  writeTextFile(
+    options.trendIncidentBundlePath,
+    `${lines.join("\n")}\n`,
+  );
+}
+
 function buildFailureRecommendations(options, steps, reason, detail) {
   const finalTrendCheck = steps.find((step) => step.label === "post-run")
     || steps.find((step) => step.label === "trend-check")
@@ -497,6 +662,11 @@ function buildFailureRecommendations(options, steps, reason, detail) {
   writeTextFile(options.trendRecommendationsPath, `${lines.join("\n")}\n`);
 }
 
+function emitFailureBundle(options, steps, reason, detail) {
+  buildFailureRecommendations(options, steps, reason, detail);
+  buildIncidentBundle(options, steps, reason, detail);
+}
+
 function runTrendEvaluation(label, options, includeCheckOutput = false) {
   const executionLog = [];
 
@@ -560,9 +730,21 @@ function emitFailureSummary(options, steps, artifacts, reason, detail) {
   if (options.outputJson) {
     process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
   }
+  if (
+    options.trendRecommendationsPath
+    || options.trendIncidentBundlePath
+    || options.trendIncidentBundleJsonPath
+  ) {
+    emitFailureBundle(options, steps, reason, detail);
+  }
   if (options.trendRecommendationsPath) {
-    buildFailureRecommendations(options, steps, reason, detail);
     console.log(`\nRemediation guidance written to: ${options.trendRecommendationsPath}`);
+  }
+  if (options.trendIncidentBundlePath) {
+    console.log(`\nIncident bundle written to: ${options.trendIncidentBundlePath}`);
+  }
+  if (options.trendIncidentBundleJsonPath) {
+    console.log(`\nIncident bundle JSON written to: ${options.trendIncidentBundleJsonPath}`);
   }
   console.log(`\nQUALITY TREND SMOKE: FAIL (${reason})`);
   if (detail) {
@@ -588,6 +770,8 @@ function main() {
   const artifacts = new Set([
     options.trendCheckPath,
     options.trendRecommendationsPath,
+    options.trendIncidentBundlePath,
+    options.trendIncidentBundleJsonPath,
     options.qualityScorecardPath,
     options.drillPath,
     options.qualityVerificationPath,

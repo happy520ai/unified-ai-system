@@ -561,6 +561,9 @@ function checkTrendDigestOperations() {
       "quality-trend-digest.json",
       "quality-trend-check.json",
       "quality-trend-recommendations.md",
+      "quality-trend-incident-bundle.md",
+      "quality-trend-incident-bundle.json",
+      "--incident-bundle",
       "QUALITY_TREND_HARD_BLOCK",
       "quality_trend_hard_block",
       "--hard-block",
@@ -573,6 +576,7 @@ function checkTrendDigestOperations() {
       "quality-trend-digest.json",
       "quality:trend-check",
       "quality-trend-recommendations.md",
+      "quality-trend-incident-bundle.md",
       "QUALITY_TREND_HARD_BLOCK=true",
       "quality_trend_hard_block=true",
     ];
@@ -583,6 +587,8 @@ function checkTrendDigestOperations() {
       "Quality trend check status",
       "quality trend hard block",
       "Quality Trend Failure Remediation",
+      "Quality Trend Incident Bundle",
+      "incident bundle",
     ];
 
     const missingPackage = requiredPackageMarkers.filter((marker) => !packageSource.includes(marker));

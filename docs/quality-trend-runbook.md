@@ -21,6 +21,7 @@ When `blocked: true`, block the change and create a fix ticket for unstable root
    - `.tmp/quality-trend-digest.json`
    - `.tmp/quality-trend-check.json`
    - `.tmp/quality-trend-recommendations.md` (if smoke failed)
+   - `.tmp/quality-trend-incident-bundle.md` / `.tmp/quality-trend-incident-bundle.json` (if smoke failed)
 2. Confirm which gate failed:
    - `guardrail state` and `checks` fields in guardrail JSON.
    - `trendState`, `unstableReasons`, and `recommendation` in digest/check JSON.

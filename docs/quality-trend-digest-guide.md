@@ -85,6 +85,7 @@ Current CI pipelines publish:
 - `.tmp/quality-trend-check.json`
 - existing trend and quality artifacts (`.tmp/quality-trend.json`, `.tmp/quality-scorecard.json`, `.tmp/quality-ci-verification.json`)
 - On trend-health smoke failure, include `.tmp/quality-trend-recommendations.md` in triage packets for operator handoff.
+- On trend-health smoke failure, include `.tmp/quality-trend-incident-bundle.md` and `.tmp/quality-trend-incident-bundle.json` for structured handoff.
 
 ## Escalation flow
 
@@ -92,4 +93,5 @@ Current CI pipelines publish:
 2. If verification issues exist, trace the first gate failure in `quality-ci-verification.json`.
 3. If drift is abrupt, compare the last two scorecards and inspect changed checks.
 4. Open `.tmp/quality-trend-recommendations.md` for prioritized commands and focus areas.
-5. Re-run CI locally after applying fixes before the next merge or release.
+5. Open `.tmp/quality-trend-incident-bundle.md` for consolidated failure context and evidence manifest.
+6. Re-run CI locally after applying fixes before the next merge or release.
