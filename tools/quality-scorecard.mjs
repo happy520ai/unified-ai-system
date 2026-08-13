@@ -75,6 +75,14 @@ function extractIssueCodesFromResult(result, fallbackSource = QUALITY_SCORECARD_
   return normalizeIssueCodes(parseableOutput.issueCodes, fallbackSource);
 }
 
+function summarizeIssueCodesFromResult(result, fallbackSource = QUALITY_SCORECARD_ISSUE_SOURCE) {
+  const issueCodes = extractIssueCodesFromResult(result, fallbackSource);
+  return {
+    issueCodes,
+    issueCodeSummary: summarizeIssueCodes(issueCodes),
+  };
+}
+
 function gateWeightToSeverity(weight) {
   if (weight >= 25) return "high";
   if (weight >= 10) return "medium";
@@ -1008,9 +1016,24 @@ async function main() {
   const trendHardBlockArtifactCheck = checkTrendHardBlockArtifact();
   const trendIncidentBundleSchemaCheck = checkTrendIncidentBundleSchema();
 
+  const publicRepoIssueSummary = summarizeIssueCodesFromResult(
+    repoCheck,
+    "public-repo-check",
+  );
+  const verifyPublicCloneIssueSummary = summarizeIssueCodesFromResult(
+    publicClone,
+    "verify-public-clone",
+  );
+
   const gateResults = {
-    publicRepoCheck: repoCheck,
-    verifyPublicClone: publicClone,
+    publicRepoCheck: {
+      ...repoCheck,
+      ...publicRepoIssueSummary,
+    },
+    verifyPublicClone: {
+      ...publicClone,
+      ...verifyPublicCloneIssueSummary,
+    },
     repoFilesPresent: repoFileCheck,
     versionConsistency: versionCheck,
     circuitDrillDryRun,
@@ -1186,8 +1209,8 @@ async function main() {
       score,
       maxScore,
     ),
-    ...extractIssueCodesFromResult(repoCheck, "public-repo-check"),
-    ...extractIssueCodesFromResult(publicClone, "verify-public-clone"),
+    ...publicRepoIssueSummary.issueCodes,
+    ...verifyPublicCloneIssueSummary.issueCodes,
   ], QUALITY_SCORECARD_ISSUE_SOURCE);
   const issueCodeSummary = summarizeIssueCodes(issueCodes);
 
@@ -1235,6 +1258,16 @@ async function main() {
     );
     if (issueCodeSummary.blocking) {
       outputLines.push(`Blocking issues: ${issueCodeSummary.high}`);
+    }
+    if (issueCodes.length > 0) {
+      outputLines.push("Top issues:");
+      for (const issue of issueCodes.slice(0, 12)) {
+        outputLines.push(
+          ` - ${issue.source}/${issue.code} [${issue.severity}] (${
+            issue.artifactPath ?? "n/a"
+          }): ${issue.message}`,
+        );
+      }
     }
     outputLines.push("");
     for (const gate of gates) {
