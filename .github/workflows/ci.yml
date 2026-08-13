@@ -17,6 +17,7 @@ jobs:
       QUALITY_THRESHOLD: ${{ vars.QUALITY_REQUIRED_SCORE || '165' }}
       QUALITY_TREND_MAX_CONSECUTIVE_FAILURES: ${{ vars.QUALITY_TREND_MAX_CONSECUTIVE_FAILURES || '3' }}
       QUALITY_TREND_MAX_SCORE_DROP_POINTS: ${{ vars.QUALITY_TREND_MAX_SCORE_DROP_POINTS || '20' }}
+      QUALITY_TREND_MIN_PASS_RATE_PERCENT: ${{ vars.QUALITY_TREND_MIN_PASS_RATE_PERCENT || '70' }}
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -87,7 +88,7 @@ jobs:
 
       - name: Render quality trend summary
         if: always()
-        run: pnpm quality:trend-summary -- --trend .tmp/quality-trend.json --output .tmp/quality-trend-summary.md --guard-output .tmp/quality-trend-guardrail.json --max-consecutive-failures "${QUALITY_TREND_MAX_CONSECUTIVE_FAILURES}" --max-score-drop-points "${QUALITY_TREND_MAX_SCORE_DROP_POINTS}" --enforce-guardrails
+        run: pnpm quality:trend-summary -- --trend .tmp/quality-trend.json --output .tmp/quality-trend-summary.md --guard-output .tmp/quality-trend-guardrail.json --max-consecutive-failures "${QUALITY_TREND_MAX_CONSECUTIVE_FAILURES}" --max-score-drop-points "${QUALITY_TREND_MAX_SCORE_DROP_POINTS}" --min-pass-rate-percent "${QUALITY_TREND_MIN_PASS_RATE_PERCENT}" --require-stable-state --enforce-guardrails
 
       - name: Render quality trend digest
         if: always()

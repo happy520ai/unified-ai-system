@@ -25,6 +25,8 @@ function parseArgs() {
     enforceGuardrails: false,
     maxConsecutiveFailures: null,
     maxScoreDropPoints: null,
+    minPassRatePercent: null,
+    requireStableState: false,
     outputJson: false,
   };
 
@@ -64,6 +66,15 @@ function parseArgs() {
         values.maxScoreDropPoints,
       );
       index += 1;
+      continue;
+    }
+    if (arg === "--min-pass-rate-percent") {
+      values.minPassRatePercent = toPositiveInteger(args[index + 1], values.minPassRatePercent);
+      index += 1;
+      continue;
+    }
+    if (arg === "--require-stable-state") {
+      values.requireStableState = true;
       continue;
     }
     if (arg === "--enforce-guardrails") {
@@ -107,12 +118,19 @@ function trendArrow(delta) {
 }
 
 function evaluateGuardrails(records, args) {
-  const latest = records[records.length - 1] ?? null;
-  const previous = records[records.length - 2] ?? null;
+  const lookback = args.limit > 0 ? records.slice(-args.limit) : records;
+  const latest = lookback[lookback.length - 1] ?? null;
+  const previous = lookback[lookback.length - 2] ?? null;
+  const passRate = lookback.length === 0
+    ? 0
+    : Number(
+      ((lookback.reduce((sum, item) => (item?.overall?.pass ? sum + 1 : sum), 0) / lookback.length) * 100,
+      ).toFixed(1),
+    );
 
   const consecutiveFailures = (() => {
     let count = 0;
-    for (const record of records.slice().reverse()) {
+    for (const record of lookback.slice().reverse()) {
       if (record?.overall?.pass) break;
       count += 1;
     }
@@ -129,11 +147,11 @@ function evaluateGuardrails(records, args) {
   const latestDrop = latestScoreDelta === null ? null : -latestScoreDelta;
 
   const largestDrop = (() => {
-    if (records.length < 2) return null;
+    if (lookback.length < 2) return null;
     let drop = 0;
-    for (let index = 1; index < records.length; index += 1) {
-      const left = records[index - 1];
-      const right = records[index];
+    for (let index = 1; index < lookback.length; index += 1) {
+      const left = lookback[index - 1];
+      const right = lookback[index];
       const leftScore = typeof left?.quality?.score === "number" ? left.quality.score : null;
       const rightScore = typeof right?.quality?.score === "number" ? right.quality.score : null;
       if (leftScore === null || rightScore === null) {
@@ -166,6 +184,22 @@ function evaluateGuardrails(records, args) {
     );
   }
 
+  if (
+    args.minPassRatePercent !== null &&
+    passRate < args.minPassRatePercent
+  ) {
+    issues.push(
+      `window pass rate ${passRate}% is below threshold ${args.minPassRatePercent}%`,
+    );
+  }
+
+  if (
+    args.requireStableState &&
+    (consecutiveFailures > 0 || passRate < (args.minPassRatePercent ?? 100))
+  ) {
+    issues.push("stable-state-required: unstable trend window detected");
+  }
+
   return {
     pass: issues.length === 0,
     issues,
@@ -176,8 +210,12 @@ function evaluateGuardrails(records, args) {
       latestScoreDelta,
       latestSingleRunDrop: latestDrop,
       largestSingleRunDrop: largestDrop,
+      passRate,
+      lookbackSize: lookback.length,
       maxConsecutiveFailures: args.maxConsecutiveFailures,
       maxScoreDropPoints: args.maxScoreDropPoints,
+      minPassRatePercent: args.minPassRatePercent,
+      requireStableState: args.requireStableState,
     },
   };
 }
@@ -200,6 +238,7 @@ function buildTrendReport({ trend, limit, guardrails }) {
     markdown += `- Latest score delta: ${guardrails.checks.latestScoreDelta > 0 ? "+" : ""}${guardrails.checks.latestScoreDelta}\n`;
   }
   markdown += `- Guardrails enabled: ${guardrails.pass ? "pass" : "fail"}\n`;
+  markdown += `- Trend pass rate (${guardrails.checks.lookbackSize} runs): ${guardrails.checks.passRate}%\n`;
   if (guardrails.issues.length > 0) {
     markdown += "- Guardrail issues:\n";
     for (const issue of guardrails.issues) {
@@ -294,7 +333,11 @@ function buildGuardSummary(args, trend, guardrails) {
     schemaVersion: trend?.schemaVersion ?? 1,
     latestRecord: Array.isArray(trend?.records) ? trend.records[trend.records.length - 1] : null,
     guardrails: {
-      enabled: args.maxConsecutiveFailures !== null || args.maxScoreDropPoints !== null,
+      enabled:
+        args.maxConsecutiveFailures !== null
+        || args.maxScoreDropPoints !== null
+        || args.minPassRatePercent !== null
+        || args.requireStableState,
       enforce: args.enforceGuardrails,
       pass: guardrails.pass,
       issues: guardrails.issues,
@@ -302,6 +345,8 @@ function buildGuardSummary(args, trend, guardrails) {
       thresholds: {
         maxConsecutiveFailures: args.maxConsecutiveFailures,
         maxScoreDropPoints: args.maxScoreDropPoints,
+        minPassRatePercent: args.minPassRatePercent,
+        requireStableState: args.requireStableState,
       },
     },
   };
@@ -323,6 +368,14 @@ function buildTriageNotes(guardrails) {
     } else if (issue.includes("single-run score drop")) {
       notes.push(
         "Large one-run drop suggests a sudden regression. Compare `quality-scorecard.json` against previous run to find which check changed.",
+      );
+    } else if (issue.includes("window pass rate")) {
+      notes.push(
+        "Window pass rate is below threshold; check consecutive failures and latest failed verification payload.",
+      );
+    } else if (issue.includes("stable-state-required")) {
+      notes.push(
+        "Stable-state requirement triggered. Hold release/merge until trend trend returns to stable window behavior.",
       );
     } else {
       notes.push(`Investigate: ${issue}`);
