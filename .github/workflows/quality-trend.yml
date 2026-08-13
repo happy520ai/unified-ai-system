@@ -55,6 +55,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Restore quality trend history cache
+        uses: actions/cache@v4
+        with:
+          path: .tmp/quality-trend.json
+          key: quality-trend-${{ github.ref_name }}-${{ runner.os }}-v1
+          restore-keys: |
+            quality-trend-${{ github.ref_name }}-${{ runner.os }}-
+
       - name: Run quality CI gate
         id: quality_gate
         continue-on-error: true
@@ -80,6 +88,20 @@ jobs:
             --guard-output .tmp/quality-trend-guardrail.json \
             --max-consecutive-failures "${QUALITY_TREND_MAX_CONSECUTIVE_FAILURES}" \
             --max-score-drop-points "${QUALITY_TREND_MAX_SCORE_DROP_POINTS}"
+
+      - name: Render quality trend digest
+        if: always()
+        continue-on-error: true
+        run: pnpm quality:trend-digest -- --trend .tmp/quality-trend.json --output .tmp/quality-trend-digest.md --json-output .tmp/quality-trend-digest.json --max-consecutive-failures "${QUALITY_TREND_MAX_CONSECUTIVE_FAILURES}" --max-score-drop-points "${QUALITY_TREND_MAX_SCORE_DROP_POINTS}"
+
+      - name: Append quality trend digest to workflow summary
+        if: always()
+        run: |
+          if [ -f .tmp/quality-trend-digest.md ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "## Quality Trend Digest" >> "$GITHUB_STEP_SUMMARY"
+            cat .tmp/quality-trend-digest.md >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Enforce quality trend guardrails
         if: |
@@ -111,4 +133,6 @@ jobs:
             .tmp/quality-trend.json
             .tmp/quality-trend-summary.md
             .tmp/quality-trend-guardrail.json
+            .tmp/quality-trend-digest.md
+            .tmp/quality-trend-digest.json
           retention-days: 180

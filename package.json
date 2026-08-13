@@ -40,7 +40,8 @@
     "quality:ci": "node ./tools/run-quality-ci-gate.mjs",
     "quality:verify-artifacts": "node ./tools/verify-ci-quality-artifacts.mjs",
     "quality:trend-log": "node ./tools/quality-trend-log.mjs",
-    "quality:trend-summary": "node ./tools/quality-trend-summary.mjs"
+    "quality:trend-summary": "node ./tools/quality-trend-summary.mjs",
+    "quality:trend-digest": "node ./tools/quality-trend-digest.mjs"
   },
   "engines": {
     "node": ">=22",
