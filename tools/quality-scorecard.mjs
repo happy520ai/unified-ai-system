@@ -362,6 +362,7 @@ function checkGatewayErrorCircuitBreaker() {
     const serverSource = readTextFile("apps/ai-gateway-service/src/http/httpServer.js");
     const exporterSource = readTextFile("apps/ai-gateway-service/src/observability/prometheusExporter.js");
     const envSource = readTextFile(".env.example");
+    const readinessGuideSource = readTextFile("docs/readiness-observability-guide.md");
     const requiredMarkers = [
       "createGatewayErrorCircuitBreaker",
       "canProcessRequest",
@@ -377,9 +378,12 @@ function checkGatewayErrorCircuitBreaker() {
       "gateway_error_circuit_open_seconds",
       "gateway_error_circuit_success_total",
       "gateway_error_circuit_failures_total",
+      "AiGatewayRequestCircuitOpen",
+      "gateway-error-circuit",
     ];
     const missingMarkers = requiredMarkers.filter(
-      (marker) => !(serverSource.includes(marker) || exporterSource.includes(marker) || envSource.includes(marker)),
+      (marker) => !(serverSource.includes(marker) || exporterSource.includes(marker)
+        || envSource.includes(marker) || readinessGuideSource.includes(marker)),
     );
     return {
       ok: missingMarkers.length === 0,

@@ -20,6 +20,11 @@ for production readiness guardrails.
   - `ai_gateway_gateway_readiness_checks_total{result="total"|"ready"|"degraded"}`
   - `ai_gateway_gateway_resilience_in_flight_instant`
   - `ai_gateway_gateway_resilience_in_flight_peak`
+  - `ai_gateway_gateway_error_circuit_state{state="open"|"half-open"|"closed"}`
+  - `ai_gateway_gateway_error_circuit_open_seconds`
+  - `ai_gateway_gateway_error_circuit_rejections_total`
+  - `ai_gateway_gateway_error_circuit_failures_total`
+  - `ai_gateway_gateway_error_circuit_success_total`
 
 ## 2) Ready-to-use Prometheus alerts
 
@@ -56,6 +61,15 @@ groups:
           summary: "AI Gateway in-flight saturation readiness degradation"
           description: "Current readiness failures include inflight-saturation; check request concurrency and workers."
 
+      - alert: AiGatewayRequestCircuitOpen
+        expr: ai_gateway_gateway_error_circuit_state{state="open"} == 1
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "AI Gateway request circuit is open"
+          description: "Request-level circuit breaker is open; check gateway error traces and dependent providers before resume."
+
       - alert: AiGatewayReadinessUnavailable
         expr: ai_gateway_gateway_readiness_status{state="ready"} == 0
         for: 5m
@@ -83,7 +97,7 @@ Current checks include:
 ## 4) Incident response checklist
 
 1. Check `readinessFailures` in `/healthz` payload.
-2. Compare `gateway_readiness_events_total` against reasons (`knowledge`, `workflow`, `service-dependency`, `inflight-saturation`).
+2. Compare `gateway_readiness_events_total` against reasons (`knowledge`, `workflow`, `service-dependency`, `inflight-saturation`, `gateway-error-circuit`).
 3. Confirm `healthzInFlightThreshold` and in-flight counts in `saturation`.
 4. Correlate with `/ready`, then `/health`, then dependency routes.
 5. For recoverable degradation, wait and recheck; for dependency breaks, follow corresponding service rollback and warm restart.

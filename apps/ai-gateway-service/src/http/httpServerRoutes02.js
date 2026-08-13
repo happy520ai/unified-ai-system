@@ -167,7 +167,7 @@ export async function dispatchHttpRoutes02(context) {
     const saturated = saturationThreshold > 0 && currentInFlight >= saturationThreshold;
     const readinessFailures = collectReadinessFailures(healthSnapshot, readinessSnapshot, {
       saturated,
-      gatewayErrorCircuitState: resilienceSnapshot?.gatewayErrorCircuitState,
+      gatewayErrorCircuitState: readinessResilienceSnapshot?.gatewayErrorCircuitState,
     });
     const snapshot = {
       totalRequests: stats.totalRequests ?? 0,
