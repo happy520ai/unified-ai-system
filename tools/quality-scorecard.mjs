@@ -491,6 +491,35 @@ function checkReadinessRunbookVisibility() {
   }
 }
 
+function checkCircuitRecoveryDrill() {
+  try {
+    const packageSource = readTextFile("package.json");
+    const readinessGuideSource = readTextFile("docs/readiness-observability-guide.md");
+    const requiredPackageMarkers = [
+      "\"drill:gateway-circuit\"",
+      "circuit-recovery-drill.mjs",
+    ];
+    const requiredGuideMarkers = [
+      "Quick automated drill",
+      "pnpm drill:gateway-circuit",
+    ];
+    const missingPackage = requiredPackageMarkers.filter((marker) => !packageSource.includes(marker));
+    const missingGuide = requiredGuideMarkers.filter((marker) => !readinessGuideSource.includes(marker));
+    return {
+      ok: missingPackage.length === 0 && missingGuide.length === 0,
+      details: JSON.stringify({
+        missingPackage,
+        missingGuide,
+      }),
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      details: String(error.message),
+    };
+  }
+}
+
 async function main() {
   const { outputJson, requireScore } = parseArgs();
   const rootPackage = JSON.parse(readTextFile("package.json"));
@@ -523,6 +552,7 @@ async function main() {
   const gatewayErrorCircuitBreakerCheck = checkGatewayErrorCircuitBreaker();
   const healthzCheck = checkHealthzReadinessProbe();
   const runbookVisibilityCheck = checkReadinessRunbookVisibility();
+  const circuitRecoveryDrillCheck = checkCircuitRecoveryDrill();
 
   const gateResults = {
     publicRepoCheck: repoCheck,
@@ -645,6 +675,14 @@ async function main() {
     10,
     runbookVisibilityCheck.ok,
     runbookVisibilityCheck.details,
+  );
+  score += addGate(
+    gates,
+    "Recovery drill automation",
+    "reliable recovery validation script is discoverable and runnable from package scripts",
+    5,
+    circuitRecoveryDrillCheck.ok,
+    circuitRecoveryDrillCheck.details,
   );
 
   const maxScore = gates.reduce((sum, item) => sum + item.weight, 0);

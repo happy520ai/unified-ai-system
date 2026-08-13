@@ -34,7 +34,8 @@
     "growth:blast": "pnpm growth:sync-thread && pnpm growth:publish",
     "growth:sync-thread": "node ./tools/star-growth-sync-thread.mjs",
     "growth:publish": "node ./tools/star-growth-publish-kit.mjs --output .tmp/growth/star-growth-publish-output.md",
-    "quality:score": "node tools/quality-scorecard.mjs"
+    "quality:score": "node tools/quality-scorecard.mjs",
+    "drill:gateway-circuit": "node ./tools/circuit-recovery-drill.mjs --json"
   },
   "engines": {
     "node": ">=22",

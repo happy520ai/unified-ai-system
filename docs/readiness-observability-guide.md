@@ -129,6 +129,24 @@ Use this lightweight drill to verify the request-circuit breaker behavior in a n
 - Half-open success path closes the breaker and `error.details.readinessFailures` no longer includes `gateway-error-circuit`.
 - Check `ai_gateway_gateway_error_circuit_success_total` increments.
 
+### Quick automated drill
+
+You can run the same recovery sequence with one command:
+
+```bash
+pnpm drill:gateway-circuit --json
+```
+
+Useful flags:
+- `--base-url` (default: `AI_GATEWAY_SERVICE_URL` or `http://127.0.0.1:3100`)
+- `--trip-route` (default: `/provider-config/save`)
+- `--probe-route` (default: `/healthz`)
+- `--trip-attempts` (default: `2`)
+- `--trip-body` (default: `{}`)
+- `--open-wait-ms` (defaults to `AI_GATEWAY_GATEWAY_ERROR_CIRCUIT_RESET_MS` or `30000`)
+- `--poll-limit` (default: `20`)
+- `--poll-interval-ms` (default: `1000`)
+
 ### Example commands
 
 ```bash
