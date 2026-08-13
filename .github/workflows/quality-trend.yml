@@ -69,7 +69,13 @@ jobs:
       - name: Render quality trend summary
         if: always()
         continue-on-error: true
-        run: pnpm quality:trend-summary -- --trend .tmp/quality-trend.json --output .tmp/quality-trend-summary.md --guard-output .tmp/quality-trend-guardrail.json
+        run: |
+          pnpm quality:trend-summary -- \
+            --trend .tmp/quality-trend.json \
+            --output .tmp/quality-trend-summary.md \
+            --guard-output .tmp/quality-trend-guardrail.json \
+            --max-consecutive-failures "${{ github.event.inputs.max_consecutive_failures || '3' }}" \
+            --max-score-drop-points "${{ github.event.inputs.max_score_drop_points || '20' }}"
 
       - name: Enforce quality trend guardrails
         if: |

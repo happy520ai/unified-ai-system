@@ -221,3 +221,14 @@ Example:
 ```bash
 pnpm quality:trend-summary -- --trend .tmp/quality-trend.json --output .tmp/quality-trend-summary.md --guard-output .tmp/quality-trend-guardrail.json --max-consecutive-failures 3 --max-score-drop-points 20 --enforce-guardrails
 ```
+
+## 6) CI trend artifacts (current pipeline)
+
+The CI workflow now stores the following additional trend artifacts per run:
+
+- `.tmp/quality-trend.json`
+- `.tmp/quality-trend-summary.md`
+- `.tmp/quality-trend-guardrail.json`
+
+If you inspect workflow artifacts, you can load the guardrail JSON to see threshold checks
+used in CI diagnostics and trend stability reviews.

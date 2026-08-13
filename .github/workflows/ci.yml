@@ -63,6 +63,28 @@ jobs:
       - name: Quality CI gate
         run: pnpm quality:ci -- --json --require-score 165
 
+      - name: Append quality trend record
+        if: always()
+        continue-on-error: true
+        run: |
+          pnpm quality:trend-log \
+            --quality .tmp/quality-scorecard.json \
+            --verification .tmp/quality-ci-verification.json \
+            --drill .tmp/circuit-recovery-drill-dry-run.json \
+            --trend .tmp/quality-trend.json
+
+      - name: Render quality trend summary
+        if: always()
+        continue-on-error: true
+        run: pnpm quality:trend-summary -- --trend .tmp/quality-trend.json --output .tmp/quality-trend-summary.md --guard-output .tmp/quality-trend-guardrail.json
+
+      - name: Append trend summary to workflow summary
+        if: always()
+        run: |
+          if [ -f .tmp/quality-trend-summary.md ]; then
+            cat .tmp/quality-trend-summary.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Upload quality scorecard artifact
         if: always()
         uses: actions/upload-artifact@v4
@@ -72,6 +94,9 @@ jobs:
             .tmp/quality-scorecard.json
             .tmp/circuit-recovery-drill-dry-run.json
             .tmp/quality-ci-verification.json
+            .tmp/quality-trend.json
+            .tmp/quality-trend-summary.md
+            .tmp/quality-trend-guardrail.json
           retention-days: 30
 
       - name: Codex MCP server
