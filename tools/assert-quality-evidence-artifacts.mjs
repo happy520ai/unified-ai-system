@@ -197,7 +197,41 @@ function normalizeFieldList(...items) {
   return result;
 }
 
-function readPolicy(policyPath) {
+function isObject(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function mergePolicy(basePolicy, overridePolicy) {
+  const base = isObject(basePolicy) ? basePolicy : {};
+  const override = isObject(overridePolicy) ? overridePolicy : {};
+
+  const merged = {
+    ...base,
+    ...override,
+  };
+
+  merged.requiredArtifacts = normalizeArtifacts(base.requiredArtifacts, override.requiredArtifacts);
+  merged.requiredJsonArtifacts = normalizeArtifacts(base.requiredJsonArtifacts, override.requiredJsonArtifacts);
+  merged.requiredTimestampedArtifacts = normalizeArtifacts(
+    base.requiredTimestampedArtifacts,
+    override.requiredTimestampedArtifacts,
+  );
+  merged.requiredTimestampFieldArtifacts = normalizeFieldList(
+    base.requiredTimestampFieldArtifacts,
+    override.requiredTimestampFieldArtifacts,
+  );
+  merged.requiredFields = normalizeFieldList(base.requiredFields, override.requiredFields);
+
+  if ("extends" in merged) {
+    delete merged.extends;
+  }
+
+  return merged;
+}
+
+const policyCache = new Map();
+
+function readPolicy(policyPath, visited = new Set()) {
   if (!policyPath) {
     return { ok: true, policy: {} };
   }
@@ -208,19 +242,148 @@ function readPolicy(policyPath) {
       ok: false,
       errors: [`policy missing: ${policyPath}`],
       policy: {},
+      path: policyPath,
     };
   }
 
+  if (visited.has(absolutePolicy)) {
+    return {
+      ok: false,
+      errors: [`policy inheritance cycle detected at ${absolutePolicy}`],
+      policy: {},
+      path: policyPath,
+    };
+  }
+
+  const cacheEntry = policyCache.get(absolutePolicy);
+  if (cacheEntry) {
+    return cacheEntry;
+  }
+
+  const nextVisited = new Set(visited);
+  nextVisited.add(absolutePolicy);
+
   try {
     const raw = readFileSync(absolutePolicy, "utf8");
-    return { ok: true, policy: JSON.parse(raw), path: policyPath };
+    const parsed = JSON.parse(raw);
+    if (!isObject(parsed)) {
+      const result = {
+        ok: false,
+        errors: [`policy is not an object: ${policyPath}`],
+        policy: {},
+        path: policyPath,
+      };
+      policyCache.set(absolutePolicy, result);
+      return result;
+    }
+
+    let mergedPolicy = { ...parsed };
+    delete mergedPolicy.extends;
+
+    const parentSpec = typeof parsed.extends === "string" ? parsed.extends.trim() : null;
+    if (parentSpec) {
+      const parentPath = resolve(dirname(absolutePolicy), parentSpec);
+      const parentResult = readPolicy(parentPath, nextVisited);
+      if (!parentResult.ok) {
+        const result = {
+          ok: false,
+          errors: parentResult.errors,
+          policy: mergePolicy(parentResult.policy, parsed),
+          path: policyPath,
+        };
+        delete result.policy.extends;
+        policyCache.set(absolutePolicy, result);
+        return result;
+      }
+
+      mergedPolicy = mergePolicy(parentResult.policy, parsed);
+    }
+
+    const result = {
+      ok: true,
+      policy: mergedPolicy,
+      path: policyPath,
+    };
+    policyCache.set(absolutePolicy, result);
+    return result;
   } catch (error) {
-    return {
+    const result = {
       ok: false,
       errors: [`policy parse failed: ${policyPath}: ${String(error.message)}`],
       policy: {},
+      path: policyPath,
     };
+    policyCache.set(absolutePolicy, result);
+    return result;
   }
+}
+
+function validatePolicy(policy) {
+  const issues = [];
+
+  if (!isObject(policy)) {
+    return [`policy must be an object.`];
+  }
+
+  const positiveIntegerFields = ["maxAgeMinutes", "maxTimestampSkewMinutes"];
+  for (const field of positiveIntegerFields) {
+    if (policy[field] === undefined) {
+      continue;
+    }
+    const parsed = Number(policy[field]);
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+      issues.push(`policy.${field} must be a positive integer`);
+    }
+  }
+
+  const arrayKeys = [
+    "requiredArtifacts",
+    "requiredJsonArtifacts",
+    "requiredTimestampedArtifacts",
+  ];
+  for (const key of arrayKeys) {
+    if (!(key in policy)) {
+      continue;
+    }
+    if (!Array.isArray(policy[key])) {
+      issues.push(`policy.${key} must be an array of strings`);
+    } else {
+      for (const entry of policy[key]) {
+        if (typeof entry !== "string" || entry.trim().length === 0) {
+          issues.push(`policy.${key} entry must be a non-empty string`);
+          break;
+        }
+      }
+    }
+  }
+
+  const fieldEntryKeys = ["requiredFields", "requiredTimestampFieldArtifacts"];
+  for (const key of fieldEntryKeys) {
+    if (!(key in policy)) {
+      continue;
+    }
+    if (!Array.isArray(policy[key])) {
+      issues.push(`policy.${key} must be an array`);
+      continue;
+    }
+
+    for (const entry of policy[key]) {
+      if (!isObject(entry)) {
+        issues.push(`policy.${key} entry must be object with artifactPath and fieldPath`);
+        break;
+      }
+      if (typeof entry.artifactPath !== "string" || entry.artifactPath.trim().length === 0) {
+        issues.push(`policy.${key} requires artifactPath`);
+        break;
+      }
+      if (typeof entry.fieldPath !== "string" || entry.fieldPath.trim().length === 0) {
+        issues.push(`policy.${key} requires fieldPath`);
+        break;
+      }
+    }
+  }
+
+  return issues;
 }
 
 function formatArtifactResult(path, details) {
@@ -369,7 +532,7 @@ function main() {
   const args = parseArgs();
   const policyResult = readPolicy(args.configPath);
   const policy = policyResult.policy ?? {};
-  const policyErrors = policyResult.errors ?? [];
+  const policyErrors = [...(policyResult.errors ?? []), ...validatePolicy(policyResult.policy)];
 
   const policyRequiredArtifacts = Array.isArray(policy.requiredArtifacts) ? policy.requiredArtifacts : [];
   const policyRequiredJsonArtifacts = Array.isArray(policy.requiredJsonArtifacts) ? policy.requiredJsonArtifacts : [];
