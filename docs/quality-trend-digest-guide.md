@@ -32,6 +32,7 @@ pnpm quality:trend-check -- \
 ```
 
 Tip: In CI/scheduled trend workflows, `--require-stable-state` is controlled by `QUALITY_TREND_REQUIRE_STABLE_STATE` (default `true`), and pass-rate + stability thresholds can be set through repository variables (`QUALITY_TREND_MIN_PASS_RATE_PERCENT`, `QUALITY_TREND_MAX_CONSECUTIVE_FAILURES`, `QUALITY_TREND_MAX_SCORE_DROP_POINTS`).
+To hard-fail critical trend drift, set repo variable `QUALITY_TREND_HARD_BLOCK=true` for CI, or pass `quality_trend_hard_block=true` when dispatching the `Quality Trend Snapshot` workflow.
 
 ## What changed in the digest output
 
@@ -63,7 +64,7 @@ For a full incident playbook, see:
 ## Policy behavior
 
 - CI/cron pipelines run `quality:trend-check` as an informational pass/fail signal and write JSON output to `.tmp/quality-trend-check.json`.
-- `--hard-block` enables explicit fail in manual enforcement workflows when a check is critical.
+- `--hard-block` enables explicit fail when trend checks are `blocked` (for example, `QUALITY_TREND_HARD_BLOCK=true` in CI or `quality_trend_hard_block=true` in manual dispatch).
 - `--allow-warnings` downgrades warning-level blocking to a non-blocking state while keeping the warning visible.
 - In repository variables, set `QUALITY_TREND_HARD_BLOCK=true` to fail CI on critical trend check signals.
 
