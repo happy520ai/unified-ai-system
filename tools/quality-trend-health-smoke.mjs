@@ -25,6 +25,8 @@ function parseArgs() {
   const args = process.argv.slice(2);
   const values = {
     outputJson: false,
+    showHelp: false,
+    unknownArgs: [],
     qualityThreshold: parsePositiveInteger(process.env.QUALITY_THRESHOLD, 165),
     trendPath: ".tmp/quality-trend.json",
     trendSummaryPath: ".tmp/quality-trend-summary.md",
@@ -51,6 +53,10 @@ function parseArgs() {
     const arg = args[index];
     if (arg === "--json") {
       values.outputJson = true;
+      continue;
+    }
+    if (arg === "--help" || arg === "-h") {
+      values.showHelp = true;
       continue;
     }
     if (arg === "--require-score") {
@@ -172,8 +178,46 @@ function parseArgs() {
       values.runTrendLog = true;
       continue;
     }
+    if (arg.startsWith("--")) {
+      values.unknownArgs.push(arg);
+      continue;
+    }
   }
   return values;
+}
+
+function printUsage() {
+  const lines = [
+    "Usage:",
+    "  pnpm quality:trend-health-smoke -- [options]",
+    "",
+    "Options:",
+    "  --require-score <N>        Quality score threshold for quality:ci:trend-health",
+    "  --trend <path>             Trend history input path (default .tmp/quality-trend.json)",
+    "  --summary <path>           Trend summary output path (default .tmp/quality-trend-summary.md)",
+    "  --guardrail <path>         Guardrail output path (default .tmp/quality-trend-guardrail.json)",
+    "  --quality <path>           Input quality-scorecard path (default .tmp/quality-scorecard.json)",
+    "  --drill <path>             Input drill path (default .tmp/circuit-recovery-drill-dry-run.json)",
+    "  --verification <path>       Output verification path (default .tmp/quality-ci-verification.json)",
+    "  --digest-output <path>      Trend digest output path (default .tmp/quality-trend-digest.md)",
+    "  --digest-json <path>        Trend digest JSON output path (default .tmp/quality-trend-digest.json)",
+    "  --short-window <N>         Digest short window (default 7)",
+    "  --long-window <N>          Digest long window (default 30)",
+    "  --max-consecutive-failures <N>",
+    "                             Guardrail consecutive failure threshold (default 3)",
+    "  --max-score-drop-points <N> Guardrail score-drop threshold (default 20)",
+    "  --min-pass-rate-percent <N> Guardrail pass-rate threshold (default 70)",
+    "  --require-stable-state      Force trend artifacts to require stability",
+    "  --skip-historical           Skip pre-run historical baseline check",
+    "  --no-trend-log              Skip quality:trend-log append step",
+    "  --hard-block                Pass hard-block flag to quality:trend-check",
+    "  --allow-warnings            Downgrade warnings in quality:trend-check",
+    "  --max-summary-reasons <N>   Max reasons output in trend-check",
+    "  --enforce-guardrails        Force trend summary guardrail enforcement",
+    "  --json                      Print JSON summary for each script output",
+    "  --help, -h                 Show this help and exit",
+  ];
+  process.stdout.write(`${lines.join("\n")}\n`);
 }
 
 function parseJson(raw) {
@@ -373,6 +417,16 @@ function emitFailureSummary(options, steps, artifacts, reason, detail) {
 
 function main() {
   const options = parseArgs();
+
+  if (options.showHelp) {
+    printUsage();
+    process.exitCode = 0;
+    return;
+  }
+  if (options.unknownArgs.length > 0) {
+    console.log(`\nIgnored unknown arguments: ${options.unknownArgs.join(", ")}`);
+  }
+
   const steps = [];
   const artifacts = new Set([
     options.qualityScorecardPath,
