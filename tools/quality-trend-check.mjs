@@ -10,6 +10,8 @@ const SEVERITY_SCORE = {
   warning: 2,
   critical: 3,
 };
+const LANGUAGE_POLICY_DEFAULT_CHECK_ARTIFACT = ".tmp/language-policy-check.json";
+const LANGUAGE_POLICY_DEFAULT_EXPIRY_ARTIFACT = ".tmp/language-policy-expiry.json";
 
 function normalizeSeverity(raw) {
   const normalized = String(raw ?? "").toLowerCase();
@@ -77,6 +79,48 @@ function reasonToIssueCode(reasonText) {
       artifactPath: ".tmp/quality-trend-guardrail.json",
     };
   }
+  if (reason.includes("language policy exception expired") || (reason.includes("expired") && reason.includes("exception"))) {
+    return {
+      code: "language_policy_exception_expired",
+      severity: "high",
+      message: reasonText,
+      artifactPath: ".tmp/language-policy-expiry.json",
+    };
+  }
+  if (reason.includes("missing evidence trace")) {
+    return {
+      code: "language_policy_missing_evidence",
+      severity: "high",
+      message: reasonText,
+      artifactPath: ".tmp/language-policy-check.json",
+    };
+  }
+  if (
+    reason.includes("missing required field") && reason.includes("migrationplan")
+  ) {
+    return {
+      code: "language_policy_missing_migration_plan",
+      severity: "high",
+      message: reasonText,
+      artifactPath: ".tmp/language-policy-check.json",
+    };
+  }
+  if (reason.includes("language policy artifact")) {
+    return {
+      code: "language_policy_artifact_missing",
+      severity: "high",
+      message: reasonText,
+      artifactPath: ".tmp/language-policy-check.json",
+    };
+  }
+  if (reason.includes("language policy warning") || (reason.includes("deprecated") && reason.includes("language policy"))) {
+    return {
+      code: "language_policy_allowlist_warning",
+      severity: "medium",
+      message: reasonText,
+      artifactPath: ".tmp/language-policy-check.json",
+    };
+  }
   return {
     code: "trend_issue_unknown",
     severity: "info",
@@ -85,7 +129,242 @@ function reasonToIssueCode(reasonText) {
   };
 }
 
-function buildIssueCodesFromTrendCheck(summary) {
+function mapLanguagePolicyTextToIssueCode(messageText, artifactPath) {
+  const reason = String(messageText ?? "").toLowerCase();
+  if (reason.includes("exception expired") || (reason.includes("expired") && reason.includes("exception"))) {
+    return {
+      code: "language_policy_exception_expired",
+      severity: "high",
+      message: String(messageText ?? ""),
+      artifactPath,
+      source: "quality-trend-check",
+    };
+  }
+  if (reason.includes("missing evidence trace")) {
+    return {
+      code: "language_policy_missing_evidence",
+      severity: "high",
+      message: String(messageText ?? ""),
+      artifactPath,
+      source: "quality-trend-check",
+    };
+  }
+  if (reason.includes("missing required field") && reason.includes("migrationplan")) {
+    return {
+      code: "language_policy_missing_migration_plan",
+      severity: "high",
+      message: String(messageText ?? ""),
+      artifactPath,
+      source: "quality-trend-check",
+    };
+  }
+  if (reason.includes("invalid") && reason.includes("date")) {
+    return {
+      code: "language_policy_invalid_removal_date",
+      severity: "high",
+      message: String(messageText ?? ""),
+      artifactPath,
+      source: "quality-trend-check",
+    };
+  }
+  if (reason.includes("legacy") || reason.includes("deprecated") || reason.includes("language policy warning")) {
+    return {
+      code: "language_policy_allowlist_warning",
+      severity: "medium",
+      message: String(messageText ?? ""),
+      artifactPath,
+      source: "quality-trend-check",
+    };
+  }
+  if (reason.includes("missing required field")) {
+    return {
+      code: "language_policy_missing_metadata",
+      severity: "high",
+      message: String(messageText ?? ""),
+      artifactPath,
+      source: "quality-trend-check",
+    };
+  }
+  if (reason.includes("violation") || reason.includes("runtime path uses js")) {
+    return {
+      code: "language_policy_violation_blocked",
+      severity: "high",
+      message: String(messageText ?? ""),
+      artifactPath,
+      source: "quality-trend-check",
+    };
+  }
+  return {
+    code: "language_policy_check_issue",
+    severity: "medium",
+    message: String(messageText ?? ""),
+    artifactPath,
+    source: "quality-trend-check",
+  };
+}
+
+function dedupeIssueCodes(issueCodes) {
+  return issueCodes.filter((value, index, array) => {
+    const key = `${value.code}:${value.severity}`;
+    const firstIndex = array.findIndex((item) => `${item.code}:${item.severity}` === key);
+    return firstIndex === index;
+  });
+}
+
+function buildLanguagePolicyIssueCodes(languagePolicyCheck, languagePolicyExpiry) {
+  const issueCodes = [];
+  const addIssue = (code, message, severity, artifactPath) => {
+    issueCodes.push({
+      code,
+      severity,
+      message: String(message),
+      artifactPath,
+      source: "quality-trend-check",
+    });
+  };
+
+  for (const warning of Array.isArray(languagePolicyCheck?.allowlistWarnings)
+    ? languagePolicyCheck.allowlistWarnings
+    : []) {
+    issueCodes.push(
+      mapLanguagePolicyTextToIssueCode(
+        `language policy allowlist warning: ${warning}`,
+        LANGUAGE_POLICY_DEFAULT_CHECK_ARTIFACT,
+      ),
+    );
+  }
+
+  for (const issue of Array.isArray(languagePolicyCheck?.allowlistIssues)
+    ? languagePolicyCheck.allowlistIssues
+    : []) {
+    issueCodes.push(mapLanguagePolicyTextToIssueCode(issue, LANGUAGE_POLICY_DEFAULT_CHECK_ARTIFACT));
+  }
+
+  for (const violation of Array.isArray(languagePolicyCheck?.violations)
+    ? languagePolicyCheck.violations
+    : []) {
+    addIssue(
+      "language_policy_violation_blocked",
+      `${violation.boundary ?? "unknown"}: ${violation.file ?? "unknown"} (${violation.extension ?? "unknown"}) ${violation.reason ?? "unknown"}${
+        violation.remedy ? ` remedy=${violation.remedy}` : ""
+      }`,
+      "high",
+      LANGUAGE_POLICY_DEFAULT_CHECK_ARTIFACT,
+    );
+  }
+
+  for (const exception of Array.isArray(languagePolicyExpiry?.expired) ? languagePolicyExpiry.expired : []) {
+    addIssue(
+      "language_policy_exception_expired",
+      `language policy exception expired: ${exception.type ?? "unknown"}:${exception.value ?? "unknown"} (owner=${exception.owner ?? "unknown"}, removalBy=${exception.removalBy ?? "unknown"}, migrationPlan=${exception.migrationPlan ?? "unknown"}, trace=${exception.pr ? `pr=${exception.pr}` : ""}${exception.issueId ? `${exception.pr ? ", " : ""}issue=${exception.issueId}` : ""})`,
+      "high",
+      LANGUAGE_POLICY_DEFAULT_EXPIRY_ARTIFACT,
+    );
+  }
+
+  for (const issue of Array.isArray(languagePolicyExpiry?.issues)
+    ? languagePolicyExpiry.issues
+    : []) {
+    issueCodes.push(mapLanguagePolicyTextToIssueCode(issue, LANGUAGE_POLICY_DEFAULT_EXPIRY_ARTIFACT));
+  }
+
+  const nearExpiry = Array.isArray(languagePolicyExpiry?.nearExpiry) ? languagePolicyExpiry.nearExpiry : [];
+  for (const exception of nearExpiry.slice(0, 8)) {
+    addIssue(
+      "language_policy_exception_near_expiry",
+      `language policy exception near expiry: ${exception.type ?? "unknown"}:${exception.value ?? "unknown"} (daysUntilRemoval=${exception.daysUntilRemoval ?? "unknown"}, owner=${exception.owner ?? "unknown"}, removalBy=${exception.removalBy ?? "unknown"}, migrationPlan=${exception.migrationPlan ?? "unknown"})`,
+      "low",
+      LANGUAGE_POLICY_DEFAULT_EXPIRY_ARTIFACT,
+    );
+  }
+
+  return dedupeIssueCodes(issueCodes);
+}
+
+function classifyLanguagePolicyArtifacts(
+  languagePolicyCheck,
+  languagePolicyExpiry,
+  languagePolicyCheckPath,
+  languagePolicyExpiryPath,
+) {
+  const reasons = [];
+  const issueCodes = [];
+
+  if (!languagePolicyCheck && !languagePolicyExpiry) {
+    reasons.push(`Could not read required language policy artifacts: ${languagePolicyCheckPath}, ${languagePolicyExpiryPath}`);
+    issueCodes.push({
+      code: "language_policy_artifact_missing",
+      severity: "high",
+      message: `language policy artifacts missing: check=${languagePolicyCheckPath}, expiry=${languagePolicyExpiryPath}`,
+      artifactPath: languagePolicyCheckPath,
+      source: "quality-trend-check",
+    });
+  } else {
+    if (!languagePolicyCheck) {
+      reasons.push(`Could not read language policy check artifact: ${languagePolicyCheckPath}`);
+      issueCodes.push({
+        code: "language_policy_artifact_missing",
+        severity: "medium",
+        message: `language policy check artifact missing: ${languagePolicyCheckPath}`,
+        artifactPath: languagePolicyCheckPath,
+        source: "quality-trend-check",
+      });
+    }
+    if (!languagePolicyExpiry) {
+      reasons.push(`Could not read language policy expiry artifact: ${languagePolicyExpiryPath}`);
+      issueCodes.push({
+        code: "language_policy_artifact_missing",
+        severity: "medium",
+        message: `language policy expiry artifact missing: ${languagePolicyExpiryPath}`,
+        artifactPath: languagePolicyExpiryPath,
+        source: "quality-trend-check",
+      });
+    }
+  }
+
+  issueCodes.push(...buildLanguagePolicyIssueCodes(languagePolicyCheck, languagePolicyExpiry));
+
+  for (const issue of languagePolicyCheck?.allowlistWarnings ?? []) {
+    reasons.push(`language policy warning: ${String(issue)}`);
+  }
+  for (const issue of languagePolicyCheck?.allowlistIssues ?? []) {
+    reasons.push(`language policy check issue: ${String(issue)}`);
+  }
+  for (const violation of languagePolicyCheck?.violations ?? []) {
+    reasons.push(
+      `language policy violation: ${violation?.boundary ?? "unknown"}:${violation?.file ?? "unknown"} (${violation?.extension ?? "unknown"}) ${violation?.reason ?? "unknown"}`,
+    );
+  }
+  for (const exception of languagePolicyExpiry?.expired ?? []) {
+    reasons.push(
+      `language policy exception expired: ${exception?.type ?? "unknown"}:${exception?.value ?? "unknown"} (removalBy=${exception?.removalBy ?? "unknown"}, owner=${exception?.owner ?? "unknown"})`,
+    );
+  }
+  for (const issue of languagePolicyExpiry?.issues ?? []) {
+    reasons.push(`language policy expiry issue: ${String(issue)}`);
+  }
+  for (const exception of languagePolicyExpiry?.nearExpiry ?? []) {
+    reasons.push(
+      `language policy exception near expiry: ${exception?.type ?? "unknown"}:${exception?.value ?? "unknown"} (daysUntilRemoval=${exception?.daysUntilRemoval ?? "unknown"})`,
+    );
+  }
+
+  if (reasons.length === 0 && issueCodes.length === 0) {
+    return null;
+  }
+
+  const hasBlockingIssue = issueCodes.some((issue) => issue?.severity === "high");
+  return {
+    status: hasBlockingIssue ? "language-policy-blocking" : "language-policy-warning",
+    severity: hasBlockingIssue ? "critical" : "warning",
+    blocked: hasBlockingIssue,
+    reasons,
+    recommendation: "Fix language policy exception and expiry issues before proceeding.",
+    issueCodes: dedupeIssueCodes(issueCodes),
+  };
+}
+
+function buildIssueCodesFromTrendCheck(summary, languagePolicyIssueCodes = []) {
   const issueCodes = [];
   const reasonIssues = Array.isArray(summary?.reasons) ? summary.reasons : [];
   for (const reason of reasonIssues) {
@@ -103,11 +382,8 @@ function buildIssueCodesFromTrendCheck(summary) {
       source: "quality-trend-check",
     });
   }
-  return issueCodes.filter((value, index, array) => {
-    const key = `${value.code}:${value.severity}`;
-    const firstIndex = array.findIndex((item) => `${item.code}:${item.severity}` === key);
-    return firstIndex === index;
-  });
+  issueCodes.push(...Array.isArray(languagePolicyIssueCodes) ? languagePolicyIssueCodes : []);
+  return dedupeIssueCodes(issueCodes);
 }
 
 function toPositiveInteger(raw, fallback) {
@@ -133,6 +409,8 @@ function parseArgs() {
     digestPath: ".tmp/quality-trend-digest.json",
     guardrailPath: ".tmp/quality-trend-guardrail.json",
     summaryPath: ".tmp/quality-trend-summary.md",
+    languagePolicyCheckPath: LANGUAGE_POLICY_DEFAULT_CHECK_ARTIFACT,
+    languagePolicyExpiryPath: LANGUAGE_POLICY_DEFAULT_EXPIRY_ARTIFACT,
     requireHardBlock: false,
     allowWarnings: false,
     outputJson: false,
@@ -153,6 +431,16 @@ function parseArgs() {
     }
     if (arg === "--summary") {
       output.summaryPath = args[index + 1] ?? output.summaryPath;
+      index += 1;
+      continue;
+    }
+    if (arg === "--language-policy-check") {
+      output.languagePolicyCheckPath = args[index + 1] ?? output.languagePolicyCheckPath;
+      index += 1;
+      continue;
+    }
+    if (arg === "--language-policy-expiry") {
+      output.languagePolicyExpiryPath = args[index + 1] ?? output.languagePolicyExpiryPath;
       index += 1;
       continue;
     }
@@ -204,6 +492,11 @@ function hasCriticalReason(reasonText) {
     "stable-state-required",
     "window pass rate",
     "issue count",
+    "language policy exception",
+    "language policy missing evidence",
+    "language policy check issue",
+    "language policy violation",
+    "language policy artifact",
   ].some((needle) => text.includes(needle));
 }
 
@@ -312,11 +605,20 @@ function summarize() {
   const args = parseArgs();
   const digest = readJson(args.digestPath);
   const guardrail = readJson(args.guardrailPath);
+  const languagePolicyCheck = readJson(args.languagePolicyCheckPath ?? LANGUAGE_POLICY_DEFAULT_CHECK_ARTIFACT);
+  const languagePolicyExpiry = readJson(args.languagePolicyExpiryPath ?? LANGUAGE_POLICY_DEFAULT_EXPIRY_ARTIFACT);
+  const languagePolicyFinding = classifyLanguagePolicyArtifacts(
+    languagePolicyCheck,
+    languagePolicyExpiry,
+    args.languagePolicyCheckPath ?? LANGUAGE_POLICY_DEFAULT_CHECK_ARTIFACT,
+    args.languagePolicyExpiryPath ?? LANGUAGE_POLICY_DEFAULT_EXPIRY_ARTIFACT,
+  );
   const summaryPath = resolve(repoRoot, args.summaryPath);
 
   const findings = [
     classifyDigest(digest),
     classifyGuardrail(guardrail),
+    languagePolicyFinding,
   ];
 
   if (findings.every((finding) => finding === null)) {
@@ -339,7 +641,7 @@ function summarize() {
   }
 
   const previewReasons = summary.reasons.slice(0, args.maxSummaryReasons);
-  const issueCodes = buildIssueCodesFromTrendCheck(summary);
+  const issueCodes = buildIssueCodesFromTrendCheck(summary, languagePolicyFinding?.issueCodes);
   const issueCodeSummary = summarizeIssueCodes(issueCodes);
   const payload = {
     status: summary.status,
@@ -352,6 +654,8 @@ function summarize() {
     inputs: {
       digestPath: args.digestPath,
       guardrailPath: args.guardrailPath,
+      languagePolicyCheckPath: args.languagePolicyCheckPath,
+      languagePolicyExpiryPath: args.languagePolicyExpiryPath,
       summaryPath: args.summaryPath,
       summaryExists: existsSync(summaryPath),
     },

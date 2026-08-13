@@ -60,6 +60,20 @@ function issueFromTrendReason(reasonText, artifactPath = ".tmp/quality-trend-che
   } else if (reason.includes("window pass rate")) {
     code = "trend_window_pass_rate";
     severity = "medium";
+  } else if (reason.includes("language policy exception expired") || (reason.includes("expired") && reason.includes("exception"))) {
+    code = "language_policy_exception_expired";
+    severity = "high";
+  } else if (reason.includes("missing evidence trace")) {
+    code = "language_policy_missing_evidence";
+    severity = "high";
+  } else if (reason.includes("missing required field") && reason.includes("migrationplan")) {
+    code = "language_policy_missing_migration_plan";
+    severity = "high";
+  } else if (reason.includes("language policy check issue")
+    || reason.includes("language policy warning")
+    || reason.includes("language policy warning:")) {
+    code = "language_policy_allowlist_warning";
+    severity = "medium";
   } else if (reason.includes("stable-state-required") || reason.includes("stable state")) {
     code = "trend_stable_state_required";
     severity = "high";

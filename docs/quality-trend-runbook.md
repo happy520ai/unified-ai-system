@@ -53,6 +53,16 @@ Quick rule:
 
 When `blocked: true`, block the change and create a fix ticket for unstable root cause.
 
+### Language policy issue-code mapping (trend-check inputs)
+
+- `language_policy_exception_expired`: one or more exceptions are past `removalBy`.
+- `language_policy_missing_evidence`: language-policy exception missing `pr` or `issueId`.
+- `language_policy_missing_migration_plan`: language-policy exception missing `migrationPlan` or migration metadata.
+- `language_policy_artifact_missing`: language-policy artifacts are unavailable in the trend run.
+- `language_policy_violation_blocked`: JS files in `apps/*` or `packages/*` blocked by policy (non-allowed files/extensions).
+- `language_policy_exception_near_expiry`: exception is inside the warning window and approaching `removalBy`.
+- `language_policy_allowlist_warning`: legacy allowlist form or non-blocking warning conditions.
+
 ## 1) Immediate checks (first 15 minutes)
 
 1. Open CI trend artifacts:
