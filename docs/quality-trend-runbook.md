@@ -2,7 +2,37 @@
 
 Use this runbook when trend signals indicate drift or instability in CI, scheduled trend jobs, or PR observability review.
 
-## 0) Quick severity map
+## 0) Evidence index (first 2 minutes)
+
+For immediate triage, the minimum evidence set is:
+
+- From CI workflow `quality`:
+  - `.tmp/quality-scorecard.json`
+  - `.tmp/circuit-recovery-drill-dry-run.json`
+  - `.tmp/quality-ci-verification.json`
+  - `.tmp/quality-trend-verify-artifacts.json`
+  - `.tmp/quality-trend-health-smoke.json`
+  - `.tmp/quality-trend-summary.md`
+  - `.tmp/quality-trend-digest.json`
+  - `.tmp/quality-trend-check.json`
+  - `.tmp/quality-trend-recommendations.md` (if smoke failed)
+  - `.tmp/quality-trend-incident-bundle.md`
+  - `.tmp/quality-trend-incident-bundle.json`
+
+- From workflow `quality trend snapshot`:
+  - `.tmp/quality-trend-health-smoke.json`
+  - `.tmp/quality-trend-summary.md`
+  - `.tmp/quality-trend-guardrail.json`
+  - `.tmp/quality-trend-digest.md`
+  - `.tmp/quality-trend-digest.json`
+  - `.tmp/quality-trend-check.json`
+  - `.tmp/quality-trend-incident-bundle.md`
+  - `.tmp/quality-trend-incident-bundle.json`
+  - `.tmp/quality-trend-verify-artifacts.json`
+
+If any required file is missing after a failed run, treat evidence completeness as a blocker and rerun with artifacts enabled.
+
+## 0.1) Quick severity map
 
 - `status: stable`
   - Action: proceed, but keep trend context for ongoing monitoring.
