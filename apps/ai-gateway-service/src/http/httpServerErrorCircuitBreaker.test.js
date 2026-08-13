@@ -82,4 +82,33 @@ describe("createGatewayErrorCircuitBreaker", () => {
     expect(circuit.getStateSnapshot().halfOpenSuccesses).toBe(0);
     expect(circuit.getStateSnapshot().consecutiveFailures).toBe(0);
   });
+
+  it("reopens immediately when a half-open probe fails", () => {
+    let now = 100;
+    const circuit = createGatewayErrorCircuitBreaker({
+      failureThreshold: 1,
+      successThreshold: 1,
+      resetTimeoutMs: 500,
+      halfOpenMaxCalls: 1,
+      now: () => now,
+    });
+
+    circuit.recordFailure();
+    expect(circuit.getStateSnapshot().state).toBe("open");
+    expect(circuit.getStateSnapshot().consecutiveFailures).toBe(1);
+
+    now += 600;
+    expect(circuit.canProcessRequest()).toBe(true);
+    expect(circuit.getStateSnapshot().state).toBe("half-open");
+
+    circuit.recordFailure();
+    expect(circuit.getStateSnapshot().state).toBe("open");
+    expect(circuit.getStateSnapshot().consecutiveFailures).toBe(1);
+
+    expect(circuit.canProcessRequest()).toBe(false);
+
+    now += 600;
+    expect(circuit.canProcessRequest()).toBe(true);
+    expect(circuit.getStateSnapshot().state).toBe("half-open");
+  });
 });

@@ -101,3 +101,27 @@ Current checks include:
 3. Confirm `healthzInFlightThreshold` and in-flight counts in `saturation`.
 4. Correlate with `/ready`, then `/health`, then dependency routes.
 5. For recoverable degradation, wait and recheck; for dependency breaks, follow corresponding service rollback and warm restart.
+
+## 5) Request-circuit failure drill (manual verification)
+
+Use this lightweight drill to verify the request-circuit breaker behavior in a non-production environment:
+
+1. Temporarily set lower thresholds in `.env.example` for faster transitions:
+
+- `AI_GATEWAY_GATEWAY_ERROR_CIRCUIT_FAILURE_THRESHOLD=2`
+- `AI_GATEWAY_GATEWAY_ERROR_CIRCUIT_SUCCESS_THRESHOLD=1`
+- `AI_GATEWAY_GATEWAY_ERROR_CIRCUIT_RESET_MS=30000`
+- `AI_GATEWAY_GATEWAY_ERROR_CIRCUIT_HALF_OPEN_MAX_CALLS=1`
+
+2. Generate repeated 5xx-like failures on a route that is already connected to this gateway path (or run synthetic failure hooks if available).
+
+3. Observe the transition:
+- `GET /healthz` returns `503` with `readinessFailures` containing `gateway-error-circuit`.
+- `GET /metrics` shows `ai_gateway_gateway_error_circuit_state{state="open"} 1`.
+
+4. Wait for `AI_GATEWAY_GATEWAY_ERROR_CIRCUIT_RESET_MS` and send one probe request:
+- `GET /healthz` (or a light-weight route) should become accepted again when `state="half-open"` appears.
+
+5. Confirm recovery criteria:
+- Half-open success path closes the breaker and `readinessFailures` no longer includes `gateway-error-circuit`.
+- Check `ai_gateway_gateway_error_circuit_success_total` increments.
