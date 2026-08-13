@@ -36,7 +36,8 @@
     "growth:publish": "node ./tools/star-growth-publish-kit.mjs --output .tmp/growth/star-growth-publish-output.md",
     "quality:score": "node tools/quality-scorecard.mjs",
     "drill:gateway-circuit": "node ./tools/circuit-recovery-drill.mjs --json",
-    "drill:gateway-circuit:dry-run": "node ./tools/circuit-recovery-drill.mjs --dry-run --json"
+    "drill:gateway-circuit:dry-run": "node ./tools/circuit-recovery-drill.mjs --dry-run --json",
+    "quality:verify-artifacts": "node ./tools/verify-ci-quality-artifacts.mjs"
   },
   "engines": {
     "node": ">=22",

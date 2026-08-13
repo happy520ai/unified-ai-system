@@ -149,6 +149,13 @@ CI also runs both quality scorecard and the drill dry-run on every push/PR and p
 
 - `.tmp/quality-scorecard.json`
 - `.tmp/circuit-recovery-drill-dry-run.json`
+- `.tmp/quality-ci-verification.json`
+
+You can locally validate the same CI artifacts with:
+
+```bash
+pnpm quality:verify-artifacts -- --json
+```
 
 Useful flags:
 - `--base-url` (default: `AI_GATEWAY_SERVICE_URL` or `http://127.0.0.1:3100`)

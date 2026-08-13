@@ -289,18 +289,20 @@ function checkUnhandledErrorTelemetry() {
 function checkWorkflowGuardrails() {
   try {
     const workflow = readTextFile(".github/workflows/ci.yml");
-  const requiredMarkers = [
-    "pnpm check:public",
-    "pnpm verify:public-clone",
-    "pnpm smoke:mcp",
-    "quality-scorecard.json",
-    "circuit-recovery-drill-dry-run.json",
-    "actions/upload-artifact",
-    "--require-score 140",
-    "pnpm gateway doctor --json",
-    "pnpm eval:prompt-enhancement -- --json",
-    "drill:gateway-circuit:dry-run",
-  ];
+    const requiredMarkers = [
+      "pnpm check:public",
+      "pnpm verify:public-clone",
+      "pnpm smoke:mcp",
+      "quality-scorecard.json",
+      "circuit-recovery-drill-dry-run.json",
+      "quality-ci-verification.json",
+      "actions/upload-artifact",
+      "--require-score 140",
+      "pnpm gateway doctor --json",
+      "pnpm eval:prompt-enhancement -- --json",
+      "drill:gateway-circuit:dry-run",
+      "quality:verify-artifacts",
+    ];
     const missingMarkers = requiredMarkers.filter((marker) => !workflow.includes(marker));
     return {
       ok: missingMarkers.length === 0,
