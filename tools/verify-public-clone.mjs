@@ -24,6 +24,212 @@ const a2aSdkExampleEntrypoint = resolve(
   repoRoot,
   "docs/examples/a2a-sdk-client.mjs",
 );
+const ISSUE_SOURCE = "verify-public-clone";
+
+function normalizeIssueCode(raw) {
+  const slug = String(raw ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  return slug.length === 0 ? "unknown_issue" : slug;
+}
+
+function normalizeSeverity(raw) {
+  const normalized = String(raw ?? "").toLowerCase();
+  if (["high", "medium", "low", "info", "unknown"].includes(normalized)) {
+    return normalized;
+  }
+  return "unknown";
+}
+
+function summarizeIssueCodes(issueCodes) {
+  const summary = {
+    total: 0,
+    high: 0,
+    medium: 0,
+    low: 0,
+    info: 0,
+    unknown: 0,
+    blocking: false,
+  };
+  if (!Array.isArray(issueCodes)) return summary;
+  for (const issue of issueCodes) {
+    const severity = normalizeSeverity(issue?.severity);
+    if (severity === "high") summary.high += 1;
+    else if (severity === "medium") summary.medium += 1;
+    else if (severity === "low") summary.low += 1;
+    else if (severity === "info") summary.info += 1;
+    else summary.unknown += 1;
+    summary.total += 1;
+  }
+  summary.blocking = summary.high > 0;
+  return summary;
+}
+
+function createIssueCode(code, message, severity = "high", artifactPath = null) {
+  return {
+    code: normalizeIssueCode(code),
+    severity: normalizeSeverity(severity),
+    message,
+    artifactPath,
+    source: ISSUE_SOURCE,
+  };
+}
+
+const CHECK_ISSUE_CATALOG = {
+  healthReady: {
+    code: "public_clone_health_not_ready",
+    severity: "high",
+    message: "Gateway health check endpoint did not return ready status.",
+    artifactPath: "/health/check",
+  },
+  setupReady: {
+    code: "public_clone_setup_readiness_failed",
+    severity: "high",
+    message: "Gateway readiness setup probe did not return ready status.",
+    artifactPath: "/setup/readiness",
+  },
+  terminalFirstSurface: {
+    code: "public_clone_terminal_first_surface_not_gated",
+    severity: "medium",
+    message: "Terminal-first surfaces were unexpectedly available.",
+    artifactPath: "terminal-first pages",
+  },
+  fakeProviderDefault: {
+    code: "public_clone_fake_provider_default_missing",
+    severity: "high",
+    message: "Gateway did not start with fake-provider default mode.",
+    artifactPath: "/health/check",
+  },
+  promptEnhancementReady: {
+    code: "public_clone_prompt_enhancement_invalid",
+    severity: "high",
+    message: "Prompt-enhancement endpoint did not return expected deterministic result.",
+    artifactPath: "/prompts/enhance",
+  },
+  chatReady: {
+    code: "public_clone_chat_invalid",
+    severity: "high",
+    message: "Chat endpoint did not return a valid success envelope.",
+    artifactPath: "/chat",
+  },
+  chatDefaultEnhancementOff: {
+    code: "public_clone_chat_default_enhancement_enabled",
+    severity: "low",
+    message: "Chat default request unexpectedly had promptEnhancement in response.",
+    artifactPath: "/chat",
+  },
+  chatUsesFakeProvider: {
+    code: "public_clone_chat_non_fake_provider",
+    severity: "high",
+    message: "Chat endpoint did not route to local fake provider.",
+    artifactPath: "/chat",
+  },
+  enhancedChatReady: {
+    code: "public_clone_enhanced_chat_failed",
+    severity: "high",
+    message: "Enhanced chat request did not apply prompt enhancement as expected.",
+    artifactPath: "/chat",
+  },
+  enhancedChatStreamReady: {
+    code: "public_clone_enhanced_chat_stream_invalid",
+    severity: "high",
+    message: "Enhanced streaming chat response did not include expected SSE body.",
+    artifactPath: "/chat/stream",
+  },
+  streamingChatReady: {
+    code: "public_clone_stream_chat_invalid",
+    severity: "high",
+    message: "Streaming chat endpoint did not emit the expected SSE events.",
+    artifactPath: "/chat/stream",
+  },
+  openAiModelsReady: {
+    code: "public_clone_openai_models_invalid",
+    severity: "high",
+    message: "OpenAI-compatible models endpoint missing local fake model.",
+    artifactPath: "/v1/models",
+  },
+  openAiChatReady: {
+    code: "public_clone_openai_chat_invalid",
+    severity: "high",
+    message: "OpenAI-compatible chat endpoint did not return expected success response.",
+    artifactPath: "/v1/chat/completions",
+  },
+  openAiChatUsesFakeProvider: {
+    code: "public_clone_openai_chat_non_fake_provider",
+    severity: "high",
+    message: "OpenAI-compatible chat response did not indicate fake provider execution.",
+    artifactPath: "/v1/chat/completions",
+  },
+  enhancedOpenAiChatReady: {
+    code: "public_clone_openai_enhanced_chat_invalid",
+    severity: "high",
+    message: "Enhanced OpenAI-compatible chat did not apply prompt enhancement.",
+    artifactPath: "/v1/chat/completions",
+  },
+  openAiChatStreamReady: {
+    code: "public_clone_openai_stream_invalid",
+    severity: "high",
+    message: "OpenAI-compatible streaming chat endpoint did not return expected chunked format.",
+    artifactPath: "/v1/chat/completions",
+  },
+  javascriptExampleReady: {
+    code: "public_clone_javascript_example_exit_nonzero",
+    severity: "medium",
+    message: "JavaScript smoke example exited non-zero.",
+    artifactPath: "docs/examples/javascript-chat.mjs",
+  },
+  javascriptExampleUsesFakeProvider: {
+    code: "public_clone_javascript_example_non_fake_provider",
+    severity: "high",
+    message: "JavaScript smoke example did not prove fake provider path.",
+    artifactPath: "docs/examples/javascript-chat.mjs",
+  },
+  sharedSdkExampleReady: {
+    code: "public_clone_shared_sdk_invalid",
+    severity: "high",
+    message: "Shared SDK example did not return expected deterministic fake metadata.",
+    artifactPath: "docs/examples/shared-sdk-prompt-enhancement.mjs",
+  },
+  officialOpenAiSdkReady: {
+    code: "public_clone_openai_sdk_invalid",
+    severity: "high",
+    message: "Official OpenAI SDK compatibility example did not pass all checks.",
+    artifactPath: "docs/examples/openai-sdk-chat.mjs",
+  },
+  officialA2ASdkReady: {
+    code: "public_clone_a2a_sdk_invalid",
+    severity: "high",
+    message: "A2A SDK compatibility example did not pass all checks.",
+    artifactPath: "docs/examples/a2a-sdk-client.mjs",
+  },
+  mcpStdioReady: {
+    code: "public_clone_mcp_smoke_invalid",
+    severity: "high",
+    message: "MCP smoke validation failed.",
+    artifactPath: "tools/mcp-smoke.mjs",
+  },
+};
+
+function buildIssueCodesFromChecks(checks) {
+  if (!checks || typeof checks !== "object") return [];
+  const issueCodes = [];
+  const seen = new Set();
+  for (const [check, passed] of Object.entries(checks)) {
+    if (passed) continue;
+    const rule = CHECK_ISSUE_CATALOG[check];
+    if (!rule) continue;
+    const code = normalizeIssueCode(rule.code);
+    const key = `${code}:${rule.severity}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    issueCodes.push(
+      createIssueCode(code, `${rule.message} (${check}=${String(passed)})`, rule.severity, rule.artifactPath),
+    );
+  }
+  return issueCodes;
+}
 
 function delay(milliseconds) {
   return new Promise((resolvePromise) => setTimeout(resolvePromise, milliseconds));
@@ -494,9 +700,12 @@ try {
       && mcpSmoke.body?.executionMode === "fake"
       && mcpSmoke.body?.managedGatewayCleanedUp === true,
   };
+  const issueCodes = buildIssueCodesFromChecks(checks);
 
   result = {
     ok: Object.values(checks).every(Boolean),
+    issueCodes,
+    issueCodeSummary: summarizeIssueCodes(issueCodes),
     port,
     checks,
     realProviderCallsMade: false,
@@ -509,10 +718,20 @@ try {
   };
   if (!result.ok) process.exitCode = 1;
 } catch (error) {
+  const issueCodes = [
+    createIssueCode(
+      "public_clone_fatal_failure",
+      error instanceof Error ? error.message : String(error),
+      "high",
+      "tools/verify-public-clone.mjs",
+    ),
+  ];
   result = {
     ok: false,
+    issueCodes,
+    issueCodeSummary: summarizeIssueCodes(issueCodes),
     port,
-    error: error.message,
+    error: error instanceof Error ? error.message : String(error),
     realProviderCallsMade: false,
     outputTail: `${stdout}\n${stderr}`.trim().slice(-4_000),
   };
