@@ -8,7 +8,7 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const DEFAULT_LANGUAGE_POLICY_ALLOWLIST = resolve(repoRoot, "tools/language-policy-allowlist.json");
 const DEFAULT_WARN_WITHIN_DAYS = 14;
 const EXCEPTION_TYPES = new Set(["file", "pathPrefix", "pathPattern"]);
-const REQUIRED_FIELDS = ["type", "value", "justification", "owner", "removalBy"];
+const REQUIRED_FIELDS = ["type", "value", "justification", "owner", "removalBy", "migrationPlan"];
 
 function parseArgs() {
   const args = process.argv.slice(2);
@@ -86,7 +86,7 @@ function parseAllowlist(path, warnings, issues) {
     }
     if (entries.length > 0) {
       warnings.push(
-        `${legacy.field} is deprecated in allowlist; migrate each entry into exceptions[] by 2026-10-01 with justification/owner/removalBy`,
+        `${legacy.field} is deprecated in allowlist; migrate each entry into exceptions[] by 2026-10-01 with justification/owner/removalBy/migrationPlan`,
       );
     }
     entries.forEach((entry, index) => {
@@ -100,6 +100,7 @@ function parseAllowlist(path, warnings, issues) {
         justification: "legacy allowance",
         owner: "legacy",
         removalBy: "1970-01-01",
+        migrationPlan: "migrate out of legacy field by 2026-10-01",
         fromLegacyField: legacy.field,
         legacyIndex: index,
       });
@@ -126,6 +127,7 @@ function parseAllowlist(path, warnings, issues) {
       justification: `${entry.justification ?? ""}`.trim(),
       owner: `${entry.owner ?? ""}`.trim(),
       removalBy: `${entry.removalBy ?? ""}`.trim(),
+      migrationPlan: `${entry.migrationPlan ?? ""}`.trim(),
     };
     const missing = REQUIRED_FIELDS.filter((field) => `${entry?.[field] ?? ""}`.trim().length === 0);
     if (!EXCEPTION_TYPES.has(normalized.type)) {
@@ -140,6 +142,10 @@ function parseAllowlist(path, warnings, issues) {
     if (!parsedDate.ok) {
       issues.push(`exceptions[${index}].removalBy parse failed: ${parsedDate.error}`);
       return;
+    }
+    const hasEvidence = `${entry.pr ?? ""}`.trim().length > 0 || `${entry.issueId ?? ""}`.trim().length > 0;
+    if (!hasEvidence) {
+      issues.push(`exceptions[${index}] missing evidence trace: provide at least one of pr or issueId`);
     }
 
     exceptions.push({
@@ -240,4 +246,3 @@ function main() {
 }
 
 main();
-

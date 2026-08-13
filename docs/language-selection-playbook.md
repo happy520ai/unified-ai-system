@@ -120,9 +120,10 @@ Current schema:
       "value": "apps/xxx/legacy/path.js",
       "justification": "why this file remains JS temporarily",
       "owner": "team-or-individual",
+      "migrationPlan": "具体迁移动作、目标版本和owner负责范围",
       "removalBy": "YYYY-MM-DD",
-      "pr": "optional PR URL",
-      "issueId": "optional issue/track ID",
+      "pr": "PR URL (optional if issueId provided)",
+      "issueId": "Issue key/URL (optional if PR provided)",
       "notes": "optional migration note"
     }
   ]
@@ -131,9 +132,9 @@ Current schema:
 
 - `type`: one of `file`, `pathPrefix`, `pathPattern`.
 - `value`: path or glob-like pattern (`*` and `?` supported).
-- `justification`, `owner`, `removalBy`: must be present for non-legacy entries.
+- `justification`, `owner`, `migrationPlan`, `removalBy`: must be present for non-legacy entries.
 - `removalBy` must be a future date in `YYYY-MM-DD` form.
-- `pr` and `issueId` are optional but recommended for audit traceability.
+- `pr` and `issueId` must include at least one concrete link or track id for rollback/audit traceability.
 - `allowedFiles`, `allowedPathPrefixes`, and `allowedPathPatterns` are still
   accepted in this cycle but treated as deprecated legacy fields and will be
   phased out.

@@ -27,7 +27,7 @@ const DEFAULT_ALLOWED_EXTENSIONS = new Set([
 const DEFAULT_DENIED_JS_EXTENSIONS = new Set([".js", ".cjs", ".mjs"]);
 const DEFAULT_LANGUAGE_POLICY_ALLOWLIST = resolve(repoRoot, "tools/language-policy-allowlist.json");
 const DEFAULT_LANGUAGE_POLICY_EXCEPTION_TYPES = new Set(["file", "pathPrefix", "pathPattern"]);
-const REQUIRED_EXCEPTION_FIELDS = ["type", "value", "justification", "owner", "removalBy"];
+const REQUIRED_EXCEPTION_FIELDS = ["type", "value", "justification", "owner", "removalBy", "migrationPlan"];
 
 function parseArgs() {
   const args = process.argv.slice(2);
@@ -200,7 +200,7 @@ function parseAllowlistFile(allowlistPath) {
       }
       if (entries.length > 0) {
         warnings.push(
-          `${pair.field} is deprecated; migrate entries to exceptions[] with justification, owner, and removalBy`,
+          `${pair.field} is deprecated; migrate entries to exceptions[] with justification, owner, removalBy, and migrationPlan`,
         );
       }
       entries.forEach((entry, index) => {
@@ -214,6 +214,7 @@ function parseAllowlistFile(allowlistPath) {
           justification: "legacy allowance",
           owner: "unassigned",
           removalBy: "1970-01-01",
+          migrationPlan: "migrate legacy field out before policy deadline",
           fromLegacyField: pair.field,
           legacyIndex: index,
         });
@@ -232,10 +233,11 @@ function parseAllowlistFile(allowlistPath) {
 
           const normalizedEntry = {
             type: `${entry.type ?? ""}`.trim(),
-            value: `${entry.value ?? ""}`.trim(),
+            value: `${entry.value ?? ""}`.replaceAll("\\", "/").trim(),
             justification: `${entry.justification ?? ""}`.trim(),
             owner: `${entry.owner ?? ""}`.trim(),
             removalBy: `${entry.removalBy ?? ""}`.trim(),
+            migrationPlan: `${entry.migrationPlan ?? ""}`.trim(),
           };
 
           if (!DEFAULT_LANGUAGE_POLICY_EXCEPTION_TYPES.has(normalizedEntry.type)) {
@@ -259,6 +261,10 @@ function parseAllowlistFile(allowlistPath) {
           if (removalDate < todayUtc) {
             issues.push(`exceptions[${index}] expired on ${normalizedEntry.removalBy}; update or remove`);
             return;
+          }
+          const hasEvidence = `${entry.pr ?? ""}`.trim().length > 0 || `${entry.issueId ?? ""}`.trim().length > 0;
+          if (!hasEvidence) {
+            issues.push(`exceptions[${index}] missing evidence trace: provide at least one of pr or issueId`);
           }
 
           allowlist.exceptions.push({
@@ -325,7 +331,7 @@ function isAllowedByPolicy(path, allowlist) {
 }
 
 function formatAllowedByException(item) {
-  return `type=${item.type}, value=${item.value}, justification=${item.justification}, owner=${item.owner}, removalBy=${item.removalBy}`;
+  return `type=${item.type}, value=${item.value}, justification=${item.justification}, owner=${item.owner}, migrationPlan=${item.migrationPlan}, removalBy=${item.removalBy}`;
 }
 
 function main() {
@@ -350,7 +356,10 @@ function main() {
   if (!allowlistResult.ok) {
     output.ok = false;
     if (allowlistResult.issues.length > 0) {
-      process.stderr.write(`language policy check failed to parse allowlist: ${allowlistResult.issues.join(", ")}\n`);
+      process.stderr.write(
+        `language policy check failed to validate allowlist: ${allowlistResult.issues.join(", ")}`,
+      );
+      process.stderr.write("\n");
     }
     process.exitCode = 1;
     if (args.outputJson) {
@@ -419,6 +428,7 @@ function main() {
             value: matchedException.value,
             justification: matchedException.justification,
             owner: matchedException.owner,
+            migrationPlan: matchedException.migrationPlan,
             removalBy: matchedException.removalBy,
             pr: matchedException.pr ?? "",
             issueId: matchedException.issueId ?? "",
