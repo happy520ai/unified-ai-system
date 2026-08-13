@@ -226,6 +226,71 @@ function readTextLoose(path) {
   }
 }
 
+function normalizeIssueCodes(rawIssueCodes, fallbackSource = null) {
+  const source = typeof fallbackSource === "string" ? fallbackSource : null;
+  const issueCodes = Array.isArray(rawIssueCodes) ? rawIssueCodes : [];
+  const normalized = [];
+  const seen = new Set();
+
+  for (const issue of issueCodes) {
+    const code = issue?.code ? String(issue.code) : "unknown";
+    const rawSeverity = issue?.severity;
+    const normalizedSeverity = typeof rawSeverity === "string"
+      ? rawSeverity.toLowerCase()
+      : "unknown";
+    const key = `${code}:${["high", "medium", "low", "info", "unknown"].includes(normalizedSeverity) ? normalizedSeverity : "unknown"}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    normalized.push({
+      code,
+      severity: ["high", "medium", "low", "info", "unknown"].includes(normalizedSeverity)
+        ? normalizedSeverity
+        : "unknown",
+      message: issue?.message ? String(issue.message) : "",
+      artifactPath: issue?.artifactPath ?? null,
+      source: issue?.source ?? source,
+    });
+  }
+
+  const hasBlockingIssue = normalized.some((issue) => issue.severity === "high");
+  if (hasBlockingIssue && !normalized.some((issue) => issue.code === "incident_bundle_blocking_failure")) {
+    const synthetic = {
+      code: "incident_bundle_blocking_failure",
+      severity: "high",
+      message: "One or more high-severity incident bundle issues are blocking CI quality gate",
+      artifactPath: null,
+      source: source ?? "verify-ci-quality-artifacts",
+    };
+    const syntheticKey = `${synthetic.code}:${synthetic.severity}`;
+    if (!seen.has(syntheticKey)) {
+      normalized.push(synthetic);
+      seen.add(syntheticKey);
+    }
+  }
+  return normalized;
+}
+
+function summarizeIssueCodes(issueCodes) {
+  const summary = {
+    total: issueCodes.length,
+    high: 0,
+    medium: 0,
+    low: 0,
+    info: 0,
+    unknown: 0,
+    blocking: false,
+  };
+  for (const issue of issueCodes) {
+    if (issue.severity === "high") summary.high += 1;
+    else if (issue.severity === "medium") summary.medium += 1;
+    else if (issue.severity === "low") summary.low += 1;
+    else if (issue.severity === "info") summary.info += 1;
+    else summary.unknown += 1;
+  }
+  summary.blocking = summary.high > 0;
+  return summary;
+}
+
 function validateIncidentBundleMarkdownText(markdownText) {
   const issues = [];
   if (typeof markdownText !== "string" || markdownText.length === 0) {
@@ -355,6 +420,9 @@ function verifyIncidentBundle(args) {
     }
   }
 
+  const normalizedIssueCodes = normalizeIssueCodes(issueCodes, "verify-ci-quality-artifacts");
+  const issueCodeSummary = summarizeIssueCodes(normalizedIssueCodes);
+
   return {
     jsonPath: args.incidentBundleJsonPath,
     mdPath: args.incidentBundleMdPath,
@@ -363,7 +431,8 @@ function verifyIncidentBundle(args) {
     schemaVersion: bundle?.schemaVersion ?? null,
     markdownValid: markdownValidationIssues.length === 0,
     markdownValidationIssues,
-    issueCodes,
+    issueCodes: normalizedIssueCodes,
+    issueCodeSummary,
     valid: issues.length === 0,
     issues,
   };
@@ -426,6 +495,8 @@ function main() {
 
   const result = {
     ok: finalIssues.length === 0,
+    issueCodes: incidentBundle.issueCodes,
+    issueCodeSummary: incidentBundle.issueCodeSummary,
     artifacts: {
       quality: {
         path: quality.path,

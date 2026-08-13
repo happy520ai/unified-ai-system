@@ -144,6 +144,7 @@ function summarizeTrendBundle(result) {
 
 function summarizeIncidentBundleFromVerification(qualityResult, verifyResult) {
   const incidentBundle = verifyResult?.parsedOutput?.incidentBundle;
+  const issueCodeSummary = verifyResult?.parsedOutput?.incidentBundle?.issueCodeSummary;
   if (incidentBundle && typeof incidentBundle === "object") {
     const hasJson = Boolean(incidentBundle.jsonPresent);
     const hasMd = Boolean(incidentBundle.mdPresent);
@@ -166,6 +167,9 @@ function summarizeIncidentBundleFromVerification(qualityResult, verifyResult) {
       malformed: !incidentBundle.valid,
       source: incidentBundle.jsonPath ?? ".tmp/quality-trend-incident-bundle.json",
       missing: !hasAny,
+      issueCodeSummary: issueCodeSummary && typeof issueCodeSummary === "object"
+        ? issueCodeSummary
+        : undefined,
     };
   }
 
@@ -190,6 +194,7 @@ function publishStepSummary(summary) {
     `- Incident bundle: ${summary.trendIncidentBundle.status}${summary.trendIncidentBundle.missing ? " (not collected)" : ""}`,
     `- Incident bundle markdown: ${summary.trendIncidentBundle.markdownValid === undefined ? "not checked" : (summary.trendIncidentBundle.markdownValid ? "valid" : "invalid")}`,
     `- Incident bundle high-risk issue: ${summary.trendIncidentBundle.highPriorityFailure ? "yes" : "no"}`,
+    `- Issue codes: ${summary.issueCodes?.length ?? 0} total${summary.trendIncidentBundle?.issueCodeSummary?.blocking ? " (blocking)" : ""}`,
     "",
     "| Check | Status |",
     "| --- | --- |",
