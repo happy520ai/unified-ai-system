@@ -19,7 +19,9 @@ pnpm quality:trend-digest -- \
   --short-window 7 \
   --long-window 30 \
   --max-consecutive-failures 3 \
-  --max-score-drop-points 20
+  --max-score-drop-points 20 \
+  --min-pass-rate-percent 70 \
+  --require-stable-state
 ```
 
 ## What changed in the digest output
@@ -40,7 +42,7 @@ The digest now includes:
   - Investigate latest verification issues and drill status immediately.
   - Review `.tmp/quality-trend-summary.md` for context.
   - Run:
-    - `pnpm quality:trend-summary -- --trend .tmp/quality-trend.json --output .tmp/quality-trend-summary.md --guard-output .tmp/quality-trend-guardrail.json --enforce-guardrails`
+    - `pnpm quality:trend-summary -- --trend .tmp/quality-trend.json --output .tmp/quality-trend-summary.md --guard-output .tmp/quality-trend-guardrail.json --max-consecutive-failures 3 --max-score-drop-points 20 --min-pass-rate-percent 70 --require-stable-state --enforce-guardrails`
     - `pnpm quality:ci -- --json --require-score 165`
 
 ## CI artifacts
