@@ -317,6 +317,74 @@ function validateIncidentBundleMarkdownText(markdownText) {
   return issues;
 }
 
+function collectTrendConsistencyChecks(qualityParsed) {
+  const checks = qualityParsed?.executedChecks ?? {};
+  const requiredChecks = [
+    "trendDigestHealth",
+    "trendSummaryGuardrails",
+    "trendDigestCheckConsistency",
+  ];
+  const issueCodes = [];
+  const issues = [];
+  const checksSummary = {};
+
+  for (const key of requiredChecks) {
+    const check = checks[key];
+    const checkLabel = `quality-scorecard:${key}`;
+    if (!check || typeof check !== "object") {
+      issues.push(`${checkLabel} result missing from quality summary`);
+      issueCodes.push({
+        code: `${key}_missing`,
+        severity: "medium",
+        message: `${checkLabel} did not emit executable check result`,
+        artifactPath: "tools/quality-scorecard.mjs",
+        source: "quality-scorecard",
+      });
+      checksSummary[key] = {
+        status: "missing",
+        ok: false,
+      };
+      continue;
+    }
+
+    checksSummary[key] = {
+      status: check.status ?? "unknown",
+      source: check.source ?? null,
+      ok: Boolean(check.ok),
+      missing: Boolean(check.missing),
+      malformed: Boolean(check.malformed),
+      issueCount: Array.isArray(check.issueCodes) ? check.issueCodes.length : 0,
+    };
+
+    if (!check.ok) {
+      issues.push(`${checkLabel} failed with status=${check.status ?? "unknown"}`);
+    }
+
+    if (Array.isArray(check.issueCodes)) {
+      for (const issue of check.issueCodes) {
+        issueCodes.push({
+          code: issue?.code ? String(issue.code) : `${key}_issue`,
+          severity: issue?.severity ? String(issue.severity) : "unknown",
+          message: issue?.message ? String(issue.message) : `trend check ${key} reported an issue`,
+          artifactPath: issue?.artifactPath ?? check.source ?? null,
+          source: issue?.source ?? "quality-scorecard",
+        });
+      }
+    }
+  }
+
+  const normalizedIssueCodes = normalizeIssueCodes(issueCodes, "verify-ci-quality-artifacts");
+  const issueCodeSummary = summarizeIssueCodes(normalizedIssueCodes);
+
+  return {
+    issues,
+    issueCodes: normalizedIssueCodes,
+    issueCodeSummary,
+    checks: checksSummary,
+    ok: normalizedIssueCodes.length === 0,
+  };
+}
+
 function verifyIncidentBundle(args) {
   const issues = [];
   const issueCodes = [];
@@ -443,6 +511,7 @@ function main() {
   const quality = readJson(args.qualityPath);
   const drill = readJson(args.drillPath);
   const incidentBundle = verifyIncidentBundle(args);
+  const trendConsistency = collectTrendConsistencyChecks(quality.parsed);
 
   const qualityIssues = [];
   const drillIssues = [];
@@ -492,11 +561,18 @@ function main() {
 
   const finalIssues = qualityIssuesFinal.concat(drillIssuesFinal);
   finalIssues.push(...incidentBundleIssuesFinal);
+  finalIssues.push(...trendConsistency.issues);
+
+  const issueCodes = normalizeIssueCodes(
+    [...incidentBundle.issueCodes, ...trendConsistency.issueCodes],
+    "verify-ci-quality-artifacts",
+  );
+  const issueCodeSummary = summarizeIssueCodes(issueCodes);
 
   const result = {
     ok: finalIssues.length === 0,
-    issueCodes: incidentBundle.issueCodes,
-    issueCodeSummary: incidentBundle.issueCodeSummary,
+    issueCodes,
+    issueCodeSummary,
     artifacts: {
       quality: {
         path: quality.path,
@@ -517,14 +593,24 @@ function main() {
       requireIncidentBundle: args.requireIncidentBundle,
       schemaPath: args.incidentBundleSchemaPath,
     },
-    checks: {
+      checks: {
       qualityScore: qualityParsed?.score ?? null,
       qualityMaxScore: qualityParsed?.maxScore ?? null,
       drillStatus: drillParsed?.status ?? null,
       drillRecommendationPresent: typeof drillParsed?.recommendation === "string",
-      requiredScore: args.requireScore,
-      requiredScoreMet: args.requireScore > 0 ? (qualityParsed?.score ?? 0) >= args.requireScore : true,
-    },
+        requiredScore: args.requireScore,
+        requiredScoreMet: args.requireScore > 0 ? (qualityParsed?.score ?? 0) >= args.requireScore : true,
+      },
+      trendConsistency: {
+        checks: trendConsistency.checks,
+        issueCodes: trendConsistency.issueCodes,
+        issueCodeSummary: trendConsistency.issueCodeSummary,
+        checksRequired: [
+          "trendDigestHealth",
+          "trendSummaryGuardrails",
+          "trendDigestCheckConsistency",
+        ],
+      },
     issues: finalIssues,
     executedAtUtc: new Date().toISOString(),
   };
