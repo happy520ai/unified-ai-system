@@ -68,6 +68,13 @@ function normalizeIssueCodes(rawIssueCodes, fallbackSource = QUALITY_SCORECARD_I
   return normalized;
 }
 
+function extractIssueCodesFromResult(result, fallbackSource = QUALITY_SCORECARD_ISSUE_SOURCE) {
+  if (!result || typeof result !== "object") return [];
+  const parseableOutput = result.parseableOutput;
+  if (!parseableOutput || !Array.isArray(parseableOutput.issueCodes)) return [];
+  return normalizeIssueCodes(parseableOutput.issueCodes, fallbackSource);
+}
+
 function gateWeightToSeverity(weight) {
   if (weight >= 25) return "high";
   if (weight >= 10) return "medium";
@@ -1170,14 +1177,17 @@ async function main() {
   );
 
   const maxScore = gates.reduce((sum, item) => sum + item.weight, 0);
-  const issueCodes = buildIssueCodesFromQualitySummary(
-    gates,
-    trendHardBlockArtifactCheck,
-    drillDryRunParsed,
-    requireScore,
-    score,
-    maxScore,
-  );
+  const issueCodes = normalizeIssueCodes([
+    ...buildIssueCodesFromQualitySummary(
+      gates,
+      trendHardBlockArtifactCheck,
+      drillDryRunParsed,
+      requireScore,
+      score,
+      maxScore,
+    ),
+    ...extractIssueCodesFromResult(publicClone, "verify-public-clone"),
+  ], QUALITY_SCORECARD_ISSUE_SOURCE);
   const issueCodeSummary = summarizeIssueCodes(issueCodes);
 
   const summary = {

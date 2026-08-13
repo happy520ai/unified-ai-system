@@ -42,6 +42,7 @@ Normalization guidance:
 - `tools/quality-scorecard.mjs`
   - `issueCodes`
   - `issueCodeSummary`
+  - re-emits key script-level `issueCodes` from child verifications when parseable output is available
 - `tools/quality-trend-summary.mjs`
   - `issueCodes`
   - `issueCodeSummary`
