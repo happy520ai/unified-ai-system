@@ -47,6 +47,38 @@ function summarizeIssueCodes(issueCodes) {
   return summary;
 }
 
+function issueFromTrendReason(reasonText, artifactPath = ".tmp/quality-trend-check.json", source = "quality-trend-check") {
+  const reason = String(reasonText ?? "").toLowerCase();
+  let severity = "medium";
+  let code = "trend_issue_unknown";
+  if (reason.includes("consecutive failures")) {
+    code = "trend_consecutive_failures";
+    severity = "high";
+  } else if (reason.includes("single-run score drop")) {
+    code = "trend_score_drop_single_run";
+    severity = "medium";
+  } else if (reason.includes("window pass rate")) {
+    code = "trend_window_pass_rate";
+    severity = "medium";
+  } else if (reason.includes("stable-state-required") || reason.includes("stable state")) {
+    code = "trend_stable_state_required";
+    severity = "high";
+  } else if (reason.includes("quality trend blocked") || reason.includes("trend hard block")) {
+    code = "trend_check_blocked";
+    severity = "high";
+  } else if (reason.includes("critical")) {
+    severity = "high";
+  }
+
+  return {
+    code,
+    severity,
+    message: String(reasonText ?? ""),
+    artifactPath,
+    source,
+  };
+}
+
 function normalizeIssueCodes(rawIssueCodes, fallbackSource = QUALITY_SCORECARD_ISSUE_SOURCE) {
   const issueCodes = Array.isArray(rawIssueCodes) ? rawIssueCodes : [];
   const normalized = [];
@@ -854,12 +886,39 @@ function checkTrendHardBlockArtifact() {
       missing: true,
       severity: "unknown",
       reasons: [],
+      issueCodes: [],
+      issueCodeSummary: {
+        total: 0,
+        high: 0,
+        medium: 0,
+        low: 0,
+        info: 0,
+        unknown: 0,
+        blocking: false,
+      },
       source: ".tmp/quality-trend-check.json",
     };
   }
 
   const isBlocked = Boolean(trendCheck.blocked);
   const reasons = Array.isArray(trendCheck.reasons) ? trendCheck.reasons : [];
+  const parsedIssueCodes = Array.isArray(trendCheck.issueCodes)
+    ? normalizeIssueCodes(trendCheck.issueCodes, "quality-trend-check")
+    : [];
+  const derivedIssueCodes = reasons
+    .map((reason) => issueFromTrendReason(reason))
+    .filter((item) => item.message.length > 0);
+  const issueCodes = normalizeIssueCodes([
+    ...parsedIssueCodes,
+    ...derivedIssueCodes,
+    ...(isBlocked ? [{
+      code: "trend_check_blocked",
+      severity: "high",
+      message: "quality trend check is blocked",
+      artifactPath: ".tmp/quality-trend-check.json",
+      source: "quality-trend-check",
+    }] : []),
+  ], "quality-trend-check");
   return {
     ok: !isBlocked,
     blocked: isBlocked,
@@ -868,6 +927,8 @@ function checkTrendHardBlockArtifact() {
     source: ".tmp/quality-trend-check.json",
     reasonsCount: reasons.length,
     reasons,
+    issueCodes,
+    issueCodeSummary: summarizeIssueCodes(issueCodes),
     details: JSON.stringify({
       status: trendCheck.status ?? "unknown",
       severity: trendCheck.severity ?? "unknown",
@@ -898,6 +959,16 @@ function checkTrendIncidentBundleSchema() {
       source: jsonPath,
       missing: true,
       malformed: false,
+      issueCodes: [],
+      issueCodeSummary: {
+        total: 0,
+        high: 0,
+        medium: 0,
+        low: 0,
+        info: 0,
+        unknown: 0,
+        blocking: false,
+      },
       details: "quality-trend-incident-bundle.json is absent in this run; generated on trend-health smoke failure only.",
     };
   }
@@ -964,12 +1035,25 @@ function checkTrendIncidentBundleSchema() {
   }
 
   const malformed = missingRootKeys.length > 0 || issueTags.length > 0;
+  const issueCodes = normalizeIssueCodes([
+    ...(Array.isArray(bundle.issueCodes) ? bundle.issueCodes : []),
+    ...(missingRootKeys.map((key) => ({
+      code: `trend_incident_bundle_missing_${normalizeIssueCode(key)}`,
+      severity: "high",
+      message: `quality trend incident bundle missing required field: ${key}`,
+      artifactPath: jsonPath,
+      source: "quality-trend-incident-bundle",
+    }))),
+    ...(bundleTagsToIssues(issueTags)),
+  ], "quality-trend-incident-bundle");
   return {
     ok: !malformed,
     status: malformed ? "malformed" : "ok",
     source: jsonPath,
     missing: false,
     malformed,
+    issueCodes,
+    issueCodeSummary: summarizeIssueCodes(issueCodes),
     details: JSON.stringify({
       missingRootKeys,
       issueTags,
@@ -978,6 +1062,17 @@ function checkTrendIncidentBundleSchema() {
       malformed,
     }),
   };
+}
+
+function bundleTagsToIssues(issueTags) {
+  if (!Array.isArray(issueTags)) return [];
+  return issueTags.map((tag) => ({
+    code: `trend_incident_bundle_${normalizeIssueCode(tag)}`,
+    severity: "medium",
+    message: `quality trend incident bundle validation issue: ${String(tag)}`,
+    artifactPath: ".tmp/quality-trend-incident-bundle.json",
+    source: "quality-trend-incident-bundle",
+  }));
 }
 
 async function main() {
