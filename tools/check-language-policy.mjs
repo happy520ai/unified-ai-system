@@ -330,6 +330,25 @@ function isAllowedByPolicy(path, allowlist) {
   return null;
 }
 
+function buildLanguageRecommendation(boundary) {
+  if (boundary === "apps" || boundary === "packages") {
+    return {
+      preferredLanguage: "TypeScript",
+      preferredExtensions: [".ts", ".tsx", ".mts", ".cts", ".d.ts"],
+      rationale:
+        "apps/packages default to TypeScript for shared contracts, typed boundaries, and safer runtime evolution.",
+      migrationHint: "Converting this file to TypeScript is preferred unless a tracked exception is active.",
+    };
+  }
+
+  return {
+    preferredLanguage: "JavaScript/TypeScript",
+    preferredExtensions: [".js", ".mjs", ".cjs"],
+    rationale: "Tooling/runtime scripts can remain JavaScript when policy does not apply",
+    migrationHint: "No migration required for non-runtime application or package paths.",
+  };
+}
+
 function formatAllowedByException(item) {
   return `type=${item.type}, value=${item.value}, justification=${item.justification}, owner=${item.owner}, migrationPlan=${item.migrationPlan}, removalBy=${item.removalBy}`;
 }
@@ -340,6 +359,7 @@ function main() {
   const allowlistResult = parseAllowlistFile(args.allowlistPath);
   const commandLine = process.argv.slice(2);
   const output = {
+    generatedAtUtc: new Date().toISOString(),
     ok: true,
     violations: [],
     allowed: [],
@@ -411,12 +431,14 @@ function main() {
       const isAllowedLegacyPath = args.allowJsInLegacyPaths && path.startsWith(`${boundary}/`) && path.includes("/legacy/");
       const matchedException = isAllowedByPolicy(path, allowlistResult.allowlist);
       if (!isAllowedLegacyPath && !matchedException) {
+        const recommendation = buildLanguageRecommendation(boundary);
         output.violations.push({
           file: path,
           boundary,
           reason: "runtime path uses JS; apps/packages default should be TypeScript",
           extension,
           remedy: "convert to .ts/.tsx or provide explicit migration justification in PR language section",
+          recommendation,
         });
       } else if (matchedException) {
         output.allowed.push({

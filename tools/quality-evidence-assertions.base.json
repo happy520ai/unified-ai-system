@@ -20,6 +20,7 @@
     ".tmp/quality-trend-check.json",
     ".tmp/quality-trend-incident-bundle.json",
     ".tmp/quality-trend-health-smoke.json",
+    ".tmp/language-policy-check.json",
     ".tmp/language-policy-expiry.json"
   ],
   "requiredTimestampedArtifacts": [
@@ -51,6 +52,10 @@
     {
       "artifactPath": ".tmp/circuit-recovery-drill-dry-run.json",
       "fieldPath": "startedAt"
+    },
+    {
+      "artifactPath": ".tmp/language-policy-check.json",
+      "fieldPath": "generatedAtUtc"
     },
     {
       "artifactPath": ".tmp/language-policy-expiry.json",
@@ -113,6 +118,10 @@
     {
       "artifactPath": ".tmp/quality-trend-health-smoke.json",
       "fieldPath": "steps"
+    },
+    {
+      "artifactPath": ".tmp/language-policy-check.json",
+      "fieldPath": "ok"
     }
   ]
 }

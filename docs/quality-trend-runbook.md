@@ -18,6 +18,7 @@ For immediate triage, the minimum evidence set is:
   - `.tmp/quality-trend-recommendations.md` (if smoke failed)
   - `.tmp/quality-trend-incident-bundle.md`
   - `.tmp/quality-trend-incident-bundle.json`
+  - `.tmp/language-policy-check.json`
   - `.tmp/language-policy-expiry.json`
 
 - From workflow `quality trend snapshot`:
