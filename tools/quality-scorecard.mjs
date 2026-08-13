@@ -178,7 +178,7 @@ function checkPluginHardening() {
 function checkRuntimeHardening() {
   try {
     const source = readTextFile("apps/ai-gateway-service/src/http/httpServer.js");
-    const requiredMarkers = [
+  const requiredMarkers = [
       "AI_GATEWAY_REQUEST_TIMEOUT_MS",
       "AI_GATEWAY_MAX_IN_FLIGHT_REQUESTS",
       "AI_GATEWAY_MAX_REQUEST_BODY_BYTES",
@@ -188,6 +188,11 @@ function checkRuntimeHardening() {
       "service_overloaded",
       "parseContentLength",
       "createGatewayResilienceMetrics",
+      "Content-Security-Policy",
+      "Permissions-Policy",
+      "Cross-Origin-Embedder-Policy",
+      "X-Permitted-Cross-Domain-Policies",
+      "Cache-Control",
     ];
     const missingMarkers = requiredMarkers.filter((marker) => !source.includes(marker));
     return {
