@@ -249,7 +249,9 @@ For full triage sequence and owners, follow:
 
 Default guardrail thresholds are `--max-consecutive-failures 3` and `--max-score-drop-points 20` in the CI trend generation step. A breach sets `guardrail pass: fail` in the summary and can fail the CI job due `--enforce-guardrails`.
 
-Set `QUALITY_TREND_HARD_BLOCK=true` to upgrade critical trend-check signals into a hard CI block. The same policy can be applied ad-hoc when dispatching `Quality Trend Snapshot` by setting `quality_trend_hard_block=true`.
+Set `QUALITY_TREND_HARD_BLOCK=true` to upgrade critical trend-check signals into a hard CI block. Set `QUALITY_REQUIRE_TREND_HEALTH=true` (recommended) to make CI and re-verification fail when trend health is not collected or `blocked`.
+
+The same hard-block policy can be applied ad-hoc when dispatching `Quality Trend Snapshot` by setting `quality_trend_hard_block=true`.
 ## 6.1) Trend health check command (new)
 
 Use this command for a policy-level health signal after digest/summary generation:

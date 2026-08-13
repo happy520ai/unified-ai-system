@@ -32,6 +32,7 @@ pnpm quality:trend-check -- \
 ```
 
 Tip: In CI/scheduled trend workflows, `--require-stable-state` is controlled by `QUALITY_TREND_REQUIRE_STABLE_STATE` (default `true`), and pass-rate + stability thresholds can be set through repository variables (`QUALITY_TREND_MIN_PASS_RATE_PERCENT`, `QUALITY_TREND_MAX_CONSECUTIVE_FAILURES`, `QUALITY_TREND_MAX_SCORE_DROP_POINTS`).
+Set `QUALITY_REQUIRE_TREND_HEALTH=true` to enforce trend-health failure when trend evidence is not collected (recommended for strict CI).
 To hard-fail critical trend drift, set repo variable `QUALITY_TREND_HARD_BLOCK=true` for CI, or pass `quality_trend_hard_block=true` when dispatching the `Quality Trend Snapshot` workflow.
 
 ## What changed in the digest output
