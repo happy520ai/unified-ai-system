@@ -137,6 +137,19 @@ You can run the same recovery sequence with one command:
 pnpm drill:gateway-circuit --json
 ```
 
+If you only need a safe readiness check (for CI or pre-merge), run:
+
+```bash
+node ./tools/circuit-recovery-drill.mjs --dry-run --json
+```
+
+If you later add an optional CI stage for this drill (not part of default CI), prefer this command sequence:
+
+```bash
+pnpm quality:score -- --json --require-score 140
+node ./tools/circuit-recovery-drill.mjs --dry-run --json
+```
+
 Useful flags:
 - `--base-url` (default: `AI_GATEWAY_SERVICE_URL` or `http://127.0.0.1:3100`)
 - `--trip-route` (default: `/provider-config/save`)

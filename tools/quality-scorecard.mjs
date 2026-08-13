@@ -550,6 +550,12 @@ async function main() {
   const versionCheck = checkVersionConsistency(rootPackage.version);
   const pluginCheck = checkPluginHardening();
   const workflowCheck = checkWorkflowGuardrails();
+  const circuitDrillDryRun = runCommand(
+    "circuit_drill_dry_run",
+    "node",
+    ["tools/circuit-recovery-drill.mjs", "--dry-run", "--json"],
+    { timeoutMs: 30000 },
+  );
   const runtimeHardeningCheck = checkRuntimeHardening();
   const requestBodyGuardrailsCheck = checkRequestBodyGuardrails();
   const errorNormalizationCheck = checkErrorNormalization();
@@ -565,6 +571,7 @@ async function main() {
     verifyPublicClone: publicClone,
     repoFilesPresent: repoFileCheck,
     versionConsistency: versionCheck,
+    circuitDrillDryRun,
     runtimeHardening: runtimeHardeningCheck,
     metrics: metricsCheck,
     pluginHardening: pluginCheck,
@@ -577,6 +584,9 @@ async function main() {
     readinessRunbookVisibility: runbookVisibilityCheck,
     circuitRecoveryDrill: circuitRecoveryDrillCheck,
   };
+
+  const drillDryRunParsed = circuitDrillDryRun.parseableOutput ?? {};
+  const drillDryRunOk = circuitDrillDryRun.ok && drillDryRunParsed.status === "dry-run";
 
   let score = 0;
   score += addGate(
@@ -688,8 +698,13 @@ async function main() {
     "Recovery drill automation",
     "reliable recovery validation script is discoverable and runnable from package scripts",
     5,
-    circuitRecoveryDrillCheck.ok,
-    circuitRecoveryDrillCheck.details,
+    circuitRecoveryDrillCheck.ok && drillDryRunOk,
+    JSON.stringify({
+      checkDetails: circuitRecoveryDrillCheck.details,
+      dryRunOk: drillDryRunOk,
+      dryRunStatus: drillDryRunParsed.status,
+      dryRunBase: drillDryRunParsed.base,
+    }),
   );
 
   const maxScore = gates.reduce((sum, item) => sum + item.weight, 0);
@@ -705,6 +720,7 @@ async function main() {
     packageVersion: rootPackage.version,
     checks: gates,
     executedChecks: gateResults,
+    drillDryRun: drillDryRunParsed,
     executedAtUtc: new Date().toISOString(),
   };
 

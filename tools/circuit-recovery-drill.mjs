@@ -15,11 +15,16 @@ function parseArgs() {
     pollLimit: 20,
     openWaitMs: null,
     tripBody: "{}",
+    dryRun: false,
     json: false,
   };
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
+    if (arg === "--dry-run") {
+      values.dryRun = true;
+      continue;
+    }
     if (arg === "--json") {
       values.json = true;
       continue;
@@ -219,6 +224,22 @@ async function main() {
       "after open-wait, circuit should enter half-open or closed",
     ],
   };
+  if (args.dryRun) {
+    summary.status = "dry-run";
+    summary.recommendation = "execute against a live gateway and ensure trip-route returns 5xx under controlled conditions";
+    summary.config = {
+      base: base.toString(),
+      tripRoute: args.tripRoute,
+      probeRoute: args.probeRoute,
+      metricsRoute: args.metricsRoute,
+      tripAttempts: args.tripAttempts,
+      pollIntervalMs: args.pollIntervalMs,
+      pollLimit: args.pollLimit,
+      openWaitMs: args.openWaitMs ?? "AI_GATEWAY_GATEWAY_ERROR_CIRCUIT_RESET_MS",
+    };
+    emitResult(summary, args.json);
+    return;
+  }
 
   const baseline = await readProbe(base, args.probeRoute);
   const baselineMetrics = await readMetrics(base, args.metricsRoute);
