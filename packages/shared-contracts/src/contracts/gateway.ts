@@ -11,6 +11,20 @@ import type { RoutingDecision } from "./routing.js";
 
 export type GatewayResponseFormat = "text" | "json";
 export type GatewayFinishReason = "stop" | "length" | "tool_call" | "filtered" | "error";
+export interface GatewayFunctionTool {
+  type: "function";
+  function: {
+    name: string;
+    description?: string;
+    parameters?: Record<string, unknown>;
+    strict?: boolean;
+  };
+}
+export type GatewayToolChoice =
+  | "none"
+  | "auto"
+  | "required"
+  | { type: "function"; function: { name: string } };
 export type PromptEnhancementProfile = "general" | "coding" | "analysis" | "writing" | "research" | "planning";
 export type PromptEnhancementProfileOption = "auto" | PromptEnhancementProfile;
 export type PromptEnhancementLanguage = "zh-CN" | "en";
@@ -86,6 +100,9 @@ export interface GatewayRequest {
   model?: string;
   providerId?: string;
   options?: GatewayGenerationOptions;
+  tools?: GatewayFunctionTool[];
+  toolChoice?: GatewayToolChoice;
+  parallelToolCalls?: boolean;
   promptEnhancement?: PromptEnhancementOptions;
   knowledge?: {
     enabled: boolean;

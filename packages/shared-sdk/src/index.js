@@ -48,6 +48,16 @@ export function createGatewayClient(options = {}) {
         timeoutMs,
       });
     },
+    enhancePromptLlm(request) {
+      return requestJson({
+        baseUrl,
+        path: "/prompts/enhance-llm",
+        method: "POST",
+        body: request,
+        headers,
+        timeoutMs,
+      });
+    },
     chat(request) {
       return requestJson({
         baseUrl,

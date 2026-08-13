@@ -1,4 +1,5 @@
-import { describe, it, expect } from "vitest";
+import { describe, it } from "node:test";
+import assert from "node:assert/strict";
 import {
   createOkEnvelope,
   createErrorEnvelope,
@@ -9,14 +10,14 @@ describe("shared-utils", () => {
   describe("createOkEnvelope", () => {
     it("wraps data in success envelope", () => {
       const env = createOkEnvelope({ foo: "bar" }, { startedAt: 1000 });
-      expect(env.status).toBe("ok");
-      expect(env.data.foo).toBe("bar");
-      expect(env.meta).toBeDefined();
+      assert.equal(env.status, "ok");
+      assert.equal(env.data.foo, "bar");
+      assert.ok(env.meta);
     });
 
     it("includes traceId when provided", () => {
       const env = createOkEnvelope({}, { traceId: "tr-1" });
-      expect(env.meta.traceId).toBe("tr-1");
+      assert.equal(env.meta.traceId, "tr-1");
     });
   });
 
@@ -25,23 +26,23 @@ describe("shared-utils", () => {
       const env = createErrorEnvelope("TEST_ERROR", "Something failed", {
         startedAt: 1000,
       });
-      expect(env.status).toBe("error");
-      expect(env.error.code).toBe("TEST_ERROR");
-      expect(env.error.message).toBe("Something failed");
+      assert.equal(env.status, "error");
+      assert.equal(env.error.code, "TEST_ERROR");
+      assert.equal(env.error.message, "Something failed");
     });
   });
 
   describe("createRequestId", () => {
     it("generates a string ID", () => {
       const id = createRequestId("test");
-      expect(typeof id).toBe("string");
-      expect(id.length).toBeGreaterThan(5);
+      assert.equal(typeof id, "string");
+      assert.ok(id.length > 5);
     });
 
     it("generates unique IDs", () => {
       const a = createRequestId("test");
       const b = createRequestId("test");
-      expect(a).not.toBe(b);
+      assert.notEqual(a, b);
     });
   });
 });
