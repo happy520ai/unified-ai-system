@@ -11,7 +11,7 @@
   ],
   "requiredJsonArtifacts": [
     ".tmp/quality-scorecard.json",
-    ".tmp/circuit-recovery-drill-dry-run.json",
+    ".tmp/circuit-recovery-drill-live.json",
     ".tmp/quality-ci-verification.json",
     ".tmp/quality-trend-verify-artifacts.json",
     ".tmp/quality-trend.json",
@@ -25,7 +25,7 @@
   ],
   "requiredTimestampedArtifacts": [
     ".tmp/quality-scorecard.json",
-    ".tmp/circuit-recovery-drill-dry-run.json",
+    ".tmp/circuit-recovery-drill-live.json",
     ".tmp/quality-ci-verification.json",
     ".tmp/quality-trend-verify-artifacts.json",
     ".tmp/quality-trend.json",
@@ -50,7 +50,7 @@
       "fieldPath": "updatedAtUtc"
     },
     {
-      "artifactPath": ".tmp/circuit-recovery-drill-dry-run.json",
+      "artifactPath": ".tmp/circuit-recovery-drill-live.json",
       "fieldPath": "startedAt"
     },
     {

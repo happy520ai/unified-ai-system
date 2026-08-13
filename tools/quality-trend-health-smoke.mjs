@@ -40,7 +40,7 @@ function parseArgs() {
     trendIncidentBundlePath: ".tmp/quality-trend-incident-bundle.md",
     trendIncidentBundleJsonPath: ".tmp/quality-trend-incident-bundle.json",
     qualityScorecardPath: ".tmp/quality-scorecard.json",
-    drillPath: ".tmp/circuit-recovery-drill-dry-run.json",
+    drillPath: ".tmp/circuit-recovery-drill-live.json",
     qualityVerificationPath: ".tmp/quality-ci-verification.json",
     languagePolicyCheckPath: ".tmp/language-policy-check.json",
     languagePolicyExpiryPath: ".tmp/language-policy-expiry.json",
@@ -265,7 +265,7 @@ function printUsage() {
     "  --incident-bundle <path>    Failure bundle markdown path (default .tmp/quality-trend-incident-bundle.md)",
     "  --incident-bundle-json <path> Failure bundle JSON path (default .tmp/quality-trend-incident-bundle.json)",
     "  --quality <path>           Input quality-scorecard path (default .tmp/quality-scorecard.json)",
-    "  --drill <path>             Input drill path (default .tmp/circuit-recovery-drill-dry-run.json)",
+    "  --drill <path>             Input drill path (default .tmp/circuit-recovery-drill-live.json)",
     "  --verification <path>       Output verification path (default .tmp/quality-ci-verification.json)",
     "  --digest-output <path>      Trend digest output path (default .tmp/quality-trend-digest.md)",
     "  --digest-json <path>        Trend digest JSON output path (default .tmp/quality-trend-digest.json)",
@@ -965,7 +965,7 @@ function buildFailureRecommendations(options, steps, reason, detail) {
   lines.push("");
   lines.push("## Closure checks");
   lines.push("- Verify `pnpm quality:ci:trend-health -- --json --require-score " + `${options.qualityThreshold}` + "` passes.");
-  lines.push("- Verify `pnpm quality:verify-artifacts:trend-health -- --json --quality .tmp/quality-scorecard.json --drill .tmp/circuit-recovery-drill-dry-run.json --require-score " + `${options.qualityThreshold}` + "` passes.");
+  lines.push("- Verify `pnpm quality:verify-artifacts:trend-health -- --json --quality .tmp/quality-scorecard.json --drill .tmp/circuit-recovery-drill-live.json --require-score " + `${options.qualityThreshold}` + "` passes.");
   lines.push("- Re-run CI and confirm trend summary/check artifacts are stable in workflow summary.");
 
   writeTextFile(options.trendRecommendationsPath, `${lines.join("\n")}\n`);

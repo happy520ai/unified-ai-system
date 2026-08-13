@@ -63,7 +63,7 @@ The digest now includes:
   - Run:
     - `pnpm quality:trend-summary -- --trend .tmp/quality-trend.json --output .tmp/quality-trend-summary.md --guard-output .tmp/quality-trend-guardrail.json --max-consecutive-failures 3 --max-score-drop-points 20 --min-pass-rate-percent 70 --require-stable-state --enforce-guardrails`
     - `pnpm quality:ci:trend-health -- --json --require-score 165`
-    - `pnpm quality:verify-artifacts:trend-health -- --json --quality .tmp/quality-scorecard.json --drill .tmp/circuit-recovery-drill-dry-run.json --require-score 165`
+    - `pnpm quality:verify-artifacts:trend-health -- --json --quality .tmp/quality-scorecard.json --drill .tmp/circuit-recovery-drill-live.json --require-score 165`
 
 For a full incident playbook, see:
 

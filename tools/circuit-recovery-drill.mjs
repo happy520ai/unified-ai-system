@@ -1,26 +1,51 @@
+import { spawn } from "node:child_process";
+import { once } from "node:events";
 import http from "node:http";
 import https from "node:https";
+import { createServer as createNetServer } from "node:net";
+import { dirname, resolve } from "node:path";
 import { setTimeout as wait } from "node:timers/promises";
-import { URL } from "node:url";
+import { fileURLToPath, URL } from "node:url";
 
-function parseArgs() {
-  const args = process.argv.slice(2);
+const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const serviceEntrypoint = resolve(repoRoot, "apps/ai-gateway-service/src/index.js");
+
+function readPositiveInteger(value, fallback) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+export function parseArgs(argv = process.argv.slice(2), env = process.env) {
   const values = {
     baseUrl: null,
     tripRoute: "/provider-config/save",
     probeRoute: "/healthz",
+    recoveryRoute: "/dashboard/status",
     metricsRoute: "/metrics",
-    tripAttempts: 2,
-    pollIntervalMs: 1000,
-    pollLimit: 20,
+    tripAttempts: readPositiveInteger(env.AI_GATEWAY_GATEWAY_ERROR_CIRCUIT_FAILURE_THRESHOLD, 12),
+    pollIntervalMs: 100,
+    pollLimit: 50,
     openWaitMs: null,
     tripBody: "{}",
+    managedGateway: false,
     dryRun: false,
     json: false,
+    explicit: {
+      tripRoute: false,
+      tripAttempts: false,
+      pollIntervalMs: false,
+      pollLimit: false,
+      openWaitMs: false,
+      tripBody: false,
+    },
   };
 
-  for (let index = 0; index < args.length; index += 1) {
-    const arg = args[index];
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index];
+    if (arg === "--managed-gateway") {
+      values.managedGateway = true;
+      continue;
+    }
     if (arg === "--dry-run") {
       values.dryRun = true;
       continue;
@@ -30,90 +55,83 @@ function parseArgs() {
       continue;
     }
     if (arg === "--base-url") {
-      values.baseUrl = args[index + 1];
+      values.baseUrl = argv[index + 1] ?? values.baseUrl;
       index += 1;
       continue;
     }
     if (arg === "--trip-route") {
-      values.tripRoute = args[index + 1] ?? values.tripRoute;
+      values.tripRoute = argv[index + 1] ?? values.tripRoute;
+      values.explicit.tripRoute = true;
       index += 1;
       continue;
     }
     if (arg === "--probe-route") {
-      values.probeRoute = args[index + 1] ?? values.probeRoute;
+      values.probeRoute = argv[index + 1] ?? values.probeRoute;
+      index += 1;
+      continue;
+    }
+    if (arg === "--recovery-route") {
+      values.recoveryRoute = argv[index + 1] ?? values.recoveryRoute;
       index += 1;
       continue;
     }
     if (arg === "--metrics-route") {
-      values.metricsRoute = args[index + 1] ?? values.metricsRoute;
+      values.metricsRoute = argv[index + 1] ?? values.metricsRoute;
       index += 1;
       continue;
     }
     if (arg === "--trip-attempts") {
-      const value = Number(args[index + 1]);
-      if (Number.isFinite(value) && value > 0) {
-        values.tripAttempts = value;
-      }
+      values.tripAttempts = readPositiveInteger(argv[index + 1], values.tripAttempts);
+      values.explicit.tripAttempts = true;
       index += 1;
       continue;
     }
     if (arg === "--poll-interval-ms") {
-      const value = Number(args[index + 1]);
-      if (Number.isFinite(value) && value > 0) {
-        values.pollIntervalMs = value;
-      }
+      values.pollIntervalMs = readPositiveInteger(argv[index + 1], values.pollIntervalMs);
+      values.explicit.pollIntervalMs = true;
       index += 1;
       continue;
     }
     if (arg === "--poll-limit") {
-      const value = Number(args[index + 1]);
-      if (Number.isFinite(value) && value > 0) {
-        values.pollLimit = value;
-      }
+      values.pollLimit = readPositiveInteger(argv[index + 1], values.pollLimit);
+      values.explicit.pollLimit = true;
       index += 1;
       continue;
     }
     if (arg === "--open-wait-ms") {
-      const value = Number(args[index + 1]);
-      if (Number.isFinite(value) && value > 0) {
-        values.openWaitMs = value;
-      }
+      values.openWaitMs = readPositiveInteger(argv[index + 1], values.openWaitMs);
+      values.explicit.openWaitMs = true;
       index += 1;
       continue;
     }
     if (arg === "--trip-body") {
-      values.tripBody = args[index + 1] ?? values.tripBody;
+      values.tripBody = argv[index + 1] ?? values.tripBody;
+      values.explicit.tripBody = true;
       index += 1;
-      continue;
     }
   }
 
   return values;
 }
 
-function buildBaseUrl(rawUrl) {
-  const fallback = "http://127.0.0.1:3100";
-  if (!rawUrl) {
-    return new URL(process.env.AI_GATEWAY_SERVICE_URL ?? fallback);
-  }
-  return new URL(rawUrl);
+function buildBaseUrl(rawUrl, env = process.env) {
+  return new URL(rawUrl ?? env.AI_GATEWAY_SERVICE_URL ?? "http://127.0.0.1:3100");
 }
 
 async function sendRequest(base, path, method = "GET", body = "") {
   const requestUrl = new URL(path, base);
-  const useHttps = requestUrl.protocol === "https:";
-  const requestFn = useHttps ? https : http;
-  const bodyBuffer = typeof body === "string" ? Buffer.from(body, "utf8") : Buffer.from("");
+  const requestFn = requestUrl.protocol === "https:" ? https : http;
+  const bodyBuffer = body ? Buffer.from(String(body), "utf8") : Buffer.alloc(0);
   const headers = {
     Accept: "*/*",
-    "User-Agent": "circuit-drill-script/1.0",
+    "User-Agent": "circuit-drill-script/2.0",
   };
-  if (body) {
+  if (bodyBuffer.length > 0) {
     headers["Content-Type"] = "application/json";
     headers["Content-Length"] = String(bodyBuffer.length);
   }
 
-  return new Promise((resolve, reject) => {
+  return new Promise((resolvePromise, reject) => {
     const request = requestFn.request({
       protocol: requestUrl.protocol,
       hostname: requestUrl.hostname,
@@ -121,35 +139,41 @@ async function sendRequest(base, path, method = "GET", body = "") {
       path: `${requestUrl.pathname}${requestUrl.search}`,
       method,
       headers,
+      timeout: 10_000,
     }, (response) => {
-      let body = "";
+      let responseBody = "";
       response.on("data", (chunk) => {
-        body += chunk.toString("utf8");
+        responseBody = `${responseBody}${chunk.toString("utf8")}`.slice(0, 64_000);
       });
-      response.on("end", () => {
-        resolve({
-          statusCode: response.statusCode ?? 0,
-          headers: response.headers,
-          body,
-        });
-      });
+      response.on("end", () => resolvePromise({
+        statusCode: response.statusCode ?? 0,
+        headers: response.headers,
+        body: responseBody,
+      }));
     });
-    request.on("error", reject);
-    if (body) {
-      request.write(bodyBuffer);
-    }
+    request.once("timeout", () => request.destroy(new Error("Circuit drill request timed out.")));
+    request.once("error", reject);
+    if (bodyBuffer.length > 0) request.write(bodyBuffer);
     request.end();
   });
 }
 
-function parseCircuitState(metricsText, stateName) {
-  const pattern = new RegExp(`gateway_error_circuit_state\\{state="${stateName}"\\}\\s+(\\d+(?:\\.\\d+)?)`);
-  const match = metricsText.match(pattern);
+export function parseCircuitState(metricsText, stateName) {
+  const metric = "(?:[A-Za-z_:][A-Za-z0-9_:]*_)?gateway_error_circuit_state";
+  const pattern = new RegExp(`${metric}\\{state="${stateName}"\\}\\s+(\\d+(?:\\.\\d+)?)`);
+  const match = String(metricsText).match(pattern);
   return match ? Number(match[1]) : 0;
 }
 
+export function summarizeCircuit(metricsText) {
+  if (parseCircuitState(metricsText, "open") >= 1) return "open";
+  if (parseCircuitState(metricsText, "half-open") >= 1) return "half-open";
+  if (parseCircuitState(metricsText, "closed") >= 1) return "closed";
+  return "unknown";
+}
+
 async function readProbe(base, route) {
-  const response = await sendRequest(base, route, "GET");
+  const response = await sendRequest(base, route);
   let payload = null;
   try {
     payload = JSON.parse(response.body);
@@ -159,189 +183,313 @@ async function readProbe(base, route) {
   return {
     statusCode: response.statusCode,
     ready: response.statusCode === 200,
-    payload,
-    headers: response.headers,
+    readinessFailures: payload?.error?.details?.readinessFailures ?? [],
   };
 }
 
 async function readMetrics(base, route) {
-  const response = await sendRequest(base, route, "GET");
-  return {
-    statusCode: response.statusCode,
-    text: response.body,
-  };
+  const response = await sendRequest(base, route);
+  return { statusCode: response.statusCode, text: response.body };
 }
 
-function summarizeCircuit(metrics) {
-  const open = parseCircuitState(metrics, "open");
-  const halfOpen = parseCircuitState(metrics, "half-open");
-  const closed = parseCircuitState(metrics, "closed");
-  if (open >= 1) return "open";
-  if (halfOpen >= 1) return "half-open";
-  if (closed >= 1) return "closed";
-  return "unknown";
-}
-
-async function pollGate(base, probeRoute, metricsRoute, pollLimit, pollIntervalMs, predicate, label) {
-  const samples = [];
-  for (let attempt = 0; attempt < pollLimit; attempt += 1) {
-    const [probe, metrics] = await Promise.all([
-      readProbe(base, probeRoute),
-      readMetrics(base, metricsRoute),
-    ]);
-    const state = summarizeCircuit(metrics.text);
-    const sample = {
-      attempt,
-      time: new Date().toISOString(),
-      state,
-      probeStatus: probe.statusCode,
-      readinessFailures: probe.payload?.error?.details?.readinessFailures ?? [],
-    };
-    samples.push(sample);
-    if (predicate(sample)) {
-      return { found: true, sample, samples };
-    }
-    await wait(pollIntervalMs);
+function readResponseCode(body) {
+  try {
+    const payload = JSON.parse(body);
+    return payload?.error?.code ?? payload?.code ?? null;
+  } catch {
+    return null;
   }
-
-  return { found: false, sample: null, samples };
 }
 
-async function main() {
-  const args = parseArgs();
-  const base = buildBaseUrl(args.baseUrl);
-  const summary = {
+async function findFreePort() {
+  const server = createNetServer();
+  server.unref();
+  await new Promise((resolvePromise, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolvePromise);
+  });
+  const address = server.address();
+  const port = typeof address === "object" && address ? address.port : null;
+  await new Promise((resolvePromise) => server.close(resolvePromise));
+  if (!port) throw new Error("Unable to allocate a managed gateway port.");
+  return port;
+}
+
+async function waitForManagedGateway(base, child) {
+  const deadline = Date.now() + 30_000;
+  while (Date.now() < deadline) {
+    if (child.exitCode !== null) {
+      throw new Error(`Managed gateway exited before readiness with code ${child.exitCode}.`);
+    }
+    try {
+      const response = await sendRequest(base, "/health/check");
+      if (response.statusCode === 200) return;
+    } catch {
+      // Startup can briefly refuse connections.
+    }
+    await wait(100);
+  }
+  throw new Error("Managed gateway readiness timed out.");
+}
+
+async function stopChild(child) {
+  if (!child || child.exitCode !== null || child.signalCode !== null) return true;
+  child.kill("SIGTERM");
+  await Promise.race([once(child, "exit"), wait(3_000)]);
+  if (child.exitCode === null) {
+    child.kill("SIGKILL");
+    await Promise.race([once(child, "exit"), wait(2_000)]);
+  }
+  return child.exitCode !== null || child.signalCode !== null;
+}
+
+async function startManagedGateway(options, env = process.env) {
+  if (options.baseUrl) {
+    throw new Error("--managed-gateway cannot be combined with --base-url.");
+  }
+  const port = await findFreePort();
+  const baseUrl = `http://127.0.0.1:${port}`;
+  const child = spawn(process.execPath, [serviceEntrypoint], {
+    cwd: repoRoot,
+    windowsHide: true,
+    env: {
+      ...env,
+      AI_GATEWAY_SERVICE_HOST: "127.0.0.1",
+      AI_GATEWAY_SERVICE_PORT: String(port),
+      AI_GATEWAY_PROVIDER_MODE: "fake",
+      AI_GATEWAY_REAL_PROVIDER_ENABLED: "false",
+      AI_GATEWAY_ROUTE_MODE: "fixed",
+      AI_GATEWAY_DEFAULT_PROVIDER: "local-fake-provider",
+      AI_GATEWAY_DEFAULT_MODEL: "local-fake-model",
+      AI_GATEWAY_ENABLED_PROVIDERS: "local-fake-provider,backup-fake-provider",
+      AI_GATEWAY_FAKE_PRIMARY_FAIL: "true",
+      AI_GATEWAY_FALLBACK_ENABLED: "false",
+      AI_GATEWAY_GATEWAY_ERROR_CIRCUIT_FAILURE_THRESHOLD: "2",
+      AI_GATEWAY_GATEWAY_ERROR_CIRCUIT_SUCCESS_THRESHOLD: "2",
+      AI_GATEWAY_GATEWAY_ERROR_CIRCUIT_RESET_MS: "200",
+      AI_GATEWAY_GATEWAY_ERROR_CIRCUIT_HALF_OPEN_MAX_CALLS: "2",
+      AI_GATEWAY_GATEWAY_ERROR_CIRCUIT_BYPASS_ROUTES: "/health,/health/check,/healthz,/ready,/setup/readiness,/metrics",
+      AI_GATEWAY_ROUTE_RATE_LIMIT_ENABLED: "false",
+      AI_GATEWAY_OTEL_ENABLED: "false",
+      PME_ENTERPRISE_AUTH_ENABLED: "false",
+    },
+    stdio: ["ignore", "ignore", "ignore"],
+  });
+  const base = buildBaseUrl(baseUrl, env);
+  await waitForManagedGateway(base, child);
+  return { child, base, baseUrl, port };
+}
+
+function applyManagedDefaults(options) {
+  if (!options.explicit.tripRoute) options.tripRoute = "/chat";
+  if (!options.explicit.tripBody) {
+    options.tripBody = JSON.stringify({
+      prompt: "Credential-free circuit recovery drill",
+      providerId: "local-fake-provider",
+      model: "local-fake-model",
+    });
+  }
+  if (!options.explicit.tripAttempts) options.tripAttempts = 3;
+  if (!options.explicit.pollIntervalMs) options.pollIntervalMs = 50;
+  if (!options.explicit.pollLimit) options.pollLimit = 40;
+  if (!options.explicit.openWaitMs) options.openWaitMs = 250;
+}
+
+function createSummary(options, base) {
+  return {
     startedAt: new Date().toISOString(),
     base: base.toString(),
-    probeRoute: args.probeRoute,
-    tripRoute: args.tripRoute,
-    metricsRoute: args.metricsRoute,
+    probeRoute: options.probeRoute,
+    tripRoute: options.tripRoute,
+    recoveryRoute: options.recoveryRoute,
+    metricsRoute: options.metricsRoute,
     status: "unknown",
     steps: [],
     expected: [
-      "trip-route should return a 5xx response",
-      "probe route should show open state in metrics",
-      "after open-wait, circuit should enter half-open or closed",
+      "baseline health should be ready with the circuit closed",
+      "retryable provider failures should produce 5xx responses",
+      "the gateway circuit should enter open state and block readiness",
+      "the gateway circuit should pass through half-open state",
+      "successful probes should close the circuit and restore readiness",
     ],
+    config: {
+      managedGateway: options.managedGateway,
+      tripRoute: options.tripRoute,
+      probeRoute: options.probeRoute,
+      recoveryRoute: options.recoveryRoute,
+      metricsRoute: options.metricsRoute,
+      tripAttempts: options.tripAttempts,
+      pollIntervalMs: options.pollIntervalMs,
+      pollLimit: options.pollLimit,
+      openWaitMs: options.openWaitMs
+        ?? readPositiveInteger(process.env.AI_GATEWAY_GATEWAY_ERROR_CIRCUIT_RESET_MS, 30_000),
+    },
   };
-  if (args.dryRun) {
-    summary.status = "dry-run";
-    summary.recommendation = "execute against a live gateway and ensure trip-route returns 5xx under controlled conditions";
-    summary.config = {
-      base: base.toString(),
-      tripRoute: args.tripRoute,
-      probeRoute: args.probeRoute,
-      metricsRoute: args.metricsRoute,
-      tripAttempts: args.tripAttempts,
-      pollIntervalMs: args.pollIntervalMs,
-      pollLimit: args.pollLimit,
-      openWaitMs: args.openWaitMs ?? "AI_GATEWAY_GATEWAY_ERROR_CIRCUIT_RESET_MS",
-    };
-    emitResult(summary, args.json);
-    return;
-  }
+}
 
-  const baseline = await readProbe(base, args.probeRoute);
-  const baselineMetrics = await readMetrics(base, args.metricsRoute);
+async function runAgainstGateway(options, base) {
+  const summary = createSummary(options, base);
+  const baselineProbe = await readProbe(base, options.probeRoute);
+  const baselineMetrics = await readMetrics(base, options.metricsRoute);
   const baselineState = summarizeCircuit(baselineMetrics.text);
   summary.steps.push({
     name: "baseline",
-    statusCode: baseline.statusCode,
+    probeStatus: baselineProbe.statusCode,
+    metricsStatus: baselineMetrics.statusCode,
     circuitState: baselineState,
-    readinessFailures: baseline.payload?.error?.details?.readinessFailures ?? [],
+    readinessFailures: baselineProbe.readinessFailures,
   });
+  if (!baselineProbe.ready || baselineMetrics.statusCode !== 200 || baselineState !== "closed") {
+    summary.status = "baseline-failed";
+    summary.error = "Gateway baseline must be ready with a closed circuit before the drill starts.";
+    return summary;
+  }
 
-  let tripSuccess = false;
-  for (let attempt = 0; attempt < args.tripAttempts; attempt += 1) {
-    const response = await sendRequest(base, args.tripRoute, "POST", args.tripBody);
-    const tripStatus = response.statusCode;
-    const failed = tripStatus >= 500;
+  let serverFailureObserved = false;
+  let openObserved = false;
+  for (let attempt = 1; attempt <= options.tripAttempts; attempt += 1) {
+    const response = await sendRequest(base, options.tripRoute, "POST", options.tripBody);
+    const metrics = await readMetrics(base, options.metricsRoute);
+    const circuitState = summarizeCircuit(metrics.text);
+    const serverFailure = response.statusCode >= 500 && response.statusCode <= 599;
+    serverFailureObserved ||= serverFailure;
+    openObserved ||= circuitState === "open";
     summary.steps.push({
       name: "tripProbe",
       attempt,
-      statusCode: tripStatus,
-      failed,
-      bodyPreview: response.body.slice(0, 200),
+      statusCode: response.statusCode,
+      serverFailure,
+      errorCode: readResponseCode(response.body),
+      circuitState,
     });
-    if (failed) {
-      tripSuccess = true;
-      break;
-    }
+    if (openObserved) break;
   }
-
-  if (!tripSuccess) {
+  if (!serverFailureObserved || !openObserved) {
     summary.status = "trip-failed";
-    summary.error = "circuit never tripped; trip route likely did not return a server-side failure in attempts";
-    emitResult(summary, args.json);
-    process.exitCode = 1;
-    return;
+    summary.error = "The drill did not observe both a server failure and an open circuit.";
+    return summary;
   }
 
-  const openResult = await pollGate(
-    base,
-    args.probeRoute,
-    args.metricsRoute,
-    args.pollLimit,
-    args.pollIntervalMs,
-    (sample) => sample.state === "open",
-    "open",
-  );
+  const openProbe = await readProbe(base, options.probeRoute);
+  const openMetrics = await readMetrics(base, options.metricsRoute);
+  const openState = summarizeCircuit(openMetrics.text);
+  const openReadinessBlocked = openProbe.statusCode === 503
+    && openProbe.readinessFailures.includes("gateway-error-circuit");
   summary.steps.push({
-    name: "openPoll",
-    found: openResult.found,
-    sampleCount: openResult.samples.length,
-    last: openResult.sample,
-    samples: openResult.samples,
+    name: "openReadiness",
+    probeStatus: openProbe.statusCode,
+    circuitState: openState,
+    readinessFailures: openProbe.readinessFailures,
   });
-  if (!openResult.found) {
-    summary.status = "open-poll-timeout";
-    summary.error = "circuit did not enter open state within polling window";
-    emitResult(summary, args.json);
-    process.exitCode = 1;
-    return;
-  }
 
-  const waitMs = args.openWaitMs ?? parseInt(process.env.AI_GATEWAY_GATEWAY_ERROR_CIRCUIT_RESET_MS ?? "30000", 10);
+  const waitMs = options.openWaitMs
+    ?? readPositiveInteger(process.env.AI_GATEWAY_GATEWAY_ERROR_CIRCUIT_RESET_MS, 30_000);
   await wait(waitMs);
-  const halfResult = await pollGate(
-    base,
-    args.probeRoute,
-    args.metricsRoute,
-    args.pollLimit,
-    args.pollIntervalMs,
-    (sample) => sample.state === "half-open" || sample.state === "closed",
-    "half-open-or-closed",
-  );
+
+  const recoverySamples = [];
+  let halfOpenObserved = false;
+  let closedObserved = false;
+  for (let attempt = 1; attempt <= options.pollLimit; attempt += 1) {
+    const recoveryProbe = await readProbe(base, options.recoveryRoute);
+    const probe = await readProbe(base, options.probeRoute);
+    const metrics = await readMetrics(base, options.metricsRoute);
+    const circuitState = summarizeCircuit(metrics.text);
+    halfOpenObserved ||= circuitState === "half-open";
+    closedObserved ||= circuitState === "closed"
+      && recoveryProbe.statusCode === 200
+      && probe.statusCode === 200;
+    recoverySamples.push({
+      attempt,
+      circuitState,
+      recoveryStatus: recoveryProbe.statusCode,
+      probeStatus: probe.statusCode,
+      readinessFailures: probe.readinessFailures,
+    });
+    if (closedObserved) break;
+    await wait(options.pollIntervalMs);
+  }
   summary.steps.push({
     name: "recoveryPoll",
-    found: halfResult.found,
-    sampleCount: halfResult.samples.length,
-    last: halfResult.sample,
-    samples: halfResult.samples,
+    sampleCount: recoverySamples.length,
+    samples: recoverySamples,
   });
 
-  if (!halfResult.found) {
-    summary.status = "recovery-timeout";
-    summary.error = "circuit did not recover to half-open/closed within polling window";
-    emitResult(summary, args.json);
-    process.exitCode = 1;
-    return;
+  const finalProbe = await readProbe(base, options.probeRoute);
+  const finalMetrics = await readMetrics(base, options.metricsRoute);
+  const finalState = summarizeCircuit(finalMetrics.text);
+  summary.steps.push({
+    name: "finalState",
+    probeStatus: finalProbe.statusCode,
+    circuitState: finalState,
+    readinessFailures: finalProbe.readinessFailures,
+  });
+  summary.checks = {
+    baselineHealthReady: baselineProbe.ready,
+    baselineClosed: baselineState === "closed",
+    serverFailureObserved,
+    openObserved: openObserved && openState === "open",
+    openReadinessBlocked,
+    halfOpenObserved,
+    closedObserved: closedObserved && finalState === "closed",
+    finalHealthReady: finalProbe.ready,
+  };
+  const recovered = Object.values(summary.checks).every(Boolean);
+  summary.status = recovered ? "recovered" : "recovery-failed";
+  summary.finalProbeStatus = finalProbe.statusCode;
+  summary.finalCircuitState = finalState;
+  summary.recommendation = recovered
+    ? "Recovery verified: readiness and traffic gates returned to a closed healthy state."
+    : "Keep traffic blocked and investigate the failed transition checks.";
+  return summary;
+}
+
+export async function runCircuitRecoveryDrill(options = parseArgs(), env = process.env) {
+  const startedAtMs = Date.now();
+  if (options.dryRun) {
+    const base = buildBaseUrl(options.baseUrl, env);
+    const summary = createSummary(options, base);
+    summary.status = "dry-run";
+    summary.recommendation = "Run with --managed-gateway to collect credential-free live recovery evidence.";
+    summary.completedAt = new Date().toISOString();
+    summary.durationMs = Date.now() - startedAtMs;
+    return summary;
   }
 
-  const postRecovery = await readMetrics(base, args.metricsRoute);
-  summary.status = "recovered";
-  summary.steps.push({
-    name: "finalCircuitState",
-    state: summarizeCircuit(postRecovery.text),
-  });
-  const finalProbe = await readProbe(base, args.probeRoute);
-  summary.finalProbeStatus = finalProbe.statusCode;
-  summary.finalReadinessFailures = finalProbe.payload?.error?.details?.readinessFailures ?? [];
-  summary.finalHealthReady = finalProbe.ready;
-  summary.recommendation = finalProbe.ready
-    ? "recovered: traffic can continue after confirming dependency health"
-    : "investigate service dependency health and dependency recovery path before routing traffic";
-  emitResult(summary, args.json);
+  let managed = null;
+  let summary = null;
+  try {
+    if (options.managedGateway) {
+      applyManagedDefaults(options);
+      managed = await startManagedGateway(options, env);
+      options.baseUrl = managed.baseUrl;
+    }
+    const base = managed?.base ?? buildBaseUrl(options.baseUrl, env);
+    summary = await runAgainstGateway(options, base);
+  } finally {
+    if (managed) {
+      const cleanedUp = await stopChild(managed.child);
+      summary ??= createSummary(options, managed.base);
+      summary.managedGateway = {
+        enabled: true,
+        host: "127.0.0.1",
+        providerMode: "fake",
+        realProviderEnabled: false,
+        cleanedUp,
+      };
+      summary.realProviderCallsMade = false;
+      summary.checks = {
+        ...(summary.checks ?? {}),
+        managedGatewayCleanedUp: cleanedUp,
+      };
+      if (!cleanedUp) {
+        summary.status = "cleanup-failed";
+        summary.error = "Managed gateway process did not terminate cleanly.";
+      }
+    }
+  }
+  summary.completedAt = new Date().toISOString();
+  summary.durationMs = Date.now() - startedAtMs;
+  return summary;
 }
 
 function emitResult(summary, json) {
@@ -350,13 +498,27 @@ function emitResult(summary, json) {
     return;
   }
   process.stdout.write(`drill status: ${summary.status}\n`);
-  process.stdout.write(`steps:\n`);
-  for (const step of summary.steps) {
+  for (const step of summary.steps ?? []) {
     process.stdout.write(`  - ${JSON.stringify(step)}\n`);
   }
 }
 
-main().catch((error) => {
-  process.stdout.write(`drill failed: ${String(error.message)}\n`);
-  process.exitCode = 1;
-});
+const isMain = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (isMain) {
+  const options = parseArgs();
+  runCircuitRecoveryDrill(options)
+    .then((summary) => {
+      emitResult(summary, options.json);
+      if (summary.status !== "recovered" && summary.status !== "dry-run") process.exitCode = 1;
+    })
+    .catch((error) => {
+      const failure = {
+        startedAt: new Date().toISOString(),
+        completedAt: new Date().toISOString(),
+        status: "failed",
+        error: error instanceof Error ? error.message : String(error),
+      };
+      emitResult(failure, options.json);
+      process.exitCode = 1;
+    });
+}

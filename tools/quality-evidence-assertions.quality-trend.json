@@ -16,7 +16,7 @@
       "fieldPath": "records"
     },
     {
-      "artifactPath": ".tmp/circuit-recovery-drill-dry-run.json",
+      "artifactPath": ".tmp/circuit-recovery-drill-live.json",
       "fieldPath": "status"
     }
   ]

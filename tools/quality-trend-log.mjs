@@ -9,7 +9,7 @@ function parseArgs() {
   const values = {
     qualityPath: ".tmp/quality-scorecard.json",
     verificationPath: ".tmp/quality-ci-verification.json",
-    drillPath: ".tmp/circuit-recovery-drill-dry-run.json",
+    drillPath: ".tmp/circuit-recovery-drill-live.json",
     trendPath: ".tmp/quality-trend.json",
     runId: process.env.GITHUB_RUN_ID ?? "",
     runAttempt: process.env.GITHUB_RUN_ATTEMPT ?? "",

@@ -1,4 +1,5 @@
 import { ROUTE_NOT_HANDLED } from "./httpRouteDispatch.js";
+import { resolveChatResultHttpStatus } from "./routes/chatRoutes.js";
 
 export async function dispatchHttpRoutes06(context) {
   const {
@@ -423,7 +424,7 @@ export async function dispatchHttpRoutes06(context) {
       provider: result.data?.selectedProvider ?? result.error?.provider,
       durationMs: Date.now() - startedAt,
     });
-    writeJson(response, result.success ? 200 : 400, result);
+    writeJson(response, resolveChatResultHttpStatus(result), result);
     return;
   }
 

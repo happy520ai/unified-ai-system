@@ -223,13 +223,17 @@ function buildIssueCodesFromQualitySummary(
     );
   }
 
-  const dryRunStatus = drillResult?.status;
-  if (drillResult && dryRunStatus !== "dry-run") {
+  const liveStatus = drillResult?.status;
+  const liveChecksReady = drillResult
+    && Object.values(drillResult.checks ?? {}).every(Boolean)
+    && drillResult.managedGateway?.cleanedUp === true
+    && drillResult.realProviderCallsMade === false;
+  if (drillResult && (liveStatus !== "recovered" || !liveChecksReady)) {
     addIssue(
-      "quality_dry_run_invalid_status",
-      `circuit recovery dry-run status is ${String(dryRunStatus)}`,
+      "quality_live_drill_invalid_status",
+      `circuit recovery live status is ${String(liveStatus)}`,
       {
-        severity: "medium",
+        severity: "high",
         artifactPath: "tools/circuit-recovery-drill.mjs",
       },
     );
@@ -642,7 +646,7 @@ function checkWorkflowGuardrails() {
       "pnpm smoke:mcp",
       "pnpm quality:trend-health-smoke",
       "quality-scorecard.json",
-      "circuit-recovery-drill-dry-run.json",
+      "circuit-recovery-drill-live.json",
       "quality-ci-verification.json",
       "actions/upload-artifact",
       "--require-score",
@@ -849,6 +853,7 @@ function checkCircuitRecoveryDrill() {
     const requiredPackageMarkers = [
       "\"drill:gateway-circuit\"",
       "circuit-recovery-drill.mjs",
+      "--managed-gateway",
     ];
     const requiredGuideMarkers = [
       "Quick automated drill",
@@ -1623,11 +1628,11 @@ async function main() {
   const versionCheck = checkVersionConsistency(rootPackage.version);
   const pluginCheck = checkPluginHardening();
   const workflowCheck = checkWorkflowGuardrails();
-  const circuitDrillDryRun = runCommand(
-    "circuit_drill_dry_run",
+  const circuitDrillLive = runCommand(
+    "circuit_drill_live",
     "node",
-    ["tools/circuit-recovery-drill.mjs", "--dry-run", "--json"],
-    { timeoutMs: 30000 },
+    ["tools/circuit-recovery-drill.mjs", "--managed-gateway", "--json"],
+    { timeoutMs: 60000 },
   );
   const runtimeHardeningCheck = checkRuntimeHardening();
   const requestBodyGuardrailsCheck = checkRequestBodyGuardrails();
@@ -1650,15 +1655,15 @@ async function main() {
     publicClone,
     "verify-public-clone",
   );
-  const circuitDrillDryRunCheck = attachIssueSummaryFromResult(
-    circuitDrillDryRun,
+  const circuitDrillLiveCheck = attachIssueSummaryFromResult(
+    circuitDrillLive,
     "circuit-recovery-drill",
   );
 
   const gateResults = {
     publicRepoCheck,
     verifyPublicClone: verifyPublicCloneCheck,
-    circuitDrillDryRun: circuitDrillDryRunCheck,
+    circuitDrillLive: circuitDrillLiveCheck,
     repoFilesPresent: repoFileCheck,
     versionConsistency: versionCheck,
     runtimeHardening: runtimeHardeningCheck,
@@ -1680,8 +1685,12 @@ async function main() {
     trendIncidentBundleSchema: trendIncidentBundleSchemaCheck,
   };
 
-  const drillDryRunParsed = circuitDrillDryRun.parseableOutput ?? {};
-  const drillDryRunOk = circuitDrillDryRun.ok && drillDryRunParsed.status === "dry-run";
+  const drillLiveParsed = circuitDrillLive.parseableOutput ?? {};
+  const drillLiveOk = circuitDrillLive.ok
+    && drillLiveParsed.status === "recovered"
+    && Object.values(drillLiveParsed.checks ?? {}).every(Boolean)
+    && drillLiveParsed.managedGateway?.cleanedUp === true
+    && drillLiveParsed.realProviderCallsMade === false;
 
   let score = 0;
   score += addGate(
@@ -1791,14 +1800,15 @@ async function main() {
   score += addGate(
     gates,
     "Recovery drill automation",
-    "reliable recovery validation script is discoverable and runnable from package scripts",
+    "managed fake-provider drill must prove live closed/open/half-open/closed recovery",
     5,
-    circuitRecoveryDrillCheck.ok && drillDryRunOk,
+    circuitRecoveryDrillCheck.ok && drillLiveOk,
     JSON.stringify({
       checkDetails: circuitRecoveryDrillCheck.details,
-      dryRunOk: drillDryRunOk,
-      dryRunStatus: drillDryRunParsed.status,
-      dryRunBase: drillDryRunParsed.base,
+      liveOk: drillLiveOk,
+      liveStatus: drillLiveParsed.status,
+      liveChecks: drillLiveParsed.checks,
+      managedGateway: drillLiveParsed.managedGateway,
     }),
   );
   score += addGate(
@@ -1861,7 +1871,7 @@ async function main() {
     ...buildIssueCodesFromQualitySummary(
       gates,
       trendHardBlockArtifactCheck,
-      drillDryRunParsed,
+      drillLiveParsed,
       requireScore,
       score,
       maxScore,
@@ -1869,7 +1879,7 @@ async function main() {
     ),
     ...publicRepoCheck.issueCodes,
     ...verifyPublicCloneCheck.issueCodes,
-    ...circuitDrillDryRunCheck.issueCodes,
+    ...circuitDrillLiveCheck.issueCodes,
     ...trendHardBlockArtifactCheck.issueCodes,
     ...trendDigestHealthCheck.issueCodes,
     ...trendDigestCheckConsistencyCheck.issueCodes,
@@ -1901,7 +1911,7 @@ async function main() {
     packageVersion: rootPackage.version,
     checks: gates,
     executedChecks: gateResults,
-    drillDryRun: drillDryRunParsed,
+    drillLive: drillLiveParsed,
     issueCodes,
     issueCodeSummary,
     executedAtUtc: new Date().toISOString(),

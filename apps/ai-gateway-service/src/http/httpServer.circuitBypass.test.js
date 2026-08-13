@@ -160,10 +160,12 @@ describe("gateway error circuit bypass routes", () => {
     }
   });
 
-  it("moves from open to half-open and closes after a successful health probe", async () => {
+  it("keeps bypass probes read-only and closes after successful non-bypass probes", async () => {
     const server = createGatewayHttpServer(createGatewayApplication({
       runtimeEnv: {
         AI_GATEWAY_GATEWAY_ERROR_CIRCUIT_RESET_MS: "50",
+        AI_GATEWAY_GATEWAY_ERROR_CIRCUIT_SUCCESS_THRESHOLD: "2",
+        AI_GATEWAY_GATEWAY_ERROR_CIRCUIT_HALF_OPEN_MAX_CALLS: "2",
       },
     }));
 
@@ -183,8 +185,17 @@ describe("gateway error circuit bypass routes", () => {
         setTimeout(resolve, 120);
       });
 
+      const firstRecovery = await sendRequest(address.port, "/dashboard/status");
+      expect(firstRecovery.statusCode).toBe(200);
+
       const halfOpenHealthz = await sendRequest(address.port, "/healthz");
       expect(halfOpenHealthz.statusCode).toBe(503);
+
+      const halfOpenMetrics = await sendRequest(address.port, "/metrics");
+      expect(halfOpenMetrics.body).toContain('ai_gateway_gateway_error_circuit_state{state="half-open"} 1');
+
+      const secondRecovery = await sendRequest(address.port, "/dashboard/status");
+      expect(secondRecovery.statusCode).toBe(200);
 
       const recoveredHealthz = await sendRequest(address.port, "/healthz");
       expect(recoveredHealthz.statusCode).toBe(200);
@@ -197,7 +208,51 @@ describe("gateway error circuit bypass routes", () => {
       expect(metrics.statusCode).toBe(200);
       expect(metrics.body).toContain('ai_gateway_gateway_error_circuit_state{state="open"} 0');
       expect(metrics.body).toContain("ai_gateway_gateway_error_circuit_state{state=\"closed\"} 1");
-      expect(metrics.body).toContain('ai_gateway_gateway_error_circuit_success_total 1');
+      expect(metrics.body).toContain('ai_gateway_gateway_error_circuit_success_total 2');
+    } finally {
+      await new Promise((resolve, reject) => {
+        server.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
+  });
+
+  it("opens on a retryable provider failure returned as an HTTP response", async () => {
+    const execute = vi.fn(async () => ({
+      success: false,
+      code: "FAKE_PROVIDER_RETRYABLE_FAILURE",
+      error: {
+        code: "FAKE_PROVIDER_RETRYABLE_FAILURE",
+        retryable: true,
+      },
+    }));
+    const server = createGatewayHttpServer(createGatewayApplication({
+      gatewayService: {
+        getProviderDescriptors: () => [],
+        execute,
+      },
+      enterpriseGovernanceService: {
+        authorize: () => ({
+          allowed: true,
+          identity: { userId: "operator" },
+          permission: "chat:use",
+          statusCode: 200,
+        }),
+      },
+    }));
+
+    await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address();
+    try {
+      const failedChat = await sendRequest(address.port, "/gateway/route", "POST", { prompt: "test" });
+      expect(failedChat.statusCode).toBe(502);
+      expect(execute).toHaveBeenCalledTimes(1);
+
+      const metrics = await sendRequest(address.port, "/metrics");
+      expect(metrics.body).toContain('ai_gateway_gateway_error_circuit_state{state="open"} 1');
+
+      const blockedChat = await sendRequest(address.port, "/gateway/route", "POST", { prompt: "test" });
+      expect(blockedChat.statusCode).toBe(503);
+      expect(execute).toHaveBeenCalledTimes(1);
     } finally {
       await new Promise((resolve, reject) => {
         server.close((error) => (error ? reject(error) : resolve()));

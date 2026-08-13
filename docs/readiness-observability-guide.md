@@ -142,10 +142,10 @@ Use this lightweight drill to verify the request-circuit breaker behavior in a n
 You can run the same recovery sequence with one command:
 
 ```bash
-pnpm drill:gateway-circuit --json
+pnpm drill:gateway-circuit
 ```
 
-If you only need a safe readiness check (for CI or pre-merge), run:
+If you only need a no-execution configuration preview, run:
 
 ```bash
 node ./tools/circuit-recovery-drill.mjs --dry-run --json
@@ -153,10 +153,10 @@ node ./tools/circuit-recovery-drill.mjs --dry-run --json
 
 The default CI pipeline already runs the quality scorecard and dry-run recovery drill command and stores the output artifacts for audit.
 
-CI also runs both quality scorecard and the drill dry-run on every push/PR and publishes:
+CI also runs both the quality scorecard and the managed live recovery drill on every push/PR and publishes:
 
 - `.tmp/quality-scorecard.json`
-- `.tmp/circuit-recovery-drill-dry-run.json`
+- `.tmp/circuit-recovery-drill-live.json`
 - `.tmp/quality-ci-verification.json`
 
 You can locally validate the same CI artifacts with:
@@ -167,7 +167,7 @@ pnpm quality:verify-artifacts -- --json
 Use trend-health strict mode when validating CI parity:
 
 ```bash
-pnpm quality:verify-artifacts:trend-health -- --json --quality .tmp/quality-scorecard.json --drill .tmp/circuit-recovery-drill-dry-run.json --require-score 165
+pnpm quality:verify-artifacts:trend-health -- --json --quality .tmp/quality-scorecard.json --drill .tmp/circuit-recovery-drill-live.json --require-score 165
 ```
 
 Useful flags:
@@ -242,7 +242,7 @@ The CI workflow now stores the following additional trend artifacts per run:
 
 - `.tmp/quality-trend.json`
 - `.tmp/quality-scorecard.json`
-- `.tmp/circuit-recovery-drill-dry-run.json`
+- `.tmp/circuit-recovery-drill-live.json`
 - `.tmp/quality-trend-summary.md`
 - `.tmp/quality-trend-guardrail.json`
 - `.tmp/quality-trend-check.json`

@@ -35,7 +35,7 @@
     "growth:sync-thread": "node ./tools/star-growth-sync-thread.mjs",
     "growth:publish": "node ./tools/star-growth-publish-kit.mjs --output .tmp/growth/star-growth-publish-output.md",
     "quality:score": "node tools/quality-scorecard.mjs",
-    "drill:gateway-circuit": "node ./tools/circuit-recovery-drill.mjs --json",
+    "drill:gateway-circuit": "node ./tools/circuit-recovery-drill.mjs --managed-gateway --json",
     "drill:gateway-circuit:dry-run": "node ./tools/circuit-recovery-drill.mjs --dry-run --json",
     "benchmark:gateway:slo": "node ./tools/gateway-slo-benchmark.mjs --profile ci",
     "benchmark:gateway:soak": "go run ./tools/gateway-soak/main.go",

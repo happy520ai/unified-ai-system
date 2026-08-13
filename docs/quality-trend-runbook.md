@@ -8,7 +8,7 @@ For immediate triage, the minimum evidence set is:
 
 - From CI workflow `quality`:
   - `.tmp/quality-scorecard.json`
-  - `.tmp/circuit-recovery-drill-dry-run.json`
+  - `.tmp/circuit-recovery-drill-live.json`
   - `.tmp/quality-ci-verification.json`
   - `.tmp/quality-trend-verify-artifacts.json`
   - `.tmp/quality-trend-health-smoke.json`
@@ -149,7 +149,7 @@ When `blocked: true`, block the change and create a fix ticket for unstable root
   - In compatibility smoke (`--no-trend-health` path), a `degraded` trend-consistency status is acceptable as warning-only behavior.
 - Latest run passes `pnpm quality:ci:trend-health -- --json --require-score <threshold>`.
 - Run trend-validated artifact verification:
-  - `pnpm quality:verify-artifacts:trend-health -- --json --quality .tmp/quality-scorecard.json --drill .tmp/circuit-recovery-drill-dry-run.json --require-score <threshold>`.
+  - `pnpm quality:verify-artifacts:trend-health -- --json --quality .tmp/quality-scorecard.json --drill .tmp/circuit-recovery-drill-live.json --require-score <threshold>`.
 - PR summary references `.tmp/quality-trend-check.json` rationale and remediation evidence.
 
 ## 4) Operational escalation
@@ -167,7 +167,7 @@ pnpm quality:trend-digest -- --trend .tmp/quality-trend.json --output .tmp/quali
 pnpm quality:trend-check -- --digest .tmp/quality-trend-digest.json --guardrail .tmp/quality-trend-guardrail.json --summary .tmp/quality-trend-summary.md --json
 pnpm quality:trend-check -- --digest .tmp/quality-trend-digest.json --guardrail .tmp/quality-trend-guardrail.json --summary .tmp/quality-trend-summary.md --max-summary-reasons 8 --hard-block
 pnpm quality:ci:trend-health -- --json --require-score 165
-pnpm quality:verify-artifacts:trend-health -- --json --quality .tmp/quality-scorecard.json --drill .tmp/circuit-recovery-drill-dry-run.json --require-score 165
+pnpm quality:verify-artifacts:trend-health -- --json --quality .tmp/quality-scorecard.json --drill .tmp/circuit-recovery-drill-live.json --require-score 165
 ```
 
 ### 6) One-shot trend health smoke

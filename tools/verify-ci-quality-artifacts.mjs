@@ -8,7 +8,7 @@ function parseArgs() {
   const args = process.argv.slice(2);
   const values = {
     qualityPath: ".tmp/quality-scorecard.json",
-    drillPath: ".tmp/circuit-recovery-drill-dry-run.json",
+    drillPath: ".tmp/circuit-recovery-drill-live.json",
     incidentBundleJsonPath: ".tmp/quality-trend-incident-bundle.json",
     incidentBundleMdPath: ".tmp/quality-trend-incident-bundle.md",
     incidentBundleSchemaPath: "tools/quality-trend-incident-bundle.schema.json",
@@ -133,8 +133,8 @@ function verifyQuality(summary) {
 function verifyDrill(summary) {
   const issues = [];
 
-  if (summary?.status !== "dry-run") {
-    issues.push(`drill summary status is ${String(summary?.status)}; expected dry-run`);
+  if (summary?.status !== "recovered") {
+    issues.push(`drill summary status is ${String(summary?.status)}; expected recovered`);
   }
 
   if (!Array.isArray(summary?.expected) || summary.expected.length < 3) {
@@ -147,6 +147,29 @@ function verifyDrill(summary) {
 
   if (!summary?.config || typeof summary.config !== "object") {
     issues.push("drill summary missing config object");
+  }
+
+  const requiredChecks = [
+    "baselineHealthReady",
+    "baselineClosed",
+    "serverFailureObserved",
+    "openObserved",
+    "openReadinessBlocked",
+    "halfOpenObserved",
+    "closedObserved",
+    "finalHealthReady",
+    "managedGatewayCleanedUp",
+  ];
+  for (const check of requiredChecks) {
+    if (summary?.checks?.[check] !== true) {
+      issues.push(`drill check is not true: ${check}`);
+    }
+  }
+  if (summary?.managedGateway?.cleanedUp !== true) {
+    issues.push("drill managed gateway cleanup was not verified");
+  }
+  if (summary?.realProviderCallsMade !== false) {
+    issues.push("drill did not prove realProviderCallsMade=false");
   }
 
   return issues;
@@ -422,7 +445,10 @@ function compareTrendConsistencyArtifacts(qualityTrendConsistency, incidentTrend
     );
   }
 
-  if (Boolean(qualityTrendConsistency?.requiresTrendHealth) !== Boolean(incidentTrendConsistency?.requiresTrendHealth)) {
+  if (
+    requireTrendHealth
+    && Boolean(qualityTrendConsistency?.requiresTrendHealth) !== Boolean(incidentTrendConsistency?.requiresTrendHealth)
+  ) {
     addIssue(
       "trend_consistency_parity_requires_trend_health_mismatch",
       `trendConsistency.requiresTrendHealth mismatch: verification=${Boolean(qualityTrendConsistency?.requiresTrendHealth)} incident=${Boolean(incidentTrendConsistency?.requiresTrendHealth)}`,

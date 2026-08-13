@@ -5,6 +5,7 @@ import { normalizeChatBody, extractChatPrompt } from "./utils/chatUtils.js";
 import { evaluateTaijiBeidouChatPreviewHook } from "../gateway/taijiBeidouChatPreviewHook.js";
 import { handleChatLocalActionRoute, routeChatActionProposal } from "../owner-automation/chatActionProposalRouter.js";
 import { TASK_TO_INTENT_MAP } from "../chat-gateway/chatGatewayTaskMatrix.js";
+import { resolveChatResultHttpStatus } from "./routes/chatRoutes.js";
 
 const OWNER_AUTOMATION_CHAT_PROPOSAL_FLAG = "OWNER_AUTOMATION_CHAT_PROPOSAL_ENABLED";
 
@@ -128,7 +129,7 @@ export function createChatRoutes(ctx) {
       provider: result.data?.selectedProvider ?? result.error?.provider,
       durationMs: Date.now() - startedAt,
     });
-    writeJson(response, result.success ? 200 : 400, result);
+    writeJson(response, resolveChatResultHttpStatus(result), result);
   });
 
   // POST /gateway/route
@@ -147,7 +148,7 @@ export function createChatRoutes(ctx) {
       provider: result.data?.selectedProvider ?? result.error?.provider,
       durationMs: Date.now() - startedAt,
     });
-    writeJson(response, result.success ? 200 : 400, result);
+    writeJson(response, resolveChatResultHttpStatus(result), result);
   });
 
   // POST /gateway/mock
@@ -161,7 +162,7 @@ export function createChatRoutes(ctx) {
       provider: result.data?.selectedProvider ?? result.error?.provider,
       durationMs: Date.now() - startedAt,
     });
-    writeJson(response, result.success ? 200 : 400, result);
+    writeJson(response, resolveChatResultHttpStatus(result), result);
   });
 
   // POST /route
@@ -175,7 +176,7 @@ export function createChatRoutes(ctx) {
       provider: result.data?.selectedProvider ?? result.error?.provider,
       durationMs: Date.now() - startedAt,
     });
-    writeJson(response, result.success ? 200 : 400, result);
+    writeJson(response, resolveChatResultHttpStatus(result), result);
   });
 
   // GET /ws/info

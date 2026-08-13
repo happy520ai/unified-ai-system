@@ -9,6 +9,7 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const serviceRoot = resolve(repoRoot, "apps/ai-gateway-service");
 const serviceEntrypoint = resolve(serviceRoot, "src/index.js");
 const mcpSmokeEntrypoint = resolve(repoRoot, "tools/mcp-smoke.mjs");
+const circuitRecoveryDrillEntrypoint = resolve(repoRoot, "tools/circuit-recovery-drill.mjs");
 const javascriptExampleEntrypoint = resolve(
   repoRoot,
   "docs/examples/javascript-chat.mjs",
@@ -88,6 +89,12 @@ const CHECK_ISSUE_CATALOG = {
     severity: "high",
     message: "Gateway health check endpoint did not return ready status.",
     artifactPath: "/health/check",
+  },
+  circuitRecoveryReady: {
+    code: "public_clone_circuit_recovery_invalid",
+    severity: "high",
+    message: "Managed credential-free circuit recovery drill did not prove live recovery.",
+    artifactPath: "tools/circuit-recovery-drill.mjs",
   },
   openTelemetryReady: {
     code: "public_clone_opentelemetry_invalid",
@@ -441,6 +448,36 @@ async function runMcpSmoke() {
   return { exitCode, body };
 }
 
+async function runCircuitRecoveryDrill() {
+  let stdout = "";
+  let stderr = "";
+  const child = spawn(
+    process.execPath,
+    [circuitRecoveryDrillEntrypoint, "--managed-gateway", "--json"],
+    {
+      cwd: repoRoot,
+      windowsHide: true,
+      env: {
+        ...process.env,
+        AI_GATEWAY_REAL_PROVIDER_ENABLED: "false",
+      },
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
+  child.stdout.setEncoding("utf8");
+  child.stderr.setEncoding("utf8");
+  child.stdout.on("data", (chunk) => { stdout += chunk; });
+  child.stderr.on("data", (chunk) => { stderr += chunk; });
+  const [exitCode] = await once(child, "exit");
+  let body = null;
+  try {
+    body = JSON.parse(stdout);
+  } catch {
+    body = null;
+  }
+  return { exitCode, body, stdout: stdout.trim(), stderr: stderr.trim() };
+}
+
 async function runJavaScriptExample(baseUrl) {
   let stdout = "";
   let stderr = "";
@@ -625,6 +662,7 @@ async function runA2ASdkExample(baseUrl) {
 }
 
 const mcpSmoke = await runMcpSmoke();
+const circuitRecoveryDrill = await runCircuitRecoveryDrill();
 const port = await findFreePort();
 const baseUrl = `http://127.0.0.1:${port}`;
 const otlpCollector = await startOtlpCollector();
@@ -816,6 +854,12 @@ try {
 
   const checks = {
     healthReady: health.status === 200 && health.body?.data?.status === "ready",
+    circuitRecoveryReady:
+      circuitRecoveryDrill.exitCode === 0
+      && circuitRecoveryDrill.body?.status === "recovered"
+      && Object.values(circuitRecoveryDrill.body?.checks ?? {}).every(Boolean)
+      && circuitRecoveryDrill.body?.managedGateway?.cleanedUp === true
+      && circuitRecoveryDrill.body?.realProviderCallsMade === false,
     openTelemetryReady:
       openTelemetry.status === 200
       && openTelemetry.collectorRequestCount > 0
@@ -956,6 +1000,7 @@ try {
     checks,
     realProviderCallsMade: false,
     realProviderEnabled: health.body?.data?.realProviderEnabled ?? null,
+    circuitRecovery: circuitRecoveryDrill.body,
     openTelemetry,
     javascriptExample,
     sharedSdkExample,

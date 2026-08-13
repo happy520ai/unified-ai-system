@@ -295,7 +295,7 @@ function publishStepSummary(summary) {
     `- Overall result: ${summary.ok ? "PASS" : "FAIL"}`,
     `- Quality score threshold: ${summary.qualityThreshold}`,
     `- Quality score: ${summary.quality.score}/${summary.quality.maxScore} (${summary.quality.percent}%, pass=${String(summary.quality.pass)})`,
-    `- Dry-run drill: ${summary.drill.statusValue ?? "unknown"}`,
+    `- Live recovery drill: ${summary.drill.statusValue ?? "unknown"}`,
     `- Artifact verification: ${summary.verification.ok ? "PASS" : "FAIL"}`,
     `- Trend health required in artifacts: ${summary.requireTrendHealth ? "yes" : "no"}`,
     `- Trend health: ${summary.trendHealth.status}${summary.trendHealth.blocked ? " (blocked)" : ""}`,
@@ -308,7 +308,7 @@ function publishStepSummary(summary) {
     "| Check | Status |",
     "| --- | --- |",
     `| quality:score | ${summary.quality.parsed ? "parsed" : "not parsed"} |`,
-    `| drill:dry-run | ${summary.drill.parsed ? "parsed" : "not parsed"} |`,
+    `| drill:live | ${summary.drill.parsed ? "parsed" : "not parsed"} |`,
     `| trend consistency | ${trendConsistencyStatusDisplay(summary.trendConsistency)} (${summary.trendConsistency?.status ?? "missing"}) |`,
     `| incident bundle | ${summary.trendIncidentBundle.ok ? "pass" : "fail"} (${summary.trendIncidentBundle.status}) |`,
     `| trend health | ${summary.trendHealth.status} |`,
@@ -380,7 +380,7 @@ function flattenIssueCodes(trendIncidentBundle) {
 function main() {
   const args = parseArgs();
   const qualityPath = ".tmp/quality-scorecard.json";
-  const drillPath = ".tmp/circuit-recovery-drill-dry-run.json";
+  const drillPath = ".tmp/circuit-recovery-drill-live.json";
   const verificationPath = ".tmp/quality-ci-verification.json";
 
   mkdirSync(resolve(repoRoot, ".tmp"), { recursive: true });
@@ -394,8 +394,8 @@ function main() {
 
   const drillResult = runNodeScript(
     "./tools/circuit-recovery-drill.mjs",
-    ["--dry-run", "--json"],
-    30000,
+    ["--managed-gateway", "--json"],
+    60000,
   );
   writeIfPossible(drillPath, drillResult.rawStdout);
 
@@ -485,7 +485,7 @@ function main() {
   } else {
     process.stdout.write(`CI quality gate: ${summary.ok ? "PASS" : "FAIL"}\n`);
     process.stdout.write(`Quality pass=${String(summary.quality.pass)} status=${String(summary.quality.status)} score=${summary.quality.score}/${summary.quality.maxScore}\n`);
-    process.stdout.write(`Dry-run drill status=${String(summary.drill.statusValue)}\n`);
+    process.stdout.write(`Live recovery drill status=${String(summary.drill.statusValue)}\n`);
   }
 
   publishStepSummary(summary);

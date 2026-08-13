@@ -390,6 +390,18 @@ export function createGatewayHttpServer(application) {
     request.maxBodyBytes = maxRequestBodyBytes;
     applyCorsHeaders(response, request.headers.origin, corsAllowedOrigins, corsMaxAgeSeconds);
     const markRequestSuccess = () => {
+      if (canBypassGatewayErrorCircuit) {
+        const bypassSnapshot = gatewayErrorCircuit.getStateSnapshot();
+        resilienceMetrics.recordGatewayErrorCircuitState?.(bypassSnapshot?.state, bypassSnapshot);
+        return;
+      }
+      if (response.statusCode >= 500) {
+        gatewayErrorCircuit.recordFailure();
+        resilienceMetrics.recordGatewayErrorCircuitFailure?.();
+        const failureSnapshot = gatewayErrorCircuit.getStateSnapshot();
+        resilienceMetrics.recordGatewayErrorCircuitState?.(failureSnapshot?.state, failureSnapshot);
+        return;
+      }
       const stateBeforeSuccess = gatewayErrorCircuit.getStateSnapshot()?.state;
       gatewayErrorCircuit.recordSuccess();
       const stateAfterSuccess = gatewayErrorCircuit.getStateSnapshot();
@@ -398,11 +410,13 @@ export function createGatewayHttpServer(application) {
       }
       resilienceMetrics.recordGatewayErrorCircuitState?.(stateAfterSuccess?.state, stateAfterSuccess);
     };
-    const allowedByGatewayErrorCircuit = gatewayErrorCircuit.canProcessRequest();
-    const circuitSnapshot = gatewayErrorCircuit.getStateSnapshot();
-    resilienceMetrics.recordGatewayErrorCircuitState?.(circuitSnapshot?.state, circuitSnapshot);
     const normalizedPathname = normalizeBypassRoute(url.pathname);
     const canBypassGatewayErrorCircuit = normalizedPathname && circuitBypassRoutes.has(normalizedPathname);
+    const allowedByGatewayErrorCircuit = canBypassGatewayErrorCircuit
+      ? true
+      : gatewayErrorCircuit.canProcessRequest();
+    const circuitSnapshot = gatewayErrorCircuit.getStateSnapshot();
+    resilienceMetrics.recordGatewayErrorCircuitState?.(circuitSnapshot?.state, circuitSnapshot);
     if (!allowedByGatewayErrorCircuit && !canBypassGatewayErrorCircuit) {
       resilienceMetrics.recordGatewayErrorCircuitRejections();
       const retryAfterSeconds = Math.max(
