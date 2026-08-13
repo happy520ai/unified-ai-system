@@ -294,10 +294,12 @@ function checkWorkflowGuardrails() {
     "pnpm verify:public-clone",
     "pnpm smoke:mcp",
     "quality-scorecard.json",
+    "circuit-recovery-drill-dry-run.json",
     "actions/upload-artifact",
     "--require-score 140",
     "pnpm gateway doctor --json",
     "pnpm eval:prompt-enhancement -- --json",
+    "drill:gateway-circuit:dry-run",
   ];
     const missingMarkers = requiredMarkers.filter((marker) => !workflow.includes(marker));
     return {

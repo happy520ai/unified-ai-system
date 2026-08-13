@@ -66,12 +66,17 @@ jobs:
           mkdir -p .tmp
           pnpm quality:score -- --json --require-score 140 | tee .tmp/quality-scorecard.json
 
+      - name: Circuit recovery dry-run
+        run: pnpm drill:gateway-circuit:dry-run | tee .tmp/circuit-recovery-drill-dry-run.json
+
       - name: Upload quality scorecard artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: quality-scorecard
-          path: .tmp/quality-scorecard.json
+          path: |
+            .tmp/quality-scorecard.json
+            .tmp/circuit-recovery-drill-dry-run.json
           retention-days: 30
 
       - name: Codex MCP server

@@ -143,12 +143,12 @@ If you only need a safe readiness check (for CI or pre-merge), run:
 node ./tools/circuit-recovery-drill.mjs --dry-run --json
 ```
 
-If you later add an optional CI stage for this drill (not part of default CI), prefer this command sequence:
+The default CI pipeline already runs the quality scorecard and dry-run recovery drill command and stores the output artifacts for audit.
 
-```bash
-pnpm quality:score -- --json --require-score 140
-node ./tools/circuit-recovery-drill.mjs --dry-run --json
-```
+CI also runs both quality scorecard and the drill dry-run on every push/PR and publishes:
+
+- `.tmp/quality-scorecard.json`
+- `.tmp/circuit-recovery-drill-dry-run.json`
 
 Useful flags:
 - `--base-url` (default: `AI_GATEWAY_SERVICE_URL` or `http://127.0.0.1:3100`)
