@@ -100,6 +100,8 @@ upstream ai_gateway {
 
 Keep the existing TLS, WebSocket, and SSE proxy settings. Graceful process
 draining and a load-balancer health check are still required during restart.
+See the [graceful shutdown contract](./graceful-shutdown-contract.md) for the
+probe routes, propagation window, and forced termination boundary.
 
 ## Operational rules
 

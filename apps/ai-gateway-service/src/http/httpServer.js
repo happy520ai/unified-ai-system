@@ -189,6 +189,7 @@ import { dispatchHttpRoutes05 } from "./httpServerRoutes05.js";
 import { dispatchHttpRoutes06 } from "./httpServerRoutes06.js";
 import { createOpenTelemetryRuntime } from "../observability/openTelemetry.js";
 import { createIdempotencyCoordinator } from "./idempotencyCoordinator.ts";
+import { createGatewayLifecycle } from "./gatewayLifecycle.ts";
 
 const logger = createLogger({ app: "ai-gateway-service", level: "info" });
 const writeServiceLog = (event, details = {}) => logger.info(event, details);
@@ -327,6 +328,7 @@ export function createGatewayHttpServer(application) {
   });
   const openTelemetry = createOpenTelemetryRuntime({ env: requestConfig });
   const idempotencyCoordinator = createIdempotencyCoordinator({ env: requestConfig });
+  const gatewayLifecycle = createGatewayLifecycle();
   const tracedGatewayService = openTelemetry.instrumentGatewayService(gatewayService);
   const a2aGateway = createA2AGateway({
     gatewayService: tracedGatewayService,
@@ -392,6 +394,22 @@ export function createGatewayHttpServer(application) {
     applySecurityHeaders(response);
     request.maxBodyBytes = maxRequestBodyBytes;
     applyCorsHeaders(response, request.headers.origin, corsAllowedOrigins, corsMaxAgeSeconds);
+    const lifecycleSnapshot = gatewayLifecycle.snapshot();
+    if (lifecycleSnapshot.state !== "ready" && !isDrainProbeRoute(request.method, url.pathname)) {
+      response.setHeader("Retry-After", "1");
+      response.setHeader("Connection", "close");
+      writeJson(response, 503, createErrorEnvelope(
+        "service_draining",
+        "Service is draining and is not accepting new work.",
+        {
+          startedAt,
+          category: "health",
+          retryable: true,
+          details: { lifecycle: lifecycleSnapshot },
+        },
+      ));
+      return;
+    }
     const markRequestSuccess = ({ recordServerFailure = true } = {}) => {
       if (canBypassGatewayErrorCircuit) {
         const bypassSnapshot = gatewayErrorCircuit.getStateSnapshot();
@@ -638,6 +656,7 @@ export function createGatewayHttpServer(application) {
           healthzInFlightDegradationPercent,
           rateLimiter,
           idempotencyCoordinator,
+          gatewayLifecycle,
         }));
       if (routeResult !== ROUTE_NOT_HANDLED) {
         markRequestSuccess();
@@ -687,15 +706,34 @@ export function createGatewayHttpServer(application) {
       );
     }
   });
+  let shutdownResourcesPromise;
+  server.gatewayLifecycle = gatewayLifecycle;
+  server.shutdownResources = () => {
+    shutdownResourcesPromise ??= (async () => {
+      idempotencyCoordinator.close();
+      await openTelemetry.shutdown();
+    })();
+    return shutdownResourcesPromise;
+  };
   server.on("close", () => {
-    idempotencyCoordinator.close();
-    void openTelemetry.shutdown().catch((error) => {
+    gatewayLifecycle.markStopped();
+    void server.shutdownResources().catch((error) => {
       writeServiceLog("opentelemetry_shutdown_failed", {
         code: error?.code ?? error?.name ?? "otel_shutdown_failed",
       });
     });
   });
   return server;
+}
+
+function isDrainProbeRoute(method, pathname) {
+  if (method !== "GET") return false;
+  return pathname === "/livez"
+    || pathname === "/healthz"
+    || pathname === "/ready"
+    || pathname === "/health"
+    || pathname === "/health/check"
+    || pathname === "/metrics";
 }
 
 function createNormalizedHttpError(error) {

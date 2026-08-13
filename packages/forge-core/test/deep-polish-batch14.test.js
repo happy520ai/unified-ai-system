@@ -173,6 +173,7 @@ describe("Batch14 Fix6: webSocketServer connection cap", () => {
 // ── Fix 7: index.js unhandledRejection + shutdown timeout ──
 describe("Batch14 Fix7: unhandledRejection handler + shutdown timeout", () => {
   const src = ESM_SRC("index.js");
+  const shutdownSrc = ESM_SRC("http/gatewayShutdown.ts");
 
   it("registers unhandledRejection handler", () => {
     assert.ok(
@@ -188,18 +189,14 @@ describe("Batch14 Fix7: unhandledRejection handler + shutdown timeout", () => {
   });
 
   it("shutdown uses forced exit timeout", () => {
-    assert.ok(src.includes("forceTimer"), "forceTimer not found");
-    assert.ok(src.includes("forceTimer.unref"), "timer should be unref'd");
+    assert.ok(shutdownSrc.includes("forceTimer"), "forceTimer not found in shutdown controller");
+    assert.ok(shutdownSrc.includes("forceTimer.unref"), "timer should be unref'd");
   });
 
   it("forced shutdown timeout is reasonable (10s)", () => {
-    const idx = src.indexOf("forceTimer = setTimeout");
-    assert.ok(idx >= 0, "forceTimer setTimeout not found");
-    const window = src.slice(idx, idx + 500);
-    assert.ok(
-      window.includes("10_000") || window.includes("10000"),
-      "should be 10 seconds"
-    );
+    assert.ok(shutdownSrc.includes("forceTimer = setTimeout"), "forceTimer setTimeout not found");
+    assert.ok(shutdownSrc.includes("options.timeoutMs"), "controller should use the configured timeout");
+    assert.ok(src.includes("10_000") || src.includes("10000"), "entrypoint default should be 10 seconds");
   });
 });
 

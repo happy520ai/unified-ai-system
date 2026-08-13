@@ -111,6 +111,48 @@ async function sendRequest(port, path, method = "GET", body) {
 }
 
 describe("gateway error circuit bypass routes", () => {
+  it("rejects new business work while draining and keeps probes reachable", async () => {
+    const authorize = vi.fn(() => ({
+      allowed: true,
+      identity: { userId: "operator" },
+      permission: "chat:use",
+      statusCode: 200,
+    }));
+    const execute = vi.fn(async () => ({ success: true, data: { text: "unexpected" } }));
+    const server = createGatewayHttpServer(createGatewayApplication({
+      enterpriseGovernanceService: { authorize },
+      gatewayService: {
+        getProviderDescriptors: () => [],
+        execute,
+      },
+    }));
+
+    await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const port = server.address().port;
+    server.gatewayLifecycle.beginDrain("test-drain");
+
+    const [chat, readiness, liveness] = await Promise.all([
+      sendRequest(port, "/chat", "POST", { messages: [{ role: "user", content: "hello" }] }),
+      sendRequest(port, "/healthz"),
+      sendRequest(port, "/livez"),
+    ]);
+
+    expect(chat.statusCode).toBe(503);
+    expect(JSON.parse(chat.body).error.code).toBe("service_draining");
+    expect(chat.headers["retry-after"]).toBe("1");
+    expect(readiness.statusCode).toBe(503);
+    expect(JSON.parse(readiness.body).error.details.readinessFailures).toContain("service-draining");
+    expect(liveness.statusCode).toBe(200);
+    expect(JSON.parse(liveness.body).data.status).toBe("alive");
+    expect(authorize.mock.calls.some(([incomingRequest]) => incomingRequest.url === "/chat")).toBe(false);
+    expect(execute).not.toHaveBeenCalled();
+
+    await new Promise((resolve, reject) => {
+      server.close((error) => error ? reject(error) : resolve());
+    });
+    await server.shutdownResources();
+  });
+
   it("keeps readiness and metrics endpoints reachable while gateway circuit is open", async () => {
     const server = createGatewayHttpServer(createGatewayApplication({
       runtimeEnv: {

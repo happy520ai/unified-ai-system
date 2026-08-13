@@ -55,6 +55,30 @@ function createEnvelopeContext(overrides = {}) {
 }
 
 describe("dispatchHttpRoutes02 healthz readiness", () => {
+  it("returns draining readiness while liveness remains available", async () => {
+    const lifecycle = {
+      snapshot: () => ({ state: "draining", isReady: false, isLive: true, reason: "SIGTERM" }),
+    };
+    const readinessContext = createEnvelopeContext({
+      gatewayLifecycle: lifecycle,
+      url: { pathname: "/healthz" },
+    });
+
+    await dispatchHttpRoutes02(readinessContext);
+
+    expect(readinessContext.response.status).toBe(503);
+    expect(readinessContext.response.payload.error.details.readinessFailures).toContain("service-draining");
+
+    const livenessContext = createEnvelopeContext({
+      gatewayLifecycle: lifecycle,
+      url: { pathname: "/livez" },
+    });
+    await dispatchHttpRoutes02(livenessContext);
+
+    expect(livenessContext.response.status).toBe(200);
+    expect(livenessContext.response.payload.data.status).toBe("alive");
+  });
+
   it("returns 503 when in-flight saturation is reached", async () => {
     const context = createEnvelopeContext({
       resilienceMetrics: {

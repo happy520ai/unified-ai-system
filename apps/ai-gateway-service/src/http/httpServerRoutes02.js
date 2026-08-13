@@ -28,6 +28,7 @@ export async function dispatchHttpRoutes02(context) {
     enterpriseOpsService, fiveCapabilityActivationService, gatewayService, knowledgeService,
     modelImportService, modelLibraryStore, providerConfigRoutes, userExperienceService,
     workforceService, workflowService, wsServer, healthzInFlightThreshold, healthzInFlightDegradationPercent,
+    gatewayLifecycle,
   } = context;
 
   if (request.method === "GET" && url.pathname === "/dashboard/status") {
@@ -55,6 +56,20 @@ export async function dispatchHttpRoutes02(context) {
     return;
   }
 
+  if (request.method === "GET" && url.pathname === "/livez") {
+    const lifecycle = gatewayLifecycle?.snapshot?.() ?? {
+      state: "ready",
+      isReady: true,
+      isLive: true,
+      reason: null,
+    };
+    writeJson(response, lifecycle.isLive ? 200 : 503, createOkEnvelope({
+      status: lifecycle.isLive ? "alive" : "stopped",
+      lifecycle,
+    }, { startedAt }));
+    return;
+  }
+
   if (request.method === "GET" && (url.pathname === "/healthz" || url.pathname === "/ready")) {
     const healthSnapshot = createHealth(application);
     const readinessSnapshot = createSetupReadiness(application);
@@ -69,9 +84,11 @@ export async function dispatchHttpRoutes02(context) {
       ? Number(healthzInFlightDegradationPercent)
       : null;
     const saturated = saturationThreshold > 0 && currentInFlight >= saturationThreshold;
+    const lifecycle = gatewayLifecycle?.snapshot?.() ?? null;
     const readinessFailures = collectReadinessFailures(healthSnapshot, readinessSnapshot, {
       saturated,
       gatewayErrorCircuitState: resilienceSnapshot?.gatewayErrorCircuitState,
+      lifecycleState: lifecycle?.state,
     });
     resilienceMetrics?.recordReadinessCheck?.(readinessFailures);
     const degraded = saturated || readinessFailures.length > 0;
@@ -84,6 +101,7 @@ export async function dispatchHttpRoutes02(context) {
       readinessFailureCount: readinessFailures.length,
       readinessFailures,
       isReady: !degraded,
+      lifecycle,
       saturation: {
         inFlight: currentInFlight,
         threshold: saturationThreshold,
@@ -165,9 +183,11 @@ export async function dispatchHttpRoutes02(context) {
       ? Number(healthzInFlightThreshold)
       : 0;
     const saturated = saturationThreshold > 0 && currentInFlight >= saturationThreshold;
+    const lifecycle = gatewayLifecycle?.snapshot?.() ?? null;
     const readinessFailures = collectReadinessFailures(healthSnapshot, readinessSnapshot, {
       saturated,
       gatewayErrorCircuitState: readinessResilienceSnapshot?.gatewayErrorCircuitState,
+      lifecycleState: lifecycle?.state,
     });
     const snapshot = {
       totalRequests: stats.totalRequests ?? 0,
@@ -178,6 +198,7 @@ export async function dispatchHttpRoutes02(context) {
       readiness: readinessSnapshot,
       readinessFailures,
       readinessFailureCount: readinessFailures.length,
+      lifecycle,
       latency: stats.avgLatencyMs
         ? { p50: stats.avgLatencyMs, p95: stats.avgLatencyMs, p99: stats.avgLatencyMs }
         : undefined,
@@ -566,6 +587,9 @@ function collectReadinessFailures(healthSnapshot, readinessSnapshot, context = {
   }
   if (context?.gatewayErrorCircuitState && context.gatewayErrorCircuitState !== "closed") {
     readinessFailures.push("gateway-error-circuit");
+  }
+  if (context?.lifecycleState && context.lifecycleState !== "ready") {
+    readinessFailures.push("service-draining");
   }
 
   return Array.from(new Set(readinessFailures));
