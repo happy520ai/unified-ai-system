@@ -99,7 +99,7 @@ testing pattern, and review checklist.
   - a boundary diagram or migration path,
   - and compatibility/safety plan for the new runtime boundary.
 - Language decisions for new runtime or tooling changes should be justified with the
-  [Language Selection Playbook](docs/language-selection-playbook.md), including
+  [Language Selection Playbook](/docs/language-selection-playbook.md), including
   workload profile, at least one alternative language review, and rollback impact.
 
 ## Required Checks
