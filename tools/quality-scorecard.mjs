@@ -382,6 +382,8 @@ function checkGatewayErrorCircuitBreaker() {
       "AiGatewayRequestCircuitOpen",
       "gateway-error-circuit",
       "Request-circuit failure drill",
+      "curl -sS",
+      "sed -n",
     ];
     const missingMarkers = requiredMarkers.filter(
       (marker) => !(serverSource.includes(marker) || exporterSource.includes(marker)

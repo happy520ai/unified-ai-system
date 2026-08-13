@@ -125,3 +125,16 @@ Use this lightweight drill to verify the request-circuit breaker behavior in a n
 5. Confirm recovery criteria:
 - Half-open success path closes the breaker and `readinessFailures` no longer includes `gateway-error-circuit`.
 - Check `ai_gateway_gateway_error_circuit_success_total` increments.
+
+### Example commands
+
+```bash
+curl -sS "http://127.0.0.1:3210/healthz" | jq
+curl -sS "http://127.0.0.1:3210/metrics" | sed -n "/gateway_error_circuit/p"
+
+# Probe readiness repeatedly during recovery and watch Retry-After.
+while true; do
+  curl -i -sS "http://127.0.0.1:3210/healthz" | sed -n '1,12p'
+  sleep 1
+done
+```
