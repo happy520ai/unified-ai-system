@@ -375,6 +375,7 @@ function checkGatewayErrorCircuitBreaker() {
       "AI_GATEWAY_GATEWAY_ERROR_CIRCUIT_SUCCESS_THRESHOLD",
       "AI_GATEWAY_GATEWAY_ERROR_CIRCUIT_RESET_MS",
       "AI_GATEWAY_GATEWAY_ERROR_CIRCUIT_HALF_OPEN_MAX_CALLS",
+      "AI_GATEWAY_GATEWAY_ERROR_CIRCUIT_BYPASS_ROUTES",
       "gateway_error_circuit_state",
       "gateway_error_circuit_rejections_total",
       "gateway_error_circuit_open_seconds",
