@@ -234,4 +234,39 @@ describe("gateway error circuit bypass routes", () => {
       });
     }
   });
+
+  it("normalizes bypass route configuration with whitespace, trailing slash, and duplicate slashes", async () => {
+    const server = createGatewayHttpServer(createGatewayApplication({
+      runtimeEnv: {
+        AI_GATEWAY_GATEWAY_ERROR_CIRCUIT_RESET_MS: "50",
+        AI_GATEWAY_GATEWAY_ERROR_CIRCUIT_BYPASS_ROUTES: " //dashboard/status/?probe=1,  , /healthz//, /dashboard/status ",
+      },
+    }));
+
+    await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address();
+    try {
+      const firstFailure = await sendRequest(address.port, "/provider-config/save", "POST", "{}");
+      expect(firstFailure.statusCode).toBeGreaterThanOrEqual(500);
+
+      const dashboardStatus = await sendRequest(address.port, "/dashboard/status");
+      expect(dashboardStatus.statusCode).toBe(200);
+      const dashboardPayload = JSON.parse(dashboardStatus.body);
+      expect(dashboardPayload.status).toBe("ok");
+      expect(dashboardPayload.data?.route).toBe("/dashboard/status");
+
+      const ready = await sendRequest(address.port, "/ready");
+      expect(ready.statusCode).toBe(503);
+      const readyPayload = JSON.parse(ready.body);
+      expect(readyPayload?.error?.details?.readinessFailures).toContain("gateway-error-circuit");
+
+      const blockedRoute = await sendRequest(address.port, "/provider-config/save");
+      expect(blockedRoute.statusCode).toBe(503);
+      expect(blockedRoute.headers).toHaveProperty("retry-after");
+    } finally {
+      await new Promise((resolve, reject) => {
+        server.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
+  });
 });

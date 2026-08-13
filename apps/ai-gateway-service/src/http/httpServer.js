@@ -1125,11 +1125,12 @@ function normalizeBypassRoute(route) {
 
   const pathOnly = trimmed.split("?")[0].split("#")[0];
   const withLeadingSlash = pathOnly.startsWith("/") ? pathOnly : `/${pathOnly}`;
-  if (withLeadingSlash === "/") {
+  const withNormalizedSlashes = withLeadingSlash.replace(/\/+/gu, "/");
+  if (withNormalizedSlashes === "/") {
     return "/";
   }
 
-  return withLeadingSlash.replace(/\/+$/u, "");
+  return withNormalizedSlashes.replace(/\/+$/u, "");
 }
 
 function parseJson(value) {
