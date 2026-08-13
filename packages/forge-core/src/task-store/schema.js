@@ -10,7 +10,7 @@
  *   events      — append-only execution log (audit trail)
  */
 
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 export const CREATE_TABLES = /* sql */ `
   -- Goals: one row per user-submitted objective
@@ -45,6 +45,7 @@ export const CREATE_TABLES = /* sql */ `
     max_retries   INTEGER NOT NULL DEFAULT 2,
     allowed_files TEXT,              -- JSON array of glob patterns
     constraints   TEXT,              -- JSON array of hard constraints for worker prompt shaping
+    language      TEXT,              -- inferred implementation language (js|ts|python|go|rust|java|other)
     estimated_min INTEGER,
     PRIMARY KEY (id, goal_id)
   );
@@ -184,4 +185,8 @@ export const MIGRATE_V2 = [
 
 export const MIGRATE_V3 = [
   `ALTER TABLE tasks ADD COLUMN constraints TEXT;`,
+];
+
+export const MIGRATE_V4 = [
+  `ALTER TABLE tasks ADD COLUMN language TEXT;`,
 ];

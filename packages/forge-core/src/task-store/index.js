@@ -15,6 +15,7 @@ import {
   INSERT_SCHEMA_VERSION,
   MIGRATE_V2,
   MIGRATE_V3,
+  MIGRATE_V4,
 } from './schema.js';
 
 export class TaskStore {
@@ -58,6 +59,7 @@ export class TaskStore {
       ...task,
       allowed_files: this.#normalizeJsonArray(task.allowed_files),
       constraints: this.#normalizeJsonArray(task.constraints),
+      language: task.language ?? null,
     };
   }
 
@@ -102,8 +104,8 @@ export class TaskStore {
 
   insertTaskDAG(goalId, tasks, deps) {
     const insertTask = this.#db.prepare(`
-      INSERT INTO tasks (id, goal_id, name, type, agent_role, prompt, allowed_files, constraints, estimated_min)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO tasks (id, goal_id, name, type, agent_role, prompt, allowed_files, constraints, language, estimated_min)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const insertDep = this.#db.prepare(`
       INSERT OR IGNORE INTO task_deps (goal_id, task_id, depends_on)
@@ -117,6 +119,7 @@ export class TaskStore {
           t.prompt ?? null,
           JSON.stringify(this.#normalizeJsonArray(t.allowedFiles ?? [])),
           JSON.stringify(this.#normalizeJsonArray(t.constraints ?? [])),
+          t.language ?? null,
           t.estimatedMin ?? null
         );
       }
@@ -462,7 +465,7 @@ export class TaskStore {
    * Each ALTER TABLE statement is wrapped in try-catch so re-runs are idempotent.
    */
   migrateSchema() {
-    for (const migrationSet of [MIGRATE_V2, MIGRATE_V3]) {
+    for (const migrationSet of [MIGRATE_V2, MIGRATE_V3, MIGRATE_V4]) {
       for (const sql of migrationSet) {
         try {
           this.#db.exec(sql);

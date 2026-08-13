@@ -155,15 +155,17 @@ export class GoalRefiner {
     const languageConstraint = buildLanguagePreferenceText(preferredLanguage);
     if (Array.isArray(finalDag.tasks)) {
       finalDag.tasks = finalDag.tasks.map((task) => {
-        if (task.type !== 'implement' && task.type !== 'refactor' && task.type !== 'test') return task;
+        const taskLanguage = task.language || inferTaskLanguage(task, preferredLanguage, goalText);
+        if (task.type !== 'implement' && task.type !== 'refactor' && task.type !== 'test') {
+          return { ...task, language: taskLanguage };
+        }
         const nextConstraints = Array.isArray(task.constraints) ? [...task.constraints] : [];
-        const taskLanguage = inferTaskLanguage(task, preferredLanguage, goalText);
         const effectiveConstraint = buildLanguagePreferenceText(preferredLanguage, taskLanguage);
         if (!nextConstraints.includes(effectiveConstraint)) nextConstraints.push(effectiveConstraint);
         if (languageConstraint !== effectiveConstraint && !nextConstraints.includes(languageConstraint)) {
           nextConstraints.push(languageConstraint);
         }
-        return { ...task, constraints: nextConstraints };
+        return { ...task, language: taskLanguage, constraints: nextConstraints };
       });
     }
 

@@ -122,9 +122,9 @@ export class Forge {
     console.log(`  FORGE — Goal: "${goalText}"`);
     console.log(`${'═'.repeat(60)}\n`);
 
-    // Step 1: Compile the goal into a Task DAG (use enhanced refiner if requested)
+    // Step 1: Compile the goal into a Task DAG (enhanced refiner is default)
     console.log('[forge] Step 1: Compiling goal...');
-    const compiler = options.useRefiner ? compileGoalV2 : compileGoal;
+    const compiler = options.useRefiner === false ? compileGoal : compileGoalV2;
     const { goalId, taskCount, summary } = await compiler(this.#store, {
       goalText,
       projectRoot: this.#projectRoot,
@@ -173,7 +173,7 @@ export class Forge {
    * This enables multiple goals to run in parallel with global resource management.
    *
    * @param {string} goalText — natural language goal
-   * @param {object} [options] — { userId, priority }
+   * @param {object} [options] — { userId, priority, useRefiner: true|false }
    * @returns {Promise<{ goalId: string, status: string, completedTasks: number, failedTasks: number, totalTasks: number }>}
    */
   async submitGoal(goalText, options = {}) {
@@ -182,9 +182,10 @@ export class Forge {
     }
 
     const userId = options.userId ?? 'system';
+    const compiler = options.useRefiner === false ? compileGoal : compileGoalV2;
 
     console.log(`\n[forge:pool] Compiling goal: "${goalText.substring(0, 80)}..."`);
-    const { goalId, taskCount, summary } = await compileGoal(this.#store, {
+    const { goalId, taskCount, summary } = await compiler(this.#store, {
       goalText,
       projectRoot: this.#projectRoot,
     });
@@ -482,4 +483,3 @@ export {
 
 // M7: Self-loop ERROR_LOOP 导出(Decision 已导出,补充错误策略常量)
 export { SelfLoopEngine as SelfLoopEngineWithErrorLoop } from './self-loop/index.js';
-

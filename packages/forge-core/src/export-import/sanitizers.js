@@ -56,6 +56,7 @@ export function sanitizeTask(task) {
     max_retries: task.max_retries ?? 2,
     allowed_files: task.allowed_files ?? null,
     constraints: task.constraints ?? null,
+    language: task.language ?? null,
     estimated_min: task.estimated_min ?? null,
   };
 }

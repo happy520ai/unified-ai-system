@@ -179,6 +179,7 @@ export class GoalTransfer {
       constraints: t.constraints
         ? (typeof t.constraints === 'string' ? JSON.parse(t.constraints) : t.constraints)
         : [],
+      language: t.language ?? null,
       estimatedMin: t.estimated_min ?? null,
     }));
 
