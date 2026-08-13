@@ -83,6 +83,13 @@ function summarizeIssueCodesFromResult(result, fallbackSource = QUALITY_SCORECAR
   };
 }
 
+function attachIssueSummaryFromResult(result, fallbackSource = QUALITY_SCORECARD_ISSUE_SOURCE) {
+  return {
+    ...result,
+    ...summarizeIssueCodesFromResult(result, fallbackSource),
+  };
+}
+
 function gateWeightToSeverity(weight) {
   if (weight >= 25) return "high";
   if (weight >= 10) return "medium";
@@ -1016,27 +1023,22 @@ async function main() {
   const trendHardBlockArtifactCheck = checkTrendHardBlockArtifact();
   const trendIncidentBundleSchemaCheck = checkTrendIncidentBundleSchema();
 
-  const publicRepoIssueSummary = summarizeIssueCodesFromResult(
-    repoCheck,
-    "public-repo-check",
-  );
-  const verifyPublicCloneIssueSummary = summarizeIssueCodesFromResult(
+  const publicRepoCheck = attachIssueSummaryFromResult(repoCheck, "public-repo-check");
+  const verifyPublicCloneCheck = attachIssueSummaryFromResult(
     publicClone,
     "verify-public-clone",
   );
+  const circuitDrillDryRunCheck = attachIssueSummaryFromResult(
+    circuitDrillDryRun,
+    "circuit-recovery-drill",
+  );
 
   const gateResults = {
-    publicRepoCheck: {
-      ...repoCheck,
-      ...publicRepoIssueSummary,
-    },
-    verifyPublicClone: {
-      ...publicClone,
-      ...verifyPublicCloneIssueSummary,
-    },
+    publicRepoCheck,
+    verifyPublicClone: verifyPublicCloneCheck,
+    circuitDrillDryRun: circuitDrillDryRunCheck,
     repoFilesPresent: repoFileCheck,
     versionConsistency: versionCheck,
-    circuitDrillDryRun,
     runtimeHardening: runtimeHardeningCheck,
     metrics: metricsCheck,
     pluginHardening: pluginCheck,
@@ -1209,8 +1211,9 @@ async function main() {
       score,
       maxScore,
     ),
-    ...publicRepoIssueSummary.issueCodes,
-    ...verifyPublicCloneIssueSummary.issueCodes,
+    ...publicRepoCheck.issueCodes,
+    ...verifyPublicCloneCheck.issueCodes,
+    ...circuitDrillDryRunCheck.issueCodes,
   ], QUALITY_SCORECARD_ISSUE_SOURCE);
   const issueCodeSummary = summarizeIssueCodes(issueCodes);
 
