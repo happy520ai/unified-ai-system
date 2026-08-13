@@ -232,3 +232,5 @@ The CI workflow now stores the following additional trend artifacts per run:
 
 If you inspect workflow artifacts, you can load the guardrail JSON to see threshold checks
 used in CI diagnostics and trend stability reviews.
+
+Default guardrail thresholds are `--max-consecutive-failures 3` and `--max-score-drop-points 20` in the CI trend generation step. A breach sets `guardrail pass: fail` in the summary and can fail the CI job due `--enforce-guardrails`.

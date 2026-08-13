@@ -75,8 +75,7 @@ jobs:
 
       - name: Render quality trend summary
         if: always()
-        continue-on-error: true
-        run: pnpm quality:trend-summary -- --trend .tmp/quality-trend.json --output .tmp/quality-trend-summary.md --guard-output .tmp/quality-trend-guardrail.json
+        run: pnpm quality:trend-summary -- --trend .tmp/quality-trend.json --output .tmp/quality-trend-summary.md --guard-output .tmp/quality-trend-guardrail.json --max-consecutive-failures 3 --max-score-drop-points 20 --enforce-guardrails
 
       - name: Append trend summary to workflow summary
         if: always()
