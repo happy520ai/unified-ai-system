@@ -130,3 +130,14 @@ The schema now requires `trendConsistency` in failure bundles, including:
 
 This keeps `quality-ci-verification.json` trend-consistency status and
 reduced-data diagnostics carried forward into incident evidence for triage.
+
+### Field source map
+
+- `trendConsistency.status` / `trendConsistency.ok`  
+  - Source: `.tmp/quality-ci-verification.json` (primary), propagated into `*.incident-bundle.json` by `quality-trend-health-smoke`.
+- `trendConsistency.checks` / `trendConsistency.checksRequired`  
+  - Source: `.tmp/quality-ci-verification.json` (generated from scorecard/quality checks and normalized by the CI quality gate).
+- `trendConsistency.issueCodes` / `trendConsistency.issueCodeSummary`  
+  - Source: source checks (`quality-ci-verification` + scorecard issue normalization) and emitted into `.tmp/quality-ci-verification.json`.
+- `trendConsistency.hasMissingRequired` / `trendConsistency.hasNotCollected` / `trendConsistency.requiresTrendHealth`  
+  - Source: `quality-ci-verification` summary (strictness and collection flags), surfaced in `trendConsistency` fields.
