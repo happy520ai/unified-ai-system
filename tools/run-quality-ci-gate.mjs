@@ -142,6 +142,32 @@ function summarizeTrendBundle(result) {
   };
 }
 
+function summarizeIssueCodes(issueCodes) {
+  const summary = {
+    total: 0,
+    high: 0,
+    medium: 0,
+    low: 0,
+    info: 0,
+    unknown: 0,
+    blocking: false,
+  };
+  if (!Array.isArray(issueCodes)) {
+    return summary;
+  }
+  for (const issue of issueCodes) {
+    const severity = issue?.severity;
+    if (severity === "high") summary.high += 1;
+    else if (severity === "medium") summary.medium += 1;
+    else if (severity === "low") summary.low += 1;
+    else if (severity === "info") summary.info += 1;
+    else summary.unknown += 1;
+    summary.total += 1;
+  }
+  summary.blocking = summary.high > 0;
+  return summary;
+}
+
 function summarizeIncidentBundleFromVerification(qualityResult, verifyResult) {
   const incidentBundle = verifyResult?.parsedOutput?.incidentBundle;
   const issueCodeSummary = verifyResult?.parsedOutput?.incidentBundle?.issueCodeSummary;
@@ -193,8 +219,8 @@ function publishStepSummary(summary) {
     `- Trend health: ${summary.trendHealth.status}${summary.trendHealth.blocked ? " (blocked)" : ""}`,
     `- Incident bundle: ${summary.trendIncidentBundle.status}${summary.trendIncidentBundle.missing ? " (not collected)" : ""}`,
     `- Incident bundle markdown: ${summary.trendIncidentBundle.markdownValid === undefined ? "not checked" : (summary.trendIncidentBundle.markdownValid ? "valid" : "invalid")}`,
-    `- Incident bundle high-risk issue: ${summary.trendIncidentBundle.highPriorityFailure ? "yes" : "no"}`,
-    `- Issue codes: ${summary.issueCodes?.length ?? 0} total${summary.trendIncidentBundle?.issueCodeSummary?.blocking ? " (blocking)" : ""}`,
+    `- Issue codes: ${summary.issueCodes?.length ?? 0} total${summary.issueCodeSummary?.blocking ? " (blocking)" : ""}`,
+    `- Issue code breakdown: high=${summary.issueCodeSummary?.high ?? 0}, medium=${summary.issueCodeSummary?.medium ?? 0}, low=${summary.issueCodeSummary?.low ?? 0}, info=${summary.issueCodeSummary?.info ?? 0}, unknown=${summary.issueCodeSummary?.unknown ?? 0}`,
     "",
     "| Check | Status |",
     "| --- | --- |",
@@ -231,7 +257,13 @@ function flattenIssueCodes(trendIncidentBundle) {
 
   for (const issue of issueCodes) {
     const code = issue?.code ? String(issue.code) : "unknown";
-    const severity = issue?.severity ? String(issue.severity) : "unknown";
+    const rawSeverity = issue?.severity;
+    const normalizedSeverity = typeof rawSeverity === "string"
+      ? rawSeverity.toLowerCase()
+      : "unknown";
+    const severity = ["high", "medium", "low", "info", "unknown"].includes(normalizedSeverity)
+      ? normalizedSeverity
+      : "unknown";
     const key = `${code}:${severity}`;
     if (seen.has(key)) continue;
     seen.add(key);
@@ -316,10 +348,14 @@ function main() {
   writeIfPossible(verificationPath, verifyResult.rawStdout);
   const incidentBundleSummary = summarizeIncidentBundleFromVerification(qualityResult, verifyResult);
   const issueCodes = flattenIssueCodes(incidentBundleSummary);
+  const issueCodeSummary = incidentBundleSummary?.issueCodeSummary && typeof incidentBundleSummary.issueCodeSummary === "object"
+    ? incidentBundleSummary.issueCodeSummary
+    : summarizeIssueCodes(issueCodes);
 
   const summary = {
     ok: qualityResult.ok && drillResult.ok && verifyResult.ok,
     issueCodes,
+    issueCodeSummary,
     qualityThreshold: args.qualityThreshold,
     quality: summarizeQuality(qualityResult),
     drill: summarizeDrill(drillResult),
