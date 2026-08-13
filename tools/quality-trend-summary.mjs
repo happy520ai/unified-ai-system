@@ -152,7 +152,7 @@ function evaluateGuardrails(records, args) {
     consecutiveFailures >= args.maxConsecutiveFailures
   ) {
     issues.push(
-      `consecutive failures ${consecutiveFailures} exceeds threshold ${args.maxConsecutiveFailures}`,
+      `consecutive failures ${consecutiveFailures} meets or exceeds threshold ${args.maxConsecutiveFailures}`,
     );
   }
 

@@ -13,6 +13,10 @@ jobs:
   quality:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      QUALITY_THRESHOLD: ${{ vars.QUALITY_REQUIRED_SCORE || '165' }}
+      QUALITY_TREND_MAX_CONSECUTIVE_FAILURES: ${{ vars.QUALITY_TREND_MAX_CONSECUTIVE_FAILURES || '3' }}
+      QUALITY_TREND_MAX_SCORE_DROP_POINTS: ${{ vars.QUALITY_TREND_MAX_SCORE_DROP_POINTS || '20' }}
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -61,7 +65,7 @@ jobs:
         run: pnpm verify:public-clone
 
       - name: Quality CI gate
-        run: pnpm quality:ci -- --json --require-score 165
+        run: pnpm quality:ci -- --json --require-score "${QUALITY_THRESHOLD}"
 
       - name: Append quality trend record
         if: always()
@@ -75,7 +79,7 @@ jobs:
 
       - name: Render quality trend summary
         if: always()
-        run: pnpm quality:trend-summary -- --trend .tmp/quality-trend.json --output .tmp/quality-trend-summary.md --guard-output .tmp/quality-trend-guardrail.json --max-consecutive-failures 3 --max-score-drop-points 20 --enforce-guardrails
+        run: pnpm quality:trend-summary -- --trend .tmp/quality-trend.json --output .tmp/quality-trend-summary.md --guard-output .tmp/quality-trend-guardrail.json --max-consecutive-failures "${QUALITY_TREND_MAX_CONSECUTIVE_FAILURES}" --max-score-drop-points "${QUALITY_TREND_MAX_SCORE_DROP_POINTS}" --enforce-guardrails
 
       - name: Append trend summary to workflow summary
         if: always()
