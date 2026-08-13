@@ -86,6 +86,10 @@ Current CI pipelines publish:
 - existing trend and quality artifacts (`.tmp/quality-trend.json`, `.tmp/quality-scorecard.json`, `.tmp/quality-ci-verification.json`)
 - On trend-health smoke failure, include `.tmp/quality-trend-recommendations.md` in triage packets for operator handoff.
 - On trend-health smoke failure, include `.tmp/quality-trend-incident-bundle.md` and `.tmp/quality-trend-incident-bundle.json` for structured handoff.
+- `.tmp/quality-trend-verify-artifacts.json`
+- `.tmp/quality-trend-health-smoke.json` (quality-trend workflow smoke output)
+
+For failed trend runs, the evidence completeness gate in `quality-trend` workflows now treats all files in the list above as required for triage continuity.
 
 ## Escalation flow
 

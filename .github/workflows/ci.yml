@@ -191,6 +191,42 @@ jobs:
             cat .tmp/quality-trend-incident-bundle.md >> "$GITHUB_STEP_SUMMARY"
           fi
 
+      - name: Assert required quality evidence artifacts
+        if: always()
+        run: |
+          required_files=(
+            .tmp/quality-scorecard.json
+            .tmp/circuit-recovery-drill-dry-run.json
+            .tmp/quality-ci-verification.json
+            .tmp/quality-trend-verify-artifacts.json
+            .tmp/quality-trend.json
+            .tmp/quality-trend-summary.md
+            .tmp/quality-trend-guardrail.json
+            .tmp/quality-trend-digest.md
+            .tmp/quality-trend-digest.json
+            .tmp/quality-trend-check.json
+            .tmp/quality-trend-incident-bundle.md
+            .tmp/quality-trend-incident-bundle.json
+          )
+
+          missing_files=()
+          for artifact in "${required_files[@]}"; do
+            if [ ! -s "${artifact}" ]; then
+              missing_files+=("${artifact}")
+            fi
+          done
+          if [ ${#missing_files[@]} -gt 0 ]; then
+            {
+              echo "## Required quality evidence artifacts missing"
+              for artifact in "${missing_files[@]}"; do
+                echo "- ${artifact}"
+              done
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "Required quality evidence artifacts missing:"
+            printf ' - %s\n' "${missing_files[@]}"
+            exit 1
+          fi
+
       - name: Codex MCP server
         if: always()
         run: |
