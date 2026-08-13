@@ -30,6 +30,11 @@ on:
         required: false
         default: "70"
         type: string
+      require_stable_state:
+        description: Require stable trend behavior before enforcing trend guardrails
+        required: false
+        default: true
+        type: boolean
 
 permissions:
   contents: read
@@ -43,6 +48,7 @@ jobs:
       QUALITY_TREND_MAX_CONSECUTIVE_FAILURES: ${{ github.event.inputs.max_consecutive_failures || vars.QUALITY_TREND_MAX_CONSECUTIVE_FAILURES || '3' }}
       QUALITY_TREND_MAX_SCORE_DROP_POINTS: ${{ github.event.inputs.max_score_drop_points || vars.QUALITY_TREND_MAX_SCORE_DROP_POINTS || '20' }}
       QUALITY_TREND_MIN_PASS_RATE_PERCENT: ${{ github.event.inputs.min_pass_rate_percent || vars.QUALITY_TREND_MIN_PASS_RATE_PERCENT || '70' }}
+      QUALITY_TREND_REQUIRE_STABLE_STATE: ${{ github.event.inputs.require_stable_state || vars.QUALITY_TREND_REQUIRE_STABLE_STATE || 'true' }}
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -88,6 +94,10 @@ jobs:
         if: always()
         continue-on-error: true
         run: |
+          STABLE_STATE_FLAG=""
+          if [ "${QUALITY_TREND_REQUIRE_STABLE_STATE}" = "true" ]; then
+            STABLE_STATE_FLAG="--require-stable-state"
+          fi
           pnpm quality:trend-summary -- \
             --trend .tmp/quality-trend.json \
             --output .tmp/quality-trend-summary.md \
@@ -95,7 +105,7 @@ jobs:
             --max-consecutive-failures "${QUALITY_TREND_MAX_CONSECUTIVE_FAILURES}" \
             --max-score-drop-points "${QUALITY_TREND_MAX_SCORE_DROP_POINTS}" \
             --min-pass-rate-percent "${QUALITY_TREND_MIN_PASS_RATE_PERCENT}" \
-            --require-stable-state
+            ${STABLE_STATE_FLAG}
 
       - name: Render quality trend digest
         if: always()
@@ -117,6 +127,10 @@ jobs:
           github.event_name == 'workflow_dispatch' &&
           github.event.inputs.enforce_trend_guardrails == 'true'
         run: |
+          STABLE_STATE_FLAG=""
+          if [ "${QUALITY_TREND_REQUIRE_STABLE_STATE}" = "true" ]; then
+            STABLE_STATE_FLAG="--require-stable-state"
+          fi
           pnpm quality:trend-summary -- \
             --trend .tmp/quality-trend.json \
             --output .tmp/quality-trend-summary.md \
@@ -124,7 +138,7 @@ jobs:
             --max-consecutive-failures "${QUALITY_TREND_MAX_CONSECUTIVE_FAILURES}" \
             --max-score-drop-points "${QUALITY_TREND_MAX_SCORE_DROP_POINTS}" \
             --min-pass-rate-percent "${QUALITY_TREND_MIN_PASS_RATE_PERCENT}" \
-            --require-stable-state \
+            ${STABLE_STATE_FLAG} \
             --enforce-guardrails
 
       - name: Append trend summary to workflow summary

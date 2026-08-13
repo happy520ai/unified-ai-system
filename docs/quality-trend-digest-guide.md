@@ -24,6 +24,8 @@ pnpm quality:trend-digest -- \
   --require-stable-state
 ```
 
+Tip: In CI/scheduled trend workflows, `--require-stable-state` is controlled by `QUALITY_TREND_REQUIRE_STABLE_STATE` (default `true`), and pass-rate + stability thresholds can be set through repository variables (`QUALITY_TREND_MIN_PASS_RATE_PERCENT`, `QUALITY_TREND_MAX_CONSECUTIVE_FAILURES`, `QUALITY_TREND_MAX_SCORE_DROP_POINTS`).
+
 ## What changed in the digest output
 
 The digest now includes:
