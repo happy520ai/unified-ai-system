@@ -19,7 +19,7 @@ The gateway exposes these headers through CORS. It does not expose IP addresses,
 
 ## Retry algorithm
 
-1. Retry only idempotent operations automatically, unless the caller has an application-level idempotency strategy.
+1. Retry only idempotent operations automatically. For provider-backed `POST /chat`, use the [idempotent chat request contract](./idempotent-chat-contract.md).
 2. On HTTP `429`, prefer `Retry-After` and treat it as a minimum delay.
 3. Add bounded random jitter so many clients do not retry at the same instant.
 4. Cap retries by attempt count and total elapsed time.

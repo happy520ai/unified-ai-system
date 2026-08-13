@@ -6,11 +6,15 @@ import { evaluateTaijiBeidouChatPreviewHook } from "../gateway/taijiBeidouChatPr
 import { handleChatLocalActionRoute, routeChatActionProposal } from "../owner-automation/chatActionProposalRouter.js";
 import { TASK_TO_INTENT_MAP } from "../chat-gateway/chatGatewayTaskMatrix.js";
 import { resolveChatResultHttpStatus } from "./routes/chatRoutes.js";
+import { createIdempotencyCoordinator, applyIdempotencyResponseHeaders } from "./idempotencyCoordinator.ts";
 
 const OWNER_AUTOMATION_CHAT_PROPOSAL_FLAG = "OWNER_AUTOMATION_CHAT_PROPOSAL_ENABLED";
 
 export function createChatRoutes(ctx) {
   const { application, gatewayService, circuitBreakerRegistry, metricsCollector, wsServer } = ctx;
+  const idempotencyCoordinator = ctx.idempotencyCoordinator ?? createIdempotencyCoordinator({
+    env: application.runtimeEnv ?? process.env,
+  });
   const handlers = new Map();
 
   // POST /chat/stream
@@ -118,18 +122,44 @@ export function createChatRoutes(ctx) {
     const chatInput = normalizeChatBody(body, application.config);
     const providerKey = chatInput?.providerId ?? chatInput?.provider ?? "gateway";
     const breaker = circuitBreakerRegistry ? circuitBreakerRegistry.getOrCreate(providerKey) : null;
-    const result = breaker
-      ? await breaker.execute(() => gatewayService.execute(chatInput))
-      : await gatewayService.execute(chatInput);
-    writeServiceLog(result.success ? "request_completed" : "request_failed", {
+    const idempotencyOutcome = await idempotencyCoordinator.execute({
+      request,
+      route: "/chat",
+      payload: body,
+      operation: async () => {
+        const result = breaker
+          ? await breaker.execute(() => gatewayService.execute(chatInput))
+          : await gatewayService.execute(chatInput);
+        return { statusCode: resolveChatResultHttpStatus(result), payload: result };
+      },
+    });
+    applyIdempotencyResponseHeaders(response, idempotencyOutcome);
+    if (!idempotencyOutcome.accepted) {
+      if (idempotencyOutcome.retryAfterSeconds) {
+        response.setHeader("Retry-After", String(idempotencyOutcome.retryAfterSeconds));
+      }
+      writeJson(response, idempotencyOutcome.statusCode, createErrorEnvelope(
+        idempotencyOutcome.code,
+        idempotencyOutcome.message,
+        {
+          startedAt,
+          category: idempotencyOutcome.statusCode === 503 ? "internal" : "validation",
+          retryable: idempotencyOutcome.retryable,
+        },
+      ));
+      return;
+    }
+    const result = idempotencyOutcome.value.payload;
+    writeServiceLog(idempotencyOutcome.replayed ? "request_idempotency_replayed" : result.success ? "request_completed" : "request_failed", {
       method: request.method,
       path: "/chat",
       code: result.code,
       requestId: result.meta?.requestId,
       provider: result.data?.selectedProvider ?? result.error?.provider,
+      idempotencyStatus: idempotencyOutcome.status,
       durationMs: Date.now() - startedAt,
     });
-    writeJson(response, resolveChatResultHttpStatus(result), result);
+    writeJson(response, idempotencyOutcome.value.statusCode, result);
   });
 
   // POST /gateway/route

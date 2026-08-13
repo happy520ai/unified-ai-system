@@ -53,7 +53,7 @@
     "report:language-policy-expiry": "node ./tools/language-policy-expiry-report.mjs --json"
   },
   "engines": {
-    "node": ">=22",
+    "node": ">=22.18.0",
     "pnpm": ">=9"
   },
   "pnpm": {
