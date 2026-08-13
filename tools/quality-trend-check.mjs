@@ -772,6 +772,7 @@ function summarize() {
   const summaryReasons = allReasons.slice(0, args.maxSummaryReasons);
   const issueCodeSummary = summarizeIssueCodes(issueCodes);
   const payload = {
+    executedAtUtc: new Date().toISOString(),
     status: summary.status,
     severity: summary.severity,
     blocked: summary.blocked || Boolean(languagePolicyFitness?.blocked) || languagePolicyFitnessBelowTarget,

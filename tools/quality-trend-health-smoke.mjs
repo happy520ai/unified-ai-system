@@ -25,6 +25,7 @@ function parseArgs() {
   const args = process.argv.slice(2);
   const values = {
     outputJson: false,
+    resultJsonPath: null,
     showHelp: false,
     unknownArgs: [],
     qualityThreshold: parsePositiveInteger(process.env.QUALITY_THRESHOLD, 165),
@@ -61,6 +62,11 @@ function parseArgs() {
     const arg = args[index];
     if (arg === "--json") {
       values.outputJson = true;
+      continue;
+    }
+    if (arg === "--result-json") {
+      values.resultJsonPath = args[index + 1] ?? values.resultJsonPath;
+      index += 1;
       continue;
     }
     if (arg === "--help" || arg === "-h") {
@@ -245,6 +251,7 @@ function printUsage() {
     "",
     "Options:",
     "  --require-score <N>        Quality score threshold for quality:ci:trend-health",
+    "  --result-json <path>       Write a clean machine-readable smoke result",
     "  --trend-health <boolean>   Enable trend health mode (default true)",
     "  --no-trend-health          Disable trend health mode; use quality:ci fallback for compatibility",
     "  --trend <path>             Trend history input path (default .tmp/quality-trend.json)",
@@ -286,6 +293,39 @@ function parseJson(raw) {
   try {
     return JSON.parse(raw);
   } catch {
+    for (let start = 0; start < raw.length; start += 1) {
+      const opening = raw[start];
+      if (opening !== "{" && opening !== "[") continue;
+      const closing = opening === "{" ? "}" : "]";
+      let depth = 0;
+      let inString = false;
+      let escaped = false;
+      for (let end = start; end < raw.length; end += 1) {
+        const character = raw[end];
+        if (inString) {
+          if (escaped) {
+            escaped = false;
+          } else if (character === "\\") {
+            escaped = true;
+          } else if (character === '"') {
+            inString = false;
+          }
+          continue;
+        }
+        if (character === '"') {
+          inString = true;
+          continue;
+        }
+        if (character === opening) depth += 1;
+        if (character === closing) depth -= 1;
+        if (depth !== 0) continue;
+        try {
+          return JSON.parse(raw.slice(start, end + 1));
+        } catch {
+          break;
+        }
+      }
+    }
     return null;
   }
 }
@@ -303,8 +343,13 @@ function readTextArtifact(relativePath) {
 }
 
 function runCommand(script, args, timeoutMs = 180000) {
-  const command = [script, "--", ...args];
-  const result = spawnSync(pnpmCommand, command, {
+  const packageManagerEntrypoint = process.env.npm_execpath;
+  const command = ["--silent", script, "--", ...args];
+  const executable = packageManagerEntrypoint ? process.execPath : pnpmCommand;
+  const spawnArgs = packageManagerEntrypoint
+    ? [packageManagerEntrypoint, ...command]
+    : command;
+  const result = spawnSync(executable, spawnArgs, {
     cwd: repoRoot,
     windowsHide: true,
     encoding: "utf8",
@@ -328,7 +373,7 @@ function runCommand(script, args, timeoutMs = 180000) {
       args,
       ok: false,
       status: null,
-      output: `failed to spawn ${pnpmCommand}: ${result.error.message}`,
+      output: `failed to spawn ${executable}: ${result.error.message}`,
       parsedOutput: null,
     };
   }
@@ -661,6 +706,27 @@ function buildIncidentBundle(options, steps, reason, detail) {
   const verification = readMaybeJson(options.qualityVerificationPath);
   const trendLog = readMaybeJson(options.trendPath);
   const drill = readMaybeJson(options.drillPath);
+  const scorecardTrendConsistency = qualityScorecard?.trendConsistency;
+  const verificationTrendConsistency = verification?.trendConsistency;
+  const trendConsistency = scorecardTrendConsistency || verificationTrendConsistency
+    ? {
+      ...(scorecardTrendConsistency ?? {}),
+      ...(verificationTrendConsistency ?? {}),
+      status: scorecardTrendConsistency?.status ?? verificationTrendConsistency?.status ?? "missing",
+      ok: scorecardTrendConsistency?.ok ?? verificationTrendConsistency?.ok ?? false,
+      checks: verificationTrendConsistency?.checks ?? scorecardTrendConsistency?.checks ?? {},
+      checksRequired: verificationTrendConsistency?.checksRequired
+        ?? scorecardTrendConsistency?.checksRequired
+        ?? [],
+      hasMissingRequired: scorecardTrendConsistency?.hasMissingRequired
+        ?? verificationTrendConsistency?.hasMissingRequired
+        ?? true,
+      hasNotCollected: scorecardTrendConsistency?.hasNotCollected
+        ?? verificationTrendConsistency?.hasNotCollected
+        ?? false,
+      requiresTrendHealth: options.requireTrendHealth,
+    }
+    : null;
   const bundleJson = {
     schemaVersion: 1,
     executedAtUtc: new Date().toISOString(),
@@ -676,7 +742,7 @@ function buildIncidentBundle(options, steps, reason, detail) {
       requireStableState: options.requireStableState,
     },
     trendHealth: trendSummary,
-    trendConsistency: verification?.trendConsistency || null,
+    trendConsistency,
     languagePolicyReview: languagePolicyReviewWithFitness,
     failedSteps: failedStepSummary,
     extractedIssues: allIssues.slice(0, 30),
@@ -973,6 +1039,9 @@ function emitFailureSummary(options, steps, artifacts, reason, detail) {
   if (options.outputJson) {
     process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
   }
+  if (options.resultJsonPath) {
+    writeTextFile(options.resultJsonPath, `${JSON.stringify(summary, null, 2)}\n`);
+  }
   if (
     options.trendRecommendationsPath
     || options.trendIncidentBundlePath
@@ -995,6 +1064,120 @@ function emitFailureSummary(options, steps, artifacts, reason, detail) {
   }
   logArtifacts(Array.from(artifacts).sort());
   process.exitCode = 1;
+}
+
+function persistVerificationResult(options, ciResult, verifyResult, requireTrendHealth) {
+  const ciPayload = ciResult.parsedOutput ?? parseJson(ciResult.output);
+  const verifyPayload = verifyResult.parsedOutput ?? parseJson(verifyResult.output);
+  if (ciPayload) {
+    const ciTrendConsistency = ciPayload.trendConsistency ?? {};
+    const verifyTrendConsistency = verifyPayload?.trendConsistency ?? {};
+    const payload = {
+      ...ciPayload,
+      ok: Boolean(ciPayload.ok) && Boolean(verifyPayload?.ok ?? verifyResult.ok),
+      checks: verifyPayload?.checks ?? ciPayload.checks ?? {},
+      trendConsistency: {
+        ...ciTrendConsistency,
+        ...verifyTrendConsistency,
+        status: ciTrendConsistency.status ?? verifyTrendConsistency.status ?? "missing",
+        ok: ciTrendConsistency.ok ?? verifyTrendConsistency.ok ?? false,
+        requiresTrendHealth: requireTrendHealth,
+      },
+      artifactVerification: verifyPayload ?? {
+        ok: verifyResult.ok,
+        issues: ["verification output could not be parsed"],
+      },
+      issues: [
+        ...(Array.isArray(ciPayload.issues) ? ciPayload.issues : []),
+        ...(Array.isArray(verifyPayload?.issues) ? verifyPayload.issues : []),
+      ],
+      executedAtUtc: new Date().toISOString(),
+    };
+    writeTextFile(
+      options.qualityVerificationPath,
+      `${JSON.stringify(payload, null, 2)}\n`,
+    );
+    return;
+  }
+
+  writeTextFile(
+    options.qualityVerificationPath,
+    `${JSON.stringify({
+      ok: verifyResult.ok,
+      executedAtUtc: new Date().toISOString(),
+      issues: ["no output from verify command"],
+    }, null, 2)}\n`,
+  );
+}
+
+function runQualityGate(options, requireTrendHealth, label) {
+  const ciCommand = requireTrendHealth ? "quality:ci:trend-health" : "quality:ci";
+  const ciResult = runCommand(
+    ciCommand,
+    ["--json", "--require-score", String(options.qualityThreshold)],
+    240000,
+  );
+  const ciStep = {
+    label: `${label}-ci`,
+    ok: ciResult.ok,
+    steps: [
+      {
+        command: ciCommand,
+        ok: ciResult.ok,
+        status: ciResult.status,
+        output: ciResult.output,
+        parsedOutput: parseJson(ciResult.output),
+      },
+    ],
+    checkResult: parseJson(ciResult.output),
+  };
+  if (!ciResult.ok) {
+    return {
+      ok: false,
+      steps: [ciStep],
+      reason: "quality-ci-failed",
+      detail: `${ciCommand} failed`,
+    };
+  }
+
+  const verifyCommand = requireTrendHealth
+    ? "quality:verify-artifacts:trend-health"
+    : "quality:verify-artifacts";
+  const verifyResult = runCommand(
+    verifyCommand,
+    [
+      "--json",
+      "--quality",
+      options.qualityScorecardPath,
+      "--drill",
+      options.drillPath,
+      "--require-score",
+      String(options.qualityThreshold),
+    ],
+    90000,
+  );
+  persistVerificationResult(options, ciResult, verifyResult, requireTrendHealth);
+  const verifyStep = {
+    label: `${label}-artifacts-verify`,
+    ok: verifyResult.ok,
+    steps: [
+      {
+        command: verifyCommand,
+        ok: verifyResult.ok,
+        status: verifyResult.status,
+        output: verifyResult.output,
+        parsedOutput: parseJson(verifyResult.output),
+      },
+    ],
+    checkResult: parseJson(verifyResult.output),
+  };
+
+  return {
+    ok: verifyResult.ok,
+    steps: [ciStep, verifyStep],
+    reason: verifyResult.ok ? null : "verify-artifacts-failed",
+    detail: verifyResult.ok ? null : `${verifyCommand} failed`,
+  };
 }
 
 function main() {
@@ -1027,7 +1210,10 @@ function main() {
     options.trendDigestJsonPath,
   ]);
 
-  if (!options.skipHistorical && existsSync(resolve(repoRoot, options.trendPath))) {
+  const hasHistoricalTrend = !options.skipHistorical && existsSync(resolve(repoRoot, options.trendPath));
+  const bootstrapTrendHealth = options.requireTrendHealth && !options.skipHistorical && !hasHistoricalTrend;
+
+  if (hasHistoricalTrend) {
     const precheck = runTrendEvaluation("historical-baseline", options);
     steps.push(precheck);
     if (!precheck.ok) {
@@ -1037,85 +1223,25 @@ function main() {
     console.log(`\nSkipping historical trend precheck: ${options.skipHistorical ? "skip-historical requested" : `${options.trendPath} missing`}`);
   }
 
-  const ciResult = runCommand(
-    options.requireTrendHealth ? "quality:ci:trend-health" : "quality:ci",
-    ["--json", "--require-score", String(options.qualityThreshold)],
-    240000,
-  );
-  const ciCommand = options.requireTrendHealth ? "quality:ci:trend-health" : "quality:ci";
-  steps.push({
-    label: "quality-ci",
-    ok: ciResult.ok,
-    steps: [
-      {
-        command: ciCommand,
-        ok: ciResult.ok,
-        status: ciResult.status,
-        output: ciResult.output,
-        parsedOutput: parseJson(ciResult.output),
-      },
-    ],
-    checkResult: parseJson(ciResult.output),
-  });
-  if (!ciResult.ok) {
-    emitFailureSummary(options, steps, artifacts, "quality-ci-failed", `${ciCommand} failed`);
-    return;
-  }
-
-  const verifyCommand = options.requireTrendHealth
-    ? "quality:verify-artifacts:trend-health"
-    : "quality:verify-artifacts";
-  const verifyResult = runCommand(
-    verifyCommand,
-    [
-      "--json",
-      "--quality",
-      options.qualityScorecardPath,
-      "--drill",
-      options.drillPath,
-      "--require-score",
-      String(options.qualityThreshold),
-    ],
-    90000,
-  );
-  steps.push({
-    label: "artifacts-verify",
-    ok: verifyResult.ok,
-    steps: [
-      {
-        command: "quality:verify-artifacts:trend-health",
-        ok: verifyResult.ok,
-        status: verifyResult.status,
-        output: verifyResult.output,
-        parsedOutput: parseJson(verifyResult.output),
-      },
-    ],
-    checkResult: parseJson(verifyResult.output),
-  });
-  if (verifyResult.output) {
-    writeTextFile(
-      options.qualityVerificationPath,
-      `${verifyResult.output.endsWith("\n") ? verifyResult.output : `${verifyResult.output}\n`}`,
-    );
-  } else {
-    writeTextFile(
-      options.qualityVerificationPath,
-      `${JSON.stringify({
-        ok: verifyResult.ok,
-        executedAtUtc: new Date().toISOString(),
-        issues: ["no output from verify command"],
-      }, null, 2)}\n`,
-    );
-  }
-
-  if (!verifyResult.ok) {
+  if (bootstrapTrendHealth && !options.runTrendLog) {
     emitFailureSummary(
       options,
       steps,
       artifacts,
-      "verify-artifacts-failed",
-      `${verifyCommand} failed`,
+      "trend-bootstrap-disabled",
+      "Strict trend health requires trend logging when no historical trend artifact exists.",
     );
+    return;
+  }
+
+  const initialGate = runQualityGate(
+    options,
+    options.requireTrendHealth && !bootstrapTrendHealth,
+    bootstrapTrendHealth ? "bootstrap-quality" : "quality",
+  );
+  steps.push(...initialGate.steps);
+  if (!initialGate.ok) {
+    emitFailureSummary(options, steps, artifacts, initialGate.reason, initialGate.detail);
     return;
   }
 
@@ -1162,8 +1288,20 @@ function main() {
     console.log("\nSkipping optional trend-log step (--no-trend-log).");
   }
 
-  const postcheck = runTrendEvaluation("post-run", options, true);
+  let postcheck = runTrendEvaluation("post-run", options, true);
   steps.push(postcheck);
+
+  if (bootstrapTrendHealth && postcheck.ok) {
+    const strictGate = runQualityGate(options, true, "strict-quality");
+    steps.push(...strictGate.steps);
+    if (!strictGate.ok) {
+      emitFailureSummary(options, steps, artifacts, strictGate.reason, strictGate.detail);
+      return;
+    }
+    postcheck = runTrendEvaluation("post-bootstrap-strict", options, true);
+    steps.push(postcheck);
+  }
+
   const finalCheckResult = postcheck.checkResult || {};
   const success = postcheck.ok;
   const summary = {
@@ -1176,8 +1314,26 @@ function main() {
     steps,
   };
 
+  if (success) {
+    buildFailureRecommendations(
+      options,
+      steps,
+      "none",
+      "Quality trend smoke completed without blocking findings.",
+    );
+    buildIncidentBundle(
+      options,
+      steps,
+      "none",
+      "Quality trend smoke completed without blocking findings.",
+    );
+  }
+
   if (options.outputJson) {
     process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
+  }
+  if (options.resultJsonPath) {
+    writeTextFile(options.resultJsonPath, `${JSON.stringify(summary, null, 2)}\n`);
   }
 
   if (success) {

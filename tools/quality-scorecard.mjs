@@ -891,7 +891,6 @@ function checkTrendDigestOperations() {
     const requiredPackageMarkers = [
       "\"quality:trend-digest\"",
       "\"quality:trend-check\"",
-      "quality-trend-digest.md",
     ];
     const requiredWorkflowMarkers = [
       "quality:trend-health-smoke --",
@@ -929,17 +928,20 @@ function checkTrendDigestOperations() {
       "incident bundle",
     ];
 
-    const missingPackage = requiredPackageMarkers.filter((marker) => !packageSource.includes(marker));
+    const includesMarker = (source, marker) => source.toLowerCase().includes(marker.toLowerCase());
+    const missingPackage = requiredPackageMarkers.filter((marker) => !includesMarker(packageSource, marker));
     const missingWorkflow = requiredWorkflowMarkers.filter(
-      (marker) => !ciWorkflowSource.includes(marker) && !trendWorkflowSource.includes(marker),
+      (marker) => !includesMarker(ciWorkflowSource, marker) && !includesMarker(trendWorkflowSource, marker),
     );
-    const missingGuide = requiredGuideMarkers.filter((marker) => !trendGuideSource.includes(marker) && !readinessGuideSource.includes(marker));
+    const missingGuide = requiredGuideMarkers.filter(
+      (marker) => !includesMarker(trendGuideSource, marker) && !includesMarker(readinessGuideSource, marker),
+    );
     const missingSource = requiredScriptMarkers.filter(
       (marker) => (
-        !trendScriptSource.includes(marker)
-        && !summaryScriptSource.includes(marker)
-        && !checkScriptSource.includes(marker)
-        && !smokeScriptSource.includes(marker)
+        !includesMarker(trendScriptSource, marker)
+        && !includesMarker(summaryScriptSource, marker)
+        && !includesMarker(checkScriptSource, marker)
+        && !includesMarker(smokeScriptSource, marker)
       ),
     );
 

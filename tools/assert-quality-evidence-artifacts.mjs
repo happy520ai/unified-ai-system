@@ -357,7 +357,7 @@ function isInteger(value) {
 }
 
 function readJsonFile(filePath) {
-  const raw = readFileSync(filePath, "utf8");
+  const raw = readFileSync(filePath, "utf8").replace(/^\uFEFF/, "");
   return JSON.parse(raw);
 }
 
@@ -431,8 +431,7 @@ function readPolicy(policyPath, visited = new Set()) {
   nextVisited.add(absolutePolicy);
 
   try {
-    const raw = readFileSync(absolutePolicy, "utf8");
-    const parsed = JSON.parse(raw);
+    const parsed = readJsonFile(absolutePolicy);
     if (!isObject(parsed)) {
       const result = {
         ok: false,
@@ -673,7 +672,7 @@ function inspectArtifact(relativePath, options) {
   }
 
   try {
-    result.parsed = JSON.parse(readFileSync(absolutePath, "utf8"));
+    result.parsed = readJsonFile(absolutePath);
     result.validJson = true;
   } catch (error) {
     result.issues.push(`artifact not valid JSON: ${relativePath}: ${String(error.message)}`);

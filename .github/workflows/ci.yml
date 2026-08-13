@@ -101,8 +101,10 @@ jobs:
 
       - name: Run quality trend smoke health check
         run: |
+          set -o pipefail
           SMOKE_ARGS=(
             --json
+            --result-json .tmp/quality-trend-health-smoke.json
             --require-score "${QUALITY_THRESHOLD}"
             --trend .tmp/quality-trend.json
             --summary .tmp/quality-trend-summary.md
@@ -134,7 +136,7 @@ jobs:
             SMOKE_ARGS+=("--hard-block")
           fi
 
-          pnpm quality:trend-health-smoke -- "${SMOKE_ARGS[@]}" | tee .tmp/quality-trend-health-smoke.json
+          pnpm quality:trend-health-smoke -- "${SMOKE_ARGS[@]}" | tee .tmp/quality-trend-health-smoke.log
 
       - name: Verify quality trend artifact parity
         run: |

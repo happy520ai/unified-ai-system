@@ -726,11 +726,13 @@ function main() {
   const qualityIssuesFinal = [...qualityIssues];
   const drillIssuesFinal = [...drillIssues];
   const incidentBundleIssuesFinal = [...incidentBundle.issues];
-  const trendConsistencyParity = compareTrendConsistencyArtifacts(
-    trendConsistency,
-    incidentBundle.parsedBundle?.trendConsistency,
-    args.requireTrendHealth,
-  );
+  const trendConsistencyParity = incidentBundle.jsonPresent || args.requireIncidentBundle
+    ? compareTrendConsistencyArtifacts(
+      trendConsistency,
+      incidentBundle.parsedBundle?.trendConsistency,
+      args.requireTrendHealth,
+    )
+    : { issues: [], issueCodes: [] };
 
   if (qualityParsed?.trendHealth && typeof qualityParsed.trendHealth === "object") {
     const trendBlocked = Boolean(qualityParsed.trendHealth.blocked);

@@ -247,7 +247,9 @@ function evaluateGuardrails(records, args) {
   const passRate = lookback.length === 0
     ? 0
     : Number(
-      ((lookback.reduce((sum, item) => (item?.overall?.pass ? sum + 1 : sum), 0) / lookback.length) * 100,
+      (
+        (lookback.reduce((sum, item) => (item?.overall?.pass ? sum + 1 : sum), 0) / lookback.length)
+        * 100
       ).toFixed(1),
     );
 
