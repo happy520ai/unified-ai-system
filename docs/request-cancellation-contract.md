@@ -24,3 +24,5 @@ Cancellation is cooperative. Provider adapters must consume `providerRequest.exe
 - Cancellation errors and details must not contain prompts, credentials, authorization headers, or provider secrets.
 
 This contract provides process-local propagation. It does not claim cancellation after `SIGKILL`, host loss, or work already accepted by an external provider that does not implement transport cancellation.
+
+Client-side error classes and retry semantics are defined in the [Shared SDK error contract](./sdk-error-contract.md).
