@@ -12,6 +12,10 @@ import {
 } from "./gatewayServiceHelpers.js";
 import { normalizeGatewayRequest } from "./requestNormalizer.js";
 import { enforceTokenCostGuard } from "../cost/tokenCostGuard.js";
+import {
+  findExecutionAbortError,
+  throwIfExecutionAborted,
+} from "@unified-ai-system/shared-utils";
 
 
 export class GatewayService {
@@ -31,12 +35,13 @@ export class GatewayService {
     this.governance = governance;
   }
 
-  async execute(input) {
+  async execute(input, execution = {}) {
     const startedAt = Date.now();
     let request;
     let selection;
 
     try {
+      throwIfExecutionAborted(execution.signal);
       request = normalizeGatewayRequest(input);
       if (this.runtimeConfig.costGuardEnforce) {
         this.#enforceCostGuard(request);
@@ -45,7 +50,7 @@ export class GatewayService {
       if (this.runtimeConfig.modelAccessEnforce) {
         this.#enforceModelAccess(request, baseSelection);
       }
-      const attemptResult = await this.#executeWithFallback(request, baseSelection, startedAt);
+      const attemptResult = await this.#executeWithFallback(request, baseSelection, startedAt, execution);
       selection = attemptResult.selection;
       const providerResult = attemptResult.providerResult;
       writeGatewayLog("provider_call_completed", {
@@ -64,6 +69,16 @@ export class GatewayService {
         startedAt,
       });
     } catch (error) {
+      const cancellation = findExecutionAbortError(error, execution.signal);
+      if (cancellation) {
+        writeGatewayLog("provider_call_cancelled", {
+          requestId: request?.context?.requestId,
+          traceId: request?.context?.traceId,
+          code: cancellation.code,
+          durationMs: Date.now() - startedAt,
+        });
+        throw cancellation;
+      }
       writeGatewayLog("provider_call_failed", {
         requestId: request?.context?.requestId,
         traceId: request?.context?.traceId,
@@ -83,17 +98,19 @@ export class GatewayService {
     }
   }
 
-  async *executeStream(input) {
+  async *executeStream(input, execution = {}) {
     const startedAt = Date.now();
     let request;
     let selection;
     let outputText = "";
 
     try {
+      throwIfExecutionAborted(execution.signal);
       request = normalizeGatewayRequest(input);
       const baseSelection = this.providerRegistry.select(request);
 
       for (const attempt of createFallbackAttempts(baseSelection, this.runtimeConfig)) {
+        throwIfExecutionAborted(execution.signal);
         selection = createAttemptSelection(baseSelection, attempt.candidate, attempt.index);
 
         if (typeof selection.selected.provider.generateStream !== "function") {
@@ -128,8 +145,10 @@ export class GatewayService {
             ...createProviderRequest({
               request,
               target: selection.selected.target,
+              execution,
             }),
           })) {
+            throwIfExecutionAborted(execution.signal);
             const textDelta = providerChunk.textDelta ?? "";
             finalProviderRaw = providerChunk.raw;
             outputText += textDelta;
@@ -174,6 +193,19 @@ export class GatewayService {
           });
           return;
         } catch (error) {
+          const cancellation = findExecutionAbortError(error, execution.signal);
+          if (cancellation) {
+            writeGatewayLog("provider_stream_cancelled", {
+              requestId: request.context.requestId,
+              traceId: request.context.traceId,
+              provider: selection.selected.target.providerId,
+              model: selection.selected.target.modelId,
+              code: cancellation.code,
+              emittedChunk,
+              durationMs: Date.now() - startedAt,
+            });
+            throw cancellation;
+          }
           const canFallback = shouldTryFallback(error, attempt, emittedChunk);
 
           // Record failed stream for health-weighted selection
@@ -203,6 +235,8 @@ export class GatewayService {
 
       throw createFallbackExhaustedError();
     } catch (error) {
+      const cancellation = findExecutionAbortError(error, execution.signal);
+      if (cancellation) throw cancellation;
       writeGatewayLog("provider_stream_failed", {
         requestId: request?.context?.requestId,
         traceId: request?.context?.traceId,
@@ -231,11 +265,12 @@ export class GatewayService {
     return this.providerRegistry.listDescriptors();
   }
 
-  async #executeWithFallback(request, baseSelection, startedAt) {
+  async #executeWithFallback(request, baseSelection, startedAt, execution) {
     let lastError;
     const fallbackWarnings = [];
 
     for (const attempt of createFallbackAttempts(baseSelection, this.runtimeConfig)) {
+      throwIfExecutionAborted(execution.signal);
       const attemptSelection = createAttemptSelection(baseSelection, attempt.candidate, attempt.index);
 
       writeGatewayLog("provider_call_start", {
@@ -251,8 +286,10 @@ export class GatewayService {
           ...createProviderRequest({
             request,
             target: attemptSelection.selected.target,
+            execution,
           }),
         });
+        throwIfExecutionAborted(execution.signal);
 
         // Record successful call for health-weighted selection
         if (this.healthScorer) {
@@ -278,6 +315,9 @@ export class GatewayService {
         };
       } catch (error) {
         lastError = error;
+
+        const cancellation = findExecutionAbortError(error, execution.signal);
+        if (cancellation) throw cancellation;
 
         // Record failed call for health-weighted selection
         if (this.healthScorer) {

@@ -529,14 +529,20 @@ function checkPluginHardening() {
 
 function checkRuntimeHardening() {
   try {
-    const source = readTextFile("apps/ai-gateway-service/src/http/httpServer.js");
+    const source = [
+      readTextFile("apps/ai-gateway-service/src/http/httpServer.js"),
+      readTextFile("apps/ai-gateway-service/src/http/httpRequestExecution.ts"),
+    ].join("\n");
     const requiredMarkers = [
       "AI_GATEWAY_REQUEST_TIMEOUT_MS",
       "AI_GATEWAY_MAX_IN_FLIGHT_REQUESTS",
       "AI_GATEWAY_MAX_REQUEST_BODY_BYTES",
       "AI_GATEWAY_HEALTHZ_IN_FLIGHT_DEGRADATION_PERCENT",
       "request_payload_too_large",
-      "request_timeout",
+      "GATEWAY_DEADLINE_EXCEEDED",
+      "CLIENT_DISCONNECTED",
+      "createHttpRequestExecutionScope",
+      "bindGatewayExecution",
       "service_overloaded",
       "parseContentLength",
       "Access-Control-Allow-Origin",
@@ -1728,7 +1734,7 @@ async function main() {
   score += addGate(
     gates,
     "Runtime resilience hardening",
-    "gateway HTTP runtime adds overload, timeout, and payload guardrails",
+    "gateway HTTP runtime adds overload, propagated deadline, cancellation, and payload guardrails",
     10,
     runtimeHardeningCheck.ok,
     runtimeHardeningCheck.details,

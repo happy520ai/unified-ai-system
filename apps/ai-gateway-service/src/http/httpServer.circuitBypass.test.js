@@ -110,7 +110,103 @@ async function sendRequest(port, path, method = "GET", body) {
   });
 }
 
+function within(promise, stage, timeoutMs = 2_000) {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error(`Timed out while waiting for ${stage}.`)), timeoutMs);
+    Promise.resolve(promise).then(
+      (value) => {
+        clearTimeout(timeout);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timeout);
+        reject(error);
+      },
+    );
+  });
+}
+
 describe("gateway error circuit bypass routes", () => {
+  it("propagates a real client disconnect into production gateway execution", async () => {
+    let signalExecutionStarted;
+    const executionStarted = new Promise((resolve) => { signalExecutionStarted = resolve; });
+    let observedCancellation;
+    const cancelled = new Promise((resolve) => { observedCancellation = resolve; });
+    const execute = vi.fn(async (_input, execution) => {
+      signalExecutionStarted(execution);
+      if (!(execution?.signal instanceof AbortSignal)) {
+        observedCancellation({
+          code: "EXECUTION_CONTEXT_MISSING",
+          executionType: typeof execution,
+          signalType: typeof execution?.signal,
+        });
+        return { success: false, code: "EXECUTION_CONTEXT_MISSING" };
+      }
+      return new Promise((_resolve, reject) => {
+        execution.signal.addEventListener("abort", () => {
+          observedCancellation(execution.signal.reason);
+          reject(execution.signal.reason);
+        }, { once: true });
+      });
+    });
+    const server = createGatewayHttpServer(createGatewayApplication({
+      gatewayService: { getProviderDescriptors: () => [], execute },
+      enterpriseGovernanceService: {
+        authorize: () => ({
+          allowed: true,
+          identity: { userId: "operator" },
+          permission: "chat:use",
+          statusCode: 200,
+        }),
+      },
+    }));
+
+    await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const port = server.address().port;
+    const payload = JSON.stringify({ messages: [{ role: "user", content: "disconnect" }] });
+    const clientRequest = request({
+      host: "127.0.0.1",
+      port,
+      path: "/gateway/route",
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Content-Length": Buffer.byteLength(payload),
+      },
+    }, (incomingResponse) => {
+      let responseBody = "";
+      incomingResponse.on("data", (chunk) => { responseBody += chunk.toString("utf8"); });
+      incomingResponse.on("end", () => {
+        const earlyResponse = {
+          statusCode: incomingResponse.statusCode,
+          body: responseBody,
+        };
+        signalExecutionStarted({ earlyResponse });
+        observedCancellation({ code: "EARLY_HTTP_RESPONSE", earlyResponse });
+      });
+    });
+    clientRequest.on("error", () => {});
+    clientRequest.end(payload);
+
+    const receivedExecution = await within(executionStarted, "gateway execution start");
+    clientRequest.destroy();
+    const cancellation = await within(cancelled, "gateway cancellation");
+
+    server.closeAllConnections();
+    await within(new Promise((resolve, reject) => {
+      server.close((error) => error ? reject(error) : resolve());
+    }), "server close");
+    await within(server.shutdownResources(), "server resource shutdown");
+
+    expect(receivedExecution).toMatchObject({ signal: expect.any(AbortSignal) });
+    expect(cancellation).toMatchObject({
+      code: "CLIENT_DISCONNECTED",
+      category: "cancellation",
+      retryable: false,
+    });
+    expect(execute).toHaveBeenCalledTimes(1);
+  });
+
   it("rejects new business work while draining and keeps probes reachable", async () => {
     const authorize = vi.fn(() => ({
       allowed: true,

@@ -32,6 +32,42 @@ export interface ResultEnvelope<TData = unknown> {
 
 export declare function createRequestId(prefix?: string): string;
 export declare function sleep(ms: number): Promise<void>;
+export declare const EXECUTION_ABORT_CODES: Readonly<{
+  CLIENT_DISCONNECTED: "CLIENT_DISCONNECTED";
+  GATEWAY_DEADLINE_EXCEEDED: "GATEWAY_DEADLINE_EXCEEDED";
+}>;
+export type ExecutionAbortCode = typeof EXECUTION_ABORT_CODES[keyof typeof EXECUTION_ABORT_CODES];
+export declare class ExecutionAbortError extends Error {
+  readonly code: ExecutionAbortCode;
+  readonly category: "cancellation" | "timeout";
+  readonly retryable: boolean;
+  readonly statusCode: number;
+  readonly details: Record<string, unknown>;
+}
+export declare function createExecutionAbortError(
+  code: ExecutionAbortCode,
+  message: string,
+  options?: {
+    category?: "cancellation" | "timeout";
+    retryable?: boolean;
+    statusCode?: number;
+    details?: Record<string, unknown>;
+    cause?: unknown;
+  },
+): ExecutionAbortError;
+export declare function isExecutionAbortError(error: unknown): error is ExecutionAbortError;
+export declare function findExecutionAbortError(error: unknown, signal?: AbortSignal): ExecutionAbortError | null;
+export declare function throwIfExecutionAborted(signal?: AbortSignal): void;
+export declare function createLinkedAbortController(options?: {
+  signal?: AbortSignal;
+  timeoutMs?: number;
+  timeoutReason?: Error | (() => Error);
+}): {
+  controller: AbortController;
+  signal: AbortSignal;
+  cleanup(): void;
+};
+export declare function abortableSleep(ms: number, signal?: AbortSignal): Promise<void>;
 export declare function listen(server: any, port?: number, host?: string): Promise<void>;
 export declare function listenAtEphemeralUrl(server: any, host?: string): Promise<string>;
 export declare function fetchJsonPayload(url: string, options?: Record<string, unknown>): Promise<unknown>;

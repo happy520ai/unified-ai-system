@@ -1,4 +1,4 @@
-import { sleep, withTimeout } from "@unified-ai-system/shared-utils";
+import { abortableSleep, throwIfExecutionAborted, withTimeout } from "@unified-ai-system/shared-utils";
 import { createProviderDescriptor } from "./providerAdapter.js";
 import { createProviderResponse } from "./providerMapping.js";
 
@@ -17,6 +17,7 @@ export function createFakeProvider(modelConfig, options = {}) {
   return {
     descriptor,
     async generate(providerRequest) {
+      throwIfExecutionAborted(providerRequest.execution?.signal);
       if (modelConfig.failMode === "retryable") {
         throw createFakeProviderError(providerRequest);
       }
@@ -40,7 +41,7 @@ export function createFakeProvider(modelConfig, options = {}) {
 
       const certificationToolCall = createCertificationToolCall(providerRequest, options);
       if (certificationToolCall) {
-        await sleep(fixedLatencyMs);
+        await abortableSleep(fixedLatencyMs, providerRequest.execution?.signal);
         yield {
           textDelta: "",
           raw: {
@@ -56,7 +57,7 @@ export function createFakeProvider(modelConfig, options = {}) {
       const parts = splitForStream(result.text);
 
       for (const part of parts) {
-        await sleep(Math.max(1, Math.min(fixedLatencyMs, 8)));
+        await abortableSleep(Math.max(1, Math.min(fixedLatencyMs, 8)), providerRequest.execution?.signal);
         yield {
           textDelta: part,
           raw: {
@@ -73,7 +74,7 @@ async function executeFakeGeneration(providerRequest, fixedLatencyMs, options) {
   const prompt = getLastUserText(request);
   const certificationToolCall = createCertificationToolCall(providerRequest, options);
   if (certificationToolCall) {
-    await sleep(fixedLatencyMs);
+    await abortableSleep(fixedLatencyMs, providerRequest.execution?.signal);
     return createProviderResponse({
       text: "",
       message: {
@@ -96,7 +97,7 @@ async function executeFakeGeneration(providerRequest, fixedLatencyMs, options) {
   const text = request.options?.responseFormat === "json"
     ? createStructuredFakeResponse(request, marker)
     : marker;
-  await sleep(fixedLatencyMs);
+  await abortableSleep(fixedLatencyMs, providerRequest.execution?.signal);
 
   return createProviderResponse({
     text,

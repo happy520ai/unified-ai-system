@@ -1,7 +1,8 @@
-export function createProviderRequest({ request, target }) {
+export function createProviderRequest({ request, target, execution }) {
   return {
     request,
     target,
+    execution,
     trace: {
       requestId: request.context.requestId,
       traceId: request.context.traceId,

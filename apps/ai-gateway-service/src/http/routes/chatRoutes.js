@@ -14,7 +14,7 @@ export function resolveChatResultHttpStatus(result) {
 
   const error = result?.error ?? {};
   const code = String(result?.code ?? error.code ?? "").toUpperCase();
-  if (code.includes("TIMEOUT")) return 504;
+  if (code.includes("TIMEOUT") || code.includes("DEADLINE_EXCEEDED")) return 504;
   if (
     code === "CIRCUIT_OPEN"
     || code.includes("SERVICE_UNAVAILABLE")

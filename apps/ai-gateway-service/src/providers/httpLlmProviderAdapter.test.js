@@ -100,4 +100,26 @@ describe("http LLM provider adapter", () => {
     expect(adapter.qualityStats.sampleSize).toBe(0);
     expect(adapter.costSummary.estimatedCostUsd).toBe(0);
   });
+
+  it("does not retry or count an already-cancelled execution as a provider failure", async () => {
+    const adapter = createAdapter({ maxRetries: 3 });
+    const controller = new AbortController();
+    const cancellation = Object.assign(new Error("client left"), {
+      code: "CLIENT_DISCONNECTED",
+      category: "cancellation",
+      retryable: false,
+    });
+    controller.abort(cancellation);
+    const providerRequest = {
+      ...createRequest(),
+      execution: { signal: controller.signal },
+    };
+
+    await expect(adapter.generate(providerRequest)).rejects.toBe(cancellation);
+    expect(adapter.health).toMatchObject({
+      totalRequests: 0,
+      failedRequests: 0,
+      retriedRequests: 0,
+    });
+  });
 });

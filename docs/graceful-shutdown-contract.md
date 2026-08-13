@@ -1,5 +1,7 @@
 # Graceful shutdown contract
 
+Per-request disconnect and deadline behavior is defined separately in [Request cancellation and deadline contract](./request-cancellation-contract.md).
+
 The gateway uses a two-phase shutdown protocol for `SIGTERM` and `SIGINT`:
 
 1. Transition the lifecycle from `ready` to `draining`.

@@ -173,10 +173,10 @@ export function createOpenTelemetryRuntime(options = {}) {
     return new Proxy(gatewayService, {
       get(target, property, receiver) {
         if (property === "execute") {
-          return (input) => traceGatewayExecute(target, tracer, input);
+          return (input, execution) => traceGatewayExecute(target, tracer, input, execution);
         }
         if (property === "executeStream") {
-          return (input) => traceGatewayStream(target, tracer, input);
+          return (input, execution) => traceGatewayStream(target, tracer, input, execution);
         }
         const value = Reflect.get(target, property, receiver);
         return typeof value === "function" ? value.bind(target) : value;
@@ -197,12 +197,12 @@ export function createOpenTelemetryRuntime(options = {}) {
   };
 }
 
-async function traceGatewayExecute(gatewayService, tracer, input) {
+async function traceGatewayExecute(gatewayService, tracer, input, execution) {
   const parentContext = context.active();
   const span = startGenAiSpan(tracer, input, parentContext);
   const activeContext = trace.setSpan(parentContext, span);
   try {
-    const result = await context.with(activeContext, () => gatewayService.execute(input));
+    const result = await context.with(activeContext, () => gatewayService.execute(input, execution));
     finishGenAiSpan(span, result);
     return result;
   } catch (error) {
@@ -213,7 +213,7 @@ async function traceGatewayExecute(gatewayService, tracer, input) {
   }
 }
 
-async function* traceGatewayStream(gatewayService, tracer, input) {
+async function* traceGatewayStream(gatewayService, tracer, input, execution) {
   const parentContext = context.active();
   const span = startGenAiSpan(tracer, input, parentContext);
   const activeContext = trace.setSpan(parentContext, span);
@@ -221,7 +221,7 @@ async function* traceGatewayStream(gatewayService, tracer, input) {
   let iterator = null;
   try {
     iterator = context.with(activeContext, () => (
-      gatewayService.executeStream(input)[Symbol.asyncIterator]()
+      gatewayService.executeStream(input, execution)[Symbol.asyncIterator]()
     ));
     while (true) {
       const step = await context.with(activeContext, () => iterator.next());

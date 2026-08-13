@@ -4,6 +4,7 @@ import {
 import {
   createErrorEnvelope,
   createOkEnvelope,
+  findExecutionAbortError,
 } from "@unified-ai-system/shared-utils";
 import {
   getSafeRuntimeConfig,
@@ -190,6 +191,7 @@ import { dispatchHttpRoutes06 } from "./httpServerRoutes06.js";
 import { createOpenTelemetryRuntime } from "../observability/openTelemetry.js";
 import { createIdempotencyCoordinator } from "./idempotencyCoordinator.ts";
 import { createGatewayLifecycle } from "./gatewayLifecycle.ts";
+import { bindGatewayExecution, createHttpRequestExecutionScope } from "./httpRequestExecution.ts";
 
 const logger = createLogger({ app: "ai-gateway-service", level: "info" });
 const writeServiceLog = (event, details = {}) => logger.info(event, details);
@@ -410,10 +412,16 @@ export function createGatewayHttpServer(application) {
       ));
       return;
     }
-    const markRequestSuccess = ({ recordServerFailure = true } = {}) => {
+    const markRequestSuccess = ({ recordServerFailure = true, recordCircuitOutcome = true } = {}) => {
       if (canBypassGatewayErrorCircuit) {
         const bypassSnapshot = gatewayErrorCircuit.getStateSnapshot();
         resilienceMetrics.recordGatewayErrorCircuitState?.(bypassSnapshot?.state, bypassSnapshot);
+        return;
+      }
+      if (!recordCircuitOutcome) {
+        gatewayErrorCircuit.recordNeutral();
+        const neutralSnapshot = gatewayErrorCircuit.getStateSnapshot();
+        resilienceMetrics.recordGatewayErrorCircuitState?.(neutralSnapshot?.state, neutralSnapshot);
         return;
       }
       if (recordServerFailure && response.statusCode >= 500) {
@@ -535,7 +543,7 @@ export function createGatewayHttpServer(application) {
           limit: maxInFlightRequests,
         }),
       );
-      markRequestSuccess({ recordServerFailure: false });
+      markRequestSuccess({ recordServerFailure: false, recordCircuitOutcome: false });
       return;
     }
 
@@ -543,26 +551,50 @@ export function createGatewayHttpServer(application) {
       isStreamingRoute ? streamingRequestTimeoutMs : requestTimeoutMs,
       1_000,
     );
-    const timeoutHandle = setTimeout(() => {
-      if (!response.writableEnded && !response.headersSent) {
+    const requestExecutionScope = createHttpRequestExecutionScope({
+      request,
+      response,
+      timeoutMs: requestTimeout,
+      onClientDisconnect(error) {
+        resilienceMetrics.recordClientDisconnected();
+        writeServiceLog("request_client_disconnected", {
+          requestId,
+          traceId: httpTrace.traceId,
+          method: request.method,
+          path: pathname,
+          code: error.code,
+          durationMs: Date.now() - startedAt,
+        });
+      },
+      onDeadline(error) {
         resilienceMetrics.recordTimeoutTriggered();
-        gatewayErrorCircuit.recordFailure();
-        resilienceMetrics.recordGatewayErrorCircuitFailure();
-        writeJson(
-          response,
-          408,
-          createErrorEnvelope("request_timeout", "Request timed out.", {
-            startedAt,
-            category: "timeout",
-            timeoutMs: requestTimeout,
-          }),
-        );
-      } else if (!response.writableEnded) {
-        response.destroy(new Error("Request timeout reached"));
-      }
-    }, requestTimeout);
-    response.on("finish", () => clearTimeout(timeoutHandle));
-    response.on("close", () => clearTimeout(timeoutHandle));
+        resilienceMetrics.recordExecutionDeadlineExceeded();
+        writeServiceLog("request_deadline_exceeded", {
+          requestId,
+          traceId: httpTrace.traceId,
+          method: request.method,
+          path: pathname,
+          code: error.code,
+          timeoutMs: requestTimeout,
+          durationMs: Date.now() - startedAt,
+        });
+        if (!response.writableEnded && !response.headersSent) {
+          writeJson(
+            response,
+            504,
+            createErrorEnvelope(error.code, error.message, {
+              startedAt,
+              category: error.category,
+              retryable: error.retryable,
+              details: error.details,
+            }),
+          );
+        } else if (!response.writableEnded) {
+          response.destroy(error);
+        }
+      },
+    });
+    const requestGatewayService = bindGatewayExecution(tracedGatewayService, requestExecutionScope.context);
 
     const routeRateLimiter = rateLimiter;
 
@@ -643,7 +675,7 @@ export function createGatewayHttpServer(application) {
           enterpriseGovernanceService,
           enterpriseOpsService,
           fiveCapabilityActivationService,
-          gatewayService: tracedGatewayService,
+          gatewayService: requestGatewayService,
           knowledgeService,
           modelImportService,
           modelLibraryStore,
@@ -674,6 +706,27 @@ export function createGatewayHttpServer(application) {
       );
       markRequestSuccess();
     } catch (error) {
+      const cancellation = findExecutionAbortError(error, requestExecutionScope.context.signal);
+      if (cancellation) {
+        markRequestSuccess({ recordServerFailure: false, recordCircuitOutcome: false });
+        if (
+          cancellation.code === "GATEWAY_DEADLINE_EXCEEDED"
+          && !response.writableEnded
+          && !response.headersSent
+        ) {
+          writeJson(response, cancellation.statusCode, createErrorEnvelope(
+            cancellation.code,
+            cancellation.message,
+            {
+              startedAt,
+              category: cancellation.category,
+              retryable: cancellation.retryable,
+              details: cancellation.details,
+            },
+          ));
+        }
+        return;
+      }
       const normalizedError = createNormalizedHttpError(error);
       const elapsedMs = Date.now() - startedAt;
       resilienceMetrics.recordUnhandledError();
@@ -783,6 +836,8 @@ function createGatewayResilienceMetrics() {
     payloadRejected: 0,
     overloadRejected: 0,
     timeoutTriggered: 0,
+    clientDisconnected: 0,
+    executionDeadlineExceeded: 0,
     unhandledErrors: 0,
     unhandledErrorCodes: Object.create(null),
     gatewayErrorCircuitState: "closed",
@@ -824,6 +879,12 @@ function createGatewayResilienceMetrics() {
     },
     recordTimeoutTriggered() {
       counters.timeoutTriggered += 1;
+    },
+    recordClientDisconnected() {
+      counters.clientDisconnected += 1;
+    },
+    recordExecutionDeadlineExceeded() {
+      counters.executionDeadlineExceeded += 1;
     },
     recordUnhandledError() {
       counters.unhandledErrors += 1;
@@ -974,6 +1035,12 @@ export function createGatewayErrorCircuitBreaker(options = {}) {
     consecutiveFailures = 0;
   }
 
+  function recordNeutral() {
+    if (currentState === state.HALF_OPEN && halfOpenAttempts > 0) {
+      halfOpenAttempts -= 1;
+    }
+  }
+
   function getStateSnapshot() {
     refreshState();
     return {
@@ -989,6 +1056,7 @@ export function createGatewayErrorCircuitBreaker(options = {}) {
     canProcessRequest,
     recordFailure,
     recordSuccess,
+    recordNeutral,
     getStateSnapshot,
   };
 }
