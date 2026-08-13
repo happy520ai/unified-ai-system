@@ -142,6 +142,41 @@ function summarizeTrendBundle(result) {
   };
 }
 
+function summarizeTrendConsistency(result) {
+  const checks = result?.parsedOutput?.checks?.trendConsistency || {};
+  const consistencyChecks = checks?.checks;
+  const issueCodes = Array.isArray(checks?.issueCodes) ? checks.issueCodes : [];
+  const issueCodeSummary = checks?.issueCodeSummary && typeof checks.issueCodeSummary === "object"
+    ? checks.issueCodeSummary
+    : summarizeIssueCodes(issueCodes);
+
+  if (!consistencyChecks || typeof consistencyChecks !== "object") {
+    return {
+      status: "missing",
+      ok: false,
+      source: ".tmp/quality-scorecard.json",
+      issueCodes: [],
+      issueCodeSummary,
+      checks: {},
+      checksRequired: [],
+    };
+  }
+
+  const checksEntries = Object.values(consistencyChecks);
+  const hasCheckFail = checksEntries.some((entry) => entry?.ok === false || entry?.status === "missing");
+  const status = hasCheckFail ? "fail" : "pass";
+
+  return {
+    status,
+    ok: status === "pass",
+    source: ".tmp/quality-scorecard.json",
+    checks: consistencyChecks,
+    checksRequired: Array.isArray(checks.checksRequired) ? checks.checksRequired : [],
+    issueCodes: issueCodes.slice(0, 16),
+    issueCodeSummary,
+  };
+}
+
 function summarizeIssueCodes(issueCodes) {
   const summary = {
     total: 0,
@@ -217,6 +252,7 @@ function publishStepSummary(summary) {
     `- Artifact verification: ${summary.verification.ok ? "PASS" : "FAIL"}`,
     `- Trend health required in artifacts: ${summary.requireTrendHealth ? "yes" : "no"}`,
     `- Trend health: ${summary.trendHealth.status}${summary.trendHealth.blocked ? " (blocked)" : ""}`,
+    `- Trend consistency: ${summary.trendConsistency?.status ?? "missing"}${summary.trendConsistency?.checksRequired?.length > 0 ? ` (${summary.trendConsistency.checksRequired.join(", ")})` : ""}`,
     `- Incident bundle: ${summary.trendIncidentBundle.status}${summary.trendIncidentBundle.missing ? " (not collected)" : ""}`,
     `- Incident bundle markdown: ${summary.trendIncidentBundle.markdownValid === undefined ? "not checked" : (summary.trendIncidentBundle.markdownValid ? "valid" : "invalid")}`,
     `- Issue codes: ${summary.issueCodes?.length ?? 0} total${summary.issueCodeSummary?.blocking ? " (blocking)" : ""}`,
@@ -226,15 +262,16 @@ function publishStepSummary(summary) {
     "| --- | --- |",
     `| quality:score | ${summary.quality.parsed ? "parsed" : "not parsed"} |`,
     `| drill:dry-run | ${summary.drill.parsed ? "parsed" : "not parsed"} |`,
+    `| trend consistency | ${summary.trendConsistency?.ok ? "pass" : "fail"} (${summary.trendConsistency?.status ?? "missing"}) |`,
     `| incident bundle | ${summary.trendIncidentBundle.ok ? "pass" : "fail"} (${summary.trendIncidentBundle.status}) |`,
     `| trend health | ${summary.trendHealth.status} |`,
     `| artifacts verified | ${summary.verification.ok ? "pass" : "fail"} |`,
     "",
   ];
-  if (Array.isArray(summary.trendIncidentBundle.issueCodes) && summary.trendIncidentBundle.issueCodes.length > 0) {
-    lines.push("### Trend incident bundle issue codes");
+  if (Array.isArray(summary.issueCodes) && summary.issueCodes.length > 0) {
+    lines.push("### Trend issue codes");
     lines.push("");
-    for (const code of summary.trendIncidentBundle.issueCodes.slice(0, 16)) {
+    for (const code of summary.issueCodes.slice(0, 24)) {
       const codeText = code?.code ? String(code.code) : "unknown";
       const severity = code?.severity ? String(code.severity) : "unknown";
       const message = code?.message ? String(code.message) : "";
@@ -347,10 +384,16 @@ function main() {
   );
   writeIfPossible(verificationPath, verifyResult.rawStdout);
   const incidentBundleSummary = summarizeIncidentBundleFromVerification(qualityResult, verifyResult);
-  const issueCodes = flattenIssueCodes(incidentBundleSummary);
-  const issueCodeSummary = incidentBundleSummary?.issueCodeSummary && typeof incidentBundleSummary.issueCodeSummary === "object"
-    ? incidentBundleSummary.issueCodeSummary
-    : summarizeIssueCodes(issueCodes);
+  const verificationParsedOutput = verifyResult?.parsedOutput || null;
+  const verificationIssueCodes = Array.isArray(verificationParsedOutput?.issueCodes)
+    ? verificationParsedOutput.issueCodes
+    : incidentBundleSummary?.issueCodes;
+  const issueCodes = flattenIssueCodes({
+    issueCodes: verificationIssueCodes ?? [],
+    source: ".tmp/quality-ci-verification.json",
+  });
+  const issueCodeSummary = summarizeIssueCodes(issueCodes);
+  const trendConsistency = summarizeTrendConsistency(verifyResult);
 
   const summary = {
     ok: qualityResult.ok && drillResult.ok && verifyResult.ok,
@@ -360,6 +403,7 @@ function main() {
     quality: summarizeQuality(qualityResult),
     drill: summarizeDrill(drillResult),
     trendHealth: summarizeTrendHealth(qualityResult),
+    trendConsistency,
     trendIncidentBundle: incidentBundleSummary,
     requireTrendHealth: args.requireTrendHealth,
     verification: {
