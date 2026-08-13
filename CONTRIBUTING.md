@@ -81,6 +81,22 @@ testing pattern, and review checklist.
   evidence.
 - Generated runtime evidence does not belong on `master`.
 
+## Language and Module Ownership
+
+- `apps/ai-gateway-service` and `apps/agent-console` changes should stay in
+  TypeScript unless a strong technical reason is documented in the PR.
+- `packages/*` should remain TypeScript-first for contracts, SDKs, helpers, and
+  shared engines.
+- `tools/*.mjs` should use Node.js ESM JavaScript for orchestration, quality,
+  and release tooling.
+- Use JSON for schema/data contracts and Markdown for evidence, runbooks, and
+  protocol documentation.
+- If a change introduces a new runtime language (for example Go or Rust), the PR
+  must include:
+  - a measured reason versus TypeScript/Node.js,
+  - a boundary diagram or migration path,
+  - and compatibility/safety plan for the new runtime boundary.
+
 ## Required Checks
 
 Run all four checks before opening a pull request:
