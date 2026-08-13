@@ -4,6 +4,12 @@ on:
   schedule:
     - cron: "0 3 * * *"
   workflow_dispatch:
+    inputs:
+      quality_threshold:
+        description: Minimum quality score required by gate
+        required: false
+        default: "165"
+        type: string
 
 permissions:
   contents: read
@@ -33,7 +39,7 @@ jobs:
       - name: Run quality CI gate
         id: quality_gate
         continue-on-error: true
-        run: pnpm quality:ci -- --json --require-score 165
+        run: pnpm quality:ci -- --json --require-score "${{ github.event.inputs.quality_threshold || '165' }}"
 
       - name: Append quality trend record
         if: always()
@@ -45,10 +51,24 @@ jobs:
             --drill .tmp/circuit-recovery-drill-dry-run.json \
             --trend .tmp/quality-trend.json
 
+      - name: Render quality trend summary
+        if: always()
+        continue-on-error: true
+        run: pnpm quality:trend-summary -- --trend .tmp/quality-trend.json --output .tmp/quality-trend-summary.md
+
+      - name: Append trend summary to workflow summary
+        if: always()
+        run: |
+          if [ -f .tmp/quality-trend-summary.md ]; then
+            cat .tmp/quality-trend-summary.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Upload quality trend artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: quality-trend
-          path: .tmp/quality-trend.json
+          path: |
+            .tmp/quality-trend.json
+            .tmp/quality-trend-summary.md
           retention-days: 180
