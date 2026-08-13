@@ -148,9 +148,12 @@ function summarizeIncidentBundleFromVerification(qualityResult, verifyResult) {
     const hasJson = Boolean(incidentBundle.jsonPresent);
     const hasMd = Boolean(incidentBundle.mdPresent);
     const hasAny = hasJson || hasMd;
+    const issueCodes = Array.isArray(incidentBundle.issueCodes) ? incidentBundle.issueCodes : [];
+    const hasBlockingIssue = issueCodes.some((entry) => entry?.severity === "high");
     return {
       status: !hasAny ? "not_collected" : (incidentBundle.valid ? "valid" : "invalid"),
       ok: Boolean(incidentBundle.valid),
+      highPriorityFailure: hasBlockingIssue,
       jsonPath: incidentBundle.jsonPath ?? ".tmp/quality-trend-incident-bundle.json",
       mdPath: incidentBundle.mdPath ?? ".tmp/quality-trend-incident-bundle.md",
       requireIncidentBundle: Boolean(incidentBundle.requireIncidentBundle),
@@ -159,6 +162,7 @@ function summarizeIncidentBundleFromVerification(qualityResult, verifyResult) {
       markdownValidationIssues: Array.isArray(incidentBundle.markdownValidationIssues)
         ? incidentBundle.markdownValidationIssues.slice(0, 8)
         : [],
+      issueCodes: issueCodes.slice(0, 16),
       malformed: !incidentBundle.valid,
       source: incidentBundle.jsonPath ?? ".tmp/quality-trend-incident-bundle.json",
       missing: !hasAny,
@@ -185,6 +189,7 @@ function publishStepSummary(summary) {
     `- Trend health: ${summary.trendHealth.status}${summary.trendHealth.blocked ? " (blocked)" : ""}`,
     `- Incident bundle: ${summary.trendIncidentBundle.status}${summary.trendIncidentBundle.missing ? " (not collected)" : ""}`,
     `- Incident bundle markdown: ${summary.trendIncidentBundle.markdownValid === undefined ? "not checked" : (summary.trendIncidentBundle.markdownValid ? "valid" : "invalid")}`,
+    `- Incident bundle high-risk issue: ${summary.trendIncidentBundle.highPriorityFailure ? "yes" : "no"}`,
     "",
     "| Check | Status |",
     "| --- | --- |",
@@ -195,6 +200,17 @@ function publishStepSummary(summary) {
     `| artifacts verified | ${summary.verification.ok ? "pass" : "fail"} |`,
     "",
   ];
+  if (Array.isArray(summary.trendIncidentBundle.issueCodes) && summary.trendIncidentBundle.issueCodes.length > 0) {
+    lines.push("### Trend incident bundle issue codes");
+    lines.push("");
+    for (const code of summary.trendIncidentBundle.issueCodes.slice(0, 16)) {
+      const codeText = code?.code ? String(code.code) : "unknown";
+      const severity = code?.severity ? String(code.severity) : "unknown";
+      const message = code?.message ? String(code.message) : "";
+      lines.push(`- [${severity}] ${codeText}: ${message}`);
+    }
+    lines.push("");
+  }
   appendFileSync(
     stepSummaryPath,
     `${lines.join("\n")}\n`,

@@ -254,6 +254,16 @@ function validateIncidentBundleMarkdownText(markdownText) {
 
 function verifyIncidentBundle(args) {
   const issues = [];
+  const issueCodes = [];
+  const addIssue = (code, message, details = {}) => {
+    issues.push(message);
+    issueCodes.push({
+      code,
+      message,
+      ...details,
+    });
+  };
+
   const bundleText = readTextLoose(args.incidentBundleMdPath);
   const bundle = readJsonLoose(args.incidentBundleJsonPath);
   const schema = readJsonLoose(args.incidentBundleSchemaPath);
@@ -265,33 +275,82 @@ function verifyIncidentBundle(args) {
 
   if (args.requireIncidentBundle) {
     if (!jsonExists) {
-      issues.push(`incident bundle json not present: ${args.incidentBundleJsonPath}`);
+      addIssue("incident_bundle_json_missing", `incident bundle json not present: ${args.incidentBundleJsonPath}`, {
+        severity: "high",
+        artifactPath: args.incidentBundleJsonPath,
+      });
     }
     if (!mdExists) {
-      issues.push(`incident bundle markdown not present: ${args.incidentBundleMdPath}`);
+      addIssue("incident_bundle_markdown_missing", `incident bundle markdown not present: ${args.incidentBundleMdPath}`, {
+        severity: "high",
+        artifactPath: args.incidentBundleMdPath,
+      });
     }
   } else if (jsonExists && !mdExists) {
-    issues.push(`incident bundle markdown missing: ${args.incidentBundleMdPath}`);
+    addIssue("incident_bundle_markdown_missing", `incident bundle markdown missing: ${args.incidentBundleMdPath}`, {
+      severity: "medium",
+      artifactPath: args.incidentBundleMdPath,
+      source: "pair-consistency-check",
+    });
   } else if (mdExists && !jsonExists) {
-    issues.push(`incident bundle json missing for markdown artifact: ${args.incidentBundleJsonPath}`);
+    addIssue("incident_bundle_json_missing", `incident bundle json missing for markdown artifact: ${args.incidentBundleJsonPath}`, {
+      severity: "medium",
+      artifactPath: args.incidentBundleJsonPath,
+      source: "pair-consistency-check",
+    });
   }
 
   if (jsonExists) {
     if (bundle && bundle.schemaVersion !== 1) {
-      issues.push(`incident bundle schemaVersion expected 1 but got ${String(bundle.schemaVersion)}`);
+      addIssue(
+        "incident_bundle_schema_version_invalid",
+        `incident bundle schemaVersion expected 1 but got ${String(bundle.schemaVersion)}`,
+        {
+          severity: "high",
+          artifactPath: args.incidentBundleJsonPath,
+          observed: bundle.schemaVersion,
+        },
+      );
     }
     if (schema) {
       const schemaIssues = validateSchemaInstance(bundle, schema);
       if (schemaIssues.length > 0) {
-        issues.push(`incident bundle schema validation failed: ${schemaIssues.join(", ")}`);
+        addIssue(
+          "incident_bundle_schema_invalid",
+          `incident bundle schema validation failed: ${schemaIssues.join(", ")}`,
+          {
+            severity: "high",
+            artifactPath: args.incidentBundleJsonPath,
+            validationErrors: schemaIssues,
+          },
+        );
       }
       if (markdownValidationIssues.length > 0) {
-        issues.push(`incident bundle markdown validation failed: ${markdownValidationIssues.join(", ")}`);
+        addIssue(
+          "incident_bundle_markdown_invalid",
+          `incident bundle markdown validation failed: ${markdownValidationIssues.join(", ")}`,
+          {
+            severity: "medium",
+            artifactPath: args.incidentBundleMdPath,
+            validationErrors: markdownValidationIssues,
+          },
+        );
       }
     } else if (args.requireIncidentBundle || args.requireTrendHealth) {
-      issues.push(`incident bundle schema missing: ${args.incidentBundleSchemaPath}`);
+      addIssue("incident_bundle_schema_missing", `incident bundle schema missing: ${args.incidentBundleSchemaPath}`, {
+        severity: "high",
+        artifactPath: args.incidentBundleSchemaPath,
+      });
       if (jsonExists && markdownValidationIssues.length > 0) {
-        issues.push(`incident bundle markdown validation failed: ${markdownValidationIssues.join(", ")}`);
+        addIssue(
+          "incident_bundle_markdown_invalid",
+          `incident bundle markdown validation failed: ${markdownValidationIssues.join(", ")}`,
+          {
+            severity: "medium",
+            artifactPath: args.incidentBundleMdPath,
+            validationErrors: markdownValidationIssues,
+          },
+        );
       }
     }
   }
@@ -304,6 +363,7 @@ function verifyIncidentBundle(args) {
     schemaVersion: bundle?.schemaVersion ?? null,
     markdownValid: markdownValidationIssues.length === 0,
     markdownValidationIssues,
+    issueCodes,
     valid: issues.length === 0,
     issues,
   };
@@ -381,6 +441,7 @@ function main() {
       mdPath: incidentBundle.mdPath,
       jsonPresent: incidentBundle.jsonPresent,
       mdPresent: incidentBundle.mdPresent,
+      issueCodes: incidentBundle.issueCodes,
       valid: incidentBundle.valid,
       requireIncidentBundle: args.requireIncidentBundle,
       schemaPath: args.incidentBundleSchemaPath,
