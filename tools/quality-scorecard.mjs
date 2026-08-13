@@ -983,12 +983,97 @@ function checkTrendIncidentBundleSchema() {
     "failedSteps",
     "artifacts",
   ];
+  const requiredTrendConsistencyChecks = [
+    "trendDigestHealth",
+    "trendSummaryGuardrails",
+    "trendDigestCheckConsistency",
+  ];
   const missingRootKeys = requiredRootKeys.filter((key) => !(key in bundle));
   const trendHealth = typeof bundle.trendHealth === "object" && bundle.trendHealth !== null ? bundle.trendHealth : null;
   const thresholds = typeof bundle.thresholds === "object" && bundle.thresholds !== null ? bundle.thresholds : null;
+  const trendConsistency = typeof bundle.trendConsistency === "object" && bundle.trendConsistency !== null
+    ? bundle.trendConsistency
+    : null;
   const issueTags = [];
   if (!trendHealth) {
     issueTags.push("trendHealth");
+  }
+  if (!trendConsistency) {
+    issueTags.push("trendConsistency");
+  } else {
+    const checks = trendConsistency.checks;
+    const checksRequired = trendConsistency.checksRequired;
+    const issueCodes = trendConsistency.issueCodes;
+    const issueCodeSummary = trendConsistency.issueCodeSummary;
+    if (!checks || typeof checks !== "object") {
+      issueTags.push("trendConsistencyChecks");
+    } else {
+      if (!Array.isArray(checksRequired)) {
+        issueTags.push("trendConsistencyChecksRequired");
+      } else {
+        const missingRequiredChecks = requiredTrendConsistencyChecks.filter(
+          (checkKey) => !checksRequired.includes(checkKey),
+        );
+        if (missingRequiredChecks.length > 0) {
+          issueTags.push(`trendConsistencyMissingChecks:${missingRequiredChecks.join(",")}`);
+        }
+      }
+      for (const checkKey of requiredTrendConsistencyChecks) {
+        if (!checks || typeof checks !== "object" || !(checkKey in checks)) {
+          issueTags.push(`trendConsistencyCheckMissing:${checkKey}`);
+        } else {
+          const checkEntry = checks[checkKey];
+          if (!checkEntry || typeof checkEntry !== "object") {
+            issueTags.push(`trendConsistencyCheckTypeInvalid:${checkKey}`);
+            continue;
+          }
+          if (typeof checkEntry.status !== "string") {
+            issueTags.push(`trendConsistencyCheckMissingStatus:${checkKey}`);
+          }
+          if (typeof checkEntry.ok !== "boolean") {
+            issueTags.push(`trendConsistencyCheckMissingOk:${checkKey}`);
+          }
+        }
+      }
+      if (!Array.isArray(issueCodes)) {
+        issueTags.push("trendConsistencyIssueCodes");
+      }
+      const issueSummary = issueCodeSummary;
+      if (!issueSummary || typeof issueSummary !== "object") {
+        issueTags.push("trendConsistencyIssueCodeSummary");
+      } else {
+        const requiredSummaryKeys = [
+          { key: "total", type: "number" },
+          { key: "high", type: "number" },
+          { key: "medium", type: "number" },
+          { key: "low", type: "number" },
+          { key: "info", type: "number" },
+          { key: "unknown", type: "number" },
+          { key: "blocking", type: "boolean" },
+        ];
+        const missingSummaryKeys = [];
+        const wrongTypeSummaryKeys = [];
+        for (const { key, type } of requiredSummaryKeys) {
+          if (!(key in issueSummary)) {
+            missingSummaryKeys.push(key);
+            continue;
+          }
+          const value = issueSummary[key];
+          const isNumberType = type === "number" ? typeof value === "number" : null;
+          const isBooleanType = type === "boolean" ? typeof value === "boolean" : null;
+          const isValidType = type === "number" ? isNumberType : isBooleanType;
+          if (!isValidType) {
+            wrongTypeSummaryKeys.push(key);
+          }
+        }
+        if (missingSummaryKeys.length > 0) {
+          issueTags.push(`trendConsistencyIssueCodeSummaryMissing:${missingSummaryKeys.join(",")}`);
+        }
+        if (wrongTypeSummaryKeys.length > 0) {
+          issueTags.push(`trendConsistencyIssueCodeSummaryInvalidType:${wrongTypeSummaryKeys.join(",")}`);
+        }
+      }
+    }
   }
   if (!thresholds) {
     issueTags.push("thresholds");
