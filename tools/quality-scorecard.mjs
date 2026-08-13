@@ -236,6 +236,29 @@ function checkRequestBodyGuardrails() {
   }
 }
 
+function checkErrorNormalization() {
+  try {
+    const source = readTextFile("apps/ai-gateway-service/src/http/httpServer.js");
+    const requiredMarkers = [
+      "createNormalizedHttpError",
+      "recordUnhandledError()",
+      "response.writableEnded || response.headersSent",
+      "error instanceof Error",
+      "\"http_handler_error\"",
+    ];
+    const missingMarkers = requiredMarkers.filter((marker) => !source.includes(marker));
+    return {
+      ok: missingMarkers.length === 0,
+      details: JSON.stringify({ missingMarkers }),
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      details: String(error.message),
+    };
+  }
+}
+
 function checkWorkflowGuardrails() {
   try {
     const workflow = readTextFile(".github/workflows/ci.yml");
@@ -399,6 +422,7 @@ async function main() {
   const workflowCheck = checkWorkflowGuardrails();
   const runtimeHardeningCheck = checkRuntimeHardening();
   const requestBodyGuardrailsCheck = checkRequestBodyGuardrails();
+  const errorNormalizationCheck = checkErrorNormalization();
   const metricsCheck = checkMetricsInstrumentation();
   const healthzCheck = checkHealthzReadinessProbe();
   const runbookVisibilityCheck = checkReadinessRunbookVisibility();
@@ -413,6 +437,7 @@ async function main() {
     pluginHardening: pluginCheck,
     workflowGuardrails: workflowCheck,
     requestBodyGuardrails: requestBodyGuardrailsCheck,
+    errorNormalization: errorNormalizationCheck,
     healthzProbe: healthzCheck,
     readinessRunbookVisibility: runbookVisibilityCheck,
   };
@@ -473,6 +498,14 @@ async function main() {
     10,
     metricsCheck.ok,
     metricsCheck.details,
+  );
+  score += addGate(
+    gates,
+    "HTTP error normalization",
+    "handler exceptions are mapped to normalized code and status output",
+    5,
+    errorNormalizationCheck.ok,
+    errorNormalizationCheck.details,
   );
   score += addGate(
     gates,
