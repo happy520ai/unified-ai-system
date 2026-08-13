@@ -1186,6 +1186,7 @@ async function main() {
       score,
       maxScore,
     ),
+    ...extractIssueCodesFromResult(repoCheck, "public-repo-check"),
     ...extractIssueCodesFromResult(publicClone, "verify-public-clone"),
   ], QUALITY_SCORECARD_ISSUE_SOURCE);
   const issueCodeSummary = summarizeIssueCodes(issueCodes);
