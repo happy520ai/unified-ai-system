@@ -763,7 +763,7 @@ export function createGatewayHttpServer(application) {
   server.gatewayLifecycle = gatewayLifecycle;
   server.shutdownResources = () => {
     shutdownResourcesPromise ??= (async () => {
-      idempotencyCoordinator.close();
+      await idempotencyCoordinator.close();
       await openTelemetry.shutdown();
     })();
     return shutdownResourcesPromise;

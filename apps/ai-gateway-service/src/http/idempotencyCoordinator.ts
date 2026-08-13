@@ -1,5 +1,9 @@
 import { createHash, createHmac, randomBytes } from "node:crypto";
 import type { IncomingHttpHeaders, ServerResponse } from "node:http";
+import {
+  createPostgresIdempotencyCoordinator,
+  type PostgresPoolLike,
+} from "./postgresIdempotencyCoordinator.ts";
 import { createSqliteIdempotencyCoordinator } from "./sqliteIdempotencyCoordinator.ts";
 
 type IdempotencyRequest = {
@@ -45,8 +49,12 @@ export type IdempotencyCoordinatorOptions = {
   ttlMs?: number;
   maxEntries?: number;
   maxResultBytes?: number;
-  storeMode?: "memory" | "sqlite";
+  storeMode?: "memory" | "sqlite" | "postgres";
   sqlitePath?: string;
+  postgresConnectionString?: string;
+  postgresPool?: PostgresPoolLike;
+  postgresPoolMax?: number;
+  postgresStatementTimeoutMs?: number;
   leaseMs?: number;
   inFlightWaitMs?: number;
   pollIntervalMs?: number;
@@ -74,9 +82,13 @@ export type IdempotencyCoordinator = {
     ttlMs: number;
     maxEntries: number;
     maxResultBytes: number;
-    storeMode: "memory" | "sqlite";
+    storeMode: "memory" | "sqlite" | "postgres";
+    available?: boolean;
+    distributed?: boolean;
+    statsUpdatedAt?: number | null;
   };
-  close(): void;
+  checkHealth?(): Promise<ReturnType<IdempotencyCoordinator["getStats"]>>;
+  close(): void | Promise<void>;
 };
 
 export const IDEMPOTENCY_RESPONSE_HEADERS = Object.freeze({
@@ -112,6 +124,38 @@ export function createIdempotencyCoordinator(options: IdempotencyCoordinatorOpti
     1,
     16 * 1_048_576,
   );
+  if (storeMode === "postgres") {
+    const connectionString = options.postgresConnectionString ?? env.AI_GATEWAY_IDEMPOTENCY_POSTGRES_URL;
+    const secret = options.secret ?? env.AI_GATEWAY_IDEMPOTENCY_HMAC_SECRET;
+    if (!connectionString && !options.postgresPool) {
+      throw new Error("AI_GATEWAY_IDEMPOTENCY_POSTGRES_URL is required when the idempotency store mode is postgres.");
+    }
+    if (!secret || Buffer.byteLength(secret) < 32) {
+      throw new Error("AI_GATEWAY_IDEMPOTENCY_HMAC_SECRET must contain at least 32 bytes in postgres mode.");
+    }
+    return createPostgresIdempotencyCoordinator({
+      connectionString,
+      pool: options.postgresPool,
+      secret,
+      now,
+      ttlMs,
+      maxEntries,
+      maxResultBytes,
+      leaseMs: readBoundedNumber(options.leaseMs ?? env.AI_GATEWAY_IDEMPOTENCY_LEASE_MS, 300_000, 1_000, 30 * 60 * 1000),
+      inFlightWaitMs: readBoundedNumber(options.inFlightWaitMs ?? env.AI_GATEWAY_IDEMPOTENCY_WAIT_MS, 30_000, 0, 120_000),
+      pollIntervalMs: readBoundedNumber(options.pollIntervalMs ?? env.AI_GATEWAY_IDEMPOTENCY_POLL_MS, 50, 10, 1_000),
+      poolMax: readBoundedNumber(options.postgresPoolMax ?? env.AI_GATEWAY_IDEMPOTENCY_POSTGRES_POOL_MAX, 4, 1, 32),
+      statementTimeoutMs: readBoundedNumber(
+        options.postgresStatementTimeoutMs ?? env.AI_GATEWAY_IDEMPOTENCY_POSTGRES_STATEMENT_TIMEOUT_MS,
+        5_000,
+        100,
+        30_000,
+      ),
+      normalizeKey,
+      createIdentity,
+      createFingerprint,
+    });
+  }
   if (storeMode === "sqlite") {
     const sqlitePath = options.sqlitePath ?? env.AI_GATEWAY_IDEMPOTENCY_SQLITE_PATH;
     const secret = options.secret ?? env.AI_GATEWAY_IDEMPOTENCY_HMAC_SECRET;
@@ -366,8 +410,9 @@ function readBoundedNumber(value: unknown, fallback: number, min: number, max: n
   return Math.max(min, Math.min(max, Math.round(parsed)));
 }
 
-function normalizeStoreMode(value: string | undefined): "memory" | "sqlite" {
+function normalizeStoreMode(value: string | undefined): "memory" | "sqlite" | "postgres" {
   if (value === undefined || value === "" || value === "memory") return "memory";
   if (value === "sqlite") return "sqlite";
+  if (value === "postgres") return "postgres";
   throw new Error(`Unsupported idempotency store mode: ${value}`);
 }

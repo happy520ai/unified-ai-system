@@ -28,7 +28,7 @@ export async function dispatchHttpRoutes02(context) {
     enterpriseOpsService, fiveCapabilityActivationService, gatewayService, knowledgeService,
     modelImportService, modelLibraryStore, providerConfigRoutes, userExperienceService,
     workforceService, workflowService, wsServer, healthzInFlightThreshold, healthzInFlightDegradationPercent,
-    gatewayLifecycle,
+    gatewayLifecycle, idempotencyCoordinator,
   } = context;
 
   if (request.method === "GET" && url.pathname === "/dashboard/status") {
@@ -85,10 +85,12 @@ export async function dispatchHttpRoutes02(context) {
       : null;
     const saturated = saturationThreshold > 0 && currentInFlight >= saturationThreshold;
     const lifecycle = gatewayLifecycle?.snapshot?.() ?? null;
+    const idempotency = await readIdempotencyHealth(idempotencyCoordinator);
     const readinessFailures = collectReadinessFailures(healthSnapshot, readinessSnapshot, {
       saturated,
       gatewayErrorCircuitState: resilienceSnapshot?.gatewayErrorCircuitState,
       lifecycleState: lifecycle?.state,
+      idempotencyStoreUnavailable: idempotency?.storeMode === "postgres" && idempotency?.available !== true,
     });
     resilienceMetrics?.recordReadinessCheck?.(readinessFailures);
     const degraded = saturated || readinessFailures.length > 0;
@@ -102,6 +104,7 @@ export async function dispatchHttpRoutes02(context) {
       readinessFailures,
       isReady: !degraded,
       lifecycle,
+      idempotency,
       saturation: {
         inFlight: currentInFlight,
         threshold: saturationThreshold,
@@ -184,10 +187,12 @@ export async function dispatchHttpRoutes02(context) {
       : 0;
     const saturated = saturationThreshold > 0 && currentInFlight >= saturationThreshold;
     const lifecycle = gatewayLifecycle?.snapshot?.() ?? null;
+    const idempotency = await readIdempotencyHealth(idempotencyCoordinator);
     const readinessFailures = collectReadinessFailures(healthSnapshot, readinessSnapshot, {
       saturated,
       gatewayErrorCircuitState: readinessResilienceSnapshot?.gatewayErrorCircuitState,
       lifecycleState: lifecycle?.state,
+      idempotencyStoreUnavailable: idempotency?.storeMode === "postgres" && idempotency?.available !== true,
     });
     const snapshot = {
       totalRequests: stats.totalRequests ?? 0,
@@ -199,6 +204,7 @@ export async function dispatchHttpRoutes02(context) {
       readinessFailures,
       readinessFailureCount: readinessFailures.length,
       lifecycle,
+      idempotency,
       latency: stats.avgLatencyMs
         ? { p50: stats.avgLatencyMs, p95: stats.avgLatencyMs, p99: stats.avgLatencyMs }
         : undefined,
@@ -591,6 +597,15 @@ function collectReadinessFailures(healthSnapshot, readinessSnapshot, context = {
   if (context?.lifecycleState && context.lifecycleState !== "ready") {
     readinessFailures.push("service-draining");
   }
+  if (context?.idempotencyStoreUnavailable) {
+    readinessFailures.push("idempotency-store-unavailable");
+  }
 
   return Array.from(new Set(readinessFailures));
+}
+
+async function readIdempotencyHealth(coordinator) {
+  if (!coordinator) return null;
+  if (typeof coordinator.checkHealth === "function") return coordinator.checkHealth();
+  return coordinator.getStats?.() ?? null;
 }

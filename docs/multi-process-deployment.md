@@ -1,8 +1,8 @@
 # Multi-process deployment guide
 
-This guide covers multiple gateway processes on one host with local SQLite
-state and a reverse proxy. It does not claim complete high availability or
-cross-host consensus.
+This guide covers same-host processes with local SQLite and cross-host chat
+idempotency with PostgreSQL. It does not claim complete high availability or
+globally exactly-once provider execution.
 
 ## Deployment boundary
 
@@ -21,6 +21,44 @@ index and is explicitly not a cross-host coordination protocol.
 
 Use PostgreSQL, Redis with an atomic lease design, or another reviewed
 distributed store before deploying stateful gateway replicas across hosts.
+
+## Cross-host PostgreSQL idempotency
+
+PostgreSQL is the built-in cross-host backend for provider-backed, non-streaming
+`POST /chat` idempotency. Every replica must use the same database and HMAC
+secret:
+
+```bash
+AI_GATEWAY_IDEMPOTENCY_STORE_MODE=postgres
+AI_GATEWAY_IDEMPOTENCY_POSTGRES_URL=<load-from-secret-manager>
+AI_GATEWAY_IDEMPOTENCY_HMAC_SECRET=<load-the-same-32-byte-or-longer-secret>
+```
+
+Do not put either value in source control, command-line arguments, logs, or
+support bundles. Require certificate-verified TLS outside a trusted local
+network and configure it in the PostgreSQL connection string or platform secret.
+
+The coordinator uses a short transaction and a transaction-scoped advisory
+lock for claim/capacity serialization. Provider calls happen after commit. A
+database sequence supplies a monotonically increasing fencing token; renew,
+complete, and fail writes must match the identity, owner UUID, token, state, and
+an unexpired database-clock lease. A stale owner therefore cannot overwrite a
+newer result.
+
+Per-process bounds are intentionally small by default:
+
+```bash
+AI_GATEWAY_IDEMPOTENCY_POSTGRES_POOL_MAX=4
+AI_GATEWAY_IDEMPOTENCY_POSTGRES_STATEMENT_TIMEOUT_MS=5000
+```
+
+The runtime idempotently creates its fixed table, sequence, and indexes in the
+`public` schema. A production DBA can pre-provision those objects, grant the
+gateway role only data access plus sequence `USAGE`, and remove schema creation
+privileges. Monitor pool exhaustion, statement timeouts, stale/unknown rows,
+fencing completion misses, table growth, replication lag, backup restore tests,
+and database availability. Do not route keyed traffic to this mode until every
+replica reports `storeMode=postgres` and `available=true`.
 
 ## Existing same-host SQLite stores
 
@@ -125,8 +163,10 @@ non-streaming provider-backed chat. That is stronger than process-local
 deduplication, but it is not cross-host HA, global exactly-once execution,
 session affinity, or provider-side reconciliation.
 
-A cross-host architecture needs a separate design and evidence for atomic
-ownership, fencing tokens, clock behavior, failover, retention, encryption,
-backup, and disaster recovery.
+PostgreSQL mode supplies a cross-host atomic ownership and fencing mechanism for
+one bounded feature: non-streaming chat idempotency. Complete deployment HA
+still needs independently verified database failover, TLS identity, retention,
+backup/restore, disaster recovery, replica convergence, provider reconciliation,
+and load-balancer behavior.
 
 \n

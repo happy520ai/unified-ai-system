@@ -13,6 +13,20 @@ jobs:
   quality:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: gateway_test
+          POSTGRES_PASSWORD: gateway_test_password
+          POSTGRES_DB: gateway_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U gateway_test -d gateway_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     env:
       QUALITY_THRESHOLD: ${{ vars.QUALITY_REQUIRED_SCORE || '165' }}
       QUALITY_TREND_MAX_CONSECUTIVE_FAILURES: ${{ vars.QUALITY_TREND_MAX_CONSECUTIVE_FAILURES || '3' }}
@@ -86,6 +100,11 @@ jobs:
 
       - name: Maintained tests
         run: pnpm test
+
+      - name: PostgreSQL distributed idempotency integration
+        env:
+          AI_GATEWAY_TEST_POSTGRES_URL: postgresql://gateway_test:gateway_test_password@127.0.0.1:5432/gateway_test
+        run: pnpm exec vitest run apps/ai-gateway-service/src/http/idempotencyCoordinator.postgres.integration.test.ts
 
       - name: Public repository hygiene
         run: pnpm check:public

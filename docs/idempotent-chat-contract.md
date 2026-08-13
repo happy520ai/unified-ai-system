@@ -49,12 +49,15 @@ while `x-request-id` identifies the current HTTP transport attempt.
 | `AI_GATEWAY_IDEMPOTENCY_TTL_MS` | `600000` (10 minutes) | 1 second to 24 hours |
 | `AI_GATEWAY_IDEMPOTENCY_MAX_ENTRIES` | `1000` | 1 to 100000 entries |
 | `AI_GATEWAY_IDEMPOTENCY_MAX_RESULT_BYTES` | `1048576` (1 MiB) | 1 byte to 16 MiB |
-| `AI_GATEWAY_IDEMPOTENCY_STORE_MODE` | `memory` | `memory` or `sqlite` |
+| `AI_GATEWAY_IDEMPOTENCY_STORE_MODE` | `memory` | `memory`, `sqlite`, or `postgres` |
 | `AI_GATEWAY_IDEMPOTENCY_SQLITE_PATH` | none | Required in `sqlite` mode. Every process must use the same local file. |
-| `AI_GATEWAY_IDEMPOTENCY_HMAC_SECRET` | none | Required in `sqlite` mode; at least 32 bytes and identical across processes. Load it from a secret manager, never source control. |
+| `AI_GATEWAY_IDEMPOTENCY_POSTGRES_URL` | none | Required in `postgres` mode. Load credentials from a secret manager and require TLS outside a trusted local network. |
+| `AI_GATEWAY_IDEMPOTENCY_HMAC_SECRET` | none | Required in `sqlite` and `postgres` modes; at least 32 bytes and identical across processes. Load it from a secret manager, never source control. |
 | `AI_GATEWAY_IDEMPOTENCY_LEASE_MS` | `300000` (5 minutes) | 1 second to 30 minutes |
 | `AI_GATEWAY_IDEMPOTENCY_WAIT_MS` | `30000` (30 seconds) | 0 to 120 seconds |
 | `AI_GATEWAY_IDEMPOTENCY_POLL_MS` | `50` | 10 to 1000 milliseconds |
+| `AI_GATEWAY_IDEMPOTENCY_POSTGRES_POOL_MAX` | `4` | 1 to 32 connections per gateway process |
+| `AI_GATEWAY_IDEMPOTENCY_POSTGRES_STATEMENT_TIMEOUT_MS` | `5000` | 100 milliseconds to 30 seconds |
 
 Retention is bounded but response bodies may contain sensitive model output, so
 operators should keep the TTL and result limit no larger than their retry and
@@ -67,8 +70,11 @@ privacy requirements require.
 - Streaming replay is intentionally unsupported.
 - The default store is process-local memory. It does not provide cross-process or restart-safe coordination.
 - SQLite mode adds restart-safe and same-host, multi-process coordination with atomic claims, bounded waits, lease heartbeats, and fail-closed unknown tombstones.
+- PostgreSQL mode adds cross-host atomic claims, database-clock leases, monotonically increasing fencing tokens, bounded connection pools, and durable replay records. The provider call remains outside the database transaction.
 - The built-in `node:sqlite` API is still experimental in Node 22.18.0. Pin and regression-test the Node patch release before enabling this optional mode.
 - SQLite WAL is not safe as a cross-host coordination service and must not be placed on NFS or another network filesystem. Cross-host replicas still need an atomic distributed store implementation.
+- PostgreSQL availability is part of the keyed-request safety boundary. Initialization or transaction failure returns `503 IDEMPOTENCY_STORE_UNAVAILABLE` before provider execution; completion uncertainty returns `created-unconfirmed` after provider execution.
+- The PostgreSQL runtime creates its fixed `public.ai_gateway_idempotency_entries` table, fencing sequence, and indexes idempotently. Production operators may pre-provision these objects and then grant the gateway role only `SELECT`, `INSERT`, `UPDATE`, `DELETE`, and sequence `USAGE`.
 - Neither mode claims globally exactly-once execution. A provider can finish while the gateway loses the response or durable completion write; unknown outcomes require reconciliation.
 - `Idempotency-Key` is an established industry convention, but the related IETF document expired as an Internet-Draft in April 2026 and is not represented here as a final RFC.
 

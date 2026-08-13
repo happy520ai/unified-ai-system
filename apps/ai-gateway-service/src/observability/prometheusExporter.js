@@ -135,6 +135,28 @@ export function createPrometheusExporter(options = {}) {
       }
     }
 
+    const idempotency = snapshot.idempotency;
+    const idempotencyMode = sanitizeMetricLabel(idempotency?.storeMode ?? "memory");
+    const idempotencyAvailable = idempotency?.storeMode === "postgres"
+      ? (idempotency?.available === true ? 1 : 0)
+      : 1;
+    const statsUpdatedAt = Number(idempotency?.statsUpdatedAt);
+    const statsAgeSeconds = Number.isFinite(statsUpdatedAt) && statsUpdatedAt > 0
+      ? Math.max(0, (Date.now() - statsUpdatedAt) / 1000).toFixed(3)
+      : -1;
+    lines.push(`# HELP ${prefix}_idempotency_store_available Whether the configured idempotency store is reachable`);
+    lines.push(`# TYPE ${prefix}_idempotency_store_available gauge`);
+    lines.push(`${prefix}_idempotency_store_available{mode="${idempotencyMode}"} ${idempotencyAvailable}`);
+    lines.push(`# HELP ${prefix}_idempotency_entries Idempotency records by state class`);
+    lines.push(`# TYPE ${prefix}_idempotency_entries gauge`);
+    lines.push(`${prefix}_idempotency_entries{mode="${idempotencyMode}",state="total"} ${idempotency?.entries ?? 0}`);
+    lines.push(`${prefix}_idempotency_entries{mode="${idempotencyMode}",state="in_flight"} ${idempotency?.inFlight ?? 0}`);
+    lines.push(`${prefix}_idempotency_entries{mode="${idempotencyMode}",state="replayable"} ${idempotency?.replayable ?? 0}`);
+    lines.push(`${prefix}_idempotency_entries{mode="${idempotencyMode}",state="tombstone"} ${idempotency?.tombstones ?? 0}`);
+    lines.push(`# HELP ${prefix}_idempotency_stats_age_seconds Age of the last distributed store statistics snapshot, or -1 when unavailable`);
+    lines.push(`# TYPE ${prefix}_idempotency_stats_age_seconds gauge`);
+    lines.push(`${prefix}_idempotency_stats_age_seconds{mode="${idempotencyMode}"} ${statsAgeSeconds}`);
+
     // Provider health score
     const sanitizeLabel = (v) => String(v).replace(/["\\}\n\r]/g, "_");
     lines.push(`# HELP ${prefix}_provider_health_score Provider health score (0-100)`);

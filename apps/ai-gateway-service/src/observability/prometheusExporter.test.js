@@ -101,4 +101,25 @@ describe("prometheusExporter", () => {
     expect(text).toContain('ai_gateway_gateway_readiness_status{state="degraded"} 0');
     expect(text).toContain("ai_gateway_gateway_readiness_failures 0");
   });
+
+  it("renders safe PostgreSQL idempotency health metrics", () => {
+    const exporter = createPrometheusExporter({ prefix: "ai_gateway" });
+    const text = exporter.formatMetrics({
+      idempotency: {
+        storeMode: "postgres",
+        available: false,
+        entries: 7,
+        inFlight: 2,
+        replayable: 3,
+        tombstones: 2,
+        statsUpdatedAt: Date.now() - 2_000,
+      },
+    });
+
+    expect(text).toContain('ai_gateway_idempotency_store_available{mode="postgres"} 0');
+    expect(text).toContain('ai_gateway_idempotency_entries{mode="postgres",state="total"} 7');
+    expect(text).toContain('ai_gateway_idempotency_entries{mode="postgres",state="replayable"} 3');
+    expect(text).toMatch(/ai_gateway_idempotency_stats_age_seconds\{mode="postgres"\} 2\.\d{3}/);
+    expect(text).not.toContain("connectionString");
+  });
 });

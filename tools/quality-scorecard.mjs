@@ -718,6 +718,80 @@ function checkMetricsInstrumentation() {
   }
 }
 
+function checkDistributedIdempotencySafety() {
+  try {
+    const coordinatorSource = readTextFile("apps/ai-gateway-service/src/http/idempotencyCoordinator.ts");
+    const postgresSource = readTextFile("apps/ai-gateway-service/src/http/postgresIdempotencyCoordinator.ts");
+    const serverSource = readTextFile("apps/ai-gateway-service/src/http/httpServer.js");
+    const routeSource = readTextFile("apps/ai-gateway-service/src/http/httpServerRoutes02.js");
+    const exporterSource = readTextFile("apps/ai-gateway-service/src/observability/prometheusExporter.js");
+    const testSource = readTextFile("apps/ai-gateway-service/src/http/idempotencyCoordinator.postgres.test.ts");
+    const integrationTestSource = readTextFile("apps/ai-gateway-service/src/http/idempotencyCoordinator.postgres.integration.test.ts");
+    const packageSource = readTextFile("apps/ai-gateway-service/package.json");
+    const contractSource = readTextFile("docs/idempotent-chat-contract.md");
+    const deploymentSource = readTextFile("docs/multi-process-deployment.md");
+    const envSource = readTextFile(".env.example");
+    const enterpriseEnvSource = readTextFile(".env.enterprise.example");
+    const workflowSource = readTextFile(".github/workflows/ci.yml");
+    const source = [
+      coordinatorSource,
+      postgresSource,
+      serverSource,
+      routeSource,
+      exporterSource,
+      testSource,
+      integrationTestSource,
+      packageSource,
+      contractSource,
+      deploymentSource,
+      envSource,
+      enterpriseEnvSource,
+      workflowSource,
+    ].join("\n");
+    const requiredMarkers = [
+      'storeMode?: "memory" | "sqlite" | "postgres"',
+      "AI_GATEWAY_IDEMPOTENCY_POSTGRES_URL",
+      "AI_GATEWAY_IDEMPOTENCY_POSTGRES_POOL_MAX",
+      "AI_GATEWAY_IDEMPOTENCY_POSTGRES_STATEMENT_TIMEOUT_MS",
+      '"pg": "8.23.0"',
+      "pg_advisory_xact_lock",
+      "fencing_token",
+      "clock_timestamp()",
+      "created-unconfirmed",
+      "IDEMPOTENCY_STORE_UNAVAILABLE",
+      "await idempotencyCoordinator.close()",
+      "idempotency-store-unavailable",
+      "idempotency_store_available",
+      "coalesces one provider operation across coordinators",
+      "real PostgreSQL idempotency integration",
+      "PostgreSQL distributed idempotency integration",
+      "AI_GATEWAY_TEST_POSTGRES_URL",
+      "postgres:17-alpine",
+      "PostgreSQL mode adds cross-host atomic claims",
+    ];
+    const missingMarkers = requiredMarkers.filter((marker) => !source.includes(marker));
+    const requiredEnvMarkers = [
+      "AI_GATEWAY_IDEMPOTENCY_STORE_MODE=memory",
+      "AI_GATEWAY_IDEMPOTENCY_POSTGRES_URL=<set-in-local-secret-store>",
+      "AI_GATEWAY_IDEMPOTENCY_HMAC_SECRET=<set-32-byte-or-longer-secret-in-local-secret-store>",
+      "AI_GATEWAY_IDEMPOTENCY_POSTGRES_POOL_MAX=4",
+      "AI_GATEWAY_IDEMPOTENCY_POSTGRES_STATEMENT_TIMEOUT_MS=5000",
+    ];
+    const missingEnvMarkers = requiredEnvMarkers.filter(
+      (marker) => !envSource.includes(marker) || !enterpriseEnvSource.includes(marker),
+    );
+    return {
+      ok: missingMarkers.length === 0 && missingEnvMarkers.length === 0,
+      details: JSON.stringify({ missingMarkers, missingEnvMarkers }),
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      details: String(error.message),
+    };
+  }
+}
+
 function checkGatewayErrorCircuitBreaker() {
   try {
     const serverSource = readTextFile("apps/ai-gateway-service/src/http/httpServer.js");
@@ -1645,6 +1719,7 @@ async function main() {
   const errorNormalizationCheck = checkErrorNormalization();
   const unhandledErrorTelemetryCheck = checkUnhandledErrorTelemetry();
   const metricsCheck = checkMetricsInstrumentation();
+  const distributedIdempotencyCheck = checkDistributedIdempotencySafety();
   const gatewayErrorCircuitBreakerCheck = checkGatewayErrorCircuitBreaker();
   const healthzCheck = checkHealthzReadinessProbe();
   const runbookVisibilityCheck = checkReadinessRunbookVisibility();
@@ -1674,6 +1749,7 @@ async function main() {
     versionConsistency: versionCheck,
     runtimeHardening: runtimeHardeningCheck,
     metrics: metricsCheck,
+    distributedIdempotency: distributedIdempotencyCheck,
     pluginHardening: pluginCheck,
     workflowGuardrails: workflowCheck,
     requestBodyGuardrails: requestBodyGuardrailsCheck,
@@ -1754,6 +1830,14 @@ async function main() {
     10,
     metricsCheck.ok,
     metricsCheck.details,
+  );
+  score += addGate(
+    gates,
+    "Cross-host idempotency safety",
+    "PostgreSQL coordination must use database-clock leases, fencing, fail-closed readiness, metrics, and concurrency evidence",
+    10,
+    distributedIdempotencyCheck.ok,
+    distributedIdempotencyCheck.details,
   );
   score += addGate(
     gates,

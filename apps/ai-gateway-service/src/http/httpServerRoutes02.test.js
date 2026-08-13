@@ -202,6 +202,33 @@ describe("dispatchHttpRoutes02 healthz readiness", () => {
     expect(context.response.payload.error.code).toBe("service_unready");
     expect(context.response.payload.error.details.readinessFailures).toContain("service-dependency");
   });
+
+  it("returns unready with a safe snapshot when the PostgreSQL idempotency store is unavailable", async () => {
+    const context = createEnvelopeContext({
+      idempotencyCoordinator: {
+        checkHealth: async () => ({
+          storeMode: "postgres",
+          available: false,
+          distributed: true,
+          entries: 3,
+          inFlight: 1,
+          replayable: 1,
+          tombstones: 1,
+        }),
+      },
+    });
+
+    await dispatchHttpRoutes02(context);
+
+    expect(context.response.status).toBe(503);
+    expect(context.response.payload.error.details.readinessFailures).toContain("idempotency-store-unavailable");
+    expect(context.response.payload.error.details.idempotency).toMatchObject({
+      storeMode: "postgres",
+      available: false,
+      distributed: true,
+    });
+    expect(context.response.payload.error.details.idempotency).not.toHaveProperty("connectionString");
+  });
 });
 
 describe("dispatchHttpRoutes02 metrics readiness visibility", () => {
@@ -481,5 +508,37 @@ describe("dispatchHttpRoutes02 metrics readiness visibility", () => {
     expect(metricsText).toContain("ai_gateway_gateway_readiness_status{state=\"ready\"} 1");
     expect(metricsText).toContain("ai_gateway_gateway_readiness_status{state=\"degraded\"} 0");
     expect(metricsText).toContain("ai_gateway_gateway_readiness_failures 0");
+  });
+
+  it("exports PostgreSQL idempotency availability and bounded state counts", async () => {
+    let metricsText = "";
+    const context = createEnvelopeContext({
+      request: { method: "GET" },
+      response: {
+        headersSent: false,
+        writeHead() {},
+        end(body) { metricsText = body; },
+      },
+      url: { pathname: "/metrics" },
+      idempotencyCoordinator: {
+        checkHealth: async () => ({
+          storeMode: "postgres",
+          available: true,
+          distributed: true,
+          entries: 8,
+          inFlight: 2,
+          replayable: 4,
+          tombstones: 2,
+          statsUpdatedAt: Date.now(),
+        }),
+      },
+    });
+
+    await dispatchHttpRoutes02(context);
+
+    expect(metricsText).toContain('ai_gateway_idempotency_store_available{mode="postgres"} 1');
+    expect(metricsText).toContain('ai_gateway_idempotency_entries{mode="postgres",state="total"} 8');
+    expect(metricsText).toContain('ai_gateway_idempotency_entries{mode="postgres",state="in_flight"} 2');
+    expect(metricsText).toContain('ai_gateway_idempotency_entries{mode="postgres",state="tombstone"} 2');
   });
 });
