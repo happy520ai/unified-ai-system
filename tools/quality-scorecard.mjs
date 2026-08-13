@@ -529,6 +529,69 @@ function checkCircuitRecoveryDrill() {
   }
 }
 
+function checkTrendDigestOperations() {
+  try {
+    const packageSource = readTextFile("package.json");
+    const ciWorkflowSource = readTextFile(".github/workflows/ci.yml");
+    const trendWorkflowSource = readTextFile(".github/workflows/quality-trend.yml");
+    const readinessGuideSource = readTextFile("docs/readiness-observability-guide.md");
+    const trendGuideSource = readTextFile("docs/quality-trend-digest-guide.md");
+    const trendScriptSource = readTextFile("tools/quality-trend-digest.mjs");
+    const summaryScriptSource = readTextFile("tools/quality-trend-summary.mjs");
+
+    const requiredPackageMarkers = [
+      "\"quality:trend-digest\"",
+      "quality-trend-digest.md",
+    ];
+    const requiredWorkflowMarkers = [
+      "quality:trend-digest --",
+      "quality-trend-digest.md",
+      "quality-trend-digest.json",
+      "Append quality trend digest to workflow summary",
+      "Upload quality scorecard artifact",
+    ];
+    const requiredGuideMarkers = [
+      "quality trend digest",
+      "pnpm quality:trend-digest",
+      "quality-trend-digest.json",
+    ];
+    const requiredScriptMarkers = [
+      "Operational state",
+      "Latest run risk snapshot",
+      "Recommended next actions",
+    ];
+
+    const missingPackage = requiredPackageMarkers.filter((marker) => !packageSource.includes(marker));
+    const missingWorkflow = requiredWorkflowMarkers.filter(
+      (marker) => !ciWorkflowSource.includes(marker) && !trendWorkflowSource.includes(marker),
+    );
+    const missingGuide = requiredGuideMarkers.filter((marker) => !trendGuideSource.includes(marker) && !readinessGuideSource.includes(marker));
+    const missingSource = requiredScriptMarkers.filter(
+      (marker) => !trendScriptSource.includes(marker) && !summaryScriptSource.includes(marker),
+    );
+
+    return {
+      ok: (
+        missingPackage.length === 0
+        && missingWorkflow.length === 0
+        && missingGuide.length === 0
+        && missingSource.length === 0
+      ),
+      details: JSON.stringify({
+        missingPackage,
+        missingWorkflow,
+        missingGuide,
+        missingSource,
+      }),
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      details: String(error.message),
+    };
+  }
+}
+
 async function main() {
   const { outputJson, requireScore } = parseArgs();
   const rootPackage = JSON.parse(readTextFile("package.json"));
@@ -568,6 +631,7 @@ async function main() {
   const healthzCheck = checkHealthzReadinessProbe();
   const runbookVisibilityCheck = checkReadinessRunbookVisibility();
   const circuitRecoveryDrillCheck = checkCircuitRecoveryDrill();
+  const trendDigestOperationsCheck = checkTrendDigestOperations();
 
   const gateResults = {
     publicRepoCheck: repoCheck,
@@ -586,6 +650,7 @@ async function main() {
     healthzProbe: healthzCheck,
     readinessRunbookVisibility: runbookVisibilityCheck,
     circuitRecoveryDrill: circuitRecoveryDrillCheck,
+    trendDigestOperations: trendDigestOperationsCheck,
   };
 
   const drillDryRunParsed = circuitDrillDryRun.parseableOutput ?? {};
@@ -708,6 +773,14 @@ async function main() {
       dryRunStatus: drillDryRunParsed.status,
       dryRunBase: drillDryRunParsed.base,
     }),
+  );
+  score += addGate(
+    gates,
+    "Trend digest operations",
+    "quality trend digest is generated, archived, and documented",
+    8,
+    trendDigestOperationsCheck.ok,
+    trendDigestOperationsCheck.details,
   );
 
   const maxScore = gates.reduce((sum, item) => sum + item.weight, 0);
