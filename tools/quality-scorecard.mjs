@@ -663,6 +663,69 @@ function checkTrendHardBlockArtifact() {
   };
 }
 
+function checkTrendIncidentBundleSchema() {
+  const path = ".tmp/quality-trend-incident-bundle.json";
+  const bundle = readJsonFile(path);
+  if (!bundle) {
+    return {
+      ok: true,
+      status: "not_collected",
+      source: path,
+      missing: true,
+      malformed: false,
+      details: "quality-trend-incident-bundle.json is absent in this run; generated on trend-health smoke failure only.",
+    };
+  }
+
+  const requiredRootKeys = [
+    "executedAtUtc",
+    "failureReason",
+    "qualityThreshold",
+    "thresholds",
+    "trendHealth",
+    "failedSteps",
+    "artifacts",
+  ];
+  const missingRootKeys = requiredRootKeys.filter((key) => !(key in bundle));
+  const trendHealth = typeof bundle.trendHealth === "object" && bundle.trendHealth !== null ? bundle.trendHealth : null;
+  const thresholds = typeof bundle.thresholds === "object" && bundle.thresholds !== null ? bundle.thresholds : null;
+  const issueTags = [];
+  if (!trendHealth) {
+    issueTags.push("trendHealth");
+  }
+  if (!thresholds) {
+    issueTags.push("thresholds");
+  }
+  if (!Array.isArray(bundle.failedSteps)) {
+    issueTags.push("failedSteps");
+  }
+  if (!Array.isArray(bundle.extractedIssues)) {
+    issueTags.push("extractedIssues");
+  }
+  const artifacts = Array.isArray(bundle.artifacts) ? bundle.artifacts : [];
+  const hasInvalidArtifacts = artifacts.some(
+    (artifact) => !(artifact && typeof artifact.path === "string" && typeof artifact.size === "number"),
+  );
+  if (hasInvalidArtifacts) {
+    issueTags.push("artifacts");
+  }
+
+  const malformed = missingRootKeys.length > 0 || issueTags.length > 0;
+  return {
+    ok: !malformed,
+    status: malformed ? "malformed" : "ok",
+    source: path,
+    missing: false,
+    malformed,
+    details: JSON.stringify({
+      missingRootKeys,
+      issueTags,
+      artifactEntries: artifacts.length,
+      malformed,
+    }),
+  };
+}
+
 async function main() {
   const { outputJson, requireScore } = parseArgs();
   const rootPackage = JSON.parse(readTextFile("package.json"));
@@ -704,6 +767,7 @@ async function main() {
   const circuitRecoveryDrillCheck = checkCircuitRecoveryDrill();
   const trendDigestOperationsCheck = checkTrendDigestOperations();
   const trendHardBlockArtifactCheck = checkTrendHardBlockArtifact();
+  const trendIncidentBundleSchemaCheck = checkTrendIncidentBundleSchema();
 
   const gateResults = {
     publicRepoCheck: repoCheck,
@@ -724,6 +788,7 @@ async function main() {
     circuitRecoveryDrill: circuitRecoveryDrillCheck,
     trendDigestOperations: trendDigestOperationsCheck,
     trendHardBlockArtifact: trendHardBlockArtifactCheck,
+    trendIncidentBundleSchema: trendIncidentBundleSchemaCheck,
   };
 
   const drillDryRunParsed = circuitDrillDryRun.parseableOutput ?? {};
@@ -862,6 +927,14 @@ async function main() {
     7,
     trendHardBlockArtifactCheck.ok,
     trendHardBlockArtifactCheck.details,
+  );
+  score += addGate(
+    gates,
+    "Trend incident bundle schema",
+    "quality-trend-incident-bundle.json should be valid and parseable when generated",
+    4,
+    trendIncidentBundleSchemaCheck.ok,
+    trendIncidentBundleSchemaCheck.details,
   );
 
   const maxScore = gates.reduce((sum, item) => sum + item.weight, 0);
