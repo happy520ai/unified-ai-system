@@ -180,19 +180,34 @@ function summarizeTrendConsistency(result, requireTrendHealth = false) {
   const hasNotCollected = checksEntries.some(
     (entry) => String(entry?.status ?? "").toLowerCase() === "not_collected",
   );
-  const status = hasCheckFail || (requireTrendHealth && (hasMissingRequired || hasNotCollected))
+  const hasTrendGap = hasMissingRequired || hasNotCollected;
+  const status = hasCheckFail || (requireTrendHealth && hasTrendGap)
     ? "fail"
-    : "pass";
+    : hasTrendGap
+      ? "degraded"
+      : "pass";
+
+  const ok = status === "pass" || (!requireTrendHealth && status === "degraded");
+
+  const checksSummaryStatus = hasTrendGap || hasCheckFail
+    ? {
+      requireTrendHealth,
+      hasMissingRequired,
+      hasNotCollected,
+      status,
+    }
+    : undefined;
 
   return {
     status,
-    ok: status === "pass",
+    ok,
     source: ".tmp/quality-scorecard.json",
     checks: consistencyChecks,
     checksRequired: requiredChecks,
     issueCodes: issueCodes.slice(0, 16),
     issueCodeSummary,
     requiresTrendHealth: requireTrendHealth,
+    ...checksSummaryStatus,
   };
 }
 
@@ -256,6 +271,17 @@ function summarizeIncidentBundleFromVerification(qualityResult, verifyResult) {
   return summarizeTrendBundle(qualityResult);
 }
 
+function trendConsistencyStatusDisplay(trendConsistency) {
+  const status = trendConsistency?.status ?? "missing";
+  if (status === "degraded") {
+    return "warn";
+  }
+  if (trendConsistency?.ok) {
+    return "pass";
+  }
+  return "fail";
+}
+
 function publishStepSummary(summary) {
   const stepSummaryPath = process.env.GITHUB_STEP_SUMMARY;
   if (!stepSummaryPath) {
@@ -281,7 +307,7 @@ function publishStepSummary(summary) {
     "| --- | --- |",
     `| quality:score | ${summary.quality.parsed ? "parsed" : "not parsed"} |`,
     `| drill:dry-run | ${summary.drill.parsed ? "parsed" : "not parsed"} |`,
-    `| trend consistency | ${summary.trendConsistency?.ok ? "pass" : "fail"} (${summary.trendConsistency?.status ?? "missing"}) |`,
+    `| trend consistency | ${trendConsistencyStatusDisplay(summary.trendConsistency)} (${summary.trendConsistency?.status ?? "missing"}) |`,
     `| incident bundle | ${summary.trendIncidentBundle.ok ? "pass" : "fail"} (${summary.trendIncidentBundle.status}) |`,
     `| trend health | ${summary.trendHealth.status} |`,
     `| artifacts verified | ${summary.verification.ok ? "pass" : "fail"} |`,
