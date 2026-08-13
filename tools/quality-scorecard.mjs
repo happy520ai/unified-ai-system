@@ -1318,6 +1318,97 @@ function checkTrendDigestHealth() {
   };
 }
 
+function checkTrendDigestCheckConsistency() {
+  const digest = readJsonFile(".tmp/quality-trend-digest.json");
+  const trendCheck = readJsonFile(".tmp/quality-trend-check.json");
+
+  if (!digest || !trendCheck) {
+    return {
+      ok: true,
+      status: "not_collected",
+      source: ".tmp/quality-trend-digest.json",
+      missing: true,
+      malformed: false,
+      issueCodes: [],
+      issueCodeSummary: {
+        total: 0,
+        high: 0,
+        medium: 0,
+        low: 0,
+        info: 0,
+        unknown: 0,
+        blocking: false,
+      },
+      details: "quality-trend-digest.json or quality-trend-check.json is missing; both are required for digest/check consistency checks.",
+    };
+  }
+
+  const digestState = String(digest.state ?? "unknown").toLowerCase();
+  const digestTrendState = String(digest.trendState ?? "unknown").toLowerCase();
+  const checkBlocked = Boolean(trendCheck.blocked);
+  const checkStatus = String(trendCheck.status ?? "unknown").toLowerCase();
+  const checkSeverity = String(trendCheck.severity ?? "unknown").toLowerCase();
+
+  const issueCodes = [];
+  const addIssue = (code, message, severity = "medium") => {
+    issueCodes.push({
+      code,
+      severity,
+      message,
+      artifactPath: ".tmp/quality-trend-digest.json",
+      source: "quality-trend-digest-check-consistency",
+    });
+  };
+
+  const isCriticallyUnstable = checkStatus === "critical" || checkSeverity === "critical";
+  const isCheckBlocked = checkBlocked || checkStatus === "unstable-critical" || isCriticallyUnstable;
+
+  if (digestState === "unstable" && !isCheckBlocked) {
+    addIssue(
+      "trend_consistency_block_mismatch",
+      `trend digest reports unstable state but trend check is not blocked (status=${checkStatus}, severity=${checkSeverity})`,
+      "high",
+    );
+  }
+
+  if (digestState === "stable" && isCheckBlocked) {
+    addIssue(
+      "trend_consistency_block_mismatch",
+      `trend digest reports stable state but trend check reports blocking condition (status=${checkStatus}, severity=${checkSeverity})`,
+      "high",
+    );
+  }
+
+  if (digestTrendState === "regressing" && digestState === "stable") {
+    addIssue(
+      "trend_consistency_regression_trend",
+      `trend digest indicates regressing trend while operational state is stable`,
+      "medium",
+    );
+  }
+
+  const normalized = normalizeIssueCodes(issueCodes, "quality-trend-digest-check-consistency");
+
+  return {
+    ok: normalized.length === 0,
+    status: normalized.length === 0 ? "consistent" : "inconsistent",
+    source: ".tmp/quality-trend-digest.json",
+    missing: false,
+    malformed: false,
+    issueCodes: normalized,
+    issueCodeSummary: summarizeIssueCodes(normalized),
+    details: JSON.stringify({
+      digestState,
+      digestTrendState,
+      checkStatus,
+      checkSeverity,
+      checkBlocked,
+      checkReasonsCount: Array.isArray(trendCheck.reasons) ? trendCheck.reasons.length : 0,
+      issueCodes: normalized.length,
+    }),
+  };
+}
+
 function bundleTagsToIssues(issueTags) {
   if (!Array.isArray(issueTags)) return [];
   return issueTags.map((tag) => ({
@@ -1373,6 +1464,7 @@ async function main() {
   const trendIncidentBundleSchemaCheck = checkTrendIncidentBundleSchema();
   const trendSummaryGuardrailsCheck = checkTrendSummaryGuardrails();
   const trendDigestHealthCheck = checkTrendDigestHealth();
+  const trendDigestCheckConsistencyCheck = checkTrendDigestCheckConsistency();
 
   const publicRepoCheck = attachIssueSummaryFromResult(repoCheck, "public-repo-check");
   const verifyPublicCloneCheck = attachIssueSummaryFromResult(
@@ -1405,6 +1497,7 @@ async function main() {
     trendHardBlockArtifact: trendHardBlockArtifactCheck,
     trendDigestHealth: trendDigestHealthCheck,
     trendSummaryGuardrails: trendSummaryGuardrailsCheck,
+    trendDigestCheckConsistency: trendDigestCheckConsistencyCheck,
     trendIncidentBundleSchema: trendIncidentBundleSchemaCheck,
   };
 
@@ -1563,6 +1656,14 @@ async function main() {
   );
   score += addGate(
     gates,
+    "Trend digest/check consistency",
+    "quality trend digest and trend check findings should be internally consistent",
+    5,
+    trendDigestCheckConsistencyCheck.ok,
+    trendDigestCheckConsistencyCheck.details,
+  );
+  score += addGate(
+    gates,
     "Trend incident bundle schema",
     "quality-trend-incident-bundle.json should be valid and parseable when generated",
     4,
@@ -1585,6 +1686,7 @@ async function main() {
     ...circuitDrillDryRunCheck.issueCodes,
     ...trendHardBlockArtifactCheck.issueCodes,
     ...trendDigestHealthCheck.issueCodes,
+    ...trendDigestCheckConsistencyCheck.issueCodes,
     ...trendSummaryGuardrailsCheck.issueCodes,
     ...trendIncidentBundleSchemaCheck.issueCodes,
   ], QUALITY_SCORECARD_ISSUE_SOURCE);
