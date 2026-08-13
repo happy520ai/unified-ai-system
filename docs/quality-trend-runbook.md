@@ -10,6 +10,8 @@ Use this runbook when trend signals indicate drift or instability in CI, schedul
   - Action: treat as warning; do immediate regression triage before merge.
 - `status: unstable-critical` or `severity: critical`
   - Action: hard stop for merge/release until evidence is captured and risk is remediated.
+- `status: degraded` (trend consistency gap when trend health is not strictly required)
+  - Action: keep running CI, attach remediation tasks, and monitor next run; treat as warning in incident bundle and smoke output.
 
 When `blocked: true`, block the change and create a fix ticket for unstable root cause.
 
@@ -44,8 +46,11 @@ When `blocked: true`, block the change and create a fix ticket for unstable root
   - `trendHealth.blocked === false` (or document why it is expected)
   - `artifacts` list has `quality-trend-digest.json`, `quality-trend-check.json`, and `quality-scorecard.json` records.
 - Open `.tmp/quality-ci-verification.json` and confirm:
-  - `trendConsistency` exists and `trendConsistency.ok === true`
-  - `trendConsistency.checks.trendDigestHealth`, `trendConsistency.checks.trendSummaryGuardrails`, and `trendConsistency.checks.trendDigestCheckConsistency` are present with `ok === true`
+  - `trendConsistency.status` is expected to be:
+    - `pass` in strict trend-health mode (`--require-trend-health` runs), or
+    - `pass`/`degraded` in default compatibility mode when evidence is incomplete.
+  - `trendConsistency.checks.trendDigestHealth`, `trendConsistency.checks.trendSummaryGuardrails`, and `trendConsistency.checks.trendDigestCheckConsistency` are present with object payload.
+  - `trendConsistency.ok` must be true in strict trend-health mode. In compatibility mode, `trendConsistency.status === "degraded"` is acceptable as warning-only behavior, surfaced through `quality_trend_consistency_degraded` in issue codes.
   - Under `--require-trend-health`, none of those trend-consistency checks may be `status: "not_collected"`.
 - Correlate `.tmp/quality-ci-verification.json` `issueCodes` with incident bundle `Extracted issues` to ensure no high-severity trend-consistency regression is lost.
 - Re-check `.tmp/quality-trend-check.json` after any local fix to confirm `blocked` clears.
@@ -66,6 +71,7 @@ When `blocked: true`, block the change and create a fix ticket for unstable root
 
 - `blocked` returns to `false`.
 - Latest check result is `stable` or non-critical (`warning` allowed only if allowed by policy).
+  - In compatibility smoke (`--no-trend-health` path), a `degraded` trend-consistency status is acceptable as warning-only behavior.
 - Latest run passes `pnpm quality:ci:trend-health -- --json --require-score <threshold>`.
 - Run trend-validated artifact verification:
   - `pnpm quality:verify-artifacts:trend-health -- --json --quality .tmp/quality-scorecard.json --drill .tmp/circuit-recovery-drill-dry-run.json --require-score <threshold>`.
