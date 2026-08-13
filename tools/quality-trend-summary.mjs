@@ -249,6 +249,13 @@ function buildTrendReport({ trend, limit, guardrails }) {
     markdown += `| ${formatDate(item.recordedAtUtc)} | ${runLabel} ${runDetails} | ${score}/${maxScore} (${percent ?? "n/a"}%) ${drift} | ${pass} | ${item.drill?.status ?? "n/a"} | ${String(item.verification?.ok)} | ${item.overall?.pass ?? false} | ${item.quality?.requiredScore ?? "n/a"} | ${issues} |\n`;
   }
 
+  if (guardrails.issues.length > 0) {
+    markdown += "\n## Recommended triage actions\n\n";
+    for (const note of buildTriageNotes(guardrails)) {
+      markdown += `- ${note}\n`;
+    }
+  }
+
   return markdown;
 }
 
@@ -298,6 +305,35 @@ function buildGuardSummary(args, trend, guardrails) {
       },
     },
   };
+}
+
+function buildTriageNotes(guardrails) {
+  const notes = [];
+  const issues = guardrails.issues ?? [];
+  if (issues.length === 0) {
+    notes.push("No guardrail action required; trend indicators are stable.");
+    return notes;
+  }
+
+  for (const issue of issues) {
+    if (issue.includes("consecutive failures")) {
+      notes.push(
+        "Consecutive failures indicate instability. Start from the latest failed verification artifacts and compare against the previous passing run.",
+      );
+    } else if (issue.includes("single-run score drop")) {
+      notes.push(
+        "Large one-run drop suggests a sudden regression. Compare `quality-scorecard.json` against previous run to find which check changed.",
+      );
+    } else {
+      notes.push(`Investigate: ${issue}`);
+    }
+  }
+
+  notes.push(
+    "Run this full workflow locally with `pnpm quality:ci -- --json --require-score <threshold>` and inspect logs from `quality-ci-verification.json`.",
+  );
+  notes.push("Use `pnpm quality:trend-summary -- --trend .tmp/quality-trend.json --output .tmp/quality-trend-summary.md --guard-output .tmp/quality-trend-guardrail.json --json` for a machine-readable view.");
+  return notes;
 }
 
 function main() {
