@@ -29,4 +29,56 @@ describe("prometheusExporter", () => {
     expect(text).toContain("ai_gateway_errors_total 0");
     expect(text).toContain("ai_gateway_memory_usage_bytes");
   });
+
+  it("emits readiness status and failure metrics", () => {
+    const exporter = createPrometheusExporter({ prefix: "ai_gateway" });
+    const text = exporter.formatMetrics({
+      totalRequests: 5,
+      activeConnections: 2,
+      resilience: {
+        readinessCheckCount: 10,
+        readinessReadyChecks: 6,
+        readinessDegradedChecks: 4,
+        readinessFailureReasons: {
+          knowledge: 4,
+          workflow: 2,
+          "service-dependency": 2,
+        },
+      },
+      readinessFailures: ["knowledge", "workflow"],
+      latency: null,
+      totalErrors: 0,
+    });
+
+    expect(text).toContain('ai_gateway_gateway_readiness_status{state="ready"} 0');
+    expect(text).toContain('ai_gateway_gateway_readiness_status{state="degraded"} 1');
+    expect(text).toContain("ai_gateway_gateway_readiness_checks_total{result=\"total\"} 10");
+    expect(text).toContain("ai_gateway_gateway_readiness_checks_total{result=\"ready\"} 6");
+    expect(text).toContain("ai_gateway_gateway_readiness_checks_total{result=\"degraded\"} 4");
+    expect(text).toContain('ai_gateway_gateway_readiness_failures{reason="knowledge"} 1');
+    expect(text).toContain('ai_gateway_gateway_readiness_failures{reason="workflow"} 1');
+    expect(text).toContain('ai_gateway_gateway_readiness_events_total{reason="knowledge"} 4');
+    expect(text).toContain('ai_gateway_gateway_readiness_events_total{reason="workflow"} 2');
+    expect(text).toContain('ai_gateway_gateway_readiness_events_total{reason="service-dependency"} 2');
+  });
+
+  it("renders zeroed readiness metrics when no failures are present", () => {
+    const exporter = createPrometheusExporter({ prefix: "ai_gateway" });
+    const text = exporter.formatMetrics({
+      totalRequests: 1,
+      activeConnections: 0,
+      resilience: {
+        readinessCheckCount: 5,
+        readinessReadyChecks: 5,
+        readinessDegradedChecks: 0,
+        readinessFailureReasons: {},
+      },
+      readinessFailures: [],
+      totalErrors: 0,
+    });
+
+    expect(text).toContain('ai_gateway_gateway_readiness_status{state="ready"} 1');
+    expect(text).toContain('ai_gateway_gateway_readiness_status{state="degraded"} 0');
+    expect(text).toContain("ai_gateway_gateway_readiness_failures 0");
+  });
 });

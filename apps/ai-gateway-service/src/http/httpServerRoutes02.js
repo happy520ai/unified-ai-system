@@ -22,12 +22,12 @@ export async function dispatchHttpRoutes02(context) {
     readEnterpriseJson, writeEnterpriseError, writeCapabilityError, normalizeChatBody,
     normalizeRagChatBody, extractChatPrompt, createRagRetrieveRequest, createRagCitations,
     createRagPrompt, createRagChatData, OWNER_AUTOMATION_CHAT_PROPOSAL_FLAG, application,
-    request, response, url, startedAt,
+    request, response, url, startedAt, rateLimiter, resilienceMetrics,
     approvalStore, fileContextStore, phase319LocalOperation, connectorFeishuDryRun,
     connectorWeComDryRun, capabilityRouterService, codexExecCrsRuntimeCandidate, enterpriseGovernanceService,
     enterpriseOpsService, fiveCapabilityActivationService, gatewayService, knowledgeService,
     modelImportService, modelLibraryStore, providerConfigRoutes, userExperienceService,
-    workforceService, workflowService, wsServer,
+    workforceService, workflowService, wsServer, healthzInFlightThreshold, healthzInFlightDegradationPercent,
   } = context;
 
   if (request.method === "GET" && url.pathname === "/dashboard/status") {
@@ -52,6 +52,59 @@ export async function dispatchHttpRoutes02(context) {
 
   if (request.method === "GET" && (url.pathname === "/health" || url.pathname === "/health/check")) {
     writeJson(response, 200, createOkEnvelope(createHealth(application), { startedAt }));
+    return;
+  }
+
+  if (request.method === "GET" && (url.pathname === "/healthz" || url.pathname === "/ready")) {
+    const healthSnapshot = createHealth(application);
+    const readinessSnapshot = createSetupReadiness(application);
+    const resilienceSnapshot = resilienceMetrics?.snapshot?.() ?? {};
+    const currentInFlight = Number.isFinite(Number(resilienceSnapshot.currentInFlight))
+      ? Number(resilienceSnapshot.currentInFlight)
+      : 0;
+    const saturationThreshold = Number.isFinite(Number(healthzInFlightThreshold)) && Number(healthzInFlightThreshold) > 0
+      ? Number(healthzInFlightThreshold)
+      : 0;
+    const saturationPercent = Number.isFinite(Number(healthzInFlightDegradationPercent)) && Number(healthzInFlightDegradationPercent) > 0
+      ? Number(healthzInFlightDegradationPercent)
+      : null;
+    const saturated = saturationThreshold > 0 && currentInFlight >= saturationThreshold;
+    const readinessFailures = collectReadinessFailures(healthSnapshot, readinessSnapshot, { saturated });
+    resilienceMetrics?.recordReadinessCheck?.(readinessFailures);
+    const degraded = saturated || readinessFailures.length > 0;
+
+    const payload = {
+      status: degraded ? "degraded" : "ready",
+      health: healthSnapshot,
+      readiness: readinessSnapshot,
+      resilience: resilienceSnapshot,
+      readinessFailureCount: readinessFailures.length,
+      readinessFailures,
+      isReady: !degraded,
+      saturation: {
+        inFlight: currentInFlight,
+        threshold: saturationThreshold,
+        thresholdPercent: saturationPercent,
+      },
+    };
+
+    if (degraded) {
+      writeJson(
+        response,
+        503,
+        createErrorEnvelope(
+          "service_unready",
+          "Service is temporarily unhealthy.",
+          {
+            startedAt,
+            category: "health",
+            ...payload,
+          },
+        ),
+      );
+      return;
+    }
+    writeJson(response, 200, createOkEnvelope(payload, { startedAt }));
     return;
   }
 
@@ -98,10 +151,27 @@ export async function dispatchHttpRoutes02(context) {
 
   if (request.method === "GET" && url.pathname === "/metrics") {
     const exporter = createPrometheusExporter({ prefix: "ai_gateway" });
+    const healthSnapshot = createHealth(application);
+    const readinessSnapshot = createSetupReadiness(application);
     const stats = application?.requestLogger?.getStats?.({}) ?? {};
+    const readinessResilienceSnapshot = resilienceMetrics?.snapshot?.() ?? {};
+    const currentInFlight = Number.isFinite(Number(readinessResilienceSnapshot.currentInFlight))
+      ? Number(readinessResilienceSnapshot.currentInFlight)
+      : 0;
+    const saturationThreshold = Number.isFinite(Number(healthzInFlightThreshold)) && Number(healthzInFlightThreshold) > 0
+      ? Number(healthzInFlightThreshold)
+      : 0;
+    const saturated = saturationThreshold > 0 && currentInFlight >= saturationThreshold;
+    const readinessFailures = collectReadinessFailures(healthSnapshot, readinessSnapshot, { saturated });
     const snapshot = {
       totalRequests: stats.totalRequests ?? 0,
       activeConnections: wsServer?.getConnectionCount?.() ?? 0,
+      rateLimiter: rateLimiter?.getStats?.() ?? null,
+      resilience: readinessResilienceSnapshot ?? null,
+      health: healthSnapshot,
+      readiness: readinessSnapshot,
+      readinessFailures,
+      readinessFailureCount: readinessFailures.length,
       latency: stats.avgLatencyMs
         ? { p50: stats.avgLatencyMs, p95: stats.avgLatencyMs, p99: stats.avgLatencyMs }
         : undefined,
@@ -465,4 +535,27 @@ export async function dispatchHttpRoutes02(context) {
 
 
   return ROUTE_NOT_HANDLED;
+}
+
+function collectReadinessFailures(healthSnapshot, readinessSnapshot, context = {}) {
+  const readinessFailures = [];
+  const isProviderReadinessReady = readinessSnapshot?.status === "ready";
+
+  if (healthSnapshot?.status !== "ready" || !isProviderReadinessReady) {
+    readinessFailures.push("service-dependency");
+  }
+  if (healthSnapshot?.knowledge?.status !== "ready") {
+    readinessFailures.push("knowledge");
+  }
+  if (healthSnapshot?.workflow?.status !== "ready") {
+    readinessFailures.push("workflow");
+  }
+  if (healthSnapshot?.workforce?.status !== "ready") {
+    readinessFailures.push("workforce");
+  }
+  if (context?.saturated) {
+    readinessFailures.push("inflight-saturation");
+  }
+
+  return Array.from(new Set(readinessFailures));
 }

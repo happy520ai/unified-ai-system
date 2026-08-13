@@ -45,6 +45,10 @@ The public-clone verifier starts the gateway on a free local port, checks
 health, setup readiness, the terminal-only public surface, and fake-provider
 chat, then stops the service.
 
+For operational readiness and alerting, see:
+
+- [Readiness & Observability Guide](readiness-observability-guide.md)
+
 ## Prove The Terminal Path
 
 ```bash

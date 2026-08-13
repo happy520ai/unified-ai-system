@@ -49,7 +49,7 @@ and pins execution to the local fake provider.
 The default MCP command is self-contained: it allocates a local port, starts a
 fake-provider gateway, serves the governed stdio tools, and tears the child
 process down when the host disconnects. The source build and pinned `0.4.9`
-release both expose nine tools, including provider-free prompt enhancement. An
+release both expose twelve tools, including provider-free prompt enhancement. An
 explicit `AI_GATEWAY_MCP_URL` can point the server at an existing safe gateway.
 
 The source build also has a Streamable HTTP entry point. It binds to loopback
@@ -57,3 +57,15 @@ by default and uses the official MCP Node transport adapter with Host and Origin
 validation. A non-loopback bind requires a Bearer token plus explicit Host and
 Origin allowlists before the listener starts. HTTP and stdio create servers from
 the same tool factory, so their public tool definitions cannot drift.
+
+## Operational readiness
+
+Gateway readiness and resilience are observable through:
+
+- `GET /healthz` and `GET /ready` readiness payloads (`status`,
+  `readinessFailures`, `readinessFailureCount`, `saturation`).
+- `GET /metrics` readiness and in-flight metrics
+  (`gateway_readiness_*`, `gateway_resilience_in_flight_*`).
+
+Use the [Readiness & Observability Guide](readiness-observability-guide.md) for
+prometheus alert examples and incident response playbooks.

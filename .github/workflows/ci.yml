@@ -60,6 +60,20 @@ jobs:
       - name: Public clone runtime
         run: pnpm verify:public-clone
 
+      - name: Quality scorecard
+        run: |
+          set -o pipefail
+          mkdir -p .tmp
+          pnpm quality:score -- --json --require-score 140 | tee .tmp/quality-scorecard.json
+
+      - name: Upload quality scorecard artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: quality-scorecard
+          path: .tmp/quality-scorecard.json
+          retention-days: 30
+
       - name: Codex MCP server
         run: |
           pnpm verify:mcp
