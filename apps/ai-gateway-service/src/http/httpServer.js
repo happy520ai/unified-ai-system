@@ -115,6 +115,9 @@ import {
   createRateLimiter,
 } from "./rateLimiter.js";
 import {
+  createRouteRateLimiter,
+} from "./routeRateLimiter.js";
+import {
   createLogger,
 } from "./structuredLogger.js";
 import {
@@ -185,6 +188,15 @@ import { dispatchHttpRoutes06 } from "./httpServerRoutes06.js";
 const logger = createLogger({ app: "ai-gateway-service", level: "info" });
 const writeServiceLog = (event, details = {}) => logger.info(event, details);
 const OWNER_AUTOMATION_CHAT_PROPOSAL_FLAG = "OWNER_AUTOMATION_CHAT_PROPOSAL_ENABLED";
+const DEFAULT_RATE_LIMIT_WINDOW_MS = 60_000;
+const DEFAULT_RATE_LIMIT_MAX_REQUESTS = 120;
+const DEFAULT_RATE_LIMIT_WHITELIST = Object.freeze(["127.0.0.1", "::1", "::ffff:127.0.0.1"]);
+const DEFAULT_RATE_LIMIT_STORE_MODE = "memory";
+const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
+const DEFAULT_STREAMING_TIMEOUT_MS = 300_000;
+const DEFAULT_MAX_IN_FLIGHT_REQUESTS = 500;
+const DEFAULT_MAX_REQUEST_BODY_BYTES = 2_097_152; // 2 MB
+const DEFAULT_HEALTHZ_IN_FLIGHT_DEGRADATION_PERCENT = 90;
 const HTTP_ROUTE_DEPENDENCIES = Object.freeze({
   createErrorEnvelope, createOkEnvelope, getSafeRuntimeConfig, createRouteFailureEnvelope,
   createLocalAgentIntentExplainer, runLocalOperationLoop, getSupportedKnowledgeFileTypes, parseKnowledgeFile,
@@ -225,7 +237,34 @@ export function createGatewayHttpServer(application) {
   const approvalStore = createApprovalStore();
   const fileContextStore = createFileContextStore();
   const phase319LocalOperation = createPhase319LocalOperationService();
-  const rateLimiter = createRateLimiter({ windowMs: 60_000, maxRequests: 120 });
+  const rateLimiter = createRouteAwareRateLimiter(application.runtimeEnv ?? process.env);
+  const requestConfig = application.runtimeEnv ?? process.env;
+  const requestTimeoutMs = parsePositiveInteger(
+    requestConfig.AI_GATEWAY_REQUEST_TIMEOUT_MS,
+    DEFAULT_REQUEST_TIMEOUT_MS,
+  );
+  const streamingRequestTimeoutMs = parsePositiveInteger(
+    requestConfig.AI_GATEWAY_STREAMING_REQUEST_TIMEOUT_MS,
+    DEFAULT_STREAMING_TIMEOUT_MS,
+  );
+  const maxInFlightRequests = parsePositiveInteger(
+    requestConfig.AI_GATEWAY_MAX_IN_FLIGHT_REQUESTS,
+    DEFAULT_MAX_IN_FLIGHT_REQUESTS,
+  );
+  const healthzInFlightDegradationPercent = parsePercentage(
+    requestConfig.AI_GATEWAY_HEALTHZ_IN_FLIGHT_DEGRADATION_PERCENT,
+    DEFAULT_HEALTHZ_IN_FLIGHT_DEGRADATION_PERCENT,
+  );
+  const healthzInFlightThreshold = Math.max(
+    1,
+    Math.min(maxInFlightRequests, Math.ceil((maxInFlightRequests * healthzInFlightDegradationPercent) / 100)),
+  );
+  const maxRequestBodyBytes = parsePositiveInteger(
+    requestConfig.AI_GATEWAY_MAX_REQUEST_BODY_BYTES,
+    DEFAULT_MAX_REQUEST_BODY_BYTES,
+  );
+  const inFlightRequests = new Set();
+  const resilienceMetrics = createGatewayResilienceMetrics();
   const a2aGateway = createA2AGateway({
     gatewayService,
     workforceService: application.workforceService,
@@ -282,24 +321,104 @@ export function createGatewayHttpServer(application) {
   return createServer(async (request, response) => {
     const startedAt = Date.now();
     const url = new URL(request.url ?? "/", `http://${request.headers.host ?? "127.0.0.1"}`);
+    const requestId = `${startedAt}-${Math.random().toString(16).slice(2)}`;
+    request.headers["x-request-id"] = requestId;
+    response.setHeader("x-request-id", requestId);
+    applySecurityHeaders(response);
+    inFlightRequests.add(requestId);
+    const refreshInFlightGauge = () => resilienceMetrics.recordInFlight(inFlightRequests.size);
+    refreshInFlightGauge();
+    response.on("close", () => {
+      inFlightRequests.delete(requestId);
+      refreshInFlightGauge();
+    });
+    resilienceMetrics.recordRequestStarted(inFlightRequests.size);
+
+    const pathname = url.pathname;
+    const isStreamingRoute = pathname.endsWith("/stream") || pathname === "/v1/chat/completions";
+    const bodyBytesLimit = maxRequestBodyBytes > 0 ? maxRequestBodyBytes : DEFAULT_MAX_REQUEST_BODY_BYTES;
+    const requestBodyLimit = parseContentLength(request.headers["content-length"], bodyBytesLimit);
+    if (requestBodyLimit > bodyBytesLimit) {
+      resilienceMetrics.recordPayloadRejected();
+      writeJson(
+        response,
+        413,
+        createErrorEnvelope("request_payload_too_large", "Request payload exceeds server limits.", {
+          startedAt,
+          category: "request",
+          maxBytes: bodyBytesLimit,
+          receivedBytes: requestBodyLimit,
+        }),
+      );
+      return;
+    }
+
+    if (inFlightRequests.size > maxInFlightRequests) {
+      resilienceMetrics.recordOverloadRejected();
+      writeServiceLog("request_rejected_overload", {
+        method: request.method,
+        path: pathname,
+        inFlight: inFlightRequests.size,
+        maxInFlight: maxInFlightRequests,
+      });
+      writeJson(
+        response,
+        503,
+        createErrorEnvelope("service_overloaded", "The service is currently overloaded. Retry later.", {
+          startedAt,
+          category: "capacity",
+          inFlight: inFlightRequests.size,
+          limit: maxInFlightRequests,
+        }),
+      );
+      return;
+    }
+
+    const requestTimeout = Math.max(
+      isStreamingRoute ? streamingRequestTimeoutMs : requestTimeoutMs,
+      1_000,
+    );
+    const timeoutHandle = setTimeout(() => {
+      if (!response.writableEnded && !response.headersSent) {
+        resilienceMetrics.recordTimeoutTriggered();
+        writeJson(
+          response,
+          408,
+          createErrorEnvelope("request_timeout", "Request timed out.", {
+            startedAt,
+            category: "timeout",
+            timeoutMs: requestTimeout,
+          }),
+        );
+      } else if (!response.writableEnded) {
+        response.destroy(new Error("Request timeout reached"));
+      }
+    }, requestTimeout);
+    response.on("finish", () => clearTimeout(timeoutHandle));
+    response.on("close", () => clearTimeout(timeoutHandle));
+
+    const routeRateLimiter = rateLimiter;
 
     try {
       // Rate limiting
-      const rateLimitResult = rateLimiter.apply(request, response);
-      if (rateLimitResult) return;
+      const rateLimitResult = routeRateLimiter.apply(request, response);
+      if (rateLimitResult) {
+        resilienceMetrics.recordRateLimitRejected();
+        return;
+      }
       writeServiceLog("request_received", {
         method: request.method,
         path: url.pathname,
       });
 
-      const enterpriseDecision = enterpriseGovernanceService.authorize(request, resolvePermission(request.method, url.pathname));
+      const enterpriseDecision = enterpriseGovernanceService.authorize(request, resolvePermission(request.method, pathname));
       request.enterpriseIdentity = enterpriseDecision.identity;
 
-      if (!isPublicRoute(url.pathname) && !enterpriseDecision.allowed) {
+      if (!isPublicRoute(pathname) && !enterpriseDecision.allowed) {
         await enterpriseGovernanceService.recordAudit({
           outcome: "denied",
           method: request.method,
-          path: url.pathname,
+          path: pathname,
           permission: enterpriseDecision.permission,
           statusCode: enterpriseDecision.statusCode,
           code: enterpriseDecision.code,
@@ -315,19 +434,19 @@ export function createGatewayHttpServer(application) {
           enterpriseDecision.statusCode ?? 401,
           isOpenAiCompatibilityRoute(url.pathname)
             ? createOpenAiError(authError)
-            : createErrorEnvelope(authError.code, authError.message, {
-                startedAt,
-                category: authError.category,
-              }),
+          : createErrorEnvelope(authError.code, authError.message, {
+              startedAt,
+              category: authError.category,
+            }),
         );
         return;
       }
 
-      if (!isPublicRoute(url.pathname)) {
+      if (!isPublicRoute(pathname)) {
         await enterpriseGovernanceService.recordAudit({
           outcome: "allowed",
           method: request.method,
-          path: url.pathname,
+          path: pathname,
           permission: enterpriseDecision.permission,
           statusCode: 200,
           identity: enterpriseDecision.identity,
@@ -341,6 +460,7 @@ export function createGatewayHttpServer(application) {
         response,
         url,
         startedAt,
+        resilienceMetrics,
         approvalStore,
         fileContextStore,
         phase319LocalOperation,
@@ -361,6 +481,9 @@ export function createGatewayHttpServer(application) {
         workforceService,
         workflowService,
         wsServer,
+        healthzInFlightThreshold,
+        healthzInFlightDegradationPercent,
+        rateLimiter,
       });
       if (routeResult !== ROUTE_NOT_HANDLED) return;
 
@@ -373,6 +496,7 @@ export function createGatewayHttpServer(application) {
         }),
       );
     } catch (error) {
+      resilienceMetrics.recordUnhandledError();
       writeJson(
         response,
         500,
@@ -383,4 +507,224 @@ export function createGatewayHttpServer(application) {
       );
     }
   });
+}
+
+function createGatewayResilienceMetrics() {
+  const counters = {
+    totalRequests: 0,
+    rateLimitRejected: 0,
+    payloadRejected: 0,
+    overloadRejected: 0,
+    timeoutTriggered: 0,
+    unhandledErrors: 0,
+    maxInFlightObserved: 0,
+    currentInFlight: 0,
+    readinessCheckCount: 0,
+    readinessReadyChecks: 0,
+    readinessDegradedChecks: 0,
+    readinessFailureReasons: Object.create(null),
+    lastReadinessFailures: [],
+  };
+
+  return {
+    recordRequestStarted(inFlightRequests) {
+      counters.totalRequests += 1;
+      counters.currentInFlight = inFlightRequests;
+      if (inFlightRequests > counters.maxInFlightObserved) {
+        counters.maxInFlightObserved = inFlightRequests;
+      }
+    },
+    recordRateLimitRejected() {
+      counters.rateLimitRejected += 1;
+    },
+    recordPayloadRejected() {
+      counters.payloadRejected += 1;
+    },
+    recordInFlight(inFlightRequests) {
+      counters.currentInFlight = inFlightRequests;
+      if (inFlightRequests > counters.maxInFlightObserved) {
+        counters.maxInFlightObserved = inFlightRequests;
+      }
+    },
+    recordOverloadRejected() {
+      counters.overloadRejected += 1;
+    },
+    recordTimeoutTriggered() {
+      counters.timeoutTriggered += 1;
+    },
+    recordUnhandledError() {
+      counters.unhandledErrors += 1;
+    },
+    recordReadinessCheck(readinessFailures = []) {
+      const normalizedReasons = Array.isArray(readinessFailures)
+        ? readinessFailures
+          .filter((reason) => typeof reason === "string" && reason.trim())
+          .map((reason) => reason.trim())
+        : [];
+      const uniqueReasons = Array.from(new Set(normalizedReasons));
+
+      counters.readinessCheckCount += 1;
+
+      if (uniqueReasons.length === 0) {
+        counters.readinessReadyChecks += 1;
+      } else {
+        counters.readinessDegradedChecks += 1;
+        for (const reason of uniqueReasons) {
+          counters.readinessFailureReasons[reason] = (counters.readinessFailureReasons[reason] ?? 0) + 1;
+        }
+      }
+
+      counters.lastReadinessFailures = uniqueReasons;
+    },
+    snapshot() {
+      return {
+        ...counters,
+        readinessFailureReasons: { ...counters.readinessFailureReasons },
+        lastReadinessFailures: [...counters.lastReadinessFailures],
+      };
+    },
+  };
+}
+
+function applySecurityHeaders(response) {
+  response.setHeader("X-Content-Type-Options", "nosniff");
+  response.setHeader("Referrer-Policy", "no-referrer");
+  response.setHeader("X-Frame-Options", "DENY");
+  response.setHeader("X-XSS-Protection", "0");
+  response.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+  response.setHeader("Cross-Origin-Resource-Policy", "same-origin");
+}
+
+function createRouteAwareRateLimiter(runtimeEnv = {}) {
+  const useRouteLimits = parseBoolean(runtimeEnv.AI_GATEWAY_ROUTE_RATE_LIMIT_ENABLED, true);
+  const globalWindowMs = parsePositiveInteger(runtimeEnv.AI_GATEWAY_RATE_LIMIT_WINDOW_MS, DEFAULT_RATE_LIMIT_WINDOW_MS);
+  const globalMaxRequests = parsePositiveInteger(runtimeEnv.AI_GATEWAY_RATE_LIMIT_MAX_REQUESTS, DEFAULT_RATE_LIMIT_MAX_REQUESTS);
+  const whitelist = parseRateLimitWhitelist(runtimeEnv.AI_GATEWAY_RATE_LIMIT_WHITELIST, DEFAULT_RATE_LIMIT_WHITELIST);
+  const storeMode = parseRateLimitStoreMode(runtimeEnv.AI_GATEWAY_RATE_LIMIT_STORE_MODE);
+  const storePath = typeof runtimeEnv.AI_GATEWAY_RATE_LIMIT_STORE_PATH === "string" && runtimeEnv.AI_GATEWAY_RATE_LIMIT_STORE_PATH.trim()
+    ? runtimeEnv.AI_GATEWAY_RATE_LIMIT_STORE_PATH.trim()
+    : undefined;
+  const storeNamespace = runtimeEnv.AI_GATEWAY_RATE_LIMIT_STORE_NAMESPACE?.trim()
+    ? runtimeEnv.AI_GATEWAY_RATE_LIMIT_STORE_NAMESPACE.trim()
+    : "http";
+  const routeLimits = parseRouteRateLimitConfig(runtimeEnv.AI_GATEWAY_ROUTE_RATE_LIMITS);
+
+  if (!useRouteLimits) {
+    return createRateLimiter({
+      windowMs: globalWindowMs,
+      maxRequests: globalMaxRequests,
+      whitelist,
+      storeMode,
+      storePath,
+      storeNamespace,
+    });
+  }
+
+  return createRouteRateLimiter({
+    routeLimits,
+    globalWindowMs,
+    globalMaxRequests,
+    whitelist,
+    storeMode,
+    storePath,
+    storeNamespace,
+  });
+}
+
+function parsePositiveInteger(value, fallback) {
+  const parsed = Number.parseInt(String(value ?? ""), 10);
+  if (Number.isFinite(parsed) && parsed > 0) {
+    return parsed;
+  }
+  return fallback;
+}
+
+function parsePercentage(value, fallback) {
+  const parsed = Number.parseInt(String(value ?? ""), 10);
+  if (Number.isFinite(parsed)) {
+    if (parsed <= 0) {
+      return 1;
+    }
+    if (parsed > 100) {
+      return 100;
+    }
+    return parsed;
+  }
+  return fallback;
+}
+
+function parseContentLength(contentLengthHeader, fallback) {
+  if (!contentLengthHeader) {
+    return 0;
+  }
+
+  const value = Number.parseInt(contentLengthHeader, 10);
+  if (Number.isFinite(value) && value >= 0) {
+    return value;
+  }
+
+  return fallback;
+}
+
+function parseBoolean(value, fallback) {
+  if (value === undefined || value === "") {
+    return fallback;
+  }
+
+  return String(value).toLowerCase() === "true" || String(value) === "1";
+}
+
+function parseRateLimitStoreMode(value) {
+  const normalized = String(value ?? DEFAULT_RATE_LIMIT_STORE_MODE).toLowerCase();
+  return normalized === "sqlite" ? "sqlite" : DEFAULT_RATE_LIMIT_STORE_MODE;
+}
+
+function parseRateLimitWhitelist(value, fallback) {
+  if (typeof value !== "string") {
+    return [...fallback];
+  }
+
+  const parsed = value
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  return parsed.length > 0 ? parsed : [...fallback];
+}
+
+function parseRouteRateLimitConfig(value) {
+  const parsed = parseJson(value);
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return undefined;
+  }
+
+  const routeLimits = {};
+  for (const [route, config] of Object.entries(parsed)) {
+    if (typeof route !== "string" || !route.trim()) {
+      continue;
+    }
+
+    const normalizedRoute = route.startsWith("/") ? route : `/${route}`;
+    const maxRequests = parsePositiveInteger(config?.maxRequests, undefined);
+    const windowMs = parsePositiveInteger(config?.windowMs, undefined);
+
+    if (maxRequests === undefined || windowMs === undefined) {
+      continue;
+    }
+
+    routeLimits[normalizedRoute] = { maxRequests, windowMs };
+  }
+
+  return Object.keys(routeLimits).length > 0 ? routeLimits : undefined;
+}
+
+function parseJson(value) {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  try {
+    return JSON.parse(value);
+  } catch {
+    return undefined;
+  }
 }

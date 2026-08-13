@@ -15,8 +15,8 @@ describe("credential-redactor", () => {
   });
 
   it("preserves first 3 and last 3 chars for longer strings", () => {
-    const result = redactSecret("sk-ant-very-long-api-key-12345");
-    expect(result).toBe("sk-****345");
+    const result = redactSecret("api-key-for-test-12345");
+    expect(result).toBe("api****345");
     expect(result).toHaveLength(10);
   });
 

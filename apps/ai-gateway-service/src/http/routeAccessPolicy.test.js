@@ -5,6 +5,8 @@ import { isPublicRoute } from "./routeAccessPolicy.js";
 describe("route access policy", () => {
   it.each([
     "/health/check",
+    "/healthz",
+    "/ready",
     "/setup/readiness",
     "/auth/status",
   ])("keeps bootstrap read route public: %s", (pathname) => {

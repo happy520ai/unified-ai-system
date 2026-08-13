@@ -35,7 +35,8 @@
     "growth:blast": "pnpm growth:sync-thread && pnpm growth:publish",
     "growth:sync-thread": "node ./tools/star-growth-sync-thread.mjs",
     "growth:publish": "node ./tools/star-growth-publish-kit.mjs --output .tmp/growth/star-growth-publish-output.md",
-    "growth:feedback": "node ./tools/star-growth-feedback.mjs --output .tmp/growth/star-growth-feedback.md"
+    "growth:feedback": "node ./tools/star-growth-feedback.mjs --output .tmp/growth/star-growth-feedback.md",
+    "quality:score": "node tools/quality-scorecard.mjs"
   },
   "engines": {
     "node": ">=22",

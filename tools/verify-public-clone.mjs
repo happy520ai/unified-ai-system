@@ -490,7 +490,7 @@ try {
     mcpStdioReady:
       mcpSmoke.exitCode === 0
       && mcpSmoke.body?.ok === true
-      && mcpSmoke.body?.toolCount === 9
+      && mcpSmoke.body?.toolCount === 12
       && mcpSmoke.body?.executionMode === "fake"
       && mcpSmoke.body?.managedGatewayCleanedUp === true,
   };

@@ -6,7 +6,9 @@ export function createHealth(application) {
     status: "ready",
     phase: "phase-7a-1-service-entry",
     routes: [
-      "GET /health/check",
+    "GET /health/check",
+    "GET /healthz",
+    "GET /ready",
       "POST /agent-runner/intent-approval-preview",
       "POST /agent-runner/local-operation",
       "GET /setup/readiness",

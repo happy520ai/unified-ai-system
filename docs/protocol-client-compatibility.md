@@ -11,8 +11,8 @@ the documented request/route boundaries and provides reproducible evidence.
 
 | Surface | Verified implementation | Covered behavior | Boundary |
 | --- | --- | --- | --- |
-| MCP stdio | Official `@modelcontextprotocol/client` `2.0.0` | Handshake, nine tools, prompt enhancement, fake chat, cleanup | Protocol verified; named host UI behavior needs a report. |
-| MCP Streamable HTTP | Official `@modelcontextprotocol/client` `2.0.0` | HTTP handshake, nine tools, Bearer rejection, Origin rejection, cleanup | Source build only; published `v0.4.9` image is stdio-only. |
+| MCP stdio | Official `@modelcontextprotocol/client` `2.0.0` | Handshake, twelve tools, prompt enhancement, fake chat, cleanup | Protocol verified; named host UI behavior needs a report. |
+| MCP Streamable HTTP | Official `@modelcontextprotocol/client` `2.0.0` | HTTP handshake, twelve tools, Bearer rejection, Origin rejection, cleanup | Source build only; published `v0.4.9` image is stdio-only. |
 | OpenAI Chat Completions | Official `openai` JS SDK `7.4.0` plus real Cline/Continue hosts | Models, text completion, streaming, structured errors, enhancement, function tools, tool results | Text and function-tool profile; multimodal chat input is not implemented. |
 | OpenAI wire-alias profile | OpenAI-compatible HTTP route matrix (`openai-wire-smoke.mjs`) | `/v1`, root aliases, `/openai/deployments`, `/v1/engines`, SSE | Confirms route variants used by many wrappers. |
 | OpenAI Legacy Completions | Official `openai` JS SDK `7.4.0` | `/v1/completions` text `prompt` and streaming | Text profile; no logprobs, no tool calling, no images/audio. |
@@ -30,18 +30,18 @@ the documented request/route boundaries and provides reproducible evidence.
 These are product-level runtime results, not inferences from protocol support.
 All rows below came from isolated Windows x64 runs against the local fake
 gateway. The host had to issue `initialize`, `notifications/initialized`, and
-`tools/list`, discover all nine gateway tools, make no real-provider call, and
+`tools/list`, discover all twelve gateway tools, make no real-provider call, and
 leave no host or MCP server process behind. Profiles that exercise a tool call
 are restricted to exactly one read-only `gateway_health` call.
 
 | Host | Tested version | Negotiated MCP version | Result |
 | --- | --- | --- | --- |
-| Claude Code | `2.1.227` | `2025-11-25` | Nine tools discovered; no tool or model call; cleanup verified. |
+| Claude Code | `2.1.227` | `2025-11-25` | Twelve tools discovered; no tool or model call; cleanup verified. |
 | Gemini CLI | `0.54.4` | `2025-06-18` | Real Gemini MCP client discovery after minimal ACP initialization; no session prompt or model call; cleanup verified. |
-| OpenCode CLI | `1.18.16` | `2025-11-25` | Nine tools discovered under `--pure` isolated configuration; no tool or model call; cleanup verified. |
-| Cursor Agent CLI | `2026.08.04-aaa8809` | `2025-11-25` | Nine tools discovered through official `mcp list-tools`; no account or model call; cleanup verified. |
-| Cline CLI | `3.0.52` | `2024-11-05` | Nine tools discovered; only read-only `gateway_health` called through the local fake model; cleanup verified. |
-| Continue CLI | `1.5.47` | `2025-11-25` | Nine tools discovered; only read-only `gateway_health` called through the local fake model; cleanup verified. |
+| OpenCode CLI | `1.18.16` | `2025-11-25` | Twelve tools discovered under `--pure` isolated configuration; no tool or model call; cleanup verified. |
+| Cursor Agent CLI | `2026.08.04-aaa8809` | `2025-11-25` | Twelve tools discovered through official `mcp list-tools`; no account or model call; cleanup verified. |
+| Cline CLI | `3.0.52` | `2024-11-05` | Twelve tools discovered; only read-only `gateway_health` called through the local fake model; cleanup verified. |
+| Continue CLI | `1.5.47` | `2025-11-25` | Twelve tools discovered; only read-only `gateway_health` called through the local fake model; cleanup verified. |
 
 Codex App Server and VS Code Extension Host have separate automated profiles in
 the same verifier. Claude Desktop, JetBrains, Windsurf, and other cataloged

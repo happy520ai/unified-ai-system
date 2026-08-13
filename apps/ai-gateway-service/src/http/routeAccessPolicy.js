@@ -6,6 +6,8 @@ export function isPublicRoute(pathname) {
   return (
     pathname === "/health"
     || pathname === "/health/check"
+    || pathname === "/healthz"
+    || pathname === "/ready"
     || pathname === "/setup/readiness"
     || pathname === "/auth/status"
     || pathname === "/enterprise/health"

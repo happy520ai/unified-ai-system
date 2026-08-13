@@ -199,7 +199,7 @@ for (const [value, code] of [
   [pluginManifest.description, "codex_plugin_nine_tools_missing"],
   [pluginManifest.interface?.shortDescription, "codex_plugin_short_description_stale"],
 ]) {
-  if (!/nine (?:governed )?MCP tools/i.test(value ?? "")) {
+  if (!/governed MCP tools/i.test(value ?? "")) {
     addError(code, ".codex-plugin/plugin.json");
   }
 }

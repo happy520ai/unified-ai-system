@@ -206,7 +206,23 @@ describe("Batch9-6: runtimeCredentialStore cleans up temp files on failure", () 
     const persistStart = src.indexOf("function persistCredentials");
     assert.ok(persistStart > 0, "persistCredentials function should exist");
 
-    const persistSrc = src.slice(persistStart, persistStart + 1500);
+    const nextFunctionNames = [
+      "function normalizePersistedRecord",
+      "function isPersistableRecord",
+      "function isPersistableApiKey",
+      "function mergeModels",
+      "function normalizeStoredModels",
+      "function normalizeTimestamp",
+    ];
+    let persistEnd = src.length;
+    for (const marker of nextFunctionNames) {
+      const markerIndex = src.indexOf(marker, persistStart + 1);
+      if (markerIndex > -1 && markerIndex < persistEnd) {
+        persistEnd = markerIndex;
+      }
+    }
+
+    const persistSrc = src.slice(persistStart, persistEnd);
     assert.ok(persistSrc.includes("catch"), "Should have a catch block");
     assert.ok(persistSrc.includes("unlinkSync(tmpPath)"), "Catch block should call unlinkSync(tmpPath)");
     assert.ok(persistSrc.includes("existsSync(tmpPath)"), "Should check if tmpPath exists before deleting");

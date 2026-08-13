@@ -25,7 +25,7 @@ All inspection tools are read-only. The chat tool checks the gateway safety
 state before every request and fails closed unless `realProviderEnabled` is
 exactly `false` and the response proves `executionMode: "fake"`.
 
-The source build and pinned `0.4.9` image both expose all nine tools, including
+The source build and pinned `0.4.9` image both expose all twelve tools, including
 the provider-free `gateway_prompt_enhance` preview.
 
 ## Run From Source
@@ -51,7 +51,7 @@ pnpm mcp:http
 
 The MCP endpoint is `http://127.0.0.1:3210/mcp`. It listens on loopback by
 default, validates `Host` and `Origin`, starts the same fake-provider gateway,
-and exposes the same nine tools as stdio. Point any MCP Streamable HTTP client
+and exposes the same twelve tools as stdio. Point any MCP Streamable HTTP client
 at that URL.
 
 For a local token-protected endpoint, set `MCP_HTTP_AUTH_TOKEN` and send it as
