@@ -9,9 +9,13 @@ function parseArgs() {
   const values = {
     qualityPath: ".tmp/quality-scorecard.json",
     drillPath: ".tmp/circuit-recovery-drill-dry-run.json",
+    incidentBundleJsonPath: ".tmp/quality-trend-incident-bundle.json",
+    incidentBundleMdPath: ".tmp/quality-trend-incident-bundle.md",
+    incidentBundleSchemaPath: "tools/quality-trend-incident-bundle.schema.json",
     outputJson: false,
     requireScore: 0,
     requireTrendHealth: false,
+    requireIncidentBundle: false,
   };
 
   for (let index = 0; index < args.length; index += 1) {
@@ -40,6 +44,25 @@ function parseArgs() {
     }
     if (arg === "--require-trend-health") {
       values.requireTrendHealth = true;
+      continue;
+    }
+    if (arg === "--incident-bundle-json") {
+      values.incidentBundleJsonPath = args[index + 1] ?? values.incidentBundleJsonPath;
+      index += 1;
+      continue;
+    }
+    if (arg === "--incident-bundle-md") {
+      values.incidentBundleMdPath = args[index + 1] ?? values.incidentBundleMdPath;
+      index += 1;
+      continue;
+    }
+    if (arg === "--incident-bundle-schema") {
+      values.incidentBundleSchemaPath = args[index + 1] ?? values.incidentBundleSchemaPath;
+      index += 1;
+      continue;
+    }
+    if (arg === "--require-incident-bundle") {
+      values.requireIncidentBundle = true;
       continue;
     }
   }
@@ -129,10 +152,130 @@ function verifyDrill(summary) {
   return issues;
 }
 
+function validateSchemaInstance(instance, schema) {
+  const issues = [];
+  if (!schema || typeof schema !== "object" || schema === null) {
+    return issues;
+  }
+  const required = Array.isArray(schema.required) ? schema.required : [];
+  for (const key of required) {
+    if (!(key in (instance || {}))) {
+      issues.push(`missing field: ${key}`);
+    }
+  }
+
+  const properties = schema.properties || {};
+  for (const [field, definition] of Object.entries(properties)) {
+    if (!(field in (instance || {})) || definition == null) {
+      continue;
+    }
+    const value = instance[field];
+    const type = definition.type;
+    if (!type) {
+      continue;
+    }
+    if (type === "array" && !Array.isArray(value)) {
+      issues.push(`${field} expected array`);
+      continue;
+    }
+    if (type === "object" && (value === null || typeof value !== "object" || Array.isArray(value))) {
+      issues.push(`${field} expected object`);
+      continue;
+    }
+    if (type === "string" && typeof value !== "string") {
+      issues.push(`${field} expected string`);
+      continue;
+    }
+    if (type === "number" && typeof value !== "number") {
+      issues.push(`${field} expected number`);
+      continue;
+    }
+    if (type === "boolean" && typeof value !== "boolean") {
+      issues.push(`${field} expected boolean`);
+      continue;
+    }
+
+    if (type === "object" && definition.required && Array.isArray(definition.required)) {
+      const nestedRequired = definition.required;
+      for (const nestedKey of nestedRequired) {
+        if (!Object.prototype.hasOwnProperty.call(value, nestedKey)) {
+          issues.push(`${field}.${nestedKey} missing`);
+        }
+      }
+    }
+  }
+  return issues;
+}
+
+function readJsonLoose(path) {
+  try {
+    const absolute = resolve(repoRoot, path);
+    if (!existsSync(absolute)) return null;
+    const raw = readFileSync(absolute, "utf8");
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function readTextLoose(path) {
+  try {
+    return readFileSync(resolve(repoRoot, path), "utf8");
+  } catch {
+    return null;
+  }
+}
+
+function verifyIncidentBundle(args) {
+  const issues = [];
+  const bundleText = readTextLoose(args.incidentBundleMdPath);
+  const bundle = readJsonLoose(args.incidentBundleJsonPath);
+  const schema = readJsonLoose(args.incidentBundleSchemaPath);
+
+  const jsonExists = Boolean(bundle);
+  const mdExists = typeof bundleText === "string" && bundleText.length > 0;
+
+  if (args.requireIncidentBundle) {
+    if (!jsonExists) {
+      issues.push(`incident bundle json not present: ${args.incidentBundleJsonPath}`);
+    }
+    if (!mdExists) {
+      issues.push(`incident bundle markdown not present: ${args.incidentBundleMdPath}`);
+    }
+  } else if (jsonExists && !mdExists) {
+    issues.push(`incident bundle markdown missing: ${args.incidentBundleMdPath}`);
+  }
+
+  if (jsonExists) {
+    if (bundle && bundle.schemaVersion !== 1) {
+      issues.push(`incident bundle schemaVersion expected 1 but got ${String(bundle.schemaVersion)}`);
+    }
+    if (schema) {
+      const schemaIssues = validateSchemaInstance(bundle, schema);
+      if (schemaIssues.length > 0) {
+        issues.push(`incident bundle schema validation failed: ${schemaIssues.join(", ")}`);
+      }
+    } else if (args.requireIncidentBundle || args.requireTrendHealth) {
+      issues.push(`incident bundle schema missing: ${args.incidentBundleSchemaPath}`);
+    }
+  }
+
+  return {
+    jsonPath: args.incidentBundleJsonPath,
+    mdPath: args.incidentBundleMdPath,
+    jsonPresent: jsonExists,
+    mdPresent: mdExists,
+    schemaVersion: bundle?.schemaVersion ?? null,
+    valid: issues.length === 0,
+    issues,
+  };
+}
+
 function main() {
   const args = parseArgs();
   const quality = readJson(args.qualityPath);
   const drill = readJson(args.drillPath);
+  const incidentBundle = verifyIncidentBundle(args);
 
   const qualityIssues = [];
   const drillIssues = [];
@@ -157,6 +300,7 @@ function main() {
   const drillParsed = drill.ok ? drill.parsed : null;
   const qualityIssuesFinal = [...qualityIssues];
   const drillIssuesFinal = [...drillIssues];
+  const incidentBundleIssuesFinal = [...incidentBundle.issues];
 
   if (qualityParsed?.trendHealth && typeof qualityParsed.trendHealth === "object") {
     const trendBlocked = Boolean(qualityParsed.trendHealth.blocked);
@@ -180,6 +324,7 @@ function main() {
   }
 
   const finalIssues = qualityIssuesFinal.concat(drillIssuesFinal);
+  finalIssues.push(...incidentBundleIssuesFinal);
 
   const result = {
     ok: finalIssues.length === 0,
@@ -192,6 +337,15 @@ function main() {
         path: drill.path,
         valid: drill.ok && drillIssuesFinal.length === 0,
       },
+    },
+    incidentBundle: {
+      jsonPath: incidentBundle.jsonPath,
+      mdPath: incidentBundle.mdPath,
+      jsonPresent: incidentBundle.jsonPresent,
+      mdPresent: incidentBundle.mdPresent,
+      valid: incidentBundle.valid,
+      requireIncidentBundle: args.requireIncidentBundle,
+      schemaPath: args.incidentBundleSchemaPath,
     },
     checks: {
       qualityScore: qualityParsed?.score ?? null,

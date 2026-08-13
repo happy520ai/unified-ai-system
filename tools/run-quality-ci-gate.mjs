@@ -142,6 +142,26 @@ function summarizeTrendBundle(result) {
   };
 }
 
+function summarizeIncidentBundleFromVerification(qualityResult, verifyResult) {
+  const incidentBundle = verifyResult?.parsedOutput?.incidentBundle;
+  if (incidentBundle && typeof incidentBundle === "object") {
+    const hasJson = Boolean(incidentBundle.jsonPresent);
+    const hasMd = Boolean(incidentBundle.mdPresent);
+    const hasAny = hasJson || hasMd;
+    return {
+      status: !hasAny ? "not_collected" : (incidentBundle.valid ? "valid" : "invalid"),
+      ok: Boolean(incidentBundle.valid),
+      jsonPath: incidentBundle.jsonPath ?? ".tmp/quality-trend-incident-bundle.json",
+      mdPath: incidentBundle.mdPath ?? ".tmp/quality-trend-incident-bundle.md",
+      malformed: !incidentBundle.valid,
+      source: incidentBundle.jsonPath ?? ".tmp/quality-trend-incident-bundle.json",
+      missing: !hasAny,
+    };
+  }
+
+  return summarizeTrendBundle(qualityResult);
+}
+
 function publishStepSummary(summary) {
   const stepSummaryPath = process.env.GITHUB_STEP_SUMMARY;
   if (!stepSummaryPath) {
@@ -205,6 +225,12 @@ function main() {
       qualityPath,
       "--drill",
       drillPath,
+      "--incident-bundle-json",
+      ".tmp/quality-trend-incident-bundle.json",
+      "--incident-bundle-md",
+      ".tmp/quality-trend-incident-bundle.md",
+      "--incident-bundle-schema",
+      "tools/quality-trend-incident-bundle.schema.json",
       "--require-score",
       String(args.qualityThreshold),
       ...(args.requireTrendHealth ? ["--require-trend-health"] : []),
@@ -219,7 +245,7 @@ function main() {
     quality: summarizeQuality(qualityResult),
     drill: summarizeDrill(drillResult),
     trendHealth: summarizeTrendHealth(qualityResult),
-    trendIncidentBundle: summarizeTrendBundle(qualityResult),
+    trendIncidentBundle: summarizeIncidentBundleFromVerification(qualityResult, verifyResult),
     requireTrendHealth: args.requireTrendHealth,
     verification: {
       ok: verifyResult.ok,
