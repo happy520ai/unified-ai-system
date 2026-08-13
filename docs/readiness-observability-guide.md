@@ -296,3 +296,38 @@ Current CI artifacts include:
 - `.tmp/quality-trend-incident-bundle.json`
 
 Use this output for pre-merge triage when trend score is noisy but verification still passes.
+
+## 6.2) Trend-consistency parity checklist (operational)
+
+For incidents, merge freeze, or pre-merge trend review, verify these trend artifacts together:
+
+- `.tmp/quality-ci-verification.json`
+- `.tmp/quality-trend-incident-bundle.json`
+- `.tmp/quality-trend-check.json`
+
+Check the parity rules:
+
+1. Confirm consistency check contract:
+- `trendConsistency.status` present in both verification and incident bundle.
+- `trendConsistency.checksRequired` appears in both and includes:
+  - `trendDigestHealth`
+  - `trendSummaryGuardrails`
+  - `trendDigestCheckConsistency`
+- `trendConsistency.hasMissingRequired` and `trendConsistency.hasNotCollected` are identical in intent across `quality-ci-verification` and incident bundle.
+- `trendConsistency.requiresTrendHealth` matches whether the smoke run used strict trend-health mode.
+
+2. Confirm issue propagation:
+- `trendConsistency.issueCodes` and `trendConsistency.issueCodeSummary` are present and consistent with top-level `issueCodes`/`issueCodeSummary`.
+- Any high-severity trend consistency issue in verification output must appear in
+  `trendIncidentBundle.issueCodes` and be called out in incident notes.
+
+3. Confirm decision signal:
+- `.tmp/quality-trend-check.json` has `blocked` aligned with incident severity expectations.
+- In strict trend-health mode, avoid `trendConsistency.status === "degraded"`; treat it as blocking if required by policy.
+- In compatibility mode, `degraded` is warning-only and must be explicitly called out with a mitigation ticket.
+
+4. Confirm traceability:
+- `trendConsistency.checks.trendDigestHealth`, `trendConsistency.checks.trendSummaryGuardrails`, and `trendConsistency.checks.trendDigestCheckConsistency` exist with object payload for status/reason.
+- `artifacts` in incident bundle includes the exact trend verification files above so rebuildability is auditable.
+
+Use `docs/quality-trend-runbook.md` and `docs/quality-trend-digest-guide.md` as the authoritative triage workflow once this checklist passes or fails.
