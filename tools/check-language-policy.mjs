@@ -26,7 +26,12 @@ const DEFAULT_ALLOWED_EXTENSIONS = new Set([
 
 const DEFAULT_DENIED_JS_EXTENSIONS = new Set([".js", ".cjs", ".mjs"]);
 const DEFAULT_LANGUAGE_POLICY_ALLOWLIST = resolve(repoRoot, "tools/language-policy-allowlist.json");
-const DEFAULT_LANGUAGE_POLICY_EXCEPTION_TYPES = new Set(["file", "pathPrefix", "pathPattern"]);
+const DEFAULT_LANGUAGE_POLICY_EXCEPTION_TYPES = new Set([
+  "file",
+  "fileSet",
+  "pathPrefix",
+  "pathPattern",
+]);
 const REQUIRED_EXCEPTION_FIELDS = ["type", "value", "justification", "owner", "removalBy", "migrationPlan"];
 
 function parseArgs() {
@@ -234,6 +239,9 @@ function parseAllowlistFile(allowlistPath) {
           const normalizedEntry = {
             type: `${entry.type ?? ""}`.trim(),
             value: `${entry.value ?? ""}`.replaceAll("\\", "/").trim(),
+            files: Array.isArray(entry.files)
+              ? entry.files.map((file) => `${file ?? ""}`.replaceAll("\\", "/").trim())
+              : [],
             justification: `${entry.justification ?? ""}`.trim(),
             owner: `${entry.owner ?? ""}`.trim(),
             removalBy: `${entry.removalBy ?? ""}`.trim(),
@@ -242,6 +250,12 @@ function parseAllowlistFile(allowlistPath) {
 
           if (!DEFAULT_LANGUAGE_POLICY_EXCEPTION_TYPES.has(normalizedEntry.type)) {
             issues.push(`exceptions[${index}].type invalid: "${normalizedEntry.type || "<empty>"}"`);
+          }
+          if (
+            normalizedEntry.type === "fileSet" &&
+            (normalizedEntry.files.length === 0 || normalizedEntry.files.some((file) => file.length === 0))
+          ) {
+            issues.push(`exceptions[${index}].files must be a non-empty array of repository paths`);
           }
 
           const missingFields = REQUIRED_EXCEPTION_FIELDS.filter((field) => {
@@ -312,7 +326,21 @@ function isAllowedByPolicy(path, allowlist) {
       continue;
     }
 
-    if (type === "file" || type === "pathPrefix") {
+    if (type === "file") {
+      if (normalized === value) {
+        return exception;
+      }
+      continue;
+    }
+
+    if (type === "fileSet") {
+      if (Array.isArray(exception.files) && exception.files.includes(normalized)) {
+        return exception;
+      }
+      continue;
+    }
+
+    if (type === "pathPrefix") {
       if (normalized.startsWith(value)) {
         return exception;
       }

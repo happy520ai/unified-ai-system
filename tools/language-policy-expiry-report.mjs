@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const DEFAULT_LANGUAGE_POLICY_ALLOWLIST = resolve(repoRoot, "tools/language-policy-allowlist.json");
 const DEFAULT_WARN_WITHIN_DAYS = 14;
-const EXCEPTION_TYPES = new Set(["file", "pathPrefix", "pathPattern"]);
+const EXCEPTION_TYPES = new Set(["file", "fileSet", "pathPrefix", "pathPattern"]);
 const REQUIRED_FIELDS = ["type", "value", "justification", "owner", "removalBy", "migrationPlan"];
 
 function parseArgs() {
@@ -124,6 +124,9 @@ function parseAllowlist(path, warnings, issues) {
     const normalized = {
       type: `${entry.type ?? ""}`.trim(),
       value: `${entry.value ?? ""}`.replaceAll("\\", "/").trim(),
+      files: Array.isArray(entry.files)
+        ? entry.files.map((file) => `${file ?? ""}`.replaceAll("\\", "/").trim())
+        : [],
       justification: `${entry.justification ?? ""}`.trim(),
       owner: `${entry.owner ?? ""}`.trim(),
       removalBy: `${entry.removalBy ?? ""}`.trim(),
@@ -132,6 +135,12 @@ function parseAllowlist(path, warnings, issues) {
     const missing = REQUIRED_FIELDS.filter((field) => `${entry?.[field] ?? ""}`.trim().length === 0);
     if (!EXCEPTION_TYPES.has(normalized.type)) {
       issues.push(`exceptions[${index}].type invalid: "${normalized.type || "<empty>"}"`);
+    }
+    if (
+      normalized.type === "fileSet" &&
+      (normalized.files.length === 0 || normalized.files.some((file) => file.length === 0))
+    ) {
+      issues.push(`exceptions[${index}].files must be a non-empty array of repository paths`);
     }
     if (missing.length > 0) {
       issues.push(`exceptions[${index}] missing required field(s): ${missing.join(", ")}`);

@@ -114,7 +114,7 @@ describe("gateway error circuit bypass routes", () => {
   it("keeps readiness and metrics endpoints reachable while gateway circuit is open", async () => {
     const server = createGatewayHttpServer(createGatewayApplication({
       runtimeEnv: {
-        AI_GATEWAY_GATEWAY_ERROR_CIRCUIT_RESET_MS: "50",
+        AI_GATEWAY_GATEWAY_ERROR_CIRCUIT_RESET_MS: "60000",
       },
     }));
 
@@ -208,7 +208,7 @@ describe("gateway error circuit bypass routes", () => {
   it("supports additional configured bypass routes for circuit-open mode", async () => {
     const server = createGatewayHttpServer(createGatewayApplication({
       runtimeEnv: {
-        AI_GATEWAY_GATEWAY_ERROR_CIRCUIT_RESET_MS: "50",
+        AI_GATEWAY_GATEWAY_ERROR_CIRCUIT_RESET_MS: "60000",
         AI_GATEWAY_GATEWAY_ERROR_CIRCUIT_BYPASS_ROUTES: " /dashboard/status/ , /healthz",
       },
     }));
@@ -240,7 +240,7 @@ describe("gateway error circuit bypass routes", () => {
   it("normalizes bypass route configuration with whitespace, trailing slash, and duplicate slashes", async () => {
     const server = createGatewayHttpServer(createGatewayApplication({
       runtimeEnv: {
-        AI_GATEWAY_GATEWAY_ERROR_CIRCUIT_RESET_MS: "50",
+        AI_GATEWAY_GATEWAY_ERROR_CIRCUIT_RESET_MS: "60000",
         AI_GATEWAY_GATEWAY_ERROR_CIRCUIT_BYPASS_ROUTES: " //dashboard/status/?probe=1,  , /healthz//, /dashboard/status ",
       },
     }));
