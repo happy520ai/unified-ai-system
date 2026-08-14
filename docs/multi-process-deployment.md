@@ -232,6 +232,21 @@ AI_GATEWAY_RATE_LIMIT_POSTGRES_STATEMENT_TIMEOUT_MS=5000
 AI_GATEWAY_RATE_LIMIT_POSTGRES_MAX_BUCKETS=100000
 ```
 
+### Cross-replica WebSocket connection leases
+
+PostgreSQL rate-limit mode also activates a fail-closed connection lease for every accepted WebSocket. Acquisition is serialized in PostgreSQL, enforces both the configured global and per-subject connection limits across replicas, stores only an HMAC of the authenticated subject, and uses database time plus a fencing token for renew and release operations.
+
+```powershell
+AI_GATEWAY_WEBSOCKET_CONNECTION_LEASE_NAMESPACE=production-cluster-a
+AI_GATEWAY_WEBSOCKET_CONNECTION_LEASE_MS=30000
+AI_GATEWAY_WEBSOCKET_CONNECTION_LEASE_MAX_ROWS=100000
+AI_GATEWAY_WEBSOCKET_CONNECTION_LEASE_POOL_MAX=2
+```
+
+The dedicated pool is an intentional bulkhead: lease renewals cannot be starved by bursty HTTP rate-limit traffic. A handshake is rejected with `503` when lease ownership cannot be proved, an exhausted connection limit returns `429`, and an established socket is closed with `1013` if renewal fails or fencing ownership is lost. Normal closes release the exact lease; process crashes are recovered by the bounded TTL. Memory and SQLite modes remain node-local and must not be described as distributed active-connection enforcement.
+
+Use the same namespace on every replica in one deployment and a different namespace for deployments that must not share limits. Keep `AI_GATEWAY_RATE_LIMIT_HMAC_SECRET` identical across those replicas, at least 32 bytes, and load it from a secret manager. Outside a trusted local network, require certificate-verified PostgreSQL TLS.
+
 If the store cannot prove a counter update, the gateway returns
 `503 RATE_LIMIT_STORE_UNAVAILABLE`; when the bounded active-bucket capacity is
 full it returns `503 RATE_LIMIT_STORE_CAPACITY`. Neither condition fails open to

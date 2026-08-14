@@ -62,6 +62,7 @@ const DEFAULT_ALLOWED_ORIGINS = Object.freeze([
  * @param {string} [options.environment]
  * @param {(subject: string) => unknown | Promise<unknown>} [options.consumeUpgradeQuota]
  * @param {(subject: string) => unknown | Promise<unknown>} [options.consumeMessageQuota]
+ * @param {{acquire: (subject: string, limits: {maxConnections: number, maxConnectionsPerSubject: number}) => Promise<{acquired: boolean, retryAfterSeconds?: number, lease?: {isValid: () => boolean, start: (onLost: () => void) => void, release: () => Promise<void>}}>, close?: () => Promise<void>}} [options.connectionLeaseManager]
  * @param {(connection: GatewayWebSocketConnection) => void} [options.onConnection]
  * @param {(message: string, connection: GatewayWebSocketConnection) => unknown | Promise<unknown>} [options.onMessage]
  * @param {(connection: GatewayWebSocketConnection) => void} [options.onClose]
@@ -70,6 +71,7 @@ const DEFAULT_ALLOWED_ORIGINS = Object.freeze([
 export function createWebSocketServer(options = {}) {
   const connections = new Set();
   const connectionState = new WeakMap();
+  const connectionLeases = new WeakMap();
   const subjectConnections = new Map();
   const subjectInFlight = new Map();
   const subjectMessageWindows = new Map();
@@ -83,6 +85,9 @@ export function createWebSocketServer(options = {}) {
     sessionLifetimeRejected: 0,
     upgradeQuotaRejected: 0,
     quotaStoreUnavailable: 0,
+    connectionLeaseRejected: 0,
+    connectionLeaseUnavailable: 0,
+    connectionLeaseLost: 0,
     originRejected: 0,
     capacityRejected: 0,
     subjectConnectionRejected: 0,
@@ -306,8 +311,70 @@ export function createWebSocketServer(options = {}) {
         return;
       }
 
+      let connectionLease = null;
+      if (options.connectionLeaseManager) {
+        try {
+          const decision = await options.connectionLeaseManager.acquire(subjectKey, {
+            maxConnections,
+            maxConnectionsPerSubject,
+          });
+          if (decision?.acquired === false) {
+            counters.connectionLeaseRejected += 1;
+            reportError(new Error("The distributed WebSocket connection limit was reached."), {
+              event: "ws_connection_lease_rejected",
+              scope: decision.scope,
+            });
+            rejectUpgrade(socket, "429 Too Many Requests", {
+              "Retry-After": String(Math.max(1, Number(decision.retryAfterSeconds) || 1)),
+            });
+            return;
+          }
+          if (
+            decision?.acquired !== true
+            || typeof decision.lease?.isValid !== "function"
+            || typeof decision.lease?.start !== "function"
+            || typeof decision.lease?.release !== "function"
+          ) {
+            throw new Error("The WebSocket connection lease manager returned an invalid decision.");
+          }
+          connectionLease = decision.lease;
+        } catch (error) {
+          counters.connectionLeaseUnavailable += 1;
+          reportError(error, { event: "ws_connection_lease_unavailable" });
+          rejectUpgrade(socket, "503 Service Unavailable", { "Retry-After": "1" });
+          return;
+        }
+      }
+
       try {
         protocolServer.handleUpgrade(request, socket, head, (rawSocket) => {
+          if (connectionLease) {
+            connectionLeases.set(rawSocket, connectionLease);
+            try {
+              connectionLease.start(() => {
+                counters.connectionLeaseLost += 1;
+                reportError(new Error("The durable WebSocket connection lease was lost."), {
+                  event: "ws_connection_lease_lost",
+                });
+                if (rawSocket.readyState === WebSocket.OPEN || rawSocket.readyState === WebSocket.CONNECTING) {
+                  rawSocket.close(1013, "Connection lease unavailable");
+                } else {
+                  rawSocket.terminate();
+                }
+              });
+              rawSocket.once("close", () => {
+                connectionLeases.delete(rawSocket);
+                void connectionLease.release();
+              });
+            } catch (error) {
+              counters.connectionLeaseUnavailable += 1;
+              connectionLeases.delete(rawSocket);
+              void connectionLease.release();
+              reportError(error, { event: "ws_connection_lease_start_failed" });
+              rawSocket.close(1013, "Connection lease unavailable");
+              return;
+            }
+          }
           establishConnection(
             rawSocket,
             auth.identity,
@@ -316,6 +383,7 @@ export function createWebSocketServer(options = {}) {
           );
         });
       } catch (error) {
+        if (connectionLease) void connectionLease.release();
         counters.protocolRejected += 1;
         reportError(error, { event: "ws_handshake_rejected" });
         rejectUpgrade(socket, "400 Bad Request");
@@ -373,6 +441,12 @@ export function createWebSocketServer(options = {}) {
       return;
     }
 
+    const connectionLease = connectionLeases.get(rawSocket);
+    if (connectionLease && !connectionLease.isValid()) {
+      rawSocket.close(1013, "Connection lease unavailable");
+      return;
+    }
+
     const now = Date.now();
     const messageQuota = await consumeMessageQuota(subjectKey, now);
     if (!messageQuota.allowed) {
@@ -412,6 +486,10 @@ export function createWebSocketServer(options = {}) {
     globalInFlight += 1;
     subjectInFlight.set(subjectKey, subjectActive + 1);
     try {
+      if (connectionLease && !connectionLease.isValid()) {
+        rawSocket.close(1013, "Connection lease unavailable");
+        return;
+      }
       await options.onMessage?.(data.toString("utf8"), connection);
     } catch (error) {
       reportError(error, { event: "ws_message_rejected" });

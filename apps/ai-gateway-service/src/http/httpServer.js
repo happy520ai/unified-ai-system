@@ -126,6 +126,9 @@ import {
   createWebSocketServer,
 } from "./webSocketServer.js";
 import {
+  createPostgresWebSocketConnectionLeaseManagerFromEnv,
+} from "./postgresWebSocketConnectionLeaseManager.ts";
+import {
   isPublicRoute,
 } from "./routeAccessPolicy.js";
 import {
@@ -282,6 +285,12 @@ export function createGatewayHttpServer(application) {
     requestConfig.AI_GATEWAY_WS_MAX_UPGRADES_PER_WINDOW,
     20,
   );
+  const webSocketConnectionLeaseManager = Object.prototype.hasOwnProperty.call(
+    application,
+    "webSocketConnectionLeaseManager",
+  )
+    ? application.webSocketConnectionLeaseManager
+    : createPostgresWebSocketConnectionLeaseManagerFromEnv(requestConfig);
   const webSocketMessageLimiter = rateLimiter.createScopedLimiter("websocket-messages", {
     windowMs: webSocketQuotaWindowMs,
     maxRequests: webSocketMaxMessagesPerWindow,
@@ -395,6 +404,7 @@ export function createGatewayHttpServer(application) {
     consumeMessageQuota(subject) {
       return webSocketMessageLimiter.check(subject);
     },
+    connectionLeaseManager: webSocketConnectionLeaseManager,
     authenticate(request) {
       return enterpriseGovernanceService.authorize(request, "chat:use");
     },
@@ -866,6 +876,7 @@ export function createGatewayHttpServer(application) {
   server.shutdownResources = () => {
     shutdownResourcesPromise ??= (async () => {
       await idempotencyCoordinator.close();
+      await webSocketConnectionLeaseManager?.close?.();
       await rateLimiter.close();
       await openTelemetry.shutdown();
     })();
