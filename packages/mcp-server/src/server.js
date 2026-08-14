@@ -53,6 +53,9 @@ function createToolResult(toolName, runtime, result) {
       baseUrl: runtime.baseUrl,
       managed: runtime.managed,
       realProviderCallsAllowed: false,
+      authenticated: runtime.gatewayAuth?.enabled === true,
+      authVerified: runtime.gatewayAuth?.verified === true,
+      authTokenExposed: false,
     },
     result,
   };
@@ -119,6 +122,7 @@ export function createUnifiedAiMcpServer(runtime, options = {}) {
 
   const client = options.client ?? createGatewayClient({
     baseUrl: runtime.baseUrl,
+    headers: runtime.privateRequestHeaders ?? {},
     timeoutMs: options.timeoutMs ?? 20_000,
   });
   const server = new McpServer(

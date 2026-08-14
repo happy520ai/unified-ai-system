@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { once } from "node:events";
 import http from "node:http";
 import https from "node:https";
@@ -30,6 +31,9 @@ export function parseArgs(argv = process.argv.slice(2), env = process.env) {
     managedGateway: false,
     dryRun: false,
     json: false,
+    authToken: typeof env.AI_GATEWAY_CIRCUIT_DRILL_AUTH_TOKEN === "string"
+      ? env.AI_GATEWAY_CIRCUIT_DRILL_AUTH_TOKEN.trim() || null
+      : null,
     explicit: {
       tripRoute: false,
       tripAttempts: false,
@@ -118,14 +122,18 @@ function buildBaseUrl(rawUrl, env = process.env) {
   return new URL(rawUrl ?? env.AI_GATEWAY_SERVICE_URL ?? "http://127.0.0.1:3100");
 }
 
-async function sendRequest(base, path, method = "GET", body = "") {
+async function sendRequest(base, path, method = "GET", body = "", authToken = null) {
   const requestUrl = new URL(path, base);
+  assertSafeAuthTarget(requestUrl, authToken);
   const requestFn = requestUrl.protocol === "https:" ? https : http;
   const bodyBuffer = body ? Buffer.from(String(body), "utf8") : Buffer.alloc(0);
   const headers = {
     Accept: "*/*",
     "User-Agent": "circuit-drill-script/2.0",
   };
+  if (authToken) {
+    headers.Authorization = `Bearer ${authToken}`;
+  }
   if (bodyBuffer.length > 0) {
     headers["Content-Type"] = "application/json";
     headers["Content-Length"] = String(bodyBuffer.length);
@@ -158,6 +166,14 @@ async function sendRequest(base, path, method = "GET", body = "") {
   });
 }
 
+function assertSafeAuthTarget(requestUrl, authToken) {
+  if (!authToken || requestUrl.protocol === "https:") return;
+  const loopbackHosts = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
+  if (!loopbackHosts.has(requestUrl.hostname.toLowerCase())) {
+    throw new Error("Circuit drill authentication requires HTTPS for non-loopback targets.");
+  }
+}
+
 export function parseCircuitState(metricsText, stateName) {
   const metric = "(?:[A-Za-z_:][A-Za-z0-9_:]*_)?gateway_error_circuit_state";
   const pattern = new RegExp(`${metric}\\{state="${stateName}"\\}\\s+(\\d+(?:\\.\\d+)?)`);
@@ -172,8 +188,8 @@ export function summarizeCircuit(metricsText) {
   return "unknown";
 }
 
-async function readProbe(base, route) {
-  const response = await sendRequest(base, route);
+async function readProbe(base, route, authToken) {
+  const response = await sendRequest(base, route, "GET", "", authToken);
   let payload = null;
   try {
     payload = JSON.parse(response.body);
@@ -187,8 +203,8 @@ async function readProbe(base, route) {
   };
 }
 
-async function readMetrics(base, route) {
-  const response = await sendRequest(base, route);
+async function readMetrics(base, route, authToken) {
+  const response = await sendRequest(base, route, "GET", "", authToken);
   return { statusCode: response.statusCode, text: response.body };
 }
 
@@ -249,6 +265,8 @@ async function startManagedGateway(options, env = process.env) {
   }
   const port = await findFreePort();
   const baseUrl = `http://127.0.0.1:${port}`;
+  const authToken = randomBytes(32).toString("base64url");
+  const authExpiresAt = new Date(Date.now() + 10 * 60_000).toISOString();
   const child = spawn(process.execPath, [serviceEntrypoint], {
     cwd: repoRoot,
     windowsHide: true,
@@ -271,20 +289,25 @@ async function startManagedGateway(options, env = process.env) {
       AI_GATEWAY_GATEWAY_ERROR_CIRCUIT_BYPASS_ROUTES: "/health,/health/check,/healthz,/ready,/setup/readiness,/metrics",
       AI_GATEWAY_ROUTE_RATE_LIMIT_ENABLED: "false",
       AI_GATEWAY_OTEL_ENABLED: "false",
-      PME_ENTERPRISE_AUTH_ENABLED: "false",
+      PME_ENTERPRISE_AUTH_ENABLED: "true",
+      PME_AUTH_TOKEN: authToken,
+      PME_AUTH_USER_ID: "circuit-drill",
+      PME_AUTH_TENANT_ID: "circuit-drill",
+      PME_AUTH_ROLE: "admin",
+      PME_AUTH_EXPIRES_AT: authExpiresAt,
     },
     stdio: ["ignore", "ignore", "ignore"],
   });
   const base = buildBaseUrl(baseUrl, env);
   await waitForManagedGateway(base, child);
-  return { child, base, baseUrl, port };
+  return { child, base, baseUrl, port, authToken };
 }
 
 function applyManagedDefaults(options) {
   if (!options.explicit.tripRoute) options.tripRoute = "/chat";
   if (!options.explicit.tripBody) {
     options.tripBody = JSON.stringify({
-      prompt: "Credential-free circuit recovery drill",
+      prompt: "Credential-free-provider circuit recovery drill",
       providerId: "local-fake-provider",
       model: "local-fake-model",
     });
@@ -327,10 +350,13 @@ function createSummary(options, base) {
   };
 }
 
-async function runAgainstGateway(options, base) {
+async function runAgainstGateway(options, base, { authToken = null, authTokenSource = "none" } = {}) {
   const summary = createSummary(options, base);
-  const baselineProbe = await readProbe(base, options.probeRoute);
-  const baselineMetrics = await readMetrics(base, options.metricsRoute);
+  summary.config.authenticatedRequests = Boolean(authToken);
+  summary.config.authTokenSource = authTokenSource;
+  summary.config.authTokenExposed = false;
+  const baselineProbe = await readProbe(base, options.probeRoute, authToken);
+  const baselineMetrics = await readMetrics(base, options.metricsRoute, authToken);
   const baselineState = summarizeCircuit(baselineMetrics.text);
   summary.steps.push({
     name: "baseline",
@@ -348,8 +374,8 @@ async function runAgainstGateway(options, base) {
   let serverFailureObserved = false;
   let openObserved = false;
   for (let attempt = 1; attempt <= options.tripAttempts; attempt += 1) {
-    const response = await sendRequest(base, options.tripRoute, "POST", options.tripBody);
-    const metrics = await readMetrics(base, options.metricsRoute);
+    const response = await sendRequest(base, options.tripRoute, "POST", options.tripBody, authToken);
+    const metrics = await readMetrics(base, options.metricsRoute, authToken);
     const circuitState = summarizeCircuit(metrics.text);
     const serverFailure = response.statusCode >= 500 && response.statusCode <= 599;
     serverFailureObserved ||= serverFailure;
@@ -370,8 +396,8 @@ async function runAgainstGateway(options, base) {
     return summary;
   }
 
-  const openProbe = await readProbe(base, options.probeRoute);
-  const openMetrics = await readMetrics(base, options.metricsRoute);
+  const openProbe = await readProbe(base, options.probeRoute, authToken);
+  const openMetrics = await readMetrics(base, options.metricsRoute, authToken);
   const openState = summarizeCircuit(openMetrics.text);
   const openReadinessBlocked = openProbe.statusCode === 503
     && openProbe.readinessFailures.includes("gateway-error-circuit");
@@ -390,9 +416,9 @@ async function runAgainstGateway(options, base) {
   let halfOpenObserved = false;
   let closedObserved = false;
   for (let attempt = 1; attempt <= options.pollLimit; attempt += 1) {
-    const recoveryProbe = await readProbe(base, options.recoveryRoute);
-    const probe = await readProbe(base, options.probeRoute);
-    const metrics = await readMetrics(base, options.metricsRoute);
+    const recoveryProbe = await readProbe(base, options.recoveryRoute, authToken);
+    const probe = await readProbe(base, options.probeRoute, authToken);
+    const metrics = await readMetrics(base, options.metricsRoute, authToken);
     const circuitState = summarizeCircuit(metrics.text);
     halfOpenObserved ||= circuitState === "half-open";
     closedObserved ||= circuitState === "closed"
@@ -414,8 +440,8 @@ async function runAgainstGateway(options, base) {
     samples: recoverySamples,
   });
 
-  const finalProbe = await readProbe(base, options.probeRoute);
-  const finalMetrics = await readMetrics(base, options.metricsRoute);
+  const finalProbe = await readProbe(base, options.probeRoute, authToken);
+  const finalMetrics = await readMetrics(base, options.metricsRoute, authToken);
   const finalState = summarizeCircuit(finalMetrics.text);
   summary.steps.push({
     name: "finalState",
@@ -449,7 +475,7 @@ export async function runCircuitRecoveryDrill(options = parseArgs(), env = proce
     const base = buildBaseUrl(options.baseUrl, env);
     const summary = createSummary(options, base);
     summary.status = "dry-run";
-    summary.recommendation = "Run with --managed-gateway to collect credential-free live recovery evidence.";
+    summary.recommendation = "Run with --managed-gateway to collect credential-free-provider live recovery evidence with ephemeral gateway authentication.";
     summary.completedAt = new Date().toISOString();
     summary.durationMs = Date.now() - startedAtMs;
     return summary;
@@ -464,7 +490,11 @@ export async function runCircuitRecoveryDrill(options = parseArgs(), env = proce
       options.baseUrl = managed.baseUrl;
     }
     const base = managed?.base ?? buildBaseUrl(options.baseUrl, env);
-    summary = await runAgainstGateway(options, base);
+    const authToken = managed?.authToken ?? options.authToken;
+    summary = await runAgainstGateway(options, base, {
+      authToken,
+      authTokenSource: managed ? "ephemeral-managed" : authToken ? "environment" : "none",
+    });
   } finally {
     if (managed) {
       const cleanedUp = await stopChild(managed.child);
@@ -474,6 +504,9 @@ export async function runCircuitRecoveryDrill(options = parseArgs(), env = proce
         host: "127.0.0.1",
         providerMode: "fake",
         realProviderEnabled: false,
+        enterpriseAuthEnabled: true,
+        ephemeralAuthTokenUsed: true,
+        authTokenExposed: false,
         cleanedUp,
       };
       summary.realProviderCallsMade = false;

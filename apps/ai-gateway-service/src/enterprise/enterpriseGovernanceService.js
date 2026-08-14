@@ -23,6 +23,12 @@ import {
   assertAuthenticatedNetworkBinding,
   isLoopbackAddress,
 } from "../security/networkBindingPolicy.ts";
+import {
+  LOCAL_UNAUTHENTICATED_PERMISSION,
+  LOCAL_UNAUTHENTICATED_ROLE,
+  authorizeLocalUnauthenticatedRequest,
+  createLocalUnauthenticatedPreviewConfig,
+} from "../security/localUnauthenticatedAccessPolicy.ts";
 
 const DEFAULT_AUDIT_LIMIT = 200;
 
@@ -32,6 +38,7 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
     host: env.AI_GATEWAY_SERVICE_HOST ?? "127.0.0.1",
     authEnabled,
   });
+  const localPreview = createLocalUnauthenticatedPreviewConfig(env);
   const userStorePath = env.PME_ENTERPRISE_USER_STORE_PATH ?? resolve(".data/enterprise/users.json");
   // Storage backend: "sqlite" uses node:sqlite (ACID + cross-process safe),
   // default "json" keeps the original file backend (backwards compatible).
@@ -55,7 +62,12 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
         status: "ready",
         mode: "local-enterprise-governance",
         authEnabled,
-        unauthenticatedScope: authEnabled ? "none" : "loopback-only",
+        unauthenticatedScope: authEnabled
+          ? "none"
+          : localPreview.enabled
+            ? "loopback-fake-preview-only"
+            : "public-routes-only",
+        localPreview,
         tenantMode: "header-required-when-auth-enabled",
         tokenHeaders: ["x-pme-auth-token", "authorization: Bearer"],
         tenantHeader: "x-pme-tenant-id",
@@ -81,6 +93,7 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
         revokedTokens,
         userStorePath,
         auditPath,
+        localPreview,
       });
     },
 
@@ -192,10 +205,10 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
           authenticated: true,
           disabled: true,
           identity: createIdentity({
-            userId: "local-system",
-            tenantId: readTenantHeader(request) ?? "default",
-            role: "admin",
-            permissions: ["*"],
+            userId: "local-preview",
+            tenantId: "local-preview",
+            role: LOCAL_UNAUTHENTICATED_ROLE,
+            permissions: [LOCAL_UNAUTHENTICATED_PERMISSION],
           }),
         };
       }
@@ -262,6 +275,32 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
           statusCode: auth.statusCode ?? 401,
           code: auth.code ?? "enterprise_auth_required",
           message: auth.message ?? "Enterprise authorization failed.",
+          identity: auth.identity,
+          permission,
+        };
+      }
+
+      if (auth.disabled) {
+        const localDecision = authorizeLocalUnauthenticatedRequest({
+          request,
+          permission,
+          previewEnabled: localPreview.enabled,
+        });
+        if (!localDecision.allowed) {
+          return {
+            allowed: false,
+            statusCode: 403,
+            code: localDecision.code,
+            message: localDecision.code === "enterprise_auth_required_for_non_fake_mode"
+              ? "Enterprise authentication is required when the gateway is not in fake-only preview mode."
+              : "Unauthenticated local preview is not allowed to access this route.",
+            identity: auth.identity,
+            permission,
+          };
+        }
+
+        return {
+          allowed: true,
           identity: auth.identity,
           permission,
         };
@@ -382,7 +421,7 @@ function createSecuritySummary({ authEnabled, users, revokedTokens }) {
   };
 }
 
-function createSecurityReadiness({ authEnabled, users, revokedTokens, userStorePath, auditPath }) {
+function createSecurityReadiness({ authEnabled, users, revokedTokens, userStorePath, auditPath, localPreview }) {
   const configuredUsers = [...users.values()];
   const blockers = [];
   const warnings = [];
@@ -393,6 +432,7 @@ function createSecurityReadiness({ authEnabled, users, revokedTokens, userStoreP
 
   if (!authEnabled) {
     warnings.push("enterprise_auth_disabled");
+    warnings.push(localPreview.enabled ? "local_fake_preview_only" : "unauthenticated_protocol_preview_disabled");
   }
 
   const activeUsers = configuredUsers.filter((user) => !isUserRevoked(user, revokedTokens) && !isExpired(user.expiresAt));
@@ -411,6 +451,7 @@ function createSecurityReadiness({ authEnabled, users, revokedTokens, userStoreP
   return {
     status: blockers.length ? "blocked" : warnings.length ? "warning" : "ready",
     authEnabled,
+    localPreview,
     userStore: {
       mode: "env-plus-json-file",
       path: userStorePath,

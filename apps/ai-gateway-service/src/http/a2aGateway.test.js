@@ -73,11 +73,20 @@ describe("A2A gateway profile", () => {
 });
 
 describe("A2A gateway executor — fake-provider safety boundary", () => {
-  function requestContext() {
+  function requestContext({ executionMode, permissions } = {}) {
     return {
       contextId: "ctx-1",
       taskId: "task-1",
-      request: { metadata: {} },
+      request: {
+        metadata: executionMode ? { unifiedAi: { executionMode } } : {},
+      },
+      context: {
+        user: {
+          isAuthenticated: true,
+          userName: "test-user",
+          permissions: permissions ?? [],
+        },
+      },
       userMessage: {
         parts: [{ content: { $case: "text", value: "hello" }, mediaType: "text/plain" }],
       },
@@ -118,5 +127,50 @@ describe("A2A gateway executor — fake-provider safety boundary", () => {
     const allCalls = JSON.stringify(eventBus.publish.mock.calls);
     expect(allCalls).toContain("fake reply");
     expect(allCalls).toContain('"state":3'); // TASK_STATE_COMPLETED
+  });
+
+  it("denies client-selected workforce mode without server-derived workflow permission", async () => {
+    const gatewayService = { execute: vi.fn() };
+    const workforceExecutor = { execute: vi.fn() };
+    const executor = new a2aGatewayInternals.GatewayAgentExecutor(
+      gatewayService,
+      workforceExecutor,
+    );
+    const eventBus = { publish: vi.fn() };
+
+    await expect(executor.execute(
+      requestContext({ executionMode: "workforce", permissions: ["chat:use"] }),
+      eventBus,
+    )).rejects.toMatchObject({
+      code: "a2a_workforce_permission_required",
+    });
+    expect(workforceExecutor.execute).not.toHaveBeenCalled();
+    expect(gatewayService.execute).not.toHaveBeenCalled();
+  });
+
+  it("allows workforce mode only with workflow:run permission", async () => {
+    const gatewayService = { execute: vi.fn() };
+    const workforceExecutor = {
+      execute: vi.fn(async () => ({
+        goal: "hello",
+        status: "completed",
+        llmDriven: false,
+        roleOutputs: { reviewer: { summary: "reviewed" } },
+      })),
+    };
+    const executor = new a2aGatewayInternals.GatewayAgentExecutor(
+      gatewayService,
+      workforceExecutor,
+    );
+    const eventBus = { publish: vi.fn() };
+
+    await executor.execute(
+      requestContext({ executionMode: "workforce", permissions: ["chat:use", "workflow:run"] }),
+      eventBus,
+    );
+
+    expect(workforceExecutor.execute).toHaveBeenCalledOnce();
+    expect(gatewayService.execute).not.toHaveBeenCalled();
+    expect(JSON.stringify(eventBus.publish.mock.calls)).toContain("reviewed");
   });
 });

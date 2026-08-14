@@ -103,6 +103,11 @@ class GatewayAgentExecutor {
 
       // Workforce mode: route to workforce agent execution instead of gateway chat
       if (executionMode === "workforce") {
+        if (!hasServerPermission(requestContext, "workflow:run")) {
+          const error = new Error("A2A workforce execution requires workflow:run permission.");
+          error.code = "a2a_workforce_permission_required";
+          throw error;
+        }
         if (!this.workforceExecutor) {
           throw new Error("Controlled workforce execution is unavailable.");
         }
@@ -325,7 +330,7 @@ export function createA2AGateway({ gatewayService, workforceExecutor = null, env
         id: "workforce-analysis",
         name: "Workforce role-based analysis",
         description:
-          "Execute a goal through 7 specialized workforce roles (CEO, PM, Architect, Frontend, Backend, QA, Reviewer) when executionMode=workforce is set in message metadata.",
+          "Execute a goal through 7 specialized workforce roles when executionMode=workforce is set and the authenticated identity has workflow:run permission.",
         tags: ["workforce", "analysis", "multi-role", "planning"],
         examples: ["Analyze this project goal from multiple role perspectives"],
         inputModes: ["text/plain"],
@@ -347,6 +352,12 @@ export function createA2AGateway({ gatewayService, workforceExecutor = null, env
     requestHandler,
     transportHandler: new JsonRpcTransportHandler(requestHandler),
   };
+}
+
+function hasServerPermission(requestContext, permission) {
+  const permissions = requestContext?.context?.user?.permissions;
+  return Array.isArray(permissions)
+    && (permissions.includes("*") || permissions.includes(permission));
 }
 
 function formatWorkforceResult(result) {
@@ -390,6 +401,7 @@ function formatWorkforceResult(result) {
 export const a2aGatewayInternals = {
   GatewayAgentExecutor,
   agentMessage,
+  hasServerPermission,
   normalizePublicBaseUrl,
   readTextMessage,
   status,

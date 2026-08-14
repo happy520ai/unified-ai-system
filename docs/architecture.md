@@ -66,7 +66,11 @@ The default MCP command is self-contained: it allocates a local port, starts a
 fake-provider gateway, serves the governed stdio tools, and tears the child
 process down when the host disconnects. The source build and pinned `0.4.9`
 release both expose twelve tools, including provider-free prompt enhancement. An
-explicit `AI_GATEWAY_MCP_URL` can point the server at an existing safe gateway.
+ephemeral ten-minute least-privilege token authenticates the MCP process to its
+managed gateway and is never included in tool results. An explicit
+`AI_GATEWAY_MCP_URL` can point the server at an existing safe gateway only when
+`AI_GATEWAY_MCP_AUTH_TOKEN` is also supplied; non-loopback plaintext HTTP,
+weak tokens, and failed authenticated-session probes are rejected.
 
 The source build also has a Streamable HTTP entry point. It binds to loopback
 by default and uses the official MCP Node transport adapter with Host and Origin

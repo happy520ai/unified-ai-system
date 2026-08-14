@@ -33,6 +33,7 @@ function requestUser(request) {
     get userName() {
       return String(userName);
     },
+    permissions: Array.isArray(identity.permissions) ? [...identity.permissions] : [],
   };
 }
 

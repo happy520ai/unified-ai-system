@@ -135,14 +135,20 @@ command.
 
 ## Connect To An Existing Safe Gateway
 
-Set `AI_GATEWAY_MCP_URL` to use an already running instance:
+Set `AI_GATEWAY_MCP_URL` and a dedicated gateway access token to use an already
+running instance:
 
 ```bash
-AI_GATEWAY_MCP_URL=http://127.0.0.1:3100 node packages/mcp-server/src/index.js
+AI_GATEWAY_MCP_URL=http://127.0.0.1:3100 \
+AI_GATEWAY_MCP_AUTH_TOKEN=<at-least-32-character-gateway-token> \
+node packages/mcp-server/src/index.js
 ```
 
-Startup is rejected if that gateway may call a real provider. Authentication
-and real-provider execution are intentionally outside this preview surface.
+The managed gateway uses a private, ten-minute, least-privilege token that is
+never emitted in MCP results. External gateway startup rejects missing or weak
+tokens, URL credentials, non-loopback plaintext HTTP, invalid authentication,
+or any gateway that may call a real provider. Provider credentials and
+real-provider execution remain outside this preview surface.
 
 ## Verify
 

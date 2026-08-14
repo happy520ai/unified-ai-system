@@ -139,7 +139,7 @@ describe("public workforce entrypoints", () => {
     expect(writeJson).toHaveBeenCalled();
   });
 
-  it("forces A2A workforce mode through preview-only controlled execution", async () => {
+  it("requires workflow permission and forces A2A workforce mode through preview-only controlled execution", async () => {
     const gatewayService = { execute: vi.fn() };
     const workforceExecutor = {
       execute: vi.fn(async () => ({
@@ -156,6 +156,13 @@ describe("public workforce entrypoints", () => {
       contextId: "ctx-1",
       taskId: "task-1",
       request: { metadata: { unifiedAi: { executionMode: "workforce" } } },
+      context: {
+        user: {
+          isAuthenticated: true,
+          userName: "alice",
+          permissions: ["chat:use", "workflow:run"],
+        },
+      },
       userMessage: {
         parts: [{ content: { $case: "text", value: "preview" }, mediaType: "text/plain" }],
       },

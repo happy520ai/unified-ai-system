@@ -107,6 +107,9 @@ test("Streamable HTTP exposes safe tools and rejects invalid access", async () =
     assert.equal(health.ok, true);
     assert.equal(health.gateway.managed, true);
     assert.equal(health.gateway.realProviderCallsAllowed, false);
+    assert.equal(health.gateway.authenticated, true);
+    assert.equal(health.gateway.authVerified, true);
+    assert.equal(health.gateway.authTokenExposed, false);
     assert.equal(health.result.data.realProviderEnabled, false);
     gatewayBaseUrl = health.gateway.baseUrl;
 
