@@ -25,7 +25,7 @@
     "smoke:mcp": "node ./tools/mcp-smoke.mjs",
     "eval:prompt-enhancement": "node ./tools/prompt-enhancement-eval.mjs",
     "build": "pnpm -r --if-present build",
-    "check": "pnpm -r --if-present check && pnpm check:language-policy",
+    "check": "pnpm -r --if-present check && pnpm check:language-policy && pnpm check:supply-chain-config",
     "typecheck": "tsc -p tsconfig.json",
     "test": "pnpm -r --if-present test",
     "check:public": "node tools/public-repo-check.mjs",
@@ -51,19 +51,12 @@
     "quality:trend-health-smoke": "node ./tools/quality-trend-health-smoke.mjs",
     "quality:assert-evidence": "node ./tools/assert-quality-evidence-artifacts.mjs",
     "check:language-policy": "node ./tools/check-language-policy.mjs && node ./tools/language-policy-expiry-report.mjs --json",
+    "check:supply-chain-config": "node ./tools/check-supply-chain-config.mjs",
     "report:language-policy-expiry": "node ./tools/language-policy-expiry-report.mjs --json"
   },
   "engines": {
     "node": ">=22.18.0",
     "pnpm": ">=9"
-  },
-  "pnpm": {
-    "overrides": {
-      "brace-expansion@2": "2.1.4",
-      "brace-expansion@5": "5.0.9",
-      "postcss@8": "8.5.26",
-      "vite@8": "8.0.16"
-    }
   },
   "devDependencies": {
     "@a2a-js/sdk": "1.0.1",

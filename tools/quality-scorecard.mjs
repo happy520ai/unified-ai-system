@@ -1933,6 +1933,11 @@ async function main() {
     ["tools/verify-public-clone.mjs"],
     { timeoutMs: 300000 },
   );
+  const supplyChainConfig = runCommand(
+    "supply_chain_config",
+    "node",
+    ["tools/check-supply-chain-config.mjs", "--json"],
+  );
 
   const repoFileCheck = checkRepositoryFilesPresence([
     "docs/sitemap.xml",
@@ -1975,6 +1980,10 @@ async function main() {
     publicClone,
     "verify-public-clone",
   );
+  const supplyChainConfigCheck = attachIssueSummaryFromResult(
+    supplyChainConfig,
+    "supply-chain-config",
+  );
   const circuitDrillLiveCheck = attachIssueSummaryFromResult(
     circuitDrillLive,
     "circuit-recovery-drill",
@@ -1983,6 +1992,7 @@ async function main() {
   const gateResults = {
     publicRepoCheck,
     verifyPublicClone: verifyPublicCloneCheck,
+    supplyChainConfig: supplyChainConfigCheck,
     circuitDrillLive: circuitDrillLiveCheck,
     repoFilesPresent: repoFileCheck,
     versionConsistency: versionCheck,
@@ -2033,6 +2043,14 @@ async function main() {
     30,
     publicClone.ok,
     publicClone.ok ? "pass" : `failed with status ${String(publicClone.status)}`,
+  );
+  score += addGate(
+    gates,
+    "Supply-chain configuration consistency",
+    "pnpm overrides must have one authority, match the lockfile, and use the same exact pnpm version across CI workflows",
+    10,
+    supplyChainConfigCheck.ok,
+    supplyChainConfigCheck.output || "pass",
   );
   score += addGate(
     gates,
