@@ -5,6 +5,7 @@ import { isPublicRoute } from "./routeAccessPolicy.js";
 describe("route access policy", () => {
   it.each([
     "/health/check",
+    "/livez",
     "/healthz",
     "/ready",
     "/setup/readiness",

@@ -52,7 +52,7 @@
     "quality:assert-evidence": "node ./tools/assert-quality-evidence-artifacts.mjs",
     "check:language-policy": "node ./tools/check-language-policy.mjs && node ./tools/language-policy-expiry-report.mjs --json",
     "check:supply-chain-config": "node ./tools/check-supply-chain-config.mjs",
-    "check:route-permissions": "node ./tools/check-route-permission-consistency.mjs",
+    "check:route-permissions": "node ./tools/check-route-permission-consistency.mjs && node ./tools/check-runtime-route-permissions.mjs",
     "report:language-policy-expiry": "node ./tools/language-policy-expiry-report.mjs --json"
   },
   "engines": {

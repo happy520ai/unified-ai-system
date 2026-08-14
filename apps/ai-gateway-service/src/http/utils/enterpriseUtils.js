@@ -3,6 +3,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createErrorEnvelope } from "@unified-ai-system/shared-utils";
 import { isPublicRoute } from "../routeAccessPolicy.js";
+import { resolveRuntimeRoutePermissionOverride } from "../runtimeRouteAccessManifest.ts";
 import { readJson, writeJson } from "./responseUtils.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -462,6 +463,9 @@ export function resolvePermission(method, pathname) {
   ) {
     return "chat:use";
   }
+
+  const runtimePermission = resolveRuntimeRoutePermissionOverride(method, normalizedPath);
+  if (runtimePermission) return runtimePermission;
 
   return "route:unknown";
 }

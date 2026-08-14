@@ -193,6 +193,7 @@ import { createIdempotencyCoordinator } from "./idempotencyCoordinator.ts";
 import { createGatewayLifecycle } from "./gatewayLifecycle.ts";
 import { bindGatewayExecution, createHttpRequestExecutionScope } from "./httpRequestExecution.ts";
 import { createRequestIdentityResolver, parseTrustedProxyCidrs } from "./requestIdentity.ts";
+import { shouldRejectUnmappedRoute } from "./runtimeRouteAccessManifest.ts";
 
 const logger = createLogger({ app: "ai-gateway-service", level: "info" });
 const writeServiceLog = (event, details = {}) => logger.info(event, details);
@@ -612,10 +613,38 @@ export function createGatewayHttpServer(application) {
         path: url.pathname,
       });
 
-      const enterpriseDecision = enterpriseGovernanceService.authorize(request, resolvePermission(request.method, pathname));
+      const publicRoute = isPublicRoute(pathname);
+      const requiredPermission = resolvePermission(request.method, pathname);
+      const enterpriseDecision = enterpriseGovernanceService.authorize(request, requiredPermission);
       request.enterpriseIdentity = enterpriseDecision.identity;
 
-      if (!isPublicRoute(pathname) && !enterpriseDecision.allowed) {
+      if (shouldRejectUnmappedRoute({
+        isPublic: publicRoute,
+        permission: requiredPermission,
+        authorizationAllowed: enterpriseDecision.allowed,
+      })) {
+        await enterpriseGovernanceService.recordAudit({
+          outcome: "denied",
+          method: request.method,
+          path: pathname,
+          permission: requiredPermission,
+          statusCode: 404,
+          code: "route_permission_unmapped",
+          identity: enterpriseDecision.identity,
+        });
+        writeJson(
+          response,
+          404,
+          createErrorEnvelope("route_not_found", `No route for ${request.method} ${url.pathname}`, {
+            startedAt,
+            category: "routing",
+          }),
+        );
+        markRequestSuccess();
+        return;
+      }
+
+      if (!publicRoute && !enterpriseDecision.allowed) {
         await enterpriseGovernanceService.recordAudit({
           outcome: "denied",
           method: request.method,
@@ -646,7 +675,7 @@ export function createGatewayHttpServer(application) {
         return;
       }
 
-      if (!isPublicRoute(pathname)) {
+      if (!publicRoute) {
         await enterpriseGovernanceService.recordAudit({
           outcome: "allowed",
           method: request.method,

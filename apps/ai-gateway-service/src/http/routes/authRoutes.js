@@ -6,24 +6,27 @@
 // GET  /auth/status — 认证状态
 // =============================================================================
 
+import { createHash, timingSafeEqual } from "node:crypto";
+
+function safeCredentialEqual(actual, expected) {
+  const actualDigest = createHash("sha256").update(String(actual ?? "")).digest();
+  const expectedDigest = createHash("sha256").update(String(expected ?? "")).digest();
+  return timingSafeEqual(actualDigest, expectedDigest);
+}
+
 /**
  * 创建认证路由 handler 集合
  * @param {Object} application - Gateway application context
  * @param {Object} helpers - { readJson, writeJson, writeServiceLog, createOkEnvelope, createErrorEnvelope }
  * @returns {Object} { handlers: Map<string, { handler: Function }> }
  */
-export function createAuthRoutes(application, helpers) {
+export function createAuthRoutes(application, helpers, env = process.env) {
   const { authTokenService } = application;
   const { readJson, writeJson, writeServiceLog, createOkEnvelope, createErrorEnvelope } = helpers;
 
-  // In production, credentials MUST be set via environment variables
-  const isProduction = process.env.NODE_ENV === "production";
-  const ADMIN_USERNAME = process.env.ADMIN_USERNAME || (isProduction ? null : "admin");
-  const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || (isProduction ? null : "changeme");
-
-  if (isProduction && (!ADMIN_USERNAME || !ADMIN_PASSWORD)) {
-    console.error("[auth] CRITICAL: ADMIN_USERNAME and ADMIN_PASSWORD must be set in production");
-  }
+  const adminUsername = typeof env.ADMIN_USERNAME === "string" ? env.ADMIN_USERNAME.trim() : "";
+  const adminPassword = typeof env.ADMIN_PASSWORD === "string" ? env.ADMIN_PASSWORD : "";
+  const passwordLoginConfigured = Boolean(adminUsername && adminPassword && authTokenService);
 
   // ── POST /auth/login ──
   async function handleLogin(req, res, { startedAt, body }) {
@@ -64,7 +67,6 @@ export function createAuthRoutes(application, helpers) {
         writeServiceLog("auth_login_success", {
           method: "POST",
           path: "/auth/login",
-          username,
           durationMs: Date.now() - startedAt,
         });
         writeJson(res, 200, createOkEnvelope({
@@ -76,16 +78,17 @@ export function createAuthRoutes(application, helpers) {
       }
     }
 
-    // 回退：环境变量验证
-    if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
-      const token = authTokenService
-        ? authTokenService.signToken({ userId: "admin", username, role: "admin", permissions: ["*"] })
-        : null;
+    // Explicit opt-in only. There are no development fallback credentials.
+    if (
+      passwordLoginConfigured
+      && safeCredentialEqual(username, adminUsername)
+      && safeCredentialEqual(password, adminPassword)
+    ) {
+      const token = authTokenService.signToken({ userId: "admin", username, role: "admin", permissions: ["*"] });
 
       writeServiceLog("auth_login_success", {
         method: "POST",
         path: "/auth/login",
-        username,
         durationMs: Date.now() - startedAt,
       });
 
@@ -100,8 +103,7 @@ export function createAuthRoutes(application, helpers) {
     writeServiceLog("auth_login_failed", {
       method: "POST",
       path: "/auth/login",
-      username,
-      reason: "invalid_credentials",
+      reason: passwordLoginConfigured ? "invalid_credentials" : "password_login_disabled",
       durationMs: Date.now() - startedAt,
     });
 
@@ -175,8 +177,9 @@ export function createAuthRoutes(application, helpers) {
   async function handleStatus(_req, res, { startedAt }) {
     const stats = authTokenService ? authTokenService.getStats() : null;
     writeJson(res, 200, createOkEnvelope({
-      authEnabled: true,
+      authEnabled: Boolean(authTokenService),
       tokenService: !!authTokenService,
+      passwordLoginConfigured,
       stats,
     }, { startedAt }));
   }
