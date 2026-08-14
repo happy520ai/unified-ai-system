@@ -108,6 +108,7 @@ jobs:
           pnpm exec vitest run
           apps/ai-gateway-service/src/http/idempotencyCoordinator.postgres.integration.test.ts
           apps/ai-gateway-service/src/http/rateLimiter.postgres.integration.test.ts
+          apps/ai-gateway-service/src/http/postgresWebSocketConnectionLeaseManager.postgres.integration.test.ts
 
       - name: Public repository hygiene
         run: pnpm check:public
