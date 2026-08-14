@@ -81,7 +81,8 @@ Gateway readiness and resilience are observable through:
 - `GET /healthz` and `GET /ready` readiness payloads (`status`,
   `readinessFailures`, `readinessFailureCount`, `saturation`).
 - `GET /metrics` readiness and in-flight metrics
-  (`gateway_readiness_*`, `gateway_resilience_in_flight_*`).
+  (`gateway_readiness_*`, `gateway_resilience_in_flight_*`), plus process CPU,
+  memory, event-loop utilization, and event-loop delay metrics.
 
 Use the [Readiness & Observability Guide](readiness-observability-guide.md) for
 prometheus alert examples and incident response playbooks.

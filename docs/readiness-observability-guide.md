@@ -25,6 +25,13 @@ for production readiness guardrails.
   - `ai_gateway_gateway_error_circuit_rejections_total`
   - `ai_gateway_gateway_error_circuit_failures_total`
   - `ai_gateway_gateway_error_circuit_success_total`
+  - `ai_gateway_process_cpu_seconds_total{mode="user"|"system"}`
+  - `ai_gateway_memory_usage_bytes{type="rss"|"heapUsed"|"heapTotal"|"external"|"arrayBuffers"}`
+  - `ai_gateway_event_loop_utilization_ratio`
+  - `ai_gateway_event_loop_active_seconds_total`
+  - `ai_gateway_event_loop_idle_seconds_total`
+  - `ai_gateway_event_loop_delay_seconds{quantile="0.5"|"0.95"|"0.99"}`
+  - `ai_gateway_event_loop_delay_max_seconds`
 
 ## 2) Ready-to-use Prometheus alerts
 
@@ -78,7 +85,30 @@ groups:
         annotations:
           summary: "AI Gateway not ready"
           description: "Gateway readiness has been not-ready too long; check dependencies and recovery procedures."
+
+      - alert: AiGatewayEventLoopDelayHigh
+        expr: ai_gateway_event_loop_delay_seconds{quantile="0.99"} > 0.2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "AI Gateway event-loop p99 delay is high"
+          description: "Event-loop delay p99 has exceeded 200ms for 5m; inspect CPU, synchronous work, GC pressure, and request concurrency."
+
+      - alert: AiGatewayEventLoopUtilizationHigh
+        expr: ai_gateway_event_loop_utilization_ratio > 0.9
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "AI Gateway event-loop utilization is persistently high"
+          description: "Event-loop utilization has exceeded 0.9 for 10m; review load, blocking operations, and horizontal capacity."
 ```
+
+Event-loop delay is sampled by Node's native `monitorEventLoopDelay` histogram
+and exported in seconds. Utilization is a process-lifetime ratio in the range
+`0..1`. Alert per instance; Prometheus summary quantiles must not be averaged
+across replicas.
 
 ## 3) Quality scorecard expectations
 

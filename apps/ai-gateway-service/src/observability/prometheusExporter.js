@@ -2,6 +2,10 @@
 // Prometheus metrics formatter for request + internal health signals.
 // =============================================================================
 
+import { createRuntimeResourceMonitor } from "./runtimeResourceMonitor.ts";
+
+let sharedRuntimeResourceMonitor;
+
 /**
  * Prometheus exporter utilities.
  * @param {Object} options - { prefix }
@@ -9,6 +13,7 @@
  */
 export function createPrometheusExporter(options = {}) {
   const prefix = options.prefix ?? "ai_gateway";
+  const runtimeResourceMonitor = options.runtimeResourceMonitor ?? getSharedRuntimeResourceMonitor();
 
   /**
    * Render a lightweight Prometheus exposition for monitoring dashboards.
@@ -199,16 +204,81 @@ export function createPrometheusExporter(options = {}) {
     lines.push(`# TYPE ${prefix}_uptime_seconds gauge`);
     lines.push(`${prefix}_uptime_seconds ${process.uptime().toFixed(2)}`);
 
+    const runtimeResources = readRuntimeResources(runtimeResourceMonitor);
+
     // Memory usage
     lines.push(`# HELP ${prefix}_memory_usage_bytes Memory usage in bytes`);
     lines.push(`# TYPE ${prefix}_memory_usage_bytes gauge`);
-    const mem = process.memoryUsage();
+    const mem = runtimeResources.memoryBytes;
     lines.push(`${prefix}_memory_usage_bytes{type="rss"} ${mem.rss}`);
     lines.push(`${prefix}_memory_usage_bytes{type="heapUsed"} ${mem.heapUsed}`);
     lines.push(`${prefix}_memory_usage_bytes{type="heapTotal"} ${mem.heapTotal}`);
+    lines.push(`${prefix}_memory_usage_bytes{type="external"} ${mem.external}`);
+    lines.push(`${prefix}_memory_usage_bytes{type="arrayBuffers"} ${mem.arrayBuffers}`);
+
+    // Process CPU counters
+    lines.push(`# HELP ${prefix}_process_cpu_seconds_total Total process CPU time in seconds`);
+    lines.push(`# TYPE ${prefix}_process_cpu_seconds_total counter`);
+    lines.push(`${prefix}_process_cpu_seconds_total{mode="user"} ${runtimeResources.cpuSeconds.user}`);
+    lines.push(`${prefix}_process_cpu_seconds_total{mode="system"} ${runtimeResources.cpuSeconds.system}`);
+
+    // Event-loop pressure
+    const eventLoop = runtimeResources.eventLoop;
+    const delay = eventLoop.delaySeconds;
+    lines.push(`# HELP ${prefix}_event_loop_utilization_ratio Event-loop utilization since the runtime monitor started`);
+    lines.push(`# TYPE ${prefix}_event_loop_utilization_ratio gauge`);
+    lines.push(`${prefix}_event_loop_utilization_ratio ${eventLoop.utilizationRatio}`);
+    lines.push(`# HELP ${prefix}_event_loop_active_seconds_total Event-loop active time since the runtime monitor started`);
+    lines.push(`# TYPE ${prefix}_event_loop_active_seconds_total counter`);
+    lines.push(`${prefix}_event_loop_active_seconds_total ${eventLoop.activeSeconds}`);
+    lines.push(`# HELP ${prefix}_event_loop_idle_seconds_total Event-loop idle time since the runtime monitor started`);
+    lines.push(`# TYPE ${prefix}_event_loop_idle_seconds_total counter`);
+    lines.push(`${prefix}_event_loop_idle_seconds_total ${eventLoop.idleSeconds}`);
+    lines.push(`# HELP ${prefix}_event_loop_delay_seconds Event-loop delay distribution in seconds`);
+    lines.push(`# TYPE ${prefix}_event_loop_delay_seconds summary`);
+    lines.push(`${prefix}_event_loop_delay_seconds{quantile="0.5"} ${delay.p50}`);
+    lines.push(`${prefix}_event_loop_delay_seconds{quantile="0.95"} ${delay.p95}`);
+    lines.push(`${prefix}_event_loop_delay_seconds{quantile="0.99"} ${delay.p99}`);
+    lines.push(`${prefix}_event_loop_delay_seconds_sum ${delay.sum}`);
+    lines.push(`${prefix}_event_loop_delay_seconds_count ${delay.count}`);
+    lines.push(`# HELP ${prefix}_event_loop_delay_max_seconds Maximum observed event-loop delay in seconds`);
+    lines.push(`# TYPE ${prefix}_event_loop_delay_max_seconds gauge`);
+    lines.push(`${prefix}_event_loop_delay_max_seconds ${delay.max}`);
 
     return lines.join("\n") + "\n";
   }
 
   return { formatMetrics };
+}
+
+function getSharedRuntimeResourceMonitor() {
+  sharedRuntimeResourceMonitor ??= createRuntimeResourceMonitor();
+  return sharedRuntimeResourceMonitor;
+}
+
+function readRuntimeResources(monitor) {
+  try {
+    const snapshot = monitor?.getSnapshot?.();
+    if (snapshot) return snapshot;
+  } catch {
+    // Metrics must remain available even if a platform resource probe fails.
+  }
+  const memory = process.memoryUsage();
+  const cpu = process.cpuUsage();
+  return {
+    cpuSeconds: { system: cpu.system / 1_000_000, user: cpu.user / 1_000_000 },
+    eventLoop: {
+      activeSeconds: 0,
+      delaySeconds: { count: 0, max: 0, mean: 0, p50: 0, p95: 0, p99: 0, sum: 0 },
+      idleSeconds: 0,
+      utilizationRatio: 0,
+    },
+    memoryBytes: {
+      arrayBuffers: memory.arrayBuffers ?? 0,
+      external: memory.external ?? 0,
+      heapTotal: memory.heapTotal,
+      heapUsed: memory.heapUsed,
+      rss: memory.rss,
+    },
+  };
 }
