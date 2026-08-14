@@ -406,12 +406,20 @@ export function resolvePermission(method, pathname) {
     return "workflow:run";
   }
 
+  if (
+    normalizedMethod === "POST"
+    && (normalizedPath === "/workforce/execute/approve" || normalizedPath === "/workforce/execute/revoke")
+  ) {
+    return "workflow:approve";
+  }
+
   if (normalizedMethod === "POST" && normalizedPath === "/codex-handoff/next-task") {
     return "workflow:run";
   }
 
   if (
     normalizedPath === "/workforce/plan" ||
+    normalizedPath === "/workforce/execute" ||
     normalizedPath === "/workforce/run-local" ||
     normalizedPath === "/real-capabilities/activate-five" ||
     normalizedPath === "/workforce/plans/save" ||

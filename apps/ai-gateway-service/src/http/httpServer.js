@@ -335,7 +335,7 @@ export function createGatewayHttpServer(application) {
   const tracedGatewayService = openTelemetry.instrumentGatewayService(gatewayService);
   const a2aGateway = createA2AGateway({
     gatewayService: tracedGatewayService,
-    workforceService: application.workforceService,
+    workforceExecutor: application.workforceExecutor,
     env: { ...process.env, ...application.runtimeEnv },
   });
 

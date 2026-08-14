@@ -22,6 +22,7 @@ import { createWorkforcePlan } from "./workforcePlanner.js";
 import { createSandboxMergeExecutor, SANDBOX_MERGE_MODE } from "./sandboxMergeExecutor.js";
 import { createDiagnosticReadChannel } from "./diagnosticReadChannel.js";
 import { AUTONOMY_MODES, DEFAULT_AUTONOMY_MODE, resolveAutonomyModeFrom } from "./autonomyModes.js";
+import { createWorkforceExecutionDescriptor } from "./workforceExecutionAuthorization.ts";
 import { createAutonomyTierGovernor, TIERS as TIER_VALUES } from "./autonomyTierGovernor.js";
 import {
   CONTROLLED_EXECUTION_PHASE,
@@ -50,10 +51,10 @@ const DEFAULT_EXECUTION_TIMEOUT_MS = 300_000; // 5 minutes
  */
 export function createControlledExecutor(options = {}) {
   const env = options.env ?? process.env;
-  // Execution enabled by default when providerAdapter is available (gateway running)
-  // Opt-out via WORKFORCE_EXECUTION_ENABLED=false or dryRun=true
-  const executionEnabled = env.WORKFORCE_EXECUTION_ENABLED !== "false" && (env.WORKFORCE_EXECUTION_ENABLED === "true" || !!options.providerAdapter);
-  const dryRun = options.dryRun ?? !executionEnabled;
+  // Real execution is always an explicit operator choice. Merely wiring a
+  // provider adapter must never turn a preview endpoint into an execution sink.
+  const executionEnabled = env.WORKFORCE_EXECUTION_ENABLED === "true";
+  const dryRun = !executionEnabled || options.dryRun === true;
   const providerAdapter = options.providerAdapter ?? null;
   const forgeService = options.forgeService ?? null;
   const maxConcurrent = Number(env.WORKFORCE_MAX_CONCURRENT) || DEFAULT_MAX_CONCURRENT_AGENTS;
@@ -64,6 +65,7 @@ export function createControlledExecutor(options = {}) {
   });
   const approvalGate = createExecutionApprovalGate({
     storePath: options.executionDir ? `${options.executionDir}/approvals.json` : undefined,
+    ttlMs: options.approvalTtlMs,
   });
   const worktree = createWorktreeIsolation({
     repoRoot: options.repoRoot ?? undefined,
@@ -89,7 +91,7 @@ export function createControlledExecutor(options = {}) {
   // Sandbox-merge executor + diagnostic read channel. The sandbox merger's
   // budget is CLAMPED by the current tier (so conservative tier blocks paid
   // calls even if the configured budget would allow them).
-  const sandboxMerger = createSandboxMergeExecutor({
+  const sandboxMerger = options.sandboxMerger || createSandboxMergeExecutor({
     repoRoot: options.repoRoot,
     env,
     executionDir: options.executionDir,
@@ -115,8 +117,10 @@ export function createControlledExecutor(options = {}) {
     const tierMode = tierState.autonomyMode; // sandbox-merge or sandbox-merge-auto
     const requested = resolveAutonomyModeFrom(input?.autonomyMode, env);
     // tier wins if the request would exceed the tier's allowance
-    const order = ["dry-run", "sandbox-merge", "sandbox-merge-auto"];
-    if (order.indexOf(tierMode) < order.indexOf(requested)) {
+    const order = ["dry-run", "controlled-execution", "sandbox-merge", "sandbox-merge-auto"];
+    const tierRank = order.indexOf(tierMode);
+    const requestedRank = order.indexOf(requested);
+    if (tierRank >= 0 && requestedRank > tierRank) {
       return tierMode; // clamp down to tier
     }
     return requested;
@@ -126,6 +130,13 @@ export function createControlledExecutor(options = {}) {
   // tier clamp applied at execute() time via the async resolver.
   function resolveAutonomyMode(input) {
     return resolveAutonomyModeFrom(input?.autonomyMode, env);
+  }
+
+  async function prepareExecution(input = {}) {
+    const plan = createWorkforcePlan(input);
+    const autonomyMode = await resolveAutonomyModeAsync(input);
+    const descriptor = createWorkforceExecutionDescriptor({ input, plan, autonomyMode });
+    return { plan, autonomyMode, descriptor };
   }
 
   return {
@@ -169,42 +180,44 @@ export function createControlledExecutor(options = {}) {
      *                          autonomyMode?, verify?, operationType? }
      */
     async execute(input = {}) {
-      // --- Autonomy dispatch (tier-clamped) ---
-      // The tier governor is the authoritative source of which mode is allowed.
-      // It can clamp a request DOWN (block auto-merge in conservative tier)
-      // but never UP past what the caller asked for.
-      const mode = await resolveAutonomyModeAsync(input);
-      if (mode === AUTONOMY_MODES.SANDBOX_MERGE || mode === AUTONOMY_MODES.SANDBOX_MERGE_AUTO) {
-        return sandboxMerger.execute({ ...input, autonomyMode: mode });
-      }
-      // Default: original controlled dry-run / approval-gated pipeline
       const startedAt = new Date();
-      const plan = createWorkforcePlan(input);
-      const planId = plan.workforceId ?? `wf_${Date.now()}`;
-      const userId = input.userId ?? "system";
-
-      // --- Step 1: Approval gate (auto-approve for local execution) ---
-      const approvalCheck = await approvalGate.check(planId);
-      if (!approvalCheck.approved && !dryRun) {
-        // Auto-approve for local-first usage; explicit approval only needed for remote/multi-user
-        try {
-          await approvalGate.approve?.(planId, { autoApproved: true, reason: "local_execution" });
-        } catch {
-          return createBlockedResult(plan, planId, "approval_required",
-            "Workforce execution requires approval. Call POST /workforce/plans/:id/approval-gate first.");
-        }
-      }
-
-      // --- Step 2: Pre-execution security scan ---
+      const { plan, autonomyMode: mode, descriptor } = await prepareExecution(input);
+      const planId = descriptor.planId;
+      const userId = typeof input.userId === "string" ? input.userId.trim() : "";
       const preScan = await securityCheckpoint.preExecutionScan?.(plan) ?? { result: "pass", findings: [] };
       if (preScan.result === "block") {
         return createBlockedResult(plan, planId, "security_pre_scan_blocked",
           `Pre-execution security scan blocked: ${(preScan.findings ?? []).join(", ")}`);
       }
 
-      // --- Step 3: Dry-run preview ---
-      if (dryRun) {
-        return createDryRunResult(plan, planId, startedAt, preScan, approvalCheck);
+      if (mode === AUTONOMY_MODES.DRY_RUN || dryRun) {
+        const approvalCheck = { approved: false };
+        return createDryRunResult(plan, planId, startedAt, preScan, approvalCheck, descriptor);
+      }
+      if (!executionEnabled) {
+        return createBlockedResult(plan, planId, "execution_disabled",
+          "Real workforce execution requires WORKFORCE_EXECUTION_ENABLED=true.", { approval: descriptor });
+      }
+      if (!userId) {
+        return createBlockedResult(plan, planId, "execution_identity_required",
+          "Real workforce execution requires an authenticated identity.", { approval: descriptor });
+      }
+
+      const approvalCheck = await approvalGate.consume({
+        planId,
+        userId,
+        planDigest: descriptor.planDigest,
+        requiredScopes: descriptor.requiredScopes,
+      });
+      if (!approvalCheck.approved) {
+        return createBlockedResult(plan, planId, "approval_required",
+          "Workforce execution requires a current, subject-bound approval for this exact plan.", {
+            approval: { ...descriptor, decisionCode: approvalCheck.code },
+          });
+      }
+
+      if (mode === AUTONOMY_MODES.SANDBOX_MERGE || mode === AUTONOMY_MODES.SANDBOX_MERGE_AUTO) {
+        return sandboxMerger.execute({ ...input, planId, userId, autonomyMode: mode });
       }
 
       // --- Step 4: Workspace guard ---
@@ -350,7 +363,7 @@ export function createControlledExecutor(options = {}) {
         safety: {
           executionEnabled: true,
           dryRun: false,
-          providerCallsMade: false,
+           providerCallsMade: Boolean(providerAdapter),
           secretValueExposed: false,
           projectFileWrites: false,
           deployExecuted: false,
@@ -362,15 +375,49 @@ export function createControlledExecutor(options = {}) {
     /**
      * Request approval for a workforce plan execution.
      */
-    async approve(planId, userId, approvedScopes = []) {
-      return approvalGate.approve({ planId, userId, approvedScopes });
+    async approveExecution(input = {}, userId, approvedScopes = []) {
+      if (!executionEnabled) {
+        const error = new Error("WORKFORCE_EXECUTION_ENABLED=true is required before issuing execution approvals.");
+        error.code = "WORKFORCE_EXECUTION_DISABLED";
+        error.statusCode = 409;
+        throw error;
+      }
+      const { autonomyMode, descriptor } = await prepareExecution(input);
+      if (autonomyMode === AUTONOMY_MODES.DRY_RUN) {
+        const error = new Error("A non-dry-run autonomyMode is required for execution approval.");
+        error.code = "WORKFORCE_EXECUTION_MODE_REQUIRED";
+        error.statusCode = 400;
+        throw error;
+      }
+      const requestedScopes = [...new Set((Array.isArray(approvedScopes) ? approvedScopes : []).map(String))].sort();
+      const requiredScopes = [...descriptor.requiredScopes].sort();
+      if (JSON.stringify(requestedScopes) !== JSON.stringify(requiredScopes)) {
+        const error = new Error(`approvedScopes must exactly match: ${requiredScopes.join(", ")}`);
+        error.code = "WORKFORCE_APPROVAL_SCOPE_MISMATCH";
+        error.statusCode = 400;
+        throw error;
+      }
+      const approval = await approvalGate.approve({
+        planId: descriptor.planId,
+        userId,
+        planDigest: descriptor.planDigest,
+        approvedScopes: requiredScopes,
+        note: input.note,
+      });
+      return { ...approval, execution: descriptor };
     },
 
     /**
      * Check execution approval status.
      */
-    async checkApproval(planId) {
-      return approvalGate.check(planId);
+    async checkApproval(input = {}, userId) {
+      const { descriptor } = await prepareExecution(input);
+      return approvalGate.check({
+        planId: descriptor.planId,
+        userId,
+        planDigest: descriptor.planDigest,
+        requiredScopes: descriptor.requiredScopes,
+      });
     },
 
     /**
@@ -378,6 +425,11 @@ export function createControlledExecutor(options = {}) {
      */
     async revokeApproval(planId, revokedBy, reason) {
       return approvalGate.revoke(planId, revokedBy, reason);
+    },
+
+    async describeExecution(input = {}) {
+      const { descriptor } = await prepareExecution(input);
+      return descriptor;
     },
 
     /**
@@ -473,4 +525,3 @@ export function createControlledExecutor(options = {}) {
     },
   };
 }
-

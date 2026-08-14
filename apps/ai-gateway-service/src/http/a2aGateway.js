@@ -66,9 +66,9 @@ function readTextMessage(message) {
 }
 
 class GatewayAgentExecutor {
-  constructor(gatewayService, workforceService = null) {
+  constructor(gatewayService, workforceExecutor = null) {
     this.gatewayService = gatewayService;
-    this.workforceService = workforceService;
+    this.workforceExecutor = workforceExecutor;
     this.cancelledTaskIds = new Set();
     this.taskContexts = new Map();
   }
@@ -102,9 +102,13 @@ class GatewayAgentExecutor {
       const executionMode = unifiedAiMeta.executionMode ?? "fake-provider";
 
       // Workforce mode: route to workforce agent execution instead of gateway chat
-      if (executionMode === "workforce" && this.workforceService) {
-        const workforceResult = await this.workforceService.execute({
+      if (executionMode === "workforce") {
+        if (!this.workforceExecutor) {
+          throw new Error("Controlled workforce execution is unavailable.");
+        }
+        const workforceResult = await this.workforceExecutor.execute({
           goal: input,
+          autonomyMode: "dry-run",
           context: { source: "a2a-v1", taskId, contextId },
         });
 
@@ -245,7 +249,7 @@ function normalizePublicBaseUrl(env) {
   return url.toString().replace(/\/+$/, "");
 }
 
-export function createA2AGateway({ gatewayService, workforceService = null, env = process.env }) {
+export function createA2AGateway({ gatewayService, workforceExecutor = null, env = process.env }) {
   const publicBaseUrl = normalizePublicBaseUrl(env);
   const enterpriseAuthEnabled = env.PME_ENTERPRISE_AUTH_ENABLED === "true";
   const securitySchemes = enterpriseAuthEnabled
@@ -334,7 +338,7 @@ export function createA2AGateway({ gatewayService, workforceService = null, env 
   const requestHandler = new DefaultRequestHandler(
     agentCard,
     new InMemoryTaskStore(),
-    new GatewayAgentExecutor(gatewayService, workforceService),
+    new GatewayAgentExecutor(gatewayService, workforceExecutor),
   );
   return {
     agentCard,

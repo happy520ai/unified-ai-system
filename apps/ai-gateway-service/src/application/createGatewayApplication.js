@@ -21,6 +21,7 @@ import { createLocalKnowledgeService } from "../knowledge/localKnowledgeService.
 import { createKnowledgeInfra } from "../knowledge/knowledgeInfra.js";
 import { createLocalWorkflowService } from "../workflow/localWorkflowService.js";
 import { createWorkforceService } from "../workforce/workforceService.js";
+import { createControlledExecutor } from "../workforce/workforceControlledExecutor.js";
 import { createUserExperienceService } from "../capabilities/userExperienceService.js";
 import { createCapabilityRouterService } from "../capabilities/capabilityRouterService.js";
 import { createEnterpriseGovernanceService } from "../enterprise/enterpriseGovernanceService.js";
@@ -131,6 +132,11 @@ export function createGatewayApplication(env = process.env) {
   const workforceService = createWorkforceService({
     env,
   });
+  const workforceExecutor = createControlledExecutor({
+    env,
+    repoRoot,
+    executionDir: env.WORKFORCE_EXECUTION_DIR,
+  });
   const userExperienceService = createUserExperienceService({
     config,
     env,
@@ -159,6 +165,7 @@ export function createGatewayApplication(env = process.env) {
   const fiveCapabilityActivationService = createFiveCapabilityActivationService({
     repoRoot,
     workforceService,
+    workforceExecutor,
   });
 
   return {
