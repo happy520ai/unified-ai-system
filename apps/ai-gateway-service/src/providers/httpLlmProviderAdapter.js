@@ -2,6 +2,7 @@ import { createProviderDescriptor } from "./providerAdapter.js";
 import { createProviderResponse } from "./providerMapping.js";
 import { getOrCreateAgent, fetchWithAgent } from "../http/connectionPool.js";
 import { resolveSafeOutboundUrl } from "../security/outboundUrlPolicy.ts";
+import { safeOutboundFetch } from "../security/safeOutboundFetch.ts";
 import { createPinoLogger } from "../logging/pinoLogger.js";
 import {
   abortableSleep,
@@ -433,10 +434,8 @@ export class HttpLLMProviderAdapter {
 
     const startedAt = Date.now();
     try {
-      const agent = getOrCreateAgent(baseUrl);
-      await fetchWithAgent(`${baseUrl}/models`, {
+      await safeOutboundFetch(`${baseUrl}/models`, {
         method: "HEAD",
-        agent,
         timeout: 5_000,
       });
       return { warmed: true, latencyMs: Date.now() - startedAt };

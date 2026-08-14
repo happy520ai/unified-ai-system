@@ -64,7 +64,7 @@ export function createOAuth2Provider(options = {}) {
     const p = providers.get(providerName);
     if (!p) throw new Error(`Provider not registered: ${providerName}`);
 
-    const resp = await fetch(p.tokenUrl, {
+    const resp = await safeOutboundFetch(p.tokenUrl, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
       body: new URLSearchParams({
@@ -85,7 +85,7 @@ export function createOAuth2Provider(options = {}) {
     const p = providers.get(providerName);
     if (!p) throw new Error(`Provider not registered: ${providerName}`);
 
-    const resp = await fetch(p.userInfoUrl, {
+    const resp = await safeOutboundFetch(p.userInfoUrl, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
 
@@ -119,3 +119,4 @@ function randomUUID() {
     return (c === "x" ? r : (r & 0x3) | 0x8).toString(16);
   });
 }
+import { safeOutboundFetch } from "../security/safeOutboundFetch.ts";

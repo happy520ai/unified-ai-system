@@ -1,4 +1,5 @@
 import { createErrorEnvelope, createOkEnvelope } from "@unified-ai-system/shared-utils";
+import { safeOutboundFetch } from "../security/safeOutboundFetch.ts";
 import {
   writeJson,
   readJson,
@@ -267,7 +268,7 @@ export function createHttpServerCapabilityRoutes(ctx) {
     } else {
       try {
         const payload = { msg_type: "text", content: { text: `[${body.title || "AI Gateway"}]\n${body.body || body.text || ""}` } };
-        const resp = await fetch(webhookUrl, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
+        const resp = await safeOutboundFetch(webhookUrl, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
         const result = await resp.json().catch(() => ({}));
         writeJson(response, 200, createOkEnvelope({
           route: "/connectors/feishu/send", delivered: resp.ok && result.code === 0, dryRun: false,
@@ -292,7 +293,7 @@ export function createHttpServerCapabilityRoutes(ctx) {
     } else {
       try {
         const payload = { msgtype: "text", text: { content: `[${body.title || "AI Gateway"}]\n${body.body || body.text || ""}` } };
-        const resp = await fetch(webhookUrl, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
+        const resp = await safeOutboundFetch(webhookUrl, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
         const result = await resp.json().catch(() => ({}));
         writeJson(response, 200, createOkEnvelope({
           route: "/connectors/wecom/send", delivered: resp.ok && result.errcode === 0, dryRun: false,

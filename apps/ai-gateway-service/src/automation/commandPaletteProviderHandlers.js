@@ -1,6 +1,7 @@
 import fs from "fs/promises";
 import path from "path";
 import { PROVIDERS_CONFIG } from "./commandPaletteConstants.js";
+import { safeOutboundFetch } from "../security/safeOutboundFetch.ts";
 
 /**
  * Provider command handlers for CommandPaletteService.
@@ -99,39 +100,22 @@ export async function providerTest(svc, args) {
   const provider = config.providers.find((p) => p.id === id);
   if (!provider) throw new Error(`Provider "${id}" not found.`);
 
-  // SSRF protection: validate baseUrl before making request
-  try {
-    const targetUrl = new URL(provider.baseUrl);
-    const ip = targetUrl.hostname.replace(/^\[|\]$/g, "").toLowerCase();
-    if (ip === "localhost" || ip === "::1" || /^127\./.test(ip) || /^10\./.test(ip) ||
-        /^172\.(1[6-9]|2\d|3[01])\./.test(ip) || /^192\.168\./.test(ip) ||
-        /^169\.254\./.test(ip) || /^0\./.test(ip) ||
-        ip === "metadata.google.internal" || ip === "metadata" || ip === "instance-data" ||
-        ip.endsWith(".local") || ip.endsWith(".internal")) {
-      // Allow localhost for normal provider operation, block other private ranges
-      if (ip !== "localhost" && ip !== "::1" && !(/^127\./.test(ip))) {
-        throw new Error("Connection to private/internal networks is not allowed.");
-      }
-    }
-  } catch (e) {
-    if (e.message.includes("not allowed")) throw e;
-    // URL parse errors are handled by fetch failure below
-  }
-
   const startTime = Date.now();
   try {
     // Simple HTTP connectivity test (HEAD or GET to baseUrl)
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
 
-    const response = await fetch(provider.baseUrl, {
+    const response = await safeOutboundFetch(provider.baseUrl, {
       method: "GET",
       signal: controller.signal,
+      timeout: 5000,
     }).catch(() => null);
 
     clearTimeout(timeout);
     const latencyMs = Date.now() - startTime;
 
+    await response?.arrayBuffer().catch(() => {});
     return {
       providerId: id,
       reachable: response !== null,

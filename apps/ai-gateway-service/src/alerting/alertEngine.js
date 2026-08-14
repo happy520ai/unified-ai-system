@@ -6,6 +6,7 @@
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, appendFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { safeOutboundFetch } from "../security/safeOutboundFetch.ts";
 
 export function createAlertEngine(options = {}) {
   const alertLogDir = options.logDir ?? resolve(process.cwd(), ".data/alerts");
@@ -91,12 +92,14 @@ export function createAlertEngine(options = {}) {
     // Webhook
     for (const url of webhookUrls) {
       try {
-        await fetch(url, {
+        const response = await safeOutboundFetch(url, {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify(alert),
           signal: AbortSignal.timeout(5000),
+          timeout: 5000,
         });
+        await response.arrayBuffer();
       } catch (err) { console.error("[alertEngine]:", err?.message || err); }
     }
   }

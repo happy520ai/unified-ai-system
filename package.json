@@ -25,7 +25,7 @@
     "smoke:mcp": "node ./tools/mcp-smoke.mjs",
     "eval:prompt-enhancement": "node ./tools/prompt-enhancement-eval.mjs",
     "build": "pnpm -r --if-present build",
-    "check": "pnpm -r --if-present check && pnpm check:language-policy && pnpm check:supply-chain-config && pnpm check:route-permissions",
+    "check": "pnpm -r --if-present check && pnpm check:language-policy && pnpm check:supply-chain-config && pnpm check:route-permissions && pnpm check:outbound-policy",
     "typecheck": "tsc -p tsconfig.json",
     "test": "pnpm -r --if-present test",
     "check:public": "node tools/public-repo-check.mjs",
@@ -53,6 +53,7 @@
     "check:language-policy": "node ./tools/check-language-policy.mjs && node ./tools/language-policy-expiry-report.mjs --json",
     "check:supply-chain-config": "node ./tools/check-supply-chain-config.mjs",
     "check:route-permissions": "node ./tools/check-route-permission-consistency.mjs && node ./tools/check-runtime-route-permissions.mjs",
+    "check:outbound-policy": "node ./tools/check-outbound-request-policy.mjs",
     "report:language-policy-expiry": "node ./tools/language-policy-expiry-report.mjs --json"
   },
   "engines": {

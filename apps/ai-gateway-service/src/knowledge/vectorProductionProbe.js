@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { safeOutboundFetch } from "../security/safeOutboundFetch.ts";
 
 const DEFAULT_GEMINI_BASE_URL = "https://generativelanguage.googleapis.com";
 const PSQL_FIELD_SEPARATOR = "~";
@@ -21,6 +22,7 @@ export async function runVectorProductionProbe(env, options = {}) {
   const namespace = normalizeOptional(env.KNOWLEDGE_VECTOR_NAMESPACE) ?? "default";
   const query = options.query ?? DEFAULT_QUERY;
   const documents = options.documents ?? [];
+  const request = options.request ?? safeOutboundFetch;
 
   if (embeddingProvider !== "gemini") {
     return {
@@ -73,6 +75,7 @@ export async function runVectorProductionProbe(env, options = {}) {
         taskType: "RETRIEVAL_DOCUMENT",
         text: document.content,
         title: document.title,
+        request,
       });
       embeddedDocuments.push({
         ...document,
@@ -86,6 +89,7 @@ export async function runVectorProductionProbe(env, options = {}) {
       model: embeddingModel,
       taskType: "RETRIEVAL_QUERY",
       text: query,
+      request,
     });
 
     const dimension = queryEmbedding.length;
@@ -141,10 +145,10 @@ export async function runVectorProductionProbe(env, options = {}) {
   }
 }
 
-async function embedWithGemini({ apiKey, baseUrl, model, taskType, text, title }) {
+async function embedWithGemini({ apiKey, baseUrl, model, taskType, text, title, request }) {
   const modelPath = model.startsWith("models/") ? model : `models/${model}`;
   const url = `${baseUrl.replace(/\/$/, "")}/v1beta/${modelPath}:embedContent?key=${encodeURIComponent(apiKey)}`;
-  const response = await fetch(url, {
+  const response = await request(url, {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -158,6 +162,7 @@ async function embedWithGemini({ apiKey, baseUrl, model, taskType, text, title }
       },
     }),
     signal: AbortSignal.timeout(60000),
+    timeout: 60000,
   });
   const textBody = await response.text();
   let body;

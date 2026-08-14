@@ -93,7 +93,7 @@ async function searchDuckDuckGo(query, maxResults, timeRange) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
 
-    const response = await fetch(url, {
+    const response = await safeOutboundFetch(url, {
       headers: {
         "user-agent": "Mozilla/5.0 (compatible; PME-Agent/1.0)",
         "accept": "text/html",
@@ -214,7 +214,7 @@ async function searchBrave(query, maxResults, timeRange, apiKey) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
 
-    const response = await fetch(`https://api.search.brave.com/res/v1/web/search?${params}`, {
+    const response = await safeOutboundFetch(`https://api.search.brave.com/res/v1/web/search?${params}`, {
       headers: {
         "accept": "application/json",
         "x-subscription-token": apiKey,
@@ -254,7 +254,7 @@ async function searchTavily(query, maxResults, apiKey) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
 
-    const response = await fetch("https://api.tavily.com/search", {
+    const response = await safeOutboundFetch("https://api.tavily.com/search", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -316,7 +316,7 @@ async function searchSerpApi(query, maxResults, timeRange, apiKey) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
 
-    const response = await fetch(`https://serpapi.com/search.json?${params}`, {
+    const response = await safeOutboundFetch(`https://serpapi.com/search.json?${params}`, {
       signal: controller.signal,
     });
 
@@ -346,3 +346,4 @@ async function searchSerpApi(query, maxResults, timeRange, apiKey) {
 function stripHtmlTags(html) {
   return html.replace(/<[^>]*>/g, "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").trim();
 }
+import { safeOutboundFetch } from "../security/safeOutboundFetch.ts";
