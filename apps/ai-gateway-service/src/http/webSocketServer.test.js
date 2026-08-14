@@ -269,27 +269,93 @@ describe("governed websocket server", () => {
     expect(gateway.getSecuritySnapshot().executionLeaseUnavailable).toBe(1);
   });
 
-  it("closes an executing socket when its distributed execution lease is lost", async () => {
+  it("cancels provider work and releases ownership when its distributed execution lease is lost", async () => {
     const executionLeases = createSharedExecutionLeaseManager();
-    let releaseWork;
-    const pending = new Promise((resolve) => { releaseWork = resolve; });
-    const onMessage = vi.fn(async () => pending);
+    const abortAware = createAbortAwareMessageHandler();
+    const onError = vi.fn();
     const { url, gateway } = await startGateway({
       authenticate: async () => ({ allowed: true, identity: { userId: "alice" } }),
       executionLeaseManager: executionLeases,
-      onMessage,
+      onMessage: abortAware.onMessage,
+      onError,
     });
     const client = await connect(url);
     const closed = waitForClose(client);
     client.send("long-running request");
-    await waitFor(() => onMessage.mock.calls.length === 1);
+    await waitFor(() => abortAware.onMessage.mock.calls.length === 1);
 
     executionLeases.loseLatest();
 
     await expect(closed).resolves.toMatchObject({ code: 1013, reason: "Execution lease unavailable" });
-    expect(gateway.getSecuritySnapshot().executionLeaseLost).toBe(1);
-    releaseWork();
+    await expect(abortAware.aborted).resolves.toMatchObject({
+      code: "EXECUTION_LEASE_LOST",
+      retryable: true,
+      statusCode: 503,
+      details: { source: "execution-lease-lost", transport: "websocket" },
+    });
     await waitFor(() => executionLeases.active() === 0);
+    expect(gateway.getSecuritySnapshot()).toMatchObject({
+      executionLeaseLost: 1,
+      executionCancelled: 1,
+      executionCancelledLeaseLoss: 1,
+      inFlightMessages: 0,
+    });
+    expect(onError.mock.calls.some(([, context]) => context.event === "ws_message_rejected")).toBe(false);
+  });
+
+  it("cancels in-flight provider work when the client disconnects", async () => {
+    const abortAware = createAbortAwareMessageHandler();
+    const onError = vi.fn();
+    const { url, gateway } = await startGateway({
+      authenticate: async () => ({ allowed: true, identity: { userId: "alice" } }),
+      onMessage: abortAware.onMessage,
+      onError,
+    });
+    const client = await connect(url);
+    client.send("long-running request");
+    await waitFor(() => abortAware.onMessage.mock.calls.length === 1);
+
+    client.terminate();
+
+    await expect(abortAware.aborted).resolves.toMatchObject({
+      code: "CLIENT_DISCONNECTED",
+      retryable: false,
+      statusCode: 499,
+      details: { source: "client-disconnected", transport: "websocket" },
+    });
+    await waitFor(() => gateway.getSecuritySnapshot().inFlightMessages === 0);
+    expect(gateway.getSecuritySnapshot()).toMatchObject({
+      executionCancelled: 1,
+      executionCancelledClientDisconnect: 1,
+    });
+    expect(onError.mock.calls.some(([, context]) => context.event === "ws_message_rejected")).toBe(false);
+  });
+
+  it("cancels in-flight provider work before a graceful gateway shutdown", async () => {
+    const abortAware = createAbortAwareMessageHandler();
+    const { url, gateway } = await startGateway({
+      authenticate: async () => ({ allowed: true, identity: { userId: "alice" } }),
+      onMessage: abortAware.onMessage,
+    });
+    const client = await connect(url);
+    const closed = waitForClose(client);
+    client.send("long-running request");
+    await waitFor(() => abortAware.onMessage.mock.calls.length === 1);
+
+    gateway.close();
+
+    await expect(abortAware.aborted).resolves.toMatchObject({
+      code: "GATEWAY_SHUTDOWN",
+      retryable: true,
+      statusCode: 503,
+      details: { source: "gateway-shutdown", transport: "websocket" },
+    });
+    await expect(closed).resolves.toMatchObject({ code: 1001, reason: "Gateway shutting down" });
+    await waitFor(() => gateway.getSecuritySnapshot().inFlightMessages === 0);
+    expect(gateway.getSecuritySnapshot()).toMatchObject({
+      executionCancelled: 1,
+      executionCancelledShutdown: 1,
+    });
   });
 
   it("rejects binary messages", async () => {
@@ -497,7 +563,51 @@ describe("governed websocket server", () => {
         tenantId: "tenant-a",
       },
     });
+    expect(execute.mock.calls[0][1]).toMatchObject({ signal: expect.any(AbortSignal) });
     expect(authorize).toHaveBeenCalledWith(expect.anything(), "chat:use");
+  });
+
+  it("propagates full-route client cancellation into gateway execution", async () => {
+    let resolveAborted;
+    const aborted = new Promise((resolve) => { resolveAborted = resolve; });
+    const execute = vi.fn(async (_input, execution) => new Promise((resolve, reject) => {
+      const onAbort = () => {
+        resolveAborted(execution.signal.reason);
+        reject(execution.signal.reason);
+      };
+      if (execution.signal.aborted) onAbort();
+      else execution.signal.addEventListener("abort", onAbort, { once: true });
+    }));
+    const authorize = vi.fn(() => ({
+      allowed: true,
+      identity: { userId: "alice", tenantId: "tenant-a", role: "operator" },
+      permission: "chat:use",
+      statusCode: 200,
+    }));
+    const server = createGatewayHttpServer(createGatewayApplicationFixture({ execute, authorize }));
+    await new Promise((resolve, reject) => {
+      server.once("error", reject);
+      server.listen(0, "127.0.0.1", resolve);
+    });
+    cleanups.push(async () => {
+      server.closeRealtimeConnections?.();
+      if (server.listening) await new Promise((resolve) => server.close(() => resolve()));
+      await server.shutdownResources?.();
+    });
+    const address = server.address();
+    const client = await connect(`ws://127.0.0.1:${address.port}/ws`, {
+      origin: "https://console.example",
+      headers: { authorization: "Bearer websocket-test-token" },
+    });
+    client.send(JSON.stringify({ type: "chat", prompt: "cancel this governed request" }));
+    await waitFor(() => execute.mock.calls.length === 1);
+
+    client.terminate();
+
+    await expect(aborted).resolves.toMatchObject({
+      code: "CLIENT_DISCONNECTED",
+      details: { source: "client-disconnected", transport: "websocket" },
+    });
   });
 });
 
@@ -567,6 +677,20 @@ function createSharedExecutionLeaseManager() {
       };
     },
   };
+}
+
+function createAbortAwareMessageHandler() {
+  let resolveAborted;
+  const aborted = new Promise((resolve) => { resolveAborted = resolve; });
+  const onMessage = vi.fn(async (_message, _connection, execution) => new Promise((resolve, reject) => {
+    const onAbort = () => {
+      resolveAborted(execution.signal.reason);
+      reject(execution.signal.reason);
+    };
+    if (execution.signal.aborted) onAbort();
+    else execution.signal.addEventListener("abort", onAbort, { once: true });
+  }));
+  return { aborted, onMessage };
 }
 
 function connect(url, options = {}) {

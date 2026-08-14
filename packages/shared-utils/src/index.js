@@ -152,7 +152,9 @@ export function sleep(ms) {
 
 export const EXECUTION_ABORT_CODES = Object.freeze({
   CLIENT_DISCONNECTED: "CLIENT_DISCONNECTED",
+  EXECUTION_LEASE_LOST: "EXECUTION_LEASE_LOST",
   GATEWAY_DEADLINE_EXCEEDED: "GATEWAY_DEADLINE_EXCEEDED",
+  GATEWAY_SHUTDOWN: "GATEWAY_SHUTDOWN",
 });
 
 const EXECUTION_ABORT_CODE_SET = new Set(Object.values(EXECUTION_ABORT_CODES));
@@ -160,13 +162,17 @@ const EXECUTION_ABORT_CODE_SET = new Set(Object.values(EXECUTION_ABORT_CODES));
 export class ExecutionAbortError extends Error {
   constructor(code, message, options = {}) {
     super(message, options.cause === undefined ? undefined : { cause: options.cause });
+    const retryableInfrastructureCancellation = code === EXECUTION_ABORT_CODES.EXECUTION_LEASE_LOST
+      || code === EXECUTION_ABORT_CODES.GATEWAY_SHUTDOWN;
     this.name = "ExecutionAbortError";
     this.code = code;
     this.category = options.category
       ?? (code === EXECUTION_ABORT_CODES.GATEWAY_DEADLINE_EXCEEDED ? "timeout" : "cancellation");
-    this.retryable = options.retryable ?? false;
+    this.retryable = options.retryable ?? retryableInfrastructureCancellation;
     this.statusCode = options.statusCode
-      ?? (code === EXECUTION_ABORT_CODES.GATEWAY_DEADLINE_EXCEEDED ? 504 : 499);
+      ?? (code === EXECUTION_ABORT_CODES.GATEWAY_DEADLINE_EXCEEDED
+        ? 504
+        : retryableInfrastructureCancellation ? 503 : 499);
     this.details = options.details ?? {};
   }
 }

@@ -415,6 +415,7 @@ export function createGatewayHttpServer(application) {
       ws.send(JSON.stringify({ type: "connected", message: "Welcome to AI Gateway WebSocket" }));
     },
     async onMessage(message, ws) {
+      const execution = arguments[2];
       try {
         const data = JSON.parse(message);
         if (!data || typeof data !== "object" || Array.isArray(data)) {
@@ -441,7 +442,7 @@ export function createGatewayHttpServer(application) {
               userId: ws.identity?.userId,
               tenantId: ws.identity?.tenantId,
             },
-          });
+          }, execution);
           ws.send(JSON.stringify({ type: "chat_response", data: result }));
         } else if (data.type === "ping") {
           ws.send(JSON.stringify({ type: "pong", timestamp: Date.now() }));
@@ -453,6 +454,7 @@ export function createGatewayHttpServer(application) {
           )));
         }
       } catch (e) {
+        if (findExecutionAbortError(e, execution?.signal)) return;
         logger.warn("ws_message_failed", { error: e.message });
         ws.send(JSON.stringify(createErrorEnvelope(
           "WEBSOCKET_MESSAGE_ERROR",

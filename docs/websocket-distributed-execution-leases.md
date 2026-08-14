@@ -25,6 +25,11 @@ namespace, so they do not consume connection capacity.
   provider handler starts.
 - Store failure, malformed decisions, renewal loss, and release failure all
   fail closed.
+- Client disconnect, gateway shutdown, connection-lease loss, and
+  execution-lease loss abort the per-message execution signal. Compliant
+  provider adapters cancel transport work before ownership is released.
+- Cancellation is idempotent and source-attributed; lease-loss closure remains
+  `1013`, shutdown remains `1001`, and no late application response is sent.
 
 The execution limits reuse `AI_GATEWAY_WS_MAX_IN_FLIGHT_MESSAGES` and
 `AI_GATEWAY_WS_MAX_IN_FLIGHT_PER_SUBJECT`. Lease duration, row capacity, pool
@@ -42,7 +47,11 @@ treated as active.
 
 TypeScript extends the existing lease protocol because the workload is an
 in-process ownership contract with typed limits, decisions, and fencing
-lifecycle. A Go or Rust sidecar would add a process, RPC, packaging, telemetry,
+lifecycle. The additive cancellation codes remain in the shared TypeScript
+contract. The per-message scope stays inside the existing Node.js ESM transport
+because this repository and downstream consumers load that source directly
+without a transpilation step; a separate TypeScript runtime module would break
+that zero-build compatibility boundary. A Go or Rust sidecar would add a process, RPC, packaging, telemetry,
 credential, and rollback boundary without a measured isolation or throughput
 benefit. Existing JavaScript transport files receive only compatibility wiring;
 no new JavaScript runtime module or dependency is introduced.
@@ -53,6 +62,9 @@ Component tests use two independent WebSocket servers and prove that a second
 replica cannot start provider work after the shared execution cap is consumed.
 The PostgreSQL 17 CI service uses independent pools to verify subject/global
 limits, connection/execution namespace isolation, HMAC-only persistence, exact
-release, expiry takeover, and stale-owner fencing. Passing these checks does not
-prove provider cancellation, unlimited scale, production readiness, or freedom
-from every denial-of-service technique.
+release, expiry takeover, and stale-owner fencing. WebSocket integration tests
+prove cooperative cancellation reaches gateway execution for client disconnect,
+shutdown, and execution-lease loss, followed by in-flight and lease release.
+Passing these checks does not prove cancellation after process death or after an
+external provider has irreversibly accepted work, unlimited scale, production
+readiness, or freedom from every denial-of-service technique.

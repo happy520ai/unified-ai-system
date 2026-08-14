@@ -56,7 +56,9 @@ export declare function createRequestId(prefix?: string): string;
 export declare function sleep(ms: number): Promise<void>;
 export declare const EXECUTION_ABORT_CODES: Readonly<{
   CLIENT_DISCONNECTED: "CLIENT_DISCONNECTED";
+  EXECUTION_LEASE_LOST: "EXECUTION_LEASE_LOST";
   GATEWAY_DEADLINE_EXCEEDED: "GATEWAY_DEADLINE_EXCEEDED";
+  GATEWAY_SHUTDOWN: "GATEWAY_SHUTDOWN";
 }>;
 export type ExecutionAbortCode = typeof EXECUTION_ABORT_CODES[keyof typeof EXECUTION_ABORT_CODES];
 export declare class ExecutionAbortError extends Error {

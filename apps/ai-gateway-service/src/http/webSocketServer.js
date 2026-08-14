@@ -6,6 +6,35 @@
  */
 
 import WebSocket, { WebSocketServer } from "ws";
+import {
+  EXECUTION_ABORT_CODES,
+  createExecutionAbortError,
+} from "@unified-ai-system/shared-utils";
+
+const WEB_SOCKET_EXECUTION_CANCELLATION_SOURCES = Object.freeze({
+  CLIENT_DISCONNECTED: "client-disconnected",
+  CONNECTION_LEASE_LOST: "connection-lease-lost",
+  EXECUTION_LEASE_LOST: "execution-lease-lost",
+  GATEWAY_SHUTDOWN: "gateway-shutdown",
+});
+const WEB_SOCKET_CANCELLATION_POLICIES = Object.freeze({
+  [WEB_SOCKET_EXECUTION_CANCELLATION_SOURCES.CLIENT_DISCONNECTED]: Object.freeze({
+    code: EXECUTION_ABORT_CODES.CLIENT_DISCONNECTED,
+    message: "WebSocket client disconnected before gateway execution completed.",
+  }),
+  [WEB_SOCKET_EXECUTION_CANCELLATION_SOURCES.CONNECTION_LEASE_LOST]: Object.freeze({
+    code: EXECUTION_ABORT_CODES.EXECUTION_LEASE_LOST,
+    message: "WebSocket connection ownership was lost before gateway execution completed.",
+  }),
+  [WEB_SOCKET_EXECUTION_CANCELLATION_SOURCES.EXECUTION_LEASE_LOST]: Object.freeze({
+    code: EXECUTION_ABORT_CODES.EXECUTION_LEASE_LOST,
+    message: "WebSocket execution ownership was lost before gateway execution completed.",
+  }),
+  [WEB_SOCKET_EXECUTION_CANCELLATION_SOURCES.GATEWAY_SHUTDOWN]: Object.freeze({
+    code: EXECUTION_ABORT_CODES.GATEWAY_SHUTDOWN,
+    message: "Gateway shutdown interrupted WebSocket execution.",
+  }),
+});
 
 const MAX_WS_CONNECTIONS = 100;
 const DEFAULT_MAX_CONNECTIONS_PER_SUBJECT = 5;
@@ -37,6 +66,7 @@ const DEFAULT_ALLOWED_ORIGINS = Object.freeze([
  *   close(code?: number, reason?: string): void,
  *   terminate(): void,
  * }} GatewayWebSocketConnection
+ * @typedef {{ signal: AbortSignal }} GatewayWebSocketExecutionContext
  */
 
 /**
@@ -65,7 +95,7 @@ const DEFAULT_ALLOWED_ORIGINS = Object.freeze([
  * @param {{acquire: (subject: string, limits: {maxConnections: number, maxConnectionsPerSubject: number}) => Promise<{acquired: boolean, retryAfterSeconds?: number, lease?: {isValid: () => boolean, start: (onLost: () => void) => void, release: () => Promise<void>}}>, close?: () => Promise<void>}} [options.connectionLeaseManager]
  * @param {{acquireExecution: (subject: string, limits: {maxInFlightMessages: number, maxInFlightPerSubject: number}) => Promise<{acquired: boolean, scope?: "global" | "subject", retryAfterSeconds?: number, lease?: {isValid: () => boolean, start: (onLost: () => void) => void, release: () => Promise<void>}}>}} [options.executionLeaseManager]
  * @param {(connection: GatewayWebSocketConnection) => void} [options.onConnection]
- * @param {(message: string, connection: GatewayWebSocketConnection) => unknown | Promise<unknown>} [options.onMessage]
+ * @param {(message: string, connection: GatewayWebSocketConnection, execution: GatewayWebSocketExecutionContext) => unknown | Promise<unknown>} [options.onMessage]
  * @param {(connection: GatewayWebSocketConnection) => void} [options.onClose]
  * @param {(error: Error, context: Record<string, unknown>) => void} [options.onError]
  */
@@ -73,6 +103,7 @@ export function createWebSocketServer(options = {}) {
   const connections = new Set();
   const connectionState = new WeakMap();
   const connectionLeases = new WeakMap();
+  const activeExecutionScopes = new WeakMap();
   const subjectConnections = new Map();
   const subjectInFlight = new Map();
   const subjectMessageWindows = new Map();
@@ -92,6 +123,10 @@ export function createWebSocketServer(options = {}) {
     executionLeaseRejected: 0,
     executionLeaseUnavailable: 0,
     executionLeaseLost: 0,
+    executionCancelled: 0,
+    executionCancelledClientDisconnect: 0,
+    executionCancelledLeaseLoss: 0,
+    executionCancelledShutdown: 0,
     originRejected: 0,
     capacityRejected: 0,
     subjectConnectionRejected: 0,
@@ -357,6 +392,10 @@ export function createWebSocketServer(options = {}) {
             try {
               connectionLease.start(() => {
                 counters.connectionLeaseLost += 1;
+                abortSocketExecutions(
+                  rawSocket,
+                  WEB_SOCKET_EXECUTION_CANCELLATION_SOURCES.CONNECTION_LEASE_LOST,
+                );
                 reportError(new Error("The durable WebSocket connection lease was lost."), {
                   event: "ws_connection_lease_lost",
                 });
@@ -400,6 +439,7 @@ export function createWebSocketServer(options = {}) {
   function establishConnection(rawSocket, identity, subjectKey, authorizationRequest) {
     const connection = createGatewayConnection(rawSocket, identity, subjectKey);
     connections.add(connection);
+    activeExecutionScopes.set(rawSocket, new Set());
     const authenticatedAt = Date.now();
     connectionState.set(connection, {
       alive: true,
@@ -426,7 +466,14 @@ export function createWebSocketServer(options = {}) {
       reportError(error, { event: "ws_transport_error" });
       rawSocket.terminate();
     });
-    rawSocket.once("close", () => cleanupConnection(connection, subjectKey));
+    rawSocket.once("close", () => {
+      abortSocketExecutions(
+        rawSocket,
+        WEB_SOCKET_EXECUTION_CANCELLATION_SOURCES.CLIENT_DISCONNECTED,
+      );
+      cleanupConnection(connection, subjectKey);
+      activeExecutionScopes.delete(rawSocket);
+    });
 
     try {
       options.onConnection?.(connection);
@@ -445,14 +492,36 @@ export function createWebSocketServer(options = {}) {
       return;
     }
 
+    const state = connectionState.get(connection);
+    const scopes = activeExecutionScopes.get(rawSocket);
+    if (!state || state.cleaned || !scopes || rawSocket.readyState !== WebSocket.OPEN) return;
+    const executionScope = createWebSocketExecutionScope();
+    scopes.add(executionScope);
+    try {
+      await handleGovernedMessage(data, connection, subjectKey, executionScope);
+    } finally {
+      executionScope.cleanup();
+      scopes.delete(executionScope);
+    }
+  }
+
+  async function handleGovernedMessage(data, connection, subjectKey, executionScope) {
+    const rawSocket = connection.socket;
+    const signal = executionScope.context.signal;
+
     const connectionLease = connectionLeases.get(rawSocket);
     if (connectionLease && !connectionLease.isValid()) {
+      cancelExecutionScope(
+        executionScope,
+        WEB_SOCKET_EXECUTION_CANCELLATION_SOURCES.CONNECTION_LEASE_LOST,
+      );
       rawSocket.close(1013, "Connection lease unavailable");
       return;
     }
 
     const now = Date.now();
     const messageQuota = await consumeMessageQuota(subjectKey, now);
+    if (signal.aborted) return;
     if (!messageQuota.allowed) {
       counters.rateLimitRejected += 1;
       const unavailable = (messageQuota.statusCode ?? 429) >= 500;
@@ -473,7 +542,7 @@ export function createWebSocketServer(options = {}) {
       return;
     }
 
-    if (!await reauthorizeConnection(connection, "message")) return;
+    if (!await reauthorizeConnection(connection, "message") || signal.aborted) return;
 
     const subjectActive = subjectInFlight.get(subjectKey) ?? 0;
     if (globalInFlight >= maxInFlightMessages || subjectActive >= maxInFlightPerSubject) {
@@ -497,6 +566,17 @@ export function createWebSocketServer(options = {}) {
           maxInFlightMessages,
           maxInFlightPerSubject,
         });
+        if (signal.aborted) {
+          if (decision?.acquired === true && typeof decision.lease?.release === "function") {
+            try {
+              await decision.lease.release();
+            } catch (error) {
+              counters.executionLeaseUnavailable += 1;
+              reportError(error, { event: "ws_execution_lease_release_failed" });
+            }
+          }
+          return;
+        }
         if (decision?.acquired === false) {
           counters.concurrencyRejected += 1;
           counters.executionLeaseRejected += 1;
@@ -519,6 +599,10 @@ export function createWebSocketServer(options = {}) {
         executionLease = decision.lease;
         executionLease.start(() => {
           counters.executionLeaseLost += 1;
+          cancelExecutionScope(
+            executionScope,
+            WEB_SOCKET_EXECUTION_CANCELLATION_SOURCES.EXECUTION_LEASE_LOST,
+          );
           reportError(new Error("The durable WebSocket execution lease was lost."), {
             event: "ws_execution_lease_lost",
           });
@@ -540,16 +624,26 @@ export function createWebSocketServer(options = {}) {
     globalInFlight += 1;
     subjectInFlight.set(subjectKey, subjectActive + 1);
     try {
+      if (signal.aborted) return;
       if (connectionLease && !connectionLease.isValid()) {
+        cancelExecutionScope(
+          executionScope,
+          WEB_SOCKET_EXECUTION_CANCELLATION_SOURCES.CONNECTION_LEASE_LOST,
+        );
         rawSocket.close(1013, "Connection lease unavailable");
         return;
       }
       if (executionLease && !executionLease.isValid()) {
+        cancelExecutionScope(
+          executionScope,
+          WEB_SOCKET_EXECUTION_CANCELLATION_SOURCES.EXECUTION_LEASE_LOST,
+        );
         rawSocket.close(1013, "Execution lease unavailable");
         return;
       }
-      await options.onMessage?.(data.toString("utf8"), connection);
+      await options.onMessage?.(data.toString("utf8"), connection, executionScope.context);
     } catch (error) {
+      if (signal.aborted) return;
       reportError(error, { event: "ws_message_rejected" });
       if (rawSocket.readyState === WebSocket.OPEN) {
         rawSocket.close(1011, "Message processing failed");
@@ -568,6 +662,25 @@ export function createWebSocketServer(options = {}) {
         }
       }
     }
+  }
+
+  function abortSocketExecutions(rawSocket, source) {
+    const scopes = activeExecutionScopes.get(rawSocket);
+    if (!scopes) return;
+    for (const scope of scopes) cancelExecutionScope(scope, source);
+  }
+
+  function cancelExecutionScope(scope, source) {
+    if (!scope.abort(source)) return false;
+    counters.executionCancelled += 1;
+    if (source === WEB_SOCKET_EXECUTION_CANCELLATION_SOURCES.CLIENT_DISCONNECTED) {
+      counters.executionCancelledClientDisconnect += 1;
+    } else if (source === WEB_SOCKET_EXECUTION_CANCELLATION_SOURCES.GATEWAY_SHUTDOWN) {
+      counters.executionCancelledShutdown += 1;
+    } else {
+      counters.executionCancelledLeaseLoss += 1;
+    }
+    return true;
   }
 
   function createGatewayConnection(rawSocket, identity, subjectKey) {
@@ -765,7 +878,13 @@ export function createWebSocketServer(options = {}) {
     if (heartbeatTimer) clearInterval(heartbeatTimer);
     heartbeatTimer = null;
     if (attachedServer && upgradeListener) attachedServer.off("upgrade", upgradeListener);
-    for (const connection of connections) connection.close(code, reason);
+    for (const connection of connections) {
+      abortSocketExecutions(
+        connection.socket,
+        WEB_SOCKET_EXECUTION_CANCELLATION_SOURCES.GATEWAY_SHUTDOWN,
+      );
+      connection.close(code, reason);
+    }
     shutdownTimer = setTimeout(() => {
       for (const connection of connections) connection.terminate();
     }, shutdownGraceMs);
@@ -831,6 +950,29 @@ function normalizeAuthenticationDecision(value) {
     identity: value.identity && typeof value.identity === "object" ? value.identity : null,
     statusCode: Number(value.statusCode) || 200,
   };
+}
+
+function createWebSocketExecutionScope() {
+  const controller = new AbortController();
+  let completed = false;
+  return Object.freeze({
+    context: Object.freeze({ signal: controller.signal }),
+    abort(source) {
+      if (completed || controller.signal.aborted) return false;
+      const policy = WEB_SOCKET_CANCELLATION_POLICIES[source];
+      if (!policy) throw new TypeError(`Unsupported WebSocket cancellation source: ${source}`);
+      controller.abort(createExecutionAbortError(policy.code, policy.message, {
+        details: {
+          source,
+          transport: "websocket",
+        },
+      }));
+      return true;
+    },
+    cleanup() {
+      completed = true;
+    },
+  });
 }
 
 function createSubjectKey(identity, remoteAddress) {
