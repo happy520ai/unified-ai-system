@@ -2,6 +2,7 @@ import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createPinoLogger } from "../logging/pinoLogger.js";
+import { isKnowledgeTenantScopeKey } from "./knowledgeTenantScope.ts";
 
 const require = createRequire(import.meta.url);
 const logger = createPinoLogger({ app: "knowledgePersistence" });
@@ -47,12 +48,14 @@ export function createKnowledgePersistence(options = {}) {
     },
 
     saveDocuments(documents) {
+      const scopedDocuments = assertTenantScopedDocuments(documents);
+
       if (fileEnabled) {
-        writeFileDocuments(filePath, documents);
+        writeFileDocuments(filePath, scopedDocuments);
       }
 
       if (sqlite) {
-        sqlite.saveDocuments(documents);
+        sqlite.saveDocuments(scopedDocuments);
       }
     },
 
@@ -99,7 +102,9 @@ function createMemoryPersistence() {
     loadDocuments() {
       return [];
     },
-    saveDocuments() {},
+    saveDocuments(documents) {
+      assertTenantScopedDocuments(documents);
+    },
     getStatus() {
       return {
         mode: STORAGE_MEMORY,
@@ -132,7 +137,8 @@ function createSqlitePersistence(sqlitePath) {
     ensureParentDir(sqlitePath);
     db = new DatabaseSync(sqlitePath);
     db.exec(`
-      create table if not exists knowledge_documents (
+      create table if not exists knowledge_documents_v2 (
+        tenant_scope_key text not null,
         source_id text not null,
         document_id text not null,
         title text,
@@ -141,7 +147,7 @@ function createSqlitePersistence(sqlitePath) {
         source_title text,
         metadata_json text,
         updated_at text not null,
-        primary key (source_id, document_id)
+        primary key (tenant_scope_key, source_id, document_id)
       )
     `);
   } catch (error) {
@@ -172,29 +178,33 @@ function createSqlitePersistence(sqlitePath) {
   return {
     loadDocuments() {
       const rows = db.prepare(`
-        select source_id, document_id, title, uri, text, source_title, metadata_json
-        from knowledge_documents
-        order by source_id asc, document_id asc
+        select tenant_scope_key, source_id, document_id, title, uri, text, source_title, metadata_json
+        from knowledge_documents_v2
+        order by tenant_scope_key asc, source_id asc, document_id asc
       `).all();
 
-      return rows.map((row) => ({
-        sourceId: row.source_id,
-        documentId: row.document_id,
-        title: row.title,
-        uri: row.uri,
-        text: row.text,
-        sourceTitle: row.source_title,
-        metadata: parseMetadata(row.metadata_json),
-      }));
+      return rows
+        .map((row) => ({
+          tenantScopeKey: row.tenant_scope_key,
+          sourceId: row.source_id,
+          documentId: row.document_id,
+          title: row.title,
+          uri: row.uri,
+          text: row.text,
+          sourceTitle: row.source_title,
+          metadata: parseMetadata(row.metadata_json),
+        }))
+        .filter((document) => isKnowledgeTenantScopeKey(document.tenantScopeKey));
     },
 
     saveDocuments(documents) {
       db.exec("begin immediate transaction");
 
       try {
-        db.exec("delete from knowledge_documents");
+        db.exec("delete from knowledge_documents_v2");
         const insert = db.prepare(`
-          insert into knowledge_documents (
+          insert into knowledge_documents_v2 (
+            tenant_scope_key,
             source_id,
             document_id,
             title,
@@ -203,12 +213,13 @@ function createSqlitePersistence(sqlitePath) {
             source_title,
             metadata_json,
             updated_at
-          ) values (?, ?, ?, ?, ?, ?, ?, ?)
+          ) values (?, ?, ?, ?, ?, ?, ?, ?, ?)
         `);
         const updatedAt = new Date().toISOString();
 
         for (const document of documents) {
           insert.run(
+            document.tenantScopeKey,
             document.sourceId,
             document.documentId,
             document.title ?? null,
@@ -228,7 +239,7 @@ function createSqlitePersistence(sqlitePath) {
     },
 
     getStatus() {
-      const row = db.prepare("select count(*) as document_count from knowledge_documents").get();
+      const row = db.prepare("select count(*) as document_count from knowledge_documents_v2").get();
 
       return {
         enabled: true,
@@ -254,15 +265,18 @@ function readFileDocuments(filePath) {
     const parsed = JSON.parse(readFileSync(filePath, "utf8"));
     const documents = Array.isArray(parsed?.documents) ? parsed.documents : [];
 
-    return documents.map((document) => ({
-      sourceId: document.sourceId,
-      documentId: document.documentId,
-      title: document.title,
-      uri: document.uri,
-      text: document.text,
-      sourceTitle: document.sourceTitle,
-      metadata: document.metadata ?? {},
-    }));
+    return documents
+      .map((document) => ({
+        tenantScopeKey: document.tenantScopeKey,
+        sourceId: document.sourceId,
+        documentId: document.documentId,
+        title: document.title,
+        uri: document.uri,
+        text: document.text,
+        sourceTitle: document.sourceTitle,
+        metadata: document.metadata ?? {},
+      }))
+      .filter((document) => isKnowledgeTenantScopeKey(document.tenantScopeKey));
   } catch (error) {
     logger.warn({
       event: "knowledge_file_parse_failed",
@@ -278,9 +292,10 @@ function writeFileDocuments(filePath, documents) {
     filePath,
     `${JSON.stringify(
       {
-        version: 1,
+        version: 2,
         updatedAt: new Date().toISOString(),
         documents: documents.map((document) => ({
+          tenantScopeKey: document.tenantScopeKey,
           sourceId: document.sourceId,
           sourceTitle: document.sourceTitle,
           documentId: document.documentId,
@@ -301,14 +316,36 @@ function mergeDocumentsByKey(documents) {
   const merged = new Map();
 
   for (const document of documents) {
-    if (!document?.sourceId || !document?.documentId) {
+    if (!isKnowledgeTenantScopeKey(document?.tenantScopeKey) || !document?.sourceId || !document?.documentId) {
       continue;
     }
 
-    merged.set(`${document.sourceId}:${document.documentId}`, document);
+    merged.set(`${document.tenantScopeKey}:${document.sourceId}:${document.documentId}`, document);
   }
 
   return Array.from(merged.values());
+}
+
+function assertTenantScopedDocuments(documents) {
+  if (!Array.isArray(documents)) {
+    throw createTenantScopePersistenceError();
+  }
+
+  for (const document of documents) {
+    if (!isKnowledgeTenantScopeKey(document?.tenantScopeKey)) {
+      throw createTenantScopePersistenceError();
+    }
+  }
+
+  return documents;
+}
+
+function createTenantScopePersistenceError() {
+  const error = new Error("Knowledge persistence requires a server-derived tenant scope for every document.");
+  error.code = "KNOWLEDGE_PERSISTENCE_TENANT_SCOPE_REQUIRED";
+  error.category = "authorization";
+  error.status = 403;
+  return error;
 }
 
 function normalizeStorageMode(value) {

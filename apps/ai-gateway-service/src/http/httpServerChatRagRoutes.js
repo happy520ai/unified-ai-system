@@ -46,7 +46,9 @@ export function createChatRagRoutes(ctx) {
       }
 
       const retrieveRequest = createRagRetrieveRequest(body, prompt);
-      const retrieveResult = knowledgeService.retrieve(retrieveRequest);
+      const retrieveResult = knowledgeService.retrieve(retrieveRequest, {
+        tenantScopeIdentity: request.enterpriseIdentity,
+      });
       const citations = createRagCitations(retrieveResult.chunks);
       const ragMessages = createRagMessages(prompt, citations);
       const chatInput = normalizeRagChatBody(
@@ -176,7 +178,9 @@ export function createChatRagRoutes(ctx) {
       }
 
       const retrieveRequest = createRagRetrieveRequest(body, prompt);
-      const retrieveResult = knowledgeService.retrieve(retrieveRequest);
+      const retrieveResult = knowledgeService.retrieve(retrieveRequest, {
+        tenantScopeIdentity: request.enterpriseIdentity,
+      });
       const citations = createRagCitations(retrieveResult.chunks);
       const ragMessages = createRagMessages(prompt, citations);
       const chatInput = normalizeRagChatBody(

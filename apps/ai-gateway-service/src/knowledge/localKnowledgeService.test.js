@@ -3,6 +3,9 @@ import { createLocalKnowledgeService } from "./localKnowledgeService.js";
 
 describe("local-knowledge-service", () => {
   let service;
+  const tenantContext = {
+    tenantScopeIdentity: { tenantId: "local-knowledge-test-tenant", userId: "tester" },
+  };
 
   beforeAll(() => {
     service = createLocalKnowledgeService();
@@ -34,8 +37,8 @@ describe("local-knowledge-service", () => {
       documents: [
         { documentId: "doc-1", title: "Custom Doc", text: "This is a custom test document about quantum computing" },
       ],
-    });
-    const result = service.retrieve({ query: "quantum computing" });
+    }, tenantContext);
+    const result = service.retrieve({ query: "quantum computing" }, tenantContext);
     expect(result.chunks.some((c) => c.text.includes("quantum"))).toBe(true);
   });
 

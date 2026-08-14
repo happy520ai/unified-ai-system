@@ -1,4 +1,5 @@
 import { timingSafeEqual } from "node:crypto";
+import { resolveKnowledgeTenantScope } from "../knowledge/knowledgeTenantScope.ts";
 
 const MEMORY_SOURCE_ID = "long-term-memory";
 
@@ -14,11 +15,13 @@ export function createUserExperienceService({ config, gatewayService, knowledgeS
         enabled: auth.enabled,
         tenantMode: auth.tenantMode,
         tokenHeader: "x-pme-auth-token",
-        tenantHeader: "x-pme-tenant-id",
+        tenantHeader: null,
+        tenantSource: "authenticated-enterprise-identity",
+        clientTenantOverrideAllowed: false,
       };
     },
 
-    getDashboard() {
+    getDashboard(requestContext = {}) {
       return {
         app: "PME Moving Earth",
         status: "ready",
@@ -29,7 +32,7 @@ export function createUserExperienceService({ config, gatewayService, knowledgeS
           fallbackEnabled: config.aiGatewayService.fallbackEnabled,
         },
         providers: gatewayService.getProviderDescriptors(),
-        knowledge: knowledgeService.getHealth(),
+        knowledge: knowledgeService.getHealth(toKnowledgeContext(requestContext)),
         workflow: workflowService.getHealth(),
         auth: this.getAuthStatus(),
         capabilities: {
@@ -49,51 +52,47 @@ export function createUserExperienceService({ config, gatewayService, knowledgeS
     saveMemory(request = {}, requestContext = {}) {
       const text = readRequiredString(request.text ?? request.content, "Memory text is required.");
       const title = readOptionalString(request.title) ?? "PME Memory";
-      const tenantId = readOptionalString(request.tenantId ?? requestContext.tenantId) ?? "default";
+      const tenant = requireAuthenticatedTenant(requestContext);
       const documentId = readOptionalString(request.documentId) ?? `memory-${Date.now()}`;
       const result = knowledgeService.loadDocuments({
         sourceId: MEMORY_SOURCE_ID,
         sourceTitle: "Long Term Memory",
         metadata: {
           capability: "long-term-memory",
-          tenantId,
         },
         documents: [
           {
-            documentId: `${tenantId}-${documentId}`,
+            documentId,
             title,
             content: text,
             metadata: {
               kind: "memory",
-              tenantId,
-              savedAt: new Date().toISOString(),
               ...(request.metadata ?? {}),
+              savedAt: new Date().toISOString(),
             },
           },
         ],
-      });
+      }, toKnowledgeContext(requestContext));
 
       return {
         status: "saved",
         sourceId: MEMORY_SOURCE_ID,
-        tenantId,
-        documentId: `${tenantId}-${documentId}`,
+        tenantId: tenant.tenantId,
+        documentId,
         result,
       };
     },
 
     listMemory(requestContext = {}) {
-      const tenantId = readOptionalString(requestContext.tenantId) ?? "default";
-      const sources = knowledgeService.listSources().sources ?? [];
+      const tenant = requireAuthenticatedTenant(requestContext);
+      const sources = knowledgeService.listSources(toKnowledgeContext(requestContext)).sources ?? [];
       const memorySource = sources.find((source) => source.sourceId === MEMORY_SOURCE_ID);
-      const documents = (memorySource?.documents ?? []).filter((document) => {
-        return !document.metadata?.tenantId || document.metadata.tenantId === tenantId;
-      });
+      const documents = memorySource?.documents ?? [];
 
       return {
         status: "ready",
         sourceId: MEMORY_SOURCE_ID,
-        tenantId,
+        tenantId: tenant.tenantId,
         documentCount: documents.length,
         documents,
       };
@@ -101,15 +100,12 @@ export function createUserExperienceService({ config, gatewayService, knowledgeS
 
     retrieveMemory(request = {}, requestContext = {}) {
       const query = readRequiredString(request.query, "Memory retrieve query is required.");
+      requireAuthenticatedTenant(requestContext);
       return knowledgeService.retrieve({
         ...request,
         query,
         sourceIds: [MEMORY_SOURCE_ID],
-        metadata: {
-          ...(request.metadata ?? {}),
-          tenantId: readOptionalString(requestContext.tenantId) ?? "default",
-        },
-      });
+      }, toKnowledgeContext(requestContext));
     },
 
     importTextConnector(request = {}, requestContext = {}) {
@@ -118,7 +114,7 @@ export function createUserExperienceService({ config, gatewayService, knowledgeS
       const title = readOptionalString(request.title) ?? "Imported Connector Document";
       const documentId = readOptionalString(request.documentId) ?? `connector-document-${Date.now()}`;
       const sourceId = `connector-${connectorId}`;
-      const tenantId = readOptionalString(request.tenantId ?? requestContext.tenantId) ?? "default";
+      requireAuthenticatedTenant(requestContext);
 
       const result = knowledgeService.loadDocuments({
         sourceId,
@@ -126,7 +122,6 @@ export function createUserExperienceService({ config, gatewayService, knowledgeS
         metadata: {
           capability: "explicit-text-connector",
           connectorId,
-          tenantId,
         },
         documents: [
           {
@@ -137,13 +132,12 @@ export function createUserExperienceService({ config, gatewayService, knowledgeS
             metadata: {
               kind: "connector-import",
               connectorId,
-              tenantId,
-              importedAt: new Date().toISOString(),
               ...(request.metadata ?? {}),
+              importedAt: new Date().toISOString(),
             },
           },
         ],
-      });
+      }, toKnowledgeContext(requestContext));
 
       return {
         status: "imported",
@@ -179,13 +173,13 @@ export function createUserExperienceService({ config, gatewayService, knowledgeS
       };
     },
 
-    retrieveGraph(request = {}) {
+    retrieveGraph(request = {}, requestContext = {}) {
       const query = readRequiredString(request.query, "Graph retrieval query is required.");
       const retrieve = knowledgeService.retrieve({
         ...request,
         query,
         topK: Math.min(5, Number(request.topK ?? 5)),
-      });
+      }, toKnowledgeContext(requestContext));
       const graph = createQueryGraph(retrieve.chunks);
 
       return {
@@ -229,8 +223,25 @@ function safeCompare(a, b) {
 }
 
 export function getRequestContext(request) {
+  const identity = request?.enterpriseIdentity ?? null;
   return {
-    tenantId: readOptionalString(request.headers["x-pme-tenant-id"]) ?? "default",
+    tenantId: readOptionalString(identity?.tenantId),
+    tenantScopeIdentity: identity,
+  };
+}
+
+function toKnowledgeContext(requestContext = {}) {
+  return {
+    tenantScopeIdentity: requestContext.tenantScopeIdentity ?? null,
+  };
+}
+
+function requireAuthenticatedTenant(requestContext = {}) {
+  const identity = requestContext.tenantScopeIdentity ?? null;
+  const scope = resolveKnowledgeTenantScope(identity, { required: true });
+  return {
+    identity,
+    tenantId: scope.tenantId,
   };
 }
 

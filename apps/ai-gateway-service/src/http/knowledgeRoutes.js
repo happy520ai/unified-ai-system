@@ -17,8 +17,8 @@ export function createKnowledgeRoutes(application, helpers) {
   const { readJson, readCapabilityJson, writeJson, writeServiceLog, writeErrorResponse, createOkEnvelope, createErrorEnvelope } = helpers;
 
   // ── GET /knowledge/health ──
-  async function handleKnowledgeHealth(_req, res, { startedAt }) {
-    writeJson(res, 200, createOkEnvelope(knowledgeService.getHealth(), { startedAt }));
+  async function handleKnowledgeHealth(req, res, { startedAt }) {
+    writeJson(res, 200, createOkEnvelope(knowledgeService.getHealth({ tenantScopeIdentity: req.enterpriseIdentity }), { startedAt }));
   }
 
   // ── GET /knowledge/infra/readiness ──
@@ -27,8 +27,8 @@ export function createKnowledgeRoutes(application, helpers) {
   }
 
   // ── GET /knowledge/sources ──
-  async function handleKnowledgeSources(_req, res, { startedAt }) {
-    writeJson(res, 200, createOkEnvelope(knowledgeService.listSources(), { startedAt }));
+  async function handleKnowledgeSources(req, res, { startedAt }) {
+    writeJson(res, 200, createOkEnvelope(knowledgeService.listSources({ tenantScopeIdentity: req.enterpriseIdentity }), { startedAt }));
   }
 
   // ── GET /knowledge/file-types ──
@@ -41,7 +41,7 @@ export function createKnowledgeRoutes(application, helpers) {
     const body = await readCapabilityJson({ request: req, response: res, startedAt, code: "graph_invalid_json" });
     if (!body) return;
     try {
-      writeJson(res, 200, createOkEnvelope(userExperienceService.retrieveGraph(body), { startedAt }));
+      writeJson(res, 200, createOkEnvelope(userExperienceService.retrieveGraph(body, { tenantScopeIdentity: req.enterpriseIdentity }), { startedAt }));
     } catch (error) {
       writeErrorResponse({ response: res, error, startedAt, fallbackCode: "graph_retrieve_failed" });
     }
@@ -62,7 +62,7 @@ export function createKnowledgeRoutes(application, helpers) {
     }
 
     try {
-      const result = knowledgeService.loadDocuments(validation.data);
+      const result = knowledgeService.loadDocuments(validation.data, { tenantScopeIdentity: req.enterpriseIdentity });
       writeServiceLog("knowledge_load_completed", { method: "POST", path: "/knowledge/load", sourceId: result.sourceId, loadedCount: result.loadedCount, durationMs: Date.now() - startedAt });
       writeJson(res, 200, createOkEnvelope(result, { startedAt }));
     } catch (error) {
@@ -104,7 +104,7 @@ export function createKnowledgeRoutes(application, helpers) {
         error.details = { skipped };
         throw error;
       }
-      const result = knowledgeService.loadDocuments({ sourceId: body.sourceId ?? "ui-file-import-source", sourceTitle: body.sourceTitle ?? "UI File Import Source", metadata: { parserEntry: "knowledge-load-file", ...(body.metadata ?? {}) }, documents });
+      const result = knowledgeService.loadDocuments({ sourceId: body.sourceId ?? "ui-file-import-source", sourceTitle: body.sourceTitle ?? "UI File Import Source", metadata: { parserEntry: "knowledge-load-file", ...(body.metadata ?? {}) }, documents }, { tenantScopeIdentity: req.enterpriseIdentity });
       writeServiceLog("knowledge_file_load_completed", { method: "POST", path: "/knowledge/load/file", sourceId: result.sourceId, loadedCount: result.loadedCount, skippedCount: skipped.length, durationMs: Date.now() - startedAt });
       writeJson(res, 200, createOkEnvelope({ ...result, skipped, supported: getSupportedKnowledgeFileTypes() }, { startedAt }));
     } catch (error) {
@@ -128,7 +128,7 @@ export function createKnowledgeRoutes(application, helpers) {
     }
 
     try {
-      const result = knowledgeService.retrieve(validation.data);
+      const result = knowledgeService.retrieve(validation.data, { tenantScopeIdentity: req.enterpriseIdentity });
       writeServiceLog("knowledge_retrieve_completed", { method: "POST", path: "/knowledge/retrieve", chunkCount: result.chunks.length, durationMs: Date.now() - startedAt });
       writeJson(res, 200, createOkEnvelope(result, { startedAt }));
     } catch (error) {
@@ -149,7 +149,7 @@ export function createKnowledgeRoutes(application, helpers) {
       return;
     }
     try {
-      const result = knowledgeService.deleteDocument(docId);
+      const result = knowledgeService.deleteDocument(docId, { tenantScopeIdentity: req.enterpriseIdentity });
       writeServiceLog("knowledge_delete_completed", { method: "POST", path: "/knowledge/delete", documentId: docId, remainingCount: result.remainingCount, durationMs: Date.now() - startedAt });
       writeJson(res, 200, createOkEnvelope(result, { startedAt }));
     } catch (error) {

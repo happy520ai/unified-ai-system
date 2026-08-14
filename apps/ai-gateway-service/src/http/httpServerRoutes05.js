@@ -155,7 +155,9 @@ export async function dispatchHttpRoutes05(context) {
     }
 
     try {
-      const result = url.pathname === "/workflow/plan" ? workflowService.plan(body) : await workflowService.run(body);
+      const result = url.pathname === "/workflow/plan"
+        ? workflowService.plan(body)
+        : await workflowService.run(body, getRequestContext(request));
       writeServiceLog(url.pathname === "/workflow/plan" ? "workflow_plan_completed" : "workflow_run_completed", {
         method: request.method,
         path: url.pathname,
@@ -242,7 +244,7 @@ export async function dispatchHttpRoutes05(context) {
     if (!body) return;
 
     try {
-      writeJson(response, 200, createOkEnvelope(userExperienceService.retrieveGraph(body), { startedAt }));
+      writeJson(response, 200, createOkEnvelope(userExperienceService.retrieveGraph(body, getRequestContext(request)), { startedAt }));
     } catch (error) {
       writeCapabilityError({ response, error, startedAt, fallbackCode: "graph_retrieve_failed" });
     }
@@ -266,7 +268,7 @@ export async function dispatchHttpRoutes05(context) {
     }
 
     try {
-      const result = knowledgeService.loadDocuments(body);
+      const result = knowledgeService.loadDocuments(body, getRequestContext(request));
       writeServiceLog("knowledge_load_completed", {
         method: request.method,
         path: url.pathname,
@@ -354,7 +356,7 @@ export async function dispatchHttpRoutes05(context) {
           ...(body.metadata ?? {}),
         },
         documents,
-      });
+      }, getRequestContext(request));
 
       writeServiceLog("knowledge_file_load_completed", {
         method: request.method,

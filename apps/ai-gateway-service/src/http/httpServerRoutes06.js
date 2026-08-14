@@ -49,7 +49,7 @@ export async function dispatchHttpRoutes06(context) {
     }
 
     try {
-      const result = knowledgeService.retrieve(body);
+      const result = knowledgeService.retrieve(body, getRequestContext(request));
       writeServiceLog("knowledge_retrieve_completed", {
         method: request.method,
         path: url.pathname,
@@ -103,7 +103,7 @@ export async function dispatchHttpRoutes06(context) {
       }
 
       const retrieveRequest = createRagRetrieveRequest(body, prompt);
-      const retrieveResult = knowledgeService.retrieve(retrieveRequest);
+      const retrieveResult = knowledgeService.retrieve(retrieveRequest, getRequestContext(request));
       const citations = createRagCitations(retrieveResult.chunks);
       const ragMessages = createRagMessages(prompt, citations);
       const chatInput = normalizeRagChatBody(
@@ -209,7 +209,7 @@ export async function dispatchHttpRoutes06(context) {
       }
 
       const retrieveRequest = createRagRetrieveRequest(body, prompt);
-      const retrieveResult = knowledgeService.retrieve(retrieveRequest);
+      const retrieveResult = knowledgeService.retrieve(retrieveRequest, getRequestContext(request));
       const citations = createRagCitations(retrieveResult.chunks);
       const ragMessages = createRagMessages(prompt, citations);
       const chatInput = normalizeRagChatBody(

@@ -242,7 +242,7 @@ export async function dispatchHttpRoutes04(context) {
   }
 
   if (request.method === "GET" && url.pathname === "/knowledge/health") {
-    writeJson(response, 200, createOkEnvelope(knowledgeService.getHealth(), { startedAt }));
+    writeJson(response, 200, createOkEnvelope(knowledgeService.getHealth(getRequestContext(request)), { startedAt }));
     return;
   }
 
@@ -252,7 +252,7 @@ export async function dispatchHttpRoutes04(context) {
   }
 
   if (request.method === "GET" && url.pathname === "/knowledge/sources") {
-    writeJson(response, 200, createOkEnvelope(knowledgeService.listSources(), { startedAt }));
+    writeJson(response, 200, createOkEnvelope(knowledgeService.listSources(getRequestContext(request)), { startedAt }));
     return;
   }
 

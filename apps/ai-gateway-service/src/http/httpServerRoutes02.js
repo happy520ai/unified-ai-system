@@ -32,7 +32,7 @@ export async function dispatchHttpRoutes02(context) {
   } = context;
 
   if (request.method === "GET" && url.pathname === "/dashboard/status") {
-    writeJson(response, 200, createOkEnvelope(userExperienceService.getDashboard(), { startedAt }));
+    writeJson(response, 200, createOkEnvelope(userExperienceService.getDashboard(getRequestContext(request)), { startedAt }));
     return;
   }
 
