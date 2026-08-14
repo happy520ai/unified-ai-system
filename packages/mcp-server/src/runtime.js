@@ -178,7 +178,12 @@ export async function createGatewayRuntime(options = {}) {
   const port = await findFreePort();
   const baseUrl = `http://127.0.0.1:${port}`;
   const authToken = randomBytes(32).toString("base64url");
-  const authExpiresAt = new Date(Date.now() + 10 * 60_000).toISOString();
+  // Ephemeral managed token with no wall-clock expiry. The gateway child process
+  // is fake-provider, loopback-only, and killed when the MCP host disconnects, so
+  // the token's lifetime is already bounded by the child process itself. A fixed
+  // 10-minute expiry broke long-lived MCP hosts (WorkBuddy/Codex) with 401s once
+  // the window elapsed and all authenticated tools became unusable.
+  const authExpiresAt = null;
   const requestHeaders = Object.freeze({ Authorization: `Bearer ${authToken}` });
   let stdout = "";
   let stderr = "";
