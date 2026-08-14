@@ -463,9 +463,9 @@ export function createChatRoutes(application, helpers) {
   // ── 导出 ──
 
   const handlers = new Map([
-    ["POST /chat", { handler: handleChat, public: true, description: "非流式聊天补全" }],
-    ["POST /chat/stream", { handler: handleChatStream, public: true, description: "SSE 流式聊天" }],
-    ["POST /chat/auto", { handler: handleChatAuto, public: true, description: "流式聚合 JSON — 内部 AI 调用端点" }],
+    ["POST /chat", { handler: handleChat, public: false, permission: "chat:use", description: "非流式聊天补全" }],
+    ["POST /chat/stream", { handler: handleChatStream, public: false, permission: "chat:use", description: "SSE 流式聊天" }],
+    ["POST /chat/auto", { handler: handleChatAuto, public: false, permission: "chat:use", description: "流式聚合 JSON — 内部 AI 调用端点" }],
   ]);
 
   return { handlers };

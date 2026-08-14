@@ -132,8 +132,8 @@ export function createCostCacheRoutes(application) {
     ["GET /cost/summary", { handler: handleCostSummary, public: false, permission: "provider:read" }],
     ["GET /cache/health", { handler: handleCacheHealth, public: false, permission: "provider:read" }],
     ["POST /cache/lookup", { handler: handleCacheLookup, public: false, permission: "provider:read" }],
-    ["POST /cache/write", { handler: handleCacheWrite, public: false, permission: "provider:read" }],
-    ["POST /cache/invalidate", { handler: handleCacheInvalidate, public: false, permission: "provider:read" }],
+    ["POST /cache/write", { handler: handleCacheWrite, public: false, permission: "provider:write" }],
+    ["POST /cache/invalidate", { handler: handleCacheInvalidate, public: false, permission: "provider:write" }],
     ["GET /cache/summary", { handler: handleCacheSummary, public: false, permission: "provider:read" }],
     ["GET /cache/audit", { handler: handleCacheAudit, public: false, permission: "provider:read" }],
   ]);

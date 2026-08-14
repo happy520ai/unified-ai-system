@@ -278,6 +278,9 @@ export function resolvePermission(method, pathname) {
     return "public:read";
   }
 
+  const exactPermission = EXACT_ROUTE_PERMISSIONS[`${normalizedMethod} ${normalizedPath}`];
+  if (exactPermission) return exactPermission;
+
   if (normalizedPath === "/enterprise/session") {
     return "session:read";
   }
@@ -462,6 +465,31 @@ export function resolvePermission(method, pathname) {
 
   return "route:unknown";
 }
+
+const EXACT_ROUTE_PERMISSIONS = Object.freeze({
+  "GET /ws/info": "dashboard:read",
+  "POST /knowledge/delete": "knowledge:write",
+  "POST /agent-runner/intent-approval-preview": "workflow:run",
+  "POST /agent-runner/local-operation": "workflow:run",
+  "POST /local-agent/intent-preview": "workflow:run",
+  "POST /local-agent/operation-plan": "workflow:run",
+  "POST /local-agent/patch-proposal": "workflow:run",
+  "POST /chat/auto": "chat:use",
+  "GET /forge/health": "dashboard:read",
+  "GET /runtime-candidate/codex-exec-crs/status": "dashboard:read",
+  "GET /capability-router/status": "dashboard:read",
+  "GET /five-capability/status": "dashboard:read",
+  "GET /user-experience/status": "dashboard:read",
+  "GET /workforce/tier": "dashboard:read",
+  "POST /workforce/tier": "workflow:run",
+  "POST /workforce/tier/gate": "workflow:run",
+  "POST /workforce/tier/fallback": "workflow:run",
+  "GET /workforce/autonomy/usage": "dashboard:read",
+  "GET /workforce/autonomy/trust": "dashboard:read",
+  "POST /workforce/autonomy/token": "workflow:run",
+  "POST /workforce/autonomy/token/revoke": "workflow:run",
+  "POST /workforce/diagnostic/read": "audit:read",
+});
 
 export async function readCapabilityJson({ request, response, startedAt, code }) {
   try {

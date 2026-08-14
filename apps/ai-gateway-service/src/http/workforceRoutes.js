@@ -149,7 +149,9 @@ export function createWorkforceRoutes(application, helpers) {
     const b = await readCapabilityJson({ request: req, response: res, startedAt, code: "diag_read_bad" });
     if (!b) return;
     try {
-      writeJson(res, 200, createOkEnvelope(await workforceService.diagnosticRead(b), { startedAt }));
+      const requestor = requireExecutionUserId(req);
+      const diagnosticChannel = workforceExecutor.getDiagnosticChannel();
+      writeJson(res, 200, createOkEnvelope(await diagnosticChannel.read({ ...b, requestor }), { startedAt }));
     } catch (e) {
       writeErrorResponse({ response: res, error: e, startedAt, fallbackCode: "diag_read_failed" });
     }
@@ -258,7 +260,7 @@ export function createWorkforceRoutes(application, helpers) {
     ["GET /workforce/autonomy/trust", { handler: handleAutonomyTrust, public: false, permission: "dashboard:read" }],
     ["POST /workforce/autonomy/token", { handler: handleAutonomyToken, public: false, permission: "workflow:run" }],
     ["POST /workforce/autonomy/token/revoke", { handler: handleAutonomyTokenRevoke, public: false, permission: "workflow:run" }],
-    ["POST /workforce/diagnostic/read", { handler: handleDiagnosticRead, public: false, permission: "dashboard:read" }],
+    ["POST /workforce/diagnostic/read", { handler: handleDiagnosticRead, public: false, permission: "audit:read" }],
     ["POST /workforce/execute", { handler: handleWorkforceExecute, public: false, permission: "workflow:run" }],
     ["POST /workforce/execute/approve", { handler: handleWorkforceExecuteApprove, public: false, permission: "workflow:approve" }],
     ["POST /workforce/execute/revoke", { handler: handleWorkforceExecuteRevoke, public: false, permission: "workflow:approve" }],

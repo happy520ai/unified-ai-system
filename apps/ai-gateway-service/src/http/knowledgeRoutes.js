@@ -160,10 +160,10 @@ export function createKnowledgeRoutes(application, helpers) {
 
   // ── 导出 ──
   const handlers = new Map([
-    ["GET /knowledge/health", { handler: handleKnowledgeHealth, public: true }],
-    ["GET /knowledge/infra/readiness", { handler: handleKnowledgeInfraReadiness, public: true }],
+    ["GET /knowledge/health", { handler: handleKnowledgeHealth, public: false, permission: "knowledge:read" }],
+    ["GET /knowledge/infra/readiness", { handler: handleKnowledgeInfraReadiness, public: false, permission: "knowledge:read" }],
     ["GET /knowledge/sources", { handler: handleKnowledgeSources, public: false, permission: "knowledge:read" }],
-    ["GET /knowledge/file-types", { handler: handleKnowledgeFileTypes, public: true }],
+    ["GET /knowledge/file-types", { handler: handleKnowledgeFileTypes, public: false, permission: "knowledge:read" }],
     ["POST /knowledge/graph/retrieve", { handler: handleKnowledgeGraphRetrieve, public: false, permission: "knowledge:read" }],
     ["POST /knowledge/load", { handler: handleKnowledgeLoad, public: false, permission: "knowledge:write" }],
     ["POST /knowledge/load/file", { handler: handleKnowledgeLoadFile, public: false, permission: "knowledge:write" }],

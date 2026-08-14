@@ -45,7 +45,8 @@ export function createLegacyRoutes(application, helpers) {
         writeJson(res, 500, createErrorEnvelope("codex_handoff_failed", error.message, { startedAt }));
       }
     },
-    public: true,
+    public: false,
+    permission: "provider:read",
     description: "Codex 任务交接",
   });
 
@@ -60,7 +61,8 @@ export function createLegacyRoutes(application, helpers) {
         writeJson(res, 500, createErrorEnvelope("codex_loop_status_failed", error.message, { startedAt }));
       }
     },
-    public: true,
+    public: false,
+    permission: "provider:read",
     description: "Codex 循环状态",
   });
 
@@ -70,7 +72,8 @@ export function createLegacyRoutes(application, helpers) {
       const health = workflowService.getHealth();
       writeJson(res, 200, createOkEnvelope(health, { startedAt }));
     },
-    public: true,
+    public: false,
+    permission: "dashboard:read",
     description: "工作流健康检查",
   });
 
@@ -79,7 +82,8 @@ export function createLegacyRoutes(application, helpers) {
       const actions = workflowService.getActions();
       writeJson(res, 200, createOkEnvelope({ actions }, { startedAt }));
     },
-    public: true,
+    public: false,
+    permission: "dashboard:read",
     description: "工作流动作列表",
   });
 
@@ -93,7 +97,8 @@ export function createLegacyRoutes(application, helpers) {
       const health = forgeService.getHealth();
       writeJson(res, 200, createOkEnvelope(health, { startedAt }));
     },
-    public: true,
+    public: false,
+    permission: "dashboard:read",
     description: "Forge 健康检查",
   });
 
@@ -107,7 +112,8 @@ export function createLegacyRoutes(application, helpers) {
       const status = codexExecCrsRuntimeCandidate.getStatus();
       writeJson(res, 200, createOkEnvelope(status, { startedAt }));
     },
-    public: true,
+    public: false,
+    permission: "dashboard:read",
     description: "运行时候选状态",
   });
 
@@ -117,7 +123,8 @@ export function createLegacyRoutes(application, helpers) {
       const status = capabilityRouterService.getStatus();
       writeJson(res, 200, createOkEnvelope(status, { startedAt }));
     },
-    public: true,
+    public: false,
+    permission: "dashboard:read",
     description: "能力路由状态",
   });
 
@@ -127,7 +134,8 @@ export function createLegacyRoutes(application, helpers) {
       const status = fiveCapabilityActivationService.getStatus();
       writeJson(res, 200, createOkEnvelope(status, { startedAt }));
     },
-    public: true,
+    public: false,
+    permission: "dashboard:read",
     description: "五能力激活状态",
   });
 
@@ -137,7 +145,8 @@ export function createLegacyRoutes(application, helpers) {
       const status = userExperienceService.getStatus();
       writeJson(res, 200, createOkEnvelope(status, { startedAt }));
     },
-    public: true,
+    public: false,
+    permission: "dashboard:read",
     description: "用户体验状态",
   });
 

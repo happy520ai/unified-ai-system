@@ -93,8 +93,8 @@ export function createEnterpriseRoutes(application, helpers) {
   // ── 导出 ──
   const handlers = new Map([
     ["GET /enterprise/health", { handler: handleEnterpriseHealth, public: true }],
-    ["GET /enterprise/session", { handler: handleEnterpriseSession, public: false, permission: "dashboard:read" }],
-    ["GET /enterprise/roles", { handler: handleEnterpriseRoles, public: false, permission: "dashboard:read" }],
+    ["GET /enterprise/session", { handler: handleEnterpriseSession, public: false, permission: "session:read" }],
+    ["GET /enterprise/roles", { handler: handleEnterpriseRoles, public: false, permission: "audit:read" }],
     ["GET /enterprise/users", { handler: handleEnterpriseUsers, public: false, permission: "user:admin" }],
     ["POST /enterprise/users", { handler: handleEnterpriseUserUpsert, public: false, permission: "user:admin" }],
     ["POST /enterprise/users/revoke", { handler: handleEnterpriseUserRevoke, public: false, permission: "user:admin" }],
