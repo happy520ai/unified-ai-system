@@ -57,11 +57,20 @@ const workspaceOverrides = extractTopLevelMapping(readText("pnpm-workspace.yaml"
 const lockOverrides = extractTopLevelMapping(readText("pnpm-lock.yaml"), "overrides");
 const packageManagerMatch = String(packageJson.packageManager || "").match(/^pnpm@([0-9]+(?:\.[0-9]+){2})$/);
 const pnpmVersion = packageManagerMatch?.[1] || null;
+const pnpmMajor = pnpmVersion ? Number(pnpmVersion.split(".")[0]) : null;
+const expectedEngineRange = pnpmVersion ? `>=${pnpmVersion} <${pnpmMajor + 1}` : null;
 const workflowVersions = pnpmVersion ? collectWorkflowPnpmVersions(pnpmVersion) : [];
 const issues = [];
 
 if (!pnpmVersion) {
   issues.push({ code: "package_manager_not_exact", expected: "pnpm@<major>.<minor>.<patch>" });
+}
+if (expectedEngineRange && packageJson.engines?.pnpm !== expectedEngineRange) {
+  issues.push({
+    code: "package_manager_engine_mismatch",
+    expected: expectedEngineRange,
+    actual: packageJson.engines?.pnpm || null,
+  });
 }
 if (Object.hasOwn(packageJson, "pnpm")) {
   issues.push({ code: "package_json_pnpm_config_duplicate", authority: "pnpm-workspace.yaml" });
@@ -90,6 +99,7 @@ for (const workflow of workflowVersions) {
 const result = {
   ok: issues.length === 0,
   packageManager: packageJson.packageManager || null,
+  pnpmEngine: packageJson.engines?.pnpm || null,
   overrideAuthority: "pnpm-workspace.yaml",
   requiredOverrides,
   workspaceOverrides,

@@ -12,7 +12,7 @@
     "url": "https://github.com/happy520ai/unified-ai-system/issues"
   },
   "type": "module",
-  "packageManager": "pnpm@9.15.4",
+  "packageManager": "pnpm@11.19.0",
   "scripts": {
     "start": "pnpm --filter @unified-ai-system/ai-gateway-service start",
     "dev": "pnpm --filter @unified-ai-system/ai-gateway-service start",
@@ -56,7 +56,7 @@
   },
   "engines": {
     "node": ">=22.18.0",
-    "pnpm": ">=9"
+    "pnpm": ">=11.19.0 <12"
   },
   "devDependencies": {
     "@a2a-js/sdk": "1.0.1",
