@@ -213,6 +213,7 @@ describe("WebSocket protocol safety", () => {
     assert.ok(src.includes("maxConnectionsPerSubject"), "Should enforce per-subject connections");
     assert.ok(src.includes("reauthorizeConnection"), "Should reauthorize long-lived sessions");
     assert.ok(src.includes("maxConnectionLifetimeMs"), "Should bound session lifetime");
+    assert.ok(src.includes("consumeExternalQuota"), "Should enforce shared cross-node quotas");
   });
 
   it("webSocketServer module loads", async () => {

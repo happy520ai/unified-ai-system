@@ -209,6 +209,21 @@ transaction lock is used only when creating a new bucket or enforcing capacity;
 requests to an existing hot bucket use one atomic update and do not take that
 global capacity lock.
 
+The same store and pool also enforce WebSocket admission and message quotas in
+the scoped `websocket-upgrades` and `websocket-messages` namespaces. Configure
+`AI_GATEWAY_WS_UPGRADE_WINDOW_MS`,
+`AI_GATEWAY_WS_MAX_UPGRADES_PER_WINDOW`,
+`AI_GATEWAY_WS_MESSAGE_WINDOW_MS`, and
+`AI_GATEWAY_WS_MAX_MESSAGES_PER_WINDOW` identically on every replica. A quota
+hit rejects the upgrade with HTTP 429 or closes an established connection with
+WebSocket code 1008. Store or capacity failure rejects an upgrade with HTTP 503
+or closes a connection with code 1013; provider execution does not proceed.
+
+These shared counters govern admission attempts and business messages. Active
+connection and in-flight execution caps remain process-local safety limits, not
+cross-node leases. Deployments must not claim a global active-connection cap
+without a separately verified lease and crash-recovery mechanism.
+
 Operational bounds:
 
 ```bash

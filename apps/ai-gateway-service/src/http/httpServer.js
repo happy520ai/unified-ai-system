@@ -266,6 +266,32 @@ export function createGatewayHttpServer(application) {
   const phase319LocalOperation = createPhase319LocalOperationService();
   const rateLimiter = createRouteAwareRateLimiter(application.runtimeEnv ?? process.env);
   const requestConfig = application.runtimeEnv ?? process.env;
+  const webSocketQuotaWindowMs = parsePositiveInteger(
+    requestConfig.AI_GATEWAY_WS_MESSAGE_WINDOW_MS,
+    60_000,
+  );
+  const webSocketMaxMessagesPerWindow = parsePositiveInteger(
+    requestConfig.AI_GATEWAY_WS_MAX_MESSAGES_PER_WINDOW,
+    60,
+  );
+  const webSocketUpgradeWindowMs = parsePositiveInteger(
+    requestConfig.AI_GATEWAY_WS_UPGRADE_WINDOW_MS,
+    60_000,
+  );
+  const webSocketMaxUpgradesPerWindow = parsePositiveInteger(
+    requestConfig.AI_GATEWAY_WS_MAX_UPGRADES_PER_WINDOW,
+    20,
+  );
+  const webSocketMessageLimiter = rateLimiter.createScopedLimiter("websocket-messages", {
+    windowMs: webSocketQuotaWindowMs,
+    maxRequests: webSocketMaxMessagesPerWindow,
+    whitelist: [],
+  });
+  const webSocketUpgradeLimiter = rateLimiter.createScopedLimiter("websocket-upgrades", {
+    windowMs: webSocketUpgradeWindowMs,
+    maxRequests: webSocketMaxUpgradesPerWindow,
+    whitelist: [],
+  });
   const circuitBypassRoutes = createGatewayErrorCircuitBypassRoutes(
     requestConfig.AI_GATEWAY_GATEWAY_ERROR_CIRCUIT_BYPASS_ROUTES,
     CIRCUIT_BYPASS_ROUTES,
@@ -353,8 +379,8 @@ export function createGatewayHttpServer(application) {
       maxRequestBodyBytes,
       parsePositiveInteger(requestConfig.AI_GATEWAY_WS_MAX_MESSAGE_BYTES, 256 * 1024),
     ),
-    maxMessagesPerWindow: requestConfig.AI_GATEWAY_WS_MAX_MESSAGES_PER_WINDOW,
-    messageWindowMs: requestConfig.AI_GATEWAY_WS_MESSAGE_WINDOW_MS,
+    maxMessagesPerWindow: webSocketMaxMessagesPerWindow,
+    messageWindowMs: webSocketQuotaWindowMs,
     maxInFlightMessages: requestConfig.AI_GATEWAY_WS_MAX_IN_FLIGHT_MESSAGES,
     maxInFlightPerSubject: requestConfig.AI_GATEWAY_WS_MAX_IN_FLIGHT_PER_SUBJECT,
     authenticationTimeoutMs: requestConfig.AI_GATEWAY_WS_AUTH_TIMEOUT_MS,
@@ -363,6 +389,12 @@ export function createGatewayHttpServer(application) {
     heartbeatIntervalMs: requestConfig.AI_GATEWAY_WS_HEARTBEAT_INTERVAL_MS,
     maxBufferedAmountBytes: requestConfig.AI_GATEWAY_WS_MAX_BUFFERED_AMOUNT_BYTES,
     shutdownGraceMs: requestConfig.AI_GATEWAY_WS_SHUTDOWN_GRACE_MS,
+    consumeUpgradeQuota(subject) {
+      return webSocketUpgradeLimiter.check(subject);
+    },
+    consumeMessageQuota(subject) {
+      return webSocketMessageLimiter.check(subject);
+    },
     authenticate(request) {
       return enterpriseGovernanceService.authorize(request, "chat:use");
     },

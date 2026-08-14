@@ -161,5 +161,9 @@ export function createRouteRateLimiter(options = {}) {
     if (postgresStore) await postgresStore.close();
   }
 
-  return { apply, getStats, checkHealth, close };
+  function createScopedLimiter(scope, limits = {}) {
+    return globalLimiter.createScopedLimiter(scope, limits);
+  }
+
+  return { apply, getStats, checkHealth, createScopedLimiter, close };
 }

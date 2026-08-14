@@ -49,6 +49,8 @@ export function createRateLimiter(options = {}) {
     throw new Error(`Unsupported rate-limit store mode: ${storeMode}`);
   }
   const buckets = new Map();
+  const scopedLimiters = new Map();
+  let closed = false;
 
   const sqliteBackend = storeMode === "sqlite"
     ? createRateLimiterSqliteBackend({
@@ -197,6 +199,9 @@ export function createRateLimiter(options = {}) {
    * Get current stats.
    */
   function getStats() {
+    const scoped = Object.fromEntries(
+      [...scopedLimiters.entries()].map(([scope, entry]) => [scope, entry.limiter.getStats()]),
+    );
     if (sqliteBackend) {
       const oldestIndex = Math.floor(Date.now() / windowMs) - 1;
       return {
@@ -207,6 +212,7 @@ export function createRateLimiter(options = {}) {
         subjectMode: options.subjectMode ?? "network",
         trustedProxyCount: options.trustedProxyCount ?? 0,
         storeMode: "sqlite",
+        scoped,
       };
     }
     if (postgresStore) {
@@ -217,6 +223,7 @@ export function createRateLimiter(options = {}) {
         whitelistSize: whitelist.size,
         subjectMode: options.subjectMode ?? "network",
         trustedProxyCount: options.trustedProxyCount ?? 0,
+        scoped,
       };
     }
     return {
@@ -227,6 +234,7 @@ export function createRateLimiter(options = {}) {
       subjectMode: options.subjectMode ?? "network",
       trustedProxyCount: options.trustedProxyCount ?? 0,
       storeMode: "memory",
+      scoped,
     };
   }
 
@@ -240,16 +248,59 @@ export function createRateLimiter(options = {}) {
     };
   }
 
+  function createScopedLimiter(scope, overrides = {}) {
+    if (closed) throw new Error("Cannot create a scoped limiter after the parent limiter is closed.");
+    const normalizedScope = normalizeScopedLimiterName(scope);
+    const scopedWindowMs = overrides.windowMs ?? windowMs;
+    const scopedMaxRequests = overrides.maxRequests ?? maxRequests;
+    const scopedWhitelist = overrides.whitelist ?? [];
+    const fingerprint = JSON.stringify([
+      scopedWindowMs,
+      scopedMaxRequests,
+      [...scopedWhitelist].map(String).sort(),
+    ]);
+    const existing = scopedLimiters.get(normalizedScope);
+    if (existing) {
+      if (existing.fingerprint !== fingerprint) {
+        throw new Error(`Scoped rate limiter "${normalizedScope}" was requested with conflicting limits.`);
+      }
+      return existing.limiter;
+    }
+    const limiter = createRateLimiter({
+      windowMs: scopedWindowMs,
+      maxRequests: scopedMaxRequests,
+      whitelist: scopedWhitelist,
+      storeMode,
+      storePath: options.storePath,
+      storeNamespace: `${options.storeNamespace ?? "default"}:${normalizedScope}`,
+      postgresStore,
+      postgresConnectionString: options.postgresConnectionString,
+      postgresSecret: options.postgresSecret,
+      postgresPoolMax: options.postgresPoolMax,
+      postgresStatementTimeoutMs: options.postgresStatementTimeoutMs,
+      postgresMaxBuckets: options.postgresMaxBuckets,
+      resolveSubject: options.resolveSubject,
+      subjectMode: options.subjectMode,
+      trustedProxyCount: options.trustedProxyCount,
+    });
+    scopedLimiters.set(normalizedScope, { fingerprint, limiter });
+    return limiter;
+  }
+
   /**
    * Release resources (stop the cleanup timer and close the SQLite handle).
    */
   async function close() {
+    if (closed) return;
+    closed = true;
     clearInterval(cleanupInterval);
+    for (const scoped of scopedLimiters.values()) await scoped.limiter.close();
+    scopedLimiters.clear();
     if (sqliteBackend) sqliteBackend.close();
     if (ownsPostgresStore) await postgresStore.close();
   }
 
-  return { check, apply, getStats, checkHealth, close };
+  return { check, apply, getStats, checkHealth, createScopedLimiter, close };
 }
 
 function createCountResult(count, resetAfterMs, maxRequests) {
@@ -272,4 +323,12 @@ function createStoreFailureResult(error) {
       ? "The bounded distributed rate-limit store is at capacity."
       : "The distributed rate-limit store is unavailable.",
   };
+}
+
+function normalizeScopedLimiterName(value) {
+  const normalized = typeof value === "string" ? value.trim().toLowerCase() : "";
+  if (!/^[a-z0-9][a-z0-9:_-]{0,63}$/.test(normalized)) {
+    throw new Error("Scoped rate-limit names must use 1-64 lowercase letters, numbers, colon, underscore, or hyphen.");
+  }
+  return normalized;
 }

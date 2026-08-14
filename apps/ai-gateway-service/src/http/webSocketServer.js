@@ -60,6 +60,8 @@ const DEFAULT_ALLOWED_ORIGINS = Object.freeze([
  * @param {number|string} [options.maxBufferedAmountBytes]
  * @param {number|string} [options.shutdownGraceMs]
  * @param {string} [options.environment]
+ * @param {(subject: string) => unknown | Promise<unknown>} [options.consumeUpgradeQuota]
+ * @param {(subject: string) => unknown | Promise<unknown>} [options.consumeMessageQuota]
  * @param {(connection: GatewayWebSocketConnection) => void} [options.onConnection]
  * @param {(message: string, connection: GatewayWebSocketConnection) => unknown | Promise<unknown>} [options.onMessage]
  * @param {(connection: GatewayWebSocketConnection) => void} [options.onClose]
@@ -79,6 +81,8 @@ export function createWebSocketServer(options = {}) {
     reauthorizationTimedOut: 0,
     identityDriftRejected: 0,
     sessionLifetimeRejected: 0,
+    upgradeQuotaRejected: 0,
+    quotaStoreUnavailable: 0,
     originRejected: 0,
     capacityRejected: 0,
     subjectConnectionRejected: 0,
@@ -272,6 +276,25 @@ export function createWebSocketServer(options = {}) {
       }
 
       const subjectKey = createSubjectKey(auth.identity, request.socket?.remoteAddress);
+      const upgradeQuota = await consumeExternalQuota(options.consumeUpgradeQuota, subjectKey);
+      if (!upgradeQuota.allowed) {
+        counters.upgradeQuotaRejected += 1;
+        const unavailable = (upgradeQuota.statusCode ?? 429) >= 500;
+        if (unavailable) counters.quotaStoreUnavailable += 1;
+        reportError(new Error(unavailable
+          ? "WebSocket shared upgrade quota is unavailable."
+          : "WebSocket shared upgrade quota was exceeded."), {
+          event: unavailable ? "ws_upgrade_quota_unavailable" : "ws_upgrade_quota_rejected",
+          code: upgradeQuota.code,
+          statusCode: upgradeQuota.statusCode,
+        });
+        rejectUpgrade(
+          socket,
+          unavailable ? "503 Service Unavailable" : "429 Too Many Requests",
+          { "Retry-After": String(Math.max(1, Math.ceil((upgradeQuota.retryAfterMs ?? 1_000) / 1_000))) },
+        );
+        return;
+      }
       const activeForSubject = subjectConnections.get(subjectKey) ?? 0;
       if (activeForSubject >= maxConnectionsPerSubject) {
         counters.subjectConnectionRejected += 1;
@@ -351,14 +374,24 @@ export function createWebSocketServer(options = {}) {
     }
 
     const now = Date.now();
-    if (!consumeMessageQuota(subjectKey, now)) {
+    const messageQuota = await consumeMessageQuota(subjectKey, now);
+    if (!messageQuota.allowed) {
       counters.rateLimitRejected += 1;
-      reportError(new Error("WebSocket message rate limit reached."), {
-        event: "ws_message_rate_limit",
+      const unavailable = (messageQuota.statusCode ?? 429) >= 500;
+      if (unavailable) counters.quotaStoreUnavailable += 1;
+      reportError(new Error(unavailable
+        ? "WebSocket shared message quota is unavailable."
+        : "WebSocket message rate limit reached."), {
+        event: unavailable ? "ws_message_quota_unavailable" : "ws_message_rate_limit",
+        code: messageQuota.code,
+        statusCode: messageQuota.statusCode,
         maxMessagesPerWindow,
         messageWindowMs,
       });
-      rawSocket.close(1008, "Message rate limit exceeded");
+      rawSocket.close(
+        unavailable ? 1013 : 1008,
+        unavailable ? "Message quota unavailable" : "Message rate limit exceeded",
+      );
       return;
     }
 
@@ -445,17 +478,20 @@ export function createWebSocketServer(options = {}) {
     }
   }
 
-  function consumeMessageQuota(subjectKey, now) {
+  async function consumeMessageQuota(subjectKey, now) {
+    if (typeof options.consumeMessageQuota === "function") {
+      return consumeExternalQuota(options.consumeMessageQuota, subjectKey);
+    }
     const cutoff = now - messageWindowMs;
     const previous = subjectMessageWindows.get(subjectKey) ?? [];
     const active = previous.filter((timestamp) => timestamp > cutoff);
     if (active.length >= maxMessagesPerWindow) {
       subjectMessageWindows.set(subjectKey, active);
-      return false;
+      return { allowed: false, statusCode: 429, code: "WEBSOCKET_MESSAGE_RATE_LIMITED" };
     }
     active.push(now);
     subjectMessageWindows.set(subjectKey, active);
-    return true;
+    return { allowed: true };
   }
 
   function releaseInFlight(subjectKey) {
@@ -656,6 +692,34 @@ function createSubjectKey(identity, remoteAddress) {
   if (userId) return `identity:${tenantId || "default"}:${userId}`;
   const network = typeof remoteAddress === "string" && remoteAddress.trim() ? remoteAddress.trim() : "unknown";
   return `network:${network}`;
+}
+
+async function consumeExternalQuota(consumer, subject) {
+  if (typeof consumer !== "function") return { allowed: true };
+  try {
+    const result = await consumer(subject);
+    if (!result || typeof result !== "object" || typeof result.allowed !== "boolean") {
+      return {
+        allowed: false,
+        statusCode: 503,
+        code: "RATE_LIMIT_STORE_UNAVAILABLE",
+        retryAfterMs: 1_000,
+      };
+    }
+    return {
+      allowed: result.allowed,
+      statusCode: Number(result.statusCode) || (result.allowed ? 200 : 429),
+      code: typeof result.code === "string" ? result.code : (result.allowed ? null : "RATE_LIMITED"),
+      retryAfterMs: Math.max(0, Number(result.retryAfterMs) || 0),
+    };
+  } catch {
+    return {
+      allowed: false,
+      statusCode: 503,
+      code: "RATE_LIMIT_STORE_UNAVAILABLE",
+      retryAfterMs: 1_000,
+    };
+  }
 }
 
 function createReauthorizationRequest(request) {

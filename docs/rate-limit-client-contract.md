@@ -51,3 +51,10 @@ if (response.status === 429) {
 - PostgreSQL mode requires `AI_GATEWAY_RATE_LIMIT_POSTGRES_URL` and a shared `AI_GATEWAY_RATE_LIMIT_HMAC_SECRET` of at least 32 bytes. Load both from a secret manager and require certificate-verified TLS outside a trusted local network.
 - Trusted proxy safety depends on the ingress overwriting `X-Forwarded-For` and on operators keeping `AI_GATEWAY_TRUSTED_PROXY_CIDRS` current. The gateway deliberately ignores the RFC 7239 `Forwarded` header so two proxy-header formats cannot create ambiguous precedence.
 - The gateway intentionally does not emit the evolving IETF `RateLimit` structured field as if it were a final RFC contract.
+- WebSocket upgrades and business messages use dedicated scoped quotas backed by
+  the same configured store. Upgrade quota exhaustion returns HTTP 429; an
+  established connection closes with code 1008. Shared-store failure returns
+  HTTP 503 during upgrade or close code 1013 after upgrade, and the message does
+  not reach provider execution.
+- WebSocket active-connection and in-flight execution caps remain per-process;
+  shared fixed-window counters must not be represented as distributed leases.

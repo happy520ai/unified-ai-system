@@ -98,6 +98,96 @@ describe("governed websocket server", () => {
     expect(gateway.getSecuritySnapshot().rateLimitRejected).toBe(1);
   });
 
+  it("enforces one shared message quota across independent gateway instances", async () => {
+    let sharedCount = 0;
+    const subjects = [];
+    const consumeMessageQuota = vi.fn(async (subject) => {
+      subjects.push(subject);
+      sharedCount += 1;
+      return {
+        allowed: sharedCount <= 1,
+        remaining: Math.max(0, 1 - sharedCount),
+        retryAfterMs: 60_000,
+      };
+    });
+    const firstMessage = vi.fn();
+    const secondMessage = vi.fn();
+    const authentication = async () => ({
+      allowed: true,
+      identity: { userId: "alice", tenantId: "tenant-a" },
+    });
+    const first = await startGateway({
+      authenticate: authentication,
+      consumeMessageQuota,
+      onMessage: firstMessage,
+    });
+    const second = await startGateway({
+      authenticate: authentication,
+      consumeMessageQuota,
+      onMessage: secondMessage,
+    });
+    const firstClient = await connect(first.url);
+    const secondClient = await connect(second.url);
+
+    firstClient.send("first node");
+    await waitFor(() => firstMessage.mock.calls.length === 1);
+    const closed = waitForClose(secondClient);
+    secondClient.send("second node");
+
+    await expect(closed).resolves.toMatchObject({ code: 1008, reason: "Message rate limit exceeded" });
+    expect(secondMessage).not.toHaveBeenCalled();
+    expect(consumeMessageQuota).toHaveBeenCalledTimes(2);
+    expect(new Set(subjects).size).toBe(1);
+  });
+
+  it("enforces one shared upgrade quota across independent gateway instances", async () => {
+    let sharedCount = 0;
+    const consumeUpgradeQuota = vi.fn(async () => ({
+      allowed: ++sharedCount <= 1,
+      retryAfterMs: 60_000,
+    }));
+    const authentication = async () => ({
+      allowed: true,
+      identity: { userId: "alice", tenantId: "tenant-a" },
+    });
+    const first = await startGateway({ authenticate: authentication, consumeUpgradeQuota });
+    const second = await startGateway({ authenticate: authentication, consumeUpgradeQuota });
+
+    await connect(first.url);
+    await expect(rejectedStatus(second.url)).resolves.toBe(429);
+    expect(consumeUpgradeQuota).toHaveBeenCalledTimes(2);
+    expect(second.gateway.getSecuritySnapshot().upgradeQuotaRejected).toBe(1);
+  });
+
+  it("fails closed when the shared message quota store is unavailable", async () => {
+    const onMessage = vi.fn();
+    const { url, gateway } = await startGateway({
+      authenticate: async () => true,
+      consumeMessageQuota: async () => { throw new Error("shared store down"); },
+      onMessage,
+    });
+    const client = await connect(url);
+    const closed = waitForClose(client);
+    client.send("must not execute");
+
+    await expect(closed).resolves.toMatchObject({ code: 1013, reason: "Message quota unavailable" });
+    expect(onMessage).not.toHaveBeenCalled();
+    expect(gateway.getSecuritySnapshot().quotaStoreUnavailable).toBe(1);
+  });
+
+  it("rejects an upgrade when the shared quota result cannot be proven", async () => {
+    const { url, gateway } = await startGateway({
+      authenticate: async () => true,
+      consumeUpgradeQuota: async () => null,
+    });
+
+    await expect(rejectedStatus(url)).resolves.toBe(503);
+    expect(gateway.getSecuritySnapshot()).toMatchObject({
+      upgradeQuotaRejected: 1,
+      quotaStoreUnavailable: 1,
+    });
+  });
+
   it("closes concurrent work instead of bypassing the per-subject execution cap", async () => {
     let release;
     const pending = new Promise((resolve) => { release = resolve; });
