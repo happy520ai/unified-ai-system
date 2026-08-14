@@ -30,6 +30,7 @@ export async function dispatchHttpRoutes03(context) {
   } = context;
 
   if (request.method === "GET" && url.pathname === "/cost/summary") {
+    const tenantScopeIdentity = request.enterpriseIdentity;
     const summary = await readTokenCostSummary();
     writeJson(response, 200, createOkEnvelope({
       ...summary,
@@ -41,7 +42,7 @@ export async function dispatchHttpRoutes03(context) {
         cachePersistenceAvailable: true,
         cachePolicyVersion: createResponseCachePolicy().cacheVersion,
         mode: createResponseCachePolicy().mode,
-        summary: await readResponseCacheSummary(),
+        summary: await readResponseCacheSummary({ tenantScopeIdentity }),
       },
       cacheHardeningPreview: {
         cachePersistenceAvailable: true,
@@ -51,7 +52,7 @@ export async function dispatchHttpRoutes03(context) {
         semanticDecisionUsedAsFinalAuthority: false,
         allowIntentSoftHit: createResponseCachePolicy().allowIntentSoftHit,
         allowMultilingualIntentSoftHit: createResponseCachePolicy().allowMultilingualIntentSoftHit,
-        summary: await readResponseCacheSummary(),
+        summary: await readResponseCacheSummary({ tenantScopeIdentity }),
       },
     }, { startedAt }));
     return;
@@ -84,16 +85,19 @@ export async function dispatchHttpRoutes03(context) {
 
     try {
       const key = body.cacheKey ? { cacheKey: body.cacheKey } : createResponseCacheKey(body);
-      const result = await lookupCache({ cacheKey: key.cacheKey });
+      const result = await lookupCache({
+        cacheKey: key.cacheKey,
+        tenantScopeIdentity: request.enterpriseIdentity,
+      });
       writeJson(response, 200, createOkEnvelope({
         mode: createResponseCachePolicy().mode,
-        cacheKey: key.cacheKey,
         cacheDecision: result.cacheDecision,
         cacheHitType: result.cacheHitType,
         duplicateReason: result.duplicateReason,
         finalDecisionBy: result.finalDecisionBy,
         semanticDecisionUsedAsFinalAuthority: false,
         ...result,
+        cacheKey: key.cacheKey,
         intentSignature: result.intentSignature ?? key.intentSignature,
         paraphraseGroupId: result.paraphraseGroupId ?? key.paraphraseGroupId,
         queryLanguage: result.queryLanguage ?? key.queryLanguage,
@@ -120,6 +124,7 @@ export async function dispatchHttpRoutes03(context) {
       const result = await writeCacheRecord({
         ...body,
         cacheKey: key.cacheKey,
+        tenantScopeIdentity: request.enterpriseIdentity,
         rawQueryHash: key.rawQueryHash ?? body.rawQueryHash,
         normalizedQueryHash: key.normalizedQueryHash ?? body.normalizedQueryHash ?? key.queryHash,
         queryHash: key.queryHash ?? body.queryHash,
@@ -133,6 +138,7 @@ export async function dispatchHttpRoutes03(context) {
       writeJson(response, 200, createOkEnvelope({
         mode: createResponseCachePolicy().mode,
         ...result,
+        cacheKey: key.cacheKey,
         externalApiCalled: false,
         paidApiCalled: false,
         apiKeyRead: false,
@@ -151,10 +157,12 @@ export async function dispatchHttpRoutes03(context) {
       const result = await invalidateCache({
         cacheKey: body.cacheKey,
         reason: body.reason ?? "preview-http-invalidate",
+        tenantScopeIdentity: request.enterpriseIdentity,
       });
       writeJson(response, 200, createOkEnvelope({
         mode: createResponseCachePolicy().mode,
         ...result,
+        cacheKey: body.cacheKey,
         externalApiCalled: false,
         paidApiCalled: false,
         apiKeyRead: false,
@@ -168,7 +176,7 @@ export async function dispatchHttpRoutes03(context) {
   if (request.method === "GET" && url.pathname === "/cache/summary") {
     writeJson(response, 200, createOkEnvelope({
       mode: createResponseCachePolicy().mode,
-      ...(await readResponseCacheSummary()),
+      ...(await readResponseCacheSummary({ tenantScopeIdentity: request.enterpriseIdentity })),
       allowIntentSoftHit: createResponseCachePolicy().allowIntentSoftHit,
       allowMultilingualIntentSoftHit: createResponseCachePolicy().allowMultilingualIntentSoftHit,
       semanticModelEnabled: false,
@@ -185,7 +193,10 @@ export async function dispatchHttpRoutes03(context) {
     const limit = Number(url.searchParams.get("limit") ?? 100);
     writeJson(response, 200, createOkEnvelope({
       mode: createResponseCachePolicy().mode,
-      events: await listResponseCacheAuditTrail({ limit }),
+      events: await listResponseCacheAuditTrail({
+        limit,
+        tenantScopeIdentity: request.enterpriseIdentity,
+      }),
       externalApiCalled: false,
       paidApiCalled: false,
       apiKeyRead: false,

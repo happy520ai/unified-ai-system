@@ -62,23 +62,26 @@ export function createCostCacheRoutes(application) {
 
   // ── 缓存路由 ──
 
-  async function handleCacheHealth(_req, res, { startedAt }) {
+  async function handleCacheHealth(req, res, { startedAt }) {
     writeJson(res, 200, createOkEnvelope({
       route: "/cache/health",
       status: "ready",
-      summary: readResponseCacheSummary(),
+      summary: readResponseCacheSummary({ tenantScopeIdentity: req.enterpriseIdentity }),
     }, { startedAt }));
   }
 
   async function handleCacheLookup(req, res, { startedAt, body }) {
     const key = body?.key ?? body?.prompt ?? "";
     const cacheKey = createResponseCacheKey({ prompt: key, providerId: body?.providerId, model: body?.model });
-    const hit = lookupCache(cacheKey);
+    const hit = lookupCache({
+      cacheKey: cacheKey.cacheKey,
+      tenantScopeIdentity: req.enterpriseIdentity,
+    });
     writeJson(res, 200, createOkEnvelope({
       route: "/cache/lookup",
-      hit: !!hit,
+      hit: hit.cacheDecision === "hit",
       key: cacheKey,
-      entry: hit,
+      entry: { ...hit, cacheKey: cacheKey.cacheKey },
     }, { startedAt }));
   }
 
@@ -87,7 +90,13 @@ export function createCostCacheRoutes(application) {
     const cacheKey = createResponseCacheKey({ prompt: key, providerId: body?.providerId, model: body?.model });
     const policy = createResponseCachePolicy(body ?? {});
     if (policy.cacheable) {
-      writeCacheRecord(cacheKey, body?.response ?? body?.value ?? "", body?.metadata ?? {});
+      writeCacheRecord({
+        ...cacheKey,
+        cacheKey: cacheKey.cacheKey,
+        response: body?.response ?? body?.value ?? "",
+        metadata: body?.metadata ?? {},
+        tenantScopeIdentity: req.enterpriseIdentity,
+      });
     }
     writeJson(res, 200, createOkEnvelope({
       route: "/cache/write",
@@ -98,24 +107,27 @@ export function createCostCacheRoutes(application) {
   }
 
   async function handleCacheInvalidate(req, res, { startedAt, body }) {
-    const key = body?.key ?? "";
-    const removed = invalidateCache(key);
+    const key = body?.cacheKey ?? body?.key ?? "";
+    const result = invalidateCache({
+      cacheKey: key,
+      tenantScopeIdentity: req.enterpriseIdentity,
+    });
     writeJson(res, 200, createOkEnvelope({
       route: "/cache/invalidate",
       key,
-      removed,
+      removed: result.removed,
     }, { startedAt }));
   }
 
-  async function handleCacheSummary(_req, res, { startedAt }) {
+  async function handleCacheSummary(req, res, { startedAt }) {
     writeJson(res, 200, createOkEnvelope({
       route: "/cache/summary",
-      summary: readResponseCacheSummary(),
+      summary: readResponseCacheSummary({ tenantScopeIdentity: req.enterpriseIdentity }),
     }, { startedAt }));
   }
 
-  async function handleCacheAudit(_req, res, { startedAt }) {
-    const audit = listResponseCacheAuditTrail();
+  async function handleCacheAudit(req, res, { startedAt }) {
+    const audit = listResponseCacheAuditTrail({ tenantScopeIdentity: req.enterpriseIdentity });
     writeJson(res, 200, createOkEnvelope({
       route: "/cache/audit",
       entries: audit,
