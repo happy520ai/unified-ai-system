@@ -86,3 +86,9 @@ Gateway readiness and resilience are observable through:
 
 Use the [Readiness & Observability Guide](readiness-observability-guide.md) for
 prometheus alert examples and incident response playbooks.
+
+Credential-free performance evidence is split by responsibility: the Node SLO
+harness validates OpenAI/SSE protocol latency, the Go open-loop harness validates
+arrival scheduling and backpressure, and the Node
+[resource stability soak](gateway-resource-soak.md) gates process memory and
+event-loop pressure over sustained load.

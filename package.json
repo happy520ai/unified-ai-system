@@ -39,6 +39,7 @@
     "drill:gateway-circuit:dry-run": "node ./tools/circuit-recovery-drill.mjs --dry-run --json",
     "benchmark:gateway:slo": "node ./tools/gateway-slo-benchmark.mjs --profile ci",
     "benchmark:gateway:soak": "go run ./tools/gateway-soak/main.go",
+    "benchmark:gateway:resource-soak": "node ./tools/gateway-resource-soak.mjs --profile ci",
     "quality:ci": "node ./tools/run-quality-ci-gate.mjs",
     "quality:verify-artifacts": "node ./tools/verify-ci-quality-artifacts.mjs",
     "quality:verify-artifacts:trend-health": "node ./tools/verify-ci-quality-artifacts.mjs -- --require-trend-health",
