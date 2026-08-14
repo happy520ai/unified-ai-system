@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { spawn } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { mkdir, rename, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { arch, cpus, platform, totalmem } from "node:os";
@@ -55,7 +56,7 @@ if (parsedArgs.help) {
   process.exit(0);
 }
 
-const config = createConfig(parsedArgs);
+const config = createConfig(parsedArgs, process.env);
 const report = await runResourceSoak(config);
 await writeReport(config.output, report);
 
@@ -78,6 +79,8 @@ async function runResourceSoak(options) {
   let resources = null;
   let fatalError = null;
   let managedGatewayCleanedUp = null;
+  let requestHeaders = options.privateRequestHeaders ?? Object.freeze({});
+  let gatewayAuthSource = options.gatewayAuthSource ?? "none";
 
   try {
     if (options.managed) {
@@ -85,9 +88,14 @@ async function runResourceSoak(options) {
       endpointUrl = `${gateway.baseUrl}/v1/chat/completions`;
       metricsUrl = `${gateway.baseUrl}/metrics`;
       health = gateway.health;
+      requestHeaders = gateway.privateRequestHeaders;
+      gatewayAuthSource = "ephemeral-managed";
     }
 
-    await primeResourceMonitor(metricsUrl);
+    if (Object.keys(requestHeaders).length > 0) {
+      await verifyAuthenticatedSession(new URL(endpointUrl).origin, requestHeaders);
+    }
+    await primeResourceMonitor(metricsUrl, requestHeaders);
     await delay(Math.min(250, options.sampleIntervalMs));
 
     warmup = await executeWarmup({
@@ -97,17 +105,18 @@ async function runResourceSoak(options) {
       timeoutMs: options.requestTimeoutMs,
       model: options.model,
       requireFakeExecution: options.managed,
+      requestHeaders,
     });
 
     const samples = [];
     const sampleFailures = [];
-    await captureResourceSample({ metricsUrl, samples, sampleFailures, started: overallStarted });
+    await captureResourceSample({ metricsUrl, requestHeaders, samples, sampleFailures, started: overallStarted });
     let sampling = true;
     const sampler = (async () => {
       while (sampling) {
         await delay(options.sampleIntervalMs);
         if (!sampling) break;
-        await captureResourceSample({ metricsUrl, samples, sampleFailures, started: overallStarted });
+        await captureResourceSample({ metricsUrl, requestHeaders, samples, sampleFailures, started: overallStarted });
       }
     })();
 
@@ -119,10 +128,11 @@ async function runResourceSoak(options) {
       timeoutMs: options.requestTimeoutMs,
       model: options.model,
       requireFakeExecution: options.managed,
+      requestHeaders,
     });
     sampling = false;
     await sampler;
-    await captureResourceSample({ metricsUrl, samples, sampleFailures, started: overallStarted });
+    await captureResourceSample({ metricsUrl, requestHeaders, samples, sampleFailures, started: overallStarted });
     resources = summarizeResources(samples, sampleFailures);
   } catch (error) {
     fatalError = normalizeError(error);
@@ -153,7 +163,8 @@ async function runResourceSoak(options) {
       metrics: sanitizeTarget(metricsUrl),
       model: options.model,
       managed: options.managed,
-      credentialsSupported: false,
+      providerCredentialsSupported: false,
+      gatewayAuthenticationSupported: true,
     },
     workloadConfig: {
       arrivalModel: "open-loop-fixed-rate",
@@ -186,6 +197,9 @@ async function runResourceSoak(options) {
       realProviderEnabled: options.managed ? health?.body?.data?.realProviderEnabled ?? null : null,
       realProviderCallsMade: options.managed ? false : null,
       credentialEnvironmentForwarded: false,
+      gatewayAuthenticationEnabled: gatewayAuthSource !== "none",
+      gatewayAuthSource,
+      gatewayAuthTokenExposed: false,
       persistentCredentialStoreRead: false,
       runtimeCredentialStoreMode: options.managed ? "memory" : "unknown",
       managedGatewayCleanedUp,
@@ -203,6 +217,9 @@ async function runResourceSoak(options) {
 async function startManagedGateway(options) {
   const port = await reserveFreePort();
   const baseUrl = `http://127.0.0.1:${port}`;
+  const authToken = randomBytes(32).toString("base64url");
+  const authExpiresAt = new Date(Date.now() + 10 * 60_000).toISOString();
+  const requestHeaders = Object.freeze({ Authorization: `Bearer ${authToken}` });
   const isolatedStateRoot = resolve(repoRoot, ".tmp", `gateway-resource-soak-state-${port}`);
   const child = spawn(process.execPath, [serviceEntrypoint], {
     cwd: serviceRoot,
@@ -220,13 +237,28 @@ async function startManagedGateway(options) {
       AI_GATEWAY_MAX_IN_FLIGHT_REQUESTS: String(Math.max(64, options.maxOutstanding * 2)),
       AI_GATEWAY_MAX_REQUEST_BODY_BYTES: "4096",
       AI_GATEWAY_USAGE_LOG_DIR: resolve(repoRoot, ".tmp", `gateway-resource-soak-${port}`),
-      PME_ENTERPRISE_AUTH_ENABLED: "false",
+      PME_ENTERPRISE_AUTH_ENABLED: "true",
+      PME_AUTH_TOKEN: "",
+      PME_ENTERPRISE_USERS_JSON: JSON.stringify([{
+        token: authToken,
+        userId: "gateway-resource-soak",
+        tenantId: "gateway-resource-soak",
+        role: "operator",
+        permissions: ["chat:use", "dashboard:read", "session:read"],
+        expiresAt: authExpiresAt,
+      }]),
       PME_ENTERPRISE_USER_STORE_PATH: resolve(isolatedStateRoot, "enterprise-users.json"),
       PME_AUDIT_LOG_PATH: resolve(isolatedStateRoot, "enterprise-audit.jsonl"),
       PME_RUNTIME_CREDENTIAL_STORE_MODE: "memory",
     },
   });
   const state = { child, baseUrl, stdout: "", stderr: "", exitError: null, health: null };
+  Object.defineProperty(state, "privateRequestHeaders", {
+    configurable: false,
+    enumerable: false,
+    writable: false,
+    value: requestHeaders,
+  });
   child.stdout.on("data", (chunk) => { state.stdout = appendBounded(state.stdout, chunk.toString()); });
   child.stderr.on("data", (chunk) => { state.stderr = appendBounded(state.stderr, chunk.toString()); });
   child.once("error", (error) => { state.exitError = error; });
@@ -235,6 +267,7 @@ async function startManagedGateway(options) {
     if (state.health.body?.data?.providerMode !== "fake" || state.health.body?.data?.realProviderEnabled !== false) {
       throw new Error("Managed gateway did not prove fake-only execution.");
     }
+    await verifyAuthenticatedSession(baseUrl, requestHeaders);
     return state;
   } catch (error) {
     await stopManagedGateway(state);
@@ -271,21 +304,21 @@ async function stopManagedGateway(state) {
   return hasChildExited(child);
 }
 
-async function executeWarmup({ endpointUrl, requests, concurrency, timeoutMs, model, requireFakeExecution }) {
+async function executeWarmup({ endpointUrl, requests, concurrency, timeoutMs, model, requireFakeExecution, requestHeaders }) {
   const results = new Array(requests);
   let cursor = 0;
   const workers = Array.from({ length: Math.min(concurrency, requests) }, async () => {
     while (true) {
       const sequence = cursor++;
       if (sequence >= requests) return;
-      results[sequence] = await executeChat({ endpointUrl, timeoutMs, model, requireFakeExecution, sequence, phase: "warmup" });
+      results[sequence] = await executeChat({ endpointUrl, timeoutMs, model, requireFakeExecution, requestHeaders, sequence, phase: "warmup" });
     }
   });
   await Promise.all(workers);
   return summarizeWorkload(results, requests, requests, 0, 0);
 }
 
-async function executeOpenLoop({ endpointUrl, durationMs, targetRps, maxOutstanding, timeoutMs, model, requireFakeExecution }) {
+async function executeOpenLoop({ endpointUrl, durationMs, targetRps, maxOutstanding, timeoutMs, model, requireFakeExecution, requestHeaders }) {
   const results = [];
   const pending = new Set();
   const schedulerLag = [];
@@ -308,7 +341,7 @@ async function executeOpenLoop({ endpointUrl, durationMs, targetRps, maxOutstand
       continue;
     }
     const sequence = started++;
-    const task = executeChat({ endpointUrl, timeoutMs, model, requireFakeExecution, sequence, phase: "resource-soak" })
+    const task = executeChat({ endpointUrl, timeoutMs, model, requireFakeExecution, requestHeaders, sequence, phase: "resource-soak" })
       .then((result) => { results.push(result); })
       .finally(() => { pending.delete(task); });
     pending.add(task);
@@ -327,13 +360,13 @@ async function executeOpenLoop({ endpointUrl, durationMs, targetRps, maxOutstand
   };
 }
 
-async function executeChat({ endpointUrl, timeoutMs, model, requireFakeExecution, sequence, phase }) {
+async function executeChat({ endpointUrl, timeoutMs, model, requireFakeExecution, requestHeaders, sequence, phase }) {
   const started = performance.now();
   try {
     const response = await fetchJson(endpointUrl, {
       method: "POST",
       timeoutMs,
-      headers: { "content-type": "application/json" },
+      headers: { ...requestHeaders, "content-type": "application/json" },
       body: JSON.stringify({
         model,
         stream: false,
@@ -396,9 +429,9 @@ function summarizeWorkload(results, scheduled, started, clientDropped, wallDurat
   };
 }
 
-async function captureResourceSample({ metricsUrl, samples, sampleFailures, started }) {
+async function captureResourceSample({ metricsUrl, requestHeaders, samples, sampleFailures, started }) {
   try {
-    const response = await fetchText(metricsUrl, { timeoutMs: 2_000 });
+    const response = await fetchText(metricsUrl, { headers: requestHeaders, timeoutMs: 2_000 });
     if (response.status !== 200) throw new Error(`Metrics returned HTTP ${response.status}.`);
     const metrics = parsePrometheus(response.body);
     samples.push({
@@ -419,8 +452,8 @@ async function captureResourceSample({ metricsUrl, samples, sampleFailures, star
   }
 }
 
-async function primeResourceMonitor(metricsUrl) {
-  const response = await fetchText(metricsUrl, { timeoutMs: 2_000 });
+async function primeResourceMonitor(metricsUrl, requestHeaders) {
+  const response = await fetchText(metricsUrl, { headers: requestHeaders, timeoutMs: 2_000 });
   if (response.status !== 200) throw new Error(`Metrics prime returned HTTP ${response.status}.`);
   const metrics = parsePrometheus(response.body);
   requiredMetric(metrics, "ai_gateway_event_loop_utilization_ratio");
@@ -550,20 +583,29 @@ async function fetchWithTimeout(url, options = {}) {
   const timer = setTimeout(() => controller.abort(new Error("Request timeout.")), options.timeoutMs ?? 5_000);
   timer.unref?.();
   try {
-    return await fetch(url, { ...options, signal: controller.signal, timeoutMs: undefined });
+    return await fetch(url, {
+      ...options,
+      redirect: "error",
+      signal: controller.signal,
+      timeoutMs: undefined,
+    });
   } finally {
     clearTimeout(timer);
   }
 }
 
-function createConfig(args) {
+function createConfig(args, env = {}) {
   const profileName = args.profile ?? (args.target ? "observe" : "ci");
   const profile = PROFILES[profileName];
   if (!profile) throw new Error(`Unsupported profile: ${profileName}`);
   const managed = !args.target;
   const target = managed ? null : validateUrl(args.target, "target");
   const metricsUrl = managed ? null : validateUrl(args.metricsUrl, "metrics-url");
-  return {
+  const authToken = readGatewayAuthToken(env.AI_GATEWAY_RESOURCE_SOAK_AUTH_TOKEN);
+  if (!managed && authToken) {
+    assertSafeGatewayAuthTargets(target, metricsUrl);
+  }
+  const config = {
     profile: profileName,
     managed,
     target,
@@ -584,7 +626,46 @@ function createConfig(args) {
     maxEventLoopUtilization: parseRatio(args.maxEventLoopUtilization, profile.maxEventLoopUtilization, "max-event-loop-utilization"),
     output: resolve(args.output ?? DEFAULT_OUTPUT),
     json: args.json === true,
+    gatewayAuthSource: authToken ? "environment" : "none",
   };
+  Object.defineProperty(config, "privateRequestHeaders", {
+    configurable: false,
+    enumerable: false,
+    writable: false,
+    value: Object.freeze(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+  });
+  return config;
+}
+
+function readGatewayAuthToken(value) {
+  const token = typeof value === "string" ? value.trim() : "";
+  if (!token) return null;
+  if (token.length < 32) {
+    throw new Error("AI_GATEWAY_RESOURCE_SOAK_AUTH_TOKEN must contain at least 32 characters.");
+  }
+  return token;
+}
+
+function assertSafeGatewayAuthTargets(target, metricsUrl) {
+  const targetUrl = new URL(target);
+  const metrics = new URL(metricsUrl);
+  if (targetUrl.origin !== metrics.origin) {
+    throw new Error("Authenticated resource-soak target and metrics URL must have the same origin.");
+  }
+  if (targetUrl.protocol === "https:") return;
+  if (!new Set(["127.0.0.1", "::1", "[::1]"]).has(targetUrl.hostname.toLowerCase())) {
+    throw new Error("AI_GATEWAY_RESOURCE_SOAK_AUTH_TOKEN requires HTTPS for non-loopback targets.");
+  }
+}
+
+async function verifyAuthenticatedSession(baseUrl, requestHeaders) {
+  const response = await fetchJson(`${baseUrl}/enterprise/session`, {
+    headers: requestHeaders,
+    timeoutMs: 2_000,
+  });
+  if (response.status !== 200 || (response.body?.data ?? response.body)?.authenticated !== true) {
+    throw new Error(`Gateway authentication check failed with HTTP ${response.status}.`);
+  }
 }
 
 function parseArgs(argv) {
@@ -788,5 +869,5 @@ function printSummary(report, output) {
 }
 
 function printHelp() {
-  process.stdout.write(`Credential-free gateway resource stability soak.\n\nUsage:\n  node tools/gateway-resource-soak.mjs [options]\n\nOptions:\n  --profile <ci|observe>              ci defaults to 12s; observe defaults to 5m.\n  --target <chat-url>                 External chat endpoint; defaults to managed fake gateway.\n  --metrics-url <url>                 Required metrics endpoint for an external run.\n  --duration <ms|s|m>                 Measurement duration.\n  --rate <rps>                        Fixed request arrival rate.\n  --max-outstanding <count>           Client outstanding request cap.\n  --warmup <count>                    Warmup requests before the baseline.\n  --sample-interval <ms|s>            Metrics scrape interval.\n  --timeout <ms|s>                    Per-request timeout.\n  --min-arrival-ratio <0..1>          Minimum started/scheduled ratio.\n  --max-error-rate <0..1>             Maximum workload error rate.\n  --max-heap-growth-bytes <bytes>      Absolute heap-growth allowance.\n  --max-rss-growth-bytes <bytes>       Absolute RSS-growth allowance.\n  --max-memory-growth-ratio <0..1>     Relative memory-growth allowance.\n  --max-event-loop-p99 <ms|s>          Maximum observed event-loop p99 delay.\n  --max-event-loop-utilization <0..1>  Maximum observed event-loop utilization.\n  --model <id>                         Request model.\n  --output <path>                      JSON evidence path.\n  --json                               Emit compact JSON.\n  --help                               Show this help.\n\nAuthorization headers and credential environment variables are never accepted or forwarded.\n`);
+  process.stdout.write(`Credential-free-provider gateway resource stability soak.\n\nUsage:\n  node tools/gateway-resource-soak.mjs [options]\n\nOptions:\n  --profile <ci|observe>              ci defaults to 12s; observe defaults to 5m.\n  --target <chat-url>                 External chat endpoint; defaults to managed fake gateway.\n  --metrics-url <url>                 Required metrics endpoint for an external run.\n  --duration <ms|s|m>                 Measurement duration.\n  --rate <rps>                        Fixed request arrival rate.\n  --max-outstanding <count>           Client outstanding request cap.\n  --warmup <count>                    Warmup requests before the baseline.\n  --sample-interval <ms|s>            Metrics scrape interval.\n  --timeout <ms|s>                    Per-request timeout.\n  --min-arrival-ratio <0..1>          Minimum started/scheduled ratio.\n  --max-error-rate <0..1>             Maximum workload error rate.\n  --max-heap-growth-bytes <bytes>      Absolute heap-growth allowance.\n  --max-rss-growth-bytes <bytes>       Absolute RSS-growth allowance.\n  --max-memory-growth-ratio <0..1>     Relative memory-growth allowance.\n  --max-event-loop-p99 <ms|s>          Maximum observed event-loop p99 delay.\n  --max-event-loop-utilization <0..1>  Maximum observed event-loop utilization.\n  --model <id>                         Request model.\n  --output <path>                      JSON evidence path.\n  --json                               Emit compact JSON.\n  --help                               Show this help.\n\nProvider credential variables are never forwarded. External gateway authentication is accepted only through AI_GATEWAY_RESOURCE_SOAK_AUTH_TOKEN; authenticated chat and metrics URLs must share an origin.\n`);
 }
