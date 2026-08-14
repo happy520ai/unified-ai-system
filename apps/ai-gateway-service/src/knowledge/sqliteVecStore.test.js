@@ -17,8 +17,14 @@ describe("sqlite-vec-store", () => {
     expect(readiness.status).toBeDefined();
   });
 
-  it("returns 0 documents when empty", () => {
+  it("returns 0 documents when empty", ({ skip }) => {
     const store = createSqliteVecStore({ dbPath: ":memory:" });
+    if (!store.isAvailable()) {
+      // The better-sqlite3 native binding is built for the CI Node runtime;
+      // skip instead of failing when another local Node cannot load it.
+      skip("better-sqlite3 native binding unavailable under this Node runtime");
+      return;
+    }
     const count = store.getDocumentCount();
     expect(count).toBe(0);
   });
