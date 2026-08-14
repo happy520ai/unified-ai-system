@@ -13,6 +13,7 @@ import {
 import { normalizeGatewayRequest } from "./requestNormalizer.js";
 import { enforceTokenCostGuard } from "../cost/tokenCostGuard.js";
 import {
+  extractMessageText,
   findExecutionAbortError,
   throwIfExecutionAborted,
 } from "@unified-ai-system/shared-utils";
@@ -379,7 +380,9 @@ export class GatewayService {
     const violations = [];
     for (const message of request.messages) {
       if (message.role !== "user" && message.role !== "tool") continue;
-      const result = this.contentGuardrails.scan(message.content, {
+      const text = extractMessageText(message.content);
+      if (!text.trim()) continue;
+      const result = this.contentGuardrails.scan(text, {
         direction: "input",
         role: message.role,
       });

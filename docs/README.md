@@ -8,6 +8,7 @@ Public documentation is grouped by task so the repo stays easy to scan.
 - [Terminal CLI](cli.md)
 - [Natural-language prompt enhancement](prompt-enhancement.md)
 - [OpenAI-compatible API](openai-compatible-api.md)
+- [Secure inline image input](openai-inline-image-input.md)
 - [OpenAI 兼容 API（中文）](openai-compatible-api.zh-CN.md)
 - [A2A v1.0 gateway](a2a-protocol.md)
 - [A2A v1.0 网关（中文）](a2a-protocol.zh-CN.md)

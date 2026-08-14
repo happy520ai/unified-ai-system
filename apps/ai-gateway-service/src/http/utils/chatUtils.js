@@ -2,6 +2,10 @@ import {
   enhanceNaturalLanguagePrompt,
   summarizePromptEnhancement,
 } from "../../prompts/naturalLanguagePromptEnhancer.js";
+import {
+  extractMessageText,
+  replaceMessageTextContent,
+} from "@unified-ai-system/shared-utils";
 
 export function normalizeChatBody(body, config) {
   const defaultTarget = resolveDefaultChatTarget(config);
@@ -83,14 +87,15 @@ export function applyPromptEnhancement(chatBody, options) {
   }
 
   const targetMessage = messages[targetIndex];
+  const targetText = extractMessageText(targetMessage.content);
   const result = enhanceNaturalLanguagePrompt({
-    input: targetMessage.content,
+    input: targetText,
     profile: options.profile,
     language: options.language,
   });
   messages[targetIndex] = {
     ...targetMessage,
-    content: result.enhancedPrompt,
+    content: replaceMessageTextContent(targetMessage.content, result.enhancedPrompt),
   };
 
   return {
@@ -108,8 +113,7 @@ function findLastUserMessageIndex(messages) {
     const message = messages[index];
     if (
       message?.role === "user"
-      && typeof message.content === "string"
-      && message.content.trim().length > 0
+      && extractMessageText(message.content).trim().length > 0
     ) {
       return index;
     }

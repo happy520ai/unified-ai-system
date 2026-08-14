@@ -18,6 +18,7 @@ chat applications:
 - OpenAI-style JSON errors and `data: [DONE]` stream termination
 - Chat Completions function tools, tool selection, tool-result messages, and
   streamed `tool_calls` deltas
+- bounded inline image input for Chat Completions and Responses
 - optional local natural-language prompt enhancement
 - Azure-style deployment route compatibility:
   - `/openai/deployments/{deployment}/chat/completions`
@@ -42,8 +43,8 @@ chat applications:
 This is a focused OpenAI-compatible layer with text, function-tool, and
 multimodal route coverage, not an implementation of the entire OpenAI API.
 Unsupported Responses tools, background Responses, stored response retrieval,
-and unsupported multimodal chat content are rejected with an explicit error
-rather than silently ignored.
+remote image URLs, files, and audio content are rejected with an explicit
+error rather than silently ignored.
 
 ## Start The Gateway
 
@@ -62,8 +63,8 @@ repository does not operate a public hosted gateway.
 
 The credential-free verifier runs this surface through the official OpenAI
 JavaScript SDK `7.4.0`, including model listing, regular and streaming Chat
-Completions, regular and streaming Responses, the prompt-enhancement extension,
-and structured errors.
+Completions, regular and streaming Responses, inline image inputs, the
+prompt-enhancement extension, and structured errors.
 
 For legacy clients that still speak `/v1/completions`, the gateway also supports
 non-streaming and streaming completions with text-only prompt content.
@@ -239,6 +240,7 @@ detection.
 | `model` | Required. Use an ID returned by `GET /v1/models`. |
 | `prompt` | For `/v1/completions`: required string or string array. |
 | `messages` | Text `developer`, `system`, `user`, and `assistant` messages, assistant `tool_calls`, and `tool` result messages with `tool_call_id`. |
+| `messages[].content[].image_url` | User-message inline base64 PNG, JPEG, WebP, or GIF data URL with optional `auto`, `low`, or `high` detail. Remote URLs fail closed. |
 | `stream` | Optional boolean. |
 | `temperature` | Number from 0 to 2. |
 | `top_p` | Number from 0 to 1. |
@@ -260,12 +262,12 @@ Non-streaming responses preserve assistant `tool_calls`; streaming responses
 emit indexed `tool_calls` deltas and end with `finish_reason: "tool_calls"`
 when the provider selects a function.
 
-## Responses API Text Profile
+## Responses API Text And Inline Image Profile
 
 | Field | Behavior |
 | --- | --- |
 | `model` | Optional when the gateway has an enabled default model. |
-| `input` | Required text or a non-empty array of text message items. |
+| `input` | Required text or a non-empty message array containing `input_text` and bounded inline `input_image` data URLs. |
 | `instructions` | Optional system instruction string. |
 | `stream` | Optional boolean; emits standard Responses event names. |
 | `temperature`, `top_p`, `max_output_tokens` | Mapped to gateway generation options. |
@@ -276,8 +278,11 @@ when the provider selects a function.
 
 The response includes a completed assistant message, `output_text`, token
 usage, and `unified_ai` execution evidence. Conversation state, response
-retrieval/deletion, tools, background execution, and non-text content are not
-implemented in this profile.
+retrieval/deletion, tools, background execution, remote images, files, and
+audio are not implemented in this profile.
+
+See [Secure inline image input](openai-inline-image-input.md) for size limits,
+provider capability routing, privacy boundaries, and credential-free evidence.
 
 ## Verify Without Credentials
 

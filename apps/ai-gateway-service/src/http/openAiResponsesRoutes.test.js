@@ -160,7 +160,7 @@ describe("OpenAI Responses compatibility routes", () => {
     expect(response.text).toMatch(/data: \[DONE\]\n\n$/);
   });
 
-  it("rejects tools and multimodal input without gateway execution", async () => {
+  it("rejects tools and remote multimodal input without gateway execution", async () => {
     const gatewayService = createGatewayService();
     const toolResponse = createResponseRecorder();
     await dispatchOpenAiResponsesRoutes(createContext({
@@ -191,7 +191,7 @@ describe("OpenAI Responses compatibility routes", () => {
       response: imageResponse,
     }));
     expect(imageResponse.statusCode).toBe(400);
-    expect(imageResponse.body.error.param).toBe("input[0].content[0]");
+    expect(imageResponse.body.error.param).toBe("input[0].content[0].image_url");
     expect(gatewayService.execute).not.toHaveBeenCalled();
   });
 });
@@ -208,6 +208,24 @@ describe("OpenAI Responses request normalization", () => {
     expect(() => normalizeOpenAiResponseRequest({
       input: [{ role: "user", content: [{ type: "input_text", text: " " }] }],
     }, descriptors)).toThrow("cannot be empty");
+  });
+
+  it("maps inline input_image blocks to the vision-capable gateway contract", () => {
+    const imageUrl = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+    const request = normalizeOpenAiResponseRequest({
+      model: "local-fake-model",
+      input: [{ role: "user", content: [
+        { type: "input_text", text: "Describe" },
+        { type: "input_image", image_url: imageUrl, detail: "low" },
+      ] }],
+    }, descriptors);
+
+    expect(request.requiredCapabilities).toEqual(["vision"]);
+    expect(request.messages[0].content).toEqual([
+      { type: "text", text: "Describe" },
+      { type: "image_url", image_url: { url: imageUrl, detail: "low" } },
+    ]);
+    expect(request.metadata.openAiCompatibility.api).toBe("responses");
   });
 });
 

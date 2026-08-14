@@ -4,6 +4,28 @@ export interface PackageStatus {
   phase: "phase-1-skeleton";
 }
 
+export declare const INLINE_IMAGE_POLICY: Readonly<{
+  allowedMediaTypes: readonly ["image/png", "image/jpeg", "image/webp", "image/gif"];
+  maxImagesPerRequest: number;
+  maxBytesPerImage: number;
+  maxTotalBytes: number;
+}>;
+export interface InlineImageInspection {
+  mediaType: string;
+  byteLength: number;
+  base64Data: string;
+  sha256: string;
+}
+export declare function inspectInlineImageDataUrl(value: unknown, policy?: typeof INLINE_IMAGE_POLICY): InlineImageInspection;
+export declare function extractMessageText(content: unknown): string;
+export declare function hasImageContent(content: unknown): boolean;
+export declare function getMessageImageStats(
+  messages: unknown,
+  policy?: typeof INLINE_IMAGE_POLICY,
+): { imageCount: number; totalBytes: number };
+export declare function createMessageContentFingerprint(content: unknown): string;
+export declare function replaceMessageTextContent(content: unknown, replacement: string): unknown;
+
 export function createPackageStatus(name: string): PackageStatus {
   return {
     name,

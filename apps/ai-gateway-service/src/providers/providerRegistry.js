@@ -87,9 +87,20 @@ export class ProviderRegistry {
   }
 
   select(request) {
+    const candidates = this.#buildCandidates(request);
+    if (candidates.length === 0 && request.requiredCapabilities?.length) {
+      const error = new Error(
+        `No provider route satisfies required capabilities: ${request.requiredCapabilities.join(", ")}`,
+      );
+      error.code = "NO_CAPABLE_PROVIDER_ROUTE";
+      error.category = "routing";
+      error.retryable = false;
+      error.details = { requiredCapabilities: [...request.requiredCapabilities] };
+      throw error;
+    }
     return this.#selectionPolicy.select({
       request,
-      candidates: this.#buildCandidates(request),
+      candidates,
     });
   }
 
@@ -99,6 +110,8 @@ export class ProviderRegistry {
       return descriptor.models
         .filter((model) => model.enabled)
         .filter((model) => model.capabilities.includes(request.taskType))
+        .filter((model) => (request.requiredCapabilities ?? [])
+          .every((capability) => model.capabilities.includes(capability)))
         .map((model) => ({
           provider,
           target: {

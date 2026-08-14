@@ -1,12 +1,27 @@
+import {
+  createMessageContentFingerprint,
+  getMessageImageStats,
+} from "@unified-ai-system/shared-utils";
+
 export const TOKEN_ESTIMATOR_METHOD = "approximate-no-provider-call";
+export const MIN_ESTIMATED_TOKENS_PER_IMAGE = 1024;
 
 export function estimateTokens(input = {}) {
   const text = collectInputText(input);
-  const estimatedInputTokens = estimateTextTokens(text);
+  const imageStats = getMessageImageStats(input.messages);
+  const estimatedImageTokens = imageStats.imageCount === 0
+    ? 0
+    : Math.max(
+        imageStats.imageCount * MIN_ESTIMATED_TOKENS_PER_IMAGE,
+        Math.ceil(imageStats.totalBytes / 1024),
+      );
+  const estimatedInputTokens = estimateTextTokens(text) + estimatedImageTokens;
   const estimatedOutputTokens = estimateOutputTokens(input.maxOutputTokens, estimatedInputTokens);
 
   return {
     estimatedInputTokens,
+    estimatedImageTokens,
+    imageCount: imageStats.imageCount,
     estimatedOutputTokens,
     estimatedTotalTokens: estimatedInputTokens + estimatedOutputTokens,
     method: TOKEN_ESTIMATOR_METHOD,
@@ -59,9 +74,10 @@ function collectInputText(input) {
 
   if (Array.isArray(input.messages)) {
     for (const message of input.messages) {
-      if (!message || typeof message.content !== "string") continue;
+      if (!message) continue;
       const role = typeof message.role === "string" ? message.role : "message";
-      parts.push(`${role}: ${message.content}`);
+      const content = createMessageContentFingerprint(message.content);
+      if (content) parts.push(`${role}: ${content}`);
     }
   }
 

@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { estimateTokens, estimateTextTokens, TOKEN_ESTIMATOR_METHOD } from "./tokenEstimator.js";
+import {
+  estimateTokens,
+  estimateTextTokens,
+  MIN_ESTIMATED_TOKENS_PER_IMAGE,
+  TOKEN_ESTIMATOR_METHOD,
+} from "./tokenEstimator.js";
 
 describe("token-estimator", () => {
   it("exports the correct method constant", () => {
@@ -80,5 +85,19 @@ describe("token-estimator", () => {
       ],
     });
     expect(result.estimatedInputTokens).toBeGreaterThan(0);
+  });
+
+  it("charges a conservative image budget without counting raw base64 as text", () => {
+    const result = estimateTokens({
+      messages: [{ role: "user", content: [
+        { type: "text", text: "Describe" },
+        { type: "image_url", image_url: { url: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=" } },
+      ] }],
+      maxOutputTokens: 10,
+    });
+
+    expect(result.imageCount).toBe(1);
+    expect(result.estimatedImageTokens).toBeGreaterThanOrEqual(MIN_ESTIMATED_TOKENS_PER_IMAGE);
+    expect(result.estimatedInputTokens).toBeGreaterThanOrEqual(MIN_ESTIMATED_TOKENS_PER_IMAGE);
   });
 });

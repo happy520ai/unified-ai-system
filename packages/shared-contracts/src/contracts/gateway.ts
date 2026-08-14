@@ -103,6 +103,7 @@ export interface GatewayRequest {
   tools?: GatewayFunctionTool[];
   toolChoice?: GatewayToolChoice;
   parallelToolCalls?: boolean;
+  requiredCapabilities?: ProviderCapability[];
   promptEnhancement?: PromptEnhancementOptions;
   knowledge?: {
     enabled: boolean;
@@ -235,9 +236,17 @@ export interface OpenAiCompatibleTextPart {
   text: string;
 }
 
+export interface OpenAiCompatibleImageUrlPart {
+  type: "image_url";
+  image_url: {
+    url: string;
+    detail?: "auto" | "low" | "high";
+  };
+}
+
 export interface OpenAiCompatibleMessage {
   role: OpenAiCompatibleMessageRole;
-  content: string | OpenAiCompatibleTextPart[];
+  content: string | Array<OpenAiCompatibleTextPart | OpenAiCompatibleImageUrlPart>;
   name?: string;
 }
 
@@ -331,3 +340,4 @@ export interface OpenAiCompatibleErrorResponse {
     code: string;
   };
 }
+import type { ProviderCapability } from "./provider.js";

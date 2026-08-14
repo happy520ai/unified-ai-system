@@ -1,6 +1,10 @@
 import { ROUTE_NOT_HANDLED } from "./httpRouteDispatch.js";
 import { applyPromptEnhancement } from "./utils/chatUtils.js";
 import { readJson, writeJson, writeSseHeaders } from "./utils/responseUtils.js";
+import {
+  getMessageImageStats,
+  inspectInlineImageDataUrl,
+} from "@unified-ai-system/shared-utils";
 
 const CHAT_COMPLETIONS_PATH = "/v1/chat/completions";
 const COMPLETIONS_PATH = "/v1/completions";
@@ -924,6 +928,7 @@ export function normalizeOpenAiChatCompletionRequest(body, descriptors = []) {
 
   const requestedModel = readRequiredString(body.model, "model");
   const messages = normalizeOpenAiMessages(body.messages);
+  const imageStats = getMessageImageStats(messages);
   validateOptionalBoolean(body.stream, "stream");
   validateUnsupportedFields(body);
 
@@ -948,6 +953,7 @@ export function normalizeOpenAiChatCompletionRequest(body, descriptors = []) {
     ...(tools ? { tools } : {}),
     ...(toolChoice ? { toolChoice } : {}),
     ...(parallelToolCalls !== undefined ? { parallelToolCalls } : {}),
+    ...(imageStats.imageCount > 0 ? { requiredCapabilities: ["vision"] } : {}),
     metadata: {
       source: "openai-compatible-api",
       openAiCompatibility: {
@@ -956,6 +962,13 @@ export function normalizeOpenAiChatCompletionRequest(body, descriptors = []) {
         ...(streamOptions ? { streamOptions } : {}),
         ...(responseFormat ? { responseFormat } : {}),
         ...(tools ? { toolCount: tools.length } : {}),
+        ...(imageStats.imageCount > 0 ? {
+          multimodal: {
+            imageCount: imageStats.imageCount,
+            totalInlineImageBytes: imageStats.totalBytes,
+            remoteImageUrlsAllowed: false,
+          },
+        } : {}),
       },
     },
   };
@@ -1428,7 +1441,7 @@ function normalizeOpenAiMessages(messages) {
       role,
       content: message.content === null && toolCalls
         ? ""
-        : normalizeTextContent(message.content, `${param}.content`),
+        : normalizeOpenAiMessageContent(message.content, `${param}.content`, role),
       ...(typeof message.name === "string" && message.name ? { name: message.name } : {}),
       ...(toolCalls ? { toolCalls } : {}),
     };
@@ -1574,6 +1587,75 @@ function normalizeOpenAiAssistantToolCalls(value, messageParam) {
       function: { name, arguments: argumentsValue },
     };
   });
+}
+
+function normalizeOpenAiMessageContent(content, param, role) {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content) || content.length === 0) {
+    throw createValidationError(`${param} must be text or a non-empty content array.`, param);
+  }
+
+  let hasImage = false;
+  let hasNonEmptyText = false;
+  const normalized = content.map((part, index) => {
+    const partParam = `${param}[${index}]`;
+    if (!isRecord(part)) {
+      throw createValidationError(`${partParam} must be an object.`, partParam);
+    }
+    if (part.type === "text") {
+      assertSupportedObjectFields(part, new Set(["type", "text"]), partParam);
+      if (typeof part.text !== "string") {
+        throw createValidationError(`${partParam}.text must be a string.`, `${partParam}.text`);
+      }
+      hasNonEmptyText ||= part.text.trim().length > 0;
+      return { type: "text", text: part.text };
+    }
+    if (part.type !== "image_url") {
+      throw createUnsupportedError(
+        "Only text and inline image_url content parts are supported.",
+        partParam,
+      );
+    }
+    if (role !== "user") {
+      throw createUnsupportedError("image_url content is allowed only in user messages.", partParam);
+    }
+    assertSupportedObjectFields(part, new Set(["type", "image_url"]), partParam);
+    if (!isRecord(part.image_url)) {
+      throw createValidationError(`${partParam}.image_url must be an object.`, `${partParam}.image_url`);
+    }
+    assertSupportedObjectFields(
+      part.image_url,
+      new Set(["url", "detail"]),
+      `${partParam}.image_url`,
+    );
+    const url = readRequiredString(part.image_url.url, `${partParam}.image_url.url`);
+    if (!url.startsWith("data:")) {
+      throw createUnsupportedError(
+        "Remote image URLs are disabled; use an inline base64 data URL.",
+        `${partParam}.image_url.url`,
+      );
+    }
+    try {
+      inspectInlineImageDataUrl(url);
+    } catch (error) {
+      throw createValidationError(error.message, `${partParam}.image_url.url`);
+    }
+    const detail = part.image_url.detail ?? "auto";
+    if (!new Set(["auto", "low", "high"]).has(detail)) {
+      throw createValidationError(
+        `${partParam}.image_url.detail must be 'auto', 'low', or 'high'.`,
+        `${partParam}.image_url.detail`,
+      );
+    }
+    hasImage = true;
+    return { type: "image_url", image_url: { url, detail } };
+  });
+
+  if (!hasImage) return normalized.map((part) => part.text).join("\n");
+  if (!hasNonEmptyText && normalized.every((part) => part.type !== "image_url")) {
+    throw createValidationError(`${param} cannot be empty.`, param);
+  }
+  return normalized;
 }
 
 function normalizeTextContent(content, param) {

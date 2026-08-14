@@ -49,4 +49,19 @@ describe("enforceTokenCostGuard", () => {
     expect(result.decision).toBe("allow");
     expect(result.allowed).toBe(true);
   });
+
+  it("does not let inline images bypass the input-token budget", () => {
+    const policy = createTokenBudgetPolicy({}, { perRequestMaxInputTokens: 100 });
+    const result = enforceTokenCostGuard({
+      messages: [{ role: "user", content: [
+        { type: "text", text: "Describe" },
+        { type: "image_url", image_url: { url: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=" } },
+      ] }],
+      maxOutputTokens: 10,
+    }, { policy });
+
+    expect(result.allowed).toBe(false);
+    expect(result.reasons).toContain("input_tokens_exceed_per_request_limit");
+    expect(result.estimate.imageCount).toBe(1);
+  });
 });

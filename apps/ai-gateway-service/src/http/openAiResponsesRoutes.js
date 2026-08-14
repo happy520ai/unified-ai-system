@@ -304,13 +304,13 @@ function normalizeResponseMessages(input, instructions) {
     }
     messages.push({
       role,
-      content: normalizeResponseContent(item.content, `${param}.content`),
+      content: normalizeResponseContent(item.content, `${param}.content`, role),
     });
   });
   return messages;
 }
 
-function normalizeResponseContent(content, param) {
+function normalizeResponseContent(content, param, role) {
   if (typeof content === "string") {
     if (!content.trim()) throw createValidationError(`${param} cannot be empty.`, param);
     return content;
@@ -318,21 +318,45 @@ function normalizeResponseContent(content, param) {
   if (!Array.isArray(content) || content.length === 0) {
     throw createValidationError(`${param} must contain text.`, param);
   }
-  const text = content.map((part, index) => {
-    if (
-      !part
-      || !new Set(["input_text", "output_text"]).has(part.type)
-      || typeof part.text !== "string"
-    ) {
-      throw createUnsupportedError(
-        "Only input_text and output_text content parts are supported.",
-        `${param}[${index}]`,
-      );
+  let hasImage = false;
+  const normalized = content.map((part, index) => {
+    const partParam = `${param}[${index}]`;
+    if (part && new Set(["input_text", "output_text"]).has(part.type) && typeof part.text === "string") {
+      return { type: "text", text: part.text };
     }
-    return part.text;
-  }).join("\n");
-  if (!text.trim()) throw createValidationError(`${param} cannot be empty.`, param);
-  return text;
+    if (part?.type === "input_image") {
+      if (role !== "user") {
+        throw createUnsupportedError("input_image is allowed only in user messages.", partParam);
+      }
+      if (typeof part.image_url !== "string") {
+        throw createValidationError(`${partParam}.image_url must be a string.`, `${partParam}.image_url`);
+      }
+      if (!part.image_url.startsWith("data:")) {
+        throw createUnsupportedError(
+          "Remote image URLs are disabled; use an inline base64 data URL.",
+          `${partParam}.image_url`,
+        );
+      }
+      hasImage = true;
+      return {
+        type: "image_url",
+        image_url: {
+          url: part.image_url,
+          detail: part.detail ?? "auto",
+        },
+      };
+    }
+    throw createUnsupportedError(
+      "Only input_text, output_text, and inline input_image content parts are supported.",
+      partParam,
+    );
+  });
+  const text = normalized
+    .filter((part) => part.type === "text")
+    .map((part) => part.text)
+    .join("\n");
+  if (!text.trim() && !hasImage) throw createValidationError(`${param} cannot be empty.`, param);
+  return hasImage ? normalized : text;
 }
 
 function validateUnsupportedResponseFields(body) {

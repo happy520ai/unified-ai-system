@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createAnthropicAdapter } from "./anthropicAdapter.js";
+import { createAnthropicAdapter, mapToAnthropicRequest } from "./anthropicAdapter.js";
 
 describe("anthropic-adapter", () => {
   it("creates adapter with correct descriptor", () => {
@@ -69,5 +69,26 @@ describe("anthropic-adapter", () => {
     });
 
     expect(adapter.descriptor.metadata.endpoint).toBe("https://my-proxy.example.com");
+  });
+
+  it("maps inline OpenAI image blocks to Anthropic base64 sources", () => {
+    const imageUrl = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+    const body = mapToAnthropicRequest({
+      messages: [{ role: "user", content: [
+        { type: "image_url", image_url: { url: imageUrl } },
+        { type: "text", text: "Describe" },
+      ] }],
+      options: {},
+    }, "claude-sonnet");
+
+    expect(body.messages[0].content[0]).toEqual({
+      type: "image",
+      source: {
+        type: "base64",
+        media_type: "image/png",
+        data: imageUrl.split(",")[1],
+      },
+    });
+    expect(body.messages[0].content[1]).toEqual({ type: "text", text: "Describe" });
   });
 });

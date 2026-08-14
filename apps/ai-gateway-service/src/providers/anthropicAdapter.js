@@ -6,6 +6,7 @@
 import { assertProviderAdapter } from "./providerAdapter.js";
 import { fetchWithAgent } from "../http/connectionPool.js";
 import { resolveSafeOutboundUrl } from "../security/outboundUrlPolicy.ts";
+import { inspectInlineImageDataUrl } from "@unified-ai-system/shared-utils";
 
 const DEFAULT_ANTHROPIC_BASE_URL = "https://api.anthropic.com";
 const DEFAULT_ANTHROPIC_VERSION = "2023-06-01";
@@ -83,7 +84,7 @@ export function createAnthropicAdapter(modelConfig = {}, options = {}) {
 
 // ── Request mapping: GatewayRequest → Anthropic Messages API ──
 
-function mapToAnthropicRequest(request, modelId) {
+export function mapToAnthropicRequest(request, modelId) {
   const messages = request.messages ?? [];
   const systemMessages = messages.filter((m) => m.role === "system");
   const nonSystemMessages = messages.filter((m) => m.role !== "system");
@@ -97,7 +98,7 @@ function mapToAnthropicRequest(request, modelId) {
   // Map conversation messages to Anthropic format
   const anthropicMessages = nonSystemMessages.map((m) => ({
     role: m.role === "assistant" ? "assistant" : "user",
-    content: extractText(m.content),
+    content: mapToAnthropicContent(m.content),
   }));
 
   const options = request.options ?? {};
@@ -111,6 +112,26 @@ function mapToAnthropicRequest(request, modelId) {
     ...(options.topP != null ? { top_p: options.topP } : {}),
     ...(options.stop ? { stop_sequences: Array.isArray(options.stop) ? options.stop : [options.stop] } : {}),
   };
+}
+
+function mapToAnthropicContent(content) {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+  return content.map((part) => {
+    if (part?.type === "text") return { type: "text", text: part.text };
+    if (part?.type === "image_url") {
+      const inspected = inspectInlineImageDataUrl(part.image_url?.url);
+      return {
+        type: "image",
+        source: {
+          type: "base64",
+          media_type: inspected.mediaType,
+          data: inspected.base64Data,
+        },
+      };
+    }
+    throw new TypeError("Unsupported gateway message content block for Anthropic.");
+  });
 }
 
 // ── Response mapping: Anthropic → ProviderResponse ──

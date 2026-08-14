@@ -59,6 +59,23 @@ export interface ResultEnvelope<TData = unknown> {
 
 export type MessageRole = "system" | "user" | "assistant" | "tool";
 
+export type MessageImageDetail = "auto" | "low" | "high";
+
+export interface MessageTextContentPart {
+  type: "text";
+  text: string;
+}
+
+export interface MessageImageUrlContentPart {
+  type: "image_url";
+  image_url: {
+    url: string;
+    detail?: MessageImageDetail;
+  };
+}
+
+export type MessageContentPart = MessageTextContentPart | MessageImageUrlContentPart;
+
 export interface FunctionToolCallDto {
   id: string;
   type: "function";
@@ -70,7 +87,7 @@ export interface FunctionToolCallDto {
 
 export interface MessageDto {
   role: MessageRole;
-  content: string;
+  content: string | MessageContentPart[];
   name?: string;
   toolCallId?: string;
   toolCalls?: FunctionToolCallDto[];

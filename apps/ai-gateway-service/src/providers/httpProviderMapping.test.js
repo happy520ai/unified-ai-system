@@ -57,4 +57,17 @@ describe("HTTP provider request mapping", () => {
     expect(body.messages[0].tool_calls[0].id).toBe("call_1");
     expect(body.messages[1].tool_call_id).toBe("call_1");
   });
+
+  it("forwards canonical inline image blocks without fetching or flattening them", () => {
+    const content = [
+      { type: "text", text: "Describe" },
+      { type: "image_url", image_url: { url: "data:image/png;base64,aGVsbG8=", detail: "low" } },
+    ];
+    const body = mapGatewayRequestToChatCompletions({
+      target: { providerId: "openai", modelId: "vision-model" },
+      request: { messages: [{ role: "user", content }], options: {} },
+    });
+
+    expect(body.messages[0].content).toEqual(content);
+  });
 });

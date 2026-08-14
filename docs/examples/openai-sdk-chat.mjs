@@ -13,6 +13,7 @@ const client = new OpenAI({
   baseURL,
   maxRetries: 0,
 });
+const inlineImage = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
 
 const models = await client.models.list();
 const model = models.data.find((candidate) => candidate.id === "local-fake-model");
@@ -20,6 +21,17 @@ const model = models.data.find((candidate) => candidate.id === "local-fake-model
 const completion = await client.chat.completions.create({
   model: "local-fake-model",
   messages: [{ role: "user", content: "Official OpenAI SDK compatibility test" }],
+});
+
+const multimodalCompletion = await client.chat.completions.create({
+  model: "local-fake-model",
+  messages: [{
+    role: "user",
+    content: [
+      { type: "text", text: "Official OpenAI inline image compatibility test" },
+      { type: "image_url", image_url: { url: inlineImage, detail: "low" } },
+    ],
+  }],
 });
 
 const enhanced = await client.chat.completions.create({
@@ -70,6 +82,18 @@ const response = await client.responses.create({
   store: false,
 });
 
+const multimodalResponse = await client.responses.create({
+  model: "local-fake-model",
+  input: [{
+    role: "user",
+    content: [
+      { type: "input_text", text: "Official Responses inline image compatibility test" },
+      { type: "input_image", image_url: inlineImage, detail: "low" },
+    ],
+  }],
+  store: false,
+});
+
 const responseStream = await client.responses.create({
   model: "local-fake-model",
   input: "Stream through the official Responses SDK",
@@ -117,6 +141,12 @@ const checks = {
     && completion.choices[0]?.finish_reason === "stop"
       && completion.unified_ai?.execution_mode === "fake"
       && completion.unified_ai?.selected_provider === "local-fake-provider",
+  multimodalChat:
+    multimodalCompletion.object === "chat.completion"
+    && multimodalCompletion.choices[0]?.message?.content?.includes("Official OpenAI inline image compatibility test")
+    && multimodalCompletion.choices[0]?.message?.content?.includes("[inline-image:")
+    && !multimodalCompletion.choices[0]?.message?.content?.includes("iVBOR")
+    && multimodalCompletion.unified_ai?.execution_mode === "fake",
   legacyCompletion:
     legacyCompletion.object === "text_completion"
     && legacyCompletion.model === "local-fake-model"
@@ -143,6 +173,12 @@ const checks = {
     && response.output[0]?.type === "message"
     && response.unified_ai?.execution_mode === "fake"
     && response.unified_ai?.selected_provider === "local-fake-provider",
+  multimodalResponses:
+    multimodalResponse.object === "response"
+    && multimodalResponse.output_text.includes("Official Responses inline image compatibility test")
+    && multimodalResponse.output_text.includes("[inline-image:")
+    && !multimodalResponse.output_text.includes("iVBOR")
+    && multimodalResponse.unified_ai?.execution_mode === "fake",
   responsesStreaming:
     responseStreamedContent.includes("Stream through the official Responses SDK")
     && responseStreamCompleted,

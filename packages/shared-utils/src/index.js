@@ -1,3 +1,145 @@
+import { createHash } from "node:crypto";
+
+export const INLINE_IMAGE_POLICY = Object.freeze({
+  allowedMediaTypes: Object.freeze(["image/png", "image/jpeg", "image/webp", "image/gif"]),
+  maxImagesPerRequest: 8,
+  maxBytesPerImage: 10 * 1024 * 1024,
+  maxTotalBytes: 20 * 1024 * 1024,
+});
+
+const INLINE_IMAGE_DATA_URL = /^data:(image\/(?:png|jpeg|webp|gif));base64,([A-Za-z0-9+/]+={0,2})$/i;
+
+export function inspectInlineImageDataUrl(value, policy = INLINE_IMAGE_POLICY) {
+  if (typeof value !== "string" || !value.startsWith("data:")) {
+    throw createInlineImageError(
+      "Image input must use an inline data URL; remote image URLs are disabled.",
+      "INLINE_IMAGE_REMOTE_URL_UNSUPPORTED",
+    );
+  }
+
+  const match = value.match(INLINE_IMAGE_DATA_URL);
+  if (!match) {
+    throw createInlineImageError(
+      "Image data URL must contain strict base64 PNG, JPEG, WebP, or GIF data.",
+      "INLINE_IMAGE_DATA_URL_INVALID",
+    );
+  }
+
+  const mediaType = match[1].toLowerCase();
+  const base64Data = match[2];
+  if (!policy.allowedMediaTypes.includes(mediaType) || base64Data.length % 4 !== 0) {
+    throw createInlineImageError(
+      "Image data URL has an unsupported media type or malformed base64 payload.",
+      "INLINE_IMAGE_DATA_URL_INVALID",
+    );
+  }
+
+  const padding = base64Data.endsWith("==") ? 2 : base64Data.endsWith("=") ? 1 : 0;
+  const estimatedBytes = (base64Data.length * 3) / 4 - padding;
+  if (estimatedBytes > policy.maxBytesPerImage) {
+    throw createInlineImageError(
+      `Inline image exceeds the ${policy.maxBytesPerImage}-byte per-image limit.`,
+      "INLINE_IMAGE_TOO_LARGE",
+    );
+  }
+
+  const bytes = Buffer.from(base64Data, "base64");
+  const canonicalPayload = bytes.toString("base64").replace(/=+$/, "");
+  if (!bytes.length || canonicalPayload !== base64Data.replace(/=+$/, "")) {
+    throw createInlineImageError(
+      "Image data URL contains malformed base64 data.",
+      "INLINE_IMAGE_DATA_URL_INVALID",
+    );
+  }
+
+  return {
+    mediaType,
+    byteLength: bytes.length,
+    base64Data,
+    sha256: createHash("sha256").update(bytes).digest("hex"),
+  };
+}
+
+export function extractMessageText(content) {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+  return content
+    .filter((part) => part?.type === "text" && typeof part.text === "string")
+    .map((part) => part.text)
+    .join("\n");
+}
+
+export function hasImageContent(content) {
+  return Array.isArray(content) && content.some((part) => part?.type === "image_url");
+}
+
+export function getMessageImageStats(messages, policy = INLINE_IMAGE_POLICY) {
+  let imageCount = 0;
+  let totalBytes = 0;
+
+  for (const message of Array.isArray(messages) ? messages : []) {
+    for (const part of Array.isArray(message?.content) ? message.content : []) {
+      if (part?.type !== "image_url") continue;
+      const inspected = inspectInlineImageDataUrl(part?.image_url?.url, policy);
+      imageCount += 1;
+      totalBytes += inspected.byteLength;
+      if (imageCount > policy.maxImagesPerRequest) {
+        throw createInlineImageError(
+          `Request cannot contain more than ${policy.maxImagesPerRequest} inline images.`,
+          "INLINE_IMAGE_COUNT_EXCEEDED",
+        );
+      }
+      if (totalBytes > policy.maxTotalBytes) {
+        throw createInlineImageError(
+          `Inline images exceed the ${policy.maxTotalBytes}-byte request limit.`,
+          "INLINE_IMAGE_TOTAL_TOO_LARGE",
+        );
+      }
+    }
+  }
+
+  return { imageCount, totalBytes };
+}
+
+export function createMessageContentFingerprint(content) {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+  return content.map((part) => {
+    if (part?.type === "text" && typeof part.text === "string") return part.text;
+    if (part?.type === "image_url") {
+      const inspected = inspectInlineImageDataUrl(part?.image_url?.url);
+      return `[inline-image:${inspected.sha256.slice(0, 24)}:${inspected.byteLength}]`;
+    }
+    return "";
+  }).filter(Boolean).join("\n");
+}
+
+export function replaceMessageTextContent(content, replacement) {
+  if (typeof content === "string") return replacement;
+  if (!Array.isArray(content)) return replacement;
+
+  let replaced = false;
+  const next = [];
+  for (const part of content) {
+    if (part?.type === "text") {
+      if (!replaced) {
+        next.push({ type: "text", text: replacement });
+        replaced = true;
+      }
+      continue;
+    }
+    next.push(part);
+  }
+  if (!replaced) next.unshift({ type: "text", text: replacement });
+  return next;
+}
+
+function createInlineImageError(message, code) {
+  const error = new TypeError(message);
+  error.code = code;
+  return error;
+}
+
 export function createRequestId(prefix = "req") {
   const time = Date.now().toString(36);
   const rand = Math.random().toString(36).slice(2, 10);

@@ -1,4 +1,9 @@
-import { abortableSleep, throwIfExecutionAborted, withTimeout } from "@unified-ai-system/shared-utils";
+import {
+  abortableSleep,
+  createMessageContentFingerprint,
+  throwIfExecutionAborted,
+  withTimeout,
+} from "@unified-ai-system/shared-utils";
 import { createProviderDescriptor } from "./providerAdapter.js";
 import { createProviderResponse } from "./providerMapping.js";
 
@@ -13,7 +18,6 @@ export function createFakeProvider(modelConfig, options = {}) {
       fixedLatencyMs,
     },
   });
-
   return {
     descriptor,
     async generate(providerRequest) {
@@ -277,7 +281,7 @@ function isPlainObject(value) {
 
 function getLastUserText(request) {
   const message = [...request.messages].reverse().find((item) => item.role === "user");
-  return message?.content ?? "empty request";
+  return createMessageContentFingerprint(message?.content) || "empty request";
 }
 
 function estimateTokens(text) {

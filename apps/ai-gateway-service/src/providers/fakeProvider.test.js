@@ -78,4 +78,30 @@ describe("fake provider structured responses", () => {
       arguments: {},
     });
   });
+
+  it("proves inline image propagation without echoing base64 payloads", async () => {
+    const provider = createFakeProvider({
+      providerId: "local-fake-provider",
+      modelId: "local-fake-model",
+      providerType: "fake",
+      capabilities: ["chat", "vision"],
+      enabled: true,
+      fixedLatencyMs: 1,
+    });
+    const response = await provider.generate({
+      target: { providerId: "local-fake-provider", modelId: "local-fake-model" },
+      request: {
+        messages: [{ role: "user", content: [
+          { type: "text", text: "Describe" },
+          { type: "image_url", image_url: { url: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=" } },
+        ] }],
+        options: {},
+      },
+    });
+
+    expect(response.text).toContain("Describe");
+    expect(response.text).toMatch(/\[inline-image:[a-f0-9]{24}:\d+\]/);
+    expect(response.text).not.toContain("iVBOR");
+    expect(provider.descriptor.models[0].capabilities).toContain("vision");
+  });
 });

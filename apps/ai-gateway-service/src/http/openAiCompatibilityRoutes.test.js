@@ -403,7 +403,7 @@ describe("OpenAI compatibility routes", () => {
     expect(response.text).toMatch(/data: \[DONE\]\n\n$/);
   });
 
-  it("rejects unsupported multimodal content without calling a provider", async () => {
+  it("rejects remote multimodal content without calling a provider", async () => {
     const response = createResponseRecorder();
     const gatewayService = createGatewayService();
     await dispatchOpenAiCompatibilityRoutes(createContext({
@@ -424,7 +424,7 @@ describe("OpenAI compatibility routes", () => {
     expect(response.body.error).toEqual(expect.objectContaining({
       type: "invalid_request_error",
       code: "unsupported_parameter",
-      param: "messages[0].content[0]",
+      param: "messages[0].content[0].image_url.url",
     }));
     expect(gatewayService.execute).not.toHaveBeenCalled();
   });
@@ -553,6 +553,31 @@ describe("OpenAI request normalization", () => {
       { role: "system", content: "Be concise" },
       { role: "user", content: "Hello" },
     ]);
+  });
+
+  it("normalizes bounded inline images and marks vision as required", () => {
+    const imageUrl = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+    const request = normalizeOpenAiChatCompletionRequest({
+      model: "local-fake-model",
+      messages: [{
+        role: "user",
+        content: [
+          { type: "text", text: "Describe this image" },
+          { type: "image_url", image_url: { url: imageUrl, detail: "low" } },
+        ],
+      }],
+    }, descriptors);
+
+    expect(request.requiredCapabilities).toEqual(["vision"]);
+    expect(request.messages[0].content).toEqual([
+      { type: "text", text: "Describe this image" },
+      { type: "image_url", image_url: { url: imageUrl, detail: "low" } },
+    ]);
+    expect(request.metadata.openAiCompatibility.multimodal).toEqual({
+      imageCount: 1,
+      totalInlineImageBytes: expect.any(Number),
+      remoteImageUrlsAllowed: false,
+    });
   });
 
   it("treats SDK-serialized null optionals as unset", () => {
