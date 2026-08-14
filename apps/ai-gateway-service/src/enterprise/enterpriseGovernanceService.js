@@ -19,11 +19,19 @@ import {
   readAuditFile,
   sanitizeAuditFilters,
 } from "./enterpriseAuditHelpers.js";
+import {
+  assertAuthenticatedNetworkBinding,
+  isLoopbackAddress,
+} from "../security/networkBindingPolicy.ts";
 
 const DEFAULT_AUDIT_LIMIT = 200;
 
 export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {}) {
   const authEnabled = readBoolean(env.PME_ENTERPRISE_AUTH_ENABLED, Boolean(env.PME_AUTH_TOKEN || env.PME_ENTERPRISE_USERS_JSON || env.PME_ENTERPRISE_USER_STORE_PATH));
+  assertAuthenticatedNetworkBinding({
+    host: env.AI_GATEWAY_SERVICE_HOST ?? "127.0.0.1",
+    authEnabled,
+  });
   const userStorePath = env.PME_ENTERPRISE_USER_STORE_PATH ?? resolve(".data/enterprise/users.json");
   // Storage backend: "sqlite" uses node:sqlite (ACID + cross-process safe),
   // default "json" keeps the original file backend (backwards compatible).
@@ -47,6 +55,7 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
         status: "ready",
         mode: "local-enterprise-governance",
         authEnabled,
+        unauthenticatedScope: authEnabled ? "none" : "loopback-only",
         tenantMode: "header-required-when-auth-enabled",
         tokenHeaders: ["x-pme-auth-token", "authorization: Bearer"],
         tenantHeader: "x-pme-tenant-id",
@@ -170,6 +179,15 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
 
     authenticate(request) {
       if (!authEnabled) {
+        const remoteAddress = request?.socket?.remoteAddress;
+        if (remoteAddress && !isLoopbackAddress(remoteAddress)) {
+          return {
+            authenticated: false,
+            statusCode: 401,
+            code: "enterprise_auth_required_for_remote_peer",
+            message: "Enterprise authentication is required for non-loopback clients.",
+          };
+        }
         return {
           authenticated: true,
           disabled: true,

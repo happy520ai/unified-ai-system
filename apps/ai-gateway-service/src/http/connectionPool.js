@@ -127,6 +127,7 @@ export function fetchWithAgent(url, options = {}) {
     headers = {},
     body,
     agent,
+    lookup,
     signal,
     timeout = DEFAULT_REQUEST_TIMEOUT,
   } = options;
@@ -153,6 +154,7 @@ export function fetchWithAgent(url, options = {}) {
       method,
       headers,
       agent,
+      lookup,
       timeout,
     }, (response) => {
       response.once("close", cleanupAbortListener);

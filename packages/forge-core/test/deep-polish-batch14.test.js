@@ -15,26 +15,28 @@ function ESM_SRC(file) {
 
 // ── Fix 1: generateStream SSRF guard ──
 describe("Batch14 Fix1: generateStream SSRF guard", () => {
-  const src = ESM_SRC("providers/httpLlmProviderAdapter.js");
+  const src = ESM_SRC("providers/httpProviderMapping.js");
+  const policySrc = ESM_SRC("security/outboundUrlPolicy.ts");
 
   it("has SSRF guard in generateStream method", () => {
     const helperIdx = src.indexOf("function openStreamWithRetry");
     assert.ok(helperIdx >= 0, "stream connection helper not found");
     const window = src.slice(helperIdx, helperIdx + 5000);
-    assert.ok(window.includes("isPrivateOrReservedUrl"), "SSRF guard not found in stream connection helper");
+    assert.ok(window.includes("resolveOutboundUrl"), "DNS-aware SSRF guard not found in stream connection helper");
+    assert.ok(window.includes("lookup: destination.lookup"), "validated address should be pinned to the stream connection");
     assert.ok(window.includes("SSRF blocked"), "SSRF block message not found in stream connection helper");
+    assert.ok(policySrc.includes("createPinnedLookup"), "pinned lookup implementation not found");
   });
 
-  it("SSRF guard appears at least twice (once per fetch call)", () => {
-    const guardCount = (src.match(/isPrivateOrReservedUrl\(/g) || []).length;
-    // definition + _generateOnce guard + generateStream guard = at least 3
-    assert.ok(guardCount >= 3, `expected at least 3 isPrivateOrReservedUrl calls, found ${guardCount}`);
+  it("stream fetch uses the DNS-aware resolver", () => {
+    const guardCount = (src.match(/destination = await resolveOutboundUrl\(/g) || []).length;
+    assert.ok(guardCount >= 1, `expected a stream resolver call, found ${guardCount}`);
   });
 
   it("SSRF guard in generateStream is before the fetch call", () => {
     const helperIdx = src.indexOf("function openStreamWithRetry");
     const section = src.slice(helperIdx, helperIdx + 5000);
-    const guardIdx = section.indexOf("isPrivateOrReservedUrl");
+    const guardIdx = section.indexOf("destination = await resolveOutboundUrl");
     const fetchIdx = section.indexOf("response = await fetchWithAgent");
     assert.ok(guardIdx >= 0, "guard not found in stream connection helper");
     assert.ok(fetchIdx >= 0, "pooled fetch not found in stream connection helper");

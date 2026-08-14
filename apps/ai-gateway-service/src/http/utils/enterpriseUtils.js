@@ -324,11 +324,33 @@ export function resolvePermission(method, pathname) {
   }
 
   if (
+    normalizedMethod === "POST" && (
+      normalizedPath === "/providers/runtime-credential/detect" ||
+      normalizedPath === "/providers/runtime-credential" ||
+      normalizedPath === "/provider-config/save" ||
+      normalizedPath === "/provider-config/test" ||
+      normalizedPath === "/models/import/preview" ||
+      normalizedPath === "/models/import/confirm" ||
+      normalizedPath === "/model-library/verify-dry-run" ||
+      normalizedPath === "/model-library/refresh" ||
+      normalizedPath === "/model-library/test-model" ||
+      normalizedPath === "/model-library/task-default" ||
+      normalizedPath === "/cache/write" ||
+      normalizedPath === "/cache/invalidate"
+    )
+  ) {
+    return "provider:write";
+  }
+
+  if (
     normalizedPath === "/providers" ||
-    normalizedPath === "/providers/runtime-credential/detect" ||
     normalizedPath === "/config/runtime" ||
+    normalizedPath === "/provider-config/status" ||
     normalizedPath === "/route/modes" ||
     normalizedPath === "/models/import/providers" ||
+    normalizedPath === "/model-library" ||
+    normalizedPath === "/model-library/usability-matrix" ||
+    normalizedPath === "/model-library/verification-plan" ||
     normalizedPath === "/models/capability-router/status" ||
     normalizedPath === "/models/capability-router/preview" ||
     normalizedPath === "/cost/health" ||
@@ -339,8 +361,6 @@ export function resolvePermission(method, pathname) {
     normalizedPath === "/usage/logs" ||
     normalizedPath === "/cache/health" ||
     normalizedPath === "/cache/lookup" ||
-    normalizedPath === "/cache/write" ||
-    normalizedPath === "/cache/invalidate" ||
     normalizedPath === "/cache/summary" ||
     normalizedPath === "/cache/audit" ||
     normalizedPath === "/routing/answer-path/preview" ||
@@ -352,10 +372,6 @@ export function resolvePermission(method, pathname) {
     || (normalizedMethod === "GET" && /^\/engines\/[^/]+$/.test(normalizedPath))
   ) {
     return "provider:read";
-  }
-
-  if (normalizedPath === "/providers/runtime-credential" || normalizedPath === "/models/import/preview" || normalizedPath === "/models/import/confirm") {
-    return "provider:write";
   }
 
   if (normalizedPath.startsWith("/knowledge/") && normalizedMethod === "GET") {

@@ -33,6 +33,50 @@ const INJECTION_PATTERNS = [
 /**
  * 敏感内容类别
  */
+const HIGH_CONFIDENCE_INJECTION_RULES = [
+  { id: "instruction_override", pattern: /\bignore\s+(?:all\s+)?(?:previous|prior|above)\s+(?:instructions?|prompts?|rules?)\b/i },
+  { id: "policy_bypass", pattern: /\b(?:override|bypass|disable)\s+(?:the\s+)?(?:system|developer|safety|security)(?:\s+security)?\s+(?:instructions?|rules?|policy|guardrails?)\b/i },
+  { id: "prompt_exfiltration", pattern: /\b(?:reveal|print|show|repeat)\s+(?:the\s+)?(?:hidden\s+)?(?:system|developer)\s+(?:prompt|instructions?)\b/i },
+  { id: "role_prefix_injection", pattern: /^\s*(?:system|developer)\s*:\s*(?:you|ignore|override|reveal)\b/im },
+  { id: "chat_control_token", pattern: /<\|(?:im_start|im_end|system|developer)\|>/i },
+  { id: "instruction_envelope", pattern: /\[INST\][\s\S]{0,4096}\[\/INST\]/i },
+  { id: "chinese_instruction_override", pattern: /(?:\u5ffd\u7565|\u8986\u76d6|\u7ed5\u8fc7).{0,24}(?:\u4e4b\u524d|\u4e0a\u9762|\u7cfb\u7edf|\u5f00\u53d1\u8005).{0,24}(?:\u6307\u4ee4|\u63d0\u793a|\u89c4\u5219)/i },
+];
+const INVISIBLE_CONTROL_CHARACTERS = /[\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFEFF]/g;
+const BASE64_CANDIDATE = /(?<![A-Za-z0-9+/])(?:[A-Za-z0-9+/]{4}){3,}(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?(?![A-Za-z0-9+/=])/g;
+
+export function canonicalizeInjectionText(content) {
+  return String(content ?? "")
+    .normalize("NFKC")
+    .replace(INVISIBLE_CONTROL_CHARACTERS, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function buildInjectionVariants(content) {
+  const variants = new Set([canonicalizeInjectionText(content)]);
+  if (/%[0-9a-f]{2}/i.test(content)) {
+    try {
+      variants.add(canonicalizeInjectionText(decodeURIComponent(content)));
+    } catch {
+      // Keep the original variant when percent encoding is malformed.
+    }
+  }
+  for (const match of String(content).match(BASE64_CANDIDATE) ?? []) {
+    if (match.length > 4096) continue;
+    try {
+      const decoded = Buffer.from(match, "base64").toString("utf8");
+      const printable = [...decoded].filter((character) => /[\x09\x0A\x0D\x20-\x7E]/.test(character)).length;
+      if (decoded.length > 0 && printable / decoded.length >= 0.85) {
+        variants.add(canonicalizeInjectionText(decoded));
+      }
+    } catch {
+      // Malformed candidates are ignored without exposing their content.
+    }
+  }
+  return [...variants];
+}
+
 const SENSITIVE_CATEGORIES = {
   violence:    /暴力|杀|枪|bomb|weapon|kill|murder|attack/i,
   illegal:     /毒品|赌博|诈骗|洗钱|drug|gambling|fraud|money\s*laundering/i,
@@ -87,7 +131,7 @@ export function createContentGuardrails(options = {}) {
     if (content.length > config.maxInputLength) {
       violations.push({
         type: "length_exceeded",
-        severity: "warning",
+        severity: "block",
         message: `Content length ${content.length} exceeds max ${config.maxInputLength}`,
       });
     }
@@ -118,8 +162,8 @@ export function createContentGuardrails(options = {}) {
         detectionStats.injectionDetected++;
         violations.push({
           type: "injection_detected",
-          severity: "block",
-          patterns: injectionResults.map((r) => r.pattern),
+          severity: config.blockOnInjection ? "block" : "warning",
+          ruleIds: injectionResults.map((r) => r.ruleId),
         });
       }
     }
@@ -198,9 +242,11 @@ export function createContentGuardrails(options = {}) {
    */
   function detectInjection(content) {
     const results = [];
-    for (const pattern of INJECTION_PATTERNS) {
-      if (pattern.test(content)) {
-        results.push({ pattern: pattern.source });
+    for (const variant of buildInjectionVariants(content)) {
+      for (const rule of HIGH_CONFIDENCE_INJECTION_RULES) {
+        if (rule.pattern.test(variant) && !results.some((result) => result.ruleId === rule.id)) {
+          results.push({ ruleId: rule.id });
+        }
       }
     }
     return results;

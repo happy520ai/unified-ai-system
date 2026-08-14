@@ -16,6 +16,7 @@ import { GatewayService } from "../core/gatewayService.js";
 import { createPriorityProviderSelectionPolicy } from "../core/providerSelectionPolicy.js";
 import { createProviderHealthScorer } from "../providers/providerHealthScorer.js";
 import { createRequestLogger } from "../logging/requestLogger.js";
+import { createContentGuardrails } from "../guardrails/contentGuardrails.js";
 import { createLocalKnowledgeService } from "../knowledge/localKnowledgeService.js";
 import { createKnowledgeInfra } from "../knowledge/knowledgeInfra.js";
 import { createLocalWorkflowService } from "../workflow/localWorkflowService.js";
@@ -89,6 +90,13 @@ export function createGatewayApplication(env = process.env) {
   // assignments are loaded from AI_GATEWAY_RBAC_ROLES (JSON: { userId: [role] }).
   const governance = createAdvancedRBAC();
   applyRbacRolesFromEnv(governance, env);
+  const contentGuardrailMode = String(env.AI_GATEWAY_CONTENT_GUARDRAILS_MODE ?? "block").trim().toLowerCase();
+  if (contentGuardrailMode !== "block" && contentGuardrailMode !== "audit") {
+    throw new Error("AI_GATEWAY_CONTENT_GUARDRAILS_MODE must be block or audit.");
+  }
+  const contentGuardrails = createContentGuardrails({
+    blockOnInjection: contentGuardrailMode === "block",
+  });
   const gatewayService = new GatewayService({
     providerRegistry,
     runtimeConfig: {
@@ -105,6 +113,7 @@ export function createGatewayApplication(env = process.env) {
     healthScorer,
     requestLogger,
     governance,
+    contentGuardrails,
   });
   const knowledgeService = createLocalKnowledgeService({
     env,
@@ -154,6 +163,7 @@ export function createGatewayApplication(env = process.env) {
 
   return {
     capabilityRouterService,
+    contentGuardrails,
     codexExecCrsRuntimeCandidate,
     config,
     enterpriseGovernanceService,

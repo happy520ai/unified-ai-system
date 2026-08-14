@@ -159,12 +159,15 @@ $ErrorActionPreference = "Stop"
 $container = "unified-ai-system-gateway-demo"
 $port = 3100
 $image = "ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.9"
+$token = [Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
 
 docker rm -f $container 2>$null | Out-Null
 try {
   docker run --detach --name $container `
-    --publish "${port}:3100" `
+    --publish "127.0.0.1:${port}:3100" `
     --env AI_GATEWAY_SERVICE_HOST=0.0.0.0 `
+    --env PME_ENTERPRISE_AUTH_ENABLED=true `
+    --env PME_AUTH_TOKEN=$token `
     $image
   if ($LASTEXITCODE -ne 0) { throw "Docker could not start $container." }
 
@@ -191,6 +194,7 @@ try {
   $result = Invoke-RestMethod `
     -Method Post `
     -Uri "http://127.0.0.1:$port/chat" `
+    -Headers @{ Authorization = "Bearer $token" } `
     -ContentType "application/json" `
     -Body $payload
 
@@ -217,13 +221,17 @@ Docker users can run the anonymously pullable `latest` image without cloning
 or configuring credentials:
 
 ```bash
-docker run --rm --publish 3100:3100 \
+export PME_AUTH_TOKEN="$(openssl rand -hex 32)"
+docker run --rm --publish 127.0.0.1:3100:3100 \
+  --env PME_ENTERPRISE_AUTH_ENABLED=true \
+  --env PME_AUTH_TOKEN="$PME_AUTH_TOKEN" \
   ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.9
 ```
 
 For a local image build with readiness reporting, run:
 
 ```bash
+export PME_AUTH_TOKEN="$(openssl rand -hex 32)"
 docker compose up --build -d
 docker compose ps
 curl http://127.0.0.1:3100/health/check

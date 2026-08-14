@@ -1,6 +1,7 @@
 import { createProviderDescriptor } from "./providerAdapter.js";
 import { createProviderResponse } from "./providerMapping.js";
 import { getOrCreateAgent, fetchWithAgent } from "../http/connectionPool.js";
+import { resolveSafeOutboundUrl } from "../security/outboundUrlPolicy.ts";
 import { createPinoLogger } from "../logging/pinoLogger.js";
 import {
   abortableSleep,
@@ -13,7 +14,6 @@ import {
   createErrorDetails,
   createErrorPrefix,
   normalizeBaseUrl,
-  isPrivateOrReservedUrl,
   readJsonResponse,
   createHttpProviderError,
   classifyNonStreamError,
@@ -130,7 +130,11 @@ export class HttpLLMProviderAdapter {
     });
 
     try {
-      if (isPrivateOrReservedUrl(`${baseUrl}/chat/completions`)) {
+      let destination;
+      try {
+        const resolveOutboundUrl = this.options.resolveOutboundUrl ?? resolveSafeOutboundUrl;
+        destination = await resolveOutboundUrl(`${baseUrl}/chat/completions`);
+      } catch {
         throw createProviderError({
           code: `${this.errorPrefix}_SSRF_BLOCKED`,
           type: "security",
@@ -140,7 +144,7 @@ export class HttpLLMProviderAdapter {
         });
       }
 
-      const response = await fetchWithAgent(`${baseUrl}/chat/completions`, {
+      const response = await fetchWithAgent(destination.url, {
         method: "POST",
         headers: {
           authorization: `Bearer ${apiKey}`,
@@ -149,6 +153,7 @@ export class HttpLLMProviderAdapter {
         body: JSON.stringify(payload),
         signal: requestControl.signal,
         agent: getOrCreateAgent(baseUrl),
+        lookup: destination.lookup,
         timeout: timeoutMs,
       });
       const body = await readJsonResponse(response);
@@ -242,6 +247,7 @@ export class HttpLLMProviderAdapter {
       timeoutMs,
       maxRetries: retryConfig.maxRetries,
       retryDelay: (attempt, error, signal) => this._retryDelay(attempt, retryConfig, error, signal),
+      resolveOutboundUrl: this.options.resolveOutboundUrl,
       signal: executionSignal,
     });
 

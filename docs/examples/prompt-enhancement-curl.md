@@ -14,20 +14,26 @@ pnpm gateway serve
 Or use the published gateway image without cloning the repository:
 
 ```bash
-docker run --rm --publish 3100:3100 \
+GATEWAY_TOKEN="$(openssl rand -hex 32)"
+docker run --rm --publish 127.0.0.1:3100:3100 \
   --env AI_GATEWAY_SERVICE_HOST=0.0.0.0 \
   --env AI_GATEWAY_PROVIDER_MODE=fake \
   --env AI_GATEWAY_REAL_PROVIDER_ENABLED=false \
+  --env PME_ENTERPRISE_AUTH_ENABLED=true \
+  --env PME_AUTH_TOKEN="$GATEWAY_TOKEN" \
   ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.9
 ```
 
 On Windows PowerShell:
 
 ```powershell
-docker run --rm --publish 3100:3100 `
+$gatewayToken = [Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
+docker run --rm --publish 127.0.0.1:3100:3100 `
   --env AI_GATEWAY_SERVICE_HOST=0.0.0.0 `
   --env AI_GATEWAY_PROVIDER_MODE=fake `
   --env AI_GATEWAY_REAL_PROVIDER_ENABLED=false `
+  --env PME_ENTERPRISE_AUTH_ENABLED=true `
+  --env PME_AUTH_TOKEN=$gatewayToken `
   ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.9
 ```
 
@@ -40,6 +46,7 @@ On macOS, Linux, and Git Bash:
 
 ```bash
 curl --fail-with-body --request POST http://127.0.0.1:3100/prompts/enhance \
+  --header "authorization: Bearer $GATEWAY_TOKEN" \
   --header "content-type: application/json" \
   --data '{"input":"Help me plan a small API for my team","profile":"planning","language":"en"}'
 ```
@@ -50,6 +57,7 @@ consistent with the other platforms:
 ```powershell
 $payload = '{"input":"Help me plan a small API for my team","profile":"planning","language":"en"}'
 curl.exe --fail-with-body --request POST http://127.0.0.1:3100/prompts/enhance `
+  --header "authorization: Bearer $gatewayToken" `
   --header "content-type: application/json" `
   --data-raw $payload
 ```

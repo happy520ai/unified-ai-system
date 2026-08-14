@@ -4,6 +4,7 @@
 
 import { createProviderResponse } from "./providerMapping.js";
 import { getOrCreateAgent, fetchWithAgent } from "../http/connectionPool.js";
+import { resolveSafeOutboundUrl } from "../security/outboundUrlPolicy.ts";
 import {
   createLinkedAbortController,
   findExecutionAbortError,
@@ -13,7 +14,6 @@ import {
   createProviderError,
   createErrorDetails,
   createErrorPrefix,
-  isPrivateOrReservedUrl,
   isNetworkError,
   readJsonResponse,
   createHttpProviderError,
@@ -360,7 +360,7 @@ export async function* readChatCompletionsStream(response, providerRequest, sign
  */
 export async function openStreamWithRetry({
   baseUrl, apiKey, payload, providerRequest, errorPrefix, providerName,
-  timeoutMs, maxRetries, retryDelay, signal,
+  timeoutMs, maxRetries, retryDelay, resolveOutboundUrl = resolveSafeOutboundUrl, signal,
 }) {
   let response;
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -379,7 +379,10 @@ export async function openStreamWithRetry({
     });
 
     try {
-      if (isPrivateOrReservedUrl(`${baseUrl}/chat/completions`)) {
+      let destination;
+      try {
+        destination = await resolveOutboundUrl(`${baseUrl}/chat/completions`);
+      } catch {
         throw createProviderError({
           code: `${errorPrefix}_SSRF_BLOCKED`,
           type: "security",
@@ -390,7 +393,7 @@ export async function openStreamWithRetry({
       }
 
       const agent = getOrCreateAgent(baseUrl);
-      response = await fetchWithAgent(`${baseUrl}/chat/completions`, {
+      response = await fetchWithAgent(destination.url, {
         method: "POST",
         headers: {
           authorization: `Bearer ${apiKey}`,
@@ -398,6 +401,7 @@ export async function openStreamWithRetry({
         },
         body: JSON.stringify(payload),
         agent,
+        lookup: destination.lookup,
         signal: requestControl.signal,
         timeout: timeoutMs,
       });

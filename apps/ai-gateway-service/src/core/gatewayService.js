@@ -19,7 +19,7 @@ import {
 
 
 export class GatewayService {
-  constructor({ providerRegistry, runtimeConfig = {}, healthScorer = null, requestLogger = null, governance = null }) {
+  constructor({ providerRegistry, runtimeConfig = {}, healthScorer = null, requestLogger = null, governance = null, contentGuardrails = null }) {
     this.providerRegistry = providerRegistry;
     this.runtimeConfig = runtimeConfig;
     // Optional health scorer — when present, provider call outcomes are recorded
@@ -33,6 +33,7 @@ export class GatewayService {
     // via runtimeConfig.modelAccessEnforce, the selected model is checked against
     // the caller's identity before any provider call is made.
     this.governance = governance;
+    this.contentGuardrails = contentGuardrails;
   }
 
   async execute(input, execution = {}) {
@@ -43,6 +44,7 @@ export class GatewayService {
     try {
       throwIfExecutionAborted(execution.signal);
       request = normalizeGatewayRequest(input);
+      this.#enforceContentGuardrails(request);
       if (this.runtimeConfig.costGuardEnforce) {
         this.#enforceCostGuard(request);
       }
@@ -107,6 +109,7 @@ export class GatewayService {
     try {
       throwIfExecutionAborted(execution.signal);
       request = normalizeGatewayRequest(input);
+      this.#enforceContentGuardrails(request);
       const baseSelection = this.providerRegistry.select(request);
 
       for (const attempt of createFallbackAttempts(baseSelection, this.runtimeConfig)) {
@@ -265,6 +268,10 @@ export class GatewayService {
     return this.providerRegistry.listDescriptors();
   }
 
+  getContentGuardrailHealth() {
+    return this.contentGuardrails?.getHealth?.() ?? { status: "disabled" };
+  }
+
   async #executeWithFallback(request, baseSelection, startedAt, execution) {
     let lastError;
     const fallbackWarnings = [];
@@ -365,6 +372,28 @@ export class GatewayService {
       error.details = { decision: guard.decision, reasons: guard.reasons, estimate: guard.estimate };
       throw error;
     }
+  }
+
+  #enforceContentGuardrails(request) {
+    if (!this.contentGuardrails) return;
+    const violations = [];
+    for (const message of request.messages) {
+      if (message.role !== "user" && message.role !== "tool") continue;
+      const result = this.contentGuardrails.scan(message.content, {
+        direction: "input",
+        role: message.role,
+      });
+      if (!result.safe) {
+        violations.push(...result.violations.map((violation) => violation.type));
+      }
+    }
+    if (violations.length === 0) return;
+    const error = new Error("The request was blocked by the input content security policy.");
+    error.code = "CONTENT_GUARDRAIL_BLOCKED";
+    error.category = "governance";
+    error.retryable = false;
+    error.details = { violationTypes: [...new Set(violations)] };
+    throw error;
   }
 
   #enforceModelAccess(request, selection) {

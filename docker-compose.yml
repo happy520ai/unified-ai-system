@@ -9,8 +9,10 @@ services:
     environment:
       AI_GATEWAY_SERVICE_HOST: 0.0.0.0
       AI_GATEWAY_SERVICE_PORT: 3100
+      PME_ENTERPRISE_AUTH_ENABLED: "true"
+      PME_AUTH_TOKEN: ${PME_AUTH_TOKEN:-}
     ports:
-      - "3100:3100"
+      - "127.0.0.1:3100:3100"
     healthcheck:
       test:
         - CMD

@@ -4,6 +4,8 @@
 // =============================================================================
 
 import { assertProviderAdapter } from "./providerAdapter.js";
+import { fetchWithAgent } from "../http/connectionPool.js";
+import { resolveSafeOutboundUrl } from "../security/outboundUrlPolicy.ts";
 
 const DEFAULT_ANTHROPIC_BASE_URL = "https://api.anthropic.com";
 const DEFAULT_ANTHROPIC_VERSION = "2023-06-01";
@@ -151,7 +153,8 @@ async function callAnthropicApi({ baseUrl, apiKey, anthropicVersion, body, timeo
   }, timeoutMs);
 
   try {
-    const response = await fetch(`${baseUrl}/v1/messages`, {
+    const destination = await resolveSafeOutboundUrl(`${baseUrl}/v1/messages`);
+    const response = await fetchWithAgent(destination.url, {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -160,6 +163,7 @@ async function callAnthropicApi({ baseUrl, apiKey, anthropicVersion, body, timeo
       },
       body: JSON.stringify(body),
       signal: controller.signal,
+      lookup: destination.lookup,
     });
 
     const responseText = await response.text();

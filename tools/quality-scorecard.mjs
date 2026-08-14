@@ -917,6 +917,64 @@ function checkTrustedProxyIdentitySafety() {
   }
 }
 
+function checkCriticalAttackChainHardening() {
+  try {
+    const bindingSource = readTextFile("apps/ai-gateway-service/src/security/networkBindingPolicy.ts");
+    const bindingTestSource = readTextFile("apps/ai-gateway-service/src/security/networkBindingPolicy.test.ts");
+    const governanceSource = readTextFile("apps/ai-gateway-service/src/enterprise/enterpriseGovernanceService.js");
+    const outboundSource = readTextFile("apps/ai-gateway-service/src/security/outboundUrlPolicy.ts");
+    const outboundTestSource = readTextFile("apps/ai-gateway-service/src/security/outboundUrlPolicy.test.ts");
+    const connectionSource = readTextFile("apps/ai-gateway-service/src/http/connectionPool.js");
+    const adapterSource = readTextFile("apps/ai-gateway-service/src/providers/httpLlmProviderAdapter.js");
+    const streamSource = readTextFile("apps/ai-gateway-service/src/providers/httpProviderMapping.js");
+    const onboardingSource = readTextFile("apps/ai-gateway-service/src/providers/providerOnboardingService.js");
+    const discoverySource = readTextFile("apps/ai-gateway-service/src/providers/providerModelDiscovery.js");
+    const anthropicSource = readTextFile("apps/ai-gateway-service/src/providers/anthropicAdapter.js");
+    const guardrailSource = readTextFile("apps/ai-gateway-service/src/guardrails/contentGuardrails.js");
+    const gatewaySource = readTextFile("apps/ai-gateway-service/src/core/gatewayService.js");
+    const guardrailTestSource = readTextFile("apps/ai-gateway-service/src/core/gatewayService.contentGuardrails.test.ts");
+    const permissionSource = readTextFile("apps/ai-gateway-service/src/http/utils/enterpriseUtils.js");
+    const permissionTestSource = readTextFile("apps/ai-gateway-service/src/http/utils/resolvePermission.test.js");
+    const reportSource = readTextFile("docs/security-hardening-attack-chain.md");
+    const dockerSource = readTextFile("Dockerfile");
+    const composeSource = readTextFile("docker-compose.yml");
+    const source = [
+      bindingSource, bindingTestSource, governanceSource, outboundSource,
+      outboundTestSource, connectionSource, adapterSource, streamSource,
+      onboardingSource, discoverySource, anthropicSource, guardrailSource,
+      gatewaySource, guardrailTestSource, permissionSource, permissionTestSource,
+      reportSource, dockerSource, composeSource,
+    ].join("\n");
+    const requiredMarkers = [
+      "assertAuthenticatedNetworkBinding",
+      "enterprise_auth_required_for_non_loopback",
+      "enterprise_auth_required_for_remote_peer",
+      "blocks non-loopback binding without authentication",
+      "resolveSafeOutboundUrl",
+      "OUTBOUND_URL_BLOCKED",
+      'order: "verbatim"',
+      "lookup: destination.lookup",
+      "does not follow redirects in the pinned HTTP client",
+      "canonicalizeInjectionText",
+      "CONTENT_GUARDRAIL_BLOCKED",
+      "blocks zero-width and encoded instruction overrides",
+      "maps credential and provider mutation routes to provider:write",
+      "Critical gateway attack-chain hardening",
+      "PME_ENTERPRISE_AUTH_ENABLED=true",
+      'PME_ENTERPRISE_AUTH_ENABLED: "true"',
+    ];
+    const missingMarkers = requiredMarkers.filter((marker) => !source.includes(marker));
+    const unsafeNativeFetchFiles = [onboardingSource, discoverySource, anthropicSource]
+      .filter((fileSource) => /\bfetch\s*\(/.test(fileSource)).length;
+    return {
+      ok: missingMarkers.length === 0 && unsafeNativeFetchFiles === 0,
+      details: JSON.stringify({ missingMarkers, unsafeNativeFetchFiles }),
+    };
+  } catch (error) {
+    return { ok: false, details: String(error.message) };
+  }
+}
+
 function checkGatewayErrorCircuitBreaker() {
   try {
     const serverSource = readTextFile("apps/ai-gateway-service/src/http/httpServer.js");
@@ -1847,6 +1905,7 @@ async function main() {
   const distributedIdempotencyCheck = checkDistributedIdempotencySafety();
   const distributedRateLimitCheck = checkDistributedRateLimitSafety();
   const trustedProxyIdentityCheck = checkTrustedProxyIdentitySafety();
+  const criticalAttackChainCheck = checkCriticalAttackChainHardening();
   const gatewayErrorCircuitBreakerCheck = checkGatewayErrorCircuitBreaker();
   const healthzCheck = checkHealthzReadinessProbe();
   const runbookVisibilityCheck = checkReadinessRunbookVisibility();
@@ -1879,6 +1938,7 @@ async function main() {
     distributedIdempotency: distributedIdempotencyCheck,
     distributedRateLimit: distributedRateLimitCheck,
     trustedProxyIdentity: trustedProxyIdentityCheck,
+    criticalAttackChain: criticalAttackChainCheck,
     pluginHardening: pluginCheck,
     workflowGuardrails: workflowCheck,
     requestBodyGuardrails: requestBodyGuardrailsCheck,
@@ -1983,6 +2043,14 @@ async function main() {
     10,
     trustedProxyIdentityCheck.ok,
     trustedProxyIdentityCheck.details,
+  );
+  score += addGate(
+    gates,
+    "Critical attack-chain hardening",
+    "External binding must require auth; outbound DNS must be validated and pinned; content guards and least-privilege provider routes must be active",
+    20,
+    criticalAttackChainCheck.ok,
+    criticalAttackChainCheck.details,
   );
   score += addGate(
     gates,

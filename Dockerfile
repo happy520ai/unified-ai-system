@@ -37,6 +37,7 @@ FROM runtime AS gateway
 
 ENV AI_GATEWAY_SERVICE_HOST=0.0.0.0
 ENV AI_GATEWAY_SERVICE_PORT=3100
+ENV PME_ENTERPRISE_AUTH_ENABLED=true
 
 LABEL org.opencontainers.image.description="Terminal-first, self-hosted AI gateway"
 

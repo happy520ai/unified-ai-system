@@ -1,17 +1,20 @@
-import { describe, it, expect, vi, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { createServer } from "node:http";
-
-// Bypass the SSRF guard for these tests only, so a local mock provider can be
-// exercised through the full adapter request/response cycle.
-vi.mock("./httpProviderErrorHelpers.js", async (importOriginal) => {
-  const actual = await importOriginal();
-  return { ...actual, isPrivateOrReservedUrl: () => false };
-});
 
 import { createHttpLLMProviderAdapter } from "./httpLlmProviderAdapter.js";
 
 let server;
 let baseUrl;
+
+async function resolveLocalTestUrl(url) {
+  return {
+    url,
+    lookup(_hostname, options, callback) {
+      const resolvedCallback = typeof options === "function" ? options : callback;
+      resolvedCallback(null, "127.0.0.1", 4);
+    },
+  };
+}
 
 function startMockProvider(handler) {
   return new Promise((resolve) => {
@@ -44,7 +47,7 @@ function createAdapter() {
     endpoint: baseUrl,
     apiKey: "test-key",
     enabled: true,
-  });
+  }, { resolveOutboundUrl: resolveLocalTestUrl });
 }
 
 function createRequest() {
@@ -88,7 +91,7 @@ describe("http LLM provider adapter — error path (mock HTTP)", () => {
         endpoint: errorUrl,
         apiKey: "test-key",
         enabled: true,
-      });
+      }, { resolveOutboundUrl: resolveLocalTestUrl });
 
       await expect(adapter.generate(createRequest())).rejects.toMatchObject({
         type: "http",
