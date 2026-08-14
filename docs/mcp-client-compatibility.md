@@ -26,6 +26,8 @@ cleanup. This HTTP entry point is not part of the published `v0.4.9` image.
 | --- | --- | --- | --- |
 | Official MCP SDK (automated baseline) | `pnpm verify:mcp` | Run `pnpm verify:mcp` and inspect JSON result | Protocol-level evidence. This also feeds `tools/verify-client-runtimes.mjs` certification records. |
 | Codex | `codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.9` | Run `codex mcp get unified-ai-system --json`, restart Codex, then use `/mcp verbose`. | Automated source-tree profile verified the official Codex App Server `0.147.0`, all twelve tools, a provider-free enhancement call, and cleanup without a model turn. |
+| WorkBuddy | Declare `mcpServers.unified-ai-system` in `.mcp.json`. Keep any machine-absolute interpreter path as a local uncommitted override; see [local client convergence](#local-client-convergence). | Restart the host, confirm the twelve tools, then call `gateway_health`. | A config-equivalent host launched the exact `command`/`args`/`cwd` recorded in `.mcp.json`, negotiated MCP `2025-06-18`, discovered twelve tools, and returned fake-provider output. This is launch-parameter and protocol evidence, not a certification of the WorkBuddy UI. |
+| ZCode | Declare `mcp.servers.unified-ai-system` in `.zcode/config.json`. The directory is gitignored because it stores a per-machine interpreter path. | Restart the host, confirm the twelve tools, then call `gateway_health`. | A config-equivalent host launched the exact `command`/`args`/`cwd`/`env` recorded in `.zcode/config.json`, negotiated MCP `2025-06-18`, discovered twelve tools, and returned fake-provider output. This is launch-parameter and protocol evidence, not a certification of the ZCode UI. |
 | VS Code | Configure the source MCP server in an isolated VS Code profile. | Inspect `vscode.lm.tools`, then invoke `gateway_prompt_enhance` through `vscode.lm.invokeTool`. | VS Code `1.118.1` Extension Host discovered all twelve tools, invoked enhancement, made no model/provider request, and cleaned up. |
 | Claude Code | Install the pinned host profile from [client runtime certification](client-runtime-certification.md). | The verifier runs Claude Code `mcp add` and `mcp list`. | Claude Code `2.1.227` issued the real MCP handshake and `tools/list`, discovered twelve tools, made no model/provider call, and cleaned up. |
 | Gemini CLI | Install the pinned host profile from [client runtime certification](client-runtime-certification.md). | The verifier runs `mcp add`, the connection probe, and a minimal ACP initialization. | Gemini CLI `0.54.4` used its real MCP client to discover twelve tools without a prompt or model call; cleanup is verified. |
@@ -36,6 +38,44 @@ cleanup. This HTTP entry point is not part of the published `v0.4.9` image.
 | Generic MCP stdio host | Add the `mcpServers.unified-ai-system` entry from [generic client configuration](mcp-generic-client.md). | Restart the host, confirm the twelve tools, call `gateway_health`, then `gateway_readiness`. | The JSON configuration and MCP server path are covered by the repository's provider-free verification. |
 | Generic MCP Streamable HTTP host | Run `pnpm mcp:http` and configure `http://127.0.0.1:3210/mcp`. | List the twelve tools, then call `gateway_health` and `gateway_readiness`. | The source endpoint is protocol-tested. A named client is not certified until a real client report records it. |
 | Node MCP SDK test host | Run `pnpm verify:mcp`. | The `@modelcontextprotocol/client` harness tests stdio and Streamable HTTP, lists the twelve tools, calls governed tools, checks HTTP access controls, and closes the managed gateways. | This is real protocol integration evidence covered by the source tests. It does not certify a third-party client UI. |
+
+## Local Client Convergence
+
+Three hosts in this repository launch the same source MCP server. They converge
+on one server entry point while keeping machine-specific paths out of version
+control.
+
+| Config file | Tracked in git | Launch shape |
+| --- | --- | --- |
+| `.codex/config.toml` | Committed, portable | `command = "node"` with the repository-relative server path |
+| `.mcp.json` | Committed as the portable Docker launch | A source checkout may override it locally with an absolute interpreter path; that override stays uncommitted |
+| `.zcode/config.json` | Ignored (`.gitignore`) | Stores a per-machine interpreter path, so the whole directory is local-only |
+
+Keep absolute interpreter paths, drive letters, and user directories out of
+committed configuration. A portable ZCode entry looks like this:
+
+```json
+{
+  "mcp": {
+    "servers": {
+      "unified-ai-system": {
+        "command": "node",
+        "args": ["packages/mcp-server/src/index.js"],
+        "env": {
+          "AI_GATEWAY_PROVIDER_MODE": "fake",
+          "AI_GATEWAY_REAL_PROVIDER_ENABLED": "false"
+        }
+      }
+    }
+  }
+}
+```
+
+Each connected host gets its own managed gateway child process on its own
+loopback port. Disconnecting one host reclaims only that host's port and leaves
+the other hosts serving tools. Regenerate this evidence locally with the
+harness under `apps/ai-gateway-service/evidence/`; the output is gitignored
+because it records machine-specific ports and process ids.
 
 ## Safe Verification Sequence
 

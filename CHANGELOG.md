@@ -7,16 +7,44 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Added a task handoff loop reference that documents the read and write handoff
+  endpoints, the task card schema, the standard round, and a read-only
+  connection verification card that any MCP host can run.
+- Added a design-only proposal for a gateway-driven external runner, covering
+  token scope, command whitelist, and the approval gate. No runtime code
+  implements it, and it stays closed until the repository owner authorizes it.
+
 ### Changed
 
 - Moved the Codex plugin and manual Agent Skill procedure to the reviewed
   immutable `v0.4.9` MCP image index.
+- Documented local client convergence for the three source hosts and ignored
+  `.zcode/`, so per-machine interpreter paths stay out of version control.
+- Corrected the governed tool count in the Chinese MCP compatibility baseline
+  from nine to twelve, completing an earlier alignment that missed this line.
+
+### Fixed
+
+- Fixed managed MCP sessions losing every authenticated tool after about ten
+  minutes. The ephemeral managed token no longer carries a fixed wall-clock
+  expiry; its lifetime is bounded by the fake-provider, loopback-only gateway
+  child process that the MCP host already owns.
 
 ### Verification
 
 - Reviewed both published `v0.4.9` Linux platforms without starting them,
   including OCI identities, flattened filesystems, native binaries, lifecycle
   hooks, privileged files, internal links, and credential-like artifacts.
+- Held one stdio MCP session for 12.05 minutes across twelve authenticated
+  polls with zero authentication failures, called chat successfully past the
+  former ten-minute boundary in fake mode, closed the managed gateway, and
+  recorded no new token-expiry audit entry.
+- Ran the three source client profiles concurrently from their own on-disk
+  configuration: each discovered the same twelve governed tools, held a distinct
+  loopback port, returned fake-provider output, released only its own port on
+  disconnect, and left no orphan listener.
 
 ## [0.4.9] - 2026-08-10
 

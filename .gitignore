@@ -14,6 +14,9 @@ cache/
 temp/
 .codex/*
 !.codex/config.toml
+# ZCode stores an absolute-path MCP launcher per machine; keep it local-only.
+# A portable relative-path example lives in docs/mcp-client-compatibility.md.
+.zcode/
 .codex-context/
 .codex-handoff/
 .codex-localappdata/

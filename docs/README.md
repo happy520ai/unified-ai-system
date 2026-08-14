@@ -31,6 +31,8 @@ Public documentation is grouped by task so the repo stays easy to scan.
 - [Codex MCP server](../packages/mcp-server/README.md)
 - [Installable Agent Skill](https://skills.sh/happy520ai/unified-ai-system/unified-ai-gateway)
 - [Readiness & observability](readiness-observability-guide.md)
+- [Task handoff loop](task-handoff-loop.md)
+- [Gateway-driven external runner (design only)](gateway-driven-external-runner-design.md)
 - [Quality trend digest guide](quality-trend-digest-guide.md)
 - [Quality trend runbook](quality-trend-runbook.md)
 - [Project vision](../VISION.md)
