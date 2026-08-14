@@ -358,6 +358,8 @@ export function createGatewayHttpServer(application) {
     maxInFlightMessages: requestConfig.AI_GATEWAY_WS_MAX_IN_FLIGHT_MESSAGES,
     maxInFlightPerSubject: requestConfig.AI_GATEWAY_WS_MAX_IN_FLIGHT_PER_SUBJECT,
     authenticationTimeoutMs: requestConfig.AI_GATEWAY_WS_AUTH_TIMEOUT_MS,
+    reauthorizationIntervalMs: requestConfig.AI_GATEWAY_WS_REAUTH_INTERVAL_MS,
+    maxConnectionLifetimeMs: requestConfig.AI_GATEWAY_WS_MAX_CONNECTION_LIFETIME_MS,
     heartbeatIntervalMs: requestConfig.AI_GATEWAY_WS_HEARTBEAT_INTERVAL_MS,
     maxBufferedAmountBytes: requestConfig.AI_GATEWAY_WS_MAX_BUFFERED_AMOUNT_BYTES,
     shutdownGraceMs: requestConfig.AI_GATEWAY_WS_SHUTDOWN_GRACE_MS,

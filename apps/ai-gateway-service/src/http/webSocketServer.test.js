@@ -152,6 +152,110 @@ describe("governed websocket server", () => {
     expect(gateway.getSecuritySnapshot().authenticationTimedOut).toBe(1);
   });
 
+  it("reauthorizes every business message with a minimized authentication context", async () => {
+    const observedRequests = [];
+    const authenticate = vi.fn(async (request) => {
+      observedRequests.push({
+        authorization: request.headers.authorization,
+        enumerableHeaders: Object.keys(request.headers),
+      });
+      return { allowed: true, identity: { userId: "alice", tenantId: "tenant-a" } };
+    });
+    const onMessage = vi.fn();
+    const { url } = await startGateway({ authenticate, onMessage });
+    const client = await connect(url, {
+      headers: { authorization: "Bearer websocket-test-token" },
+    });
+    client.send("authorized message");
+    await waitFor(() => onMessage.mock.calls.length === 1);
+
+    expect(authenticate).toHaveBeenCalledTimes(2);
+    expect(observedRequests[1]).toEqual({
+      authorization: "Bearer websocket-test-token",
+      enumerableHeaders: expect.not.arrayContaining(["authorization"]),
+    });
+  });
+
+  it("closes an active connection immediately after its authorization is revoked", async () => {
+    let allowed = true;
+    const onMessage = vi.fn();
+    const { url, gateway } = await startGateway({
+      authenticate: async () => ({
+        allowed,
+        identity: { userId: "alice", tenantId: "tenant-a" },
+        statusCode: allowed ? 200 : 401,
+      }),
+      onMessage,
+    });
+    const client = await connect(url);
+    allowed = false;
+    const closed = waitForClose(client);
+    client.send("must not execute");
+
+    await expect(closed).resolves.toMatchObject({ code: 1008, reason: "Authorization expired" });
+    expect(onMessage).not.toHaveBeenCalled();
+    expect(gateway.getSecuritySnapshot().reauthorizationRejected).toBe(1);
+  });
+
+  it("rejects a token that is rebound to a different authenticated subject", async () => {
+    let userId = "alice";
+    const onMessage = vi.fn();
+    const { url, gateway } = await startGateway({
+      authenticate: async () => ({
+        allowed: true,
+        identity: { userId, tenantId: "tenant-a" },
+      }),
+      onMessage,
+    });
+    const client = await connect(url);
+    userId = "mallory";
+    const closed = waitForClose(client);
+    client.send("identity drift attempt");
+
+    await expect(closed).resolves.toMatchObject({ code: 1008, reason: "Authenticated identity changed" });
+    expect(onMessage).not.toHaveBeenCalled();
+    expect(gateway.getSecuritySnapshot().identityDriftRejected).toBe(1);
+  });
+
+  it("periodically reauthorizes idle connections and closes revoked sessions", async () => {
+    let allowed = true;
+    const { url, gateway } = await startGateway({
+      authenticate: async () => ({
+        allowed,
+        identity: { userId: "alice", tenantId: "tenant-a" },
+      }),
+      heartbeatIntervalMs: 10,
+      reauthorizationIntervalMs: 10,
+      maxConnectionLifetimeMs: 1_000,
+    });
+    const client = await connect(url);
+    allowed = false;
+    const closed = waitForClose(client);
+
+    await expect(closed).resolves.toMatchObject({ code: 1008, reason: "Authorization expired" });
+    expect(gateway.getSecuritySnapshot().reauthorizationRejected).toBe(1);
+  });
+
+  it("forces a fresh handshake when the maximum connection lifetime expires", async () => {
+    const { url, gateway } = await startGateway({
+      authenticate: async () => ({
+        allowed: true,
+        identity: { userId: "alice", tenantId: "tenant-a" },
+      }),
+      heartbeatIntervalMs: 10,
+      reauthorizationIntervalMs: 1_000,
+      maxConnectionLifetimeMs: 25,
+    });
+    const client = await connect(url);
+    const closed = waitForClose(client);
+
+    await expect(closed).resolves.toMatchObject({
+      code: 1008,
+      reason: "Session reauthentication required",
+    });
+    expect(gateway.getSecuritySnapshot().sessionLifetimeRejected).toBe(1);
+  });
+
   it("contains asynchronous message-handler failures", async () => {
     const onError = vi.fn();
     const { url } = await startGateway({

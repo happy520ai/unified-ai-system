@@ -211,6 +211,8 @@ describe("WebSocket protocol safety", () => {
     assert.ok(src.includes("maxMessagesPerWindow"), "Should enforce a message-rate window");
     assert.ok(src.includes("maxInFlightPerSubject"), "Should enforce per-subject concurrency");
     assert.ok(src.includes("maxConnectionsPerSubject"), "Should enforce per-subject connections");
+    assert.ok(src.includes("reauthorizeConnection"), "Should reauthorize long-lived sessions");
+    assert.ok(src.includes("maxConnectionLifetimeMs"), "Should bound session lifetime");
   });
 
   it("webSocketServer module loads", async () => {

@@ -153,9 +153,13 @@ messages, and 2 in-flight messages per subject. Operators may lower these with
 `AI_GATEWAY_WS_MAX_MESSAGES_PER_WINDOW`,
 `AI_GATEWAY_WS_MESSAGE_WINDOW_MS`,
 `AI_GATEWAY_WS_MAX_IN_FLIGHT_MESSAGES`, and
-`AI_GATEWAY_WS_MAX_IN_FLIGHT_PER_SUBJECT`. Production rejects wildcard browser
-origins, compression is disabled, authentication is time-bounded, and shutdown
-actively closes upgraded sockets before the HTTP listener exits.
+`AI_GATEWAY_WS_MAX_IN_FLIGHT_PER_SUBJECT`. Every business message is
+reauthorized, idle connections are reauthorized every 30 seconds, and the
+default maximum connection lifetime is 15 minutes. Operators may lower the
+periodic interval and lifetime with `AI_GATEWAY_WS_REAUTH_INTERVAL_MS` and
+`AI_GATEWAY_WS_MAX_CONNECTION_LIFETIME_MS`. Production rejects wildcard
+browser origins, compression is disabled, authentication is time-bounded, and
+shutdown actively closes upgraded sockets before the HTTP listener exits.
 
 ## Operational rules
 

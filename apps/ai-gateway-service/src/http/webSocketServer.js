@@ -17,6 +17,8 @@ const DEFAULT_MESSAGE_WINDOW_MS = 60_000;
 const DEFAULT_MAX_IN_FLIGHT = 64;
 const DEFAULT_MAX_IN_FLIGHT_PER_SUBJECT = 2;
 const DEFAULT_AUTHENTICATION_TIMEOUT_MS = 3_000;
+const DEFAULT_REAUTHORIZATION_INTERVAL_MS = 30_000;
+const DEFAULT_MAX_CONNECTION_LIFETIME_MS = 15 * 60_000;
 const DEFAULT_HEARTBEAT_INTERVAL_MS = 30_000;
 const DEFAULT_MAX_BUFFERED_AMOUNT_BYTES = 1024 * 1024;
 const DEFAULT_SHUTDOWN_GRACE_MS = 1_000;
@@ -52,6 +54,8 @@ const DEFAULT_ALLOWED_ORIGINS = Object.freeze([
  * @param {number|string} [options.maxInFlightMessages]
  * @param {number|string} [options.maxInFlightPerSubject]
  * @param {number|string} [options.authenticationTimeoutMs]
+ * @param {number|string} [options.reauthorizationIntervalMs]
+ * @param {number|string} [options.maxConnectionLifetimeMs]
  * @param {number|string} [options.heartbeatIntervalMs]
  * @param {number|string} [options.maxBufferedAmountBytes]
  * @param {number|string} [options.shutdownGraceMs]
@@ -71,6 +75,10 @@ export function createWebSocketServer(options = {}) {
     accepted: 0,
     authenticationRejected: 0,
     authenticationTimedOut: 0,
+    reauthorizationRejected: 0,
+    reauthorizationTimedOut: 0,
+    identityDriftRejected: 0,
+    sessionLifetimeRejected: 0,
     originRejected: 0,
     capacityRejected: 0,
     subjectConnectionRejected: 0,
@@ -122,6 +130,19 @@ export function createWebSocketServer(options = {}) {
     options.authenticationTimeoutMs,
     DEFAULT_AUTHENTICATION_TIMEOUT_MS,
     30_000,
+  );
+  const maxConnectionLifetimeMs = boundedPositiveInteger(
+    options.maxConnectionLifetimeMs,
+    DEFAULT_MAX_CONNECTION_LIFETIME_MS,
+    24 * 60 * 60_000,
+  );
+  const reauthorizationIntervalMs = Math.min(
+    boundedPositiveInteger(
+      options.reauthorizationIntervalMs,
+      DEFAULT_REAUTHORIZATION_INTERVAL_MS,
+      60 * 60_000,
+    ),
+    maxConnectionLifetimeMs,
   );
   const heartbeatIntervalMs = boundedPositiveInteger(
     options.heartbeatIntervalMs,
@@ -264,7 +285,12 @@ export function createWebSocketServer(options = {}) {
 
       try {
         protocolServer.handleUpgrade(request, socket, head, (rawSocket) => {
-          establishConnection(rawSocket, auth.identity, subjectKey);
+          establishConnection(
+            rawSocket,
+            auth.identity,
+            subjectKey,
+            createReauthorizationRequest(request),
+          );
         });
       } catch (error) {
         counters.protocolRejected += 1;
@@ -276,10 +302,19 @@ export function createWebSocketServer(options = {}) {
     }
   }
 
-  function establishConnection(rawSocket, identity, subjectKey) {
+  function establishConnection(rawSocket, identity, subjectKey, authorizationRequest) {
     const connection = createGatewayConnection(rawSocket, identity, subjectKey);
     connections.add(connection);
-    connectionState.set(connection, { alive: true, cleaned: false });
+    const authenticatedAt = Date.now();
+    connectionState.set(connection, {
+      alive: true,
+      cleaned: false,
+      authenticatedAt,
+      lastAuthorizedAt: authenticatedAt,
+      authorizationPromise: null,
+      authorizationRequest,
+      subjectKey,
+    });
     subjectConnections.set(subjectKey, (subjectConnections.get(subjectKey) ?? 0) + 1);
     counters.accepted += 1;
 
@@ -326,6 +361,8 @@ export function createWebSocketServer(options = {}) {
       rawSocket.close(1008, "Message rate limit exceeded");
       return;
     }
+
+    if (!await reauthorizeConnection(connection, "message")) return;
 
     const subjectActive = subjectInFlight.get(subjectKey) ?? 0;
     if (globalInFlight >= maxInFlightMessages || subjectActive >= maxInFlightPerSubject) {
@@ -428,6 +465,78 @@ export function createWebSocketServer(options = {}) {
     else subjectInFlight.set(subjectKey, remaining);
   }
 
+  async function reauthorizeConnection(connection, phase) {
+    const state = connectionState.get(connection);
+    if (!state || state.cleaned || connection.socket.readyState !== WebSocket.OPEN) return false;
+    const now = Date.now();
+    if (now - state.authenticatedAt >= maxConnectionLifetimeMs) {
+      counters.sessionLifetimeRejected += 1;
+      reportError(new Error("WebSocket maximum session lifetime reached."), {
+        event: "ws_session_lifetime_limit",
+        phase,
+        maxConnectionLifetimeMs,
+      });
+      connection.close(1008, "Session reauthentication required");
+      return false;
+    }
+    if (state.authorizationPromise) return state.authorizationPromise;
+
+    const authorizationPromise = (async () => {
+      let authResult;
+      try {
+        authResult = await withTimeout(
+          () => options.authenticate(state.authorizationRequest),
+          authenticationTimeoutMs,
+          "WebSocket reauthorization timed out.",
+        );
+      } catch (error) {
+        counters.reauthorizationRejected += 1;
+        if (error?.code === "WS_AUTH_TIMEOUT") counters.reauthorizationTimedOut += 1;
+        reportError(error, { event: "ws_reauthorization_failed", phase });
+        connection.close(1008, "Authorization expired");
+        return false;
+      }
+
+      const auth = normalizeAuthenticationDecision(authResult);
+      if (!auth.allowed) {
+        counters.reauthorizationRejected += 1;
+        reportError(new Error("WebSocket authorization is no longer valid."), {
+          event: "ws_reauthorization_rejected",
+          phase,
+          statusCode: auth.statusCode,
+        });
+        connection.close(1008, "Authorization expired");
+        return false;
+      }
+
+      const refreshedSubjectKey = createSubjectKey(
+        auth.identity,
+        state.authorizationRequest.socket?.remoteAddress,
+      );
+      if (refreshedSubjectKey !== state.subjectKey) {
+        counters.identityDriftRejected += 1;
+        reportError(new Error("WebSocket authenticated subject changed during the session."), {
+          event: "ws_identity_drift_rejected",
+          phase,
+        });
+        connection.close(1008, "Authenticated identity changed");
+        return false;
+      }
+
+      connection.identity = auth.identity;
+      state.lastAuthorizedAt = Date.now();
+      return true;
+    })();
+    state.authorizationPromise = authorizationPromise;
+    try {
+      return await authorizationPromise;
+    } finally {
+      if (state.authorizationPromise === authorizationPromise) {
+        state.authorizationPromise = null;
+      }
+    }
+  }
+
   function startHeartbeat() {
     if (heartbeatTimer) return;
     heartbeatTimer = setInterval(() => {
@@ -435,6 +544,13 @@ export function createWebSocketServer(options = {}) {
       for (const connection of connections) {
         const state = connectionState.get(connection);
         if (!state || state.cleaned) continue;
+        if (now - state.authenticatedAt >= maxConnectionLifetimeMs) {
+          void reauthorizeConnection(connection, "session-lifetime");
+          continue;
+        }
+        if (now - state.lastAuthorizedAt >= reauthorizationIntervalMs) {
+          void reauthorizeConnection(connection, "periodic");
+        }
         if (!state.alive) {
           counters.heartbeatTerminated += 1;
           connection.terminate();
@@ -499,6 +615,8 @@ export function createWebSocketServer(options = {}) {
       messageWindowMs,
       maxInFlightMessages,
       maxInFlightPerSubject,
+      reauthorizationIntervalMs,
+      maxConnectionLifetimeMs,
     });
   }
 
@@ -538,6 +656,32 @@ function createSubjectKey(identity, remoteAddress) {
   if (userId) return `identity:${tenantId || "default"}:${userId}`;
   const network = typeof remoteAddress === "string" && remoteAddress.trim() ? remoteAddress.trim() : "unknown";
   return `network:${network}`;
+}
+
+function createReauthorizationRequest(request) {
+  const headers = Object.create(null);
+  for (const name of ["host", "origin", "user-agent"]) {
+    const value = request?.headers?.[name];
+    if (typeof value === "string") headers[name] = value;
+  }
+  Object.defineProperty(headers, "authorization", {
+    enumerable: false,
+    configurable: false,
+    writable: false,
+    value: typeof request?.headers?.authorization === "string"
+      ? request.headers.authorization
+      : undefined,
+  });
+  Object.freeze(headers);
+  return Object.freeze({
+    method: typeof request?.method === "string" ? request.method : "GET",
+    url: typeof request?.url === "string" ? request.url : "/ws",
+    headers,
+    socket: Object.freeze({
+      localAddress: request?.socket?.localAddress,
+      remoteAddress: request?.socket?.remoteAddress,
+    }),
+  });
 }
 
 function normalizeAllowedOrigins(value) {
