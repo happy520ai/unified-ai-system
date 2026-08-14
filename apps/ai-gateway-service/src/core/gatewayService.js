@@ -378,8 +378,8 @@ export class GatewayService {
   #enforceContentGuardrails(request) {
     if (!this.contentGuardrails) return;
     const violations = [];
-    for (const message of request.messages) {
-      if (message.role !== "user" && message.role !== "tool") continue;
+    const violationRoles = [];
+    for (const message of request.messages ?? []) {
       const text = extractMessageText(message.content);
       if (!text.trim()) continue;
       const result = this.contentGuardrails.scan(text, {
@@ -388,6 +388,7 @@ export class GatewayService {
       });
       if (!result.safe) {
         violations.push(...result.violations.map((violation) => violation.type));
+        violationRoles.push(message.role ?? "unknown");
       }
     }
     if (violations.length === 0) return;
@@ -395,7 +396,10 @@ export class GatewayService {
     error.code = "CONTENT_GUARDRAIL_BLOCKED";
     error.category = "governance";
     error.retryable = false;
-    error.details = { violationTypes: [...new Set(violations)] };
+    error.details = {
+      violationTypes: [...new Set(violations)],
+      messageRoles: [...new Set(violationRoles)],
+    };
     throw error;
   }
 

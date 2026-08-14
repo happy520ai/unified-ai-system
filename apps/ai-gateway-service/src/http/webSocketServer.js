@@ -63,6 +63,7 @@ const DEFAULT_ALLOWED_ORIGINS = Object.freeze([
  * @param {(subject: string) => unknown | Promise<unknown>} [options.consumeUpgradeQuota]
  * @param {(subject: string) => unknown | Promise<unknown>} [options.consumeMessageQuota]
  * @param {{acquire: (subject: string, limits: {maxConnections: number, maxConnectionsPerSubject: number}) => Promise<{acquired: boolean, retryAfterSeconds?: number, lease?: {isValid: () => boolean, start: (onLost: () => void) => void, release: () => Promise<void>}}>, close?: () => Promise<void>}} [options.connectionLeaseManager]
+ * @param {{acquireExecution: (subject: string, limits: {maxInFlightMessages: number, maxInFlightPerSubject: number}) => Promise<{acquired: boolean, scope?: "global" | "subject", retryAfterSeconds?: number, lease?: {isValid: () => boolean, start: (onLost: () => void) => void, release: () => Promise<void>}}>}} [options.executionLeaseManager]
  * @param {(connection: GatewayWebSocketConnection) => void} [options.onConnection]
  * @param {(message: string, connection: GatewayWebSocketConnection) => unknown | Promise<unknown>} [options.onMessage]
  * @param {(connection: GatewayWebSocketConnection) => void} [options.onClose]
@@ -88,6 +89,9 @@ export function createWebSocketServer(options = {}) {
     connectionLeaseRejected: 0,
     connectionLeaseUnavailable: 0,
     connectionLeaseLost: 0,
+    executionLeaseRejected: 0,
+    executionLeaseUnavailable: 0,
+    executionLeaseLost: 0,
     originRejected: 0,
     capacityRejected: 0,
     subjectConnectionRejected: 0,
@@ -483,11 +487,65 @@ export function createWebSocketServer(options = {}) {
       return;
     }
 
+    let executionLease = null;
+    if (options.executionLeaseManager) {
+      try {
+        if (typeof options.executionLeaseManager.acquireExecution !== "function") {
+          throw new Error("The WebSocket execution lease manager is invalid.");
+        }
+        const decision = await options.executionLeaseManager.acquireExecution(subjectKey, {
+          maxInFlightMessages,
+          maxInFlightPerSubject,
+        });
+        if (decision?.acquired === false) {
+          counters.concurrencyRejected += 1;
+          counters.executionLeaseRejected += 1;
+          reportError(new Error("The distributed WebSocket execution limit was reached."), {
+            event: "ws_execution_lease_rejected",
+            scope: decision.scope,
+            retryAfterSeconds: Math.max(1, Number(decision.retryAfterSeconds) || 1),
+          });
+          rawSocket.close(1013, "Too many in-flight messages");
+          return;
+        }
+        if (
+          decision?.acquired !== true
+          || typeof decision.lease?.isValid !== "function"
+          || typeof decision.lease?.start !== "function"
+          || typeof decision.lease?.release !== "function"
+        ) {
+          throw new Error("The WebSocket execution lease manager returned an invalid decision.");
+        }
+        executionLease = decision.lease;
+        executionLease.start(() => {
+          counters.executionLeaseLost += 1;
+          reportError(new Error("The durable WebSocket execution lease was lost."), {
+            event: "ws_execution_lease_lost",
+          });
+          if (rawSocket.readyState === WebSocket.OPEN || rawSocket.readyState === WebSocket.CONNECTING) {
+            rawSocket.close(1013, "Execution lease unavailable");
+          } else {
+            rawSocket.terminate();
+          }
+        });
+      } catch (error) {
+        counters.executionLeaseUnavailable += 1;
+        if (executionLease) void executionLease.release();
+        reportError(error, { event: "ws_execution_lease_unavailable" });
+        rawSocket.close(1013, "Execution lease unavailable");
+        return;
+      }
+    }
+
     globalInFlight += 1;
     subjectInFlight.set(subjectKey, subjectActive + 1);
     try {
       if (connectionLease && !connectionLease.isValid()) {
         rawSocket.close(1013, "Connection lease unavailable");
+        return;
+      }
+      if (executionLease && !executionLease.isValid()) {
+        rawSocket.close(1013, "Execution lease unavailable");
         return;
       }
       await options.onMessage?.(data.toString("utf8"), connection);
@@ -498,6 +556,17 @@ export function createWebSocketServer(options = {}) {
       }
     } finally {
       releaseInFlight(subjectKey);
+      if (executionLease) {
+        try {
+          await executionLease.release();
+        } catch (error) {
+          counters.executionLeaseUnavailable += 1;
+          reportError(error, { event: "ws_execution_lease_release_failed" });
+          if (rawSocket.readyState === WebSocket.OPEN) {
+            rawSocket.close(1013, "Execution lease unavailable");
+          }
+        }
+      }
     }
   }
 

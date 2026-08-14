@@ -37,6 +37,11 @@ export type WebSocketConnectionLeaseLimits = {
   maxConnectionsPerSubject: number;
 };
 
+export type WebSocketExecutionLeaseLimits = {
+  maxInFlightMessages: number;
+  maxInFlightPerSubject: number;
+};
+
 export type WebSocketConnectionLease = {
   isValid(): boolean;
   renewNow(): Promise<boolean>;
@@ -54,10 +59,13 @@ export type WebSocketConnectionLeaseDecision =
 
 export type WebSocketConnectionLeaseManager = {
   acquire(subject: string, limits: WebSocketConnectionLeaseLimits): Promise<WebSocketConnectionLeaseDecision>;
+  acquireExecution(subject: string, limits: WebSocketExecutionLeaseLimits): Promise<WebSocketConnectionLeaseDecision>;
   checkHealth(): Promise<{ available: boolean }>;
   getStats(): Record<string, unknown>;
   close(): Promise<void>;
 };
+
+type LeaseKind = "connection" | "execution";
 
 type ManagerOptions = {
   connectionString?: string;
@@ -78,6 +86,7 @@ type CountRow = {
 };
 
 type LeaseController = {
+  kind: LeaseKind;
   lease: WebSocketConnectionLease;
   lose(): void;
 };
@@ -116,6 +125,10 @@ export function createPostgresWebSocketConnectionLeaseManager(
   let denied = 0;
   let lost = 0;
   let released = 0;
+  let executionAcquired = 0;
+  let executionDenied = 0;
+  let executionLost = 0;
+  let executionReleased = 0;
 
   void poolPromise.then((pool) => {
     pool.on?.("error", () => {
@@ -173,9 +186,28 @@ export function createPostgresWebSocketConnectionLeaseManager(
     subject: string,
     rawLimits: WebSocketConnectionLeaseLimits,
   ): Promise<WebSocketConnectionLeaseDecision> {
+    return acquireScoped(subject, options.namespace, normalizeLimits(rawLimits), "connection");
+  }
+
+  async function acquireExecution(
+    subject: string,
+    rawLimits: WebSocketExecutionLeaseLimits,
+  ): Promise<WebSocketConnectionLeaseDecision> {
+    const limits = normalizeExecutionLimits(rawLimits);
+    return acquireScoped(subject, `${options.namespace}:execution`, {
+      maxConnections: limits.maxInFlightMessages,
+      maxConnectionsPerSubject: limits.maxInFlightPerSubject,
+    }, "execution");
+  }
+
+  async function acquireScoped(
+    subject: string,
+    namespace: string,
+    limits: WebSocketConnectionLeaseLimits,
+    kind: LeaseKind,
+  ): Promise<WebSocketConnectionLeaseDecision> {
     const normalizedSubject = normalizeSubject(subject);
-    const limits = normalizeLimits(rawLimits);
-    const subjectHash = hashSubject(options.secret, options.namespace, normalizedSubject);
+    const subjectHash = hashSubject(options.secret, namespace, normalizedSubject);
     let pool: PostgresPoolLike;
     try {
       pool = await getReadyPool();
@@ -204,7 +236,7 @@ export function createPostgresWebSocketConnectionLeaseManager(
           COUNT(*) FILTER (WHERE namespace = $1 AND subject_hash = $2)::bigint AS subject_count
         FROM ${TABLE}
         WHERE lease_expires_at > clock_timestamp()
-      `, [options.namespace, subjectHash]);
+      `, [namespace, subjectHash]);
       const row = counts.rows[0];
       if (!row) throw new Error("The WebSocket connection lease count query returned no row.");
 
@@ -214,11 +246,13 @@ export function createPostgresWebSocketConnectionLeaseManager(
       if (subjectCount >= limits.maxConnectionsPerSubject) {
         await client.query("COMMIT");
         denied += 1;
+        if (kind === "execution") executionDenied += 1;
         return deniedDecision("subject", options.leaseMs);
       }
       if (namespaceCount >= limits.maxConnections) {
         await client.query("COMMIT");
         denied += 1;
+        if (kind === "execution") executionDenied += 1;
         return deniedDecision("global", options.leaseMs);
       }
       if (allCount >= options.maxRows) throw new WebSocketConnectionLeaseCapacityError();
@@ -234,7 +268,7 @@ export function createPostgresWebSocketConnectionLeaseManager(
           clock_timestamp()
         )
         RETURNING fencing_token
-      `, [options.namespace, subjectHash, leaseId, options.leaseMs]);
+      `, [namespace, subjectHash, leaseId, options.leaseMs]);
       const fencingToken = inserted.rows[0]?.fencing_token;
       if (fencingToken === undefined || fencingToken === null) {
         throw new Error("The atomic WebSocket connection lease insert returned no fencing token.");
@@ -242,12 +276,14 @@ export function createPostgresWebSocketConnectionLeaseManager(
       await client.query("COMMIT");
       available = true;
       acquired += 1;
+      if (kind === "execution") executionAcquired += 1;
 
       const controller = createLeaseController(pool, {
-        namespace: options.namespace,
+        namespace,
         subjectHash,
         leaseId,
         fencingToken: String(fencingToken),
+        kind,
       }, confirmationStartedAt);
       if (!controller.lease.isValid()) {
         await controller.lease.release();
@@ -271,7 +307,13 @@ export function createPostgresWebSocketConnectionLeaseManager(
 
   function createLeaseController(
     pool: PostgresPoolLike,
-    identity: { namespace: string; subjectHash: string; leaseId: string; fencingToken: string },
+    identity: {
+      namespace: string;
+      subjectHash: string;
+      leaseId: string;
+      fencingToken: string;
+      kind: LeaseKind;
+    },
     confirmationStartedAt: number,
   ): LeaseController {
     let state: "active" | "lost" | "releasing" | "released" = "active";
@@ -282,6 +324,7 @@ export function createPostgresWebSocketConnectionLeaseManager(
     let releasePromise: Promise<void> | null = null;
 
     const controller: LeaseController = {
+      kind: identity.kind,
       lose,
       lease: {
         isValid,
@@ -328,6 +371,7 @@ export function createPostgresWebSocketConnectionLeaseManager(
       if (timer) clearInterval(timer);
       timer = null;
       lost += 1;
+      if (identity.kind === "execution") executionLost += 1;
       notifyLost();
     }
 
@@ -391,6 +435,7 @@ export function createPostgresWebSocketConnectionLeaseManager(
           state = "released";
           activeLeases.delete(controller);
           if (previousState !== "released") released += 1;
+          if (previousState !== "released" && identity.kind === "execution") executionReleased += 1;
         }
       })();
       return releasePromise;
@@ -400,12 +445,17 @@ export function createPostgresWebSocketConnectionLeaseManager(
   }
 
   function statsSnapshot(): Record<string, unknown> {
+    const activeLocalExecutionLeases = [...activeLeases]
+      .filter((controller) => controller.kind === "execution")
+      .length;
     return {
       mode: "postgres",
       storeMode: "postgres",
       distributed: true,
       available,
       activeLocalLeases: activeLeases.size,
+      activeLocalExecutionLeases,
+      executionLeasesSupported: true,
       leaseMs: options.leaseMs,
       localSafetyMs: localLeaseSafetyMs(options.leaseMs),
       maxRows: options.maxRows,
@@ -413,11 +463,16 @@ export function createPostgresWebSocketConnectionLeaseManager(
       denied,
       lost,
       released,
+      executionAcquired,
+      executionDenied,
+      executionLost,
+      executionReleased,
     };
   }
 
   return {
     acquire,
+    acquireExecution,
     async checkHealth() {
       try {
         const pool = await getReadyPool();
@@ -540,6 +595,23 @@ function normalizeLimits(limits: WebSocketConnectionLeaseLimits): WebSocketConne
       1,
       1_000_000,
       "maxConnectionsPerSubject",
+    ),
+  };
+}
+
+function normalizeExecutionLimits(limits: WebSocketExecutionLeaseLimits): WebSocketExecutionLeaseLimits {
+  return {
+    maxInFlightMessages: boundedInteger(
+      limits?.maxInFlightMessages,
+      1,
+      1_000_000,
+      "maxInFlightMessages",
+    ),
+    maxInFlightPerSubject: boundedInteger(
+      limits?.maxInFlightPerSubject,
+      1,
+      1_000_000,
+      "maxInFlightPerSubject",
     ),
   };
 }

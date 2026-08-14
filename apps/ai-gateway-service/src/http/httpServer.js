@@ -167,6 +167,7 @@ import {
   createRagRetrieveRequest,
   createRagCitations,
   createRagPrompt,
+  createRagMessages,
   createRagChatData,
 } from "./utils/chatUtils.js";
 import {
@@ -242,7 +243,7 @@ const HTTP_ROUTE_DEPENDENCIES = Object.freeze({
   readEnterpriseReleaseCandidateDryRun, readEnterpriseOverview, buildPhase319FeatureStatus, readCapabilityJson,
   readEnterpriseJson, writeEnterpriseError, writeCapabilityError, normalizeChatBody,
   normalizeRagChatBody, extractChatPrompt, createRagRetrieveRequest, createRagCitations,
-  createRagPrompt, createRagChatData, OWNER_AUTOMATION_CHAT_PROPOSAL_FLAG,
+  createRagPrompt, createRagMessages, createRagChatData, OWNER_AUTOMATION_CHAT_PROPOSAL_FLAG,
 });
 const HTTP_ROUTE_GROUPS = Object.freeze([
   dispatchA2ARoutes,
@@ -405,6 +406,7 @@ export function createGatewayHttpServer(application) {
       return webSocketMessageLimiter.check(subject);
     },
     connectionLeaseManager: webSocketConnectionLeaseManager,
+    executionLeaseManager: webSocketConnectionLeaseManager,
     authenticate(request) {
       return enterpriseGovernanceService.authorize(request, "chat:use");
     },

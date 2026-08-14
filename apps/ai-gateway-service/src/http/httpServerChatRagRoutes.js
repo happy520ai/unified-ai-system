@@ -11,7 +11,7 @@ import {
   extractChatPrompt,
   createRagRetrieveRequest,
   createRagCitations,
-  createRagPrompt,
+  createRagMessages,
   normalizeRagChatBody,
   createRagChatData,
 } from "./utils/chatUtils.js";
@@ -48,11 +48,11 @@ export function createChatRagRoutes(ctx) {
       const retrieveRequest = createRagRetrieveRequest(body, prompt);
       const retrieveResult = knowledgeService.retrieve(retrieveRequest);
       const citations = createRagCitations(retrieveResult.chunks);
-      const augmentedPrompt = createRagPrompt(prompt, citations);
+      const ragMessages = createRagMessages(prompt, citations);
       const chatInput = normalizeRagChatBody(
         {
           ...body,
-          prompt: augmentedPrompt,
+          prompt,
           metadata: {
             ...(body.metadata ?? {}),
             phase: "phase-31a-rag-stream-chat",
@@ -63,6 +63,7 @@ export function createChatRagRoutes(ctx) {
           },
         },
         application.config,
+        { messages: ragMessages },
       );
 
       const providerKey = chatInput?.providerId ?? chatInput?.provider ?? "gateway";
@@ -177,11 +178,11 @@ export function createChatRagRoutes(ctx) {
       const retrieveRequest = createRagRetrieveRequest(body, prompt);
       const retrieveResult = knowledgeService.retrieve(retrieveRequest);
       const citations = createRagCitations(retrieveResult.chunks);
-      const augmentedPrompt = createRagPrompt(prompt, citations);
+      const ragMessages = createRagMessages(prompt, citations);
       const chatInput = normalizeRagChatBody(
         {
           ...body,
-          prompt: augmentedPrompt,
+          prompt,
           metadata: {
             ...(body.metadata ?? {}),
             phase: "phase-29a-service-rag-chat",
@@ -192,6 +193,7 @@ export function createChatRagRoutes(ctx) {
           },
         },
         application.config,
+        { messages: ragMessages },
       );
       const chatResult = await gatewayService.execute(chatInput);
       const ragData = createRagChatData({

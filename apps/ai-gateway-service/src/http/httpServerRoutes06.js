@@ -22,7 +22,7 @@ export async function dispatchHttpRoutes06(context) {
     readEnterpriseReleaseCandidateDryRun, readEnterpriseOverview, buildPhase319FeatureStatus, readCapabilityJson,
     readEnterpriseJson, writeEnterpriseError, writeCapabilityError, normalizeChatBody,
     normalizeRagChatBody, extractChatPrompt, createRagRetrieveRequest, createRagCitations,
-    createRagPrompt, createRagChatData, OWNER_AUTOMATION_CHAT_PROPOSAL_FLAG, application,
+    createRagMessages, createRagChatData, OWNER_AUTOMATION_CHAT_PROPOSAL_FLAG, application,
     request, response, url, startedAt,
     approvalStore, fileContextStore, phase319LocalOperation, connectorFeishuDryRun,
     connectorWeComDryRun, capabilityRouterService, codexExecCrsRuntimeCandidate, enterpriseGovernanceService,
@@ -105,11 +105,11 @@ export async function dispatchHttpRoutes06(context) {
       const retrieveRequest = createRagRetrieveRequest(body, prompt);
       const retrieveResult = knowledgeService.retrieve(retrieveRequest);
       const citations = createRagCitations(retrieveResult.chunks);
-      const augmentedPrompt = createRagPrompt(prompt, citations);
+      const ragMessages = createRagMessages(prompt, citations);
       const chatInput = normalizeRagChatBody(
         {
           ...body,
-          prompt: augmentedPrompt,
+          prompt,
           metadata: {
             ...(body.metadata ?? {}),
             phase: "phase-31a-rag-stream-chat",
@@ -120,6 +120,7 @@ export async function dispatchHttpRoutes06(context) {
           },
         },
         application.config,
+        { messages: ragMessages },
       );
 
       let clientClosed = false;
@@ -210,11 +211,11 @@ export async function dispatchHttpRoutes06(context) {
       const retrieveRequest = createRagRetrieveRequest(body, prompt);
       const retrieveResult = knowledgeService.retrieve(retrieveRequest);
       const citations = createRagCitations(retrieveResult.chunks);
-      const augmentedPrompt = createRagPrompt(prompt, citations);
+      const ragMessages = createRagMessages(prompt, citations);
       const chatInput = normalizeRagChatBody(
         {
           ...body,
-          prompt: augmentedPrompt,
+          prompt,
           metadata: {
             ...(body.metadata ?? {}),
             phase: "phase-29a-service-rag-chat",
@@ -225,6 +226,7 @@ export async function dispatchHttpRoutes06(context) {
           },
         },
         application.config,
+        { messages: ragMessages },
       );
       const chatResult = await gatewayService.execute(chatInput);
       const ragData = createRagChatData({

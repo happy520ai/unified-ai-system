@@ -209,6 +209,89 @@ describe("governed websocket server", () => {
     release();
   });
 
+  it("enforces one execution lease across independent gateway instances", async () => {
+    const executionLeases = createSharedExecutionLeaseManager();
+    let releaseFirst;
+    const pending = new Promise((resolve) => { releaseFirst = resolve; });
+    const firstMessage = vi.fn(async () => pending);
+    const secondMessage = vi.fn();
+    const authenticate = async () => ({
+      allowed: true,
+      identity: { userId: "alice", tenantId: "tenant-a" },
+    });
+    const first = await startGateway({
+      authenticate,
+      executionLeaseManager: executionLeases,
+      maxInFlightMessages: 4,
+      maxInFlightPerSubject: 1,
+      onMessage: firstMessage,
+    });
+    const second = await startGateway({
+      authenticate,
+      executionLeaseManager: executionLeases,
+      maxInFlightMessages: 4,
+      maxInFlightPerSubject: 1,
+      onMessage: secondMessage,
+    });
+    const firstClient = await connect(first.url);
+    const secondClient = await connect(second.url);
+
+    firstClient.send("first node");
+    await waitFor(() => firstMessage.mock.calls.length === 1);
+    const closed = waitForClose(secondClient);
+    secondClient.send("second node");
+
+    await expect(closed).resolves.toMatchObject({ code: 1013, reason: "Too many in-flight messages" });
+    expect(secondMessage).not.toHaveBeenCalled();
+    expect(second.gateway.getSecuritySnapshot()).toMatchObject({
+      concurrencyRejected: 1,
+      executionLeaseRejected: 1,
+    });
+    releaseFirst();
+    await waitFor(() => executionLeases.active() === 0);
+  });
+
+  it("fails closed before provider work when the execution lease store is unavailable", async () => {
+    const onMessage = vi.fn();
+    const { url, gateway } = await startGateway({
+      authenticate: async () => ({ allowed: true, identity: { userId: "alice" } }),
+      executionLeaseManager: {
+        acquireExecution: async () => { throw new Error("execution lease store down"); },
+      },
+      onMessage,
+    });
+    const client = await connect(url);
+    const closed = waitForClose(client);
+    client.send("must not execute");
+
+    await expect(closed).resolves.toMatchObject({ code: 1013, reason: "Execution lease unavailable" });
+    expect(onMessage).not.toHaveBeenCalled();
+    expect(gateway.getSecuritySnapshot().executionLeaseUnavailable).toBe(1);
+  });
+
+  it("closes an executing socket when its distributed execution lease is lost", async () => {
+    const executionLeases = createSharedExecutionLeaseManager();
+    let releaseWork;
+    const pending = new Promise((resolve) => { releaseWork = resolve; });
+    const onMessage = vi.fn(async () => pending);
+    const { url, gateway } = await startGateway({
+      authenticate: async () => ({ allowed: true, identity: { userId: "alice" } }),
+      executionLeaseManager: executionLeases,
+      onMessage,
+    });
+    const client = await connect(url);
+    const closed = waitForClose(client);
+    client.send("long-running request");
+    await waitFor(() => onMessage.mock.calls.length === 1);
+
+    executionLeases.loseLatest();
+
+    await expect(closed).resolves.toMatchObject({ code: 1013, reason: "Execution lease unavailable" });
+    expect(gateway.getSecuritySnapshot().executionLeaseLost).toBe(1);
+    releaseWork();
+    await waitFor(() => executionLeases.active() === 0);
+  });
+
   it("rejects binary messages", async () => {
     const onMessage = vi.fn();
     const { url, gateway } = await startGateway({ authenticate: async () => true, onMessage });
@@ -434,6 +517,56 @@ async function startGateway(options = {}) {
     await new Promise((resolve) => transport.close(() => resolve()));
   });
   return { gateway, transport, url };
+}
+
+function createSharedExecutionLeaseManager() {
+  let activeCount = 0;
+  const activeBySubject = new Map();
+  const leases = [];
+  return {
+    active: () => activeCount,
+    loseLatest: () => leases.at(-1)?.lose(),
+    async acquireExecution(subject, limits) {
+      const subjectCount = activeBySubject.get(subject) ?? 0;
+      if (subjectCount >= limits.maxInFlightPerSubject) {
+        return { acquired: false, scope: "subject", retryAfterSeconds: 1 };
+      }
+      if (activeCount >= limits.maxInFlightMessages) {
+        return { acquired: false, scope: "global", retryAfterSeconds: 1 };
+      }
+      let valid = true;
+      let released = false;
+      let onLost = null;
+      activeCount += 1;
+      activeBySubject.set(subject, subjectCount + 1);
+      const controller = {
+        lose() {
+          if (!valid) return;
+          valid = false;
+          queueMicrotask(() => onLost?.());
+        },
+      };
+      leases.push(controller);
+      return {
+        acquired: true,
+        lease: {
+          isValid: () => valid,
+          start(callback) {
+            onLost = callback;
+          },
+          async release() {
+            if (released) return;
+            released = true;
+            valid = false;
+            activeCount = Math.max(0, activeCount - 1);
+            const remaining = Math.max(0, (activeBySubject.get(subject) ?? 1) - 1);
+            if (remaining === 0) activeBySubject.delete(subject);
+            else activeBySubject.set(subject, remaining);
+          },
+        },
+      };
+    },
+  };
 }
 
 function connect(url, options = {}) {
