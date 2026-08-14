@@ -219,14 +219,15 @@ For a no-clone prompt-enhancement walkthrough, start the published gateway
 image and follow the [provider-free curl example](docs/examples/prompt-enhancement-curl.md):
 
 ```bash
-read -rsp "Enter a random gateway token (32+ characters): " GATEWAY_TOKEN
+read -rsp "Enter a random gateway token (32+ characters): " PME_AUTH_TOKEN
 printf '\n'
+export PME_AUTH_TOKEN
 docker run --rm --publish 127.0.0.1:3100:3100 \
   --env AI_GATEWAY_SERVICE_HOST=0.0.0.0 \
   --env AI_GATEWAY_PROVIDER_MODE=fake \
   --env AI_GATEWAY_REAL_PROVIDER_ENABLED=false \
   --env PME_ENTERPRISE_AUTH_ENABLED=true \
-  --env PME_AUTH_TOKEN="$GATEWAY_TOKEN" \
+  --env PME_AUTH_TOKEN \
   ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.9
 ```
 

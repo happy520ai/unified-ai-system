@@ -83,10 +83,10 @@ describePostgres("real PostgreSQL distributed rate limiting", () => {
     });
 
     expect(firstIdentity.clientAddress).not.toBe(secondIdentity.clientAddress);
-    expect(firstIdentity.requestSubject).toBe(secondIdentity.requestSubject);
-    expect(firstIdentity.requestSubject).not.toContain("integration-credential");
-    await expect(first.check(firstIdentity.requestSubject)).resolves.toMatchObject({ allowed: true, remaining: 0 });
-    await expect(second.check(secondIdentity.requestSubject)).resolves.toMatchObject({ allowed: false, remaining: 0 });
+    expect(firstIdentity.subject).toBe(secondIdentity.subject);
+    expect(firstIdentity.subject).not.toContain("integration-credential");
+    await expect(first.check(firstIdentity.subject)).resolves.toMatchObject({ allowed: true, remaining: 0 });
+    await expect(second.check(secondIdentity.subject)).resolves.toMatchObject({ allowed: false, remaining: 0 });
 
     await first.close();
     await second.close();
