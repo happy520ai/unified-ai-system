@@ -5,6 +5,7 @@ type ShutdownServer = {
   close(callback: (error?: Error) => void): void;
   closeIdleConnections?(): void;
   closeAllConnections?(): void;
+  closeRealtimeConnections?(code?: number, reason?: string): void;
   shutdownResources?(): Promise<void>;
 };
 
@@ -57,6 +58,7 @@ export function createGatewayShutdownController(options: GatewayShutdownOptions)
         reason,
         exitCode,
       }, "Graceful shutdown timed out.");
+      options.server.closeRealtimeConnections?.(1012, "Gateway forced shutdown");
       options.server.closeAllConnections?.();
       options.destroyPools();
       options.exit(exitCode || 1);
@@ -64,6 +66,7 @@ export function createGatewayShutdownController(options: GatewayShutdownOptions)
     forceTimer.unref?.();
 
     const beginClose = () => {
+      options.server.closeRealtimeConnections?.(1001, "Gateway shutting down");
       options.server.close((error) => {
         void finishShutdown(error, forceTimer, reason, exitCode);
       });

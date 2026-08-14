@@ -245,7 +245,9 @@ describe("Batch9-7: WebSocket error message sanitization", () => {
     // Find the WebSocket onMessage error handler
     const wsHandlerStart = src.indexOf("async onMessage(message, ws)");
     assert.ok(wsHandlerStart > 0, "WebSocket onMessage handler should exist");
-    const wsSection = src.slice(wsHandlerStart, wsHandlerStart + 1200);
+    const wsHandlerEnd = src.indexOf("\n    onClose(ws)", wsHandlerStart);
+    assert.ok(wsHandlerEnd > wsHandlerStart, "WebSocket onMessage handler boundary should exist");
+    const wsSection = src.slice(wsHandlerStart, wsHandlerEnd);
 
     // Should NOT send e.message directly
     assert.ok(!wsSection.includes("message: e.message"), "Must NOT send raw e.message to WebSocket client");

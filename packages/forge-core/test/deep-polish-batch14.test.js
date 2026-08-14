@@ -166,9 +166,26 @@ describe("Batch14 Fix6: webSocketServer connection cap", () => {
   it("sends 503 and destroys socket when limit reached", () => {
     const idx = src.indexOf("connections.size >= maxConnections");
     assert.ok(idx >= 0, "cap check not found");
-    const window = src.slice(idx, idx + 300);
+    const window = src.slice(idx, idx + 700);
     assert.ok(window.includes("503"), "should send 503 status");
-    assert.ok(window.includes("socket.destroy"), "should destroy socket");
+    assert.ok(window.includes("rejectUpgrade"), "should terminate the rejected upgrade");
+  });
+
+  it("also caps connections per authenticated subject", () => {
+    assert.ok(src.includes("maxConnectionsPerSubject"), "per-subject cap not found");
+    assert.ok(src.includes("429 Too Many Requests"), "per-subject rejection status not found");
+  });
+
+  it("is explicitly attached to the gateway HTTP server", () => {
+    const httpServerSource = ESM_SRC("http/httpServer.js");
+    assert.ok(
+      httpServerSource.includes("wsServer.attach(server)"),
+      "WebSocket transport must not remain an unbound dead feature"
+    );
+    assert.ok(
+      httpServerSource.includes("closeRealtimeConnections"),
+      "WebSocket transport must participate in gateway shutdown"
+    );
   });
 });
 

@@ -344,13 +344,23 @@ export function createGatewayHttpServer(application) {
   const connectorWeComDryRun = !(application.runtimeEnv?.WECOM_WEBHOOK_URL || process.env.WECOM_WEBHOOK_URL);
 
   const wsServer = createWebSocketServer({
-    allowedOrigins: String(
-      application.runtimeEnv?.CORS_ALLOWED_ORIGINS
-      ?? "http://127.0.0.1:3100,http://localhost:3100",
-    )
-      .split(",")
-      .map((origin) => origin.trim())
-      .filter(Boolean),
+    allowedOrigins: corsAllowedOrigins,
+    environment: requestConfig.NODE_ENV,
+    maxConnections: requestConfig.AI_GATEWAY_WS_MAX_CONNECTIONS,
+    maxConnectionsPerSubject: requestConfig.AI_GATEWAY_WS_MAX_CONNECTIONS_PER_SUBJECT,
+    maxPendingUpgrades: requestConfig.AI_GATEWAY_WS_MAX_PENDING_UPGRADES,
+    maxPayloadBytes: Math.min(
+      maxRequestBodyBytes,
+      parsePositiveInteger(requestConfig.AI_GATEWAY_WS_MAX_MESSAGE_BYTES, 256 * 1024),
+    ),
+    maxMessagesPerWindow: requestConfig.AI_GATEWAY_WS_MAX_MESSAGES_PER_WINDOW,
+    messageWindowMs: requestConfig.AI_GATEWAY_WS_MESSAGE_WINDOW_MS,
+    maxInFlightMessages: requestConfig.AI_GATEWAY_WS_MAX_IN_FLIGHT_MESSAGES,
+    maxInFlightPerSubject: requestConfig.AI_GATEWAY_WS_MAX_IN_FLIGHT_PER_SUBJECT,
+    authenticationTimeoutMs: requestConfig.AI_GATEWAY_WS_AUTH_TIMEOUT_MS,
+    heartbeatIntervalMs: requestConfig.AI_GATEWAY_WS_HEARTBEAT_INTERVAL_MS,
+    maxBufferedAmountBytes: requestConfig.AI_GATEWAY_WS_MAX_BUFFERED_AMOUNT_BYTES,
+    shutdownGraceMs: requestConfig.AI_GATEWAY_WS_SHUTDOWN_GRACE_MS,
     authenticate(request) {
       return enterpriseGovernanceService.authorize(request, "chat:use");
     },
@@ -361,14 +371,40 @@ export function createGatewayHttpServer(application) {
     async onMessage(message, ws) {
       try {
         const data = JSON.parse(message);
-        if (data.type === "chat" && data.prompt) {
-          const result = await gatewayService.execute({
+        if (!data || typeof data !== "object" || Array.isArray(data)) {
+          ws.send(JSON.stringify(createErrorEnvelope(
+            "WEBSOCKET_MESSAGE_INVALID",
+            "WebSocket messages must be JSON objects.",
+            { category: "request", retryable: false },
+          )));
+          return;
+        }
+        if (data.type === "chat") {
+          if (typeof data.prompt !== "string" || !data.prompt.trim()) {
+            ws.send(JSON.stringify(createErrorEnvelope(
+              "WEBSOCKET_MESSAGE_INVALID",
+              "Chat messages require a non-empty string prompt.",
+              { category: "request", retryable: false },
+            )));
+            return;
+          }
+          const result = await tracedGatewayService.execute({
             messages: [{ role: "user", content: data.prompt }],
-            metadata: { source: "websocket", userId: ws.identity?.userId },
+            metadata: {
+              source: "websocket",
+              userId: ws.identity?.userId,
+              tenantId: ws.identity?.tenantId,
+            },
           });
           ws.send(JSON.stringify({ type: "chat_response", data: result }));
         } else if (data.type === "ping") {
           ws.send(JSON.stringify({ type: "pong", timestamp: Date.now() }));
+        } else {
+          ws.send(JSON.stringify(createErrorEnvelope(
+            "WEBSOCKET_MESSAGE_INVALID",
+            "Unsupported WebSocket message type.",
+            { category: "request", retryable: false },
+          )));
         }
       } catch (e) {
         logger.warn("ws_message_failed", { error: e.message });
@@ -789,8 +825,10 @@ export function createGatewayHttpServer(application) {
       );
     }
   });
+  wsServer.attach(server);
   let shutdownResourcesPromise;
   server.gatewayLifecycle = gatewayLifecycle;
+  server.closeRealtimeConnections = () => wsServer.close(1001, "Gateway shutting down");
   server.shutdownResources = () => {
     shutdownResourcesPromise ??= (async () => {
       await idempotencyCoordinator.close();
@@ -800,6 +838,7 @@ export function createGatewayHttpServer(application) {
     return shutdownResourcesPromise;
   };
   server.on("close", () => {
+    wsServer.close(1001, "Gateway stopped");
     gatewayLifecycle.markStopped();
     void server.shutdownResources().catch((error) => {
       writeServiceLog("opentelemetry_shutdown_failed", {

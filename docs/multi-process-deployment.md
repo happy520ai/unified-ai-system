@@ -141,6 +141,22 @@ draining and a load-balancer health check are still required during restart.
 See the [graceful shutdown contract](./graceful-shutdown-contract.md) for the
 probe routes, propagation window, and forced termination boundary.
 
+The `/ws` endpoint uses the same bearer-token authorization and
+`AI_GATEWAY_CORS_ALLOWED_ORIGINS` allowlist as HTTP. Its secure defaults are 100
+total connections, 5 connections per authenticated subject, 32 pending
+handshakes, 256 KiB per message, 60 messages per 60 seconds, 64 total in-flight
+messages, and 2 in-flight messages per subject. Operators may lower these with
+`AI_GATEWAY_WS_MAX_CONNECTIONS`,
+`AI_GATEWAY_WS_MAX_CONNECTIONS_PER_SUBJECT`,
+`AI_GATEWAY_WS_MAX_PENDING_UPGRADES`,
+`AI_GATEWAY_WS_MAX_MESSAGE_BYTES`,
+`AI_GATEWAY_WS_MAX_MESSAGES_PER_WINDOW`,
+`AI_GATEWAY_WS_MESSAGE_WINDOW_MS`,
+`AI_GATEWAY_WS_MAX_IN_FLIGHT_MESSAGES`, and
+`AI_GATEWAY_WS_MAX_IN_FLIGHT_PER_SUBJECT`. Production rejects wildcard browser
+origins, compression is disabled, authentication is time-bounded, and shutdown
+actively closes upgraded sockets before the HTTP listener exits.
+
 ## Operational rules
 
 1. Keep each SQLite database and its WAL/SHM files on a restricted local volume.

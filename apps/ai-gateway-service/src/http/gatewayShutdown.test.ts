@@ -16,6 +16,7 @@ describe("gateway shutdown controller", () => {
       close: vi.fn((callback) => { closeCallback = callback; }),
       closeIdleConnections: vi.fn(),
       closeAllConnections: vi.fn(),
+      closeRealtimeConnections: vi.fn(),
       shutdownResources: vi.fn(async () => undefined),
     };
     const logger = { info: vi.fn(), error: vi.fn(), fatal: vi.fn() };
@@ -38,6 +39,7 @@ describe("gateway shutdown controller", () => {
     await vi.advanceTimersByTimeAsync(1_000);
     expect(server.close).toHaveBeenCalledTimes(1);
     expect(server.closeIdleConnections).toHaveBeenCalledTimes(1);
+    expect(server.closeRealtimeConnections).toHaveBeenCalledWith(1001, "Gateway shutting down");
 
     closeCallback?.();
     await Promise.resolve();
@@ -56,6 +58,7 @@ describe("gateway shutdown controller", () => {
       close: vi.fn(),
       closeIdleConnections: vi.fn(),
       closeAllConnections: vi.fn(),
+      closeRealtimeConnections: vi.fn(),
       shutdownResources: vi.fn(async () => undefined),
     };
     const logger = { info: vi.fn(), error: vi.fn(), fatal: vi.fn() };
@@ -76,6 +79,7 @@ describe("gateway shutdown controller", () => {
     await vi.advanceTimersByTimeAsync(10_000);
 
     expect(server.closeAllConnections).toHaveBeenCalledTimes(1);
+    expect(server.closeRealtimeConnections).toHaveBeenCalledWith(1012, "Gateway forced shutdown");
     expect(destroyPools).toHaveBeenCalledTimes(1);
     expect(exit).toHaveBeenCalledWith(1);
   });

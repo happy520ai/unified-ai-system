@@ -25,7 +25,7 @@ importers:
         version: 22.20.1
       openai:
         specifier: 7.4.0
-        version: 7.4.0(zod@4.4.3)
+        version: 7.4.0(ws@8.21.3)(zod@4.4.3)
       typescript:
         specifier: ^5.6.3
         version: 5.9.3
@@ -119,6 +119,9 @@ importers:
       pino:
         specifier: 10.3.1
         version: 10.3.1
+      ws:
+        specifier: 8.21.3
+        version: 8.21.3
       xlsx:
         specifier: https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz
         version: https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz
@@ -1556,6 +1559,18 @@ packages:
   wrappy@1.0.2:
     resolution: {integrity: sha512-l4Sp/DRseor9wL6EvV2+TuQn63dMkPjZ/sp9XkghTEbV9KlPS1xUsZ3u7/IQO4wxtcFB4bgpQPRcR3QCvezPcQ==}
 
+  ws@8.21.3:
+    resolution: {integrity: sha512-201TZ/kPWxoPr/OKWjquZR1SWKXcvxdH+e1xrx89b3YbmzLMFCLfnaG1HFIgWzJOEWZ7MvpK++odZufgYR50Rw==}
+    engines: {node: '>=10.0.0'}
+    peerDependencies:
+      bufferutil: ^4.0.1
+      utf-8-validate: '>=5.0.2'
+    peerDependenciesMeta:
+      bufferutil:
+        optional: true
+      utf-8-validate:
+        optional: true
+
   xlsx@https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz:
     resolution: {integrity: sha512-oLDq3jw7AcLqKWH2AhCpVTZl8mf6X2YReP+Neh0SJUzV/BdZYjth94tG5toiMB1PPrYtxOCfaoUCkvtuH+3AJA==, tarball: https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz}
     version: 0.20.3
@@ -2309,8 +2324,9 @@ snapshots:
     dependencies:
       mimic-function: 5.0.1
 
-  openai@7.4.0(zod@4.4.3):
+  openai@7.4.0(ws@8.21.3)(zod@4.4.3):
     optionalDependencies:
+      ws: 8.21.3
       zod: 4.4.3
 
   option@0.2.4: {}
@@ -2732,6 +2748,8 @@ snapshots:
       strip-ansi: 7.2.0
 
   wrappy@1.0.2: {}
+
+  ws@8.21.3: {}
 
   xlsx@https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz: {}
 

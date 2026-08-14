@@ -1,157 +1,480 @@
 /**
- * WebSocket Support
- * Provides real-time bidirectional communication for chat.
+ * Governed WebSocket transport for real-time gateway chat.
+ * RFC 6455 parsing is delegated to the maintained `ws` implementation. This
+ * module owns gateway-specific authentication, tenancy, abuse, and lifecycle
+ * policy only.
  */
 
-import { createServer } from "node:http";
-import { createHash } from "node:crypto";
+import WebSocket, { WebSocketServer } from "ws";
 
-const WS_MAGIC_STRING = "258EAFA5-E914-47DA-95CA-5AB9FFC3B2E8";
-const WS_FRAME_TYPES = { TEXT: 0x01, BINARY: 0x02, CLOSE: 0x08, PING: 0x09, PONG: 0x0a };
 const MAX_WS_CONNECTIONS = 100;
-const MAX_WS_PAYLOAD = 16 * 1024 * 1024;
-const DEFAULT_ALLOWED_ORIGINS = [
+const DEFAULT_MAX_CONNECTIONS_PER_SUBJECT = 5;
+const DEFAULT_MAX_PENDING_UPGRADES = 32;
+const DEFAULT_MAX_WS_PAYLOAD = 256 * 1024;
+const MAX_CONFIGURABLE_WS_PAYLOAD = 2 * 1024 * 1024;
+const DEFAULT_MESSAGES_PER_WINDOW = 60;
+const DEFAULT_MESSAGE_WINDOW_MS = 60_000;
+const DEFAULT_MAX_IN_FLIGHT = 64;
+const DEFAULT_MAX_IN_FLIGHT_PER_SUBJECT = 2;
+const DEFAULT_AUTHENTICATION_TIMEOUT_MS = 3_000;
+const DEFAULT_HEARTBEAT_INTERVAL_MS = 30_000;
+const DEFAULT_MAX_BUFFERED_AMOUNT_BYTES = 1024 * 1024;
+const DEFAULT_SHUTDOWN_GRACE_MS = 1_000;
+const DEFAULT_ALLOWED_ORIGINS = Object.freeze([
   "http://127.0.0.1:3100",
   "http://localhost:3100",
-];
+]);
 
 /**
- * Create a WebSocket server that upgrades HTTP connections.
- * @param {Object} options
- * @param {Function} options.onConnection - Called when a client connects
- * @param {Function} options.onMessage - Called when a message is received
- * @param {Function} [options.authenticate] - Optional auth check
- * @param {string[]} [options.allowedOrigins] - Browser origins allowed to upgrade
- * @param {Function} options.onClose - Called when a connection closes
- * @param {Function} options.onError - Called when frame handling or close fails
- * @returns {Object} WebSocket server with attach() method
+ * @typedef {{ userId?: string, tenantId?: string, role?: string }} GatewayIdentity
+ * @typedef {{ allowed?: boolean, identity?: GatewayIdentity, statusCode?: number }} AuthenticationDecision
+ * @typedef {{
+ *   socket: WebSocket,
+ *   identity: GatewayIdentity | null,
+ *   send(data: unknown): boolean,
+ *   close(code?: number, reason?: string): void,
+ *   terminate(): void,
+ * }} GatewayWebSocketConnection
+ */
+
+/**
+ * Create a fail-closed WebSocket server for an existing HTTP server.
+ *
+ * @param {Object} [options]
+ * @param {(request: import("node:http").IncomingMessage) => boolean | AuthenticationDecision | Promise<boolean | AuthenticationDecision>} [options.authenticate]
+ * @param {string[]} [options.allowedOrigins]
+ * @param {number|string} [options.maxConnections]
+ * @param {number|string} [options.maxConnectionsPerSubject]
+ * @param {number|string} [options.maxPendingUpgrades]
+ * @param {number|string} [options.maxPayloadBytes]
+ * @param {number|string} [options.maxMessagesPerWindow]
+ * @param {number|string} [options.messageWindowMs]
+ * @param {number|string} [options.maxInFlightMessages]
+ * @param {number|string} [options.maxInFlightPerSubject]
+ * @param {number|string} [options.authenticationTimeoutMs]
+ * @param {number|string} [options.heartbeatIntervalMs]
+ * @param {number|string} [options.maxBufferedAmountBytes]
+ * @param {number|string} [options.shutdownGraceMs]
+ * @param {string} [options.environment]
+ * @param {(connection: GatewayWebSocketConnection) => void} [options.onConnection]
+ * @param {(message: string, connection: GatewayWebSocketConnection) => unknown | Promise<unknown>} [options.onMessage]
+ * @param {(connection: GatewayWebSocketConnection) => void} [options.onClose]
+ * @param {(error: Error, context: Record<string, unknown>) => void} [options.onError]
  */
 export function createWebSocketServer(options = {}) {
   const connections = new Set();
-  const configuredMax = Number(options.maxConnections);
-  const maxConnections = Number.isInteger(configuredMax) && configuredMax > 0
-    ? Math.min(configuredMax, MAX_WS_CONNECTIONS)
-    : MAX_WS_CONNECTIONS;
-  const allowedOrigins = Array.isArray(options.allowedOrigins) && options.allowedOrigins.length > 0
-    ? options.allowedOrigins
-    : DEFAULT_ALLOWED_ORIGINS;
+  const connectionState = new WeakMap();
+  const subjectConnections = new Map();
+  const subjectInFlight = new Map();
+  const subjectMessageWindows = new Map();
+  const counters = {
+    accepted: 0,
+    authenticationRejected: 0,
+    authenticationTimedOut: 0,
+    originRejected: 0,
+    capacityRejected: 0,
+    subjectConnectionRejected: 0,
+    rateLimitRejected: 0,
+    concurrencyRejected: 0,
+    binaryRejected: 0,
+    backpressureRejected: 0,
+    protocolRejected: 0,
+    heartbeatTerminated: 0,
+  };
+
+  const maxConnections = boundedPositiveInteger(options.maxConnections, MAX_WS_CONNECTIONS, MAX_WS_CONNECTIONS);
+  const maxConnectionsPerSubject = boundedPositiveInteger(
+    options.maxConnectionsPerSubject,
+    DEFAULT_MAX_CONNECTIONS_PER_SUBJECT,
+    maxConnections,
+  );
+  const maxPendingUpgrades = boundedPositiveInteger(
+    options.maxPendingUpgrades,
+    DEFAULT_MAX_PENDING_UPGRADES,
+    MAX_WS_CONNECTIONS,
+  );
+  const maxPayloadBytes = boundedPositiveInteger(
+    options.maxPayloadBytes,
+    DEFAULT_MAX_WS_PAYLOAD,
+    MAX_CONFIGURABLE_WS_PAYLOAD,
+  );
+  const maxMessagesPerWindow = boundedPositiveInteger(
+    options.maxMessagesPerWindow,
+    DEFAULT_MESSAGES_PER_WINDOW,
+    10_000,
+  );
+  const messageWindowMs = boundedPositiveInteger(
+    options.messageWindowMs,
+    DEFAULT_MESSAGE_WINDOW_MS,
+    3_600_000,
+  );
+  const maxInFlightMessages = boundedPositiveInteger(
+    options.maxInFlightMessages,
+    DEFAULT_MAX_IN_FLIGHT,
+    10_000,
+  );
+  const maxInFlightPerSubject = boundedPositiveInteger(
+    options.maxInFlightPerSubject,
+    DEFAULT_MAX_IN_FLIGHT_PER_SUBJECT,
+    maxInFlightMessages,
+  );
+  const authenticationTimeoutMs = boundedPositiveInteger(
+    options.authenticationTimeoutMs,
+    DEFAULT_AUTHENTICATION_TIMEOUT_MS,
+    30_000,
+  );
+  const heartbeatIntervalMs = boundedPositiveInteger(
+    options.heartbeatIntervalMs,
+    DEFAULT_HEARTBEAT_INTERVAL_MS,
+    300_000,
+  );
+  const maxBufferedAmountBytes = boundedPositiveInteger(
+    options.maxBufferedAmountBytes,
+    DEFAULT_MAX_BUFFERED_AMOUNT_BYTES,
+    16 * 1024 * 1024,
+  );
+  const shutdownGraceMs = boundedPositiveInteger(
+    options.shutdownGraceMs,
+    DEFAULT_SHUTDOWN_GRACE_MS,
+    10_000,
+  );
+  const allowedOrigins = normalizeAllowedOrigins(options.allowedOrigins);
+  const production = (options.environment ?? process.env.NODE_ENV) === "production";
+  if (production && allowedOrigins.includes("*")) {
+    throw new Error("Wildcard WebSocket origins are forbidden in production.");
+  }
+
+  const protocolServer = new WebSocketServer({
+    noServer: true,
+    clientTracking: false,
+    maxPayload: maxPayloadBytes,
+    perMessageDeflate: false,
+  });
+  let attachedServer = null;
+  let upgradeListener = null;
+  let heartbeatTimer = null;
+  let shutdownTimer = null;
+  let pendingUpgrades = 0;
+  let globalInFlight = 0;
+  let closed = false;
+
+  protocolServer.on("wsClientError", (error, socket, request) => {
+    counters.protocolRejected += 1;
+    reportError(error, { event: "ws_handshake_rejected", path: request?.url });
+    rejectUpgrade(socket, "400 Bad Request");
+  });
+  protocolServer.on("error", (error) => {
+    reportError(error, { event: "ws_server_error" });
+  });
 
   function attach(httpServer) {
-    httpServer.on("upgrade", async (request, socket, head) => {
-      if (request.url !== "/ws") {
-        socket.destroy();
-        return;
-      }
+    if (attachedServer) {
+      throw new Error("WebSocket server is already attached.");
+    }
+    if (!httpServer || typeof httpServer.on !== "function") {
+      throw new TypeError("A valid HTTP server is required.");
+    }
+    attachedServer = httpServer;
+    upgradeListener = (request, socket, head) => {
+      void handleUpgrade(request, socket, head).catch((error) => {
+        reportError(error, { event: "ws_upgrade_failed", path: request?.url });
+        rejectUpgrade(socket, "500 Internal Server Error");
+      });
+    };
+    httpServer.on("upgrade", upgradeListener);
+    startHeartbeat();
+  }
 
-      const reportError = (error, context = {}) => {
-        options.onError?.(error, { path: request.url, ...context });
-      };
-      const origin = request.headers.origin;
-      const wildcardAllowed = allowedOrigins.includes("*") && process.env.NODE_ENV !== "production";
-      if (origin && !wildcardAllowed && !allowedOrigins.includes(origin)) {
-        rejectUpgrade(socket, "403 Forbidden");
-        return;
-      }
+  async function handleUpgrade(request, socket, head) {
+    const pathname = readPathname(request?.url);
+    if (pathname !== "/ws") {
+      socket.destroy();
+      return;
+    }
+    if (closed) {
+      rejectUpgrade(socket, "503 Service Unavailable", { "Retry-After": "5" });
+      return;
+    }
 
-      let identity = null;
-      if (options.authenticate) {
-        try {
-          const auth = await options.authenticate(request);
-          // Accept either a boolean (legacy) or { allowed, identity } object.
-          const authorized = auth && typeof auth === "object"
-            ? auth.allowed !== false
-            : Boolean(auth);
-          if (!authorized) {
-            rejectUpgrade(socket, "401 Unauthorized");
-            return;
-          }
-          if (auth && typeof auth === "object") {
-            identity = auth.identity ?? null;
-          }
-        } catch (error) {
-          reportError(error, { event: "ws_authentication_failed" });
-          rejectUpgrade(socket, "401 Unauthorized");
-          return;
-        }
-      }
+    const origin = typeof request.headers.origin === "string" ? request.headers.origin.trim() : "";
+    const wildcardAllowed = allowedOrigins.includes("*") && !production;
+    if (origin && !wildcardAllowed && !allowedOrigins.includes(origin)) {
+      counters.originRejected += 1;
+      rejectUpgrade(socket, "403 Forbidden");
+      return;
+    }
 
-      const key = request.headers["sec-websocket-key"];
-      if (!key) {
-        socket.destroy();
-        return;
-      }
+    if (connections.size >= maxConnections || pendingUpgrades >= maxPendingUpgrades) {
+      counters.capacityRejected += 1;
+      rejectUpgrade(socket, "503 Service Unavailable", { "Retry-After": "5" });
+      reportError(new Error("WebSocket connection capacity reached."), {
+        event: "ws_connection_limit",
+        maxConnections,
+        maxPendingUpgrades,
+      });
+      return;
+    }
 
-      if (connections.size >= maxConnections) {
-        socket.write(
-          "HTTP/1.1 503 Service Unavailable\r\n"
-          + "Connection: close\r\n"
-          + "Retry-After: 5\r\n"
-          + "Content-Length: 0\r\n\r\n",
+    if (typeof options.authenticate !== "function") {
+      counters.authenticationRejected += 1;
+      rejectUpgrade(socket, "401 Unauthorized", { "WWW-Authenticate": "Bearer" });
+      return;
+    }
+
+    pendingUpgrades += 1;
+    try {
+      let authResult;
+      try {
+        authResult = await withTimeout(
+          () => options.authenticate(request),
+          authenticationTimeoutMs,
+          "WebSocket authentication timed out.",
         );
-        socket.destroy();
-        options.onError?.(
-          new Error("WebSocket connection limit reached."),
-          { event: "ws_connection_limit", maxConnections },
+      } catch (error) {
+        counters.authenticationRejected += 1;
+        if (error?.code === "WS_AUTH_TIMEOUT") counters.authenticationTimedOut += 1;
+        reportError(error, { event: "ws_authentication_failed" });
+        rejectUpgrade(socket, "401 Unauthorized", { "WWW-Authenticate": "Bearer" });
+        return;
+      }
+
+      const auth = normalizeAuthenticationDecision(authResult);
+      if (!auth.allowed) {
+        counters.authenticationRejected += 1;
+        const forbidden = auth.statusCode === 403;
+        rejectUpgrade(
+          socket,
+          forbidden ? "403 Forbidden" : "401 Unauthorized",
+          forbidden ? {} : { "WWW-Authenticate": "Bearer" },
         );
         return;
       }
 
-      const acceptKey = createHash("sha1")
-        .update(key + WS_MAGIC_STRING)
-        .digest("base64");
-
-      socket.write(
-        "HTTP/1.1 101 Switching Protocols\r\n" +
-        "Upgrade: websocket\r\n" +
-        "Connection: Upgrade\r\n" +
-        `Sec-WebSocket-Accept: ${acceptKey}\r\n\r\n`
-      );
-
-      const ws = createWebSocketConnection(socket, reportError);
-      if (identity) ws.identity = identity;
-      connections.add(ws);
-
-      if (options.onConnection) {
-        options.onConnection(ws);
+      const subjectKey = createSubjectKey(auth.identity, request.socket?.remoteAddress);
+      const activeForSubject = subjectConnections.get(subjectKey) ?? 0;
+      if (activeForSubject >= maxConnectionsPerSubject) {
+        counters.subjectConnectionRejected += 1;
+        rejectUpgrade(socket, "429 Too Many Requests", { "Retry-After": "5" });
+        reportError(new Error("WebSocket subject connection limit reached."), {
+          event: "ws_subject_connection_limit",
+          maxConnectionsPerSubject,
+        });
+        return;
       }
 
-      ws.onMessage = options.onMessage || (() => {});
-      ws.onClose = options.onClose || (() => {});
+      try {
+        protocolServer.handleUpgrade(request, socket, head, (rawSocket) => {
+          establishConnection(rawSocket, auth.identity, subjectKey);
+        });
+      } catch (error) {
+        counters.protocolRejected += 1;
+        reportError(error, { event: "ws_handshake_rejected" });
+        rejectUpgrade(socket, "400 Bad Request");
+      }
+    } finally {
+      pendingUpgrades = Math.max(0, pendingUpgrades - 1);
+    }
+  }
 
-      socket.on("data", (buffer) => {
-        try {
-          const frame = decodeFrame(buffer);
-          if (frame.type === WS_FRAME_TYPES.TEXT) {
-            const result = ws.onMessage(frame.payload.toString("utf8"), ws);
-            if (result && typeof result.catch === "function") {
-              result.catch((error) => reportError(error, { event: "ws_message_rejected" }));
-            }
-          } else if (frame.type === WS_FRAME_TYPES.CLOSE) {
-            ws.close();
-          } else if (frame.type === WS_FRAME_TYPES.PING) {
-            ws.sendPong(frame.payload);
-          }
-        } catch (error) {
-          reportError(error, { event: "ws_frame_rejected" });
-        }
-      });
+  function establishConnection(rawSocket, identity, subjectKey) {
+    const connection = createGatewayConnection(rawSocket, identity, subjectKey);
+    connections.add(connection);
+    connectionState.set(connection, { alive: true, cleaned: false });
+    subjectConnections.set(subjectKey, (subjectConnections.get(subjectKey) ?? 0) + 1);
+    counters.accepted += 1;
 
-      socket.on("close", () => {
-        connections.delete(ws);
-        if (ws.onClose) ws.onClose(ws);
-      });
-
-      socket.on("error", () => {
-        connections.delete(ws);
-        if (ws.onClose) ws.onClose(ws);
-      });
+    rawSocket.on("pong", () => {
+      const state = connectionState.get(connection);
+      if (state) state.alive = true;
     });
+    rawSocket.on("message", (data, isBinary) => {
+      const state = connectionState.get(connection);
+      if (state) state.alive = true;
+      void handleMessage(data, isBinary, connection, subjectKey);
+    });
+    rawSocket.on("error", (error) => {
+      reportError(error, { event: "ws_transport_error" });
+      rawSocket.terminate();
+    });
+    rawSocket.once("close", () => cleanupConnection(connection, subjectKey));
+
+    try {
+      options.onConnection?.(connection);
+    } catch (error) {
+      reportError(error, { event: "ws_connection_handler_failed" });
+      connection.close(1011, "Connection initialization failed");
+    }
+  }
+
+  async function handleMessage(data, isBinary, connection, subjectKey) {
+    const rawSocket = connection.socket;
+    if (isBinary) {
+      counters.binaryRejected += 1;
+      reportError(new Error("Binary WebSocket messages are not supported."), { event: "ws_binary_rejected" });
+      rawSocket.close(1003, "Binary messages are not supported");
+      return;
+    }
+
+    const now = Date.now();
+    if (!consumeMessageQuota(subjectKey, now)) {
+      counters.rateLimitRejected += 1;
+      reportError(new Error("WebSocket message rate limit reached."), {
+        event: "ws_message_rate_limit",
+        maxMessagesPerWindow,
+        messageWindowMs,
+      });
+      rawSocket.close(1008, "Message rate limit exceeded");
+      return;
+    }
+
+    const subjectActive = subjectInFlight.get(subjectKey) ?? 0;
+    if (globalInFlight >= maxInFlightMessages || subjectActive >= maxInFlightPerSubject) {
+      counters.concurrencyRejected += 1;
+      reportError(new Error("WebSocket message concurrency limit reached."), {
+        event: "ws_message_concurrency_limit",
+        maxInFlightMessages,
+        maxInFlightPerSubject,
+      });
+      rawSocket.close(1013, "Too many in-flight messages");
+      return;
+    }
+
+    globalInFlight += 1;
+    subjectInFlight.set(subjectKey, subjectActive + 1);
+    try {
+      await options.onMessage?.(data.toString("utf8"), connection);
+    } catch (error) {
+      reportError(error, { event: "ws_message_rejected" });
+      if (rawSocket.readyState === WebSocket.OPEN) {
+        rawSocket.close(1011, "Message processing failed");
+      }
+    } finally {
+      releaseInFlight(subjectKey);
+    }
+  }
+
+  function createGatewayConnection(rawSocket, identity, subjectKey) {
+    const connection = {
+      socket: rawSocket,
+      identity,
+      send(data) {
+        if (rawSocket.readyState !== WebSocket.OPEN) return false;
+        const payload = normalizeOutgoingPayload(data);
+        const payloadBytes = typeof payload === "string" ? Buffer.byteLength(payload) : payload.byteLength;
+        if (rawSocket.bufferedAmount + payloadBytes > maxBufferedAmountBytes) {
+          counters.backpressureRejected += 1;
+          reportError(new Error("WebSocket outbound buffer limit reached."), {
+            event: "ws_backpressure_limit",
+            maxBufferedAmountBytes,
+          });
+          rawSocket.close(1013, "Outbound buffer limit exceeded");
+          return false;
+        }
+        rawSocket.send(payload, (error) => {
+          if (error) reportError(error, { event: "ws_send_failed" });
+        });
+        return true;
+      },
+      close(code = 1000, reason = "") {
+        if (rawSocket.readyState === WebSocket.OPEN || rawSocket.readyState === WebSocket.CONNECTING) {
+          rawSocket.close(code, reason);
+        }
+      },
+      terminate() {
+        rawSocket.terminate();
+      },
+    };
+    Object.defineProperty(connection, "subjectKey", {
+      enumerable: false,
+      configurable: false,
+      writable: false,
+      value: subjectKey,
+    });
+    return connection;
+  }
+
+  function cleanupConnection(connection, subjectKey) {
+    const state = connectionState.get(connection);
+    if (!state || state.cleaned) return;
+    state.cleaned = true;
+    connections.delete(connection);
+    const remaining = Math.max(0, (subjectConnections.get(subjectKey) ?? 1) - 1);
+    if (remaining === 0) subjectConnections.delete(subjectKey);
+    else subjectConnections.set(subjectKey, remaining);
+    try {
+      options.onClose?.(connection);
+    } catch (error) {
+      reportError(error, { event: "ws_close_handler_failed" });
+    }
+  }
+
+  function consumeMessageQuota(subjectKey, now) {
+    const cutoff = now - messageWindowMs;
+    const previous = subjectMessageWindows.get(subjectKey) ?? [];
+    const active = previous.filter((timestamp) => timestamp > cutoff);
+    if (active.length >= maxMessagesPerWindow) {
+      subjectMessageWindows.set(subjectKey, active);
+      return false;
+    }
+    active.push(now);
+    subjectMessageWindows.set(subjectKey, active);
+    return true;
+  }
+
+  function releaseInFlight(subjectKey) {
+    globalInFlight = Math.max(0, globalInFlight - 1);
+    const remaining = Math.max(0, (subjectInFlight.get(subjectKey) ?? 1) - 1);
+    if (remaining === 0) subjectInFlight.delete(subjectKey);
+    else subjectInFlight.set(subjectKey, remaining);
+  }
+
+  function startHeartbeat() {
+    if (heartbeatTimer) return;
+    heartbeatTimer = setInterval(() => {
+      const now = Date.now();
+      for (const connection of connections) {
+        const state = connectionState.get(connection);
+        if (!state || state.cleaned) continue;
+        if (!state.alive) {
+          counters.heartbeatTerminated += 1;
+          connection.terminate();
+          continue;
+        }
+        state.alive = false;
+        try {
+          connection.socket.ping();
+        } catch (error) {
+          reportError(error, { event: "ws_heartbeat_failed" });
+          connection.terminate();
+        }
+      }
+      for (const [subjectKey, timestamps] of subjectMessageWindows) {
+        const active = timestamps.filter((timestamp) => timestamp > now - messageWindowMs);
+        if (active.length === 0 && !subjectConnections.has(subjectKey) && !subjectInFlight.has(subjectKey)) {
+          subjectMessageWindows.delete(subjectKey);
+        } else {
+          subjectMessageWindows.set(subjectKey, active);
+        }
+      }
+    }, heartbeatIntervalMs);
+    heartbeatTimer.unref?.();
+  }
+
+  function close(code = 1001, reason = "Gateway shutting down") {
+    if (closed) return;
+    closed = true;
+    if (heartbeatTimer) clearInterval(heartbeatTimer);
+    heartbeatTimer = null;
+    if (attachedServer && upgradeListener) attachedServer.off("upgrade", upgradeListener);
+    for (const connection of connections) connection.close(code, reason);
+    shutdownTimer = setTimeout(() => {
+      for (const connection of connections) connection.terminate();
+    }, shutdownGraceMs);
+    shutdownTimer.unref?.();
   }
 
   function broadcast(message) {
-    for (const ws of connections) {
-      ws.send(message);
-    }
+    for (const connection of connections) connection.send(message);
   }
 
   function getConnectionCount() {
@@ -162,109 +485,117 @@ export function createWebSocketServer(options = {}) {
     return new Set(connections);
   }
 
-  return { attach, broadcast, getConnectionCount, getConnections };
-}
+  function getSecuritySnapshot() {
+    return Object.freeze({
+      ...counters,
+      activeConnections: connections.size,
+      activeSubjects: subjectConnections.size,
+      pendingUpgrades,
+      inFlightMessages: globalInFlight,
+      maxConnections,
+      maxConnectionsPerSubject,
+      maxPayloadBytes,
+      maxMessagesPerWindow,
+      messageWindowMs,
+      maxInFlightMessages,
+      maxInFlightPerSubject,
+    });
+  }
 
-function rejectUpgrade(socket, status) {
-  socket.write(
-    `HTTP/1.1 ${status}\r\n`
-    + "Connection: close\r\n"
-    + "Content-Length: 0\r\n\r\n",
-  );
-  socket.destroy();
-}
+  function reportError(error, context) {
+    options.onError?.(error instanceof Error ? error : new Error(String(error)), context);
+  }
 
-function createWebSocketConnection(socket, reportError = () => {}) {
   return {
-    socket,
-    send(data) {
-      const payload = Buffer.from(typeof data === "string" ? data : JSON.stringify(data), "utf8");
-      socket.write(encodeFrame(payload, WS_FRAME_TYPES.TEXT));
-    },
-    sendPong(data) {
-      socket.write(encodeFrame(data || Buffer.alloc(0), WS_FRAME_TYPES.PONG));
-    },
-    close() {
-      try {
-        socket.write(encodeFrame(Buffer.alloc(0), WS_FRAME_TYPES.CLOSE));
-        socket.end();
-      } catch (error) {
-        reportError(error, { event: "ws_close_failed" });
-        socket.destroy();
-      }
-    },
-    onMessage: null,
-    onClose: null,
+    attach,
+    broadcast,
+    close,
+    getConnectionCount,
+    getConnections,
+    getSecuritySnapshot,
   };
 }
 
-function encodeFrame(payload, type) {
-  const payloadLength = payload.length;
-  let header;
-
-  if (payloadLength < 126) {
-    header = Buffer.alloc(2);
-    header[0] = 0x80 | type; // FIN + type
-    header[1] = payloadLength;
-  } else if (payloadLength < 65536) {
-    header = Buffer.alloc(4);
-    header[0] = 0x80 | type;
-    header[1] = 126;
-    header.writeUInt16BE(payloadLength, 2);
-  } else {
-    header = Buffer.alloc(10);
-    header[0] = 0x80 | type;
-    header[1] = 127;
-    header.writeBigUInt64BE(BigInt(payloadLength), 2);
+function normalizeAuthenticationDecision(value) {
+  if (value === true) return { allowed: true, identity: null, statusCode: 200 };
+  if (!value || typeof value !== "object" || value.allowed !== true) {
+    return {
+      allowed: false,
+      identity: value && typeof value === "object" ? value.identity ?? null : null,
+      statusCode: value && typeof value === "object" ? Number(value.statusCode) || 401 : 401,
+    };
   }
-
-  return Buffer.concat([header, payload]);
+  return {
+    allowed: true,
+    identity: value.identity && typeof value.identity === "object" ? value.identity : null,
+    statusCode: Number(value.statusCode) || 200,
+  };
 }
 
-function decodeFrame(buffer) {
-  if (buffer.length < 2) throw new Error("Frame too short");
+function createSubjectKey(identity, remoteAddress) {
+  const userId = typeof identity?.userId === "string" ? identity.userId.trim() : "";
+  const tenantId = typeof identity?.tenantId === "string" ? identity.tenantId.trim() : "";
+  if (userId) return `identity:${tenantId || "default"}:${userId}`;
+  const network = typeof remoteAddress === "string" && remoteAddress.trim() ? remoteAddress.trim() : "unknown";
+  return `network:${network}`;
+}
 
-  const firstByte = buffer[0];
-  const secondByte = buffer[1];
-  const type = firstByte & 0x0f;
-  const masked = (secondByte & 0x80) !== 0;
-  let payloadLength = secondByte & 0x7f;
-  let offset = 2;
+function normalizeAllowedOrigins(value) {
+  const input = Array.isArray(value) && value.length > 0 ? value : DEFAULT_ALLOWED_ORIGINS;
+  return Array.from(new Set(input.filter((item) => typeof item === "string").map((item) => item.trim()).filter(Boolean)));
+}
 
-  if (payloadLength === 126) {
-    if (buffer.length < 4) throw new Error("Incomplete WebSocket frame header");
-    payloadLength = buffer.readUInt16BE(2);
-    offset = 4;
-  } else if (payloadLength === 127) {
-    if (buffer.length < 10) throw new Error("Incomplete WebSocket frame header");
-    payloadLength = Number(buffer.readBigUInt64BE(2));
-    offset = 10;
+function normalizeOutgoingPayload(data) {
+  if (typeof data === "string" || Buffer.isBuffer(data) || data instanceof Uint8Array) return data;
+  return JSON.stringify(data);
+}
+
+function boundedPositiveInteger(value, fallback, maximum) {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0) return fallback;
+  return Math.min(parsed, maximum);
+}
+
+function readPathname(value) {
+  if (typeof value !== "string") return null;
+  try {
+    return new URL(value, "http://gateway.invalid").pathname;
+  } catch {
+    return null;
   }
+}
 
-  if (!Number.isSafeInteger(payloadLength) || payloadLength > MAX_WS_PAYLOAD) {
-    throw new Error("WebSocket frame payload exceeds maximum size (16MB)");
+async function withTimeout(factory, timeoutMs, message) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      const error = new Error(message);
+      error.code = "WS_AUTH_TIMEOUT";
+      reject(error);
+    }, timeoutMs);
+    timer.unref?.();
+  });
+  try {
+    return await Promise.race([Promise.resolve().then(factory), timeout]);
+  } finally {
+    clearTimeout(timer);
   }
-  if (!masked) {
-    throw new Error("Client WebSocket frames must be masked");
-  }
+}
 
-  let maskKey = null;
-  if (masked) {
-    if (buffer.length < offset + 4) throw new Error("Incomplete WebSocket mask");
-    maskKey = buffer.slice(offset, offset + 4);
-    offset += 4;
+function rejectUpgrade(socket, status, headers = {}) {
+  if (!socket || socket.destroyed) return;
+  const lines = [
+    `HTTP/1.1 ${status}`,
+    "Connection: close",
+    "Cache-Control: no-store",
+    ...Object.entries(headers).map(([name, value]) => `${name}: ${value}`),
+    "Content-Length: 0",
+    "",
+    "",
+  ];
+  try {
+    socket.write(lines.join("\r\n"));
+  } finally {
+    socket.destroy();
   }
-
-  if (offset + payloadLength > buffer.length) {
-    throw new Error("Incomplete WebSocket frame");
-  }
-
-  const payload = Buffer.from(buffer.subarray(offset, offset + payloadLength));
-  if (masked && maskKey) {
-    for (let i = 0; i < payload.length; i++) {
-      payload[i] ^= maskKey[i % 4];
-    }
-  }
-
-  return { type, payload };
 }
