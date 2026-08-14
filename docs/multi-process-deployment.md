@@ -243,7 +243,7 @@ AI_GATEWAY_WEBSOCKET_CONNECTION_LEASE_MAX_ROWS=100000
 AI_GATEWAY_WEBSOCKET_CONNECTION_LEASE_POOL_MAX=2
 ```
 
-The dedicated pool is an intentional bulkhead: lease renewals cannot be starved by bursty HTTP rate-limit traffic. A handshake is rejected with `503` when lease ownership cannot be proved, an exhausted connection limit returns `429`, and an established socket is closed with `1013` if renewal fails or fencing ownership is lost. Normal closes release the exact lease; process crashes are recovered by the bounded TTL. Memory and SQLite modes remain node-local and must not be described as distributed active-connection enforcement.
+The dedicated pool is an intentional bulkhead: lease renewals cannot be starved by bursty HTTP rate-limit traffic. A handshake is rejected with `503` when lease ownership cannot be proved, an exhausted connection limit returns `429`, and an established socket is closed with `1013` if renewal fails or fencing ownership is lost. Each confirmation also receives a conservative monotonic local deadline with a 10% safety margin, so an event-loop or GC pause cannot resurrect a lease that may have expired in PostgreSQL. Normal closes release the exact lease; process crashes are recovered by the bounded TTL. Memory and SQLite modes remain node-local and must not be described as distributed active-connection enforcement.
 
 Use the same namespace on every replica in one deployment and a different namespace for deployments that must not share limits. Keep `AI_GATEWAY_RATE_LIMIT_HMAC_SECRET` identical across those replicas, at least 32 bytes, and load it from a secret manager. Outside a trusted local network, require certificate-verified PostgreSQL TLS.
 

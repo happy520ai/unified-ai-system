@@ -1,4 +1,5 @@
 import { createHmac, randomUUID } from "node:crypto";
+import { performance } from "node:perf_hooks";
 import type {
   PostgresClientLike,
   PostgresPoolLike,
@@ -67,6 +68,7 @@ type ManagerOptions = {
   maxRows?: number;
   poolMax?: number;
   statementTimeoutMs?: number;
+  monotonicNow?: () => number;
 };
 
 type CountRow = {
@@ -222,6 +224,7 @@ export function createPostgresWebSocketConnectionLeaseManager(
       if (allCount >= options.maxRows) throw new WebSocketConnectionLeaseCapacityError();
 
       const leaseId = randomUUID();
+      const confirmationStartedAt = options.monotonicNow();
       const inserted = await client.query<{ fencing_token: string | number }>(`/* websocket-lease:insert */
         INSERT INTO ${TABLE} (
           namespace, subject_hash, lease_id, lease_expires_at, updated_at
@@ -245,7 +248,11 @@ export function createPostgresWebSocketConnectionLeaseManager(
         subjectHash,
         leaseId,
         fencingToken: String(fencingToken),
-      });
+      }, confirmationStartedAt);
+      if (!controller.lease.isValid()) {
+        await controller.lease.release();
+        throw unavailable("The WebSocket connection lease confirmation arrived after its local safety deadline.");
+      }
       activeLeases.add(controller);
       return { acquired: true, lease: controller.lease };
     } catch (error) {
@@ -265,8 +272,10 @@ export function createPostgresWebSocketConnectionLeaseManager(
   function createLeaseController(
     pool: PostgresPoolLike,
     identity: { namespace: string; subjectHash: string; leaseId: string; fencingToken: string },
+    confirmationStartedAt: number,
   ): LeaseController {
     let state: "active" | "lost" | "releasing" | "released" = "active";
+    let confirmedUntil = createLocalConfirmationDeadline(confirmationStartedAt, options.leaseMs);
     let timer: ReturnType<typeof setInterval> | null = null;
     let onLost: (() => void) | null = null;
     let renewalTail = Promise.resolve(true);
@@ -275,17 +284,13 @@ export function createPostgresWebSocketConnectionLeaseManager(
     const controller: LeaseController = {
       lose,
       lease: {
-        isValid: () => state === "active",
+        isValid,
         renewNow,
         start(callback) {
           if (typeof callback !== "function") throw new TypeError("A WebSocket lease loss callback is required.");
           if (onLost) throw new Error("The WebSocket connection lease was already started.");
           onLost = callback;
-          if (state === "lost") {
-            notifyLost();
-            return;
-          }
-          if (state !== "active") throw new Error("The WebSocket connection lease is no longer active.");
+          if (!isValid()) return;
           timer = setInterval(() => {
             void renewNow();
           }, Math.max(1_000, Math.floor(options.leaseMs / 3)));
@@ -294,6 +299,15 @@ export function createPostgresWebSocketConnectionLeaseManager(
         release,
       },
     };
+
+    function isValid(): boolean {
+      if (state !== "active") return false;
+      if (options.monotonicNow() >= confirmedUntil) {
+        lose();
+        return false;
+      }
+      return true;
+    }
 
     function notifyLost(): void {
       if (!onLost) return;
@@ -319,10 +333,11 @@ export function createPostgresWebSocketConnectionLeaseManager(
 
     function renewNow(): Promise<boolean> {
       renewalTail = renewalTail.then(async () => {
-        if (state !== "active" || closed) {
+        if (!isValid() || closed) {
           lose();
           return false;
         }
+        const renewalStartedAt = options.monotonicNow();
         try {
           const result = await pool.query(`/* websocket-lease:renew */
             UPDATE ${TABLE}
@@ -333,9 +348,18 @@ export function createPostgresWebSocketConnectionLeaseManager(
               AND lease_expires_at > clock_timestamp()
           `, [options.leaseMs, identity.namespace, identity.subjectHash, identity.leaseId, identity.fencingToken]);
           const renewed = Number(result.rowCount ?? 0) === 1;
-          if (!renewed) lose();
-          else available = true;
-          return renewed;
+          if (!renewed || state !== "active") {
+            if (state === "active") lose();
+            return false;
+          }
+          const nextConfirmedUntil = createLocalConfirmationDeadline(renewalStartedAt, options.leaseMs);
+          if (options.monotonicNow() >= nextConfirmedUntil) {
+            lose();
+            return false;
+          }
+          confirmedUntil = nextConfirmedUntil;
+          available = true;
+          return true;
         } catch {
           available = false;
           lose();
@@ -394,6 +418,7 @@ export function createPostgresWebSocketConnectionLeaseManager(
         available,
         activeLocalLeases: activeLeases.size,
         leaseMs: options.leaseMs,
+        localSafetyMs: localLeaseSafetyMs(options.leaseMs),
         maxRows: options.maxRows,
         acquired,
         denied,
@@ -485,7 +510,16 @@ function normalizeOptions(raw: ManagerOptions): Required<Omit<ManagerOptions, "p
     maxRows: boundedInteger(raw.maxRows ?? DEFAULT_MAX_ROWS, 1, 1_000_000, "maxRows"),
     poolMax: boundedInteger(raw.poolMax ?? 2, 1, 8, "poolMax"),
     statementTimeoutMs: boundedInteger(raw.statementTimeoutMs ?? 5_000, 100, 60_000, "statementTimeoutMs"),
+    monotonicNow: raw.monotonicNow ?? (() => performance.now()),
   };
+}
+
+function createLocalConfirmationDeadline(confirmationStartedAt: number, leaseMs: number): number {
+  return confirmationStartedAt + leaseMs - localLeaseSafetyMs(leaseMs);
+}
+
+function localLeaseSafetyMs(leaseMs: number): number {
+  return Math.min(1_000, Math.max(250, Math.floor(leaseMs / 10)));
 }
 
 function normalizeSubject(subject: string): string {

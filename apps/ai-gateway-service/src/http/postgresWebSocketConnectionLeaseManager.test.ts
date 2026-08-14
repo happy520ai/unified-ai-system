@@ -27,6 +27,7 @@ class FakePostgresPool implements PostgresPoolLike {
   failRenewals = false;
   failAllQueries = false;
   malformedInsert = false;
+  renewQueryDelayMs = 0;
   ended = false;
   private nextFencingToken = 1;
   private lockTail = Promise.resolve();
@@ -101,6 +102,7 @@ class FakePostgresPool implements PostgresPoolLike {
     }
     if (text.includes("websocket-lease:renew")) {
       if (this.failRenewals) throw new Error("renewal unavailable");
+      this.advance(this.renewQueryDelayMs);
       const lease = this.findLease(values[1], values[2], values[3], values[4]);
       if (!lease || lease.expiresAt <= this.now) return result<Row>();
       lease.expiresAt = this.now + Number(values[0]);
@@ -164,6 +166,7 @@ function createManager(pool: FakePostgresPool, namespace = "cluster-a") {
     namespace,
     leaseMs: 9_000,
     maxRows: 8,
+    monotonicNow: () => pool.now,
   });
 }
 
@@ -236,6 +239,44 @@ describe("PostgreSQL WebSocket connection leases", () => {
     expect(acquired.lease.isValid()).toBe(false);
     expect(onLost).toHaveBeenCalledTimes(1);
     await acquired.lease.release();
+    await manager.close();
+  });
+
+  it("fails closed locally before a stalled event loop can outlive the database lease", async () => {
+    const pool = new FakePostgresPool();
+    const manager = createManager(pool);
+    const acquired = await manager.acquire("tenant-a:user-a", {
+      maxConnections: 2,
+      maxConnectionsPerSubject: 1,
+    });
+    if (!acquired.acquired) throw new Error("Expected a lease.");
+    const onLost = vi.fn();
+    acquired.lease.start(onLost);
+
+    pool.advance(8_101);
+    expect(pool.leases[0].expiresAt).toBeGreaterThan(pool.now);
+    expect(acquired.lease.isValid()).toBe(false);
+    await Promise.resolve();
+    expect(onLost).toHaveBeenCalledTimes(1);
+    await manager.close();
+  });
+
+  it("does not resurrect ownership when a renewal response misses the local safety deadline", async () => {
+    const pool = new FakePostgresPool();
+    const manager = createManager(pool);
+    const acquired = await manager.acquire("tenant-a:user-a", {
+      maxConnections: 2,
+      maxConnectionsPerSubject: 1,
+    });
+    if (!acquired.acquired) throw new Error("Expected a lease.");
+    const onLost = vi.fn();
+    acquired.lease.start(onLost);
+    pool.renewQueryDelayMs = 8_101;
+
+    await expect(acquired.lease.renewNow()).resolves.toBe(false);
+    await Promise.resolve();
+    expect(acquired.lease.isValid()).toBe(false);
+    expect(onLost).toHaveBeenCalledTimes(1);
     await manager.close();
   });
 
