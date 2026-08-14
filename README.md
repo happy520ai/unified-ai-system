@@ -219,7 +219,8 @@ For a no-clone prompt-enhancement walkthrough, start the published gateway
 image and follow the [provider-free curl example](docs/examples/prompt-enhancement-curl.md):
 
 ```bash
-GATEWAY_TOKEN="$(openssl rand -hex 32)"
+read -rsp "Enter a random gateway token (32+ characters): " GATEWAY_TOKEN
+printf '\n'
 docker run --rm --publish 127.0.0.1:3100:3100 \
   --env AI_GATEWAY_SERVICE_HOST=0.0.0.0 \
   --env AI_GATEWAY_PROVIDER_MODE=fake \

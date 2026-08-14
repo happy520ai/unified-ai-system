@@ -69,7 +69,7 @@ describePostgres("real PostgreSQL distributed rate limiting", () => {
     const second = createRateLimiter(options(namespace, { maxRequests: 1 }));
     const resolver = createRequestIdentityResolver({
       subjectMode: "credential-or-network",
-      hmacSecret: SHARED_SECRET,
+      secret: SHARED_SECRET,
       trustedProxyCidrs: [],
     });
     const credential = "Bearer integration-credential-never-store-raw";
