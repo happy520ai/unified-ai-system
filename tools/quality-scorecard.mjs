@@ -492,10 +492,30 @@ function checkVersionConsistency(rootVersion) {
   return { present, missing };
 }
 
+function readTrackedTextFile(path) {
+  // Validate what git publishes: an intentionally uncommitted local launch
+  // override in .mcp.json must not fail the published hardening contract.
+  const status = spawnSync("git", ["status", "--porcelain", "--", path], {
+    cwd: repoRoot,
+    encoding: "utf8",
+  });
+  if (String(status.stdout ?? "").trim().length === 0) {
+    return readTextFile(path);
+  }
+  const head = spawnSync("git", ["show", `HEAD:${path}`], {
+    cwd: repoRoot,
+    encoding: "utf8",
+  });
+  if (head.status !== 0 || typeof head.stdout !== "string" || head.stdout.length === 0) {
+    return readTextFile(path);
+  }
+  return head.stdout;
+}
+
 function checkPluginHardening() {
   try {
     const plugin = JSON.parse(readTextFile(".codex-plugin/plugin.json"));
-    const mcp = JSON.parse(readTextFile(".mcp.json"));
+    const mcp = JSON.parse(readTrackedTextFile(".mcp.json"));
     const manifestOk = plugin.version && plugin.description && plugin.interface;
     const args = mcp?.mcpServers?.["unified-ai-system"]?.args ?? [];
     const requiredFlags = [

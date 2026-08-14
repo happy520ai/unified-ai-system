@@ -103,6 +103,39 @@ function readJson(path) {
   return JSON.parse(readFileSync(resolve(repoRoot, path), "utf8"));
 }
 
+const notes = [];
+
+function addNote(code, path, details = "") {
+  notes.push({ code, path, details });
+}
+
+// Public hygiene gates must validate what git publishes. A source checkout may
+// keep an intentionally uncommitted local launch override in .mcp.json (for
+// example pointing a host at its own interpreter); validate the committed
+// content in that case and surface the override as a non-blocking note.
+function readTrackedJson(path) {
+  const status = execFileSync("git", ["status", "--porcelain", "--", path], {
+    cwd: repoRoot,
+    encoding: "utf8",
+    windowsHide: true,
+  }).trim();
+  if (!status) {
+    return readJson(path);
+  }
+  try {
+    const headContent = execFileSync("git", ["show", `HEAD:${path}`], {
+      cwd: repoRoot,
+      encoding: "utf8",
+      windowsHide: true,
+    });
+    const parsed = JSON.parse(headContent);
+    addNote("local_override_validated_from_git", path, "working copy differs from HEAD; validated the committed content");
+    return parsed;
+  } catch {
+    return readJson(path);
+  }
+}
+
 function addError(code, path, details = "") {
   errors.push({ code, path, details });
 }
@@ -223,7 +256,7 @@ const rootPackage = readJson("package.json");
 const servicePackage = readJson("apps/ai-gateway-service/package.json");
 const registryMetadata = readJson("server.json");
 const pluginManifest = readJson(".codex-plugin/plugin.json");
-const pluginMcpConfig = readJson(".mcp.json");
+const pluginMcpConfig = readTrackedJson(".mcp.json");
 const requiredScripts = [
   "start",
   "check",
@@ -952,6 +985,7 @@ const result = {
   rootScriptSurfaceCount,
   serviceScriptCount,
   errors,
+  notes,
 };
 const issueCodes = buildIssueCodesFromErrors(errors);
 result.issueCodes = issueCodes;
