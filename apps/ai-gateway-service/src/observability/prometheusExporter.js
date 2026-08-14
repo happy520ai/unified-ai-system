@@ -23,6 +23,10 @@ export function createPrometheusExporter(options = {}) {
   function formatMetrics(snapshot) {
     const lines = [];
     const sanitizeMetricLabel = (value) => String(value).replace(/["\\}\n\r]/g, "_");
+    const safeMetricNumber = (value) => {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+    };
 
     // 總請求
     lines.push(`# HELP ${prefix}_requests_total Total number of requests`);
@@ -188,6 +192,31 @@ export function createPrometheusExporter(options = {}) {
     lines.push(`# HELP ${prefix}_idempotency_stats_age_seconds Age of the last distributed store statistics snapshot, or -1 when unavailable`);
     lines.push(`# TYPE ${prefix}_idempotency_stats_age_seconds gauge`);
     lines.push(`${prefix}_idempotency_stats_age_seconds{mode="${idempotencyMode}"} ${statsAgeSeconds}`);
+
+    const webSocketLease = snapshot.webSocketLease;
+    const webSocketLeaseEnabled = webSocketLease?.storeMode === "postgres" && webSocketLease?.distributed === true;
+    const webSocketLeaseMode = webSocketLeaseEnabled ? "postgres" : "disabled";
+    const webSocketLeaseAvailable = webSocketLeaseEnabled ? (webSocketLease?.available === true ? 1 : 0) : 1;
+    lines.push(`# HELP ${prefix}_websocket_lease_enabled Whether distributed WebSocket connection leases are enabled`);
+    lines.push(`# TYPE ${prefix}_websocket_lease_enabled gauge`);
+    lines.push(`${prefix}_websocket_lease_enabled ${webSocketLeaseEnabled ? 1 : 0}`);
+    lines.push(`# HELP ${prefix}_websocket_lease_store_available Whether the distributed WebSocket lease store is reachable`);
+    lines.push(`# TYPE ${prefix}_websocket_lease_store_available gauge`);
+    lines.push(`${prefix}_websocket_lease_store_available{mode="${webSocketLeaseMode}"} ${webSocketLeaseAvailable}`);
+    lines.push(`# HELP ${prefix}_websocket_lease_active_local WebSocket leases currently owned by this process`);
+    lines.push(`# TYPE ${prefix}_websocket_lease_active_local gauge`);
+    lines.push(`${prefix}_websocket_lease_active_local ${safeMetricNumber(webSocketLease?.activeLocalLeases)}`);
+    lines.push(`# HELP ${prefix}_websocket_lease_duration_seconds Configured database lease duration`);
+    lines.push(`# TYPE ${prefix}_websocket_lease_duration_seconds gauge`);
+    lines.push(`${prefix}_websocket_lease_duration_seconds ${safeMetricNumber(webSocketLease?.leaseMs) / 1000}`);
+    lines.push(`# HELP ${prefix}_websocket_lease_local_safety_seconds Local monotonic expiry safety margin`);
+    lines.push(`# TYPE ${prefix}_websocket_lease_local_safety_seconds gauge`);
+    lines.push(`${prefix}_websocket_lease_local_safety_seconds ${safeMetricNumber(webSocketLease?.localSafetyMs) / 1000}`);
+    lines.push(`# HELP ${prefix}_websocket_lease_events_total WebSocket lease lifecycle events observed by this process`);
+    lines.push(`# TYPE ${prefix}_websocket_lease_events_total counter`);
+    for (const event of ["acquired", "denied", "lost", "released"]) {
+      lines.push(`${prefix}_websocket_lease_events_total{event="${event}"} ${safeMetricNumber(webSocketLease?.[event])}`);
+    }
 
     // Provider health score
     const sanitizeLabel = (v) => String(v).replace(/["\\}\n\r]/g, "_");

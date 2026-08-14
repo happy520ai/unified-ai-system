@@ -794,6 +794,7 @@ export function createGatewayHttpServer(application) {
           workforceService,
           workflowService,
           wsServer,
+          webSocketConnectionLeaseManager,
           healthzInFlightThreshold,
           healthzInFlightDegradationPercent,
           rateLimiter,

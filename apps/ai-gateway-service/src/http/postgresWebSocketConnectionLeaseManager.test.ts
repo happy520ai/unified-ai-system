@@ -312,6 +312,15 @@ describe("PostgreSQL WebSocket connection leases", () => {
     expect(pool.capturedValues.flat().map(String)).not.toContain(rawSubject);
     expect(pool.leases).toHaveLength(2);
     expect(pool.leases[0].subjectHash).toMatch(/^[a-f0-9]{64}$/);
+    await expect(first.checkHealth()).resolves.toMatchObject({
+      storeMode: "postgres",
+      distributed: true,
+      available: true,
+      activeLocalLeases: 1,
+    });
+    expect(first.getStats()).not.toHaveProperty("namespace");
+    expect(first.getStats()).not.toHaveProperty("connectionString");
+    expect(first.getStats()).not.toHaveProperty("subjectHash");
     await first.close();
     await second.close();
   });

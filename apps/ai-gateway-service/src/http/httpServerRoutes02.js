@@ -28,7 +28,7 @@ export async function dispatchHttpRoutes02(context) {
     enterpriseOpsService, fiveCapabilityActivationService, gatewayService, knowledgeService,
     modelImportService, modelLibraryStore, providerConfigRoutes, userExperienceService,
     workforceService, workflowService, wsServer, healthzInFlightThreshold, healthzInFlightDegradationPercent,
-    gatewayLifecycle, idempotencyCoordinator,
+    gatewayLifecycle, idempotencyCoordinator, webSocketConnectionLeaseManager,
   } = context;
 
   if (request.method === "GET" && url.pathname === "/dashboard/status") {
@@ -87,12 +87,14 @@ export async function dispatchHttpRoutes02(context) {
     const lifecycle = gatewayLifecycle?.snapshot?.() ?? null;
     const idempotency = await readIdempotencyHealth(idempotencyCoordinator);
     const rateLimit = await readRateLimitHealth(rateLimiter);
+    const webSocketLease = await readWebSocketLeaseHealth(webSocketConnectionLeaseManager);
     const readinessFailures = collectReadinessFailures(healthSnapshot, readinessSnapshot, {
       saturated,
       gatewayErrorCircuitState: resilienceSnapshot?.gatewayErrorCircuitState,
       lifecycleState: lifecycle?.state,
       idempotencyStoreUnavailable: idempotency?.storeMode === "postgres" && idempotency?.available !== true,
       rateLimitStoreUnavailable: rateLimit?.storeMode === "postgres" && rateLimit?.available !== true,
+      webSocketLeaseStoreUnavailable: Boolean(webSocketConnectionLeaseManager) && webSocketLease?.available !== true,
     });
     resilienceMetrics?.recordReadinessCheck?.(readinessFailures);
     const degraded = saturated || readinessFailures.length > 0;
@@ -108,6 +110,7 @@ export async function dispatchHttpRoutes02(context) {
       lifecycle,
       idempotency,
       rateLimit,
+      webSocketLease,
       saturation: {
         inFlight: currentInFlight,
         threshold: saturationThreshold,
@@ -192,12 +195,14 @@ export async function dispatchHttpRoutes02(context) {
     const lifecycle = gatewayLifecycle?.snapshot?.() ?? null;
     const idempotency = await readIdempotencyHealth(idempotencyCoordinator);
     const rateLimit = await readRateLimitHealth(rateLimiter);
+    const webSocketLease = await readWebSocketLeaseHealth(webSocketConnectionLeaseManager);
     const readinessFailures = collectReadinessFailures(healthSnapshot, readinessSnapshot, {
       saturated,
       gatewayErrorCircuitState: readinessResilienceSnapshot?.gatewayErrorCircuitState,
       lifecycleState: lifecycle?.state,
       idempotencyStoreUnavailable: idempotency?.storeMode === "postgres" && idempotency?.available !== true,
       rateLimitStoreUnavailable: rateLimit?.storeMode === "postgres" && rateLimit?.available !== true,
+      webSocketLeaseStoreUnavailable: Boolean(webSocketConnectionLeaseManager) && webSocketLease?.available !== true,
     });
     const snapshot = {
       totalRequests: stats.totalRequests ?? 0,
@@ -210,6 +215,7 @@ export async function dispatchHttpRoutes02(context) {
       readinessFailureCount: readinessFailures.length,
       lifecycle,
       idempotency,
+      webSocketLease,
       latency: stats.avgLatencyMs
         ? { p50: stats.avgLatencyMs, p95: stats.avgLatencyMs, p99: stats.avgLatencyMs }
         : undefined,
@@ -608,6 +614,9 @@ function collectReadinessFailures(healthSnapshot, readinessSnapshot, context = {
   if (context?.rateLimitStoreUnavailable) {
     readinessFailures.push("rate-limit-store-unavailable");
   }
+  if (context?.webSocketLeaseStoreUnavailable) {
+    readinessFailures.push("websocket-lease-store-unavailable");
+  }
 
   return Array.from(new Set(readinessFailures));
 }
@@ -622,4 +631,36 @@ async function readRateLimitHealth(rateLimiter) {
   if (!rateLimiter) return null;
   if (typeof rateLimiter.checkHealth === "function") return rateLimiter.checkHealth();
   return rateLimiter.getStats?.() ?? null;
+}
+
+async function readWebSocketLeaseHealth(manager) {
+  if (!manager) return null;
+  try {
+    const snapshot = typeof manager.checkHealth === "function"
+      ? await manager.checkHealth()
+      : await manager.getStats?.();
+    return sanitizeWebSocketLeaseHealth(snapshot);
+  } catch {
+    return sanitizeWebSocketLeaseHealth(null);
+  }
+}
+
+function sanitizeWebSocketLeaseHealth(snapshot) {
+  const safeNumber = (value) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+  };
+  return {
+    storeMode: "postgres",
+    distributed: true,
+    available: snapshot?.available === true,
+    activeLocalLeases: safeNumber(snapshot?.activeLocalLeases),
+    leaseMs: safeNumber(snapshot?.leaseMs),
+    localSafetyMs: safeNumber(snapshot?.localSafetyMs),
+    maxRows: safeNumber(snapshot?.maxRows),
+    acquired: safeNumber(snapshot?.acquired),
+    denied: safeNumber(snapshot?.denied),
+    lost: safeNumber(snapshot?.lost),
+    released: safeNumber(snapshot?.released),
+  };
 }

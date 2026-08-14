@@ -247,6 +247,8 @@ The dedicated pool is an intentional bulkhead: lease renewals cannot be starved 
 
 Use the same namespace on every replica in one deployment and a different namespace for deployments that must not share limits. Keep `AI_GATEWAY_RATE_LIMIT_HMAC_SECRET` identical across those replicas, at least 32 bytes, and load it from a secret manager. Outside a trusted local network, require certificate-verified PostgreSQL TLS.
 
+Kubernetes and load-balancer readiness probes should use `/healthz` or `/ready`. When distributed WebSocket leases are enabled, either endpoint returns `503` with the normalized reason `websocket-lease-store-unavailable` until the lease database is reachable. `/livez` remains a process-liveness signal and does not depend on PostgreSQL. Alert on `ai_gateway_websocket_lease_store_available{mode="postgres"} == 0`, unexpected growth in `ai_gateway_websocket_lease_events_total{event="lost"}`, or a mismatch between active connections and `ai_gateway_websocket_lease_active_local`. Metrics intentionally omit database addresses, namespaces, subjects, hashes, lease IDs, and fencing tokens.
+
 If the store cannot prove a counter update, the gateway returns
 `503 RATE_LIMIT_STORE_UNAVAILABLE`; when the bounded active-bucket capacity is
 full it returns `503 RATE_LIMIT_STORE_CAPACITY`. Neither condition fails open to

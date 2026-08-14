@@ -123,6 +123,35 @@ describe("prometheusExporter", () => {
     expect(text).not.toContain("connectionString");
   });
 
+  it("renders bounded WebSocket lease metrics without deployment identifiers", () => {
+    const exporter = createPrometheusExporter({ prefix: "ai_gateway" });
+    const text = exporter.formatMetrics({
+      webSocketLease: {
+        storeMode: "postgres",
+        distributed: true,
+        available: false,
+        activeLocalLeases: 3,
+        leaseMs: 30_000,
+        localSafetyMs: 1_000,
+        acquired: 9,
+        denied: 4,
+        lost: 2,
+        released: 6,
+        namespace: "private-cluster-name",
+        connectionString: "postgres://must-not-leak",
+      },
+    });
+
+    expect(text).toContain("ai_gateway_websocket_lease_enabled 1");
+    expect(text).toContain('ai_gateway_websocket_lease_store_available{mode="postgres"} 0');
+    expect(text).toContain("ai_gateway_websocket_lease_active_local 3");
+    expect(text).toContain("ai_gateway_websocket_lease_duration_seconds 30");
+    expect(text).toContain("ai_gateway_websocket_lease_local_safety_seconds 1");
+    expect(text).toContain('ai_gateway_websocket_lease_events_total{event="lost"} 2');
+    expect(text).not.toContain("private-cluster-name");
+    expect(text).not.toContain("postgres://must-not-leak");
+  });
+
   it("renders PostgreSQL rate-limit store health without partition keys", () => {
     const exporter = createPrometheusExporter({ prefix: "ai_gateway" });
     const text = exporter.formatMetrics({

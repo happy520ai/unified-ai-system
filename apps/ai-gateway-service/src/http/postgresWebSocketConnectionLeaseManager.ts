@@ -399,6 +399,23 @@ export function createPostgresWebSocketConnectionLeaseManager(
     return controller;
   }
 
+  function statsSnapshot(): Record<string, unknown> {
+    return {
+      mode: "postgres",
+      storeMode: "postgres",
+      distributed: true,
+      available,
+      activeLocalLeases: activeLeases.size,
+      leaseMs: options.leaseMs,
+      localSafetyMs: localLeaseSafetyMs(options.leaseMs),
+      maxRows: options.maxRows,
+      acquired,
+      denied,
+      lost,
+      released,
+    };
+  }
+
   return {
     acquire,
     async checkHealth() {
@@ -409,23 +426,9 @@ export function createPostgresWebSocketConnectionLeaseManager(
       } catch {
         available = false;
       }
-      return { available };
+      return statsSnapshot() as { available: boolean };
     },
-    getStats() {
-      return {
-        mode: "postgres",
-        namespace: options.namespace,
-        available,
-        activeLocalLeases: activeLeases.size,
-        leaseMs: options.leaseMs,
-        localSafetyMs: localLeaseSafetyMs(options.leaseMs),
-        maxRows: options.maxRows,
-        acquired,
-        denied,
-        lost,
-        released,
-      };
-    },
+    getStats: statsSnapshot,
     async close() {
       if (closed) return;
       closed = true;

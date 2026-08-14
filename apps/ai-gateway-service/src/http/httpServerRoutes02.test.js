@@ -252,6 +252,36 @@ describe("dispatchHttpRoutes02 healthz readiness", () => {
       distributed: true,
     });
   });
+
+  it("returns unready with a redacted snapshot when the WebSocket lease store is unavailable", async () => {
+    const context = createEnvelopeContext({
+      webSocketConnectionLeaseManager: {
+        checkHealth: async () => ({
+          storeMode: "postgres",
+          available: false,
+          distributed: true,
+          activeLocalLeases: 3,
+          connectionString: "postgres://must-not-leak",
+          namespace: "private-cluster-name",
+          subjectHash: "must-not-leak",
+        }),
+      },
+    });
+
+    await dispatchHttpRoutes02(context);
+
+    expect(context.response.status).toBe(503);
+    expect(context.response.payload.error.details.readinessFailures).toContain("websocket-lease-store-unavailable");
+    expect(context.response.payload.error.details.webSocketLease).toMatchObject({
+      storeMode: "postgres",
+      available: false,
+      distributed: true,
+      activeLocalLeases: 3,
+    });
+    expect(context.response.payload.error.details.webSocketLease).not.toHaveProperty("connectionString");
+    expect(context.response.payload.error.details.webSocketLease).not.toHaveProperty("namespace");
+    expect(context.response.payload.error.details.webSocketLease).not.toHaveProperty("subjectHash");
+  });
 });
 
 describe("dispatchHttpRoutes02 metrics readiness visibility", () => {
@@ -312,6 +342,42 @@ describe("dispatchHttpRoutes02 metrics readiness visibility", () => {
     expect(metricsText).toContain("ai_gateway_gateway_readiness_failures 2");
     expect(metricsText).toContain('ai_gateway_gateway_readiness_failures{reason="service-dependency"} 1');
     expect(metricsText).toContain('ai_gateway_gateway_readiness_failures{reason="knowledge"} 1');
+  });
+
+  it("exports WebSocket lease availability and readiness without private lease fields", async () => {
+    let metricsText = "";
+    const context = createEnvelopeContext({
+      response: {
+        headersSent: false,
+        writeHead() {},
+        end(body) {
+          metricsText = body;
+        },
+      },
+      url: { pathname: "/metrics" },
+      webSocketConnectionLeaseManager: {
+        checkHealth: async () => ({
+          available: false,
+          activeLocalLeases: 2,
+          acquired: 7,
+          denied: 3,
+          lost: 1,
+          released: 4,
+          leaseMs: 30_000,
+          localSafetyMs: 1_000,
+          namespace: "private-cluster-name",
+          connectionString: "postgres://must-not-leak",
+        }),
+      },
+    });
+
+    await dispatchHttpRoutes02(context);
+
+    expect(metricsText).toContain('ai_gateway_gateway_readiness_failures{reason="websocket-lease-store-unavailable"} 1');
+    expect(metricsText).toContain('ai_gateway_websocket_lease_store_available{mode="postgres"} 0');
+    expect(metricsText).toContain("ai_gateway_websocket_lease_active_local 2");
+    expect(metricsText).not.toContain("private-cluster-name");
+    expect(metricsText).not.toContain("postgres://must-not-leak");
   });
 
   it("adds saturation as readiness failure reason in /metrics when in-flight is high", async () => {
