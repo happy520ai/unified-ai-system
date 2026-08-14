@@ -37,6 +37,7 @@ import {
   normalizePlanId,
   readStore as jsonReadStore,
   redactSecrets,
+  sealWorkforcePreviewSafety,
   toPlanSummary,
   updatePlanStateCurrent,
   writeStore as jsonWriteStore,
@@ -76,6 +77,17 @@ import {
 // mutation chains onto the previous one for the same path.
 const storeMutationQueues = new Map();
 
+function sealTaskPackage(taskPackage) {
+  const sealed = sealWorkforcePreviewSafety(taskPackage);
+  sealed.exportableJson = sealWorkforcePreviewSafety(sealed.exportableJson || {});
+  sealed.markdown = formatTaskPackageMarkdown({
+    plan: sealed,
+    planId: sealed.planId,
+    savedAt: sealed.savedAt,
+  });
+  return sealed;
+}
+
 function serializeStoreMutation(storePath, operation) {
   const previous = storeMutationQueues.get(storePath) ?? Promise.resolve();
   const current = previous.then(operation, operation);
@@ -109,7 +121,7 @@ export function createWorkforcePlanStore({ env = process.env } = {}) {
         const normalizedPlan = normalizePlan(plan);
         const savedAt = new Date().toISOString();
         const planId = createPlanId(normalizedPlan, savedAt);
-        const taskPackage = createTaskPackage({ plan: normalizedPlan, planId, savedAt });
+        const taskPackage = sealTaskPackage(createTaskPackage({ plan: normalizedPlan, planId, savedAt }));
 
         if (backend) {
           // 原子 upsert：跨进程安全，避免 read-modify-write 的 lost update。
@@ -145,21 +157,22 @@ export function createWorkforcePlanStore({ env = process.env } = {}) {
         status: "listed",
         mode: WORKFORCE_PLAN_STORE_MODE,
         count: plans.length,
-        plans: plans.map(toPlanSummary),
+        plans: plans.map((plan) => toPlanSummary(sealWorkforcePreviewSafety(plan))),
         safety: createStoreSafety(),
       };
     },
     async get(planId) {
       const normalizedPlanId = normalizePlanId(planId);
-      const taskPackage = backend
+      const storedTaskPackage = backend
         ? backend.get(normalizedPlanId)
         : (await readStore(storePath)).plans.find((item) => item.planId === normalizedPlanId);
-      if (!taskPackage) {
+      if (!storedTaskPackage) {
         throw createStoreError("WORKFORCE_PLAN_NOT_FOUND", "Saved workforce plan was not found.", {
           userMessage: "???????????????????",
           planId: normalizedPlanId,
         });
       }
+      const taskPackage = sealTaskPackage(storedTaskPackage);
 
       return {
         success: true,
@@ -284,7 +297,7 @@ export function createWorkforcePlanStore({ env = process.env } = {}) {
         workforceHudPreview: taskPackage.workforceHudPreview,
       });
       refreshReviewAndApprovalPreviews(taskPackage, exportedAt);
-      taskPackage.markdown = formatTaskPackageMarkdown({ plan: taskPackage, planId: taskPackage.planId, savedAt: taskPackage.savedAt });
+      const sealedTaskPackage = sealTaskPackage(taskPackage);
       return {
         success: true,
         phase: WORKFORCE_PLAN_STORE_PHASE,
@@ -292,9 +305,9 @@ export function createWorkforcePlanStore({ env = process.env } = {}) {
         mode: WORKFORCE_PLAN_STORE_MODE,
         planId: result.planId,
         formats: ["json", "markdown"],
-        taskPackage,
-        json: taskPackage,
-        markdown: taskPackage.markdown,
+        taskPackage: sealedTaskPackage,
+        json: sealedTaskPackage,
+        markdown: sealedTaskPackage.markdown,
         safety: createStoreSafety(),
       };
     },
@@ -312,7 +325,7 @@ export function createWorkforcePlanStore({ env = process.env } = {}) {
           });
         }
 
-        const taskPackage = applyClarificationAnswers(store.plans[index], normalizedAnswers, updatedAt);
+        const taskPackage = sealTaskPackage(applyClarificationAnswers(store.plans[index], normalizedAnswers, updatedAt));
         store.plans[index] = taskPackage;
         await writeStore(storePath, {
           version: STORE_VERSION,
@@ -347,7 +360,7 @@ export function createWorkforcePlanStore({ env = process.env } = {}) {
           });
         }
 
-        const taskPackage = applyLifecycleState(store.plans[index], nextState, input.note, updatedAt);
+        const taskPackage = sealTaskPackage(applyLifecycleState(store.plans[index], nextState, input.note, updatedAt));
         store.plans[index] = taskPackage;
         await writeStore(storePath, {
           version: STORE_VERSION,
@@ -369,7 +382,7 @@ export function createWorkforcePlanStore({ env = process.env } = {}) {
     },
     async getReviewPackage(planId) {
       const result = await this.get(planId);
-      const taskPackage = refreshReviewAndApprovalPreviews(result.taskPackage, new Date().toISOString());
+      const taskPackage = sealTaskPackage(refreshReviewAndApprovalPreviews(result.taskPackage, new Date().toISOString()));
       return {
         success: true,
         phase: WORKFORCE_PLAN_REVIEW_APPROVAL_PHASE,
@@ -395,7 +408,7 @@ export function createWorkforcePlanStore({ env = process.env } = {}) {
           });
         }
 
-        const taskPackage = applyApprovalGateDecision(store.plans[index], input, updatedAt);
+        const taskPackage = sealTaskPackage(applyApprovalGateDecision(store.plans[index], input, updatedAt));
         store.plans[index] = taskPackage;
         await writeStore(storePath, {
           version: STORE_VERSION,

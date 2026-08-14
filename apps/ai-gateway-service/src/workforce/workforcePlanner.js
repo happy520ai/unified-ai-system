@@ -43,6 +43,7 @@ import {
   createExportableWorkforcePlan,
   formatWorkforcePlanMarkdown,
 } from "./workforcePlanner-format.js";
+import { sealWorkforcePreviewSafety } from "./workforcePlanStore-utils.js";
 
 export {
   PRODUCT_TEMPLATES,
@@ -159,7 +160,7 @@ export function createWorkforcePlan(input = {}) {
       codeExecution: false,
       projectFileWrites: false,
       workflowRun: false,
-      previewOnly: false,
+      previewOnly: true,
     },
     meta: {
       roleCount: roles.length,
@@ -174,7 +175,8 @@ export function createWorkforcePlan(input = {}) {
   plan.reviewPackagePreview = createReviewPackagePreview(plan);
   plan.approvalGatePreview = createApprovalGatePreview(plan);
   plan.handoffPackageManifest = createHandoffPackageManifest(plan);
-  plan.markdown = formatWorkforcePlanMarkdown(plan);
-  plan.exportableJson = createExportableWorkforcePlan(plan);
-  return plan;
+  const sealedPlan = sealWorkforcePreviewSafety(plan);
+  sealedPlan.exportableJson = sealWorkforcePreviewSafety(createExportableWorkforcePlan(sealedPlan));
+  sealedPlan.markdown = formatWorkforcePlanMarkdown(sealedPlan);
+  return sealedPlan;
 }

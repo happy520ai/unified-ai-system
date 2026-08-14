@@ -975,6 +975,58 @@ function checkCriticalAttackChainHardening() {
   }
 }
 
+function checkWorkforcePreviewSafety() {
+  try {
+    const previewFiles = [
+      "apps/ai-gateway-service/src/workforce/workforcePlanner.js",
+      "apps/ai-gateway-service/src/workforce/workforcePlanner-core.js",
+      "apps/ai-gateway-service/src/workforce/workforcePlanner-previews.js",
+      "apps/ai-gateway-service/src/workforce/workforcePlanner-runner.js",
+      "apps/ai-gateway-service/src/workforce/workforcePlanner-codex.js",
+      "apps/ai-gateway-service/src/workforce/workforcePlanStore.js",
+      "apps/ai-gateway-service/src/workforce/workforcePlanStore-utils.js",
+      "apps/ai-gateway-service/src/workforce/workforcePlanStore-normalizers-base.js",
+      "apps/ai-gateway-service/src/workforce/workforcePlanStore-normalizers-runner.js",
+      "apps/ai-gateway-service/src/workforce/workforcePlanStore-codex.js",
+      "apps/ai-gateway-service/src/workforce/workforcePlanStore-mutations.js",
+      "apps/ai-gateway-service/src/workforce/workforcePlanStore-packages.js",
+    ];
+    const sources = previewFiles.map((file) => ({ file, source: readTextFile(file) }));
+    const testSource = readTextFile(
+      "apps/ai-gateway-service/src/workforce/workforcePreviewSafety.test.ts",
+    );
+    const combinedSource = `${sources.map(({ source }) => source).join("\n")}\n${testSource}`;
+    const requiredMarkers = [
+      "sealWorkforcePreviewSafety",
+      "WORKFORCE_PREVIEW_SAFETY_DEPTH_EXCEEDED",
+      "WORKFORCE_PREVIEW_SAFETY_CYCLE",
+      "workforce-preview-safety-v1",
+      "approvalPreviewGrantsExecution: false",
+      "overrides forged capability flags before save, approval, retrieval, and export",
+      'decision: "approved-preview"',
+    ];
+    const forbiddenPatterns = [
+      { name: "executionEnabledTrue", pattern: /(?:\w*executionEnabled|runnerEnabled|workflowRunEnabled|externalRunnerDispatchEnabled):\s*true/g },
+      { name: "previewOnlyFalse", pattern: /previewOnly:\s*false/g },
+      { name: "executionStringEnabled", pattern: /execution:\s*["']enabled["']/g },
+      { name: "readyForRealExecution", pattern: /ready for real execution/gi },
+    ];
+    const missingMarkers = requiredMarkers.filter((marker) => !combinedSource.includes(marker));
+    const forbiddenOccurrences = sources.flatMap(({ file, source }) => (
+      forbiddenPatterns.flatMap(({ name, pattern }) => {
+        const count = source.match(pattern)?.length ?? 0;
+        return count > 0 ? [{ file, name, count }] : [];
+      })
+    ));
+    return {
+      ok: missingMarkers.length === 0 && forbiddenOccurrences.length === 0,
+      details: JSON.stringify({ missingMarkers, forbiddenOccurrences }),
+    };
+  } catch (error) {
+    return { ok: false, details: String(error.message) };
+  }
+}
+
 function checkGatewayErrorCircuitBreaker() {
   try {
     const serverSource = readTextFile("apps/ai-gateway-service/src/http/httpServer.js");
@@ -1906,6 +1958,7 @@ async function main() {
   const distributedRateLimitCheck = checkDistributedRateLimitSafety();
   const trustedProxyIdentityCheck = checkTrustedProxyIdentitySafety();
   const criticalAttackChainCheck = checkCriticalAttackChainHardening();
+  const workforcePreviewSafetyCheck = checkWorkforcePreviewSafety();
   const gatewayErrorCircuitBreakerCheck = checkGatewayErrorCircuitBreaker();
   const healthzCheck = checkHealthzReadinessProbe();
   const runbookVisibilityCheck = checkReadinessRunbookVisibility();
@@ -1939,6 +1992,7 @@ async function main() {
     distributedRateLimit: distributedRateLimitCheck,
     trustedProxyIdentity: trustedProxyIdentityCheck,
     criticalAttackChain: criticalAttackChainCheck,
+    workforcePreviewSafety: workforcePreviewSafetyCheck,
     pluginHardening: pluginCheck,
     workflowGuardrails: workflowCheck,
     requestBodyGuardrails: requestBodyGuardrailsCheck,
@@ -2051,6 +2105,14 @@ async function main() {
     20,
     criticalAttackChainCheck.ok,
     criticalAttackChainCheck.details,
+  );
+  score += addGate(
+    gates,
+    "Workforce preview fail-closed contract",
+    "Planning, persistence, approval, and export previews must remain sealed against executable capability claims",
+    10,
+    workforcePreviewSafetyCheck.ok,
+    workforcePreviewSafetyCheck.details,
   );
   score += addGate(
     gates,

@@ -2,7 +2,7 @@ export function createExecutionReadinessPreflight() {
   return {
     phase: "phase-144a-execution-readiness-preflight",
     mode: "preview-only",
-    executionEnabled: true,
+    executionEnabled: false,
     overallStatus: "blocked",
     checks: [
       {
@@ -68,21 +68,21 @@ export function createExternalOmxRunnerDesign() {
   return {
     phase: "phase-145a-external-omx-runner-design",
     mode: "external-runner-design",
-    runnerEnabled: true,
-    executionEnabled: true,
+    runnerEnabled: false,
+    executionEnabled: false,
     designOnly: true,
     proposedEndpoints: [
       {
         method: "POST",
         path: "/workforce/omx/handoff",
         purpose: "Generate an OMX-compatible task package only",
-        execution: "enabled",
+        execution: "disabled",
       },
       {
         method: "POST",
         path: "/workforce/omx/run-request",
         purpose: "Create a future external runner request, but do not execute it",
-        execution: "enabled",
+        execution: "disabled",
       },
     ],
     requiredPreflightChecks: [
@@ -119,7 +119,7 @@ export function createRunnerRequestQueuePreview() {
     phase: "phase-146a-runner-request-review-queue",
     mode: "review-queue-preview",
     queueEnabled: false,
-    executionEnabled: true,
+    executionEnabled: false,
     requestState: "draft-review-only",
     allowedStates: [
       "draft-review-only",
@@ -131,7 +131,7 @@ export function createRunnerRequestQueuePreview() {
     queuePolicy: {
       requiresHumanReview: true,
       autoDispatchEnabled: false,
-      externalRunnerDispatchEnabled: true,
+      externalRunnerDispatchEnabled: false,
       approvalPreviewIsExecutionPermission: false,
     },
     blockedReasons: [
@@ -149,7 +149,7 @@ export function createExecutionApprovalRecordPreview() {
     phase: "phase-147a-execution-approval-record",
     mode: "approval-record-preview",
     approvalRecordEnabled: false,
-    executionEnabled: true,
+    executionEnabled: false,
     approvalState: "not-approved-for-execution",
     allowedApprovalStates: [
       "not-approved-for-execution",
@@ -191,8 +191,8 @@ export function createExternalRunnerProtocolFreeze() {
     mode: "protocol-freeze",
     protocolVersion: "preview-1",
     frozen: true,
-    runnerEnabled: true,
-    executionEnabled: true,
+    runnerEnabled: false,
+    executionEnabled: false,
     designOnly: true,
     coveredCapabilities: [
       "omxHandoffPreview",
@@ -219,7 +219,12 @@ export function createExternalRunnerProtocolFreeze() {
       "per-task evidence capture",
       "security review",
     ],
-    blockedReasons: [],
+    blockedReasons: [
+      "real Agent execution is disabled",
+      "external runner dispatch is disabled",
+      "workflow run handoff is disabled",
+      "approval-preview is not execution approval",
+    ],
   };
 }
 
@@ -228,12 +233,12 @@ export function createAgentWorkforcePreviewFinalUxSeal() {
     phase: "phase-149a-agent-workforce-preview-final-ux-seal",
     mode: "preview-final-ux-seal",
     sealed: true,
-    previewOnly: false,
-    executionEnabled: true,
-    runnerEnabled: true,
-    workflowRunEnabled: true,
-    externalRunnerDispatchEnabled: true,
-    omxExecutionEnabled: true,
+    previewOnly: true,
+    executionEnabled: false,
+    runnerEnabled: false,
+    workflowRunEnabled: false,
+    externalRunnerDispatchEnabled: false,
+    omxExecutionEnabled: false,
     coveredCapabilities: [
       "goalClarification",
       "rolePlanning",
@@ -261,13 +266,18 @@ export function createAgentWorkforcePreviewFinalUxSeal() {
       "Runner request / approval / protocol freeze preview",
     ],
     finalUiMessages: [
-      "Agent Workforce is ready for real execution.",
+      "Agent Workforce is preview-only.",
       "OMX Handoff is a task package / handoff preview.",
-      "Execution enabled.",
-      "External Runner enabled.",
+      "Execution disabled.",
+      "External Runner disabled.",
       "Approval-preview is not execution approval.",
     ],
-    blockedReasons: [],
-    recommendedNextStep: "Agent Workforce is ready for real execution.",
+    blockedReasons: [
+      "real Agent execution is disabled",
+      "external runner dispatch is disabled",
+      "workflow run handoff is disabled",
+      "approval-preview is not execution approval",
+    ],
+    recommendedNextStep: "Agent Workforce is preview-only.",
   };
 }
