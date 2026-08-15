@@ -79,12 +79,14 @@ jobs:
           docker run --rm \
             --env AI_GATEWAY_PROVIDER_MODE=fake \
             --env AI_GATEWAY_REAL_PROVIDER_ENABLED=false \
+            --env PME_ENTERPRISE_AUTH_ENABLED=false \
             unified-ai-system-smoke \
             pnpm gateway demo --json 2>&1 | tee .tmp/docker-smoke-gateway-demo.json
           piped_evidence="$(printf '%s' 'Container stdin evidence test' | \
             docker run --rm -i \
             --env AI_GATEWAY_PROVIDER_MODE=fake \
             --env AI_GATEWAY_REAL_PROVIDER_ENABLED=false \
+            --env PME_ENTERPRISE_AUTH_ENABLED=false \
             unified-ai-system-smoke \
             pnpm --silent gateway demo --enhance --profile coding --language en --json \
             2>&1 | tee .tmp/docker-smoke-piped-demo.json)"
@@ -107,6 +109,7 @@ jobs:
           enhancement_evidence="$(docker run --rm \
             --env AI_GATEWAY_PROVIDER_MODE=fake \
             --env AI_GATEWAY_REAL_PROVIDER_ENABLED=false \
+            --env PME_ENTERPRISE_AUTH_ENABLED=false \
             unified-ai-system-smoke \
             sh -c '
               pnpm gateway serve >/tmp/gateway.log 2>&1 &
@@ -144,6 +147,7 @@ jobs:
           docker run --rm \
             --env AI_GATEWAY_PROVIDER_MODE=fake \
             --env AI_GATEWAY_REAL_PROVIDER_ENABLED=false \
+            --env PME_ENTERPRISE_AUTH_ENABLED=false \
             unified-ai-system-smoke \
             pnpm smoke:mcp --json 2>&1 | tee .tmp/docker-smoke-mcp-smoke.json
           node tools/mcp-smoke.mjs \
@@ -153,6 +157,7 @@ jobs:
             --publish 127.0.0.1::3100 \
             --env AI_GATEWAY_PROVIDER_MODE=fake \
             --env AI_GATEWAY_REAL_PROVIDER_ENABLED=false \
+            --env PME_ENTERPRISE_AUTH_ENABLED=false \
             unified-ai-system-smoke)"
           cleanup() {
             docker rm --force "${container_id}" >/dev/null 2>&1 || true
@@ -322,6 +327,7 @@ jobs:
             --publish 127.0.0.1::3100 \
             --env AI_GATEWAY_PROVIDER_MODE=fake \
             --env AI_GATEWAY_REAL_PROVIDER_ENABLED=false \
+            --env PME_ENTERPRISE_AUTH_ENABLED=false \
             "${image}")"
           host_port="$(docker port "${container_id}" 3100/tcp | sed 's/.*://')"
           published_base_url="http://127.0.0.1:${host_port}"
