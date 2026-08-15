@@ -10,11 +10,7 @@ ENV NODE_ENV=production
 LABEL org.opencontainers.image.source="https://github.com/happy520ai/unified-ai-system"
 LABEL org.opencontainers.image.licenses="Apache-2.0"
 
-# 预置 node 用户可读的 pnpm 缓存：非 root 运行时不再触发 Corepack 下载横幅，
-# 避免 "! Corepack ..." 输出污染容器的 stdout JSON 流。
-ENV COREPACK_HOME=/app/.corepack
-ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
-RUN corepack enable && corepack prepare pnpm@11.19.0 --activate   && chown -R node:node /app/.corepack
+RUN corepack enable && corepack prepare pnpm@11.19.0 --activate
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/ai-gateway-service/package.json apps/ai-gateway-service/package.json
@@ -55,4 +51,4 @@ LABEL org.opencontainers.image.description="Terminal-first, self-hosted AI gatew
 USER node
 EXPOSE 3100
 
-CMD ["pnpm", "--filter", "@unified-ai-system/ai-gateway-service", "start"]
+CMD ["node", "apps/ai-gateway-service/src/index.js"]
