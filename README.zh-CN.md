@@ -55,7 +55,7 @@ API Key，也不会调用 provider。
 也可以用已发布容器运行同一条验证：
 
 ```bash
-docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.9 pnpm gateway demo "帮我为团队设计一个小型 API" --enhance --profile coding --evidence
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.5.0 pnpm gateway demo "帮我为团队设计一个小型 API" --enhance --profile coding --evidence
 ```
 
 证据会确认原始请求被保留、结果具有确定性，并显示
@@ -113,7 +113,7 @@ Cursor、Cline、Continue 和通用 stdio 客户端都可以通过同一个网�
 无需登录，直接验证发布镜像：
 
 ```bash
-docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.9 pnpm gateway demo
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.5.0 pnpm gateway demo
 ```
 
 你将看到：
@@ -127,7 +127,7 @@ docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.9 pn
 用一条命令体验自然语言增强：
 
 ```bash
-docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.9 \
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.5.0 \
   pnpm gateway demo "帮我为团队设计一个小型 API" --enhance --profile coding --evidence
 ```
 
@@ -201,7 +201,7 @@ Python 示例、支持字段、鉴权方式和明确限制见
 直接添加已发布的 MCP 镜像：
 
 ```bash
-codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.9
+codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.5.0
 ```
 
 重启 Codex 后运行 `/mcp` 检查连接，再参考 [Codex MCP 60 秒快速开始](https://happy520ai.github.io/unified-ai-system/codex-mcp-docker-quickstart.zh-CN.html)。

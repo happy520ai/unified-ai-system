@@ -9,6 +9,12 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Nothing yet.
+
+## [0.5.0] - 2026-08-15
+
+### Added
+
 - Added reverse MCP governance: the gateway aggregates operator-declared
   upstream MCP servers (`MCP_UPSTREAM_SERVERS_JSON`) over Streamable HTTP,
   stdio, and a REST→MCP OpenAPI bridge, exposing them through
