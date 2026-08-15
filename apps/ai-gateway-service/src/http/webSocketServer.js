@@ -1017,12 +1017,23 @@ function createReauthorizationRequest(request) {
     const value = request?.headers?.[name];
     if (typeof value === "string") headers[name] = value;
   }
+  // Both enterprise token headers must survive reauthorization, mirroring
+  // how the upgrade handshake authenticates; keep them non-enumerable so
+  // they never leak into logging.
   Object.defineProperty(headers, "authorization", {
     enumerable: false,
     configurable: false,
     writable: false,
     value: typeof request?.headers?.authorization === "string"
       ? request.headers.authorization
+      : undefined,
+  });
+  Object.defineProperty(headers, "x-pme-auth-token", {
+    enumerable: false,
+    configurable: false,
+    writable: false,
+    value: typeof request?.headers?.["x-pme-auth-token"] === "string"
+      ? request.headers["x-pme-auth-token"]
       : undefined,
   });
   Object.freeze(headers);

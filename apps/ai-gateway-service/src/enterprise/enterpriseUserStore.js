@@ -7,7 +7,7 @@ const logger = createPinoLogger({ app: "enterpriseUserStore" });
 
 export const DEFAULT_ROLES = {
   admin: ["*"],
-  operator: ["session:read", "dashboard:read", "provider:read", "chat:use", "knowledge:read", "knowledge:write", "memory:write", "connector:write", "workflow:run", "evaluation:run"],
+  operator: ["session:read", "dashboard:read", "provider:read", "chat:use", "knowledge:read", "knowledge:write", "memory:write", "connector:write", "workflow:run", "evaluation:run", "audit:read"],
   viewer: ["session:read", "dashboard:read", "provider:read", "knowledge:read"],
   auditor: ["session:read", "dashboard:read", "audit:read"],
 };
@@ -66,10 +66,12 @@ export function addUser(users, user) {
   }
   const role = user.role ?? "viewer";
   const permissions = Array.isArray(user.permissions) ? user.permissions : DEFAULT_ROLES[role] ?? [];
-  users.set(user.token, {
-    token: user.token,
-    tokenHash: hashToken(user.token),
-    tokenFingerprint: createTokenFingerprint(hashToken(user.token)),
+  // Key env-derived users by token hash only: raw tokens never become
+  // in-memory Map keys and lookups follow a single constant-shape path.
+  const tokenHash = hashToken(user.token);
+  users.set(tokenHash, {
+    tokenHash,
+    tokenFingerprint: createTokenFingerprint(tokenHash),
     source: "env",
     userId: user.userId ?? role,
     tenantId: user.tenantId ?? "default",

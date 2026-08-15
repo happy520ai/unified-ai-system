@@ -215,7 +215,7 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
 
       const token = readToken(request);
       const tokenHash = token ? hashToken(token) : null;
-      const configured = token ? users.get(token) ?? users.get(tokenHash) : null;
+      const configured = tokenHash ? users.get(tokenHash) : null;
 
       if (!configured) {
         return {
@@ -478,12 +478,16 @@ function createSecurityReadiness({ authEnabled, users, revokedTokens, userStoreP
 }
 
 function parseRevokedTokens(value) {
-  return new Set(
-    String(value ?? "")
-      .split(",")
-      .map((token) => token.trim())
-      .filter(Boolean),
-  );
+  const revoked = new Set();
+  for (const raw of String(value ?? "").split(",")) {
+    const token = raw.trim();
+    if (!token) continue;
+    // Register both the literal and its hash so revocation lists written
+    // with raw tokens keep working now that users are keyed by hash.
+    revoked.add(token);
+    revoked.add(hashToken(token));
+  }
+  return revoked;
 }
 
 function isUserRevoked(user, revokedTokens) {

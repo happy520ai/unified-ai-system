@@ -169,18 +169,28 @@ export function createAuthRoutes(application, helpers, env = process.env) {
       return;
     }
 
-    authTokenService.revokeToken(body.token);
+    // Revocation is self-service logout: only a correctly signed token can be
+    // revoked, so anonymous callers cannot flood the revocation store.
+    const revoked = authTokenService.revokeToken(body.token);
+    if (!revoked) {
+      writeJson(res, 401, createErrorEnvelope(
+        "auth_revoke_invalid_token",
+        "A valid signed token is required for revocation.",
+        { startedAt, category: "auth" },
+      ));
+      return;
+    }
     writeJson(res, 200, createOkEnvelope({ revoked: true }, { startedAt }));
   }
 
   // ── GET /auth/status ──
+  // Public surface: booleans only. Token service internals (algorithm,
+  // revocation counts) are not unauthenticated reconnaissance material.
   async function handleStatus(_req, res, { startedAt }) {
-    const stats = authTokenService ? authTokenService.getStats() : null;
     writeJson(res, 200, createOkEnvelope({
       authEnabled: Boolean(authTokenService),
       tokenService: !!authTokenService,
       passwordLoginConfigured,
-      stats,
     }, { startedAt }));
   }
 
