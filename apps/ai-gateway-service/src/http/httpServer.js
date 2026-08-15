@@ -60,6 +60,7 @@ import {
   readCacheSummary as readResponseCacheSummary,
   writeCacheRecord,
 } from "../cache/responseCacheStore.js";
+import { createAuthRateLimiter } from "./authRateLimiter.js";
 import {
   listResponseCacheAuditTrail,
 } from "../cache/responseCacheAuditTrail.js";
@@ -269,6 +270,7 @@ export function createGatewayHttpServer(application) {
   const fileContextStore = createFileContextStore();
   const phase319LocalOperation = createPhase319LocalOperationService();
   const rateLimiter = createRouteAwareRateLimiter(application.runtimeEnv ?? process.env);
+  const authRateLimiter = createAuthRateLimiter();
   const requestConfig = application.runtimeEnv ?? process.env;
   const webSocketQuotaWindowMs = parsePositiveInteger(
     requestConfig.AI_GATEWAY_WS_MESSAGE_WINDOW_MS,
@@ -699,8 +701,33 @@ export function createGatewayHttpServer(application) {
 
       const publicRoute = isPublicRoute(pathname);
       const requiredPermission = resolvePermission(request.method, pathname);
+
+      // Brute-force lockout on the authentication path, keyed by client
+      // address; checked before authorize and fed by its outcome.
+      const authRateKey = request.socket?.remoteAddress ?? "unknown";
+      const authRateCheck = authRateLimiter.check(authRateKey);
+      if (!authRateCheck.allowed) {
+        writeJson(
+          response,
+          429,
+          createErrorEnvelope("auth_rate_limited", "Too many failed authentication attempts; retry later.", {
+            startedAt,
+            category: "auth",
+            retryable: true,
+          }),
+        );
+        response.setHeader("retry-after", Math.ceil(authRateCheck.retryAfterMs / 1000));
+        markRequestSuccess();
+        return;
+      }
+
       const enterpriseDecision = enterpriseGovernanceService.authorize(request, requiredPermission);
       request.enterpriseIdentity = enterpriseDecision.identity;
+      if (enterpriseDecision.allowed) {
+        authRateLimiter.recordSuccess(authRateKey);
+      } else {
+        authRateLimiter.recordFailure(authRateKey);
+      }
 
       if (shouldRejectUnmappedRoute({
         isPublic: publicRoute,

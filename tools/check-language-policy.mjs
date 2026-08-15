@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -100,10 +100,14 @@ function discoverBaseRefFromEnvironment() {
 }
 
 function parseGitDiffNameStatus(baseRef, headRef) {
-  const command = baseRef
-    ? `git -C ${JSON.stringify(repoRoot)} diff --name-status ${JSON.stringify(baseRef)}...${JSON.stringify(headRef)}`
-    : `git -C ${JSON.stringify(repoRoot)} diff --name-status --cached`;
-  const output = execSync(command, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  const args = baseRef
+    ? ["diff", "--name-status", `${baseRef}...${headRef}`]
+    : ["diff", "--name-status", "--cached"];
+  const output = execFileSync(
+    "git",
+    ["-C", repoRoot, ...args],
+    { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+  );
   return output
     .split("\n")
     .map((line) => line.trim())

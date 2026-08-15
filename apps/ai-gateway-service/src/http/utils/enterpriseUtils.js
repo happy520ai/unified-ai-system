@@ -346,6 +346,16 @@ export function resolvePermission(method, pathname) {
     return "provider:write";
   }
 
+  // Usage and cost summaries aggregate across users; treat them as audit
+  // grade data instead of generic provider metadata.
+  if (
+    normalizedPath === "/cost/summary" ||
+    normalizedPath === "/usage/summary" ||
+    normalizedPath === "/usage/logs"
+  ) {
+    return "audit:read";
+  }
+
   if (
     normalizedPath === "/providers" ||
     normalizedPath === "/config/runtime" ||
@@ -360,9 +370,6 @@ export function resolvePermission(method, pathname) {
     normalizedPath === "/cost/health" ||
     normalizedPath === "/cost/estimate" ||
     normalizedPath === "/cost/guard/check" ||
-    normalizedPath === "/cost/summary" ||
-    normalizedPath === "/usage/summary" ||
-    normalizedPath === "/usage/logs" ||
     normalizedPath === "/cache/health" ||
     normalizedPath === "/cache/lookup" ||
     normalizedPath === "/cache/summary" ||

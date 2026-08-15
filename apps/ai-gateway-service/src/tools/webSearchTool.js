@@ -14,6 +14,30 @@ import { buildTool, createInputSchema } from "../claude-code-patterns/toolCore.j
 
 const DEFAULT_MAX_RESULTS = 5;
 const DEFAULT_TIMEOUT_MS = 15_000;
+const MAX_HTML_BYTES = 2 * 1024 * 1024;
+
+// Bounded HTML read so an oversized search-response body cannot balloon
+// memory before parsing.
+async function readTextWithLimit(response, maxBytes) {
+  const reader = response.body?.getReader?.();
+  if (!reader) {
+    return response.text();
+  }
+  const decoder = new TextDecoder();
+  let text = "";
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel().catch(() => {});
+      break;
+    }
+    text += decoder.decode(value, { stream: true });
+  }
+  return text;
+}
 
 /**
  * 创建 web_search 工具定义。
@@ -107,7 +131,7 @@ async function searchDuckDuckGo(query, maxResults, timeRange) {
       return { success: false, error: `DuckDuckGo returned HTTP ${response.status}`, provider: "duckduckgo" };
     }
 
-    const html = await response.text();
+    const html = await readTextWithLimit(response, MAX_HTML_BYTES);
     const results = parseDuckDuckGoHtml(html, maxResults);
 
     return {

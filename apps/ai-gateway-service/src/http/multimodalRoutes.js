@@ -103,11 +103,15 @@ export async function handleMultimodalRoute({ request, response, url, startedAt,
     return true;
   }
 
-  // Rate limiting
+  // Rate limiting — keyed per subject (tenant/user, falling back to client
+  // address) so one caller cannot exhaust the quota of every other tenant.
   const rateLimitKey = getRateLimitKey(pathname);
   if (rateLimitKey) {
+    const subject = request.enterpriseIdentity
+      ? `${request.enterpriseIdentity.tenantId ?? "tenant"}:${request.enterpriseIdentity.userId ?? "user"}`
+      : `addr:${request.socket?.remoteAddress ?? "unknown"}`;
     const maxPerMinute = RATE_LIMITS[rateLimitKey];
-    const rateCheck = checkRateLimit(rateLimitKey, maxPerMinute);
+    const rateCheck = checkRateLimit(`${rateLimitKey}:${subject}`, maxPerMinute);
     if (!rateCheck.allowed) {
       const retryAfterSeconds = Math.ceil(rateCheck.retryAfterMs / 1000);
       response.writeHead(429, {

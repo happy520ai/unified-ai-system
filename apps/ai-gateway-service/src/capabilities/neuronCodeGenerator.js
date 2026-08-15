@@ -21,7 +21,7 @@
 
 import http from "node:http";
 import { mkdir, writeFile } from "node:fs/promises";
-import { join, dirname } from "node:path";
+import { join, dirname, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -280,7 +280,19 @@ export async function generateNeuronCode(capabilitySpec, options = {}) {
   }
 
   const capabilityId = capabilitySpec.capabilityId;
-  const outputDir = options.outputDir || join(GENERATED_DIR, capabilityId);
+  // Generated code may only land inside the managed _generated directory;
+  // a caller-provided outputDir must resolve inside it and capability ids
+  // are sanitized to path-safe tokens.
+  const safeCapabilityId = String(capabilityId).replace(/[^a-zA-Z0-9._-]+/g, "-").slice(0, 80) || "capability";
+  let outputDir = join(GENERATED_DIR, safeCapabilityId);
+  if (options.outputDir) {
+    const requested = resolve(options.outputDir);
+    const managedRoot = resolve(GENERATED_DIR);
+    if (requested !== managedRoot && !requested.startsWith(managedRoot + sep)) {
+      throw new Error("generateNeuronCode: outputDir must stay inside the managed _generated directory.");
+    }
+    outputDir = requested;
+  }
 
   // 安全扫描的覆盖选项（从 spec 的安全约束推断）
   const safetyOverrides = {

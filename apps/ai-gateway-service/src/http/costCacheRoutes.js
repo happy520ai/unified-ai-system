@@ -141,7 +141,7 @@ export function createCostCacheRoutes(application) {
     ["GET /cost/health", { handler: handleCostHealth, public: false, permission: "provider:read" }],
     ["POST /cost/estimate", { handler: handleCostEstimate, public: false, permission: "provider:read" }],
     ["POST /cost/guard/check", { handler: handleCostGuardCheck, public: false, permission: "provider:read" }],
-    ["GET /cost/summary", { handler: handleCostSummary, public: false, permission: "provider:read" }],
+    ["GET /cost/summary", { handler: handleCostSummary, public: false, permission: "audit:read" }],
     ["GET /cache/health", { handler: handleCacheHealth, public: false, permission: "provider:read" }],
     ["POST /cache/lookup", { handler: handleCacheLookup, public: false, permission: "provider:read" }],
     ["POST /cache/write", { handler: handleCacheWrite, public: false, permission: "provider:write" }],

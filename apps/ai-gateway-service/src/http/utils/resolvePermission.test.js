@@ -3,12 +3,12 @@ import { resolvePermission } from "./enterpriseUtils.js";
 
 describe("resolvePermission route → permission mapping", () => {
   it("maps the usage ledger summary to provider:read (observability)", () => {
-    expect(resolvePermission("GET", "/usage/summary")).toBe("provider:read");
-    expect(resolvePermission("GET", "/usage/logs")).toBe("provider:read");
+    expect(resolvePermission("GET", "/usage/summary")).toBe("audit:read");
+    expect(resolvePermission("GET", "/usage/logs")).toBe("audit:read");
   });
 
   it("keeps the cost summary consistent at provider:read", () => {
-    expect(resolvePermission("GET", "/cost/summary")).toBe("provider:read");
+    expect(resolvePermission("GET", "/cost/summary")).toBe("audit:read");
   });
 
   it("maps dashboard/observability surfaces to dashboard:read", () => {
