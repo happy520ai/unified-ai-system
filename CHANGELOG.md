@@ -15,6 +15,16 @@ and the project uses [Semantic Versioning](https://semver.org/).
   response without a provider call, reusing the existing response-cache store,
   tenant scoping, TTL, and audit trail. See
   `docs/response-cache-hot-path.md` for eligibility rules and operations.
+- Added a credential-gated real-provider smoke: `tools/real-provider-smoke.mjs`
+  plus the manual **Real Provider Smoke** workflow. The wrapper pins the
+  OpenAI lane, bootstraps a per-run enterprise token (real modes require
+  authentication even on loopback), enforces a timeout, treats fake-lane
+  fallback as a failure, and exits with an explicit skip when
+  `secrets.OPENAI_API_KEY` is absent, so zero-credential runs stay green.
+- Added the real provider enablement runbook
+  (`docs/real-provider-enablement.md`) covering the three-gate whitelist
+  matrix, credential provisioning paths, verification, cost control, the
+  unchanged fake boundary, and rollback.
 - Added a task handoff loop reference that documents the read and write handoff
   endpoints, the task card schema, the standard round, and a read-only
   connection verification card that any MCP host can run.
