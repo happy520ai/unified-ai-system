@@ -79,6 +79,11 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Archived the forge gateway embedding: the module was never wired into the
+  application (zero callers), and now additionally requires an explicit
+  `FORGE_ENABLED=true` opt-in. Annotated the dead route modules
+  (`legacyRoutes.js`, `enterpriseRoutes.js`) as archived and recorded the
+  D-track subtraction inventory in `docs/subtraction-ledger.md`.
 - Moved the Codex plugin and manual Agent Skill procedure to the reviewed
   immutable `v0.4.9` MCP image index.
 - Documented local client convergence for the three source hosts and ignored

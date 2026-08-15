@@ -1,3 +1,6 @@
+// ARCHIVED (2026-08-15): this module has zero importers — the live enterprise
+// routes are inlined in httpServerRoutes01.js. Kept as reference; see
+// docs/subtraction-ledger.md.
 // =============================================================================
 // enterpriseRoutes.js — 企业治理路由模块
 // 从 httpServer.js 抽取的 /enterprise/* 路由

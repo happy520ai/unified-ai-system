@@ -1,3 +1,6 @@
+// ARCHIVED (2026-08-15): this module has zero importers — the live routes live
+// in httpServerRoutes01-06 and the capability route handlers. Kept as reference;
+// see docs/subtraction-ledger.md.
 // =============================================================================
 // legacyRoutes.js — 遗留路由模块
 // 从 httpServer.js 抽取的 Codex、chat-gateway、agent-runner 等路由
