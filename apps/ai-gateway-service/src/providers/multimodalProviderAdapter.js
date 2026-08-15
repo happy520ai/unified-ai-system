@@ -21,8 +21,12 @@ import {
   createAdapterError,
 } from "./multimodalUtils.js";
 import { callJson, callBinary, callMultipart } from "./multimodalHttpHelpers.js";
+import { safeOutboundFetch } from "../security/safeOutboundFetch.ts";
 
-export function createMultimodalProviderAdapter({ runtimeCredentialStore, env = process.env, fetchImpl = globalThis.fetch } = {}) {
+// All multimodal provider traffic must resolve through the governed outbound
+// policy (SSRF screening, DNS pinning, redirect refusal). Injecting a custom
+// fetchImpl stays available for tests.
+export function createMultimodalProviderAdapter({ runtimeCredentialStore, env = process.env, fetchImpl = safeOutboundFetch } = {}) {
   return new MultimodalProviderAdapter({ runtimeCredentialStore, env, fetchImpl });
 }
 

@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const sourceDir = path.join(rootDir, "apps", "ai-gateway-service", "src");
+const packagesDir = path.join(rootDir, "packages");
 const allowedDirectFetchFiles = new Set([
   "capabilities/neuronCodeGenerator.js",
   "entrypoints/entrypointUtils.js",
@@ -21,9 +22,48 @@ const requiredSafeFetchFiles = [
   "http/httpServerCapabilityRoutes.js",
   "http/httpServerRoutes03.js",
   "knowledge/vectorProductionProbe.js",
+  "model-import/modelImportService.js",
+  "model-import/providerProbeRegistry.js",
+  "model-library/nvidiaCatalogDiscovery.js",
   "providers/httpLlmProviderAdapter.js",
+  "providers/multimodalHttpHelpers.js",
+  "providers/multimodalProviderAdapter.js",
+  "providers/nvidia/nvidiaUnifiedClient.js",
   "tools/webSearchTool.js",
 ];
+
+// packages/* run in-process with the gateway; direct fetch is only tolerated
+// with an explicit reason. Forge's own-gateway clients talk to a fixed
+// 127.0.0.1 gatewayUrl; the dashboard helper is browser-side script; the
+// skills searcher targets api.github.com; mcp-server validates its target;
+// shared-sdk/shared-utils are client libraries and offline scripts; im
+// connectors post to operator-configured webhooks.
+const allowedPackageDirectFetchFiles = new Set([
+  "forge-core/src/forge-dashboard/render-helpers.js", // browser-side dashboard script
+  "forge-core/src/gateway-bridge/index.js", // fixed own-gateway URL
+  "forge-core/src/gateway-bridge/utils.js", // fixed own-gateway URL
+  "forge-core/src/gateway-lifecycle/index.js", // fixed own-gateway URL
+  "forge-core/src/llm-client.js", // fixed own-gateway URL
+  "forge-core/src/llm-client-helpers.js", // guarded by isObviouslyUnsafeNetworkTarget
+  "forge-core/src/multimodal-client/helpers.js", // guarded by isObviouslyUnsafeNetworkTarget
+  "forge-core/src/skills/githubSkillSearcher.js", // api.github.com only
+  "forge-core/src/verification/smokeTest.js", // fixed 127.0.0.1 target
+  "im-connector-feishu/src/index.js", // operator-configured webhook target
+  "im-connector-wecom/src/index.js", // operator-configured webhook target
+  "mcp-server/src/runtime.js", // loopback-or-HTTPS validated target
+  "shared-sdk/src/index.js", // client library pointed at the user's gateway
+  "shared-utils/src/index.js", // offline entrypoint scripts only
+]);
+const requiredPackageMarkers = new Map([
+  ["forge-core/src/llm-client-helpers.js", "isObviouslyUnsafeNetworkTarget"],
+  ["forge-core/src/multimodal-client/helpers.js", "isObviouslyUnsafeNetworkTarget"],
+]);
+
+// Aliased native fetch (e.g. fetchImpl = globalThis.fetch) previously escaped
+// the literal fetch( scan, so detect the bare reference too.
+function usesDirectFetch(source) {
+  return /\bfetch\s*\(/.test(source) || /globalThis\.fetch\b/.test(source);
+}
 
 function walk(directory) {
   return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -35,11 +75,25 @@ function walk(directory) {
 
 const failures = [];
 for (const absolute of walk(sourceDir)) {
-  const relative = path.relative(sourceDir, absolute).replace(/\\/g, "/");
+  const relative = path.relative(sourceDir, absolute).split(path.sep).join("/");
   if (/\.(?:test|security\.test)\./.test(relative)) continue;
   const source = fs.readFileSync(absolute, "utf8");
-  if (/\bfetch\s*\(/.test(source) && !allowedDirectFetchFiles.has(relative)) {
-    failures.push(`${relative}: direct fetch() bypasses safeOutboundFetch`);
+  if (usesDirectFetch(source) && !allowedDirectFetchFiles.has(relative)) {
+    failures.push(`${relative}: direct fetch() or globalThis.fetch bypasses safeOutboundFetch`);
+  }
+}
+
+for (const packageDir of fs.readdirSync(packagesDir, { withFileTypes: true })) {
+  if (!packageDir.isDirectory()) continue;
+  const packageSrc = path.join(packagesDir, packageDir.name, "src");
+  if (!fs.existsSync(packageSrc)) continue;
+  for (const absolute of walk(packageSrc)) {
+    const relative = path.relative(packagesDir, absolute).split(path.sep).join("/");
+    if (/\.(?:test|security\.test)\./.test(relative)) continue;
+    const source = fs.readFileSync(absolute, "utf8");
+    if (usesDirectFetch(source) && !allowedPackageDirectFetchFiles.has(relative)) {
+      failures.push(`${relative}: direct fetch() in packages/ bypasses the outbound policy`);
+    }
   }
 }
 
@@ -47,6 +101,13 @@ for (const relative of requiredSafeFetchFiles) {
   const source = fs.readFileSync(path.join(sourceDir, relative), "utf8");
   if (!source.includes("safeOutboundFetch")) {
     failures.push(`${relative}: required safeOutboundFetch integration is missing`);
+  }
+}
+
+for (const [relative, marker] of requiredPackageMarkers) {
+  const source = fs.readFileSync(path.join(packagesDir, relative), "utf8");
+  if (!source.includes(marker)) {
+    failures.push(`${relative}: required guard ${marker} is missing`);
   }
 }
 

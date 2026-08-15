@@ -1,11 +1,12 @@
 import { createRequestId } from "@unified-ai-system/shared-utils";
+import { safeOutboundFetch } from "../../security/safeOutboundFetch.ts";
 import { ENDPOINT_TYPES, isDirectChatCapable } from "../../model-library/modelCapabilityRules.js";
 import { findModel } from "../../model-library/unifiedModelRegistry.js";
 
 const DEFAULT_INTEGRATE_BASE_URL = "https://integrate.api.nvidia.com/v1";
 const DEFAULT_RETRIEVAL_BASE_URL = "https://ai.api.nvidia.com/v1";
 
-export function createNvidiaUnifiedClient({ env = process.env, runtimeCredentialStore, modelLibraryStore, fetchImpl = globalThis.fetch, timeoutMs = 60_000 } = {}) {
+export function createNvidiaUnifiedClient({ env = process.env, runtimeCredentialStore, modelLibraryStore, fetchImpl = safeOutboundFetch, timeoutMs = 60_000 } = {}) {
   function resolveApiKey() {
     return runtimeCredentialStore?.getApiKey?.("nvidia") || env.NVIDIA_API_KEY || "";
   }
