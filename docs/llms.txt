@@ -40,15 +40,15 @@ authorized path.
 
 ## Public distributions
 
-- [Release v0.4.9](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.4.9)
-- [Official MCP Registry entry](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.4.9)
+- [Release v0.5.0](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.5.0)
+- [Official MCP Registry entry](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.5.0)
 - Agent Skill: `npx skills add happy520ai/unified-ai-system --skill unified-ai-gateway --agent codex --copy --yes`
-- MCP container: `ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.9`
-- Gateway demo container: `ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.9`
+- MCP container: `ghcr.io/happy520ai/unified-ai-system/mcp-server:0.5.0`
+- Gateway demo container: `ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.5.0`
 
 ## Verified boundaries
 
-- The stable v0.4.9 MCP image and current source both expose twelve tools, including provider-free prompt enhancement.
+- The stable v0.5.0 MCP image and current source both expose twelve tools, including provider-free prompt enhancement.
 - Plain chat requests remain unchanged unless prompt enhancement is explicitly enabled.
 - The credential-free default uses `local-fake-provider` in `fake` execution mode.
 - Real-provider execution requires explicit, scoped authorization.
