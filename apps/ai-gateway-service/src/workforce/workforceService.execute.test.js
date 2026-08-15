@@ -69,7 +69,7 @@ describe("workforceService.runLocal — real local orchestration", () => {
     // store file used by other workforce tests (local-json-file persistence).
     const storePath = join(mkdtempSync(join(tmpdir(), "workforce-run-")), "workforce-plans.json");
     const service = createWorkforceService({ env: { WORKFORCE_PLAN_STORE_PATH: storePath } });
-    const result = await service.runLocal({ goal: "Build a login page" });
+    const result = await service.runLocal({ goal: "Build a login page" }, { tenantId: "workforce-run-local" });
 
     expect(result.executionStatus).toBe("completed");
     expect(result.completionVerified).toBe(true);

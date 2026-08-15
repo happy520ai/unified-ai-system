@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { STORE_VERSION } from "./workforcePlanStore-constants.js";
@@ -142,7 +142,7 @@ export async function writeStore(storePath, store) {
   // Atomic write: write to a unique temp file in the same directory, then
   // rename over the target. This prevents a partially-written store file from
   // being observed if the process is interrupted mid-write.
-  const tempPath = `${storePath}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2, 6)}.tmp`;
+  const tempPath = `${storePath}.${process.pid}.${Date.now()}.${randomUUID().slice(0, 8)}.tmp`;
   try {
     await writeFile(tempPath, `${JSON.stringify(redactSecrets(store), null, 2)}\n`, "utf8");
     await rename(tempPath, storePath);

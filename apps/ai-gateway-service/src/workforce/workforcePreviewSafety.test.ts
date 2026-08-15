@@ -56,6 +56,7 @@ describe("workforce preview safety contract", () => {
 
   it("overrides forged capability flags before save, approval, retrieval, and export", async () => {
     const storePath = join(mkdtempSync(join(tmpdir(), "workforce-preview-safety-")), "plans.json");
+    const tenantId = "workforce-preview-safety";
     const service = createWorkforceService({ env: { WORKFORCE_PLAN_STORE_PATH: storePath } });
     const plan = service.plan({ goal: "Persist a fail-closed workforce preview" });
 
@@ -66,21 +67,21 @@ describe("workforce preview safety contract", () => {
     plan.eventLedgerPreview[0].execution = "enabled";
     plan.safety.previewOnly = false;
 
-    const saved = await service.savePlan({ plan });
+    const saved = await service.savePlan({ plan }, tenantId);
     expectSealed(saved.taskPackage);
 
     const approved = await service.recordPlanApprovalGate(saved.planId, {
       decision: "approved-preview",
       reviewer: "contract-test",
-    });
+    }, tenantId);
     expect(approved.decision).toBe("approved-preview");
     expectSealed(approved.taskPackage);
 
-    const retrieved = await service.getPlan(saved.planId);
+    const retrieved = await service.getPlan(saved.planId, tenantId);
     expectSealed(retrieved.taskPackage);
     expectSealed(retrieved.plan);
 
-    const exported = await service.exportPlan(saved.planId);
+    const exported = await service.exportPlan(saved.planId, tenantId);
     expectSealed(exported.taskPackage);
     expect(exported.markdown).not.toContain("Execution enabled: true");
     expect(exported.markdown).not.toContain("Runner enabled: true");

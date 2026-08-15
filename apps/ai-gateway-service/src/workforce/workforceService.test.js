@@ -44,27 +44,29 @@ describe("workforce-service", () => {
   });
 
   it("saves and retrieves plans", async () => {
+    const tenantId = "workforce-svc-test";
     const plan = service.plan({ goal: "Test save" });
-    const saved = await service.savePlan({ plan });
+    const saved = await service.savePlan({ plan }, tenantId);
     expect(saved.planId).toBeDefined();
 
-    const list = await service.listPlans();
+    const list = await service.listPlans(tenantId);
     expect(list.plans.length).toBeGreaterThan(0);
 
-    const retrieved = await service.getPlan(saved.planId);
+    const retrieved = await service.getPlan(saved.planId, tenantId);
     expect(retrieved.plan.goal).toBe("Test save");
 
-    await service.deletePlan(saved.planId);
-    const afterDelete = await service.listPlans();
+    await service.deletePlan(saved.planId, tenantId);
+    const afterDelete = await service.listPlans(tenantId);
     expect(afterDelete.plans.some((p) => p.planId === saved.planId)).toBe(false);
   });
 
   it("exports plan as task package", async () => {
+    const tenantId = "workforce-svc-test";
     const plan = service.plan({ goal: "Test export" });
-    const saved = await service.savePlan({ plan });
-    const exported = await service.exportPlan(saved.planId);
+    const saved = await service.savePlan({ plan }, tenantId);
+    const exported = await service.exportPlan(saved.planId, tenantId);
     expect(exported.taskPackage).toBeDefined();
     expect(exported.taskPackage.goal).toBe("Test export");
-    await service.deletePlan(saved.planId);
+    await service.deletePlan(saved.planId, tenantId);
   });
 });

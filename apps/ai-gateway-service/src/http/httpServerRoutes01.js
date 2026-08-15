@@ -142,7 +142,7 @@ export async function dispatchHttpRoutes01(context) {
   if (request.method === "GET" && url.pathname === "/approvals") {
     writeJson(response, 200, createOkEnvelope({
       route: "/approvals",
-      approvals: approvalStore.list(),
+      approvals: approvalStore.list(request.enterpriseIdentity?.tenantId),
     }, { startedAt }));
     return;
   }
@@ -150,7 +150,7 @@ export async function dispatchHttpRoutes01(context) {
   if (request.method === "POST" && url.pathname === "/approvals/create") {
     const body = await readCapabilityJson({ request, response, startedAt, code: "approval_create_invalid_json" });
     if (!body) return;
-    const approval = approvalStore.create(body);
+    const approval = approvalStore.create(body, request.enterpriseIdentity?.tenantId);
     writeJson(response, 200, createOkEnvelope({
       route: "/approvals/create",
       approval,
@@ -172,8 +172,8 @@ export async function dispatchHttpRoutes01(context) {
     }
     try {
       const approval = action === "approve"
-        ? approvalStore.approve(approvalId, body)
-        : approvalStore.reject(approvalId, body);
+        ? approvalStore.approve(approvalId, body, request.enterpriseIdentity?.tenantId)
+        : approvalStore.reject(approvalId, body, request.enterpriseIdentity?.tenantId);
       writeJson(response, 200, createOkEnvelope({
         route: `/approvals/${approvalId}/${action}`,
         approval,
@@ -189,7 +189,7 @@ export async function dispatchHttpRoutes01(context) {
   if (request.method === "POST" && url.pathname === "/local-operation/apply-approved") {
     const body = await readCapabilityJson({ request, response, startedAt, code: "apply_approved_invalid_json" });
     if (!body) return;
-    const approval = approvalStore.get(body.approvalId);
+    const approval = approvalStore.get(body.approvalId, request.enterpriseIdentity?.tenantId);
     if (!approval) {
       writeJson(response, 404, createErrorEnvelope("approval_not_found", "approvalId is required and must reference an existing approval record.", { startedAt }));
       return;
@@ -197,7 +197,9 @@ export async function dispatchHttpRoutes01(context) {
     const result = await phase319LocalOperation.applyApproved({
       ...body,
       approval,
-      patchProposal: body.patchProposal ?? approval.patchProposal,
+      // Only the stored patch proposal may be applied; a caller-supplied
+      // proposal would decouple what was approved from what is written.
+      patchProposal: approval.patchProposal,
       dryRun: body.dryRun === false ? false : true,
     });
     writeJson(response, 200, createOkEnvelope({

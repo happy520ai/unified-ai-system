@@ -287,7 +287,7 @@ export async function dispatchHttpRoutes04(context) {
 
       try {
         const result = workforceService.plan(body);
-        const autoSaveResult = await workforceService.savePlan({ plan: result });
+        const autoSaveResult = await workforceService.savePlan({ plan: result }, request.enterpriseIdentity?.tenantId);
         const responseData = {
           ...result,
           autoSaved: true,
@@ -333,7 +333,7 @@ export async function dispatchHttpRoutes04(context) {
     if (!body) return;
 
     try {
-      const result = await workforceService.runLocal(body);
+      const result = await workforceService.runLocal(body, { tenantId: request.enterpriseIdentity?.tenantId });
       writeServiceLog("workforce_real_local_run_completed", {
         method: request.method,
         path: url.pathname,
@@ -362,7 +362,7 @@ export async function dispatchHttpRoutes04(context) {
     if (!body) return;
 
     try {
-      const result = await workforceService.savePlan(body);
+      const result = await workforceService.savePlan(body, request.enterpriseIdentity?.tenantId);
       writeServiceLog("workforce_plan_saved", {
         method: request.method,
         path: url.pathname,
@@ -385,7 +385,7 @@ export async function dispatchHttpRoutes04(context) {
 
   if (request.method === "GET" && url.pathname === "/workforce/plans") {
     try {
-      const result = await workforceService.listPlans();
+      const result = await workforceService.listPlans(request.enterpriseIdentity?.tenantId);
       writeJson(response, 200, createOkEnvelope(result, { startedAt }));
     } catch (error) {
       writeCapabilityError({ response, error, startedAt, fallbackCode: "workforce_plan_list_failed" });
