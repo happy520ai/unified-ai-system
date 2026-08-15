@@ -178,7 +178,7 @@ jobs:
             sleep 1
           done
           echo "{ \"smokeBaseUrl\": \"${SMOKE_BASE_URL}\" }" > .tmp/docker-smoke-base-url.json
-          node --input-type=module <<'NODE'
+          PME_AUTH_TOKEN=local-smoke-admin-token-0123456789abcdef0123456789 node --input-type=module <<'NODE'
           const baseUrl = process.env.SMOKE_BASE_URL;
           const readJson = async (path, options) => {
             const response = await fetch(`${baseUrl}${path}`, options);
@@ -186,11 +186,12 @@ jobs:
           };
           const health = await readJson("/health/check");
           const setup = await readJson("/setup/readiness");
-          const ui = await fetch(`${baseUrl}/ui`);
-          const consoleRoute = await fetch(`${baseUrl}/console`);
+          const authHeaders = { authorization: `Bearer ${process.env.PME_AUTH_TOKEN}` };
+          const ui = await fetch(`${baseUrl}/ui`, { headers: authHeaders });
+          const consoleRoute = await fetch(`${baseUrl}/console`, { headers: authHeaders });
           const chat = await readJson("/chat", {
             method: "POST",
-            headers: { "content-type": "application/json" },
+            headers: { "content-type": "application/json", ...authHeaders },
             body: JSON.stringify({ prompt: "Container smoke test" }),
           });
           const checks = {
