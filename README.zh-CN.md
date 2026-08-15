@@ -83,6 +83,22 @@ Cursor、Cline、Continue 和通用 stdio 客户端都可以通过同一个网�
 | 贡献或报告运行结果 | [结构化使用报告](https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml) 或 [入门任务 #106](https://github.com/happy520ai/unified-ai-system/issues/106) | 用户与维护者都能复现的反馈入口。 |
 | 验证 MCP 客户端 | [MCP 客户端报告](https://github.com/happy520ai/unified-ai-system/issues/new?template=mcp-client-report.yml) | 记录一次 Codex、Cursor、Cline 或通用 stdio 客户端运行。 |
 
+## 网关能力全景
+
+以下能力全部跑在同一个自托管进程里——按需开启、fake provider 优先，
+零凭证即可试用每一项：
+
+| 能力 | 你能得到什么 | 文档 |
+| --- | --- | --- |
+| OpenAI + Anthropic 兼容 API | `/v1/chat/completions`（SSE 流式、工具调用）、**原生 Anthropic 流式**的 `/v1/messages`、Responses API、模型发现——保留现有 SDK，只改 base URL。 | [OpenAI 兼容 API](docs/openai-compatible-api.md) |
+| 虚拟 key + 预算 | 签发 `uai-` key，支持按周期 token 预算（日/月窗口）、每 key 请求限速、软预算告警、花费归因、即时吊销；消费方永远拿不到 provider 密钥。 | [虚拟 key](docs/virtual-keys.md) |
+| 响应缓存（精确 + 语义） | 租户隔离的热路径缓存，JSON/SSE 字节级重放；可选语义层命中同义改述；TTL/大小上限 + 完整审计。 | [响应缓存](docs/response-cache-hot-path.md) |
+| 反向 MCP 治理 | 把上游 MCP server（Streamable HTTP / stdio）聚合到一个认证、审计、白名单的统一入口——还有 **REST→MCP**：任意 OpenAPI 3 规格一键变成受治理的 MCP 工具。 | [反向 MCP 治理](docs/reverse-mcp-governance.md) |
+| 可观测性 | `/metrics` 暴露 chat 专属 Prometheus 指标——分模型 token、缓存命中率、TTFT 直方图、虚拟 key 拒绝——外加可选 Langfuse 导出。 | [可观测性](docs/observability-export.md) |
+| 向量检索 | 零凭证确定性 embedding + SQLite 向量库，激活 `mode: "vector"` 的 RAG 检索，严格的租户隔离。 | [Provider 与知识库](docs/providers.md) |
+| Provider 治理 | 真实 provider 三道门白名单矩阵、运行时凭证库（SHA-256 落存）、请求成本守卫、熔断器、fallback 链。 | [真实 provider 启用](docs/real-provider-enablement.md) |
+| 企业治理 + 安全演练 | JWT 认证、RBAC、审计哈希链的租户隔离——由一个可重复运行的 16 项攻击安全回归演练守护。 | [安全演练](tools/security-attack-regression.mjs) |
+
 ## 为什么使用它
 
 - 不擅长写提示词的用户，也能从自然语言开始工作。
@@ -327,3 +343,10 @@ Get-Content .\request.txt -Raw |
 - [Roadmap](ROADMAP.md)
 - [Vision](VISION.md)
 - [Support](SUPPORT.md)
+
+## Star History
+
+如果这个网关帮你省了一次代理迁移或一下午的提示词整理，
+[点个 star](https://github.com/happy520ai/unified-ai-system/stargazers) 能让更多人看到它。
+
+[![Star History Chart](https://api.star-history.com/svg?repos=happy520ai/unified-ai-system&type=Date)](https://star-history.com/#happy520ai/unified-ai-system&Date)

@@ -145,6 +145,17 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Documentation
 
+- Refreshed the bilingual README around the gateway platform positioning:
+  a new "Gateway Capabilities" table (virtual keys and budgets, exact +
+  semantic response cache, reverse MCP governance with REST→MCP, chat
+  observability, vector retrieval, provider governance, security drills)
+  and a Star History section. Repository topics and description were
+  updated to gateway discovery terms.
+- Added the 2026-08 growth launch kit
+  (`docs/growth-launch-kit-2026-08.md`): ready-to-post Show HN, Reddit
+  (three subreddits, three angles), an X thread, Chinese community drafts,
+  an MCP-directory/awesome-list submission checklist, and the v0.5.0
+  release-notes draft.
 - Simplified the bilingual README first screen around one visual proof, one
   prefilled no-install Prompt Lab path, and one published-container command.
 - Refreshed the reproducible social preview around the MCP gateway, Codex,

@@ -28,7 +28,7 @@
   </a>
 </p>
 
-Unified AI System turns a rough request into a structured, reviewable prompt before execution. It gives teams one self-hosted surface for OpenAI-compatible SDKs, MCP, A2A, CLI, and HTTP while keeping provider calls explicit.
+Unified AI System turns a rough request into a structured, reviewable prompt before execution. It gives teams one self-hosted surface for OpenAI-compatible SDKs, MCP, A2A, CLI, and HTTP while keeping provider calls explicit — with the feature set you'd expect from a commercial LLM gateway: virtual keys with token budgets, exact + semantic response caching, reverse MCP governance with REST→MCP generation, and production observability.
 
 <p align="center">
   <a href="https://happy520ai.github.io/unified-ai-system/#enhance?prompt=Build+a+small+API+for+my+team&amp;profile=coding&amp;language=en">
@@ -82,6 +82,22 @@ Useful in a real workflow? [Star the repository](https://github.com/happy520ai/u
 | Diagnose a first-run problem | [Troubleshooting matrix](docs/first-run-troubleshooting.md) | Shell-specific checks without exposing credentials. |
 | Verify an MCP client | [MCP client report](https://github.com/happy520ai/unified-ai-system/issues/new?template=mcp-client-report.yml) | Record one Codex, Cursor, Cline, or generic stdio run with a small evidence set. |
 | Contribute or report a run | [Usage report](https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml) or [good first issue #106](https://github.com/happy520ai/unified-ai-system/issues/106) | A reproducible feedback path for users and maintainers. |
+
+## Gateway Capabilities
+
+Everything below runs from the same self-hosted process — opt-in and
+fake-provider-first, so you can try every feature with zero credentials:
+
+| Capability | What you get | Docs |
+| --- | --- | --- |
+| OpenAI + Anthropic compatible APIs | `/v1/chat/completions` (SSE streaming, tools), `/v1/messages` with **native Anthropic streaming**, the Responses API, and model discovery — keep your existing SDK, change only the base URL. | [OpenAI-compatible API](docs/openai-compatible-api.md) |
+| Virtual keys + budgets | Issue `uai-` keys with periodic token budgets (daily/monthly windows), per-key request limits, soft-budget alerts, spend attribution, and instant revocation. Consumers never hold provider keys. | [Virtual keys](docs/virtual-keys.md) |
+| Response cache — exact + semantic | Tenant-scoped hot-path caching with byte-identical JSON/SSE replay, an opt-in semantic layer for paraphrased requests, TTL and size caps, and a full audit trail. | [Response cache](docs/response-cache-hot-path.md) |
+| Reverse MCP governance | Aggregate upstream MCP servers (Streamable HTTP and stdio) behind one authenticated, audited, allow-listed surface — plus **REST→MCP**: any OpenAPI 3 spec becomes governed MCP tools. | [Reverse MCP governance](docs/reverse-mcp-governance.md) |
+| Observability | Chat-specific Prometheus metrics on `/metrics` — tokens per model, cache hit rates, TTFT histograms, virtual-key rejections — plus an opt-in Langfuse export. | [Observability](docs/observability-export.md) |
+| Vector retrieval | A credential-free deterministic embedding provider and the SQLite vector store activate `mode: "vector"` RAG with strict tenant isolation. | [Providers & knowledge](docs/providers.md) |
+| Provider governance | A three-gate whitelist matrix for real providers, a runtime credential store (SHA-256 at rest), request cost guards, circuit breakers, and fallback chains. | [Provider enablement](docs/real-provider-enablement.md) |
+| Enterprise governance + security drills | JWT auth, RBAC, tenant isolation with audit hash chains — verified by a repeatable 16-attack live security regression. | [Security drill](tools/security-attack-regression.mjs) |
 
 ## Why People Use It
 
@@ -393,3 +409,11 @@ CI on `master` runs Linux checks, container startup smoke tests, MCP discovery, 
 - [Roadmap](ROADMAP.md)
 - [Vision](VISION.md)
 - [Support](SUPPORT.md)
+
+## Star History
+
+If the gateway saves you a proxy migration or an afternoon of prompt cleanup,
+[a star](https://github.com/happy520ai/unified-ai-system/stargazers) helps
+more people find it.
+
+[![Star History Chart](https://api.star-history.com/svg?repos=happy520ai/unified-ai-system&type=Date)](https://star-history.com/#happy520ai/unified-ai-system&Date)
