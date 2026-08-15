@@ -110,6 +110,7 @@ jobs:
             --env AI_GATEWAY_PROVIDER_MODE=fake \
             --env AI_GATEWAY_REAL_PROVIDER_ENABLED=false \
             --env PME_ENTERPRISE_AUTH_ENABLED=false \
+            --env AI_GATEWAY_SERVICE_HOST=127.0.0.1 \
             unified-ai-system-smoke \
             sh -c '
               pnpm gateway serve >/tmp/gateway.log 2>&1 &
@@ -157,7 +158,7 @@ jobs:
             --publish 127.0.0.1::3100 \
             --env AI_GATEWAY_PROVIDER_MODE=fake \
             --env AI_GATEWAY_REAL_PROVIDER_ENABLED=false \
-            --env PME_ENTERPRISE_AUTH_ENABLED=false \
+            --env PME_AUTH_TOKEN=local-smoke-admin-token-0123456789abcdef0123456789 \
             unified-ai-system-smoke)"
           cleanup() {
             docker rm --force "${container_id}" >/dev/null 2>&1 || true
@@ -205,6 +206,7 @@ jobs:
           if (!Object.values(checks).every(Boolean)) process.exit(1);
           NODE
           AI_GATEWAY_SERVICE_URL="${SMOKE_BASE_URL}" \
+            PME_AUTH_TOKEN=local-smoke-admin-token-0123456789abcdef0123456789 \
             node docs/examples/openai-sdk-chat.mjs 2>&1 | tee .tmp/docker-smoke-openai-sdk-chat.log
 
       - name: Set up Docker Buildx
@@ -327,7 +329,7 @@ jobs:
             --publish 127.0.0.1::3100 \
             --env AI_GATEWAY_PROVIDER_MODE=fake \
             --env AI_GATEWAY_REAL_PROVIDER_ENABLED=false \
-            --env PME_ENTERPRISE_AUTH_ENABLED=false \
+            --env PME_AUTH_TOKEN=local-smoke-admin-token-0123456789abcdef0123456789 \
             "${image}")"
           host_port="$(docker port "${container_id}" 3100/tcp | sed 's/.*://')"
           published_base_url="http://127.0.0.1:${host_port}"
@@ -343,6 +345,7 @@ jobs:
             sleep 1
           done
           AI_GATEWAY_SERVICE_URL="${published_base_url}" \
+            PME_AUTH_TOKEN=local-smoke-admin-token-0123456789abcdef0123456789 \
             node docs/examples/openai-sdk-chat.mjs 2>&1 | tee .tmp/docker-published-openai-sdk-chat.log
 
       - name: Append docker workflow evidence to workflow summary
