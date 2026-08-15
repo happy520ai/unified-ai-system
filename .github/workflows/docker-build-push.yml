@@ -90,7 +90,7 @@ jobs:
             2>&1 | tee .tmp/docker-smoke-piped-demo.json)"
           extract_json() { node --input-type=module -e 'const s=process.argv[1];const a=s.indexOf("{");const b=s.lastIndexOf("}");if(a<0||b<a)process.exit(1);process.stdout.write(s.slice(a,b+1));' "$1"; }
           PIPED_EVIDENCE_JSON="$(extract_json "${piped_evidence}")" node --input-type=module <<'NODE'
-          const evidence = JSON.parse(extractJson(process.env.PIPED_EVIDENCE_JSON));
+          const evidence = JSON.parse(process.env.PIPED_EVIDENCE_JSON);
           const enhancement = evidence.promptEnhancement;
           const checks = {
             mode: evidence.executionMode === "fake",
@@ -127,7 +127,7 @@ jobs:
               pnpm --silent gateway enhance "Container evidence test" --profile coding --language en --evidence
             ' | tee .tmp/docker-smoke-container-evidence.json)"
           EVIDENCE_JSON="$(extract_json "${enhancement_evidence}")" node --input-type=module <<'NODE'
-          const evidence = JSON.parse(extractJson(process.env.EVIDENCE_JSON));
+          const evidence = JSON.parse(process.env.EVIDENCE_JSON);
           const checks = {
             schema: evidence.schema === "unified-ai-system/usage-report/v1",
             mode: evidence.mode === "prompt-enhancement",
