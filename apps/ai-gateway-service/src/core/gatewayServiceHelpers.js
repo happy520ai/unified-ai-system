@@ -84,7 +84,7 @@ export function createGatewayResponse(request, selection, providerResult, starte
     executionStatus: execution.executionStatus,
     warnings,
     errorSummary: null,
-    finishReason: "stop",
+    finishReason: normalizeProviderFinishReason(providerResult.raw?.finishReason),
     usage: providerResult.usage,
     routing: createRoutingDecision(request.context.requestId, request.context.traceId, selection, trace, warnings),
     metadata: {
@@ -96,6 +96,13 @@ export function createGatewayResponse(request, selection, providerResult, starte
       rawProviderMeta: providerResult.raw,
     },
   };
+}
+
+function normalizeProviderFinishReason(value) {
+  if (value === "length") return "length";
+  if (value === "content_filter" || value === "filtered") return "filtered";
+  if (value === "tool_calls" || value === "tool_call") return "tool_call";
+  return "stop";
 }
 
 export function createStreamEvent(type, { request, selection, startedAt, outputText, textDelta, raw, runtimeConfig }) {

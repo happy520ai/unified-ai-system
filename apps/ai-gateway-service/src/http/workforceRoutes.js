@@ -10,7 +10,7 @@
  * @returns {Object} { handlers: Map<string, Function> }
  */
 export function createWorkforceRoutes(application, helpers) {
-  const { workforceService, workflowService } = application;
+  const { workforceExecutor, workforceService, workflowService } = application;
   const { readCapabilityJson, writeJson, writeServiceLog, writeErrorResponse, createOkEnvelope, createErrorEnvelope } = helpers;
 
   // ── GET /workflow/health ──
@@ -149,7 +149,9 @@ export function createWorkforceRoutes(application, helpers) {
     const b = await readCapabilityJson({ request: req, response: res, startedAt, code: "diag_read_bad" });
     if (!b) return;
     try {
-      writeJson(res, 200, createOkEnvelope(await workforceService.diagnosticRead(b), { startedAt }));
+      const requestor = requireExecutionUserId(req);
+      const diagnosticChannel = workforceExecutor.getDiagnosticChannel();
+      writeJson(res, 200, createOkEnvelope(await diagnosticChannel.read({ ...b, requestor }), { startedAt }));
     } catch (e) {
       writeErrorResponse({ response: res, error: e, startedAt, fallbackCode: "diag_read_failed" });
     }
@@ -186,10 +188,37 @@ export function createWorkforceRoutes(application, helpers) {
       return;
     }
     try {
-      const result = await workforceService.execute(body);
+      const userId = requireExecutionUserId(req);
+      const result = await workforceExecutor.execute({ ...body, userId });
       writeJson(res, result?.success ? 200 : 422, createOkEnvelope(result, { startedAt }));
     } catch (e) {
       writeErrorResponse({ response: res, error: e, startedAt, fallbackCode: "execute_failed" });
+    }
+  }
+
+  async function handleWorkforceExecuteApprove(req, res, { startedAt, body }) {
+    if (!body) return;
+    try {
+      const userId = requireExecutionUserId(req);
+      const result = await workforceExecutor.approveExecution(
+        { ...body, userId },
+        userId,
+        body.approvedScopes,
+      );
+      writeJson(res, 200, createOkEnvelope(result, { startedAt }));
+    } catch (e) {
+      writeErrorResponse({ response: res, error: e, startedAt, fallbackCode: "execute_approval_failed" });
+    }
+  }
+
+  async function handleWorkforceExecuteRevoke(req, res, { startedAt, body }) {
+    if (!body) return;
+    try {
+      const userId = requireExecutionUserId(req);
+      const result = await workforceExecutor.revokeApproval(body.planId, userId, body.reason);
+      writeJson(res, result?.success ? 200 : 404, createOkEnvelope(result, { startedAt }));
+    } catch (e) {
+      writeErrorResponse({ response: res, error: e, startedAt, fallbackCode: "execute_approval_revoke_failed" });
     }
   }
 
@@ -231,11 +260,31 @@ export function createWorkforceRoutes(application, helpers) {
     ["GET /workforce/autonomy/trust", { handler: handleAutonomyTrust, public: false, permission: "dashboard:read" }],
     ["POST /workforce/autonomy/token", { handler: handleAutonomyToken, public: false, permission: "workflow:run" }],
     ["POST /workforce/autonomy/token/revoke", { handler: handleAutonomyTokenRevoke, public: false, permission: "workflow:run" }],
-    ["POST /workforce/diagnostic/read", { handler: handleDiagnosticRead, public: false, permission: "dashboard:read" }],
+    ["POST /workforce/diagnostic/read", { handler: handleDiagnosticRead, public: false, permission: "audit:read" }],
     ["POST /workforce/execute", { handler: handleWorkforceExecute, public: false, permission: "workflow:run" }],
+    ["POST /workforce/execute/approve", { handler: handleWorkforceExecuteApprove, public: false, permission: "workflow:approve" }],
+    ["POST /workforce/execute/revoke", { handler: handleWorkforceExecuteRevoke, public: false, permission: "workflow:approve" }],
     ["POST /workforce/plans/save", { handler: handleWorkforcePlansSave, public: false, permission: "workflow:run" }],
     ["GET /workforce/plans", { handler: handleWorkforcePlans, public: false, permission: "dashboard:read" }],
   ]);
 
   return { handlers };
+
+  function requireExecutionUserId(request) {
+    const identity = request?.enterpriseIdentity;
+    const userId = identity?.userId ?? identity?.subject ?? identity?.id;
+    if (typeof userId !== "string" || !userId.trim()) {
+      const error = new Error("An authenticated enterprise identity is required for workforce execution.");
+      error.code = "WORKFORCE_EXECUTION_IDENTITY_REQUIRED";
+      error.statusCode = 401;
+      throw error;
+    }
+    if (!workforceExecutor) {
+      const error = new Error("The controlled workforce executor is unavailable.");
+      error.code = "WORKFORCE_EXECUTOR_UNAVAILABLE";
+      error.statusCode = 503;
+      throw error;
+    }
+    return userId.trim();
+  }
 }

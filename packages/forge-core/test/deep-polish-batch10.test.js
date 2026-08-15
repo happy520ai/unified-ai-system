@@ -194,42 +194,25 @@ describe("Batch10-4: writeHtml writableEnded/headersSent guard", () => {
   });
 });
 
-// ─── 5. webSocketServer async onMessage promise rejection catch ────
+// ─── 5. webSocketServer async onMessage containment ────
 
-describe("Batch10-5: WebSocket async onMessage promise rejection catch", () => {
-  it("catches promise rejections from async onMessage handler", () => {
+describe("Batch10-5: WebSocket async onMessage containment", () => {
+  it("awaits asynchronous onMessage handlers inside the governed boundary", () => {
     const src = readFileSync(join(SRC_ROOT, "http/webSocketServer.js"), "utf-8");
-    const onDataStart = src.indexOf('socket.on("data"');
-    assert.ok(onDataStart > 0, "socket.on('data') handler should exist");
-    const onDataSrc = src.slice(onDataStart, onDataStart + 600);
-
-    // Should check if result is a promise and catch rejections
-    assert.ok(onDataSrc.includes("typeof result.catch"), "Should check if result has .catch method");
-    assert.ok(onDataSrc.includes('typeof result.catch === "function"'), "Should verify .catch is a function");
+    assert.ok(src.includes("async function handleMessage"), "governed message handler should exist");
+    assert.ok(src.includes("await options.onMessage?."), "message callbacks should be awaited");
   });
 
-  it("reports async handler rejections instead of leaving them unhandled", () => {
+  it("reports async handler rejection without leaving it unhandled", () => {
     const src = readFileSync(join(SRC_ROOT, "http/webSocketServer.js"), "utf-8");
-    const onDataStart = src.indexOf('socket.on("data"');
-    const onDataSrc = src.slice(onDataStart, onDataStart + 600);
-
-    assert.ok(
-      onDataSrc.includes("result.catch((error) => reportError(error"),
-      "Should forward async rejections to the WebSocket error reporter"
-    );
-    assert.ok(onDataSrc.includes("result && typeof result.catch"), "Should null-check result before accessing .catch");
+    assert.ok(src.includes('event: "ws_message_rejected"'), "Should report rejected message handlers");
+    assert.ok(src.includes("rawSocket.close(1011"), "Should contain failed message execution");
   });
 
-  it("only applies catch to promise-like results (duck-typed check)", () => {
+  it("always releases concurrency accounting in finally", () => {
     const src = readFileSync(join(SRC_ROOT, "http/webSocketServer.js"), "utf-8");
-    const onDataStart = src.indexOf('socket.on("data"');
-    const onDataSrc = src.slice(onDataStart, onDataStart + 600);
-
-    // The condition should verify result exists AND has .catch
-    assert.ok(
-      onDataSrc.includes("if (result && typeof result.catch"),
-      "Should use duck-typed check: result exists AND has .catch"
-    );
+    assert.ok(src.includes("finally {"), "Should use a finally block");
+    assert.ok(src.includes("releaseInFlight(subjectKey)"), "Should release in-flight accounting");
   });
 });
 

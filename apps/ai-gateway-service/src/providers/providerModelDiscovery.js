@@ -23,6 +23,8 @@ import {
   trimSlash,
   safeJsonParse,
 } from "./providerDetectionResult.js";
+import { fetchWithAgent } from "../http/connectionPool.js";
+import { resolveSafeOutboundUrl } from "../security/outboundUrlPolicy.ts";
 
 export function matchProviderFamilies(apiKey, preferredProviderId) {
   if (preferredProviderId) {
@@ -280,9 +282,11 @@ export async function fetchJsonWithTimeout(url, options = {}) {
   const timeout = setTimeout(() => controller.abort(), MODEL_DISCOVERY_TIMEOUT_MS);
 
   try {
-    const response = await fetch(url, {
+    const destination = await resolveSafeOutboundUrl(url);
+    const response = await fetchWithAgent(destination.url, {
       ...options,
       signal: controller.signal,
+      lookup: destination.lookup,
     });
     const text = await response.text();
     return {

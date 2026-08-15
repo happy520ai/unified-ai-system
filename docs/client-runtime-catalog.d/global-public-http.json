@@ -1,0 +1,137 @@
+{
+  "http-curl": {
+    "name": "curl REST client",
+    "protocol": "Public HTTP",
+    "transport": "raw HTTP/HTTPS REST + SSE",
+    "mode": "automated",
+    "tags": ["http", "curl", "language:cli", "global", "mainstream", "protocol:vanilla"],
+    "command": "curl -X POST http://127.0.0.1:3100/v1/chat/completions -H 'Content-Type: application/json' -d '{\"model\":\"local-fake-model\",\"messages\":[{\"role\":\"user\",\"content\":\"ping\"}]}'",
+    "evidenceNotes": "Verify /v1 endpoints with a minimal request and confirm fake-mode execution payload and 200 response."
+  },
+  "http-axios": {
+    "name": "Node.js Axios client",
+    "protocol": "Public HTTP",
+    "transport": "raw HTTP + JSON payloads",
+    "mode": "automated",
+    "tags": ["http", "language:javascript", "mainstream", "global", "runtime:browser-compatible"],
+    "command": "node docs/examples/client-runtime-smoke.mjs --client=http-axios",
+    "evidenceNotes": "Validate Axios request profile and fake-provider response fields."
+  },
+  "http-httpie": {
+    "name": "HTTPie",
+    "protocol": "Public HTTP",
+    "transport": "raw HTTP + JSON payloads",
+    "mode": "automated",
+    "tags": ["http", "language:cli", "global", "mainstream"],
+    "command": "python docs/examples/client-runtime-smoke.py --client=http-httpie --base-url <url>",
+    "evidenceNotes": "Run a basic POST with HTTPie and confirm status plus execution metadata."
+  },
+  "http-python-requests": {
+    "name": "Python requests client",
+    "protocol": "Public HTTP",
+    "transport": "raw HTTP + JSON payloads",
+    "mode": "automated",
+    "tags": ["http", "language:python", "mainstream", "global"],
+    "command": "python - <<'PY'\nimport requests\n\nres = requests.post('http://127.0.0.1:3100/v1/chat/completions', json={\n  'model': 'local-fake-model',\n  'messages': [{'role': 'user', 'content': 'ping'}],\n})\nprint(res.status_code)\nprint(res.text)\nPY",
+    "evidenceNotes": "Send one POST /v1/chat/completions via requests and capture status + returned model/execution metadata."
+  },
+  "http-python-httpx": {
+    "name": "Python httpx client",
+    "protocol": "Public HTTP",
+    "transport": "raw HTTP + JSON payloads",
+    "mode": "automated",
+    "tags": ["http", "language:python", "mainstream", "global"],
+    "command": "python - <<'PY'\nimport asyncio\nimport httpx\n\nasync def main() -> None:\n    async with httpx.AsyncClient() as client:\n        resp = await client.post('http://127.0.0.1:3100/v1/chat/completions', json={\n            'model': 'local-fake-model',\n            'messages': [{'role': 'user', 'content': 'ping'}],\n        })\n        print(resp.status_code)\n        print(resp.text)\n\nasyncio.run(main())\nPY",
+    "evidenceNotes": "Validate async HTTP call path and fake-provider response contract."
+  },
+  "http-python-aiohttp": {
+    "name": "Python aiohttp client",
+    "protocol": "Public HTTP",
+    "transport": "raw HTTP + JSON payloads",
+    "mode": "automated",
+    "tags": ["http", "language:python", "mainstream", "global"],
+    "command": "python - <<'PY'\nimport asyncio\nfrom aiohttp import ClientSession\n\nasync def main() -> None:\n    async with ClientSession() as session:\n        async with session.post(\n            'http://127.0.0.1:3100/v1/chat/completions',\n            json={\n                'model': 'local-fake-model',\n                'messages': [{'role': 'user', 'content': 'ping'}],\n            },\n        ) as response:\n            print(response.status)\n            print(await response.text())\n\nasyncio.run(main())\nPY",
+    "evidenceNotes": "Validate async Python aiohttp compatibility for plain /v1 request profile."
+  },
+  "http-node-fetch": {
+    "name": "Node fetch / undici client",
+    "protocol": "Public HTTP",
+    "transport": "raw HTTP + JSON payloads",
+    "mode": "automated",
+    "tags": ["http", "language:javascript", "mainstream", "global"],
+    "command": "node - <<'JS'\n(async () => {\n  const resp = await fetch('http://127.0.0.1:3100/v1/chat/completions', {\n    method: 'POST',\n    headers: {'content-type': 'application/json'},\n    body: JSON.stringify({model: 'local-fake-model', messages: [{role: 'user', content: 'ping'}]}),\n  });\n  console.log(resp.status);\n  console.log(await resp.text());\n})();\nJS",
+    "evidenceNotes": "Run a minimal fetch call and verify structured execution response."
+  },
+  "http-node-graphql-or-rest": {
+    "name": "Node raw REST probe",
+    "protocol": "Public HTTP",
+    "transport": "raw HTTP + JSON payloads",
+    "mode": "automated",
+    "tags": ["http", "language:javascript", "mainstream", "global"],
+    "command": "node - <<'JS'\n(async () => {\n  const res = await fetch('http://127.0.0.1:3100/v1/models');\n  console.log(res.status);\n  console.log(await res.text());\n})();\nJS",
+    "evidenceNotes": "Validate model-discovery request to confirm /v1 route interoperability."
+  },
+  "http-go-net-http": {
+    "name": "Go net/http client",
+    "protocol": "Public HTTP",
+    "transport": "raw HTTP + JSON payloads",
+    "mode": "manual",
+    "tags": ["http", "language:go", "mainstream", "global"],
+    "command": "go run ./docs/examples/http-smoke-go.go",
+    "evidenceNotes": "Install Go, run the standard-library sample, and attach its sanitized output before certification."
+  },
+  "http-java-okhttp": {
+    "name": "Java HttpClient runtime",
+    "protocol": "Public HTTP",
+    "transport": "raw HTTP + JSON payloads",
+    "mode": "automated",
+    "tags": ["http", "language:java", "mainstream", "global"],
+    "command": "java docs/examples/java-http-smoke.java --base-url <url>",
+    "evidenceNotes": "Use Java 11+ HttpClient equivalent to validate raw /v1 call behavior."
+  },
+  "http-dotnet-httpclient": {
+    "name": ".NET HttpClient",
+    "protocol": "Public HTTP",
+    "transport": "raw HTTP + JSON payloads",
+    "mode": "automated",
+    "tags": ["http", "language:dotnet", "mainstream", "global"],
+    "command": "dotnet run --project docs/examples/dotnet-http-smoke/dotnet-http-smoke.csproj -- --base-url <url>",
+    "evidenceNotes": "Verify raw HTTP compatibility and fake-provider response fields from HttpClient."
+  },
+  "http-powershell-invoke-restmethod": {
+    "name": "PowerShell Invoke-RestMethod client",
+    "protocol": "Public HTTP",
+    "transport": "HTTP /v1/models + /v1/chat/completions",
+    "mode": "automated",
+    "tags": ["http", "powershell", "language:powershell", "windows", "global", "mainstream"],
+    "command": "powershell -NoProfile -ExecutionPolicy Bypass -File docs/examples/powershell-http-smoke.ps1 -BaseUrl <url>",
+    "evidenceNotes": "Run the Windows-native REST client against local model discovery and chat routes and verify fake-provider output."
+  },
+  "http-postman": {
+    "name": "Postman/newman smoke",
+    "protocol": "Public HTTP",
+    "transport": "raw HTTP collection flow",
+    "mode": "automated",
+    "tags": ["http", "language:cli", "global", "mainstream"],
+    "command": "node docs/examples/client-runtime-smoke.mjs --client=http-postman",
+    "evidenceNotes": "Run local collection with /v1 model/list + /v1/chat/completions and attach evidence."
+  },
+  "http-ruby-net-http": {
+    "name": "Ruby Net::HTTP client",
+    "protocol": "Public HTTP",
+    "transport": "raw HTTP + JSON payloads",
+    "mode": "manual",
+    "tags": ["http", "language:ruby", "mainstream", "global"],
+    "command": "ruby -r net/http -r uri -r json -e \"uri = URI('http://127.0.0.1:3100/v1/chat/completions'); req = Net::HTTP::Post.new(uri, 'Content-Type'=>'application/json'); req.body = {model:'local-fake-model', messages:[{role:'user', content:'ping'}]}.to_json; res = Net::HTTP.start(uri.host, uri.port){|h| h.request(req)}; puts res.code; puts res.body\"",
+    "evidenceNotes": "Use Ruby built-in HTTP client against /v1 and verify response contract."
+  },
+  "http-rust-reqwest": {
+    "name": "Rust Reqwest client",
+    "protocol": "Public HTTP",
+    "transport": "raw HTTP + JSON payloads",
+    "mode": "manual",
+    "tags": ["http", "language:rust", "mainstream", "global"],
+    "command": "mkdir -p /tmp/http-reqwest-smoke/src;\ncat > /tmp/http-reqwest-smoke/Cargo.toml <<'TOML'\n[package]\nname = \"http-reqwest-smoke\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[dependencies]\nreqwest = { version = \"0.12\", features = [\"json\"] }\nserde_json = \"1.0\"\ntokio = { version = \"1.37\", features = [\"macros\", \"rt-multi-thread\"] }\nTOML\ncat > /tmp/http-reqwest-smoke/src/main.rs <<'RS'\nuse reqwest::Client;\n\n#[tokio::main]\nasync fn main() -> Result<(), Box<dyn std::error::Error>> {\n  let client = Client::new();\n  let resp = client\n    .post(\"http://127.0.0.1:3100/v1/chat/completions\")\n    .json(&serde_json::json!({\n      \"model\": \"local-fake-model\",\n      \"messages\": [{\"role\": \"user\", \"content\": \"ping\"}],\n    }))\n    .send()\n    .await?;\n  println!(\"{}\", resp.status());\n  println!(\"{}\", resp.text().await?);\n  Ok(())\n}\nRS\ncd /tmp/http-reqwest-smoke && cargo run --quiet",
+    "evidenceNotes": "Validate Rust Reqwest compatibility with a JSON POST and confirm gateway fake-provider metadata."
+  }
+}

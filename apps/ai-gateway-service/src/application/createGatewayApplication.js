@@ -5,6 +5,7 @@ import { ProviderRegistry } from "../providers/providerRegistry.js";
 import { createFakeProvider } from "../providers/fakeProvider.js";
 import { createOpenAIAdapter } from "../providers/openAiAdapter.js";
 import { createNvidiaAdapter } from "../providers/nvidiaAdapter.js";
+import { createAnthropicAdapter } from "../providers/anthropicAdapter.js";
 import { createHttpLLMProviderAdapter } from "../providers/httpLlmProviderAdapter.js";
 import { createRuntimeCredentialStore } from "../providers/runtimeCredentialStore.js";
 import { createModelImportService } from "../model-import/modelImportService.js";
@@ -13,13 +14,19 @@ import { createProviderKeyConfigStore } from "../provider-config/providerKeyConf
 import { createProviderConfigRoutes } from "../provider-config/providerConfigRoutes.js";
 import { GatewayService } from "../core/gatewayService.js";
 import { createPriorityProviderSelectionPolicy } from "../core/providerSelectionPolicy.js";
+import { createProviderHealthScorer } from "../providers/providerHealthScorer.js";
+import { createRequestLogger } from "../logging/requestLogger.js";
+import { createContentGuardrails } from "../guardrails/contentGuardrails.js";
 import { createLocalKnowledgeService } from "../knowledge/localKnowledgeService.js";
 import { createKnowledgeInfra } from "../knowledge/knowledgeInfra.js";
+import { createMcpGatewayService } from "../mcpGateway/mcpGatewayService.ts";
 import { createLocalWorkflowService } from "../workflow/localWorkflowService.js";
 import { createWorkforceService } from "../workforce/workforceService.js";
+import { createControlledExecutor } from "../workforce/workforceControlledExecutor.js";
 import { createUserExperienceService } from "../capabilities/userExperienceService.js";
 import { createCapabilityRouterService } from "../capabilities/capabilityRouterService.js";
 import { createEnterpriseGovernanceService } from "../enterprise/enterpriseGovernanceService.js";
+import { createAdvancedRBAC } from "../enterprise/advancedRBAC.js";
 import { createEnterpriseOpsService } from "../enterprise/enterpriseOpsService.js";
 import { createCodexExecCrsRuntimeCandidate } from "../runtime-candidate/codexExecCrsRuntimeCandidate.js";
 import { createFiveCapabilityActivationService } from "../real-capabilities/fiveCapabilityActivationService.js";
@@ -29,8 +36,17 @@ const repoRoot = resolve(fileURLToPath(new URL("../../../../", import.meta.url))
 export function createGatewayApplication(env = process.env) {
   const config = loadRuntimeConfig(env);
   const runtimeCredentialStore = createRuntimeCredentialStore({ env });
+
+  // Health scorer is always created; it powers health-weighted provider selection
+  // when mode === "health-weighted" and records outcomes from GatewayService.
+  const healthScorer = createProviderHealthScorer();
+  const selectionPolicyConfig = {
+    ...config.aiGatewayService.providerSelection,
+    healthScorer,
+  };
+
   const providerRegistry = new ProviderRegistry({
-    selectionPolicy: createPriorityProviderSelectionPolicy(config.aiGatewayService.providerSelection),
+    selectionPolicy: createPriorityProviderSelectionPolicy(selectionPolicyConfig),
     enabledProviders: config.aiGatewayService.providerSelection.enabledProviders,
   });
   const modelImportService = createModelImportService({
@@ -47,7 +63,7 @@ export function createGatewayApplication(env = process.env) {
     providerRegistry.register(createProviderAdapter({
       ...modelConfig,
       enabled: modelConfig.enabled || runtimeCredentialCapable,
-    }, config, runtimeCredentialStore));
+    }, config, runtimeCredentialStore, env));
   }
   restoreRuntimeCredentialProviders({ providerRegistry, runtimeCredentialStore });
 
@@ -64,13 +80,42 @@ export function createGatewayApplication(env = process.env) {
   const providerConfigRoutes = createProviderConfigRoutes({
     providerKeyConfigStore,
   });
+  // Usage ledger — persists every real chat call (tokens, latency, provider/model)
+  // to a queryable JSONL store. Disable body logging to keep credentials/contents
+  // out of the ledger. Set AI_GATEWAY_USAGE_LOG_DIR to relocate, or the empty
+  // string to disable persistence while keeping the in-memory query surface.
+  const requestLogger = createRequestLogger({
+    logDir: env.AI_GATEWAY_USAGE_LOG_DIR,
+    enableBodyLogging: false,
+  });
+  // Optional model-access governance. The RBAC checker starts empty; role
+  // assignments are loaded from AI_GATEWAY_RBAC_ROLES (JSON: { userId: [role] }).
+  const governance = createAdvancedRBAC();
+  applyRbacRolesFromEnv(governance, env);
+  const contentGuardrailMode = String(env.AI_GATEWAY_CONTENT_GUARDRAILS_MODE ?? "block").trim().toLowerCase();
+  if (contentGuardrailMode !== "block" && contentGuardrailMode !== "audit") {
+    throw new Error("AI_GATEWAY_CONTENT_GUARDRAILS_MODE must be block or audit.");
+  }
+  const contentGuardrails = createContentGuardrails({
+    blockOnInjection: contentGuardrailMode === "block",
+  });
   const gatewayService = new GatewayService({
     providerRegistry,
     runtimeConfig: {
       providerMode: config.aiGatewayService.providerMode,
       realProviderEnabled: config.aiGatewayService.realProviderEnabled,
       fallbackEnabled: config.aiGatewayService.fallbackEnabled,
+      // Opt-in enforcement of the token-cost guard before any provider call.
+      // Off by default to preserve the credential-free fake-provider default.
+      costGuardEnforce: String(env.AI_GATEWAY_COST_GUARD_ENFORCE ?? "").toLowerCase() === "true",
+      // Opt-in model-access enforcement. Requires identity (metadata.userId) and
+      // role assignments; off by default so the fake-provider default is intact.
+      modelAccessEnforce: String(env.AI_GATEWAY_MODEL_ACCESS_ENFORCE ?? "").toLowerCase() === "true",
     },
+    healthScorer,
+    requestLogger,
+    governance,
+    contentGuardrails,
   });
   const knowledgeService = createLocalKnowledgeService({
     env,
@@ -88,6 +133,11 @@ export function createGatewayApplication(env = process.env) {
   const workforceService = createWorkforceService({
     env,
   });
+  const workforceExecutor = createControlledExecutor({
+    env,
+    repoRoot,
+    executionDir: env.WORKFORCE_EXECUTION_DIR,
+  });
   const userExperienceService = createUserExperienceService({
     config,
     env,
@@ -98,6 +148,11 @@ export function createGatewayApplication(env = process.env) {
   const enterpriseGovernanceService = createEnterpriseGovernanceService({
     env,
     auditLogPath: env.PME_AUDIT_LOG_PATH,
+  });
+  // 反向 MCP 治理：聚合运维声明的上游 MCP server，工具调用全部入审计链。
+  const mcpGatewayService = createMcpGatewayService({
+    env,
+    recordAudit: (event) => enterpriseGovernanceService.recordAudit(event),
   });
   const enterpriseOpsService = createEnterpriseOpsService({
     env,
@@ -116,18 +171,22 @@ export function createGatewayApplication(env = process.env) {
   const fiveCapabilityActivationService = createFiveCapabilityActivationService({
     repoRoot,
     workforceService,
+    workforceExecutor,
   });
 
   return {
     capabilityRouterService,
+    contentGuardrails,
     codexExecCrsRuntimeCandidate,
     config,
     enterpriseGovernanceService,
     enterpriseOpsService,
     fiveCapabilityActivationService,
     gatewayService,
+    healthScorer,
     knowledgeInfra,
     knowledgeService,
+    mcpGatewayService,
     modelImportService,
     modelLibraryStore,
     providerConfigRoutes,
@@ -135,10 +194,26 @@ export function createGatewayApplication(env = process.env) {
     providerRegistry,
     runtimeEnv: env,
     runtimeCredentialStore,
+    requestLogger,
     userExperienceService,
     workforceService,
     workflowService,
   };
+}
+
+function applyRbacRolesFromEnv(governance, env) {
+  const raw = env.AI_GATEWAY_RBAC_ROLES;
+  if (!raw) return;
+  try {
+    const mapping = JSON.parse(raw);
+    for (const [userId, roleIds] of Object.entries(mapping)) {
+      for (const roleId of Array.isArray(roleIds) ? roleIds : [roleId]) {
+        governance.assignRole(String(userId), String(roleId));
+      }
+    }
+  } catch {
+    // Malformed RBAC config: leave governance with no assigned users (fail closed).
+  }
 }
 
 function restoreRuntimeCredentialProviders({ providerRegistry, runtimeCredentialStore }) {
@@ -158,14 +233,16 @@ function isRuntimeCredentialCapableProvider(modelConfig) {
   const providerType = modelConfig.providerType ?? modelConfig.providerId;
   return providerType === "openai" ||
     providerType === "nvidia" ||
+    providerType === "anthropic" ||
     providerType === "http-llm" ||
     providerType === "openai-compatible";
 }
 
-function createProviderAdapter(modelConfig, config, runtimeCredentialStore) {
+function createProviderAdapter(modelConfig, config, runtimeCredentialStore, env) {
   const options = {
     timeoutMs: config.aiGatewayService.requestTimeoutMs,
     runtimeCredentialStore,
+    certificationToolMode: env.AI_GATEWAY_FAKE_PROVIDER_TOOL_MODE,
   };
 
   if (modelConfig.providerType === "fake") {
@@ -178,6 +255,10 @@ function createProviderAdapter(modelConfig, config, runtimeCredentialStore) {
 
   if (modelConfig.providerType === "nvidia" || modelConfig.providerId === "nvidia") {
     return createNvidiaAdapter(modelConfig, options);
+  }
+
+  if (modelConfig.providerType === "anthropic" || modelConfig.providerId === "anthropic") {
+    return createAnthropicAdapter(modelConfig, options);
   }
 
   return createHttpLLMProviderAdapter(modelConfig, options);

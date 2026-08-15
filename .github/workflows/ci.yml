@@ -13,14 +13,40 @@ jobs:
   quality:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: gateway_test
+          POSTGRES_PASSWORD: gateway_test_password
+          POSTGRES_DB: gateway_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U gateway_test -d gateway_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      QUALITY_THRESHOLD: ${{ vars.QUALITY_REQUIRED_SCORE || '165' }}
+      QUALITY_TREND_MAX_CONSECUTIVE_FAILURES: ${{ vars.QUALITY_TREND_MAX_CONSECUTIVE_FAILURES || '3' }}
+      QUALITY_TREND_MAX_SCORE_DROP_POINTS: ${{ vars.QUALITY_TREND_MAX_SCORE_DROP_POINTS || '20' }}
+      QUALITY_TREND_MIN_PASS_RATE_PERCENT: ${{ vars.QUALITY_TREND_MIN_PASS_RATE_PERCENT || '70' }}
+      QUALITY_TREND_REQUIRE_STABLE_STATE: ${{ vars.QUALITY_TREND_REQUIRE_STABLE_STATE || 'true' }}
+      QUALITY_TREND_HARD_BLOCK: ${{ vars.QUALITY_TREND_HARD_BLOCK || 'false' }}
+      QUALITY_REQUIRE_TREND_HEALTH: ${{ vars.QUALITY_REQUIRE_TREND_HEALTH || 'true' }}
+      QUALITY_EVIDENCE_MAX_AGE_MINUTES: ${{ vars.QUALITY_EVIDENCE_MAX_AGE_MINUTES || '180' }}
+      QUALITY_EVIDENCE_MAX_TIMESTAMP_SKEW_MINUTES: ${{ vars.QUALITY_EVIDENCE_MAX_TIMESTAMP_SKEW_MINUTES || '15' }}
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 2
 
       - name: Setup pnpm
         uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6
         with:
-          version: 9.15.4
+          version: 11.19.0
 
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
@@ -39,8 +65,32 @@ jobs:
         with:
           dotnet-version: "8.0.x"
 
+      - name: Fetch PR base for language policy check
+        if: github.event_name == 'pull_request'
+        run: |
+          git fetch --no-tags --depth=1 origin +refs/heads/${{ github.base_ref }}:refs/remotes/origin/${{ github.base_ref }}
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Language policy check
+        run: |
+          mkdir -p .tmp
+          set -o pipefail
+          node ./tools/check-language-policy.mjs --json 2>&1 | tee .tmp/language-policy-check.json
+
+      - name: Language policy exception expiry report
+        if: always()
+        run: |
+          node ./tools/language-policy-expiry-report.mjs --json --warn-within-days 30 2>&1 | tee .tmp/language-policy-expiry.json
+
+      - name: Restore quality trend history cache
+        uses: actions/cache@v4
+        with:
+          path: .tmp/quality-trend.json
+          key: quality-trend-${{ github.ref_name }}-${{ runner.os }}-v1
+          restore-keys: |
+            quality-trend-${{ github.ref_name }}-${{ runner.os }}-
 
       - name: Install browser for Prompt Lab smoke test
         run: pnpm --filter @unified-ai-system/web-agent exec playwright install --with-deps chromium
@@ -51,6 +101,16 @@ jobs:
       - name: Maintained tests
         run: pnpm test
 
+      - name: PostgreSQL distributed state integration
+        env:
+          AI_GATEWAY_TEST_POSTGRES_URL: postgresql://gateway_test:gateway_test_password@127.0.0.1:5432/gateway_test
+        run: >-
+          pnpm exec vitest run
+          apps/ai-gateway-service/src/http/idempotencyCoordinator.postgres.integration.test.ts
+          apps/ai-gateway-service/src/http/rateLimiter.postgres.integration.test.ts
+          apps/ai-gateway-service/src/http/postgresWebSocketConnectionLeaseManager.postgres.integration.test.ts
+          apps/ai-gateway-service/src/http/postgresWebSocketExecutionLeaseManager.postgres.integration.test.ts
+
       - name: Public repository hygiene
         run: pnpm check:public
 
@@ -58,17 +118,369 @@ jobs:
         run: docker compose config --quiet
 
       - name: Public clone runtime
-        run: pnpm verify:public-clone
+        if: always()
+        run: |
+          set -o pipefail
+          pnpm verify:public-clone 2>&1 | tee .tmp/public-clone-verify.log
+
+      - name: Gateway SLO and fault-isolation benchmark
+        run: |
+          set -o pipefail
+          pnpm benchmark:gateway:slo -- --json --output .tmp/gateway-slo-benchmark.json | tee .tmp/gateway-slo-benchmark.log
+
+      - name: Gateway open-loop soak and backpressure benchmark
+        run: |
+          set -o pipefail
+          pnpm benchmark:gateway:soak -- --json --output .tmp/gateway-soak-benchmark.json | tee .tmp/gateway-soak-benchmark.log
+
+      - name: Gateway resource stability soak
+        run: |
+          set -o pipefail
+          pnpm benchmark:gateway:resource-soak -- --json --output .tmp/gateway-resource-soak.json | tee .tmp/gateway-resource-soak.log
+
+      - name: Run quality trend smoke health check
+        run: |
+          set -o pipefail
+          SMOKE_ARGS=(
+            --json
+            --result-json .tmp/quality-trend-health-smoke.json
+            --require-score "${QUALITY_THRESHOLD}"
+            --trend .tmp/quality-trend.json
+            --summary .tmp/quality-trend-summary.md
+            --guardrail .tmp/quality-trend-guardrail.json
+            --quality .tmp/quality-scorecard.json
+            --drill .tmp/circuit-recovery-drill-live.json
+            --verification .tmp/quality-ci-verification.json
+            --digest-output .tmp/quality-trend-digest.md
+            --digest-json .tmp/quality-trend-digest.json
+            --check .tmp/quality-trend-check.json
+            --recommendations .tmp/quality-trend-recommendations.md
+            --incident-bundle .tmp/quality-trend-incident-bundle.md
+            --incident-bundle-json .tmp/quality-trend-incident-bundle.json
+            --max-consecutive-failures "${QUALITY_TREND_MAX_CONSECUTIVE_FAILURES}"
+            --max-score-drop-points "${QUALITY_TREND_MAX_SCORE_DROP_POINTS}"
+            --min-pass-rate-percent "${QUALITY_TREND_MIN_PASS_RATE_PERCENT}"
+            --max-summary-reasons 8
+            --allow-warnings
+            --enforce-guardrails
+          )
+
+          if [ "${QUALITY_REQUIRE_TREND_HEALTH}" = "false" ]; then
+            SMOKE_ARGS+=("--no-trend-health")
+          fi
+          if [ "${QUALITY_TREND_REQUIRE_STABLE_STATE}" = "true" ]; then
+            SMOKE_ARGS+=("--require-stable-state")
+          fi
+          if [ "${QUALITY_TREND_HARD_BLOCK}" = "true" ]; then
+            SMOKE_ARGS+=("--hard-block")
+          fi
+
+          pnpm quality:trend-health-smoke -- "${SMOKE_ARGS[@]}" | tee .tmp/quality-trend-health-smoke.log
+
+      - name: Verify quality trend artifact parity
+        run: |
+          set -o pipefail
+          VERIFY_ARGS=(
+            --json
+            --quality .tmp/quality-scorecard.json
+            --drill .tmp/circuit-recovery-drill-live.json
+            --incident-bundle-json .tmp/quality-trend-incident-bundle.json
+            --incident-bundle-md .tmp/quality-trend-incident-bundle.md
+            --incident-bundle-schema tools/quality-trend-incident-bundle.schema.json
+            --require-incident-bundle
+            --require-score "${QUALITY_THRESHOLD}"
+          )
+
+          if [ "${QUALITY_REQUIRE_TREND_HEALTH}" = "true" ]; then
+            VERIFY_ARGS+=("--require-trend-health")
+          fi
+
+          node ./tools/verify-ci-quality-artifacts.mjs "${VERIFY_ARGS[@]}" | tee .tmp/quality-trend-verify-artifacts.json
+
+      - name: Append quality artifact verification to workflow summary
+        if: always()
+        run: |
+          if [ -f .tmp/quality-trend-verify-artifacts.json ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "## Quality artifact verification result" >> "$GITHUB_STEP_SUMMARY"
+            cat .tmp/quality-trend-verify-artifacts.json >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Append quality trend smoke output to workflow summary
+        if: always()
+        run: |
+          if [ -f .tmp/quality-trend-health-smoke.json ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "## Quality trend smoke output" >> "$GITHUB_STEP_SUMMARY"
+            cat .tmp/quality-trend-health-smoke.json >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Append quality trend guardrail configuration to summary
+        if: always()
+        run: |
+          {
+            echo "### Quality trend guardrail config"
+            echo ""
+            echo "- max consecutive failures: ${QUALITY_TREND_MAX_CONSECUTIVE_FAILURES}"
+            echo "- max score drop points: ${QUALITY_TREND_MAX_SCORE_DROP_POINTS}"
+            echo "- min pass-rate percent: ${QUALITY_TREND_MIN_PASS_RATE_PERCENT}"
+            echo "- require stable state: ${QUALITY_TREND_REQUIRE_STABLE_STATE}"
+            echo "- hard block: ${QUALITY_TREND_HARD_BLOCK}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Append quality trend artifacts to workflow summary
+        if: always()
+        run: |
+          if [ -f .tmp/quality-trend-summary.md ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "## Quality trend summary" >> "$GITHUB_STEP_SUMMARY"
+            cat .tmp/quality-trend-summary.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          if [ -f .tmp/quality-trend-digest.md ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "## Quality trend digest" >> "$GITHUB_STEP_SUMMARY"
+            cat .tmp/quality-trend-digest.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          if [ -f .tmp/quality-trend-check.json ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "## Quality trend check" >> "$GITHUB_STEP_SUMMARY"
+            cat .tmp/quality-trend-check.json >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          if [ -f .tmp/quality-trend-recommendations.md ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "## Quality trend remediation recommendations" >> "$GITHUB_STEP_SUMMARY"
+            cat .tmp/quality-trend-recommendations.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          if [ -f .tmp/quality-trend-incident-bundle.md ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "## Quality trend incident bundle" >> "$GITHUB_STEP_SUMMARY"
+            cat .tmp/quality-trend-incident-bundle.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Assert required quality evidence artifacts
+        if: always()
+        run: |
+          node ./tools/assert-quality-evidence-artifacts.mjs \
+            --config tools/quality-evidence-assertions.ci.json \
+            --json \
+            --max-age-minutes "${QUALITY_EVIDENCE_MAX_AGE_MINUTES}" \
+            --max-timestamp-skew-minutes "${QUALITY_EVIDENCE_MAX_TIMESTAMP_SKEW_MINUTES}" \
+            | tee .tmp/quality-evidence-artifacts.json
 
       - name: Codex MCP server
+        if: always()
         run: |
-          pnpm verify:mcp
-          pnpm smoke:mcp --json
+          set -o pipefail
+          pnpm verify:mcp 2>&1 | tee .tmp/mcp-verify.log
+          pnpm smoke:mcp --json 2>&1 | tee .tmp/mcp-smoke.json
 
       - name: Terminal CLI
+        if: always()
         run: |
-          pnpm gateway doctor --json
-          pnpm gateway demo --json
+          set -o pipefail
+          pnpm gateway doctor --json 2>&1 | tee .tmp/gateway-doctor.json
+          pnpm gateway demo --json 2>&1 | tee .tmp/gateway-demo.json
+
+      - name: Append runtime verification artifacts to workflow summary
+        if: always()
+        run: |
+          if [ -f .tmp/language-policy-check.json ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "## Language policy check" >> "$GITHUB_STEP_SUMMARY"
+            node --input-type=module --eval '
+              import { readFileSync } from "node:fs";
+
+              const parsed = JSON.parse(readFileSync(".tmp/language-policy-check.json", "utf8"));
+              const violations = Array.isArray(parsed.violations) ? parsed.violations : [];
+              const allowed = Array.isArray(parsed.allowed) ? parsed.allowed : [];
+              const allowlistIssues = Array.isArray(parsed.allowlistIssues) ? parsed.allowlistIssues : [];
+              const allowlistWarnings = Array.isArray(parsed.allowlistWarnings) ? parsed.allowlistWarnings : [];
+              const inspected = parsed.inspected || {};
+
+              console.log(`**Inspected files:** ${inspected.added ?? "unknown"}`);
+              if (allowlistIssues.length > 0) {
+                console.log("**Language policy allowlist issues:**");
+                for (const issue of allowlistIssues) {
+                  console.log(`- ${String(issue)}`);
+                }
+              }
+              if (allowlistWarnings.length > 0) {
+                console.log("**Language policy allowlist warnings:**");
+                for (const warning of allowlistWarnings) {
+                  console.log(`- ${String(warning)}`);
+                }
+              }
+              if (violations.length === 0) {
+                console.log("PASS: no language policy violations.");
+              } else {
+                console.log(`FAIL: ${violations.length} violation(s).`);
+                for (const item of violations) {
+                  const boundary = item.boundary ?? "unknown";
+                  const file = item.file ?? "unknown";
+                  const extension = item.extension ?? "unknown";
+                  const reason = item.reason ?? "unknown";
+                  console.log(`- ${boundary}: ${file} (${extension}) ${reason}`);
+                }
+              }
+
+              if (allowed.length > 0) {
+                console.log("**Language policy exceptions used:**");
+                for (const item of allowed) {
+                  const boundary = item.boundary ?? "unknown";
+                  const file = item.file ?? "unknown";
+                  const exception = item.exception ?? {};
+                  const type = exception.type ?? "unknown";
+                  const value = exception.value ?? "unknown";
+                  const owner = exception.owner ?? "unknown";
+                  const removalBy = exception.removalBy ?? "unknown";
+                  const justification = exception.justification ?? "unknown";
+                  const migrationPlan = exception.migrationPlan ?? "unknown";
+                  const pr = exception.pr ? ` | pr=${exception.pr}` : "";
+                  const issueId = exception.issueId ? ` | issue=${exception.issueId}` : "";
+                  console.log(
+                    `- ${boundary}: ${file} | ${type}:${value} | owner=${owner} | removalBy=${removalBy} | migrationPlan=${migrationPlan} | ${justification}${pr}${issueId}`,
+                  );
+                }
+              }
+            ' || true
+          fi
+
+          if [ -f .tmp/language-policy-expiry.json ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "## Language policy expiry check" >> "$GITHUB_STEP_SUMMARY"
+            node --input-type=module --eval '
+              import { readFileSync } from "node:fs";
+
+              const parsed = JSON.parse(readFileSync(".tmp/language-policy-expiry.json", "utf8"));
+              const expired = Array.isArray(parsed.expired) ? parsed.expired : [];
+              const nearExpiry = Array.isArray(parsed.nearExpiry) ? parsed.nearExpiry : [];
+              const issues = Array.isArray(parsed.issues) ? parsed.issues : [];
+              const warnings = Array.isArray(parsed.warnings) ? parsed.warnings : [];
+              const summary = parsed.summary || {};
+
+              console.log(`**Expiry summary:** scanned=${summary.total ?? 0}, expired=${summary.expiredCount ?? expired.length}, near-expiry=${summary.nearExpiryCount ?? nearExpiry.length}`);
+              if (issues.length > 0) {
+                console.log("**Expiry report issues:**");
+                for (const issue of issues) {
+                  console.log(`- ${String(issue)}`);
+                }
+              }
+              if (warnings.length > 0) {
+                console.log("**Expiry report warnings:**");
+                for (const warning of warnings) {
+                  console.log(`- ${String(warning)}`);
+                }
+              }
+              if (expired.length > 0) {
+                console.log("**Expired exceptions (must be removed before merge):**");
+                for (const exception of expired) {
+                  const owner = exception.owner ?? "unknown";
+                  const migrationPlan = exception.migrationPlan ?? "unknown";
+                  const pr = exception.pr ? `, pr=${exception.pr}` : "";
+                  const issueId = exception.issueId ? `, issue=${exception.issueId}` : "";
+                  console.log(
+                    `- ${exception.type}:${exception.value} (owner=${owner}, removalBy=${exception.removalBy}, migrationPlan=${migrationPlan}${pr}${issueId})`,
+                  );
+                }
+              }
+              if (nearExpiry.length > 0) {
+                console.log("**Near-expiry exceptions:**");
+                for (const exception of nearExpiry) {
+                  console.log(
+                    `- ${exception.type}:${exception.value} (owner=${exception.owner}, migrationPlan=${exception.migrationPlan ?? "unknown"}, daysUntilRemoval=${exception.daysUntilRemoval}, removalBy=${exception.removalBy}, justification=${exception.justification}, pr=${exception.pr ?? ""}${exception.pr && exception.issueId ? ", " : ""}issue=${exception.issueId ?? ""})`,
+                  );
+                }
+              }
+            ' || true
+          fi
+
+          if [ -f .tmp/public-clone-verify.log ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "## Public clone verification" >> "$GITHUB_STEP_SUMMARY"
+            cat .tmp/public-clone-verify.log >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          if [ -f .tmp/mcp-verify.log ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "## MCP verification log" >> "$GITHUB_STEP_SUMMARY"
+            cat .tmp/mcp-verify.log >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          if [ -f .tmp/mcp-smoke.json ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "## MCP smoke result" >> "$GITHUB_STEP_SUMMARY"
+            cat .tmp/mcp-smoke.json >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          if [ -f .tmp/gateway-doctor.json ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "## Gateway doctor result" >> "$GITHUB_STEP_SUMMARY"
+            cat .tmp/gateway-doctor.json >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          if [ -f .tmp/gateway-demo.json ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "## Gateway demo result" >> "$GITHUB_STEP_SUMMARY"
+            cat .tmp/gateway-demo.json >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          if [ -f .tmp/gateway-slo-benchmark.json ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "## Gateway SLO benchmark" >> "$GITHUB_STEP_SUMMARY"
+            cat .tmp/gateway-slo-benchmark.json >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          if [ -f .tmp/gateway-soak-benchmark.json ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "## Gateway open-loop soak benchmark" >> "$GITHUB_STEP_SUMMARY"
+            cat .tmp/gateway-soak-benchmark.json >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          if [ -f .tmp/gateway-resource-soak.json ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "## Gateway resource stability soak" >> "$GITHUB_STEP_SUMMARY"
+            cat .tmp/gateway-resource-soak.json >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload quality scorecard artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: quality-scorecard
+          path: |
+            .tmp/quality-scorecard.json
+            .tmp/circuit-recovery-drill-live.json
+            .tmp/quality-ci-verification.json
+            .tmp/quality-trend-verify-artifacts.json
+            .tmp/quality-trend.json
+            .tmp/quality-trend-summary.md
+            .tmp/quality-trend-guardrail.json
+            .tmp/quality-trend-digest.md
+            .tmp/quality-trend-digest.json
+            .tmp/quality-trend-check.json
+            .tmp/quality-trend-recommendations.md
+            .tmp/quality-trend-incident-bundle.md
+            .tmp/quality-trend-incident-bundle.json
+            .tmp/quality-trend-health-smoke.json
+            .tmp/quality-evidence-artifacts.json
+            .tmp/public-clone-verify.log
+            .tmp/mcp-verify.log
+            .tmp/mcp-smoke.json
+            .tmp/gateway-doctor.json
+            .tmp/gateway-demo.json
+            .tmp/gateway-slo-benchmark.json
+            .tmp/gateway-slo-benchmark.log
+            .tmp/gateway-soak-benchmark.json
+            .tmp/gateway-soak-benchmark.log
+            .tmp/gateway-resource-soak.json
+            .tmp/gateway-resource-soak.log
+            .tmp/language-policy-check.json
+            .tmp/language-policy-expiry.json
+          retention-days: 30
 
       - name: Go prompt enhancement example
         run: go run docs/examples/prompt-enhancement.go --help
@@ -90,3 +502,4 @@ jobs:
           dotnet restore docs/examples/prompt-enhancement.csproj
           dotnet build docs/examples/prompt-enhancement.csproj --no-restore --nologo
           dotnet run --project docs/examples/prompt-enhancement.csproj --no-build -- --help
+

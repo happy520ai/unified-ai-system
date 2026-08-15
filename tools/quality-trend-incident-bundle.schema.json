@@ -1,0 +1,208 @@
+{
+  "schemaVersion": 1,
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "executedAtUtc",
+    "failureReason",
+    "failureDetail",
+    "qualityThreshold",
+    "thresholds",
+    "trendHealth",
+    "trendConsistency",
+    "languagePolicyReview",
+    "failedSteps",
+    "extractedIssues",
+    "artifacts",
+    "recommendationText"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "number"
+    },
+    "executedAtUtc": {
+      "type": "string"
+    },
+    "failureReason": {
+      "type": "string"
+    },
+    "failureDetail": {
+      "type": "string"
+    },
+    "qualityThreshold": {
+      "type": "number"
+    },
+    "thresholds": {
+      "type": "object",
+      "required": [
+        "maxConsecutiveFailures",
+        "maxScoreDropPoints",
+        "minPassRatePercent",
+        "shortWindow",
+        "longWindow",
+        "requireStableState"
+      ],
+      "properties": {
+        "maxConsecutiveFailures": { "type": "number" },
+        "maxScoreDropPoints": { "type": "number" },
+        "minPassRatePercent": { "type": "number" },
+        "shortWindow": { "type": "number" },
+        "longWindow": { "type": "number" },
+        "requireStableState": { "type": "boolean" }
+      }
+    },
+    "trendHealth": {
+      "type": "object",
+      "required": [
+        "status",
+        "severity",
+        "blocked",
+        "reasons",
+        "recommendation"
+      ],
+      "properties": {
+        "status": { "type": "string" },
+        "severity": { "type": "string" },
+        "blocked": { "type": "boolean" },
+        "reasons": { "type": "array" },
+        "recommendation": { "type": "string" }
+      }
+    },
+    "trendConsistency": {
+      "type": "object",
+      "required": [
+        "checks",
+        "issueCodes",
+        "issueCodeSummary",
+        "checksRequired"
+      ],
+      "properties": {
+        "checks": {
+          "type": "object"
+        },
+        "status": {
+          "type": "string"
+        },
+        "issueCodes": {
+          "type": "array"
+        },
+        "issueCodeSummary": {
+          "type": "object",
+          "required": [
+            "total",
+            "high",
+            "medium",
+            "low",
+            "info",
+            "unknown",
+            "blocking"
+          ],
+          "properties": {
+            "total": { "type": "number" },
+            "high": { "type": "number" },
+            "medium": { "type": "number" },
+            "low": { "type": "number" },
+            "info": { "type": "number" },
+            "unknown": { "type": "number" },
+            "blocking": { "type": "boolean" }
+          }
+        },
+        "checksRequired": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "hasMissingRequired": {
+          "type": "boolean"
+        },
+        "hasNotCollected": {
+          "type": "boolean"
+        },
+        "requiresTrendHealth": {
+          "type": "boolean"
+        },
+        "source": {
+          "type": "string"
+        }
+      }
+    },
+    "languagePolicyReview": {
+      "type": "object",
+      "required": [
+        "summary",
+        "reviewStatus",
+        "fitness",
+        "issues",
+        "actionItems"
+      ],
+      "properties": {
+        "summary": {
+          "type": "object",
+          "properties": {
+            "checkPresent": { "type": "boolean" },
+            "expiryPresent": { "type": "boolean" },
+            "allowed": { "type": "number" },
+            "violations": { "type": "number" },
+            "expiredExceptions": { "type": "number" },
+            "nearExpiryExceptions": { "type": "number" },
+            "allowlistWarnings": { "type": "number" },
+            "allowlistIssues": { "type": "number" },
+            "preferredLanguage": { "type": "string" }
+          }
+        },
+        "fitness": {
+          "type": "object",
+          "required": [
+            "score",
+            "riskLevel",
+            "target",
+            "blocked",
+            "counts",
+            "reasons"
+          ],
+          "properties": {
+            "score": {
+              "type": "number"
+            },
+            "riskLevel": {
+              "type": "string"
+            },
+            "target": {
+              "type": "number"
+            },
+            "blocked": {
+              "type": "boolean"
+            },
+            "counts": {
+              "type": "object"
+            },
+            "reasons": {
+              "type": "array"
+            },
+            "preferredLanguage": {
+              "type": "string"
+            }
+          }
+        },
+        "reviewStatus": { "type": "string" },
+        "issues": {
+          "type": "array"
+        },
+        "actionItems": {
+          "type": "array"
+        }
+      }
+    },
+    "failedSteps": {
+      "type": "array"
+    },
+    "extractedIssues": {
+      "type": "array"
+    },
+    "artifacts": {
+      "type": "array"
+    },
+    "recommendationText": {
+      "type": "array"
+    }
+  }
+}

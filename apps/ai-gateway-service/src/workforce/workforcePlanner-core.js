@@ -67,7 +67,7 @@ export function createRoleTask({ role, goal, index }) {
     title: `${role.name}: ${role.title}`,
     description: `${role.responsibility} Target goal: ${goal}`,
     status: "planned",
-    previewOnly: false,
+    previewOnly: true,
   };
 }
 
@@ -83,8 +83,8 @@ export function normalizeSelectedTemplate(templateId) {
     sampleGoal: template.sampleGoal,
     expectedPlanSections: template.expectedPlanSections,
     sampleAcceptanceChecklist: template.sampleAcceptanceChecklist,
-    execution: "enabled",
-    previewOnly: false,
+    execution: "disabled",
+    previewOnly: true,
   };
 }
 
@@ -103,10 +103,10 @@ export function createTemplateContext(selectedTemplate) {
     expectedPlanSections: template.expectedPlanSections,
     sampleAcceptanceChecklist: template.sampleAcceptanceChecklist,
     affects: ["plan prompt", "plan context", "clarification framing", "review package framing"],
-    executionEnabled: true,
-    externalRunnerDispatchEnabled: true,
-    workflowRunEnabled: true,
-    previewOnly: false,
+    executionEnabled: false,
+    externalRunnerDispatchEnabled: false,
+    workflowRunEnabled: false,
+    previewOnly: true,
     reason: "templates generate plans only; no execution is triggered",
   };
 }
@@ -116,7 +116,7 @@ export function createProductTemplatesPreview(selectedTemplate) {
     phase: PRODUCT_TEMPLATE_PHASE,
     mode: "product-template-pack-preview",
     templatePackEnabled: true,
-    executionEnabled: true,
+    executionEnabled: false,
     selectedTemplateId: selectedTemplate.id,
     templates: PRODUCT_TEMPLATES.map((template) => ({
       id: template.id,
@@ -130,16 +130,20 @@ export function createProductTemplatesPreview(selectedTemplate) {
       samplePrompts: template.samplePrompts,
       expectedPlanSections: template.expectedPlanSections,
       sampleAcceptanceChecklist: template.sampleAcceptanceChecklist,
-      execution: "enabled",
+      execution: "disabled",
     })),
     demoGoals: PRODUCT_TEMPLATES.map((template) => ({
       templateId: template.id,
       templateName: template.name,
       sampleGoal: template.sampleGoal,
       samplePrompts: template.samplePrompts,
-      execution: "enabled",
+      execution: "disabled",
     })),
-    blockedReasons: [],
+    blockedReasons: [
+      "templates generate plans only",
+      "real Agent execution is disabled",
+      "external runner dispatch is disabled",
+    ],
   };
 }
 
@@ -218,7 +222,7 @@ export function createRoleTiers(roles, tasks) {
     tierId: tier.tierId,
     name: tier.name,
     purpose: tier.purpose,
-    previewOnly: false,
+    previewOnly: true,
     workerExecution: false,
     roles: tier.roleNames.map((roleName) => {
       const role = roleByName.get(roleName);
@@ -284,7 +288,7 @@ export function createClarificationAnswers(answers = []) {
       questionId: String(item?.questionId || "").trim(),
       answer: String(item?.answer || "").trim().slice(0, 1_000),
       answeredAt: item?.answeredAt || null,
-      previewOnly: false,
+      previewOnly: true,
     }))
     .filter((item) => item.questionId && item.answer);
 }
@@ -301,7 +305,7 @@ export function createAnsweredClarifications(questions, answers) {
         question: question.question,
         answer: answer.answer,
         answeredAt: answer.answeredAt,
-        previewOnly: false,
+        previewOnly: true,
       };
     });
 }
@@ -315,6 +319,6 @@ export function createUnresolvedClarifications(questions, answers) {
       topic: question.topic,
       question: question.question,
       required: true,
-      previewOnly: false,
+      previewOnly: true,
     }));
 }

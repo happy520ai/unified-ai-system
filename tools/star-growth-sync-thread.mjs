@@ -176,7 +176,9 @@ function syncThread() {
     throw new Error(`Growth command failed: ${error.message}`);
   }
 
-  const feedbackResult = run("pnpm growth:feedback");
+  const feedbackResult = run(
+    "node ./tools/star-growth-feedback.mjs --output .tmp/growth/star-growth-feedback.md"
+  );
   if (!feedbackResult.includes("Usage Verification Feedback")) {
     throw new Error("Growth feedback update failed");
   }

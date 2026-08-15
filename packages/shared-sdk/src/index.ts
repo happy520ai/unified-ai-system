@@ -54,6 +54,48 @@ export interface GatewayClientOptions {
   signal?: AbortSignal;
 }
 
+export type GatewayClientErrorKind = "cancelled" | "timeout" | "network" | "http" | "protocol" | "stream";
+
+export declare const GATEWAY_CLIENT_ERROR_CODES: Readonly<{
+  ABORTED: "GATEWAY_CLIENT_ABORTED";
+  TIMEOUT: "GATEWAY_CLIENT_TIMEOUT";
+  NETWORK: "GATEWAY_NETWORK_ERROR";
+  HTTP: "GATEWAY_HTTP_ERROR";
+  PROTOCOL: "GATEWAY_PROTOCOL_ERROR";
+  STREAM: "GATEWAY_STREAM_ERROR";
+}>;
+
+export declare class GatewayClientError extends Error {
+  readonly code: string;
+  readonly kind: GatewayClientErrorKind;
+  readonly retryable: boolean;
+  readonly statusCode?: number;
+  readonly responseBody?: unknown;
+  readonly cause?: unknown;
+  constructor(message: string, options?: {
+    code?: string;
+    kind?: GatewayClientErrorKind;
+    retryable?: boolean;
+    statusCode?: number;
+    responseBody?: unknown;
+    cause?: unknown;
+  });
+}
+
+export declare class GatewayClientAbortError extends GatewayClientError {
+  readonly code: "GATEWAY_CLIENT_ABORTED";
+  readonly kind: "cancelled";
+  readonly retryable: false;
+  readonly reason?: unknown;
+}
+
+export declare class GatewayClientTimeoutError extends GatewayClientError {
+  readonly code: "GATEWAY_CLIENT_TIMEOUT";
+  readonly kind: "timeout";
+  readonly retryable: false;
+  readonly timeoutMs?: number;
+}
+
 export interface GatewayClient {
   readonly baseUrl: string;
   health(): Promise<ResultEnvelope<GatewayHealth>>;

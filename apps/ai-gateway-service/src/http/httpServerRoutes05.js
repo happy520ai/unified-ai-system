@@ -36,7 +36,7 @@ export async function dispatchHttpRoutes05(context) {
 
     try {
       const planId = decodeURIComponent(workforceClarificationMatch[1]);
-      const result = await workforceService.answerClarifications(planId, body);
+      const result = await workforceService.answerClarifications(planId, body, request.enterpriseIdentity?.tenantId);
       writeServiceLog("workforce_clarifications_saved", {
         method: request.method,
         path: url.pathname,
@@ -58,7 +58,7 @@ export async function dispatchHttpRoutes05(context) {
 
     try {
       const planId = decodeURIComponent(workforceLifecycleMatch[1]);
-      const result = await workforceService.updatePlanLifecycle(planId, body);
+      const result = await workforceService.updatePlanLifecycle(planId, body, request.enterpriseIdentity?.tenantId);
       writeServiceLog("workforce_lifecycle_saved", {
         method: request.method,
         path: url.pathname,
@@ -77,7 +77,7 @@ export async function dispatchHttpRoutes05(context) {
   if (workforceReviewPackageMatch && request.method === "GET") {
     try {
       const planId = decodeURIComponent(workforceReviewPackageMatch[1]);
-      const result = await workforceService.getPlanReviewPackage(planId);
+      const result = await workforceService.getPlanReviewPackage(planId, request.enterpriseIdentity?.tenantId);
       writeJson(response, 200, createOkEnvelope(result, { startedAt }));
     } catch (error) {
       writeCapabilityError({ response, error, startedAt, fallbackCode: "workforce_review_package_failed" });
@@ -92,7 +92,7 @@ export async function dispatchHttpRoutes05(context) {
 
     try {
       const planId = decodeURIComponent(workforceApprovalGateMatch[1]);
-      const result = await workforceService.recordPlanApprovalGate(planId, body);
+      const result = await workforceService.recordPlanApprovalGate(planId, body, request.enterpriseIdentity?.tenantId);
       writeServiceLog("workforce_approval_gate_recorded", {
         method: request.method,
         path: url.pathname,
@@ -112,8 +112,8 @@ export async function dispatchHttpRoutes05(context) {
     try {
       const planId = decodeURIComponent(workforcePlanMatch[1]);
       const result = workforcePlanMatch[2]
-        ? await workforceService.exportPlan(planId)
-        : await workforceService.getPlan(planId);
+        ? await workforceService.exportPlan(planId, request.enterpriseIdentity?.tenantId)
+        : await workforceService.getPlan(planId, request.enterpriseIdentity?.tenantId);
       writeJson(response, 200, createOkEnvelope(result, { startedAt }));
     } catch (error) {
       writeCapabilityError({ response, error, startedAt, fallbackCode: "workforce_plan_read_failed" });
@@ -124,7 +124,7 @@ export async function dispatchHttpRoutes05(context) {
   if (workforcePlanMatch && request.method === "DELETE" && !workforcePlanMatch[2]) {
     try {
       const planId = decodeURIComponent(workforcePlanMatch[1]);
-      const result = await workforceService.deletePlan(planId);
+      const result = await workforceService.deletePlan(planId, request.enterpriseIdentity?.tenantId);
       writeServiceLog("workforce_plan_deleted", {
         method: request.method,
         path: url.pathname,
@@ -155,7 +155,9 @@ export async function dispatchHttpRoutes05(context) {
     }
 
     try {
-      const result = url.pathname === "/workflow/plan" ? workflowService.plan(body) : await workflowService.run(body);
+      const result = url.pathname === "/workflow/plan"
+        ? workflowService.plan(body)
+        : await workflowService.run(body, getRequestContext(request));
       writeServiceLog(url.pathname === "/workflow/plan" ? "workflow_plan_completed" : "workflow_run_completed", {
         method: request.method,
         path: url.pathname,
@@ -242,7 +244,7 @@ export async function dispatchHttpRoutes05(context) {
     if (!body) return;
 
     try {
-      writeJson(response, 200, createOkEnvelope(userExperienceService.retrieveGraph(body), { startedAt }));
+      writeJson(response, 200, createOkEnvelope(userExperienceService.retrieveGraph(body, getRequestContext(request)), { startedAt }));
     } catch (error) {
       writeCapabilityError({ response, error, startedAt, fallbackCode: "graph_retrieve_failed" });
     }
@@ -266,7 +268,7 @@ export async function dispatchHttpRoutes05(context) {
     }
 
     try {
-      const result = knowledgeService.loadDocuments(body);
+      const result = knowledgeService.loadDocuments(body, getRequestContext(request));
       writeServiceLog("knowledge_load_completed", {
         method: request.method,
         path: url.pathname,
@@ -354,7 +356,7 @@ export async function dispatchHttpRoutes05(context) {
           ...(body.metadata ?? {}),
         },
         documents,
-      });
+      }, getRequestContext(request));
 
       writeServiceLog("knowledge_file_load_completed", {
         method: request.method,

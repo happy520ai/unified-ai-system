@@ -44,7 +44,7 @@ try {
 
   Write-Host "Running campaign refresh..."
   pnpm growth:campaign
-  pnpm growth:feedback
+  node ./tools/star-growth-feedback.mjs --output .tmp/growth/star-growth-feedback.md
 
   $latestRaw = Get-Content -Path .tmp/growth/star-growth-latest.md -Raw -Encoding UTF8
   $metrics = [ordered]@{

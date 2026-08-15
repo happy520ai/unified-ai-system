@@ -8,6 +8,7 @@ const serviceRoot = resolve(fileURLToPath(new URL("../../", import.meta.url)));
 const repoRoot = resolve(serviceRoot, "../..");
 const supportedScopes = new Set(["unit", "local", "all"]);
 const supportedFrameworks = new Set(["node", "vitest", "all"]);
+const supportedTestExtensions = [".test.js", ".test.mjs", ".test.ts", ".test.mts"];
 
 function parseOption(name, fallback) {
   const prefix = `--${name}=`;
@@ -31,7 +32,10 @@ async function collectTestFiles(directory) {
       const path = join(current, entry.name);
       if (entry.isDirectory()) {
         await visit(path);
-      } else if (entry.isFile() && entry.name.endsWith(".test.js")) {
+      } else if (
+        entry.isFile()
+        && supportedTestExtensions.some((extension) => entry.name.endsWith(extension))
+      ) {
         files.push(path);
       }
     }

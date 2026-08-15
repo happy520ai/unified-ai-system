@@ -1,7 +1,8 @@
-export function createProviderRequest({ request, target }) {
+export function createProviderRequest({ request, target, execution }) {
   return {
     request,
     target,
+    execution,
     trace: {
       requestId: request.context.requestId,
       traceId: request.context.traceId,
@@ -16,6 +17,7 @@ export function createProviderResponse({
   latencyMs,
   executionStatus = "success",
   warnings = [],
+  toolCalls,
   raw,
 }) {
   return {
@@ -25,6 +27,7 @@ export function createProviderResponse({
     latencyMs,
     executionStatus,
     warnings,
+    ...(Array.isArray(toolCalls) ? { toolCalls } : {}),
     raw,
   };
 }

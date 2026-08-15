@@ -14,9 +14,9 @@ export function normalizeHandoffPackageManifest(source, plan = {}) {
     phase: WORKFORCE_PLAN_HANDOFF_PACKAGE_MANIFEST_PHASE,
     mode: "handoff-package-manifest-preview",
     manifestEnabled: true,
-    executionEnabled: true,
-    runnerEnabled: true,
-    workflowRunEnabled: true,
+    executionEnabled: false,
+    runnerEnabled: false,
+    workflowRunEnabled: false,
     packagePurpose: "Human-readable Agent Workforce preview handoff package; not execution.",
     planMetadata: {
       ...(base.planMetadata || {}),
@@ -55,22 +55,22 @@ export function normalizeHandoffPackageManifest(source, plan = {}) {
       ],
     reviewPackage: {
       status: plan.reviewPackagePreview?.status || base.reviewPackage?.status || "needs-human-review",
-      previewOnly: false,
-      executionEnabled: true,
+      previewOnly: true,
+      executionEnabled: false,
     },
     approvalPreview: {
       status: plan.approvalGatePreview?.status || base.approvalPreview?.status || "waiting-human-review",
       approvalPreviewIsExecutionPermission: false,
-      executionEnabled: true,
+      executionEnabled: false,
     },
     omxHandoffPreview: {
       status: plan.omxHandoffPreview?.status || base.omxHandoffPreview?.status || "handoff-preview-ready",
       runsOhMyCodex: false,
-      executionEnabled: true,
+      executionEnabled: false,
     },
     executionReadiness: {
       overallStatus: plan.executionReadinessPreflight?.overallStatus || base.executionReadiness?.overallStatus || "blocked",
-      executionEnabled: true,
+      executionEnabled: false,
     },
     externalRunnerDisabledReasons: Array.isArray(base.externalRunnerDisabledReasons) && base.externalRunnerDisabledReasons.length
       ? base.externalRunnerDisabledReasons
@@ -122,7 +122,7 @@ export function normalizeCodexDesktopHandoffPack(source, plan = {}) {
     mode: "codex-desktop-handoff-preview",
     handoffEnabled: true,
     manualOnly: true,
-    codexexecutionEnabled: true,
+    codexexecutionEnabled: false,
     autoDispatchEnabled: false,
     target: "desktop-codex-or-codex-cli",
     copyPasteRequired: true,
@@ -209,7 +209,7 @@ export function normalizeManualCodexExecutionLoop(source) {
     mode: "manual-codex-execution-loop-preview",
     loopEnabled: true,
     manualOnly: true,
-    codexexecutionEnabled: true,
+    codexexecutionEnabled: false,
     autoRunEnabled: false,
     steps: Array.isArray(base.steps) && base.steps.length
       ? base.steps
@@ -289,9 +289,9 @@ export function normalizeSafeDesktopRunnerDesign(source) {
     phase: WORKFORCE_PLAN_SAFE_DESKTOP_RUNNER_DESIGN_PHASE,
     mode: "safe-desktop-runner-design-only",
     runnerImplemented: false,
-    runnerEnabled: true,
+    runnerEnabled: false,
     codexCliInvocationEnabled: false,
-    executionEnabled: true,
+    executionEnabled: false,
     designOnly: true,
     requiredBeforeImplementation: Array.isArray(base.requiredBeforeImplementation) && base.requiredBeforeImplementation.length
       ? base.requiredBeforeImplementation

@@ -7,6 +7,8 @@
 
 // ── LLM Prompts ───────────────────────────────────────────────────────────
 
+import { preferredLanguageLabel } from './helpers.js';
+
 export const DAG_SYSTEM_PROMPT = `You are the Forge Goal Refiner. Decompose the user's coding goal into an executable Task DAG.
 
 You MUST respond with a valid JSON object in this exact format (no markdown fences, no extra text):
@@ -76,6 +78,7 @@ Review checklist:
  * @returns {string}
  */
 export function buildInitialPrompt(goalText, profile, clarity) {
+  const preferredLanguage = profile?.preferredLanguage || null;
   const lines = [];
   lines.push(`## Goal\n${goalText}\n`);
 
@@ -85,6 +88,9 @@ export function buildInitialPrompt(goalText, profile, clarity) {
   lines.push(`- Languages: ${profile.languages.length ? profile.languages.join(', ') : 'unknown'}`);
   lines.push(`- Module system: ${profile.moduleSystem}`);
   lines.push(`- Monorepo: ${profile.monorepo ? 'yes' : 'no'}`);
+  if (preferredLanguage) {
+    lines.push(`- Preferred implementation language: ${preferredLanguageLabel(preferredLanguage)}`);
+  }
   lines.push(`- Total files (probed): ${profile.totalFileCount}`);
   const topExts = Object.entries(profile.fileCountsByExt).slice(0, 6)
     .map(([e, n]) => `${e || '(no ext)'}:${n}`).join(', ');

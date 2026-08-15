@@ -6,6 +6,7 @@ import {
   runWorkforceRealLocal,
   createRealLocalSafetySummary,
 } from "./workforceRealLocalRunner.js";
+import { executeAllRolesWithLLM } from "./roleExecutorsLlm.js";
 
 export function createWorkforceService(options = {}) {
   const planStore = createWorkforcePlanStore(options);
@@ -36,36 +37,66 @@ export function createWorkforceService(options = {}) {
     plan(input) {
       return createWorkforcePlan(input);
     },
-    async runLocal(input = {}) {
-      return runWorkforceRealLocal(input, { planStore });
+    async execute(input = {}, options = {}) {
+      const goal = typeof input === "string" ? input : input.goal;
+      if (!goal || typeof goal !== "string" || goal.trim().length === 0) {
+        const error = new Error("Workforce execute requires a goal.");
+        error.code = "WORKFORCE_GOAL_REQUIRED";
+        error.category = "validation";
+        throw error;
+      }
+
+      const context = input.context ?? {};
+      const providerAdapter = options.providerAdapter ?? null;
+      const llmOptions = options.llmOptions ?? {};
+
+      const result = await executeAllRolesWithLLM(goal, context, providerAdapter, llmOptions);
+
+      return {
+        phase: WORKFORCE_PHASE,
+        status: "completed",
+        goal,
+        ...result,
+        safety: createSafetySummary(),
+      };
     },
-    async savePlan(input = {}) {
+    async runLocal(input = {}, options = {}) {
+      const tenantId = options.tenantId;
+      // runWorkforceRealLocal 只调用 planStore.save；这里包一层租户作用域，
+      // 保证 /workforce/run-local 保存的计划同样盖上服务端派生的 tenantId。
+      return runWorkforceRealLocal(input, {
+        planStore: {
+          save: (plan) => planStore.save(plan, tenantId),
+        },
+      });
+    },
+    async savePlan(input = {}, tenantId) {
       const plan = input.plan ?? (input.goal ? createWorkforcePlan(input) : null);
-      return planStore.save(plan);
+      return planStore.save(plan, tenantId);
     },
-    listPlans() {
-      return planStore.list();
+    listPlans(tenantId) {
+      return planStore.list(tenantId);
     },
-    getPlan(planId) {
-      return planStore.get(planId);
+    getPlan(planId, tenantId) {
+      return planStore.get(planId, tenantId);
     },
-    deletePlan(planId) {
-      return planStore.delete(planId);
+    deletePlan(planId, tenantId) {
+      return planStore.delete(planId, tenantId);
     },
-    exportPlan(planId) {
-      return planStore.export(planId);
+    exportPlan(planId, tenantId) {
+      return planStore.export(planId, tenantId);
     },
-    answerClarifications(planId, input = {}) {
-      return planStore.answerClarifications(planId, input.answers);
+    answerClarifications(planId, input = {}, tenantId) {
+      return planStore.answerClarifications(planId, input.answers, tenantId);
     },
-    updatePlanLifecycle(planId, input = {}) {
-      return planStore.updateLifecycle(planId, input);
+    updatePlanLifecycle(planId, input = {}, tenantId) {
+      return planStore.updateLifecycle(planId, input, tenantId);
     },
-    getPlanReviewPackage(planId) {
-      return planStore.getReviewPackage(planId);
+    getPlanReviewPackage(planId, tenantId) {
+      return planStore.getReviewPackage(planId, tenantId);
     },
-    recordPlanApprovalGate(planId, input = {}) {
-      return planStore.recordApprovalGate(planId, input);
+    recordPlanApprovalGate(planId, input = {}, tenantId) {
+      return planStore.recordApprovalGate(planId, input, tenantId);
     },
   };
 }

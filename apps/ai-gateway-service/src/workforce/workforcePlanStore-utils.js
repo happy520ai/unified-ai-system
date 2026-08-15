@@ -1,5 +1,5 @@
-import { createHash } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { createHash, randomUUID } from "node:crypto";
+import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { STORE_VERSION } from "./workforcePlanStore-constants.js";
 
@@ -23,6 +23,80 @@ export function redactSecrets(value) {
   return value;
 }
 
+const WORKFORCE_PREVIEW_MAX_DEPTH = 64;
+const WORKFORCE_PREVIEW_MAX_NODES = 50_000;
+const WORKFORCE_PREVIEW_FALSE_FIELDS = /^(?:(?:.*execution|runner|workflowRun|externalRunnerDispatch|autoDispatch|autoRun|autoApply|autoMerge|autoCommit)Enabled|workerExecution|drivesExecution|grantsExecution|approvalPreviewIsExecutionPermission|realAgentExecution|realLlmCalls|agentConcurrency|codeExecution|projectFileWrites|workflowRun|createsWorktrees|runsOhMyCodex)$/i;
+
+function sealWorkforcePreviewNode(value, state, depth) {
+  if (depth > WORKFORCE_PREVIEW_MAX_DEPTH) {
+    throw createStoreError(
+      "WORKFORCE_PREVIEW_SAFETY_DEPTH_EXCEEDED",
+      "Workforce preview payload exceeds the safety depth limit.",
+      { maxDepth: WORKFORCE_PREVIEW_MAX_DEPTH },
+    );
+  }
+
+  if (typeof value === "string") {
+    return redactSecrets(value);
+  }
+  if (!value || typeof value !== "object") {
+    return value;
+  }
+  if (state.seen.has(value)) {
+    throw createStoreError(
+      "WORKFORCE_PREVIEW_SAFETY_CYCLE",
+      "Workforce preview payload must not contain cyclic references.",
+    );
+  }
+
+  state.nodes += 1;
+  if (state.nodes > WORKFORCE_PREVIEW_MAX_NODES) {
+    throw createStoreError(
+      "WORKFORCE_PREVIEW_SAFETY_SIZE_EXCEEDED",
+      "Workforce preview payload exceeds the safety node limit.",
+      { maxNodes: WORKFORCE_PREVIEW_MAX_NODES },
+    );
+  }
+
+  state.seen.add(value);
+  const sealed = Array.isArray(value)
+    ? value.map((item) => sealWorkforcePreviewNode(item, state, depth + 1))
+    : Object.fromEntries(Object.entries(value).map(([key, item]) => {
+      if (key === "previewOnly") {
+        return [key, true];
+      }
+      if (WORKFORCE_PREVIEW_FALSE_FIELDS.test(key)) {
+        return [key, false];
+      }
+      if (key === "execution" && typeof item === "string" && item.toLowerCase() === "enabled") {
+        return [key, "disabled"];
+      }
+      return [key, sealWorkforcePreviewNode(item, state, depth + 1)];
+    }));
+  state.seen.delete(value);
+  return sealed;
+}
+
+export function sealWorkforcePreviewSafety(value) {
+  const sealed = sealWorkforcePreviewNode(value, { nodes: 0, seen: new WeakSet() }, 0);
+  if (!sealed || typeof sealed !== "object" || Array.isArray(sealed)) {
+    return sealed;
+  }
+  return {
+    ...sealed,
+    workforcePreviewSafety: {
+      version: "workforce-preview-safety-v1",
+      sealed: true,
+      previewOnly: true,
+      executionEnabled: false,
+      runnerEnabled: false,
+      workflowRunEnabled: false,
+      externalRunnerDispatchEnabled: false,
+      approvalPreviewGrantsExecution: false,
+    },
+  };
+}
+
 export function createStoreError(code, message, details = {}) {
   const error = new Error(message);
   error.code = code;
@@ -34,6 +108,7 @@ export function createStoreError(code, message, details = {}) {
 export function createStoreSafety() {
   return {
     devOnlyLocalStorage: true,
+    previewOnly: true,
     realLlmCalls: false,
     codeExecution: false,
     projectFileWrites: false,
@@ -64,7 +139,17 @@ export async function readStore(storePath) {
 
 export async function writeStore(storePath, store) {
   await mkdir(dirname(storePath), { recursive: true });
-  await writeFile(storePath, `${JSON.stringify(redactSecrets(store), null, 2)}\n`, "utf8");
+  // Atomic write: write to a unique temp file in the same directory, then
+  // rename over the target. This prevents a partially-written store file from
+  // being observed if the process is interrupted mid-write.
+  const tempPath = `${storePath}.${process.pid}.${Date.now()}.${randomUUID().slice(0, 8)}.tmp`;
+  try {
+    await writeFile(tempPath, `${JSON.stringify(redactSecrets(store), null, 2)}\n`, "utf8");
+    await rename(tempPath, storePath);
+  } catch (error) {
+    try { await unlink(tempPath); } catch { /* best-effort cleanup */ }
+    throw error;
+  }
 }
 
 export function createPlanId(plan, savedAt) {
@@ -100,7 +185,7 @@ export function normalizePlan(plan) {
     });
   }
 
-  return redactSecrets(plan);
+  return sealWorkforcePreviewSafety(plan);
 }
 
 export function normalizeClarificationAnswers(answers) {
@@ -110,7 +195,7 @@ export function normalizeClarificationAnswers(answers) {
       questionId: String(item?.questionId || "").trim(),
       answer: String(item?.answer || "").trim().slice(0, 1_000),
       answeredAt: item?.answeredAt || new Date().toISOString(),
-      previewOnly: false,
+      previewOnly: true,
     }))
     .filter((item) => item.questionId && item.answer);
 }
@@ -153,8 +238,8 @@ export function createDefaultLifecyclePreview(savedAt) {
       },
     ],
     allowedTransitions: ["draft", "clarified", "saved", "exported", "handoff-disabled", "consensus_ready", "export_ready", "archived"],
-    executionEnabled: true,
-    workflowRunEnabled: true,
+    executionEnabled: false,
+    workflowRunEnabled: false,
   };
 }
 
@@ -174,8 +259,8 @@ export function createUpdatedLifecycle(lifecycle, state, note, updatedAt) {
       },
     ],
     allowedTransitions: ["draft", "clarified", "saved", "exported", "handoff-disabled", "consensus_ready", "export_ready", "archived"],
-    executionEnabled: true,
-    workflowRunEnabled: true,
+    executionEnabled: false,
+    workflowRunEnabled: false,
   };
 }
 
@@ -190,7 +275,7 @@ export function updatePlanStateCurrent(planState, state) {
     lifecycleStatus,
     lifecycleStatuses: ["draft", "clarified", "saved", "exported", "handoff-disabled"],
     states: ["draft", "clarified", "consensus_ready", "export_ready", "archived"],
-    previewOnly: false,
+    previewOnly: true,
     drivesExecution: false,
     workflowRunHandoff: {
       status: "disabled",
@@ -214,7 +299,7 @@ export function toPlanSummary(plan) {
     taskCount: plan.taskBreakdown?.length ?? 0,
     roleCount: plan.roles?.length ?? 0,
     selectedTemplate: plan.selectedTemplate?.name || plan.templateContext?.selectedTemplateName || "n/a",
-    execution: "enabled",
+    execution: "disabled",
     lifecycleState: plan.lifecyclePreview?.current || plan.planState?.current || "draft",
     lifecycleStatus: plan.planState?.lifecycleStatus || plan.lifecyclePreview?.current || "draft",
     answeredClarificationCount: plan.clarificationAnswers?.length ?? 0,
@@ -237,7 +322,7 @@ export function createPackageClarificationSummary(questions = [], answers = []) 
         question: question.question,
         answer: answer.answer,
         answeredAt: answer.answeredAt || null,
-        previewOnly: false,
+        previewOnly: true,
       };
     });
   const unresolvedClarifications = (Array.isArray(questions) ? questions : [])
@@ -247,7 +332,7 @@ export function createPackageClarificationSummary(questions = [], answers = []) 
       topic: question.topic,
       question: question.question,
       required: true,
-      previewOnly: false,
+      previewOnly: true,
     }));
   return { answeredClarifications, unresolvedClarifications };
 }

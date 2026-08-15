@@ -1,3 +1,4 @@
+import { safeOutboundFetch } from "../security/safeOutboundFetch.ts";
 import {
   cleanApiKey,
   createApiKeyRef,
@@ -13,7 +14,7 @@ const DEFAULT_PENDING_TTL_MS = 15 * 60 * 1_000;
 export function createModelImportService({
   providerRegistry,
   runtimeCredentialStore,
-  fetchImpl = globalThis.fetch,
+  fetchImpl = safeOutboundFetch,
   pendingTtlMs = DEFAULT_PENDING_TTL_MS,
 } = {}) {
   const pendingImports = new Map();

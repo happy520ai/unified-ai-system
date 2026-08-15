@@ -29,7 +29,8 @@ export function createAgentRunnerRoutes(application, helpers) {
         writeJson(res, 500, createErrorEnvelope("intent_preview_failed", error.message, { startedAt }));
       }
     },
-    public: true,
+    public: false,
+    permission: "workflow:run",
     description: "意图审批预览",
   });
 
@@ -48,7 +49,8 @@ export function createAgentRunnerRoutes(application, helpers) {
         writeJson(res, 500, createErrorEnvelope("local_operation_failed", error.message, { startedAt }));
       }
     },
-    public: true,
+    public: false,
+    permission: "workflow:run",
     description: "本地操作执行",
   });
 
@@ -66,7 +68,8 @@ export function createAgentRunnerRoutes(application, helpers) {
         writeJson(res, 500, createErrorEnvelope("intent_preview_failed", error.message, { startedAt }));
       }
     },
-    public: true,
+    public: false,
+    permission: "workflow:run",
     description: "本地 Agent 意图预览",
   });
 
@@ -84,7 +87,8 @@ export function createAgentRunnerRoutes(application, helpers) {
         writeJson(res, 500, createErrorEnvelope("operation_plan_failed", error.message, { startedAt }));
       }
     },
-    public: true,
+    public: false,
+    permission: "workflow:run",
     description: "本地 Agent 操作计划",
   });
 
@@ -102,7 +106,8 @@ export function createAgentRunnerRoutes(application, helpers) {
         writeJson(res, 500, createErrorEnvelope("patch_proposal_failed", error.message, { startedAt }));
       }
     },
-    public: true,
+    public: false,
+    permission: "workflow:run",
     description: "本地 Agent 补丁提案",
   });
 

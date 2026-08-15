@@ -1,0 +1,91 @@
+﻿{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.unified-ai-system.tools/quality-evidence-assertion-policy.schema.json",
+  "title": "Quality Evidence Assertion Policy",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "extends": {
+      "type": "string",
+      "minLength": 1
+    },
+    "policy": {
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1
+    },
+    "maxAgeMinutes": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "maxTimestampSkewMinutes": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "requiredArtifacts": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "requiredJsonArtifacts": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "requiredTimestampedArtifacts": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "requiredTimestampFieldArtifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["artifactPath", "fieldPath"],
+        "properties": {
+          "artifactPath": {
+            "type": "string",
+            "minLength": 1
+          },
+          "fieldPath": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "uniqueItems": true
+    },
+    "requiredFields": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["artifactPath", "fieldPath"],
+        "properties": {
+          "artifactPath": {
+            "type": "string",
+            "minLength": 1
+          },
+          "fieldPath": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "uniqueItems": true
+    }
+  }
+}

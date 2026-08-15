@@ -12,6 +12,7 @@
     }
   },
   "scripts": {
+    "test": "node --test ./src/*.test.js",
     "check": "node --check ./src/index.js",
     "build": "node --check ./src/index.js"
   }

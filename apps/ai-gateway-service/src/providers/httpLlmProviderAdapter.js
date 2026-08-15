@@ -1,13 +1,20 @@
 import { createProviderDescriptor } from "./providerAdapter.js";
 import { createProviderResponse } from "./providerMapping.js";
 import { getOrCreateAgent, fetchWithAgent } from "../http/connectionPool.js";
+import { resolveSafeOutboundUrl } from "../security/outboundUrlPolicy.ts";
+import { safeOutboundFetch } from "../security/safeOutboundFetch.ts";
 import { createPinoLogger } from "../logging/pinoLogger.js";
+import {
+  abortableSleep,
+  createLinkedAbortController,
+  findExecutionAbortError,
+  throwIfExecutionAborted,
+} from "@unified-ai-system/shared-utils";
 import {
   createProviderError,
   createErrorDetails,
   createErrorPrefix,
   normalizeBaseUrl,
-  isPrivateOrReservedUrl,
   readJsonResponse,
   createHttpProviderError,
   classifyNonStreamError,
@@ -45,11 +52,13 @@ export class HttpLLMProviderAdapter {
       totalRequests: 0,
       successfulRequests: 0,
       failedRequests: 0,
+      cancelledRequests: 0,
       retriedRequests: 0,
       totalLatencyMs: 0,
       errors: {},
       lastSuccessAt: null,
       lastFailureAt: null,
+      lastCancellationAt: null,
       startedAt: Date.now(),
     };
     this._streamState = null;
@@ -90,24 +99,43 @@ export class HttpLLMProviderAdapter {
     if (this.modelConfig.dryRun) {
       return this._dryRunResponse(providerRequest);
     }
-    return this.withRetry(() => this._generateOnce(providerRequest));
+    return this.withRetry(
+      () => this._generateOnce(providerRequest),
+      providerRequest.execution?.signal,
+    );
   }
 
   async _generateOnce(providerRequest) {
     const startedAt = Date.now();
     const requestStartedAt = Date.now();
+    const executionSignal = providerRequest.execution?.signal;
+    throwIfExecutionAborted(executionSignal);
     this._health.totalRequests++;
 
     this.assertReady(providerRequest);
     const apiKey = this.resolveApiKey();
     const baseUrl = this.resolveBaseUrl();
     const payload = mapGatewayRequestToChatCompletions(providerRequest);
-    const controller = new AbortController();
     const timeoutMs = this.options.timeoutMs ?? 10_000;
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    const timeoutError = createProviderError({
+      code: `${this.errorPrefix}_REQUEST_TIMEOUT`,
+      type: "timeout",
+      message: `${this.modelConfig.providerDisplayName ?? this.modelConfig.providerId} request timed out after ${timeoutMs}ms.`,
+      retryable: true,
+      details: createErrorDetails(providerRequest, { timeoutMs }),
+    });
+    const requestControl = createLinkedAbortController({
+      signal: executionSignal,
+      timeoutMs,
+      timeoutReason: timeoutError,
+    });
 
     try {
-      if (isPrivateOrReservedUrl(`${baseUrl}/chat/completions`)) {
+      let destination;
+      try {
+        const resolveOutboundUrl = this.options.resolveOutboundUrl ?? resolveSafeOutboundUrl;
+        destination = await resolveOutboundUrl(`${baseUrl}/chat/completions`);
+      } catch {
         throw createProviderError({
           code: `${this.errorPrefix}_SSRF_BLOCKED`,
           type: "security",
@@ -117,15 +145,16 @@ export class HttpLLMProviderAdapter {
         });
       }
 
-      const response = await fetchWithAgent(`${baseUrl}/chat/completions`, {
+      const response = await fetchWithAgent(destination.url, {
         method: "POST",
         headers: {
           authorization: `Bearer ${apiKey}`,
           "content-type": "application/json",
         },
         body: JSON.stringify(payload),
-        signal: controller.signal,
+        signal: requestControl.signal,
         agent: getOrCreateAgent(baseUrl),
+        lookup: destination.lookup,
         timeout: timeoutMs,
       });
       const body = await readJsonResponse(response);
@@ -165,18 +194,27 @@ export class HttpLLMProviderAdapter {
 
       return providerResponse;
     } catch (error) {
+      const cancellation = findExecutionAbortError(error, executionSignal);
+      if (cancellation) {
+        this._health.cancelledRequests++;
+        this._health.lastCancellationAt = new Date().toISOString();
+        throw cancellation;
+      }
+      const effectiveError = requestControl.signal.aborted && requestControl.signal.reason instanceof Error
+        ? requestControl.signal.reason
+        : error;
       this._health.failedRequests++;
       this._health.lastFailureAt = new Date().toISOString();
-      const errorCode = error?.code || "UNKNOWN";
+      const errorCode = effectiveError?.code || "UNKNOWN";
       this._health.errors[errorCode] = (this._health.errors[errorCode] || 0) + 1;
-      classifyNonStreamError(error, {
+      classifyNonStreamError(effectiveError, {
         errorPrefix: this.errorPrefix,
         providerName: this.modelConfig.providerDisplayName ?? this.modelConfig.providerId,
         providerRequest,
         timeoutMs,
       });
     } finally {
-      clearTimeout(timeoutId);
+      requestControl.cleanup();
     }
   }
 
@@ -193,12 +231,14 @@ export class HttpLLMProviderAdapter {
     const retryConfig = this.resolveRetryConfig();
     const providerName = this.modelConfig.providerDisplayName ?? this.modelConfig.providerId;
     const timeoutMs = this.options.timeoutMs ?? 10_000;
+    const executionSignal = providerRequest.execution?.signal;
+    throwIfExecutionAborted(executionSignal);
     const payload = {
       ...mapGatewayRequestToChatCompletions(providerRequest),
       stream: true,
     };
 
-    const response = await openStreamWithRetry({
+    const streamConnection = await openStreamWithRetry({
       baseUrl,
       apiKey,
       payload,
@@ -207,7 +247,9 @@ export class HttpLLMProviderAdapter {
       providerName,
       timeoutMs,
       maxRetries: retryConfig.maxRetries,
-      retryDelay: (attempt, error) => this._retryDelay(attempt, retryConfig, error),
+      retryDelay: (attempt, error, signal) => this._retryDelay(attempt, retryConfig, error, signal),
+      resolveOutboundUrl: this.options.resolveOutboundUrl,
+      signal: executionSignal,
     });
 
     this._streamState = {
@@ -220,7 +262,11 @@ export class HttpLLMProviderAdapter {
     };
 
     try {
-      for await (const chunk of readChatCompletionsStream(response, providerRequest)) {
+      for await (const chunk of readChatCompletionsStream(
+        streamConnection.response,
+        providerRequest,
+        streamConnection.signal,
+      )) {
         this._streamState.chunksReceived++;
         if (chunk.textDelta) {
           this._streamState.textLength += chunk.textDelta.length;
@@ -238,11 +284,17 @@ export class HttpLLMProviderAdapter {
     } catch (error) {
       this._streamState.interrupted = true;
       this._streamState.interruptedAt = new Date().toISOString();
-      throw error;
+      const cancellation = findExecutionAbortError(error, executionSignal);
+      if (cancellation) throw cancellation;
+      throw streamConnection.signal.aborted && streamConnection.signal.reason instanceof Error
+        ? streamConnection.signal.reason
+        : error;
+    } finally {
+      streamConnection.cleanup();
     }
   }
 
-  async _retryDelay(attempt, config, error) {
+  async _retryDelay(attempt, config, error, signal) {
     this._health.retriedRequests++;
     const delay = Math.min(
       config.baseDelayMs * Math.pow(2, attempt - 1),
@@ -259,7 +311,7 @@ export class HttpLLMProviderAdapter {
       errorMessage: error?.message,
       waitMs,
     }, `Retry ${providerName} attempt ${attempt}/${config.maxRetries} in ${waitMs}ms`);
-    await new Promise((resolve) => setTimeout(resolve, waitMs));
+    await abortableSleep(waitMs, signal);
   }
 
   _dryRunResponse(providerRequest) {
@@ -277,10 +329,11 @@ export class HttpLLMProviderAdapter {
     });
   }
 
-  async withRetry(operation) {
+  async withRetry(operation, signal) {
     const config = this.resolveRetryConfig();
     let lastError;
     for (let attempt = 1; attempt <= config.maxRetries; attempt++) {
+      throwIfExecutionAborted(signal);
       try {
         return await operation();
       } catch (error) {
@@ -288,7 +341,7 @@ export class HttpLLMProviderAdapter {
           throw error;
         }
         lastError = error;
-        await this._retryDelay(attempt, config, error);
+        await this._retryDelay(attempt, config, error, signal);
       }
     }
     throw lastError;
@@ -381,10 +434,8 @@ export class HttpLLMProviderAdapter {
 
     const startedAt = Date.now();
     try {
-      const agent = getOrCreateAgent(baseUrl);
-      await fetchWithAgent(`${baseUrl}/models`, {
+      await safeOutboundFetch(`${baseUrl}/models`, {
         method: "HEAD",
-        agent,
         timeout: 5_000,
       });
       return { warmed: true, latencyMs: Date.now() - startedAt };
@@ -408,9 +459,10 @@ export class HttpLLMProviderAdapter {
       totalRequests: health.totalRequests,
       successfulRequests: health.successfulRequests,
       failedRequests: health.failedRequests,
+      cancelledRequests: health.cancelledRequests,
       retriedRequests: health.retriedRequests,
-      successRate: health.totalRequests > 0
-        ? health.successfulRequests / health.totalRequests
+      successRate: health.totalRequests - health.cancelledRequests > 0
+        ? health.successfulRequests / (health.totalRequests - health.cancelledRequests)
         : null,
       averageLatencyMs: health.successfulRequests > 0
         ? Math.round(health.totalLatencyMs / health.successfulRequests)
@@ -418,6 +470,7 @@ export class HttpLLMProviderAdapter {
       errorDistribution: { ...health.errors },
       lastSuccessAt: health.lastSuccessAt,
       lastFailureAt: health.lastFailureAt,
+      lastCancellationAt: health.lastCancellationAt,
       uptimeMs: Date.now() - health.startedAt,
     };
   }
@@ -427,11 +480,13 @@ export class HttpLLMProviderAdapter {
       totalRequests: 0,
       successfulRequests: 0,
       failedRequests: 0,
+      cancelledRequests: 0,
       retriedRequests: 0,
       totalLatencyMs: 0,
       errors: {},
       lastSuccessAt: null,
       lastFailureAt: null,
+      lastCancellationAt: null,
       startedAt: Date.now(),
     };
   }

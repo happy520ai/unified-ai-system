@@ -23,7 +23,6 @@
 import { readFile } from "node:fs/promises";
 import { mkdir, appendFile } from "node:fs/promises";
 import { dirname, resolve, basename } from "node:path";
-import { createHash } from "node:crypto";
 
 export const DIAGNOSTIC_PHASE = "PhaseDiagnosticReadChannel";
 
@@ -38,19 +37,9 @@ const READABLE_DIAGNOSTIC_PATHS = Object.freeze([
   "knowledge-config.json",
 ]);
 
-// Patterns that look like secrets — matched in content and redacted.
-const SECRET_PATTERNS = [
-  { name: "openai_key", re: /sk-[A-Za-z0-9]{16,}/g, shape: "sk-*** (OpenAI-shaped)" },
-  { name: "anthropic_key", re: /sk-ant-[A-Za-z0-9]{16,}/g, shape: "sk-ant-*** (Anthropic-shaped)" },
-  { name: "aws_key", re: /AKIA[0-9A-Z]{16}/g, shape: "AKIA*** (AWS-shaped)" },
-  { name: "github_pat", re: /gh[pousr]_[A-Za-z0-9]{16,}/g, shape: "gh*_*** (GitHub PAT)" },
-  { name: "slack_token", re: /xox[baprs]-[A-Za-z0-9-]{10,}/g, shape: "xox*-*** (Slack)" },
-  { name: "google_api", re: /AIza[0-9A-Za-z_-]{35}/g, shape: "AIza*** (Google API)" },
-  { name: "nvidia_key", re: /nvapi-[A-Za-z0-9]{16,}/g, shape: "nvapi-*** (NVIDIA-shaped)" },
-  { name: "jwt", re: /eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/g, shape: "eyJ***.***.*** (JWT)" },
-  { name: "generic_bearer", re: /[Bb]earer\s+[A-Za-z0-9_.-]{16,}/g, shape: "Bearer ***" },
-  { name: "generic_password_assign", re: /(password|passwd|secret|api_key|apikey|token)\s*[:=]\s*["']?[A-Za-z0-9+/=_-]{8,}/gi, shape: "<redacted assignment>" },
-];
+const SENSITIVE_KEY_PATTERN = /(api.?key|auth|bearer|cookie|credential|password|passwd|private|secret|token)/i;
+const MAX_PROJECTED_FIELDS = 200;
+const MAX_PROJECTED_DEPTH = 12;
 
 const DEFAULT_LEDGER_PATH = resolve(process.cwd(), ".data", "workforce", "diagnostic-read-ledger.jsonl");
 
@@ -63,7 +52,12 @@ const DEFAULT_LEDGER_PATH = resolve(process.cwd(), ".data", "workforce", "diagno
 export function createDiagnosticReadChannel(options = {}) {
   const env = options.env ?? process.env;
   const ledgerPath = resolve(options.ledgerPath || env.WORKFORCE_DIAGNOSTIC_LEDGER || DEFAULT_LEDGER_PATH);
-  const readable = [...READABLE_DIAGNOSTIC_PATHS, ...(options.readablePaths || [])];
+  const rootDir = resolve(options.rootDir || process.cwd());
+  const readable = new Set(
+    [...READABLE_DIAGNOSTIC_PATHS, ...(options.readablePaths || [])]
+      .map((path) => normalizePath(path))
+      .filter(Boolean),
+  );
 
   return {
     getInfo() {
@@ -71,9 +65,9 @@ export function createDiagnosticReadChannel(options = {}) {
         phase: DIAGNOSTIC_PHASE,
         mode: "diagnostic-read-channel",
         ledgerPath,
-        readablePaths: readable,
+        readablePaths: [...readable],
         writeSupported: false,
-        sanitizerPatterns: SECRET_PATTERNS.length,
+        valueProjection: "structure-only",
       };
     },
 
@@ -91,47 +85,47 @@ export function createDiagnosticReadChannel(options = {}) {
       const reason = String(input.reason || "").slice(0, 500);
 
       if (!path) {
-        return denied(path, requestor, "invalid_path", reason, startedAt);
+        const auditRecorded = await audit(ledgerPath, { path: null, requestor, reason, outcome: "denied_invalid_path", at: startedAt.toISOString() });
+        return denied(path, requestor, "invalid_path", reason, startedAt, auditRecorded);
       }
-      if (!readable.includes(path) && !readable.some((p) => path.startsWith(p))) {
-        await audit(ledgerPath, { path, requestor, reason, outcome: "denied_not_allowlisted", at: startedAt.toISOString() });
-        return denied(path, requestor, "not_allowlisted", reason, startedAt);
+      if (!readable.has(path)) {
+        const auditRecorded = await audit(ledgerPath, { path, requestor, reason, outcome: "denied_not_allowlisted", at: startedAt.toISOString() });
+        return denied(path, requestor, "not_allowlisted", reason, startedAt, auditRecorded);
       }
 
       let raw;
       try {
-        raw = await readFile(resolve(process.cwd(), path), "utf8");
+        raw = await readFile(resolve(rootDir, path), "utf8");
       } catch (err) {
         const outcome = err?.code === "ENOENT" ? "file_not_found" : "read_error";
-        await audit(ledgerPath, { path, requestor, reason, outcome, error: String(err.message).slice(0, 200), at: startedAt.toISOString() });
-        return { allowed: true, path, requestor, read: true, outcome, redacted: true, content: null, present: false };
+        const auditRecorded = await audit(ledgerPath, { path, requestor, reason, outcome, errorCode: err?.code ?? "unknown", at: startedAt.toISOString() });
+        if (!auditRecorded) return denied(path, requestor, "audit_unavailable", reason, startedAt, false);
+        return {
+          allowed: true,
+          path,
+          requestor,
+          read: true,
+          outcome,
+          content: null,
+          diagnostic: null,
+          present: false,
+          safety: createSafety(true),
+        };
       }
 
-      // Sanitize: detect + redact every secret pattern.
-      // matchAll needs the global flag; the patterns above are all /.../g or /.../gi.
-      const findings = [];
-      let sanitized = raw;
-      for (const p of SECRET_PATTERNS) {
-        const matches = [...raw.matchAll(p.re)];
-        if (matches.length > 0) {
-          findings.push({ pattern: p.name, count: matches.length, shape: p.shape });
-          // Use a fresh global RegExp instance for replaceAll (the source pattern
-          // may have been state-advanced by matchAll).
-          const redactor = new RegExp(p.re.source, p.re.flags.includes("g") ? p.re.flags : `${p.re.flags  }g`);
-          sanitized = sanitized.replaceAll(redactor, `[REDACTED:${p.name}]`);
-        }
-      }
-
-      await audit(ledgerPath, {
+      const diagnostic = projectDiagnosticContent(path, raw);
+      const auditRecorded = await audit(ledgerPath, {
         path,
         requestor,
         reason,
-        outcome: "read_sanitized",
+        outcome: "read_structure_only",
         at: startedAt.toISOString(),
         bytesIn: raw.length,
-        bytesOut: sanitized.length,
-        secretPatternsDetected: findings,
+        format: diagnostic.format,
+        projectedFieldCount: diagnostic.projectedFieldCount,
+        sensitiveFieldCount: diagnostic.sensitiveKeys.length,
       });
+      if (!auditRecorded) return denied(path, requestor, "audit_unavailable", reason, startedAt, false);
 
       return {
         allowed: true,
@@ -139,14 +133,11 @@ export function createDiagnosticReadChannel(options = {}) {
         requestor,
         read: true,
         present: true,
-        redacted: findings.length > 0,
-        content: sanitized,
-        secretIndicators: findings, // presence/shape only, never raw values
-        safety: {
-          rawSecretReturned: false,
-          writeAttempted: false,
-          auditRecorded: true,
-        },
+        redacted: true,
+        content: JSON.stringify(diagnostic, null, 2),
+        diagnostic,
+        secretIndicators: diagnostic.sensitiveKeys.map((key) => ({ key, classification: "value_redacted" })),
+        safety: createSafety(true),
       };
     },
 
@@ -161,7 +152,7 @@ export function createDiagnosticReadChannel(options = {}) {
         path: input.path,
         present: true,
         secretIndicators: r.secretIndicators,
-        // Return only which secret *shapes* exist, never values
+        configuredKeys: r.diagnostic?.keys ?? [],
       };
     },
 
@@ -182,7 +173,7 @@ function normalizePath(p) {
   return cleaned;
 }
 
-function denied(path, requestor, reason, humanReason, startedAt) {
+function denied(path, requestor, reason, humanReason, startedAt, auditRecorded) {
   return {
     allowed: false,
     path,
@@ -190,7 +181,7 @@ function denied(path, requestor, reason, humanReason, startedAt) {
     reason,
     read: false,
     at: startedAt.toISOString(),
-    safety: { rawSecretReturned: false, writeAttempted: false, auditRecorded: true },
+    safety: createSafety(auditRecorded),
   };
 }
 
@@ -199,7 +190,92 @@ async function audit(ledgerPath, entry) {
     await mkdir(dirname(ledgerPath), { recursive: true });
     const line = `${JSON.stringify({ ...entry, recordedAt: new Date().toISOString(), ledger: "diagnostic-read" })}\n`;
     await appendFile(ledgerPath, line, "utf8");
+    return true;
   } catch {
-    // audit failure should NOT block the read path; swallow
+    return false;
   }
+}
+
+function createSafety(auditRecorded) {
+  return {
+    rawSecretReturned: false,
+    rawContentReturned: false,
+    valuesReturned: false,
+    writeAttempted: false,
+    auditRecorded,
+  };
+}
+
+function projectDiagnosticContent(path, raw) {
+  if (basename(path).startsWith(".env")) return projectDotenv(raw);
+  try {
+    const sensitiveKeys = new Set();
+    const state = { projectedFieldCount: 0, sensitiveKeys };
+    const structure = projectJsonValue(JSON.parse(raw), state, 0, "$");
+    return {
+      format: "json-structure",
+      projectedFieldCount: state.projectedFieldCount,
+      sensitiveKeys: [...sensitiveKeys].sort(),
+      keys: topLevelKeys(structure),
+      structure,
+    };
+  } catch {
+    return {
+      format: "opaque-structure",
+      projectedFieldCount: 0,
+      sensitiveKeys: [],
+      keys: [],
+      byteLength: Buffer.byteLength(raw, "utf8"),
+      lineCount: raw.split(/\r?\n/).length,
+    };
+  }
+}
+
+function projectDotenv(raw) {
+  const entries = [];
+  const sensitiveKeys = [];
+  for (const line of raw.split(/\r?\n/)) {
+    const match = line.match(/^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=([\s\S]*)$/);
+    if (!match || entries.length >= MAX_PROJECTED_FIELDS) continue;
+    const key = match[1];
+    const configured = match[2].trim().length > 0;
+    entries.push({ key, configured, value: "[REDACTED]" });
+    if (SENSITIVE_KEY_PATTERN.test(key)) sensitiveKeys.push(key);
+  }
+  return {
+    format: "dotenv-structure",
+    projectedFieldCount: entries.length,
+    sensitiveKeys: [...new Set(sensitiveKeys)].sort(),
+    keys: entries.map((entry) => entry.key),
+    entries,
+  };
+}
+
+function projectJsonValue(value, state, depth, path) {
+  if (depth >= MAX_PROJECTED_DEPTH) return { type: "truncated", value: "[REDACTED]" };
+  if (Array.isArray(value)) {
+    const items = value.slice(0, MAX_PROJECTED_FIELDS).map((item, index) => (
+      projectJsonValue(item, state, depth + 1, `${path}[${index}]`)
+    ));
+    return { type: "array", length: value.length, items };
+  }
+  if (value && typeof value === "object") {
+    const fields = {};
+    for (const key of Object.keys(value).sort().slice(0, MAX_PROJECTED_FIELDS)) {
+      state.projectedFieldCount += 1;
+      const keyPath = path === "$" ? key : `${path}.${key}`;
+      if (SENSITIVE_KEY_PATTERN.test(key)) state.sensitiveKeys.add(keyPath);
+      fields[key] = projectJsonValue(value[key], state, depth + 1, keyPath);
+    }
+    return { type: "object", fields };
+  }
+  return {
+    type: value === null ? "null" : typeof value,
+    configured: value !== null && value !== "",
+    value: "[REDACTED]",
+  };
+}
+
+function topLevelKeys(structure) {
+  return structure?.type === "object" ? Object.keys(structure.fields) : [];
 }

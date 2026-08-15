@@ -1,7 +1,9 @@
 # Provider Setup
 
 The default configuration uses a local fake provider and makes no external
-request.
+request. For the full operator procedure — whitelist matrix, credential
+provisioning, verification, cost control, and rollback — see the
+[real provider enablement runbook](real-provider-enablement.md).
 
 ## Enable A Provider
 

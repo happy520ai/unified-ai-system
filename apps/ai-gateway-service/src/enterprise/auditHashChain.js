@@ -21,18 +21,33 @@ export function createAuditHashChain(options = {}) {
   async function init() {
     if (initialized) return;
     await mkdir(dirname(chainPath), { recursive: true });
+    let content = null;
     try {
-      const content = await readFile(chainPath, "utf8");
+      content = await readFile(chainPath, "utf8");
+    } catch {
+      // File doesn't exist yet — start from GENESIS
+    }
+    if (content !== null) {
+      // A chain that cannot be parsed (truncation, corruption) must not be
+      // silently extended: fail closed instead of continuing from whatever
+      // tail happens to remain. Whole-entry removal is still only detectable
+      // through verify() or external checkpoints.
       const lines = content.trim().split("\n").filter(Boolean);
       for (const line of lines) {
-        const entry = JSON.parse(line);
-        if (entry.hash) {
+        let entry;
+        try {
+          entry = JSON.parse(line);
+        } catch (error) {
+          const corrupt = new Error("Audit hash chain file is corrupt and must be reviewed before appending.");
+          corrupt.code = "AUDIT_CHAIN_CORRUPT";
+          corrupt.cause = error;
+          throw corrupt;
+        }
+        if (entry && typeof entry.hash === "string" && entry.hash) {
           lastHash = entry.hash;
           entryCount++;
         }
       }
-    } catch {
-      // File doesn't exist yet — start from GENESIS
     }
     initialized = true;
   }
@@ -62,9 +77,24 @@ export function createAuditHashChain(options = {}) {
   }
 
   async function verify() {
-    await init();
     try {
-      const content = await readFile(chainPath, "utf8");
+      await init();
+    } catch (error) {
+      if (error?.code === "AUDIT_CHAIN_CORRUPT") {
+        return { valid: false, totalEntries: 0, brokenAt: null, reason: "parse_error", error: String(error?.message ?? error) };
+      }
+      throw error;
+    }
+    let content;
+    try {
+      content = await readFile(chainPath, "utf8");
+    } catch (error) {
+      if (error?.code === "ENOENT") {
+        return { valid: true, totalEntries: 0, brokenAt: null };
+      }
+      return { valid: false, totalEntries: 0, brokenAt: null, reason: "unreadable", error: String(error?.message ?? error) };
+    }
+    try {
       const lines = content.trim().split("\n").filter(Boolean);
       if (lines.length === 0) {
         return { valid: true, totalEntries: 0, brokenAt: null };
@@ -90,8 +120,10 @@ export function createAuditHashChain(options = {}) {
       }
 
       return { valid: true, totalEntries: lines.length, brokenAt: null };
-    } catch {
-      return { valid: true, totalEntries: 0, brokenAt: null };
+    } catch (error) {
+      // An unreadable or unparseable chain is a verification failure, never
+      // a silent pass.
+      return { valid: false, totalEntries: 0, brokenAt: null, reason: "parse_error", error: String(error?.message ?? error) };
     }
   }
 

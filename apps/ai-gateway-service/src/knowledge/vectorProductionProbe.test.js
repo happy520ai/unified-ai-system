@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { runVectorProductionProbe } from "./vectorProductionProbe.js";
 
 const probeEnv = {
@@ -9,26 +9,24 @@ const probeEnv = {
   PGVECTOR_CONNECTION_STRING: "postgres://test",
 };
 
-afterEach(() => {
-  vi.unstubAllGlobals();
-});
-
 describe("vector production probe", () => {
   it("reports a contextual blocker for a non-JSON embedding response", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => ({
+    const request = vi.fn(async () => ({
       ok: false,
       status: 502,
       text: async () => "<html>upstream unavailable</html>",
-    })));
+    }));
 
     const result = await runVectorProductionProbe(probeEnv, {
       documents: [],
       expectedTopDocumentId: "expected",
+      request,
     });
 
     expect(result.ready).toBe(false);
     expect(result.blocker).toContain("non-JSON body");
     expect(result.blocker).toContain("HTTP 502");
     expect(result.blocker).toContain("upstream unavailable");
+    expect(request).toHaveBeenCalledTimes(1);
   });
 });

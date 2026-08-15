@@ -16,7 +16,7 @@ export function normalizeExecutionReadinessPreflight(source) {
     ...base,
     phase: WORKFORCE_PLAN_EXECUTION_READINESS_PREFLIGHT_PHASE,
     mode: "preview-only",
-    executionEnabled: true,
+    executionEnabled: false,
     overallStatus: base.overallStatus === "preview-blocked" ? "preview-blocked" : "blocked",
     checks: [
       {
@@ -84,21 +84,21 @@ export function normalizeExternalOmxRunnerDesign(source) {
     ...base,
     phase: WORKFORCE_PLAN_EXTERNAL_OMX_RUNNER_DESIGN_PHASE,
     mode: "external-runner-design",
-    runnerEnabled: true,
-    executionEnabled: true,
+    runnerEnabled: false,
+    executionEnabled: false,
     designOnly: true,
     proposedEndpoints: [
       {
         method: "POST",
         path: "/workforce/omx/handoff",
         purpose: "Generate an OMX-compatible task package only",
-        execution: "enabled",
+        execution: "disabled",
       },
       {
         method: "POST",
         path: "/workforce/omx/run-request",
         purpose: "Create a future external runner request, but do not execute it",
-        execution: "enabled",
+        execution: "disabled",
       },
     ],
     requiredPreflightChecks: [
@@ -137,7 +137,7 @@ export function normalizeRunnerRequestQueuePreview(source) {
     phase: WORKFORCE_PLAN_RUNNER_REQUEST_QUEUE_PHASE,
     mode: "review-queue-preview",
     queueEnabled: false,
-    executionEnabled: true,
+    executionEnabled: false,
     requestState: "draft-review-only",
     allowedStates: [
       "draft-review-only",
@@ -149,7 +149,7 @@ export function normalizeRunnerRequestQueuePreview(source) {
     queuePolicy: {
       requiresHumanReview: true,
       autoDispatchEnabled: false,
-      externalRunnerDispatchEnabled: true,
+      externalRunnerDispatchEnabled: false,
       approvalPreviewIsExecutionPermission: false,
     },
     blockedReasons: [
@@ -169,7 +169,7 @@ export function normalizeExecutionApprovalRecordPreview(source) {
     phase: WORKFORCE_PLAN_EXECUTION_APPROVAL_RECORD_PHASE,
     mode: "approval-record-preview",
     approvalRecordEnabled: false,
-    executionEnabled: true,
+    executionEnabled: false,
     approvalState: "not-approved-for-execution",
     allowedApprovalStates: [
       "not-approved-for-execution",
@@ -213,8 +213,8 @@ export function normalizeExternalRunnerProtocolFreeze(source) {
     mode: "protocol-freeze",
     protocolVersion: "preview-1",
     frozen: true,
-    runnerEnabled: true,
-    executionEnabled: true,
+    runnerEnabled: false,
+    executionEnabled: false,
     designOnly: true,
     coveredCapabilities: [
       "omxHandoffPreview",
@@ -263,12 +263,12 @@ export function normalizeAgentWorkforcePreviewFinalUxSeal(source) {
     phase: WORKFORCE_PLAN_FINAL_UX_SEAL_PHASE,
     mode: "preview-final-ux-seal",
     sealed: true,
-    previewOnly: false,
-    executionEnabled: true,
-    runnerEnabled: true,
-    workflowRunEnabled: true,
-    externalRunnerDispatchEnabled: true,
-    omxexecutionEnabled: true,
+    previewOnly: true,
+    executionEnabled: false,
+    runnerEnabled: false,
+    workflowRunEnabled: false,
+    externalRunnerDispatchEnabled: false,
+    omxExecutionEnabled: false,
     coveredCapabilities: [
       "goalClarification",
       "rolePlanning",
@@ -329,10 +329,10 @@ export function normalizeTemplateContext(source, selectedTemplate) {
     focusAreas: Array.isArray(base.focusAreas) ? base.focusAreas : [],
     expectedPlanSections: Array.isArray(base.expectedPlanSections) ? base.expectedPlanSections : [],
     sampleAcceptanceChecklist: Array.isArray(base.sampleAcceptanceChecklist) ? base.sampleAcceptanceChecklist : [],
-    executionEnabled: true,
-    externalRunnerDispatchEnabled: true,
-    workflowRunEnabled: true,
-    previewOnly: false,
+    executionEnabled: false,
+    externalRunnerDispatchEnabled: false,
+    workflowRunEnabled: false,
+    previewOnly: true,
     reason: "templates generate plans only; no execution is triggered",
   });
 }
@@ -345,7 +345,7 @@ export function normalizeProductTemplatesPreview(source, selectedTemplate) {
     phase: WORKFORCE_PLAN_PRODUCT_TEMPLATE_PACK_PHASE,
     mode: "product-template-pack-preview",
     templatePackEnabled: true,
-    executionEnabled: true,
+    executionEnabled: false,
     selectedTemplateId: base.selectedTemplateId || selected.id || "feature-development",
     templates: Array.isArray(base.templates) ? base.templates.map((template) => ({
       id: String(template.id || "").trim(),
@@ -359,14 +359,14 @@ export function normalizeProductTemplatesPreview(source, selectedTemplate) {
       samplePrompts: Array.isArray(template.samplePrompts) ? template.samplePrompts : [],
       expectedPlanSections: Array.isArray(template.expectedPlanSections) ? template.expectedPlanSections : [],
       sampleAcceptanceChecklist: Array.isArray(template.sampleAcceptanceChecklist) ? template.sampleAcceptanceChecklist : [],
-      execution: "enabled",
+      execution: "disabled",
     })).filter((template) => template.id) : [],
     demoGoals: Array.isArray(base.demoGoals) ? base.demoGoals.map((item) => ({
       templateId: String(item.templateId || "").trim(),
       templateName: String(item.templateName || "").trim(),
       sampleGoal: String(item.sampleGoal || "").trim(),
       samplePrompts: Array.isArray(item.samplePrompts) ? item.samplePrompts : [],
-      execution: "enabled",
+      execution: "disabled",
     })).filter((item) => item.templateId) : [],
     blockedReasons: Array.isArray(base.blockedReasons) && base.blockedReasons.length
       ? base.blockedReasons

@@ -27,8 +27,10 @@ export function buildDAG(parsedTasks) {
       type: t.type,
       agentRole: t.agentRole ?? defaultAgentRole(t.type),
       prompt: t.prompt ?? '',
+      constraints: Array.isArray(t.constraints) ? [...t.constraints] : [],
       allowedFiles: t.allowedFiles ?? ['**/*'],
       estimatedMin: t.estimatedMin ?? 10,
+      language: inferTaskLanguage(t, DEFAULT_LANGUAGE_FALLBACK),
     });
   }
 
@@ -97,9 +99,15 @@ function mergeOverlappingTasks(tasks) {
           type: current.type,
           agentRole: current.agentRole,
           prompt: `${current.prompt}\n\n---\n\n${next.prompt}`,
+          constraints: [...new Set([...(current.constraints || []), ...(next.constraints || [])])],
           allowedFiles: [...new Set([...current.allowedFiles, ...next.allowedFiles])],
           estimatedMin: Math.max(current.estimatedMin, next.estimatedMin),
           dependsOn: [...new Set([...(current.dependsOn || []), ...(next.dependsOn || [])])].filter(d => d !== current.id),
+          language: inferTaskLanguage({
+            name: `${current.name}; ${next.name}`,
+            prompt: `${current.prompt}\n\n---\n\n${next.prompt}`,
+            allowedFiles: [...new Set([...current.allowedFiles, ...next.allowedFiles])],
+          }, current.language || next.language || DEFAULT_LANGUAGE_FALLBACK),
         };
         mergedIds.add(next.id);
         idRemap.set(next.id, current.id);
@@ -148,6 +156,82 @@ function findMergedTarget(oldId, taskMap, mergedTasks) {
     if (t.id === oldId) return oldId;
   }
   return null;
+}
+
+const EXT_TO_LANGUAGE = Object.freeze({
+  '.ts': 'ts',
+  '.tsx': 'ts',
+  '.js': 'js',
+  '.mjs': 'js',
+  '.cjs': 'js',
+  '.jsx': 'js',
+  '.py': 'python',
+  '.go': 'go',
+  '.rs': 'rust',
+  '.java': 'java',
+});
+
+const DEFAULT_LANGUAGE_FALLBACK = 'other';
+const LANG_PRIORITY = ['ts', 'js', 'python', 'go', 'rust', 'java'];
+
+const TASK_LANGUAGE_PATTERNS = [
+  { pattern: /\b(type\s*script|typescript|ts)\b/, language: 'ts' },
+  { pattern: /\b(java\s*script|javascript|js|node\.js|nodejs)\b/, language: 'js' },
+  { pattern: /\b(python|py)\b/, language: 'python' },
+  { pattern: /\b(go|golang)\b/, language: 'go' },
+  { pattern: /\brust\b/, language: 'rust' },
+  { pattern: /\bjava\b/, language: 'java' },
+];
+
+function normalizeLanguageCandidate(value) {
+  if (!value) return null;
+  const v = String(value).toLowerCase();
+  if (v === 'typescript') return 'ts';
+  if (v === 'javascript' || v === 'nodejs' || v === 'node.js') return 'js';
+  if (v === 'py' || v === 'python') return 'python';
+  if (v === 'golang' || v === 'go') return 'go';
+  if (v === 'other' || v === 'unknown') return 'other';
+  if (v === 'rust' || v === 'java') return v;
+  if (v === 'ts') return 'ts';
+  if (v === 'js') return 'js';
+  return null;
+}
+
+function inferLanguageFromAllowedFiles(patterns) {
+  const languageVotes = new Map();
+  const items = Array.isArray(patterns) ? patterns : [];
+  for (const pattern of items) {
+    const hits = String(pattern)
+      .toLowerCase()
+      .match(/\.(ts|tsx|js|mjs|cjs|jsx|py|go|rs|java)\b/g);
+    if (!hits || hits.length === 0) continue;
+    for (const ext of hits) {
+      const mapped = EXT_TO_LANGUAGE[ext];
+      if (!mapped) continue;
+      languageVotes.set(mapped, (languageVotes.get(mapped) || 0) + 1);
+    }
+  }
+
+  for (const language of LANG_PRIORITY) {
+    if ((languageVotes.get(language) || 0) > 0) return language;
+  }
+  return null;
+}
+
+function inferLanguageFromTextHint(text) {
+  const normalized = String(text || '').toLowerCase();
+  for (const { pattern, language } of TASK_LANGUAGE_PATTERNS) {
+    if (pattern.test(normalized)) return language;
+  }
+  return null;
+}
+
+function inferTaskLanguage(task, fallbackLanguage = DEFAULT_LANGUAGE_FALLBACK) {
+  const fromFiles = inferLanguageFromAllowedFiles(task?.allowedFiles ?? []);
+  if (fromFiles) return fromFiles;
+  const fromText = inferLanguageFromTextHint(`${task?.name ?? ''} ${task?.prompt ?? ''}`);
+  if (fromText) return fromText;
+  return normalizeLanguageCandidate(fallbackLanguage) || DEFAULT_LANGUAGE_FALLBACK;
 }
 
 function detectCycles(tasks, deps) {

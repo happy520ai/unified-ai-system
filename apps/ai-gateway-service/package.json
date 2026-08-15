@@ -5,6 +5,14 @@
   "type": "module",
   "main": "./src/index.js",
   "dependencies": {
+    "@a2a-js/sdk": "1.0.1",
+    "@opentelemetry/api": "1.9.1",
+    "@opentelemetry/core": "2.10.0",
+    "@opentelemetry/exporter-trace-otlp-http": "0.221.0",
+    "@opentelemetry/resources": "2.10.0",
+    "@opentelemetry/sdk-trace-base": "2.10.0",
+    "@opentelemetry/sdk-trace-node": "2.10.0",
+    "@opentelemetry/semantic-conventions": "1.43.0",
     "@unified-ai-system/codex-context-gateway": "workspace:*",
     "@unified-ai-system/context-codec-core": "workspace:*",
     "@unified-ai-system/employee-brain-adapter": "workspace:*",
@@ -17,10 +25,14 @@
     "@unified-ai-system/shared-utils": "workspace:*",
     "@unified-ai-system/taiji-beidou-engine": "workspace:*",
     "@unified-ai-system/workforce-scheduler": "workspace:*",
+    "ipaddr.js": "2.5.0",
     "mammoth": "^1.12.0",
     "pdf-parse": "^2.4.5",
+    "pg": "8.23.0",
     "pino": "10.3.1",
-    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
+    "ws": "8.21.3",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
+    "zod": "4.4.3"
   },
   "scripts": {
     "start": "node ./src/index.js",

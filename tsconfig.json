@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "declaration": false,
+    "emitDeclarationOnly": false
+  },
+  "include": [
+    "apps/ai-gateway-service/src/**/*.ts",
+    "packages/shared-contracts/src/**/*.ts",
+    "packages/shared-config/src/**/*.ts",
+    "packages/shared-sdk/src/**/*.ts",
+    "packages/shared-utils/src/**/*.ts"
+  ]
+}

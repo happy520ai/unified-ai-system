@@ -1,5 +1,5 @@
 /**
- * Base Worker Agent — handles LLM interaction, file operations, and tool execution.
+ * Base Worker Agent handles LLM interaction, file operations, and tool execution.
  *
  * Every worker:
  *   1. Receives a task with a prompt and allowed file globs
@@ -9,13 +9,13 @@
  *   5. Returns structured results
  *
  * Extracted helpers:
- *   - base-json-utils.js    — JSON parsing, repair, response extraction
- *   - base-syntax-utils.js  — syntax validation, auto-fix, auto-lint
- *   - base-action-exec.js   — action execution, path validation, import checks
- *   - base-context-build.js — context building, file gathering
- *   - base-prompt-utils.js  — prompt building, post-execution learnings
- *   - base-llm-call.js      — LLM calling with caching and retry
- *   - base-self-review.js   — self-review validation and auto-fix
+ *   - base-json-utils.js    JSON parsing, repair, response extraction
+ *   - base-syntax-utils.js  syntax validation, auto-fix, auto-lint
+ *   - base-action-exec.js   action execution, path validation, import checks
+ *   - base-context-build.js context building, file gathering
+ *   - base-prompt-utils.js  prompt building, post-execution learnings
+ *   - base-llm-call.js      LLM calling with caching and retry
+ *   - base-self-review.js   self-review validation and auto-fix
  */
 
 import { readFile } from 'node:fs/promises';
@@ -28,7 +28,12 @@ import { MemoryType } from '../memory-engine/index.js';
 import { parseResponse } from './base-json-utils.js';
 import { executeAction } from './base-action-exec.js';
 import { gatherFiles, buildContextBlock } from './base-context-build.js';
-import { buildPrompt, storePostExecutionLearnings } from './base-prompt-utils.js';
+import {
+  buildImportConstraintText,
+  buildPrompt,
+  getLanguageFileExtension,
+  storePostExecutionLearnings,
+} from './base-prompt-utils.js';
 import { callLLM, callLLMWithRetry } from './base-llm-call.js';
 import { selfReview } from './base-self-review.js';
 
@@ -83,10 +88,10 @@ export class BaseWorker {
 
   /**
    * Execute a single task.
-   * @param {object} task — from TaskStore
-   * @param {string} projectRoot — absolute path to the project root
-   * @param {object} context — accumulated context from previous tasks
-   * @returns {object} — { success, output, filesModified, toolCalls }
+   * @param {object} task from TaskStore
+   * @param {string} projectRoot absolute path to the project root
+   * @param {object} context accumulated context from previous tasks
+   * @returns {object} { success, output, filesModified, toolCalls }
    */
   async execute(task, projectRoot, context = {}) {
     this.#logger.info(`Executing task ${task.id}: ${task.name}`);
@@ -113,6 +118,14 @@ export class BaseWorker {
     const userPrompt = buildPrompt(task, contextBlock, extraContext, {
       tools: this.#tools, role: this.#role, errorPatternLearner: this.#errorPatternLearner,
     });
+    const languageExt = getLanguageFileExtension(task);
+    const importConstraintText = buildImportConstraintText(task);
+    const defaultTaskExt = languageExt || 'txt';
+    const isTestTask = task.type === 'test';
+    const defaultFileExt = isTestTask && (defaultTaskExt === 'js' || defaultTaskExt === 'ts')
+      ? `test_file.test.${defaultTaskExt}`
+      : (isTestTask ? `test_file_test.${defaultTaskExt}` : `file.${defaultTaskExt}`);
+    const reviewActionPath = isTestTask ? `test/sample.${defaultTaskExt}` : `src/file.${defaultTaskExt}`;
 
     // 3. Call LLM (with retry for network errors)
     let llmResponse = await callLLMWithRetry(this.#systemPrompt, userPrompt, llmMaxTokens, isMutation ? { responseFormat: 'json' } : {}, llmParams);
@@ -135,10 +148,10 @@ export class BaseWorker {
       const strictPrompt = `You MUST output a valid JSON array of actions. No explanation, no reasoning — ONLY JSON.\n\n` +
         `Task: ${task.prompt || task.name}\n\n${contextBlock}\n\n` +
         `Output format (EXACTLY this structure):\n` +
-        `[{"type": "write", "path": "src/file.js", "content": "full file content here"}]\n\n` +
+        `[{"type": "write", "path": "src/${defaultTaskExt === 'txt' ? 'file.txt' : 'file.' + defaultTaskExt}", "content": "full file content here"}]\n\n` +
         `Rules:\n- The "content" value MUST be a plain string with \\n for newlines.\n` +
         `- Include ALL import statements in the content.\n` +
-        `- NEVER import JS built-in globals.\n\nOutput the JSON array NOW:\n` +
+        `- ${importConstraintText}\n\nOutput the JSON array NOW:\n` +
         `---SUMMARY---\nImplemented changes.\n---END---`;
       try {
         const retryResp = await callLLMWithRetry(this.#systemPrompt, strictPrompt, llmMaxTokens, { responseFormat: 'json' }, llmParams);
@@ -173,10 +186,10 @@ export class BaseWorker {
         `You have now read the relevant files above. You MUST now produce ${writeActionStr.toUpperCase()} actions.\n` +
         `Do NOT return read actions again. Create or modify files using "${writeActionStr}" actions.\n` +
         `EVERY file you write MUST include ALL necessary import statements at the top.\n` +
-        `NEVER import JS built-in globals (Map, Set, Array, Promise, Object, Error, Date, console, Buffer, etc.).\n` +
+        `- ${importConstraintText}\n` +
         `Use proper multi-line formatting with newlines and indentation.\n\n### Actions:\n`;
-      if (this.#tools.includes('write')) followUpPrompt += `1. Write file: {"type": "write", "path": "relative/path.js", "content": "full file content with imports"}\n`;
-      if (this.#tools.includes('edit')) followUpPrompt += `2. Edit file: {"type": "edit", "path": "relative/path.js", "oldString": "exact old text", "newString": "replacement text"}\n`;
+      if (this.#tools.includes('write')) followUpPrompt += `1. Write file: {"type": "write", "path": "relative/path.${defaultTaskExt}", "content": "full file content with imports"}\n`;
+      if (this.#tools.includes('edit')) followUpPrompt += `2. Edit file: {"type": "edit", "path": "relative/path.${defaultTaskExt}", "oldString": "exact old text", "newString": "replacement text"}\n`;
       followUpPrompt += `\nRespond with a JSON array of ${writeActionStr} actions, followed by:\n---SUMMARY---\nBrief description.\n---END---`;
 
       try {
@@ -188,7 +201,7 @@ export class BaseWorker {
         } else {
           this.#logger.info(`Multi-round still got no writes. Trying final retry...`);
           const writeExample = this.#tools.includes('write')
-            ? `[{"type": "write", "path": "test/cache.test.js", "content": "import { ... } from '../src/cache.js';\\n// full test code here"}]`
+            ? `[{"type": "write", "path": "test/${defaultFileExt}", "content": "import { ... } from '../src/cache.${defaultTaskExt}';\\n// full test code here"}]`
             : '';
           const finalPrompt = `You are a ${this.#role} agent. Your task is: ${task.prompt || task.name}\n\n` +
             `Here is the codebase context:\n${readContext}\n\n` +
@@ -205,13 +218,13 @@ export class BaseWorker {
       } catch (err) { this.#logger.info(`Multi-round LLM call failed: ${err.message}`); }
     } else if (isMutation && !hasWriteActions && readActions.length === 0) {
       this.#logger.info(`Mutation task got no write actions. Retrying...`);
-      const taskFiles = task.allowedFiles || ['src/*.js'];
-      const suggestedPath = task.type === 'test' ? 'test/test_file.test.js' : (taskFiles[0] || 'src/file.js').replace(/\*\*/g, '').replace(/\*/g, 'example');
+      const taskFiles = task.allowedFiles || [`src/*.${defaultTaskExt}`];
+      const suggestedPath = isTestTask ? `test/${defaultFileExt}` : (taskFiles[0] || `src/file.${defaultTaskExt}`).replace(/\*\*/g, '').replace(/\*/g, 'example');
       const retryPrompt = `You are a ${this.#role} agent. Your task is:\n${task.prompt || task.name}\n\n` +
         `${contextBlock}\n\nSTOP REASONING. DO NOT ANALYZE. DO NOT THINK.\n` +
         `You MUST output a JSON array with a "write" action containing FULL file content.\n` +
         `Include ALL necessary import statements at the top of the file content.\n` +
-        `NEVER import JS built-in globals (Map, Set, Array, Promise, Date, console, Buffer, etc.).\n` +
+        `- ${importConstraintText}\n` +
         `Use proper multi-line formatting (newlines as \\n).\n` +
         `Format: [{"type": "write", "path": "${suggestedPath}", "content": "import ...\\n// full code here"}]\n` +
         `Output the JSON array NOW, then:\n---SUMMARY---\nDone.\n---END---`;
@@ -255,9 +268,9 @@ export class BaseWorker {
           `## FIX INSTRUCTIONS\nOutput a JSON array with corrected "write" actions. Use the FULL file content (with all imports).\n` +
           `IMPORTANT:\n- The "content" field MUST be a plain string (not an object or number).\n` +
           `- Escape all newlines as \\n, all tabs as \\t, all quotes as \\".\n` +
-          `- NEVER import JS built-in globals (Map, Set, Array, Promise, console, Buffer, etc.).\n` +
+          `- ${importConstraintText}\n` +
           `- Use proper multi-line code formatting.\n\n` +
-          `Format: [{"type": "write", "path": "src/file.js", "content": "full file content as string"}]\n` +
+          `Format: [{"type": "write", "path": "${reviewActionPath}", "content": "full file content as string"}]\n` +
           `---SUMMARY---\nFixed previous errors.\n---END---`;
         try {
           const retryResponse = await callLLMWithRetry(this.#systemPrompt, fixPrompt, llmMaxTokens, { responseFormat: 'json' }, llmParams);
@@ -333,9 +346,15 @@ export class BaseWorker {
           const llmCaller = async (prompt, systemPrompt, options) => {
             return await callLLMWithRetry(systemPrompt, prompt, options?.maxTokens || 8192, options?.responseFormat ? { responseFormat: options.responseFormat } : {}, llmParams);
           };
-          const refineTask = { prompt: task.prompt || task.name || '', context: contextBlock.slice(0, 4000), expectedFiles: filesModified.map(fm => fm.path || fm).filter(Boolean), constraints: task.constraints || [] };
+          const refineTask = {
+            prompt: task.prompt || task.name || '',
+            context: contextBlock.slice(0, 4000),
+            expectedFiles: filesModified.map(fm => fm.path || fm).filter(Boolean),
+            constraints: task.constraints || [],
+            language: task.language,
+          };
           refinementResult = await this.#iterativeRefiner.refine(refineTask, llmCaller);
-          this.#logger.info(`P11-2: Refinement complete — ${refinementResult.passes} pass(es), score: ${refinementResult.finalScore}, converged: ${refinementResult.converged}`);
+          this.#logger.info(`P11-2: Refinement complete ${refinementResult.passes} pass(es), score: ${refinementResult.finalScore}, converged: ${refinementResult.converged}`);
         }
       } catch (err) { this.#logger.info(`P11-2: Iterative refinement failed: ${err.message}`); }
     }
@@ -378,7 +397,7 @@ export class BaseWorker {
           `Your code changes have the following validation issues:\n${issueReport}\n\n${fileContext}\n` +
           `## FIX INSTRUCTIONS\nOutput a JSON array with corrected "edit" or "write" actions to fix ONLY the issues listed above.\n` +
           `Make minimal, targeted changes. Do NOT rewrite unrelated code.\nInclude ALL import statements in any "write" action.\n` +
-          `Format: [{"type": "edit", "path": "src/file.js", "oldString": "...", "newString": "..."}]\n---SUMMARY---\nFixed validation issues.\n---END---`;
+          `Format: [{"type": "edit", "path": "${reviewActionPath}", "oldString": "...", "newString": "..."}]\n---SUMMARY---\nFixed validation issues.\n---END---`;
         try {
           const fixResponse = await callLLMWithRetry(this.#systemPrompt, reviewFixPrompt, llmMaxTokens, { responseFormat: 'json' }, llmParams);
           const fixParsed = parseResponse(fixResponse, this.#tools, this.#logger);

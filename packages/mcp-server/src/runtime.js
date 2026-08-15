@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { once } from "node:events";
 import { createServer } from "node:net";
 import { dirname, resolve } from "node:path";
@@ -34,6 +35,7 @@ async function findFreePort() {
 
 async function fetchHealth(baseUrl) {
   const response = await fetch(`${baseUrl}/health/check`, {
+    redirect: "error",
     signal: AbortSignal.timeout(10_000),
   });
   const body = await response.json();
@@ -41,6 +43,21 @@ async function fetchHealth(baseUrl) {
     throw new Error(`Gateway health check failed with HTTP ${response.status}.`);
   }
   return body;
+}
+
+async function verifyAuthenticatedSession(baseUrl, requestHeaders) {
+  const response = await fetch(`${baseUrl}/enterprise/session`, {
+    headers: requestHeaders,
+    redirect: "error",
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!response.ok) {
+    throw new Error(`Gateway authentication check failed with HTTP ${response.status}.`);
+  }
+  const body = await response.json();
+  if ((body?.data ?? body)?.authenticated !== true) {
+    throw new Error("Gateway authentication check did not return an authenticated session.");
+  }
 }
 
 function assertFakeProviderRuntime(healthEnvelope) {
@@ -55,7 +72,7 @@ function assertFakeProviderRuntime(healthEnvelope) {
   }
 }
 
-async function waitForReady(baseUrl, child) {
+async function waitForReady(baseUrl, child, requestHeaders) {
   const deadline = Date.now() + STARTUP_TIMEOUT_MS;
   while (Date.now() < deadline) {
     if (child.exitCode !== null) {
@@ -67,6 +84,7 @@ async function waitForReady(baseUrl, child) {
       const health = await fetchHealth(baseUrl);
       if ((health?.data ?? health)?.status === "ready") {
         assertFakeProviderRuntime(health);
+        await verifyAuthenticatedSession(baseUrl, requestHeaders);
         return health;
       }
     } catch {
@@ -93,7 +111,47 @@ function normalizeBaseUrl(value) {
   if (!["http:", "https:"].includes(url.protocol)) {
     throw new Error("AI_GATEWAY_MCP_URL must use HTTP or HTTPS.");
   }
+  if (url.username || url.password) {
+    throw new Error("AI_GATEWAY_MCP_URL must not contain URL credentials.");
+  }
   return url.toString().replace(/\/+$/, "");
+}
+
+function readGatewayAuthToken(value) {
+  const token = typeof value === "string" ? value.trim() : "";
+  if (!token) {
+    throw new Error("AI_GATEWAY_MCP_AUTH_TOKEN is required for an external gateway.");
+  }
+  if (token.length < 32) {
+    throw new Error("AI_GATEWAY_MCP_AUTH_TOKEN must contain at least 32 characters.");
+  }
+  return token;
+}
+
+function assertSafeGatewayAuthTarget(baseUrl) {
+  const url = new URL(baseUrl);
+  if (url.protocol === "https:") return;
+  if (!new Set(["127.0.0.1", "::1", "[::1]"]).has(url.hostname.toLowerCase())) {
+    throw new Error("AI_GATEWAY_MCP_AUTH_TOKEN requires HTTPS for non-loopback gateways.");
+  }
+}
+
+function createAuthenticatedRuntime(runtime, authToken, tokenSource) {
+  const requestHeaders = Object.freeze({ Authorization: `Bearer ${authToken}` });
+  Object.defineProperty(runtime, "privateRequestHeaders", {
+    configurable: false,
+    enumerable: false,
+    writable: false,
+    value: requestHeaders,
+  });
+  runtime.gatewayAuth = Object.freeze({
+    enabled: true,
+    verified: true,
+    tokenSource,
+    tokenExposed: false,
+    leastPrivilegeManaged: tokenSource === "ephemeral-managed",
+  });
+  return runtime;
 }
 
 export async function createGatewayRuntime(options = {}) {
@@ -101,20 +159,32 @@ export async function createGatewayRuntime(options = {}) {
   const externalBaseUrl = normalizeBaseUrl(env.AI_GATEWAY_MCP_URL);
 
   if (externalBaseUrl) {
+    const authToken = readGatewayAuthToken(env.AI_GATEWAY_MCP_AUTH_TOKEN);
+    assertSafeGatewayAuthTarget(externalBaseUrl);
+    const requestHeaders = Object.freeze({ Authorization: `Bearer ${authToken}` });
     const health = await fetchHealth(externalBaseUrl);
     assertFakeProviderRuntime(health);
-    return {
+    await verifyAuthenticatedSession(externalBaseUrl, requestHeaders);
+    return createAuthenticatedRuntime({
       baseUrl: externalBaseUrl,
       managed: false,
       health,
       stop: async () => {},
       killNow: () => {},
       getOutputTail: () => "",
-    };
+    }, authToken, "environment");
   }
 
   const port = await findFreePort();
   const baseUrl = `http://127.0.0.1:${port}`;
+  const authToken = randomBytes(32).toString("base64url");
+  // Ephemeral managed token with no wall-clock expiry. The gateway child process
+  // is fake-provider, loopback-only, and killed when the MCP host disconnects, so
+  // the token's lifetime is already bounded by the child process itself. A fixed
+  // 10-minute expiry broke long-lived MCP hosts (WorkBuddy/Codex) with 401s once
+  // the window elapsed and all authenticated tools became unusable.
+  const authExpiresAt = null;
+  const requestHeaders = Object.freeze({ Authorization: `Bearer ${authToken}` });
   let stdout = "";
   let stderr = "";
   const child = (options.spawnProcess ?? spawn)(
@@ -134,7 +204,22 @@ export async function createGatewayRuntime(options = {}) {
         AI_GATEWAY_DEFAULT_MODEL: "local-fake-model",
         AI_GATEWAY_ENABLED_PROVIDERS:
           "local-fake-provider,backup-fake-provider",
-        PME_ENTERPRISE_AUTH_ENABLED: "false",
+        PME_ENTERPRISE_AUTH_ENABLED: "true",
+        PME_AUTH_TOKEN: "",
+        PME_ENTERPRISE_USERS_JSON: JSON.stringify([{
+          token: authToken,
+          userId: "managed-mcp",
+          tenantId: "managed-mcp",
+          role: "operator",
+          permissions: [
+            "session:read",
+            "dashboard:read",
+            "chat:use",
+            "knowledge:read",
+            "workflow:run",
+          ],
+          expiresAt: authExpiresAt,
+        }]),
       },
       stdio: ["ignore", "pipe", "pipe"],
     },
@@ -150,8 +235,8 @@ export async function createGatewayRuntime(options = {}) {
   });
 
   try {
-    const health = await waitForReady(baseUrl, child);
-    return {
+    const health = await waitForReady(baseUrl, child, requestHeaders);
+    return createAuthenticatedRuntime({
       baseUrl,
       managed: true,
       health,
@@ -161,7 +246,7 @@ export async function createGatewayRuntime(options = {}) {
         if (child.exitCode === null) child.kill("SIGTERM");
       },
       getOutputTail: () => `${stdout}\n${stderr}`.trim(),
-    };
+    }, authToken, "ephemeral-managed");
   } catch (error) {
     await stopChild(child);
     const outputTail = `${stdout}\n${stderr}`.trim().slice(-2_000);
@@ -174,5 +259,7 @@ export async function createGatewayRuntime(options = {}) {
 
 export const mcpRuntimeInternals = {
   assertFakeProviderRuntime,
+  assertSafeGatewayAuthTarget,
   normalizeBaseUrl,
+  readGatewayAuthToken,
 };

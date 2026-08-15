@@ -189,41 +189,31 @@ describe("permissionGate audit array cap", () => {
 });
 
 // ────────────────────────────────────────────────────────────────
-// 5. WebSocket Buffer Copy Safety
+// 5. WebSocket Protocol Stack Safety
 // ────────────────────────────────────────────────────────────────
-describe("WebSocket buffer safety", () => {
-  it("source uses Buffer.from instead of buffer.slice for payload", () => {
+describe("WebSocket protocol safety", () => {
+  it("delegates RFC 6455 parsing to the maintained ws implementation", () => {
     const src = readFileSync(join(SRC_ROOT, "http", "webSocketServer.js"), "utf-8");
-    // The payload should be copied, not shared
-    assert.ok(
-      src.includes("Buffer.from(buffer.subarray") || src.includes("Buffer.from( buffer.subarray"),
-      "Should use Buffer.from(buffer.subarray(...)) to copy payload data"
-    );
-    // The old shared-memory pattern should be gone
-    assert.ok(
-      !src.match(/const\s+payload\s*=\s*buffer\.slice\s*\(/),
-      "Should not use buffer.slice() for payload (shared memory)"
-    );
+    assert.ok(src.includes('from "ws"'), "Should use the maintained ws protocol implementation");
+    assert.ok(src.includes("new WebSocketServer"), "Should create a no-server WebSocket transport");
+    assert.ok(!src.includes("function decodeFrame"), "Should not maintain a custom frame decoder");
   });
 
-  it("source enforces maximum WebSocket message size", () => {
+  it("configures bounded payloads and disables compression by default", () => {
     const src = readFileSync(join(SRC_ROOT, "http", "webSocketServer.js"), "utf-8");
-    assert.ok(
-      src.includes("MAX_WS_PAYLOAD") || src.includes("16 * 1024 * 1024") || src.includes("16_000_000"),
-      "Should define a maximum WebSocket payload size"
-    );
-    assert.ok(
-      src.includes("payload exceeds") || src.includes("payloadLength >"),
-      "Should check payloadLength against maximum"
-    );
+    assert.ok(src.includes("DEFAULT_MAX_WS_PAYLOAD"), "Should define a bounded default payload size");
+    assert.ok(src.includes("maxPayload: maxPayloadBytes"), "Should enforce maxPayload in the protocol stack");
+    assert.ok(src.includes("perMessageDeflate: false"), "Should disable compression resource amplification");
   });
 
-  it("source checks for incomplete frames", () => {
+  it("enforces identity-level rate and concurrency controls", () => {
     const src = readFileSync(join(SRC_ROOT, "http", "webSocketServer.js"), "utf-8");
-    assert.ok(
-      src.includes("Incomplete") || src.includes("offset + payloadLength > buffer.length"),
-      "Should check for incomplete frames"
-    );
+    assert.ok(src.includes("maxMessagesPerWindow"), "Should enforce a message-rate window");
+    assert.ok(src.includes("maxInFlightPerSubject"), "Should enforce per-subject concurrency");
+    assert.ok(src.includes("maxConnectionsPerSubject"), "Should enforce per-subject connections");
+    assert.ok(src.includes("reauthorizeConnection"), "Should reauthorize long-lived sessions");
+    assert.ok(src.includes("maxConnectionLifetimeMs"), "Should bound session lifetime");
+    assert.ok(src.includes("consumeExternalQuota"), "Should enforce shared cross-node quotas");
   });
 
   it("webSocketServer module loads", async () => {

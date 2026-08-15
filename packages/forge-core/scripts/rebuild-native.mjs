@@ -20,9 +20,11 @@ function nativeBindingIsReady() {
 
 function commandCandidates() {
   const suffix = process.platform === "win32" ? ".cmd" : "";
+  // Pin node-gyp so the install lifecycle never pulls an unvetted latest
+  // release from the registry.
   return [
-    { command: `pnpm${suffix}`, args: ["dlx", "node-gyp", "rebuild"] },
-    { command: `npx${suffix}`, args: ["--yes", "node-gyp", "rebuild"] },
+    { command: `pnpm${suffix}`, args: ["dlx", "node-gyp@11.5.0", "rebuild"] },
+    { command: `npx${suffix}`, args: ["--yes", "node-gyp@11.5.0", "rebuild"] },
   ];
 }
 

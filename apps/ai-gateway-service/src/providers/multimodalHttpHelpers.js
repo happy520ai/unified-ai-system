@@ -2,6 +2,7 @@
 // HTTP call helpers for the multimodal provider adapter.
 
 import { sleep } from "../entrypoints/entrypointUtils.js";
+import { safeOutboundFetch } from "../security/safeOutboundFetch.ts";
 import { safeReadJsonResponse, createProviderHttpError, createAdapterError } from "./multimodalUtils.js";
 
 export async function executeWithRetry(fn, { maxRetries = 2, baseDelayMs = 1000 } = {}) {
@@ -16,7 +17,7 @@ export async function executeWithRetry(fn, { maxRetries = 2, baseDelayMs = 1000 
   }
 }
 
-export async function callJson(fetchImpl, { url, apiKey, payload, method = "POST", timeoutMs, provider, extraHeaders = {} }) {
+export async function callJson(fetchImpl = safeOutboundFetch, { url, apiKey, payload, method = "POST", timeoutMs, provider, extraHeaders = {} }) {
   return executeWithRetry(async () => {
     const headers = { "content-type": "application/json" };
     if (apiKey) headers.authorization = `Bearer ${apiKey}`;
@@ -51,7 +52,33 @@ export async function callJson(fetchImpl, { url, apiKey, payload, method = "POST
   });
 }
 
-export async function callBinary(fetchImpl, { url, apiKey, payload, timeoutMs, provider }) {
+const MAX_BINARY_RESPONSE_BYTES = 50 * 1024 * 1024;
+
+async function readBinaryWithLimit(response, provider, maxBytes = MAX_BINARY_RESPONSE_BYTES) {
+  if (!response.body) {
+    return Buffer.from(await response.arrayBuffer());
+  }
+  const reader = response.body.getReader();
+  const chunks = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel().catch(() => {});
+      throw createAdapterError(
+        "multimodal_response_too_large",
+        `${provider} binary response exceeded ${maxBytes} bytes.`,
+        false,
+      );
+    }
+    chunks.push(Buffer.from(value));
+  }
+  return Buffer.concat(chunks);
+}
+
+export async function callBinary(fetchImpl = safeOutboundFetch, { url, apiKey, payload, timeoutMs, provider }) {
   return executeWithRetry(async () => {
     const headers = { "content-type": "application/json" };
     if (apiKey) headers.authorization = `Bearer ${apiKey}`;
@@ -72,7 +99,7 @@ export async function callBinary(fetchImpl, { url, apiKey, payload, timeoutMs, p
         throw createProviderHttpError(provider, response.status, errorBody);
       }
 
-      const buffer = Buffer.from(await response.arrayBuffer());
+      const buffer = await readBinaryWithLimit(response, provider);
       return buffer;
     } catch (error) {
       if (error?.category === "provider" || error?.category === "multimodal") throw error;
@@ -86,7 +113,7 @@ export async function callBinary(fetchImpl, { url, apiKey, payload, timeoutMs, p
   });
 }
 
-export async function callMultipart(fetchImpl, { url, apiKey, formData, timeoutMs, provider }) {
+export async function callMultipart(fetchImpl = safeOutboundFetch, { url, apiKey, formData, timeoutMs, provider }) {
   return executeWithRetry(async () => {
     const headers = {
       "content-type": `multipart/form-data; boundary=${formData.boundary}`,

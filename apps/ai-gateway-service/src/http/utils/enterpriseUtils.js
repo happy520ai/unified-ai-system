@@ -3,6 +3,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createErrorEnvelope } from "@unified-ai-system/shared-utils";
 import { isPublicRoute } from "../routeAccessPolicy.js";
+import { resolveRuntimeRoutePermissionOverride } from "../runtimeRouteAccessManifest.ts";
 import { readJson, writeJson } from "./responseUtils.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -101,6 +102,11 @@ export async function readEnterpriseReleaseCandidateDryRun() {
       secretValuesRecorded: Boolean(evidence.safety?.secretValuesRecorded),
     },
   };
+}
+
+function normalizePermissionPath(pathname) {
+  const path = typeof pathname === "string" ? pathname : "";
+  return path.length > 1 ? path.replace(/\/+$/, "") : path;
 }
 
 export async function readEnterpriseOverview(application) {
@@ -266,135 +272,250 @@ export function buildPhase319FeatureStatus() {
 }
 
 export function resolvePermission(method, pathname) {
-  if (isPublicRoute(pathname)) {
+  const normalizedPath = normalizePermissionPath(pathname);
+  const normalizedMethod = (method || "").toUpperCase();
+
+  if (isPublicRoute(normalizedPath)) {
     return "public:read";
   }
 
-  if (pathname === "/enterprise/session") {
+  const exactPermission = EXACT_ROUTE_PERMISSIONS[`${normalizedMethod} ${normalizedPath}`];
+  if (exactPermission) return exactPermission;
+
+  if (normalizedPath === "/enterprise/session") {
     return "session:read";
   }
 
-  if (pathname === "/enterprise/roles") {
+  if (normalizedPath === "/enterprise/roles") {
     return "audit:read";
   }
 
-  if (pathname === "/enterprise/users" || pathname === "/enterprise/users/revoke") {
-    return "user:admin";
-  }
-
-  if (pathname === "/enterprise/security/readiness") {
-    return "audit:read";
-  }
-
-  if (pathname === "/enterprise/audit" || pathname === "/enterprise/audit/export") {
-    return "audit:read";
-  }
-
-  if (pathname === "/enterprise/acceptance/report" || pathname === "/enterprise/release-candidate/dry-run" || pathname === "/enterprise/overview") {
-    return "audit:read";
-  }
-
-  if (pathname === "/enterprise/deployment/readiness" || pathname === "/enterprise/startup/readiness") {
-    return "audit:read";
-  }
-
-  if (pathname === "/enterprise/backup" || pathname === "/enterprise/restore/validate") {
+  if (normalizedPath === "/enterprise/users" || normalizedPath === "/enterprise/users/revoke") {
     return "user:admin";
   }
 
   if (
-    pathname === "/dashboard/status" ||
-    pathname === "/workflow/health" ||
-    pathname === "/workflow/actions" ||
-    pathname === "/workforce/health" ||
-    pathname === "/workforce/agents" ||
-    (method === "GET" && (pathname === "/workforce/plans" || /^\/workforce\/plans\/[^/]+(\/export|\/review-package)?$/.test(pathname)))
+    normalizedPath === "/enterprise/virtual-keys"
+    || normalizedPath === "/enterprise/virtual-keys/revoke"
+  ) {
+    return "user:admin";
+  }
+
+  if (normalizedPath === "/mcp/tools" || normalizedPath === "/mcp/call") {
+    return "workflow:run";
+  }
+
+  if (normalizedPath === "/mcp/health") {
+    return "dashboard:read";
+  }
+
+  if (normalizedPath === "/enterprise/security/readiness") {
+    return "audit:read";
+  }
+
+  if (normalizedPath === "/enterprise/audit" || normalizedPath === "/enterprise/audit/export") {
+    return "audit:read";
+  }
+
+  if (normalizedPath === "/enterprise/acceptance/report" || normalizedPath === "/enterprise/release-candidate/dry-run" || normalizedPath === "/enterprise/overview") {
+    return "audit:read";
+  }
+
+  if (normalizedPath === "/enterprise/deployment/readiness" || normalizedPath === "/enterprise/startup/readiness") {
+    return "audit:read";
+  }
+
+  if (normalizedPath === "/enterprise/backup" || normalizedPath === "/enterprise/restore/validate") {
+    return "user:admin";
+  }
+
+  if (
+    normalizedPath === "/dashboard/status" ||
+    normalizedPath === "/metrics" ||
+    normalizedPath === "/observability/status" ||
+    normalizedPath === "/workflow/health" ||
+    normalizedPath === "/workflow/actions" ||
+    normalizedPath === "/workforce/health" ||
+    normalizedPath === "/workforce/agents" ||
+    (normalizedMethod === "GET" && (normalizedPath === "/workforce/plans" || /^\/workforce\/plans\/[^/]+(\/export|\/review-package)?$/.test(normalizedPath)))
   ) {
     return "dashboard:read";
   }
 
   if (
-    pathname === "/providers" ||
-    pathname === "/providers/runtime-credential/detect" ||
-    pathname === "/config/runtime" ||
-    pathname === "/route/modes" ||
-    pathname === "/models/import/providers" ||
-    pathname === "/models/capability-router/status" ||
-    pathname === "/models/capability-router/preview" ||
-    pathname === "/cost/health" ||
-    pathname === "/cost/estimate" ||
-    pathname === "/cost/guard/check" ||
-    pathname === "/cost/summary" ||
-    pathname === "/cache/health" ||
-    pathname === "/cache/lookup" ||
-    pathname === "/cache/write" ||
-    pathname === "/cache/invalidate" ||
-    pathname === "/cache/summary" ||
-    pathname === "/cache/audit" ||
-    pathname === "/routing/answer-path/preview" ||
-    pathname === "/routing/quality-cost/preview" ||
-    (method === "GET" && (pathname === "/codex-handoff/next-task" || pathname === "/codex-loop/status" || pathname === "/v1/models"))
+    normalizedMethod === "POST" && (
+      normalizedPath === "/providers/runtime-credential/detect" ||
+      normalizedPath === "/providers/runtime-credential" ||
+      normalizedPath === "/provider-config/save" ||
+      normalizedPath === "/provider-config/test" ||
+      normalizedPath === "/models/import/preview" ||
+      normalizedPath === "/models/import/confirm" ||
+      normalizedPath === "/model-library/verify-dry-run" ||
+      normalizedPath === "/model-library/refresh" ||
+      normalizedPath === "/model-library/test-model" ||
+      normalizedPath === "/model-library/task-default" ||
+      normalizedPath === "/cache/write" ||
+      normalizedPath === "/cache/invalidate"
+    )
+  ) {
+    return "provider:write";
+  }
+
+  // Usage and cost summaries aggregate across users; treat them as audit
+  // grade data instead of generic provider metadata.
+  if (
+    normalizedPath === "/cost/summary" ||
+    normalizedPath === "/usage/summary" ||
+    normalizedPath === "/usage/logs"
+  ) {
+    return "audit:read";
+  }
+
+  if (
+    normalizedPath === "/providers" ||
+    normalizedPath === "/config/runtime" ||
+    normalizedPath === "/provider-config/status" ||
+    normalizedPath === "/route/modes" ||
+    normalizedPath === "/models/import/providers" ||
+    normalizedPath === "/model-library" ||
+    normalizedPath === "/model-library/usability-matrix" ||
+    normalizedPath === "/model-library/verification-plan" ||
+    normalizedPath === "/models/capability-router/status" ||
+    normalizedPath === "/models/capability-router/preview" ||
+    normalizedPath === "/cost/health" ||
+    normalizedPath === "/cost/estimate" ||
+    normalizedPath === "/cost/guard/check" ||
+    normalizedPath === "/cache/health" ||
+    normalizedPath === "/cache/lookup" ||
+    normalizedPath === "/cache/summary" ||
+    normalizedPath === "/cache/audit" ||
+    normalizedPath === "/routing/answer-path/preview" ||
+    normalizedPath === "/routing/quality-cost/preview" ||
+    (normalizedMethod === "GET" && (normalizedPath === "/codex-handoff/next-task" || normalizedPath === "/codex-loop/status" || normalizedPath === "/v1/models" || normalizedPath === "/models" || normalizedPath === "/v1/engines" || normalizedPath === "/engines"))
+    || (normalizedMethod === "GET" && /^\/v1\/models\/[^/]+$/.test(normalizedPath))
+    || (normalizedMethod === "GET" && /^\/models\/[^/]+$/.test(normalizedPath))
+    || (normalizedMethod === "GET" && /^\/v1\/engines\/[^/]+$/.test(normalizedPath))
+    || (normalizedMethod === "GET" && /^\/engines\/[^/]+$/.test(normalizedPath))
   ) {
     return "provider:read";
   }
 
-  if (pathname === "/providers/runtime-credential" || pathname === "/models/import/preview" || pathname === "/models/import/confirm") {
-    return "provider:write";
-  }
-
-  if (pathname.startsWith("/knowledge/") && method === "GET") {
+  if (normalizedPath.startsWith("/knowledge/") && normalizedMethod === "GET") {
     return "knowledge:read";
   }
 
-  if (pathname === "/knowledge/load" || pathname === "/knowledge/load/file") {
+  if (normalizedPath === "/knowledge/load" || normalizedPath === "/knowledge/load/file") {
     return "knowledge:write";
   }
 
-  if (pathname === "/knowledge/retrieve" || pathname === "/knowledge/graph/retrieve") {
+  if (normalizedPath === "/knowledge/retrieve" || normalizedPath === "/knowledge/graph/retrieve") {
     return "knowledge:read";
   }
 
-  if (pathname === "/memory/save") {
+  if (normalizedPath === "/memory/save") {
     return "memory:write";
   }
 
-  if (pathname === "/memory/list" || pathname === "/memory/retrieve") {
+  if (normalizedPath === "/memory/list" || normalizedPath === "/memory/retrieve") {
     return "knowledge:read";
   }
 
-  if (pathname === "/connectors" || pathname === "/connectors/import/text") {
-    return pathname === "/connectors" ? "provider:read" : "connector:write";
+  if (normalizedPath === "/connectors" || normalizedPath === "/connectors/import/text") {
+    return normalizedPath === "/connectors" ? "provider:read" : "connector:write";
   }
 
-  if (pathname === "/evaluation/score") {
+  if (normalizedPath === "/evaluation/score") {
     return "evaluation:run";
   }
 
-  if (pathname === "/workflow/plan" || pathname === "/workflow/run") {
-    return "workflow:run";
-  }
-
-  if (method === "POST" && pathname === "/codex-handoff/next-task") {
+  if (normalizedPath === "/workflow/plan" || normalizedPath === "/workflow/run") {
     return "workflow:run";
   }
 
   if (
-    pathname === "/workforce/plan" ||
-    pathname === "/workforce/run-local" ||
-    pathname === "/real-capabilities/activate-five" ||
-    pathname === "/workforce/plans/save" ||
-    (method === "POST" && /^\/workforce\/plans\/[^/]+\/(clarifications|lifecycle|approval-gate)$/.test(pathname)) ||
-    (method === "DELETE" && /^\/workforce\/plans\/[^/]+$/.test(pathname))
+    normalizedMethod === "POST"
+    && (normalizedPath === "/workforce/execute/approve" || normalizedPath === "/workforce/execute/revoke")
+  ) {
+    return "workflow:approve";
+  }
+
+  if (normalizedMethod === "POST" && normalizedPath === "/codex-handoff/next-task") {
+    return "workflow:run";
+  }
+
+  if (
+    normalizedPath === "/workforce/plan" ||
+    normalizedPath === "/workforce/execute" ||
+    normalizedPath === "/workforce/run-local" ||
+    normalizedPath === "/real-capabilities/activate-five" ||
+    normalizedPath === "/workforce/plans/save" ||
+    (normalizedMethod === "POST" && /^\/workforce\/plans\/[^/]+\/(clarifications|lifecycle|approval-gate)$/.test(normalizedPath)) ||
+    (normalizedMethod === "DELETE" && /^\/workforce\/plans\/[^/]+$/.test(normalizedPath))
   ) {
     return "workflow:run";
   }
 
-  if (pathname === "/prompts/enhance" || pathname === "/v1/chat/completions" || pathname === "/chat" || pathname === "/chat/stream" || pathname === "/chat/rag" || pathname === "/chat/rag/stream" || pathname === "/route" || pathname === "/gateway/route" || pathname === "/gateway/mock") {
+  if (
+    normalizedPath === "/v1/images/generations" ||
+    normalizedPath === "/images/generations" ||
+    normalizedPath === "/v1/embeddings" ||
+    normalizedPath === "/embeddings" ||
+    normalizedPath === "/v1/audio/speech" ||
+    normalizedPath === "/audio/speech" ||
+    normalizedPath === "/v1/audio/transcriptions" ||
+    normalizedPath === "/audio/transcriptions" ||
+    /^\/openai\/deployments\/[^/]+\/(chat\/completions|completions|responses)(\/?)$/.test(normalizedPath) ||
+    /^\/v1\/engines\/[^/]+\/(chat\/completions|completions)(\/?)$/.test(normalizedPath) ||
+    normalizedPath === "/chat/completions" ||
+    normalizedPath === "/completions" ||
+    normalizedPath === "/responses" ||
+    normalizedPath === "/prompts/enhance"
+    || normalizedPath === "/v1/chat/completions"
+    || normalizedPath === "/v1/completions"
+    || normalizedPath === "/v1/responses"
+    || normalizedPath === "/v1/messages"
+    || normalizedPath === "/a2a/jsonrpc"
+    || normalizedPath === "/chat"
+    || normalizedPath === "/chat/stream"
+    || normalizedPath === "/chat/rag"
+    || normalizedPath === "/chat/rag/stream"
+    || normalizedPath === "/route"
+    || normalizedPath === "/gateway/route"
+    || normalizedPath === "/gateway/mock"
+  ) {
     return "chat:use";
   }
 
+  const runtimePermission = resolveRuntimeRoutePermissionOverride(method, normalizedPath);
+  if (runtimePermission) return runtimePermission;
+
   return "route:unknown";
 }
+
+const EXACT_ROUTE_PERMISSIONS = Object.freeze({
+  "GET /ws/info": "dashboard:read",
+  "POST /knowledge/delete": "knowledge:write",
+  "POST /agent-runner/intent-approval-preview": "workflow:run",
+  "POST /agent-runner/local-operation": "workflow:run",
+  "POST /local-agent/intent-preview": "workflow:run",
+  "POST /local-agent/operation-plan": "workflow:run",
+  "POST /local-agent/patch-proposal": "workflow:run",
+  "POST /chat/auto": "chat:use",
+  "GET /forge/health": "dashboard:read",
+  "GET /runtime-candidate/codex-exec-crs/status": "dashboard:read",
+  "GET /capability-router/status": "dashboard:read",
+  "GET /five-capability/status": "dashboard:read",
+  "GET /user-experience/status": "dashboard:read",
+  "GET /workforce/tier": "dashboard:read",
+  "POST /workforce/tier": "workflow:run",
+  "POST /workforce/tier/gate": "workflow:run",
+  "POST /workforce/tier/fallback": "workflow:run",
+  "GET /workforce/autonomy/usage": "dashboard:read",
+  "GET /workforce/autonomy/trust": "dashboard:read",
+  "POST /workforce/autonomy/token": "workflow:run",
+  "POST /workforce/autonomy/token/revoke": "workflow:run",
+  "POST /workforce/diagnostic/read": "audit:read",
+});
 
 export async function readCapabilityJson({ request, response, startedAt, code }) {
   try {

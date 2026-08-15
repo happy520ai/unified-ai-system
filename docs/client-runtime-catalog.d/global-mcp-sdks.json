@@ -1,0 +1,92 @@
+{
+  "mcp-inspector": {
+    "name": "MCP Inspector client",
+    "protocol": "MCP",
+    "transport": "stdio + browser bridge",
+    "mode": "automated",
+    "tags": ["mcp", "agent-host", "tooling", "global", "mainstream"],
+    "command": "node docs/examples/client-runtime-smoke.mjs --client=mcp-inspector",
+    "evidenceNotes": "Run the official Inspector CLI against the stdio server, verify tool discovery and prompt enhancement, and prove managed-gateway cleanup."
+  },
+  "mcp-python-sdk": {
+    "name": "Python MCP SDK profile",
+    "protocol": "MCP",
+    "transport": "stdio + streamable-http",
+    "mode": "automated",
+    "tags": ["mcp", "protocol:sdk", "language:python", "global", "mainstream"],
+    "command": "python docs/examples/client-runtime-smoke.py --client=mcp-python-sdk --base-url <url>",
+    "evidenceNotes": "Run discovery and smoke calls through a Python MCP client against local server."
+  },
+  "mcp-java-sdk": {
+    "name": "Java MCP SDK profile",
+    "protocol": "MCP",
+    "transport": "stdio + streamable-http",
+    "mode": "manual",
+    "tags": ["mcp", "protocol:sdk", "language:java", "global", "mainstream"],
+    "command": "Java MCP client against stdio and streamable MCP entry",
+    "evidenceNotes": "Execute init/list tools and a minimal prompt check via Java MCP client against local entry."
+  },
+  "mcp-go-sdk": {
+    "name": "Go MCP SDK profile",
+    "protocol": "MCP",
+    "transport": "stdio + streamable-http",
+    "mode": "manual",
+    "tags": ["mcp", "protocol:sdk", "language:go", "global", "mainstream"],
+    "command": "Go MCP client against local stdio and streamable HTTP",
+    "evidenceNotes": "Run MCP client smoke and verify tool availability and execution response."
+  },
+  "mcp-rust-sdk": {
+    "name": "Rust MCP SDK profile",
+    "protocol": "MCP",
+    "transport": "stdio + streamable-http",
+    "mode": "manual",
+    "tags": ["mcp", "protocol:sdk", "language:rust", "global", "mainstream"],
+    "command": "Rust MCP stdio/streamable client against unified-ai-system",
+    "evidenceNotes": "Run init, tool listing and one tool call and record execution metadata."
+  },
+  "mcp-dotnet-sdk": {
+    "name": ".NET MCP SDK profile",
+    "protocol": "MCP",
+    "transport": "stdio + streamable-http",
+    "mode": "manual",
+    "tags": ["mcp", "protocol:sdk", "language:dotnet", "global", "mainstream"],
+    "command": ".NET MCP client against unified-ai-system stdio / streamable endpoint",
+    "evidenceNotes": "Run local .NET MCP smoke and capture readiness + tool result evidence."
+  },
+  "mcp-ruby-sdk": {
+    "name": "Ruby MCP SDK profile",
+    "protocol": "MCP",
+    "transport": "stdio",
+    "mode": "manual",
+    "tags": ["mcp", "protocol:sdk", "language:ruby", "global", "mainstream"],
+    "command": "Ruby MCP stdio client against unified-ai-system",
+    "evidenceNotes": "Run MCP handshake/list tools and simple tool call verification."
+  },
+  "mcp-php-sdk": {
+    "name": "PHP MCP SDK profile",
+    "protocol": "MCP",
+    "transport": "stdio",
+    "mode": "manual",
+    "tags": ["mcp", "protocol:sdk", "language:php", "global", "mainstream"],
+    "command": "PHP MCP stdio client against unified-ai-system",
+    "evidenceNotes": "Run MCP init/list tools and minimal function invocation with local fake provider."
+  },
+  "mcp-kotlin-sdk": {
+    "name": "Kotlin MCP SDK profile",
+    "protocol": "MCP",
+    "transport": "stdio",
+    "mode": "manual",
+    "tags": ["mcp", "protocol:sdk", "language:kotlin", "global", "mainstream"],
+    "command": "Kotlin MCP stdio client against unified-ai-system",
+    "evidenceNotes": "Run MCP protocol handshake and tool-readiness smoke using local stdio entry."
+  },
+  "mcp-remote-stdio-bridge": {
+    "name": "MCP remote stdio bridge host",
+    "protocol": "MCP",
+    "transport": "stdio",
+    "mode": "manual",
+    "tags": ["mcp", "agent-host", "library", "global", "mainstream"],
+    "command": "Generic remote stdio bridge host connected to unified-ai-system command",
+    "evidenceNotes": "Run bridge startup and tool availability proof on a local host process."
+  }
+}

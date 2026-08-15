@@ -18,10 +18,13 @@ export const TOOL_NAMES = [
   "gateway_health",
   "gateway_readiness",
   "gateway_prompt_enhance",
+  "gateway_prompt_enhance_llm",
   "gateway_chat",
   "knowledge_readiness",
+  "knowledge_retrieve",
   "workflow_health",
   "workflow_actions",
+  "workflow_run",
   "workforce_health",
   "workforce_agents",
 ];

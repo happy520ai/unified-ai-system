@@ -1,0 +1,8 @@
+{
+  "extends": "./quality-evidence-assertions.base.json",
+  "policy": "ci-quality-evidence",
+  "description": "Required artifact assertions for the main CI quality workflow",
+  "requiredArtifacts": [
+    ".tmp/public-clone-verify.log"
+  ]
+}

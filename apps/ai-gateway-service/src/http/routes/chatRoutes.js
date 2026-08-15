@@ -9,6 +9,30 @@
 
 import { validators } from "../../validation/httpSchemas.js";
 
+export function resolveChatResultHttpStatus(result) {
+  if (result?.success === true) return 200;
+
+  const error = result?.error ?? {};
+  const code = String(result?.code ?? error.code ?? "").toUpperCase();
+  if (code.includes("TIMEOUT") || code.includes("DEADLINE_EXCEEDED")) return 504;
+  if (
+    code === "CIRCUIT_OPEN"
+    || code.includes("SERVICE_UNAVAILABLE")
+    || code.includes("PROVIDER_UNAVAILABLE")
+  ) {
+    return 503;
+  }
+  if (
+    error.retryable === true
+    || error.type === "provider"
+    || code.startsWith("PROVIDER_")
+    || code.includes("_PROVIDER_")
+  ) {
+    return 502;
+  }
+  return 400;
+}
+
 /**
  * @typedef {import("../../../../../../packages/shared-contracts/src/contracts/gateway.js").GatewayRequest} GatewayRequest
  * @typedef {import("../../../../../../packages/shared-contracts/src/contracts/gateway.js").GatewayResponse} GatewayResponse
@@ -89,7 +113,7 @@ export function createChatRoutes(application, helpers) {
           durationMs: Date.now() - startedAt,
         });
       }
-      writeJson(res, result.success ? 200 : 400, result);
+      writeJson(res, resolveChatResultHttpStatus(result), result);
     } catch (error) {
       if (writeServiceLog) {
         writeServiceLog("chat_failed", {
@@ -439,9 +463,9 @@ export function createChatRoutes(application, helpers) {
   // ── 导出 ──
 
   const handlers = new Map([
-    ["POST /chat", { handler: handleChat, public: true, description: "非流式聊天补全" }],
-    ["POST /chat/stream", { handler: handleChatStream, public: true, description: "SSE 流式聊天" }],
-    ["POST /chat/auto", { handler: handleChatAuto, public: true, description: "流式聚合 JSON — 内部 AI 调用端点" }],
+    ["POST /chat", { handler: handleChat, public: false, permission: "chat:use", description: "非流式聊天补全" }],
+    ["POST /chat/stream", { handler: handleChatStream, public: false, permission: "chat:use", description: "SSE 流式聊天" }],
+    ["POST /chat/auto", { handler: handleChatAuto, public: false, permission: "chat:use", description: "流式聚合 JSON — 内部 AI 调用端点" }],
   ]);
 
   return { handlers };

@@ -1,4 +1,5 @@
-import { describe, it, expect } from "vitest";
+import { describe, it } from "node:test";
+import assert from "node:assert/strict";
 import { createWeComConnector } from "./index.js";
 
 describe("im-connector-wecom", () => {
@@ -12,11 +13,11 @@ describe("im-connector-wecom", () => {
   it("creates connector with default dry-run", () => {
     const conn = createWeComConnector();
     const h = conn.getHealth();
-    expect(h.status).toBe("ready");
-    expect(h.dryRun).toBe(true);
-    expect(h.connectorId).toBe("wecom");
-    expect(h.supportedFormats).toContain("text");
-    expect(h.supportedFormats).toContain("markdown");
+    assert.equal(h.status, "ready");
+    assert.equal(h.dryRun, true);
+    assert.equal(h.connectorId, "wecom");
+    assert.ok(h.supportedFormats.includes("text"));
+    assert.ok(h.supportedFormats.includes("markdown"));
   });
 
   it("returns dry-run result when dryRun=true", async () => {
@@ -25,9 +26,9 @@ describe("im-connector-wecom", () => {
       targetId: "user123",
       format: "text",
     });
-    expect(result.delivered).toBe(false);
-    expect(result.dryRun).toBe(true);
-    expect(result.metadata.connectorId).toBe("wecom");
+    assert.equal(result.delivered, false);
+    assert.equal(result.dryRun, true);
+    assert.equal(result.metadata.connectorId, "wecom");
   });
 
   it("returns error when webhook not configured and dryRun=false", async () => {
@@ -35,7 +36,7 @@ describe("im-connector-wecom", () => {
     const result = await conn.sendMessage(mockEnvelope, {
       targetId: "user123",
     });
-    expect(result.delivered).toBe(false);
-    expect(result.error).toBe("wecom_webhook_not_configured");
+    assert.equal(result.delivered, false);
+    assert.equal(result.error, "wecom_webhook_not_configured");
   });
 });

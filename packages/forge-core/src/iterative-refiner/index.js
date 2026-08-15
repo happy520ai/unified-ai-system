@@ -27,7 +27,12 @@ import {
   buildGenerationPrompt,
   buildImprovementPrompt,
   getTemperatureForPass,
+  resolveLanguageProfile,
 } from './helpers.js';
+
+function getLanguageProfile(task) {
+  return resolveLanguageProfile(task);
+}
 
 // ─── JSDoc Type Definitions ──────────────────────────────────────────────────
 
@@ -268,12 +273,18 @@ export class IterativeRefiner {
    * @returns {Promise<string>}
    */
   async #generateInitial(task, llmCaller) {
+    const languageProfile = getLanguageProfile(task);
+    const languageHint = languageProfile.label;
+    const languageStyleRules = Array.isArray(languageProfile.styleRules) ? languageProfile.styleRules : [];
     const systemPrompt = [
       'You are an expert software engineer. Generate clean, production-quality code.',
-      'Follow best practices for the target language.',
+      `Follow best practices for ${languageHint}.`,
+      languageProfile.moduleRule,
+      languageProfile.importGuideline,
+      languageStyleRules.length > 0 ? `Language style expectations:\\n${languageStyleRules.map((rule) => `- ${rule}`).join('\\n')}` : '',
       'Include all necessary imports, error handling, and documentation.',
       'Do NOT include TODO, FIXME, or HACK comments.',
-      'Do NOT include console.log statements in production code.',
+      'Do not leave debug-print statements in production code.',
       'Output ONLY the code — no explanations, no markdown fences.',
     ].join('\n');
 
@@ -354,10 +365,17 @@ export class IterativeRefiner {
    * @returns {Promise<string>}
    */
   async #generateImprovement(previousCode, critique, task, llmCaller, passNumber) {
+    const languageProfile = getLanguageProfile(task);
+    const languageHint = languageProfile.label;
+    const languageStyleRules = Array.isArray(languageProfile.styleRules) ? languageProfile.styleRules : [];
     const systemPrompt = [
-      'You are an expert software engineer performinging code refinement.',
+      'You are an expert software engineer performing code refinement.',
       'You will receive existing code and a list of issues to fix.',
       'Fix ONLY the identified issues. Preserve all working code.',
+      `Use ${languageHint} conventions while fixing the existing code.`,
+      languageProfile.moduleRule,
+      languageProfile.importGuideline,
+      languageStyleRules.length > 0 ? `Language style expectations:\\n${languageStyleRules.map((rule) => `- ${rule}`).join('\\n')}` : '',
       'Do NOT remove working functionality.',
       'Do NOT add TODO/FIXME/HACK comments.',
       'Output ONLY the improved code — no explanations, no markdown fences.',

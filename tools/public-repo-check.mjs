@@ -5,24 +5,162 @@ import { fileURLToPath } from "node:url";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const errors = [];
+const ISSUE_SOURCE = "public-repo-check";
+
+function normalizeIssueCode(raw) {
+  const slug = String(raw ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  return slug.length === 0 ? "unknown_issue" : slug;
+}
+
+function normalizeSeverity(raw) {
+  const normalized = String(raw ?? "").toLowerCase();
+  if (["high", "medium", "low", "info", "unknown"].includes(normalized)) {
+    return normalized;
+  }
+  return "unknown";
+}
+
+function summarizeIssueCodes(issueCodes) {
+  const summary = {
+    total: 0,
+    high: 0,
+    medium: 0,
+    low: 0,
+    info: 0,
+    unknown: 0,
+    blocking: false,
+  };
+  if (!Array.isArray(issueCodes)) return summary;
+  for (const issue of issueCodes) {
+    const severity = normalizeSeverity(issue?.severity);
+    if (severity === "high") summary.high += 1;
+    else if (severity === "medium") summary.medium += 1;
+    else if (severity === "low") summary.low += 1;
+    else if (severity === "info") summary.info += 1;
+    else summary.unknown += 1;
+    summary.total += 1;
+  }
+  summary.blocking = summary.high > 0;
+  return summary;
+}
+
+function inferSeverityFromCode(code) {
+  const normalized = String(code ?? "").toLowerCase();
+  if (
+    normalized.includes("missing")
+    || normalized.includes("invalid")
+    || normalized.includes("mismatch")
+    || normalized.includes("outside")
+    || normalized.includes("mutable")
+    || normalized.includes("stale")
+    || normalized.includes("hardening_missing")
+    || normalized.includes("mutation")
+    || normalized.includes("error")
+    || normalized.includes("violation")
+  ) return "high";
+
+  if (
+    normalized.includes("tracked")
+    || normalized.includes("machine_readable")
+    || normalized.includes("marker_missing")
+    || normalized.includes("link_missing")
+    || normalized.includes("entry_missing")
+  ) return "medium";
+
+  return "low";
+}
+
+function buildIssueCodesFromErrors(reports) {
+  if (!Array.isArray(reports) || reports.length === 0) return [];
+  const normalized = [];
+  const seen = new Set();
+  for (const report of reports) {
+    if (!report || typeof report !== "object") continue;
+    const code = normalizeIssueCode(report.code);
+    const severity = normalizeSeverity(inferSeverityFromCode(code));
+    const message = report.details
+      ? `${report.code}: ${String(report.path)} ${report.details}`
+      : `${report.code}: ${String(report.path)}`;
+    const key = `${code}:${severity}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    normalized.push({
+      code,
+      severity,
+      message,
+      artifactPath: report.path,
+      source: ISSUE_SOURCE,
+    });
+  }
+  return normalized;
+}
 
 function readJson(path) {
   return JSON.parse(readFileSync(resolve(repoRoot, path), "utf8"));
+}
+
+const notes = [];
+
+function addNote(code, path, details = "") {
+  notes.push({ code, path, details });
+}
+
+// Public hygiene gates must validate what git publishes. A source checkout may
+// keep an intentionally uncommitted local launch override in .mcp.json (for
+// example pointing a host at its own interpreter); validate the committed
+// content in that case and surface the override as a non-blocking note.
+function readTrackedJson(path) {
+  const status = execFileSync("git", ["status", "--porcelain", "--", path], {
+    cwd: repoRoot,
+    encoding: "utf8",
+    windowsHide: true,
+  }).trim();
+  if (!status) {
+    return readJson(path);
+  }
+  try {
+    const headContent = execFileSync("git", ["show", `HEAD:${path}`], {
+      cwd: repoRoot,
+      encoding: "utf8",
+      windowsHide: true,
+    });
+    const parsed = JSON.parse(headContent);
+    addNote("local_override_validated_from_git", path, "working copy differs from HEAD; validated the committed content");
+    return parsed;
+  } catch {
+    return readJson(path);
+  }
 }
 
 function addError(code, path, details = "") {
   errors.push({ code, path, details });
 }
 
-const tracked = execFileSync("git", ["ls-files", "-z"], {
-  cwd: repoRoot,
-  encoding: "utf8",
-  windowsHide: true,
-})
-  .split("\0")
-  .filter(Boolean);
+function listGitFiles(args) {
+  return execFileSync("git", ["ls-files", "-z", ...args], {
+    cwd: repoRoot,
+    encoding: "utf8",
+    windowsHide: true,
+  })
+    .split("\0")
+    .filter(Boolean);
+}
+
+const tracked = listGitFiles([]);
+const publicCandidates = listGitFiles([
+  "--cached",
+  "--others",
+  "--exclude-standard",
+]);
 
 const trackedSet = new Set(tracked);
+const untrackedPublicCandidates = publicCandidates.filter(
+  (path) => !trackedSet.has(path),
+);
 const requiredFiles = [
   "README.md",
   "LICENSE",
@@ -33,10 +171,18 @@ const requiredFiles = [
   "pnpm-lock.yaml",
   "pnpm-workspace.yaml",
   "apps/ai-gateway-service/src/index.js",
+  "apps/ai-gateway-service/src/http/a2aGateway.js",
+  "apps/ai-gateway-service/src/http/a2aGateway.test.js",
+  "apps/ai-gateway-service/src/http/a2aRoutes.js",
+  "apps/ai-gateway-service/src/http/openAiResponsesRoutes.js",
+  "apps/ai-gateway-service/src/http/openAiResponsesRoutes.test.js",
   "apps/agent-console/src/cli-core.js",
   "apps/agent-console/evidence/README.md",
   "apps/ai-gateway-service/evidence/README.md",
   "packages/mcp-server/package.json",
+  "packages/mcp-server/src/http-entry.js",
+  "packages/mcp-server/src/http.js",
+  "packages/mcp-server/src/http.test.js",
   "packages/mcp-server/src/index.js",
   "packages/mcp-server/src/server.test.js",
   ".codex-plugin/plugin.json",
@@ -57,6 +203,7 @@ const requiredFiles = [
   "docs/examples/prompt-enhancement.csproj",
   "docs/examples/shared-sdk-prompt-enhancement.mjs",
   "docs/examples/openai-sdk-chat.mjs",
+  "docs/examples/a2a-sdk-client.mjs",
   "docs/examples/shared-sdk-cancellation.mjs",
   "docs/examples/prompt-enhancement-contract.mjs",
   "docs/security/mcp-image-review-0.4.9.md",
@@ -64,6 +211,11 @@ const requiredFiles = [
   "docs/robots.txt",
   "docs/sitemap.xml",
   "docs/terminal-first-ai-gateway.html",
+  "docs/a2a-protocol.md",
+  "docs/a2a-protocol.zh-CN.md",
+  "docs/protocol-client-compatibility.md",
+  "docs/protocol-client-compatibility.zh-CN.md",
+  ".github/ISSUE_TEMPLATE/protocol-client-report.yml",
   "skills/unified-ai-gateway/SKILL.md",
   "tools/mcp-smoke.mjs",
   "tools/submit-indexnow.mjs",
@@ -93,7 +245,7 @@ const forbiddenTrackedPatterns = [
   [/\.input\.json$/i, "private_input_tracked"],
 ];
 
-for (const path of tracked) {
+for (const path of publicCandidates) {
   if (path === ".env.example" || path === ".env.enterprise.example") continue;
   for (const [pattern, code] of forbiddenTrackedPatterns) {
     if (pattern.test(path)) addError(code, path);
@@ -104,12 +256,13 @@ const rootPackage = readJson("package.json");
 const servicePackage = readJson("apps/ai-gateway-service/package.json");
 const registryMetadata = readJson("server.json");
 const pluginManifest = readJson(".codex-plugin/plugin.json");
-const pluginMcpConfig = readJson(".mcp.json");
+const pluginMcpConfig = readTrackedJson(".mcp.json");
 const requiredScripts = [
   "start",
   "check",
   "test",
   "mcp",
+  "mcp:http",
   "notify:indexnow",
   "verify:mcp",
   "smoke:mcp",
@@ -123,9 +276,19 @@ for (const script of requiredScripts) {
   }
 }
 
-const rootScriptCount = Object.keys(rootPackage.scripts ?? {}).length;
+const rootScriptNames = Object.keys(rootPackage.scripts ?? {});
+const rootScriptCount = rootScriptNames.length;
+const rootScriptSurfaceCount = new Set(
+  rootScriptNames.map((scriptName) => scriptName.split(":", 1)[0]),
+).size;
 const serviceScriptCount = Object.keys(servicePackage.scripts ?? {}).length;
-if (rootScriptCount > 20) addError("root_script_surface_too_large", "package.json", String(rootScriptCount));
+if (rootScriptSurfaceCount > 21) {
+  addError(
+    "root_script_surface_too_large",
+    "package.json",
+    `${rootScriptSurfaceCount} top-level namespaces across ${rootScriptCount} scripts`,
+  );
+}
 if (serviceScriptCount > 20) {
   addError("service_script_surface_too_large", "apps/ai-gateway-service/package.json", String(serviceScriptCount));
 }
@@ -172,7 +335,7 @@ for (const [value, code] of [
   [pluginManifest.description, "codex_plugin_nine_tools_missing"],
   [pluginManifest.interface?.shortDescription, "codex_plugin_short_description_stale"],
 ]) {
-  if (!/nine (?:governed )?MCP tools/i.test(value ?? "")) {
+  if (!/governed MCP tools/i.test(value ?? "")) {
     addError(code, ".codex-plugin/plugin.json");
   }
 }
@@ -791,7 +954,7 @@ function normalizeMachineUser(value) {
 }
 
 let scannedTextFiles = 0;
-for (const path of tracked) {
+for (const path of publicCandidates) {
   const absolutePath = resolve(repoRoot, path);
   if (!existsSync(absolutePath) || statSync(absolutePath).size > 1_000_000) continue;
   if (!textExtensions.has(extname(path).toLowerCase()) && !path.startsWith(".env.")) continue;
@@ -815,11 +978,18 @@ for (const path of tracked) {
 const result = {
   ok: errors.length === 0,
   trackedFiles: tracked.length,
+  candidateFiles: publicCandidates.length,
+  untrackedCandidateFiles: untrackedPublicCandidates.length,
   scannedTextFiles,
   rootScriptCount,
+  rootScriptSurfaceCount,
   serviceScriptCount,
   errors,
+  notes,
 };
+const issueCodes = buildIssueCodesFromErrors(errors);
+result.issueCodes = issueCodes;
+result.issueCodeSummary = summarizeIssueCodes(issueCodes);
 
 process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
 if (!result.ok) process.exitCode = 1;

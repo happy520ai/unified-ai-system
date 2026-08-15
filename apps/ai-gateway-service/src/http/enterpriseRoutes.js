@@ -1,3 +1,6 @@
+// ARCHIVED (2026-08-15): this module has zero importers — the live enterprise
+// routes are inlined in httpServerRoutes01.js. Kept as reference; see
+// docs/subtraction-ledger.md.
 // =============================================================================
 // enterpriseRoutes.js — 企业治理路由模块
 // 从 httpServer.js 抽取的 /enterprise/* 路由
@@ -93,8 +96,8 @@ export function createEnterpriseRoutes(application, helpers) {
   // ── 导出 ──
   const handlers = new Map([
     ["GET /enterprise/health", { handler: handleEnterpriseHealth, public: true }],
-    ["GET /enterprise/session", { handler: handleEnterpriseSession, public: false, permission: "dashboard:read" }],
-    ["GET /enterprise/roles", { handler: handleEnterpriseRoles, public: false, permission: "dashboard:read" }],
+    ["GET /enterprise/session", { handler: handleEnterpriseSession, public: false, permission: "session:read" }],
+    ["GET /enterprise/roles", { handler: handleEnterpriseRoles, public: false, permission: "audit:read" }],
     ["GET /enterprise/users", { handler: handleEnterpriseUsers, public: false, permission: "user:admin" }],
     ["POST /enterprise/users", { handler: handleEnterpriseUserUpsert, public: false, permission: "user:admin" }],
     ["POST /enterprise/users/revoke", { handler: handleEnterpriseUserRevoke, public: false, permission: "user:admin" }],

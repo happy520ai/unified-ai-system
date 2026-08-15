@@ -169,7 +169,7 @@ export function createRequestLogger(options = {}) {
       totalRequests,
       avgLatencyMs: Math.round(totalLatency / totalRequests),
       totalTokens,
-      totalCostUsd: Math.round(totalCost * 10000) / 10000,
+      totalCostUsd: Math.round(totalCost * 1000000) / 1000000,
       errorRate: errorCount / totalRequests,
       cacheHitRate: cacheHits / totalRequests,
       fallbackRate: fallbacks / totalRequests,

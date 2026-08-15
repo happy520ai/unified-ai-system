@@ -5,6 +5,7 @@
 import { randomUUID } from "node:crypto";
 import { createErrorEnvelope, createOkEnvelope } from "@unified-ai-system/shared-utils";
 import { createMultimodalProviderAdapter } from "../providers/multimodalProviderAdapter.js";
+import { ROUTE_NOT_HANDLED } from "./httpRouteDispatch.js";
 
 const MULTIMODAL_ROUTES = new Set([
   "/v1/images/generations",
@@ -32,6 +33,11 @@ const RATE_LIMITS = {
 
 const rateLimiters = new Map();
 
+function normalizeMultimodalPath(pathname) {
+  const path = typeof pathname === "string" ? pathname : "";
+  return path.length > 1 ? path.replace(/\/+$/, "") : path;
+}
+
 function checkRateLimit(key, maxPerMinute) {
   const now = Date.now();
   const window = rateLimiters.get(key) || [];
@@ -53,7 +59,15 @@ function getRateLimitKey(pathname) {
 }
 
 export function isMultimodalRoute(pathname) {
-  return MULTIMODAL_ROUTES.has(pathname);
+  return MULTIMODAL_ROUTES.has(normalizeMultimodalPath(pathname));
+}
+
+export async function dispatchMultimodalRoutes(context) {
+  if (!isMultimodalRoute(context?.url?.pathname)) {
+    return ROUTE_NOT_HANDLED;
+  }
+
+  return handleMultimodalRoute(context);
 }
 
 export function getMultimodalRouteList() {
@@ -77,7 +91,7 @@ export function getMultimodalRouteList() {
  * @param {object} [params.multimodalAdapter] - Optional pre-built adapter instance for reuse
  */
 export async function handleMultimodalRoute({ request, response, url, startedAt, application, writeServiceLog, multimodalAdapter }) {
-  const pathname = url.pathname;
+  const pathname = normalizeMultimodalPath(url?.pathname);
   const requestId = randomUUID();
 
   if (request.method !== "POST") {
@@ -89,11 +103,15 @@ export async function handleMultimodalRoute({ request, response, url, startedAt,
     return true;
   }
 
-  // Rate limiting
+  // Rate limiting — keyed per subject (tenant/user, falling back to client
+  // address) so one caller cannot exhaust the quota of every other tenant.
   const rateLimitKey = getRateLimitKey(pathname);
   if (rateLimitKey) {
+    const subject = request.enterpriseIdentity
+      ? `${request.enterpriseIdentity.tenantId ?? "tenant"}:${request.enterpriseIdentity.userId ?? "user"}`
+      : `addr:${request.socket?.remoteAddress ?? "unknown"}`;
     const maxPerMinute = RATE_LIMITS[rateLimitKey];
-    const rateCheck = checkRateLimit(rateLimitKey, maxPerMinute);
+    const rateCheck = checkRateLimit(`${rateLimitKey}:${subject}`, maxPerMinute);
     if (!rateCheck.allowed) {
       const retryAfterSeconds = Math.ceil(rateCheck.retryAfterMs / 1000);
       response.writeHead(429, {

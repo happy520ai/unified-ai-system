@@ -91,10 +91,10 @@ export function createModelRoutes(application, helpers) {
 
   // ── 导出 ──
   const handlers = new Map([
-    ["GET /models/capability-router/status", { handler: handleCapabilityRouterStatus, public: true, description: "能力路由状态" }],
-    ["POST /models/import/preview", { handler: handleModelImportPreview, public: true, description: "模型导入预览" }],
-    ["POST /models/import/confirm", { handler: handleModelImportConfirm, public: true, description: "模型导入确认" }],
-    ["GET /models/library", { handler: handleModelLibrary, public: true, description: "模型库列表" }],
+    ["GET /models/capability-router/status", { handler: handleCapabilityRouterStatus, public: false, permission: "provider:read", description: "能力路由状态" }],
+    ["POST /models/import/preview", { handler: handleModelImportPreview, public: false, permission: "provider:write", description: "模型导入预览" }],
+    ["POST /models/import/confirm", { handler: handleModelImportConfirm, public: false, permission: "provider:write", description: "模型导入确认" }],
+    ["GET /models/library", { handler: handleModelLibrary, public: false, permission: "provider:read", description: "模型库列表" }],
   ]);
 
   return { handlers };

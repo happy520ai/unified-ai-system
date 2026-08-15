@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "sources": [
+    {
+      "id": "official-mcp-registry",
+      "type": "mcp-registry",
+      "enabled": true,
+      "registryUrl": "https://registry.modelcontextprotocol.io/v0.1/servers",
+      "version": "latest",
+      "limit": 100,
+      "max": 10000,
+      "output": ".tmp/client-runtime-catalog.mcp-registry.global.json"
+    },
+    {
+      "id": "local-client-runtime-catalogs",
+      "type": "catalog-dir",
+      "enabled": true,
+      "path": "docs/client-runtime-catalog.d"
+    }
+  ]
+}

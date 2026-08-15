@@ -1,8 +1,16 @@
 /**
- * Pure helpers for IterativeRefiner — constants, typedefs, and stateless utilities.
+ * Pure helpers for IterativeRefiner -constants, typedefs, and stateless utilities.
  *
  * @module iterative-refiner/helpers
  */
+
+import {
+  LANGUAGE_PROFILES,
+  normalizeLanguageCandidate,
+  resolveLanguageProfile,
+} from '../goal-refiner/helpers.js';
+
+export { normalizeLanguageCandidate, resolveLanguageProfile };
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -68,7 +76,7 @@ export function extractCode(response) {
 
 /**
  * Basic syntax check using bracket and quote balancing.
- * This is a lightweight heuristic — not a full parser.
+ * This is a lightweight heuristic -not a full parser.
  *
  * @param {string} code
  * @returns {{ valid: boolean, errors: string[] }}
@@ -205,7 +213,7 @@ export function normalizeCategory(raw) {
 /**
  * Parse the LLM critique response into a structured result.
  *
- * @param {string} response — raw LLM response text
+ * @param {string} response -raw LLM response text
  * @returns {CritiqueResult}
  */
 export function parseCritiqueResponse(response) {
@@ -238,11 +246,87 @@ export function parseCritiqueResponse(response) {
   }
 }
 
+function getLanguageQualityPatterns(task = {}) {
+  const language = normalizeLanguageCandidate(task.language) || 'js';
+  const cStyleComments = /\/\/\s+\w{3,}|\/\*[\s\S]*?\*\//;
+  const declarations = /\b(?:function|class|interface|struct|enum|trait|record|def|func|fn)\s+\w+/m;
+
+  switch (language) {
+    case 'python':
+      return {
+        imports: /^(?:from\s+[\w.]+\s+import\s+|import\s+[\w.]+)/m,
+        publicSurface: /^(?:async\s+def|def|class)\s+\w+/m,
+        errorHandling: /\btry\s*:|\bexcept(?:\s+[^:]+)?\s*:/m,
+        debugOutput: /(^|\s)print\s*\(/m,
+        declarations: /^(?:async\s+def|def|class)\s+\w+/m,
+        comments: /#\s+\w{3,}|(?:'''|""")[\s\S]*?(?:'''|""")/m,
+      };
+    case 'go':
+      return {
+        imports: /\bimport\s*(?:\(|")/,
+        publicSurface: /^(?:func|type|var|const)\s+[A-Z]\w*/m,
+        errorHandling: /\bif\s+err\s*!=\s*nil\b|\breturn\s+[^\n]*\berr\b/m,
+        debugOutput: /\bfmt\.Print(?:f|ln)?\s*\(/,
+        declarations: /^(?:func|type)\s+\w+/m,
+        comments: cStyleComments,
+      };
+    case 'rust':
+      return {
+        imports: /^(?:use|extern\s+crate)\s+/m,
+        publicSurface: /\bpub(?:\([^)]*\))?\s+(?:fn|struct|enum|trait|mod|type|const)\b/,
+        errorHandling: /\bResult\s*</,
+        debugOutput: /\b(?:print|println|dbg)!\s*\(/,
+        declarations: /\b(?:fn|struct|enum|trait|impl)\s+\w+/,
+        comments: cStyleComments,
+      };
+    case 'java':
+    case 'kotlin':
+    case 'csharp':
+      return {
+        imports: /^(?:import|using)\s+/m,
+        publicSurface: /\bpublic\s+(?:class|interface|record|enum|static|final|suspend|fun|void|[A-Z]\w*)\b/,
+        errorHandling: /\btry\s*\{|\bcatch\s*\(|\bthrows\s+\w+/,
+        debugOutput: /\b(?:System\.out\.print(?:ln)?|Console\.WriteLine)\s*\(/,
+        declarations,
+        comments: cStyleComments,
+      };
+    case 'c':
+    case 'cpp':
+      return {
+        imports: /^\s*#\s*include\s*[<"]/m,
+        publicSurface: /\b(?:class|struct|enum|typedef|[A-Za-z_]\w*\s+[A-Za-z_]\w*\s*\()/,
+        errorHandling: /\b(?:errno|perror|catch|expected|optional)\b|\bif\s*\([^)]*(?:==\s*NULL|<\s*0)/,
+        debugOutput: /\b(?:printf|std::cout|std::cerr)\s*(?:\(|<<)/,
+        declarations,
+        comments: cStyleComments,
+      };
+    case 'js':
+    case 'ts':
+      return {
+        imports: /\b(?:import\s|require\s*\()/,
+        publicSurface: /\b(?:export\s|module\.exports\b)/,
+        errorHandling: /\btry\s*\{|\.catch\s*\(|\bon\w*Error\b/,
+        debugOutput: /\bconsole\.log\s*\(/,
+        declarations: /(?:function\s+\w|const\s+\w+\s*=\s*(?:async\s+)?(?:\([^)]*\)|[^=])\s*=>|class\s+\w)/,
+        comments: /\/\*\*[\s\S]*?\*\/|\/\/\s+\w{3,}/,
+      };
+    default:
+      return {
+        imports: /\b(?:import|require|include|using|use|from)\b/,
+        publicSurface: declarations,
+        errorHandling: /\b(?:try|catch|except|rescue|Result|error|throw)\b/,
+        debugOutput: /\b(?:print|printf|puts|Write-Host)\s*(?:\(|\s)/,
+        declarations,
+        comments: /#\s+\w{3,}|\/\/\s+\w{3,}|\/\*[\s\S]*?\*\//,
+      };
+  }
+}
+
 /**
  * Score code quality using heuristic checks (no LLM required).
  *
- * @param {string} code — generated source code
- * @param {object} task — the original task descriptor
+ * @param {string} code -generated source code
+ * @param {object} task -the original task descriptor
  * @returns {{ score: number, checks: QualityCheck[] }}
  */
 export function scoreCodeQuality(code, task = {}) {
@@ -255,18 +339,19 @@ export function scoreCodeQuality(code, task = {}) {
 
   const lines = code.split('\n');
   const trimmedCode = code.trim();
+  const qualityPatterns = getLanguageQualityPatterns(task);
 
   // 1. Has imports (if the task or code expects them): +10
   {
-    const hasImports = /\b(?:import\s|require\s*\()/.test(trimmedCode);
+    const hasImports = qualityPatterns.imports.test(trimmedCode);
     const expectsImports = !!(task.expectedFiles?.length) || /(?:import|require|from)\b/.test(trimmedCode);
     const passed = hasImports || !expectsImports;
     checks.push({ name: 'has_imports', passed, points: passed ? 10 : 0, max: 10 });
   }
 
-  // 2. Has exports: +10
+  // 2. Has a public or reusable surface: +10
   {
-    const hasExports = /\b(?:export\s|module\.exports\b)/.test(trimmedCode);
+    const hasExports = qualityPatterns.publicSurface.test(trimmedCode);
     checks.push({ name: 'has_exports', passed: hasExports, points: hasExports ? 10 : 0, max: 10 });
   }
 
@@ -295,19 +380,15 @@ export function scoreCodeQuality(code, task = {}) {
     checks.push({ name: 'consistent_indentation', passed: consistent, points: consistent ? 5 : 0, max: 5 });
   }
 
-  // 5. Has error handling (try/catch or .catch): +10
+  // 5. Has language-appropriate error handling: +10
   {
-    const hasTryCatch = /\btry\s*\{/.test(trimmedCode);
-    const hasCatchMethod = /\.catch\s*\(/.test(trimmedCode);
-    const hasOnError = /\bon\w*Error\b/.test(trimmedCode);
-    const passed = hasTryCatch || hasCatchMethod || hasOnError;
+    const passed = qualityPatterns.errorHandling.test(trimmedCode);
     checks.push({ name: 'has_error_handling', passed, points: passed ? 10 : 0, max: 10 });
   }
 
-  // 6. No console.log in production code: +5
+  // 6. No language-specific debug output in production code: +5
   {
-    // console.error / console.warn are acceptable
-    const hasConsoleLog = /\bconsole\.log\s*\(/.test(trimmedCode);
+    const hasConsoleLog = qualityPatterns.debugOutput.test(trimmedCode);
     const isTestFile = /\.(test|spec)\./i.test(task.expectedFiles?.[0] || '');
     const passed = !hasConsoleLog || isTestFile;
     checks.push({ name: 'no_console_log', passed, points: passed ? 5 : 0, max: 5 });
@@ -315,7 +396,7 @@ export function scoreCodeQuality(code, task = {}) {
 
   // 7. Function/class declarations present: +10
   {
-    const hasFunction = /(?:function\s+\w|const\s+\w+\s*=\s*(?:async\s+)?(?:\([^)]*\)|[^=])\s*=>|class\s+\w)/.test(trimmedCode);
+    const hasFunction = qualityPatterns.declarations.test(trimmedCode);
     checks.push({ name: 'has_declarations', passed: hasFunction, points: hasFunction ? 10 : 0, max: 10 });
   }
 
@@ -332,11 +413,9 @@ export function scoreCodeQuality(code, task = {}) {
     checks.push({ name: 'reasonable_length', passed, points: passed ? 5 : 0, max: 5 });
   }
 
-  // 10. Has JSDoc or meaningful comments: +5
+  // 10. Has language-appropriate documentation or meaningful comments: +5
   {
-    const hasJSDoc = /\/\*\*[\s\S]*?\*\//.test(trimmedCode);
-    const hasLineComments = /\/\/\s+\w{3,}/.test(trimmedCode); // at least 3-char comment
-    const passed = hasJSDoc || hasLineComments;
+    const passed = qualityPatterns.comments.test(trimmedCode);
     checks.push({ name: 'has_comments', passed, points: passed ? 5 : 0, max: 5 });
   }
 
@@ -354,7 +433,7 @@ export function scoreCodeQuality(code, task = {}) {
       );
       passed = matched;
     } else {
-      // No expected files — neutral pass
+      // No expected files -neutral pass
       passed = true;
     }
     checks.push({ name: 'matches_expected_files', passed, points: passed ? 10 : 0, max: 10 });
@@ -373,6 +452,8 @@ export function scoreCodeQuality(code, task = {}) {
  */
 export function buildGenerationPrompt(task, passNumber) {
   const sections = [];
+  const languageProfile = resolveLanguageProfile(task);
+  const styleRules = Array.isArray(languageProfile.styleRules) ? languageProfile.styleRules : LANGUAGE_PROFILES.other.styleRules;
 
   sections.push(`## Task\n${task.prompt || 'Generate code based on the context provided.'}`);
 
@@ -391,17 +472,14 @@ export function buildGenerationPrompt(task, passNumber) {
   if (passNumber === 1) {
     sections.push(
       '## Coding Standards\n' +
-      '- Use ESM imports (import/export) unless the context shows CommonJS.\n' +
-      '- Add JSDoc comments for all public functions and classes.\n' +
-      '- Include proper error handling with try/catch.\n' +
-      '- Use descriptive variable and function names.\n' +
-      '- Keep functions focused — single responsibility.\n' +
-      '- No console.log in production code.\n' +
+      `- ${languageProfile.moduleRule}\n` +
+      `- ${languageProfile.importGuideline}\n` +
+      `${styleRules.map((item) => `- ${item}`).join('\n')}\n` +
       '- No TODO/FIXME/HACK markers.\n',
     );
   }
 
-  sections.push('## Output\nGenerate the complete code. Output ONLY the code — no explanations, no markdown fences.');
+  sections.push('## Output\nGenerate the complete code. Output ONLY the code. No explanations, no markdown fences.');
 
   return sections.join('\n\n');
 }
@@ -417,6 +495,7 @@ export function buildGenerationPrompt(task, passNumber) {
  */
 export function buildImprovementPrompt(previousCode, critique, task, passNumber) {
   const sections = [];
+  const languageProfile = resolveLanguageProfile(task);
 
   sections.push(`## Original Task\n${task.prompt || 'Improve the code.'}`);
 
@@ -437,22 +516,22 @@ export function buildImprovementPrompt(previousCode, critique, task, passNumber)
 
     sections.push(`## Issues to Fix\n${issueList}`);
   } else {
-    sections.push('## Improvement Goals\nGeneral quality improvement — polish, documentation, edge cases.');
+    sections.push('## Improvement Goals\nGeneral quality improvement - polish, documentation, edge cases.');
   }
 
   // Pass-specific strategy
   if (passNumber === 2) {
     sections.push(
       '## Strategy: Bug Fix Pass\n' +
-      'Focus on fixing bugs, missing imports, type issues, and missing error handling.\n' +
+      `Focus on fixing bugs, missing ${languageProfile.label.toLowerCase()} imports, type/validation issues, and missing error handling.\n` +
       'Do NOT refactor working code. Make targeted fixes only.',
     );
   } else if (passNumber >= 3) {
     sections.push(
       '## Strategy: Polish Pass\n' +
-      'Focus on code style, documentation, edge-case handling, and minor improvements.\n' +
-      'Ensure all public APIs have JSDoc comments.\n' +
-      'Remove any remaining console.log statements.',
+      `Focus on ${languageProfile.label} code style, documentation, edge-case handling, and minor improvements.\n` +
+      `Respect module imports: ${languageProfile.moduleRule}\n` +
+      'Remove any remaining debug placeholders.',
     );
   }
 

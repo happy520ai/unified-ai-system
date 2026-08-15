@@ -19,10 +19,10 @@ export function normalizeOmxHandoffPreview(source, plan = {}) {
     mode: "omx-compatible-preview",
     status: base.status || "handoff-preview-ready",
     workforceId: base.workforceId || plan.workforceId || null,
-    previewOnly: false,
-    executionEnabled: true,
+    previewOnly: true,
+    executionEnabled: false,
     realAgentExecution: false,
-    workflowRunEnabled: true,
+    workflowRunEnabled: false,
     projectFileWrites: false,
     createsWorktrees: false,
     installsOhMyCodex: false,
@@ -68,7 +68,7 @@ export function normalizeRoleTiers(source, plan = {}) {
       tierId: String(tier.tierId || "").trim(),
       name: String(tier.name || "").trim(),
       purpose: String(tier.purpose || "").trim(),
-      previewOnly: false,
+      previewOnly: true,
       workerExecution: false,
       roles: Array.isArray(tier.roles)
         ? tier.roles.map((role) => ({
@@ -96,7 +96,7 @@ function createRoleTier(tierId, name, purpose, roleNames, assignmentByRole) {
     tierId,
     name,
     purpose,
-    previewOnly: false,
+    previewOnly: true,
     workerExecution: false,
     roles: roleNames.map((roleName) => {
       const assignment = assignmentByRole.get(roleName);
@@ -116,7 +116,7 @@ export function normalizeEventLedgerPreview(source) {
     timestamp: item.timestamp || new Date().toISOString(),
     payloadSummary: String(item.payloadSummary || "").trim(),
     enabled: false,
-    execution: "enabled",
+    execution: "disabled",
     reason: "preview-only event ledger; no hook execution",
   })).filter((item) => item.eventName);
 }
@@ -129,7 +129,7 @@ export function appendEventLedgerEvent(source, eventName, timestamp, payloadSumm
       timestamp,
       payloadSummary,
       enabled: false,
-      execution: "enabled",
+      execution: "disabled",
       reason: "preview-only event ledger; no hook execution",
     },
   ];
@@ -165,7 +165,7 @@ export function createPackageHudPreview(plan) {
     },
     omxHandoff: {
       status: "preview-only",
-      executionEnabled: true,
+      executionEnabled: false,
     },
     execution: {
       status: "disabled",

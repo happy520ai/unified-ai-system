@@ -107,8 +107,8 @@ export function applyApprovalGateDecision(taskPackage, input, updatedAt) {
     reviewer,
     note,
     decidedAt: updatedAt,
-    previewOnly: false,
-    executionEnabled: true,
+    previewOnly: true,
+    executionEnabled: false,
     workflowRun: false,
     projectFileWrites: false,
   };
@@ -125,8 +125,8 @@ export function applyApprovalGateDecision(taskPackage, input, updatedAt) {
     note,
     decidedAt: updatedAt,
     persisted: true,
-    executionEnabled: true,
-    workflowRunEnabled: true,
+    executionEnabled: false,
+    workflowRunEnabled: false,
     projectFileWrites: false,
     decisionHistory: [...history, decisionEvent],
   });

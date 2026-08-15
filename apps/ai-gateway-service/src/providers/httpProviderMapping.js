@@ -4,11 +4,16 @@
 
 import { createProviderResponse } from "./providerMapping.js";
 import { getOrCreateAgent, fetchWithAgent } from "../http/connectionPool.js";
+import { resolveSafeOutboundUrl } from "../security/outboundUrlPolicy.ts";
+import {
+  createLinkedAbortController,
+  findExecutionAbortError,
+  throwIfExecutionAborted,
+} from "@unified-ai-system/shared-utils";
 import {
   createProviderError,
   createErrorDetails,
   createErrorPrefix,
-  isPrivateOrReservedUrl,
   isNetworkError,
   readJsonResponse,
   createHttpProviderError,
@@ -145,11 +150,12 @@ export function mapGatewayRequestToChatCompletions(providerRequest) {
       )
       .map((message) => {
         const mapped = { role: message.role, content: message.content || "" };
-        if (message.role === "assistant" && Array.isArray(message.tool_calls)) {
-          mapped.tool_calls = message.tool_calls;
+        const toolCalls = message.toolCalls ?? message.tool_calls;
+        if (message.role === "assistant" && Array.isArray(toolCalls)) {
+          mapped.tool_calls = toolCalls;
         }
         if (message.role === "tool") {
-          mapped.tool_call_id = message.tool_call_id || "";
+          mapped.tool_call_id = message.toolCallId ?? message.tool_call_id ?? "";
           if (message.name) mapped.name = message.name;
         }
         return mapped;
@@ -166,6 +172,13 @@ export function mapGatewayRequestToChatCompletions(providerRequest) {
   }
   if (request.toolChoice) {
     body.tool_choice = request.toolChoice;
+  }
+  if (typeof request.parallelToolCalls === "boolean") {
+    body.parallel_tool_calls = request.parallelToolCalls;
+  }
+  const responseFormat = request.metadata?.openAiCompatibility?.responseFormat;
+  if (responseFormat) {
+    body.response_format = responseFormat;
   }
 
   if (target.providerId === "mimo") {
@@ -252,9 +265,12 @@ function parseStreamLine(line) {
 
   try {
     const parsed = JSON.parse(data);
-    const textDelta = parsed?.choices?.[0]?.delta?.content ?? "";
+    const choice = parsed?.choices?.[0];
+    const textDelta = choice?.delta?.content ?? "";
+    const toolCallsDelta = choice?.delta?.tool_calls;
+    const finishReason = choice?.finish_reason;
 
-    if (!textDelta) {
+    if (!textDelta && !Array.isArray(toolCallsDelta) && !finishReason) {
       return null;
     }
 
@@ -263,7 +279,8 @@ function parseStreamLine(line) {
       raw: {
         id: parsed?.id,
         model: parsed?.model,
-        finishReason: parsed?.choices?.[0]?.finish_reason,
+        finishReason,
+        ...(Array.isArray(toolCallsDelta) ? { toolCallsDelta } : {}),
       },
     };
   } catch {
@@ -271,7 +288,7 @@ function parseStreamLine(line) {
   }
 }
 
-export async function* readChatCompletionsStream(response, providerRequest) {
+export async function* readChatCompletionsStream(response, providerRequest, signal) {
   if (!response.body) {
     throw createProviderError({
       code: `${createErrorPrefix(providerRequest.target.providerId)}_STREAM_BODY_MISSING`,
@@ -286,7 +303,9 @@ export async function* readChatCompletionsStream(response, providerRequest) {
   let buffer = "";
   const MAX_SSE_BUFFER = 1024 * 1024; // 1MB cap
 
+  throwIfExecutionAborted(signal);
   for await (const chunk of response.body) {
+    throwIfExecutionAborted(signal);
     buffer += decoder.decode(chunk, { stream: true });
 
     if (buffer.length > MAX_SSE_BUFFER) {
@@ -341,15 +360,29 @@ export async function* readChatCompletionsStream(response, providerRequest) {
  */
 export async function openStreamWithRetry({
   baseUrl, apiKey, payload, providerRequest, errorPrefix, providerName,
-  timeoutMs, maxRetries, retryDelay,
+  timeoutMs, maxRetries, retryDelay, resolveOutboundUrl = resolveSafeOutboundUrl, signal,
 }) {
   let response;
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    throwIfExecutionAborted(signal);
+    const timeoutError = createProviderError({
+      code: `${errorPrefix}_REQUEST_TIMEOUT`,
+      type: "timeout",
+      message: `${providerName} stream request timed out after ${timeoutMs}ms.`,
+      retryable: true,
+      details: createErrorDetails(providerRequest, { timeoutMs }),
+    });
+    const requestControl = createLinkedAbortController({
+      signal,
+      timeoutMs,
+      timeoutReason: timeoutError,
+    });
 
     try {
-      if (isPrivateOrReservedUrl(`${baseUrl}/chat/completions`)) {
+      let destination;
+      try {
+        destination = await resolveOutboundUrl(`${baseUrl}/chat/completions`);
+      } catch {
         throw createProviderError({
           code: `${errorPrefix}_SSRF_BLOCKED`,
           type: "security",
@@ -360,7 +393,7 @@ export async function openStreamWithRetry({
       }
 
       const agent = getOrCreateAgent(baseUrl);
-      response = await fetchWithAgent(`${baseUrl}/chat/completions`, {
+      response = await fetchWithAgent(destination.url, {
         method: "POST",
         headers: {
           authorization: `Bearer ${apiKey}`,
@@ -368,7 +401,8 @@ export async function openStreamWithRetry({
         },
         body: JSON.stringify(payload),
         agent,
-        signal: controller.signal,
+        lookup: destination.lookup,
+        signal: requestControl.signal,
         timeout: timeoutMs,
       });
 
@@ -381,41 +415,46 @@ export async function openStreamWithRetry({
           providerName,
         });
         if (err?.retryable && attempt < maxRetries) {
-          clearTimeout(timeoutId);
-          await retryDelay(attempt, err);
+          requestControl.cleanup();
+          await retryDelay(attempt, err, signal);
           continue;
         }
-        clearTimeout(timeoutId);
+        requestControl.cleanup();
         throw err;
       }
 
-      clearTimeout(timeoutId);
-      break;
+      return {
+        response,
+        signal: requestControl.signal,
+        cleanup: requestControl.cleanup,
+      };
     } catch (error) {
-      clearTimeout(timeoutId);
+      const cancellation = findExecutionAbortError(error, signal);
+      if (cancellation) {
+        requestControl.cleanup();
+        throw cancellation;
+      }
+      const effectiveError = requestControl.signal.aborted && requestControl.signal.reason instanceof Error
+        ? requestControl.signal.reason
+        : error;
+      requestControl.cleanup();
 
-      if (error?.category === "provider" && error?.retryable && attempt < maxRetries) {
-        await retryDelay(attempt, error);
+      if (effectiveError?.category === "provider" && effectiveError?.retryable && attempt < maxRetries) {
+        await retryDelay(attempt, effectiveError, signal);
         continue;
       }
-      if (error?.category === "provider") {
-        throw error;
+      if (effectiveError?.category === "provider") {
+        throw effectiveError;
       }
-      if (error?.name === "AbortError") {
-        const timeoutErr = createProviderError({
-          code: `${errorPrefix}_REQUEST_TIMEOUT`,
-          type: "timeout",
-          message: `${providerName} stream request timed out after ${timeoutMs}ms.`,
-          retryable: true,
-          details: createErrorDetails(providerRequest, { timeoutMs }),
-        });
+      if (effectiveError?.name === "AbortError") {
+        const timeoutErr = timeoutError;
         if (attempt < maxRetries) {
-          await retryDelay(attempt, timeoutErr);
+          await retryDelay(attempt, timeoutErr, signal);
           continue;
         }
         throw timeoutErr;
       }
-      if (isNetworkError(error)) {
+      if (isNetworkError(effectiveError)) {
         const netErr = createProviderError({
           code: `${errorPrefix}_NETWORK_ERROR`,
           type: "network",
@@ -424,7 +463,7 @@ export async function openStreamWithRetry({
           details: createErrorDetails(providerRequest),
         });
         if (attempt < maxRetries) {
-          await retryDelay(attempt, netErr);
+          await retryDelay(attempt, netErr, signal);
           continue;
         }
         throw netErr;
@@ -433,7 +472,7 @@ export async function openStreamWithRetry({
       throw createProviderError({
         code: `${errorPrefix}_UNKNOWN_ERROR`,
         type: "unknown",
-        message: error instanceof Error ? error.message : "HTTP LLM provider stream failed.",
+        message: effectiveError instanceof Error ? effectiveError.message : "HTTP LLM provider stream failed.",
         retryable: false,
         details: createErrorDetails(providerRequest),
       });

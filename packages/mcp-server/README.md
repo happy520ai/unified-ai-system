@@ -1,7 +1,7 @@
 # Unified AI System MCP Server
 
 Connect Codex and other MCP hosts to the credential-free Unified AI System
-preview over stdio.
+preview over stdio or MCP Streamable HTTP.
 
 The server starts an isolated local gateway automatically, pins it to the
 deterministic fake provider, exposes governed tools, and removes the gateway when
@@ -25,7 +25,7 @@ All inspection tools are read-only. The chat tool checks the gateway safety
 state before every request and fails closed unless `realProviderEnabled` is
 exactly `false` and the response proves `executionMode: "fake"`.
 
-The source build and pinned `0.4.9` image both expose all nine tools, including
+The source build and pinned `0.4.9` image both expose all twelve tools, including
 the provider-free `gateway_prompt_enhance` preview.
 
 ## Run From Source
@@ -40,6 +40,46 @@ node packages/mcp-server/src/index.js
 The project-level [`.codex/config.toml`](../../.codex/config.toml) registers
 that command automatically in trusted Codex projects. Restart Codex after
 cloning or changing MCP configuration, then use `/mcp` to inspect the server.
+
+## Streamable HTTP
+
+Start the source-build HTTP transport:
+
+```bash
+pnpm mcp:http
+```
+
+The MCP endpoint is `http://127.0.0.1:3210/mcp`. It listens on loopback by
+default, validates `Host` and `Origin`, starts the same fake-provider gateway,
+and exposes the same twelve tools as stdio. Point any MCP Streamable HTTP client
+at that URL.
+
+For a local token-protected endpoint, set `MCP_HTTP_AUTH_TOKEN` and send it as
+`Authorization: Bearer <token>`. Binding beyond loopback fails closed unless
+all of these variables are present:
+
+| Variable | Requirement |
+| --- | --- |
+| `MCP_HTTP_HOST` | Non-loopback bind address, such as `0.0.0.0`. |
+| `MCP_HTTP_AUTH_TOKEN` | At least 32 bytes; never place it in source control. |
+| `MCP_HTTP_ALLOWED_HOSTS` | Comma-separated request hostnames, without ports. |
+| `MCP_HTTP_ALLOWED_ORIGINS` | Comma-separated browser origin hostnames, without schemes or ports. |
+
+Example for a private deployment behind a TLS reverse proxy:
+
+```bash
+MCP_HTTP_HOST=0.0.0.0 \
+MCP_HTTP_AUTH_TOKEN=replace-with-a-random-secret-of-at-least-32-bytes \
+MCP_HTTP_ALLOWED_HOSTS=mcp.example.com \
+MCP_HTTP_ALLOWED_ORIGINS=console.example.com \
+pnpm mcp:http
+```
+
+The built-in Bearer token is a bounded self-hosting control, not an OAuth
+authorization server. Terminate TLS at a trusted reverse proxy and use a
+dedicated identity layer before exposing the endpoint to untrusted networks.
+The published `v0.4.9` container remains stdio-only; the HTTP command above is
+source-build functionality until a later release publishes it.
 
 ## Add To Codex With Docker
 
@@ -95,21 +135,27 @@ command.
 
 ## Connect To An Existing Safe Gateway
 
-Set `AI_GATEWAY_MCP_URL` to use an already running instance:
+Set `AI_GATEWAY_MCP_URL` and a dedicated gateway access token to use an already
+running instance:
 
 ```bash
-AI_GATEWAY_MCP_URL=http://127.0.0.1:3100 node packages/mcp-server/src/index.js
+AI_GATEWAY_MCP_URL=http://127.0.0.1:3100 \
+AI_GATEWAY_MCP_AUTH_TOKEN=<at-least-32-character-gateway-token> \
+node packages/mcp-server/src/index.js
 ```
 
-Startup is rejected if that gateway may call a real provider. Authentication
-and real-provider execution are intentionally outside this preview surface.
+The managed gateway uses a private, ten-minute, least-privilege token that is
+never emitted in MCP results. External gateway startup rejects missing or weak
+tokens, URL credentials, non-loopback plaintext HTTP, invalid authentication,
+or any gateway that may call a real provider. Provider credentials and
+real-provider execution remain outside this preview surface.
 
 ## Verify
 
-The test launches the server through the official MCP v2 client, completes the
-stdio handshake, lists all source-build tools, calls every tool, proves local
-prompt enhancement and fake-provider chat, closes the client, and confirms
-that the managed gateway stopped:
+The tests launch both transports through the official MCP v2 client. They
+complete stdio and Streamable HTTP handshakes, list all source-build tools,
+prove local prompt enhancement and fake-provider safety, exercise HTTP access
+controls, close the clients, and confirm that each managed gateway stopped:
 
 ```bash
 pnpm verify:mcp

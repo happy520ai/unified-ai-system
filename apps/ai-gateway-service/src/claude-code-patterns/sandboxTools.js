@@ -5,6 +5,7 @@
  */
 
 import { buildTool, createInputSchema } from "./toolCore.js";
+import { safeOutboundFetch } from "../security/safeOutboundFetch.ts";
 
 /**
  * Validate URL to prevent SSRF attacks.
@@ -100,7 +101,10 @@ export const webFetchTool = buildTool({
     const timer = setTimeout(() => controller.abort(), timeout_ms);
     const MAX_BODY_BYTES = 100_000 + 4_096; // 100KB content + 4KB lookahead for truncation detection
     try {
-      const resp = await fetch(url, { signal: controller.signal });
+      const resp = await safeOutboundFetch(url, {
+        signal: controller.signal,
+        timeout: timeout_ms,
+      });
 
       // Early size check via Content-Length header when available
       const contentLength = parseInt(resp.headers.get("content-length") || "0", 10);
@@ -150,6 +154,7 @@ export const webFetchTool = buildTool({
         status: "error",
         url,
         error: err.message,
+        blocked: err?.code === "OUTBOUND_URL_BLOCKED",
       };
     } finally {
       clearTimeout(timer);

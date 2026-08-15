@@ -5,6 +5,8 @@
 /**
  * Create a provider-category error with structured metadata.
  */
+import { isObviouslyUnsafeHostname } from "../security/outboundUrlPolicy.ts";
+
 export function createProviderError({ code, type, message, retryable, details }) {
   const error = new Error(message);
   error.code = code;
@@ -52,19 +54,7 @@ export function normalizeBaseUrl(baseUrl) {
 export function isPrivateOrReservedUrl(urlString) {
   try {
     const u = new URL(urlString);
-    const host = u.hostname.replace(/^\[|\]$/g, "").toLowerCase();
-    if (!host) return true;
-    if (host === "localhost" || host === "::1" || host === "0.0.0.0" || host === "127.0.0.1") return true;
-    if (/^127\./.test(host)) return true;
-    if (/^10\./.test(host)) return true;
-    if (/^172\.(1[6-9]|2\d|3[01])\./.test(host)) return true;
-    if (/^192\.168\./.test(host)) return true;
-    if (/^169\.254\./.test(host)) return true;
-    if (/^0\./.test(host)) return true;
-    if (/^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(host)) return true;
-    if (host === "metadata.google.internal" || host === "metadata" || host === "instance-data") return true;
-    if (host.endsWith(".local") || host.endsWith(".internal")) return true;
-    return false;
+    return isObviouslyUnsafeHostname(u.hostname);
   } catch {
     return true; // block unparseable URLs
   }

@@ -134,12 +134,16 @@ export function createSessionStore(options = {}) {
       const filesWithStats = await Promise.all(
         sessionFiles.map(async (f) => {
           const fileStat = await stat(join(storeDir, f));
-          return { file: f, modifiedAt: fileStat.mtime.toISOString() };
+          return {
+            file: f,
+            modifiedAt: fileStat.mtime.toISOString(),
+            modifiedAtMs: fileStat.mtimeMs,
+          };
         })
       );
 
       const sorted = filesWithStats
-        .sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt))
+        .sort((a, b) => (b.modifiedAtMs - a.modifiedAtMs) || b.file.localeCompare(a.file))
         .slice(0, limit);
 
       const sessions = await Promise.all(

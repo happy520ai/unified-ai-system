@@ -9,14 +9,19 @@ import {
 import { dirname, join } from "node:path";
 import { homedir } from "node:os";
 import { createPinoLogger } from "../logging/pinoLogger.js";
+import { createSqliteCredentialBackend } from "./runtimeCredentialStore-sqlite.js";
 
 const STORE_VERSION = 1;
 const logger = createPinoLogger({ app: "runtimeCredentialStore" });
 
 export function createRuntimeCredentialStore({ env = process.env, storagePath } = {}) {
   const persistence = createPersistenceConfig({ env, storagePath });
+  // Optional SQLite backend for cross-process credential sharing.
+  const sqliteBackend = persistence.mode === "sqlite"
+    ? createSqliteCredentialBackend(persistence.path)
+    : null;
   const credentials = new Map();
-  for (const record of loadPersistedRecords(persistence)) {
+  for (const record of loadPersistedRecords(persistence, sqliteBackend)) {
     credentials.set(record.providerId, record);
   }
 
@@ -46,7 +51,7 @@ export function createRuntimeCredentialStore({ env = process.env, storagePath } 
         persisted: false,
       };
       credentials.set(normalizedProviderId, record);
-      persistCredentials(credentials, persistence);
+      persistRecord(record, credentials, persistence, sqliteBackend);
 
       return describeCredential(record);
     },
@@ -94,7 +99,11 @@ export function createRuntimeCredentialStore({ env = process.env, storagePath } 
 
       const deleted = credentials.delete(normalizedProviderId);
       if (deleted) {
-        persistCredentials(credentials, persistence);
+        if (sqliteBackend) {
+          try { sqliteBackend.remove(normalizedProviderId); } catch { /* ignore */ }
+        } else {
+          persistCredentials(credentials, persistence);
+        }
       }
       return deleted;
     },
@@ -134,6 +143,7 @@ function createPersistenceConfig({ env, storagePath }) {
   const enabled = mode !== "memory" && mode !== "disabled" && mode !== "off";
   return {
     enabled,
+    mode,
     path: storagePath || env.PME_RUNTIME_CREDENTIAL_STORE_PATH || createDefaultStorePath(env),
   };
 }
@@ -143,8 +153,19 @@ function createDefaultStorePath(env) {
   return join(root, "PME-Moving-Earth", "unified-ai-system", "runtime-credentials.json");
 }
 
-function loadPersistedRecords(persistence) {
-  if (!persistence.enabled || !persistence.path || !existsSync(persistence.path)) {
+function loadPersistedRecords(persistence, sqliteBackend) {
+  if (!persistence.enabled || !persistence.path) {
+    return [];
+  }
+
+  if (sqliteBackend) {
+    return sqliteBackend.loadRecords()
+      .map(normalizePersistedRecord)
+      .filter(Boolean)
+      .map((record) => ({ ...record, persisted: true }));
+  }
+
+  if (!existsSync(persistence.path)) {
     return [];
   }
 
@@ -160,7 +181,30 @@ function loadPersistedRecords(persistence) {
   }
 }
 
-function persistCredentials(credentials, persistence) {
+function persistRecord(record, credentials, persistence, sqliteBackend) {
+  if (sqliteBackend) {
+    if (!isPersistableRecord(record)) return;
+    try {
+      sqliteBackend.upsert({
+        providerId: record.providerId,
+        apiKey: record.apiKey,
+        endpoint: record.endpoint,
+        source: record.source,
+        setAt: record.setAt,
+        updatedAt: record.updatedAt,
+        models: normalizeStoredModels(record.models),
+      });
+      record.persisted = true;
+    } catch (error) {
+      logger.warn({ event: "runtime_credential_persist_failed", err: error }, "Runtime credential persistence failed.");
+      record.persisted = false;
+    }
+    return;
+  }
+  persistCredentials(credentials, persistence);
+}
+
+function persistCredentials(credentials, persistence, sqliteBackend) {
   if (!persistence.enabled || !persistence.path) {
     return false;
   }
@@ -176,6 +220,26 @@ function persistCredentials(credentials, persistence) {
       updatedAt: record.updatedAt,
       models: normalizeStoredModels(record.models),
     }));
+
+  if (sqliteBackend) {
+    try {
+      sqliteBackend.saveRecords(records);
+      const persistedProviders = new Set(records.map((record) => record.providerId));
+      for (const record of credentials.values()) {
+        record.persisted = persistedProviders.has(record.providerId);
+      }
+      return true;
+    } catch (error) {
+      logger.warn({
+        event: "runtime_credential_persist_failed",
+        err: error,
+      }, "Runtime credential persistence failed.");
+      for (const record of credentials.values()) {
+        record.persisted = false;
+      }
+      return false;
+    }
+  }
 
   let tmpPath = null;
   try {

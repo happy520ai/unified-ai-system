@@ -39,4 +39,49 @@ describe("provider-registry", () => {
     expect(descriptors.length).toBeGreaterThan(0);
     expect(descriptors[0].id).toBeDefined();
   });
+
+  it("filters every primary and fallback candidate by required capabilities", () => {
+    const capabilityRegistry = new ProviderRegistry();
+    capabilityRegistry.register(createFakeProvider({
+      providerId: "text-only",
+      modelId: "text-model",
+      providerType: "fake",
+      capabilities: ["chat"],
+      enabled: true,
+      priority: 1,
+    }));
+    capabilityRegistry.register(createFakeProvider({
+      providerId: "vision",
+      modelId: "vision-model",
+      providerType: "fake",
+      capabilities: ["chat", "vision"],
+      enabled: true,
+      priority: 2,
+    }));
+
+    const selection = capabilityRegistry.select({
+      taskType: "chat",
+      requiredCapabilities: ["vision"],
+    });
+    expect(selection.selected.target.providerId).toBe("vision");
+    expect(selection.candidates.every((candidate) => candidate.model.capabilities.includes("vision"))).toBe(true);
+  });
+
+  it("fails closed when no model satisfies a required capability", () => {
+    const capabilityRegistry = new ProviderRegistry();
+    const provider = createFakeProvider({
+      providerId: "text-only",
+      modelId: "text-model",
+      providerType: "fake",
+      capabilities: ["chat"],
+      enabled: true,
+    });
+    provider.descriptor.models[0].capabilities = ["chat"];
+    capabilityRegistry.register(provider);
+
+    expect(() => capabilityRegistry.select({
+      taskType: "chat",
+      requiredCapabilities: ["vision"],
+    })).toThrowError(expect.objectContaining({ code: "NO_CAPABLE_PROVIDER_ROUTE" }));
+  });
 });

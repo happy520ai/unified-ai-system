@@ -3,7 +3,12 @@ import { createServer } from "node:http";
 import { once } from "node:events";
 import test from "node:test";
 
-import { createGatewayClient, GatewayClientError } from "./index.js";
+import {
+  createGatewayClient,
+  GatewayClientAbortError,
+  GatewayClientError,
+  GatewayClientTimeoutError,
+} from "./index.js";
 
 async function startServer(handler) {
   const server = createServer(handler);
@@ -57,6 +62,34 @@ test("preserves status and JSON body for non-2xx responses", async () => {
         error.statusCode === 429 &&
         error.responseBody?.error === "rate limited" &&
         error.responseBody?.retryAfterMs === 250,
+    );
+  } finally {
+    await closeServer(server);
+  }
+});
+
+test("promotes a structured gateway deadline into the client error contract", async () => {
+  const { server, baseUrl } = await startServer((_request, response) => {
+    response.writeHead(504, { "content-type": "application/json" });
+    response.end(JSON.stringify({
+      status: "error",
+      error: {
+        code: "GATEWAY_DEADLINE_EXCEEDED",
+        category: "timeout",
+        retryable: false,
+      },
+    }));
+  });
+
+  try {
+    await assert.rejects(
+      createGatewayClient({ baseUrl }).health(),
+      (error) =>
+        error instanceof GatewayClientError &&
+        error.code === "GATEWAY_DEADLINE_EXCEEDED" &&
+        error.kind === "http" &&
+        error.statusCode === 504 &&
+        error.retryable === false,
     );
   } finally {
     await closeServer(server);
@@ -242,8 +275,13 @@ test("wraps timeout aborts while preserving the transport cause", async () => {
     await assert.rejects(
       createGatewayClient({ baseUrl, timeoutMs: 10 }).health(),
       (error) =>
+        error instanceof GatewayClientTimeoutError &&
         error instanceof GatewayClientError &&
         error.message === "Gateway request failed" &&
+        error.code === "GATEWAY_CLIENT_TIMEOUT" &&
+        error.kind === "timeout" &&
+        error.timeoutMs === 10 &&
+        error.retryable === false &&
         error.statusCode === undefined &&
         error.cause instanceof Error &&
         error.cause.name === "TimeoutError",
@@ -269,8 +307,12 @@ test("preserves caller cancellation for JSON requests", async () => {
     await assert.rejects(
       request,
       (error) =>
+        error instanceof GatewayClientAbortError &&
         error instanceof GatewayClientError &&
         error.message === "Gateway request failed" &&
+        error.code === "GATEWAY_CLIENT_ABORTED" &&
+        error.kind === "cancelled" &&
+        error.retryable === false &&
         error.cause?.name === "AbortError",
     );
   } finally {
@@ -301,8 +343,11 @@ test("preserves caller cancellation for chat streams", async () => {
         }
       })(),
       (error) =>
+        error instanceof GatewayClientAbortError &&
         error instanceof GatewayClientError &&
         error.message === "Gateway stream request failed" &&
+        error.code === "GATEWAY_CLIENT_ABORTED" &&
+        error.kind === "cancelled" &&
         error.cause?.name === "AbortError",
     );
   } finally {
