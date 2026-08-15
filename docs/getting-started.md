@@ -6,7 +6,7 @@ With Docker installed, prove the terminal path without cloning the repository
 or configuring credentials:
 
 ```bash
-docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.9 pnpm gateway demo "Build a small API for my team" --enhance --profile coding
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.5.0 pnpm gateway demo "Build a small API for my team" --enhance --profile coding
 ```
 
 The disposable container starts the gateway on an isolated port, verifies
@@ -132,7 +132,7 @@ terminal and API workflows are the supported public path.
 Add the anonymously pullable container as a local stdio MCP server:
 
 ```bash
-codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.9
+codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.5.0
 ```
 
 Restart Codex and use `/mcp` to inspect the connected tools. From a trusted
@@ -158,7 +158,7 @@ evidence, and removes the container even when a request fails:
 $ErrorActionPreference = "Stop"
 $container = "unified-ai-system-gateway-demo"
 $port = 3100
-$image = "ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.9"
+$image = "ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.5.0"
 $token = [Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
 
 docker rm -f $container 2>$null | Out-Null
@@ -225,7 +225,7 @@ export PME_AUTH_TOKEN="$(openssl rand -hex 32)"
 docker run --rm --publish 127.0.0.1:3100:3100 \
   --env PME_ENTERPRISE_AUTH_ENABLED=true \
   --env PME_AUTH_TOKEN="$PME_AUTH_TOKEN" \
-  ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.9
+  ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.5.0
 ```
 
 For a local image build with readiness reporting, run:

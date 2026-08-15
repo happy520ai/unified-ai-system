@@ -81,8 +81,8 @@ try {
   });
   attack("A6 cross-tenant key revoke", crossRevoke.status === 403 || crossRevoke.status === 404, `status=${crossRevoke.status}`);
 
-  const secretSeed = await chat({ authorization: `Bearer ${keyA.key}` }, chatBody("my api_key=sk-abcdefghijklmnop1234 keep secret"));
-  const secretReplay = await chat({ authorization: `Bearer ${keyA.key}` }, chatBody("my api_key=sk-abcdefghijklmnop1234 keep secret"));
+  const secretSeed = await chat({ authorization: `Bearer ${keyA.key}` }, chatBody("my api_key=FAKE-KEY-0123456789abcdef keep secret"));
+  const secretReplay = await chat({ authorization: `Bearer ${keyA.key}` }, chatBody("my api_key=FAKE-KEY-0123456789abcdef keep secret"));
   const secretSecond = await secretReplay.json();
   attack("A7 secret-like text never cached", secretSeed.status === 200 && secretSecond?.unified_ai?.response_cache === undefined, "no cache marker on second call");
 
