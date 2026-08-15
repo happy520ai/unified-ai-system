@@ -94,6 +94,7 @@ jobs:
           PIPED_EVIDENCE_JSON="$(extract_json "${piped_evidence}")" node --input-type=module <<'NODE'
           const evidence = JSON.parse(process.env.PIPED_EVIDENCE_JSON);
           const enhancement = evidence.promptEnhancement;
+          console.log(JSON.stringify({ ui: ui.status, consoleRoute: consoleRoute.status, chat: chat.status, chatBody: JSON.stringify(chat.body).slice(0, 200) }));
           const checks = {
             mode: evidence.executionMode === "fake",
             original: enhancement?.original === "Container stdin evidence test",
