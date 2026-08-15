@@ -1,4 +1,6 @@
 import { createKnowledgePersistence } from "./knowledgePersistence.js";
+import { createDeterministicEmbeddingProvider } from "./deterministicEmbeddingProvider.ts";
+import { createSqliteVecStore } from "./sqliteVecStore.js";
 import {
   isKnowledgeTenantScopeKey,
   resolveKnowledgeTenantScope,
@@ -62,11 +64,47 @@ const DEFAULT_DOCUMENTS = [
 export function createLocalKnowledgeService(options = {}) {
   const phase = options.phase ?? DEFAULT_PHASE;
   const persistence = createKnowledgePersistence(options);
+  // Vector augmentation (KNOWLEDGE_INFRA_MODE=sqlite-vec)：零凭证确定性
+  // embedding + 本地向量库；关键词基线行为不变。
+  const vectorEnabled = options.vectorEnabled
+    ?? String(options.env?.KNOWLEDGE_INFRA_MODE ?? "").trim().toLowerCase() === "sqlite-vec";
+  const embeddingProvider = options.embeddingProvider
+    ?? (vectorEnabled ? createDeterministicEmbeddingProvider() : null);
+  const vectorStore = options.vectorStore
+    ?? (vectorEnabled ? createSqliteVecStore({
+      dbPath: options.env?.KNOWLEDGE_SQLITE_VEC_PATH ?? ".data/knowledge/vectors.sqlite",
+      dimension: embeddingProvider?.dimensions,
+    }) : null);
+  const vectorStoreReady = Boolean(vectorStore?.isAvailable?.());
   const defaultDocuments = normalizeDocuments(options.documents ?? DEFAULT_DOCUMENTS).map(markSystemDocument);
   const persistedDocuments = normalizeDocuments(persistence.loadDocuments())
     .filter((document) => isKnowledgeTenantScopeKey(document.tenantScopeKey))
     .map((document) => markUserDocument(document, document.tenantScopeKey));
   let documents = mergeDocuments(defaultDocuments, persistedDocuments);
+  const embeddedDocumentKeys = new Set();
+
+  // Best-effort vector upsert: embedding failures must never break loads.
+  function upsertVectorsFor(documentsToEmbed, tenantScopeKey) {
+    if (!vectorEnabled || !vectorStoreReady || !embeddingProvider) return;
+    try {
+      const payload = documentsToEmbed.map((document) => ({
+        id: `kv:${tenantScopeKey}:${toDocumentKey(document)}`,
+        sourceId: document.sourceId,
+        title: document.title,
+        content: document.text,
+        metadata: { tenantScopeKey, systemDocument: !isUserDocument(document) },
+        embedding: embeddingProvider.embedText(`${document.title ?? ""}\n${document.text ?? ""}`),
+      }));
+      if (payload.length > 0) {
+        vectorStore.upsertDocuments(payload);
+        for (const document of documentsToEmbed) {
+          embeddedDocumentKeys.add(`${tenantScopeKey}:${toDocumentKey(document)}`);
+        }
+      }
+    } catch {
+      // 向量写回失败仅降级为关键词检索。
+    }
+  }
 
   // Query result cache (LRU-like, max 100 entries, 5 minute TTL)
   const queryCache = new Map();
@@ -83,13 +121,13 @@ export function createLocalKnowledgeService(options = {}) {
       return {
         status: "ready",
         phase,
-        mode: "local-keyword",
+        mode: vectorStoreReady ? "local-keyword+vector" : "local-keyword",
         storage: persistence.storageLabel,
-        embedding: "not-configured",
+        embedding: vectorStoreReady ? (embeddingProvider?.id ?? "not-configured") : "not-configured",
         sourceCount: new Set(visibleDocuments.map((document) => document.sourceId)).size,
         documentCount: visibleDocuments.length,
         chunkCount: visibleDocuments.length,
-        supportedModes: ["keyword"],
+        supportedModes: ["keyword", ...(vectorStoreReady ? ["vector"] : [])],
         quality: {
           queryNormalization: "unicode-nfkc-lowercase-collapse",
           ranking: "weighted-keyword-v2",
@@ -169,6 +207,7 @@ export function createLocalKnowledgeService(options = {}) {
       );
       persistence.saveDocuments(persistedUserDocuments);
       invalidateTenantQueryCache(queryCache, tenantScope.key);
+      upsertVectorsFor(loadedDocuments, tenantScope.key);
       const visibleDocuments = selectVisibleDocuments(documents, tenantScope.key);
       const visibleUserCount = visibleDocuments.filter(isUserDocument).length;
 
@@ -199,19 +238,28 @@ export function createLocalKnowledgeService(options = {}) {
 
       const mode = request.mode ?? "keyword";
 
-      if (mode !== "keyword") {
-        const error = new Error(`Knowledge retrieve mode '${mode}' is not supported by the local keyword baseline.`);
+      if (mode !== "keyword" && mode !== "vector") {
+        const error = new Error(`Knowledge retrieve mode '${mode}' is not supported by the local knowledge baseline.`);
         error.code = "KNOWLEDGE_MODE_NOT_SUPPORTED";
         error.category = "knowledge";
         error.details = {
-          supportedModes: ["keyword"],
+          supportedModes: ["keyword", ...(vectorStoreReady ? ["vector"] : [])],
+        };
+        throw error;
+      }
+      if (mode === "vector" && !vectorStoreReady) {
+        const error = new Error("Vector retrieval requires KNOWLEDGE_INFRA_MODE=sqlite-vec with an available vector store.");
+        error.code = "KNOWLEDGE_VECTOR_STORE_UNAVAILABLE";
+        error.category = "knowledge";
+        error.details = {
+          supportedModes: ["keyword", ...(vectorStoreReady ? ["vector"] : [])],
         };
         throw error;
       }
 
       // Check cache
       const cacheScope = tenantScope?.key ?? SYSTEM_QUERY_SCOPE;
-      const cacheKey = `${cacheScope}:${normalizedQuery}:${(request.sourceIds || []).join(",")}:${request.topK || "default"}:${request.minScore || 0}`;
+      const cacheKey = `${cacheScope}:${mode}:${normalizedQuery}:${(request.sourceIds || []).join(",")}:${request.topK || "default"}:${request.minScore || 0}`;
       const cached = queryCache.get(cacheKey);
       if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
         return { ...cached.result, metadata: { ...cached.result.metadata, cacheHit: true } };
@@ -226,20 +274,75 @@ export function createLocalKnowledgeService(options = {}) {
       const visibleDocuments = selectVisibleDocuments(documents, tenantScope?.key);
       const visibleUserCount = visibleDocuments.filter(isUserDocument).length;
       const candidates = visibleDocuments.filter((document) => !sourceIds || sourceIds.has(document.sourceId));
-      const chunks = candidates
-        .map((document) => toScoredChunk(document, { normalizedQuery, queryTerms }))
-        .filter((chunk) => chunk.score > minScore)
-        .sort(compareChunks)
-        .slice(0, topK)
-        .map((chunk, index) => ({
-          ...chunk,
-          rank: index + 1,
-        }));
+
+      function vectorOwnerScope(document) {
+        return isUserDocument(document) && isKnowledgeTenantScopeKey(document.tenantScopeKey)
+          ? document.tenantScopeKey
+          : "system";
+      }
+
+      let chunks;
+      if (mode === "vector") {
+        // 懒嵌入：把尚未入向量库的可见文档按归属域（system/租户）分组写入。
+        const pendingByScope = new Map();
+        for (const document of candidates) {
+          const ownerScope = vectorOwnerScope(document);
+          const embeddedKey = `${ownerScope}:${toDocumentKey(document)}`;
+          if (embeddedDocumentKeys.has(embeddedKey)) continue;
+          const bucket = pendingByScope.get(ownerScope) ?? [];
+          bucket.push(document);
+          pendingByScope.set(ownerScope, bucket);
+        }
+        for (const [scope, pendingDocuments] of pendingByScope) {
+          upsertVectorsFor(pendingDocuments, scope);
+        }
+
+        const queryEmbedding = embeddingProvider.embedText(query);
+        const rawResults = vectorStore.query(queryEmbedding, {
+          topK: Math.max(topK * 3, topK),
+          ...(sourceIds ? { sourceIds: [...sourceIds] } : {}),
+        });
+        // 租户安全：向量结果必须落在当前可见文档白名单内。
+        const allowedByKey = new Map(
+          candidates.map((document) => [`kv:${vectorOwnerScope(document)}:${toDocumentKey(document)}`, document]),
+        );
+        chunks = rawResults
+          .filter((result) => allowedByKey.has(result.documentId))
+          .map((result) => {
+            const document = allowedByKey.get(result.documentId);
+            const chunk = toScoredChunk(document, { normalizedQuery, queryTerms });
+            return {
+              ...chunk,
+              score: Number(result.score.toFixed(4)),
+              vector: {
+                embeddingId: embeddingProvider.id,
+                cosineSimilarity: result.score,
+              },
+            };
+          })
+          .filter((chunk) => chunk.score > minScore)
+          .sort((a, b) => b.score - a.score)
+          .slice(0, topK)
+          .map((chunk, index) => ({
+            ...chunk,
+            rank: index + 1,
+          }));
+      } else {
+        chunks = candidates
+          .map((document) => toScoredChunk(document, { normalizedQuery, queryTerms }))
+          .filter((chunk) => chunk.score > minScore)
+          .sort(compareChunks)
+          .slice(0, topK)
+          .map((chunk, index) => ({
+            ...chunk,
+            rank: index + 1,
+          }));
+      }
 
       const result = {
         query,
         normalizedQuery,
-        mode: "keyword",
+        mode,
         chunks,
         topHit: chunks[0] ?? null,
         topChunk: chunks[0] ?? null,

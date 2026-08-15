@@ -9,6 +9,17 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Added an opt-in semantic layer to the chat response cache
+  (`AI_GATEWAY_RESPONSE_CACHE_SEMANTIC_ENABLED`): exact-key misses are
+  matched against a bounded per-tenant in-memory vector index built with the
+  new credential-free deterministic embedding provider; hits replay the
+  neighbor payload and are logged/metered as `semantic`.
+- Activated vector retrieval for the local knowledge base
+  (`KNOWLEDGE_INFRA_MODE=sqlite-vec`): a credential-free deterministic
+  embedding provider (`deterministic-hash-v1`) plus the SQLite-backed vector
+  store back a new `mode: "vector"` retrieval path with lazy embedding on
+  load/retrieve, tenant-safe filtering (vector results are intersected with
+  the tenant-visible document set), and unchanged keyword-mode behavior.
 - Added chat-specific Prometheus metrics on `GET /metrics`
   (`ai_gateway_chat_requests_total`, `ai_gateway_chat_tokens_total`,
   `ai_gateway_chat_ttft_ms` histogram, `ai_gateway_chat_cache_events_total`,

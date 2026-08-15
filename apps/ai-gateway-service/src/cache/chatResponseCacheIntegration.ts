@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { inspectCacheSafety } from "./responseCacheSanitizer.js";
+import { createDeterministicEmbeddingProvider } from "../knowledge/deterministicEmbeddingProvider.ts";
 import {
   lookupCache as defaultLookupCache,
   writeCacheRecord as defaultWriteCacheRecord,
@@ -21,6 +22,8 @@ import {
 export const CHAT_RESPONSE_CACHE_ENABLED_ENV = "AI_GATEWAY_RESPONSE_CACHE_ENABLED";
 export const CHAT_RESPONSE_CACHE_TTL_MS_ENV = "AI_GATEWAY_RESPONSE_CACHE_TTL_MS";
 export const CHAT_RESPONSE_CACHE_MAX_PAYLOAD_BYTES_ENV = "AI_GATEWAY_RESPONSE_CACHE_MAX_PAYLOAD_BYTES";
+export const CHAT_RESPONSE_CACHE_SEMANTIC_ENABLED_ENV = "AI_GATEWAY_RESPONSE_CACHE_SEMANTIC_ENABLED";
+export const CHAT_RESPONSE_CACHE_SEMANTIC_THRESHOLD_ENV = "AI_GATEWAY_RESPONSE_CACHE_SEMANTIC_THRESHOLD";
 
 const DEFAULT_TTL_MS = 604_800_000;
 const DEFAULT_MAX_PAYLOAD_BYTES = 262_144;
@@ -35,11 +38,15 @@ export interface ChatResponseCacheConfig {
   enabled: boolean;
   ttlMs: number;
   maxPayloadBytes: number;
+  semanticEnabled: boolean;
+  semanticThreshold: number;
 }
 
 export interface ChatCacheCandidate {
   cacheKey: string;
   stream: boolean;
+  /** Compact serialization the cache key derives from; also the semantic embedding source. */
+  semanticSource: string;
 }
 
 export interface ChatCacheJsonPayload {
@@ -54,6 +61,13 @@ export interface ChatCacheSsePayload {
 }
 
 export type ChatCachePayload = ChatCacheJsonPayload | ChatCacheSsePayload;
+
+export interface ChatCacheLookupResult {
+  payload: ChatCachePayload;
+  cacheKey: string;
+  hitType: "exact" | "semantic";
+  semanticScore?: number;
+}
 
 export interface ChatCacheTenantIdentity {
   tenantId?: unknown;
@@ -73,7 +87,7 @@ export interface ChatResponseCacheIntegration {
   lookup(params: {
     candidate: ChatCacheCandidate;
     tenantIdentity: ChatCacheTenantIdentity | null | undefined;
-  }): { payload: ChatCachePayload; cacheKey: string } | null;
+  }): ChatCacheLookupResult | null;
   persist(params: {
     candidate: ChatCacheCandidate;
     tenantIdentity: ChatCacheTenantIdentity | null | undefined;
@@ -114,6 +128,25 @@ function readPositiveIntEnv(
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+function readThresholdEnv(value: string | undefined): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 && parsed < 1 ? parsed : 0.92;
+}
+
+function cosine(a: number[], b: number[]): number {
+  if (a.length !== b.length) return 0;
+  let dot = 0;
+  let normA = 0;
+  let normB = 0;
+  for (let index = 0; index < a.length; index += 1) {
+    dot += a[index] * b[index];
+    normA += a[index] * a[index];
+    normB += b[index] * b[index];
+  }
+  const denominator = Math.sqrt(normA) * Math.sqrt(normB);
+  return denominator === 0 ? 0 : dot / denominator;
+}
+
 export function createChatResponseCacheIntegration(options: {
   env?: Record<string, string | undefined>;
   store?: ResponseCacheStoreLike;
@@ -123,6 +156,10 @@ export function createChatResponseCacheIntegration(options: {
     lookupCache: defaultLookupCache,
     writeCacheRecord: defaultWriteCacheRecord,
   };
+  // 语义层：每租户有界的内存向量索引（确定性 embedding，零凭证）。
+  const semanticEmbedding = createDeterministicEmbeddingProvider();
+  const semanticIndex = new Map<string, Array<{ embedding: number[]; payload: ChatCachePayload; stream: boolean }>>();
+  const SEMANTIC_MAX_ENTRIES_PER_TENANT = 200;
 
   function readConfig(): ChatResponseCacheConfig {
     return {
@@ -133,6 +170,8 @@ export function createChatResponseCacheIntegration(options: {
         CHAT_RESPONSE_CACHE_MAX_PAYLOAD_BYTES_ENV,
         DEFAULT_MAX_PAYLOAD_BYTES,
       ),
+      semanticEnabled: env[CHAT_RESPONSE_CACHE_SEMANTIC_ENABLED_ENV] === "true",
+      semanticThreshold: readThresholdEnv(env[CHAT_RESPONSE_CACHE_SEMANTIC_THRESHOLD_ENV]),
     };
   }
 
@@ -162,6 +201,7 @@ export function createChatResponseCacheIntegration(options: {
     return {
       cacheKey: `${CACHE_KEY_NAMESPACE}:${sha256(serialized)}`,
       stream,
+      semanticSource: serialized,
     };
   }
 
@@ -177,10 +217,13 @@ export function createChatResponseCacheIntegration(options: {
   function lookup(params: {
     candidate: ChatCacheCandidate;
     tenantIdentity: ChatCacheTenantIdentity | null | undefined;
-  }): { payload: ChatCachePayload; cacheKey: string } | null {
+  }): ChatCacheLookupResult | null {
     // Without a server-authenticated tenant the cache is skipped entirely —
     // requests without an enterprise tenant context never share a cache lane.
-    if (typeof params.tenantIdentity?.tenantId !== "string" || !params.tenantIdentity.tenantId) {
+    const tenantId = typeof params.tenantIdentity?.tenantId === "string" && params.tenantIdentity.tenantId
+      ? params.tenantIdentity.tenantId
+      : null;
+    if (!tenantId) {
       return null;
     }
     try {
@@ -188,15 +231,40 @@ export function createChatResponseCacheIntegration(options: {
         cacheKey: params.candidate.cacheKey,
         tenantScopeIdentity: params.tenantIdentity,
       });
-      if (result.cacheDecision !== "hit") return null;
-      const payload = readPayload(result);
-      if (!payload) return null;
-      if ((payload.kind === "sse") !== params.candidate.stream) return null;
-      return { payload, cacheKey: params.candidate.cacheKey };
+      if (result.cacheDecision === "hit") {
+        const payload = readPayload(result);
+        if (payload && (payload.kind === "sse") === params.candidate.stream) {
+          return { payload, cacheKey: params.candidate.cacheKey, hitType: "exact" };
+        }
+      }
+      return semanticLookup(params.candidate, tenantId);
     } catch {
       // Fail open: a cache lookup error must not break the chat request.
       return null;
     }
+  }
+
+  function semanticLookup(candidate: ChatCacheCandidate, tenantId: string): ChatCacheLookupResult | null {
+    const config = readConfig();
+    if (!config.semanticEnabled) return null;
+    const entries = semanticIndex.get(tenantId);
+    if (!entries || entries.length === 0) return null;
+    const queryVector = semanticEmbedding.embedText(candidate.semanticSource);
+    let best: { score: number; entry: { embedding: number[]; payload: ChatCachePayload; stream: boolean } } | null = null;
+    for (const entry of entries) {
+      if (entry.stream !== candidate.stream) continue;
+      const score = cosine(queryVector, entry.embedding);
+      if (!best || score > best.score) {
+        best = { score, entry };
+      }
+    }
+    if (!best || best.score < config.semanticThreshold) return null;
+    return {
+      payload: best.entry.payload,
+      cacheKey: candidate.cacheKey,
+      hitType: "semantic",
+      semanticScore: Number(best.score.toFixed(4)),
+    };
   }
 
   function buildPreview(payload: ChatCachePayload): string {
@@ -245,6 +313,25 @@ export function createChatResponseCacheIntegration(options: {
       });
     } catch {
       // Fail open: a cache write error must not break the chat response.
+    }
+
+    // 语义索引（每租户有界）：写回时同步入索引，供近义请求命中。
+    if (readConfig().semanticEnabled) {
+      try {
+        const tenantId = String(params.tenantIdentity.tenantId);
+        const entries = semanticIndex.get(tenantId) ?? [];
+        entries.push({
+          embedding: semanticEmbedding.embedText(params.candidate.semanticSource),
+          payload: params.payload,
+          stream: params.candidate.stream,
+        });
+        if (entries.length > SEMANTIC_MAX_ENTRIES_PER_TENANT) {
+          entries.splice(0, entries.length - SEMANTIC_MAX_ENTRIES_PER_TENANT);
+        }
+        semanticIndex.set(tenantId, entries);
+      } catch {
+        // 语义索引失败不影响主缓存。
+      }
     }
   }
 

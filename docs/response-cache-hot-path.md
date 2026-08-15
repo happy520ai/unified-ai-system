@@ -8,10 +8,30 @@ provider call.
 The feature is **off by default** and never changes behavior unless
 `AI_GATEWAY_RESPONSE_CACHE_ENABLED=true` is set on the gateway process.
 
+## Semantic layer (L2, opt-in)
+
+With `AI_GATEWAY_RESPONSE_CACHE_SEMANTIC_ENABLED=true`, requests that miss
+the exact key are matched against a per-tenant in-memory vector index
+(bounded to 200 entries per tenant) using the credential-free deterministic
+embedding (`deterministic-hash-v1`). A nearest neighbor at or above
+`AI_GATEWAY_RESPONSE_CACHE_SEMANTIC_THRESHOLD` (default 0.92, range (0,1))
+replays that neighbor's payload; the service log records `hitType:
+"semantic"` with the similarity score, and
+`ai_gateway_chat_cache_events_total{layer="semantic",outcome="hit"}`
+counts it.
+
+Honesty note: the deterministic embedding approximates lexical/subword
+overlap, not true semantics — paraphrases that share little vocabulary will
+not hit. It makes the semantic layer exercisable with zero credentials;
+plugging in a real embedding provider later raises quality without changing
+the contract.
+
 ## Enable
 
 ```bash
-AI_GATEWAY_RESPONSE_CACHE_ENABLED=true pnpm gateway serve
+AI_GATEWAY_RESPONSE_CACHE_ENABLED=true \
+AI_GATEWAY_RESPONSE_CACHE_SEMANTIC_ENABLED=true \
+pnpm gateway serve
 ```
 
 Optional tuning:

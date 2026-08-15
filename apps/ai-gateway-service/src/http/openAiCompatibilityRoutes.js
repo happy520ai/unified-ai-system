@@ -339,8 +339,9 @@ export async function dispatchOpenAiCompatibilityRoutes(context) {
       ? chatResponseCache.lookup({ candidate: cacheCandidate, tenantIdentity: request.enterpriseIdentity })
       : null;
     if (cacheLookup?.payload.kind === "json") {
+      const hitLayer = cacheLookup.hitType === "semantic" ? "semantic" : "exact";
       recordChatRequest(normalizedPath, false);
-      recordChatCacheEvent("exact", "hit");
+      recordChatCacheEvent(hitLayer, "hit");
       getLangfuseCallback().recordChatGeneration({
         route: normalizedPath,
         model: String(cacheLookup.payload.response?.model ?? gatewayInput.model ?? ""),
@@ -367,6 +368,8 @@ export async function dispatchOpenAiCompatibilityRoutes(context) {
         method: request.method,
         path: normalizedPath,
         cacheKey: cacheLookup.cacheKey,
+        hitType: cacheLookup.hitType,
+        ...(cacheLookup.semanticScore !== undefined ? { semanticScore: cacheLookup.semanticScore } : {}),
         durationMs: Date.now() - startedAt,
       });
       writeJson(response, 200, cacheLookup.payload.response);
@@ -1411,8 +1414,9 @@ async function streamOpenAiChatCompletion({
     ? chatResponseCache.lookup({ candidate: cacheCandidate, tenantIdentity: request.enterpriseIdentity })
     : null;
   if (cacheLookup?.payload.kind === "sse") {
+    const hitLayer = cacheLookup.hitType === "semantic" ? "semantic" : "exact";
     recordChatRequest(CHAT_COMPLETIONS_PATH, true);
-    recordChatCacheEvent("exact", "hit");
+    recordChatCacheEvent(hitLayer, "hit");
     getLangfuseCallback().recordChatGeneration({
       route: CHAT_COMPLETIONS_PATH,
       model: selectedModel,

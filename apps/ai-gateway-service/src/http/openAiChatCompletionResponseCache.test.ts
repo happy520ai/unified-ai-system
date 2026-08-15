@@ -330,4 +330,69 @@ describe("chat completions hot-path response cache", () => {
     await dispatchOpenAiCompatibilityRoutes(createContext({ body: chatBody, enterpriseIdentity: TENANT_A, gatewayService }));
     expect(gatewayService.execute).toHaveBeenCalledTimes(2);
   });
+
+  it("serves paraphrased requests from the semantic layer when enabled", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "chat-response-cache-semantic-"));
+    cleanup.push(dir);
+    const store = createResponseCacheStore({
+      paths: {
+        records: join(dir, "records.jsonl"),
+        index: join(dir, "index.json"),
+        summary: join(dir, "summary.json"),
+        audit: join(dir, "audit.jsonl"),
+      },
+      auditFlushIntervalMs: 0,
+    });
+    setChatResponseCacheIntegrationForTests(createChatResponseCacheIntegration({
+      env: {
+        AI_GATEWAY_RESPONSE_CACHE_ENABLED: "true",
+        AI_GATEWAY_RESPONSE_CACHE_SEMANTIC_ENABLED: "true",
+        AI_GATEWAY_RESPONSE_CACHE_SEMANTIC_THRESHOLD: "0.2",
+      },
+      store,
+    }));
+    const gatewayService = createGatewayService();
+
+    const first = createResponseRecorder();
+    await dispatchOpenAiCompatibilityRoutes(createContext({
+      body: chatBody,
+      enterpriseIdentity: TENANT_A,
+      gatewayService,
+      response: first,
+    }));
+    expect(first.statusCode).toBe(200);
+
+    // 换措辞（同词重排+语气词）：精确 key 不同，语义近邻应命中。
+    const paraphraseBody = {
+      model: "local-fake-model",
+      messages: [{ role: "user", content: "Say hello please, say hello" }],
+    };
+    const paraphrase = createResponseRecorder();
+    const paraphraseLog = vi.fn();
+    await dispatchOpenAiCompatibilityRoutes({
+      ...createContext({
+        body: paraphraseBody,
+        enterpriseIdentity: TENANT_A,
+        gatewayService,
+        response: paraphrase,
+      }),
+      writeServiceLog: paraphraseLog,
+    });
+    expect(paraphrase.statusCode).toBe(200);
+    expect(gatewayService.execute).toHaveBeenCalledTimes(1);
+    expect(paraphraseLog).toHaveBeenCalledWith("openai_chat_cache_hit", expect.objectContaining({
+      hitType: "semantic",
+    }));
+
+    // 语义索引按租户隔离：另一租户同款请求不应命中。
+    const otherGateway = createGatewayService();
+    const otherTenant = createResponseRecorder();
+    await dispatchOpenAiCompatibilityRoutes(createContext({
+      body: paraphraseBody,
+      enterpriseIdentity: TENANT_B,
+      gatewayService: otherGateway,
+      response: otherTenant,
+    }));
+    expect(otherGateway.execute).toHaveBeenCalledTimes(1);
+  });
 });

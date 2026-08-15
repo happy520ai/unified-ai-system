@@ -203,7 +203,12 @@ function createSqliteVecReadiness(env, sqliteVecEnabled) {
   return {
     status: "ready",
     configured: true,
-    dbPath: ".data/knowledge/vectors.sqlite",
+    dbPath: env.KNOWLEDGE_SQLITE_VEC_PATH ?? ".data/knowledge/vectors.sqlite",
+    embedding: {
+      id: "deterministic-hash-v1",
+      credentialFree: true,
+      note: "Credential-free deterministic embedding; configure a real embedding provider for semantic-quality retrieval.",
+    },
     reason: "SQLite-vec is ready for local vector storage without external database.",
   };
 }
