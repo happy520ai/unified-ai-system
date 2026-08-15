@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { width: 1280px; height: 430px; overflow: hidden; }
+  body {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 26px; padding: 48px 70px;
+    background:
+      radial-gradient(ellipse 900px 380px at 50% -80px, rgba(89,240,181,0.13), transparent 70%),
+      #07100f;
+    border-top: 8px solid #59f0b5;
+    font-family: "Segoe UI", Arial, sans-serif; color: #f1f5f4; text-align: center;
+  }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 12px;
+    color: #77f2c0; font-size: 19px; font-weight: 700; letter-spacing: 3px; text-transform: uppercase;
+  }
+  .eyebrow::before, .eyebrow::after { width: 44px; height: 2px; content: ""; background: linear-gradient(90deg, transparent, #59f0b5); }
+  .eyebrow::after { background: linear-gradient(90deg, #59f0b5, transparent); }
+  h1 { font-size: 88px; font-weight: 800; letter-spacing: -1px; line-height: 1; }
+  h1 .accent { color: #59f0b5; text-shadow: 0 0 34px rgba(89,240,181,0.45); }
+  .promise { max-width: 980px; color: #c7d4d0; font-size: 29px; font-weight: 450; line-height: 1.4; }
+  .clients {
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap; justify-content: center;
+    color: #f3c56c; font-family: Consolas, "Courier New", monospace; font-size: 18px; font-weight: 700;
+  }
+  .clients span.sep { color: #52615d; }
+  .stats { display: flex; gap: 16px; }
+  .stat {
+    display: flex; align-items: baseline; gap: 9px;
+    padding: 13px 22px; border: 1px solid #28443c; border-radius: 6px; background: #0b1513;
+    font-family: Consolas, "Courier New", monospace; font-size: 15px; color: #9eb0aa;
+  }
+  .stat b { color: #78edbb; font-size: 22px; }
+</style>
+</head>
+<body>
+  <div class="eyebrow">Self-hosted AI gateway · Apache-2.0</div>
+  <h1>Unified <span class="accent">AI</span> System</h1>
+  <p class="promise">LiteLLM/Portkey-class gateway + reverse MCP governance — every feature works with <strong>zero credentials</strong></p>
+  <div class="clients">
+    OPENAI SDK <span class="sep">·</span> ANTHROPIC <span class="sep">·</span> MCP / CODEX / CURSOR / CLINE <span class="sep">·</span> A2A <span class="sep">·</span> CLI <span class="sep">·</span> HTTP
+  </div>
+  <div class="stats">
+    <div class="stat"><b>12</b> governed MCP tools</div>
+    <div class="stat"><b>900+</b> tests green</div>
+    <div class="stat"><b>16</b> live attacks blocked</div>
+    <div class="stat"><b>0</b> credentials to try</div>
+  </div>
+</body>
+</html>

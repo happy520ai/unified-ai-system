@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { width: 1280px; overflow: hidden; }
+  body {
+    padding: 48px 60px 42px;
+    background:
+      radial-gradient(ellipse 760px 280px at 50% 0px, rgba(89,240,181,0.09), transparent 70%),
+      #07100f;
+    border-top: 8px solid #59f0b5;
+    font-family: "Segoe UI", Arial, sans-serif; color: #f1f5f4;
+  }
+  .title { text-align: center; margin-bottom: 30px; }
+  .title h1 { font-size: 38px; font-weight: 760; }
+  .title h1 em { font-style: normal; color: #59f0b5; }
+  .title p { margin-top: 9px; color: #9eb0aa; font-size: 18px; }
+  .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  .card {
+    border: 1px solid #28443c; border-radius: 8px; background: #0b1513;
+    padding: 20px 18px 16px; display: flex; flex-direction: column; min-height: 208px;
+  }
+  .card .icon {
+    width: 44px; height: 44px; border: 1px solid #2e5c4c; border-radius: 6px;
+    display: grid; place-items: center; font-size: 21px; margin-bottom: 13px;
+    background: linear-gradient(180deg, rgba(89,240,181,0.10), transparent);
+  }
+  .card b { font-size: 17.5px; font-weight: 700; color: #ecf4f1; line-height: 1.25; margin-bottom: 8px; }
+  .card p { font-size: 13.5px; color: #8ba39c; line-height: 1.5; flex: 1; }
+  .card code {
+    margin-top: 12px; font-family: Consolas, "Courier New", monospace; font-size: 12px;
+    color: #f3c56c; border-top: 1px solid #243a34; padding-top: 10px; display: block;
+  }
+</style>
+</head>
+<body>
+  <div class="title">
+    <h1>Everything a commercial gateway ships — <em>self-hosted</em></h1>
+    <p>All eight run from one process, on the credential-free fake provider by default.</p>
+  </div>
+  <div class="grid">
+    <div class="card"><div class="icon">⇄</div><b>OpenAI + Anthropic APIs</b><p>Keep your existing SDK and change only the base URL. Streaming, tools, and model discovery in both protocols.</p><code>/v1/chat/completions · /v1/messages</code></div>
+    <div class="card"><div class="icon">🔑</div><b>Virtual Keys & Budgets</b><p>Issue uai- keys with daily/monthly token windows, per-key RPM, soft-budget alerts, spend attribution, instant revoke.</p><code>consumers never hold provider keys</code></div>
+    <div class="card"><div class="icon">⚡</div><b>Exact + Semantic Cache</b><p>Hot-path caching with byte-identical SSE replay and per-tenant isolation; optional semantic layer for paraphrases.</p><code>cache hit ⇒ same bytes, 0 provider cost</code></div>
+    <div class="card"><div class="icon">🛡</div><b>Reverse MCP Governance</b><p>Aggregate upstream MCP servers behind one authenticated, audited, allow-listed surface. Any OpenAPI 3 spec becomes MCP tools.</p><code>REST → MCP in one step</code></div>
+    <div class="card"><div class="icon">📈</div><b>Chat-native Observability</b><p>TTFT histograms, tokens per model, cache hit rates, and key rejections on /metrics; optional Langfuse export.</p><code>Prometheus · Langfuse</code></div>
+    <div class="card"><div class="icon">🧠</div><b>Local-first RAG</b><p>Deterministic embedding provider plus a SQLite vector store enable tenant-isolated retrieval — with zero external services.</p><code>mode: "vector" · no API key</code></div>
+    <div class="card"><div class="icon">⚖</div><b>Provider Governance</b><p>Three-gate whitelist for real providers, SHA-256 credential store, request cost guards, circuit breakers, fallback chains.</p><code>explicit > silent</code></div>
+    <div class="card"><div class="icon">🚨</div><b>Security Regression</b><p>A repeatable 16-attack live drill — cross-tenant cache reads, tenant forgery, budget bypass — must stay green to ship.</p><code>hash-chained audit log</code></div>
+  </div>
+</body>
+</html>

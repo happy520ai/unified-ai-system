@@ -47,6 +47,14 @@ Unified AI System 会在执行前，把一句自然语言需求整理成结构�
 
 ## 无需安装，直接体验
 
+<p align="center">
+  <img
+    src="docs/assets/readme-hero.png"
+    alt="Unified AI System：自托管 AI 网关——12 个受治理 MCP 工具、900+ 测试、16 项攻击全部防住、零凭证即可试用"
+    width="100%"
+  />
+</p>
+
 [**在浏览器 Prompt Lab 中打开一个可直接运行的 coding 示例**](https://happy520ai.github.io/unified-ai-system/#enhance?prompt=%E5%B8%AE%E6%88%91%E4%B8%BA%E5%9B%A2%E9%98%9F%E8%AE%BE%E8%AE%A1%E4%B8%80%E4%B8%AA%E5%B0%8F%E5%9E%8B+API&profile=coding&language=zh-CN)
 
 链接会自动载入真实请求，并在浏览器本地生成增强结果，不需要账号、
@@ -64,6 +72,18 @@ Cursor、Cline、Continue 和通用 stdio 客户端都可以通过同一个网�
 访问十二个受治理 MCP 工具。
 
 在真实工作流中有帮助？欢迎[给仓库点 Star](https://github.com/happy520ai/unified-ai-system)，或[分享一条可复现结果](https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml&title=%5BUsage%20Report%5D%20Quickstart)。
+
+## 一图看懂网关
+
+<p align="center">
+  <img
+    src="docs/assets/readme-architecture.png"
+    alt="架构总览：OpenAI/Anthropic SDK、MCP 客户端、A2A、CLI 与 HTTP 汇入统一网关——提示词增强、虚拟 key、精确+语义缓存、反向 MCP 治理、可观测性、审计——provider 位于三重白名单之后，fake provider 为零凭证默认"
+    width="100%"
+  />
+  <br />
+  <sub>客户端保持原生协议；网关统一加上 key、预算、缓存与审计。12 个受治理 MCP 工具可被任意 MCP 客户端检查。</sub>
+</p>
 
 ## 选择入口
 
@@ -88,6 +108,14 @@ Cursor、Cline、Continue 和通用 stdio 客户端都可以通过同一个网�
 以下能力全部跑在同一个自托管进程里——按需开启、fake provider 优先，
 零凭证即可试用每一项：
 
+<p align="center">
+  <img
+    src="docs/assets/readme-capabilities.png"
+    alt="能力卡片：OpenAI + Anthropic 兼容 API、虚拟 key 与预算、精确+语义缓存、反向 MCP 治理、chat 原生可观测性、本地优先 RAG、Provider 治理、16 项攻击安全回归"
+    width="100%"
+  />
+</p>
+
 | 能力 | 你能得到什么 | 文档 |
 | --- | --- | --- |
 | OpenAI + Anthropic 兼容 API | `/v1/chat/completions`（SSE 流式、工具调用）、**原生 Anthropic 流式**的 `/v1/messages`、Responses API、模型发现——保留现有 SDK，只改 base URL。 | [OpenAI 兼容 API](docs/openai-compatible-api.md) |
@@ -109,6 +137,14 @@ Cursor、Cline、Continue 和通用 stdio 客户端都可以通过同一个网�
 - 不声称 AGI、L5 或生产就绪，只展示可以复现的行为。
 
 ## 60 秒体验
+
+<p align="center">
+  <img
+    src="docs/assets/readme-terminal.png"
+    alt="终端证明：一条 docker run 命令打印增强提示词与 providerCalled=false 证据，结束自动清理"
+    width="100%"
+  />
+</p>
 
 无需登录，直接验证发布镜像：
 

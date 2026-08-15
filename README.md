@@ -28,7 +28,17 @@
   </a>
 </p>
 
+<p align="center">
+  <img
+    src="docs/assets/readme-hero.png"
+    alt="Unified AI System — self-hosted AI gateway with 12 governed MCP tools, 900+ tests, 16 blocked attack classes, zero credentials to try"
+    width="100%"
+  />
+</p>
+
 Unified AI System turns a rough request into a structured, reviewable prompt before execution. It gives teams one self-hosted surface for OpenAI-compatible SDKs, MCP, A2A, CLI, and HTTP while keeping provider calls explicit — with the feature set you'd expect from a commercial LLM gateway: virtual keys with token budgets, exact + semantic response caching, reverse MCP governance with REST→MCP generation, and production observability.
+
+## Try Before Installing
 
 <p align="center">
   <a href="https://happy520ai.github.io/unified-ai-system/#enhance?prompt=Build+a+small+API+for+my+team&amp;profile=coding&amp;language=en">
@@ -41,8 +51,6 @@ Unified AI System turns a rough request into a structured, reviewable prompt bef
   <br />
   <sub>The original request stays visible. The local enhancer adds execution requirements, output requirements, and completion criteria.</sub>
 </p>
-
-## Try Before Installing
 
 [**Open a ready-to-run coding example in the browser Prompt Lab**](https://happy520ai.github.io/unified-ai-system/#enhance?prompt=Build+a+small+API+for+my+team&profile=coding&language=en)
 
@@ -62,6 +70,18 @@ same gateway through twelve governed MCP tools. The source build also provides a
 protocol-tested MCP Streamable HTTP endpoint for clients that connect by URL.
 
 Useful in a real workflow? [Star the repository](https://github.com/happy520ai/unified-ai-system) or [share one reproducible result](https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml&title=%5BUsage%20Report%5D%20Quickstart).
+
+## The Gateway at a Glance
+
+<p align="center">
+  <img
+    src="docs/assets/readme-architecture.png"
+    alt="Architecture: OpenAI/Anthropic SDKs, MCP clients, A2A, CLI, and HTTP enter one gateway that adds prompt enhancement, virtual keys, exact + semantic cache, reverse MCP governance, observability, and audit — providers stay behind a three-gate whitelist with the fake provider as the credential-free default"
+    width="100%"
+  />
+  <br />
+  <sub>Clients keep their native protocols; the gateway adds keys, budgets, cache, and audit. Twelve governed MCP tools are inspectable from any MCP client.</sub>
+</p>
 
 ## Choose Your First Path
 
@@ -88,6 +108,14 @@ Useful in a real workflow? [Star the repository](https://github.com/happy520ai/u
 Everything below runs from the same self-hosted process — opt-in and
 fake-provider-first, so you can try every feature with zero credentials:
 
+<p align="center">
+  <img
+    src="docs/assets/readme-capabilities.png"
+    alt="Capability cards: OpenAI + Anthropic APIs, virtual keys and budgets, exact + semantic cache, reverse MCP governance, chat-native observability, local-first RAG, provider governance, and a 16-attack security regression"
+    width="100%"
+  />
+</p>
+
 | Capability | What you get | Docs |
 | --- | --- | --- |
 | OpenAI + Anthropic compatible APIs | `/v1/chat/completions` (SSE streaming, tools), `/v1/messages` with **native Anthropic streaming**, the Responses API, and model discovery — keep your existing SDK, change only the base URL. | [OpenAI-compatible API](docs/openai-compatible-api.md) |
@@ -110,6 +138,14 @@ fake-provider-first, so you can try every feature with zero credentials:
   via a short setup + reproducible report path; we prioritize verification over marketing claims.
 
 ## Try It in 60 Seconds
+
+<p align="center">
+  <img
+    src="docs/assets/readme-terminal.png"
+    alt="Terminal proof: one docker run command prints the enhanced prompt with providerCalled=false evidence and exits clean"
+    width="100%"
+  />
+</p>
 
 Verify the project without signing in:
 
