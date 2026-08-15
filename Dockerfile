@@ -10,10 +10,10 @@ ENV NODE_ENV=production
 LABEL org.opencontainers.image.source="https://github.com/happy520ai/unified-ai-system"
 LABEL org.opencontainers.image.licenses="Apache-2.0"
 
-RUN corepack enable \
-  && (corepack prepare pnpm@11.19.0 --activate \
-      || corepack prepare pnpm@11.19.0 --activate \
-      || corepack prepare pnpm@11.19.0 --activate)
+# 直接安装 pnpm（不经 corepack）：qemu 跨架构构建下 corepack 的 tarball
+# 下载会确定性失败（exit 255），npm 的网络栈不受影响；同时运行时也
+# 不再有 corepack 下载横幅污染 stdout。
+RUN npm install -g pnpm@11.19.0
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/ai-gateway-service/package.json apps/ai-gateway-service/package.json
