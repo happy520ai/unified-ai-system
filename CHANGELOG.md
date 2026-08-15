@@ -102,6 +102,13 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Verification
 
+- Ran a live-process attack/defense regression against the gateway's new
+  surfaces (`node tools/security-attack-regression.mjs`): cross-tenant
+  cache reads, tenant-header forgery, viewer-role keys on chat/admin/MCP
+  surfaces, budget exhaustion, per-key rate limits, cross-tenant key
+  revocation, secret-like cache poisoning, anonymous and oversized MCP
+  calls, revoked-key replay, and /metrics authentication/secret hygiene —
+  16/16 outcomes defended, zero findings.
 - Reviewed both published `v0.4.9` Linux platforms without starting them,
   including OCI identities, flattened filesystems, native binaries, lifecycle
   hooks, privileged files, internal links, and credential-like artifacts.
