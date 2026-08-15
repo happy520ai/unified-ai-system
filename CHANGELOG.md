@@ -9,6 +9,15 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Added chat-specific Prometheus metrics on `GET /metrics`
+  (`ai_gateway_chat_requests_total`, `ai_gateway_chat_tokens_total`,
+  `ai_gateway_chat_ttft_ms` histogram, `ai_gateway_chat_cache_events_total`,
+  `ai_gateway_chat_virtual_key_rejections_total`) with capped label
+  cardinality, plus an opt-in Langfuse export (`LANGFUSE_PUBLIC_KEY` /
+  `LANGFUSE_SECRET_KEY`) that batches generation events with usage,
+  provider, latency, cache-hit, and virtual-key fingerprint metadata,
+  truncates captured content, and fails open on export errors. See
+  `docs/observability-export.md`.
 - Added virtual keys (`uai-`) with periodic token budgets and per-key rate
   limits. Operators create, list, and revoke keys through
   `/enterprise/virtual-keys` (user:admin); keys authenticate through the

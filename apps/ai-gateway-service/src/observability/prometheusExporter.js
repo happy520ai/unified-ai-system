@@ -3,6 +3,7 @@
 // =============================================================================
 
 import { createRuntimeResourceMonitor } from "./runtimeResourceMonitor.ts";
+import { renderAiMetrics } from "./aiMetrics.ts";
 
 let sharedRuntimeResourceMonitor;
 
@@ -227,6 +228,9 @@ export function createPrometheusExporter(options = {}) {
         lines.push(`${prefix}_provider_health_score{provider="${sanitizeLabel(providerId)}"} ${score}`);
       }
     }
+
+    // AI 业务指标（chat 请求/TTFT/token/缓存/虚拟 key）
+    lines.push(renderAiMetrics(snapshot.ai, prefix).trimEnd());
 
     // Uptime
     lines.push(`# HELP ${prefix}_uptime_seconds Service uptime in seconds`);

@@ -1,6 +1,14 @@
 import { ROUTE_NOT_HANDLED } from "./httpRouteDispatch.js";
 import { getChatResponseCacheIntegration } from "../cache/chatResponseCacheIntegration.ts";
 import { estimateTextTokens, estimateTokens } from "../cost/tokenEstimator.js";
+import {
+  recordChatCacheEvent,
+  recordChatRequest,
+  recordChatTokens,
+  recordChatTtft,
+  recordChatVirtualKeyRejection,
+} from "../observability/aiMetrics.ts";
+import { getLangfuseCallback } from "../observability/langfuseCallback.ts";
 import { applyPromptEnhancement } from "./utils/chatUtils.js";
 import { readJson, writeJson, writeSseHeaders } from "./utils/responseUtils.js";
 import {
@@ -331,6 +339,23 @@ export async function dispatchOpenAiCompatibilityRoutes(context) {
       ? chatResponseCache.lookup({ candidate: cacheCandidate, tenantIdentity: request.enterpriseIdentity })
       : null;
     if (cacheLookup?.payload.kind === "json") {
+      recordChatRequest(normalizedPath, false);
+      recordChatCacheEvent("exact", "hit");
+      getLangfuseCallback().recordChatGeneration({
+        route: normalizedPath,
+        model: String(cacheLookup.payload.response?.model ?? gatewayInput.model ?? ""),
+        stream: false,
+        cacheHit: true,
+        usage: {
+          inputTokens: cacheLookup.payload.response?.usage?.prompt_tokens,
+          outputTokens: cacheLookup.payload.response?.usage?.completion_tokens,
+          totalTokens: cacheLookup.payload.response?.usage?.total_tokens,
+        },
+        latencyMs: Date.now() - startedAt,
+        inputText: gatewayInput.messages?.at(-1)?.content ?? undefined,
+        outputText: cacheLookup.payload.response?.choices?.[0]?.message?.content,
+        virtualKeyFingerprint: request.enterpriseIdentity?.apiKeyFingerprint,
+      });
       recordVirtualKeyUsage({
         enterpriseGovernanceService,
         request,
@@ -370,6 +395,26 @@ export async function dispatchOpenAiCompatibilityRoutes(context) {
       requestedModel: requestBody.model,
       promptEnhancement: gatewayInput.metadata?.promptEnhancement,
     });
+    recordChatRequest(normalizedPath, false);
+    if (cacheCandidate) {
+      recordChatCacheEvent("exact", cacheLookup ? "miss" : "bypassed");
+    }
+    const usage = result.data?.usage ?? {};
+    recordChatTokens(result.data?.selectedModel ?? gatewayInput.model, "input", usage.inputTokens);
+    recordChatTokens(result.data?.selectedModel ?? gatewayInput.model, "output", usage.outputTokens);
+    getLangfuseCallback().recordChatGeneration({
+      requestId: result.meta?.requestId,
+      route: normalizedPath,
+      model: result.data?.selectedModel ?? gatewayInput.model,
+      provider: result.data?.selectedProvider,
+      stream: false,
+      cacheHit: false,
+      usage,
+      latencyMs: Date.now() - startedAt,
+      inputText: gatewayInput.messages?.at(-1)?.content ?? undefined,
+      outputText: result.data?.message?.content ?? result.data?.outputText,
+      virtualKeyFingerprint: request.enterpriseIdentity?.apiKeyFingerprint,
+    });
     recordVirtualKeyUsage({
       enterpriseGovernanceService,
       request,
@@ -383,6 +428,7 @@ export async function dispatchOpenAiCompatibilityRoutes(context) {
         tenantIdentity: request.enterpriseIdentity,
         payload: { kind: "json", response: chatCompletion },
       });
+      recordChatCacheEvent("exact", "write");
     }
 
     writeServiceLog?.("openai_chat_completed", {
@@ -1287,6 +1333,7 @@ function applyVirtualKeyRequestGate({
     keyFingerprint: fingerprint,
     durationMs: Date.now() - startedAt,
   });
+  recordChatVirtualKeyRejection(decision.code);
   writeJson(response, 429, createOpenAiError({
     code: decision.code,
     category: "rate_limit",
@@ -1364,6 +1411,20 @@ async function streamOpenAiChatCompletion({
     ? chatResponseCache.lookup({ candidate: cacheCandidate, tenantIdentity: request.enterpriseIdentity })
     : null;
   if (cacheLookup?.payload.kind === "sse") {
+    recordChatRequest(CHAT_COMPLETIONS_PATH, true);
+    recordChatCacheEvent("exact", "hit");
+    getLangfuseCallback().recordChatGeneration({
+      route: CHAT_COMPLETIONS_PATH,
+      model: selectedModel,
+      stream: true,
+      cacheHit: true,
+      usage: {
+        totalTokens: Number(cacheLookup.payload.usageChunk?.usage?.total_tokens ?? 0) || undefined,
+      },
+      latencyMs: Date.now() - startedAt,
+      inputText: gatewayInput.messages?.at(-1)?.content ?? undefined,
+      virtualKeyFingerprint: request.enterpriseIdentity?.apiKeyFingerprint,
+    });
     for (const chunk of cacheLookup.payload.chunks) {
       writeOpenAiSseData(response, chunk);
     }
@@ -1392,6 +1453,7 @@ async function streamOpenAiChatCompletion({
 
   const capturedChunks = [];
   let capturedUsageChunk;
+  let firstTokenAt = 0;
 
   for await (const event of gatewayService.executeStream(gatewayInput)) {
     if (clientClosed) break;
@@ -1404,7 +1466,11 @@ async function streamOpenAiChatCompletion({
     completionId ??= toOpenAiCompletionId(event.requestId);
     selectedModel = event.selectedModel ?? selectedModel;
     finalEvent = event;
-    if (typeof event.textDelta === "string") {
+    if (typeof event.textDelta === "string" && event.textDelta) {
+      if (!firstTokenAt) {
+        firstTokenAt = Date.now();
+        recordChatTtft(CHAT_COMPLETIONS_PATH, firstTokenAt, startedAt);
+      }
       streamOutputText += event.textDelta;
     }
     const chunk = createOpenAiChatCompletionChunk(event, {
@@ -1418,6 +1484,30 @@ async function streamOpenAiChatCompletion({
   }
 
   if (!failed) {
+    recordChatRequest(CHAT_COMPLETIONS_PATH, true);
+    if (cacheCandidate) {
+      recordChatCacheEvent("exact", cacheLookup ? "miss" : "bypassed");
+    }
+    const finalUsage = finalEvent?.rawProviderMeta?.usage ?? {};
+    recordChatTokens(selectedModel, "input", finalUsage.inputTokens ?? estimateTokens(gatewayInput).estimatedInputTokens);
+    recordChatTokens(selectedModel, "output", finalUsage.outputTokens ?? estimateTextTokens(streamOutputText));
+    getLangfuseCallback().recordChatGeneration({
+      requestId: finalEvent?.requestId,
+      route: CHAT_COMPLETIONS_PATH,
+      model: selectedModel,
+      provider: finalEvent?.selectedProvider,
+      stream: true,
+      cacheHit: false,
+      usage: {
+        inputTokens: finalUsage.inputTokens ?? estimateTokens(gatewayInput).estimatedInputTokens,
+        outputTokens: finalUsage.outputTokens ?? estimateTextTokens(streamOutputText),
+        totalTokens: finalUsage.totalTokens,
+      },
+      latencyMs: Date.now() - startedAt,
+      inputText: gatewayInput.messages?.at(-1)?.content ?? undefined,
+      outputText: streamOutputText,
+      virtualKeyFingerprint: request.enterpriseIdentity?.apiKeyFingerprint,
+    });
     recordVirtualKeyUsage({
       enterpriseGovernanceService,
       request,
@@ -1462,6 +1552,7 @@ async function streamOpenAiChatCompletion({
         ...(capturedUsageChunk !== undefined ? { usageChunk: capturedUsageChunk } : {}),
       },
     });
+    recordChatCacheEvent("exact", "write");
   }
 }
 

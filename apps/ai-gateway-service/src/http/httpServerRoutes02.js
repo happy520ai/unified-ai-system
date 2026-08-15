@@ -1,5 +1,6 @@
 import { ROUTE_NOT_HANDLED } from "./httpRouteDispatch.js";
 import { createPrometheusExporter } from "../observability/prometheusExporter.js";
+import { getAiMetricsSnapshot } from "../observability/aiMetrics.ts";
 
 export async function dispatchHttpRoutes02(context) {
   const {
@@ -221,6 +222,7 @@ export async function dispatchHttpRoutes02(context) {
         : undefined,
       totalErrors: Math.round((stats.totalRequests ?? 0) * (stats.errorRate ?? 0)),
       providerScores: application?.healthScorer?.getAllScores?.() ?? {},
+      ai: getAiMetricsSnapshot(),
     };
     const body = exporter.formatMetrics(snapshot);
     if (!response.headersSent && typeof response.writeHead === "function") {
