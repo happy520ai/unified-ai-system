@@ -11,10 +11,12 @@ A self-starting, supervised wrapper around the existing
 - **WorkBuddy MCP connector registration** - installs or removes the entry in `~/.workbuddy/mcp.json` while preserving other servers.
 - **Cross-platform** - Windows Task Scheduler, Linux systemd, and macOS launchd.
 
-The 9 MCP tools exposed by `@unified-ai-system/mcp-server`
-(`gateway_health`, `gateway_readiness`, `gateway_prompt_enhance`, `gateway_chat`,
-`knowledge_readiness`, `workflow_health`, `workflow_actions`,
-`workforce_health`, `workforce_agents`) are unchanged. This package only
+The 12 MCP tools exposed by `@unified-ai-system/mcp-server`
+(`gateway_health`, `gateway_readiness`, `gateway_prompt_enhance`,
+`gateway_prompt_enhance_llm`, `gateway_chat`, `knowledge_readiness`,
+`knowledge_retrieve`, `workflow_health`, `workflow_actions`, `workflow_run`,
+`workforce_health`, `workforce_agents`) are unchanged. The authoritative tool
+list lives in `packages/mcp-server/README.md`. This package only
 adds a supervising layer and platform integration.
 
 ## Layout
