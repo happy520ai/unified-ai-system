@@ -9,6 +9,12 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Added an opt-in response cache for the OpenAI-compatible chat hot path.
+  With `AI_GATEWAY_RESPONSE_CACHE_ENABLED=true`, identical tenant-scoped
+  `POST /v1/chat/completions` requests replay the exact JSON or SSE wire
+  response without a provider call, reusing the existing response-cache store,
+  tenant scoping, TTL, and audit trail. See
+  `docs/response-cache-hot-path.md` for eligibility rules and operations.
 - Added a task handoff loop reference that documents the read and write handoff
   endpoints, the task card schema, the standard round, and a read-only
   connection verification card that any MCP host can run.
@@ -24,6 +30,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
   `.zcode/`, so per-machine interpreter paths stay out of version control.
 - Corrected the governed tool count in the Chinese MCP compatibility baseline
   from nine to twelve, completing an earlier alignment that missed this line.
+- Corrected the supervised MCP service README from nine to twelve governed
+  tools and refreshed its tool list to match the MCP server README.
 
 ### Fixed
 

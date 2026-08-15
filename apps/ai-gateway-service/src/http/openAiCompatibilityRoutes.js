@@ -1,4 +1,5 @@
 import { ROUTE_NOT_HANDLED } from "./httpRouteDispatch.js";
+import { getChatResponseCacheIntegration } from "../cache/chatResponseCacheIntegration.ts";
 import { applyPromptEnhancement } from "./utils/chatUtils.js";
 import { readJson, writeJson, writeSseHeaders } from "./utils/responseUtils.js";
 import {
@@ -309,6 +310,22 @@ export async function dispatchOpenAiCompatibilityRoutes(context) {
       return;
     }
 
+    const chatResponseCache = getChatResponseCacheIntegration();
+    const cacheCandidate = chatResponseCache.describeCacheCandidate(requestBody, gatewayInput);
+    const cacheLookup = cacheCandidate
+      ? chatResponseCache.lookup({ candidate: cacheCandidate, tenantIdentity: request.enterpriseIdentity })
+      : null;
+    if (cacheLookup?.payload.kind === "json") {
+      writeServiceLog?.("openai_chat_cache_hit", {
+        method: request.method,
+        path: normalizedPath,
+        cacheKey: cacheLookup.cacheKey,
+        durationMs: Date.now() - startedAt,
+      });
+      writeJson(response, 200, cacheLookup.payload.response);
+      return;
+    }
+
     const result = await gatewayService.execute(gatewayInput);
     if (!result.success) {
       const error = result.error ?? {
@@ -326,6 +343,19 @@ export async function dispatchOpenAiCompatibilityRoutes(context) {
       return;
     }
 
+    const chatCompletion = createOpenAiChatCompletion(result, {
+      created: Math.floor(startedAt / 1000),
+      requestedModel: requestBody.model,
+      promptEnhancement: gatewayInput.metadata?.promptEnhancement,
+    });
+    if (cacheCandidate) {
+      chatResponseCache.persist({
+        candidate: cacheCandidate,
+        tenantIdentity: request.enterpriseIdentity,
+        payload: { kind: "json", response: chatCompletion },
+      });
+    }
+
     writeServiceLog?.("openai_chat_completed", {
       method: request.method,
       path: normalizedPath,
@@ -334,11 +364,7 @@ export async function dispatchOpenAiCompatibilityRoutes(context) {
       executionMode: result.data?.executionMode,
       durationMs: Date.now() - startedAt,
     });
-    writeJson(response, 200, createOpenAiChatCompletion(result, {
-      created: Math.floor(startedAt / 1000),
-      requestedModel: requestBody.model,
-      promptEnhancement: gatewayInput.metadata?.promptEnhancement,
-    }));
+    writeJson(response, 200, chatCompletion);
     return;
   }
 
@@ -1229,6 +1255,34 @@ async function streamOpenAiChatCompletion({
   });
   writeSseHeaders(response);
 
+  const chatResponseCache = getChatResponseCacheIntegration();
+  const cacheCandidate = chatResponseCache.describeCacheCandidate(body, gatewayInput);
+  const cacheLookup = cacheCandidate
+    ? chatResponseCache.lookup({ candidate: cacheCandidate, tenantIdentity: request.enterpriseIdentity })
+    : null;
+  if (cacheLookup?.payload.kind === "sse") {
+    for (const chunk of cacheLookup.payload.chunks) {
+      writeOpenAiSseData(response, chunk);
+    }
+    if (body.stream_options?.include_usage === true && cacheLookup.payload.usageChunk !== undefined) {
+      writeOpenAiSseData(response, cacheLookup.payload.usageChunk);
+    }
+    writeServiceLog?.("openai_chat_stream_cache_hit", {
+      method: request.method,
+      path: CHAT_COMPLETIONS_PATH,
+      cacheKey: cacheLookup.cacheKey,
+      durationMs: Date.now() - startedAt,
+    });
+    if (!clientClosed) {
+      response.write("data: [DONE]\n\n");
+      response.end();
+    }
+    return;
+  }
+
+  const capturedChunks = [];
+  let capturedUsageChunk;
+
   for await (const event of gatewayService.executeStream(gatewayInput)) {
     if (clientClosed) break;
     if (event.type === "error") {
@@ -1240,12 +1294,14 @@ async function streamOpenAiChatCompletion({
     completionId ??= toOpenAiCompletionId(event.requestId);
     selectedModel = event.selectedModel ?? selectedModel;
     finalEvent = event;
-    writeOpenAiSseData(response, createOpenAiChatCompletionChunk(event, {
+    const chunk = createOpenAiChatCompletionChunk(event, {
       completionId,
       created,
       model: selectedModel,
       promptEnhancement: gatewayInput.metadata?.promptEnhancement,
-    }));
+    });
+    capturedChunks.push(chunk);
+    writeOpenAiSseData(response, chunk);
   }
 
   writeServiceLog?.(failed ? "openai_chat_stream_failed" : "openai_chat_stream_completed", {
@@ -1256,16 +1312,33 @@ async function streamOpenAiChatCompletion({
   });
   if (!clientClosed) {
     if (!failed && body.stream_options?.include_usage === true && finalEvent) {
-      writeOpenAiSseData(response, createOpenAiChatCompletionUsageChunk(finalEvent, {
+      capturedUsageChunk = createOpenAiChatCompletionUsageChunk(finalEvent, {
         completionId,
         created,
         model: selectedModel,
         messages: gatewayInput.messages,
         promptEnhancement: gatewayInput.metadata?.promptEnhancement,
-      }));
+      });
+      writeOpenAiSseData(response, capturedUsageChunk);
     }
     response.write("data: [DONE]\n\n");
     response.end();
+  }
+  if (
+    cacheCandidate
+    && !failed
+    && !clientClosed
+    && capturedChunks.length > 0
+  ) {
+    chatResponseCache.persist({
+      candidate: cacheCandidate,
+      tenantIdentity: request.enterpriseIdentity,
+      payload: {
+        kind: "sse",
+        chunks: capturedChunks,
+        ...(capturedUsageChunk !== undefined ? { usageChunk: capturedUsageChunk } : {}),
+      },
+    });
   }
 }
 

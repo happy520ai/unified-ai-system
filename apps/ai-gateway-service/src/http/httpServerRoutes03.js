@@ -1,4 +1,5 @@
 import { ROUTE_NOT_HANDLED } from "./httpRouteDispatch.js";
+import { getChatResponseCacheIntegration } from "../cache/chatResponseCacheIntegration.ts";
 
 export async function dispatchHttpRoutes03(context) {
   const {
@@ -60,6 +61,7 @@ export async function dispatchHttpRoutes03(context) {
 
   if (request.method === "GET" && url.pathname === "/cache/health") {
     const policy = createResponseCachePolicy();
+    const chatHotPathConfig = getChatResponseCacheIntegration().readConfig();
     writeJson(response, 200, createOkEnvelope({
       success: true,
       enabled: policy.enabled,
@@ -71,6 +73,14 @@ export async function dispatchHttpRoutes03(context) {
       semanticDecisionUsedAsFinalAuthority: policy.semanticDecisionUsedAsFinalAuthority,
       allowIntentSoftHit: policy.allowIntentSoftHit,
       allowMultilingualIntentSoftHit: policy.allowMultilingualIntentSoftHit,
+      chatHotPath: {
+        route: "POST /v1/chat/completions",
+        enabled: chatHotPathConfig.enabled,
+        enabledBy: "AI_GATEWAY_RESPONSE_CACHE_ENABLED=true",
+        ttlMs: chatHotPathConfig.ttlMs,
+        maxPayloadBytes: chatHotPathConfig.maxPayloadBytes,
+        tenantScoped: true,
+      },
       externalApiCalled: false,
       paidApiCalled: false,
       apiKeyRead: false,
