@@ -45,8 +45,8 @@
 ### ⑤ docs: 工具数修正 + 升级总结
 第八、十一轮 + 本指南。
 - `README.md`、`README.zh-CN.md`（MCP 工具数 9→12）
-- `UPGRADE-SUMMARY-2026-08-13.md`
-- `AUDIT-REPORT-2026-08-12.md`
+- `upgrade-summary-2026-08-13.md`
+- `audit-report-2026-08-12.md`
 
 > ⚠️ 注意：`git status` 里还有一部分是**十六轮之前**的未提交 WIP（如 `a2aGateway.js`、`httpServer.js`、`workforceService.js`、`workforceRealLocalRunner.js`、`multimodalRoutes.js` 等 workforce/A2A 相关）。这些不属于十六轮成果，建议**单独审查**或并入相关主题提交。
 

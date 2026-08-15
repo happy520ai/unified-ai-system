@@ -55,3 +55,10 @@ Public documentation is grouped by task so the repo stays easy to scan.
 - [Security policy](../SECURITY.md)
 - [Security evidence index](security/README.md)
 - [Provider adapter contribution guide](provider-adapter-contribution.md)
+
+## History
+
+- [Full audit report, 2026-08-12](history/audit-report-2026-08-12.md) — the 6.1/10 baseline the hardening cycles started from
+- [Thirty-five round upgrade summary, 2026-08-13](history/upgrade-summary-2026-08-13.md)
+- [Upgrade commit guide, 2026-08-13](history/upgrade-commit-guide-2026-08-13.md)
+- [Project history](history.md)
