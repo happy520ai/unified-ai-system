@@ -9,6 +9,13 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Added native streaming to the Anthropic provider adapter. `generateStream`
+  now consumes the upstream Anthropic Messages SSE stream directly (text
+  deltas, usage accounting from `message_start`/`message_delta`, stop-reason
+  mapping, inactivity-based timeout, and caller abort propagation), so
+  streaming requests no longer fail with `PROVIDER_STREAMING_UNSUPPORTED`
+  when a real Anthropic provider is selected. Also fixed the non-streaming
+  timeout error, which previously shipped without `category`/`retryable`.
 - Added an opt-in response cache for the OpenAI-compatible chat hot path.
   With `AI_GATEWAY_RESPONSE_CACHE_ENABLED=true`, identical tenant-scoped
   `POST /v1/chat/completions` requests replay the exact JSON or SSE wire

@@ -14,6 +14,11 @@ public-clone verifier against the managed local fake provider.
 - Anthropic-shaped validation, authentication, rate-limit, and API errors.
 - Existing gateway provider/model resolution, governance, request limits, and
   disconnect cleanup.
+- Native streaming from the Anthropic provider adapter itself: when a real
+  Anthropic provider is enabled, `POST /v1/messages` with `stream: true`
+  consumes the upstream Anthropic SSE stream directly (`generateStream`),
+  including usage accounting, stop-reason mapping, an inactivity timeout, and
+  abort propagation.
 
 Run the official SDK example while the gateway is listening on port 3100:
 
