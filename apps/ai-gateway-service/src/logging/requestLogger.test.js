@@ -1,10 +1,26 @@
 import { describe, expect, it } from "vitest";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createRequestLogger } from "./requestLogger.js";
 
 describe("requestLogger persistence", () => {
+  it("fails open when the log directory cannot be created", () => {
+    const dir = mkdtempSync(join(tmpdir(), "request-logger-ro-"));
+    try {
+      // 用一个文件作为父"目录"：mkdir 必然失败（ENOTDIR/EACCES）。
+      const blocker = join(dir, "blocker");
+      writeFileSync(blocker, "not a directory");
+      const logger = createRequestLogger({ logDir: join(blocker, "logs"), enableBodyLogging: false });
+      expect(() =>
+        logger.log({ method: "GET", path: "/healthz", statusCode: 200, latencyMs: 1 }),
+      ).not.toThrow();
+      expect(() => logger.flush()).not.toThrow();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("logs, flushes, queries and summarizes usage entries", () => {
     const logDir = mkdtempSync(join(tmpdir(), "request-logger-"));
     try {
