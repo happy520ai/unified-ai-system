@@ -301,6 +301,14 @@ export function resolvePermission(method, pathname) {
     return "user:admin";
   }
 
+  if (normalizedPath === "/mcp/tools" || normalizedPath === "/mcp/call") {
+    return "workflow:run";
+  }
+
+  if (normalizedPath === "/mcp/health") {
+    return "dashboard:read";
+  }
+
   if (normalizedPath === "/enterprise/security/readiness") {
     return "audit:read";
   }

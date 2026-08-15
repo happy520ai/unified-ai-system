@@ -19,6 +19,7 @@ import { createRequestLogger } from "../logging/requestLogger.js";
 import { createContentGuardrails } from "../guardrails/contentGuardrails.js";
 import { createLocalKnowledgeService } from "../knowledge/localKnowledgeService.js";
 import { createKnowledgeInfra } from "../knowledge/knowledgeInfra.js";
+import { createMcpGatewayService } from "../mcpGateway/mcpGatewayService.ts";
 import { createLocalWorkflowService } from "../workflow/localWorkflowService.js";
 import { createWorkforceService } from "../workforce/workforceService.js";
 import { createControlledExecutor } from "../workforce/workforceControlledExecutor.js";
@@ -148,6 +149,11 @@ export function createGatewayApplication(env = process.env) {
     env,
     auditLogPath: env.PME_AUDIT_LOG_PATH,
   });
+  // 反向 MCP 治理：聚合运维声明的上游 MCP server，工具调用全部入审计链。
+  const mcpGatewayService = createMcpGatewayService({
+    env,
+    recordAudit: (event) => enterpriseGovernanceService.recordAudit(event),
+  });
   const enterpriseOpsService = createEnterpriseOpsService({
     env,
     config,
@@ -180,6 +186,7 @@ export function createGatewayApplication(env = process.env) {
     healthScorer,
     knowledgeInfra,
     knowledgeService,
+    mcpGatewayService,
     modelImportService,
     modelLibraryStore,
     providerConfigRoutes,

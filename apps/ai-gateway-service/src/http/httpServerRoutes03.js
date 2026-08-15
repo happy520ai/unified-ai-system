@@ -89,6 +89,47 @@ export async function dispatchHttpRoutes03(context) {
     return;
   }
 
+  if (request.method === "GET" && url.pathname === "/mcp/health") {
+    writeJson(response, 200, createOkEnvelope(
+      application.mcpGatewayService
+        ? application.mcpGatewayService.getReadiness()
+        : { status: "disabled", upstreamCount: 0 },
+      { startedAt },
+    ));
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/mcp/tools") {
+    try {
+      const result = await application.mcpGatewayService.listTools(request.enterpriseIdentity);
+      writeJson(response, 200, createOkEnvelope({
+        toolCount: result.tools.length,
+        tools: result.tools,
+        servers: result.servers,
+      }, { startedAt }));
+    } catch (error) {
+      writeCapabilityError({ response, error, startedAt, fallbackCode: "mcp_tools_list_failed" });
+    }
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/mcp/call") {
+    const body = await readCapabilityJson({ request, response, startedAt, code: "mcp_call_invalid_json" });
+    if (!body) return;
+
+    try {
+      const result = await application.mcpGatewayService.callTool(request.enterpriseIdentity, {
+        server: body.server,
+        tool: body.tool,
+        ...(body.arguments && typeof body.arguments === "object" ? { arguments: body.arguments } : {}),
+      });
+      writeJson(response, 200, createOkEnvelope(result, { startedAt }));
+    } catch (error) {
+      writeCapabilityError({ response, error, startedAt, fallbackCode: "mcp_tool_call_failed" });
+    }
+    return;
+  }
+
   if (request.method === "POST" && url.pathname === "/cache/lookup") {
     const body = await readCapabilityJson({ request, response, startedAt, code: "response_cache_lookup_invalid_json" });
     if (!body) return;

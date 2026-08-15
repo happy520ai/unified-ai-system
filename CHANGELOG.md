@@ -9,6 +9,14 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Added reverse MCP governance: the gateway aggregates operator-declared
+  upstream MCP servers (`MCP_UPSTREAM_SERVERS_JSON`) over Streamable HTTP,
+  stdio, and a REST→MCP OpenAPI bridge, exposing them through
+  `GET /mcp/tools` and `POST /mcp/call` with tenant-scoped identities,
+  per-upstream tool allowlists, size caps, timeouts, outbound-policy egress,
+  and full audit-trail recording of every tool call. The OpenAPI bridge
+  generates governed MCP tools from any HTTPS OpenAPI 3 spec. See
+  `docs/reverse-mcp-governance.md`.
 - Added an opt-in semantic layer to the chat response cache
   (`AI_GATEWAY_RESPONSE_CACHE_SEMANTIC_ENABLED`): exact-key misses are
   matched against a bounded per-tenant in-memory vector index built with the
