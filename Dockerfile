@@ -31,6 +31,11 @@ COPY apps/agent-console apps/agent-console
 COPY tools/terminal-demo.mjs tools/terminal-demo.mjs
 COPY tools/mcp-smoke.mjs tools/mcp-smoke.mjs
 
+# 运行时状态目录（审计日志、请求日志、企业存储）归 node 所有；
+# 容器内进程以非 root 运行，缺这一步会在只读 /app 上 EACCES。
+RUN mkdir -p .data/audit .data/request-logs .data/enterprise .data/knowledge \
+  && chown -R node:node .data
+
 FROM runtime AS mcp
 
 LABEL org.opencontainers.image.description="Credential-free Unified AI System MCP server"
@@ -46,10 +51,6 @@ ENV AI_GATEWAY_SERVICE_PORT=3100
 ENV PME_ENTERPRISE_AUTH_ENABLED=true
 
 LABEL org.opencontainers.image.description="Terminal-first, self-hosted AI gateway"
-
-# 运行时状态目录（审计日志、请求日志、企业存储）归 node 所有；
-# 容器内进程以非 root 运行，缺这一步会在只读 /app 上 EACCES。
-RUN mkdir -p .data/audit .data/request-logs .data/enterprise .data/knowledge   && chown -R node:node .data
 
 USER node
 EXPOSE 3100
