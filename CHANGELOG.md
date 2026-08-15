@@ -9,6 +9,16 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Added virtual keys (`uai-`) with periodic token budgets and per-key rate
+  limits. Operators create, list, and revoke keys through
+  `/enterprise/virtual-keys` (user:admin); keys authenticate through the
+  enterprise governance layer as tenant-scoped identities; and
+  `POST /v1/chat/completions` enforces a pre-request budget check (429
+  `VIRTUAL_KEY_BUDGET_EXHAUSTED` / `VIRTUAL_KEY_RATE_LIMITED`), records
+  actual usage (including response-cache hits and streaming), and emits a
+  soft-budget service-log event at the configured threshold. Keys persist as
+  SHA-256 hashes with usage counters in `.data/enterprise/api-keys.json`.
+  See `docs/virtual-keys.md`.
 - Added native streaming to the Anthropic provider adapter. `generateStream`
   now consumes the upstream Anthropic Messages SSE stream directly (text
   deltas, usage accounting from `message_start`/`message_delta`, stop-reason

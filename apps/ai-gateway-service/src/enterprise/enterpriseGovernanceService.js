@@ -14,6 +14,7 @@ import {
   saveStoredUsers as jsonSaveStoredUsers,
 } from "./enterpriseUserStore.js";
 import { createSqliteUserStoreBackend } from "./enterpriseUserStore-sqlite.js";
+import { createApiKeyManager } from "./apiKeyManager.js";
 import {
   filterAuditEntries,
   readAuditFile,
@@ -53,6 +54,9 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
     addStoredUser(users, user);
   }
   const revokedTokens = parseRevokedTokens(env.PME_ENTERPRISE_REVOKED_TOKENS);
+  // 虚拟 key（uai- 前缀）：SHA-256 落盘于 .data/enterprise/api-keys.json
+  const apiKeyStorePath = env.PME_API_KEY_STORE_PATH ?? resolve(".data/enterprise/api-keys.json");
+  const apiKeyManager = createApiKeyManager({ storePath: apiKeyStorePath });
   const auditPath = auditLogPath ?? env.PME_AUDIT_LOG_PATH ?? resolve(".data/audit/enterprise-audit.jsonl");
   const auditEntries = [];
 
@@ -78,6 +82,7 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
           path: userStorePath,
           storedUserCount: storedUsers.length,
         },
+        apiKeys: apiKeyManager.getHealth(),
         audit: {
           mode: "jsonl-file",
           path: auditPath,
@@ -104,6 +109,10 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
         path: userStorePath,
         users: createSanitizedUsers(users),
       };
+    },
+
+    getApiKeyManager() {
+      return apiKeyManager;
     },
 
     exportUsersForBackup() {
@@ -215,7 +224,34 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
 
       const token = readToken(request);
       const tokenHash = token ? hashToken(token) : null;
-      const configured = tokenHash ? users.get(tokenHash) : null;
+      let configured = tokenHash ? users.get(tokenHash) : null;
+
+      // 虚拟 key（uai- 前缀）不在静态用户表里：经 apiKeyManager 验证后
+      // 拼装成同构身份，下游（角色权限/租户/审计）行为与普通用户一致。
+      if (!configured && token && token.startsWith("uai-")) {
+        const virtualKey = apiKeyManager.validate(token);
+        if (!virtualKey.valid) {
+          return {
+            authenticated: false,
+            statusCode: 401,
+            code: `enterprise_${virtualKey.error ?? "auth_required"}`,
+            message: "A valid enterprise auth token is required.",
+          };
+        }
+        const role = virtualKey.record.role;
+        configured = {
+          tokenHash,
+          tokenFingerprint: virtualKey.record.keyFingerprint,
+          source: "api-key",
+          userId: `api-key:${virtualKey.record.keyFingerprint}`,
+          tenantId: virtualKey.record.tenantId,
+          role,
+          permissions: Array.isArray(DEFAULT_ROLES[role]) ? DEFAULT_ROLES[role] : [],
+          expiresAt: virtualKey.record.expiresAt,
+          revoked: false,
+          apiKeyFingerprint: virtualKey.record.keyFingerprint,
+        };
+      }
 
       if (!configured) {
         return {
@@ -383,12 +419,13 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
   };
 }
 
-function createIdentity({ userId, tenantId, role, permissions }) {
+function createIdentity({ userId, tenantId, role, permissions, apiKeyFingerprint }) {
   return {
     userId,
     tenantId,
     role,
     permissions,
+    ...(apiKeyFingerprint ? { apiKeyFingerprint } : {}),
   };
 }
 

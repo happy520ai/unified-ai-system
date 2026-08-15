@@ -1,5 +1,6 @@
 import { ROUTE_NOT_HANDLED } from "./httpRouteDispatch.js";
 import { getChatResponseCacheIntegration } from "../cache/chatResponseCacheIntegration.ts";
+import { estimateTextTokens, estimateTokens } from "../cost/tokenEstimator.js";
 import { applyPromptEnhancement } from "./utils/chatUtils.js";
 import { readJson, writeJson, writeSseHeaders } from "./utils/responseUtils.js";
 import {
@@ -175,6 +176,7 @@ export async function dispatchOpenAiCompatibilityRoutes(context) {
     startedAt,
     url,
     writeServiceLog,
+    enterpriseGovernanceService,
   } = context;
   const normalized = normalizeOpenAiPath(url.pathname);
   const normalizedPath = normalized.path;
@@ -306,7 +308,20 @@ export async function dispatchOpenAiCompatibilityRoutes(context) {
         response,
         startedAt,
         writeServiceLog,
+        enterpriseGovernanceService,
       });
+      return;
+    }
+
+    // 虚拟 key（uai-）预算/限流门：请求前按保守估算预检，命中缓存也消耗预算。
+    if (applyVirtualKeyRequestGate({
+      enterpriseGovernanceService,
+      request,
+      gatewayInput,
+      response,
+      writeServiceLog,
+      startedAt,
+    })) {
       return;
     }
 
@@ -316,6 +331,13 @@ export async function dispatchOpenAiCompatibilityRoutes(context) {
       ? chatResponseCache.lookup({ candidate: cacheCandidate, tenantIdentity: request.enterpriseIdentity })
       : null;
     if (cacheLookup?.payload.kind === "json") {
+      recordVirtualKeyUsage({
+        enterpriseGovernanceService,
+        request,
+        writeServiceLog,
+        tokens: Number(cacheLookup.payload.response?.usage?.total_tokens ?? 0)
+          || estimateTokens(gatewayInput).estimatedInputTokens,
+      });
       writeServiceLog?.("openai_chat_cache_hit", {
         method: request.method,
         path: normalizedPath,
@@ -347,6 +369,13 @@ export async function dispatchOpenAiCompatibilityRoutes(context) {
       created: Math.floor(startedAt / 1000),
       requestedModel: requestBody.model,
       promptEnhancement: gatewayInput.metadata?.promptEnhancement,
+    });
+    recordVirtualKeyUsage({
+      enterpriseGovernanceService,
+      request,
+      writeServiceLog,
+      tokens: Number(result.data?.usage?.totalTokens ?? 0)
+        || estimateTokens(gatewayInput).estimatedInputTokens,
     });
     if (cacheCandidate) {
       chatResponseCache.persist({
@@ -1234,6 +1263,65 @@ function resolveOpenAiModelResource(modelId, descriptors = []) {
   return null;
 }
 
+function applyVirtualKeyRequestGate({
+  enterpriseGovernanceService,
+  request,
+  gatewayInput,
+  response,
+  writeServiceLog,
+  startedAt,
+}) {
+  const fingerprint = request?.enterpriseIdentity?.apiKeyFingerprint;
+  if (!fingerprint) return false;
+  const manager = enterpriseGovernanceService?.getApiKeyManager?.();
+  // 接线缺失时 fail-open：虚拟 key 认证已由治理层完成，缺记账器不应阻断请求。
+  if (!manager) return false;
+
+  const estimatedInputTokens = estimateTokens(gatewayInput).estimatedInputTokens;
+  const decision = manager.authorizeUsage({ keyId: fingerprint, estimatedTokens: estimatedInputTokens });
+  if (decision.allowed) return false;
+
+  writeServiceLog?.("openai_chat_virtual_key_rejected", {
+    path: CHAT_COMPLETIONS_PATH,
+    code: decision.code,
+    keyFingerprint: fingerprint,
+    durationMs: Date.now() - startedAt,
+  });
+  writeJson(response, 429, createOpenAiError({
+    code: decision.code,
+    category: "rate_limit",
+    message: decision.code === "VIRTUAL_KEY_RATE_LIMITED"
+      ? "Virtual key request rate limit exceeded; retry later."
+      : "Virtual key token budget exhausted for the current window.",
+  }));
+  return true;
+}
+
+function recordVirtualKeyUsage({
+  enterpriseGovernanceService,
+  request,
+  writeServiceLog,
+  tokens,
+}) {
+  const fingerprint = request?.enterpriseIdentity?.apiKeyFingerprint;
+  if (!fingerprint) return;
+  const manager = enterpriseGovernanceService?.getApiKeyManager?.();
+  if (!manager) return;
+  try {
+    const result = manager.recordUsage({ keyId: fingerprint, tokens });
+    if (result.softBudgetExceeded) {
+      writeServiceLog?.("openai_chat_virtual_key_soft_budget", {
+        path: CHAT_COMPLETIONS_PATH,
+        keyFingerprint: fingerprint,
+        tokensUsed: result.budget?.tokensUsed ?? null,
+        limitTokens: result.budget?.limitTokens ?? null,
+      });
+    }
+  } catch {
+    // 记账失败不影响响应。
+  }
+}
+
 async function streamOpenAiChatCompletion({
   body,
   gatewayInput,
@@ -1242,17 +1330,32 @@ async function streamOpenAiChatCompletion({
   response,
   startedAt,
   writeServiceLog,
+  enterpriseGovernanceService,
 }) {
   let clientClosed = false;
   let failed = false;
   let completionId = null;
   let selectedModel = body.model;
   let finalEvent = null;
+  let streamOutputText = "";
   const created = Math.floor(startedAt / 1000);
 
   response.on("close", () => {
     clientClosed = true;
   });
+
+  // 虚拟 key 门对流式请求同样生效；必须在写出 SSE 头之前拒绝。
+  if (applyVirtualKeyRequestGate({
+    enterpriseGovernanceService,
+    request,
+    gatewayInput,
+    response,
+    writeServiceLog,
+    startedAt,
+  })) {
+    return;
+  }
+
   writeSseHeaders(response);
 
   const chatResponseCache = getChatResponseCacheIntegration();
@@ -1267,6 +1370,13 @@ async function streamOpenAiChatCompletion({
     if (body.stream_options?.include_usage === true && cacheLookup.payload.usageChunk !== undefined) {
       writeOpenAiSseData(response, cacheLookup.payload.usageChunk);
     }
+    recordVirtualKeyUsage({
+      enterpriseGovernanceService,
+      request,
+      writeServiceLog,
+      tokens: Number(cacheLookup.payload.usageChunk?.usage?.total_tokens ?? 0)
+        || estimateTokens(gatewayInput).estimatedInputTokens,
+    });
     writeServiceLog?.("openai_chat_stream_cache_hit", {
       method: request.method,
       path: CHAT_COMPLETIONS_PATH,
@@ -1294,6 +1404,9 @@ async function streamOpenAiChatCompletion({
     completionId ??= toOpenAiCompletionId(event.requestId);
     selectedModel = event.selectedModel ?? selectedModel;
     finalEvent = event;
+    if (typeof event.textDelta === "string") {
+      streamOutputText += event.textDelta;
+    }
     const chunk = createOpenAiChatCompletionChunk(event, {
       completionId,
       created,
@@ -1302,6 +1415,16 @@ async function streamOpenAiChatCompletion({
     });
     capturedChunks.push(chunk);
     writeOpenAiSseData(response, chunk);
+  }
+
+  if (!failed) {
+    recordVirtualKeyUsage({
+      enterpriseGovernanceService,
+      request,
+      writeServiceLog,
+      tokens: Number(finalEvent?.rawProviderMeta?.usage?.totalTokens ?? 0)
+        || (estimateTokens(gatewayInput).estimatedInputTokens + estimateTextTokens(streamOutputText)),
+    });
   }
 
   writeServiceLog?.(failed ? "openai_chat_stream_failed" : "openai_chat_stream_completed", {

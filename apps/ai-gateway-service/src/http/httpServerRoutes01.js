@@ -324,6 +324,89 @@ export async function dispatchHttpRoutes01(context) {
     return;
   }
 
+  if (request.method === "GET" && url.pathname === "/enterprise/virtual-keys") {
+    const result = enterpriseGovernanceService.getApiKeyManager().list({
+      tenantId: request.enterpriseIdentity?.tenantId,
+    });
+    writeJson(response, 200, createOkEnvelope(result, { startedAt }));
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/enterprise/virtual-keys") {
+    const body = await readEnterpriseJson({ request, response, startedAt, code: "enterprise_virtual_key_invalid_json" });
+    if (!body) return;
+
+    try {
+      const result = enterpriseGovernanceService.getApiKeyManager().create({
+        role: body.role,
+        tenantId: body.tenantId ?? request.enterpriseIdentity?.tenantId,
+        description: body.description,
+        expiresAt: body.expiresAt ?? null,
+        budget: body.budget ?? null,
+        rateLimit: body.rateLimit ?? null,
+      });
+      await enterpriseGovernanceService.recordAudit({
+        outcome: "allowed",
+        method: request.method,
+        path: url.pathname,
+        permission: "user:admin",
+        statusCode: 200,
+        code: "enterprise_virtual_key_created",
+        identity: request.enterpriseIdentity,
+        // 明文 key 不落审计，仅记录指纹。
+        details: {
+          keyId: result.record.keyId,
+          tenantId: result.record.tenantId,
+          role: result.record.role,
+        },
+      });
+      writeJson(response, 200, createOkEnvelope(result, { startedAt }));
+    } catch (error) {
+      writeEnterpriseError({ response, error, startedAt, fallbackCode: "enterprise_virtual_key_create_failed" });
+    }
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/enterprise/virtual-keys/revoke") {
+    const body = await readEnterpriseJson({ request, response, startedAt, code: "enterprise_virtual_key_invalid_json" });
+    if (!body) return;
+
+    try {
+      const manager = enterpriseGovernanceService.getApiKeyManager();
+      const target = manager.describeUsage({ keyId: body.keyId });
+      if (
+        target
+        && target.tenantId !== request.enterpriseIdentity?.tenantId
+        && request.enterpriseIdentity?.role !== "admin"
+      ) {
+        writeJson(response, 403, createErrorEnvelope(
+          "enterprise_virtual_key_tenant_forbidden",
+          "The virtual key belongs to another tenant.",
+          { startedAt, category: "auth" },
+        ));
+        return;
+      }
+      const result = manager.revoke({ keyId: body.keyId });
+      await enterpriseGovernanceService.recordAudit({
+        outcome: "allowed",
+        method: request.method,
+        path: url.pathname,
+        permission: "user:admin",
+        statusCode: 200,
+        code: "enterprise_virtual_key_revoked",
+        identity: request.enterpriseIdentity,
+        details: {
+          keyId: result.record.keyId,
+          tenantId: result.record.tenantId,
+        },
+      });
+      writeJson(response, 200, createOkEnvelope(result, { startedAt }));
+    } catch (error) {
+      writeEnterpriseError({ response, error, startedAt, fallbackCode: "enterprise_virtual_key_revoke_failed" });
+    }
+    return;
+  }
+
   if (request.method === "GET" && url.pathname === "/enterprise/security/readiness") {
     writeJson(response, 200, createOkEnvelope(enterpriseGovernanceService.getSecurityReadiness(), { startedAt }));
     return;

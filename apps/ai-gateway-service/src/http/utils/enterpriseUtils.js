@@ -294,6 +294,13 @@ export function resolvePermission(method, pathname) {
     return "user:admin";
   }
 
+  if (
+    normalizedPath === "/enterprise/virtual-keys"
+    || normalizedPath === "/enterprise/virtual-keys/revoke"
+  ) {
+    return "user:admin";
+  }
+
   if (normalizedPath === "/enterprise/security/readiness") {
     return "audit:read";
   }
