@@ -10,7 +10,10 @@ ENV NODE_ENV=production
 LABEL org.opencontainers.image.source="https://github.com/happy520ai/unified-ai-system"
 LABEL org.opencontainers.image.licenses="Apache-2.0"
 
-RUN corepack enable && corepack prepare pnpm@11.19.0 --activate
+RUN corepack enable 
+  && (corepack prepare pnpm@11.19.0 --activate 
+      || corepack prepare pnpm@11.19.0 --activate 
+      || corepack prepare pnpm@11.19.0 --activate)
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/ai-gateway-service/package.json apps/ai-gateway-service/package.json
