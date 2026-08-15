@@ -707,6 +707,9 @@ export function createGatewayHttpServer(application) {
       const authRateKey = request.socket?.remoteAddress ?? "unknown";
       const authRateCheck = authRateLimiter.check(authRateKey);
       if (!authRateCheck.allowed) {
+        // retry-after 必须在 writeJson 之前设置：响应发送后再 setHeader 会抛
+        // ERR_HTTP_HEADERS_SENT，把 429 变成 500。
+        response.setHeader("retry-after", Math.ceil(authRateCheck.retryAfterMs / 1000));
         writeJson(
           response,
           429,
@@ -716,7 +719,6 @@ export function createGatewayHttpServer(application) {
             retryable: true,
           }),
         );
-        response.setHeader("retry-after", Math.ceil(authRateCheck.retryAfterMs / 1000));
         markRequestSuccess();
         return;
       }
@@ -725,7 +727,9 @@ export function createGatewayHttpServer(application) {
       request.enterpriseIdentity = enterpriseDecision.identity;
       if (enterpriseDecision.allowed) {
         authRateLimiter.recordSuccess(authRateKey);
-      } else {
+      } else if (!publicRoute) {
+        // 公共路由的匿名访问（健康探测、公共只读面）不是认证尝试，
+        // 不能计入暴力破解锁定——否则 readiness 轮询会把自己限流。
         authRateLimiter.recordFailure(authRateKey);
       }
 
