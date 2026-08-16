@@ -28,7 +28,7 @@ The internal `/chat` protocol keeps its own in-service content guard
 | `input.pii.phone` | `redact` | E.164 / grouped phone forms → `[redacted-phone]` |
 | `input.secrets` | `block` | Pasted provider/cloud credentials (`sk-…`, `sk-ant-…`, `uai-…`, `AKIA…`, `ghp_…`, `AIza…`, `xox…`) |
 | `input.injection` | `warn` | Common instruction-override / system-prompt exfiltration phrasings |
-| `input.limits` | `block` | Final message above `maxInputChars` (default 200,000) |
+| `input.limits` | `block` | Cumulative characters across **all** messages above `maxInputChars` (default 200,000) |
 | `output.pii.email` | `redact` | Emails echoed by the model |
 | `output.pii.phone` | `redact` | Phones echoed by the model |
 | `output.secrets` | `redact` | Credential-looking strings in responses |

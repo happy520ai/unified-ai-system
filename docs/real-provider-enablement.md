@@ -65,6 +65,15 @@ Two supported paths; pick one per deployment.
    `POST /providers/runtime-credential/detect` reports which providers have a
    usable credential without exposing values.
 
+   **Storage semantics (honest boundary):** provider runtime credentials are
+   persisted **in cleartext** inside that permission-restricted file — the
+   gateway must be able to present the key to the provider, so it cannot be
+   hashed. Only *virtual keys* (`uai-`) and *user tokens* are stored as
+   SHA-256 hashes. The `0600` mode applies on POSIX; on Windows the file ACL
+   is restricted to the current user on best effort. For stricter at-rest
+   protection use the environment path with your platform's secret manager,
+   or `PME_RUNTIME_CREDENTIAL_STORE_MODE=memory`.
+
 Rollback for path 2 is store eviction plus restart; for path 1, unset the
 variable and restart.
 

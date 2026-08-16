@@ -20,7 +20,7 @@ AI_GATEWAY_PROVIDER_MODE=real   # or "auto"
 2. Provide a key (in any of the three supported ways):
 
 - Static config (`providerModels` entry `apiKey`)
-- Runtime credential store (`POST` a credential for provider `gemini`; SHA-256 at rest)
+- Runtime credential store (`POST` a credential for provider `gemini`; stored in a locally permissioned file in cleartext for local execution — see [real-provider enablement](real-provider-enablement.md) for the storage semantics and stricter alternatives)
 - Environment: `GEMINI_API_KEY` (or `GOOGLE_API_KEY`) **and** `gemini` listed in
   `AI_GATEWAY_ENABLED_PROVIDERS`
 

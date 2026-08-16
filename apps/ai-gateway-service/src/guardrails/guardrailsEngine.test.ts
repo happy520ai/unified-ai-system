@@ -77,16 +77,29 @@ describe("guardrails input inspection", () => {
     });
   });
 
-  it("blocks oversized final messages under input.limits", () => {
-    const engine = createGuardrailsEngineForTests({ enabled: true, maxInputChars: 100 });
+  it("blocks oversized input by cumulative length across all messages", () => {
+    const engine = createGuardrailsEngineForTests({ enabled: true, maxInputChars: 200 });
     const verdict = engine.inspectInput({
       messages: [
-        { role: "user", content: "short" },
-        { role: "user", content: "x".repeat(200) },
+        { role: "user", content: "x".repeat(120) },
+        { role: "assistant", content: "y".repeat(120) },
+        { role: "user", content: "z".repeat(120) },
       ],
     });
     expect(verdict.decision).toBe("block");
     expect(verdict.findings.some((f) => f.rule === "input.limits")).toBe(true);
+  });
+
+  it("allows individual messages under the cumulative cap", () => {
+    const engine = createGuardrailsEngineForTests({ enabled: true, maxInputChars: 200 });
+    const verdict = engine.inspectInput({
+      messages: [
+        { role: "user", content: "x".repeat(80) },
+        { role: "assistant", content: "y".repeat(80) },
+      ],
+    });
+    expect(verdict.decision).toBe("allow");
+    expect(verdict.findings.some((f) => f.rule === "input.limits")).toBe(false);
   });
 
   it("redacts emails and phones instead of blocking", () => {

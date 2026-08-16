@@ -246,13 +246,28 @@ class DefaultGuardrailsEngine implements GuardrailsEngine {
       const replacements: Array<{ index: number; content: string }> = [];
       let blocked = false;
 
+      // 长度上限按全部消息的累计字符数判定：只查末条会被"把超长内容
+      // 拆进多条消息"绕过。
+      const totalAllMessageChars = messages.reduce(
+        (sum, message) => sum + extractMessageText((message as { content?: unknown })?.content).length,
+        0,
+      );
+      const limitsRule = config.rules["input.limits"] ?? "off";
+      if (limitsRule !== "off" && totalAllMessageChars > config.maxInputChars) {
+        findings.push({
+          rule: "input.limits",
+          action: limitsRule as GuardrailFinding["action"],
+          count: 1,
+        });
+        if (limitsRule === "block") blocked = true;
+      }
+
       for (let index = 0; index < messages.length; index += 1) {
         const message = messages[index] as { content?: unknown } | null;
         const text = extractMessageText(message?.content);
         if (!text) continue;
         let mutated: string | null = null;
 
-        const totalChars = text.length;
         const rule = (name: GuardrailRuleName) => config.rules[name] ?? "off";
 
         const handleRule = (
@@ -281,10 +296,6 @@ class DefaultGuardrailsEngine implements GuardrailsEngine {
 
         const injectionCount = INJECTION_PATTERNS.reduce((sum, pattern) => sum + countMatches(text, pattern), 0);
         handleRule("input.injection", injectionCount, rule("input.injection"), null);
-
-        if (index === messages.length - 1) {
-          handleRule("input.limits", totalChars > config.maxInputChars ? 1 : 0, rule("input.limits"), null);
-        }
 
         const bannedMatches = config.bannedTerms.filter((term) => text.toLowerCase().includes(term.toLowerCase()));
         handleRule("banned.terms", bannedMatches.length, rule("banned.terms"), null);

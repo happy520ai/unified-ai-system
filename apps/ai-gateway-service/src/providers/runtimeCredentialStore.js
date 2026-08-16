@@ -6,6 +6,7 @@ import {
   unlinkSync,
   writeFileSync,
 } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { homedir } from "node:os";
 import { createPinoLogger } from "../logging/pinoLogger.js";
@@ -251,6 +252,7 @@ function persistCredentials(credentials, persistence, sqliteBackend) {
       records,
     }, null, 2), { encoding: "utf8", mode: 0o600 });
     renameSync(tmpPath, persistence.path);
+    restrictCredentialFilePermissions(persistence.path);
     const persistedProviders = new Set(records.map((record) => record.providerId));
     for (const record of credentials.values()) {
       record.persisted = persistedProviders.has(record.providerId);
@@ -275,6 +277,30 @@ function persistCredentials(credentials, persistence, sqliteBackend) {
       record.persisted = false;
     }
     return false;
+  }
+}
+
+// Windows 忽略 POSIX mode（0o600 不映射 ACL），凭证文件会以默认可继承 ACL
+// 落盘。这里 best-effort 用 icacls 切断继承、仅保留当前用户；失败不阻断
+// 持久化（与 fail-open 的持久化语义一致），只记一条审计日志。
+function restrictCredentialFilePermissions(filePath) {
+  if (process.platform !== "win32") return;
+  try {
+    const user = process.env.USERNAME || process.env.USER || "";
+    if (!user) return;
+    const result = spawnSync("icacls", [
+      filePath,
+      "/inheritance:r",
+      `/grant:${user}:F`,
+    ], { stdio: "ignore", timeout: 5000 });
+    if (result.status !== 0) {
+      logger.warn({
+        event: "runtime_credential_acl_restriction_failed",
+        status: result.status,
+      }, "Could not restrict the Windows ACL on the runtime credential file.");
+    }
+  } catch {
+    // ACL 加固失败不影响凭证可用性；管理员可参照文档手工收紧。
   }
 }
 
