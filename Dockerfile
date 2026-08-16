@@ -15,6 +15,11 @@ LABEL org.opencontainers.image.licenses="Apache-2.0"
 # 不再有 corepack 下载横幅污染 stdout。
 RUN npm install -g pnpm@11.19.0
 
+# pnpm 的 verify-deps-before-run 会在项目根（/app，root 属主、node 只读）
+# 写 _tmp_* 哈希文件，非 root 运行 `pnpm gateway demo` 时偶发 EACCES。
+# 容器内依赖由 --frozen-lockfile 在构建期锁定，运行期无需再校验。
+ENV npm_config_verify_deps_before_run=false
+
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/ai-gateway-service/package.json apps/ai-gateway-service/package.json
 COPY apps/agent-console/package.json apps/agent-console/package.json
