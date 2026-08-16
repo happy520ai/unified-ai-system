@@ -13,9 +13,12 @@ extra credentials are required.
 
 | Stage | Applies to | Effect |
 | --- | --- | --- |
-| Input | JSON + SSE, before normalization, cache, and the provider call | `block` → HTTP 400 `guardrail_blocked`; `redact` → message text rewritten (redacted text also becomes the cache key input) |
-| Output (JSON) | Final `choices[0].message.content` | `redact` rewrites the payload; `block` returns 400 after generation |
-| Output (SSE) | Each streamed delta | Best-effort per-chunk redaction; cross-boundary patterns surface as findings |
+| Input | `/v1/chat/completions` and `/v1/messages` (JSON + SSE), before normalization, cache, and the provider call | `block` → HTTP 400 `guardrail_blocked`; `redact` → message text rewritten (redacted text also becomes the cache key input) |
+| Output (JSON) | Final assistant text on both protocol surfaces | `redact` rewrites the payload; `block` returns 400 after generation |
+| Output (SSE) | Each streamed delta on both protocol surfaces | Best-effort per-chunk redaction; cross-boundary patterns surface as findings |
+
+The internal `/chat` protocol keeps its own in-service content guard
+(`CONTENT_GUARDRAIL_BLOCKED`) and is unaffected by this engine's rule set.
 
 ## Built-in rules and default actions
 

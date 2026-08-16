@@ -644,6 +644,46 @@ async function handleAnthropicMessages({
     return;
   }
 
+  // Guardrails（确定性本地扫描）：与 /v1/chat/completions 同一引擎，作用于
+  // 归一化前的原始请求，拦截/脱敏覆盖 JSON、流式与缓存路径。
+  const anthropicGuardrailVerdict = getGuardrailsEngine().inspectInput(body);
+  if (anthropicGuardrailVerdict.decision === "block") {
+    recordGuardrailEvaluation("input", "block");
+    for (const finding of anthropicGuardrailVerdict.findings) {
+      if (finding.action === "block") recordGuardrailFinding(finding.rule, finding.action);
+    }
+    writeServiceLog?.("anthropic_messages_guardrail_blocked", {
+      method: request.method,
+      path: ANTHROPIC_MESSAGES_PATH,
+      findings: anthropicGuardrailVerdict.findings,
+      durationMs: Date.now() - startedAt,
+    });
+    writeJson(response, 400, createAnthropicError({
+      code: "guardrail_blocked",
+      category: "governance",
+      message: "Request blocked by chat guardrails.",
+      param: "messages",
+    }));
+    return;
+  }
+  if (anthropicGuardrailVerdict.findings.length) {
+    recordGuardrailEvaluation("input", "allow");
+    for (const finding of anthropicGuardrailVerdict.findings) {
+      recordGuardrailFinding(finding.rule, finding.action);
+    }
+    writeServiceLog?.("anthropic_messages_guardrail_findings", {
+      method: request.method,
+      path: ANTHROPIC_MESSAGES_PATH,
+      findings: anthropicGuardrailVerdict.findings,
+      durationMs: Date.now() - startedAt,
+    });
+  }
+  for (const replacement of anthropicGuardrailVerdict.replacements) {
+    if (typeof body.messages?.[replacement.index]?.content === "string") {
+      body.messages[replacement.index].content = replacement.content;
+    }
+  }
+
   let gatewayInput;
   try {
     gatewayInput = normalizeAnthropicMessageRequest(
@@ -703,10 +743,51 @@ async function handleAnthropicMessages({
     executionMode: result.data?.executionMode,
     durationMs: Date.now() - startedAt,
   });
-  writeJson(response, 200, createAnthropicMessage(result, {
+  const anthropicMessage = createAnthropicMessage(result, {
     requestedModel: body.model,
     messages: gatewayInput.messages,
-  }));
+  });
+  // Guardrails 输出侧（JSON）：对最终文本块脱敏/拦截，fail-open 不影响正常响应。
+  const anthropicOutputText = anthropicMessage?.content
+    ?.filter((block) => block?.type === "text")
+    .map((block) => block?.text ?? "")
+    .join("");
+  if (typeof anthropicOutputText === "string" && anthropicOutputText) {
+    const anthropicOutputVerdict = getGuardrailsEngine().inspectOutputText(anthropicOutputText);
+    if (anthropicOutputVerdict.decision === "block") {
+      recordGuardrailEvaluation("output", "block");
+      for (const finding of anthropicOutputVerdict.findings) {
+        if (finding.action === "block") recordGuardrailFinding(finding.rule, finding.action);
+      }
+      writeServiceLog?.("anthropic_messages_guardrail_output_blocked", {
+        method: request.method,
+        path: ANTHROPIC_MESSAGES_PATH,
+        findings: anthropicOutputVerdict.findings,
+        durationMs: Date.now() - startedAt,
+      });
+      writeJson(response, 400, createAnthropicError({
+        code: "guardrail_blocked",
+        category: "governance",
+        message: "Response blocked by chat guardrails.",
+        param: "messages",
+      }));
+      return;
+    }
+    if (anthropicOutputVerdict.findings.length) {
+      recordGuardrailEvaluation("output", "allow");
+      for (const finding of anthropicOutputVerdict.findings) {
+        recordGuardrailFinding(finding.rule, finding.action);
+      }
+    }
+    if (anthropicOutputVerdict.text !== anthropicOutputText) {
+      for (const block of anthropicMessage.content ?? []) {
+        if (block?.type === "text" && block.text) {
+          block.text = getGuardrailsEngine().inspectOutputText(block.text).text;
+        }
+      }
+    }
+  }
+  writeJson(response, 200, anthropicMessage);
 }
 
 export function normalizeAnthropicMessageRequest(body, descriptors = []) {
@@ -1012,6 +1093,12 @@ async function streamAnthropicMessage({
     selectedProvider = event.selectedProvider ?? selectedProvider;
     executionMode = event.executionMode ?? executionMode;
     if (event.type === "chunk" && typeof event.textDelta === "string" && event.textDelta) {
+      // Guardrails 输出侧（流式）：与 /v1/chat/completions 同一引擎，逐 delta
+      // 尽力脱敏；fail-open 保证流不中断。
+      const redactedAnthropicDelta = getGuardrailsEngine().inspectSseDelta(event.textDelta);
+      if (redactedAnthropicDelta !== event.textDelta) {
+        event.textDelta = redactedAnthropicDelta;
+      }
       outputText += event.textDelta;
       writeAnthropicSseEvent(response, "content_block_delta", {
         type: "content_block_delta",

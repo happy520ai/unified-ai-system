@@ -170,4 +170,57 @@ describe("chat completions guardrails wiring", () => {
     expect(JSON.stringify(passedInput)).toContain("jane@corp.example");
     expect(JSON.stringify(passedInput)).toContain("AKIAIOSFODNN7EXAMPLE");
   });
+
+  it("blocks pasted secrets on the Anthropic-native /v1/messages path before the provider call", async () => {
+    const request = Readable.from([Buffer.from(JSON.stringify({
+      model: "local-fake-model",
+      max_tokens: 64,
+      messages: [{ role: "user", content: `here use ${["sk-ant-", "1234567890", "abcdef"].join("")}` }],
+    }))]);
+    request.method = "POST";
+    const response = createResponseRecorderForTest();
+    const gatewayService = createGatewayService();
+    const writeServiceLog = vi.fn();
+    await dispatchOpenAiCompatibilityRoutes({
+      request,
+      response,
+      startedAt: Date.now(),
+      url: new URL("http://127.0.0.1/v1/messages"),
+      gatewayService,
+      writeServiceLog,
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.body.type).toBe("error");
+    expect(response.body.error.type).toBe("api_error");
+    expect(gatewayService.execute).not.toHaveBeenCalled();
+  });
 });
+
+function createResponseRecorderForTest() {
+  const recorder = new EventEmitter();
+  recorder.statusCode = null;
+  recorder.headers = {};
+  recorder.body = null;
+  recorder.text = "";
+  recorder.writableEnded = false;
+  recorder.headersSent = false;
+  recorder.writeHead = (statusCode: number, headers: Record<string, unknown> = {}) => {
+    recorder.statusCode = statusCode;
+    recorder.headers = headers;
+    recorder.headersSent = true;
+  };
+  recorder.flushHeaders = () => {};
+  recorder.write = (chunk: unknown) => {
+    recorder.text += String(chunk);
+    return true;
+  };
+  recorder.end = (endBody?: unknown) => {
+    if (endBody !== undefined) {
+      recorder.text += String(endBody);
+      recorder.body = JSON.parse(String(endBody));
+    }
+    recorder.writableEnded = true;
+  };
+  return recorder;
+}
