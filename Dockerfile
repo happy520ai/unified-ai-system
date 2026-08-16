@@ -40,6 +40,11 @@ COPY tools/mcp-smoke.mjs tools/mcp-smoke.mjs
 RUN mkdir -p .data/audit .data/request-logs .data/enterprise .data/knowledge apps/ai-gateway-service/.data \
   && chown -R node:node .data apps/ai-gateway-service/.data
 
+# pnpm run 的依赖状态检查仍会在项目根写 _tmp_* 临时文件（上一条的 env
+# 开关对 11.19 不完全生效）。只把 /app 目录项归属 node：运行用户可创建/
+# 删除顶层临时文件，但目录内的 root 属主文件内容对 node 保持只读。
+RUN chown node:node /app
+
 FROM runtime AS mcp
 
 LABEL org.opencontainers.image.description="Credential-free Unified AI System MCP server"
