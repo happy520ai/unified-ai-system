@@ -45,6 +45,11 @@ RUN mkdir -p .data/audit .data/request-logs .data/enterprise .data/knowledge app
 # 删除顶层临时文件，但目录内的 root 属主文件内容对 node 保持只读。
 RUN chown node:node /app
 
+# pnpm 11 默认开启 verify-deps-before-run，且镜像里没有仓库的 .npmrc。
+# 依赖在构建期已由 --frozen-lockfile 锁定，运行期复核只会以非 root 身份
+# 触发重装/清库。在镜像内的 .npmrc 显式关闭（pnpm 最权威的配置源）。
+RUN printf 'verify-deps-before-run=false\n' > /app/.npmrc
+
 FROM runtime AS mcp
 
 LABEL org.opencontainers.image.description="Credential-free Unified AI System MCP server"
