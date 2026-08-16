@@ -32,6 +32,7 @@ const COMMANDS = new Set([
   "enhance",
   "help",
   "serve",
+  "spend",
   "status",
   "version",
 ]);
@@ -82,6 +83,7 @@ export function parseCliArgs(
     language: "auto",
     languageProvided: false,
     allowRealProvider: false,
+    adminKey: env.AGENT_CONSOLE_ADMIN_KEY ?? env.PME_AUTH_TOKEN ?? null,
     host: null,
     port: null,
   };
@@ -126,6 +128,11 @@ export function parseCliArgs(
     }
     if (flag === "--allow-real-provider") {
       options.allowRealProvider = true;
+      continue;
+    }
+    if (flag === "--admin-key") {
+      options.adminKey = readFlagValue(argv, index, flag, inlineValue);
+      if (inlineValue === null) index += 1;
       continue;
     }
     if (flag === "--enhance") {
@@ -233,6 +240,8 @@ export async function runCli(
         return await runEnhance(options, output, runtime.stdin ?? process.stdin);
       case "chat":
         return await runChat(options, output, runtime.stdin ?? process.stdin);
+      case "spend":
+        return await runSpend(options, output);
       default:
         throw new CliUsageError(`Unknown command: ${options.command}`);
     }
@@ -682,6 +691,91 @@ function renderEnhancement(result, output) {
   output.write(`${lines.join("\n")}\n`);
 }
 
+async function runSpend(options, output) {
+  if (!options.adminKey) {
+    throw new CliUsageError(
+      "The spend report needs an admin key: pass --admin-key <uai-…> or set AGENT_CONSOLE_ADMIN_KEY / PME_AUTH_TOKEN.",
+      { hint: "Create one with POST /enterprise/virtual-keys and role admin." },
+    );
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => {
+    controller.abort(new Error(`Spend report request timed out after ${options.timeoutMs}ms`));
+  }, options.timeoutMs);
+
+  let response;
+  try {
+    response = await fetch(`${options.url.replace(/\/+$/, "")}/enterprise/spend-report`, {
+      headers: { authorization: `Bearer ${options.adminKey}` },
+      signal: controller.signal,
+    });
+  } catch (error) {
+    throw new Error(
+      `Could not reach the gateway spend report at ${options.url}: ${error?.message ?? error}`,
+    );
+  } finally {
+    clearTimeout(timeout);
+  }
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => "");
+    throw new Error(
+      `Spend report failed with HTTP ${response.status}: ${body.slice(0, 300)}`,
+    );
+  }
+
+  const envelope = await response.json();
+  const data = envelope?.data ?? {};
+  const result = {
+    ok: true,
+    gatewayUrl: options.url,
+    window: data.window ?? "current-budget-window",
+    totals: data.totals ?? {},
+    rows: Array.isArray(data.rows) ? data.rows : [],
+  };
+
+  if (options.json) {
+    output.write(`${JSON.stringify(result, null, 2)}\n`);
+  } else {
+    renderSpend(result, output);
+  }
+  return 0;
+}
+
+function renderSpend(result, output) {
+  const totals = result.totals ?? {};
+  output.write(`Spend report — ${result.window}\n`);
+  output.write(
+    `keys: ${totals.keys ?? result.rows.length} (active ${totals.activeKeys ?? "?"})  ` +
+    `tokens: ${totals.tokensUsed ?? 0}  requests: ${totals.requestCount ?? 0}  ` +
+    `over soft budget: ${totals.keysOverSoftBudget ?? 0}\n\n`,
+  );
+
+  if (!result.rows.length) {
+    output.write("No virtual keys yet. Create one with POST /enterprise/virtual-keys.\n");
+    return;
+  }
+
+  const header = "  keyId       role        tokens      budget            status";
+  output.write(`${header}\n`);
+  for (const row of result.rows) {
+    const budget = row.budget?.enabled
+      ? `${row.tokensUsed ?? 0}/${row.budget.limitTokens ?? "?"}` +
+        (row.budget.windowResetAt ? ` (resets ${row.budget.windowResetAt.slice(0, 10)})` : "")
+      : "unlimited";
+    const status = row.revoked
+      ? "revoked"
+      : row.budget?.softBudgetExceeded
+        ? "over soft budget"
+        : "ok";
+    output.write(
+      `  ${String(row.keyId ?? "?").padEnd(12)}${String(row.role ?? "?").padEnd(12)}` +
+      `${String(row.tokensUsed ?? 0).padEnd(12)}${budget.padEnd(18)}${status}\n`,
+    );
+  }
+}
+
 function renderHelp() {
   return `
 Unified AI System CLI ${CLI_VERSION}
@@ -695,6 +789,7 @@ Commands:
   status           Inspect gateway and chat readiness
   enhance [prompt] Preview a structured prompt without calling a model
   chat [prompt]    Send one chat request to a running gateway
+  spend            Show per-key token spend and budget status
   doctor           Check the local toolchain and gateway connection
   help             Show this help
   version          Show the CLI version
@@ -707,6 +802,7 @@ Options:
   --profile <name>            auto, general, coding, analysis, writing, research, planning
   --language <name>           auto, zh-CN, en (for prompt enhancement)
   --allow-real-provider       Authorize one chat command to use a real provider
+  --admin-key <uai-…>         Admin virtual key for enterprise routes (spend)
   --host <host>               Host override for serve
   --port <port>               Port override for serve
   --json                      Emit machine-readable output
@@ -720,6 +816,7 @@ Examples:
   pnpm gateway demo "帮我设计一个 API" --enhance --profile coding --language zh-CN
   pnpm gateway serve
   pnpm gateway status
+  pnpm gateway spend --admin-key uai-…
   pnpm gateway enhance "Build me an API"
   pnpm gateway enhance "帮我规划一个小型 API" --language zh-CN
   pnpm gateway chat "Build me an API" --enhance --profile coding
@@ -824,17 +921,17 @@ function validateOptions(options) {
   }
   if (
     (options.urlProvided || options.timeoutProvided)
-    && !["chat", "doctor", "enhance", "status"].includes(options.command)
+    && !["chat", "doctor", "enhance", "spend", "status"].includes(options.command)
   ) {
     throw new CliUsageError(
-      "--url and --timeout are only valid with chat, doctor, enhance, or status.",
+      "--url and --timeout are only valid with chat, doctor, enhance, spend, or status.",
     );
   }
   if (options.json && options.command === "serve") {
     throw new CliUsageError("--json is not supported by serve.");
   }
 
-  if (["chat", "doctor", "enhance", "status"].includes(options.command)) {
+  if (["chat", "doctor", "enhance", "spend", "status"].includes(options.command)) {
     let parsedUrl;
     try {
       parsedUrl = new URL(options.url);

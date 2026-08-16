@@ -297,6 +297,8 @@ export function resolvePermission(method, pathname) {
   if (
     normalizedPath === "/enterprise/virtual-keys"
     || normalizedPath === "/enterprise/virtual-keys/revoke"
+    || normalizedPath === "/enterprise/guardrails"
+    || normalizedPath === "/enterprise/spend-report"
   ) {
     return "user:admin";
   }

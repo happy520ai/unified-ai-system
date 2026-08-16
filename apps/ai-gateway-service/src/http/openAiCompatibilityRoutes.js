@@ -1,5 +1,6 @@
 import { ROUTE_NOT_HANDLED } from "./httpRouteDispatch.js";
 import { getChatResponseCacheIntegration } from "../cache/chatResponseCacheIntegration.ts";
+import { getGuardrailsEngine } from "../guardrails/guardrailsEngine.ts";
 import { estimateTextTokens, estimateTokens } from "../cost/tokenEstimator.js";
 import {
   recordChatCacheEvent,
@@ -7,6 +8,8 @@ import {
   recordChatTokens,
   recordChatTtft,
   recordChatVirtualKeyRejection,
+  recordGuardrailEvaluation,
+  recordGuardrailFinding,
 } from "../observability/aiMetrics.ts";
 import { getLangfuseCallback } from "../observability/langfuseCallback.ts";
 import { applyPromptEnhancement } from "./utils/chatUtils.js";
@@ -289,6 +292,47 @@ export async function dispatchOpenAiCompatibilityRoutes(context) {
       ...(normalized.modelFromPath && !body?.model ? { model: normalized.modelFromPath } : {}),
     };
 
+    // Guardrails（确定性本地扫描）：在 normalize 之前作用于原始请求——
+    // 拦截/脱敏同时覆盖 JSON、SSE 与缓存路径（脱敏后的文本进入缓存键）。
+    const guardrailsEngine = getGuardrailsEngine();
+    const guardrailInputVerdict = guardrailsEngine.inspectInput(requestBody);
+    if (guardrailInputVerdict.decision === "block") {
+      recordGuardrailEvaluation("input", "block");
+      for (const finding of guardrailInputVerdict.findings) {
+        if (finding.action === "block") recordGuardrailFinding(finding.rule, finding.action);
+      }
+      writeServiceLog?.("openai_chat_guardrail_blocked", {
+        method: request.method,
+        path: normalizedPath,
+        findings: guardrailInputVerdict.findings,
+        durationMs: Date.now() - startedAt,
+      });
+      writeJson(response, 400, createOpenAiError({
+        code: "guardrail_blocked",
+        category: "governance",
+        message: "Request blocked by chat guardrails.",
+        param: "messages",
+      }));
+      return;
+    }
+    if (guardrailInputVerdict.findings.length) {
+      recordGuardrailEvaluation("input", "allow");
+      for (const finding of guardrailInputVerdict.findings) {
+        recordGuardrailFinding(finding.rule, finding.action);
+      }
+      writeServiceLog?.("openai_chat_guardrail_findings", {
+        method: request.method,
+        path: normalizedPath,
+        findings: guardrailInputVerdict.findings,
+        durationMs: Date.now() - startedAt,
+      });
+    }
+    for (const replacement of guardrailInputVerdict.replacements) {
+      if (typeof requestBody.messages?.[replacement.index]?.content === "string") {
+        requestBody.messages[replacement.index].content = replacement.content;
+      }
+    }
+
     let gatewayInput;
     try {
       gatewayInput = normalizeOpenAiChatCompletionRequest(
@@ -398,6 +442,41 @@ export async function dispatchOpenAiCompatibilityRoutes(context) {
       requestedModel: requestBody.model,
       promptEnhancement: gatewayInput.metadata?.promptEnhancement,
     });
+
+    // Guardrails 输出侧：对最终文本脱敏/拦截；fail-open 保证不影响正常响应。
+    const outputContent = chatCompletion?.choices?.[0]?.message?.content;
+    if (typeof outputContent === "string") {
+      const outputVerdict = guardrailsEngine.inspectOutputText(outputContent);
+      if (outputVerdict.decision === "block") {
+        recordGuardrailEvaluation("output", "block");
+        for (const finding of outputVerdict.findings) {
+          if (finding.action === "block") recordGuardrailFinding(finding.rule, finding.action);
+        }
+        writeServiceLog?.("openai_chat_guardrail_output_blocked", {
+          method: request.method,
+          path: normalizedPath,
+          findings: outputVerdict.findings,
+          durationMs: Date.now() - startedAt,
+        });
+        writeJson(response, 400, createOpenAiError({
+          code: "guardrail_blocked",
+          category: "governance",
+          message: "Response blocked by chat guardrails.",
+          param: "messages",
+        }));
+        return;
+      }
+      if (outputVerdict.findings.length) {
+        recordGuardrailEvaluation("output", "allow");
+        for (const finding of outputVerdict.findings) {
+          recordGuardrailFinding(finding.rule, finding.action);
+        }
+      }
+      if (outputVerdict.text !== outputContent) {
+        chatCompletion.choices[0].message.content = outputVerdict.text;
+      }
+    }
+
     recordChatRequest(normalizedPath, false);
     if (cacheCandidate) {
       recordChatCacheEvent("exact", cacheLookup ? "miss" : "bypassed");
@@ -1471,6 +1550,12 @@ async function streamOpenAiChatCompletion({
     selectedModel = event.selectedModel ?? selectedModel;
     finalEvent = event;
     if (typeof event.textDelta === "string" && event.textDelta) {
+      // Guardrails 输出侧（流式）：对每个 delta 尽力脱敏（跨块边界的模式以
+      // 完成后的审计发现兜底），fail-open 保证流不中断。
+      const redactedDelta = getGuardrailsEngine().inspectSseDelta(event.textDelta);
+      if (redactedDelta !== event.textDelta) {
+        event.textDelta = redactedDelta;
+      }
       if (!firstTokenAt) {
         firstTokenAt = Date.now();
         recordChatTtft(CHAT_COMPLETIONS_PATH, firstTokenAt, startedAt);
