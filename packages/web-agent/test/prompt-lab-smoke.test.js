@@ -47,9 +47,16 @@ async function listen(server) {
 }
 
 async function launchSmokeBrowser() {
-  const attempts = process.env.CI
-    ? [{ headless: true }]
-    : [{ channel: "chrome", headless: true }, { headless: true }];
+  const configuredExecutablePath = String(
+    process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ?? "",
+  ).trim();
+  const attempts = [
+    ...(configuredExecutablePath
+      ? [{ executablePath: configuredExecutablePath, headless: true }]
+      : []),
+    { channel: "chrome", headless: true },
+    { headless: true },
+  ];
   let lastError;
 
   for (const options of attempts) {
