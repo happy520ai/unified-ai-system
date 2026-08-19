@@ -45,9 +45,9 @@ export function normalizeExecutionReadinessPreflight(source) {
       },
       {
         name: "taskClaimToken",
-        status: "blocked",
+        status: "pass",
         required: true,
-        reason: "task claim token is not implemented",
+        reason: "controlled execution enforces hashed, fenced, task-bound claims; preview does not issue live tokens",
       },
       {
         name: "logRedaction",
@@ -198,7 +198,7 @@ export function normalizeExecutionApprovalRecordPreview(source) {
     blockedReasons: [
       "approval record is preview-only",
       "approval-preview is not execution approval",
-      "task claim token is not implemented",
+      "preview approval records cannot mint live task claims",
       "real external runner is disabled",
     ],
     recommendedNextStep: "Freeze external runner protocol before implementing any real runner",
@@ -241,7 +241,7 @@ export function normalizeExternalRunnerProtocolFreeze(source) {
       "external runner protocol implementation review",
       "clean git workspace check",
       "worktree isolation implementation",
-      "task claim token implementation",
+      "distributed task claim backend and external runner integration review",
       "log redaction implementation",
       "cancellable/resumable execution lifecycle",
       "per-task evidence capture",
