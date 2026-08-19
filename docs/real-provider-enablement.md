@@ -59,20 +59,19 @@ Two supported paths; pick one per deployment.
      -d '{"providerId":"openai","apiKey":"<key>"}'
    ```
 
-   The store persists to a `0600` local file by default
-   (`PME_RUNTIME_CREDENTIAL_STORE_MODE` = `local-file`), keeps everything in
-   memory (`memory`), or shares across processes via SQLite (`sqlite`).
+   The store is memory-only by default. Persistent local-file or same-host
+   SQLite modes must be selected explicitly and require a separate 256-bit
+   master key.
    `POST /providers/runtime-credential/detect` reports which providers have a
    usable credential without exposing values.
 
-   **Storage semantics (honest boundary):** provider runtime credentials are
-   persisted **in cleartext** inside that permission-restricted file — the
-   gateway must be able to present the key to the provider, so it cannot be
-   hashed. Only *virtual keys* (`uai-`) and *user tokens* are stored as
-   SHA-256 hashes. The `0600` mode applies on POSIX; on Windows the file ACL
-   is restricted to the current user on best effort. For stricter at-rest
-   protection use the environment path with your platform's secret manager,
-   or `PME_RUNTIME_CREDENTIAL_STORE_MODE=memory`.
+   **Storage semantics:** persistent provider credentials use per-record
+   AES-256-GCM authenticated encryption. The key is never stored beside the
+   ciphertext. Corrupt, mixed-format, plaintext, and wrong-key stores fail
+   closed. File permissions remain a defense-in-depth control, not the
+   confidentiality boundary. See
+   [Runtime credential encryption](./runtime-credential-encryption.md) for
+   provisioning, one-time plaintext migration, rotation, backup, and rollback.
 
 Rollback for path 2 is store eviction plus restart; for path 1, unset the
 variable and restart.

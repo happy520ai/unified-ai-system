@@ -8,6 +8,7 @@
 import { spawn } from "node:child_process";
 import { fetchWithAgent } from "../http/connectionPool.js";
 import { resolveSafeOutboundUrl } from "../security/outboundUrlPolicy.ts";
+import { createRestrictedChildEnvironment } from "../security/childProcessEnvironmentPolicy.ts";
 
 export interface McpUpstreamHttpConfig {
   transport: "http";
@@ -43,6 +44,7 @@ const JSONRPC_VERSION = "2.0";
 const PROTOCOL_VERSION = "2025-06-18";
 const DEFAULT_TIMEOUT_MS = 20_000;
 const MAX_RESPONSE_CHARS = 1_000_000;
+const MAX_STDIO_BUFFER_CHARS = 1_000_000;
 
 let nextRequestId = 1;
 
@@ -105,7 +107,10 @@ export function createHttpMcpUpstream(config: McpUpstreamHttpConfig, options: {
       };
       const response = fetchImpl
         ? await fetchImpl(destination.url, init)
-        : await fetchWithAgent(destination.url, init);
+        : await fetchWithAgent(destination.url, {
+            ...init,
+            maxResponseBytes: MAX_RESPONSE_CHARS + 1,
+          });
       const sessionHeader = response.headers?.["mcp-session-id"];
       if (typeof sessionHeader === "string" && sessionHeader) {
         sessionId = sessionHeader;
@@ -133,7 +138,7 @@ export function createHttpMcpUpstream(config: McpUpstreamHttpConfig, options: {
     const response = await post(createRequest("initialize", {
       protocolVersion: PROTOCOL_VERSION,
       capabilities: {},
-      clientInfo: { name: "unified-ai-gateway", version: "0.4.9" },
+      clientInfo: { name: "unified-ai-gateway", version: "0.5.0" },
     }));
     if (response.error) {
       throw new Error(`MCP upstream ${config.id} initialize failed: ${JSON.stringify(response.error).slice(0, 300)}`);
@@ -181,13 +186,22 @@ export function createStdioMcpUpstream(config: McpUpstreamStdioConfig, options: 
     // stdio 上游由运维通过受信环境配置（与 MCP 宿主配置同级信任），不接受请求输入。
     const spawned = spawn(config.command, config.args ?? [], {
       cwd: config.cwd,
-      env: { ...process.env, ...(config.env ?? {}) },
+      env: createRestrictedChildEnvironment(process.env, config.env ?? {}),
       stdio: ["pipe", "pipe", "pipe"],
       shell: false,
     });
     spawned.stdout.setEncoding("utf8");
     spawned.stdout.on("data", (chunk: string) => {
       buffer += chunk;
+      if (buffer.length > MAX_STDIO_BUFFER_CHARS) {
+        const error = new Error(`MCP stdio upstream ${config.id} exceeded the stdout buffer limit.`);
+        (error as Error & { code?: string }).code = "MCP_STDIO_RESPONSE_TOO_LARGE";
+        buffer = "";
+        rejectAllPending(error);
+        spawned.kill("SIGTERM");
+        child = null;
+        return;
+      }
       let newlineIndex = buffer.indexOf("\n");
       while (newlineIndex >= 0) {
         const line = buffer.slice(0, newlineIndex).trim();
@@ -204,6 +218,9 @@ export function createStdioMcpUpstream(config: McpUpstreamStdioConfig, options: 
         newlineIndex = buffer.indexOf("\n");
       }
     });
+    // Drain stderr so a noisy upstream cannot deadlock on a full pipe. Error
+    // contents are intentionally not retained because they may contain secrets.
+    spawned.stderr.on("data", () => {});
     spawned.on("error", (error) => {
       rejectAllPending(new Error(`MCP stdio upstream ${config.id} failed: ${error.message}`));
       child = null;
@@ -260,7 +277,7 @@ export function createStdioMcpUpstream(config: McpUpstreamStdioConfig, options: 
     const response = await request("initialize", {
       protocolVersion: PROTOCOL_VERSION,
       capabilities: {},
-      clientInfo: { name: "unified-ai-gateway", version: "0.4.9" },
+      clientInfo: { name: "unified-ai-gateway", version: "0.5.0" },
     });
     if (response.error) {
       throw new Error(`MCP stdio upstream ${config.id} initialize failed: ${JSON.stringify(response.error).slice(0, 300)}`);

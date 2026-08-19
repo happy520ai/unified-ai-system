@@ -187,11 +187,11 @@ describe("Batch13 Fix6: sqliteVecStore safe metadata parse", () => {
 describe("Batch13 Fix7: workforceControlledExecutor timeout", () => {
   const src = ESM_SRC("workforce/workforceControlledExecutor.js");
 
-  it("wraps executeAllRoles with Promise.race timeout", () => {
+  it("wraps the dependency-aware workforce DAG with a Promise.race timeout", () => {
     const idx = src.indexOf("const allRoleResults = await Promise.race");
     assert.ok(idx >= 0, "Promise.race wrapper not found");
     const window = src.slice(Math.max(0, idx - 400), idx + 500);
-    assert.ok(window.includes("executeAllRoles(plan.goal"), "executeAllRoles call not found");
+    assert.ok(src.includes("executeWorkforceDag({"), "dependency-aware executor call not found");
     assert.ok(window.includes("Promise.race"), "should use Promise.race");
     assert.ok(window.includes("timed out"), "should have timeout message");
   });

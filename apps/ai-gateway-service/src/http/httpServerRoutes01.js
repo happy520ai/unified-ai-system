@@ -1,4 +1,5 @@
 import { ROUTE_NOT_HANDLED } from "./httpRouteDispatch.js";
+import { assertEnterpriseTenantAccess } from "../enterprise/enterpriseTenantPolicy.ts";
 import { getGuardrailsEngine } from "../guardrails/guardrailsEngine.ts";
 
 export async function dispatchHttpRoutes01(context) {
@@ -223,7 +224,7 @@ export async function dispatchHttpRoutes01(context) {
       providerCalled: false,
       localExecutionTriggered: false,
       secretContentStored: false,
-      ...fileContextStore.select(body),
+      ...fileContextStore.select(body, request.enterpriseIdentity),
     }, { startedAt }));
     return;
   }
@@ -240,7 +241,7 @@ export async function dispatchHttpRoutes01(context) {
   }
 
   if (request.method === "GET" && url.pathname === "/enterprise/health") {
-    writeJson(response, 200, createOkEnvelope(enterpriseGovernanceService.getHealth(), { startedAt }));
+    writeJson(response, 200, createOkEnvelope(enterpriseGovernanceService.getPublicHealth(), { startedAt }));
     return;
   }
 
@@ -265,7 +266,7 @@ export async function dispatchHttpRoutes01(context) {
   }
 
   if (request.method === "GET" && url.pathname === "/enterprise/users") {
-    writeJson(response, 200, createOkEnvelope(enterpriseGovernanceService.listUsers(), { startedAt }));
+    writeJson(response, 200, createOkEnvelope(enterpriseGovernanceService.listUsers(request.enterpriseIdentity), { startedAt }));
     return;
   }
 
@@ -340,7 +341,11 @@ export async function dispatchHttpRoutes01(context) {
     try {
       const result = enterpriseGovernanceService.getApiKeyManager().create({
         role: body.role,
-        tenantId: body.tenantId ?? request.enterpriseIdentity?.tenantId,
+        tenantId: assertEnterpriseTenantAccess(
+          request.enterpriseIdentity,
+          body.tenantId,
+          "enterprise_virtual_key_tenant_forbidden",
+        ),
         description: body.description,
         expiresAt: body.expiresAt ?? null,
         budget: body.budget ?? null,
@@ -378,7 +383,6 @@ export async function dispatchHttpRoutes01(context) {
       if (
         target
         && target.tenantId !== request.enterpriseIdentity?.tenantId
-        && request.enterpriseIdentity?.role !== "admin"
       ) {
         writeJson(response, 403, createErrorEnvelope(
           "enterprise_virtual_key_tenant_forbidden",
@@ -490,14 +494,23 @@ export async function dispatchHttpRoutes01(context) {
 
   if (request.method === "GET" && url.pathname === "/enterprise/audit") {
     const limit = url.searchParams.get("limit") ?? 50;
-    writeJson(response, 200, createOkEnvelope(await enterpriseGovernanceService.listAudit({ limit, filters: readAuditFilters(url) }), { startedAt }));
+    writeJson(response, 200, createOkEnvelope(await enterpriseGovernanceService.listAudit({
+      limit,
+      filters: readAuditFilters(url),
+      actorIdentity: request.enterpriseIdentity,
+    }), { startedAt }));
     return;
   }
 
   if (request.method === "GET" && url.pathname === "/enterprise/audit/export") {
     const limit = url.searchParams.get("limit") ?? 200;
     const format = url.searchParams.get("format") ?? "jsonl";
-    writeJson(response, 200, createOkEnvelope(await enterpriseGovernanceService.exportAudit({ limit, format, filters: readAuditFilters(url) }), { startedAt }));
+    writeJson(response, 200, createOkEnvelope(await enterpriseGovernanceService.exportAudit({
+      limit,
+      format,
+      filters: readAuditFilters(url),
+      actorIdentity: request.enterpriseIdentity,
+    }), { startedAt }));
     return;
   }
 
@@ -558,7 +571,7 @@ export async function dispatchHttpRoutes01(context) {
     if (!body) return;
 
     try {
-      const result = await enterpriseOpsService.validateRestore(body);
+      const result = await enterpriseOpsService.validateRestore(body, request.enterpriseIdentity);
       await enterpriseGovernanceService.recordAudit({
         outcome: result.valid ? "allowed" : "denied",
         method: request.method,

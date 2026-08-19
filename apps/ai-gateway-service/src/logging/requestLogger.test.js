@@ -16,6 +16,7 @@ describe("requestLogger persistence", () => {
         logger.log({ method: "GET", path: "/healthz", statusCode: 200, latencyMs: 1 }),
       ).not.toThrow();
       expect(() => logger.flush()).not.toThrow();
+      logger.close();
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -51,6 +52,66 @@ describe("requestLogger persistence", () => {
 
       const health = logger.getHealth();
       expect(health.status).toBe("ready");
+      expect(health).not.toHaveProperty("logDir");
+      logger.close();
+    } finally {
+      rmSync(logDir, { recursive: true, force: true });
+    }
+  });
+
+  it("defaults body logging off and isolates tenant queries", () => {
+    const logDir = mkdtempSync(join(tmpdir(), "request-logger-tenant-"));
+    try {
+      const logger = createRequestLogger({ logDir });
+      logger.log({
+        tenantId: "tenant-a",
+        method: "POST",
+        path: "/v1/chat/completions",
+        statusCode: 200,
+        requestBody: { apiKey: "sk-" + "never-log", prompt: "private prompt" },
+      });
+      logger.log({
+        tenantId: "tenant-b",
+        method: "POST",
+        path: "/v1/chat/completions",
+        statusCode: 200,
+      });
+      logger.flush();
+
+      const tenantA = logger.query({ tenantId: "tenant-a" });
+      const tenantB = logger.query({ tenantId: "tenant-b" });
+      expect(tenantA).toHaveLength(1);
+      expect(tenantB).toHaveLength(1);
+      expect(tenantA[0]).not.toHaveProperty("requestPreview");
+      expect(JSON.stringify(tenantA)).not.toContain("sk-" + "never-log");
+      expect(logger.getStats({ tenantId: "tenant-a" }).totalRequests).toBe(1);
+      logger.close();
+    } finally {
+      rmSync(logDir, { recursive: true, force: true });
+    }
+  });
+
+  it("sanitizes explicitly enabled body previews", () => {
+    const logDir = mkdtempSync(join(tmpdir(), "request-logger-body-"));
+    try {
+      const logger = createRequestLogger({ logDir, enableBodyLogging: true });
+      logger.log({
+        tenantId: "tenant-a",
+        method: "POST",
+        path: "/providers/runtime-credential",
+        statusCode: 200,
+        requestBody: {
+          apiKey: "sk-" + "provider-value-that-must-disappear",
+          nested: { authorization: "Bearer private-bearer-value" },
+          safe: "visible",
+        },
+      });
+      logger.flush();
+      const [record] = logger.query({ tenantId: "tenant-a" });
+      expect(record.requestPreview).toContain("visible");
+      expect(record.requestPreview).not.toContain("sk-" + "provider-value-that-must-disappear");
+      expect(record.requestPreview).not.toContain("private-bearer-value");
+      logger.close();
     } finally {
       rmSync(logDir, { recursive: true, force: true });
     }

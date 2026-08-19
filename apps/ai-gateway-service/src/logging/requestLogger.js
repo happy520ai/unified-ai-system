@@ -1,126 +1,162 @@
-// =============================================================================
-// requestLogger.js — 请求/响应日志持久化
-// 每个请求完整记录：输入、输出、延迟、Token 数、成本、模型、Provider
-// =============================================================================
-
 import { randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, appendFileSync, readFileSync } from "node:fs";
-import { resolve, dirname } from "node:path";
+import {
+  appendFileSync,
+  chmodSync,
+  closeSync,
+  existsSync,
+  mkdirSync,
+  openSync,
+  readSync,
+  readdirSync,
+  renameSync,
+  rmSync,
+  statSync,
+} from "node:fs";
+import { resolve } from "node:path";
+import {
+  sanitizeLogText,
+  sanitizeLogValue,
+  summarizeErrorForLog,
+} from "../security/logSanitizationPolicy.ts";
 
-/**
- * 创建请求日志记录器
- * @param {Object} options
- * @returns {Object}
- */
+const BUFFER_FLUSH_SIZE = 50;
+const BUFFER_FLUSH_INTERVAL_MS = 5000;
+const MAX_MEMORY_RECORDS = BUFFER_FLUSH_SIZE * 4;
+
 export function createRequestLogger(options = {}) {
+  const persistenceEnabled = options.logDir !== "";
   const logDir = options.logDir ?? resolve(process.cwd(), ".data/request-logs");
-  // Fail-open：日志目录不可创建（如只读容器文件系统）时降级为内存模式，
-  // 绝不让日志阻断网关启动。
-  let logDirWritable = true;
-  if (!existsSync(logDir)) {
+  const maxLogSizeBytes = clampInteger(
+    options.maxLogSizeBytes,
+    16 * 1024 * 1024,
+    64 * 1024,
+    1024 * 1024 * 1024,
+  );
+  const maxRetentionDays = clampInteger(options.maxRetentionDays, 7, 1, 90);
+  const enableBodyLogging = options.enableBodyLogging === true;
+  const enableIdentityLogging = options.enableIdentityLogging === true;
+  const maxBodyLogSize = clampInteger(options.maxBodyLogSize, 4096, 256, 64 * 1024);
+
+  let logDirWritable = persistenceEnabled;
+  if (persistenceEnabled) {
     try {
-      mkdirSync(logDir, { recursive: true });
-    } catch (error) {
+      mkdirSync(logDir, { recursive: true, mode: 0o700 });
+      if (!statSync(logDir).isDirectory()) {
+        throw new Error("configured log path is not a directory");
+      }
+      try {
+        chmodSync(logDir, 0o700);
+      } catch {
+        // POSIX mode is not the Windows ACL boundary.
+      }
+    } catch {
       logDirWritable = false;
       console.warn(
-        `[requestLogger] cannot create log directory ${logDir} (${error?.message ?? error}); request logs stay in memory only.`,
+        "[requestLogger] log directory unavailable; request logs stay in bounded memory only.",
       );
     }
   }
 
-  const maxLogSizeBytes = options.maxLogSizeBytes ?? 100 * 1024 * 1024; // 100MB
-  const enableBodyLogging = options.enableBodyLogging ?? true;
-  const maxBodyLogSize = options.maxBodyLogSize ?? 4096; // 4KB per body
-
-  // 内存缓冲区（批量写入）
   const buffer = [];
-  const BUFFER_FLUSH_SIZE = 50;
-  const BUFFER_FLUSH_INTERVAL_MS = 5000;
+  let lastRetentionPruneDate = "";
 
-  /**
-   * 记录一个请求
-   * @param {Object} entry
-   */
-  function log(entry) {
-    const record = {
+  function log(entry = {}) {
+    const record = sanitizeLogValue({
       id: randomUUID(),
       timestamp: Date.now(),
-      method: entry.method,
-      path: entry.path,
-      statusCode: entry.statusCode,
-      latencyMs: entry.latencyMs,
-      provider: entry.provider,
-      model: entry.model,
-      inputTokens: entry.inputTokens ?? 0,
-      outputTokens: entry.outputTokens ?? 0,
-      totalTokens: entry.totalTokens ?? 0,
-      estimatedCostUsd: entry.estimatedCostUsd ?? 0,
-      cacheHit: entry.cacheHit ?? false,
-      fallbackUsed: entry.fallbackUsed ?? false,
-      fallbackFrom: entry.fallbackFrom,
-      error: entry.error,
-      userAgent: entry.userAgent,
-      clientIp: entry.clientIp,
-      traceId: entry.traceId,
-      userId: entry.userId,
-    };
+      tenantId: sanitizeLogText(entry.tenantId ?? "default", 256),
+      method: sanitizeLogText(entry.method, 16),
+      path: sanitizeLogText(entry.path, 2048),
+      statusCode: finiteNumber(entry.statusCode),
+      latencyMs: finiteNumber(entry.latencyMs),
+      provider: optionalText(entry.provider, 256),
+      model: optionalText(entry.model, 256),
+      inputTokens: finiteNumber(entry.inputTokens, 0),
+      outputTokens: finiteNumber(entry.outputTokens, 0),
+      totalTokens: finiteNumber(entry.totalTokens, 0),
+      estimatedCostUsd: finiteNumber(entry.estimatedCostUsd, 0),
+      cacheHit: entry.cacheHit === true,
+      fallbackUsed: entry.fallbackUsed === true,
+      fallbackFrom: optionalText(entry.fallbackFrom, 256),
+      error: entry.error ? sanitizeLogValue(entry.error) : undefined,
+      traceId: optionalText(entry.traceId, 256),
+      ...(enableIdentityLogging
+        ? {
+            userAgent: optionalText(entry.userAgent, 1024),
+            clientIp: optionalText(entry.clientIp, 128),
+            userId: optionalText(entry.userId, 256),
+          }
+        : {}),
+    });
 
-    // 可选：记录请求/响应体（截断）
     if (enableBodyLogging) {
-      if (entry.requestBody) {
-        record.requestPreview = truncate(JSON.stringify(entry.requestBody), maxBodyLogSize);
+      if (entry.requestBody !== undefined) {
+        record.requestPreview = createSafePreview(entry.requestBody, maxBodyLogSize);
       }
-      if (entry.responseBody) {
-        record.responsePreview = truncate(JSON.stringify(entry.responseBody), maxBodyLogSize);
+      if (entry.responseBody !== undefined) {
+        record.responsePreview = createSafePreview(entry.responseBody, maxBodyLogSize);
       }
     }
 
     buffer.push(record);
-
-    // 缓冲区满时刷新
     if (buffer.length >= BUFFER_FLUSH_SIZE) {
       flush();
     }
   }
 
-  /**
-   * 刷新缓冲区到磁盘
-   */
   function flush() {
     if (buffer.length === 0) return;
     if (!logDirWritable) {
-      // 内存降级：有界缓冲，避免长驻进程无界增长。
-      if (buffer.length > BUFFER_FLUSH_SIZE * 4) buffer.splice(0, buffer.length - BUFFER_FLUSH_SIZE * 4);
+      if (buffer.length > MAX_MEMORY_RECORDS) {
+        buffer.splice(0, buffer.length - MAX_MEMORY_RECORDS);
+      }
       return;
     }
 
     const today = new Date().toISOString().slice(0, 10);
-    const logFile = resolve(logDir, `requests-${today}.jsonl`);
+    const logFile = resolve(logDir, "requests-" + today + ".jsonl");
+    const pending = buffer.splice(0);
+    const lines = serializeBoundedRecords(pending, maxLogSizeBytes);
+    if (!lines) return;
 
-    const lines = buffer.splice(0).map((r) => JSON.stringify(r)).join("\n") + "\n";
     try {
-      appendFileSync(logFile, lines, "utf8");
-    } catch (err) {
-      console.error("[requestLogger] Failed to write log:", err.message);
+      if (lastRetentionPruneDate !== today) {
+        pruneExpiredLogFiles(logDir, today, maxRetentionDays);
+        lastRetentionPruneDate = today;
+      }
+      rotateLogFileIfNeeded(logFile, Buffer.byteLength(lines), maxLogSizeBytes);
+      appendFileSync(logFile, lines, { encoding: "utf8", mode: 0o600 });
+      try {
+        chmodSync(logFile, 0o600);
+      } catch {
+        // POSIX mode is not the Windows ACL boundary.
+      }
+    } catch (error) {
+      console.error("[requestLogger] log write failed:", summarizeErrorForLog(error));
     }
   }
 
-  /**
-   * 查询请求日志
-   * @param {Object} filter - { since, until, provider, model, statusCode, limit, offset }
-   * @returns {Array}
-   */
   function query(filter = {}) {
-    const results = [];
+    if (!logDirWritable) return [];
+
     const today = new Date().toISOString().slice(0, 10);
-    const logFile = resolve(logDir, `requests-${today}.jsonl`);
+    const logFile = resolve(logDir, "requests-" + today + ".jsonl");
+    if (!existsSync(logFile) && !existsSync(logFile + ".1")) return [];
 
-    if (!existsSync(logFile)) return [];
+    const limit = clampInteger(filter.limit, 100, 1, 10000);
+    const offset = clampInteger(filter.offset, 0, 0, 10000);
+    const targetCount = limit + offset;
+    const lines = [
+      ...readBoundedLogLines(logFile + ".1", maxLogSizeBytes),
+      ...readBoundedLogLines(logFile, maxLogSizeBytes),
+    ];
+    const results = [];
+    let parseFailures = 0;
 
-    const lines = readFileSync(logFile, "utf8").split("\n").filter(Boolean);
-    for (const line of lines) {
+    for (let index = lines.length - 1; index >= 0; index -= 1) {
       try {
-        const record = JSON.parse(line);
+        const record = JSON.parse(lines[index]);
+        if (filter.tenantId && record.tenantId !== filter.tenantId) continue;
         if (filter.since && record.timestamp < filter.since) continue;
         if (filter.until && record.timestamp > filter.until) continue;
         if (filter.provider && record.provider !== filter.provider) continue;
@@ -130,23 +166,18 @@ export function createRequestLogger(options = {}) {
         if (filter.maxLatency && record.latencyMs > filter.maxLatency) continue;
         if (filter.cacheHit !== undefined && record.cacheHit !== filter.cacheHit) continue;
         results.push(record);
-      } catch (err) { console.error("[requestLogger]:", err?.message || err); }
+        if (results.length >= targetCount) break;
+      } catch {
+        parseFailures += 1;
+      }
     }
 
-    // 排序（最新的在前）
-    results.sort((a, b) => b.timestamp - a.timestamp);
-
-    // 分页
-    const offset = filter.offset ?? 0;
-    const limit = filter.limit ?? 100;
+    if (parseFailures > 0) {
+      console.warn("[requestLogger] ignored malformed bounded log records:", parseFailures);
+    }
     return results.slice(offset, offset + limit);
   }
 
-  /**
-   * 获取统计摘要
-   * @param {Object} filter
-   * @returns {Object}
-   */
   function getStats(filter = {}) {
     const records = query({ ...filter, limit: 10000 });
     if (records.length === 0) {
@@ -154,32 +185,32 @@ export function createRequestLogger(options = {}) {
     }
 
     const totalRequests = records.length;
-    const totalLatency = records.reduce((s, r) => s + (r.latencyMs ?? 0), 0);
-    const totalTokens = records.reduce((s, r) => s + (r.totalTokens ?? 0), 0);
-    const totalCost = records.reduce((s, r) => s + (r.estimatedCostUsd ?? 0), 0);
-    const errorCount = records.filter((r) => r.statusCode >= 400).length;
-    const cacheHits = records.filter((r) => r.cacheHit).length;
-    const fallbacks = records.filter((r) => r.fallbackUsed).length;
+    const totalLatency = records.reduce((sum, record) => sum + (record.latencyMs ?? 0), 0);
+    const totalTokens = records.reduce((sum, record) => sum + (record.totalTokens ?? 0), 0);
+    const totalCost = records.reduce((sum, record) => sum + (record.estimatedCostUsd ?? 0), 0);
+    const errorCount = records.filter((record) => record.statusCode >= 400).length;
+    const cacheHits = records.filter((record) => record.cacheHit).length;
+    const fallbacks = records.filter((record) => record.fallbackUsed).length;
 
-    // 按 Provider 分组
     const byProvider = {};
-    for (const r of records) {
-      const p = r.provider ?? "unknown";
-      if (!byProvider[p]) byProvider[p] = { count: 0, tokens: 0, cost: 0, errors: 0 };
-      byProvider[p].count++;
-      byProvider[p].tokens += r.totalTokens ?? 0;
-      byProvider[p].cost += r.estimatedCostUsd ?? 0;
-      if (r.statusCode >= 400) byProvider[p].errors++;
-    }
-
-    // 按模型分组
     const byModel = {};
-    for (const r of records) {
-      const m = r.model ?? "unknown";
-      if (!byModel[m]) byModel[m] = { count: 0, tokens: 0, cost: 0 };
-      byModel[m].count++;
-      byModel[m].tokens += r.totalTokens ?? 0;
-      byModel[m].cost += r.estimatedCostUsd ?? 0;
+    for (const record of records) {
+      const provider = record.provider || "unknown";
+      if (!byProvider[provider]) {
+        byProvider[provider] = { count: 0, tokens: 0, cost: 0, errors: 0 };
+      }
+      byProvider[provider].count += 1;
+      byProvider[provider].tokens += record.totalTokens ?? 0;
+      byProvider[provider].cost += record.estimatedCostUsd ?? 0;
+      if (record.statusCode >= 400) byProvider[provider].errors += 1;
+
+      const model = record.model || "unknown";
+      if (!byModel[model]) {
+        byModel[model] = { count: 0, tokens: 0, cost: 0 };
+      }
+      byModel[model].count += 1;
+      byModel[model].tokens += record.totalTokens ?? 0;
+      byModel[model].cost += record.estimatedCostUsd ?? 0;
     }
 
     return {
@@ -195,37 +226,134 @@ export function createRequestLogger(options = {}) {
     };
   }
 
-  /**
-   * 获取日志健康状态
-   */
   function getHealth() {
     const today = new Date().toISOString().slice(0, 10);
-    const logFile = resolve(logDir, `requests-${today}.jsonl`);
-    const fileSize = existsSync(logFile) ? readFileSync(logFile).length : 0;
+    const logFile = logDirWritable ? resolve(logDir, "requests-" + today + ".jsonl") : "";
+    const activeBytes = logFile && existsSync(logFile) ? safeFileSize(logFile) : 0;
+    const archiveBytes = logFile && existsSync(logFile + ".1") ? safeFileSize(logFile + ".1") : 0;
 
     return {
       status: "ready",
-      logDir,
+      persistence: logDirWritable ? "bounded-local-file" : "memory-only",
       bufferSize: buffer.length,
-      todayFileSize: fileSize,
+      todayStoredBytes: activeBytes + archiveBytes,
       maxLogSizeBytes,
+      maxRetentionDays,
       bodyLoggingEnabled: enableBodyLogging,
+      identityLoggingEnabled: enableIdentityLogging,
     };
   }
 
-  // 定期刷新缓冲区
   const flushTimer = setInterval(flush, BUFFER_FLUSH_INTERVAL_MS);
   flushTimer.unref();
 
-  // 进程退出时刷新
-  process.on("beforeExit", flush);
-  process.on("SIGINT", flush);
-  process.on("SIGTERM", flush);
+  const flushOnExit = () => flush();
+  process.on("beforeExit", flushOnExit);
+  process.on("SIGINT", flushOnExit);
+  process.on("SIGTERM", flushOnExit);
 
-  return { log, flush, query, getStats, getHealth };
+  let closed = false;
+  function close() {
+    if (closed) return;
+    closed = true;
+    clearInterval(flushTimer);
+    flush();
+    process.off("beforeExit", flushOnExit);
+    process.off("SIGINT", flushOnExit);
+    process.off("SIGTERM", flushOnExit);
+  }
+
+  return { log, flush, query, getStats, getHealth, close };
 }
 
-function truncate(str, maxLen) {
-  if (!str || str.length <= maxLen) return str;
-  return str.slice(0, maxLen) + "...[truncated]";
+function createSafePreview(value, maxLength) {
+  try {
+    return truncate(JSON.stringify(sanitizeLogValue(value)), maxLength);
+  } catch {
+    return "[unserializable]";
+  }
+}
+
+function serializeBoundedRecords(records, maxBytes) {
+  const selected = [];
+  let totalBytes = 0;
+  for (let index = records.length - 1; index >= 0; index -= 1) {
+    const line = JSON.stringify(records[index]) + "\n";
+    const bytes = Buffer.byteLength(line);
+    if (bytes > maxBytes) continue;
+    if (totalBytes + bytes > maxBytes) break;
+    selected.push(line);
+    totalBytes += bytes;
+  }
+  return selected.reverse().join("");
+}
+
+function rotateLogFileIfNeeded(logFile, incomingBytes, maxBytes) {
+  const currentBytes = existsSync(logFile) ? safeFileSize(logFile) : 0;
+  if (currentBytes + incomingBytes <= maxBytes) return;
+  const archive = logFile + ".1";
+  rmSync(archive, { force: true });
+  if (existsSync(logFile)) renameSync(logFile, archive);
+}
+
+function readBoundedLogLines(filePath, maxBytes) {
+  if (!existsSync(filePath)) return [];
+  const size = safeFileSize(filePath);
+  if (size <= 0) return [];
+  const length = Math.min(size, maxBytes);
+  const offset = Math.max(0, size - length);
+  const buffer = Buffer.alloc(length);
+  const descriptor = openSync(filePath, "r");
+  try {
+    readSync(descriptor, buffer, 0, length, offset);
+  } finally {
+    closeSync(descriptor);
+  }
+  let text = buffer.toString("utf8");
+  if (offset > 0) {
+    const firstNewline = text.indexOf("\n");
+    text = firstNewline >= 0 ? text.slice(firstNewline + 1) : "";
+  }
+  return text.split("\n").filter(Boolean);
+}
+
+function pruneExpiredLogFiles(logDir, today, retentionDays) {
+  const cutoff = new Date(today + "T00:00:00.000Z");
+  cutoff.setUTCDate(cutoff.getUTCDate() - retentionDays);
+  const cutoffDate = cutoff.toISOString().slice(0, 10);
+  for (const name of readdirSync(logDir).slice(0, 10000)) {
+    const match = /^requests-(\d{4}-\d{2}-\d{2})\.jsonl(?:\.1)?$/.exec(name);
+    if (match && match[1] < cutoffDate) {
+      rmSync(resolve(logDir, name), { force: true });
+    }
+  }
+}
+
+function safeFileSize(filePath) {
+  try {
+    return statSync(filePath).size;
+  } catch {
+    return 0;
+  }
+}
+
+function finiteNumber(value, fallback) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+function optionalText(value, maxLength) {
+  if (value === undefined || value === null || value === "") return undefined;
+  return sanitizeLogText(value, maxLength);
+}
+
+function clampInteger(value, fallback, min, max) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(Math.max(Math.trunc(parsed), min), max);
+}
+
+function truncate(value, maxLength) {
+  if (!value || value.length <= maxLength) return value;
+  return value.slice(0, maxLength) + "...[truncated]";
 }

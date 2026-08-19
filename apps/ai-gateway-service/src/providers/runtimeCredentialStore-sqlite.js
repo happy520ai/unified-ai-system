@@ -5,7 +5,7 @@
 // =============================================================================
 
 import { DatabaseSync } from "node:sqlite";
-import { chmodSync, mkdirSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 
 /**
@@ -14,7 +14,8 @@ import { dirname } from "node:path";
  * @returns {{ loadRecords, saveRecords, close }}
  */
 export function createSqliteCredentialBackend(dbPath) {
-  mkdirSync(dirname(dbPath), { recursive: true });
+  mkdirSync(dirname(dbPath), { recursive: true, mode: 0o700 });
+  try { chmodSync(dirname(dbPath), 0o700); } catch { /* best effort on Windows */ }
   const db = new DatabaseSync(dbPath);
   // 明文凭据：收紧权限为仅 owner 可读写。
   try {
@@ -23,6 +24,7 @@ export function createSqliteCredentialBackend(dbPath) {
     // 非关键路径：权限收紧失败不阻塞存储。
   }
   db.exec("PRAGMA busy_timeout = 5000");
+  db.exec("PRAGMA secure_delete = ON");
   try { db.exec("PRAGMA journal_mode = WAL"); } catch { /* ignore: WAL 是优化，多进程竞争可回退默认 */ }
 
   db.exec(`
@@ -51,6 +53,7 @@ export function createSqliteCredentialBackend(dbPath) {
         insert.run(record.providerId, JSON.stringify(record));
       }
       db.exec("COMMIT");
+      tightenDatabaseFiles();
     } catch (error) {
       db.exec("ROLLBACK");
       throw error;
@@ -60,14 +63,30 @@ export function createSqliteCredentialBackend(dbPath) {
   // ── 原子操作（跨进程安全，避免全量覆盖的 lost update）──────────────────
   function upsert(record) {
     upsertStmt.run(record.providerId, JSON.stringify(record));
+    tightenDatabaseFiles();
   }
 
   function remove(providerId) {
-    return deleteOne.run(providerId).changes > 0;
+    const removed = deleteOne.run(providerId).changes > 0;
+    tightenDatabaseFiles();
+    return removed;
   }
 
   function count() {
     return countStmt.get().c;
+  }
+
+  function compact() {
+    db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+    db.exec("VACUUM");
+    tightenDatabaseFiles();
+  }
+
+  function tightenDatabaseFiles() {
+    for (const filePath of [dbPath, dbPath + "-wal", dbPath + "-shm"]) {
+      if (!existsSync(filePath)) continue;
+      try { chmodSync(filePath, 0o600); } catch { /* best effort on Windows */ }
+    }
   }
 
   return {
@@ -76,6 +95,7 @@ export function createSqliteCredentialBackend(dbPath) {
     upsert,
     remove,
     count,
+    compact,
     close: () => db.close(),
   };
 }

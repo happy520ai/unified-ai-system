@@ -114,7 +114,11 @@ export function createOpenApiRestBridge(config: {
     try {
       const response = fetchImpl
         ? await fetchImpl(destination.url, { method: "GET", signal: controller.signal })
-        : await fetchWithAgent(destination.url, { method: "GET", signal: controller.signal });
+        : await fetchWithAgent(destination.url, {
+            method: "GET",
+            signal: controller.signal,
+            maxResponseBytes: MAX_SPEC_CHARS + 1,
+          });
       const text = await response.text();
       if (!response.ok) {
         throw new Error(`OpenAPI spec fetch returned ${response.status}.`);
@@ -192,8 +196,16 @@ export function createOpenApiRestBridge(config: {
         };
         const response = fetchImpl
           ? await fetchImpl(destination.url, init)
-          : await fetchWithAgent(destination.url, init);
-        const text = (await response.text()).slice(0, MAX_RESPONSE_CHARS);
+          : await fetchWithAgent(destination.url, {
+              ...init,
+              maxResponseBytes: MAX_RESPONSE_CHARS + 1,
+            });
+        const text = await response.text();
+        if (text.length > MAX_RESPONSE_CHARS) {
+          const error = new Error("OpenAPI bridge response exceeds the size limit.");
+          (error as Error & { code?: string }).code = "OPENAPI_RESPONSE_TOO_LARGE";
+          throw error;
+        }
         return {
           content: [{ type: "text", text }],
           isError: !response.ok,

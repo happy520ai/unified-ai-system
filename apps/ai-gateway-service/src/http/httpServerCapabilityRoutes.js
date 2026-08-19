@@ -97,7 +97,7 @@ export function createHttpServerCapabilityRoutes(ctx) {
       providerCalled: false,
       localExecutionTriggered: false,
       secretContentStored: false,
-      ...fileContextStore.select(body),
+      ...fileContextStore.select(body, request.enterpriseIdentity),
     }, { startedAt }));
   });
 

@@ -13,6 +13,8 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createSourceReader } from "./helpers/source-closure.js";
@@ -236,31 +238,100 @@ describe("Batch11-5: code_format/generate_test/ast_edit path validation", () => 
 // ─── 6. Backup JSON.parse crash guard ──────────────────────────────
 
 describe("Batch11-6: enterpriseOpsService backup JSON.parse crash guard", () => {
-  it("wraps audit JSON.parse in try-catch", () => {
-    const src = readFileSync(join(SRC_ROOT, "enterprise/enterpriseOpsService.js"), "utf-8");
-    const backupStart = src.indexOf("createBackup");
-    assert.ok(backupStart > 0, "createBackup function should exist");
-    const backupSrc = src.slice(backupStart, backupStart + 800);
+  const backupMasterKey = Buffer.alloc(32, 0x41).toString("base64");
+  const actor = { userId: "tenant-a-admin", tenantId: "tenant-a", role: "admin" };
 
-    // Should have try-catch around JSON.parse
-    assert.ok(backupSrc.includes("try {"), "Should have try block around JSON.parse");
-    assert.ok(backupSrc.includes("catch"), "Should have catch block for parse errors");
+  function createBackupService(createEnterpriseOpsService, root, auditContent, { includeKey = true } = {}) {
+    return createEnterpriseOpsService({
+      env: {
+        PME_ENTERPRISE_BACKUP_DIR: join(root, "backups"),
+        PME_ENTERPRISE_BACKUP_CHECKPOINT_DIR: join(root, "checkpoints"),
+        ...(includeKey ? { PME_ENTERPRISE_BACKUP_MASTER_KEY: backupMasterKey } : {}),
+      },
+      config: {},
+      enterpriseGovernanceService: {
+        getHealth: () => ({
+          userStore: { path: join(root, "users.json"), mode: "file" },
+          audit: { path: join(root, "audit.jsonl"), mode: "file" },
+        }),
+        getSecurityReadiness: () => ({
+          authEnabled: true,
+          userStore: { activeUserCount: 1, usersWithoutExpiryCount: 0 },
+        }),
+        exportAudit: async () => ({ auditLogPath: join(root, "audit.jsonl"), content: auditContent }),
+        exportUsersForBackup: () => ({ storedUsers: [] }),
+      },
+      knowledgeInfra: {
+        getReadiness: () => ({ status: "ready", mode: "keyword" }),
+      },
+      knowledgeService: {
+        getHealth: () => ({
+          storage: "file",
+          persistence: { durable: true },
+          documentCount: 0,
+        }),
+      },
+    });
+  }
+
+  it("contains invalid audit JSON and returns a warning backup", async () => {
+    const root = await mkdtemp(join(tmpdir(), "forge-enterprise-backup-"));
+    const { createEnterpriseOpsService } = await import(
+      ESM_SRC + "/enterprise/enterpriseOpsService.js"
+    );
+    const service = createBackupService(createEnterpriseOpsService, root, "{invalid");
+
+    try {
+      const result = await service.createBackup({}, actor);
+      assert.equal(result.status, "warning");
+      assert.equal(result.auditParseStatus, "warning");
+      assert.equal(result.auditEntryCount, 0);
+      assert.deepEqual(result.warnings, ["audit_export_json_invalid"]);
+      const validation = await service.validateRestore({ backupPath: result.backupPath }, actor);
+      assert.equal(validation.valid, true);
+      assert.equal(validation.auditEntryCount, 0);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 
-  it("defaults to empty array on parse failure", () => {
-    const src = readFileSync(join(SRC_ROOT, "enterprise/enterpriseOpsService.js"), "utf-8");
-    const backupStart = src.indexOf("createBackup");
-    const backupSrc = src.slice(backupStart, backupStart + 800);
-
-    assert.ok(backupSrc.includes("auditEntries = []"), "Should default to empty array on parse failure");
+  it("fails closed when the dedicated backup key is absent", async () => {
+    const root = await mkdtemp(join(tmpdir(), "forge-enterprise-backup-no-key-"));
+    const { createEnterpriseOpsService } = await import(
+      ESM_SRC + "/enterprise/enterpriseOpsService.js"
+    );
+    const service = createBackupService(createEnterpriseOpsService, root, "[]", { includeKey: false });
+    try {
+      const protectionCheck = service.getReadiness().checks.find((check) => check.id === "enterprise_backup_protection");
+      assert.equal(protectionCheck?.status, "blocked");
+      await assert.rejects(
+        () => service.createBackup({}, actor),
+        (error) => error?.code === "ENTERPRISE_BACKUP_MASTER_KEY_REQUIRED",
+      );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 
-  it("still parses audit content on success", () => {
-    const src = readFileSync(join(SRC_ROOT, "enterprise/enterpriseOpsService.js"), "utf-8");
-    const backupStart = src.indexOf("createBackup");
-    const backupSrc = src.slice(backupStart, backupStart + 800);
-
-    assert.ok(backupSrc.includes("JSON.parse(auditExport.content"), "Should still parse audit content normally");
+  it("preserves valid audit entries inside the authenticated encrypted payload", async () => {
+    const root = await mkdtemp(join(tmpdir(), "forge-enterprise-backup-valid-audit-"));
+    const { createEnterpriseOpsService } = await import(
+      ESM_SRC + "/enterprise/enterpriseOpsService.js"
+    );
+    const auditContent = JSON.stringify([{ id: "audit-1", tenantId: "tenant-a", outcome: "allowed" }]);
+    const service = createBackupService(createEnterpriseOpsService, root, auditContent);
+    try {
+      const result = await service.createBackup({}, actor);
+      assert.equal(result.status, "ready");
+      assert.equal(result.auditEntryCount, 1);
+      const validation = await service.validateRestore({ backupPath: result.backupPath }, actor);
+      assert.equal(validation.valid, true);
+      assert.equal(validation.auditEntryCount, 1);
+      assert.equal(validation.protection.encrypted, true);
+      assert.equal(validation.protection.manifestSigned, true);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 });
 

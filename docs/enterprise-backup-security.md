@@ -1,0 +1,70 @@
+# Enterprise backup security
+
+Enterprise backups are portable encrypted envelopes rather than plaintext JSON snapshots.
+The protection is deliberately outside the request hot path and only consumes CPU and
+memory when an operator creates or validates a backup.
+
+## Security properties
+
+- AES-256-GCM encrypts the complete tenant payload.
+- A separately HKDF-derived Ed25519 key signs the authenticated manifest.
+- Tenant, payload version, backup identifier, timestamp, sequence, previous digest, and
+  key identifiers are authenticated metadata.
+- Each tenant has a signed checkpoint in a directory separate from portable artifacts.
+- Backup creation is serialized per gateway process and uses atomic private-file writes.
+- Restore validation rejects plaintext legacy snapshots, wrong keys, modified metadata,
+  modified ciphertext, cross-tenant artifacts, symbolic links, oversized files, invalid
+  checkpoints, and sequences below the trusted rollback floor.
+- Up to three previous keys can be configured during a bounded rotation window.
+
+## Required configuration
+
+Configure one dedicated 32-byte backup key. Do not reuse provider or runtime credential
+keys.
+
+```text
+PME_ENTERPRISE_BACKUP_MASTER_KEY=base64:<canonical-32-byte-base64>
+```
+
+Use `PME_ENTERPRISE_BACKUP_MASTER_KEY_FILE` instead when the deployment can mount a
+private secret file. Configuring both forms is rejected. On POSIX, the key file must not
+be accessible to group or other users.
+
+Optional settings:
+
+```text
+PME_ENTERPRISE_BACKUP_DIR=.data/enterprise/backups
+PME_ENTERPRISE_BACKUP_CHECKPOINT_DIR=.data/enterprise/backup-checkpoints
+PME_ENTERPRISE_BACKUP_PREVIOUS_MASTER_KEYS=<old-key-1>,<old-key-2>
+PME_ENTERPRISE_BACKUP_MIN_RESTORE_SEQUENCE=42
+PME_ENTERPRISE_BACKUP_TRUSTED_CHECKPOINT_DIGEST=<sha256-of-sequence-42-artifact>
+```
+
+The checkpoint directory is not part of the portable artifact bundle. Give it a separate
+durable mount and stricter write permissions. For cross-host recovery, provision the
+minimum sequence and optional digest from an external trusted configuration source before
+validating imported artifacts.
+
+## Rotation procedure
+
+1. Set the new key as `PME_ENTERPRISE_BACKUP_MASTER_KEY`.
+2. Put the immediately previous key in `PME_ENTERPRISE_BACKUP_PREVIOUS_MASTER_KEYS`.
+3. Restart the gateway and create a new backup. The new artifact and checkpoint use the
+   new key while old artifacts remain verifiable during the bounded window.
+4. Complete restore drills and retire old keys after the retention period.
+
+## Remaining trust boundary
+
+A local signed checkpoint detects tampering but cannot defeat an attacker who can restore
+the entire host, including an older valid checkpoint. Production anti-rollback therefore
+requires `PME_ENTERPRISE_BACKUP_MIN_RESTORE_SEQUENCE` to come from an external monotonic
+or immutable control plane. This module validates artifacts only; it does not perform a
+destructive data restore.
+
+## Language Selection
+
+The cryptographic boundary is TypeScript because typed envelope shapes, exhaustive
+metadata binding, and direct testability are more valuable than introducing a separate
+service. Existing JavaScript orchestration receives a narrow integration. Rust or Go
+would add deployment, FFI, and rollback cost without improving the low-frequency workload
+enough to justify a sidecar. The on-disk JSON envelope remains implementation-neutral.

@@ -12,8 +12,8 @@ import { createExecutionLifecycle } from "./executionLifecycle.js";
 import { createExecutionApprovalGate } from "./executionApprovalGate.js";
 import { createWorktreeIsolation } from "./worktreeIsolation.js";
 import { TaskQueueManager } from "./taskQueueManager.js";
-import { createRoleExecutor, executeAllRoles } from "./roleExecutors.js";
-import { executeAllRolesWithLLM } from "./roleExecutorsLlm.js";
+import { createRoleExecutor } from "./roleExecutors.js";
+import { executeRoleWithLLM } from "./roleExecutorsLlm.js";
 import { createTaskEvidenceCapture } from "./taskEvidenceCapture.js";
 import { createSecurityReviewCheckpoint } from "./securityReviewCheckpoint.js";
 import { createGitWorkspaceGuard } from "./gitWorkspaceGuard.js";
@@ -23,6 +23,7 @@ import { createSandboxMergeExecutor, SANDBOX_MERGE_MODE } from "./sandboxMergeEx
 import { createDiagnosticReadChannel } from "./diagnosticReadChannel.js";
 import { AUTONOMY_MODES, DEFAULT_AUTONOMY_MODE, resolveAutonomyModeFrom } from "./autonomyModes.js";
 import { createWorkforceExecutionDescriptor } from "./workforceExecutionAuthorization.ts";
+import { executeWorkforceDag } from "./workforceDagExecutor.ts";
 import { createAutonomyTierGovernor, TIERS as TIER_VALUES } from "./autonomyTierGovernor.js";
 import {
   CONTROLLED_EXECUTION_PHASE,
@@ -39,6 +40,12 @@ export { AUTONOMY_MODES };
 
 const DEFAULT_MAX_CONCURRENT_AGENTS = 3;
 const DEFAULT_EXECUTION_TIMEOUT_MS = 300_000; // 5 minutes
+
+function readBoundedInteger(value, fallback, minimum, maximum) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < minimum) return fallback;
+  return Math.min(maximum, Math.floor(parsed));
+}
 
 /**
  * Create a controlled execution orchestrator.
@@ -57,8 +64,13 @@ export function createControlledExecutor(options = {}) {
   const dryRun = !executionEnabled || options.dryRun === true;
   const providerAdapter = options.providerAdapter ?? null;
   const forgeService = options.forgeService ?? null;
-  const maxConcurrent = Number(env.WORKFORCE_MAX_CONCURRENT) || DEFAULT_MAX_CONCURRENT_AGENTS;
-  const timeoutMs = Number(env.WORKFORCE_EXECUTION_TIMEOUT_MS) || DEFAULT_EXECUTION_TIMEOUT_MS;
+  const maxConcurrent = readBoundedInteger(env.WORKFORCE_MAX_CONCURRENT, DEFAULT_MAX_CONCURRENT_AGENTS, 1, 16);
+  const timeoutMs = readBoundedInteger(
+    env.WORKFORCE_EXECUTION_TIMEOUT_MS,
+    DEFAULT_EXECUTION_TIMEOUT_MS,
+    1_000,
+    60 * 60_000,
+  );
 
   const lifecycle = createExecutionLifecycle({
     lifecycleDir: options.executionDir ?? undefined,
@@ -70,7 +82,10 @@ export function createControlledExecutor(options = {}) {
   const worktree = createWorktreeIsolation({
     repoRoot: options.repoRoot ?? undefined,
   });
-  const taskQueue = new TaskQueueManager();
+  const taskQueue = options.taskQueueManager ?? new TaskQueueManager({
+    dataDir: options.executionDir ? `${options.executionDir}/task-queue` : undefined,
+    claimTtlMs: Math.min(24 * 60 * 60_000, timeoutMs + 30_000),
+  });
   const evidenceCapture = createTaskEvidenceCapture({
     evidenceDir: options.executionDir ? `${options.executionDir}/evidence` : undefined,
   });
@@ -154,6 +169,7 @@ export function createControlledExecutor(options = {}) {
         tierGovernor: tierGovernor.getInfo(),
         modules: {
           lifecycle: lifecycle.getInfo(),
+          taskQueue: taskQueue.getInfo(),
           approvalGate: approvalGate.getInfo(),
           worktree: worktree.getInfo(),
           evidenceCapture: evidenceCapture.getInfo?.() ?? { ready: true },
@@ -249,33 +265,59 @@ export function createControlledExecutor(options = {}) {
       // --- Step 7: Build & enqueue tasks ---
       await taskQueue.init();
       const tasks = plan.taskBreakdown ?? [];
-      for (const task of tasks) {
-        await taskQueue.enqueue({
+      const queuedTasks = await taskQueue.enqueueMany(tasks.map((task) => ({
+          planId,
           title: task.title ?? task.role,
           description: task.description ?? "",
           priority: mapPriority(task.priority),
           type: "workforce-role",
           payload: { roleId: task.roleId, planId },
           requiredSkills: [task.roleId],
-        });
-      }
+          dependsOnRoleIds: task.dependsOnRoleIds,
+        })));
 
       // --- Step 8: Execute roles with concurrency cap ---
       const roleResults = {};
       const executionErrors = [];
       const context = { plan, priorOutputs: {} };
+      let executionGraph = null;
 
       try {
         let _timeoutTimer;
-        const executionFn = providerAdapter
-          ? () => executeAllRolesWithLLM(plan.goal, context, providerAdapter)
-          : () => executeAllRoles(plan.goal, context);
+        const abortController = new AbortController();
+        const executionFn = () => executeWorkforceDag({
+          tasks: queuedTasks.map((task) => ({
+            queueTaskId: task.taskId,
+            roleId: task.payload.roleId,
+            dependsOnRoleIds: task.dependsOnRoleIds,
+          })),
+          taskQueue,
+          maxConcurrent,
+          claimTtlMs: Math.min(24 * 60 * 60_000, timeoutMs + 30_000),
+          signal: abortController.signal,
+          context,
+          executeRole: (roleId, roleContext) => providerAdapter
+            ? executeRoleWithLLM(roleId, plan.goal, roleContext, providerAdapter)
+            : createRoleExecutor(roleId).analyze(plan.goal, roleContext),
+        });
         const allRoleResults = await Promise.race([
           executionFn().finally(() => clearTimeout(_timeoutTimer)),
           new Promise((_, reject) => {
-            _timeoutTimer = setTimeout(() => reject(new Error(`Workforce execution timed out after ${timeoutMs}ms`)), timeoutMs);
+            _timeoutTimer = setTimeout(() => {
+              const timeoutError = new Error(`Workforce execution timed out after ${timeoutMs}ms`);
+              timeoutError.code = "WORKFORCE_EXECUTION_TIMEOUT";
+              abortController.abort(timeoutError);
+              reject(timeoutError);
+            }, timeoutMs);
           }),
         ]);
+        executionGraph = {
+          scheduler: allRoleResults.scheduler,
+          executionWaves: allRoleResults.executionWaves,
+          peakConcurrency: allRoleResults.peakConcurrency,
+          maxConcurrent: allRoleResults.maxConcurrent,
+          claimEnforced: allRoleResults.claimEnforced,
+        };
         for (const [roleId, result] of Object.entries(allRoleResults?.roleOutputs ?? {})) {
           roleResults[roleId] = result;
           await lifecycle.onAgentCompleted(planId, roleId, { success: true });
@@ -320,6 +362,7 @@ export function createControlledExecutor(options = {}) {
       await lifecycle.complete(planId, finalStatus, {
         roleResults: Object.keys(roleResults).length,
         errors: executionErrors,
+        executionGraph,
         postScan: postScan.result,
       });
 

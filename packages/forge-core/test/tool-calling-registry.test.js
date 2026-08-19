@@ -349,22 +349,36 @@ describe("New Tools Registration", () => {
     assert.ok(toolNames.includes("ast_edit"), "listTools should include ast_edit");
   });
 
-  it("should include standard built-in tools alongside new tools", () => {
+  it("should include standard safe tools while high-risk tools stay disabled", () => {
     const registry = createAgentToolRegistry();
     const allTools = registry.listTools();
     const toolNames = allTools.map((t) => t.name);
 
-    // Core built-in tools
+    // Core tools remain available, but command/code/network execution requires
+    // an explicit high-risk opt-in and a real permission checker.
     assert.ok(toolNames.includes("file_read"), "should include file_read");
     assert.ok(toolNames.includes("file_write"), "should include file_write");
-    assert.ok(toolNames.includes("shell_exec"), "should include shell_exec");
-    assert.ok(toolNames.includes("web_fetch"), "should include web_fetch");
-    assert.ok(toolNames.includes("code_run"), "should include code_run");
+    assert.ok(!toolNames.includes("shell_exec"), "should disable shell_exec by default");
+    assert.ok(!toolNames.includes("web_fetch"), "should disable web_fetch by default");
+    assert.ok(!toolNames.includes("code_run"), "should disable code_run by default");
 
     // Phase B tools
     assert.ok(toolNames.includes("glob"), "should include glob");
     assert.ok(toolNames.includes("grep"), "should include grep");
     assert.ok(toolNames.includes("file_edit"), "should include file_edit");
+  });
+
+  it("registers high-risk tools only with explicit opt-in and permission checks", () => {
+    const registry = createAgentToolRegistry({
+      enableHighRiskTools: true,
+      permissionChecker: {
+        check: async () => ({ allowed: true }),
+      },
+    });
+    const toolNames = registry.listTools().map((tool) => tool.name);
+    assert.ok(toolNames.includes("shell_exec"));
+    assert.ok(toolNames.includes("web_fetch"));
+    assert.ok(toolNames.includes("code_run"));
   });
 
   it("should have correct inputSchema for semantic_search", () => {

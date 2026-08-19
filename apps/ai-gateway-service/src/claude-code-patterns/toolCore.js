@@ -46,7 +46,12 @@ export function createToolUseContext({ registry, permissionChecker, eventBus, ag
     },
     /** 检查权限 */
     async checkPermission(action) {
-      if (!permissionChecker) return { allowed: true };
+      if (!permissionChecker || typeof permissionChecker.check !== "function") {
+        return {
+          allowed: false,
+          reason: "A permission checker is required before agent tools can execute.",
+        };
+      }
       return permissionChecker.check(action);
     },
     /** 发布事件 */

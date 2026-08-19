@@ -10,6 +10,12 @@ function localRequest(method, url, headers = {}) {
   };
 }
 
+const defaultAdminIdentity = {
+  userId: "test-admin",
+  tenantId: "default",
+  role: "admin",
+};
+
 describe("enterprise-governance-service", () => {
   let service;
 
@@ -32,6 +38,16 @@ describe("enterprise-governance-service", () => {
       permission: "local:preview",
       routePolicy: "explicit-protocol-allowlist",
     }));
+  });
+
+  it("exposes a minimal public health view without host storage paths", () => {
+    const health = service.getPublicHealth();
+    expect(health.status).toBe("ready");
+    expect(health.userStore.pathExposed).toBe(false);
+    expect(health.apiKeys.pathExposed).toBe(false);
+    expect(health.audit.pathExposed).toBe(false);
+    expect(JSON.stringify(health)).not.toContain("enterprise-audit.jsonl");
+    expect(JSON.stringify(health)).not.toContain("users.json");
   });
 
   it("lists roles with permissions", () => {
@@ -123,20 +139,55 @@ describe("enterprise-governance-service", () => {
     expect(decision.code).toBe("enterprise_auth_required_for_remote_peer");
   });
 
+  it("binds admin identity to its credential tenant and rejects tenant-header forgery", () => {
+    const adminService = createEnterpriseGovernanceService({
+      env: {
+        PME_ENTERPRISE_USERS_JSON: JSON.stringify([{
+          token: "tenant-b-admin-token",
+          userId: "tenant-b-admin",
+          tenantId: "tenant-b",
+          role: "admin",
+        }]),
+      },
+    });
+
+    const forged = adminService.authenticate(localRequest(
+      "GET",
+      "/enterprise/audit",
+      {
+        "x-pme-auth-token": "tenant-b-admin-token",
+        "x-pme-tenant-id": "tenant-a",
+      },
+    ));
+
+    expect(forged.authenticated).toBe(false);
+    expect(forged.statusCode).toBe(403);
+    expect(forged.code).toBe("enterprise_tenant_forbidden");
+    expect(forged.identity.tenantId).toBe("tenant-b");
+
+    const ownTenant = adminService.authenticate(localRequest(
+      "GET",
+      "/enterprise/audit",
+      { "x-pme-auth-token": "tenant-b-admin-token" },
+    ));
+    expect(ownTenant.authenticated).toBe(true);
+    expect(ownTenant.identity.tenantId).toBe("tenant-b");
+  });
+
   it("creates and lists users", () => {
     const result = service.upsertUser({
       userId: "test-user-1",
       tenantId: "default",
       role: "operator",
       token: "test-token-123",
-    });
+    }, defaultAdminIdentity);
     expect(result.user.userId).toBe("test-user-1");
     expect(result.user.role).toBe("operator");
 
-    const users = service.listUsers();
+    const users = service.listUsers(defaultAdminIdentity);
     expect(users.users.some((u) => u.userId === "test-user-1")).toBe(true);
 
-    service.revokeUser({ userId: "test-user-1" });
+    service.revokeUser({ userId: "test-user-1" }, defaultAdminIdentity);
   });
 
   it("records audit entries", async () => {
@@ -146,14 +197,18 @@ describe("enterprise-governance-service", () => {
       path: "/test",
       permission: "test:read",
       statusCode: 200,
-      identity: { userId: "test" },
+      identity: { userId: "test", tenantId: "default" },
     });
-    const audit = await service.listAudit({ limit: 10 });
+    const audit = await service.listAudit({ limit: 10, actorIdentity: defaultAdminIdentity });
     expect(audit.entries.length).toBeGreaterThan(0);
   });
 
   it("exports audit as JSONL", async () => {
-    const exported = await service.exportAudit({ format: "jsonl", limit: 10 });
+    const exported = await service.exportAudit({
+      format: "jsonl",
+      limit: 10,
+      actorIdentity: defaultAdminIdentity,
+    });
     expect(exported.format).toBe("jsonl");
     expect(typeof exported.content).toBe("string");
   });

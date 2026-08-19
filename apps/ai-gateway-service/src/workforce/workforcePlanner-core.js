@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { listWorkforceRoles } from "./workforceRoles.js";
 import { PRODUCT_TEMPLATES as IMPORTED_TEMPLATES, PRODUCT_TEMPLATE_PHASE } from "./workforceTemplates.js";
+import { getWorkforceRoleDependencies } from "./workforceRoleGraph.ts";
 
 export const MAX_GOAL_LENGTH = 1_000;
 export const PRODUCT_TEMPLATES = IMPORTED_TEMPLATES;
@@ -66,6 +67,7 @@ export function createRoleTask({ role, goal, index }) {
     role: role.name,
     title: `${role.name}: ${role.title}`,
     description: `${role.responsibility} Target goal: ${goal}`,
+    dependsOnRoleIds: getWorkforceRoleDependencies(role.roleId),
     status: "planned",
     previewOnly: true,
   };

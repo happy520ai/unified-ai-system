@@ -76,6 +76,13 @@ Use a `.db` extension for operational clarity. Do not point one store type at
 another store's database unless its schema and lifecycle have been reviewed for
 that deployment.
 
+Runtime credential SQLite records are encrypted before they reach SQLite.
+Every process must receive the same `PME_RUNTIME_CREDENTIAL_MASTER_KEY` (or
+restricted key file). Key rotation is a coordinated operation: all replicas
+must use the same new primary key and old-key fallback before any replica
+rewrites the store. See
+[Runtime credential encryption](./runtime-credential-encryption.md).
+
 ## Idempotent chat coordination
 
 Every gateway process that serves provider-backed `POST /chat` traffic must
@@ -188,6 +195,20 @@ one bounded feature: non-streaming chat idempotency. Complete deployment HA
 still needs independently verified database failover, TLS identity, retention,
 backup/restore, disaster recovery, replica convergence, provider reconciliation,
 and load-balancer behavior.
+
+### Workforce task ownership
+
+Controlled Workforce execution now requires a hashed bearer claim bound to the
+plan, task, agent, and monotonically increasing fencing token before an Agent can
+start, complete, or fail a task. One manager-level lease core serves all local
+claims without a timer per task, and active tasks are safely requeued after a
+process restart because an in-memory bearer claim cannot survive that boundary.
+
+This is a same-process correctness and resource-safety guarantee, not a
+cross-host Workforce lease. Do not dispatch one Workforce queue across gateway
+replicas until a reviewed PostgreSQL task-claim backend implements the same
+issue, validate, renew, release, revoke, and fencing contract. The gateway must
+remain the only authority allowed to cancel or requeue those claims.
 
 ## Cross-host PostgreSQL request quotas
 
