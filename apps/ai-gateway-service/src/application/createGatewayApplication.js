@@ -6,6 +6,7 @@ import { createFakeProvider } from "../providers/fakeProvider.js";
 import { createOpenAIAdapter } from "../providers/openAiAdapter.js";
 import { createNvidiaAdapter } from "../providers/nvidiaAdapter.js";
 import { createAnthropicAdapter } from "../providers/anthropicAdapter.js";
+import { createGeminiAdapter } from "../providers/geminiAdapter.ts";
 import { createHttpLLMProviderAdapter } from "../providers/httpLlmProviderAdapter.js";
 import { createRuntimeCredentialStore } from "../providers/runtimeCredentialStore.js";
 import { createModelImportService } from "../model-import/modelImportService.js";
@@ -234,6 +235,7 @@ function isRuntimeCredentialCapableProvider(modelConfig) {
   return providerType === "openai" ||
     providerType === "nvidia" ||
     providerType === "anthropic" ||
+    providerType === "gemini" ||
     providerType === "http-llm" ||
     providerType === "openai-compatible";
 }
@@ -259,6 +261,10 @@ function createProviderAdapter(modelConfig, config, runtimeCredentialStore, env)
 
   if (modelConfig.providerType === "anthropic" || modelConfig.providerId === "anthropic") {
     return createAnthropicAdapter(modelConfig, options);
+  }
+
+  if (modelConfig.providerType === "gemini" || modelConfig.providerId === "gemini") {
+    return createGeminiAdapter(modelConfig, options);
   }
 
   return createHttpLLMProviderAdapter(modelConfig, options);

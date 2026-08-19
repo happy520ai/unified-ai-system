@@ -44,6 +44,18 @@ export const DEFAULT_RUNTIME_CONFIG = {
         dryRun: false,
       },
       {
+        providerId: "gemini",
+        modelId: "gemini-2.5-pro",
+        providerType: "gemini",
+        providerDisplayName: "Google Gemini",
+        modelDisplayName: "Gemini 2.5 Pro",
+        enabled: false,
+        priority: 70,
+        capabilities: ["chat", "reasoning", "summary", "vision"],
+        endpoint: "https://generativelanguage.googleapis.com",
+        dryRun: false,
+      },
+      {
         providerId: "nvidia",
         modelId: "meta/llama-3.1-8b-instruct",
         providerType: "nvidia",

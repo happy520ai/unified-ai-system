@@ -399,7 +399,11 @@ export function createApiKeyManager(options = {}) {
 
   function describeBudget(record) {
     if (!record.budget) {
-      return { budgetEnabled: false, rateLimitEnabled: Boolean(record.rateLimit) };
+      return {
+        budgetEnabled: false,
+        rateLimitEnabled: Boolean(record.rateLimit),
+        requestCount: record.usageState.requestCount,
+      };
     }
     rolloverIfNeeded(record, now());
     const { limitTokens, windowMs, softThreshold } = record.budget;
@@ -414,6 +418,7 @@ export function createApiKeyManager(options = {}) {
       windowResetAt: new Date((windowIndex + 1) * windowMs).toISOString(),
       softBudgetExceeded: record.usageState.tokensUsed / limitTokens >= softThreshold,
       rateLimitEnabled: Boolean(record.rateLimit),
+      requestCount: record.usageState.requestCount,
     };
   }
 }

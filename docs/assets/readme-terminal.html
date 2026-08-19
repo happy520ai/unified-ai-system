@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { width: 1280px; height: 600px; overflow: hidden; }
+  body {
+    padding: 44px 70px;
+    background:
+      radial-gradient(ellipse 820px 300px at 50% -60px, rgba(89,240,181,0.10), transparent 70%),
+      #07100f;
+    border-top: 8px solid #59f0b5;
+    font-family: "Segoe UI", Arial, sans-serif; color: #f1f5f4;
+  }
+  .head { text-align: center; margin-bottom: 26px; }
+  .head h1 { font-size: 34px; font-weight: 760; }
+  .head h1 em { font-style: normal; color: #59f0b5; }
+  .head p { margin-top: 8px; color: #9eb0aa; font-size: 18px; }
+  .terminal {
+    border: 1px solid #28443c; border-radius: 6px; background: #0b1513; overflow: hidden;
+    box-shadow: 16px 18px 0 #10251f;
+  }
+  .bar {
+    display: flex; align-items: center; height: 52px; padding: 0 20px;
+    border-bottom: 1px solid #243a34; background: #101d1a;
+  }
+  .mark {
+    display: grid; width: 24px; height: 24px; margin-right: 12px; place-items: center;
+    border: 1px solid #59f0b5; color: #59f0b5;
+    font-family: Consolas, "Courier New", monospace; font-size: 12px; font-weight: 700;
+  }
+  .t-title { color: #a7bbb5; font-family: Consolas, "Courier New", monospace; font-size: 14.5px; }
+  .status { width: 8px; height: 8px; margin-left: auto; border-radius: 50%; background: #59f0b5; }
+  .body { padding: 26px 30px 28px; font-family: Consolas, "Courier New", monospace; font-size: 16.5px; line-height: 1.75; }
+  .cmd { color: #eaf7f3; margin-bottom: 6px; }
+  .cmd .p { color: #59f0b5; }
+  .cmd.cont { color: #9eb0aa; margin-bottom: 22px; }
+  .row { display: grid; grid-template-columns: 118px minmax(0,1fr); gap: 12px; margin: 8px 0; }
+  .label { color: #6f8780; }
+  .value { color: #d5dfdc; }
+  .value.accent { color: #f3c56c; }
+  .value.success { color: #78edbb; }
+  .footer {
+    display: flex; align-items: center; gap: 10px; margin-top: 24px; padding-top: 19px;
+    border-top: 1px solid #243a34; color: #9db0aa; font-family: Consolas, "Courier New", monospace; font-size: 14.5px;
+  }
+  .footer::before { width: 9px; height: 9px; content: ""; background: #59f0b5; }
+  .footer b { color: #ecf4f1; }
+</style>
+</head>
+<body>
+  <div class="head">
+    <h1>Proof in <em>60 seconds</em> — no clone, no key, no account</h1>
+    <p>Run the published container; every claim below is printed as verifiable evidence.</p>
+  </div>
+  <div class="terminal">
+    <div class="bar"><span class="mark">&gt;_</span><span class="t-title">gateway / demo --enhance</span><span class="status"></span></div>
+    <div class="body">
+      <p class="cmd"><span class="p">$</span> docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.5.0 \</p>
+      <p class="cmd cont">&nbsp;&nbsp;&nbsp;&nbsp;pnpm gateway demo "Build a small API for my team" --enhance --profile coding</p>
+      <div class="row"><span class="label">input</span><span class="value">Build a small API for my team</span></div>
+      <div class="row"><span class="label">profile</span><span class="value accent">coding</span></div>
+      <div class="row"><span class="label">execution</span><span class="value">fake · deterministic</span></div>
+      <div class="row"><span class="label">provider</span><span class="value">not called · providerCalled=false</span></div>
+      <div class="row"><span class="label">result</span><span class="value">structured prompt · execution + output + completion sections</span></div>
+      <div class="row"><span class="label">cleanup</span><span class="value success">container exits clean</span></div>
+      <div class="footer"><b>evidence packet</b> ready to share — original request preserved, 0 credentials used</div>
+    </div>
+  </div>
+</body>
+</html>

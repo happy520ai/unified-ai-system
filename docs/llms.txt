@@ -19,6 +19,10 @@ Unified AI System provides one governed boundary for models, agents, knowledge, 
 - [Prompt enhancement guide](https://happy520ai.github.io/unified-ai-system/prompt-enhancement.html)
 - [Chinese prompt enhancement guide](https://happy520ai.github.io/unified-ai-system/prompt-enhancement.zh-CN.html)
 - [Architecture](https://github.com/happy520ai/unified-ai-system/blob/master/docs/architecture.md)
+- [Google Gemini provider](https://github.com/happy520ai/unified-ai-system/blob/master/docs/gemini-provider.md)
+- [Chat guardrails](https://github.com/happy520ai/unified-ai-system/blob/master/docs/guardrails.md)
+- [Spend reporting](https://github.com/happy520ai/unified-ai-system/blob/master/docs/spend-reporting.md)
+- [Gateway benchmark 2026-08](https://github.com/happy520ai/unified-ai-system/blob/master/docs/benchmarks/2026-08-gateway-benchmark.md)
 - [Security policy](https://github.com/happy520ai/unified-ai-system/blob/master/SECURITY.md)
 - [Security evidence index](https://github.com/happy520ai/unified-ai-system/blob/master/docs/security/README.md)
 

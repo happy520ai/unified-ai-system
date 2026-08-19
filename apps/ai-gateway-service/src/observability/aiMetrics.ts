@@ -67,6 +67,8 @@ const chatRequests = createCounter("chat_requests", "Chat requests handled on th
 const chatTokens = createCounter("chat_tokens", "Token usage attributed on the chat hot path");
 const chatCacheEvents = createCounter("chat_cache_events", "Response-cache outcomes on the chat hot path");
 const chatVirtualKeyRejections = createCounter("chat_virtual_key_rejections", "Virtual key budget/rate rejections");
+const guardrailEvaluations = createCounter("guardrail_evaluations", "Guardrail stage evaluations on the chat hot path");
+const guardrailFindings = createCounter("guardrail_findings", "Guardrail rule findings by rule and action");
 const chatTtft = {
   name: "chat_ttft_ms",
   help: "Time to first token for streaming chat requests in milliseconds",
@@ -96,6 +98,14 @@ export function recordChatVirtualKeyRejection(code: string): void {
   increment(chatVirtualKeyRejections, { code });
 }
 
+export function recordGuardrailEvaluation(stage: "input" | "output", decision: "allow" | "block"): void {
+  increment(guardrailEvaluations, { stage, decision });
+}
+
+export function recordGuardrailFinding(rule: string, action: string): void {
+  increment(guardrailFindings, { rule, action });
+}
+
 export function recordChatTtft(route: string, firstTokenAt: number, startedAt: number): void {
   const delta = firstTokenAt - startedAt;
   if (!Number.isFinite(delta) || delta < 0) return;
@@ -108,6 +118,8 @@ export function getAiMetricsSnapshot() {
     chatTokens: Object.fromEntries(chatTokens.series),
     chatCacheEvents: Object.fromEntries(chatCacheEvents.series),
     chatVirtualKeyRejections: Object.fromEntries(chatVirtualKeyRejections.series),
+    guardrailEvaluations: Object.fromEntries(guardrailEvaluations.series),
+    guardrailFindings: Object.fromEntries(guardrailFindings.series),
     chatTtft: {
       buckets: TTFT_BUCKETS_MS,
       series: Object.fromEntries(
@@ -131,6 +143,8 @@ export function renderAiMetrics(snapshot: AiMetricsSnapshot, prefix = "ai_gatewa
     ["chat_tokens", "Token usage attributed on the chat hot path", snapshot.chatTokens],
     ["chat_cache_events", "Response-cache outcomes on the chat hot path", snapshot.chatCacheEvents],
     ["chat_virtual_key_rejections", "Virtual key budget/rate rejections", snapshot.chatVirtualKeyRejections],
+    ["guardrail_evaluations", "Guardrail stage evaluations on the chat hot path", snapshot.guardrailEvaluations],
+    ["guardrail_findings", "Guardrail rule findings by rule and action", snapshot.guardrailFindings],
   ] as const;
   for (const [name, help, series] of counters) {
     const entries = Object.entries(series ?? {});
@@ -167,5 +181,7 @@ export function resetAiMetricsForTests(): void {
   chatTokens.series.clear();
   chatCacheEvents.series.clear();
   chatVirtualKeyRejections.series.clear();
+  guardrailEvaluations.series.clear();
+  guardrailFindings.series.clear();
   chatTtft.buckets.clear();
 }
