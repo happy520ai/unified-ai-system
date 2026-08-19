@@ -152,7 +152,9 @@ export async function dispatchHttpRoutes02(context) {
     }
     writeJson(response, 200, createOkEnvelope({
       enabled: true,
-      stats: requestLogger.getStats({}),
+      stats: requestLogger.getStats({
+        tenantId: request.enterpriseIdentity?.tenantId ?? "default",
+      }),
       health: requestLogger.getHealth(),
     }, { startedAt }));
     return;
@@ -167,6 +169,7 @@ export async function dispatchHttpRoutes02(context) {
     const limit = Math.min(Math.max(Number.parseInt(url.searchParams.get("limit") ?? "50", 10) || 50, 1), 500);
     const filter = {
       limit,
+      tenantId: request.enterpriseIdentity?.tenantId ?? "default",
       provider: url.searchParams.get("provider") ?? undefined,
       model: url.searchParams.get("model") ?? undefined,
       statusCode: url.searchParams.get("statusCode") ? Number(url.searchParams.get("statusCode")) : undefined,
@@ -184,7 +187,9 @@ export async function dispatchHttpRoutes02(context) {
     const exporter = createPrometheusExporter({ prefix: "ai_gateway" });
     const healthSnapshot = createHealth(application);
     const readinessSnapshot = createSetupReadiness(application);
-    const stats = application?.requestLogger?.getStats?.({}) ?? {};
+    const stats = application?.requestLogger?.getStats?.({
+      tenantId: request.enterpriseIdentity?.tenantId ?? "default",
+    }) ?? {};
     const readinessResilienceSnapshot = resilienceMetrics?.snapshot?.() ?? {};
     const currentInFlight = Number.isFinite(Number(readinessResilienceSnapshot.currentInFlight))
       ? Number(readinessResilienceSnapshot.currentInFlight)

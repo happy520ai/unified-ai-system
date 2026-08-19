@@ -11,6 +11,7 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 
 const DEFAULT_STORE_DIR = ".agent-sessions";
+const MAX_SESSION_FILES_SCANNED = 10_000;
 
 /** Validate sessionId format to prevent path traversal */
 const SESSION_ID_PATTERN = /^[a-zA-Z0-9_\-]+$/;
@@ -28,7 +29,7 @@ export function createSessionStore(options = {}) {
    *   save(sessionData)      — sessionData must include sessionId
    */
   async function save(sessionIdOrData, maybeData) {
-    await mkdir(storeDir, { recursive: true });
+    await mkdir(storeDir, { recursive: true, mode: 0o700 });
 
     let sessionId, data;
     if (maybeData !== undefined) {
@@ -94,15 +95,22 @@ export function createSessionStore(options = {}) {
 
       const filePath = join(storeDir, `session-${sessionId}.json`);
       const tmpPath = filePath + ".tmp";
-      await writeFile(tmpPath, snapshotJson, "utf-8");
+      await writeFile(tmpPath, snapshotJson, { encoding: "utf-8", mode: 0o600 });
       const { rename: renameAsync } = await import("node:fs/promises");
       await renameAsync(tmpPath, filePath);
       return { saved: true, path: filePath, sessionId, id: sessionId };
     }).catch((err) => {
       throw err;
     });
-    _saveMutex.set(sessionId, current.catch((err) => { console.warn("[sessionStore] save mutex swallowed error:", err?.message); }));
-    return current;
+    const tracked = current.catch((err) => {
+      console.warn("[sessionStore] save mutex swallowed error:", err?.message);
+    });
+    _saveMutex.set(sessionId, tracked);
+    try {
+      return await current;
+    } finally {
+      if (_saveMutex.get(sessionId) === tracked) _saveMutex.delete(sessionId);
+    }
   }
 
   /**
@@ -124,12 +132,15 @@ export function createSessionStore(options = {}) {
    * Accepts either list({ limit }) or list(limit).
    */
   async function list(optsOrLimit = 20) {
-    const limit = typeof optsOrLimit === "object" ? (optsOrLimit.limit || 20) : optsOrLimit;
+    const requestedLimit = typeof optsOrLimit === "object" ? (optsOrLimit.limit || 20) : optsOrLimit;
+    const limit = Math.min(Math.max(Number(requestedLimit) || 20, 1), 100);
     try { await access(storeDir, fsConstants.F_OK); } catch { return { sessions: [] }; }
 
     try {
       const files = await readdir(storeDir);
-      const sessionFiles = files.filter(f => f.startsWith("session-") && f.endsWith(".json"));
+      const sessionFiles = files
+        .filter(f => f.startsWith("session-") && f.endsWith(".json"))
+        .slice(0, MAX_SESSION_FILES_SCANNED);
 
       const filesWithStats = await Promise.all(
         sessionFiles.map(async (f) => {

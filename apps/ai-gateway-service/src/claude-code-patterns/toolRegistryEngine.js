@@ -12,6 +12,11 @@ import { createGitTools } from "../tools/gitTools.js";
 import { createLspTools } from "../tools/lspTool.js";
 import { createToolResultCache } from "./toolResultCache.js";
 import { createAgentManager } from "./toolAgentManager.js";
+import {
+  createToolPermissionContext,
+  hasUsablePermissionChecker,
+  shouldRegisterAgentTool,
+} from "../security/agentToolExecutionPolicy.ts";
 
 // Agent 定义结构: agentType, whenToUse, tools (allowlist), disallowedTools (denylist), permissionMode, model
 
@@ -28,6 +33,8 @@ export function createAgentToolRegistry(options = {}) {
     eventBus = null,
     maxChainDepth = 5,
   } = options;
+  const permissionCheckerConfigured = hasUsablePermissionChecker(permissionChecker);
+  const highRiskToolsEnabled = options.enableHighRiskTools === true && permissionCheckerConfigured;
 
   /** 已注册的工具映射 name -> tool */
   const tools = new Map();
@@ -53,6 +60,11 @@ export function createAgentToolRegistry(options = {}) {
   // 注册所有内置工具（传入 workingDirectory 确保文件操作正确解析路径）
   const builtInTools = createBuiltInTools(options.workingDirectory || process.cwd());
   for (const [name, tool] of Object.entries(builtInTools)) {
+    if (!shouldRegisterAgentTool({
+      toolName: name,
+      enableHighRiskTools: highRiskToolsEnabled,
+      permissionChecker,
+    })) continue;
     tools.set(name, tool);
   }
 
@@ -287,32 +299,43 @@ export function createAgentToolRegistry(options = {}) {
         };
       }
 
-      // Check cache for read-only tools
-      const cachedResult = resultCache.get(toolName, coercedParams);
-      if (cachedResult !== null) {
-        const cacheRecord = {
+      // 权限检查
+      if (tool.requiredPermissions.length > 0 && !permissionCheckerConfigured) {
+        const record = {
+          id: randomUUID(),
           toolName,
-          params: coercedParams,
-          status: "cache_hit",
-          durationMs: 0,
+          params: sanitizeParams(params),
+          status: "denied",
+          reason: "A permission checker is required before agent tools can execute.",
           timestamp: new Date().toISOString(),
         };
-        executionLog.push(cacheRecord);
+        executionLog.push(record);
         capExecutionLog();
-        return cachedResult;
+        return {
+          status: "denied",
+          code: "TOOL_PERMISSION_CHECKER_REQUIRED",
+          error: record.reason,
+        };
       }
-
-      // 权限检查
-      if (permissionChecker && tool.requiredPermissions.length > 0) {
+      if (tool.requiredPermissions.length > 0) {
         for (const perm of tool.requiredPermissions) {
-          const permResult = await permissionChecker.check(perm);
-          if (!permResult.allowed) {
+          let permResult;
+          try {
+            permResult = await permissionChecker.check(perm, createToolPermissionContext({
+              toolName,
+              params: coercedParams,
+              isReadOnly: tool.isReadOnly,
+            }));
+          } catch {
+            permResult = { allowed: false, reason: "Permission evaluation failed closed." };
+          }
+          if (!permResult || permResult.allowed !== true) {
             const record = {
               id: randomUUID(),
               toolName,
-              params,
+              params: sanitizeParams(params),
               status: "denied",
-              reason: permResult.reason || `缺少权限: ${perm}`,
+              reason: permResult?.reason || `缺少权限: ${perm}`,
               timestamp: new Date().toISOString(),
             };
             executionLog.push(record);
@@ -320,6 +343,23 @@ export function createAgentToolRegistry(options = {}) {
             return { status: "denied", error: record.reason, permission: perm };
           }
         }
+      }
+
+      // Permission-protected results are never shared through the registry
+      // cache because its key intentionally has no caller/session identity.
+      const cacheEligible = tool.isReadOnly === true && tool.requiredPermissions.length === 0;
+      const cachedResult = cacheEligible ? resultCache.get(toolName, coercedParams) : null;
+      if (cachedResult !== null) {
+        const cacheRecord = {
+          toolName,
+          params: sanitizeParams(coercedParams),
+          status: "cache_hit",
+          durationMs: 0,
+          timestamp: new Date().toISOString(),
+        };
+        executionLog.push(cacheRecord);
+        capExecutionLog();
+        return cachedResult;
       }
 
       // 执行工具
@@ -364,7 +404,7 @@ export function createAgentToolRegistry(options = {}) {
         }
 
         // Cache the result for read-only tools
-        resultCache.set(toolName, coercedParams, result);
+        if (cacheEligible) resultCache.set(toolName, coercedParams, result);
 
         // 记录执行日志
         const record = {
@@ -428,6 +468,8 @@ export function createAgentToolRegistry(options = {}) {
         registeredAgents: agents.size,
         executionLogSize: executionLog.length,
         maxChainDepth,
+        permissionMode: permissionCheckerConfigured ? "configured" : "fail-closed",
+        highRiskToolsEnabled,
         cacheSize: resultCache.size,
         cacheMaxSize: resultCache.maxSize,
         cacheableTools: [...resultCache.cacheableTools],

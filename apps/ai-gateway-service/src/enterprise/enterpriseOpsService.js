@@ -2,9 +2,10 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { basename, isAbsolute, relative, resolve } from "node:path";
 import { createPinoLogger } from "../logging/pinoLogger.js";
+import { requireEnterpriseTenantId } from "./enterpriseTenantPolicy.ts";
 
 const BACKUP_TYPE = "pme-enterprise-backup";
-const BACKUP_VERSION = 1;
+const BACKUP_VERSION = 2;
 const DEFAULT_BACKUP_DIR = ".data/enterprise/backups";
 const logger = createPinoLogger({ app: "enterpriseOpsService" });
 
@@ -205,6 +206,7 @@ export function createEnterpriseOpsService({ env = {}, config, enterpriseGoverna
     },
 
     async createBackup(input = {}, actorIdentity) {
+      const tenantId = requireEnterpriseTenantId(actorIdentity);
       await mkdir(backupDir, { recursive: true });
       const now = new Date().toISOString();
       const backupId = `pme-enterprise-backup-${now.replace(/[:.]/g, "-")}`;
@@ -212,6 +214,7 @@ export function createEnterpriseOpsService({ env = {}, config, enterpriseGoverna
       const auditExport = await enterpriseGovernanceService.exportAudit({
         limit: input.auditLimit ?? 1000,
         format: "json",
+        actorIdentity,
       });
       let auditEntries = [];
       let auditParseStatus = "ready";
@@ -227,7 +230,7 @@ export function createEnterpriseOpsService({ env = {}, config, enterpriseGoverna
           {
             err: error,
             event: "enterprise_backup_audit_parse_failed",
-            auditLogPath: auditExport.auditLogPath ?? null,
+            tenantId,
           },
           "Enterprise backup is continuing without parsed audit entries.",
         );
@@ -237,14 +240,15 @@ export function createEnterpriseOpsService({ env = {}, config, enterpriseGoverna
         type: BACKUP_TYPE,
         version: BACKUP_VERSION,
         backupId,
+        tenantId,
         generatedAt: now,
         generatedBy: actorIdentity ? sanitizeIdentity(actorIdentity) : null,
         reason: typeof input.reason === "string" && input.reason.trim() ? input.reason.trim() : "manual-enterprise-backup",
         tokenValuesExposed: false,
         readiness: this.getReadiness(),
-        enterpriseUsers: enterpriseGovernanceService.exportUsersForBackup(),
+        enterpriseUsers: enterpriseGovernanceService.exportUsersForBackup(actorIdentity),
         audit: {
-          path: auditExport.auditLogPath,
+          pathExposed: false,
           format: "json",
           parseStatus: auditParseStatus,
           entryCount: auditEntries.length,
@@ -256,7 +260,10 @@ export function createEnterpriseOpsService({ env = {}, config, enterpriseGoverna
         },
       };
 
-      await writeFile(backupPath, `${JSON.stringify(body, null, 2)}\n`, "utf8");
+      await writeFile(backupPath, `${JSON.stringify(body, null, 2)}\n`, {
+        encoding: "utf8",
+        mode: 0o600,
+      });
       const stats = await stat(backupPath);
 
       return {
@@ -276,7 +283,8 @@ export function createEnterpriseOpsService({ env = {}, config, enterpriseGoverna
       };
     },
 
-    async validateRestore(input = {}) {
+    async validateRestore(input = {}, actorIdentity) {
+      const tenantId = requireEnterpriseTenantId(actorIdentity);
       const backupPath = resolveBackupPath(input.backupPath, backupDir);
       const blockers = [];
       const warnings = [];
@@ -300,6 +308,10 @@ export function createEnterpriseOpsService({ env = {}, config, enterpriseGoverna
 
       if (parsed.version !== BACKUP_VERSION) {
         blockers.push("backup_version_invalid");
+      }
+
+      if (parsed.tenantId !== tenantId || parsed.generatedBy?.tenantId !== tenantId) {
+        blockers.push("backup_tenant_mismatch");
       }
 
       if (hasRawTokenKey(parsed)) {

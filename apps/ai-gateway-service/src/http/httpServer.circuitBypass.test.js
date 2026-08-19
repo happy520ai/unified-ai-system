@@ -9,7 +9,7 @@ function createGatewayApplication(overrides = {}) {
     }
     return {
       allowed: true,
-      identity: { userId: "operator" },
+      identity: { userId: "operator", tenantId: "default" },
       permission: "dashboard:read",
       statusCode: 200,
     };

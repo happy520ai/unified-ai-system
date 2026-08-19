@@ -45,7 +45,8 @@ describe("enterprise operations backup", () => {
     });
 
     try {
-      const result = await service.createBackup();
+      const tenantAdmin = { userId: "tenant-a-admin", tenantId: "tenant-a", role: "admin" };
+      const result = await service.createBackup({}, tenantAdmin);
       const backup = JSON.parse(await readFile(result.backupPath, "utf8"));
 
       expect(result.status).toBe("warning");
@@ -54,6 +55,16 @@ describe("enterprise operations backup", () => {
       expect(result.auditEntryCount).toBe(0);
       expect(backup.audit.parseStatus).toBe("warning");
       expect(backup.audit.entries).toEqual([]);
+      expect(backup.version).toBe(2);
+      expect(backup.tenantId).toBe("tenant-a");
+      expect(backup.audit.pathExposed).toBe(false);
+
+      const crossTenantValidation = await service.validateRestore(
+        { backupPath: result.backupPath },
+        { userId: "tenant-b-admin", tenantId: "tenant-b", role: "admin" },
+      );
+      expect(crossTenantValidation.valid).toBe(false);
+      expect(crossTenantValidation.blockers).toContain("backup_tenant_mismatch");
     } finally {
       await rm(root, { recursive: true, force: true });
     }

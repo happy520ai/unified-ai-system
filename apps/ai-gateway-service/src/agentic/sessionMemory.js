@@ -5,12 +5,13 @@
  * @module sessionMemory
  */
 
-import { readFile, writeFile, mkdir, access } from "node:fs/promises";
+import { readFile, writeFile, mkdir, access, rename, rm, stat } from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
 import { join } from "node:path";
 
 const DEFAULT_MEMORY_DIR = ".agent-memory";
 const MAX_ENTRIES = 1000;
+const MAX_MEMORY_FILE_BYTES = 10 * 1024 * 1024;
 
 export function createSessionMemory(options = {}) {
   const memoryDir = options.memoryDir || join(process.cwd(), DEFAULT_MEMORY_DIR);
@@ -31,12 +32,16 @@ export function createSessionMemory(options = {}) {
         try {
           const memFile = join(memoryDir, "session-memory.json");
           await access(memFile, fsConstants.F_OK);
+          const memoryStat = await stat(memFile);
+          if (!memoryStat.isFile() || memoryStat.size > MAX_MEMORY_FILE_BYTES) {
+            throw new Error("Session memory file is invalid or exceeds the size limit.");
+          }
           const data = JSON.parse(await readFile(memFile, "utf-8"));
           if (Array.isArray(data.entries)) {
-            for (const e of data.entries) { entries.push(e); }
+            for (const e of data.entries.slice(-maxEntries)) { entries.push(e); }
           }
           if (data.patterns && typeof data.patterns === "object") {
-            for (const [k, v] of Object.entries(data.patterns)) {
+            for (const [k, v] of Object.entries(data.patterns).slice(-maxEntries)) {
               patterns.set(k, v);
             }
           }
@@ -53,13 +58,20 @@ export function createSessionMemory(options = {}) {
 
   async function _saveToDisk() {
     try {
-      await mkdir(memoryDir, { recursive: true });
+      await mkdir(memoryDir, { recursive: true, mode: 0o700 });
       const data = {
         entries: entries.slice(-maxEntries),
         patterns: Object.fromEntries(patterns),
         savedAt: new Date().toISOString(),
       };
-      await writeFile(join(memoryDir, "session-memory.json"), JSON.stringify(data, null, 2), "utf-8");
+      const memoryFile = join(memoryDir, "session-memory.json");
+      const temporaryFile = `${memoryFile}.${process.pid}.${Date.now()}.tmp`;
+      try {
+        await writeFile(temporaryFile, JSON.stringify(data, null, 2), { encoding: "utf-8", mode: 0o600 });
+        await rename(temporaryFile, memoryFile);
+      } finally {
+        await rm(temporaryFile, { force: true }).catch(() => {});
+      }
     } catch (err) {
       // Memory save failure is non-fatal but should be visible
       if (process.env.DEBUG_AGENT_MEMORY) {

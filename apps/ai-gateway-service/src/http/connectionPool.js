@@ -11,6 +11,7 @@ const DEFAULT_MAX_SOCKETS = 10;
 const DEFAULT_MAX_FREE_SOCKETS = 5;
 const DEFAULT_KEEP_ALIVE_TIMEOUT = 30_000;
 const DEFAULT_REQUEST_TIMEOUT = 60_000;
+const DEFAULT_MAX_RESPONSE_BYTES = 16 * 1024 * 1024;
 const AGENT_TTL_MS = 10 * 60 * 1000;
 
 const evictionTimer = setInterval(() => {
@@ -84,16 +85,33 @@ function createAbortError(message, cause) {
   return error;
 }
 
-function collectResponseBody(response) {
+function createResponseTooLargeError(maxResponseBytes) {
+  const error = new Error(`Response body exceeds the ${maxResponseBytes}-byte limit.`);
+  error.code = "RESPONSE_BODY_TOO_LARGE";
+  return error;
+}
+
+function collectResponseBody(response, maxResponseBytes) {
   return new Promise((resolve, reject) => {
     const chunks = [];
-    response.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+    let receivedBytes = 0;
+    response.on("data", (chunk) => {
+      const buffer = Buffer.from(chunk);
+      receivedBytes += buffer.length;
+      if (receivedBytes > maxResponseBytes) {
+        const error = createResponseTooLargeError(maxResponseBytes);
+        response.destroy(error);
+        reject(error);
+        return;
+      }
+      chunks.push(buffer);
+    });
     response.once("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
     response.once("error", reject);
   });
 }
 
-function createResponseFacade(response) {
+function createResponseFacade(response, maxResponseBytes) {
   let bodyTextPromise;
   return {
     status: response.statusCode ?? 0,
@@ -102,7 +120,7 @@ function createResponseFacade(response) {
     ok: (response.statusCode ?? 0) >= 200 && (response.statusCode ?? 0) < 300,
     body: response,
     text() {
-      bodyTextPromise ??= collectResponseBody(response);
+      bodyTextPromise ??= collectResponseBody(response, maxResponseBytes);
       return bodyTextPromise;
     },
     async json() {
@@ -130,7 +148,11 @@ export function fetchWithAgent(url, options = {}) {
     lookup,
     signal,
     timeout = DEFAULT_REQUEST_TIMEOUT,
+    maxResponseBytes = DEFAULT_MAX_RESPONSE_BYTES,
   } = options;
+  const safeMaxResponseBytes = Number.isFinite(Number(maxResponseBytes)) && Number(maxResponseBytes) > 0
+    ? Math.floor(Number(maxResponseBytes))
+    : DEFAULT_MAX_RESPONSE_BYTES;
 
   if (signal?.aborted) {
     return Promise.reject(createAbortError("Request aborted before dispatch.", signal.reason));
@@ -158,7 +180,7 @@ export function fetchWithAgent(url, options = {}) {
       timeout,
     }, (response) => {
       response.once("close", cleanupAbortListener);
-      resolve(createResponseFacade(response));
+      resolve(createResponseFacade(response, safeMaxResponseBytes));
     });
 
     request.once("error", (error) => {

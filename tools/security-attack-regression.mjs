@@ -10,6 +10,10 @@ const env = {
   AI_GATEWAY_PROVIDER_MODE: "fake",
   AI_GATEWAY_REAL_PROVIDER_ENABLED: "false",
   PME_AUTH_TOKEN: "admin-token-0123456789abcdef",
+  PME_ENTERPRISE_USERS_JSON: JSON.stringify([
+    { token: "tenant-a-admin-token", userId: "tenant-a-admin", tenantId: "tenant-a", role: "admin" },
+    { token: "tenant-b-admin-token", userId: "tenant-b-admin", tenantId: "tenant-b", role: "admin" },
+  ]),
   PME_API_KEY_STORE_PATH: join(dir, "keys.json"),
   PME_AUDIT_LOG_PATH: join(dir, "audit.jsonl"),
   PME_ENTERPRISE_USER_STORE_PATH: join(dir, "users.json"),
@@ -19,6 +23,8 @@ const server = createGatewayHttpServer(app);
 await new Promise((r) => server.listen(0, "127.0.0.1", r));
 const base = `http://127.0.0.1:${server.address().port}`;
 const adminHeaders = { "x-pme-auth-token": "admin-token-0123456789abcdef", "x-pme-tenant-id": "default", "content-type": "application/json" };
+const tenantAAdminHeaders = { "x-pme-auth-token": "tenant-a-admin-token", "x-pme-tenant-id": "tenant-a", "content-type": "application/json" };
+const tenantBAdminHeaders = { "x-pme-auth-token": "tenant-b-admin-token", "x-pme-tenant-id": "tenant-b", "content-type": "application/json" };
 const results = [];
 const attack = (name, ok, detail = "") => { results.push({ name, ok }); console.log(`${ok ? "DEFENDED" : "BREACH!!"} ${name}${detail ? " — " + detail : ""}`); };
 
@@ -27,9 +33,9 @@ const chat = (headers, body) => fetch(`${base}/v1/chat/completions`, {
 });
 const chatBody = (text) => ({ model: "local-fake-model", messages: [{ role: "user", content: text }] });
 
-async function mk(payload) {
+async function mk(payload, headers = adminHeaders) {
   const response = await fetch(`${base}/enterprise/virtual-keys`, {
-    method: "POST", headers: adminHeaders, body: JSON.stringify(payload),
+    method: "POST", headers, body: JSON.stringify(payload),
   });
   const body = await response.json();
   const key = body?.data?.key ?? body?.data?.result?.key;
@@ -39,12 +45,25 @@ async function mk(payload) {
 }
 
 try {
-  const keyA = await mk({ role: "operator", tenantId: "tenant-a" });
-  const keyB = await mk({ role: "operator", tenantId: "tenant-b" });
-  const viewerKey = await mk({ role: "viewer", tenantId: "tenant-a" });
-  const budgetKey = await mk({ role: "operator", tenantId: "tenant-a", budget: { limitTokens: 5, window: "daily" } });
-  const rateKey = await mk({ role: "operator", tenantId: "tenant-a", rateLimit: { requestsPerMinute: 3 } });
-  const revokeKey = await mk({ role: "operator", tenantId: "tenant-a" });
+  const publicHealthResponse = await fetch(`${base}/enterprise/health`);
+  const publicHealth = await publicHealthResponse.json().catch(() => ({}));
+  const publicHealthText = JSON.stringify(publicHealth?.data ?? {});
+  attack(
+    "A0 public enterprise health hides storage paths",
+    publicHealthResponse.status === 200
+      && !publicHealthText.includes("enterprise-audit.jsonl")
+      && !publicHealthText.includes("users.json")
+      && publicHealth?.data?.audit?.pathExposed === false,
+    `status=${publicHealthResponse.status}`,
+  );
+
+  const keyA = await mk({ role: "operator", tenantId: "tenant-a" }, tenantAAdminHeaders);
+  const keyB = await mk({ role: "operator", tenantId: "tenant-b" }, tenantBAdminHeaders);
+  const viewerKey = await mk({ role: "viewer", tenantId: "tenant-a" }, tenantAAdminHeaders);
+  const auditorKeyB = await mk({ role: "auditor", tenantId: "tenant-b" }, tenantBAdminHeaders);
+  const budgetKey = await mk({ role: "operator", tenantId: "tenant-a", budget: { limitTokens: 5, window: "daily" } }, tenantAAdminHeaders);
+  const rateKey = await mk({ role: "operator", tenantId: "tenant-a", rateLimit: { requestsPerMinute: 3 } }, tenantAAdminHeaders);
+  const revokeKey = await mk({ role: "operator", tenantId: "tenant-a" }, tenantAAdminHeaders);
 
   const seed = await chat({ authorization: `Bearer ${keyA.key}` }, chatBody("security audit tenant a probe"));
   attack("A1 seed", seed.status === 200);
@@ -53,6 +72,29 @@ try {
 
   const forgedTenant = await chat({ authorization: `Bearer ${keyB.key}`, "x-pme-tenant-id": "tenant-a" }, chatBody("hi"));
   attack("A2 tenant header forgery", forgedTenant.status === 403, `status=${forgedTenant.status}`);
+  const forgedAdminTenant = await chat({ "x-pme-auth-token": "tenant-b-admin-token", "x-pme-tenant-id": "tenant-a" }, chatBody("hi"));
+  attack("A2b admin tenant header forgery", forgedAdminTenant.status === 403, `status=${forgedAdminTenant.status}`);
+  const crossTenantKeyCreate = await fetch(`${base}/enterprise/virtual-keys`, {
+    method: "POST",
+    headers: tenantBAdminHeaders,
+    body: JSON.stringify({ role: "admin", tenantId: "tenant-a" }),
+  });
+  attack("A2c admin cross-tenant virtual-key creation", crossTenantKeyCreate.status === 403, `status=${crossTenantKeyCreate.status}`);
+  const crossTenantAudit = await fetch(`${base}/enterprise/audit?tenantId=tenant-a`, {
+    headers: { authorization: `Bearer ${auditorKeyB.key}`, "x-pme-tenant-id": "tenant-b" },
+  });
+  attack("A2d cross-tenant audit filter", crossTenantAudit.status === 403, `status=${crossTenantAudit.status}`);
+
+  const crossTenantProviderMutation = await fetch(`${base}/providers/runtime-credential`, {
+    method: "POST",
+    headers: tenantBAdminHeaders,
+    body: JSON.stringify({ providerId: "openai", apiKey: "sk-" + "regression-never-store" }),
+  });
+  attack(
+    "A2e cross-tenant global provider mutation",
+    crossTenantProviderMutation.status === 403,
+    `status=${crossTenantProviderMutation.status}`,
+  );
 
   const viewerChat = await chat({ authorization: `Bearer ${viewerKey.key}` }, chatBody("hi"));
   attack("A3 viewer-role key on chat", viewerChat.status === 403, `status=${viewerChat.status}`);
@@ -105,7 +147,7 @@ try {
   attack("A9 oversized mcp arguments rejected", ["MCP_UPSTREAM_UNKNOWN", "MCP_ARGUMENTS_TOO_LARGE"].includes(mcpHugeBody?.error?.code), `code=${mcpHugeBody?.error?.code}`);
 
   const revokeA = await fetch(`${base}/enterprise/virtual-keys/revoke`, {
-    method: "POST", headers: adminHeaders, body: JSON.stringify({ keyId: revokeKey.keyId }),
+    method: "POST", headers: tenantAAdminHeaders, body: JSON.stringify({ keyId: revokeKey.keyId }),
   });
   const afterRevoke = await chat({ authorization: `Bearer ${revokeKey.key}` }, chatBody("hi"));
   attack("A10 revoked key instant invalidation", revokeA.status === 200 && afterRevoke.status === 401, `revoke=${revokeA.status} chat=${afterRevoke.status}`);

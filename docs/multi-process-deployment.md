@@ -76,6 +76,13 @@ Use a `.db` extension for operational clarity. Do not point one store type at
 another store's database unless its schema and lifecycle have been reviewed for
 that deployment.
 
+Runtime credential SQLite records are encrypted before they reach SQLite.
+Every process must receive the same `PME_RUNTIME_CREDENTIAL_MASTER_KEY` (or
+restricted key file). Key rotation is a coordinated operation: all replicas
+must use the same new primary key and old-key fallback before any replica
+rewrites the store. See
+[Runtime credential encryption](./runtime-credential-encryption.md).
+
 ## Idempotent chat coordination
 
 Every gateway process that serves provider-backed `POST /chat` traffic must

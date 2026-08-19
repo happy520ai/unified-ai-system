@@ -445,6 +445,7 @@ export class GatewayService {
         fallbackUsed: fallbackAttempt > 1,
         error: error ? (error instanceof Error ? error.message : String(error)) : undefined,
         traceId: request?.context?.traceId,
+        tenantId: request?.enterpriseIdentity?.tenantId ?? request?.context?.tenantId ?? "default",
       });
     } catch (err) {
       // Fail-open: a usage-ledger failure must never break or alter the chat path.

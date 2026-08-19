@@ -90,8 +90,9 @@ export function createAgenticLoop(options = {}) {
   const toolRegistry = options.toolRegistry ?? createAgentToolRegistry({
     workingDirectory,
     permissionChecker: options.permissionGate
-      ? { check: (action) => options.permissionGate.check(action, { permissionMode }) }
+      ? { check: (action, context = {}) => options.permissionGate.check(action, { ...context, permissionMode }) }
       : null,
+    enableHighRiskTools: options.enableHighRiskTools === true,
   });
   if (options.mcpBridge) syncMcpToolsToRegistry(options.mcpBridge, toolRegistry);
 
@@ -342,6 +343,7 @@ export function createAgenticLoop(options = {}) {
       errorRecoveryEnabled, dynamicBudgetEnabled,
       toolCount: toolRegistry.listTools().length,
       hasMcpBridge: Boolean(options.mcpBridge),
+      highRiskToolsEnabled: options.enableHighRiskTools === true && Boolean(options.permissionGate),
       hasAutoContext: true, hasProjectInstructions: true,
       hasSubagentDispatch: true, hasContextManager: true,
       hasSessionMemory: true, hasSessionStore: true, hasSmartModelRouter: true,

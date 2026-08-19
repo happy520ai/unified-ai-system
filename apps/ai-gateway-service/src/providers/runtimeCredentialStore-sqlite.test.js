@@ -1,12 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createRuntimeCredentialStore } from "./runtimeCredentialStore.js";
 
+const MASTER_KEY = Buffer.alloc(32, 0x33).toString("base64");
+
 function storeWithPath(dbPath) {
   return createRuntimeCredentialStore({
-    env: { PME_RUNTIME_CREDENTIAL_STORE_MODE: "sqlite" },
+    env: {
+      PME_RUNTIME_CREDENTIAL_STORE_MODE: "sqlite",
+      PME_RUNTIME_CREDENTIAL_MASTER_KEY: MASTER_KEY,
+    },
     storagePath: dbPath,
   });
 }
@@ -18,12 +23,15 @@ describe("runtimeCredentialStore — sqlite backend", () => {
     const store = storeWithPath(dbPath);
     store.set({ providerId: "openai", apiKey: "sk-test-123", endpoint: "https://api.openai.com" });
     expect(store.getApiKey("openai")).toBe("sk-test-123");
+    store.close();
 
     // A second instance over the same SQLite file (simulates restart / another process).
     const store2 = storeWithPath(dbPath);
     expect(store2.getApiKey("openai")).toBe("sk-test-123");
     expect(store2.getEndpoint("openai")).toBe("https://api.openai.com");
     expect(store2.has("openai")).toBe(true);
+    store2.close();
+    expect(readFileSync(dbPath).includes(Buffer.from("sk-test-123"))).toBe(false);
   });
 
   it("clear removes the credential", () => {
@@ -33,5 +41,6 @@ describe("runtimeCredentialStore — sqlite backend", () => {
     store.set({ providerId: "openai", apiKey: "sk-test-123" });
     expect(store.clear("openai")).toBe(true);
     expect(store.has("openai")).toBe(false);
+    store.close();
   });
 });

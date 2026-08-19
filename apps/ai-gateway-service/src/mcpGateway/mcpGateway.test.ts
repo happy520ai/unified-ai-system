@@ -29,7 +29,14 @@ function createFakeClient(tools: Array<{ name: string }>, calls: Array<{ name: s
 }
 
 function httpConfig(overrides: Partial<McpGovernedServerConfig> = {}): McpGovernedServerConfig {
-  return { transport: "http", id: "weather", url: "https://mcp.example.com/mcp", ...overrides };
+  return {
+    transport: "http",
+    id: "weather",
+    url: "https://mcp.example.com/mcp",
+    allowedTools: ["get_forecast"],
+    allowedTenants: ["tenant-a"],
+    ...overrides,
+  };
 }
 
 describe("mcp gateway registry", () => {
@@ -82,6 +89,27 @@ describe("mcp gateway governance", () => {
     await expect(service.listTools({})).rejects.toMatchObject({ code: "MCP_TENANT_CONTEXT_REQUIRED" });
     await expect(service.callTool(null, { server: "weather", tool: "get_forecast" }))
       .rejects.toMatchObject({ code: "MCP_TENANT_CONTEXT_REQUIRED" });
+  });
+
+  it("denies tools by default and isolates upstreams by tenant and role", async () => {
+    const client = createFakeClient([{ name: "get_forecast" }]);
+    const service = createMcpGatewayService({
+      upstreams: [{
+        config: httpConfig({ allowedTools: undefined, allowedRoles: ["operator"] }),
+        client,
+      }],
+    });
+    expect((await service.listTools(TENANT)).tools).toEqual([]);
+    await expect(service.callTool(TENANT, { server: "weather", tool: "get_forecast" }))
+      .rejects.toMatchObject({ code: "MCP_TOOL_NOT_ALLOWED" });
+    await expect(service.callTool(
+      { tenantId: "tenant-b", role: "operator" },
+      { server: "weather", tool: "get_forecast" },
+    )).rejects.toMatchObject({ code: "MCP_UPSTREAM_NOT_ALLOWED" });
+    await expect(service.callTool(
+      { tenantId: "tenant-a", role: "viewer" },
+      { server: "weather", tool: "get_forecast" },
+    )).rejects.toMatchObject({ code: "MCP_UPSTREAM_NOT_ALLOWED" });
   });
 
   it("enforces the tool allowlist on calls and audits allowed calls", async () => {
@@ -229,6 +257,22 @@ describe("openapi rest bridge", () => {
     expect(calls[1].init.body).toBe(JSON.stringify({ name: "Rex" }));
   });
 
+  it("rejects oversized REST bridge responses instead of truncating them", async () => {
+    const fetchImpl = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      headers: {},
+      text: async () => "x".repeat(1_000_001),
+    }));
+    const bridge = createOpenApiRestBridge({
+      id: "pets",
+      baseUrl: "https://api.example.com",
+      spec: openApiSpec,
+    }, { fetchImpl: fetchImpl as never });
+    await expect(bridge.callTool("getPet", { petId: "42" }))
+      .rejects.toMatchObject({ code: "OPENAPI_RESPONSE_TOO_LARGE" });
+  });
+
   it("registers openapi upstreams through the governed registry", async () => {
     const fetchImpl = vi.fn(async () => ({ ok: true, status: 200, headers: {}, text: async () => '{"name":"Rex"}' }));
     const service = createMcpGatewayService({
@@ -242,7 +286,7 @@ describe("openapi rest bridge", () => {
         }]),
       },
       upstreams: [{
-        config: { transport: "openapi" as never, id: "pets", baseUrl: "https://api.example.com", spec: openApiSpec, allowedTools: ["getPet"] },
+        config: { transport: "openapi" as never, id: "pets", baseUrl: "https://api.example.com", spec: openApiSpec, allowedTools: ["getPet"], allowedTenants: ["tenant-a"] },
         client: createOpenApiRestBridge({ id: "pets", baseUrl: "https://api.example.com", spec: openApiSpec }, { fetchImpl: fetchImpl as never }),
       }],
     });
@@ -258,7 +302,7 @@ describe("openapi rest bridge", () => {
     // 直接走服务 ACL 与审计路径验证一次真实调用。
     const governed = createMcpGatewayService({
       upstreams: [{
-        config: { transport: "openapi" as never, id: "pets", baseUrl: "https://api.example.com", spec: openApiSpec, allowedTools: ["getPet"] },
+        config: { transport: "openapi" as never, id: "pets", baseUrl: "https://api.example.com", spec: openApiSpec, allowedTools: ["getPet"], allowedTenants: ["tenant-a"] },
         client: createOpenApiRestBridge({ id: "pets", baseUrl: "https://api.example.com", spec: openApiSpec }, { fetchImpl: fetchImpl as never }),
       }],
       recordAudit: audit,

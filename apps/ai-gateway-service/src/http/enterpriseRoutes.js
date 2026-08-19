@@ -18,7 +18,7 @@ export function createEnterpriseRoutes(application, helpers) {
 
   // ── GET /enterprise/health ──
   async function handleEnterpriseHealth(_req, res, { startedAt }) {
-    writeJson(res, 200, createOkEnvelope(enterpriseGovernanceService.getHealth(), { startedAt }));
+    writeJson(res, 200, createOkEnvelope(enterpriseGovernanceService.getPublicHealth(), { startedAt }));
   }
 
   // ── GET /enterprise/session ──
@@ -32,8 +32,8 @@ export function createEnterpriseRoutes(application, helpers) {
   }
 
   // ── GET /enterprise/users ──
-  async function handleEnterpriseUsers(_req, res, { startedAt }) {
-    writeJson(res, 200, createOkEnvelope(enterpriseGovernanceService.listUsers(), { startedAt }));
+  async function handleEnterpriseUsers(req, res, { startedAt }) {
+    writeJson(res, 200, createOkEnvelope(enterpriseGovernanceService.listUsers(req.enterpriseIdentity), { startedAt }));
   }
 
   // ── POST /enterprise/users ──
@@ -78,14 +78,21 @@ export function createEnterpriseRoutes(application, helpers) {
   // ── GET /enterprise/audit ──
   async function handleEnterpriseAudit(req, res, { startedAt, url }) {
     const limit = url?.searchParams?.get("limit") ?? 50;
-    writeJson(res, 200, createOkEnvelope(await enterpriseGovernanceService.listAudit({ limit }), { startedAt }));
+    writeJson(res, 200, createOkEnvelope(await enterpriseGovernanceService.listAudit({
+      limit,
+      actorIdentity: req.enterpriseIdentity,
+    }), { startedAt }));
   }
 
   // ── GET /enterprise/audit/export ──
   async function handleEnterpriseAuditExport(req, res, { startedAt, url }) {
     const limit = url?.searchParams?.get("limit") ?? 200;
     const format = url?.searchParams?.get("format") ?? "jsonl";
-    writeJson(res, 200, createOkEnvelope(await enterpriseGovernanceService.exportAudit({ limit, format }), { startedAt }));
+    writeJson(res, 200, createOkEnvelope(await enterpriseGovernanceService.exportAudit({
+      limit,
+      format,
+      actorIdentity: req.enterpriseIdentity,
+    }), { startedAt }));
   }
 
   // ── GET /enterprise/overview ──

@@ -1,4 +1,5 @@
 import {
+  chmodSync,
   existsSync,
   mkdirSync,
   readFileSync,
@@ -6,12 +7,18 @@ import {
   unlinkSync,
   writeFileSync,
 } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { homedir } from "node:os";
 import { createPinoLogger } from "../logging/pinoLogger.js";
+import { summarizeErrorForLog } from "../security/logSanitizationPolicy.ts";
+import {
+  createRuntimeCredentialCipher,
+  isRuntimeCredentialEnvelope,
+} from "../security/runtimeCredentialEncryption.ts";
 import { createSqliteCredentialBackend } from "./runtimeCredentialStore-sqlite.js";
 
-const STORE_VERSION = 1;
+const STORE_VERSION = 2;
 const logger = createPinoLogger({ app: "runtimeCredentialStore" });
 
 export function createRuntimeCredentialStore({ env = process.env, storagePath } = {}) {
@@ -21,8 +28,23 @@ export function createRuntimeCredentialStore({ env = process.env, storagePath } 
     ? createSqliteCredentialBackend(persistence.path)
     : null;
   const credentials = new Map();
-  for (const record of loadPersistedRecords(persistence, sqliteBackend)) {
-    credentials.set(record.providerId, record);
+  try {
+    const loaded = loadPersistedRecords(persistence, sqliteBackend);
+    for (const record of loaded.records) {
+      credentials.set(record.providerId, record);
+    }
+    if (loaded.requiresMigration) {
+      if (!persistCredentials(credentials, persistence, sqliteBackend)) {
+        throw createPersistenceError(
+          "RUNTIME_CREDENTIAL_MIGRATION_FAILED",
+          "Runtime credential store migration could not be committed.",
+        );
+      }
+      sqliteBackend?.compact?.();
+    }
+  } catch (error) {
+    sqliteBackend?.close?.();
+    throw error;
   }
 
   return {
@@ -34,9 +56,18 @@ export function createRuntimeCredentialStore({ env = process.env, storagePath } 
       if (!normalizedProviderId) {
         throw createCredentialError("RUNTIME_PROVIDER_ID_REQUIRED", "providerId is required.");
       }
+      if (normalizedProviderId.length > 128) {
+        throw createCredentialError("RUNTIME_PROVIDER_ID_TOO_LONG", "providerId exceeds 128 characters.");
+      }
 
       if (!normalizedApiKey) {
         throw createCredentialError("RUNTIME_API_KEY_REQUIRED", "apiKey is required.");
+      }
+      if (normalizedApiKey.length > 16 * 1024) {
+        throw createCredentialError("RUNTIME_API_KEY_TOO_LONG", "apiKey exceeds 16 KiB.");
+      }
+      if (normalizedEndpoint.length > 8192) {
+        throw createCredentialError("RUNTIME_ENDPOINT_TOO_LONG", "endpoint exceeds 8 KiB.");
       }
 
       const current = credentials.get(normalizedProviderId);
@@ -51,9 +82,17 @@ export function createRuntimeCredentialStore({ env = process.env, storagePath } 
         persisted: false,
       };
       credentials.set(normalizedProviderId, record);
-      persistRecord(record, credentials, persistence, sqliteBackend);
+      const persisted = persistRecord(record, credentials, persistence, sqliteBackend);
+      if (persistence.enabled && !persisted) {
+        if (current) credentials.set(normalizedProviderId, current);
+        else credentials.delete(normalizedProviderId);
+        throw createPersistenceError(
+          "RUNTIME_CREDENTIAL_PERSIST_FAILED",
+          "Runtime credential was not accepted because encrypted persistence failed.",
+        );
+      }
 
-      return describeCredential(record);
+      return describeCredential(record, persistence);
     },
 
     getApiKey(providerId) {
@@ -71,7 +110,9 @@ export function createRuntimeCredentialStore({ env = process.env, storagePath } 
       }
 
       const record = credentials.get(normalizedProviderId);
-      return record ? describeCredential(record) : createEmptyDescription(normalizedProviderId);
+      return record
+        ? describeCredential(record, persistence)
+        : createEmptyDescription(normalizedProviderId, persistence);
     },
 
     has(providerId) {
@@ -97,25 +138,48 @@ export function createRuntimeCredentialStore({ env = process.env, storagePath } 
         return false;
       }
 
-      const deleted = credentials.delete(normalizedProviderId);
-      if (deleted) {
+      const current = credentials.get(normalizedProviderId);
+      if (!current) return false;
+
+      credentials.delete(normalizedProviderId);
+      let persisted = true;
+      if (persistence.enabled) {
         if (sqliteBackend) {
-          try { sqliteBackend.remove(normalizedProviderId); } catch { /* ignore */ }
+          try {
+            persisted = sqliteBackend.remove(normalizedProviderId);
+          } catch (error) {
+            logger.warn(
+              { event: "runtime_credential_clear_failed", error: summarizeErrorForLog(error) },
+              "Runtime credential clear failed.",
+            );
+            persisted = false;
+          }
         } else {
-          persistCredentials(credentials, persistence);
+          persisted = persistCredentials(credentials, persistence, sqliteBackend);
         }
       }
-      return deleted;
+      if (!persisted) {
+        credentials.set(normalizedProviderId, current);
+        throw createPersistenceError(
+          "RUNTIME_CREDENTIAL_CLEAR_FAILED",
+          "Runtime credential clear was not committed to persistent storage.",
+        );
+      }
+      return true;
+    },
+
+    close() {
+      sqliteBackend?.close?.();
     },
   };
 }
 
-function describeCredential(record) {
+function describeCredential(record, persistence) {
   return {
     providerId: record.providerId,
     apiKeyPresent: true,
     endpointConfigured: Boolean(record.endpoint),
-    secretStorage: record.persisted ? "local-user-file" : "memory-only",
+    secretStorage: record.persisted ? describePersistence(persistence) : "memory-only",
     persisted: record.persisted === true,
     source: record.source,
     setAt: record.setAt,
@@ -124,12 +188,12 @@ function describeCredential(record) {
   };
 }
 
-function createEmptyDescription(providerId) {
+function createEmptyDescription(providerId, persistence) {
   return {
     providerId,
     apiKeyPresent: false,
     endpointConfigured: false,
-    secretStorage: "local-user-file",
+    secretStorage: describePersistence(persistence),
     persisted: false,
     source: null,
     setAt: null,
@@ -139,53 +203,130 @@ function createEmptyDescription(providerId) {
 }
 
 function createPersistenceConfig({ env, storagePath }) {
-  const mode = String(env.PME_RUNTIME_CREDENTIAL_STORE_MODE ?? "local-file").trim().toLowerCase();
-  const enabled = mode !== "memory" && mode !== "disabled" && mode !== "off";
+  const configuredMode = String(env.PME_RUNTIME_CREDENTIAL_STORE_MODE ?? "memory").trim().toLowerCase();
+  const mode = ["disabled", "off"].includes(configuredMode) ? "memory" : configuredMode;
+  if (!["memory", "local-file", "sqlite"].includes(mode)) {
+    throw createPersistenceError(
+      "RUNTIME_CREDENTIAL_STORE_MODE_INVALID",
+      "Runtime credential store mode must be memory, local-file, or sqlite.",
+    );
+  }
+  const enabled = mode !== "memory";
   return {
     enabled,
     mode,
-    path: storagePath || env.PME_RUNTIME_CREDENTIAL_STORE_PATH || createDefaultStorePath(env),
+    path: storagePath || env.PME_RUNTIME_CREDENTIAL_STORE_PATH || createDefaultStorePath(env, mode),
+    cipher: enabled ? createRuntimeCredentialCipher({ env }) : null,
+    allowPlaintextMigration: String(
+      env.PME_RUNTIME_CREDENTIAL_ALLOW_PLAINTEXT_MIGRATION ?? "",
+    ).trim().toLowerCase() === "true",
   };
 }
 
-function createDefaultStorePath(env) {
+function createDefaultStorePath(env, mode) {
   const root = env.LOCALAPPDATA || join(homedir(), ".pme-moving-earth");
-  return join(root, "PME-Moving-Earth", "unified-ai-system", "runtime-credentials.json");
+  const fileName = mode === "sqlite" ? "runtime-credentials.db" : "runtime-credentials.json";
+  return join(root, "PME-Moving-Earth", "unified-ai-system", fileName);
 }
 
 function loadPersistedRecords(persistence, sqliteBackend) {
   if (!persistence.enabled || !persistence.path) {
-    return [];
+    return { records: [], requiresMigration: false };
   }
 
   if (sqliteBackend) {
-    return sqliteBackend.loadRecords()
-      .map(normalizePersistedRecord)
-      .filter(Boolean)
-      .map((record) => ({ ...record, persisted: true }));
+    return decodeStoredEntries(sqliteBackend.loadRecords(), persistence);
   }
 
   if (!existsSync(persistence.path)) {
-    return [];
+    return { records: [], requiresMigration: false };
   }
 
   try {
     const parsed = JSON.parse(readFileSync(persistence.path, "utf8"));
-    const records = Array.isArray(parsed?.records) ? parsed.records : [];
-    return records
-      .map(normalizePersistedRecord)
-      .filter(Boolean)
-      .map((record) => ({ ...record, persisted: true }));
-  } catch {
-    return [];
+    if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.records)) {
+      throw new Error("credential store root is invalid");
+    }
+    return decodeStoredEntries(parsed.records, persistence, parsed.version);
+  } catch (error) {
+    if (error?.code?.startsWith?.("RUNTIME_CREDENTIAL_")) throw error;
+    throw createPersistenceError(
+      "RUNTIME_CREDENTIAL_STORE_INVALID",
+      "Runtime credential store is malformed or unreadable.",
+    );
   }
 }
 
+function decodeStoredEntries(entries, persistence, declaredVersion) {
+  if (!Array.isArray(entries)) {
+    throw createPersistenceError(
+      "RUNTIME_CREDENTIAL_STORE_INVALID",
+      "Runtime credential entries are invalid.",
+    );
+  }
+  if (entries.length === 0) {
+    return {
+      records: [],
+      requiresMigration: declaredVersion !== undefined && declaredVersion !== STORE_VERSION,
+    };
+  }
+
+  const encryptedCount = entries.filter(isRuntimeCredentialEnvelope).length;
+  if (encryptedCount > 0 && encryptedCount !== entries.length) {
+    throw createPersistenceError(
+      "RUNTIME_CREDENTIAL_STORE_MIXED_FORMAT",
+      "Runtime credential store contains mixed plaintext and encrypted records.",
+    );
+  }
+
+  if (encryptedCount === entries.length) {
+    if (declaredVersion !== undefined && declaredVersion !== STORE_VERSION) {
+      throw createPersistenceError(
+        "RUNTIME_CREDENTIAL_STORE_INVALID",
+        "Encrypted credential store version is invalid.",
+      );
+    }
+    const records = entries.map((entry) => normalizePersistedRecord(persistence.cipher.open(entry)));
+    if (records.some((record) => !record)) {
+      throw createPersistenceError(
+        "RUNTIME_CREDENTIAL_STORE_INVALID",
+        "Encrypted credential record is invalid.",
+      );
+    }
+    return {
+      records: records.map((record) => ({ ...record, persisted: true })),
+      requiresMigration: entries.some((entry) => !persistence.cipher.isPrimaryEnvelope(entry)),
+    };
+  }
+
+  if (!persistence.allowPlaintextMigration) {
+    throw createPersistenceError(
+      "RUNTIME_CREDENTIAL_PLAINTEXT_STORE_REJECTED",
+      "Plaintext runtime credential persistence is rejected; use the one-time migration procedure.",
+    );
+  }
+  const records = entries.map(normalizePersistedRecord);
+  if (records.some((record) => !record)) {
+    throw createPersistenceError(
+      "RUNTIME_CREDENTIAL_STORE_INVALID",
+      "Legacy credential record is invalid.",
+    );
+  }
+  return {
+    records: records.map((record) => ({ ...record, persisted: true })),
+    requiresMigration: true,
+  };
+}
+
 function persistRecord(record, credentials, persistence, sqliteBackend) {
+  if (!persistence.enabled) {
+    record.persisted = false;
+    return true;
+  }
   if (sqliteBackend) {
-    if (!isPersistableRecord(record)) return;
+    if (!isPersistableRecord(record)) return false;
     try {
-      sqliteBackend.upsert({
+      sqliteBackend.upsert(persistence.cipher.seal({
         providerId: record.providerId,
         apiKey: record.apiKey,
         endpoint: record.endpoint,
@@ -193,15 +334,19 @@ function persistRecord(record, credentials, persistence, sqliteBackend) {
         setAt: record.setAt,
         updatedAt: record.updatedAt,
         models: normalizeStoredModels(record.models),
-      });
+      }));
       record.persisted = true;
+      return true;
     } catch (error) {
-      logger.warn({ event: "runtime_credential_persist_failed", err: error }, "Runtime credential persistence failed.");
+      logger.warn(
+        { event: "runtime_credential_persist_failed", error: summarizeErrorForLog(error) },
+        "Runtime credential persistence failed.",
+      );
       record.persisted = false;
+      return false;
     }
-    return;
   }
-  persistCredentials(credentials, persistence);
+  return persistCredentials(credentials, persistence, sqliteBackend);
 }
 
 function persistCredentials(credentials, persistence, sqliteBackend) {
@@ -209,17 +354,26 @@ function persistCredentials(credentials, persistence, sqliteBackend) {
     return false;
   }
 
-  const records = Array.from(credentials.values())
-    .filter(isPersistableRecord)
-    .map((record) => ({
-      providerId: record.providerId,
-      apiKey: record.apiKey,
-      endpoint: record.endpoint,
-      source: record.source,
-      setAt: record.setAt,
-      updatedAt: record.updatedAt,
-      models: normalizeStoredModels(record.models),
-    }));
+  let records;
+  try {
+    records = Array.from(credentials.values())
+      .filter(isPersistableRecord)
+      .map((record) => persistence.cipher.seal({
+        providerId: record.providerId,
+        apiKey: record.apiKey,
+        endpoint: record.endpoint,
+        source: record.source,
+        setAt: record.setAt,
+        updatedAt: record.updatedAt,
+        models: normalizeStoredModels(record.models),
+      }));
+  } catch (error) {
+    logger.warn(
+      { event: "runtime_credential_encrypt_failed", error: summarizeErrorForLog(error) },
+      "Runtime credential encryption failed.",
+    );
+    return false;
+  }
 
   if (sqliteBackend) {
     try {
@@ -232,25 +386,25 @@ function persistCredentials(credentials, persistence, sqliteBackend) {
     } catch (error) {
       logger.warn({
         event: "runtime_credential_persist_failed",
-        err: error,
+        error: summarizeErrorForLog(error),
       }, "Runtime credential persistence failed.");
-      for (const record of credentials.values()) {
-        record.persisted = false;
-      }
       return false;
     }
   }
 
   let tmpPath = null;
   try {
-    mkdirSync(dirname(persistence.path), { recursive: true });
+    mkdirSync(dirname(persistence.path), { recursive: true, mode: 0o700 });
+    try { chmodSync(dirname(persistence.path), 0o700); } catch { /* best effort on Windows */ }
     tmpPath = `${persistence.path}.${process.pid}.tmp`;
     writeFileSync(tmpPath, JSON.stringify({
       version: STORE_VERSION,
-      warning: "Local user credential store. Do not commit or share this file.",
+      encryption: "AES-256-GCM",
+      warning: "Encrypted local credential store. Protect the master key separately.",
       records,
     }, null, 2), { encoding: "utf8", mode: 0o600 });
     renameSync(tmpPath, persistence.path);
+    hardenCredentialFilePermissions(persistence.path);
     const persistedProviders = new Set(records.map((record) => record.providerId));
     for (const record of credentials.values()) {
       record.persisted = persistedProviders.has(record.providerId);
@@ -263,18 +417,39 @@ function persistCredentials(credentials, persistence, sqliteBackend) {
       } catch (cleanupError) {
         logger.warn({
           event: "runtime_credential_temp_cleanup_failed",
-          err: cleanupError,
+          error: summarizeErrorForLog(cleanupError),
         }, "Failed to clean up a runtime credential temp file.");
       }
     }
     logger.warn({
       event: "runtime_credential_persist_failed",
-      err: error,
+      error: summarizeErrorForLog(error),
     }, "Runtime credential persistence failed.");
-    for (const record of credentials.values()) {
-      record.persisted = false;
-    }
     return false;
+  }
+}
+
+// Windows 忽略 POSIX mode（0o600 不映射 ACL），凭证文件会以默认可继承 ACL
+// 落盘。这里 best-effort 用 icacls 切断继承、仅保留当前用户；失败不阻断
+// 持久化（与 fail-open 的持久化语义一致），只记一条审计日志。
+function restrictCredentialFilePermissions(filePath) {
+  if (process.platform !== "win32") return;
+  try {
+    const user = process.env.USERNAME || process.env.USER || "";
+    if (!user) return;
+    const result = spawnSync("icacls", [
+      filePath,
+      "/inheritance:r",
+      `/grant:${user}:F`,
+    ], { stdio: "ignore", timeout: 5000 });
+    if (result.status !== 0) {
+      logger.warn({
+        event: "runtime_credential_acl_restriction_failed",
+        status: result.status,
+      }, "Could not restrict the Windows ACL on the runtime credential file.");
+    }
+  } catch {
+    // ACL 加固失败不影响凭证可用性；管理员可参照文档手工收紧。
   }
 }
 
@@ -294,6 +469,37 @@ function normalizePersistedRecord(record) {
     updatedAt: normalizeTimestamp(record?.updatedAt),
     models: normalizeStoredModels(record?.models),
   };
+}
+
+function hardenCredentialFilePermissions(filePath) {
+  try { chmodSync(filePath, 0o600); } catch { /* Windows ACL is handled below. */ }
+  if (process.platform !== "win32") return;
+  try {
+    const user = process.env.USERNAME || process.env.USER || "";
+    if (!user) return;
+    const result = spawnSync("icacls", [
+      filePath,
+      "/inheritance:r",
+      "/grant:r",
+      user + ":F",
+    ], { stdio: "ignore", timeout: 5000 });
+    if (result.status !== 0) {
+      logger.warn({
+        event: "runtime_credential_acl_restriction_failed",
+        status: result.status,
+      }, "Could not restrict the Windows ACL on the encrypted credential file.");
+    }
+  } catch {
+    logger.warn(
+      { event: "runtime_credential_acl_restriction_failed" },
+      "Could not restrict the encrypted credential file ACL.",
+    );
+  }
+}
+
+function describePersistence(persistence) {
+  if (!persistence.enabled) return "memory-only";
+  return persistence.mode === "sqlite" ? "encrypted-sqlite" : "encrypted-local-file";
 }
 
 function isPersistableRecord(record) {
@@ -366,6 +572,14 @@ function createCredentialError(code, message) {
   const error = new Error(message);
   error.code = code;
   error.category = "validation";
+  error.retryable = false;
+  return error;
+}
+
+function createPersistenceError(code, message) {
+  const error = new Error(message);
+  error.code = code;
+  error.category = "security";
   error.retryable = false;
   return error;
 }

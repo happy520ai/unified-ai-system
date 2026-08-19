@@ -16,6 +16,10 @@ import {
 import { createSqliteUserStoreBackend } from "./enterpriseUserStore-sqlite.js";
 import { createApiKeyManager } from "./apiKeyManager.js";
 import {
+  assertEnterpriseTenantAccess,
+  requireEnterpriseTenantId,
+} from "./enterpriseTenantPolicy.ts";
+import {
   filterAuditEntries,
   readAuditFile,
   sanitizeAuditFilters,
@@ -72,7 +76,7 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
             ? "loopback-fake-preview-only"
             : "public-routes-only",
         localPreview,
-        tenantMode: "header-required-when-auth-enabled",
+        tenantMode: "credential-bound-header-must-match",
         tokenHeaders: ["x-pme-auth-token", "authorization: Bearer"],
         tenantHeader: "x-pme-tenant-id",
         roles: Object.keys(DEFAULT_ROLES),
@@ -91,6 +95,36 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
       };
     },
 
+    getPublicHealth() {
+      return {
+        status: "ready",
+        mode: "local-enterprise-governance",
+        authEnabled,
+        unauthenticatedScope: authEnabled
+          ? "none"
+          : localPreview.enabled
+            ? "loopback-fake-preview-only"
+            : "public-routes-only",
+        localPreview: {
+          enabled: localPreview.enabled,
+          routePolicy: localPreview.routePolicy,
+        },
+        tenantMode: "credential-bound-header-must-match",
+        userStore: {
+          configured: Boolean(userStorePath),
+          pathExposed: false,
+        },
+        apiKeys: {
+          configured: Boolean(apiKeyStorePath),
+          pathExposed: false,
+        },
+        audit: {
+          configured: Boolean(auditPath),
+          pathExposed: false,
+        },
+      };
+    },
+
     getSecurityReadiness() {
       return createSecurityReadiness({
         authEnabled,
@@ -102,12 +136,14 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
       });
     },
 
-    listUsers() {
+    listUsers(actorIdentity) {
+      const tenantId = requireEnterpriseTenantId(actorIdentity);
       return {
         status: "ready",
         mode: "env-plus-json-file",
-        path: userStorePath,
-        users: createSanitizedUsers(users),
+        tenantId,
+        pathExposed: false,
+        users: createSanitizedUsers(users).filter((user) => user.tenantId === tenantId),
       };
     },
 
@@ -115,15 +151,17 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
       return apiKeyManager;
     },
 
-    exportUsersForBackup() {
+    exportUsersForBackup(actorIdentity) {
+      const tenantId = requireEnterpriseTenantId(actorIdentity);
       return {
         status: "ready",
         mode: "env-plus-json-file",
-        path: userStorePath,
+        tenantId,
+        pathExposed: false,
         tokenStorage: "sha256-hash-only",
         tokenValuesExposed: false,
-        configuredUsers: createSanitizedUsers(users),
-        storedUsers: storedUsers.map((user) => ({
+        configuredUsers: createSanitizedUsers(users).filter((user) => user.tenantId === tenantId),
+        storedUsers: storedUsers.filter((user) => user.tenantId === tenantId).map((user) => ({
           userId: user.userId,
           tenantId: user.tenantId,
           role: user.role,
@@ -141,7 +179,20 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
     },
 
     upsertUser(input = {}, actorIdentity) {
-      const normalized = normalizeStoredUser(input, findStoredUser(storedUsers, input));
+      const tenantId = assertEnterpriseTenantAccess(
+        actorIdentity,
+        input.tenantId,
+        "enterprise_user_tenant_forbidden",
+      );
+      const existing = findStoredUser(storedUsers, input);
+      if (existing) {
+        assertEnterpriseTenantAccess(
+          actorIdentity,
+          existing.tenantId,
+          "enterprise_user_tenant_forbidden",
+        );
+      }
+      const normalized = normalizeStoredUser({ ...input, tenantId }, existing);
       const index = storedUsers.findIndex((user) => user.userId === normalized.userId);
       if (index >= 0) {
         storedUsers[index] = normalized;
@@ -165,8 +216,9 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
     },
 
     revokeUser(input = {}, actorIdentity) {
+      const tenantId = requireEnterpriseTenantId(actorIdentity);
       const target = findStoredUser(storedUsers, input);
-      if (!target) {
+      if (!target || target.tenantId !== tenantId) {
         const error = new Error("Enterprise user was not found in the managed user store.");
         error.code = "enterprise_user_not_found";
         error.category = "validation";
@@ -283,10 +335,10 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
       const requestedTenantId = readTenantHeader(request) ?? configured.tenantId;
       const identity = createIdentity({
         ...configured,
-        tenantId: requestedTenantId,
+        tenantId: configured.tenantId,
       });
 
-      if (configured.role !== "admin" && requestedTenantId !== configured.tenantId) {
+      if (requestedTenantId !== configured.tenantId) {
         return {
           authenticated: false,
           statusCode: 403,
@@ -388,35 +440,49 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
       return entry;
     },
 
-    async listAudit({ limit = 50, filters = {} } = {}) {
+    async listAudit({ limit = 50, filters = {}, actorIdentity } = {}) {
+      const scopedFilters = createTenantScopedAuditFilters(filters, actorIdentity);
       const boundedLimit = Math.min(200, Math.max(1, Number(limit) || 50));
       const fileEntries = await readAuditFile(auditPath);
-      const entries = filterAuditEntries(fileEntries.length ? fileEntries : auditEntries, filters);
+      const entries = filterAuditEntries(fileEntries.length ? fileEntries : auditEntries, scopedFilters);
       return {
         status: "ready",
-        auditLogPath: auditPath,
-        filters: sanitizeAuditFilters(filters),
+        tenantId: scopedFilters.tenantId,
+        pathExposed: false,
+        filters: sanitizeAuditFilters(scopedFilters),
         totalMatched: entries.length,
         entries: entries.slice(-boundedLimit).reverse(),
       };
     },
 
-    async exportAudit({ limit = 200, format = "jsonl", filters = {} } = {}) {
+    async exportAudit({ limit = 200, format = "jsonl", filters = {}, actorIdentity } = {}) {
+      const scopedFilters = createTenantScopedAuditFilters(filters, actorIdentity);
       const boundedLimit = Math.min(1000, Math.max(1, Number(limit) || 200));
       const fileEntries = await readAuditFile(auditPath);
-      const entries = filterAuditEntries(fileEntries.length ? fileEntries : auditEntries, filters).slice(-boundedLimit);
+      const entries = filterAuditEntries(fileEntries.length ? fileEntries : auditEntries, scopedFilters).slice(-boundedLimit);
       const normalizedFormat = format === "json" ? "json" : "jsonl";
       return {
         status: "ready",
-        auditLogPath: auditPath,
+        tenantId: scopedFilters.tenantId,
+        pathExposed: false,
         format: normalizedFormat,
         contentType: normalizedFormat === "json" ? "application/json" : "application/x-ndjson",
-        filters: sanitizeAuditFilters(filters),
+        filters: sanitizeAuditFilters(scopedFilters),
         entryCount: entries.length,
         content: normalizedFormat === "json" ? JSON.stringify(entries, null, 2) : entries.map((entry) => JSON.stringify(entry)).join("\n"),
       };
     },
   };
+}
+
+function createTenantScopedAuditFilters(filters, actorIdentity) {
+  const candidate = filters && typeof filters === "object" ? filters : {};
+  const tenantId = assertEnterpriseTenantAccess(
+    actorIdentity,
+    candidate.tenantId,
+    "enterprise_audit_tenant_forbidden",
+  );
+  return { ...candidate, tenantId };
 }
 
 function createIdentity({ userId, tenantId, role, permissions, apiKeyFingerprint }) {
@@ -491,7 +557,8 @@ function createSecurityReadiness({ authEnabled, users, revokedTokens, userStoreP
     localPreview,
     userStore: {
       mode: "env-plus-json-file",
-      path: userStorePath,
+      pathConfigured: Boolean(userStorePath),
+      pathExposed: false,
       configuredUserCount: configuredUsers.length,
       activeUserCount: activeUsers.length,
       expiredUserCount: expiredUsers.length,
@@ -504,10 +571,12 @@ function createSecurityReadiness({ authEnabled, users, revokedTokens, userStoreP
       tokenValuesExposed: false,
       acceptedHeaders: ["x-pme-auth-token", "authorization: Bearer"],
       tenantHeader: "x-pme-tenant-id",
+      tenantHeaderPolicy: "optional-must-match-credential",
     },
     audit: {
       mode: "jsonl-file",
-      path: auditPath,
+      pathConfigured: Boolean(auditPath),
+      pathExposed: false,
     },
     blockers,
     warnings,

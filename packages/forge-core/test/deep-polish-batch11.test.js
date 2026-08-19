@@ -13,6 +13,8 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createSourceReader } from "./helpers/source-closure.js";
@@ -236,15 +238,51 @@ describe("Batch11-5: code_format/generate_test/ast_edit path validation", () => 
 // ─── 6. Backup JSON.parse crash guard ──────────────────────────────
 
 describe("Batch11-6: enterpriseOpsService backup JSON.parse crash guard", () => {
-  it("wraps audit JSON.parse in try-catch", () => {
-    const src = readFileSync(join(SRC_ROOT, "enterprise/enterpriseOpsService.js"), "utf-8");
-    const backupStart = src.indexOf("createBackup");
-    assert.ok(backupStart > 0, "createBackup function should exist");
-    const backupSrc = src.slice(backupStart, backupStart + 800);
+  it("contains invalid audit JSON and returns a warning backup", async () => {
+    const root = await mkdtemp(join(tmpdir(), "forge-enterprise-backup-"));
+    const { createEnterpriseOpsService } = await import(
+      ESM_SRC + "/enterprise/enterpriseOpsService.js"
+    );
+    const actor = { userId: "tenant-a-admin", tenantId: "tenant-a", role: "admin" };
+    const service = createEnterpriseOpsService({
+      env: { PME_ENTERPRISE_BACKUP_DIR: root },
+      config: {},
+      enterpriseGovernanceService: {
+        getHealth: () => ({
+          userStore: { path: join(root, "users.json"), mode: "file" },
+          audit: { path: join(root, "audit.jsonl"), mode: "file" },
+        }),
+        getSecurityReadiness: () => ({
+          authEnabled: true,
+          userStore: { activeUserCount: 1 },
+        }),
+        exportAudit: async () => ({
+          auditLogPath: join(root, "audit.jsonl"),
+          content: "{invalid",
+        }),
+        exportUsersForBackup: () => ({ storedUsers: [] }),
+      },
+      knowledgeInfra: {
+        getReadiness: () => ({ status: "ready", mode: "keyword" }),
+      },
+      knowledgeService: {
+        getHealth: () => ({
+          storage: "file",
+          persistence: { durable: true },
+          documentCount: 0,
+        }),
+      },
+    });
 
-    // Should have try-catch around JSON.parse
-    assert.ok(backupSrc.includes("try {"), "Should have try block around JSON.parse");
-    assert.ok(backupSrc.includes("catch"), "Should have catch block for parse errors");
+    try {
+      const result = await service.createBackup({}, actor);
+      assert.equal(result.status, "warning");
+      assert.equal(result.auditParseStatus, "warning");
+      assert.equal(result.auditEntryCount, 0);
+      assert.deepEqual(result.warnings, ["audit_export_json_invalid"]);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 
   it("defaults to empty array on parse failure", () => {

@@ -93,12 +93,24 @@ describe("tool result cache invalidation on writes", () => {
 });
 
 // ────────────────────────────────────────────────────────────────
-// 7. SSRF Protection for web_fetch
+// 7. SSRF Protection for explicitly authorized web_fetch
 // ────────────────────────────────────────────────────────────────
+async function createAuthorizedHighRiskRegistry() {
+  const { createAgentToolRegistry } = await import(
+    APPS_SRC + "/claude-code-patterns/agentToolRegistry.js"
+  );
+  return createAgentToolRegistry({
+    workingDirectory: tmpdir(),
+    enableHighRiskTools: true,
+    permissionChecker: {
+      check: async () => ({ allowed: true }),
+    },
+  });
+}
+
 describe("webFetchTool SSRF protection", () => {
   it("blocks requests to localhost", async () => {
-    const { createAgentToolRegistry } = await import(`${APPS_SRC}/claude-code-patterns/agentToolRegistry.js`);
-    const reg = createAgentToolRegistry({ workingDirectory: tmpdir() });
+    const reg = await createAuthorizedHighRiskRegistry();
     const tool = reg.getTool("web_fetch");
     assert.ok(tool, "web_fetch tool should exist");
 
@@ -109,8 +121,7 @@ describe("webFetchTool SSRF protection", () => {
   });
 
   it("blocks requests to 127.0.0.1", async () => {
-    const { createAgentToolRegistry } = await import(`${APPS_SRC}/claude-code-patterns/agentToolRegistry.js`);
-    const reg = createAgentToolRegistry({ workingDirectory: tmpdir() });
+    const reg = await createAuthorizedHighRiskRegistry();
     const tool = reg.getTool("web_fetch");
 
     const result = await tool.execute({ url: "http://127.0.0.1:8080/admin" });
@@ -119,8 +130,7 @@ describe("webFetchTool SSRF protection", () => {
   });
 
   it("blocks requests to private IP 10.x.x.x", async () => {
-    const { createAgentToolRegistry } = await import(`${APPS_SRC}/claude-code-patterns/agentToolRegistry.js`);
-    const reg = createAgentToolRegistry({ workingDirectory: tmpdir() });
+    const reg = await createAuthorizedHighRiskRegistry();
     const tool = reg.getTool("web_fetch");
 
     const result = await tool.execute({ url: "http://10.0.0.1/internal" });
@@ -130,8 +140,7 @@ describe("webFetchTool SSRF protection", () => {
   });
 
   it("blocks requests to private IP 172.16.x.x", async () => {
-    const { createAgentToolRegistry } = await import(`${APPS_SRC}/claude-code-patterns/agentToolRegistry.js`);
-    const reg = createAgentToolRegistry({ workingDirectory: tmpdir() });
+    const reg = await createAuthorizedHighRiskRegistry();
     const tool = reg.getTool("web_fetch");
 
     const result = await tool.execute({ url: "http://172.16.0.1/secret" });
@@ -140,8 +149,7 @@ describe("webFetchTool SSRF protection", () => {
   });
 
   it("blocks requests to private IP 192.168.x.x", async () => {
-    const { createAgentToolRegistry } = await import(`${APPS_SRC}/claude-code-patterns/agentToolRegistry.js`);
-    const reg = createAgentToolRegistry({ workingDirectory: tmpdir() });
+    const reg = await createAuthorizedHighRiskRegistry();
     const tool = reg.getTool("web_fetch");
 
     const result = await tool.execute({ url: "http://192.168.1.1/router" });
@@ -150,8 +158,7 @@ describe("webFetchTool SSRF protection", () => {
   });
 
   it("blocks requests to 169.254.169.254 (cloud metadata)", async () => {
-    const { createAgentToolRegistry } = await import(`${APPS_SRC}/claude-code-patterns/agentToolRegistry.js`);
-    const reg = createAgentToolRegistry({ workingDirectory: tmpdir() });
+    const reg = await createAuthorizedHighRiskRegistry();
     const tool = reg.getTool("web_fetch");
 
     const result = await tool.execute({ url: "http://169.254.169.254/latest/meta-data/" });
@@ -160,8 +167,7 @@ describe("webFetchTool SSRF protection", () => {
   });
 
   it("blocks non-HTTP protocols (file://)", async () => {
-    const { createAgentToolRegistry } = await import(`${APPS_SRC}/claude-code-patterns/agentToolRegistry.js`);
-    const reg = createAgentToolRegistry({ workingDirectory: tmpdir() });
+    const reg = await createAuthorizedHighRiskRegistry();
     const tool = reg.getTool("web_fetch");
 
     const result = await tool.execute({ url: "file:///etc/passwd" });
@@ -171,8 +177,7 @@ describe("webFetchTool SSRF protection", () => {
   });
 
   it("blocks .local TLD", async () => {
-    const { createAgentToolRegistry } = await import(`${APPS_SRC}/claude-code-patterns/agentToolRegistry.js`);
-    const reg = createAgentToolRegistry({ workingDirectory: tmpdir() });
+    const reg = await createAuthorizedHighRiskRegistry();
     const tool = reg.getTool("web_fetch");
 
     const result = await tool.execute({ url: "http://myserver.local/api" });
@@ -181,8 +186,7 @@ describe("webFetchTool SSRF protection", () => {
   });
 
   it("blocks .internal TLD", async () => {
-    const { createAgentToolRegistry } = await import(`${APPS_SRC}/claude-code-patterns/agentToolRegistry.js`);
-    const reg = createAgentToolRegistry({ workingDirectory: tmpdir() });
+    const reg = await createAuthorizedHighRiskRegistry();
     const tool = reg.getTool("web_fetch");
 
     const result = await tool.execute({ url: "https://service.internal/data" });
@@ -191,8 +195,7 @@ describe("webFetchTool SSRF protection", () => {
   });
 
   it("allows valid public HTTPS URLs (may fail on network but not SSRF)", async () => {
-    const { createAgentToolRegistry } = await import(`${APPS_SRC}/claude-code-patterns/agentToolRegistry.js`);
-    const reg = createAgentToolRegistry({ workingDirectory: tmpdir() });
+    const reg = await createAuthorizedHighRiskRegistry();
     const tool = reg.getTool("web_fetch");
 
     // This should NOT be blocked by SSRF — it may fail for other reasons (DNS, timeout)
@@ -205,8 +208,7 @@ describe("webFetchTool SSRF protection", () => {
   });
 
   it("rejects invalid URLs", async () => {
-    const { createAgentToolRegistry } = await import(`${APPS_SRC}/claude-code-patterns/agentToolRegistry.js`);
-    const reg = createAgentToolRegistry({ workingDirectory: tmpdir() });
+    const reg = await createAuthorizedHighRiskRegistry();
     const tool = reg.getTool("web_fetch");
 
     const result = await tool.execute({ url: "not-a-valid-url" });
@@ -236,8 +238,7 @@ describe("batch 4 cross-module integration", () => {
   });
 
   it("agentToolRegistry has all batch 4 enhancements", async () => {
-    const { createAgentToolRegistry } = await import(`${APPS_SRC}/claude-code-patterns/agentToolRegistry.js`);
-    const reg = createAgentToolRegistry({ workingDirectory: tmpdir() });
+    const reg = await createAuthorizedHighRiskRegistry();
 
     // Cache invalidation
     assert.equal(typeof reg.invalidateFileCache, "function");

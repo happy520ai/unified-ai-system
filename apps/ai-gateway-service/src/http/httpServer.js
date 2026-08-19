@@ -25,6 +25,7 @@ import {
 import {
   listModelImportProviders,
 } from "../model-import/providerProbeRegistry.js";
+import { evaluatePlatformControlPlaneAccess } from "../security/platformControlPlanePolicy.ts";
 import {
   detectRuntimeCredentialProviders,
 } from "../providers/providerCredentialDetector.js";
@@ -723,7 +724,24 @@ export function createGatewayHttpServer(application) {
         return;
       }
 
-      const enterpriseDecision = enterpriseGovernanceService.authorize(request, requiredPermission);
+      const baseEnterpriseDecision = enterpriseGovernanceService.authorize(request, requiredPermission);
+      const platformControlPlaneDecision = evaluatePlatformControlPlaneAccess({
+        method: request.method,
+        pathname: url.pathname,
+        identity: baseEnterpriseDecision.identity,
+        env: application.runtimeEnv ?? process.env,
+      });
+      const enterpriseDecision = baseEnterpriseDecision.allowed
+        && platformControlPlaneDecision.required
+        && !platformControlPlaneDecision.allowed
+        ? {
+            ...baseEnterpriseDecision,
+            allowed: false,
+            code: platformControlPlaneDecision.code,
+            statusCode: 403,
+            message: "Global provider and model mutations require the configured platform tenant.",
+          }
+        : baseEnterpriseDecision;
       request.enterpriseIdentity = enterpriseDecision.identity;
       if (enterpriseDecision.allowed) {
         authRateLimiter.recordSuccess(authRateKey);

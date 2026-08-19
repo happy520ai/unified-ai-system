@@ -6,6 +6,7 @@
 
 import { createMcpUpstreamFromConfig, type McpToolDescriptor, type McpUpstreamConfig } from "./mcpUpstreamClient.ts";
 import { createOpenApiRestBridge } from "./openApiRestBridge.ts";
+import { resolvePlatformTenantId } from "../security/platformControlPlanePolicy.ts";
 
 const MAX_ARGUMENTS_CHARS = 100_000;
 const MAX_RESULT_CHARS = 1_000_000;
@@ -15,6 +16,8 @@ const MAX_UPSTREAMS = 16;
 export interface McpGovernedServerConfig extends McpUpstreamConfig {
   /** 可选工具白名单（glob 风格 * 通配）；缺省允许该上游全部工具。 */
   allowedTools?: string[];
+  allowedTenants?: string[];
+  allowedRoles?: string[];
   description?: string;
   /** openapi 传输：REST→MCP 桥接配置。 */
   baseUrl?: string;
@@ -53,6 +56,9 @@ function parseRegistry(raw: unknown): { configs: McpGovernedServerConfig[]; erro
   for (const entry of parsed) {
     if (!entry || typeof entry !== "object") continue;
     const candidate = entry as Partial<McpGovernedServerConfig>;
+    const allowedTools = normalizePolicyList(candidate.allowedTools);
+    const allowedTenants = normalizePolicyList(candidate.allowedTenants);
+    const allowedRoles = normalizePolicyList(candidate.allowedRoles);
     const id = typeof candidate.id === "string" ? candidate.id.trim() : "";
     if (!id || !/^[a-z0-9][a-z0-9-]{0,63}$/i.test(id)) {
       return { configs: [], error: `MCP upstream id '${id}' is invalid (expected [a-z0-9-], max 64 chars).` };
@@ -69,7 +75,9 @@ function parseRegistry(raw: unknown): { configs: McpGovernedServerConfig[]; erro
         id,
         url: candidate.url,
         ...(candidate.headers && typeof candidate.headers === "object" ? { headers: candidate.headers } : {}),
-        ...(Array.isArray(candidate.allowedTools) ? { allowedTools: candidate.allowedTools } : {}),
+        ...(allowedTools ? { allowedTools } : {}),
+        ...(allowedTenants ? { allowedTenants } : {}),
+        ...(allowedRoles ? { allowedRoles } : {}),
         ...(candidate.description ? { description: candidate.description } : {}),
       });
       continue;
@@ -85,7 +93,9 @@ function parseRegistry(raw: unknown): { configs: McpGovernedServerConfig[]; erro
         ...(Array.isArray(candidate.args) ? { args: candidate.args } : {}),
         ...(candidate.env && typeof candidate.env === "object" ? { env: candidate.env } : {}),
         ...(candidate.cwd ? { cwd: candidate.cwd } : {}),
-        ...(Array.isArray(candidate.allowedTools) ? { allowedTools: candidate.allowedTools } : {}),
+        ...(allowedTools ? { allowedTools } : {}),
+        ...(allowedTenants ? { allowedTenants } : {}),
+        ...(allowedRoles ? { allowedRoles } : {}),
         ...(candidate.description ? { description: candidate.description } : {}),
       });
       continue;
@@ -108,7 +118,9 @@ function parseRegistry(raw: unknown): { configs: McpGovernedServerConfig[]; erro
         ...(typeof specUrl === "string" ? { specUrl } : {}),
         ...(spec && typeof spec === "object" ? { spec } : {}),
         ...(candidate.headers && typeof candidate.headers === "object" ? { headers: candidate.headers } : {}),
-        ...(Array.isArray(candidate.allowedTools) ? { allowedTools: candidate.allowedTools } : {}),
+        ...(allowedTools ? { allowedTools } : {}),
+        ...(allowedTenants ? { allowedTenants } : {}),
+        ...(allowedRoles ? { allowedRoles } : {}),
         ...(candidate.description ? { description: candidate.description } : {}),
       });
       continue;
@@ -121,8 +133,17 @@ function parseRegistry(raw: unknown): { configs: McpGovernedServerConfig[]; erro
   return { configs, error: null };
 }
 
+function normalizePolicyList(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const normalized = [...new Set(value
+    .filter((entry): entry is string => typeof entry === "string")
+    .map((entry) => entry.trim())
+    .filter(Boolean))].slice(0, 128);
+  return normalized.length > 0 ? normalized : undefined;
+}
+
 function toolAllowed(patterns: string[] | undefined, toolName: string): boolean {
-  if (!patterns || patterns.length === 0) return true;
+  if (!patterns || patterns.length === 0) return false;
   return patterns.some((pattern) => {
     if (pattern === toolName) return true;
     if (pattern === "*") return true;
@@ -140,6 +161,7 @@ export function createMcpGatewayService(options: {
   recordAudit?: (event: Record<string, unknown>) => void | Promise<void>;
 } = {}) {
   const env = options.env ?? {};
+  const platformTenantId = resolvePlatformTenantId(env);
   const parsed = options.upstreamConfigs
     ? { configs: options.upstreamConfigs.slice(0, MAX_UPSTREAMS), error: null as string | null }
     : parseRegistry(env.MCP_UPSTREAM_SERVERS_JSON);
@@ -162,20 +184,22 @@ export function createMcpGatewayService(options: {
       upstreams: upstreams.map(({ config }) => ({
         id: config.id,
         transport: config.transport,
-        ...(config.transport === "http" ? { url: config.url } : {}),
-        ...(config.transport === "stdio" ? { command: config.command } : {}),
-        ...(config.transport === "openapi" ? { baseUrl: config.baseUrl, specUrl: config.specUrl ?? null } : {}),
-        toolAllowlist: config.allowedTools ?? null,
+        toolPolicy: config.allowedTools?.length ? "explicit-allowlist" : "deny-all",
+        tenantPolicy: config.allowedTenants?.length ? "explicit-allowlist" : "platform-tenant",
+        rolePolicy: config.allowedRoles?.length ? "explicit-allowlist" : "route-rbac",
       })),
       boundaries: {
         source: "operator-trusted environment configuration",
         httpEgress: "outbound-url-policy",
+        tools: "deny-by-default",
+        tenants: "explicit allowlist or configured platform tenant",
+        stdioEnvironment: "restricted inheritance plus explicit config",
         audit: "every tools/call recorded",
       },
     };
   }
 
-  function requireIdentity(identity: McpGatewayIdentity | null | undefined): string {
+  function requireIdentity(identity: McpGatewayIdentity | null | undefined): { tenantId: string; role: string } {
     const tenantId = typeof identity?.tenantId === "string" && identity.tenantId ? identity.tenantId : "";
     if (!tenantId) {
       const error = new Error("MCP tool access requires an authenticated tenant context.");
@@ -183,14 +207,25 @@ export function createMcpGatewayService(options: {
       error.category = "auth";
       throw error;
     }
-    return tenantId;
+    const role = typeof identity?.role === "string" ? identity.role : "";
+    return { tenantId, role };
+  }
+
+  function upstreamAllowed(config: McpGovernedServerConfig, identity: { tenantId: string; role: string }): boolean {
+    const tenantAllowed = config.allowedTenants?.length
+      ? config.allowedTenants.includes("*") || config.allowedTenants.includes(identity.tenantId)
+      : identity.tenantId === platformTenantId;
+    if (!tenantAllowed) return false;
+    if (!config.allowedRoles?.length) return true;
+    return config.allowedRoles.includes("*") || config.allowedRoles.includes(identity.role);
   }
 
   async function listTools(identity: McpGatewayIdentity | null | undefined): Promise<{ tools: AggregatedMcpTool[]; servers: Array<{ id: string; error?: string }> }> {
-    requireIdentity(identity);
+    const identityContext = requireIdentity(identity);
     const tools: AggregatedMcpTool[] = [];
     const servers: Array<{ id: string; error?: string }> = [];
     for (const { config, client } of upstreams) {
+      if (!upstreamAllowed(config, identityContext)) continue;
       const cached = toolListCache.get(config.id);
       if (cached && Date.now() - cached.at < TOOL_LIST_CACHE_TTL_MS) {
         for (const tool of cached.tools) {
@@ -232,12 +267,31 @@ export function createMcpGatewayService(options: {
     identity: McpGatewayIdentity | null | undefined,
     request: { server: string; tool: string; arguments?: Record<string, unknown> },
   ): Promise<{ result: unknown; serverId: string; toolName: string }> {
-    const tenantId = requireIdentity(identity);
+    const identityContext = requireIdentity(identity);
+    const { tenantId } = identityContext;
     const upstream = upstreams.find(({ config }) => config.id === request.server);
     if (!upstream) {
       const error = new Error(`Unknown MCP upstream '${request.server}'.`);
       error.code = "MCP_UPSTREAM_UNKNOWN";
       error.category = "validation";
+      throw error;
+    }
+    if (!upstreamAllowed(upstream.config, identityContext)) {
+      const error = new Error(`MCP upstream '${request.server}' is not allowed for this identity.`);
+      error.code = "MCP_UPSTREAM_NOT_ALLOWED";
+      error.category = "auth";
+      if (recordAudit) {
+        await recordAudit({
+          outcome: "denied",
+          method: "POST",
+          path: "/mcp/call",
+          permission: "workflow:run",
+          statusCode: 403,
+          code: error.code,
+          identity,
+          details: { tenantId, serverId: upstream.config.id, toolName: request.tool },
+        }).catch(() => {});
+      }
       throw error;
     }
     if (!toolAllowed(upstream.config.allowedTools, request.tool)) {
