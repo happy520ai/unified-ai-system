@@ -108,9 +108,24 @@ export async function workforceStatus(svc) {
 
 export async function workforceAssign(svc) {
   const tqm = svc.gatewayContext.taskQueueManager;
+  const dispatcher = svc.gatewayContext.taskDispatcher;
+
+  if (tqm && typeof tqm.autoAssign === "function" && dispatcher && typeof dispatcher.acceptAssignments === "function") {
+    const result = await tqm.autoAssign();
+    await dispatcher.acceptAssignments(result.assignments);
+    return {
+      ...result,
+      assignments: result.assignments.map(({ claimToken: _claimToken, ...assignment }) => assignment),
+      claimTokensExposed: false,
+    };
+  }
 
   if (tqm && typeof tqm.autoAssign === "function") {
-    return tqm.autoAssign();
+    return {
+      status: "blocked",
+      code: "TASK_DISPATCHER_REQUIRED",
+      hint: "A secure internal taskDispatcher is required before issuing claim capabilities.",
+    };
   }
 
   return {

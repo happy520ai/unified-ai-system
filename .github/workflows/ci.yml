@@ -94,8 +94,42 @@ jobs:
           restore-keys: |
             quality-trend-${{ github.ref_name }}-${{ runner.os }}-
 
+      - name: Configure browser for Prompt Lab smoke test
+        id: prompt-lab-browser
+        shell: bash
+        run: |
+          set -euo pipefail
+          for candidate in google-chrome-stable google-chrome chromium-browser chromium; do
+            if command -v "$candidate" >/dev/null 2>&1; then
+              browser_path="$(command -v "$candidate")"
+              echo "PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=$browser_path" >> "$GITHUB_ENV"
+              echo "download_required=false" >> "$GITHUB_OUTPUT"
+              echo "Using preinstalled browser: $browser_path"
+              exit 0
+            fi
+          done
+          echo "download_required=true" >> "$GITHUB_OUTPUT"
+          echo "No preinstalled Chromium browser found; bounded Playwright download required."
+
       - name: Install browser for Prompt Lab smoke test
-        run: pnpm --filter @unified-ai-system/web-agent exec playwright install --with-deps chromium
+        if: steps.prompt-lab-browser.outputs.download_required == 'true'
+        timeout-minutes: 8
+        shell: bash
+        env:
+          PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT: "120000"
+        run: |
+          set -euo pipefail
+          for attempt in 1 2; do
+            if timeout --signal=TERM 210s pnpm --filter @unified-ai-system/web-agent exec playwright install --with-deps chromium; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 2 ]; then
+              echo "Browser installation attempt $attempt failed; retrying."
+              sleep 10
+            fi
+          done
+          echo "Browser installation failed after bounded retries." >&2
+          exit 1
 
       - name: Workspace checks
         run: pnpm check
@@ -504,4 +538,3 @@ jobs:
           dotnet restore docs/examples/prompt-enhancement.csproj
           dotnet build docs/examples/prompt-enhancement.csproj --no-restore --nologo
           dotnet run --project docs/examples/prompt-enhancement.csproj --no-build -- --help
-

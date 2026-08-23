@@ -41,6 +41,7 @@ testing remain release evidence gaps.
 | GW-SEC-11 | Medium | Request and structured logs could retain secrets, bodies, paths, or unbounded data. | Recursive central sanitization, token/key/query redaction, bounded depth/size, body logging off by default, tenant-filtered reads, rotation, retention, private modes, and listener cleanup are enforced. Fixed for tested patterns. |
 | GW-SEC-12 | Medium | Session and persistence helpers had unbounded or weakly protected local-resource behavior. | Session counts, entry sizes, file sizes, and mutation concurrency are bounded; writes are atomic and private where supported. Fixed for reviewed local modes. |
 | GW-SEC-13 | Medium | CI action references and dependency maintenance needed stronger supply-chain controls. | Relevant actions are commit-SHA pinned, base-ref handling is quoted and environment-bound, Dependabot is weekly, supported security versions are explicit, and production dependency audit is clean. Fixed. |
+| GW-SEC-14 | High | Portable enterprise backups were plaintext JSON without cryptographic integrity, trusted sequencing, or rollback detection. | Version 3 payloads are encrypted with AES-256-GCM, manifests and checkpoints are Ed25519-signed with independently derived keys, tenant/version/sequence/digest metadata is authenticated, old plaintext fails closed, and local rollback floors are enforced. Fixed for artifact protection and local validation; an external immutable sequence anchor and destructive restore drill remain release evidence. |
 
 ## Defense evidence
 
@@ -49,8 +50,8 @@ testing remain release evidence gaps.
 | Gate | Result | Evidence summary |
 | --- | --- | --- |
 | `pnpm check` | Pass | 651 gateway files; language policy pass; supply-chain configuration pass; 81 permission declarations; 134 active routes; 18 governed outbound integrations. |
-| `pnpm test` | Pass | Gateway: 993 passed and 10 skipped; Forge: 2680 passed; all other workspace package suites completed successfully. |
-| `pnpm check:public` | Pass | 1,769 candidate files scanned with zero issue codes after removing credential-like test literals and machine-specific paths. |
+| `pnpm test` | Pass | Gateway: 994 passed and 11 skipped; Forge: 2680 passed; all other workspace package suites completed successfully. |
+| `pnpm check:public` | Pass | 1,772 candidate files scanned with zero issue codes after removing credential-like test literals and machine-specific paths. |
 | `pnpm verify:public-clone` | Pass | All reported clean-clone checks passed, fake-provider remained mandatory, real-provider calls were zero, ephemeral auth was not exposed, and managed processes were cleaned up. |
 
 ### Security and supply-chain checks
@@ -83,7 +84,7 @@ and the local fake provider only. They are not a comparison with another gateway
 | Risk | Current assessment | Required next evidence |
 | --- | --- | --- |
 | Semantic prompt injection | Signature and normalization defenses reduce known attacks but cannot prove semantic intent safety. | Independent adversarial corpus, model-assisted policy evaluation, tool-action taint tracking, and measured false-positive/false-negative rates. |
-| Backup portability | Local backup artifacts use private modes, but portable backup encryption, signing, and anti-rollback are not a completed restore protocol. | Authenticated encryption, manifest signatures, version/tenant binding, anti-rollback, and destructive restore drills. |
+| Backup portability | Portable artifacts now use authenticated encryption, signed manifests, tenant/version binding, chained digests, signed local checkpoints, and configurable external rollback floors. The gateway still validates rather than destructively restoring data, and a whole-host rollback can include an older valid local checkpoint. | Anchor the minimum sequence in an external monotonic or immutable control plane and execute destructive restore drills in isolated staging. |
 | Multi-host consistency | File and Node SQLite modes are same-host mechanisms, not a distributed consistency design. | Shared transactional stores, distributed rate/idempotency tests, failover, partition, and split-brain exercises. |
 | Container immutability | Runtime is non-root and safe by default, but `/app` remains writable for current demo compatibility. | Read-only root filesystem, dedicated writable mounts, dropped capabilities, and deployment-policy enforcement. |
 | Long-duration resources | The 12-second CI soak catches regressions but does not prove leak freedom or production capacity. | Repeated 6-24 hour staging soaks, real workload mixes, concurrency ramps, and capacity envelopes. |

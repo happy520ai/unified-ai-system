@@ -196,6 +196,20 @@ still needs independently verified database failover, TLS identity, retention,
 backup/restore, disaster recovery, replica convergence, provider reconciliation,
 and load-balancer behavior.
 
+### Workforce task ownership
+
+Controlled Workforce execution now requires a hashed bearer claim bound to the
+plan, task, agent, and monotonically increasing fencing token before an Agent can
+start, complete, or fail a task. One manager-level lease core serves all local
+claims without a timer per task, and active tasks are safely requeued after a
+process restart because an in-memory bearer claim cannot survive that boundary.
+
+This is a same-process correctness and resource-safety guarantee, not a
+cross-host Workforce lease. Do not dispatch one Workforce queue across gateway
+replicas until a reviewed PostgreSQL task-claim backend implements the same
+issue, validate, renew, release, revoke, and fencing contract. The gateway must
+remain the only authority allowed to cancel or requeue those claims.
+
 ## Cross-host PostgreSQL request quotas
 
 Memory rate limits are process-local and SQLite counters are same-host only.
