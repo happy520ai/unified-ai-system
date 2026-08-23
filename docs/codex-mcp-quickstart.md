@@ -13,7 +13,7 @@ Requirements:
 Register the pinned MCP image:
 
 ```bash
-codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.9
+codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.5.0
 ```
 
 The image starts its own temporary gateway over stdio, pins chat to the
@@ -40,10 +40,13 @@ The server should be connected and expose these twelve tools:
 - `gateway_health`
 - `gateway_readiness`
 - `gateway_prompt_enhance`
+- `gateway_prompt_enhance_llm`
 - `gateway_chat`
 - `knowledge_readiness`
+- `knowledge_retrieve`
 - `workflow_health`
 - `workflow_actions`
+- `workflow_run`
 - `workforce_health`
 - `workforce_agents`
 

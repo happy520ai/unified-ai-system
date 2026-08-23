@@ -69,7 +69,8 @@ export async function dispatchA2ARoutes(context) {
     return;
   }
 
-  const requestedVersion = request.headers[A2A_VERSION_HEADER.toLowerCase()] ?? "0.3";
+  // 未带版本头的请求按网关自身协议版本处理（agentCard 为 1.0）。
+  const requestedVersion = request.headers[A2A_VERSION_HEADER.toLowerCase()] ?? A2A_PROTOCOL_VERSION;
   const serverContext = new ServerCallContext({
     requestedVersion: String(requestedVersion),
     user: requestUser(request),
@@ -89,11 +90,35 @@ export async function dispatchA2ARoutes(context) {
   }
 
   if (result && typeof result[Symbol.asyncIterator] === "function") {
-    writeA2AJson(response, 501, {
-      jsonrpc: "2.0",
-      id: body?.id ?? null,
-      error: { code: -32004, message: "A2A streaming is not enabled." },
+    // A2A 流式：JSON-RPC 响应按规范作为 SSE data 事件透传（content-type
+    // text/event-stream + A2A 版本头），流结束即响应结束。
+    let clientClosed = false;
+    response.on("close", () => {
+      clientClosed = true;
     });
+    response.writeHead(200, {
+      "content-type": "text/event-stream; charset=utf-8",
+      "cache-control": "no-cache",
+      "connection": "keep-alive",
+      [A2A_VERSION_HEADER]: A2A_PROTOCOL_VERSION,
+    });
+    let eventCount = 0;
+    for await (const update of result) {
+      if (clientClosed) break;
+      if (update === undefined || update === null) continue;
+      response.write(`data: ${JSON.stringify(update)}\n\n`);
+      eventCount += 1;
+    }
+    writeServiceLog?.("a2a_stream_completed", {
+      method: request.method,
+      path: url.pathname,
+      operation: body?.method,
+      eventCount,
+      durationMs: Date.now() - startedAt,
+    });
+    if (!clientClosed) {
+      response.end();
+    }
     return;
   }
   writeServiceLog?.("a2a_request_completed", {

@@ -29,17 +29,31 @@ export type PromptEnhancementProfile = "general" | "coding" | "analysis" | "writ
 export type PromptEnhancementProfileOption = "auto" | PromptEnhancementProfile;
 export type PromptEnhancementLanguage = "zh-CN" | "en";
 export type PromptEnhancementLanguageOption = "auto" | PromptEnhancementLanguage;
+export type PromptEnhancementTarget = "model" | "agent";
+export type PromptEnhancementIntent =
+  | "translate"
+  | "summarize"
+  | "plan"
+  | "investigate"
+  | "evaluate"
+  | "explain"
+  | "modify"
+  | "operate"
+  | "create"
+  | "assist";
 
 export interface PromptEnhancementOptions {
   enabled: boolean;
   profile?: PromptEnhancementProfileOption;
   language?: PromptEnhancementLanguageOption;
+  target?: PromptEnhancementTarget;
 }
 
 export interface PromptEnhancementRequest {
   input: string;
   profile?: PromptEnhancementProfileOption;
   language?: PromptEnhancementLanguageOption;
+  target?: PromptEnhancementTarget;
   context?: RequestContext;
 }
 
@@ -47,6 +61,8 @@ export interface PromptEnhancementSummary {
   applied: true;
   profile: PromptEnhancementProfile;
   language: PromptEnhancementLanguage;
+  target?: PromptEnhancementTarget;
+  intent?: PromptEnhancementIntent | null;
   engine: "local-deterministic";
   version: string;
   providerCalled: false;
@@ -54,9 +70,34 @@ export interface PromptEnhancementSummary {
 }
 
 export interface PromptEnhancementSection {
-  id: "execution" | "output" | "acceptance";
+  id: "context" | "execution" | "output" | "acceptance" | "agent";
   title: string;
   items: string[];
+}
+
+export interface PromptEnhancementEntities {
+  technologies: string[];
+  artifacts: string[];
+  quantities: string[];
+  timeExpressions: string[];
+  references: string[];
+}
+
+export interface PromptEnhancementAmbiguity {
+  span: string;
+  kind: "reference" | "quality" | "quantity";
+  question: string;
+}
+
+export interface PromptEnhancementAnalysis {
+  intent: {
+    kind: PromptEnhancementIntent;
+    label: string;
+  };
+  entities: PromptEnhancementEntities;
+  deliverable: string;
+  steps: string[];
+  ambiguities: PromptEnhancementAmbiguity[];
 }
 
 export interface PromptEnhancementResult {
@@ -65,10 +106,24 @@ export interface PromptEnhancementResult {
   requestedProfile: PromptEnhancementProfileOption;
   profile: PromptEnhancementProfile;
   language: PromptEnhancementLanguage;
+  target: PromptEnhancementTarget;
   changed: boolean;
   sections: PromptEnhancementSection[];
+  analysis: PromptEnhancementAnalysis;
+  constraints: string[];
+  assumptions: string[];
   clarifyingQuestions: string[];
   signals: Record<string, boolean>;
+  quality: {
+    signalCoverage: number;
+    clarificationsNeeded: number;
+    constraintsDetected: boolean;
+    assumptionCount: number;
+    ambiguityCount: number;
+    entityCount: number;
+    qualityLevel: "high" | "medium" | "needs-clarification";
+    recommendations: string[];
+  };
   metadata: {
     engine: "local-deterministic";
     version: string;
@@ -76,6 +131,7 @@ export interface PromptEnhancementResult {
     credentialRequired: false;
     originalPreserved: boolean;
     deterministic: true;
+    target: PromptEnhancementTarget;
   };
 }
 
@@ -90,6 +146,7 @@ export interface GatewayGenerationOptions {
   maxOutputTokens?: number;
   stopSequences?: string[];
   responseFormat?: GatewayResponseFormat;
+  reasoningEffort?: "minimal" | "low" | "medium" | "high" | "xhigh";
   stream?: boolean;
 }
 

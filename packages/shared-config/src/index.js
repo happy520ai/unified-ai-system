@@ -1,4 +1,5 @@
 import { DEFAULT_RUNTIME_CONFIG } from "./defaultRuntimeConfig.js";
+import { DEFAULT_PROVIDER_MODELS } from "./provider-catalog.js";
 
 export { DEFAULT_RUNTIME_CONFIG };
 
@@ -105,7 +106,12 @@ export function loadRuntimeConfig(env = process.env) {
         }
 
         return { ...provider };
-      }),
+      }).concat(readExtraProviderModels(env)),
+      chatContextCompaction: {
+        thresholdMessages: readNumber(env.AI_GATEWAY_CHAT_COMPACTION_THRESHOLD_MESSAGES, DEFAULT_RUNTIME_CONFIG.aiGatewayService.chatContextCompaction.thresholdMessages),
+        maxContextTokens: readNumber(env.AI_GATEWAY_CHAT_COMPACTION_MAX_TOKENS, DEFAULT_RUNTIME_CONFIG.aiGatewayService.chatContextCompaction.maxContextTokens),
+        keepRecentTurns: readNumber(env.AI_GATEWAY_CHAT_COMPACTION_KEEP_RECENT_TURNS, DEFAULT_RUNTIME_CONFIG.aiGatewayService.chatContextCompaction.keepRecentTurns),
+      },
     },
   };
 }
@@ -120,6 +126,7 @@ export function getSafeRuntimeConfig(config) {
       providerMode: config.aiGatewayService.providerMode,
       realProviderEnabled: config.aiGatewayService.realProviderEnabled,
       fallbackEnabled: config.aiGatewayService.fallbackEnabled,
+      chatContextCompaction: config.aiGatewayService.chatContextCompaction,
       providerModels: config.aiGatewayService.providerModels.map((provider) => ({
         providerId: provider.providerId,
         modelId: provider.modelId,
@@ -153,6 +160,18 @@ function readList(value, fallback) {
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+// Env-gated extension point: AI_GATEWAY_EXTRA_PROVIDERS=agnes,google,bloom
+// appends matching provider-catalog entries to the registry list. Without the
+// env the default providerModels set is returned unchanged, so default
+// behavior and existing deployments stay identical.
+function readExtraProviderModels(env) {
+  const wanted = readList(env.AI_GATEWAY_EXTRA_PROVIDERS, []).map((item) => item.toLowerCase());
+  if (wanted.length === 0) {
+    return [];
+  }
+  return DEFAULT_PROVIDER_MODELS.filter((entry) => wanted.includes(String(entry.providerId).toLowerCase()));
 }
 
 function readRouteMode(value, fallback) {

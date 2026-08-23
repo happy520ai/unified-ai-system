@@ -63,6 +63,7 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
   const apiKeyManager = createApiKeyManager({ storePath: apiKeyStorePath });
   const auditPath = auditLogPath ?? env.PME_AUDIT_LOG_PATH ?? resolve(".data/audit/enterprise-audit.jsonl");
   const auditEntries = [];
+  let auditWriteTail = Promise.resolve();
 
   return {
     getHealth() {
@@ -435,8 +436,15 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
         auditEntries.splice(0, auditEntries.length - DEFAULT_AUDIT_LIMIT);
       }
 
-      await mkdir(dirname(auditPath), { recursive: true });
-      await appendFile(auditPath, `${JSON.stringify(entry)}\n`, "utf8");
+      // 审计落盘走后台串行队列:内容与顺序不变,但不再阻塞请求响应路径。
+      // 写失败静默降级为内存审计(auditEntries 始终保留最近条目)。
+      const line = `${JSON.stringify(entry)}\n`;
+      auditWriteTail = auditWriteTail
+        .then(async () => {
+          await mkdir(dirname(auditPath), { recursive: true });
+          await appendFile(auditPath, line, "utf8");
+        })
+        .catch(() => {});
       return entry;
     },
 

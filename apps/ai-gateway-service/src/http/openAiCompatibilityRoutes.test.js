@@ -788,14 +788,7 @@ describe("OpenAI request normalization", () => {
     expect(response.text).toContain("event: message_stop");
   });
 
-  it("rejects unsupported Anthropic tools and non-text content without pretending compatibility", () => {
-    expect(() => normalizeAnthropicMessageRequest({
-      model: "local-fake-model",
-      max_tokens: 64,
-      messages: [{ role: "user", content: "Hello" }],
-      tools: [],
-    }, descriptors)).toThrow(/tools is not supported/);
-
+  it("rejects unsupported Anthropic content without pretending compatibility", () => {
     expect(() => normalizeAnthropicMessageRequest({
       model: "local-fake-model",
       max_tokens: 64,
@@ -803,7 +796,158 @@ describe("OpenAI request normalization", () => {
         role: "user",
         content: [{ type: "image", source: { type: "base64" } }],
       }],
-    }, descriptors)).toThrow(/only text blocks are enabled/);
+    }, descriptors)).toThrow(/only text, tool_use, and tool_result blocks are enabled/);
+
+    expect(() => normalizeAnthropicMessageRequest({
+      model: "local-fake-model",
+      max_tokens: 64,
+      messages: [{ role: "user", content: "Hello" }],
+      tool_choice: { type: "banana" },
+    }, descriptors)).toThrow(/tool_choice\.type must be/);
+  });
+
+  it("maps Anthropic tools, tool_choice, tool_use, and tool_result blocks to the chat contract", () => {
+    const request = normalizeAnthropicMessageRequest({
+      model: "local-fake-model",
+      max_tokens: 128,
+      messages: [
+        { role: "user", content: "Check the weather in Beijing." },
+        {
+          role: "assistant",
+          content: [
+            { type: "text", text: "Let me look that up." },
+            { type: "tool_use", id: "toolu_1", name: "get_weather", input: { city: "Beijing" } },
+          ],
+        },
+        {
+          role: "user",
+          content: [
+            { type: "tool_result", tool_use_id: "toolu_1", content: [{ type: "text", text: "31C sunny" }] },
+            { type: "text", text: "Summarize." },
+          ],
+        },
+      ],
+      tools: [{
+        name: "get_weather",
+        description: "Get weather",
+        input_schema: { type: "object", properties: { city: { type: "string" } } },
+      }],
+      tool_choice: { type: "auto" },
+    }, descriptors);
+
+    expect(request.tools).toEqual([{
+      type: "function",
+      function: {
+        name: "get_weather",
+        description: "Get weather",
+        parameters: { type: "object", properties: { city: { type: "string" } } },
+      },
+    }]);
+    expect(request.toolChoice).toBe("auto");
+    expect(request.messages).toEqual([
+      { role: "user", content: "Check the weather in Beijing." },
+      {
+        role: "assistant",
+        content: "Let me look that up.",
+        tool_calls: [{
+          id: "toolu_1",
+          type: "function",
+          function: { name: "get_weather", arguments: "{\"city\":\"Beijing\"}" },
+        }],
+      },
+      { role: "tool", tool_call_id: "toolu_1", content: "31C sunny" },
+      { role: "user", content: "Summarize." },
+    ]);
+    expect(request.metadata.anthropicCompatibility.toolCount).toBe(1);
+  });
+
+  it("emits tool_use content blocks with stop_reason tool_use", async () => {
+    const gatewayService = createGatewayService();
+    gatewayService.execute = vi.fn(async () => ({
+      success: true,
+      data: {
+        id: "request-tool",
+        message: {
+          role: "assistant",
+          content: "Checking.",
+          tool_calls: [{
+            id: "call_9",
+            type: "function",
+            function: { name: "get_weather", arguments: "{\"city\":\"Beijing\"}" },
+          }],
+        },
+        selectedProvider: "local-fake-provider",
+        selectedModel: "local-fake-model",
+        executionMode: "fake",
+        usage: { inputTokens: 5, outputTokens: 3, totalTokens: 8 },
+      },
+      meta: { requestId: "request-tool" },
+    }));
+    const response = createResponseRecorder();
+    await dispatchOpenAiCompatibilityRoutes(createContext({
+      body: {
+        model: "local-fake-model",
+        max_tokens: 64,
+        messages: [{ role: "user", content: "Weather?" }],
+        tools: [{ name: "get_weather", input_schema: { type: "object" } }],
+      },
+      path: "/v1/messages",
+      gatewayService,
+      response,
+    }));
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body.content).toEqual([
+      { type: "text", text: "Checking." },
+      { type: "tool_use", id: "call_9", name: "get_weather", input: { city: "Beijing" } },
+    ]);
+    expect(response.body.stop_reason).toBe("tool_use");
+    expect(gatewayService.execute.mock.calls[0][0].tools).toHaveLength(1);
+  });
+
+  it("streams tool_use blocks through the Anthropic SSE lifecycle", async () => {
+    const gatewayService = createGatewayService();
+    gatewayService.executeStream = async function* executeStream() {
+      yield {
+        type: "start",
+        requestId: "stream-tool",
+        selectedProvider: "local-fake-provider",
+        selectedModel: "local-fake-model",
+      };
+      yield {
+        type: "chunk",
+        requestId: "stream-tool",
+        textDelta: "Looking",
+        rawProviderMeta: {
+          toolCallsDelta: [{
+            index: 0,
+            id: "call_s1",
+            function: { name: "get_weather", arguments: "{\"city\":\"Beijing\"}" },
+          }],
+        },
+      };
+      yield { type: "done", requestId: "stream-tool", rawProviderMeta: { finishReason: "tool_calls" } };
+    };
+    const response = createResponseRecorder();
+    await dispatchOpenAiCompatibilityRoutes(createContext({
+      body: {
+        model: "local-fake-model",
+        max_tokens: 64,
+        stream: true,
+        messages: [{ role: "user", content: "Weather?" }],
+        tools: [{ name: "get_weather", input_schema: { type: "object" } }],
+      },
+      path: "/v1/messages",
+      gatewayService,
+      response,
+    }));
+
+    expect(response.text).toContain("event: content_block_start");
+    expect(response.text).toContain('"type":"tool_use","id":"call_s1","name":"get_weather"');
+    expect(response.text).toContain('"type":"input_json_delta"');
+    expect(response.text).toContain('\\"city\\":\\"Beijing\\"');
+    expect(response.text).toContain('"stop_reason":"tool_use"');
+    expect(response.text).toContain("event: message_stop");
   });
 
   it("creates Anthropic response objects from gateway results", () => {

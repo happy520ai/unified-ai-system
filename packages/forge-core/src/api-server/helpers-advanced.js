@@ -360,8 +360,11 @@ export async function handleAPI(ctx, path, req, res, user) {
   }
 
   if (knowledgeMatch && req.method === 'DELETE') {
-    // KnowledgeBase does not yet expose a delete method; returns success without mutation
-    return jsonFn(res, 200, { message: 'Deleted' });
+    const outcome = knowledge ? knowledge.delete(knowledgeMatch[1]) : null;
+    if (!outcome || !outcome.deleted) {
+      return jsonFn(res, 404, { error: 'Knowledge entry not found' });
+    }
+    return jsonFn(res, 200, { message: 'Deleted', id: knowledgeMatch[1] });
   }
 
   // Knowledge stats

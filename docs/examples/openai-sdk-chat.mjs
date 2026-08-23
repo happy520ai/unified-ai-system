@@ -111,10 +111,12 @@ for await (const event of responseStream) {
 
 let invalidRequest = null;
 try {
+  // n>1 is a supported feature now; logprobs stays an explicitly unsupported
+  // parameter and is the canonical structured-rejection sample.
   await client.chat.completions.create({
     model: "local-fake-model",
-    messages: [{ role: "user", content: "Reject unsupported n" }],
-    n: 2,
+    messages: [{ role: "user", content: "Reject unsupported logprobs" }],
+    logprobs: true,
   });
 } catch (error) {
   invalidRequest = {
@@ -187,7 +189,7 @@ const checks = {
     && invalidRequest?.class === "BadRequestError"
     && invalidRequest?.status === 400
     && invalidRequest?.code === "unsupported_parameter"
-    && invalidRequest?.param === "n"
+    && invalidRequest?.param === "logprobs"
     && invalidRequest?.type === "invalid_request_error",
 };
 

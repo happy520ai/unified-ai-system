@@ -1,0 +1,9 @@
+{
+  "mode": "local-preview-hardening",
+  "recordCount": 10,
+  "activeCount": 10,
+  "invalidatedCount": 0,
+  "paidApiCallCount": 0,
+  "externalApiCalled": false,
+  "mimoApiCalled": false
+}

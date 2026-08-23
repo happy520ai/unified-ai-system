@@ -26,14 +26,19 @@ function assertContract(fixture) {
   assert.equal(fixture.response.original, fixture.request.input);
   assert.equal(fixture.response.profile, fixture.request.profile);
   assert.equal(fixture.response.language, fixture.request.language);
+  assert.equal(fixture.response.target, "model");
   assert.ok(fixture.response.enhancedPrompt.includes(fixture.request.input));
+  assert.ok(Array.isArray(fixture.response.analysis?.steps));
+  assert.ok(typeof fixture.response.analysis?.deliverable === "string");
+  assert.equal(fixture.response.sections[0].id, "context");
   assert.deepEqual(fixture.response.metadata, {
     engine: "local-deterministic",
-    version: "prompt-enhancer-v1",
+    version: "prompt-enhancer-v3",
     providerCalled: false,
     credentialRequired: false,
     originalPreserved: true,
     deterministic: true,
+    target: "model",
   });
 }
 

@@ -1,4 +1,5 @@
 import { ROUTE_NOT_HANDLED } from "./httpRouteDispatch.js";
+import { getGuardrailsEngine } from "../guardrails/guardrailsEngine.ts";
 import { assertEnterpriseTenantAccess } from "../enterprise/enterpriseTenantPolicy.ts";
 
 export async function dispatchHttpRoutes01(context) {
@@ -11,7 +12,7 @@ export async function dispatchHttpRoutes01(context) {
     createResponseCachePolicy, invalidateCache, lookupCache, readResponseCacheSummary,
     writeCacheRecord, listResponseCacheAuditTrail, routeAnswerPath, routeQualityCostAnswer,
     getEvidenceById, TASK_MATRIX, LATENCY_DRY_RUN_CASES, PHASE315A_TIMEOUT_TYPES,
-    PHASE315A_LATENCY_RISK_LEVELS, PHASE315A_COMPLETION_CONFIDENCE, executeThreeModeRequest, evaluateTaijiBeidouChatGatewayExecutePreviewHook,
+    PHASE315A_LATENCY_RISK_LEVELS, PHASE315A_COMPLETION_CONFIDENCE, evaluateTaijiBeidouChatGatewayExecutePreviewHook,
     evaluateTaijiBeidouChatPreviewHook, handleChatLocalActionRoute, routeChatActionProposal, buildModelUsabilityMatrix,
     createModelVerificationPlan, getPluginRegistry, readJson,
     writeJson, writeSseEvent, writeSseHeaders, writeServiceLog,
@@ -407,6 +408,81 @@ export async function dispatchHttpRoutes01(context) {
       writeJson(response, 200, createOkEnvelope(result, { startedAt }));
     } catch (error) {
       writeEnterpriseError({ response, error, startedAt, fallbackCode: "enterprise_virtual_key_revoke_failed" });
+    }
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/enterprise/spend-report") {
+    const manager = enterpriseGovernanceService.getApiKeyManager();
+    const listed = manager.list({ tenantId: request.enterpriseIdentity?.tenantId });
+    const rows = listed.keys.map((key) => ({
+      keyId: key.keyId,
+      description: key.description ?? null,
+      role: key.role,
+      tenantId: key.tenantId,
+      revoked: Boolean(key.revoked),
+      lastUsedAt: key.lastUsedAt ?? null,
+      tokensUsed: key.usage?.tokensUsed ?? 0,
+      requestCount: key.usage?.requestCount ?? 0,
+      budget: {
+        enabled: Boolean(key.usage?.budgetEnabled),
+        limitTokens: key.usage?.limitTokens ?? null,
+        tokensRemaining: key.usage?.tokensRemaining ?? null,
+        softBudgetExceeded: Boolean(key.usage?.softBudgetExceeded),
+        windowResetAt: key.usage?.windowResetAt ?? null,
+      },
+    }));
+    const totals = {
+      keys: rows.length,
+      activeKeys: rows.filter((row) => !row.revoked).length,
+      tokensUsed: rows.reduce((sum, row) => sum + row.tokensUsed, 0),
+      requestCount: rows.reduce((sum, row) => sum + row.requestCount, 0),
+      keysOverSoftBudget: rows.filter((row) => row.budget.softBudgetExceeded).length,
+    };
+    writeJson(response, 200, createOkEnvelope(
+      { window: "current-budget-window", rows, totals },
+      { startedAt },
+    ));
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/enterprise/guardrails") {
+    writeJson(response, 200, createOkEnvelope(
+      { config: getGuardrailsEngine(request.enterpriseIdentity?.tenantId).describeConfig() },
+      { startedAt },
+    ));
+    return;
+  }
+
+  if (request.method === "PUT" && url.pathname === "/enterprise/guardrails") {
+    const body = await readEnterpriseJson({ request, response, startedAt, code: "enterprise_guardrails_invalid_json" });
+    if (!body) return;
+
+    try {
+      const config = getGuardrailsEngine(request.enterpriseIdentity?.tenantId).applyOverrides({
+        ...(typeof body.enabled === "boolean" ? { enabled: body.enabled } : {}),
+        ...(body.rules && typeof body.rules === "object" ? { rules: body.rules } : {}),
+        ...(typeof body.maxInputChars === "number" ? { maxInputChars: body.maxInputChars } : {}),
+        ...(Array.isArray(body.bannedTerms) ? { bannedTerms: body.bannedTerms } : {}),
+      });
+      await enterpriseGovernanceService.recordAudit({
+        outcome: "allowed",
+        method: request.method,
+        path: url.pathname,
+        permission: "user:admin",
+        statusCode: 200,
+        code: "enterprise_guardrails_updated",
+        identity: request.enterpriseIdentity,
+        details: {
+          enabled: config.enabled,
+          rules: config.rules,
+          maxInputChars: config.maxInputChars,
+          bannedTermsCount: config.bannedTerms.length,
+        },
+      });
+      writeJson(response, 200, createOkEnvelope({ config }, { startedAt }));
+    } catch (error) {
+      writeEnterpriseError({ response, error, startedAt, fallbackCode: "enterprise_guardrails_update_failed" });
     }
     return;
   }

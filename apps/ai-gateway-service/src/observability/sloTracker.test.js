@@ -2,7 +2,7 @@
 // sloTracker.test.js — SLO 跟踪器单元测试
 // =============================================================================
 
-import { describe, it } from "node:test";
+import { describe, it } from "vitest";
 import assert from "node:assert/strict";
 import { createSloTracker } from "./sloTracker.js";
 

@@ -275,3 +275,22 @@ bound, subject mode, and HMAC secret. A stale or over-broad CIDR list can turn a
 network boundary into attacker-controlled identity input.
 
 \n
+
+## Multi-instance defaults (AI_GATEWAY_MULTI_INSTANCE=true)
+
+Set `AI_GATEWAY_MULTI_INSTANCE=true` to declare a same-host, multi-process
+deployment. With the flag on and no explicit store-mode envs:
+
+- HTTP rate limiting defaults to the cross-process **SQLite** backend
+  (`.data/rate-limits.sqlite`).
+- Idempotency dedup defaults to the shared **SQLite** store
+  (`.data/idempotency.sqlite`); the required HMAC secret is loaded from — or
+  first generated into — `.data/shared-hmac-secret.key` (0600) so every
+  process derives identical request identities.
+- The JSONL response cache and knowledge SQLite store are already
+  file-backed and shared by default.
+
+Explicit `AI_GATEWAY_RATE_LIMIT_STORE_MODE` /
+`AI_GATEWAY_IDEMPOTENCY_STORE_MODE` configuration always wins (use the
+postgres modes for cross-host instances). Cross-process store behavior is
+covered by `apps/ai-gateway-service/src/http/multiInstanceConfig.test.js`.

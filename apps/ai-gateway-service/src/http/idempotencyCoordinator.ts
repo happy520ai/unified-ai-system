@@ -6,6 +6,7 @@ import {
 } from "./postgresIdempotencyCoordinator.ts";
 import { createSqliteIdempotencyCoordinator } from "./sqliteIdempotencyCoordinator.ts";
 import { createRequestIdentityResolver, parseTrustedProxyCidrs } from "./requestIdentity.ts";
+import { isMultiInstanceEnabled, loadOrCreateSharedSecret } from "./multiInstanceConfig.js";
 
 type IdempotencyRequest = {
   headers?: IncomingHttpHeaders;
@@ -108,7 +109,13 @@ const MAX_KEY_LENGTH = 255;
 export function createIdempotencyCoordinator(options: IdempotencyCoordinatorOptions = {}): IdempotencyCoordinator {
   const env = options.env ?? process.env;
   const now = options.now ?? Date.now;
-  const storeMode = options.storeMode ?? normalizeStoreMode(env.AI_GATEWAY_IDEMPOTENCY_STORE_MODE);
+  const explicitMode = options.storeMode
+    ?? (env.AI_GATEWAY_IDEMPOTENCY_STORE_MODE === undefined || env.AI_GATEWAY_IDEMPOTENCY_STORE_MODE === ""
+      ? undefined
+      : normalizeStoreMode(env.AI_GATEWAY_IDEMPOTENCY_STORE_MODE));
+  // 多实例（同主机多进程）且未显式指定存储时,默认 sqlite 共享去重表。
+  const multiInstance = isMultiInstanceEnabled(env) && explicitMode === undefined;
+  const storeMode = multiInstance ? "sqlite" : (explicitMode ?? "memory");
   const ttlMs = readBoundedNumber(
     options.ttlMs ?? env.AI_GATEWAY_IDEMPOTENCY_TTL_MS,
     DEFAULT_TTL_MS,
@@ -127,7 +134,12 @@ export function createIdempotencyCoordinator(options: IdempotencyCoordinatorOpti
     1,
     16 * 1_048_576,
   );
-  const configuredSecret = options.secret ?? env.AI_GATEWAY_IDEMPOTENCY_HMAC_SECRET;
+  let configuredSecret = options.secret ?? env.AI_GATEWAY_IDEMPOTENCY_HMAC_SECRET;
+  if (multiInstance && (!configuredSecret || Buffer.byteLength(configuredSecret) < 32)) {
+    // 自动 sqlite 路径:从共享文件加载/生成 secret,保证多进程签名一致。
+    const shared = loadOrCreateSharedSecret({ env });
+    if (shared) configuredSecret = shared;
+  }
   if ((storeMode === "sqlite" || storeMode === "postgres")
     && (!configuredSecret || Buffer.byteLength(configuredSecret) < 32)) {
     throw new Error(`AI_GATEWAY_IDEMPOTENCY_HMAC_SECRET must contain at least 32 bytes in ${storeMode} mode.`);
@@ -186,7 +198,10 @@ export function createIdempotencyCoordinator(options: IdempotencyCoordinatorOpti
     });
   }
   if (storeMode === "sqlite") {
-    const sqlitePath = options.sqlitePath ?? env.AI_GATEWAY_IDEMPOTENCY_SQLITE_PATH;
+    const sqlitePath = options.sqlitePath
+      ?? env.AI_GATEWAY_IDEMPOTENCY_SQLITE_PATH
+      // 多实例自动路径下给共享默认文件;显式 sqlite 模式仍要求显式路径。
+      ?? (multiInstance ? ".data/idempotency.sqlite" : undefined);
     if (!sqlitePath) {
       throw new Error("AI_GATEWAY_IDEMPOTENCY_SQLITE_PATH is required when the idempotency store mode is sqlite.");
     }

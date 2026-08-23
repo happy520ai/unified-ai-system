@@ -245,11 +245,57 @@ export function normalizeSearchText(text) {
     .trim();
 }
 
+const CJK_CHARACTER = /[\u3400-\u9FFF\uF900-\uFAFF]/;
+
+function isCjkCharacter(character) {
+  return CJK_CHARACTER.test(character);
+}
+
+// CJK prose has no word delimiters, so a whitespace-only split collapses a whole
+// Chinese document into one giant term that no Chinese query can ever match.
+// Han runs therefore tokenize into the run itself (short runs read as words)
+// plus overlapping bigrams, which is the standard lightweight CJK match base.
+function tokenizeSegment(segment, terms) {
+  let buffer = "";
+  let bufferIsCjk = null;
+
+  const flush = () => {
+    if (!buffer) return;
+    if (bufferIsCjk) {
+      if (buffer.length <= 4) terms.push(buffer);
+      for (let index = 0; index + 1 < buffer.length; index += 1) {
+        terms.push(buffer.slice(index, index + 2));
+      }
+    } else {
+      terms.push(buffer);
+    }
+    buffer = "";
+  };
+
+  for (const character of segment) {
+    const characterIsCjk = isCjkCharacter(character);
+    if (bufferIsCjk === null) {
+      buffer = character;
+      bufferIsCjk = characterIsCjk;
+      continue;
+    }
+    if (characterIsCjk !== bufferIsCjk) {
+      flush();
+      buffer = character;
+      bufferIsCjk = characterIsCjk;
+      continue;
+    }
+    buffer += character;
+  }
+  flush();
+}
+
 export function tokenize(text) {
-  return normalizeSearchText(text)
-    .split(/\s+/)
-    .map((term) => term.trim())
-    .filter((term) => term && !STOPWORDS.has(term));
+  const terms = [];
+  for (const segment of normalizeSearchText(text).split(" ")) {
+    if (segment) tokenizeSegment(segment, terms);
+  }
+  return terms.filter((term) => term && !STOPWORDS.has(term));
 }
 
 export function findHighlights(text, matchedTerms) {

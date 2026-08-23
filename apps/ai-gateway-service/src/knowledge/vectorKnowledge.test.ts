@@ -50,7 +50,7 @@ const TENANT_A = { tenantId: "tenant-a" };
 const TENANT_B = { tenantId: "tenant-b" };
 
 describe("deterministic embedding provider", () => {
-  it("produces deterministic, normalized vectors of fixed dimension", () => {
+  it("produces deterministic, normalized vectors of fixed dimension", async () => {
     const provider = createDeterministicEmbeddingProvider();
     const first = provider.embedText("知识库向量检索激活");
     const second = provider.embedText("知识库向量检索激活");
@@ -61,7 +61,7 @@ describe("deterministic embedding provider", () => {
     expect(norm).toBeCloseTo(1, 5);
   });
 
-  it("scores related text closer than unrelated text", () => {
+  it("scores related text closer than unrelated text", async () => {
     const provider = createDeterministicEmbeddingProvider();
     const base = provider.embedText("vector retrieval for the knowledge base");
     const related = provider.embedText("knowledge base vector retrieval");
@@ -72,7 +72,7 @@ describe("deterministic embedding provider", () => {
 });
 
 describe("vector retrieval mode", () => {
-  it("loads documents and retrieves them by vector similarity", () => {
+  it("loads documents and retrieves them by vector similarity", async () => {
     const service = createVectorService();
     service.loadDocuments({
       sourceId: "vector-docs",
@@ -82,7 +82,7 @@ describe("vector retrieval mode", () => {
       ],
     }, { tenantScopeIdentity: TENANT_A });
 
-    const result = service.retrieve({ query: "quantum qubits superposition", mode: "vector", topK: 2 }, { tenantScopeIdentity: TENANT_A });
+    const result = await service.retrieve({ query: "quantum qubits superposition", mode: "vector", topK: 2 }, { tenantScopeIdentity: TENANT_A });
     expect(result.mode).toBe("vector");
     expect(result.chunks.length).toBeGreaterThan(0);
     expect(result.chunks[0].document.documentId).toBe("vec-1");
@@ -90,34 +90,33 @@ describe("vector retrieval mode", () => {
     expect(result.chunks[0].vector.embeddingId).toBe("deterministic-hash-v1");
   });
 
-  it("never leaks another tenant's documents through vector results", () => {
+  it("never leaks another tenant's documents through vector results", async () => {
     const service = createVectorService();
     service.loadDocuments({
       sourceId: "shared-source-id",
       documents: [{ documentId: "secret", title: "Tenant A private", text: "tenant A confidential quantum research notes" }],
     }, { tenantScopeIdentity: TENANT_A });
 
-    const result = service.retrieve({ query: "tenant A confidential quantum research notes", mode: "vector", topK: 5 }, { tenantScopeIdentity: TENANT_B });
+    const result = await service.retrieve({ query: "tenant A confidential quantum research notes", mode: "vector", topK: 5 }, { tenantScopeIdentity: TENANT_B });
     expect(result.chunks.every((chunk: { document: { documentId: string } }) => chunk.document.documentId !== "secret")).toBe(true);
   });
 
-  it("keeps keyword mode unchanged and reports both modes in health", () => {
+  it("keeps keyword mode unchanged and reports both modes in health", async () => {
     const service = createVectorService();
     const health = service.getHealth({ tenantScopeIdentity: TENANT_A });
     expect(health.mode).toBe("local-keyword+vector");
     expect(health.supportedModes).toEqual(["keyword", "vector"]);
     expect(health.embedding).toBe("deterministic-hash-v1");
 
-    const keyword = service.retrieve({ query: "defect report template", mode: "keyword" }, { tenantScopeIdentity: TENANT_A });
+    const keyword = await service.retrieve({ query: "defect report template", mode: "keyword" }, { tenantScopeIdentity: TENANT_A });
     expect(keyword.mode).toBe("keyword");
   });
 
-  it("rejects vector mode cleanly when the store is unavailable", () => {
+  it("rejects vector mode cleanly when the store is unavailable", async () => {
     const service = createLocalKnowledgeService({
       env: { KNOWLEDGE_INFRA_MODE: "local-keyword" },
       vectorEnabled: false,
     });
-    expect(() => service.retrieve({ query: "anything", mode: "vector" }, { tenantScopeIdentity: TENANT_A }))
-      .toThrowError();
+    await expect(service.retrieve({ query: "anything", mode: "vector" }, { tenantScopeIdentity: TENANT_A })).rejects.toThrowError();
   });
 });

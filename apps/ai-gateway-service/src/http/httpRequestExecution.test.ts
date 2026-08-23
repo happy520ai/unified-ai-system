@@ -76,4 +76,26 @@ describe("HTTP request execution scope", () => {
     expect(events).toEqual([scope.context]);
     scope.cleanup();
   });
+
+  it("stamps the server identity onto gateway inputs and strips client spoofing", async () => {
+    const transport = createTransport();
+    const scope = createHttpRequestExecutionScope({ ...transport, timeoutMs: 10_000 });
+    const identity = { tenantId: "tenant-a", role: "operator" };
+    const seen: unknown[] = [];
+    const execute = vi.fn(async (input: unknown) => {
+      seen.push(input);
+      return input;
+    });
+    const bound = bindGatewayExecution({ execute }, scope.context, () => identity);
+
+    const spoofed = { messages: [], enterpriseIdentity: { tenantId: "attacker" } };
+    await bound.execute(spoofed);
+    expect(seen[0]).toMatchObject({ enterpriseIdentity: { tenantId: "tenant-a" } });
+    expect((seen[0] as Record<string, unknown>).enterpriseIdentity).toBe(identity);
+
+    const anonymous = bindGatewayExecution({ execute }, scope.context);
+    await anonymous.execute({ messages: [], enterpriseIdentity: { tenantId: "attacker" } });
+    expect(seen[1]).not.toHaveProperty("enterpriseIdentity");
+    scope.cleanup();
+  });
 });

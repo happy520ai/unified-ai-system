@@ -183,6 +183,44 @@ export async function dispatchHttpRoutes02(context) {
     return;
   }
 
+  // 自有 key 用量查询：虚拟 key 持有者查看本 key 的实时预算/限流状态，
+  // 不暴露其他 key 或租户数据。
+  if (request.method === "GET" && url.pathname === "/usage/my-key") {
+    const fingerprint = request.enterpriseIdentity?.apiKeyFingerprint;
+    if (!fingerprint) {
+      writeJson(response, 403, createErrorEnvelope(
+        "USAGE_MY_KEY_VIRTUAL_KEY_REQUIRED",
+        "Only virtual-key callers (uai- keys) can query their own key usage.",
+        { startedAt, category: "auth" },
+      ));
+      return;
+    }
+    const manager = enterpriseGovernanceService?.getApiKeyManager?.();
+    if (!manager) {
+      writeJson(response, 200, createOkEnvelope({
+        enabled: false,
+        reason: "virtual_key_manager_unavailable",
+        keyFingerprint: fingerprint,
+      }, { startedAt }));
+      return;
+    }
+    const usage = manager.describeUsage({ keyId: fingerprint });
+    if (!usage) {
+      writeJson(response, 404, createErrorEnvelope(
+        "USAGE_MY_KEY_NOT_FOUND",
+        "No active virtual key matches the caller identity; it may have been revoked.",
+        { startedAt, category: "auth" },
+      ));
+      return;
+    }
+    writeJson(response, 200, createOkEnvelope({
+      enabled: true,
+      keyFingerprint: fingerprint,
+      key: usage,
+    }, { startedAt }));
+    return;
+  }
+
   if (request.method === "GET" && url.pathname === "/metrics") {
     const exporter = createPrometheusExporter({ prefix: "ai_gateway" });
     const healthSnapshot = createHealth(application);
@@ -222,9 +260,10 @@ export async function dispatchHttpRoutes02(context) {
       lifecycle,
       idempotency,
       webSocketLease,
-      latency: stats.avgLatencyMs
-        ? { p50: stats.avgLatencyMs, p95: stats.avgLatencyMs, p99: stats.avgLatencyMs }
-        : undefined,
+      latency: stats.latencyQuantiles
+        ?? (stats.avgLatencyMs
+          ? { p50: stats.avgLatencyMs, p95: stats.avgLatencyMs, p99: stats.avgLatencyMs }
+          : undefined),
       totalErrors: Math.round((stats.totalRequests ?? 0) * (stats.errorRate ?? 0)),
       providerScores: application?.healthScorer?.getAllScores?.() ?? {},
       ai: getAiMetricsSnapshot(),

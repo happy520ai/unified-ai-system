@@ -6,6 +6,7 @@ import { createFakeProvider } from "../providers/fakeProvider.js";
 import { createOpenAIAdapter } from "../providers/openAiAdapter.js";
 import { createNvidiaAdapter } from "../providers/nvidiaAdapter.js";
 import { createAnthropicAdapter } from "../providers/anthropicAdapter.js";
+import { createGeminiAdapter } from "../providers/geminiAdapter.ts";
 import { createHttpLLMProviderAdapter } from "../providers/httpLlmProviderAdapter.js";
 import { createRuntimeCredentialStore } from "../providers/runtimeCredentialStore.js";
 import { createModelImportService } from "../model-import/modelImportService.js";
@@ -13,6 +14,7 @@ import { createModelLibraryStore } from "../model-library/modelLibraryStore.js";
 import { createProviderKeyConfigStore } from "../provider-config/providerKeyConfigStore.js";
 import { createProviderConfigRoutes } from "../provider-config/providerConfigRoutes.js";
 import { GatewayService } from "../core/gatewayService.js";
+import { createWeightedTrafficPolicy } from "../routing/weightedTrafficPolicy.js";
 import { createPriorityProviderSelectionPolicy } from "../core/providerSelectionPolicy.js";
 import { createProviderHealthScorer } from "../providers/providerHealthScorer.js";
 import { createRequestLogger } from "../logging/requestLogger.js";
@@ -27,6 +29,7 @@ import { createUserExperienceService } from "../capabilities/userExperienceServi
 import { createCapabilityRouterService } from "../capabilities/capabilityRouterService.js";
 import { createEnterpriseGovernanceService } from "../enterprise/enterpriseGovernanceService.js";
 import { createAdvancedRBAC } from "../enterprise/advancedRBAC.js";
+import { createResponseSessionStore } from "../responses/responseSessionStore.js";
 import { createEnterpriseOpsService } from "../enterprise/enterpriseOpsService.js";
 import { createCodexExecCrsRuntimeCandidate } from "../runtime-candidate/codexExecCrsRuntimeCandidate.js";
 import { createFiveCapabilityActivationService } from "../real-capabilities/fiveCapabilityActivationService.js";
@@ -67,6 +70,10 @@ export function createGatewayApplication(env = process.env) {
   }
   restoreRuntimeCredentialProviders({ providerRegistry, runtimeCredentialStore });
 
+  // OpenAI Responses compatibility: previous_response_id chaining state.
+  // Memory-only with TTL; stores normalized message text, never credentials.
+  const responseSessionStore = createResponseSessionStore({ env });
+
   const modelLibraryStore = createModelLibraryStore({
     env,
     runtimeCredentialStore,
@@ -101,10 +108,15 @@ export function createGatewayApplication(env = process.env) {
   });
   const gatewayService = new GatewayService({
     providerRegistry,
+    // 运营可配加权分流/影子流量(AI_GATEWAY_WEIGHTED_ROUTES_JSON);未配置时策略禁用、零行为变化。
+    weightedTrafficPolicy: createWeightedTrafficPolicy({ env }),
     runtimeConfig: {
       providerMode: config.aiGatewayService.providerMode,
       realProviderEnabled: config.aiGatewayService.realProviderEnabled,
       fallbackEnabled: config.aiGatewayService.fallbackEnabled,
+      // Long-conversation compaction via the unified context compaction
+      // engine; thresholds of 0 disable it.
+      chatContextCompaction: config.aiGatewayService.chatContextCompaction,
       // Opt-in enforcement of the token-cost guard before any provider call.
       // Off by default to preserve the credential-free fake-provider default.
       costGuardEnforce: String(env.AI_GATEWAY_COST_GUARD_ENFORCE ?? "").toLowerCase() === "true",
@@ -192,6 +204,7 @@ export function createGatewayApplication(env = process.env) {
     providerConfigRoutes,
     providerKeyConfigStore,
     providerRegistry,
+    responseSessionStore,
     runtimeEnv: env,
     runtimeCredentialStore,
     requestLogger,
@@ -234,6 +247,7 @@ function isRuntimeCredentialCapableProvider(modelConfig) {
   return providerType === "openai" ||
     providerType === "nvidia" ||
     providerType === "anthropic" ||
+    providerType === "gemini" ||
     providerType === "http-llm" ||
     providerType === "openai-compatible";
 }
@@ -259,6 +273,10 @@ function createProviderAdapter(modelConfig, config, runtimeCredentialStore, env)
 
   if (modelConfig.providerType === "anthropic" || modelConfig.providerId === "anthropic") {
     return createAnthropicAdapter(modelConfig, options);
+  }
+
+  if (modelConfig.providerType === "gemini" || modelConfig.providerId === "gemini") {
+    return createGeminiAdapter(modelConfig, options);
   }
 
   return createHttpLLMProviderAdapter(modelConfig, options);

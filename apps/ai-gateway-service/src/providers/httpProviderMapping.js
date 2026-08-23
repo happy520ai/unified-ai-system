@@ -176,6 +176,9 @@ export function mapGatewayRequestToChatCompletions(providerRequest) {
   if (typeof request.parallelToolCalls === "boolean") {
     body.parallel_tool_calls = request.parallelToolCalls;
   }
+  if (request.options?.reasoningEffort) {
+    body.reasoning_effort = request.options.reasoningEffort;
+  }
   const responseFormat = request.metadata?.openAiCompatibility?.responseFormat;
   if (responseFormat) {
     body.response_format = responseFormat;
@@ -211,6 +214,11 @@ export function mapChatCompletionsResponseToProviderResponse(body, { providerReq
   const content = apiMessage?.content ?? "";
   const text = content || `[${providerRequest.target.providerId}:${providerRequest.target.modelId}] empty response`;
 
+  // Reasoning capture: DeepSeek-style `reasoning_content`, Anthropic-via-OpenAI
+  // `reasoning: { content }`, or a plain `reasoning` string. Only surfaced —
+  // never re-sent to providers that did not ask for it.
+  const reasoningContent = readReasoningContent(apiMessage);
+
   const rawToolCalls = apiMessage?.tool_calls;
   let parsedToolCalls = null;
   if (Array.isArray(rawToolCalls) && rawToolCalls.length > 0) {
@@ -226,6 +234,9 @@ export function mapChatCompletionsResponseToProviderResponse(body, { providerReq
     role: "assistant",
     content: text,
   };
+  if (reasoningContent) {
+    message.reasoningContent = reasoningContent;
+  }
   if (Array.isArray(rawToolCalls) && rawToolCalls.length > 0) {
     message.tool_calls = rawToolCalls;
   }
@@ -238,6 +249,7 @@ export function mapChatCompletionsResponseToProviderResponse(body, { providerReq
       inputTokens: body?.usage?.prompt_tokens ?? 0,
       outputTokens: body?.usage?.completion_tokens ?? 0,
       totalTokens: body?.usage?.total_tokens ?? 0,
+      reasoningTokens: body?.usage?.completion_tokens_details?.reasoning_tokens ?? 0,
     },
     latencyMs,
     executionStatus: "success",
@@ -247,6 +259,19 @@ export function mapChatCompletionsResponseToProviderResponse(body, { providerReq
       finishReason: choice?.finish_reason,
     },
   });
+}
+
+function readReasoningContent(apiMessage) {
+  if (!apiMessage || typeof apiMessage !== "object") return "";
+  if (typeof apiMessage.reasoning_content === "string") {
+    return apiMessage.reasoning_content.trim() ? apiMessage.reasoning_content : "";
+  }
+  const reasoning = apiMessage.reasoning;
+  if (typeof reasoning === "string") return reasoning.trim() ? reasoning : "";
+  if (reasoning && typeof reasoning === "object" && typeof reasoning.content === "string") {
+    return reasoning.content.trim() ? reasoning.content : "";
+  }
+  return "";
 }
 
 // ── Stream Parsing ──
@@ -328,7 +353,13 @@ export async function* readChatCompletionsStream(response, providerRequest, sign
         return;
       }
 
-      if (parsed?.textDelta) {
+      // Yield chunks that carry text, tool-call deltas, or a finish reason.
+      // Tool-only deltas often have empty content — dropping them would lose
+      // function calls on providers that emit them in one piece.
+      if (
+        parsed
+        && (parsed.textDelta || Array.isArray(parsed.raw?.toolCallsDelta) || parsed.raw?.finishReason)
+      ) {
         yield parsed;
       }
     }
@@ -336,7 +367,10 @@ export async function* readChatCompletionsStream(response, providerRequest, sign
 
   const remaining = parseStreamLine(buffer);
 
-  if (remaining?.textDelta) {
+  if (
+    remaining
+    && (remaining.textDelta || Array.isArray(remaining.raw?.toolCallsDelta) || remaining.raw?.finishReason)
+  ) {
     yield remaining;
   }
 }

@@ -28,6 +28,10 @@ Public documentation is grouped by task so the repo stays easy to scan.
 ## Product References
 
 - [Architecture](architecture.md)
+- [Gemini provider](gemini-provider.md)
+- [Chat guardrails](guardrails.md)
+- [Spend reporting](spend-reporting.md)
+- [Gateway benchmark (2026-08)](benchmarks/2026-08-gateway-benchmark.md)
 - [Codex MCP server](../packages/mcp-server/README.md)
 - [Installable Agent Skill](https://skills.sh/happy520ai/unified-ai-system/unified-ai-gateway)
 - [Readiness & observability](readiness-observability-guide.md)

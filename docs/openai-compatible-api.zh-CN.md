@@ -176,11 +176,23 @@ curl http://127.0.0.1:3100/v1/chat/completions \
 | `temperature`、`top_p`、`max_output_tokens` | 映射到网关生成参数。 |
 | `metadata` | 保留在响应和网关请求元数据中。 |
 | `text.format` | 仅支持 `{ "type": "text" }`。 |
-| `store` | 可省略、设为 `false` 或 `null`；尚未实现响应查询。 |
+| `store` | 可选布尔值，默认 `true`。存储的响应用于 `previous_response_id` 会话续接。 |
+| `previous_response_id` | 续接已存储的会话：网关在新输入前重放存储上下文（指令、历史轮次、工具调用与 assistant 输出）。未知或过期的 id 返回 `404`，`code: "response_not_found"`。 |
+| `reasoning` | 可选 `{ "effort": "minimal" \| "low" \| "medium" \| "high" \| "xhigh", "summary": "auto" \| "concise" \| "detailed" }`。`effort` 以 `reasoning_effort` 透传给支持的 provider 并回显。provider 返回的推理内容会被捕获为 `reasoning` 输出项、保留在会话中，并在续接轮次作为有界上下文回放，让多轮 agent 不必反复重推结论。客户端回发的 `reasoning` 输入项会被接受并丢弃（计入 `unified_ai` 元数据）。 |
+| `tools` | 扁平 Responses 格式的函数工具（`{ type: "function", name, description, parameters, strict }`），映射到 chat 工具契约。`web_search` 等内置工具会被拒绝。 |
+| `tool_choice` | `"none"`、`"auto"`、`"required"` 或 `{ "type": "function", "name" }`。 |
+| `parallel_tool_calls` | 可选布尔值。 |
+| `input` 项 | 支持 `message`、`function_call`（assistant 工具调用）、`function_call_output`（工具结果）与 `reasoning` 项；其余项类型会被拒绝。 |
 | `unified_ai` | 支持相同的 provider 选择和本地提示词增强控制。 |
 
-响应包含已完成的 assistant 消息、`output_text`、token usage 和 `unified_ai`
-执行证据。这个档位尚未实现会话状态、响应查询/删除、工具、后台执行和非文本内容。
+响应包含已完成的输出项（provider 返回推理内容时的 `reasoning` 项、
+选择函数时的 `function_call` 项，以及 assistant `message`）、`output_text`、
+token usage 和 `unified_ai` 执行证据。响应会话保存在内存中并带 TTL
+（`AI_GATEWAY_RESPONSE_SESSION_TTL_MS`，默认 30 分钟，`0` 关闭续接）和容量上限
+（`AI_GATEWAY_RESPONSE_SESSION_MAX_ENTRIES`，默认 256，最近最少使用淘汰）。
+会话只保存归一化后的消息文本与捕获的推理摘要，绝不保存凭据或原始
+provider 负载。按 id 查询/删除响应、后台执行、远程图片、文件和音频内容
+在这个档位尚未实现。
 
 ## 无凭据验证
 

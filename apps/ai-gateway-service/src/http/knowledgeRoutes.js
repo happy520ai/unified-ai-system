@@ -128,7 +128,7 @@ export function createKnowledgeRoutes(application, helpers) {
     }
 
     try {
-      const result = knowledgeService.retrieve(validation.data, { tenantScopeIdentity: req.enterpriseIdentity });
+      const result = await knowledgeService.retrieve(validation.data, { tenantScopeIdentity: req.enterpriseIdentity });
       writeServiceLog("knowledge_retrieve_completed", { method: "POST", path: "/knowledge/retrieve", chunkCount: result.chunks.length, durationMs: Date.now() - startedAt });
       writeJson(res, 200, createOkEnvelope(result, { startedAt }));
     } catch (error) {

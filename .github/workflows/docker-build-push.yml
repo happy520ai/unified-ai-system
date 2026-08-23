@@ -304,16 +304,18 @@ jobs:
           }
           pull_with_retry "${image}"
           pull_with_retry "${mcp_image}"
+          # 直接以 node 调用 CLI：pnpm run 的 verify-deps 检查在非 root 的
+          # /app 下会偶发触发重装/清库；镜像内依赖已由 frozen-lockfile 锁定。
           docker run --rm \
             --env AI_GATEWAY_PROVIDER_MODE=fake \
             --env AI_GATEWAY_REAL_PROVIDER_ENABLED=false \
             "${image}" \
-            pnpm gateway demo --json 2>&1 | tee .tmp/docker-published-gateway-demo.json
+            node apps/agent-console/src/cli.js demo --json 2>&1 | tee .tmp/docker-published-gateway-demo.json
           docker run --rm \
             --env AI_GATEWAY_PROVIDER_MODE=fake \
             --env AI_GATEWAY_REAL_PROVIDER_ENABLED=false \
             "${image}" \
-            pnpm smoke:mcp --json 2>&1 | tee .tmp/docker-published-mcp-smoke.json
+            node tools/mcp-smoke.mjs --json 2>&1 | tee .tmp/docker-published-mcp-smoke.json
           node tools/mcp-smoke.mjs \
             --docker-image="${mcp_image}" \
             --json 2>&1 | tee .tmp/docker-published-tools-mcp-smoke.json

@@ -85,17 +85,39 @@ export function createHttpRequestExecutionScope(
 export function bindGatewayExecution<TService extends object>(
   gatewayService: TService,
   execution: GatewayExecutionContext,
+  identityProvider?: () => unknown,
 ): TService {
   return new Proxy(gatewayService, {
     get(target, property, receiver) {
       if (property === "execute" || property === "executeStream") {
         const operation = Reflect.get(target, property, receiver);
-        return (input: unknown) => operation.call(target, input, execution);
+        return (input: unknown) => operation.call(target, withServerIdentity(input, identityProvider?.()), execution);
       }
       const value = Reflect.get(target, property, receiver);
       return typeof value === "function" ? value.bind(target) : value;
     },
   });
+}
+
+// The gateway usage ledger attributes records per tenant from the request's
+// enterprise identity. Route handlers build gateway inputs from client bodies,
+// so without this stamp every record collapses to the "default" tenant (and a
+// client could spoof attribution via a body field). The provider resolves the
+// identity lazily at execute time, after authorization has attached it.
+function withServerIdentity(input: unknown, identity: unknown): unknown {
+  if (input === null || typeof input !== "object" || Array.isArray(input)) return input;
+  const record = input as Record<string, unknown>;
+  try {
+    if (identity && typeof identity === "object") {
+      record.enterpriseIdentity = identity;
+    } else {
+      delete record.enterpriseIdentity;
+    }
+  } catch {
+    // Frozen inputs keep their original attribution; the ledger then falls
+    // back to its conservative default rather than trusting client data.
+  }
+  return record;
 }
 
 function createClientDisconnectedError(phase: string): ExecutionAbortError {

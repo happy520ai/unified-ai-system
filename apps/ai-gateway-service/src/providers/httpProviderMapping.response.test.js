@@ -24,7 +24,7 @@ describe("HTTP provider response mapping", () => {
     });
 
     expect(response.text).toBe("hi there");
-    expect(response.usage).toEqual({ inputTokens: 10, outputTokens: 5, totalTokens: 15 });
+    expect(response.usage).toEqual({ inputTokens: 10, outputTokens: 5, totalTokens: 15, reasoningTokens: 0 });
     expect(response.latencyMs).toBe(42);
     expect(response.executionStatus).toBe("success");
     expect(response.message).toEqual({ role: "assistant", content: "hi there" });
@@ -44,7 +44,28 @@ describe("HTTP provider response mapping", () => {
       choices: [{ message: { role: "assistant", content: "ok" } }],
     }, { providerRequest: providerRequest() });
 
-    expect(response.usage).toEqual({ inputTokens: 0, outputTokens: 0, totalTokens: 0 });
+    expect(response.usage).toEqual({ inputTokens: 0, outputTokens: 0, totalTokens: 0, reasoningTokens: 0 });
+  });
+
+  it("captures reasoning content and reasoning token usage", () => {
+    const response = mapChatCompletionsResponseToProviderResponse({
+      choices: [{
+        message: {
+          role: "assistant",
+          content: "answer",
+          reasoning_content: "thought through the options",
+        },
+      }],
+      usage: {
+        prompt_tokens: 10,
+        completion_tokens: 5,
+        total_tokens: 15,
+        completion_tokens_details: { reasoning_tokens: 4 },
+      },
+    }, { providerRequest: providerRequest() });
+
+    expect(response.message.reasoningContent).toBe("thought through the options");
+    expect(response.usage.reasoningTokens).toBe(4);
   });
 
   it("parses tool calls with JSON arguments", () => {

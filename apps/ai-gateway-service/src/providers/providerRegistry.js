@@ -25,6 +25,7 @@ export class ProviderRegistry {
     }
 
     this.#providers.set(providerId, provider);
+    this.#registryVersion += 1;
   }
 
   has(providerId) {
@@ -37,6 +38,7 @@ export class ProviderRegistry {
     }
 
     this.enabledProviders.add(providerId);
+    this.#registryVersion += 1;
   }
 
   addRuntimeModels(providerId, models = []) {
@@ -82,8 +84,18 @@ export class ProviderRegistry {
     return this.listAll().map((provider) => this.#createMergedDescriptor(provider));
   }
 
+  // 版本化缓存:register/unregister/enable 变更时失效;避免每请求重建全部 descriptor。
+  #descriptorCache = { version: -1, list: null };
+  #registryVersion = 0;
+
   listDescriptors() {
-    return this.list().map((provider) => this.#createMergedDescriptor(provider));
+    if (this.#descriptorCache.version !== this.#registryVersion) {
+      this.#descriptorCache = {
+        version: this.#registryVersion,
+        list: Object.freeze(this.list().map((provider) => this.#createMergedDescriptor(provider))),
+      };
+    }
+    return this.#descriptorCache.list;
   }
 
   select(request) {

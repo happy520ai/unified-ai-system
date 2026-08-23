@@ -6,6 +6,15 @@ export { summarizeGitDiff } from "./gitDiffSummarizer.js";
 export { selectRelevantFiles } from "./relevantFileSelector.js";
 export { buildTokenBudgetReport, TOKEN_BUDGET_POLICIES } from "./tokenBudgetPolicy.js";
 export { compressLongContext } from "./longContextCompressor.js";
+export {
+  DEFAULT_COMPACTION_POLICY,
+  compactMessageHistory,
+  compactStructuredContext,
+  defineCompactionPolicy,
+  estimateContextTokens,
+  extractConversationTurns,
+  summarizeConversationTurns,
+} from "./unifiedContextCompactor.ts";
 export { buildCodexPromptPack } from "./codexPromptBuilder.js";
 export { buildSnapshotPolicy, buildContextHash } from "./contextHashPolicy.js";
 export { detectContextFreshness } from "./contextFreshnessDetector.js";

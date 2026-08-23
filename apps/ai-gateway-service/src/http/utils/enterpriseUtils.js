@@ -297,6 +297,8 @@ export function resolvePermission(method, pathname) {
   if (
     normalizedPath === "/enterprise/virtual-keys"
     || normalizedPath === "/enterprise/virtual-keys/revoke"
+    || normalizedPath === "/enterprise/guardrails"
+    || normalizedPath === "/enterprise/spend-report"
   ) {
     return "user:admin";
   }
@@ -396,8 +398,34 @@ export function resolvePermission(method, pathname) {
     || (normalizedMethod === "GET" && /^\/models\/[^/]+$/.test(normalizedPath))
     || (normalizedMethod === "GET" && /^\/v1\/engines\/[^/]+$/.test(normalizedPath))
     || (normalizedMethod === "GET" && /^\/engines\/[^/]+$/.test(normalizedPath))
+    || (normalizedMethod === "GET" && normalizedPath === "/v1beta/models")
   ) {
     return "provider:read";
+  }
+
+  if (
+    normalizedPath === "/forge/polish"
+    || normalizedPath === "/forge/memory"
+  ) {
+    return "chat:use";
+  }
+
+  if (
+    normalizedPath === "/taiji/compile"
+    || normalizedPath === "/workforce/preview"
+    || normalizedPath === "/forge/quality"
+    || normalizedPath === "/forge/orchestrate"
+    || normalizedPath === "/forge/runs"
+  ) {
+    return "workflow:run";
+  }
+
+  if (
+    normalizedPath === "/forge/status"
+    || normalizedPath === "/forge/consensus"
+    || normalizedPath === "/forge/memory/stats"
+  ) {
+    return "dashboard:read";
   }
 
   if (normalizedPath.startsWith("/knowledge/") && normalizedMethod === "GET") {
@@ -466,6 +494,7 @@ export function resolvePermission(method, pathname) {
     normalizedPath === "/audio/transcriptions" ||
     /^\/openai\/deployments\/[^/]+\/(chat\/completions|completions|responses)(\/?)$/.test(normalizedPath) ||
     /^\/v1\/engines\/[^/]+\/(chat\/completions|completions)(\/?)$/.test(normalizedPath) ||
+    /^\/v1\/responses\/resp_[A-Za-z0-9_-]{1,64}$/.test(normalizedPath) ||
     normalizedPath === "/chat/completions" ||
     normalizedPath === "/completions" ||
     normalizedPath === "/responses" ||
@@ -474,6 +503,7 @@ export function resolvePermission(method, pathname) {
     || normalizedPath === "/v1/completions"
     || normalizedPath === "/v1/responses"
     || normalizedPath === "/v1/messages"
+    || /^\/(?:v1beta|v1)\/models\/[^/:]+:(generateContent|streamGenerateContent|batchGenerateContent)$/.test(normalizedPath)
     || normalizedPath === "/a2a/jsonrpc"
     || normalizedPath === "/chat"
     || normalizedPath === "/chat/stream"
@@ -497,6 +527,8 @@ const EXACT_ROUTE_PERMISSIONS = Object.freeze({
   "POST /knowledge/delete": "knowledge:write",
   "POST /agent-runner/intent-approval-preview": "workflow:run",
   "POST /agent-runner/local-operation": "workflow:run",
+  "POST /agent-exec/run": "workflow:run",
+  "GET /usage/my-key": "chat:use",
   "POST /local-agent/intent-preview": "workflow:run",
   "POST /local-agent/operation-plan": "workflow:run",
   "POST /local-agent/patch-proposal": "workflow:run",

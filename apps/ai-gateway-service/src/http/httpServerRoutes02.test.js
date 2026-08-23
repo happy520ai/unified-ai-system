@@ -628,6 +628,57 @@ describe("dispatchHttpRoutes02 metrics readiness visibility", () => {
     expect(metricsText).toContain('ai_gateway_idempotency_store_available{mode="postgres"} 1');
     expect(metricsText).toContain('ai_gateway_idempotency_entries{mode="postgres",state="total"} 8');
     expect(metricsText).toContain('ai_gateway_idempotency_entries{mode="postgres",state="in_flight"} 2');
-    expect(metricsText).toContain('ai_gateway_idempotency_entries{mode="postgres",state="tombstone"} 2');
+    expect(metricsText).toContain('ai_gateway_idempotency_entries{mode="postgres",state="replayable"} 4');
+  });
+});
+
+describe("dispatchHttpRoutes02 usage/my-key", () => {
+  it("returns the caller's own virtual key usage state", async () => {
+    const describeUsage = () => ({
+      keyId: "fp123",
+      role: "operator",
+      usage: { tokensUsed: 120, limitTokens: 1000 },
+    });
+    const context = createEnvelopeContext({
+      url: { pathname: "/usage/my-key" },
+      request: { method: "GET", enterpriseIdentity: { apiKeyFingerprint: "fp123", tenantId: "default" } },
+      enterpriseGovernanceService: {
+        getApiKeyManager: () => ({ describeUsage }),
+      },
+    });
+
+    await dispatchHttpRoutes02(context);
+
+    expect(context.response.status).toBe(200);
+    expect(context.response.payload.data.enabled).toBe(true);
+    expect(context.response.payload.data.keyFingerprint).toBe("fp123");
+    expect(context.response.payload.data.key.usage.tokensUsed).toBe(120);
+  });
+
+  it("rejects non virtual-key callers", async () => {
+    const context = createEnvelopeContext({
+      url: { pathname: "/usage/my-key" },
+      request: { method: "GET", enterpriseIdentity: { tenantId: "default" } },
+    });
+
+    await dispatchHttpRoutes02(context);
+
+    expect(context.response.status).toBe(403);
+    expect(context.response.payload.error.code).toBe("USAGE_MY_KEY_VIRTUAL_KEY_REQUIRED");
+  });
+
+  it("reports revoked keys as not found", async () => {
+    const context = createEnvelopeContext({
+      url: { pathname: "/usage/my-key" },
+      request: { method: "GET", enterpriseIdentity: { apiKeyFingerprint: "gone", tenantId: "default" } },
+      enterpriseGovernanceService: {
+        getApiKeyManager: () => ({ describeUsage: () => null }),
+      },
+    });
+
+    await dispatchHttpRoutes02(context);
+
+    expect(context.response.status).toBe(404);
+    expect(context.response.payload.error.code).toBe("USAGE_MY_KEY_NOT_FOUND");
   });
 });

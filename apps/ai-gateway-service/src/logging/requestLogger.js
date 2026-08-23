@@ -192,6 +192,24 @@ export function createRequestLogger(options = {}) {
     const cacheHits = records.filter((record) => record.cacheHit).length;
     const fallbacks = records.filter((record) => record.fallbackUsed).length;
 
+    // 真实延迟分位数（nearest-rank）：对最近最多 10000 条记录排序取 p50/p95/p99。
+    const sortedLatencies = records
+      .map((record) => Number(record.latencyMs ?? 0))
+      .filter((value) => Number.isFinite(value))
+      .sort((a, b) => a - b);
+    const latencyQuantile = (q) => (sortedLatencies.length === 0
+      ? 0
+      : sortedLatencies[
+        Math.min(sortedLatencies.length - 1, Math.max(0, Math.ceil(q * sortedLatencies.length) - 1))
+      ]);
+    const latencyQuantiles = sortedLatencies.length > 0
+      ? {
+        p50: latencyQuantile(0.5),
+        p95: latencyQuantile(0.95),
+        p99: latencyQuantile(0.99),
+      }
+      : undefined;
+
     const byProvider = {};
     const byModel = {};
     for (const record of records) {
@@ -216,6 +234,7 @@ export function createRequestLogger(options = {}) {
     return {
       totalRequests,
       avgLatencyMs: Math.round(totalLatency / totalRequests),
+      ...(latencyQuantiles ? { latencyQuantiles } : {}),
       totalTokens,
       totalCostUsd: Math.round(totalCost * 1000000) / 1000000,
       errorRate: errorCount / totalRequests,

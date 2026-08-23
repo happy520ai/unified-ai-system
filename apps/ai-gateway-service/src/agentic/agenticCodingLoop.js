@@ -195,7 +195,7 @@ export function createAgenticLoop(options = {}) {
     // Planning phase
     let plan = null; let planStepIndex = 0;
     if (planningEnabled) {
-      plan = await generatePlan(goal, providerAdapter, buildProviderRequest({ messages, tools, providerId: input.providerId, modelId: input.modelId, maxTokensPerTurn }), maxPlanSteps);
+      plan = await generatePlan(goal, providerAdapter, buildProviderRequest({ messages, tools, providerId: input.providerId, modelId: input.modelId, maxTokensPerTurn, signal: input.signal }), maxPlanSteps);
       if (plan) {
         const planSummary = plan.map(s => `  ${s.step}. ${s.action}`).join("\n");
         const updatedPrompt = enhancedPrompt + `\n\n## Execution Plan\nThe following plan has been generated for this task. Follow it step by step:\n${planSummary}\n\nAfter completing each step, acknowledge which step you completed.`;
@@ -209,7 +209,7 @@ export function createAgenticLoop(options = {}) {
       if (input.signal?.aborted) { status = "cancelled"; finalAnswer = `[Cancelled by user at iteration ${iteration}]`; trace.push({ iteration, type: "cancelled", message: "Loop cancelled by user via AbortSignal.", timestamp: new Date().toISOString() }); break; }
       const iterStartedAt = Date.now();
       compactIfNeeded(messages);
-      const providerRequest = buildProviderRequest({ messages, tools, providerId: input.providerId, modelId: input.modelId, maxTokensPerTurn });
+      const providerRequest = buildProviderRequest({ messages, tools, providerId: input.providerId, modelId: input.modelId, maxTokensPerTurn, signal: input.signal });
       if (input.signal?.aborted) { status = "cancelled"; finalAnswer = `[Cancelled by user at iteration ${iteration}]`; trace.push({ iteration, type: "cancelled", message: "Loop cancelled by user via AbortSignal (before provider call).", timestamp: new Date().toISOString() }); break; }
 
       let providerResponse;
@@ -284,7 +284,7 @@ export function createAgenticLoop(options = {}) {
       if (input.signal?.aborted) { yield createStreamEvent("cancelled", { iteration, message: "Loop cancelled by user via AbortSignal." }); yield createStreamEvent("complete", { sessionId, finalAnswer: `[Cancelled by user at iteration ${iteration}]`, iterations: iteration, status: "cancelled", toolUsage: summarizeToolUsage(allToolResults), usage: totalUsage, durationMs: Date.now() - startedAt }); return; }
       yield createStreamEvent("iteration_start", { iteration, maxIterations });
       compactIfNeeded(messages);
-      const providerRequest = buildProviderRequest({ messages, tools, providerId: input.providerId, modelId: input.modelId, maxTokensPerTurn });
+      const providerRequest = buildProviderRequest({ messages, tools, providerId: input.providerId, modelId: input.modelId, maxTokensPerTurn, signal: input.signal });
       if (input.signal?.aborted) { yield createStreamEvent("cancelled", { iteration, message: "Loop cancelled by user via AbortSignal (before provider call)." }); yield createStreamEvent("complete", { sessionId, finalAnswer: `[Cancelled by user at iteration ${iteration}]`, iterations: iteration, status: "cancelled", toolUsage: summarizeToolUsage(allToolResults), usage: totalUsage, durationMs: Date.now() - startedAt }); return; }
 
       let providerResponse;

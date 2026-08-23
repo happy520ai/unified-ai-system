@@ -11,7 +11,16 @@ public-clone verifier against the managed local fake provider.
   `message_delta`, and `message_stop`.
 - Text message blocks and text system prompts.
 - `model`, `max_tokens`, `temperature`, `top_p`, and `stop_sequences`.
+- Function tools end to end: `tools` (`{ name, description, input_schema }`),
+  `tool_choice` (`{ type: "auto" | "any" | "tool", name? }`), assistant
+  `tool_use` input blocks, user `tool_result` input blocks, `tool_use` output
+  content blocks with `stop_reason: "tool_use"`, and streamed `tool_use`
+  blocks (`content_block_start` + `input_json_delta` + `content_block_stop`).
+  Tools map onto the gateway's shared chat tool contract, so any tool-calling
+  backend provider serves Anthropic clients.
 - Anthropic-shaped validation, authentication, rate-limit, and API errors.
+- Virtual-key budget/rate gates and per-key usage recording, identical to the
+  chat completions and Responses surfaces.
 - Existing gateway provider/model resolution, governance, request limits, and
   disconnect cleanup.
 - Native streaming from the Anthropic provider adapter itself: when a real
@@ -34,10 +43,10 @@ pnpm verify:public-clone
 
 ## Fail-closed boundary
 
-This profile rejects tools, tool results, images, documents, citations,
-thinking blocks, prompt caching controls, batches, token counting, and beta
-features. Unsupported fields return `invalid_request_error`; they are never
-silently dropped or represented as supported.
+This profile rejects images, documents, citations, thinking blocks,
+prompt caching controls, batches, token counting, and beta features.
+Unsupported fields and block types return `invalid_request_error`; they are
+never silently dropped or represented as supported.
 
 The verifier passes a local placeholder key only because the official SDK
 requires a client-side API-key value. The gateway remains in

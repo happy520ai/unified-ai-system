@@ -9,7 +9,139 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
-- Nothing yet.
+- Added OIDC SSO (authorization code + PKCE + JWKS RS256/ES256 ID-token
+  verification, one-time state, issues an API token on login) and SCIM 2.0
+  user provisioning (bearer-auth create/get/list/patch/deactivate) for
+  enterprise IdP integration.
+- Added operator-configurable weighted routing splits and shadow traffic
+  (`AI_GATEWAY_WEIGHTED_ROUTES_JSON`): requests split across providers by
+  weight; shadow calls fire after the primary response, log-only, and never
+  double-bill the usage ledger.
+- Added same-host multi-instance defaults (`AI_GATEWAY_MULTI_INSTANCE=true`):
+  rate limiting and idempotency dedup default to shared SQLite stores with a
+  load-or-generate shared HMAC secret file.
+- Added Anthropic prompt-caching passthrough (message-level
+  `cache_control: ephemeral` breakpoints, ≤4 per request, re-attached on the
+  outbound wire) with `cache_read/creation_input_tokens` mapped into usage
+  for both JSON and streaming responses.
+- Added the Gemini `:batchGenerateContent` inbound endpoint (sequential
+  per-entry execution, per-entry error isolation, ≤16 entries).
+- Added an execution-gates e2e suite and closed the agentic/rag test gap
+  (helpers + source-selection benchmark coverage).
+- Removed both im-connector packages and the gateway-side context-codec
+  adapter dead links (the context-codec-core package stays — codex-context-gateway
+  consumes it), and unwired the taiji-beidou preview hooks from the `/chat`
+  hot paths (ledger D2 cleanup). The initially drafted removals of
+  workforce-contracts, position-library, workforce-scheduler,
+  employee-brain-adapter, and the workforce preview service were rolled back
+  and stay in-tree pending the owner's decision.
+- Fixed Chinese keyword retrieval/RAG: the local tokenizer now emits CJK
+  runs plus overlapping bigrams, so Chinese queries match Chinese documents
+  (whitespace-only tokenization previously made CJK prose unmatchable).
+- Fixed usage-ledger tenant attribution: gateway inputs now carry the
+  server-resolved enterprise identity (stamped at execute time and immune to
+  client spoofing), so /usage/summary and /usage/logs return real per-tenant
+  records instead of collapsing everything into the default tenant.
+- Fixed the native /chat and /chat/stream lane missing the guardrail
+  enforcement (input block/PII redaction and output redaction) that the
+  /v1 protocol lanes already applied.
+- Fixed agent-exec wall-clock timeouts: the abort signal now reaches
+  in-flight provider calls through execution.signal instead of only being
+  checked at iteration boundaries.
+- Fixed the public-clone verifier regression: the official OpenAI SDK
+  example now uses `logprobs` (still unsupported) as its structured-rejection
+  sample now that `n>1` is a supported feature.
+- Added real-worktree and approval gate verification: the workforce execution
+  gates (git worktree isolation and the SHA-256-bound execution approval
+  gate with single-use consumption) are now covered by end-to-end tests
+  against a real temporary git repository, and the execution readiness
+  preflight honestly reports both gates as implemented-and-default-off
+  (`WORKFORCE_EXECUTION_ENABLED` stays the master switch).
+- Added `input_audio` multimodal passthrough on `/v1/chat/completions`
+  (user messages, wav/mp3, base64-validated, ≤4 parts and ≤20MB base64 per
+  part) with verbatim forwarding to OpenAI-compatible providers; the Gemini
+  inbound lane maps `audio/wav` and `audio/mpeg` `inlineData` parts to
+  `input_audio`. `unified_ai.multimodalAudio` metadata reports the outcome.
+- Removed the forge-core package (92k lines, runtime-unwired since 0.5.0) and
+  web-agent entirely, along with the three-mode simulation layer and its
+  routes, telemetry, and permission mappings (subtraction ledger D3/D4).
+  Forge-core fixes shipped earlier in this cycle (real knowledge DELETE,
+  FileSnapshot API, revived incremental tests) were removed with the package;
+  their diffs are preserved in the session baseline notes.
+- Added inbound Gemini compatibility routes: Gemini-native clients can now
+  call `POST /v1beta/models/{model}:generateContent`,
+  `POST /v1beta/models/{model}:streamGenerateContent` (SSE), and
+  `GET /v1beta/models`. Requests reuse the OpenAI normalizer for validation
+  and model resolution, so guardrails, virtual-key budgets, and metrics
+  behave identically across protocol lanes; function calling and inline
+  image parts translate in both directions.
+- Added `n>1` multi-choice support on `/v1/chat/completions` and legacy
+  `/v1/completions` (JSON and streaming, choices indexed; prompt tokens
+  counted once, completion tokens summed). `n` is validated to 1–8.
+- Added `stream_options.include_usage` support on legacy `/v1/completions`
+  with a provider-usage-aware terminal usage chunk.
+- Added opt-in RAG injection for `/v1/chat/completions` via the
+  `unified_ai.rag` request extension (`{ enabled, topK?, sourceIds? }`):
+  the last user message retrieves tenant-scoped knowledge, and the cited
+  context is injected as a system message. Injected context re-passes the
+  guardrails engine; RAG-augmented requests bypass the response cache.
+- Added guardrails coverage for `/v1/responses` and the internal `/chat`
+  and `/chat/stream` routes (input inspection, output redaction, and
+  per-delta SSE redaction — same engine, same tenant overrides as
+  `/v1/chat/completions`).
+- Added A2A streaming: `message/stream` JSON-RPC results are forwarded as
+  SSE `data` events instead of a 501; version-less requests now default to
+  the gateway's advertised protocol version instead of failing.
+- Added a pluggable HTTP embedding provider (OpenAI-compatible
+  `/embeddings`, batch-async) activated by the reserved
+  `KNOWLEDGE_EMBEDDING_*` env contract; the credential-free deterministic
+  provider remains the default and the fallback. Knowledge retrieval is now
+  async-capable end to end.
+- Added a local-ledger billing provider implementing all six
+  `billingProviderAdapter` operations (customers, usage events, invoice
+  issue/void, payment sync) against a durable JSONL ledger, plus manual
+  payment recording. No payment provider is connected; invoices stay
+  clearly labeled as ledger statements, not legal invoices.
+- Added real workforce execution primitives: a single-use TTL-bound task
+  claim token service, an AbortController-backed cancellable execution
+  lifecycle, and a claim-token-gated workflow run handoff. The workforce
+  preflight now reports these as implemented; worktree isolation and real
+  human approval remain the gates before execution can be enabled.
+- Added a `file_key_path` credential vault resolver (CREDENTIAL_VAULT_DIR,
+  traversal-guarded, size-capped) plus an explicit
+  `materializeCredentialRef` for runtime-internal secret access; secrets
+  never appear in logs, audits, or resolution summaries.
+- Added real p50/p95/p99 latency quantiles (nearest-rank over recent
+  request-log records) to `/metrics`; the average-value placeholder remains
+  only as a fallback.
+
+### Changed
+
+- Placeholder executions are now honest: `LocalRunner` marks handler-less
+  tasks `skipped`, and `SubProcessRunner` fails fast with
+  `SCRIPT_PATH_MISSING` instead of reporting fake completions.
+- `DELETE /api/knowledge/:id` in the forge-core API server now deletes the
+  entry and returns 404 for unknown ids instead of a fake 200.
+
+### Added (vision revival, per owner selection)
+
+- Lit up the forge vision families (all except context engineering):
+  governed /forge endpoints (polish, quality, memory, orchestrate, runs,
+  status, consensus) bridging forge-core engines through the gateway
+  provider lane, plus /taiji/compile and /workforce/preview; a 
+  CLI command group; three-mode execution restored and live.
+- Performance (fake lane, single node, same benchmark tool): chat JSON
+  p50 15.7ms → **3.3ms (~4.8×)**, SSE TTFT 2.6ms → **1.6ms** — via
+  background serialized audit writes (no longer blocking responses),
+  versioned provider-registry/model-list caching, and removing the
+  artificial 20ms fake-provider latency.
+
+## [Restoration Note]
+
+The forge-core / web-agent / three-mode / dead-chain removals listed above
+were fully restored on 2026-08-23 at the owner's direction (they carry the
+original design vision); see docs/vision-revival-inventory.md for the
+revival menu.
 
 ## [0.5.0] - 2026-08-15
 

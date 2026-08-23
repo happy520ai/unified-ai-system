@@ -29,7 +29,7 @@ export const DEFAULT_RUNTIME_CONFIG = {
         enabled: true,
         priority: 2,
         capabilities: ["chat", "summary", "vision"],
-        fixedLatencyMs: 20,
+        fixedLatencyMs: 0,
       },
       {
         providerId: "openai",
@@ -41,6 +41,18 @@ export const DEFAULT_RUNTIME_CONFIG = {
         priority: 50,
         capabilities: ["chat", "reasoning", "summary", "vision"],
         endpoint: "https://api.openai.com/v1",
+        dryRun: false,
+      },
+      {
+        providerId: "gemini",
+        modelId: "gemini-2.5-pro",
+        providerType: "gemini",
+        providerDisplayName: "Google Gemini",
+        modelDisplayName: "Gemini 2.5 Pro",
+        enabled: false,
+        priority: 70,
+        capabilities: ["chat", "reasoning", "summary", "vision"],
+        endpoint: "https://generativelanguage.googleapis.com",
         dryRun: false,
       },
       {
@@ -400,5 +412,13 @@ export const DEFAULT_RUNTIME_CONFIG = {
     },
     providerMode: "fake",
     realProviderEnabled: false,
+    // Long-conversation compaction on the chat path: when a request's history
+    // exceeds the message threshold or token budget, older turns are replaced
+    // by a summary from the unified context compaction engine. 0 disables.
+    chatContextCompaction: {
+      thresholdMessages: 60,
+      maxContextTokens: 24_000,
+      keepRecentTurns: 10,
+    },
   },
 };

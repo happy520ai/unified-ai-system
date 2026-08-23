@@ -77,6 +77,37 @@ const CASES = [
     expectedLanguage: "en",
     signals: ["format", "constraints", "audience", "success", "evidence", "environment"],
   },
+  {
+    id: "chinese-entity-and-deliverable-analysis",
+    input: "用 Node.js 和 PostgreSQL 做一个订单查询 API，3 天内交付，返回 JSON",
+    profile: "auto",
+    language: "auto",
+    expectedProfile: "coding",
+    expectedLanguage: "zh-CN",
+    expectedIntent: "create",
+    entities: ["node.js", "postgresql"],
+    deliverableExpected: true,
+  },
+  {
+    id: "chinese-ambiguity-probes",
+    input: "把这个弄好一点，再补一些日志",
+    profile: "auto",
+    language: "auto",
+    expectedProfile: "general",
+    expectedLanguage: "zh-CN",
+    ambiguityKinds: ["reference", "quality", "quantity"],
+  },
+  {
+    id: "agent-target-protocol",
+    input: "帮我修复登录页面的 bug。",
+    profile: "auto",
+    language: "auto",
+    target: "agent",
+    expectedProfile: "coding",
+    expectedLanguage: "zh-CN",
+    expectedIntent: "modify",
+    expectedSections: "context,execution,output,acceptance,agent",
+  },
 ];
 
 function evaluateCase(testCase) {
@@ -84,6 +115,7 @@ function evaluateCase(testCase) {
     input: testCase.input,
     profile: testCase.profile,
     language: testCase.language,
+    ...(testCase.target ? { target: testCase.target } : {}),
   };
   const first = enhanceNaturalLanguagePrompt(request);
   const second = enhanceNaturalLanguagePrompt(request);
@@ -107,11 +139,31 @@ function evaluateCase(testCase) {
     failures.push("credentialRequired was not false");
   }
   if (first.metadata.deterministic !== true) failures.push("deterministic was not true");
-  if (first.sections.map((section) => section.id).join(",") !== "execution,output,acceptance") {
+  if (first.metadata.target !== (testCase.target ?? "model")) {
+    failures.push("metadata.target mismatch");
+  }
+  const expectedSections = testCase.expectedSections ?? "context,execution,output,acceptance";
+  if (first.sections.map((section) => section.id).join(",") !== expectedSections) {
     failures.push("compiled section contract changed");
   }
   for (const signal of testCase.signals ?? []) {
     if (first.signals[signal] !== true) failures.push(`signal ${signal} was not detected`);
+  }
+  if (testCase.expectedIntent && first.analysis?.intent?.kind !== testCase.expectedIntent) {
+    failures.push(`intent=${first.analysis?.intent?.kind}, expected ${testCase.expectedIntent}`);
+  }
+  for (const entity of testCase.entities ?? []) {
+    if (!first.analysis?.entities?.technologies?.includes(entity)) {
+      failures.push(`entity ${entity} was not detected`);
+    }
+  }
+  if (testCase.deliverableExpected && !first.analysis?.deliverable) {
+    failures.push("deliverable was not inferred");
+  }
+  for (const kind of testCase.ambiguityKinds ?? []) {
+    if (!(first.analysis?.ambiguities ?? []).some((ambiguity) => ambiguity.kind === kind)) {
+      failures.push(`ambiguity kind ${kind} was not detected`);
+    }
   }
 
   return {

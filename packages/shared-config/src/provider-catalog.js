@@ -18,7 +18,7 @@ export const DEFAULT_PROVIDER_MODELS = [
     enabled: true,
     priority: 2,
     capabilities: ["chat", "summary", "vision"],
-    fixedLatencyMs: 20,
+    fixedLatencyMs: 0,
   },
   {
     providerId: "openai",
@@ -423,14 +423,14 @@ export const DEFAULT_PROVIDER_MODELS = [
   },
   {
     providerId: "agnes",
-    modelId: "agnes-1",
+    modelId: "agnes-2.0-flash",
     providerType: "openai-compatible",
     providerDisplayName: "Agnes AI",
-    modelDisplayName: "Agnes 1",
+    modelDisplayName: "Agnes 2.0 Flash",
     enabled: false,
     priority: 96,
     capabilities: ["chat", "summary"],
-    endpoint: "https://api.agnes.ai/v1",
+    endpoint: "https://apihub.agnes-ai.com/v1",
     dryRun: false,
   },
   {

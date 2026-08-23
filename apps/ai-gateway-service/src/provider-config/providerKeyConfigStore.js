@@ -41,7 +41,7 @@ export function createProviderKeyConfigStore({ env = process.env, runtimeCredent
 
   function save(body = {}) {
     const providerId = String(body.providerId ?? "openrouter").trim().toLowerCase();
-    const allowedProviders = ["nvidia", "openrouter"];
+    const allowedProviders = readAllowedProviders(env);
     if (!allowedProviders.includes(providerId)) {
       return {
         success: false,
@@ -117,4 +117,19 @@ export function createProviderKeyConfigStore({ env = process.env, runtimeCredent
     save,
     test,
   };
+}
+
+// Env-gated allowlist extension: AI_GATEWAY_PROVIDER_CONFIG_ALLOWED_PROVIDERS
+// is a comma-separated provider id list appended to the built-in pair. Without
+// the env only ["nvidia", "openrouter"] are accepted, matching prior behavior.
+function readAllowedProviders(env) {
+  const raw = String(env.AI_GATEWAY_PROVIDER_CONFIG_ALLOWED_PROVIDERS ?? "").trim();
+  if (!raw) {
+    return ["nvidia", "openrouter"];
+  }
+  const extra = raw
+    .split(",")
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean);
+  return Array.from(new Set(["nvidia", "openrouter", ...extra]));
 }

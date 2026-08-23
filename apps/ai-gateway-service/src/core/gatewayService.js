@@ -13,6 +13,11 @@ import {
 import { normalizeGatewayRequest } from "./requestNormalizer.js";
 import { enforceTokenCostGuard } from "../cost/tokenCostGuard.js";
 import {
+  compactMessageHistory,
+  defineCompactionPolicy,
+  estimateContextTokens,
+} from "@unified-ai-system/codex-context-gateway";
+import {
   extractMessageText,
   findExecutionAbortError,
   throwIfExecutionAborted,
@@ -20,7 +25,7 @@ import {
 
 
 export class GatewayService {
-  constructor({ providerRegistry, runtimeConfig = {}, healthScorer = null, requestLogger = null, governance = null, contentGuardrails = null }) {
+  constructor({ providerRegistry, runtimeConfig = {}, healthScorer = null, requestLogger = null, governance = null, contentGuardrails = null, weightedTrafficPolicy = null }) {
     this.providerRegistry = providerRegistry;
     this.runtimeConfig = runtimeConfig;
     // Optional health scorer — when present, provider call outcomes are recorded
@@ -35,23 +40,42 @@ export class GatewayService {
     // the caller's identity before any provider call is made.
     this.governance = governance;
     this.contentGuardrails = contentGuardrails;
+    // 运营可配的加权分流与影子流量(AI_GATEWAY_WEIGHTED_ROUTES_JSON);未配置时为 null,零行为变化。
+    this.weightedTrafficPolicy = weightedTrafficPolicy ?? null;
   }
 
   async execute(input, execution = {}) {
     const startedAt = Date.now();
     let request;
     let selection;
+    let compactionWarnings = [];
 
     try {
       throwIfExecutionAborted(execution.signal);
       request = normalizeGatewayRequest(input);
+      compactionWarnings = this.#applyContextCompaction(request);
       this.#enforceContentGuardrails(request);
       if (this.runtimeConfig.costGuardEnforce) {
         this.#enforceCostGuard(request);
       }
-      const baseSelection = this.providerRegistry.select(request);
+      let baseSelection = this.providerRegistry.select(request);
       if (this.runtimeConfig.modelAccessEnforce) {
         this.#enforceModelAccess(request, baseSelection);
+      }
+      // 加权分流:运营配置命中时覆写目标 provider(影子请求自身不再套用,防递归)。
+      if (this.weightedTrafficPolicy && !execution.shadow) {
+        const weighted = this.weightedTrafficPolicy.apply(request);
+        if (weighted?.overrideProviderId && weighted.overrideProviderId !== baseSelection.selected.target.providerId) {
+          const shadowOfWeighted = request;
+          shadowOfWeighted.providerId = weighted.overrideProviderId;
+          baseSelection = this.providerRegistry.select(shadowOfWeighted);
+          writeGatewayLog("weighted_route_applied", {
+            requestId: request.context.requestId,
+            routeName: weighted.routeName,
+            provider: weighted.overrideProviderId,
+            durationMs: 0,
+          });
+        }
       }
       const attemptResult = await this.#executeWithFallback(request, baseSelection, startedAt, execution);
       selection = attemptResult.selection;
@@ -64,9 +88,13 @@ export class GatewayService {
         executionStatus: providerResult.executionStatus ?? "success",
         durationMs: Date.now() - startedAt,
       });
-      this.#recordUsage({ request, selection, providerResult, startedAt });
-      const response = createGatewayResponse(request, selection, providerResult, startedAt, this.runtimeConfig, attemptResult.warnings);
+      this.#recordUsage({ request, selection, providerResult, startedAt, shadow: execution.shadow === true });
+      const response = createGatewayResponse(request, selection, providerResult, startedAt, this.runtimeConfig, [...compactionWarnings, ...attemptResult.warnings]);
 
+      // 影子流量:主响应已定,旁路复制到 shadow provider,仅观测不影响主响应。
+      if (this.weightedTrafficPolicy && !execution.shadow) {
+        this.#fireShadowTraffic(request, execution);
+      }
       return createRouteSuccessEnvelope(response, {
         traceId: request.context.traceId,
         startedAt,
@@ -110,6 +138,7 @@ export class GatewayService {
     try {
       throwIfExecutionAborted(execution.signal);
       request = normalizeGatewayRequest(input);
+      this.#applyContextCompaction(request);
       this.#enforceContentGuardrails(request);
       const baseSelection = this.providerRegistry.select(request);
 
@@ -375,6 +404,61 @@ export class GatewayService {
     }
   }
 
+  // Long-conversation compaction on the chat path. Fail-open: a compaction
+  // error never blocks the request. Returns a warnings array for the response.
+  #applyContextCompaction(request) {
+    const config = this.runtimeConfig?.chatContextCompaction;
+    if (!config || !Array.isArray(request.messages)) return [];
+    const thresholdMessages = Number(config.thresholdMessages ?? 0);
+    const maxContextTokens = Number(config.maxContextTokens ?? 0);
+    if (thresholdMessages <= 0 && maxContextTokens <= 0) return [];
+
+    const overThreshold = (
+      (thresholdMessages > 0 && request.messages.length > thresholdMessages)
+      || (maxContextTokens > 0
+        && estimateContextTokens(request.messages.map((message) =>
+          typeof message?.content === "string" ? message.content : "").join("\n")) > maxContextTokens)
+    );
+    if (!overThreshold) return [];
+
+    try {
+      const { messages, report } = compactMessageHistory(request.messages, defineCompactionPolicy({
+        summaryStyle: "turns",
+        keepRecentTurns: Number(config.keepRecentTurns ?? 10),
+        maxContextTokens: maxContextTokens > 0 ? maxContextTokens : null,
+        turnSummaryPrefix: "[Previous conversation summary]",
+      }));
+      if (!report.compacted) return [];
+      request.messages = messages;
+      request.metadata = {
+        ...(request.metadata ?? {}),
+        contextCompaction: {
+          originalCount: report.originalCount,
+          resultCount: report.resultCount,
+          summarizedTurns: report.summarizedTurns,
+          originalTokens: report.originalTokens,
+          resultTokens: report.resultTokens,
+        },
+      };
+      return [{
+        code: "context_compacted",
+        message: `Long conversation compacted: ${report.originalCount} → ${report.resultCount} messages (${report.summarizedTurns} turns summarized).`,
+        details: {
+          originalCount: report.originalCount,
+          resultCount: report.resultCount,
+          summarizedTurns: report.summarizedTurns,
+          originalTokens: report.originalTokens,
+          resultTokens: report.resultTokens,
+          retainedSignals: report.retainedSignals,
+          droppedSignals: report.droppedSignals,
+        },
+      }];
+    } catch {
+      // Compaction is best-effort; never fail a chat because of it.
+      return [];
+    }
+  }
+
   #enforceContentGuardrails(request) {
     if (!this.contentGuardrails) return;
     const violations = [];
@@ -421,8 +505,45 @@ export class GatewayService {
     }
   }
 
-  #recordUsage({ request, selection, providerResult, startedAt, error = null, outputText = "" }) {
+  #fireShadowTraffic(request, execution) {
+    try {
+      const shadowTarget = this.weightedTrafficPolicy.shouldShadow(request);
+      if (!shadowTarget) return;
+      const shadowRequest = {
+        ...request,
+        providerId: shadowTarget.providerId,
+        metadata: {
+          ...(request.metadata ?? {}),
+          shadowTraffic: { routeName: shadowTarget.routeName, percent: shadowTarget.percent },
+        },
+      };
+      void this.execute(shadowRequest, { ...execution, shadow: true, signal: undefined })
+        .then((result) => {
+          writeGatewayLog("shadow_traffic_completed", {
+            requestId: request.context?.requestId,
+            routeName: shadowTarget.routeName,
+            provider: shadowTarget.providerId,
+            success: result?.success === true,
+            durationMs: 0,
+          });
+        })
+        .catch((error) => {
+          writeGatewayLog("shadow_traffic_failed", {
+            requestId: request.context?.requestId,
+            routeName: shadowTarget.routeName,
+            provider: shadowTarget.providerId,
+            code: error?.code,
+            durationMs: 0,
+          });
+        });
+    } catch {
+      // 影子流量失败绝不影响主路径。
+    }
+  }
+
+  #recordUsage({ request, selection, providerResult, startedAt, error = null, outputText = "", shadow = false }) {
     if (!this.requestLogger) return;
+    if (shadow) return; // 影子流量只观测,不进用量/花费台账。
     try {
       const usage = providerResult?.usage ?? {};
       const inputTokens = Number(usage.inputTokens ?? 0);

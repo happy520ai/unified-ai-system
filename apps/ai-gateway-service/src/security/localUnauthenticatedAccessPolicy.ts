@@ -59,6 +59,11 @@ const DYNAMIC_ROUTE_RULES: RouteRule[] = [
     permission: "chat:use",
     pathname: /^\/v1\/engines\/[^/]+\/(?:chat\/completions|completions)$/u,
   },
+  {
+    method: "GET",
+    permission: "chat:use",
+    pathname: /^\/v1\/responses\/resp_[A-Za-z0-9_-]{1,64}$/u,
+  },
 ];
 
 export const LOCAL_UNAUTHENTICATED_ROUTE_RULE_COUNT =

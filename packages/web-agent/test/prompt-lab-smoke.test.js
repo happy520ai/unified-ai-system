@@ -104,7 +104,7 @@ async function assertPromptLab(page, baseUrl, pathname) {
     Object.keys(evidence.detectedSignals).sort(),
     ["audience", "constraints", "environment", "evidence", "format", "success"],
   );
-  assert.equal(evidence.compiledSections.length, 3);
+  assert.equal(evidence.compiledSections.length, 4);
   assert.equal(
     evidence.compiledSections.every((section) => section.itemCount > 0),
     true,

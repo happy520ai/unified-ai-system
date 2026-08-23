@@ -143,11 +143,12 @@ export function createPlanState({ clarificationAnswers = [] } = {}) {
       nextDecision: "Review the preview package and approve a later explicit implementation phase.",
     },
     workflowRunHandoff: {
-      status: "disabled",
-      lifecycleStatus: "handoff-disabled",
-      implemented: false,
+      status: "implemented-explicit-invocation",
+      lifecycleStatus: "handoff-available",
+      implemented: true,
       enabled: false,
-      reason: "Phase139A is a preview-only design layer and does not call POST /workflow/run.",
+      enabledByDefault: false,
+      reason: "Handoff is implemented (workflowRunHandoff.js) but runs only on explicit invocation with a valid single-use task claim token; previews never trigger it.",
     },
   };
 }

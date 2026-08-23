@@ -1,12 +1,49 @@
 import { describe, expect, it } from "vitest";
 import {
   MAX_PROMPT_INPUT_LENGTH,
+  PROMPT_ENHANCER_VERSION,
+  detectAmbiguities,
+  detectIntent,
   detectLanguage,
   detectProfile,
   enhanceNaturalLanguagePrompt,
+  extractEntities,
 } from "./naturalLanguagePromptEnhancer.js";
 
+const BASE_SECTION_IDS = ["context", "execution", "output", "acceptance"];
+
+function findSection(result, id) {
+  const section = result.sections.find((candidate) => candidate.id === id);
+  expect(section).toBeTruthy();
+  return section;
+}
+
 describe("natural-language prompt enhancer", () => {
+  it("preserves original punctuation and spacing for deterministic replay", () => {
+    const input = "请帮我写一个 API，包含重试策略；返回 JSON，不要输出 Markdown";
+    const result = enhanceNaturalLanguagePrompt({ input });
+
+    expect(result.original).toBe(input);
+    expect(result.enhancedPrompt).toContain(input);
+    expect(result.changed).toBe(true);
+    expect(result.quality.assumptionCount).toBeGreaterThanOrEqual(0);
+  });
+
+  it("surfaces extracted hard constraints and assumption hints", () => {
+    const result = enhanceNaturalLanguagePrompt({
+      input: "用 Node.js 做一个最小可用的服务，不能调用外部依赖，只读文件；不要超时。",
+      profile: "coding",
+      language: "zh-CN",
+    });
+
+    expect(result.constraints.length).toBeGreaterThan(0);
+    expect(result.assumptions.length).toBeGreaterThanOrEqual(0);
+    const execution = findSection(result, "execution");
+    expect(execution.items.some((item) => item.includes("不能调用外部依赖"))).toBe(true);
+    expect(["needs-clarification", "medium", "high"]).toContain(result.quality.qualityLevel);
+    expect(result.quality.constraintsDetected).toBe(true);
+  });
+
   it("structures a Chinese coding request while preserving the original", () => {
     const input = "帮我写一个 Node.js API，需要包含错误处理和测试";
     const result = enhanceNaturalLanguagePrompt({ input });
@@ -22,11 +59,7 @@ describe("natural-language prompt enhancer", () => {
       originalPreserved: true,
       deterministic: true,
     });
-    expect(result.sections.map((section) => section.id)).toEqual([
-      "execution",
-      "output",
-      "acceptance",
-    ]);
+    expect(result.sections.map((section) => section.id)).toEqual(BASE_SECTION_IDS);
   });
 
   it("supports explicit English writing profiles", () => {
@@ -60,13 +93,13 @@ describe("natural-language prompt enhancer", () => {
       evidence: true,
       environment: true,
     });
-    expect(result.sections[0].items).toContain(
+    expect(findSection(result, "execution").items).toContain(
       "Treat explicit constraints in the original request as hard boundaries and preserve them one by one.",
     );
-    expect(result.sections[1].items).toContain(
+    expect(findSection(result, "output").items).toContain(
       "Use the output format requested in the original request exactly; do not wrap it in irrelevant material.",
     );
-    expect(result.sections[2].items).toContain(
+    expect(findSection(result, "acceptance").items).toContain(
       "Turn the requested success criteria, acceptance checks, metrics, or targets into inspectable completion conditions.",
     );
     expect(result.enhancedPrompt).toContain(
@@ -88,11 +121,7 @@ describe("natural-language prompt enhancer", () => {
     expect(result.enhancedPrompt).toBeTruthy();
     expect(result.enhancedPrompt).toContain(input);
     expect(result.profile).toBe(profile);
-    expect(result.sections.map((section) => section.id)).toEqual([
-      "execution",
-      "output",
-      "acceptance",
-    ]);
+    expect(result.sections.map((section) => section.id)).toEqual(BASE_SECTION_IDS);
     expect(result.metadata).toMatchObject({
       engine: "local-deterministic",
       providerCalled: false,
@@ -119,6 +148,116 @@ describe("natural-language prompt enhancer", () => {
     expect(detectProfile("Create a milestone roadmap")).toBe("planning");
     expect(detectProfile("帮我做一个卖咖啡的网站")).toBe("coding");
     expect(detectProfile("Hello there")).toBe("general");
+  });
+
+  it.each([
+    ["请为小型 API 的发布制定路线图和里程碑。", "plan"],
+    ["帮我修复登录页面的 bug。", "modify"],
+    ["解释一下 OAuth 的工作原理。", "explain"],
+    ["对比一下这两个方案的优缺点。", "evaluate"],
+    ["帮我写一个爬虫脚本。", "create"],
+    ["部署到生产环境。", "operate"],
+    ["总结一下这次会议的要点。", "summarize"],
+  ])("normalizes the intent for %s", (input, expectedIntent) => {
+    expect(detectIntent(input)).toBe(expectedIntent);
+  });
+
+  it.each([
+    ["Translate this changelog into Chinese.", "translate"],
+    ["Fix the flaky checkout test.", "modify"],
+    ["Explain how the retry policy works.", "explain"],
+    ["Compare SQLite and Postgres for this workload.", "evaluate"],
+    ["Deploy the gateway to production.", "operate"],
+    ["Build a status page with tests.", "create"],
+    ["Say hi to the team.", "assist"],
+  ])("normalizes the English intent for %s", (input, expectedIntent) => {
+    expect(detectIntent(input)).toBe(expectedIntent);
+  });
+
+  it("extracts entities deterministically without substring duplicates", () => {
+    const input = "用 Node.js 和 PostgreSQL 做一个订单查询 API，3 天内交付，参考 src/orders.ts";
+    const entities = extractEntities(input, "zh-CN");
+
+    expect(entities.technologies).toEqual(["node.js", "postgresql"]);
+    expect(entities.artifacts).toContain("接口（API）");
+    expect(entities.quantities).toContain("3天");
+    expect(entities.references.some((reference) => reference.includes("src/orders.ts"))).toBe(true);
+    expect(entities.references).not.toContain("Node.js");
+  });
+
+  it("compiles intent, deliverable, entities, and steps into the prompt", () => {
+    const result = enhanceNaturalLanguagePrompt({
+      input: "用 Node.js 和 PostgreSQL 做一个订单查询 API，3 天内交付，返回 JSON",
+    });
+
+    expect(result.metadata.version).toBe(PROMPT_ENHANCER_VERSION);
+    expect(result.analysis.intent.kind).toBe("create");
+    expect(result.analysis.deliverable).toBeTruthy();
+    expect(result.analysis.steps.length).toBeGreaterThan(0);
+
+    const context = findSection(result, "context");
+    expect(context.items.some((item) => item.includes("node.js"))).toBe(true);
+    expect(context.items.some((item) => item.includes("交付物"))).toBe(true);
+
+    const execution = findSection(result, "execution");
+    expect(execution.items.some((item) => item.startsWith("步骤 1："))).toBe(true);
+    expect(result.enhancedPrompt).toContain("任务理解: 创建与实现");
+    expect(result.enhancedPrompt).toContain("交付物: ");
+  });
+
+  it("detects vague references, quality bars, and quantities as ambiguities", () => {
+    const input = "把这个弄好一点，再加一些日志";
+    const ambiguities = detectAmbiguities(input, "zh-CN");
+
+    expect(ambiguities.length).toBeGreaterThanOrEqual(2);
+    expect(ambiguities.map((ambiguity) => ambiguity.kind)).toContain("reference");
+    expect(ambiguities.map((ambiguity) => ambiguity.kind)).toContain("quality");
+
+    const result = enhanceNaturalLanguagePrompt({ input });
+    expect(result.analysis.ambiguities.length).toBeGreaterThan(0);
+    expect(result.clarifyingQuestions[0]).toContain("指代的具体对象");
+    expect(result.quality.ambiguityCount).toBe(result.analysis.ambiguities.length);
+    expect(result.quality.recommendations.some((item) => item.includes("模糊表述"))).toBe(true);
+    expect(result.enhancedPrompt).toContain("存在歧义");
+  });
+
+  it("keeps English vagueness probes actionable", () => {
+    const result = enhanceNaturalLanguagePrompt({
+      input: "Make it better and add a few examples.",
+      language: "en",
+    });
+
+    expect(result.analysis.ambiguities.map((ambiguity) => ambiguity.kind)).toEqual(
+      expect.arrayContaining(["reference", "quality", "quantity"]),
+    );
+    expect(result.clarifyingQuestions[0]).toContain("What does \"it\" refer to?");
+  });
+
+  it("adds an agent execution protocol for the agent target", () => {
+    const result = enhanceNaturalLanguagePrompt({
+      input: "帮我修复登录页面的 bug。",
+      target: "agent",
+    });
+
+    expect(result.target).toBe("agent");
+    expect(result.metadata.target).toBe("agent");
+    expect(result.sections.map((section) => section.id)).toEqual([
+      ...BASE_SECTION_IDS,
+      "agent",
+    ]);
+    const agent = findSection(result, "agent");
+    expect(agent.items.some((item) => item.includes("未验证的能力不得声称已完成"))).toBe(true);
+    expect(result.enhancedPrompt).toContain("# Agent 执行协议");
+    expect(result.enhancedPrompt).toContain("Agent 自主执行");
+  });
+
+  it("defaults to the model target and reports it in metadata", () => {
+    const result = enhanceNaturalLanguagePrompt({ input: "Summarize this dataset." });
+
+    expect(result.target).toBe("model");
+    expect(result.metadata.target).toBe("model");
+    expect(result.sections.map((section) => section.id)).toEqual(BASE_SECTION_IDS);
+    expect(result.enhancedPrompt).not.toContain("# Agent execution protocol");
   });
 
   it.each([
@@ -169,5 +308,9 @@ describe("natural-language prompt enhancer", () => {
       input: "hello",
       profile: "magic",
     })).toThrowError(/Unsupported prompt enhancement profile/);
+    expect(() => enhanceNaturalLanguagePrompt({
+      input: "hello",
+      target: "robot",
+    })).toThrowError(/Unsupported prompt enhancement target/);
   });
 });

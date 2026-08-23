@@ -60,6 +60,17 @@ export class KnowledgeBase {
   }
 
   /**
+   * Delete a knowledge entry by id.
+   *
+   * @param {string} id
+   * @returns {{ id: string, deleted: boolean }}
+   */
+  delete(id) {
+    const { changes } = this.#store.deleteKnowledge(id);
+    return { id, deleted: changes > 0 };
+  }
+
+  /**
    * Search for similar knowledge entries using cosine similarity.
    *
    * @param {string} query - Natural language query.

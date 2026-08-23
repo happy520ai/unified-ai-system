@@ -17,13 +17,13 @@ export function normalizeExecutionReadinessPreflight(source) {
     phase: WORKFORCE_PLAN_EXECUTION_READINESS_PREFLIGHT_PHASE,
     mode: "preview-only",
     executionEnabled: false,
-    overallStatus: base.overallStatus === "preview-blocked" ? "preview-blocked" : "blocked",
+    overallStatus: base.overallStatus === "preview-blocked" ? "preview-blocked" : "gated",
     checks: [
       {
         name: "humanApproval",
-        status: "blocked",
+        status: "implemented-gated",
         required: true,
-        reason: "approval-preview is not real execution approval",
+        reason: "implemented: executionApprovalGate is consumed by the controlled executor; execution stays behind WORKFORCE_EXECUTION_ENABLED",
       },
       {
         name: "cleanGitWorkspace",
@@ -39,15 +39,15 @@ export function normalizeExecutionReadinessPreflight(source) {
       },
       {
         name: "worktreeIsolation",
-        status: "blocked",
+        status: "implemented-gated",
         required: true,
-        reason: "worktree creation is disabled",
+        reason: "implemented: worktreeIsolation creates real git worktrees in the controlled executor; enabled only with real execution",
       },
       {
         name: "taskClaimToken",
-        status: "blocked",
+        status: "pass",
         required: true,
-        reason: "task claim token is not implemented",
+        reason: "implemented: taskClaimTokenService issues single-use TTL-bound claim tokens",
       },
       {
         name: "logRedaction",
@@ -57,9 +57,9 @@ export function normalizeExecutionReadinessPreflight(source) {
       },
       {
         name: "cancellableExecution",
-        status: "blocked",
+        status: "pass",
         required: true,
-        reason: "real execution lifecycle is not implemented",
+        reason: "implemented: executionLifecycleService provides AbortController-backed cancel",
       },
       {
         name: "evidenceRequired",
@@ -70,9 +70,9 @@ export function normalizeExecutionReadinessPreflight(source) {
     ],
     blockedReasons: [
       "real Agent execution is disabled",
-      "workflow run handoff is disabled",
+      "workflow run handoff is explicit-invocation only (claim-token gated)",
       "worktree isolation is required but not enabled",
-      "approval-preview is not execution approval",
+      "execution requires a consumed executionApprovalGate record (not the preview approval)",
     ],
     recommendedNextStep: "Design external runner protocol before enabling execution",
   });
@@ -122,7 +122,7 @@ export function normalizeExternalOmxRunnerDesign(source) {
     },
     blockedReasons: [
       "External OMX runner is design-only",
-      "Real Agent execution is disabled",
+      "Real Agent execution stays behind WORKFORCE_EXECUTION_ENABLED=true",
       "Workflow run handoff is disabled",
       "Worktree creation is disabled",
       "Approval-preview is not execution approval",
@@ -197,9 +197,8 @@ export function normalizeExecutionApprovalRecordPreview(source) {
     ],
     blockedReasons: [
       "approval record is preview-only",
-      "approval-preview is not execution approval",
-      "task claim token is not implemented",
-      "real external runner is disabled",
+      "execution requires a consumed executionApprovalGate record (not the preview approval)",
+            "real external runner is disabled",
     ],
     recommendedNextStep: "Freeze external runner protocol before implementing any real runner",
   });
@@ -229,10 +228,10 @@ export function normalizeExternalRunnerProtocolFreeze(source) {
     frozenInvariants: [
       "runnerEnabled must remain false",
       "executionEnabled must remain false",
-      "approval-preview is not execution approval",
+      "execution requires a consumed executionApprovalGate record (not the preview approval)",
       "external runner dispatch is disabled",
-      "worktree creation is disabled",
-      "workflow run handoff is disabled",
+      "worktree isolation is implemented and active only in the real-execution line",
+      "workflow run handoff is explicit-invocation only (claim-token gated)",
       "oh-my-codex CLI is not called",
       "default NVIDIA /chat lane is unchanged",
     ],
@@ -243,15 +242,14 @@ export function normalizeExternalRunnerProtocolFreeze(source) {
       "worktree isolation implementation",
       "task claim token implementation",
       "log redaction implementation",
-      "cancellable/resumable execution lifecycle",
-      "per-task evidence capture",
+            "per-task evidence capture",
       "security review",
     ],
     blockedReasons: [
       "protocol is frozen as preview-only",
       "real execution is out of scope",
       "external runner is not implemented",
-      "workflow run handoff is disabled",
+      "workflow run handoff is explicit-invocation only (claim-token gated)",
     ],
   });
 }
@@ -305,8 +303,8 @@ export function normalizeAgentWorkforcePreviewFinalUxSeal(source) {
     blockedReasons: [
       "real Agent execution is disabled",
       "oh-my-codex is not called",
-      "worktree creation is disabled",
-      "workflow run handoff is disabled",
+      "worktree isolation is implemented and active only in the real-execution line",
+      "workflow run handoff is explicit-invocation only (claim-token gated)",
       "external runner dispatch is disabled",
     ],
     recommendedNextStep: "Keep Agent Workforce as a productized preview console until a later explicit real-execution mainline is approved.",

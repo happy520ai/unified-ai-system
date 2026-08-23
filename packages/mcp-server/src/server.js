@@ -210,15 +210,20 @@ export function createUnifiedAiMcpServer(runtime, options = {}) {
           .enum(["auto", "zh-CN", "en"])
           .optional()
           .describe("Output language; auto follows the input language"),
+        target: z
+          .enum(["model", "agent"])
+          .optional()
+          .describe("Execution target; agent adds a plan-verify-report execution protocol"),
       }),
       annotations: READ_ONLY_ANNOTATIONS,
     },
-    async ({ input, profile, language }) => {
+    async ({ input, profile, language, target }) => {
       try {
         const response = await client.enhancePrompt({
           input,
           profile: profile ?? "auto",
           language: language ?? "auto",
+          ...(target ? { target } : {}),
         });
         return createToolResult("gateway_prompt_enhance", runtime, response);
       } catch (error) {
@@ -248,6 +253,10 @@ export function createUnifiedAiMcpServer(runtime, options = {}) {
           .enum(["auto", "zh-CN", "en"])
           .optional()
           .describe("Output language"),
+        target: z
+          .enum(["model", "agent"])
+          .optional()
+          .describe("Execution target; agent adds a plan-verify-report execution protocol"),
         providerId: z
           .string()
           .optional()
@@ -264,12 +273,13 @@ export function createUnifiedAiMcpServer(runtime, options = {}) {
         openWorldHint: true,
       },
     },
-    async ({ input, profile, language, providerId, modelId }) => {
+    async ({ input, profile, language, target, providerId, modelId }) => {
       try {
         const response = await client.enhancePromptLlm({
           input,
           profile: profile ?? "auto",
           language: language ?? "auto",
+          ...(target ? { target } : {}),
           ...(providerId ? { providerId } : {}),
           ...(modelId ? { modelId } : {}),
         });

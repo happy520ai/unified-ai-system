@@ -88,7 +88,7 @@ export function createLocalWorkflowService({ knowledgeService, env = {}, outputD
   async function run(request = {}, requestContext = {}) {
     const workflowPlan = plan(request);
     const startedAt = Date.now();
-    const retrieve = knowledgeService.retrieve({
+    const retrieve = await knowledgeService.retrieve({
       context: {
         ...(request.context ?? {}),
         requestId: `${workflowPlan.workflowId}-knowledge`,

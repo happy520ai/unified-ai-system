@@ -1,5 +1,6 @@
 import { ROUTE_NOT_HANDLED } from "./httpRouteDispatch.js";
 import { getChatResponseCacheIntegration } from "../cache/chatResponseCacheIntegration.ts";
+import { getGuardrailsEngine } from "../guardrails/guardrailsEngine.ts";
 import { estimateTextTokens, estimateTokens } from "../cost/tokenEstimator.js";
 import {
   recordChatCacheEvent,
@@ -7,9 +8,12 @@ import {
   recordChatTokens,
   recordChatTtft,
   recordChatVirtualKeyRejection,
+  recordGuardrailEvaluation,
+  recordGuardrailFinding,
 } from "../observability/aiMetrics.ts";
 import { getLangfuseCallback } from "../observability/langfuseCallback.ts";
 import { applyPromptEnhancement } from "./utils/chatUtils.js";
+import { injectRagContextIntoGatewayInput } from "./utils/ragInjection.js";
 import { readJson, writeJson, writeSseHeaders } from "./utils/responseUtils.js";
 import {
   getMessageImageStats,
@@ -63,7 +67,6 @@ const COMPLETIONS_UNSUPPORTED_FIELDS = Object.freeze([
   ["suffix", () => false],
   ["user", () => false],
   ["seed", () => false],
-  ["stream_options", () => false],
 ]);
 
 function normalizeOpenAiPath(pathname) {
@@ -185,6 +188,7 @@ export async function dispatchOpenAiCompatibilityRoutes(context) {
     url,
     writeServiceLog,
     enterpriseGovernanceService,
+    knowledgeService,
   } = context;
   const normalized = normalizeOpenAiPath(url.pathname);
   const normalizedPath = normalized.path;
@@ -254,6 +258,7 @@ export async function dispatchOpenAiCompatibilityRoutes(context) {
   if (request.method === "POST" && normalizedPath === ANTHROPIC_MESSAGES_PATH) {
     await handleAnthropicMessages({
       gatewayService,
+      enterpriseGovernanceService,
       request,
       response,
       startedAt,
@@ -289,6 +294,47 @@ export async function dispatchOpenAiCompatibilityRoutes(context) {
       ...(normalized.modelFromPath && !body?.model ? { model: normalized.modelFromPath } : {}),
     };
 
+    // Guardrails（确定性本地扫描）：在 normalize 之前作用于原始请求——
+    // 拦截/脱敏同时覆盖 JSON、SSE 与缓存路径（脱敏后的文本进入缓存键）。
+    const guardrailsEngine = getGuardrailsEngine(request.enterpriseIdentity?.tenantId);
+    const guardrailInputVerdict = guardrailsEngine.inspectInput(requestBody);
+    if (guardrailInputVerdict.decision === "block") {
+      recordGuardrailEvaluation("input", "block");
+      for (const finding of guardrailInputVerdict.findings) {
+        if (finding.action === "block") recordGuardrailFinding(finding.rule, finding.action);
+      }
+      writeServiceLog?.("openai_chat_guardrail_blocked", {
+        method: request.method,
+        path: normalizedPath,
+        findings: guardrailInputVerdict.findings,
+        durationMs: Date.now() - startedAt,
+      });
+      writeJson(response, 400, createOpenAiError({
+        code: "guardrail_blocked",
+        category: "governance",
+        message: "Request blocked by chat guardrails.",
+        param: "messages",
+      }));
+      return;
+    }
+    if (guardrailInputVerdict.findings.length) {
+      recordGuardrailEvaluation("input", "allow");
+      for (const finding of guardrailInputVerdict.findings) {
+        recordGuardrailFinding(finding.rule, finding.action);
+      }
+      writeServiceLog?.("openai_chat_guardrail_findings", {
+        method: request.method,
+        path: normalizedPath,
+        findings: guardrailInputVerdict.findings,
+        durationMs: Date.now() - startedAt,
+      });
+    }
+    for (const replacement of guardrailInputVerdict.replacements) {
+      if (typeof requestBody.messages?.[replacement.index]?.content === "string") {
+        requestBody.messages[replacement.index].content = replacement.content;
+      }
+    }
+
     let gatewayInput;
     try {
       gatewayInput = normalizeOpenAiChatCompletionRequest(
@@ -307,6 +353,24 @@ export async function dispatchOpenAiCompatibilityRoutes(context) {
       return;
     }
 
+    // RAG（显式 opt-in）：注入租户可见的知识库上下文；失败 fail-open。
+    const ragConfig = gatewayInput.metadata?.openAiCompatibility?.rag;
+    if (ragConfig?.enabled === true) {
+      const ragOutcome = await injectRagContextIntoGatewayInput({
+        gatewayInput,
+        knowledgeService,
+        tenantScopeIdentity: request.enterpriseIdentity,
+        ragConfig,
+      });
+      writeServiceLog?.(ragOutcome.applied ? "openai_chat_rag_injected" : "openai_chat_rag_skipped", {
+        method: request.method,
+        path: normalizedPath,
+        reason: ragOutcome.reason ?? null,
+        chunkCount: ragOutcome.chunkCount ?? 0,
+        durationMs: Date.now() - startedAt,
+      });
+    }
+
     if (requestBody.stream === true) {
       await streamOpenAiChatCompletion({
         body: requestBody,
@@ -315,6 +379,25 @@ export async function dispatchOpenAiCompatibilityRoutes(context) {
         request,
         response,
         startedAt,
+        writeServiceLog,
+        enterpriseGovernanceService,
+      });
+      return;
+    }
+
+    // n>1：并发执行 n 次同输入生成，choices 按序返回；不走响应缓存（v1 不缓存多候选）。
+    const choiceCount = Number(gatewayInput.metadata?.openAiCompatibility?.choiceCount ?? 1);
+    if (choiceCount > 1) {
+      await handleMultiChoiceChatCompletion({
+        choiceCount,
+        requestBody,
+        gatewayInput,
+        gatewayService,
+        request,
+        response,
+        startedAt,
+        normalizedPath,
+        guardrailsEngine,
         writeServiceLog,
         enterpriseGovernanceService,
       });
@@ -334,7 +417,10 @@ export async function dispatchOpenAiCompatibilityRoutes(context) {
     }
 
     const chatResponseCache = getChatResponseCacheIntegration();
-    const cacheCandidate = chatResponseCache.describeCacheCandidate(requestBody, gatewayInput);
+    // RAG 注入后缓存键不稳定（检索库随时间变化），跳过响应缓存。
+    const cacheCandidate = gatewayInput.metadata?.ragInjection?.applied
+      ? null
+      : chatResponseCache.describeCacheCandidate(requestBody, gatewayInput);
     const cacheLookup = cacheCandidate
       ? chatResponseCache.lookup({ candidate: cacheCandidate, tenantIdentity: request.enterpriseIdentity })
       : null;
@@ -398,6 +484,41 @@ export async function dispatchOpenAiCompatibilityRoutes(context) {
       requestedModel: requestBody.model,
       promptEnhancement: gatewayInput.metadata?.promptEnhancement,
     });
+
+    // Guardrails 输出侧：对最终文本脱敏/拦截；fail-open 保证不影响正常响应。
+    const outputContent = chatCompletion?.choices?.[0]?.message?.content;
+    if (typeof outputContent === "string") {
+      const outputVerdict = guardrailsEngine.inspectOutputText(outputContent);
+      if (outputVerdict.decision === "block") {
+        recordGuardrailEvaluation("output", "block");
+        for (const finding of outputVerdict.findings) {
+          if (finding.action === "block") recordGuardrailFinding(finding.rule, finding.action);
+        }
+        writeServiceLog?.("openai_chat_guardrail_output_blocked", {
+          method: request.method,
+          path: normalizedPath,
+          findings: outputVerdict.findings,
+          durationMs: Date.now() - startedAt,
+        });
+        writeJson(response, 400, createOpenAiError({
+          code: "guardrail_blocked",
+          category: "governance",
+          message: "Response blocked by chat guardrails.",
+          param: "messages",
+        }));
+        return;
+      }
+      if (outputVerdict.findings.length) {
+        recordGuardrailEvaluation("output", "allow");
+        for (const finding of outputVerdict.findings) {
+          recordGuardrailFinding(finding.rule, finding.action);
+        }
+      }
+      if (outputVerdict.text !== outputContent) {
+        chatCompletion.choices[0].message.content = outputVerdict.text;
+      }
+    }
+
     recordChatRequest(normalizedPath, false);
     if (cacheCandidate) {
       recordChatCacheEvent("exact", cacheLookup ? "miss" : "bypassed");
@@ -495,6 +616,52 @@ export async function dispatchOpenAiCompatibilityRoutes(context) {
       return;
     }
 
+    // n>1（legacy completions）：并发执行，choices 按序返回。
+    const completionChoiceCount = Number(
+      gatewayInput.metadata?.openAiCompatibility?.choiceCount ?? 1,
+    );
+    if (completionChoiceCount > 1) {
+      const settled = await Promise.all(
+        Array.from({ length: completionChoiceCount }, () => gatewayService.execute(gatewayInput)),
+      );
+      const firstSettledFailure = settled.find((result) => !result?.success);
+      if (firstSettledFailure) {
+        const error = firstSettledFailure.error ?? {
+          code: firstSettledFailure.code,
+          message: firstSettledFailure.message,
+          category: "provider",
+        };
+        writeJson(response, resolveOpenAiErrorStatus(error), createOpenAiError(error));
+        return;
+      }
+      const completionOptions = {
+        created: Math.floor(startedAt / 1000),
+        requestedModel: requestBody.model,
+        promptEnhancement: gatewayInput.metadata?.promptEnhancement,
+      };
+      const completion = createOpenAiCompletion(settled[0], completionOptions);
+      completion.choices = settled.map((result, index) => {
+        const built = index === 0
+          ? completion
+          : createOpenAiCompletion(result, completionOptions);
+        const choice = built.choices[0];
+        choice.index = index;
+        return choice;
+      });
+      const legacyPromptTokens = Number(settled[0].data?.usage?.inputTokens ?? 0);
+      const legacyCompletionTokens = settled.reduce(
+        (sum, result) => sum + Number(result.data?.usage?.outputTokens ?? 0),
+        0,
+      );
+      completion.usage = {
+        prompt_tokens: legacyPromptTokens,
+        completion_tokens: legacyCompletionTokens,
+        total_tokens: legacyPromptTokens + legacyCompletionTokens,
+      };
+      writeJson(response, 200, completion);
+      return;
+    }
+
     const result = await gatewayService.execute(gatewayInput);
     if (!result.success) {
       const error = result.error ?? {
@@ -548,6 +715,7 @@ export async function dispatchOpenAiCompatibilityRoutes(context) {
 
 async function handleAnthropicMessages({
   gatewayService,
+  enterpriseGovernanceService,
   request,
   response,
   startedAt,
@@ -563,6 +731,47 @@ async function handleAnthropicMessages({
       message: "Request body must be valid JSON.",
     }));
     return;
+  }
+
+  // Guardrails（确定性本地扫描）：与 /v1/chat/completions 同一引擎，作用于
+  // 归一化前的原始请求，拦截/脱敏覆盖 JSON、流式与缓存路径。
+  const anthropicGuardrailsEngine = getGuardrailsEngine(request.enterpriseIdentity?.tenantId);
+  const anthropicGuardrailVerdict = anthropicGuardrailsEngine.inspectInput(body);
+  if (anthropicGuardrailVerdict.decision === "block") {
+    recordGuardrailEvaluation("input", "block");
+    for (const finding of anthropicGuardrailVerdict.findings) {
+      if (finding.action === "block") recordGuardrailFinding(finding.rule, finding.action);
+    }
+    writeServiceLog?.("anthropic_messages_guardrail_blocked", {
+      method: request.method,
+      path: ANTHROPIC_MESSAGES_PATH,
+      findings: anthropicGuardrailVerdict.findings,
+      durationMs: Date.now() - startedAt,
+    });
+    writeJson(response, 400, createAnthropicError({
+      code: "guardrail_blocked",
+      category: "governance",
+      message: "Request blocked by chat guardrails.",
+      param: "messages",
+    }));
+    return;
+  }
+  if (anthropicGuardrailVerdict.findings.length) {
+    recordGuardrailEvaluation("input", "allow");
+    for (const finding of anthropicGuardrailVerdict.findings) {
+      recordGuardrailFinding(finding.rule, finding.action);
+    }
+    writeServiceLog?.("anthropic_messages_guardrail_findings", {
+      method: request.method,
+      path: ANTHROPIC_MESSAGES_PATH,
+      findings: anthropicGuardrailVerdict.findings,
+      durationMs: Date.now() - startedAt,
+    });
+  }
+  for (const replacement of anthropicGuardrailVerdict.replacements) {
+    if (typeof body.messages?.[replacement.index]?.content === "string") {
+      body.messages[replacement.index].content = replacement.content;
+    }
   }
 
   let gatewayInput;
@@ -588,11 +797,25 @@ async function handleAnthropicMessages({
       body,
       gatewayInput,
       gatewayService,
+      enterpriseGovernanceService,
       request,
       response,
       startedAt,
       writeServiceLog,
     });
+    return;
+  }
+
+  if (applyVirtualKeyRequestGate({
+    enterpriseGovernanceService,
+    request,
+    gatewayInput,
+    response,
+    writeServiceLog,
+    startedAt,
+    path: ANTHROPIC_MESSAGES_PATH,
+    errorFactory: createAnthropicError,
+  })) {
     return;
   }
 
@@ -624,10 +847,59 @@ async function handleAnthropicMessages({
     executionMode: result.data?.executionMode,
     durationMs: Date.now() - startedAt,
   });
-  writeJson(response, 200, createAnthropicMessage(result, {
+  recordVirtualKeyUsage({
+    enterpriseGovernanceService,
+    request,
+    writeServiceLog,
+    tokens: Number(result.data?.usage?.totalTokens ?? 0)
+      || estimateTokens(gatewayInput).estimatedInputTokens,
+    path: ANTHROPIC_MESSAGES_PATH,
+  });
+  const anthropicMessage = createAnthropicMessage(result, {
     requestedModel: body.model,
     messages: gatewayInput.messages,
-  }));
+  });
+  // Guardrails 输出侧（JSON）：对最终文本块脱敏/拦截，fail-open 不影响正常响应。
+  const anthropicOutputText = anthropicMessage?.content
+    ?.filter((block) => block?.type === "text")
+    .map((block) => block?.text ?? "")
+    .join("");
+  if (typeof anthropicOutputText === "string" && anthropicOutputText) {
+    const anthropicOutputVerdict = anthropicGuardrailsEngine.inspectOutputText(anthropicOutputText);
+    if (anthropicOutputVerdict.decision === "block") {
+      recordGuardrailEvaluation("output", "block");
+      for (const finding of anthropicOutputVerdict.findings) {
+        if (finding.action === "block") recordGuardrailFinding(finding.rule, finding.action);
+      }
+      writeServiceLog?.("anthropic_messages_guardrail_output_blocked", {
+        method: request.method,
+        path: ANTHROPIC_MESSAGES_PATH,
+        findings: anthropicOutputVerdict.findings,
+        durationMs: Date.now() - startedAt,
+      });
+      writeJson(response, 400, createAnthropicError({
+        code: "guardrail_blocked",
+        category: "governance",
+        message: "Response blocked by chat guardrails.",
+        param: "messages",
+      }));
+      return;
+    }
+    if (anthropicOutputVerdict.findings.length) {
+      recordGuardrailEvaluation("output", "allow");
+      for (const finding of anthropicOutputVerdict.findings) {
+        recordGuardrailFinding(finding.rule, finding.action);
+      }
+    }
+    if (anthropicOutputVerdict.text !== anthropicOutputText) {
+      for (const block of anthropicMessage.content ?? []) {
+        if (block?.type === "text" && block.text) {
+          block.text = anthropicGuardrailsEngine.inspectOutputText(block.text).text;
+        }
+      }
+    }
+  }
+  writeJson(response, 200, anthropicMessage);
 }
 
 export function normalizeAnthropicMessageRequest(body, descriptors = []) {
@@ -645,6 +917,8 @@ export function normalizeAnthropicMessageRequest(body, descriptors = []) {
     "temperature",
     "top_p",
     "metadata",
+    "tools",
+    "tool_choice",
     "unified_ai",
     "provider_id",
     "prompt_enhancement",
@@ -667,11 +941,35 @@ export function normalizeAnthropicMessageRequest(body, descriptors = []) {
   }
   validateOptionalBoolean(body.stream, "stream");
 
-  const conversation = normalizeAnthropicMessages(body.messages);
-  const system = normalizeAnthropicSystem(body.system);
-  const messages = system ? [{ role: "system", content: system }, ...conversation] : conversation;
+  const conversation = normalizeAnthropicConversation(body.messages);
+  const systemText = normalizeAnthropicSystem(body.system);
+  // prompt caching:system 块断点同样只接受 ephemeral,且计入 4 个总上限。
+  const systemHasBreakpoint = Array.isArray(body.system)
+    && body.system.some((block) => isRecord(block) && block.cache_control !== undefined);
+  if (systemHasBreakpoint) {
+    for (const [blockIndex, block] of body.system.entries()) {
+      if (!isRecord(block) || block.cache_control === undefined) continue;
+      if (!isRecord(block.cache_control) || block.cache_control.type !== "ephemeral") {
+        throw createAnthropicValidationError(
+          `system[${blockIndex}].cache_control must be { "type": "ephemeral" }.`,
+          `system[${blockIndex}].cache_control`,
+        );
+      }
+    }
+    if (systemHasBreakpoint && conversation.cacheBreakpoints.length + 1 > 4) {
+      throw createAnthropicValidationError(
+        "At most 4 cache_control breakpoints are allowed per request.",
+        "system",
+      );
+    }
+  }
+  const messages = systemText
+    ? [{ role: "system", content: systemText }, ...conversation.messages]
+    : conversation.messages;
   const target = resolveOpenAiModelTarget(requestedModel, descriptors);
   const extension = normalizeUnifiedAiExtension(body);
+  const tools = normalizeAnthropicTools(body.tools);
+  const toolChoice = normalizeAnthropicToolChoice(body.tool_choice, tools);
   const options = {
     maxOutputTokens: body.max_tokens,
   };
@@ -696,6 +994,14 @@ export function normalizeAnthropicMessageRequest(body, descriptors = []) {
     if (body.stop_sequences.length > 0) {
       options.stopSequences = [...body.stop_sequences];
     }
+  }
+  // prompt caching:断点信息随 options 传递,出站 adapter 重挂到对应块。
+  const anthropicCacheControl = {
+    ...(systemHasBreakpoint ? { systemBreakpoint: true } : {}),
+    ...(conversation.cacheBreakpoints.length > 0 ? { messageIndexes: conversation.cacheBreakpoints } : {}),
+  };
+  if (Object.keys(anthropicCacheControl).length > 0) {
+    options.anthropicCacheControl = anthropicCacheControl;
   }
 
   let metadataUserIdPresent = false;
@@ -728,14 +1034,17 @@ export function normalizeAnthropicMessageRequest(body, descriptors = []) {
     messages,
     model: target.modelId,
     providerId: extension.providerId ?? target.providerId,
+    ...(tools ? { tools } : {}),
+    ...(toolChoice ? { toolChoice } : {}),
     options,
     metadata: {
       source: "anthropic-compatible-api",
       anthropicCompatibility: {
         requestedModel,
         stream: body.stream === true,
-        systemPresent: Boolean(system),
+        systemPresent: Boolean(systemText),
         metadataUserIdPresent,
+        ...(tools ? { toolCount: tools.length } : {}),
       },
     },
   };
@@ -745,7 +1054,7 @@ export function normalizeAnthropicMessageRequest(body, descriptors = []) {
     : gatewayInput;
 }
 
-function normalizeAnthropicMessages(messages) {
+function normalizeAnthropicConversation(messages) {
   if (!Array.isArray(messages) || messages.length === 0) {
     throw createAnthropicValidationError(
       "messages must contain at least one message.",
@@ -753,7 +1062,10 @@ function normalizeAnthropicMessages(messages) {
     );
   }
 
-  return messages.map((message, index) => {
+  const normalized = [];
+  const cacheBreakpoints = [];
+  let breakpointCount = 0;
+  messages.forEach((message, index) => {
     const param = `messages[${index}]`;
     if (!isRecord(message)) {
       throw createAnthropicValidationError(`${param} must be an object.`, param);
@@ -769,14 +1081,197 @@ function normalizeAnthropicMessages(messages) {
     if (message.role !== "user" && message.role !== "assistant") {
       throw createAnthropicValidationError(
         `${param}.role must be 'user' or 'assistant'.`,
-        `${param}.role`,
+        param,
       );
     }
-    return {
-      role: message.role,
-      content: normalizeAnthropicTextContent(message.content, `${param}.content`),
-    };
+    // prompt caching:cache_control 断点(仅支持 ephemeral)。
+    // 断点按消息级记录(Anthropic 上限 4 个),并在出站侧重挂到该消息最后一块。
+    if (Array.isArray(message.content)) {
+      for (const [blockIndex, block] of message.content.entries()) {
+        if (!isRecord(block) || block.cache_control === undefined) continue;
+        if (!isRecord(block.cache_control) || block.cache_control.type !== "ephemeral") {
+          throw createAnthropicValidationError(
+            `${param}.content[${blockIndex}].cache_control must be { "type": "ephemeral" }.`,
+            `${param}.content[${blockIndex}].cache_control`,
+          );
+        }
+        breakpointCount += 1;
+        if (breakpointCount > 4) {
+          throw createAnthropicValidationError(
+            "At most 4 cache_control breakpoints are allowed per request.",
+            "messages",
+          );
+        }
+      }
+    }
+    const produced = normalizeAnthropicMessageBlocks(message, param);
+    const hadBreakpoint = Array.isArray(message.content)
+      && message.content.some((block) => isRecord(block) && block.cache_control !== undefined);
+    normalized.push(...produced);
+    if (hadBreakpoint) {
+      cacheBreakpoints.push(normalized.length - 1);
+    }
   });
+  return { messages: normalized, cacheBreakpoints };
+}
+
+// One Anthropic message can flatten into several gateway messages:
+// assistant tool_use blocks become tool_calls on the assistant message, and
+// user tool_result blocks become follow-up `tool` messages.
+function normalizeAnthropicMessageBlocks(message, param) {
+  if (typeof message.content === "string") {
+    return [{ role: message.role, content: message.content }];
+  }
+  if (!Array.isArray(message.content) || message.content.length === 0) {
+    throw createAnthropicValidationError(
+      `${param}.content must be a string or a non-empty array of content blocks.`,
+      `${param}.content`,
+    );
+  }
+
+  const textParts = [];
+  const toolUses = [];
+  const toolResults = [];
+  message.content.forEach((block, index) => {
+    const blockParam = `${param}.content[${index}]`;
+    if (!isRecord(block)) {
+      throw createAnthropicValidationError(`${blockParam} must be an object.`, blockParam);
+    }
+    if (block.type === "text") {
+      textParts.push(readRequiredString(block.text, `${blockParam}.text`));
+      return;
+    }
+    if (block.type === "tool_use") {
+      if (message.role !== "assistant") {
+        throw createAnthropicValidationError(
+          `${blockParam} tool_use blocks are allowed only in assistant messages.`,
+          blockParam,
+        );
+      }
+      toolUses.push({
+        id: readRequiredString(block.id, `${blockParam}.id`),
+        name: readRequiredString(block.name, `${blockParam}.name`),
+        input: isRecord(block.input) || block.input === undefined ? block.input ?? {} : block.input,
+      });
+      return;
+    }
+    if (block.type === "tool_result") {
+      if (message.role !== "user") {
+        throw createAnthropicValidationError(
+          `${blockParam} tool_result blocks are allowed only in user messages.`,
+          blockParam,
+        );
+      }
+      toolResults.push({
+        toolUseId: readRequiredString(block.tool_use_id, `${blockParam}.tool_use_id`),
+        content: normalizeAnthropicToolResultContent(block.content, `${blockParam}.content`),
+      });
+      return;
+    }
+    throw createAnthropicUnsupportedError(
+      `${blockParam}.type '${String(block.type)}' is not supported; only text, tool_use, and tool_result blocks are enabled.`,
+      `${blockParam}.type`,
+    );
+  });
+
+  const text = textParts.join("");
+  if (message.role === "assistant") {
+    return [{
+      role: "assistant",
+      content: text,
+      ...(toolUses.length > 0 ? {
+        tool_calls: toolUses.map((use) => ({
+          id: use.id,
+          type: "function",
+          function: { name: use.name, arguments: JSON.stringify(use.input ?? {}) },
+        })),
+      } : {}),
+    }];
+  }
+
+  const out = [];
+  // Tool results must directly follow the assistant tool_use turn on the
+  // chat wire, so they are emitted before the remaining user text.
+  for (const result of toolResults) {
+    out.push({
+      role: "tool",
+      tool_call_id: result.toolUseId,
+      content: result.content,
+    });
+  }
+  if (text.trim() || toolResults.length === 0) {
+    out.push({ role: "user", content: text });
+  }
+  return out;
+}
+
+function normalizeAnthropicToolResultContent(content, param) {
+  if (content === undefined || content === null) return "";
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) {
+    throw createAnthropicValidationError(
+      `${param} must be a string or an array of text blocks.`,
+      param,
+    );
+  }
+  return content.map((block, index) => {
+    const blockParam = `${param}[${index}]`;
+    if (!isRecord(block) || block.type !== "text") {
+      throw createAnthropicUnsupportedError(
+        `${blockParam} only text blocks are supported inside tool_result content.`,
+        blockParam,
+      );
+    }
+    return readRequiredString(block.text, `${blockParam}.text`);
+  }).join("\n");
+}
+
+function normalizeAnthropicTools(value) {
+  if (value === undefined || value === null) return undefined;
+  if (!Array.isArray(value)) {
+    throw createAnthropicValidationError("tools must be an array.", "tools");
+  }
+  if (value.length === 0) return undefined;
+  if (value.length > 128) {
+    throw createAnthropicValidationError("tools cannot contain more than 128 entries.", "tools");
+  }
+  return value.map((tool, index) => {
+    const param = `tools[${index}]`;
+    if (!isRecord(tool)) {
+      throw createAnthropicValidationError(`${param} must be an object.`, param);
+    }
+    const fn = { name: readRequiredString(tool.name, `${param}.name`) };
+    if (tool.description !== undefined && tool.description !== null) {
+      if (typeof tool.description !== "string") {
+        throw createAnthropicValidationError(`${param}.description must be a string.`, `${param}.description`);
+      }
+      fn.description = tool.description;
+    }
+    if (tool.input_schema !== undefined && tool.input_schema !== null) {
+      if (!isRecord(tool.input_schema)) {
+        throw createAnthropicValidationError(`${param}.input_schema must be an object.`, `${param}.input_schema`);
+      }
+      fn.parameters = tool.input_schema;
+    }
+    return { type: "function", function: fn };
+  });
+}
+
+function normalizeAnthropicToolChoice(value, tools) {
+  if (value === undefined || value === null) return undefined;
+  if (!isRecord(value)) {
+    throw createAnthropicValidationError("tool_choice must be an object.", "tool_choice");
+  }
+  if (value.type === "auto") return "auto";
+  if (value.type === "any") return "required";
+  if (value.type === "tool") {
+    const name = readRequiredString(value.name, "tool_choice.name");
+    return { type: "function", function: { name } };
+  }
+  throw createAnthropicUnsupportedError(
+    "tool_choice.type must be 'auto', 'any', or 'tool'.",
+    "tool_choice.type",
+  );
 }
 
 function normalizeAnthropicSystem(system) {
@@ -805,7 +1300,8 @@ function normalizeAnthropicTextContent(content, param) {
       );
     }
     for (const key of Object.keys(block)) {
-      if (key !== "type" && key !== "text") {
+      // cache_control 由装配层的 prompt-caching 校验单独处理并重挂出站。
+      if (key !== "type" && key !== "text" && key !== "cache_control") {
         throw createAnthropicUnsupportedError(
           `${blockParam}.${key} is not supported by this Anthropic compatibility profile.`,
           `${blockParam}.${key}`,
@@ -821,14 +1317,30 @@ export function createAnthropicMessage(result, options = {}) {
   const text = data.message?.content ?? data.outputText ?? data.text ?? "";
   const usage = data.usage ?? {};
   const requestId = result.meta?.requestId ?? data.id;
+  const toolCalls = readAnthropicToolCalls(data.message);
+
+  const content = [];
+  if (String(text).trim() || toolCalls.length === 0) {
+    content.push({ type: "text", text: String(text) });
+  }
+  for (const toolCall of toolCalls) {
+    content.push({
+      type: "tool_use",
+      id: toolCall.id,
+      name: toolCall.function.name,
+      input: safeParseAnthropicToolInput(toolCall.function.arguments),
+    });
+  }
 
   return {
     id: toAnthropicMessageId(data.id ?? requestId),
     type: "message",
     role: "assistant",
     model: data.selectedModel ?? data.model ?? options.requestedModel,
-    content: [{ type: "text", text: String(text) }],
-    stop_reason: normalizeAnthropicStopReason(data.finishReason),
+    content,
+    stop_reason: toolCalls.length > 0
+      ? "tool_use"
+      : normalizeAnthropicStopReason(data.finishReason),
     stop_sequence: data.stopSequence ?? null,
     usage: {
       input_tokens: usage.inputTokens ?? estimateAnthropicInputTokens(options.messages),
@@ -836,6 +1348,31 @@ export function createAnthropicMessage(result, options = {}) {
     },
     unified_ai: createAnthropicUnifiedAiMetadata(data, requestId),
   };
+}
+
+function readAnthropicToolCalls(message) {
+  const raw = message?.tool_calls ?? message?.toolCalls;
+  if (!Array.isArray(raw) || raw.length === 0) return [];
+  return raw.filter((toolCall) => toolCall?.function && typeof toolCall.function.name === "string")
+    .map((toolCall) => ({
+      id: toolCall.id ?? `toolu_${String(toolCall.function.name).slice(0, 12)}_${Date.now()}`,
+      function: {
+        name: toolCall.function.name,
+        arguments: typeof toolCall.function.arguments === "string"
+          ? toolCall.function.arguments
+          : JSON.stringify(toolCall.function.arguments ?? {}),
+      },
+    }));
+}
+
+function safeParseAnthropicToolInput(argumentsText) {
+  if (typeof argumentsText !== "string" || !argumentsText.trim()) return {};
+  try {
+    const parsed = JSON.parse(argumentsText);
+    return isRecord(parsed) ? parsed : {};
+  } catch {
+    return { _raw: argumentsText };
+  }
 }
 
 export function createAnthropicError(error, requestId) {
@@ -861,11 +1398,25 @@ async function streamAnthropicMessage({
   body,
   gatewayInput,
   gatewayService,
+  enterpriseGovernanceService,
   request,
   response,
   startedAt,
   writeServiceLog,
 }) {
+  if (applyVirtualKeyRequestGate({
+    enterpriseGovernanceService,
+    request,
+    gatewayInput,
+    response,
+    writeServiceLog,
+    startedAt,
+    path: ANTHROPIC_MESSAGES_PATH,
+    errorFactory: createAnthropicError,
+  })) {
+    return;
+  }
+
   let clientClosed = false;
   let failed = false;
   let started = false;
@@ -876,6 +1427,7 @@ async function streamAnthropicMessage({
   let executionMode = null;
   let outputText = "";
   let finalEvent = null;
+  const accumulatedToolCalls = new Map();
   const inputTokens = estimateAnthropicInputTokens(gatewayInput.messages);
 
   response.on("close", () => {
@@ -933,12 +1485,34 @@ async function streamAnthropicMessage({
     selectedProvider = event.selectedProvider ?? selectedProvider;
     executionMode = event.executionMode ?? executionMode;
     if (event.type === "chunk" && typeof event.textDelta === "string" && event.textDelta) {
+      // Guardrails 输出侧（流式）：与 /v1/chat/completions 同一引擎，逐 delta
+      // 尽力脱敏；fail-open 保证流不中断。
+      const redactedAnthropicDelta = getGuardrailsEngine(request.enterpriseIdentity?.tenantId).inspectSseDelta(event.textDelta);
+      if (redactedAnthropicDelta !== event.textDelta) {
+        event.textDelta = redactedAnthropicDelta;
+      }
       outputText += event.textDelta;
       writeAnthropicSseEvent(response, "content_block_delta", {
         type: "content_block_delta",
         index: 0,
         delta: { type: "text_delta", text: event.textDelta },
       });
+    }
+    if (Array.isArray(event.rawProviderMeta?.toolCallsDelta)) {
+      for (const deltaCall of event.rawProviderMeta.toolCallsDelta) {
+        if (!deltaCall || typeof deltaCall !== "object") continue;
+        const index = Number.isInteger(deltaCall.index) ? deltaCall.index : 0;
+        const current = accumulatedToolCalls.get(index) ?? {
+          id: null,
+          function: { name: "", arguments: "" },
+        };
+        if (typeof deltaCall.id === "string" && deltaCall.id) current.id = deltaCall.id;
+        if (deltaCall.function?.name) current.function.name += deltaCall.function.name;
+        if (typeof deltaCall.function?.arguments === "string") {
+          current.function.arguments += deltaCall.function.arguments;
+        }
+        accumulatedToolCalls.set(index, current);
+      }
     }
     if (event.type === "done") finalEvent = event;
   }
@@ -951,20 +1525,61 @@ async function streamAnthropicMessage({
     executionMode,
     durationMs: Date.now() - startedAt,
   });
+  if (!failed) {
+    recordVirtualKeyUsage({
+      enterpriseGovernanceService,
+      request,
+      writeServiceLog,
+      tokens: inputTokens + estimateCompatibilityTokens(outputText),
+      path: ANTHROPIC_MESSAGES_PATH,
+    });
+  }
 
   if (!clientClosed) {
     if (!failed) {
       ensureStarted(finalEvent ?? {});
+      const streamedToolCalls = [...accumulatedToolCalls.values()]
+        .filter((call) => call.function.name);
       if (contentBlockStarted) {
         writeAnthropicSseEvent(response, "content_block_stop", {
           type: "content_block_stop",
           index: 0,
         });
       }
+      // Tool calls are emitted as complete tool_use blocks (start + one full
+      // input_json_delta + stop) after the text block.
+      streamedToolCalls.forEach((call, callIndex) => {
+        const blockIndex = callIndex + 1;
+        const blockId = call.id ?? `toolu_stream_${blockIndex}`;
+        writeAnthropicSseEvent(response, "content_block_start", {
+          type: "content_block_start",
+          index: blockIndex,
+          content_block: {
+            type: "tool_use",
+            id: blockId,
+            name: call.function.name,
+            input: {},
+          },
+        });
+        writeAnthropicSseEvent(response, "content_block_delta", {
+          type: "content_block_delta",
+          index: blockIndex,
+          delta: {
+            type: "input_json_delta",
+            partial_json: call.function.arguments || "{}",
+          },
+        });
+        writeAnthropicSseEvent(response, "content_block_stop", {
+          type: "content_block_stop",
+          index: blockIndex,
+        });
+      });
       writeAnthropicSseEvent(response, "message_delta", {
         type: "message_delta",
         delta: {
-          stop_reason: normalizeAnthropicStopReason(finalEvent?.rawProviderMeta?.finishReason),
+          stop_reason: streamedToolCalls.length > 0
+            ? "tool_use"
+            : normalizeAnthropicStopReason(finalEvent?.rawProviderMeta?.finishReason),
           stop_sequence: null,
         },
         usage: { output_tokens: estimateCompatibilityTokens(outputText) },
@@ -1025,20 +1640,32 @@ function createAnthropicUnifiedAiMetadata(data = {}, requestId) {
   };
 }
 
+// n（并行候选数）上限：保护无凭证 fake lane 不被 n 放大成拒绝服务向量。
+const MAX_CHOICE_COUNT = 8;
+
+function normalizeChoiceCount(value) {
+  if (value === undefined || value === null) return 1;
+  const count = Number(value);
+  if (!Number.isInteger(count) || count < 1 || count > MAX_CHOICE_COUNT) {
+    throw createUnsupportedError(`n must be an integer between 1 and ${MAX_CHOICE_COUNT}.`, "n");
+  }
+  return count;
+}
+
 export function normalizeOpenAiChatCompletionRequest(body, descriptors = []) {
   if (!body || typeof body !== "object" || Array.isArray(body)) {
     throw createValidationError("Request body must be a JSON object.", null);
   }
 
   const requestedModel = readRequiredString(body.model, "model");
+  requestAudioPartCount = 0; // 每请求重置 input_audio 计数
   const messages = normalizeOpenAiMessages(body.messages);
+  const audioPartCount = requestAudioPartCount;
   const imageStats = getMessageImageStats(messages);
   validateOptionalBoolean(body.stream, "stream");
   validateUnsupportedFields(body);
 
-  if (body.n !== undefined && body.n !== 1) {
-    throw createUnsupportedError("Only n=1 is supported.", "n");
-  }
+  const choiceCount = normalizeChoiceCount(body.n);
   const streamOptions = normalizeOpenAiStreamOptions(body.stream_options, body.stream === true);
 
   const responseFormat = normalizeOpenAiResponseFormat(body.response_format);
@@ -1063,6 +1690,8 @@ export function normalizeOpenAiChatCompletionRequest(body, descriptors = []) {
       openAiCompatibility: {
         requestedModel,
         stream: body.stream === true,
+        ...(choiceCount > 1 ? { choiceCount } : {}),
+        ...(extension.rag?.enabled ? { rag: extension.rag } : {}),
         ...(streamOptions ? { streamOptions } : {}),
         ...(responseFormat ? { responseFormat } : {}),
         ...(tools ? { toolCount: tools.length } : {}),
@@ -1071,6 +1700,13 @@ export function normalizeOpenAiChatCompletionRequest(body, descriptors = []) {
             imageCount: imageStats.imageCount,
             totalInlineImageBytes: imageStats.totalBytes,
             remoteImageUrlsAllowed: false,
+          },
+        } : {}),
+        ...(audioPartCount > 0 ? {
+          multimodalAudio: {
+            audioCount: audioPartCount,
+            formats: ["wav", "mp3"],
+            passthrough: true,
           },
         } : {}),
       },
@@ -1083,11 +1719,13 @@ export function normalizeOpenAiChatCompletionRequest(body, descriptors = []) {
 }
 
 export function createOpenAiModelList(descriptors = [], startedAt = Date.now()) {
-  const available = listAvailableModels(descriptors);
-  const counts = new Map();
-  for (const item of available) {
-    counts.set(item.model.id, (counts.get(item.model.id) ?? 0) + 1);
+  let cached = modelListMemo.get(descriptors);
+  if (!cached) {
+    cached = buildModelRows(descriptors);
+    modelListMemo.set(descriptors, cached);
   }
+  const counts = cached.counts;
+  const available = cached.available;
 
   return {
     object: "list",
@@ -1203,15 +1841,8 @@ export function normalizeOpenAiCompletionRequest(body, descriptors = []) {
   validateOptionalBoolean(body.stream, "stream");
   validateUnsupportedCompletionFields(body);
 
-  if (body.n !== undefined && body.n !== 1) {
-    throw createUnsupportedError("Only n=1 is supported.", "n");
-  }
-  if (body.stream_options?.include_usage === true) {
-    throw createUnsupportedError(
-      "stream_options.include_usage is not available because streamed provider usage is not yet reported.",
-      "stream_options.include_usage",
-    );
-  }
+  const choiceCount = normalizeChoiceCount(body.n);
+  const streamOptions = normalizeOpenAiStreamOptions(body.stream_options, body.stream === true);
 
   const target = resolveOpenAiModelTarget(requestedModel, descriptors);
   const extension = normalizeUnifiedAiExtension(body);
@@ -1227,6 +1858,8 @@ export function normalizeOpenAiCompletionRequest(body, descriptors = []) {
         requestedModel,
         stream: body.stream === true,
         api: "completions",
+        ...(choiceCount > 1 ? { choiceCount } : {}),
+        ...(streamOptions ? { streamOptions } : {}),
       },
     },
   };
@@ -1312,13 +1945,15 @@ function resolveOpenAiModelResource(modelId, descriptors = []) {
   return null;
 }
 
-function applyVirtualKeyRequestGate({
+export function applyVirtualKeyRequestGate({
   enterpriseGovernanceService,
   request,
   gatewayInput,
   response,
   writeServiceLog,
   startedAt,
+  path = CHAT_COMPLETIONS_PATH,
+  errorFactory = createOpenAiError,
 }) {
   const fingerprint = request?.enterpriseIdentity?.apiKeyFingerprint;
   if (!fingerprint) return false;
@@ -1330,14 +1965,14 @@ function applyVirtualKeyRequestGate({
   const decision = manager.authorizeUsage({ keyId: fingerprint, estimatedTokens: estimatedInputTokens });
   if (decision.allowed) return false;
 
-  writeServiceLog?.("openai_chat_virtual_key_rejected", {
-    path: CHAT_COMPLETIONS_PATH,
+  writeServiceLog?.("virtual_key_rejected", {
+    path,
     code: decision.code,
     keyFingerprint: fingerprint,
     durationMs: Date.now() - startedAt,
   });
   recordChatVirtualKeyRejection(decision.code);
-  writeJson(response, 429, createOpenAiError({
+  writeJson(response, 429, errorFactory({
     code: decision.code,
     category: "rate_limit",
     message: decision.code === "VIRTUAL_KEY_RATE_LIMITED"
@@ -1347,11 +1982,12 @@ function applyVirtualKeyRequestGate({
   return true;
 }
 
-function recordVirtualKeyUsage({
+export function recordVirtualKeyUsage({
   enterpriseGovernanceService,
   request,
   writeServiceLog,
   tokens,
+  path = CHAT_COMPLETIONS_PATH,
 }) {
   const fingerprint = request?.enterpriseIdentity?.apiKeyFingerprint;
   if (!fingerprint) return;
@@ -1360,8 +1996,8 @@ function recordVirtualKeyUsage({
   try {
     const result = manager.recordUsage({ keyId: fingerprint, tokens });
     if (result.softBudgetExceeded) {
-      writeServiceLog?.("openai_chat_virtual_key_soft_budget", {
-        path: CHAT_COMPLETIONS_PATH,
+      writeServiceLog?.("virtual_key_soft_budget", {
+        path,
         keyFingerprint: fingerprint,
         tokensUsed: result.budget?.tokensUsed ?? null,
         limitTokens: result.budget?.limitTokens ?? null,
@@ -1370,6 +2006,136 @@ function recordVirtualKeyUsage({
   } catch {
     // 记账失败不影响响应。
   }
+}
+
+async function handleMultiChoiceChatCompletion({
+  choiceCount,
+  requestBody,
+  gatewayInput,
+  gatewayService,
+  request,
+  response,
+  startedAt,
+  normalizedPath,
+  guardrailsEngine,
+  writeServiceLog,
+  enterpriseGovernanceService,
+}) {
+  if (applyVirtualKeyRequestGate({
+    enterpriseGovernanceService,
+    request,
+    gatewayInput,
+    response,
+    writeServiceLog,
+    startedAt,
+  })) {
+    return;
+  }
+
+  const settled = await Promise.all(
+    Array.from({ length: choiceCount }, () => gatewayService.execute(gatewayInput)),
+  );
+
+  const firstFailure = settled.find((result) => !result?.success);
+  if (firstFailure) {
+    const error = firstFailure.error ?? {
+      code: firstFailure.code,
+      message: firstFailure.message,
+      category: "provider",
+    };
+    writeServiceLog?.("openai_chat_failed", {
+      method: "POST",
+      path: normalizedPath,
+      code: error.code,
+      durationMs: Date.now() - startedAt,
+    });
+    writeJson(response, resolveOpenAiErrorStatus(error), createOpenAiError(error));
+    return;
+  }
+
+  const created = Math.floor(startedAt / 1000);
+  const completionOptions = {
+    created,
+    requestedModel: requestBody.model,
+    promptEnhancement: gatewayInput.metadata?.promptEnhancement,
+  };
+  const chatCompletion = createOpenAiChatCompletion(settled[0], completionOptions);
+  chatCompletion.choices = settled.map((result, index) => {
+    const completion = index === 0
+      ? chatCompletion
+      : createOpenAiChatCompletion(result, completionOptions);
+    const choice = completion.choices[0];
+    choice.index = index;
+    return choice;
+  });
+
+  // Guardrails 输出侧：逐 choice 脱敏/拦截；fail-open 保证不影响正常响应。
+  for (const choice of chatCompletion.choices) {
+    if (typeof choice?.message?.content !== "string" || !choice.message.content) continue;
+    const outputVerdict = guardrailsEngine.inspectOutputText(choice.message.content);
+    if (outputVerdict.decision === "block") {
+      recordGuardrailEvaluation("output", "block");
+      for (const finding of outputVerdict.findings) {
+        if (finding.action === "block") recordGuardrailFinding(finding.rule, finding.action);
+      }
+      writeServiceLog?.("openai_chat_guardrail_output_blocked", {
+        method: "POST",
+        path: normalizedPath,
+        findings: outputVerdict.findings,
+        durationMs: Date.now() - startedAt,
+      });
+      writeJson(response, 400, createOpenAiError({
+        code: "guardrail_blocked",
+        category: "governance",
+        message: "Response blocked by chat guardrails.",
+        param: "messages",
+      }));
+      return;
+    }
+    if (outputVerdict.findings.length) {
+      recordGuardrailEvaluation("output", "allow");
+      for (const finding of outputVerdict.findings) {
+        recordGuardrailFinding(finding.rule, finding.action);
+      }
+    }
+    if (outputVerdict.text !== choice.message.content) {
+      choice.message.content = outputVerdict.text;
+    }
+  }
+
+  // usage：prompt 只计一次，completion 跨 choice 求和（与 OpenAI n>1 语义一致）。
+  const promptTokens = Number(settled[0].data?.usage?.inputTokens ?? 0)
+    || estimateTokens(gatewayInput).estimatedInputTokens;
+  const completionTokens = settled.reduce(
+    (sum, result) => sum + Number(result.data?.usage?.outputTokens ?? 0),
+    0,
+  );
+  chatCompletion.usage = {
+    prompt_tokens: promptTokens,
+    completion_tokens: completionTokens,
+    total_tokens: promptTokens + completionTokens,
+  };
+
+  recordChatRequest(normalizedPath, false);
+  const selectedModel = settled[0].data?.selectedModel ?? gatewayInput.model;
+  recordChatTokens(selectedModel, "input", promptTokens);
+  recordChatTokens(selectedModel, "output", completionTokens);
+  recordVirtualKeyUsage({
+    enterpriseGovernanceService,
+    request,
+    writeServiceLog,
+    tokens: promptTokens + completionTokens,
+  });
+  writeServiceLog?.("openai_chat_completed", {
+    method: "POST",
+    path: normalizedPath,
+    provider: settled[0].data?.selectedProvider,
+    model: selectedModel,
+    executionMode: settled[0].data?.executionMode,
+    choices: choiceCount,
+    durationMs: Date.now() - startedAt,
+  });
+  writeJson(response, 200, chatCompletion);
 }
 
 async function streamOpenAiChatCompletion({
@@ -1408,8 +2174,12 @@ async function streamOpenAiChatCompletion({
 
   writeSseHeaders(response);
 
+  const choiceCount = Number(gatewayInput.metadata?.openAiCompatibility?.choiceCount ?? 1);
+  // 多候选（n>1）与 RAG 注入均不支持缓存读写：候选集合/检索结果不可稳定复放。
   const chatResponseCache = getChatResponseCacheIntegration();
-  const cacheCandidate = chatResponseCache.describeCacheCandidate(body, gatewayInput);
+  const cacheCandidate = choiceCount > 1 || gatewayInput.metadata?.ragInjection?.applied
+    ? null
+    : chatResponseCache.describeCacheCandidate(body, gatewayInput);
   const cacheLookup = cacheCandidate
     ? chatResponseCache.lookup({ candidate: cacheCandidate, tenantIdentity: request.enterpriseIdentity })
     : null;
@@ -1459,32 +2229,46 @@ async function streamOpenAiChatCompletion({
   let capturedUsageChunk;
   let firstTokenAt = 0;
 
-  for await (const event of gatewayService.executeStream(gatewayInput)) {
-    if (clientClosed) break;
-    if (event.type === "error") {
-      failed = true;
-      writeOpenAiSseData(response, createOpenAiError(event.envelope?.error ?? event.envelope));
-      break;
-    }
-
-    completionId ??= toOpenAiCompletionId(event.requestId);
-    selectedModel = event.selectedModel ?? selectedModel;
-    finalEvent = event;
-    if (typeof event.textDelta === "string" && event.textDelta) {
-      if (!firstTokenAt) {
-        firstTokenAt = Date.now();
-        recordChatTtft(CHAT_COMPLETIONS_PATH, firstTokenAt, startedAt);
+  const consumeProviderStream = async (choiceIndex) => {
+    for await (const event of gatewayService.executeStream(gatewayInput)) {
+      if (clientClosed) break;
+      if (event.type === "error") {
+        failed = true;
+        writeOpenAiSseData(response, createOpenAiError(event.envelope?.error ?? event.envelope));
+        break;
       }
-      streamOutputText += event.textDelta;
+
+      completionId ??= toOpenAiCompletionId(event.requestId);
+      selectedModel = event.selectedModel ?? selectedModel;
+      finalEvent = event;
+      if (typeof event.textDelta === "string" && event.textDelta) {
+        // Guardrails 输出侧（流式）：对每个 delta 尽力脱敏（跨块边界的模式以
+        // 完成后的审计发现兜底），fail-open 保证流不中断。
+        const redactedDelta = getGuardrailsEngine(request.enterpriseIdentity?.tenantId).inspectSseDelta(event.textDelta);
+        if (redactedDelta !== event.textDelta) {
+          event.textDelta = redactedDelta;
+        }
+        if (!firstTokenAt) {
+          firstTokenAt = Date.now();
+          recordChatTtft(CHAT_COMPLETIONS_PATH, firstTokenAt, startedAt);
+        }
+        streamOutputText += event.textDelta;
+      }
+      const chunk = createOpenAiChatCompletionChunk(event, {
+        completionId,
+        created,
+        model: selectedModel,
+        promptEnhancement: gatewayInput.metadata?.promptEnhancement,
+        index: choiceIndex,
+      });
+      capturedChunks.push(chunk);
+      writeOpenAiSseData(response, chunk);
     }
-    const chunk = createOpenAiChatCompletionChunk(event, {
-      completionId,
-      created,
-      model: selectedModel,
-      promptEnhancement: gatewayInput.metadata?.promptEnhancement,
-    });
-    capturedChunks.push(chunk);
-    writeOpenAiSseData(response, chunk);
+  };
+
+  // n=1 保持既有单流路径；n>1 顺序消费 n 条流并按 choice index 标记。
+  for (let choiceIndex = 0; choiceIndex < choiceCount && !failed && !clientClosed; choiceIndex += 1) {
+    await consumeProviderStream(choiceIndex);
   }
 
   if (!failed) {
@@ -1573,32 +2357,47 @@ async function streamOpenAiCompletion({
   let failed = false;
   let completionId = null;
   let selectedModel = body.model;
+  let finalEvent = null;
+  let firstTokenAt = 0;
   const created = Math.floor(startedAt / 1000);
+  const choiceCount = Number(gatewayInput.metadata?.openAiCompatibility?.choiceCount ?? 1);
 
   response.on("close", () => {
     clientClosed = true;
   });
   writeSseHeaders(response);
 
-  for await (const event of gatewayService.executeStream(gatewayInput)) {
-    if (clientClosed) break;
-    if (event.type === "error") {
-      failed = true;
-      writeOpenAiSseData(response, createOpenAiError(event.envelope?.error ?? event.envelope));
-      break;
-    }
+  const consumeLegacyStream = async (choiceIndex) => {
+    for await (const event of gatewayService.executeStream(gatewayInput)) {
+      if (clientClosed) break;
+      if (event.type === "error") {
+        failed = true;
+        writeOpenAiSseData(response, createOpenAiError(event.envelope?.error ?? event.envelope));
+        break;
+      }
 
-    completionId ??= toOpenAiCompletionId(event.requestId);
-    selectedModel = event.selectedModel ?? selectedModel;
-    writeOpenAiSseData(
-      response,
-      createOpenAiCompletionChunk(event, {
-        completionId,
-        created,
-        model: selectedModel,
-        promptEnhancement: gatewayInput.metadata?.promptEnhancement,
-      }),
-    );
+      completionId ??= toOpenAiCompletionId(event.requestId);
+      selectedModel = event.selectedModel ?? selectedModel;
+      finalEvent = event;
+      if (event.type === "chunk" && event.textDelta && !firstTokenAt) {
+        firstTokenAt = Date.now();
+        recordChatTtft(COMPLETIONS_PATH, firstTokenAt, startedAt);
+      }
+      writeOpenAiSseData(
+        response,
+        createOpenAiCompletionChunk(event, {
+          completionId,
+          created,
+          model: selectedModel,
+          promptEnhancement: gatewayInput.metadata?.promptEnhancement,
+          index: choiceIndex,
+        }),
+      );
+    }
+  };
+
+  for (let choiceIndex = 0; choiceIndex < choiceCount && !failed && !clientClosed; choiceIndex += 1) {
+    await consumeLegacyStream(choiceIndex);
   }
 
   writeServiceLog?.(failed ? "openai_completion_stream_failed" : "openai_completion_stream_completed", {
@@ -1608,6 +2407,14 @@ async function streamOpenAiCompletion({
     durationMs: Date.now() - startedAt,
   });
   if (!clientClosed) {
+    if (!failed && body.stream_options?.include_usage === true && finalEvent) {
+      writeOpenAiSseData(response, createOpenAiCompletionUsageChunk(finalEvent, {
+        completionId,
+        created,
+        model: selectedModel,
+        prompt: typeof body.prompt === "string" ? body.prompt : "",
+      }));
+    }
     response.write("data: [DONE]\n\n");
     response.end();
   }
@@ -1627,13 +2434,38 @@ export function createOpenAiCompletionChunk(event, options = {}) {
     model: event.selectedModel ?? options.model,
     choices: [
       {
-        index: 0,
+        index: options.index ?? 0,
         text: delta,
         logprobs: null,
         finish_reason: event.type === "done" ? "stop" : null,
       },
     ],
     unified_ai: createUnifiedAiMetadata(event, { requestId: event.requestId }, options.promptEnhancement),
+  };
+}
+
+function createOpenAiCompletionUsageChunk(event, options = {}) {
+  const reportedUsage = event.rawProviderMeta?.usage;
+  const promptTokens = Number(reportedUsage?.inputTokens ?? 0)
+    || estimateCompatibilityTokens(String(options.prompt ?? ""));
+  const completionTokens = Number(reportedUsage?.outputTokens ?? 0)
+    || estimateCompatibilityTokens(event.outputText ?? "");
+
+  return {
+    id: options.completionId ?? toOpenAiCompletionId(event.requestId),
+    object: "text_completion",
+    created: options.created ?? Math.floor(Date.now() / 1000),
+    model: event.selectedModel ?? options.model,
+    choices: [],
+    usage: {
+      prompt_tokens: promptTokens,
+      completion_tokens: completionTokens,
+      total_tokens: promptTokens + completionTokens,
+    },
+    unified_ai: {
+      ...createUnifiedAiMetadata(event, { requestId: event.requestId }),
+      usage_estimated: !reportedUsage,
+    },
   };
 }
 
@@ -1657,7 +2489,7 @@ export function createOpenAiChatCompletionChunk(event, options = {}) {
     model: event.selectedModel ?? options.model,
     choices: [
       {
-        index: 0,
+        index: options.index ?? 0,
         delta,
         logprobs: null,
         finish_reason: event.type === "done"
@@ -1880,6 +2712,13 @@ function normalizeOpenAiAssistantToolCalls(value, messageParam) {
   });
 }
 
+// input_audio 部件的本地策略：限制数量与体积，拒绝服务向量不至于借
+// 多模态载荷放大（OpenAI 上限 ~25MB，这里按 base64 字符数更保守）。
+const MAX_AUDIO_PARTS_PER_REQUEST = 4;
+const MAX_AUDIO_BASE64_CHARS_PER_PART = 20 * 1024 * 1024; // ~15MB 原始音频
+const SUPPORTED_AUDIO_FORMATS = new Set(["wav", "mp3"]);
+let requestAudioPartCount = 0;
+
 function normalizeOpenAiMessageContent(content, param, role) {
   if (typeof content === "string") return content;
   if (!Array.isArray(content) || content.length === 0) {
@@ -1887,9 +2726,53 @@ function normalizeOpenAiMessageContent(content, param, role) {
   }
 
   let hasImage = false;
+  let hasAudio = false;
   let hasNonEmptyText = false;
   const normalized = content.map((part, index) => {
     const partParam = `${param}[${index}]`;
+    if (isRecord(part) && part.type === "input_audio") {
+      if (role !== "user") {
+        throw createUnsupportedError("input_audio content is allowed only in user messages.", partParam);
+      }
+      assertSupportedObjectFields(part, new Set(["type", "input_audio"]), partParam);
+      if (!isRecord(part.input_audio)) {
+        throw createValidationError(`${partParam}.input_audio must be an object.`, `${partParam}.input_audio`);
+      }
+      assertSupportedObjectFields(
+        part.input_audio,
+        new Set(["data", "format"]),
+        `${partParam}.input_audio`,
+      );
+      const data = readRequiredString(part.input_audio.data, `${partParam}.input_audio.data`);
+      if (!/^[A-Za-z0-9+/]+={0,2}$/.test(data)) {
+        throw createValidationError(
+          `${partParam}.input_audio.data must be a base64 string.`,
+          `${partParam}.input_audio.data`,
+        );
+      }
+      if (data.length > MAX_AUDIO_BASE64_CHARS_PER_PART) {
+        throw createValidationError(
+          `input_audio exceeds the ${MAX_AUDIO_BASE64_CHARS_PER_PART}-character base64 limit.`,
+          `${partParam}.input_audio.data`,
+        );
+      }
+      const format = part.input_audio.format;
+      if (typeof format !== "string" || !SUPPORTED_AUDIO_FORMATS.has(format)) {
+        throw createValidationError(
+          `${partParam}.input_audio.format must be one of: ${[...SUPPORTED_AUDIO_FORMATS].join(", ")}.`,
+          `${partParam}.input_audio.format`,
+        );
+      }
+      requestAudioPartCount += 1;
+      if (requestAudioPartCount > MAX_AUDIO_PARTS_PER_REQUEST) {
+        throw createValidationError(
+          `Request cannot contain more than ${MAX_AUDIO_PARTS_PER_REQUEST} input_audio parts.`,
+          partParam,
+        );
+      }
+      hasAudio = true;
+      return { type: "input_audio", input_audio: { data, format } };
+    }
     if (!isRecord(part)) {
       throw createValidationError(`${partParam} must be an object.`, partParam);
     }
@@ -1903,7 +2786,7 @@ function normalizeOpenAiMessageContent(content, param, role) {
     }
     if (part.type !== "image_url") {
       throw createUnsupportedError(
-        "Only text and inline image_url content parts are supported.",
+        "Only text, inline image_url, and input_audio content parts are supported.",
         partParam,
       );
     }
@@ -1942,8 +2825,8 @@ function normalizeOpenAiMessageContent(content, param, role) {
     return { type: "image_url", image_url: { url, detail } };
   });
 
-  if (!hasImage) return normalized.map((part) => part.text).join("\n");
-  if (!hasNonEmptyText && normalized.every((part) => part.type !== "image_url")) {
+  if (!hasImage && !hasAudio) return normalized.map((part) => part.text).join("\n");
+  if (!hasNonEmptyText && normalized.every((part) => part.type !== "image_url" && part.type !== "input_audio")) {
     throw createValidationError(`${param} cannot be empty.`, param);
   }
   return normalized;
@@ -2111,13 +2994,14 @@ function normalizeUnifiedAiExtension(body) {
   if (providerId !== undefined && (typeof providerId !== "string" || !providerId.trim())) {
     throw createValidationError("provider_id must be a non-empty string.", "unified_ai.provider_id");
   }
+  const rag = normalizeUnifiedAiRag(extension.rag);
 
   const rawEnhancement = extension.prompt_enhancement ?? body.prompt_enhancement;
   if (rawEnhancement === undefined || rawEnhancement === false) {
-    return { providerId: providerId?.trim() };
+    return { providerId: providerId?.trim(), ...(rag ? { rag } : {}) };
   }
   if (rawEnhancement === true) {
-    return { providerId: providerId?.trim(), promptEnhancement: { enabled: true } };
+    return { providerId: providerId?.trim(), promptEnhancement: { enabled: true }, ...(rag ? { rag } : {}) };
   }
   if (!rawEnhancement || typeof rawEnhancement !== "object" || Array.isArray(rawEnhancement)) {
     throw createValidationError(
@@ -2133,15 +3017,58 @@ function normalizeUnifiedAiExtension(body) {
       profile: rawEnhancement.profile,
       language: rawEnhancement.language,
     },
+    ...(rag ? { rag } : {}),
   };
 }
 
-function resolveOpenAiModelTarget(requestedModel, descriptors) {
-  const available = listAvailableModels(descriptors);
-  const counts = new Map();
-  for (const item of available) {
-    counts.set(item.model.id, (counts.get(item.model.id) ?? 0) + 1);
+// unified_ai.rag：显式 opt-in 的知识库检索注入（默认关闭）。
+function normalizeUnifiedAiRag(rawRag) {
+  if (rawRag === undefined || rawRag === false || rawRag === null) return null;
+  if (rawRag === true) return { enabled: true };
+  if (typeof rawRag !== "object" || Array.isArray(rawRag)) {
+    throw createValidationError("rag must be a boolean or an options object.", "unified_ai.rag");
   }
+  const enabled = rawRag.enabled !== false;
+  let topK;
+  if (rawRag.topK !== undefined) {
+    topK = Number(rawRag.topK);
+    if (!Number.isInteger(topK) || topK < 1 || topK > 10) {
+      throw createValidationError("rag.topK must be an integer between 1 and 10.", "unified_ai.rag.topK");
+    }
+  }
+  let sourceIds;
+  if (rawRag.sourceIds !== undefined) {
+    if (!Array.isArray(rawRag.sourceIds)
+      || rawRag.sourceIds.some((id) => typeof id !== "string" || !id)) {
+      throw createValidationError(
+        "rag.sourceIds must be an array of non-empty strings.",
+        "unified_ai.rag.sourceIds",
+      );
+    }
+    sourceIds = [...rawRag.sourceIds];
+  }
+  return {
+    enabled,
+    ...(topK !== undefined ? { topK } : {}),
+    ...(sourceIds ? { sourceIds } : {}),
+  };
+}
+
+// 按 descriptors 数组引用 memo(注册表返回冻结缓存数组,引用稳定)。
+const modelTargetMemo = new WeakMap();
+const modelListMemo = new WeakMap();
+function resolveOpenAiModelTarget(requestedModel, descriptors) {
+  let entry = modelTargetMemo.get(descriptors);
+  if (!entry) {
+    const available = listAvailableModels(descriptors);
+    const counts = new Map();
+    for (const item of available) {
+      counts.set(item.model.id, (counts.get(item.model.id) ?? 0) + 1);
+    }
+    entry = { available, counts };
+    modelTargetMemo.set(descriptors, entry);
+  }
+  const { available, counts } = entry;
 
   const exposedMatch = available.find(({ descriptor, model }) => {
     const exposedId = counts.get(model.id) > 1 ? `${descriptor.id}/${model.id}` : model.id;
@@ -2167,6 +3094,15 @@ function resolveOpenAiModelTarget(requestedModel, descriptors) {
 
 export function resolveOpenAiCompletionModel(bodyModel) {
   return readRequiredString(bodyModel, "model");
+}
+
+function buildModelRows(descriptors) {
+  const available = listAvailableModels(descriptors);
+  const counts = new Map();
+  for (const item of available) {
+    counts.set(item.model.id, (counts.get(item.model.id) ?? 0) + 1);
+  }
+  return { available, counts };
 }
 
 function listAvailableModels(descriptors) {
@@ -2200,6 +3136,9 @@ function writeOpenAiSseData(response, data) {
 }
 
 export function resolveOpenAiErrorStatus(error) {
+  if (typeof error?.status === "number" && error.status >= 400 && error.status < 500) {
+    return error.status;
+  }
   const category = error?.category ?? error?.type;
   if (category === "validation" || category === "routing") return 400;
   if (category === "auth") return 401;

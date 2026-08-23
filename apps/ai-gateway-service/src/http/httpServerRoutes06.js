@@ -1,6 +1,7 @@
 import { ROUTE_NOT_HANDLED } from "./httpRouteDispatch.js";
 import { resolveChatResultHttpStatus } from "./routes/chatRoutes.js";
 import { applyIdempotencyResponseHeaders } from "./idempotencyCoordinator.ts";
+import { getGuardrailsEngine } from "../guardrails/guardrailsEngine.ts";
 
 export async function dispatchHttpRoutes06(context) {
   const {
@@ -12,7 +13,7 @@ export async function dispatchHttpRoutes06(context) {
     createResponseCachePolicy, invalidateCache, lookupCache, readResponseCacheSummary,
     writeCacheRecord, listResponseCacheAuditTrail, routeAnswerPath, routeQualityCostAnswer,
     getEvidenceById, TASK_MATRIX, LATENCY_DRY_RUN_CASES, PHASE315A_TIMEOUT_TYPES,
-    PHASE315A_LATENCY_RISK_LEVELS, PHASE315A_COMPLETION_CONFIDENCE, executeThreeModeRequest, evaluateTaijiBeidouChatGatewayExecutePreviewHook,
+    PHASE315A_LATENCY_RISK_LEVELS, PHASE315A_COMPLETION_CONFIDENCE, evaluateTaijiBeidouChatGatewayExecutePreviewHook,
     evaluateTaijiBeidouChatPreviewHook, handleChatLocalActionRoute, routeChatActionProposal, buildModelUsabilityMatrix,
     createModelVerificationPlan, getPluginRegistry, readJson,
     writeJson, writeSseEvent, writeSseHeaders, writeServiceLog,
@@ -49,7 +50,7 @@ export async function dispatchHttpRoutes06(context) {
     }
 
     try {
-      const result = knowledgeService.retrieve(body, getRequestContext(request));
+      const result = await knowledgeService.retrieve(body, getRequestContext(request));
       writeServiceLog("knowledge_retrieve_completed", {
         method: request.method,
         path: url.pathname,
@@ -103,7 +104,7 @@ export async function dispatchHttpRoutes06(context) {
       }
 
       const retrieveRequest = createRagRetrieveRequest(body, prompt);
-      const retrieveResult = knowledgeService.retrieve(retrieveRequest, getRequestContext(request));
+      const retrieveResult = await knowledgeService.retrieve(retrieveRequest, getRequestContext(request));
       const citations = createRagCitations(retrieveResult.chunks);
       const ragMessages = createRagMessages(prompt, citations);
       const chatInput = normalizeRagChatBody(
@@ -209,7 +210,7 @@ export async function dispatchHttpRoutes06(context) {
       }
 
       const retrieveRequest = createRagRetrieveRequest(body, prompt);
-      const retrieveResult = knowledgeService.retrieve(retrieveRequest, getRequestContext(request));
+      const retrieveResult = await knowledgeService.retrieve(retrieveRequest, getRequestContext(request));
       const citations = createRagCitations(retrieveResult.chunks);
       const ragMessages = createRagMessages(prompt, citations);
       const chatInput = normalizeRagChatBody(
@@ -382,6 +383,29 @@ export async function dispatchHttpRoutes06(context) {
 
     const promptEnhancement = gatewayInput?.metadata?.promptEnhancement ?? null;
 
+    // Guardrails(确定性本地扫描):原生 /chat 与 /chat/stream 必须与 /v1/* 协议
+    // lane 执行同一套租户隔离的输入策略——拦截秘密注入,脱敏 PII 后再进网关。
+    const guardrailsEngine = getGuardrailsEngine(request.enterpriseIdentity?.tenantId);
+    const guardrailInputVerdict = guardrailsEngine.inspectInput({ messages: gatewayInput?.messages });
+    if (guardrailInputVerdict.decision === "block") {
+      writeServiceLog("chat_guardrail_blocked", {
+        method: request.method,
+        path: url.pathname,
+        findings: guardrailInputVerdict.findings,
+        durationMs: Date.now() - startedAt,
+      });
+      writeJson(response, 400, createErrorEnvelope("guardrail_blocked", "Request blocked by chat guardrails.", {
+        startedAt,
+        category: "governance",
+      }));
+      return;
+    }
+    for (const replacement of guardrailInputVerdict.replacements) {
+      if (typeof gatewayInput?.messages?.[replacement.index]?.content === "string") {
+        gatewayInput.messages[replacement.index].content = replacement.content;
+      }
+    }
+
     if (url.pathname === "/chat/stream") {
       let clientClosed = false;
       response.on("close", () => {
@@ -469,6 +493,38 @@ export async function dispatchHttpRoutes06(context) {
       idempotencyStatus,
       durationMs: Date.now() - startedAt,
     });
+    // Guardrails 输出侧:与 /v1/* lane 相同的最终文本脱敏/拦截;fail-open。
+    const guardrailOutputText = result?.data?.outputText;
+    if (typeof guardrailOutputText === "string" && guardrailOutputText) {
+      const outputVerdict = guardrailsEngine.inspectOutputText(guardrailOutputText);
+      if (outputVerdict.decision === "block") {
+        writeServiceLog("chat_guardrail_output_blocked", {
+          method: request.method,
+          path: url.pathname,
+          findings: outputVerdict.findings,
+          durationMs: Date.now() - startedAt,
+        });
+        writeJson(response, 400, createErrorEnvelope("guardrail_blocked", "Response blocked by chat guardrails.", {
+          startedAt,
+          category: "governance",
+        }));
+        return;
+      }
+      if (outputVerdict.text !== guardrailOutputText) {
+        result = {
+          ...result,
+          data: {
+            ...(result.data ?? {}),
+            text: outputVerdict.text,
+            outputText: outputVerdict.text,
+            message: {
+              ...(result.data?.message ?? { role: "assistant", content: "" }),
+              content: outputVerdict.text,
+            },
+          },
+        };
+      }
+    }
     writeJson(response, responseStatus, result);
     return;
   }

@@ -121,6 +121,9 @@ import {
 import {
   createRouteRateLimiter,
 } from "./routeRateLimiter.js";
+import { resolveMultiInstanceStoreMode } from "./multiInstanceConfig.js";
+import { dispatchOidcScimRoutes, isOidcScimRoute } from "./oidcScimRoutes.js";
+import { dispatchForgeRoutes } from "./forgeRoutes.js";
 import {
   createLogger,
 } from "./structuredLogger.js";
@@ -177,6 +180,7 @@ import {
   dispatchHttpRouteGroups,
 } from "./httpRouteDispatch.js";
 import { dispatchPromptEnhancementRoutes } from "./promptEnhancementRoutes.js";
+import { dispatchAgentExecRoutes } from "./agentExecRoutes.js";
 import { createA2AGateway } from "./a2aGateway.js";
 import { dispatchA2ARoutes } from "./a2aRoutes.js";
 import {
@@ -187,6 +191,12 @@ import {
   isOpenAiCompatibilityRoute,
 } from "./openAiCompatibilityRoutes.js";
 import { dispatchOpenAiResponsesRoutes } from "./openAiResponsesRoutes.js";
+import {
+  createGeminiErrorPayload,
+  dispatchGeminiCompatibilityRoutes,
+  isGeminiCompatibilityRoute,
+  isGeminiStreamRoute,
+} from "./geminiCompatibilityRoutes.ts";
 import { dispatchMultimodalRoutes } from "./multimodalRoutes.js";
 import { dispatchHttpRoutes01 } from "./httpServerRoutes01.js";
 import { dispatchHttpRoutes02 } from "./httpServerRoutes02.js";
@@ -250,9 +260,13 @@ const HTTP_ROUTE_DEPENDENCIES = Object.freeze({
 const HTTP_ROUTE_GROUPS = Object.freeze([
   dispatchA2ARoutes,
   dispatchPromptEnhancementRoutes,
+  dispatchAgentExecRoutes,
   dispatchMultimodalRoutes,
   dispatchOpenAiCompatibilityRoutes,
   dispatchOpenAiResponsesRoutes,
+  dispatchGeminiCompatibilityRoutes,
+  dispatchOidcScimRoutes,
+  dispatchForgeRoutes,
   dispatchHttpRoutes01,
   dispatchHttpRoutes02,
   dispatchHttpRoutes03,
@@ -595,7 +609,8 @@ export function createGatewayHttpServer(application) {
     const pathname = url.pathname;
     const isStreamingRoute = pathname.endsWith("/stream")
       || pathname === "/v1/chat/completions"
-      || isAnthropicMessagesRoute(pathname);
+      || isAnthropicMessagesRoute(pathname)
+      || isGeminiStreamRoute(pathname);
     const bodyBytesLimit = maxRequestBodyBytes > 0 ? maxRequestBodyBytes : DEFAULT_MAX_REQUEST_BODY_BYTES;
     const requestBodyLimit = parseContentLength(request.headers["content-length"], bodyBytesLimit);
     if (requestBodyLimit > bodyBytesLimit) {
@@ -683,7 +698,9 @@ export function createGatewayHttpServer(application) {
         }
       },
     });
-    const requestGatewayService = bindGatewayExecution(tracedGatewayService, requestExecutionScope.context);
+    // Identity resolves lazily at execute time, after enterprise authorization
+    // has attached it, so the usage ledger attributes records to the real tenant.
+    const requestGatewayService = bindGatewayExecution(tracedGatewayService, requestExecutionScope.context, () => request.enterpriseIdentity);
 
     const routeRateLimiter = rateLimiter;
 
@@ -799,10 +816,15 @@ export function createGatewayHttpServer(application) {
             ? createAnthropicError(authError, requestId)
             : isOpenAiCompatibilityRoute(url.pathname)
               ? createOpenAiError(authError)
-              : createErrorEnvelope(authError.code, authError.message, {
-                startedAt,
-                category: authError.category,
-              }),
+              : isGeminiCompatibilityRoute(url.pathname)
+                ? createGeminiErrorPayload(
+                  enterpriseDecision.statusCode ?? 401,
+                  authError.message ?? "Enterprise authorization failed.",
+                )
+                : createErrorEnvelope(authError.code, authError.message, {
+                  startedAt,
+                  category: authError.category,
+                }),
         );
         markRequestSuccess();
         return;
@@ -1303,7 +1325,11 @@ function createRouteAwareRateLimiter(runtimeEnv = {}) {
   const globalWindowMs = parsePositiveInteger(runtimeEnv.AI_GATEWAY_RATE_LIMIT_WINDOW_MS, DEFAULT_RATE_LIMIT_WINDOW_MS);
   const globalMaxRequests = parsePositiveInteger(runtimeEnv.AI_GATEWAY_RATE_LIMIT_MAX_REQUESTS, DEFAULT_RATE_LIMIT_MAX_REQUESTS);
   const whitelist = parseRateLimitWhitelist(runtimeEnv.AI_GATEWAY_RATE_LIMIT_WHITELIST, DEFAULT_RATE_LIMIT_WHITELIST);
-  const storeMode = parseRateLimitStoreMode(runtimeEnv.AI_GATEWAY_RATE_LIMIT_STORE_MODE);
+  // 多实例（同主机多进程）默认 sqlite 共享计数；显式 store-mode env 优先。
+  const storeMode = resolveMultiInstanceStoreMode(
+    runtimeEnv,
+    parseRateLimitStoreMode(runtimeEnv.AI_GATEWAY_RATE_LIMIT_STORE_MODE),
+  );
   const storePath = typeof runtimeEnv.AI_GATEWAY_RATE_LIMIT_STORE_PATH === "string" && runtimeEnv.AI_GATEWAY_RATE_LIMIT_STORE_PATH.trim()
     ? runtimeEnv.AI_GATEWAY_RATE_LIMIT_STORE_PATH.trim()
     : undefined;
