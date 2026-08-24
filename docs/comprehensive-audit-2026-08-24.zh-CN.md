@@ -121,6 +121,7 @@
 | AUD-15 | 中高 | A2A Agent Card 缺稳定身份签名，客户端无法验证发现内容 | 增加受限 Ed25519 私钥文件、官方 JCS/JWS、公开 JWKS、HTTPS 约束、required 失败关闭和官方 SDK 验签 | E2/E3 |
 | AUD-16 | 中高 | 官方内存 TaskStore 无持久性与资源上限 | 增加租户/owner 隔离、有界 memory、TTL/容量/大小/历史/产物上限、keyset 分页和同主机 SQLite 重启恢复 | E2/E3 |
 | AUD-17 | 高 | Workforce claim 只能同进程生效，多主机可能同时认领同一任务 | 增加 PostgreSQL 数据库时钟租约、原子唯一 owner、全局单调 fence、摘要 token、续租/释放/撤销、TLS/容量/namespace/readiness 门 | E2；真实 PostgreSQL CI 待当前提交完成 |
+| AUD-18 | 高 | usage 台账虽同主机 fsync，但多主机无法形成一个原子总账 | 增加 PostgreSQL write-ahead start/terminal、幂等冲突检测、租户查询、容量/留存/TLS/readiness/metrics，并强制多实例真实调用使用中央台账 | E2；真实 PostgreSQL CI 待当前提交完成 |
 
 在本轮已审范围和现有自动化证据内，**没有仍然已知且未处置的 P0/P1 代码级缺陷**。这句话不等于“没有未知漏洞”，也不覆盖下节列出的生产证据阻断。
 
@@ -135,7 +136,7 @@
 | 生产阻断 | 缺独立渗透测试和外部威胁模型复核 | 现有安全结论由仓库本地工具和本次审计产生 | 第三方测试、修复复测、签名报告 |
 | 生产阻断 | 缺 6–24 小时真实工作负载 soak 与容量包线 | 当前短时门只能发现明显回归，不能证明无泄漏或峰值稳定 | 多负载混合、并发爬坡、故障注入、长时资源趋势 |
 | 生产阻断 | Workforce 已有 PostgreSQL 跨主机 claim/fencing，但队列/结果仍是同主机 JSON，副作用 sink 尚未普遍强制 fence | 可防重复 ownership，但不能声称端到端 exactly-once 或完整分布式 Workforce | 中央队列/结果后端、所有不可逆副作用 fence 校验、数据库故障转移/分区/split-brain 测试 |
-| 生产阻断 | usage/billing/audit 主要是每进程/同主机持久化 | 跨主机总账、WORM 留存与提供商账单对账不完整 | 中央事务账本、幂等入账、提供商 invoice reconciliation、外部不可变锚点 |
+| 生产阻断 | usage 已有中央 PostgreSQL 事务台账，但 billing 法定发票、Provider statement reconciliation 与 audit WORM 仍未闭环 | 技术用量可跨主机汇总，仍不能直接当财务/税务或不可变审计证明 | Provider invoice reconciliation、支付/税务边界、中央 audit/WORM 外部不可变锚点 |
 | 生产阻断 | 未完成负载均衡器、TLS/mTLS、数据库故障切换、备份恢复和 DR 演练 | 无法给出 RTO/RPO 或多实例生产承诺 | 隔离环境破坏性恢复、主从切换、证书轮换、网络分区演练 |
 | P1 能力差距 | A2A 已支持稳定 Ed25519/JWKS 签名及有界 memory/同主机 SQLite 持久任务，但缺跨主机 TaskStore 和重叠多签名轮换 | 多主机不能共享任务生命周期；密钥轮换窗口仍需协调缓存 | 实现 PostgreSQL TaskStore、故障转移/分区测试、生产 required 签名和重叠轮换演练 |
 | P1 工程债 | TypeScript 迁移例外仍存在 | 严格检查通过，但部分旧运行时仍依赖 JS 兼容边界 | 在 2026-10-31/11-13 前消除登记例外并保持契约兼容 |

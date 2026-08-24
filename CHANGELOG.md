@@ -25,6 +25,10 @@ and the project uses [Semantic Versioning](https://semver.org/).
   namespace/capacity bounds, digest-only bearer persistence, renewal/release/
   revoke operations, verified-TLS configuration, safe health output, and a
   fail-closed multi-instance execution requirement.
+- Added a central PostgreSQL usage ledger with awaited write-ahead reservation
+  and terminal commits, per-attempt idempotency/conflict detection, tenant
+  queries and spend aggregation, retention/capacity bounds, verified TLS,
+  redacted health/metrics, and a fail-closed multi-instance real-provider gate.
 - Added OIDC SSO (authorization code + PKCE + JWKS RS256/ES256 ID-token
   verification, one-time state, issues an API token on login) and SCIM 2.0
   user provisioning (bearer-auth create/get/list/patch/deactivate) for

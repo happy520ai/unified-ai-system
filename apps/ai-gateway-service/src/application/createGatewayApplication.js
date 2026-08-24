@@ -18,7 +18,7 @@ import { GatewayService } from "../core/gatewayService.js";
 import { createWeightedTrafficPolicy } from "../routing/weightedTrafficPolicy.js";
 import { createPriorityProviderSelectionPolicy } from "../core/providerSelectionPolicy.js";
 import { createProviderHealthScorer } from "../providers/providerHealthScorer.js";
-import { createRequestLogger } from "../logging/requestLogger.js";
+import { createUsageLedger } from "../logging/usageLedgerFactory.ts";
 import { createContentGuardrails } from "../guardrails/contentGuardrails.js";
 import { createLocalKnowledgeService } from "../knowledge/localKnowledgeService.js";
 import { createKnowledgeInfra } from "../knowledge/knowledgeInfra.js";
@@ -97,16 +97,12 @@ export function createGatewayApplication(env = process.env) {
   const providerConfigRoutes = createProviderConfigRoutes({
     providerKeyConfigStore,
   });
-  // Usage ledger — persists every real chat call (tokens, latency, provider/model)
-  // to a queryable JSONL store. Disable body logging to keep credentials/contents
-  // out of the ledger. Set AI_GATEWAY_USAGE_LOG_DIR to relocate. An empty path
-  // is allowed only for fake-only preview; real-provider startup fails closed.
-  const requestLogger = createRequestLogger({
-    logDir: env.AI_GATEWAY_USAGE_LOG_DIR,
-    enableBodyLogging: false,
-    // A real provider call can create external cost. Those records must be
-    // fsynced individually; fake-only preview keeps the bounded buffer path.
-    durableWrites: config.aiGatewayService.realProviderEnabled,
+  // Usage ledger — persists every real chat attempt (tokens, latency,
+  // provider/model) to either fsynced local JSONL or the central PostgreSQL
+  // store. Neither schema accepts prompt/response bodies or credentials.
+  const requestLogger = createUsageLedger({
+    env,
+    realProviderEnabled: config.aiGatewayService.realProviderEnabled,
   });
   // Optional model-access governance. The RBAC checker starts empty; role
   // assignments are loaded from AI_GATEWAY_RBAC_ROLES (JSON: { userId: [role] }).

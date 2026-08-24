@@ -165,7 +165,7 @@ export class GatewayService {
           runtimeConfig: this.runtimeConfig,
           shadowRequest: execution.shadow === true,
         });
-        this.#assertUsageLedgerReady(selection);
+        await this.#assertUsageLedgerReady(selection);
 
         if (typeof selection.selected.provider.generateStream !== "function") {
           const error = new Error("Selected provider does not support streaming.");
@@ -241,7 +241,7 @@ export class GatewayService {
             );
           }
 
-          this.#recordUsage({
+          await this.#recordUsage({
             request,
             selection,
             providerCallAttempted: true,
@@ -263,7 +263,7 @@ export class GatewayService {
         } catch (error) {
           if (!isProviderEvidenceError(error) && providerCallStarted) {
             try {
-              this.#recordUsage({
+              await this.#recordUsage({
                 request,
                 selection,
                 providerCallAttempted: true,
@@ -371,7 +371,7 @@ export class GatewayService {
           runtimeConfig: this.runtimeConfig,
           shadowRequest: execution.shadow === true,
         });
-        this.#assertUsageLedgerReady(attemptSelection);
+        await this.#assertUsageLedgerReady(attemptSelection);
         usageAttemptId = await this.#beginUsageAttempt({
           request,
           selection: attemptSelection,
@@ -395,7 +395,7 @@ export class GatewayService {
           }),
         });
         throwIfExecutionAborted(execution.signal);
-        this.#recordUsage({
+        await this.#recordUsage({
           request,
           selection: attemptSelection,
           providerResult,
@@ -433,7 +433,7 @@ export class GatewayService {
         if (isProviderEvidenceError(error)) throw error;
         if (providerCallStarted) {
           try {
-            this.#recordUsage({
+            await this.#recordUsage({
               request,
               selection: attemptSelection,
               providerCallAttempted: true,
@@ -446,7 +446,7 @@ export class GatewayService {
             throw usageError;
           }
         } else {
-          this.#recordUsage({
+          await this.#recordUsage({
             request,
             selection: attemptSelection,
             providerCallAttempted: false,
@@ -650,7 +650,7 @@ export class GatewayService {
     }
   }
 
-  #recordUsage({
+  async #recordUsage({
     request,
     selection,
     providerResult,
@@ -696,7 +696,7 @@ export class GatewayService {
               ? "static-fallback-estimate"
               : "unavailable-after-attempt";
 
-      this.requestLogger.log({
+      await this.requestLogger.log({
         usageAttemptId: usageAttemptId ?? undefined,
         usageEventType: error ? "attempt-failed" : "attempt-completed",
         method: "POST",
@@ -757,7 +757,7 @@ export class GatewayService {
       }
     }
     try {
-      this.requestLogger.log({
+      await this.requestLogger.log({
         usageAttemptId,
         usageEventType: "attempt-started",
         method: "POST",
@@ -790,14 +790,14 @@ export class GatewayService {
     }
   }
 
-  #assertUsageLedgerReady(selection) {
+  async #assertUsageLedgerReady(selection) {
     if (this.runtimeConfig.realProviderEnabled !== true) return;
     if (selection?.selected?.providerType === "fake") return;
     if (!this.requestLogger || typeof this.requestLogger.assertDurable !== "function") {
       throw createUsageLedgerFailure("USAGE_LEDGER_UNAVAILABLE");
     }
     try {
-      this.requestLogger.assertDurable();
+      await this.requestLogger.assertDurable();
     } catch (error) {
       throw createUsageLedgerFailure(error?.code, error);
     }

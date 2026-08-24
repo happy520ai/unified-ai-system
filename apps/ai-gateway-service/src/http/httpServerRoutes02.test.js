@@ -375,6 +375,44 @@ describe("dispatchHttpRoutes02 healthz readiness", () => {
 });
 
 describe("dispatchHttpRoutes02 metrics readiness visibility", () => {
+  it("awaits central usage statistics before rendering metrics", async () => {
+    let metricsText = "";
+    const context = createEnvelopeContext({
+      application: {
+        requestLogger: {
+          getStats: async () => ({
+            totalRequests: 2,
+            avgLatencyMs: 25,
+            errorRate: 0.5,
+          }),
+          getHealth: () => ({
+            status: "ready",
+            storeMode: "postgres",
+            persistence: "postgres-central",
+            available: true,
+            rowCount: 4,
+            maxRows: 1_000,
+            totalWriteFailures: 0,
+          }),
+        },
+      },
+      response: {
+        headersSent: false,
+        writeHead() {},
+        end(body) {
+          metricsText = body;
+        },
+      },
+      url: { pathname: "/metrics" },
+    });
+
+    await dispatchHttpRoutes02(context);
+
+    expect(metricsText).toContain("ai_gateway_requests_total 2");
+    expect(metricsText).toContain('ai_gateway_usage_ledger_store_available{mode="postgres"} 1');
+    expect(metricsText).toContain('ai_gateway_usage_ledger_rows{state="current"} 4');
+  });
+
   it("includes readiness state and reasons in /metrics payload", async () => {
     let metricsText = "";
     let metricsStatus = undefined;

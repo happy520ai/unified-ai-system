@@ -59,6 +59,17 @@ describe("gateway-application", () => {
     }));
   });
 
+  it("fails closed when multi-instance real-provider execution lacks a central usage ledger", () => {
+    expect(() => createGatewayApplication({
+      AI_GATEWAY_PROVIDER_MODE: "real",
+      AI_GATEWAY_REAL_PROVIDER_ENABLED: "true",
+      AI_GATEWAY_MULTI_INSTANCE: "true",
+      AI_GATEWAY_USAGE_LEDGER_STORE_MODE: "file",
+    })).toThrow(expect.objectContaining({
+      code: "USAGE_LEDGER_CENTRAL_STORE_REQUIRED",
+    }));
+  });
+
   it("has provider registry with providers", () => {
     const providers = app.gatewayService.getProviderDescriptors();
     expect(providers.length).toBeGreaterThan(0);

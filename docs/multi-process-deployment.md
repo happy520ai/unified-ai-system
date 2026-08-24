@@ -321,7 +321,7 @@ retained, or protected from restoration of an older signed file. Health always
 reports `externalRetentionVerified=false`; production evidence must come from
 the storage and retention system, not this repository.
 
-### Same-host billable usage files
+### Billable usage ledger
 
 Real-provider mode writes and fsyncs every usage record before returning a
 successful response. Each process uses a unique daily JSONL filename under the
@@ -329,11 +329,33 @@ shared `AI_GATEWAY_USAGE_LOG_DIR`, preventing append and rotation collisions;
 the usage query endpoints aggregate a bounded window across those files. Keep
 that directory on a restricted local volume and collect every per-process file.
 
-This closes same-host writer collisions but is not a cross-host billing ledger
-or provider-invoice reconciliation system. A multi-host deployment must ship
-records to a reviewed central store, monitor ingestion lag and duplicates, and
-reconcile unknown-cost records before using the data for invoices or financial
-reporting.
+For cross-host real-provider execution, use the central PostgreSQL ledger:
+
+```bash
+AI_GATEWAY_USAGE_LEDGER_STORE_MODE=postgres
+AI_GATEWAY_USAGE_LEDGER_POSTGRES_URL=<load-from-secret-manager>?sslmode=verify-full
+AI_GATEWAY_USAGE_LEDGER_NAMESPACE=production
+AI_GATEWAY_USAGE_LEDGER_CENTRAL_REQUIRED=true
+```
+
+Gateway execution now awaits the central reservation before entering a
+billable adapter and awaits the terminal usage commit before reporting success.
+One attempt has an idempotent `start` key and one mutually exclusive terminal
+key; a contradictory completed/failed replay is rejected. The table contains
+tenant, provider/model, token, cost, latency, fallback/shadow and sanitized
+error metadata, but no prompt, response body, credential, authorization header,
+database URL, or raw identity token. Retention and namespace capacity are
+bounded. Non-loopback databases require `sslmode=verify-full` by default.
+
+`AI_GATEWAY_MULTI_INSTANCE=true` plus real-provider execution fails startup if
+the central mode is not selected. `/healthz`, `/ready`, `/usage/*`, and
+Prometheus expose safe availability/count/failure data; a database failure
+blocks new billable execution rather than falling back to local files.
+
+This closes central usage-event durability and duplicate ingestion. It is not a
+payment processor, tax engine, legal invoice system, or provider-invoice
+reconciliation proof. Unknown-cost/unresolved attempts must still be reconciled
+against provider statements before financial reporting.
 
 ## Cross-host PostgreSQL request quotas
 

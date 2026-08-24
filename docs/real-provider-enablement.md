@@ -116,13 +116,17 @@ variable and restart.
   in real mode and hard-block over-budget requests.
 - The CI smoke is `workflow_dispatch`-only on purpose: no automatic spend.
 
-Real-provider startup requires a writable `AI_GATEWAY_USAGE_LOG_DIR` (default
-`.data/request-logs`). Setting it to the empty string blocks startup. Before a
-billable adapter is invoked, the gateway checks that the durable ledger is
-available and fsyncs a write-ahead attempt record. Each terminal result is then
-written and fsynced before the route can report success; a post-call disk
-failure returns `USAGE_LEDGER_WRITE_FAILED` instead of hiding the unmetered
-result. A crash between those records remains visible as
+Single-process real-provider startup requires a writable
+`AI_GATEWAY_USAGE_LOG_DIR` (default `.data/request-logs`) when the store mode is
+`file`; setting it to the empty string blocks startup. Cross-host deployments
+must select `AI_GATEWAY_USAGE_LEDGER_STORE_MODE=postgres` and configure the
+central URL/namespace described in the multi-process guide.
+
+Before a billable adapter is invoked, the gateway awaits a write-ahead attempt
+record in the selected durable store. Each terminal result is committed before
+the route can report success; a post-call storage failure returns
+`USAGE_LEDGER_WRITE_FAILED` instead of hiding the unmetered result. A crash
+between those records remains visible as
 `unresolvedBillableAttempts` and contributes to `unknownCostRecords`. Every
 fallback and shadow-provider attempt receives its own paired lifecycle. Fake-only
 preview retains bounded, fail-open buffering so a local demo does not become
@@ -130,11 +134,12 @@ unavailable because its optional log directory is unwritable.
 
 Each process writes a unique current-day JSONL file to avoid cross-process
 append and rotation races, while `/usage/summary` and `/usage/logs` aggregate a
-bounded current-day window from the shared directory. This is a durable local
-operational ledger, not a legal invoice, provider reconciliation, or a
-cross-host billing database. Cross-host replicas must ship these files to a
-reviewed central ledger and reconcile them against provider invoices before
-claiming production billing completeness.
+bounded current-day window from the shared directory. This remains the durable
+same-host option. PostgreSQL mode adds one central, tenant-queryable ledger with
+per-attempt idempotency and contradictory-terminal conflict detection. Neither
+mode is a legal invoice, payment/tax system, or provider statement
+reconciliation; reconcile unknown/unresolved records against provider invoices
+before claiming production billing completeness.
 
 Real-provider mode also makes a signed enterprise audit checkpoint a readiness
 requirement. Configure `PME_AUDIT_CHECKPOINT_PATH` and a dedicated 32-byte

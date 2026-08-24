@@ -129,7 +129,7 @@ Cursor、Cline、Continue 和通用 stdio 客户端都可以通过同一个网�
 | Provider 治理 | 真实 provider 三道门白名单矩阵、运行时凭证库（SHA-256 落存 + file 金库解析）、请求成本守卫、熔断器、fallback 链。 | [真实 provider 启用](docs/real-provider-enablement.md) |
 | 企业身份与供给 | **OIDC SSO**（授权码+PKCE+JWKS 验签，登录即发 API token）与 **SCIM 2.0** 用户供给（Bearer 鉴权，create/get/list/patch/deactivate）；RBAC、审计哈希链租户隔离，16+ 项攻击安全回归守护。 | [安全演练](tools/security-attack-regression.mjs) |
 | 本地计费台账 | 客户/用量/开票/作废/收款登记的 JSONL 台账（未接支付网关：票据如实标注为对账单，非法律发票）。 | [花费报表](docs/spend-reporting.md) |
-| 多实例就绪 | `AI_GATEWAY_MULTI_INSTANCE=true` 后限流、幂等和 A2A 任务同主机默认共享 SQLite；PostgreSQL 覆盖跨主机配额/幂等/WebSocket 租约及 fenced Workforce ownership，完整分布式队列/HA 证据仍明确保留。 | [多进程部署](docs/multi-process-deployment.md) |
+| 多实例就绪 | `AI_GATEWAY_MULTI_INSTANCE=true` 后限流、幂等和 A2A 任务同主机默认共享 SQLite；PostgreSQL 覆盖跨主机配额/幂等/WebSocket 租约、fenced Workforce ownership 和中央计费用量台账，完整分布式队列/HA 与 Provider 账单对账仍明确保留。 | [多进程部署](docs/multi-process-deployment.md) |
 
 已发布基础设施基准（fake provider、单机）：chat JSON p50 **15.6 ms**、SSE 首字 **2.8 ms**、并发 8 下 **402 req/s**、缓存命中比未命中快 **5.6×**——见[网关基准报告](docs/benchmarks/2026-08-gateway-benchmark.md)。
 

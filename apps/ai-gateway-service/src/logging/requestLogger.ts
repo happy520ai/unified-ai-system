@@ -96,13 +96,13 @@ export interface RequestLogStats {
 }
 
 export interface RequestLogger {
-  log(entry: RequestLogEntry): void;
-  flush(options?: { throwOnFailure?: boolean }): boolean;
-  assertDurable(): boolean;
-  query(filter?: RequestLogQuery): RequestLogRecord[];
-  getStats(filter?: RequestLogQuery): RequestLogStats;
+  log(entry: RequestLogEntry): void | Promise<void>;
+  flush(options?: { throwOnFailure?: boolean }): boolean | Promise<boolean>;
+  assertDurable(): boolean | Promise<boolean>;
+  query(filter?: RequestLogQuery): RequestLogRecord[] | Promise<RequestLogRecord[]>;
+  getStats(filter?: RequestLogQuery): RequestLogStats | Promise<RequestLogStats>;
   getHealth(): Record<string, unknown>;
-  close(): void;
+  close(): void | Promise<void>;
 }
 
 export interface RequestLoggerOptions {

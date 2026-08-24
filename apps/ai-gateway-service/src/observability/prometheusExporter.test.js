@@ -188,6 +188,30 @@ describe("prometheusExporter", () => {
     expect(text).not.toContain("postgres://must-not-leak");
   });
 
+  it("renders central usage-ledger health without database identity", () => {
+    const exporter = createPrometheusExporter({ prefix: "ai_gateway" });
+    const text = exporter.formatMetrics({
+      usageLedger: {
+        status: "degraded",
+        persistence: "postgres-central",
+        storeMode: "postgres",
+        available: false,
+        rowCount: 12,
+        maxRows: 1_000,
+        totalWriteFailures: 2,
+        namespace: "private-ledger",
+        connectionString: "postgres://must-not-leak",
+      },
+    });
+
+    expect(text).toContain('ai_gateway_usage_ledger_store_available{mode="postgres"} 0');
+    expect(text).toContain('ai_gateway_usage_ledger_rows{state="current"} 12');
+    expect(text).toContain('ai_gateway_usage_ledger_rows{state="capacity"} 1000');
+    expect(text).toContain("ai_gateway_usage_ledger_write_failures_total 2");
+    expect(text).not.toContain("private-ledger");
+    expect(text).not.toContain("postgres://must-not-leak");
+  });
+
   it("renders PostgreSQL rate-limit store health without partition keys", () => {
     const exporter = createPrometheusExporter({ prefix: "ai_gateway" });
     const text = exporter.formatMetrics({

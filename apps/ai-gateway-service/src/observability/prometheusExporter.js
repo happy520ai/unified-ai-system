@@ -257,6 +257,24 @@ export function createPrometheusExporter(options = {}) {
     lines.push(`# TYPE ${prefix}_workforce_claim_stats_age_seconds gauge`);
     lines.push(`${prefix}_workforce_claim_stats_age_seconds{mode="${workforceClaimMode}"} ${workforceClaimStatsAgeSeconds}`);
 
+    const usageLedger = snapshot.usageLedger;
+    const usageLedgerMode = sanitizeMetricLabel(
+      usageLedger?.storeMode ?? usageLedger?.persistence ?? "disabled",
+    );
+    const usageLedgerAvailable = usageLedger
+      ? (usageLedger.status === "ready" && usageLedger.available !== false ? 1 : 0)
+      : 1;
+    lines.push(`# HELP ${prefix}_usage_ledger_store_available Whether the configured usage ledger can commit billable evidence`);
+    lines.push(`# TYPE ${prefix}_usage_ledger_store_available gauge`);
+    lines.push(`${prefix}_usage_ledger_store_available{mode="${usageLedgerMode}"} ${usageLedgerAvailable}`);
+    lines.push(`# HELP ${prefix}_usage_ledger_rows Current and maximum central usage-ledger rows`);
+    lines.push(`# TYPE ${prefix}_usage_ledger_rows gauge`);
+    lines.push(`${prefix}_usage_ledger_rows{state="current"} ${safeMetricNumber(usageLedger?.rowCount)}`);
+    lines.push(`${prefix}_usage_ledger_rows{state="capacity"} ${safeMetricNumber(usageLedger?.maxRows)}`);
+    lines.push(`# HELP ${prefix}_usage_ledger_write_failures_total Usage-ledger write failures observed by this process`);
+    lines.push(`# TYPE ${prefix}_usage_ledger_write_failures_total counter`);
+    lines.push(`${prefix}_usage_ledger_write_failures_total ${safeMetricNumber(usageLedger?.totalWriteFailures)}`);
+
     // Provider health score
     const sanitizeLabel = (v) => String(v).replace(/["\\}\n\r]/g, "_");
     lines.push(`# HELP ${prefix}_provider_health_score Provider health score (0-100)`);

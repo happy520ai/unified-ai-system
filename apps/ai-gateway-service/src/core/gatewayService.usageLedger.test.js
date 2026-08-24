@@ -232,6 +232,39 @@ describe("GatewayService billable usage ledger gate", () => {
     expect(result.success).toBe(true);
   });
 
+  it("awaits an async central reservation before spend and terminal commit before success", async () => {
+    let releaseReservation;
+    let releaseTerminal;
+    const reservation = new Promise((resolve) => { releaseReservation = resolve; });
+    const terminal = new Promise((resolve) => { releaseTerminal = resolve; });
+    let writeCount = 0;
+    const requestLogger = {
+      assertDurable: vi.fn(async () => true),
+      log: vi.fn(async () => {
+        writeCount += 1;
+        await (writeCount === 1 ? reservation : terminal);
+      }),
+    };
+    const { service, generate } = buildBillableService({ requestLogger });
+    let settled = false;
+    const resultPromise = service.execute({
+      messages: [{ role: "user", content: "central commit ordering" }],
+    }).finally(() => {
+      settled = true;
+    });
+
+    await vi.waitFor(() => expect(requestLogger.log).toHaveBeenCalledTimes(1));
+    expect(generate).not.toHaveBeenCalled();
+    releaseReservation();
+    await vi.waitFor(() => expect(generate).toHaveBeenCalledOnce());
+    await vi.waitFor(() => expect(requestLogger.log).toHaveBeenCalledTimes(2));
+    expect(settled).toBe(false);
+    releaseTerminal();
+
+    await expect(resultPromise).resolves.toMatchObject({ success: true });
+    expect(settled).toBe(true);
+  });
+
   it("blocks a billable stream before its start event when the ledger is unavailable", async () => {
     const requestLogger = {
       assertDurable: vi.fn(() => {

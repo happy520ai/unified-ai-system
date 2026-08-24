@@ -40,8 +40,8 @@ export interface GatewayHealthScorer {
  * 可选的台账记录器（log 单条调用：token/成本/延迟/provider/model）。
  */
 export interface GatewayRequestLogger {
-  log(entry: Record<string, unknown>): void;
-  assertDurable?(): boolean;
+  log(entry: Record<string, unknown>): void | Promise<void>;
+  assertDurable?(): boolean | Promise<boolean>;
 }
 
 export interface GatewayEnterpriseAudit {

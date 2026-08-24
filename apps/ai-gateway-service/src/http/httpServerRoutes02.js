@@ -159,7 +159,7 @@ export async function dispatchHttpRoutes02(context) {
     }
     writeJson(response, 200, createOkEnvelope({
       enabled: true,
-      stats: requestLogger.getStats({
+      stats: await requestLogger.getStats({
         tenantId: request.enterpriseIdentity?.tenantId ?? "default",
       }),
       health: requestLogger.getHealth(),
@@ -181,7 +181,7 @@ export async function dispatchHttpRoutes02(context) {
       model: url.searchParams.get("model") ?? undefined,
       statusCode: url.searchParams.get("statusCode") ? Number(url.searchParams.get("statusCode")) : undefined,
     };
-    const records = requestLogger.query(filter);
+    const records = await requestLogger.query(filter);
     writeJson(response, 200, createOkEnvelope({
       enabled: true,
       count: records.length,
@@ -232,9 +232,10 @@ export async function dispatchHttpRoutes02(context) {
     const exporter = createPrometheusExporter({ prefix: "ai_gateway" });
     const healthSnapshot = createHealth(application);
     const readinessSnapshot = createSetupReadiness(application);
-    const stats = application?.requestLogger?.getStats?.({
+    const stats = await (application?.requestLogger?.getStats?.({
       tenantId: request.enterpriseIdentity?.tenantId ?? "default",
-    }) ?? {};
+    }) ?? {});
+    const usageLedger = application?.requestLogger?.getHealth?.() ?? null;
     const readinessResilienceSnapshot = resilienceMetrics?.snapshot?.() ?? {};
     const currentInFlight = Number.isFinite(Number(readinessResilienceSnapshot.currentInFlight))
       ? Number(readinessResilienceSnapshot.currentInFlight)
@@ -274,6 +275,7 @@ export async function dispatchHttpRoutes02(context) {
       webSocketLease,
       a2aTaskStore,
       workforceClaimStore,
+      usageLedger,
       latency: stats.latencyQuantiles
         ?? (stats.avgLatencyMs
           ? { p50: stats.avgLatencyMs, p95: stats.avgLatencyMs, p99: stats.avgLatencyMs }
