@@ -3,9 +3,11 @@ import assert from 'node:assert/strict';
 
 // Dynamic imports following the existing project pattern
 let bridge;
+let ForgeAuthAdapter;
 
 before(async () => {
   bridge = await import('../src/integration/bridge.js');
+  ({ ForgeAuthAdapter } = await import('../src/integration/auth-adapter.js'));
 });
 
 // ---------------------------------------------------------------------------
@@ -366,9 +368,9 @@ describe('bridge.js', () => {
       assert.strictEqual(perm, 'workflow:run');
     });
 
-    it('should return default dashboard:read for unknown forge routes', () => {
+    it('should fail closed for unknown forge routes', () => {
       const perm = bridge.resolveForgePermission('GET', '/forge/unknown/path');
-      assert.strictEqual(perm, 'dashboard:read');
+      assert.strictEqual(perm, 'route:unknown');
     });
   });
 
@@ -387,5 +389,35 @@ describe('bridge.js', () => {
       assert.strictEqual(bridge.FORGE_PERMISSIONS['GET /forge/status'], 'dashboard:read');
       assert.strictEqual(bridge.FORGE_PERMISSIONS['GET /forge/security/audit'], 'audit:read');
     });
+  });
+});
+
+describe('ForgeAuthAdapter standalone authorization', () => {
+  it('gives developers workflow access without user-admin escalation', () => {
+    const userManager = {
+      getUserByApiKey: () => ({ id: 'u-dev', username: 'developer', role: 'developer' }),
+      updateLastActive: () => {},
+    };
+    const adapter = new ForgeAuthAdapter({ standalone: true, userManager });
+    const request = { headers: { 'x-api-key': 'test-forge-key' } };
+
+    assert.strictEqual(adapter.resolvePermission('POST', '/api/goals'), 'workflow:run');
+    assert.strictEqual(adapter.authorize(request, 'workflow:run').allowed, true);
+    assert.strictEqual(adapter.resolvePermission('POST', '/api/users'), 'user:admin');
+    assert.strictEqual(adapter.authorize(request, 'user:admin').allowed, false);
+    assert.ok(!adapter.authenticate(request).identity.permissions.includes('*'));
+  });
+
+  it('does not fall back to standalone auth when gateway governance throws', () => {
+    const adapter = new ForgeAuthAdapter({
+      governanceService: { authenticate: () => { throw new Error('governance unavailable'); } },
+      userManager: {
+        getUserByApiKey: () => ({ id: 'u-admin', role: 'admin' }),
+        updateLastActive: () => {},
+      },
+    });
+    const result = adapter.authenticate({ headers: { 'x-api-key': 'test-forge-key' } });
+    assert.strictEqual(result.authenticated, false);
+    assert.strictEqual(result.error.code, 'governance_auth_unavailable');
   });
 });

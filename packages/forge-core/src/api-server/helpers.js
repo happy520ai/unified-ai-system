@@ -2,13 +2,8 @@ import { okResponse, errResponse, forgeRequestId } from '../integration/bridge.j
 
 // ---- Constants ----
 
-/** Public GET endpoints that don't require authentication */
-export const PUBLIC_GET = [
-  '/api/status', '/api/goals', '/api/pool/status',
-  '/api/pool/queue', '/api/pool/locks',
-  '/api/gateway/health', '/api/gateway/providers',
-  '/api/metrics', '/api/config', '/api/plugins', '/api/resilience', '/api/tracing',
-];
+/** Standalone Forge exposes no unauthenticated API data. */
+export const PUBLIC_GET = Object.freeze([]);
 
 /** MIME types for static file serving */
 export const MIME_TYPES = {

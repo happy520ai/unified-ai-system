@@ -2,6 +2,7 @@ import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { EventEmitter } from 'node:events';
+import { request } from 'node:http';
 import net from 'node:net';
 
 // ---------------------------------------------------------------------------
@@ -76,7 +77,16 @@ function createMocks() {
     store: { logEvent: () => {} },
   };
 
-  return { forge, agentPool, userMgr: null, knowledge: null, transfer: null, gateway: null };
+  const authAdapter = {
+    authorize: () => ({
+      allowed: true,
+      identity: { userId: 'test-operator', role: 'developer', permissions: ['dashboard:read'] },
+      permission: 'dashboard:read',
+    }),
+    resolvePermission: () => 'dashboard:read',
+  };
+
+  return { forge, agentPool, userMgr: null, knowledge: null, transfer: null, gateway: null, authAdapter };
 }
 
 // ---------------------------------------------------------------------------
@@ -113,7 +123,8 @@ describe('ForgeServer WebSocket Connection', () => {
   });
 
   it('should accept WebSocket upgrade and send connected message', async () => {
-    const socket = net.createConnection({ port });
+    assert.strictEqual(httpServer.address().address, '127.0.0.1');
+    const socket = net.createConnection({ port, host: '127.0.0.1' });
     const reader = createFrameReader();
 
     const connectedMsg = await new Promise((resolve, reject) => {
@@ -166,7 +177,7 @@ describe('ForgeServer WebSocket Connection', () => {
     });
     const p = http.address().port;
 
-    const socket = net.createConnection({ port: p });
+    const socket = net.createConnection({ port: p, host: '127.0.0.1' });
     const reader = createFrameReader();
     let handshakeDone = false;
 
@@ -233,7 +244,7 @@ describe('ForgeServer WebSocket Connection', () => {
     });
     const p = http.address().port;
 
-    const socket = net.createConnection({ port: p });
+    const socket = net.createConnection({ port: p, host: '127.0.0.1' });
     const reader = createFrameReader();
     let handshakeDone = false;
 
@@ -284,6 +295,57 @@ describe('ForgeServer WebSocket Connection', () => {
     assert.strictEqual(verifyMsg.failures, 3);
 
     socket.destroy();
+    srv.stop();
+  });
+
+  it('rejects anonymous HTTP API and WebSocket access', async () => {
+    const mocks = createMocks();
+    const deniedAuthAdapter = {
+      authorize: (_req, permission) => ({
+        allowed: false,
+        identity: null,
+        permission,
+        error: { statusCode: 401, code: 'auth_required', message: 'Authentication required' },
+      }),
+      resolvePermission: () => 'dashboard:read',
+    };
+    const srv = new ForgeServer({ ...mocks, authAdapter: deniedAuthAdapter, port: 0 });
+    const http = srv.start();
+    await new Promise((resolve) => http.once('listening', resolve));
+    const p = http.address().port;
+
+    const apiStatus = await new Promise((resolve, reject) => {
+      const req = request({ host: '127.0.0.1', port: p, path: '/api/goals' }, (res) => {
+        res.resume();
+        res.once('end', () => resolve(res.statusCode));
+      });
+      req.on('error', reject);
+      req.end();
+    });
+    assert.strictEqual(apiStatus, 401);
+
+    const upgradeResponse = await new Promise((resolve, reject) => {
+      const socket = net.createConnection({ port: p, host: '127.0.0.1' });
+      const timeout = setTimeout(() => reject(new Error('Timeout waiting for WebSocket rejection')), 5000);
+      socket.on('data', (chunk) => {
+        clearTimeout(timeout);
+        resolve(chunk.toString('utf8'));
+        socket.destroy();
+      });
+      socket.on('error', reject);
+      const wsKey = createHash('sha1').update(Date.now().toString() + 'denied').digest('base64');
+      socket.write([
+        'GET / HTTP/1.1',
+        `Host: 127.0.0.1:${p}`,
+        'Upgrade: websocket',
+        'Connection: Upgrade',
+        `Sec-WebSocket-Key: ${wsKey}`,
+        'Sec-WebSocket-Version: 13',
+        '', '',
+      ].join('\r\n'));
+    });
+    assert.match(upgradeResponse, /^HTTP\/1\.1 401 /);
+    assert.doesNotMatch(upgradeResponse, /101 Switching Protocols/);
     srv.stop();
   });
 });
