@@ -211,8 +211,20 @@ async function createTempRoot() {
   return root;
 }
 
-async function dispatchKnowledgeRoute({ dispatcher, service, identity, path, body }) {
-  const response = { status: 0, payload: null };
+async function dispatchKnowledgeRoute({
+  dispatcher,
+  service,
+  identity,
+  path,
+  body,
+}: {
+  dispatcher: (context: Record<string, any>) => Promise<unknown>;
+  service: ReturnType<typeof createLocalKnowledgeService>;
+  identity: { tenantId: string; userId: string };
+  path: string;
+  body: any;
+}) {
+  const response: { status: number; payload: any } = { status: 0, payload: null };
   await dispatcher({
     request: { method: "POST", enterpriseIdentity: identity },
     response,
@@ -222,12 +234,12 @@ async function dispatchKnowledgeRoute({ dispatcher, service, identity, path, bod
     getRequestContext,
     readJson: async () => body,
     writeServiceLog() {},
-    createOkEnvelope: (data) => ({ status: "ok", data }),
-    createErrorEnvelope: (code, message, details = {}) => ({
+    createOkEnvelope: (data: unknown) => ({ status: "ok", data }),
+    createErrorEnvelope: (code: string, message: string, details: Record<string, unknown> = {}) => ({
       status: "error",
       error: { code, message, ...details },
     }),
-    writeJson(target, status, payload) {
+    writeJson(target: typeof response, status: number, payload: unknown) {
       target.status = status;
       target.payload = payload;
     },

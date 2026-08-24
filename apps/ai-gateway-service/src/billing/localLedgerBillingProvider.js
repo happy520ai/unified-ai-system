@@ -56,6 +56,7 @@ export function createLocalLedgerBillingProvider({
     implemented: true,
     provider: "local-ledger",
     paymentProviderConnected: false,
+    ok: true,
   });
 
   return {

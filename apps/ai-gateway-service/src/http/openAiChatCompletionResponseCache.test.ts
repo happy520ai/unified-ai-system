@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { EventEmitter } from "node:events";
 import { Readable } from "node:stream";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi, type Mock } from "vitest";
 import {
   createChatResponseCacheIntegration,
   setChatResponseCacheIntegrationForTests,
@@ -29,6 +29,31 @@ const FIXED_STARTED_AT = new Date("2026-08-15T12:00:00.000Z").getTime();
 const TENANT_A = { tenantId: "tenant-a" };
 const TENANT_B = { tenantId: "tenant-b" };
 
+interface TestRequest extends Readable {
+  method: string;
+  enterpriseIdentity?: unknown;
+}
+
+interface TestResponse extends EventEmitter {
+  statusCode: number | null;
+  headers: Record<string, any>;
+  body: any;
+  text: string;
+  writableEnded: boolean;
+  destroyed: boolean;
+  headersSent: boolean;
+  writeHead(statusCode: number, headers?: Record<string, any>): void;
+  flushHeaders(): void;
+  write(chunk: unknown): boolean;
+  end(body?: unknown): void;
+}
+
+interface TestGatewayService {
+  getProviderDescriptors(): typeof descriptors;
+  execute: Mock<(input: any) => Promise<any>>;
+  executeStream: Mock<(input: any) => AsyncGenerator<any>>;
+}
+
 function createTestIntegration() {
   const dir = mkdtempSync(join(tmpdir(), "chat-response-cache-test-"));
   const store = createResponseCacheStore({
@@ -51,8 +76,8 @@ function createDisabledIntegration() {
   return createChatResponseCacheIntegration({ env: {} });
 }
 
-function createGatewayService() {
-  const execute = vi.fn(async () => ({
+function createGatewayService(): TestGatewayService {
+  const execute = vi.fn(async (_input: any): Promise<any> => ({
     success: true,
     data: {
       id: "request-123",
@@ -69,7 +94,7 @@ function createGatewayService() {
     },
     meta: { requestId: "request-123" },
   }));
-  const executeStream = vi.fn(async function* () {
+  const executeStream = vi.fn(async function* (_input: any): AsyncGenerator<any> {
     const common = {
       requestId: "request-123",
       selectedProvider: "local-fake-provider",
@@ -87,9 +112,9 @@ function createGatewayService() {
   };
 }
 
-function createJsonRequest(body, method, enterpriseIdentity) {
+function createJsonRequest(body: any, method: string, enterpriseIdentity?: unknown): TestRequest {
   const chunks = body === undefined ? [] : [Buffer.from(JSON.stringify(body))];
-  const request = Readable.from(chunks);
+  const request = Readable.from(chunks) as TestRequest;
   request.method = method;
   if (enterpriseIdentity) {
     request.enterpriseIdentity = enterpriseIdentity;
@@ -97,8 +122,8 @@ function createJsonRequest(body, method, enterpriseIdentity) {
   return request;
 }
 
-function createResponseRecorder() {
-  const response = new EventEmitter();
+function createResponseRecorder(): TestResponse {
+  const response = new EventEmitter() as TestResponse;
   response.statusCode = null;
   response.headers = {};
   response.body = null;
@@ -106,17 +131,17 @@ function createResponseRecorder() {
   response.writableEnded = false;
   response.destroyed = false;
   response.headersSent = false;
-  response.writeHead = (statusCode, headers = {}) => {
+  response.writeHead = (statusCode: number, headers: Record<string, any> = {}) => {
     response.statusCode = statusCode;
     response.headers = headers;
     response.headersSent = true;
   };
   response.flushHeaders = () => {};
-  response.write = (chunk) => {
+  response.write = (chunk: unknown) => {
     response.text += String(chunk);
     return true;
   };
-  response.end = (body) => {
+  response.end = (body?: unknown) => {
     if (body !== undefined) {
       response.text += String(body);
       response.body = JSON.parse(String(body));
@@ -128,11 +153,18 @@ function createResponseRecorder() {
 
 function createContext({
   body,
-  enterpriseIdentity,
+  enterpriseIdentity = null,
   gatewayService = createGatewayService(),
   method = "POST",
   path = "/v1/chat/completions",
   response = createResponseRecorder(),
+}: {
+  body: any;
+  enterpriseIdentity?: unknown;
+  gatewayService?: TestGatewayService;
+  method?: string;
+  path?: string;
+  response?: TestResponse;
 }) {
   return {
     request: createJsonRequest(body, method, enterpriseIdentity),
@@ -161,12 +193,13 @@ describe("chat response cache key and eligibility", () => {
     const first = integration.describeCacheCandidate({}, base);
     const repeat = integration.describeCacheCandidate({}, JSON.parse(JSON.stringify(base)));
     expect(first).not.toBeNull();
+    if (!first || !repeat) throw new Error("Expected cache candidates.");
     expect(repeat.cacheKey).toBe(first.cacheKey);
 
-    expect(integration.describeCacheCandidate({}, { ...base, model: "other-model" }).cacheKey).not.toBe(first.cacheKey);
-    expect(integration.describeCacheCandidate({}, { ...base, messages: [{ role: "user", content: "bye" }] }).cacheKey).not.toBe(first.cacheKey);
-    expect(integration.describeCacheCandidate({}, { ...base, options: { temperature: 0.2 } }).cacheKey).not.toBe(first.cacheKey);
-    expect(integration.describeCacheCandidate({ stream: true }, base).cacheKey).not.toBe(first.cacheKey);
+    expect(integration.describeCacheCandidate({}, { ...base, model: "other-model" })!.cacheKey).not.toBe(first.cacheKey);
+    expect(integration.describeCacheCandidate({}, { ...base, messages: [{ role: "user", content: "bye" }] })!.cacheKey).not.toBe(first.cacheKey);
+    expect(integration.describeCacheCandidate({}, { ...base, options: { temperature: 0.2 } })!.cacheKey).not.toBe(first.cacheKey);
+    expect(integration.describeCacheCandidate({ stream: true }, base)!.cacheKey).not.toBe(first.cacheKey);
   });
 
   it("rejects tool-call requests and secret-like message text", () => {
@@ -185,7 +218,7 @@ describe("chat response cache key and eligibility", () => {
 });
 
 describe("chat completions hot-path response cache", () => {
-  const cleanup = [];
+  const cleanup: string[] = [];
 
   afterEach(() => {
     setChatResponseCacheIntegrationForTests(null);

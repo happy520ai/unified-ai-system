@@ -46,7 +46,6 @@ const ROLE_HIERARCHY = {
  * @param {object} [options]
  * @param {string|null} [options.storePath] - JSON 持久化路径；null 表示仅内存
  * @param {() => number} [options.now] - 可注入时钟（测试用）
- * @returns {object} API Key 管理器对象
  */
 export function createApiKeyManager(options = {}) {
   const storePath = typeof options.storePath === "string" && options.storePath

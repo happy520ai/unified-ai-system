@@ -125,7 +125,7 @@ describe("public workforce entrypoints", () => {
         createErrorEnvelope: vi.fn(),
       },
     );
-    const route = routes.handlers.get("POST /workforce/execute");
+    const route = routes.handlers.get("POST /workforce/execute") as any;
 
     await route.handler(
       { enterpriseIdentity: { userId: "alice" } },
@@ -135,7 +135,7 @@ describe("public workforce entrypoints", () => {
 
     expect(workforceExecutor.execute).toHaveBeenCalledWith(expect.objectContaining({ userId: "alice" }));
     expect(route.permission).toBe("workflow:run");
-    expect(routes.handlers.get("POST /workforce/execute/approve").permission).toBe("workflow:approve");
+    expect((routes.handlers.get("POST /workforce/execute/approve") as any).permission).toBe("workflow:approve");
     expect(writeJson).toHaveBeenCalled();
   });
 

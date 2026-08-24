@@ -32,6 +32,44 @@ interface ClaimRecord {
   renewalCount: number;
 }
 
+interface PublicClaimRecord {
+  tokenFingerprint: string;
+  planId: string;
+  taskId: string;
+  agentId: string;
+  fencingToken: string;
+  status: "active";
+  issuedAt: string;
+  expiresAt: string;
+  renewalCount: number;
+}
+
+interface FailedClaimResolution {
+  success: false;
+  valid: false;
+  code: string;
+  reason: string;
+  record?: PublicClaimRecord;
+}
+
+interface SuccessfulClaimResolution {
+  success: true;
+  valid: true;
+  code: "TASK_CLAIM_VALID";
+  record: ClaimRecord;
+}
+
+interface IssuedClaimResult {
+  success: true;
+  code: "TASK_CLAIM_ISSUED";
+  token: string;
+  fencingToken: string;
+  expiresAt: string;
+  record: PublicClaimRecord;
+}
+
+type ClaimResolution = FailedClaimResolution | SuccessfulClaimResolution;
+
 function boundedInteger(value: unknown, fallback: number, minimum: number, maximum: number): number {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed < minimum) return fallback;
@@ -61,7 +99,7 @@ function digestToken(token: string): string {
   return createHash("sha256").update(token, "utf8").digest("hex");
 }
 
-function toPublicRecord(record: ClaimRecord) {
+function toPublicRecord(record: ClaimRecord): PublicClaimRecord {
   return {
     tokenFingerprint: record.tokenFingerprint,
     planId: record.planId,
@@ -75,7 +113,7 @@ function toPublicRecord(record: ClaimRecord) {
   };
 }
 
-function failed(code: string, reason: string, record?: ClaimRecord) {
+function failed(code: string, reason: string, record?: ClaimRecord): FailedClaimResolution {
   return {
     success: false,
     valid: false,
@@ -108,7 +146,7 @@ export function createTaskClaimLeaseManager(options: TaskClaimLeaseManagerOption
     stats[outcome] += 1;
   }
 
-  function resolveClaim(token: unknown, context: Partial<TaskClaimIdentity> = {}) {
+  function resolveClaim(token: unknown, context: Partial<TaskClaimIdentity> = {}): ClaimResolution {
     if (typeof token !== "string" || !token || token.length > MAX_TOKEN_LENGTH) {
       return failed("TASK_CLAIM_TOKEN_INVALID", "A bounded task claim token is required.");
     }
@@ -161,7 +199,7 @@ export function createTaskClaimLeaseManager(options: TaskClaimLeaseManagerOption
         stats: { ...stats },
       };
     },
-    issue(input: TaskClaimIdentity & { ttlMs?: number }) {
+    issue(input: TaskClaimIdentity & { ttlMs?: number }): FailedClaimResolution | IssuedClaimResult {
       const planId = normalizeId(input?.planId, "planId");
       const taskId = normalizeId(input?.taskId, "taskId");
       const agentId = normalizeId(input?.agentId, "agentId");

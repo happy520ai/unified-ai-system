@@ -30,6 +30,7 @@ describe("fenced task claim lease", () => {
     const manager = createTaskClaimLeaseManager({ ttlMs: 50, maxClaims: 4, clock: () => now });
     const first = manager.issue({ planId: "plan-a", taskId: "task-a", agentId: "agent-a" });
     expect(first.success).toBe(true);
+    if (!first.success) throw new Error(first.reason);
     expect(first.token).toHaveLength(43);
     expect(manager.issue({ planId: "plan-a", taskId: "task-a", agentId: "agent-b" }))
       .toEqual(expect.objectContaining({ success: false, code: "TASK_ALREADY_CLAIMED" }));
@@ -40,6 +41,7 @@ describe("fenced task claim lease", () => {
       .toEqual(expect.objectContaining({ valid: false, code: "TASK_CLAIM_EXPIRED" }));
     expect(manager.renew(first.token)).toEqual(expect.objectContaining({ success: false }));
     const takeover = manager.issue({ planId: "plan-a", taskId: "task-a", agentId: "agent-b" });
+    if (!takeover.success) throw new Error(takeover.reason);
     expect(BigInt(takeover.fencingToken)).toBeGreaterThan(BigInt(first.fencingToken));
     expect(manager.getInfo()).toEqual(expect.objectContaining({ rawTokenRetained: false, timerCount: 0, activeClaims: 1 }));
   });
@@ -87,7 +89,7 @@ describe("dependency-aware workforce execution", () => {
   it("uses bounded parallel waves while preserving dependencies and fenced completion", async () => {
     const { queue, queueFile } = await queueFixture();
     const plan = createWorkforcePlan({ goal: "Build a resilient gateway feature" });
-    const queued = await queue.enqueueMany(plan.taskBreakdown.map((task) => ({
+    const queued = await queue.enqueueMany(plan.taskBreakdown.map((task: any) => ({
       planId: plan.workforceId,
       title: task.title,
       payload: { roleId: task.roleId, planId: plan.workforceId },

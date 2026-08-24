@@ -25,7 +25,7 @@ function createFetchStub(vectors: number[][] | { status: number; body: unknown }
   }) as unknown as typeof fetch;
 }
 
-const passthroughResolveUrl = async (url) => ({ url });
+const passthroughResolveUrl = async (url: string) => ({ url });
 const providerOptions = {
   baseUrl: "https://embeddings.example.com/v1",
   model: "text-embedding-test",

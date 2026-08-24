@@ -121,7 +121,7 @@ export function createEnterpriseBackupProtector({
     algorithm: ALGORITHM,
     signingAlgorithm: SIGNING_ALGORITHM,
 
-    sealBackup(input) {
+    sealBackup(input: Parameters<EnterpriseBackupProtector["sealBackup"]>[0]) {
       assertBackupContext(input);
       assertPayloadMetadata(input.payload, input);
       const plaintext = Buffer.from(JSON.stringify(input.payload), "utf8");
@@ -162,7 +162,7 @@ export function createEnterpriseBackupProtector({
       };
     },
 
-    openBackup(value, expectedTenantId) {
+    openBackup(value: unknown, expectedTenantId: string) {
       assertTenantId(expectedTenantId);
       assertEnvelope(value);
       const envelope = value;
@@ -218,7 +218,7 @@ export function createEnterpriseBackupProtector({
       };
     },
 
-    sealCheckpoint(input) {
+    sealCheckpoint(input: Parameters<EnterpriseBackupProtector["sealCheckpoint"]>[0]) {
       assertTenantId(input.tenantId);
       assertPositiveSequence(input.sequence);
       assertDigest(input.artifactDigest, "artifactDigest");
@@ -240,7 +240,7 @@ export function createEnterpriseBackupProtector({
       };
     },
 
-    openCheckpoint(value, expectedTenantId) {
+    openCheckpoint(value: unknown, expectedTenantId: string) {
       assertTenantId(expectedTenantId);
       assertCheckpoint(value);
       const checkpoint = value;

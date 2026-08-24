@@ -9,6 +9,7 @@ import {
   GUARDRAILS_ENABLED_ENV,
   GUARDRAILS_STORAGE_DIR_ENV,
   resetGuardrailsEnginesForTests,
+  type GuardrailsRuleConfig,
 } from "./guardrailsEngine.ts";
 
 beforeEach(() => {
@@ -45,11 +46,11 @@ describe("guardrails engine config", () => {
   it("rejects invalid rule names, actions, and banned terms", () => {
     const engine = createGuardrailsEngineForTests({
       enabled: true,
-      rules: { "not.a.rule": "block", "input.secrets": "explode" },
+      rules: { "not.a.rule": "block", "input.secrets": "explode" } as unknown as GuardrailsRuleConfig,
       bannedTerms: ["a", "x".repeat(200), "valid-term"],
     });
     const config = engine.readConfig();
-    expect(config.rules["not.a.rule"]).toBeUndefined();
+    expect((config.rules as Record<string, unknown>)["not.a.rule"]).toBeUndefined();
     expect(config.rules["input.secrets"]).toBe("block");
     expect(config.bannedTerms).toEqual(["valid-term"]);
   });
@@ -179,7 +180,7 @@ describe("guardrails input inspection", () => {
 
   it("fails open on malformed messages", () => {
     const engine = createGuardrailsEngineForTests({ enabled: true });
-    const verdict = engine.inspectInput({ messages: null });
+    const verdict = engine.inspectInput({ messages: null } as any);
     expect(verdict.decision).toBe("allow");
   });
 });

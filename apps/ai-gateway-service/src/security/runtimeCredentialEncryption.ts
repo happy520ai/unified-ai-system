@@ -50,7 +50,7 @@ export function createRuntimeCredentialCipher({
 
   return Object.freeze({
     keyId: primary.keyId,
-    seal(record) {
+    seal(record: CredentialRecord): RuntimeCredentialEnvelope {
       assertCredentialRecord(record);
       const plaintext = Buffer.from(JSON.stringify(record), "utf8");
       if (plaintext.length > MAX_PLAINTEXT_BYTES) {
@@ -77,7 +77,7 @@ export function createRuntimeCredentialCipher({
       };
     },
 
-    open(envelope) {
+    open(envelope: RuntimeCredentialEnvelope) {
       assertEnvelope(envelope);
       const key = keyring.get(envelope.keyId);
       if (!key) {
@@ -120,7 +120,7 @@ export function createRuntimeCredentialCipher({
       }
     },
 
-    isPrimaryEnvelope(envelope) {
+    isPrimaryEnvelope(envelope: RuntimeCredentialEnvelope) {
       return envelope.keyId === primary.keyId;
     },
   });

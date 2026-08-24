@@ -261,7 +261,7 @@ export function createIdempotencyCoordinator(options: IdempotencyCoordinatorOpti
         );
       }
 
-      const entry = {
+      const entry: Entry = {
         fingerprint,
         expiresAt: Number.POSITIVE_INFINITY,
         outcome: null,

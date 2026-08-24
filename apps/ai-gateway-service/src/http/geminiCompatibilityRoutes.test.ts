@@ -1,6 +1,6 @@
 import { EventEmitter } from "node:events";
 import { Readable } from "node:stream";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, type Mock } from "vitest";
 import {
   createGeminiGenerateContentResponse,
   createGeminiModelList,
@@ -17,6 +17,31 @@ const descriptors = [
     models: [{ id: "local-fake-model", enabled: true, capabilities: ["chat"] }],
   },
 ];
+
+interface TestRequest extends Readable {
+  method: string;
+  enterpriseIdentity?: unknown;
+}
+
+interface TestResponse extends EventEmitter {
+  statusCode: number | null;
+  headers: Record<string, any>;
+  body: any;
+  text: string;
+  writableEnded: boolean;
+  destroyed: boolean;
+  headersSent: boolean;
+  writeHead(statusCode: number, headers?: Record<string, any>): void;
+  flushHeaders(): void;
+  write(chunk: unknown): boolean;
+  end(body?: unknown): void;
+}
+
+interface TestGatewayService {
+  getProviderDescriptors: Mock<() => typeof descriptors>;
+  execute: Mock<(input: any) => Promise<any>>;
+  executeStream: (input?: any) => AsyncGenerator<any>;
+}
 
 describe("geminiCompatibilityRoutes route matching", () => {
   it("parses generateContent and streamGenerateContent model routes", () => {
@@ -60,7 +85,7 @@ describe("geminiCompatibilityRoutes generateContent", () => {
       response,
     }));
 
-    const gatewayInput = gatewayService.execute.mock.calls[0][0];
+    const gatewayInput = gatewayService.execute.mock.calls[0]![0];
     expect(gatewayInput.messages).toEqual([
       { role: "system", content: "Be terse." },
       { role: "user", content: "hello" },
@@ -115,7 +140,7 @@ describe("geminiCompatibilityRoutes generateContent", () => {
       response,
     }));
 
-    const gatewayInput = gatewayService.execute.mock.calls[0][0];
+    const gatewayInput = gatewayService.execute.mock.calls[0]![0];
     expect(gatewayInput.tools).toEqual([
       {
         type: "function",
@@ -155,10 +180,10 @@ describe("geminiCompatibilityRoutes generateContent", () => {
       response,
     }));
 
-    const gatewayInput = gatewayService.execute.mock.calls[0][0];
-    const userMessage = gatewayInput.messages.at(-1);
+    const gatewayInput = gatewayService.execute.mock.calls[0]![0];
+    const userMessage = gatewayInput.messages.at(-1)!;
     expect(Array.isArray(userMessage.content)).toBe(true);
-    const imagePart = userMessage.content.find((part) => part.type === "image_url");
+    const imagePart = userMessage.content.find((part: any) => part.type === "image_url")!;
     expect(imagePart.image_url.url).toBe("data:image/png;base64,aGk=");
     expect(response.statusCode).toBe(200);
   });
@@ -219,7 +244,7 @@ describe("geminiCompatibilityRoutes streamGenerateContent", () => {
     expect(textFrames.map((frame) => frame.candidates[0].content.parts[0].text).join("")).toBe(
       "Hello world",
     );
-    const terminal = frames.at(-1);
+    const terminal = frames.at(-1)!;
     expect(terminal.candidates[0].finishReason).toBe("STOP");
     expect(terminal.usageMetadata.totalTokenCount).toBeGreaterThan(0);
   });
@@ -240,8 +265,8 @@ describe("geminiCompatibilityRoutes streamGenerateContent", () => {
       response,
     }));
     const frames = parseSseFrames(response.text);
-    expect(frames.at(-1).error.status).toBeTruthy();
-    expect(frames.at(-1).error.message).toContain("boom");
+    expect(frames.at(-1)!.error.status).toBeTruthy();
+    expect(frames.at(-1)!.error.message).toContain("boom");
   });
 });
 
@@ -326,8 +351,15 @@ function createContext({
   path = "/v1beta/models/local-fake-model:generateContent",
   method = "POST",
   enterpriseIdentity = null,
+}: {
+  body: any;
+  gatewayService?: TestGatewayService;
+  response: TestResponse;
+  path?: string;
+  method?: string;
+  enterpriseIdentity?: unknown;
 }) {
-  const request = Readable.from([Buffer.from(JSON.stringify(body ?? {}))]);
+  const request = Readable.from([Buffer.from(JSON.stringify(body ?? {}))]) as TestRequest;
   request.method = method;
   if (enterpriseIdentity) request.enterpriseIdentity = enterpriseIdentity;
   return {
@@ -341,10 +373,10 @@ function createContext({
   };
 }
 
-function createGatewayService() {
+function createGatewayService(): TestGatewayService {
   return {
     getProviderDescriptors: vi.fn(() => descriptors),
-    execute: vi.fn(async () => ({
+    execute: vi.fn(async (_input: any): Promise<any> => ({
       success: true,
       data: {
         id: "request-101",
@@ -381,8 +413,8 @@ function createGatewayService() {
   };
 }
 
-function createResponseRecorder() {
-  const response = new EventEmitter();
+function createResponseRecorder(): TestResponse {
+  const response = new EventEmitter() as TestResponse;
   response.statusCode = null;
   response.headers = {};
   response.body = null;
@@ -410,7 +442,7 @@ function createResponseRecorder() {
   return response;
 }
 
-function parseSseFrames(text: string) {
+function parseSseFrames(text: string): any[] {
   return text
     .split("\n\n")
     .filter((frame) => frame.trim().length > 0)

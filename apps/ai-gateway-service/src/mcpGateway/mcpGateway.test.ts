@@ -14,6 +14,7 @@ vi.mock("../http/connectionPool.js", () => ({
 }));
 
 const TENANT = { tenantId: "tenant-a", role: "operator" };
+type HttpGovernedConfig = Extract<McpGovernedServerConfig, { transport: "http" }>;
 
 function createFakeClient(tools: Array<{ name: string }>, calls: Array<{ name: string; arguments?: Record<string, unknown> }> = []) {
   return {
@@ -28,7 +29,7 @@ function createFakeClient(tools: Array<{ name: string }>, calls: Array<{ name: s
   };
 }
 
-function httpConfig(overrides: Partial<McpGovernedServerConfig> = {}): McpGovernedServerConfig {
+function httpConfig(overrides: Partial<HttpGovernedConfig> = {}): HttpGovernedConfig {
   return {
     transport: "http",
     id: "weather",

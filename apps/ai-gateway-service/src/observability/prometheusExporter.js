@@ -10,7 +10,6 @@ let sharedRuntimeResourceMonitor;
 /**
  * Prometheus exporter utilities.
  * @param {Object} options - { prefix }
- * @returns {Object} { formatMetrics }
  */
 export function createPrometheusExporter(options = {}) {
   const prefix = options.prefix ?? "ai_gateway";

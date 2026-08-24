@@ -24,7 +24,7 @@ export interface GatewayRuntimeConfig {
  */
 export interface GatewayProviderRegistry {
   select(request: GatewayRequest): unknown;
-  listDescriptors(): ProviderDescriptor[];
+  listDescriptors(): readonly unknown[] | null;
 }
 
 /**
@@ -60,8 +60,12 @@ export interface GatewayServiceOptions {
 /**
  * 网关核心服务：统一 chat/流式路由、provider 选择、fallback、成本守卫、模型访问守卫、台账。
  */
-export interface GatewayService {
-  execute(input: Partial<GatewayRequest>): Promise<GatewayRouteResult>;
-  executeStream(input: Partial<GatewayRequest>): AsyncGenerator<GatewayStreamEvent>;
+export declare class GatewayService {
+  constructor(options: GatewayServiceOptions & Record<string, unknown>);
+  readonly runtimeConfig: Partial<GatewayRuntimeConfig>;
+  execute(input: Partial<GatewayRequest>, execution?: { signal?: AbortSignal; shadow?: boolean }): Promise<GatewayRouteResult>;
+  executeStream(input: Partial<GatewayRequest>, execution?: { signal?: AbortSignal; shadow?: boolean }): AsyncGenerator<GatewayStreamEvent>;
   getProviderDescriptors(): ProviderDescriptor[];
 }
+
+export declare function createRouteFailureEnvelope(error: unknown, context?: Record<string, unknown>): GatewayRouteResult;

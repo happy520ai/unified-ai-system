@@ -34,6 +34,10 @@ describe("diagnostic read zero-value disclosure boundary", () => {
     const serialized = JSON.stringify({ dotenvResult, jsonResult, ledger: await readFile(ledgerPath, "utf8") });
 
     expect(dotenvResult).toEqual(expect.objectContaining({ allowed: true, present: true, redacted: true }));
+    if (!("diagnostic" in dotenvResult) || !dotenvResult.diagnostic
+      || !("diagnostic" in jsonResult) || !jsonResult.diagnostic) {
+      throw new Error("Expected sanitized diagnostic projections.");
+    }
     expect(dotenvResult.diagnostic.keys).toEqual(["CUSTOM_SETTING", "EMPTY_SETTING"]);
     expect(jsonResult.diagnostic.sensitiveKeys).toContain("profile.token");
     expect(serialized).not.toContain(unknownValue);
@@ -82,7 +86,7 @@ describe("diagnostic read zero-value disclosure boundary", () => {
         createErrorEnvelope: vi.fn(),
       },
     );
-    const route = routes.handlers.get("POST /workforce/diagnostic/read");
+    const route = routes.handlers.get("POST /workforce/diagnostic/read") as any;
 
     await route.handler({ enterpriseIdentity: { userId: "auditor-1" } }, {}, { startedAt: new Date() });
 

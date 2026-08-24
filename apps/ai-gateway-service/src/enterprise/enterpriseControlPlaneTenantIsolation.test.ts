@@ -74,7 +74,7 @@ describe("enterprise control-plane tenant isolation", () => {
       })).rejects.toMatchObject({ code: "enterprise_audit_tenant_forbidden", statusCode: 403 });
 
       const listed = await service.listAudit({ actorIdentity: tenantB });
-      expect(listed.entries.map((entry) => entry.path)).toEqual(["/tenant-b-visible-marker"]);
+      expect(listed.entries.map((entry: { path?: string }) => entry.path)).toEqual(["/tenant-b-visible-marker"]);
       expect(listed).not.toHaveProperty("auditLogPath");
 
       const exported = await service.exportAudit({ format: "json", actorIdentity: tenantB });

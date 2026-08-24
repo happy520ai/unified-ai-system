@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { resolveSafeOutboundUrl } from "./outboundUrlPolicy.ts";
 import { safeOutboundFetch } from "./safeOutboundFetch.ts";
 
-function createRawResponse(status = 200, body = "ok", headers = {}) {
+function createRawResponse(status = 200, body = "ok", headers: Record<string, string> = {}) {
   return {
     status,
     statusText: status === 200 ? "OK" : "Redirect",
@@ -12,9 +12,9 @@ function createRawResponse(status = 200, body = "ok", headers = {}) {
   };
 }
 
-function createDependencies(lookupRecords = [{ address: "93.184.216.34", family: 4 }]) {
+function createDependencies(lookupRecords: Array<{ address: string; family: number }> = [{ address: "93.184.216.34", family: 4 }]) {
   const lookup = vi.fn(async () => lookupRecords);
-  const request = vi.fn(async () => createRawResponse());
+  const request = vi.fn(async (_url: string, _init: Record<string, any>) => createRawResponse());
   const agent = { destroy: vi.fn() };
   return {
     lookup,
@@ -60,8 +60,8 @@ describe("safe outbound request boundary", () => {
     const response = await safeOutboundFetch("https://example.com/path", { method: "POST" }, dependencies);
     expect(await response.text()).toBe("ok");
     expect(request).toHaveBeenCalledTimes(1);
-    expect(request.mock.calls[0][1].lookup).toBeTypeOf("function");
-    expect(request.mock.calls[0][1].agent).toBeDefined();
+    expect(request.mock.calls[0]![1].lookup).toBeTypeOf("function");
+    expect(request.mock.calls[0]![1].agent).toBeDefined();
   });
 
   it("never follows redirects or forwards headers to a second destination", async () => {

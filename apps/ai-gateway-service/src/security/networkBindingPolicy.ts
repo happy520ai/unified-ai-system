@@ -10,8 +10,9 @@ export function isLoopbackAddress(value: unknown): boolean {
   if (host === "localhost") return true;
   try {
     const address = ipaddr.parse(host);
-    if (address.kind() === "ipv6" && address.isIPv4MappedAddress()) {
-      return address.toIPv4Address().range() === "loopback";
+    if (address.kind() === "ipv6") {
+      const ipv6 = address as ipaddr.IPv6;
+      if (ipv6.isIPv4MappedAddress()) return ipv6.toIPv4Address().range() === "loopback";
     }
     return address.range() === "loopback";
   } catch {

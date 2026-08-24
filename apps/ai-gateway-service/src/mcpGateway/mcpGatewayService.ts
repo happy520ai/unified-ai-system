@@ -4,7 +4,12 @@
 // from the trusted operator configuration (MCP_UPSTREAM_SERVERS_JSON env or
 // the createMcpGatewayService option) — never from request input.
 
-import { createMcpUpstreamFromConfig, type McpToolDescriptor, type McpUpstreamConfig } from "./mcpUpstreamClient.ts";
+import {
+  createMcpUpstreamFromConfig,
+  type McpCallResult,
+  type McpToolDescriptor,
+  type McpUpstreamConfig,
+} from "./mcpUpstreamClient.ts";
 import { createOpenApiRestBridge } from "./openApiRestBridge.ts";
 import { resolvePlatformTenantId } from "../security/platformControlPlanePolicy.ts";
 
@@ -13,7 +18,7 @@ const MAX_RESULT_CHARS = 1_000_000;
 const TOOL_LIST_CACHE_TTL_MS = 60_000;
 const MAX_UPSTREAMS = 16;
 
-export interface McpGovernedServerConfig extends McpUpstreamConfig {
+interface McpGovernancePolicy {
   /** 可选工具白名单（glob 风格 * 通配）；缺省允许该上游全部工具。 */
   allowedTools?: string[];
   allowedTenants?: string[];
@@ -25,6 +30,30 @@ export interface McpGovernedServerConfig extends McpUpstreamConfig {
   spec?: unknown;
   headers?: Record<string, string>;
 }
+
+interface McpOpenApiServerConfig {
+  transport: "openapi";
+  id: string;
+  baseUrl: string;
+  specUrl?: string;
+  spec?: unknown;
+  headers?: Record<string, string>;
+}
+
+export type McpGovernedServerConfig = (McpUpstreamConfig | McpOpenApiServerConfig) & McpGovernancePolicy;
+
+interface McpGatewayClient {
+  listTools(): Promise<McpToolDescriptor[]>;
+  callTool(toolName: string, args: Record<string, unknown>): Promise<McpCallResult>;
+  close(): void | Promise<void>;
+}
+
+interface GovernedUpstream {
+  config: McpGovernedServerConfig;
+  client: McpGatewayClient;
+}
+
+type McpGatewayError = Error & { code: string; category: string };
 
 export interface McpGatewayIdentity {
   tenantId?: unknown;
@@ -156,7 +185,7 @@ export function createMcpGatewayService(options: {
   env?: Record<string, string | undefined>;
   upstreamConfigs?: McpGovernedServerConfig[];
   /** 测试注入：预构建的上游客户端列表。 */
-  upstreams?: Array<{ config: McpGovernedServerConfig; client: ReturnType<typeof createMcpUpstreamFromConfig> }>;
+  upstreams?: GovernedUpstream[];
   /** 审计回调（由 application 接线到 enterpriseGovernanceService.recordAudit）。 */
   recordAudit?: (event: Record<string, unknown>) => void | Promise<void>;
 } = {}) {
@@ -167,7 +196,7 @@ export function createMcpGatewayService(options: {
     : parseRegistry(env.MCP_UPSTREAM_SERVERS_JSON);
   const recordAudit = options.recordAudit ?? null;
 
-  const upstreams = options.upstreams
+  const upstreams: GovernedUpstream[] = options.upstreams
     ?? parsed.configs.map((config) => ({
       config,
       client: config.transport === "openapi"
@@ -202,10 +231,11 @@ export function createMcpGatewayService(options: {
   function requireIdentity(identity: McpGatewayIdentity | null | undefined): { tenantId: string; role: string } {
     const tenantId = typeof identity?.tenantId === "string" && identity.tenantId ? identity.tenantId : "";
     if (!tenantId) {
-      const error = new Error("MCP tool access requires an authenticated tenant context.");
-      error.code = "MCP_TENANT_CONTEXT_REQUIRED";
-      error.category = "auth";
-      throw error;
+      throw createMcpGatewayError(
+        "MCP_TENANT_CONTEXT_REQUIRED",
+        "MCP tool access requires an authenticated tenant context.",
+        "auth",
+      );
     }
     const role = typeof identity?.role === "string" ? identity.role : "";
     return { tenantId, role };
@@ -271,17 +301,20 @@ export function createMcpGatewayService(options: {
     const { tenantId } = identityContext;
     const upstream = upstreams.find(({ config }) => config.id === request.server);
     if (!upstream) {
-      const error = new Error(`Unknown MCP upstream '${request.server}'.`);
-      error.code = "MCP_UPSTREAM_UNKNOWN";
-      error.category = "validation";
-      throw error;
+      throw createMcpGatewayError(
+        "MCP_UPSTREAM_UNKNOWN",
+        `Unknown MCP upstream '${request.server}'.`,
+        "validation",
+      );
     }
     if (!upstreamAllowed(upstream.config, identityContext)) {
-      const error = new Error(`MCP upstream '${request.server}' is not allowed for this identity.`);
-      error.code = "MCP_UPSTREAM_NOT_ALLOWED";
-      error.category = "auth";
+      const error = createMcpGatewayError(
+        "MCP_UPSTREAM_NOT_ALLOWED",
+        `MCP upstream '${request.server}' is not allowed for this identity.`,
+        "auth",
+      );
       if (recordAudit) {
-        await recordAudit({
+        await Promise.resolve(recordAudit({
           outcome: "denied",
           method: "POST",
           path: "/mcp/call",
@@ -290,34 +323,37 @@ export function createMcpGatewayService(options: {
           code: error.code,
           identity,
           details: { tenantId, serverId: upstream.config.id, toolName: request.tool },
-        }).catch(() => {});
+        })).catch(() => {});
       }
       throw error;
     }
     if (!toolAllowed(upstream.config.allowedTools, request.tool)) {
-      const error = new Error(`Tool '${request.tool}' is not allowed on upstream '${request.server}'.`);
-      error.code = "MCP_TOOL_NOT_ALLOWED";
-      error.category = "auth";
-      throw error;
+      throw createMcpGatewayError(
+        "MCP_TOOL_NOT_ALLOWED",
+        `Tool '${request.tool}' is not allowed on upstream '${request.server}'.`,
+        "auth",
+      );
     }
 
     const args = request.arguments ?? {};
     const serializedArguments = JSON.stringify(args);
     if (serializedArguments.length > MAX_ARGUMENTS_CHARS) {
-      const error = new Error("MCP tool arguments exceed the size limit.");
-      error.code = "MCP_ARGUMENTS_TOO_LARGE";
-      error.category = "validation";
-      throw error;
+      throw createMcpGatewayError(
+        "MCP_ARGUMENTS_TOO_LARGE",
+        "MCP tool arguments exceed the size limit.",
+        "validation",
+      );
     }
 
     try {
       const result = await upstream.client.callTool(request.tool, args);
       const serializedResult = JSON.stringify(result);
       if (serializedResult && serializedResult.length > MAX_RESULT_CHARS) {
-        const error = new Error("MCP tool result exceeds the size limit.");
-        error.code = "MCP_RESULT_TOO_LARGE";
-        error.category = "provider";
-        throw error;
+        throw createMcpGatewayError(
+          "MCP_RESULT_TOO_LARGE",
+          "MCP tool result exceeds the size limit.",
+          "provider",
+        );
       }
       if (recordAudit) {
         await recordAudit({
@@ -340,7 +376,7 @@ export function createMcpGatewayService(options: {
       return { result, serverId: upstream.config.id, toolName: request.tool };
     } catch (error) {
       if (recordAudit && (error as { code?: string }).code !== "MCP_TOOL_NOT_ALLOWED") {
-        await recordAudit({
+        await Promise.resolve(recordAudit({
           outcome: "denied",
           method: "POST",
           path: "/mcp/call",
@@ -353,7 +389,7 @@ export function createMcpGatewayService(options: {
             serverId: upstream.config.id,
             toolName: request.tool,
           },
-        }).catch(() => {});
+        })).catch(() => {});
       }
       throw error;
     }
@@ -361,7 +397,7 @@ export function createMcpGatewayService(options: {
 
   async function close() {
     for (const { client } of upstreams) {
-      await client.close().catch(() => {});
+      await Promise.resolve(client.close()).catch(() => {});
     }
   }
 
@@ -369,3 +405,10 @@ export function createMcpGatewayService(options: {
 }
 
 export type McpGatewayService = ReturnType<typeof createMcpGatewayService>;
+
+function createMcpGatewayError(code: string, message: string, category: string): McpGatewayError {
+  const error = new Error(message) as McpGatewayError;
+  error.code = code;
+  error.category = category;
+  return error;
+}

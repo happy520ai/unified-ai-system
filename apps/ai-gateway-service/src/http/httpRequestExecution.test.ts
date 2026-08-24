@@ -1,12 +1,18 @@
 import { EventEmitter } from "node:events";
+import type { IncomingMessage, ServerResponse } from "node:http";
 import { describe, expect, it, vi } from "vitest";
 import { EXECUTION_ABORT_CODES } from "@unified-ai-system/shared-utils";
 import { bindGatewayExecution, createHttpRequestExecutionScope } from "./httpRequestExecution.ts";
 
 function createTransport() {
-  const request = new EventEmitter();
-  const response = Object.assign(new EventEmitter(), { writableFinished: false });
-  return { request: request as never, response: response as never };
+  const requestEmitter = new EventEmitter();
+  const responseEmitter = Object.assign(new EventEmitter(), { writableFinished: false });
+  return {
+    request: requestEmitter as EventEmitter & IncomingMessage,
+    response: responseEmitter as unknown as EventEmitter & ServerResponse,
+    requestEmitter,
+    responseEmitter,
+  };
 }
 
 describe("HTTP request execution scope", () => {
@@ -38,7 +44,7 @@ describe("HTTP request execution scope", () => {
     const onClientDisconnect = vi.fn();
     const scope = createHttpRequestExecutionScope({ ...transport, timeoutMs: 10_000, onClientDisconnect });
 
-    transport.request.emit("aborted");
+    transport.requestEmitter.emit("aborted");
 
     expect(scope.context.signal.reason).toMatchObject({
       code: EXECUTION_ABORT_CODES.CLIENT_DISCONNECTED,
@@ -54,8 +60,8 @@ describe("HTTP request execution scope", () => {
     try {
       const transport = createTransport();
       const scope = createHttpRequestExecutionScope({ ...transport, timeoutMs: 250 });
-      transport.response.writableFinished = true;
-      transport.response.emit("finish");
+      transport.responseEmitter.writableFinished = true;
+      transport.responseEmitter.emit("finish");
       vi.advanceTimersByTime(500);
       expect(scope.context.signal.aborted).toBe(false);
     } finally {
@@ -71,7 +77,7 @@ describe("HTTP request execution scope", () => {
     const bound = bindGatewayExecution({ execute, executeStream }, scope.context);
 
     expect(await bound.execute({})).toBe(scope.context);
-    const events = [];
+    const events: unknown[] = [];
     for await (const event of bound.executeStream({})) events.push(event);
     expect(events).toEqual([scope.context]);
     scope.cleanup();

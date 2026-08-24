@@ -57,8 +57,8 @@ describe("workforce preview safety contract", () => {
   it("overrides forged capability flags before save, approval, retrieval, and export", async () => {
     const storePath = join(mkdtempSync(join(tmpdir(), "workforce-preview-safety-")), "plans.json");
     const tenantId = "workforce-preview-safety";
-    const service = createWorkforceService({ env: { WORKFORCE_PLAN_STORE_PATH: storePath } });
-    const plan = service.plan({ goal: "Persist a fail-closed workforce preview" });
+    const service = createWorkforceService({ env: { WORKFORCE_PLAN_STORE_PATH: storePath } }) as any;
+    const plan = service.plan({ goal: "Persist a fail-closed workforce preview" }) as any;
 
     plan.executionReadinessPreflight.executionEnabled = true;
     plan.agentWorkforcePreviewFinalUxSeal.runnerEnabled = true;

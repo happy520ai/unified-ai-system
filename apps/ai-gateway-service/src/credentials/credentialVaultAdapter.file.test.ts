@@ -30,7 +30,7 @@ describe("credentialVaultAdapter file_key_path resolver", () => {
     expect(result.code).toBe("FILE_KEY_REFERENCE_READY");
     expect(result.materialized).toBe(false);
     expect(result.secretAvailable).toBe(true);
-    expect(result.secret).toBeUndefined();
+    expect((result as { secret?: unknown }).secret).toBeUndefined();
   });
 
   it("materializes env and file secrets on explicit request", () => {

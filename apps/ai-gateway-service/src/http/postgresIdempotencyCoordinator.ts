@@ -62,6 +62,8 @@ type ClaimDecision<T> =
   | { kind: "accepted"; outcome: IdempotencyAcceptedOutcome<T> }
   | { kind: "rejected"; outcome: IdempotencyRejectedOutcome };
 
+type ReadDecision<T> = Exclude<ClaimDecision<T>, { kind: "owner" }>;
+
 type StatsSnapshot = {
   entries: number;
   inFlight: number;
@@ -317,7 +319,7 @@ export function createPostgresIdempotencyCoordinator(options: PostgresCoordinato
     }
   }
 
-  function decodeRow<T>(row: EntryRow, fingerprint: string): ClaimDecision<T> {
+  function decodeRow<T>(row: EntryRow, fingerprint: string): ReadDecision<T> {
     if (row.fingerprint !== fingerprint) {
       return {
         kind: "rejected",

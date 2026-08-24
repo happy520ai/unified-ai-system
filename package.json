@@ -25,7 +25,7 @@
     "smoke:mcp": "node ./tools/mcp-smoke.mjs",
     "eval:prompt-enhancement": "node ./tools/prompt-enhancement-eval.mjs",
     "build": "pnpm -r --if-present build",
-    "check": "pnpm -r --if-present check && pnpm check:language-policy && pnpm check:supply-chain-config && pnpm check:route-permissions && pnpm check:outbound-policy",
+    "check": "pnpm -r --if-present check && pnpm typecheck && pnpm check:language-policy && pnpm check:supply-chain-config && pnpm check:route-permissions && pnpm check:outbound-policy",
     "typecheck": "tsc -p tsconfig.json",
     "test": "pnpm -r --if-present test",
     "check:public": "node tools/public-repo-check.mjs",
@@ -64,6 +64,8 @@
     "@a2a-js/sdk": "1.0.1",
     "@anthropic-ai/sdk": "0.116.0",
     "@types/node": "^22.10.0",
+    "@types/pg": "8.23.1",
+    "@types/ws": "8.18.1",
     "openai": "7.4.0",
     "typescript": "^5.6.3",
     "vitest": "^4.1.10"

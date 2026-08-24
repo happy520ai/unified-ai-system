@@ -18,7 +18,6 @@ function safeCredentialEqual(actual, expected) {
  * 创建认证路由 handler 集合
  * @param {Object} application - Gateway application context
  * @param {Object} helpers - { readJson, writeJson, writeServiceLog, createOkEnvelope, createErrorEnvelope }
- * @returns {Object} { handlers: Map<string, { handler: Function }> }
  */
 export function createAuthRoutes(application, helpers, env = process.env) {
   const { authTokenService } = application;

@@ -66,6 +66,10 @@ function readTextMessage(message) {
 }
 
 class GatewayAgentExecutor {
+  /**
+   * @param {object} gatewayService
+   * @param {{execute: Function}|null} [workforceExecutor]
+   */
   constructor(gatewayService, workforceExecutor = null) {
     this.gatewayService = gatewayService;
     this.workforceExecutor = workforceExecutor;

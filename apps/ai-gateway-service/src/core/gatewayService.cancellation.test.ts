@@ -25,6 +25,7 @@ function createService(primary: any, fallback: any, healthScorer: any, options: 
   ];
   return new GatewayService({
     providerRegistry: {
+      listDescriptors: () => [],
       select: () => ({
         selected: candidates[0],
         candidates,

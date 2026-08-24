@@ -27,7 +27,7 @@ interface GeminiModelConfig {
 interface GeminiAdapterOptions {
   timeoutMs?: number;
   runtimeCredentialStore?: {
-    getCredential(providerId: string): Promise<{ apiKey?: string } | null>;
+    getCredential(providerId: string): { apiKey?: string } | null | Promise<{ apiKey?: string } | null>;
   } | null;
   baseUrl?: string;
 }
@@ -531,19 +531,37 @@ function mapFinishReason(reason: string): string {
   return mapping[reason] ?? reason;
 }
 
-function normalizeModel(model: unknown) {
+interface NormalizedGeminiModel {
+  id: string;
+  displayName: string;
+  enabled: boolean;
+  capabilities: string[];
+  priority?: number;
+  costTier?: string;
+  latencyTier?: string;
+}
+
+function normalizeModel(model: unknown): NormalizedGeminiModel {
   if (typeof model === "string") {
     return { id: model, displayName: model, enabled: true, capabilities: ["chat"] };
   }
   const m = (model ?? {}) as Record<string, unknown>;
+  const id = typeof m.id === "string" ? m.id : typeof m.modelId === "string" ? m.modelId : "";
+  const displayName = typeof m.displayName === "string"
+    ? m.displayName
+    : typeof m.modelDisplayName === "string"
+      ? m.modelDisplayName
+      : id;
   return {
-    id: m.id ?? m.modelId,
-    displayName: m.displayName ?? m.modelDisplayName ?? m.id,
+    id,
+    displayName,
     enabled: m.enabled !== false,
-    capabilities: m.capabilities ?? ["chat"],
-    priority: m.priority,
-    costTier: m.costTier,
-    latencyTier: m.latencyTier,
+    capabilities: Array.isArray(m.capabilities)
+      ? m.capabilities.filter((value): value is string => typeof value === "string")
+      : ["chat"],
+    ...(typeof m.priority === "number" ? { priority: m.priority } : {}),
+    ...(typeof m.costTier === "string" ? { costTier: m.costTier } : {}),
+    ...(typeof m.latencyTier === "string" ? { latencyTier: m.latencyTier } : {}),
   };
 }
 

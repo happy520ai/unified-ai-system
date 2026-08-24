@@ -32,7 +32,6 @@ const DEFAULT_APPROVALS_PATH = resolve(process.cwd(), ".data", "workforce", "app
  * @param {object} options - 配置选项
  * @param {string} [options.storePath] - 审批记录存储路径
  * @param {number} [options.ttlMs] - 审批过期时间（毫秒）
- * @returns {object} 审批网关管理器实例
  */
 export function createExecutionApprovalGate(options = {}) {
   const storePath = resolve(options.storePath || DEFAULT_APPROVALS_PATH);

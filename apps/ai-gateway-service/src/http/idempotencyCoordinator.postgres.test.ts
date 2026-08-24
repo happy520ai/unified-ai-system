@@ -123,10 +123,11 @@ class FakePostgresPool implements PostgresPoolLike {
       return result<Row>([], matches ? 1 : 0);
     }
     if (text.includes("idempotency:mark-unknown")) {
-      if (this.entry?.identity === values[1] && this.entry.state === "in_flight") {
-        this.entry.state = "unknown";
-        this.entry.leaseOwner = null;
-        this.entry.leaseExpiresAt = null;
+      const entry = this.entry;
+      if (entry && entry.identity === values[1] && entry.state === "in_flight") {
+        entry.state = "unknown";
+        entry.leaseOwner = null;
+        entry.leaseExpiresAt = null;
       }
       return result<Row>();
     }

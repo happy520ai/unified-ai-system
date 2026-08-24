@@ -250,7 +250,7 @@ class DefaultGuardrailsEngine implements GuardrailsEngine {
 
       // 长度上限按全部消息的累计字符数判定：只查末条会被"把超长内容
       // 拆进多条消息"绕过。
-      const totalAllMessageChars = messages.reduce(
+      const totalAllMessageChars = messages.reduce<number>(
         (sum, message) => sum + extractMessageText((message as { content?: unknown })?.content).length,
         0,
       );

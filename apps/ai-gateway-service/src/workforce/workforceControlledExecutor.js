@@ -55,6 +55,9 @@ function readBoundedInteger(value, fallback, minimum, maximum) {
  * @param {boolean} [options.dryRun] — if true, only preview the execution plan
  * @param {string} [options.executionDir] — base dir for lifecycle/evidence persistence
  * @param {object} [options.env] — environment variables (defaults to process.env)
+ * @param {object} [options.providerAdapter] — governed provider adapter
+ * @param {object} [options.sandboxMerger] — injected sandbox merge boundary
+ * @param {object} [options.tierGovernor] — injected autonomy tier governor
  */
 export function createControlledExecutor(options = {}) {
   const env = options.env ?? process.env;

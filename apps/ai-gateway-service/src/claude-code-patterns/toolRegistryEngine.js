@@ -26,6 +26,8 @@ import {
  * @param {Object} [options.permissionChecker] - 权限检查器
  * @param {Object} [options.eventBus] - 事件总线
  * @param {number} [options.maxChainDepth] - 工具链最大深度 (default 5)
+ * @param {string} [options.workingDirectory] - 工具文件系统边界
+ * @param {boolean} [options.enableHighRiskTools] - 显式启用高风险工具
  */
 export function createAgentToolRegistry(options = {}) {
   const {

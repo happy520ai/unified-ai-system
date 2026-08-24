@@ -91,7 +91,12 @@ export function bindGatewayExecution<TService extends object>(
     get(target, property, receiver) {
       if (property === "execute" || property === "executeStream") {
         const operation = Reflect.get(target, property, receiver);
-        return (input: unknown) => operation.call(target, withServerIdentity(input, identityProvider?.()), execution);
+        if (typeof operation !== "function") return operation;
+        return (input: unknown) => Reflect.apply(
+          operation,
+          target,
+          [withServerIdentity(input, identityProvider?.()), execution],
+        );
       }
       const value = Reflect.get(target, property, receiver);
       return typeof value === "function" ? value.bind(target) : value;

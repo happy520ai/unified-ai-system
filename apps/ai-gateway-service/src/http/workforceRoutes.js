@@ -7,7 +7,6 @@
  * 创建 Workforce 路由 handler 集合
  * @param {Object} application
  * @param {Object} helpers
- * @returns {Object} { handlers: Map<string, Function> }
  */
 export function createWorkforceRoutes(application, helpers) {
   const { workforceExecutor, workforceService, workflowService } = application;

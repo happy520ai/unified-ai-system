@@ -538,6 +538,7 @@ export async function dispatchGeminiCompatibilityRoutes(context: Record<string, 
     writeJson(response, 200, payload);
     return;
   }
+  if (!route) return ROUTE_NOT_HANDLED;
 
   if (request.method !== "POST") {
     writeGeminiError(response, 405, `Only POST is supported for ${pathname}.`);
@@ -632,7 +633,7 @@ export async function dispatchGeminiCompatibilityRoutes(context: Record<string, 
         if (error instanceof GeminiTranslationError) throw error;
         failures += 1;
         responses.push(
-          createGeminiErrorPayload(500, String(error?.message ?? "Execution failed.")),
+          createGeminiErrorPayload(500, error instanceof Error ? error.message : "Execution failed."),
         );
       }
     }
@@ -700,18 +701,19 @@ export async function dispatchGeminiCompatibilityRoutes(context: Record<string, 
       gatewayService.getProviderDescriptors(),
     );
   } catch (error) {
+    const validationError = readErrorDetails(error);
     writeServiceLog?.("gemini_generate_validation_failed", {
       method: request.method,
       path: pathname,
-      code: error?.code,
-      param: error?.param,
+      code: validationError.code,
+      param: validationError.param,
       durationMs: Date.now() - startedAt,
     });
     writeGeminiError(
       response,
       400,
-      String(error?.message ?? "Invalid request."),
-      error?.param ? { field: String(error.param) } : undefined,
+      String(validationError.message ?? "Invalid request."),
+      validationError.param ? { field: String(validationError.param) } : undefined,
     );
     return;
   }
@@ -742,10 +744,10 @@ export async function dispatchGeminiCompatibilityRoutes(context: Record<string, 
 
   const result = await gatewayService.execute(gatewayInput);
   if (!result?.success) {
-    const error = result?.error ?? {
+    const error = readErrorDetails(result?.error ?? {
       code: result?.code,
       message: result?.message ?? "Gateway execution failed.",
-    };
+    });
     const statusCode = resolveOpenAiErrorStatus(error);
     writeServiceLog?.("gemini_generate_failed", {
       method: request.method,
@@ -816,6 +818,12 @@ export async function dispatchGeminiCompatibilityRoutes(context: Record<string, 
     durationMs: Date.now() - startedAt,
   });
   writeJson(response, 200, geminiResponse);
+}
+
+function readErrorDetails(value: unknown): { code?: unknown; param?: unknown; message?: unknown } {
+  return value && typeof value === "object"
+    ? value as { code?: unknown; param?: unknown; message?: unknown }
+    : {};
 }
 
 async function streamGeminiGenerateContent({

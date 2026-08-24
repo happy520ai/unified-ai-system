@@ -37,8 +37,8 @@ function normalizeHostname(value: unknown): string {
 function parseAddress(value: string): AddressRecord | null {
   try {
     let address = ipaddr.parse(normalizeHostname(value));
-    if (address.kind() === "ipv6" && address.isIPv4MappedAddress()) {
-      address = address.toIPv4Address();
+    if (address.kind() === "ipv6" && (address as ipaddr.IPv6).isIPv4MappedAddress()) {
+      address = (address as ipaddr.IPv6).toIPv4Address();
     }
     return Object.freeze({
       address: address.toString(),
@@ -52,8 +52,8 @@ function parseAddress(value: string): AddressRecord | null {
 export function isPublicUnicastAddress(value: string): boolean {
   try {
     let address = ipaddr.parse(normalizeHostname(value));
-    if (address.kind() === "ipv6" && address.isIPv4MappedAddress()) {
-      address = address.toIPv4Address();
+    if (address.kind() === "ipv6" && (address as ipaddr.IPv6).isIPv4MappedAddress()) {
+      address = (address as ipaddr.IPv6).toIPv4Address();
     }
     return address.range() === "unicast";
   } catch {

@@ -46,6 +46,7 @@ const DEFAULT_LEDGER_PATH = resolve(process.cwd(), ".data", "workforce", "diagno
 /**
  * @param {object} options
  * @param {string} [options.ledgerPath]
+ * @param {string} [options.rootDir]
  * @param {string[]} [options.readablePaths]  — extend the allowlist
  * @param {object} [options.env]
  */

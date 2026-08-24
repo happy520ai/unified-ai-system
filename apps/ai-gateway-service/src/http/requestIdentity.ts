@@ -123,7 +123,9 @@ function parseAddress(value: unknown): ParsedAddress | null {
   if (typeof value !== "string" || !value.trim()) return null;
   try {
     let parsed = ipaddr.parse(value.trim());
-    if (parsed.kind() === "ipv6" && parsed.isIPv4MappedAddress()) parsed = parsed.toIPv4Address();
+    if (parsed.kind() === "ipv6" && (parsed as ipaddr.IPv6).isIPv4MappedAddress()) {
+      parsed = (parsed as ipaddr.IPv6).toIPv4Address();
+    }
     return { address: parsed.toString(), value: parsed };
   } catch {
     return null;
@@ -133,9 +135,9 @@ function parseAddress(value: unknown): ParsedAddress | null {
 function parseTrustedRange(value: string): TrustedRange {
   try {
     const [address, prefix] = ipaddr.parseCIDR(value);
-    if (address.kind() === "ipv6" && address.isIPv4MappedAddress()) {
+    if (address.kind() === "ipv6" && (address as ipaddr.IPv6).isIPv4MappedAddress()) {
       if (prefix < 96) throw new Error("IPv4-mapped IPv6 CIDR prefixes must be at least 96 bits.");
-      return [address.toIPv4Address(), prefix - 96];
+      return [(address as ipaddr.IPv6).toIPv4Address(), prefix - 96];
     }
     return [address, prefix];
   } catch (error) {
