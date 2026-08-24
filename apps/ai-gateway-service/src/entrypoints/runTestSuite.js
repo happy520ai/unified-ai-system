@@ -83,11 +83,11 @@ function writeDiscoverySummary(tests) {
   process.stdout.write(`gateway tests discovered: ${summary.join(" ")}\n`);
 }
 
-function runProcess(command, args, cwd) {
+function runProcess(command, args, cwd, envOverrides = {}) {
   return new Promise((resolvePromise, reject) => {
     const child = spawn(command, args, {
       cwd,
-      env: process.env,
+      env: { ...process.env, ...envOverrides },
       stdio: "inherit",
       windowsHide: true,
     });
@@ -111,7 +111,7 @@ function resolveVitestEntrypoint() {
 async function runNodeTests(tests) {
   if (tests.length === 0) return 0;
   process.stdout.write(`\nRunning ${tests.length} node:test files\n`);
-  return runProcess(process.execPath, ["--test", ...tests.map((test) => test.path)], serviceRoot);
+  return runProcess(process.execPath, ["--test", ...tests.map((test) => test.path)], serviceRoot, { NODE_ENV: "test" });
 }
 
 async function runVitestTests(tests, { processIsolated = false } = {}) {
@@ -119,7 +119,12 @@ async function runVitestTests(tests, { processIsolated = false } = {}) {
   process.stdout.write(`\nRunning ${tests.length} Vitest files${processIsolated ? " in an isolated test process" : ""}\n`);
   const paths = tests.map((test) => relative(repoRoot, test.path).split(sep).join("/"));
   const isolationArgs = processIsolated ? ["--maxWorkers=1"] : [];
-  return runProcess(process.execPath, [resolveVitestEntrypoint(), "run", ...isolationArgs, ...paths], repoRoot);
+  return runProcess(
+    process.execPath,
+    [resolveVitestEntrypoint(), "run", ...isolationArgs, ...paths],
+    repoRoot,
+    { NODE_ENV: "test" },
+  );
 }
 
 async function main() {

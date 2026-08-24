@@ -185,6 +185,9 @@ export async function createGatewayRuntime(options = {}) {
   // the window elapsed and all authenticated tools became unusable.
   const authExpiresAt = null;
   const requestHeaders = Object.freeze({ Authorization: `Bearer ${authToken}` });
+  const inheritedTestRuntime = process.env.NODE_ENV === "test"
+    || process.env.VITEST === "true"
+    || Boolean(process.env.NODE_TEST_CONTEXT);
   let stdout = "";
   let stderr = "";
   const child = (options.spawnProcess ?? spawn)(
@@ -195,6 +198,7 @@ export async function createGatewayRuntime(options = {}) {
       windowsHide: true,
       env: {
         ...env,
+        ...(inheritedTestRuntime ? { NODE_ENV: "test" } : {}),
         AI_GATEWAY_SERVICE_HOST: "127.0.0.1",
         AI_GATEWAY_SERVICE_PORT: String(port),
         AI_GATEWAY_PROVIDER_MODE: "fake",

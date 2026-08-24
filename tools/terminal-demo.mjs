@@ -3,6 +3,8 @@
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { createServer } from "node:net";
+import { rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -190,6 +192,7 @@ function summarizeCompiledSections(sections) {
 async function runDemo() {
   const port = await findFreePort();
   const baseUrl = `http://127.0.0.1:${port}`;
+  const auditDir = resolve(tmpdir(), `unified-ai-system-demo-${process.pid}-${port}`);
   let stdout = "";
   let stderr = "";
   const child = spawn(process.execPath, [serviceEntrypoint], {
@@ -207,6 +210,8 @@ async function runDemo() {
       AI_GATEWAY_ENABLED_PROVIDERS:
         "local-fake-provider,backup-fake-provider",
       PME_ENTERPRISE_AUTH_ENABLED: "false",
+      PME_AUDIT_LOG_PATH: resolve(auditDir, "enterprise-audit.jsonl"),
+      PME_AUDIT_CHAIN_PATH: resolve(auditDir, "enterprise-audit.chain.jsonl"),
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -324,6 +329,7 @@ async function runDemo() {
     process.exitCode = 1;
   } finally {
     await stopChild(child);
+    await rm(auditDir, { recursive: true, force: true });
   }
 }
 

@@ -157,8 +157,7 @@ describe("responseCacheStore — buffered audit trail", () => {
     const { store, paths } = createTestStore({ auditFlushIntervalMs: 20 });
     lookupEntry(store, "response-cache:timer-flush");
 
-    await viWaitFor(() => expect(existsSync(paths.audit)).toBe(true));
-    expect(readAuditLines(paths.audit).length).toBe(1);
+    await viWaitFor(() => expect(readAuditLines(paths.audit).length).toBe(1));
     await store.close();
   });
 

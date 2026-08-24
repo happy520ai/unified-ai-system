@@ -1,6 +1,7 @@
 import { appendFile, mkdir } from "node:fs/promises";
 import { statSync } from "node:fs";
 import { dirname, resolve } from "node:path";
+import { tmpdir } from "node:os";
 import {
   DEFAULT_ROLES,
   addStoredUser,
@@ -38,7 +39,11 @@ import {
 } from "../security/localUnauthenticatedAccessPolicy.ts";
 
 const DEFAULT_AUDIT_LIMIT = 200;
+let testAuditInstance = 0;
 
+/**
+ * @param {{env?: Record<string, string | undefined>, auditLogPath?: string}} [options]
+ */
 export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {}) {
   const authEnabled = readBoolean(env.PME_ENTERPRISE_AUTH_ENABLED, Boolean(env.PME_AUTH_TOKEN || env.PME_ENTERPRISE_USERS_JSON || env.PME_ENTERPRISE_USER_STORE_PATH));
   assertAuthenticatedNetworkBinding({
@@ -83,7 +88,7 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
   // 虚拟 key（uai- 前缀）：SHA-256 落盘于 .data/enterprise/api-keys.json
   const apiKeyStorePath = env.PME_API_KEY_STORE_PATH ?? resolve(".data/enterprise/api-keys.json");
   const apiKeyManager = createApiKeyManager({ storePath: apiKeyStorePath });
-  const auditPath = auditLogPath ?? env.PME_AUDIT_LOG_PATH ?? resolve(".data/audit/enterprise-audit.jsonl");
+  const auditPath = auditLogPath ?? env.PME_AUDIT_LOG_PATH ?? resolveDefaultAuditPath(env);
   const auditChainPath = env.PME_AUDIT_CHAIN_PATH ?? `${auditPath}.chain`;
   const auditHashChain = createAuditHashChain({ chainPath: auditChainPath });
   const auditEntries = [];
@@ -537,6 +542,7 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
       }
     },
 
+    /** @param {{limit?: number, filters?: Record<string, unknown>, actorIdentity?: Record<string, unknown>}} [options] */
     async listAudit({ limit = 50, filters = {}, actorIdentity } = {}) {
       const scopedFilters = createTenantScopedAuditFilters(filters, actorIdentity);
       const boundedLimit = Math.min(200, Math.max(1, Number(limit) || 50));
@@ -552,6 +558,7 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
       };
     },
 
+    /** @param {{limit?: number, format?: string, filters?: Record<string, unknown>, actorIdentity?: Record<string, unknown>}} [options] */
     async exportAudit({ limit = 200, format = "jsonl", filters = {}, actorIdentity } = {}) {
       const scopedFilters = createTenantScopedAuditFilters(filters, actorIdentity);
       const boundedLimit = Math.min(1000, Math.max(1, Number(limit) || 200));
@@ -570,6 +577,18 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
       };
     },
   };
+}
+
+function resolveDefaultAuditPath(env) {
+  const testRuntime = env.NODE_ENV === "test"
+    || process.env.NODE_ENV === "test"
+    || process.env.VITEST === "true"
+    || Boolean(process.env.NODE_TEST_CONTEXT);
+  if (testRuntime) {
+    testAuditInstance += 1;
+    return resolve(tmpdir(), "unified-ai-system-test-audit", `${process.pid}-${testAuditInstance}.jsonl`);
+  }
+  return resolve(".data/audit/enterprise-audit.jsonl");
 }
 
 function createTenantScopedAuditFilters(filters, actorIdentity) {
