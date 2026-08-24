@@ -193,7 +193,7 @@ export function createTaskEvidenceCapture(options = {}) {
 
           // 持久化证据
           const filePath = resolve(evidenceDir, sanitizeId(planId), `${sanitizeId(agentId)}.json`);
-          await mkdir(dirname(filePath), { recursive: true });
+          await mkdir(dirname(filePath), { recursive: true, mode: 0o700 });
           const persistedEvidence = redactor.redactObject(this.evidence);
           const serialized = `${JSON.stringify(persistedEvidence, null, 2)}\n`;
           if (Buffer.byteLength(serialized, "utf8") > MAX_EVIDENCE_BYTES) {

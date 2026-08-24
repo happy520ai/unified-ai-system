@@ -47,6 +47,10 @@ and the project uses [Semantic Versioning](https://semver.org/).
   audit uses hashed filenames plus atomic restricted writes, and per-role
   evidence is bounded, redacted, atomic, and no longer silently skipped. Forge
   adapters must attest and receive an isolated project root before execution.
+  Lifecycle snapshots now use hashed filenames, serialized atomic `0600`
+  writes in `0700` directories, bounded/redacted state, corruption detection,
+  and initialization rollback instead of logging persistence failures as if the
+  transition had succeeded.
 - Added a central PostgreSQL usage ledger with awaited write-ahead reservation
   and terminal commits, per-attempt idempotency/conflict detection, tenant
   queries and spend aggregation, retention/capacity bounds, verified TLS,

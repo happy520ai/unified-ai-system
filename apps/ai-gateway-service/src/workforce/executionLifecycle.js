@@ -103,7 +103,12 @@ export function createExecutionLifecycle(options = {}) {
       };
 
       executionStates.set(planId, state);
-      await persistState(lifecycleDir, planId, state);
+      try {
+        await persistState(lifecycleDir, planId, state);
+      } catch (error) {
+        executionStates.delete(planId);
+        throw error;
+      }
 
       return {
         success: true,

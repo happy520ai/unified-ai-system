@@ -201,7 +201,7 @@ export async function writeAuditLog(auditLogDir, planId, entry) {
   const logPath = createSecurityAuditLogPath(auditLogDir, planId);
   const previous = auditWriteTails.get(logPath) ?? Promise.resolve();
   const operation = previous.then(async () => {
-    await mkdir(auditLogDir, { recursive: true });
+    await mkdir(auditLogDir, { recursive: true, mode: 0o700 });
 
     // 读取现有日志
     let entries = [];

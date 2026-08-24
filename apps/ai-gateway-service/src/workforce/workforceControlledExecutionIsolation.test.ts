@@ -7,6 +7,7 @@ import { promisify } from "node:util";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createExecutionLifecycle } from "./executionLifecycle.js";
+import { createLifecycleStatePath } from "./executionLifecycleHelpers.js";
 import { createSecurityReviewCheckpoint } from "./securityReviewCheckpoint.js";
 import { createSecurityAuditLogPath } from "./securityReviewCheckpointHelpers.js";
 import { createTaskEvidenceCapture } from "./taskEvidenceCapture.js";
@@ -271,6 +272,18 @@ describe("lifecycle and evidence persistence isolation", () => {
 
     await expect(first.getStatus("same-plan")).resolves.toMatchObject({ status: "running" });
     await expect(second.getStatus("same-plan")).resolves.toMatchObject({ status: "pending" });
+    expect(await readdir(firstRoot)).toEqual([expect.stringMatching(/^plan-[a-f0-9]{64}\.json$/u)]);
+
+    await writeFile(createLifecycleStatePath(firstRoot, "same-plan"), "{corrupt", "utf8");
+    const restarted = createExecutionLifecycle({ lifecycleDir: firstRoot }) as any;
+    await expect(restarted.getStatus("same-plan"))
+      .rejects.toMatchObject({ code: "WORKFORCE_LIFECYCLE_STATE_INVALID" });
+
+    const unavailablePath = join(firstRoot, "occupied-file");
+    await writeFile(unavailablePath, "occupied", "utf8");
+    const unavailable = createExecutionLifecycle({ lifecycleDir: unavailablePath }) as any;
+    await expect(unavailable.initialize("plan-unavailable", {})).rejects.toBeTruthy();
+    expect(unavailable.listActive()).toMatchObject({ count: 0, executions: [] });
   });
 
   it("atomically persists bounded evidence with sensitive text redacted", async () => {
