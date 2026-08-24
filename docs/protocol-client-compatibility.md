@@ -11,8 +11,8 @@ the documented request/route boundaries and provides reproducible evidence.
 
 | Surface | Verified implementation | Covered behavior | Boundary |
 | --- | --- | --- | --- |
-| MCP stdio | Official `@modelcontextprotocol/client` `2.0.0` | Handshake, twelve tools, prompt enhancement, fake chat, cleanup | Protocol verified; named host UI behavior needs a report. |
-| MCP Streamable HTTP | Official `@modelcontextprotocol/client` `2.0.0` | HTTP handshake, twelve tools, Bearer rejection, Origin rejection, cleanup | Source build only; published `v0.4.9` image is stdio-only. |
+| MCP stdio | Official `@modelcontextprotocol/client` `2.0.0` | Modern `2026-07-28` `server/discover`, per-request envelope, twelve tools, prompt enhancement, fake chat, cleanup | Modern era is source-verified; named host UI behavior still needs a report. |
+| MCP Streamable HTTP | Official `@modelcontextprotocol/client` `2.0.0` | Modern `2026-07-28`, legacy `2025-11-25` and `2025-06-18`, header routing/CORS, twelve tools, Bearer/Origin rejection, cleanup | Source build only; published `v0.4.9` image is stdio-only. |
 | OpenAI Chat Completions | Official `openai` JS SDK `7.4.0` plus real Cline/Continue hosts | Models, text completion, streaming, structured errors, enhancement, function tools, tool results, bounded inline image input | Image input is restricted to validated base64 PNG/JPEG/WebP/GIF data URLs; remote URLs and audio content remain fail-closed. |
 | OpenAI wire-alias profile | OpenAI-compatible HTTP route matrix (`openai-wire-smoke.mjs`) | `/v1`, root aliases, `/openai/deployments`, `/v1/engines`, SSE | Confirms route variants used by many wrappers. |
 | OpenAI Legacy Completions | Official `openai` JS SDK `7.4.0` | `/v1/completions` text `prompt` and streaming | Text profile; no logprobs, no tool calling, no images/audio. |
@@ -56,7 +56,7 @@ We do not promise one-off support for every client package ever shipped.
 We do promise protocol-first compatibility:
 
 - OpenAI-compatible: `/v1` and supported alias paths for text Chat/Completions/Responses, plus focused multimodal routes (`embeddings`, `images/generations`, `audio/speech`, `audio/transcriptions`).
-- MCP: standard stdio/Streamable HTTP MCP tool session handshake and transport behavior.
+- MCP: modern stateless `2026-07-28` plus legacy initialize-era stdio/Streamable HTTP behavior.
 - A2A: JSON-RPC contract, `Agent Card` discovery, and task lifecycle methods.
 
 If a client fits this profile, we onboard it through the registry and collect

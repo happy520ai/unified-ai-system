@@ -4,7 +4,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/client";
 import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
-import { MCP_TOOL_NAMES } from "./server.js";
+import { MCP_MODERN_PROTOCOL_VERSION, MCP_TOOL_NAMES } from "./server.js";
 import { createGatewayRuntime } from "./runtime.js";
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -34,10 +34,13 @@ async function waitForClosed(baseUrl) {
 }
 
 test("stdio server exposes safe tools and cleans up its managed gateway", async () => {
-  const client = new Client({
-    name: "unified-ai-system-mcp-test",
-    version: "0.4.9",
-  });
+  const client = new Client(
+    {
+      name: "unified-ai-system-mcp-test",
+      version: "0.5.0",
+    },
+    { versionNegotiation: { mode: { pin: MCP_MODERN_PROTOCOL_VERSION } } },
+  );
   const transport = new StdioClientTransport({
     command: process.execPath,
     args: [serverEntrypoint],
@@ -54,6 +57,8 @@ test("stdio server exposes safe tools and cleans up its managed gateway", async 
 
   try {
     await client.connect(transport);
+    assert.equal(client.getProtocolEra(), "modern");
+    assert.equal(client.getNegotiatedProtocolVersion(), MCP_MODERN_PROTOCOL_VERSION);
     const listed = await client.listTools();
     assert.deepEqual(
       listed.tools.map((tool) => tool.name).sort(),

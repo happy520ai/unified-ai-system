@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const MCP_SMOKE_SOURCE = "mcp-smoke";
+const MODERN_MCP_PROTOCOL_VERSION = "2026-07-28";
 const serverEntrypoint = resolve(
   repoRoot,
   "packages/mcp-server/src/index.js",
@@ -315,17 +316,22 @@ async function runSmoke() {
   let baseUrl;
 
   try {
-    const initialize = await rpc.request("initialize", {
-      protocolVersion: "2025-06-18",
-      capabilities: {},
-      clientInfo: {
+    const requestMeta = {
+      "io.modelcontextprotocol/protocolVersion": MODERN_MCP_PROTOCOL_VERSION,
+      "io.modelcontextprotocol/clientCapabilities": {},
+      "io.modelcontextprotocol/clientInfo": {
         name: "unified-ai-system-mcp-smoke",
-        version: "0.4.9",
+        version: "0.5.0",
       },
-    });
-    rpc.notify("notifications/initialized");
+    };
+    const discovery = await rpc.request("server/discover", { _meta: requestMeta });
+    if (!discovery.supportedVersions?.includes(MODERN_MCP_PROTOCOL_VERSION)) {
+      throw new Error(
+        `MCP server did not advertise ${MODERN_MCP_PROTOCOL_VERSION}.`,
+      );
+    }
 
-    const listed = await rpc.request("tools/list");
+    const listed = await rpc.request("tools/list", { _meta: requestMeta });
     const toolNames = listed.tools.map((tool) => tool.name).sort();
     if (JSON.stringify(toolNames) !== JSON.stringify(expectedTools)) {
       issueCodes.push(
@@ -345,6 +351,7 @@ async function runSmoke() {
       await rpc.request("tools/call", {
         name: "gateway_health",
         arguments: {},
+        _meta: requestMeta,
       }),
     );
     baseUrl = health.gateway?.baseUrl;
@@ -373,6 +380,7 @@ async function runSmoke() {
           input: "Build a Node API with tests",
           profile: "coding",
         },
+        _meta: requestMeta,
       }),
     );
     if (
@@ -396,6 +404,7 @@ async function runSmoke() {
       await rpc.request("tools/call", {
         name: "gateway_chat",
         arguments: { prompt: "Container MCP smoke test" },
+        _meta: requestMeta,
       }),
     );
     if (
@@ -421,7 +430,9 @@ async function runSmoke() {
     const result = {
       ok: exitCode === 0 && managedGatewayCleanedUp,
       runtime: containerName ? "container" : "source",
-      protocolVersion: initialize.protocolVersion,
+      protocolVersion: MODERN_MCP_PROTOCOL_VERSION,
+      protocolEra: "modern",
+      supportedProtocolVersions: discovery.supportedVersions,
       toolCount: toolNames.length,
       tools: toolNames,
       provider: chat.result.data.selectedProvider,

@@ -17,8 +17,10 @@ runtime claims require an actual report from that client.
 
 The current source tree adds MCP Streamable HTTP at
 `http://127.0.0.1:3210/mcp`. `pnpm verify:mcp` uses the official MCP v2 client
-to test both stdio and HTTP, including access rejection and managed-process
-cleanup. This HTTP entry point is not part of the published `v0.4.9` image.
+to test both stdio and HTTP. It pins the stateless `2026-07-28` era, retains
+legacy `2025-11-25` and `2025-06-18` negotiation, and checks modern routing
+headers/CORS, access rejection, and managed-process cleanup. This HTTP entry
+point is not part of the published `v0.4.9` image.
 
 ## Matrix
 

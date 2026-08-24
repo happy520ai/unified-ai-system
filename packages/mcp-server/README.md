@@ -155,10 +155,14 @@ real-provider execution remain outside this preview surface.
 
 ## Verify
 
-The tests launch both transports through the official MCP v2 client. They
-complete stdio and Streamable HTTP handshakes, list all source-build tools,
-prove local prompt enhancement and fake-provider safety, exercise HTTP access
-controls, close the clients, and confirm that each managed gateway stopped:
+The tests launch both transports through the official MCP v2 client. They pin
+the modern `2026-07-28` stateless era on stdio and Streamable HTTP, retain
+legacy `2025-11-25` plus `2025-06-18` initialize compatibility, list all
+source-build tools, prove local prompt enhancement and fake-provider safety,
+exercise HTTP/CORS access controls, close the clients, and confirm that each
+managed gateway stopped. The container-safe raw smoke also uses
+`server/discover` plus a per-request `_meta` envelope rather than inferring
+modern support from the SDK version:
 
 ```bash
 pnpm verify:mcp
