@@ -25,7 +25,7 @@ import (
 )
 
 const (
-	methodologyVersion = "gateway-open-loop-soak-v2"
+	methodologyVersion = "gateway-open-loop-soak-v3"
 	maxCapturedOutput  = 16 * 1024
 	maxResponseBytes   = 1024 * 1024
 )
@@ -46,6 +46,8 @@ type config struct {
 	maxInFlight          int
 	burstRequests        int
 	interruptRequests    int
+	warmupTimeout        time.Duration
+	warmupStableSamples  int
 	faultProbes          bool
 	managed              bool
 	jsonOutput           bool
@@ -126,6 +128,18 @@ type openLoopSummary struct {
 	StatusCodes           map[string]int    `json:"statusCodes"`
 }
 
+type warmupSummary struct {
+	Status                    string        `json:"status"`
+	Reason                    string        `json:"reason,omitempty"`
+	Attempted                 int           `json:"attempted"`
+	Succeeded                 int           `json:"succeeded"`
+	RequiredConsecutiveStable int           `json:"requiredConsecutiveStable"`
+	ConsecutiveStable         int           `json:"consecutiveStable"`
+	LatencyThresholdMS        float64       `json:"latencyThresholdMs"`
+	DurationMS                float64       `json:"durationMs"`
+	LatencyMS                 metricSummary `json:"latencyMs"`
+}
+
 type backpressureSummary struct {
 	Status             string         `json:"status"`
 	Reason             string         `json:"reason,omitempty"`
@@ -182,6 +196,7 @@ type report struct {
 	Thresholds         map[string]any      `json:"thresholds"`
 	Environment        map[string]any      `json:"environment"`
 	Safety             map[string]any      `json:"safety"`
+	Warmup             warmupSummary       `json:"warmup"`
 	OpenLoop           *openLoopSummary    `json:"openLoop"`
 	Backpressure       backpressureSummary `json:"backpressure"`
 	Interruption       interruptionSummary `json:"interruption"`
@@ -223,6 +238,7 @@ func run(cfg config) report {
 	started := time.Now()
 	var gateway *managedGateway
 	var health healthResult
+	warmup := warmupSummary{Status: "skipped", Reason: "steady-state warmup applies only to the managed gateway"}
 	var openLoop *openLoopSummary
 	backpressure := skippedBackpressure("fault probes are disabled for this target")
 	interruption := skippedInterruption("fault probes are disabled for this target")
@@ -243,8 +259,13 @@ func run(cfg config) report {
 
 	if fatal == nil {
 		client := newHTTPClient(cfg)
-		openLoop = runOpenLoop(client, endpoint, cfg)
-		if cfg.faultProbes {
+		if cfg.managed {
+			warmup = runManagedWarmup(client, endpoint, cfg)
+		}
+		if !cfg.managed || warmup.Status == "passed" {
+			openLoop = runOpenLoop(client, endpoint, cfg)
+		}
+		if openLoop != nil && cfg.faultProbes {
 			backpressure = runBackpressure(client, endpoint, gatewayBaseURL(gateway, endpoint), cfg)
 			interruption = runInterruption(client, endpoint, gatewayBaseURL(gateway, endpoint), cfg)
 		}
@@ -256,7 +277,7 @@ func run(cfg config) report {
 		cleanedUp = gateway.cleanedUp
 	}
 
-	checks := buildChecks(cfg, health, openLoop, backpressure, interruption, fatal, cleanedUp)
+	checks := buildChecks(cfg, health, warmup, openLoop, backpressure, interruption, fatal, cleanedUp)
 	issueCodes := make([]string, 0)
 	for _, check := range checks {
 		if !check.Passed {
@@ -283,7 +304,7 @@ func run(cfg config) report {
 	}
 
 	return report{
-		SchemaVersion:      2,
+		SchemaVersion:      3,
 		MethodologyVersion: methodologyVersion,
 		Status:             status,
 		GeneratedAt:        time.Now().UTC().Format(time.RFC3339Nano),
@@ -305,6 +326,8 @@ func run(cfg config) report {
 			"requestTimeoutMs":  cfg.requestTimeout.Milliseconds(),
 			"burstRequests":     cfg.burstRequests,
 			"interruptRequests": cfg.interruptRequests,
+			"warmupTimeoutMs":   cfg.warmupTimeout.Milliseconds(),
+			"warmupStableSamples": cfg.warmupStableSamples,
 		},
 		Thresholds: map[string]any{
 			"maxP95Ms":             cfg.maxP95.Milliseconds(),
@@ -329,6 +352,7 @@ func run(cfg config) report {
 			"authorizationHeaderSupported":   false,
 			"managedGatewayCleanedUp":        cleanedUp,
 		},
+		Warmup:             warmup,
 		OpenLoop:           openLoop,
 		Backpressure:       backpressure,
 		Interruption:       interruption,
@@ -366,6 +390,8 @@ func parseConfig(args []string) (config, bool, error) {
 		maxInFlight:        80,
 		burstRequests:      256,
 		interruptRequests:  8,
+		warmupTimeout:      20 * time.Second,
+		warmupStableSamples: 5,
 	}
 
 	fs := flag.NewFlagSet("gateway-soak", flag.ContinueOnError)
@@ -385,6 +411,8 @@ func parseConfig(args []string) (config, bool, error) {
 	fs.IntVar(&defaults.maxInFlight, "managed-max-in-flight", defaults.maxInFlight, "managed gateway in-flight limit")
 	fs.IntVar(&defaults.burstRequests, "burst-requests", defaults.burstRequests, "backpressure burst size")
 	fs.IntVar(&defaults.interruptRequests, "interrupt-requests", defaults.interruptRequests, "stream connections to interrupt")
+	fs.DurationVar(&defaults.warmupTimeout, "warmup-timeout", defaults.warmupTimeout, "managed steady-state warmup deadline")
+	fs.IntVar(&defaults.warmupStableSamples, "warmup-stable-samples", defaults.warmupStableSamples, "consecutive healthy warmup requests required")
 	fs.BoolVar(&defaults.faultProbes, "fault-probes", false, "enable fault probes for an external target")
 	fs.BoolVar(&defaults.jsonOutput, "json", false, "emit compact JSON")
 	fs.BoolVar(&showHelp, "help", false, "show help")
@@ -411,7 +439,7 @@ func parseConfig(args []string) (config, bool, error) {
 	if !filepath.IsAbs(defaults.output) {
 		defaults.output = filepath.Join(repoRoot, defaults.output)
 	}
-	if defaults.duration <= 0 || defaults.rateRPS <= 0 || defaults.maxOutstanding <= 0 || defaults.requestTimeout <= 0 {
+	if defaults.duration <= 0 || defaults.rateRPS <= 0 || defaults.maxOutstanding <= 0 || defaults.requestTimeout <= 0 || defaults.warmupTimeout <= 0 || defaults.warmupStableSamples <= 0 {
 		return config{}, false, errors.New("duration, rate, max-outstanding, and timeout must be positive")
 	}
 	if defaults.maxP95 <= 0 || defaults.maxSchedulerLagP95 <= 0 {
@@ -550,6 +578,56 @@ func stopManagedGateway(gateway *managedGateway) bool {
 		return true
 	case <-time.After(5 * time.Second):
 		return false
+	}
+}
+
+func runManagedWarmup(client *http.Client, endpoint string, cfg config) warmupSummary {
+	started := time.Now()
+	deadline := started.Add(cfg.warmupTimeout)
+	latencyThreshold := cfg.maxP95
+	if latencyThreshold > 250*time.Millisecond {
+		latencyThreshold = 250 * time.Millisecond
+	}
+	latencies := make([]float64, 0, cfg.warmupStableSamples*2)
+	attempted := 0
+	succeeded := 0
+	consecutiveStable := 0
+
+	for time.Now().Before(deadline) && consecutiveStable < cfg.warmupStableSamples {
+		result := executeChat(client, endpoint, cfg.model, -(attempted + 1), true)
+		attempted++
+		latencies = append(latencies, result.latencyMS)
+		stable := result.ok && result.protocolValid && result.safetyValid
+		stable = stable && result.latencyMS <= float64(latencyThreshold)/float64(time.Millisecond)
+		if result.ok {
+			succeeded++
+		}
+		if stable {
+			consecutiveStable++
+		} else {
+			consecutiveStable = 0
+		}
+		if consecutiveStable < cfg.warmupStableSamples {
+			time.Sleep(50 * time.Millisecond)
+		}
+	}
+
+	status := "failed"
+	reason := "managed gateway did not reach bounded steady-state latency before the warmup deadline"
+	if consecutiveStable >= cfg.warmupStableSamples {
+		status = "passed"
+		reason = ""
+	}
+	return warmupSummary{
+		Status:                    status,
+		Reason:                    reason,
+		Attempted:                 attempted,
+		Succeeded:                 succeeded,
+		RequiredConsecutiveStable: cfg.warmupStableSamples,
+		ConsecutiveStable:         consecutiveStable,
+		LatencyThresholdMS:        roundMS(latencyThreshold),
+		DurationMS:                roundMS(time.Since(started)),
+		LatencyMS:                 summarizeMetric(latencies),
 	}
 }
 
@@ -885,7 +963,7 @@ func fetchHealth(client *http.Client, baseURL string) healthResult {
 	}
 }
 
-func buildChecks(cfg config, health healthResult, openLoop *openLoopSummary, backpressure backpressureSummary, interruption interruptionSummary, fatal *errorResult, cleanedUp any) []checkResult {
+func buildChecks(cfg config, health healthResult, warmup warmupSummary, openLoop *openLoopSummary, backpressure backpressureSummary, interruption interruptionSummary, fatal *errorResult, cleanedUp any) []checkResult {
 	checks := []checkResult{
 		check("benchmark_completed", fatal == nil, "benchmark completes without a fatal error", valueOrNil(fatal)),
 		check("open_loop_completed", openLoop != nil && openLoop.Completed == openLoop.Started, "every started open-loop request completes", field(openLoop, func(v *openLoopSummary) any { return map[string]int{"started": v.Started, "completed": v.Completed} })),
@@ -904,6 +982,7 @@ func buildChecks(cfg config, health healthResult, openLoop *openLoopSummary, bac
 	}
 	if cfg.managed {
 		checks = append(checks,
+			check("managed_warmup_stable", warmup.Status == "passed", "managed gateway reaches bounded steady state before fixed-arrival measurement", warmup),
 			check("managed_fake_only", health.OK && health.ProviderMode == "fake" && !health.RealProviderEnabled && openLoop != nil && openLoop.SafetyValid == openLoop.Started, "managed load remains fake-only with real providers disabled", map[string]any{"health": health, "safetyValid": field(openLoop, func(v *openLoopSummary) any { return v.SafetyValid })}),
 			check("managed_gateway_cleaned_up", cleanedUp == true, "managed gateway process exits after all phases", cleanedUp),
 		)
@@ -1076,6 +1155,7 @@ func printSummary(value report, output string) {
 		lagP95 = *open.SchedulerLagMS.P95
 	}
 	fmt.Printf("Gateway open-loop soak: %s\n", value.Status)
+	fmt.Printf("Warmup: %s (%d/%d consecutive stable, %.2fms)\n", value.Warmup.Status, value.Warmup.ConsecutiveStable, value.Warmup.RequiredConsecutiveStable, value.Warmup.DurationMS)
 	fmt.Printf("Sustained: %d/%d success at %.2f RPS, p95=%vms, scheduler-lag-p95=%vms\n", open.Succeeded, open.Scheduled, open.SuccessfulRPS, latencyP95, lagP95)
 	fmt.Printf("Backpressure: %s (%d overload rejections)\n", value.Backpressure.Status, value.Backpressure.OverloadRejected)
 	fmt.Printf("Interruption recovery: %s\n", value.Interruption.Status)
@@ -1101,6 +1181,8 @@ Options:
   --managed-max-in-flight <n>    Managed service in-flight cap (default 80).
   --burst-requests <n>           Concurrent streaming backpressure burst (default 256).
   --interrupt-requests <n>       Streaming connections to abort (default 8).
+  --warmup-timeout <duration>    Managed steady-state warmup deadline (default 20s).
+  --warmup-stable-samples <n>    Consecutive bounded warmup requests required (default 5).
   --fault-probes                 Explicitly enable disruptive probes for an external target.
   --model <id>                   Request model (default local-fake-model).
   --output <path>                JSON evidence output.

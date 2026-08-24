@@ -70,6 +70,12 @@ and the project uses [Semantic Versioning](https://semver.org/).
   v2 sizes the sustained in-flight cap from target RPS and allowed p95 latency,
   adds safety headroom, rejects contradictory zero-error configurations, and
   keeps overload proof in a larger independent burst.
+- Upgraded the open-loop methodology to v3 after fresh hosted runners still
+  alternated between single-digit-millisecond passes and multi-second startup
+  saturation. Managed runs now require a reported, bounded five-sample
+  steady-state warmup before the one-shot measured phase. Warmup failure blocks;
+  measured 100 RPS, zero-error, protocol, and 750 ms gates are unchanged and
+  are never retried.
 - Added OIDC SSO (authorization code + PKCE + JWKS RS256/ES256 ID-token
   verification, one-time state, issues an API token on login) and SCIM 2.0
   user provisioning (bearer-auth create/get/list/patch/deactivate) for
