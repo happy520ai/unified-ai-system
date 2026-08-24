@@ -25,7 +25,7 @@ import (
 )
 
 const (
-	methodologyVersion = "gateway-open-loop-soak-v1"
+	methodologyVersion = "gateway-open-loop-soak-v2"
 	maxCapturedOutput  = 16 * 1024
 	maxResponseBytes   = 1024 * 1024
 )
@@ -283,7 +283,7 @@ func run(cfg config) report {
 	}
 
 	return report{
-		SchemaVersion:      1,
+		SchemaVersion:      2,
 		MethodologyVersion: methodologyVersion,
 		Status:             status,
 		GeneratedAt:        time.Now().UTC().Format(time.RFC3339Nano),
@@ -301,6 +301,7 @@ func run(cfg config) report {
 			"durationMs":        cfg.duration.Milliseconds(),
 			"targetRps":         cfg.rateRPS,
 			"maxOutstanding":    cfg.maxOutstanding,
+			"managedMaxInFlight": cfg.maxInFlight,
 			"requestTimeoutMs":  cfg.requestTimeout.Milliseconds(),
 			"burstRequests":     cfg.burstRequests,
 			"interruptRequests": cfg.interruptRequests,
@@ -311,6 +312,7 @@ func run(cfg config) report {
 			"minArrivalRatio":      cfg.minArrivalRatio,
 			"maxErrorRate":         cfg.maxErrorRate,
 			"minOverloadRejected":  1,
+			"minManagedInFlightForLatency": minimumManagedInFlight(cfg),
 		},
 		Environment: map[string]any{
 			"goVersion":       runtime.Version(),
@@ -361,8 +363,8 @@ func parseConfig(args []string) (config, bool, error) {
 		maxSchedulerLagP95: 100 * time.Millisecond,
 		minArrivalRatio:    0.90,
 		maxErrorRate:       0,
-		maxInFlight:        16,
-		burstRequests:      96,
+		maxInFlight:        80,
+		burstRequests:      256,
 		interruptRequests:  8,
 	}
 
@@ -421,7 +423,26 @@ func parseConfig(args []string) (config, bool, error) {
 	if defaults.maxInFlight <= 0 || defaults.burstRequests <= defaults.maxInFlight || defaults.interruptRequests <= 0 {
 		return config{}, false, errors.New("managed limits require max-in-flight > 0, burst-requests > max-in-flight, and interrupt-requests > 0")
 	}
+	if defaults.managed && defaults.maxErrorRate == 0 {
+		minimum := minimumManagedInFlight(defaults)
+		if defaults.maxInFlight < minimum {
+			return config{}, false, fmt.Errorf(
+				"managed max-in-flight must be at least %d for %.2f RPS, %s max-p95, zero tolerated sustained errors, and safety headroom",
+				minimum,
+				defaults.rateRPS,
+				defaults.maxP95,
+			)
+		}
+		if defaults.maxOutstanding < defaults.maxInFlight {
+			return config{}, false, errors.New("managed max-outstanding must be at least max-in-flight")
+		}
+	}
 	return defaults, false, nil
+}
+
+func minimumManagedInFlight(cfg config) int {
+	const safetyHeadroom = 5
+	return int(math.Ceil(cfg.rateRPS*cfg.maxP95.Seconds())) + safetyHeadroom
 }
 
 func findRepoRoot() (string, error) {
@@ -1077,8 +1098,8 @@ Options:
   --max-scheduler-lag-p95 <dur>  Scheduler lag p95 threshold (default 100ms).
   --min-arrival-ratio <0..1>     Minimum started/scheduled ratio (default 0.90).
   --max-error-rate <0..1>        Maximum sustained error ratio (default 0).
-  --managed-max-in-flight <n>    Managed service in-flight cap (default 16).
-  --burst-requests <n>           Concurrent streaming backpressure burst (default 96).
+  --managed-max-in-flight <n>    Managed service in-flight cap (default 80).
+  --burst-requests <n>           Concurrent streaming backpressure burst (default 256).
   --interrupt-requests <n>       Streaming connections to abort (default 8).
   --fault-probes                 Explicitly enable disruptive probes for an external target.
   --model <id>                   Request model (default local-fake-model).

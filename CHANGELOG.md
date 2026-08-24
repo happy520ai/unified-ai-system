@@ -43,6 +43,10 @@ and the project uses [Semantic Versioning](https://semver.org/).
   missing/duplicate/unresolved classifications, stable normalized-statement
   digests, strict input/query bounds, audit summaries, and explicit non-invoice
   and unauthenticated-source boundaries.
+- Corrected the Go open-loop benchmark's managed-capacity contract: methodology
+  v2 sizes the sustained in-flight cap from target RPS and allowed p95 latency,
+  adds safety headroom, rejects contradictory zero-error configurations, and
+  keeps overload proof in a larger independent burst.
 - Added OIDC SSO (authorization code + PKCE + JWKS RS256/ES256 ID-token
   verification, one-time state, issues an API token on login) and SCIM 2.0
   user provisioning (bearer-auth create/get/list/patch/deactivate) for

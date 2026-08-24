@@ -29,7 +29,7 @@ multi-language rewrite of gateway runtime code.
 pnpm benchmark:gateway:soak
 ```
 
-The default credential-free run:
+The default credential-free v2 run:
 
 - starts the real gateway HTTP process on a reserved loopback port;
 - forwards only a small operating-system and Node launch environment allowlist;
@@ -39,8 +39,11 @@ The default credential-free run:
 - records started arrivals, generator drops, outstanding concurrency,
   scheduler-lag percentiles, latency percentiles, throughput, timeouts, status
   codes, protocol validity, and fake-mode validity;
-- sends a synchronized 96-request streaming burst against a managed
-  `maxInFlight=16` boundary and requires both accepted streams and explicit
+- runs the sustained phase against a managed `maxInFlight=80` boundary. At 100
+  RPS this is greater than `ceil(rate * maxP95) + 5`, so the declared 750 ms
+  latency allowance cannot contradict the zero-error capacity gate;
+- sends a synchronized 256-request streaming burst against that boundary and
+  requires both accepted streams and explicit
   `503 service_overloaded` responses;
 - opens eight streaming requests, reads the first bytes, aborts each client
   connection, then proves health and normal chat recover;
@@ -63,6 +66,14 @@ Default regression thresholds:
 
 These thresholds are deliberately tolerant CI regression limits. They are not
 production capacity targets.
+
+For managed zero-error runs, argument validation rejects a service in-flight
+cap below `ceil(targetRps * maxP95Seconds) + 5`. The v1 defaults used a cap of
+16 while allowing 750 ms at 100 RPS (roughly 75 concurrent requests by
+Little's Law). That internally inconsistent profile could pass on a fast runner
+and emit sustained overload 503s on a slower runner even though latency stayed
+inside its stated threshold. v2 separates sustained-capacity headroom from the
+larger explicit overload burst instead of loosening the zero-error requirement.
 
 ## Arrival-model semantics
 
