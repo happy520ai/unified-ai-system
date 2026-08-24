@@ -163,6 +163,12 @@ describe("prometheusExporter", () => {
         maxEntriesPerOwner: 2_000,
         maxTaskBytes: 4_194_304,
         sqlitePath: "E:/private/a2a.sqlite",
+        executionLease: {
+          mode: "postgres-fenced",
+          enabled: true,
+          available: true,
+          activeLeases: 2,
+        },
       },
       workforceClaimStore: {
         mode: "postgres-fenced",
@@ -179,6 +185,9 @@ describe("prometheusExporter", () => {
     expect(text).toContain('ai_gateway_a2a_task_store_available{mode="sqlite"} 1');
     expect(text).toContain('ai_gateway_a2a_task_store_durable{mode="sqlite"} 1');
     expect(text).toContain('ai_gateway_a2a_task_store_distributed{mode="sqlite"} 0');
+    expect(text).toContain('ai_gateway_a2a_execution_lease_enabled{mode="postgres-fenced"} 1');
+    expect(text).toContain('ai_gateway_a2a_execution_lease_available{mode="postgres-fenced"} 1');
+    expect(text).toContain('ai_gateway_a2a_execution_leases{mode="postgres-fenced"} 2');
     expect(text).toContain('ai_gateway_a2a_task_store_limit{resource="entries"} 10000');
     expect(text).toContain('ai_gateway_workforce_claim_store_available{mode="postgres-fenced"} 0');
     expect(text).toContain('ai_gateway_workforce_claim_store_distributed{mode="postgres-fenced"} 1');

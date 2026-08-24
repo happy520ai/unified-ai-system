@@ -95,7 +95,12 @@ export AI_GATEWAY_A2A_TASK_STORE_NAMESPACE=production
 The PostgreSQL mode uses database-clock TTL, transactionally maintained global
 and per-owner capacity counters, task-scoped transaction locks, monotonic status
 timestamp protection, SHA-256 corruption checks, repeatable-read pagination,
-and fixed parameterized tables. Non-loopback URLs require
+and fixed parameterized tables. It also automatically enables a database-clock
+execution lease for the server-derived tenant + authenticated owner + task:
+only one replica can hold the active lease, a heartbeat renews it, detected
+lease loss suppresses result publication, and a cancel handled by another replica
+revokes the correct tenant-scoped lease. Raw lease tokens stay in executor
+memory; PostgreSQL stores only their digest and a monotonic fence. Non-loopback URLs require
 `sslmode=verify-full`; health and metrics expose no URL, namespace, task body,
 or database error text.
 
@@ -103,8 +108,14 @@ Tasks intentionally contain A2A history, metadata, and artifacts. Use a
 least-privilege database role, encryption at rest, bounded retention, and tested
 backup/deletion procedures. SHA-256 detects accidental or unrecomputed edits;
 it is not proof against an attacker who can rewrite both task data and hashes.
-Shared persistence also does not create exactly-once execution, a distributed
-execution lease, database failover, or split-brain safety by itself.
+The lease prevents concurrent valid active execution through this gateway and
+passes the fence into the internal Workforce context. Validation immediately
+before result publication is not one atomic transaction with the downstream
+TaskStore write, so a narrow revoke/commit race remains. Provider operations and
+every irreversible sink must independently reject stale fences; cancellation
+also remains cooperative for already-running work. Exactly-once side effects,
+database failover, network partition, and split-brain behavior therefore remain
+separate evidence requirements.
 
 ## Official SDK Example
 
@@ -155,13 +166,16 @@ System extension, not a standard A2A field.
   Bearer authentication. Provider keys remain server-side.
 - Tasks are always bounded and scoped by authenticated owner plus enterprise
   tenant. The default memory mode does not survive restart; the opt-in SQLite
-  mode is restart-safe on one host.
+  mode is restart-safe on one host; PostgreSQL shares state and fenced execution
+  ownership across hosts.
 - The official request handler provides `SendMessage`, `GetTask`, `ListTasks`,
-  and `CancelTask`. Cancellation is cooperative and cannot guarantee that an
+  and `CancelTask`. A different replica can revoke the scoped PostgreSQL lease,
+  but cancellation remains cooperative and cannot guarantee that an
   already-running provider operation was interrupted.
 - Streaming, push notifications, gRPC, HTTP+JSON/REST, non-text parts, and a
-  cross-host task store are not enabled in this profile. Same-host durable task
-  storage and Agent Card signing are explicit deployment options.
+  fence-aware irreversible side-effect sink are not enabled in this profile.
+  Durable/distributed task storage and Agent Card signing remain explicit
+  deployment options.
 
 Run `pnpm verify:public-clone` for the credential-free official-client proof.
 The published `v0.5.0` gateway image and the current source include this A2A

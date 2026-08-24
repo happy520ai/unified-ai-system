@@ -8,6 +8,7 @@ import {
 } from "@a2a-js/sdk";
 import { ServerCallContext } from "@a2a-js/sdk/server";
 import { describe, expect, it } from "vitest";
+import { createA2AExecutionLeaseManager } from "./a2aExecutionLease.ts";
 import { createA2ATaskStore } from "./a2aTaskStore.ts";
 
 const connectionString = process.env.AI_GATEWAY_TEST_POSTGRES_URL;
@@ -174,6 +175,85 @@ describePostgres("real PostgreSQL cross-host A2A task store", () => {
       await inspector.query(
         "DELETE FROM public.ai_gateway_a2a_task_namespace_counts WHERE namespace = $1",
         [namespace],
+      ).catch(() => undefined);
+      await first.close();
+      await second.close();
+      await inspector.end();
+    }
+  }, 20_000);
+
+  it("fences duplicate execution and supports tenant-scoped remote cancellation", async () => {
+    const namespace = `a2a-lease-${randomUUID()}`;
+    const taskId = randomUUID();
+    const env = {
+      AI_GATEWAY_A2A_TASK_STORE_MODE: "postgres",
+      AI_GATEWAY_A2A_TASK_STORE_POSTGRES_URL: connectionString,
+      AI_GATEWAY_A2A_TASK_STORE_NAMESPACE: namespace,
+      AI_GATEWAY_A2A_EXECUTION_LEASE_TTL_MS: "5000",
+      AI_GATEWAY_A2A_EXECUTION_LEASE_HEARTBEAT_MS: "1000",
+      AI_GATEWAY_A2A_EXECUTION_LEASE_MAX_ENTRIES: "10",
+    };
+    const first = createA2AExecutionLeaseManager({ env, instanceId: "gateway-a" });
+    const second = createA2AExecutionLeaseManager({ env, instanceId: "gateway-b" });
+    const inspector = new Pool({ connectionString, max: 1, allowExitOnIdle: true });
+    const alice = { tenant: "tenant-a", owner: "alice" };
+    const otherTenant = { tenant: "tenant-b", owner: "alice" };
+    try {
+      const firstClaim = await first.acquire({ taskId, scope: alice });
+      expect(firstClaim.success).toBe(true);
+      if (!firstClaim.success) throw new Error(firstClaim.reason);
+
+      await expect(second.acquire({ taskId, scope: alice })).resolves.toMatchObject({
+        success: false,
+        code: "A2A_EXECUTION_ALREADY_ACTIVE",
+      });
+      const isolatedClaim = await second.acquire({ taskId, scope: otherTenant });
+      expect(isolatedClaim.success).toBe(true);
+      if (!isolatedClaim.success) throw new Error(isolatedClaim.reason);
+
+      const persisted = await inspector.query<{
+        token_digest: string;
+        token_fingerprint: string;
+        plan_id: string;
+        task_id: string;
+      }>(`
+        SELECT token_digest, token_fingerprint, plan_id, task_id
+        FROM public.ai_gateway_workforce_task_claims
+        WHERE task_id = $1
+      `, [taskId]);
+      expect(persisted.rows).toHaveLength(2);
+      const persistedText = JSON.stringify(persisted.rows);
+      expect(persistedText).not.toContain(firstClaim.lease.token);
+      expect(persistedText).not.toContain(isolatedClaim.lease.token);
+      expect(persistedText).not.toContain("tenant-a");
+      expect(persistedText).not.toContain("tenant-b");
+      expect(persistedText).not.toContain("alice");
+
+      await expect(second.revokeForTask({
+        taskId,
+        scope: alice,
+        reason: "remote cancellation",
+      })).resolves.toMatchObject({ success: true });
+      await expect(first.validate(firstClaim.lease)).resolves.toMatchObject({
+        success: false,
+        code: "A2A_EXECUTION_LEASE_LOST",
+      });
+
+      const replacement = await second.acquire({ taskId, scope: alice });
+      expect(replacement.success).toBe(true);
+      if (!replacement.success) throw new Error(replacement.reason);
+      expect(BigInt(replacement.lease.fencingToken))
+        .toBeGreaterThan(BigInt(firstClaim.lease.fencingToken));
+      await second.release(replacement.lease);
+      await second.release(isolatedClaim.lease);
+
+      const healthText = JSON.stringify(second.getHealth());
+      expect(healthText).not.toContain(connectionString ?? "gateway_test");
+      expect(healthText).not.toContain(firstClaim.lease.token);
+    } finally {
+      await inspector.query(
+        "DELETE FROM public.ai_gateway_workforce_task_claims WHERE task_id = $1",
+        [taskId],
       ).catch(() => undefined);
       await first.close();
       await second.close();

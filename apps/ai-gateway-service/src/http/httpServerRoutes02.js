@@ -89,7 +89,7 @@ export async function dispatchHttpRoutes02(context) {
     const idempotency = await readIdempotencyHealth(idempotencyCoordinator);
     const rateLimit = await readRateLimitHealth(rateLimiter);
     const webSocketLease = await readWebSocketLeaseHealth(webSocketConnectionLeaseManager);
-    const a2aTaskStore = readA2ATaskStoreHealth(a2aGateway);
+    const a2aTaskStore = await readA2ATaskStoreHealth(a2aGateway);
     const workforceClaimStore = await readWorkforceClaimStoreHealth(application?.workforceExecutor);
     const readinessFailures = collectReadinessFailures(healthSnapshot, readinessSnapshot, {
       saturated,
@@ -248,7 +248,7 @@ export async function dispatchHttpRoutes02(context) {
     const idempotency = await readIdempotencyHealth(idempotencyCoordinator);
     const rateLimit = await readRateLimitHealth(rateLimiter);
     const webSocketLease = await readWebSocketLeaseHealth(webSocketConnectionLeaseManager);
-    const a2aTaskStore = readA2ATaskStoreHealth(a2aGateway);
+    const a2aTaskStore = await readA2ATaskStoreHealth(a2aGateway);
     const workforceClaimStore = await readWorkforceClaimStoreHealth(application?.workforceExecutor);
     const readinessFailures = collectReadinessFailures(healthSnapshot, readinessSnapshot, {
       saturated,
@@ -721,10 +721,12 @@ async function readWorkforceClaimStoreHealth(workforceExecutor) {
   }
 }
 
-function readA2ATaskStoreHealth(a2aGateway) {
+async function readA2ATaskStoreHealth(a2aGateway) {
   if (!a2aGateway?.getTaskStoreHealth) return null;
   try {
-    const snapshot = a2aGateway.getTaskStoreHealth();
+    const snapshot = a2aGateway.checkTaskStoreHealth
+      ? await a2aGateway.checkTaskStoreHealth()
+      : a2aGateway.getTaskStoreHealth();
     return {
       mode: snapshot?.mode ?? "unknown",
       durable: snapshot?.durable === true,
@@ -739,6 +741,7 @@ function readA2ATaskStoreHealth(a2aGateway) {
       maxTaskBytes: Number(snapshot?.maxTaskBytes ?? 0),
       maxHistoryMessages: Number(snapshot?.maxHistoryMessages ?? 0),
       maxArtifacts: Number(snapshot?.maxArtifacts ?? 0),
+      executionLease: readA2AExecutionLeaseHealth(snapshot?.executionLease),
     };
   } catch {
     return {
@@ -747,8 +750,27 @@ function readA2ATaskStoreHealth(a2aGateway) {
       distributed: false,
       mode: "unknown",
       reason: "health_probe_failed",
+      executionLease: readA2AExecutionLeaseHealth({
+        available: false,
+        reason: "health_probe_failed",
+      }),
     };
   }
+}
+
+function readA2AExecutionLeaseHealth(snapshot) {
+  return {
+    mode: snapshot?.mode ?? "disabled",
+    enabled: snapshot?.enabled === true,
+    distributed: snapshot?.distributed === true,
+    required: snapshot?.required === true,
+    available: snapshot?.available !== false,
+    reason: snapshot?.reason ?? null,
+    ttlMs: Number(snapshot?.ttlMs ?? 0),
+    heartbeatMs: Number(snapshot?.heartbeatMs ?? 0),
+    maxLeases: Number(snapshot?.maxLeases ?? 0),
+    activeLeases: Number(snapshot?.activeLeases ?? 0),
+  };
 }
 
 async function readIdempotencyHealth(coordinator) {

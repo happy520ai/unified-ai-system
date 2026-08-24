@@ -22,7 +22,7 @@ the documented request/route boundaries and provides reproducible evidence.
 | OpenAI-compatible aliases | Legacy and root path aliases (e.g., `/chat/completions`, `/responses`) | Alias path normalization and permission mapping | Alias support enables SDKs that send root paths without `/v1`. |
 | OpenAI Legacy Engines | `/v1/engines/{engine}/chat/completions`, `/v1/engines/{engine}/completions` | Legacy route remapping with model inference from the engine segment | Text-only completion profile with model fallback and no tool/multimodal support. |
 | OpenAI Model/Engine Details | `GET /v1/models/{id}`, `GET /v1/engines/{id}` | Model and engine inventory detail entries returned in same schema as list responses | Supports ID lookups from compatibility lists; not all OpenAI object-level fields are implemented. |
-| A2A v1.0 JSON-RPC | Official `@a2a-js/sdk` `1.0.1` | Optional verifiable Agent Card/JWKS, `SendMessage`, `GetTask`, `ListTasks`, task artifacts, bounded memory or same-host SQLite tasks | Source build, fake-provider-only, no streaming or cross-host task store. |
+| A2A v1.0 JSON-RPC | Official `@a2a-js/sdk` `1.0.1` | Verifiable Agent Card/JWKS, `SendMessage`, `GetTask`, `ListTasks`, `CancelTask`, task artifacts, bounded memory/SQLite/PostgreSQL state, and PostgreSQL execution fencing | Source build, fake-provider-only, no streaming; downstream side effects are not yet atomically fence-aware. |
 | Native HTTP and shared SDK | Node `fetch`, curl examples, repository SDK tests | Health, chat, streaming, prompt enhancement, operational reads | Unified AI System contract, not a third-party protocol. |
 
 ## Verified Named MCP Hosts

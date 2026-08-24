@@ -449,6 +449,16 @@ export function createPostgresA2ATaskStore(rawOptions: PostgresA2ATaskStoreOptio
         lastFailureCode,
       };
     },
+    async checkHealth() {
+      try {
+        const pool = await getReadyPool();
+        await pool.query("/* a2a-task-store:active-health */ SELECT 1 AS healthy");
+        markReady();
+      } catch (error) {
+        markFailure(error);
+      }
+      return this.getHealth();
+    },
     async close() {
       if (closed) return;
       closed = true;

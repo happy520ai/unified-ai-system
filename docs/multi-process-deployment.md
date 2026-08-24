@@ -270,13 +270,26 @@ repeatable-read keyset pages. Readiness fails closed when the configured store
 is unavailable, without exposing the URL, namespace, task content, or raw
 database error.
 
+Selecting PostgreSQL task mode also requires the fenced execution-lease lane.
+The lease defaults to the same PostgreSQL URL and uses a separate opaque
+namespace. It binds each claim to the server-derived tenant/owner scope, task,
+and random gateway instance; retains only token digests; renews with database
+time; rejects a second active executor; validates the fence immediately before
+publishing a result; and lets a different replica revoke the scoped lease during cancel.
+Optional bounds are `AI_GATEWAY_A2A_EXECUTION_LEASE_TTL_MS`,
+`AI_GATEWAY_A2A_EXECUTION_LEASE_HEARTBEAT_MS`, and
+`AI_GATEWAY_A2A_EXECUTION_LEASE_MAX_ENTRIES`.
+
 Unlike the usage and audit schemas, A2A rows intentionally hold task history,
 metadata, and artifacts. Apply least-privilege grants, encryption at rest,
 retention/deletion policy, and backup/restore tests. The row digest is a
 corruption signal rather than cryptographic proof against a database writer.
-This mode shares task state; it does not by itself lease execution, prevent two
-hosts from performing the same side effect, prove exactly-once semantics, or
-provide database failover/partition evidence.
+The lease prevents two gateway replicas from remaining valid active executors
+for one scoped task. Validation and the later TaskStore event commit are not one
+atomic transaction, so a narrow revoke/commit race remains. The lease also does
+not make downstream providers or irreversible sinks fence-aware, forcibly
+interrupt an operation already inside a provider, prove exactly-once side
+effects, or provide database failover/partition evidence.
 
 ### Same-host enterprise audit serialization
 

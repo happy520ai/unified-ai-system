@@ -82,6 +82,7 @@ describe("A2A gateway executor — fake-provider safety boundary", () => {
         metadata: executionMode ? { unifiedAi: { executionMode } } : {},
       },
       context: {
+        tenant: "tenant-a",
         user: {
           isAuthenticated: true,
           userName: "test-user",
@@ -173,5 +174,173 @@ describe("A2A gateway executor — fake-provider safety boundary", () => {
     expect(workforceExecutor.execute).toHaveBeenCalledOnce();
     expect(gatewayService.execute).not.toHaveBeenCalled();
     expect(JSON.stringify(eventBus.publish.mock.calls)).toContain("reviewed");
+  });
+
+  it("acquires and validates a fenced lease without exposing its token", async () => {
+    const order = [];
+    const lease = {
+      mode: "postgres-fenced",
+      token: "raw-lease-token-must-not-leak",
+      fencingToken: "42",
+      expiresAt: "2026-08-24T00:05:00.000Z",
+      identity: {
+        planId: "opaque-plan",
+        taskId: "task-1",
+        agentId: "instance-1",
+        fencingToken: "42",
+      },
+    };
+    const leaseManager = {
+      status: {
+        enabled: true,
+        mode: "postgres-fenced",
+        heartbeatMs: 60_000,
+      },
+      acquire: vi.fn(async () => {
+        order.push("acquire");
+        return { success: true, lease };
+      }),
+      validate: vi.fn(async () => {
+        order.push("validate");
+        return { success: true, code: "valid" };
+      }),
+      renew: vi.fn(async () => ({ success: true, code: "renewed" })),
+      release: vi.fn(async () => {
+        order.push("release");
+        return { success: true, code: "released" };
+      }),
+      revokeForTask: vi.fn(),
+    };
+    const gatewayService = {
+      execute: vi.fn(async () => {
+        order.push("execute");
+        return {
+          success: true,
+          data: {
+            executionMode: "fake",
+            selectedProvider: "local-fake-provider",
+            selectedModel: "local-fake-model",
+            outputText: "fenced fake reply",
+          },
+        };
+      }),
+    };
+    const executor = new a2aGatewayInternals.GatewayAgentExecutor(
+      gatewayService,
+      null,
+      leaseManager,
+    );
+    const eventBus = { publish: vi.fn() };
+
+    await executor.execute(requestContext(), eventBus);
+
+    expect(leaseManager.acquire).toHaveBeenCalledWith({
+      taskId: "task-1",
+      scope: { tenant: "tenant-a", owner: "test-user" },
+    });
+    expect(order).toEqual(["acquire", "validate", "execute", "validate", "release"]);
+    const published = JSON.stringify(eventBus.publish.mock.calls);
+    expect(published).toContain("postgres-fenced");
+    expect(published).not.toContain(lease.token);
+    expect(published).not.toContain('"fencingToken":"42"');
+  });
+
+  it("rejects a duplicate active execution before calling the gateway", async () => {
+    const gatewayService = { execute: vi.fn() };
+    const leaseManager = {
+      status: { enabled: true, mode: "postgres-fenced", heartbeatMs: 60_000 },
+      acquire: vi.fn(async () => ({
+        success: false,
+        code: "A2A_EXECUTION_ALREADY_ACTIVE",
+        reason: "already active",
+      })),
+    };
+    const executor = new a2aGatewayInternals.GatewayAgentExecutor(
+      gatewayService,
+      null,
+      leaseManager,
+    );
+    const eventBus = { publish: vi.fn() };
+
+    await expect(executor.execute(requestContext(), eventBus)).rejects.toMatchObject({
+      code: "A2A_EXECUTION_ALREADY_ACTIVE",
+    });
+    expect(gatewayService.execute).not.toHaveBeenCalled();
+    expect(eventBus.publish).not.toHaveBeenCalled();
+  });
+
+  it("does not publish completion after the execution lease is lost", async () => {
+    let validations = 0;
+    const lease = {
+      mode: "postgres-fenced",
+      token: "lease-token",
+      fencingToken: "9",
+      identity: {},
+    };
+    const leaseManager = {
+      status: { enabled: true, mode: "postgres-fenced", heartbeatMs: 60_000 },
+      acquire: vi.fn(async () => ({ success: true, lease })),
+      validate: vi.fn(async () => {
+        validations += 1;
+        return validations === 1
+          ? { success: true, code: "valid" }
+          : { success: false, code: "lost" };
+      }),
+      renew: vi.fn(),
+      release: vi.fn(async () => ({ success: true, code: "released" })),
+    };
+    const gatewayService = {
+      execute: vi.fn(async () => ({
+        success: true,
+        data: {
+          executionMode: "fake",
+          selectedProvider: "local-fake-provider",
+          outputText: "must not commit",
+        },
+      })),
+    };
+    const executor = new a2aGatewayInternals.GatewayAgentExecutor(
+      gatewayService,
+      null,
+      leaseManager,
+    );
+    const eventBus = { publish: vi.fn() };
+
+    await expect(executor.execute(requestContext(), eventBus)).rejects.toMatchObject({
+      code: "A2A_EXECUTION_LEASE_LOST",
+    });
+    const published = JSON.stringify(eventBus.publish.mock.calls);
+    expect(published).not.toContain("must not commit");
+    expect(published).not.toContain('"state":3');
+  });
+
+  it("uses server-derived cancellation scope to revoke a remote lease", async () => {
+    const leaseManager = {
+      status: { enabled: true, mode: "postgres-fenced", heartbeatMs: 60_000 },
+      revokeForTask: vi.fn(async () => ({ success: true, code: "revoked" })),
+    };
+    const taskStore = {
+      load: vi.fn(async () => ({ id: "task-1", contextId: "ctx-remote" })),
+    };
+    const executor = new a2aGatewayInternals.GatewayAgentExecutor(
+      { execute: vi.fn() },
+      null,
+      leaseManager,
+      taskStore,
+    );
+    const eventBus = { publish: vi.fn() };
+    const context = requestContext().context;
+    executor.prepareCancellationContext("task-1", context);
+
+    await executor.cancelTask("task-1", eventBus);
+
+    expect(leaseManager.revokeForTask).toHaveBeenCalledWith({
+      taskId: "task-1",
+      scope: { tenant: "tenant-a", owner: "test-user" },
+      reason: "A2A client cancellation",
+    });
+    expect(taskStore.load).toHaveBeenCalledWith("task-1", context);
+    expect(JSON.stringify(eventBus.publish.mock.calls)).toContain("ctx-remote");
+    expect(JSON.stringify(eventBus.publish.mock.calls)).toContain('"state":5');
   });
 });

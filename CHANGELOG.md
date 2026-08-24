@@ -20,6 +20,10 @@ and the project uses [Semantic Versioning](https://semver.org/).
   PostgreSQL mode now adds cross-host lifecycle sharing with database-clock TTL,
   transactional counters and task locks, stale-write rejection, corruption
   digests, repeatable-read pages, verified remote TLS, and safe health output.
+  Cross-host mode now also requires a tenant/owner/task-scoped PostgreSQL
+  execution lease with digest-only tokens, heartbeat renewal, monotonic fences,
+  duplicate-executor rejection, pre-publication stale-result blocking, and
+  remote cancellation. Atomic downstream fence consumption remains explicit.
 - Fixed the live A2A Workforce skill wiring: the controlled executor created by
   the application is now passed to the HTTP/A2A gateway instead of being
   dropped from the application boundary and reported as unavailable at runtime.

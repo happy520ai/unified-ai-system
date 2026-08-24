@@ -49,6 +49,7 @@ export interface A2ATaskStoreHandle {
   readonly store: TaskStore;
   readonly status: A2ATaskStoreStatus;
   getHealth(): A2ATaskStoreStatus & { available: boolean; reason: string | null };
+  checkHealth(): Promise<A2ATaskStoreStatus & { available: boolean; reason: string | null }>;
   close(): Promise<void>;
 }
 
@@ -189,6 +190,10 @@ export function createA2ATaskStore({
       getHealth() {
         return Object.freeze({ ...status, ...postgresStore.getHealth() });
       },
+      async checkHealth() {
+        const health = await postgresStore.checkHealth();
+        return Object.freeze({ ...status, ...health });
+      },
       async close() {
         await postgresStore.close();
       },
@@ -221,6 +226,10 @@ export function createA2ATaskStore({
     store,
     status,
     getHealth() {
+      const health = store.getHealth();
+      return Object.freeze({ ...status, ...health });
+    },
+    async checkHealth() {
       const health = store.getHealth();
       return Object.freeze({ ...status, ...health });
     },

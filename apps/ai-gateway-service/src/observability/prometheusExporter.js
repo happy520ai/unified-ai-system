@@ -230,6 +230,17 @@ export function createPrometheusExporter(options = {}) {
     lines.push(`# HELP ${prefix}_a2a_task_store_distributed Whether A2A task persistence is shared across hosts`);
     lines.push(`# TYPE ${prefix}_a2a_task_store_distributed gauge`);
     lines.push(`${prefix}_a2a_task_store_distributed{mode="${a2aTaskStoreMode}"} ${a2aTaskStore?.distributed === true ? 1 : 0}`);
+    const a2aExecutionLease = a2aTaskStore?.executionLease;
+    const a2aExecutionLeaseMode = sanitizeMetricLabel(a2aExecutionLease?.mode ?? "disabled");
+    lines.push(`# HELP ${prefix}_a2a_execution_lease_available Whether the configured A2A execution lease store is reachable`);
+    lines.push(`# TYPE ${prefix}_a2a_execution_lease_available gauge`);
+    lines.push(`${prefix}_a2a_execution_lease_available{mode="${a2aExecutionLeaseMode}"} ${a2aExecutionLease?.available === false ? 0 : 1}`);
+    lines.push(`# HELP ${prefix}_a2a_execution_lease_enabled Whether cross-host A2A execution fencing is enabled`);
+    lines.push(`# TYPE ${prefix}_a2a_execution_lease_enabled gauge`);
+    lines.push(`${prefix}_a2a_execution_lease_enabled{mode="${a2aExecutionLeaseMode}"} ${a2aExecutionLease?.enabled === true ? 1 : 0}`);
+    lines.push(`# HELP ${prefix}_a2a_execution_leases Active A2A execution leases`);
+    lines.push(`# TYPE ${prefix}_a2a_execution_leases gauge`);
+    lines.push(`${prefix}_a2a_execution_leases{mode="${a2aExecutionLeaseMode}"} ${safeMetricNumber(a2aExecutionLease?.activeLeases)}`);
     lines.push(`# HELP ${prefix}_a2a_task_store_limit Configured bounded A2A task-store limits`);
     lines.push(`# TYPE ${prefix}_a2a_task_store_limit gauge`);
     lines.push(`${prefix}_a2a_task_store_limit{resource="entries"} ${safeMetricNumber(a2aTaskStore?.maxEntries)}`);
