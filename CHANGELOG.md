@@ -203,6 +203,10 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Updated pinned `actions/cache` to v6.1.0 and `actions/upload-artifact` to
+  v7.0.1 across CI, quality-trend, and Docker evidence workflows so GitHub's
+  Node 20 action-runtime deprecation no longer leaves a forced-runtime warning;
+  all references remain immutable commit SHAs.
 - Hardened knowledge-file ingestion: PDF, DOCX, XLS, and XLSX parsing now runs
   in bounded worker threads with hard time, heap, concurrency, queue, input,
   extracted-text, PDF-page, sheet, row, column, and cell limits. Invalid base64
