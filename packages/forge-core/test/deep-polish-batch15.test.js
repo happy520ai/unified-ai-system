@@ -1,9 +1,13 @@
 // Deep Polish Batch 15 — 8 fixes, 8 test suites
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { join } from "path";
+import { isAbsolute, join, relative, resolve, sep } from "path";
 import { fileURLToPath } from "node:url";
 import { createSourceReader } from "./helpers/source-closure.js";
+import {
+  createLifecycleStatePath,
+  sanitizePlanId,
+} from "../../../apps/ai-gateway-service/src/workforce/executionLifecycleHelpers.js";
 
 const __testDir = fileURLToPath(new URL(".", import.meta.url));
 const SRC_ROOT = join(__testDir, "..", "..", "..", "apps", "ai-gateway-service", "src");
@@ -15,36 +19,28 @@ function ESM_SRC(file) {
 
 // ── Fix 1: executionLifecycle.js — path traversal guard ──
 describe("Batch15 Fix1: executionLifecycle sanitizePlanId", () => {
-  const src = ESM_SRC("workforce/executionLifecycle.js");
-
-  it("defines sanitizePlanId helper function", () => {
-    const idx = src.indexOf("function sanitizePlanId");
-    assert.ok(idx >= 0, "sanitizePlanId function should exist");
-    const window = src.slice(idx, idx + 300);
-    assert.ok(window.includes("[^a-zA-Z0-9_.\\-]"), "should strip dangerous path chars");
-    assert.ok(window.includes(".slice(0, 128)"), "should cap length at 128");
+  it("maps identifiers to one portable fixed-length digest", () => {
+    assert.match(sanitizePlanId("plan-safe"), /^[a-f0-9]{64}$/u);
+    assert.equal(sanitizePlanId("plan-safe"), sanitizePlanId("plan-safe"));
   });
 
-  it("sanitizes planId in persistState", () => {
-    const fnIdx = src.indexOf("async function persistState");
-    assert.ok(fnIdx >= 0, "persistState should exist");
-    const fnSrc = src.slice(fnIdx, fnIdx + 400);
-    assert.ok(fnSrc.includes("sanitizePlanId(planId)"), "persistState should sanitize planId");
-    assert.ok(!fnSrc.includes("${planId}.json"), "should not use raw planId in path");
+  it("does not collapse distinct traversal-shaped identifiers", () => {
+    assert.notEqual(sanitizePlanId("../../tenant-a"), sanitizePlanId("..\\..\\tenant-a"));
+    assert.notEqual(sanitizePlanId("../../tenant-a"), sanitizePlanId("tenant-a"));
   });
 
-  it("sanitizes planId in loadState", () => {
-    const fnIdx = src.indexOf("async function loadState");
-    assert.ok(fnIdx >= 0, "loadState should exist");
-    const fnSrc = src.slice(fnIdx, fnIdx + 400);
-    assert.ok(fnSrc.includes("sanitizePlanId(planId)"), "loadState should sanitize planId");
+  it("keeps the resolved lifecycle file inside its configured root", () => {
+    const root = resolve(".tmp", "lifecycle-test-root");
+    const target = createLifecycleStatePath(root, "../../escape-attempt");
+    const child = relative(root, target);
+    assert.ok(child && child !== ".." && !child.startsWith(`..${sep}`) && !isAbsolute(child));
+    assert.match(target, /plan-[a-f0-9]{64}\.json$/u);
   });
 
-  it("replaces leading dots to prevent .. traversal", () => {
-    const fnIdx = src.indexOf("function sanitizePlanId");
-    const fnSrc = src.slice(fnIdx, fnIdx + 200);
-    assert.ok(fnSrc.includes("replace(/^"), "should have replace for leading chars");
-    assert.ok(fnSrc.includes(".slice(0, 128)"), "should cap length");
+  it("rejects empty, control-character, and oversized identifiers", () => {
+    assert.throws(() => sanitizePlanId(""), { code: "WORKFORCE_LIFECYCLE_ID_INVALID" });
+    assert.throws(() => sanitizePlanId("bad\u0000id"), { code: "WORKFORCE_LIFECYCLE_ID_INVALID" });
+    assert.throws(() => sanitizePlanId("x".repeat(513)), { code: "WORKFORCE_LIFECYCLE_ID_INVALID" });
   });
 });
 
