@@ -6,8 +6,8 @@
  * provider routing, automatic failover, and usage tracking.
  *
  * This module gives Forge tasks a high-level interface to those capabilities
- * while transparently falling back to direct LLM calls when the gateway is
- * unreachable.
+ * while failing closed when the gateway is unreachable. Direct fallback is
+ * available only through an explicit constructor option.
  *
  * Gateway endpoints used:
  *   POST /chat             - Chat completion with provider routing
@@ -68,10 +68,10 @@ export class GatewayBridge {
    * @param {object} [options]
    * @param {string} [options.gatewayUrl='http://127.0.0.1:3100']
    *   Gateway core API base URL.
-   * @param {boolean} [options.fallbackDirect=true]
+   * @param {boolean} [options.fallbackDirect=false]
    *   Whether to fall back to direct LLM calls when the gateway is unavailable.
    */
-  constructor({ gatewayUrl = DEFAULT_GATEWAY_URL, fallbackDirect = true } = {}) {
+  constructor({ gatewayUrl = DEFAULT_GATEWAY_URL, fallbackDirect = false } = {}) {
     this.#gatewayUrl = gatewayUrl.replace(/\/+$/, ''); // strip trailing slash
     this.#fallbackDirect = fallbackDirect;
   }
@@ -441,7 +441,7 @@ export class GatewayBridge {
 
 /**
  * Pre-configured singleton for convenience.
- * Uses default settings (gateway at 127.0.0.1:3100, direct fallback enabled).
+ * Uses default settings (gateway at 127.0.0.1:3100, direct fallback disabled).
  *
  * @type {GatewayBridge}
  */

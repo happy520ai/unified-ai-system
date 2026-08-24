@@ -87,6 +87,7 @@ describe('P0-1: LLM Client responseFormat option', () => {
     process.env.NVIDIA_API_KEY = 'test-key-for-p0';
     process.env.FORGE_LLM_PROVIDER = 'nvidia';
     process.env.FORGE_LLM_MODEL = 'nvidia/llama-3.3-nemotron-super-49b-v1';
+    process.env.FORGE_DIRECT_PROVIDER_FALLBACK_ENABLED = 'true';
 
     await callLLM('system', 'user', { responseFormat: 'json' });
 
@@ -98,6 +99,7 @@ describe('P0-1: LLM Client responseFormat option', () => {
     // Clean up env
     delete process.env.FORGE_LLM_PROVIDER;
     delete process.env.FORGE_LLM_MODEL;
+    delete process.env.FORGE_DIRECT_PROVIDER_FALLBACK_ENABLED;
   });
 });
 

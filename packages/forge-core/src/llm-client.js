@@ -1,6 +1,5 @@
 /**
- * Direct LLM client — calls OpenAI-compatible APIs directly, bypassing the AI Gateway.
- * Used when the Gateway is in fake mode or when Forge needs direct provider access.
+ * LLM client with gateway-first routing and explicitly authorized direct calls.
  *
  * Resilience: AbortSignal timeout, exponential backoff retry, circuit breaker.
  *
@@ -13,6 +12,8 @@
  * call logic and racing.
  */
 
+import { AsyncLocalStorage } from 'node:async_hooks';
+
 import { getTraceContext } from './tracing/index.js';
 import {
   getTraceManager, resolveProvider, getProviderNames,
@@ -23,6 +24,8 @@ import {
   getProviderRegistry, callLLMDirectCore,
 } from './llm-client-helpers.js';
 
+const scopedLlmCallerStorage = new AsyncLocalStorage();
+
 // Re-export all public helpers so existing imports from llm-client.js keep working
 export {
   setTraceManager, clearLLMCache, getLLMCacheSize,
@@ -31,6 +34,43 @@ export {
   getP11Cache, getP11TokenPredictor, getP11BudgetEnforcer,
   getBreakerState, resetBreaker, getRaceStatus,
 } from './llm-client-helpers.js';
+
+/**
+ * Run an operation with an in-process LLM caller bound to the current async
+ * request. Scoped callers are evaluated before global caches or network
+ * fallback, so concurrent tenants cannot overwrite each other's route.
+ *
+ * @param {Function} llmCaller (userPrompt, systemPrompt, options) => string|result
+ * @param {Function} operation async operation executed inside the scope
+ */
+export function runWithLlmCaller(llmCaller, operation) {
+  if (typeof llmCaller !== 'function' || typeof operation !== 'function') {
+    throw new TypeError('runWithLlmCaller requires a caller and an operation function');
+  }
+  return scopedLlmCallerStorage.run(llmCaller, operation);
+}
+
+async function callScopedLlmCaller(systemPrompt, userPrompt, opts) {
+  const llmCaller = scopedLlmCallerStorage.getStore();
+  if (!llmCaller) return null;
+
+  const result = await llmCaller(userPrompt, systemPrompt, opts);
+  const text = typeof result === 'string'
+    ? result
+    : result?.text ?? result?.data?.text ?? result?.data?.message?.content;
+  if (typeof text !== 'string') {
+    throw new Error('Scoped Forge LLM caller returned no text');
+  }
+  const usage = typeof result === 'object' && result?.usage
+    ? result.usage
+    : { inputTokens: 0, outputTokens: 0, totalTokens: 0, model: 'gateway-scoped' };
+  return { text, usage };
+}
+
+function directFallbackEnabled(opts = {}) {
+  if (opts.allowDirectFallback === true) return true;
+  return String(process.env.FORGE_DIRECT_PROVIDER_FALLBACK_ENABLED ?? 'false').trim().toLowerCase() === 'true';
+}
 
 // ============================================================================
 // Direct LLM Call Wrappers
@@ -67,6 +107,9 @@ export async function callLLMDirectWithUsage(opts) {
  * @returns {{ text: string, usage: { inputTokens: number, outputTokens: number, totalTokens: number, model: string } }}
  */
 async function _callLLMCore(systemPrompt, userPrompt, opts = {}) {
+  const scopedResult = await callScopedLlmCaller(systemPrompt, userPrompt, opts);
+  if (scopedResult) return scopedResult;
+
   const _p11Cache = getP11Cache();
   const _tokenPredictor = getP11TokenPredictor();
   const _budgetEnforcer = getP11BudgetEnforcer();
@@ -191,7 +234,15 @@ async function _callLLMCore(systemPrompt, userPrompt, opts = {}) {
     try { gatewaySpan?.end('error', { 'forge.llm.error': err.message }); } catch { /* best-effort */ }
   }
 
-  // Fallback to direct API
+  // Direct fallback is an explicit standalone capability. Gateway-integrated
+  // requests fail closed instead of silently bypassing provider governance.
+  if (!directFallbackEnabled(opts)) {
+    const error = new Error('Gateway unavailable or returned fake output; direct provider fallback is disabled');
+    error.code = 'FORGE_DIRECT_PROVIDER_FALLBACK_DISABLED';
+    throw error;
+  }
+
+  // Fallback to direct API only after explicit opt-in.
   console.log(`[forge:llm] Gateway unavailable/fake, calling ${provider} directly...`);
   const directResult = await callLLMDirectCore({
     provider, model, messages,
@@ -230,6 +281,11 @@ async function _callLLMCore(systemPrompt, userPrompt, opts = {}) {
  */
 export async function callLLMStream(systemPrompt, userPrompt, opts = {}) {
   const onChunk = opts.onChunk || (() => {});
+  const scopedResult = await callScopedLlmCaller(systemPrompt, userPrompt, opts);
+  if (scopedResult) {
+    if (scopedResult.text) onChunk(scopedResult.text);
+    return scopedResult;
+  }
   const _p11Cache = getP11Cache();
   const _tokenPredictor = getP11TokenPredictor();
   const _budgetEnforcer = getP11BudgetEnforcer();

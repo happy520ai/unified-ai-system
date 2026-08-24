@@ -57,17 +57,19 @@ export class BaseWorker {
   #iterativeRefiner;
   #qualityGate;
 
-  constructor({ role, systemPrompt, tools = ['read', 'write', 'edit', 'diff', 'grep', 'glob', 'bash'], bashSafetyOpts, logger, llmCache }) {
+  constructor({ role, systemPrompt, tools = ['read', 'write', 'edit', 'diff', 'grep', 'glob'], allowBash = false, bashSafetyOpts, logger, llmCache }) {
     this.#role = role;
     this.#systemPrompt = systemPrompt;
-    this.#tools = tools;
-    this.#bashSafety = new BashSafety(bashSafetyOpts);
+    this.#tools = allowBash ? tools : tools.filter((tool) => tool !== 'bash');
+    this.#bashSafety = new BashSafety({ strict: true, ...bashSafetyOpts });
     this.#incrementalEdit = new IncrementalEdit();
     this.#logger = logger || new ForgeLogger({ module: `forge:${role}`, level: LogLevel.INFO });
     this.#llmCache = llmCache || null;
   }
 
   get role() { return this.#role; }
+
+  getAvailableTools() { return [...this.#tools]; }
 
   setMemoryEngine(engine) { this.#memoryEngine = engine; }
   getMemoryEngine() { return this.#memoryEngine; }

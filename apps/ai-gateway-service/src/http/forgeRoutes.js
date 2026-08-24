@@ -115,7 +115,11 @@ export async function dispatchForgeRoutes(context) {
       writeJson(response, 200, createOkEnvelope(result, { startedAt }));
     },
     "/forge/orchestrate": async (body) => {
-      const result = await forge.orchestrate({ goal: body.goal, options: body.options ?? {} });
+      const result = await forge.orchestrate({
+        goal: body.goal,
+        options: body.options ?? {},
+        tenantIdentity,
+      });
       if (!result.ok && result.code === "FORGE_INPUT_INVALID") {
         return fail(400, result.code, result.reason ?? "goal is required.");
       }

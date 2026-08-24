@@ -357,7 +357,7 @@ export { BudgetTracker } from './budget-tracker/index.js';
 export { ContextEngine } from './context-engine/index.js';
 export { CodebaseSearch } from './codebase-search/index.js';
 export { CodeIntelligence } from './code-intel/index.js';
-export { callLLM, callLLMWithUsage, callLLMDirect, callLLMDirectWithUsage, callLLMStream, setProviderRegistry, getProviderRegistry, setP11Cache, setP11TokenPredictor, setP11BudgetEnforcer, getP11Cache, getP11TokenPredictor, getP11BudgetEnforcer, clearLLMCache, getLLMCacheSize } from './llm-client.js';
+export { callLLM, callLLMWithUsage, callLLMDirect, callLLMDirectWithUsage, callLLMStream, runWithLlmCaller, setProviderRegistry, getProviderRegistry, setP11Cache, setP11TokenPredictor, setP11BudgetEnforcer, getP11Cache, getP11TokenPredictor, getP11BudgetEnforcer, clearLLMCache, getLLMCacheSize } from './llm-client.js';
 // Phase 4: Collaborative evolution
 export { AgentPoolManager } from './agent-pool/index.js';
 export { GoalTransfer } from './export-import/index.js';

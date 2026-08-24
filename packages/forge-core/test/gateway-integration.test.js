@@ -292,6 +292,100 @@ describe('GatewayLifecycle', () => {
   });
 });
 
+// --- Governed LLM route security ---
+
+describe('Forge governed LLM route security', () => {
+  let originalFetch;
+  let originalDirectFallback;
+
+  before(() => {
+    originalFetch = globalThis.fetch;
+    originalDirectFallback = process.env.FORGE_DIRECT_PROVIDER_FALLBACK_ENABLED;
+  });
+
+  after(() => {
+    globalThis.fetch = originalFetch;
+    if (originalDirectFallback === undefined) {
+      delete process.env.FORGE_DIRECT_PROVIDER_FALLBACK_ENABLED;
+    } else {
+      process.env.FORGE_DIRECT_PROVIDER_FALLBACK_ENABLED = originalDirectFallback;
+    }
+  });
+
+  it('uses request-scoped callers without making network calls', async () => {
+    globalThis.fetch = async () => {
+      throw new Error('network call must not occur');
+    };
+    const { callLLMWithUsage, runWithLlmCaller } = await import('../src/llm-client.js');
+
+    const result = await runWithLlmCaller(
+      async (userPrompt) => ({
+        text: `scoped:${userPrompt}`,
+        usage: { inputTokens: 2, outputTokens: 3, totalTokens: 5, model: 'governed' },
+      }),
+      () => callLLMWithUsage('system', 'tenant-a'),
+    );
+
+    assert.equal(result.text, 'scoped:tenant-a');
+    assert.equal(result.usage.totalTokens, 5);
+  });
+
+  it('keeps concurrent scoped callers isolated', async () => {
+    const { callLLMWithUsage, runWithLlmCaller } = await import('../src/llm-client.js');
+    const [tenantA, tenantB] = await Promise.all([
+      runWithLlmCaller(
+        async () => ({ text: 'tenant-a', usage: {} }),
+        async () => {
+          await new Promise((resolve) => setTimeout(resolve, 5));
+          return callLLMWithUsage('system', 'same-prompt');
+        },
+      ),
+      runWithLlmCaller(
+        async () => ({ text: 'tenant-b', usage: {} }),
+        () => callLLMWithUsage('system', 'same-prompt'),
+      ),
+    ]);
+
+    assert.equal(tenantA.text, 'tenant-a');
+    assert.equal(tenantB.text, 'tenant-b');
+  });
+
+  it('fails closed on fake output unless direct fallback is explicit', async () => {
+    const requestedUrls = [];
+    delete process.env.FORGE_DIRECT_PROVIDER_FALLBACK_ENABLED;
+    globalThis.fetch = async (url) => {
+      requestedUrls.push(String(url));
+      return {
+        ok: true,
+        async json() {
+          return { success: true, data: { outputText: '[fake:test]' } };
+        },
+      };
+    };
+    const { callLLMWithUsage } = await import('../src/llm-client.js');
+
+    await assert.rejects(
+      () => callLLMWithUsage('security-system', 'no-direct-fallback', { responseFormat: 'json' }),
+      (error) => error?.code === 'FORGE_DIRECT_PROVIDER_FALLBACK_DISABLED',
+    );
+    assert.equal(requestedUrls.length, 1);
+    assert.match(requestedUrls[0], /\/chat$/);
+  });
+
+  it('keeps GatewayBridge direct fallback disabled by default', async () => {
+    globalThis.fetch = async () => {
+      throw new Error('gateway unavailable');
+    };
+    const { GatewayBridge } = await import('../src/gateway-bridge/index.js');
+    const bridge = new GatewayBridge({ gatewayUrl: 'http://127.0.0.1:9' });
+
+    await assert.rejects(
+      () => bridge.chat([{ role: 'user', content: 'test' }]),
+      /direct fallback disabled/,
+    );
+  });
+});
+
 // --- llm-client P11 integration tests ---
 
 describe('llm-client P11 integration', () => {

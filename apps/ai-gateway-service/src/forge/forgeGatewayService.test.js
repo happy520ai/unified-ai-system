@@ -1,6 +1,7 @@
 import { Readable } from "node:stream";
 import { EventEmitter } from "node:events";
 import { describe, expect, it, vi } from "vitest";
+import { callLLMWithUsage } from "@unified-ai-system/forge-core";
 import { createForgeGatewayService } from "./forgeGatewayService.js";
 import { dispatchForgeRoutes } from "../http/forgeRoutes.js";
 
@@ -87,6 +88,28 @@ describe("forgeGatewayService — 桥与惰性", () => {
     const runs = forge.listRuns();
     expect(runs.ok).toBe(true);
     expect(Array.isArray(runs.runs)).toBe(true);
+  });
+
+  it("binds orchestrate LLM calls to the governed in-process gateway lane", async () => {
+    const gatewayService = createFakeGatewayService();
+    const close = vi.fn();
+    const run = vi.fn(async () => callLLMWithUsage("system", "tenant task"));
+    const forge = createForgeGatewayService({
+      gatewayService,
+      env: {},
+      forgeFactory: () => ({ run, close }),
+    });
+
+    const result = await forge.orchestrate({
+      goal: "prepare a governed plan",
+      tenantIdentity: { tenantId: "tenant-a" },
+    });
+
+    expect(result.ok).toBe(true);
+    expect(run).toHaveBeenCalledOnce();
+    expect(close).toHaveBeenCalledOnce();
+    expect(gatewayService.execute).toHaveBeenCalledOnce();
+    expect(gatewayService.execute.mock.calls[0][0].metadata.forge.tenantId).toBe("tenant-a");
   });
 });
 

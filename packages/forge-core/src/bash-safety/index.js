@@ -6,9 +6,9 @@
  * exfiltrative, or otherwise dangerous shell commands via a configurable
  * whitelist/blacklist system.
  *
- * - In **non-strict** mode (default) only blacklisted commands are blocked;
+ * - In **non-strict** mode only blacklisted commands are blocked;
  *   unknown commands are allowed.
- * - In **strict** mode only whitelisted commands are allowed; unknown commands
+ * - In **strict** mode (default) only whitelisted commands are allowed; unknown commands
  *   receive a `NEEDS_REVIEW` verdict.
  *
  * @example
@@ -186,6 +186,51 @@ function normalize(command) {
 }
 
 /**
+ * Find shell control syntax outside single/double quoted literals. Command
+ * substitution remains active inside double quotes and is therefore blocked.
+ * Forge executes commands through a shell, so compound commands must never be
+ * approved solely because their first token matches the whitelist.
+ */
+function findShellControlOperator(command) {
+  const input = String(command ?? '');
+  let quote = null;
+  let escaped = false;
+
+  for (let index = 0; index < input.length; index += 1) {
+    const char = input[index];
+    const next = input[index + 1] ?? '';
+
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (char === '\\' && quote !== "'") {
+      escaped = true;
+      continue;
+    }
+    if (quote) {
+      if (char === quote) {
+        quote = null;
+        continue;
+      }
+      if (quote === '"' && (char === '`' || (char === '$' && next === '('))) {
+        return char === '`' ? '`' : '$(';
+      }
+      continue;
+    }
+    if (char === "'" || char === '"') {
+      quote = char;
+      continue;
+    }
+    if (char === '$' && next === '(') return '$(';
+    if (char === '\r' || char === '\n' || char === ';' || char === '|' || char === '&' || char === '<' || char === '>' || char === '`') {
+      return char;
+    }
+  }
+  return null;
+}
+
+/**
  * Tests whether a normalised command matches a single pattern entry.
  *
  * - `RegExp` patterns: evaluated with `.test()` (supports complex matching such
@@ -291,7 +336,7 @@ export class BashSafety {
    * Creates a new `BashSafety` validator.
    *
    * @param {Object}                   [options]
-   * @param {boolean}                  [options.strict=false]
+   * @param {boolean}                  [options.strict=true]
    *   When `true`, only commands that match a whitelist pattern are allowed.
    *   Unknown commands receive `NEEDS_REVIEW` instead of `ALLOWED`.
    * @param {Array<string|RegExp>}     [options.customBlacklist=[]]
@@ -299,7 +344,7 @@ export class BashSafety {
    * @param {Array<string|RegExp>}     [options.customWhitelist=[]]
    *   Additional patterns appended to the default whitelist.
    */
-  constructor({ strict = false, customBlacklist = [], customWhitelist = [] } = {}) {
+  constructor({ strict = true, customBlacklist = [], customWhitelist = [] } = {}) {
     this.#strict = Boolean(strict);
     this.#blacklist = [...DEFAULT_BLACKLIST, ...customBlacklist];
     this.#whitelist = [...DEFAULT_WHITELIST, ...customWhitelist];
@@ -317,6 +362,17 @@ export class BashSafety {
    */
   check(command) {
     const normalised = normalize(command);
+
+    const shellControlOperator = findShellControlOperator(command);
+    if (shellControlOperator) {
+      return {
+        verdict: SafetyVerdict.BLOCKED,
+        reason: `Compound shell syntax is disabled (operator: ${JSON.stringify(shellControlOperator)}).`,
+        matchedPattern: shellControlOperator,
+        isBlacklisted: true,
+        isWhitelisted: false,
+      };
+    }
 
     // 1. Blacklist — always takes priority.
     for (const pattern of this.#blacklist) {

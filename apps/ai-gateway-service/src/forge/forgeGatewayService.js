@@ -22,6 +22,7 @@ import {
   SemanticMemory,
   ConsensusEngine,
   GracefulDegradation,
+  runWithLlmCaller,
 } from "@unified-ai-system/forge-core";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -31,6 +32,7 @@ export function createForgeGatewayService({
   gatewayService,
   env = process.env,
   clock = () => Date.now(),
+  forgeFactory = (options) => new Forge(options),
 } = {}) {
   let refiner = null;
   let qualityGate = null;
@@ -48,34 +50,57 @@ export function createForgeGatewayService({
    * llmCaller 桥:forge 约定 (userPrompt, systemPrompt, opts) → 文本。
    * 走网关 provider lane——预算、guardrails、审计全部生效。
    */
+  async function executeGatewayLlm(tenantIdentity, userPrompt, systemPrompt, opts = {}) {
+    if (!gatewayService || typeof gatewayService.execute !== "function") {
+      throw new Error("FORGE_GATEWAY_UNAVAILABLE: gateway provider lane is required.");
+    }
+    const messages = [
+      ...(systemPrompt ? [{ role: "system", content: String(systemPrompt) }] : []),
+      { role: "user", content: String(userPrompt ?? "") },
+    ];
+    const result = await gatewayService.execute({
+      taskType: "chat",
+      messages,
+      options: {
+        ...(Number.isFinite(Number(opts?.maxTokens)) ? { maxOutputTokens: Number(opts.maxTokens) } : {}),
+        ...(Number.isFinite(Number(opts?.temperature)) ? { temperature: Number(opts.temperature) } : {}),
+      },
+      metadata: {
+        source: "forge-lane",
+        forge: { caller: "forge-core", ...(tenantIdentity?.tenantId ? { tenantId: tenantIdentity.tenantId } : {}) },
+      },
+    });
+    if (!result?.success) {
+      const error = new Error(`forge llmCaller lane failed: ${result?.error?.code ?? "unknown"}`);
+      error.code = "FORGE_LLM_LANE_FAILED";
+      throw error;
+    }
+    const providerUsage = result.data?.usage ?? {};
+    return {
+      text: result.data?.message?.content ?? result.data?.text ?? "",
+      usage: {
+        inputTokens: providerUsage.inputTokens ?? providerUsage.prompt_tokens ?? 0,
+        outputTokens: providerUsage.outputTokens ?? providerUsage.completion_tokens ?? 0,
+        totalTokens: providerUsage.totalTokens ?? providerUsage.total_tokens ?? 0,
+        model: result.data?.selectedModel ?? "gateway-scoped",
+      },
+    };
+  }
+
   function makeLlmCaller(tenantIdentity = null) {
     return async (userPrompt, systemPrompt, opts = {}) => {
-      if (!gatewayService || typeof gatewayService.execute !== "function") {
-        throw new Error("FORGE_GATEWAY_UNAVAILABLE: gateway provider lane is required.");
-      }
-      const messages = [
-        ...(systemPrompt ? [{ role: "system", content: String(systemPrompt) }] : []),
-        { role: "user", content: String(userPrompt ?? "") },
-      ];
-      const result = await gatewayService.execute({
-        taskType: "chat",
-        messages,
-        options: {
-          ...(Number.isFinite(Number(opts?.maxTokens)) ? { maxOutputTokens: Number(opts.maxTokens) } : {}),
-          ...(Number.isFinite(Number(opts?.temperature)) ? { temperature: Number(opts.temperature) } : {}),
-        },
-        metadata: {
-          source: "forge-lane",
-          forge: { caller: "forge-core", ...(tenantIdentity?.tenantId ? { tenantId: tenantIdentity.tenantId } : {}) },
-        },
-      });
-      if (!result?.success) {
-        const error = new Error(`forge llmCaller lane failed: ${result?.error?.code ?? "unknown"}`);
-        error.code = "FORGE_LLM_LANE_FAILED";
-        throw error;
-      }
-      return result.data?.message?.content ?? result.data?.text ?? "";
+      const result = await executeGatewayLlm(tenantIdentity, userPrompt, systemPrompt, opts);
+      return result.text;
     };
+  }
+
+  function makeScopedLlmCaller(tenantIdentity = null) {
+    return (userPrompt, systemPrompt, opts = {}) => executeGatewayLlm(
+      tenantIdentity,
+      userPrompt,
+      systemPrompt,
+      opts,
+    );
   }
 
   function getRefiner() {
@@ -188,7 +213,7 @@ export function createForgeGatewayService({
     },
 
     // ── A+G:目标编排(Forge 主类,单目标 run;多目标池后续按需)──
-    async orchestrate({ goal, options = {} } = {}) {
+    async orchestrate({ goal, options = {}, tenantIdentity = null } = {}) {
       if (!enabled()) return { ok: false, code: "FORGE_LANE_DISABLED" };
       if (typeof goal !== "string" || !goal.trim()) {
         return { ok: false, code: "FORGE_INPUT_INVALID", reason: "goal is required." };
@@ -196,19 +221,29 @@ export function createForgeGatewayService({
       const runId = `forge_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
       const workRoot = mkdtempSync(join(tmpdir(), "uai-forge-run-"));
       forgeRuns.set(runId, { goal, status: "running", startedAt: new Date().toISOString() });
+      let forge = null;
       try {
-        const forge = new Forge({
+        forge = forgeFactory({
           projectRoot: workRoot,
           dbPath: join(workRoot, "forge-tasks.sqlite"),
           enableProgress: false,
           enableCostTracking: true,
         });
-        const result = await forge.run(goal, options);
+        const result = await runWithLlmCaller(
+          makeScopedLlmCaller(tenantIdentity),
+          () => forge.run(goal, options),
+        );
         forgeRuns.set(runId, { goal, status: "completed", startedAt: forgeRuns.get(runId).startedAt, result });
         return { ok: true, runId, result, workRoot };
       } catch (error) {
         forgeRuns.set(runId, { goal, status: "failed", error: { message: error?.message, code: error?.code } });
         return { ok: false, runId, code: error?.code ?? "FORGE_RUN_FAILED", reason: error?.message };
+      } finally {
+        try {
+          forge?.close?.();
+        } catch {
+          // The governed result is already recorded; close is best-effort cleanup.
+        }
       }
     },
 
