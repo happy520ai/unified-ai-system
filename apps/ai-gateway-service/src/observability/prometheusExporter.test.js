@@ -212,6 +212,35 @@ describe("prometheusExporter", () => {
     expect(text).not.toContain("postgres://must-not-leak");
   });
 
+  it("renders central audit readiness without hashes, keys, or database identity", () => {
+    const exporter = createPrometheusExporter({ prefix: "ai_gateway" });
+    const text = exporter.formatMetrics({
+      health: {
+        enterprise: {
+          audit: {
+            central: {
+              status: "degraded",
+              mode: "postgres-hmac-chain",
+              available: false,
+              sequence: 42,
+              hash: "must-not-be-a-label",
+              keyId: "private-key-id",
+              connectionString: "postgres://must-not-leak",
+              externalRetentionVerified: false,
+            },
+          },
+        },
+      },
+    });
+
+    expect(text).toContain('ai_gateway_audit_central_store_available{mode="postgres-hmac-chain"} 0');
+    expect(text).toContain("ai_gateway_audit_central_sequence 42");
+    expect(text).toContain("ai_gateway_audit_external_retention_verified 0");
+    expect(text).not.toContain("must-not-be-a-label");
+    expect(text).not.toContain("private-key-id");
+    expect(text).not.toContain("postgres://must-not-leak");
+  });
+
   it("renders PostgreSQL rate-limit store health without partition keys", () => {
     const exporter = createPrometheusExporter({ prefix: "ai_gateway" });
     const text = exporter.formatMetrics({

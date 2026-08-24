@@ -1,4 +1,5 @@
 import { appendFile, mkdir } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 import { statSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { tmpdir } from "node:os";
@@ -19,6 +20,7 @@ import { createSqliteUserStoreBackend } from "./enterpriseUserStore-sqlite.js";
 import { createApiKeyManager } from "./apiKeyManager.js";
 import { createAuditHashChain } from "./auditHashChain.js";
 import { createAuditCheckpointStore } from "./auditCheckpointStore.ts";
+import { createEnterpriseAuditStore } from "./enterpriseAuditStoreFactory.ts";
 import {
   assertEnterpriseTenantAccess,
   requireEnterpriseTenantId,
@@ -119,6 +121,11 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
     staleLockMs: env.PME_AUDIT_CHAIN_STALE_LOCK_MS,
     checkpointStore: auditCheckpointStore,
   });
+  const centralAuditHandle = createEnterpriseAuditStore({
+    env,
+    realProviderEnabled,
+  });
+  const centralAuditStore = centralAuditHandle.store;
   const auditEntries = [];
   let auditWriteTail = Promise.resolve();
   const auditPersistence = {
@@ -141,8 +148,10 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
     },
 
     getHealth() {
+      const centralAudit = centralAuditStore?.getHealth?.() ?? null;
+      const centralAuditReady = !centralAuditStore || centralAudit?.status === "ready";
       return {
-        status: "ready",
+        status: centralAuditReady ? "ready" : "degraded",
         mode: "local-enterprise-governance",
         authEnabled,
         unauthenticatedScope: authEnabled
@@ -163,7 +172,7 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
         },
         apiKeys: apiKeyManager.getHealth(),
         audit: {
-          mode: "jsonl-file",
+          mode: centralAuditStore ? "postgres-hmac-chain-plus-local-mirror" : "jsonl-file",
           path: auditPath,
           inMemoryEntryCount: auditEntries.length,
           status: auditPersistence.consecutiveFailures > 0
@@ -178,6 +187,7 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
           lastFailureAt: auditPersistence.lastFailureAt,
           lastErrorCode: auditPersistence.lastErrorCode,
           hashChain: auditHashChain.getHealth(),
+          central: centralAudit,
         },
       };
     },
@@ -207,6 +217,7 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
         },
         audit: {
           configured: Boolean(auditPath),
+          centralConfigured: Boolean(centralAuditStore),
           pathExposed: false,
         },
       };
@@ -222,6 +233,8 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
         localPreview,
         auditHashChainHealth: auditHashChain.getHealth(),
         auditCheckpointRequired,
+        centralAuditHealth: centralAuditStore?.getHealth?.() ?? null,
+        centralAuditRequired: centralAuditHandle.required,
       });
     },
 
@@ -246,7 +259,14 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
 
     async verifyAuditIntegrity() {
       await auditWriteTail;
-      return auditHashChain.verify();
+      const local = await auditHashChain.verify();
+      if (!centralAuditStore) return local;
+      const central = await centralAuditStore.verify();
+      return {
+        ...local,
+        valid: local.valid === true && central.valid === true,
+        central,
+      };
     },
 
     exportUsersForBackup(actorIdentity) {
@@ -516,7 +536,7 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
 
     async recordAudit(event = {}) {
       const entry = {
-        id: `audit-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        id: `audit-${randomUUID()}`,
         timestamp: new Date().toISOString(),
         outcome: event.outcome ?? "unknown",
         method: event.method,
@@ -540,6 +560,10 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
       // later writes after one failure.
       auditPersistence.pendingWrites += 1;
       const writeOperation = auditWriteTail.then(async () => {
+          if (centralAuditStore) {
+            const centralEntry = await centralAuditStore.append(entry);
+            entry.distributedIntegrity = centralEntry.distributedIntegrity;
+          }
           const chain = await auditHashChain.append(entry);
           entry.integrity = {
             sequence: chain.seq,
@@ -576,12 +600,21 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
     async listAudit({ limit = 50, filters = {}, actorIdentity } = {}) {
       const scopedFilters = createTenantScopedAuditFilters(filters, actorIdentity);
       const boundedLimit = Math.min(200, Math.max(1, Number(limit) || 50));
+      const centralEntries = centralAuditStore
+        ? await centralAuditStore.readEntries({ limit: 10_000, tenantId: scopedFilters.tenantId })
+        : [];
       const chainEntries = await auditHashChain.readEntries({ limit: 10_000 });
       const legacyEntries = chainEntries.length === 0 && !auditHashChain.getHealth().signedCheckpointConfigured
         ? await readAuditFile(auditPath)
         : [];
       const entries = filterAuditEntries(
-        chainEntries.length ? chainEntries : legacyEntries.length ? legacyEntries : auditEntries,
+        centralEntries.length
+          ? centralEntries
+          : chainEntries.length
+            ? chainEntries
+            : legacyEntries.length
+              ? legacyEntries
+              : auditEntries,
         scopedFilters,
       );
       return {
@@ -598,12 +631,21 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
     async exportAudit({ limit = 200, format = "jsonl", filters = {}, actorIdentity } = {}) {
       const scopedFilters = createTenantScopedAuditFilters(filters, actorIdentity);
       const boundedLimit = Math.min(1000, Math.max(1, Number(limit) || 200));
+      const centralEntries = centralAuditStore
+        ? await centralAuditStore.readEntries({ limit: 10_000, tenantId: scopedFilters.tenantId })
+        : [];
       const chainEntries = await auditHashChain.readEntries({ limit: 10_000 });
       const legacyEntries = chainEntries.length === 0 && !auditHashChain.getHealth().signedCheckpointConfigured
         ? await readAuditFile(auditPath)
         : [];
       const entries = filterAuditEntries(
-        chainEntries.length ? chainEntries : legacyEntries.length ? legacyEntries : auditEntries,
+        centralEntries.length
+          ? centralEntries
+          : chainEntries.length
+            ? chainEntries
+            : legacyEntries.length
+              ? legacyEntries
+              : auditEntries,
         scopedFilters,
       ).slice(-boundedLimit);
       const normalizedFormat = format === "json" ? "json" : "jsonl";
@@ -617,6 +659,12 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
         entryCount: entries.length,
         content: normalizedFormat === "json" ? JSON.stringify(entries, null, 2) : entries.map((entry) => JSON.stringify(entry)).join("\n"),
       };
+    },
+
+    async close() {
+      await auditWriteTail;
+      await centralAuditStore?.close?.();
+      userStoreBackend?.close?.();
     },
   };
 }
@@ -691,6 +739,8 @@ function createSecurityReadiness({
   localPreview,
   auditHashChainHealth,
   auditCheckpointRequired,
+  centralAuditHealth,
+  centralAuditRequired,
 }) {
   const configuredUsers = [...users.values()];
   const blockers = [];
@@ -732,6 +782,15 @@ function createSecurityReadiness({
   if (checkpoint.configured === true && checkpoint.externalRetentionVerified !== true) {
     warnings.push("audit_external_retention_unverified");
   }
+  if (centralAuditRequired && !centralAuditHealth) {
+    blockers.push("audit_central_store_required");
+  }
+  if (centralAuditHealth && centralAuditHealth.status !== "ready") {
+    blockers.push("audit_central_store_unavailable");
+  }
+  if (centralAuditHealth && centralAuditHealth.externalRetentionVerified !== true) {
+    warnings.push("audit_central_external_retention_unverified");
+  }
 
   return {
     status: blockers.length ? "blocked" : warnings.length ? "warning" : "ready",
@@ -756,11 +815,13 @@ function createSecurityReadiness({
       tenantHeaderPolicy: "optional-must-match-credential",
     },
     audit: {
-      mode: "jsonl-file",
+      mode: centralAuditHealth ? "postgres-hmac-chain-plus-local-mirror" : "jsonl-file",
       pathConfigured: Boolean(auditPath),
       pathExposed: false,
       checkpointRequired: auditCheckpointRequired,
       checkpoint,
+      centralRequired: centralAuditRequired,
+      central: centralAuditHealth,
     },
     blockers,
     warnings,

@@ -665,6 +665,10 @@ function collectReadinessFailures(healthSnapshot, readinessSnapshot, context = {
     && healthSnapshot.usageLedger.status !== "ready") {
     readinessFailures.push("usage-ledger-unavailable");
   }
+  if (healthSnapshot?.enterprise?.audit?.central
+    && healthSnapshot.enterprise.audit.central.status !== "ready") {
+    readinessFailures.push("audit-central-store-unavailable");
+  }
   if (context?.saturated) {
     readinessFailures.push("inflight-saturation");
   }

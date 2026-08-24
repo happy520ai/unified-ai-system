@@ -10,9 +10,11 @@ export function createHealth(application) {
   const usageLedgerReady = !realProviderEnabled || (
     usageLedger.status === "ready" && usageLedger.durableWritesRequired === true
   );
+  const enterpriseHealth = application.enterpriseGovernanceService.getHealth();
+  const enterpriseReady = enterpriseHealth.status === "ready";
   return {
     app: "ai-gateway-service",
-    status: usageLedgerReady ? "ready" : "degraded",
+    status: usageLedgerReady && enterpriseReady ? "ready" : "degraded",
     phase: "phase-7a-1-service-entry",
     routes: [
     "GET /health/check",
@@ -125,7 +127,7 @@ export function createHealth(application) {
     knowledgeInfra: application.knowledgeInfra.getReadiness(),
     workflow: application.workflowService.getHealth(),
     workforce: application.workforceService.getHealth(),
-    enterprise: application.enterpriseGovernanceService.getHealth(),
+    enterprise: enterpriseHealth,
     usageLedger: {
       ...usageLedger,
       requiredForRealProviders: realProviderEnabled,

@@ -314,12 +314,46 @@ plain JSONL audit file remains a compatibility mirror; a mirror write failure
 still blocks the protected operation, but it cannot make a successfully chained
 event disappear from later reads after restart.
 
+For cross-host gateways, add the central PostgreSQL HMAC chain while retaining
+the local chain as a host forensic mirror:
+
+```bash
+PME_AUDIT_STORE_MODE=postgres
+PME_AUDIT_POSTGRES_URL=<load-from-secret-manager>?sslmode=verify-full
+PME_AUDIT_POSTGRES_NAMESPACE=production
+PME_AUDIT_POSTGRES_HMAC_KEY_FILE=/run/secrets/audit-postgres-hmac.key
+PME_AUDIT_CENTRAL_REQUIRED=true
+PME_AUDIT_POSTGRES_MINIMUM_SEQUENCE=<externally-recorded-floor>
+PME_AUDIT_POSTGRES_TRUSTED_HASH=<hash-at-that-sequence>
+```
+
+The central backend serializes all replicas through a transactional state-row
+lock, assigns one global sequence, and binds each sanitized event to its
+previous hash with SHA-256 plus a dedicated 256-bit HMAC. State has its own
+HMAC. Append verification is O(1); explicit integrity verification walks the
+chain in bounded batches. Event IDs are idempotent and conflicting reuse fails
+closed. Tenant list/export reads the central store as canonical and never
+persist prompt, response, credential, or Authorization fields.
+
+`AI_GATEWAY_MULTI_INSTANCE=true` plus real-provider execution fails startup
+without central audit. `/healthz` and `/ready` emit
+`audit-central-store-unavailable` when its signed state cannot be verified.
+Non-loopback databases require `sslmode=verify-full` by default. The HMAC key,
+database URL, namespace, row HMACs and hashes are excluded from public health
+and metric labels.
+
 A valid HMAC checkpoint prevents undetected editing without the key, and an
 external sequence/hash floor detects replay below that floor. It still does not
 prove the configured path is actually external, immutable, independently
 retained, or protected from restoration of an older signed file. Health always
 reports `externalRetentionVerified=false`; production evidence must come from
 the storage and retention system, not this repository.
+
+The PostgreSQL chain has the same honesty boundary: it detects row/state edits,
+gaps and replay below the configured external floor, but a database administrator
+who can restore the database and the application secret boundary is outside
+that proof. Export signed checkpoints or sequence/hash floors to independently
+retained WORM/object-lock storage and test rollback detection there.
 
 ### Billable usage ledger
 

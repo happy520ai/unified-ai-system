@@ -148,6 +148,7 @@ jobs:
           apps/ai-gateway-service/src/http/postgresWebSocketExecutionLeaseManager.postgres.integration.test.ts
           apps/ai-gateway-service/src/workforce/postgresTaskClaimLease.postgres.integration.test.ts
           apps/ai-gateway-service/src/logging/postgresUsageLedger.postgres.integration.test.ts
+          apps/ai-gateway-service/src/enterprise/postgresAuditStore.postgres.integration.test.ts
 
       - name: Public repository hygiene
         run: pnpm check:public

@@ -149,6 +149,13 @@ described in the [multi-process deployment guide](./multi-process-deployment.md)
 The gateway can validate the signature and floor, but cannot self-certify that
 the target storage is external or immutable.
 
+Multi-instance real-provider deployments additionally require
+`PME_AUDIT_STORE_MODE=postgres`, a dedicated central HMAC key, and a verified
+TLS PostgreSQL URL. The central chain supplies one global sequence and canonical
+tenant reads across replicas; the local signed chain remains a forensic mirror.
+Neither backend self-certifies external WORM retention, so publish the central
+sequence/hash floor to an independently retained system.
+
 Immediately before every non-fake adapter attempt (including fallback,
 streaming, and explicitly enabled shadow traffic), the core gateway commits an
 `attempt-authorized` enterprise audit entry. The entry contains the tenant,

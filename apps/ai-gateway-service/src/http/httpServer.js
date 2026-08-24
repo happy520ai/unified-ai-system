@@ -967,6 +967,7 @@ export function createGatewayHttpServer(application) {
       await a2aGateway.close?.();
       await application.workforceExecutor?.close?.();
       await application.requestLogger?.close?.();
+      await application.enterpriseGovernanceService?.close?.();
       await openTelemetry.shutdown();
     })();
     return shutdownResourcesPromise;

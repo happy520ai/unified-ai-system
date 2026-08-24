@@ -171,6 +171,31 @@ describe("dispatchHttpRoutes02 healthz readiness", () => {
     expect(context.response.payload.error.details.readinessFailures).toContain("usage-ledger-unavailable");
   });
 
+  it("returns unready when the central enterprise audit store degrades", async () => {
+    const context = createEnvelopeContext({
+      createHealth: () => ({
+        app: "ai-gateway-service",
+        status: "degraded",
+        knowledge: { status: "ready" },
+        workflow: { status: "ready" },
+        workforce: { status: "ready" },
+        enterprise: {
+          status: "degraded",
+          audit: {
+            central: { status: "degraded", available: false },
+          },
+        },
+      }),
+    });
+
+    await dispatchHttpRoutes02(context);
+
+    expect(context.response.status).toBe(503);
+    expect(context.response.payload.error.details.readinessFailures).toContain(
+      "audit-central-store-unavailable",
+    );
+  });
+
   it("returns ready payload when saturation is below threshold", async () => {
     const context = createEnvelopeContext({
       resilienceMetrics: {

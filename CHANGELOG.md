@@ -29,6 +29,12 @@ and the project uses [Semantic Versioning](https://semver.org/).
   and terminal commits, per-attempt idempotency/conflict detection, tenant
   queries and spend aggregation, retention/capacity bounds, verified TLS,
   redacted health/metrics, and a fail-closed multi-instance real-provider gate.
+- Added a central PostgreSQL enterprise audit chain with transactional global
+  sequencing, per-entry hash/HMAC, signed state, external sequence/hash floors,
+  idempotent event IDs, tenant-scoped canonical reads, bounded append-only
+  capacity, chunked full verification, safe health/metrics, and a mandatory
+  multi-instance real-provider gate. External WORM retention remains an
+  independently verified deployment property.
 - Added OIDC SSO (authorization code + PKCE + JWKS RS256/ES256 ID-token
   verification, one-time state, issues an API token on login) and SCIM 2.0
   user provisioning (bearer-auth create/get/list/patch/deactivate) for

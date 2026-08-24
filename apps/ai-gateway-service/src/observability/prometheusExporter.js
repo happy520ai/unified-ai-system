@@ -275,6 +275,21 @@ export function createPrometheusExporter(options = {}) {
     lines.push(`# TYPE ${prefix}_usage_ledger_write_failures_total counter`);
     lines.push(`${prefix}_usage_ledger_write_failures_total ${safeMetricNumber(usageLedger?.totalWriteFailures)}`);
 
+    const centralAudit = snapshot.health?.enterprise?.audit?.central;
+    const centralAuditMode = sanitizeMetricLabel(centralAudit?.mode ?? "disabled");
+    const centralAuditAvailable = centralAudit
+      ? (centralAudit.status === "ready" && centralAudit.available !== false ? 1 : 0)
+      : 1;
+    lines.push(`# HELP ${prefix}_audit_central_store_available Whether the configured central enterprise audit store is reachable and verified`);
+    lines.push(`# TYPE ${prefix}_audit_central_store_available gauge`);
+    lines.push(`${prefix}_audit_central_store_available{mode="${centralAuditMode}"} ${centralAuditAvailable}`);
+    lines.push(`# HELP ${prefix}_audit_central_sequence Latest verified central enterprise audit sequence`);
+    lines.push(`# TYPE ${prefix}_audit_central_sequence gauge`);
+    lines.push(`${prefix}_audit_central_sequence ${safeMetricNumber(centralAudit?.sequence)}`);
+    lines.push(`# HELP ${prefix}_audit_external_retention_verified Whether external immutable retention is independently verified`);
+    lines.push(`# TYPE ${prefix}_audit_external_retention_verified gauge`);
+    lines.push(`${prefix}_audit_external_retention_verified ${centralAudit?.externalRetentionVerified === true ? 1 : 0}`);
+
     // Provider health score
     const sanitizeLabel = (v) => String(v).replace(/["\\}\n\r]/g, "_");
     lines.push(`# HELP ${prefix}_provider_health_score Provider health score (0-100)`);

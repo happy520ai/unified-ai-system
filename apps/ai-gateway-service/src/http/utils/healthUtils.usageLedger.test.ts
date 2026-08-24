@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { createHealth } from "./healthUtils.js";
 
-function createApplication({ realProviderEnabled, usageHealth }: {
+function createApplication({ realProviderEnabled, usageHealth, enterpriseHealth = { status: "ready" } }: {
   realProviderEnabled: boolean;
   usageHealth: Record<string, unknown>;
+  enterpriseHealth?: Record<string, unknown>;
 }) {
   return {
     config: {
@@ -17,7 +18,7 @@ function createApplication({ realProviderEnabled, usageHealth }: {
     knowledgeInfra: { getReadiness: () => ({ status: "ready" }) },
     workflowService: { getHealth: () => ({ status: "ready" }) },
     workforceService: { getHealth: () => ({ status: "ready", ready: true }) },
-    enterpriseGovernanceService: { getHealth: () => ({ status: "ready" }) },
+    enterpriseGovernanceService: { getHealth: () => enterpriseHealth },
     gatewayService: { getProviderDescriptors: () => [] },
   } as any;
 }
@@ -66,5 +67,29 @@ describe("health usage-ledger readiness", () => {
     }));
 
     expect(health.status).toBe("ready");
+  });
+
+  it("degrades readiness when the central enterprise audit store is unavailable", () => {
+    const health = createHealth(createApplication({
+      realProviderEnabled: false,
+      usageHealth: {
+        status: "ready",
+        persistence: "bounded-local-file",
+        durableWritesRequired: false,
+      },
+      enterpriseHealth: {
+        status: "degraded",
+        audit: {
+          mode: "postgres-hmac-chain-plus-local-mirror",
+          central: { status: "degraded", available: false },
+        },
+      },
+    }));
+
+    expect(health.status).toBe("degraded");
+    expect(health.enterprise).toMatchObject({
+      status: "degraded",
+      audit: { central: { available: false } },
+    });
   });
 });
