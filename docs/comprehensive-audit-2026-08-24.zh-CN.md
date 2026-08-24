@@ -74,7 +74,7 @@
 | `docs/` Markdown/HTML | 97 |
 | pnpm 工作区项目 | 20（含根项目） |
 | PR 相对 `origin/master` 变化文件 | 342（包含本报告） |
-| 已审实现相对 `origin/master` | 67 个提交领先 |
+| 已审实现相对 `origin/master` | 69 个提交领先 |
 | 当前 GitHub 采用快照 | 6 stars、2 forks；这是采用度快照，不是质量评分 |
 
 文件数、测试数和星标都不能单独证明质量；它们仅用于界定审计规模与市场成熟度。
@@ -125,6 +125,7 @@
 | AUD-19 | 高 | 本地 audit chain 无法给多主机提供一个全局序号和 canonical source | 增加 PostgreSQL 事务序号、entry/state HMAC、外部 floor、幂等 ID、租户读取、分块全验、TLS/readiness，并保留本地 forensic mirror | E3；真实 PostgreSQL 17 独立连接池的并发、幂等/冲突、租户读取、外部 floor 与篡改检测通过 |
 | AUD-20 | 高 | 中央 usage 虽能汇总，但无法把 provider statement 行与网关账本逐次核对 | 增加 `user:admin`、服务端 tenant 绑定、精确 attempt-ID、USD micro-unit 容差、缺失/重复/未决/未知/metadata 分类、版本化 SHA-256 摘要、字段/周期/行数/查询上限和审计摘要 | E3；单元 8/8、路由 2/2，真实 PostgreSQL usage 集成 2/2 含对账；provider 来源认证/签名和法律会计边界仍未完成 |
 | AUD-21 | 中高 | A2A TaskStore 只能 memory/同主机 SQLite，多主机无法共享任务生命周期 | 增加显式 PostgreSQL 模式、数据库时钟 TTL、事务全局/owner 计数、task-scoped lock、陈旧时间戳拒绝、tenant/owner 查询、SHA-256 腐坏检测、repeatable-read keyset 分页、远端 verify-full TLS、safe health/metrics 和 central-required 门 | E3；真实 PostgreSQL 17 两个独立 pool 的共享/隔离/分页/更新/容量/陈旧写/篡改检测 1/1；未声称执行租约或 exactly-once |
+| AUD-22 | 中 | Go 开环门要求 100 RPS/0 错误、允许 p95 750ms，却只给 managed gateway 16 个 in-flight 槽；runner 变慢时延迟仍在门内但会先触发 503，形成自相矛盾的抖动门 | 升级方法为 v2：managed cap 必须至少 `ceil(RPS × maxP95Seconds) + 5`，默认 80；独立突发扩大到 256 保留真实背压，矛盾的自定义参数直接拒绝 | E3；远端 v2 持续 500/500、0 错误、p95 7.45ms；突发 83 accepted/173 controlled 503，恢复与 8/8 中断均通过 |
 
 在本轮已审范围和现有自动化证据内，**没有仍然已知且未处置的 P0/P1 代码级缺陷**。这句话不等于“没有未知漏洞”，也不覆盖下节列出的生产证据阻断。
 
@@ -165,10 +166,10 @@
 
 | 门 | 结果 | 可复核链接 |
 | --- | --- | --- |
-| 完整 `quality` | 通过；实现提交 `909017fd`，attempt 2 为 6 分 22 秒 | [Run 32759868789 attempt 2](https://github.com/happy520ai/unified-ai-system/actions/runs/32759868789/attempts/2) |
-| PostgreSQL 集成 | 通过；8 个文件、17/17，含 A2A TaskStore 1/1、中央 audit 2/2、usage+statement comparison 2/2、Workforce claim 2/2 | 同一 quality run；attempt 1/2 均通过此门 |
+| 完整 `quality` | 通过；当前提交 `5c5a6e89`，6 分 57 秒 | [Run 32762506679](https://github.com/happy520ai/unified-ai-system/actions/runs/32762506679) |
+| PostgreSQL 集成 | 通过；8 个文件、17/17，含 A2A TaskStore 1/1、中央 audit 2/2、usage+statement comparison 2/2、Workforce claim 2/2 | 同一 quality run |
 | SLO/故障隔离 | 通过 | 同一 quality run |
-| 开环 soak/背压 | attempt 2 通过 | attempt 1 因 runner 延迟抖动出现 45 个受控 503；完整重跑同提交通过，失败历史保留，不将一次重跑写成长时稳定性证明 |
+| 开环 soak/背压 | v2 通过；持续 500/500、0 错误、p95 7.45ms；突发 83 accepted/173 controlled 503；恢复与 8/8 中断通过 | 同一 quality run；v1 在两个慢 runner 上分别出现 45/199 个持续段 503，失败历史保留并用于修正方法，不写成长时稳定性证明 |
 | 资源稳定性 soak | 通过 | 同一 quality run |
 | MCP、CLI、Go/C#/SDK 示例 | 全部通过 | 同一 quality run |
 | 代码/依赖扫描 | 通过 | [PR #115 checks](https://github.com/happy520ai/unified-ai-system/pull/115/checks) |
