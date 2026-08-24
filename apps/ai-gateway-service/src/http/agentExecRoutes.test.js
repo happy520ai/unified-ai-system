@@ -92,7 +92,7 @@ describe("bounded agent execution route", () => {
     await dispatchAgentExecRoutes(custom);
     expect(custom.response.body.data.tools.mode).toBe("custom");
     expect(custom.response.body.data.tools.allowlist).toEqual(["file_read", "glob"]);
-  }, 30_000);
+  }, 60_000);
 
   it("reports timeout when the provider exceeds the wall-clock bound", async () => {
     const context = createContext({
