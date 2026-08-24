@@ -238,6 +238,20 @@ externally retained checkpoint. Do not put the JSONL chain or its lock on NFS,
 SMB, or a cloud filesystem and do not describe this same-host lock as a
 distributed consensus protocol.
 
+### Same-host billable usage files
+
+Real-provider mode writes and fsyncs every usage record before returning a
+successful response. Each process uses a unique daily JSONL filename under the
+shared `AI_GATEWAY_USAGE_LOG_DIR`, preventing append and rotation collisions;
+the usage query endpoints aggregate a bounded window across those files. Keep
+that directory on a restricted local volume and collect every per-process file.
+
+This closes same-host writer collisions but is not a cross-host billing ledger
+or provider-invoice reconciliation system. A multi-host deployment must ship
+records to a reviewed central store, monitor ingestion lag and duplicates, and
+reconcile unknown-cost records before using the data for invoices or financial
+reporting.
+
 ## Cross-host PostgreSQL request quotas
 
 Memory rate limits are process-local and SQLite counters are same-host only.

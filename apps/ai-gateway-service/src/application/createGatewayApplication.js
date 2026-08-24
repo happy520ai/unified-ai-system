@@ -99,11 +99,14 @@ export function createGatewayApplication(env = process.env) {
   });
   // Usage ledger — persists every real chat call (tokens, latency, provider/model)
   // to a queryable JSONL store. Disable body logging to keep credentials/contents
-  // out of the ledger. Set AI_GATEWAY_USAGE_LOG_DIR to relocate, or the empty
-  // string to disable persistence while keeping the in-memory query surface.
+  // out of the ledger. Set AI_GATEWAY_USAGE_LOG_DIR to relocate. An empty path
+  // is allowed only for fake-only preview; real-provider startup fails closed.
   const requestLogger = createRequestLogger({
     logDir: env.AI_GATEWAY_USAGE_LOG_DIR,
     enableBodyLogging: false,
+    // A real provider call can create external cost. Those records must be
+    // fsynced individually; fake-only preview keeps the bounded buffer path.
+    durableWrites: config.aiGatewayService.realProviderEnabled,
   });
   // Optional model-access governance. The RBAC checker starts empty; role
   // assignments are loaded from AI_GATEWAY_RBAC_ROLES (JSON: { userId: [role] }).
@@ -128,6 +131,7 @@ export function createGatewayApplication(env = process.env) {
       chatContextCompaction: config.aiGatewayService.chatContextCompaction,
       // Cost guard is secure-by-default; operators may explicitly disable it.
       costGuardEnforce: String(env.AI_GATEWAY_COST_GUARD_ENFORCE ?? "true").toLowerCase() !== "false",
+      requireDurableUsageLedger: config.aiGatewayService.realProviderEnabled,
       shadowRealProviderEnabled: String(env.AI_GATEWAY_SHADOW_REAL_PROVIDER_ENABLED ?? "false").toLowerCase() === "true",
       shadowTimeoutMs: readBoundedNumber(env.AI_GATEWAY_SHADOW_TIMEOUT_MS, 30_000, 1_000, 120_000),
       // Opt-in model-access enforcement. Requires identity (metadata.userId) and

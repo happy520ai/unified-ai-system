@@ -4,6 +4,8 @@
  */
 
 export interface RequestLogEntry {
+  usageAttemptId?: string;
+  usageEventType?: "attempt-started" | "attempt-completed" | "attempt-failed";
   tenantId?: string;
   method?: string;
   path?: string;
@@ -35,6 +37,8 @@ export interface RequestLogEntry {
 export interface RequestLogRecord {
   id: string;
   timestamp: number;
+  usageAttemptId?: string;
+  usageEventType?: "attempt-started" | "attempt-completed" | "attempt-failed";
   tenantId: string;
   method?: string;
   path?: string;
@@ -83,6 +87,7 @@ export interface RequestLogStats {
   totalTokens: number;
   totalCostUsd: number;
   unknownCostRecords: number;
+  unresolvedBillableAttempts: number;
   errorRate: number;
   cacheHitRate: number;
   fallbackRate: number;
@@ -92,17 +97,22 @@ export interface RequestLogStats {
 
 export interface RequestLogger {
   log(entry: RequestLogEntry): void;
-  flush(): void;
+  flush(options?: { throwOnFailure?: boolean }): boolean;
+  assertDurable(): boolean;
   query(filter?: RequestLogQuery): RequestLogRecord[];
   getStats(filter?: RequestLogQuery): RequestLogStats;
   getHealth(): Record<string, unknown>;
+  close(): void;
 }
 
 export interface RequestLoggerOptions {
   logDir?: string;
   maxLogSizeBytes?: number;
   enableBodyLogging?: boolean;
+  enableIdentityLogging?: boolean;
   maxBodyLogSize?: number;
+  maxRetentionDays?: number;
+  durableWrites?: boolean;
 }
 
 export declare function createRequestLogger(options?: RequestLoggerOptions): RequestLogger;

@@ -144,7 +144,7 @@ describe("GatewayService weighted + shadow integration", () => {
         shadowRealProviderEnabled: false,
         fallbackEnabled: false,
       },
-      requestLogger: { log: (entry) => blockedEntries.push(entry) },
+      requestLogger: { assertDurable: () => true, log: (entry) => blockedEntries.push(entry) },
       weightedTrafficPolicy: policy,
     });
 
@@ -153,6 +153,7 @@ describe("GatewayService weighted + shadow integration", () => {
     expect(generate).not.toHaveBeenCalled();
     expect(blockedEntries.find((entry) => entry.shadow)).toEqual(expect.objectContaining({
       provider: "real-shadow",
+      usageEventType: "attempt-failed",
       providerCallAttempted: false,
       billable: false,
       estimatedCostUsd: 0,
@@ -170,18 +171,19 @@ describe("GatewayService weighted + shadow integration", () => {
         shadowRealProviderEnabled: true,
         fallbackEnabled: false,
       },
-      requestLogger: { log: (entry) => entries.push(entry) },
+      requestLogger: { assertDurable: () => true, log: (entry) => entries.push(entry) },
       weightedTrafficPolicy: policy,
     });
     expect((await explicitlyEnabled.execute({ messages: [{ role: "user", content: "route me again" }] })).success).toBe(true);
     await new Promise((resolve) => setTimeout(resolve, 30));
     expect(generate).toHaveBeenCalledOnce();
-    expect(entries.find((entry) => entry.shadow)).toEqual(expect.objectContaining({
+    expect(entries.find((entry) => entry.shadow && entry.usageEventType === "attempt-completed"))
+      .toEqual(expect.objectContaining({
       provider: "real-shadow",
       providerCallAttempted: true,
       billable: true,
       costSource: "static-fallback-estimate",
       costEstimateAvailable: true,
-    }));
+      }));
   });
 });

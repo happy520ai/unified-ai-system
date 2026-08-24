@@ -645,6 +645,10 @@ function collectReadinessFailures(healthSnapshot, readinessSnapshot, context = {
   if (healthSnapshot?.workforce?.status !== "ready") {
     readinessFailures.push("workforce");
   }
+  if (healthSnapshot?.usageLedger?.requiredForRealProviders === true
+    && healthSnapshot.usageLedger.status !== "ready") {
+    readinessFailures.push("usage-ledger-unavailable");
+  }
   if (context?.saturated) {
     readinessFailures.push("inflight-saturation");
   }

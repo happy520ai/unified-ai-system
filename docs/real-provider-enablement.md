@@ -106,10 +106,33 @@ variable and restart.
 ## Cost control
 
 - Pin one cheap model first (`gpt-4o-mini` class); widen only after
-  `GET /cost/summary` and the token ledger look healthy.
+  `GET /usage/summary` reports `health.status=ready`,
+  `health.durableWritesRequired=true`, and no unknown-cost records. The
+  `/cost/summary` route is the preview-only cost-guard estimate ledger; it is
+  not evidence of provider-billed usage.
 - `POST /cost/guard/check` and the request-path token cost guard remain active
   in real mode and hard-block over-budget requests.
 - The CI smoke is `workflow_dispatch`-only on purpose: no automatic spend.
+
+Real-provider startup requires a writable `AI_GATEWAY_USAGE_LOG_DIR` (default
+`.data/request-logs`). Setting it to the empty string blocks startup. Before a
+billable adapter is invoked, the gateway checks that the durable ledger is
+available and fsyncs a write-ahead attempt record. Each terminal result is then
+written and fsynced before the route can report success; a post-call disk
+failure returns `USAGE_LEDGER_WRITE_FAILED` instead of hiding the unmetered
+result. A crash between those records remains visible as
+`unresolvedBillableAttempts` and contributes to `unknownCostRecords`. Every
+fallback and shadow-provider attempt receives its own paired lifecycle. Fake-only
+preview retains bounded, fail-open buffering so a local demo does not become
+unavailable because its optional log directory is unwritable.
+
+Each process writes a unique current-day JSONL file to avoid cross-process
+append and rotation races, while `/usage/summary` and `/usage/logs` aggregate a
+bounded current-day window from the shared directory. This is a durable local
+operational ledger, not a legal invoice, provider reconciliation, or a
+cross-host billing database. Cross-host replicas must ship these files to a
+reviewed central ledger and reconcile them against provider invoices before
+claiming production billing completeness.
 
 ## What never changes when real mode is on
 

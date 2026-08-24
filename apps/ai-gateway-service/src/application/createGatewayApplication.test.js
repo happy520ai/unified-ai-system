@@ -135,4 +135,18 @@ describe("gateway-application", () => {
     expect(result.meta.providerCalled).toBe(false);
     expect(fetchImpl).not.toHaveBeenCalled();
   });
+
+  it("refuses real-provider startup when durable usage persistence is disabled", () => {
+    expect(() => createGatewayApplication({
+      AI_GATEWAY_PROVIDER_MODE: "real",
+      AI_GATEWAY_REAL_PROVIDER_ENABLED: "true",
+      AI_GATEWAY_ENABLED_PROVIDERS: "openai",
+      AI_GATEWAY_USAGE_LOG_DIR: "",
+      PME_ENTERPRISE_AUTH_ENABLED: "true",
+      PME_AUTH_TOKEN: "test-placeholder-auth-token",
+    })).toThrowError(expect.objectContaining({
+      code: "USAGE_LEDGER_UNAVAILABLE",
+      category: "billing",
+    }));
+  });
 });

@@ -134,6 +134,9 @@ Current checks include:
 ## 4) Incident response checklist
 
 1. Check `error.details.readinessFailures` in `/healthz` (or `/ready`) when status is 503.
+   Real-provider deployments report `usage-ledger-unavailable` when the
+   required durable usage ledger is degraded; provider execution remains
+   blocked until buffered evidence is committed and health recovers.
 2. Compare `gateway_readiness_events_total` against reasons (`knowledge`, `workflow`, `service-dependency`, `inflight-saturation`, `gateway-error-circuit`).
 3. Confirm `healthzInFlightThreshold` and in-flight counts in `saturation`.
 4. Correlate with `/ready`, then `/health`, then dependency routes.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createRequestLogger } from "./requestLogger.js";
@@ -69,6 +69,151 @@ describe("requestLogger persistence", () => {
       logger.close();
     } finally {
       rmSync(logDir, { recursive: true, force: true });
+    }
+  });
+
+  it("fsyncs every durable record and exposes durable health", () => {
+    const logDir = mkdtempSync(join(tmpdir(), "request-logger-durable-"));
+    try {
+      const logger = createRequestLogger({ logDir, durableWrites: true });
+      expect(logger.assertDurable()).toBe(true);
+      logger.log({
+        tenantId: "tenant-a",
+        method: "POST",
+        path: "/v1/chat/completions",
+        statusCode: 200,
+        provider: "real-provider",
+        model: "real-model",
+        totalTokens: 12,
+        providerCallAttempted: true,
+        billable: true,
+      });
+
+      expect(logger.query({ tenantId: "tenant-a" })).toHaveLength(1);
+      expect(logger.getHealth()).toEqual(expect.objectContaining({
+        status: "ready",
+        persistence: "bounded-local-file",
+        durableWritesRequired: true,
+        bufferSize: 0,
+        totalWriteFailures: 0,
+        consecutiveWriteFailures: 0,
+        lastWriteSuccessAt: expect.any(String),
+      }));
+      logger.close();
+    } finally {
+      rmSync(logDir, { recursive: true, force: true });
+    }
+  });
+
+  it("separates concurrent process files while aggregating their usage", () => {
+    const logDir = mkdtempSync(join(tmpdir(), "request-logger-multi-instance-"));
+    try {
+      const first = createRequestLogger({ logDir, durableWrites: true });
+      const second = createRequestLogger({ logDir, durableWrites: true });
+      first.log({ tenantId: "tenant-a", provider: "provider-a", totalTokens: 3 });
+      second.log({ tenantId: "tenant-a", provider: "provider-b", totalTokens: 5 });
+
+      const records = first.query({ tenantId: "tenant-a" });
+      expect(records).toHaveLength(2);
+      expect(new Set(records.map((record) => record.provider))).toEqual(new Set(["provider-a", "provider-b"]));
+      expect(first.getStats({ tenantId: "tenant-a" }).totalTokens).toBe(8);
+      first.close();
+      second.close();
+    } finally {
+      rmSync(logDir, { recursive: true, force: true });
+    }
+  });
+
+  it("reports write-ahead attempts as unresolved until a terminal record commits", () => {
+    const logDir = mkdtempSync(join(tmpdir(), "request-logger-attempt-"));
+    try {
+      const logger = createRequestLogger({ logDir, durableWrites: true });
+      logger.log({
+        usageAttemptId: "attempt-1",
+        usageEventType: "attempt-started",
+        provider: "real-provider",
+        providerCallAttempted: true,
+        billable: true,
+        costEstimateAvailable: false,
+      });
+      expect(logger.getStats({})).toEqual(expect.objectContaining({
+        totalRequests: 0,
+        unknownCostRecords: 1,
+        unresolvedBillableAttempts: 1,
+      }));
+
+      logger.log({
+        usageAttemptId: "attempt-1",
+        usageEventType: "attempt-completed",
+        provider: "real-provider",
+        providerCallAttempted: true,
+        billable: true,
+        totalTokens: 9,
+        estimatedCostUsd: 0.001,
+        costEstimateAvailable: true,
+      });
+      expect(logger.getStats({})).toEqual(expect.objectContaining({
+        totalRequests: 1,
+        totalTokens: 9,
+        unknownCostRecords: 0,
+        unresolvedBillableAttempts: 0,
+      }));
+      logger.close();
+    } finally {
+      rmSync(logDir, { recursive: true, force: true });
+    }
+  });
+
+  it("fails closed when durable storage is unavailable and recovers buffered evidence", () => {
+    const root = mkdtempSync(join(tmpdir(), "request-logger-durable-failure-"));
+    const logDir = join(root, "logs");
+    mkdirSync(logDir);
+    try {
+      const logger = createRequestLogger({ logDir, durableWrites: true });
+      rmSync(logDir, { recursive: true, force: true });
+      writeFileSync(logDir, "not a directory", "utf8");
+
+      expect(() => logger.log({
+        method: "POST",
+        path: "/v1/chat/completions",
+        statusCode: 200,
+        providerCallAttempted: true,
+        billable: true,
+      })).toThrowError(expect.objectContaining({ code: "USAGE_LEDGER_WRITE_FAILED" }));
+      expect(logger.getHealth()).toEqual(expect.objectContaining({
+        status: "degraded",
+        bufferSize: 1,
+        totalWriteFailures: 1,
+        consecutiveWriteFailures: 1,
+      }));
+
+      rmSync(logDir, { force: true });
+      mkdirSync(logDir);
+      expect(logger.assertDurable()).toBe(true);
+      expect(logger.query({})).toHaveLength(1);
+      expect(logger.getHealth()).toEqual(expect.objectContaining({
+        status: "ready",
+        bufferSize: 0,
+        consecutiveWriteFailures: 0,
+      }));
+      logger.close();
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses to construct a durable logger on a memory-only or invalid path", () => {
+    expect(() => createRequestLogger({ logDir: "", durableWrites: true }))
+      .toThrowError(expect.objectContaining({ code: "USAGE_LEDGER_UNAVAILABLE" }));
+
+    const root = mkdtempSync(join(tmpdir(), "request-logger-durable-invalid-"));
+    try {
+      const blocker = join(root, "blocker");
+      writeFileSync(blocker, "not a directory", "utf8");
+      expect(() => createRequestLogger({ logDir: join(blocker, "logs"), durableWrites: true }))
+        .toThrowError(expect.objectContaining({ code: "USAGE_LEDGER_UNAVAILABLE" }));
+    } finally {
+      rmSync(root, { recursive: true, force: true });
     }
   });
 

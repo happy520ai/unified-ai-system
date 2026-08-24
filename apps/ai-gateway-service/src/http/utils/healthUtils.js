@@ -1,9 +1,18 @@
 import { listModelImportProviders } from "../../model-import/providerProbeRegistry.js";
 
 export function createHealth(application) {
+  const realProviderEnabled = application.config.aiGatewayService.realProviderEnabled === true;
+  const usageLedger = application.requestLogger?.getHealth?.() ?? {
+    status: "disabled",
+    persistence: "none",
+    durableWritesRequired: false,
+  };
+  const usageLedgerReady = !realProviderEnabled || (
+    usageLedger.status === "ready" && usageLedger.durableWritesRequired === true
+  );
   return {
     app: "ai-gateway-service",
-    status: "ready",
+    status: usageLedgerReady ? "ready" : "degraded",
     phase: "phase-7a-1-service-entry",
     routes: [
     "GET /health/check",
@@ -53,6 +62,8 @@ export function createHealth(application) {
       "POST /cost/estimate",
       "POST /cost/guard/check",
       "GET /cost/summary",
+      "GET /usage/summary",
+      "GET /usage/logs",
       "GET /cache/health",
       "POST /cache/lookup",
       "POST /cache/write",
@@ -115,8 +126,12 @@ export function createHealth(application) {
     workflow: application.workflowService.getHealth(),
     workforce: application.workforceService.getHealth(),
     enterprise: application.enterpriseGovernanceService.getHealth(),
+    usageLedger: {
+      ...usageLedger,
+      requiredForRealProviders: realProviderEnabled,
+    },
     providerMode: application.config.aiGatewayService.providerMode,
-    realProviderEnabled: application.config.aiGatewayService.realProviderEnabled,
+    realProviderEnabled,
     providers: application.gatewayService.getProviderDescriptors(),
   };
 }

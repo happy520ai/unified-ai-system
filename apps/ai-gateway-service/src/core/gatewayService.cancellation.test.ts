@@ -90,7 +90,7 @@ describe("GatewayService execution cancellation", () => {
         enabledProviders: ["provider-1"],
         fallbackEnabled: false,
       },
-      requestLogger: { log: (entry: any) => entries.push(entry) },
+      requestLogger: { assertDurable: () => true, log: (entry: any) => entries.push(entry) },
     });
     const pending = service.execute(
       { messages: [{ role: "user", content: "cancel billed call" }] },
@@ -105,9 +105,19 @@ describe("GatewayService execution cancellation", () => {
     controller.abort(cancellation);
 
     await expect(pending).rejects.toBe(cancellation);
-    expect(entries).toHaveLength(1);
+    expect(entries).toHaveLength(2);
     expect(entries[0]).toEqual(expect.objectContaining({
       provider: "provider-1",
+      usageEventType: "attempt-started",
+      providerCallAttempted: true,
+      billable: true,
+      costSource: "pending-provider-attempt",
+      costEstimateAvailable: false,
+    }));
+    expect(entries[1]).toEqual(expect.objectContaining({
+      provider: "provider-1",
+      usageAttemptId: entries[0].usageAttemptId,
+      usageEventType: "attempt-failed",
       providerCallAttempted: true,
       billable: true,
       estimatedCostUsd: 0,

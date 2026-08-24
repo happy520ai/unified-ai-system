@@ -82,7 +82,11 @@ function buildRealProviderService(runtimeConfig) {
   return {
     generate,
     generateStream,
-    service: new GatewayService({ providerRegistry: registry, runtimeConfig }),
+    service: new GatewayService({
+      providerRegistry: registry,
+      runtimeConfig,
+      requestLogger: { assertDurable: () => true, log: () => {} },
+    }),
   };
 }
 

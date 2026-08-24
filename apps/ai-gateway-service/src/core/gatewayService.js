@@ -23,6 +23,7 @@ import {
   throwIfExecutionAborted,
 } from "@unified-ai-system/shared-utils";
 import { assertProviderExecutionAllowed } from "../providers/providerExecutionGate.ts";
+import { randomUUID } from "node:crypto";
 
 
 export class GatewayService {
@@ -34,7 +35,8 @@ export class GatewayService {
     this.healthScorer = healthScorer;
     // Optional usage ledger — when present, chat attempts are persisted with
     // token counts, latency, provider/model and status so operators can query
-    // usage without external tooling. Fail-open: a ledger error never alters chat.
+    // usage without external tooling. Fake-only preview is fail-open; billable
+    // execution can require a durable, fail-closed ledger.
     this.requestLogger = requestLogger;
     // Optional governance checker (e.g. advancedRBAC) — when present and enabled
     // via runtimeConfig.modelAccessEnforce, the selected model is checked against
@@ -49,7 +51,6 @@ export class GatewayService {
     const startedAt = Date.now();
     let request;
     let selection;
-    let providerCallAttempted = false;
     let compactionWarnings = [];
 
     try {
@@ -83,9 +84,6 @@ export class GatewayService {
         onAttemptSelected: (attemptSelection) => {
           selection = attemptSelection;
         },
-        onProviderCallStarted: () => {
-          providerCallAttempted = true;
-        },
       });
       selection = attemptResult.selection;
       const providerResult = attemptResult.providerResult;
@@ -96,14 +94,6 @@ export class GatewayService {
         model: selection.selected.target.modelId,
         executionStatus: providerResult.executionStatus ?? "success",
         durationMs: Date.now() - startedAt,
-      });
-      this.#recordUsage({
-        request,
-        selection,
-        providerResult,
-        providerCallAttempted,
-        startedAt,
-        shadow: execution.shadow === true,
       });
       const response = createGatewayResponse(request, selection, providerResult, startedAt, this.runtimeConfig, [...compactionWarnings, ...attemptResult.warnings]);
 
@@ -124,14 +114,6 @@ export class GatewayService {
           code: cancellation.code,
           durationMs: Date.now() - startedAt,
         });
-        this.#recordUsage({
-          request,
-          selection,
-          providerCallAttempted,
-          startedAt,
-          error: cancellation,
-          shadow: execution.shadow === true,
-        });
         throw cancellation;
       }
       writeGatewayLog("provider_call_failed", {
@@ -142,14 +124,6 @@ export class GatewayService {
         code: error?.code,
         message: error instanceof Error ? error.message : "Gateway route execution failed.",
         durationMs: Date.now() - startedAt,
-      });
-      this.#recordUsage({
-        request,
-        selection,
-        providerCallAttempted,
-        startedAt,
-        error,
-        shadow: execution.shadow === true,
       });
       return createRouteFailureEnvelope(error, {
         request,
@@ -165,7 +139,6 @@ export class GatewayService {
     let request;
     let selection;
     let outputText = "";
-    let providerCallAttempted = false;
 
     try {
       throwIfExecutionAborted(execution.signal);
@@ -180,12 +153,15 @@ export class GatewayService {
       for (const attempt of createFallbackAttempts(baseSelection, this.runtimeConfig)) {
         throwIfExecutionAborted(execution.signal);
         selection = createAttemptSelection(baseSelection, attempt.candidate, attempt.index);
+        let providerCallStarted = false;
+        let usageAttemptId = null;
         assertProviderExecutionAllowed({
           providerId: selection.selected.target.providerId,
           providerType: selection.selected.providerType,
           runtimeConfig: this.runtimeConfig,
           shadowRequest: execution.shadow === true,
         });
+        this.#assertUsageLedgerReady(selection);
 
         if (typeof selection.selected.provider.generateStream !== "function") {
           const error = new Error("Selected provider does not support streaming.");
@@ -202,8 +178,6 @@ export class GatewayService {
           model: selection.selected.target.modelId,
           attempt: attempt.index + 1,
         });
-        providerCallAttempted = true;
-
         let emittedChunk = false;
         let finalProviderRaw;
 
@@ -216,6 +190,13 @@ export class GatewayService {
         });
 
         try {
+          usageAttemptId = this.#beginUsageAttempt({
+            request,
+            selection,
+            startedAt,
+            shadow: execution.shadow === true,
+          });
+          providerCallStarted = true;
           for await (const providerChunk of selection.selected.provider.generateStream({
             ...createProviderRequest({
               request,
@@ -259,10 +240,11 @@ export class GatewayService {
           this.#recordUsage({
             request,
             selection,
-            providerCallAttempted,
+            providerCallAttempted: true,
             startedAt,
             outputText,
             shadow: execution.shadow === true,
+            usageAttemptId,
           });
 
           yield createStreamEvent("done", {
@@ -275,6 +257,22 @@ export class GatewayService {
           });
           return;
         } catch (error) {
+          if (!isUsageLedgerError(error) && providerCallStarted) {
+            try {
+              this.#recordUsage({
+                request,
+                selection,
+                providerCallAttempted: true,
+                startedAt,
+                error,
+                outputText,
+                shadow: execution.shadow === true,
+                usageAttemptId,
+              });
+            } catch (usageError) {
+              throw usageError;
+            }
+          }
           const cancellation = findExecutionAbortError(error, execution.signal);
           if (cancellation) {
             writeGatewayLog("provider_stream_cancelled", {
@@ -319,14 +317,6 @@ export class GatewayService {
     } catch (error) {
       const cancellation = findExecutionAbortError(error, execution.signal);
       if (cancellation) {
-        this.#recordUsage({
-          request,
-          selection,
-          providerCallAttempted,
-          startedAt,
-          error: cancellation,
-          shadow: execution.shadow === true,
-        });
         throw cancellation;
       }
       writeGatewayLog("provider_stream_failed", {
@@ -337,15 +327,6 @@ export class GatewayService {
         code: error?.code,
         message: error instanceof Error ? error.message : "Gateway stream execution failed.",
         durationMs: Date.now() - startedAt,
-      });
-
-      this.#recordUsage({
-        request,
-        selection,
-        providerCallAttempted,
-        startedAt,
-        error,
-        shadow: execution.shadow === true,
       });
 
       yield {
@@ -376,6 +357,8 @@ export class GatewayService {
       throwIfExecutionAborted(execution.signal);
       const attemptSelection = createAttemptSelection(baseSelection, attempt.candidate, attempt.index);
       hooks.onAttemptSelected?.(attemptSelection);
+      let providerCallStarted = false;
+      let usageAttemptId = null;
 
       try {
         assertProviderExecutionAllowed({
@@ -383,6 +366,13 @@ export class GatewayService {
           providerType: attemptSelection.selected.providerType,
           runtimeConfig: this.runtimeConfig,
           shadowRequest: execution.shadow === true,
+        });
+        this.#assertUsageLedgerReady(attemptSelection);
+        usageAttemptId = this.#beginUsageAttempt({
+          request,
+          selection: attemptSelection,
+          startedAt,
+          shadow: execution.shadow === true,
         });
         writeGatewayLog("provider_call_start", {
           requestId: request.context.requestId,
@@ -392,6 +382,7 @@ export class GatewayService {
           attempt: attempt.index + 1,
         });
         hooks.onProviderCallStarted?.(attemptSelection);
+        providerCallStarted = true;
         const providerResult = await attemptSelection.selected.provider.generate({
           ...createProviderRequest({
             request,
@@ -400,6 +391,15 @@ export class GatewayService {
           }),
         });
         throwIfExecutionAborted(execution.signal);
+        this.#recordUsage({
+          request,
+          selection: attemptSelection,
+          providerResult,
+          providerCallAttempted: true,
+          startedAt,
+          shadow: execution.shadow === true,
+          usageAttemptId,
+        });
 
         // Record successful call for health-weighted selection
         if (this.healthScorer) {
@@ -425,6 +425,32 @@ export class GatewayService {
         };
       } catch (error) {
         lastError = error;
+
+        if (isUsageLedgerError(error)) throw error;
+        if (providerCallStarted) {
+          try {
+            this.#recordUsage({
+              request,
+              selection: attemptSelection,
+              providerCallAttempted: true,
+              startedAt,
+              error,
+              shadow: execution.shadow === true,
+              usageAttemptId,
+            });
+          } catch (usageError) {
+            throw usageError;
+          }
+        } else {
+          this.#recordUsage({
+            request,
+            selection: attemptSelection,
+            providerCallAttempted: false,
+            startedAt,
+            error,
+            shadow: execution.shadow === true,
+          });
+        }
 
         const cancellation = findExecutionAbortError(error, execution.signal);
         if (cancellation) throw cancellation;
@@ -629,18 +655,24 @@ export class GatewayService {
     error = null,
     outputText = "",
     shadow = false,
+    usageAttemptId = null,
   }) {
-    if (!this.requestLogger) return;
+    const providerType = selection?.selected?.providerType ?? error?.details?.providerType;
+    const billable = providerCallAttempted && providerType !== "fake";
+    if (!this.requestLogger) {
+      if (billable && this.runtimeConfig.realProviderEnabled === true) {
+        throw createUsageLedgerFailure("USAGE_LEDGER_UNAVAILABLE");
+      }
+      return;
+    }
     try {
       const usage = providerResult?.usage ?? {};
       const inputTokens = Number(usage.inputTokens ?? 0);
       const outputTokens = Number(usage.outputTokens ?? (outputText ? estimateOutputTokens(outputText) : 0));
       const totalTokens = Number(usage.totalTokens ?? (inputTokens + outputTokens));
       const fallbackAttempt = selection?.metadata?.fallbackAttempt ?? 1;
-      const providerType = selection?.selected?.providerType ?? error?.details?.providerType;
       const providerReportedCost = Number(providerResult?.estimatedCostUsd ?? usage.estimatedCostUsd);
       const hasProviderReportedCost = Number.isFinite(providerReportedCost) && providerReportedCost >= 0;
-      const billable = providerCallAttempted && providerType !== "fake";
       const hasTokenEstimate = totalTokens > 0;
       const costEstimateAvailable = !billable || hasProviderReportedCost || hasTokenEstimate;
       const estimatedCostUsd = !billable
@@ -661,6 +693,8 @@ export class GatewayService {
               : "unavailable-after-attempt";
 
       this.requestLogger.log({
+        usageAttemptId: usageAttemptId ?? undefined,
+        usageEventType: error ? "attempt-failed" : "attempt-completed",
         method: "POST",
         path: shadow ? "/v1/chat/completions:shadow" : "/v1/chat/completions",
         statusCode: error ? 500 : 200,
@@ -683,8 +717,60 @@ export class GatewayService {
         tenantId: request?.enterpriseIdentity?.tenantId ?? request?.context?.tenantId ?? "default",
       });
     } catch (err) {
-      // Fail-open: a usage-ledger failure must never break or alter the chat path.
       writeGatewayLog("usage_ledger_write_failed", { message: err?.message ?? "unknown" });
+      if (billable && this.runtimeConfig.realProviderEnabled === true) {
+        throw createUsageLedgerFailure(err?.code, err);
+      }
+    }
+  }
+
+  #beginUsageAttempt({ request, selection, startedAt, shadow = false }) {
+    if (selection?.selected?.providerType === "fake" || !this.requestLogger) return null;
+    const usageAttemptId = randomUUID();
+    try {
+      this.requestLogger.log({
+        usageAttemptId,
+        usageEventType: "attempt-started",
+        method: "POST",
+        path: shadow ? "/v1/chat/completions:shadow" : "/v1/chat/completions",
+        statusCode: 102,
+        latencyMs: Date.now() - startedAt,
+        provider: selection?.selected?.target?.providerId,
+        model: selection?.selected?.target?.modelId,
+        inputTokens: 0,
+        outputTokens: 0,
+        totalTokens: 0,
+        estimatedCostUsd: 0,
+        costSource: "pending-provider-attempt",
+        costEstimateAvailable: false,
+        cacheHit: false,
+        fallbackUsed: (selection?.metadata?.fallbackAttempt ?? 1) > 1,
+        shadow,
+        providerCallAttempted: true,
+        billable: true,
+        traceId: request?.context?.traceId,
+        tenantId: request?.enterpriseIdentity?.tenantId ?? request?.context?.tenantId ?? "default",
+      });
+      return usageAttemptId;
+    } catch (error) {
+      writeGatewayLog("usage_ledger_reservation_failed", { message: error?.message ?? "unknown" });
+      if (this.runtimeConfig.realProviderEnabled === true) {
+        throw createUsageLedgerFailure(error?.code, error);
+      }
+      return null;
+    }
+  }
+
+  #assertUsageLedgerReady(selection) {
+    if (this.runtimeConfig.realProviderEnabled !== true) return;
+    if (selection?.selected?.providerType === "fake") return;
+    if (!this.requestLogger || typeof this.requestLogger.assertDurable !== "function") {
+      throw createUsageLedgerFailure("USAGE_LEDGER_UNAVAILABLE");
+    }
+    try {
+      this.requestLogger.assertDurable();
+    } catch (error) {
+      throw createUsageLedgerFailure(error?.code, error);
     }
   }
 }
@@ -694,3 +780,23 @@ function estimateOutputTokens(text) {
 }
 
 export { createRouteFailureEnvelope };
+
+function createUsageLedgerFailure(code, cause) {
+  const normalizedCode = code === "USAGE_LEDGER_UNAVAILABLE"
+    ? "USAGE_LEDGER_UNAVAILABLE"
+    : "USAGE_LEDGER_WRITE_FAILED";
+  const error = new Error(
+    normalizedCode === "USAGE_LEDGER_UNAVAILABLE"
+      ? "Billable provider execution is blocked because the durable usage ledger is unavailable."
+      : "The billable provider result could not be committed to the durable usage ledger.",
+  );
+  error.code = normalizedCode;
+  error.category = "billing";
+  error.retryable = true;
+  if (cause) error.cause = cause;
+  return error;
+}
+
+function isUsageLedgerError(error) {
+  return error?.code === "USAGE_LEDGER_UNAVAILABLE" || error?.code === "USAGE_LEDGER_WRITE_FAILED";
+}

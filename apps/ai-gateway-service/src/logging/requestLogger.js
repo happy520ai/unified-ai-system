@@ -25,6 +25,7 @@ const MAX_MEMORY_RECORDS = BUFFER_FLUSH_SIZE * 4;
 
 export function createRequestLogger(options = {}) {
   const persistenceEnabled = options.logDir !== "";
+  const durableWrites = options.durableWrites === true;
   const logDir = options.logDir ?? resolve(process.cwd(), ".data/request-logs");
   const maxLogSizeBytes = clampInteger(
     options.maxLogSizeBytes,
@@ -36,6 +37,13 @@ export function createRequestLogger(options = {}) {
   const enableBodyLogging = options.enableBodyLogging === true;
   const enableIdentityLogging = options.enableIdentityLogging === true;
   const maxBodyLogSize = clampInteger(options.maxBodyLogSize, 4096, 256, 64 * 1024);
+  // Per-process files eliminate cross-process append/rotation races while the
+  // query surface still aggregates a bounded set of current-day files.
+  const instanceFileId = `${process.pid}-${randomUUID().slice(0, 12)}`;
+
+  if (durableWrites && !persistenceEnabled) {
+    throw createUsageLedgerError("USAGE_LEDGER_UNAVAILABLE");
+  }
 
   let logDirWritable = persistenceEnabled;
   if (persistenceEnabled) {
@@ -49,8 +57,11 @@ export function createRequestLogger(options = {}) {
       } catch {
         // POSIX mode is not the Windows ACL boundary.
       }
-    } catch {
+    } catch (error) {
       logDirWritable = false;
+      if (durableWrites) {
+        throw createUsageLedgerError("USAGE_LEDGER_UNAVAILABLE", error);
+      }
       console.warn(
         "[requestLogger] log directory unavailable; request logs stay in bounded memory only.",
       );
@@ -59,11 +70,18 @@ export function createRequestLogger(options = {}) {
 
   const buffer = [];
   let lastRetentionPruneDate = "";
+  let totalWriteFailures = 0;
+  let consecutiveWriteFailures = 0;
+  let lastWriteSuccessAt = null;
+  let lastWriteFailureAt = null;
+  let lastWriteErrorCode = null;
 
   function log(entry = {}) {
     const record = sanitizeLogValue({
       id: randomUUID(),
       timestamp: Date.now(),
+      usageAttemptId: optionalText(entry.usageAttemptId, 256),
+      usageEventType: optionalText(entry.usageEventType, 64),
       tenantId: sanitizeLogText(entry.tenantId ?? "default", 256),
       method: sanitizeLogText(entry.method, 16),
       path: sanitizeLogText(entry.path, 2048),
@@ -104,25 +122,36 @@ export function createRequestLogger(options = {}) {
     }
 
     buffer.push(record);
-    if (buffer.length >= BUFFER_FLUSH_SIZE) {
+    if (durableWrites) {
+      flush({ throwOnFailure: true });
+    } else if (buffer.length >= BUFFER_FLUSH_SIZE) {
       flush();
     }
   }
 
-  function flush() {
-    if (buffer.length === 0) return;
+  function flush({ throwOnFailure = durableWrites } = {}) {
+    if (buffer.length === 0) return true;
     if (!logDirWritable) {
       if (buffer.length > MAX_MEMORY_RECORDS) {
         buffer.splice(0, buffer.length - MAX_MEMORY_RECORDS);
       }
-      return;
+      if (throwOnFailure) {
+        throw createUsageLedgerError("USAGE_LEDGER_UNAVAILABLE");
+      }
+      return false;
     }
 
     const today = new Date().toISOString().slice(0, 10);
-    const logFile = resolve(logDir, "requests-" + today + ".jsonl");
+    const logFile = resolve(logDir, `requests-${today}-${instanceFileId}.jsonl`);
     const pending = buffer.splice(0);
     const lines = serializeBoundedRecords(pending, maxLogSizeBytes);
-    if (!lines) return;
+    if (!lines) {
+      buffer.unshift(...pending);
+      if (throwOnFailure) {
+        throw createUsageLedgerError("USAGE_LEDGER_WRITE_FAILED");
+      }
+      return false;
+    }
 
     try {
       if (lastRetentionPruneDate !== today) {
@@ -136,31 +165,53 @@ export function createRequestLogger(options = {}) {
       } catch {
         // POSIX mode is not the Windows ACL boundary.
       }
+      consecutiveWriteFailures = 0;
+      lastWriteSuccessAt = new Date().toISOString();
+      lastWriteErrorCode = null;
+      return true;
     } catch (error) {
+      buffer.unshift(...pending);
+      if (buffer.length > MAX_MEMORY_RECORDS) {
+        buffer.splice(0, buffer.length - MAX_MEMORY_RECORDS);
+      }
+      totalWriteFailures += 1;
+      consecutiveWriteFailures += 1;
+      lastWriteFailureAt = new Date().toISOString();
+      lastWriteErrorCode = error?.code ?? "USAGE_LEDGER_WRITE_FAILED";
       console.error("[requestLogger] log write failed:", summarizeErrorForLog(error));
+      if (throwOnFailure) {
+        throw createUsageLedgerError("USAGE_LEDGER_WRITE_FAILED", error);
+      }
+      return false;
     }
+  }
+
+  function assertDurable() {
+    if (!durableWrites || !persistenceEnabled || !logDirWritable) {
+      throw createUsageLedgerError("USAGE_LEDGER_UNAVAILABLE");
+    }
+    if (buffer.length > 0) {
+      flush({ throwOnFailure: true });
+    }
+    if (consecutiveWriteFailures > 0) {
+      throw createUsageLedgerError("USAGE_LEDGER_WRITE_FAILED");
+    }
+    return true;
   }
 
   function query(filter = {}) {
     if (!logDirWritable) return [];
 
     const today = new Date().toISOString().slice(0, 10);
-    const logFile = resolve(logDir, "requests-" + today + ".jsonl");
-    if (!existsSync(logFile) && !existsSync(logFile + ".1")) return [];
-
     const limit = clampInteger(filter.limit, 100, 1, 10000);
     const offset = clampInteger(filter.offset, 0, 0, 10000);
-    const targetCount = limit + offset;
-    const lines = [
-      ...readBoundedLogLines(logFile + ".1", maxLogSizeBytes),
-      ...readBoundedLogLines(logFile, maxLogSizeBytes),
-    ];
+    const lines = readCurrentDayLogLines(logDir, today, maxLogSizeBytes);
     const results = [];
     let parseFailures = 0;
 
-    for (let index = lines.length - 1; index >= 0; index -= 1) {
+    for (const line of lines) {
       try {
-        const record = JSON.parse(lines[index]);
+        const record = JSON.parse(line);
         if (filter.tenantId && record.tenantId !== filter.tenantId) continue;
         if (filter.since && record.timestamp < filter.since) continue;
         if (filter.until && record.timestamp > filter.until) continue;
@@ -171,7 +222,6 @@ export function createRequestLogger(options = {}) {
         if (filter.maxLatency && record.latencyMs > filter.maxLatency) continue;
         if (filter.cacheHit !== undefined && record.cacheHit !== filter.cacheHit) continue;
         results.push(record);
-        if (results.length >= targetCount) break;
       } catch {
         parseFailures += 1;
       }
@@ -180,32 +230,44 @@ export function createRequestLogger(options = {}) {
     if (parseFailures > 0) {
       console.warn("[requestLogger] ignored malformed bounded log records:", parseFailures);
     }
+    results.sort((left, right) => Number(right.timestamp ?? 0) - Number(left.timestamp ?? 0));
     return results.slice(offset, offset + limit);
   }
 
   function getStats(filter = {}) {
     const records = query({ ...filter, limit: 10000 });
-    if (records.length === 0) {
+    const terminalRecords = records.filter((record) => record.usageEventType !== "attempt-started");
+    const terminalAttemptIds = new Set(
+      terminalRecords.map((record) => record.usageAttemptId).filter(Boolean),
+    );
+    const unresolvedBillableAttempts = records.filter((record) => (
+      record.usageEventType === "attempt-started"
+      && record.usageAttemptId
+      && !terminalAttemptIds.has(record.usageAttemptId)
+    )).length;
+    if (terminalRecords.length === 0) {
       return {
         totalRequests: 0,
         avgLatencyMs: 0,
         totalTokens: 0,
         totalCostUsd: 0,
-        unknownCostRecords: 0,
+        unknownCostRecords: unresolvedBillableAttempts,
+        unresolvedBillableAttempts,
       };
     }
 
-    const totalRequests = records.length;
-    const totalLatency = records.reduce((sum, record) => sum + (record.latencyMs ?? 0), 0);
-    const totalTokens = records.reduce((sum, record) => sum + (record.totalTokens ?? 0), 0);
-    const totalCost = records.reduce((sum, record) => sum + (record.estimatedCostUsd ?? 0), 0);
-    const unknownCostRecords = records.filter((record) => record.costEstimateAvailable === false).length;
-    const errorCount = records.filter((record) => record.statusCode >= 400).length;
-    const cacheHits = records.filter((record) => record.cacheHit).length;
-    const fallbacks = records.filter((record) => record.fallbackUsed).length;
+    const totalRequests = terminalRecords.length;
+    const totalLatency = terminalRecords.reduce((sum, record) => sum + (record.latencyMs ?? 0), 0);
+    const totalTokens = terminalRecords.reduce((sum, record) => sum + (record.totalTokens ?? 0), 0);
+    const totalCost = terminalRecords.reduce((sum, record) => sum + (record.estimatedCostUsd ?? 0), 0);
+    const unknownCostRecords = terminalRecords.filter((record) => record.costEstimateAvailable === false).length
+      + unresolvedBillableAttempts;
+    const errorCount = terminalRecords.filter((record) => record.statusCode >= 400).length;
+    const cacheHits = terminalRecords.filter((record) => record.cacheHit).length;
+    const fallbacks = terminalRecords.filter((record) => record.fallbackUsed).length;
 
     // 真实延迟分位数（nearest-rank）：对最近最多 10000 条记录排序取 p50/p95/p99。
-    const sortedLatencies = records
+    const sortedLatencies = terminalRecords
       .map((record) => Number(record.latencyMs ?? 0))
       .filter((value) => Number.isFinite(value))
       .sort((a, b) => a - b);
@@ -224,7 +286,7 @@ export function createRequestLogger(options = {}) {
 
     const byProvider = {};
     const byModel = {};
-    for (const record of records) {
+    for (const record of terminalRecords) {
       const provider = record.provider || "unknown";
       if (!byProvider[provider]) {
         byProvider[provider] = { count: 0, tokens: 0, cost: 0, errors: 0 };
@@ -250,6 +312,7 @@ export function createRequestLogger(options = {}) {
       totalTokens,
       totalCostUsd: Math.round(totalCost * 1000000) / 1000000,
       unknownCostRecords,
+      unresolvedBillableAttempts,
       errorRate: errorCount / totalRequests,
       cacheHitRate: cacheHits / totalRequests,
       fallbackRate: fallbacks / totalRequests,
@@ -260,26 +323,38 @@ export function createRequestLogger(options = {}) {
 
   function getHealth() {
     const today = new Date().toISOString().slice(0, 10);
-    const logFile = logDirWritable ? resolve(logDir, "requests-" + today + ".jsonl") : "";
+    const logFile = logDirWritable ? resolve(logDir, `requests-${today}-${instanceFileId}.jsonl`) : "";
     const activeBytes = logFile && existsSync(logFile) ? safeFileSize(logFile) : 0;
     const archiveBytes = logFile && existsSync(logFile + ".1") ? safeFileSize(logFile + ".1") : 0;
 
     return {
-      status: "ready",
+      status: logDirWritable && consecutiveWriteFailures === 0 ? "ready" : "degraded",
       persistence: logDirWritable ? "bounded-local-file" : "memory-only",
+      durableWritesRequired: durableWrites,
       bufferSize: buffer.length,
       todayStoredBytes: activeBytes + archiveBytes,
       maxLogSizeBytes,
       maxRetentionDays,
       bodyLoggingEnabled: enableBodyLogging,
       identityLoggingEnabled: enableIdentityLogging,
+      totalWriteFailures,
+      consecutiveWriteFailures,
+      lastWriteSuccessAt,
+      lastWriteFailureAt,
+      lastWriteErrorCode,
     };
   }
 
   const flushTimer = setInterval(flush, BUFFER_FLUSH_INTERVAL_MS);
   flushTimer.unref();
 
-  const flushOnExit = () => flush();
+  const flushOnExit = () => {
+    try {
+      flush();
+    } catch (error) {
+      console.error("[requestLogger] final durable flush failed:", summarizeErrorForLog(error));
+    }
+  };
   process.on("beforeExit", flushOnExit);
   process.on("SIGINT", flushOnExit);
   process.on("SIGTERM", flushOnExit);
@@ -295,7 +370,7 @@ export function createRequestLogger(options = {}) {
     process.off("SIGTERM", flushOnExit);
   }
 
-  return { log, flush, query, getStats, getHealth, close };
+  return { log, flush, assertDurable, query, getStats, getHealth, close };
 }
 
 function createSafePreview(value, maxLength) {
@@ -349,12 +424,46 @@ function readBoundedLogLines(filePath, maxBytes) {
   return text.split("\n").filter(Boolean);
 }
 
+function readCurrentDayLogLines(logDir, today, maxLogSizeBytes) {
+  const escapedDate = today.replaceAll("-", "\\-");
+  const pattern = new RegExp(`^requests-${escapedDate}(?:-[a-zA-Z0-9_-]+)?\\.jsonl(?:\\.1)?$`);
+  let names;
+  try {
+    names = readdirSync(logDir);
+  } catch {
+    return [];
+  }
+  const files = names
+    .filter((name) => pattern.test(name))
+    .map((name) => {
+      const path = resolve(logDir, name);
+      try {
+        return { path, mtimeMs: statSync(path).mtimeMs };
+      } catch {
+        return null;
+      }
+    })
+    .filter(Boolean)
+    .sort((left, right) => right.mtimeMs - left.mtimeMs);
+
+  const lines = [];
+  let remainingBytes = maxLogSizeBytes * 2;
+  for (const file of files) {
+    if (remainingBytes <= 0) break;
+    const fileBytes = Math.min(safeFileSize(file.path), maxLogSizeBytes, remainingBytes);
+    if (fileBytes <= 0) continue;
+    lines.push(...readBoundedLogLines(file.path, fileBytes));
+    remainingBytes -= fileBytes;
+  }
+  return lines;
+}
+
 function pruneExpiredLogFiles(logDir, today, retentionDays) {
   const cutoff = new Date(today + "T00:00:00.000Z");
   cutoff.setUTCDate(cutoff.getUTCDate() - retentionDays);
   const cutoffDate = cutoff.toISOString().slice(0, 10);
   for (const name of readdirSync(logDir).slice(0, 10000)) {
-    const match = /^requests-(\d{4}-\d{2}-\d{2})\.jsonl(?:\.1)?$/.exec(name);
+    const match = /^requests-(\d{4}-\d{2}-\d{2})(?:-[a-zA-Z0-9_-]+)?\.jsonl(?:\.1)?$/.exec(name);
     if (match && match[1] < cutoffDate) {
       rmSync(resolve(logDir, name), { force: true });
     }
@@ -388,4 +497,17 @@ function clampInteger(value, fallback, min, max) {
 function truncate(value, maxLength) {
   if (!value || value.length <= maxLength) return value;
   return value.slice(0, maxLength) + "...[truncated]";
+}
+
+function createUsageLedgerError(code, cause) {
+  const error = new Error(
+    code === "USAGE_LEDGER_UNAVAILABLE"
+      ? "The durable usage ledger is unavailable; billable provider execution remains blocked."
+      : "The durable usage ledger write failed; the billable response cannot be reported as successful.",
+  );
+  error.code = code;
+  error.category = "billing";
+  error.retryable = true;
+  if (cause) error.cause = cause;
+  return error;
 }
