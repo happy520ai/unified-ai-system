@@ -1,8 +1,8 @@
 # Unified AI System 全面审计与行业阶段报告
 
-> 审计日期：2026-08-24（Asia/Shanghai）  
+> 审计日期：2026-08-24；加固证据更新至 2026-08-25（Asia/Shanghai）
 > 已发布版本：[`v0.5.0`](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.5.0)，发布于 2026-08-15  
-> 已审实现提交：`2fc3887c63f9409d92f4595880c8b344665705ac`  
+> 已审实现提交：`7475cc42d12f3ab51796f642e1c69b9b81ac3a28`
 > 审计分支：`codex/protocol-client-compatibility`，GitHub [PR #115](https://github.com/happy520ai/unified-ai-system/pull/115)  
 > 审计性质：全仓代码、配置、运行时、数据、安全、协议、部署、发布、文档与行业位置审计  
 > 明确边界：未读取本地 `.mcp.json` 的用户改动、任何 `.env`、提供商密钥或私人授权记录；本轮没有发起真实提供商调用。
@@ -68,13 +68,13 @@
 
 | 项目 | 数量/状态 |
 | --- | --- |
-| Git 跟踪文件 | 1,823（包含本报告，审计统计排除本地 `.mcp.json` 用户改动） |
-| JS/TS/ESM 源文件 | 1,545 |
-| 测试文件 | 311 |
+| Git 跟踪文件 | 1,835（包含本报告，审计统计排除本地 `.mcp.json` 用户改动） |
+| JS/TS/ESM 源文件 | 1,557 |
+| 测试文件 | 317 |
 | `docs/` Markdown/HTML | 97 |
 | pnpm 工作区项目 | 20（含根项目） |
-| PR 相对 `origin/master` 变化文件 | 316（包含本报告） |
-| 报告提交后相对 `origin/master` | 56 个提交领先，其中最后 1 个仅固化报告 |
+| PR 相对 `origin/master` 变化文件 | 332（包含本报告） |
+| 已审实现相对 `origin/master` | 61 个提交领先 |
 | 当前 GitHub 采用快照 | 6 stars、2 forks；这是采用度快照，不是质量评分 |
 
 文件数、测试数和星标都不能单独证明质量；它们仅用于界定审计规模与市场成熟度。
@@ -120,8 +120,8 @@
 | AUD-14 | 中 | v0.5.0 已发布，但 A2A Agent Card 与当前兼容性文档仍自报/安装 v0.4.9 | Agent Card 回归固定 v0.5.0；中英文 A2A/MCP 文档与 Registry/镜像安装命令同步 | E2/E3 |
 | AUD-15 | 中高 | A2A Agent Card 缺稳定身份签名，客户端无法验证发现内容 | 增加受限 Ed25519 私钥文件、官方 JCS/JWS、公开 JWKS、HTTPS 约束、required 失败关闭和官方 SDK 验签 | E2/E3 |
 | AUD-16 | 中高 | 官方内存 TaskStore 无持久性与资源上限 | 增加租户/owner 隔离、有界 memory、TTL/容量/大小/历史/产物上限、keyset 分页和同主机 SQLite 重启恢复 | E2/E3 |
-| AUD-17 | 高 | Workforce claim 只能同进程生效，多主机可能同时认领同一任务 | 增加 PostgreSQL 数据库时钟租约、原子唯一 owner、全局单调 fence、摘要 token、续租/释放/撤销、TLS/容量/namespace/readiness 门 | E2；真实 PostgreSQL CI 待当前提交完成 |
-| AUD-18 | 高 | usage 台账虽同主机 fsync，但多主机无法形成一个原子总账 | 增加 PostgreSQL write-ahead start/terminal、幂等冲突检测、租户查询、容量/留存/TLS/readiness/metrics，并强制多实例真实调用使用中央台账 | E2；真实 PostgreSQL CI 待当前提交完成 |
+| AUD-17 | 高 | Workforce claim 只能同进程生效，多主机可能同时认领同一任务 | 增加 PostgreSQL 数据库时钟租约、原子唯一 owner、全局单调 fence、摘要 token、续租/释放/撤销、TLS/容量/namespace/readiness 门 | E3；真实 PostgreSQL 17 独立连接池集成通过 |
+| AUD-18 | 高 | usage 台账虽同主机 fsync，但多主机无法形成一个原子总账 | 增加 PostgreSQL write-ahead start/terminal、幂等冲突检测、租户查询、容量/留存/TLS/readiness/metrics，并强制多实例真实调用使用中央台账 | E3；真实 PostgreSQL 17 幂等/冲突/容量/租户集成通过 |
 
 在本轮已审范围和现有自动化证据内，**没有仍然已知且未处置的 P0/P1 代码级缺陷**。这句话不等于“没有未知漏洞”，也不覆盖下节列出的生产证据阻断。
 
@@ -149,8 +149,8 @@
 | 验证 | 结果 |
 | --- | --- |
 | `pnpm check` | 通过；679 个网关文件语法检查，TypeScript 0 errors，语言策略通过，81 个权限声明/135 条活动路由，18 个受治理出站集成 |
-| `pnpm test` | 通过；Forge 2,692/2,692；网关 Node 100/100；主要 Vitest 1,229 passed/11 skipped；隔离解析器 10/10；MCP 包 4/4；其余工作区套件通过 |
-| `pnpm check:public` | 通过；1,824 个 candidate 文件（运行时包含尚未提交的本报告），0 issue codes |
+| `pnpm test` | 通过；Forge 2,692/2,692；网关 Node 100/100；主要 Vitest 1,256 passed/15 skipped；隔离解析器 10/10；MCP 包 4/4；其余工作区套件通过 |
+| `pnpm check:public` | 通过；1,836 个 tracked/candidate 文件，0 issue codes |
 | `pnpm verify:public-clone` | 通过；干净克隆、fake-provider 强制、MCP `2026-07-28`、12 tools、0 次真实提供商调用、进程清理成功 |
 | `pnpm verify:mcp` | 通过 4/4；现代 stdio、现代+兼容 HTTP、认证/CORS/清理 |
 | `pnpm smoke:mcp --json` | 通过；现代协议时代 `2026-07-28` |
@@ -162,7 +162,7 @@
 
 | 门 | 结果 | 可复核链接 |
 | --- | --- | --- |
-| 完整 `quality` | 通过，6m46s | [Run 32740153559](https://github.com/happy520ai/unified-ai-system/actions/runs/32740153559) |
+| 完整 `quality` | 通过 | [Run 32750487788](https://github.com/happy520ai/unified-ai-system/actions/runs/32750487788) |
 | PostgreSQL 集成 | 通过 | 同一 quality run |
 | SLO/故障隔离 | 通过 | 同一 quality run |
 | 开环 soak/背压 | 通过 | 同一 quality run；确认 O(n²) 修复生效 |
@@ -170,7 +170,7 @@
 | MCP、CLI、Go/C#/SDK 示例 | 全部通过 | 同一 quality run |
 | 代码/依赖扫描 | 通过 | [PR #115 checks](https://github.com/happy520ai/unified-ai-system/pull/115/checks) |
 | 插件扫描 | 通过 | [PR #115 checks](https://github.com/happy520ai/unified-ai-system/pull/115/checks) |
-| hardened amd64+arm64 容器 | 通过 | [Run 32740174356](https://github.com/happy520ai/unified-ai-system/actions/runs/32740174356) |
+| hardened amd64+arm64 容器 | 通过；包含匿名发布产物验证 | [Run 32751214991](https://github.com/happy520ai/unified-ai-system/actions/runs/32751214991) |
 
 ### 7.3 未执行的证据
 
