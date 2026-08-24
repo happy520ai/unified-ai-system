@@ -2,12 +2,14 @@ export type ProviderExecutionRuntimeConfig = {
   providerMode?: string;
   realProviderEnabled?: boolean;
   enabledProviders?: string[];
+  shadowRealProviderEnabled?: boolean;
 };
 
 export type ProviderExecutionGateInput = {
   providerId?: string;
   providerType?: string;
   runtimeConfig?: ProviderExecutionRuntimeConfig | null;
+  shadowRequest?: boolean;
 };
 
 const REAL_CAPABLE_MODES = new Set(["real", "auto"]);
@@ -16,6 +18,8 @@ export function readProviderExecutionRuntimeConfig(env: Record<string, unknown> 
   return {
     providerMode: String(env.AI_GATEWAY_PROVIDER_MODE ?? "fake").trim().toLowerCase(),
     realProviderEnabled: String(env.AI_GATEWAY_REAL_PROVIDER_ENABLED ?? "false").trim().toLowerCase() === "true",
+    shadowRealProviderEnabled:
+      String(env.AI_GATEWAY_SHADOW_REAL_PROVIDER_ENABLED ?? "false").trim().toLowerCase() === "true",
     enabledProviders: String(env.AI_GATEWAY_ENABLED_PROVIDERS ?? "")
       .split(",")
       .map((value) => value.trim().toLowerCase())
@@ -46,6 +50,9 @@ export function getProviderExecutionDecision(input: ProviderExecutionGateInput =
     if (!gates.providerModeAllowsReal) blockers.push("provider-mode-not-real-capable");
     if (!gates.realProviderEnabled) blockers.push("real-provider-switch-disabled");
     if (!gates.providerExplicitlyAllowed) blockers.push("provider-not-explicitly-allowed");
+    if (input.shadowRequest === true && runtimeConfig.shadowRealProviderEnabled !== true) {
+      blockers.push("real-provider-shadow-disabled");
+    }
   }
 
   return {

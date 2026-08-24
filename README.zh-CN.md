@@ -125,7 +125,7 @@ Cursor、Cline、Continue 和通用 stdio 客户端都可以通过同一个网�
 | 反向 MCP 治理 | 把上游 MCP server（Streamable HTTP / stdio）聚合到一个认证、审计、白名单的统一入口——还有 **REST→MCP**：任意 OpenAPI 3 规格一键变成受治理的 MCP 工具。 | [反向 MCP 治理](docs/reverse-mcp-governance.md) |
 | 可观测性 | `/metrics` 暴露 chat 专属 Prometheus 指标——分模型 token、缓存命中率、TTFT 直方图、虚拟 key 拒绝、**真实 p50/p95/p99 延迟分位数**——外加可选 Langfuse 导出与按 key 花费报表（API/CLI）。 | [可观测性](docs/observability-export.md) |
 | 向量检索 + 热路径 RAG | 零凭证确定性 embedding（可插拔 HTTP 真实 embedding）+ SQLite 向量库激活 `mode: "vector"` 检索；`unified_ai.rag` 在 `/v1/chat/completions` 上按请求注入带来源的知识上下文。 | [Provider 与知识库](docs/providers.md) |
-| 流量治理 | 运营可配的**加权分流**与**影子流量**（`AI_GATEWAY_WEIGHTED_ROUTES_JSON`）：按权重把请求分给不同 provider，旁路影子调用只观测计日志、不重复计费。 | [多进程部署](docs/multi-process-deployment.md) |
+| 流量治理 | 运营可配的**加权分流**与**影子流量**（`AI_GATEWAY_WEIGHTED_ROUTES_JSON`）：影子调用独立进入成本账本；真实 provider 影子还要求 `AI_GATEWAY_SHADOW_REAL_PROVIDER_ENABLED=true`。 | [多进程部署](docs/multi-process-deployment.md) |
 | Provider 治理 | 真实 provider 三道门白名单矩阵、运行时凭证库（SHA-256 落存 + file 金库解析）、请求成本守卫、熔断器、fallback 链。 | [真实 provider 启用](docs/real-provider-enablement.md) |
 | 企业身份与供给 | **OIDC SSO**（授权码+PKCE+JWKS 验签，登录即发 API token）与 **SCIM 2.0** 用户供给（Bearer 鉴权，create/get/list/patch/deactivate）；RBAC、审计哈希链租户隔离，16+ 项攻击安全回归守护。 | [安全演练](tools/security-attack-regression.mjs) |
 | 本地计费台账 | 客户/用量/开票/作废/收款登记的 JSONL 台账（未接支付网关：票据如实标注为对账单，非法律发票）。 | [花费报表](docs/spend-reporting.md) |

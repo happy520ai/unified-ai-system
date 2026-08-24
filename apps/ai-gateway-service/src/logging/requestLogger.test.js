@@ -37,6 +37,11 @@ describe("requestLogger persistence", () => {
         outputTokens: 5,
         totalTokens: 8,
         estimatedCostUsd: 0.000016,
+        costSource: "provider-reported",
+        costEstimateAvailable: true,
+        shadow: true,
+        providerCallAttempted: true,
+        billable: true,
         traceId: "trace-1",
       });
       logger.flush();
@@ -49,6 +54,14 @@ describe("requestLogger persistence", () => {
       const records = logger.query({ provider: "fake" });
       expect(records).toHaveLength(1);
       expect(records[0].totalTokens).toBe(8);
+      expect(records[0]).toEqual(expect.objectContaining({
+        costSource: "provider-reported",
+        costEstimateAvailable: true,
+        shadow: true,
+        providerCallAttempted: true,
+        billable: true,
+      }));
+      expect(stats.unknownCostRecords).toBe(0);
 
       const health = logger.getHealth();
       expect(health.status).toBe("ready");

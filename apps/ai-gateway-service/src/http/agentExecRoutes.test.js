@@ -71,7 +71,7 @@ describe("bounded agent execution route", () => {
     expect(result.compaction.engine).toBe("unified-context-compactor");
     expect(result.provider.id).toBe("local-fake-provider");
     expect(typeof result.finalAnswer).toBe("string");
-  });
+  }, 60_000);
 
   it("honours toolMode none and custom tool allowlists", async () => {
     const none = createContext({

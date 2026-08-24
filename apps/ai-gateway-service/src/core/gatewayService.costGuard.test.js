@@ -53,6 +53,18 @@ describe("GatewayService cost guard enforcement", () => {
     });
     expect(result.success).toBe(true);
   });
+
+  it("enforces the cost guard on streaming requests", async () => {
+    const service = buildService({ costGuardEnforce: true });
+    const events = [];
+    for await (const event of service.executeStream({
+      messages: [{ role: "user", content: "hello" }],
+      options: { maxOutputTokens: 99999 },
+    })) {
+      events.push(event);
+    }
+    expect(events.at(-1)?.envelope?.error?.code).toBe("COST_GUARD_BLOCKED");
+  });
 });
 
 function buildRealProviderService(runtimeConfig) {

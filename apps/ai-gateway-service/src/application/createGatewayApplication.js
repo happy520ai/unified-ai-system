@@ -126,9 +126,10 @@ export function createGatewayApplication(env = process.env) {
       // Long-conversation compaction via the unified context compaction
       // engine; thresholds of 0 disable it.
       chatContextCompaction: config.aiGatewayService.chatContextCompaction,
-      // Opt-in enforcement of the token-cost guard before any provider call.
-      // Off by default to preserve the credential-free fake-provider default.
-      costGuardEnforce: String(env.AI_GATEWAY_COST_GUARD_ENFORCE ?? "").toLowerCase() === "true",
+      // Cost guard is secure-by-default; operators may explicitly disable it.
+      costGuardEnforce: String(env.AI_GATEWAY_COST_GUARD_ENFORCE ?? "true").toLowerCase() !== "false",
+      shadowRealProviderEnabled: String(env.AI_GATEWAY_SHADOW_REAL_PROVIDER_ENABLED ?? "false").toLowerCase() === "true",
+      shadowTimeoutMs: readBoundedNumber(env.AI_GATEWAY_SHADOW_TIMEOUT_MS, 30_000, 1_000, 120_000),
       // Opt-in model-access enforcement. Requires identity (metadata.userId) and
       // role assignments; off by default so the fake-provider default is intact.
       modelAccessEnforce: String(env.AI_GATEWAY_MODEL_ACCESS_ENFORCE ?? "").toLowerCase() === "true",
@@ -237,6 +238,13 @@ function applyRbacRolesFromEnv(governance, env) {
   } catch {
     // Malformed RBAC config: leave governance with no assigned users (fail closed).
   }
+}
+
+function readBoundedNumber(value, fallback, minimum, maximum) {
+  if (value === undefined || value === null || String(value).trim() === "") return fallback;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(maximum, Math.max(minimum, parsed));
 }
 
 export function restoreRuntimeCredentialProviders({ providerRegistry, runtimeCredentialStore, runtimeConfig }) {

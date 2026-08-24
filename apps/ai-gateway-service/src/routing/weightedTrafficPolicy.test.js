@@ -74,7 +74,7 @@ describe("weightedTrafficPolicy config", () => {
 });
 
 describe("GatewayService weighted + shadow integration", () => {
-  it("overrides the provider via a weighted rule and shadows without double-billing", async () => {
+  it("overrides the provider and records fake shadow usage separately", async () => {
     const registry = buildRegistry();
     const entries = [];
     const policy = createWeightedTrafficPolicy({
@@ -100,8 +100,88 @@ describe("GatewayService weighted + shadow integration", () => {
     expect(result.data?.selectedProvider).toBe("canary-fake");
     // 影子旁路 fire-and-forget:等待微任务队列清空。
     await new Promise((resolve) => setTimeout(resolve, 30));
-    // 用量台账只记主请求一次(影子不重复计费)。
-    expect(entries.filter((entry) => entry.statusCode === 200)).toHaveLength(1);
-    expect(entries[0].provider).toBe("canary-fake");
+    const successful = entries.filter((entry) => entry.statusCode === 200);
+    expect(successful).toHaveLength(2);
+    expect(successful.find((entry) => !entry.shadow)?.provider).toBe("canary-fake");
+    expect(successful.find((entry) => entry.shadow)).toEqual(expect.objectContaining({
+      provider: "shadow-fake",
+      path: "/v1/chat/completions:shadow",
+      providerCallAttempted: true,
+      billable: false,
+      estimatedCostUsd: 0,
+      costSource: "non-billable-fake",
+      costEstimateAvailable: true,
+    }));
+  });
+
+  it("requires a separate opt-in before invoking a real shadow provider", async () => {
+    const registry = buildRegistry();
+    const realShadow = createFakeProvider({
+      providerId: "real-shadow",
+      modelId: "shadow-model",
+      providerType: "openai",
+      capabilities: ["chat"],
+      enabled: true,
+    });
+    const generate = vi.spyOn(realShadow, "generate");
+    registry.register(realShadow);
+    const policy = createWeightedTrafficPolicy({
+      env: {
+        AI_GATEWAY_WEIGHTED_ROUTES_JSON: JSON.stringify([{
+          weights: { "canary-fake": 100 },
+          shadow: { providerId: "real-shadow", percent: 100 },
+        }]),
+      },
+      random: () => 0.5,
+    });
+    const blockedEntries = [];
+    const service = new GatewayService({
+      providerRegistry: registry,
+      runtimeConfig: {
+        providerMode: "real",
+        realProviderEnabled: true,
+        enabledProviders: ["canary-fake", "real-shadow"],
+        shadowRealProviderEnabled: false,
+        fallbackEnabled: false,
+      },
+      requestLogger: { log: (entry) => blockedEntries.push(entry) },
+      weightedTrafficPolicy: policy,
+    });
+
+    expect((await service.execute({ messages: [{ role: "user", content: "route me" }] })).success).toBe(true);
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(generate).not.toHaveBeenCalled();
+    expect(blockedEntries.find((entry) => entry.shadow)).toEqual(expect.objectContaining({
+      provider: "real-shadow",
+      providerCallAttempted: false,
+      billable: false,
+      estimatedCostUsd: 0,
+      costSource: "not-attempted",
+      costEstimateAvailable: true,
+    }));
+
+    const entries = [];
+    const explicitlyEnabled = new GatewayService({
+      providerRegistry: registry,
+      runtimeConfig: {
+        providerMode: "real",
+        realProviderEnabled: true,
+        enabledProviders: ["canary-fake", "real-shadow"],
+        shadowRealProviderEnabled: true,
+        fallbackEnabled: false,
+      },
+      requestLogger: { log: (entry) => entries.push(entry) },
+      weightedTrafficPolicy: policy,
+    });
+    expect((await explicitlyEnabled.execute({ messages: [{ role: "user", content: "route me again" }] })).success).toBe(true);
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(generate).toHaveBeenCalledOnce();
+    expect(entries.find((entry) => entry.shadow)).toEqual(expect.objectContaining({
+      provider: "real-shadow",
+      providerCallAttempted: true,
+      billable: true,
+      costSource: "static-fallback-estimate",
+      costEstimateAvailable: true,
+    }));
   });
 });

@@ -32,6 +32,14 @@ describe("gateway-application", () => {
   it("has correct config", () => {
     expect(app.config.aiGatewayService.endpoint.host).toBe("127.0.0.1");
     expect(app.config.aiGatewayService.endpoint.port).toBe(3100);
+    expect(app.gatewayService.runtimeConfig.costGuardEnforce).toBe(true);
+    expect(app.gatewayService.runtimeConfig.shadowRealProviderEnabled).toBe(false);
+    expect(app.gatewayService.runtimeConfig.shadowTimeoutMs).toBe(30_000);
+  });
+
+  it("uses the safe shadow timeout default for an empty environment value", () => {
+    const application = createGatewayApplication({ AI_GATEWAY_SHADOW_TIMEOUT_MS: "" });
+    expect(application.gatewayService.runtimeConfig.shadowTimeoutMs).toBe(30_000);
   });
 
   it("has provider registry with providers", () => {

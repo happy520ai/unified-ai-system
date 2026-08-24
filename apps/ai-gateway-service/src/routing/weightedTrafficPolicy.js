@@ -14,7 +14,8 @@
 // - weights 按整数百分比在匹配请求上覆写 provider 选择(总和不必为 100,
 //   按权重比例归一);缺省 match 字段表示通配。
 // - shadow 为旁路观测:命中百分比的请求在主响应完成后向 shadow provider
-//   异步复制一份调用,只记日志与指标,绝不影响主响应、不重复计费预算。
+//   异步复制一份调用,绝不影响主响应;调用会单独进入用量/成本账本。
+//   真实 provider shadow 还需 AI_GATEWAY_SHADOW_REAL_PROVIDER_ENABLED=true。
 // - 解析失败 fail-closed:配置错误直接拒绝启用并保留显式错误,绝不静默。
 
 const CONFIG_ENV = "AI_GATEWAY_WEIGHTED_ROUTES_JSON";

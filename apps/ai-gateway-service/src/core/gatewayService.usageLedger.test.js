@@ -37,6 +37,12 @@ describe("GatewayService usage ledger", () => {
     expect(entries[0].outputTokens).toBeGreaterThan(0);
     expect(entries[0].statusCode).toBe(200);
     expect(entries[0].traceId).toBeTruthy();
+    expect(entries[0].shadow).toBe(false);
+    expect(entries[0].providerCallAttempted).toBe(true);
+    expect(entries[0].billable).toBe(false);
+    expect(entries[0].estimatedCostUsd).toBe(0);
+    expect(entries[0].costSource).toBe("non-billable-fake");
+    expect(entries[0].costEstimateAvailable).toBe(true);
   });
 
   it("does not require a requestLogger (backwards compatible)", async () => {

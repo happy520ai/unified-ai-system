@@ -32,7 +32,7 @@ export class GatewayService {
     // Optional health scorer — when present, provider call outcomes are recorded
     // to power health-weighted selection in providerSelectionPolicy.
     this.healthScorer = healthScorer;
-    // Optional usage ledger — when present, real chat calls are persisted with
+    // Optional usage ledger — when present, chat attempts are persisted with
     // token counts, latency, provider/model and status so operators can query
     // usage without external tooling. Fail-open: a ledger error never alters chat.
     this.requestLogger = requestLogger;
@@ -49,6 +49,7 @@ export class GatewayService {
     const startedAt = Date.now();
     let request;
     let selection;
+    let providerCallAttempted = false;
     let compactionWarnings = [];
 
     try {
@@ -78,7 +79,14 @@ export class GatewayService {
           });
         }
       }
-      const attemptResult = await this.#executeWithFallback(request, baseSelection, startedAt, execution);
+      const attemptResult = await this.#executeWithFallback(request, baseSelection, startedAt, execution, {
+        onAttemptSelected: (attemptSelection) => {
+          selection = attemptSelection;
+        },
+        onProviderCallStarted: () => {
+          providerCallAttempted = true;
+        },
+      });
       selection = attemptResult.selection;
       const providerResult = attemptResult.providerResult;
       writeGatewayLog("provider_call_completed", {
@@ -89,7 +97,14 @@ export class GatewayService {
         executionStatus: providerResult.executionStatus ?? "success",
         durationMs: Date.now() - startedAt,
       });
-      this.#recordUsage({ request, selection, providerResult, startedAt, shadow: execution.shadow === true });
+      this.#recordUsage({
+        request,
+        selection,
+        providerResult,
+        providerCallAttempted,
+        startedAt,
+        shadow: execution.shadow === true,
+      });
       const response = createGatewayResponse(request, selection, providerResult, startedAt, this.runtimeConfig, [...compactionWarnings, ...attemptResult.warnings]);
 
       // 影子流量:主响应已定,旁路复制到 shadow provider,仅观测不影响主响应。
@@ -109,6 +124,14 @@ export class GatewayService {
           code: cancellation.code,
           durationMs: Date.now() - startedAt,
         });
+        this.#recordUsage({
+          request,
+          selection,
+          providerCallAttempted,
+          startedAt,
+          error: cancellation,
+          shadow: execution.shadow === true,
+        });
         throw cancellation;
       }
       writeGatewayLog("provider_call_failed", {
@@ -120,7 +143,14 @@ export class GatewayService {
         message: error instanceof Error ? error.message : "Gateway route execution failed.",
         durationMs: Date.now() - startedAt,
       });
-      this.#recordUsage({ request, selection, startedAt, error });
+      this.#recordUsage({
+        request,
+        selection,
+        providerCallAttempted,
+        startedAt,
+        error,
+        shadow: execution.shadow === true,
+      });
       return createRouteFailureEnvelope(error, {
         request,
         selection,
@@ -135,12 +165,16 @@ export class GatewayService {
     let request;
     let selection;
     let outputText = "";
+    let providerCallAttempted = false;
 
     try {
       throwIfExecutionAborted(execution.signal);
       request = normalizeGatewayRequest(input);
       this.#applyContextCompaction(request);
       this.#enforceContentGuardrails(request);
+      if (this.runtimeConfig.costGuardEnforce) {
+        this.#enforceCostGuard(request);
+      }
       const baseSelection = this.providerRegistry.select(request);
 
       for (const attempt of createFallbackAttempts(baseSelection, this.runtimeConfig)) {
@@ -150,6 +184,7 @@ export class GatewayService {
           providerId: selection.selected.target.providerId,
           providerType: selection.selected.providerType,
           runtimeConfig: this.runtimeConfig,
+          shadowRequest: execution.shadow === true,
         });
 
         if (typeof selection.selected.provider.generateStream !== "function") {
@@ -167,6 +202,7 @@ export class GatewayService {
           model: selection.selected.target.modelId,
           attempt: attempt.index + 1,
         });
+        providerCallAttempted = true;
 
         let emittedChunk = false;
         let finalProviderRaw;
@@ -220,7 +256,14 @@ export class GatewayService {
             );
           }
 
-          this.#recordUsage({ request, selection, startedAt, outputText });
+          this.#recordUsage({
+            request,
+            selection,
+            providerCallAttempted,
+            startedAt,
+            outputText,
+            shadow: execution.shadow === true,
+          });
 
           yield createStreamEvent("done", {
             request,
@@ -275,7 +318,17 @@ export class GatewayService {
       throw createFallbackExhaustedError();
     } catch (error) {
       const cancellation = findExecutionAbortError(error, execution.signal);
-      if (cancellation) throw cancellation;
+      if (cancellation) {
+        this.#recordUsage({
+          request,
+          selection,
+          providerCallAttempted,
+          startedAt,
+          error: cancellation,
+          shadow: execution.shadow === true,
+        });
+        throw cancellation;
+      }
       writeGatewayLog("provider_stream_failed", {
         requestId: request?.context?.requestId,
         traceId: request?.context?.traceId,
@@ -286,7 +339,14 @@ export class GatewayService {
         durationMs: Date.now() - startedAt,
       });
 
-      this.#recordUsage({ request, selection, startedAt, error });
+      this.#recordUsage({
+        request,
+        selection,
+        providerCallAttempted,
+        startedAt,
+        error,
+        shadow: execution.shadow === true,
+      });
 
       yield {
         type: "error",
@@ -308,19 +368,21 @@ export class GatewayService {
     return this.contentGuardrails?.getHealth?.() ?? { status: "disabled" };
   }
 
-  async #executeWithFallback(request, baseSelection, startedAt, execution) {
+  async #executeWithFallback(request, baseSelection, startedAt, execution, hooks = {}) {
     let lastError;
     const fallbackWarnings = [];
 
     for (const attempt of createFallbackAttempts(baseSelection, this.runtimeConfig)) {
       throwIfExecutionAborted(execution.signal);
       const attemptSelection = createAttemptSelection(baseSelection, attempt.candidate, attempt.index);
+      hooks.onAttemptSelected?.(attemptSelection);
 
       try {
         assertProviderExecutionAllowed({
           providerId: attemptSelection.selected.target.providerId,
           providerType: attemptSelection.selected.providerType,
           runtimeConfig: this.runtimeConfig,
+          shadowRequest: execution.shadow === true,
         });
         writeGatewayLog("provider_call_start", {
           requestId: request.context.requestId,
@@ -329,6 +391,7 @@ export class GatewayService {
           model: attemptSelection.selected.target.modelId,
           attempt: attempt.index + 1,
         });
+        hooks.onProviderCallStarted?.(attemptSelection);
         const providerResult = await attemptSelection.selected.provider.generate({
           ...createProviderRequest({
             request,
@@ -527,7 +590,13 @@ export class GatewayService {
           shadowTraffic: { routeName: shadowTarget.routeName, percent: shadowTarget.percent },
         },
       };
-      void this.execute(shadowRequest, { ...execution, shadow: true, signal: undefined })
+      const shadowTimeoutMs = Math.min(
+        120_000,
+        Math.max(1_000, Number(this.runtimeConfig.shadowTimeoutMs ?? 30_000)),
+      );
+      const signals = [execution.signal, AbortSignal.timeout(shadowTimeoutMs)].filter(Boolean);
+      const shadowSignal = signals.length === 1 ? signals[0] : AbortSignal.any(signals);
+      void this.execute(shadowRequest, { ...execution, shadow: true, signal: shadowSignal })
         .then((result) => {
           writeGatewayLog("shadow_traffic_completed", {
             requestId: request.context?.requestId,
@@ -551,29 +620,64 @@ export class GatewayService {
     }
   }
 
-  #recordUsage({ request, selection, providerResult, startedAt, error = null, outputText = "", shadow = false }) {
+  #recordUsage({
+    request,
+    selection,
+    providerResult,
+    providerCallAttempted = false,
+    startedAt,
+    error = null,
+    outputText = "",
+    shadow = false,
+  }) {
     if (!this.requestLogger) return;
-    if (shadow) return; // 影子流量只观测,不进用量/花费台账。
     try {
       const usage = providerResult?.usage ?? {};
       const inputTokens = Number(usage.inputTokens ?? 0);
       const outputTokens = Number(usage.outputTokens ?? (outputText ? estimateOutputTokens(outputText) : 0));
       const totalTokens = Number(usage.totalTokens ?? (inputTokens + outputTokens));
       const fallbackAttempt = selection?.metadata?.fallbackAttempt ?? 1;
+      const providerType = selection?.selected?.providerType ?? error?.details?.providerType;
+      const providerReportedCost = Number(providerResult?.estimatedCostUsd ?? usage.estimatedCostUsd);
+      const hasProviderReportedCost = Number.isFinite(providerReportedCost) && providerReportedCost >= 0;
+      const billable = providerCallAttempted && providerType !== "fake";
+      const hasTokenEstimate = totalTokens > 0;
+      const costEstimateAvailable = !billable || hasProviderReportedCost || hasTokenEstimate;
+      const estimatedCostUsd = !billable
+        ? 0
+        : hasProviderReportedCost
+          ? providerReportedCost
+          : hasTokenEstimate
+            ? Math.round(totalTokens * 0.000002 * 100000) / 100000
+            : 0;
+      const costSource = !providerCallAttempted
+        ? "not-attempted"
+        : providerType === "fake"
+          ? "non-billable-fake"
+          : hasProviderReportedCost
+            ? "provider-reported"
+            : hasTokenEstimate
+              ? "static-fallback-estimate"
+              : "unavailable-after-attempt";
 
       this.requestLogger.log({
         method: "POST",
-        path: "/v1/chat/completions",
+        path: shadow ? "/v1/chat/completions:shadow" : "/v1/chat/completions",
         statusCode: error ? 500 : 200,
         latencyMs: providerResult?.latencyMs ?? (Date.now() - startedAt),
-        provider: selection?.selected?.target?.providerId,
+        provider: selection?.selected?.target?.providerId ?? error?.details?.providerId,
         model: selection?.selected?.target?.modelId,
         inputTokens,
         outputTokens,
         totalTokens,
-        estimatedCostUsd: Math.round(totalTokens * 0.000002 * 100000) / 100000,
+        estimatedCostUsd,
+        costSource,
+        costEstimateAvailable,
         cacheHit: false,
         fallbackUsed: fallbackAttempt > 1,
+        shadow,
+        providerCallAttempted,
+        billable,
         error: error ? (error instanceof Error ? error.message : String(error)) : undefined,
         traceId: request?.context?.traceId,
         tenantId: request?.enterpriseIdentity?.tenantId ?? request?.context?.tenantId ?? "default",

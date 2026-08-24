@@ -75,9 +75,14 @@ export function createRequestLogger(options = {}) {
       outputTokens: finiteNumber(entry.outputTokens, 0),
       totalTokens: finiteNumber(entry.totalTokens, 0),
       estimatedCostUsd: finiteNumber(entry.estimatedCostUsd, 0),
+      costSource: optionalText(entry.costSource, 64),
+      costEstimateAvailable: entry.costEstimateAvailable !== false,
       cacheHit: entry.cacheHit === true,
       fallbackUsed: entry.fallbackUsed === true,
       fallbackFrom: optionalText(entry.fallbackFrom, 256),
+      shadow: entry.shadow === true,
+      providerCallAttempted: entry.providerCallAttempted === true,
+      billable: entry.billable === true,
       error: entry.error ? sanitizeLogValue(entry.error) : undefined,
       traceId: optionalText(entry.traceId, 256),
       ...(enableIdentityLogging
@@ -181,13 +186,20 @@ export function createRequestLogger(options = {}) {
   function getStats(filter = {}) {
     const records = query({ ...filter, limit: 10000 });
     if (records.length === 0) {
-      return { totalRequests: 0, avgLatencyMs: 0, totalTokens: 0, totalCostUsd: 0 };
+      return {
+        totalRequests: 0,
+        avgLatencyMs: 0,
+        totalTokens: 0,
+        totalCostUsd: 0,
+        unknownCostRecords: 0,
+      };
     }
 
     const totalRequests = records.length;
     const totalLatency = records.reduce((sum, record) => sum + (record.latencyMs ?? 0), 0);
     const totalTokens = records.reduce((sum, record) => sum + (record.totalTokens ?? 0), 0);
     const totalCost = records.reduce((sum, record) => sum + (record.estimatedCostUsd ?? 0), 0);
+    const unknownCostRecords = records.filter((record) => record.costEstimateAvailable === false).length;
     const errorCount = records.filter((record) => record.statusCode >= 400).length;
     const cacheHits = records.filter((record) => record.cacheHit).length;
     const fallbacks = records.filter((record) => record.fallbackUsed).length;
@@ -237,6 +249,7 @@ export function createRequestLogger(options = {}) {
       ...(latencyQuantiles ? { latencyQuantiles } : {}),
       totalTokens,
       totalCostUsd: Math.round(totalCost * 1000000) / 1000000,
+      unknownCostRecords,
       errorRate: errorCount / totalRequests,
       cacheHitRate: cacheHits / totalRequests,
       fallbackRate: fallbacks / totalRequests,

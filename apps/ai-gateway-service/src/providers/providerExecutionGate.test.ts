@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   assertProviderExecutionAllowed,
   getProviderExecutionDecision,
+  readProviderExecutionRuntimeConfig,
 } from "./providerExecutionGate.js";
 
 describe("provider execution three-gate policy", () => {
@@ -36,5 +37,27 @@ describe("provider execution three-gate policy", () => {
       providerType: "openai",
       runtimeConfig: { providerMode: "fake", realProviderEnabled: false, enabledProviders: ["openai"] },
     })).toThrow(expect.objectContaining({ code: "REAL_PROVIDER_EXECUTION_BLOCKED" }));
+  });
+
+  it("requires an additional opt-in for real-provider shadow requests", () => {
+    const decision = getProviderExecutionDecision({
+      providerId: "openai",
+      providerType: "openai",
+      shadowRequest: true,
+      runtimeConfig: {
+        providerMode: "real",
+        realProviderEnabled: true,
+        enabledProviders: ["openai"],
+        shadowRealProviderEnabled: false,
+      },
+    });
+    expect(decision.allowed).toBe(false);
+    expect(decision.blockers).toContain("real-provider-shadow-disabled");
+  });
+
+  it("reads the separate real-provider shadow switch from the environment", () => {
+    expect(readProviderExecutionRuntimeConfig({
+      AI_GATEWAY_SHADOW_REAL_PROVIDER_ENABLED: "true",
+    }).shadowRealProviderEnabled).toBe(true);
   });
 });

@@ -15,6 +15,8 @@ export interface GatewayRuntimeConfig {
   fallbackEnabled?: boolean;
   costGuardEnforce?: boolean;
   modelAccessEnforce?: boolean;
+  shadowRealProviderEnabled?: boolean;
+  shadowTimeoutMs?: number;
 }
 
 /**

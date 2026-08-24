@@ -4,6 +4,7 @@
  */
 
 export interface RequestLogEntry {
+  tenantId?: string;
   method?: string;
   path?: string;
   statusCode?: number;
@@ -14,9 +15,14 @@ export interface RequestLogEntry {
   outputTokens?: number;
   totalTokens?: number;
   estimatedCostUsd?: number;
+  costSource?: string;
+  costEstimateAvailable?: boolean;
   cacheHit?: boolean;
   fallbackUsed?: boolean;
   fallbackFrom?: string;
+  shadow?: boolean;
+  providerCallAttempted?: boolean;
+  billable?: boolean;
   error?: string;
   userAgent?: string;
   clientIp?: string;
@@ -29,6 +35,7 @@ export interface RequestLogEntry {
 export interface RequestLogRecord {
   id: string;
   timestamp: number;
+  tenantId: string;
   method?: string;
   path?: string;
   statusCode?: number;
@@ -39,9 +46,14 @@ export interface RequestLogRecord {
   outputTokens: number;
   totalTokens: number;
   estimatedCostUsd: number;
+  costSource?: string;
+  costEstimateAvailable: boolean;
   cacheHit: boolean;
   fallbackUsed: boolean;
   fallbackFrom?: string;
+  shadow: boolean;
+  providerCallAttempted: boolean;
+  billable: boolean;
   error?: string;
   userAgent?: string;
   clientIp?: string;
@@ -52,6 +64,7 @@ export interface RequestLogRecord {
 }
 
 export interface RequestLogQuery {
+  tenantId?: string;
   since?: number;
   until?: number;
   provider?: string;
@@ -69,6 +82,7 @@ export interface RequestLogStats {
   avgLatencyMs: number;
   totalTokens: number;
   totalCostUsd: number;
+  unknownCostRecords: number;
   errorRate: number;
   cacheHitRate: number;
   fallbackRate: number;
