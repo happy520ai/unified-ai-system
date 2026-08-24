@@ -225,6 +225,7 @@ export function createGatewayApplication(env = process.env) {
     runtimeCredentialStore,
     requestLogger,
     userExperienceService,
+    workforceExecutor,
     workforceService,
     workflowService,
   };

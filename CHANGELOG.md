@@ -17,6 +17,9 @@ and the project uses [Semantic Versioning](https://semver.org/).
   per-owner capacity, task/history/artifact limits, scope-bound keyset
   pagination, restart-safe same-host SQLite, multi-instance defaults, safe
   readiness output, and a fail-closed durable-required mode.
+- Fixed the live A2A Workforce skill wiring: the controlled executor created by
+  the application is now passed to the HTTP/A2A gateway instead of being
+  dropped from the application boundary and reported as unavailable at runtime.
 - Added OIDC SSO (authorization code + PKCE + JWKS RS256/ES256 ID-token
   verification, one-time state, issues an API token on login) and SCIM 2.0
   user provisioning (bearer-auth create/get/list/patch/deactivate) for

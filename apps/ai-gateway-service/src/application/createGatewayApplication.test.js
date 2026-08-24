@@ -23,6 +23,10 @@ describe("gateway-application", () => {
     expect(app.knowledgeService).toBeDefined();
     expect(app.workflowService).toBeDefined();
     expect(app.workforceService).toBeDefined();
+    expect(app.workforceExecutor).toEqual(expect.objectContaining({
+      execute: expect.any(Function),
+      getInfo: expect.any(Function),
+    }));
     expect(app.enterpriseGovernanceService).toBeDefined();
     expect(app.modelImportService).toBeDefined();
     expect(app.modelLibraryStore).toBeDefined();
