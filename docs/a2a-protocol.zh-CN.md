@@ -67,9 +67,25 @@ SQLite 使用 WAL、`synchronous=FULL`、有界 busy timeout、原子 upsert/容
 `AI_GATEWAY_A2A_TASK_MAX_HISTORY_MESSAGES`、`AI_GATEWAY_A2A_TASK_MAX_ARTIFACTS`
 和 `AI_GATEWAY_A2A_TASK_SQLITE_BUSY_TIMEOUT_MS` 在强制范围内调整。
 
-这个 SQLite 档位仅适合同主机。不要把它放在 NFS、SMB 或云文件系统上，也不要
-把它写成跨主机一致性证明。多台网关共享任务生命周期之前，仍需经过评审的
-PostgreSQL A2A task-store 模式。
+这个 SQLite 档位仅适合同主机。不要把它放在 NFS、SMB 或云文件系统上。跨主机
+副本可以显式使用 PostgreSQL 共享有界任务生命周期：
+
+```bash
+export AI_GATEWAY_A2A_TASK_STORE_MODE=postgres
+export AI_GATEWAY_A2A_TASK_STORE_CENTRAL_REQUIRED=true
+export AI_GATEWAY_A2A_TASK_STORE_POSTGRES_URL='<secret>?sslmode=verify-full'
+export AI_GATEWAY_A2A_TASK_STORE_NAMESPACE=production
+```
+
+PostgreSQL 模式使用数据库时钟 TTL、事务维护的全局/owner 容量计数器、task-scoped
+事务锁、单调 status timestamp 保护、SHA-256 腐坏检测、repeatable-read 分页和固定
+参数化表。非 loopback URL 强制 `sslmode=verify-full`；健康与指标不暴露 URL、
+namespace、任务正文或数据库错误文本。
+
+任务会有意保存 A2A history、metadata 和 artifacts，应使用最小权限数据库角色、
+静态加密、有界留存及经过演练的备份/删除流程。SHA-256 能发现偶发或未同步重算的
+修改，但不能抵抗同时重写任务和 hash 的数据库攻击者。共享持久化本身也不等于
+exactly-once 执行、分布式执行租约、数据库故障切换或 split-brain 安全。
 
 ## 官方 SDK 示例
 

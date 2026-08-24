@@ -178,6 +178,7 @@ describe("prometheusExporter", () => {
 
     expect(text).toContain('ai_gateway_a2a_task_store_available{mode="sqlite"} 1');
     expect(text).toContain('ai_gateway_a2a_task_store_durable{mode="sqlite"} 1');
+    expect(text).toContain('ai_gateway_a2a_task_store_distributed{mode="sqlite"} 0');
     expect(text).toContain('ai_gateway_a2a_task_store_limit{resource="entries"} 10000');
     expect(text).toContain('ai_gateway_workforce_claim_store_available{mode="postgres-fenced"} 0');
     expect(text).toContain('ai_gateway_workforce_claim_store_distributed{mode="postgres-fenced"} 1');

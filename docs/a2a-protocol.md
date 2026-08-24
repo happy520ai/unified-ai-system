@@ -82,9 +82,29 @@ Tune only within the enforced ranges through `AI_GATEWAY_A2A_TASK_TTL_MS`,
 `AI_GATEWAY_A2A_TASK_SQLITE_BUSY_TIMEOUT_MS`.
 
 This SQLite profile is same-host only. Do not place it on NFS, SMB, or a cloud
-filesystem and do not use it as a cross-host consistency claim. A reviewed
-PostgreSQL A2A task-store mode remains required before gateway replicas can
-share task lifecycle state across hosts.
+filesystem. Cross-host replicas can explicitly share the bounded task lifecycle
+through PostgreSQL:
+
+```bash
+export AI_GATEWAY_A2A_TASK_STORE_MODE=postgres
+export AI_GATEWAY_A2A_TASK_STORE_CENTRAL_REQUIRED=true
+export AI_GATEWAY_A2A_TASK_STORE_POSTGRES_URL='<secret>?sslmode=verify-full'
+export AI_GATEWAY_A2A_TASK_STORE_NAMESPACE=production
+```
+
+The PostgreSQL mode uses database-clock TTL, transactionally maintained global
+and per-owner capacity counters, task-scoped transaction locks, monotonic status
+timestamp protection, SHA-256 corruption checks, repeatable-read pagination,
+and fixed parameterized tables. Non-loopback URLs require
+`sslmode=verify-full`; health and metrics expose no URL, namespace, task body,
+or database error text.
+
+Tasks intentionally contain A2A history, metadata, and artifacts. Use a
+least-privilege database role, encryption at rest, bounded retention, and tested
+backup/deletion procedures. SHA-256 detects accidental or unrecomputed edits;
+it is not proof against an attacker who can rewrite both task data and hashes.
+Shared persistence also does not create exactly-once execution, a distributed
+execution lease, database failover, or split-brain safety by itself.
 
 ## Official SDK Example
 

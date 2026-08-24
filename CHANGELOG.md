@@ -16,7 +16,10 @@ and the project uses [Semantic Versioning](https://semver.org/).
 - Added bounded A2A task storage with tenant/owner isolation, TTL, global and
   per-owner capacity, task/history/artifact limits, scope-bound keyset
   pagination, restart-safe same-host SQLite, multi-instance defaults, safe
-  readiness output, and a fail-closed durable-required mode.
+  readiness output, and a fail-closed durable-required mode. An explicit
+  PostgreSQL mode now adds cross-host lifecycle sharing with database-clock TTL,
+  transactional counters and task locks, stale-write rejection, corruption
+  digests, repeatable-read pages, verified remote TLS, and safe health output.
 - Fixed the live A2A Workforce skill wiring: the controlled executor created by
   the application is now passed to the HTTP/A2A gateway instead of being
   dropped from the application boundary and reported as unavailable at runtime.

@@ -227,6 +227,9 @@ export function createPrometheusExporter(options = {}) {
     lines.push(`# HELP ${prefix}_a2a_task_store_durable Whether A2A task persistence survives a process restart`);
     lines.push(`# TYPE ${prefix}_a2a_task_store_durable gauge`);
     lines.push(`${prefix}_a2a_task_store_durable{mode="${a2aTaskStoreMode}"} ${a2aTaskStore?.durable === true ? 1 : 0}`);
+    lines.push(`# HELP ${prefix}_a2a_task_store_distributed Whether A2A task persistence is shared across hosts`);
+    lines.push(`# TYPE ${prefix}_a2a_task_store_distributed gauge`);
+    lines.push(`${prefix}_a2a_task_store_distributed{mode="${a2aTaskStoreMode}"} ${a2aTaskStore?.distributed === true ? 1 : 0}`);
     lines.push(`# HELP ${prefix}_a2a_task_store_limit Configured bounded A2A task-store limits`);
     lines.push(`# TYPE ${prefix}_a2a_task_store_limit gauge`);
     lines.push(`${prefix}_a2a_task_store_limit{resource="entries"} ${safeMetricNumber(a2aTaskStore?.maxEntries)}`);

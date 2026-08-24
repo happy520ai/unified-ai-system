@@ -251,10 +251,32 @@ busy waiting, atomic capacity/upsert transactions, TTL, global/per-owner/task
 size/history/artifact limits, and scope-bound keyset pagination. Health output
 contains no database path or task content.
 
-This is restart-safe same-host persistence, not a cross-host A2A store. Never
-put the database on NFS, SMB, or another network filesystem. Gateway replicas
-on different hosts still require a reviewed PostgreSQL task store plus database
-failover and partition evidence.
+This is restart-safe same-host persistence. Never put the database on NFS, SMB,
+or another network filesystem. For cross-host shared task lifecycle state:
+
+```bash
+AI_GATEWAY_A2A_TASK_STORE_MODE=postgres
+AI_GATEWAY_A2A_TASK_STORE_CENTRAL_REQUIRED=true
+AI_GATEWAY_A2A_TASK_STORE_POSTGRES_URL=<load-from-secret-manager>?sslmode=verify-full
+AI_GATEWAY_A2A_TASK_STORE_NAMESPACE=production
+AI_GATEWAY_A2A_TASK_STORE_POSTGRES_POOL_MAX=4
+AI_GATEWAY_A2A_TASK_STORE_POSTGRES_STATEMENT_TIMEOUT_MS=5000
+```
+
+The fixed PostgreSQL schema uses database-clock expiry, transactional global and
+per-owner counters, task-scoped advisory transaction locks, stale status-time
+rejection, task JSON digests, tenant/owner predicates on every read, and
+repeatable-read keyset pages. Readiness fails closed when the configured store
+is unavailable, without exposing the URL, namespace, task content, or raw
+database error.
+
+Unlike the usage and audit schemas, A2A rows intentionally hold task history,
+metadata, and artifacts. Apply least-privilege grants, encryption at rest,
+retention/deletion policy, and backup/restore tests. The row digest is a
+corruption signal rather than cryptographic proof against a database writer.
+This mode shares task state; it does not by itself lease execution, prevent two
+hosts from performing the same side effect, prove exactly-once semantics, or
+provide database failover/partition evidence.
 
 ### Same-host enterprise audit serialization
 

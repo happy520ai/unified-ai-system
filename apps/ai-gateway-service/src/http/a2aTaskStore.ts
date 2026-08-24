@@ -10,9 +10,13 @@ import {
   type Task as A2ATask,
 } from "@a2a-js/sdk";
 import type { ServerCallContext, TaskStore } from "@a2a-js/sdk/server";
+import {
+  createPostgresA2ATaskStore,
+  type A2ATaskStorePostgresPool,
+} from "./postgresA2ATaskStore.ts";
 
 type RuntimeEnv = Record<string, string | undefined>;
-type StoreMode = "memory" | "sqlite";
+type StoreMode = "memory" | "sqlite" | "postgres";
 
 type TaskRow = {
   task_id: string;
@@ -30,7 +34,9 @@ type Cursor = {
 export interface A2ATaskStoreStatus {
   readonly mode: StoreMode;
   readonly durable: boolean;
+  readonly distributed: boolean;
   readonly required: boolean;
+  readonly centralRequired: boolean;
   readonly ttlMs: number;
   readonly maxEntries: number;
   readonly maxEntriesPerOwner: number;
@@ -53,23 +59,37 @@ const DEFAULT_MAX_TASK_BYTES = 4 * 1024 * 1024;
 const DEFAULT_MAX_HISTORY_MESSAGES = 500;
 const DEFAULT_MAX_ARTIFACTS = 100;
 const DEFAULT_BUSY_TIMEOUT_MS = 5_000;
+const DEFAULT_POSTGRES_POOL_MAX = 4;
+const DEFAULT_POSTGRES_STATEMENT_TIMEOUT_MS = 5_000;
 
 export function createA2ATaskStore({
   env = process.env,
   now = Date.now,
+  postgresPool,
 }: {
   env?: RuntimeEnv;
   now?: () => number;
+  postgresPool?: A2ATaskStorePostgresPool;
 } = {}): A2ATaskStoreHandle {
   const mode = resolveStoreMode(env);
   const required = readStrictBoolean(
     env.AI_GATEWAY_A2A_TASK_STORE_REQUIRED,
     "AI_GATEWAY_A2A_TASK_STORE_REQUIRED",
   );
-  if (required && mode !== "sqlite") {
+  const centralRequired = readStrictBoolean(
+    env.AI_GATEWAY_A2A_TASK_STORE_CENTRAL_REQUIRED,
+    "AI_GATEWAY_A2A_TASK_STORE_CENTRAL_REQUIRED",
+  );
+  if (required && mode === "memory") {
     throw taskStoreError(
       "A2A_TASK_STORE_DURABLE_REQUIRED",
-      "Required A2A task durability needs the sqlite task-store mode.",
+      "Required A2A task durability needs sqlite or PostgreSQL task storage.",
+    );
+  }
+  if (centralRequired && mode !== "postgres") {
+    throw taskStoreError(
+      "A2A_TASK_STORE_CENTRAL_REQUIRED",
+      "Cross-host A2A task durability requires PostgreSQL task storage.",
     );
   }
 
@@ -115,6 +135,66 @@ export function createA2ATaskStore({
     10_000,
     "AI_GATEWAY_A2A_TASK_MAX_ARTIFACTS",
   );
+  const status = Object.freeze({
+    mode,
+    durable: mode !== "memory",
+    distributed: mode === "postgres",
+    required,
+    centralRequired,
+    ttlMs,
+    maxEntries,
+    maxEntriesPerOwner,
+    maxTaskBytes,
+    maxHistoryMessages,
+    maxArtifacts,
+  });
+  if (mode === "postgres") {
+    const connectionString = String(
+      env.AI_GATEWAY_A2A_TASK_STORE_POSTGRES_URL ?? "",
+    ).trim();
+    if (!postgresPool) validatePostgresUrl(connectionString);
+    const postgresStore = createPostgresA2ATaskStore({
+      connectionString: connectionString || undefined,
+      pool: postgresPool,
+      namespace: readPortableIdentifier(
+        env.AI_GATEWAY_A2A_TASK_STORE_NAMESPACE ?? "default",
+        "AI_GATEWAY_A2A_TASK_STORE_NAMESPACE",
+        128,
+      ),
+      ttlMs,
+      maxEntries,
+      maxEntriesPerOwner,
+      maxTaskBytes,
+      maxHistoryMessages,
+      maxArtifacts,
+      poolMax: readBoundedInteger(
+        env.AI_GATEWAY_A2A_TASK_STORE_POSTGRES_POOL_MAX,
+        DEFAULT_POSTGRES_POOL_MAX,
+        1,
+        32,
+        "AI_GATEWAY_A2A_TASK_STORE_POSTGRES_POOL_MAX",
+      ),
+      statementTimeoutMs: readBoundedInteger(
+        env.AI_GATEWAY_A2A_TASK_STORE_POSTGRES_STATEMENT_TIMEOUT_MS,
+        DEFAULT_POSTGRES_STATEMENT_TIMEOUT_MS,
+        100,
+        30_000,
+        "AI_GATEWAY_A2A_TASK_STORE_POSTGRES_STATEMENT_TIMEOUT_MS",
+      ),
+      now,
+    });
+    return Object.freeze({
+      store: postgresStore.store,
+      status,
+      getHealth() {
+        return Object.freeze({ ...status, ...postgresStore.getHealth() });
+      },
+      async close() {
+        await postgresStore.close();
+      },
+    });
+  }
+
   const busyTimeoutMs = readBoundedInteger(
     env.AI_GATEWAY_A2A_TASK_SQLITE_BUSY_TIMEOUT_MS,
     DEFAULT_BUSY_TIMEOUT_MS,
@@ -125,17 +205,6 @@ export function createA2ATaskStore({
   const sqlitePath = mode === "memory"
     ? ":memory:"
     : resolveSqlitePath(env.AI_GATEWAY_A2A_TASK_STORE_PATH);
-  const status = Object.freeze({
-    mode,
-    durable: mode === "sqlite",
-    required,
-    ttlMs,
-    maxEntries,
-    maxEntriesPerOwner,
-    maxTaskBytes,
-    maxHistoryMessages,
-    maxArtifacts,
-  });
   const store = new SqliteA2ATaskStore({
     sqlitePath,
     now,
@@ -509,11 +578,68 @@ function resolveStoreMode(env: RuntimeEnv): StoreMode {
       ? "sqlite"
       : "memory";
   }
-  if (configured === "memory" || configured === "sqlite") return configured;
+  if (
+    configured === "memory"
+    || configured === "sqlite"
+    || configured === "postgres"
+  ) return configured;
   throw taskStoreError(
     "A2A_TASK_STORE_MODE_INVALID",
-    "AI_GATEWAY_A2A_TASK_STORE_MODE must be memory or sqlite.",
+    "AI_GATEWAY_A2A_TASK_STORE_MODE must be memory, sqlite, or postgres.",
   );
+}
+
+function validatePostgresUrl(value: string) {
+  if (!value) {
+    throw taskStoreError(
+      "A2A_TASK_STORE_POSTGRES_URL_REQUIRED",
+      "PostgreSQL A2A task storage requires AI_GATEWAY_A2A_TASK_STORE_POSTGRES_URL.",
+    );
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw taskStoreError(
+      "A2A_TASK_STORE_POSTGRES_URL_INVALID",
+      "The A2A task-store PostgreSQL URL is invalid.",
+    );
+  }
+  if (!new Set(["postgres:", "postgresql:"]).has(parsed.protocol)) {
+    throw taskStoreError(
+      "A2A_TASK_STORE_POSTGRES_URL_INVALID",
+      "The A2A task-store URL must use PostgreSQL.",
+    );
+  }
+  if (
+    !isLoopbackHostname(parsed.hostname)
+    && parsed.searchParams.get("sslmode") !== "verify-full"
+  ) {
+    throw taskStoreError(
+      "A2A_TASK_STORE_POSTGRES_TLS_REQUIRED",
+      "A non-loopback A2A task store must use sslmode=verify-full.",
+    );
+  }
+}
+
+function isLoopbackHostname(value: string) {
+  const hostname = value.replace(/^\[|\]$/gu, "").toLowerCase();
+  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1";
+}
+
+function readPortableIdentifier(
+  value: string | undefined,
+  name: string,
+  maxLength: number,
+) {
+  const normalized = String(value ?? "").trim();
+  if (!normalized || normalized.length > maxLength || !/^[A-Za-z0-9._:-]+$/u.test(normalized)) {
+    throw taskStoreError(
+      "A2A_TASK_STORE_CONFIGURATION_INVALID",
+      `${name} must be a portable identifier of at most ${maxLength} characters.`,
+    );
+  }
+  return normalized;
 }
 
 function resolveSqlitePath(value: string | undefined): string {

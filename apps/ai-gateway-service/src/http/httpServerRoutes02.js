@@ -728,7 +728,9 @@ function readA2ATaskStoreHealth(a2aGateway) {
     return {
       mode: snapshot?.mode ?? "unknown",
       durable: snapshot?.durable === true,
+      distributed: snapshot?.distributed === true,
       required: snapshot?.required === true,
+      centralRequired: snapshot?.centralRequired === true,
       available: snapshot?.available === true,
       reason: snapshot?.reason ?? null,
       ttlMs: Number(snapshot?.ttlMs ?? 0),
@@ -742,6 +744,7 @@ function readA2ATaskStoreHealth(a2aGateway) {
     return {
       available: false,
       durable: false,
+      distributed: false,
       mode: "unknown",
       reason: "health_probe_failed",
     };

@@ -10,6 +10,7 @@ import {
 import { ServerCallContext } from "@a2a-js/sdk/server";
 import { describe, expect, it } from "vitest";
 import { createA2ATaskStore } from "./a2aTaskStore.ts";
+import type { A2ATaskStorePostgresPool } from "./postgresA2ATaskStore.ts";
 
 function createContext(tenant: string, owner: string) {
   return new ServerCallContext({
@@ -222,5 +223,76 @@ describe("bounded A2A task store", () => {
     })).toThrow(expect.objectContaining({
       code: "A2A_TASK_STORE_DURABLE_REQUIRED",
     }));
+  });
+
+  it("requires explicit PostgreSQL and verified remote TLS for cross-host mode", () => {
+    expect(() => createA2ATaskStore({
+      env: {
+        AI_GATEWAY_A2A_TASK_STORE_MODE: "sqlite",
+        AI_GATEWAY_A2A_TASK_STORE_CENTRAL_REQUIRED: "true",
+      },
+    })).toThrow(expect.objectContaining({
+      code: "A2A_TASK_STORE_CENTRAL_REQUIRED",
+    }));
+    expect(() => createA2ATaskStore({
+      env: {
+        AI_GATEWAY_A2A_TASK_STORE_MODE: "postgres",
+      },
+    })).toThrow(expect.objectContaining({
+      code: "A2A_TASK_STORE_POSTGRES_URL_REQUIRED",
+    }));
+    expect(() => createA2ATaskStore({
+      env: {
+        AI_GATEWAY_A2A_TASK_STORE_MODE: "postgres",
+        AI_GATEWAY_A2A_TASK_STORE_POSTGRES_URL: "postgresql://db.example.test/tasks",
+      },
+    })).toThrow(expect.objectContaining({
+      code: "A2A_TASK_STORE_POSTGRES_TLS_REQUIRED",
+    }));
+  });
+
+  it("exposes safe distributed health for an injected PostgreSQL pool", async () => {
+    let poolEnded = false;
+    const client = {
+      async query() {
+        return { rows: [], rowCount: 0 };
+      },
+      release() {},
+    };
+    const pool: A2ATaskStorePostgresPool = {
+      async query() {
+        return { rows: [], rowCount: 0 };
+      },
+      async connect() {
+        return client;
+      },
+      async end() {
+        poolEnded = true;
+      },
+      on() {},
+    };
+    const handle = createA2ATaskStore({
+      env: {
+        AI_GATEWAY_A2A_TASK_STORE_MODE: "postgres",
+        AI_GATEWAY_A2A_TASK_STORE_CENTRAL_REQUIRED: "true",
+      },
+      postgresPool: pool,
+    });
+    try {
+      expect(await handle.store.load("missing-task", createContext("tenant-a", "alice")))
+        .toBeUndefined();
+      expect(handle.status).toMatchObject({
+        mode: "postgres",
+        durable: true,
+        distributed: true,
+        centralRequired: true,
+      });
+      expect(handle.getHealth()).toMatchObject({ available: true, reason: null });
+      expect(handle.getHealth()).not.toHaveProperty("namespace");
+      expect(handle.getHealth()).not.toHaveProperty("connectionString");
+    } finally {
+      await handle.close();
+    }
+    expect(poolEnded).toBe(false);
   });
 });
