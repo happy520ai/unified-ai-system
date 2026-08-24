@@ -11,6 +11,7 @@ import type {
 export interface GatewayRuntimeConfig {
   providerMode: string;
   realProviderEnabled: boolean;
+  enabledProviders?: string[];
   fallbackEnabled?: boolean;
   costGuardEnforce?: boolean;
   modelAccessEnforce?: boolean;

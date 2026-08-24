@@ -7,6 +7,7 @@ import { LATENCY_DRY_RUN_CASES, buildProviderLatencyAccountability } from "../..
 import { buildProviderRetryFallbackAccountability } from "../../chat-gateway/providerRetryFallbackPolicy.js";
 import { createNvidiaUnifiedClient } from "../../providers/nvidia/nvidiaUnifiedClient.js";
 import { normalizeGatewayMode, normalizeModelSelection } from "./phaseModelUtils.js";
+import { getProviderExecutionDecision } from "../../providers/providerExecutionGate.ts";
 
 export async function runPhase312AChatGateway({ application, body, startedAt }) {
   const input = String(body?.input ?? body?.message ?? body?.messages?.at?.(-1)?.content ?? "").trim();
@@ -29,12 +30,17 @@ export async function runPhase312AChatGateway({ application, body, startedAt }) 
     taskToolPreference,
   });
   const env = application.runtimeEnv ?? process.env;
-  const realProviderEnabled = application?.config?.aiGatewayService?.realProviderEnabled !== false;
-  const execution = !realProviderEnabled
+  const providerId = plan.selected?.providerId ?? "nvidia";
+  const executionDecision = getProviderExecutionDecision({
+    providerId,
+    providerType: providerId === "nvidia" ? "nvidia" : providerId,
+    runtimeConfig: application.gatewayService?.runtimeConfig,
+  });
+  const execution = !executionDecision.allowed
     ? createPhase312ARealCallDisabledExecution(
         plan,
-        "real_provider_disabled",
-        "Chat Gateway real provider execution is disabled by runtime configuration.",
+        "real_provider_execution_blocked",
+        `Chat Gateway real provider execution is blocked: ${executionDecision.blockers.join(", ")}.`,
       )
     : await executeCapabilitySafePlan({
         plan,
@@ -44,6 +50,7 @@ export async function runPhase312AChatGateway({ application, body, startedAt }) 
           env,
           runtimeCredentialStore: application.runtimeCredentialStore,
           modelLibraryStore: application.modelLibraryStore,
+          runtimeConfig: application.gatewayService?.runtimeConfig,
         }),
       });
   const evidenceId = generateEvidenceId();

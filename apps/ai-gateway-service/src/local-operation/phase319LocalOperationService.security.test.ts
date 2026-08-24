@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+// @ts-expect-error -- existing JS runtime module remains inside the tracked migration boundary.
 import { createPhase319LocalOperationService } from "./phase319LocalOperationService.js";
 
 describe("phase319LocalOperationService path confidentiality", () => {

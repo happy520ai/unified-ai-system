@@ -11,6 +11,7 @@ export async function executeNormalMode({ request, application, gate, auditTrace
     env: application.runtimeEnv ?? process.env,
     runtimeCredentialStore: application.runtimeCredentialStore,
     modelLibraryStore: application.modelLibraryStore,
+    runtimeConfig: application.gatewayService?.runtimeConfig,
     timeoutMs: Number(request?.executionPolicy?.timeoutMs ?? 60_000),
   });
   const call = await nvidiaClient.chatCompletion({

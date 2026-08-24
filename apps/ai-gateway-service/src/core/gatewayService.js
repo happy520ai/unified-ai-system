@@ -22,6 +22,7 @@ import {
   findExecutionAbortError,
   throwIfExecutionAborted,
 } from "@unified-ai-system/shared-utils";
+import { assertProviderExecutionAllowed } from "../providers/providerExecutionGate.ts";
 
 
 export class GatewayService {
@@ -145,6 +146,11 @@ export class GatewayService {
       for (const attempt of createFallbackAttempts(baseSelection, this.runtimeConfig)) {
         throwIfExecutionAborted(execution.signal);
         selection = createAttemptSelection(baseSelection, attempt.candidate, attempt.index);
+        assertProviderExecutionAllowed({
+          providerId: selection.selected.target.providerId,
+          providerType: selection.selected.providerType,
+          runtimeConfig: this.runtimeConfig,
+        });
 
         if (typeof selection.selected.provider.generateStream !== "function") {
           const error = new Error("Selected provider does not support streaming.");
@@ -310,15 +316,19 @@ export class GatewayService {
       throwIfExecutionAborted(execution.signal);
       const attemptSelection = createAttemptSelection(baseSelection, attempt.candidate, attempt.index);
 
-      writeGatewayLog("provider_call_start", {
-        requestId: request.context.requestId,
-        traceId: request.context.traceId,
-        provider: attemptSelection.selected.target.providerId,
-        model: attemptSelection.selected.target.modelId,
-        attempt: attempt.index + 1,
-      });
-
       try {
+        assertProviderExecutionAllowed({
+          providerId: attemptSelection.selected.target.providerId,
+          providerType: attemptSelection.selected.providerType,
+          runtimeConfig: this.runtimeConfig,
+        });
+        writeGatewayLog("provider_call_start", {
+          requestId: request.context.requestId,
+          traceId: request.context.traceId,
+          provider: attemptSelection.selected.target.providerId,
+          model: attemptSelection.selected.target.modelId,
+          attempt: attempt.index + 1,
+        });
         const providerResult = await attemptSelection.selected.provider.generate({
           ...createProviderRequest({
             request,

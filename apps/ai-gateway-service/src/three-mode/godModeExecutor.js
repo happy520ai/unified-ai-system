@@ -16,6 +16,7 @@ export async function executeGodMode({ request, application, gate, auditTrace })
     env: application.runtimeEnv ?? process.env,
     runtimeCredentialStore: application.runtimeCredentialStore,
     modelLibraryStore: application.modelLibraryStore,
+    runtimeConfig: application.gatewayService?.runtimeConfig,
     timeoutMs: Number(request?.executionPolicy?.timeoutMs ?? 120_000),
   });
 

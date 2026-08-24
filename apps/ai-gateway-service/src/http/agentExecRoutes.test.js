@@ -131,6 +131,38 @@ describe("bounded agent execution route", () => {
     }
   });
 
+  it("blocks a real provider before the adapter is invoked when runtime gates are closed", async () => {
+    const registry = new ProviderRegistry({ enabledProviders: ["openai"] });
+    const provider = createFakeProvider({
+      providerId: "openai",
+      modelId: "gpt-test",
+      providerType: "openai",
+      capabilities: ["chat"],
+      enabled: true,
+    });
+    const generate = vi.spyOn(provider, "generate");
+    registry.register(provider);
+    const context = createContext({
+      application: {
+        gatewayService: {
+          providerRegistry: registry,
+          runtimeConfig: {
+            providerMode: "fake",
+            realProviderEnabled: false,
+            enabledProviders: ["openai"],
+          },
+        },
+      },
+      body: { goal: "Answer directly.", providerId: "openai", modelId: "gpt-test" },
+    });
+
+    await dispatchAgentExecRoutes(context);
+
+    expect(context.response.statusCode).toBe(400);
+    expect(context.response.body.error.code).toBe("AGENT_EXEC_PROVIDER_EXECUTION_BLOCKED");
+    expect(generate).not.toHaveBeenCalled();
+  });
+
   it("normalizes defaults deterministically", () => {
     const normalized = normalizeAgentExecRequest({ goal: "Do it." });
     expect(normalized).toEqual({

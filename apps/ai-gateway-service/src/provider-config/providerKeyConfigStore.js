@@ -1,4 +1,8 @@
 import { createNvidiaUnifiedClient } from "../providers/nvidia/nvidiaUnifiedClient.js";
+import {
+  getProviderExecutionDecision,
+  readProviderExecutionRuntimeConfig,
+} from "../providers/providerExecutionGate.ts";
 
 export function createProviderKeyConfigStore({ env = process.env, runtimeCredentialStore, providerRegistry, modelLibraryStore } = {}) {
   function getStatus() {
@@ -70,6 +74,18 @@ export function createProviderKeyConfigStore({ env = process.env, runtimeCredent
         source: "provider-key-config-center",
         models: [],
       });
+    }
+    const provider = providerRegistry?.get?.(providerId);
+    const decision = getProviderExecutionDecision({
+      providerId,
+      providerType: provider?.descriptor?.metadata?.providerType ?? providerId,
+      runtimeConfig: readProviderExecutionRuntimeConfig(env),
+    });
+    const credentialConfigured = Boolean(
+      apiKey || env[`${providerId.toUpperCase()}_API_KEY`] || runtimeCredentialStore?.has?.(providerId),
+    );
+    const runtimeProviderEnabled = credentialConfigured && decision.allowed;
+    if (runtimeProviderEnabled) {
       providerRegistry?.enableProvider?.(providerId);
     }
 
@@ -78,10 +94,12 @@ export function createProviderKeyConfigStore({ env = process.env, runtimeCredent
       code: "provider_config_saved",
       message: apiKey ? `${providerId} provider configuration saved without echoing the key.` : `${providerId} provider status refreshed from existing configuration.`,
       providerId,
-      apiKeyConfigured: Boolean(apiKey || env[`${providerId.toUpperCase()}_API_KEY`] || runtimeCredentialStore?.has?.(providerId)),
+      apiKeyConfigured: credentialConfigured,
       endpointConfigured: Boolean(baseUrl),
       secretValueVisible: false,
       credential,
+      runtimeProviderEnabled,
+      runtimeProviderBlockers: decision.blockers,
     };
   }
 

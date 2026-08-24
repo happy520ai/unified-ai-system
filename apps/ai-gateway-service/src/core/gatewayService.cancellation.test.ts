@@ -9,7 +9,7 @@ import { GatewayService } from "./gatewayService.js";
 function createCandidate(provider: any, rank: number) {
   return {
     provider,
-    providerType: "test",
+    providerType: "fake",
     target: { providerId: `provider-${rank}`, modelId: "model" },
     rank,
     providerPriority: rank,
@@ -30,7 +30,12 @@ function createService(primary: any, fallback: any, healthScorer: any) {
         metadata: { mode: "test", policy: "test" },
       }),
     },
-    runtimeConfig: { fallbackEnabled: true },
+    runtimeConfig: {
+      providerMode: "fake",
+      realProviderEnabled: false,
+      enabledProviders: ["provider-1", "provider-2"],
+      fallbackEnabled: true,
+    },
     healthScorer,
   });
 }

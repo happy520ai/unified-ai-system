@@ -2,11 +2,15 @@ import { createRequestId } from "@unified-ai-system/shared-utils";
 import { safeOutboundFetch } from "../../security/safeOutboundFetch.ts";
 import { ENDPOINT_TYPES, isDirectChatCapable } from "../../model-library/modelCapabilityRules.js";
 import { findModel } from "../../model-library/unifiedModelRegistry.js";
+import {
+  getProviderExecutionDecision,
+  readProviderExecutionRuntimeConfig,
+} from "../providerExecutionGate.ts";
 
 const DEFAULT_INTEGRATE_BASE_URL = "https://integrate.api.nvidia.com/v1";
 const DEFAULT_RETRIEVAL_BASE_URL = "https://ai.api.nvidia.com/v1";
 
-export function createNvidiaUnifiedClient({ env = process.env, runtimeCredentialStore, modelLibraryStore, fetchImpl = safeOutboundFetch, timeoutMs = 60_000 } = {}) {
+export function createNvidiaUnifiedClient({ env = process.env, runtimeCredentialStore, modelLibraryStore, fetchImpl = safeOutboundFetch, timeoutMs = 60_000, runtimeConfig = null } = {}) {
   function resolveApiKey() {
     return runtimeCredentialStore?.getApiKey?.("nvidia") || env.NVIDIA_API_KEY || "";
   }
@@ -146,6 +150,25 @@ export function createNvidiaUnifiedClient({ env = process.env, runtimeCredential
         message: compatibility.message,
         error: compatibility,
         data: { model },
+        meta: withTiming(baseMeta, startedAt, { endpointType: model.endpointType }),
+      });
+    }
+
+    const executionDecision = getProviderExecutionDecision({
+      providerId: "nvidia",
+      providerType: "nvidia",
+      runtimeConfig: runtimeConfig ?? readProviderExecutionRuntimeConfig(env),
+    });
+    if (!executionDecision.allowed) {
+      return envelope({
+        success: false,
+        code: "real_provider_execution_blocked",
+        message: `Blocked before provider call: ${executionDecision.blockers.join(", ")}.`,
+        error: {
+          code: "real_provider_execution_blocked",
+          blockers: executionDecision.blockers,
+          gates: executionDecision.gates,
+        },
         meta: withTiming(baseMeta, startedAt, { endpointType: model.endpointType }),
       });
     }

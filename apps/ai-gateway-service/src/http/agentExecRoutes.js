@@ -12,6 +12,7 @@ import { createAgenticLoop } from "../agentic/agenticCodingLoop.js";
 import { ROUTE_NOT_HANDLED } from "./httpRouteDispatch.js";
 import { readJson, writeJson } from "./utils/responseUtils.js";
 import { createErrorEnvelope, createOkEnvelope } from "@unified-ai-system/shared-utils";
+import { assertProviderExecutionAllowed } from "../providers/providerExecutionGate.ts";
 
 export const AGENT_EXEC_PATH = "/agent-exec/run";
 
@@ -194,6 +195,24 @@ export async function runBoundedAgentExec(body, application) {
       "AGENT_EXEC_PROVIDER_UNAVAILABLE",
       `Provider is not available in the current runtime: ${normalized.providerId}`,
       { providerId: normalized.providerId },
+    );
+  }
+
+  try {
+    assertProviderExecutionAllowed({
+      providerId: normalized.providerId,
+      providerType: providerAdapter.descriptor?.metadata?.providerType,
+      runtimeConfig: application?.gatewayService?.runtimeConfig,
+    });
+  } catch (error) {
+    throw createExecError(
+      "AGENT_EXEC_PROVIDER_EXECUTION_BLOCKED",
+      error instanceof Error ? error.message : "Provider execution is blocked by runtime policy.",
+      {
+        providerId: normalized.providerId,
+        gateCode: error?.code ?? "REAL_PROVIDER_EXECUTION_BLOCKED",
+        gate: error?.details,
+      },
     );
   }
 

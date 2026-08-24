@@ -5,6 +5,7 @@ export async function synthesizeWithSupervisor({ application, supervisorModel, i
     env: application.runtimeEnv ?? process.env,
     runtimeCredentialStore: application.runtimeCredentialStore,
     modelLibraryStore: application.modelLibraryStore,
+    runtimeConfig: application.gatewayService?.runtimeConfig,
     timeoutMs,
   });
   const prompt = [
