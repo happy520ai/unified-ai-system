@@ -90,7 +90,7 @@ export async function executeWorkforceDag(options: DagExecutorOptions) {
     const waveRoleIds = waves[waveIndex];
     const priorOutputs = { ...roleOutputs };
     const waveStartedAt = Date.now();
-    const settled = await Promise.allSettled(waveRoleIds.map(async (roleId) => {
+    const preparedSettled = await Promise.allSettled(waveRoleIds.map(async (roleId) => {
       const task = taskByRole.get(roleId);
       if (!task) throw dagError("WORKFORCE_DAG_TASK_MISSING", `No queue task exists for role ${roleId}.`);
       const claimed = await options.taskQueue.claimTask(roleId, {
@@ -103,6 +103,39 @@ export async function executeWorkforceDag(options: DagExecutorOptions) {
       }
       const ownership = { claimToken: claimed.claimToken, agentId: roleId };
       await options.taskQueue.updateTaskStatus(task.queueTaskId, TASK_STATUS.IN_PROGRESS, undefined, ownership);
+      return { roleId, task, ownership };
+    }));
+
+    const preparationFailures: Array<{ roleId: string; message: string }> = [];
+    const prepared: Array<{
+      roleId: string;
+      task: DagTask;
+      ownership: { claimToken: string; agentId: string };
+    }> = [];
+    for (let index = 0; index < preparedSettled.length; index += 1) {
+      const result = preparedSettled[index];
+      if (result.status === "fulfilled") {
+        prepared.push(result.value);
+      } else {
+        preparationFailures.push({
+          roleId: waveRoleIds[index],
+          message: result.reason instanceof Error ? result.reason.message : String(result.reason),
+        });
+      }
+    }
+    if (preparationFailures.length > 0) {
+      await Promise.allSettled(prepared.map(({ task }) => (
+        options.taskQueue.cancelTask(task.queueTaskId, "dependency_wave_prepare_failed")
+      )));
+      await cancelRemaining(options.taskQueue, tasks, completedRoleIds, "dependency_wave_prepare_failed");
+      throw dagError(
+        "WORKFORCE_DAG_EXECUTION_FAILED",
+        `Workforce dependency wave ${waveIndex} could not acquire every task claim.`,
+        { waveIndex, failures: preparationFailures },
+      );
+    }
+
+    const settled = await Promise.allSettled(prepared.map(async ({ roleId, task, ownership }) => {
       activeExecutions += 1;
       peakConcurrency = Math.max(peakConcurrency, activeExecutions);
       try {
