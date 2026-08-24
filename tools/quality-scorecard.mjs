@@ -980,7 +980,7 @@ function checkCriticalAttackChainHardening() {
       "blocks zero-width and encoded instruction overrides",
       "maps credential and provider mutation routes to provider:write",
       "Critical gateway attack-chain hardening",
-      "PME_ENTERPRISE_AUTH_ENABLED=true",
+      "PME_ENTERPRISE_AUTH_ENABLED=${PME_ENTERPRISE_AUTH_ENABLED:-true} exec node",
       'PME_ENTERPRISE_AUTH_ENABLED: "true"',
     ];
     const missingMarkers = requiredMarkers.filter((marker) => !source.includes(marker));
