@@ -22,7 +22,7 @@
 | 概念验证 | 已越过 | 核心路径均有真实实现，不是界面或文档桩。 |
 | 可用开源产品 | 已达到 | 已发布 v0.5.0、Apache-2.0、公开容器、MCP Registry、文档与无密钥体验路径。 |
 | 加固 Public Preview | **当前阶段** | 完整测试、公共克隆、依赖扫描、攻击回归、多架构容器、短时 SLO/背压/资源门均通过。 |
-| 企业生产候选 | 部分达到 | 身份、租户、预算、审计、可观测性已有；跨主机 Workforce、中央计费/审计、DR 与真实提供商阶段证据不足。 |
+| 企业生产候选 | 部分达到 | 身份、租户、预算、审计、可观测性已有；PostgreSQL claim/usage/audit/结构化对账已获 E3，但端到端分布式队列、HA/DR、provider-authenticated statement 和真实提供商阶段证据不足。 |
 | 生产 GA | 未达到 | 缺独立渗透测试、真实提供商预生产验证、6–24 小时负载证据、故障切换与恢复演练。 |
 | 行业领导者 | 未达到 | 独特方向成立，但提供商广度、生态采用、跨区域 HA 和第三方证明尚弱。 |
 
@@ -68,13 +68,13 @@
 
 | 项目 | 数量/状态 |
 | --- | --- |
-| Git 跟踪文件 | 1,840（包含本报告，审计统计排除本地 `.mcp.json` 用户改动） |
-| JS/TS/ESM 源文件 | 1,561 |
-| 测试文件 | 319 |
+| Git 跟踪文件 | 1,843（包含本报告，审计统计排除本地 `.mcp.json` 用户改动） |
+| JS/TS/ESM 源文件 | 1,564 |
+| 测试文件 | 321 |
 | `docs/` Markdown/HTML | 97 |
 | pnpm 工作区项目 | 20（含根项目） |
-| PR 相对 `origin/master` 变化文件 | 336（包含本报告） |
-| 已审实现相对 `origin/master` | 63 个提交领先 |
+| PR 相对 `origin/master` 变化文件 | 340（包含本报告） |
+| 已审实现相对 `origin/master` | 65 个提交领先 |
 | 当前 GitHub 采用快照 | 6 stars、2 forks；这是采用度快照，不是质量评分 |
 
 文件数、测试数和星标都不能单独证明质量；它们仅用于界定审计规模与市场成熟度。
@@ -88,7 +88,7 @@
 | MCP 网关 | 12 个受治理工具；stdio 与 Streamable HTTP；可聚合上游 MCP，并从 OpenAPI 生成工具 | Codex、Cursor、Cline 等可使用同一套可审计能力 | E3；当前源码认证 MCP `2026-07-28`，兼容 `2025-11-25`/`2025-06-18` |
 | A2A v1.0 | 可验证 Agent Card/JWKS、JSON-RPC 任务、取消、Workforce 模式，以及有界 memory/同主机 SQLite 任务 | 其他智能体可验证身份、发现并调用网关能力；同主机可重启恢复任务 | E2/E3；跨主机 task store 与重叠多签名轮换尚未完成 |
 | 提供商治理 | fake provider 默认；真实提供商需白名单、运行时授权与凭据三道门 | 防止“配置一改就误花钱”或静默调用外部模型 | E3；本轮没有真实提供商调用 |
-| 虚拟密钥与预算 | 虚拟 key、撤销、限流、token 预算、使用归属与 spend 报告 | 团队成员不持有底层提供商密钥，管理者可控成本 | E3；中央 usage ledger 已通过真实 PostgreSQL 跨连接验证，但不是支付、法定发票或 provider statement reconciliation 系统 |
+| 虚拟密钥、预算与成本核对 | 虚拟 key、撤销、限流、token 预算、使用归属、spend 报告，以及精确 attempt-ID 的 USD statement comparison | 团队成员不持有底层提供商密钥；管理者可找出漏记、重复、未决、未知估值、模型/token 不符和成本差异 | E3；中央 usage 与结构化对账已通过真实 PostgreSQL，但输入仍由 operator 提供，未认证 provider 来源，也不是支付或法定发票系统 |
 | 路由与韧性 | 加权路由、fallback、熔断、重试边界、影子流量单独计量 | 可迁移或比较模型，同时限制影子调用的额外成本 | E2/E3；无跨区域流量证据 |
 | 缓存与 RAG | 租户隔离的精确/语义缓存、SQLite 向量检索、热路径 RAG | 降低重复推理成本，把本地知识注入受控执行路径 | E2/E3；没有大规模召回质量基准 |
 | Guardrails | 本地密钥/PII/注入/禁词/大小检查，覆盖输入、工具与输出路径 | 在发往提供商前阻断明显泄密和越权内容 | E2/E3；规则防御不能证明语义级提示注入无风险 |
@@ -123,6 +123,7 @@
 | AUD-17 | 高 | Workforce claim 只能同进程生效，多主机可能同时认领同一任务 | 增加 PostgreSQL 数据库时钟租约、原子唯一 owner、全局单调 fence、摘要 token、续租/释放/撤销、TLS/容量/namespace/readiness 门 | E3；真实 PostgreSQL 17 独立连接池集成通过 |
 | AUD-18 | 高 | usage 台账虽同主机 fsync，但多主机无法形成一个原子总账 | 增加 PostgreSQL write-ahead start/terminal、幂等冲突检测、租户查询、容量/留存/TLS/readiness/metrics，并强制多实例真实调用使用中央台账 | E3；真实 PostgreSQL 17 幂等/冲突/容量/租户集成通过 |
 | AUD-19 | 高 | 本地 audit chain 无法给多主机提供一个全局序号和 canonical source | 增加 PostgreSQL 事务序号、entry/state HMAC、外部 floor、幂等 ID、租户读取、分块全验、TLS/readiness，并保留本地 forensic mirror | E3；真实 PostgreSQL 17 独立连接池的并发、幂等/冲突、租户读取、外部 floor 与篡改检测通过 |
+| AUD-20 | 高 | 中央 usage 虽能汇总，但无法把 provider statement 行与网关账本逐次核对 | 增加 `user:admin`、服务端 tenant 绑定、精确 attempt-ID、USD micro-unit 容差、缺失/重复/未决/未知/metadata 分类、版本化 SHA-256 摘要、字段/周期/行数/查询上限和审计摘要 | E3；单元 8/8、路由 2/2，真实 PostgreSQL usage 集成 2/2 含对账；provider 来源认证/签名和法律会计边界仍未完成 |
 
 在本轮已审范围和现有自动化证据内，**没有仍然已知且未处置的 P0/P1 代码级缺陷**。这句话不等于“没有未知漏洞”，也不覆盖下节列出的生产证据阻断。
 
@@ -137,7 +138,7 @@
 | 生产阻断 | 缺独立渗透测试和外部威胁模型复核 | 现有安全结论由仓库本地工具和本次审计产生 | 第三方测试、修复复测、签名报告 |
 | 生产阻断 | 缺 6–24 小时真实工作负载 soak 与容量包线 | 当前短时门只能发现明显回归，不能证明无泄漏或峰值稳定 | 多负载混合、并发爬坡、故障注入、长时资源趋势 |
 | 生产阻断 | Workforce 已有 PostgreSQL 跨主机 claim/fencing，但队列/结果仍是同主机 JSON，副作用 sink 尚未普遍强制 fence | 可防重复 ownership，但不能声称端到端 exactly-once 或完整分布式 Workforce | 中央队列/结果后端、所有不可逆副作用 fence 校验、数据库故障转移/分区/split-brain 测试 |
-| 生产阻断 | usage 与 audit 已有中央 PostgreSQL 链，但 billing 法定发票、Provider statement reconciliation 与外部 WORM 仍未闭环 | 技术用量/审计可跨主机汇总并验篡改，仍不能直接当财务/税务或外部不可变证明 | Provider invoice reconciliation、支付/税务边界、把 sequence/hash floor 写入并演练外部 WORM/object-lock |
+| 生产阻断 | usage/audit 已中央化，结构化 provider statement comparison 已能精确核对，但 statement 来源仍由 operator 提供，未通过 provider API/签名认证；外部 WORM 也未闭环 | 能发现技术账本差异，仍不能把输入真实性、支付状态、税务或外部不可变性视为已证明 | provider-authenticated/signed ingestion、持久对账历史、财务/税务边界，以及把 sequence/hash floor 写入并演练外部 WORM/object-lock |
 | 生产阻断 | 未完成负载均衡器、TLS/mTLS、数据库故障切换、备份恢复和 DR 演练 | 无法给出 RTO/RPO 或多实例生产承诺 | 隔离环境破坏性恢复、主从切换、证书轮换、网络分区演练 |
 | P1 能力差距 | A2A 已支持稳定 Ed25519/JWKS 签名及有界 memory/同主机 SQLite 持久任务，但缺跨主机 TaskStore 和重叠多签名轮换 | 多主机不能共享任务生命周期；密钥轮换窗口仍需协调缓存 | 实现 PostgreSQL TaskStore、故障转移/分区测试、生产 required 签名和重叠轮换演练 |
 | P1 工程债 | TypeScript 迁移例外仍存在 | 严格检查通过，但部分旧运行时仍依赖 JS 兼容边界 | 在 2026-10-31/11-13 前消除登记例外并保持契约兼容 |
@@ -149,13 +150,13 @@
 
 | 验证 | 结果 |
 | --- | --- |
-| `pnpm check` | 通过；679 个网关文件语法检查，TypeScript 0 errors，语言策略通过，81 个权限声明/135 条活动路由，18 个受治理出站集成 |
-| `pnpm test` | 通过；Forge 2,692/2,692；网关 Node 100/100；主要 Vitest 1,263 passed/17 skipped；隔离解析器 10/10；MCP 包 4/4；其余工作区套件通过 |
-| `pnpm check:public` | 通过；1,840 个 tracked/candidate 文件，0 issue codes |
+| `pnpm check` | 通过；679 个网关文件语法检查，TypeScript 0 errors，语言策略通过，81 个权限声明/136 条活动路由，18 个受治理出站集成 |
+| `pnpm test` | 通过；Forge 2,692/2,692；网关 Node 100/100；主要 Vitest 1,274 passed/17 skipped；隔离解析器 10/10；MCP 包 4/4；其余工作区套件通过 |
+| `pnpm check:public` | 通过；1,843 个 tracked/candidate 文件，0 issue codes |
 | `pnpm verify:public-clone` | 通过；干净克隆、fake-provider 强制、MCP `2026-07-28`、12 tools、0 次真实提供商调用、进程清理成功 |
 | `pnpm verify:mcp` | 通过 4/4；现代 stdio、现代+兼容 HTTP、认证/CORS/清理 |
 | `pnpm smoke:mcp --json` | 通过；现代协议时代 `2026-07-28` |
-| `node tools/security-attack-regression.mjs` | `SECURITY AUDIT: ALL DEFENDED` |
+| `node tools/security-attack-regression.mjs` | 23/23 防住；含对账跨 tenant body 和 viewer 权限攻击；`SECURITY AUDIT: ALL DEFENDED` |
 | `pnpm audit --prod --audit-level low` | 通过；0 个已知生产依赖漏洞 |
 | 审计链顺序压测 | 500 条约 4.99 秒，约 100.23 records/s，最终链验证通过 |
 
@@ -163,15 +164,15 @@
 
 | 门 | 结果 | 可复核链接 |
 | --- | --- | --- |
-| 完整 `quality` | 通过；实现提交 `eb549fc3`，6 分 33 秒 | [Run 32753672879](https://github.com/happy520ai/unified-ai-system/actions/runs/32753672879) |
-| PostgreSQL 集成 | 通过；7 个文件、16/16，含中央 audit 2/2、usage 2/2、Workforce claim 2/2 | 同一 quality run |
+| 完整 `quality` | 通过；实现提交 `866c0c08`，6 分 49 秒 | [Run 32756923531](https://github.com/happy520ai/unified-ai-system/actions/runs/32756923531) |
+| PostgreSQL 集成 | 通过；7 个文件、16/16，含中央 audit 2/2、usage+statement comparison 2/2、Workforce claim 2/2 | 同一 quality run |
 | SLO/故障隔离 | 通过 | 同一 quality run |
 | 开环 soak/背压 | 通过 | 同一 quality run；确认 O(n²) 修复生效 |
 | 资源稳定性 soak | 通过 | 同一 quality run |
 | MCP、CLI、Go/C#/SDK 示例 | 全部通过 | 同一 quality run |
 | 代码/依赖扫描 | 通过 | [PR #115 checks](https://github.com/happy520ai/unified-ai-system/pull/115/checks) |
 | 插件扫描 | 通过 | [PR #115 checks](https://github.com/happy520ai/unified-ai-system/pull/115/checks) |
-| hardened amd64+arm64 容器 | 通过；实现提交 `eb549fc3`，包含网关/MCP 镜像与匿名发布产物验证 | [Run 32754394422](https://github.com/happy520ai/unified-ai-system/actions/runs/32754394422) |
+| hardened amd64+arm64 容器 | 通过；实现提交 `866c0c08`，包含网关/MCP 镜像与匿名发布产物验证 | [Run 32757643863](https://github.com/happy520ai/unified-ai-system/actions/runs/32757643863) |
 
 ### 7.3 未执行的证据
 
@@ -208,6 +209,7 @@
 
 - 用虚拟 key、租户、RBAC、预算和统一审计代替散落的提供商密钥；
 - 将缓存、RAG、guardrails、fallback、影子流量和工具权限集中到同一执行边界；
+- 把 provider statement 的每一行与中央 usage attempt 精确核对，直接看到漏记、重复、未决、未知估值和超容差成本；
 - 对 MCP/A2A/HTTP 客户端复用同一套治理策略，而非为每种客户端重复建设；
 - 用公共克隆、攻击回归和 CI 证据降低“只有作者机器能跑”的风险。
 
@@ -215,14 +217,15 @@
 
 - 自托管、默认 fake、真实调用显式启用；
 - OIDC/SCIM、租户隔离、日志净化、凭据加密、审计链和加密备份构成可检查基础；
-- 但在外部 WORM、合规认证、跨区域 HA、RTO/RPO 和第三方测试完成前，只能作为评估/候选，不应直接写入生产合规声明。
+- 对账结果保留“operator-supplied、非法律发票、非支付/税务证明”的机器可读边界；
+- 但在 provider 来源认证、外部 WORM、合规认证、跨区域 HA、RTO/RPO 和第三方测试完成前，只能作为评估/候选，不应直接写入生产合规声明。
 
 ## 10. “大放异彩”的现实路径
 
 项目不需要复制所有竞品，最有胜算的顺序是：
 
 1. **守住差异化**：把“零密钥可试、确定性增强、真实调用显式、证据可复核”做成最短上手路径。
-2. **补生产闭环**：中央 Workforce queue/result 与 fence-aware sink、provider statement reconciliation/外部 WORM、跨主机 A2A TaskStore、签名轮换、真实 provider staging、24 小时 soak、DR 与独立渗透测试。
+2. **补生产闭环**：中央 Workforce queue/result 与 fence-aware sink、provider-authenticated statement ingestion/持久历史/外部 WORM、跨主机 A2A TaskStore、签名轮换、真实 provider staging、24 小时 soak、DR 与独立渗透测试。
 3. **建立可信对标**：固定硬件、固定模型、固定流量，公开与 LiteLLM/Portkey/Kong 等同场的延迟、错误率、资源、成本和治理功能矩阵。
 4. **扩大生态而非堆宣传词**：每个主流 MCP/A2A/SDK 客户端取得一份可复现第三方报告；把 2,084 个“待人工证据”逐步转成真实认证。
 5. **用真实采用证明领先**：安装成功率、7/30 日留存、活跃部署、外部贡献者、生产案例与问题响应时间，比 star 口号更能说明市场价值。
