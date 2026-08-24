@@ -121,6 +121,8 @@ const dockerReleaseChecks = {
   smokeExercisesReadOnlyRuntime:
     (dockerWorkflowSource.match(/--read-only/g) ?? []).length >= 2
     && dockerWorkflowSource.includes("--tmpfs /tmp:rw,noexec,nosuid,size=64m"),
+  node24ArtifactUploader:
+    (dockerWorkflowSource.match(/actions\/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f/g) ?? []).length >= 2,
 };
 for (const [check, passed] of Object.entries(dockerReleaseChecks)) {
   if (!passed) issues.push({ code: "docker_release_supply_chain_check_failed", check });
