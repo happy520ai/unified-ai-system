@@ -1,4 +1,7 @@
 import { defineConfig } from "vitest/config";
+import { availableParallelism } from "node:os";
+
+const maxWorkers = Math.max(2, Math.min(8, availableParallelism()));
 
 export default defineConfig({
   test: {
@@ -8,5 +11,6 @@ export default defineConfig({
     ],
     testTimeout: 15000,
     hookTimeout: 10000,
+    maxWorkers,
   },
 });
