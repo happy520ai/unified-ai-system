@@ -47,6 +47,16 @@ describe("worktreeIsolation gate (real git worktrees)", () => {
     expect(existsSync(created.worktree.path)).toBe(false);
   });
 
+  it("can remove only the worktree directory while preserving a verified candidate branch", async () => {
+    const created = await isolation.create({ planId: "plan-gate-preserve" });
+    expect(created.success).toBe(true);
+    const removed = await isolation.remove(created.worktree.worktreeId, { preserveBranch: true });
+    expect(removed).toMatchObject({ success: true, branchPreserved: true });
+    const branches = await execFileAsync("git", ["branch", "--list", created.worktree.branch], { cwd: repoRoot });
+    expect(branches.stdout).toContain(created.worktree.branch);
+    await execFileAsync("git", ["branch", "-D", created.worktree.branch], { cwd: repoRoot });
+  });
+
   it("reports honest module info", () => {
     const info = isolation.getInfo();
     expect(info.module).toBe("worktreeIsolation");

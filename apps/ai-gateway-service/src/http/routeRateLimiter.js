@@ -20,6 +20,8 @@ const DEFAULT_ROUTE_LIMITS = Object.freeze({
 
   // Workforce execution — very tight (heavy compute)
   "/workforce/execute": { windowMs: 60_000, maxRequests: 5 },
+  "/workforce/execute/cancel": { windowMs: 60_000, maxRequests: 10 },
+  "/workforce/execute/status": { windowMs: 60_000, maxRequests: 120 },
   "/workforce/run-local": { windowMs: 60_000, maxRequests: 10 },
 
   // Model import — moderate (may call external APIs)

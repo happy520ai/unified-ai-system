@@ -126,7 +126,7 @@ describe("controlled execution worktree and tenant isolation", () => {
       start: vi.fn(async () => ({ success: true })),
       onAgentCompleted: vi.fn(async () => ({ success: true })),
       complete: vi.fn(async () => ({ success: true })),
-      getStatus: vi.fn(),
+      getStatus: vi.fn(async () => ({ success: true, status: "running", cancelRequested: false })),
       cancel: vi.fn(),
       pause: vi.fn(),
       resume: vi.fn(),
@@ -166,8 +166,8 @@ describe("controlled execution worktree and tenant isolation", () => {
       expect(internalPlanId).not.toContain("same-public-plan");
       expect(lifecycle.initialize).toHaveBeenCalledWith(internalPlanId, expect.objectContaining({
         publicPlanId: "same-public-plan",
-        tenantId: "tenant-a",
-        userId: "alice",
+        tenantFingerprint: expect.stringMatching(/^idfp_[a-f0-9]{16}$/u),
+        subjectFingerprint: expect.stringMatching(/^idfp_[a-f0-9]{16}$/u),
       }));
       expect(lifecycle.complete).toHaveBeenCalledWith(internalPlanId, "completed", expect.any(Object));
       expect(remove).toHaveBeenCalledWith(`wt-${internalPlanId}`);
@@ -189,7 +189,8 @@ describe("controlled execution worktree and tenant isolation", () => {
       start: vi.fn(async () => ({ success: true })),
       onAgentCompleted: vi.fn(async () => ({ success: true })),
       complete: vi.fn(async () => ({ success: true })),
-      getStatus: vi.fn(), cancel: vi.fn(), pause: vi.fn(), resume: vi.fn(),
+      getStatus: vi.fn(async () => ({ success: true, status: "running", cancelRequested: false })),
+      cancel: vi.fn(), pause: vi.fn(), resume: vi.fn(),
     };
     const executor = createControlledExecutor({
       env: { WORKFORCE_EXECUTION_ENABLED: "true" },
@@ -253,7 +254,76 @@ describe("controlled execution worktree and tenant isolation", () => {
       const evidenceScopes = await readdir(join(executionDir, "evidence"));
       expect(evidenceScopes).toHaveLength(1);
       expect(await readdir(join(executionDir, "evidence", evidenceScopes[0]))).toHaveLength(7);
-      expect(await readdir(join(executionDir, "security-audit"))).toHaveLength(1);
+      // Pre-approval request scope and post-approval execution scope are
+      // intentionally distinct so retries cannot overwrite security evidence.
+      expect(await readdir(join(executionDir, "security-audit"))).toHaveLength(2);
+    } finally {
+      await executor.close();
+    }
+  }, 20_000);
+
+  it("turns an authenticated lifecycle cancel into a provider abort and cancelled terminal state", async () => {
+    const executionDir = await temporaryRoot("workforce-controlled-cancel-");
+    const providerStarted = vi.fn();
+    const providerAdapter = {
+      generate: vi.fn(async (request) => {
+        providerStarted();
+        const signal = request.execution?.signal as AbortSignal | undefined;
+        return new Promise((_resolve, reject) => {
+          signal?.addEventListener("abort", () => reject(signal.reason), { once: true });
+        });
+      }),
+    };
+    const executor = createControlledExecutor({
+      env: {
+        WORKFORCE_EXECUTION_ENABLED: "true",
+        AI_GATEWAY_WORKFORCE_CONTROL_POLL_MS: "100",
+      },
+      executionDir,
+      providerAdapter,
+      tierGovernor: tierGovernor(),
+      workspaceGuard: { getInfo: () => ({}), checkWorkspace: vi.fn(async () => ({ clean: true })) },
+      securityCheckpoint: securityCheckpoint(),
+      worktreeIsolation: {
+        getInfo: () => ({}),
+        create: vi.fn(async ({ planId }) => ({
+          success: true,
+          worktree: { worktreeId: `wt-${planId}`, planId, path: "isolated" },
+        })),
+        remove: vi.fn(async () => ({ success: true })),
+      },
+      evidenceCapture: {
+        getInfo: () => ({}),
+        startCapture: () => ({ setOutput() { return this; }, async finish() { return { success: true }; } }),
+      },
+    });
+    const input = {
+      planId: "cancel-plan",
+      goal: "Wait for remote cancellation",
+      autonomyMode: "controlled-execution",
+      userId: "alice",
+      tenantId: "tenant-a",
+    };
+    try {
+      const descriptor = await executor.describeExecution(input);
+      const approval = await executor.approveExecution(input, "alice", descriptor.requiredScopes);
+      const executionId = approval.execution.executionId;
+      const pending = executor.execute(input);
+      await vi.waitFor(() => expect(providerStarted).toHaveBeenCalled());
+      await expect(executor.cancel(executionId, "operator cancelled", {
+        tenantId: "tenant-a",
+        userId: "alice",
+      })).resolves.toMatchObject({ success: true, cancelRequested: true });
+      await expect(pending).resolves.toMatchObject({
+        success: false,
+        executionStatus: "cancelled",
+        executionId,
+        worktree: { cleanedUp: true },
+      });
+      await expect(executor.getStatus(executionId, {
+        tenantId: "tenant-b",
+        userId: "alice",
+      })).rejects.toMatchObject({ code: "WORKFORCE_EXECUTION_FORBIDDEN" });
     } finally {
       await executor.close();
     }

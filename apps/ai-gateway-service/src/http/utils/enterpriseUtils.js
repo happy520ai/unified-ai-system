@@ -468,6 +468,10 @@ export function resolvePermission(method, pathname) {
     return "workflow:approve";
   }
 
+  if (normalizedMethod === "POST" && normalizedPath === "/workforce/execute/status") {
+    return "dashboard:read";
+  }
+
   if (normalizedMethod === "POST" && normalizedPath === "/codex-handoff/next-task") {
     return "workflow:run";
   }
@@ -475,6 +479,7 @@ export function resolvePermission(method, pathname) {
   if (
     normalizedPath === "/workforce/plan" ||
     normalizedPath === "/workforce/execute" ||
+    normalizedPath === "/workforce/execute/cancel" ||
     normalizedPath === "/workforce/run-local" ||
     normalizedPath === "/real-capabilities/activate-five" ||
     normalizedPath === "/workforce/plans/save" ||

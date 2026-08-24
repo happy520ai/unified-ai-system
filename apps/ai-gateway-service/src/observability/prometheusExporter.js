@@ -286,6 +286,21 @@ export function createPrometheusExporter(options = {}) {
     lines.push("# HELP " + prefix + "_workforce_task_queue_atomic_terminal_fence Whether terminal writes atomically validate the claim fence.");
     lines.push("# TYPE " + prefix + "_workforce_task_queue_atomic_terminal_fence gauge");
     lines.push(`${prefix}_workforce_task_queue_atomic_terminal_fence ${workforceTaskQueue?.atomicTerminalFence === true ? 1 : 0}`);
+
+    const workforceExecutionControl = snapshot.workforceExecutionControl;
+    const workforceControlMode = sanitizeMetricLabel(workforceExecutionControl?.mode ?? "disabled");
+    lines.push(`# HELP ${prefix}_workforce_execution_control_available Whether central Workforce approval and lifecycle state is reachable`);
+    lines.push(`# TYPE ${prefix}_workforce_execution_control_available gauge`);
+    lines.push(`${prefix}_workforce_execution_control_available{mode="${workforceControlMode}"} ${workforceExecutionControl ? (workforceExecutionControl.available === true ? 1 : 0) : 1}`);
+    lines.push(`# HELP ${prefix}_workforce_execution_control_distributed Whether Workforce approval and lifecycle state is cross-host distributed`);
+    lines.push(`# TYPE ${prefix}_workforce_execution_control_distributed gauge`);
+    lines.push(`${prefix}_workforce_execution_control_distributed{mode="${workforceControlMode}"} ${workforceExecutionControl?.distributed === true ? 1 : 0}`);
+    lines.push(`# HELP ${prefix}_workforce_execution_control_records Active approval and execution-control records`);
+    lines.push(`# TYPE ${prefix}_workforce_execution_control_records gauge`);
+    lines.push(`${prefix}_workforce_execution_control_records{kind="approval",state="active"} ${safeMetricNumber(workforceExecutionControl?.approval?.activeApprovals)}`);
+    lines.push(`${prefix}_workforce_execution_control_records{kind="approval",state="capacity"} ${safeMetricNumber(workforceExecutionControl?.approval?.maxApprovals)}`);
+    lines.push(`${prefix}_workforce_execution_control_records{kind="lifecycle",state="active"} ${safeMetricNumber(workforceExecutionControl?.lifecycle?.activeExecutions)}`);
+    lines.push(`${prefix}_workforce_execution_control_records{kind="lifecycle",state="capacity"} ${safeMetricNumber(workforceExecutionControl?.lifecycle?.maxExecutions)}`);
     lines.push(`# HELP ${prefix}_workforce_claim_stats_age_seconds Age of the last distributed claim statistics snapshot, or -1 when unavailable`);
     lines.push(`# TYPE ${prefix}_workforce_claim_stats_age_seconds gauge`);
     lines.push(`${prefix}_workforce_claim_stats_age_seconds{mode="${workforceClaimMode}"} ${workforceClaimStatsAgeSeconds}`);

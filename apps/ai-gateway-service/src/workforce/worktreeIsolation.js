@@ -128,7 +128,7 @@ export function createWorktreeIsolation(options = {}) {
      * @param {string} worktreeId - Worktree ID
      * @returns {Promise<object>} 移除结果
      */
-    async remove(worktreeId) {
+    async remove(worktreeId, removeOptions = {}) {
       const record = worktrees.get(worktreeId);
       if (!record) {
         return {
@@ -170,14 +170,36 @@ export function createWorktreeIsolation(options = {}) {
         };
       }
 
-      // 清理分支
-      try {
-        await execFileAsync("git", ["branch", "-D", record.branch], {
-          cwd: repoRoot,
-          timeout: DEFAULT_TIMEOUT_MS,
-        });
-      } catch {
-        // 分支可能已不存在或已被使用
+      const preserveBranch = removeOptions?.preserveBranch === true;
+      // Rollback deletes the candidate branch. A verified manual-merge
+      // candidate must survive worktree directory cleanup.
+      if (!preserveBranch) {
+        let branchRemoved = false;
+        try {
+          await execFileAsync("git", ["branch", "-D", record.branch], {
+            cwd: repoRoot,
+            timeout: DEFAULT_TIMEOUT_MS,
+          });
+          branchRemoved = true;
+        } catch {
+          try {
+            const { stdout } = await execFileAsync("git", ["branch", "--list", record.branch], {
+              cwd: repoRoot,
+              timeout: DEFAULT_TIMEOUT_MS,
+            });
+            branchRemoved = !stdout.trim();
+          } catch {
+            branchRemoved = false;
+          }
+        }
+        if (!branchRemoved) {
+          return {
+            success: false,
+            code: "WORKTREE_BRANCH_REMOVE_FAILED",
+            worktreeId,
+            reason: "The isolated candidate branch could not be removed.",
+          };
+        }
       }
 
       record.status = "removed";
@@ -187,6 +209,8 @@ export function createWorktreeIsolation(options = {}) {
       return {
         success: true,
         worktreeId,
+        branch: record.branch,
+        branchPreserved: preserveBranch,
         message: `Worktree 已移除: ${record.path}`,
       };
     },

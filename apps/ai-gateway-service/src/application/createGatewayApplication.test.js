@@ -49,13 +49,13 @@ describe("gateway-application", () => {
     expect(application.gatewayService.runtimeConfig.shadowTimeoutMs).toBe(30_000);
   });
 
-  it("fails closed when multi-instance Workforce execution lacks central queue state", () => {
+  it("fails closed when multi-instance Workforce execution lacks central control state", () => {
     expect(() => createGatewayApplication({
       AI_GATEWAY_MULTI_INSTANCE: "true",
       WORKFORCE_EXECUTION_ENABLED: "true",
       AI_GATEWAY_WORKFORCE_CLAIM_STORE_MODE: "memory",
     })).toThrow(expect.objectContaining({
-      code: "WORKFORCE_QUEUE_CENTRAL_STORE_REQUIRED",
+      code: "WORKFORCE_CONTROL_CENTRAL_STORE_REQUIRED",
     }));
   });
 

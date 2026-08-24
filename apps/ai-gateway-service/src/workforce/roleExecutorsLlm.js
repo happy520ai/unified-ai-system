@@ -173,6 +173,9 @@ export async function executeRoleWithLLM(roleId, goal, context = {}, providerAda
         providerId: llmOptions.providerId || "default",
         modelId: llmOptions.model || "default",
       },
+      execution: {
+        signal: context?.signal,
+      },
     };
 
     const providerResponse = await providerAdapter.generate(providerRequest);
@@ -200,6 +203,9 @@ export async function executeRoleWithLLM(roleId, goal, context = {}, providerAda
       llmStructured: false,
     };
   } catch (err) {
+    if (context?.signal?.aborted) {
+      throw context.signal.reason instanceof Error ? context.signal.reason : err;
+    }
     return {
       ...templateOutput,
       llmDriven: false,

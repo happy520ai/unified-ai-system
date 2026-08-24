@@ -435,6 +435,43 @@ describe("dispatchHttpRoutes02 healthz readiness", () => {
     expect(JSON.stringify(context.response.payload.error.details.workforceTaskQueue))
       .not.toContain("private-queue");
   });
+
+  it("returns unready with redacted central Workforce execution-control state", async () => {
+    const context = createEnvelopeContext({
+      application: {
+        workforceExecutor: {
+          getExecutionControlHealth: async () => ({
+            mode: "postgres-central",
+            durable: true,
+            distributed: true,
+            centralRequired: true,
+            available: false,
+            approval: { available: false, activeApprovals: 3, maxApprovals: 100 },
+            lifecycle: { available: true, activeExecutions: 2, maxExecutions: 100, maxStateBytes: 65536 },
+            connectionString: "postgresql://must-not-leak",
+            namespace: "private-control",
+          }),
+        },
+      },
+    });
+
+    await dispatchHttpRoutes02(context);
+
+    expect(context.response.status).toBe(503);
+    expect(context.response.payload.error.details.readinessFailures).toContain(
+      "workforce-execution-control-unavailable",
+    );
+    expect(context.response.payload.error.details.workforceExecutionControl).toMatchObject({
+      mode: "postgres-central",
+      distributed: true,
+      available: false,
+      approval: { activeApprovals: 3 },
+      lifecycle: { activeExecutions: 2, maxStateBytes: 65536 },
+    });
+    const serialized = JSON.stringify(context.response.payload.error.details.workforceExecutionControl);
+    expect(serialized).not.toContain("must-not-leak");
+    expect(serialized).not.toContain("private-control");
+  });
 });
 
 describe("dispatchHttpRoutes02 metrics readiness visibility", () => {

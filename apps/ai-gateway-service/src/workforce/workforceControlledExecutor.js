@@ -10,10 +10,9 @@
 
 import { createHash } from "node:crypto";
 
-import { createExecutionLifecycle } from "./executionLifecycle.js";
-import { createExecutionApprovalGate } from "./executionApprovalGate.js";
 import { createWorktreeIsolation } from "./worktreeIsolation.js";
 import { createWorkforceTaskQueueManager } from "./workforceTaskQueueFactory.ts";
+import { createWorkforceExecutionControl } from "./workforceExecutionControlFactory.ts";
 import { createRoleExecutor } from "./roleExecutors.js";
 import { executeRoleWithLLM } from "./roleExecutorsLlm.js";
 import { createTaskEvidenceCapture } from "./taskEvidenceCapture.js";
@@ -66,6 +65,7 @@ function readBoundedInteger(value, fallback, minimum, maximum) {
  * @param {object} [options.worktreeIsolation] — injected worktree isolation adapter
  * @param {object} [options.executionLifecycle] — injected lifecycle backend
  * @param {object} [options.approvalGate] — injected approval backend
+ * @param {object} [options.executionControl] — injected shared approval/lifecycle backend
  * @param {object} [options.evidenceCapture] — injected evidence backend
  */
 export function createControlledExecutor(options = {}) {
@@ -83,14 +83,27 @@ export function createControlledExecutor(options = {}) {
     1_000,
     60 * 60_000,
   );
+  const lifecyclePollMs = readBoundedInteger(
+    env.AI_GATEWAY_WORKFORCE_CONTROL_POLL_MS,
+    500,
+    100,
+    5_000,
+  );
 
-  const lifecycle = options.executionLifecycle ?? createExecutionLifecycle({
-    lifecycleDir: options.executionDir ?? undefined,
-  });
-  const approvalGate = options.approvalGate ?? createExecutionApprovalGate({
-    storePath: options.executionDir ? `${options.executionDir}/approvals.json` : undefined,
-    ttlMs: options.approvalTtlMs,
-  });
+  const ownsExecutionControl = !options.executionControl
+    && (!options.executionLifecycle || !options.approvalGate);
+  const executionControl = options.executionControl ?? (ownsExecutionControl
+    ? createWorkforceExecutionControl({
+        env,
+        executionDir: options.executionDir,
+        approvalTtlMs: options.approvalTtlMs,
+      })
+    : null);
+  const lifecycle = options.executionLifecycle ?? executionControl?.lifecycle;
+  const approvalGate = options.approvalGate ?? executionControl?.approvalGate;
+  if (!lifecycle || !approvalGate) {
+    throw new Error("A complete Workforce execution control backend is required.");
+  }
   const worktree = options.worktreeIsolation ?? createWorktreeIsolation({
     repoRoot: options.repoRoot ?? undefined,
   });
@@ -126,6 +139,10 @@ export function createControlledExecutor(options = {}) {
     env,
     executionDir: options.executionDir,
     tierGovernor,
+    executionLifecycle: lifecycle,
+    securityCheckpoint,
+    evidenceCapture,
+    worktreeIsolation: worktree,
   });
   const diagnosticChannel = createDiagnosticReadChannel({ env });
 
@@ -186,6 +203,10 @@ export function createControlledExecutor(options = {}) {
           lifecycle: lifecycle.getInfo(),
           taskQueue: taskQueue.getInfo(),
           approvalGate: approvalGate.getInfo(),
+          executionControl: executionControl?.getHealth?.() ?? {
+            mode: "injected",
+            distributed: lifecycle.getInfo?.().distributed === true,
+          },
           worktree: worktree.getInfo(),
           evidenceCapture: evidenceCapture.getInfo?.() ?? { ready: true },
           securityCheckpoint: securityCheckpoint.getInfo?.() ?? { ready: true },
@@ -209,8 +230,19 @@ export function createControlledExecutor(options = {}) {
           });
     },
 
+    async getExecutionControlHealth() {
+      if (executionControl?.checkHealth) return executionControl.checkHealth();
+      return {
+        mode: "injected",
+        durable: true,
+        distributed: lifecycle.getInfo?.().distributed === true,
+        available: true,
+      };
+    },
+
     async close() {
       await taskQueue.close();
+      if (ownsExecutionControl) await executionControl?.close?.();
     },
 
     /**
@@ -237,7 +269,7 @@ export function createControlledExecutor(options = {}) {
       const tenantId = typeof input.tenantId === "string" && input.tenantId.trim()
         ? input.tenantId.trim()
         : "default";
-      const executionScopeId = createScopedClaimPlanId(tenantId, userId || "anonymous", planId);
+      let executionScopeId = createScopedExecutionId(tenantId, userId || "anonymous", planId, "request");
       let preScan;
       try {
         preScan = await runPreExecutionSecurityCheck(securityCheckpoint, {
@@ -279,13 +311,26 @@ export function createControlledExecutor(options = {}) {
             approval: { ...descriptor, decisionCode: approvalCheck.code },
           });
       }
+      executionScopeId = createScopedExecutionId(
+        tenantId,
+        userId,
+        planId,
+        approvalCheck.approval?.approvalId ?? "approved",
+      );
 
       if (mode === AUTONOMY_MODES.SANDBOX_MERGE || mode === AUTONOMY_MODES.SANDBOX_MERGE_AUTO) {
-        return sandboxMerger.execute({ ...input, planId, userId, autonomyMode: mode });
+        return sandboxMerger.execute({
+          ...input,
+          planId,
+          userId,
+          tenantId,
+          executionScopeId,
+          autonomyMode: mode,
+        });
       }
 
       // --- Step 4: Workspace guard ---
-      const workspaceCheck = await workspaceGuard.checkWorkspace?.() ?? { clean: true, branch: "master" };
+      const workspaceCheck = await runWorkspaceCheck(workspaceGuard);
       if (!workspaceCheck.clean) {
         return createBlockedResult(plan, planId, "workspace_dirty",
           `Workspace is not clean: ${workspaceCheck.reason ?? "uncommitted changes detected"}`);
@@ -311,9 +356,9 @@ export function createControlledExecutor(options = {}) {
       // --- Step 6: Initialize lifecycle ---
       await lifecycle.initialize(executionScopeId, {
         publicPlanId: planId,
-        tenantId,
+        tenantFingerprint: identityFingerprint(tenantId),
         goal: plan.goal,
-        userId,
+        subjectFingerprint: identityFingerprint(userId),
         worktreeId: worktreeRecord.worktreeId,
         roleCount: (plan.selectedRoles ?? []).length,
         startedAt: startedAt.toISOString(),
@@ -343,10 +388,17 @@ export function createControlledExecutor(options = {}) {
       const context = { plan, priorOutputs: {} };
       let executionGraph = null;
       let forgeExecuted = false;
+      let requestedFinalStatus = null;
 
       try {
         let _timeoutTimer;
         const abortController = new AbortController();
+        const lifecycleMonitor = startLifecycleMonitor({
+          lifecycle,
+          executionId: executionScopeId,
+          abortController,
+          pollMs: lifecyclePollMs,
+        });
         const executionFn = () => executeWorkforceDag({
           tasks: queuedTasks.map((task) => ({
             queueTaskId: task.taskId,
@@ -377,6 +429,12 @@ export function createControlledExecutor(options = {}) {
                 capture.setOutput({ summary: summarizeEvidenceOutput(result, logRedactor) });
                 await capture.finish();
               }
+              const lifecycleDecision = await lifecycle.onAgentCompleted(
+                executionScopeId,
+                roleId,
+                { success: true },
+              );
+              assertLifecycleDecisionAllowsContinuation(lifecycleDecision);
               return result;
             } catch (error) {
               if (capture) {
@@ -391,17 +449,26 @@ export function createControlledExecutor(options = {}) {
             }
           },
         });
-        const allRoleResults = await Promise.race([
-          executionFn().finally(() => clearTimeout(_timeoutTimer)),
-          new Promise((_, reject) => {
-            _timeoutTimer = setTimeout(() => {
-              const timeoutError = new Error(`Workforce execution timed out after ${timeoutMs}ms`);
-              timeoutError.code = "WORKFORCE_EXECUTION_TIMEOUT";
-              abortController.abort(timeoutError);
-              reject(timeoutError);
-            }, timeoutMs);
-          }),
-        ]);
+        let executionPromise;
+        let allRoleResults;
+        try {
+          executionPromise = executionFn();
+          allRoleResults = await Promise.race([
+            executionPromise,
+            new Promise((_, reject) => {
+              _timeoutTimer = setTimeout(() => {
+                const timeoutError = new Error(`Workforce execution timed out after ${timeoutMs}ms`);
+                timeoutError.code = "WORKFORCE_EXECUTION_TIMEOUT";
+                abortController.abort(timeoutError);
+                reject(timeoutError);
+              }, timeoutMs);
+            }),
+          ]);
+        } finally {
+          clearTimeout(_timeoutTimer);
+          lifecycleMonitor.stop();
+          if (executionPromise) await executionPromise.catch(() => undefined);
+        }
         executionGraph = {
           scheduler: allRoleResults.scheduler,
           executionWaves: allRoleResults.executionWaves,
@@ -411,14 +478,14 @@ export function createControlledExecutor(options = {}) {
         };
         for (const [roleId, result] of Object.entries(allRoleResults?.roleOutputs ?? {})) {
           roleResults[roleId] = result;
-          await lifecycle.onAgentCompleted(executionScopeId, roleId, { success: true });
         }
       } catch (err) {
+        if (err?.code === "WORKFORCE_EXECUTION_CANCELLED") requestedFinalStatus = "cancelled";
         executionErrors.push(logRedactor.redactString?.(err.message) ?? err.message);
       }
 
       // --- Step 8b: Forge code execution (if available) ---
-      if (forgeService && roleResults["backend-engineer"]) {
+      if (!requestedFinalStatus && forgeService && roleResults["backend-engineer"]) {
         try {
           const forgeCapabilities = forgeService.getCapabilities?.() ?? {};
           if (forgeService.supportsIsolatedProjectRoot !== true
@@ -478,13 +545,20 @@ export function createControlledExecutor(options = {}) {
       }
 
       // --- Step 11: Complete lifecycle ---
-      const finalStatus = executionErrors.length === 0 ? "completed" : "failed";
-      await lifecycle.complete(executionScopeId, finalStatus, {
-        roleResults: Object.keys(roleResults).length,
-        errors: executionErrors,
-        executionGraph,
-        postScan: postScan.result,
-      });
+      let finalStatus = requestedFinalStatus
+        ?? (executionErrors.length === 0 ? "completed" : "failed");
+      const lifecycleSnapshot = await lifecycle.getStatus(executionScopeId);
+      if (lifecycleSnapshot?.status === "cancelled" || lifecycleSnapshot?.status === "force_stopped") {
+        finalStatus = lifecycleSnapshot.status;
+      } else {
+        if (lifecycleSnapshot?.cancelRequested) finalStatus = "cancelled";
+        await lifecycle.complete(executionScopeId, finalStatus, {
+          roleResults: Object.keys(roleResults).length,
+          errors: executionErrors,
+          executionGraph,
+          postScan: postScan.result,
+        });
+      }
 
       const completedAt = new Date();
       return {
@@ -492,6 +566,7 @@ export function createControlledExecutor(options = {}) {
         phase: CONTROLLED_EXECUTION_PHASE,
         mode: CONTROLLED_EXECUTION_MODE,
         planId,
+        executionId: executionScopeId,
         goal: plan.goal,
         executionStatus: finalStatus,
         startedAt: startedAt.toISOString(),
@@ -574,7 +649,16 @@ export function createControlledExecutor(options = {}) {
         approvedScopes: requiredScopes,
         note: input.note,
       });
-      return { ...approval, execution: descriptor };
+      const tenantId = typeof input.tenantId === "string" && input.tenantId.trim()
+        ? input.tenantId.trim()
+        : "default";
+      const executionId = createScopedExecutionId(
+        tenantId,
+        userId,
+        descriptor.planId,
+        approval.approval?.approvalId ?? "approved",
+      );
+      return { ...approval, execution: { ...descriptor, executionId } };
     },
 
     /**
@@ -608,29 +692,38 @@ export function createControlledExecutor(options = {}) {
     /**
      * Get execution lifecycle status.
      */
-    async getStatus(planId) {
-      return lifecycle.getStatus(planId);
+    async getStatus(executionId, identity) {
+      const snapshot = await lifecycle.getStatus(executionId);
+      assertExecutionAccess(snapshot, identity);
+      const { tenantFingerprint: _tenant, subjectFingerprint: _subject, ...safe } = snapshot;
+      return safe;
     },
 
     /**
      * Cancel a running execution.
      */
-    async cancel(planId, reason) {
-      return lifecycle.cancel(planId, reason);
+    async cancel(executionId, reason, identity) {
+      const snapshot = await lifecycle.getStatus(executionId);
+      assertExecutionAccess(snapshot, identity);
+      return lifecycle.cancel(executionId, reason);
     },
 
     /**
      * Pause a running execution.
      */
-    async pause(planId, reason) {
-      return lifecycle.pause(planId, reason);
+    async pause(executionId, reason, identity) {
+      const snapshot = await lifecycle.getStatus(executionId);
+      assertExecutionAccess(snapshot, identity);
+      return lifecycle.pause(executionId, reason);
     },
 
     /**
      * Resume a paused execution.
      */
-    async resume(planId) {
-      return lifecycle.resume(planId);
+    async resume(executionId, identity) {
+      const snapshot = await lifecycle.getStatus(executionId);
+      assertExecutionAccess(snapshot, identity);
+      return lifecycle.resume(executionId);
     },
 
     /**
@@ -699,11 +792,21 @@ export function createControlledExecutor(options = {}) {
   };
 }
 
-function createScopedClaimPlanId(tenantId, ownerId, planId) {
+function createScopedExecutionId(tenantId, ownerId, planId, nonce = "execution") {
   const digest = createHash("sha256")
-    .update(`${tenantId}\u0000${ownerId}\u0000${planId}`, "utf8")
+    .update(`${tenantId}\u0000${ownerId}\u0000${planId}\u0000${nonce}`, "utf8")
     .digest("hex");
   return `wf-scope-${digest}`;
+}
+
+function identityFingerprint(value) {
+  return `idfp_${createHash("sha256").update(String(value), "utf8").digest("hex").slice(0, 16)}`;
+}
+
+async function runWorkspaceCheck(workspaceGuard) {
+  if (typeof workspaceGuard?.check === "function") return workspaceGuard.check();
+  if (typeof workspaceGuard?.checkWorkspace === "function") return workspaceGuard.checkWorkspace();
+  throw new Error("A workspace safety check is required.");
 }
 
 function summarizeEvidenceOutput(value, logRedactor) {
@@ -749,4 +852,78 @@ async function runPostExecutionSecurityCheck(checkpoint, { plan, planId, roleRes
     return checkpoint.postExecutionScan(plan, roleResults);
   }
   throw new Error("A post-execution security checkpoint is required.");
+}
+
+function startLifecycleMonitor({ lifecycle, executionId, abortController, pollMs }) {
+  let stopped = false;
+  let polling = false;
+  const poll = async () => {
+    if (stopped || polling || abortController.signal.aborted) return;
+    polling = true;
+    try {
+      const snapshot = await lifecycle.getStatus(executionId);
+      if (!snapshot?.success) {
+        const error = new Error("The execution lifecycle disappeared during execution.");
+        error.code = "WORKFORCE_LIFECYCLE_MONITOR_FAILED";
+        abortController.abort(error);
+        return;
+      }
+      if (snapshot.cancelRequested || snapshot.status === "cancelled" || snapshot.status === "force_stopped") {
+        const error = new Error("Workforce execution was cancelled.");
+        error.code = "WORKFORCE_EXECUTION_CANCELLED";
+        abortController.abort(error);
+      } else if (snapshot.pauseRequested || snapshot.status === "paused") {
+        const error = new Error("Workforce execution pause requires a durable resumable runner.");
+        error.code = "WORKFORCE_EXECUTION_PAUSE_UNSUPPORTED";
+        abortController.abort(error);
+      }
+    } catch {
+      const error = new Error("The execution lifecycle could not be monitored.");
+      error.code = "WORKFORCE_LIFECYCLE_MONITOR_FAILED";
+      abortController.abort(error);
+    } finally {
+      polling = false;
+    }
+  };
+  const timer = setInterval(() => void poll(), pollMs);
+  timer.unref?.();
+  void poll();
+  return {
+    stop() {
+      stopped = true;
+      clearInterval(timer);
+    },
+  };
+}
+
+function assertLifecycleDecisionAllowsContinuation(decision) {
+  if (decision?.action === "cancelled" || decision?.status === "cancelled") {
+    const error = new Error("Workforce execution was cancelled.");
+    error.code = "WORKFORCE_EXECUTION_CANCELLED";
+    throw error;
+  }
+  if (decision?.action === "paused" || decision?.status === "paused") {
+    const error = new Error("Workforce execution pause requires a durable resumable runner.");
+    error.code = "WORKFORCE_EXECUTION_PAUSE_UNSUPPORTED";
+    throw error;
+  }
+}
+
+function assertExecutionAccess(snapshot, identity) {
+  const tenantId = typeof identity?.tenantId === "string" ? identity.tenantId.trim() : "";
+  const userId = typeof identity?.userId === "string" ? identity.userId.trim() : "";
+  if (!tenantId || !userId) {
+    const error = new Error("An authenticated tenant and subject are required for execution control.");
+    error.code = "WORKFORCE_EXECUTION_IDENTITY_REQUIRED";
+    error.statusCode = 401;
+    throw error;
+  }
+  if (!snapshot?.success
+    || snapshot.tenantFingerprint !== identityFingerprint(tenantId)
+    || snapshot.subjectFingerprint !== identityFingerprint(userId)) {
+    const error = new Error("The execution does not belong to the authenticated subject.");
+    error.code = "WORKFORCE_EXECUTION_FORBIDDEN";
+    error.statusCode = 403;
+    throw error;
+  }
 }

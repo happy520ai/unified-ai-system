@@ -193,6 +193,15 @@ describe("prometheusExporter", () => {
         namespace: "private-queue",
         connectionString: "postgres://queue-must-not-leak",
       },
+      workforceExecutionControl: {
+        mode: "postgres-central",
+        distributed: true,
+        available: true,
+        approval: { activeApprovals: 3, maxApprovals: 100 },
+        lifecycle: { activeExecutions: 2, maxExecutions: 50 },
+        namespace: "private-control",
+        connectionString: "postgres://control-must-not-leak",
+      },
     });
 
     expect(text).toContain('ai_gateway_a2a_task_store_available{mode="sqlite"} 1');
@@ -209,12 +218,18 @@ describe("prometheusExporter", () => {
     expect(text).toContain('ai_gateway_workforce_task_queue_distributed{mode="postgres-central-fenced"} 1');
     expect(text).toContain('ai_gateway_workforce_task_queue_tasks{state="active"} 2');
     expect(text).toContain("ai_gateway_workforce_task_queue_atomic_terminal_fence 1");
+    expect(text).toContain('ai_gateway_workforce_execution_control_available{mode="postgres-central"} 1');
+    expect(text).toContain('ai_gateway_workforce_execution_control_distributed{mode="postgres-central"} 1');
+    expect(text).toContain('ai_gateway_workforce_execution_control_records{kind="approval",state="active"} 3');
+    expect(text).toContain('ai_gateway_workforce_execution_control_records{kind="lifecycle",state="active"} 2');
     expect(text).toMatch(/ai_gateway_workforce_claim_stats_age_seconds\{mode="postgres-fenced"\} 1\.\d{3}/);
     expect(text).not.toContain("E:/private/a2a.sqlite");
     expect(text).not.toContain("private-deployment");
     expect(text).not.toContain("private-queue");
     expect(text).not.toContain("postgres://must-not-leak");
     expect(text).not.toContain("postgres://queue-must-not-leak");
+    expect(text).not.toContain("private-control");
+    expect(text).not.toContain("postgres://control-must-not-leak");
   });
 
   it("renders central usage-ledger health without database identity", () => {

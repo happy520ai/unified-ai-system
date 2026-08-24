@@ -166,6 +166,7 @@ jobs:
           apps/ai-gateway-service/src/http/a2aTaskStore.postgres.integration.test.ts
           apps/ai-gateway-service/src/workforce/postgresTaskClaimLease.postgres.integration.test.ts
           apps/ai-gateway-service/src/workforce/postgresWorkforceTaskQueue.postgres.integration.test.ts
+          apps/ai-gateway-service/src/workforce/postgresWorkforceExecutionControl.postgres.integration.test.ts
           apps/ai-gateway-service/src/logging/postgresUsageLedger.postgres.integration.test.ts
           apps/ai-gateway-service/src/enterprise/postgresAuditStore.postgres.integration.test.ts
 

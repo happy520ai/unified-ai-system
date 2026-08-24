@@ -112,6 +112,8 @@ describe("public workforce entrypoints", () => {
       execute: vi.fn(async () => ({ success: true, executionStatus: "dry_run_preview" })),
       approveExecution: vi.fn(),
       revokeApproval: vi.fn(),
+      getStatus: vi.fn(async () => ({ success: true, status: "running" })),
+      cancel: vi.fn(async () => ({ success: true, cancelRequested: true })),
     };
     const writeJson = vi.fn();
     const routes = createWorkforceRoutes(
@@ -143,6 +145,27 @@ describe("public workforce entrypoints", () => {
     }));
     expect(route.permission).toBe("workflow:run");
     expect((routes.handlers.get("POST /workforce/execute/approve") as any).permission).toBe("workflow:approve");
+    const statusRoute = routes.handlers.get("POST /workforce/execute/status") as any;
+    const cancelRoute = routes.handlers.get("POST /workforce/execute/cancel") as any;
+    const request = { enterpriseIdentity: { userId: "alice", tenantId: "tenant-a" } };
+    await statusRoute.handler(request, {}, {
+      startedAt: new Date(),
+      body: { executionId: "wf-scope-test" },
+    });
+    await cancelRoute.handler(request, {}, {
+      startedAt: new Date(),
+      body: { executionId: "wf-scope-test", reason: "stop" },
+    });
+    expect(workforceExecutor.getStatus).toHaveBeenCalledWith("wf-scope-test", {
+      userId: "alice",
+      tenantId: "tenant-a",
+    });
+    expect(workforceExecutor.cancel).toHaveBeenCalledWith("wf-scope-test", "stop", {
+      userId: "alice",
+      tenantId: "tenant-a",
+    });
+    expect(statusRoute.permission).toBe("dashboard:read");
+    expect(cancelRoute.permission).toBe("workflow:run");
     expect(writeJson).toHaveBeenCalled();
   });
 

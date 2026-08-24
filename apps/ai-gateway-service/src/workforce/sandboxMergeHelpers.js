@@ -157,11 +157,20 @@ export async function commitWorktreeChanges(worktreePath, planId, goal) {
  */
 export async function rollbackWorktree(worktree, worktreeId) {
   try {
-    await worktree.remove(worktreeId);
-  } catch {
-    // best-effort
+    const result = await worktree.remove(worktreeId);
+    if (result?.success === true) return { rolledBack: true };
+    return {
+      rolledBack: false,
+      code: result?.code ?? "WORKTREE_ROLLBACK_FAILED",
+      reason: result?.reason ?? "The isolated worktree rollback failed.",
+    };
+  } catch (error) {
+    return {
+      rolledBack: false,
+      code: "WORKTREE_ROLLBACK_FAILED",
+      reason: error instanceof Error ? error.message : "The isolated worktree rollback failed.",
+    };
   }
-  return { rolledBack: true };
 }
 
 /**

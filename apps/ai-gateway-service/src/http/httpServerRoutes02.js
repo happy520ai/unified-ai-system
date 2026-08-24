@@ -92,6 +92,7 @@ export async function dispatchHttpRoutes02(context) {
     const a2aTaskStore = await readA2ATaskStoreHealth(a2aGateway);
     const workforceClaimStore = await readWorkforceClaimStoreHealth(application?.workforceExecutor);
     const workforceTaskQueue = await readWorkforceTaskQueueHealth(application?.workforceExecutor);
+    const workforceExecutionControl = await readWorkforceExecutionControlHealth(application?.workforceExecutor);
     const readinessFailures = collectReadinessFailures(healthSnapshot, readinessSnapshot, {
       saturated,
       gatewayErrorCircuitState: resilienceSnapshot?.gatewayErrorCircuitState,
@@ -104,6 +105,8 @@ export async function dispatchHttpRoutes02(context) {
         && workforceClaimStore.available !== true,
       workforceTaskQueueUnavailable: workforceTaskQueue?.distributed === true
         && workforceTaskQueue.available !== true,
+      workforceExecutionControlUnavailable: workforceExecutionControl?.distributed === true
+        && workforceExecutionControl.available !== true,
     });
     resilienceMetrics?.recordReadinessCheck?.(readinessFailures);
     const degraded = saturated || readinessFailures.length > 0;
@@ -123,6 +126,7 @@ export async function dispatchHttpRoutes02(context) {
       a2aTaskStore,
       workforceClaimStore,
       workforceTaskQueue,
+      workforceExecutionControl,
       saturation: {
         inFlight: currentInFlight,
         threshold: saturationThreshold,
@@ -255,6 +259,7 @@ export async function dispatchHttpRoutes02(context) {
     const a2aTaskStore = await readA2ATaskStoreHealth(a2aGateway);
     const workforceClaimStore = await readWorkforceClaimStoreHealth(application?.workforceExecutor);
     const workforceTaskQueue = await readWorkforceTaskQueueHealth(application?.workforceExecutor);
+    const workforceExecutionControl = await readWorkforceExecutionControlHealth(application?.workforceExecutor);
     const readinessFailures = collectReadinessFailures(healthSnapshot, readinessSnapshot, {
       saturated,
       gatewayErrorCircuitState: readinessResilienceSnapshot?.gatewayErrorCircuitState,
@@ -267,6 +272,8 @@ export async function dispatchHttpRoutes02(context) {
         && workforceClaimStore.available !== true,
       workforceTaskQueueUnavailable: workforceTaskQueue?.distributed === true
         && workforceTaskQueue.available !== true,
+      workforceExecutionControlUnavailable: workforceExecutionControl?.distributed === true
+        && workforceExecutionControl.available !== true,
     });
     const snapshot = {
       totalRequests: stats.totalRequests ?? 0,
@@ -283,6 +290,7 @@ export async function dispatchHttpRoutes02(context) {
       a2aTaskStore,
       workforceClaimStore,
       workforceTaskQueue,
+      workforceExecutionControl,
       usageLedger,
       latency: stats.latencyQuantiles
         ?? (stats.avgLatencyMs
@@ -704,6 +712,9 @@ function collectReadinessFailures(healthSnapshot, readinessSnapshot, context = {
   if (context?.workforceTaskQueueUnavailable) {
     readinessFailures.push("workforce-task-queue-unavailable");
   }
+  if (context?.workforceExecutionControlUnavailable) {
+    readinessFailures.push("workforce-execution-control-unavailable");
+  }
 
   return Array.from(new Set(readinessFailures));
 }
@@ -766,6 +777,43 @@ async function readWorkforceTaskQueueHealth(workforceExecutor) {
       maxEntries: 0,
       maxTaskBytes: 0,
       statsUpdatedAt: null,
+    };
+  }
+}
+
+async function readWorkforceExecutionControlHealth(workforceExecutor) {
+  if (!workforceExecutor?.getExecutionControlHealth) return null;
+  try {
+    const snapshot = await workforceExecutor.getExecutionControlHealth();
+    return {
+      mode: snapshot?.mode ?? "unknown",
+      durable: snapshot?.durable === true,
+      distributed: snapshot?.distributed === true,
+      centralRequired: snapshot?.centralRequired === true,
+      available: snapshot?.available === true,
+      approval: {
+        available: snapshot?.approval?.available === true,
+        activeApprovals: Number(snapshot?.approval?.activeApprovals ?? 0),
+        maxApprovals: Number(snapshot?.approval?.maxApprovals ?? 0),
+        statsUpdatedAt: snapshot?.approval?.statsUpdatedAt ?? null,
+      },
+      lifecycle: {
+        available: snapshot?.lifecycle?.available === true,
+        activeExecutions: Number(snapshot?.lifecycle?.activeExecutions ?? 0),
+        maxExecutions: Number(snapshot?.lifecycle?.maxExecutions ?? 0),
+        maxStateBytes: Number(snapshot?.lifecycle?.maxStateBytes ?? 0),
+        statsUpdatedAt: snapshot?.lifecycle?.statsUpdatedAt ?? null,
+      },
+    };
+  } catch {
+    return {
+      mode: "unknown",
+      durable: true,
+      distributed: true,
+      centralRequired: true,
+      available: false,
+      approval: { available: false, activeApprovals: 0, maxApprovals: 0, statsUpdatedAt: null },
+      lifecycle: { available: false, activeExecutions: 0, maxExecutions: 0, maxStateBytes: 0, statsUpdatedAt: null },
     };
   }
 }

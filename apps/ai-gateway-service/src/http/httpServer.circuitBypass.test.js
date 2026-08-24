@@ -127,6 +127,44 @@ function within(promise, stage, timeoutMs = 2_000) {
   });
 }
 
+describe("live Workforce execution route wiring", () => {
+  it("dispatches authenticated execution status through the real HTTP server", async () => {
+    const getStatus = vi.fn(async () => ({ success: true, status: "running" }));
+    const server = createGatewayHttpServer(createGatewayApplication({
+      workforceExecutor: { getStatus },
+      enterpriseGovernanceService: {
+        authorize: () => ({
+          allowed: true,
+          identity: { userId: "alice", tenantId: "tenant-a" },
+          permission: "dashboard:read",
+          statusCode: 200,
+        }),
+      },
+    }));
+    try {
+      await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+      const port = server.address().port;
+      const response = await sendRequest(
+        port,
+        "/workforce/execute/status",
+        "POST",
+        { executionId: "wf-scope-live-route" },
+      );
+      expect(response.statusCode).toBe(200);
+      expect(JSON.parse(response.body)).toMatchObject({
+        status: "ok",
+        data: { success: true, status: "running" },
+      });
+      expect(getStatus).toHaveBeenCalledWith("wf-scope-live-route", {
+        userId: "alice",
+        tenantId: "tenant-a",
+      });
+    } finally {
+      if (server.listening) await new Promise((resolve) => server.close(resolve));
+    }
+  });
+});
+
 describe("gateway error circuit bypass routes", () => {
   it("propagates a real client disconnect into production gateway execution", async () => {
     let signalExecutionStarted;

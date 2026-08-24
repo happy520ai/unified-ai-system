@@ -20,12 +20,15 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
+import { createLogRedactor } from "./logRedactor.js";
 
 // 默认审批过期时间：24小时（毫秒）
 const DEFAULT_APPROVAL_TTL_MS = 24 * 60 * 60 * 1000;
 
 // 默认存储路径
 const DEFAULT_APPROVALS_PATH = resolve(process.cwd(), ".data", "workforce", "approvals.json");
+const MAX_APPROVAL_STORE_BYTES = 4 * 1024 * 1024;
+const MAX_APPROVALS = 10_000;
 
 /**
  * 创建审批网关管理器
@@ -36,6 +39,7 @@ const DEFAULT_APPROVALS_PATH = resolve(process.cwd(), ".data", "workforce", "app
 export function createExecutionApprovalGate(options = {}) {
   const storePath = resolve(options.storePath || DEFAULT_APPROVALS_PATH);
   const ttlMs = options.ttlMs || DEFAULT_APPROVAL_TTL_MS;
+  const redactor = createLogRedactor();
   let mutationTail = Promise.resolve();
 
   function withMutationLock(operation) {
@@ -94,7 +98,7 @@ export function createExecutionApprovalGate(options = {}) {
           userId: userId.trim(),
           planDigest,
           approvedScopes: normalizedScopes,
-          note: String(note || "").trim().slice(0, 2000),
+          note: redactor.redactString(String(note || "").trim()).slice(0, 2000),
           status: "approved",
           approvedAt: now.toISOString(),
           expiresAt: expiresAt.toISOString(),
@@ -109,6 +113,9 @@ export function createExecutionApprovalGate(options = {}) {
           a.planId === approval.planId
           && normalizeTenantId(a.tenantId ?? "default") === approval.tenantId
         ));
+        if (filteredApprovals.length >= MAX_APPROVALS) {
+          throw createApprovalError("APPROVAL_STORE_CAPACITY", "审批存储已达到有界容量");
+        }
         filteredApprovals.unshift(approval);
         await writeApprovalStore(storePath, {
           version: 3,
@@ -227,7 +234,7 @@ export function createExecutionApprovalGate(options = {}) {
               revoked: true,
               revokedAt: now.toISOString(),
               revokedBy: String(revokedBy || "system").trim(),
-              revokeReason: String(reason || "").trim().slice(0, 1000),
+              revokeReason: redactor.redactString(String(reason || "").trim()).slice(0, 1000),
             };
           }
           return a;
@@ -316,7 +323,11 @@ export function createExecutionApprovalGate(options = {}) {
  */
 async function readApprovalStore(storePath) {
   try {
-    const parsed = JSON.parse(await readFile(storePath, "utf8"));
+    const raw = await readFile(storePath, "utf8");
+    if (Buffer.byteLength(raw, "utf8") > MAX_APPROVAL_STORE_BYTES) {
+      throw createApprovalError("APPROVAL_STORE_TOO_LARGE", "审批存储超过有界大小");
+    }
+    const parsed = JSON.parse(raw);
     return {
       version: parsed.version || 1,
       updatedAt: parsed.updatedAt || null,
@@ -334,10 +345,14 @@ async function readApprovalStore(storePath) {
  * 写入审批存储文件
  */
 async function writeApprovalStore(storePath, store) {
-  await mkdir(dirname(storePath), { recursive: true });
+  await mkdir(dirname(storePath), { recursive: true, mode: 0o700 });
+  const serialized = `${JSON.stringify(store, null, 2)}\n`;
+  if (Buffer.byteLength(serialized, "utf8") > MAX_APPROVAL_STORE_BYTES) {
+    throw createApprovalError("APPROVAL_STORE_TOO_LARGE", "审批存储超过有界大小");
+  }
   const tmpPath = `${storePath}.${process.pid}.${randomUUID()}.tmp`;
   try {
-    await writeFile(tmpPath, `${JSON.stringify(store, null, 2)}\n`, "utf8");
+    await writeFile(tmpPath, serialized, { encoding: "utf8", mode: 0o600 });
     await renameAsync(tmpPath, storePath);
   } catch (error) {
     try {

@@ -39,6 +39,12 @@ and the project uses [Semantic Versioning](https://semver.org/).
   validates the digest-only claim and monotonic fence, persists the result, and
   deletes the lease in one transaction. External irreversible sinks still need
   their own fence-aware commit boundary before exactly-once can be claimed.
+- Added central PostgreSQL Workforce execution control: raw-identifier-free
+  tenant/plan/subject keys, atomic single-use approval consumption, versioned
+  digest-verified lifecycle transitions, bounded retention/capacity, remote
+  cancel visibility, verified TLS, safe readiness, and Prometheus metrics.
+  Multi-instance execution now fails closed unless claims, queue/results, and
+  approval/lifecycle control all use the same database.
 - Fixed controlled Workforce isolation adapters that were previously wired to
   the wrong method/return contracts: worktree creation failures now block,
   cleanup is verified and affects terminal status, the configured repo root is
@@ -51,6 +57,11 @@ and the project uses [Semantic Versioning](https://semver.org/).
   writes in `0700` directories, bounded/redacted state, corruption detection,
   and initialization rollback instead of logging persistence failures as if the
   transition had succeeded.
+- Fixed the sandbox-merge lane using nonexistent security/evidence/redactor
+  methods and deleting its own green candidate branch during worktree cleanup.
+  Real pre/post checkpoints and evidence sessions now run, rollback/cleanup
+  failures are terminal, LLM abort signals reach the provider, and a verified
+  manual-merge candidate branch survives directory cleanup.
 - Added a central PostgreSQL usage ledger with awaited write-ahead reservation
   and terminal commits, per-attempt idempotency/conflict detection, tenant
   queries and spend aggregation, retention/capacity bounds, verified TLS,

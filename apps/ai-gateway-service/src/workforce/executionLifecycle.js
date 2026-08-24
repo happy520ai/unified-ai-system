@@ -384,6 +384,8 @@ export function createExecutionLifecycle(options = {}) {
           startedAt: memState.startedAt,
           completedAt: memState.completedAt,
           transitions: memState.transitions,
+          tenantFingerprint: memState.metadata?.tenantFingerprint ?? null,
+          subjectFingerprint: memState.metadata?.subjectFingerprint ?? null,
         };
       }
 
@@ -402,6 +404,8 @@ export function createExecutionLifecycle(options = {}) {
           startedAt: diskState.startedAt,
           completedAt: diskState.completedAt,
           transitions: diskState.transitions,
+          tenantFingerprint: diskState.metadata?.tenantFingerprint ?? null,
+          subjectFingerprint: diskState.metadata?.subjectFingerprint ?? null,
         };
       }
 

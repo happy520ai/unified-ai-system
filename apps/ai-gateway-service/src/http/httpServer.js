@@ -199,6 +199,7 @@ import {
   isGeminiStreamRoute,
 } from "./geminiCompatibilityRoutes.ts";
 import { dispatchMultimodalRoutes } from "./multimodalRoutes.js";
+import { dispatchWorkforceExecutionRoutes } from "./workforceRoutes.js";
 import { dispatchHttpRoutes01 } from "./httpServerRoutes01.js";
 import { dispatchHttpRoutes02 } from "./httpServerRoutes02.js";
 import { dispatchHttpRoutes03 } from "./httpServerRoutes03.js";
@@ -264,6 +265,7 @@ const HTTP_ROUTE_GROUPS = Object.freeze([
   dispatchPromptEnhancementRoutes,
   dispatchAgentExecRoutes,
   dispatchMultimodalRoutes,
+  dispatchWorkforceExecutionRoutes,
   dispatchOpenAiCompatibilityRoutes,
   dispatchOpenAiResponsesRoutes,
   dispatchGeminiCompatibilityRoutes,

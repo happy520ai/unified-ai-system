@@ -212,6 +212,10 @@ AI_GATEWAY_WORKFORCE_QUEUE_STORE_MODE=postgres
 AI_GATEWAY_WORKFORCE_QUEUE_POSTGRES_URL=<same-database-as-claims>?sslmode=verify-full
 AI_GATEWAY_WORKFORCE_QUEUE_NAMESPACE=production
 AI_GATEWAY_WORKFORCE_QUEUE_CENTRAL_REQUIRED=true
+AI_GATEWAY_WORKFORCE_CONTROL_STORE_MODE=postgres
+AI_GATEWAY_WORKFORCE_CONTROL_POSTGRES_URL=<same-database-as-queue-and-claims>?sslmode=verify-full
+AI_GATEWAY_WORKFORCE_CONTROL_NAMESPACE=production
+AI_GATEWAY_WORKFORCE_CONTROL_CENTRAL_REQUIRED=true
 ```
 
 The PostgreSQL backend uses database-clock expiry, one atomic active owner per
@@ -222,8 +226,8 @@ the raw bearer token is returned once and never enters queue JSON, audit output,
 or health. Non-loopback databases require `sslmode=verify-full` by default.
 
 `WORKFORCE_EXECUTION_ENABLED=true` plus `AI_GATEWAY_MULTI_INSTANCE=true` now
-fails startup unless both PostgreSQL claims and the central PostgreSQL
-queue/result mode are selected. The two stores must use the same database so a
+fails startup unless PostgreSQL claims, central queue/results, and central
+approval/lifecycle control are selected. All three stores must use the same database so a
 terminal task write can lock the active claim, validate its digest and monotonic
 fence, persist the bounded/redacted result, and delete the claim in one
 transaction. Expired owners are recovered under a row lock and a replacement
@@ -231,8 +235,25 @@ receives a higher fence. The raw claim token is never persisted. Tenant, owner,
 and claim scope originate from the authenticated server identity; public plan
 IDs can therefore be reused without cross-tenant claim collisions.
 
-`/healthz`, `/ready`, and Prometheus report the claim store and central queue
-separately, without database URLs, namespaces, tokens, or task payloads. A
+The control backend stores only SHA-256 identity keys, atomically single-consumes
+an approval across replicas, and keeps lifecycle transitions in versioned,
+digest-verified, size-bounded rows. A remote replica can observe cancellation
+and pause intent without reading raw tenant, user, plan, or execution IDs from
+the database. This provides central authorization and lifecycle truth; it does
+not by itself resurrect a crashed in-process role runner.
+
+`POST /workforce/execute/approve` returns the opaque `executionId` derived from
+that one approval. The authenticated owner can use
+`POST /workforce/execute/status` or `POST /workforce/execute/cancel` with that
+ID while the synchronous execute request is running. A replica polls central
+lifecycle state and propagates cancellation through the DAG `AbortSignal` into
+the provider adapter. Status/cancel access is re-bound to server-derived tenant
+and subject fingerprints; possession of another execution ID is insufficient.
+Pause/resume is not exposed as a production HTTP contract because the current
+in-process role runner cannot durably reconstruct its call stack after a crash.
+
+`/healthz`, `/ready`, and Prometheus report claims, queue/results, and execution
+control separately, without database URLs, namespaces, tokens, or task payloads. A
 configured distributed-store outage makes the gateway unready. Capacity,
 retention, task-size, pool, timeout, namespace, and verify-full TLS settings are
 bounded explicitly.

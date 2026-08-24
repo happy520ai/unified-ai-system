@@ -151,10 +151,17 @@ export async function executeWorkforceDag(options: DagExecutorOptions) {
         }, ownership);
         return { roleId, output };
       } catch (error) {
-        try {
-          await options.taskQueue.failTask(task.queueTaskId, error, ownership);
-        } catch {
-          await options.taskQueue.cancelTask(task.queueTaskId, "claim_lost_during_failure");
+        if (isLifecycleStop(error)) {
+          await options.taskQueue.cancelTask(
+            task.queueTaskId,
+            (error as Error & { code?: string }).code ?? "execution_stopped",
+          ).catch(() => undefined);
+        } else {
+          try {
+            await options.taskQueue.failTask(task.queueTaskId, error, ownership);
+          } catch {
+            await options.taskQueue.cancelTask(task.queueTaskId, "claim_lost_during_failure");
+          }
         }
         throw error;
       } finally {
@@ -196,4 +203,10 @@ export async function executeWorkforceDag(options: DagExecutorOptions) {
     claimEnforced: true,
     scheduler: "dependency-waves",
   };
+}
+
+function isLifecycleStop(error: unknown): boolean {
+  const code = (error as Error & { code?: string })?.code;
+  return code === "WORKFORCE_EXECUTION_CANCELLED"
+    || code === "WORKFORCE_EXECUTION_PAUSE_UNSUPPORTED";
 }
