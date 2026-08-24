@@ -838,6 +838,8 @@ async function readA2ATaskStoreHealth(a2aGateway) {
       maxTaskBytes: Number(snapshot?.maxTaskBytes ?? 0),
       maxHistoryMessages: Number(snapshot?.maxHistoryMessages ?? 0),
       maxArtifacts: Number(snapshot?.maxArtifacts ?? 0),
+      atomicTerminalFence: snapshot?.atomicTerminalFence === true,
+      terminalCommitGraceMs: Number(snapshot?.terminalCommitGraceMs ?? 0),
       executionLease: readA2AExecutionLeaseHealth(snapshot?.executionLease),
     };
   } catch {
@@ -867,6 +869,7 @@ function readA2AExecutionLeaseHealth(snapshot) {
     heartbeatMs: Number(snapshot?.heartbeatMs ?? 0),
     maxLeases: Number(snapshot?.maxLeases ?? 0),
     activeLeases: Number(snapshot?.activeLeases ?? 0),
+    atomicTerminalFence: snapshot?.atomicTerminalFence === true,
   };
 }
 

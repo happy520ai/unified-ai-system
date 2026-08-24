@@ -23,7 +23,12 @@ and the project uses [Semantic Versioning](https://semver.org/).
   Cross-host mode now also requires a tenant/owner/task-scoped PostgreSQL
   execution lease with digest-only tokens, heartbeat renewal, monotonic fences,
   duplicate-executor rejection, pre-publication stale-result blocking, and
-  remote cancellation. Atomic downstream fence consumption remains explicit.
+  remote cancellation. PostgreSQL A2A terminal TaskStore commits now lock,
+  validate, and consume the active token digest/fence in one transaction;
+  cross-replica cancellation atomically stores `canceled` and deletes the fence,
+  terminal tasks cannot be reopened, and a new acquire checks terminal state
+  under the same lock order. Downstream provider/sink fence consumption remains
+  explicit.
 - Fixed the live A2A Workforce skill wiring: the controlled executor created by
   the application is now passed to the HTTP/A2A gateway instead of being
   dropped from the application boundary and reported as unavailable at runtime.

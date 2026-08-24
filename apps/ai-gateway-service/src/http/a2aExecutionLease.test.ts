@@ -42,6 +42,18 @@ describe("A2A execution lease configuration", () => {
     }));
   });
 
+  it("rejects task state and execution fences configured on different databases", () => {
+    expect(() => createA2AExecutionLeaseManager({
+      env: {
+        AI_GATEWAY_A2A_TASK_STORE_MODE: "postgres",
+        AI_GATEWAY_A2A_TASK_STORE_POSTGRES_URL: "postgresql://gateway@127.0.0.1/tasks",
+        AI_GATEWAY_A2A_EXECUTION_LEASE_POSTGRES_URL: "postgresql://gateway@127.0.0.1/leases",
+      },
+    })).toThrow(expect.objectContaining({
+      code: "A2A_EXECUTION_LEASE_DATABASE_MISMATCH",
+    }));
+  });
+
   it("derives stable, tenant-and-owner-bound opaque scope identifiers", () => {
     const first = a2aExecutionLeaseInternals.createScopeId({
       tenant: "tenant-a",

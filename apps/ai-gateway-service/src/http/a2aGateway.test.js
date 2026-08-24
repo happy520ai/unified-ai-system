@@ -343,4 +343,141 @@ describe("A2A gateway executor — fake-provider safety boundary", () => {
     expect(JSON.stringify(eventBus.publish.mock.calls)).toContain("ctx-remote");
     expect(JSON.stringify(eventBus.publish.mock.calls)).toContain('"state":5');
   });
+
+  it("defers lease release to the atomic terminal store and finalizes after commit", async () => {
+    const lease = {
+      mode: "postgres-fenced",
+      token: "atomic-token",
+      fencingToken: "51",
+      identity: {
+        planId: "opaque-plan",
+        taskId: "task-1",
+        agentId: "instance-1",
+        fencingToken: "51",
+      },
+    };
+    const leaseManager = {
+      status: {
+        enabled: true,
+        mode: "postgres-fenced",
+        heartbeatMs: 60_000,
+        atomicTerminalFence: true,
+      },
+      acquire: vi.fn(async () => ({ success: true, lease })),
+      validate: vi.fn(async () => ({ success: true, code: "valid" })),
+      renew: vi.fn(async () => ({ success: true, code: "renewed" })),
+      release: vi.fn(async () => ({ success: true, code: "released" })),
+    };
+    let binding;
+    let terminalFinalize = Promise.resolve();
+    const taskStoreControl = {
+      store: {},
+      status: { atomicTerminalFence: true },
+      checkHealth: vi.fn(async () => ({ available: true })),
+      bindExecutionLease: vi.fn((input) => {
+        binding = input;
+      }),
+      markExecutionFinished: vi.fn(),
+    };
+    const gatewayService = {
+      execute: vi.fn(async () => ({
+        success: true,
+        data: {
+          executionMode: "fake",
+          selectedProvider: "local-fake-provider",
+          outputText: "atomically fenced",
+        },
+      })),
+    };
+    const executor = new a2aGatewayInternals.GatewayAgentExecutor(
+      gatewayService,
+      null,
+      leaseManager,
+      taskStoreControl,
+    );
+    const eventBus = {
+      publish: vi.fn((event) => {
+        if (event?.kind === "statusUpdate" && event.data?.status?.state === 3) {
+          terminalFinalize = Promise.resolve(binding.finalize(true));
+        }
+      }),
+    };
+
+    await executor.execute(requestContext(), eventBus);
+    await terminalFinalize;
+
+    expect(taskStoreControl.checkHealth).toHaveBeenCalled();
+    expect(taskStoreControl.bindExecutionLease).toHaveBeenCalledWith(expect.objectContaining({
+      taskId: "task-1",
+      scope: { tenant: "tenant-a", owner: "test-user" },
+      lease,
+    }));
+    expect(taskStoreControl.markExecutionFinished).toHaveBeenCalled();
+    expect(leaseManager.release).not.toHaveBeenCalled();
+  });
+
+  it("uses the atomic task-store path for cross-replica cancellation", async () => {
+    const persisted = {
+      id: "task-1",
+      contextId: "ctx-remote",
+      status: { state: 2, timestamp: "2026-08-24T00:00:00.000Z" },
+      history: [],
+      artifacts: [],
+    };
+    const taskStoreControl = {
+      store: { load: vi.fn(async () => persisted) },
+      status: { atomicTerminalFence: true },
+      cancelTaskAtomically: vi.fn(async (_taskId, _context, cancellationStatus) => ({
+        ...persisted,
+        status: cancellationStatus,
+      })),
+    };
+    const executor = new a2aGatewayInternals.GatewayAgentExecutor(
+      { execute: vi.fn() },
+      null,
+      { status: { enabled: true, atomicTerminalFence: true } },
+      taskStoreControl,
+    );
+    const eventBus = { publish: vi.fn(), finished: vi.fn() };
+    const context = requestContext().context;
+
+    const cancelled = await executor.cancelTaskAtomically("task-1", context, eventBus);
+
+    expect(taskStoreControl.cancelTaskAtomically).toHaveBeenCalledWith(
+      "task-1",
+      context,
+      expect.objectContaining({ state: 5 }),
+    );
+    expect(cancelled).toMatchObject({ id: "task-1", status: { state: 5 } });
+    expect(eventBus.publish).toHaveBeenCalled();
+    expect(eventBus.finished).toHaveBeenCalled();
+  });
+
+  it("routes cancellation through the atomic boundary even without a local event bus", async () => {
+    const cancelledTask = {
+      id: "task-remote",
+      contextId: "ctx-remote",
+      status: { state: 5, timestamp: "2026-08-24T00:00:00.000Z" },
+      history: [],
+      artifacts: [],
+    };
+    const executor = {
+      supportsAtomicCancellation: () => true,
+      cancelTaskAtomically: vi.fn(async () => cancelledTask),
+    };
+    const handler = new a2aGatewayInternals.ContextAwareA2ARequestHandler(
+      { capabilities: {} },
+      { load: vi.fn(), save: vi.fn(), list: vi.fn() },
+      executor,
+    );
+    const context = requestContext().context;
+
+    await expect(handler.cancelTask({ id: "task-remote" }, context))
+      .resolves.toBe(cancelledTask);
+    expect(executor.cancelTaskAtomically).toHaveBeenCalledWith(
+      "task-remote",
+      context,
+      undefined,
+    );
+  });
 });

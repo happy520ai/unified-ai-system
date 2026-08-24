@@ -7,7 +7,7 @@ import {
   type Task as A2ATask,
 } from "@a2a-js/sdk";
 import { ServerCallContext } from "@a2a-js/sdk/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createA2AExecutionLeaseManager } from "./a2aExecutionLease.ts";
 import { createA2ATaskStore } from "./a2aTaskStore.ts";
 
@@ -33,16 +33,18 @@ function createTask({
   id,
   timestamp,
   metadata = {},
+  state = TaskState.TASK_STATE_COMPLETED,
 }: {
   id: string;
   timestamp: string;
   metadata?: Record<string, unknown>;
+  state?: TaskState;
 }): A2ATask {
   return Task.fromJSON({
     id,
     contextId: "context-1",
     status: {
-      state: TaskState.TASK_STATE_COMPLETED,
+      state,
       timestamp,
     },
     artifacts: [],
@@ -96,6 +98,7 @@ describePostgres("real PostgreSQL cross-host A2A task store", () => {
       await first.store.save(createTask({
         id: "task-1",
         timestamp: "2026-08-24T00:00:01.000Z",
+        state: TaskState.TASK_STATE_WORKING,
       }), alice);
       await second.store.save(createTask({
         id: "task-2",
@@ -124,6 +127,7 @@ describePostgres("real PostgreSQL cross-host A2A task store", () => {
         id: "task-1",
         timestamp: "2026-08-24T00:00:04.000Z",
         metadata: { revision: 2 },
+        state: TaskState.TASK_STATE_WORKING,
       }), alice);
       expect(await first.store.load("task-1", alice)).toMatchObject({
         metadata: { revision: 2 },
@@ -131,7 +135,15 @@ describePostgres("real PostgreSQL cross-host A2A task store", () => {
       await expect(first.store.save(createTask({
         id: "task-1",
         timestamp: "2026-08-24T00:00:00.000Z",
+        state: TaskState.TASK_STATE_WORKING,
       }), alice)).rejects.toMatchObject({ code: "A2A_TASK_STORE_STALE_WRITE" });
+      await expect(first.store.save(createTask({
+        id: "task-2",
+        timestamp: "2026-08-24T00:00:06.000Z",
+        metadata: { rewritten: true },
+      }), alice)).rejects.toMatchObject({
+        code: "A2A_TASK_STORE_TERMINAL_IMMUTABLE",
+      });
 
       await expect(first.store.save(createTask({
         id: "task-4",
@@ -257,6 +269,157 @@ describePostgres("real PostgreSQL cross-host A2A task store", () => {
       ).catch(() => undefined);
       await first.close();
       await second.close();
+      await inspector.end();
+    }
+  }, 20_000);
+
+  it("atomically consumes execution fences for terminal commits and remote cancellation", async () => {
+    const namespace = `a2a-atomic-${randomUUID()}`;
+    const env = {
+      AI_GATEWAY_A2A_TASK_STORE_MODE: "postgres",
+      AI_GATEWAY_A2A_TASK_STORE_POSTGRES_URL: connectionString,
+      AI_GATEWAY_A2A_TASK_STORE_NAMESPACE: namespace,
+      AI_GATEWAY_A2A_TASK_TTL_MS: "60000",
+      AI_GATEWAY_A2A_TASK_MAX_ENTRIES: "10",
+      AI_GATEWAY_A2A_TASK_MAX_ENTRIES_PER_OWNER: "10",
+      AI_GATEWAY_A2A_TASK_MAX_BYTES: "4096",
+      AI_GATEWAY_A2A_EXECUTION_LEASE_TTL_MS: "5000",
+      AI_GATEWAY_A2A_EXECUTION_LEASE_HEARTBEAT_MS: "1000",
+      AI_GATEWAY_A2A_TERMINAL_COMMIT_GRACE_MS: "1000",
+    };
+    const handle = createA2ATaskStore({ env, integratedExecutionBoundary: true });
+    const manager = createA2AExecutionLeaseManager({
+      env,
+      instanceId: "atomic-gateway",
+      issueGuard: handle.issueGuard,
+    });
+    const inspector = new Pool({ connectionString, max: 1, allowExitOnIdle: true });
+    const context = createContext("tenant-a", "alice");
+    const scope = { tenant: "tenant-a", owner: "alice" };
+    const completedTaskId = randomUUID();
+    const cancelledTaskId = randomUUID();
+    const staleTaskId = randomUUID();
+    try {
+      await expect(handle.checkHealth()).resolves.toMatchObject({
+        available: true,
+        atomicTerminalFence: true,
+      });
+      expect(manager.status.atomicTerminalFence).toBe(true);
+
+      await handle.store.save(createTask({
+        id: completedTaskId,
+        timestamp: "2026-08-24T00:00:01.000Z",
+        state: TaskState.TASK_STATE_WORKING,
+      }), context);
+      const completionLease = await manager.acquire({ taskId: completedTaskId, scope });
+      expect(completionLease.success).toBe(true);
+      if (!completionLease.success) throw new Error(completionLease.reason);
+      const completionFinalized = vi.fn(async () => undefined);
+      handle.bindExecutionLease({
+        taskId: completedTaskId,
+        scope,
+        lease: completionLease.lease,
+        finalize: completionFinalized,
+      });
+      await handle.store.save(createTask({
+        id: completedTaskId,
+        timestamp: "2026-08-24T00:00:02.000Z",
+        state: TaskState.TASK_STATE_COMPLETED,
+      }), context);
+      expect(completionFinalized).toHaveBeenCalledWith(true);
+      await expect(manager.validate(completionLease.lease)).resolves.toMatchObject({
+        success: false,
+        code: "A2A_EXECUTION_LEASE_LOST",
+      });
+      await expect(manager.acquire({ taskId: completedTaskId, scope })).resolves.toMatchObject({
+        success: false,
+        code: "A2A_EXECUTION_TASK_TERMINAL",
+        retryable: false,
+      });
+
+      await handle.store.save(createTask({
+        id: cancelledTaskId,
+        timestamp: "2026-08-24T00:00:03.000Z",
+        state: TaskState.TASK_STATE_WORKING,
+      }), context);
+      const cancellationLease = await manager.acquire({ taskId: cancelledTaskId, scope });
+      expect(cancellationLease.success).toBe(true);
+      if (!cancellationLease.success) throw new Error(cancellationLease.reason);
+      const cancellationFinalized = vi.fn(async () => undefined);
+      handle.bindExecutionLease({
+        taskId: cancelledTaskId,
+        scope,
+        lease: cancellationLease.lease,
+        finalize: cancellationFinalized,
+      });
+      const cancelled = await handle.cancelTaskAtomically(cancelledTaskId, context, {
+        state: TaskState.TASK_STATE_CANCELED,
+        message: undefined,
+        timestamp: "2026-08-24T00:00:04.000Z",
+      });
+      expect(cancelled).toMatchObject({
+        id: cancelledTaskId,
+        status: { state: TaskState.TASK_STATE_CANCELED },
+      });
+      expect(cancellationFinalized).toHaveBeenCalledWith(true);
+      await expect(manager.acquire({ taskId: cancelledTaskId, scope })).resolves.toMatchObject({
+        success: false,
+        code: "A2A_EXECUTION_TASK_TERMINAL",
+      });
+
+      await handle.store.save(createTask({
+        id: staleTaskId,
+        timestamp: "2026-08-24T00:00:05.000Z",
+        state: TaskState.TASK_STATE_WORKING,
+      }), context);
+      const staleLease = await manager.acquire({ taskId: staleTaskId, scope });
+      expect(staleLease.success).toBe(true);
+      if (!staleLease.success) throw new Error(staleLease.reason);
+      await manager.revokeForTask({ taskId: staleTaskId, scope, reason: "remote revoke" });
+      handle.bindExecutionLease({
+        taskId: staleTaskId,
+        scope,
+        lease: staleLease.lease,
+        finalize: vi.fn(async () => undefined),
+      });
+      await expect(handle.store.save(createTask({
+        id: staleTaskId,
+        timestamp: "2026-08-24T00:00:06.000Z",
+        state: TaskState.TASK_STATE_COMPLETED,
+      }), context)).rejects.toMatchObject({
+        code: "A2A_TASK_TERMINAL_FENCE_LOST",
+      });
+
+      const persistedClaims = await inspector.query<{
+        task_id: string;
+        token_digest: string;
+      }>(`
+        SELECT task_id, token_digest
+        FROM public.ai_gateway_workforce_task_claims
+        WHERE task_id = ANY($1::text[])
+      `, [[completedTaskId, cancelledTaskId]]);
+      expect(persistedClaims.rows).toHaveLength(0);
+      expect(JSON.stringify(await handle.store.load(completedTaskId, context)))
+        .not.toContain(completionLease.lease.token);
+    } finally {
+      await inspector.query(
+        "DELETE FROM public.ai_gateway_workforce_task_claims WHERE task_id = ANY($1::text[])",
+        [[completedTaskId, cancelledTaskId, staleTaskId]],
+      ).catch(() => undefined);
+      await inspector.query(
+        "DELETE FROM public.ai_gateway_a2a_tasks WHERE namespace = $1",
+        [namespace],
+      ).catch(() => undefined);
+      await inspector.query(
+        "DELETE FROM public.ai_gateway_a2a_task_scope_counts WHERE namespace = $1",
+        [namespace],
+      ).catch(() => undefined);
+      await inspector.query(
+        "DELETE FROM public.ai_gateway_a2a_task_namespace_counts WHERE namespace = $1",
+        [namespace],
+      ).catch(() => undefined);
+      await handle.close();
+      await manager.close();
       await inspector.end();
     }
   }, 20_000);

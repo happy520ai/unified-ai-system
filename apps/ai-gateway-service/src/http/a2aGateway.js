@@ -5,7 +5,11 @@ import {
   Role,
   TaskState,
 } from "@a2a-js/sdk";
-import { ContentTypeNotSupportedError } from "@a2a-js/sdk/errors";
+import {
+  ContentTypeNotSupportedError,
+  TaskNotCancelableError,
+  TaskNotFoundError,
+} from "@a2a-js/sdk/errors";
 import {
   AgentEvent,
   DefaultRequestHandler,
@@ -78,6 +82,28 @@ class ContextAwareA2ARequestHandler extends DefaultRequestHandler {
   }
 
   async cancelTask(params, context) {
+    if (
+      typeof params?.id === "string"
+      && params.id.trim()
+      && this.contextAwareExecutor.supportsAtomicCancellation()
+    ) {
+      try {
+        const eventBus = this.eventBusManager?.getByTaskId?.(params?.id);
+        return await this.contextAwareExecutor.cancelTaskAtomically(
+          params?.id,
+          context,
+          eventBus,
+        );
+      } catch (error) {
+        if (error?.code === "A2A_TASK_NOT_FOUND") {
+          throw new TaskNotFoundError(`Task not found: ${params?.id}`);
+        }
+        if (error?.code === "A2A_TASK_STORE_TERMINAL_IMMUTABLE") {
+          throw new TaskNotCancelableError(`Task not cancelable: ${params?.id}`);
+        }
+        throw error;
+      }
+    }
     this.contextAwareExecutor.prepareCancellationContext(params?.id, context);
     try {
       return await super.cancelTask(params, context);
@@ -92,18 +118,19 @@ class GatewayAgentExecutor {
    * @param {object} gatewayService
    * @param {{execute: Function}|null} [workforceExecutor]
    * @param {object|null} [executionLeaseManager]
-   * @param {object|null} [taskStore]
+   * @param {object|null} [taskStoreControl]
    */
   constructor(
     gatewayService,
     workforceExecutor = null,
     executionLeaseManager = null,
-    taskStore = null,
+    taskStoreControl = null,
   ) {
     this.gatewayService = gatewayService;
     this.workforceExecutor = workforceExecutor;
     this.executionLeaseManager = executionLeaseManager;
-    this.taskStore = taskStore;
+    this.taskStoreControl = taskStoreControl?.store ? taskStoreControl : null;
+    this.taskStore = taskStoreControl?.store ?? taskStoreControl;
     this.cancelledTaskIds = new Set();
     this.taskContexts = new Map();
     this.activeLeases = new Map();
@@ -115,7 +142,20 @@ class GatewayAgentExecutor {
     const executionScope = readExecutionScope(requestContext.context);
     let executionLease = null;
     let leaseHeartbeat = null;
+    let terminalFenceBound = false;
     if (this.executionLeaseManager?.status?.enabled === true) {
+      if (this.taskStoreControl?.status?.atomicTerminalFence === true) {
+        const taskStoreHealth = await this.taskStoreControl.checkHealth();
+        if (
+          taskStoreHealth.available !== true
+          || this.executionLeaseManager.status.atomicTerminalFence !== true
+        ) {
+          throw a2aExecutionLeaseError(
+            "A2A_ATOMIC_TERMINAL_FENCE_UNAVAILABLE",
+            "The atomic A2A terminal-fence boundary is unavailable.",
+          );
+        }
+      }
       const acquired = await this.executionLeaseManager.acquire({
         taskId,
         scope: executionScope,
@@ -129,6 +169,30 @@ class GatewayAgentExecutor {
         this.executionLeaseManager,
         executionLease,
       );
+      if (this.taskStoreControl?.status?.atomicTerminalFence === true) {
+        try {
+          this.taskStoreControl.bindExecutionLease({
+            taskId,
+            scope: executionScope,
+            lease: executionLease,
+            finalize: async (committed) => {
+              await leaseHeartbeat?.stop();
+              if (!committed) {
+                await this.executionLeaseManager.release(executionLease).catch(() => undefined);
+              }
+              this.activeLeases.delete(taskId);
+              this.taskContexts.delete(taskId);
+              this.cancelledTaskIds.delete(taskId);
+            },
+          });
+          terminalFenceBound = true;
+        } catch (error) {
+          await leaseHeartbeat.stop();
+          await this.executionLeaseManager.release(executionLease).catch(() => undefined);
+          this.activeLeases.delete(taskId);
+          throw error;
+        }
+      }
     }
     this.taskContexts.set(taskId, contextId);
     try {
@@ -285,14 +349,66 @@ class GatewayAgentExecutor {
         metadata: {},
       }));
     } finally {
-      await leaseHeartbeat?.stop();
-      if (executionLease) {
-        await this.executionLeaseManager.release(executionLease).catch(() => undefined);
+      if (executionLease && terminalFenceBound) {
+        this.taskStoreControl.markExecutionFinished(taskId, executionScope);
+      } else {
+        await leaseHeartbeat?.stop();
+        if (executionLease) {
+          await this.executionLeaseManager.release(executionLease).catch(() => undefined);
+        }
+        this.activeLeases.delete(taskId);
+        this.taskContexts.delete(taskId);
+        this.cancelledTaskIds.delete(taskId);
       }
-      this.activeLeases.delete(taskId);
-      this.taskContexts.delete(taskId);
-      this.cancelledTaskIds.delete(taskId);
     }
+  }
+
+  supportsAtomicCancellation() {
+    return this.taskStoreControl?.status?.atomicTerminalFence === true;
+  }
+
+  async cancelTaskAtomically(taskId, context, eventBus) {
+    if (!this.supportsAtomicCancellation()) {
+      throw new Error("Atomic A2A cancellation is unavailable.");
+    }
+    const persistedTask = await this.taskStore.load(taskId, context);
+    if (!persistedTask) {
+      const error = new Error("The scoped A2A task was not found.");
+      error.code = "A2A_TASK_NOT_FOUND";
+      throw error;
+    }
+    const cancellationMessage = agentMessage({
+      contextId: persistedTask.contextId,
+      taskId,
+      text: "Task cancellation requested by the A2A client.",
+    });
+    const cancellationStatus = status(
+      TaskState.TASK_STATE_CANCELED,
+      cancellationMessage,
+    );
+    this.cancelledTaskIds.add(taskId);
+    const cancelledTask = await this.taskStoreControl.cancelTaskAtomically(
+      taskId,
+      context,
+      cancellationStatus,
+    );
+    if (!cancelledTask) {
+      const error = new Error("The scoped A2A task was not found.");
+      error.code = "A2A_TASK_NOT_FOUND";
+      throw error;
+    }
+    if (eventBus) {
+      eventBus.publish(AgentEvent.statusUpdate({
+        taskId,
+        contextId: cancelledTask.contextId,
+        status: cancelledTask.status,
+        metadata: {},
+      }));
+      eventBus.finished?.();
+    }
+    this.taskContexts.delete(taskId);
+    this.cancelledTaskIds.delete(taskId);
+    return cancelledTask;
   }
 
   prepareCancellationContext(taskId, context) {
@@ -368,10 +484,16 @@ function normalizePublicBaseUrl(env) {
 export function createA2AGateway({ gatewayService, workforceExecutor = null, env = process.env }) {
   const publicBaseUrl = normalizePublicBaseUrl(env);
   const agentCardSigning = createA2AAgentCardSigningConfiguration({ env, publicBaseUrl });
-  const taskStoreHandle = createA2ATaskStore({ env });
+  const taskStoreHandle = createA2ATaskStore({
+    env,
+    integratedExecutionBoundary: true,
+  });
   let executionLeaseManager;
   try {
-    executionLeaseManager = createA2AExecutionLeaseManager({ env });
+    executionLeaseManager = createA2AExecutionLeaseManager({
+      env,
+      issueGuard: taskStoreHandle.issueGuard,
+    });
   } catch (error) {
     void taskStoreHandle.close();
     throw error;
@@ -464,7 +586,7 @@ export function createA2AGateway({ gatewayService, workforceExecutor = null, env
     gatewayService,
     workforceExecutor,
     executionLeaseManager,
-    taskStoreHandle.store,
+    taskStoreHandle,
   );
   const requestHandler = new ContextAwareA2ARequestHandler(
     agentCard,
@@ -530,12 +652,21 @@ function hasServerPermission(requestContext, permission) {
 
 function combineA2AHealth(taskStoreHealth, executionLease) {
   const leaseUnavailable = executionLease.required && executionLease.available !== true;
+  const atomicTerminalFenceUnavailable = taskStoreHealth.distributed === true
+    && (
+      taskStoreHealth.atomicTerminalFence !== true
+      || executionLease.atomicTerminalFence !== true
+    );
   return {
     ...taskStoreHealth,
-    available: taskStoreHealth.available === true && !leaseUnavailable,
+    available: taskStoreHealth.available === true
+      && !leaseUnavailable
+      && !atomicTerminalFenceUnavailable,
     reason: leaseUnavailable
       ? "execution_lease_unavailable"
-      : taskStoreHealth.reason,
+      : atomicTerminalFenceUnavailable
+        ? "atomic_terminal_fence_unavailable"
+        : taskStoreHealth.reason,
     executionLease,
   };
 }

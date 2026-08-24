@@ -32,7 +32,22 @@ export type PostgresTaskClaimLeaseOptions = {
   poolMax: number;
   statementTimeoutMs: number;
   now?: () => number;
+  issueGuard?: TaskClaimIssueGuard;
 };
+
+export type TaskClaimIssueGuardDecision =
+  | { allowed: true }
+  | { allowed: false; code: string; reason: string };
+
+export type TaskClaimIssueGuard = (
+  client: WorkforceClaimPostgresClient,
+  input: {
+    planId: string;
+    taskId: string;
+    agentId: string;
+    guardContext: unknown;
+  },
+) => Promise<TaskClaimIssueGuardDecision>;
 
 type ClaimIdentity = {
   planId: string;
@@ -79,10 +94,14 @@ type SuccessfulResolution = {
   row: ClaimRow;
 };
 
-const TABLE = "public.ai_gateway_workforce_task_claims";
+export const POSTGRES_TASK_CLAIM_TABLE = "public.ai_gateway_workforce_task_claims";
+export const POSTGRES_TASK_CLAIM_LOCK_NAMESPACE = 1_431_193_303;
+export const POSTGRES_TASK_CLAIM_CAPACITY_LOCK_KEY = 1_768_841_201;
+
+const TABLE = POSTGRES_TASK_CLAIM_TABLE;
 const FENCING_SEQUENCE = "public.ai_gateway_workforce_task_claim_fencing_seq";
-const LOCK_NAMESPACE = 1_431_193_303;
-const CAPACITY_LOCK_KEY = 1_768_841_201;
+const LOCK_NAMESPACE = POSTGRES_TASK_CLAIM_LOCK_NAMESPACE;
+const CAPACITY_LOCK_KEY = POSTGRES_TASK_CLAIM_CAPACITY_LOCK_KEY;
 const INITIALIZE_LOCK_KEY = 1_768_841_202;
 const MIN_TTL_MS = 10;
 const MAX_TTL_MS = 24 * 60 * 60_000;
@@ -186,7 +205,7 @@ export function createPostgresTaskClaimLeaseManager(
       };
     },
 
-    async issue(input: ClaimIdentity & { ttlMs?: number }) {
+    async issue(input: ClaimIdentity & { ttlMs?: number; guardContext?: unknown }) {
       const planId = normalizeId(input?.planId, "planId");
       const taskId = normalizeId(input?.taskId, "taskId");
       const agentId = normalizeId(input?.agentId, "agentId");
@@ -224,6 +243,21 @@ export function createPostgresTaskClaimLeaseManager(
             "The task already has an active fenced claim.",
             toPublicRecord(existing.rows[0]),
           );
+        }
+
+        if (options.issueGuard) {
+          const guard = await options.issueGuard(client, {
+            planId,
+            taskId,
+            agentId,
+            guardContext: input.guardContext,
+          });
+          if (!guard.allowed) {
+            await client.query("COMMIT");
+            stats.rejected += 1;
+            available = true;
+            return failed(guard.code, guard.reason);
+          }
         }
 
         const count = await client.query<{ count: string | number }>(`

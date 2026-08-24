@@ -159,6 +159,7 @@ describe("prometheusExporter", () => {
         mode: "sqlite",
         durable: true,
         available: true,
+        atomicTerminalFence: true,
         maxEntries: 10_000,
         maxEntriesPerOwner: 2_000,
         maxTaskBytes: 4_194_304,
@@ -207,6 +208,7 @@ describe("prometheusExporter", () => {
     expect(text).toContain('ai_gateway_a2a_task_store_available{mode="sqlite"} 1');
     expect(text).toContain('ai_gateway_a2a_task_store_durable{mode="sqlite"} 1');
     expect(text).toContain('ai_gateway_a2a_task_store_distributed{mode="sqlite"} 0');
+    expect(text).toContain('ai_gateway_a2a_task_store_atomic_terminal_fence{mode="sqlite"} 1');
     expect(text).toContain('ai_gateway_a2a_execution_lease_enabled{mode="postgres-fenced"} 1');
     expect(text).toContain('ai_gateway_a2a_execution_lease_available{mode="postgres-fenced"} 1');
     expect(text).toContain('ai_gateway_a2a_execution_leases{mode="postgres-fenced"} 2');

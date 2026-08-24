@@ -152,6 +152,29 @@ describe("bounded A2A task store", () => {
     }
   });
 
+  it("treats terminal tasks as immutable while allowing exact idempotent replay", async () => {
+    const handle = createA2ATaskStore({ env: {} });
+    const alice = createContext("tenant-a", "alice");
+    const terminal = createTask({
+      id: "terminal-task",
+      timestamp: "2026-08-24T00:00:01.000Z",
+      metadata: { revision: 1 },
+    });
+    try {
+      await handle.store.save(terminal, alice);
+      await expect(handle.store.save(terminal, alice)).resolves.toBeUndefined();
+      await expect(handle.store.save(createTask({
+        id: "terminal-task",
+        timestamp: "2026-08-24T00:00:02.000Z",
+        metadata: { revision: 2 },
+      }), alice)).rejects.toMatchObject({
+        code: "A2A_TASK_STORE_TERMINAL_IMMUTABLE",
+      });
+    } finally {
+      await handle.close();
+    }
+  });
+
   it("enforces owner/global capacity, task size, and TTL limits", async () => {
     let now = 1_800_000_000_000;
     const handle = createA2ATaskStore({
@@ -277,6 +300,7 @@ describe("bounded A2A task store", () => {
         AI_GATEWAY_A2A_TASK_STORE_CENTRAL_REQUIRED: "true",
       },
       postgresPool: pool,
+      integratedExecutionBoundary: true,
     });
     try {
       expect(await handle.store.load("missing-task", createContext("tenant-a", "alice")))
@@ -286,7 +310,9 @@ describe("bounded A2A task store", () => {
         durable: true,
         distributed: true,
         centralRequired: true,
+        atomicTerminalFence: true,
       });
+      expect(handle.issueGuard).toBeTypeOf("function");
       expect(handle.getHealth()).toMatchObject({ available: true, reason: null });
       expect(handle.getHealth()).not.toHaveProperty("namespace");
       expect(handle.getHealth()).not.toHaveProperty("connectionString");

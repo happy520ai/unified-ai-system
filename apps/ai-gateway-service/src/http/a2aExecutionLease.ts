@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import {
   createPostgresTaskClaimLeaseManager,
+  type TaskClaimIssueGuard,
   type WorkforceClaimPostgresPool,
 } from "../workforce/postgresTaskClaimLease.ts";
 
@@ -35,6 +36,7 @@ export type A2AExecutionLeaseStatus = {
   readonly ttlMs: number;
   readonly heartbeatMs: number;
   readonly maxLeases: number;
+  readonly atomicTerminalFence: boolean;
 };
 
 export type A2AExecutionLeaseManager = {
@@ -74,10 +76,12 @@ export function createA2AExecutionLeaseManager({
   env = process.env,
   postgresPool,
   instanceId = `a2a-instance-${randomUUID()}`,
+  issueGuard,
 }: {
   env?: RuntimeEnv;
   postgresPool?: WorkforceClaimPostgresPool;
   instanceId?: string;
+  issueGuard?: TaskClaimIssueGuard;
 } = {}): A2AExecutionLeaseManager {
   const mode = resolveMode(env);
   const taskStorePostgres = String(env.AI_GATEWAY_A2A_TASK_STORE_MODE ?? "")
@@ -123,6 +127,9 @@ export function createA2AExecutionLeaseManager({
       ?? env.AI_GATEWAY_A2A_TASK_STORE_POSTGRES_URL
       ?? "",
   ).trim();
+  const taskStoreConnectionString = String(
+    env.AI_GATEWAY_A2A_TASK_STORE_POSTGRES_URL ?? "",
+  ).trim();
   if (!connectionString && !postgresPool) {
     throw configurationError(
       "A2A_EXECUTION_LEASE_POSTGRES_URL_REQUIRED",
@@ -130,6 +137,17 @@ export function createA2AExecutionLeaseManager({
     );
   }
   if (connectionString) assertSecurePostgresUrl(connectionString);
+  if (
+    taskStorePostgres
+    && connectionString
+    && taskStoreConnectionString
+    && !samePostgresTarget(connectionString, taskStoreConnectionString)
+  ) {
+    throw configurationError(
+      "A2A_EXECUTION_LEASE_DATABASE_MISMATCH",
+      "A2A task state and execution fences must use the same PostgreSQL database.",
+    );
+  }
   const normalizedInstanceId = boundedText(instanceId, "instanceId", 256);
   const taskNamespace = portableIdentifier(
     env.AI_GATEWAY_A2A_TASK_STORE_NAMESPACE ?? "default",
@@ -139,7 +157,7 @@ export function createA2AExecutionLeaseManager({
   const manager = createPostgresTaskClaimLeaseManager({
     connectionString: connectionString || undefined,
     pool: postgresPool,
-    namespace: deriveLeaseNamespace(taskNamespace),
+    namespace: deriveA2AExecutionLeaseNamespace(taskNamespace),
     ttlMs,
     maxClaims: maxLeases,
     poolMax: readBoundedInteger(
@@ -158,6 +176,7 @@ export function createA2AExecutionLeaseManager({
       30_000,
       "AI_GATEWAY_A2A_EXECUTION_LEASE_POSTGRES_STATEMENT_TIMEOUT_MS",
     ),
+    issueGuard,
   });
   const status = Object.freeze({
     mode: "postgres-fenced" as const,
@@ -167,29 +186,36 @@ export function createA2AExecutionLeaseManager({
     ttlMs,
     heartbeatMs,
     maxLeases,
+    atomicTerminalFence: Boolean(issueGuard),
   });
 
   return {
     status,
     async acquire({ taskId: rawTaskId, scope }) {
       const taskId = boundedText(rawTaskId, "taskId", 256);
-      const planId = createScopeId(scope);
+      const planId = createA2AExecutionScopeId(scope);
       const issued = await manager.issue({
         planId,
         taskId,
         agentId: normalizedInstanceId,
         ttlMs,
+        guardContext: { scope },
       });
       if (!issued.success) {
+        const terminal = issued.code === "A2A_TASK_TERMINAL";
         return {
           success: false,
-          code: issued.code === "TASK_ALREADY_CLAIMED"
-            ? "A2A_EXECUTION_ALREADY_ACTIVE"
-            : "A2A_EXECUTION_LEASE_UNAVAILABLE",
-          reason: issued.code === "TASK_ALREADY_CLAIMED"
-            ? "The A2A task is already executing under an active lease."
-            : "The A2A execution lease store is unavailable.",
-          retryable: true,
+          code: terminal
+            ? "A2A_EXECUTION_TASK_TERMINAL"
+            : issued.code === "TASK_ALREADY_CLAIMED"
+              ? "A2A_EXECUTION_ALREADY_ACTIVE"
+              : "A2A_EXECUTION_LEASE_UNAVAILABLE",
+          reason: terminal
+            ? "The A2A task is already terminal and cannot be executed again."
+            : issued.code === "TASK_ALREADY_CLAIMED"
+              ? "The A2A task is already executing under an active lease."
+              : "The A2A execution lease store is unavailable.",
+          retryable: !terminal,
         };
       }
       return {
@@ -222,7 +248,7 @@ export function createA2AExecutionLeaseManager({
     },
     async revokeForTask({ taskId: rawTaskId, scope, reason = "a2a cancellation" }) {
       const result = await manager.revokeTask({
-        planId: createScopeId(scope),
+        planId: createA2AExecutionScopeId(scope),
         taskId: boundedText(rawTaskId, "taskId", 256),
       }, boundedText(reason, "reason", 256));
       if (!result.success && result.code === "TASK_CLAIM_NOT_FOUND") {
@@ -262,6 +288,7 @@ function createDisabledManager(required: boolean): A2AExecutionLeaseManager {
     ttlMs: 0,
     heartbeatMs: 0,
     maxLeases: 0,
+    atomicTerminalFence: false,
   });
   const unavailable = async () => ({
     success: false as const,
@@ -312,7 +339,7 @@ function publicLeaseResult(
       };
 }
 
-function createScopeId(scope: A2AExecutionScope) {
+export function createA2AExecutionScopeId(scope: A2AExecutionScope) {
   const tenant = boundedText(scope?.tenant ?? "default", "tenant", 256);
   const owner = boundedText(scope?.owner ?? "unknown", "owner", 256);
   return `a2a-scope-${createHash("sha256")
@@ -320,7 +347,7 @@ function createScopeId(scope: A2AExecutionScope) {
     .digest("hex")}`;
 }
 
-function deriveLeaseNamespace(taskNamespace: string) {
+export function deriveA2AExecutionLeaseNamespace(taskNamespace: string) {
   return `a2a-exec-${createHash("sha256").update(taskNamespace).digest("hex").slice(0, 40)}`;
 }
 
@@ -361,6 +388,19 @@ function assertSecurePostgresUrl(connectionString: string) {
       "A2A_EXECUTION_LEASE_POSTGRES_TLS_REQUIRED",
       "A non-loopback A2A execution-lease store must use sslmode=verify-full.",
     );
+  }
+}
+
+function samePostgresTarget(left: string, right: string) {
+  try {
+    const a = new URL(left);
+    const b = new URL(right);
+    return a.protocol.replace("postgresql:", "postgres:") === b.protocol.replace("postgresql:", "postgres:")
+      && a.hostname.toLowerCase() === b.hostname.toLowerCase()
+      && (a.port || "5432") === (b.port || "5432")
+      && a.pathname === b.pathname;
+  } catch {
+    return false;
   }
 }
 
@@ -428,7 +468,7 @@ function configurationError(code: string, message: string) {
 }
 
 export const a2aExecutionLeaseInternals = Object.freeze({
-  createScopeId,
-  deriveLeaseNamespace,
+  createScopeId: createA2AExecutionScopeId,
+  deriveLeaseNamespace: deriveA2AExecutionLeaseNamespace,
   resolveMode,
 });

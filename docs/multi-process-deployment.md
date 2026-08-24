@@ -313,23 +313,31 @@ is unavailable, without exposing the URL, namespace, task content, or raw
 database error.
 
 Selecting PostgreSQL task mode also requires the fenced execution-lease lane.
-The lease defaults to the same PostgreSQL URL and uses a separate opaque
+The lease must use the same PostgreSQL database and uses a separate opaque
 namespace. It binds each claim to the server-derived tenant/owner scope, task,
 and random gateway instance; retains only token digests; renews with database
-time; rejects a second active executor; validates the fence immediately before
-publishing a result; and lets a different replica revoke the scoped lease during cancel.
+time; rejects a second active executor; and rejects acquisition after a task is
+terminal. Completed/failed terminal state is written in the same transaction
+that locks, validates, and consumes the token digest plus monotonic fence.
+Cross-replica cancellation writes `canceled` and deletes the current fence in
+that same lock order and transaction, even when the canceling replica has no
+local event bus. Exact replay is idempotent; any terminal rewrite/reopen and any
+stale executor terminal write are rejected.
 Optional bounds are `AI_GATEWAY_A2A_EXECUTION_LEASE_TTL_MS`,
 `AI_GATEWAY_A2A_EXECUTION_LEASE_HEARTBEAT_MS`, and
-`AI_GATEWAY_A2A_EXECUTION_LEASE_MAX_ENTRIES`.
+`AI_GATEWAY_A2A_EXECUTION_LEASE_MAX_ENTRIES`. The gateway retains an in-memory
+proof only until the SDK commits the terminal event; the bounded
+`AI_GATEWAY_A2A_TERMINAL_COMMIT_GRACE_MS` watchdog releases an uncommitted lease
+instead of renewing it indefinitely.
 
 Unlike the usage and audit schemas, A2A rows intentionally hold task history,
 metadata, and artifacts. Apply least-privilege grants, encryption at rest,
 retention/deletion policy, and backup/restore tests. The row digest is a
 corruption signal rather than cryptographic proof against a database writer.
 The lease prevents two gateway replicas from remaining valid active executors
-for one scoped task. Validation and the later TaskStore event commit are not one
-atomic transaction, so a narrow revoke/commit race remains. The lease also does
-not make downstream providers or irreversible sinks fence-aware, forcibly
+for one scoped task, and the TaskStore terminal commit now consumes that lease
+atomically. This closes the database TaskStore revoke/commit race. It does not
+make downstream providers or other irreversible sinks fence-aware, forcibly
 interrupt an operation already inside a provider, prove exactly-once side
 effects, or provide database failover/partition evidence.
 

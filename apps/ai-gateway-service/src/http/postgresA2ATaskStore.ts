@@ -7,6 +7,12 @@ import {
   type Task as A2ATask,
 } from "@a2a-js/sdk";
 import type { ServerCallContext, TaskStore } from "@a2a-js/sdk/server";
+import {
+  POSTGRES_TASK_CLAIM_CAPACITY_LOCK_KEY,
+  POSTGRES_TASK_CLAIM_LOCK_NAMESPACE,
+  POSTGRES_TASK_CLAIM_TABLE,
+  type TaskClaimIssueGuard,
+} from "../workforce/postgresTaskClaimLease.ts";
 
 type QueryResult<Row = Record<string, unknown>> = {
   rows: Row[];
@@ -44,6 +50,34 @@ export type PostgresA2ATaskStoreOptions = {
   poolMax: number;
   statementTimeoutMs: number;
   now?: () => number;
+  terminalFence?: A2AAtomicTerminalFenceOptions;
+};
+
+export type A2AExecutionFenceProof = {
+  token: string;
+  fencingToken: string;
+  identity: {
+    planId: string;
+    taskId: string;
+    agentId: string;
+    fencingToken: string;
+  };
+};
+
+export type A2AExecutionFenceBinding = {
+  proof: A2AExecutionFenceProof;
+  finalize(committed: boolean): Promise<void> | void;
+};
+
+export type A2AAtomicTerminalFenceOptions = {
+  leaseNamespace: string;
+  createScopeId(scope: { tenant: string; owner: string }): string;
+  resolveBinding(input: {
+    tenant: string;
+    owner: string;
+    taskId: string;
+  }): A2AExecutionFenceBinding | undefined;
+  consumeBinding(binding: A2AExecutionFenceBinding): Promise<void> | void;
 };
 
 type Cursor = {
@@ -58,6 +92,11 @@ type TaskRow = {
   status_timestamp_ms: string | number;
   task_json: string;
   task_sha256: string;
+};
+
+type LockedTaskRow = TaskRow & {
+  context_id: string;
+  state: string | number;
 };
 
 type NormalizedTask = {
@@ -79,6 +118,13 @@ const SCOPE_COUNTS_TABLE = "public.ai_gateway_a2a_task_scope_counts";
 const INIT_LOCK_NAMESPACE = 1_431_193_301;
 const INIT_LOCK_KEY = 1_431_193_302;
 const TASK_LOCK_NAMESPACE = 1_431_193_303;
+
+const TERMINAL_STATES = new Set<number>([
+  Number(TaskState.TASK_STATE_COMPLETED),
+  Number(TaskState.TASK_STATE_FAILED),
+  Number(TaskState.TASK_STATE_CANCELED),
+  Number(TaskState.TASK_STATE_REJECTED),
+]);
 
 const INITIALIZE_SQL = `/* a2a-task-store:init */
   CREATE TABLE IF NOT EXISTS ${TASKS_TABLE} (
@@ -187,100 +233,74 @@ export function createPostgresA2ATaskStore(rawOptions: PostgresA2ATaskStoreOptio
   const store: TaskStore = {
     async save(task: A2ATask, context: ServerCallContext): Promise<void> {
       const normalized = normalizeTask(task, context, options);
+      const terminal = isTerminalState(normalized.state);
+      const binding = terminal
+        ? options.terminalFence?.resolveBinding({
+            tenant: normalized.tenant,
+            owner: normalized.owner,
+            taskId: normalized.taskId,
+          })
+        : undefined;
       let client: A2ATaskStorePostgresClient | null = null;
+      let consumedBinding: A2AExecutionFenceBinding | undefined;
       try {
         const pool = await getReadyPool();
         client = await pool.connect();
         await client.query("BEGIN");
+        if (terminal && options.terminalFence) {
+          await lockClaimCapacity(client);
+        }
         await client.query(
           "/* a2a-task-store:task-lock */ SELECT pg_advisory_xact_lock($1, hashtext($2))",
           [TASK_LOCK_NAMESPACE, createTaskLockScope(options.namespace, normalized)],
         );
         await client.query(PURGE_EXPIRED_SQL, [options.namespace]);
         await ensureCounterRows(client, options.namespace, normalized);
-        const existing = await client.query<{
-          status_timestamp_ms: string | number;
-          task_sha256: string;
-        }>(`/* a2a-task-store:existing */
-          SELECT
-            floor(EXTRACT(EPOCH FROM status_timestamp) * 1000)::bigint
-              AS status_timestamp_ms,
-            task_sha256
-          FROM ${TASKS_TABLE}
-          WHERE namespace = $1 AND tenant = $2 AND owner_id = $3 AND task_id = $4
-          FOR UPDATE
-        `, [
-          options.namespace,
-          normalized.tenant,
-          normalized.owner,
-          normalized.taskId,
-        ]);
-        const existingRow = existing.rows[0];
+        const existingRow = await selectLockedTask(client, options.namespace, normalized);
+        let exactTerminalReplay = false;
         if (existingRow) {
+          assertVerifiedLockedTask(existingRow);
           const existingTimestampMs = Number(existingRow.status_timestamp_ms);
+          if (isTerminalState(Number(existingRow.state))) {
+            if (
+              terminal
+              && existingRow.task_sha256 === normalized.taskSha256
+              && existingRow.task_json === normalized.taskJson
+            ) {
+              exactTerminalReplay = true;
+            } else {
+              throw taskStoreError(
+                "A2A_TASK_STORE_TERMINAL_IMMUTABLE",
+                "A terminal A2A task cannot be changed or reopened.",
+              );
+            }
+          }
           if (normalized.statusTimestampMs < existingTimestampMs) {
             throw taskStoreError(
               "A2A_TASK_STORE_STALE_WRITE",
               "The A2A task update is older than the persisted task state.",
             );
           }
-          await client.query(`/* a2a-task-store:update */
-            UPDATE ${TASKS_TABLE}
-            SET context_id = $5,
-                state = $6,
-                status_timestamp = $7::timestamptz,
-                task_json = $8,
-                task_sha256 = $9,
-                task_bytes = $10,
-                updated_at = clock_timestamp(),
-                expires_at = clock_timestamp()
-                  + ($11::bigint * interval '1 millisecond')
-            WHERE namespace = $1 AND tenant = $2 AND owner_id = $3 AND task_id = $4
-          `, taskValues(options, normalized));
-        } else {
-          const namespaceCount = await client.query<{ row_count: string | number }>(`
-            /* a2a-task-store:namespace-count */
-            SELECT row_count FROM ${NAMESPACE_COUNTS_TABLE}
-            WHERE namespace = $1
-            FOR UPDATE
-          `, [options.namespace]);
-          const scopeCount = await client.query<{ row_count: string | number }>(`
-            /* a2a-task-store:scope-count */
-            SELECT row_count FROM ${SCOPE_COUNTS_TABLE}
-            WHERE namespace = $1 AND tenant = $2 AND owner_id = $3
-            FOR UPDATE
-          `, [options.namespace, normalized.tenant, normalized.owner]);
-          if (Number(namespaceCount.rows[0]?.row_count ?? 0) >= options.maxEntries) {
+        }
+        if (terminal && options.terminalFence && !exactTerminalReplay) {
+          if (!binding) {
             throw taskStoreError(
-              "A2A_TASK_STORE_CAPACITY_REACHED",
-              "The bounded A2A task store has reached its global capacity.",
+              "A2A_TASK_TERMINAL_FENCE_REQUIRED",
+              "A terminal A2A task commit requires the active execution fence.",
             );
           }
-          if (Number(scopeCount.rows[0]?.row_count ?? 0) >= options.maxEntriesPerOwner) {
-            throw taskStoreError(
-              "A2A_TASK_STORE_OWNER_CAPACITY_REACHED",
-              "The bounded A2A task store has reached this owner's capacity.",
-            );
+          await assertActiveExecutionFence(client, options.terminalFence, normalized, binding);
+        }
+        if (!exactTerminalReplay) {
+          await persistNormalizedTask(client, options, normalized, Boolean(existingRow));
+        }
+        if (terminal && options.terminalFence && binding) {
+          if (!exactTerminalReplay) {
+            await consumeExecutionFence(client, options.terminalFence, normalized, binding);
+          } else {
+            await consumeMatchingFenceIfPresent(client, options.terminalFence, normalized, binding);
           }
-          await client.query(`/* a2a-task-store:insert */
-            INSERT INTO ${TASKS_TABLE} (
-              namespace, tenant, owner_id, task_id, context_id, state,
-              status_timestamp, task_json, task_sha256, task_bytes, expires_at
-            ) VALUES (
-              $1, $2, $3, $4, $5, $6, $7::timestamptz, $8, $9, $10,
-              clock_timestamp() + ($11::bigint * interval '1 millisecond')
-            )
-          `, taskValues(options, normalized));
-          await client.query(`/* a2a-task-store:namespace-increment */
-            UPDATE ${NAMESPACE_COUNTS_TABLE}
-            SET row_count = row_count + 1, updated_at = clock_timestamp()
-            WHERE namespace = $1
-          `, [options.namespace]);
-          await client.query(`/* a2a-task-store:scope-increment */
-            UPDATE ${SCOPE_COUNTS_TABLE}
-            SET row_count = row_count + 1, updated_at = clock_timestamp()
-            WHERE namespace = $1 AND tenant = $2 AND owner_id = $3
-          `, [options.namespace, normalized.tenant, normalized.owner]);
+          consumedBinding = binding;
         }
         await client.query("COMMIT");
         markReady();
@@ -303,6 +323,10 @@ export function createPostgresA2ATaskStore(rawOptions: PostgresA2ATaskStoreOptio
         );
       } finally {
         client?.release();
+      }
+      if (consumedBinding && options.terminalFence) {
+        await Promise.resolve(options.terminalFence.consumeBinding(consumedBinding))
+          .catch(() => undefined);
       }
     },
 
@@ -439,14 +463,140 @@ export function createPostgresA2ATaskStore(rawOptions: PostgresA2ATaskStoreOptio
     },
   };
 
+  const issueGuard: TaskClaimIssueGuard = async (client, input) => {
+    const scope = readIssueGuardScope(input.guardContext);
+    const taskId = readBoundedText(input.taskId, "task ID", 256);
+    const result = await client.query<LockedTaskRow>(`/* a2a-task-store:execution-guard */
+      SELECT
+        task_id,
+        context_id,
+        state,
+        floor(EXTRACT(EPOCH FROM status_timestamp) * 1000)::bigint
+          AS status_timestamp_ms,
+        task_json,
+        task_sha256
+      FROM ${TASKS_TABLE}
+      WHERE namespace = $1 AND tenant = $2 AND owner_id = $3 AND task_id = $4
+        AND expires_at > clock_timestamp()
+      FOR UPDATE
+    `, [options.namespace, scope.tenant, scope.owner, taskId]);
+    const row = result.rows[0];
+    if (!row) return { allowed: true };
+    assertVerifiedLockedTask(row);
+    return isTerminalState(Number(row.state))
+      ? {
+          allowed: false,
+          code: "A2A_TASK_TERMINAL",
+          reason: "The A2A task is already terminal and cannot acquire a new execution fence.",
+        }
+      : { allowed: true };
+  };
+
   return {
     store,
+    issueGuard,
+    async cancelTaskAtomically(
+      taskIdInput: string,
+      context: ServerCallContext,
+      cancellationStatus: A2ATask["status"],
+    ) {
+      if (!options.terminalFence) {
+        throw taskStoreError(
+          "A2A_TASK_ATOMIC_CANCELLATION_UNAVAILABLE",
+          "Atomic A2A cancellation requires the PostgreSQL terminal-fence boundary.",
+        );
+      }
+      const scope = readScope(context);
+      const taskId = readBoundedText(taskIdInput, "task ID", 256);
+      let client: A2ATaskStorePostgresClient | null = null;
+      let cancelledTask: A2ATask | undefined;
+      let consumedBinding: A2AExecutionFenceBinding | undefined;
+      try {
+        const pool = await getReadyPool();
+        client = await pool.connect();
+        await client.query("BEGIN");
+        await lockClaimCapacity(client);
+        await client.query(
+          "/* a2a-task-store:cancel-lock */ SELECT pg_advisory_xact_lock($1, hashtext($2))",
+          [TASK_LOCK_NAMESPACE, createTaskLockScopeFromValues(options.namespace, scope, taskId)],
+        );
+        const row = await selectLockedTaskByValues(
+          client,
+          options.namespace,
+          scope.tenant,
+          scope.owner,
+          taskId,
+          true,
+        );
+        if (!row) {
+          throw taskStoreError("A2A_TASK_NOT_FOUND", "The scoped A2A task was not found.");
+        }
+        assertVerifiedLockedTask(row);
+        const persisted = decodeVerifiedTask(row);
+        if (isTerminalState(Number(row.state))) {
+          if (Number(row.state) !== Number(TaskState.TASK_STATE_CANCELED)) {
+            throw taskStoreError(
+              "A2A_TASK_STORE_TERMINAL_IMMUTABLE",
+              "A terminal A2A task cannot be canceled or changed.",
+            );
+          }
+          cancelledTask = persisted;
+        } else {
+          persisted.status = structuredClone(cancellationStatus);
+          const update = cancellationStatus?.message;
+          if (update && !persisted.history?.find((message) => message.messageId === update.messageId)) {
+            persisted.history = [...(persisted.history ?? []), structuredClone(update)];
+          }
+          const normalized = normalizeTask(persisted, context, options);
+          await persistNormalizedTask(client, options, normalized, true);
+          cancelledTask = persisted;
+        }
+        await revokeExecutionFenceForTask(
+          client,
+          options.terminalFence,
+          scope,
+          taskId,
+        );
+        consumedBinding = options.terminalFence.resolveBinding({
+          tenant: scope.tenant,
+          owner: scope.owner,
+          taskId,
+        });
+        await client.query("COMMIT");
+        markReady();
+      } catch (error) {
+        if (client) {
+          try {
+            await client.query("ROLLBACK");
+          } catch {
+            // Preserve the normalized cancellation error.
+          }
+        }
+        if (isA2ATaskStoreError(error)) {
+          if (shouldDegradeStoreHealth(error.code)) markFailure(error);
+          throw error;
+        }
+        markFailure(error);
+        throw taskStoreError(
+          "A2A_TASK_STORE_UNAVAILABLE",
+          "The central A2A task store could not atomically cancel the task.",
+        );
+      } finally {
+        client?.release();
+      }
+      if (consumedBinding) {
+        await Promise.resolve(options.terminalFence.consumeBinding(consumedBinding))
+          .catch(() => undefined);
+      }
+      return cancelledTask;
+    },
     getHealth() {
       return {
         available: !closed && available,
         reason: closed ? "closed" : reason,
         totalFailures,
         lastFailureCode,
+        atomicTerminalFence: Boolean(options.terminalFence),
       };
     },
     async checkHealth() {
@@ -572,6 +722,254 @@ async function ensureCounterRows(
   `, [namespace, task.tenant, task.owner]);
 }
 
+async function lockClaimCapacity(client: A2ATaskStorePostgresClient) {
+  await client.query(
+    "/* a2a-task-store:claim-capacity-lock */ SELECT pg_advisory_xact_lock($1, $2)",
+    [POSTGRES_TASK_CLAIM_LOCK_NAMESPACE, POSTGRES_TASK_CLAIM_CAPACITY_LOCK_KEY],
+  );
+}
+
+async function selectLockedTask(
+  client: A2ATaskStorePostgresClient,
+  namespace: string,
+  task: NormalizedTask,
+) {
+  return selectLockedTaskByValues(
+    client,
+    namespace,
+    task.tenant,
+    task.owner,
+    task.taskId,
+    false,
+  );
+}
+
+async function selectLockedTaskByValues(
+  client: Pick<A2ATaskStorePostgresClient, "query">,
+  namespace: string,
+  tenant: string,
+  owner: string,
+  taskId: string,
+  activeOnly: boolean,
+): Promise<LockedTaskRow | undefined> {
+  const result = await client.query<LockedTaskRow>(`/* a2a-task-store:existing */
+    SELECT
+      task_id,
+      context_id,
+      state,
+      floor(EXTRACT(EPOCH FROM status_timestamp) * 1000)::bigint
+        AS status_timestamp_ms,
+      task_json,
+      task_sha256
+    FROM ${TASKS_TABLE}
+    WHERE namespace = $1 AND tenant = $2 AND owner_id = $3 AND task_id = $4
+      ${activeOnly ? "AND expires_at > clock_timestamp()" : ""}
+    FOR UPDATE
+  `, [namespace, tenant, owner, taskId]);
+  return result.rows[0];
+}
+
+function assertVerifiedLockedTask(row: LockedTaskRow) {
+  const digest = createHash("sha256").update(row.task_json).digest("hex");
+  if (digest !== row.task_sha256) {
+    throw taskStoreError(
+      "A2A_TASK_STORE_CORRUPT",
+      "A persisted A2A task failed its integrity check.",
+    );
+  }
+}
+
+async function persistNormalizedTask(
+  client: A2ATaskStorePostgresClient,
+  options: ReturnType<typeof normalizeOptions>,
+  task: NormalizedTask,
+  exists: boolean,
+) {
+  if (exists) {
+    await client.query(`/* a2a-task-store:update */
+      UPDATE ${TASKS_TABLE}
+      SET context_id = $5,
+          state = $6,
+          status_timestamp = $7::timestamptz,
+          task_json = $8,
+          task_sha256 = $9,
+          task_bytes = $10,
+          updated_at = clock_timestamp(),
+          expires_at = clock_timestamp()
+            + ($11::bigint * interval '1 millisecond')
+      WHERE namespace = $1 AND tenant = $2 AND owner_id = $3 AND task_id = $4
+    `, taskValues(options, task));
+    return;
+  }
+  const namespaceCount = await client.query<{ row_count: string | number }>(`
+    /* a2a-task-store:namespace-count */
+    SELECT row_count FROM ${NAMESPACE_COUNTS_TABLE}
+    WHERE namespace = $1
+    FOR UPDATE
+  `, [options.namespace]);
+  const scopeCount = await client.query<{ row_count: string | number }>(`
+    /* a2a-task-store:scope-count */
+    SELECT row_count FROM ${SCOPE_COUNTS_TABLE}
+    WHERE namespace = $1 AND tenant = $2 AND owner_id = $3
+    FOR UPDATE
+  `, [options.namespace, task.tenant, task.owner]);
+  if (Number(namespaceCount.rows[0]?.row_count ?? 0) >= options.maxEntries) {
+    throw taskStoreError(
+      "A2A_TASK_STORE_CAPACITY_REACHED",
+      "The bounded A2A task store has reached its global capacity.",
+    );
+  }
+  if (Number(scopeCount.rows[0]?.row_count ?? 0) >= options.maxEntriesPerOwner) {
+    throw taskStoreError(
+      "A2A_TASK_STORE_OWNER_CAPACITY_REACHED",
+      "The bounded A2A task store has reached this owner's capacity.",
+    );
+  }
+  await client.query(`/* a2a-task-store:insert */
+    INSERT INTO ${TASKS_TABLE} (
+      namespace, tenant, owner_id, task_id, context_id, state,
+      status_timestamp, task_json, task_sha256, task_bytes, expires_at
+    ) VALUES (
+      $1, $2, $3, $4, $5, $6, $7::timestamptz, $8, $9, $10,
+      clock_timestamp() + ($11::bigint * interval '1 millisecond')
+    )
+  `, taskValues(options, task));
+  await client.query(`/* a2a-task-store:namespace-increment */
+    UPDATE ${NAMESPACE_COUNTS_TABLE}
+    SET row_count = row_count + 1, updated_at = clock_timestamp()
+    WHERE namespace = $1
+  `, [options.namespace]);
+  await client.query(`/* a2a-task-store:scope-increment */
+    UPDATE ${SCOPE_COUNTS_TABLE}
+    SET row_count = row_count + 1, updated_at = clock_timestamp()
+    WHERE namespace = $1 AND tenant = $2 AND owner_id = $3
+  `, [options.namespace, task.tenant, task.owner]);
+}
+
+async function assertActiveExecutionFence(
+  client: A2ATaskStorePostgresClient,
+  terminalFence: A2AAtomicTerminalFenceOptions,
+  task: NormalizedTask,
+  binding: A2AExecutionFenceBinding,
+) {
+  const proof = binding.proof;
+  const expectedPlanId = terminalFence.createScopeId({
+    tenant: task.tenant,
+    owner: task.owner,
+  });
+  if (
+    proof.identity.planId !== expectedPlanId
+    || proof.identity.taskId !== task.taskId
+    || proof.identity.fencingToken !== proof.fencingToken
+  ) {
+    throw taskStoreError(
+      "A2A_TASK_TERMINAL_FENCE_MISMATCH",
+      "The A2A terminal fence is not bound to this scoped task.",
+    );
+  }
+  const tokenDigest = createHash("sha256").update(proof.token, "utf8").digest("hex");
+  const result = await client.query<{ active: number }>(`
+    /* a2a-task-store:validate-terminal-fence */
+    SELECT 1 AS active
+    FROM ${POSTGRES_TASK_CLAIM_TABLE}
+    WHERE namespace = $1
+      AND plan_id = $2
+      AND task_id = $3
+      AND agent_id = $4
+      AND token_digest = $5
+      AND fencing_token = $6::bigint
+      AND expires_at > clock_timestamp()
+    FOR UPDATE
+  `, [
+    terminalFence.leaseNamespace,
+    proof.identity.planId,
+    proof.identity.taskId,
+    proof.identity.agentId,
+    tokenDigest,
+    proof.fencingToken,
+  ]);
+  if (!result.rows[0]) {
+    throw taskStoreError(
+      "A2A_TASK_TERMINAL_FENCE_LOST",
+      "The active A2A execution fence was lost before terminal commit.",
+    );
+  }
+}
+
+async function consumeExecutionFence(
+  client: A2ATaskStorePostgresClient,
+  terminalFence: A2AAtomicTerminalFenceOptions,
+  task: NormalizedTask,
+  binding: A2AExecutionFenceBinding,
+) {
+  const deleted = await deleteMatchingExecutionFence(client, terminalFence, task, binding);
+  if (Number(deleted.rowCount ?? 0) !== 1) {
+    throw taskStoreError(
+      "A2A_TASK_TERMINAL_FENCE_LOST",
+      "The A2A execution fence changed before terminal commit.",
+    );
+  }
+}
+
+async function consumeMatchingFenceIfPresent(
+  client: A2ATaskStorePostgresClient,
+  terminalFence: A2AAtomicTerminalFenceOptions,
+  task: NormalizedTask,
+  binding: A2AExecutionFenceBinding,
+) {
+  await deleteMatchingExecutionFence(client, terminalFence, task, binding);
+}
+
+function deleteMatchingExecutionFence(
+  client: A2ATaskStorePostgresClient,
+  terminalFence: A2AAtomicTerminalFenceOptions,
+  task: NormalizedTask,
+  binding: A2AExecutionFenceBinding,
+) {
+  const proof = binding.proof;
+  const tokenDigest = createHash("sha256").update(proof.token, "utf8").digest("hex");
+  return client.query(`/* a2a-task-store:consume-terminal-fence */
+    DELETE FROM ${POSTGRES_TASK_CLAIM_TABLE}
+    WHERE namespace = $1
+      AND plan_id = $2
+      AND task_id = $3
+      AND agent_id = $4
+      AND token_digest = $5
+      AND fencing_token = $6::bigint
+  `, [
+    terminalFence.leaseNamespace,
+    terminalFence.createScopeId({ tenant: task.tenant, owner: task.owner }),
+    task.taskId,
+    proof.identity.agentId,
+    tokenDigest,
+    proof.fencingToken,
+  ]);
+}
+
+async function revokeExecutionFenceForTask(
+  client: A2ATaskStorePostgresClient,
+  terminalFence: A2AAtomicTerminalFenceOptions,
+  scope: { tenant: string; owner: string },
+  taskId: string,
+) {
+  await client.query(`/* a2a-task-store:cancel-terminal-fence */
+    DELETE FROM ${POSTGRES_TASK_CLAIM_TABLE}
+    WHERE namespace = $1 AND plan_id = $2 AND task_id = $3
+  `, [terminalFence.leaseNamespace, terminalFence.createScopeId(scope), taskId]);
+}
+
+function readIssueGuardScope(value: unknown) {
+  const scope = (value as { scope?: { tenant?: unknown; owner?: unknown } } | undefined)?.scope;
+  return {
+    tenant: readBoundedText(scope?.tenant, "tenant", 256),
+    owner: readBoundedText(scope?.owner, "owner", 256),
+  };
+}
+
+function isTerminalState(state: number) {
+  return TERMINAL_STATES.has(Number(state));
+}
+
 function normalizeTask(
   task: A2ATask,
   context: ServerCallContext,
@@ -680,7 +1078,15 @@ function normalizeListRequest(
 }
 
 function createTaskLockScope(namespace: string, task: NormalizedTask) {
-  return JSON.stringify([namespace, task.tenant, task.owner, task.taskId]);
+  return createTaskLockScopeFromValues(namespace, task, task.taskId);
+}
+
+function createTaskLockScopeFromValues(
+  namespace: string,
+  scope: { tenant: string; owner: string },
+  taskId: string,
+) {
+  return JSON.stringify([namespace, scope.tenant, scope.owner, taskId]);
 }
 
 function readScope(context: ServerCallContext) {

@@ -230,6 +230,9 @@ export function createPrometheusExporter(options = {}) {
     lines.push(`# HELP ${prefix}_a2a_task_store_distributed Whether A2A task persistence is shared across hosts`);
     lines.push(`# TYPE ${prefix}_a2a_task_store_distributed gauge`);
     lines.push(`${prefix}_a2a_task_store_distributed{mode="${a2aTaskStoreMode}"} ${a2aTaskStore?.distributed === true ? 1 : 0}`);
+    lines.push(`# HELP ${prefix}_a2a_task_store_atomic_terminal_fence Whether terminal task state and execution-fence consumption share one transaction`);
+    lines.push(`# TYPE ${prefix}_a2a_task_store_atomic_terminal_fence gauge`);
+    lines.push(`${prefix}_a2a_task_store_atomic_terminal_fence{mode="${a2aTaskStoreMode}"} ${a2aTaskStore?.atomicTerminalFence === true ? 1 : 0}`);
     const a2aExecutionLease = a2aTaskStore?.executionLease;
     const a2aExecutionLeaseMode = sanitizeMetricLabel(a2aExecutionLease?.mode ?? "disabled");
     lines.push(`# HELP ${prefix}_a2a_execution_lease_available Whether the configured A2A execution lease store is reachable`);

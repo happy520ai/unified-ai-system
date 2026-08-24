@@ -12,8 +12,16 @@ import {
 import type { ServerCallContext, TaskStore } from "@a2a-js/sdk/server";
 import {
   createPostgresA2ATaskStore,
+  type A2AExecutionFenceBinding,
   type A2ATaskStorePostgresPool,
 } from "./postgresA2ATaskStore.ts";
+import {
+  createA2AExecutionScopeId,
+  deriveA2AExecutionLeaseNamespace,
+  type A2AExecutionLease,
+  type A2AExecutionScope,
+} from "./a2aExecutionLease.ts";
+import type { TaskClaimIssueGuard } from "../workforce/postgresTaskClaimLease.ts";
 
 type RuntimeEnv = Record<string, string | undefined>;
 type StoreMode = "memory" | "sqlite" | "postgres";
@@ -43,6 +51,8 @@ export interface A2ATaskStoreStatus {
   readonly maxTaskBytes: number;
   readonly maxHistoryMessages: number;
   readonly maxArtifacts: number;
+  readonly atomicTerminalFence: boolean;
+  readonly terminalCommitGraceMs: number;
 }
 
 export interface A2ATaskStoreHandle {
@@ -50,6 +60,19 @@ export interface A2ATaskStoreHandle {
   readonly status: A2ATaskStoreStatus;
   getHealth(): A2ATaskStoreStatus & { available: boolean; reason: string | null };
   checkHealth(): Promise<A2ATaskStoreStatus & { available: boolean; reason: string | null }>;
+  readonly issueGuard?: TaskClaimIssueGuard;
+  bindExecutionLease(input: {
+    taskId: string;
+    scope: A2AExecutionScope;
+    lease: A2AExecutionLease;
+    finalize(committed: boolean): Promise<void> | void;
+  }): void;
+  markExecutionFinished(taskId: string, scope: A2AExecutionScope): void;
+  cancelTaskAtomically(
+    taskId: string,
+    context: ServerCallContext,
+    cancellationStatus: A2ATask["status"],
+  ): Promise<A2ATask | undefined>;
   close(): Promise<void>;
 }
 
@@ -62,15 +85,24 @@ const DEFAULT_MAX_ARTIFACTS = 100;
 const DEFAULT_BUSY_TIMEOUT_MS = 5_000;
 const DEFAULT_POSTGRES_POOL_MAX = 4;
 const DEFAULT_POSTGRES_STATEMENT_TIMEOUT_MS = 5_000;
+const DEFAULT_TERMINAL_COMMIT_GRACE_MS = 10_000;
+const TERMINAL_TASK_STATES = new Set<number>([
+  Number(TaskState.TASK_STATE_COMPLETED),
+  Number(TaskState.TASK_STATE_FAILED),
+  Number(TaskState.TASK_STATE_CANCELED),
+  Number(TaskState.TASK_STATE_REJECTED),
+]);
 
 export function createA2ATaskStore({
   env = process.env,
   now = Date.now,
   postgresPool,
+  integratedExecutionBoundary = false,
 }: {
   env?: RuntimeEnv;
   now?: () => number;
   postgresPool?: A2ATaskStorePostgresPool;
+  integratedExecutionBoundary?: boolean;
 } = {}): A2ATaskStoreHandle {
   const mode = resolveStoreMode(env);
   const required = readStrictBoolean(
@@ -136,6 +168,14 @@ export function createA2ATaskStore({
     10_000,
     "AI_GATEWAY_A2A_TASK_MAX_ARTIFACTS",
   );
+  const atomicTerminalFence = mode === "postgres" && integratedExecutionBoundary;
+  const terminalCommitGraceMs = readBoundedInteger(
+    env.AI_GATEWAY_A2A_TERMINAL_COMMIT_GRACE_MS,
+    DEFAULT_TERMINAL_COMMIT_GRACE_MS,
+    1_000,
+    60_000,
+    "AI_GATEWAY_A2A_TERMINAL_COMMIT_GRACE_MS",
+  );
   const status = Object.freeze({
     mode,
     durable: mode !== "memory",
@@ -148,20 +188,47 @@ export function createA2ATaskStore({
     maxTaskBytes,
     maxHistoryMessages,
     maxArtifacts,
+    atomicTerminalFence,
+    terminalCommitGraceMs,
   });
   if (mode === "postgres") {
     const connectionString = String(
       env.AI_GATEWAY_A2A_TASK_STORE_POSTGRES_URL ?? "",
     ).trim();
     if (!postgresPool) validatePostgresUrl(connectionString);
+    const taskNamespace = readPortableIdentifier(
+      env.AI_GATEWAY_A2A_TASK_STORE_NAMESPACE ?? "default",
+      "AI_GATEWAY_A2A_TASK_STORE_NAMESPACE",
+      128,
+    );
+    type BoundFence = A2AExecutionFenceBinding & {
+      key: string;
+      timer?: ReturnType<typeof setTimeout>;
+      finalized: boolean;
+    };
+    const boundFences = new Map<string, BoundFence>();
+    const consumeBinding = async (binding: A2AExecutionFenceBinding) => {
+      const bound = binding as BoundFence;
+      if (bound.finalized) return;
+      bound.finalized = true;
+      if (bound.timer) clearTimeout(bound.timer);
+      boundFences.delete(bound.key);
+      await bound.finalize(true);
+    };
+    const terminalFence = atomicTerminalFence
+      ? {
+          leaseNamespace: deriveA2AExecutionLeaseNamespace(taskNamespace),
+          createScopeId: createA2AExecutionScopeId,
+          resolveBinding(input: { tenant: string; owner: string; taskId: string }) {
+            return boundFences.get(createFenceBindingKey(input));
+          },
+          consumeBinding,
+        }
+      : undefined;
     const postgresStore = createPostgresA2ATaskStore({
       connectionString: connectionString || undefined,
       pool: postgresPool,
-      namespace: readPortableIdentifier(
-        env.AI_GATEWAY_A2A_TASK_STORE_NAMESPACE ?? "default",
-        "AI_GATEWAY_A2A_TASK_STORE_NAMESPACE",
-        128,
-      ),
+      namespace: taskNamespace,
       ttlMs,
       maxEntries,
       maxEntriesPerOwner,
@@ -183,10 +250,72 @@ export function createA2ATaskStore({
         "AI_GATEWAY_A2A_TASK_STORE_POSTGRES_STATEMENT_TIMEOUT_MS",
       ),
       now,
+      terminalFence,
     });
     return Object.freeze({
       store: postgresStore.store,
       status,
+      issueGuard: atomicTerminalFence ? postgresStore.issueGuard : undefined,
+      bindExecutionLease(input: {
+        taskId: string;
+        scope: A2AExecutionScope;
+        lease: A2AExecutionLease;
+        finalize(committed: boolean): Promise<void> | void;
+      }) {
+        if (!atomicTerminalFence) return;
+        const scope = normalizeExecutionScope(input.scope);
+        const taskId = readBoundedText(input.taskId, "task ID", 256);
+        const key = createFenceBindingKey({ ...scope, taskId });
+        if (
+          input.lease.identity.planId !== createA2AExecutionScopeId(scope)
+          || input.lease.identity.taskId !== taskId
+          || input.lease.identity.fencingToken !== input.lease.fencingToken
+        ) {
+          throw taskStoreError(
+            "A2A_TASK_TERMINAL_FENCE_MISMATCH",
+            "The execution fence is not bound to this scoped A2A task.",
+          );
+        }
+        if (boundFences.has(key)) {
+          throw taskStoreError(
+            "A2A_TASK_TERMINAL_FENCE_ALREADY_BOUND",
+            "The scoped A2A task already has a local terminal-fence binding.",
+          );
+        }
+        boundFences.set(key, {
+          key,
+          proof: input.lease,
+          finalize: input.finalize,
+          finalized: false,
+        });
+      },
+      markExecutionFinished(taskIdInput: string, scopeInput: A2AExecutionScope) {
+        if (!atomicTerminalFence) return;
+        const scope = normalizeExecutionScope(scopeInput);
+        const taskId = readBoundedText(taskIdInput, "task ID", 256);
+        const binding = boundFences.get(createFenceBindingKey({ ...scope, taskId }));
+        if (!binding || binding.finalized || binding.timer) return;
+        binding.timer = setTimeout(() => {
+          if (binding.finalized) return;
+          binding.finalized = true;
+          boundFences.delete(binding.key);
+          void Promise.resolve(binding.finalize(false)).catch(() => undefined);
+        }, terminalCommitGraceMs);
+        binding.timer.unref?.();
+      },
+      async cancelTaskAtomically(
+        taskId: string,
+        context: ServerCallContext,
+        cancellationStatus: A2ATask["status"],
+      ) {
+        if (!atomicTerminalFence) {
+          throw taskStoreError(
+            "A2A_TASK_ATOMIC_CANCELLATION_UNAVAILABLE",
+            "Atomic A2A cancellation is unavailable for this task store.",
+          );
+        }
+        return postgresStore.cancelTaskAtomically(taskId, context, cancellationStatus);
+      },
       getHealth() {
         return Object.freeze({ ...status, ...postgresStore.getHealth() });
       },
@@ -195,6 +324,14 @@ export function createA2ATaskStore({
         return Object.freeze({ ...status, ...health });
       },
       async close() {
+        const pending = [...boundFences.values()];
+        boundFences.clear();
+        await Promise.allSettled(pending.map(async (binding) => {
+          if (binding.timer) clearTimeout(binding.timer);
+          if (binding.finalized) return;
+          binding.finalized = true;
+          await binding.finalize(false);
+        }));
         await postgresStore.close();
       },
     });
@@ -225,6 +362,14 @@ export function createA2ATaskStore({
   return Object.freeze({
     store,
     status,
+    bindExecutionLease() {},
+    markExecutionFinished() {},
+    async cancelTaskAtomically() {
+      throw taskStoreError(
+        "A2A_TASK_ATOMIC_CANCELLATION_UNAVAILABLE",
+        "Atomic A2A cancellation requires the integrated PostgreSQL execution boundary.",
+      );
+    },
     getHealth() {
       const health = store.getHealth();
       return Object.freeze({ ...status, ...health });
@@ -346,9 +491,26 @@ class SqliteA2ATaskStore implements TaskStore {
     this.#transaction(() => {
       this.#purgeExpired(timestamp);
       const existing = this.#db.prepare(`
-        SELECT 1 AS present FROM a2a_tasks
+        SELECT state, status_timestamp, task_json FROM a2a_tasks
         WHERE tenant = ? AND owner = ? AND task_id = ?
-      `).get(scope.tenant, scope.owner, taskId) as { present: number } | undefined;
+      `).get(scope.tenant, scope.owner, taskId) as {
+        state: number;
+        status_timestamp: string;
+        task_json: string;
+      } | undefined;
+      if (existing && isTerminalTaskState(existing.state)) {
+        if (isTerminalTaskState(state) && existing.task_json === taskJson) return;
+        throw taskStoreError(
+          "A2A_TASK_STORE_TERMINAL_IMMUTABLE",
+          "A terminal A2A task cannot be changed or reopened.",
+        );
+      }
+      if (existing && Date.parse(statusTimestamp) < Date.parse(existing.status_timestamp)) {
+        throw taskStoreError(
+          "A2A_TASK_STORE_STALE_WRITE",
+          "The A2A task update is older than the persisted task state.",
+        );
+      }
       if (!existing) {
         const total = Number((this.#db.prepare(
           "SELECT COUNT(*) AS count FROM a2a_tasks",
@@ -670,6 +832,19 @@ function readScope(context: ServerCallContext) {
   };
 }
 
+function normalizeExecutionScope(scope: A2AExecutionScope) {
+  return {
+    tenant: readBoundedText(scope?.tenant ?? "default", "tenant", 256),
+    owner: readBoundedText(scope?.owner ?? "unknown", "owner", 256),
+  };
+}
+
+function createFenceBindingKey(input: { tenant: string; owner: string; taskId: string }) {
+  return createHash("sha256")
+    .update(JSON.stringify([input.tenant, input.owner, input.taskId]))
+    .digest("hex");
+}
+
 function readBoundedText(value: unknown, label: string, maxLength: number): string {
   const normalized = String(value ?? "").trim();
   if (
@@ -716,6 +891,10 @@ function normalizeTaskState(value: unknown): number {
     );
   }
   return state;
+}
+
+function isTerminalTaskState(state: number) {
+  return TERMINAL_TASK_STATES.has(Number(state));
 }
 
 function normalizeStatusTimestamp(value: string | undefined, fallbackMs: number): string {
