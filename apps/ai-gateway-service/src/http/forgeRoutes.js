@@ -75,7 +75,7 @@ export async function dispatchForgeRoutes(context) {
   }
 
   if (request.method === "GET" && url.pathname === "/forge/status") {
-    writeJson(response, 200, createOkEnvelope(forge.getStatus(), { startedAt }));
+    writeJson(response, 200, createOkEnvelope(forge.getStatus({ tenantIdentity }), { startedAt }));
     return;
   }
 
@@ -85,12 +85,12 @@ export async function dispatchForgeRoutes(context) {
   }
 
   if (request.method === "GET" && url.pathname === "/forge/runs") {
-    writeJson(response, 200, createOkEnvelope(forge.listRuns(), { startedAt }));
+    writeJson(response, 200, createOkEnvelope(forge.listRuns({ tenantIdentity }), { startedAt }));
     return;
   }
 
   if (request.method === "GET" && url.pathname === "/forge/memory/stats") {
-    writeJson(response, 200, createOkEnvelope(forge.memoryStats(), { startedAt }));
+    writeJson(response, 200, createOkEnvelope(forge.memoryStats({ tenantIdentity }), { startedAt }));
     return;
   }
 
@@ -127,13 +127,21 @@ export async function dispatchForgeRoutes(context) {
     },
     "/forge/memory": async (body) => {
       if (body.action === "remember") {
-        const result = forge.memoryRemember({ content: body.content, metadata: body.metadata ?? {} });
+        const result = forge.memoryRemember({
+          content: body.content,
+          metadata: body.metadata ?? {},
+          tenantIdentity,
+        });
         if (!result.ok) return fail(400, result.code, result.reason ?? "remember failed.");
         writeJson(response, 200, createOkEnvelope(result, { startedAt }));
         return;
       }
       if (body.action === "recall" || body.action === "search") {
-        const result = forge.memoryRecall({ query: body.query, limit: body.limit });
+        const result = forge.memoryRecall({
+          query: body.query,
+          limit: body.limit,
+          tenantIdentity,
+        });
         if (!result.ok) return fail(400, result.code, result.reason ?? "recall failed.");
         writeJson(response, 200, createOkEnvelope(result, { startedAt }));
         return;

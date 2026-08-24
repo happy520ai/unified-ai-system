@@ -36,11 +36,11 @@ export function createForgeGatewayService({
 } = {}) {
   let refiner = null;
   let qualityGate = null;
-  let memoryEngine = null;
-  let semanticMemory = null;
+  const memoryEngines = new Map();
+  const semanticMemories = new Map();
   let consensus = null;
   let degradation = null;
-  let forgeRuns = new Map(); // runId → { goal, status, startedAt, result }
+  const forgeRuns = new Map(); // runId → { tenantKey, goal, status, startedAt, result }
 
   function enabled() {
     return String(env.FORGE_LANE_ENABLED ?? "true").trim().toLowerCase() !== "false";
@@ -118,14 +118,25 @@ export function createForgeGatewayService({
     return qualityGate;
   }
 
-  function getMemoryEngine() {
-    memoryEngine ??= new MemoryEngine({});
-    return memoryEngine;
+  function getTenantKey(tenantIdentity = null) {
+    const tenantId = String(tenantIdentity?.tenantId ?? "").trim();
+    return tenantId || "local";
   }
 
-  function getSemanticMemory() {
-    semanticMemory ??= new SemanticMemory({});
-    return semanticMemory;
+  function getMemoryEngine(tenantIdentity = null) {
+    const tenantKey = getTenantKey(tenantIdentity);
+    if (!memoryEngines.has(tenantKey)) {
+      memoryEngines.set(tenantKey, new MemoryEngine({}));
+    }
+    return memoryEngines.get(tenantKey);
+  }
+
+  function getSemanticMemory(tenantIdentity = null) {
+    const tenantKey = getTenantKey(tenantIdentity);
+    if (!semanticMemories.has(tenantKey)) {
+      semanticMemories.set(tenantKey, new SemanticMemory({}));
+    }
+    return semanticMemories.get(tenantKey);
   }
 
   function getConsensus() {
@@ -178,31 +189,31 @@ export function createForgeGatewayService({
     },
 
     // ── C:记忆(短文本工作记忆 + 语义检索)──
-    memoryRemember({ content, metadata = {} } = {}) {
+    memoryRemember({ content, metadata = {}, tenantIdentity = null } = {}) {
       if (!enabled()) return { ok: false, code: "FORGE_LANE_DISABLED" };
       if (typeof content !== "string" || !content.trim()) {
         return { ok: false, code: "FORGE_INPUT_INVALID", reason: "content is required." };
       }
-      const id = getMemoryEngine().remember(content, metadata);
-      getSemanticMemory().index(id, content, metadata);
+      const id = getMemoryEngine(tenantIdentity).remember(content, metadata);
+      getSemanticMemory(tenantIdentity).index(id, content, metadata);
       return { ok: true, id };
     },
 
-    memoryRecall({ query, limit = 5 } = {}) {
+    memoryRecall({ query, limit = 5, tenantIdentity = null } = {}) {
       if (!enabled()) return { ok: false, code: "FORGE_LANE_DISABLED" };
       if (typeof query !== "string" || !query.trim()) {
         return { ok: false, code: "FORGE_INPUT_INVALID", reason: "query is required." };
       }
-      const working = getMemoryEngine().recall(query, { limit });
-      const semantic = getSemanticMemory().search(query, { limit });
+      const working = getMemoryEngine(tenantIdentity).recall(query, { limit });
+      const semantic = getSemanticMemory(tenantIdentity).search(query, { limit });
       return { ok: true, working, semantic };
     },
 
-    memoryStats() {
+    memoryStats({ tenantIdentity = null } = {}) {
       return {
         ok: true,
-        working: getMemoryEngine().getStats?.() ?? null,
-        semantic: getSemanticMemory().getStats?.() ?? null,
+        working: getMemoryEngine(tenantIdentity).getStats?.() ?? null,
+        semantic: getSemanticMemory(tenantIdentity).getStats?.() ?? null,
       };
     },
 
@@ -220,7 +231,8 @@ export function createForgeGatewayService({
       }
       const runId = `forge_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
       const workRoot = mkdtempSync(join(tmpdir(), "uai-forge-run-"));
-      forgeRuns.set(runId, { goal, status: "running", startedAt: new Date().toISOString() });
+      const tenantKey = getTenantKey(tenantIdentity);
+      forgeRuns.set(runId, { tenantKey, goal, status: "running", startedAt: new Date().toISOString() });
       let forge = null;
       try {
         forge = forgeFactory({
@@ -233,10 +245,16 @@ export function createForgeGatewayService({
           makeScopedLlmCaller(tenantIdentity),
           () => forge.run(goal, options),
         );
-        forgeRuns.set(runId, { goal, status: "completed", startedAt: forgeRuns.get(runId).startedAt, result });
+        forgeRuns.set(runId, { tenantKey, goal, status: "completed", startedAt: forgeRuns.get(runId).startedAt, result });
         return { ok: true, runId, result, workRoot };
       } catch (error) {
-        forgeRuns.set(runId, { goal, status: "failed", error: { message: error?.message, code: error?.code } });
+        forgeRuns.set(runId, {
+          tenantKey,
+          goal,
+          status: "failed",
+          startedAt: forgeRuns.get(runId)?.startedAt,
+          error: { message: error?.message, code: error?.code },
+        });
         return { ok: false, runId, code: error?.code ?? "FORGE_RUN_FAILED", reason: error?.message };
       } finally {
         try {
@@ -247,8 +265,12 @@ export function createForgeGatewayService({
       }
     },
 
-    listRuns() {
-      return { ok: true, runs: [...forgeRuns.entries()].map(([runId, run]) => ({ runId, ...run })) };
+    listRuns({ tenantIdentity = null } = {}) {
+      const tenantKey = getTenantKey(tenantIdentity);
+      const runs = [...forgeRuns.entries()]
+        .filter(([, run]) => run.tenantKey === tenantKey)
+        .map(([runId, { tenantKey: _tenantKey, ...run }]) => ({ runId, ...run }));
+      return { ok: true, runs };
     },
 
     // ── D:韧性演示/直通(内部由 polish 使用)──
@@ -257,26 +279,27 @@ export function createForgeGatewayService({
     },
 
     // ── F:状态面 ──
-    getStatus() {
+    getStatus({ tenantIdentity = null } = {}) {
+      const tenantKey = getTenantKey(tenantIdentity);
       return {
         ok: true,
         enabled: enabled(),
         engines: {
           iterativeRefiner: Boolean(refiner ?? true),
           qualityGate: Boolean(qualityGate ?? true),
-          memoryEngine: Boolean(memoryEngine ?? true),
-          semanticMemory: Boolean(semanticMemory ?? true),
+          memoryEngine: true,
+          semanticMemory: true,
           consensus: Boolean(consensus ?? true),
           gracefulDegradation: Boolean(degradation ?? true),
         },
         lazyLoaded: {
           refiner: refiner !== null,
           qualityGate: qualityGate !== null,
-          memoryEngine: memoryEngine !== null,
-          semanticMemory: semanticMemory !== null,
+          memoryEngine: memoryEngines.has(tenantKey),
+          semanticMemory: semanticMemories.has(tenantKey),
           consensus: consensus !== null,
         },
-        activeRuns: forgeRuns.size,
+        activeRuns: [...forgeRuns.values()].filter((run) => run.tenantKey === tenantKey).length,
         llmLane: gatewayService ? "gateway-provider-lane" : "unavailable",
       };
     },

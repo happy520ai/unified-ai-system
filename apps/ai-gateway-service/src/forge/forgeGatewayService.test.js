@@ -72,6 +72,23 @@ describe("forgeGatewayService — 桥与惰性", () => {
     expect(stats.ok).toBe(true);
   });
 
+  it("isolates working and semantic memory by authenticated tenant", () => {
+    const forge = createService();
+    const tenantA = { tenantId: "tenant-a" };
+    const tenantB = { tenantId: "tenant-b" };
+    forge.memoryRemember({
+      content: "tenant-a-confidential-marker",
+      tenantIdentity: tenantA,
+    });
+
+    const tenantAResult = forge.memoryRecall({ query: "confidential marker", tenantIdentity: tenantA });
+    const tenantBResult = forge.memoryRecall({ query: "confidential marker", tenantIdentity: tenantB });
+    expect(JSON.stringify(tenantAResult)).toContain("tenant-a-confidential-marker");
+    expect(JSON.stringify(tenantBResult)).not.toContain("tenant-a-confidential-marker");
+    expect(forge.memoryStats({ tenantIdentity: tenantA }).working.operations.remembers).toBe(1);
+    expect(forge.memoryStats({ tenantIdentity: tenantB }).working.operations.remembers).toBe(0);
+  });
+
   it("can be disabled via FORGE_LANE_ENABLED=false", async () => {
     const forge = createForgeGatewayService({
       gatewayService: createFakeGatewayService(),
@@ -110,6 +127,10 @@ describe("forgeGatewayService — 桥与惰性", () => {
     expect(close).toHaveBeenCalledOnce();
     expect(gatewayService.execute).toHaveBeenCalledOnce();
     expect(gatewayService.execute.mock.calls[0][0].metadata.forge.tenantId).toBe("tenant-a");
+    expect(forge.listRuns({ tenantIdentity: { tenantId: "tenant-a" } }).runs).toHaveLength(1);
+    expect(forge.listRuns({ tenantIdentity: { tenantId: "tenant-b" } }).runs).toHaveLength(0);
+    expect(forge.getStatus({ tenantIdentity: { tenantId: "tenant-a" } }).activeRuns).toBe(1);
+    expect(forge.getStatus({ tenantIdentity: { tenantId: "tenant-b" } }).activeRuns).toBe(0);
   });
 });
 
