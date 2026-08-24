@@ -71,7 +71,7 @@ export interface A2ATaskStoreHandle {
   cancelTaskAtomically(
     taskId: string,
     context: ServerCallContext,
-    cancellationStatus: A2ATask["status"],
+    cancellationStatus: NonNullable<A2ATask["status"]>,
   ): Promise<A2ATask | undefined>;
   close(): Promise<void>;
 }
@@ -272,13 +272,13 @@ export function createA2ATaskStore({
           || input.lease.identity.fencingToken !== input.lease.fencingToken
         ) {
           throw taskStoreError(
-            "A2A_TASK_TERMINAL_FENCE_MISMATCH",
+            "A2A_TASK_STORE_TERMINAL_FENCE_MISMATCH",
             "The execution fence is not bound to this scoped A2A task.",
           );
         }
         if (boundFences.has(key)) {
           throw taskStoreError(
-            "A2A_TASK_TERMINAL_FENCE_ALREADY_BOUND",
+            "A2A_TASK_STORE_TERMINAL_FENCE_ALREADY_BOUND",
             "The scoped A2A task already has a local terminal-fence binding.",
           );
         }
@@ -306,11 +306,11 @@ export function createA2ATaskStore({
       async cancelTaskAtomically(
         taskId: string,
         context: ServerCallContext,
-        cancellationStatus: A2ATask["status"],
+        cancellationStatus: NonNullable<A2ATask["status"]>,
       ) {
         if (!atomicTerminalFence) {
           throw taskStoreError(
-            "A2A_TASK_ATOMIC_CANCELLATION_UNAVAILABLE",
+            "A2A_TASK_STORE_ATOMIC_CANCELLATION_UNAVAILABLE",
             "Atomic A2A cancellation is unavailable for this task store.",
           );
         }
@@ -366,7 +366,7 @@ export function createA2ATaskStore({
     markExecutionFinished() {},
     async cancelTaskAtomically() {
       throw taskStoreError(
-        "A2A_TASK_ATOMIC_CANCELLATION_UNAVAILABLE",
+        "A2A_TASK_STORE_ATOMIC_CANCELLATION_UNAVAILABLE",
         "Atomic A2A cancellation requires the integrated PostgreSQL execution boundary.",
       );
     },

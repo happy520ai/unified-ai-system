@@ -285,7 +285,7 @@ export function createPostgresA2ATaskStore(rawOptions: PostgresA2ATaskStoreOptio
         if (terminal && options.terminalFence && !exactTerminalReplay) {
           if (!binding) {
             throw taskStoreError(
-              "A2A_TASK_TERMINAL_FENCE_REQUIRED",
+              "A2A_TASK_STORE_TERMINAL_FENCE_REQUIRED",
               "A terminal A2A task commit requires the active execution fence.",
             );
           }
@@ -466,6 +466,16 @@ export function createPostgresA2ATaskStore(rawOptions: PostgresA2ATaskStoreOptio
   const issueGuard: TaskClaimIssueGuard = async (client, input) => {
     const scope = readIssueGuardScope(input.guardContext);
     const taskId = readBoundedText(input.taskId, "task ID", 256);
+    if (
+      options.terminalFence
+      && input.planId !== options.terminalFence.createScopeId(scope)
+    ) {
+      return {
+        allowed: false,
+        code: "A2A_TASK_SCOPE_MISMATCH",
+        reason: "The A2A execution fence scope does not match the task-store scope.",
+      };
+    }
     const result = await client.query<LockedTaskRow>(`/* a2a-task-store:execution-guard */
       SELECT
         task_id,
@@ -498,11 +508,11 @@ export function createPostgresA2ATaskStore(rawOptions: PostgresA2ATaskStoreOptio
     async cancelTaskAtomically(
       taskIdInput: string,
       context: ServerCallContext,
-      cancellationStatus: A2ATask["status"],
+      cancellationStatus: NonNullable<A2ATask["status"]>,
     ) {
       if (!options.terminalFence) {
         throw taskStoreError(
-          "A2A_TASK_ATOMIC_CANCELLATION_UNAVAILABLE",
+          "A2A_TASK_STORE_ATOMIC_CANCELLATION_UNAVAILABLE",
           "Atomic A2A cancellation requires the PostgreSQL terminal-fence boundary.",
         );
       }
@@ -529,7 +539,7 @@ export function createPostgresA2ATaskStore(rawOptions: PostgresA2ATaskStoreOptio
           true,
         );
         if (!row) {
-          throw taskStoreError("A2A_TASK_NOT_FOUND", "The scoped A2A task was not found.");
+          throw taskStoreError("A2A_TASK_STORE_NOT_FOUND", "The scoped A2A task was not found.");
         }
         assertVerifiedLockedTask(row);
         const persisted = decodeVerifiedTask(row);
@@ -542,8 +552,13 @@ export function createPostgresA2ATaskStore(rawOptions: PostgresA2ATaskStoreOptio
           }
           cancelledTask = persisted;
         } else {
-          persisted.status = structuredClone(cancellationStatus);
-          const update = cancellationStatus?.message;
+          const scopedStatus = structuredClone(cancellationStatus);
+          if (scopedStatus.message) {
+            scopedStatus.message.taskId = taskId;
+            scopedStatus.message.contextId = persisted.contextId;
+          }
+          persisted.status = scopedStatus;
+          const update = scopedStatus.message;
           if (update && !persisted.history?.find((message) => message.messageId === update.messageId)) {
             persisted.history = [...(persisted.history ?? []), structuredClone(update)];
           }
@@ -863,7 +878,7 @@ async function assertActiveExecutionFence(
     || proof.identity.fencingToken !== proof.fencingToken
   ) {
     throw taskStoreError(
-      "A2A_TASK_TERMINAL_FENCE_MISMATCH",
+      "A2A_TASK_STORE_TERMINAL_FENCE_MISMATCH",
       "The A2A terminal fence is not bound to this scoped task.",
     );
   }
@@ -890,7 +905,7 @@ async function assertActiveExecutionFence(
   ]);
   if (!result.rows[0]) {
     throw taskStoreError(
-      "A2A_TASK_TERMINAL_FENCE_LOST",
+      "A2A_TASK_STORE_TERMINAL_FENCE_LOST",
       "The active A2A execution fence was lost before terminal commit.",
     );
   }
@@ -905,7 +920,7 @@ async function consumeExecutionFence(
   const deleted = await deleteMatchingExecutionFence(client, terminalFence, task, binding);
   if (Number(deleted.rowCount ?? 0) !== 1) {
     throw taskStoreError(
-      "A2A_TASK_TERMINAL_FENCE_LOST",
+      "A2A_TASK_STORE_TERMINAL_FENCE_LOST",
       "The A2A execution fence changed before terminal commit.",
     );
   }

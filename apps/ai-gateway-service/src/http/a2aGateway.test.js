@@ -71,6 +71,16 @@ describe("A2A gateway profile", () => {
       }],
     })).toThrow("text/plain");
   });
+
+  it("marks terminal-task lease rejection as non-retryable", () => {
+    expect(a2aGatewayInternals.a2aExecutionLeaseError(
+      "A2A_EXECUTION_TASK_TERMINAL",
+      "already terminal",
+    )).toMatchObject({
+      code: "A2A_EXECUTION_TASK_TERMINAL",
+      retryable: false,
+    });
+  });
 });
 
 describe("A2A gateway executor — fake-provider safety boundary", () => {

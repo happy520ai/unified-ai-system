@@ -387,7 +387,7 @@ describePostgres("real PostgreSQL cross-host A2A task store", () => {
         timestamp: "2026-08-24T00:00:06.000Z",
         state: TaskState.TASK_STATE_COMPLETED,
       }), context)).rejects.toMatchObject({
-        code: "A2A_TASK_TERMINAL_FENCE_LOST",
+        code: "A2A_TASK_STORE_TERMINAL_FENCE_LOST",
       });
 
       const persistedClaims = await inspector.query<{

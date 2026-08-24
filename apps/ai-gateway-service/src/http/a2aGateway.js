@@ -95,7 +95,7 @@ class ContextAwareA2ARequestHandler extends DefaultRequestHandler {
           eventBus,
         );
       } catch (error) {
-        if (error?.code === "A2A_TASK_NOT_FOUND") {
+        if (error?.code === "A2A_TASK_STORE_NOT_FOUND") {
           throw new TaskNotFoundError(`Task not found: ${params?.id}`);
         }
         if (error?.code === "A2A_TASK_STORE_TERMINAL_IMMUTABLE") {
@@ -374,7 +374,7 @@ class GatewayAgentExecutor {
     const persistedTask = await this.taskStore.load(taskId, context);
     if (!persistedTask) {
       const error = new Error("The scoped A2A task was not found.");
-      error.code = "A2A_TASK_NOT_FOUND";
+      error.code = "A2A_TASK_STORE_NOT_FOUND";
       throw error;
     }
     const cancellationMessage = agentMessage({
@@ -394,7 +394,7 @@ class GatewayAgentExecutor {
     );
     if (!cancelledTask) {
       const error = new Error("The scoped A2A task was not found.");
-      error.code = "A2A_TASK_NOT_FOUND";
+      error.code = "A2A_TASK_STORE_NOT_FOUND";
       throw error;
     }
     if (eventBus) {
@@ -679,10 +679,11 @@ function readExecutionScope(context) {
 }
 
 function a2aExecutionLeaseError(code, message) {
+  const normalizedCode = String(code || "A2A_EXECUTION_LEASE_UNAVAILABLE");
   return Object.assign(new Error(message), {
-    code: String(code || "A2A_EXECUTION_LEASE_UNAVAILABLE"),
+    code: normalizedCode,
     category: "concurrency",
-    retryable: true,
+    retryable: normalizedCode !== "A2A_EXECUTION_TASK_TERMINAL",
   });
 }
 
