@@ -43,6 +43,7 @@ function createService(primary: any, fallback: any, healthScorer: any, options: 
     },
     healthScorer,
     requestLogger: options.requestLogger ?? null,
+    enterpriseAudit: options.enterpriseAudit ?? null,
   });
 }
 
@@ -91,6 +92,7 @@ describe("GatewayService execution cancellation", () => {
         fallbackEnabled: false,
       },
       requestLogger: { assertDurable: () => true, log: (entry: any) => entries.push(entry) },
+      enterpriseAudit: { recordAudit: async () => {} },
     });
     const pending = service.execute(
       { messages: [{ role: "user", content: "cancel billed call" }] },

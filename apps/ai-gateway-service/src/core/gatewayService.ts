@@ -17,6 +17,7 @@ export interface GatewayRuntimeConfig {
   modelAccessEnforce?: boolean;
   shadowRealProviderEnabled?: boolean;
   shadowTimeoutMs?: number;
+  requireDurableUsageLedger?: boolean;
 }
 
 /**
@@ -40,6 +41,11 @@ export interface GatewayHealthScorer {
  */
 export interface GatewayRequestLogger {
   log(entry: Record<string, unknown>): void;
+  assertDurable?(): boolean;
+}
+
+export interface GatewayEnterpriseAudit {
+  recordAudit(entry: Record<string, unknown>): Promise<unknown>;
 }
 
 /**
@@ -54,6 +60,7 @@ export interface GatewayServiceOptions {
   runtimeConfig?: Partial<GatewayRuntimeConfig>;
   healthScorer?: GatewayHealthScorer | null;
   requestLogger?: GatewayRequestLogger | null;
+  enterpriseAudit?: GatewayEnterpriseAudit | null;
   governance?: GatewayGovernance | null;
 }
 

@@ -145,6 +145,7 @@ describe("GatewayService weighted + shadow integration", () => {
         fallbackEnabled: false,
       },
       requestLogger: { assertDurable: () => true, log: (entry) => blockedEntries.push(entry) },
+      enterpriseAudit: { recordAudit: async () => {} },
       weightedTrafficPolicy: policy,
     });
 
@@ -172,6 +173,7 @@ describe("GatewayService weighted + shadow integration", () => {
         fallbackEnabled: false,
       },
       requestLogger: { assertDurable: () => true, log: (entry) => entries.push(entry) },
+      enterpriseAudit: { recordAudit: async () => {} },
       weightedTrafficPolicy: policy,
     });
     expect((await explicitlyEnabled.execute({ messages: [{ role: "user", content: "route me again" }] })).success).toBe(true);

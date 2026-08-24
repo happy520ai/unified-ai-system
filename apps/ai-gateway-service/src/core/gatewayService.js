@@ -27,7 +27,7 @@ import { randomUUID } from "node:crypto";
 
 
 export class GatewayService {
-  constructor({ providerRegistry, runtimeConfig = {}, healthScorer = null, requestLogger = null, governance = null, contentGuardrails = null, weightedTrafficPolicy = null }) {
+  constructor({ providerRegistry, runtimeConfig = {}, healthScorer = null, requestLogger = null, enterpriseAudit = null, governance = null, contentGuardrails = null, weightedTrafficPolicy = null }) {
     this.providerRegistry = providerRegistry;
     this.runtimeConfig = runtimeConfig;
     // Optional health scorer — when present, provider call outcomes are recorded
@@ -38,6 +38,10 @@ export class GatewayService {
     // usage without external tooling. Fake-only preview is fail-open; billable
     // execution can require a durable, fail-closed ledger.
     this.requestLogger = requestLogger;
+    // Real provider attempts are authorized into the enterprise audit chain
+    // before the adapter is invoked. HTTP request audit remains a separate,
+    // higher-level record.
+    this.enterpriseAudit = enterpriseAudit;
     // Optional governance checker (e.g. advancedRBAC) — when present and enabled
     // via runtimeConfig.modelAccessEnforce, the selected model is checked against
     // the caller's identity before any provider call is made.
@@ -190,7 +194,7 @@ export class GatewayService {
         });
 
         try {
-          usageAttemptId = this.#beginUsageAttempt({
+          usageAttemptId = await this.#beginUsageAttempt({
             request,
             selection,
             startedAt,
@@ -257,7 +261,7 @@ export class GatewayService {
           });
           return;
         } catch (error) {
-          if (!isUsageLedgerError(error) && providerCallStarted) {
+          if (!isProviderEvidenceError(error) && providerCallStarted) {
             try {
               this.#recordUsage({
                 request,
@@ -368,7 +372,7 @@ export class GatewayService {
           shadowRequest: execution.shadow === true,
         });
         this.#assertUsageLedgerReady(attemptSelection);
-        usageAttemptId = this.#beginUsageAttempt({
+        usageAttemptId = await this.#beginUsageAttempt({
           request,
           selection: attemptSelection,
           startedAt,
@@ -426,7 +430,7 @@ export class GatewayService {
       } catch (error) {
         lastError = error;
 
-        if (isUsageLedgerError(error)) throw error;
+        if (isProviderEvidenceError(error)) throw error;
         if (providerCallStarted) {
           try {
             this.#recordUsage({
@@ -724,9 +728,34 @@ export class GatewayService {
     }
   }
 
-  #beginUsageAttempt({ request, selection, startedAt, shadow = false }) {
+  async #beginUsageAttempt({ request, selection, startedAt, shadow = false }) {
     if (selection?.selected?.providerType === "fake" || !this.requestLogger) return null;
     const usageAttemptId = randomUUID();
+    if (this.runtimeConfig.realProviderEnabled === true) {
+      if (!this.enterpriseAudit || typeof this.enterpriseAudit.recordAudit !== "function") {
+        throw createProviderAuditFailure("PROVIDER_AUDIT_UNAVAILABLE");
+      }
+      try {
+        await this.enterpriseAudit.recordAudit({
+          outcome: "attempt-authorized",
+          method: "PROVIDER",
+          path: shadow ? "/provider-execution:shadow" : "/provider-execution",
+          permission: "provider:execute",
+          statusCode: 102,
+          identity: request?.enterpriseIdentity,
+          details: {
+            usageAttemptId,
+            providerId: selection?.selected?.target?.providerId,
+            modelId: selection?.selected?.target?.modelId,
+            shadow,
+            promptContentRecorded: false,
+            credentialRecorded: false,
+          },
+        });
+      } catch (error) {
+        throw createProviderAuditFailure(error?.code, error);
+      }
+    }
     try {
       this.requestLogger.log({
         usageAttemptId,
@@ -799,4 +828,26 @@ function createUsageLedgerFailure(code, cause) {
 
 function isUsageLedgerError(error) {
   return error?.code === "USAGE_LEDGER_UNAVAILABLE" || error?.code === "USAGE_LEDGER_WRITE_FAILED";
+}
+
+function isProviderEvidenceError(error) {
+  return isUsageLedgerError(error)
+    || error?.code === "PROVIDER_AUDIT_UNAVAILABLE"
+    || error?.code === "PROVIDER_AUDIT_WRITE_FAILED";
+}
+
+function createProviderAuditFailure(code, cause) {
+  const normalizedCode = code === "PROVIDER_AUDIT_UNAVAILABLE"
+    ? "PROVIDER_AUDIT_UNAVAILABLE"
+    : "PROVIDER_AUDIT_WRITE_FAILED";
+  const error = new Error(
+    normalizedCode === "PROVIDER_AUDIT_UNAVAILABLE"
+      ? "Billable provider execution is blocked because enterprise audit persistence is unavailable."
+      : "Billable provider execution is blocked because its authorization audit could not be committed.",
+  );
+  error.code = normalizedCode;
+  error.category = "audit";
+  error.retryable = true;
+  if (cause) error.cause = cause;
+  return error;
 }

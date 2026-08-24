@@ -26,11 +26,19 @@ import { setTimeout as delay } from "node:timers/promises";
 
 const DEFAULT_LOCK_TIMEOUT_MS = 5_000;
 const DEFAULT_STALE_LOCK_MS = 60_000;
-const DEFAULT_LOCK_RETRY_MIN_MS = 10;
-const DEFAULT_LOCK_RETRY_MAX_MS = 100;
+const DEFAULT_LOCK_RETRY_MIN_MS = 5;
+const DEFAULT_LOCK_RETRY_MAX_MS = 25;
+const SAME_PROCESS_ORPHAN_GRACE_MS = 250;
+const ACTIVE_LOCK_NONCES = new Set();
 
 export function createAuditHashChain(options = {}) {
   const chainPath = options.chainPath ?? ".data/audit/audit-chain.jsonl";
+  const checkpointStore = options.checkpointStore ?? {
+    configured: false,
+    verify: async () => null,
+    commit: async () => null,
+    getHealth: () => ({ configured: false, status: "disabled", mode: "none" }),
+  };
   const lockPath = options.lockPath ?? `${chainPath}.lock`;
   const lockTimeoutMs = clampInteger(options.lockTimeoutMs, DEFAULT_LOCK_TIMEOUT_MS, 100, 60_000);
   const staleLockMs = clampInteger(options.staleLockMs, DEFAULT_STALE_LOCK_MS, 1_000, 10 * 60_000);
@@ -53,7 +61,7 @@ export function createAuditHashChain(options = {}) {
     return createHash("sha256").update(payload).digest("hex");
   }
 
-  async function readVerifiedState() {
+  async function readVerifiedState({ collectEntries = false, maxEntries = 1000 } = {}) {
     let content;
     try {
       content = await readFile(chainPath, "utf8");
@@ -62,13 +70,16 @@ export function createAuditHashChain(options = {}) {
         lastHash = "GENESIS";
         entryCount = 0;
         initialized = true;
-        return { lastHash, entryCount };
+        await checkpointStore.verify({ entryCount, lastHash, hashes: [] });
+        return { lastHash, entryCount, entries: [] };
       }
       throw error;
     }
 
     const lines = content.trim().split("\n").filter(Boolean);
     let previousHash = "GENESIS";
+    const hashes = [];
+    const entries = [];
     for (let index = 0; index < lines.length; index += 1) {
       let entry;
       try {
@@ -88,12 +99,25 @@ export function createAuditHashChain(options = {}) {
         throw createCorruptChainError("hash_mismatch", index);
       }
       previousHash = hash;
+      hashes.push(hash);
+      if (collectEntries && index >= Math.max(0, lines.length - maxEntries)) {
+        entries.push({
+          ...rest,
+          chainedAt,
+          integrity: {
+            sequence: seq,
+            hash,
+            previousHash: linkedHash,
+          },
+        });
+      }
     }
 
     lastHash = previousHash;
     entryCount = lines.length;
     initialized = true;
-    return { lastHash, entryCount };
+    await checkpointStore.verify({ entryCount, lastHash, hashes });
+    return { lastHash, entryCount, entries };
   }
 
   async function withChainLock(operation) {
@@ -148,6 +172,7 @@ export function createAuditHashChain(options = {}) {
 
       lastHash = hash;
       entryCount += 1;
+      await checkpointStore.commit({ sequence: entryCount, hash: lastHash });
       return { seq: chainEntry.seq, hash, previousHash: chainEntry.previousHash };
     });
   }
@@ -177,14 +202,32 @@ export function createAuditHashChain(options = {}) {
           error: String(error.message),
         };
       }
+      if (String(error?.code ?? "").startsWith("AUDIT_CHECKPOINT_")) {
+        return {
+          valid: false,
+          totalEntries: entryCount,
+          brokenAt: null,
+          reason: String(error.code).toLowerCase(),
+          error: String(error.message),
+        };
+      }
       throw error;
     }
+  }
+
+  async function readEntries({ limit = 1000 } = {}) {
+    const boundedLimit = clampInteger(limit, 1000, 1, 10_000);
+    return withChainLock(async () => {
+      const state = await readVerifiedState({ collectEntries: true, maxEntries: boundedLimit });
+      return state.entries;
+    });
   }
 
   function getLastHash() { return lastHash; }
   function getEntryCount() { return entryCount; }
 
   function getHealth() {
+    const checkpoint = checkpointStore.getHealth();
     return {
       initialized,
       entryCount,
@@ -196,13 +239,17 @@ export function createAuditHashChain(options = {}) {
       lockContentionCount,
       staleLockRecoveryCount,
       lockTimeoutCount,
-      externalCheckpointConfigured: false,
-      rollbackDetectionBoundary: "external-checkpoint-required",
+      signedCheckpointConfigured: checkpointStore.configured === true,
+      externalCheckpointConfigured: checkpoint.externalRetentionVerified === true,
+      rollbackDetectionBoundary: checkpointStore.configured === true
+        ? "signed-checkpoint-configured-external-retention-unverified"
+        : "external-checkpoint-required",
+      checkpoint,
       pathExposed: false,
     };
   }
 
-  return { append, verify, getLastHash, getEntryCount, getHealth, init };
+  return { append, verify, readEntries, getLastHash, getEntryCount, getHealth, init };
 }
 
 async function acquireExclusiveLock({
@@ -223,6 +270,7 @@ async function acquireExclusiveLock({
     let descriptor;
     try {
       descriptor = await open(lockPath, "wx", 0o600);
+      ACTIVE_LOCK_NONCES.add(nonce);
       await descriptor.writeFile(JSON.stringify({
         version: 1,
         nonce,
@@ -241,16 +289,24 @@ async function acquireExclusiveLock({
           clearInterval(heartbeat);
           try {
             await descriptor.close();
-          } finally {
             await removeOwnedLock(lockPath, nonce);
+          } finally {
+            ACTIVE_LOCK_NONCES.delete(nonce);
           }
         },
       };
     } catch (error) {
       if (descriptor) {
         try { await descriptor.close(); } catch { /* best effort */ }
+        await unlink(lockPath).catch(() => undefined);
+        ACTIVE_LOCK_NONCES.delete(nonce);
       }
-      if (error?.code !== "EEXIST") throw error;
+      // Windows can report EPERM for a short interval while another handle is
+      // being created or removed, even when a follow-up stat no longer sees
+      // the path. Treat it as bounded contention; permanent ACL failures still
+      // end at the fail-closed acquisition timeout.
+      const windowsContention = error?.code === "EPERM" && process.platform === "win32";
+      if (error?.code !== "EEXIST" && !windowsContention) throw error;
       onContention?.();
     }
 
@@ -271,25 +327,30 @@ async function acquireExclusiveLock({
 
 async function removeStaleLock(lockPath, staleMs) {
   let lockStat;
+  let owner = null;
   try {
     lockStat = await stat(lockPath);
   } catch (error) {
     if (error?.code === "ENOENT") return true;
     return false;
   }
+  try {
+    owner = JSON.parse(await readFile(lockPath, "utf8"));
+    if (Date.now() - lockStat.mtimeMs >= SAME_PROCESS_ORPHAN_GRACE_MS
+      && owner?.hostname === hostname() && owner?.pid === process.pid
+      && !ACTIVE_LOCK_NONCES.has(owner?.nonce)) {
+      return unlinkWithRetry(lockPath);
+    }
+  } catch {
+    // Malformed stale locks are recoverable after the full stale interval.
+  }
   if (Date.now() - lockStat.mtimeMs < staleMs) return false;
   try {
-    const owner = JSON.parse(await readFile(lockPath, "utf8"));
     if (owner?.hostname === hostname() && isProcessAlive(owner?.pid)) return false;
   } catch {
     // Malformed stale locks are recoverable after the full stale interval.
   }
-  try {
-    await unlink(lockPath);
-    return true;
-  } catch (error) {
-    return error?.code === "ENOENT";
-  }
+  return unlinkWithRetry(lockPath);
 }
 
 async function refreshOwnedLock(lockPath, nonce) {
@@ -305,16 +366,32 @@ async function refreshOwnedLock(lockPath, nonce) {
 }
 
 async function removeOwnedLock(lockPath, nonce) {
-  try {
-    const current = JSON.parse(await readFile(lockPath, "utf8"));
-    if (current?.nonce !== nonce) return;
-    await unlink(lockPath);
-  } catch (error) {
-    if (error?.code !== "ENOENT") {
-      // Leaving an uncertain lock behind is fail-closed; a bounded stale-lock
-      // recovery will handle it rather than deleting another owner's lock.
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      const current = JSON.parse(await readFile(lockPath, "utf8"));
+      if (current?.nonce !== nonce) return;
+      await unlink(lockPath);
+      return;
+    } catch (error) {
+      if (error?.code === "ENOENT") return;
+      if (error?.code !== "EPERM" && error?.code !== "EBUSY") return;
+      await delay(5 * (attempt + 1));
     }
   }
+}
+
+async function unlinkWithRetry(lockPath) {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      await unlink(lockPath);
+      return true;
+    } catch (error) {
+      if (error?.code === "ENOENT") return true;
+      if (error?.code !== "EPERM" && error?.code !== "EBUSY") return false;
+      await delay(5 * (attempt + 1));
+    }
+  }
+  return false;
 }
 
 function createCorruptChainError(reason, brokenAt, cause) {

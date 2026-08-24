@@ -87,6 +87,8 @@ variable and restart.
    AI_GATEWAY_SMOKE_MODE=real-with-key \
    OPENAI_API_KEY=<key> \
    PME_AUTH_TOKEN=<any-local-secret> \
+   PME_AUDIT_CHECKPOINT_PATH=<restricted-checkpoint-path> \
+   PME_AUDIT_CHECKPOINT_HMAC_KEY=<dedicated-32-byte-key> \
    pnpm --filter @unified-ai-system/ai-gateway-service smoke:openai-route
    ```
 
@@ -133,6 +135,22 @@ operational ledger, not a legal invoice, provider reconciliation, or a
 cross-host billing database. Cross-host replicas must ship these files to a
 reviewed central ledger and reconcile them against provider invoices before
 claiming production billing completeness.
+
+Real-provider mode also makes a signed enterprise audit checkpoint a readiness
+requirement. Configure `PME_AUDIT_CHECKPOINT_PATH` and a dedicated 32-byte
+`PME_AUDIT_CHECKPOINT_HMAC_KEY` (or restricted
+`PME_AUDIT_CHECKPOINT_HMAC_KEY_FILE`); retain an external sequence/hash floor as
+described in the [multi-process deployment guide](./multi-process-deployment.md).
+The gateway can validate the signature and floor, but cannot self-certify that
+the target storage is external or immutable.
+
+Immediately before every non-fake adapter attempt (including fallback,
+streaming, and explicitly enabled shadow traffic), the core gateway commits an
+`attempt-authorized` enterprise audit entry. The entry contains the tenant,
+provider, model, shadow flag, and usage-attempt ID; it intentionally excludes
+prompt content and credentials. A missing or failed enterprise audit sink
+returns `PROVIDER_AUDIT_UNAVAILABLE` / `PROVIDER_AUDIT_WRITE_FAILED` before the
+adapter function runs.
 
 ## What never changes when real mode is on
 

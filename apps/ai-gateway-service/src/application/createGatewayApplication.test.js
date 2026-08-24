@@ -7,6 +7,9 @@ import { setRuntimeProviderCredential } from "../http/utils/phaseModelUtils.js";
 import { createFakeProvider } from "../providers/fakeProvider.js";
 import { createNvidiaUnifiedClient } from "../providers/nvidia/nvidiaUnifiedClient.js";
 import { ProviderRegistry } from "../providers/providerRegistry.js";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 describe("gateway-application", () => {
   let app;
@@ -148,5 +151,36 @@ describe("gateway-application", () => {
       code: "USAGE_LEDGER_UNAVAILABLE",
       category: "billing",
     }));
+  });
+
+  it("constructs real-provider mode only with durable usage and signed audit state", () => {
+    const root = mkdtempSync(join(tmpdir(), "gateway-real-governance-"));
+    try {
+      const application = createGatewayApplication({
+        AI_GATEWAY_PROVIDER_MODE: "real",
+        AI_GATEWAY_REAL_PROVIDER_ENABLED: "true",
+        AI_GATEWAY_ENABLED_PROVIDERS: "openai",
+        AI_GATEWAY_USAGE_LOG_DIR: join(root, "usage"),
+        PME_ENTERPRISE_AUTH_ENABLED: "true",
+        PME_AUTH_TOKEN: "test-placeholder-auth-token",
+        PME_AUDIT_LOG_PATH: join(root, "audit.jsonl"),
+        PME_AUDIT_CHAIN_PATH: join(root, "audit-chain.jsonl"),
+        PME_AUDIT_CHECKPOINT_PATH: join(root, "audit-checkpoint.json"),
+        PME_AUDIT_CHECKPOINT_HMAC_KEY: `hex:${"71".repeat(32)}`,
+      });
+
+      expect(application.requestLogger.getHealth()).toEqual(expect.objectContaining({
+        status: "ready",
+        durableWritesRequired: true,
+      }));
+      expect(application.enterpriseGovernanceService.getSecurityReadiness().audit)
+        .toEqual(expect.objectContaining({
+          checkpointRequired: true,
+          checkpoint: expect.objectContaining({ configured: true, signed: true }),
+        }));
+      application.requestLogger.close();
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });

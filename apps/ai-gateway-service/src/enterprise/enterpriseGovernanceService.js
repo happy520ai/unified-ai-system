@@ -18,6 +18,7 @@ import {
 import { createSqliteUserStoreBackend } from "./enterpriseUserStore-sqlite.js";
 import { createApiKeyManager } from "./apiKeyManager.js";
 import { createAuditHashChain } from "./auditHashChain.js";
+import { createAuditCheckpointStore } from "./auditCheckpointStore.ts";
 import {
   assertEnterpriseTenantAccess,
   requireEnterpriseTenantId,
@@ -90,10 +91,33 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
   const apiKeyManager = createApiKeyManager({ storePath: apiKeyStorePath });
   const auditPath = auditLogPath ?? env.PME_AUDIT_LOG_PATH ?? resolveDefaultAuditPath(env);
   const auditChainPath = env.PME_AUDIT_CHAIN_PATH ?? `${auditPath}.chain`;
+  const realProviderEnabled = readBoolean(env.AI_GATEWAY_REAL_PROVIDER_ENABLED, false);
+  const auditCheckpointRequired = realProviderEnabled
+    || readBoolean(env.PME_AUDIT_CHECKPOINT_REQUIRED, false);
+  const auditCheckpointStore = createAuditCheckpointStore({
+    chainPath: auditChainPath,
+    checkpointPath: env.PME_AUDIT_CHECKPOINT_PATH,
+    keyMaterial: env.PME_AUDIT_CHECKPOINT_HMAC_KEY,
+    keyFilePath: env.PME_AUDIT_CHECKPOINT_HMAC_KEY_FILE,
+    allowBootstrap: readBoolean(env.PME_AUDIT_CHECKPOINT_ALLOW_BOOTSTRAP, false),
+    allowAdvance: readBoolean(env.PME_AUDIT_CHECKPOINT_ALLOW_ADVANCE, false),
+    trustedMinimumSequence: env.PME_AUDIT_CHECKPOINT_MINIMUM_SEQUENCE ?? 0,
+    trustedHash: env.PME_AUDIT_CHECKPOINT_TRUSTED_HASH,
+  });
+  if (realProviderEnabled && auditCheckpointStore.configured !== true) {
+    const error = new Error(
+      "Real-provider startup requires a configured signed audit checkpoint path and dedicated HMAC key.",
+    );
+    error.code = "AUDIT_CHECKPOINT_REQUIRED";
+    error.category = "audit";
+    error.retryable = false;
+    throw error;
+  }
   const auditHashChain = createAuditHashChain({
     chainPath: auditChainPath,
     lockTimeoutMs: env.PME_AUDIT_CHAIN_LOCK_TIMEOUT_MS,
     staleLockMs: env.PME_AUDIT_CHAIN_STALE_LOCK_MS,
+    checkpointStore: auditCheckpointStore,
   });
   const auditEntries = [];
   let auditWriteTail = Promise.resolve();
@@ -196,6 +220,8 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
         userStorePath,
         auditPath,
         localPreview,
+        auditHashChainHealth: auditHashChain.getHealth(),
+        auditCheckpointRequired,
       });
     },
 
@@ -550,8 +576,14 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
     async listAudit({ limit = 50, filters = {}, actorIdentity } = {}) {
       const scopedFilters = createTenantScopedAuditFilters(filters, actorIdentity);
       const boundedLimit = Math.min(200, Math.max(1, Number(limit) || 50));
-      const fileEntries = await readAuditFile(auditPath);
-      const entries = filterAuditEntries(fileEntries.length ? fileEntries : auditEntries, scopedFilters);
+      const chainEntries = await auditHashChain.readEntries({ limit: 10_000 });
+      const legacyEntries = chainEntries.length === 0 && !auditHashChain.getHealth().signedCheckpointConfigured
+        ? await readAuditFile(auditPath)
+        : [];
+      const entries = filterAuditEntries(
+        chainEntries.length ? chainEntries : legacyEntries.length ? legacyEntries : auditEntries,
+        scopedFilters,
+      );
       return {
         status: "ready",
         tenantId: scopedFilters.tenantId,
@@ -566,8 +598,14 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
     async exportAudit({ limit = 200, format = "jsonl", filters = {}, actorIdentity } = {}) {
       const scopedFilters = createTenantScopedAuditFilters(filters, actorIdentity);
       const boundedLimit = Math.min(1000, Math.max(1, Number(limit) || 200));
-      const fileEntries = await readAuditFile(auditPath);
-      const entries = filterAuditEntries(fileEntries.length ? fileEntries : auditEntries, scopedFilters).slice(-boundedLimit);
+      const chainEntries = await auditHashChain.readEntries({ limit: 10_000 });
+      const legacyEntries = chainEntries.length === 0 && !auditHashChain.getHealth().signedCheckpointConfigured
+        ? await readAuditFile(auditPath)
+        : [];
+      const entries = filterAuditEntries(
+        chainEntries.length ? chainEntries : legacyEntries.length ? legacyEntries : auditEntries,
+        scopedFilters,
+      ).slice(-boundedLimit);
       const normalizedFormat = format === "json" ? "json" : "jsonl";
       return {
         status: "ready",
@@ -644,7 +682,16 @@ function createSecuritySummary({ authEnabled, users, revokedTokens }) {
   };
 }
 
-function createSecurityReadiness({ authEnabled, users, revokedTokens, userStorePath, auditPath, localPreview }) {
+function createSecurityReadiness({
+  authEnabled,
+  users,
+  revokedTokens,
+  userStorePath,
+  auditPath,
+  localPreview,
+  auditHashChainHealth,
+  auditCheckpointRequired,
+}) {
   const configuredUsers = [...users.values()];
   const blockers = [];
   const warnings = [];
@@ -669,6 +716,21 @@ function createSecurityReadiness({ authEnabled, users, revokedTokens, userStoreP
 
   if (authEnabled && activeUsers.length === 0) {
     blockers.push("no_active_enterprise_tokens");
+  }
+
+  const checkpoint = auditHashChainHealth?.checkpoint ?? { configured: false, status: "disabled" };
+  if (auditCheckpointRequired && checkpoint.configured !== true) {
+    blockers.push("audit_signed_checkpoint_required");
+  } else if (checkpoint.configured !== true) {
+    warnings.push("audit_signed_checkpoint_not_configured");
+  }
+  if (checkpoint.configured === true && checkpoint.status === "degraded") {
+    blockers.push("audit_signed_checkpoint_degraded");
+  } else if (checkpoint.configured === true && checkpoint.status !== "ready") {
+    warnings.push("audit_signed_checkpoint_unverified");
+  }
+  if (checkpoint.configured === true && checkpoint.externalRetentionVerified !== true) {
+    warnings.push("audit_external_retention_unverified");
   }
 
   return {
@@ -697,6 +759,8 @@ function createSecurityReadiness({ authEnabled, users, revokedTokens, userStoreP
       mode: "jsonl-file",
       pathConfigured: Boolean(auditPath),
       pathExposed: false,
+      checkpointRequired: auditCheckpointRequired,
+      checkpoint,
     },
     blockers,
     warnings,

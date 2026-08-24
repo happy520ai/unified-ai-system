@@ -72,10 +72,12 @@ function buildBillableService({ requestLogger }) {
   });
   const generate = vi.spyOn(provider, "generate");
   const generateStream = vi.spyOn(provider, "generateStream");
+  const enterpriseAudit = { recordAudit: vi.fn(async () => {}) };
   registry.register(provider);
   return {
     generate,
     generateStream,
+    enterpriseAudit,
     service: new GatewayService({
       providerRegistry: registry,
       runtimeConfig: {
@@ -86,6 +88,7 @@ function buildBillableService({ requestLogger }) {
         requireDurableUsageLedger: true,
       },
       requestLogger,
+      enterpriseAudit,
     }),
   };
 }
@@ -125,6 +128,42 @@ describe("GatewayService billable usage ledger gate", () => {
     expect(requestLogger.log).not.toHaveBeenCalled();
   });
 
+  it("blocks before a billable adapter call when enterprise audit is unavailable", async () => {
+    const requestLogger = {
+      assertDurable: vi.fn(() => true),
+      log: vi.fn(),
+    };
+    const { service, generate } = buildBillableService({ requestLogger });
+    service.enterpriseAudit = null;
+
+    const result = await service.execute({
+      messages: [{ role: "user", content: "private prompt must not enter audit" }],
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error.code).toBe("PROVIDER_AUDIT_UNAVAILABLE");
+    expect(generate).not.toHaveBeenCalled();
+    expect(requestLogger.log).not.toHaveBeenCalled();
+  });
+
+  it("blocks the adapter when the provider authorization audit cannot commit", async () => {
+    const requestLogger = {
+      assertDurable: vi.fn(() => true),
+      log: vi.fn(),
+    };
+    const { service, generate, enterpriseAudit } = buildBillableService({ requestLogger });
+    enterpriseAudit.recordAudit.mockRejectedValueOnce(new Error("audit disk failed"));
+
+    const result = await service.execute({
+      messages: [{ role: "user", content: "must not spend" }],
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error.code).toBe("PROVIDER_AUDIT_WRITE_FAILED");
+    expect(generate).not.toHaveBeenCalled();
+    expect(requestLogger.log).not.toHaveBeenCalled();
+  });
+
   it("does not report success when a completed billable call cannot be committed", async () => {
     let writeCount = 0;
     const requestLogger = {
@@ -137,7 +176,7 @@ describe("GatewayService billable usage ledger gate", () => {
         throw error;
       }),
     };
-    const { service, generate } = buildBillableService({ requestLogger });
+    const { service, generate, enterpriseAudit } = buildBillableService({ requestLogger });
 
     const result = await service.execute({
       messages: [{ role: "user", content: "billable result" }],
@@ -145,6 +184,19 @@ describe("GatewayService billable usage ledger gate", () => {
 
     expect(generate).toHaveBeenCalledOnce();
     expect(requestLogger.log).toHaveBeenCalledTimes(2);
+    expect(enterpriseAudit.recordAudit).toHaveBeenCalledWith(expect.objectContaining({
+      outcome: "attempt-authorized",
+      permission: "provider:execute",
+      details: expect.objectContaining({
+        providerId: "real-test-provider",
+        modelId: "real-test-model",
+        promptContentRecorded: false,
+        credentialRecorded: false,
+      }),
+    }));
+    expect(JSON.stringify(enterpriseAudit.recordAudit.mock.calls)).not.toContain("billable result");
+    expect(enterpriseAudit.recordAudit.mock.invocationCallOrder[0])
+      .toBeLessThan(generate.mock.invocationCallOrder[0]);
     expect(requestLogger.log.mock.calls[0][0]).toEqual(expect.objectContaining({
       usageEventType: "attempt-started",
       costSource: "pending-provider-attempt",
@@ -158,7 +210,7 @@ describe("GatewayService billable usage ledger gate", () => {
       assertDurable: vi.fn(() => true),
       log: vi.fn(),
     };
-    const { service, generate } = buildBillableService({ requestLogger });
+    const { service, generate, enterpriseAudit } = buildBillableService({ requestLogger });
 
     const result = await service.execute({
       messages: [{ role: "user", content: "durably metered" }],
@@ -167,6 +219,10 @@ describe("GatewayService billable usage ledger gate", () => {
     expect(generate).toHaveBeenCalledOnce();
     expect(requestLogger.assertDurable).toHaveBeenCalledOnce();
     expect(requestLogger.log).toHaveBeenCalledTimes(2);
+    expect(enterpriseAudit.recordAudit).toHaveBeenCalledOnce();
+    expect(JSON.stringify(enterpriseAudit.recordAudit.mock.calls)).not.toContain("durably metered");
+    expect(enterpriseAudit.recordAudit.mock.invocationCallOrder[0])
+      .toBeLessThan(generate.mock.invocationCallOrder[0]);
     expect(requestLogger.log).toHaveBeenCalledWith(expect.objectContaining({
       provider: "real-test-provider",
       providerCallAttempted: true,
@@ -259,6 +315,7 @@ describe("GatewayService billable usage ledger gate", () => {
         assertDurable: () => true,
         log: (entry) => entries.push(entry),
       },
+      enterpriseAudit: { recordAudit: async () => {} },
     });
 
     const result = await service.execute({

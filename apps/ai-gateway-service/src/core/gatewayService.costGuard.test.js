@@ -86,6 +86,7 @@ function buildRealProviderService(runtimeConfig) {
       providerRegistry: registry,
       runtimeConfig,
       requestLogger: { assertDurable: () => true, log: () => {} },
+      enterpriseAudit: { recordAudit: async () => {} },
     }),
   };
 }

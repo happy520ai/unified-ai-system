@@ -62,6 +62,7 @@ export function createEnterpriseOpsService({ env = {}, config, enterpriseGoverna
             mode: enterpriseHealth.audit?.mode ?? null,
           },
         }),
+        createAuditCheckpointReadinessCheck(securityReadiness.audit),
         createCheck({
           id: "enterprise_backup_dir",
           status: backupDir ? "ready" : "blocked",
@@ -406,6 +407,42 @@ function createCheck({ id, status, message, details = {} }) {
     message,
     details,
   };
+}
+
+function createAuditCheckpointReadinessCheck(audit = {}) {
+  const checkpoint = audit.checkpoint ?? {};
+  const required = audit.checkpointRequired === true;
+  const configured = checkpoint.configured === true;
+  const degraded = configured && checkpoint.status === "degraded";
+  const status = degraded || (required && !configured)
+    ? "blocked"
+    : configured && checkpoint.status === "ready" && checkpoint.externalRetentionVerified === true
+      ? "ready"
+      : "warning";
+  return createCheck({
+    id: "enterprise_audit_checkpoint",
+    status,
+    message: degraded
+      ? "The signed audit checkpoint is degraded and protected operations require reconciliation."
+      : !configured
+        ? required
+          ? "A signed audit checkpoint is required for this real-provider deployment."
+          : "No signed audit checkpoint is configured."
+        : checkpoint.status !== "ready"
+          ? "The signed audit checkpoint is configured but has not yet been verified by a protected write."
+          : checkpoint.externalRetentionVerified === true
+          ? "The audit checkpoint is signed and externally retained."
+          : "The audit checkpoint is signed, but external or WORM retention is not independently verified.",
+    details: {
+      required,
+      configured,
+      checkpointStatus: checkpoint.status ?? "disabled",
+      signed: checkpoint.signed === true,
+      externalRetentionVerified: checkpoint.externalRetentionVerified === true,
+      pathExposed: false,
+      keyExposed: false,
+    },
+  });
 }
 
 function createProviderStartupChecks({ env, config }) {

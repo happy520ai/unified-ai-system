@@ -218,6 +218,60 @@ describe("enterprise-governance-service", () => {
 });
 
 describe("enterprise audit durability", () => {
+  it("refuses real-provider startup without a signed checkpoint", () => {
+    expect(() => createEnterpriseGovernanceService({
+      env: { AI_GATEWAY_REAL_PROVIDER_ENABLED: "true" },
+    })).toThrowError(expect.objectContaining({
+      code: "AUDIT_CHECKPOINT_REQUIRED",
+      category: "audit",
+    }));
+  });
+
+  it("commits and reports a configured signed checkpoint without claiming external retention", async () => {
+    const root = mkdtempSync(join(tmpdir(), "enterprise-audit-checkpoint-"));
+    try {
+      const service = createEnterpriseGovernanceService({
+        env: {
+          AI_GATEWAY_REAL_PROVIDER_ENABLED: "true",
+          PME_AUDIT_CHAIN_PATH: join(root, "audit-chain.jsonl"),
+          PME_AUDIT_CHECKPOINT_PATH: join(root, "anchor", "audit.checkpoint.json"),
+          PME_AUDIT_CHECKPOINT_HMAC_KEY: `hex:${"42".repeat(32)}`,
+        },
+        auditLogPath: join(root, "enterprise-audit.jsonl"),
+      });
+      await service.recordAudit({
+        outcome: "allowed",
+        method: "GET",
+        path: "/signed-audit",
+        permission: "audit:test",
+        statusCode: 200,
+        identity: { userId: "test", tenantId: "default" },
+      });
+
+      const integrity = await service.verifyAuditIntegrity();
+      expect(integrity).toEqual({ valid: true, totalEntries: 1, brokenAt: null });
+      const readiness = service.getSecurityReadiness();
+      expect(readiness.blockers).not.toContain("audit_signed_checkpoint_required");
+      expect(readiness.warnings).toContain("audit_external_retention_unverified");
+      expect(readiness.audit.checkpoint).toEqual(expect.objectContaining({
+        configured: true,
+        status: "ready",
+        signed: true,
+        externalRetentionVerified: false,
+        keyExposed: false,
+        pathExposed: false,
+      }));
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects an incomplete signed-checkpoint configuration", () => {
+    expect(() => createEnterpriseGovernanceService({
+      env: { PME_AUDIT_CHECKPOINT_PATH: "checkpoint-without-key.json" },
+    })).toThrowError(expect.objectContaining({ code: "AUDIT_CHECKPOINT_CONFIG_INCOMPLETE" }));
+  });
+
   it("persists every entry to a verifiable hash chain before returning", async () => {
     const root = mkdtempSync(join(tmpdir(), "enterprise-audit-durable-"));
     try {
@@ -282,6 +336,40 @@ describe("enterprise audit durability", () => {
       const listed = await first.listAudit({ limit: 50, actorIdentity: defaultAdminIdentity });
       expect(listed.entries).toHaveLength(20);
       expect(new Set(listed.entries.map((entry) => entry.id)).size).toBe(20);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("uses the verified chain as canonical when the compatibility mirror fails", async () => {
+    const root = mkdtempSync(join(tmpdir(), "enterprise-audit-canonical-chain-"));
+    const mirrorParent = join(root, "blocked-mirror");
+    writeFileSync(mirrorParent, "not a directory", "utf8");
+    const chainPath = join(root, "audit-chain.jsonl");
+    try {
+      const service = createEnterpriseGovernanceService({
+        env: { PME_AUDIT_CHAIN_PATH: chainPath },
+        auditLogPath: join(mirrorParent, "audit.jsonl"),
+      });
+      await expect(service.recordAudit({
+        outcome: "allowed",
+        method: "POST",
+        path: "/canonical-even-if-mirror-fails",
+        permission: "audit:test",
+        statusCode: 200,
+        identity: { userId: "test", tenantId: "default" },
+      })).rejects.toMatchObject({ code: "enterprise_audit_persistence_failed" });
+
+      const restarted = createEnterpriseGovernanceService({
+        env: { PME_AUDIT_CHAIN_PATH: chainPath },
+        auditLogPath: join(root, "empty-compatibility-mirror.jsonl"),
+      });
+      const listed = await restarted.listAudit({ limit: 10, actorIdentity: defaultAdminIdentity });
+      expect(listed.entries).toHaveLength(1);
+      expect(listed.entries[0]).toEqual(expect.objectContaining({
+        path: "/canonical-even-if-mirror-fails",
+        integrity: expect.objectContaining({ sequence: 1 }),
+      }));
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

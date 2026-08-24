@@ -119,6 +119,10 @@ export function createGatewayApplication(env = process.env) {
   const contentGuardrails = createContentGuardrails({
     blockOnInjection: contentGuardrailMode === "block",
   });
+  const enterpriseGovernanceService = createEnterpriseGovernanceService({
+    env,
+    auditLogPath: env.PME_AUDIT_LOG_PATH,
+  });
   const gatewayService = new GatewayService({
     providerRegistry,
     // 运营可配加权分流/影子流量(AI_GATEWAY_WEIGHTED_ROUTES_JSON);未配置时策略禁用、零行为变化。
@@ -140,6 +144,7 @@ export function createGatewayApplication(env = process.env) {
     },
     healthScorer,
     requestLogger,
+    enterpriseAudit: enterpriseGovernanceService,
     governance,
     contentGuardrails,
   });
@@ -170,10 +175,6 @@ export function createGatewayApplication(env = process.env) {
     gatewayService,
     knowledgeService,
     workflowService,
-  });
-  const enterpriseGovernanceService = createEnterpriseGovernanceService({
-    env,
-    auditLogPath: env.PME_AUDIT_LOG_PATH,
   });
   // 反向 MCP 治理：聚合运维声明的上游 MCP server，工具调用全部入审计链。
   const mcpGatewayService = createMcpGatewayService({

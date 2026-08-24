@@ -170,7 +170,10 @@ describe("AuditHashChain — concurrent appends", () => {
   it("serializes independent chain instances that share one file", async () => {
     const tempDir = await mkdtemp(join(tmpdir(), "audit-hash-instances-"));
     const chainPath = join(tempDir, "audit-chain.jsonl");
-    const chains = Array.from({ length: 4 }, () => createAuditHashChain({ chainPath }));
+    const chains = Array.from({ length: 4 }, () => createAuditHashChain({
+      chainPath,
+      lockTimeoutMs: 15_000,
+    }));
 
     await Promise.all(Array.from({ length: 40 }, (_, index) => (
       chains[index % chains.length].append({ action: `instance-${index}` })

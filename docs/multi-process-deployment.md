@@ -238,6 +238,43 @@ externally retained checkpoint. Do not put the JSONL chain or its lock on NFS,
 SMB, or a cloud filesystem and do not describe this same-host lock as a
 distributed consensus protocol.
 
+For production-oriented or real-provider readiness, configure the signed
+checkpoint on a separately retained, versioned, or WORM-backed path:
+
+```bash
+PME_AUDIT_CHECKPOINT_REQUIRED=true
+PME_AUDIT_CHECKPOINT_PATH=/externally-retained/audit.checkpoint.json
+PME_AUDIT_CHECKPOINT_HMAC_KEY=<32-byte canonical hex or base64 secret>
+# Or use PME_AUDIT_CHECKPOINT_HMAC_KEY_FILE=<restricted-0600-key-file>
+PME_AUDIT_CHECKPOINT_MINIMUM_SEQUENCE=<externally-recorded floor>
+PME_AUDIT_CHECKPOINT_TRUSTED_HASH=<optional hash at that exact floor>
+```
+
+Configure exactly one of the inline key or key-file variables. The key is never
+written to the checkpoint or health output. Each protected
+append fsyncs the chain, then atomically commits a signed sequence/hash
+checkpoint before returning. A missing checkpoint on a non-empty legacy chain
+fails closed. One-time migration requires
+`PME_AUDIT_CHECKPOINT_ALLOW_BOOTSTRAP=true`; remove it after the first verified
+startup. A crash or storage failure between chain and checkpoint commits leaves
+an explicit `AUDIT_CHECKPOINT_LAG` and blocks later protected writes. After an
+operator independently reconciles that tail, one startup may use
+`PME_AUDIT_CHECKPOINT_ALLOW_ADVANCE=true` to sign the verified current tail;
+remove the flag immediately afterward.
+
+Audit list/export operations read the reverified hash chain as their canonical
+source and reconstruct the nested integrity metadata from it. The historical
+plain JSONL audit file remains a compatibility mirror; a mirror write failure
+still blocks the protected operation, but it cannot make a successfully chained
+event disappear from later reads after restart.
+
+A valid HMAC checkpoint prevents undetected editing without the key, and an
+external sequence/hash floor detects replay below that floor. It still does not
+prove the configured path is actually external, immutable, independently
+retained, or protected from restoration of an older signed file. Health always
+reports `externalRetentionVerified=false`; production evidence must come from
+the storage and retention system, not this repository.
+
 ### Same-host billable usage files
 
 Real-provider mode writes and fsyncs every usage record before returning a
