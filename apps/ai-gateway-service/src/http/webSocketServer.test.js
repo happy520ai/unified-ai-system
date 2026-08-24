@@ -481,7 +481,9 @@ describe("governed websocket server", () => {
         allowed: true,
         identity: { userId: "alice", tenantId: "tenant-a" },
       }),
-      heartbeatIntervalMs: 10,
+      // First heartbeat must occur after the lifetime boundary; otherwise an
+      // overloaded runner can observe heartbeat timeout (1006) first.
+      heartbeatIntervalMs: 50,
       reauthorizationIntervalMs: 1_000,
       maxConnectionLifetimeMs: 25,
     });
