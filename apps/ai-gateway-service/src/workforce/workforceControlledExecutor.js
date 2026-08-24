@@ -58,8 +58,15 @@ function readBoundedInteger(value, fallback, minimum, maximum) {
  * @param {string} [options.executionDir] — base dir for lifecycle/evidence persistence
  * @param {object} [options.env] — environment variables (defaults to process.env)
  * @param {object} [options.providerAdapter] — governed provider adapter
+ * @param {object} [options.forgeService] — optional isolated-root-aware Forge adapter
  * @param {object} [options.sandboxMerger] — injected sandbox merge boundary
  * @param {object} [options.tierGovernor] — injected autonomy tier governor
+ * @param {object} [options.workspaceGuard] — injected workspace safety boundary
+ * @param {object} [options.securityCheckpoint] — injected execution security checkpoint
+ * @param {object} [options.worktreeIsolation] — injected worktree isolation adapter
+ * @param {object} [options.executionLifecycle] — injected lifecycle backend
+ * @param {object} [options.approvalGate] — injected approval backend
+ * @param {object} [options.evidenceCapture] — injected evidence backend
  */
 export function createControlledExecutor(options = {}) {
   const env = options.env ?? process.env;
@@ -77,14 +84,14 @@ export function createControlledExecutor(options = {}) {
     60 * 60_000,
   );
 
-  const lifecycle = createExecutionLifecycle({
+  const lifecycle = options.executionLifecycle ?? createExecutionLifecycle({
     lifecycleDir: options.executionDir ?? undefined,
   });
-  const approvalGate = createExecutionApprovalGate({
+  const approvalGate = options.approvalGate ?? createExecutionApprovalGate({
     storePath: options.executionDir ? `${options.executionDir}/approvals.json` : undefined,
     ttlMs: options.approvalTtlMs,
   });
-  const worktree = createWorktreeIsolation({
+  const worktree = options.worktreeIsolation ?? createWorktreeIsolation({
     repoRoot: options.repoRoot ?? undefined,
   });
   const taskQueue = options.taskQueueManager ?? createWorkforceTaskQueueManager({
@@ -92,12 +99,14 @@ export function createControlledExecutor(options = {}) {
     dataDir: options.executionDir ? `${options.executionDir}/task-queue` : undefined,
     claimTtlMs: Math.min(24 * 60 * 60_000, timeoutMs + 30_000),
   });
-  const evidenceCapture = createTaskEvidenceCapture({
+  const evidenceCapture = options.evidenceCapture ?? createTaskEvidenceCapture({
     evidenceDir: options.executionDir ? `${options.executionDir}/evidence` : undefined,
   });
-  const securityCheckpoint = createSecurityReviewCheckpoint();
-  const workspaceGuard = createGitWorkspaceGuard({
-    repoRoot: options.repoRoot ?? undefined,
+  const securityCheckpoint = options.securityCheckpoint ?? createSecurityReviewCheckpoint({
+    auditLogDir: options.executionDir ? `${options.executionDir}/security-audit` : undefined,
+  });
+  const workspaceGuard = options.workspaceGuard ?? createGitWorkspaceGuard({
+    cwd: options.repoRoot ?? undefined,
   });
   const logRedactor = createLogRedactor();
 
@@ -228,7 +237,17 @@ export function createControlledExecutor(options = {}) {
       const tenantId = typeof input.tenantId === "string" && input.tenantId.trim()
         ? input.tenantId.trim()
         : "default";
-      const preScan = await securityCheckpoint.preExecutionScan?.(plan) ?? { result: "pass", findings: [] };
+      const executionScopeId = createScopedClaimPlanId(tenantId, userId || "anonymous", planId);
+      let preScan;
+      try {
+        preScan = await runPreExecutionSecurityCheck(securityCheckpoint, {
+          plan,
+          planId: executionScopeId,
+        });
+      } catch {
+        return createBlockedResult(plan, planId, "security_pre_scan_unavailable",
+          "The required pre-execution security checkpoint could not be committed.");
+      }
       if (preScan.result === "block") {
         return createBlockedResult(plan, planId, "security_pre_scan_blocked",
           `Pre-execution security scan blocked: ${(preScan.findings ?? []).join(", ")}`);
@@ -274,29 +293,39 @@ export function createControlledExecutor(options = {}) {
 
       // --- Step 5: Worktree isolation ---
       let worktreeRecord = null;
+      let cleanupAttempted = false;
+      let worktreeCleanedUp = false;
       try {
-        worktreeRecord = await worktree.create({ planId });
-      } catch (err) {
+        const creation = await worktree.create({ planId: executionScopeId });
+        if (!creation?.success || !creation?.worktree?.worktreeId) {
+          return createBlockedResult(plan, planId, "worktree_creation_failed",
+            "Failed to create the required isolated worktree.");
+        }
+        worktreeRecord = creation.worktree;
+      } catch {
         return createBlockedResult(plan, planId, "worktree_creation_failed",
-          `Failed to create isolated worktree: ${err.message}`);
+          "Failed to create the required isolated worktree.");
       }
 
+      try {
       // --- Step 6: Initialize lifecycle ---
-      await lifecycle.initialize(planId, {
+      await lifecycle.initialize(executionScopeId, {
+        publicPlanId: planId,
+        tenantId,
         goal: plan.goal,
         userId,
         worktreeId: worktreeRecord.worktreeId,
         roleCount: (plan.selectedRoles ?? []).length,
         startedAt: startedAt.toISOString(),
       });
-      await lifecycle.start(planId);
+      await lifecycle.start(executionScopeId);
 
       // --- Step 7: Build & enqueue tasks ---
       await taskQueue.init();
       const tasks = plan.taskBreakdown ?? [];
       const queuedTasks = await taskQueue.enqueueMany(tasks.map((task) => ({
           planId,
-          claimPlanId: createScopedClaimPlanId(tenantId, userId, planId),
+          claimPlanId: executionScopeId,
           tenantId,
           ownerId: userId,
           title: task.title ?? task.role,
@@ -313,6 +342,7 @@ export function createControlledExecutor(options = {}) {
       const executionErrors = [];
       const context = { plan, priorOutputs: {} };
       let executionGraph = null;
+      let forgeExecuted = false;
 
       try {
         let _timeoutTimer;
@@ -328,9 +358,38 @@ export function createControlledExecutor(options = {}) {
           claimTtlMs: Math.min(24 * 60 * 60_000, timeoutMs + 30_000),
           signal: abortController.signal,
           context,
-          executeRole: (roleId, roleContext) => providerAdapter
-            ? executeRoleWithLLM(roleId, plan.goal, roleContext, providerAdapter)
-            : createRoleExecutor(roleId).analyze(plan.goal, roleContext),
+          executeRole: async (roleId, roleContext) => {
+            const capture = evidenceCapture.startCapture?.({
+              planId: executionScopeId,
+              agentId: roleId,
+              role: roleId,
+              goal: plan.goal,
+              context: {
+                publicPlanId: planId,
+                dependencies: Object.keys(roleContext?.priorOutputs ?? {}).sort(),
+              },
+            });
+            try {
+              const result = providerAdapter
+                ? await executeRoleWithLLM(roleId, plan.goal, roleContext, providerAdapter)
+                : await createRoleExecutor(roleId).analyze(plan.goal, roleContext);
+              if (capture) {
+                capture.setOutput({ summary: summarizeEvidenceOutput(result, logRedactor) });
+                await capture.finish();
+              }
+              return result;
+            } catch (error) {
+              if (capture) {
+                try {
+                  capture.setOutput({ summary: `failed: ${logRedactor.redactString?.(error?.message) ?? "role execution failed"}` });
+                  await capture.finish();
+                } catch {
+                  // Preserve the original execution or evidence failure.
+                }
+              }
+              throw error;
+            }
+          },
         });
         const allRoleResults = await Promise.race([
           executionFn().finally(() => clearTimeout(_timeoutTimer)),
@@ -352,26 +411,30 @@ export function createControlledExecutor(options = {}) {
         };
         for (const [roleId, result] of Object.entries(allRoleResults?.roleOutputs ?? {})) {
           roleResults[roleId] = result;
-          await lifecycle.onAgentCompleted(planId, roleId, { success: true });
-
-          // Capture evidence per agent
-          await evidenceCapture.capture?.(planId, roleId, {
-            input: plan.goal,
-            output: result,
-            status: "completed",
-            timestamp: new Date().toISOString(),
-          });
+          await lifecycle.onAgentCompleted(executionScopeId, roleId, { success: true });
         }
       } catch (err) {
-        executionErrors.push(logRedactor.redact?.(err.message) ?? err.message);
+        executionErrors.push(logRedactor.redactString?.(err.message) ?? err.message);
       }
 
       // --- Step 8b: Forge code execution (if available) ---
       if (forgeService && roleResults["backend-engineer"]) {
         try {
+          const forgeCapabilities = forgeService.getCapabilities?.() ?? {};
+          if (forgeService.supportsIsolatedProjectRoot !== true
+            && forgeCapabilities.isolatedProjectRoot !== true) {
+            const isolationError = new Error("The Forge adapter does not attest isolated project-root support.");
+            isolationError.code = "WORKFORCE_FORGE_ISOLATION_REQUIRED";
+            throw isolationError;
+          }
           const backendAnalysis = roleResults["backend-engineer"];
           const implementationGoal = `Based on this backend analysis, implement the core API:\n${JSON.stringify(backendAnalysis.apiSpecs ?? backendAnalysis, null, 2).slice(0, 2000)}`;
-          const forgeResult = await forgeService.runGoal?.(implementationGoal, { timeoutMs: 60_000 });
+          forgeExecuted = true;
+          const forgeResult = await forgeService.runGoal?.(implementationGoal, {
+            timeoutMs: 60_000,
+            projectRoot: worktreeRecord.path,
+            worktreeId: worktreeRecord.worktreeId,
+          });
           if (forgeResult) {
             roleResults["forge-implementation"] = {
               roleId: "forge-implementation",
@@ -382,30 +445,46 @@ export function createControlledExecutor(options = {}) {
             };
           }
         } catch (forgeErr) {
-          executionErrors.push(`forge_execution: ${logRedactor.redact?.(forgeErr.message) ?? forgeErr.message}`);
+          executionErrors.push(`forge_execution: ${logRedactor.redactString?.(forgeErr.message) ?? forgeErr.message}`);
         }
       }
 
       // --- Step 9: Post-execution security scan ---
-      const postScan = await securityCheckpoint.postExecutionScan?.(plan, roleResults) ?? { result: "pass", findings: [] };
+      let postScan;
+      try {
+        postScan = await runPostExecutionSecurityCheck(securityCheckpoint, {
+          plan,
+          planId: executionScopeId,
+          roleResults,
+        });
+      } catch {
+        postScan = { result: "block", findings: ["security_checkpoint_unavailable"] };
+        executionErrors.push("security_post_scan_unavailable");
+      }
+      if (postScan.result === "block" && !executionErrors.includes("security_post_scan_unavailable")) {
+        executionErrors.push("security_post_scan_blocked");
+      }
 
-      // --- Step 10: Complete lifecycle ---
+      // --- Step 10: Cleanup worktree before committing the lifecycle terminal state ---
+      cleanupAttempted = true;
+      try {
+        const cleanup = await worktree.remove(worktreeRecord.worktreeId);
+        worktreeCleanedUp = cleanup?.success === true;
+        if (!worktreeCleanedUp) {
+          executionErrors.push(`worktree_cleanup: ${logRedactor.redactString?.(cleanup?.reason) ?? "cleanup failed"}`);
+        }
+      } catch (cleanupError) {
+        executionErrors.push(`worktree_cleanup: ${logRedactor.redactString?.(cleanupError?.message) ?? "cleanup failed"}`);
+      }
+
+      // --- Step 11: Complete lifecycle ---
       const finalStatus = executionErrors.length === 0 ? "completed" : "failed";
-      await lifecycle.complete(planId, finalStatus, {
+      await lifecycle.complete(executionScopeId, finalStatus, {
         roleResults: Object.keys(roleResults).length,
         errors: executionErrors,
         executionGraph,
         postScan: postScan.result,
       });
-
-      // --- Step 11: Cleanup worktree ---
-      try {
-        if (worktreeRecord?.worktreeId) {
-          await worktree.remove(worktreeRecord.worktreeId);
-        }
-      } catch {
-        // Non-fatal: worktree cleanup failure is logged but doesn't block completion
-      }
 
       const completedAt = new Date();
       return {
@@ -428,8 +507,8 @@ export function createControlledExecutor(options = {}) {
           workspaceCheck: workspaceCheck.clean,
         },
         worktree: {
-          created: Boolean(worktreeRecord),
-          cleanedUp: true,
+          created: true,
+          cleanedUp: worktreeCleanedUp,
         },
         approval: {
           checked: true,
@@ -438,13 +517,26 @@ export function createControlledExecutor(options = {}) {
         safety: {
           executionEnabled: true,
           dryRun: false,
-           providerCallsMade: Boolean(providerAdapter),
-          secretValueExposed: false,
-          projectFileWrites: false,
+          providerCallsMade: Boolean(providerAdapter),
+          secretValueExposed: postScan.result === "pass" ? false : null,
+          secretScanPassed: postScan.result === "pass",
+          projectFileWrites: forgeExecuted,
+          projectWritesIsolated: forgeExecuted ? true : null,
           deployExecuted: false,
           releaseExecuted: false,
         },
       };
+      } finally {
+        if (worktreeRecord?.worktreeId && !cleanupAttempted) {
+          cleanupAttempted = true;
+          try {
+            const cleanup = await worktree.remove(worktreeRecord.worktreeId);
+            worktreeCleanedUp = cleanup?.success === true;
+          } catch {
+            worktreeCleanedUp = false;
+          }
+        }
+      }
     },
 
     /**
@@ -612,4 +704,49 @@ function createScopedClaimPlanId(tenantId, ownerId, planId) {
     .update(`${tenantId}\u0000${ownerId}\u0000${planId}`, "utf8")
     .digest("hex");
   return `wf-scope-${digest}`;
+}
+
+function summarizeEvidenceOutput(value, logRedactor) {
+  let serialized;
+  try {
+    serialized = typeof value === "string" ? value : JSON.stringify(value);
+  } catch {
+    serialized = "[unserializable role output]";
+  }
+  return String(logRedactor.redactString?.(serialized) ?? serialized).slice(0, 5_000);
+}
+
+async function runPreExecutionSecurityCheck(checkpoint, { plan, planId }) {
+  if (typeof checkpoint?.preExecutionCheck === "function") {
+    return checkpoint.preExecutionCheck({
+      planId,
+      agentId: "workforce-orchestrator",
+      goal: plan.goal,
+      context: {
+        selectedRoles: plan.selectedRoles ?? [],
+        selectedTemplate: plan.selectedTemplate ?? null,
+      },
+    });
+  }
+  if (typeof checkpoint?.preExecutionScan === "function") {
+    return checkpoint.preExecutionScan(plan);
+  }
+  throw new Error("A pre-execution security checkpoint is required.");
+}
+
+async function runPostExecutionSecurityCheck(checkpoint, { plan, planId, roleResults }) {
+  if (typeof checkpoint?.postExecutionCheck === "function") {
+    return checkpoint.postExecutionCheck({
+      planId,
+      agentId: "workforce-orchestrator",
+      output: roleResults,
+      outputText: "",
+      commandsRun: [],
+      filesChanged: [],
+    });
+  }
+  if (typeof checkpoint?.postExecutionScan === "function") {
+    return checkpoint.postExecutionScan(plan, roleResults);
+  }
+  throw new Error("A post-execution security checkpoint is required.");
 }

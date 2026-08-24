@@ -39,6 +39,14 @@ and the project uses [Semantic Versioning](https://semver.org/).
   validates the digest-only claim and monotonic fence, persists the result, and
   deletes the lease in one transaction. External irreversible sinks still need
   their own fence-aware commit boundary before exactly-once can be claimed.
+- Fixed controlled Workforce isolation adapters that were previously wired to
+  the wrong method/return contracts: worktree creation failures now block,
+  cleanup is verified and affects terminal status, the configured repo root is
+  actually checked, and lifecycle/evidence use an opaque tenant+owner scope.
+  The real pre/post security checkpoint now runs and fails closed; its local
+  audit uses hashed filenames plus atomic restricted writes, and per-role
+  evidence is bounded, redacted, atomic, and no longer silently skipped. Forge
+  adapters must attest and receive an isolated project root before execution.
 - Added a central PostgreSQL usage ledger with awaited write-ahead reservation
   and terminal commits, per-attempt idempotency/conflict detection, tenant
   queries and spend aggregation, retention/capacity bounds, verified TLS,

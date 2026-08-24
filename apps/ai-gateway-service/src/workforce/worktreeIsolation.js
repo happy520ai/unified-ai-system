@@ -137,19 +137,37 @@ export function createWorktreeIsolation(options = {}) {
         };
       }
 
+      let removed = false;
       try {
         // 使用 git worktree remove 清理
         await execFileAsync("git", ["worktree", "remove", record.path, "--force"], {
           cwd: repoRoot,
           timeout: DEFAULT_TIMEOUT_MS,
         });
-      } catch {
+        removed = true;
+      } catch (gitError) {
         // 如果 git 命令失败，尝试直接删除目录
         try {
           await rm(record.path, { recursive: true, force: true });
-        } catch {
-          // 目录可能已不存在
+          removed = true;
+        } catch (fileError) {
+          return {
+            success: false,
+            code: "WORKTREE_REMOVE_FAILED",
+            worktreeId,
+            reason: "The isolated worktree could not be removed.",
+            errors: [gitError?.code, fileError?.code].filter(Boolean),
+          };
         }
+      }
+
+      if (!removed) {
+        return {
+          success: false,
+          code: "WORKTREE_REMOVE_FAILED",
+          worktreeId,
+          reason: "The isolated worktree could not be removed.",
+        };
       }
 
       // 清理分支
