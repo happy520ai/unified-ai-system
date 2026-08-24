@@ -29,6 +29,8 @@ const DEFAULT_STALE_LOCK_MS = 60_000;
 const DEFAULT_LOCK_RETRY_MIN_MS = 5;
 const DEFAULT_LOCK_RETRY_MAX_MS = 25;
 const SAME_PROCESS_ORPHAN_GRACE_MS = 250;
+const DEFAULT_FULL_VERIFICATION_INTERVAL = 100;
+const MAX_AUDIT_ENTRY_BYTES = 256 * 1024;
 const ACTIVE_LOCK_NONCES = new Set();
 
 export function createAuditHashChain(options = {}) {
@@ -36,6 +38,7 @@ export function createAuditHashChain(options = {}) {
   const checkpointStore = options.checkpointStore ?? {
     configured: false,
     verify: async () => null,
+    verifyTail: async () => null,
     commit: async () => null,
     getHealth: () => ({ configured: false, status: "disabled", mode: "none" }),
   };
@@ -49,12 +52,21 @@ export function createAuditHashChain(options = {}) {
     lockRetryMinMs,
     2_000,
   );
+  const fullVerificationInterval = clampInteger(
+    options.fullVerificationInterval,
+    DEFAULT_FULL_VERIFICATION_INTERVAL,
+    10,
+    10_000,
+  );
   let lastHash = "GENESIS";
   let entryCount = 0;
   let initialized = false;
   let lockContentionCount = 0;
   let staleLockRecoveryCount = 0;
   let lockTimeoutCount = 0;
+  let appendsSinceFullVerification = 0;
+  let lastFullVerificationAt = null;
+  let lastFullVerificationSequence = 0;
 
   function computeHash(entry, previousHash) {
     const payload = JSON.stringify({ entry, previousHash });
@@ -71,6 +83,9 @@ export function createAuditHashChain(options = {}) {
         entryCount = 0;
         initialized = true;
         await checkpointStore.verify({ entryCount, lastHash, hashes: [] });
+        appendsSinceFullVerification = 0;
+        lastFullVerificationAt = new Date().toISOString();
+        lastFullVerificationSequence = 0;
         return { lastHash, entryCount, entries: [] };
       }
       throw error;
@@ -81,6 +96,9 @@ export function createAuditHashChain(options = {}) {
     const hashes = [];
     const entries = [];
     for (let index = 0; index < lines.length; index += 1) {
+      if (Buffer.byteLength(lines[index]) > MAX_AUDIT_ENTRY_BYTES) {
+        throw createCorruptChainError("entry_too_large", index);
+      }
       let entry;
       try {
         entry = JSON.parse(lines[index]);
@@ -117,7 +135,73 @@ export function createAuditHashChain(options = {}) {
     entryCount = lines.length;
     initialized = true;
     await checkpointStore.verify({ entryCount, lastHash, hashes });
+    appendsSinceFullVerification = 0;
+    lastFullVerificationAt = new Date().toISOString();
+    lastFullVerificationSequence = entryCount;
     return { lastHash, entryCount, entries };
+  }
+
+  async function readVerifiedTailState() {
+    let descriptor;
+    try {
+      descriptor = await open(chainPath, "r");
+    } catch (error) {
+      if (error?.code !== "ENOENT") throw error;
+      if (entryCount > 0) throw createCorruptChainError("tail_rollback", 0);
+      lastHash = "GENESIS";
+      entryCount = 0;
+      await checkpointStore.verifyTail({ entryCount, lastHash });
+      return { lastHash, entryCount };
+    }
+
+    try {
+      const { size } = await descriptor.stat();
+      if (size === 0) {
+        if (entryCount > 0) throw createCorruptChainError("tail_rollback", 0);
+        lastHash = "GENESIS";
+        entryCount = 0;
+        await checkpointStore.verifyTail({ entryCount, lastHash });
+        return { lastHash, entryCount };
+      }
+      const readLength = Math.min(size, MAX_AUDIT_ENTRY_BYTES + 1);
+      const readStart = size - readLength;
+      const buffer = Buffer.alloc(readLength);
+      const { bytesRead } = await descriptor.read(buffer, 0, readLength, readStart);
+      if (bytesRead !== readLength) throw createCorruptChainError("tail_short_read", entryCount);
+      let text = buffer.toString("utf8");
+      if (readStart > 0) {
+        const firstNewline = text.indexOf("\n");
+        if (firstNewline < 0) throw createCorruptChainError("tail_entry_too_large", entryCount);
+        text = text.slice(firstNewline + 1);
+      }
+      const line = text.trim().split("\n").filter(Boolean).at(-1);
+      if (!line || Buffer.byteLength(line) > MAX_AUDIT_ENTRY_BYTES) {
+        throw createCorruptChainError("tail_entry_too_large", entryCount);
+      }
+      let entry;
+      try {
+        entry = JSON.parse(line);
+      } catch (error) {
+        throw createCorruptChainError("parse_error", entryCount, error);
+      }
+      const { hash, previousHash, seq, chainedAt, ...rest } = entry ?? {};
+      if (!Number.isSafeInteger(seq) || seq < 1 || typeof previousHash !== "string") {
+        throw createCorruptChainError("tail_format", entryCount);
+      }
+      const expectedHash = computeHash({ ...rest, seq, chainedAt }, previousHash);
+      if (typeof hash !== "string" || hash !== expectedHash) {
+        throw createCorruptChainError("hash_mismatch", seq - 1);
+      }
+      if (seq < entryCount || (seq === entryCount && lastHash !== "GENESIS" && hash !== lastHash)) {
+        throw createCorruptChainError("tail_rollback", seq - 1);
+      }
+      lastHash = hash;
+      entryCount = seq;
+      await checkpointStore.verifyTail({ entryCount, lastHash });
+      return { lastHash, entryCount };
+    } finally {
+      await descriptor.close();
+    }
   }
 
   async function withChainLock(operation) {
@@ -147,8 +231,14 @@ export function createAuditHashChain(options = {}) {
   async function append(entry) {
     return withChainLock(async () => {
       // Another process may have appended since this instance initialized.
-      // Always derive the next sequence and hash from a freshly verified tail.
-      await readVerifiedState();
+      // Derive the next sequence and hash from the locked tail. Full-chain
+      // verification happens at startup and at a fixed interval, avoiding an
+      // O(n²) request hot path while preserving bounded tamper detection.
+      if (!initialized || appendsSinceFullVerification >= fullVerificationInterval) {
+        await readVerifiedState();
+      } else {
+        await readVerifiedTailState();
+      }
       const chainEntry = {
         ...entry,
         seq: entryCount + 1,
@@ -161,9 +251,17 @@ export function createAuditHashChain(options = {}) {
       );
       chainEntry.hash = hash;
 
+      const serializedEntry = `${JSON.stringify(chainEntry)}\n`;
+      if (Buffer.byteLength(serializedEntry) > MAX_AUDIT_ENTRY_BYTES) {
+        const error = new Error("Audit hash chain entry exceeds the bounded record size.");
+        error.code = "AUDIT_CHAIN_ENTRY_TOO_LARGE";
+        error.category = "audit";
+        error.retryable = false;
+        throw error;
+      }
       const descriptor = await open(chainPath, "a", 0o600);
       try {
-        await descriptor.writeFile(`${JSON.stringify(chainEntry)}\n`, "utf8");
+        await descriptor.writeFile(serializedEntry, "utf8");
         // A successful protected operation must not only reach Node's buffers.
         await descriptor.sync();
       } finally {
@@ -173,6 +271,7 @@ export function createAuditHashChain(options = {}) {
       lastHash = hash;
       entryCount += 1;
       await checkpointStore.commit({ sequence: entryCount, hash: lastHash });
+      appendsSinceFullVerification += 1;
       return { seq: chainEntry.seq, hash, previousHash: chainEntry.previousHash };
     });
   }
@@ -236,6 +335,11 @@ export function createAuditHashChain(options = {}) {
       lockTimeoutMs,
       staleLockMs,
       lockHeartbeatMs: Math.max(1_000, Math.floor(staleLockMs / 3)),
+      fullVerificationInterval,
+      appendsSinceFullVerification,
+      lastFullVerificationAt,
+      lastFullVerificationSequence,
+      maxEntryBytes: MAX_AUDIT_ENTRY_BYTES,
       lockContentionCount,
       staleLockRecoveryCount,
       lockTimeoutCount,

@@ -148,6 +148,47 @@ describe("AuditHashChain — basic operations", () => {
     assert.ok(entry.seq);
     assert.ok(entry.chainedAt);
   });
+
+  it("detects a live tail rollback before the next append", async () => {
+    const chainPath = join(tempDir, "audit-chain.jsonl");
+    await chain.append({ action: "first" });
+    await chain.append({ action: "second" });
+    const lines = (await readFile(chainPath, "utf8")).trim().split("\n");
+    await writeFile(chainPath, `${lines[0]}\n`, "utf8");
+
+    await assert.rejects(
+      () => chain.append({ action: "must-not-extend-rollback" }),
+      (error) => error?.code === "AUDIT_CHAIN_CORRUPT" && error?.reason === "tail_rollback",
+    );
+  });
+
+  it("periodically revalidates the full chain after bounded tail appends", async () => {
+    const chainPath = join(tempDir, "audit-chain.jsonl");
+    const periodic = createAuditHashChain({ chainPath, fullVerificationInterval: 10 });
+    await periodic.append({ action: "first" });
+    await periodic.append({ action: "second" });
+    const lines = (await readFile(chainPath, "utf8")).trim().split("\n");
+    const first = JSON.parse(lines[0]);
+    first.action = "tampered-middle";
+    lines[0] = JSON.stringify(first);
+    await writeFile(chainPath, `${lines.join("\n")}\n`, "utf8");
+
+    for (let index = 0; index < 8; index += 1) {
+      await periodic.append({ action: `bounded-tail-${index}` });
+    }
+    await assert.rejects(
+      () => periodic.append({ action: "periodic-full-check" }),
+      (error) => error?.code === "AUDIT_CHAIN_CORRUPT" && error?.reason === "hash_mismatch",
+    );
+  });
+
+  it("rejects an oversized audit record before writing it", async () => {
+    await assert.rejects(
+      () => chain.append({ action: "oversized", details: "x".repeat(300_000) }),
+      (error) => error?.code === "AUDIT_CHAIN_ENTRY_TOO_LARGE",
+    );
+    assert.strictEqual(chain.getEntryCount(), 0);
+  });
 });
 
 describe("AuditHashChain — concurrent appends", () => {

@@ -41,6 +41,7 @@ type VerifiedChainState = {
 export type AuditCheckpointStore = {
   configured: boolean;
   verify(state: VerifiedChainState): Promise<AuditCheckpoint | null>;
+  verifyTail(state: { entryCount: number; lastHash: string }): Promise<AuditCheckpoint | null>;
   commit(state: { sequence: number; hash: string }): Promise<AuditCheckpoint | null>;
   getHealth(): Record<string, unknown>;
 };
@@ -231,9 +232,32 @@ export function createAuditCheckpointStore({
     }
   }
 
+  async function verifyTail(state: { entryCount: number; lastHash: string }) {
+    try {
+      const checkpoint = openCheckpoint(await readCheckpointFile(resolvedCheckpointPath));
+      assertTrustedFloor(checkpoint, minimumSequence, minimumHash);
+      if (checkpoint.sequence !== state.entryCount || checkpoint.hash !== state.lastHash) {
+        throw checkpointError(
+          checkpoint.sequence > state.entryCount
+            ? "AUDIT_CHECKPOINT_ROLLBACK_DETECTED"
+            : "AUDIT_CHECKPOINT_LAG",
+          "The audit tail does not match its signed checkpoint.",
+        );
+      }
+      lastSequence = checkpoint.sequence;
+      lastVerifiedAt = new Date().toISOString();
+      lastErrorCode = null;
+      return checkpoint;
+    } catch (error) {
+      lastErrorCode = readErrorCode(error);
+      throw error;
+    }
+  }
+
   return {
     configured: true,
     verify,
+    verifyTail,
     commit,
     getHealth() {
       return {
@@ -266,6 +290,7 @@ function createDisabledStore(): AuditCheckpointStore {
   return {
     configured: false,
     async verify() { return null; },
+    async verifyTail() { return null; },
     async commit() { return null; },
     getHealth() {
       return {
