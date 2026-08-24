@@ -2,7 +2,10 @@ import { describe, it, expect, afterEach } from "vitest";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createResponseCacheStore } from "./responseCacheStore.js";
+import {
+  DEFAULT_RESPONSE_CACHE_STORE_PATHS,
+  createResponseCacheStore,
+} from "./responseCacheStore.js";
 import { createResponseCacheTenantScope } from "./responseCacheTenantScope.ts";
 
 const TENANT_SCOPE_IDENTITY = { tenantId: "response-cache-store-test" };
@@ -51,6 +54,13 @@ afterEach(() => {
 });
 
 describe("responseCacheStore — index bounds and recovery", () => {
+  it("anchors default evidence paths to the service module instead of process cwd", () => {
+    for (const path of Object.values(DEFAULT_RESPONSE_CACHE_STORE_PATHS)) {
+      expect(path.replace(/\\/g, "/")).toContain("/apps/ai-gateway-service/evidence/response-cache/");
+      expect(path.replace(/\\/g, "/")).not.toContain("/apps/ai-gateway-service/apps/");
+    }
+  });
+
   it("caps the index and evicts the oldest entries when the cap is exceeded", async () => {
     const { store } = createTestStore({ maxIndexEntries: 2 });
     writeEntry(store, "response-cache:key-1");

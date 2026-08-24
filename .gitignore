@@ -74,7 +74,7 @@ packages/forge-core/.test-*/
 .aider*
 
 # Generated local verification output is not source code.
-apps/*/evidence/**
+apps/**/evidence/**
 !apps/*/evidence/README.md
 
 # Historical phase artifacts belong on the archive branch.

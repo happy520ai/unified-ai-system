@@ -1,16 +1,18 @@
 import { appendFile as appendFileAsync } from "node:fs/promises";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { createResponseCachePolicy } from "./responseCachePolicy.js";
 import { inspectCacheSafety, sanitizeCacheText } from "./responseCacheSanitizer.js";
 import { createResponseCacheTenantScope } from "./responseCacheTenantScope.ts";
 
-const DEFAULT_STORE_PATHS = {
-  records: "apps/ai-gateway-service/evidence/response-cache/response-cache-records.jsonl",
-  index: "apps/ai-gateway-service/evidence/response-cache/response-cache-index.json",
-  summary: "apps/ai-gateway-service/evidence/response-cache/response-cache-summary.json",
-  audit: "apps/ai-gateway-service/evidence/response-cache/response-cache-audit-trail.jsonl",
-};
+const responseCacheEvidenceDir = fileURLToPath(new URL("../../evidence/response-cache/", import.meta.url));
+export const DEFAULT_RESPONSE_CACHE_STORE_PATHS = Object.freeze({
+  records: resolve(responseCacheEvidenceDir, "response-cache-records.jsonl"),
+  index: resolve(responseCacheEvidenceDir, "response-cache-index.json"),
+  summary: resolve(responseCacheEvidenceDir, "response-cache-summary.json"),
+  audit: resolve(responseCacheEvidenceDir, "response-cache-audit-trail.jsonl"),
+});
 
 const DEFAULT_MAX_INDEX_ENTRIES = 1_000;
 const DEFAULT_AUDIT_BUFFER_LIMIT = 500;
@@ -24,7 +26,7 @@ const DEFAULT_AUDIT_FLUSH_INTERVAL_MS = 30_000;
  * function signatures intact for the HTTP routes.
  */
 export function createResponseCacheStore(options = {}) {
-  const paths = { ...DEFAULT_STORE_PATHS, ...options.paths };
+  const paths = { ...DEFAULT_RESPONSE_CACHE_STORE_PATHS, ...options.paths };
   const maxIndexEntries = readPositiveInt(options.maxIndexEntries, DEFAULT_MAX_INDEX_ENTRIES);
   const auditBufferLimit = readPositiveInt(options.auditBufferLimit, DEFAULT_AUDIT_BUFFER_LIMIT);
   const auditFlushIntervalMs = Number.isFinite(Number(options.auditFlushIntervalMs))
