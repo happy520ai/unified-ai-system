@@ -90,7 +90,11 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
   const apiKeyManager = createApiKeyManager({ storePath: apiKeyStorePath });
   const auditPath = auditLogPath ?? env.PME_AUDIT_LOG_PATH ?? resolveDefaultAuditPath(env);
   const auditChainPath = env.PME_AUDIT_CHAIN_PATH ?? `${auditPath}.chain`;
-  const auditHashChain = createAuditHashChain({ chainPath: auditChainPath });
+  const auditHashChain = createAuditHashChain({
+    chainPath: auditChainPath,
+    lockTimeoutMs: env.PME_AUDIT_CHAIN_LOCK_TIMEOUT_MS,
+    staleLockMs: env.PME_AUDIT_CHAIN_STALE_LOCK_MS,
+  });
   const auditEntries = [];
   let auditWriteTail = Promise.resolve();
   const auditPersistence = {

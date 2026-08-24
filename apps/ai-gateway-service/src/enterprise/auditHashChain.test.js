@@ -1,6 +1,7 @@
 import { describe, it, before, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm, readFile, writeFile, mkdir } from "node:fs/promises";
+import { spawn } from "node:child_process";
+import { mkdtemp, rm, readFile, writeFile, utimes } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -165,4 +166,107 @@ describe("AuditHashChain — concurrent appends", () => {
 
     await rm(tempDir, { recursive: true, force: true });
   });
+
+  it("serializes independent chain instances that share one file", async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), "audit-hash-instances-"));
+    const chainPath = join(tempDir, "audit-chain.jsonl");
+    const chains = Array.from({ length: 4 }, () => createAuditHashChain({ chainPath }));
+
+    await Promise.all(Array.from({ length: 40 }, (_, index) => (
+      chains[index % chains.length].append({ action: `instance-${index}` })
+    )));
+
+    const verifier = createAuditHashChain({ chainPath });
+    const result = await verifier.verify();
+    assert.deepStrictEqual(result, { valid: true, totalEntries: 40, brokenAt: null });
+
+    const lines = (await readFile(chainPath, "utf8")).trim().split("\n").map(JSON.parse);
+    assert.deepStrictEqual(lines.map((entry) => entry.seq), Array.from({ length: 40 }, (_, index) => index + 1));
+    assert.ok(chains.some((chain) => chain.getHealth().lockContentionCount > 0));
+
+    await rm(tempDir, { recursive: true, force: true });
+  });
+
+  it("serializes appenders running in separate Node processes", async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), "audit-hash-processes-"));
+    const chainPath = join(tempDir, "audit-chain.jsonl");
+
+    await Promise.all([
+      runChildAppender(chainPath, "process-a", 12),
+      runChildAppender(chainPath, "process-b", 12),
+    ]);
+
+    const verifier = createAuditHashChain({ chainPath });
+    const result = await verifier.verify();
+    assert.deepStrictEqual(result, { valid: true, totalEntries: 24, brokenAt: null });
+
+    await rm(tempDir, { recursive: true, force: true });
+  });
+
+  it("fails closed on an active lock and recovers only a stale lock", async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), "audit-hash-locks-"));
+    const chainPath = join(tempDir, "audit-chain.jsonl");
+    const lockPath = `${chainPath}.lock`;
+    await writeFile(lockPath, JSON.stringify({ nonce: "active-owner" }), "utf8");
+
+    const blocked = createAuditHashChain({
+      chainPath,
+      lockTimeoutMs: 100,
+      staleLockMs: 1_000,
+      lockRetryMinMs: 1,
+      lockRetryMaxMs: 5,
+    });
+    await assert.rejects(
+      () => blocked.append({ action: "must-not-write" }),
+      (error) => error?.code === "AUDIT_CHAIN_LOCK_TIMEOUT",
+    );
+    assert.strictEqual(blocked.getHealth().lockTimeoutCount, 1);
+
+    const old = new Date(Date.now() - 5_000);
+    await utimes(lockPath, old, old);
+    const recovered = createAuditHashChain({
+      chainPath,
+      lockTimeoutMs: 1_000,
+      staleLockMs: 1_000,
+      lockRetryMinMs: 1,
+      lockRetryMaxMs: 5,
+    });
+    await recovered.append({ action: "stale-lock-recovered" });
+    assert.strictEqual(recovered.getHealth().staleLockRecoveryCount, 1);
+    assert.deepStrictEqual(await recovered.verify(), { valid: true, totalEntries: 1, brokenAt: null });
+    assert.strictEqual(recovered.getHealth().externalCheckpointConfigured, false);
+
+    await rm(tempDir, { recursive: true, force: true });
+  });
 });
+
+function runChildAppender(chainPath, prefix, count) {
+  const source = `
+    import { createAuditHashChain } from "./apps/ai-gateway-service/src/enterprise/auditHashChain.js";
+    const chain = createAuditHashChain({ chainPath: process.argv[1] });
+    for (let index = 0; index < Number(process.argv[3]); index += 1) {
+      await chain.append({ action: process.argv[2] + "-" + index });
+    }
+  `;
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [
+      "--input-type=module",
+      "--eval",
+      source,
+      chainPath,
+      prefix,
+      String(count),
+    ], {
+      cwd: process.cwd(),
+      stdio: ["ignore", "ignore", "pipe"],
+    });
+    let stderr = "";
+    child.stderr.setEncoding("utf8");
+    child.stderr.on("data", (chunk) => { stderr += chunk; });
+    child.once("error", reject);
+    child.once("exit", (code, signal) => {
+      if (code === 0) resolve();
+      else reject(new Error(`Child audit appender failed (${code ?? signal}): ${stderr}`));
+    });
+  });
+}

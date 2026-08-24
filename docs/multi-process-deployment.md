@@ -210,6 +210,34 @@ replicas until a reviewed PostgreSQL task-claim backend implements the same
 issue, validate, renew, release, revoke, and fencing contract. The gateway must
 remain the only authority allowed to cancel or requeue those claims.
 
+### Same-host enterprise audit serialization
+
+The enterprise audit hash chain serializes independent gateway processes with
+an adjacent exclusive lock, revalidates the complete chain tail inside that
+lock, and fsyncs each chained entry before a protected operation can return.
+Lock acquisition is bounded and fails closed. A lock heartbeat plus same-host
+process liveness check prevents an active writer from being reclaimed merely
+because its original lock timestamp aged; an abandoned lock is recoverable only
+after the stale interval.
+
+All same-host processes must share both `PME_AUDIT_LOG_PATH` and
+`PME_AUDIT_CHAIN_PATH` on the same restricted local filesystem. Optional bounds
+are:
+
+```bash
+PME_AUDIT_CHAIN_LOCK_TIMEOUT_MS=5000
+PME_AUDIT_CHAIN_STALE_LOCK_MS=60000
+```
+
+The local hash chain detects entry edits, insertion, middle deletion,
+corruption, and concurrent-writer races. It cannot prove that an attacker with
+control of the whole writable gateway filesystem did not roll back or replace
+the chain and every local checkpoint. Cross-host audit consistency and complete
+rollback detection still require a reviewed database-backed audit store or an
+externally retained checkpoint. Do not put the JSONL chain or its lock on NFS,
+SMB, or a cloud filesystem and do not describe this same-host lock as a
+distributed consensus protocol.
+
 ## Cross-host PostgreSQL request quotas
 
 Memory rate limits are process-local and SQLite counters are same-host only.

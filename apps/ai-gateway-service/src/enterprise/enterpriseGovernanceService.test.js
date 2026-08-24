@@ -253,6 +253,40 @@ describe("enterprise audit durability", () => {
     }
   });
 
+  it("keeps governance audit writes valid across concurrent service instances", async () => {
+    const root = mkdtempSync(join(tmpdir(), "enterprise-audit-multi-instance-"));
+    try {
+      const auditLogPath = join(root, "enterprise-audit.jsonl");
+      const env = { PME_AUDIT_CHAIN_PATH: join(root, "audit-chain.jsonl") };
+      const first = createEnterpriseGovernanceService({ env, auditLogPath });
+      const second = createEnterpriseGovernanceService({ env, auditLogPath });
+
+      const entries = await Promise.all(Array.from({ length: 20 }, (_, index) => (
+        (index % 2 === 0 ? first : second).recordAudit({
+          outcome: "allowed",
+          method: "POST",
+          path: `/multi-instance/${index}`,
+          permission: "audit:test",
+          statusCode: 200,
+          identity: { userId: `writer-${index % 2}`, tenantId: "default" },
+        })
+      )));
+
+      expect(entries.map((entry) => entry.integrity.sequence).sort((a, b) => a - b))
+        .toEqual(Array.from({ length: 20 }, (_, index) => index + 1));
+      await expect(first.verifyAuditIntegrity()).resolves.toEqual({
+        valid: true,
+        totalEntries: 20,
+        brokenAt: null,
+      });
+      const listed = await first.listAudit({ limit: 50, actorIdentity: defaultAdminIdentity });
+      expect(listed.entries).toHaveLength(20);
+      expect(new Set(listed.entries.map((entry) => entry.id)).size).toBe(20);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it("fails closed and exposes degraded health when durable audit cannot be written", async () => {
     const root = mkdtempSync(join(tmpdir(), "enterprise-audit-failure-"));
     const blockedParent = join(root, "not-a-directory");
