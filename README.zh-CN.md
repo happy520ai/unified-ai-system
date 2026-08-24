@@ -95,7 +95,7 @@ Cursor、Cline、Continue 和通用 stdio 客户端都可以通过同一个网�
 | 选择客户端路径 | [MCP 客户端兼容性矩阵](docs/mcp-client-compatibility.zh-CN.md) | 安装命令、首次检查和明确的证据边界。 |
 | 集成到应用 | [自然语言提示词增强指南](https://happy520ai.github.io/unified-ai-system/prompt-enhancement.zh-CN.html) | CLI、HTTP、SDK、curl、Python 和 JavaScript 路径。 |
 | 保留现有 OpenAI 客户端 | [OpenAI 兼容 API](docs/openai-compatible-api.zh-CN.md) | 把 `baseURL` 指向 `/v1`，使用 Chat Completions、函数工具、Responses、流式响应和模型发现。 |
-| 接入其他智能体 | [A2A v1.0 网关](docs/a2a-protocol.zh-CN.md) | 发现 Agent Card，并通过 JSON-RPC 执行可追踪的 fake-provider 任务。 |
+| 接入其他智能体 | [A2A v1.0 网关](docs/a2a-protocol.zh-CN.md) | 可选验签 Agent Card/JWKS，并通过 JSON-RPC 执行租户隔离的 fake-provider 任务；支持有界 memory 或同主机持久存储。 |
 | 检查协议覆盖 | [协议兼容性矩阵](docs/protocol-client-compatibility.zh-CN.md) | 区分官方 SDK 证据和具名客户端认证。 |
 | 检查客户端真实运行认证 | [客户端运行时认证](docs/client-runtime-certification.md) | 当前有证据支持的目录状态：2,136 个唯一项中 52 项已验证、2,084 项待人工证据、0 项失败。 |
 | 检查增强契约 | [无凭据评估](docs/prompt-enhancement.md#prompt-enhancement-evaluation) | 用 8 个代表性案例检查 profile、语言、信号、确定性和零 Provider 调用。 |

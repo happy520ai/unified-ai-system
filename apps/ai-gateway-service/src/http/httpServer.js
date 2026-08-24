@@ -964,6 +964,7 @@ export function createGatewayHttpServer(application) {
       await idempotencyCoordinator.close();
       await webSocketConnectionLeaseManager?.close?.();
       await rateLimiter.close();
+      await a2aGateway.close?.();
       await openTelemetry.shutdown();
     })();
     return shutdownResourcesPromise;

@@ -35,6 +35,15 @@ function createEnvelopeContext(overrides = {}) {
     url: { pathname: "/healthz" },
     startedAt: 0,
     rateLimiter: {},
+    a2aGateway: {
+      getTaskStoreHealth: () => ({
+        mode: "memory",
+        durable: false,
+        required: false,
+        available: true,
+        reason: null,
+      }),
+    },
     resilienceMetrics: {
       snapshot: () => ({ currentInFlight: 1 }),
     },
@@ -302,6 +311,34 @@ describe("dispatchHttpRoutes02 healthz readiness", () => {
     expect(context.response.payload.error.details.webSocketLease).not.toHaveProperty("connectionString");
     expect(context.response.payload.error.details.webSocketLease).not.toHaveProperty("namespace");
     expect(context.response.payload.error.details.webSocketLease).not.toHaveProperty("subjectHash");
+  });
+
+  it("returns unready without exposing the A2A task-store path when its probe fails", async () => {
+    const context = createEnvelopeContext({
+      a2aGateway: {
+        getTaskStoreHealth: () => ({
+          mode: "sqlite",
+          durable: true,
+          required: true,
+          available: false,
+          reason: "store_unavailable",
+          sqlitePath: "E:/private/a2a-tasks.sqlite",
+        }),
+      },
+    });
+
+    await dispatchHttpRoutes02(context);
+
+    expect(context.response.status).toBe(503);
+    expect(context.response.payload.error.details.readinessFailures).toContain(
+      "a2a-task-store-unavailable",
+    );
+    expect(context.response.payload.error.details.a2aTaskStore).toMatchObject({
+      mode: "sqlite",
+      durable: true,
+      available: false,
+    });
+    expect(context.response.payload.error.details.a2aTaskStore).not.toHaveProperty("sqlitePath");
   });
 });
 

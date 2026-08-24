@@ -43,6 +43,34 @@ JWKS 仅包含 Ed25519 公钥。签名走官方 SDK 的规范化与签名实现�
 轮换时先让新的公钥可达，再通过 secret manager 更换挂载密钥并重启网关。
 Agent Card/JWKS 缓存期为 5 分钟；重叠多签名轮换尚未实现。
 
+## 有界与持久任务
+
+所有任务存储模式现在都强制租户 + 已认证 owner 双重隔离，并默认采用 7 天 TTL、
+全局/owner 容量、序列化任务大小、历史与产物数量上限，以及绑定作用域和筛选条件
+的 keyset 游标分页。客户端传入的 `ListTasks.tenant` 不能覆盖服务端调用上下文。
+
+本地预览使用有界的内存 SQLite 数据库。需要同主机重启恢复时，配置专用本地路径：
+
+```bash
+export AI_GATEWAY_A2A_TASK_STORE_MODE=sqlite
+export AI_GATEWAY_A2A_TASK_STORE_PATH=/var/lib/unified-ai-system/a2a-tasks.sqlite
+export AI_GATEWAY_A2A_TASK_STORE_REQUIRED=true
+```
+
+未显式设置 A2A mode 时，`AI_GATEWAY_MULTI_INSTANCE=true` 默认选择 SQLite。
+SQLite 使用 WAL、`synchronous=FULL`、有界 busy timeout、原子 upsert/容量事务、
+私有目录，并在支持 POSIX 权限的平台把数据库设为 0600。`/healthz` 与 `/ready`
+只公开安全的模式/上限/可用性快照，存储探针失败时 readiness 失败关闭。
+
+可通过 `AI_GATEWAY_A2A_TASK_TTL_MS`、`AI_GATEWAY_A2A_TASK_MAX_ENTRIES`、
+`AI_GATEWAY_A2A_TASK_MAX_ENTRIES_PER_OWNER`、`AI_GATEWAY_A2A_TASK_MAX_BYTES`、
+`AI_GATEWAY_A2A_TASK_MAX_HISTORY_MESSAGES`、`AI_GATEWAY_A2A_TASK_MAX_ARTIFACTS`
+和 `AI_GATEWAY_A2A_TASK_SQLITE_BUSY_TIMEOUT_MS` 在强制范围内调整。
+
+这个 SQLite 档位仅适合同主机。不要把它放在 NFS、SMB 或云文件系统上，也不要
+把它写成跨主机一致性证明。多台网关共享任务生命周期之前，仍需经过评审的
+PostgreSQL A2A task-store 模式。
+
 ## 官方 SDK 示例
 
 启动网关，再运行受检客户端：
@@ -80,11 +108,12 @@ node docs/examples/a2a-sdk-client.mjs
 - Agent Card 公开可读；`/a2a/jsonrpc` 继续使用网关现有企业鉴权和
   `chat:use` 权限策略。
 - 启用企业鉴权后，Agent Card 会声明 HTTP Bearer 鉴权；Provider Key 仍留在服务端。
-- 任务使用官方内存任务存储，按认证用户和企业租户隔离，服务进程重启后不会保留。
+- 任务始终有界，并按认证 owner 和企业租户隔离；默认 memory 模式重启不保留，
+  显式 SQLite 模式可在同一主机上重启恢复。
 - 官方请求处理器提供 `SendMessage`、`GetTask`、`ListTasks` 和 `CancelTask`。
   取消是协作式的，不能保证已经运行的 provider 操作被真正中断。
 - 当前档位没有启用流式、推送通知、gRPC、HTTP+JSON/REST、非文本 Part 和
-  持久任务存储。只有配置稳定密钥文件后才启用 Agent Card 签名。
+  跨主机任务存储。同主机持久任务与 Agent Card 签名都是显式部署选项。
 
 运行 `pnpm verify:public-clone` 可得到无需凭据的官方客户端验证结果。已发布的
 `v0.5.0` 网关镜像和当前源码均包含这个 A2A 档位；当前源码还包含 PR #115

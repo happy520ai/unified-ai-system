@@ -210,6 +210,30 @@ replicas until a reviewed PostgreSQL task-claim backend implements the same
 issue, validate, renew, release, revoke, and fencing contract. The gateway must
 remain the only authority allowed to cancel or requeue those claims.
 
+### A2A task persistence
+
+A2A task state is bounded and scoped by the server-derived tenant and
+authenticated owner in every mode. Local preview uses an in-memory SQLite
+database. Same-host processes can share restart-safe state by using one local
+path:
+
+```bash
+AI_GATEWAY_A2A_TASK_STORE_MODE=sqlite
+AI_GATEWAY_A2A_TASK_STORE_PATH=/var/lib/unified-ai-system/a2a-tasks.sqlite
+AI_GATEWAY_A2A_TASK_STORE_REQUIRED=true
+```
+
+When `AI_GATEWAY_MULTI_INSTANCE=true` and no A2A mode is explicit, the gateway
+selects this SQLite mode. The store uses WAL, full synchronous commits, bounded
+busy waiting, atomic capacity/upsert transactions, TTL, global/per-owner/task
+size/history/artifact limits, and scope-bound keyset pagination. Health output
+contains no database path or task content.
+
+This is restart-safe same-host persistence, not a cross-host A2A store. Never
+put the database on NFS, SMB, or another network filesystem. Gateway replicas
+on different hosts still require a reviewed PostgreSQL task store plus database
+failover and partition evidence.
+
 ### Same-host enterprise audit serialization
 
 The enterprise audit hash chain serializes independent gateway processes with

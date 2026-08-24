@@ -86,7 +86,7 @@
 | 确定性 prompt 增强 | 本地把自然语言需求编译为结构化、可复核任务；保留原始请求 | 不需要先学复杂提示词，也不需要提供 API Key | E3；无提供商调用的评估、CLI、MCP 和公共克隆均通过 |
 | OpenAI/Anthropic/Gemini 兼容入口 | Chat Completions、Responses、Messages、Gemini generate/stream/batch、多模态、工具与流式 | 现有 SDK 通常只需切换 base URL | E3；协议测试通过，真实提供商契约未在本轮重验 |
 | MCP 网关 | 12 个受治理工具；stdio 与 Streamable HTTP；可聚合上游 MCP，并从 OpenAPI 生成工具 | Codex、Cursor、Cline 等可使用同一套可审计能力 | E3；当前源码认证 MCP `2026-07-28`，兼容 `2025-11-25`/`2025-06-18` |
-| A2A v1.0 | Agent Card、JSON-RPC 任务、取消与 Workforce 模式 | 其他智能体可发现并调用网关能力 | E2/E3；任务存储仍为进程内，Agent Card 未签名 |
+| A2A v1.0 | 可验证 Agent Card/JWKS、JSON-RPC 任务、取消、Workforce 模式，以及有界 memory/同主机 SQLite 任务 | 其他智能体可验证身份、发现并调用网关能力；同主机可重启恢复任务 | E2/E3；跨主机 task store 与重叠多签名轮换尚未完成 |
 | 提供商治理 | fake provider 默认；真实提供商需白名单、运行时授权与凭据三道门 | 防止“配置一改就误花钱”或静默调用外部模型 | E3；本轮没有真实提供商调用 |
 | 虚拟密钥与预算 | 虚拟 key、撤销、限流、token 预算、使用归属与 spend 报告 | 团队成员不持有底层提供商密钥，管理者可控成本 | E3；本地账本不是支付系统或法定发票系统 |
 | 路由与韧性 | 加权路由、fallback、熔断、重试边界、影子流量单独计量 | 可迁移或比较模型，同时限制影子调用的额外成本 | E2/E3；无跨区域流量证据 |
@@ -118,6 +118,8 @@
 | AUD-12 | 高 | 容器可写面、Linux capabilities 和架构发布门不足 | 只读根、显式可写卷、cap drop、no-new-privileges、双架构强制验证、SBOM/provenance | E3 |
 | AUD-13 | 中高 | MCP “当前协议”证明只覆盖旧时代行为 | 使用官方 SDK/client 对现代 `2026-07-28` 及两档兼容时代做 stdio/HTTP 认证 | E3 |
 | AUD-14 | 中 | v0.5.0 已发布，但 A2A Agent Card 与当前兼容性文档仍自报/安装 v0.4.9 | Agent Card 回归固定 v0.5.0；中英文 A2A/MCP 文档与 Registry/镜像安装命令同步 | E2/E3 |
+| AUD-15 | 中高 | A2A Agent Card 缺稳定身份签名，客户端无法验证发现内容 | 增加受限 Ed25519 私钥文件、官方 JCS/JWS、公开 JWKS、HTTPS 约束、required 失败关闭和官方 SDK 验签 | E2/E3 |
+| AUD-16 | 中高 | 官方内存 TaskStore 无持久性与资源上限 | 增加租户/owner 隔离、有界 memory、TTL/容量/大小/历史/产物上限、keyset 分页和同主机 SQLite 重启恢复 | E2/E3 |
 
 在本轮已审范围和现有自动化证据内，**没有仍然已知且未处置的 P0/P1 代码级缺陷**。这句话不等于“没有未知漏洞”，也不覆盖下节列出的生产证据阻断。
 
@@ -134,7 +136,7 @@
 | 生产阻断 | Workforce task claim 仍为同进程语义 | 多主机不能声称全局唯一执行或 fencing 完整 | PostgreSQL/分布式 claim store、数据库时钟租约、故障转移与 split-brain 测试 |
 | 生产阻断 | usage/billing/audit 主要是每进程/同主机持久化 | 跨主机总账、WORM 留存与提供商账单对账不完整 | 中央事务账本、幂等入账、提供商 invoice reconciliation、外部不可变锚点 |
 | 生产阻断 | 未完成负载均衡器、TLS/mTLS、数据库故障切换、备份恢复和 DR 演练 | 无法给出 RTO/RPO 或多实例生产承诺 | 隔离环境破坏性恢复、主从切换、证书轮换、网络分区演练 |
-| P1 能力差距 | A2A 已支持稳定 Ed25519/JWKS 签名，但本地默认可不签名且任务仍为内存存储 | 未启用 required 签名时身份不可长期钉扎；任务重启丢失 | 生产配置强制稳定签名、完成轮换演练，并实现持久 task store |
+| P1 能力差距 | A2A 已支持稳定 Ed25519/JWKS 签名及有界 memory/同主机 SQLite 持久任务，但缺跨主机 TaskStore 和重叠多签名轮换 | 多主机不能共享任务生命周期；密钥轮换窗口仍需协调缓存 | 实现 PostgreSQL TaskStore、故障转移/分区测试、生产 required 签名和重叠轮换演练 |
 | P1 工程债 | TypeScript 迁移例外仍存在 | 严格检查通过，但部分旧运行时仍依赖 JS 兼容边界 | 在 2026-10-31/11-13 前消除登记例外并保持契约兼容 |
 | 市场阻断 | 采用度和第三方案例很小 | 不能把技术潜力写成行业领导地位 | 可复现用户案例、贡献者增长、独立基准、长期留存与生产参考 |
 
@@ -184,7 +186,7 @@
 | Provider/model 广度 | 已有主流协议与多提供商治理，但目录广度有限 | [LiteLLM](https://github.com/BerriAI/litellm-docs) 强调 100+ LLM；[Portkey](https://portkey.ai/docs/product/ai-gateway) 提供更大的模型/提供商目录 | **落后**，短期不要打“最多模型” |
 | 路由与可靠性 | 加权、fallback、熔断、缓存、影子、成本门 | Portkey、[Cloudflare AI Gateway](https://developers.cloudflare.com/ai-gateway/features/) 和 [Kong AI Gateway](https://docs.konghq.com/gateway/latest/ai-gateway/) 已有成熟路由、限流和全球/企业部署叙事 | 功能接近，规模与生产证据落后 |
 | 可观测与成本 | Prometheus、OTel、Langfuse、虚拟 key、预算、spend ledger | [Helicone](https://docs.helicone.ai/getting-started/platform-overview) 和 Cloudflare 有成熟托管分析体验 | 控制面扎实，产品化与托管体验落后 |
-| 协议与智能体治理 | OpenAI/Anthropic/Gemini + MCP + A2A + reverse MCP + Forge/Workforce | [MCP `2026-07-28`](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/blog/content/posts/2026-07-28-spec-ga/index.md) 进入无会话现代时代；[A2A v1.0](https://github.com/a2aproject/A2A/blob/main/docs/announcing-1.0.md) 强调稳定、多租户与可签名 Agent Card | **项目最有机会领先的维度**；签名卡/持久任务仍需补齐 |
+| 协议与智能体治理 | OpenAI/Anthropic/Gemini + MCP + A2A + reverse MCP + Forge/Workforce；A2A 已有稳定签名/JWKS 与同主机持久任务 | [MCP `2026-07-28`](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/blog/content/posts/2026-07-28-spec-ga/index.md) 进入无会话现代时代；[A2A v1.0](https://github.com/a2aproject/A2A/blob/main/docs/announcing-1.0.md) 强调稳定、多租户与可签名 Agent Card | **项目最有机会领先的维度**；跨主机 TaskStore/轮换证据仍需补齐 |
 | 确定性与无密钥验证 | 本地增强、fake provider、公共克隆、明确调用证据 | 多数网关更关注代理、路由和托管分析 | **差异化强**，可形成品牌心智 |
 | 安全与发布工程 | fail-closed、攻击回归、严格类型门、公共检查、只读多架构容器、SBOM/provenance | 头部产品拥有更长生产历史、团队和第三方认证 | 仓库工程纪律强；外部保证不足 |
 | HA/DR/全球规模 | 部分 PostgreSQL 跨主机状态；其余多为同主机/本地机制 | Cloudflare/Kong/商业网关具备成熟多区域和企业运维能力 | **明显落后** |
@@ -217,7 +219,7 @@
 项目不需要复制所有竞品，最有胜算的顺序是：
 
 1. **守住差异化**：把“零密钥可试、确定性增强、真实调用显式、证据可复核”做成最短上手路径。
-2. **补生产闭环**：中央 claim/ledger/audit、签名 A2A Card、持久任务、真实 provider staging、24 小时 soak、DR 与独立渗透测试。
+2. **补生产闭环**：中央 claim/ledger/audit、跨主机 A2A TaskStore、签名轮换、真实 provider staging、24 小时 soak、DR 与独立渗透测试。
 3. **建立可信对标**：固定硬件、固定模型、固定流量，公开与 LiteLLM/Portkey/Kong 等同场的延迟、错误率、资源、成本和治理功能矩阵。
 4. **扩大生态而非堆宣传词**：每个主流 MCP/A2A/SDK 客户端取得一份可复现第三方报告；把 2,084 个“待人工证据”逐步转成真实认证。
 5. **用真实采用证明领先**：安装成功率、7/30 日留存、活跃部署、外部贡献者、生产案例与问题响应时间，比 star 口号更能说明市场价值。

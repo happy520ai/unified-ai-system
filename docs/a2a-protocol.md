@@ -50,6 +50,42 @@ Rotate the mounted key through the secret manager and restart the gateway after
 the new public key is reachable. Discovery and JWKS responses use a five-minute
 cache lifetime; overlapping multi-signature rotation is not yet implemented.
 
+## Bounded And Durable Tasks
+
+Every task-store mode now enforces tenant plus authenticated-owner isolation,
+seven-day TTL by default, global and per-owner capacity, serialized task size,
+history and artifact limits, and cursor-bound keyset pagination. Client-supplied
+`ListTasks.tenant` never overrides the server call context.
+
+Local preview uses a bounded in-memory SQLite database. For restart-safe
+same-host persistence, configure a dedicated local path:
+
+```bash
+export AI_GATEWAY_A2A_TASK_STORE_MODE=sqlite
+export AI_GATEWAY_A2A_TASK_STORE_PATH=/var/lib/unified-ai-system/a2a-tasks.sqlite
+export AI_GATEWAY_A2A_TASK_STORE_REQUIRED=true
+```
+
+`AI_GATEWAY_MULTI_INSTANCE=true` selects SQLite by default when the A2A mode is
+not explicit. SQLite uses WAL, `synchronous=FULL`, a bounded busy timeout, an
+atomic upsert/capacity transaction, a private directory, and a mode-0600
+database where POSIX permissions exist. `/healthz` and `/ready` expose only the
+safe mode/limit/availability snapshot and fail readiness if the store probe
+fails.
+
+Tune only within the enforced ranges through `AI_GATEWAY_A2A_TASK_TTL_MS`,
+`AI_GATEWAY_A2A_TASK_MAX_ENTRIES`,
+`AI_GATEWAY_A2A_TASK_MAX_ENTRIES_PER_OWNER`,
+`AI_GATEWAY_A2A_TASK_MAX_BYTES`,
+`AI_GATEWAY_A2A_TASK_MAX_HISTORY_MESSAGES`,
+`AI_GATEWAY_A2A_TASK_MAX_ARTIFACTS`, and
+`AI_GATEWAY_A2A_TASK_SQLITE_BUSY_TIMEOUT_MS`.
+
+This SQLite profile is same-host only. Do not place it on NFS, SMB, or a cloud
+filesystem and do not use it as a cross-host consistency claim. A reviewed
+PostgreSQL A2A task-store mode remains required before gateway replicas can
+share task lifecycle state across hosts.
+
 ## Official SDK Example
 
 Start the gateway, then run the checked client:
@@ -97,14 +133,15 @@ System extension, not a standard A2A field.
   enterprise authentication and `chat:use` permission policy.
 - When enterprise authentication is enabled, the Agent Card advertises HTTP
   Bearer authentication. Provider keys remain server-side.
-- Tasks use the official in-memory task store, are scoped by authenticated
-  owner and enterprise tenant, and do not survive a process restart.
+- Tasks are always bounded and scoped by authenticated owner plus enterprise
+  tenant. The default memory mode does not survive restart; the opt-in SQLite
+  mode is restart-safe on one host.
 - The official request handler provides `SendMessage`, `GetTask`, `ListTasks`,
   and `CancelTask`. Cancellation is cooperative and cannot guarantee that an
   already-running provider operation was interrupted.
-- Streaming, push notifications, gRPC, HTTP+JSON/REST, non-text parts, and
-  durable task storage are not enabled in this profile. Agent Card signing is
-  enabled only when a stable key file is configured.
+- Streaming, push notifications, gRPC, HTTP+JSON/REST, non-text parts, and a
+  cross-host task store are not enabled in this profile. Same-host durable task
+  storage and Agent Card signing are explicit deployment options.
 
 Run `pnpm verify:public-clone` for the credential-free official-client proof.
 The published `v0.5.0` gateway image and the current source include this A2A

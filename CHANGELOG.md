@@ -13,6 +13,10 @@ and the project uses [Semantic Versioning](https://semver.org/).
   private-key file, official JCS/JWS generation, a public JWKS endpoint,
   HTTPS enforcement outside loopback, restricted-file validation, and a
   fail-closed `AI_GATEWAY_A2A_AGENT_CARD_SIGNING_REQUIRED` deployment mode.
+- Added bounded A2A task storage with tenant/owner isolation, TTL, global and
+  per-owner capacity, task/history/artifact limits, scope-bound keyset
+  pagination, restart-safe same-host SQLite, multi-instance defaults, safe
+  readiness output, and a fail-closed durable-required mode.
 - Added OIDC SSO (authorization code + PKCE + JWKS RS256/ES256 ID-token
   verification, one-time state, issues an API token on login) and SCIM 2.0
   user provisioning (bearer-auth create/get/list/patch/deactivate) for

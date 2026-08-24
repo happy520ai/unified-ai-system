@@ -23,7 +23,7 @@ export async function dispatchHttpRoutes02(context) {
     readEnterpriseJson, writeEnterpriseError, writeCapabilityError, normalizeChatBody,
     normalizeRagChatBody, extractChatPrompt, createRagRetrieveRequest, createRagCitations,
     createRagPrompt, createRagChatData, OWNER_AUTOMATION_CHAT_PROPOSAL_FLAG, application,
-    request, response, url, startedAt, rateLimiter, resilienceMetrics,
+    request, response, url, startedAt, rateLimiter, resilienceMetrics, a2aGateway,
     approvalStore, fileContextStore, phase319LocalOperation, connectorFeishuDryRun,
     connectorWeComDryRun, capabilityRouterService, codexExecCrsRuntimeCandidate, enterpriseGovernanceService,
     enterpriseOpsService, fiveCapabilityActivationService, gatewayService, knowledgeService,
@@ -89,6 +89,7 @@ export async function dispatchHttpRoutes02(context) {
     const idempotency = await readIdempotencyHealth(idempotencyCoordinator);
     const rateLimit = await readRateLimitHealth(rateLimiter);
     const webSocketLease = await readWebSocketLeaseHealth(webSocketConnectionLeaseManager);
+    const a2aTaskStore = readA2ATaskStoreHealth(a2aGateway);
     const readinessFailures = collectReadinessFailures(healthSnapshot, readinessSnapshot, {
       saturated,
       gatewayErrorCircuitState: resilienceSnapshot?.gatewayErrorCircuitState,
@@ -96,6 +97,7 @@ export async function dispatchHttpRoutes02(context) {
       idempotencyStoreUnavailable: idempotency?.storeMode === "postgres" && idempotency?.available !== true,
       rateLimitStoreUnavailable: rateLimit?.storeMode === "postgres" && rateLimit?.available !== true,
       webSocketLeaseStoreUnavailable: Boolean(webSocketConnectionLeaseManager) && webSocketLease?.available !== true,
+      a2aTaskStoreUnavailable: Boolean(a2aGateway) && a2aTaskStore?.available !== true,
     });
     resilienceMetrics?.recordReadinessCheck?.(readinessFailures);
     const degraded = saturated || readinessFailures.length > 0;
@@ -112,6 +114,7 @@ export async function dispatchHttpRoutes02(context) {
       idempotency,
       rateLimit,
       webSocketLease,
+      a2aTaskStore,
       saturation: {
         inFlight: currentInFlight,
         threshold: saturationThreshold,
@@ -240,6 +243,7 @@ export async function dispatchHttpRoutes02(context) {
     const idempotency = await readIdempotencyHealth(idempotencyCoordinator);
     const rateLimit = await readRateLimitHealth(rateLimiter);
     const webSocketLease = await readWebSocketLeaseHealth(webSocketConnectionLeaseManager);
+    const a2aTaskStore = readA2ATaskStoreHealth(a2aGateway);
     const readinessFailures = collectReadinessFailures(healthSnapshot, readinessSnapshot, {
       saturated,
       gatewayErrorCircuitState: readinessResilienceSnapshot?.gatewayErrorCircuitState,
@@ -247,6 +251,7 @@ export async function dispatchHttpRoutes02(context) {
       idempotencyStoreUnavailable: idempotency?.storeMode === "postgres" && idempotency?.available !== true,
       rateLimitStoreUnavailable: rateLimit?.storeMode === "postgres" && rateLimit?.available !== true,
       webSocketLeaseStoreUnavailable: Boolean(webSocketConnectionLeaseManager) && webSocketLease?.available !== true,
+      a2aTaskStoreUnavailable: Boolean(a2aGateway) && a2aTaskStore?.available !== true,
     });
     const snapshot = {
       totalRequests: stats.totalRequests ?? 0,
@@ -260,6 +265,7 @@ export async function dispatchHttpRoutes02(context) {
       lifecycle,
       idempotency,
       webSocketLease,
+      a2aTaskStore,
       latency: stats.latencyQuantiles
         ?? (stats.avgLatencyMs
           ? { p50: stats.avgLatencyMs, p95: stats.avgLatencyMs, p99: stats.avgLatencyMs }
@@ -667,8 +673,38 @@ function collectReadinessFailures(healthSnapshot, readinessSnapshot, context = {
   if (context?.webSocketLeaseStoreUnavailable) {
     readinessFailures.push("websocket-lease-store-unavailable");
   }
+  if (context?.a2aTaskStoreUnavailable) {
+    readinessFailures.push("a2a-task-store-unavailable");
+  }
 
   return Array.from(new Set(readinessFailures));
+}
+
+function readA2ATaskStoreHealth(a2aGateway) {
+  if (!a2aGateway?.getTaskStoreHealth) return null;
+  try {
+    const snapshot = a2aGateway.getTaskStoreHealth();
+    return {
+      mode: snapshot?.mode ?? "unknown",
+      durable: snapshot?.durable === true,
+      required: snapshot?.required === true,
+      available: snapshot?.available === true,
+      reason: snapshot?.reason ?? null,
+      ttlMs: Number(snapshot?.ttlMs ?? 0),
+      maxEntries: Number(snapshot?.maxEntries ?? 0),
+      maxEntriesPerOwner: Number(snapshot?.maxEntriesPerOwner ?? 0),
+      maxTaskBytes: Number(snapshot?.maxTaskBytes ?? 0),
+      maxHistoryMessages: Number(snapshot?.maxHistoryMessages ?? 0),
+      maxArtifacts: Number(snapshot?.maxArtifacts ?? 0),
+    };
+  } catch {
+    return {
+      available: false,
+      durable: false,
+      mode: "unknown",
+      reason: "health_probe_failed",
+    };
+  }
 }
 
 async function readIdempotencyHealth(coordinator) {
