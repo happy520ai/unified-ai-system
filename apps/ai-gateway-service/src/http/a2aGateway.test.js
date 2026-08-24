@@ -30,6 +30,7 @@ describe("A2A gateway profile", () => {
     ]);
     expect(gateway.agentCardJson.defaultInputModes).toEqual(["text/plain"]);
     expect(gateway.agentCardJson.defaultOutputModes).toEqual(["text/plain"]);
+    expect(gateway.agentCardJson.version).toBe("0.5.0");
     expect(gateway.agentCardJson.capabilities).toEqual(expect.objectContaining({
       streaming: false,
       pushNotifications: false,

@@ -1,7 +1,7 @@
 # A2A v1.0 Gateway
 
-Unified AI System exposes a source-build Agent2Agent (A2A) v1.0 JSON-RPC
-interface backed by the official `@a2a-js/sdk` `1.0.1` package.
+Unified AI System v0.5.0 and the current source expose an Agent2Agent (A2A)
+v1.0 JSON-RPC interface backed by the official `@a2a-js/sdk` `1.0.1` package.
 
 ## Endpoints
 
@@ -71,4 +71,6 @@ System extension, not a standard A2A field.
   Agent Cards, and durable task storage are not enabled in this profile.
 
 Run `pnpm verify:public-clone` for the credential-free official-client proof.
-This source capability is not part of the already published `v0.4.9` images.
+The published `v0.5.0` gateway image and the current source include this A2A
+profile; the current source carries additional post-release hardening tracked in
+PR #115.

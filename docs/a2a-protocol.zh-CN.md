@@ -1,7 +1,7 @@
 # A2A v1.0 网关
 
-Unified AI System 在当前源码中提供 Agent2Agent（A2A）v1.0 JSON-RPC 入口，
-底层使用官方 `@a2a-js/sdk` `1.0.1`。
+Unified AI System `v0.5.0` 和当前源码均提供 Agent2Agent（A2A）v1.0
+JSON-RPC 入口，底层使用官方 `@a2a-js/sdk` `1.0.1`。
 
 ## 端点
 
@@ -57,5 +57,6 @@ node docs/examples/a2a-sdk-client.mjs
 - 当前档位没有启用流式、推送通知、gRPC、HTTP+JSON/REST、非文本 Part、
   Agent Card 签名和持久任务存储。
 
-运行 `pnpm verify:public-clone` 可得到无需凭据的官方客户端验证结果。这个源码
-能力尚未包含在已经发布的 `v0.4.9` 镜像中。
+运行 `pnpm verify:public-clone` 可得到无需凭据的官方客户端验证结果。已发布的
+`v0.5.0` 网关镜像和当前源码均包含这个 A2A 档位；当前源码还包含 PR #115
+跟踪的发布后加固。

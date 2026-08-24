@@ -294,7 +294,7 @@ export function createA2AGateway({ gatewayService, workforceExecutor = null, env
       organization: "Unified AI System",
       url: "https://github.com/happy520ai/unified-ai-system",
     },
-    version: "0.4.9",
+    version: "0.5.0",
     documentationUrl:
       "https://github.com/happy520ai/unified-ai-system/blob/master/docs/a2a-protocol.md",
     capabilities: {
