@@ -1,4 +1,5 @@
 import { appendFile, mkdir } from "node:fs/promises";
+import { statSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import {
   DEFAULT_ROLES,
@@ -44,7 +45,9 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
     authEnabled,
   });
   const localPreview = createLocalUnauthenticatedPreviewConfig(env);
-  const userStorePath = env.PME_ENTERPRISE_USER_STORE_PATH ?? resolve(".data/enterprise/users.json");
+  const userStorePath = env.PME_ENTERPRISE_USER_STORE_PATH
+    ?? env.AI_GATEWAY_ENTERPRISE_USERS_PATH
+    ?? resolve(".data/enterprise/users.json");
   // Storage backend: "sqlite" uses node:sqlite (ACID + cross-process safe),
   // default "json" keeps the original file backend (backwards compatible).
   const userStoreBackend = env.PME_ENTERPRISE_USER_STORE_MODE === "sqlite"
@@ -52,11 +55,29 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
     : null;
   const loadStoredUsers = userStoreBackend ? userStoreBackend.loadStoredUsers : jsonLoadStoredUsers;
   const saveStoredUsers = userStoreBackend ? userStoreBackend.saveStoredUsers : jsonSaveStoredUsers;
-  const users = parseUsers(env);
-  const storedUsers = loadStoredUsers(userStorePath);
-  for (const user of storedUsers) {
-    addStoredUser(users, user);
+  const users = new Map();
+  const storedUsers = [];
+  let userStoreRevision = null;
+
+  function refreshStoredUsers({ force = false } = {}) {
+    const nextRevision = readUserStoreRevision(userStorePath);
+    if (!force && nextRevision === userStoreRevision) {
+      return false;
+    }
+    const nextStoredUsers = loadStoredUsers(userStorePath);
+    const nextUsers = parseUsers(env);
+    for (const user of nextStoredUsers) {
+      addStoredUser(nextUsers, user);
+    }
+    users.clear();
+    for (const [tokenHash, user] of nextUsers) {
+      users.set(tokenHash, user);
+    }
+    storedUsers.splice(0, storedUsers.length, ...nextStoredUsers);
+    userStoreRevision = nextRevision;
+    return true;
   }
+  refreshStoredUsers({ force: true });
   const revokedTokens = parseRevokedTokens(env.PME_ENTERPRISE_REVOKED_TOKENS);
   // 虚拟 key（uai- 前缀）：SHA-256 落盘于 .data/enterprise/api-keys.json
   const apiKeyStorePath = env.PME_API_KEY_STORE_PATH ?? resolve(".data/enterprise/api-keys.json");
@@ -66,6 +87,15 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
   let auditWriteTail = Promise.resolve();
 
   return {
+    refreshUsers() {
+      refreshStoredUsers({ force: true });
+      return {
+        status: "ready",
+        storedUserCount: storedUsers.length,
+        activeStoredUserCount: storedUsers.filter((user) => !user.revoked).length,
+      };
+    },
+
     getHealth() {
       return {
         status: "ready",
@@ -274,6 +304,8 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
           }),
         };
       }
+
+      refreshStoredUsers();
 
       const token = readToken(request);
       const tokenHash = token ? hashToken(token) : null;
@@ -589,6 +621,16 @@ function createSecurityReadiness({ authEnabled, users, revokedTokens, userStoreP
     blockers,
     warnings,
   };
+}
+
+function readUserStoreRevision(path) {
+  try {
+    const stats = statSync(path, { bigint: true });
+    return `${stats.size}:${stats.mtimeNs}`;
+  } catch (error) {
+    if (error?.code === "ENOENT") return "missing";
+    throw error;
+  }
 }
 
 function parseRevokedTokens(value) {

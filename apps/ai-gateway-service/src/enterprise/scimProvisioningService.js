@@ -29,6 +29,7 @@ export function createScimProvisioningService({
   env = process.env,
   usersPath = null,
   tokenService = null,
+  onUsersChanged = null,
 } = {}) {
   const bearerToken = env[BEARER_ENV] ? String(env[BEARER_ENV]).trim() : null;
   const effectiveUsersPath = usersPath ?? null;
@@ -53,6 +54,7 @@ export function createScimProvisioningService({
   function persist(users) {
     if (effectiveUsersPath === null) return;
     saveStoredUsers(effectiveUsersPath, users);
+    onUsersChanged?.();
   }
 
   function toScimUser(user) {

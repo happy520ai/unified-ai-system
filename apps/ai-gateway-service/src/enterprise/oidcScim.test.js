@@ -7,6 +7,12 @@ import { EventEmitter } from "node:events";
 import { afterAll, describe, expect, it, vi } from "vitest";
 import { createOidcSsoService } from "./oidcSsoService.js";
 import { createScimProvisioningService } from "./scimProvisioningService.js";
+import { createEnterpriseGovernanceService } from "./enterpriseGovernanceService.js";
+import {
+  loadStoredUsers,
+  normalizeStoredUser,
+  saveStoredUsers,
+} from "./enterpriseUserStore.js";
 import { dispatchOidcScimRoutes, isOidcScimRoute } from "../http/oidcScimRoutes.js";
 import { ROUTE_NOT_HANDLED } from "../http/httpRouteDispatch.js";
 
@@ -204,6 +210,72 @@ describe("scimProvisioningService", () => {
     const fetched = scim.getUser("alice@example.com");
     expect(fetched.user.active).toBe(false);
     expect(scim.getStatus().supportedOperations).toContain("deactivate");
+  });
+
+  it("revokes an already-cached token immediately after SCIM deactivation", () => {
+    const usersPath = join(workDir, `scim-revoke-${Date.now()}.json`);
+    const rawToken = "test-scim-immediate-revocation-token";
+    saveStoredUsers(usersPath, [normalizeStoredUser({
+      userId: "cached@example.com",
+      tenantId: "tenant-scim",
+      role: "viewer",
+      token: rawToken,
+      revoked: false,
+    })]);
+    const governance = createEnterpriseGovernanceService({
+      env: {
+        PME_ENTERPRISE_AUTH_ENABLED: "true",
+        PME_ENTERPRISE_USER_STORE_PATH: usersPath,
+        AI_GATEWAY_SERVICE_HOST: "127.0.0.1",
+      },
+    });
+    const request = {
+      headers: { authorization: `Bearer ${rawToken}` },
+      socket: { remoteAddress: "127.0.0.1" },
+    };
+    expect(governance.authenticate(request).authenticated).toBe(true);
+
+    const scim = createScimProvisioningService({
+      env: scimEnv,
+      usersPath,
+      onUsersChanged: () => governance.refreshUsers(),
+    });
+    expect(scim.deactivateUser("cached@example.com").status).toBe(200);
+    const revoked = governance.authenticate(request);
+    expect(revoked.authenticated).toBe(false);
+    expect(revoked.code).toBe("enterprise_token_revoked");
+  });
+
+  it("detects user-store revocation written by another process", () => {
+    const usersPath = join(workDir, `scim-external-${Date.now()}.json`);
+    const rawToken = "test-scim-external-revocation-token";
+    saveStoredUsers(usersPath, [normalizeStoredUser({
+      userId: "external@example.com",
+      tenantId: "tenant-scim",
+      role: "viewer",
+      token: rawToken,
+      revoked: false,
+    })]);
+    const governance = createEnterpriseGovernanceService({
+      env: {
+        PME_ENTERPRISE_AUTH_ENABLED: "true",
+        PME_ENTERPRISE_USER_STORE_PATH: usersPath,
+        AI_GATEWAY_SERVICE_HOST: "127.0.0.1",
+      },
+    });
+    const request = {
+      headers: { authorization: `Bearer ${rawToken}` },
+      socket: { remoteAddress: "127.0.0.1" },
+    };
+    expect(governance.authenticate(request).authenticated).toBe(true);
+
+    const users = loadStoredUsers(usersPath);
+    users[0] = normalizeStoredUser({ ...users[0], revoked: true }, users[0]);
+    saveStoredUsers(usersPath, users);
+
+    const revoked = governance.authenticate(request);
+    expect(revoked.authenticated).toBe(false);
+    expect(revoked.code).toBe("enterprise_token_revoked");
   });
 });
 

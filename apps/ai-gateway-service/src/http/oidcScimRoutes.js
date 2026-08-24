@@ -30,7 +30,9 @@ export function dispatchOidcScimRoutes(context) {
   const { application, request, response, startedAt, url, writeServiceLog } = context;
   const env = application?.runtimeEnv ?? process.env;
   // 用户存储路径可配置(测试注入/多实例共享均受益)。
-  const usersPath = env.AI_GATEWAY_ENTERPRISE_USERS_PATH || ".data/enterprise/users.json";
+  const usersPath = env.AI_GATEWAY_ENTERPRISE_USERS_PATH
+    || env.PME_ENTERPRISE_USER_STORE_PATH
+    || ".data/enterprise/users.json";
 
   const path = url.pathname.replace(/\/+$/, "") || "/";
 
@@ -43,11 +45,11 @@ export function dispatchOidcScimRoutes(context) {
   const callbackMatch = SSO_CALLBACK_PATTERN.exec(path);
   if (request.method === "GET" && callbackMatch) {
     const sso = getOidcService({ application, env, usersPath, fetchImpl: context.fetchImpl });
-    return handleSsoCallback({ sso, providerId: callbackMatch[1], request, response, url, startedAt, writeServiceLog });
+    return handleSsoCallback({ application, sso, providerId: callbackMatch[1], request, response, url, startedAt, writeServiceLog });
   }
 
   if (path === SCIM_USERS_PATH || SCIM_USERS_PATTERN.test(path)) {
-    return handleScim({ env, request, response, url, startedAt, writeServiceLog, usersPath });
+    return handleScim({ application, env, request, response, url, startedAt, writeServiceLog, usersPath });
   }
 
   return ROUTE_NOT_HANDLED;
@@ -98,13 +100,14 @@ async function handleSsoBegin({ sso, providerId, request, response, url, started
   }
 }
 
-async function handleSsoCallback({ sso, providerId, request, response, url, startedAt, writeServiceLog }) {
+async function handleSsoCallback({ application, sso, providerId, request, response, url, startedAt, writeServiceLog }) {
   const origin = `${url.protocol}//${url.host}`;
   const redirectUri = `${origin}/enterprise/sso/oidc/${encodeURIComponent(providerId)}/callback`;
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
   try {
     const result = await sso.completeLogin({ providerId, code, state, redirectUri });
+    application?.enterpriseGovernanceService?.refreshUsers?.();
     writeServiceLog?.("oidc_sso_completed", {
       method: "GET",
       path: url.pathname,
@@ -138,8 +141,12 @@ async function handleSsoCallback({ sso, providerId, request, response, url, star
   }
 }
 
-async function handleScim({ env, request, response, url, startedAt, writeServiceLog, usersPath }) {
-  const scim = createScimProvisioningService({ env, usersPath });
+async function handleScim({ application, env, request, response, url, startedAt, writeServiceLog, usersPath }) {
+  const scim = createScimProvisioningService({
+    env,
+    usersPath,
+    onUsersChanged: () => application?.enterpriseGovernanceService?.refreshUsers?.(),
+  });
   if (!scim.enabled) {
     // 未配置 Bearer token:整个 SCIM 面不存在。
     return ROUTE_NOT_HANDLED;
