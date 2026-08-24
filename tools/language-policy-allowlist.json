@@ -81,6 +81,47 @@
       "migrationPlan": "Before v0.6.0, happy520ai will migrate this exact file set to TypeScript in dependency order, beginning with the 12 runtime modules and then their colocated tests.",
       "pr": "https://github.com/happy520ai/unified-ai-system/pull/111",
       "notes": "Exact-path compatibility exception only; later JavaScript additions remain blocked by the TypeScript-first policy."
+    },
+    {
+      "type": "fileSet",
+      "value": "pr-115-preview-runtime-migration-set",
+      "files": [
+        "apps/ai-gateway-service/src/agentic/agenticCodingLoop-helpers.test.js",
+        "apps/ai-gateway-service/src/billing/localLedgerBillingProvider.js",
+        "apps/ai-gateway-service/src/core/gatewayServiceCompaction.test.js",
+        "apps/ai-gateway-service/src/enterprise/oidcScim.test.js",
+        "apps/ai-gateway-service/src/enterprise/oidcSsoService.js",
+        "apps/ai-gateway-service/src/enterprise/scimProvisioningService.js",
+        "apps/ai-gateway-service/src/forge/forgeGatewayService.js",
+        "apps/ai-gateway-service/src/forge/forgeGatewayService.test.js",
+        "apps/ai-gateway-service/src/http/a2aRoutes.stream.test.js",
+        "apps/ai-gateway-service/src/http/agentExecRoutes.js",
+        "apps/ai-gateway-service/src/http/agentExecRoutes.test.js",
+        "apps/ai-gateway-service/src/http/forgeRoutes.js",
+        "apps/ai-gateway-service/src/http/multiInstanceConfig.js",
+        "apps/ai-gateway-service/src/http/multiInstanceConfig.test.js",
+        "apps/ai-gateway-service/src/http/oidcScimRoutes.js",
+        "apps/ai-gateway-service/src/http/openAiAudioInput.test.js",
+        "apps/ai-gateway-service/src/http/openAiMultiChoice.test.js",
+        "apps/ai-gateway-service/src/http/ragInjection.test.js",
+        "apps/ai-gateway-service/src/http/utils/ragInjection.js",
+        "apps/ai-gateway-service/src/providers/anthropicPromptCaching.test.js",
+        "apps/ai-gateway-service/src/responses/responseSessionStore.js",
+        "apps/ai-gateway-service/src/responses/responseSessionStore.test.js",
+        "apps/ai-gateway-service/src/routing/weightedTrafficPolicy.js",
+        "apps/ai-gateway-service/src/routing/weightedTrafficPolicy.test.js",
+        "apps/ai-gateway-service/src/workforce/executionLifecycleService.js",
+        "apps/ai-gateway-service/src/workforce/taskClaimTokenService.js",
+        "apps/ai-gateway-service/src/workforce/workflowRunHandoff.js",
+        "apps/ai-gateway-service/src/workforce/workforceExecutionCapabilities.test.js",
+        "apps/ai-gateway-service/src/workforce/workforceExecutionGates.test.js"
+      ],
+      "justification": "PR #115 closes urgent security and protocol gaps inside established Node.js ESM modules. A simultaneous broad file-extension migration would combine exploit-chain remediation with loader and declaration changes, widening rollback and review risk.",
+      "owner": "happy520ai",
+      "removalBy": "2026-10-31",
+      "migrationPlan": "Before v0.6.0 and no later than 2026-10-31, happy520ai will migrate the 14 runtime modules first in ownership order (enterprise, provider/gateway, Forge, response/routing, workforce), then convert their 15 colocated tests and remove this exact file-set exception.",
+      "pr": "https://github.com/happy520ai/unified-ai-system/pull/115",
+      "notes": "Exact files only. New JavaScript files remain blocked; this exception is not evidence of TypeScript completion or production readiness."
     }
   ]
 }
