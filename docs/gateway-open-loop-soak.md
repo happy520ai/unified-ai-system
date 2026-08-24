@@ -75,6 +75,13 @@ and emit sustained overload 503s on a slower runner even though latency stayed
 inside its stated threshold. v2 separates sustained-capacity headroom from the
 larger explicit overload burst instead of loosening the zero-error requirement.
 
+In CI the open-loop gate runs immediately after dependency/toolchain setup and
+before browser setup, maintained tests, public-clone processes, or the other
+gateway benchmarks. This isolates fixed-arrival latency evidence from child
+processes and resource pressure left by earlier suites. It is not a retry and
+does not relax the 100 RPS, zero-error, protocol-validity, or 750 ms thresholds;
+the later SLO and resource-soak gates remain independent checks.
+
 ## Arrival-model semantics
 
 The existing Node SLO benchmark uses bounded workers and measures how quickly a

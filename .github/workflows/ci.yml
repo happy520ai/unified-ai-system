@@ -94,6 +94,23 @@ jobs:
           restore-keys: |
             quality-trend-${{ github.ref_name }}-${{ runner.os }}-
 
+      # Keep fixed-arrival evidence ahead of CPU-heavy suites and runtime smokes.
+      # This changes isolation/order only; benchmark thresholds remain unchanged.
+      - name: Gateway open-loop soak and backpressure benchmark
+        run: |
+          set -o pipefail
+          pnpm benchmark:gateway:soak -- --json --output .tmp/gateway-soak-benchmark.json | tee .tmp/gateway-soak-benchmark.log
+
+      - name: Gateway SLO and fault-isolation benchmark
+        run: |
+          set -o pipefail
+          pnpm benchmark:gateway:slo -- --json --output .tmp/gateway-slo-benchmark.json | tee .tmp/gateway-slo-benchmark.log
+
+      - name: Gateway resource stability soak
+        run: |
+          set -o pipefail
+          pnpm benchmark:gateway:resource-soak -- --json --output .tmp/gateway-resource-soak.json | tee .tmp/gateway-resource-soak.log
+
       - name: Configure browser for Prompt Lab smoke test
         id: prompt-lab-browser
         shell: bash
@@ -163,21 +180,6 @@ jobs:
         run: |
           set -o pipefail
           pnpm verify:public-clone 2>&1 | tee .tmp/public-clone-verify.log
-
-      - name: Gateway SLO and fault-isolation benchmark
-        run: |
-          set -o pipefail
-          pnpm benchmark:gateway:slo -- --json --output .tmp/gateway-slo-benchmark.json | tee .tmp/gateway-slo-benchmark.log
-
-      - name: Gateway open-loop soak and backpressure benchmark
-        run: |
-          set -o pipefail
-          pnpm benchmark:gateway:soak -- --json --output .tmp/gateway-soak-benchmark.json | tee .tmp/gateway-soak-benchmark.log
-
-      - name: Gateway resource stability soak
-        run: |
-          set -o pipefail
-          pnpm benchmark:gateway:resource-soak -- --json --output .tmp/gateway-resource-soak.json | tee .tmp/gateway-resource-soak.log
 
       - name: Run quality trend smoke health check
         run: |
