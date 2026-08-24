@@ -16,6 +16,7 @@ import {
 } from "./enterpriseUserStore.js";
 import { createSqliteUserStoreBackend } from "./enterpriseUserStore-sqlite.js";
 import { createApiKeyManager } from "./apiKeyManager.js";
+import { createAuditHashChain } from "./auditHashChain.js";
 import {
   assertEnterpriseTenantAccess,
   requireEnterpriseTenantId,
@@ -83,8 +84,18 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
   const apiKeyStorePath = env.PME_API_KEY_STORE_PATH ?? resolve(".data/enterprise/api-keys.json");
   const apiKeyManager = createApiKeyManager({ storePath: apiKeyStorePath });
   const auditPath = auditLogPath ?? env.PME_AUDIT_LOG_PATH ?? resolve(".data/audit/enterprise-audit.jsonl");
+  const auditChainPath = env.PME_AUDIT_CHAIN_PATH ?? `${auditPath}.chain`;
+  const auditHashChain = createAuditHashChain({ chainPath: auditChainPath });
   const auditEntries = [];
   let auditWriteTail = Promise.resolve();
+  const auditPersistence = {
+    pendingWrites: 0,
+    totalFailures: 0,
+    consecutiveFailures: 0,
+    lastSuccessAt: null,
+    lastFailureAt: null,
+    lastErrorCode: null,
+  };
 
   return {
     refreshUsers() {
@@ -122,6 +133,18 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
           mode: "jsonl-file",
           path: auditPath,
           inMemoryEntryCount: auditEntries.length,
+          status: auditPersistence.consecutiveFailures > 0
+            ? "degraded"
+            : auditPersistence.lastSuccessAt
+              ? "ready"
+              : "unverified",
+          durable: Boolean(auditPersistence.lastSuccessAt) && auditPersistence.consecutiveFailures === 0,
+          pendingWrites: auditPersistence.pendingWrites,
+          totalFailures: auditPersistence.totalFailures,
+          lastSuccessAt: auditPersistence.lastSuccessAt,
+          lastFailureAt: auditPersistence.lastFailureAt,
+          lastErrorCode: auditPersistence.lastErrorCode,
+          hashChain: auditHashChain.getHealth(),
         },
       };
     },
@@ -180,6 +203,15 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
 
     getApiKeyManager() {
       return apiKeyManager;
+    },
+
+    getAuditHashChain() {
+      return auditHashChain;
+    },
+
+    async verifyAuditIntegrity() {
+      await auditWriteTail;
+      return auditHashChain.verify();
     },
 
     exportUsersForBackup(actorIdentity) {
@@ -468,16 +500,41 @@ export function createEnterpriseGovernanceService({ env = {}, auditLogPath } = {
         auditEntries.splice(0, auditEntries.length - DEFAULT_AUDIT_LIMIT);
       }
 
-      // 审计落盘走后台串行队列:内容与顺序不变,但不再阻塞请求响应路径。
-      // 写失败静默降级为内存审计(auditEntries 始终保留最近条目)。
-      const line = `${JSON.stringify(entry)}\n`;
-      auditWriteTail = auditWriteTail
-        .then(async () => {
+      // Protected operations fail closed when the durable audit or hash chain
+      // cannot be appended. The queue preserves ordering without poisoning
+      // later writes after one failure.
+      auditPersistence.pendingWrites += 1;
+      const writeOperation = auditWriteTail.then(async () => {
+          const chain = await auditHashChain.append(entry);
+          entry.integrity = {
+            sequence: chain.seq,
+            hash: chain.hash,
+            previousHash: chain.previousHash,
+          };
           await mkdir(dirname(auditPath), { recursive: true });
-          await appendFile(auditPath, line, "utf8");
-        })
-        .catch(() => {});
-      return entry;
+          await appendFile(auditPath, `${JSON.stringify(entry)}\n`, "utf8");
+        });
+      auditWriteTail = writeOperation.catch(() => {});
+      try {
+        await writeOperation;
+        auditPersistence.consecutiveFailures = 0;
+        auditPersistence.lastSuccessAt = new Date().toISOString();
+        auditPersistence.lastErrorCode = null;
+        return entry;
+      } catch (error) {
+        auditPersistence.totalFailures += 1;
+        auditPersistence.consecutiveFailures += 1;
+        auditPersistence.lastFailureAt = new Date().toISOString();
+        auditPersistence.lastErrorCode = error?.code ?? "AUDIT_WRITE_FAILED";
+        const failure = new Error("Enterprise audit persistence failed; the protected operation cannot continue.");
+        failure.code = "enterprise_audit_persistence_failed";
+        failure.category = "audit";
+        failure.retryable = true;
+        failure.cause = error;
+        throw failure;
+      } finally {
+        auditPersistence.pendingWrites = Math.max(0, auditPersistence.pendingWrites - 1);
+      }
     },
 
     async listAudit({ limit = 50, filters = {}, actorIdentity } = {}) {

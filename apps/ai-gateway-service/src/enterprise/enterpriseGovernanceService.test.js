@@ -1,4 +1,7 @@
 import { describe, it, expect, beforeAll } from "vitest";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { createEnterpriseGovernanceService } from "./enterpriseGovernanceService.js";
 
 function localRequest(method, url, headers = {}) {
@@ -211,5 +214,74 @@ describe("enterprise-governance-service", () => {
     });
     expect(exported.format).toBe("jsonl");
     expect(typeof exported.content).toBe("string");
+  });
+});
+
+describe("enterprise audit durability", () => {
+  it("persists every entry to a verifiable hash chain before returning", async () => {
+    const root = mkdtempSync(join(tmpdir(), "enterprise-audit-durable-"));
+    try {
+      const service = createEnterpriseGovernanceService({
+        env: { PME_AUDIT_CHAIN_PATH: join(root, "audit-chain.jsonl") },
+        auditLogPath: join(root, "enterprise-audit.jsonl"),
+      });
+      const entry = await service.recordAudit({
+        outcome: "allowed",
+        method: "GET",
+        path: "/durable-test",
+        permission: "audit:test",
+        statusCode: 200,
+        identity: { userId: "test", tenantId: "default" },
+      });
+
+      expect(entry.integrity).toEqual(expect.objectContaining({
+        sequence: 1,
+        hash: expect.stringMatching(/^[a-f0-9]{64}$/),
+        previousHash: "GENESIS",
+      }));
+      await expect(service.verifyAuditIntegrity()).resolves.toEqual(expect.objectContaining({
+        valid: true,
+        totalEntries: 1,
+      }));
+      expect(service.getHealth().audit).toEqual(expect.objectContaining({
+        status: "ready",
+        durable: true,
+        totalFailures: 0,
+      }));
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("fails closed and exposes degraded health when durable audit cannot be written", async () => {
+    const root = mkdtempSync(join(tmpdir(), "enterprise-audit-failure-"));
+    const blockedParent = join(root, "not-a-directory");
+    writeFileSync(blockedParent, "blocked", "utf8");
+    try {
+      const service = createEnterpriseGovernanceService({
+        env: { PME_AUDIT_CHAIN_PATH: join(blockedParent, "audit-chain.jsonl") },
+        auditLogPath: join(blockedParent, "enterprise-audit.jsonl"),
+      });
+
+      await expect(service.recordAudit({
+        outcome: "allowed",
+        method: "POST",
+        path: "/must-not-proceed",
+        permission: "workflow:run",
+        statusCode: 200,
+        identity: { userId: "test", tenantId: "default" },
+      })).rejects.toMatchObject({
+        code: "enterprise_audit_persistence_failed",
+        category: "audit",
+      });
+      expect(service.getHealth().audit).toEqual(expect.objectContaining({
+        status: "degraded",
+        durable: false,
+        totalFailures: 1,
+        pendingWrites: 0,
+      }));
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });

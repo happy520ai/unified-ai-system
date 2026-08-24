@@ -33,20 +33,29 @@ export function createAuditHashChain(options = {}) {
       // tail happens to remain. Whole-entry removal is still only detectable
       // through verify() or external checkpoints.
       const lines = content.trim().split("\n").filter(Boolean);
-      for (const line of lines) {
+      let previousHash = "GENESIS";
+      for (let index = 0; index < lines.length; index += 1) {
+        const line = lines[index];
         let entry;
         try {
           entry = JSON.parse(line);
         } catch (error) {
-          const corrupt = new Error("Audit hash chain file is corrupt and must be reviewed before appending.");
-          corrupt.code = "AUDIT_CHAIN_CORRUPT";
-          corrupt.cause = error;
-          throw corrupt;
+          throw createCorruptChainError("parse_error", index, error);
         }
-        if (entry && typeof entry.hash === "string" && entry.hash) {
-          lastHash = entry.hash;
-          entryCount++;
+        const { hash, previousHash: linkedHash, seq, chainedAt, ...rest } = entry ?? {};
+        if (linkedHash !== previousHash) {
+          throw createCorruptChainError("chain_linkage", index);
         }
+        if (seq !== index + 1) {
+          throw createCorruptChainError("sequence_mismatch", index);
+        }
+        const expectedHash = computeHash({ ...rest, seq, chainedAt }, linkedHash);
+        if (typeof hash !== "string" || hash !== expectedHash) {
+          throw createCorruptChainError("hash_mismatch", index);
+        }
+        previousHash = hash;
+        lastHash = hash;
+        entryCount += 1;
       }
     }
     initialized = true;
@@ -81,7 +90,13 @@ export function createAuditHashChain(options = {}) {
       await init();
     } catch (error) {
       if (error?.code === "AUDIT_CHAIN_CORRUPT") {
-        return { valid: false, totalEntries: 0, brokenAt: null, reason: "parse_error", error: String(error?.message ?? error) };
+        return {
+          valid: false,
+          totalEntries: error.verifiedEntries ?? 0,
+          brokenAt: error.brokenAt ?? null,
+          reason: error.reason ?? "parse_error",
+          error: String(error?.message ?? error),
+        };
       }
       throw error;
     }
@@ -130,5 +145,24 @@ export function createAuditHashChain(options = {}) {
   function getLastHash() { return lastHash; }
   function getEntryCount() { return entryCount; }
 
-  return { append, verify, getLastHash, getEntryCount, init };
+  function getHealth() {
+    return {
+      initialized,
+      entryCount,
+      lastHashFingerprint: lastHash === "GENESIS" ? "GENESIS" : lastHash.slice(0, 12),
+      pathExposed: false,
+    };
+  }
+
+  return { append, verify, getLastHash, getEntryCount, getHealth, init };
+}
+
+function createCorruptChainError(reason, brokenAt, cause) {
+  const error = new Error("Audit hash chain is corrupt and must be reviewed before appending.");
+  error.code = "AUDIT_CHAIN_CORRUPT";
+  error.reason = reason;
+  error.brokenAt = brokenAt;
+  error.verifiedEntries = brokenAt;
+  if (cause) error.cause = cause;
+  return error;
 }

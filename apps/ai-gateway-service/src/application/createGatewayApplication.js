@@ -196,6 +196,7 @@ export function createGatewayApplication(env = process.env) {
   });
 
   return {
+    auditHashChain: enterpriseGovernanceService.getAuditHashChain(),
     capabilityRouterService,
     contentGuardrails,
     codexExecCrsRuntimeCandidate,
