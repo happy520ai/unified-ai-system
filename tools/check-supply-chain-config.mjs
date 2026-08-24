@@ -61,6 +61,9 @@ const pnpmMajor = pnpmVersion ? Number(pnpmVersion.split(".")[0]) : null;
 const expectedEngineRange = pnpmVersion ? `>=${pnpmVersion} <${pnpmMajor + 1}` : null;
 const workflowVersions = pnpmVersion ? collectWorkflowPnpmVersions(pnpmVersion) : [];
 const issues = [];
+const dockerWorkflowSource = readText(".github/workflows/docker-build-push.yml");
+const dockerfileSource = readText("Dockerfile");
+const composeSource = readText("docker-compose.yml");
 
 if (!pnpmVersion) {
   issues.push({ code: "package_manager_not_exact", expected: "pnpm@<major>.<minor>.<patch>" });
@@ -96,6 +99,33 @@ for (const workflow of workflowVersions) {
   }
 }
 
+const dockerReleaseChecks = {
+  qemuActionPinned: /uses:\s*docker\/setup-qemu-action@[a-f0-9]{40}\b/.test(dockerWorkflowSource),
+  gatewayTargetExplicit: /target:\s*gateway\b/.test(dockerWorkflowSource),
+  mcpTargetExplicit: /target:\s*mcp\b/.test(dockerWorkflowSource),
+  multiArchitectureBuilds: (dockerWorkflowSource.match(/platforms:\s*linux\/amd64,linux\/arm64/g) ?? []).length >= 2,
+  sbomAttestations: (dockerWorkflowSource.match(/sbom:\s*true/g) ?? []).length >= 2,
+  provenanceAttestations: (dockerWorkflowSource.match(/provenance:\s*mode=max/g) ?? []).length >= 2,
+  publishedManifestVerification:
+    dockerWorkflowSource.includes('grep -q "linux/amd64"')
+    && dockerWorkflowSource.includes('grep -q "linux/arm64"'),
+  rootWorkspaceGate: /- name:\s*Workspace check[\s\S]{0,120}?run:\s*pnpm check\b/.test(dockerWorkflowSource),
+  noBestEffortArmRelease: !/Build and push arm64[\s\S]{0,120}?continue-on-error:\s*true/.test(dockerWorkflowSource),
+  runtimeRootNotWritable: !/chown\s+node:node\s+\/app\s*(?:\n|$)/.test(dockerfileSource),
+  explicitRuntimeVolumes:
+    dockerfileSource.includes('VOLUME ["/app/.data", "/app/apps/ai-gateway-service/.data"]'),
+  composeReadOnlyRoot: /\n\s+read_only:\s*true\b/.test(composeSource),
+  composeDropsCapabilities: /\n\s+cap_drop:\s*\n\s+- ALL\b/.test(composeSource),
+  composeNoNewPrivileges: /\n\s+security_opt:\s*\n\s+- no-new-privileges:true\b/.test(composeSource),
+  composeBoundedTmpfs: composeSource.includes("/tmp:rw,noexec,nosuid,size=64m"),
+  smokeExercisesReadOnlyRuntime:
+    (dockerWorkflowSource.match(/--read-only/g) ?? []).length >= 2
+    && dockerWorkflowSource.includes("--tmpfs /tmp:rw,noexec,nosuid,size=64m"),
+};
+for (const [check, passed] of Object.entries(dockerReleaseChecks)) {
+  if (!passed) issues.push({ code: "docker_release_supply_chain_check_failed", check });
+}
+
 const result = {
   ok: issues.length === 0,
   packageManager: packageJson.packageManager || null,
@@ -105,6 +135,7 @@ const result = {
   workspaceOverrides,
   lockOverrides,
   workflowVersions,
+  dockerReleaseChecks,
   issues,
 };
 

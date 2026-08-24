@@ -13,6 +13,17 @@ services:
       PME_AUTH_TOKEN: ${PME_AUTH_TOKEN:-}
     ports:
       - "127.0.0.1:3100:3100"
+    init: true
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    volumes:
+      - gateway-data:/app/.data
+      - gateway-service-data:/app/apps/ai-gateway-service/.data
     healthcheck:
       test:
         - CMD
@@ -26,3 +37,7 @@ services:
       timeout: 3s
       retries: 12
       start_period: 5s
+
+volumes:
+  gateway-data:
+  gateway-service-data:
