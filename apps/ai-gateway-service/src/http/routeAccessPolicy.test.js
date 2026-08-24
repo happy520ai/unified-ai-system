@@ -37,6 +37,8 @@ describe("route access policy", () => {
 
   it("keeps A2A discovery public while governing task execution", () => {
     expect(isPublicRoute("/.well-known/agent-card.json")).toBe(true);
+    expect(isPublicRoute("/.well-known/a2a-jwks.json")).toBe(true);
+    expect(resolvePermission("GET", "/.well-known/a2a-jwks.json")).toBe("public:read");
     expect(isPublicRoute("/a2a/jsonrpc")).toBe(false);
     expect(resolvePermission("POST", "/a2a/jsonrpc")).toBe("chat:use");
   });

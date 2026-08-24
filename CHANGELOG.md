@@ -9,6 +9,10 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Added opt-in A2A v1.0 Agent Card identity signing with a stable Ed25519
+  private-key file, official JCS/JWS generation, a public JWKS endpoint,
+  HTTPS enforcement outside loopback, restricted-file validation, and a
+  fail-closed `AI_GATEWAY_A2A_AGENT_CARD_SIGNING_REQUIRED` deployment mode.
 - Added OIDC SSO (authorization code + PKCE + JWKS RS256/ES256 ID-token
   verification, one-time state, issues an API token on login) and SCIM 2.0
   user provisioning (bearer-auth create/get/list/patch/deactivate) for

@@ -12,10 +12,15 @@ import {
   InMemoryTaskStore,
   JsonRpcTransportHandler,
 } from "@a2a-js/sdk/server";
+import {
+  A2A_JWKS_PATH,
+  createA2AAgentCardSigningConfiguration,
+} from "./a2aAgentCardSigning.ts";
 import { applyPromptEnhancement } from "./utils/chatUtils.js";
 
 export const A2A_AGENT_CARD_PATH = "/.well-known/agent-card.json";
 export const A2A_JSONRPC_PATH = "/a2a/jsonrpc";
+export { A2A_JWKS_PATH };
 
 function textPart(text) {
   return {
@@ -260,6 +265,7 @@ function normalizePublicBaseUrl(env) {
 
 export function createA2AGateway({ gatewayService, workforceExecutor = null, env = process.env }) {
   const publicBaseUrl = normalizePublicBaseUrl(env);
+  const agentCardSigning = createA2AAgentCardSigningConfiguration({ env, publicBaseUrl });
   const enterpriseAuthEnabled = env.PME_ENTERPRISE_AUTH_ENABLED === "true";
   const securitySchemes = enterpriseAuthEnabled
     ? {
@@ -348,10 +354,32 @@ export function createA2AGateway({ gatewayService, workforceExecutor = null, env
     agentCard,
     new InMemoryTaskStore(),
     new GatewayAgentExecutor(gatewayService, workforceExecutor),
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    agentCardSigning.signer ?? undefined,
   );
+  const unsignedAgentCardJson = AgentCard.toJSON(agentCard);
+  let signedAgentCardJsonPromise;
   return {
     agentCard,
-    agentCardJson: AgentCard.toJSON(agentCard),
+    // Retain the synchronous unsigned shape for source compatibility. HTTP
+    // discovery and the SDK request handler use getAgentCardJson()/the signer.
+    agentCardJson: unsignedAgentCardJson,
+    agentCardJwks: agentCardSigning.jwks,
+    agentCardSigning: Object.freeze({
+      configured: agentCardSigning.configured,
+      required: agentCardSigning.required,
+      keyId: agentCardSigning.keyId,
+      jwksUrl: agentCardSigning.jwksUrl,
+    }),
+    async getAgentCardJson() {
+      if (!agentCardSigning.signer) return unsignedAgentCardJson;
+      signedAgentCardJsonPromise ??= agentCardSigning.signer(agentCard)
+        .then((signedCard) => AgentCard.toJSON(signedCard));
+      return signedAgentCardJsonPromise;
+    },
     publicBaseUrl,
     requestHandler,
     transportHandler: new JsonRpcTransportHandler(requestHandler),
