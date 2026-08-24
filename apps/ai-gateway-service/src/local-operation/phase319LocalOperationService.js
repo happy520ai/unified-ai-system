@@ -1,10 +1,12 @@
-import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { readFile, realpath } from "node:fs/promises";
+import { isAbsolute, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createLocalAgentIntentExplainer } from "../agent-runner/localAgentIntentExplainer.js";
 import {
+  checkLocalOperationForbiddenPaths,
   createLocalOperationApprovalRecord,
   LOCAL_OPERATION_FORBIDDEN_PATHS,
+  normalizeLocalOperationAllowedFiles,
 } from "../agent-runner/localOperationApprovalRecord.js";
 import { createLocalOperationPatchProposal } from "../agent-runner/localOperationPatchProposal.js";
 import { applyApprovedLocalOperation, previewLocalOperation } from "../agent-runner/localOperationLoop.js";
@@ -127,9 +129,17 @@ function normalizeRequest(input = {}) {
 }
 
 async function buildDefaultProposedChanges(allowedFiles) {
+  const normalizedFiles = normalizeLocalOperationAllowedFiles(allowedFiles);
+  if (!checkLocalOperationForbiddenPaths(normalizedFiles).ok) {
+    return [];
+  }
+
   const changes = [];
-  for (const file of Array.isArray(allowedFiles) ? allowedFiles : []) {
-    const currentContent = await safeReadFile(file);
+  for (const file of normalizedFiles) {
+    const currentContent = await safeReadRepositoryFile(file);
+    if (currentContent === null) {
+      continue;
+    }
     changes.push({
       path: file,
       nextContent: currentContent,
@@ -139,11 +149,31 @@ async function buildDefaultProposedChanges(allowedFiles) {
   return changes;
 }
 
-async function safeReadFile(path) {
+async function safeReadRepositoryFile(path) {
+  const normalizedPath = normalizeLocalOperationAllowedFiles([path])[0];
+  if (!normalizedPath || !checkLocalOperationForbiddenPaths([normalizedPath]).ok) {
+    return null;
+  }
+
   try {
-    return await readFile(resolve(repoRoot, String(path || "")), "utf8");
+    const [physicalRoot, physicalFile] = await Promise.all([
+      realpath(repoRoot),
+      realpath(resolve(repoRoot, normalizedPath)),
+    ]);
+    const physicalRelativePath = relative(physicalRoot, physicalFile).replace(/\\/g, "/");
+    if (
+      !physicalRelativePath
+      || physicalRelativePath === ".."
+      || physicalRelativePath.startsWith("../")
+      || isAbsolute(physicalRelativePath)
+      || physicalRelativePath.toLowerCase() !== normalizedPath.toLowerCase()
+      || !checkLocalOperationForbiddenPaths([physicalRelativePath]).ok
+    ) {
+      return null;
+    }
+    return await readFile(physicalFile, "utf8");
   } catch {
-    return "";
+    return null;
   }
 }
 
