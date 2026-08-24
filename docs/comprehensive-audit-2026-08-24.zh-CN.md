@@ -13,7 +13,7 @@
 
 本系统已经越过“概念验证”和“功能样机”，当前应定级为：
 
-> **已有公开 `v0.5.0` 的成熟 Public Preview；PR #115 是经过强安全、协议、计费、审计链与发布工程加固的下一版候选源码。它具备可信的单机/同主机自托管实用价值，但尚未获得“企业生产 GA”或“行业领导者”所需的跨主机、真实流量、独立安全与市场采用证据。**
+> **已有公开 `v0.5.0` 的成熟 Public Preview；PR #115 是经过强安全、协议、计费、审计链与发布工程加固的下一版候选源码。它具备可信的单机/同主机自托管实用价值，并已有部分通过真实 PostgreSQL 17 验证的跨实例治理原语；但尚未获得“企业生产 GA”或“行业领导者”所需的端到端多主机、真实流量、独立安全与市场采用证据。**
 
 阶段判断不是由版本号决定，而由证据决定：
 
@@ -68,13 +68,13 @@
 
 | 项目 | 数量/状态 |
 | --- | --- |
-| Git 跟踪文件 | 1,835（包含本报告，审计统计排除本地 `.mcp.json` 用户改动） |
-| JS/TS/ESM 源文件 | 1,557 |
-| 测试文件 | 317 |
+| Git 跟踪文件 | 1,840（包含本报告，审计统计排除本地 `.mcp.json` 用户改动） |
+| JS/TS/ESM 源文件 | 1,561 |
+| 测试文件 | 319 |
 | `docs/` Markdown/HTML | 97 |
 | pnpm 工作区项目 | 20（含根项目） |
-| PR 相对 `origin/master` 变化文件 | 332（包含本报告） |
-| 已审实现相对 `origin/master` | 61 个提交领先 |
+| PR 相对 `origin/master` 变化文件 | 336（包含本报告） |
+| 已审实现相对 `origin/master` | 63 个提交领先 |
 | 当前 GitHub 采用快照 | 6 stars、2 forks；这是采用度快照，不是质量评分 |
 
 文件数、测试数和星标都不能单独证明质量；它们仅用于界定审计规模与市场成熟度。
@@ -88,14 +88,14 @@
 | MCP 网关 | 12 个受治理工具；stdio 与 Streamable HTTP；可聚合上游 MCP，并从 OpenAPI 生成工具 | Codex、Cursor、Cline 等可使用同一套可审计能力 | E3；当前源码认证 MCP `2026-07-28`，兼容 `2025-11-25`/`2025-06-18` |
 | A2A v1.0 | 可验证 Agent Card/JWKS、JSON-RPC 任务、取消、Workforce 模式，以及有界 memory/同主机 SQLite 任务 | 其他智能体可验证身份、发现并调用网关能力；同主机可重启恢复任务 | E2/E3；跨主机 task store 与重叠多签名轮换尚未完成 |
 | 提供商治理 | fake provider 默认；真实提供商需白名单、运行时授权与凭据三道门 | 防止“配置一改就误花钱”或静默调用外部模型 | E3；本轮没有真实提供商调用 |
-| 虚拟密钥与预算 | 虚拟 key、撤销、限流、token 预算、使用归属与 spend 报告 | 团队成员不持有底层提供商密钥，管理者可控成本 | E3；本地账本不是支付系统或法定发票系统 |
+| 虚拟密钥与预算 | 虚拟 key、撤销、限流、token 预算、使用归属与 spend 报告 | 团队成员不持有底层提供商密钥，管理者可控成本 | E3；中央 usage ledger 已通过真实 PostgreSQL 跨连接验证，但不是支付、法定发票或 provider statement reconciliation 系统 |
 | 路由与韧性 | 加权路由、fallback、熔断、重试边界、影子流量单独计量 | 可迁移或比较模型，同时限制影子调用的额外成本 | E2/E3；无跨区域流量证据 |
 | 缓存与 RAG | 租户隔离的精确/语义缓存、SQLite 向量检索、热路径 RAG | 降低重复推理成本，把本地知识注入受控执行路径 | E2/E3；没有大规模召回质量基准 |
 | Guardrails | 本地密钥/PII/注入/禁词/大小检查，覆盖输入、工具与输出路径 | 在发往提供商前阻断明显泄密和越权内容 | E2/E3；规则防御不能证明语义级提示注入无风险 |
 | 企业身份 | JWT/RBAC、OIDC Authorization Code + PKCE + JWKS、SCIM 2.0 | 接入企业 IdP，按主体、角色和租户执行 | E2/E3；没有外部 IdP 互操作认证 |
 | 可观测性 | Prometheus、OpenTelemetry、Langfuse 可选出口、SLO 与质量趋势 | 看见 token、延迟、缓存、拒绝、guardrail、成本与健康状态 | E3；成熟度和托管平台仪表盘仍弱于头部产品 |
-| 审计与备份 | HMAC 防篡改审计链、跨进程写锁、签名检查点、加密签名备份 | 能发现本地篡改、回滚和多写者碰撞 | E2/E3；外部不可变/WORM 留存和破坏性恢复演练未完成 |
-| Forge/Workforce | 受限、可取消、资源感知的编码/多角色执行；高风险工具需要权限检查 | 把智能体执行置于网关预算、租户、权限和审计边界内 | E2/E3；Workforce claim 仍是同进程保证，不是跨主机租约 |
+| 审计与备份 | 本地 HMAC 防篡改镜像、跨进程锁、签名检查点、加密签名备份，以及 PostgreSQL canonical audit chain | 能发现本地/中央篡改、回滚和多写者碰撞，并为多实例提供全局序号 | E3；真实 PostgreSQL 17 跨连接、外部 floor 和篡改检测通过；外部不可变/WORM 留存和破坏性恢复演练未完成 |
+| Forge/Workforce | 受限、可取消、资源感知的编码/多角色执行；高风险工具需要权限检查；PostgreSQL claim/lease/fence | 把智能体执行置于网关预算、租户、权限和审计边界内，并防止跨主机重复 ownership | E3；真实 PostgreSQL 17 claim/fencing 通过，但中央队列/结果和所有不可逆 sink 的 fence 强制仍未完成 |
 | 容器与发布 | 非 root、只读根文件系统、cap drop、no-new-privileges、受限 tmpfs、amd64+arm64、SBOM/provenance | 用户可无密钥启动，部署默认面更小，镜像架构可验证 | E3；Kubernetes/多区域/灾备不是已证实能力 |
 
 ## 5. 本轮发现并修复的主要风险
@@ -122,7 +122,7 @@
 | AUD-16 | 中高 | 官方内存 TaskStore 无持久性与资源上限 | 增加租户/owner 隔离、有界 memory、TTL/容量/大小/历史/产物上限、keyset 分页和同主机 SQLite 重启恢复 | E2/E3 |
 | AUD-17 | 高 | Workforce claim 只能同进程生效，多主机可能同时认领同一任务 | 增加 PostgreSQL 数据库时钟租约、原子唯一 owner、全局单调 fence、摘要 token、续租/释放/撤销、TLS/容量/namespace/readiness 门 | E3；真实 PostgreSQL 17 独立连接池集成通过 |
 | AUD-18 | 高 | usage 台账虽同主机 fsync，但多主机无法形成一个原子总账 | 增加 PostgreSQL write-ahead start/terminal、幂等冲突检测、租户查询、容量/留存/TLS/readiness/metrics，并强制多实例真实调用使用中央台账 | E3；真实 PostgreSQL 17 幂等/冲突/容量/租户集成通过 |
-| AUD-19 | 高 | 本地 audit chain 无法给多主机提供一个全局序号和 canonical source | 增加 PostgreSQL 事务序号、entry/state HMAC、外部 floor、幂等 ID、租户读取、分块全验、TLS/readiness，并保留本地 forensic mirror | E2；真实 PostgreSQL CI 待当前提交完成 |
+| AUD-19 | 高 | 本地 audit chain 无法给多主机提供一个全局序号和 canonical source | 增加 PostgreSQL 事务序号、entry/state HMAC、外部 floor、幂等 ID、租户读取、分块全验、TLS/readiness，并保留本地 forensic mirror | E3；真实 PostgreSQL 17 独立连接池的并发、幂等/冲突、租户读取、外部 floor 与篡改检测通过 |
 
 在本轮已审范围和现有自动化证据内，**没有仍然已知且未处置的 P0/P1 代码级缺陷**。这句话不等于“没有未知漏洞”，也不覆盖下节列出的生产证据阻断。
 
@@ -150,8 +150,8 @@
 | 验证 | 结果 |
 | --- | --- |
 | `pnpm check` | 通过；679 个网关文件语法检查，TypeScript 0 errors，语言策略通过，81 个权限声明/135 条活动路由，18 个受治理出站集成 |
-| `pnpm test` | 通过；Forge 2,692/2,692；网关 Node 100/100；主要 Vitest 1,256 passed/15 skipped；隔离解析器 10/10；MCP 包 4/4；其余工作区套件通过 |
-| `pnpm check:public` | 通过；1,836 个 tracked/candidate 文件，0 issue codes |
+| `pnpm test` | 通过；Forge 2,692/2,692；网关 Node 100/100；主要 Vitest 1,263 passed/17 skipped；隔离解析器 10/10；MCP 包 4/4；其余工作区套件通过 |
+| `pnpm check:public` | 通过；1,840 个 tracked/candidate 文件，0 issue codes |
 | `pnpm verify:public-clone` | 通过；干净克隆、fake-provider 强制、MCP `2026-07-28`、12 tools、0 次真实提供商调用、进程清理成功 |
 | `pnpm verify:mcp` | 通过 4/4；现代 stdio、现代+兼容 HTTP、认证/CORS/清理 |
 | `pnpm smoke:mcp --json` | 通过；现代协议时代 `2026-07-28` |
@@ -163,15 +163,15 @@
 
 | 门 | 结果 | 可复核链接 |
 | --- | --- | --- |
-| 完整 `quality` | 通过 | [Run 32750487788](https://github.com/happy520ai/unified-ai-system/actions/runs/32750487788) |
-| PostgreSQL 集成 | 通过 | 同一 quality run |
+| 完整 `quality` | 通过；实现提交 `eb549fc3`，6 分 33 秒 | [Run 32753672879](https://github.com/happy520ai/unified-ai-system/actions/runs/32753672879) |
+| PostgreSQL 集成 | 通过；7 个文件、16/16，含中央 audit 2/2、usage 2/2、Workforce claim 2/2 | 同一 quality run |
 | SLO/故障隔离 | 通过 | 同一 quality run |
 | 开环 soak/背压 | 通过 | 同一 quality run；确认 O(n²) 修复生效 |
 | 资源稳定性 soak | 通过 | 同一 quality run |
 | MCP、CLI、Go/C#/SDK 示例 | 全部通过 | 同一 quality run |
 | 代码/依赖扫描 | 通过 | [PR #115 checks](https://github.com/happy520ai/unified-ai-system/pull/115/checks) |
 | 插件扫描 | 通过 | [PR #115 checks](https://github.com/happy520ai/unified-ai-system/pull/115/checks) |
-| hardened amd64+arm64 容器 | 通过；包含匿名发布产物验证 | [Run 32751214991](https://github.com/happy520ai/unified-ai-system/actions/runs/32751214991) |
+| hardened amd64+arm64 容器 | 通过；实现提交 `eb549fc3`，包含网关/MCP 镜像与匿名发布产物验证 | [Run 32754394422](https://github.com/happy520ai/unified-ai-system/actions/runs/32754394422) |
 
 ### 7.3 未执行的证据
 
@@ -222,7 +222,7 @@
 项目不需要复制所有竞品，最有胜算的顺序是：
 
 1. **守住差异化**：把“零密钥可试、确定性增强、真实调用显式、证据可复核”做成最短上手路径。
-2. **补生产闭环**：中央 claim/ledger/audit、跨主机 A2A TaskStore、签名轮换、真实 provider staging、24 小时 soak、DR 与独立渗透测试。
+2. **补生产闭环**：中央 Workforce queue/result 与 fence-aware sink、provider statement reconciliation/外部 WORM、跨主机 A2A TaskStore、签名轮换、真实 provider staging、24 小时 soak、DR 与独立渗透测试。
 3. **建立可信对标**：固定硬件、固定模型、固定流量，公开与 LiteLLM/Portkey/Kong 等同场的延迟、错误率、资源、成本和治理功能矩阵。
 4. **扩大生态而非堆宣传词**：每个主流 MCP/A2A/SDK 客户端取得一份可复现第三方报告；把 2,084 个“待人工证据”逐步转成真实认证。
 5. **用真实采用证明领先**：安装成功率、7/30 日留存、活跃部署、外部贡献者、生产案例与问题响应时间，比 star 口号更能说明市场价值。
