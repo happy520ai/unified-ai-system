@@ -340,6 +340,38 @@ describe("dispatchHttpRoutes02 healthz readiness", () => {
     });
     expect(context.response.payload.error.details.a2aTaskStore).not.toHaveProperty("sqlitePath");
   });
+
+  it("returns unready with a redacted distributed Workforce claim-store snapshot", async () => {
+    const context = createEnvelopeContext({
+      application: {
+        workforceExecutor: {
+          getTaskClaimHealth: async () => ({
+            mode: "postgres-fenced",
+            distributed: true,
+            available: false,
+            activeClaims: 2,
+            maxClaims: 2_000,
+            connectionString: "postgresql://must-not-leak",
+          }),
+        },
+      },
+    });
+
+    await dispatchHttpRoutes02(context);
+
+    expect(context.response.status).toBe(503);
+    expect(context.response.payload.error.details.readinessFailures).toContain(
+      "workforce-claim-store-unavailable",
+    );
+    expect(context.response.payload.error.details.workforceClaimStore).toMatchObject({
+      mode: "postgres-fenced",
+      distributed: true,
+      available: false,
+      activeClaims: 2,
+    });
+    expect(context.response.payload.error.details.workforceClaimStore)
+      .not.toHaveProperty("connectionString");
+  });
 });
 
 describe("dispatchHttpRoutes02 metrics readiness visibility", () => {

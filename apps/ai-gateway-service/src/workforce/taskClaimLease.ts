@@ -199,6 +199,17 @@ export function createTaskClaimLeaseManager(options: TaskClaimLeaseManagerOption
         stats: { ...stats },
       };
     },
+    async checkHealth() {
+      cleanupExpired();
+      return {
+        mode: "memory-fenced" as const,
+        distributed: false,
+        available: true,
+        activeClaims: activeDigestByTask.size,
+        maxClaims,
+        statsUpdatedAt: nowMs(),
+      };
+    },
     issue(input: TaskClaimIdentity & { ttlMs?: number }): FailedClaimResolution | IssuedClaimResult {
       const planId = normalizeId(input?.planId, "planId");
       const taskId = normalizeId(input?.taskId, "taskId");

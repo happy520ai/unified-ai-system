@@ -218,6 +218,45 @@ export function createPrometheusExporter(options = {}) {
       lines.push(`${prefix}_websocket_lease_events_total{event="${event}"} ${safeMetricNumber(webSocketLease?.[event])}`);
     }
 
+    const a2aTaskStore = snapshot.a2aTaskStore;
+    const a2aTaskStoreMode = sanitizeMetricLabel(a2aTaskStore?.mode ?? "disabled");
+    const a2aTaskStoreAvailable = a2aTaskStore ? (a2aTaskStore.available === true ? 1 : 0) : 1;
+    lines.push(`# HELP ${prefix}_a2a_task_store_available Whether the configured A2A task store is reachable`);
+    lines.push(`# TYPE ${prefix}_a2a_task_store_available gauge`);
+    lines.push(`${prefix}_a2a_task_store_available{mode="${a2aTaskStoreMode}"} ${a2aTaskStoreAvailable}`);
+    lines.push(`# HELP ${prefix}_a2a_task_store_durable Whether A2A task persistence survives a process restart`);
+    lines.push(`# TYPE ${prefix}_a2a_task_store_durable gauge`);
+    lines.push(`${prefix}_a2a_task_store_durable{mode="${a2aTaskStoreMode}"} ${a2aTaskStore?.durable === true ? 1 : 0}`);
+    lines.push(`# HELP ${prefix}_a2a_task_store_limit Configured bounded A2A task-store limits`);
+    lines.push(`# TYPE ${prefix}_a2a_task_store_limit gauge`);
+    lines.push(`${prefix}_a2a_task_store_limit{resource="entries"} ${safeMetricNumber(a2aTaskStore?.maxEntries)}`);
+    lines.push(`${prefix}_a2a_task_store_limit{resource="entries_per_owner"} ${safeMetricNumber(a2aTaskStore?.maxEntriesPerOwner)}`);
+    lines.push(`${prefix}_a2a_task_store_limit{resource="task_bytes"} ${safeMetricNumber(a2aTaskStore?.maxTaskBytes)}`);
+
+    const workforceClaimStore = snapshot.workforceClaimStore;
+    const workforceClaimMode = sanitizeMetricLabel(workforceClaimStore?.mode ?? "disabled");
+    const workforceClaimAvailable = workforceClaimStore
+      ? (workforceClaimStore.available === true ? 1 : 0)
+      : 1;
+    const workforceClaimStatsUpdatedAt = Number(workforceClaimStore?.statsUpdatedAt);
+    const workforceClaimStatsAgeSeconds = Number.isFinite(workforceClaimStatsUpdatedAt)
+      && workforceClaimStatsUpdatedAt > 0
+      ? Math.max(0, (Date.now() - workforceClaimStatsUpdatedAt) / 1000).toFixed(3)
+      : -1;
+    lines.push(`# HELP ${prefix}_workforce_claim_store_available Whether the configured Workforce claim store is reachable`);
+    lines.push(`# TYPE ${prefix}_workforce_claim_store_available gauge`);
+    lines.push(`${prefix}_workforce_claim_store_available{mode="${workforceClaimMode}"} ${workforceClaimAvailable}`);
+    lines.push(`# HELP ${prefix}_workforce_claim_store_distributed Whether Workforce ownership is coordinated across hosts`);
+    lines.push(`# TYPE ${prefix}_workforce_claim_store_distributed gauge`);
+    lines.push(`${prefix}_workforce_claim_store_distributed{mode="${workforceClaimMode}"} ${workforceClaimStore?.distributed === true ? 1 : 0}`);
+    lines.push(`# HELP ${prefix}_workforce_claims Active distributed or local Workforce task claims`);
+    lines.push(`# TYPE ${prefix}_workforce_claims gauge`);
+    lines.push(`${prefix}_workforce_claims{state="active"} ${safeMetricNumber(workforceClaimStore?.activeClaims)}`);
+    lines.push(`${prefix}_workforce_claims{state="capacity"} ${safeMetricNumber(workforceClaimStore?.maxClaims)}`);
+    lines.push(`# HELP ${prefix}_workforce_claim_stats_age_seconds Age of the last distributed claim statistics snapshot, or -1 when unavailable`);
+    lines.push(`# TYPE ${prefix}_workforce_claim_stats_age_seconds gauge`);
+    lines.push(`${prefix}_workforce_claim_stats_age_seconds{mode="${workforceClaimMode}"} ${workforceClaimStatsAgeSeconds}`);
+
     // Provider health score
     const sanitizeLabel = (v) => String(v).replace(/["\\}\n\r]/g, "_");
     lines.push(`# HELP ${prefix}_provider_health_score Provider health score (0-100)`);

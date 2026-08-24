@@ -48,6 +48,27 @@ describe("fenced task claim lease", () => {
 });
 
 describe("claim-enforced task queue", () => {
+  it("surfaces a distributed claim-store outage as a retryable service failure", async () => {
+    const claimManager = {
+      getInfo: () => ({ mode: "postgres-fenced", distributed: true, available: false }),
+      issue: async () => ({
+        success: false,
+        valid: false,
+        code: "TASK_CLAIM_STORE_UNAVAILABLE",
+        reason: "The distributed task claim store is unavailable.",
+      }),
+      close: async () => undefined,
+    };
+    const { queue } = await queueFixture({ claimManager });
+    const task = await queue.enqueue({ planId: "plan-outage", title: "Wait safely" });
+
+    await expect(queue.claimTask("agent-a", { taskId: task.taskId })).rejects.toMatchObject({
+      code: "TASK_CLAIM_STORE_UNAVAILABLE",
+      statusCode: 503,
+    });
+    expect(queue.getQueueStatus()).toMatchObject({ totalQueued: 1, totalActive: 0 });
+  });
+
   it("rejects forged completion and never persists the bearer token", async () => {
     const { queue, queueFile } = await queueFixture();
     const task = await queue.enqueue({ planId: "plan-secure", title: "Secure task", priority: "P1" });

@@ -86,6 +86,7 @@ export function createControlledExecutor(options = {}) {
     repoRoot: options.repoRoot ?? undefined,
   });
   const taskQueue = options.taskQueueManager ?? new TaskQueueManager({
+    env,
     dataDir: options.executionDir ? `${options.executionDir}/task-queue` : undefined,
     claimTtlMs: Math.min(24 * 60 * 60_000, timeoutMs + 30_000),
   });
@@ -180,6 +181,14 @@ export function createControlledExecutor(options = {}) {
           workspaceGuard: workspaceGuard.getInfo?.() ?? { ready: true },
         },
       };
+    },
+
+    async getTaskClaimHealth() {
+      return taskQueue.getClaimHealth();
+    },
+
+    async close() {
+      await taskQueue.close();
     },
 
     /**

@@ -152,6 +152,42 @@ describe("prometheusExporter", () => {
     expect(text).not.toContain("postgres://must-not-leak");
   });
 
+  it("renders safe A2A task and Workforce claim-store metrics", () => {
+    const exporter = createPrometheusExporter({ prefix: "ai_gateway" });
+    const text = exporter.formatMetrics({
+      a2aTaskStore: {
+        mode: "sqlite",
+        durable: true,
+        available: true,
+        maxEntries: 10_000,
+        maxEntriesPerOwner: 2_000,
+        maxTaskBytes: 4_194_304,
+        sqlitePath: "E:/private/a2a.sqlite",
+      },
+      workforceClaimStore: {
+        mode: "postgres-fenced",
+        distributed: true,
+        available: false,
+        activeClaims: 3,
+        maxClaims: 2_000,
+        statsUpdatedAt: Date.now() - 1_000,
+        namespace: "private-deployment",
+        connectionString: "postgres://must-not-leak",
+      },
+    });
+
+    expect(text).toContain('ai_gateway_a2a_task_store_available{mode="sqlite"} 1');
+    expect(text).toContain('ai_gateway_a2a_task_store_durable{mode="sqlite"} 1');
+    expect(text).toContain('ai_gateway_a2a_task_store_limit{resource="entries"} 10000');
+    expect(text).toContain('ai_gateway_workforce_claim_store_available{mode="postgres-fenced"} 0');
+    expect(text).toContain('ai_gateway_workforce_claim_store_distributed{mode="postgres-fenced"} 1');
+    expect(text).toContain('ai_gateway_workforce_claims{state="active"} 3');
+    expect(text).toMatch(/ai_gateway_workforce_claim_stats_age_seconds\{mode="postgres-fenced"\} 1\.\d{3}/);
+    expect(text).not.toContain("E:/private/a2a.sqlite");
+    expect(text).not.toContain("private-deployment");
+    expect(text).not.toContain("postgres://must-not-leak");
+  });
+
   it("renders PostgreSQL rate-limit store health without partition keys", () => {
     const exporter = createPrometheusExporter({ prefix: "ai_gateway" });
     const text = exporter.formatMetrics({

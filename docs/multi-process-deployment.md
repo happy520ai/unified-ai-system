@@ -198,17 +198,39 @@ and load-balancer behavior.
 
 ### Workforce task ownership
 
-Controlled Workforce execution now requires a hashed bearer claim bound to the
+Controlled Workforce execution requires a hashed bearer claim bound to the
 plan, task, agent, and monotonically increasing fencing token before an Agent can
-start, complete, or fail a task. One manager-level lease core serves all local
-claims without a timer per task, and active tasks are safely requeued after a
-process restart because an in-memory bearer claim cannot survive that boundary.
+start, complete, or fail a task. Local preview uses one bounded manager-level
+lease core without a timer per task. Cross-host ownership can use PostgreSQL:
 
-This is a same-process correctness and resource-safety guarantee, not a
-cross-host Workforce lease. Do not dispatch one Workforce queue across gateway
-replicas until a reviewed PostgreSQL task-claim backend implements the same
-issue, validate, renew, release, revoke, and fencing contract. The gateway must
-remain the only authority allowed to cancel or requeue those claims.
+```bash
+AI_GATEWAY_WORKFORCE_CLAIM_STORE_MODE=postgres
+AI_GATEWAY_WORKFORCE_CLAIM_POSTGRES_URL=<load-from-secret-manager>?sslmode=verify-full
+AI_GATEWAY_WORKFORCE_CLAIM_NAMESPACE=production
+AI_GATEWAY_WORKFORCE_CLAIM_STORE_REQUIRED=true
+```
+
+The PostgreSQL backend uses database-clock expiry, one atomic active owner per
+`(namespace, plan, task)`, a global bigint fencing sequence, bounded capacity,
+and separate pools. It supports issue, validate, renew, release, token/task/plan
+revocation, cleanup, and health. Only a SHA-256 digest/fingerprint is stored;
+the raw bearer token is returned once and never enters queue JSON, audit output,
+or health. Non-loopback databases require `sslmode=verify-full` by default.
+
+`WORKFORCE_EXECUTION_ENABLED=true` plus `AI_GATEWAY_MULTI_INSTANCE=true` fails
+startup unless this PostgreSQL claim mode is selected. After a process restart,
+a recovered local queue entry waits for the old database lease to expire before
+it can acquire a higher fence; it does not revoke a possibly live worker during
+a rolling restart. `/healthz` and `/ready` fail when a configured distributed
+claim store is unavailable.
+
+This closes cross-host **ownership**, not the entire distributed Workforce
+system. Queue/result persistence remains same-host JSON, and every irreversible
+downstream side effect must reject stale fencing tokens before the system can
+claim end-to-end exactly-once execution. Do not dispatch one shared production
+queue across hosts until a central queue/result backend, fence-aware side-effect
+sinks, database failover, partition, and split-brain tests are complete. The
+gateway remains the only authority allowed to cancel or requeue claims.
 
 ### A2A task persistence
 
@@ -406,6 +428,10 @@ deployment. With the flag on and no explicit store-mode envs:
   process derives identical request identities.
 - The JSONL response cache and knowledge SQLite store are already
   file-backed and shared by default.
+- A2A tasks default to the bounded same-host SQLite store
+  (`.data/a2a-tasks.sqlite`).
+- Real Workforce execution fails closed unless cross-host deployments select
+  the PostgreSQL fenced-claim backend; dry-run preview remains local.
 
 Explicit `AI_GATEWAY_RATE_LIMIT_STORE_MODE` /
 `AI_GATEWAY_IDEMPOTENCY_STORE_MODE` configuration always wins (use the

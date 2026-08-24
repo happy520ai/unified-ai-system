@@ -17,7 +17,7 @@ import {
   computeSLACompliance,
   computeStats,
 } from "./taskQueueHelpers.js";
-import { createTaskClaimTokenManager } from "./taskClaimToken.js";
+import { createWorkforceTaskClaimManager } from "./workforceTaskClaimManager.ts";
 
 export { PRIORITY_LEVELS, TASK_STATUS };
 
@@ -49,7 +49,8 @@ export class TaskQueueManager {
     this.dataDir = options.dataDir ?? (options.queueFile ? path.dirname(options.queueFile) : DATA_DIR);
     this.queueFile = options.queueFile ?? (options.dataDir ? path.join(options.dataDir, "task-queue.json") : QUEUE_FILE);
     this.claimTtlMs = Number(options.claimTtlMs) || 5 * 60_000;
-    this.claimManager = options.claimManager ?? createTaskClaimTokenManager({
+    this.claimManager = options.claimManager ?? createWorkforceTaskClaimManager({
+      env: options.env ?? process.env,
       ttlMs: this.claimTtlMs,
       maxClaims: MAX_QUEUE_SIZE * 2,
       clock: options.clock,
@@ -88,7 +89,9 @@ export class TaskQueueManager {
           updatedAt: new Date().toISOString(),
           claim: null,
           recoveryCount: Number(persistedTask.recoveryCount || 0) + 1,
-          recoveredReason: "process_restart_invalidated_local_claim",
+          recoveredReason: this.claimManager.getInfo()?.distributed
+            ? "process_restart_waits_for_distributed_claim_expiry"
+            : "process_restart_invalidated_local_claim",
         };
         this._insertQueued(task);
         knownTaskIds.add(task.taskId);
@@ -293,6 +296,21 @@ export class TaskQueueManager {
     };
   }
 
+  async getClaimHealth() {
+    if (typeof this.claimManager.checkHealth === "function") {
+      return this.claimManager.checkHealth();
+    }
+    const info = this.claimManager.getInfo();
+    return {
+      mode: info.mode,
+      distributed: info.distributed === true,
+      available: true,
+      activeClaims: info.activeClaims ?? 0,
+      maxClaims: info.maxClaims ?? 0,
+      statsUpdatedAt: null,
+    };
+  }
+
   getQueueStatus() {
     const byPriority = {};
     for (const key of Object.keys(PRIORITY_LEVELS)) {
@@ -377,8 +395,8 @@ export class TaskQueueManager {
     return operation;
   }
 
-  close() {
-    this.claimManager.close?.();
+  async close() {
+    await this.claimManager.close?.();
   }
 
   async _claimAtIndex(taskIndex, agentId, options, shouldPersist) {
@@ -390,7 +408,15 @@ export class TaskQueueManager {
       agentId,
       ttlMs: options.ttlMs ?? this.claimTtlMs,
     });
-    if (!issued?.success) throw queueError(issued?.code ?? "TASK_CLAIM_FAILED", issued?.reason ?? "Task claim failed.");
+    if (!issued?.success) {
+      const unavailable = issued?.code === "TASK_CLAIM_STORE_UNAVAILABLE"
+        || issued?.code === "TASK_CLAIM_CAPACITY";
+      throw queueError(
+        issued?.code ?? "TASK_CLAIM_FAILED",
+        issued?.reason ?? "Task claim failed.",
+        unavailable ? 503 : 409,
+      );
+    }
     const currentTaskIndex = this.queue.findIndex((candidate) => candidate === task && candidate.taskId === task.taskId);
     if (currentTaskIndex === -1 || task.status !== TASK_STATUS.QUEUED) {
       await this.claimManager.revoke(issued.token, "queue_claim_race_lost");
@@ -426,7 +452,12 @@ export class TaskQueueManager {
       throw queueError("TASK_CLAIM_AGENT_MISMATCH", "The task is assigned to a different agent.", 403);
     }
     const validation = await this.claimManager.validate(ownership.claimToken, this._claimContext(task));
-    if (!validation?.valid) throw queueError("TASK_CLAIM_INVALID", validation?.reason ?? "The task claim is invalid.", 403);
+    if (!validation?.valid) {
+      if (validation?.code === "TASK_CLAIM_STORE_UNAVAILABLE") {
+        throw queueError(validation.code, validation.reason, 503);
+      }
+      throw queueError("TASK_CLAIM_INVALID", validation?.reason ?? "The task claim is invalid.", 403);
+    }
     return validation;
   }
 

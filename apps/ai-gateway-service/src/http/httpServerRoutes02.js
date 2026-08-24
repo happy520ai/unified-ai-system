@@ -90,6 +90,7 @@ export async function dispatchHttpRoutes02(context) {
     const rateLimit = await readRateLimitHealth(rateLimiter);
     const webSocketLease = await readWebSocketLeaseHealth(webSocketConnectionLeaseManager);
     const a2aTaskStore = readA2ATaskStoreHealth(a2aGateway);
+    const workforceClaimStore = await readWorkforceClaimStoreHealth(application?.workforceExecutor);
     const readinessFailures = collectReadinessFailures(healthSnapshot, readinessSnapshot, {
       saturated,
       gatewayErrorCircuitState: resilienceSnapshot?.gatewayErrorCircuitState,
@@ -98,6 +99,8 @@ export async function dispatchHttpRoutes02(context) {
       rateLimitStoreUnavailable: rateLimit?.storeMode === "postgres" && rateLimit?.available !== true,
       webSocketLeaseStoreUnavailable: Boolean(webSocketConnectionLeaseManager) && webSocketLease?.available !== true,
       a2aTaskStoreUnavailable: Boolean(a2aGateway) && a2aTaskStore?.available !== true,
+      workforceClaimStoreUnavailable: workforceClaimStore?.distributed === true
+        && workforceClaimStore.available !== true,
     });
     resilienceMetrics?.recordReadinessCheck?.(readinessFailures);
     const degraded = saturated || readinessFailures.length > 0;
@@ -115,6 +118,7 @@ export async function dispatchHttpRoutes02(context) {
       rateLimit,
       webSocketLease,
       a2aTaskStore,
+      workforceClaimStore,
       saturation: {
         inFlight: currentInFlight,
         threshold: saturationThreshold,
@@ -244,6 +248,7 @@ export async function dispatchHttpRoutes02(context) {
     const rateLimit = await readRateLimitHealth(rateLimiter);
     const webSocketLease = await readWebSocketLeaseHealth(webSocketConnectionLeaseManager);
     const a2aTaskStore = readA2ATaskStoreHealth(a2aGateway);
+    const workforceClaimStore = await readWorkforceClaimStoreHealth(application?.workforceExecutor);
     const readinessFailures = collectReadinessFailures(healthSnapshot, readinessSnapshot, {
       saturated,
       gatewayErrorCircuitState: readinessResilienceSnapshot?.gatewayErrorCircuitState,
@@ -252,6 +257,8 @@ export async function dispatchHttpRoutes02(context) {
       rateLimitStoreUnavailable: rateLimit?.storeMode === "postgres" && rateLimit?.available !== true,
       webSocketLeaseStoreUnavailable: Boolean(webSocketConnectionLeaseManager) && webSocketLease?.available !== true,
       a2aTaskStoreUnavailable: Boolean(a2aGateway) && a2aTaskStore?.available !== true,
+      workforceClaimStoreUnavailable: workforceClaimStore?.distributed === true
+        && workforceClaimStore.available !== true,
     });
     const snapshot = {
       totalRequests: stats.totalRequests ?? 0,
@@ -266,6 +273,7 @@ export async function dispatchHttpRoutes02(context) {
       idempotency,
       webSocketLease,
       a2aTaskStore,
+      workforceClaimStore,
       latency: stats.latencyQuantiles
         ?? (stats.avgLatencyMs
           ? { p50: stats.avgLatencyMs, p95: stats.avgLatencyMs, p99: stats.avgLatencyMs }
@@ -676,8 +684,35 @@ function collectReadinessFailures(healthSnapshot, readinessSnapshot, context = {
   if (context?.a2aTaskStoreUnavailable) {
     readinessFailures.push("a2a-task-store-unavailable");
   }
+  if (context?.workforceClaimStoreUnavailable) {
+    readinessFailures.push("workforce-claim-store-unavailable");
+  }
 
   return Array.from(new Set(readinessFailures));
+}
+
+async function readWorkforceClaimStoreHealth(workforceExecutor) {
+  if (!workforceExecutor?.getTaskClaimHealth) return null;
+  try {
+    const snapshot = await workforceExecutor.getTaskClaimHealth();
+    return {
+      mode: snapshot?.mode ?? "unknown",
+      distributed: snapshot?.distributed === true,
+      available: snapshot?.available === true,
+      activeClaims: Number(snapshot?.activeClaims ?? 0),
+      maxClaims: Number(snapshot?.maxClaims ?? 0),
+      statsUpdatedAt: snapshot?.statsUpdatedAt ?? null,
+    };
+  } catch {
+    return {
+      mode: "unknown",
+      distributed: true,
+      available: false,
+      activeClaims: 0,
+      maxClaims: 0,
+      statsUpdatedAt: null,
+    };
+  }
 }
 
 function readA2ATaskStoreHealth(a2aGateway) {

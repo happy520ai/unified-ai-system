@@ -49,6 +49,16 @@ describe("gateway-application", () => {
     expect(application.gatewayService.runtimeConfig.shadowTimeoutMs).toBe(30_000);
   });
 
+  it("fails closed when multi-instance Workforce execution lacks distributed claims", () => {
+    expect(() => createGatewayApplication({
+      AI_GATEWAY_MULTI_INSTANCE: "true",
+      WORKFORCE_EXECUTION_ENABLED: "true",
+      AI_GATEWAY_WORKFORCE_CLAIM_STORE_MODE: "memory",
+    })).toThrow(expect.objectContaining({
+      code: "WORKFORCE_CLAIM_DISTRIBUTED_STORE_REQUIRED",
+    }));
+  });
+
   it("has provider registry with providers", () => {
     const providers = app.gatewayService.getProviderDescriptors();
     expect(providers.length).toBeGreaterThan(0);

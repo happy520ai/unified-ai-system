@@ -20,6 +20,11 @@ and the project uses [Semantic Versioning](https://semver.org/).
 - Fixed the live A2A Workforce skill wiring: the controlled executor created by
   the application is now passed to the HTTP/A2A gateway instead of being
   dropped from the application boundary and reported as unavailable at runtime.
+- Added a PostgreSQL Workforce task-claim backend with database-clock leases,
+  atomic cross-pool ownership, monotonically increasing fencing tokens,
+  namespace/capacity bounds, digest-only bearer persistence, renewal/release/
+  revoke operations, verified-TLS configuration, safe health output, and a
+  fail-closed multi-instance execution requirement.
 - Added OIDC SSO (authorization code + PKCE + JWKS RS256/ES256 ID-token
   verification, one-time state, issues an API token on login) and SCIM 2.0
   user provisioning (bearer-auth create/get/list/patch/deactivate) for
