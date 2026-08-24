@@ -216,6 +216,9 @@ and the project uses [Semantic Versioning](https://semver.org/).
   bounded client now requires a minimum sustained arrival pressure while the
   separate open-loop gate remains responsible for zero-drop capacity, and
   fixed-target metrics scrapes no longer drift when an earlier scrape is slow.
+- Moved the container's public enterprise-auth boolean default from an `ENV`
+  layer into an `exec`-based CMD default, preserving explicit overrides and PID
+  1 signal handling while eliminating Docker's secret-in-ENV false positive.
 - Hardened knowledge-file ingestion: PDF, DOCX, XLS, and XLSX parsing now runs
   in bounded worker threads with hard time, heap, concurrency, queue, input,
   extracted-text, PDF-page, sheet, row, column, and cell limits. Invalid base64

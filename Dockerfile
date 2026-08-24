@@ -61,11 +61,14 @@ FROM runtime AS gateway
 
 ENV AI_GATEWAY_SERVICE_HOST=0.0.0.0
 ENV AI_GATEWAY_SERVICE_PORT=3100
-ENV PME_ENTERPRISE_AUTH_ENABLED=true
 
 LABEL org.opencontainers.image.description="Terminal-first, self-hosted AI gateway"
 
 USER node
 EXPOSE 3100
 
-CMD ["node", "apps/ai-gateway-service/src/index.js"]
+# Keep enterprise authentication enabled for a bare `docker run` without
+# storing a secret-looking boolean in an ENV layer. An explicit runtime value
+# (including `false`) wins, and `exec` preserves Node as the signal-receiving
+# process.
+CMD ["sh", "-c", "PME_ENTERPRISE_AUTH_ENABLED=${PME_ENTERPRISE_AUTH_ENABLED:-true} exec node apps/ai-gateway-service/src/index.js"]
