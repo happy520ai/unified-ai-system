@@ -21,14 +21,17 @@ import {
   normalizeStoredUser,
   saveStoredUsers,
 } from "./enterpriseUserStore.js";
+import { safeOutboundFetch } from "../security/safeOutboundFetch.ts";
 
 const PROVIDERS_ENV = "AI_GATEWAY_OIDC_PROVIDERS_JSON";
 const STATE_TTL_MS = 10 * 60 * 1000;
+const OIDC_FETCH_TIMEOUT_MS = 10_000;
+const OIDC_MAX_JSON_BYTES = 1024 * 1024;
 
 export function createOidcSsoService({
   env = process.env,
   usersPath = null,
-  fetchImpl = fetch,
+  fetchImpl = safeOutboundFetch,
   clock = () => Date.now(),
 } = {}) {
   const providers = parseProviders(env[PROVIDERS_ENV]);
@@ -47,19 +50,24 @@ export function createOidcSsoService({
   async function resolveEndpoints(provider) {
     if (provider.authorizationEndpoint && provider.tokenEndpoint && provider.jwksUri) {
       return {
-        authorizationEndpoint: provider.authorizationEndpoint,
-        tokenEndpoint: provider.tokenEndpoint,
-        jwksUri: provider.jwksUri,
+        authorizationEndpoint: requiredUrl(provider.authorizationEndpoint, "authorizationEndpoint"),
+        tokenEndpoint: requiredUrl(provider.tokenEndpoint, "tokenEndpoint"),
+        jwksUri: requiredUrl(provider.jwksUri, "jwksUri"),
       };
     }
     const cached = discoveryCache.get(provider.id);
     if (cached) return cached;
     const discoveryUrl = `${provider.issuerBaseUrl.replace(/\/+$/, "")}/.well-known/openid-configuration`;
-    const response = await fetchImpl(discoveryUrl, { headers: { accept: "application/json" } });
-    if (!response.ok) {
-      throw createSsoError(`OIDC discovery failed for "${provider.id}" (${response.status}).`, "SSO_DISCOVERY_FAILED");
+    const metadata = await requestOidcJson({
+      fetchImpl,
+      url: discoveryUrl,
+      init: { headers: { accept: "application/json" } },
+      failureCode: "SSO_DISCOVERY_FAILED",
+      label: `OIDC discovery for "${provider.id}"`,
+    });
+    if (normalizeIssuer(metadata.issuer) !== normalizeIssuer(provider.issuerBaseUrl)) {
+      throw createSsoError("OIDC discovery issuer does not match configured issuer.", "SSO_DISCOVERY_ISSUER_MISMATCH");
     }
-    const metadata = await response.json();
     const endpoints = {
       authorizationEndpoint: requiredUrl(metadata.authorization_endpoint, "authorization_endpoint"),
       tokenEndpoint: requiredUrl(metadata.token_endpoint, "token_endpoint"),
@@ -140,15 +148,17 @@ export function createOidcSsoService({
         code_verifier: pending.verifier,
         ...(clientSecret ? { client_secret: clientSecret } : {}),
       });
-      const tokenResponse = await fetchImpl(endpoints.tokenEndpoint, {
-        method: "POST",
-        headers: { "content-type": "application/x-www-form-urlencoded", accept: "application/json" },
-        body: body.toString(),
+      const tokens = await requestOidcJson({
+        fetchImpl,
+        url: endpoints.tokenEndpoint,
+        init: {
+          method: "POST",
+          headers: { "content-type": "application/x-www-form-urlencoded", accept: "application/json" },
+          body: body.toString(),
+        },
+        failureCode: "SSO_TOKEN_EXCHANGE_FAILED",
+        label: "OIDC token exchange",
       });
-      if (!tokenResponse.ok) {
-        throw createSsoError(`OIDC token exchange failed (${tokenResponse.status}).`, "SSO_TOKEN_EXCHANGE_FAILED");
-      }
-      const tokens = await tokenResponse.json();
       if (typeof tokens.id_token !== "string" || !tokens.id_token) {
         throw createSsoError("OIDC token response is missing id_token.", "SSO_ID_TOKEN_MISSING");
       }
@@ -157,6 +167,7 @@ export function createOidcSsoService({
         provider,
         jwksUri: endpoints.jwksUri,
         fetchImpl,
+        clock,
       });
 
       const userId = String(claims.sub ?? "");
@@ -188,7 +199,7 @@ export function createOidcSsoService({
   };
 }
 
-async function verifyIdToken({ idToken, provider, jwksUri, fetchImpl }) {
+async function verifyIdToken({ idToken, provider, jwksUri, fetchImpl, clock }) {
   const parts = String(idToken).split(".");
   if (parts.length !== 3) {
     throw createSsoError("OIDC ID token is malformed.", "SSO_ID_TOKEN_MALFORMED");
@@ -205,12 +216,21 @@ async function verifyIdToken({ idToken, provider, jwksUri, fetchImpl }) {
   if (header.alg !== "RS256" && header.alg !== "ES256") {
     throw createSsoError(`OIDC ID token alg "${header.alg}" is not supported.`, "SSO_ID_TOKEN_ALG_UNSUPPORTED");
   }
-  const nowSeconds = Math.floor(Date.now() / 1000);
-  if (typeof payload.exp === "number" && payload.exp <= nowSeconds) {
+  const nowSeconds = Math.floor(clock() / 1000);
+  if (!Number.isFinite(payload.exp)) {
+    throw createSsoError("OIDC ID token is missing a numeric expiry.", "SSO_ID_TOKEN_EXP_REQUIRED");
+  }
+  if (payload.exp <= nowSeconds) {
     throw createSsoError("OIDC ID token has expired.", "SSO_ID_TOKEN_EXPIRED");
   }
-  if (typeof payload.iss === "string" && payload.iss.replace(/\/+$/, "") !== provider.issuerBaseUrl.replace(/\/+$/, "")) {
+  if (typeof payload.iss !== "string" || !payload.iss.trim()) {
+    throw createSsoError("OIDC ID token is missing issuer.", "SSO_ID_TOKEN_ISSUER_REQUIRED");
+  }
+  if (normalizeIssuer(payload.iss) !== normalizeIssuer(provider.issuerBaseUrl)) {
     throw createSsoError("OIDC ID token issuer mismatch.", "SSO_ID_TOKEN_ISSUER_MISMATCH");
+  }
+  if (Number.isFinite(payload.nbf) && payload.nbf > nowSeconds) {
+    throw createSsoError("OIDC ID token is not active yet.", "SSO_ID_TOKEN_NOT_ACTIVE");
   }
   const audiences = Array.isArray(payload.aud) ? payload.aud : [payload.aud];
   if (!audiences.includes(provider.clientId)) {
@@ -218,15 +238,26 @@ async function verifyIdToken({ idToken, provider, jwksUri, fetchImpl }) {
   }
 
   // JWKS 验签(签名内嵌于头部,不依赖外层 token 响应)。
-  const jwksResponse = await fetchImpl(jwksUri, { headers: { accept: "application/json" } });
-  if (!jwksResponse.ok) {
-    throw createSsoError(`JWKS fetch failed (${jwksResponse.status}).`, "SSO_JWKS_UNAVAILABLE");
+  const jwks = await requestOidcJson({
+    fetchImpl,
+    url: jwksUri,
+    init: { headers: { accept: "application/json" } },
+    failureCode: "SSO_JWKS_UNAVAILABLE",
+    label: "OIDC JWKS fetch",
+  });
+  if (!Array.isArray(jwks.keys) || jwks.keys.length === 0 || jwks.keys.length > 100) {
+    throw createSsoError("OIDC JWKS key set is invalid.", "SSO_JWKS_INVALID");
   }
-  const jwks = await jwksResponse.json();
   const jwk = (jwks.keys ?? []).find((key) => key.kid === header.kid)
     ?? (jwks.keys ?? []).find((key) => !header.kid && key.use === "sig" && key.kty === "RSA");
   if (!jwk) {
     throw createSsoError("No JWKS key matches the ID token kid.", "SSO_JWKS_KID_NOT_FOUND");
+  }
+  if ((jwk.use && jwk.use !== "sig") || (jwk.alg && jwk.alg !== header.alg)) {
+    throw createSsoError("JWKS key usage or algorithm does not match the ID token.", "SSO_JWKS_KEY_MISMATCH");
+  }
+  if ((header.alg === "RS256" && jwk.kty !== "RSA") || (header.alg === "ES256" && jwk.kty !== "EC")) {
+    throw createSsoError("JWKS key type does not match the ID token algorithm.", "SSO_JWKS_KEY_MISMATCH");
   }
   let publicKey;
   try {
@@ -242,6 +273,9 @@ async function verifyIdToken({ idToken, provider, jwksUri, fetchImpl }) {
     valid = cryptoVerify(algorithm, data, publicKey, signature);
   } else {
     // ES256:node crypto 需要 DER 签名;JWS 是 raw r||s。
+    if (signature.length !== 64) {
+      throw createSsoError("OIDC ES256 signature length is invalid.", "SSO_ID_TOKEN_SIGNATURE_INVALID");
+    }
     valid = cryptoVerify("sha256", data, publicKey, joseRawToDer(signature));
   }
   if (!valid) {
@@ -269,6 +303,75 @@ function joseRawToDer(signature) {
   return Buffer.concat([Buffer.from([0x30, body.length]), body]);
 }
 
+async function requestOidcJson({ fetchImpl, url, init, failureCode, label }) {
+  let response;
+  try {
+    response = await fetchImpl(url, {
+      ...init,
+      redirect: "error",
+      signal: AbortSignal.timeout(OIDC_FETCH_TIMEOUT_MS),
+    });
+  } catch (error) {
+    if (error?.code === "OUTBOUND_URL_BLOCKED") {
+      throw createSsoError("OIDC outbound request was blocked by network policy.", "SSO_OUTBOUND_REQUEST_BLOCKED");
+    }
+    if (error?.name === "AbortError" || error?.name === "TimeoutError") {
+      throw createSsoError(`${label} timed out.`, "SSO_UPSTREAM_TIMEOUT");
+    }
+    throw createSsoError(`${label} failed.`, failureCode);
+  }
+  if (!response?.ok) {
+    throw createSsoError(`${label} failed (${Number(response?.status ?? 0)}).`, failureCode);
+  }
+  return readBoundedJson(response);
+}
+
+async function readBoundedJson(response) {
+  const declaredLength = Number(response?.headers?.get?.("content-length") ?? 0);
+  if (Number.isFinite(declaredLength) && declaredLength > OIDC_MAX_JSON_BYTES) {
+    throw createSsoError("OIDC upstream JSON response is too large.", "SSO_UPSTREAM_RESPONSE_TOO_LARGE");
+  }
+
+  let text;
+  const reader = response?.body?.getReader?.();
+  if (reader) {
+    const chunks = [];
+    let totalBytes = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const chunk = Buffer.from(value);
+      totalBytes += chunk.length;
+      if (totalBytes > OIDC_MAX_JSON_BYTES) {
+        await reader.cancel().catch(() => {});
+        throw createSsoError("OIDC upstream JSON response is too large.", "SSO_UPSTREAM_RESPONSE_TOO_LARGE");
+      }
+      chunks.push(chunk);
+    }
+    text = Buffer.concat(chunks).toString("utf8");
+  } else if (typeof response?.text === "function") {
+    text = await response.text();
+  } else if (typeof response?.json === "function") {
+    const parsed = await response.json();
+    const encoded = JSON.stringify(parsed);
+    if (Buffer.byteLength(encoded, "utf8") > OIDC_MAX_JSON_BYTES) {
+      throw createSsoError("OIDC upstream JSON response is too large.", "SSO_UPSTREAM_RESPONSE_TOO_LARGE");
+    }
+    return parsed;
+  } else {
+    throw createSsoError("OIDC upstream returned no readable JSON body.", "SSO_UPSTREAM_RESPONSE_INVALID");
+  }
+
+  if (Buffer.byteLength(text, "utf8") > OIDC_MAX_JSON_BYTES) {
+    throw createSsoError("OIDC upstream JSON response is too large.", "SSO_UPSTREAM_RESPONSE_TOO_LARGE");
+  }
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw createSsoError("OIDC upstream response is not valid JSON.", "SSO_UPSTREAM_RESPONSE_INVALID");
+  }
+}
+
 function parseProviders(raw) {
   if (raw === undefined || raw === null || String(raw).trim() === "") return [];
   let parsed;
@@ -286,7 +389,7 @@ function parseProviders(raw) {
     }
     return {
       id: String(entry.id),
-      issuerBaseUrl: String(entry.issuerBaseUrl),
+      issuerBaseUrl: requiredUrl(String(entry.issuerBaseUrl), "issuerBaseUrl").replace(/\/+$/, ""),
       clientId: String(entry.clientId),
       clientSecretEnv: entry.clientSecretEnv ? String(entry.clientSecretEnv) : null,
       scopes: entry.scopes ? String(entry.scopes) : null,
@@ -300,10 +403,20 @@ function parseProviders(raw) {
 }
 
 function requiredUrl(value, field) {
-  if (typeof value !== "string" || !/^https?:\/\//.test(value)) {
+  let parsed;
+  try {
+    parsed = new URL(String(value ?? ""));
+  } catch {
+    throw createSsoError(`OIDC configuration is missing a valid ${field}.`, "SSO_DISCOVERY_INVALID");
+  }
+  if (parsed.protocol !== "https:" || parsed.username || parsed.password) {
     throw createSsoError(`OIDC discovery metadata is missing ${field}.`, "SSO_DISCOVERY_INVALID");
   }
-  return value;
+  return parsed.toString();
+}
+
+function normalizeIssuer(value) {
+  return String(value ?? "").trim().replace(/\/+$/, "");
 }
 
 function enrollSsoUser({ env, usersPath, identity }) {

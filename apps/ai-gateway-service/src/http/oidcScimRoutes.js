@@ -16,6 +16,7 @@ const SSO_BEGIN_PATTERN = /^\/enterprise\/sso\/oidc\/([A-Za-z0-9._-]+)\/begin\/?
 const SSO_CALLBACK_PATTERN = /^\/enterprise\/sso\/oidc\/([A-Za-z0-9._-]+)\/callback\/?$/;
 const SCIM_USERS_PATTERN = /^\/scim\/v2\/Users\/([^/]+)$/;
 const SCIM_USERS_PATH = "/scim/v2/Users";
+const oidcServices = new WeakMap();
 
 export function isOidcScimRoute(pathname) {
   const path = String(pathname ?? "").replace(/\/+$/, "") || "/";
@@ -35,12 +36,14 @@ export function dispatchOidcScimRoutes(context) {
 
   const beginMatch = SSO_BEGIN_PATTERN.exec(path);
   if (request.method === "GET" && beginMatch) {
-    return handleSsoBegin({ env, providerId: beginMatch[1], request, response, url, startedAt, writeServiceLog, usersPath, contextFetchImpl: context.fetchImpl ?? fetch });
+    const sso = getOidcService({ application, env, usersPath, fetchImpl: context.fetchImpl });
+    return handleSsoBegin({ sso, providerId: beginMatch[1], request, response, url, startedAt, writeServiceLog });
   }
 
   const callbackMatch = SSO_CALLBACK_PATTERN.exec(path);
   if (request.method === "GET" && callbackMatch) {
-    return handleSsoCallback({ env, providerId: callbackMatch[1], request, response, url, startedAt, writeServiceLog, usersPath, contextFetchImpl: context.fetchImpl ?? fetch });
+    const sso = getOidcService({ application, env, usersPath, fetchImpl: context.fetchImpl });
+    return handleSsoCallback({ sso, providerId: callbackMatch[1], request, response, url, startedAt, writeServiceLog });
   }
 
   if (path === SCIM_USERS_PATH || SCIM_USERS_PATTERN.test(path)) {
@@ -50,8 +53,22 @@ export function dispatchOidcScimRoutes(context) {
   return ROUTE_NOT_HANDLED;
 }
 
-async function handleSsoBegin({ env, providerId, request, response, url, startedAt, writeServiceLog, usersPath, contextFetchImpl }) {
-  const sso = createOidcSsoService({ env, usersPath, fetchImpl: contextFetchImpl });
+function getOidcService({ application, env, usersPath, fetchImpl }) {
+  if (application && oidcServices.has(application)) {
+    return oidcServices.get(application);
+  }
+  const sso = createOidcSsoService({
+    env,
+    usersPath,
+    ...(typeof fetchImpl === "function" ? { fetchImpl } : {}),
+  });
+  if (application && typeof application === "object") {
+    oidcServices.set(application, sso);
+  }
+  return sso;
+}
+
+async function handleSsoBegin({ sso, providerId, request, response, url, startedAt, writeServiceLog }) {
   const origin = `${url.protocol}//${url.host}`;
   const redirectUri = `${origin}/enterprise/sso/oidc/${encodeURIComponent(providerId)}/callback`;
   try {
@@ -81,8 +98,7 @@ async function handleSsoBegin({ env, providerId, request, response, url, started
   }
 }
 
-async function handleSsoCallback({ env, providerId, request, response, url, startedAt, writeServiceLog, usersPath, contextFetchImpl }) {
-  const sso = createOidcSsoService({ env, usersPath, fetchImpl: context.fetchImpl ?? fetch });
+async function handleSsoCallback({ sso, providerId, request, response, url, startedAt, writeServiceLog }) {
   const origin = `${url.protocol}//${url.host}`;
   const redirectUri = `${origin}/enterprise/sso/oidc/${encodeURIComponent(providerId)}/callback`;
   const code = url.searchParams.get("code");

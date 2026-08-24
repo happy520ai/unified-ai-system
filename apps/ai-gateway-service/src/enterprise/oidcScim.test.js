@@ -26,9 +26,10 @@ function b64url(input) {
   return Buffer.from(input).toString("base64url");
 }
 
-function signIdToken({ sub = "user-42", aud = CLIENT_ID, iss = ISSUER, exp = Math.floor(Date.now() / 1000) + 600, email = "dev@example.com" } = {}, tamper = false) {
+function signIdToken({ sub = "user-42", aud = CLIENT_ID, iss = ISSUER, exp = Math.floor(Date.now() / 1000) + 600, email = "dev@example.com", omitClaims = [] } = {}, tamper = false) {
   const header = { alg: "RS256", typ: "JWT", kid: KID };
   const payload = { sub, aud, iss, exp, email, name: "Dev User" };
+  for (const claim of omitClaims) delete payload[claim];
   const data = `${b64url(JSON.stringify(header))}.${b64url(JSON.stringify(payload))}`;
   let signature = createSign("RSA-SHA256").update(data).sign(privateKey);
   if (tamper) {
@@ -44,6 +45,7 @@ function createFetchStub({ idToken }) {
     const url = String(input);
     if (url.endsWith("/.well-known/openid-configuration")) {
       return jsonResponse(200, {
+        issuer: ISSUER,
         authorization_endpoint: `${ISSUER}/protocol/openid_connect/auth`,
         token_endpoint: `${ISSUER}/protocol/openid_connect/token`,
         jwks_uri: `${ISSUER}/protocol/openid_connect/certs`,
@@ -121,6 +123,8 @@ describe("oidcSsoService", () => {
     await expect(attempt(() => signIdToken({ iss: "https://evil.example.com" }))).rejects.toMatchObject({ code: "SSO_ID_TOKEN_ISSUER_MISMATCH" });
     await expect(attempt(() => signIdToken({ aud: "other-client" }))).rejects.toMatchObject({ code: "SSO_ID_TOKEN_AUDIENCE_MISMATCH" });
     await expect(attempt(() => signIdToken({ exp: Math.floor(Date.now() / 1000) - 10 }))).rejects.toMatchObject({ code: "SSO_ID_TOKEN_EXPIRED" });
+    await expect(attempt(() => signIdToken({ omitClaims: ["iss"] }))).rejects.toMatchObject({ code: "SSO_ID_TOKEN_ISSUER_REQUIRED" });
+    await expect(attempt(() => signIdToken({ omitClaims: ["exp"] }))).rejects.toMatchObject({ code: "SSO_ID_TOKEN_EXP_REQUIRED" });
 
     // state 不可重放。
     const { fetchImpl } = createFetchStub({ idToken: signIdToken() });
@@ -132,6 +136,33 @@ describe("oidcSsoService", () => {
       .rejects.toMatchObject({ code: "SSO_STATE_INVALID" });
     await expect(sso.completeLogin({ providerId: "keycloak", code: "x", state: randomBytes(12).toString("hex"), redirectUri }))
       .rejects.toMatchObject({ code: "SSO_STATE_INVALID" });
+  });
+
+  it("blocks unsafe IdP destinations and oversized upstream JSON", async () => {
+    const unsafeEnv = {
+      AI_GATEWAY_OIDC_PROVIDERS_JSON: JSON.stringify([{
+        id: "local",
+        issuerBaseUrl: "https://127.0.0.1/issuer",
+        clientId: CLIENT_ID,
+      }]),
+    };
+    const unsafe = createOidcSsoService({ env: unsafeEnv });
+    await expect(unsafe.beginLogin({
+      providerId: "local",
+      redirectUri: "https://gw.example.com/enterprise/sso/oidc/local/callback",
+    })).rejects.toMatchObject({ code: "SSO_OUTBOUND_REQUEST_BLOCKED" });
+
+    const oversized = createOidcSsoService({
+      env: providerEnv,
+      fetchImpl: vi.fn(async () => new Response(JSON.stringify({
+        issuer: ISSUER,
+        padding: "x".repeat(1024 * 1024),
+      }), { status: 200, headers: { "content-type": "application/json" } })),
+    });
+    await expect(oversized.beginLogin({
+      providerId: "keycloak",
+      redirectUri: "https://gw.example.com/enterprise/sso/oidc/keycloak/callback",
+    })).rejects.toMatchObject({ code: "SSO_UPSTREAM_RESPONSE_TOO_LARGE" });
   });
 });
 
@@ -208,9 +239,39 @@ describe("oidcScimRoutes dispatcher", () => {
     expect(beginContext.response.statusCode).toBe(302);
     expect(String(beginContext.response.headers.location)).toContain("code_challenge");
   });
+
+  it("preserves OIDC state across begin and callback requests on one application", async () => {
+    const env = {
+      ...providerEnv,
+      AI_GATEWAY_ENTERPRISE_USERS_PATH: join(workDir, `route-sso-${Date.now()}.json`),
+    };
+    const application = { runtimeEnv: env };
+    const { fetchImpl } = createFetchStub({ idToken: signIdToken() });
+    const begin = createContext({
+      application,
+      env,
+      method: "GET",
+      path: "/enterprise/sso/oidc/keycloak/begin",
+      fetchImpl,
+    });
+    await dispatchOidcScimRoutes(begin);
+    const state = new URL(begin.response.headers.location).searchParams.get("state");
+    const callback = createContext({
+      application,
+      env,
+      method: "GET",
+      path: `/enterprise/sso/oidc/keycloak/callback?code=route-code&state=${encodeURIComponent(state)}`,
+    });
+
+    await dispatchOidcScimRoutes(callback);
+
+    expect(callback.response.statusCode).toBe(200);
+    expect(callback.response.body.identity.userId).toBe("sso:keycloak:user-42");
+    expect(callback.response.body.apiToken).toMatch(/^uai-sso_/);
+  });
 });
 
-function createContext({ env, method, path, body = null, headers = {}, fetchImpl }) {
+function createContext({ env, method, path, body = null, headers = {}, fetchImpl, application = null }) {
   const request = Readable.from([Buffer.from(JSON.stringify(body ?? {}))]);
   request.method = method;
   request.headers = headers;
@@ -238,7 +299,7 @@ function createContext({ env, method, path, body = null, headers = {}, fetchImpl
     response.writableEnded = true;
   };
   return {
-    application: { runtimeEnv: env },
+    application: application ?? { runtimeEnv: env },
     request,
     response,
     startedAt: Date.now(),
