@@ -208,6 +208,10 @@ AI_GATEWAY_WORKFORCE_CLAIM_STORE_MODE=postgres
 AI_GATEWAY_WORKFORCE_CLAIM_POSTGRES_URL=<load-from-secret-manager>?sslmode=verify-full
 AI_GATEWAY_WORKFORCE_CLAIM_NAMESPACE=production
 AI_GATEWAY_WORKFORCE_CLAIM_STORE_REQUIRED=true
+AI_GATEWAY_WORKFORCE_QUEUE_STORE_MODE=postgres
+AI_GATEWAY_WORKFORCE_QUEUE_POSTGRES_URL=<same-database-as-claims>?sslmode=verify-full
+AI_GATEWAY_WORKFORCE_QUEUE_NAMESPACE=production
+AI_GATEWAY_WORKFORCE_QUEUE_CENTRAL_REQUIRED=true
 ```
 
 The PostgreSQL backend uses database-clock expiry, one atomic active owner per
@@ -217,20 +221,29 @@ revocation, cleanup, and health. Only a SHA-256 digest/fingerprint is stored;
 the raw bearer token is returned once and never enters queue JSON, audit output,
 or health. Non-loopback databases require `sslmode=verify-full` by default.
 
-`WORKFORCE_EXECUTION_ENABLED=true` plus `AI_GATEWAY_MULTI_INSTANCE=true` fails
-startup unless this PostgreSQL claim mode is selected. After a process restart,
-a recovered local queue entry waits for the old database lease to expire before
-it can acquire a higher fence; it does not revoke a possibly live worker during
-a rolling restart. `/healthz` and `/ready` fail when a configured distributed
-claim store is unavailable.
+`WORKFORCE_EXECUTION_ENABLED=true` plus `AI_GATEWAY_MULTI_INSTANCE=true` now
+fails startup unless both PostgreSQL claims and the central PostgreSQL
+queue/result mode are selected. The two stores must use the same database so a
+terminal task write can lock the active claim, validate its digest and monotonic
+fence, persist the bounded/redacted result, and delete the claim in one
+transaction. Expired owners are recovered under a row lock and a replacement
+receives a higher fence. The raw claim token is never persisted. Tenant, owner,
+and claim scope originate from the authenticated server identity; public plan
+IDs can therefore be reused without cross-tenant claim collisions.
 
-This closes cross-host **ownership**, not the entire distributed Workforce
-system. Queue/result persistence remains same-host JSON, and every irreversible
-downstream side effect must reject stale fencing tokens before the system can
-claim end-to-end exactly-once execution. Do not dispatch one shared production
-queue across hosts until a central queue/result backend, fence-aware side-effect
-sinks, database failover, partition, and split-brain tests are complete. The
-gateway remains the only authority allowed to cancel or requeue claims.
+`/healthz`, `/ready`, and Prometheus report the claim store and central queue
+separately, without database URLs, namespaces, tokens, or task payloads. A
+configured distributed-store outage makes the gateway unready. Capacity,
+retention, task-size, pool, timeout, namespace, and verify-full TLS settings are
+bounded explicitly.
+
+This closes central queue/result persistence and the **task-terminal database
+commit** fence. It still does not make arbitrary external effects exactly once:
+provider calls, git pushes, webhooks, deploys, and other irreversible sinks must
+consume and reject stale fences at their own commit boundary. Production claims
+also require database failover, network partition/split-brain, backup/restore,
+and destructive DR evidence. The gateway remains the only authority allowed to
+cancel or requeue claims.
 
 ### A2A task persistence
 

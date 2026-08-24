@@ -32,6 +32,9 @@ export function createWorkforceExecutionDescriptor(params: {
   const digestPayload = canonicalize({
     schema: "workforce-execution-approval/v1",
     planId,
+    tenantId: typeof input.tenantId === "string" && input.tenantId.trim()
+      ? input.tenantId.trim()
+      : "default",
     autonomyMode: params.autonomyMode,
     goal: params.plan.goal,
     selectedRoles: params.plan.selectedRoles,

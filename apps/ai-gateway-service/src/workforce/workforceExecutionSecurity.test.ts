@@ -57,6 +57,7 @@ describe("controlled workforce execution security boundary", () => {
       goal: "Build a bounded test artifact",
       autonomyMode: "sandbox-merge",
       userId: "alice",
+      tenantId: "tenant-a",
     };
     const descriptor = await executor.describeExecution(input);
 
@@ -70,6 +71,9 @@ describe("controlled workforce execution security boundary", () => {
 
     const changedPlan = await executor.execute({ ...input, goal: "Changed after approval" });
     expect(changedPlan.approval.decisionCode).toBe("APPROVAL_PLAN_MISMATCH");
+
+    const otherTenant = await executor.execute({ ...input, tenantId: "tenant-b" });
+    expect(otherTenant.approval.decisionCode).toBe("APPROVAL_NOT_FOUND");
 
     await expect(executor.execute(input)).resolves.toEqual(expect.objectContaining({ success: true }));
     expect(sandboxMerger.execute).toHaveBeenCalledTimes(1);
@@ -128,12 +132,15 @@ describe("public workforce entrypoints", () => {
     const route = routes.handlers.get("POST /workforce/execute") as any;
 
     await route.handler(
-      { enterpriseIdentity: { userId: "alice" } },
+      { enterpriseIdentity: { userId: "alice", tenantId: "tenant-a" } },
       {},
-      { startedAt: new Date(), body: { goal: "preview", userId: "mallory" } },
+      { startedAt: new Date(), body: { goal: "preview", userId: "mallory", tenantId: "tenant-b" } },
     );
 
-    expect(workforceExecutor.execute).toHaveBeenCalledWith(expect.objectContaining({ userId: "alice" }));
+    expect(workforceExecutor.execute).toHaveBeenCalledWith(expect.objectContaining({
+      userId: "alice",
+      tenantId: "tenant-a",
+    }));
     expect(route.permission).toBe("workflow:run");
     expect((routes.handlers.get("POST /workforce/execute/approve") as any).permission).toBe("workflow:approve");
     expect(writeJson).toHaveBeenCalled();

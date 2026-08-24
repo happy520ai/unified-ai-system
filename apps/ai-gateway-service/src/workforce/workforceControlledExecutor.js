@@ -8,10 +8,12 @@
  * Default: dry-run mode (execution preview only).
  */
 
+import { createHash } from "node:crypto";
+
 import { createExecutionLifecycle } from "./executionLifecycle.js";
 import { createExecutionApprovalGate } from "./executionApprovalGate.js";
 import { createWorktreeIsolation } from "./worktreeIsolation.js";
-import { TaskQueueManager } from "./taskQueueManager.js";
+import { createWorkforceTaskQueueManager } from "./workforceTaskQueueFactory.ts";
 import { createRoleExecutor } from "./roleExecutors.js";
 import { executeRoleWithLLM } from "./roleExecutorsLlm.js";
 import { createTaskEvidenceCapture } from "./taskEvidenceCapture.js";
@@ -85,7 +87,7 @@ export function createControlledExecutor(options = {}) {
   const worktree = createWorktreeIsolation({
     repoRoot: options.repoRoot ?? undefined,
   });
-  const taskQueue = options.taskQueueManager ?? new TaskQueueManager({
+  const taskQueue = options.taskQueueManager ?? createWorkforceTaskQueueManager({
     env,
     dataDir: options.executionDir ? `${options.executionDir}/task-queue` : undefined,
     claimTtlMs: Math.min(24 * 60 * 60_000, timeoutMs + 30_000),
@@ -187,6 +189,17 @@ export function createControlledExecutor(options = {}) {
       return taskQueue.getClaimHealth();
     },
 
+    async getTaskQueueHealth() {
+      return typeof taskQueue.checkQueueHealth === "function"
+        ? taskQueue.checkQueueHealth()
+        : (taskQueue.getQueueHealth?.() ?? {
+            mode: "atomic-json-local",
+            durable: true,
+            distributed: false,
+            available: true,
+          });
+    },
+
     async close() {
       await taskQueue.close();
     },
@@ -212,6 +225,9 @@ export function createControlledExecutor(options = {}) {
       const { plan, autonomyMode: mode, descriptor } = await prepareExecution(input);
       const planId = descriptor.planId;
       const userId = typeof input.userId === "string" ? input.userId.trim() : "";
+      const tenantId = typeof input.tenantId === "string" && input.tenantId.trim()
+        ? input.tenantId.trim()
+        : "default";
       const preScan = await securityCheckpoint.preExecutionScan?.(plan) ?? { result: "pass", findings: [] };
       if (preScan.result === "block") {
         return createBlockedResult(plan, planId, "security_pre_scan_blocked",
@@ -233,6 +249,7 @@ export function createControlledExecutor(options = {}) {
 
       const approvalCheck = await approvalGate.consume({
         planId,
+        tenantId,
         userId,
         planDigest: descriptor.planDigest,
         requiredScopes: descriptor.requiredScopes,
@@ -279,6 +296,9 @@ export function createControlledExecutor(options = {}) {
       const tasks = plan.taskBreakdown ?? [];
       const queuedTasks = await taskQueue.enqueueMany(tasks.map((task) => ({
           planId,
+          claimPlanId: createScopedClaimPlanId(tenantId, userId, planId),
+          tenantId,
+          ownerId: userId,
           title: task.title ?? task.role,
           description: task.description ?? "",
           priority: mapPriority(task.priority),
@@ -454,6 +474,9 @@ export function createControlledExecutor(options = {}) {
       }
       const approval = await approvalGate.approve({
         planId: descriptor.planId,
+        tenantId: typeof input.tenantId === "string" && input.tenantId.trim()
+          ? input.tenantId.trim()
+          : "default",
         userId,
         planDigest: descriptor.planDigest,
         approvedScopes: requiredScopes,
@@ -469,6 +492,9 @@ export function createControlledExecutor(options = {}) {
       const { descriptor } = await prepareExecution(input);
       return approvalGate.check({
         planId: descriptor.planId,
+        tenantId: typeof input.tenantId === "string" && input.tenantId.trim()
+          ? input.tenantId.trim()
+          : "default",
         userId,
         planDigest: descriptor.planDigest,
         requiredScopes: descriptor.requiredScopes,
@@ -478,8 +504,8 @@ export function createControlledExecutor(options = {}) {
     /**
      * Revoke execution approval.
      */
-    async revokeApproval(planId, revokedBy, reason) {
-      return approvalGate.revoke(planId, revokedBy, reason);
+    async revokeApproval(planId, revokedBy, reason, tenantId = "default") {
+      return approvalGate.revoke(planId, revokedBy, reason, tenantId);
     },
 
     async describeExecution(input = {}) {
@@ -579,4 +605,11 @@ export function createControlledExecutor(options = {}) {
       return tierGovernor.fallBack(input);
     },
   };
+}
+
+function createScopedClaimPlanId(tenantId, ownerId, planId) {
+  const digest = createHash("sha256")
+    .update(`${tenantId}\u0000${ownerId}\u0000${planId}`, "utf8")
+    .digest("hex");
+  return `wf-scope-${digest}`;
 }

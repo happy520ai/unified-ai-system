@@ -144,7 +144,11 @@ export async function executeWorkforceDag(options: DagExecutorOptions) {
           priorOutputs,
           signal: options.signal,
         }, task)), options.signal);
-        await options.taskQueue.completeTask(task.queueTaskId, { roleId, completed: true }, ownership);
+        await options.taskQueue.completeTask(task.queueTaskId, {
+          roleId,
+          completed: true,
+          output,
+        }, ownership);
         return { roleId, output };
       } catch (error) {
         try {

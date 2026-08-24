@@ -67,7 +67,7 @@ export function createExecutionApprovalGate(options = {}) {
      * @param {string} [params.note] - 审批备注
      * @returns {Promise<object>} 审批记录
      */
-    async approve({ planId, userId, planDigest, approvedScopes = [], note = "" }) {
+    async approve({ planId, tenantId = "default", userId, planDigest, approvedScopes = [], note = "" }) {
       if (!planId || typeof planId !== "string") {
         throw createApprovalError("APPROVAL_PLAN_ID_REQUIRED", "计划 ID 是必填项");
       }
@@ -78,6 +78,7 @@ export function createExecutionApprovalGate(options = {}) {
         throw createApprovalError("APPROVAL_PLAN_DIGEST_REQUIRED", "有效的 SHA-256 计划摘要是必填项");
       }
       const normalizedScopes = normalizeScopes(approvedScopes);
+      const normalizedTenantId = normalizeTenantId(tenantId);
       if (normalizedScopes.length === 0) {
         throw createApprovalError("APPROVAL_SCOPES_REQUIRED", "至少需要一个明确的批准范围");
       }
@@ -86,9 +87,10 @@ export function createExecutionApprovalGate(options = {}) {
         const now = new Date();
         const expiresAt = new Date(now.getTime() + ttlMs);
         const approval = {
-          schemaVersion: 2,
+          schemaVersion: 3,
           approvalId: `appr_${randomUUID().replace(/-/g, "").slice(0, 16)}`,
           planId: planId.trim(),
+          tenantId: normalizedTenantId,
           userId: userId.trim(),
           planDigest,
           approvedScopes: normalizedScopes,
@@ -103,10 +105,13 @@ export function createExecutionApprovalGate(options = {}) {
           consumedBy: null,
         };
         const store = await readApprovalStore(storePath);
-        const filteredApprovals = store.approvals.filter((a) => a.planId !== approval.planId);
+        const filteredApprovals = store.approvals.filter((a) => !(
+          a.planId === approval.planId
+          && normalizeTenantId(a.tenantId ?? "default") === approval.tenantId
+        ));
         filteredApprovals.unshift(approval);
         await writeApprovalStore(storePath, {
-          version: 2,
+          version: 3,
           updatedAt: now.toISOString(),
           approvals: filteredApprovals,
         });
@@ -132,7 +137,9 @@ export function createExecutionApprovalGate(options = {}) {
 
       const store = await readApprovalStore(storePath);
       const approval = store.approvals.find(
-        (a) => a.planId === normalized.context.planId && a.status === "approved" && !a.revoked,
+        (a) => a.planId === normalized.context.planId
+          && normalizeTenantId(a.tenantId ?? "default") === normalized.context.tenantId
+          && a.status === "approved" && !a.revoked,
       );
       if (!approval) {
         return {
@@ -154,7 +161,9 @@ export function createExecutionApprovalGate(options = {}) {
       return withMutationLock(async () => {
         const store = await readApprovalStore(storePath);
         const index = store.approvals.findIndex(
-          (a) => a.planId === normalized.context.planId && a.status === "approved" && !a.revoked,
+          (a) => a.planId === normalized.context.planId
+            && normalizeTenantId(a.tenantId ?? "default") === normalized.context.tenantId
+            && a.status === "approved" && !a.revoked,
         );
         if (index < 0) {
           return {
@@ -178,7 +187,7 @@ export function createExecutionApprovalGate(options = {}) {
         const approvals = [...store.approvals];
         approvals[index] = consumedApproval;
         await writeApprovalStore(storePath, {
-          version: 2,
+          version: 3,
           updatedAt: now.toISOString(),
           approvals,
         });
@@ -197,17 +206,20 @@ export function createExecutionApprovalGate(options = {}) {
      * @param {string} [reason] - 吊销原因
      * @returns {Promise<object>} 吊销结果
      */
-    async revoke(planId, revokedBy, reason = "") {
+    async revoke(planId, revokedBy, reason = "", tenantId = "default") {
       if (!planId || typeof planId !== "string") {
         throw createApprovalError("APPROVAL_PLAN_ID_REQUIRED", "计划 ID 是必填项");
       }
 
       return withMutationLock(async () => {
+        const normalizedTenantId = normalizeTenantId(tenantId);
         const store = await readApprovalStore(storePath);
         const now = new Date();
         let revoked = false;
         const updatedApprovals = store.approvals.map((a) => {
-          if (a.planId === planId.trim() && a.status === "approved" && !a.revoked) {
+          if (a.planId === planId.trim()
+            && normalizeTenantId(a.tenantId ?? "default") === normalizedTenantId
+            && a.status === "approved" && !a.revoked) {
             revoked = true;
             return {
               ...a,
@@ -224,7 +236,7 @@ export function createExecutionApprovalGate(options = {}) {
           return { success: false, reason: "未找到可吊销的有效审批记录", planId: planId.trim() };
         }
         await writeApprovalStore(storePath, {
-          version: 2,
+          version: 3,
           updatedAt: now.toISOString(),
           approvals: updatedApprovals,
         });
@@ -246,6 +258,10 @@ export function createExecutionApprovalGate(options = {}) {
       // 应用过滤条件
       if (filter.planId) {
         approvals = approvals.filter((a) => a.planId === filter.planId.trim());
+      }
+      if (filter.tenantId) {
+        const tenantId = normalizeTenantId(filter.tenantId);
+        approvals = approvals.filter((a) => normalizeTenantId(a.tenantId ?? "default") === tenantId);
       }
       if (filter.status) {
         approvals = approvals.filter((a) => a.status === filter.status);
@@ -279,7 +295,7 @@ export function createExecutionApprovalGate(options = {}) {
           return now < new Date(a.expiresAt);
         });
         await writeApprovalStore(storePath, {
-          version: 2,
+          version: 3,
           updatedAt: now.toISOString(),
           approvals: activeApprovals,
         });
@@ -355,13 +371,22 @@ function normalizeApprovalContext(input) {
     return { valid: false, code: "APPROVAL_CONTEXT_REQUIRED", reason: "完整的执行审批上下文是必填项" };
   }
   const planId = typeof input.planId === "string" ? input.planId.trim() : "";
+  const tenantId = normalizeTenantId(input.tenantId ?? "default");
   const userId = typeof input.userId === "string" ? input.userId.trim() : "";
   const planDigest = typeof input.planDigest === "string" ? input.planDigest.trim() : "";
   const requiredScopes = normalizeScopes(input.requiredScopes);
   if (!planId || !userId || !/^[a-f0-9]{64}$/.test(planDigest) || requiredScopes.length === 0) {
     return { valid: false, code: "APPROVAL_CONTEXT_INVALID", reason: "审批校验必须绑定 planId、userId、planDigest 和 requiredScopes" };
   }
-  return { valid: true, context: { planId, userId, planDigest, requiredScopes } };
+  return { valid: true, context: { planId, tenantId, userId, planDigest, requiredScopes } };
+}
+
+function normalizeTenantId(value) {
+  if (typeof value !== "string" || !value.trim() || value.trim().length > 256
+    || /[\u0000-\u001f\u007f]/u.test(value.trim())) {
+    throw createApprovalError("APPROVAL_TENANT_ID_INVALID", "有效且有界的 tenantId 是必填项");
+  }
+  return value.trim();
 }
 
 function evaluateApproval(approval, context, now) {

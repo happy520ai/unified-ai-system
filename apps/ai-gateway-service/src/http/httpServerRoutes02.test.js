@@ -397,6 +397,44 @@ describe("dispatchHttpRoutes02 healthz readiness", () => {
     expect(context.response.payload.error.details.workforceClaimStore)
       .not.toHaveProperty("connectionString");
   });
+
+  it("returns unready with a redacted central Workforce queue snapshot", async () => {
+    const context = createEnvelopeContext({
+      application: {
+        workforceExecutor: {
+          getTaskQueueHealth: async () => ({
+            mode: "postgres-central-fenced",
+            durable: true,
+            distributed: true,
+            available: false,
+            atomicTerminalFence: true,
+            totalQueued: 7,
+            maxEntries: 3_000,
+            connectionString: "postgresql://must-not-leak",
+            namespace: "private-queue",
+          }),
+        },
+      },
+    });
+
+    await dispatchHttpRoutes02(context);
+
+    expect(context.response.status).toBe(503);
+    expect(context.response.payload.error.details.readinessFailures).toContain(
+      "workforce-task-queue-unavailable",
+    );
+    expect(context.response.payload.error.details.workforceTaskQueue).toMatchObject({
+      mode: "postgres-central-fenced",
+      distributed: true,
+      available: false,
+      totalQueued: 7,
+      atomicTerminalFence: true,
+    });
+    expect(JSON.stringify(context.response.payload.error.details.workforceTaskQueue))
+      .not.toContain("must-not-leak");
+    expect(JSON.stringify(context.response.payload.error.details.workforceTaskQueue))
+      .not.toContain("private-queue");
+  });
 });
 
 describe("dispatchHttpRoutes02 metrics readiness visibility", () => {

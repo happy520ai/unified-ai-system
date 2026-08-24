@@ -267,6 +267,25 @@ export function createPrometheusExporter(options = {}) {
     lines.push(`# TYPE ${prefix}_workforce_claims gauge`);
     lines.push(`${prefix}_workforce_claims{state="active"} ${safeMetricNumber(workforceClaimStore?.activeClaims)}`);
     lines.push(`${prefix}_workforce_claims{state="capacity"} ${safeMetricNumber(workforceClaimStore?.maxClaims)}`);
+
+    const workforceTaskQueue = snapshot.workforceTaskQueue;
+    const workforceQueueMode = sanitizeMetricLabel(workforceTaskQueue?.mode ?? "disabled");
+    lines.push("# HELP " + prefix + "_workforce_task_queue_available Whether the Workforce task queue store is available.");
+    lines.push("# TYPE " + prefix + "_workforce_task_queue_available gauge");
+    lines.push(`${prefix}_workforce_task_queue_available{mode="${workforceQueueMode}"} ${workforceTaskQueue ? (workforceTaskQueue.available === true ? 1 : 0) : 1}`);
+    lines.push("# HELP " + prefix + "_workforce_task_queue_distributed Whether the Workforce task queue is cross-host distributed.");
+    lines.push("# TYPE " + prefix + "_workforce_task_queue_distributed gauge");
+    lines.push(`${prefix}_workforce_task_queue_distributed{mode="${workforceQueueMode}"} ${workforceTaskQueue?.distributed === true ? 1 : 0}`);
+    lines.push("# HELP " + prefix + "_workforce_task_queue_tasks Workforce task counts by lifecycle state.");
+    lines.push("# TYPE " + prefix + "_workforce_task_queue_tasks gauge");
+    lines.push(`${prefix}_workforce_task_queue_tasks{state="queued"} ${safeMetricNumber(workforceTaskQueue?.totalQueued)}`);
+    lines.push(`${prefix}_workforce_task_queue_tasks{state="active"} ${safeMetricNumber(workforceTaskQueue?.totalActive)}`);
+    lines.push(`${prefix}_workforce_task_queue_tasks{state="completed"} ${safeMetricNumber(workforceTaskQueue?.totalCompleted)}`);
+    lines.push(`${prefix}_workforce_task_queue_tasks{state="failed"} ${safeMetricNumber(workforceTaskQueue?.totalFailed)}`);
+    lines.push(`${prefix}_workforce_task_queue_tasks{state="cancelled"} ${safeMetricNumber(workforceTaskQueue?.totalCancelled)}`);
+    lines.push("# HELP " + prefix + "_workforce_task_queue_atomic_terminal_fence Whether terminal writes atomically validate the claim fence.");
+    lines.push("# TYPE " + prefix + "_workforce_task_queue_atomic_terminal_fence gauge");
+    lines.push(`${prefix}_workforce_task_queue_atomic_terminal_fence ${workforceTaskQueue?.atomicTerminalFence === true ? 1 : 0}`);
     lines.push(`# HELP ${prefix}_workforce_claim_stats_age_seconds Age of the last distributed claim statistics snapshot, or -1 when unavailable`);
     lines.push(`# TYPE ${prefix}_workforce_claim_stats_age_seconds gauge`);
     lines.push(`${prefix}_workforce_claim_stats_age_seconds{mode="${workforceClaimMode}"} ${workforceClaimStatsAgeSeconds}`);

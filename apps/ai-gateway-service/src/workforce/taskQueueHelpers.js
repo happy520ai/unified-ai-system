@@ -50,6 +50,21 @@ export function buildTaskRecord(task) {
       : (typeof task.payload?.planId === "string" && task.payload.planId.trim()
         ? task.payload.planId.trim()
         : "standalone"),
+    claimPlanId: typeof task.claimPlanId === "string" && task.claimPlanId.trim()
+      ? task.claimPlanId.trim()
+      : (typeof task.planId === "string" && task.planId.trim()
+        ? task.planId.trim()
+        : (typeof task.payload?.planId === "string" && task.payload.planId.trim()
+          ? task.payload.planId.trim()
+          : "standalone")),
+    tenantId: typeof task.tenantId === "string" && task.tenantId.trim()
+      ? task.tenantId.trim()
+      : "default",
+    ownerId: typeof task.ownerId === "string" && task.ownerId.trim()
+      ? task.ownerId.trim()
+      : (typeof task.requestedBy === "string" && task.requestedBy.trim()
+        ? task.requestedBy.trim()
+        : "system"),
     title: task.title ?? "Untitled task",
     description: task.description ?? "",
     priority,

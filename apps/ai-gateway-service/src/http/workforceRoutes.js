@@ -188,7 +188,8 @@ export function createWorkforceRoutes(application, helpers) {
     }
     try {
       const userId = requireExecutionUserId(req);
-      const result = await workforceExecutor.execute({ ...body, userId });
+      const tenantId = requireExecutionTenantId(req);
+      const result = await workforceExecutor.execute({ ...body, userId, tenantId });
       writeJson(res, result?.success ? 200 : 422, createOkEnvelope(result, { startedAt }));
     } catch (e) {
       writeErrorResponse({ response: res, error: e, startedAt, fallbackCode: "execute_failed" });
@@ -199,8 +200,9 @@ export function createWorkforceRoutes(application, helpers) {
     if (!body) return;
     try {
       const userId = requireExecutionUserId(req);
+      const tenantId = requireExecutionTenantId(req);
       const result = await workforceExecutor.approveExecution(
-        { ...body, userId },
+        { ...body, userId, tenantId },
         userId,
         body.approvedScopes,
       );
@@ -214,7 +216,8 @@ export function createWorkforceRoutes(application, helpers) {
     if (!body) return;
     try {
       const userId = requireExecutionUserId(req);
-      const result = await workforceExecutor.revokeApproval(body.planId, userId, body.reason);
+      const tenantId = requireExecutionTenantId(req);
+      const result = await workforceExecutor.revokeApproval(body.planId, userId, body.reason, tenantId);
       writeJson(res, result?.success ? 200 : 404, createOkEnvelope(result, { startedAt }));
     } catch (e) {
       writeErrorResponse({ response: res, error: e, startedAt, fallbackCode: "execute_approval_revoke_failed" });
@@ -285,5 +288,10 @@ export function createWorkforceRoutes(application, helpers) {
       throw error;
     }
     return userId.trim();
+  }
+
+  function requireExecutionTenantId(request) {
+    const tenantId = request?.enterpriseIdentity?.tenantId;
+    return typeof tenantId === "string" && tenantId.trim() ? tenantId.trim() : "default";
   }
 }

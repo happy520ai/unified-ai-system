@@ -66,10 +66,19 @@ export class TaskQueueManager {
       this.queue = (Array.isArray(data.queue) ? data.queue : []).map((task) => ({
         ...task,
         planId: task.planId || task.payload?.planId || "standalone",
+        claimPlanId: task.claimPlanId || task.planId || task.payload?.planId || "standalone",
+        tenantId: task.tenantId || "default",
+        ownerId: task.ownerId || task.requestedBy || "system",
         dependsOnRoleIds: Array.isArray(task.dependsOnRoleIds) ? task.dependsOnRoleIds : [],
         claim: null,
       }));
-      this.completedTasks = Array.isArray(data.completedTasks) ? data.completedTasks : [];
+      this.completedTasks = (Array.isArray(data.completedTasks) ? data.completedTasks : []).map((task) => ({
+        ...task,
+        planId: task.planId || task.payload?.planId || "standalone",
+        claimPlanId: task.claimPlanId || task.planId || task.payload?.planId || "standalone",
+        tenantId: task.tenantId || "default",
+        ownerId: task.ownerId || task.requestedBy || "system",
+      }));
       this._auditLog = Array.isArray(data.auditLog) ? data.auditLog.slice(-2_000) : [];
       this.agentAssignments = new Map();
       for (const [agentId, tasks] of Object.entries(data.agentAssignments ?? {})) {
@@ -82,6 +91,9 @@ export class TaskQueueManager {
         const task = {
           ...persistedTask,
           planId: persistedTask.planId || persistedTask.payload?.planId || "standalone",
+          claimPlanId: persistedTask.claimPlanId || persistedTask.planId || persistedTask.payload?.planId || "standalone",
+          tenantId: persistedTask.tenantId || "default",
+          ownerId: persistedTask.ownerId || persistedTask.requestedBy || "system",
           dependsOnRoleIds: Array.isArray(persistedTask.dependsOnRoleIds) ? persistedTask.dependsOnRoleIds : [],
           status: TASK_STATUS.QUEUED,
           assignedTo: null,
@@ -211,7 +223,10 @@ export class TaskQueueManager {
     this.completedTasks.push(task);
     this._audit(taskId, "cancelled", { reason: task.error });
     await this.persist();
-    if (task.claim) await this.claimManager.revokeTask({ planId: task.planId, taskId: task.taskId }, task.error);
+    if (task.claim) await this.claimManager.revokeTask({
+      planId: task.claimPlanId || task.planId,
+      taskId: task.taskId,
+    }, task.error);
     return cloneTask(task);
   }
 
@@ -311,6 +326,22 @@ export class TaskQueueManager {
     };
   }
 
+  getQueueHealth() {
+    return {
+      mode: "atomic-json-local",
+      durable: true,
+      distributed: false,
+      available: true,
+      atomicTerminalFence: false,
+      rawTokenRetained: false,
+      ...this.getQueueStatus(),
+    };
+  }
+
+  async checkQueueHealth() {
+    return this.getQueueHealth();
+  }
+
   getQueueStatus() {
     const byPriority = {};
     for (const key of Object.keys(PRIORITY_LEVELS)) {
@@ -403,7 +434,7 @@ export class TaskQueueManager {
     const task = this.queue[taskIndex];
     if (!task) return null;
     const issued = await this.claimManager.issue({
-      planId: task.planId,
+      planId: task.claimPlanId || task.planId,
       taskId: task.taskId,
       agentId,
       ttlMs: options.ttlMs ?? this.claimTtlMs,
@@ -463,7 +494,7 @@ export class TaskQueueManager {
 
   _claimContext(task) {
     return {
-      planId: task.planId,
+      planId: task.claimPlanId || task.planId,
       taskId: task.taskId,
       agentId: task.assignedTo,
       fencingToken: task.claim?.fencingToken,

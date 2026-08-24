@@ -91,6 +91,7 @@ export async function dispatchHttpRoutes02(context) {
     const webSocketLease = await readWebSocketLeaseHealth(webSocketConnectionLeaseManager);
     const a2aTaskStore = await readA2ATaskStoreHealth(a2aGateway);
     const workforceClaimStore = await readWorkforceClaimStoreHealth(application?.workforceExecutor);
+    const workforceTaskQueue = await readWorkforceTaskQueueHealth(application?.workforceExecutor);
     const readinessFailures = collectReadinessFailures(healthSnapshot, readinessSnapshot, {
       saturated,
       gatewayErrorCircuitState: resilienceSnapshot?.gatewayErrorCircuitState,
@@ -101,6 +102,8 @@ export async function dispatchHttpRoutes02(context) {
       a2aTaskStoreUnavailable: Boolean(a2aGateway) && a2aTaskStore?.available !== true,
       workforceClaimStoreUnavailable: workforceClaimStore?.distributed === true
         && workforceClaimStore.available !== true,
+      workforceTaskQueueUnavailable: workforceTaskQueue?.distributed === true
+        && workforceTaskQueue.available !== true,
     });
     resilienceMetrics?.recordReadinessCheck?.(readinessFailures);
     const degraded = saturated || readinessFailures.length > 0;
@@ -119,6 +122,7 @@ export async function dispatchHttpRoutes02(context) {
       webSocketLease,
       a2aTaskStore,
       workforceClaimStore,
+      workforceTaskQueue,
       saturation: {
         inFlight: currentInFlight,
         threshold: saturationThreshold,
@@ -250,6 +254,7 @@ export async function dispatchHttpRoutes02(context) {
     const webSocketLease = await readWebSocketLeaseHealth(webSocketConnectionLeaseManager);
     const a2aTaskStore = await readA2ATaskStoreHealth(a2aGateway);
     const workforceClaimStore = await readWorkforceClaimStoreHealth(application?.workforceExecutor);
+    const workforceTaskQueue = await readWorkforceTaskQueueHealth(application?.workforceExecutor);
     const readinessFailures = collectReadinessFailures(healthSnapshot, readinessSnapshot, {
       saturated,
       gatewayErrorCircuitState: readinessResilienceSnapshot?.gatewayErrorCircuitState,
@@ -260,6 +265,8 @@ export async function dispatchHttpRoutes02(context) {
       a2aTaskStoreUnavailable: Boolean(a2aGateway) && a2aTaskStore?.available !== true,
       workforceClaimStoreUnavailable: workforceClaimStore?.distributed === true
         && workforceClaimStore.available !== true,
+      workforceTaskQueueUnavailable: workforceTaskQueue?.distributed === true
+        && workforceTaskQueue.available !== true,
     });
     const snapshot = {
       totalRequests: stats.totalRequests ?? 0,
@@ -275,6 +282,7 @@ export async function dispatchHttpRoutes02(context) {
       webSocketLease,
       a2aTaskStore,
       workforceClaimStore,
+      workforceTaskQueue,
       usageLedger,
       latency: stats.latencyQuantiles
         ?? (stats.avgLatencyMs
@@ -693,6 +701,9 @@ function collectReadinessFailures(healthSnapshot, readinessSnapshot, context = {
   if (context?.workforceClaimStoreUnavailable) {
     readinessFailures.push("workforce-claim-store-unavailable");
   }
+  if (context?.workforceTaskQueueUnavailable) {
+    readinessFailures.push("workforce-task-queue-unavailable");
+  }
 
   return Array.from(new Set(readinessFailures));
 }
@@ -716,6 +727,44 @@ async function readWorkforceClaimStoreHealth(workforceExecutor) {
       available: false,
       activeClaims: 0,
       maxClaims: 0,
+      statsUpdatedAt: null,
+    };
+  }
+}
+
+async function readWorkforceTaskQueueHealth(workforceExecutor) {
+  if (!workforceExecutor?.getTaskQueueHealth) return null;
+  try {
+    const snapshot = await workforceExecutor.getTaskQueueHealth();
+    return {
+      mode: snapshot?.mode ?? "unknown",
+      durable: snapshot?.durable === true,
+      distributed: snapshot?.distributed === true,
+      available: snapshot?.available === true,
+      atomicTerminalFence: snapshot?.atomicTerminalFence === true,
+      totalQueued: Number(snapshot?.totalQueued ?? 0),
+      totalActive: Number(snapshot?.totalActive ?? 0),
+      totalCompleted: Number(snapshot?.totalCompleted ?? 0),
+      totalFailed: Number(snapshot?.totalFailed ?? 0),
+      totalCancelled: Number(snapshot?.totalCancelled ?? 0),
+      maxEntries: Number(snapshot?.maxEntries ?? 0),
+      maxTaskBytes: Number(snapshot?.maxTaskBytes ?? 0),
+      statsUpdatedAt: snapshot?.statsUpdatedAt ?? null,
+    };
+  } catch {
+    return {
+      mode: "unknown",
+      durable: true,
+      distributed: true,
+      available: false,
+      atomicTerminalFence: false,
+      totalQueued: 0,
+      totalActive: 0,
+      totalCompleted: 0,
+      totalFailed: 0,
+      totalCancelled: 0,
+      maxEntries: 0,
+      maxTaskBytes: 0,
       statsUpdatedAt: null,
     };
   }
