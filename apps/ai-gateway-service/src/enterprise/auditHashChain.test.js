@@ -241,8 +241,9 @@ describe("AuditHashChain — concurrent appends", () => {
 });
 
 function runChildAppender(chainPath, prefix, count) {
+  const moduleUrl = new URL("./auditHashChain.js", import.meta.url).href;
   const source = `
-    import { createAuditHashChain } from "./apps/ai-gateway-service/src/enterprise/auditHashChain.js";
+    const { createAuditHashChain } = await import(${JSON.stringify(moduleUrl)});
     const chain = createAuditHashChain({ chainPath: process.argv[1] });
     for (let index = 0; index < Number(process.argv[3]); index += 1) {
       await chain.append({ action: process.argv[2] + "-" + index });
