@@ -15,8 +15,9 @@ and the project uses [Semantic Versioning](https://semver.org/).
   enterprise IdP integration.
 - Added operator-configurable weighted routing splits and shadow traffic
   (`AI_GATEWAY_WEIGHTED_ROUTES_JSON`): requests split across providers by
-  weight; shadow calls fire after the primary response, log-only, and never
-  double-bill the usage ledger.
+  weight; shadow calls fire after the primary response and enter the usage
+  ledger separately. Real-provider shadowing requires the additional explicit
+  `AI_GATEWAY_SHADOW_REAL_PROVIDER_ENABLED=true` gate.
 - Added same-host multi-instance defaults (`AI_GATEWAY_MULTI_INSTANCE=true`):
   rate limiting and idempotency dedup default to shared SQLite stores with a
   load-or-generate shared HMAC secret file.
@@ -117,6 +118,13 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Hardened knowledge-file ingestion: PDF, DOCX, XLS, and XLSX parsing now runs
+  in bounded worker threads with hard time, heap, concurrency, queue, input,
+  extracted-text, PDF-page, sheet, row, column, and cell limits. Invalid base64
+  and oversized batches fail before parser invocation.
+- Enterprise audit hash-chain writes are awaited and fail the governed
+  operation when durable append fails; health degrades instead of silently
+  treating an asynchronous audit failure as success.
 - Placeholder executions are now honest: `LocalRunner` marks handler-less
   tasks `skipped`, and `SubProcessRunner` fails fast with
   `SCRIPT_PATH_MISSING` instead of reporting fake completions.
@@ -132,9 +140,10 @@ and the project uses [Semantic Versioning](https://semver.org/).
   CLI command group; three-mode execution restored and live.
 - Performance (fake lane, single node, same benchmark tool): chat JSON
   p50 15.7ms → **3.3ms (~4.8×)**, SSE TTFT 2.6ms → **1.6ms** — via
-  background serialized audit writes (no longer blocking responses),
-  versioned provider-registry/model-list caching, and removing the
-  artificial 20ms fake-provider latency.
+  versioned provider-registry/model-list caching and removal of the artificial
+  20ms fake-provider latency. Audit hash-chain writes are now deliberately
+  awaited so a durable-audit failure cannot be reported as a successful
+  governed operation.
 
 ## [Restoration Note]
 

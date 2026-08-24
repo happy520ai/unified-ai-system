@@ -19,6 +19,7 @@ import {
   runLocalOperationLoop,
 } from "../agent-runner/localOperationLoop.js";
 import {
+  assertKnowledgeFileBatch,
   getSupportedKnowledgeFileTypes,
   parseKnowledgeFile,
 } from "../knowledge/documentParsers.js";
@@ -239,7 +240,7 @@ const DEFAULT_GATEWAY_ERROR_CIRCUIT_RESET_MS = 30_000;
 const DEFAULT_GATEWAY_ERROR_CIRCUIT_HALF_OPEN_MAX_CALLS = 1;
 const HTTP_ROUTE_DEPENDENCIES = Object.freeze({
   createErrorEnvelope, createOkEnvelope, getSafeRuntimeConfig, createRouteFailureEnvelope,
-  createLocalAgentIntentExplainer, runLocalOperationLoop, getSupportedKnowledgeFileTypes, parseKnowledgeFile,
+  createLocalAgentIntentExplainer, runLocalOperationLoop, assertKnowledgeFileBatch, getSupportedKnowledgeFileTypes, parseKnowledgeFile,
   listModelImportProviders, detectRuntimeCredentialProviders, getRequestContext,
   createNextCodexTask, writeNextCodexTaskOutbox, readCodexLoopStatus, checkTokenCostGuard,
   appendEstimateRecord, readTokenCostSummary, readLatestMimoTokenCalibrationProfile, createResponseCacheKey,
