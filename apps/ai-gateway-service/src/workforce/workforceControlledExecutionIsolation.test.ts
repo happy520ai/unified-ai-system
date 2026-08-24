@@ -328,6 +328,120 @@ describe("controlled execution worktree and tenant isolation", () => {
       await executor.close();
     }
   }, 20_000);
+
+  it("aborts a timed-out provider and waits for DAG settlement before worktree cleanup", async () => {
+    const executionDir = await temporaryRoot("workforce-controlled-timeout-");
+    let providerSettledAt = 0;
+    let worktreeRemovedAt = 0;
+    const providerStarted = vi.fn();
+    const providerAdapter = {
+      generate: vi.fn(async (request) => {
+        providerStarted();
+        const signal = request.execution?.signal as AbortSignal | undefined;
+        return new Promise((_resolve, reject) => {
+          signal?.addEventListener("abort", () => {
+            setTimeout(() => {
+              providerSettledAt = Date.now();
+              reject(signal.reason);
+            }, 50);
+          }, { once: true });
+        });
+      }),
+    };
+    const remove = vi.fn(async () => {
+      worktreeRemovedAt = Date.now();
+      return { success: true };
+    });
+    const executor = createControlledExecutor({
+      env: {
+        WORKFORCE_EXECUTION_ENABLED: "true",
+        WORKFORCE_EXECUTION_TIMEOUT_MS: "1000",
+        AI_GATEWAY_WORKFORCE_CONTROL_POLL_MS: "100",
+      },
+      executionDir,
+      providerAdapter,
+      tierGovernor: tierGovernor(),
+      workspaceGuard: { getInfo: () => ({}), checkWorkspace: vi.fn(async () => ({ clean: true })) },
+      securityCheckpoint: securityCheckpoint(),
+      worktreeIsolation: {
+        getInfo: () => ({}),
+        create: vi.fn(async ({ planId }) => ({
+          success: true,
+          worktree: { worktreeId: `wt-${planId}`, planId, path: "isolated" },
+        })),
+        remove,
+      },
+      evidenceCapture: {
+        getInfo: () => ({}),
+        startCapture: () => ({ setOutput() { return this; }, async finish() { return { success: true }; } }),
+      },
+    });
+    try {
+      const result = await executor.execute(await approvedInput(executor));
+      expect(providerStarted).toHaveBeenCalled();
+      expect(result).toMatchObject({
+        success: false,
+        executionStatus: "failed",
+        worktree: { cleanedUp: true },
+      });
+      expect(result.errors).toContain("Workforce execution timed out after 1000ms");
+      expect(providerSettledAt).toBeGreaterThan(0);
+      expect(worktreeRemovedAt).toBeGreaterThanOrEqual(providerSettledAt);
+      expect(remove).toHaveBeenCalledTimes(1);
+    } finally {
+      await executor.close();
+    }
+  }, 20_000);
+
+  it("retains the isolated worktree when an aborted provider never confirms termination", async () => {
+    const executionDir = await temporaryRoot("workforce-controlled-drain-timeout-");
+    const providerStarted = vi.fn();
+    const remove = vi.fn(async () => ({ success: true }));
+    const executor = createControlledExecutor({
+      env: {
+        WORKFORCE_EXECUTION_ENABLED: "true",
+        WORKFORCE_EXECUTION_TIMEOUT_MS: "1000",
+        WORKFORCE_ABORT_DRAIN_TIMEOUT_MS: "100",
+        AI_GATEWAY_WORKFORCE_CONTROL_POLL_MS: "100",
+      },
+      executionDir,
+      providerAdapter: {
+        generate: vi.fn(async () => {
+          providerStarted();
+          return new Promise(() => undefined);
+        }),
+      },
+      tierGovernor: tierGovernor(),
+      workspaceGuard: { getInfo: () => ({}), checkWorkspace: vi.fn(async () => ({ clean: true })) },
+      securityCheckpoint: securityCheckpoint(),
+      worktreeIsolation: {
+        getInfo: () => ({}),
+        create: vi.fn(async ({ planId }) => ({
+          success: true,
+          worktree: { worktreeId: `wt-${planId}`, planId, path: "isolated" },
+        })),
+        remove,
+      },
+      evidenceCapture: {
+        getInfo: () => ({}),
+        startCapture: () => ({ setOutput() { return this; }, async finish() { return { success: true }; } }),
+      },
+    });
+    try {
+      const result = await executor.execute(await approvedInput(executor));
+      expect(providerStarted).toHaveBeenCalled();
+      expect(result).toMatchObject({
+        success: false,
+        executionStatus: "failed",
+        worktree: { cleanedUp: false },
+      });
+      expect(result.errors).toContain("execution_quiescence_unconfirmed");
+      expect(result.errors).toContain("worktree_cleanup_skipped: execution quiescence was not confirmed");
+      expect(remove).not.toHaveBeenCalled();
+    } finally {
+      await executor.close();
+    }
+  }, 20_000);
 });
 
 describe("lifecycle and evidence persistence isolation", () => {

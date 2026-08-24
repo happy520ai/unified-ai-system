@@ -89,6 +89,12 @@ export function createControlledExecutor(options = {}) {
     100,
     5_000,
   );
+  const abortDrainTimeoutMs = readBoundedInteger(
+    env.WORKFORCE_ABORT_DRAIN_TIMEOUT_MS,
+    30_000,
+    100,
+    5 * 60_000,
+  );
 
   const ownsExecutionControl = !options.executionControl
     && (!options.executionLifecycle || !options.approvalGate);
@@ -340,6 +346,7 @@ export function createControlledExecutor(options = {}) {
       let worktreeRecord = null;
       let cleanupAttempted = false;
       let worktreeCleanedUp = false;
+      let worktreeCleanupAllowed = true;
       try {
         const creation = await worktree.create({ planId: executionScopeId });
         if (!creation?.success || !creation?.worktree?.worktreeId) {
@@ -409,6 +416,7 @@ export function createControlledExecutor(options = {}) {
           maxConcurrent,
           claimTtlMs: Math.min(24 * 60 * 60_000, timeoutMs + 30_000),
           signal: abortController.signal,
+          abortDrainTimeoutMs,
           context,
           executeRole: async (roleId, roleContext) => {
             const capture = evidenceCapture.startCapture?.({
@@ -451,24 +459,38 @@ export function createControlledExecutor(options = {}) {
         });
         let executionPromise;
         let allRoleResults;
+        let raceError;
+        let settlementError;
         try {
           executionPromise = executionFn();
-          allRoleResults = await Promise.race([
-            executionPromise,
-            new Promise((_, reject) => {
-              _timeoutTimer = setTimeout(() => {
-                const timeoutError = new Error(`Workforce execution timed out after ${timeoutMs}ms`);
-                timeoutError.code = "WORKFORCE_EXECUTION_TIMEOUT";
-                abortController.abort(timeoutError);
-                reject(timeoutError);
-              }, timeoutMs);
-            }),
-          ]);
+          try {
+            allRoleResults = await Promise.race([
+              executionPromise,
+              new Promise((_, reject) => {
+                _timeoutTimer = setTimeout(() => {
+                  const timeoutError = new Error(`Workforce execution timed out after ${timeoutMs}ms`);
+                  timeoutError.code = "WORKFORCE_EXECUTION_TIMEOUT";
+                  abortController.abort(timeoutError);
+                  reject(timeoutError);
+                }, timeoutMs);
+              }),
+            ]);
+          } catch (error) {
+            raceError = error;
+          }
         } finally {
           clearTimeout(_timeoutTimer);
           lifecycleMonitor.stop();
-          if (executionPromise) await executionPromise.catch(() => undefined);
+          if (executionPromise) {
+            try {
+              await executionPromise;
+            } catch (error) {
+              settlementError = error;
+            }
+          }
         }
+        if (settlementError?.details?.quiescenceUncertain === true) throw settlementError;
+        if (raceError) throw raceError;
         executionGraph = {
           scheduler: allRoleResults.scheduler,
           executionWaves: allRoleResults.executionWaves,
@@ -481,6 +503,10 @@ export function createControlledExecutor(options = {}) {
         }
       } catch (err) {
         if (err?.code === "WORKFORCE_EXECUTION_CANCELLED") requestedFinalStatus = "cancelled";
+        if (err?.details?.quiescenceUncertain === true) {
+          worktreeCleanupAllowed = false;
+          executionErrors.push("execution_quiescence_unconfirmed");
+        }
         executionErrors.push(logRedactor.redactString?.(err.message) ?? err.message);
       }
 
@@ -534,14 +560,18 @@ export function createControlledExecutor(options = {}) {
 
       // --- Step 10: Cleanup worktree before committing the lifecycle terminal state ---
       cleanupAttempted = true;
-      try {
-        const cleanup = await worktree.remove(worktreeRecord.worktreeId);
-        worktreeCleanedUp = cleanup?.success === true;
-        if (!worktreeCleanedUp) {
-          executionErrors.push(`worktree_cleanup: ${logRedactor.redactString?.(cleanup?.reason) ?? "cleanup failed"}`);
+      if (!worktreeCleanupAllowed) {
+        executionErrors.push("worktree_cleanup_skipped: execution quiescence was not confirmed");
+      } else {
+        try {
+          const cleanup = await worktree.remove(worktreeRecord.worktreeId);
+          worktreeCleanedUp = cleanup?.success === true;
+          if (!worktreeCleanedUp) {
+            executionErrors.push(`worktree_cleanup: ${logRedactor.redactString?.(cleanup?.reason) ?? "cleanup failed"}`);
+          }
+        } catch (cleanupError) {
+          executionErrors.push(`worktree_cleanup: ${logRedactor.redactString?.(cleanupError?.message) ?? "cleanup failed"}`);
         }
-      } catch (cleanupError) {
-        executionErrors.push(`worktree_cleanup: ${logRedactor.redactString?.(cleanupError?.message) ?? "cleanup failed"}`);
       }
 
       // --- Step 11: Complete lifecycle ---
@@ -602,7 +632,7 @@ export function createControlledExecutor(options = {}) {
         },
       };
       } finally {
-        if (worktreeRecord?.worktreeId && !cleanupAttempted) {
+        if (worktreeRecord?.worktreeId && !cleanupAttempted && worktreeCleanupAllowed) {
           cleanupAttempted = true;
           try {
             const cleanup = await worktree.remove(worktreeRecord.worktreeId);

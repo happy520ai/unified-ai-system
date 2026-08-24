@@ -252,6 +252,14 @@ and subject fingerprints; possession of another execution ID is insufficient.
 Pause/resume is not exposed as a production HTTP contract because the current
 in-process role runner cannot durably reconstruct its call stack after a crash.
 
+Timeout and remote-cancel paths do not treat an `AbortSignal` notification as
+proof that the underlying role has stopped. The DAG waits up to
+`WORKFORCE_ABORT_DRAIN_TIMEOUT_MS` (30 seconds by default, bounded from 100 ms
+to 5 minutes) for each active role to settle. If a provider ignores cancellation
+past that deadline, the execution fails with unconfirmed quiescence and retains
+the isolated worktree for operator inspection; destructive cleanup is skipped.
+This retention is a fail-closed safety outcome, not successful cancellation.
+
 `/healthz`, `/ready`, and Prometheus report claims, queue/results, and execution
 control separately, without database URLs, namespaces, tokens, or task payloads. A
 configured distributed-store outage makes the gateway unready. Capacity,

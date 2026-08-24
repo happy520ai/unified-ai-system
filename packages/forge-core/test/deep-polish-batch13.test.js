@@ -187,19 +187,25 @@ describe("Batch13 Fix6: sqliteVecStore safe metadata parse", () => {
 describe("Batch13 Fix7: workforceControlledExecutor timeout", () => {
   const src = ESM_SRC("workforce/workforceControlledExecutor.js");
 
-  it("wraps the dependency-aware workforce DAG with a Promise.race timeout", () => {
-    const idx = src.indexOf("const allRoleResults = await Promise.race");
-    assert.ok(idx >= 0, "Promise.race wrapper not found");
-    const window = src.slice(Math.max(0, idx - 400), idx + 500);
+  it("cancels the dependency-aware DAG on timeout and waits for it to settle", () => {
+    const idx = src.indexOf("allRoleResults = await Promise.race");
+    assert.ok(idx >= 0, "timeout race not found");
+    const window = src.slice(Math.max(0, idx - 800), idx + 1_200);
     assert.ok(src.includes("executeWorkforceDag({"), "dependency-aware executor call not found");
     assert.ok(window.includes("Promise.race"), "should use Promise.race");
-    assert.ok(window.includes("timed out"), "should have timeout message");
+    assert.ok(window.includes("abortController.abort(timeoutError)"), "timeout must abort the DAG");
+    assert.ok(
+      window.includes("await executionPromise") && window.includes("settlementError = error"),
+      "cleanup must wait for the aborted DAG to settle"
+    );
+    assert.ok(window.includes("quiescenceUncertain"), "unconfirmed termination must fail closed");
   });
 
-  it("references timeoutMs in the timeout wrapper", () => {
-    const raceIdx = src.lastIndexOf("Promise.race");
-    const window = src.slice(raceIdx, raceIdx + 400);
+  it("uses timeoutMs and a stable timeout error code", () => {
+    const raceIdx = src.indexOf("allRoleResults = await Promise.race");
+    const window = src.slice(raceIdx, raceIdx + 800);
     assert.ok(window.includes("timeoutMs"), "should use timeoutMs variable");
+    assert.ok(window.includes("WORKFORCE_EXECUTION_TIMEOUT"), "should expose a stable timeout code");
   });
 });
 

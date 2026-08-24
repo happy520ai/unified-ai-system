@@ -15,6 +15,7 @@ interface DagExecutorOptions {
   maxConcurrent?: number;
   claimTtlMs?: number;
   signal?: AbortSignal;
+  abortDrainTimeoutMs?: number;
 }
 
 function dagError(code: string, message: string, details: Record<string, unknown> = {}) {
@@ -28,22 +29,51 @@ function abortReason(signal?: AbortSignal): Error {
   return dagError("WORKFORCE_EXECUTION_ABORTED", "Workforce execution was aborted.");
 }
 
-async function runAbortable<T>(operation: Promise<T>, signal?: AbortSignal): Promise<T> {
+async function runAbortable<T>(
+  operation: Promise<T>,
+  signal?: AbortSignal,
+  abortDrainTimeoutMs = 30_000,
+): Promise<T> {
   if (!signal) return operation;
-  if (signal.aborted) throw abortReason(signal);
   return new Promise<T>((resolve, reject) => {
-    const onAbort = () => reject(abortReason(signal));
-    signal.addEventListener("abort", onAbort, { once: true });
+    let aborted = false;
+    let completed = false;
+    let drainTimer: ReturnType<typeof setTimeout> | undefined;
+    const cleanup = () => {
+      signal.removeEventListener("abort", onAbort);
+      if (drainTimer) clearTimeout(drainTimer);
+    };
+    const onAbort = () => {
+      if (aborted || completed) return;
+      aborted = true;
+      drainTimer = setTimeout(() => {
+        completed = true;
+        cleanup();
+        reject(dagError(
+          "WORKFORCE_EXECUTION_DRAIN_TIMEOUT",
+          "A cancelled Workforce role did not confirm termination before the drain deadline.",
+          { quiescenceUncertain: true },
+        ));
+      }, abortDrainTimeoutMs);
+    };
     operation.then(
       (value) => {
-        signal.removeEventListener("abort", onAbort);
-        resolve(value);
+        if (completed) return;
+        completed = true;
+        cleanup();
+        if (aborted) reject(abortReason(signal));
+        else resolve(value);
       },
       (error) => {
-        signal.removeEventListener("abort", onAbort);
-        reject(error);
+        if (completed) return;
+        completed = true;
+        cleanup();
+        if (aborted) reject(abortReason(signal));
+        else reject(error);
       },
     );
+    signal.addEventListener("abort", onAbort, { once: true });
+    if (signal.aborted) onAbort();
   });
 }
 
@@ -143,7 +173,7 @@ export async function executeWorkforceDag(options: DagExecutorOptions) {
           ...(options.context ?? {}),
           priorOutputs,
           signal: options.signal,
-        }, task)), options.signal);
+        }, task)), options.signal, options.abortDrainTimeoutMs);
         await options.taskQueue.completeTask(task.queueTaskId, {
           roleId,
           completed: true,
@@ -169,7 +199,12 @@ export async function executeWorkforceDag(options: DagExecutorOptions) {
       }
     }));
 
-    const failures: Array<{ roleId: string; message: string }> = [];
+    const failures: Array<{
+      roleId: string;
+      message: string;
+      code?: string;
+      quiescenceUncertain?: boolean;
+    }> = [];
     for (let index = 0; index < settled.length; index += 1) {
       const roleId = waveRoleIds[index];
       const result = settled[index];
@@ -177,7 +212,16 @@ export async function executeWorkforceDag(options: DagExecutorOptions) {
         roleOutputs[roleId] = result.value.output;
         completedRoleIds.add(roleId);
       } else {
-        failures.push({ roleId, message: result.reason instanceof Error ? result.reason.message : String(result.reason) });
+        const reason = result.reason as Error & {
+          code?: string;
+          details?: { quiescenceUncertain?: boolean };
+        };
+        failures.push({
+          roleId,
+          message: reason instanceof Error ? reason.message : String(reason),
+          code: reason?.code,
+          quiescenceUncertain: reason?.details?.quiescenceUncertain === true,
+        });
       }
     }
     executionWaves.push({
@@ -191,7 +235,11 @@ export async function executeWorkforceDag(options: DagExecutorOptions) {
       throw dagError(
         "WORKFORCE_DAG_EXECUTION_FAILED",
         `Workforce dependency wave ${waveIndex} failed.`,
-        { waveIndex, failures },
+        {
+          waveIndex,
+          failures,
+          quiescenceUncertain: failures.some((failure) => failure.quiescenceUncertain === true),
+        },
       );
     }
   }

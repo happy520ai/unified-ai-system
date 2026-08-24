@@ -62,6 +62,13 @@ and the project uses [Semantic Versioning](https://semver.org/).
   Real pre/post checkpoints and evidence sessions now run, rollback/cleanup
   failures are terminal, LLM abort signals reach the provider, and a verified
   manual-merge candidate branch survives directory cleanup.
+- Hardened controlled-execution timeout/cancel draining: the gateway now waits
+  for cooperative role settlement before removing its worktree. Providers that
+  ignore abort past the bounded drain deadline produce an explicit unconfirmed-
+  quiescence failure and the worktree is retained instead of being deleted under
+  a still-running task. Legacy source-text timeout tests now assert the current
+  abort/settlement contract, backed by delayed-abort and ignored-abort behavior
+  tests.
 - Added a central PostgreSQL usage ledger with awaited write-ahead reservation
   and terminal commits, per-attempt idempotency/conflict detection, tenant
   queries and spend aggregation, retention/capacity bounds, verified TLS,
