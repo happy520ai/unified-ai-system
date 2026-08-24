@@ -95,11 +95,43 @@ try {
     crossTenantProviderMutation.status === 403,
     `status=${crossTenantProviderMutation.status}`,
   );
+  const crossTenantStatement = await fetch(`${base}/enterprise/provider-statement-reconciliation`, {
+    method: "POST",
+    headers: tenantBAdminHeaders,
+    body: JSON.stringify({
+      tenantId: "tenant-a",
+      statementId: "cross-tenant-probe",
+      provider: "provider-a",
+      currency: "USD",
+      periodStart: "2026-08-01T00:00:00.000Z",
+      periodEnd: "2026-08-01T01:00:00.000Z",
+      lines: [],
+    }),
+  });
+  attack(
+    "A2f statement body cannot select another tenant",
+    crossTenantStatement.status === 400,
+    `status=${crossTenantStatement.status}`,
+  );
 
   const viewerChat = await chat({ authorization: `Bearer ${viewerKey.key}` }, chatBody("hi"));
   attack("A3 viewer-role key on chat", viewerChat.status === 403, `status=${viewerChat.status}`);
   const viewerList = await fetch(`${base}/enterprise/virtual-keys`, { headers: { authorization: `Bearer ${viewerKey.key}`, "x-pme-tenant-id": "tenant-a" } });
   attack("A4 viewer-role key on admin surface", viewerList.status === 403, `status=${viewerList.status}`);
+  const viewerStatement = await fetch(`${base}/enterprise/provider-statement-reconciliation`, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${viewerKey.key}`,
+      "x-pme-tenant-id": "tenant-a",
+      "content-type": "application/json",
+    },
+    body: "{}",
+  });
+  attack(
+    "A4b viewer-role key on statement reconciliation",
+    viewerStatement.status === 403,
+    `status=${viewerStatement.status}`,
+  );
 
   let exhausted = null;
   for (let i = 0; i < 8; i++) {

@@ -35,6 +35,11 @@ and the project uses [Semantic Versioning](https://semver.org/).
   capacity, chunked full verification, safe health/metrics, and a mandatory
   multi-instance real-provider gate. External WORM retention remains an
   independently verified deployment property.
+- Added admin-only provider statement reconciliation against the central usage
+  ledger: exact usage-attempt matching, tenant binding, USD micro-unit variance,
+  missing/duplicate/unresolved classifications, stable normalized-statement
+  digests, strict input/query bounds, audit summaries, and explicit non-invoice
+  and unauthenticated-source boundaries.
 - Added OIDC SSO (authorization code + PKCE + JWKS RS256/ES256 ID-token
   verification, one-time state, issues an API token on login) and SCIM 2.0
   user provisioning (bearer-auth create/get/list/patch/deactivate) for

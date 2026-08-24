@@ -19,6 +19,7 @@ import { createWeightedTrafficPolicy } from "../routing/weightedTrafficPolicy.js
 import { createPriorityProviderSelectionPolicy } from "../core/providerSelectionPolicy.js";
 import { createProviderHealthScorer } from "../providers/providerHealthScorer.js";
 import { createUsageLedger } from "../logging/usageLedgerFactory.ts";
+import { createProviderStatementReconciliationService } from "../billing/providerStatementReconciliationService.ts";
 import { createContentGuardrails } from "../guardrails/contentGuardrails.js";
 import { createLocalKnowledgeService } from "../knowledge/localKnowledgeService.js";
 import { createKnowledgeInfra } from "../knowledge/knowledgeInfra.js";
@@ -103,6 +104,9 @@ export function createGatewayApplication(env = process.env) {
   const requestLogger = createUsageLedger({
     env,
     realProviderEnabled: config.aiGatewayService.realProviderEnabled,
+  });
+  const providerStatementReconciliationService = createProviderStatementReconciliationService({
+    requestLogger,
   });
   // Optional model-access governance. The RBAC checker starts empty; role
   // assignments are loaded from AI_GATEWAY_RBAC_ROLES (JSON: { userId: [role] }).
@@ -216,6 +220,7 @@ export function createGatewayApplication(env = process.env) {
     providerConfigRoutes,
     providerKeyConfigStore,
     providerRegistry,
+    providerStatementReconciliationService,
     responseSessionStore,
     runtimeEnv: env,
     runtimeCredentialStore,

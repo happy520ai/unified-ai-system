@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { describe, expect, it } from "vitest";
+import { createProviderStatementReconciliationService } from "../billing/providerStatementReconciliationService.ts";
 import { createUsageLedger } from "./usageLedgerFactory.ts";
 
 const connectionString = process.env.AI_GATEWAY_TEST_POSTGRES_URL;
@@ -26,6 +27,7 @@ describePostgres("real PostgreSQL central usage ledger", () => {
     const namespace = `usage-${randomUUID()}`;
     const attemptId = randomUUID();
     const unresolvedAttemptId = randomUUID();
+    const periodStart = new Date(Date.now() - 60_000).toISOString();
     const first = createLedger(namespace);
     const second = createLedger(namespace);
     const inspector = new Pool({ connectionString, max: 1, allowExitOnIdle: true });
@@ -73,6 +75,44 @@ describePostgres("real PostgreSQL central usage ledger", () => {
         totalTokens: 15,
         totalCostUsd: 0.0015,
         unresolvedBillableAttempts: 0,
+      });
+      const reconciliation = createProviderStatementReconciliationService({
+        requestLogger: first,
+      });
+      const reconciled = await reconciliation.reconcile({
+        tenantId: "tenant-a",
+        statement: {
+          statementId: `statement-${randomUUID()}`,
+          provider: "provider-a",
+          currency: "USD",
+          periodStart,
+          periodEnd: new Date(Date.now() + 60_000).toISOString(),
+          absoluteToleranceUsd: "0.000001",
+          relativeToleranceBps: 0,
+          lines: [{
+            statementLineId: "line-1",
+            usageAttemptId: attemptId,
+            model: "model-a",
+            occurredAt: new Date().toISOString(),
+            totalTokens: 15,
+            billedCostUsd: "0.0015",
+          }],
+        },
+      });
+      expect(reconciled).toMatchObject({
+        status: "balanced",
+        tenantId: "tenant-a",
+        provider: "provider-a",
+        summary: {
+          statementLineCount: 1,
+          exactMatchLineCount: 1,
+          gatewayOnlyAttemptCount: 0,
+        },
+        boundaries: {
+          sourceAuthenticated: false,
+          providerApiCalled: false,
+          legalInvoice: false,
+        },
       });
 
       await expect(first.log({

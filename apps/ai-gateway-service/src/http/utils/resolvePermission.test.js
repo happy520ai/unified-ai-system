@@ -25,6 +25,11 @@ describe("resolvePermission route → permission mapping", () => {
     expect(resolvePermission("POST", "/v1/chat/completions")).toBe("chat:use");
   });
 
+  it("requires tenant administration for provider statement reconciliation", () => {
+    expect(resolvePermission("POST", "/enterprise/provider-statement-reconciliation"))
+      .toBe("user:admin");
+  });
+
   it("maps credential and provider mutation routes to provider:write", () => {
     for (const path of [
       "/providers/runtime-credential/detect",

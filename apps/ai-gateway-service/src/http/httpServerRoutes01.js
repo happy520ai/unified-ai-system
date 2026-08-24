@@ -446,6 +446,49 @@ export async function dispatchHttpRoutes01(context) {
     return;
   }
 
+  if (
+    request.method === "POST"
+    && url.pathname === "/enterprise/provider-statement-reconciliation"
+  ) {
+    try {
+      const body = await readJson(request);
+      const result = await application.providerStatementReconciliationService.reconcile({
+        tenantId: request.enterpriseIdentity?.tenantId,
+        statement: body,
+      });
+      await enterpriseGovernanceService.recordAudit({
+        outcome: result.status === "balanced" ? "allowed" : "review-required",
+        method: request.method,
+        path: url.pathname,
+        permission: "user:admin",
+        statusCode: 200,
+        code: "provider_statement_reconciliation_completed",
+        identity: request.enterpriseIdentity,
+        details: {
+          tenantId: result.tenantId,
+          provider: result.provider,
+          statementId: result.statementId,
+          statementDigestSha256: result.statementDigestSha256,
+          status: result.status,
+          statementLineCount: result.summary.statementLineCount,
+          exactMatchLineCount: result.summary.exactMatchLineCount,
+          riskCount: result.risks.length,
+          sourceAuthenticated: false,
+          legalInvoice: false,
+        },
+      });
+      writeJson(response, 200, createOkEnvelope(result, { startedAt }));
+    } catch (error) {
+      writeEnterpriseError({
+        response,
+        error,
+        startedAt,
+        fallbackCode: "provider_statement_reconciliation_failed",
+      });
+    }
+    return;
+  }
+
   if (request.method === "GET" && url.pathname === "/enterprise/guardrails") {
     writeJson(response, 200, createOkEnvelope(
       { config: getGuardrailsEngine(request.enterpriseIdentity?.tenantId).describeConfig() },

@@ -299,6 +299,7 @@ export function resolvePermission(method, pathname) {
     || normalizedPath === "/enterprise/virtual-keys/revoke"
     || normalizedPath === "/enterprise/guardrails"
     || normalizedPath === "/enterprise/spend-report"
+    || normalizedPath === "/enterprise/provider-statement-reconciliation"
   ) {
     return "user:admin";
   }
