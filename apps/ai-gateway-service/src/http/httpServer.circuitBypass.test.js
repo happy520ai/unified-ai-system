@@ -73,10 +73,11 @@ function createGatewayApplication(overrides = {}) {
   };
 }
 
-async function sendRequest(port, path, method = "GET", body) {
+async function sendRequest(port, path, method = "GET", body, extraHeaders = {}) {
   const payload = method === "POST" && body !== undefined ? (typeof body === "string" ? body : JSON.stringify(body)) : "";
   const headers = {
     host: `127.0.0.1:${port}`,
+    ...extraHeaders,
   };
   if (method === "POST" && body !== undefined) {
     headers["Content-Type"] = "application/json";
@@ -511,6 +512,64 @@ describe("gateway error circuit bypass routes", () => {
       await new Promise((resolve, reject) => {
         server.close((error) => (error ? reject(error) : resolve()));
       });
+    }
+  });
+});
+
+describe("HTTP authentication rate-limit proxy isolation", () => {
+  it("partitions trusted proxy clients and keeps public probes reachable after lockout", async () => {
+    const authorize = vi.fn((incomingRequest) => {
+      if (incomingRequest.headers.authorization === "Bearer valid-test-token") {
+        return {
+          allowed: true,
+          identity: { userId: "operator", tenantId: "default" },
+          permission: "dashboard:read",
+          statusCode: 200,
+        };
+      }
+      return {
+        allowed: false,
+        identity: null,
+        permission: "dashboard:read",
+        statusCode: 401,
+        code: "enterprise_auth_required",
+        message: "A valid enterprise auth token is required.",
+      };
+    });
+    const server = createGatewayHttpServer(createGatewayApplication({
+      runtimeEnv: {
+        AI_GATEWAY_TRUSTED_PROXY_CIDRS: "127.0.0.1/32,::1/128",
+        AI_GATEWAY_MAX_FORWARDED_HOPS: "4",
+        AI_GATEWAY_RATE_LIMIT_WHITELIST: "",
+        AI_GATEWAY_RATE_LIMIT_MAX_REQUESTS: "1000",
+      },
+      enterpriseGovernanceService: { authorize },
+    }));
+
+    await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address();
+    const attackerHeaders = { "x-forwarded-for": "198.51.100.10" };
+    try {
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        const denied = await sendRequest(address.port, "/dashboard/status", "GET", undefined, attackerHeaders);
+        expect(denied.statusCode).toBe(401);
+      }
+      const locked = await sendRequest(address.port, "/dashboard/status", "GET", undefined, attackerHeaders);
+      expect(locked.statusCode).toBe(429);
+
+      const otherClient = await sendRequest(address.port, "/dashboard/status", "GET", undefined, {
+        authorization: "Bearer valid-test-token",
+        "x-forwarded-for": "198.51.100.11",
+      });
+      expect(otherClient.statusCode).toBe(200);
+
+      const publicProbe = await sendRequest(address.port, "/health/check", "GET", undefined, attackerHeaders);
+      expect(publicProbe.statusCode).toBe(200);
+    } finally {
+      await new Promise((resolve, reject) => {
+        server.close((error) => (error ? reject(error) : resolve()));
+      });
+      await server.shutdownResources();
     }
   });
 });

@@ -210,13 +210,14 @@ import { createGatewayLifecycle } from "./gatewayLifecycle.ts";
 import { bindGatewayExecution, createHttpRequestExecutionScope } from "./httpRequestExecution.ts";
 import { createRequestIdentityResolver, parseTrustedProxyCidrs } from "./requestIdentity.ts";
 import { shouldRejectUnmappedRoute } from "./runtimeRouteAccessManifest.ts";
+import { isLoopbackAddress } from "../security/networkBindingPolicy.ts";
 
 const logger = createLogger({ app: "ai-gateway-service", level: "info" });
 const writeServiceLog = (event, details = {}) => logger.info(event, details);
 const OWNER_AUTOMATION_CHAT_PROPOSAL_FLAG = "OWNER_AUTOMATION_CHAT_PROPOSAL_ENABLED";
 const DEFAULT_RATE_LIMIT_WINDOW_MS = 60_000;
 const DEFAULT_RATE_LIMIT_MAX_REQUESTS = 120;
-const DEFAULT_RATE_LIMIT_WHITELIST = Object.freeze(["127.0.0.1", "::1", "::ffff:127.0.0.1"]);
+const DEFAULT_LOOPBACK_RATE_LIMIT_WHITELIST = Object.freeze(["127.0.0.1", "::1", "::ffff:127.0.0.1"]);
 const DEFAULT_RATE_LIMIT_STORE_MODE = "memory";
 const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
 const DEFAULT_STREAMING_TIMEOUT_MS = 300_000;
@@ -284,9 +285,17 @@ export function createGatewayHttpServer(application) {
   const approvalStore = createApprovalStore();
   const fileContextStore = createFileContextStore();
   const phase319LocalOperation = createPhase319LocalOperationService();
-  const rateLimiter = createRouteAwareRateLimiter(application.runtimeEnv ?? process.env);
-  const authRateLimiter = createAuthRateLimiter();
   const requestConfig = application.runtimeEnv ?? process.env;
+  const rateLimiter = createRouteAwareRateLimiter(requestConfig);
+  const authRateLimiter = createAuthRateLimiter();
+  const authRequestIdentityResolver = createRequestIdentityResolver({
+    subjectMode: "network",
+    trustedProxyCidrs: parseTrustedProxyCidrs(requestConfig.AI_GATEWAY_TRUSTED_PROXY_CIDRS),
+    maxForwardedHops: Math.min(
+      128,
+      parsePositiveInteger(requestConfig.AI_GATEWAY_MAX_FORWARDED_HOPS, 32),
+    ),
+  });
   const webSocketQuotaWindowMs = parsePositiveInteger(
     requestConfig.AI_GATEWAY_WS_MESSAGE_WINDOW_MS,
     60_000,
@@ -722,9 +731,9 @@ export function createGatewayHttpServer(application) {
 
       // Brute-force lockout on the authentication path, keyed by client
       // address; checked before authorize and fed by its outcome.
-      const authRateKey = request.socket?.remoteAddress ?? "unknown";
-      const authRateCheck = authRateLimiter.check(authRateKey);
-      if (!authRateCheck.allowed) {
+      const authRateKey = authRequestIdentityResolver.resolve(request).subject;
+      const authRateCheck = publicRoute ? null : authRateLimiter.check(authRateKey);
+      if (authRateCheck && !authRateCheck.allowed) {
         // retry-after 必须在 writeJson 之前设置：响应发送后再 setHeader 会抛
         // ERR_HTTP_HEADERS_SENT，把 429 变成 500。
         response.setHeader("retry-after", Math.ceil(authRateCheck.retryAfterMs / 1000));
@@ -1324,7 +1333,10 @@ function createRouteAwareRateLimiter(runtimeEnv = {}) {
   const useRouteLimits = parseBoolean(runtimeEnv.AI_GATEWAY_ROUTE_RATE_LIMIT_ENABLED, true);
   const globalWindowMs = parsePositiveInteger(runtimeEnv.AI_GATEWAY_RATE_LIMIT_WINDOW_MS, DEFAULT_RATE_LIMIT_WINDOW_MS);
   const globalMaxRequests = parsePositiveInteger(runtimeEnv.AI_GATEWAY_RATE_LIMIT_MAX_REQUESTS, DEFAULT_RATE_LIMIT_MAX_REQUESTS);
-  const whitelist = parseRateLimitWhitelist(runtimeEnv.AI_GATEWAY_RATE_LIMIT_WHITELIST, DEFAULT_RATE_LIMIT_WHITELIST);
+  const defaultWhitelist = isLoopbackAddress(runtimeEnv.AI_GATEWAY_SERVICE_HOST ?? "127.0.0.1")
+    ? DEFAULT_LOOPBACK_RATE_LIMIT_WHITELIST
+    : [];
+  const whitelist = parseRateLimitWhitelist(runtimeEnv.AI_GATEWAY_RATE_LIMIT_WHITELIST, defaultWhitelist);
   // 多实例（同主机多进程）默认 sqlite 共享计数；显式 store-mode env 优先。
   const storeMode = resolveMultiInstanceStoreMode(
     runtimeEnv,
@@ -1467,11 +1479,13 @@ function parseRateLimitWhitelist(value, fallback) {
     return [...fallback];
   }
 
+  if (!value.trim()) return [];
+
   const parsed = value
     .split(",")
     .map((entry) => entry.trim())
     .filter(Boolean);
-  return parsed.length > 0 ? parsed : [...fallback];
+  return parsed;
 }
 
 function parseRouteRateLimitConfig(value) {
