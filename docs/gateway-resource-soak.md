@@ -28,9 +28,14 @@ The managed CI profile:
   from the event-loop utilization gate;
 - warms up 80 requests before recording the memory baseline;
 - schedules 100 requests per second for 12 seconds;
-- scrapes `/metrics` every 500 milliseconds;
-- requires zero request errors, zero client-side arrival drops, and complete
-  OpenAI response shapes;
+- keeps 64 bounded client slots and requires at least 80% of fixed arrivals to
+  start, so the resource workload remains substantial without turning latency
+  backlog into an unbounded memory-pressure test;
+- dispatches `/metrics` scrapes on fixed 500-millisecond targets without making
+  the next target wait for the previous scrape response;
+- requires zero errors for every started request and complete OpenAI response
+  shapes; client shedding is recorded, while the preceding open-loop gate owns
+  the separate 100 RPS / zero-drop capacity contract;
 - gates heap and RSS growth using both absolute and relative allowances;
 - gates event-loop p99 delay and utilization;
 - proves that resource metrics contain real histogram samples;
@@ -53,8 +58,11 @@ pnpm benchmark:gateway:resource-soak -- \
 ```
 
 External targets require both `--target` and `--metrics-url`. The tool accepts
-no authorization header, API key, URL credential, query parameter, or fragment.
-Use a temporary loopback-only adapter if the target is protected.
+no URL credential, query parameter, or fragment. A temporary
+`AI_GATEWAY_RESOURCE_SOAK_AUTH_TOKEN` is accepted only when chat and metrics use
+the same origin, and non-loopback authenticated targets must use HTTPS; the
+token is never emitted. Use a loopback-only adapter when those conditions cannot
+be met.
 
 ## Evidence boundary
 

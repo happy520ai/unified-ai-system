@@ -212,6 +212,10 @@ and the project uses [Semantic Versioning](https://semver.org/).
   v7.0.1 across CI, quality-trend, and Docker evidence workflows so GitHub's
   Node 20 action-runtime deprecation no longer leaves a forced-runtime warning;
   all references remain immutable commit SHAs.
+- Upgraded the short resource-regression gate to methodology v2: its
+  bounded client now requires a minimum sustained arrival pressure while the
+  separate open-loop gate remains responsible for zero-drop capacity, and
+  fixed-target metrics scrapes no longer drift when an earlier scrape is slow.
 - Hardened knowledge-file ingestion: PDF, DOCX, XLS, and XLSX parsing now runs
   in bounded worker threads with hard time, heap, concurrency, queue, input,
   extracted-text, PDF-page, sheet, row, column, and cell limits. Invalid base64
