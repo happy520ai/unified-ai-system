@@ -3,7 +3,7 @@ import { spawn } from "node:child_process";
 import { chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
-import { createServer } from "node:net";
+import { connect as createNetConnection, createServer } from "node:net";
 import { setTimeout as delay } from "node:timers/promises";
 
 import { Task, TaskState } from "@a2a-js/sdk";
@@ -76,7 +76,9 @@ async function runRecoveryDrill({ dryRun }) {
         "destroy the source container",
         "restore into a clean PostgreSQL 17 container",
         "verify inventory and all eight application contracts",
-        "restart the recovery database on a stable loopback endpoint and verify through the same application clients",
+        "restore the same artifact into an independent standby database",
+        "destroy the active recovery database, switch a stable TCP endpoint to standby, and verify through the same application clients",
+        "restart standby and verify again through those same clients",
         "remove containers and the temporary backup artifact",
       ],
       boundaries: {
@@ -94,8 +96,10 @@ async function runRecoveryDrill({ dryRun }) {
   const password = randomBytes(24).toString("base64url");
   const sourceName = `ai-gateway-pg-source-${runId}`;
   const recoveryName = `ai-gateway-pg-recovery-${runId}`;
+  const standbyName = `ai-gateway-pg-standby-${runId}`;
   const sourceVolume = `ai-gateway-pg-source-data-${runId}`;
   const recoveryVolume = `ai-gateway-pg-recovery-data-${runId}`;
+  const standbyVolume = `ai-gateway-pg-standby-data-${runId}`;
   const temporaryRoot = await mkdtemp(resolve(tmpdir(), "ai-gateway-pg-drill-"));
   const backupPath = resolve(temporaryRoot, "gateway-drill.dump");
   const postgresEnvPath = resolve(temporaryRoot, "postgres.env");
@@ -106,8 +110,8 @@ async function runRecoveryDrill({ dryRun }) {
     "",
   ].join("\n"), { encoding: "utf8", mode: 0o600 });
   await chmod(postgresEnvPath, 0o600).catch(() => undefined);
-  const cleanupTargets = new Set([sourceName, recoveryName]);
-  const cleanupVolumes = new Set([sourceVolume, recoveryVolume]);
+  const cleanupTargets = new Set([sourceName, recoveryName, standbyName]);
+  const cleanupVolumes = new Set([sourceVolume, recoveryVolume, standbyVolume]);
   const startedAt = Date.now();
   let stage = "docker-preflight";
   let sourceRemoved = false;
@@ -115,13 +119,26 @@ async function runRecoveryDrill({ dryRun }) {
   let fixtureState;
   let sourceInventory;
   let restoredInventory;
+  let standbyInventory;
   let firstVerification;
+  let failoverVerification;
   let restartVerification;
   let backupDigest = null;
   let backupBytes = 0;
   let cleanupComplete = false;
   let pendingFailure = null;
   let applicationVerifier = null;
+  let failoverProxy = null;
+  let failoverStartedAt = null;
+  let failoverVerifiedAt = null;
+  let failoverSwitch = null;
+  let proxyStats = null;
+  let failoverSentinelPool = null;
+  let failoverSentinelClient = null;
+  let activeQueryInterrupted = false;
+  let sentinelClientErrorEvents = 0;
+  let sentinelPoolRecovered = false;
+  let sentinelPoolRecoveredAfterRestart = false;
 
   try {
     await runDocker(dockerExecutable, ["version", "--format", "{{.Server.Version}}"], { stage });
@@ -216,18 +233,98 @@ async function runRecoveryDrill({ dryRun }) {
     );
 
     stage = "application-verify";
-    applicationVerifier = createApplicationStateVerifier(recoveryUrl, fixtureState);
+    const proxyPublishedPort = await allocateLoopbackPort();
+    failoverProxy = await createSwitchableTcpProxy({
+      listenPort: proxyPublishedPort,
+      targetPort: recoveryPort,
+    });
+    const proxyUrl = createConnectionString(proxyPublishedPort, password);
+    await waitForClientPostgres(proxyUrl);
+    applicationVerifier = createApplicationStateVerifier(proxyUrl, fixtureState);
     const firstVerificationWithDiagnostics = await applicationVerifier.verify();
     assertAllChecks(firstVerificationWithDiagnostics);
     firstVerification = publicApplicationChecks(firstVerificationWithDiagnostics);
     const firstRecoveryVerifiedAt = Date.now();
 
-    stage = "recovery-restart";
-    await runDocker(dockerExecutable, ["restart", recoveryName], { stage });
-    await waitForPostgres({ dockerExecutable, containerName: recoveryName });
-    const restartedRecoveryPort = await readPublishedPort(dockerExecutable, recoveryName);
-    assertCondition(restartedRecoveryPort === recoveryPort, "POSTGRES_RECOVERY_ENDPOINT_CHANGED");
-    await waitForClientPostgres(recoveryUrl);
+    stage = "standby-start";
+    const standbyPublishedPort = await allocateLoopbackPort();
+    await startPostgresContainer({
+      dockerExecutable,
+      containerName: standbyName,
+      volumeName: standbyVolume,
+      postgresEnvPath,
+      publishedPort: standbyPublishedPort,
+      runId,
+    });
+    await waitForPostgres({ dockerExecutable, containerName: standbyName });
+    const standbyPort = await readPublishedPort(dockerExecutable, standbyName);
+    assertCondition(standbyPort === standbyPublishedPort, "POSTGRES_RECOVERY_STANDBY_ENDPOINT_CHANGED");
+    const standbyUrl = createConnectionString(standbyPort, password);
+    await waitForClientPostgres(standbyUrl);
+    await runDocker(dockerExecutable, [
+      "cp", backupPath, `${standbyName}:/tmp/gateway-drill.dump`,
+    ], { stage });
+    await runDocker(dockerExecutable, [
+      "exec", standbyName,
+      "pg_restore",
+      "--username", POSTGRES_USER,
+      "--dbname", POSTGRES_DATABASE,
+      "--exit-on-error",
+      "--no-owner",
+      "--no-acl",
+      "/tmp/gateway-drill.dump",
+    ], { stage });
+    standbyInventory = await readDatabaseInventory(standbyUrl);
+    assertCondition(
+      sourceInventory.digest === standbyInventory.digest,
+      "POSTGRES_RECOVERY_STANDBY_INVENTORY_MISMATCH",
+    );
+
+    stage = "endpoint-failover";
+    failoverStartedAt = Date.now();
+    failoverSentinelPool = new Pool({
+      connectionString: proxyUrl,
+      max: 1,
+      allowExitOnIdle: false,
+      connectionTimeoutMillis: 2_000,
+    });
+    failoverSentinelPool.on("error", () => undefined);
+    failoverSentinelClient = await failoverSentinelPool.connect();
+    failoverSentinelClient.on("error", () => {
+      sentinelClientErrorEvents += 1;
+    });
+    await failoverSentinelClient.query("SELECT 1 AS ready");
+    const interruptedQuery = failoverSentinelClient.query("SELECT pg_sleep(30)")
+      .then(() => false, () => true);
+    await delay(100);
+    await removeContainer(dockerExecutable, recoveryName);
+    cleanupTargets.delete(recoveryName);
+    await removeVolume(dockerExecutable, recoveryVolume);
+    cleanupVolumes.delete(recoveryVolume);
+    activeQueryInterrupted = await Promise.race([
+      interruptedQuery,
+      delay(5_000).then(() => false),
+    ]);
+    failoverSentinelClient.release(true);
+    failoverSentinelClient = null;
+    assertCondition(activeQueryInterrupted, "POSTGRES_RECOVERY_ACTIVE_QUERY_NOT_INTERRUPTED");
+    failoverSwitch = failoverProxy.switchTarget(standbyPort);
+    await waitForClientPostgres(proxyUrl);
+    await failoverSentinelPool.query("SELECT 1 AS recovered");
+    sentinelPoolRecovered = true;
+    const failoverVerificationWithDiagnostics = await applicationVerifier.verify();
+    assertAllChecks(failoverVerificationWithDiagnostics);
+    failoverVerification = publicApplicationChecks(failoverVerificationWithDiagnostics);
+    failoverVerifiedAt = Date.now();
+
+    stage = "standby-restart";
+    await runDocker(dockerExecutable, ["restart", standbyName], { stage });
+    await waitForPostgres({ dockerExecutable, containerName: standbyName });
+    const restartedStandbyPort = await readPublishedPort(dockerExecutable, standbyName);
+    assertCondition(restartedStandbyPort === standbyPort, "POSTGRES_RECOVERY_STANDBY_ENDPOINT_CHANGED");
+    await waitForClientPostgres(proxyUrl);
+    await failoverSentinelPool.query("SELECT 1 AS recovered_after_restart");
+    sentinelPoolRecoveredAfterRestart = true;
     const restartVerificationWithDiagnostics = await applicationVerifier.verify();
     assertAllChecks(restartVerificationWithDiagnostics);
     restartVerification = publicApplicationChecks(restartVerificationWithDiagnostics);
@@ -235,10 +332,15 @@ async function runRecoveryDrill({ dryRun }) {
     stage = "cleanup";
     await applicationVerifier.close();
     applicationVerifier = null;
-    await removeContainer(dockerExecutable, recoveryName);
-    cleanupTargets.delete(recoveryName);
-    await removeVolume(dockerExecutable, recoveryVolume);
-    cleanupVolumes.delete(recoveryVolume);
+    await failoverSentinelPool.end();
+    failoverSentinelPool = null;
+    proxyStats = failoverProxy.getStats();
+    await failoverProxy.close();
+    failoverProxy = null;
+    await removeContainer(dockerExecutable, standbyName);
+    cleanupTargets.delete(standbyName);
+    await removeVolume(dockerExecutable, standbyVolume);
+    cleanupVolumes.delete(standbyVolume);
     await rm(temporaryRoot, { recursive: true, force: true });
     cleanupComplete = true;
 
@@ -248,6 +350,7 @@ async function runRecoveryDrill({ dryRun }) {
       runId,
       durationMs: Date.now() - startedAt,
       controlledRecoveryTimeMs: firstRecoveryVerifiedAt - recoveryStartedAt,
+      controlledFailoverTimeMs: failoverVerifiedAt - failoverStartedAt,
       sourceDestroyedBeforeRestore: sourceRemoved,
       artifact: {
         format: "postgres-custom",
@@ -261,12 +364,30 @@ async function runRecoveryDrill({ dryRun }) {
         totalRows: sourceInventory.totalRows,
         digest: sourceInventory.digest,
         exactRestoreMatch: sourceInventory.digest === restoredInventory.digest,
+        standbyExactMatch: sourceInventory.digest === standbyInventory.digest,
       },
       applicationChecks: firstVerification,
+      failoverChecks: failoverVerification,
       restartChecks: restartVerification,
       clientContinuity: {
         sameApplicationClientsAcrossRestart: true,
+        sameApplicationClientsAcrossEndpointSwitch: true,
         stableLoopbackEndpoint: true,
+      },
+      endpointFailover: {
+        mode: "operator-controlled-stable-tcp-endpoint",
+        oldDatabaseDestroyedBeforeSwitch: true,
+        standbyRestoredFromSameArtifact: true,
+        activeQueryInterrupted,
+        sentinelClientErrorEvents,
+        sameSentinelPoolRecovered: sentinelPoolRecovered,
+        sameSentinelPoolRecoveredAfterRestart: sentinelPoolRecoveredAfterRestart,
+        activeConnectionsDropped: failoverSwitch.droppedConnections,
+        proxySwitchCount: failoverSwitch.switchCount,
+        acceptedConnections: proxyStats.acceptedConnections,
+        rejectedConnections: proxyStats.rejectedConnections,
+        automaticElectionProved: false,
+        streamingReplicationProved: false,
       },
       recoveryPoint: {
         mode: "controlled-logical-snapshot",
@@ -278,6 +399,7 @@ async function runRecoveryDrill({ dryRun }) {
         credentialTransport: "private-temporary-env-file",
         loopbackOnly: true,
         realProviderCallsMade: false,
+        operatorControlledEndpointSwitchProved: true,
         automaticFailoverProved: false,
         networkPartitionProved: false,
         splitBrainProved: false,
@@ -302,6 +424,22 @@ async function runRecoveryDrill({ dryRun }) {
         cleanupFailed = true;
       });
       applicationVerifier = null;
+    }
+    if (failoverSentinelClient) {
+      failoverSentinelClient.release(true);
+      failoverSentinelClient = null;
+    }
+    if (failoverSentinelPool) {
+      await failoverSentinelPool.end().catch(() => {
+        cleanupFailed = true;
+      });
+      failoverSentinelPool = null;
+    }
+    if (failoverProxy) {
+      await failoverProxy.close().catch(() => {
+        cleanupFailed = true;
+      });
+      failoverProxy = null;
     }
     for (const containerName of cleanupTargets) {
       await removeContainer(dockerExecutable, containerName).catch(() => {
@@ -813,6 +951,109 @@ async function allocateLoopbackPort() {
   return port;
 }
 
+async function createSwitchableTcpProxy({ listenPort, targetPort }) {
+  const MAX_ACTIVE_CONNECTIONS = 64;
+  const CONNECT_TIMEOUT_MS = 5_000;
+  let currentTargetPort = targetPort;
+  let closed = false;
+  let switchCount = 0;
+  let acceptedConnections = 0;
+  let rejectedConnections = 0;
+  let droppedConnections = 0;
+  let serverFailure = null;
+  const activePairs = new Set();
+
+  const destroyPair = (pair) => {
+    if (!pair || pair.closed) return;
+    pair.closed = true;
+    clearTimeout(pair.connectTimer);
+    activePairs.delete(pair);
+    pair.client.destroy();
+    pair.upstream.destroy();
+  };
+  const server = createServer((client) => {
+    if (closed || serverFailure || activePairs.size >= MAX_ACTIVE_CONNECTIONS) {
+      rejectedConnections += 1;
+      client.destroy();
+      return;
+    }
+    acceptedConnections += 1;
+    client.pause();
+    client.setNoDelay(true);
+    const upstream = createNetConnection({
+      host: "127.0.0.1",
+      port: currentTargetPort,
+    });
+    upstream.setNoDelay(true);
+    const pair = {
+      client,
+      upstream,
+      closed: false,
+      connectTimer: setTimeout(() => destroyPair(pair), CONNECT_TIMEOUT_MS),
+    };
+    pair.connectTimer.unref?.();
+    activePairs.add(pair);
+    upstream.once("connect", () => {
+      if (pair.closed) return;
+      clearTimeout(pair.connectTimer);
+      client.pipe(upstream);
+      upstream.pipe(client);
+      client.resume();
+    });
+    client.once("error", () => destroyPair(pair));
+    upstream.once("error", () => destroyPair(pair));
+    client.once("close", () => destroyPair(pair));
+    upstream.once("close", () => destroyPair(pair));
+  });
+  server.maxConnections = MAX_ACTIVE_CONNECTIONS;
+  await new Promise((resolvePromise, rejectPromise) => {
+    const onError = (error) => rejectPromise(error);
+    server.once("error", onError);
+    server.listen(listenPort, "127.0.0.1", () => {
+      server.off("error", onError);
+      resolvePromise();
+    });
+  });
+  server.on("error", (error) => {
+    serverFailure = error;
+    for (const pair of [...activePairs]) destroyPair(pair);
+  });
+
+  return {
+    switchTarget(nextTargetPort) {
+      assertCondition(
+        Number.isSafeInteger(nextTargetPort) && nextTargetPort > 0 && nextTargetPort <= 65_535,
+        "POSTGRES_RECOVERY_PROXY_TARGET_INVALID",
+      );
+      if (closed || serverFailure) {
+        throw drillError("POSTGRES_RECOVERY_PROXY_UNAVAILABLE", "The stable database proxy is unavailable.");
+      }
+      currentTargetPort = nextTargetPort;
+      switchCount += 1;
+      const droppedNow = activePairs.size;
+      droppedConnections += droppedNow;
+      for (const pair of [...activePairs]) destroyPair(pair);
+      return { droppedConnections: droppedNow, switchCount };
+    },
+    getStats() {
+      return {
+        activeConnections: activePairs.size,
+        acceptedConnections,
+        rejectedConnections,
+        droppedConnections,
+        switchCount,
+        available: !closed && !serverFailure,
+      };
+    },
+    async close() {
+      if (closed) return;
+      closed = true;
+      for (const pair of [...activePairs]) destroyPair(pair);
+      await new Promise((resolvePromise) => server.close(() => resolvePromise()));
+    },
+  };
+}
+
 async function startPostgresContainer({
   dockerExecutable,
   containerName,
@@ -1028,6 +1269,7 @@ function printHumanSummary(value) {
       `Controlled recovery time: ${value.controlledRecoveryTimeMs} ms`,
       `Application contracts: ${Object.entries(value.applicationChecks).filter(([key, passed]) => key !== "all" && passed).length}/8`,
       `Same application clients survived database restart: ${String(value.clientContinuity.sameApplicationClientsAcrossRestart)}`,
+      `Same application clients survived endpoint failover: ${String(value.clientContinuity.sameApplicationClientsAcrossEndpointSwitch)}`,
       `Database inventory: ${value.databaseInventory.tableCount} tables, ${value.databaseInventory.totalRows} rows`,
       `Cleanup complete: ${String(value.cleanup.complete)}`,
       "Boundary: controlled logical recovery only; no automatic failover, continuous WAL RPO, or production RTO claim.",
