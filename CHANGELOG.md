@@ -65,8 +65,12 @@ and the project uses [Semantic Versioning](https://semver.org/).
   runs PostgreSQL 17 `pg_rewind -R`, and starts the old volume only as a
   streaming standby. It must replay a post-promotion marker, preserve exact
   inventory and client health, then reconnect and replay another marker after
-  the promoted primary restarts. This is not multi-candidate election/quorum,
-  external HA control, PITR/WAL-archive fallback, arbitrary multi-host
+  the promoted primary restarts. It also creates a separately manifested
+  physical base backup plus continuous WAL archive, removes all bundled backup
+  WAL, and performs archive-only recovery to an inclusive LSN between an
+  included and excluded marker; exact inventory and all eight contracts are
+  required. This is not multi-candidate election/quorum, external HA control,
+  long-duration/off-host archive custody, time-based PITR, arbitrary multi-host
   partition/rejoin control, complete split-brain safety, or production RTO/RPO
   proof.
 - Added central PostgreSQL Workforce execution control: raw-identifier-free

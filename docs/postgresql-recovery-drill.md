@@ -40,9 +40,20 @@ returning.
 8. Writes a marker after the base backup. The standby must report
    `pg_is_in_recovery()=true`, replay that marker, expose a replay LSN, and
    retain the same gateway inventory digest.
-9. Keeps the same eight application clients and pools connected through one
+9. Takes an independent plain physical base backup with streamed backup WAL and
+   a SHA-256 manifest while continuous archiving writes completed WAL segments
+   atomically to a separate volume. After the base backup, the primary commits
+   an included marker, creates an exact restore-point LSN, then commits an
+   excluded marker. The required WAL segment must be archived without an
+   archiver failure and `pg_verifybackup` must validate the base plus archive.
+   The drill then removes every WAL file bundled in the base backup and creates
+   `recovery.signal`, forcing a separate container to restore only from the
+   read-only archive. Recovery must promote at the inclusive target LSN with
+   timeline `current`: the included marker and all eight application contracts
+   must exist, the excluded marker must not exist, and inventory must match.
+10. Keeps the same eight application clients and pools connected through one
    bounded local TCP endpoint.
-10. Arms a bounded single-standby controller only after three healthy primary
+11. Arms a bounded single-standby controller only after three healthy primary
     probes. One explicitly labelled synthetic single-probe failure must recover
     without promotion. A separate bounded probe container then reaches primary
     through the replication bridge. The drill disconnects primary from that
@@ -60,18 +71,18 @@ returning.
     permits `pg_ctl promote`, writable wait, and stable endpoint switch. The
     original sentinel Pool and all eight clients must recover without
     reconstruction and pass 8/8 again.
-11. Writes a marker on the promoted primary, then runs PostgreSQL 17
+12. Writes a marker on the promoted primary, then runs PostgreSQL 17
     `pg_rewind -R` against the fenced old-primary volume. `wal_log_hints=on`,
     `full_page_writes=on`, and a persisted 128 MiB WAL retention window are
     required. The old volume is never started before rewind. Its first start
     must report `pg_is_in_recovery()=true`, replay the post-promotion marker,
     match the gateway inventory, and leave the stable endpoint and original
     clients healthy.
-12. Restarts the promoted primary and requires the same sentinel Pool plus the
+13. Restarts the promoted primary and requires the same sentinel Pool plus the
     same eight application clients to recover and pass a third 8/8. The rewound
     old primary must remain a standby and replay another marker after that
     source restart.
-13. Removes every client, proxy, container, volume, network, credential file,
+14. Removes every client, proxy, container, volume, network, credential file,
     and dump artifact. A cleanup failure makes the drill fail.
 
 CI runs the same command after the real PostgreSQL integration suite. The JSON
@@ -84,7 +95,10 @@ A passing result proves a bounded logical snapshot can recover the covered
 gateway schemas into a clean PostgreSQL 17 primary, establish a real asynchronous
 streaming standby, replay post-basebackup WAL, perform controlled promotion, and
 exercise bounded automatic failure detection/promotion/switching for exactly one
-standby. It also proves one real Docker-bridge partition: the old primary stays
+standby. It also proves bounded LSN-based PITR from an independently verified
+physical base backup and continuous WAL archive: recovery uses no bundled WAL,
+contains the included marker, excludes the later marker, and passes all eight
+application contracts. It then proves one real Docker-bridge partition: the old primary stays
 writable, the standby cannot replay a new marker, the health path reaches its
 full failure threshold, and the independent Docker-state fence blocks
 promotion. After bridge healing, health recovers and the standby replays that
@@ -97,7 +111,8 @@ the wall clocks of this disposable fixture; neither is a production RTO.
 
 The drill does **not** prove:
 
-- continuous WAL archiving or point-in-time recovery;
+- time-based/named-target PITR, long-duration archive continuity, independent
+  archive custody, object lock/WORM, archive-loss fallback, or a production RPO;
 - synchronous replication, multi-candidate leader election/quorum, or a
   production external HA controller (the repository controller knows exactly
   one standby and runs only inside this disposable drill);
@@ -114,8 +129,8 @@ The drill does **not** prove:
 Those remain deployment-specific E4 evidence. The drill reuses its ephemeral
 PostgreSQL superuser for replication; production must use a dedicated bounded
 replication identity. A production program should also add
-managed backup retention, independently stored restore points, continuous WAL
-or an equivalent mechanism, a separate recovery account and environment,
+managed backup retention, independently stored restore points and WAL archives,
+a separate recovery account and environment,
 certificate-verified connections, destructive restore rehearsals, failover and
 partition injection, measured recovery objectives, and operator sign-off.
 
@@ -149,6 +164,8 @@ mechanisms are complementary and must not be described as substitutes.
 The orchestrator remains Node.js ESM because it composes existing TypeScript
 gateway contracts and the Docker CLI from the repository's established
 `tools/*.mjs` boundary. The production state implementations remain TypeScript.
-The backup artifact is PostgreSQL's implementation-neutral custom format. A new
-runtime service or language would add deployment and rollback cost without
-improving this bounded CI workload.
+The logical artifact uses PostgreSQL's implementation-neutral custom format;
+the PITR lane uses PostgreSQL's native manifested physical base backup, WAL
+archive, `pg_verifybackup`, and recovery parameters. A new runtime service or
+language would add deployment and rollback cost without improving this bounded
+CI workload.

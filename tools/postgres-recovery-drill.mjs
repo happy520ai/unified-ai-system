@@ -77,6 +77,7 @@ async function runRecoveryDrill({ dryRun }) {
         "restore into a clean PostgreSQL 17 container",
         "verify inventory and all eight application contracts",
         "build a real streaming standby from recovery with pg_basebackup -R and replay a post-basebackup WAL marker",
+        "create an independent physical base backup, continuously archive WAL, and recover to an LSN between an included and excluded marker",
         "arm a probe from an isolated Docker peer, disconnect primary from the replication bridge, prove primary remains writable while promotion is fenced, heal the bridge and replay a partition marker, then destroy primary, confirm fencing, promote standby, switch the stable endpoint, and verify through the same clients",
         "rewind the fenced old-primary volume against the promoted primary, start it only with recovery configuration, and prove it rejoins as a streaming standby",
         "restart standby and verify again through those same clients",
@@ -90,6 +91,7 @@ async function runRecoveryDrill({ dryRun }) {
         singleStandbyFenceFailClosedProved: false,
         singleBridgePartitionFenceProved: false,
         safeOldPrimaryRejoinProved: false,
+        boundedWalArchivePitrProved: false,
         automaticFailoverProved: false,
         productionRtoRpoProved: false,
       },
@@ -104,12 +106,19 @@ async function runRecoveryDrill({ dryRun }) {
   const networkProbeName = `ai-gateway-pg-network-probe-${runId}`;
   const rewindName = `ai-gateway-pg-rewind-${runId}`;
   const rejoinedName = `ai-gateway-pg-rejoined-${runId}`;
+  const archiveChownName = `ai-gateway-pg-archive-chown-${runId}`;
+  const pitrChownName = `ai-gateway-pg-pitr-chown-${runId}`;
+  const pitrBasebackupName = `ai-gateway-pg-pitr-basebackup-${runId}`;
+  const pitrConfigName = `ai-gateway-pg-pitr-config-${runId}`;
+  const pitrName = `ai-gateway-pg-pitr-${runId}`;
   const basebackupName = `ai-gateway-pg-basebackup-${runId}`;
   const standbyChownName = `ai-gateway-pg-standby-chown-${runId}`;
   const replicationNetworkName = `ai-gateway-pg-replication-${runId}`;
   const sourceVolume = `ai-gateway-pg-source-data-${runId}`;
   const recoveryVolume = `ai-gateway-pg-recovery-data-${runId}`;
   const standbyVolume = `ai-gateway-pg-standby-data-${runId}`;
+  const archiveVolume = `ai-gateway-pg-wal-archive-${runId}`;
+  const pitrVolume = `ai-gateway-pg-pitr-data-${runId}`;
   const temporaryRoot = await mkdtemp(resolve(tmpdir(), "ai-gateway-pg-drill-"));
   const backupPath = resolve(temporaryRoot, "gateway-drill.dump");
   const postgresEnvPath = resolve(temporaryRoot, "postgres.env");
@@ -128,10 +137,21 @@ async function runRecoveryDrill({ dryRun }) {
     networkProbeName,
     rewindName,
     rejoinedName,
+    archiveChownName,
+    pitrChownName,
+    pitrBasebackupName,
+    pitrConfigName,
+    pitrName,
     basebackupName,
     standbyChownName,
   ]);
-  const cleanupVolumes = new Set([sourceVolume, recoveryVolume, standbyVolume]);
+  const cleanupVolumes = new Set([
+    sourceVolume,
+    recoveryVolume,
+    standbyVolume,
+    archiveVolume,
+    pitrVolume,
+  ]);
   const cleanupNetworks = new Set([replicationNetworkName]);
   const startedAt = Date.now();
   let stage = "docker-preflight";
@@ -169,9 +189,11 @@ async function runRecoveryDrill({ dryRun }) {
   let oldPrimaryRejoinEvidence = null;
   let rewindPrerequisites = null;
   let rejoinedUrl = null;
+  let pointInTimeRecoveryEvidence = null;
 
   try {
     await runDocker(dockerExecutable, ["version", "--format", "{{.Server.Version}}"], { stage });
+    await assertArchiveToolsAvailable(dockerExecutable);
 
     stage = "source-start";
     const sourcePublishedPort = await allocateLoopbackPort();
@@ -226,6 +248,14 @@ async function runRecoveryDrill({ dryRun }) {
 
     stage = "recovery-start";
     await createDockerNetwork(dockerExecutable, replicationNetworkName, runId);
+    await preparePostgresOwnedVolume({
+      dockerExecutable,
+      containerName: archiveChownName,
+      volumeName: archiveVolume,
+      targetPath: "/var/lib/postgresql/wal-archive",
+      stage: "postgres-wal-archive-volume-prepare",
+    });
+    cleanupTargets.delete(archiveChownName);
     const recoveryPublishedPort = await allocateLoopbackPort();
     await startPostgresContainer({
       dockerExecutable,
@@ -235,6 +265,9 @@ async function runRecoveryDrill({ dryRun }) {
       publishedPort: recoveryPublishedPort,
       networkName: replicationNetworkName,
       networkAlias: "primary",
+      additionalMounts: [
+        `type=volume,source=${archiveVolume},target=/var/lib/postgresql/wal-archive`,
+      ],
       postgresArguments: [
         "-c", "wal_level=replica",
         "-c", "max_wal_senders=5",
@@ -242,6 +275,9 @@ async function runRecoveryDrill({ dryRun }) {
         "-c", "wal_keep_size=128MB",
         "-c", "hot_standby=on",
         "-c", "wal_log_hints=on",
+        "-c", "archive_mode=on",
+        "-c", "archive_timeout=60s",
+        "-c", "archive_command=if test -f /var/lib/postgresql/wal-archive/%f; then cmp -s %p /var/lib/postgresql/wal-archive/%f; else tmp=/var/lib/postgresql/wal-archive/.%f.$$; trap 'rm -f \"$tmp\"' EXIT; cp %p \"$tmp\" && mv \"$tmp\" /var/lib/postgresql/wal-archive/%f; fi",
       ],
       runId,
     });
@@ -373,6 +409,30 @@ async function runRecoveryDrill({ dryRun }) {
       controlledPromotionProved: false,
       streamingReplicationProved: true,
     };
+
+    stage = "point-in-time-recovery";
+    pointInTimeRecoveryEvidence = await runPointInTimeRecoveryDrill({
+      dockerExecutable,
+      primaryContainerName: recoveryName,
+      primaryConnectionString: recoveryUrl,
+      networkName: replicationNetworkName,
+      postgresEnvPath,
+      archiveVolumeName: archiveVolume,
+      pitrVolumeName: pitrVolume,
+      pitrChownName,
+      pitrBasebackupName,
+      pitrConfigName,
+      pitrContainerName: pitrName,
+      password,
+      runId,
+      sourceInventory,
+      fixtureState,
+    });
+    cleanupTargets.delete(pitrChownName);
+    cleanupTargets.delete(pitrBasebackupName);
+    cleanupTargets.delete(pitrConfigName);
+    cleanupTargets.delete(pitrName);
+    cleanupVolumes.delete(pitrVolume);
 
     stage = "network-probe-start";
     await startNetworkProbeContainer({
@@ -704,6 +764,8 @@ async function runRecoveryDrill({ dryRun }) {
     cleanupVolumes.delete(standbyVolume);
     await removeVolume(dockerExecutable, recoveryVolume);
     cleanupVolumes.delete(recoveryVolume);
+    await removeVolume(dockerExecutable, archiveVolume);
+    cleanupVolumes.delete(archiveVolume);
     await rm(temporaryRoot, { recursive: true, force: true });
     cleanupComplete = true;
 
@@ -767,10 +829,15 @@ async function runRecoveryDrill({ dryRun }) {
       automaticFailover: automaticFailoverEvidence,
       networkPartition: networkPartitionEvidence,
       oldPrimaryRejoin: oldPrimaryRejoinEvidence,
+      pointInTimeRecovery: pointInTimeRecoveryEvidence,
       streamingReplication,
       recoveryPoint: {
-        mode: "controlled-logical-snapshot",
+        mode: "controlled-logical-snapshot-plus-bounded-lsn-pitr",
         fixtureRowsLost: 0,
+        boundedContinuousWalArchiveProved:
+          pointInTimeRecoveryEvidence.boundedContinuousWalArchiveProved,
+        pointInTimeRecoveryProved:
+          pointInTimeRecoveryEvidence.pointInTimeRecoveryProved,
         continuousWalRecoveryProved: false,
       },
       boundaries: {
@@ -788,6 +855,8 @@ async function runRecoveryDrill({ dryRun }) {
           networkPartitionEvidence.singleBridgePartitionFenceProved,
         safeOldPrimaryRejoinProved:
           oldPrimaryRejoinEvidence.safeOldPrimaryRejoinProved,
+        boundedWalArchivePitrProved:
+          pointInTimeRecoveryEvidence.pointInTimeRecoveryProved,
         operatorControlledEndpointSwitchProved: false,
         automaticFailoverProved: false,
         networkPartitionProved: false,
@@ -804,6 +873,7 @@ async function runRecoveryDrill({ dryRun }) {
         proxyClosed: true,
         clientsClosed: true,
         artifactRetained: false,
+        walArchiveRetained: false,
       },
     };
   } catch (error) {
@@ -1439,6 +1509,368 @@ async function runPgRewind({
   }
 }
 
+async function runPointInTimeRecoveryDrill({
+  dockerExecutable,
+  primaryContainerName,
+  primaryConnectionString,
+  networkName,
+  postgresEnvPath,
+  archiveVolumeName,
+  pitrVolumeName,
+  pitrChownName,
+  pitrBasebackupName,
+  pitrConfigName,
+  pitrContainerName,
+  password,
+  runId,
+  sourceInventory,
+  fixtureState,
+}) {
+  const startedAt = Date.now();
+  let verifier = null;
+  try {
+  await preparePostgresOwnedVolume({
+    dockerExecutable,
+    containerName: pitrChownName,
+    volumeName: pitrVolumeName,
+    targetPath: "/var/lib/postgresql/data",
+    stage: "postgres-pitr-volume-prepare",
+  });
+  await runDocker(dockerExecutable, [
+    "run", "--rm",
+    "--name", pitrBasebackupName,
+    "--user", "postgres",
+    "--network", networkName,
+    "--env-file", postgresEnvPath,
+    "--mount", `type=volume,source=${pitrVolumeName},target=/var/lib/postgresql/data`,
+    "--entrypoint", "pg_basebackup",
+    POSTGRES_IMAGE,
+    "--dbname", `postgresql://${POSTGRES_USER}@primary:5432/postgres`,
+    "--pgdata", "/var/lib/postgresql/data",
+    "--format", "plain",
+    "--wal-method", "stream",
+    "--manifest-checksums", "SHA256",
+    "--checkpoint", "fast",
+    "--progress",
+  ], { stage: "postgres-pitr-basebackup" });
+
+  const includedMarkerId = `${runId}-pitr-included`;
+  const excludedMarkerId = `${runId}-pitr-excluded`;
+  const restorePointName = `${runId}-pitr-target`;
+  const includedMarker = await writeReplicationMarkerInsideContainer({
+    dockerExecutable,
+    containerName: primaryContainerName,
+    markerId: includedMarkerId,
+  });
+  const restorePoint = await createPitrRestorePointInsideContainer({
+    dockerExecutable,
+    containerName: primaryContainerName,
+    restorePointName,
+  });
+  const excludedMarker = await writeReplicationMarkerInsideContainer({
+    dockerExecutable,
+    containerName: primaryContainerName,
+    markerId: excludedMarkerId,
+  });
+  assertCondition(
+    parsePgLsn(includedMarker.primaryWalLsn) <= parsePgLsn(restorePoint.lsn)
+      && parsePgLsn(restorePoint.lsn) < parsePgLsn(excludedMarker.primaryWalLsn),
+    "POSTGRES_RECOVERY_PITR_TARGET_ORDER_INVALID",
+  );
+
+  const archiveEvidence = await forceWalArchiveAndWait({
+    dockerExecutable,
+    primaryConnectionString,
+    archiveVolumeName,
+  });
+  await verifyPitrBaseBackup({
+    dockerExecutable,
+    pitrVolumeName,
+    archiveVolumeName,
+  });
+  await preparePitrRecoveryTarget({
+    dockerExecutable,
+    containerName: pitrConfigName,
+    pitrVolumeName,
+  });
+
+  const publishedPort = await allocateLoopbackPort();
+  await startPostgresContainer({
+    dockerExecutable,
+    containerName: pitrContainerName,
+    volumeName: pitrVolumeName,
+    postgresEnvPath,
+    publishedPort,
+    additionalMounts: [
+      `type=volume,source=${archiveVolumeName},target=/var/lib/postgresql/wal-archive,readonly`,
+    ],
+    postgresArguments: [
+      "-c", "hot_standby=on",
+      "-c", "restore_command=cp /var/lib/postgresql/wal-archive/%f %p",
+      "-c", `recovery_target_lsn=${restorePoint.lsn}`,
+      "-c", "recovery_target_inclusive=on",
+      "-c", "recovery_target_timeline=current",
+      "-c", "recovery_target_action=promote",
+    ],
+    runId,
+  });
+  await waitForPostgres({ dockerExecutable, containerName: pitrContainerName });
+  const discoveredPort = await readPublishedPort(dockerExecutable, pitrContainerName);
+  assertCondition(discoveredPort === publishedPort, "POSTGRES_RECOVERY_PITR_ENDPOINT_CHANGED");
+  const pitrUrl = createConnectionString(discoveredPort, password);
+  await waitForWritablePrimary(pitrUrl);
+  const role = await readPostgresRole(pitrUrl);
+  const markerState = await readPitrMarkerState({
+    connectionString: pitrUrl,
+    includedMarkerId,
+    excludedMarkerId,
+  });
+  const replayLsn = String(role.replayWalLsn ?? "");
+  assertCondition(
+    role.inRecovery === false
+      && markerState.includedPresent === true
+      && markerState.excludedPresent === false
+      && markerState.primaryConninfoConfigured === false
+      && replayLsn.length > 0
+      && parsePgLsn(replayLsn) >= parsePgLsn(restorePoint.lsn)
+      && parsePgLsn(replayLsn) < parsePgLsn(excludedMarker.primaryWalLsn),
+    "POSTGRES_RECOVERY_PITR_TARGET_MISMATCH",
+  );
+  const inventory = await readDatabaseInventory(pitrUrl);
+  assertCondition(
+    inventory.digest === sourceInventory.digest,
+    "POSTGRES_RECOVERY_PITR_INVENTORY_MISMATCH",
+  );
+  verifier = createApplicationStateVerifier(pitrUrl, fixtureState);
+  const checksWithDiagnostics = await verifier.verify();
+  assertAllChecks(checksWithDiagnostics);
+  const applicationChecks = publicApplicationChecks(checksWithDiagnostics);
+  await verifier.close();
+  verifier = null;
+  await removeContainer(dockerExecutable, pitrContainerName);
+  await removeVolume(dockerExecutable, pitrVolumeName);
+
+    return {
+      mode: "physical-basebackup-continuous-archive-lsn-target",
+      baseBackupWalMethod: "stream",
+      backupManifestVerified: true,
+      baseBackupWalRemovedBeforeRecovery: true,
+      recoverySignalUsed: true,
+      restoreCommandArchiveOnly: true,
+      streamingRecoveryConfigured: false,
+      recoveryTargetType: "lsn",
+      recoveryTargetInclusive: true,
+      recoveryTargetTimeline: "current",
+      recoveryTargetAction: "promote",
+      restorePointFingerprint: sha256(restorePointName).slice(0, 16),
+      restorePointLsn: restorePoint.lsn,
+      replayLsn,
+      includedMarkerPresent: markerState.includedPresent,
+      excludedMarkerPresent: markerState.excludedPresent,
+      includedMarkerWalLsn: includedMarker.primaryWalLsn,
+      excludedMarkerWalLsn: excludedMarker.primaryWalLsn,
+      inventoryExactMatch: inventory.digest === sourceInventory.digest,
+      applicationChecks,
+      archiveWalFile: archiveEvidence.requiredWalFile,
+      archiveFailuresObserved: archiveEvidence.failedCountDelta,
+      archiveFileNonEmpty: archiveEvidence.archiveFileNonEmpty,
+      boundedContinuousWalArchiveProved: true,
+      pointInTimeRecoveryProved: true,
+      durationMs: Date.now() - startedAt,
+    };
+  } finally {
+    if (verifier) await verifier.close().catch(() => undefined);
+  }
+}
+
+async function createPitrRestorePointInsideContainer({
+  dockerExecutable,
+  containerName,
+  restorePointName,
+}) {
+  assertCondition(
+    /^[a-z0-9-]{1,63}$/.test(restorePointName),
+    "POSTGRES_RECOVERY_PITR_RESTORE_POINT_INVALID",
+  );
+  const result = await runDocker(dockerExecutable, [
+    "exec", containerName,
+    "psql",
+    "--username", POSTGRES_USER,
+    "--dbname", POSTGRES_DATABASE,
+    "--set", "ON_ERROR_STOP=1",
+    "--tuples-only",
+    "--no-align",
+    "--command", `SELECT pg_create_restore_point('${restorePointName}')::text;`,
+  ], { stage: "postgres-pitr-restore-point" });
+  const lsn = result.stdout.split(/\r?\n/)
+    .map((line) => line.trim())
+    .find((line) => /^[0-9A-F]+\/[0-9A-F]+$/i.test(line)) ?? "";
+  parsePgLsn(lsn);
+  return { lsn };
+}
+
+async function forceWalArchiveAndWait({
+  dockerExecutable,
+  primaryConnectionString,
+  archiveVolumeName,
+}) {
+  const pool = new Pool({ connectionString: primaryConnectionString, max: 1, allowExitOnIdle: true });
+  try {
+    const before = await pool.query(`
+      SELECT archived_count::bigint, failed_count::bigint FROM pg_stat_archiver
+    `);
+    const failedCountBefore = Number(before.rows[0]?.failed_count ?? 0);
+    const archivedCountBefore = Number(before.rows[0]?.archived_count ?? 0);
+    const target = await pool.query(`
+      SELECT pg_walfile_name(pg_current_wal_insert_lsn()) AS wal_file
+    `);
+    const requiredWalFile = String(target.rows[0]?.wal_file ?? "");
+    assertWalFileName(requiredWalFile);
+    await pool.query(`SELECT pg_switch_wal()`);
+    const deadline = Date.now() + 30_000;
+    while (Date.now() < deadline) {
+      const state = await pool.query(`
+        SELECT archived_count::bigint, failed_count::bigint, last_archived_wal
+        FROM pg_stat_archiver
+      `);
+      const failedCount = Number(state.rows[0]?.failed_count ?? 0);
+      const archivedCount = Number(state.rows[0]?.archived_count ?? 0);
+      const lastArchivedWal = String(state.rows[0]?.last_archived_wal ?? "");
+      if (failedCount > failedCountBefore) {
+        throw drillError(
+          "POSTGRES_RECOVERY_PITR_ARCHIVE_FAILED",
+          "The PostgreSQL archiver reported a failure while preparing PITR evidence.",
+        );
+      }
+      if (lastArchivedWal === requiredWalFile) {
+        await assertArchiveWalFileNonEmpty({
+          dockerExecutable,
+          archiveVolumeName,
+          walFileName: requiredWalFile,
+        });
+        return {
+          requiredWalFile,
+          archivedCountDelta: archivedCount - archivedCountBefore,
+          failedCountDelta: failedCount - failedCountBefore,
+          archiveFileNonEmpty: true,
+        };
+      }
+      await delay(250);
+    }
+    throw drillError(
+      "POSTGRES_RECOVERY_PITR_ARCHIVE_TIMEOUT",
+      "The WAL segment containing the excluded PITR marker was not archived in time.",
+    );
+  } finally {
+    await pool.end();
+  }
+}
+
+async function assertArchiveWalFileNonEmpty({
+  dockerExecutable,
+  archiveVolumeName,
+  walFileName,
+}) {
+  assertWalFileName(walFileName);
+  await runDocker(dockerExecutable, [
+    "run", "--rm",
+    "--user", "postgres",
+    "--network", "none",
+    "--read-only",
+    "--cap-drop", "ALL",
+    "--security-opt", "no-new-privileges",
+    "--mount", `type=volume,source=${archiveVolumeName},target=/archive,readonly`,
+    "--entrypoint", "test",
+    POSTGRES_IMAGE,
+    "-s", `/archive/${walFileName}`,
+  ], { stage: "postgres-pitr-archive-file-verify" });
+}
+
+async function verifyPitrBaseBackup({
+  dockerExecutable,
+  pitrVolumeName,
+  archiveVolumeName,
+}) {
+  await runDocker(dockerExecutable, [
+    "run", "--rm",
+    "--user", "postgres",
+    "--network", "none",
+    "--read-only",
+    "--cap-drop", "ALL",
+    "--security-opt", "no-new-privileges",
+    "--mount", `type=volume,source=${pitrVolumeName},target=/base,readonly`,
+    "--mount", `type=volume,source=${archiveVolumeName},target=/archive,readonly`,
+    "--entrypoint", "pg_verifybackup",
+    POSTGRES_IMAGE,
+    "--exit-on-error",
+    "--wal-directory=/archive",
+    "/base",
+  ], { stage: "postgres-pitr-basebackup-verify" });
+}
+
+async function preparePitrRecoveryTarget({
+  dockerExecutable,
+  containerName,
+  pitrVolumeName,
+}) {
+  await runDocker(dockerExecutable, [
+    "run", "--rm",
+    "--name", containerName,
+    "--user", "postgres",
+    "--network", "none",
+    "--read-only",
+    "--cap-drop", "ALL",
+    "--security-opt", "no-new-privileges",
+    "--mount", `type=volume,source=${pitrVolumeName},target=/var/lib/postgresql/data`,
+    "--entrypoint", "sh",
+    POSTGRES_IMAGE,
+    "-c", [
+      "find /var/lib/postgresql/data/pg_wal -mindepth 1 -delete",
+      "rm -f /var/lib/postgresql/data/standby.signal /var/lib/postgresql/data/recovery.signal",
+      "touch /var/lib/postgresql/data/recovery.signal",
+    ].join(" && "),
+  ], { stage: "postgres-pitr-recovery-target-prepare" });
+}
+
+async function readPitrMarkerState({
+  connectionString,
+  includedMarkerId,
+  excludedMarkerId,
+}) {
+  assertReplicationMarkerId(includedMarkerId);
+  assertReplicationMarkerId(excludedMarkerId);
+  const pool = new Pool({ connectionString, max: 1, allowExitOnIdle: true });
+  try {
+    const result = await pool.query(`
+      SELECT
+        EXISTS (
+          SELECT 1 FROM public.gateway_drill_replication_evidence WHERE run_id = $1
+        ) AS included_present,
+        EXISTS (
+          SELECT 1 FROM public.gateway_drill_replication_evidence WHERE run_id = $2
+        ) AS excluded_present,
+        current_setting('primary_conninfo', true) AS primary_conninfo
+    `, [includedMarkerId, excludedMarkerId]);
+    const primaryConninfo = String(result.rows[0]?.primary_conninfo ?? "").trim();
+    return {
+      includedPresent: result.rows[0]?.included_present === true,
+      excludedPresent: result.rows[0]?.excluded_present === true,
+      primaryConninfoConfigured: primaryConninfo.length > 0,
+    };
+  } finally {
+    await pool.end();
+  }
+}
+
+function assertWalFileName(value) {
+  if (!/^[0-9A-F]{24}$/i.test(String(value ?? ""))) {
+    throw drillError(
+      "POSTGRES_RECOVERY_PITR_WAL_FILE_INVALID",
+      "PostgreSQL returned an invalid WAL archive file name.",
+    );
+  }
+}
+
 async function writeAndWaitForReplication({
   primaryConnectionString,
   standbyConnectionString,
@@ -2025,6 +2457,7 @@ async function startPostgresContainer({
   publishedPort,
   networkName,
   networkAlias,
+  additionalMounts = [],
   postgresArguments = [],
   runId,
 }) {
@@ -2039,6 +2472,13 @@ async function startPostgresContainer({
   ];
   if (networkName) args.push("--network", networkName);
   if (networkAlias) args.push("--network-alias", networkAlias);
+  for (const mount of additionalMounts) {
+    assertCondition(
+      typeof mount === "string" && mount.length > 0 && mount.length <= 512,
+      "POSTGRES_RECOVERY_MOUNT_INVALID",
+    );
+    args.push("--mount", mount);
+  }
   args.push(POSTGRES_IMAGE, ...postgresArguments);
   await runDocker(dockerExecutable, args, { stage: "postgres-container-start" });
 }
@@ -2068,6 +2508,41 @@ async function startNetworkProbeContainer({
     POSTGRES_IMAGE,
     "300",
   ], { stage: "postgres-network-probe-start" });
+}
+
+async function preparePostgresOwnedVolume({
+  dockerExecutable,
+  containerName,
+  volumeName,
+  targetPath,
+  stage,
+}) {
+  assertCondition(
+    /^\/[a-z0-9/._-]{1,200}$/.test(targetPath),
+    "POSTGRES_RECOVERY_VOLUME_TARGET_INVALID",
+  );
+  await runDocker(dockerExecutable, [
+    "run", "--rm",
+    "--name", containerName,
+    "--user", "root",
+    "--mount", `type=volume,source=${volumeName},target=${targetPath}`,
+    "--entrypoint", "chown",
+    POSTGRES_IMAGE,
+    "-R", "70:70", targetPath,
+  ], { stage });
+}
+
+async function assertArchiveToolsAvailable(dockerExecutable) {
+  await runDocker(dockerExecutable, [
+    "run", "--rm",
+    "--network", "none",
+    "--read-only",
+    "--cap-drop", "ALL",
+    "--security-opt", "no-new-privileges",
+    "--entrypoint", "sh",
+    POSTGRES_IMAGE,
+    "-c", "command -v cp >/dev/null && command -v cmp >/dev/null && command -v mv >/dev/null",
+  ], { stage: "postgres-archive-tools-preflight" });
 }
 
 async function waitForPostgres({ dockerExecutable, containerName }) {
@@ -2397,9 +2872,10 @@ function printHumanSummary(value) {
       `Promotion blocked while old primary remained running: ${String(value.automaticFailover.promotionBlockedWhilePrimaryRunning)}`,
       `Single Docker-bridge partition fenced and healed: ${String(value.boundaries.singleBridgePartitionFenceProved)}`,
       `Old primary safely rejoined as standby: ${String(value.boundaries.safeOldPrimaryRejoinProved)}`,
+      `Bounded WAL-archive LSN PITR proved: ${String(value.boundaries.boundedWalArchivePitrProved)}`,
       `Database inventory: ${value.databaseInventory.tableCount} tables, ${value.databaseInventory.totalRows} rows`,
       `Cleanup complete: ${String(value.cleanup.complete)}`,
-      "Boundary: one Docker-bridge partition, bounded failover, and pg_rewind old-primary rejoin; no quorum election, complete split-brain, continuous WAL RPO, or production RTO claim.",
+      "Boundary: one Docker bridge, bounded failover/rejoin, and one LSN PITR target; no quorum election, complete split-brain, archive custody, or production RTO/RPO claim.",
     ].join("\n") + "\n");
     return;
   }

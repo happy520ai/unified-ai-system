@@ -194,6 +194,9 @@ if (!ciWorkflow.includes("externalEffectGate.postgres.integration.test.ts")) {
 if (!ciWorkflow.includes("pnpm drill:postgres-recovery")) {
   failures.push("ci.yml: destructive PostgreSQL logical recovery coverage is missing");
 }
+if (!ciWorkflow.includes("verify-postgres-recovery-drill.mjs")) {
+  failures.push("ci.yml: structured PostgreSQL recovery evidence verification is missing");
+}
 
 if (failures.length > 0) {
   console.error("Outbound request policy check failed:");

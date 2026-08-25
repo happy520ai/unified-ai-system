@@ -266,9 +266,14 @@ multi-candidate quorum or an arbitrary multi-host partition. After promotion,
 the drill retains the fenced old-primary volume, runs `pg_rewind -R` with
 persisted `wal_log_hints` and WAL retention, and starts that volume only as a
 standby; it must replay both a post-promotion marker and another marker after
-the promoted primary restarts. Complete deployment HA still needs independently verified
+the promoted primary restarts. The same drill also takes an independent
+manifested physical base backup, continuously archives WAL to a separate
+volume, removes bundled backup WAL, and restores through archive-only recovery
+to an inclusive LSN between an included and excluded marker; all eight contracts
+and inventory must match at that exact point. Complete deployment HA still needs independently verified
 multi-candidate election/quorum, external HA control, synchronous policy, TLS
-identity, retention/PITR/WAL archive fallback, production-scale restore,
+identity, long-duration/off-host archive retention, time/named PITR targets,
+archive-loss fallback, production-scale restore,
 broader partition and split-brain behavior, multi-candidate rejoin control,
 provider reconciliation,
 measured RTO/RPO, and load-balancer behavior.

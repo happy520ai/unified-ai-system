@@ -176,6 +176,7 @@ jobs:
         run: |
           set -o pipefail
           pnpm drill:postgres-recovery -- --json --output .tmp/postgres-recovery-drill.json | tee .tmp/postgres-recovery-drill.log
+          node tools/verify-postgres-recovery-drill.mjs .tmp/postgres-recovery-drill.json
 
       - name: Public repository hygiene
         run: pnpm check:public
