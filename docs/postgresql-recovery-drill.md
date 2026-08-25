@@ -33,8 +33,9 @@ logical-backup artifact before returning.
    `pg_restore --exit-on-error`.
 6. Requires an exact inventory digest match and verifies all eight contracts
    through fresh application clients.
-7. Restarts the recovery database, rediscovers its loopback endpoint, and
-   verifies all eight contracts again.
+7. Keeps the same eight application clients and connection pools open, restarts
+   the recovery database on a stable loopback endpoint, and verifies all eight
+   contracts again without constructing replacement clients.
 8. Removes every disposable resource. A cleanup failure makes the drill fail.
 
 CI runs the same command after the real PostgreSQL integration suite. The JSON
@@ -45,9 +46,9 @@ backup itself is deliberately not retained.
 
 A passing result proves a bounded logical snapshot can recover the covered
 gateway schemas into a clean PostgreSQL 17 instance, that the recovered rows
-remain application-readable, and that they survive a database restart. The
-reported `controlledRecoveryTimeMs` is only the wall clock of this disposable
-fixture; it is not a production RTO.
+remain application-readable, and that the same in-process application pools can
+reconnect after a database restart. The reported `controlledRecoveryTimeMs` is
+only the wall clock of this disposable fixture; it is not a production RTO.
 
 The drill does **not** prove:
 

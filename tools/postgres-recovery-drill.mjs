@@ -3,6 +3,7 @@ import { spawn } from "node:child_process";
 import { chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
+import { createServer } from "node:net";
 import { setTimeout as delay } from "node:timers/promises";
 
 import { Task, TaskState } from "@a2a-js/sdk";
@@ -75,7 +76,7 @@ async function runRecoveryDrill({ dryRun }) {
         "destroy the source container",
         "restore into a clean PostgreSQL 17 container",
         "verify inventory and all eight application contracts",
-        "restart the recovery database and verify the contracts again",
+        "restart the recovery database on a stable loopback endpoint and verify through the same application clients",
         "remove containers and the temporary backup artifact",
       ],
       boundaries: {
@@ -120,20 +121,24 @@ async function runRecoveryDrill({ dryRun }) {
   let backupBytes = 0;
   let cleanupComplete = false;
   let pendingFailure = null;
+  let applicationVerifier = null;
 
   try {
     await runDocker(dockerExecutable, ["version", "--format", "{{.Server.Version}}"], { stage });
 
     stage = "source-start";
+    const sourcePublishedPort = await allocateLoopbackPort();
     await startPostgresContainer({
       dockerExecutable,
       containerName: sourceName,
       volumeName: sourceVolume,
       postgresEnvPath,
+      publishedPort: sourcePublishedPort,
       runId,
     });
     await waitForPostgres({ dockerExecutable, containerName: sourceName });
     const sourcePort = await readPublishedPort(dockerExecutable, sourceName);
+    assertCondition(sourcePort === sourcePublishedPort, "POSTGRES_RECOVERY_SOURCE_ENDPOINT_CHANGED");
     const sourceUrl = createConnectionString(sourcePort, password);
     await waitForClientPostgres(sourceUrl);
 
@@ -173,15 +178,18 @@ async function runRecoveryDrill({ dryRun }) {
     sourceRemoved = true;
 
     stage = "recovery-start";
+    const recoveryPublishedPort = await allocateLoopbackPort();
     await startPostgresContainer({
       dockerExecutable,
       containerName: recoveryName,
       volumeName: recoveryVolume,
       postgresEnvPath,
+      publishedPort: recoveryPublishedPort,
       runId,
     });
     await waitForPostgres({ dockerExecutable, containerName: recoveryName });
     const recoveryPort = await readPublishedPort(dockerExecutable, recoveryName);
+    assertCondition(recoveryPort === recoveryPublishedPort, "POSTGRES_RECOVERY_ENDPOINT_CHANGED");
     const recoveryUrl = createConnectionString(recoveryPort, password);
     await waitForClientPostgres(recoveryUrl);
 
@@ -208,7 +216,8 @@ async function runRecoveryDrill({ dryRun }) {
     );
 
     stage = "application-verify";
-    const firstVerificationWithDiagnostics = await verifyApplicationState(recoveryUrl, fixtureState);
+    applicationVerifier = createApplicationStateVerifier(recoveryUrl, fixtureState);
+    const firstVerificationWithDiagnostics = await applicationVerifier.verify();
     assertAllChecks(firstVerificationWithDiagnostics);
     firstVerification = publicApplicationChecks(firstVerificationWithDiagnostics);
     const firstRecoveryVerifiedAt = Date.now();
@@ -217,13 +226,15 @@ async function runRecoveryDrill({ dryRun }) {
     await runDocker(dockerExecutable, ["restart", recoveryName], { stage });
     await waitForPostgres({ dockerExecutable, containerName: recoveryName });
     const restartedRecoveryPort = await readPublishedPort(dockerExecutable, recoveryName);
-    const restartedRecoveryUrl = createConnectionString(restartedRecoveryPort, password);
-    await waitForClientPostgres(restartedRecoveryUrl);
-    const restartVerificationWithDiagnostics = await verifyApplicationState(restartedRecoveryUrl, fixtureState);
+    assertCondition(restartedRecoveryPort === recoveryPort, "POSTGRES_RECOVERY_ENDPOINT_CHANGED");
+    await waitForClientPostgres(recoveryUrl);
+    const restartVerificationWithDiagnostics = await applicationVerifier.verify();
     assertAllChecks(restartVerificationWithDiagnostics);
     restartVerification = publicApplicationChecks(restartVerificationWithDiagnostics);
 
     stage = "cleanup";
+    await applicationVerifier.close();
+    applicationVerifier = null;
     await removeContainer(dockerExecutable, recoveryName);
     cleanupTargets.delete(recoveryName);
     await removeVolume(dockerExecutable, recoveryVolume);
@@ -253,6 +264,10 @@ async function runRecoveryDrill({ dryRun }) {
       },
       applicationChecks: firstVerification,
       restartChecks: restartVerification,
+      clientContinuity: {
+        sameApplicationClientsAcrossRestart: true,
+        stableLoopbackEndpoint: true,
+      },
       recoveryPoint: {
         mode: "controlled-logical-snapshot",
         fixtureRowsLost: 0,
@@ -282,6 +297,12 @@ async function runRecoveryDrill({ dryRun }) {
     throw error;
   } finally {
     let cleanupFailed = false;
+    if (applicationVerifier) {
+      await applicationVerifier.close().catch(() => {
+        cleanupFailed = true;
+      });
+      applicationVerifier = null;
+    }
     for (const containerName of cleanupTargets) {
       await removeContainer(dockerExecutable, containerName).catch(() => {
         cleanupFailed = true;
@@ -364,13 +385,25 @@ async function seedApplicationState(connectionString, runId) {
   }
 }
 
-async function verifyApplicationState(connectionString, fixture) {
-  const checks = {};
-  const closed = [];
-  let lifecyclePool;
-  try {
-    const idempotency = createDrillIdempotency(connectionString, fixture);
-    closed.push(() => idempotency.close());
+function createApplicationStateVerifier(connectionString, fixture) {
+  const idempotency = createDrillIdempotency(connectionString, fixture);
+  const providerGate = createDrillProviderGate(connectionString, fixture);
+  const effectGate = createDrillExternalEffectGate(connectionString, fixture);
+  const usageLedger = createDrillUsageLedger(connectionString, fixture);
+  const auditStore = createDrillAuditStore(connectionString, fixture);
+  const a2a = createDrillA2AStore(connectionString, fixture);
+  const claims = createDrillClaimManager(connectionString, fixture);
+  const lifecyclePool = new Pool({ connectionString, max: 2, allowExitOnIdle: true });
+  let lifecyclePoolErrorEvents = 0;
+  lifecyclePool.on("error", () => {
+    lifecyclePoolErrorEvents += 1;
+  });
+  const lifecycle = createDrillLifecycle(lifecyclePool, fixture);
+  let closed = false;
+  return {
+    async verify() {
+      if (closed) throw drillError("POSTGRES_RECOVERY_VERIFIER_CLOSED", "The application recovery verifier is closed.");
+      const checks = {};
     let replayOperationCalls = 0;
     const replay = await idempotency.execute({
       request: fixture.idempotency.request,
@@ -389,30 +422,22 @@ async function verifyApplicationState(connectionString, fixture) {
       && replay.value?.payload?.provider === fixture.idempotency.result.payload.provider
       && replay.value?.payload?.marker === fixture.idempotency.result.payload.marker;
 
-    const providerGate = createDrillProviderGate(connectionString, fixture);
-    closed.push(() => providerGate.close());
     checks.providerDispatchTombstone = await rejectsWithCode(
       () => providerGate.reserve(fixture.providerDispatch.input),
       "PROVIDER_DISPATCH_ALREADY_RESERVED",
     );
 
-    const effectGate = createDrillExternalEffectGate(connectionString, fixture);
-    closed.push(() => effectGate.close());
     checks.externalEffectTombstone = await rejectsWithCode(
       () => effectGate.reserve(fixture.externalEffect.input),
       "EXTERNAL_EFFECT_ALREADY_RESERVED",
     );
 
-    const usageLedger = createDrillUsageLedger(connectionString, fixture);
-    closed.push(() => usageLedger.close());
     const usageStats = await usageLedger.getStats({ tenantId: fixture.usage.tenantId });
     checks.usageLedger = usageStats.totalRequests === 1
       && usageStats.totalTokens === 15
       && usageStats.totalCostUsd === 0.0015
       && usageStats.unresolvedBillableAttempts === 0;
 
-    const auditStore = createDrillAuditStore(connectionString, fixture);
-    closed.push(() => auditStore.close());
     const [auditVerify, auditEntries] = await Promise.all([
       auditStore.verify(),
       auditStore.readEntries({ limit: 10, tenantId: fixture.audit.tenantId }),
@@ -421,14 +446,10 @@ async function verifyApplicationState(connectionString, fixture) {
       && auditVerify.sequence === 1
       && auditEntries.some((entry) => entry.id === fixture.audit.event.id);
 
-    const a2a = createDrillA2AStore(connectionString, fixture);
-    closed.push(() => a2a.close());
     const recoveredTask = await a2a.store.load(fixture.a2a.taskId, fixture.a2a.context);
     checks.a2aTask = recoveredTask?.id === fixture.a2a.taskId
       && Number(recoveredTask?.status?.state) === Number(TaskState.TASK_STATE_COMPLETED);
 
-    const claims = createDrillClaimManager(connectionString, fixture);
-    closed.push(() => claims.close());
     const recoveredClaim = await claims.validate(
       fixture.workforceClaim.token,
       fixture.workforceClaim.identity,
@@ -437,8 +458,6 @@ async function verifyApplicationState(connectionString, fixture) {
       && recoveredClaim.valid === true
       && recoveredClaim.record?.fencingToken === fixture.workforceClaim.fencingToken;
 
-    lifecyclePool = new Pool({ connectionString, max: 2, allowExitOnIdle: true });
-    const lifecycle = createDrillLifecycle(lifecyclePool, fixture);
     const recoveredLifecycle = await lifecycle.getStatus(fixture.lifecycle.executionId);
     checks.workforceLifecycle = recoveredLifecycle.status === "running"
       && recoveredLifecycle.completedAgents === 1;
@@ -457,13 +476,32 @@ async function verifyApplicationState(connectionString, fixture) {
       workforceLifecycle: {
         status: recoveredLifecycle.status ?? null,
         completedAgentCount: recoveredLifecycle.completedAgents ?? null,
+        poolErrorEvents: lifecyclePoolErrorEvents,
       },
     };
     return checks;
-  } finally {
-    await Promise.allSettled(closed.reverse().map((close) => Promise.resolve().then(close)));
-    await lifecyclePool?.end().catch(() => undefined);
-  }
+    },
+    async close() {
+      if (closed) return;
+      closed = true;
+      const results = await Promise.allSettled([
+        idempotency.close(),
+        providerGate.close(),
+        effectGate.close(),
+        usageLedger.close(),
+        auditStore.close(),
+        a2a.close(),
+        claims.close(),
+        lifecyclePool.end(),
+      ]);
+      if (results.some((result) => result.status === "rejected")) {
+        throw drillError(
+          "POSTGRES_RECOVERY_CLIENT_CLEANUP_FAILED",
+          "One or more application recovery clients could not be closed cleanly.",
+        );
+      }
+    },
+  };
 }
 
 function createFixture(runId) {
@@ -760,13 +798,35 @@ async function readDatabaseInventory(connectionString) {
   }
 }
 
-async function startPostgresContainer({ dockerExecutable, containerName, volumeName, postgresEnvPath, runId }) {
+async function allocateLoopbackPort() {
+  const server = createServer();
+  await new Promise((resolvePromise, rejectPromise) => {
+    server.once("error", rejectPromise);
+    server.listen(0, "127.0.0.1", resolvePromise);
+  });
+  const address = server.address();
+  const port = typeof address === "object" && address ? Number(address.port) : 0;
+  await new Promise((resolvePromise, rejectPromise) => {
+    server.close((error) => error ? rejectPromise(error) : resolvePromise());
+  });
+  assertCondition(Number.isSafeInteger(port) && port > 0 && port <= 65_535, "POSTGRES_RECOVERY_PORT_INVALID");
+  return port;
+}
+
+async function startPostgresContainer({
+  dockerExecutable,
+  containerName,
+  volumeName,
+  postgresEnvPath,
+  publishedPort,
+  runId,
+}) {
   await runDocker(dockerExecutable, [
     "run",
     "--detach",
     "--name", containerName,
     "--label", `ai.gateway.recovery-drill=${runId}`,
-    "--publish", "127.0.0.1::5432",
+    "--publish", `127.0.0.1:${publishedPort}:5432`,
     "--env-file", postgresEnvPath,
     "--mount", `type=volume,source=${volumeName},target=/var/lib/postgresql/data`,
     POSTGRES_IMAGE,
@@ -967,6 +1027,7 @@ function printHumanSummary(value) {
       "PostgreSQL recovery drill: recovered",
       `Controlled recovery time: ${value.controlledRecoveryTimeMs} ms`,
       `Application contracts: ${Object.entries(value.applicationChecks).filter(([key, passed]) => key !== "all" && passed).length}/8`,
+      `Same application clients survived database restart: ${String(value.clientContinuity.sameApplicationClientsAcrossRestart)}`,
       `Database inventory: ${value.databaseInventory.tableCount} tables, ${value.databaseInventory.totalRows} rows`,
       `Cleanup complete: ${String(value.cleanup.complete)}`,
       "Boundary: controlled logical recovery only; no automatic failover, continuous WAL RPO, or production RTO claim.",

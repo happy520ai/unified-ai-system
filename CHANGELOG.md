@@ -48,6 +48,12 @@ and the project uses [Semantic Versioning](https://semver.org/).
   validates the digest-only claim and monotonic fence, persists the result, and
   deletes the lease in one transaction. External irreversible sinks still need
   their own fence-aware commit boundary before exactly-once can be claimed.
+- Added a destructive PostgreSQL logical-recovery gate that deletes its source
+  database and volume, restores twelve covered gateway tables into a separate
+  PostgreSQL 17 instance, verifies eight application contracts, then restarts
+  the database and repeats 8/8 through the same live application clients and
+  connection pools on a stable loopback endpoint. This remains bounded CI
+  evidence rather than automatic failover, PITR, or production RTO/RPO proof.
 - Added central PostgreSQL Workforce execution control: raw-identifier-free
   tenant/plan/subject keys, atomic single-use approval consumption, versioned
   digest-verified lifecycle transitions, bounded retention/capacity, remote
