@@ -86,7 +86,11 @@ describe("HTTP request execution scope", () => {
 
   it("hashes the request idempotency key and assigns stable per-request invocation lanes", async () => {
     const transport = createTransport();
-    transport.request.headers = { "idempotency-key": "operator-attempt-1" };
+    transport.request.headers = {
+      "idempotency-key": "operator-attempt-1",
+      "x-request-id": "transport-request-1",
+      "x-trace-id": "transport-trace-1",
+    };
     transport.request.url = "/v1/chat/completions?ignored=true";
     const scope = createHttpRequestExecutionScope({ ...transport, timeoutMs: 10_000 });
     expect(scope.context).toMatchObject({
@@ -94,13 +98,19 @@ describe("HTTP request execution scope", () => {
         .update("operator-attempt-1")
         .digest("hex"),
       providerDispatchRoute: "/v1/chat/completions",
+      transportRequestId: "transport-request-1",
+      transportTraceId: "transport-trace-1",
     });
     expect(JSON.stringify(scope.context)).not.toContain("operator-attempt-1");
 
     const execute = vi.fn(async (_input: unknown, execution?: unknown) => execution);
-    const bound = bindGatewayExecution({ execute }, scope.context);
+    const executeProviderOperation = vi.fn(async (_input: unknown, execution?: unknown) => execution);
+    const bound = bindGatewayExecution({ execute, executeProviderOperation }, scope.context);
     await expect(bound.execute({})).resolves.toMatchObject({ providerDispatchInvocation: 1 });
     await expect(bound.execute({})).resolves.toMatchObject({ providerDispatchInvocation: 2 });
+    await expect(bound.executeProviderOperation({})).resolves.toMatchObject({
+      providerDispatchInvocation: 3,
+    });
     scope.cleanup();
   });
 

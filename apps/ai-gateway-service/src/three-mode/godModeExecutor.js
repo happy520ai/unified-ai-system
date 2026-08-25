@@ -1,4 +1,4 @@
-import { createNvidiaUnifiedClient } from "../providers/nvidia/nvidiaUnifiedClient.js";
+import { createGatewayBackedNvidiaClient } from "../providers/gatewayBackedNvidiaClient.ts";
 import { selectGodParticipants } from "./participantSelector.js";
 import { detectDisagreements, synthesizeWithSupervisor } from "./supervisorSynthesizer.js";
 
@@ -12,13 +12,7 @@ export async function executeGodMode({ request, application, gate, auditTrace })
   const supervisorModelId = String(request?.modelSelection?.supervisorModelId ?? "").trim();
   const supervisorModel = supervisorModelId ? gate.getSelectableRecord(supervisorModelId) : selected[0];
 
-  const nvidiaClient = createNvidiaUnifiedClient({
-    env: application.runtimeEnv ?? process.env,
-    runtimeCredentialStore: application.runtimeCredentialStore,
-    modelLibraryStore: application.modelLibraryStore,
-    runtimeConfig: application.gatewayService?.runtimeConfig,
-    timeoutMs: Number(request?.executionPolicy?.timeoutMs ?? 120_000),
-  });
+  const nvidiaClient = createGatewayBackedNvidiaClient(application.gatewayService);
 
   const draftCalls = await Promise.all(selected.map(async (model) => {
     const call = await nvidiaClient.chatCompletion({

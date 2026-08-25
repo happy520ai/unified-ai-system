@@ -22,7 +22,7 @@
 | 概念验证 | 已越过 | 核心路径均有真实实现，不是界面或文档桩。 |
 | 可用开源产品 | 已达到 | 已发布 v0.5.0、Apache-2.0、公开容器、MCP Registry、文档与无密钥体验路径。 |
 | 加固 Public Preview | **当前阶段** | 完整测试、公共克隆、依赖扫描、攻击回归、多架构容器、短时 SLO/背压/资源门均通过。 |
-| 企业生产候选 | 部分达到 | 身份、租户、预算、审计、可观测性已有；PostgreSQL claim/中央 Workforce queue+result+审批+生命周期、usage/audit、A2A task state+execution lease+原子终态、结构化对账已获 E3；但运行中角色不能跨进程恢复，provider/git/webhook/deploy 等外部不可逆 sink、HA/DR、provider-authenticated statement 和真实提供商阶段证据不足。 |
+| 企业生产候选 | 部分达到 | 身份、租户、预算、审计、可观测性已有；PostgreSQL claim/中央 Workforce queue+result+审批+生命周期、usage/audit、A2A task state+execution lease+原子终态、结构化对账，以及独立的真实 Provider 调度墓碑已获 E3；但运行中角色不能跨进程恢复，Provider 侧 exactly-once、git/webhook/deploy 等外部不可逆 sink、HA/DR、provider-authenticated statement 和真实提供商阶段证据不足。 |
 | 生产 GA | 未达到 | 缺独立渗透测试、真实提供商预生产验证、6–24 小时负载证据、故障切换与恢复演练。 |
 | 行业领导者 | 未达到 | 独特方向成立，但提供商广度、生态采用、跨区域 HA 和第三方证明尚弱。 |
 
@@ -84,18 +84,18 @@
 | 能力域 | 当前作用 | 用户得到什么 | 证据/边界 |
 | --- | --- | --- | --- |
 | 确定性 prompt 增强 | 本地把自然语言需求编译为结构化、可复核任务；保留原始请求 | 不需要先学复杂提示词，也不需要提供 API Key | E3；无提供商调用的评估、CLI、MCP 和公共克隆均通过 |
-| OpenAI/Anthropic/Gemini 兼容入口 | Chat Completions、Responses、Messages、Gemini generate/stream/batch、多模态、工具与流式 | 现有 SDK 通常只需切换 base URL | E3；协议测试通过，真实提供商契约未在本轮重验 |
+| OpenAI/Anthropic/Gemini 兼容入口 | Chat Completions、Responses、Messages、Gemini generate/stream/batch、多模态、工具与流式；真实调用先持久化调度墓碑 | 现有 SDK 通常只需切换 base URL；重试不会因网关崩溃或兼容路由缺少响应缓存而静默重复外呼 | E3；协议、HTTP/SSE 前置错误和 SQLite/PostgreSQL 跨副本去重通过，真实提供商响应契约未在本轮重验 |
 | MCP 网关 | 12 个受治理工具；stdio 与 Streamable HTTP；可聚合上游 MCP，并从 OpenAPI 生成工具 | Codex、Cursor、Cline 等可使用同一套可审计能力 | E3；当前源码认证 MCP `2026-07-28`，兼容 `2025-11-25`/`2025-06-18` |
 | A2A v1.0 | 可验证 Agent Card/JWKS、JSON-RPC 任务、取消、Workforce 模式，以及有界 memory/同主机 SQLite/跨主机 PostgreSQL 任务与 fenced execution lease | 其他智能体可验证身份、发现并调用网关；多副本共享任务生命周期，同 tenant/owner/task 仅一个有效执行者；completed/failed/canceled 与当前 fence 在一个事务提交，跨副本无本地 event bus 也可取消 | E3；真实 PostgreSQL 独立连接池通过；TaskStore 终态已原子消费 fence，但已进入 provider/git/webhook/deploy 的外部副作用仍不能撤回或 exactly-once；重叠签名轮换也未完成 |
-| 提供商治理 | fake provider 默认；真实提供商需白名单、运行时授权与凭据三道门 | 防止“配置一改就误花钱”或静默调用外部模型 | E3；本轮没有真实提供商调用 |
-| 虚拟密钥、预算与成本核对 | 虚拟 key、撤销、限流、token 预算、使用归属、spend 报告，以及精确 attempt-ID 的 USD statement comparison | 团队成员不持有底层提供商密钥；管理者可找出漏记、重复、未决、未知估值、模型/token 不符和成本差异 | E3；中央 usage 与结构化对账已通过真实 PostgreSQL，但输入仍由 operator 提供，未认证 provider 来源，也不是支付或法定发票系统 |
+| 提供商治理 | fake provider 默认；真实提供商需白名单、运行时授权、凭据和持久调度 reservation；单机 SQLite、跨主机 PostgreSQL 均失败关闭 | 防止“配置一改就误花钱”、静默外呼和不确定重试造成的重复扣费；原始 `Idempotency-Key` 不落执行上下文、日志或数据库 | E3；聊天、fallback、shadow、流式、Forge、Agent、Three Mode、Provider test 和 Multimodal 均回到核心门；本轮没有真实提供商调用，不能证明 Provider 侧 exactly-once |
+| 虚拟密钥、预算与成本核对 | 虚拟 key、撤销、限流、token 预算、使用归属、spend 报告、逐调用调度墓碑，以及精确 attempt-ID 的 USD statement comparison | 团队成员不持有底层提供商密钥；管理者可找出漏记、重复、未决、未知估值、模型/token 不符和成本差异 | E3；中央 usage、独立 dispatch 表与结构化对账已通过真实 PostgreSQL，但 statement 输入仍由 operator 提供，未认证 provider 来源，也不是支付或法定发票系统 |
 | 路由与韧性 | 加权路由、fallback、熔断、重试边界、影子流量单独计量 | 可迁移或比较模型，同时限制影子调用的额外成本 | E2/E3；无跨区域流量证据 |
 | 缓存与 RAG | 租户隔离的精确/语义缓存、SQLite 向量检索、热路径 RAG | 降低重复推理成本，把本地知识注入受控执行路径 | E2/E3；没有大规模召回质量基准 |
 | Guardrails | 本地密钥/PII/注入/禁词/大小检查，覆盖输入、工具与输出路径 | 在发往提供商前阻断明显泄密和越权内容 | E2/E3；规则防御不能证明语义级提示注入无风险 |
 | 企业身份 | JWT/RBAC、OIDC Authorization Code + PKCE + JWKS、SCIM 2.0 | 接入企业 IdP，按主体、角色和租户执行 | E2/E3；没有外部 IdP 互操作认证 |
 | 可观测性 | Prometheus、OpenTelemetry、Langfuse 可选出口、SLO 与质量趋势 | 看见 token、延迟、缓存、拒绝、guardrail、成本与健康状态 | E3；成熟度和托管平台仪表盘仍弱于头部产品 |
 | 审计与备份 | 本地 HMAC 防篡改镜像、跨进程锁、签名检查点、加密签名备份，以及 PostgreSQL canonical audit chain | 能发现本地/中央篡改、回滚和多写者碰撞，并为多实例提供全局序号 | E3；真实 PostgreSQL 17 跨连接、外部 floor 和篡改检测通过；外部不可变/WORM 留存和破坏性恢复演练未完成 |
-| Forge/Workforce | 受限、可取消、资源感知的编码/多角色执行；真实 HTTP 审批/状态/取消；PostgreSQL claim、中央 queue/result/审批/lifecycle 与原子终态 fence | 把执行置于网关预算、租户、权限和审计边界；多副本原子消费同一审批、共享状态/结果并可远程取消，过期 owner 由更高 fence 接管，旧 token 不能提交数据库终态 | E3；真实 PostgreSQL 17 独立实例通过；取消会等待底层角色收敛，拒绝收敛则保留隔离 worktree；但崩溃中的角色调用栈不能重建，provider、git、webhook、deploy 等外部不可逆 sink 尚未普遍消费 fence |
+| Forge/Workforce | 受限、可取消、资源感知的编码/多角色执行；真实 HTTP 审批/状态/取消；PostgreSQL claim、中央 queue/result/审批/lifecycle 与原子终态 fence；LLM 调用强制使用请求绑定的核心网关适配器 | 把执行置于网关预算、租户、权限、调度去重和审计边界；多副本原子消费同一审批、共享状态/结果并可远程取消，过期 owner 由更高 fence 接管，旧 token 不能提交数据库终态 | E3；修复 Forge 缓存首请求代理的身份/取消上下文滞留，并拒绝未带治理标记的 Workforce Provider 适配器；但崩溃中的角色调用栈不能重建，远端 Provider 接受与 Workforce fence 仍非同一原子事务，git/webhook/deploy 也未普遍消费 fence |
 | 容器与发布 | 非 root、只读根文件系统、cap drop、no-new-privileges、受限 tmpfs、amd64+arm64、SBOM/provenance | 用户可无密钥启动，部署默认面更小，镜像架构可验证 | E3；Kubernetes/多区域/灾备不是已证实能力 |
 
 ## 5. 本轮发现并修复的主要风险
@@ -130,14 +130,16 @@
 | AUD-24 | 高 | Workforce 虽有 PostgreSQL claim，但队列/结果仍落本机 JSON；终态是先验证 lease、再写文件、再释放 claim，存在跨主机视图分裂和校验后竞态 | 新增同库 PostgreSQL queue/result：服务端 tenant+owner+plan 哈希作用域、数据库时钟恢复、行锁、容量/留存/大小上限、SHA-256 腐坏检测、递归敏感字段净化、verify-full TLS、独立 readiness/metrics；完成/失败在同一事务锁定摘要 token+单调 fence、写入 bounded result 并删除 claim，多实例真实执行自动失败关闭到中央模式 | E3；本地工厂/租户/DAG/健康回归通过；真实 PostgreSQL 17 两个独立队列实例 2/2，覆盖共享状态、跨 tenant 隔离、重复认领拒绝、过期接管、更高 fence、旧 token 拒绝、原子终态后 claim 消失、token/secret 不落库及篡改检测；外部 sink 仍不等于 exactly-once |
 | AUD-25 | 中高 | 同一 v2 open-loop 门在实现/隔离顺序 run 通过后，纯报告 run 曾 47% 503/p95 3.5s，随后全新且最先执行 benchmark 的 runner 仍出现 67% 503/p95 4.27s；说明健康响应早于 JIT/后台初始化/本地持久状态真正稳定，单纯移动步骤不足 | v3 在 readiness 后增加一次有界、可审计的 steady-state 门：20 秒内必须连续 5 个 fake+协议有效且单次不高于 250ms；warmup 失败本身阻断，测量阶段只执行一次且仍为 100 RPS/0 错误/750ms，不重试、不降门槛；仍把该门置于其他重测试之前 | E3；历史失败保留。`32780596502` 首次尝试虽 warmup 5/5，随后仍因 runner 瞬时变慢出现 13% 503/p95 1,473.61ms并正确阻断；同提交原样复跑越过性能门，后因两条旧源码断言失败。修正测试后的新提交 `32781799408` 未重试一次通过：5/5、500/500、0 错误、p95 6.40ms。结论是门会 fail closed，但短测仍不是长时稳定性证明。 |
 | AUD-26 | 高 | 受控 Workforce 的多个模块接口名/返回形状不一致：worktree 返回 `{success, worktree}` 却被当 record 使用，workspace guard 传错 `cwd`，真实安全模块导出 `pre/postExecutionCheck` 却调用不存在的 `Scan`，证据模块只有 session API 却调用不存在的 `capture`；optional chaining 令安全检查与证据静默跳过，worktree 失败可能继续、成功也可能不清理；生命周期内存又是按公开 planId 的模块全局 Map，快照写失败只打印日志 | 校正所有真实契约；worktree 创建失败立即阻断，`try/finally` 保证异常清理且清理失败使执行失败；repoRoot 实际进入 guard；tenant+owner+plan 哈希作用域贯穿 worktree/lifecycle/evidence；生命周期 Map 降为实例作用域，快照改为摘要文件名、串行原子 0600 写入、1MiB 上限、腐坏拒绝和初始化回滚；前后安全检查及审计失败关闭；安全审计使用哈希文件名、进程内串行、原子 0600 写入并拒绝腐坏；每角色 evidence 使用真实 session、敏感字段净化、1MiB 上限和原子写；Forge 必须声明并接收隔离 root | E2/E3；新增 8 项聚焦用例，含真实临时 Git 仓库/默认执行路径、7 角色证据、路径穿越、8 并发审计写、腐坏/不可写失败关闭、跨 lifecycle 实例隔离、清理失败终态；完整本地工作区与公共克隆通过 |
-| AUD-27 | 高 | Workforce 审批和生命周期仍是进程/同主机状态，多副本可重复消费审批且不能可靠观察远端取消；`workforceRoutes.js` 的执行 handler 又从未接入真实 HTTP dispatcher，测试通过并不代表用户可调用 | 增加同库 PostgreSQL control：只存 tenant/plan/subject/execution SHA-256 key，原子单次审批消费、数据库时钟 TTL、版本化有界生命周期、摘要校验、行锁转换、verify-full TLS、容量/readiness/metrics；多实例真实执行缺中央 control 即启动失败；把 approve/revoke/execute/status/cancel 接入活动 dispatcher，服务端身份重新绑定 tenant+subject，远端取消轮询贯穿 DAG 到 provider `AbortSignal` | E3；真实 HTTP server 覆盖路由与越租户拒绝；本地/腐坏/容量/配置回归通过；真实 PostgreSQL 两个独立 control 实例 2/2，含并发审批仅一方成功、跨实例 cancel、明文标识/secret note 不落库及腐坏健康失败关闭；总 PostgreSQL 10 文件/22 测试 |
+| AUD-27 | 高 | Workforce 审批和生命周期仍是进程/同主机状态，多副本可重复消费审批且不能可靠观察远端取消；`workforceRoutes.js` 的执行 handler 又从未接入真实 HTTP dispatcher，测试通过并不代表用户可调用 | 增加同库 PostgreSQL control：只存 tenant/plan/subject/execution SHA-256 key，原子单次审批消费、数据库时钟 TTL、版本化有界生命周期、摘要校验、行锁转换、verify-full TLS、容量/readiness/metrics；多实例真实执行缺中央 control 即启动失败；把 approve/revoke/execute/status/cancel 接入活动 dispatcher，服务端身份重新绑定 tenant+subject，远端取消轮询贯穿 DAG 到 provider `AbortSignal` | E3；真实 HTTP server 覆盖路由与越租户拒绝；本地/腐坏/容量/配置回归通过；真实 PostgreSQL 两个独立 control 实例 2/2，含并发审批仅一方成功、跨实例 cancel、明文标识/secret note 不落库及腐坏健康失败关闭；当前总 PostgreSQL 11 文件/24 测试 |
 | AUD-28 | 高 | sandbox-merge 使用不存在的安全/证据/净化方法，绿分支在清理 worktree 时被自身删除，rollback 即使删除失败也可能返回成功 | 复用受控执行的真实 lifecycle/security/evidence/worktree 契约；提交前再次检查取消；错误输出净化；清理支持保留已验证候选分支，rollback 必须验证分支确已删除，任何清理/回滚失败均为终态失败 | E2/E3；真实临时 Git 仓库测试写入并提交候选，移除 worktree 后验证分支仍存在；错误契约与失败路径覆盖，完整本地/远端门通过 |
-| AUD-29 | 高 | timeout 的外层 `Promise.race` 先返回，但 DAG 内部的 abort race 也可能先于实际 provider Promise 结束；随后删除 worktree 会让仍运行的底层任务面对已消失目录，旧 Forge 测试只比对源码字符串而未发现此竞态 | 取消后进入有界 drain，先等实际 role Promise 收敛；若 provider 在 `WORKFORCE_ABORT_DRAIN_TIMEOUT_MS` 内退出才允许清理，拒绝退出则标记 `execution_quiescence_unconfirmed` 并保留隔离 worktree；外层同时保留 timeout 原因与底层 settlement 错误；旧断言改为当前取消/收敛契约并增加行为测试 | E2/E3；延迟 50ms 响应 abort 的 provider 验证“先收敛、后清理”，永久忽略 abort 的 provider 验证“超时、工作树保留、remove 不调用”；本地 Forge 2,692/2,692、当前网关 1,317 passed，远端完整门通过 |
+| AUD-29 | 高 | timeout 的外层 `Promise.race` 先返回，但 DAG 内部的 abort race 也可能先于实际 provider Promise 结束；随后删除 worktree 会让仍运行的底层任务面对已消失目录，旧 Forge 测试只比对源码字符串而未发现此竞态 | 取消后进入有界 drain，先等实际 role Promise 收敛；若 provider 在 `WORKFORCE_ABORT_DRAIN_TIMEOUT_MS` 内退出才允许清理，拒绝退出则标记 `execution_quiescence_unconfirmed` 并保留隔离 worktree；外层同时保留 timeout 原因与底层 settlement 错误；旧断言改为当前取消/收敛契约并增加行为测试 | E2/E3；延迟 50ms 响应 abort 的 provider 验证“先收敛、后清理”，永久忽略 abort 的 provider 验证“超时、工作树保留、remove 不调用”；本地 Forge 2,692/2,692、当前网关主要 Vitest 1,377 passed，远端完整门通过 |
 | AUD-30 | 中 | CI 仍固定 Node 20 时代的 `actions/cache@v4` 和 `actions/upload-artifact@v4`，GitHub 已强制用 Node 24 执行并产生弃用警告 | 按官方稳定 tag 的不可变提交升级为 `actions/cache@v6.1.0` 与 `actions/upload-artifact@v7.0.1`，同步 CI、quality-trend、Docker 证据流和供应链固定 SHA 检查 | E3；`pnpm check:supply-chain-config` 与更新后 GitHub quality/Docker workflow 通过，不再出现该 Node 20 action-runtime 注记 |
-| AUD-31 | 高 | A2A executor 在发布 completed 前只单独 `validate` lease，SDK 随后才在另一个事务写 TaskStore，存在 revoke/commit 竞态；更严重的是跨副本 cancel 在目标副本没有本地 event bus 时由官方 SDK 直接写 canceled，根本不会调用 executor 的 remote revoke，管理器测试不能证明真实 HTTP 路径 | PostgreSQL A2A acquire 在 claim 事务内锁定并检查 scoped TaskStore，终态后不可再领取；completed/failed 在同一全局锁序和事务内锁定 task+claim、校验 token digest/agent/fence/DB expiry、写 task 并删除 claim；cancel handler 即使无本地 bus 也走同一数据库边界，原子写 canceled 并删除现有 claim；终态不可重开/改写，精确 replay 幂等，等待 SDK commit 的内存 proof 有 10 秒 watchdog | E3；本地 A2A/健康/指标 67/67、网关 1,317 passed；真实 PostgreSQL A2A 3/3 覆盖 success fence consume、remote cancel、terminal reacquire 拒绝、stale executor 拒绝、token 不落 task，整个 PostgreSQL 门 10 文件/23 测试 |
+| AUD-31 | 高 | A2A executor 在发布 completed 前只单独 `validate` lease，SDK 随后才在另一个事务写 TaskStore，存在 revoke/commit 竞态；更严重的是跨副本 cancel 在目标副本没有本地 event bus 时由官方 SDK 直接写 canceled，根本不会调用 executor 的 remote revoke，管理器测试不能证明真实 HTTP 路径 | PostgreSQL A2A acquire 在 claim 事务内锁定并检查 scoped TaskStore，终态后不可再领取；completed/failed 在同一全局锁序和事务内锁定 task+claim、校验 token digest/agent/fence/DB expiry、写 task 并删除 claim；cancel handler 即使无本地 bus 也走同一数据库边界，原子写 canceled 并删除现有 claim；终态不可重开/改写，精确 replay 幂等，等待 SDK commit 的内存 proof 有 10 秒 watchdog | E3；本地 A2A/健康/指标 67/67、网关主要 Vitest 1,377 passed；真实 PostgreSQL A2A 3/3 覆盖 success fence consume、remote cancel、terminal reacquire 拒绝、stale executor 拒绝、token 不落 task，整个 PostgreSQL 门 11 文件/24 测试 |
 | AUD-32 | 中高 | 资源稳定性门同时要求 100 RPS、0 客户端丢弃，却把 outstanding 固定 64；共享 runner p95 超过约 640ms 时客户端先自我丢弃，`32786355822` 中网关 1,096/1,096 成功、资源全部有界，门仍因 arrival 0.91 和串行 scrape 漂移失败，重复了前一道容量门的职责 | 升级 v2：前一道 Go open-loop 继续独占 100 RPS/0 drop 容量契约；资源门保持 64 槽有界压力，要求至少 80% 固定到达被启动且所有 started 请求 0 错误；metrics 按固定 500ms 目标并发发起，不因上一次响应慢而漂移，仍保留 heap/RSS/event-loop 原阈值 | E3；本地慢速 Windows run 在 arrival 0.88、142 次有记录的客户端 shedding 下取得 1,058/1,058、25/25 scrape、heap +17.8MiB、RSS +37.7MiB并全门通过；最终 hosted quality 的独立 open-loop 零丢弃门和资源 v2 同时通过 |
 | AUD-33 | 低 | Docker BuildKit 将公开布尔开关 `ENV PME_ENTERPRISE_AUTH_ENABLED=true` 按名称启发式标成 secret-in-ENV，虽无密钥泄漏但持续产生安全注记 | 将默认值移到 JSON CMD 的受控参数展开；显式 `true/false` 运行时值优先，`exec node` 保持 PID 1/信号语义，不全局跳过 Docker 安全检查 | E3；更新后 gateway/MCP 双架构 `push=false` 构建和只读容器 smoke 通过，原 SecretsUsedInArgOrEnv 注记消失 |
 | AUD-34 | 中 | quality scorecard 把旧 Dockerfile 的 `ENV ...=true` 文本当作安全能力本身；安全等价重构后实际检查全部通过却被扣 20 分，尾部 trend smoke 因 250/270 正确阻断 | 将静态证据标记同步为新的 `CMD ... ${PME_ENTERPRISE_AUTH_ENABLED:-true} exec node` 契约，继续同时要求 Compose 显式认证、非 loopback 认证策略和攻击链证据；不改 270 分满分门槛 | E3；失败 run `32788034954` 保留；本地 scorecard 恢复 270/270、trend stable，最终 hosted quality 全门通过 |
+| AUD-35 | 高 | `/chat` 只有响应级幂等，OpenAI/Anthropic/Gemini 兼容路由、流式、fallback、shadow 和内部多次调用没有跨进程的 Provider dispatch 身份；usage attempt 又是随机 ID，崩溃重放可能重复外呼/扣费 | HTTP 入口立即哈希 `Idempotency-Key`；真实调用默认强制 key；每个 invocation/fallback/shadow lane 在外呼前写 durable tombstone；SQLite 支持重启/同主机，PostgreSQL 使用独立 table/sequence/index/lock、verify-full TLS、同 usage 数据库和稳定 HMAC；容量、冲突、未知状态均失败关闭；SSE 在写 200 头前预取首事件；health/readiness/metrics 全接入 | E3；SQLite 重启、双实例竞争、负载冲突、容量和明文不落库覆盖；真实 PostgreSQL 17 两个独立 pool 仅一个 owner、重启重复拒绝、独立 invocation、专表隔离通过；普通 HTTP 幂等表不被 dispatch 墓碑挤占；不声称 Provider 侧 exactly-once |
+| AUD-36 | 高 | LLM prompt enhancer、bounded Agent、Forge、Phase312A/Three Mode、Provider connection test、Multimodal 和可注入 Workforce Provider 曾可直接持有 adapter/client，绕过核心 usage/audit/dispatch；Forge 还会把首个请求绑定 proxy 缓存在 application，造成跨请求身份、取消和幂等上下文滞留；Knowledge `sqlite-vec` 可被环境变量悄然切到直连 HTTP embedding | 增加 TypeScript gateway-backed adapter 与通用 `executeProviderOperation`，将聊天、图像、Embedding、TTS、STT 的 policy→reservation→audit→usage-start→adapter→terminal 顺序收口；每个请求显式传入当前 bound gateway，禁止缓存 request proxy；Provider test/Three Mode/Phase chat 改走核心，未纳入核心的 Phase 非聊天端点明确阻断；Workforce 拒绝无治理标记 adapter；Knowledge 运行时忽略环境直连凭据并暴露 blocked health，注入外部 embedding 也必须带治理标记 | E2/E3；核心顺序、前置拒绝不调用 adapter、四类 Multimodal 映射、音频仅摘要、HTTP 缺 key/首次/重放、Forge 跨请求隔离、Prompt/Agent/Three Mode/Provider test/Knowledge/Workforce 行为测试通过；显式离线 vector production probe 不属于在线 application 路径 |
 
 在本轮已审范围和现有自动化证据内，**没有仍然已知且未处置的 P0/P1 代码级缺陷**。这句话不等于“没有未知漏洞”，也不覆盖下节列出的生产证据阻断。
 
@@ -151,10 +153,10 @@
 | 生产阻断 | 本轮没有真实提供商预生产验证 | 无法确认最新 OpenAI/Anthropic/Gemini 等真实响应、计费与错误契约 | 使用限额凭据、出口 allowlist、硬成本上限逐家验证；不得复用旧证明 |
 | 生产阻断 | 缺独立渗透测试和外部威胁模型复核 | 现有安全结论由仓库本地工具和本次审计产生 | 第三方测试、修复复测、签名报告 |
 | 生产阻断 | 缺 6–24 小时真实工作负载 soak 与容量包线 | 当前短时门只能发现明显回归，不能证明无泄漏或峰值稳定 | 多负载混合、并发爬坡、故障注入、长时资源趋势 |
-| 生产阻断 | Workforce 的 claim、queue/result、审批和 lifecycle 已中央化，数据库终态已原子消费 fence；但运行中的角色调用栈/证据会话不能在副本崩溃后重建，provider/git/webhook/deploy 等不可逆 sink 尚未普遍强制 fence | 跨副本授权、状态、取消和数据库终态已经闭环；进程崩溃仍只能由租约恢复/重新执行，已发出的外部副作用不能撤回，不能声称 durable resume 或端到端 exactly-once | 可重建执行状态机或明确幂等重放契约、中央/对象化证据、所有不可逆副作用 fence 校验、数据库故障转移/分区/split-brain 测试 |
+| 生产阻断 | Workforce 的 claim、queue/result、审批和 lifecycle 已中央化，数据库终态已原子消费 fence；Provider 调用也有独立 durable dispatch 墓碑，但运行中的角色调用栈/证据会话不能在副本崩溃后重建，Provider 远端接受并不与 Workforce/A2A fence 同事务，git/webhook/deploy 等不可逆 sink 也未普遍强制 fence | 跨副本授权、状态、取消、数据库终态和客户端重放防重复已经闭环；进程崩溃仍只能由租约恢复/重新执行，已发出的远端副作用不能撤回，不能声称 durable resume 或端到端 exactly-once | 可重建执行状态机或明确幂等重放契约、中央/对象化证据、Provider 侧 idempotency/对账、所有不可逆副作用 fence 校验、数据库故障转移/分区/split-brain 测试 |
 | 生产阻断 | usage/audit 已中央化，结构化 provider statement comparison 已能精确核对，但 statement 来源仍由 operator 提供，未通过 provider API/签名认证；外部 WORM 也未闭环 | 能发现技术账本差异，仍不能把输入真实性、支付状态、税务或外部不可变性视为已证明 | provider-authenticated/signed ingestion、持久对账历史、财务/税务边界，以及把 sequence/hash floor 写入并演练外部 WORM/object-lock |
 | 生产阻断 | 未完成负载均衡器、TLS/mTLS、数据库故障切换、备份恢复和 DR 演练 | 无法给出 RTO/RPO 或多实例生产承诺 | 隔离环境破坏性恢复、主从切换、证书轮换、网络分区演练 |
-| P1 能力差距 | A2A 已支持稳定 Ed25519/JWKS、memory/SQLite/PostgreSQL 任务、分布式 execution lease/fence 和原子 TaskStore 终态；但下游 provider/git/webhook/deploy 等 sink 未普遍校验 fence，且缺重叠多签名轮换 | 数据库内 revoke/commit 竞态已关闭；已进入外部系统的副作用仍不能撤回，不能声称端到端 exactly-once | 所有不可逆 sink 在提交边界拒绝陈旧 fence，做数据库故障转移/分区测试，并完成重叠轮换演练 |
+| P1 能力差距 | A2A 已支持稳定 Ed25519/JWKS、memory/SQLite/PostgreSQL 任务、分布式 execution lease/fence 和原子 TaskStore 终态；Provider dispatch 已能阻断同 key 重放，但尚未把 A2A/Workforce fence 原子传递给 Provider，git/webhook/deploy 等 sink 也未普遍校验 fence，且缺重叠多签名轮换 | 数据库内 revoke/commit 与网关侧重复外呼风险已分别关闭；两者不是同一远端事务，已进入外部系统的副作用仍不能撤回，不能声称端到端 exactly-once | 所有不可逆 sink 在提交边界拒绝陈旧 fence，Provider 侧消费 idempotency/fence 或完成可认证对账，做数据库故障转移/分区测试，并完成重叠轮换演练 |
 | P1 工程债 | TypeScript 迁移例外仍存在 | 严格检查通过，但部分旧运行时仍依赖 JS 兼容边界 | 在 2026-10-31/11-13 前消除登记例外并保持契约兼容 |
 | 市场阻断 | 采用度和第三方案例很小 | 不能把技术潜力写成行业领导地位 | 可复现用户案例、贡献者增长、独立基准、长期留存与生产参考 |
 
@@ -165,7 +167,7 @@
 | 验证 | 结果 |
 | --- | --- |
 | `pnpm check` | 通过；679 个网关文件语法检查，TypeScript 0 errors，语言/供应链策略通过，83 个权限声明/136 条静态活动路由，18 个受治理出站集成；动态 Workforce dispatcher 另有真实 HTTP server 行为覆盖 |
-| `pnpm test` | 单次完整命令通过；Forge 2,692/2,692；网关 Node 100/100、主要 Vitest 1,317 passed/24 conditional skipped、隔离解析器 10/10；MCP/CLI/其余工作区套件通过 |
+| `pnpm test` | 单次完整命令通过；Forge 2,692/2,692；网关 Node 100/100、主要 Vitest 1,377 passed/25 conditional skipped、隔离解析器 10/10；MCP/CLI/其余工作区套件通过 |
 | `pnpm check:public` | 通过；1,859 个 tracked/candidate 文件，0 issue codes；工作区 `.mcp.json` 有用户改动时从 Git 提交内容审计，未读取其本地内容 |
 | `pnpm verify:public-clone` | 通过；干净克隆、fake-provider 强制、MCP `2026-07-28`、12 tools、0 次真实提供商调用、进程清理成功 |
 | `pnpm verify:mcp` | 通过 4/4；现代 stdio、现代+兼容 HTTP、认证/CORS/清理 |
@@ -179,7 +181,7 @@
 | 门 | 结果 | 可复核链接 |
 | --- | --- | --- |
 | 完整 `quality` | 通过；已审证据提交 `2414343c`，6 分 43 秒，quality score 270 | [Run 32788650647](https://github.com/happy520ai/unified-ai-system/actions/runs/32788650647) |
-| PostgreSQL 集成 | 通过；10 个文件、23/23，含 A2A TaskStore+execution lease+原子终态 3/3、中央 audit 2/2、usage+statement comparison 2/2、Workforce claim 2/2、中央 queue/result 2/2、中央 approval/lifecycle 2/2 | 同一 quality run |
+| PostgreSQL 集成 | 通过；11 个文件、24/24，含 Provider dispatch 双实例原子 owner/专表隔离 1/1、A2A TaskStore+execution lease+原子终态 3/3、中央 audit 2/2、usage+statement comparison 2/2、Workforce claim 2/2、中央 queue/result 2/2、中央 approval/lifecycle 2/2 | 同一 quality run |
 | SLO/故障隔离 | 通过 | 同一 quality run |
 | 开环 soak/背压 | v3 通过；warmup 5/5（p95 29.54ms）；持续 500/500、0 错误、p95 6.67ms；突发 84 accepted/172 controlled 503；恢复与 8/8 中断通过 | Run `32787018411`；`32780596502` 首次尝试的 13% 503/p95 1,473.61ms 失败历史保留；同提交复跑与后续提交通过，不写成长时稳定性证明 |
 | 资源稳定性 soak | v2 通过；1,200/1,200、arrival 1.00、0 错误、25/25 scrape；heap +12.97MiB、RSS +11.74MiB、event-loop p99 23.86ms | 同一 quality run；v1 客户端自限失败 `32786355822` 保留，前一道 open-loop 仍单独要求 100 RPS/0 drop |
@@ -202,7 +204,7 @@
 | 维度 | Unified AI System | 行业成熟基线 | 判断 |
 | --- | --- | --- | --- |
 | Provider/model 广度 | 已有主流协议与多提供商治理，但目录广度有限 | [LiteLLM](https://github.com/BerriAI/litellm-docs) 强调 100+ LLM；[Portkey](https://portkey.ai/docs/product/ai-gateway) 提供更大的模型/提供商目录 | **落后**，短期不要打“最多模型” |
-| 路由与可靠性 | 加权、fallback、熔断、缓存、影子、成本门 | Portkey、[Cloudflare AI Gateway](https://developers.cloudflare.com/ai-gateway/features/) 和 [Kong AI Gateway](https://docs.konghq.com/gateway/latest/ai-gateway/) 已有成熟路由、限流和全球/企业部署叙事 | 功能接近，规模与生产证据落后 |
+| 路由与可靠性 | 加权、fallback、熔断、缓存、影子、成本门，以及单机/跨主机 durable Provider dispatch tombstone | Portkey、[Cloudflare AI Gateway](https://developers.cloudflare.com/ai-gateway/features/) 和 [Kong AI Gateway](https://docs.konghq.com/gateway/latest/ai-gateway/) 已有成熟路由、限流和全球/企业部署叙事 | 代码级成本安全与治理有差异化，全球规模、Provider 侧 exactly-once 和生产证据仍落后 |
 | 可观测与成本 | Prometheus、OTel、Langfuse、虚拟 key、预算、spend ledger | [Helicone](https://docs.helicone.ai/getting-started/platform-overview) 和 Cloudflare 有成熟托管分析体验 | 控制面扎实，产品化与托管体验落后 |
 | 协议与智能体治理 | OpenAI/Anthropic/Gemini + MCP + A2A + reverse MCP + Forge/Workforce；A2A 已有稳定签名/JWKS、跨主机 PostgreSQL 状态、fenced execution lease 与原子 TaskStore 终态 | [MCP `2026-07-28`](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/blog/content/posts/2026-07-28-spec-ga/index.md) 进入无会话现代时代；[A2A v1.0](https://github.com/a2aproject/A2A/blob/main/docs/announcing-1.0.md) 强调稳定、多租户与可签名 Agent Card | **项目最有机会领先的维度**；外部不可逆 sink fencing、签名轮换和故障转移证据仍需补齐 |
 | 确定性与无密钥验证 | 本地增强、fake provider、公共克隆、明确调用证据 | 多数网关更关注代理、路由和托管分析 | **差异化强**，可形成品牌心智 |
@@ -217,12 +219,14 @@
 - 不注册、不配 key 就能验证 prompt 增强、MCP 工具和网关流程；
 - 保留现有 OpenAI/Anthropic/Gemini 客户端习惯；
 - 对每次执行看见 provider、model、fake/real、预算与治理证据；
+- 对真实 Provider 请求使用一个客户端操作 key；网关在任何外呼前落 durable 墓碑，重复、冲突、容量不足和存储故障都不会静默再花一次钱；
 - 本地运行，减少把 prompt、知识和工具上下文交给额外 SaaS 的必要。
 
 ### 对团队与平台工程
 
 - 用虚拟 key、租户、RBAC、预算和统一审计代替散落的提供商密钥；
 - 将缓存、RAG、guardrails、fallback、影子流量和工具权限集中到同一执行边界；
+- 让 Chat、流式、多候选、Forge、Agent、Three Mode、Provider test、图像、Embedding、TTS 和 STT 共享同一 policy/dispatch/audit/usage 顺序，而不是各自直连 Provider；
 - 把 provider statement 的每一行与中央 usage attempt 精确核对，直接看到漏记、重复、未决、未知估值和超容差成本；
 - 对 MCP/A2A/HTTP 客户端复用同一套治理策略，而非为每种客户端重复建设；
 - 让不同主机上的 A2A 网关副本读取同一份受 tenant/owner 隔离、有容量/TTL/分页约束的任务状态；
@@ -262,7 +266,7 @@
 
 适合对外传播的诚实表述是：
 
-> Unified AI System 是一个自托管、协议优先、零密钥可验证的 AI 网关与智能体控制面。它把确定性 prompt 增强、MCP/A2A、虚拟 key、预算、缓存、RAG、guardrails、审计和可观测性放进同一个受治理执行路径。当前发布为 Public Preview；生产推广仍需真实提供商、跨主机、长时负载和独立安全证据。
+> Unified AI System 是一个自托管、协议优先、零密钥可验证的 AI 网关与智能体控制面。它把确定性 prompt 增强、MCP/A2A、虚拟 key、预算、缓存、RAG、guardrails、审计、可观测性和真实 Provider 防重复外呼放进同一个受治理执行路径。当前发布为 Public Preview；生产推广仍需真实提供商、跨主机故障切换、长时负载和独立安全证据。
 
 ## 12. 最终判定
 

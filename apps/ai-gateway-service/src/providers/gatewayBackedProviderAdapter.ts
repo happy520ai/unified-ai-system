@@ -24,6 +24,17 @@ type LowLevelProviderRequest = {
   execution?: Record<string, unknown>;
 };
 
+const DEFINITELY_PRE_PROVIDER_CODES = new Set([
+  "REAL_PROVIDER_EXECUTION_BLOCKED",
+  "USAGE_LEDGER_UNAVAILABLE",
+  "PROVIDER_AUDIT_UNAVAILABLE",
+  "PROVIDER_AUDIT_WRITE_FAILED",
+  "COST_GUARD_BLOCKED",
+  "CONTENT_GUARDRAIL_BLOCKED",
+  "MODEL_ACCESS_DENIED",
+  "VALIDATION_ERROR",
+]);
+
 export function createGatewayBackedProviderAdapter({
   gatewayService,
   providerId,
@@ -43,6 +54,7 @@ export function createGatewayBackedProviderAdapter({
     : boundedIdentifier(modelId, "modelId");
 
   return Object.freeze({
+    governedProviderOperation: true as const,
     descriptor: descriptor ?? Object.freeze({
       id: pinnedProviderId,
       models: pinnedModelId ? [{ id: pinnedModelId }] : [],
@@ -109,13 +121,17 @@ export function createGatewayBackedProviderAdapter({
 
 function createGatewayExecutionError(result: any) {
   const routeError = result?.error ?? {};
+  const code = routeError.code ?? result?.code ?? "GATEWAY_BACKED_PROVIDER_FAILED";
+  const definitelyPreProvider = String(code).startsWith("PROVIDER_DISPATCH_")
+    || DEFINITELY_PRE_PROVIDER_CODES.has(String(code));
   return Object.assign(
     new Error(routeError.message ?? result?.message ?? "Governed gateway provider execution failed."),
     {
-      code: routeError.code ?? result?.code ?? "GATEWAY_BACKED_PROVIDER_FAILED",
+      code,
       category: routeError.type ?? routeError.category ?? "provider",
       retryable: routeError.retryable === true,
       details: routeError.details ?? {},
+      providerCallAttempted: definitelyPreProvider ? false : null,
     },
   );
 }

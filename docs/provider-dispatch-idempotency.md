@@ -4,7 +4,9 @@ Every non-fake provider attempt owned by `GatewayService` is protected by a
 durable dispatch reservation before the adapter is allowed to run. This
 contract covers native chat, OpenAI/Anthropic/Gemini compatibility routes,
 streaming, multiple choices, fallback attempts, explicitly enabled shadow
-traffic, Forge LLM calls, LLM prompt enhancement, and bounded agent execution.
+traffic, Forge LLM calls, LLM prompt enhancement, bounded agent execution, and
+the image-generation, embedding, text-to-speech, and speech-to-text HTTP
+surfaces.
 
 It is a conservative duplicate-spend boundary, not a claim of provider-side
 exactly-once execution.
@@ -114,7 +116,12 @@ object on `/healthz` and `/ready`; Prometheus metrics use the
 - Protection ends when the configured TTL expires.
 - SQLite coordinates processes on one host only. Cross-host replicas require
   PostgreSQL.
-- The contract currently covers provider attempts that re-enter
-  `GatewayService`. Multimodal external operations use a separate adapter
-  surface and must not be represented as covered until their billing and
-  dispatch lifecycle is promoted into the same governed core.
+- The contract covers provider attempts that enter `GatewayService`, including
+  multimodal operations through `executeProviderOperation`. A new direct
+  adapter sink is not covered merely because it uses the same credentials; it
+  must explicitly re-enter this lifecycle and prove that boundary in tests.
+- Online Knowledge `sqlite-vec` remains deterministic unless an injected
+  embedding provider carries the governed-operation marker. Environment
+  embedding credentials alone cannot activate an unmetered direct HTTP sink.
+  The explicit vector production probe remains an operator-run diagnostic, not
+  an online application execution path.

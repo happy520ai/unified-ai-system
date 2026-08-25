@@ -266,6 +266,7 @@ describe("controlled execution worktree and tenant isolation", () => {
     const executionDir = await temporaryRoot("workforce-controlled-cancel-");
     const providerStarted = vi.fn();
     const providerAdapter = {
+      governedProviderOperation: true,
       generate: vi.fn(async (request) => {
         providerStarted();
         const signal = request.execution?.signal as AbortSignal | undefined;
@@ -335,6 +336,7 @@ describe("controlled execution worktree and tenant isolation", () => {
     let worktreeRemovedAt = 0;
     const providerStarted = vi.fn();
     const providerAdapter = {
+      governedProviderOperation: true,
       generate: vi.fn(async (request) => {
         providerStarted();
         const signal = request.execution?.signal as AbortSignal | undefined;
@@ -406,6 +408,7 @@ describe("controlled execution worktree and tenant isolation", () => {
       },
       executionDir,
       providerAdapter: {
+        governedProviderOperation: true,
         generate: vi.fn(async () => {
           providerStarted();
           return new Promise(() => undefined);

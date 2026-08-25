@@ -1,6 +1,5 @@
 import { createKnowledgePersistence } from "./knowledgePersistence.js";
 import { createDeterministicEmbeddingProvider } from "./deterministicEmbeddingProvider.ts";
-import { resolveEmbeddingProviderFromEnv } from "./httpEmbeddingProvider.ts";
 import { createSqliteVecStore } from "./sqliteVecStore.js";
 import {
   isKnowledgeTenantScopeKey,
@@ -69,8 +68,25 @@ export function createLocalKnowledgeService(options = {}) {
   // embedding + 本地向量库；关键词基线行为不变。
   const vectorEnabled = options.vectorEnabled
     ?? String(options.env?.KNOWLEDGE_INFRA_MODE ?? "").trim().toLowerCase() === "sqlite-vec";
+  if (options.embeddingProvider
+    && options.embeddingProvider.credentialFree !== true
+    && options.embeddingProvider.governedProviderOperation !== true) {
+    throw Object.assign(
+      new Error("External knowledge embeddings must enter the governed provider-operation lifecycle."),
+      { code: "KNOWLEDGE_EMBEDDING_GOVERNANCE_REQUIRED", category: "configuration" },
+    );
+  }
+  // The application path stays credential-free unless a caller injects an
+  // already-governed provider. Environment credentials alone must never create
+  // a direct external sink outside GatewayService billing/audit/dispatch.
   const embeddingProvider = options.embeddingProvider
-    ?? (vectorEnabled ? resolveEmbeddingProviderFromEnv(options.env ?? process.env) : null);
+    ?? (vectorEnabled ? createDeterministicEmbeddingProvider() : null);
+  const externalEmbeddingConfigured = Boolean(
+    String(options.env?.KNOWLEDGE_EMBEDDING_PROVIDER ?? "").trim(),
+  );
+  const externalEmbeddingBlocked = vectorEnabled
+    && externalEmbeddingConfigured
+    && !options.embeddingProvider;
   const vectorStore = options.vectorStore
     ?? (vectorEnabled ? createSqliteVecStore({
       dbPath: options.env?.KNOWLEDGE_SQLITE_VEC_PATH ?? ".data/knowledge/vectors.sqlite",
@@ -141,6 +157,17 @@ export function createLocalKnowledgeService(options = {}) {
         mode: vectorStoreReady ? "local-keyword+vector" : "local-keyword",
         storage: persistence.storageLabel,
         embedding: vectorStoreReady ? (embeddingProvider?.id ?? "not-configured") : "not-configured",
+        embeddingGovernance: {
+          externalConfigured: externalEmbeddingConfigured,
+          externalActive: Boolean(
+            options.embeddingProvider?.governedProviderOperation === true
+            && embeddingProvider?.credentialFree !== true,
+          ),
+          externalBlocked: externalEmbeddingBlocked,
+          reason: externalEmbeddingBlocked
+            ? "Environment credentials cannot bypass the governed provider-operation lifecycle."
+            : null,
+        },
         sourceCount: new Set(visibleDocuments.map((document) => document.sourceId)).size,
         documentCount: visibleDocuments.length,
         chunkCount: visibleDocuments.length,

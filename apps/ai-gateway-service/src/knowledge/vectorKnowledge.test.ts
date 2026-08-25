@@ -112,6 +112,41 @@ describe("vector retrieval mode", () => {
     expect(keyword.mode).toBe("keyword");
   });
 
+  it("does not activate an ungoverned HTTP embedding sink from environment credentials", () => {
+    const service = createLocalKnowledgeService({
+      env: {
+        KNOWLEDGE_INFRA_MODE: "sqlite-vec",
+        KNOWLEDGE_EMBEDDING_PROVIDER: "http",
+        KNOWLEDGE_EMBEDDING_MODEL: "external-model",
+        KNOWLEDGE_EMBEDDING_API_KEY: "test-placeholder-key",
+        KNOWLEDGE_EMBEDDING_BASE_URL: "https://embedding.example.test/v1",
+      },
+      vectorEnabled: true,
+      vectorStore: createFakeVectorStore(),
+    });
+
+    expect(service.getHealth({ tenantScopeIdentity: TENANT_A })).toMatchObject({
+      embedding: "deterministic-hash-v1",
+      embeddingGovernance: {
+        externalConfigured: true,
+        externalActive: false,
+        externalBlocked: true,
+      },
+    });
+  });
+
+  it("rejects an injected external embedding provider without a governance marker", () => {
+    expect(() => createLocalKnowledgeService({
+      vectorEnabled: true,
+      vectorStore: createFakeVectorStore(),
+      embeddingProvider: {
+        id: "unsafe-external",
+        dimensions: 3,
+        embedText: async () => [0, 0, 1],
+      },
+    })).toThrow(expect.objectContaining({ code: "KNOWLEDGE_EMBEDDING_GOVERNANCE_REQUIRED" }));
+  });
+
   it("rejects vector mode cleanly when the store is unavailable", async () => {
     const service = createLocalKnowledgeService({
       env: { KNOWLEDGE_INFRA_MODE: "local-keyword" },

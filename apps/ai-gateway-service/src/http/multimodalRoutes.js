@@ -5,7 +5,9 @@
 import { randomUUID } from "node:crypto";
 import { createErrorEnvelope, createOkEnvelope } from "@unified-ai-system/shared-utils";
 import { createMultimodalProviderAdapter } from "../providers/multimodalProviderAdapter.js";
+import { createGovernedMultimodalAdapter } from "../providers/governedMultimodalAdapter.ts";
 import { ROUTE_NOT_HANDLED } from "./httpRouteDispatch.js";
+import { resolveProviderDispatchHttpStatus } from "./providerDispatchHttpStatus.ts";
 
 const MULTIMODAL_ROUTES = new Set([
   "/v1/images/generations",
@@ -90,7 +92,7 @@ export function getMultimodalRouteList() {
  * @param {object} params.application - The gateway application context
  * @param {object} [params.multimodalAdapter] - Optional pre-built adapter instance for reuse
  */
-export async function handleMultimodalRoute({ request, response, url, startedAt, application, writeServiceLog, multimodalAdapter }) {
+export async function handleMultimodalRoute({ request, response, url, startedAt, application, gatewayService, writeServiceLog, multimodalAdapter }) {
   const pathname = normalizeMultimodalPath(url?.pathname);
   const requestId = randomUUID();
 
@@ -127,15 +129,20 @@ export async function handleMultimodalRoute({ request, response, url, startedAt,
     }
   }
 
-  // Adapter reuse: use pre-built adapter if provided, otherwise create one (backward compatible)
-  const adapter = multimodalAdapter ?? application?.multimodalAdapter ?? createMultimodalProviderAdapter({
-    runtimeCredentialStore: application.runtimeCredentialStore,
-    env: process.env,
-  });
-
   const log = writeServiceLog || defaultLog;
 
   try {
+    // Adapter reuse keeps transport pooling, but every invocation still enters
+    // the core provider-operation lifecycle before the raw adapter can run.
+    const rawAdapter = multimodalAdapter ?? application?.multimodalAdapter ?? createMultimodalProviderAdapter({
+      runtimeCredentialStore: application?.runtimeCredentialStore,
+      env: application?.runtimeEnv ?? process.env,
+    });
+    const adapter = createGovernedMultimodalAdapter({
+      adapter: rawAdapter,
+      gatewayService: gatewayService ?? application?.gatewayService,
+      routePath: pathname,
+    });
     if (pathname === "/v1/images/generations" || pathname === "/images/generations") {
       return await handleImageGeneration({ request, response, startedAt, adapter, log, requestId });
     }
@@ -149,10 +156,7 @@ export async function handleMultimodalRoute({ request, response, url, startedAt,
       return await handleStt({ request, response, startedAt, adapter, log, requestId });
     }
   } catch (error) {
-    const statusCode = error?.category === "validation" ? 400
-      : error?.category === "multimodal" && error?.code === "multimodal_api_key_missing" ? 401
-      : error?.httpStatus && error.httpStatus >= 400 && error.httpStatus < 600 ? error.httpStatus
-      : 422;
+    const statusCode = resolveMultimodalErrorStatus(error);
 
     log("multimodal_request_failed", {
       path: pathname,
@@ -425,6 +429,21 @@ async function parseMultipartRequest(request, contentType) {
 function extractBoundary(contentType) {
   const match = contentType.match(/boundary=([^\s;]+)/i);
   return match ? match[1] : null;
+}
+
+function resolveMultimodalErrorStatus(error) {
+  const dispatchStatus = resolveProviderDispatchHttpStatus(error?.code);
+  if (dispatchStatus !== null) return dispatchStatus;
+  if (error?.code === "MULTIMODAL_GOVERNED_GATEWAY_REQUIRED") return 503;
+  if (error?.code === "REAL_PROVIDER_EXECUTION_BLOCKED") return 403;
+  if (String(error?.code ?? "").startsWith("USAGE_LEDGER_")
+    || String(error?.code ?? "").startsWith("PROVIDER_AUDIT_")) return 503;
+  if (error?.category === "validation") return 400;
+  if (error?.category === "multimodal" && error?.code === "multimodal_api_key_missing") return 401;
+  if (Number.isInteger(error?.httpStatus) && error.httpStatus >= 400 && error.httpStatus < 600) {
+    return error.httpStatus;
+  }
+  return 422;
 }
 
 function writeJsonResponse(response, statusCode, body) {

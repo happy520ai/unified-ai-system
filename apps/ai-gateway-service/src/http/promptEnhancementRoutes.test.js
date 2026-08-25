@@ -147,6 +147,58 @@ describe("prompt enhancement route", () => {
     }), expect.any(Object));
     expect(directGenerate).not.toHaveBeenCalled();
   });
+
+  it("does not claim a provider call when the governed dispatch gate blocks it", async () => {
+    const registry = new ProviderRegistry({ enabledProviders: ["openai"] });
+    const provider = createFakeProvider({
+      providerId: "openai",
+      modelId: "gpt-test",
+      providerType: "openai",
+      capabilities: ["chat"],
+      enabled: true,
+    });
+    const directGenerate = vi.spyOn(provider, "generate");
+    registry.register(provider);
+    const requestGatewayService = {
+      execute: vi.fn(async () => ({
+        success: false,
+        code: "PROVIDER_DISPATCH_KEY_REQUIRED",
+        error: {
+          code: "PROVIDER_DISPATCH_KEY_REQUIRED",
+          type: "validation",
+          message: "Idempotency-Key is required.",
+          retryable: false,
+          details: {},
+        },
+      })),
+    };
+    const response = createResponseRecorder();
+
+    await dispatchPromptEnhancementRoutes({
+      request: createJsonRequest({ input: "Plan safely", providerId: "openai", modelId: "gpt-test" }),
+      response,
+      startedAt: Date.now(),
+      url: new URL("http://127.0.0.1/prompts/enhance-llm"),
+      writeServiceLog: vi.fn(),
+      gatewayService: requestGatewayService,
+      application: {
+        gatewayService: {
+          providerRegistry: registry,
+          runtimeConfig: {
+            providerMode: "real",
+            realProviderEnabled: true,
+            enabledProviders: ["openai"],
+          },
+        },
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body.data.llmEnhanced).toBe(false);
+    expect(response.body.data.metadata.providerCalled).toBe(false);
+    expect(response.body.data.metadata.providerCallOutcomeUnknown).toBe(false);
+    expect(directGenerate).not.toHaveBeenCalled();
+  });
 });
 
 function createJsonRequest(body) {

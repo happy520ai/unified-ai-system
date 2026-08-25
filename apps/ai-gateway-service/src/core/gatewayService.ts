@@ -68,6 +68,18 @@ export interface GatewayServiceOptions {
   governance?: GatewayGovernance | null;
 }
 
+export interface GatewayProviderOperationInput {
+  operationType: string;
+  providerId: string;
+  providerType?: string;
+  modelId: string;
+  path: string;
+  requestFingerprint: string;
+  invoke: () => Promise<unknown>;
+  enterpriseIdentity?: Record<string, unknown>;
+  context?: Record<string, unknown>;
+}
+
 /**
  * 网关核心服务：统一 chat/流式路由、provider 选择、fallback、成本守卫、模型访问守卫、台账。
  */
@@ -76,6 +88,7 @@ export declare class GatewayService {
   readonly runtimeConfig: Partial<GatewayRuntimeConfig>;
   execute(input: Partial<GatewayRequest>, execution?: { signal?: AbortSignal; shadow?: boolean; providerDispatchKeyHash?: string; providerDispatchKeyInvalid?: boolean; providerDispatchRoute?: string; providerDispatchInvocation?: number }): Promise<GatewayRouteResult>;
   executeStream(input: Partial<GatewayRequest>, execution?: { signal?: AbortSignal; shadow?: boolean; providerDispatchKeyHash?: string; providerDispatchKeyInvalid?: boolean; providerDispatchRoute?: string; providerDispatchInvocation?: number }): AsyncGenerator<GatewayStreamEvent>;
+  executeProviderOperation(input: GatewayProviderOperationInput, execution?: { signal?: AbortSignal; providerDispatchKeyHash?: string; providerDispatchKeyInvalid?: boolean; providerDispatchRoute?: string; providerDispatchInvocation?: number; transportRequestId?: string; transportTraceId?: string }): Promise<unknown>;
   getProviderDescriptors(): ProviderDescriptor[];
 }
 

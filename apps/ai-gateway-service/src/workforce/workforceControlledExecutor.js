@@ -75,6 +75,12 @@ export function createControlledExecutor(options = {}) {
   const executionEnabled = env.WORKFORCE_EXECUTION_ENABLED === "true";
   const dryRun = !executionEnabled || options.dryRun === true;
   const providerAdapter = options.providerAdapter ?? null;
+  if (executionEnabled && providerAdapter && providerAdapter.governedProviderOperation !== true) {
+    throw Object.assign(
+      new Error("Workforce provider execution must re-enter the governed GatewayService provider-operation lane."),
+      { code: "WORKFORCE_PROVIDER_GOVERNANCE_REQUIRED", category: "configuration" },
+    );
+  }
   const forgeService = options.forgeService ?? null;
   const maxConcurrent = readBoundedInteger(env.WORKFORCE_MAX_CONCURRENT, DEFAULT_MAX_CONCURRENT_AGENTS, 1, 16);
   const timeoutMs = readBoundedInteger(

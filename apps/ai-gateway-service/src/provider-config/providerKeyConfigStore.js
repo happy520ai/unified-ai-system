@@ -1,9 +1,17 @@
-import { createNvidiaUnifiedClient } from "../providers/nvidia/nvidiaUnifiedClient.js";
+import { createGatewayBackedNvidiaClient } from "../providers/gatewayBackedNvidiaClient.ts";
 import {
   getProviderExecutionDecision,
   readProviderExecutionRuntimeConfig,
 } from "../providers/providerExecutionGate.ts";
 
+/**
+ * @param {{
+ *   env?: Record<string, string | undefined>;
+ *   runtimeCredentialStore?: any;
+ *   providerRegistry?: any;
+ *   modelLibraryStore?: any;
+ * }} options
+ */
 export function createProviderKeyConfigStore({ env = process.env, runtimeCredentialStore, providerRegistry, modelLibraryStore } = {}) {
   function getStatus() {
     const runtime = runtimeCredentialStore?.describe?.("nvidia");
@@ -103,9 +111,24 @@ export function createProviderKeyConfigStore({ env = process.env, runtimeCredent
     };
   }
 
-  async function test(body = {}) {
+  /**
+   * @param {Record<string, any>} body
+   * @param {{ execute: (input: Record<string, unknown>) => Promise<any> } | null} gatewayService
+   */
+  async function test(body = {}, gatewayService = null) {
     const modelId = String(body.modelId ?? env.NVIDIA_MODEL ?? "meta/llama-3.1-8b-instruct").trim();
-    const client = createNvidiaUnifiedClient({ env, runtimeCredentialStore, modelLibraryStore });
+    if (!gatewayService?.execute) {
+      return {
+        success: false,
+        code: "provider_test_governed_gateway_required",
+        message: "Provider connection tests must use the governed GatewayService execution lane.",
+        providerId: "nvidia",
+        modelId,
+        realExternalCall: false,
+        secretValueVisible: false,
+      };
+    }
+    const client = createGatewayBackedNvidiaClient(gatewayService);
     const result = await client.chatCompletion({
       modelId,
       messages: [{ role: "user", content: "Reply with exactly: phase312a-provider-key-ok" }],

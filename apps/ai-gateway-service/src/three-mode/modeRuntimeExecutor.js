@@ -8,13 +8,16 @@ import { THREE_MODE_ERROR_CODES, ThreeModeRuntimeError } from "./threeModeErrors
 import { createDefaultPerUserModePolicy } from "../governance/perUserModePolicy.js";
 import { evaluateQuotaBudgetGate } from "../governance/quotaBudgetGate.js";
 
-export async function executeThreeModeRequest({ request, application } = {}) {
+export async function executeThreeModeRequest({ request, application, gatewayService } = {}) {
   const startedAt = Date.now();
+  const executionApplication = gatewayService
+    ? { ...application, gatewayService }
+    : application;
   const mode = normalizeMode(request?.mode);
   const requestId = String(request?.requestId || `phase328a-${Date.now()}`);
   const auditTrace = createThreeModeAuditTrace({ requestId, mode });
   try {
-    const gate = createModeGovernanceGate({ application });
+    const gate = createModeGovernanceGate({ application: executionApplication });
     gate.assertNoSecretValue(request);
     gate.assertModeEnabled(mode);
     validateRequest(request, mode);
@@ -22,9 +25,9 @@ export async function executeThreeModeRequest({ request, application } = {}) {
     addAuditStep(auditTrace, { step: "mode_policy_checked", status: policyDecision.allowed ? "allowed" : "blocked" });
     addAuditStep(auditTrace, { step: "request_validated", status: "done" });
     let result;
-    if (mode === "normal") result = await executeNormalMode({ request, application, gate, auditTrace });
-    if (mode === "god") result = await executeGodMode({ request, application, gate, auditTrace });
-    if (mode === "tianshu") result = await executeTianshuMode({ request, application, gate, auditTrace });
+    if (mode === "normal") result = await executeNormalMode({ request, application: executionApplication, gate, auditTrace });
+    if (mode === "god") result = await executeGodMode({ request, application: executionApplication, gate, auditTrace });
+    if (mode === "tianshu") result = await executeTianshuMode({ request, application: executionApplication, gate, auditTrace });
     if (result?.success !== true && result?.partialSuccess !== true) {
       throw new ThreeModeRuntimeError(
         THREE_MODE_ERROR_CODES.THREE_MODE_RUNTIME_ERROR,

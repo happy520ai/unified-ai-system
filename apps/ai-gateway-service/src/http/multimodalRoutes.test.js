@@ -78,6 +78,24 @@ describe("multimodal route dispatcher", () => {
     expect(response.body?.error?.code).toBe("multimodal_method_not_allowed");
   });
 
+  it("fails closed before a raw adapter call when the core governed lane is absent", async () => {
+    const response = createResponseRecorder();
+    const multimodalAdapter = {
+      generateImage: vi.fn(),
+    };
+    await dispatchMultimodalRoutes(createContext({
+      path: "/v1/images/generations",
+      body: { prompt: "must not bypass" },
+      response,
+      multimodalAdapter,
+      gatewayService: null,
+    }));
+
+    expect(response.statusCode).toBe(503);
+    expect(response.body?.error?.code).toBe("MULTIMODAL_GOVERNED_GATEWAY_REQUIRED");
+    expect(multimodalAdapter.generateImage).not.toHaveBeenCalled();
+  });
+
   it("forwards unknown routes to later dispatchers", async () => {
     const result = await dispatchMultimodalRoutes(createContext({
       path: "/v1/unknown-route",
@@ -94,6 +112,9 @@ function createContext({
   method = "POST",
   path,
   response = createResponseRecorder(),
+  gatewayService = {
+    executeProviderOperation: vi.fn(async (input) => input.invoke()),
+  },
 }) {
   return {
     request: createJsonRequest(body, method),
@@ -101,6 +122,7 @@ function createContext({
     startedAt: Date.now(),
     url: new URL(`http://127.0.0.1${path}`),
     multimodalAdapter,
+    gatewayService,
     writeServiceLog: vi.fn(),
   };
 }

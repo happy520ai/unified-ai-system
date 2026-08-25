@@ -25,6 +25,12 @@ import {
 import { assertProviderExecutionAllowed } from "../providers/providerExecutionGate.ts";
 import { createHash, randomUUID } from "node:crypto";
 
+const PROVIDER_OPERATION_TYPES = new Set([
+  "image_generation",
+  "embedding",
+  "text_to_speech",
+  "speech_to_text",
+]);
 
 export class GatewayService {
   constructor({ providerRegistry, runtimeConfig = {}, healthScorer = null, requestLogger = null, enterpriseAudit = null, governance = null, contentGuardrails = null, weightedTrafficPolicy = null, providerDispatchGate = null }) {
@@ -353,6 +359,111 @@ export class GatewayService {
     }
   }
 
+  async executeProviderOperation(input, execution = {}) {
+    const operation = normalizeProviderOperation(input);
+    const startedAt = Date.now();
+    const requestId = String(
+      input?.context?.requestId
+      ?? execution?.transportRequestId
+      ?? `provider_operation_${randomUUID()}`,
+    );
+    const traceId = String(input?.context?.traceId ?? execution?.transportTraceId ?? requestId);
+    const request = {
+      taskType: operation.operationType,
+      context: { requestId, traceId },
+      enterpriseIdentity: input?.enterpriseIdentity,
+      messages: [],
+      options: {},
+    };
+    const selection = {
+      selected: {
+        providerType: operation.providerType,
+        target: {
+          providerId: operation.providerId,
+          modelId: operation.modelId,
+        },
+      },
+      metadata: { fallbackAttempt: 1 },
+    };
+    let providerCallStarted = false;
+    let usageAttemptId = null;
+
+    try {
+      throwIfExecutionAborted(execution.signal);
+      assertProviderExecutionAllowed({
+        providerId: operation.providerId,
+        providerType: operation.providerType,
+        runtimeConfig: this.runtimeConfig,
+        shadowRequest: false,
+      });
+      await this.#assertUsageLedgerReady(selection);
+      await this.#reserveProviderDispatch({
+        request,
+        selection,
+        execution,
+        attempt: 1,
+        requestFingerprint: operation.requestFingerprint,
+      });
+      usageAttemptId = await this.#beginUsageAttempt({
+        request,
+        selection,
+        startedAt,
+        usagePath: operation.path,
+        auditPath: `/provider-execution:${operation.operationType}`,
+        operationType: operation.operationType,
+      });
+      throwIfExecutionAborted(execution.signal);
+      providerCallStarted = true;
+      const result = await operation.invoke();
+      throwIfExecutionAborted(execution.signal);
+      await this.#recordUsage({
+        request,
+        selection,
+        providerResult: normalizeProviderOperationResult(result),
+        providerCallAttempted: true,
+        startedAt,
+        usageAttemptId,
+        usagePath: operation.path,
+      });
+      writeGatewayLog("provider_operation_completed", {
+        requestId,
+        traceId,
+        operationType: operation.operationType,
+        provider: operation.providerId,
+        model: operation.modelId,
+        durationMs: Date.now() - startedAt,
+      });
+      return result;
+    } catch (error) {
+      const cancellation = findExecutionAbortError(error, execution.signal);
+      const terminalError = cancellation ?? error;
+      try {
+        await this.#recordUsage({
+          request,
+          selection,
+          providerCallAttempted: providerCallStarted,
+          startedAt,
+          error: terminalError,
+          usageAttemptId,
+          usagePath: operation.path,
+        });
+      } catch (usageError) {
+        throw usageError;
+      }
+      writeGatewayLog("provider_operation_failed", {
+        requestId,
+        traceId,
+        operationType: operation.operationType,
+        provider: operation.providerId,
+        model: operation.modelId,
+        code: terminalError?.code,
+        providerCallAttempted: providerCallStarted,
+        durationMs: Date.now() - startedAt,
+      });
+      throw terminalError;
+    }
+  }
+
   getProviderDescriptors() {
     return this.providerRegistry.listDescriptors();
   }
@@ -674,6 +785,7 @@ export class GatewayService {
     outputText = "",
     shadow = false,
     usageAttemptId = null,
+    usagePath = null,
   }) {
     const providerType = selection?.selected?.providerType ?? error?.details?.providerType;
     const billable = providerCallAttempted && providerType !== "fake";
@@ -714,7 +826,7 @@ export class GatewayService {
         usageAttemptId: usageAttemptId ?? undefined,
         usageEventType: error ? "attempt-failed" : "attempt-completed",
         method: "POST",
-        path: shadow ? "/v1/chat/completions:shadow" : "/v1/chat/completions",
+        path: usagePath ?? (shadow ? "/v1/chat/completions:shadow" : "/v1/chat/completions"),
         statusCode: error ? 500 : 200,
         latencyMs: providerResult?.latencyMs ?? (Date.now() - startedAt),
         provider: selection?.selected?.target?.providerId ?? error?.details?.providerId,
@@ -742,7 +854,15 @@ export class GatewayService {
     }
   }
 
-  async #beginUsageAttempt({ request, selection, startedAt, shadow = false }) {
+  async #beginUsageAttempt({
+    request,
+    selection,
+    startedAt,
+    shadow = false,
+    usagePath = null,
+    auditPath = null,
+    operationType = "chat",
+  }) {
     if (selection?.selected?.providerType === "fake" || !this.requestLogger) return null;
     const usageAttemptId = randomUUID();
     if (this.runtimeConfig.realProviderEnabled === true) {
@@ -753,7 +873,7 @@ export class GatewayService {
         await this.enterpriseAudit.recordAudit({
           outcome: "attempt-authorized",
           method: "PROVIDER",
-          path: shadow ? "/provider-execution:shadow" : "/provider-execution",
+          path: auditPath ?? (shadow ? "/provider-execution:shadow" : "/provider-execution"),
           permission: "provider:execute",
           statusCode: 102,
           identity: request?.enterpriseIdentity,
@@ -762,6 +882,7 @@ export class GatewayService {
             providerId: selection?.selected?.target?.providerId,
             modelId: selection?.selected?.target?.modelId,
             shadow,
+            operationType,
             promptContentRecorded: false,
             credentialRecorded: false,
           },
@@ -775,7 +896,7 @@ export class GatewayService {
         usageAttemptId,
         usageEventType: "attempt-started",
         method: "POST",
-        path: shadow ? "/v1/chat/completions:shadow" : "/v1/chat/completions",
+        path: usagePath ?? (shadow ? "/v1/chat/completions:shadow" : "/v1/chat/completions"),
         statusCode: 102,
         latencyMs: Date.now() - startedAt,
         provider: selection?.selected?.target?.providerId,
@@ -817,7 +938,7 @@ export class GatewayService {
     }
   }
 
-  async #reserveProviderDispatch({ request, selection, execution, attempt }) {
+  async #reserveProviderDispatch({ request, selection, execution, attempt, requestFingerprint = null }) {
     if (selection?.selected?.providerType === "fake") return null;
     if (!this.providerDispatchGate) {
       if (this.runtimeConfig.requireProviderDispatchGate === true) {
@@ -830,7 +951,7 @@ export class GatewayService {
       }
       return null;
     }
-    const requestFingerprint = createHash("sha256")
+    const resolvedRequestFingerprint = requestFingerprint ?? createHash("sha256")
       .update(stableStringify({
         taskType: request?.taskType,
         messages: request?.messages,
@@ -854,7 +975,7 @@ export class GatewayService {
         ?? "default",
       providerId: selection?.selected?.target?.providerId,
       modelId: selection?.selected?.target?.modelId,
-      requestFingerprint,
+      requestFingerprint: resolvedRequestFingerprint,
     });
     writeGatewayLog("provider_dispatch_reserved", {
       requestId: request?.context?.requestId,
@@ -868,6 +989,76 @@ export class GatewayService {
     });
     return reservation;
   }
+}
+
+function normalizeProviderOperation(input) {
+  if (!input || typeof input !== "object") {
+    throw createProviderOperationError("PROVIDER_OPERATION_INPUT_INVALID", "Provider operation input must be an object.");
+  }
+  const operationType = String(input.operationType ?? "").trim();
+  if (!PROVIDER_OPERATION_TYPES.has(operationType)) {
+    throw createProviderOperationError("PROVIDER_OPERATION_TYPE_INVALID", "Provider operation type is not supported.");
+  }
+  const providerId = normalizeProviderOperationIdentifier(input.providerId, "providerId");
+  const providerType = normalizeProviderOperationIdentifier(input.providerType ?? providerId, "providerType");
+  const modelId = normalizeProviderOperationIdentifier(input.modelId, "modelId");
+  const path = String(input.path ?? "").trim();
+  if (!path.startsWith("/") || path.length > 2_048 || /[\u0000-\u001f\u007f]/u.test(path)) {
+    throw createProviderOperationError("PROVIDER_OPERATION_PATH_INVALID", "Provider operation path is invalid.");
+  }
+  const requestFingerprint = String(input.requestFingerprint ?? "").trim().toLowerCase();
+  if (!/^[a-f0-9]{64}$/u.test(requestFingerprint)) {
+    throw createProviderOperationError(
+      "PROVIDER_OPERATION_FINGERPRINT_INVALID",
+      "Provider operation requestFingerprint must be a SHA-256 digest.",
+    );
+  }
+  if (typeof input.invoke !== "function") {
+    throw createProviderOperationError("PROVIDER_OPERATION_INVOKE_REQUIRED", "Provider operation invoke must be a function.");
+  }
+  return { operationType, providerId, providerType, modelId, path, requestFingerprint, invoke: input.invoke };
+}
+
+function normalizeProviderOperationIdentifier(value, name) {
+  const normalized = String(value ?? "").trim();
+  if (!normalized || normalized.length > 256 || !/^[A-Za-z0-9._:/-]+$/u.test(normalized)) {
+    throw createProviderOperationError(
+      "PROVIDER_OPERATION_TARGET_INVALID",
+      `${name} must be a portable provider or model identifier.`,
+    );
+  }
+  return normalized;
+}
+
+function normalizeProviderOperationResult(result) {
+  const rawUsage = result?.data?.usage ?? result?.usage ?? {};
+  const inputTokens = Number(rawUsage.inputTokens ?? rawUsage.prompt_tokens ?? rawUsage.input_tokens ?? 0);
+  const outputTokens = Number(rawUsage.outputTokens ?? rawUsage.completion_tokens ?? rawUsage.output_tokens ?? 0);
+  const totalTokens = Number(rawUsage.totalTokens ?? rawUsage.total_tokens ?? (inputTokens + outputTokens));
+  const estimatedCostUsd = Number(
+    result?.estimatedCostUsd
+      ?? result?.data?.estimatedCostUsd
+      ?? rawUsage.estimatedCostUsd,
+  );
+  return {
+    usage: {
+      inputTokens: Number.isFinite(inputTokens) && inputTokens >= 0 ? inputTokens : 0,
+      outputTokens: Number.isFinite(outputTokens) && outputTokens >= 0 ? outputTokens : 0,
+      totalTokens: Number.isFinite(totalTokens) && totalTokens >= 0 ? totalTokens : 0,
+      ...(Number.isFinite(estimatedCostUsd) && estimatedCostUsd >= 0 ? { estimatedCostUsd } : {}),
+    },
+    ...(Number.isFinite(estimatedCostUsd) && estimatedCostUsd >= 0 ? { estimatedCostUsd } : {}),
+    latencyMs: Number(result?.latencyMs ?? result?.data?.latencyMs ?? 0) || undefined,
+  };
+}
+
+function createProviderOperationError(code, message) {
+  return Object.assign(new Error(message), {
+    code,
+    category: "validation",
+    statusCode: 400,
+    retryable: false,
+  });
 }
 
 function stableStringify(value) {

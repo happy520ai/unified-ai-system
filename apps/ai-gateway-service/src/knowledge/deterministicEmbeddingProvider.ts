@@ -4,7 +4,8 @@
 // It is deterministic across restarts and processes, needs no API key, and
 // makes the vector retrieval path exercisable end-to-end. It is NOT a
 // semantic model: similarity approximates shared lexical/subword structure.
-// Configure a real embedding provider for semantic-quality retrieval.
+// Inject a provider that already participates in the gateway's governed
+// provider-operation lifecycle for semantic-quality retrieval.
 
 import { createHash } from "node:crypto";
 

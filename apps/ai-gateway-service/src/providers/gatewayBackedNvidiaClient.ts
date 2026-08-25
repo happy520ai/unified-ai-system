@@ -25,6 +25,17 @@ type MetaInput = {
   outcomeUnknown: boolean;
 };
 
+const DEFINITELY_PRE_PROVIDER_CODES = new Set([
+  "REAL_PROVIDER_EXECUTION_BLOCKED",
+  "USAGE_LEDGER_UNAVAILABLE",
+  "PROVIDER_AUDIT_UNAVAILABLE",
+  "PROVIDER_AUDIT_WRITE_FAILED",
+  "COST_GUARD_BLOCKED",
+  "CONTENT_GUARDRAIL_BLOCKED",
+  "MODEL_ACCESS_DENIED",
+  "VALIDATION_ERROR",
+]);
+
 /**
  * Compatibility facade for legacy NVIDIA capability-planning code. Chat calls
  * re-enter the governed GatewayService; non-chat direct sinks fail closed
@@ -60,9 +71,12 @@ export function createGatewayBackedNvidiaClient(gatewayService: GatewayServiceLi
       const completedAt = new Date().toISOString();
       const durationMs = Date.now() - startedAt;
       if (!result?.success) {
+        const code = result?.error?.code ?? result?.code ?? "GATEWAY_BACKED_NVIDIA_CHAT_FAILED";
+        const definitelyPreProvider = String(code).startsWith("PROVIDER_DISPATCH_")
+          || DEFINITELY_PRE_PROVIDER_CODES.has(String(code));
         return {
           success: false,
-          code: result?.error?.code ?? result?.code ?? "GATEWAY_BACKED_NVIDIA_CHAT_FAILED",
+          code,
           message: result?.error?.message ?? result?.message ?? "Governed NVIDIA chat failed.",
           data: null,
           error: result?.error ?? null,
@@ -74,7 +88,7 @@ export function createGatewayBackedNvidiaClient(gatewayService: GatewayServiceLi
             durationMs,
             providerCalled: false,
             realExternalCall: false,
-            outcomeUnknown: true,
+            outcomeUnknown: !definitelyPreProvider,
           }),
         };
       }

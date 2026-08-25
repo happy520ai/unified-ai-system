@@ -104,11 +104,21 @@ describe("real-provider HTTP dispatch idempotency", () => {
       enterpriseAudit: { recordAudit: vi.fn(async () => {}) },
       providerDispatchGate,
     });
+    const generateImage = vi.fn(async () => ({
+      data: {
+        provider: "dispatch-provider",
+        model: "dispatch-image-model",
+        usage: { images: 1 },
+        data: [{ url: "https://example.invalid/generated.png" }],
+      },
+    }));
+    const multimodalAdapter = { generateImage };
     Object.assign(application, {
       gatewayService,
       providerRegistry,
       providerDispatchGate,
       requestLogger,
+      multimodalAdapter,
     });
     const server = createGatewayHttpServer(application);
     const baseUrl = await listen(server);
@@ -249,6 +259,55 @@ describe("real-provider HTTP dispatch idempotency", () => {
       expect((await readJson(nativeStreamReplay)).error.code).toBe("PROVIDER_DISPATCH_ALREADY_RESERVED");
       expect(generateStream).toHaveBeenCalledTimes(2);
 
+      const missingImageKey = await fetch(`${baseUrl}/v1/images/generations`, {
+        method: "POST",
+        headers: commonHeaders,
+        body: JSON.stringify({
+          provider: "dispatch-provider",
+          model: "dispatch-image-model",
+          prompt: "a governed image",
+        }),
+      });
+      expect(missingImageKey.status).toBe(400);
+      expect((await readJson(missingImageKey)).error.code).toBe("PROVIDER_DISPATCH_KEY_REQUIRED");
+      expect(generateImage).not.toHaveBeenCalled();
+
+      const firstImage = await fetch(`${baseUrl}/v1/images/generations`, {
+        method: "POST",
+        headers: { ...commonHeaders, "idempotency-key": "operation-image" },
+        body: JSON.stringify({
+          provider: "dispatch-provider",
+          model: "dispatch-image-model",
+          prompt: "a governed image",
+        }),
+      });
+      expect(firstImage.status).toBe(200);
+      expect((await readJson(firstImage)).data).toMatchObject({
+        provider: "dispatch-provider",
+        model: "dispatch-image-model",
+      });
+      expect(generateImage).toHaveBeenCalledOnce();
+
+      const imageReplay = await fetch(`${baseUrl}/v1/images/generations`, {
+        method: "POST",
+        headers: { ...commonHeaders, "idempotency-key": "operation-image" },
+        body: JSON.stringify({
+          provider: "dispatch-provider",
+          model: "dispatch-image-model",
+          prompt: "a governed image",
+        }),
+      });
+      expect(imageReplay.status).toBe(409);
+      expect((await readJson(imageReplay)).error.code).toBe("PROVIDER_DISPATCH_ALREADY_RESERVED");
+      expect(generateImage).toHaveBeenCalledOnce();
+      expect(usageEntries.filter((entry) => entry.path === "/v1/images/generations")
+        .map((entry) => entry.usageEventType)).toEqual([
+          "attempt-failed",
+          "attempt-started",
+          "attempt-completed",
+          "attempt-failed",
+        ]);
+
       const health = await fetch(`${baseUrl}/healthz`);
       expect(health.status).toBe(200);
       expect((await readJson(health)).data.providerDispatch).toMatchObject({
@@ -257,8 +316,8 @@ describe("real-provider HTTP dispatch idempotency", () => {
         required: true,
         durable: true,
         available: true,
-        entries: 5,
-        tombstones: 5,
+        entries: 6,
+        tombstones: 6,
       });
 
       const metrics = await fetch(`${baseUrl}/metrics`, {
@@ -267,7 +326,7 @@ describe("real-provider HTTP dispatch idempotency", () => {
       expect(metrics.status).toBe(200);
       const metricsText = await metrics.text();
       expect(metricsText).toContain('ai_gateway_provider_dispatch_store_available{mode="sqlite"} 1');
-      expect(metricsText).toContain('ai_gateway_provider_dispatch_reservations{mode="sqlite",state="total"} 5');
+      expect(metricsText).toContain('ai_gateway_provider_dispatch_reservations{mode="sqlite",state="total"} 6');
 
       const preflight = await fetch(`${baseUrl}/v1/chat/completions`, {
         method: "OPTIONS",

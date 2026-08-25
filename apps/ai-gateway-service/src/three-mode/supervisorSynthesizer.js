@@ -1,13 +1,7 @@
-import { createNvidiaUnifiedClient } from "../providers/nvidia/nvidiaUnifiedClient.js";
+import { createGatewayBackedNvidiaClient } from "../providers/gatewayBackedNvidiaClient.ts";
 
 export async function synthesizeWithSupervisor({ application, supervisorModel, input, contributions, reviews = [], timeoutMs = 120_000 }) {
-  const nvidiaClient = createNvidiaUnifiedClient({
-    env: application.runtimeEnv ?? process.env,
-    runtimeCredentialStore: application.runtimeCredentialStore,
-    modelLibraryStore: application.modelLibraryStore,
-    runtimeConfig: application.gatewayService?.runtimeConfig,
-    timeoutMs,
-  });
+  const nvidiaClient = createGatewayBackedNvidiaClient(application.gatewayService);
   const prompt = [
     "You are the supervisor for a multi-model review.",
     "Synthesize a concise final answer. Preserve uncertainty when participants disagree.",

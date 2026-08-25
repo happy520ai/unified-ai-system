@@ -8,8 +8,8 @@ export function createProviderConfigRoutes({ providerKeyConfigStore }) {
       return providerKeyConfigStore.save(body);
     },
 
-    test(body) {
-      return providerKeyConfigStore.test(body);
+    test(body, gatewayService) {
+      return providerKeyConfigStore.test(body, gatewayService);
     },
   };
 }

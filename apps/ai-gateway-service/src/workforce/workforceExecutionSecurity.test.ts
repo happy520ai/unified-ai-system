@@ -44,6 +44,15 @@ describe("controlled workforce execution security boundary", () => {
     expect(executor.getInfo()).toEqual(expect.objectContaining({ executionEnabled: false, dryRun: true }));
   });
 
+  it("rejects an execution-enabled provider adapter that bypasses GatewayService governance", async () => {
+    expect(() => createControlledExecutor({
+      env: { WORKFORCE_EXECUTION_ENABLED: "true" },
+      executionDir: "test-workforce-provider-governance",
+      providerAdapter: { generate: vi.fn() },
+      tierGovernor: permissiveTierGovernor(),
+    })).toThrow(expect.objectContaining({ code: "WORKFORCE_PROVIDER_GOVERNANCE_REQUIRED" }));
+  });
+
   it("binds one approval to the exact subject, plan, scopes, and a single execution", async () => {
     const sandboxMerger = { execute: vi.fn(async () => ({ success: true, executionStatus: "completed" })) };
     const executor = createControlledExecutor({

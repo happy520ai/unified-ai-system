@@ -34,6 +34,10 @@ default. The gateway commits a durable dispatch tombstone before the adapter
 runs. Configure SDK default headers and provision the single-host SQLite or
 cross-host PostgreSQL store described in
 [Real-provider dispatch idempotency](./provider-dispatch-idempotency.md).
+This applies to compatibility chat, streaming, internal Forge/Agent/Three Mode
+calls, provider connection tests, and image/embedding/TTS/STT routes. Online
+Knowledge embeddings cannot be switched to a direct HTTP provider with
+environment credentials; a governed provider implementation must be injected.
 
 Recommended minimal first enablement (single cheap model, smallest blast
 radius):

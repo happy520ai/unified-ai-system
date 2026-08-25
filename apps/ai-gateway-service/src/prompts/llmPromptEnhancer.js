@@ -101,13 +101,15 @@ export async function enhancePromptWithLLM(input = {}, options = {}) {
       },
     };
   } catch (error) {
+    const providerCallAttempted = error?.providerCallAttempted;
     return {
       ...baseline,
       llmEnhanced: false,
       llmFallbackReason: `llm_error: ${error instanceof Error ? error.message : "unknown"}`,
       metadata: {
         ...baseline.metadata,
-        providerCalled: true,
+        providerCalled: providerCallAttempted !== false,
+        providerCallOutcomeUnknown: providerCallAttempted == null,
         llmLayer: "error",
         llmError: error?.code ?? "unknown",
       },

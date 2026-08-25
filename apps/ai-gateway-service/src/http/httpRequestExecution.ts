@@ -14,6 +14,8 @@ export interface GatewayExecutionContext {
   providerDispatchKeyInvalid?: boolean;
   providerDispatchRoute?: string;
   providerDispatchInvocation?: number;
+  transportRequestId?: string;
+  transportTraceId?: string;
 }
 
 interface RequestExecutionScopeOptions {
@@ -73,6 +75,7 @@ export function createHttpRequestExecutionScope(
     signal: controller.signal,
     timeoutMs,
     deadlineAt: now() + timeoutMs,
+    ...readTransportContext(options.request),
     ...readProviderDispatchContext(options.request),
   });
 
@@ -96,7 +99,7 @@ export function bindGatewayExecution<TService extends object>(
   let providerDispatchInvocation = 0;
   return new Proxy(gatewayService, {
     get(target, property, receiver) {
-      if (property === "execute" || property === "executeStream") {
+      if (property === "execute" || property === "executeStream" || property === "executeProviderOperation") {
         const operation = Reflect.get(target, property, receiver);
         if (typeof operation !== "function") return operation;
         return (input: unknown) => {
@@ -138,6 +141,15 @@ function readProviderDispatchContext(request: IncomingMessage) {
   return {
     providerDispatchKeyHash: createHash("sha256").update(rawKey, "utf8").digest("hex"),
     providerDispatchRoute: route,
+  };
+}
+
+function readTransportContext(request: IncomingMessage) {
+  const requestId = request.headers?.["x-request-id"];
+  const traceId = request.headers?.["x-trace-id"];
+  return {
+    ...(typeof requestId === "string" && requestId ? { transportRequestId: requestId } : {}),
+    ...(typeof traceId === "string" && traceId ? { transportTraceId: traceId } : {}),
   };
 }
 

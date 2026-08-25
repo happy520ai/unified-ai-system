@@ -345,7 +345,7 @@ export async function dispatchHttpRoutes02(context) {
   if (request.method === "POST" && url.pathname === "/provider-config/test") {
     const body = await readCapabilityJson({ request, response, startedAt, code: "provider_config_test_invalid_json" });
     if (!body) return;
-    const result = await providerConfigRoutes.test(body);
+    const result = await providerConfigRoutes.test(body, gatewayService);
     writeJson(response, 200, createOkEnvelope(result, { startedAt }));
     return;
   }
@@ -473,7 +473,7 @@ export async function dispatchHttpRoutes02(context) {
   if (request.method === "POST" && url.pathname === "/three-mode/execute") {
     const body = await readCapabilityJson({ request, response, startedAt, code: "three_mode_execute_invalid_json" });
     if (!body) return;
-    const result = await executeThreeModeRequest({ request: body, application });
+    const result = await executeThreeModeRequest({ request: body, application, gatewayService });
     writeJson(response, result.success ? 200 : 422, result);
     return;
   }
