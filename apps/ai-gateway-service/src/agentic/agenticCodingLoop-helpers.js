@@ -314,7 +314,13 @@ export async function syncMcpToolsToRegistry(mcpBridge, toolRegistry) {
             externalEffectType: "mcp:agent-tool-call",
             externalEffectRequiresFence: true,
           });
-          toolRegistry.registerTool(tool);
+          const registration = toolRegistry.registerTool(tool);
+          if (!registration || registration.status !== "success") {
+            debugLoop("MCP tool registration denied", {
+              toolName,
+              code: registration?.code || "MCP_TOOL_REGISTRATION_FAILED",
+            });
+          }
         }
       }
     }

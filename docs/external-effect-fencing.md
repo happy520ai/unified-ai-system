@@ -104,8 +104,16 @@ Custom irreversible tools must declare `externalEffectType`, call
 `context.commitExternalEffect()` immediately before their sink, and return no
 success before that call. The registry converts a success without a commit into
 `TOOL_EXTERNAL_EFFECT_COMMIT_MISSING`. This is a runtime contract, not a native
-sandbox: custom code that performs an undeclared side effect can still bypass
-it and must be reviewed.
+sandbox: code invoked outside the governed registry can still perform a side
+effect and must be reviewed or prohibited.
+
+Dynamic registration is fail-closed: a custom tool cannot override any built-in
+or silently replace another custom tool; every custom tool needs at least one
+permission. A read-only custom tool needs explicit `readOnlyAttested=true`. Any
+other custom tool must declare a bounded `externalEffectType` and
+`externalEffectRequiresFence=true`, so an undeclared write cannot enter the
+registry at all. Registered tools are forced to `source=custom` regardless of
+caller input and can be removed only through explicit unregister.
 
 Both Agent-facing MCP registration paths (`syncMcpToolsToRegistry` and
 `mcpToolAdapter`) mark every imported MCP tool as

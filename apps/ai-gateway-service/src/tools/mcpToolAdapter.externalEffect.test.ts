@@ -20,7 +20,10 @@ describe("MCP Agent tool adapter external-effect boundary", () => {
     };
     const registered: any[] = [];
     const registry = {
-      registerTool: vi.fn((tool) => registered.push(tool)),
+      registerTool: vi.fn((tool) => {
+        registered.push(tool);
+        return { status: "success" };
+      }),
       unregisterTool: vi.fn(),
     };
     const adapter: any = createMcpToolAdapter(bridge, { autoSync: false });
@@ -41,5 +44,25 @@ describe("MCP Agent tool adapter external-effect boundary", () => {
     expect(callTool).toHaveBeenCalledWith("ops__create_ticket", { title: "bounded" });
     expect(commitExternalEffect.mock.invocationCallOrder[0])
       .toBeLessThan(callTool.mock.invocationCallOrder[0]);
+  });
+
+  it("does not report a tool as added when the registry blocks a collision", async () => {
+    const adapter: any = createMcpToolAdapter({
+      listAllTools: vi.fn(async () => ({
+        status: "success",
+        tools: [{ name: "file_read", prefixedName: "file_read", inputSchema: { type: "object" } }],
+      })),
+      callTool: vi.fn(),
+      getHealth: vi.fn(),
+    }, { autoSync: false });
+    const result = await adapter.syncTools({
+      registerTool: vi.fn(() => ({
+        status: "error",
+        code: "TOOL_BUILTIN_OVERRIDE_BLOCKED",
+      })),
+      unregisterTool: vi.fn(),
+    });
+    expect(result).toMatchObject({ added: [], total: 0 });
+    expect(result.errors.join("\n")).toContain("TOOL_BUILTIN_OVERRIDE_BLOCKED");
   });
 });

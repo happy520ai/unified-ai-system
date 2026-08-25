@@ -58,7 +58,10 @@ export function createMcpToolAdapter(mcpBridge, options = {}) {
         if (!registeredToolNames.has(toolName)) {
           try {
             const tool = convertMcpTool(mcpTool, mcpBridge);
-            toolRegistry.registerTool(tool);
+            const registration = toolRegistry.registerTool(tool);
+            if (!registration || registration.status !== "success") {
+              throw new Error(registration?.code || registration?.error || "registration_denied");
+            }
             registeredToolNames.add(toolName);
             added.push(toolName);
           } catch (error) {

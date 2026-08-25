@@ -125,7 +125,10 @@ describe("agenticCodingLoop helpers", () => {
       callTool,
     }, {
       getTool: () => null,
-      registerTool: (tool) => registered.push(tool),
+      registerTool: (tool) => {
+        registered.push(tool);
+        return { status: "success" };
+      },
     });
 
     expect(registered).toHaveLength(1);

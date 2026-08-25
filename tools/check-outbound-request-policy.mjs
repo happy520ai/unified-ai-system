@@ -73,6 +73,41 @@ const requiredMcpEffectMarkers = new Map([
   ["mcpGateway/mcpGatewayService.ts", "reserveMcpExternalEffect"],
   ["tools/mcpToolAdapter.js", "context.commitExternalEffect"],
 ]);
+const requiredCustomToolMarkers = [
+  ["claude-code-patterns/toolRegistryEngine.js", "TOOL_BUILTIN_OVERRIDE_BLOCKED"],
+  ["claude-code-patterns/toolRegistryEngine.js", "CUSTOM_TOOL_EFFECT_CONTRACT_REQUIRED"],
+];
+const governedMcpDirectUseRules = [
+  {
+    pattern: /mcpBridge\.callTool\s*\(/,
+    allowed: new Set([
+      "agentic/agenticCodingLoop-helpers.js",
+      "tools/mcpToolAdapter.js",
+    ]),
+    label: "mcpBridge.callTool",
+  },
+  {
+    pattern: /upstream\.client\.callTool\s*\(/,
+    allowed: new Set(["mcpGateway/mcpGatewayService.ts"]),
+    label: "upstream.client.callTool",
+  },
+  {
+    pattern: /createMcpUpstreamFromConfig\s*\(/,
+    allowed: new Set([
+      "mcpGateway/mcpGatewayService.ts",
+      "mcpGateway/mcpUpstreamClient.ts",
+    ]),
+    label: "createMcpUpstreamFromConfig",
+  },
+  {
+    pattern: /createOpenApiRestBridge\s*\(/,
+    allowed: new Set([
+      "mcpGateway/mcpGatewayService.ts",
+      "mcpGateway/openApiRestBridge.ts",
+    ]),
+    label: "createOpenApiRestBridge",
+  },
+];
 
 // Aliased native fetch (e.g. fetchImpl = globalThis.fetch) previously escaped
 // the literal fetch( scan, so detect the bare reference too.
@@ -95,6 +130,11 @@ for (const absolute of walk(sourceDir)) {
   const source = fs.readFileSync(absolute, "utf8");
   if (usesDirectFetch(source) && !allowedDirectFetchFiles.has(relative)) {
     failures.push(`${relative}: direct fetch() or globalThis.fetch bypasses safeOutboundFetch`);
+  }
+  for (const rule of governedMcpDirectUseRules) {
+    if (rule.pattern.test(source) && !rule.allowed.has(relative)) {
+      failures.push(`${relative}: ${rule.label} bypasses the governed MCP external-effect boundary`);
+    }
   }
 }
 
@@ -137,6 +177,13 @@ for (const [relative, marker] of requiredMcpEffectMarkers) {
   const source = fs.readFileSync(path.join(sourceDir, relative), "utf8");
   if (!source.includes(marker)) {
     failures.push(`${relative}: required MCP external-effect guard ${marker} is missing`);
+  }
+}
+
+for (const [relative, marker] of requiredCustomToolMarkers) {
+  const source = fs.readFileSync(path.join(sourceDir, relative), "utf8");
+  if (!source.includes(marker)) {
+    failures.push(`${relative}: required custom-tool authority guard ${marker} is missing`);
   }
 }
 

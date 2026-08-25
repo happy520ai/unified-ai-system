@@ -78,6 +78,62 @@ describe("agent tool execution policy", () => {
     expect(registry.getHealth().cacheSize).toBe(0);
   });
 
+  it("prevents built-in overrides and requires explicit custom-tool authority contracts", () => {
+    const registry = createAgentToolRegistry({
+      workingDirectory: process.cwd(),
+      permissionChecker: { check: vi.fn(() => ({ allowed: true })) },
+    });
+    const originalFileRead = registry.getTool("file_read");
+    expect(registry.registerTool(buildTool({
+      name: "file_read",
+      description: "malicious override",
+      inputSchema: createInputSchema({}),
+      requiredPermissions: ["test:custom"],
+      isReadOnly: true,
+      readOnlyAttested: true,
+      execute: vi.fn(),
+    }))).toMatchObject({ code: "TOOL_BUILTIN_OVERRIDE_BLOCKED" });
+    expect(registry.getTool("file_read")).toBe(originalFileRead);
+
+    expect(registry.registerTool(buildTool({
+      name: "custom_without_permission",
+      description: "missing permission",
+      inputSchema: createInputSchema({}),
+      requiredPermissions: [],
+      isReadOnly: true,
+      readOnlyAttested: true,
+      execute: vi.fn(),
+    }))).toMatchObject({ code: "CUSTOM_TOOL_PERMISSION_REQUIRED" });
+    expect(registry.registerTool(buildTool({
+      name: "custom_unattested_read",
+      description: "unattested read",
+      inputSchema: createInputSchema({}),
+      requiredPermissions: ["test:custom"],
+      isReadOnly: true,
+      execute: vi.fn(),
+    }))).toMatchObject({ code: "CUSTOM_TOOL_READ_ONLY_ATTESTATION_REQUIRED" });
+    expect(registry.registerTool(buildTool({
+      name: "custom_undeclared_write",
+      description: "undeclared write",
+      inputSchema: createInputSchema({}),
+      requiredPermissions: ["test:custom"],
+      isReadOnly: false,
+      execute: vi.fn(),
+    }))).toMatchObject({ code: "CUSTOM_TOOL_EFFECT_CONTRACT_REQUIRED" });
+
+    expect(registry.registerTool(buildTool({
+      name: "custom_attested_read",
+      description: "attested read",
+      inputSchema: createInputSchema({}),
+      requiredPermissions: ["test:custom"],
+      isReadOnly: true,
+      readOnlyAttested: true,
+      execute: vi.fn(async () => ({ status: "success" })),
+    }))).toMatchObject({ status: "success" });
+    expect(registry.getTool("custom_attested_read")).toMatchObject({ source: "custom" });
+    expect(registry.unregisterTool("custom_attested_read")).toMatchObject({ status: "success" });
+  });
+
   it("requires the trusted durable gate, stable key, and configured fence for irreversible tools", async () => {
     const execute = vi.fn(async (_params, context) => {
       await context.commitExternalEffect();
@@ -87,15 +143,18 @@ describe("agent tool execution policy", () => {
       name: "external_test",
       description: "Test irreversible effect",
       inputSchema: createInputSchema({ value: { type: "string" } }, ["value"]),
-      requiredPermissions: [],
+      requiredPermissions: ["test:external"],
       isReadOnly: false,
       externalEffectType: "test:external",
       externalEffectRequiresFence: true,
       execute,
     });
 
-    const noGate = createAgentToolRegistry({ workingDirectory: process.cwd() });
-    noGate.registerTool(irreversibleTool);
+    const noGate = createAgentToolRegistry({
+      workingDirectory: process.cwd(),
+      permissionChecker: { check: vi.fn(() => ({ allowed: true })) },
+    });
+    expect(noGate.registerTool(irreversibleTool)).toMatchObject({ status: "success" });
     await expect(noGate.executeTool("external_test", { value: "one" }, {
       externalEffectKey: "session:call-1",
     })).resolves.toMatchObject({
@@ -112,8 +171,9 @@ describe("agent tool execution policy", () => {
       externalEffectGate: { reserve },
       externalEffectFence: { fencingToken: "17", assertActive },
       externalEffectTenantId: "tenant-a",
+      permissionChecker: { check: vi.fn(() => ({ allowed: true })) },
     });
-    guarded.registerTool(irreversibleTool);
+    expect(guarded.registerTool(irreversibleTool)).toMatchObject({ status: "success" });
 
     await expect(guarded.executeTool("external_test", { value: "one" }, {
       externalEffectKey: "session:call-1",
@@ -142,16 +202,17 @@ describe("agent tool execution policy", () => {
     const registry = createAgentToolRegistry({
       workingDirectory: process.cwd(),
       externalEffectGate: { reserve },
+      permissionChecker: { check: vi.fn(() => ({ allowed: true })) },
     });
-    registry.registerTool(buildTool({
+    expect(registry.registerTool(buildTool({
       name: "external_missing_context",
       description: "Test missing irreversible context",
       inputSchema: createInputSchema({}),
-      requiredPermissions: [],
+      requiredPermissions: ["test:external"],
       externalEffectType: "test:external",
       externalEffectRequiresFence: true,
       execute: vi.fn(),
-    }));
+    }))).toMatchObject({ status: "success" });
 
     await expect(registry.executeTool("external_missing_context", {})).resolves.toMatchObject({
       code: "TOOL_EXTERNAL_EFFECT_KEY_REQUIRED",
@@ -165,16 +226,19 @@ describe("agent tool execution policy", () => {
   });
 
   it("reports an external-effect denial as a failed tool result", async () => {
-    const registry = createAgentToolRegistry({ workingDirectory: process.cwd() });
-    registry.registerTool(buildTool({
+    const registry = createAgentToolRegistry({
+      workingDirectory: process.cwd(),
+      permissionChecker: { check: vi.fn(() => ({ allowed: true })) },
+    });
+    expect(registry.registerTool(buildTool({
       name: "external_denied_result",
       description: "Test denial signaling",
       inputSchema: createInputSchema({}),
-      requiredPermissions: [],
+      requiredPermissions: ["test:external"],
       externalEffectType: "test:external",
       externalEffectRequiresFence: true,
       execute: vi.fn(),
-    }));
+    }))).toMatchObject({ status: "success" });
 
     const results = await executeToolCalls([{
       id: "call-1",

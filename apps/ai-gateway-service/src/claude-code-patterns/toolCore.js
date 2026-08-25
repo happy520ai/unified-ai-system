@@ -82,6 +82,7 @@ export function createToolUseContext({ registry, permissionChecker, eventBus, ag
  * @param {boolean} [def.isReadOnly] - 是否只读操作
  * @param {string} [def.externalEffectType] - Irreversible external effect class
  * @param {boolean} [def.externalEffectRequiresFence] - Require an active execution fence
+ * @param {boolean} [def.readOnlyAttested] - Explicit trusted attestation for dynamically registered read-only tools
  * @returns {Object} 标准化的工具定义
  */
 export function buildTool(def) {
@@ -95,6 +96,7 @@ export function buildTool(def) {
     isReadOnly: def.isReadOnly ?? false,
     externalEffectType: def.externalEffectType || null,
     externalEffectRequiresFence: def.externalEffectRequiresFence === true,
+    readOnlyAttested: def.readOnlyAttested === true,
     /** 来源标记，区分内置工具 vs 外部注册工具 */
     source: def.source || "built-in",
     /** 工具版本号 */

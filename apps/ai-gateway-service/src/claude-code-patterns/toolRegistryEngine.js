@@ -214,13 +214,53 @@ export function createAgentToolRegistry(options = {}) {
      * @returns {Object} 注册结果
      */
     registerTool(toolDef) {
-      if (!toolDef.name || !toolDef.execute) {
-        return { status: "error", error: "工具必须有 name 和 execute 属性" };
+      if (
+        typeof toolDef?.name !== "string"
+        || !toolDef.name.trim()
+        || toolDef.name !== toolDef.name.trim()
+        || toolDef.name.length > 128
+        || /[\u0000-\u001f\u007f]/u.test(toolDef.name)
+        || typeof toolDef.execute !== "function"
+      ) {
+        return { status: "error", code: "CUSTOM_TOOL_DEFINITION_INVALID", error: "工具必须有合法 name 和 execute 属性" };
       }
-      if (tools.has(toolDef.name) && toolDef.source === "built-in") {
-        return { status: "error", error: `内置工具 ${toolDef.name} 已存在，不能覆盖` };
+      const existing = tools.get(toolDef.name);
+      if (existing?.source === "built-in") {
+        return { status: "error", code: "TOOL_BUILTIN_OVERRIDE_BLOCKED", error: `内置工具 ${toolDef.name} 已存在，不能覆盖` };
       }
-      tools.set(toolDef.name, buildTool(toolDef));
+      if (existing) {
+        return { status: "error", code: "CUSTOM_TOOL_ALREADY_REGISTERED", error: `工具 ${toolDef.name} 已存在；请先显式注销` };
+      }
+      if (
+        !Array.isArray(toolDef.requiredPermissions)
+        || toolDef.requiredPermissions.length === 0
+        || toolDef.requiredPermissions.some((permission) => (
+          typeof permission !== "string"
+          || !permission.trim()
+          || permission !== permission.trim()
+          || permission.length > 128
+          || /[\u0000-\u001f\u007f]/u.test(permission)
+        ))
+      ) {
+        return { status: "error", code: "CUSTOM_TOOL_PERMISSION_REQUIRED", error: "动态工具必须声明至少一个权限" };
+      }
+      if (toolDef.isReadOnly === true && toolDef.readOnlyAttested !== true) {
+        return { status: "error", code: "CUSTOM_TOOL_READ_ONLY_ATTESTATION_REQUIRED", error: "动态只读工具必须显式声明可信只读证明" };
+      }
+      if (
+        toolDef.isReadOnly !== true
+        && (
+          typeof toolDef.externalEffectType !== "string"
+          || !toolDef.externalEffectType.trim()
+          || toolDef.externalEffectType !== toolDef.externalEffectType.trim()
+          || toolDef.externalEffectType.length > 128
+          || /[\u0000-\u001f\u007f]/u.test(toolDef.externalEffectType)
+          || toolDef.externalEffectRequiresFence !== true
+        )
+      ) {
+        return { status: "error", code: "CUSTOM_TOOL_EFFECT_CONTRACT_REQUIRED", error: "动态写工具必须声明 fence-required external effect contract" };
+      }
+      tools.set(toolDef.name, buildTool({ ...toolDef, source: "custom" }));
       return { status: "success", toolName: toolDef.name };
     },
 
