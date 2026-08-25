@@ -2,7 +2,7 @@ import { parentPort, workerData } from "node:worker_threads";
 
 type ParserKind = "pdf" | "word" | "excel";
 
-interface ParserLimits {
+export interface ParserLimits {
   maxExtractedTextBytes: number;
   maxPdfPages: number;
   maxWorkbookSheets: number;
@@ -11,26 +11,35 @@ interface ParserLimits {
   maxWorkbookCells: number;
 }
 
-interface ParserWorkerInput {
-  buffer: ArrayBuffer;
+export interface ParserWorkerInput {
+  buffer: ArrayBuffer | Uint8Array;
   kind: ParserKind;
   limits: ParserLimits;
 }
 
-interface ParserResult {
+export interface ParserResult {
   parser: string;
   text: string;
   metadata?: Record<string, unknown>;
 }
 
-const input = workerData as ParserWorkerInput;
+const workerPort = parentPort;
+if (workerPort) {
+  const input = workerData as ParserWorkerInput;
+  void parseDocumentInIsolate(input)
+    .then((result) => workerPort.postMessage({ ok: true, result }))
+    .catch((error: unknown) => workerPort.postMessage({
+      ok: false,
+      error: serializeParserError(error),
+    }));
+}
 
-void run(input)
-  .then((result) => parentPort?.postMessage({ ok: true, result }))
-  .catch((error: unknown) => parentPort?.postMessage({ ok: false, error: serializeError(error) }));
-
-async function run({ buffer, kind, limits }: ParserWorkerInput): Promise<ParserResult> {
-  const fileBuffer = Buffer.from(buffer);
+export async function parseDocumentInIsolate(
+  { buffer, kind, limits }: ParserWorkerInput,
+): Promise<ParserResult> {
+  const fileBuffer = Buffer.from(
+    buffer instanceof ArrayBuffer ? new Uint8Array(buffer) : buffer,
+  );
 
   if (kind === "pdf") return parsePdf(fileBuffer, limits);
   if (kind === "word") return parseWord(fileBuffer, limits);
@@ -162,7 +171,7 @@ function createWorkerError(code: string, message: string, details?: Record<strin
   return error;
 }
 
-function serializeError(error: unknown) {
+export function serializeParserError(error: unknown) {
   const candidate = error as { code?: unknown; message?: unknown; details?: unknown };
   const code = typeof candidate?.code === "string" && candidate.code.startsWith("KNOWLEDGE_")
     ? candidate.code

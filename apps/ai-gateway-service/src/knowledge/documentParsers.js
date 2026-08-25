@@ -1,4 +1,6 @@
 import { Worker } from "node:worker_threads";
+import { fork } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
 const MAX_FILE_BYTES = 25 * 1024 * 1024;
 const MAX_BATCH_FILE_BYTES = 50 * 1024 * 1024;
@@ -13,6 +15,12 @@ const PARSER_TIMEOUT_MS = 15_000;
 const MAX_ACTIVE_PARSER_WORKERS = 2;
 const MAX_QUEUED_PARSER_JOBS = 4;
 const MAX_FILE_NAME_CHARS = 256;
+const PARSER_CHILD_ENV_KEYS = Object.freeze([
+  "SystemRoot",
+  "WINDIR",
+  "LANG",
+  "LC_ALL",
+]);
 const TEXT_EXTENSIONS = new Set([".txt", ".md", ".markdown", ".json", ".csv", ".log", ".html", ".htm", ".xml", ".yaml", ".yml"]);
 const PDF_EXTENSIONS = new Set([".pdf"]);
 const WORD_EXTENSIONS = new Set([".docx"]);
@@ -45,7 +53,12 @@ export function getSupportedKnowledgeFileTypes() {
     maxFileBytes: MAX_FILE_BYTES,
     maxFileMegabytes: MAX_FILE_BYTES / 1024 / 1024,
     ...DOCUMENT_PARSER_LIMITS,
-    parserIsolation: "bounded-worker-thread",
+    parserIsolation: "bounded-isolate",
+    parserIsolationByType: Object.freeze({
+      pdf: "bounded-child-process",
+      word: "bounded-worker-thread",
+      excel: "bounded-worker-thread",
+    }),
   };
 }
 
@@ -104,7 +117,11 @@ export async function parseKnowledgeFile(file = {}) {
         ? "excel"
         : null;
   if (parserKind) {
-    const result = await scheduleParserJob(() => runParserWorker({ buffer, kind: parserKind }));
+    const result = await scheduleParserJob(() => (
+      parserKind === "pdf"
+        ? runParserProcess({ buffer, kind: parserKind })
+        : runParserWorker({ buffer, kind: parserKind })
+    ));
     return createParsedDocument({
       fileName,
       parser: result.parser,
@@ -291,6 +308,96 @@ function runParserWorker({ buffer, kind }) {
       }
     });
   });
+}
+
+function runParserProcess({ buffer, kind }) {
+  const child = fork(
+    fileURLToPath(new URL("./documentParserProcess.ts", import.meta.url)),
+    [],
+    {
+      env: createParserChildEnvironment(),
+      execArgv: ["--max-old-space-size=128", "--max-semi-space-size=16"],
+      serialization: "advanced",
+      stdio: ["ignore", "ignore", "ignore", "ipc"],
+      windowsHide: true,
+    },
+  );
+
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const finish = (callback, value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      callback(value);
+    };
+    const failProcess = (details = {}) => finish(
+      reject,
+      createParserError(
+        "KNOWLEDGE_PARSER_PROCESS_FAILED",
+        "The isolated PDF parser process failed within its resource boundary.",
+        details,
+        { category: "availability", retryable: true },
+      ),
+    );
+    const timer = setTimeout(() => {
+      child.kill();
+      finish(
+        reject,
+        createParserError("KNOWLEDGE_PARSER_TIMEOUT", "The isolated document parser exceeded its time limit.", {
+          parserTimeoutMs: PARSER_TIMEOUT_MS,
+        }),
+      );
+    }, PARSER_TIMEOUT_MS);
+    timer.unref?.();
+
+    child.once("message", (message) => {
+      if (message?.ok === true && message.result) {
+        finish(resolve, message.result);
+        return;
+      }
+      if (!message?.error?.code || message.error.code === "KNOWLEDGE_PARSER_WORKER_FAILED") {
+        failProcess({ reportedErrorCode: message?.error?.code });
+        return;
+      }
+      finish(reject, createParserError(
+        message.error.code,
+        message?.error?.message ?? "The isolated PDF parser process failed.",
+        message?.error?.details,
+      ));
+    });
+    child.once("error", (error) => failProcess({
+      processErrorCode: typeof error?.code === "string" ? error.code : undefined,
+    }));
+    child.once("exit", (exitCode, signal) => {
+      if (!settled) failProcess({
+        exitCode: Number.isInteger(exitCode) ? exitCode : null,
+        signal: typeof signal === "string" ? signal : null,
+      });
+    });
+    child.send({
+      buffer,
+      kind,
+      limits: DOCUMENT_PARSER_LIMITS,
+    }, (error) => {
+      if (error) failProcess({
+        ipcErrorCode: typeof error?.code === "string" ? error.code : undefined,
+      });
+    });
+  }).finally(() => {
+    if (child.connected) child.disconnect();
+    if (child.exitCode === null && child.signalCode === null) child.kill();
+  });
+}
+
+export function createParserChildEnvironment() {
+  const env = { NODE_ENV: "production" };
+  for (const key of PARSER_CHILD_ENV_KEYS) {
+    if (typeof process.env[key] === "string" && process.env[key]) {
+      env[key] = process.env[key];
+    }
+  }
+  return env;
 }
 
 function createParserError(code, message, details, options = {}) {

@@ -2,6 +2,7 @@
 import { describe, expect, it } from "vitest";
 import {
   assertKnowledgeFileBatch,
+  createParserChildEnvironment,
   DOCUMENT_PARSER_LIMITS,
   getSupportedKnowledgeFileTypes,
   parseKnowledgeFile,
@@ -14,7 +15,12 @@ describe("document parser resource boundaries", () => {
       maxExtractedTextBytes: 5 * 1024 * 1024,
       maxPdfPages: 200,
       maxFilesPerRequest: 10,
-      parserIsolation: "bounded-worker-thread",
+      parserIsolation: "bounded-isolate",
+      parserIsolationByType: {
+        pdf: "bounded-child-process",
+        word: "bounded-worker-thread",
+        excel: "bounded-worker-thread",
+      },
     }));
   });
 
@@ -41,6 +47,25 @@ describe("document parser resource boundaries", () => {
     expect(() => assertKnowledgeFileBatch(files)).toThrow(expect.objectContaining({
       code: "KNOWLEDGE_FILE_BATCH_COUNT_EXCEEDED",
     }));
+  });
+
+  it("does not forward provider secrets or Node launch options to parser processes", () => {
+    const secretKey = "AI_GATEWAY_PARSER_BOUNDARY_SECRET";
+    const originalSecret = process.env[secretKey];
+    const originalNodeOptions = process.env.NODE_OPTIONS;
+    try {
+      process.env[secretKey] = "test-only-boundary-marker";
+      process.env.NODE_OPTIONS = "--inspect=0.0.0.0:9229";
+      const childEnvironment = createParserChildEnvironment();
+      expect(childEnvironment).toMatchObject({ NODE_ENV: "production" });
+      expect(childEnvironment).not.toHaveProperty(secretKey);
+      expect(childEnvironment).not.toHaveProperty("NODE_OPTIONS");
+    } finally {
+      if (originalSecret === undefined) delete process.env[secretKey];
+      else process.env[secretKey] = originalSecret;
+      if (originalNodeOptions === undefined) delete process.env.NODE_OPTIONS;
+      else process.env.NODE_OPTIONS = originalNodeOptions;
+    }
   });
 });
 
@@ -84,7 +109,7 @@ describe("spreadsheet document parsing", () => {
 });
 
 describe("isolated PDF and Word parsing", () => {
-  it("parses a bounded PDF in the worker", async () => {
+  it("parses a bounded PDF in the child process", async () => {
     const parsed = await parseKnowledgeFile({
       fileName: "sample.pdf",
       base64: createMinimalPdf("Hello bounded PDF").toString("base64"),
@@ -96,6 +121,21 @@ describe("isolated PDF and Word parsing", () => {
     }));
     expect(parsed.content).toContain("Hello bounded PDF");
   });
+
+  it("keeps repeated PDF native loads inside bounded child processes", async () => {
+    const base64 = createMinimalPdf("Repeated isolated PDF").toString("base64");
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      const parsed = await parseKnowledgeFile({
+        fileName: `repeated-${attempt}.pdf`,
+        base64,
+      });
+      expect(parsed.metadata).toEqual(expect.objectContaining({
+        parser: "pdf-parse",
+        pageCount: 1,
+      }));
+      expect(parsed.content).toContain("Repeated isolated PDF");
+    }
+  }, 60_000);
 
   it("parses a bounded DOCX in the worker", async () => {
     const parsed = await parseKnowledgeFile({
