@@ -46,9 +46,28 @@ the result with `verifyAgentCardSignature`. A missing, malformed, broadly
 readable, non-Ed25519, or insecurely published required key fails closed without
 printing key material.
 
-Rotate the mounted key through the secret manager and restart the gateway after
-the new public key is reachable. Discovery and JWKS responses use a five-minute
-cache lifetime; overlapping multi-signature rotation is not yet implemented.
+Use an overlap window when rotating the mounted key. The primary key signs first
+and up to three previous Ed25519 keys may add compatibility signatures; the
+local JWKS publishes the matching public keys in the same order:
+
+```bash
+export AI_GATEWAY_A2A_AGENT_CARD_SIGNING_KEY_FILE=/run/secrets/a2a-agent-card-new.pem
+export AI_GATEWAY_A2A_AGENT_CARD_PREVIOUS_SIGNING_KEY_FILES_JSON='["/run/secrets/a2a-agent-card-old.pem"]'
+```
+
+Every previous path receives the same absolute-path, size, POSIX-permission,
+and Ed25519 checks as the primary. Malformed JSON, more than three previous
+keys, duplicate paths/public `kid` values, or previous keys without a primary
+fail startup. Private material never enters the Agent Card, JWKS, health, or
+logs.
+
+For rotation: first ensure the new and old public keys are available at the
+declared JWKS; then deploy the new primary plus the old key in the previous-key
+array. Keep that overlap longer than the five-minute Agent Card/JWKS cache and
+the deployment's maximum client cache/skew window. After old cards have aged
+out, remove the previous-key setting and then retire the old private key. A
+separately operated `AI_GATEWAY_A2A_AGENT_CARD_JWKS_URL` must publish the same
+complete overlap set; the gateway cannot prove an external JWKS is synchronized.
 
 ## Bounded And Durable Tasks
 

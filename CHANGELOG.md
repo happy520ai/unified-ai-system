@@ -13,6 +13,10 @@ and the project uses [Semantic Versioning](https://semver.org/).
   private-key file, official JCS/JWS generation, a public JWKS endpoint,
   HTTPS enforcement outside loopback, restricted-file validation, and a
   fail-closed `AI_GATEWAY_A2A_AGENT_CARD_SIGNING_REQUIRED` deployment mode.
+  Rotation can now retain up to three restricted previous Ed25519 keys through
+  a bounded JSON path list, publish primary-first overlap JWKS, and generate one
+  independently verifiable signature per key. Malformed, unanchored, duplicate,
+  or over-capacity overlap configuration fails startup.
 - Added bounded A2A task storage with tenant/owner isolation, TTL, global and
   per-owner capacity, task/history/artifact limits, scope-bound keyset
   pagination, restart-safe same-host SQLite, multi-instance defaults, safe

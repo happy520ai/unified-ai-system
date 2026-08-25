@@ -22,6 +22,8 @@ import {
 export const A2A_JWKS_PATH = "/.well-known/a2a-jwks.json";
 
 const MAX_PRIVATE_KEY_FILE_BYTES = 16 * 1024;
+const MAX_PREVIOUS_SIGNING_KEYS = 3;
+const MAX_PREVIOUS_SIGNING_KEYS_CONFIG_BYTES = 16 * 1024;
 const SIGNING_ALGORITHM = "EdDSA";
 const SIGNATURE_TYPE = "JOSE";
 
@@ -38,6 +40,9 @@ export interface A2AAgentCardSigningConfiguration {
   readonly configured: boolean;
   readonly required: boolean;
   readonly keyId: string | null;
+  readonly keyIds: readonly string[];
+  readonly previousKeyIds: readonly string[];
+  readonly signatureCount: number;
   readonly jwksUrl: string | null;
   readonly jwks: Readonly<{ keys: readonly PublicJwk[] }> | null;
   readonly signer: AgentCardSignatureGenerator | null;
@@ -60,8 +65,17 @@ export function createA2AAgentCardSigningConfiguration({
   const configuredJwksUrl = String(
     env.AI_GATEWAY_A2A_AGENT_CARD_JWKS_URL ?? "",
   ).trim();
+  const previousKeyFilePaths = readPreviousSigningKeyFiles(
+    env.AI_GATEWAY_A2A_AGENT_CARD_PREVIOUS_SIGNING_KEY_FILES_JSON,
+  );
 
   if (!keyFilePath) {
+    if (previousKeyFilePaths.length > 0) {
+      throw signingError(
+        "A2A_AGENT_CARD_PREVIOUS_KEYS_WITHOUT_PRIMARY",
+        "Previous A2A Agent Card signing keys require a configured primary signing key file.",
+      );
+    }
     if (configuredJwksUrl) {
       throw signingError(
         "A2A_AGENT_CARD_JWKS_WITHOUT_SIGNING_KEY",
@@ -78,42 +92,77 @@ export function createA2AAgentCardSigningConfiguration({
       configured: false,
       required: false,
       keyId: null,
+      keyIds: Object.freeze([]),
+      previousKeyIds: Object.freeze([]),
+      signatureCount: 0,
       jwksUrl: null,
       jwks: null,
       signer: null,
     });
   }
 
-  if (!isAbsolute(keyFilePath)) {
+  const keyEntries = [keyFilePath, ...previousKeyFilePaths].map(createSigningKeyEntry);
+  const keyIds = Object.freeze(keyEntries.map((entry) => entry.keyId));
+  if (new Set(keyIds).size !== keyIds.length) {
     throw signingError(
-      "A2A_AGENT_CARD_SIGNING_KEY_PATH_NOT_ABSOLUTE",
-      "The A2A Agent Card signing key file path must be absolute.",
+      "A2A_AGENT_CARD_SIGNING_KEY_DUPLICATE",
+      "A2A Agent Card signing keys must have distinct public key identifiers.",
     );
   }
-
-  const privateKey = readEd25519PrivateKey(keyFilePath);
-  const publicKey = createPublicKey(privateKey);
-  const keyId = createKeyId(publicKey);
+  const keyId = keyIds[0];
+  const previousKeyIds = Object.freeze(keyIds.slice(1));
   const jwksUrl = normalizeJwksUrl(
     configuredJwksUrl || `${publicBaseUrl}${A2A_JWKS_PATH}`,
   );
-  const publicJwk = createPublicJwk(publicKey, keyId);
-  const jwks = Object.freeze({ keys: Object.freeze([publicJwk]) });
-  const signer = generateAgentCardSignature(privateKey, {
-    alg: SIGNING_ALGORITHM,
-    typ: SIGNATURE_TYPE,
-    kid: keyId,
-    jku: jwksUrl,
+  const jwks = Object.freeze({
+    keys: Object.freeze(keyEntries.map((entry) => createPublicJwk(entry.publicKey, entry.keyId))),
   });
+  const signer = createCompositeSigner(keyEntries, jwksUrl);
 
   return Object.freeze({
     configured: true,
     required,
     keyId,
+    keyIds,
+    previousKeyIds,
+    signatureCount: keyEntries.length,
     jwksUrl,
     jwks,
     signer,
   });
+}
+
+function createSigningKeyEntry(filePath: string) {
+  if (!isAbsolute(filePath)) {
+    throw signingError(
+      "A2A_AGENT_CARD_SIGNING_KEY_PATH_NOT_ABSOLUTE",
+      "Every A2A Agent Card signing key file path must be absolute.",
+    );
+  }
+  const privateKey = readEd25519PrivateKey(filePath);
+  const publicKey = createPublicKey(privateKey);
+  return Object.freeze({
+    privateKey,
+    publicKey,
+    keyId: createKeyId(publicKey),
+  });
+}
+
+function createCompositeSigner(
+  keyEntries: readonly ReturnType<typeof createSigningKeyEntry>[],
+  jwksUrl: string,
+): AgentCardSignatureGenerator {
+  const signers = keyEntries.map((entry) => generateAgentCardSignature(entry.privateKey, {
+    alg: SIGNING_ALGORITHM,
+    typ: SIGNATURE_TYPE,
+    kid: entry.keyId,
+    jku: jwksUrl,
+  }));
+  return async (agentCard: AgentCard) => {
+    let signedCard = agentCard;
+    for (const signer of signers) signedCard = await signer(signedCard);
+    return signedCard;
+  };
 }
 
 export function isA2AAgentCardSigningError(
@@ -134,6 +183,44 @@ function readStrictBoolean(value: string | undefined, name: string): boolean {
     "A2A_AGENT_CARD_SIGNING_CONFIGURATION_INVALID",
     `${name} must be exactly true or false when configured.`,
   );
+}
+
+function readPreviousSigningKeyFiles(value: string | undefined): readonly string[] {
+  const raw = String(value ?? "").trim();
+  if (!raw) return Object.freeze([]);
+  if (Buffer.byteLength(raw, "utf8") > MAX_PREVIOUS_SIGNING_KEYS_CONFIG_BYTES) {
+    throw signingError(
+      "A2A_AGENT_CARD_PREVIOUS_KEYS_INVALID",
+      "The previous A2A Agent Card signing key configuration is too large.",
+    );
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw signingError(
+      "A2A_AGENT_CARD_PREVIOUS_KEYS_INVALID",
+      "Previous A2A Agent Card signing key files must be a JSON array of absolute paths.",
+    );
+  }
+  if (
+    !Array.isArray(parsed)
+    || parsed.length > MAX_PREVIOUS_SIGNING_KEYS
+    || parsed.some((entry) => typeof entry !== "string" || !entry.trim())
+  ) {
+    throw signingError(
+      "A2A_AGENT_CARD_PREVIOUS_KEYS_INVALID",
+      `Configure at most ${MAX_PREVIOUS_SIGNING_KEYS} previous signing key file paths.`,
+    );
+  }
+  const normalized = parsed.map((entry) => String(entry).trim());
+  if (new Set(normalized).size !== normalized.length) {
+    throw signingError(
+      "A2A_AGENT_CARD_SIGNING_KEY_DUPLICATE",
+      "Previous A2A Agent Card signing key paths must be unique.",
+    );
+  }
+  return Object.freeze(normalized);
 }
 
 function readEd25519PrivateKey(filePath: string): KeyObject {
@@ -256,5 +343,6 @@ function signingError(code: string, message: string) {
 
 export const a2aAgentCardSigningInternals = Object.freeze({
   normalizeJwksUrl,
+  readPreviousSigningKeyFiles,
   readStrictBoolean,
 });

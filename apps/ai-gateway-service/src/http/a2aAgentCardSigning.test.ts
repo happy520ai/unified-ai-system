@@ -115,6 +115,73 @@ describe("A2A Agent Card signing", () => {
     }
   });
 
+  it("publishes bounded overlapping signatures and verifies cached old cards during rotation", async () => {
+    const currentKeyFile = await createEd25519KeyFile();
+    const previousKeyFile = await createEd25519KeyFile();
+    try {
+      const previousGateway = createA2AGateway({
+        gatewayService: { execute: async () => ({ success: false }) },
+        env: {
+          A2A_PUBLIC_BASE_URL: "https://gateway.example.test",
+          AI_GATEWAY_A2A_AGENT_CARD_SIGNING_KEY_FILE: previousKeyFile.keyFilePath,
+          AI_GATEWAY_A2A_AGENT_CARD_SIGNING_REQUIRED: "true",
+        },
+      });
+      const cachedPreviousCard = await previousGateway.getAgentCardJson();
+      expect(cachedPreviousCard.signatures).toHaveLength(1);
+
+      const rotatingGateway = createA2AGateway({
+        gatewayService: { execute: async () => ({ success: false }) },
+        env: {
+          A2A_PUBLIC_BASE_URL: "https://gateway.example.test",
+          AI_GATEWAY_A2A_AGENT_CARD_SIGNING_KEY_FILE: currentKeyFile.keyFilePath,
+          AI_GATEWAY_A2A_AGENT_CARD_PREVIOUS_SIGNING_KEY_FILES_JSON: JSON.stringify([
+            previousKeyFile.keyFilePath,
+          ]),
+          AI_GATEWAY_A2A_AGENT_CARD_SIGNING_REQUIRED: "true",
+        },
+      });
+      const signedJson = await rotatingGateway.getAgentCardJson();
+      expect(signedJson.signatures).toHaveLength(2);
+      expect(rotatingGateway.agentCardSigning.signatureCount).toBe(2);
+      expect(rotatingGateway.agentCardSigning.keyIds).toHaveLength(2);
+      expect(rotatingGateway.agentCardSigning.previousKeyIds).toEqual([
+        rotatingGateway.agentCardSigning.keyIds[1],
+      ]);
+      expect(rotatingGateway.agentCardJwks?.keys.map((key) => key.kid)).toEqual(
+        rotatingGateway.agentCardSigning.keyIds,
+      );
+      expect(rotatingGateway.agentCardJwks?.keys.every((key) => !("d" in key))).toBe(true);
+
+      const publicKeys = new Map(
+        rotatingGateway.agentCardJwks?.keys.map((key) => [
+          key.kid,
+          createPublicKey({ key: key as JsonWebKey, format: "jwk" }),
+        ]),
+      );
+      const verify = verifyAgentCardSignature(async (kid, jku) => {
+        expect(jku).toBe("https://gateway.example.test/.well-known/a2a-jwks.json");
+        const publicKey = publicKeys.get(kid);
+        if (!publicKey) throw new Error("unknown test key");
+        return publicKey;
+      });
+      for (const signature of signedJson.signatures) {
+        await expect(verify(AgentCard.fromJSON({
+          ...signedJson,
+          signatures: [signature],
+        }))).resolves.toBeUndefined();
+      }
+      await expect(verify(AgentCard.fromJSON(cachedPreviousCard))).resolves.toBeUndefined();
+
+      const handlerCard = await rotatingGateway.requestHandler.getAgentCard();
+      expect(handlerCard.signatures).toHaveLength(2);
+      await previousGateway.close();
+      await rotatingGateway.close();
+    } finally {
+      await Promise.all([currentKeyFile.cleanup(), previousKeyFile.cleanup()]);
+    }
+  });
+
   it("serves signed discovery and JWKS while keeping an unsigned profile explicit", async () => {
     const unsignedGateway = createA2AGateway({
       gatewayService: { execute: async () => ({ success: false }) },
@@ -161,6 +228,76 @@ describe("A2A Agent Card signing", () => {
       code: "A2A_AGENT_CARD_SIGNING_KEY_REQUIRED",
       category: "security",
     }));
+  });
+
+  it("fails closed for malformed, unbounded, or unanchored previous signing keys", async () => {
+    const keyFile = await createEd25519KeyFile();
+    try {
+      const emptyOverlapGateway = createA2AGateway({
+        gatewayService: { execute: async () => ({ success: false }) },
+        env: {
+          A2A_PUBLIC_BASE_URL: "https://gateway.example.test",
+          AI_GATEWAY_A2A_AGENT_CARD_SIGNING_KEY_FILE: keyFile.keyFilePath,
+          AI_GATEWAY_A2A_AGENT_CARD_PREVIOUS_SIGNING_KEY_FILES_JSON: "[]",
+        },
+      });
+      expect(emptyOverlapGateway.agentCardSigning.signatureCount).toBe(1);
+      await emptyOverlapGateway.close();
+
+      expect(() => createA2AGateway({
+        gatewayService: { execute: async () => ({ success: false }) },
+        env: {
+          A2A_PUBLIC_BASE_URL: "https://gateway.example.test",
+          AI_GATEWAY_A2A_AGENT_CARD_PREVIOUS_SIGNING_KEY_FILES_JSON: JSON.stringify([
+            keyFile.keyFilePath,
+          ]),
+        },
+      })).toThrow(expect.objectContaining({
+        code: "A2A_AGENT_CARD_PREVIOUS_KEYS_WITHOUT_PRIMARY",
+      }));
+
+      expect(() => createA2AGateway({
+        gatewayService: { execute: async () => ({ success: false }) },
+        env: {
+          A2A_PUBLIC_BASE_URL: "https://gateway.example.test",
+          AI_GATEWAY_A2A_AGENT_CARD_SIGNING_KEY_FILE: keyFile.keyFilePath,
+          AI_GATEWAY_A2A_AGENT_CARD_PREVIOUS_SIGNING_KEY_FILES_JSON: "not-json",
+        },
+      })).toThrow(expect.objectContaining({
+        code: "A2A_AGENT_CARD_PREVIOUS_KEYS_INVALID",
+      }));
+
+      expect(() => createA2AGateway({
+        gatewayService: { execute: async () => ({ success: false }) },
+        env: {
+          A2A_PUBLIC_BASE_URL: "https://gateway.example.test",
+          AI_GATEWAY_A2A_AGENT_CARD_SIGNING_KEY_FILE: keyFile.keyFilePath,
+          AI_GATEWAY_A2A_AGENT_CARD_PREVIOUS_SIGNING_KEY_FILES_JSON: JSON.stringify([
+            keyFile.keyFilePath,
+          ]),
+        },
+      })).toThrow(expect.objectContaining({
+        code: "A2A_AGENT_CARD_SIGNING_KEY_DUPLICATE",
+      }));
+
+      expect(() => createA2AGateway({
+        gatewayService: { execute: async () => ({ success: false }) },
+        env: {
+          A2A_PUBLIC_BASE_URL: "https://gateway.example.test",
+          AI_GATEWAY_A2A_AGENT_CARD_SIGNING_KEY_FILE: keyFile.keyFilePath,
+          AI_GATEWAY_A2A_AGENT_CARD_PREVIOUS_SIGNING_KEY_FILES_JSON: JSON.stringify([
+            keyFile.keyFilePath,
+            `${keyFile.keyFilePath}.1`,
+            `${keyFile.keyFilePath}.2`,
+            `${keyFile.keyFilePath}.3`,
+          ]),
+        },
+      })).toThrow(expect.objectContaining({
+        code: "A2A_AGENT_CARD_PREVIOUS_KEYS_INVALID",
+      }));
+    } finally {
+      await keyFile.cleanup();
+    }
   });
 
   it("requires HTTPS for a non-loopback JWKS URL", async () => {

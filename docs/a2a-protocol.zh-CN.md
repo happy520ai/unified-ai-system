@@ -40,8 +40,23 @@ JWKS 仅包含 Ed25519 公钥。签名走官方 SDK 的规范化与签名实现�
 `verifyAgentCardSignature` 验签。required 模式下，缺失、格式错误、权限过宽、
 非 Ed25519 或通过不安全地址发布的密钥都会失败关闭，并且不会输出密钥内容。
 
-轮换时先让新的公钥可达，再通过 secret manager 更换挂载密钥并重启网关。
-Agent Card/JWKS 缓存期为 5 分钟；重叠多签名轮换尚未实现。
+轮换使用重叠窗口：主密钥先签名，最多三把旧 Ed25519 密钥追加兼容签名；本地
+JWKS 按同一顺序发布对应公钥：
+
+```bash
+export AI_GATEWAY_A2A_AGENT_CARD_SIGNING_KEY_FILE=/run/secrets/a2a-agent-card-new.pem
+export AI_GATEWAY_A2A_AGENT_CARD_PREVIOUS_SIGNING_KEY_FILES_JSON='["/run/secrets/a2a-agent-card-old.pem"]'
+```
+
+每个旧密钥路径都执行与主密钥相同的绝对路径、大小、POSIX 权限和 Ed25519
+检查。JSON 格式错误、超过三把旧密钥、重复路径/公钥 `kid`，或没有主密钥却
+配置旧密钥，都会令启动失败；私钥内容不会进入 Agent Card、JWKS、health 或日志。
+
+操作顺序是：先确保声明的 JWKS 可同时取得新旧公钥；再部署“新主密钥 + 旧密钥
+数组”。重叠时间必须长于 5 分钟 Agent Card/JWKS 缓存以及部署规定的最大客户端
+缓存/时钟偏差窗口。旧卡片过期后删除旧密钥配置，最后再销毁旧私钥。若设置了
+外部 `AI_GATEWAY_A2A_AGENT_CARD_JWKS_URL`，外部服务也必须发布完整重叠公钥集；
+网关无法证明外部 JWKS 已同步。
 
 ## 有界与持久任务
 
