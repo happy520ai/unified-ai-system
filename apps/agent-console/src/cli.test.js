@@ -155,6 +155,35 @@ test("status reports gateway readiness as JSON", async (context) => {
   assert.equal(output.chatReady, true);
 });
 
+test("spend reports per-key token spend with an admin key", async (context) => {
+  const gateway = await createMockGateway();
+  context.after(gateway.close);
+
+  const result = await runCliProcess([
+    "spend",
+    "--json",
+    "--url",
+    gateway.url,
+    "--admin-key",
+    "uai-mock-admin-key",
+  ]);
+
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(gateway.lastSpendAuthorization, "Bearer uai-mock-admin-key");
+  const output = JSON.parse(result.stdout);
+  assert.equal(output.ok, true);
+  assert.equal(output.totals.tokensUsed, 4200);
+  assert.equal(output.rows[0].keyId, "abc123def456");
+  assert.equal(output.rows[0].budget.softBudgetExceeded, true);
+});
+
+test("spend refuses to run without an admin key", async () => {
+  const result = await runCliProcess(["spend", "--url", "http://127.0.0.1:43199"]);
+
+  assert.notEqual(result.code, 0);
+  assert.match(result.stderr, /admin key/i);
+});
+
 test("chat sends one request to a proven fake-provider runtime", async (context) => {
   const gateway = await createMockGateway();
   context.after(gateway.close);
@@ -438,8 +467,51 @@ async function createMockGateway(options = {}) {
   let lastPrompt = null;
   let lastPromptEnhancement = null;
   let lastPromptEnhancementLanguage = null;
+  let lastSpendAuthorization = null;
   const realProviderEnabled = options.realProviderEnabled === true;
   const server = createServer(async (request, response) => {
+    if (request.method === "GET" && request.url === "/enterprise/spend-report") {
+      lastSpendAuthorization = request.headers.authorization ?? null;
+      if (request.headers.authorization !== "Bearer uai-mock-admin-key") {
+        return writeJson(response, 401, {
+          success: false,
+          error: { code: "UNAUTHENTICATED" },
+        });
+      }
+      return writeJson(response, 200, {
+        success: true,
+        data: {
+          window: "current-budget-window",
+          totals: {
+            keys: 1,
+            activeKeys: 1,
+            tokensUsed: 4200,
+            requestCount: 37,
+            keysOverSoftBudget: 1,
+          },
+          rows: [
+            {
+              keyId: "abc123def456",
+              description: "ci key",
+              role: "operator",
+              tenantId: "tenant-a",
+              revoked: false,
+              lastUsedAt: "2026-08-16T00:00:00.000Z",
+              tokensUsed: 4200,
+              requestCount: 37,
+              budget: {
+                enabled: true,
+                limitTokens: 5000,
+                tokensRemaining: 800,
+                softBudgetExceeded: true,
+                windowResetAt: "2026-08-17T00:00:00.000Z",
+              },
+            },
+          ],
+        },
+      });
+    }
+
     if (request.method === "GET" && request.url === "/health/check") {
       return writeJson(response, 200, {
         success: true,
@@ -567,6 +639,9 @@ async function createMockGateway(options = {}) {
     },
     get lastPromptEnhancementLanguage() {
       return lastPromptEnhancementLanguage;
+    },
+    get lastSpendAuthorization() {
+      return lastSpendAuthorization;
     },
     close: () =>
       new Promise((resolvePromise, reject) => {

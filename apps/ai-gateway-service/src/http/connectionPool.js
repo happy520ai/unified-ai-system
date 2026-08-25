@@ -76,9 +76,11 @@ export function createFetchRequestAdapter(url, fetchOptions = {}, agent) {
   };
 }
 
-function createAbortError(message) {
+function createAbortError(message, cause) {
   const error = new Error(message);
   error.name = "AbortError";
+  error.code = "ABORT_ERR";
+  if (cause !== undefined) error.cause = cause;
   return error;
 }
 
@@ -125,12 +127,13 @@ export function fetchWithAgent(url, options = {}) {
     headers = {},
     body,
     agent,
+    lookup,
     signal,
     timeout = DEFAULT_REQUEST_TIMEOUT,
   } = options;
 
   if (signal?.aborted) {
-    return Promise.reject(createAbortError("Request aborted before dispatch."));
+    return Promise.reject(createAbortError("Request aborted before dispatch.", signal.reason));
   }
 
   return new Promise((resolve, reject) => {
@@ -141,7 +144,7 @@ export function fetchWithAgent(url, options = {}) {
       signal?.removeEventListener("abort", abortRequest);
     };
     const abortRequest = () => {
-      request?.destroy(createAbortError("Request aborted."));
+      request?.destroy(createAbortError("Request aborted.", signal.reason));
     };
 
     request = requestFn({
@@ -151,6 +154,7 @@ export function fetchWithAgent(url, options = {}) {
       method,
       headers,
       agent,
+      lookup,
       timeout,
     }, (response) => {
       response.once("close", cleanupAbortListener);

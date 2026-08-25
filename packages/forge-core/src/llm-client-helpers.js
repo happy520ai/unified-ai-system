@@ -4,6 +4,7 @@
  */
 
 import { retryWithBackoff, isTransientError } from './resilience/index.js';
+import { isObviouslyUnsafeNetworkTarget } from './networkTargetGuard.js';
 import { getTraceContext } from './tracing/index.js';
 
 // ---- Distributed Tracing State ----
@@ -250,6 +251,9 @@ export async function callLLMDirectCore({ provider = 'xiaomi', model, apiKey, me
 
   try {
     const result = await retryWithBackoff(async () => {
+      if (isObviouslyUnsafeNetworkTarget(`${baseUrl}/chat/completions`)) {
+        throw new Error('[llm-client] Blocked unsafe provider base URL');
+      }
       const res = await fetch(`${baseUrl}/chat/completions`, {
         method: 'POST',
         headers: {

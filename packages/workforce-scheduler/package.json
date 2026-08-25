@@ -8,6 +8,7 @@
     ".": "./src/index.js"
   },
   "scripts": {
+    "test": "node --test ./src/*.test.js",
     "check": "node --no-warnings --experimental-vm-modules ../../tools/check-package-source-syntax.mjs src",
     "build": "pnpm run check"
   },

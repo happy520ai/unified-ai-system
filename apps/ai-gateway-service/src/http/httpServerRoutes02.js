@@ -1,4 +1,6 @@
 import { ROUTE_NOT_HANDLED } from "./httpRouteDispatch.js";
+import { createPrometheusExporter } from "../observability/prometheusExporter.js";
+import { getAiMetricsSnapshot } from "../observability/aiMetrics.ts";
 
 export async function dispatchHttpRoutes02(context) {
   const {
@@ -21,16 +23,17 @@ export async function dispatchHttpRoutes02(context) {
     readEnterpriseJson, writeEnterpriseError, writeCapabilityError, normalizeChatBody,
     normalizeRagChatBody, extractChatPrompt, createRagRetrieveRequest, createRagCitations,
     createRagPrompt, createRagChatData, OWNER_AUTOMATION_CHAT_PROPOSAL_FLAG, application,
-    request, response, url, startedAt,
+    request, response, url, startedAt, rateLimiter, resilienceMetrics,
     approvalStore, fileContextStore, phase319LocalOperation, connectorFeishuDryRun,
     connectorWeComDryRun, capabilityRouterService, codexExecCrsRuntimeCandidate, enterpriseGovernanceService,
     enterpriseOpsService, fiveCapabilityActivationService, gatewayService, knowledgeService,
     modelImportService, modelLibraryStore, providerConfigRoutes, userExperienceService,
-    workforceService, workflowService, wsServer,
+    workforceService, workflowService, wsServer, healthzInFlightThreshold, healthzInFlightDegradationPercent,
+    gatewayLifecycle, idempotencyCoordinator, webSocketConnectionLeaseManager,
   } = context;
 
   if (request.method === "GET" && url.pathname === "/dashboard/status") {
-    writeJson(response, 200, createOkEnvelope(userExperienceService.getDashboard(), { startedAt }));
+    writeJson(response, 200, createOkEnvelope(userExperienceService.getDashboard(getRequestContext(request)), { startedAt }));
     return;
   }
 
@@ -54,8 +57,180 @@ export async function dispatchHttpRoutes02(context) {
     return;
   }
 
+  if (request.method === "GET" && url.pathname === "/livez") {
+    const lifecycle = gatewayLifecycle?.snapshot?.() ?? {
+      state: "ready",
+      isReady: true,
+      isLive: true,
+      reason: null,
+    };
+    writeJson(response, lifecycle.isLive ? 200 : 503, createOkEnvelope({
+      status: lifecycle.isLive ? "alive" : "stopped",
+      lifecycle,
+    }, { startedAt }));
+    return;
+  }
+
+  if (request.method === "GET" && (url.pathname === "/healthz" || url.pathname === "/ready")) {
+    const healthSnapshot = createHealth(application);
+    const readinessSnapshot = createSetupReadiness(application);
+    const resilienceSnapshot = resilienceMetrics?.snapshot?.() ?? {};
+    const currentInFlight = Number.isFinite(Number(resilienceSnapshot.currentInFlight))
+      ? Number(resilienceSnapshot.currentInFlight)
+      : 0;
+    const saturationThreshold = Number.isFinite(Number(healthzInFlightThreshold)) && Number(healthzInFlightThreshold) > 0
+      ? Number(healthzInFlightThreshold)
+      : 0;
+    const saturationPercent = Number.isFinite(Number(healthzInFlightDegradationPercent)) && Number(healthzInFlightDegradationPercent) > 0
+      ? Number(healthzInFlightDegradationPercent)
+      : null;
+    const saturated = saturationThreshold > 0 && currentInFlight >= saturationThreshold;
+    const lifecycle = gatewayLifecycle?.snapshot?.() ?? null;
+    const idempotency = await readIdempotencyHealth(idempotencyCoordinator);
+    const rateLimit = await readRateLimitHealth(rateLimiter);
+    const webSocketLease = await readWebSocketLeaseHealth(webSocketConnectionLeaseManager);
+    const readinessFailures = collectReadinessFailures(healthSnapshot, readinessSnapshot, {
+      saturated,
+      gatewayErrorCircuitState: resilienceSnapshot?.gatewayErrorCircuitState,
+      lifecycleState: lifecycle?.state,
+      idempotencyStoreUnavailable: idempotency?.storeMode === "postgres" && idempotency?.available !== true,
+      rateLimitStoreUnavailable: rateLimit?.storeMode === "postgres" && rateLimit?.available !== true,
+      webSocketLeaseStoreUnavailable: Boolean(webSocketConnectionLeaseManager) && webSocketLease?.available !== true,
+    });
+    resilienceMetrics?.recordReadinessCheck?.(readinessFailures);
+    const degraded = saturated || readinessFailures.length > 0;
+
+    const payload = {
+      status: degraded ? "degraded" : "ready",
+      health: healthSnapshot,
+      readiness: readinessSnapshot,
+      resilience: resilienceSnapshot,
+      readinessFailureCount: readinessFailures.length,
+      readinessFailures,
+      isReady: !degraded,
+      lifecycle,
+      idempotency,
+      rateLimit,
+      webSocketLease,
+      saturation: {
+        inFlight: currentInFlight,
+        threshold: saturationThreshold,
+        thresholdPercent: saturationPercent,
+      },
+    };
+
+    if (degraded) {
+      writeJson(
+        response,
+        503,
+        createErrorEnvelope(
+          "service_unready",
+          "Service is temporarily unhealthy.",
+          {
+            startedAt,
+            category: "health",
+            details: payload,
+          },
+        ),
+      );
+      return;
+    }
+    writeJson(response, 200, createOkEnvelope(payload, { startedAt }));
+    return;
+  }
+
   if (request.method === "GET" && url.pathname === "/setup/readiness") {
     writeJson(response, 200, createOkEnvelope(createSetupReadiness(application), { startedAt }));
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/usage/summary") {
+    const requestLogger = application?.requestLogger;
+    if (!requestLogger) {
+      writeJson(response, 200, createOkEnvelope({ enabled: false, reason: "usage_ledger_not_configured" }, { startedAt }));
+      return;
+    }
+    writeJson(response, 200, createOkEnvelope({
+      enabled: true,
+      stats: requestLogger.getStats({}),
+      health: requestLogger.getHealth(),
+    }, { startedAt }));
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/usage/logs") {
+    const requestLogger = application?.requestLogger;
+    if (!requestLogger) {
+      writeJson(response, 200, createOkEnvelope({ enabled: false, reason: "usage_ledger_not_configured" }, { startedAt }));
+      return;
+    }
+    const limit = Math.min(Math.max(Number.parseInt(url.searchParams.get("limit") ?? "50", 10) || 50, 1), 500);
+    const filter = {
+      limit,
+      provider: url.searchParams.get("provider") ?? undefined,
+      model: url.searchParams.get("model") ?? undefined,
+      statusCode: url.searchParams.get("statusCode") ? Number(url.searchParams.get("statusCode")) : undefined,
+    };
+    const records = requestLogger.query(filter);
+    writeJson(response, 200, createOkEnvelope({
+      enabled: true,
+      count: records.length,
+      records,
+    }, { startedAt }));
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/metrics") {
+    const exporter = createPrometheusExporter({ prefix: "ai_gateway" });
+    const healthSnapshot = createHealth(application);
+    const readinessSnapshot = createSetupReadiness(application);
+    const stats = application?.requestLogger?.getStats?.({}) ?? {};
+    const readinessResilienceSnapshot = resilienceMetrics?.snapshot?.() ?? {};
+    const currentInFlight = Number.isFinite(Number(readinessResilienceSnapshot.currentInFlight))
+      ? Number(readinessResilienceSnapshot.currentInFlight)
+      : 0;
+    const saturationThreshold = Number.isFinite(Number(healthzInFlightThreshold)) && Number(healthzInFlightThreshold) > 0
+      ? Number(healthzInFlightThreshold)
+      : 0;
+    const saturated = saturationThreshold > 0 && currentInFlight >= saturationThreshold;
+    const lifecycle = gatewayLifecycle?.snapshot?.() ?? null;
+    const idempotency = await readIdempotencyHealth(idempotencyCoordinator);
+    const rateLimit = await readRateLimitHealth(rateLimiter);
+    const webSocketLease = await readWebSocketLeaseHealth(webSocketConnectionLeaseManager);
+    const readinessFailures = collectReadinessFailures(healthSnapshot, readinessSnapshot, {
+      saturated,
+      gatewayErrorCircuitState: readinessResilienceSnapshot?.gatewayErrorCircuitState,
+      lifecycleState: lifecycle?.state,
+      idempotencyStoreUnavailable: idempotency?.storeMode === "postgres" && idempotency?.available !== true,
+      rateLimitStoreUnavailable: rateLimit?.storeMode === "postgres" && rateLimit?.available !== true,
+      webSocketLeaseStoreUnavailable: Boolean(webSocketConnectionLeaseManager) && webSocketLease?.available !== true,
+    });
+    const snapshot = {
+      totalRequests: stats.totalRequests ?? 0,
+      activeConnections: wsServer?.getConnectionCount?.() ?? 0,
+      rateLimiter: rateLimit,
+      resilience: readinessResilienceSnapshot ?? null,
+      health: healthSnapshot,
+      readiness: readinessSnapshot,
+      readinessFailures,
+      readinessFailureCount: readinessFailures.length,
+      lifecycle,
+      idempotency,
+      webSocketLease,
+      latency: stats.avgLatencyMs
+        ? { p50: stats.avgLatencyMs, p95: stats.avgLatencyMs, p99: stats.avgLatencyMs }
+        : undefined,
+      totalErrors: Math.round((stats.totalRequests ?? 0) * (stats.errorRate ?? 0)),
+      providerScores: application?.healthScorer?.getAllScores?.() ?? {},
+      ai: getAiMetricsSnapshot(),
+    };
+    const body = exporter.formatMetrics(snapshot);
+    if (!response.headersSent && typeof response.writeHead === "function") {
+      response.writeHead(200, { "content-type": "text/plain; version=0.0.4; charset=utf-8" });
+    } else if (!response.headersSent) {
+      response.statusCode = 200;
+    }
+    response.end(body);
     return;
   }
 
@@ -408,4 +583,86 @@ export async function dispatchHttpRoutes02(context) {
 
 
   return ROUTE_NOT_HANDLED;
+}
+
+function collectReadinessFailures(healthSnapshot, readinessSnapshot, context = {}) {
+  const readinessFailures = [];
+  const isProviderReadinessReady = readinessSnapshot?.status === "ready";
+
+  if (healthSnapshot?.status !== "ready" || !isProviderReadinessReady) {
+    readinessFailures.push("service-dependency");
+  }
+  if (healthSnapshot?.knowledge?.status !== "ready") {
+    readinessFailures.push("knowledge");
+  }
+  if (healthSnapshot?.workflow?.status !== "ready") {
+    readinessFailures.push("workflow");
+  }
+  if (healthSnapshot?.workforce?.status !== "ready") {
+    readinessFailures.push("workforce");
+  }
+  if (context?.saturated) {
+    readinessFailures.push("inflight-saturation");
+  }
+  if (context?.gatewayErrorCircuitState && context.gatewayErrorCircuitState !== "closed") {
+    readinessFailures.push("gateway-error-circuit");
+  }
+  if (context?.lifecycleState && context.lifecycleState !== "ready") {
+    readinessFailures.push("service-draining");
+  }
+  if (context?.idempotencyStoreUnavailable) {
+    readinessFailures.push("idempotency-store-unavailable");
+  }
+  if (context?.rateLimitStoreUnavailable) {
+    readinessFailures.push("rate-limit-store-unavailable");
+  }
+  if (context?.webSocketLeaseStoreUnavailable) {
+    readinessFailures.push("websocket-lease-store-unavailable");
+  }
+
+  return Array.from(new Set(readinessFailures));
+}
+
+async function readIdempotencyHealth(coordinator) {
+  if (!coordinator) return null;
+  if (typeof coordinator.checkHealth === "function") return coordinator.checkHealth();
+  return coordinator.getStats?.() ?? null;
+}
+
+async function readRateLimitHealth(rateLimiter) {
+  if (!rateLimiter) return null;
+  if (typeof rateLimiter.checkHealth === "function") return rateLimiter.checkHealth();
+  return rateLimiter.getStats?.() ?? null;
+}
+
+async function readWebSocketLeaseHealth(manager) {
+  if (!manager) return null;
+  try {
+    const snapshot = typeof manager.checkHealth === "function"
+      ? await manager.checkHealth()
+      : await manager.getStats?.();
+    return sanitizeWebSocketLeaseHealth(snapshot);
+  } catch {
+    return sanitizeWebSocketLeaseHealth(null);
+  }
+}
+
+function sanitizeWebSocketLeaseHealth(snapshot) {
+  const safeNumber = (value) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+  };
+  return {
+    storeMode: "postgres",
+    distributed: true,
+    available: snapshot?.available === true,
+    activeLocalLeases: safeNumber(snapshot?.activeLocalLeases),
+    leaseMs: safeNumber(snapshot?.leaseMs),
+    localSafetyMs: safeNumber(snapshot?.localSafetyMs),
+    maxRows: safeNumber(snapshot?.maxRows),
+    acquired: safeNumber(snapshot?.acquired),
+    denied: safeNumber(snapshot?.denied),
+    lost: safeNumber(snapshot?.lost),
+    released: safeNumber(snapshot?.released),
+  };
 }

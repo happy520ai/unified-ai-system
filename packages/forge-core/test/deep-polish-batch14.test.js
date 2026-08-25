@@ -15,26 +15,28 @@ function ESM_SRC(file) {
 
 // ── Fix 1: generateStream SSRF guard ──
 describe("Batch14 Fix1: generateStream SSRF guard", () => {
-  const src = ESM_SRC("providers/httpLlmProviderAdapter.js");
+  const src = ESM_SRC("providers/httpProviderMapping.js");
+  const policySrc = ESM_SRC("security/outboundUrlPolicy.ts");
 
   it("has SSRF guard in generateStream method", () => {
     const helperIdx = src.indexOf("function openStreamWithRetry");
     assert.ok(helperIdx >= 0, "stream connection helper not found");
     const window = src.slice(helperIdx, helperIdx + 5000);
-    assert.ok(window.includes("isPrivateOrReservedUrl"), "SSRF guard not found in stream connection helper");
+    assert.ok(window.includes("resolveOutboundUrl"), "DNS-aware SSRF guard not found in stream connection helper");
+    assert.ok(window.includes("lookup: destination.lookup"), "validated address should be pinned to the stream connection");
     assert.ok(window.includes("SSRF blocked"), "SSRF block message not found in stream connection helper");
+    assert.ok(policySrc.includes("createPinnedLookup"), "pinned lookup implementation not found");
   });
 
-  it("SSRF guard appears at least twice (once per fetch call)", () => {
-    const guardCount = (src.match(/isPrivateOrReservedUrl\(/g) || []).length;
-    // definition + _generateOnce guard + generateStream guard = at least 3
-    assert.ok(guardCount >= 3, `expected at least 3 isPrivateOrReservedUrl calls, found ${guardCount}`);
+  it("stream fetch uses the DNS-aware resolver", () => {
+    const guardCount = (src.match(/destination = await resolveOutboundUrl\(/g) || []).length;
+    assert.ok(guardCount >= 1, `expected a stream resolver call, found ${guardCount}`);
   });
 
   it("SSRF guard in generateStream is before the fetch call", () => {
     const helperIdx = src.indexOf("function openStreamWithRetry");
     const section = src.slice(helperIdx, helperIdx + 5000);
-    const guardIdx = section.indexOf("isPrivateOrReservedUrl");
+    const guardIdx = section.indexOf("destination = await resolveOutboundUrl");
     const fetchIdx = section.indexOf("response = await fetchWithAgent");
     assert.ok(guardIdx >= 0, "guard not found in stream connection helper");
     assert.ok(fetchIdx >= 0, "pooled fetch not found in stream connection helper");
@@ -164,15 +166,33 @@ describe("Batch14 Fix6: webSocketServer connection cap", () => {
   it("sends 503 and destroys socket when limit reached", () => {
     const idx = src.indexOf("connections.size >= maxConnections");
     assert.ok(idx >= 0, "cap check not found");
-    const window = src.slice(idx, idx + 300);
+    const window = src.slice(idx, idx + 700);
     assert.ok(window.includes("503"), "should send 503 status");
-    assert.ok(window.includes("socket.destroy"), "should destroy socket");
+    assert.ok(window.includes("rejectUpgrade"), "should terminate the rejected upgrade");
+  });
+
+  it("also caps connections per authenticated subject", () => {
+    assert.ok(src.includes("maxConnectionsPerSubject"), "per-subject cap not found");
+    assert.ok(src.includes("429 Too Many Requests"), "per-subject rejection status not found");
+  });
+
+  it("is explicitly attached to the gateway HTTP server", () => {
+    const httpServerSource = ESM_SRC("http/httpServer.js");
+    assert.ok(
+      httpServerSource.includes("wsServer.attach(server)"),
+      "WebSocket transport must not remain an unbound dead feature"
+    );
+    assert.ok(
+      httpServerSource.includes("closeRealtimeConnections"),
+      "WebSocket transport must participate in gateway shutdown"
+    );
   });
 });
 
 // ── Fix 7: index.js unhandledRejection + shutdown timeout ──
 describe("Batch14 Fix7: unhandledRejection handler + shutdown timeout", () => {
   const src = ESM_SRC("index.js");
+  const shutdownSrc = ESM_SRC("http/gatewayShutdown.ts");
 
   it("registers unhandledRejection handler", () => {
     assert.ok(
@@ -188,18 +208,14 @@ describe("Batch14 Fix7: unhandledRejection handler + shutdown timeout", () => {
   });
 
   it("shutdown uses forced exit timeout", () => {
-    assert.ok(src.includes("forceTimer"), "forceTimer not found");
-    assert.ok(src.includes("forceTimer.unref"), "timer should be unref'd");
+    assert.ok(shutdownSrc.includes("forceTimer"), "forceTimer not found in shutdown controller");
+    assert.ok(shutdownSrc.includes("forceTimer.unref"), "timer should be unref'd");
   });
 
   it("forced shutdown timeout is reasonable (10s)", () => {
-    const idx = src.indexOf("forceTimer = setTimeout");
-    assert.ok(idx >= 0, "forceTimer setTimeout not found");
-    const window = src.slice(idx, idx + 500);
-    assert.ok(
-      window.includes("10_000") || window.includes("10000"),
-      "should be 10 seconds"
-    );
+    assert.ok(shutdownSrc.includes("forceTimer = setTimeout"), "forceTimer setTimeout not found");
+    assert.ok(shutdownSrc.includes("options.timeoutMs"), "controller should use the configured timeout");
+    assert.ok(src.includes("10_000") || src.includes("10000"), "entrypoint default should be 10 seconds");
   });
 });
 

@@ -1,45 +1,62 @@
+import { randomUUID } from "node:crypto";
+
 const DEFAULT_FORBIDDEN_PATHS = ["legacy/", "PROJECT_CONTEXT.md", ".env", ".git", "node_modules"];
 
 export function createApprovalStore() {
   const records = new Map();
 
   return {
-    list() {
-      return Array.from(records.values()).sort((left, right) => String(right.createdAt).localeCompare(String(left.createdAt)));
+    list(tenantId) {
+      // Fail-closed: without a tenant scope no record is visible.
+      if (!isPresentTenantId(tenantId)) return [];
+      return Array.from(records.values())
+        .filter((record) => isTenantMatch(record, tenantId))
+        .sort((left, right) => String(right.createdAt).localeCompare(String(left.createdAt)));
     },
-    get(id) {
-      return records.get(String(id || "").trim()) ?? null;
+    get(id, tenantId) {
+      const record = records.get(String(id || "").trim()) ?? null;
+      // Cross-tenant or unscoped reads are indistinguishable from missing records.
+      if (!record || !isTenantMatch(record, tenantId)) return null;
+      return record;
     },
-    create(input = {}) {
+    create(input = {}, tenantId) {
+      const scopedTenantId = requireTenantId(tenantId);
       const id = buildApprovalId();
       const record = normalizeApprovalRecord({
         ...input,
         id,
+        tenantId: scopedTenantId,
         createdAt: new Date().toISOString(),
         status: "pending",
       });
       records.set(id, record);
       return record;
     },
-    approve(id, input = {}) {
-      const current = mustGet(records, id);
+    approve(id, input = {}, tenantId) {
+      const current = mustGet(records, id, tenantId);
+      // A decision must not rewrite the approved content: allowedFiles,
+      // patchProposal, and every other record field stay exactly as they
+      // were created; only the decision outcome and note change.
       const next = normalizeApprovalRecord({
         ...current,
-        ...input,
         id: current.id,
+        tenantId: current.tenantId,
         createdAt: current.createdAt,
         status: "approved",
         approvedAt: new Date().toISOString(),
+        summary: typeof input?.summary === "string" && input.summary.trim()
+          ? input.summary.trim()
+          : current.summary,
       });
       records.set(next.id, next);
       return next;
     },
-    reject(id, input = {}) {
-      const current = mustGet(records, id);
+    reject(id, input = {}, tenantId) {
+      const current = mustGet(records, id, tenantId);
       const next = normalizeApprovalRecord({
         ...current,
-        ...input,
         id: current.id,
+        tenantId: current.tenantId,
         createdAt: current.createdAt,
         status: "rejected",
         rejectedAt: new Date().toISOString(),
@@ -53,6 +70,7 @@ export function createApprovalStore() {
 function normalizeApprovalRecord(input = {}) {
   return {
     id: String(input.id || "").trim(),
+    tenantId: input.tenantId ? String(input.tenantId).trim() : null,
     title: String(input.title || "审批任务").trim(),
     reason: String(input.reason || "需要人工审批后执行。").trim(),
     featureId: String(input.featureId || "generic-approval").trim(),
@@ -82,9 +100,31 @@ function normalizePaths(input, fallback = []) {
   return Array.from(new Set(source.map((item) => String(item || "").replace(/\\/g, "/").trim()).filter(Boolean)));
 }
 
-function mustGet(records, id) {
+function requireTenantId(tenantId) {
+  if (!isPresentTenantId(tenantId)) {
+    const error = new Error("Approval tenant id is required.");
+    error.code = "approval_tenant_required";
+    throw error;
+  }
+  return String(tenantId).trim();
+}
+
+function isPresentTenantId(tenantId) {
+  return typeof tenantId === "string" && tenantId.trim() !== "";
+}
+
+// A record is visible only to callers presenting the exact owning tenant.
+// Records without a tenant stamp (legacy) are never visible — fail-closed.
+function isTenantMatch(record, tenantId) {
+  return isPresentTenantId(tenantId)
+    && isPresentTenantId(record?.tenantId)
+    && record.tenantId === tenantId.trim();
+}
+
+function mustGet(records, id, tenantId) {
   const record = records.get(String(id || "").trim());
-  if (!record) {
+  // Cross-tenant access is reported as not-found to avoid leaking existence.
+  if (!record || !isTenantMatch(record, tenantId)) {
     const error = new Error("Approval record not found.");
     error.code = "approval_not_found";
     throw error;
@@ -93,5 +133,5 @@ function mustGet(records, id) {
 }
 
 function buildApprovalId() {
-  return `approval-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  return `approval-${randomUUID()}`;
 }

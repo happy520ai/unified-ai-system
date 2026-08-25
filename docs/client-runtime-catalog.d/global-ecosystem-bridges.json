@@ -1,0 +1,143 @@
+{
+  "openai-bedrock-openai-compatible": {
+    "name": "AWS Bedrock OpenAI-compatible profile",
+    "protocol": "OpenAI-compatible",
+    "transport": "HTTP /v1 + /chat/completions + /models + /responses",
+    "mode": "manual",
+    "tags": [
+      "openai",
+      "openai-compatible",
+      "provider:aws-bedrock",
+      "language:python",
+      "language:javascript",
+      "global",
+      "route-compatibility"
+    ],
+    "command": "Bedrock-compatible OpenAI wrapper against local /v1",
+    "evidenceNotes": "Verify model discovery and chat route compatibility through your Bedrock-compatible profile."
+  },
+  "openai-deepseek-openai": {
+    "name": "DeepSeek OpenAI-compatible profile",
+    "protocol": "OpenAI-compatible",
+    "transport": "HTTP /v1 + /chat/completions + /models",
+    "mode": "manual",
+    "tags": [
+      "openai",
+      "openai-compatible",
+      "provider:deepseek",
+      "language:python",
+      "global",
+      "route-compatibility"
+    ],
+    "command": "DeepSeek OpenAI-compatible client against local gateway /v1",
+    "evidenceNotes": "Capture list-models + chat completion evidence with sanitized output."
+  },
+  "openai-yi-openai": {
+    "name": "01.AI / Yi OpenAI-compatible profile",
+    "protocol": "OpenAI-compatible",
+    "transport": "HTTP /v1 + /chat/completions + /models",
+    "mode": "manual",
+    "tags": [
+      "openai",
+      "openai-compatible",
+      "provider:yi",
+      "language:python",
+      "global",
+      "route-compatibility"
+    ],
+    "command": "Yi OpenAI-compatible wrapper against local /v1",
+    "evidenceNotes": "Validate route and request format compatibility in a lightweight sample."
+  },
+  "openai-qwen-openai": {
+    "name": "Qwen OpenAI-compatible profile",
+    "protocol": "OpenAI-compatible",
+    "transport": "HTTP /v1 + /chat/completions + /models",
+    "mode": "manual",
+    "tags": [
+      "openai",
+      "openai-compatible",
+      "provider:qwen",
+      "language:python",
+      "global",
+      "route-compatibility"
+    ],
+    "command": "Qwen OpenAI-compatible client against local /v1",
+    "evidenceNotes": "Verify discovery + chat completion compatibility in local gateway wiring."
+  },
+  "openai-google-gemini-openai": {
+    "name": "Google Vertex Gemini OpenAI-compatible profile",
+    "protocol": "OpenAI-compatible",
+    "transport": "HTTP /v1 + /chat/completions + /models + /responses",
+    "mode": "manual",
+    "tags": [
+      "openai",
+      "openai-compatible",
+      "provider:google-gemini",
+      "language:python",
+      "language:javascript",
+      "global",
+      "route-compatibility"
+    ],
+    "command": "Google Gemini OpenAI-compatible profile against local /v1",
+    "evidenceNotes": "Capture model listing and chat output proving route compatibility."
+  },
+  "openai-perplexity-openai": {
+    "name": "Perplexity OpenAI-compatible profile",
+    "protocol": "OpenAI-compatible",
+    "transport": "HTTP /v1 + /chat/completions + /models",
+    "mode": "manual",
+    "tags": [
+      "openai",
+      "openai-compatible",
+      "provider:perplexity",
+      "language:python",
+      "global",
+      "route-compatibility"
+    ],
+    "command": "Perplexity-compatible OpenAI wrapper against local /v1",
+    "evidenceNotes": "Validate /v1 wrapper routing and chat completion behavior."
+  },
+  "openai-cohere-openai": {
+    "name": "Cohere OpenAI-compatible profile",
+    "protocol": "OpenAI-compatible",
+    "transport": "HTTP /v1 + /chat/completions + /models",
+    "mode": "manual",
+    "tags": [
+      "openai",
+      "openai-compatible",
+      "provider:cohere",
+      "language:python",
+      "global",
+      "route-compatibility"
+    ],
+    "command": "Cohere OpenAI profile against local /v1",
+    "evidenceNotes": "Confirm model and completion compatibility for Cohere-compatible OpenAI profile."
+  },
+  "mcp-cursor-cli": {
+    "name": "Cursor CLI MCP profile",
+    "protocol": "MCP",
+    "transport": "stdio",
+    "mode": "manual",
+    "tags": ["mcp", "agent-host", "code-editor", "global", "mainstream"],
+    "command": "Cursor CLI MCP client against unified-ai-system server",
+    "evidenceNotes": "Run startup and verify MCP tool list and readiness in your Cursor runtime."
+  },
+  "mcp-ollama-copilot": {
+    "name": "Ollama-style MCP runtime profile",
+    "protocol": "MCP",
+    "transport": "stdio",
+    "mode": "manual",
+    "tags": ["mcp", "agent-host", "desktop", "global", "mainstream"],
+    "command": "Ollama plugin-style MCP host against unified-ai-system",
+    "evidenceNotes": "Validate local MCP host startup and tool availability."
+  },
+  "a2a-ruby": {
+    "name": "A2A Ruby SDK",
+    "protocol": "A2A",
+    "transport": "HTTP JSON-RPC",
+    "mode": "manual",
+    "tags": ["a2a", "a2a-sdk", "language:ruby", "protocol:a2a", "global", "mainstream"],
+    "command": "Ruby A2A client against agent-card and /a2a/jsonrpc",
+    "evidenceNotes": "Run discovery and SendMessage/GetTask/ListTasks flow in Ruby."
+  }
+}

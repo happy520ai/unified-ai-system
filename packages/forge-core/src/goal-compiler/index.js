@@ -12,6 +12,69 @@ import { readdir, readFile, stat } from 'node:fs/promises';
 import { join, relative, extname } from 'node:path';
 import { buildDAG } from './dag-builder.js';
 import { callLLM } from '../llm-client.js';
+import {
+  DEFAULT_LANGUAGE_FALLBACK,
+  EXT_TO_LANGUAGE,
+  LANGUAGE_LABELS,
+  LANGUAGE_PRIORITY,
+  inferLanguageFromAllowedFiles as inferLanguageFromAllowedFilesPolicy,
+  inferLanguageFromTextGoalHint,
+  normalizeLanguageCandidate as normalizeLanguageCandidatePolicy,
+} from '../goal-refiner/helpers.js';
+
+function normalizeLanguageCandidate(value) {
+  return normalizeLanguageCandidatePolicy(value);
+}
+
+function inferLanguageFromText(text) {
+  return inferLanguageFromTextGoalHint(text);
+}
+
+function inferTaskLanguage(task, fallbackLanguage = DEFAULT_LANGUAGE_FALLBACK, goalText = '') {
+  const fromFiles = inferLanguageFromAllowedFiles(task?.allowedFiles ?? []);
+  if (fromFiles) return fromFiles;
+  const fromText = inferLanguageFromText(`${task?.name ?? ''} ${task?.prompt ?? ''} ${goalText ?? ''}`);
+  if (fromText) return fromText;
+  return normalizeLanguageCandidate(fallbackLanguage) || DEFAULT_LANGUAGE_FALLBACK;
+}
+
+function inferLanguageFromAllowedFiles(patterns) {
+  return inferLanguageFromAllowedFilesPolicy(patterns);
+}
+
+function inferLanguageFromTree(tree) {
+  const counts = new Map();
+  for (const rel of tree) {
+    const language = EXT_TO_LANGUAGE[extname(rel).toLowerCase()];
+    if (!language) continue;
+    counts.set(language, (counts.get(language) || 0) + 1);
+  }
+  if (counts.size === 0) return DEFAULT_LANGUAGE_FALLBACK;
+  return [...counts.entries()]
+    .sort((left, right) => {
+      const countDifference = right[1] - left[1];
+      if (countDifference !== 0) return countDifference;
+      return LANGUAGE_PRIORITY.indexOf(left[0]) - LANGUAGE_PRIORITY.indexOf(right[0]);
+    })[0][0];
+}
+
+function describeLanguage(language) {
+  return LANGUAGE_LABELS[normalizeLanguageCandidate(language)] || LANGUAGE_LABELS.other;
+}
+
+function buildLanguagePreferenceText(language, taskLanguage = null) {
+  const normalizedLanguage = normalizeLanguageCandidate(language) || DEFAULT_LANGUAGE_FALLBACK;
+  const normalizedTaskLanguage = normalizeLanguageCandidate(taskLanguage);
+  if (!taskLanguage || normalizeLanguageCandidate(taskLanguage) === normalizedLanguage) {
+    return `Default implementation language: ${describeLanguage(normalizedLanguage)}.`;
+  }
+  if (normalizedLanguage === DEFAULT_LANGUAGE_FALLBACK) {
+    return `Primary task language: ${describeLanguage(normalizedTaskLanguage)}. ` +
+      'Project default is unclear; rely on task-specific hints (allowedFiles, goal wording, existing file context).';
+  }
+  return `Primary task language: ${describeLanguage(normalizedTaskLanguage)}. ` +
+    `Project default remains ${describeLanguage(normalizedLanguage)}.`;
+}
 
 const MAX_PROBE_FILES = 80;
 const IGNORED_DIRS = new Set(['.git', 'node_modules', 'dist', 'build', 'coverage', '.next', '.turbo', 'legacy']);
@@ -110,7 +173,9 @@ export async function compileGoal(store, { goalText, projectRoot }) {
   const { tree, keyFiles } = await probeCodebase(projectRoot);
 
   // Step 2: Build the LLM prompt
-  const userPrompt = buildUserPrompt(goalText, tree, keyFiles);
+  const preferredLanguage = inferLanguageFromText(goalText) || inferLanguageFromTree(tree);
+  const languageConstraintText = buildLanguagePreferenceText(preferredLanguage);
+  const userPrompt = buildUserPrompt(goalText, tree, keyFiles, preferredLanguage);
 
   // Step 3: Call LLM to decompose goal (with timeout)
   console.log('[forge:compiler] Decomposing goal via LLM...');
@@ -185,6 +250,22 @@ export async function compileGoal(store, { goalText, projectRoot }) {
   }
 
   // Step 5: Build and store the DAG
+  if (Array.isArray(parsed.tasks)) {
+    parsed.tasks = parsed.tasks.map((task) => {
+      const taskLanguage = inferTaskLanguage(task, preferredLanguage, goalText);
+      const shouldAttachConstraint = ['implement', 'test', 'refactor'].includes(task.type);
+      let constraints = Array.isArray(task.constraints) ? [...task.constraints] : [];
+      if (shouldAttachConstraint) {
+        const langConstraint = buildLanguagePreferenceText(preferredLanguage, taskLanguage);
+        if (!constraints.includes(langConstraint)) constraints.push(langConstraint);
+        if (languageConstraintText !== langConstraint && !constraints.includes(languageConstraintText)) {
+          constraints.push(languageConstraintText);
+        }
+      }
+      return { ...task, language: taskLanguage, constraints };
+    });
+  }
+
   const { tasks, deps } = buildDAG(parsed.tasks);
 
   store.insertTaskDAG(goalId, tasks, deps);
@@ -199,8 +280,13 @@ export async function compileGoal(store, { goalText, projectRoot }) {
   return { goalId, taskCount: tasks.length, summary: parsed.summary };
 }
 
-function buildUserPrompt(goalText, tree, keyFiles) {
+function buildUserPrompt(goalText, tree, keyFiles, preferredLanguage = DEFAULT_LANGUAGE_FALLBACK) {
   let prompt = `## Goal\n${goalText}\n\n`;
+  if (preferredLanguage && preferredLanguage !== DEFAULT_LANGUAGE_FALLBACK) {
+    prompt += `## Preferred Language\n${describeLanguage(preferredLanguage)}\n\n`;
+  } else {
+    prompt += `## Preferred Language\nPrefer the language implied by task files and project context.\n\n`;
+  }
   prompt += `## Project File Tree (first ${tree.length} entries)\n\`\`\`\n${tree.join('\n')}\n\`\`\`\n\n`;
 
   if (keyFiles.length > 0) {

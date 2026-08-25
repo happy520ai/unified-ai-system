@@ -4,6 +4,7 @@ import { readLatestMimoTokenCalibrationProfile } from "./tokenEstimatorCalibrati
 import { estimateTextTokens, estimateTokens } from "./tokenEstimator.js";
 import { createResponseCacheKey } from "../cache/responseCacheKey.js";
 import { createResponseCachePolicy } from "../cache/responseCachePolicy.js";
+import { createMessageContentFingerprint } from "@unified-ai-system/shared-utils";
 
 export function checkTokenCostGuard(input = {}, options = {}) {
   const policy = options.policy ?? createTokenBudgetPolicy();
@@ -13,6 +14,10 @@ export function checkTokenCostGuard(input = {}, options = {}) {
   const selectedContextText = collectSelectedSourceText(input.selectedSources);
   const effectiveContextText = selectedContextText || rawContextText;
   const messages = normalizeMessages(input.messages);
+  const fingerprintedMessages = messages.map((message) => ({
+    ...message,
+    content: createMessageContentFingerprint(message.content),
+  }));
   const estimatorInput = {
     messages,
     text: effectiveContextText,
@@ -34,7 +39,7 @@ export function checkTokenCostGuard(input = {}, options = {}) {
   });
   const cache = createTokenCachePolicy({
     requestType,
-    messages,
+    messages: fingerprintedMessages,
     rawContextText,
     selectedSources: input.selectedSources,
     model: input.model ?? "default-model",
@@ -42,7 +47,7 @@ export function checkTokenCostGuard(input = {}, options = {}) {
   });
   const responseCachePolicy = createResponseCachePolicy();
   const responseCache = createResponseCacheKey({
-    query: input.userQuery ?? extractLastUserMessage(messages) ?? rawContextText,
+    query: input.userQuery ?? extractLastUserMessage(fingerprintedMessages) ?? rawContextText,
     selectedSources: input.selectedSources,
     selectedSourcesHash: input.selectedSourcesHash,
     provider: input.provider ?? "local",
@@ -88,6 +93,8 @@ export function checkTokenCostGuard(input = {}, options = {}) {
     },
     estimate: {
       inputTokens: tokenEstimate.estimatedInputTokens,
+      imageTokens: tokenEstimate.estimatedImageTokens,
+      imageCount: tokenEstimate.imageCount,
       outputTokens: tokenEstimate.estimatedOutputTokens,
       totalTokens: tokenEstimate.estimatedTotalTokens,
       inputCostUsd: cost.inputCostUsd,
@@ -223,7 +230,7 @@ function normalizeMessages(messages) {
   if (!Array.isArray(messages)) return [];
 
   return messages
-    .filter((message) => message && typeof message.content === "string")
+    .filter((message) => message && (typeof message.content === "string" || Array.isArray(message.content)))
     .map((message) => ({
       role: typeof message.role === "string" ? message.role : "user",
       content: message.content,
@@ -252,4 +259,29 @@ function extractLastUserMessage(messages) {
     .reverse()
     .find((message) => message?.role !== "assistant" && typeof message?.content === "string")
     ?.content ?? "";
+}
+
+/**
+ * Enforce the token-cost guard for real execution (opt-in).
+ *
+ * `checkTokenCostGuard` is preview-only: it estimates and recommends, but never
+ * blocks. This wrapper turns the same decision into an allow/deny signal so the
+ * gateway can optionally refuse a request before any provider call is made.
+ * A "require_approval" decision is treated as allowed only when the caller has
+ * already recorded a high-cost approval.
+ *
+ * @param {object} input - same shape as checkTokenCostGuard input
+ * @param {object} [options]
+ * @returns {{ allowed: boolean, decision: string, reasons: string[], estimate: object }}
+ */
+export function enforceTokenCostGuard(input = {}, options = {}) {
+  const result = checkTokenCostGuard(input, options);
+  // checkTokenCostGuard already folds `userApprovedHighCost` into the decision
+  // (an approved request resolves to "allow"), so only "allow" is executable.
+  return {
+    allowed: result.decision === "allow",
+    decision: result.decision,
+    reasons: result.reasons,
+    estimate: result.estimate,
+  };
 }

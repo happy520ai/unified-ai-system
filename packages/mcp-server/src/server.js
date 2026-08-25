@@ -7,15 +7,18 @@ import {
 import * as z from "zod/v4";
 
 export const MCP_SERVER_NAME = "unified-ai-system";
-export const MCP_SERVER_VERSION = "0.4.9";
+export const MCP_SERVER_VERSION = "0.5.0";
 export const MCP_TOOL_NAMES = Object.freeze([
   "gateway_health",
   "gateway_readiness",
   "gateway_prompt_enhance",
+  "gateway_prompt_enhance_llm",
   "gateway_chat",
   "knowledge_readiness",
+  "knowledge_retrieve",
   "workflow_health",
   "workflow_actions",
+  "workflow_run",
   "workforce_health",
   "workforce_agents",
 ]);
@@ -25,8 +28,10 @@ const SERVER_INSTRUCTIONS = [
   "The preview is fake-provider only: never represent its responses as real provider output.",
   "Use gateway_prompt_enhance to structure a natural-language request without calling a model.",
   "Prefer gateway_health and gateway_readiness before gateway_chat.",
-  "The workflow and workforce tools are read-only inspection surfaces.",
-  "No tool enables providers, executes workforce plans, or writes knowledge.",
+  "Use knowledge_retrieve to search the local knowledge base by keyword.",
+  "Use workflow_run to execute the 3-step local workflow (retrieve, compose, write artifact).",
+  "The workforce tools remain read-only inspection surfaces.",
+  "No tool enables providers or executes workforce plans.",
 ].join(" ");
 
 const READ_ONLY_ANNOTATIONS = Object.freeze({
@@ -48,6 +53,9 @@ function createToolResult(toolName, runtime, result) {
       baseUrl: runtime.baseUrl,
       managed: runtime.managed,
       realProviderCallsAllowed: false,
+      authenticated: runtime.gatewayAuth?.enabled === true,
+      authVerified: runtime.gatewayAuth?.verified === true,
+      authTokenExposed: false,
     },
     result,
   };
@@ -114,6 +122,7 @@ export function createUnifiedAiMcpServer(runtime, options = {}) {
 
   const client = options.client ?? createGatewayClient({
     baseUrl: runtime.baseUrl,
+    headers: runtime.privateRequestHeaders ?? {},
     timeoutMs: options.timeoutMs ?? 20_000,
   });
   const server = new McpServer(
@@ -219,6 +228,59 @@ export function createUnifiedAiMcpServer(runtime, options = {}) {
   );
 
   server.registerTool(
+    "gateway_prompt_enhance_llm",
+    {
+      title: "LLM-enhanced prompt enhancement",
+      description:
+        "Enhance a prompt using LLM semantic rewriting when a provider is available. Falls back to the deterministic local engine when no provider is configured.",
+      inputSchema: z.object({
+        input: z
+          .string()
+          .trim()
+          .min(1)
+          .max(20_000)
+          .describe("The natural-language request to enhance"),
+        profile: z
+          .enum(["auto", "general", "coding", "analysis", "writing", "research", "planning"])
+          .optional()
+          .describe("Optional task profile hint"),
+        language: z
+          .enum(["auto", "zh-CN", "en"])
+          .optional()
+          .describe("Output language"),
+        providerId: z
+          .string()
+          .optional()
+          .describe("Optional provider ID for LLM enhancement"),
+        modelId: z
+          .string()
+          .optional()
+          .describe("Optional model ID for LLM enhancement"),
+      }),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
+    },
+    async ({ input, profile, language, providerId, modelId }) => {
+      try {
+        const response = await client.enhancePromptLlm({
+          input,
+          profile: profile ?? "auto",
+          language: language ?? "auto",
+          ...(providerId ? { providerId } : {}),
+          ...(modelId ? { modelId } : {}),
+        });
+        return createToolResult("gateway_prompt_enhance_llm", runtime, response);
+      } catch (error) {
+        return createToolError("gateway_prompt_enhance_llm", error);
+      }
+    },
+  );
+
+  server.registerTool(
     "gateway_chat",
     {
       title: "Fake-provider chat",
@@ -269,6 +331,102 @@ export function createUnifiedAiMcpServer(runtime, options = {}) {
         return createToolResult("gateway_chat", runtime, response);
       } catch (error) {
         return createToolError("gateway_chat", error);
+      }
+    },
+  );
+
+  server.registerTool(
+    "knowledge_retrieve",
+    {
+      title: "Knowledge retrieve",
+      description:
+        "Search the local knowledge base by keyword. Returns ranked chunks with citations. Does not call any provider.",
+      inputSchema: z.object({
+        query: z
+          .string()
+          .trim()
+          .min(1)
+          .max(2_000)
+          .describe("Search query for keyword-based retrieval"),
+        topK: z
+          .number()
+          .int()
+          .min(1)
+          .max(5)
+          .optional()
+          .describe("Number of results to return (1-5, default 3)"),
+        sourceIds: z
+          .array(z.string())
+          .optional()
+          .describe("Optional filter to specific knowledge source IDs"),
+      }),
+      annotations: READ_ONLY_ANNOTATIONS,
+    },
+    async ({ query, topK, sourceIds }) => {
+      try {
+        const response = await client.knowledgeRetrieve({
+          query,
+          ...(topK ? { topK } : {}),
+          ...(sourceIds ? { sourceIds } : {}),
+        });
+        return createToolResult("knowledge_retrieve", runtime, response);
+      } catch (error) {
+        return createToolError("knowledge_retrieve", error);
+      }
+    },
+  );
+
+  server.registerTool(
+    "workflow_run",
+    {
+      title: "Workflow run",
+      description:
+        "Execute the 3-step local workflow: retrieve knowledge, compose a Markdown report, and write a controlled artifact. Does not call any provider.",
+      inputSchema: z.object({
+        goal: z
+          .string()
+          .trim()
+          .min(1)
+          .max(2_000)
+          .describe("The workflow goal or objective"),
+        query: z
+          .string()
+          .trim()
+          .max(2_000)
+          .optional()
+          .describe("Optional retrieval query; defaults to the goal"),
+        topK: z
+          .number()
+          .int()
+          .min(1)
+          .max(5)
+          .optional()
+          .describe("Number of knowledge chunks to retrieve (1-5, default 3)"),
+        artifactName: z
+          .string()
+          .trim()
+          .max(80)
+          .optional()
+          .describe("Optional filename for the output artifact (without path)"),
+      }),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: false,
+      },
+    },
+    async ({ goal, query, topK, artifactName }) => {
+      try {
+        const response = await client.workflowRun({
+          goal,
+          ...(query ? { query } : {}),
+          ...(topK ? { topK } : {}),
+          ...(artifactName ? { artifactName } : {}),
+        });
+        return createToolResult("workflow_run", runtime, response);
+      } catch (error) {
+        return createToolError("workflow_run", error);
       }
     },
   );

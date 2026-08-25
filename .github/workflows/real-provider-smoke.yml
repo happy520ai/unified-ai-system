@@ -1,0 +1,50 @@
+name: Real Provider Smoke
+
+# Manual, credential-gated real-provider smoke. Intentionally workflow_dispatch
+# only: every run makes at most one real provider call, so there is no
+# automatic spend. Without secrets.OPENAI_API_KEY configured, the run stays
+# green and reports an explicit skip (zero-credential discipline).
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: real-provider-smoke
+  cancel-in-progress: false
+
+jobs:
+  openai-route-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6
+        with:
+          version: 11.19.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Credential-free skip path
+        env:
+          OPENAI_API_KEY: ""
+        run: |
+          node tools/real-provider-smoke.mjs | tee smoke-skip.json
+          grep -q '"skipped": true' smoke-skip.json
+
+      - name: Real provider smoke
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_MODEL: ${{ vars.REAL_PROVIDER_SMOKE_OPENAI_MODEL || 'gpt-4o-mini' }}
+        run: node tools/real-provider-smoke.mjs

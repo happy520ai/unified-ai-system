@@ -19,6 +19,10 @@ Unified AI System provides one governed boundary for models, agents, knowledge, 
 - [Prompt enhancement guide](https://happy520ai.github.io/unified-ai-system/prompt-enhancement.html)
 - [Chinese prompt enhancement guide](https://happy520ai.github.io/unified-ai-system/prompt-enhancement.zh-CN.html)
 - [Architecture](https://github.com/happy520ai/unified-ai-system/blob/master/docs/architecture.md)
+- [Google Gemini provider](https://github.com/happy520ai/unified-ai-system/blob/master/docs/gemini-provider.md)
+- [Chat guardrails](https://github.com/happy520ai/unified-ai-system/blob/master/docs/guardrails.md)
+- [Spend reporting](https://github.com/happy520ai/unified-ai-system/blob/master/docs/spend-reporting.md)
+- [Gateway benchmark 2026-08](https://github.com/happy520ai/unified-ai-system/blob/master/docs/benchmarks/2026-08-gateway-benchmark.md)
 - [Security policy](https://github.com/happy520ai/unified-ai-system/blob/master/SECURITY.md)
 - [Security evidence index](https://github.com/happy520ai/unified-ai-system/blob/master/docs/security/README.md)
 
@@ -40,15 +44,15 @@ authorized path.
 
 ## Public distributions
 
-- [Release v0.4.9](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.4.9)
-- [Official MCP Registry entry](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.4.9)
+- [Release v0.5.0](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.5.0)
+- [Official MCP Registry entry](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.5.0)
 - Agent Skill: `npx skills add happy520ai/unified-ai-system --skill unified-ai-gateway --agent codex --copy --yes`
-- MCP container: `ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.9`
-- Gateway demo container: `ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.9`
+- MCP container: `ghcr.io/happy520ai/unified-ai-system/mcp-server:0.5.0`
+- Gateway demo container: `ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.5.0`
 
 ## Verified boundaries
 
-- The stable v0.4.9 MCP image and current source both expose nine tools, including provider-free prompt enhancement.
+- The stable v0.5.0 MCP image and current source both expose twelve tools, including provider-free prompt enhancement.
 - Plain chat requests remain unchanged unless prompt enhancement is explicitly enabled.
 - The credential-free default uses `local-fake-provider` in `fake` execution mode.
 - Real-provider execution requires explicit, scoped authorization.

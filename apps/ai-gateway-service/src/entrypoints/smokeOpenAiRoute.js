@@ -119,12 +119,22 @@ async function runRouteCheck({ name, env, expected }) {
 
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
 
+  // Real (non-fake) provider modes require enterprise authentication even on
+  // loopback; attach the bootstrap token only when the operator provided one.
+  const authToken = env.PME_AUTH_TOKEN ? String(env.PME_AUTH_TOKEN) : "";
+
   try {
     const url = `http://127.0.0.1:${server.address().port}/route`;
     const response = await fetch(url, {
       method: "POST",
       headers: {
         "content-type": "application/json",
+        ...(authToken
+          ? {
+            "x-pme-auth-token": authToken,
+            "x-pme-tenant-id": String(env.PME_AUTH_TENANT_ID ?? "default"),
+          }
+          : {}),
       },
       body: JSON.stringify({
         taskType: "chat",

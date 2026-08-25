@@ -135,29 +135,32 @@ describe("Batch13 Fix4: isPublicRoute hardened", () => {
 // ── Fix 5: httpLlmProviderAdapter SSRF guard ──
 describe("Batch13 Fix5: httpLlmProviderAdapter SSRF guard", () => {
   const src = ESM_SRC("providers/httpLlmProviderAdapter.js");
+  const policySrc = ESM_SRC("security/outboundUrlPolicy.ts");
 
-  it("defines isPrivateOrReservedUrl function", () => {
-    const idx = src.indexOf("function isPrivateOrReservedUrl");
-    assert.ok(idx >= 0, "isPrivateOrReservedUrl not found");
-    const window = src.slice(idx, idx + 800);
-    assert.ok(window.includes("localhost"), "should check localhost");
-    assert.ok(window.includes("127.0.0.1"), "should check loopback");
+  it("defines an asynchronous DNS and IP outbound policy", () => {
+    const idx = policySrc.indexOf("export async function resolveSafeOutboundUrl");
+    assert.ok(idx >= 0, "resolveSafeOutboundUrl not found");
+    const window = policySrc;
+    assert.ok(window.includes("isPublicUnicastAddress"), "should enforce public unicast addresses");
+    assert.ok(window.includes("isIPv4MappedAddress"), "should normalize IPv4-mapped IPv6");
     // Source uses regex with escaped dots: 192\\.168
-    assert.ok(window.includes("192"), "should check 192.x range");
+    assert.ok(window.includes('all: true; order: "verbatim"'), "should inspect every DNS answer");
     assert.ok(window.includes("metadata.google.internal"), "should check cloud metadata");
+    assert.ok(window.includes("metadata.tencentyun.com"), "should check Tencent metadata");
   });
 
   it("blocks SSRF before fetch call", () => {
     assert.ok(src.includes("SSRF blocked"), "SSRF block message not found");
-    assert.ok(src.includes("isPrivateOrReservedUrl"), "guard function should be called");
+    assert.ok(src.includes("resolveSafeOutboundUrl"), "DNS-aware guard function should be called");
+    assert.ok(src.includes("lookup: destination.lookup"), "validated address should be pinned to the connection");
   });
 
   it("SSRF check is before the fetch call, not after", () => {
-    const ssrfIdx = src.indexOf("SSRF blocked");
-    const fetchIdx = src.indexOf("const response = await fetch");
-    assert.ok(ssrfIdx >= 0, "SSRF block not found");
+    const ssrfIdx = src.indexOf("destination = await resolveOutboundUrl");
+    const fetchIdx = src.indexOf("const response = await fetchWithAgent");
+    assert.ok(ssrfIdx >= 0, "DNS-aware SSRF resolution not found");
     assert.ok(fetchIdx >= 0, "fetch call not found");
-    assert.ok(ssrfIdx < fetchIdx || (fetchIdx - ssrfIdx < 500), "SSRF check should be near fetch");
+    assert.ok(ssrfIdx < fetchIdx, "SSRF check should happen before fetch");
   });
 });
 

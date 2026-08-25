@@ -3,6 +3,8 @@
 // 支持 Google/GitHub/Microsoft 登录
 // =============================================================================
 
+import { randomUUID } from "node:crypto";
+
 export function createOAuth2Provider(options = {}) {
   const providers = new Map();
 
@@ -64,7 +66,7 @@ export function createOAuth2Provider(options = {}) {
     const p = providers.get(providerName);
     if (!p) throw new Error(`Provider not registered: ${providerName}`);
 
-    const resp = await fetch(p.tokenUrl, {
+    const resp = await safeOutboundFetch(p.tokenUrl, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
       body: new URLSearchParams({
@@ -85,7 +87,7 @@ export function createOAuth2Provider(options = {}) {
     const p = providers.get(providerName);
     if (!p) throw new Error(`Provider not registered: ${providerName}`);
 
-    const resp = await fetch(p.userInfoUrl, {
+    const resp = await safeOutboundFetch(p.userInfoUrl, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
 
@@ -113,9 +115,6 @@ export function createOAuth2Provider(options = {}) {
   return { registerProvider, registerFromTemplate, getAuthorizationUrl, exchangeCode, getUserInfo, getRegisteredProviders };
 }
 
-function randomUUID() {
-  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    return (c === "x" ? r : (r & 0x3) | 0x8).toString(16);
-  });
-}
+// randomUUID now comes from node:crypto; a Math.random-based state value is
+// predictable and would defeat the OAuth2 CSRF protection.
+import { safeOutboundFetch } from "../security/safeOutboundFetch.ts";

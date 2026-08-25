@@ -4,7 +4,8 @@ import {
   DATA_DIR,
   SESSION_STATUS,
 } from "./providerOnboardingConstants.js";
-import { isPrivateOrReservedHost } from "./providerOnboardingUtils.js";
+import { fetchWithAgent } from "../http/connectionPool.js";
+import { resolveSafeOutboundUrl } from "../security/outboundUrlPolicy.ts";
 import {
   loadOnboardingLog,
   loadProviderState,
@@ -173,17 +174,15 @@ export class ProviderOnboardingService {
     let result;
 
     try {
-      const targetUrl = new URL(session.providerConfig.baseUrl);
-      if (isPrivateOrReservedHost(targetUrl.hostname)) {
-        throw new Error("Connection to private/internal networks is not allowed.");
-      }
+      const destination = await resolveSafeOutboundUrl(session.providerConfig.baseUrl);
 
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 10000);
 
-      const response = await fetch(session.providerConfig.baseUrl, {
+      const response = await fetchWithAgent(destination.url, {
         method: "GET",
         signal: controller.signal,
+        lookup: destination.lookup,
         headers: session.providerConfig.apiKey
           ? { Authorization: `Bearer ${session.providerConfig.apiKey}` }
           : {},
@@ -361,19 +360,15 @@ export class ProviderOnboardingService {
     const startTime = Date.now();
 
     try {
-      if (provider.baseUrl) {
-        const targetUrl = new URL(provider.baseUrl);
-        if (isPrivateOrReservedHost(targetUrl.hostname)) {
-          throw new Error("Health check to private/internal networks is not allowed.");
-        }
-      }
+      const destination = await resolveSafeOutboundUrl(provider.baseUrl);
 
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 8000);
 
-      const response = await fetch(provider.baseUrl, {
+      const response = await fetchWithAgent(destination.url, {
         method: "GET",
         signal: controller.signal,
+        lookup: destination.lookup,
       }).catch((err) => ({ status: 0, statusText: err.message }));
 
       clearTimeout(timeout);

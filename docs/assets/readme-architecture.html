@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { width: 1280px; height: 760px; overflow: hidden; }
+  body {
+    padding: 52px 60px 44px;
+    background:
+      radial-gradient(ellipse 760px 300px at 50% 0px, rgba(89,240,181,0.10), transparent 70%),
+      #07100f;
+    border-top: 8px solid #59f0b5;
+    font-family: "Segoe UI", Arial, sans-serif; color: #f1f5f4;
+    display: flex; flex-direction: column;
+  }
+  .title { text-align: center; margin-bottom: 36px; }
+  .title h1 { font-size: 40px; font-weight: 760; }
+  .title h1 em { font-style: normal; color: #59f0b5; }
+  .title p { margin-top: 10px; color: #9eb0aa; font-size: 19px; }
+  .flow { display: grid; grid-template-columns: 300px 56px 1fr 56px 300px; align-items: stretch; flex: 1; }
+  .col { border: 1px solid #28443c; border-radius: 8px; background: #0b1513; padding: 24px 22px; display: flex; flex-direction: column; }
+  .col h2 {
+    font-size: 16px; letter-spacing: 2.5px; text-transform: uppercase; color: #77f2c0;
+    padding-bottom: 14px; margin-bottom: 18px; border-bottom: 1px solid #243a34;
+  }
+  .item {
+    border: 1px solid #213830; border-radius: 5px; background: #0e1a17;
+    padding: 12px 14px; margin-bottom: 11px;
+  }
+  .item b { display: block; font-size: 16.5px; font-weight: 650; color: #eaf7f3; }
+  .item span { font-size: 13.5px; color: #8ba39c; }
+  .arrow { display: flex; align-items: center; justify-content: center; color: #3e9b77; font-size: 30px; font-weight: 700; }
+  .core { border: 1px solid #2e5c4c; background: linear-gradient(180deg, #0d1d19, #0b1513); box-shadow: inset 0 0 60px rgba(89,240,181,0.05); }
+  .core h2 { color: #f3c56c; border-bottom-color: #5a4a26; }
+  .chipgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; flex: 1; }
+  .chip {
+    border: 1px solid #28443c; border-radius: 6px; background: #0e1a17; padding: 15px 16px;
+  }
+  .chip b { display: block; font-size: 16.5px; color: #ecf4f1; margin-bottom: 5px; }
+  .chip b::before { content: "▮ "; color: #59f0b5; }
+  .chip span { font-size: 13px; color: #8ba39c; line-height: 1.45; display: block; }
+  .gate {
+    margin-top: 16px; border: 1px dashed #5a4a26; border-radius: 6px; padding: 12px 14px;
+    color: #f3c56c; font-family: Consolas, "Courier New", monospace; font-size: 13.5px; text-align: center;
+  }
+  .tools {
+    margin-top: 26px; border: 1px solid #28443c; border-radius: 8px; background: #0b1513; padding: 16px 20px;
+  }
+  .tools h3 { font-size: 14px; letter-spacing: 2px; text-transform: uppercase; color: #77f2c0; margin-bottom: 12px; }
+  .toolchips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .tc {
+    font-family: Consolas, "Courier New", monospace; font-size: 13px; color: #d5dfdc;
+    border: 1px solid #243a34; border-radius: 4px; padding: 6px 10px; background: #0e1a17;
+  }
+  .tc b { color: #78edbb; font-weight: 700; }
+</style>
+</head>
+<body>
+  <div class="title">
+    <h1>One gateway, <em>every entry point</em>, governed providers</h1>
+    <p>Clients keep their native protocols; the gateway adds keys, budgets, cache, and audit.</p>
+  </div>
+  <div class="flow">
+    <div class="col">
+      <h2>Clients</h2>
+      <div class="item"><b>OpenAI SDK</b><span>/v1/chat/completions · streaming · tools</span></div>
+      <div class="item"><b>Anthropic SDK</b><span>/v1/messages · native SSE streaming</span></div>
+      <div class="item"><b>MCP stdio + HTTP</b><span>Codex · Cursor · Cline · generic</span></div>
+      <div class="item"><b>A2A v1.0</b><span>Agent Card discovery · tracked tasks</span></div>
+      <div class="item"><b>CLI · HTTP</b><span>pnpm gateway · curl · plain REST</span></div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="col core">
+      <h2>Unified AI Gateway</h2>
+      <div class="chipgrid">
+        <div class="chip"><b>Prompt Enhancer</b><span>deterministic, local, original preserved</span></div>
+        <div class="chip"><b>Virtual Keys</b><span>uai- keys · day/month budgets · RPM · revoke</span></div>
+        <div class="chip"><b>Response Cache</b><span>exact + semantic · byte-identical SSE replay</span></div>
+        <div class="chip"><b>Reverse MCP</b><span>aggregate MCP upstreams · OpenAPI → MCP</span></div>
+        <div class="chip"><b>Observability</b><span>Prometheus TTFT/tokens/cache · Langfuse</span></div>
+        <div class="chip"><b>Auth & Audit</b><span>JWT · RBAC · tenant isolation · hash chain</span></div>
+      </div>
+      <div class="gate">fake provider by default — real calls need the 3-gate whitelist</div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="col">
+      <h2>Providers</h2>
+      <div class="item" style="border-color:#2e5c4c"><b style="color:#78edbb">Fake Provider — DEFAULT</b><span>deterministic · zero credentials · offline</span></div>
+      <div class="item"><b>OpenAI</b><span>behind explicit enablement</span></div>
+      <div class="item"><b>Anthropic</b><span>behind explicit enablement</span></div>
+      <div class="item"><b>Upstream MCP</b><span>HTTP + stdio, allow-listed</span></div>
+      <div class="item"><b>OpenAPI 3 specs</b><span>REST → governed MCP tools</span></div>
+    </div>
+  </div>
+  <div class="tools">
+    <h3>12 governed MCP tools — inspectable from any MCP client</h3>
+    <div class="toolchips">
+      <span class="tc"><b>gateway</b>_prompt_enhance</span>
+      <span class="tc"><b>gateway</b>_prompt_enhance_llm</span>
+      <span class="tc"><b>gateway</b>_chat</span>
+      <span class="tc"><b>gateway</b>_health</span>
+      <span class="tc"><b>gateway</b>_readiness</span>
+      <span class="tc"><b>knowledge</b>_readiness</span>
+      <span class="tc"><b>knowledge</b>_retrieve</span>
+      <span class="tc"><b>workflow</b>_run</span>
+      <span class="tc"><b>workflow</b>_actions</span>
+      <span class="tc"><b>workflow</b>_health</span>
+      <span class="tc"><b>workforce</b>_agents</span>
+      <span class="tc"><b>workforce</b>_health</span>
+    </div>
+  </div>
+</body>
+</html>

@@ -8,6 +8,7 @@ import {
 } from "./modelCapabilityRules.js";
 
 import { CHAT_MODELS, NVIDIA_TOOL_MODELS } from "./nvidiaCatalogSeeds.js";
+import { safeOutboundFetch } from "../security/safeOutboundFetch.ts";
 import {
   LIVE_MODEL_ID_BLOCKLIST,
   LIVE_PROVIDER_PREFIX_ALLOWLIST,
@@ -21,7 +22,7 @@ export const NVIDIA_PROVIDER = Object.freeze({
   retrievalBaseUrl: "https://ai.api.nvidia.com/v1",
 });
 
-export function discoverNvidiaCatalog({ allowNetwork = false, fetchImpl = globalThis.fetch } = {}) {
+export function discoverNvidiaCatalog({ allowNetwork = false, fetchImpl = safeOutboundFetch } = {}) {
   const seedRecords = createSeedCatalogRecords();
   const discovery = {
     providerId: NVIDIA_PROVIDER.providerId,
@@ -43,7 +44,7 @@ export function discoverNvidiaCatalog({ allowNetwork = false, fetchImpl = global
   };
 }
 
-export async function discoverNvidiaCatalogLive({ fetchImpl = globalThis.fetch, timeoutMs = 6000 } = {}) {
+export async function discoverNvidiaCatalogLive({ fetchImpl = safeOutboundFetch, timeoutMs = 6000 } = {}) {
   const base = discoverNvidiaCatalog({ allowNetwork: true, fetchImpl });
   if (typeof fetchImpl !== "function") {
     return {

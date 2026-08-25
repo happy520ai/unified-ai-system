@@ -1,4 +1,10 @@
 import { createKnowledgePersistence } from "./knowledgePersistence.js";
+import { createDeterministicEmbeddingProvider } from "./deterministicEmbeddingProvider.ts";
+import { createSqliteVecStore } from "./sqliteVecStore.js";
+import {
+  isKnowledgeTenantScopeKey,
+  resolveKnowledgeTenantScope,
+} from "./knowledgeTenantScope.ts";
 import {
   clampTopK,
   compareChunks,
@@ -9,6 +15,7 @@ import {
 } from "./localKnowledgeRetrieval.js";
 
 const DEFAULT_PHASE = "phase-21a-knowledge-entry";
+const SYSTEM_QUERY_SCOPE = "knowledge-system:v1";
 const DEFAULT_DOCUMENTS = [
   {
     sourceId: "unified-ai-system-defaults",
@@ -57,9 +64,47 @@ const DEFAULT_DOCUMENTS = [
 export function createLocalKnowledgeService(options = {}) {
   const phase = options.phase ?? DEFAULT_PHASE;
   const persistence = createKnowledgePersistence(options);
+  // Vector augmentation (KNOWLEDGE_INFRA_MODE=sqlite-vec)：零凭证确定性
+  // embedding + 本地向量库；关键词基线行为不变。
+  const vectorEnabled = options.vectorEnabled
+    ?? String(options.env?.KNOWLEDGE_INFRA_MODE ?? "").trim().toLowerCase() === "sqlite-vec";
+  const embeddingProvider = options.embeddingProvider
+    ?? (vectorEnabled ? createDeterministicEmbeddingProvider() : null);
+  const vectorStore = options.vectorStore
+    ?? (vectorEnabled ? createSqliteVecStore({
+      dbPath: options.env?.KNOWLEDGE_SQLITE_VEC_PATH ?? ".data/knowledge/vectors.sqlite",
+      dimension: embeddingProvider?.dimensions,
+    }) : null);
+  const vectorStoreReady = Boolean(vectorStore?.isAvailable?.());
   const defaultDocuments = normalizeDocuments(options.documents ?? DEFAULT_DOCUMENTS).map(markSystemDocument);
-  const persistedDocuments = normalizeDocuments(persistence.loadDocuments()).map(markUserDocument);
+  const persistedDocuments = normalizeDocuments(persistence.loadDocuments())
+    .filter((document) => isKnowledgeTenantScopeKey(document.tenantScopeKey))
+    .map((document) => markUserDocument(document, document.tenantScopeKey));
   let documents = mergeDocuments(defaultDocuments, persistedDocuments);
+  const embeddedDocumentKeys = new Set();
+
+  // Best-effort vector upsert: embedding failures must never break loads.
+  function upsertVectorsFor(documentsToEmbed, tenantScopeKey) {
+    if (!vectorEnabled || !vectorStoreReady || !embeddingProvider) return;
+    try {
+      const payload = documentsToEmbed.map((document) => ({
+        id: `kv:${tenantScopeKey}:${toDocumentKey(document)}`,
+        sourceId: document.sourceId,
+        title: document.title,
+        content: document.text,
+        metadata: { tenantScopeKey, systemDocument: !isUserDocument(document) },
+        embedding: embeddingProvider.embedText(`${document.title ?? ""}\n${document.text ?? ""}`),
+      }));
+      if (payload.length > 0) {
+        vectorStore.upsertDocuments(payload);
+        for (const document of documentsToEmbed) {
+          embeddedDocumentKeys.add(`${tenantScopeKey}:${toDocumentKey(document)}`);
+        }
+      }
+    } catch {
+      // 向量写回失败仅降级为关键词检索。
+    }
+  }
 
   // Query result cache (LRU-like, max 100 entries, 5 minute TTL)
   const queryCache = new Map();
@@ -67,19 +112,22 @@ export function createLocalKnowledgeService(options = {}) {
   const CACHE_TTL_MS = 5 * 60 * 1000;
 
   return {
-    getHealth() {
+    getHealth(context = {}) {
+      const tenantScope = resolveKnowledgeTenantScope(context.tenantScopeIdentity);
+      const visibleDocuments = selectVisibleDocuments(documents, tenantScope?.key);
+      const visibleUserCount = visibleDocuments.filter(isUserDocument).length;
       const persistenceStatus = persistence.getStatus();
 
       return {
         status: "ready",
         phase,
-        mode: "local-keyword",
+        mode: vectorStoreReady ? "local-keyword+vector" : "local-keyword",
         storage: persistence.storageLabel,
-        embedding: "not-configured",
-        sourceCount: new Set(documents.map((document) => document.sourceId)).size,
-        documentCount: documents.length,
-        chunkCount: documents.length,
-        supportedModes: ["keyword"],
+        embedding: vectorStoreReady ? (embeddingProvider?.id ?? "not-configured") : "not-configured",
+        sourceCount: new Set(visibleDocuments.map((document) => document.sourceId)).size,
+        documentCount: visibleDocuments.length,
+        chunkCount: visibleDocuments.length,
+        supportedModes: ["keyword", ...(vectorStoreReady ? ["vector"] : [])],
         quality: {
           queryNormalization: "unicode-nfkc-lowercase-collapse",
           ranking: "weighted-keyword-v2",
@@ -94,15 +142,16 @@ export function createLocalKnowledgeService(options = {}) {
             phrase: 0.1,
           },
         },
-        persistence: persistenceStatus,
+        persistence: createScopedPersistenceStatus(persistenceStatus, visibleUserCount),
         providerBoundary: "knowledge is not a provider lane",
       };
     },
 
-    listSources() {
+    listSources(context = {}) {
+      const tenantScope = resolveKnowledgeTenantScope(context.tenantScopeIdentity);
       const sources = new Map();
 
-      for (const document of documents) {
+      for (const document of selectVisibleDocuments(documents, tenantScope?.key)) {
         const source = sources.get(document.sourceId) ?? {
           sourceId: document.sourceId,
           title: document.sourceTitle ?? document.sourceId,
@@ -121,7 +170,8 @@ export function createLocalKnowledgeService(options = {}) {
       };
     },
 
-    loadDocuments(request = {}) {
+    loadDocuments(request = {}, context = {}) {
+      const tenantScope = resolveKnowledgeTenantScope(context.tenantScopeIdentity, { required: true });
       const sourceId = normalizeRequiredString(request.sourceId, "Knowledge load sourceId is required.");
       const sourceTitle = normalizeOptionalString(request.sourceTitle);
       const inputDocuments = Array.isArray(request.documents) ? request.documents : [];
@@ -146,27 +196,35 @@ export function createLocalKnowledgeService(options = {}) {
             ...(document.metadata ?? {}),
           },
         })),
-      ).map(markUserDocument);
+      ).map((document) => markUserDocument(document, tenantScope.key));
       const loadedKeys = new Set(loadedDocuments.map((document) => toDocumentKey(document)));
       documents = [
         ...documents.filter((document) => !loadedKeys.has(toDocumentKey(document))),
         ...loadedDocuments,
       ];
-      persistence.saveDocuments(documents.filter(isUserDocument));
+      const persistedUserDocuments = documents.filter(
+        (document) => isUserDocument(document) && isKnowledgeTenantScopeKey(document.tenantScopeKey),
+      );
+      persistence.saveDocuments(persistedUserDocuments);
+      invalidateTenantQueryCache(queryCache, tenantScope.key);
+      upsertVectorsFor(loadedDocuments, tenantScope.key);
+      const visibleDocuments = selectVisibleDocuments(documents, tenantScope.key);
+      const visibleUserCount = visibleDocuments.filter(isUserDocument).length;
 
       return {
         phase,
         status: "loaded",
         sourceId,
         loadedCount: loadedDocuments.length,
-        sourceCount: new Set(documents.map((document) => document.sourceId)).size,
-        documentCount: documents.length,
+        sourceCount: new Set(visibleDocuments.map((document) => document.sourceId)).size,
+        documentCount: visibleDocuments.length,
         documents: loadedDocuments.map(toDocumentRef),
-        persistence: persistence.getStatus(),
+        persistence: createScopedPersistenceStatus(persistence.getStatus(), visibleUserCount),
       };
     },
 
-    retrieve(request = {}) {
+    retrieve(request = {}, context = {}) {
+      const tenantScope = resolveKnowledgeTenantScope(context.tenantScopeIdentity);
       const rawQuery = typeof request.query === "string" ? request.query : "";
       const query = rawQuery.trim();
       const normalizedQuery = normalizeQuery(rawQuery);
@@ -180,18 +238,28 @@ export function createLocalKnowledgeService(options = {}) {
 
       const mode = request.mode ?? "keyword";
 
-      if (mode !== "keyword") {
-        const error = new Error(`Knowledge retrieve mode '${mode}' is not supported by the local keyword baseline.`);
+      if (mode !== "keyword" && mode !== "vector") {
+        const error = new Error(`Knowledge retrieve mode '${mode}' is not supported by the local knowledge baseline.`);
         error.code = "KNOWLEDGE_MODE_NOT_SUPPORTED";
         error.category = "knowledge";
         error.details = {
-          supportedModes: ["keyword"],
+          supportedModes: ["keyword", ...(vectorStoreReady ? ["vector"] : [])],
+        };
+        throw error;
+      }
+      if (mode === "vector" && !vectorStoreReady) {
+        const error = new Error("Vector retrieval requires KNOWLEDGE_INFRA_MODE=sqlite-vec with an available vector store.");
+        error.code = "KNOWLEDGE_VECTOR_STORE_UNAVAILABLE";
+        error.category = "knowledge";
+        error.details = {
+          supportedModes: ["keyword", ...(vectorStoreReady ? ["vector"] : [])],
         };
         throw error;
       }
 
       // Check cache
-      const cacheKey = `${normalizedQuery}:${(request.sourceIds || []).join(",")}:${request.topK || "default"}:${request.minScore || 0}`;
+      const cacheScope = tenantScope?.key ?? SYSTEM_QUERY_SCOPE;
+      const cacheKey = `${cacheScope}:${mode}:${normalizedQuery}:${(request.sourceIds || []).join(",")}:${request.topK || "default"}:${request.minScore || 0}`;
       const cached = queryCache.get(cacheKey);
       if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
         return { ...cached.result, metadata: { ...cached.result.metadata, cacheHit: true } };
@@ -203,21 +271,78 @@ export function createLocalKnowledgeService(options = {}) {
       const queryTerms = tokenize(normalizedQuery);
       const topK = clampTopK(request.topK);
       const minScore = Number.isFinite(Number(request.minScore)) ? Number(request.minScore) : 0;
-      const candidates = documents.filter((document) => !sourceIds || sourceIds.has(document.sourceId));
-      const chunks = candidates
-        .map((document) => toScoredChunk(document, { normalizedQuery, queryTerms }))
-        .filter((chunk) => chunk.score > minScore)
-        .sort(compareChunks)
-        .slice(0, topK)
-        .map((chunk, index) => ({
-          ...chunk,
-          rank: index + 1,
-        }));
+      const visibleDocuments = selectVisibleDocuments(documents, tenantScope?.key);
+      const visibleUserCount = visibleDocuments.filter(isUserDocument).length;
+      const candidates = visibleDocuments.filter((document) => !sourceIds || sourceIds.has(document.sourceId));
+
+      function vectorOwnerScope(document) {
+        return isUserDocument(document) && isKnowledgeTenantScopeKey(document.tenantScopeKey)
+          ? document.tenantScopeKey
+          : "system";
+      }
+
+      let chunks;
+      if (mode === "vector") {
+        // 懒嵌入：把尚未入向量库的可见文档按归属域（system/租户）分组写入。
+        const pendingByScope = new Map();
+        for (const document of candidates) {
+          const ownerScope = vectorOwnerScope(document);
+          const embeddedKey = `${ownerScope}:${toDocumentKey(document)}`;
+          if (embeddedDocumentKeys.has(embeddedKey)) continue;
+          const bucket = pendingByScope.get(ownerScope) ?? [];
+          bucket.push(document);
+          pendingByScope.set(ownerScope, bucket);
+        }
+        for (const [scope, pendingDocuments] of pendingByScope) {
+          upsertVectorsFor(pendingDocuments, scope);
+        }
+
+        const queryEmbedding = embeddingProvider.embedText(query);
+        const rawResults = vectorStore.query(queryEmbedding, {
+          topK: Math.max(topK * 3, topK),
+          ...(sourceIds ? { sourceIds: [...sourceIds] } : {}),
+        });
+        // 租户安全：向量结果必须落在当前可见文档白名单内。
+        const allowedByKey = new Map(
+          candidates.map((document) => [`kv:${vectorOwnerScope(document)}:${toDocumentKey(document)}`, document]),
+        );
+        chunks = rawResults
+          .filter((result) => allowedByKey.has(result.documentId))
+          .map((result) => {
+            const document = allowedByKey.get(result.documentId);
+            const chunk = toScoredChunk(document, { normalizedQuery, queryTerms });
+            return {
+              ...chunk,
+              score: Number(result.score.toFixed(4)),
+              vector: {
+                embeddingId: embeddingProvider.id,
+                cosineSimilarity: result.score,
+              },
+            };
+          })
+          .filter((chunk) => chunk.score > minScore)
+          .sort((a, b) => b.score - a.score)
+          .slice(0, topK)
+          .map((chunk, index) => ({
+            ...chunk,
+            rank: index + 1,
+          }));
+      } else {
+        chunks = candidates
+          .map((document) => toScoredChunk(document, { normalizedQuery, queryTerms }))
+          .filter((chunk) => chunk.score > minScore)
+          .sort(compareChunks)
+          .slice(0, topK)
+          .map((chunk, index) => ({
+            ...chunk,
+            rank: index + 1,
+          }));
+      }
 
       const result = {
         query,
         normalizedQuery,
-        mode: "keyword",
+        mode,
         chunks,
         topHit: chunks[0] ?? null,
         topChunk: chunks[0] ?? null,
@@ -227,7 +352,7 @@ export function createLocalKnowledgeService(options = {}) {
           phase,
           storage: persistence.storageLabel,
           embedding: "not-configured",
-          persistence: persistence.getStatus(),
+          persistence: createScopedPersistenceStatus(persistence.getStatus(), visibleUserCount),
           queryNormalization: "unicode-nfkc-lowercase-collapse",
           ranking: "weighted-keyword-v2",
           snippet: "first-match-window",
@@ -250,6 +375,31 @@ export function createLocalKnowledgeService(options = {}) {
 
       return result;
     },
+    deleteDocument(documentId, context = {}) {
+      const tenantScope = resolveKnowledgeTenantScope(context.tenantScopeIdentity, { required: true });
+      const normalizedDocumentId = normalizeRequiredString(documentId, "Knowledge delete documentId is required.");
+      const beforeCount = documents.length;
+      documents = documents.filter((document) => {
+        return !(
+          isUserDocument(document)
+          && document.tenantScopeKey === tenantScope.key
+          && document.documentId === normalizedDocumentId
+        );
+      });
+      const deletedCount = beforeCount - documents.length;
+      persistence.saveDocuments(documents.filter(
+        (document) => isUserDocument(document) && isKnowledgeTenantScopeKey(document.tenantScopeKey),
+      ));
+      invalidateTenantQueryCache(queryCache, tenantScope.key);
+      const visibleDocuments = selectVisibleDocuments(documents, tenantScope.key);
+
+      return {
+        status: deletedCount > 0 ? "deleted" : "not-found",
+        documentId: normalizedDocumentId,
+        deletedCount,
+        remainingCount: visibleDocuments.length,
+      };
+    },
     close() {
       persistence.close();
     },
@@ -265,6 +415,7 @@ function normalizeDocuments(documents) {
     uri: document.uri,
     text: String(document.text ?? document.content ?? ""),
     metadata: document.metadata ?? {},
+    tenantScopeKey: document.tenantScopeKey,
   }));
 }
 
@@ -275,10 +426,19 @@ function markSystemDocument(document) {
   };
 }
 
-function markUserDocument(document) {
+function markUserDocument(document, tenantScopeKey) {
+  if (!isKnowledgeTenantScopeKey(tenantScopeKey)) {
+    const error = new Error("Knowledge user document is missing its server-derived tenant scope.");
+    error.code = "KNOWLEDGE_DOCUMENT_TENANT_SCOPE_REQUIRED";
+    error.category = "authorization";
+    error.status = 403;
+    throw error;
+  }
+
   return {
     ...document,
     persistenceScope: "user",
+    tenantScopeKey,
   };
 }
 
@@ -315,5 +475,45 @@ function normalizeOptionalString(value) {
 }
 
 function toDocumentKey(document) {
-  return `${document.sourceId}:${document.documentId}`;
+  const ownerScope = document.persistenceScope === "system"
+    ? SYSTEM_QUERY_SCOPE
+    : document.tenantScopeKey ?? "knowledge-unscoped";
+  return `${ownerScope}:${document.sourceId}:${document.documentId}`;
+}
+
+function selectVisibleDocuments(documents, tenantScopeKey) {
+  return documents.filter((document) => {
+    if (document.persistenceScope === "system") {
+      return true;
+    }
+
+    return Boolean(tenantScopeKey) && document.tenantScopeKey === tenantScopeKey;
+  });
+}
+
+function invalidateTenantQueryCache(queryCache, tenantScopeKey) {
+  const prefix = `${tenantScopeKey}:`;
+  for (const cacheKey of queryCache.keys()) {
+    if (cacheKey.startsWith(prefix)) {
+      queryCache.delete(cacheKey);
+    }
+  }
+}
+
+function createScopedPersistenceStatus(status, visibleUserCount) {
+  return {
+    ...status,
+    file: status.file
+      ? {
+          ...status.file,
+          ...(Object.hasOwn(status.file, "documentCount") ? { documentCount: visibleUserCount } : {}),
+        }
+      : status.file,
+    sqlite: status.sqlite
+      ? {
+          ...status.sqlite,
+          ...(Object.hasOwn(status.sqlite, "documentCount") ? { documentCount: visibleUserCount } : {}),
+        }
+      : status.sqlite,
+  };
 }

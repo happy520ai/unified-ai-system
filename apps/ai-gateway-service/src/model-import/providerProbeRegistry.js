@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { cleanSecretValue, isLikelyMaskedSecret, maskSecret } from "../security/secretSafety.js";
+import { safeOutboundFetch } from "../security/safeOutboundFetch.ts";
 import { PROVIDER_PROBES } from "./providerProbeDefinitions.js";
 
 export const MODEL_IMPORT_SOURCE = "provider_models_api";
@@ -121,7 +122,7 @@ function createOpenAiStyleCandidates() {
   ];
 }
 
-export async function probeProviderModels({ candidate, apiKey, fetchImpl = globalThis.fetch, timeoutMs = MODEL_IMPORT_TIMEOUT_MS } = {}) {
+export async function probeProviderModels({ candidate, apiKey, fetchImpl = safeOutboundFetch, timeoutMs = MODEL_IMPORT_TIMEOUT_MS } = {}) {
   const config = PROVIDER_PROBES[candidate?.providerId];
   const clean = cleanApiKey(apiKey);
   const baseUrl = normalizeBaseUrl(candidate?.baseUrl ?? config?.baseUrl);

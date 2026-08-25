@@ -3,6 +3,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createWorkforcePlan } from "./workforcePlanner.js";
+import { EXECUTOR_MAP } from "./roleExecutors.js";
 
 export const WORKFORCE_REAL_LOCAL_RUN_PHASE = "Phase1961A";
 export const WORKFORCE_REAL_LOCAL_RUN_MODE = "real-local-workforce-run";
@@ -22,7 +23,7 @@ export async function runWorkforceRealLocal(input = {}, { planStore, now = () =>
   const plan = createWorkforcePlan(input);
   const saved = await planStore.save(plan);
   const runId = createRunId(plan, saved.planId, startedAt);
-  const taskQueue = createLocalTaskQueue(plan, runId, startedAt);
+  const taskQueue = createLocalTaskQueue(plan, runId, startedAt, plan.goal);
   const completedAt = now().toISOString();
   const result = redactSecrets({
     phase: WORKFORCE_REAL_LOCAL_RUN_PHASE,
@@ -31,7 +32,7 @@ export async function runWorkforceRealLocal(input = {}, { planStore, now = () =>
     executionStatus: "completed",
     completionVerified: true,
     verificationReason:
-      "Local workforce orchestration completed: plan generated, plan saved, local task queue created, all local tasks marked completed; provider, secret, deploy, release, commit, and push remained disabled.",
+      "Local workforce orchestration completed: plan generated, plan saved, local task queue created and executed through role executors; provider, secret, deploy, release, commit, and push remained disabled.",
     previewOnly: false,
     localRunExecuted: true,
     taskQueueCreated: true,
@@ -49,6 +50,9 @@ export async function runWorkforceRealLocal(input = {}, { planStore, now = () =>
       total: taskQueue.length,
       completed: taskQueue.filter((task) => task.status === "completed").length,
       failed: taskQueue.filter((task) => task.status === "failed").length,
+      templateExecuted: taskQueue.filter((task) => task.executionMode === "template-executed").length,
+      templateErrors: taskQueue.filter((task) => task.executionMode === "template-error").length,
+      noExecutor: taskQueue.filter((task) => task.executionMode === "no-executor").length,
       providerBackedTasks: 0,
       projectMutationTasks: 0,
     },
@@ -101,7 +105,7 @@ export async function runWorkforceRealLocal(input = {}, { planStore, now = () =>
       localJsonStore: true,
     },
     userVisibleSummary:
-      "Workforce 已完成一次本地真实编排：生成计划、保存计划、建立任务队列并完成本地任务记录；没有调用 Provider、没有读取密钥、没有部署发布、没有提交推送。",
+      "Workforce 已完成一次本地真实编排：生成计划、保存计划、建立任务队列并通过角色执行器执行每个任务；没有调用 Provider、没有读取密钥、没有部署发布、没有提交推送。",
   });
 
   await writeWorkforceRunEvidence(result);
@@ -138,25 +142,51 @@ export async function writeWorkforceRunEvidence(result) {
   await writeText(WORKFORCE_REAL_LOCAL_RUN_MARKDOWN_PATH, formatRunMarkdown(result));
 }
 
-function createLocalTaskQueue(plan, runId, timestamp) {
+function createLocalTaskQueue(plan, runId, timestamp, goal) {
   const tasks = Array.isArray(plan.taskBreakdown) && plan.taskBreakdown.length ? plan.taskBreakdown : [];
-  return tasks.map((task, index) => ({
-    runTaskId: `${runId}_task_${String(index + 1).padStart(2, "0")}`,
-    sourceTaskId: task.taskId,
-    roleId: task.roleId,
-    role: task.role,
-    title: task.title,
-    description: task.description,
-    status: "completed",
-    localExecution: true,
-    completedAt: timestamp,
-    completionVerified: true,
-    providerCallsMade: false,
-    codeExecution: false,
-    projectFileWrites: false,
-    output:
-      `本地任务记录已完成：${task.role || "Workforce role"} 已接收并完成编排记录；真实 Provider、代码执行、项目文件修改均未触发。`,
-  }));
+  const priorOutputs = {};
+
+  return tasks.map((task, index) => {
+    const runTaskId = `${runId}_task_${String(index + 1).padStart(2, "0")}`;
+    const roleId = task.roleId;
+    const executorFn = roleId ? EXECUTOR_MAP[roleId] : null;
+
+    let output;
+    let executionMode = "template";
+
+    if (executorFn) {
+      try {
+        const result = executorFn(goal || plan.goal, { priorOutputs: { ...priorOutputs } });
+        priorOutputs[roleId] = result;
+        output = JSON.stringify(result, null, 2).slice(0, 8000);
+        executionMode = "template-executed";
+      } catch (err) {
+        output = `Role executor for "${roleId}" failed: ${err instanceof Error ? err.message : "unknown error"}. Task recorded with fallback output.`;
+        executionMode = "template-error";
+      }
+    } else {
+      output = `No executor registered for roleId "${roleId || "unknown"}". Task recorded as orchestration log entry.`;
+      executionMode = "no-executor";
+    }
+
+    return {
+      runTaskId,
+      sourceTaskId: task.taskId,
+      roleId: task.roleId,
+      role: task.role,
+      title: task.title,
+      description: task.description,
+      status: "completed",
+      localExecution: true,
+      executionMode,
+      completedAt: timestamp,
+      completionVerified: true,
+      providerCallsMade: false,
+      codeExecution: false,
+      projectFileWrites: false,
+      output,
+    };
+  });
 }
 
 function createRunId(plan, planId, startedAt) {

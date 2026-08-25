@@ -6,6 +6,31 @@ Describe the user or operator problem.
 
 Summarize the focused implementation.
 
+## Language Selection
+
+For each changed runtime/module boundary, summarize the language decision:
+
+- **Language choice rationale:** (why this language is the best fit)
+- **Alternatives considered:** (A/B/C with trade-offs)
+- **Compatibility and rollback scope:** (where this can break and rollback plan)
+- **Policy impact:** (fake-provider/default behavior/contract/evidence)
+- **Risk closure:** (gates/tests/monitoring proving safe behavior)
+- **Language suitability score:** score each row from 1-5 (attach total and decision rationale)
+
+  - domain fit:
+  - maintenance:
+  - operability:
+  - safety:
+  - migration debt:
+  - ecosystem fit:
+- **Language-policy exceptions:** if any runtime JS exceptions are used, list:
+  - exception type/value
+  - justification
+  - owner
+  - removalBy date
+  - migration plan and PR/issue link
+- If PRs involve `apps/*` or `packages/*` with `.js/.cjs/.mjs`, attach the corresponding `language-policy` evidence snippet (from `.tmp/language-policy-check.json` or CI artifact report) and explicitly state why exception is needed.
+
 ## Verification
 
 List the commands and observable results used to verify the change.
@@ -32,4 +57,15 @@ behavior changes.
 - [ ] The default fake provider still works without credentials.
 - [ ] No secret, token, private endpoint, or authorization record is included.
 - [ ] Public behavior and documentation agree.
+- [ ] Changes follow the module ownership policy (TypeScript-first for new work in
+  apps/packages, Node.js ESM for tools, JSON/Markdown for schemas/docs).
+- [ ] Language selection section is completed with alternatives and compatibility impact.
+- [ ] Language was selected via [Language Selection Playbook](/docs/language-selection-playbook.md):
+  workload profile, alternatives, compatibility impact, and migration/rollback scope are documented.
+- [ ] If any language-policy exception is used, the PR body includes owner, removalBy, justification, and migration plan with a target date.
 - [ ] Production, L5, and AGI claims remain evidence-based.
+- [ ] If trend guardrails are enabled, `.tmp/quality-trend-guardrail.json` was inspected and any `issues` are explained in the PR body.
+- [ ] If trend gate is unstable, `.tmp/quality-trend-summary.md` and `.tmp/quality-ci-verification.json` were reviewed for root-cause evidence.
+- [ ] If `quality:trend-check` is enabled in CI, `.tmp/quality-trend-check.json` was reviewed and warnings/blocking are justified.
+- [ ] If changes touch `apps/*` or `packages/*`, a language suitability score is attached and any runtime JS exception is explicitly linked to an allowlist exception.
+- [ ] If trend checks are blocked or warning, attach mitigation evidence in PR body (or link to `docs/quality-trend-runbook.md`) including `quality-trend-check.json` and summary artifacts.

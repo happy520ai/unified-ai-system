@@ -10,6 +10,7 @@
 
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
+import { isObviouslyUnsafeNetworkTarget } from '../networkTargetGuard.js';
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
@@ -117,6 +118,11 @@ export async function _ensureDir(filePath) {
 
 /**
  * Fetch with a timeout using AbortController.
+ *
+ * Callers target the forge gateway at a fixed own-gateway URL (see
+ * DEFAULT_GATEWAY_URL); untrusted provider-supplied URLs go through
+ * _downloadFile, which enforces the unsafe-network-target screen.
+ *
  * @param {string} url
  * @param {RequestInit} init
  * @param {number} timeoutMs
@@ -264,9 +270,12 @@ export async function _post(url, body, timeoutMs) {
 
 // ── File Download ───────────────────────────────────────────────────────────
 
+const DOWNLOAD_MAX_BYTES = 50 * 1024 * 1024;
+
 /**
  * Download a file (image or video) from a URL or decode base64 and write to a file path.
- * Uses AbortController timeout for URL downloads.
+ * Uses AbortController timeout for URL downloads; provider-supplied URLs are
+ * screened against unsafe network targets and capped in size.
  * @param {{url?: string, b64Json?: string}} entry
  * @param {string} outputPath
  * @returns {Promise<boolean>} -- true on success, false on failure
@@ -282,6 +291,10 @@ export async function _downloadFile(entry, outputPath) {
     }
 
     if (entry.url) {
+      if (isObviouslyUnsafeNetworkTarget(entry.url)) {
+        console.error('[multimodal-client] Download blocked: unsafe network target');
+        return false;
+      }
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), DOWNLOAD_TIMEOUT_MS);
 
@@ -292,6 +305,10 @@ export async function _downloadFile(entry, outputPath) {
           return false;
         }
         const buffer = Buffer.from(await response.arrayBuffer());
+        if (buffer.byteLength > DOWNLOAD_MAX_BYTES) {
+          console.error(`[multimodal-client] Download blocked: exceeded ${DOWNLOAD_MAX_BYTES} bytes`);
+          return false;
+        }
         await writeFile(outputPath, buffer);
         return true;
       } catch (err) {

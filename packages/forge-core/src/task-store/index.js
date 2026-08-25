@@ -1,5 +1,5 @@
 /**
- * Forge Task Store — persistent storage for goals, tasks, checkpoints, and audit events.
+ * Forge Task Store �?persistent storage for goals, tasks, checkpoints, and audit events.
  *
  * Usage:
  *   const store = new TaskStore('/path/to/forge.db');
@@ -10,18 +10,57 @@
 
 import Database from 'better-sqlite3';
 import { randomUUID } from 'node:crypto';
-import { CREATE_TABLES, INSERT_SCHEMA_VERSION, MIGRATE_V2 } from './schema.js';
+import {
+  CREATE_TABLES,
+  INSERT_SCHEMA_VERSION,
+  MIGRATE_V2,
+  MIGRATE_V3,
+  MIGRATE_V4,
+} from './schema.js';
 
 export class TaskStore {
   #db;
 
-  /** @param {string} dbPath — absolute path to the SQLite file */
+  /** @param {string} dbPath �?absolute path to the SQLite file */
   constructor(dbPath) {
     this.#db = new Database(dbPath);
     this.#db.pragma('journal_mode = WAL');
     this.#db.pragma('foreign_keys = ON');
     this.#db.exec(CREATE_TABLES);
-    this.#db.exec(INSERT_SCHEMA_VERSION);
+    this.migrateSchema();
+  }
+
+  /**
+   * Normalize a JSON array field stored as text.
+   * @param {unknown} value
+   * @returns {unknown[]}
+   */
+  #normalizeJsonArray(value) {
+    if (Array.isArray(value)) return value;
+    if (typeof value === 'string') {
+      try {
+        const parsed = JSON.parse(value);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  }
+
+  /**
+   * Parse task row JSON columns into runtime arrays.
+   * @param {object} task
+   * @returns {object}
+   */
+  #normalizeTaskRow(task) {
+    if (!task) return task;
+    return {
+      ...task,
+      allowed_files: this.#normalizeJsonArray(task.allowed_files),
+      constraints: this.#normalizeJsonArray(task.constraints),
+      language: task.language ?? null,
+    };
   }
 
   /** Expose the underlying Database instance for other modules (UserManager, etc.) */
@@ -65,8 +104,8 @@ export class TaskStore {
 
   insertTaskDAG(goalId, tasks, deps) {
     const insertTask = this.#db.prepare(`
-      INSERT INTO tasks (id, goal_id, name, type, agent_role, prompt, allowed_files, estimated_min)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO tasks (id, goal_id, name, type, agent_role, prompt, allowed_files, constraints, language, estimated_min)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const insertDep = this.#db.prepare(`
       INSERT OR IGNORE INTO task_deps (goal_id, task_id, depends_on)
@@ -77,7 +116,11 @@ export class TaskStore {
       for (const t of tasks) {
         insertTask.run(
           t.id, goalId, t.name, t.type, t.agentRole ?? null,
-          t.prompt ?? null, JSON.stringify(t.allowedFiles ?? []), t.estimatedMin ?? null
+          t.prompt ?? null,
+          JSON.stringify(this.#normalizeJsonArray(t.allowedFiles ?? [])),
+          JSON.stringify(this.#normalizeJsonArray(t.constraints ?? [])),
+          t.language ?? null,
+          t.estimatedMin ?? null
         );
       }
       for (const d of deps) {
@@ -88,11 +131,15 @@ export class TaskStore {
   }
 
   getTask(goalId, taskId) {
-    return this.#db.prepare('SELECT * FROM tasks WHERE goal_id = ? AND id = ?').get(goalId, taskId);
+    return this.#normalizeTaskRow(
+      this.#db.prepare('SELECT * FROM tasks WHERE goal_id = ? AND id = ?').get(goalId, taskId)
+    );
   }
 
   getTasksForGoal(goalId) {
-    return this.#db.prepare('SELECT * FROM tasks WHERE goal_id = ? ORDER BY id').all(goalId);
+    return this.#db.prepare('SELECT * FROM tasks WHERE goal_id = ? ORDER BY id')
+      .all(goalId)
+      .map(task => this.#normalizeTaskRow(task));
   }
 
   getTaskDeps(goalId) {
@@ -233,7 +280,7 @@ export class TaskStore {
   /**
    * Update the status of an existing session.
    * @param {string} sessionId
-   * @param {string} status — one of 'active'|'paused'|'completed'|'transferred'
+   * @param {string} status �?one of 'active'|'paused'|'completed'|'transferred'
    */
   updateSessionStatus(sessionId, status) {
     const now = new Date().toISOString();
@@ -413,17 +460,18 @@ export class TaskStore {
   }
 
   // ── Migration ────────────────────────────────────────────────────────
-
   /**
-   * Run the V1 → V2 migration. Each ALTER TABLE statement is wrapped in
-   * try-catch so that re-running on an already-migrated database is safe.
+   * Run migration statements for all historical schema upgrades.
+   * Each ALTER TABLE statement is wrapped in try-catch so re-runs are idempotent.
    */
   migrateSchema() {
-    for (const sql of MIGRATE_V2) {
-      try {
-        this.#db.exec(sql);
-      } catch {
-        // Column already exists — safe to ignore
+    for (const migrationSet of [MIGRATE_V2, MIGRATE_V3, MIGRATE_V4]) {
+      for (const sql of migrationSet) {
+        try {
+          this.#db.exec(sql);
+        } catch {
+          // Column already exists is safe to ignore when migrating multiple times.
+        }
       }
     }
     this.#db.exec(INSERT_SCHEMA_VERSION);

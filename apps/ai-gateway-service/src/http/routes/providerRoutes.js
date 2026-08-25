@@ -107,12 +107,11 @@ export function createProviderRoutes(application, helpers) {
   // ── 导出 ──
 
   const handlers = new Map([
-    ["GET /providers", { handler: handleProviders, public: true, description: "列出所有 Provider" }],
+    ["GET /providers", { handler: handleProviders, public: false, permission: "provider:read", description: "列出所有 Provider" }],
     ["GET /config/runtime", { handler: handleConfigRuntime, public: false, permission: "provider:read", description: "运行时配置" }],
-    ["GET /route/modes", { handler: handleRouteModes, public: true, description: "路由模式" }],
-    ["POST /route", { handler: handleRoute, public: true, description: "路由决策" }],
+    ["GET /route/modes", { handler: handleRouteModes, public: false, permission: "provider:read", description: "路由模式" }],
+    ["POST /route", { handler: handleRoute, public: false, permission: "chat:use", description: "路由决策" }],
   ]);
 
   return { handlers };
 }
-

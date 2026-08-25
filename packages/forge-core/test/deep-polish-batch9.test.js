@@ -206,7 +206,23 @@ describe("Batch9-6: runtimeCredentialStore cleans up temp files on failure", () 
     const persistStart = src.indexOf("function persistCredentials");
     assert.ok(persistStart > 0, "persistCredentials function should exist");
 
-    const persistSrc = src.slice(persistStart, persistStart + 1500);
+    const nextFunctionNames = [
+      "function normalizePersistedRecord",
+      "function isPersistableRecord",
+      "function isPersistableApiKey",
+      "function mergeModels",
+      "function normalizeStoredModels",
+      "function normalizeTimestamp",
+    ];
+    let persistEnd = src.length;
+    for (const marker of nextFunctionNames) {
+      const markerIndex = src.indexOf(marker, persistStart + 1);
+      if (markerIndex > -1 && markerIndex < persistEnd) {
+        persistEnd = markerIndex;
+      }
+    }
+
+    const persistSrc = src.slice(persistStart, persistEnd);
     assert.ok(persistSrc.includes("catch"), "Should have a catch block");
     assert.ok(persistSrc.includes("unlinkSync(tmpPath)"), "Catch block should call unlinkSync(tmpPath)");
     assert.ok(persistSrc.includes("existsSync(tmpPath)"), "Should check if tmpPath exists before deleting");
@@ -229,7 +245,9 @@ describe("Batch9-7: WebSocket error message sanitization", () => {
     // Find the WebSocket onMessage error handler
     const wsHandlerStart = src.indexOf("async onMessage(message, ws)");
     assert.ok(wsHandlerStart > 0, "WebSocket onMessage handler should exist");
-    const wsSection = src.slice(wsHandlerStart, wsHandlerStart + 1200);
+    const wsHandlerEnd = src.indexOf("\n    onClose(ws)", wsHandlerStart);
+    assert.ok(wsHandlerEnd > wsHandlerStart, "WebSocket onMessage handler boundary should exist");
+    const wsSection = src.slice(wsHandlerStart, wsHandlerEnd);
 
     // Should NOT send e.message directly
     assert.ok(!wsSection.includes("message: e.message"), "Must NOT send raw e.message to WebSocket client");

@@ -1,8 +1,10 @@
 node_modules/
 dist/
 build/
-docs/examples/bin/
-docs/examples/obj/
+docs/examples/**/bin/
+docs/examples/**/obj/
+__pycache__/
+*.py[cod]
 coverage/
 .turbo/
 .cache/
@@ -12,6 +14,9 @@ cache/
 temp/
 .codex/*
 !.codex/config.toml
+# ZCode stores an absolute-path MCP launcher per machine; keep it local-only.
+# A portable relative-path example lives in docs/mcp-client-compatibility.md.
+.zcode/
 .codex-context/
 .codex-handoff/
 .codex-localappdata/
@@ -45,6 +50,8 @@ temp_phase*_backup/
 .pnpm-tmp/
 .serena/
 .test-session-memory-*/
+packages/forge-core/.test-*/
+.workbuddy/
 .tool-appdata/
 .tool-cache/
 .tool-corepack/

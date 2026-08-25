@@ -5,6 +5,8 @@
 // =============================================================================
 
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 
 const ALGORITHM = "HS256";
 const DEFAULT_EXPIRES_IN_MS = 24 * 60 * 60 * 1000; // 24h
@@ -21,9 +23,50 @@ export function createAuthTokenService(options = {}) {
   const refreshExpiresInMs = options.refreshExpiresInMs ?? DEFAULT_REFRESH_EXPIRES_IN_MS;
   const enterpriseGovernanceService = options.enterpriseGovernanceService;
 
-  // Token 黑名单（登出/撤销时使用）
-  const tokenBlacklist = new Set();
+  // Revocation list keyed by jti with the token's exp. Persisted to disk so
+  // revocations survive restarts; expired entries are purged instead of
+  // blindly evicting the oldest (which could resurrect a revoked token).
+  const revokedJtis = new Map();
   const MAX_BLACKLIST_SIZE = 10000;
+  const revocationStorePath = options.revocationStorePath === null
+    ? null
+    : resolve(options.revocationStorePath ?? ".data/enterprise/revoked-jtis.json");
+
+  function loadRevocations() {
+    if (!revocationStorePath) return;
+    try {
+      if (!existsSync(revocationStorePath)) return;
+      const parsed = JSON.parse(readFileSync(revocationStorePath, "utf8"));
+      const now = Date.now();
+      for (const [jti, exp] of Object.entries(parsed ?? {})) {
+        if (typeof jti === "string" && jti && Number.isFinite(Number(exp)) && Number(exp) > now) {
+          revokedJtis.set(jti, Number(exp));
+        }
+      }
+    } catch {
+      // A corrupted revocation store must not brick the service; it starts
+      // empty and the next revoke rewrites it.
+    }
+  }
+
+  function persistRevocations() {
+    if (!revocationStorePath) return;
+    try {
+      mkdirSync(dirname(revocationStorePath), { recursive: true });
+      writeFileSync(revocationStorePath, JSON.stringify(Object.fromEntries(revokedJtis)), "utf8");
+    } catch {
+      // Persistence failures degrade to in-memory revocation only.
+    }
+  }
+
+  function purgeExpiredRevocations() {
+    const now = Date.now();
+    for (const [jti, exp] of revokedJtis) {
+      if (exp <= now) revokedJtis.delete(jti);
+    }
+  }
+
+  loadRevocations();
 
   /**
    * Base64url 编码
@@ -87,11 +130,6 @@ export function createAuthTokenService(options = {}) {
       return { valid: false, error: "token_missing" };
     }
 
-    // 检查黑名单
-    if (tokenBlacklist.has(token)) {
-      return { valid: false, error: "token_revoked" };
-    }
-
     const parts = token.split(".");
     if (parts.length !== 3) {
       return { valid: false, error: "token_malformed" };
@@ -115,6 +153,11 @@ export function createAuthTokenService(options = {}) {
     try {
       const payload = JSON.parse(base64urlDecode(payloadB64));
 
+      // 检查撤销（jti 级，重启与淘汰均不失效）
+      if (payload.jti && revokedJtis.has(payload.jti)) {
+        return { valid: false, error: "token_revoked", payload };
+      }
+
       // 检查过期
       if (payload.exp && Date.now() > payload.exp) {
         return { valid: false, error: "token_expired", payload };
@@ -127,25 +170,14 @@ export function createAuthTokenService(options = {}) {
   }
 
   /**
-   * 刷新 Token
+   * 刷新 Token（仅未过期 Token 可刷新旋转；过期 Token 必须重新认证）
    * @param {string} token
    * @returns {Object} { success, newToken, error }
    */
   function refreshToken(token) {
     const result = verifyToken(token);
-    if (!result.valid && result.error !== "token_expired") {
+    if (!result.valid) {
       return { success: false, error: result.error };
-    }
-
-    // 即使过期也允许刷新（在 refresh 窗口内）
-    if (!result.payload) {
-      return { success: false, error: "payload_missing" };
-    }
-
-    // 检查是否在 refresh 窗口内
-    const expiredAt = result.payload.exp;
-    if (expiredAt && Date.now() - expiredAt > refreshExpiresInMs) {
-      return { success: false, error: "refresh_window_expired" };
     }
 
     // 撤销旧 Token
@@ -159,15 +191,45 @@ export function createAuthTokenService(options = {}) {
   }
 
   /**
-   * 撤销 Token（加入黑名单）
+   * 撤销 Token（签名校验通过后按 jti 撤销；返回是否真实撤销）
    */
   function revokeToken(token) {
-    tokenBlacklist.add(token);
-    // 限制黑名单大小
-    if (tokenBlacklist.size > MAX_BLACKLIST_SIZE) {
-      const first = tokenBlacklist.values().next().value;
-      tokenBlacklist.delete(first);
+    if (!token || typeof token !== "string") return false;
+
+    const parts = token.split(".");
+    if (parts.length !== 3) return false;
+    const [headerB64, payloadB64, signature] = parts;
+    const expectedSignature = hmacSign(`${headerB64}.${payloadB64}`);
+    try {
+      const sigBuf = Buffer.from(signature, "base64url");
+      const expectedBuf = Buffer.from(expectedSignature, "base64url");
+      if (!timingSafeEqual(sigBuf, expectedBuf)) return false;
+    } catch {
+      return false;
     }
+
+    let payload;
+    try {
+      payload = JSON.parse(base64urlDecode(payloadB64));
+    } catch {
+      return false;
+    }
+    if (!payload?.jti) return false;
+
+    purgeExpiredRevocations();
+    revokedJtis.set(payload.jti, Number(payload.exp ?? Date.now() + expiresInMs));
+
+    // 超上限时淘汰"最临近自然过期"的条目（而非最早插入的），已过期的先清
+    if (revokedJtis.size > MAX_BLACKLIST_SIZE) {
+      let soonest = null;
+      for (const [jti, exp] of revokedJtis) {
+        if (!soonest || exp < soonest.exp) soonest = { jti, exp };
+      }
+      if (soonest) revokedJtis.delete(soonest.jti);
+    }
+
+    persistRevocations();
+    return true;
   }
 
   /**
@@ -245,8 +307,9 @@ export function createAuthTokenService(options = {}) {
       algorithm: ALGORITHM,
       expiresInMs,
       refreshExpiresInMs,
-      blacklistSize: tokenBlacklist.size,
+      blacklistSize: revokedJtis.size,
       maxBlacklistSize: MAX_BLACKLIST_SIZE,
+      revocationPersisted: Boolean(revocationStorePath),
       secretConfigured: !!options.secret || !!process.env.AUTH_TOKEN_SECRET,
     };
   }

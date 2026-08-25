@@ -1,0 +1,137 @@
+{
+  "openai-llama-cpp-openai": {
+    "name": "llama.cpp OpenAI-compatible profile",
+    "protocol": "OpenAI-compatible",
+    "transport": "HTTP /v1 + /chat/completions + /completions + /models",
+    "mode": "manual",
+    "tags": ["openai", "openai-compatible", "language:cpp", "language:python", "desktop", "global", "route-compatibility"],
+    "command": "llama.cpp OpenAI API bridge against local /v1",
+    "evidenceNotes": "Verify models and chat/completions compatibility using local llama.cpp OpenAI-compatible endpoint profile."
+  },
+  "openai-text-generation-inference": {
+    "name": "Hugging Face Text Generation Inference OpenAI profile",
+    "protocol": "OpenAI-compatible",
+    "transport": "HTTP /v1 + /chat/completions + /models",
+    "mode": "manual",
+    "tags": ["openai", "openai-compatible", "provider:huggingface", "language:python", "language:docker", "global", "route-compatibility"],
+    "command": "Hugging Face TGI OpenAI-compatible client path against local /v1",
+    "evidenceNotes": "Validate model listing and chat completion through TGI-compatible OpenAI profile."
+  },
+  "openai-llama-index-rs": {
+    "name": "LlamaIndex Rust OpenAI-compatible profile",
+    "protocol": "OpenAI-compatible",
+    "transport": "HTTP /v1 + /chat/completions + /models",
+    "mode": "manual",
+    "tags": ["openai", "openai-compatible", "language:rust", "framework:llamaindex", "global", "gateway-wrapper"],
+    "command": "Rust LlamaIndex OpenAI-compatible sample against local /v1",
+    "evidenceNotes": "Run Rust LlamaIndex list-models and chat checks against local fake endpoint."
+  },
+  "openai-llamaindex-net": {
+    "name": "LlamaIndex .NET OpenAI-compatible profile",
+    "protocol": "OpenAI-compatible",
+    "transport": "HTTP /v1 + /chat/completions + /models",
+    "mode": "manual",
+    "tags": ["openai", "openai-compatible", "language:dotnet", "framework:llamaindex", "global", "gateway-wrapper"],
+    "command": "LlamaIndex .NET OpenAI-compatible sample against local /v1",
+    "evidenceNotes": "Run .NET LlamaIndex chat/list-models checks against local OpenAI-compatible gateway endpoint."
+  },
+  "openai-llamaindex-php": {
+    "name": "LlamaIndex PHP OpenAI-compatible profile",
+    "protocol": "OpenAI-compatible",
+    "transport": "HTTP /v1 + /chat/completions + /models",
+    "mode": "manual",
+    "tags": ["openai", "openai-compatible", "language:php", "framework:llamaindex", "global", "gateway-wrapper"],
+    "command": "LlamaIndex PHP OpenAI-compatible sample against local /v1",
+    "evidenceNotes": "Run PHP LlamaIndex list-models and chat checks and capture compatibility proof."
+  },
+  "mcp-zed": {
+    "name": "Zed MCP host profile",
+    "protocol": "MCP",
+    "transport": "stdio",
+    "mode": "manual",
+    "tags": ["mcp", "agent-host", "code-editor", "global", "mainstream"],
+    "command": "Zed MCP client host against unified-ai-system",
+    "evidenceNotes": "Run host startup and tool availability/readiness checks with local MCP profile."
+  },
+  "mcp-vscode": {
+    "name": "VS Code MCP host profile",
+    "protocol": "MCP",
+    "transport": "stdio",
+    "mode": "automated",
+    "tags": ["mcp", "agent-host", "code-editor", "global", "mainstream"],
+    "command": "node docs/examples/client-runtime-smoke.mjs --client=mcp-vscode",
+    "evidenceNotes": "Launch an isolated VS Code Extension Host, start the configured MCP server, discover all 12 tools through vscode.lm.tools, invoke prompt enhancement through vscode.lm.invokeTool, and verify cleanup without a model request."
+  },
+  "mcp-claude-code": {
+    "name": "Claude Code MCP host profile",
+    "protocol": "MCP",
+    "transport": "stdio",
+    "mode": "automated",
+    "tags": ["mcp", "agent-host", "cli-host", "anthropic", "official", "global", "mainstream"],
+    "command": "node docs/examples/client-runtime-smoke.mjs --client=mcp-claude-code",
+    "evidenceNotes": "Run the official Claude Code CLI in an isolated home and capture MCP handshake plus 12-tool discovery without a model request."
+  },
+  "mcp-gemini-cli": {
+    "name": "Gemini CLI MCP host profile",
+    "protocol": "MCP",
+    "transport": "stdio",
+    "mode": "automated",
+    "tags": ["mcp", "agent-host", "cli-host", "google", "official", "global", "mainstream"],
+    "command": "node docs/examples/client-runtime-smoke.mjs --client=mcp-gemini-cli",
+    "evidenceNotes": "Run the official Gemini CLI in an isolated trusted workspace and capture MCP handshake plus 12-tool discovery without a model request."
+  },
+  "mcp-opencode-cli": {
+    "name": "OpenCode CLI MCP host profile",
+    "protocol": "MCP",
+    "transport": "stdio",
+    "mode": "automated",
+    "tags": ["mcp", "agent-host", "cli-host", "opencode", "official", "global", "mainstream"],
+    "command": "node docs/examples/client-runtime-smoke.mjs --client=mcp-opencode-cli",
+    "evidenceNotes": "Run the official OpenCode CLI with an isolated inline configuration and capture MCP handshake plus 12-tool discovery without plugins or a model request."
+  },
+  "mcp-jetbrains": {
+    "name": "JetBrains MCP host profile",
+    "protocol": "MCP",
+    "transport": "stdio",
+    "mode": "manual",
+    "tags": ["mcp", "agent-host", "code-editor", "global", "mainstream"],
+    "command": "JetBrains MCP host against unified-ai-system",
+    "evidenceNotes": "Run JetBrains MCP host startup and verify tool list, read/write flow."
+  },
+  "mcp-rust": {
+    "name": "Rust MCP client profile",
+    "protocol": "MCP",
+    "transport": "stdio",
+    "mode": "manual",
+    "tags": ["mcp", "agent-host", "library", "global", "language:rust"],
+    "command": "Rust MCP stdio client against unified-ai-system server",
+    "evidenceNotes": "Use a Rust MCP client for stdio smoke and command-discovery verification."
+  },
+  "a2a-node": {
+    "name": "A2A Node SDK profile",
+    "protocol": "A2A",
+    "transport": "HTTP JSON-RPC",
+    "mode": "manual",
+    "tags": ["a2a", "a2a-sdk", "language:javascript", "protocol:a2a", "global", "mainstream"],
+    "command": "Node A2A client against agent-card and /a2a/jsonrpc",
+    "evidenceNotes": "Run discovery and SendMessage/GetTask/ListTasks checks from a Node A2A client."
+  },
+  "a2a-php": {
+    "name": "A2A PHP SDK profile",
+    "protocol": "A2A",
+    "transport": "HTTP JSON-RPC",
+    "mode": "manual",
+    "tags": ["a2a", "a2a-sdk", "language:php", "protocol:a2a", "global", "mainstream"],
+    "command": "PHP A2A client against agent-card and /a2a/jsonrpc",
+    "evidenceNotes": "Run discovery and SendMessage/GetTask/ListTasks checks from a PHP A2A client."
+  },
+  "a2a-go-advanced": {
+    "name": "A2A Go advanced profile",
+    "protocol": "A2A",
+    "transport": "HTTP JSON-RPC",
+    "mode": "manual",
+    "tags": ["a2a", "a2a-sdk", "language:go", "protocol:a2a", "global", "route-compatibility"],
+    "command": "Go A2A client with gateway agent-card and /a2a/jsonrpc",
+    "evidenceNotes": "Run Go-level task lifecycle smoke (discover, send, get/list) against local gateway."
+  }
+}

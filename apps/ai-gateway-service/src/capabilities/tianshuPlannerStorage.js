@@ -5,6 +5,7 @@
 
 import { readFile, writeFile, mkdir, readdir } from "node:fs/promises";
 import { join } from "node:path";
+import { safeOutboundFetch } from "../security/safeOutboundFetch.ts";
 import {
   PLANS_DIR,
   DEFAULT_GATEWAY_TIMEOUT,
@@ -126,11 +127,12 @@ export async function callGateway(gatewayUrl, planningModel, messages, options =
       max_tokens: options.maxTokens ?? 2000,
     });
 
-    const response = await fetch(url, {
+    const response = await safeOutboundFetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body,
       signal: controller.signal,
+      timeout,
     });
 
     if (!response.ok) {

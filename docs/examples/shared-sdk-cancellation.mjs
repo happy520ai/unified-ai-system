@@ -1,7 +1,12 @@
 #!/usr/bin/env node
 
 import { createServer } from "node:http";
-import { createGatewayClient } from "../../packages/shared-sdk/src/index.js";
+import {
+  GATEWAY_CLIENT_ERROR_CODES,
+  GatewayClientAbortError,
+  GatewayClientTimeoutError,
+  createGatewayClient,
+} from "../../packages/shared-sdk/src/index.js";
 
 const server = createServer((request, response) => {
   if (request.method !== "POST" || request.url !== "/chat") {
@@ -77,8 +82,12 @@ async function main() {
     callerController.abort(callerReason);
     const callerError = await expectRejection(callerRequest, "Caller cancellation");
 
-    if (callerError?.name !== "GatewayClientError" || callerError.cause !== callerReason) {
-      throw new Error("Caller cancellation did not preserve its transport cause.");
+    if (
+      !(callerError instanceof GatewayClientAbortError)
+      || callerError.code !== GATEWAY_CLIENT_ERROR_CODES.ABORTED
+      || callerError.cause !== callerReason
+    ) {
+      throw new Error("Caller cancellation did not preserve its typed error contract.");
     }
 
     const timeoutClient = createGatewayClient({ baseUrl, timeoutMs: 1_000 });
@@ -86,8 +95,12 @@ async function main() {
     await waitForRequest(2);
     const timeoutError = await expectRejection(timeoutRequest, "Timeout");
 
-    if (timeoutError?.name !== "GatewayClientError" || timeoutError.cause?.name !== "TimeoutError") {
-      throw new Error("Timeout did not expose a TimeoutError cause.");
+    if (
+      !(timeoutError instanceof GatewayClientTimeoutError)
+      || timeoutError.code !== GATEWAY_CLIENT_ERROR_CODES.TIMEOUT
+      || timeoutError.cause?.name !== "TimeoutError"
+    ) {
+      throw new Error("Timeout did not preserve its typed error contract.");
     }
 
     console.log(JSON.stringify({
@@ -96,10 +109,12 @@ async function main() {
       providerCalled: false,
       callerCancellation: {
         error: callerError.name,
+        code: callerError.code,
         cause: callerError.cause.message,
       },
       timeout: {
         error: timeoutError.name,
+        code: timeoutError.code,
         cause: timeoutError.cause.name,
       },
     }, null, 2));

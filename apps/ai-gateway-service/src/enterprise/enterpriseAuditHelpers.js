@@ -1,22 +1,51 @@
-import { readFile } from "node:fs/promises";
+import { open } from "node:fs/promises";
 
 function readOptionalString(value) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
-export async function readAuditFile(path) {
+// Audit queries read a bounded tail of the JSONL file instead of loading the
+// whole history into memory; `since` filters older than the tail window
+// simply find no entries rather than degrading the event loop.
+const AUDIT_TAIL_MAX_BYTES = 5 * 1024 * 1024;
+
+export async function readAuditFile(path, options = {}) {
+  const maxBytes = options.maxBytes ?? AUDIT_TAIL_MAX_BYTES;
+  let handle;
   try {
-    const text = await readFile(path, "utf8");
-    return text
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .map((line) => JSON.parse(line));
+    handle = await open(path, "r");
   } catch (error) {
     if (error?.code === "ENOENT") {
       return [];
     }
     throw error;
+  }
+  try {
+    const { size } = await handle.stat();
+    const readStart = Math.max(0, size - maxBytes);
+    const buffer = Buffer.alloc(size - readStart);
+    await handle.read(buffer, 0, buffer.length, readStart);
+    let text = buffer.toString("utf8");
+    if (readStart > 0) {
+      // Drop the partial leading line from the mid-file start offset.
+      const firstNewline = text.indexOf("\n");
+      text = firstNewline >= 0 ? text.slice(firstNewline + 1) : "";
+    }
+    return text
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        try {
+          return JSON.parse(line);
+        } catch {
+          // A single malformed line must not blank the whole query result.
+          return null;
+        }
+      })
+      .filter(Boolean);
+  } finally {
+    await handle.close();
   }
 }
 

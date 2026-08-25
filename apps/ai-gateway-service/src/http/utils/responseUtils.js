@@ -1,4 +1,3 @@
-import { readJson as _readFileJson } from "../../entrypoints/entrypointUtils.js";
 import { createErrorEnvelope } from "@unified-ai-system/shared-utils";
 // =============================================================================
 // responseUtils.js — HTTP 响应工具函数
@@ -13,17 +12,32 @@ import { createErrorEnvelope } from "@unified-ai-system/shared-utils";
 export async function readJson(request, maxSize = 1_048_576) {
   // If body was already parsed (e.g. by middleware), return it
   if (request.body && typeof request.body === "object") return request.body;
+  const requestMaxBodyBytes = resolveRequestBodyLimit(request, maxSize);
   const chunks = [];
   let totalSize = 0;
   for await (const chunk of request) {
     totalSize += chunk.length;
-    if (totalSize > maxSize) {
-      throw new Error(`Request body too large (max ${Math.round(maxSize / 1024)}KB)`);
+    if (totalSize > requestMaxBodyBytes) {
+      const bodyError = new Error(`Request body too large (max ${Math.round(requestMaxBodyBytes / 1024)}KB)`);
+      bodyError.code = "request_payload_too_large";
+      bodyError.statusCode = 413;
+      throw bodyError;
     }
     chunks.push(chunk);
   }
   const raw = Buffer.concat(chunks).toString("utf8");
-  return raw ? JSON.parse(raw) : {};
+  if (!raw) {
+    return {};
+  }
+  try {
+    return JSON.parse(raw);
+  } catch (error) {
+    const parseError = new Error("Request body must be valid JSON.");
+    parseError.code = "request_invalid_json";
+    parseError.statusCode = 400;
+    parseError.cause = error;
+    throw parseError;
+  }
 }
 
 /**
@@ -82,7 +96,16 @@ export function writeSseEvent(response, event, data) {
   return true;
 }
 
-const MAX_BODY_SIZE = 10 * 1024 * 1024; // 10MB
+function resolveRequestBodyLimit(request, fallbackLimit) {
+  const configured = request?.maxBodyBytes;
+  if (typeof configured === "number" && Number.isFinite(configured) && configured > 0) {
+    return configured;
+  }
+  if (typeof configured === "string" && Number.isFinite(Number(configured)) && Number(configured) > 0) {
+    return Number(configured);
+  }
+  return fallbackLimit;
+}
 
 
 /**

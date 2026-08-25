@@ -147,6 +147,25 @@ describe('P3-1: Test framework detection', () => {
     assert.ok(extra.includes("from 'vitest'"), 'should include vitest import');
   });
 
+  it('should select Python native test guidance from task language', async () => {
+    const { TesterWorker } = await import('../src/worker/tester.js');
+    const worker = new TesterWorker();
+    const extra = await worker._getExtraContext(tmpProject, { language: 'python' });
+
+    assert.ok(extra.includes('Python unittest'), 'should select Python unittest');
+    assert.ok(extra.includes('python -m unittest discover'), 'should include Python test command');
+    assert.ok(!extra.includes("from 'vitest'"), 'should not leak JavaScript framework guidance');
+  });
+
+  it('should select Go native test guidance from task language', async () => {
+    const { TesterWorker } = await import('../src/worker/tester.js');
+    const worker = new TesterWorker();
+    const extra = await worker._getExtraContext(tmpProject, { language: 'go' });
+
+    assert.ok(extra.includes('Go testing'), 'should select the Go test harness');
+    assert.ok(extra.includes('go test ./...'), 'should include the Go test command');
+  });
+
   it('should detect Mocha + Chai', async () => {
     const { TesterWorker } = await import('../src/worker/tester.js');
     const worker = new TesterWorker();

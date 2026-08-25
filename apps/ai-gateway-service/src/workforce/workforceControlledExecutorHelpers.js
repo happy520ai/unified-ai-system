@@ -16,7 +16,7 @@ export function mapPriority(priority) {
   return "P3";
 }
 
-export function createBlockedResult(plan, planId, code, message) {
+export function createBlockedResult(plan, planId, code, message, details = {}) {
   return {
     success: false,
     phase: CONTROLLED_EXECUTION_PHASE,
@@ -26,6 +26,7 @@ export function createBlockedResult(plan, planId, code, message) {
     code,
     message,
     executionStatus: "blocked",
+    ...details,
     safety: {
       executionEnabled: false,
       dryRun: true,
@@ -36,7 +37,7 @@ export function createBlockedResult(plan, planId, code, message) {
   };
 }
 
-export function createDryRunResult(plan, planId, startedAt, preScan, approvalCheck) {
+export function createDryRunResult(plan, planId, startedAt, preScan, approvalCheck, executionDescriptor) {
   const tasks = plan.taskBreakdown ?? [];
   return {
     success: true,
@@ -46,6 +47,11 @@ export function createDryRunResult(plan, planId, startedAt, preScan, approvalChe
     goal: plan.goal,
     executionStatus: "dry_run_preview",
     dryRun: true,
+    approval: {
+      approved: approvalCheck.approved === true,
+      planDigest: executionDescriptor.planDigest,
+      requiredScopes: executionDescriptor.requiredScopes,
+    },
     startedAt: startedAt.toISOString(),
     completedAt: new Date().toISOString(),
     durationMs: Date.now() - startedAt.getTime(),
@@ -59,7 +65,7 @@ export function createDryRunResult(plan, planId, startedAt, preScan, approvalChe
       wouldCaptureEvidence: true,
     },
     nextSteps: [
-      "Set WORKFORCE_EXECUTION_ENABLED=true to enable real execution",
+      "Set WORKFORCE_EXECUTION_ENABLED=true and request a non-dry-run autonomyMode",
       "Call POST /workforce/execute/approve to approve this plan",
       "Call POST /workforce/execute to run with real execution enabled",
     ],

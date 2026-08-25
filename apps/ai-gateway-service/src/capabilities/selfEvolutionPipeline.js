@@ -149,7 +149,7 @@ export function createSelfEvolutionPipeline(options = {}) {
         record.rollbackReason = reason;
 
         await mkdir(EVOLUTION_HISTORY_DIR, { recursive: true });
-        const detailPath = join(EVOLUTION_HISTORY_DIR, `${capabilityId}.json`);
+        const detailPath = join(EVOLUTION_HISTORY_DIR, `${sanitizeCapabilityId(capabilityId)}.json`);
         await writeFile(detailPath, JSON.stringify(record, null, 2), "utf8");
       }
 
@@ -280,7 +280,7 @@ export function createSelfEvolutionPipeline(options = {}) {
       record.feedback.failureRate = failureRate;
 
       // 持久化更新
-      const detailPath = join(EVOLUTION_HISTORY_DIR, `${capabilityId}.json`);
+      const detailPath = join(EVOLUTION_HISTORY_DIR, `${sanitizeCapabilityId(capabilityId)}.json`);
       await mkdir(EVOLUTION_HISTORY_DIR, { recursive: true });
       await writeFile(detailPath, JSON.stringify(record, null, 2), "utf8");
 

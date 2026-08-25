@@ -39,4 +39,26 @@ describe("request-normalizer", () => {
       taskType: "unsupported",
     })).toThrow();
   });
+
+  it("preserves normalized tool-call fields", () => {
+    const toolCalls = [{
+      id: "call_1",
+      type: "function",
+      function: { name: "lookup", arguments: "{}" },
+    }];
+    const result = normalizeGatewayRequest({
+      messages: [{ role: "assistant", content: "", toolCalls }, {
+        role: "tool",
+        content: "result",
+        toolCallId: "call_1",
+      }],
+      tools: [{ type: "function", function: { name: "lookup" } }],
+      toolChoice: "auto",
+    });
+
+    expect(result.messages[0].toolCalls).toEqual(toolCalls);
+    expect(result.messages[1].toolCallId).toBe("call_1");
+    expect(result.tools[0].function.name).toBe("lookup");
+    expect(result.toolChoice).toBe("auto");
+  });
 });

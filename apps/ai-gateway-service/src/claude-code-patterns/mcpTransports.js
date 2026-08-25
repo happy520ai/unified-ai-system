@@ -285,7 +285,7 @@ export function createHttpTransport(config) {
       try {
         // 尝试通过 SSE 建立持久连接
         const sseUrl = config.url.replace(/\/$/, "") + "/sse";
-        const response = await fetch(sseUrl, {
+        const response = await safeOutboundFetch(sseUrl, {
           headers: {
             Accept: "text/event-stream",
             ...(config.headers || {}),
@@ -320,7 +320,7 @@ export function createHttpTransport(config) {
     async send(message) {
       const url = config.url.replace(/\/$/, "") + "/message";
       try {
-        const response = await fetch(url, {
+        const response = await safeOutboundFetch(url, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -365,3 +365,4 @@ export function createHttpTransport(config) {
     },
   };
 }
+import { safeOutboundFetch } from "../security/safeOutboundFetch.ts";

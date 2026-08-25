@@ -9,12 +9,14 @@
  *
  * Autonomy modes — default stays dry-run for full backward compatibility.
  *   dry-run           → original controlled pipeline, preview only (DEFAULT)
+ *   controlled-execution → approval-gated role execution in an isolated worktree
  *   sandbox-merge     → full-power sandboxed execution, gated merge, auto-rollback
  *   sandbox-merge-auto→ sandbox-merge + auto-advance candidate branch on verify-green
  */
 
 export const AUTONOMY_MODES = Object.freeze({
   DRY_RUN: "dry-run",
+  CONTROLLED_EXECUTION: "controlled-execution",
   SANDBOX_MERGE: "sandbox-merge",
   SANDBOX_MERGE_AUTO: "sandbox-merge-auto",
 });
@@ -28,7 +30,11 @@ export function resolveAutonomyModeFrom(candidate, env) {
   const value = (candidate || env?.WORKFORCE_AUTONOMY_MODE || DEFAULT_AUTONOMY_MODE || "")
     .trim()
     .toLowerCase();
-  if (value === AUTONOMY_MODES.SANDBOX_MERGE || value === AUTONOMY_MODES.SANDBOX_MERGE_AUTO) {
+  if (
+    value === AUTONOMY_MODES.CONTROLLED_EXECUTION
+    || value === AUTONOMY_MODES.SANDBOX_MERGE
+    || value === AUTONOMY_MODES.SANDBOX_MERGE_AUTO
+  ) {
     return value;
   }
   return AUTONOMY_MODES.DRY_RUN;

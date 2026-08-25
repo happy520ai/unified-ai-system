@@ -178,7 +178,7 @@ async function run() {
 
   lines.push("");
   lines.push(
-    "Update frequency: run `pnpm growth:feedback` or `pnpm growth:campaign` after collecting community replies."
+    "Update frequency: run `node ./tools/star-growth-feedback.mjs` or `pnpm growth:campaign` after collecting community replies."
   );
 
   const markdown = `${lines.join("\n")}\n`;

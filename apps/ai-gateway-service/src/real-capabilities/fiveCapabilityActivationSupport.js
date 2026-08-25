@@ -68,10 +68,12 @@ export async function inspectCli(command, args) {
 
   const resolved = await resolveCommand(command);
   try {
+    // Execute the resolved binary directly; `cmd.exe /c` re-parses arguments
+    // and would turn future dynamic arguments into injection vectors.
     const commandPath = resolved.path || command;
     const result = await execFileAsync(
-      "cmd.exe",
-      ["/c", commandPath, ...args],
+      commandPath,
+      args,
       {
       timeout: 10_000,
       windowsHide: true,

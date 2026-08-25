@@ -27,7 +27,10 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
  * @returns {Object|null} Forge service with { forge, agentPool, handlers, shutdown } or null if disabled
  */
 export function createForgeGatewayService({ env = process.env, projectRoot, port = 3100 } = {}) {
-  if (env.FORGE_ENABLED === "false") {
+  // Archived embedding: this module is NOT wired into the gateway application
+  // (zero callers). Forge requires an explicit opt-in so any future wiring
+  // starts disabled by default.
+  if (env.FORGE_ENABLED !== "true") {
     return null;
   }
 

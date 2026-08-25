@@ -1,4 +1,4 @@
-export const WORKFORCE_PHASE = "phase-102a-agent-workforce-skeleton";
+export const WORKFORCE_PHASE = "phase-102b-agent-workforce-mvp";
 
 export const WORKFORCE_ROLES = [
   {

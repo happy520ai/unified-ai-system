@@ -47,6 +47,7 @@ pnpm gateway serve            start the local gateway
 pnpm gateway status           inspect health and chat readiness
 pnpm gateway enhance [prompt] preview a structured prompt without a model call
 pnpm gateway chat [prompt]    send one request to a running gateway
+pnpm gateway spend            per-key token spend and budget status (--admin-key)
 pnpm gateway doctor           check the toolchain and connection
 pnpm gateway help             show command help
 pnpm gateway version          show the CLI version

@@ -22,6 +22,9 @@ import { callLLM } from '../llm-client.js';
 import {
   probeCodebaseDeep,
   analyzeGoalClarity,
+  inferPreferredLanguage,
+  buildLanguagePreferenceText,
+  inferTaskLanguage,
 } from './helpers.js';
 import {
   buildInitialPrompt,
@@ -89,10 +92,13 @@ export class GoalRefiner {
     // ── Step 1: Deep codebase probe ────────────────────────────────────
     console.log('[forge:refiner] Probing codebase (deep)...');
     const profile = await probeCodebaseDeep(projectRoot);
+    const preferredLanguage = inferPreferredLanguage(profile, goalText);
+    profile.preferredLanguage = preferredLanguage;
     console.log(`[forge:refiner] Codebase: ${profile.totalFileCount} files, ` +
       `frameworks=[${profile.frameworks.join(',')}], ` +
       `test=[${profile.testFrameworks.join(',')}], ` +
       `moduleSystem=${profile.moduleSystem}, monorepo=${profile.monorepo}`);
+    console.log(`[forge:refiner] Preferred language: ${preferredLanguage}`);
 
     // ── Step 2: Goal clarity analysis ──────────────────────────────────
     const clarity = analyzeGoalClarity(goalText, profile);
@@ -146,6 +152,23 @@ export class GoalRefiner {
     }
 
     // ── Step 5: Build DAG (validates, merges, cycle-checks) ────────────
+    const languageConstraint = buildLanguagePreferenceText(preferredLanguage);
+    if (Array.isArray(finalDag.tasks)) {
+      finalDag.tasks = finalDag.tasks.map((task) => {
+        const taskLanguage = task.language || inferTaskLanguage(task, preferredLanguage, goalText);
+        if (task.type !== 'implement' && task.type !== 'refactor' && task.type !== 'test') {
+          return { ...task, language: taskLanguage };
+        }
+        const nextConstraints = Array.isArray(task.constraints) ? [...task.constraints] : [];
+        const effectiveConstraint = buildLanguagePreferenceText(preferredLanguage, taskLanguage);
+        if (!nextConstraints.includes(effectiveConstraint)) nextConstraints.push(effectiveConstraint);
+        if (languageConstraint !== effectiveConstraint && !nextConstraints.includes(languageConstraint)) {
+          nextConstraints.push(languageConstraint);
+        }
+        return { ...task, language: taskLanguage, constraints: nextConstraints };
+      });
+    }
+
     const { tasks, deps } = buildDAG(finalDag.tasks);
 
     store.insertTaskDAG(goalId, tasks, deps);

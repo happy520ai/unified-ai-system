@@ -66,4 +66,16 @@ describe("chat prompt enhancement", () => {
       promptEnhancement: { enabled: true, profile: "unsupported" },
     }, config)).toThrowError(/Unsupported prompt enhancement profile/);
   });
+
+  it("enhances text while preserving inline image blocks", () => {
+    const image = { type: "image_url", image_url: { url: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=" } };
+    const result = normalizeChatBody({
+      messages: [{ role: "user", content: [image, { type: "text", text: "Describe this" }] }],
+      promptEnhancement: { enabled: true, profile: "coding", language: "en" },
+    }, config);
+
+    expect(result.messages[0].content[0]).toEqual(image);
+    expect(result.messages[0].content[1].text).toContain("Describe this");
+    expect(result.messages[0].content[1].text).toContain("# Execution requirements");
+  });
 });

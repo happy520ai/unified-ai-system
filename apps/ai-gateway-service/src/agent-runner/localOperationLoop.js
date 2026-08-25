@@ -145,7 +145,11 @@ export function proposeLocalOperation(request = {}) {
 }
 
 export async function applyApprovedLocalOperation(request = {}) {
-  const dryRun = request.dryRun !== false;
+  // This loop entrypoint only ever receives client-attested records, so it
+  // must never write files: request.dryRun cannot unlock a real apply. Real
+  // applies go through the approval-store-backed /local-operation/apply-approved
+  // route, which requires the workflow:approve permission.
+  const dryRun = true;
   const rawRecord = request.approvalRecord ?? {};
   const patchProposal = request.patchProposal ?? createLocalOperationPatchProposal({
     operationId: request.operationId,
@@ -172,16 +176,12 @@ export async function applyApprovedLocalOperation(request = {}) {
   ]));
   let applyResult = null;
 
-  if (validation.canApply && proposalReady && dryRun === false) {
+  if (validation.canApply && proposalReady) {
     applyResult = await runApprovedPatch({
       patchId: approvalRecord.operationId,
       mode: approvalRecord.permissionMode,
-      dryRun: false,
-      approvalRecord: {
-        ...approvalRecord,
-        status: "approved",
-        scope: approvalRecord.scope ?? "patch",
-      },
+      dryRun: true,
+      approvalRecord,
       allowedFiles: approvalRecord.allowedFiles,
       patchOperations: patchProposal.proposedChanges,
     });

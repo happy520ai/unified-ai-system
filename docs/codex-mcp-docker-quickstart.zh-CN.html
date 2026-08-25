@@ -6,7 +6,7 @@
     <title>Codex 接入 MCP Server：Docker 60 秒中文教程</title>
     <meta
       name="description"
-      content="使用一条 Docker 命令把 Codex 接入自托管 MCP Server，检查 9 个工具，本地增强提示词并完成无需 API Key 的安全测试。"
+      content="使用一条 Docker 命令把 Codex 接入自托管 MCP Server，检查 12 个工具，本地增强提示词并完成无需 API Key 的安全测试。"
     />
     <meta name="robots" content="index, follow, max-image-preview:large" />
     <meta name="theme-color" content="#081011" />
@@ -78,7 +78,7 @@
         "@context": "https://schema.org",
         "@type": "HowTo",
         "name": "使用 Docker 将 Codex 接入 MCP Server",
-        "description": "将 Codex 连接到固定版本、无需凭据的 MCP Server，并验证其中的 9 个工具。",
+        "description": "将 Codex 连接到固定版本、无需凭据的 MCP Server，并验证其中的 12 个工具。",
         "inLanguage": "zh-CN",
         "totalTime": "PT1M",
         "datePublished": "2026-08-02",
@@ -148,12 +148,12 @@
           <p class="eyebrow">60 秒中文教程 / 2026 年 8 月</p>
           <h1>用 Docker 将 Codex 接入 MCP Server</h1>
           <p class="article-hero-copy">
-            注册一个固定版本的容器，检查 9 个工具，并在无需克隆仓库、无需配置
+            注册一个固定版本的容器，检查 12 个工具，并在无需克隆仓库、无需配置
             Provider API Key 的情况下完成首次安全调用。
           </p>
           <div class="article-meta" aria-label="教程信息">
             <span>约 1 分钟</span>
-            <span>9 个 MCP 工具</span>
+            <span>12 个 MCP 工具</span>
             <span>默认 Fake Provider</span>
           </div>
         </div>
@@ -172,7 +172,7 @@
           <span>目录</span>
           <a href="#prerequisites">准备工作</a>
           <a href="#add">1. 注册 MCP Server</a>
-          <a href="#verify">2. 验证 9 个工具</a>
+          <a href="#verify">2. 验证 12 个工具</a>
           <a href="#first-call">3. 完成安全调用</a>
           <a href="#boundary">测试证明了什么</a>
           <a href="#troubleshooting">诊断与卸载</a>
@@ -199,7 +199,7 @@
             </p>
             <div class="article-code">
               <span aria-hidden="true">$</span>
-              <code id="codex-add-command-zh">codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.4.9</code>
+              <code id="codex-add-command-zh">codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.5.0</code>
               <button type="button" data-copy-target="codex-add-command-zh" data-copy-success="已复制" data-copy-unavailable="不可用">复制</button>
             </div>
             <p>在启动新会话前，先确认 Codex 保存了预期的镜像和参数：</p>
@@ -212,10 +212,10 @@
 
           <section id="verify">
             <p class="eyebrow dark">步骤 02 / 检查</p>
-            <h2>重启 Codex，确认 9 个工具。</h2>
+            <h2>重启 Codex，确认 12 个工具。</h2>
             <p>
               注册完成后打开一个新的 Codex 会话，在终端界面运行
-              <code>/mcp verbose</code>。连接应显示以下 9 个工具：
+              <code>/mcp verbose</code>。连接应显示以下 12 个工具：
             </p>
             <div class="article-boundary-list">
               <div><strong>Gateway</strong><span><code>gateway_health</code>、<code>gateway_readiness</code>、<code>gateway_prompt_enhance</code>、<code>gateway_chat</code></span></div>
@@ -268,7 +268,7 @@
               增强，并读取 Knowledge、Workflow 和 Workforce 的只读检查面。
             </p>
             <div class="article-boundary-list">
-              <div><strong>已经证明</strong><span>公开镜像、MCP 连接、9 个工具、本地提示增强、Fake Provider 请求</span></div>
+              <div><strong>已经证明</strong><span>公开镜像、MCP 连接、12 个工具、本地提示增强、Fake Provider 请求</span></div>
               <div><strong>没有授权</strong><span>付费 Provider、Workflow 执行、Agent 派发、数据修改</span></div>
               <div><strong>没有宣称</strong><span>生产就绪、L5 自主或 AGI</span></div>
             </div>
@@ -294,7 +294,7 @@
             </div>
             <p class="article-note">
               更多安全任务见<a href="https://github.com/happy520ai/unified-ai-system/blob/master/docs/codex-mcp-quickstart.md">源码快速上手</a>；
-              已发布包的元数据可在<a href="https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.4.9">官方 MCP Registry 条目</a>中独立核验。
+              已发布包的元数据可在<a href="https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.5.0">官方 MCP Registry 条目</a>中独立核验。
             </p>
           </section>
         </article>

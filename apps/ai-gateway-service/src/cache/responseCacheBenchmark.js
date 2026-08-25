@@ -144,13 +144,17 @@ function createCase(caseId, query, cacheDecision, cacheHitType, overrides = {}) 
 }
 
 function persistCacheArtifacts(cases) {
+  const tenantScopeIdentity = { tenantId: "local-benchmark" };
   for (const item of cases.filter((entry) => entry.cacheEligible)) {
     writeCacheRecord({
       ...item,
       response: `Preview cached answer for ${item.caseId}`,
       metadata: { caseId: item.caseId },
+      tenantScopeIdentity,
     });
-    if (item.invalidated) invalidateCache({ cacheKey: item.cacheKey, reason: "benchmark-preview" });
+    if (item.invalidated) {
+      invalidateCache({ cacheKey: item.cacheKey, reason: "benchmark-preview", tenantScopeIdentity });
+    }
   }
 }
 

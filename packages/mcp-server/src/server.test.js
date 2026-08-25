@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/client";
 import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
 import { MCP_TOOL_NAMES } from "./server.js";
+import { createGatewayRuntime } from "./runtime.js";
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const serverEntrypoint = resolve(packageRoot, "src/index.js");
@@ -65,6 +66,9 @@ test("stdio server exposes safe tools and cleans up its managed gateway", async 
     assert.equal(health.ok, true);
     assert.equal(health.gateway.managed, true);
     assert.equal(health.gateway.realProviderCallsAllowed, false);
+    assert.equal(health.gateway.authenticated, true);
+    assert.equal(health.gateway.authVerified, true);
+    assert.equal(health.gateway.authTokenExposed, false);
     assert.equal(health.result.data.status, "ready");
     assert.equal(health.result.data.realProviderEnabled, false);
     baseUrl = health.gateway.baseUrl;
@@ -120,4 +124,40 @@ test("stdio server exposes safe tools and cleans up its managed gateway", async 
 
   assert.equal(typeof baseUrl, "string");
   await waitForClosed(baseUrl);
+});
+
+test("external gateway authentication fails closed before network access", async () => {
+  await assert.rejects(
+    createGatewayRuntime({
+      env: { AI_GATEWAY_MCP_URL: "https://gateway.example.test" },
+    }),
+    /AI_GATEWAY_MCP_AUTH_TOKEN is required/,
+  );
+  await assert.rejects(
+    createGatewayRuntime({
+      env: {
+        AI_GATEWAY_MCP_URL: "https://gateway.example.test",
+        AI_GATEWAY_MCP_AUTH_TOKEN: "too-short",
+      },
+    }),
+    /at least 32 characters/,
+  );
+  await assert.rejects(
+    createGatewayRuntime({
+      env: {
+        AI_GATEWAY_MCP_URL: "http://gateway.example.test",
+        AI_GATEWAY_MCP_AUTH_TOKEN: "test-only-external-gateway-token-0000000000",
+      },
+    }),
+    /requires HTTPS for non-loopback gateways/,
+  );
+  await assert.rejects(
+    createGatewayRuntime({
+      env: {
+        AI_GATEWAY_MCP_URL: "https://user:secret@gateway.example.test",
+        AI_GATEWAY_MCP_AUTH_TOKEN: "test-only-external-gateway-token-0000000000",
+      },
+    }),
+    /must not contain URL credentials/,
+  );
 });

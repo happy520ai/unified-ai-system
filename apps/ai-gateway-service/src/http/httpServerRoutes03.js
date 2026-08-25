@@ -1,4 +1,5 @@
 import { ROUTE_NOT_HANDLED } from "./httpRouteDispatch.js";
+import { getChatResponseCacheIntegration } from "../cache/chatResponseCacheIntegration.ts";
 
 export async function dispatchHttpRoutes03(context) {
   const {
@@ -30,6 +31,7 @@ export async function dispatchHttpRoutes03(context) {
   } = context;
 
   if (request.method === "GET" && url.pathname === "/cost/summary") {
+    const tenantScopeIdentity = request.enterpriseIdentity;
     const summary = await readTokenCostSummary();
     writeJson(response, 200, createOkEnvelope({
       ...summary,
@@ -41,7 +43,7 @@ export async function dispatchHttpRoutes03(context) {
         cachePersistenceAvailable: true,
         cachePolicyVersion: createResponseCachePolicy().cacheVersion,
         mode: createResponseCachePolicy().mode,
-        summary: await readResponseCacheSummary(),
+        summary: await readResponseCacheSummary({ tenantScopeIdentity }),
       },
       cacheHardeningPreview: {
         cachePersistenceAvailable: true,
@@ -51,7 +53,7 @@ export async function dispatchHttpRoutes03(context) {
         semanticDecisionUsedAsFinalAuthority: false,
         allowIntentSoftHit: createResponseCachePolicy().allowIntentSoftHit,
         allowMultilingualIntentSoftHit: createResponseCachePolicy().allowMultilingualIntentSoftHit,
-        summary: await readResponseCacheSummary(),
+        summary: await readResponseCacheSummary({ tenantScopeIdentity }),
       },
     }, { startedAt }));
     return;
@@ -59,6 +61,7 @@ export async function dispatchHttpRoutes03(context) {
 
   if (request.method === "GET" && url.pathname === "/cache/health") {
     const policy = createResponseCachePolicy();
+    const chatHotPathConfig = getChatResponseCacheIntegration().readConfig();
     writeJson(response, 200, createOkEnvelope({
       success: true,
       enabled: policy.enabled,
@@ -70,11 +73,60 @@ export async function dispatchHttpRoutes03(context) {
       semanticDecisionUsedAsFinalAuthority: policy.semanticDecisionUsedAsFinalAuthority,
       allowIntentSoftHit: policy.allowIntentSoftHit,
       allowMultilingualIntentSoftHit: policy.allowMultilingualIntentSoftHit,
+      chatHotPath: {
+        route: "POST /v1/chat/completions",
+        enabled: chatHotPathConfig.enabled,
+        enabledBy: "AI_GATEWAY_RESPONSE_CACHE_ENABLED=true",
+        ttlMs: chatHotPathConfig.ttlMs,
+        maxPayloadBytes: chatHotPathConfig.maxPayloadBytes,
+        tenantScoped: true,
+      },
       externalApiCalled: false,
       paidApiCalled: false,
       apiKeyRead: false,
       defaultNvidiaChatLaneChanged: false,
     }, { startedAt }));
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/mcp/health") {
+    writeJson(response, 200, createOkEnvelope(
+      application.mcpGatewayService
+        ? application.mcpGatewayService.getReadiness()
+        : { status: "disabled", upstreamCount: 0 },
+      { startedAt },
+    ));
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/mcp/tools") {
+    try {
+      const result = await application.mcpGatewayService.listTools(request.enterpriseIdentity);
+      writeJson(response, 200, createOkEnvelope({
+        toolCount: result.tools.length,
+        tools: result.tools,
+        servers: result.servers,
+      }, { startedAt }));
+    } catch (error) {
+      writeCapabilityError({ response, error, startedAt, fallbackCode: "mcp_tools_list_failed" });
+    }
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/mcp/call") {
+    const body = await readCapabilityJson({ request, response, startedAt, code: "mcp_call_invalid_json" });
+    if (!body) return;
+
+    try {
+      const result = await application.mcpGatewayService.callTool(request.enterpriseIdentity, {
+        server: body.server,
+        tool: body.tool,
+        ...(body.arguments && typeof body.arguments === "object" ? { arguments: body.arguments } : {}),
+      });
+      writeJson(response, 200, createOkEnvelope(result, { startedAt }));
+    } catch (error) {
+      writeCapabilityError({ response, error, startedAt, fallbackCode: "mcp_tool_call_failed" });
+    }
     return;
   }
 
@@ -84,16 +136,19 @@ export async function dispatchHttpRoutes03(context) {
 
     try {
       const key = body.cacheKey ? { cacheKey: body.cacheKey } : createResponseCacheKey(body);
-      const result = await lookupCache({ cacheKey: key.cacheKey });
+      const result = await lookupCache({
+        cacheKey: key.cacheKey,
+        tenantScopeIdentity: request.enterpriseIdentity,
+      });
       writeJson(response, 200, createOkEnvelope({
         mode: createResponseCachePolicy().mode,
-        cacheKey: key.cacheKey,
         cacheDecision: result.cacheDecision,
         cacheHitType: result.cacheHitType,
         duplicateReason: result.duplicateReason,
         finalDecisionBy: result.finalDecisionBy,
         semanticDecisionUsedAsFinalAuthority: false,
         ...result,
+        cacheKey: key.cacheKey,
         intentSignature: result.intentSignature ?? key.intentSignature,
         paraphraseGroupId: result.paraphraseGroupId ?? key.paraphraseGroupId,
         queryLanguage: result.queryLanguage ?? key.queryLanguage,
@@ -120,6 +175,7 @@ export async function dispatchHttpRoutes03(context) {
       const result = await writeCacheRecord({
         ...body,
         cacheKey: key.cacheKey,
+        tenantScopeIdentity: request.enterpriseIdentity,
         rawQueryHash: key.rawQueryHash ?? body.rawQueryHash,
         normalizedQueryHash: key.normalizedQueryHash ?? body.normalizedQueryHash ?? key.queryHash,
         queryHash: key.queryHash ?? body.queryHash,
@@ -133,6 +189,7 @@ export async function dispatchHttpRoutes03(context) {
       writeJson(response, 200, createOkEnvelope({
         mode: createResponseCachePolicy().mode,
         ...result,
+        cacheKey: key.cacheKey,
         externalApiCalled: false,
         paidApiCalled: false,
         apiKeyRead: false,
@@ -151,10 +208,12 @@ export async function dispatchHttpRoutes03(context) {
       const result = await invalidateCache({
         cacheKey: body.cacheKey,
         reason: body.reason ?? "preview-http-invalidate",
+        tenantScopeIdentity: request.enterpriseIdentity,
       });
       writeJson(response, 200, createOkEnvelope({
         mode: createResponseCachePolicy().mode,
         ...result,
+        cacheKey: body.cacheKey,
         externalApiCalled: false,
         paidApiCalled: false,
         apiKeyRead: false,
@@ -168,7 +227,7 @@ export async function dispatchHttpRoutes03(context) {
   if (request.method === "GET" && url.pathname === "/cache/summary") {
     writeJson(response, 200, createOkEnvelope({
       mode: createResponseCachePolicy().mode,
-      ...(await readResponseCacheSummary()),
+      ...(await readResponseCacheSummary({ tenantScopeIdentity: request.enterpriseIdentity })),
       allowIntentSoftHit: createResponseCachePolicy().allowIntentSoftHit,
       allowMultilingualIntentSoftHit: createResponseCachePolicy().allowMultilingualIntentSoftHit,
       semanticModelEnabled: false,
@@ -185,7 +244,10 @@ export async function dispatchHttpRoutes03(context) {
     const limit = Number(url.searchParams.get("limit") ?? 100);
     writeJson(response, 200, createOkEnvelope({
       mode: createResponseCachePolicy().mode,
-      events: await listResponseCacheAuditTrail({ limit }),
+      events: await listResponseCacheAuditTrail({
+        limit,
+        tenantScopeIdentity: request.enterpriseIdentity,
+      }),
       externalApiCalled: false,
       paidApiCalled: false,
       apiKeyRead: false,
@@ -366,7 +428,7 @@ export async function dispatchHttpRoutes03(context) {
     } else {
       try {
         const payload = { msg_type: "text", content: { text: `[${body.title || "AI Gateway"}]\n${body.body || body.text || ""}` } };
-        const resp = await fetch(webhookUrl, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
+        const resp = await safeOutboundFetch(webhookUrl, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
         const result = await resp.json().catch(() => ({}));
         writeJson(response, 200, createOkEnvelope({
           route: "/connectors/feishu/send", delivered: resp.ok && result.code === 0, dryRun: false,
@@ -392,7 +454,7 @@ export async function dispatchHttpRoutes03(context) {
     } else {
       try {
         const payload = { msgtype: "text", text: { content: `[${body.title || "AI Gateway"}]\n${body.body || body.text || ""}` } };
-        const resp = await fetch(webhookUrl, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
+        const resp = await safeOutboundFetch(webhookUrl, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
         const result = await resp.json().catch(() => ({}));
         writeJson(response, 200, createOkEnvelope({
           route: "/connectors/wecom/send", delivered: resp.ok && result.errcode === 0, dryRun: false,
@@ -408,3 +470,4 @@ export async function dispatchHttpRoutes03(context) {
 
   return ROUTE_NOT_HANDLED;
 }
+import { safeOutboundFetch } from "../security/safeOutboundFetch.ts";

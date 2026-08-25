@@ -7,6 +7,7 @@ export function createAdvancedRBAC(options = {}) {
   const roles = new Map();
   const userRoles = new Map();   // userId -> Set<roleId>
   const tenants = new Map();     // tenantId -> { name, quotas, settings }
+  const persistence = options.persistence ?? null;  // optional SQLite backend
 
   // 内置角色
   const BUILTIN_ROLES = {
@@ -22,18 +23,50 @@ export function createAdvancedRBAC(options = {}) {
     roles.set(id, { id, ...role, builtin: true });
   }
 
+  // 从持久化后端恢复自定义角色、用户-角色映射、租户（fail-open：读取失败不影响启动）
+  if (persistence) {
+    try {
+      const snapshot = persistence.load();
+      for (const role of snapshot.customRoles ?? []) {
+        if (role?.id) roles.set(role.id, role);
+      }
+      for (const [userId, roleId] of snapshot.userRoles ?? []) {
+        if (!userRoles.has(userId)) userRoles.set(userId, new Set());
+        userRoles.get(userId).add(roleId);
+      }
+      for (const tenant of snapshot.tenants ?? []) {
+        if (tenant?.id) tenants.set(tenant.id, tenant);
+      }
+    } catch {
+      // fail-open: persistence read failure must not block startup.
+    }
+  }
+
+  function persistAtomically(action) {
+    if (!persistence) return;
+    try {
+      action();
+    } catch {
+      // fail-open: persistence write failure must not break in-memory RBAC.
+    }
+  }
+
   function createRole(id, name, permissions, priority = 30) {
-    roles.set(id, { id, name, permissions, priority, builtin: false });
+    const role = { id, name, permissions, priority, builtin: false };
+    roles.set(id, role);
+    persistAtomically(() => persistence.upsertRole(role));
     return roles.get(id);
   }
 
   function assignRole(userId, roleId) {
     if (!userRoles.has(userId)) userRoles.set(userId, new Set());
     userRoles.get(userId).add(roleId);
+    persistAtomically(() => persistence.addUserRole(userId, roleId));
   }
 
   function revokeRole(userId, roleId) {
     userRoles.get(userId)?.delete(roleId);
+    persistAtomically(() => persistence.removeUserRole(userId, roleId));
   }
 
   function getUserPermissions(userId) {
@@ -68,7 +101,7 @@ export function createAdvancedRBAC(options = {}) {
 
   // 租户管理
   function createTenant(id, name, settings = {}) {
-    tenants.set(id, {
+    const tenant = {
       id, name,
       quotas: {
         dailyRequests: settings.dailyRequests ?? 10000,
@@ -78,7 +111,9 @@ export function createAdvancedRBAC(options = {}) {
       },
       settings,
       createdAt: Date.now(),
-    });
+    };
+    tenants.set(id, tenant);
+    persistAtomically(() => persistence.upsertTenant(tenant));
   }
 
   function checkTenantQuota(tenantId, usage) {

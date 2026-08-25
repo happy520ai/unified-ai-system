@@ -1,4 +1,6 @@
 import { ROUTE_NOT_HANDLED } from "./httpRouteDispatch.js";
+import { resolveChatResultHttpStatus } from "./routes/chatRoutes.js";
+import { applyIdempotencyResponseHeaders } from "./idempotencyCoordinator.ts";
 
 export async function dispatchHttpRoutes06(context) {
   const {
@@ -20,13 +22,14 @@ export async function dispatchHttpRoutes06(context) {
     readEnterpriseReleaseCandidateDryRun, readEnterpriseOverview, buildPhase319FeatureStatus, readCapabilityJson,
     readEnterpriseJson, writeEnterpriseError, writeCapabilityError, normalizeChatBody,
     normalizeRagChatBody, extractChatPrompt, createRagRetrieveRequest, createRagCitations,
-    createRagPrompt, createRagChatData, OWNER_AUTOMATION_CHAT_PROPOSAL_FLAG, application,
+    createRagMessages, createRagChatData, OWNER_AUTOMATION_CHAT_PROPOSAL_FLAG, application,
     request, response, url, startedAt,
     approvalStore, fileContextStore, phase319LocalOperation, connectorFeishuDryRun,
     connectorWeComDryRun, capabilityRouterService, codexExecCrsRuntimeCandidate, enterpriseGovernanceService,
     enterpriseOpsService, fiveCapabilityActivationService, gatewayService, knowledgeService,
     modelImportService, modelLibraryStore, providerConfigRoutes, userExperienceService,
     workforceService, workflowService, wsServer,
+    idempotencyCoordinator,
   } = context;
 
   if (request.method === "POST" && url.pathname === "/knowledge/retrieve") {
@@ -46,7 +49,7 @@ export async function dispatchHttpRoutes06(context) {
     }
 
     try {
-      const result = knowledgeService.retrieve(body);
+      const result = knowledgeService.retrieve(body, getRequestContext(request));
       writeServiceLog("knowledge_retrieve_completed", {
         method: request.method,
         path: url.pathname,
@@ -100,13 +103,13 @@ export async function dispatchHttpRoutes06(context) {
       }
 
       const retrieveRequest = createRagRetrieveRequest(body, prompt);
-      const retrieveResult = knowledgeService.retrieve(retrieveRequest);
+      const retrieveResult = knowledgeService.retrieve(retrieveRequest, getRequestContext(request));
       const citations = createRagCitations(retrieveResult.chunks);
-      const augmentedPrompt = createRagPrompt(prompt, citations);
+      const ragMessages = createRagMessages(prompt, citations);
       const chatInput = normalizeRagChatBody(
         {
           ...body,
-          prompt: augmentedPrompt,
+          prompt,
           metadata: {
             ...(body.metadata ?? {}),
             phase: "phase-31a-rag-stream-chat",
@@ -117,6 +120,7 @@ export async function dispatchHttpRoutes06(context) {
           },
         },
         application.config,
+        { messages: ragMessages },
       );
 
       let clientClosed = false;
@@ -205,13 +209,13 @@ export async function dispatchHttpRoutes06(context) {
       }
 
       const retrieveRequest = createRagRetrieveRequest(body, prompt);
-      const retrieveResult = knowledgeService.retrieve(retrieveRequest);
+      const retrieveResult = knowledgeService.retrieve(retrieveRequest, getRequestContext(request));
       const citations = createRagCitations(retrieveResult.chunks);
-      const augmentedPrompt = createRagPrompt(prompt, citations);
+      const ragMessages = createRagMessages(prompt, citations);
       const chatInput = normalizeRagChatBody(
         {
           ...body,
-          prompt: augmentedPrompt,
+          prompt,
           metadata: {
             ...(body.metadata ?? {}),
             phase: "phase-29a-service-rag-chat",
@@ -222,6 +226,7 @@ export async function dispatchHttpRoutes06(context) {
           },
         },
         application.config,
+        { messages: ragMessages },
       );
       const chatResult = await gatewayService.execute(chatInput);
       const ragData = createRagChatData({
@@ -405,25 +410,66 @@ export async function dispatchHttpRoutes06(context) {
       return;
     }
 
-    let result = await gatewayService.execute(url.pathname === "/chat" ? gatewayInput : body);
-    if (url.pathname === "/chat" && promptEnhancement) {
-      result = {
-        ...result,
-        data: {
-          ...(result.data ?? {}),
-          promptEnhancement,
+    let result;
+    let responseStatus;
+    let idempotencyStatus = "bypassed";
+    let idempotencyReplayed = false;
+    if (url.pathname === "/chat") {
+      const idempotencyOutcome = await idempotencyCoordinator.execute({
+        request,
+        route: url.pathname,
+        payload: body,
+        operation: async () => {
+          let executionResult = await gatewayService.execute(gatewayInput);
+          if (promptEnhancement) {
+            executionResult = {
+              ...executionResult,
+              data: {
+                ...(executionResult.data ?? {}),
+                promptEnhancement,
+              },
+            };
+          }
+          return {
+            statusCode: resolveChatResultHttpStatus(executionResult),
+            payload: executionResult,
+          };
         },
-      };
+      });
+      applyIdempotencyResponseHeaders(response, idempotencyOutcome);
+      if (!idempotencyOutcome.accepted) {
+        if (idempotencyOutcome.retryAfterSeconds) {
+          response.setHeader("Retry-After", String(idempotencyOutcome.retryAfterSeconds));
+        }
+        writeJson(response, idempotencyOutcome.statusCode, createErrorEnvelope(
+          idempotencyOutcome.code,
+          idempotencyOutcome.message,
+          {
+            startedAt,
+            category: idempotencyOutcome.statusCode === 503 ? "internal" : "validation",
+            retryable: idempotencyOutcome.retryable,
+          },
+        ));
+        return;
+      }
+      result = idempotencyOutcome.value.payload;
+      responseStatus = idempotencyOutcome.value.statusCode;
+      idempotencyStatus = idempotencyOutcome.status;
+      idempotencyReplayed = idempotencyOutcome.replayed;
+    } else {
+      result = await gatewayService.execute(body);
+      responseStatus = resolveChatResultHttpStatus(result);
     }
-    writeServiceLog(result.success ? "request_completed" : "request_failed", {
+    writeServiceLog(idempotencyReplayed ? "request_idempotency_replayed" : result.success ? "request_completed" : "request_failed", {
       method: request.method,
       path: url.pathname,
       code: result.code,
       requestId: result.meta?.requestId,
       provider: result.data?.selectedProvider ?? result.error?.provider,
+      idempotencyStatus,
       durationMs: Date.now() - startedAt,
     });
-    writeJson(response, result.success ? 200 : 400, result);
+    writeJson(response, responseStatus, result);
     return;
   }
 

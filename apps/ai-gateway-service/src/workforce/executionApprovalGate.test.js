@@ -22,7 +22,8 @@ describe("execution approval gate persistence", () => {
     await gate.approve({
       planId: "plan-1",
       userId: "user-1",
-      approvedScopes: ["read"],
+      planDigest: "a".repeat(64),
+      approvedScopes: ["workforce:execute"],
     });
 
     const stored = JSON.parse(await readFile(storePath, "utf8"));

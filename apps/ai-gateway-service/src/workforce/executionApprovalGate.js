@@ -37,6 +37,13 @@ const DEFAULT_APPROVALS_PATH = resolve(process.cwd(), ".data", "workforce", "app
 export function createExecutionApprovalGate(options = {}) {
   const storePath = resolve(options.storePath || DEFAULT_APPROVALS_PATH);
   const ttlMs = options.ttlMs || DEFAULT_APPROVAL_TTL_MS;
+  let mutationTail = Promise.resolve();
+
+  function withMutationLock(operation) {
+    const current = mutationTail.then(operation, operation);
+    mutationTail = current.then(() => undefined, () => undefined);
+    return current;
+  }
 
   return {
     /**
@@ -61,51 +68,51 @@ export function createExecutionApprovalGate(options = {}) {
      * @param {string} [params.note] - 审批备注
      * @returns {Promise<object>} 审批记录
      */
-    async approve({ planId, userId, approvedScopes = [], note = "" }) {
-      // 参数验证
+    async approve({ planId, userId, planDigest, approvedScopes = [], note = "" }) {
       if (!planId || typeof planId !== "string") {
         throw createApprovalError("APPROVAL_PLAN_ID_REQUIRED", "计划 ID 是必填项");
       }
       if (!userId || typeof userId !== "string") {
         throw createApprovalError("APPROVAL_USER_ID_REQUIRED", "用户 ID 是必填项");
       }
+      if (typeof planDigest !== "string" || !/^[a-f0-9]{64}$/.test(planDigest)) {
+        throw createApprovalError("APPROVAL_PLAN_DIGEST_REQUIRED", "有效的 SHA-256 计划摘要是必填项");
+      }
+      const normalizedScopes = normalizeScopes(approvedScopes);
+      if (normalizedScopes.length === 0) {
+        throw createApprovalError("APPROVAL_SCOPES_REQUIRED", "至少需要一个明确的批准范围");
+      }
 
-      const now = new Date();
-      const expiresAt = new Date(now.getTime() + ttlMs);
-
-      // 构建审批记录
-      const approval = {
-        approvalId: `appr_${randomUUID().replace(/-/g, "").slice(0, 16)}`,
-        planId: planId.trim(),
-        userId: userId.trim(),
-        approvedScopes: Array.isArray(approvedScopes)
-          ? approvedScopes.map((s) => String(s).trim()).filter(Boolean)
-          : [],
-        note: String(note || "").trim().slice(0, 2000),
-        status: "approved",
-        approvedAt: now.toISOString(),
-        expiresAt: expiresAt.toISOString(),
-        revoked: false,
-        revokedAt: null,
-        revokedBy: null,
-      };
-
-      // 存储审批记录
-      const store = await readApprovalStore(storePath);
-      // 移除同一 planId 的旧审批（保留最新）
-      const filteredApprovals = store.approvals.filter((a) => a.planId !== approval.planId);
-      filteredApprovals.unshift(approval);
-      await writeApprovalStore(storePath, {
-        version: store.version,
-        updatedAt: now.toISOString(),
-        approvals: filteredApprovals,
+      return withMutationLock(async () => {
+        const now = new Date();
+        const expiresAt = new Date(now.getTime() + ttlMs);
+        const approval = {
+          schemaVersion: 2,
+          approvalId: `appr_${randomUUID().replace(/-/g, "").slice(0, 16)}`,
+          planId: planId.trim(),
+          userId: userId.trim(),
+          planDigest,
+          approvedScopes: normalizedScopes,
+          note: String(note || "").trim().slice(0, 2000),
+          status: "approved",
+          approvedAt: now.toISOString(),
+          expiresAt: expiresAt.toISOString(),
+          revoked: false,
+          revokedAt: null,
+          revokedBy: null,
+          consumedAt: null,
+          consumedBy: null,
+        };
+        const store = await readApprovalStore(storePath);
+        const filteredApprovals = store.approvals.filter((a) => a.planId !== approval.planId);
+        filteredApprovals.unshift(approval);
+        await writeApprovalStore(storePath, {
+          version: 2,
+          updatedAt: now.toISOString(),
+          approvals: filteredApprovals,
+        });
+        return { success: true, status: "approved", approval };
       });
-
-      return {
-        success: true,
-        status: "approved",
-        approval,
-      };
     },
 
     /**
@@ -113,51 +120,75 @@ export function createExecutionApprovalGate(options = {}) {
      * @param {string} planId - 计划 ID
      * @returns {Promise<object>} 检查结果
      */
-    async check(planId) {
-      if (!planId || typeof planId !== "string") {
+    async check(context) {
+      const normalized = normalizeApprovalContext(context);
+      if (!normalized.valid) {
         return {
           success: false,
           approved: false,
-          reason: "计划 ID 无效",
+          code: normalized.code,
+          reason: normalized.reason,
         };
       }
 
       const store = await readApprovalStore(storePath);
-      const now = new Date();
-
-      // 查找最新的有效审批记录
       const approval = store.approvals.find(
-        (a) => a.planId === planId.trim() && a.status === "approved" && !a.revoked,
+        (a) => a.planId === normalized.context.planId && a.status === "approved" && !a.revoked,
       );
-
       if (!approval) {
         return {
           success: true,
           approved: false,
+          code: "APPROVAL_NOT_FOUND",
           reason: "未找到该计划的有效审批记录",
-          planId: planId.trim(),
+          planId: normalized.context.planId,
         };
       }
+      return evaluateApproval(approval, normalized.context, new Date());
+    },
 
-      // 检查是否过期
-      const expiresAt = new Date(approval.expiresAt);
-      if (now >= expiresAt) {
+    async consume(context) {
+      const normalized = normalizeApprovalContext(context);
+      if (!normalized.valid) {
+        return { success: false, approved: false, code: normalized.code, reason: normalized.reason };
+      }
+      return withMutationLock(async () => {
+        const store = await readApprovalStore(storePath);
+        const index = store.approvals.findIndex(
+          (a) => a.planId === normalized.context.planId && a.status === "approved" && !a.revoked,
+        );
+        if (index < 0) {
+          return {
+            success: true,
+            approved: false,
+            code: "APPROVAL_NOT_FOUND",
+            reason: "未找到该计划的有效审批记录",
+            planId: normalized.context.planId,
+          };
+        }
+        const validation = evaluateApproval(store.approvals[index], normalized.context, new Date());
+        if (!validation.approved) return validation;
+
+        const now = new Date();
+        const consumedApproval = {
+          ...store.approvals[index],
+          status: "consumed",
+          consumedAt: now.toISOString(),
+          consumedBy: normalized.context.userId,
+        };
+        const approvals = [...store.approvals];
+        approvals[index] = consumedApproval;
+        await writeApprovalStore(storePath, {
+          version: 2,
+          updatedAt: now.toISOString(),
+          approvals,
+        });
         return {
-          success: true,
-          approved: false,
-          reason: `审批已过期（过期时间: ${approval.expiresAt}）`,
-          approval,
-          planId: planId.trim(),
+          ...validation,
+          consumed: true,
+          approval: consumedApproval,
         };
-      }
-
-      return {
-        success: true,
-        approved: true,
-        reason: "审批有效",
-        approval,
-        planId: planId.trim(),
-      };
+      });
     },
 
     /**
@@ -172,45 +203,34 @@ export function createExecutionApprovalGate(options = {}) {
         throw createApprovalError("APPROVAL_PLAN_ID_REQUIRED", "计划 ID 是必填项");
       }
 
-      const store = await readApprovalStore(storePath);
-      const now = new Date();
-      let revoked = false;
-
-      const updatedApprovals = store.approvals.map((a) => {
-        if (a.planId === planId.trim() && a.status === "approved" && !a.revoked) {
-          revoked = true;
-          return {
-            ...a,
-            status: "revoked",
-            revoked: true,
-            revokedAt: now.toISOString(),
-            revokedBy: String(revokedBy || "system").trim(),
-            revokeReason: String(reason || "").trim().slice(0, 1000),
-          };
+      return withMutationLock(async () => {
+        const store = await readApprovalStore(storePath);
+        const now = new Date();
+        let revoked = false;
+        const updatedApprovals = store.approvals.map((a) => {
+          if (a.planId === planId.trim() && a.status === "approved" && !a.revoked) {
+            revoked = true;
+            return {
+              ...a,
+              status: "revoked",
+              revoked: true,
+              revokedAt: now.toISOString(),
+              revokedBy: String(revokedBy || "system").trim(),
+              revokeReason: String(reason || "").trim().slice(0, 1000),
+            };
+          }
+          return a;
+        });
+        if (!revoked) {
+          return { success: false, reason: "未找到可吊销的有效审批记录", planId: planId.trim() };
         }
-        return a;
+        await writeApprovalStore(storePath, {
+          version: 2,
+          updatedAt: now.toISOString(),
+          approvals: updatedApprovals,
+        });
+        return { success: true, status: "revoked", planId: planId.trim(), revokedAt: now.toISOString() };
       });
-
-      if (!revoked) {
-        return {
-          success: false,
-          reason: "未找到可吊销的有效审批记录",
-          planId: planId.trim(),
-        };
-      }
-
-      await writeApprovalStore(storePath, {
-        version: store.version,
-        updatedAt: now.toISOString(),
-        approvals: updatedApprovals,
-      });
-
-      return {
-        success: true,
-        status: "revoked",
-        planId: planId.trim(),
-        revokedAt: now.toISOString(),
-      };
     },
 
     /**
@@ -251,26 +271,25 @@ export function createExecutionApprovalGate(options = {}) {
      * @returns {Promise<object>} 清理结果
      */
     async cleanup() {
-      const store = await readApprovalStore(storePath);
-      const now = new Date();
-      const before = store.approvals.length;
-
-      const activeApprovals = store.approvals.filter((a) => {
-        if (a.status !== "approved" || a.revoked) return true; // 保留非活跃记录
-        return now < new Date(a.expiresAt);
+      return withMutationLock(async () => {
+        const store = await readApprovalStore(storePath);
+        const now = new Date();
+        const before = store.approvals.length;
+        const activeApprovals = store.approvals.filter((a) => {
+          if (a.status !== "approved" || a.revoked) return true;
+          return now < new Date(a.expiresAt);
+        });
+        await writeApprovalStore(storePath, {
+          version: 2,
+          updatedAt: now.toISOString(),
+          approvals: activeApprovals,
+        });
+        return {
+          success: true,
+          removedCount: before - activeApprovals.length,
+          remainingCount: activeApprovals.length,
+        };
       });
-
-      await writeApprovalStore(storePath, {
-        version: store.version,
-        updatedAt: now.toISOString(),
-        approvals: activeApprovals,
-      });
-
-      return {
-        success: true,
-        removedCount: before - activeApprovals.length,
-        remainingCount: activeApprovals.length,
-      };
     },
   };
 }
@@ -322,6 +341,51 @@ function createApprovalError(code, message, details = {}) {
   const error = new Error(message);
   error.code = code;
   error.category = "approval";
+  error.statusCode = 400;
   error.details = details;
   return error;
+}
+
+function normalizeScopes(value) {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value.map((scope) => String(scope).trim()).filter(Boolean))].sort();
+}
+
+function normalizeApprovalContext(input) {
+  if (!input || typeof input !== "object") {
+    return { valid: false, code: "APPROVAL_CONTEXT_REQUIRED", reason: "完整的执行审批上下文是必填项" };
+  }
+  const planId = typeof input.planId === "string" ? input.planId.trim() : "";
+  const userId = typeof input.userId === "string" ? input.userId.trim() : "";
+  const planDigest = typeof input.planDigest === "string" ? input.planDigest.trim() : "";
+  const requiredScopes = normalizeScopes(input.requiredScopes);
+  if (!planId || !userId || !/^[a-f0-9]{64}$/.test(planDigest) || requiredScopes.length === 0) {
+    return { valid: false, code: "APPROVAL_CONTEXT_INVALID", reason: "审批校验必须绑定 planId、userId、planDigest 和 requiredScopes" };
+  }
+  return { valid: true, context: { planId, userId, planDigest, requiredScopes } };
+}
+
+function evaluateApproval(approval, context, now) {
+  if (now >= new Date(approval.expiresAt)) {
+    return {
+      success: true,
+      approved: false,
+      code: "APPROVAL_EXPIRED",
+      reason: `审批已过期（过期时间: ${approval.expiresAt}）`,
+      approval,
+      planId: context.planId,
+    };
+  }
+  if (approval.userId !== context.userId) {
+    return { success: true, approved: false, code: "APPROVAL_SUBJECT_MISMATCH", reason: "审批主体与执行主体不匹配", planId: context.planId };
+  }
+  if (approval.planDigest !== context.planDigest) {
+    return { success: true, approved: false, code: "APPROVAL_PLAN_MISMATCH", reason: "计划内容已改变，原审批不可复用", planId: context.planId };
+  }
+  const approvedScopes = new Set(normalizeScopes(approval.approvedScopes));
+  const missingScopes = context.requiredScopes.filter((scope) => !approvedScopes.has(scope));
+  if (missingScopes.length > 0) {
+    return { success: true, approved: false, code: "APPROVAL_SCOPE_MISMATCH", reason: "审批范围不足", missingScopes, planId: context.planId };
+  }
+  return { success: true, approved: true, code: "APPROVAL_VALID", reason: "审批有效", approval, planId: context.planId };
 }

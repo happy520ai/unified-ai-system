@@ -1,4 +1,5 @@
 import { createErrorEnvelope, createOkEnvelope } from "@unified-ai-system/shared-utils";
+import { safeOutboundFetch } from "../security/safeOutboundFetch.ts";
 import {
   writeJson,
   readJson,
@@ -40,17 +41,17 @@ export function createHttpServerCapabilityRoutes(ctx) {
   const handlers = new Map();
 
   // ── Approvals ──
-  handlers.set("GET /approvals", async (_request, response, { startedAt }) => {
+  handlers.set("GET /approvals", async (request, response, { startedAt }) => {
     writeJson(response, 200, createOkEnvelope({
       route: "/approvals",
-      approvals: approvalStore.list(),
+      approvals: approvalStore.list(request.enterpriseIdentity?.tenantId),
     }, { startedAt }));
   });
 
   handlers.set("POST /approvals/create", async (request, response, { startedAt }) => {
     const body = await readCapabilityJson({ request, response, startedAt, code: "approval_create_invalid_json" });
     if (!body) return;
-    const approval = approvalStore.create(body);
+    const approval = approvalStore.create(body, request.enterpriseIdentity?.tenantId);
     writeJson(response, 200, createOkEnvelope({
       route: "/approvals/create",
       approval,
@@ -65,7 +66,7 @@ export function createHttpServerCapabilityRoutes(ctx) {
   handlers.set("POST /local-operation/apply-approved", async (request, response, { startedAt }) => {
     const body = await readCapabilityJson({ request, response, startedAt, code: "apply_approved_invalid_json" });
     if (!body) return;
-    const approval = approvalStore.get(body.approvalId);
+    const approval = approvalStore.get(body.approvalId, request.enterpriseIdentity?.tenantId);
     if (!approval) {
       writeJson(response, 404, createErrorEnvelope("approval_not_found", "approvalId is required and must reference an existing approval record.", { startedAt }));
       return;
@@ -267,7 +268,7 @@ export function createHttpServerCapabilityRoutes(ctx) {
     } else {
       try {
         const payload = { msg_type: "text", content: { text: `[${body.title || "AI Gateway"}]\n${body.body || body.text || ""}` } };
-        const resp = await fetch(webhookUrl, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
+        const resp = await safeOutboundFetch(webhookUrl, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
         const result = await resp.json().catch(() => ({}));
         writeJson(response, 200, createOkEnvelope({
           route: "/connectors/feishu/send", delivered: resp.ok && result.code === 0, dryRun: false,
@@ -292,7 +293,7 @@ export function createHttpServerCapabilityRoutes(ctx) {
     } else {
       try {
         const payload = { msgtype: "text", text: { content: `[${body.title || "AI Gateway"}]\n${body.body || body.text || ""}` } };
-        const resp = await fetch(webhookUrl, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
+        const resp = await safeOutboundFetch(webhookUrl, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
         const result = await resp.json().catch(() => ({}));
         writeJson(response, 200, createOkEnvelope({
           route: "/connectors/wecom/send", delivered: resp.ok && result.errcode === 0, dryRun: false,

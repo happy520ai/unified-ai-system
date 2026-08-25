@@ -7,16 +7,125 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Nothing yet.
+
+## [0.5.0] - 2026-08-15
+
+### Added
+
+- Added reverse MCP governance: the gateway aggregates operator-declared
+  upstream MCP servers (`MCP_UPSTREAM_SERVERS_JSON`) over Streamable HTTP,
+  stdio, and a REST→MCP OpenAPI bridge, exposing them through
+  `GET /mcp/tools` and `POST /mcp/call` with tenant-scoped identities,
+  per-upstream tool allowlists, size caps, timeouts, outbound-policy egress,
+  and full audit-trail recording of every tool call. The OpenAPI bridge
+  generates governed MCP tools from any HTTPS OpenAPI 3 spec. See
+  `docs/reverse-mcp-governance.md`.
+- Added an opt-in semantic layer to the chat response cache
+  (`AI_GATEWAY_RESPONSE_CACHE_SEMANTIC_ENABLED`): exact-key misses are
+  matched against a bounded per-tenant in-memory vector index built with the
+  new credential-free deterministic embedding provider; hits replay the
+  neighbor payload and are logged/metered as `semantic`.
+- Activated vector retrieval for the local knowledge base
+  (`KNOWLEDGE_INFRA_MODE=sqlite-vec`): a credential-free deterministic
+  embedding provider (`deterministic-hash-v1`) plus the SQLite-backed vector
+  store back a new `mode: "vector"` retrieval path with lazy embedding on
+  load/retrieve, tenant-safe filtering (vector results are intersected with
+  the tenant-visible document set), and unchanged keyword-mode behavior.
+- Added chat-specific Prometheus metrics on `GET /metrics`
+  (`ai_gateway_chat_requests_total`, `ai_gateway_chat_tokens_total`,
+  `ai_gateway_chat_ttft_ms` histogram, `ai_gateway_chat_cache_events_total`,
+  `ai_gateway_chat_virtual_key_rejections_total`) with capped label
+  cardinality, plus an opt-in Langfuse export (`LANGFUSE_PUBLIC_KEY` /
+  `LANGFUSE_SECRET_KEY`) that batches generation events with usage,
+  provider, latency, cache-hit, and virtual-key fingerprint metadata,
+  truncates captured content, and fails open on export errors. See
+  `docs/observability-export.md`.
+- Added virtual keys (`uai-`) with periodic token budgets and per-key rate
+  limits. Operators create, list, and revoke keys through
+  `/enterprise/virtual-keys` (user:admin); keys authenticate through the
+  enterprise governance layer as tenant-scoped identities; and
+  `POST /v1/chat/completions` enforces a pre-request budget check (429
+  `VIRTUAL_KEY_BUDGET_EXHAUSTED` / `VIRTUAL_KEY_RATE_LIMITED`), records
+  actual usage (including response-cache hits and streaming), and emits a
+  soft-budget service-log event at the configured threshold. Keys persist as
+  SHA-256 hashes with usage counters in `.data/enterprise/api-keys.json`.
+  See `docs/virtual-keys.md`.
+- Added native streaming to the Anthropic provider adapter. `generateStream`
+  now consumes the upstream Anthropic Messages SSE stream directly (text
+  deltas, usage accounting from `message_start`/`message_delta`, stop-reason
+  mapping, inactivity-based timeout, and caller abort propagation), so
+  streaming requests no longer fail with `PROVIDER_STREAMING_UNSUPPORTED`
+  when a real Anthropic provider is selected. Also fixed the non-streaming
+  timeout error, which previously shipped without `category`/`retryable`.
+- Added an opt-in response cache for the OpenAI-compatible chat hot path.
+  With `AI_GATEWAY_RESPONSE_CACHE_ENABLED=true`, identical tenant-scoped
+  `POST /v1/chat/completions` requests replay the exact JSON or SSE wire
+  response without a provider call, reusing the existing response-cache store,
+  tenant scoping, TTL, and audit trail. See
+  `docs/response-cache-hot-path.md` for eligibility rules and operations.
+- Added a credential-gated real-provider smoke: `tools/real-provider-smoke.mjs`
+  plus the manual **Real Provider Smoke** workflow. The wrapper pins the
+  OpenAI lane, bootstraps a per-run enterprise token (real modes require
+  authentication even on loopback), enforces a timeout, treats fake-lane
+  fallback as a failure, and exits with an explicit skip when
+  `secrets.OPENAI_API_KEY` is absent, so zero-credential runs stay green.
+- Added the real provider enablement runbook
+  (`docs/real-provider-enablement.md`) covering the three-gate whitelist
+  matrix, credential provisioning paths, verification, cost control, the
+  unchanged fake boundary, and rollback.
+- Added a task handoff loop reference that documents the read and write handoff
+  endpoints, the task card schema, the standard round, and a read-only
+  connection verification card that any MCP host can run.
+- Added a design-only proposal for a gateway-driven external runner, covering
+  token scope, command whitelist, and the approval gate. No runtime code
+  implements it, and it stays closed until the repository owner authorizes it.
+
 ### Changed
 
+- Archived the forge gateway embedding: the module was never wired into the
+  application (zero callers), and now additionally requires an explicit
+  `FORGE_ENABLED=true` opt-in. Annotated the dead route modules
+  (`legacyRoutes.js`, `enterpriseRoutes.js`) as archived and recorded the
+  D-track subtraction inventory in `docs/subtraction-ledger.md`.
 - Moved the Codex plugin and manual Agent Skill procedure to the reviewed
   immutable `v0.4.9` MCP image index.
+- Documented local client convergence for the three source hosts and ignored
+  `.zcode/`, so per-machine interpreter paths stay out of version control.
+- Corrected the governed tool count in the Chinese MCP compatibility baseline
+  from nine to twelve, completing an earlier alignment that missed this line.
+- Corrected the supervised MCP service README from nine to twelve governed
+  tools and refreshed its tool list to match the MCP server README.
+
+### Fixed
+
+- Fixed managed MCP sessions losing every authenticated tool after about ten
+  minutes. The ephemeral managed token no longer carries a fixed wall-clock
+  expiry; its lifetime is bounded by the fake-provider, loopback-only gateway
+  child process that the MCP host already owns.
 
 ### Verification
 
+- Ran a live-process attack/defense regression against the gateway's new
+  surfaces (`node tools/security-attack-regression.mjs`): cross-tenant
+  cache reads, tenant-header forgery, viewer-role keys on chat/admin/MCP
+  surfaces, budget exhaustion, per-key rate limits, cross-tenant key
+  revocation, secret-like cache poisoning, anonymous and oversized MCP
+  calls, revoked-key replay, and /metrics authentication/secret hygiene —
+  16/16 outcomes defended, zero findings.
 - Reviewed both published `v0.4.9` Linux platforms without starting them,
   including OCI identities, flattened filesystems, native binaries, lifecycle
   hooks, privileged files, internal links, and credential-like artifacts.
+- Held one stdio MCP session for 12.05 minutes across twelve authenticated
+  polls with zero authentication failures, called chat successfully past the
+  former ten-minute boundary in fake mode, closed the managed gateway, and
+  recorded no new token-expiry audit entry.
+- Ran the three source client profiles concurrently from their own on-disk
+  configuration: each discovered the same twelve governed tools, held a distinct
+  loopback port, returned fake-provider output, released only its own port on
+  disconnect, and left no orphan listener.
 
 ## [0.4.9] - 2026-08-10
 
@@ -42,6 +151,17 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Documentation
 
+- Refreshed the bilingual README around the gateway platform positioning:
+  a new "Gateway Capabilities" table (virtual keys and budgets, exact +
+  semantic response cache, reverse MCP governance with REST→MCP, chat
+  observability, vector retrieval, provider governance, security drills)
+  and a Star History section. Repository topics and description were
+  updated to gateway discovery terms.
+- Added the 2026-08 growth launch kit
+  (`docs/growth-launch-kit-2026-08.md`): ready-to-post Show HN, Reddit
+  (three subreddits, three angles), an X thread, Chinese community drafts,
+  an MCP-directory/awesome-list submission checklist, and the v0.5.0
+  release-notes draft.
 - Simplified the bilingual README first screen around one visual proof, one
   prefilled no-install Prompt Lab path, and one published-container command.
 - Refreshed the reproducible social preview around the MCP gateway, Codex,

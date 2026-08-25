@@ -120,6 +120,21 @@ const MAX_READ_FILE_SIZE = 10 * 1024 * 1024;
 /** Maximum content size for file_write: 50 MB */
 const MAX_WRITE_CONTENT_SIZE = 50 * 1024 * 1024;
 
+// Additional shell_exec interception shapes (interpreter eval, IFS abuse,
+// wrapper shells, encoded payloads). Module-scope so the inline blocked list
+// inside the tool stays compact.
+const EXTRA_SHELL_EXEC_BLOCKED_PATTERNS = [
+  /\bnode\s+(-e|--eval)\b.*\b(require|child_process|execSync|spawnSync|process\.binding)\b/, // node inline shell exec
+  /\bdeno\s+(eval|run)\b.*\b(Deno\.run|Command)\b/,  // deno inline shell exec
+  /\b(bash|sh|zsh)\s+-c\b.*(\$\(|`)/,         // shell -c with substitution/backtick
+  /\$IFS[^A-Za-z]/,                            // IFS variable abuse
+  /\bxargs\s+(bash|sh|zsh)/,                  // xargs shell spawn
+  /\benv\s+(-\S+\s+)*(bash|sh|zsh)\b/,        // env wrapper shell spawn
+  /\bpowershell(\.exe)?\s+.*-EncodedCommand/,  // powershell encoded payload
+  /\bprintf\s+.*\|\s*(ba)?sh/,                // printf pipe shell
+  /\btee\s+.*\$\(/,                            // tee command substitution
+];
+
 export function createFileReadTool(workingDirectory = process.cwd()) {
   return buildTool({
     name: "file_read",
@@ -351,6 +366,7 @@ export function createShellExecTool(workingDirectory = process.cwd()) {
       /\bsocat\b.*\bEXEC\b/,                        // socat reverse shell
       /\bnc(at)?\s+.*-e\s+\/bin\/(ba)?sh/,         // netcat reverse shell
       /\b(eval|exec)\s*\(\s*\$\(/,                // command substitution injection
+      ...EXTRA_SHELL_EXEC_BLOCKED_PATTERNS,
     ];
     const trimmedCmd = (command || "").trim();
     for (const pat of BLOCKED_PATTERNS) {

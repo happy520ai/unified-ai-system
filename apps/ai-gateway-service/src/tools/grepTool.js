@@ -28,6 +28,27 @@ const IGNORE_EXTS = new Set([
 ]);
 
 const MAX_FILE_SIZE = 500_000; // skip files > 500KB
+
+const MAX_PATTERN_LENGTH = 256;
+
+// Lightweight catastrophic-backtracking screen: nested or repeated
+// quantifiers over overlapping character classes are the classic ReDoS
+// shapes ((a+)+, (a|a)*, (.*)*). Rejecting them keeps the synchronous scan
+// safe without pulling in a native regex engine.
+function assessRegexRisk(pattern) {
+  if (typeof pattern !== "string" || pattern.length === 0) return "empty pattern";
+  if (pattern.length > MAX_PATTERN_LENGTH) return `pattern longer than ${MAX_PATTERN_LENGTH} chars`;
+  if (/(\((?:[^()\\]|\\.)*[+*]\)|\[[^\]]*\][+*])[+*]/.test(pattern)) {
+    return "nested quantifier";
+  }
+  if (/\((?:[^()\\]|\\.)*\|(?:[^()\\]|\\.)*\)[+*{]/.test(pattern)) {
+    return "quantified alternation";
+  }
+  if (/\{\s*\d+\s*,\s*\d*\s*\}\s*(\{\s*\d+\s*,?\s*\d*\s*\})/.test(pattern)) {
+    return "repeated bounded quantifier";
+  }
+  return null;
+}
 const MAX_RESULTS = 200;
 const MAX_FILES_SCANNED = 3000;
 
@@ -205,10 +226,19 @@ Use this to find code patterns, function usages, imports, etc.`,
       const limit = Math.min(max_results, MAX_RESULTS);
       const safeContextLines = Math.max(0, context_lines || 0);
 
-      // Build regex
+      // Build regex — reject catastrophic-backtracking patterns and cap the
+      // pattern length so a crafted regex cannot freeze the event loop.
       let regex;
       try {
         const flags = case_insensitive ? "i" : "";
+        const patternRisk = assessRegexRisk(pattern);
+        if (patternRisk) {
+          return {
+            status: "error",
+            error: `Regex pattern rejected (${patternRisk}). Simplify the pattern.`,
+            code: "UNSAFE_REGEX",
+          };
+        }
         regex = new RegExp(pattern, flags);
       } catch (err) {
         return {

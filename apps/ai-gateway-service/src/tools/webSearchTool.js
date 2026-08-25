@@ -14,6 +14,30 @@ import { buildTool, createInputSchema } from "../claude-code-patterns/toolCore.j
 
 const DEFAULT_MAX_RESULTS = 5;
 const DEFAULT_TIMEOUT_MS = 15_000;
+const MAX_HTML_BYTES = 2 * 1024 * 1024;
+
+// Bounded HTML read so an oversized search-response body cannot balloon
+// memory before parsing.
+async function readTextWithLimit(response, maxBytes) {
+  const reader = response.body?.getReader?.();
+  if (!reader) {
+    return response.text();
+  }
+  const decoder = new TextDecoder();
+  let text = "";
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel().catch(() => {});
+      break;
+    }
+    text += decoder.decode(value, { stream: true });
+  }
+  return text;
+}
 
 /**
  * 创建 web_search 工具定义。
@@ -93,7 +117,7 @@ async function searchDuckDuckGo(query, maxResults, timeRange) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
 
-    const response = await fetch(url, {
+    const response = await safeOutboundFetch(url, {
       headers: {
         "user-agent": "Mozilla/5.0 (compatible; PME-Agent/1.0)",
         "accept": "text/html",
@@ -107,7 +131,7 @@ async function searchDuckDuckGo(query, maxResults, timeRange) {
       return { success: false, error: `DuckDuckGo returned HTTP ${response.status}`, provider: "duckduckgo" };
     }
 
-    const html = await response.text();
+    const html = await readTextWithLimit(response, MAX_HTML_BYTES);
     const results = parseDuckDuckGoHtml(html, maxResults);
 
     return {
@@ -214,7 +238,7 @@ async function searchBrave(query, maxResults, timeRange, apiKey) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
 
-    const response = await fetch(`https://api.search.brave.com/res/v1/web/search?${params}`, {
+    const response = await safeOutboundFetch(`https://api.search.brave.com/res/v1/web/search?${params}`, {
       headers: {
         "accept": "application/json",
         "x-subscription-token": apiKey,
@@ -254,7 +278,7 @@ async function searchTavily(query, maxResults, apiKey) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
 
-    const response = await fetch("https://api.tavily.com/search", {
+    const response = await safeOutboundFetch("https://api.tavily.com/search", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -316,7 +340,7 @@ async function searchSerpApi(query, maxResults, timeRange, apiKey) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
 
-    const response = await fetch(`https://serpapi.com/search.json?${params}`, {
+    const response = await safeOutboundFetch(`https://serpapi.com/search.json?${params}`, {
       signal: controller.signal,
     });
 
@@ -346,3 +370,4 @@ async function searchSerpApi(query, maxResults, timeRange, apiKey) {
 function stripHtmlTags(html) {
   return html.replace(/<[^>]*>/g, "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").trim();
 }
+import { safeOutboundFetch } from "../security/safeOutboundFetch.ts";

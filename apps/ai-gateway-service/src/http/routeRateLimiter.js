@@ -6,6 +6,7 @@
  */
 
 import { createRateLimiter } from "./rateLimiter.js";
+import { createPostgresRateLimitStore } from "./postgresRateLimitStore.ts";
 
 const DEFAULT_ROUTE_LIMITS = Object.freeze({
   // Chat endpoints — moderate limits (provider calls are expensive)
@@ -44,12 +45,32 @@ const DEFAULT_ROUTE_LIMITS = Object.freeze({
 export function createRouteRateLimiter(options = {}) {
   const routeLimits = { ...DEFAULT_ROUTE_LIMITS, ...(options.routeLimits ?? {}) };
   const whitelist = options.whitelist ?? ["127.0.0.1", "::1", "::ffff:127.0.0.1"];
+  const postgresStore = options.storeMode === "postgres"
+    ? createPostgresRateLimitStore({
+      connectionString: options.postgresConnectionString,
+      secret: options.postgresSecret,
+      poolMax: options.postgresPoolMax ?? 4,
+      statementTimeoutMs: options.postgresStatementTimeoutMs ?? 5_000,
+      maxBuckets: options.postgresMaxBuckets ?? 100_000,
+    })
+    : null;
+  const storeOptions = {
+    storeMode: options.storeMode,
+    storePath: options.storePath,
+    postgresStore,
+    resolveSubject: options.resolveSubject,
+    subjectMode: options.subjectMode,
+    trustedProxyCount: options.trustedProxyCount,
+  };
 
   // Global fallback limiter
   const globalLimiter = createRateLimiter({
     windowMs: options.globalWindowMs ?? 60_000,
     maxRequests: options.globalMaxRequests ?? 120,
     whitelist,
+    ...storeOptions,
+    managePostgresStore: true,
+    storeNamespace: options.storeNamespace ? `${options.storeNamespace}:global` : "global",
   });
 
   // Per-route limiters (lazily created)
@@ -67,6 +88,8 @@ export function createRouteRateLimiter(options = {}) {
             windowMs: limits.windowMs,
             maxRequests: limits.maxRequests,
             whitelist,
+            ...storeOptions,
+            storeNamespace: options.storeNamespace ? `${options.storeNamespace}:${pattern}` : `route:${pattern}`,
           }));
         }
         return { limiter: routeLimiters.get(key), pattern: key, limits };
@@ -88,10 +111,16 @@ export function createRouteRateLimiter(options = {}) {
     const routeMatch = getRouteLimiter(url.pathname);
 
     if (routeMatch) {
+      res.setHeader("X-RateLimit-Route", routeMatch.pattern);
       const routeResult = routeMatch.limiter.apply(req, res);
+      if (routeResult && typeof routeResult.then === "function") {
+        return routeResult.then((resolved) => {
+          if (resolved) return resolved;
+          return globalLimiter.apply(req, res);
+        });
+      }
       if (routeResult) {
         // Route-specific limit hit — add route info header
-        res.setHeader("X-RateLimit-Route", routeMatch.pattern);
         return routeResult;
       }
     }
@@ -101,12 +130,40 @@ export function createRouteRateLimiter(options = {}) {
   }
 
   function getStats() {
-    const stats = { global: globalLimiter.getStats(), routes: {} };
+    const global = globalLimiter.getStats();
+    const stats = {
+      global,
+      routes: {},
+      storeMode: global.storeMode,
+      available: global.available ?? true,
+      distributed: global.distributed ?? false,
+    };
     for (const [pattern, limiter] of routeLimiters) {
       stats.routes[pattern] = limiter.getStats();
     }
     return stats;
   }
 
-  return { apply, getStats };
+  async function checkHealth() {
+    const global = await globalLimiter.checkHealth();
+    return {
+      ...getStats(),
+      global,
+      storeMode: global.storeMode,
+      available: global.available,
+      distributed: global.distributed,
+    };
+  }
+
+  async function close() {
+    for (const limiter of routeLimiters.values()) await limiter.close();
+    await globalLimiter.close();
+    if (postgresStore) await postgresStore.close();
+  }
+
+  function createScopedLimiter(scope, limits = {}) {
+    return globalLimiter.createScopedLimiter(scope, limits);
+  }
+
+  return { apply, getStats, checkHealth, createScopedLimiter, close };
 }

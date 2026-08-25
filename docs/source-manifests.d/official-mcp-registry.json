@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "sources": [
+    {
+      "id": "official-mcp-registry",
+      "type": "mcp-registry",
+      "enabled": true,
+      "registryUrl": "https://registry.modelcontextprotocol.io/v0.1/servers",
+      "version": "latest",
+      "limit": 100,
+      "max": 10000,
+      "output": ".tmp/client-runtime-catalog.mcp-registry.global.json"
+    },
+    {
+      "id": "official-mcp-registry-expanded",
+      "type": "mcp-registry",
+      "enabled": false,
+      "registryUrl": "https://registry.modelcontextprotocol.io/v0.1/servers",
+      "version": "latest",
+      "search": "",
+      "limit": 100,
+      "max": 10000,
+      "output": ".tmp/client-runtime-catalog.mcp-registry.global-expanded.json",
+      "notes": "Set enabled=true to collect a larger catalog window."
+    },
+    {
+      "id": "community-openai-bridges",
+      "type": "catalog-dir",
+      "enabled": true,
+      "path": "docs/client-runtime-catalog.d"
+    },
+    {
+      "id": "community-bridges-overlay",
+      "type": "catalog",
+      "enabled": false,
+      "path": "docs/client-runtime-catalog.example.json",
+      "notes": "Set enabled=true after validating remote or local catalog schema compatibility."
+    }
+  ]
+}

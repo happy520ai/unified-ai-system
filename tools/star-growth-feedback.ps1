@@ -87,7 +87,7 @@ try {
   }
 
   [void]$lines.Add("")
-  [void]$lines.Add("Update frequency: run `pnpm growth:feedback` or `pnpm growth:campaign` after collecting community replies.")
+  [void]$lines.Add("Update frequency: run `node ./tools/star-growth-feedback.mjs` or `pnpm growth:campaign` after collecting community replies.")
 
   $text = ($lines -join [Environment]::NewLine) + [Environment]::NewLine
   Set-Content -Path $OutputFile -Value $text -Encoding utf8

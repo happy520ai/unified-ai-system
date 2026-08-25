@@ -1,0 +1,23 @@
+{
+  "extends": "./quality-evidence-assertions.base.json",
+  "policy": "trend-quality-evidence",
+  "description": "Required artifact assertions for the scheduled quality trend workflow",
+  "requiredFields": [
+    {
+      "artifactPath": ".tmp/quality-trend-check.json",
+      "fieldPath": "issueCodes"
+    },
+    {
+      "artifactPath": ".tmp/quality-trend-digest.json",
+      "fieldPath": "thresholds"
+    },
+    {
+      "artifactPath": ".tmp/quality-trend.json",
+      "fieldPath": "records"
+    },
+    {
+      "artifactPath": ".tmp/circuit-recovery-drill-live.json",
+      "fieldPath": "status"
+    }
+  ]
+}

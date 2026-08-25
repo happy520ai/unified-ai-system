@@ -1,0 +1,20 @@
+{
+  "openai-bedrock-openai-compatible": {
+    "name": "AWS Bedrock proxy in OpenAI-compatible mode",
+    "protocol": "OpenAI-compatible",
+    "transport": "HTTP /v1 + /chat/completions + /responses",
+    "mode": "manual",
+    "tags": ["openai", "openai-compatible", "language:python", "protocol:proxy", "route-compatibility"],
+    "command": "bedrock runtime wrapper against local /v1",
+    "evidenceNotes": "Attach model listing and chat completion output proving the proxy can call the gateway."
+  },
+  "mcp-augmentcode": {
+    "name": "AugmentCode MCP host",
+    "protocol": "MCP",
+    "transport": "stdio",
+    "mode": "manual",
+    "tags": ["mcp", "agent-host", "code-editor", "stdio"],
+    "command": "AugmentCode MCP host with unified-ai-system server",
+    "evidenceNotes": "Run host startup and verify tool list/readiness behavior."
+  }
+}

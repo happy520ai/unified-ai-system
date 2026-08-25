@@ -85,7 +85,7 @@ export function createLocalWorkflowService({ knowledgeService, env = {}, outputD
     };
   }
 
-  async function run(request = {}) {
+  async function run(request = {}, requestContext = {}) {
     const workflowPlan = plan(request);
     const startedAt = Date.now();
     const retrieve = knowledgeService.retrieve({
@@ -102,7 +102,7 @@ export function createLocalWorkflowService({ knowledgeService, env = {}, outputD
         phase: PHASE,
         caller: "local-workflow",
       },
-    });
+    }, requestContext);
     const report = composeReport({ plan: workflowPlan, retrieve });
     const artifact = await writeManagedArtifact({
       outputDir: managedOutputDir,

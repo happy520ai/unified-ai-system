@@ -1,12 +1,49 @@
 const DEFAULT_TIMEOUT_MS = 10_000;
 
+export const GATEWAY_CLIENT_ERROR_CODES = Object.freeze({
+  ABORTED: "GATEWAY_CLIENT_ABORTED",
+  TIMEOUT: "GATEWAY_CLIENT_TIMEOUT",
+  NETWORK: "GATEWAY_NETWORK_ERROR",
+  HTTP: "GATEWAY_HTTP_ERROR",
+  PROTOCOL: "GATEWAY_PROTOCOL_ERROR",
+  STREAM: "GATEWAY_STREAM_ERROR",
+});
+
 export class GatewayClientError extends Error {
   constructor(message, options = {}) {
-    super(message);
+    super(message, options.cause === undefined ? undefined : { cause: options.cause });
     this.name = "GatewayClientError";
+    this.code = options.code ?? GATEWAY_CLIENT_ERROR_CODES.NETWORK;
+    this.kind = options.kind ?? "network";
+    this.retryable = options.retryable ?? false;
     this.statusCode = options.statusCode;
     this.responseBody = options.responseBody;
-    this.cause = options.cause;
+  }
+}
+
+export class GatewayClientAbortError extends GatewayClientError {
+  constructor(message, options = {}) {
+    super(message, {
+      ...options,
+      code: GATEWAY_CLIENT_ERROR_CODES.ABORTED,
+      kind: "cancelled",
+      retryable: false,
+    });
+    this.name = "GatewayClientAbortError";
+    this.reason = options.reason;
+  }
+}
+
+export class GatewayClientTimeoutError extends GatewayClientError {
+  constructor(message, options = {}) {
+    super(message, {
+      ...options,
+      code: GATEWAY_CLIENT_ERROR_CODES.TIMEOUT,
+      kind: "timeout",
+      retryable: false,
+    });
+    this.name = "GatewayClientTimeoutError";
+    this.timeoutMs = options.timeoutMs;
   }
 }
 
@@ -42,6 +79,16 @@ export function createGatewayClient(options = {}) {
       return requestJson({
         baseUrl,
         path: "/prompts/enhance",
+        method: "POST",
+        body: request,
+        headers,
+        timeoutMs,
+      });
+    },
+    enhancePromptLlm(request) {
+      return requestJson({
+        baseUrl,
+        path: "/prompts/enhance-llm",
         method: "POST",
         body: request,
         headers,
@@ -342,10 +389,7 @@ async function requestJsonImpl({
     const responseBody = await readResponseBody(response);
 
     if (!response.ok) {
-      throw new GatewayClientError(`Gateway request failed with ${response.status}`, {
-        statusCode: response.status,
-        responseBody,
-      });
+      throw createHttpClientError(`Gateway request failed with ${response.status}`, response, responseBody);
     }
 
     return responseBody;
@@ -354,7 +398,7 @@ async function requestJsonImpl({
       throw error;
     }
 
-    throw new GatewayClientError("Gateway request failed", { cause: error });
+    throw createTransportClientError("Gateway request failed", error, requestController);
   } finally {
     requestController.cleanup();
   }
@@ -383,10 +427,11 @@ async function* requestSseImpl({
     });
 
     if (!response.ok) {
-      throw new GatewayClientError(`Gateway stream request failed with ${response.status}`, {
-        statusCode: response.status,
-        responseBody: await readResponseBody(response),
-      });
+      throw createHttpClientError(
+        `Gateway stream request failed with ${response.status}`,
+        response,
+        await readResponseBody(response),
+      );
     }
 
     if (!response.body) {
@@ -398,6 +443,9 @@ async function* requestSseImpl({
     for await (const event of readSseEvents(response.body)) {
       if (event.event === "error") {
         throw new GatewayClientError("Gateway stream returned an error event", {
+          code: readServerError(event.data).code ?? GATEWAY_CLIENT_ERROR_CODES.STREAM,
+          kind: "stream",
+          retryable: readServerError(event.data).retryable,
           statusCode: response.status,
           responseBody: event.data,
         });
@@ -410,7 +458,7 @@ async function* requestSseImpl({
       throw error;
     }
 
-    throw new GatewayClientError("Gateway stream request failed", { cause: error });
+    throw createTransportClientError("Gateway stream request failed", error, requestController);
   } finally {
     requestController.cleanup();
   }
@@ -418,7 +466,12 @@ async function* requestSseImpl({
 
 function createRequestController({ signal, timeoutMs }) {
   const controller = new AbortController();
-  const onCallerAbort = () => controller.abort(signal.reason);
+  let abortSource = null;
+  const onCallerAbort = () => {
+    if (controller.signal.aborted) return;
+    abortSource = "caller";
+    controller.abort(signal.reason);
+  };
 
   if (signal?.aborted) {
     onCallerAbort();
@@ -426,7 +479,9 @@ function createRequestController({ signal, timeoutMs }) {
     signal?.addEventListener("abort", onCallerAbort, { once: true });
   }
 
-  const timeout = setTimeout(() => {
+  const timeout = controller.signal.aborted ? undefined : setTimeout(() => {
+    if (controller.signal.aborted) return;
+    abortSource = "timeout";
     const timeoutError = new Error(`Gateway request timed out after ${timeoutMs}ms`);
     timeoutError.name = "TimeoutError";
     controller.abort(timeoutError);
@@ -434,10 +489,61 @@ function createRequestController({ signal, timeoutMs }) {
 
   return {
     signal: controller.signal,
+    timeoutMs,
+    get abortSource() {
+      return abortSource;
+    },
     cleanup() {
-      clearTimeout(timeout);
+      if (timeout !== undefined) clearTimeout(timeout);
       signal?.removeEventListener("abort", onCallerAbort);
     },
+  };
+}
+
+function createHttpClientError(message, response, responseBody) {
+  const serverError = readServerError(responseBody);
+  return new GatewayClientError(message, {
+    code: serverError.code ?? GATEWAY_CLIENT_ERROR_CODES.HTTP,
+    kind: "http",
+    retryable: serverError.retryable,
+    statusCode: response.status,
+    responseBody,
+  });
+}
+
+function createTransportClientError(message, error, requestController) {
+  if (requestController.abortSource === "caller") {
+    return new GatewayClientAbortError(message, {
+      cause: error,
+      reason: requestController.signal.reason,
+    });
+  }
+  if (requestController.abortSource === "timeout") {
+    return new GatewayClientTimeoutError(message, {
+      cause: error,
+      timeoutMs: requestController.timeoutMs,
+    });
+  }
+  return new GatewayClientError(message, {
+    code: GATEWAY_CLIENT_ERROR_CODES.NETWORK,
+    kind: "network",
+    retryable: false,
+    cause: error,
+  });
+}
+
+function readServerError(responseBody) {
+  if (!responseBody || typeof responseBody !== "object") return {};
+  const nested = responseBody.error;
+  if (nested && typeof nested === "object") {
+    return {
+      code: typeof nested.code === "string" ? nested.code : undefined,
+      retryable: nested.retryable === true,
+    };
+  }
+  return {
+    code: typeof responseBody.code === "string" ? responseBody.code : undefined,
+    retryable: responseBody.retryable === true,
   };
 }
 

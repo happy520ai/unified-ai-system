@@ -11,6 +11,20 @@ import type { RoutingDecision } from "./routing.js";
 
 export type GatewayResponseFormat = "text" | "json";
 export type GatewayFinishReason = "stop" | "length" | "tool_call" | "filtered" | "error";
+export interface GatewayFunctionTool {
+  type: "function";
+  function: {
+    name: string;
+    description?: string;
+    parameters?: Record<string, unknown>;
+    strict?: boolean;
+  };
+}
+export type GatewayToolChoice =
+  | "none"
+  | "auto"
+  | "required"
+  | { type: "function"; function: { name: string } };
 export type PromptEnhancementProfile = "general" | "coding" | "analysis" | "writing" | "research" | "planning";
 export type PromptEnhancementProfileOption = "auto" | PromptEnhancementProfile;
 export type PromptEnhancementLanguage = "zh-CN" | "en";
@@ -86,6 +100,10 @@ export interface GatewayRequest {
   model?: string;
   providerId?: string;
   options?: GatewayGenerationOptions;
+  tools?: GatewayFunctionTool[];
+  toolChoice?: GatewayToolChoice;
+  parallelToolCalls?: boolean;
+  requiredCapabilities?: ProviderCapability[];
   promptEnhancement?: PromptEnhancementOptions;
   knowledge?: {
     enabled: boolean;
@@ -218,9 +236,17 @@ export interface OpenAiCompatibleTextPart {
   text: string;
 }
 
+export interface OpenAiCompatibleImageUrlPart {
+  type: "image_url";
+  image_url: {
+    url: string;
+    detail?: "auto" | "low" | "high";
+  };
+}
+
 export interface OpenAiCompatibleMessage {
   role: OpenAiCompatibleMessageRole;
-  content: string | OpenAiCompatibleTextPart[];
+  content: string | Array<OpenAiCompatibleTextPart | OpenAiCompatibleImageUrlPart>;
   name?: string;
 }
 
@@ -314,3 +340,4 @@ export interface OpenAiCompatibleErrorResponse {
     code: string;
   };
 }
+import type { ProviderCapability } from "./provider.js";

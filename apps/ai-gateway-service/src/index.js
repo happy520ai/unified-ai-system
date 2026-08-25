@@ -2,12 +2,35 @@ import { createGatewayApplication } from "./application/createGatewayApplication
 import { createGatewayHttpServer } from "./http/httpServer.js";
 import { destroyAllPools } from "./http/connectionPool.js";
 import { createPinoLogger } from "./logging/pinoLogger.js";
+import { createGatewayShutdownController, readBoundedDuration } from "./http/gatewayShutdown.ts";
 
 const application = createGatewayApplication();
 const { host, port } = application.config.aiGatewayService.endpoint;
 const server = createGatewayHttpServer(application);
 const logger = createPinoLogger({ app: "ai-gateway-service" });
-let shuttingDown = false;
+const shutdownTimeoutMs = readBoundedDuration(
+  application.runtimeEnv?.AI_GATEWAY_SHUTDOWN_TIMEOUT_MS ?? process.env.AI_GATEWAY_SHUTDOWN_TIMEOUT_MS,
+  10_000,
+  1_000,
+  120_000,
+);
+const shutdownPropagationMs = Math.min(
+  readBoundedDuration(
+    application.runtimeEnv?.AI_GATEWAY_SHUTDOWN_PROPAGATION_MS ?? process.env.AI_GATEWAY_SHUTDOWN_PROPAGATION_MS,
+    1_000,
+    0,
+    30_000,
+  ),
+  Math.max(0, shutdownTimeoutMs - 250),
+);
+const shutdownController = createGatewayShutdownController({
+  server,
+  logger,
+  destroyPools: destroyAllPools,
+  exit: (code) => process.exit(code),
+  propagationMs: shutdownPropagationMs,
+  timeoutMs: shutdownTimeoutMs,
+});
 
 server.listen(port, host, () => {
   logger.info({
@@ -41,49 +64,19 @@ server.listen(port, host, () => {
   }, "AI gateway service is ready.");
 });
 
-process.once("SIGINT", () => shutdown("SIGINT", 0));
-process.once("SIGTERM", () => shutdown("SIGTERM", 0));
+process.once("SIGINT", () => shutdownController.shutdown("SIGINT", 0));
+process.once("SIGTERM", () => shutdownController.shutdown("SIGTERM", 0));
 process.on("unhandledRejection", (reason) => {
   logger.error({
     event: "unhandled_rejection",
     err: reason instanceof Error ? reason : new Error(String(reason)),
   }, "Unhandled promise rejection.");
-  shutdown("unhandledRejection", 1);
+  shutdownController.shutdown("unhandledRejection", 1);
 });
 process.on("uncaughtException", (error) => {
   logger.fatal({
     event: "uncaught_exception",
     err: error,
   }, "Uncaught exception.");
-  shutdown("uncaughtException", 1);
+  shutdownController.shutdown("uncaughtException", 1);
 });
-
-function shutdown(reason, exitCode) {
-  if (shuttingDown) return;
-  shuttingDown = true;
-
-  logger.info({ event: "service_shutdown_started", reason, exitCode });
-  const forceTimer = setTimeout(() => {
-    logger.fatal({
-      event: "service_shutdown_forced",
-      reason,
-      exitCode,
-    }, "Graceful shutdown timed out.");
-    process.exit(exitCode || 1);
-  }, 10_000);
-  forceTimer.unref();
-
-  destroyAllPools();
-  server.close((error) => {
-    clearTimeout(forceTimer);
-    if (error) {
-      logger.error({
-        event: "service_shutdown_failed",
-        err: error,
-      }, "HTTP server shutdown failed.");
-      process.exit(1);
-    }
-    logger.info({ event: "service_shutdown_completed", reason, exitCode });
-    process.exit(exitCode);
-  });
-}

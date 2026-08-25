@@ -35,12 +35,14 @@ import {
   normalizeLifecycleState,
   normalizePlan,
   normalizePlanId,
-  readStore,
+  readStore as jsonReadStore,
   redactSecrets,
+  sealWorkforcePreviewSafety,
   toPlanSummary,
   updatePlanStateCurrent,
-  writeStore,
+  writeStore as jsonWriteStore,
 } from "./workforcePlanStore-utils.js";
+import { createSqliteStoreBackend } from "./workforcePlanStore-sqlite.js";
 import {
   appendEventLedgerEvent,
   createPackageHudPreview,
@@ -69,8 +71,67 @@ import {
   refreshReviewAndApprovalPreviews,
 } from "./workforcePlanStore-mutations.js";
 
+// Serialize read-modify-write mutations per store path. The store is backed by
+// a single JSON file, so concurrent saves/deletes would otherwise interleave a
+// read-modify-write cycle and lose updates (last-writer-wins data loss). Each
+// mutation chains onto the previous one for the same path.
+const storeMutationQueues = new Map();
+
+function sealTaskPackage(taskPackage) {
+  const sealed = sealWorkforcePreviewSafety(taskPackage);
+  sealed.exportableJson = sealWorkforcePreviewSafety(sealed.exportableJson || {});
+  sealed.markdown = formatTaskPackageMarkdown({
+    plan: sealed,
+    planId: sealed.planId,
+    savedAt: sealed.savedAt,
+  });
+  return sealed;
+}
+
+function serializeStoreMutation(storePath, operation) {
+  const previous = storeMutationQueues.get(storePath) ?? Promise.resolve();
+  const current = previous.then(operation, operation);
+  storeMutationQueues.set(storePath, current.catch(() => {}));
+  return current;
+}
+
+// ── 租户隔离（fail-closed）───────────────────────────────────────────────────
+// 每条 taskPackage 保存时盖章 tenantId；所有读取/变更都按传入 tenantId 过滤。
+// 记录租户与传入租户不匹配（或记录没有租户字段，例如旧数据）一律按
+// WORKFORCE_PLAN_NOT_FOUND 处理——与不存在同语义，不泄露记录是否存在。
+
+function requirePlanTenantId(tenantId) {
+  const normalized = typeof tenantId === "string" ? tenantId.trim() : "";
+  if (!normalized) {
+    throw createStoreError("WORKFORCE_PLAN_TENANT_REQUIRED", "Workforce plan store tenant id is required.", {
+      userMessage: "A server-derived tenant id is required for workforce plan operations.",
+    });
+  }
+  return normalized;
+}
+
+function isPlanTenantMatch(taskPackage, tenantId) {
+  const normalizedTenantId = typeof tenantId === "string" ? tenantId.trim() : "";
+  const recordTenantId = typeof taskPackage?.tenantId === "string" ? taskPackage.tenantId.trim() : "";
+  return Boolean(normalizedTenantId) && Boolean(recordTenantId) && normalizedTenantId === recordTenantId;
+}
+
+function createPlanTenantMismatchError(planId) {
+  return createStoreError("WORKFORCE_PLAN_NOT_FOUND", "Saved workforce plan was not found.", {
+    userMessage: "???????????????????",
+    planId,
+  });
+}
+
 export function createWorkforcePlanStore({ env = process.env } = {}) {
   const storePath = resolve(env.WORKFORCE_PLAN_STORE_PATH || DEFAULT_STORE_PATH);
+  // Storage backend: "sqlite" uses node:sqlite (ACID + cross-process safe),
+  // default "json" keeps the original atomic-file backend (backwards compatible).
+  const backend = env.WORKFORCE_PLAN_STORE_MODE === "sqlite"
+    ? createSqliteStoreBackend(storePath)
+    : null;
+  const readStore = backend ? backend.readStore : jsonReadStore;
+  const writeStore = backend ? backend.writeStore : jsonWriteStore;
 
   return {
     getInfo() {
@@ -83,53 +144,65 @@ export function createWorkforcePlanStore({ env = process.env } = {}) {
         secretValuesStored: false,
       };
     },
-    async save(plan) {
-      const normalizedPlan = normalizePlan(plan);
-      const savedAt = new Date().toISOString();
-      const planId = createPlanId(normalizedPlan, savedAt);
-      const taskPackage = createTaskPackage({ plan: normalizedPlan, planId, savedAt });
-      const store = await readStore(storePath);
-      const plans = store.plans.filter((item) => item.planId !== planId);
-      plans.unshift(taskPackage);
-      await writeStore(storePath, {
-        version: STORE_VERSION,
-        updatedAt: savedAt,
-        plans,
-      });
+    async save(plan, tenantId) {
+      const scopedTenantId = requirePlanTenantId(tenantId);
+      return serializeStoreMutation(storePath, async () => {
+        const normalizedPlan = normalizePlan(plan);
+        const savedAt = new Date().toISOString();
+        const planId = createPlanId(normalizedPlan, savedAt);
+        const taskPackage = sealTaskPackage({
+          ...createTaskPackage({ plan: normalizedPlan, planId, savedAt }),
+          tenantId: scopedTenantId,
+        });
 
-      return {
-        success: true,
-        phase: WORKFORCE_PLAN_STORE_PHASE,
-        status: "saved",
-        mode: WORKFORCE_PLAN_STORE_MODE,
-        planId,
-        savedAt,
-        taskPackage,
-        safety: createStoreSafety(),
-      };
+        if (backend) {
+          // 原子 upsert：跨进程安全，避免 read-modify-write 的 lost update。
+          backend.upsert(taskPackage);
+        } else {
+          const store = await readStore(storePath);
+          const plans = store.plans.filter((item) => item.planId !== planId);
+          plans.unshift(taskPackage);
+          await writeStore(storePath, {
+            version: STORE_VERSION,
+            updatedAt: savedAt,
+            plans,
+          });
+        }
+
+        return {
+          success: true,
+          phase: WORKFORCE_PLAN_STORE_PHASE,
+          status: "saved",
+          mode: WORKFORCE_PLAN_STORE_MODE,
+          planId,
+          savedAt,
+          taskPackage,
+          safety: createStoreSafety(),
+        };
+      });
     },
-    async list() {
-      const store = await readStore(storePath);
+    async list(tenantId) {
+      const plans = backend ? backend.listPlans() : (await readStore(storePath)).plans;
+      const visiblePlans = plans.filter((plan) => isPlanTenantMatch(plan, tenantId));
       return {
         success: true,
         phase: WORKFORCE_PLAN_STORE_PHASE,
         status: "listed",
         mode: WORKFORCE_PLAN_STORE_MODE,
-        count: store.plans.length,
-        plans: store.plans.map(toPlanSummary),
+        count: visiblePlans.length,
+        plans: visiblePlans.map((plan) => toPlanSummary(sealWorkforcePreviewSafety(plan))),
         safety: createStoreSafety(),
       };
     },
-    async get(planId) {
-      const store = await readStore(storePath);
+    async get(planId, tenantId) {
       const normalizedPlanId = normalizePlanId(planId);
-      const taskPackage = store.plans.find((item) => item.planId === normalizedPlanId);
-      if (!taskPackage) {
-        throw createStoreError("WORKFORCE_PLAN_NOT_FOUND", "Saved workforce plan was not found.", {
-          userMessage: "???????????????????",
-          planId: normalizedPlanId,
-        });
+      const storedTaskPackage = backend
+        ? backend.get(normalizedPlanId)
+        : (await readStore(storePath)).plans.find((item) => item.planId === normalizedPlanId);
+      if (!storedTaskPackage || !isPlanTenantMatch(storedTaskPackage, tenantId)) {
+        throw createPlanTenantMismatchError(normalizedPlanId);
       }
+      const taskPackage = sealTaskPackage(storedTaskPackage);
 
       return {
         success: true,
@@ -142,37 +215,55 @@ export function createWorkforcePlanStore({ env = process.env } = {}) {
         safety: createStoreSafety(),
       };
     },
-    async delete(planId) {
-      const store = await readStore(storePath);
+    async delete(planId, tenantId) {
       const normalizedPlanId = normalizePlanId(planId);
-      const beforeCount = store.plans.length;
-      const plans = store.plans.filter((item) => item.planId !== normalizedPlanId);
-      if (plans.length === beforeCount) {
-        throw createStoreError("WORKFORCE_PLAN_NOT_FOUND", "Saved workforce plan was not found.", {
-          userMessage: "???????????????????",
-          planId: normalizedPlanId,
+      return serializeStoreMutation(storePath, async () => {
+        if (backend) {
+          // 原子删除：跨进程安全。先取回校验租户再删除（不依赖 SQL 过滤）。
+          const storedTaskPackage = backend.get(normalizedPlanId);
+          if (!storedTaskPackage || !isPlanTenantMatch(storedTaskPackage, tenantId)) {
+            throw createPlanTenantMismatchError(normalizedPlanId);
+          }
+          backend.remove(normalizedPlanId);
+          return {
+            success: true,
+            phase: WORKFORCE_PLAN_STORE_PHASE,
+            status: "deleted",
+            mode: WORKFORCE_PLAN_STORE_MODE,
+            planId: normalizedPlanId,
+            deleted: true,
+            remainingCount: backend.listPlans().filter((plan) => isPlanTenantMatch(plan, tenantId)).length,
+            safety: createStoreSafety(),
+          };
+        }
+
+        const store = await readStore(storePath);
+        const target = store.plans.find((item) => item.planId === normalizedPlanId);
+        if (!target || !isPlanTenantMatch(target, tenantId)) {
+          throw createPlanTenantMismatchError(normalizedPlanId);
+        }
+        const plans = store.plans.filter((item) => item.planId !== normalizedPlanId);
+
+        await writeStore(storePath, {
+          version: STORE_VERSION,
+          updatedAt: new Date().toISOString(),
+          plans,
         });
-      }
 
-      await writeStore(storePath, {
-        version: STORE_VERSION,
-        updatedAt: new Date().toISOString(),
-        plans,
+        return {
+          success: true,
+          phase: WORKFORCE_PLAN_STORE_PHASE,
+          status: "deleted",
+          mode: WORKFORCE_PLAN_STORE_MODE,
+          planId: normalizedPlanId,
+          deleted: true,
+          remainingCount: plans.filter((item) => isPlanTenantMatch(item, tenantId)).length,
+          safety: createStoreSafety(),
+        };
       });
-
-      return {
-        success: true,
-        phase: WORKFORCE_PLAN_STORE_PHASE,
-        status: "deleted",
-        mode: WORKFORCE_PLAN_STORE_MODE,
-        planId: normalizedPlanId,
-        deleted: true,
-        remainingCount: plans.length,
-        safety: createStoreSafety(),
-      };
     },
-    async export(planId) {
-      const result = await this.get(planId);
+    async export(planId, tenantId) {
+      const result = await this.get(planId, tenantId);
       const exportedAt = new Date().toISOString();
       const taskPackage = redactSecrets({
         ...result.taskPackage,
@@ -230,7 +321,7 @@ export function createWorkforcePlanStore({ env = process.env } = {}) {
         workforceHudPreview: taskPackage.workforceHudPreview,
       });
       refreshReviewAndApprovalPreviews(taskPackage, exportedAt);
-      taskPackage.markdown = formatTaskPackageMarkdown({ plan: taskPackage, planId: taskPackage.planId, savedAt: taskPackage.savedAt });
+      const sealedTaskPackage = sealTaskPackage(taskPackage);
       return {
         success: true,
         phase: WORKFORCE_PLAN_STORE_PHASE,
@@ -238,80 +329,78 @@ export function createWorkforcePlanStore({ env = process.env } = {}) {
         mode: WORKFORCE_PLAN_STORE_MODE,
         planId: result.planId,
         formats: ["json", "markdown"],
-        taskPackage,
-        json: taskPackage,
-        markdown: taskPackage.markdown,
+        taskPackage: sealedTaskPackage,
+        json: sealedTaskPackage,
+        markdown: sealedTaskPackage.markdown,
         safety: createStoreSafety(),
       };
     },
-    async answerClarifications(planId, answers = []) {
-      const normalizedPlanId = normalizePlanId(planId);
-      const normalizedAnswers = normalizeClarificationAnswers(answers);
-      const updatedAt = new Date().toISOString();
-      const store = await readStore(storePath);
-      const index = store.plans.findIndex((item) => item.planId === normalizedPlanId);
-      if (index < 0) {
-        throw createStoreError("WORKFORCE_PLAN_NOT_FOUND", "Saved workforce plan was not found.", {
-          userMessage: "Saved workforce plan was not found.",
-          planId: normalizedPlanId,
+    async answerClarifications(planId, answers = [], tenantId) {
+      return serializeStoreMutation(storePath, async () => {
+        const normalizedPlanId = normalizePlanId(planId);
+        const normalizedAnswers = normalizeClarificationAnswers(answers);
+        const updatedAt = new Date().toISOString();
+        const store = await readStore(storePath);
+        const index = store.plans.findIndex((item) => item.planId === normalizedPlanId);
+        if (index < 0 || !isPlanTenantMatch(store.plans[index], tenantId)) {
+          throw createPlanTenantMismatchError(normalizedPlanId);
+        }
+
+        const taskPackage = sealTaskPackage(applyClarificationAnswers(store.plans[index], normalizedAnswers, updatedAt));
+        store.plans[index] = taskPackage;
+        await writeStore(storePath, {
+          version: STORE_VERSION,
+          updatedAt,
+          plans: store.plans,
         });
-      }
 
-      const taskPackage = applyClarificationAnswers(store.plans[index], normalizedAnswers, updatedAt);
-      store.plans[index] = taskPackage;
-      await writeStore(storePath, {
-        version: STORE_VERSION,
-        updatedAt,
-        plans: store.plans,
-      });
-
-      return {
-        success: true,
-        phase: WORKFORCE_PLAN_LIFECYCLE_PHASE,
-        status: "clarification_answers_saved",
-        mode: WORKFORCE_PLAN_STORE_MODE,
-        planId: normalizedPlanId,
-        answeredCount: normalizedAnswers.length,
-        taskPackage,
-        lifecycle: taskPackage.lifecyclePreview,
-        safety: createStoreSafety(),
-      };
-    },
-    async updateLifecycle(planId, input = {}) {
-      const normalizedPlanId = normalizePlanId(planId);
-      const nextState = normalizeLifecycleState(input.state);
-      const updatedAt = new Date().toISOString();
-      const store = await readStore(storePath);
-      const index = store.plans.findIndex((item) => item.planId === normalizedPlanId);
-      if (index < 0) {
-        throw createStoreError("WORKFORCE_PLAN_NOT_FOUND", "Saved workforce plan was not found.", {
-          userMessage: "Saved workforce plan was not found.",
+        return {
+          success: true,
+          phase: WORKFORCE_PLAN_LIFECYCLE_PHASE,
+          status: "clarification_answers_saved",
+          mode: WORKFORCE_PLAN_STORE_MODE,
           planId: normalizedPlanId,
-        });
-      }
-
-      const taskPackage = applyLifecycleState(store.plans[index], nextState, input.note, updatedAt);
-      store.plans[index] = taskPackage;
-      await writeStore(storePath, {
-        version: STORE_VERSION,
-        updatedAt,
-        plans: store.plans,
+          answeredCount: normalizedAnswers.length,
+          taskPackage,
+          lifecycle: taskPackage.lifecyclePreview,
+          safety: createStoreSafety(),
+        };
       });
-
-      return {
-        success: true,
-        phase: WORKFORCE_PLAN_LIFECYCLE_PHASE,
-        status: "lifecycle_saved",
-        mode: WORKFORCE_PLAN_STORE_MODE,
-        planId: normalizedPlanId,
-        lifecycle: taskPackage.lifecyclePreview,
-        taskPackage,
-        safety: createStoreSafety(),
-      };
     },
-    async getReviewPackage(planId) {
-      const result = await this.get(planId);
-      const taskPackage = refreshReviewAndApprovalPreviews(result.taskPackage, new Date().toISOString());
+    async updateLifecycle(planId, input = {}, tenantId) {
+      return serializeStoreMutation(storePath, async () => {
+        const normalizedPlanId = normalizePlanId(planId);
+        const nextState = normalizeLifecycleState(input.state);
+        const updatedAt = new Date().toISOString();
+        const store = await readStore(storePath);
+        const index = store.plans.findIndex((item) => item.planId === normalizedPlanId);
+        if (index < 0 || !isPlanTenantMatch(store.plans[index], tenantId)) {
+          throw createPlanTenantMismatchError(normalizedPlanId);
+        }
+
+        const taskPackage = sealTaskPackage(applyLifecycleState(store.plans[index], nextState, input.note, updatedAt));
+        store.plans[index] = taskPackage;
+        await writeStore(storePath, {
+          version: STORE_VERSION,
+          updatedAt,
+          plans: store.plans,
+        });
+
+        return {
+          success: true,
+          phase: WORKFORCE_PLAN_LIFECYCLE_PHASE,
+          status: "lifecycle_saved",
+          mode: WORKFORCE_PLAN_STORE_MODE,
+          planId: normalizedPlanId,
+          lifecycle: taskPackage.lifecyclePreview,
+          taskPackage,
+          safety: createStoreSafety(),
+        };
+      });
+    },
+    async getReviewPackage(planId, tenantId) {
+      const result = await this.get(planId, tenantId);
+      const taskPackage = sealTaskPackage(refreshReviewAndApprovalPreviews(result.taskPackage, new Date().toISOString()));
       return {
         success: true,
         phase: WORKFORCE_PLAN_REVIEW_APPROVAL_PHASE,
@@ -324,38 +413,37 @@ export function createWorkforcePlanStore({ env = process.env } = {}) {
         safety: createStoreSafety(),
       };
     },
-    async recordApprovalGate(planId, input = {}) {
-      const normalizedPlanId = normalizePlanId(planId);
-      const updatedAt = new Date().toISOString();
-      const store = await readStore(storePath);
-      const index = store.plans.findIndex((item) => item.planId === normalizedPlanId);
-      if (index < 0) {
-        throw createStoreError("WORKFORCE_PLAN_NOT_FOUND", "Saved workforce plan was not found.", {
-          userMessage: "Saved workforce plan was not found.",
-          planId: normalizedPlanId,
+    async recordApprovalGate(planId, input = {}, tenantId) {
+      return serializeStoreMutation(storePath, async () => {
+        const normalizedPlanId = normalizePlanId(planId);
+        const updatedAt = new Date().toISOString();
+        const store = await readStore(storePath);
+        const index = store.plans.findIndex((item) => item.planId === normalizedPlanId);
+        if (index < 0 || !isPlanTenantMatch(store.plans[index], tenantId)) {
+          throw createPlanTenantMismatchError(normalizedPlanId);
+        }
+
+        const taskPackage = sealTaskPackage(applyApprovalGateDecision(store.plans[index], input, updatedAt));
+        store.plans[index] = taskPackage;
+        await writeStore(storePath, {
+          version: STORE_VERSION,
+          updatedAt,
+          plans: store.plans,
         });
-      }
 
-      const taskPackage = applyApprovalGateDecision(store.plans[index], input, updatedAt);
-      store.plans[index] = taskPackage;
-      await writeStore(storePath, {
-        version: STORE_VERSION,
-        updatedAt,
-        plans: store.plans,
+        return {
+          success: true,
+          phase: WORKFORCE_PLAN_REVIEW_APPROVAL_PHASE,
+          status: "approval_gate_recorded",
+          mode: WORKFORCE_PLAN_STORE_MODE,
+          planId: normalizedPlanId,
+          decision: taskPackage.approvalGatePreview?.currentDecision ?? null,
+          reviewPackagePreview: taskPackage.reviewPackagePreview,
+          approvalGatePreview: taskPackage.approvalGatePreview,
+          taskPackage,
+          safety: createStoreSafety(),
+        };
       });
-
-      return {
-        success: true,
-        phase: WORKFORCE_PLAN_REVIEW_APPROVAL_PHASE,
-        status: "approval_gate_recorded",
-        mode: WORKFORCE_PLAN_STORE_MODE,
-        planId: normalizedPlanId,
-        decision: taskPackage.approvalGatePreview?.currentDecision ?? null,
-        reviewPackagePreview: taskPackage.reviewPackagePreview,
-        approvalGatePreview: taskPackage.approvalGatePreview,
-        taskPackage,
-        safety: createStoreSafety(),
-      };
     },
   };
 }

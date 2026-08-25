@@ -1,0 +1,151 @@
+{
+  "policy": "quality-evidence-base",
+  "description": "Shared evidence assertions for all quality workflows",
+  "maxAgeMinutes": 180,
+  "maxTimestampSkewMinutes": 15,
+  "requiredArtifacts": [
+    ".tmp/quality-trend-summary.md",
+    ".tmp/quality-trend-digest.md",
+    ".tmp/quality-trend-recommendations.md",
+    ".tmp/quality-trend-incident-bundle.md"
+  ],
+  "requiredJsonArtifacts": [
+    ".tmp/quality-scorecard.json",
+    ".tmp/circuit-recovery-drill-live.json",
+    ".tmp/quality-ci-verification.json",
+    ".tmp/quality-trend-verify-artifacts.json",
+    ".tmp/quality-trend.json",
+    ".tmp/quality-trend-guardrail.json",
+    ".tmp/quality-trend-digest.json",
+    ".tmp/quality-trend-check.json",
+    ".tmp/quality-trend-incident-bundle.json",
+    ".tmp/quality-trend-health-smoke.json",
+    ".tmp/language-policy-check.json",
+    ".tmp/language-policy-expiry.json"
+  ],
+  "requiredTimestampedArtifacts": [
+    ".tmp/quality-scorecard.json",
+    ".tmp/circuit-recovery-drill-live.json",
+    ".tmp/quality-ci-verification.json",
+    ".tmp/quality-trend-verify-artifacts.json",
+    ".tmp/quality-trend.json",
+    ".tmp/quality-trend-guardrail.json",
+    ".tmp/quality-trend-digest.json",
+    ".tmp/quality-trend-check.json",
+    ".tmp/quality-trend-incident-bundle.json",
+    ".tmp/quality-trend-health-smoke.json",
+    ".tmp/language-policy-expiry.json"
+  ],
+  "requiredTimestampFieldArtifacts": [
+    {
+      "artifactPath": ".tmp/quality-trend-guardrail.json",
+      "fieldPath": "generatedAtUtc"
+    },
+    {
+      "artifactPath": ".tmp/quality-trend-digest.json",
+      "fieldPath": "generatedAtUtc"
+    },
+    {
+      "artifactPath": ".tmp/quality-trend.json",
+      "fieldPath": "updatedAtUtc"
+    },
+    {
+      "artifactPath": ".tmp/circuit-recovery-drill-live.json",
+      "fieldPath": "startedAt"
+    },
+    {
+      "artifactPath": ".tmp/language-policy-check.json",
+      "fieldPath": "generatedAtUtc"
+    },
+    {
+      "artifactPath": ".tmp/language-policy-expiry.json",
+      "fieldPath": "generatedAtUtc"
+    }
+  ],
+  "requiredFields": [
+    {
+      "artifactPath": ".tmp/quality-scorecard.json",
+      "fieldPath": "checks"
+    },
+    {
+      "artifactPath": ".tmp/quality-scorecard.json",
+      "fieldPath": "trendConsistency"
+    },
+    {
+      "artifactPath": ".tmp/quality-ci-verification.json",
+      "fieldPath": "quality"
+    },
+    {
+      "artifactPath": ".tmp/quality-ci-verification.json",
+      "fieldPath": "trendConsistency"
+    },
+    {
+      "artifactPath": ".tmp/quality-trend-verify-artifacts.json",
+      "fieldPath": "ok"
+    },
+    {
+      "artifactPath": ".tmp/quality-trend-check.json",
+      "fieldPath": "status"
+    },
+    {
+      "artifactPath": ".tmp/quality-trend-check.json",
+      "fieldPath": "metrics.languagePolicy.score"
+    },
+    {
+      "artifactPath": ".tmp/quality-trend-check.json",
+      "fieldPath": "metrics.languagePolicy.riskLevel"
+    },
+    {
+      "artifactPath": ".tmp/quality-trend-incident-bundle.json",
+      "fieldPath": "languagePolicyReview.fitness.score"
+    },
+    {
+      "artifactPath": ".tmp/quality-trend-incident-bundle.json",
+      "fieldPath": "languagePolicyReview.fitness.riskLevel"
+    },
+    {
+      "artifactPath": ".tmp/quality-trend-check.json",
+      "fieldPath": "recommendation"
+    },
+    {
+      "artifactPath": ".tmp/quality-trend-guardrail.json",
+      "fieldPath": "guardrails.state"
+    },
+    {
+      "artifactPath": ".tmp/quality-trend-digest.json",
+      "fieldPath": "state"
+    },
+    {
+      "artifactPath": ".tmp/quality-trend-incident-bundle.json",
+      "fieldPath": "schemaVersion"
+    },
+    {
+      "artifactPath": ".tmp/quality-trend-incident-bundle.json",
+      "fieldPath": "trendHealth.status"
+    },
+    {
+      "artifactPath": ".tmp/quality-trend-incident-bundle.json",
+      "fieldPath": "languagePolicyReview.reviewStatus"
+    },
+    {
+      "artifactPath": ".tmp/quality-trend-incident-bundle.json",
+      "fieldPath": "languagePolicyReview.summary.preferredLanguage"
+    },
+    {
+      "artifactPath": ".tmp/quality-trend-incident-bundle.json",
+      "fieldPath": "recommendationText"
+    },
+    {
+      "artifactPath": ".tmp/quality-trend-health-smoke.json",
+      "fieldPath": "executedAtUtc"
+    },
+    {
+      "artifactPath": ".tmp/quality-trend-health-smoke.json",
+      "fieldPath": "steps"
+    },
+    {
+      "artifactPath": ".tmp/language-policy-check.json",
+      "fieldPath": "ok"
+    }
+  ]
+}

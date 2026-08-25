@@ -9,6 +9,7 @@ import {
   safeJsonParse,
   log,
 } from "./godReviewCellExecutor-helpers.js";
+import { safeOutboundFetch } from "../security/safeOutboundFetch.ts";
 
 /**
  * Extract text content from various gateway response structures.
@@ -79,7 +80,7 @@ export async function callGateway(gatewayUrl, messages, options = {}) {
         url, messageCount: messages.length, timeout,
       });
 
-      const response = await fetch(url, {
+      const response = await safeOutboundFetch(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -89,6 +90,7 @@ export async function callGateway(gatewayUrl, messages, options = {}) {
         },
         body: JSON.stringify(requestBody),
         signal: controller.signal,
+        timeout,
       });
 
       clearTimeout(timeoutId);

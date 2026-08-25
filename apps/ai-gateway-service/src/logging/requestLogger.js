@@ -14,7 +14,19 @@ import { resolve, dirname } from "node:path";
  */
 export function createRequestLogger(options = {}) {
   const logDir = options.logDir ?? resolve(process.cwd(), ".data/request-logs");
-  if (!existsSync(logDir)) mkdirSync(logDir, { recursive: true });
+  // Fail-open：日志目录不可创建（如只读容器文件系统）时降级为内存模式，
+  // 绝不让日志阻断网关启动。
+  let logDirWritable = true;
+  if (!existsSync(logDir)) {
+    try {
+      mkdirSync(logDir, { recursive: true });
+    } catch (error) {
+      logDirWritable = false;
+      console.warn(
+        `[requestLogger] cannot create log directory ${logDir} (${error?.message ?? error}); request logs stay in memory only.`,
+      );
+    }
+  }
 
   const maxLogSizeBytes = options.maxLogSizeBytes ?? 100 * 1024 * 1024; // 100MB
   const enableBodyLogging = options.enableBodyLogging ?? true;
@@ -76,6 +88,11 @@ export function createRequestLogger(options = {}) {
    */
   function flush() {
     if (buffer.length === 0) return;
+    if (!logDirWritable) {
+      // 内存降级：有界缓冲，避免长驻进程无界增长。
+      if (buffer.length > BUFFER_FLUSH_SIZE * 4) buffer.splice(0, buffer.length - BUFFER_FLUSH_SIZE * 4);
+      return;
+    }
 
     const today = new Date().toISOString().slice(0, 10);
     const logFile = resolve(logDir, `requests-${today}.jsonl`);
@@ -169,7 +186,7 @@ export function createRequestLogger(options = {}) {
       totalRequests,
       avgLatencyMs: Math.round(totalLatency / totalRequests),
       totalTokens,
-      totalCostUsd: Math.round(totalCost * 10000) / 10000,
+      totalCostUsd: Math.round(totalCost * 1000000) / 1000000,
       errorRate: errorCount / totalRequests,
       cacheHitRate: cacheHits / totalRequests,
       fallbackRate: fallbacks / totalRequests,
