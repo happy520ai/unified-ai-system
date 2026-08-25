@@ -54,13 +54,16 @@ and the project uses [Semantic Versioning](https://semver.org/).
   a post-basebackup WAL marker. It interrupts an in-flight query by destroying
   primary, then a healthy-armed controller requires three consecutive failures
   plus confirmation before automatically promoting the one known standby and
-  switching a stable endpoint. Before destruction, the same full synthetic
-  failure sequence must be rejected because an independent Docker-state fence
-  still reports the primary running; the controller must then recover on a
-  healthy probe. The same sentinel Pool plus eight clients must recover after
-  switch/restart. This fixture-level fail-closed fence is not multi-candidate
-  election/quorum, external HA control, PITR, a real partition/old-primary
-  rejoin test, complete split-brain safety, or production RTO/RPO proof.
+  switching a stable endpoint. Before destruction, a separate probe container
+  and the streaming standby are disconnected from the still-writable primary
+  by a real Docker-bridge partition. The full failure sequence must be rejected
+  because an independent Docker-state fence still reports the primary running;
+  after bridge healing, the probe must recover and the standby must replay a
+  marker written during the partition. The same sentinel Pool plus eight
+  clients must recover after switch/restart. This bounded single-bridge proof
+  is not multi-candidate election/quorum, external HA control, PITR, arbitrary
+  multi-host partition/old-primary rejoin, complete split-brain safety, or
+  production RTO/RPO proof.
 - Added central PostgreSQL Workforce execution control: raw-identifier-free
   tenant/plan/subject keys, atomic single-use approval consumption, versioned
   digest-verified lifecycle transitions, bounded retention/capacity, remote

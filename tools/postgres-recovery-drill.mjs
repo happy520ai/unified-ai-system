@@ -77,7 +77,7 @@ async function runRecoveryDrill({ dryRun }) {
         "restore into a clean PostgreSQL 17 container",
         "verify inventory and all eight application contracts",
         "build a real streaming standby from recovery with pg_basebackup -R and replay a post-basebackup WAL marker",
-        "arm bounded health probes, reject promotion after threshold-plus-confirmation false failures while Docker still reports primary running, then destroy primary, confirm fencing, promote standby, switch the stable endpoint, and verify through the same clients",
+        "arm a probe from an isolated Docker peer, disconnect primary from the replication bridge, prove primary remains writable while promotion is fenced, heal the bridge and replay a partition marker, then destroy primary, confirm fencing, promote standby, switch the stable endpoint, and verify through the same clients",
         "restart standby and verify again through those same clients",
         "remove containers and the temporary backup artifact",
       ],
@@ -87,6 +87,7 @@ async function runRecoveryDrill({ dryRun }) {
         realProviderCallsMade: false,
         continuousWalRecoveryProved: false,
         singleStandbyFenceFailClosedProved: false,
+        singleBridgePartitionFenceProved: false,
         automaticFailoverProved: false,
         productionRtoRpoProved: false,
       },
@@ -98,6 +99,7 @@ async function runRecoveryDrill({ dryRun }) {
   const sourceName = `ai-gateway-pg-source-${runId}`;
   const recoveryName = `ai-gateway-pg-recovery-${runId}`;
   const standbyName = `ai-gateway-pg-standby-${runId}`;
+  const networkProbeName = `ai-gateway-pg-network-probe-${runId}`;
   const basebackupName = `ai-gateway-pg-basebackup-${runId}`;
   const standbyChownName = `ai-gateway-pg-standby-chown-${runId}`;
   const replicationNetworkName = `ai-gateway-pg-replication-${runId}`;
@@ -119,6 +121,7 @@ async function runRecoveryDrill({ dryRun }) {
     sourceName,
     recoveryName,
     standbyName,
+    networkProbeName,
     basebackupName,
     standbyChownName,
   ]);
@@ -156,6 +159,7 @@ async function runRecoveryDrill({ dryRun }) {
   let automaticFailoverController = null;
   let automaticFailoverAbortController = null;
   let automaticFailoverEvidence = null;
+  let networkPartitionEvidence = null;
 
   try {
     await runDocker(dockerExecutable, ["version", "--format", "{{.Server.Version}}"], { stage });
@@ -354,11 +358,30 @@ async function runRecoveryDrill({ dryRun }) {
       streamingReplicationProved: true,
     };
 
+    stage = "network-probe-start";
+    await startNetworkProbeContainer({
+      dockerExecutable,
+      containerName: networkProbeName,
+      networkName: replicationNetworkName,
+      postgresEnvPath,
+      runId,
+    });
+    assertCondition(
+      await probePostgresWritableFromContainer({
+        dockerExecutable,
+        probeContainerName: networkProbeName,
+      }),
+      "POSTGRES_RECOVERY_NETWORK_PROBE_NOT_READY",
+    );
+
     stage = "endpoint-failover";
     automaticFailoverAbortController = new AbortController();
     automaticFailoverController = startAutomaticSingleStandbyFailover({
       signal: automaticFailoverAbortController.signal,
-      probePrimary: () => probePostgresWritable(recoveryUrl, 500),
+      probePrimary: () => probePostgresWritableFromContainer({
+        dockerExecutable,
+        probeContainerName: networkProbeName,
+      }),
       inspectStandby: () => readPostgresRole(standbyUrl),
       promoteStandby: async () => {
         const promotionStartedAt = Date.now();
@@ -382,6 +405,9 @@ async function runRecoveryDrill({ dryRun }) {
       },
       verifyPrimaryFenced: () => inspectContainerFence(dockerExecutable, recoveryName),
       switchEndpoint: () => failoverProxy.switchTarget(standbyPort),
+      pollIntervalMs: 150,
+      confirmationDelayMs: 250,
+      maxDurationMs: 60_000,
     });
     const armedEvidence = await automaticFailoverController.waitUntilArmed();
     assertCondition(
@@ -394,14 +420,80 @@ async function runRecoveryDrill({ dryRun }) {
       transientResetEvidence.transientFailureResets >= 1,
       "POSTGRES_RECOVERY_FAILOVER_TRANSIENT_FAILURE_NOT_RESET",
     );
-    automaticFailoverController.injectSyntheticProbeFailures(4);
+    stage = "replication-network-partition";
+    const partitionStartedAt = Date.now();
+    const partitionMarkerId = `${runId}-partition`;
+    await disconnectDockerNetwork(
+      dockerExecutable,
+      replicationNetworkName,
+      recoveryName,
+    );
+    const partitionWrite = await writeReplicationMarkerInsideContainer({
+      dockerExecutable,
+      containerName: recoveryName,
+      markerId: partitionMarkerId,
+    });
+    await delay(500);
+    const partitionedStandby = await readStandbyReplicationMarker({
+      standbyConnectionString: standbyUrl,
+      markerId: partitionMarkerId,
+    });
+    assertCondition(
+      partitionWrite.primaryWritable === true
+        && partitionedStandby.inRecovery === true
+        && partitionedStandby.markerPresent === false,
+      "POSTGRES_RECOVERY_NETWORK_PARTITION_NOT_PROVED",
+    );
     const fencingRejectionEvidence = await automaticFailoverController.waitForFencingRejection();
     assertCondition(
       fencingRejectionEvidence.fencingRejections >= 1
-        && fencingRejectionEvidence.primaryStillRunning === true
-        && fencingRejectionEvidence.healthyAfterRejection === true,
+        && fencingRejectionEvidence.primaryStillRunning === true,
       "POSTGRES_RECOVERY_FAILOVER_FENCING_NOT_ENFORCED",
     );
+    stage = "replication-network-heal";
+    await connectDockerNetwork(
+      dockerExecutable,
+      replicationNetworkName,
+      recoveryName,
+      "primary",
+    );
+    const fencingResetEvidence = await automaticFailoverController.waitForPostFencingHealthyReset();
+    assertCondition(
+      fencingResetEvidence.healthyAfterRejection === true,
+      "POSTGRES_RECOVERY_FAILOVER_FENCING_RESET_FAILED",
+    );
+    await waitForClientPostgres(recoveryUrl);
+    const healedPrimaryWritable = await probePostgresWritable(recoveryUrl, 1_000);
+    const partitionConvergence = await waitForStandbyReplicationMarker({
+      standbyConnectionString: standbyUrl,
+      markerId: partitionMarkerId,
+      primaryWalLsn: partitionWrite.primaryWalLsn,
+    });
+    assertCondition(
+      healedPrimaryWritable
+        && partitionConvergence.markerReplayed === true,
+      "POSTGRES_RECOVERY_NETWORK_PARTITION_HEAL_FAILED",
+    );
+    networkPartitionEvidence = {
+      mode: "docker-bridge-disconnect",
+      primaryDisconnectedFromReplicationBridge: true,
+      primaryContainerStillRunning: fencingRejectionEvidence.primaryStillRunning,
+      primaryWritableWhilePartitioned: partitionWrite.primaryWritable,
+      standbyStayedInRecovery: partitionedStandby.inRecovery,
+      markerAbsentWhilePartitioned: partitionedStandby.markerPresent === false,
+      promotionBlockedWhilePrimaryRunning: true,
+      fencingRejections: fencingRejectionEvidence.fencingRejections,
+      networkHealed: true,
+      healthProbeRecovered: fencingResetEvidence.healthyAfterRejection,
+      primaryWritableAfterHeal: healedPrimaryWritable,
+      markerReplayedAfterHeal: partitionConvergence.markerReplayed,
+      primaryWalLsn: partitionWrite.primaryWalLsn,
+      standbyReplayLsn: partitionConvergence.standbyReplayLsn,
+      replayLagBytes: partitionConvergence.replayLagBytes,
+      partitionAndHealTimeMs: Date.now() - partitionStartedAt,
+      singleBridgePartitionFenceProved: true,
+    };
+    stage = "endpoint-failover";
     failoverSentinelPool = new Pool({
       connectionString: proxyUrl,
       max: 1,
@@ -476,6 +568,8 @@ async function runRecoveryDrill({ dryRun }) {
     proxyStats = failoverProxy.getStats();
     await failoverProxy.close();
     failoverProxy = null;
+    await removeContainer(dockerExecutable, networkProbeName);
+    cleanupTargets.delete(networkProbeName);
     await removeContainer(dockerExecutable, standbyName);
     cleanupTargets.delete(standbyName);
     await removeDockerNetwork(dockerExecutable, replicationNetworkName);
@@ -534,10 +628,13 @@ async function runRecoveryDrill({ dryRun }) {
         independentPrimaryFenceChecked: automaticFailoverEvidence.primaryFenceConfirmed,
         promotionBlockedWhilePrimaryRunning:
           automaticFailoverEvidence.promotionBlockedWhilePrimaryRunning,
+        singleBridgePartitionFenceProved:
+          networkPartitionEvidence.singleBridgePartitionFenceProved,
         automaticElectionProved: false,
         streamingReplicationProved: true,
       },
       automaticFailover: automaticFailoverEvidence,
+      networkPartition: networkPartitionEvidence,
       streamingReplication,
       recoveryPoint: {
         mode: "controlled-logical-snapshot",
@@ -555,6 +652,8 @@ async function runRecoveryDrill({ dryRun }) {
         singleStandbyFenceFailClosedProved:
           automaticFailoverEvidence.promotionBlockedWhilePrimaryRunning
           && automaticFailoverEvidence.primaryFenceConfirmed,
+        singleBridgePartitionFenceProved:
+          networkPartitionEvidence.singleBridgePartitionFenceProved,
         operatorControlledEndpointSwitchProved: false,
         automaticFailoverProved: false,
         networkPartitionProved: false,
@@ -1188,6 +1287,104 @@ async function writeAndWaitForReplication({
   }
 }
 
+async function writeReplicationMarkerInsideContainer({
+  dockerExecutable,
+  containerName,
+  markerId,
+}) {
+  assertReplicationMarkerId(markerId);
+  const result = await runDocker(dockerExecutable, [
+    "exec", containerName,
+    "psql",
+    "--username", POSTGRES_USER,
+    "--dbname", POSTGRES_DATABASE,
+    "--set", "ON_ERROR_STOP=1",
+    "--tuples-only",
+    "--no-align",
+    "--command", [
+      "BEGIN;",
+      "SELECT NOT pg_is_in_recovery();",
+      "INSERT INTO public.gateway_drill_replication_evidence (run_id)",
+      `VALUES ('${markerId}')`,
+      "ON CONFLICT (run_id) DO UPDATE SET created_at = clock_timestamp();",
+      "COMMIT;",
+      "SELECT pg_current_wal_lsn()::text;",
+    ].join(" "),
+  ], { stage: "postgres-partition-marker-write" });
+  const lines = result.stdout.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const primaryWritable = lines.includes("t");
+  const primaryWalLsn = lines.findLast((line) => /^[0-9A-F]+\/[0-9A-F]+$/i.test(line)) ?? "";
+  assertCondition(primaryWritable, "POSTGRES_RECOVERY_PARTITIONED_PRIMARY_NOT_WRITABLE");
+  assertCondition(primaryWalLsn.length > 0, "POSTGRES_RECOVERY_PRIMARY_WAL_LSN_MISSING");
+  return { primaryWritable, primaryWalLsn };
+}
+
+async function readStandbyReplicationMarker({ standbyConnectionString, markerId }) {
+  assertReplicationMarkerId(markerId);
+  const pool = new Pool({
+    connectionString: standbyConnectionString,
+    max: 1,
+    allowExitOnIdle: true,
+    connectionTimeoutMillis: 1_000,
+  });
+  try {
+    const result = await pool.query(`
+      SELECT
+        pg_is_in_recovery() AS in_recovery,
+        pg_last_wal_replay_lsn()::text AS replay_lsn,
+        EXISTS (
+          SELECT 1 FROM public.gateway_drill_replication_evidence WHERE run_id = $1
+        ) AS marker_present
+    `, [markerId]);
+    return {
+      inRecovery: result.rows[0]?.in_recovery === true,
+      replayLsn: result.rows[0]?.replay_lsn ?? null,
+      markerPresent: result.rows[0]?.marker_present === true,
+    };
+  } finally {
+    await pool.end();
+  }
+}
+
+async function waitForStandbyReplicationMarker({
+  standbyConnectionString,
+  markerId,
+  primaryWalLsn,
+  timeoutMs = 30_000,
+}) {
+  assertReplicationMarkerId(markerId);
+  parsePgLsn(primaryWalLsn);
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const state = await readStandbyReplicationMarker({
+      standbyConnectionString,
+      markerId,
+    });
+    if (state.inRecovery && state.markerPresent && state.replayLsn) {
+      const replayLag = parsePgLsn(primaryWalLsn) - parsePgLsn(state.replayLsn);
+      return {
+        markerReplayed: true,
+        standbyReplayLsn: String(state.replayLsn),
+        replayLagBytes: safeBigIntToNumber(replayLag > 0n ? replayLag : 0n),
+      };
+    }
+    await delay(250);
+  }
+  throw drillError(
+    "POSTGRES_RECOVERY_PARTITION_HEAL_TIMEOUT",
+    "The standby did not replay the partition marker after the Docker bridge healed.",
+  );
+}
+
+function assertReplicationMarkerId(markerId) {
+  if (!/^[a-z0-9-]{1,64}$/.test(String(markerId ?? ""))) {
+    throw drillError(
+      "POSTGRES_RECOVERY_REPLICATION_MARKER_INVALID",
+      "The replication marker identifier is invalid.",
+    );
+  }
+}
+
 async function waitForWritablePrimary(connectionString) {
   const deadline = Date.now() + 20_000;
   while (Date.now() < deadline) {
@@ -1232,9 +1429,12 @@ function startAutomaticSingleStandbyFailover({
   let rejectTransientReset;
   let resolveFencingRejection;
   let rejectFencingRejection;
+  let resolvePostFencingHealthyReset;
+  let rejectPostFencingHealthyReset;
   let armed = false;
   let transientResetObserved = false;
   let fencingRejectionObserved = false;
+  let postFencingHealthyResetObserved = false;
   let forcedProbeFailures = 0;
   let syntheticProbeFailuresObserved = 0;
   let rejectedFenceEvidence = null;
@@ -1249,6 +1449,10 @@ function startAutomaticSingleStandbyFailover({
   const fencingRejectionPromise = new Promise((resolvePromise, rejectPromise) => {
     resolveFencingRejection = resolvePromise;
     rejectFencingRejection = rejectPromise;
+  });
+  const postFencingHealthyResetPromise = new Promise((resolvePromise, rejectPromise) => {
+    resolvePostFencingHealthyReset = resolvePromise;
+    rejectPostFencingHealthyReset = rejectPromise;
   });
   const samplePrimary = async () => {
     if (forcedProbeFailures > 0) {
@@ -1296,13 +1500,12 @@ function startAutomaticSingleStandbyFailover({
         healthyProbes += 1;
         if (awaitingPostFenceHealthy) {
           awaitingPostFenceHealthy = false;
-          if (!fencingRejectionObserved) {
-            fencingRejectionObserved = true;
-            resolveFencingRejection({
-              fencingRejections,
-              primaryStillRunning: rejectedFenceEvidence?.primaryStillRunning === true,
+          if (!postFencingHealthyResetObserved) {
+            postFencingHealthyResetObserved = true;
+            resolvePostFencingHealthyReset({
               healthyAfterRejection: true,
               syntheticProbeFailuresObserved,
+              fencingRejections,
             });
           }
         }
@@ -1348,6 +1551,14 @@ function startAutomaticSingleStandbyFailover({
               rejectedFenceEvidence = {
                 primaryStillRunning: fence?.primaryStillRunning === true,
               };
+              if (!fencingRejectionObserved) {
+                fencingRejectionObserved = true;
+                resolveFencingRejection({
+                  fencingRejections,
+                  primaryStillRunning: rejectedFenceEvidence.primaryStillRunning,
+                  syntheticProbeFailuresObserved,
+                });
+              }
               transientFailureResets += 1;
               awaitingPostFenceHealthy = true;
               consecutiveFailures = 0;
@@ -1371,7 +1582,9 @@ function startAutomaticSingleStandbyFailover({
               primaryFailureConfirmed: true,
               primaryFenceConfirmed: true,
               promotionBlockedWhilePrimaryRunning:
-                fencingRejectionObserved && rejectedFenceEvidence?.primaryStillRunning === true,
+                fencingRejectionObserved
+                && postFencingHealthyResetObserved
+                && rejectedFenceEvidence?.primaryStillRunning === true,
               standbyWasInRecoveryBeforePromotion: true,
               transientFailureResets,
               syntheticProbeFailuresObserved,
@@ -1396,6 +1609,7 @@ function startAutomaticSingleStandbyFailover({
     if (!armed) rejectArmed(error);
     if (!transientResetObserved) rejectTransientReset(error);
     if (!fencingRejectionObserved) rejectFencingRejection(error);
+    if (!postFencingHealthyResetObserved) rejectPostFencingHealthyReset(error);
   });
   void completion.catch(() => undefined);
   return {
@@ -1417,6 +1631,7 @@ function startAutomaticSingleStandbyFailover({
     },
     waitForTransientFailureReset: () => transientResetPromise,
     waitForFencingRejection: () => fencingRejectionPromise,
+    waitForPostFencingHealthyReset: () => postFencingHealthyResetPromise,
     completion,
   };
 }
@@ -1438,6 +1653,25 @@ async function probePostgresWritable(connectionString, timeoutMs = 500) {
   } finally {
     await pool.end().catch(() => undefined);
   }
+}
+
+async function probePostgresWritableFromContainer({
+  dockerExecutable,
+  probeContainerName,
+}) {
+  const result = await runProcess(dockerExecutable, [
+    "exec", probeContainerName,
+    "psql",
+    "--no-password",
+    "--host", "primary",
+    "--username", POSTGRES_USER,
+    "--dbname", POSTGRES_DATABASE,
+    "--set", "ON_ERROR_STOP=1",
+    "--tuples-only",
+    "--no-align",
+    "--command", "SELECT NOT pg_is_in_recovery();",
+  ], { timeoutMs: 1_500 });
+  return result.exitCode === 0 && result.stdout.trim() === "t";
 }
 
 function parsePgLsn(value) {
@@ -1597,6 +1831,33 @@ async function startPostgresContainer({
   await runDocker(dockerExecutable, args, { stage: "postgres-container-start" });
 }
 
+async function startNetworkProbeContainer({
+  dockerExecutable,
+  containerName,
+  networkName,
+  postgresEnvPath,
+  runId,
+}) {
+  await runDocker(dockerExecutable, [
+    "run",
+    "--detach",
+    "--name", containerName,
+    "--label", `ai.gateway.recovery-drill=${runId}`,
+    "--network", networkName,
+    "--env-file", postgresEnvPath,
+    "--env", "PGCONNECT_TIMEOUT=1",
+    "--env", "PGOPTIONS=-c statement_timeout=750",
+    "--read-only",
+    "--cap-drop", "ALL",
+    "--security-opt", "no-new-privileges",
+    "--pids-limit", "64",
+    "--memory", "128m",
+    "--entrypoint", "sleep",
+    POSTGRES_IMAGE,
+    "300",
+  ], { stage: "postgres-network-probe-start" });
+}
+
 async function waitForPostgres({ dockerExecutable, containerName }) {
   const deadline = Date.now() + STARTUP_TIMEOUT_MS;
   while (Date.now() < deadline) {
@@ -1656,6 +1917,24 @@ async function createDockerNetwork(dockerExecutable, networkName, runId) {
     "--label", `ai.gateway.recovery-drill=${runId}`,
     networkName,
   ], { stage: "postgres-replication-network-create" });
+}
+
+async function disconnectDockerNetwork(dockerExecutable, networkName, containerName) {
+  await runDocker(dockerExecutable, [
+    "network", "disconnect", networkName, containerName,
+  ], { stage: "postgres-replication-network-disconnect" });
+}
+
+async function connectDockerNetwork(
+  dockerExecutable,
+  networkName,
+  containerName,
+  networkAlias,
+) {
+  const args = ["network", "connect"];
+  if (networkAlias) args.push("--alias", networkAlias);
+  args.push(networkName, containerName);
+  await runDocker(dockerExecutable, args, { stage: "postgres-replication-network-connect" });
 }
 
 async function configureReplicationHba({
@@ -1901,9 +2180,10 @@ function printHumanSummary(value) {
       `Streaming WAL marker replayed before promotion: ${String(value.streamingReplication.markerReplayed)}`,
       `Automatic single-standby failover proved: ${String(value.boundaries.automaticSingleStandbyFailoverProved)}`,
       `Promotion blocked while old primary remained running: ${String(value.automaticFailover.promotionBlockedWhilePrimaryRunning)}`,
+      `Single Docker-bridge partition fenced and healed: ${String(value.boundaries.singleBridgePartitionFenceProved)}`,
       `Database inventory: ${value.databaseInventory.tableCount} tables, ${value.databaseInventory.totalRows} rows`,
       `Cleanup complete: ${String(value.cleanup.complete)}`,
-      "Boundary: bounded single-standby failover with fixture-level fencing only; no quorum election, real partition/split-brain, continuous WAL RPO, or production RTO claim.",
+      "Boundary: one Docker-bridge partition and bounded single-standby failover; no quorum election, old-primary rejoin, complete split-brain, continuous WAL RPO, or production RTO claim.",
     ].join("\n") + "\n");
     return;
   }

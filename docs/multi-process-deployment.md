@@ -256,15 +256,18 @@ by destroying primary, promotes standby, switches a stable local TCP endpoint,
 and re-verifies the same eight application clients before/after the switch and
 restart. The drill controller requires healthy arming, consecutive failures,
 confirmation, recovery-state validation, and one-standby automatic promotion
-and endpoint switching. Before primary destruction, a complete synthetic
-failure sequence must also be rejected by an independent Docker container-state
-fence while the primary remains running, followed by a healthy-probe reset.
-This closes one fixture-level unsafe-promotion precursor; it is not a real
-partition, quorum, or old-primary rejoin test. Complete deployment HA still
-needs independently verified multi-candidate election/quorum, external HA
-control, synchronous policy, TLS identity, retention/PITR, production-scale
-restore, network partition and split-brain behavior, replica convergence,
-provider reconciliation, measured RTO/RPO, and load-balancer behavior.
+and endpoint switching. Before primary destruction, a probe container and the
+standby are separated from a still-writable primary by disconnecting the real
+Docker replication bridge. The full failure sequence must be rejected by an
+independent container-state fence; reconnecting the bridge must restore health
+and replay a marker written during the partition. This closes one bounded
+single-bridge unsafe-promotion and convergence precursor. It is not
+multi-candidate quorum, an arbitrary multi-host partition, or an old-primary
+rejoin test. Complete deployment HA still needs independently verified
+multi-candidate election/quorum, external HA control, synchronous policy, TLS
+identity, retention/PITR, production-scale restore, broader partition and
+split-brain behavior, old-primary convergence, provider reconciliation,
+measured RTO/RPO, and load-balancer behavior.
 
 ### Workforce task ownership
 

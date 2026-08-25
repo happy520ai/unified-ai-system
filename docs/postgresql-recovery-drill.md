@@ -41,20 +41,24 @@ returning.
    `pg_is_in_recovery()=true`, replay that marker, expose a replay LSN, and
    retain the same gateway inventory digest.
 9. Keeps the same eight application clients and pools connected through one
-   bounded local TCP endpoint. A checked-out sentinel runs an in-flight query;
-   the active recovery database and its volume are destroyed, which must
-   interrupt that query.
+   bounded local TCP endpoint.
 10. Arms a bounded single-standby controller only after three healthy primary
     probes. One explicitly labelled synthetic single-probe failure must recover
-    without promotion. Four more synthetic failures then cover the three-failure
-    threshold plus confirmation while the primary is still healthy. An
-    independent Docker container-state check must reject promotion, and a later
-    healthy SQL probe must prove the controller reset. After real primary
-    destruction, three consecutive failures plus confirmation are required
-    again; the controller verifies the one standby is still in recovery and the
-    old primary container is fenced before it runs `pg_ctl promote`, waits for
-    writable, and switches the stable endpoint. The original sentinel Pool and
-    all eight clients must recover without reconstruction and pass 8/8 again.
+    without promotion. A separate bounded probe container then reaches primary
+    through the replication bridge. The drill disconnects primary from that
+    bridge: the probe and streaming standby lose it, while an in-container SQL
+    write proves the old primary is still running and writable. The standby
+    must stay in recovery and not see that partition marker. Three failures plus
+    confirmation reach the promotion path, where an independent Docker
+    container-state fence must reject promotion. The bridge is reconnected with
+    the same `primary` alias; a healthy probe must reset the controller and the
+    standby must replay the partition marker with bounded LSN lag. Finally, a
+    checked-out sentinel runs an in-flight query and the active primary and its
+    volume are destroyed, which must interrupt the query. Three failures plus
+    confirmation are required again; only an independently fenced old primary
+    permits `pg_ctl promote`, writable wait, and stable endpoint switch. The
+    original sentinel Pool and all eight clients must recover without
+    reconstruction and pass 8/8 again.
 11. Restarts the promoted standby and requires the same sentinel Pool plus the
     same eight application clients to recover and pass a third 8/8.
 12. Removes every client, proxy, container, volume, network, credential file,
@@ -70,10 +74,12 @@ A passing result proves a bounded logical snapshot can recover the covered
 gateway schemas into a clean PostgreSQL 17 primary, establish a real asynchronous
 streaming standby, replay post-basebackup WAL, perform controlled promotion, and
 exercise bounded automatic failure detection/promotion/switching for exactly one
-standby. It also proves the fixture controller fails closed when its SQL health
-channel reports the complete failure threshold while Docker independently says
-the old primary is still running. The same in-process application pools recover
-after switch and restart.
+standby. It also proves one real Docker-bridge partition: the old primary stays
+writable, the standby cannot replay a new marker, the health path reaches its
+full failure threshold, and the independent Docker-state fence blocks
+promotion. After bridge healing, health recovers and the standby replays that
+marker before the destructive failover proceeds. The same in-process
+application pools recover after switch and restart.
 The reported `controlledRecoveryTimeMs` and `controlledFailoverTimeMs` are only
 the wall clocks of this disposable fixture; neither is a production RTO.
 
@@ -83,9 +89,9 @@ The drill does **not** prove:
 - synchronous replication, multi-candidate leader election/quorum, or a
   production external HA controller (the repository controller knows exactly
   one standby and runs only inside this disposable drill);
-- network-partition or complete split-brain safety. The Docker-state fence is
-  independent of the SQL health probes, but it is not a quorum service, a real
-  network partition, or an old-primary rejoin test;
+- arbitrary multi-link/multi-host partition or complete split-brain safety. The
+  covered partition is one disposable Docker bridge with one known standby;
+  the independent fence is not a quorum service or an old-primary rejoin test;
 - object-lock/WORM retention or independent backup custody;
 - production data volume, encryption-at-rest, certificate rotation, RPO, or
   RTO;
