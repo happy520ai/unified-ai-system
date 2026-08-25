@@ -20,7 +20,7 @@ whole repository first:
 
 ```bash
 corepack enable
-corepack prepare pnpm@9.15.4 --activate
+corepack prepare pnpm@11.19.0 --activate
 pnpm install --frozen-lockfile
 pnpm check:public
 ```
@@ -38,14 +38,14 @@ API key or real provider call is needed for these contribution paths.
 
 Requirements:
 
-- Node.js 20 or newer. Node.js 22 is recommended.
-- pnpm 9.15.4 or newer.
+- Node.js 22.18.0 or newer.
+- pnpm 11.19.0 (the version pinned by `packageManager`).
 
 ```bash
 git clone https://github.com/happy520ai/unified-ai-system.git
 cd unified-ai-system
 corepack enable
-corepack prepare pnpm@9.15.4 --activate
+corepack prepare pnpm@11.19.0 --activate
 pnpm install --frozen-lockfile
 pnpm verify:public-clone
 pnpm start

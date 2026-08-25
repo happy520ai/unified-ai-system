@@ -20,6 +20,7 @@
   <a href="https://github.com/happy520ai/unified-ai-system/releases/latest">
     <img alt="Release" src="https://img.shields.io/github/v/release/happy520ai/unified-ai-system?style=flat-square" />
   </a>
+  <img alt="Maturity: hardened Public Preview" src="https://img.shields.io/badge/maturity-hardened_Public_Preview-f59e0b?style=flat-square" />
   <a href="https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.5.0">
     <img alt="Official MCP Registry: active" src="https://img.shields.io/badge/Official_MCP_Registry-active-1f883d?style=flat-square" />
   </a>
@@ -31,12 +32,16 @@
 <p align="center">
   <img
     src="docs/assets/readme-hero.png"
-    alt="Unified AI System — self-hosted AI gateway with 12 governed MCP tools, 900+ tests, 16 blocked attack classes, zero credentials to try"
+    alt="Unified AI System — self-hosted AI gateway with 12 governed MCP tools, four release gates, 23 defended attack cases, and zero credentials to start"
     width="100%"
   />
 </p>
 
-Unified AI System turns a rough request into a structured, reviewable prompt before execution. It gives teams one self-hosted surface for OpenAI-compatible SDKs, MCP, A2A, CLI, and HTTP while keeping provider calls explicit — with the feature set you'd expect from a commercial LLM gateway: virtual keys with token budgets, exact + semantic response caching, reverse MCP governance with REST→MCP generation, and production observability.
+Unified AI System turns a rough request into a structured, reviewable prompt before execution. It gives teams one self-hosted surface for OpenAI-compatible SDKs, MCP, A2A, CLI, and HTTP while keeping provider calls explicit — with virtual keys and token budgets, exact + semantic response caching, reverse MCP governance with REST→MCP generation, and operations-focused observability.
+
+> **Current maturity:** hardened **Public Preview**. The credential-free path is
+> reproducible and CI-gated; production deployment still requires your own
+> provider staging, HA/DR drills, security review, and operating evidence.
 
 ## Try Before Installing
 
@@ -111,7 +116,7 @@ fake-provider-first, so you can try every feature with zero credentials:
 <p align="center">
   <img
     src="docs/assets/readme-capabilities.png"
-    alt="Capability cards: OpenAI + Anthropic APIs, virtual keys and budgets, exact + semantic cache, reverse MCP governance, chat-native observability, local-first RAG, provider governance, and a 16-attack security regression"
+    alt="Capability cards: OpenAI, Anthropic, and Gemini APIs; virtual keys and budgets; exact and semantic cache; reverse MCP governance; observability; local-first RAG; provider governance; and a 23-attack security regression"
     width="100%"
   />
 </p>
@@ -130,7 +135,7 @@ fake-provider-first, so you can try every feature with zero credentials:
 | Enterprise identity & provisioning | **OIDC SSO** (authorization code + PKCE + JWKS signature verification, issues an API token on login) and **SCIM 2.0** user provisioning (bearer-auth create/get/list/patch/deactivate). | [Security drill](tools/security-attack-regression.mjs) · [Enterprise SSO & SCIM](docs/enterprise-sso.md) |
 | Operator traffic control | Configurable **weighted routing splits** and **shadow traffic** (`AI_GATEWAY_WEIGHTED_ROUTES_JSON`): shadow calls are separately accounted; real-provider shadowing also requires `AI_GATEWAY_SHADOW_REAL_PROVIDER_ENABLED=true`. | [Multi-process deployment](docs/multi-process-deployment.md) |
 | Hot-path RAG + billing evidence | Opt-in `unified_ai.rag` knowledge injection on `/v1/chat/completions`; central usage evidence and an admin-only exact-attempt USD statement comparison. Local statement previews remain explicitly non-legal and no payment gateway is connected. | [Spend reporting](docs/spend-reporting.md) |
-| Multi-instance ready | `AI_GATEWAY_MULTI_INSTANCE=true` keeps same-host SQLite defaults. Explicit PostgreSQL modes cover cross-host quotas/response idempotency/real-provider dispatch tombstones/WebSocket leases, A2A task lifecycle with atomic terminal fence consumption/cancel, Workforce ownership, central queue/results with atomic terminal fence validation, atomic approval consumption and versioned lifecycle control, central billable usage, and a shared HMAC audit chain; resumable crash recovery, provider-side exactly-once, fence-aware external side effects, complete HA, external WORM, and authenticated provider statements remain explicit. | [Multi-process deployment](docs/multi-process-deployment.md) |
+| Multi-instance controls | `AI_GATEWAY_MULTI_INSTANCE=true` keeps same-host SQLite defaults. Explicit PostgreSQL modes cover cross-host quotas, response idempotency, dispatch tombstones, WebSocket/A2A/Workforce leases and terminal fences, approvals, billable usage, and a shared HMAC audit chain. Current source also gates governed irreversible built-ins, webhooks, MCP/OpenAPI mutations, and custom tools with durable effect tombstones. This is bounded at-most-once admission within a TTL, not provider-side exactly-once; resumable call-stack recovery, complete HA/DR, external WORM, and authenticated provider statements remain explicit deployment work. | [Multi-process deployment](docs/multi-process-deployment.md) · [External-effect fencing](docs/external-effect-fencing.md) |
 
 Published infrastructure benchmark (fake provider, single node): chat JSON p50 **15.6 ms**, SSE TTFT p50 **2.8 ms**, **402 req/s** at concurrency 8, cache hits **5.6× faster** than misses — see the [gateway benchmark](docs/benchmarks/2026-08-gateway-benchmark.md).
 
@@ -347,11 +352,13 @@ Skill hub: https://skills.sh/happy520ai/unified-ai-system/unified-ai-gateway
 
 For local source work:
 
+Requires Node.js 22.18.0 or newer and pnpm 11.19.0.
+
 ```bash
 git clone https://github.com/happy520ai/unified-ai-system.git
 cd unified-ai-system
 corepack enable
-corepack prepare pnpm@9.15.4 --activate
+corepack prepare pnpm@11.19.0 --activate
 pnpm install --frozen-lockfile
 pnpm verify:public-clone
 pnpm gateway demo

@@ -23,6 +23,7 @@
   <a href="https://github.com/happy520ai/unified-ai-system/releases/latest">
     <img alt="Release" src="https://img.shields.io/github/v/release/happy520ai/unified-ai-system?style=flat-square" />
   </a>
+  <img alt="成熟度：加固后的 Public Preview" src="https://img.shields.io/badge/%E6%88%90%E7%86%9F%E5%BA%A6-%E5%8A%A0%E5%9B%BA%E5%90%8E%E7%9A%84_Public_Preview-f59e0b?style=flat-square" />
   <a href="https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.5.0">
     <img alt="Official MCP Registry" src="https://img.shields.io/badge/Official_MCP_Registry-active-1f883d?style=flat-square" />
   </a>
@@ -32,6 +33,10 @@
 </p>
 
 Unified AI System 会在执行前，把一句自然语言需求整理成结构化、可审阅的提示词。它为 OpenAI 兼容 SDK、MCP、A2A、CLI 和 HTTP 提供统一的自托管入口，同时让 provider 调用保持显式。
+
+> **当前成熟度：加固后的 Public Preview。** 零凭证路径可复现并受 CI
+> 门禁；生产部署仍需要使用方完成真实 Provider staging、HA/DR 演练、
+> 独立安全评审和持续运行证据。
 
 <p align="center">
   <a href="https://happy520ai.github.io/unified-ai-system/#enhance?prompt=%E5%B8%AE%E6%88%91%E4%B8%BA%E5%9B%A2%E9%98%9F%E8%AE%BE%E8%AE%A1%E4%B8%80%E4%B8%AA%E5%B0%8F%E5%9E%8B+API&amp;profile=coding&amp;language=zh-CN">
@@ -50,7 +55,7 @@ Unified AI System 会在执行前，把一句自然语言需求整理成结构�
 <p align="center">
   <img
     src="docs/assets/readme-hero.png"
-    alt="Unified AI System：自托管 AI 网关——12 个受治理 MCP 工具、900+ 测试、16 项攻击全部防住、零凭证即可试用"
+    alt="Unified AI System：自托管 AI 网关——12 个受治理 MCP 工具、四项发布门、23 项攻击回归均被防御、首次体验零凭证"
     width="100%"
   />
 </p>
@@ -111,7 +116,7 @@ Cursor、Cline、Continue 和通用 stdio 客户端都可以通过同一个网�
 <p align="center">
   <img
     src="docs/assets/readme-capabilities.png"
-    alt="能力卡片：OpenAI + Anthropic 兼容 API、虚拟 key 与预算、精确+语义缓存、反向 MCP 治理、chat 原生可观测性、本地优先 RAG、Provider 治理、16 项攻击安全回归"
+    alt="能力卡片：OpenAI、Anthropic 与 Gemini API，虚拟 key 与预算，精确和语义缓存，反向 MCP 治理，可观测性，本地优先 RAG，Provider 治理，以及 23 项攻击安全回归"
     width="100%"
   />
 </p>
@@ -129,7 +134,7 @@ Cursor、Cline、Continue 和通用 stdio 客户端都可以通过同一个网�
 | Provider 治理 | 真实 provider 三道门白名单矩阵、运行时凭证库（SHA-256 落存 + file 金库解析）、请求成本守卫、熔断器、fallback 链。 | [真实 provider 启用](docs/real-provider-enablement.md) |
 | 企业身份与供给 | **OIDC SSO**（授权码+PKCE+JWKS 验签，登录即发 API token）与 **SCIM 2.0** 用户供给（Bearer 鉴权，create/get/list/patch/deactivate）；RBAC、审计哈希链租户隔离，16+ 项攻击安全回归守护。 | [安全演练](tools/security-attack-regression.mjs) |
 | 本地计费台账 | 客户/用量/开票/作废/收款登记的 JSONL 台账（未接支付网关：票据如实标注为对账单，非法律发票）。 | [花费报表](docs/spend-reporting.md) |
-| 多实例就绪 | `AI_GATEWAY_MULTI_INSTANCE=true` 后限流、响应幂等、真实 Provider 调度墓碑和 A2A 任务同主机默认共享 SQLite；PostgreSQL 覆盖跨主机配额/响应幂等/防重复外呼/WebSocket 租约、fenced Workforce ownership、中央计费用量和共享 HMAC 审计链。Provider 侧 exactly-once、完整 HA、外部 WORM 与 Provider 对账仍明确保留。 | [多进程部署](docs/multi-process-deployment.md) |
+| 多实例控制 | `AI_GATEWAY_MULTI_INSTANCE=true` 保留同主机 SQLite 默认；PostgreSQL 模式覆盖跨主机配额、响应幂等、调度墓碑、WebSocket/A2A/Workforce 租约与终态 fence、审批、中央计费用量和共享 HMAC 审计链。当前源码还以持久 effect tombstone 约束受治理的不可逆内建工具、Webhook、MCP/OpenAPI mutation 与自定义工具。这提供 TTL 内的有界 at-most-once 准入，不等于 Provider 侧 exactly-once；可恢复调用栈、完整 HA/DR、外部 WORM 与已认证 Provider 对账仍属于部署工作。 | [多进程部署](docs/multi-process-deployment.md) · [外部副作用 fencing](docs/external-effect-fencing.md) |
 
 已发布基础设施基准（fake provider、单机）：chat JSON p50 **15.6 ms**、SSE 首字 **2.8 ms**、并发 8 下 **402 req/s**、缓存命中比未命中快 **5.6×**——见[网关基准报告](docs/benchmarks/2026-08-gateway-benchmark.md)。
 
@@ -272,17 +277,19 @@ Skill 主页：<https://skills.sh/happy520ai/unified-ai-system/unified-ai-gatewa
 
 ### 从源码运行
 
+需要 Node.js 22.18.0 或更高版本，以及 pnpm 11.19.0。
+
 ```bash
 git clone https://github.com/happy520ai/unified-ai-system.git
 cd unified-ai-system
 corepack enable
-corepack prepare pnpm@9.15.4 --activate
+corepack prepare pnpm@11.19.0 --activate
 pnpm install --frozen-lockfile
 pnpm verify:public-clone
 pnpm gateway demo
 ```
 
-源码开发和完整验证需要 Node.js 22 或更高版本；Docker 快速路径不需要本地 Node.js。
+源码开发和完整验证需要 Node.js 22.18.0 或更高版本；Docker 快速路径不需要本地 Node.js。
 
 如果不想配置本地环境，可以直接使用 [GitHub Codespaces](https://codespaces.new/happy520ai/unified-ai-system?quickstart=1)。工作区准备完成后先运行一条命令查看结果：
 

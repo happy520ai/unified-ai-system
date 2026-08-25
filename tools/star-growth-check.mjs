@@ -2,6 +2,7 @@
 import { execSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
+import { gatewayImage } from "./release-metadata.mjs";
 
 const repo = "happy520ai/unified-ai-system";
 const repoUrl = "https://github.com/happy520ai/unified-ai-system";
@@ -9,11 +10,11 @@ const promptLabUrl = "https://happy520ai.github.io/unified-ai-system/#enhance";
 const usageReportUrl =
   "https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml";
 const demoCommand =
-  "docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.9 pnpm gateway demo \"Build a small API for my team\" --enhance --profile coding --evidence";
+  `docker run --rm ${gatewayImage} pnpm gateway demo "Build a small API for my team" --enhance --profile coding --evidence`;
 const pipeCommand =
   "cat request.txt | pnpm gateway enhance --profile auto --json";
 const dockerPipeCommand =
-  "printf '%s' \"Plan a launch for a small API\" | docker run --rm -i ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.9 pnpm --silent gateway demo --enhance --profile planning --language en --json";
+  `printf '%s' "Plan a launch for a small API" | docker run --rm -i ${gatewayImage} pnpm --silent gateway demo --enhance --profile planning --language en --json`;
 const defaultGrowthOutputDir = ".tmp/growth";
 const defaultLatestSnapshotFile = `${defaultGrowthOutputDir}/star-growth-latest.md`;
 

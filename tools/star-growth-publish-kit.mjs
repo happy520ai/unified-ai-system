@@ -2,6 +2,7 @@
 
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
+import { gatewayImage } from "./release-metadata.mjs";
 
 const args = process.argv.slice(2);
 const outputArgIndex = args.indexOf("--output");
@@ -11,11 +12,11 @@ const outputFile = output || ".tmp/growth/star-growth-publish-output.md";
 const date = new Date().toISOString().slice(0, 10);
 const repoUrl = "https://github.com/happy520ai/unified-ai-system";
 const demoCommand =
-  "docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.9 pnpm gateway demo \"Build a small API for my team\" --enhance --profile coding";
+  `docker run --rm ${gatewayImage} pnpm gateway demo "Build a small API for my team" --enhance --profile coding`;
 const pipeCommand =
   "cat request.txt | pnpm gateway enhance --profile auto --json";
 const dockerPipeCommand =
-  "printf '%s' \"Plan a launch for a small API\" | docker run --rm -i ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.9 pnpm --silent gateway demo --enhance --profile planning --language en --json";
+  `printf '%s' "Plan a launch for a small API" | docker run --rm -i ${gatewayImage} pnpm --silent gateway demo --enhance --profile planning --language en --json`;
 const issueTemplate =
   "https://github.com/happy520ai/unified-ai-system/issues/new?template=usage-verification-report.yml";
 

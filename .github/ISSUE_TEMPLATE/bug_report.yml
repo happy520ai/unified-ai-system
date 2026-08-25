@@ -37,7 +37,7 @@ body:
     id: environment
     attributes:
       label: Environment
-      placeholder: Windows 11, Node.js 22.x, pnpm 9.15.4
+      placeholder: Windows 11, Node.js 22.18.0, pnpm 11.19.0
     validations:
       required: true
   - type: dropdown

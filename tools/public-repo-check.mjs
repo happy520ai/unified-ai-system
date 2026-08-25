@@ -190,6 +190,11 @@ const requiredFiles = [
   ".mcp.json",
   ".github/workflows/indexnow.yml",
   "docs/assets/social-preview.png",
+  "docs/assets/social-preview-source.html",
+  "docs/assets/readme-hero.html",
+  "docs/assets/readme-hero.png",
+  "docs/assets/readme-capabilities.html",
+  "docs/assets/readme-capabilities.png",
   "docs/codex-mcp-docker-quickstart.html",
   "docs/codex-mcp-docker-quickstart.zh-CN.html",
   "docs/getting-started.md",
@@ -218,6 +223,7 @@ const requiredFiles = [
   ".github/ISSUE_TEMPLATE/protocol-client-report.yml",
   "skills/unified-ai-gateway/SKILL.md",
   "tools/mcp-smoke.mjs",
+  "tools/release-metadata.mjs",
   "tools/submit-indexnow.mjs",
   "tools/verify-public-clone.mjs",
 ];
@@ -438,6 +444,41 @@ if (readme.includes("BEGIN UNIFIED_AI_SYSTEM_CURRENT_STATE")) {
   addError("generated_ledger_in_public_readme", "README.md");
 }
 
+const marketingAssetContracts = [
+  [
+    "docs/assets/readme-hero.html",
+    ["first path needs <strong>zero credentials</strong>", "<b>12</b> governed MCP tools", "<b>23</b> attack cases defended"],
+  ],
+  [
+    "docs/assets/readme-capabilities.html",
+    ["One governed AI gateway stack", "23-attack live drill", "evidence, not certification"],
+  ],
+  [
+    "docs/assets/social-preview-source.html",
+    ["Hardened Public Preview", "<strong>12</strong> governed tools", "12 ready"],
+  ],
+];
+const forbiddenMarketingClaims = [
+  "LiteLLM/Portkey-class",
+  "every feature works with",
+  "Everything a commercial gateway ships",
+  ">9 ready<",
+  "<strong>9</strong> governed tools",
+];
+for (const [path, markers] of marketingAssetContracts) {
+  const content = readFileSync(resolve(repoRoot, path), "utf8");
+  for (const marker of markers) {
+    if (!content.includes(marker)) {
+      addError("marketing_asset_contract_stale", path, marker);
+    }
+  }
+  for (const claim of forbiddenMarketingClaims) {
+    if (content.includes(claim)) {
+      addError("marketing_asset_overclaim", path, claim);
+    }
+  }
+}
+
 const currentVersionMarker = String(rootPackage.version);
 const versionedPublicEntryPoints = [
   "README.md",
@@ -461,6 +502,89 @@ for (const path of versionedPublicEntryPoints) {
       path,
       `Expected current package version ${currentVersionMarker}`,
     );
+  }
+}
+
+const currentPnpmVersion = String(rootPackage.packageManager ?? "").match(
+  /^pnpm@(\d+\.\d+\.\d+)$/,
+)?.[1];
+const currentNodeMinimum = String(rootPackage.engines?.node ?? "").match(
+  /^>=(\d+\.\d+\.\d+)/,
+)?.[1];
+const sourceOnboardingEntryPoints = [
+  "README.md",
+  "README.zh-CN.md",
+  "CONTRIBUTING.md",
+  "docs/getting-started.md",
+  "docs/first-run-troubleshooting.md",
+  "docs/first-run-troubleshooting.zh-CN.md",
+  ".github/ISSUE_TEMPLATE/bug_report.yml",
+  ".github/ISSUE_TEMPLATE/usage-verification-report.yml",
+];
+
+if (!currentPnpmVersion) {
+  addError("package_manager_version_invalid", "package.json#packageManager");
+}
+if (!currentNodeMinimum) {
+  addError("node_engine_minimum_invalid", "package.json#engines.node");
+}
+for (const path of sourceOnboardingEntryPoints) {
+  const content = readFileSync(resolve(repoRoot, path), "utf8");
+  if (currentPnpmVersion && !content.includes(currentPnpmVersion)) {
+    addError(
+      "source_onboarding_pnpm_version_stale",
+      path,
+      `Expected pnpm ${currentPnpmVersion}`,
+    );
+  }
+  if (currentNodeMinimum && !content.includes(currentNodeMinimum)) {
+    addError(
+      "source_onboarding_node_version_stale",
+      path,
+      `Expected Node.js ${currentNodeMinimum}`,
+    );
+  }
+  for (const match of content.matchAll(/\bpnpm(?:@|\s+)(\d+\.\d+\.\d+)\b/g)) {
+    if (currentPnpmVersion && match[1] !== currentPnpmVersion) {
+      addError(
+        "source_onboarding_pnpm_version_mismatch",
+        path,
+        `Expected ${currentPnpmVersion}; found ${match[1]}`,
+      );
+    }
+  }
+}
+
+const releaseImageSurfaces = [
+  "README.md",
+  "README.zh-CN.md",
+  "llms-install.md",
+  "docs/getting-started.md",
+  "docs/first-run-troubleshooting.md",
+  "docs/first-run-troubleshooting.zh-CN.md",
+  "docs/cli.md",
+  "docs/examples/prompt-enhancement-curl.md",
+  "docs/mcp-generic-client.md",
+  "docs/prompt-enhancement.md",
+  "docs/community-promotion-pack.md",
+  "docs/growth-post-templates.md",
+  "docs/growth-launch-kit-2026-08.md",
+  "docs/terminal-first-ai-gateway.html",
+  ".github/ISSUE_TEMPLATE/usage-verification-report.yml",
+  ...tracked.filter((path) => /^tools\/star-growth-.*\.(?:mjs|ps1)$/.test(path)),
+];
+for (const path of new Set(releaseImageSurfaces)) {
+  const content = readFileSync(resolve(repoRoot, path), "utf8");
+  for (const match of content.matchAll(
+    /ghcr\.io\/happy520ai\/unified-ai-system\/(?:ai-gateway-service|mcp-server):(\d+\.\d+\.\d+)\b/g,
+  )) {
+    if (match[1] !== currentVersionMarker) {
+      addError(
+        "public_release_image_version_stale",
+        path,
+        `Expected ${currentVersionMarker}; found ${match[1]}`,
+      );
+    }
   }
 }
 
@@ -591,6 +715,12 @@ for (const [path, code, markers] of promptEnhancementPages) {
 for (const [marker, code] of requiredPromptLabMarkers) {
   if (!projectSite.includes(marker)) addError(code, "docs/index.html");
 }
+for (const [marker, code] of [
+  ["Hardened Public Preview", "public_home_maturity_boundary_missing"],
+  ["<strong>12</strong><span>governed MCP tools</span>", "public_home_tool_count_stale"],
+]) {
+  if (!projectSite.includes(marker)) addError(code, "docs/index.html");
+}
 
 const requiredSocialMetadata = [
   ['property="og:image"', "open_graph_image_missing"],
@@ -625,6 +755,8 @@ const requiredChineseSiteMarkers = [
   ['property="og:locale" content="zh_CN"', "chinese_home_locale_missing"],
   ['"inLanguage": "zh-CN"', "chinese_home_structured_language_missing"],
   ["docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:", "chinese_home_demo_missing"],
+  ["加固后的 Public Preview", "chinese_home_maturity_boundary_missing"],
+  ["<strong>12</strong><span>可治理的 MCP 工具</span>", "chinese_home_tool_count_stale"],
   ["生产就绪、L5 自主和 AGI", "chinese_home_evidence_boundary_missing"],
 ];
 
@@ -738,6 +870,7 @@ const requiredCodexGuideMarkers = [
   ['property="og:type" content="article"', "codex_docker_open_graph_type_missing"],
   ['"@type": "HowTo"', "codex_docker_structured_data_missing"],
   ["codex mcp add unified-ai-system -- docker run --rm -i", "codex_docker_add_command_missing"],
+  ["12 tools", "codex_docker_tool_count_stale"],
   ["codex mcp remove unified-ai-system", "codex_docker_remove_command_missing"],
   ["Not claimed", "codex_docker_evidence_boundary_missing"],
 ];
@@ -765,6 +898,7 @@ const requiredChineseCodexGuideMarkers = [
   ['"@type": "HowTo"', "chinese_codex_docker_structured_data_missing"],
   ['"inLanguage": "zh-CN"', "chinese_codex_docker_structured_language_missing"],
   ["codex mcp add unified-ai-system -- docker run --rm -i", "chinese_codex_docker_add_command_missing"],
+  ["12 个工具", "chinese_codex_docker_tool_count_stale"],
   ["codex mcp remove unified-ai-system", "chinese_codex_docker_remove_command_missing"],
   ["生产就绪、L5 自主或 AGI", "chinese_codex_docker_evidence_boundary_missing"],
 ];

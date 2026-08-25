@@ -38,18 +38,18 @@
 </head>
 <body>
   <div class="title">
-    <h1>Everything a commercial gateway ships — <em>self-hosted</em></h1>
-    <p>All eight run from one process, on the credential-free fake provider by default.</p>
+    <h1>One governed AI gateway stack — <em>self-hosted</em></h1>
+    <p>The fake-provider verifies the first path; real providers stay explicitly gated.</p>
   </div>
   <div class="grid">
-    <div class="card"><div class="icon">⇄</div><b>OpenAI + Anthropic APIs</b><p>Keep your existing SDK and change only the base URL. Streaming, tools, and model discovery in both protocols.</p><code>/v1/chat/completions · /v1/messages</code></div>
+    <div class="card"><div class="icon">⇄</div><b>Three API Dialects</b><p>OpenAI, Anthropic, and Gemini-native routes preserve streaming, tools, and model discovery behind one gateway.</p><code>OpenAI · Anthropic · Gemini</code></div>
     <div class="card"><div class="icon">🔑</div><b>Virtual Keys & Budgets</b><p>Issue uai- keys with daily/monthly token windows, per-key RPM, soft-budget alerts, spend attribution, instant revoke.</p><code>consumers never hold provider keys</code></div>
     <div class="card"><div class="icon">⚡</div><b>Exact + Semantic Cache</b><p>Hot-path caching with byte-identical SSE replay and per-tenant isolation; optional semantic layer for paraphrases.</p><code>cache hit ⇒ same bytes, 0 provider cost</code></div>
-    <div class="card"><div class="icon">🛡</div><b>Reverse MCP Governance</b><p>Aggregate upstream MCP servers behind one authenticated, audited, allow-listed surface. Any OpenAPI 3 spec becomes MCP tools.</p><code>REST → MCP in one step</code></div>
+    <div class="card"><div class="icon">🛡</div><b>Reverse MCP Governance</b><p>Aggregate upstream MCP servers behind one authenticated, audited surface. Validated OpenAPI operations become governed tools.</p><code>REST → governed MCP</code></div>
     <div class="card"><div class="icon">📈</div><b>Chat-native Observability</b><p>TTFT histograms, tokens per model, cache hit rates, and key rejections on /metrics; optional Langfuse export.</p><code>Prometheus · Langfuse</code></div>
     <div class="card"><div class="icon">🧠</div><b>Local-first RAG</b><p>Deterministic embedding provider plus a SQLite vector store enable tenant-isolated retrieval — with zero external services.</p><code>mode: "vector" · no API key</code></div>
-    <div class="card"><div class="icon">⚖</div><b>Provider Governance</b><p>Three-gate whitelist for real providers, SHA-256 credential store, request cost guards, circuit breakers, fallback chains.</p><code>explicit > silent</code></div>
-    <div class="card"><div class="icon">🚨</div><b>Security Regression</b><p>A repeatable 16-attack live drill — cross-tenant cache reads, tenant forgery, budget bypass — must stay green to ship.</p><code>hash-chained audit log</code></div>
+    <div class="card"><div class="icon">⚖</div><b>Provider Governance</b><p>Three-gate whitelist for real providers, scoped runtime credentials, request cost guards, circuit breakers, and fallback chains.</p><code>explicit &gt; silent</code></div>
+    <div class="card"><div class="icon">🚨</div><b>Security Regression</b><p>A repeatable 23-attack live drill covers cross-tenant reads, identity forgery, budget bypass, and other bounded abuse cases.</p><code>evidence, not certification</code></div>
   </div>
 </body>
 </html>

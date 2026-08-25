@@ -8,7 +8,7 @@ The default path does not require an API key or a real provider.
 | `docker` is not recognized | Docker is not installed or is not on `PATH`. | Install Docker Desktop, restart the terminal, and rerun the [60-second demo](../README.md#try-it-in-60-seconds). |
 | Docker cannot connect to the daemon | Docker Desktop is installed but not running. | Start Docker Desktop and wait for it to report that the engine is running. |
 | Port `3100` is already in use | Another local service owns the host port. | Publish a different host port, for example `--publish 3210:3100`, then use `http://127.0.0.1:3210`. |
-| `pnpm` or `corepack` is not recognized | Node.js is missing or the shell has not loaded Corepack. | Install Node.js 22 or newer, run `corepack enable`, then `corepack prepare pnpm@9.15.4 --activate`. |
+| `pnpm` or `corepack` is not recognized | Node.js is missing or the shell has not loaded Corepack. | Install Node.js 22.18.0 or newer, run `corepack enable`, then `corepack prepare pnpm@11.19.0 --activate`. |
 | PowerShell breaks a multi-line command | Bash continuation syntax was pasted into PowerShell. | Use the [Windows PowerShell example](getting-started.md#windows-powershell), or run the one-line container demo. |
 | A command appears to require a provider key | A real-provider setting may be enabled, or the wrong command was used. | Start with `pnpm gateway demo`; keep `AI_GATEWAY_PROVIDER_MODE=fake` and `AI_GATEWAY_REAL_PROVIDER_ENABLED=false`. Never paste a key into an issue. |
 | MCP tools do not appear in Codex | The client has not reloaded its MCP configuration. | Restart Codex or open a new task, then run `/mcp verbose`. From a checkout, run `pnpm verify:mcp`. |
@@ -24,7 +24,7 @@ command when reporting a failure.
 
 ```powershell
 # Windows PowerShell
-PS> docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.9 pnpm gateway demo
+PS> docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.5.0 pnpm gateway demo
 [ready] provider      local-fake-provider
 [ready] execution     fake
 [ready] real calls    disabled
@@ -40,7 +40,7 @@ first line:
 ```powershell
 # Windows PowerShell
 PS> docker run --rm --publish 3210:3100 `
->> ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.9 pnpm gateway demo
+>> ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.5.0 pnpm gateway demo
 [ready] provider      local-fake-provider
 [ready] execution     fake
 [done] ... | no API key | process cleaned up
@@ -50,7 +50,7 @@ PS> docker run --rm --publish 3210:3100 `
 
 ```bash
 # macOS/Linux Bash or Zsh
-$ docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.9 pnpm gateway demo
+$ docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.5.0 pnpm gateway demo
 [ready] provider      local-fake-provider
 [ready] execution     fake
 [ready] real calls    disabled
@@ -66,7 +66,7 @@ The equivalent Bash or Zsh continuation uses a backslash instead:
 ```bash
 # macOS/Linux Bash or Zsh
 $ docker run --rm --publish 3210:3100 \
-> ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.4.9 pnpm gateway demo
+> ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.5.0 pnpm gateway demo
 [ready] provider      local-fake-provider
 [ready] execution     fake
 [done] ... | no API key | process cleaned up
