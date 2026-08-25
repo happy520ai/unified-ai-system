@@ -2,7 +2,7 @@
 
 > 审计日期：2026-08-24；加固证据更新至 2026-08-25（Asia/Shanghai）
 > 已发布版本：[`v0.5.0`](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.5.0)，发布于 2026-08-15  
-> 已审代码提交：`05d49df1f2ba3049bbeec5c786afbdc02458b99f`（采用/版本一致性：`05d49df1`；custom tool authority：`dd21f740`；MCP/OpenAPI mutation fence：`a864b2cf`；外部不可逆效果 fence：`4fa6001d`；PostgreSQL CI 覆盖闭环：`5ff8a0b6`；Provider dispatch：`725c1ab5`；间接 Provider sink 收口：`63569228`；运行时：`3adb9fe3`；A2A 原子终态：`0eeb2aa2`/`46da8708`）
+> 已审代码提交：`d2205a201eba4fcec7c759c082e79a63c0e1b917`（Agent completion/timeout 测试契约：`d2205a20`；采用/版本一致性：`05d49df1`；custom tool authority：`dd21f740`；MCP/OpenAPI mutation fence：`a864b2cf`；外部不可逆效果 fence：`4fa6001d`；PostgreSQL CI 覆盖闭环：`5ff8a0b6`；Provider dispatch：`725c1ab5`；间接 Provider sink 收口：`63569228`；运行时：`3adb9fe3`；A2A 原子终态：`0eeb2aa2`/`46da8708`）
 > 审计分支：`codex/protocol-client-compatibility`，GitHub [PR #115](https://github.com/happy520ai/unified-ai-system/pull/115)  
 > 审计性质：全仓代码、配置、运行时、数据、安全、协议、部署、发布、文档与行业位置审计  
 > 明确边界：未读取本地 `.mcp.json` 的用户改动、任何 `.env`、提供商密钥或私人授权记录；本轮没有发起真实提供商调用。
@@ -74,7 +74,7 @@
 | `docs/` Markdown/HTML | 99 |
 | pnpm 工作区项目 | 20（含根项目） |
 | PR 相对 `origin/master` 变化文件 | 485（包含本报告） |
-| 已审分支相对 `origin/master` | 采用度代码提交 `05d49df1` 时 105 个提交领先；本报告更新另增加一个文档提交 |
+| 已审分支相对 `origin/master` | 采用度代码提交 `05d49df1` 时 105 个提交领先；其后提交仅更新审计/托管/推广证据，分支总数随证据提交继续增长 |
 | 当前 GitHub 采用快照 | 6 stars、2 forks；截至 2026-08-23 的可见 traffic 为 205 views/38 unique visitors、2,591 clones/423 unique cloners。它只能证明发现/克隆行为，不能证明活跃用户、留存或生产采用 |
 
 文件数、测试数和星标都不能单独证明质量；它们仅用于界定审计规模与市场成熟度。
@@ -147,6 +147,7 @@
 | AUD-41 | 高 | 活跃 `/mcp/call`、HTTP/stdio reverse MCP 与 OpenAPI REST bridge 只有 ACL/审计/出站限制，没有稳定操作 key；所有 allowed tool 都可产生外部副作用。两条 Agent MCP 注册器又把外部工具硬标 `isReadOnly: true`，直接 `mcpBridge.callTool`；且它们误把 bridge 的 `{status, tools}` 列表 envelope 当数组，实际接线行为与测试想象不一致。服务 shutdown 也未关闭 MCP client/stdio child；文档还一处错误声称缺 `allowedTools` 会暴露全部工具 | Reverse MCP 新增独立 `readOnlyTools` 运维证明，所有其他 allowed tool mutation-by-default；`/mcp/call` 只接受 header-derived hash context，在 ACL/大小/target 验证后写并 commit durable 墓碑，再调用 HTTP/stdio/OpenAPI；tool listing 暴露 `readOnly/externalEffectRequired`，MCP 配置自动启用 gate，多实例自动受 PostgreSQL 要求；所有拒绝/调用写审计且 auth 保持 403；两条 Agent adapter 支持真实 listing envelope，并一律注册为 `mcp:agent-tool-call`、non-read-only、fence-required，commit 后才 callTool；shutdown 关闭 MCP clients；静态策略固定四条接线 | E3；聚焦 46/46，完整根门 Forge 2,700/2,700、网关 Node 100/100、隔离解析器 10/10、主 Vitest 1,420 passed/26 conditional skipped，公共克隆 0 真实 Provider 且清理成功；[hosted run 32812616524](https://github.com/happy520ai/unified-ai-system/actions/runs/32812616524) 明确执行 `mcpGateway` 16、active route 2、Agent adapter 1 项并全门通过，PostgreSQL 仍 12/25；SQLite 证明 mutation 缺 key/歧义/重复/冲突均不调用 upstream，read-only 明确豁免。仓内低层 direct call 随后由 AUD-42 静态 allowlist 固定，远端 exactly-once 仍不声称关闭 |
 | AUD-42 | 高 | `registerTool` 用 incoming `source` 而不是 existing tool 判断覆盖保护，传 `source:"custom"` 即可替换内置 `file_read`；新 custom tool 默认又会被 `buildTool` 标成 built-in，导致来源统计/注销错误。动态工具可零权限注册，non-read-only 可不声明 external effect，read-only 也没有可信 attestation；MCP adapter 还忽略 registry 的失败返回并把碰撞误报为已添加。由此未声明 custom sink 可绕过前两轮 fence | `registerTool` 现在验证有界 name/permission/effect 字段，任何 existing built-in 或 custom 都不能静默覆盖；所有动态来源强制改写为 `custom`。每个 custom 至少一个合法权限；read-only 必须 `readOnlyAttested=true`；其他必须提供 bounded `externalEffectType` 且 `externalEffectRequiresFence=true`。MCP/subagent 接线补齐 attestation/contract，adapter 只有注册成功才计入；静态门固定 override/effect markers，并禁止新的低层 MCP direct call site | E3；聚焦 46/46 覆盖恶意 `file_read` override、无权限、伪只读、未声明 write、合法注册/注销与 MCP 碰撞；完整根门 Forge 2,700/2,700、网关 Node 100/100、parser 10/10、主 Vitest 1,422 passed/26 conditional skipped，公共克隆 fake-only/0 real call/清理成功；[hosted run 32815030132](https://github.com/happy520ai/unified-ai-system/actions/runs/32815030132) 明确执行 policy 21 与 MCP adapter 2 项，score 270、PostgreSQL 12/25、全门通过。此契约治理 registry API，不能沙箱完全绕开 registry 的任意原生代码 |
 | AUD-43 | 中高 | 当前源码契约已要求 Node `>=22.18.0`、pnpm `11.19.0`，但 README/CONTRIBUTING/getting-started/排障与 issue 模板仍引导 pnpm `9.15.4` 或 Node 20；CLI、排障、通用 MCP、增长脚本和发帖模板仍传播 `0.4.9`，而最新发布与 Registry 已是 `0.5.0`。中文主页/Quickstart 与社交图又残留 9 tools，首图和能力图使用“LiteLLM/Portkey-class”“every feature works with zero credentials”“Everything a commercial gateway ships”以及错误的 provider credential 哈希描述，既损害首次安装也超出 E3 证据 | 增加从根 `package.json` 派生 release version/镜像/User-Agent 的 ESM 单一来源，三套 Node growth/IndexNow 工具不再硬编码版本；当前用户路径、PowerShell fallback 与中英文入口统一到 Node 22.18.0、pnpm 11.19.0、发布镜像 0.5.0 和 12 tools。公共仓库门新增 source-onboarding、release-image 与营销源稿契约，旧工具链/镜像和已知过度表述重新出现即失败；README/主页明确 hardened Public Preview，三张 HTML 源稿经 Playwright 固定视口重绘，移除竞品级/全功能零凭证口号并把安全回归写成“evidence, not certification”。安全插件仍按 digest 固定到单独审查的 0.4.9，不把普通 0.5.0 安装与 hardened plugin 边界混为一谈 | E3；本地四门全通过，公共扫描 1,899/1,839、0 issues；发布网关 `0.5.0` demo 返回 `providerCalled=false`，普通 `0.5.0` MCP stdio 用官方 client 发现 12 tools。更强的 `--network none --read-only` 容器烟测在 30 秒 readiness 失败，证明 0.5.0 不能替代 reviewed 0.4.9 plugin 的 hardened 声明；未读取/调用 Provider。托管 [quality run 32819688606](https://github.com/happy520ai/unified-ai-system/actions/runs/32819688606) 6 分 49 秒全绿，PostgreSQL/公共克隆/MCP/CLI/三项性能门与证据 parity 均通过；[HOL scan 32819688608](https://github.com/happy520ai/unified-ai-system/actions/runs/32819688608) 和 plugin-scanner 通过 |
+| AUD-44 | 中 | 在仅增加推广报告后进行的第三次本地完整 `pnpm test` 中，`agentExecRoutes.test.js` 的“应完成”用例把请求 wall-clock 固定为 30 秒；全仓 208-file Vitest 并发争用时，fake Agent 在 30.874 秒返回 `timeout`，形成 1 failed/1,421 passed/26 skipped。相同源码的前两次本地和两次 hosted 全门都通过，空闲聚焦又在 929ms 完成。测量显示 Agent 自动上下文会顺序扫描 4,218 个文件，空闲耗时约 0.78–0.95 秒；请求预算从 Agent loop 前开始，正确包含这段 I/O，因此失败证明的是测试错误地假设“任意主机负载下 30 秒必完成”，不是 runtime 忽略 timeout | 完成型与 tool-mode 语义用例改用产品已有 `defaultTimeoutMs=60_000`，runner 上限分别 90/130 秒，避免把宿主争用错误分类为功能失败；专用 timeout 用例仍使用 `minTimeoutMs=1_000` 加 1,500ms fake latency，继续证明 wall-clock 中断。没有修改运行时默认/最小/最大 timeout、Agent 行为或用户请求边界 | E3；修复前失败完整保留；空闲聚焦 6/6 证明原路径本身可完成，修复后相同文件连续 10/10 次通过，随后完整根测试恢复 Forge 2,700/2,700、网关 Node 100/100、parser 10/10、主 Vitest 1,422 passed/26 skipped；`pnpm check`、公共扫描 1,899/1,839 与公共克隆全绿。托管 [quality run 32824078807](https://github.com/happy520ai/unified-ai-system/actions/runs/32824078807) 6 分 53 秒通过 maintained tests、PostgreSQL 12/25、公共克隆和三项性能门；[HOL scan 32824078797](https://github.com/happy520ai/unified-ai-system/actions/runs/32824078797) 与 plugin-scanner 通过 |
 
 在本轮已审范围和现有自动化证据内，**没有仍然已知且未处置的 P0 代码级缺陷，也没有已知仍可达的仓内低层 MCP/custom registry 旁路**。仍知的 P1 是完全绕开治理 API 的任意原生代码无法靠 JavaScript 运行时自动沙箱，以及任何远端系统都不参与本地墓碑事务；它们在下节保留为架构/生产阻断。
 
@@ -174,7 +175,7 @@
 | 验证 | 结果 |
 | --- | --- |
 | `pnpm check` | 通过；679 个网关文件语法检查，TypeScript 0 errors，语言/供应链策略通过，83 个权限声明/136 条静态活动路由，18 个受治理出站集成；动态 Workforce dispatcher 另有真实 HTTP server 行为覆盖 |
-| `pnpm test` | 当前完整命令通过；Forge 2,700/2,700；网关 Node 100/100、隔离解析器 10/10、主要 Vitest 1,422 passed/26 conditional skipped；shared SDK 18/18、Agent Console 17/17、MCP/其余工作区套件通过。本 external-effect tranche 首次根门在 Forge 2,698/2,700 被两条仍假设远端 Git 默认注册/旧 shell 源码窗口的契约测试正确阻断；更新断言后聚焦 59/59、完整 Forge 2,700/2,700 和后续根门通过。更早的隔离 parser OS 终止历史仍保留，不把复跑替代失败历史 |
+| `pnpm test` | 当前完整命令通过；Forge 2,700/2,700；网关 Node 100/100、隔离解析器 10/10、主要 Vitest 1,422 passed/26 conditional skipped；shared SDK 18/18、Agent Console 17/17、MCP/其余工作区套件通过。本 external-effect tranche 首次根门在 Forge 2,698/2,700 被两条仍假设远端 Git 默认注册/旧 shell 源码窗口的契约测试正确阻断；更新断言后聚焦 59/59、完整 Forge 2,700/2,700 和后续根门通过。采用度报告后又出现 AUD-44 的 30 秒 completion 测试假阴性：1 failed/1,421 passed；修复测试契约后聚焦连续 10/10、完整根门恢复。更早的隔离 parser OS 终止历史仍保留，不把复跑替代失败历史 |
 | 真实 PostgreSQL 集成（本地） | PostgreSQL 17 临时实例通过 12 个文件、25/25；新增 external-effect 证明双独立 pool 仅一个 owner、重启重复拒绝、专表/序列隔离、原始 key/tenant/effect type 不落库；Workforce queue 新增活跃/过期 claim 断言。临时容器已停止并删除 |
 | `pnpm check:public` | 通过；1,899 个 tracked/candidate、1,839 个文本文件，0 issue codes；新增工具链/发布镜像/营销源稿一致性门；工作区 `.mcp.json` 有用户改动时从 Git 提交内容审计，未读取其本地内容 |
 | `pnpm verify:public-clone` | 通过；干净克隆、fake-provider 强制、MCP `2026-07-28`、12 tools、0 次真实提供商调用、进程清理成功 |
@@ -188,6 +189,7 @@
 
 | 门 | 结果 | 可复核链接 |
 | --- | --- | --- |
+| Agent completion/timeout 测试契约 | `d2205a20` 一次 hosted 通过；6 分 53 秒；maintained tests、PostgreSQL 12/25、公共克隆、三项性能门、MCP/CLI/示例和 evidence parity 全绿 | [Run 32824078807](https://github.com/happy520ai/unified-ai-system/actions/runs/32824078807) |
 | 采用度/版本一致性最终代码门 | `05d49df1` 一次通过；6 分 49 秒；四项基线门、三项性能门、PostgreSQL 12/25、MCP、CLI、示例与证据 parity 全绿 | [Run 32819688606](https://github.com/happy520ai/unified-ai-system/actions/runs/32819688606) |
 | 完整 `quality` | custom tool 代码/报告基线 `dd21f740`/`44f855c8` 一次通过；7 分 14 秒，quality score 270，所有 required artifact parity 通过 | [Run 32815030132](https://github.com/happy520ai/unified-ai-system/actions/runs/32815030132) |
 | PostgreSQL 集成 | 通过；12 个文件、25/25；日志明确含 external-effect 双副本/专表 1/1，另含 Provider dispatch 1/1、A2A TaskStore+execution lease+原子终态 3/3、中央 audit 2/2、usage+statement comparison 2/2、Workforce claim 2/2、中央 queue/result 2/2、中央 approval/lifecycle 2/2，以及 rate-limit/WebSocket/idempotency | 同一 quality run；早一提交 hosted 仅 11/24 的覆盖缺口按 AUD-40 保留 |
@@ -197,7 +199,7 @@
 | 资源稳定性 soak | v2 通过；1,200/1,200、arrival 1.00、0 错误、25/25 scrape；heap +9.90MiB、RSS +16.34MiB、event-loop p99 bound 26.25ms | 同一 quality run；v1 客户端自限失败 `32786355822` 保留，前一道 open-loop 仍单独要求 100 RPS/0 drop |
 | MCP、CLI、Go/C#/SDK 示例 | 全部通过 | 同一 quality run |
 | 代码/依赖扫描 | 通过 | [PR #115 checks](https://github.com/happy520ai/unified-ai-system/pull/115/checks) |
-| 插件扫描 | 采用度代码 head 的 HOL scan 与独立 plugin-scanner 均通过 | [Run 32819688608](https://github.com/happy520ai/unified-ai-system/actions/runs/32819688608)、[PR #115 checks](https://github.com/happy520ai/unified-ai-system/pull/115/checks) |
+| 插件扫描 | 最新代码 head 的 HOL scan 与独立 plugin-scanner 均通过 | [Run 32824078797](https://github.com/happy520ai/unified-ai-system/actions/runs/32824078797)、[PR #115 checks](https://github.com/happy520ai/unified-ai-system/pull/115/checks) |
 | hardened amd64+arm64 容器 | 当前运行时 `3adb9fe3` 通过网关/MCP 双架构构建、只读/cap-drop/no-new-privileges 容器 smoke、SBOM/provenance 配置校验（`push=false`），且无 secret-in-ENV 注记；较早发布候选另有匿名拉取验证 | [Run 32788044494](https://github.com/happy520ai/unified-ai-system/actions/runs/32788044494)、[Run 32767012331](https://github.com/happy520ai/unified-ai-system/actions/runs/32767012331) |
 
 ### 7.3 未执行的证据
@@ -276,6 +278,16 @@
 - PR 处于 open、mergeable 状态，尚无独立 review decision；
 - 可进入维护者复核与下一版候选流程；
 - **不能把“PR 全绿”写成“已合并、已发布、生产 GA 或行业领先”。**
+
+截至 2026-08-25 已执行的推广闭环：
+
+- GitHub 仓库描述已明确 `Public Preview`、协议优先、MCP/A2A/Gemini 与零密钥首跑；topics 移除容易造成竞品冒充印象的 `litellm`/过宽 `ai`，补 `a2a-protocol`/`gemini`；主页保持不变。
+- 已原位更新 Discussions [#112](https://github.com/happy520ai/unified-ai-system/discussions/112)、[#1](https://github.com/happy520ai/unified-ai-system/discussions/1)、[#5](https://github.com/happy520ai/unified-ai-system/discussions/5)，而不是创建重复帖；三者均为 v0.5.0、12 tools、Public Preview，并移除“every feature”表述。
+- Showcase [#20](https://github.com/happy520ai/unified-ai-system/issues/20) 与 good-first [#106](https://github.com/happy520ai/unified-ai-system/issues/106) 已同步到 v0.5.0/12 tools；受管理增长评论由 `growth:sync-thread` 更新，不新增状态噪音。
+- 外部收录 PR [composio #206](https://github.com/composio-community/awesome-codex-skills/pull/206) 已推送 `20506f2`，OPEN/CLEAN/MERGEABLE；[awesome-mcp-servers #11745](https://github.com/punkpeye/awesome-mcp-servers/pull/11745) 已推送 `fc7c958`，OPEN/CLEAN/MERGEABLE 且 `check-submission` 通过；[Docker MCP Registry #4584](https://github.com/docker/mcp-registry/pull/4584) 已推送 `939ca58`，固定 v0.5.0 tag `fdfe2fc3` 并改为 12 tools，OPEN/MERGEABLE/REVIEW_REQUIRED，但本机缺 Go/Task、托管 validator 未运行，仍不能写成已收录。
+- 冲突且只会把 0.4.5 升到过期 0.4.9 的 [awesome-codex-plugins #355](https://github.com/hashgraph-online/awesome-codex-plugins/pull/355) 已关闭；上游 `main` 已直接包含 v0.5.0/12 tools，因此关闭是去除回退风险，不是收录失败。
+- [ToolSDK Registry #434](https://github.com/toolsdk-ai/toolsdk-mcp-registry/pull/434) 仍为 0.4.8/9 tools；其仓库 `AGENTS.md` 要求用户针对“修改该具体 PR”单独授权，总体推广授权未被扩张解释，因此本轮只读核验、没有修改。该项需要明确授权后再使用其可信 `main` validator 流程。
+- 结构化反馈快照仍是 0 条社区报告、1 条维护者记录；因此外部 PR、clone、discussion 更新只能证明推广动作和发现面，不能证明真实用户转化或留存。
 
 适合对外传播的诚实表述是：
 
