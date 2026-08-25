@@ -1,0 +1,977 @@
+import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { spawn } from "node:child_process";
+import { chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, resolve } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
+
+import { Task, TaskState } from "@a2a-js/sdk";
+import { ServerCallContext } from "@a2a-js/sdk/server";
+import { Pool } from "pg";
+
+import { createPostgresAuditStore } from "../apps/ai-gateway-service/src/enterprise/postgresAuditStore.ts";
+import { createExternalEffectGate } from "../apps/ai-gateway-service/src/external-effects/externalEffectGate.ts";
+import { createA2ATaskStore } from "../apps/ai-gateway-service/src/http/a2aTaskStore.ts";
+import { createIdempotencyCoordinator } from "../apps/ai-gateway-service/src/http/idempotencyCoordinator.ts";
+import { createUsageLedger } from "../apps/ai-gateway-service/src/logging/usageLedgerFactory.ts";
+import { createProviderDispatchGate } from "../apps/ai-gateway-service/src/providers/providerDispatchGate.ts";
+import { createPostgresExecutionLifecycle } from "../apps/ai-gateway-service/src/workforce/postgresExecutionLifecycle.ts";
+import { createPostgresTaskClaimLeaseManager } from "../apps/ai-gateway-service/src/workforce/postgresTaskClaimLease.ts";
+
+const POSTGRES_IMAGE = "postgres:17-alpine";
+const POSTGRES_USER = "gateway_drill";
+const POSTGRES_DATABASE = "gateway_drill";
+const MAX_PROCESS_OUTPUT_BYTES = 1024 * 1024;
+const PROCESS_TIMEOUT_MS = 120_000;
+const STARTUP_TIMEOUT_MS = 45_000;
+const FIXTURE_TTL_MS = 30 * 60_000;
+
+const rawArgs = process.argv.slice(2);
+const options = Object.freeze({
+  json: rawArgs.includes("--json"),
+  dryRun: rawArgs.includes("--dry-run"),
+  output: readArgumentValue(rawArgs, "--output"),
+});
+
+const result = await runRecoveryDrill(options).catch((error) => ({
+  status: "failed",
+  stage: error?.stage ?? "unknown",
+  code: typeof error?.code === "string" ? error.code : "POSTGRES_RECOVERY_DRILL_FAILED",
+  message: sanitizeFailureMessage(error?.message),
+  failedChecks: Array.isArray(error?.failedChecks) ? error.failedChecks : [],
+  diagnostics: error?.diagnostics && typeof error.diagnostics === "object" ? error.diagnostics : {},
+  image: POSTGRES_IMAGE,
+  realProviderCallsMade: false,
+  cleanup: { attempted: true, complete: error?.cleanupComplete === true },
+}));
+
+if (options.output) {
+  const outputPath = resolve(options.output);
+  await mkdir(dirname(outputPath), { recursive: true });
+  await writeFile(outputPath, `${JSON.stringify(result, null, 2)}\n`, "utf8");
+}
+
+if (options.json) {
+  process.stdout.write(`${JSON.stringify(result)}\n`);
+} else {
+  printHumanSummary(result);
+}
+
+if (result.status !== "recovered" && result.status !== "dry-run") {
+  process.exitCode = 1;
+}
+
+async function runRecoveryDrill({ dryRun }) {
+  const runId = randomUUID().replaceAll("-", "").slice(0, 20);
+  if (dryRun) {
+    return {
+      status: "dry-run",
+      image: POSTGRES_IMAGE,
+      runId,
+      plan: [
+        "start disposable PostgreSQL 17 source on loopback",
+        "seed eight gateway central-state contracts through application APIs",
+        "create a custom-format logical backup",
+        "destroy the source container",
+        "restore into a clean PostgreSQL 17 container",
+        "verify inventory and all eight application contracts",
+        "restart the recovery database and verify the contracts again",
+        "remove containers and the temporary backup artifact",
+      ],
+      boundaries: {
+        credentialMode: "ephemeral-test-only",
+        credentialTransport: "private-temporary-env-file",
+        realProviderCallsMade: false,
+        continuousWalRecoveryProved: false,
+        automaticFailoverProved: false,
+        productionRtoRpoProved: false,
+      },
+    };
+  }
+
+  const dockerExecutable = process.platform === "win32" ? "docker.exe" : "docker";
+  const password = randomBytes(24).toString("base64url");
+  const sourceName = `ai-gateway-pg-source-${runId}`;
+  const recoveryName = `ai-gateway-pg-recovery-${runId}`;
+  const sourceVolume = `ai-gateway-pg-source-data-${runId}`;
+  const recoveryVolume = `ai-gateway-pg-recovery-data-${runId}`;
+  const temporaryRoot = await mkdtemp(resolve(tmpdir(), "ai-gateway-pg-drill-"));
+  const backupPath = resolve(temporaryRoot, "gateway-drill.dump");
+  const postgresEnvPath = resolve(temporaryRoot, "postgres.env");
+  await writeFile(postgresEnvPath, [
+    `POSTGRES_USER=${POSTGRES_USER}`,
+    `POSTGRES_PASSWORD=${password}`,
+    `POSTGRES_DB=${POSTGRES_DATABASE}`,
+    "",
+  ].join("\n"), { encoding: "utf8", mode: 0o600 });
+  await chmod(postgresEnvPath, 0o600).catch(() => undefined);
+  const cleanupTargets = new Set([sourceName, recoveryName]);
+  const cleanupVolumes = new Set([sourceVolume, recoveryVolume]);
+  const startedAt = Date.now();
+  let stage = "docker-preflight";
+  let sourceRemoved = false;
+  let recoveryStartedAt = null;
+  let fixtureState;
+  let sourceInventory;
+  let restoredInventory;
+  let firstVerification;
+  let restartVerification;
+  let backupDigest = null;
+  let backupBytes = 0;
+  let cleanupComplete = false;
+  let pendingFailure = null;
+
+  try {
+    await runDocker(dockerExecutable, ["version", "--format", "{{.Server.Version}}"], { stage });
+
+    stage = "source-start";
+    await startPostgresContainer({
+      dockerExecutable,
+      containerName: sourceName,
+      volumeName: sourceVolume,
+      postgresEnvPath,
+      runId,
+    });
+    await waitForPostgres({ dockerExecutable, containerName: sourceName });
+    const sourcePort = await readPublishedPort(dockerExecutable, sourceName);
+    const sourceUrl = createConnectionString(sourcePort, password);
+    await waitForClientPostgres(sourceUrl);
+
+    stage = "fixture-seed";
+    fixtureState = await seedApplicationState(sourceUrl, runId);
+    sourceInventory = await readDatabaseInventory(sourceUrl);
+    assertCondition(sourceInventory.tableCount >= 8, "POSTGRES_RECOVERY_SOURCE_SCHEMA_INCOMPLETE");
+    assertCondition(sourceInventory.totalRows >= 8, "POSTGRES_RECOVERY_SOURCE_ROWS_INCOMPLETE");
+
+    stage = "logical-backup";
+    await runDocker(dockerExecutable, [
+      "exec", sourceName,
+      "pg_dump",
+      "--username", POSTGRES_USER,
+      "--dbname", POSTGRES_DATABASE,
+      "--format=custom",
+      "--compress=6",
+      "--no-owner",
+      "--no-acl",
+      "--file=/tmp/gateway-drill.dump",
+    ], { stage });
+    await runDocker(dockerExecutable, [
+      "cp", `${sourceName}:/tmp/gateway-drill.dump`, backupPath,
+    ], { stage });
+    const backupBuffer = await readFile(backupPath);
+    const backupStats = await stat(backupPath);
+    backupBytes = backupStats.size;
+    backupDigest = sha256(backupBuffer);
+    assertCondition(backupBytes > 0, "POSTGRES_RECOVERY_BACKUP_EMPTY");
+
+    stage = "source-destruction";
+    recoveryStartedAt = Date.now();
+    await removeContainer(dockerExecutable, sourceName);
+    cleanupTargets.delete(sourceName);
+    await removeVolume(dockerExecutable, sourceVolume);
+    cleanupVolumes.delete(sourceVolume);
+    sourceRemoved = true;
+
+    stage = "recovery-start";
+    await startPostgresContainer({
+      dockerExecutable,
+      containerName: recoveryName,
+      volumeName: recoveryVolume,
+      postgresEnvPath,
+      runId,
+    });
+    await waitForPostgres({ dockerExecutable, containerName: recoveryName });
+    const recoveryPort = await readPublishedPort(dockerExecutable, recoveryName);
+    const recoveryUrl = createConnectionString(recoveryPort, password);
+    await waitForClientPostgres(recoveryUrl);
+
+    stage = "logical-restore";
+    await runDocker(dockerExecutable, [
+      "cp", backupPath, `${recoveryName}:/tmp/gateway-drill.dump`,
+    ], { stage });
+    await runDocker(dockerExecutable, [
+      "exec", recoveryName,
+      "pg_restore",
+      "--username", POSTGRES_USER,
+      "--dbname", POSTGRES_DATABASE,
+      "--exit-on-error",
+      "--no-owner",
+      "--no-acl",
+      "/tmp/gateway-drill.dump",
+    ], { stage });
+
+    stage = "inventory-verify";
+    restoredInventory = await readDatabaseInventory(recoveryUrl);
+    assertCondition(
+      sourceInventory.digest === restoredInventory.digest,
+      "POSTGRES_RECOVERY_INVENTORY_MISMATCH",
+    );
+
+    stage = "application-verify";
+    const firstVerificationWithDiagnostics = await verifyApplicationState(recoveryUrl, fixtureState);
+    assertAllChecks(firstVerificationWithDiagnostics);
+    firstVerification = publicApplicationChecks(firstVerificationWithDiagnostics);
+    const firstRecoveryVerifiedAt = Date.now();
+
+    stage = "recovery-restart";
+    await runDocker(dockerExecutable, ["restart", recoveryName], { stage });
+    await waitForPostgres({ dockerExecutable, containerName: recoveryName });
+    const restartedRecoveryPort = await readPublishedPort(dockerExecutable, recoveryName);
+    const restartedRecoveryUrl = createConnectionString(restartedRecoveryPort, password);
+    await waitForClientPostgres(restartedRecoveryUrl);
+    const restartVerificationWithDiagnostics = await verifyApplicationState(restartedRecoveryUrl, fixtureState);
+    assertAllChecks(restartVerificationWithDiagnostics);
+    restartVerification = publicApplicationChecks(restartVerificationWithDiagnostics);
+
+    stage = "cleanup";
+    await removeContainer(dockerExecutable, recoveryName);
+    cleanupTargets.delete(recoveryName);
+    await removeVolume(dockerExecutable, recoveryVolume);
+    cleanupVolumes.delete(recoveryVolume);
+    await rm(temporaryRoot, { recursive: true, force: true });
+    cleanupComplete = true;
+
+    return {
+      status: "recovered",
+      image: POSTGRES_IMAGE,
+      runId,
+      durationMs: Date.now() - startedAt,
+      controlledRecoveryTimeMs: firstRecoveryVerifiedAt - recoveryStartedAt,
+      sourceDestroyedBeforeRestore: sourceRemoved,
+      artifact: {
+        format: "postgres-custom",
+        bytes: backupBytes,
+        sha256: backupDigest,
+        retained: false,
+      },
+      databaseInventory: {
+        tableCount: sourceInventory.tableCount,
+        sequenceCount: sourceInventory.sequenceCount,
+        totalRows: sourceInventory.totalRows,
+        digest: sourceInventory.digest,
+        exactRestoreMatch: sourceInventory.digest === restoredInventory.digest,
+      },
+      applicationChecks: firstVerification,
+      restartChecks: restartVerification,
+      recoveryPoint: {
+        mode: "controlled-logical-snapshot",
+        fixtureRowsLost: 0,
+        continuousWalRecoveryProved: false,
+      },
+      boundaries: {
+        credentialMode: "ephemeral-test-only",
+        credentialTransport: "private-temporary-env-file",
+        loopbackOnly: true,
+        realProviderCallsMade: false,
+        automaticFailoverProved: false,
+        networkPartitionProved: false,
+        splitBrainProved: false,
+        productionRtoRpoProved: false,
+      },
+      realProviderCallsMade: false,
+      cleanup: {
+        attempted: true,
+        complete: cleanupComplete,
+        containersRemaining: 0,
+        artifactRetained: false,
+      },
+    };
+  } catch (error) {
+    error.stage = error.stage ?? stage;
+    pendingFailure = error;
+    throw error;
+  } finally {
+    let cleanupFailed = false;
+    for (const containerName of cleanupTargets) {
+      await removeContainer(dockerExecutable, containerName).catch(() => {
+        cleanupFailed = true;
+      });
+    }
+    for (const volumeName of cleanupVolumes) {
+      await removeVolume(dockerExecutable, volumeName).catch(() => {
+        cleanupFailed = true;
+      });
+    }
+    await rm(temporaryRoot, { recursive: true, force: true }).catch(() => {
+      cleanupFailed = true;
+    });
+    if (pendingFailure) pendingFailure.cleanupComplete = !cleanupFailed;
+  }
+}
+
+async function seedApplicationState(connectionString, runId) {
+  const fixture = createFixture(runId);
+  const closed = [];
+  let lifecyclePool;
+  try {
+    const idempotency = createDrillIdempotency(connectionString, fixture);
+    closed.push(() => idempotency.close());
+    const created = await idempotency.execute({
+      request: fixture.idempotency.request,
+      route: fixture.idempotency.route,
+      payload: fixture.idempotency.payload,
+      operation: async () => fixture.idempotency.result,
+    });
+    assertCondition(created.accepted && created.status === "created", "POSTGRES_RECOVERY_IDEMPOTENCY_SEED_FAILED");
+
+    const providerGate = createDrillProviderGate(connectionString, fixture);
+    closed.push(() => providerGate.close());
+    const providerReservation = await providerGate.reserve(fixture.providerDispatch.input);
+    assertCondition(providerReservation.reserved === true, "POSTGRES_RECOVERY_PROVIDER_SEED_FAILED");
+
+    const effectGate = createDrillExternalEffectGate(connectionString, fixture);
+    closed.push(() => effectGate.close());
+    const effectReservation = await effectGate.reserve(fixture.externalEffect.input);
+    await effectReservation.commit();
+
+    const usageLedger = createDrillUsageLedger(connectionString, fixture);
+    closed.push(() => usageLedger.close());
+    await usageLedger.log(fixture.usage.started);
+    await usageLedger.log(fixture.usage.completed);
+
+    const auditStore = createDrillAuditStore(connectionString, fixture);
+    closed.push(() => auditStore.close());
+    await auditStore.append(fixture.audit.event);
+    const auditSeedVerify = await auditStore.verify();
+    assertCondition(auditSeedVerify.valid === true, "POSTGRES_RECOVERY_AUDIT_SEED_FAILED");
+
+    const a2a = createDrillA2AStore(connectionString, fixture);
+    closed.push(() => a2a.close());
+    await a2a.store.save(fixture.a2a.task, fixture.a2a.context);
+
+    const claims = createDrillClaimManager(connectionString, fixture);
+    closed.push(() => claims.close());
+    const claim = await claims.issue(fixture.workforceClaim.identity);
+    assertCondition(claim.success === true && typeof claim.token === "string", "POSTGRES_RECOVERY_CLAIM_SEED_FAILED");
+    fixture.workforceClaim.token = claim.token;
+    fixture.workforceClaim.fencingToken = claim.fencingToken;
+
+    lifecyclePool = new Pool({ connectionString, max: 2, allowExitOnIdle: true });
+    const lifecycle = createDrillLifecycle(lifecyclePool, fixture);
+    await lifecycle.initialize(fixture.lifecycle.executionId, fixture.lifecycle.metadata);
+    await lifecycle.start(fixture.lifecycle.executionId);
+    await lifecycle.onAgentCompleted(
+      fixture.lifecycle.executionId,
+      fixture.lifecycle.completedAgentId,
+      { success: true, evidenceDigest: fixture.lifecycle.evidenceDigest },
+    );
+    const lifecycleState = await lifecycle.getStatus(fixture.lifecycle.executionId);
+    assertCondition(lifecycleState.status === "running", "POSTGRES_RECOVERY_LIFECYCLE_SEED_FAILED");
+    return fixture;
+  } finally {
+    await Promise.allSettled(closed.reverse().map((close) => Promise.resolve().then(close)));
+    await lifecyclePool?.end().catch(() => undefined);
+  }
+}
+
+async function verifyApplicationState(connectionString, fixture) {
+  const checks = {};
+  const closed = [];
+  let lifecyclePool;
+  try {
+    const idempotency = createDrillIdempotency(connectionString, fixture);
+    closed.push(() => idempotency.close());
+    let replayOperationCalls = 0;
+    const replay = await idempotency.execute({
+      request: fixture.idempotency.request,
+      route: fixture.idempotency.route,
+      payload: fixture.idempotency.payload,
+      operation: async () => {
+        replayOperationCalls += 1;
+        return { unexpected: true };
+      },
+    });
+    checks.idempotencyReplay = replay.accepted === true
+      && replay.status === "replayed"
+      && replay.replayed === true
+      && replayOperationCalls === 0
+      && replay.value?.statusCode === fixture.idempotency.result.statusCode
+      && replay.value?.payload?.provider === fixture.idempotency.result.payload.provider
+      && replay.value?.payload?.marker === fixture.idempotency.result.payload.marker;
+
+    const providerGate = createDrillProviderGate(connectionString, fixture);
+    closed.push(() => providerGate.close());
+    checks.providerDispatchTombstone = await rejectsWithCode(
+      () => providerGate.reserve(fixture.providerDispatch.input),
+      "PROVIDER_DISPATCH_ALREADY_RESERVED",
+    );
+
+    const effectGate = createDrillExternalEffectGate(connectionString, fixture);
+    closed.push(() => effectGate.close());
+    checks.externalEffectTombstone = await rejectsWithCode(
+      () => effectGate.reserve(fixture.externalEffect.input),
+      "EXTERNAL_EFFECT_ALREADY_RESERVED",
+    );
+
+    const usageLedger = createDrillUsageLedger(connectionString, fixture);
+    closed.push(() => usageLedger.close());
+    const usageStats = await usageLedger.getStats({ tenantId: fixture.usage.tenantId });
+    checks.usageLedger = usageStats.totalRequests === 1
+      && usageStats.totalTokens === 15
+      && usageStats.totalCostUsd === 0.0015
+      && usageStats.unresolvedBillableAttempts === 0;
+
+    const auditStore = createDrillAuditStore(connectionString, fixture);
+    closed.push(() => auditStore.close());
+    const [auditVerify, auditEntries] = await Promise.all([
+      auditStore.verify(),
+      auditStore.readEntries({ limit: 10, tenantId: fixture.audit.tenantId }),
+    ]);
+    checks.auditHashChain = auditVerify.valid === true
+      && auditVerify.sequence === 1
+      && auditEntries.some((entry) => entry.id === fixture.audit.event.id);
+
+    const a2a = createDrillA2AStore(connectionString, fixture);
+    closed.push(() => a2a.close());
+    const recoveredTask = await a2a.store.load(fixture.a2a.taskId, fixture.a2a.context);
+    checks.a2aTask = recoveredTask?.id === fixture.a2a.taskId
+      && Number(recoveredTask?.status?.state) === Number(TaskState.TASK_STATE_COMPLETED);
+
+    const claims = createDrillClaimManager(connectionString, fixture);
+    closed.push(() => claims.close());
+    const recoveredClaim = await claims.validate(
+      fixture.workforceClaim.token,
+      fixture.workforceClaim.identity,
+    );
+    checks.workforceClaim = recoveredClaim.success === true
+      && recoveredClaim.valid === true
+      && recoveredClaim.record?.fencingToken === fixture.workforceClaim.fencingToken;
+
+    lifecyclePool = new Pool({ connectionString, max: 2, allowExitOnIdle: true });
+    const lifecycle = createDrillLifecycle(lifecyclePool, fixture);
+    const recoveredLifecycle = await lifecycle.getStatus(fixture.lifecycle.executionId);
+    checks.workforceLifecycle = recoveredLifecycle.status === "running"
+      && recoveredLifecycle.completedAgents === 1;
+
+    checks.all = Object.values(checks).every(Boolean);
+    checks.diagnostics = {
+      idempotency: {
+        accepted: replay.accepted === true,
+        status: replay.status ?? null,
+        replayed: replay.replayed === true,
+        operationCalls: replayOperationCalls,
+        semanticFieldsMatch: replay.value?.statusCode === fixture.idempotency.result.statusCode
+          && replay.value?.payload?.provider === fixture.idempotency.result.payload.provider
+          && replay.value?.payload?.marker === fixture.idempotency.result.payload.marker,
+      },
+      workforceLifecycle: {
+        status: recoveredLifecycle.status ?? null,
+        completedAgentCount: recoveredLifecycle.completedAgents ?? null,
+      },
+    };
+    return checks;
+  } finally {
+    await Promise.allSettled(closed.reverse().map((close) => Promise.resolve().then(close)));
+    await lifecyclePool?.end().catch(() => undefined);
+  }
+}
+
+function createFixture(runId) {
+  const namespace = `dr-${runId}`;
+  const tenantId = `tenant-${runId}`;
+  const ownerId = `owner-${runId}`;
+  const idempotencyKey = `drill-${runId}`;
+  const requestFingerprint = sha256(`request:${runId}`);
+  const effectKeyHash = sha256(`effect-key:${runId}`);
+  const payloadFingerprint = sha256(`effect-payload:${runId}`);
+  const dispatchKeyHash = sha256(`dispatch-key:${runId}`);
+  const auditKey = createHash("sha256").update(`audit-key:${runId}`).digest();
+  const secret = createHash("sha256").update(`coordinator-key:${runId}`).digest("hex");
+  const timestamp = new Date().toISOString();
+  const taskId = `task-${runId}`;
+  const a2aContext = createA2AContext(tenantId, ownerId);
+  const a2aTask = Task.fromJSON({
+    id: taskId,
+    contextId: `context-${runId}`,
+    status: { state: TaskState.TASK_STATE_COMPLETED, timestamp },
+    artifacts: [],
+    history: [],
+    metadata: { drill: true, runId },
+  });
+  return {
+    runId,
+    namespace,
+    secret,
+    idempotency: {
+      route: "/v1/chat/completions",
+      request: {
+        headers: { "idempotency-key": idempotencyKey, authorization: `Bearer ${tenantId}` },
+        socket: { remoteAddress: "127.0.0.1" },
+      },
+      payload: { messages: [{ role: "user", content: `recovery-${runId}` }] },
+      result: { statusCode: 200, payload: { provider: "fake", marker: runId } },
+    },
+    providerDispatch: {
+      input: {
+        dispatchKeyHash,
+        route: "/v1/chat/completions",
+        invocation: 1,
+        attempt: 1,
+        shadow: false,
+        tenantId,
+        providerId: "local-fake-provider",
+        modelId: "fake-model",
+        requestFingerprint,
+      },
+    },
+    externalEffect: {
+      input: {
+        effectKeyHash,
+        route: "/drill/external-effect",
+        tenantId,
+        effectType: "drill:fake-effect",
+        payloadFingerprint,
+      },
+    },
+    usage: {
+      tenantId,
+      started: {
+        usageAttemptId: `attempt-${runId}`,
+        usageEventType: "attempt-started",
+        tenantId,
+        method: "POST",
+        path: "/v1/chat/completions",
+        statusCode: 102,
+        provider: "local-fake-provider",
+        model: "fake-model",
+        providerCallAttempted: false,
+        billable: true,
+        costEstimateAvailable: false,
+      },
+      completed: {
+        usageAttemptId: `attempt-${runId}`,
+        usageEventType: "attempt-completed",
+        tenantId,
+        method: "POST",
+        path: "/v1/chat/completions",
+        statusCode: 200,
+        latencyMs: 12,
+        provider: "local-fake-provider",
+        model: "fake-model",
+        inputTokens: 10,
+        outputTokens: 5,
+        totalTokens: 15,
+        estimatedCostUsd: 0.0015,
+        costSource: "drill-fixture",
+        costEstimateAvailable: true,
+        providerCallAttempted: false,
+        billable: true,
+      },
+    },
+    audit: {
+      key: auditKey,
+      tenantId,
+      event: {
+        id: `audit-${runId}`,
+        timestamp,
+        outcome: "allowed",
+        method: "POST",
+        path: "/drill/recovery",
+        permission: "audit:drill",
+        statusCode: 200,
+        userId: ownerId,
+        tenantId,
+        role: "admin",
+        details: {
+          promptContentRecorded: false,
+          credentialRecorded: false,
+          realProviderCalled: false,
+        },
+      },
+    },
+    a2a: { taskId, task: a2aTask, context: a2aContext },
+    workforceClaim: {
+      identity: {
+        planId: `plan-${runId}`,
+        taskId: `workforce-task-${runId}`,
+        agentId: `agent-${runId}`,
+        ttlMs: FIXTURE_TTL_MS,
+      },
+      token: null,
+      fencingToken: null,
+    },
+    lifecycle: {
+      executionId: `execution-${runId}`,
+      metadata: { publicPlanId: `public-${runId}`, tenantFingerprint: sha256(tenantId).slice(0, 21) },
+      completedAgentId: `backend-${runId}`,
+      evidenceDigest: sha256(`evidence:${runId}`),
+    },
+  };
+}
+
+function createDrillIdempotency(connectionString, fixture) {
+  return createIdempotencyCoordinator({
+    storeMode: "postgres",
+    postgresConnectionString: connectionString,
+    secret: fixture.secret,
+    ttlMs: FIXTURE_TTL_MS,
+    leaseMs: 60_000,
+    inFlightWaitMs: 5_000,
+    pollIntervalMs: 25,
+    maxEntries: 1_000,
+    postgresPoolMax: 2,
+    postgresStatementTimeoutMs: 5_000,
+    postgresStorageNamespace: "idempotency",
+  });
+}
+
+function createDrillProviderGate(connectionString, fixture) {
+  return createProviderDispatchGate({
+    env: {
+      AI_GATEWAY_MULTI_INSTANCE: "true",
+      AI_GATEWAY_PROVIDER_DISPATCH_STORE_MODE: "postgres",
+      AI_GATEWAY_PROVIDER_DISPATCH_POSTGRES_URL: connectionString,
+      AI_GATEWAY_PROVIDER_DISPATCH_HMAC_SECRET: fixture.secret,
+      AI_GATEWAY_PROVIDER_DISPATCH_TTL_MS: String(FIXTURE_TTL_MS),
+    },
+    realProviderEnabled: true,
+  });
+}
+
+function createDrillExternalEffectGate(connectionString, fixture) {
+  return createExternalEffectGate({
+    env: {
+      AI_GATEWAY_MULTI_INSTANCE: "true",
+      AI_GATEWAY_EXTERNAL_EFFECT_STORE_MODE: "postgres",
+      AI_GATEWAY_EXTERNAL_EFFECT_POSTGRES_URL: connectionString,
+      AI_GATEWAY_WORKFORCE_QUEUE_POSTGRES_URL: connectionString,
+      AI_GATEWAY_EXTERNAL_EFFECT_HMAC_SECRET: fixture.secret,
+      AI_GATEWAY_EXTERNAL_EFFECT_TTL_MS: String(FIXTURE_TTL_MS),
+    },
+    enabled: true,
+  });
+}
+
+function createDrillUsageLedger(connectionString, fixture) {
+  return createUsageLedger({
+    env: {
+      AI_GATEWAY_USAGE_LEDGER_STORE_MODE: "postgres",
+      AI_GATEWAY_USAGE_LEDGER_POSTGRES_URL: connectionString,
+      AI_GATEWAY_USAGE_LEDGER_NAMESPACE: `dr-usage-${fixture.runId}`,
+      AI_GATEWAY_USAGE_LEDGER_POSTGRES_MAX_ROWS: "1000",
+      AI_GATEWAY_USAGE_LEDGER_POSTGRES_RETENTION_DAYS: "1",
+      AI_GATEWAY_USAGE_LEDGER_POSTGRES_POOL_MAX: "2",
+      AI_GATEWAY_USAGE_LEDGER_POSTGRES_STATEMENT_TIMEOUT_MS: "5000",
+    },
+    realProviderEnabled: true,
+  });
+}
+
+function createDrillAuditStore(connectionString, fixture) {
+  return createPostgresAuditStore({
+    connectionString,
+    namespace: `dr-audit-${fixture.runId}`,
+    hmacKey: fixture.audit.key,
+    maxRows: 1000,
+    poolMax: 2,
+    statementTimeoutMs: 5_000,
+  });
+}
+
+function createDrillA2AStore(connectionString, fixture) {
+  return createA2ATaskStore({
+    env: {
+      AI_GATEWAY_A2A_TASK_STORE_MODE: "postgres",
+      AI_GATEWAY_A2A_TASK_STORE_REQUIRED: "true",
+      AI_GATEWAY_A2A_TASK_STORE_CENTRAL_REQUIRED: "true",
+      AI_GATEWAY_A2A_TASK_STORE_POSTGRES_URL: connectionString,
+      AI_GATEWAY_A2A_TASK_STORE_NAMESPACE: `dr-a2a-${fixture.runId}`,
+      AI_GATEWAY_A2A_TASK_TTL_MS: String(FIXTURE_TTL_MS),
+      AI_GATEWAY_A2A_TASK_MAX_ENTRIES: "100",
+      AI_GATEWAY_A2A_TASK_MAX_ENTRIES_PER_OWNER: "100",
+      AI_GATEWAY_A2A_TASK_MAX_BYTES: "65536",
+      AI_GATEWAY_A2A_TASK_STORE_POSTGRES_POOL_MAX: "2",
+      AI_GATEWAY_A2A_TASK_STORE_POSTGRES_STATEMENT_TIMEOUT_MS: "5000",
+    },
+  });
+}
+
+function createDrillClaimManager(connectionString, fixture) {
+  return createPostgresTaskClaimLeaseManager({
+    connectionString,
+    namespace: `dr-claim-${fixture.runId}`,
+    ttlMs: FIXTURE_TTL_MS,
+    maxClaims: 100,
+    poolMax: 2,
+    statementTimeoutMs: 5_000,
+  });
+}
+
+function createDrillLifecycle(pool, fixture) {
+  return createPostgresExecutionLifecycle({
+    pool,
+    namespace: `dr-lifecycle-${fixture.runId}`,
+    retentionMs: FIXTURE_TTL_MS,
+    maxExecutions: 100,
+    maxStateBytes: 64 * 1024,
+    maxTransitions: 50,
+    maxCompletedAgents: 20,
+  });
+}
+
+function createA2AContext(tenant, owner) {
+  return new ServerCallContext({
+    requestedVersion: "1.0",
+    tenant,
+    user: {
+      get isAuthenticated() { return true; },
+      get userName() { return owner; },
+    },
+  });
+}
+
+async function readDatabaseInventory(connectionString) {
+  const pool = new Pool({ connectionString, max: 1, allowExitOnIdle: true });
+  try {
+    const tableResult = await pool.query(`
+      SELECT table_name
+      FROM information_schema.tables
+      WHERE table_schema = 'public'
+        AND table_type = 'BASE TABLE'
+        AND table_name LIKE 'ai_gateway_%'
+      ORDER BY table_name
+    `);
+    const tables = [];
+    for (const row of tableResult.rows) {
+      const tableName = String(row.table_name);
+      assertCondition(/^ai_gateway_[a-z0-9_]+$/.test(tableName), "POSTGRES_RECOVERY_TABLE_NAME_INVALID");
+      const count = await pool.query(`SELECT COUNT(*)::bigint AS count FROM public.${tableName}`);
+      tables.push({ name: tableName, rows: Number(count.rows[0]?.count ?? 0) });
+    }
+    const sequenceResult = await pool.query(`
+      SELECT sequencename AS name, last_value::text AS last_value
+      FROM pg_sequences
+      WHERE schemaname = 'public' AND sequencename LIKE 'ai_gateway_%'
+      ORDER BY sequencename
+    `);
+    const sequences = sequenceResult.rows.map((row) => ({
+      name: String(row.name),
+      lastValue: String(row.last_value),
+    }));
+    const canonical = JSON.stringify({ tables, sequences });
+    return {
+      tableCount: tables.length,
+      sequenceCount: sequences.length,
+      totalRows: tables.reduce((sum, table) => sum + table.rows, 0),
+      digest: sha256(canonical),
+    };
+  } finally {
+    await pool.end();
+  }
+}
+
+async function startPostgresContainer({ dockerExecutable, containerName, volumeName, postgresEnvPath, runId }) {
+  await runDocker(dockerExecutable, [
+    "run",
+    "--detach",
+    "--name", containerName,
+    "--label", `ai.gateway.recovery-drill=${runId}`,
+    "--publish", "127.0.0.1::5432",
+    "--env-file", postgresEnvPath,
+    "--mount", `type=volume,source=${volumeName},target=/var/lib/postgresql/data`,
+    POSTGRES_IMAGE,
+  ], { stage: "postgres-container-start" });
+}
+
+async function waitForPostgres({ dockerExecutable, containerName }) {
+  const deadline = Date.now() + STARTUP_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    const probe = await runProcess(dockerExecutable, [
+      "exec", containerName,
+      "pg_isready", "--username", POSTGRES_USER, "--dbname", POSTGRES_DATABASE,
+    ], { timeoutMs: 5_000 });
+    if (probe.exitCode === 0) return;
+    await delay(500);
+  }
+  throw drillError("POSTGRES_RECOVERY_STARTUP_TIMEOUT", "Disposable PostgreSQL did not become ready in time.");
+}
+
+async function waitForClientPostgres(connectionString) {
+  const deadline = Date.now() + STARTUP_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    const pool = new Pool({
+      connectionString,
+      max: 1,
+      allowExitOnIdle: true,
+      connectionTimeoutMillis: 1_000,
+    });
+    try {
+      await pool.query("SELECT 1 AS ready");
+      return;
+    } catch {
+      await delay(250);
+    } finally {
+      await pool.end().catch(() => undefined);
+    }
+  }
+  throw drillError(
+    "POSTGRES_RECOVERY_CLIENT_STARTUP_TIMEOUT",
+    "PostgreSQL was not reachable through the loopback client path in time.",
+  );
+}
+
+async function readPublishedPort(dockerExecutable, containerName) {
+  const result = await runDocker(dockerExecutable, ["port", containerName, "5432/tcp"], {
+    stage: "postgres-port-discovery",
+  });
+  const match = result.stdout.trim().match(/127\.0\.0\.1:(\d+)$/m);
+  if (!match) throw drillError("POSTGRES_RECOVERY_PORT_INVALID", "Docker did not publish PostgreSQL on loopback.");
+  const port = Number(match[1]);
+  assertCondition(Number.isSafeInteger(port) && port > 0 && port <= 65_535, "POSTGRES_RECOVERY_PORT_INVALID");
+  return port;
+}
+
+function createConnectionString(port, password) {
+  return `postgresql://${POSTGRES_USER}:${encodeURIComponent(password)}@127.0.0.1:${port}/${POSTGRES_DATABASE}`;
+}
+
+async function removeContainer(dockerExecutable, containerName) {
+  const result = await runProcess(dockerExecutable, ["rm", "--force", containerName], { timeoutMs: 30_000 });
+  if (result.exitCode !== 0 && !/No such container/i.test(result.stderr)) {
+    throw drillError("POSTGRES_RECOVERY_CLEANUP_FAILED", "A disposable PostgreSQL container could not be removed.");
+  }
+}
+
+async function removeVolume(dockerExecutable, volumeName) {
+  const result = await runProcess(dockerExecutable, ["volume", "rm", "--force", volumeName], { timeoutMs: 30_000 });
+  if (result.exitCode !== 0 && !/No such volume/i.test(result.stderr)) {
+    throw drillError("POSTGRES_RECOVERY_CLEANUP_FAILED", "A disposable PostgreSQL data volume could not be removed.");
+  }
+}
+
+async function runDocker(dockerExecutable, args, { stage }) {
+  const result = await runProcess(dockerExecutable, args, { timeoutMs: PROCESS_TIMEOUT_MS });
+  if (result.exitCode !== 0) {
+    const error = drillError("POSTGRES_RECOVERY_DOCKER_COMMAND_FAILED", sanitizeFailureMessage(result.stderr));
+    error.stage = stage;
+    throw error;
+  }
+  return result;
+}
+
+function runProcess(executable, args, { timeoutMs }) {
+  return new Promise((resolvePromise, rejectPromise) => {
+    const child = spawn(executable, args, {
+      shell: false,
+      windowsHide: true,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    const stdout = [];
+    const stderr = [];
+    let stdoutBytes = 0;
+    let stderrBytes = 0;
+    let settled = false;
+    const timer = setTimeout(() => {
+      child.kill("SIGKILL");
+      if (!settled) {
+        settled = true;
+        rejectPromise(drillError("POSTGRES_RECOVERY_PROCESS_TIMEOUT", "A bounded recovery subprocess exceeded its deadline."));
+      }
+    }, timeoutMs);
+    timer.unref?.();
+    child.stdout.on("data", (chunk) => {
+      if (stdoutBytes >= MAX_PROCESS_OUTPUT_BYTES) return;
+      const remaining = MAX_PROCESS_OUTPUT_BYTES - stdoutBytes;
+      const bounded = chunk.subarray(0, remaining);
+      stdout.push(bounded);
+      stdoutBytes += bounded.length;
+    });
+    child.stderr.on("data", (chunk) => {
+      if (stderrBytes >= MAX_PROCESS_OUTPUT_BYTES) return;
+      const remaining = MAX_PROCESS_OUTPUT_BYTES - stderrBytes;
+      const bounded = chunk.subarray(0, remaining);
+      stderr.push(bounded);
+      stderrBytes += bounded.length;
+    });
+    child.once("error", (error) => {
+      clearTimeout(timer);
+      if (settled) return;
+      settled = true;
+      rejectPromise(drillError("POSTGRES_RECOVERY_PROCESS_START_FAILED", sanitizeFailureMessage(error.message)));
+    });
+    child.once("close", (exitCode) => {
+      clearTimeout(timer);
+      if (settled) return;
+      settled = true;
+      resolvePromise({
+        exitCode: Number(exitCode ?? -1),
+        stdout: Buffer.concat(stdout).toString("utf8"),
+        stderr: Buffer.concat(stderr).toString("utf8"),
+      });
+    });
+  });
+}
+
+async function rejectsWithCode(operation, code) {
+  try {
+    await operation();
+    return false;
+  } catch (error) {
+    return error?.code === code;
+  }
+}
+
+function assertAllChecks(checks) {
+  const failedChecks = Object.entries(checks ?? {})
+    .filter(([name, passed]) => name !== "all" && name !== "diagnostics" && passed !== true)
+    .map(([name]) => name);
+  if (checks?.all !== true || failedChecks.length > 0) {
+    const error = drillError(
+      "POSTGRES_RECOVERY_APPLICATION_VERIFY_FAILED",
+      `Recovered application checks failed: ${failedChecks.join(", ") || "unknown"}.`,
+    );
+    error.failedChecks = failedChecks;
+    error.diagnostics = checks?.diagnostics ?? {};
+    throw error;
+  }
+}
+
+function publicApplicationChecks(checks) {
+  return Object.fromEntries(
+    Object.entries(checks ?? {}).filter(([name]) => name !== "diagnostics"),
+  );
+}
+
+function assertCondition(value, code) {
+  if (!value) throw drillError(code, "The PostgreSQL recovery drill invariant was not satisfied.");
+}
+
+function drillError(code, message) {
+  return Object.assign(new Error(message || "The PostgreSQL recovery drill failed."), { code });
+}
+
+function sha256(value) {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+function readArgumentValue(args, name) {
+  const exactIndex = args.indexOf(name);
+  if (exactIndex >= 0) return args[exactIndex + 1] ?? null;
+  const prefix = `${name}=`;
+  const inline = args.find((value) => value.startsWith(prefix));
+  return inline ? inline.slice(prefix.length) : null;
+}
+
+function sanitizeFailureMessage(value) {
+  const normalized = String(value ?? "PostgreSQL recovery drill failed.")
+    .replace(/postgres(?:ql)?:\/\/[^\s]+/gi, "[redacted-postgres-url]")
+    .replace(/POSTGRES_PASSWORD=[^\s]+/gi, "POSTGRES_PASSWORD=[redacted]")
+    .replace(/[\r\n\t]+/g, " ")
+    .trim();
+  return normalized.slice(0, 500) || "PostgreSQL recovery drill failed.";
+}
+
+function printHumanSummary(value) {
+  if (value.status === "recovered") {
+    process.stdout.write([
+      "PostgreSQL recovery drill: recovered",
+      `Controlled recovery time: ${value.controlledRecoveryTimeMs} ms`,
+      `Application contracts: ${Object.entries(value.applicationChecks).filter(([key, passed]) => key !== "all" && passed).length}/8`,
+      `Database inventory: ${value.databaseInventory.tableCount} tables, ${value.databaseInventory.totalRows} rows`,
+      `Cleanup complete: ${String(value.cleanup.complete)}`,
+      "Boundary: controlled logical recovery only; no automatic failover, continuous WAL RPO, or production RTO claim.",
+    ].join("\n") + "\n");
+    return;
+  }
+  process.stdout.write(`${value.status}: ${value.message ?? "dry run"}\n`);
+}

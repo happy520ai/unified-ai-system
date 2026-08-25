@@ -237,6 +237,9 @@ shutdown actively closes upgraded sockets before the HTTP listener exits.
    permission to retry with a new key.
 7. Exercise process termination and restart with the fake provider before any
    authorized real-provider rollout.
+8. Run the credential-free [PostgreSQL logical recovery drill](./postgresql-recovery-drill.md)
+   after schema or persistence changes. Treat it as bounded logical-restore evidence,
+   not production failover, PITR, RTO, or RPO proof.
 
 ## Honest readiness status
 
@@ -245,11 +248,13 @@ non-streaming provider-backed chat. That is stronger than process-local
 deduplication, but it is not cross-host HA, global exactly-once execution,
 session affinity, or provider-side reconciliation.
 
-PostgreSQL mode supplies a cross-host atomic ownership and fencing mechanism for
-one bounded feature: non-streaming chat idempotency. Complete deployment HA
-still needs independently verified database failover, TLS identity, retention,
-backup/restore, disaster recovery, replica convergence, provider reconciliation,
-and load-balancer behavior.
+PostgreSQL mode supplies cross-host atomic ownership and fencing for the covered
+central stores. The repository now destructively restores a bounded twelve-table
+fixture into a clean PostgreSQL 17 instance and re-verifies eight application
+contracts before and after a database restart. Complete deployment HA still
+needs independently verified automatic failover, TLS identity, retention/PITR,
+production-scale restore, network partition and split-brain behavior, replica
+convergence, provider reconciliation, measured RTO/RPO, and load-balancer behavior.
 
 ### Workforce task ownership
 

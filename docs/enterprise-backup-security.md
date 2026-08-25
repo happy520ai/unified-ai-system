@@ -61,6 +61,14 @@ requires `PME_ENTERPRISE_BACKUP_MIN_RESTORE_SEQUENCE` to come from an external m
 or immutable control plane. This module validates artifacts only; it does not perform a
 destructive data restore.
 
+The envelope contains tenant-facing enterprise users, a bounded audit export, readiness,
+and knowledge-health metadata. It does **not** contain the central PostgreSQL tables used
+for idempotency, Provider dispatch, external-effect tombstones, usage, A2A, Workforce, or
+the canonical audit chain. Back up and restore those schemas with a database-native
+procedure. The repository's disposable [PostgreSQL logical recovery drill](./postgresql-recovery-drill.md)
+proves a bounded CI fixture only; it is not production RTO/RPO or automatic-failover
+evidence.
+
 ## Language Selection
 
 The cryptographic boundary is TypeScript because typed envelope shapes, exhaustive

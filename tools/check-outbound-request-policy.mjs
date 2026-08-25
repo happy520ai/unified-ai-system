@@ -191,6 +191,9 @@ const ciWorkflow = fs.readFileSync(path.join(rootDir, ".github", "workflows", "c
 if (!ciWorkflow.includes("externalEffectGate.postgres.integration.test.ts")) {
   failures.push("ci.yml: real PostgreSQL external-effect integration coverage is missing");
 }
+if (!ciWorkflow.includes("pnpm drill:postgres-recovery")) {
+  failures.push("ci.yml: destructive PostgreSQL logical recovery coverage is missing");
+}
 
 if (failures.length > 0) {
   console.error("Outbound request policy check failed:");

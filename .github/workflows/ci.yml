@@ -172,6 +172,11 @@ jobs:
           apps/ai-gateway-service/src/logging/postgresUsageLedger.postgres.integration.test.ts
           apps/ai-gateway-service/src/enterprise/postgresAuditStore.postgres.integration.test.ts
 
+      - name: PostgreSQL logical backup and restart recovery drill
+        run: |
+          set -o pipefail
+          pnpm drill:postgres-recovery -- --json --output .tmp/postgres-recovery-drill.json | tee .tmp/postgres-recovery-drill.log
+
       - name: Public repository hygiene
         run: pnpm check:public
 
@@ -492,6 +497,12 @@ jobs:
             cat .tmp/gateway-resource-soak.json >> "$GITHUB_STEP_SUMMARY"
           fi
 
+          if [ -f .tmp/postgres-recovery-drill.json ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "## PostgreSQL logical recovery drill" >> "$GITHUB_STEP_SUMMARY"
+            cat .tmp/postgres-recovery-drill.json >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Upload quality scorecard artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
@@ -524,6 +535,8 @@ jobs:
             .tmp/gateway-soak-benchmark.log
             .tmp/gateway-resource-soak.json
             .tmp/gateway-resource-soak.log
+            .tmp/postgres-recovery-drill.json
+            .tmp/postgres-recovery-drill.log
             .tmp/language-policy-check.json
             .tmp/language-policy-expiry.json
           retention-days: 30
