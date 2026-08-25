@@ -28,10 +28,8 @@ const DEFAULT_LOCK_TIMEOUT_MS = 5_000;
 const DEFAULT_STALE_LOCK_MS = 60_000;
 const DEFAULT_LOCK_RETRY_MIN_MS = 5;
 const DEFAULT_LOCK_RETRY_MAX_MS = 25;
-const SAME_PROCESS_ORPHAN_GRACE_MS = 250;
 const DEFAULT_FULL_VERIFICATION_INTERVAL = 100;
 const MAX_AUDIT_ENTRY_BYTES = 256 * 1024;
-const ACTIVE_LOCK_NONCES = new Set();
 
 export function createAuditHashChain(options = {}) {
   const chainPath = options.chainPath ?? ".data/audit/audit-chain.jsonl";
@@ -374,7 +372,6 @@ async function acquireExclusiveLock({
     let descriptor;
     try {
       descriptor = await open(lockPath, "wx", 0o600);
-      ACTIVE_LOCK_NONCES.add(nonce);
       await descriptor.writeFile(JSON.stringify({
         version: 1,
         nonce,
@@ -391,19 +388,14 @@ async function acquireExclusiveLock({
       return {
         async release() {
           clearInterval(heartbeat);
-          try {
-            await descriptor.close();
-            await removeOwnedLock(lockPath, nonce);
-          } finally {
-            ACTIVE_LOCK_NONCES.delete(nonce);
-          }
+          await descriptor.close();
+          await removeOwnedLock(lockPath, nonce);
         },
       };
     } catch (error) {
       if (descriptor) {
         try { await descriptor.close(); } catch { /* best effort */ }
-        await unlink(lockPath).catch(() => undefined);
-        ACTIVE_LOCK_NONCES.delete(nonce);
+        await removeOwnedLock(lockPath, nonce);
       }
       // Windows can report EPERM for a short interval while another handle is
       // being created or removed, even when a follow-up stat no longer sees
@@ -440,16 +432,15 @@ async function removeStaleLock(lockPath, staleMs) {
   }
   try {
     owner = JSON.parse(await readFile(lockPath, "utf8"));
-    if (Date.now() - lockStat.mtimeMs >= SAME_PROCESS_ORPHAN_GRACE_MS
-      && owner?.hostname === hostname() && owner?.pid === process.pid
-      && !ACTIVE_LOCK_NONCES.has(owner?.nonce)) {
-      return unlinkWithRetry(lockPath);
-    }
   } catch {
     // Malformed stale locks are recoverable after the full stale interval.
   }
   if (Date.now() - lockStat.mtimeMs < staleMs) return false;
   try {
+    // Do not infer ownership from process-local memory. Worker threads and VM
+    // realms share a PID but not module state, so such a shortcut can delete a
+    // live lock and let two writers extend the same audit tail. A lock owned by
+    // a live process remains fail-closed until that process exits.
     if (owner?.hostname === hostname() && isProcessAlive(owner?.pid)) return false;
   } catch {
     // Malformed stale locks are recoverable after the full stale interval.

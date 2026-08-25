@@ -4,6 +4,7 @@ import { spawn } from "node:child_process";
 import { mkdtemp, rm, readFile, writeFile, utimes } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { Worker } from "node:worker_threads";
 
 let createAuditHashChain;
 
@@ -247,6 +248,48 @@ describe("AuditHashChain — concurrent appends", () => {
     await rm(tempDir, { recursive: true, force: true });
   });
 
+  it("does not reclaim a live lock owned by another worker thread with the same pid", async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), "audit-hash-worker-lock-"));
+    const chainPath = join(tempDir, "audit-chain.jsonl");
+    const moduleUrl = new URL("./auditHashChain.js", import.meta.url).href;
+    let holder;
+    let contender;
+    try {
+      holder = createWorkerThreadAppender({
+        chainPath,
+        moduleUrl,
+        action: "holder",
+        holdVerificationMs: 1_000,
+      });
+      const holderLocked = await waitForWorkerMessage(holder, "lock-held");
+      contender = createWorkerThreadAppender({
+        chainPath,
+        moduleUrl,
+        action: "contender",
+        startDelayMs: 350,
+      });
+      const [holderDone, contenderDone] = await Promise.all([
+        waitForWorkerMessage(holder, "done"),
+        waitForWorkerMessage(contender, "done"),
+      ]);
+      assert.strictEqual(holderLocked.pid, contenderDone.pid);
+      assert.notStrictEqual(holderDone.threadId, contenderDone.threadId);
+
+      const verifier = createAuditHashChain({ chainPath });
+      assert.deepStrictEqual(await verifier.verify(), {
+        valid: true,
+        totalEntries: 2,
+        brokenAt: null,
+      });
+    } finally {
+      await Promise.all([
+        terminateWorker(holder),
+        terminateWorker(contender),
+      ]);
+      await rm(tempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+    }
+  });
+
   it("fails closed on an active lock and recovers only a stale lock", async () => {
     const tempDir = await mkdtemp(join(tmpdir(), "audit-hash-locks-"));
     const chainPath = join(tempDir, "audit-chain.jsonl");
@@ -314,4 +357,90 @@ function runChildAppender(chainPath, prefix, count) {
       else reject(new Error(`Child audit appender failed (${code ?? signal}): ${stderr}`));
     });
   });
+}
+
+function createWorkerThreadAppender({
+  chainPath,
+  moduleUrl,
+  action,
+  holdVerificationMs = 0,
+  startDelayMs = 0,
+}) {
+  const source = `
+    const { parentPort, workerData, threadId } = require("node:worker_threads");
+    const { setTimeout: delay } = require("node:timers/promises");
+    (async () => {
+      const { createAuditHashChain } = await import(workerData.moduleUrl);
+      const checkpointStore = {
+        configured: false,
+        async verify() {
+          if (workerData.holdVerificationMs > 0) {
+            parentPort.postMessage({ type: "lock-held", pid: process.pid, threadId });
+            await delay(workerData.holdVerificationMs);
+          }
+        },
+        async verifyTail() {},
+        async commit() {},
+        getHealth() { return { configured: false, status: "disabled", mode: "none" }; },
+      };
+      if (workerData.startDelayMs > 0) await delay(workerData.startDelayMs);
+      const chain = createAuditHashChain({ chainPath: workerData.chainPath, checkpointStore });
+      await chain.append({ action: workerData.action });
+      parentPort.postMessage({ type: "done", pid: process.pid, threadId });
+    })().catch((error) => {
+      parentPort.postMessage({ type: "error", message: error?.stack ?? String(error) });
+    });
+  `;
+  return new Worker(source, {
+    eval: true,
+    workerData: {
+      chainPath,
+      moduleUrl,
+      action,
+      holdVerificationMs,
+      startDelayMs,
+    },
+  });
+}
+
+function waitForWorkerMessage(worker, type) {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      cleanup();
+      reject(new Error(`Timed out waiting for worker message: ${type}`));
+    }, 5_000);
+    const onMessage = (message) => {
+      if (message?.type === "error") {
+        cleanup();
+        reject(new Error(message.message));
+      } else if (message?.type === type) {
+        cleanup();
+        resolve(message);
+      }
+    };
+    const onError = (error) => {
+      cleanup();
+      reject(error);
+    };
+    const onExit = (code) => {
+      if (code !== 0) {
+        cleanup();
+        reject(new Error(`Audit worker exited before ${type}: ${code}`));
+      }
+    };
+    function cleanup() {
+      clearTimeout(timeout);
+      worker.off("message", onMessage);
+      worker.off("error", onError);
+      worker.off("exit", onExit);
+    }
+    worker.on("message", onMessage);
+    worker.on("error", onError);
+    worker.on("exit", onExit);
+  });
+}
+
+async function terminateWorker(worker) {
+  if (!worker) return;
+  await worker.terminate().catch(() => undefined);
 }
