@@ -9,7 +9,7 @@ The gateway uses a two-phase shutdown protocol for `SIGTERM` and `SIGINT`:
 3. Keep `/livez`, `/healthz`, `/ready`, `/health`, `/health/check`, and `/metrics` available during the propagation window.
 4. Report `service-draining` from `/healthz` and `/ready` so a load balancer can remove the instance.
 5. Stop accepting connections after the propagation window and wait for existing HTTP requests.
-6. Close idle connections, OpenTelemetry, idempotency storage, and outbound connection pools before exit.
+6. Close idle connections, OpenTelemetry, response-idempotency storage, provider-dispatch storage, and outbound connection pools before exit.
 7. Force-close connections only when the total shutdown timeout is exceeded.
 
 ## Configuration

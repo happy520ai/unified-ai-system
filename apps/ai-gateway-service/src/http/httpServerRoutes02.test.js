@@ -285,6 +285,58 @@ describe("dispatchHttpRoutes02 healthz readiness", () => {
     expect(context.response.payload.error.details.idempotency).not.toHaveProperty("connectionString");
   });
 
+  it("returns unready with a redacted snapshot when required provider dispatch storage degrades", async () => {
+    const context = createEnvelopeContext({
+      application: {
+        gatewayService: { runtimeConfig: { requireProviderDispatchGate: true } },
+        providerDispatchGate: {
+          status: {
+            mode: "postgres",
+            enabled: true,
+            required: true,
+            durable: true,
+            distributed: true,
+            centralRequired: true,
+            ttlMs: 86_400_000,
+            maxEntries: 100_000,
+          },
+          checkHealth: async () => ({
+            mode: "postgres",
+            enabled: true,
+            required: true,
+            durable: true,
+            distributed: true,
+            centralRequired: true,
+            available: false,
+            entries: 7,
+            inFlight: 1,
+            tombstones: 6,
+            connectionString: "postgres://must-not-leak",
+            hmacSecret: "must-not-leak",
+          }),
+        },
+      },
+    });
+
+    await dispatchHttpRoutes02(context);
+
+    expect(context.response.status).toBe(503);
+    expect(context.response.payload.error.details.readinessFailures)
+      .toContain("provider-dispatch-store-unavailable");
+    expect(context.response.payload.error.details.providerDispatch).toMatchObject({
+      mode: "postgres",
+      enabled: true,
+      required: true,
+      available: false,
+      entries: 7,
+      tombstones: 6,
+    });
+    const serialized = JSON.stringify(context.response.payload.error.details.providerDispatch);
+    expect(serialized).not.toContain("must-not-leak");
+    expect(serialized).not.toContain("connectionString");
+    expect(serialized).not.toContain("hmacSecret");
+  });
+
   it("returns unready when the PostgreSQL rate-limit store is unavailable", async () => {
     const context = createEnvelopeContext({
       rateLimiter: {

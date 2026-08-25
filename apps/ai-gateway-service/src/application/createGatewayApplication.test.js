@@ -34,6 +34,7 @@ describe("gateway-application", () => {
     expect(app.runtimeCredentialStore).toBeDefined();
     expect(app.userExperienceService).toBeDefined();
     expect(app.capabilityRouterService).toBeDefined();
+    expect(app.providerDispatchGate.status).toMatchObject({ enabled: false, mode: "disabled" });
   });
 
   it("has correct config", () => {
@@ -186,6 +187,8 @@ describe("gateway-application", () => {
         AI_GATEWAY_REAL_PROVIDER_ENABLED: "true",
         AI_GATEWAY_ENABLED_PROVIDERS: "openai",
         AI_GATEWAY_USAGE_LOG_DIR: join(root, "usage"),
+        AI_GATEWAY_PROVIDER_DISPATCH_SQLITE_PATH: join(root, "provider-dispatch.sqlite"),
+        AI_GATEWAY_PROVIDER_DISPATCH_HMAC_SECRET: "application-provider-dispatch-secret".padEnd(64, "x"),
         PME_ENTERPRISE_AUTH_ENABLED: "true",
         PME_AUTH_TOKEN: "test-placeholder-auth-token",
         PME_AUDIT_LOG_PATH: join(root, "audit.jsonl"),
@@ -203,7 +206,15 @@ describe("gateway-application", () => {
           checkpointRequired: true,
           checkpoint: expect.objectContaining({ configured: true, signed: true }),
         }));
+      expect(application.providerDispatchGate.getHealth()).toEqual(expect.objectContaining({
+        mode: "sqlite",
+        enabled: true,
+        required: true,
+        durable: true,
+        available: true,
+      }));
       application.requestLogger.close();
+      application.providerDispatchGate.close();
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

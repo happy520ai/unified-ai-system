@@ -29,6 +29,12 @@ only selectable when all three line up:
 Pin the default lane with `AI_GATEWAY_DEFAULT_PROVIDER` and
 `AI_GATEWAY_DEFAULT_MODEL` so routing cannot drift to an unpinned model.
 
+Every real-provider request also requires an opaque `Idempotency-Key` by
+default. The gateway commits a durable dispatch tombstone before the adapter
+runs. Configure SDK default headers and provision the single-host SQLite or
+cross-host PostgreSQL store described in
+[Real-provider dispatch idempotency](./provider-dispatch-idempotency.md).
+
 Recommended minimal first enablement (single cheap model, smallest blast
 radius):
 
@@ -123,7 +129,8 @@ must select `AI_GATEWAY_USAGE_LEDGER_STORE_MODE=postgres` and configure the
 central URL/namespace described in the multi-process guide.
 
 Before a billable adapter is invoked, the gateway awaits a write-ahead attempt
-record in the selected durable store. Each terminal result is committed before
+reservation and then a write-ahead attempt record in the selected durable
+stores. Each terminal result is committed before
 the route can report success; a post-call storage failure returns
 `USAGE_LEDGER_WRITE_FAILED` instead of hiding the unmetered result. A crash
 between those records remains visible as

@@ -39,6 +39,7 @@ type PostgresCoordinatorOptions = {
   pollIntervalMs: number;
   poolMax: number;
   statementTimeoutMs: number;
+  storageNamespace: "idempotency" | "provider-dispatch";
   normalizeKey: (value: unknown) => { ok: true; value: string } | { ok: false; message: string };
   createIdentity: (input: { request?: IdempotencyExecution<unknown>["request"]; route: string; key: string; secret: string | Buffer }) => string;
   createFingerprint: (payload: unknown) => string;
@@ -73,41 +74,44 @@ type StatsSnapshot = {
   statsUpdatedAt: number | null;
 };
 
-const TABLE = "public.ai_gateway_idempotency_entries";
 const CLAIM_LOCK_NAMESPACE = 1_431_193_303;
-const CLAIM_LOCK_KEY = 1_768_841_005;
-const INITIALIZE_LOCK_KEY = 1_768_841_006;
 
-const INITIALIZE_SQL = `/* idempotency:init */
-  CREATE SEQUENCE IF NOT EXISTS public.ai_gateway_idempotency_fencing_seq AS bigint;
-  CREATE TABLE IF NOT EXISTS ${TABLE} (
-    identity TEXT PRIMARY KEY,
-    fingerprint TEXT NOT NULL,
-    state TEXT NOT NULL CHECK (state IN ('in_flight', 'completed', 'oversized', 'failed', 'unknown')),
-    lease_owner UUID,
-    fencing_token BIGINT NOT NULL DEFAULT nextval('public.ai_gateway_idempotency_fencing_seq'::regclass),
-    lease_expires_at TIMESTAMPTZ,
-    expires_at TIMESTAMPTZ NOT NULL,
-    result_json JSONB,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp()
-  );
-  CREATE INDEX IF NOT EXISTS ai_gateway_idempotency_expiry_idx
-    ON ${TABLE} (expires_at);
-  CREATE INDEX IF NOT EXISTS ai_gateway_idempotency_lease_idx
-    ON ${TABLE} (lease_expires_at)
-    WHERE state = 'in_flight';
-`;
+type PostgresStorage = {
+  table: string;
+  sequence: string;
+  expiryIndex: string;
+  leaseIndex: string;
+  claimLockKey: number;
+  initializeLockKey: number;
+  applicationName: string;
+};
 
-const READ_ENTRY_SQL = `/* idempotency:read-entry */
-  SELECT identity, fingerprint, state, lease_owner, fencing_token, result_json,
-         CASE WHEN lease_expires_at IS NULL THEN NULL
-              ELSE GREATEST(0, EXTRACT(EPOCH FROM (lease_expires_at - clock_timestamp())) * 1000)::bigint
-          END AS lease_remaining_ms
-  FROM ${TABLE}
-  WHERE identity = $1
-`;
+const POSTGRES_STORAGE: Record<PostgresCoordinatorOptions["storageNamespace"], PostgresStorage> = {
+  idempotency: {
+    table: "public.ai_gateway_idempotency_entries",
+    sequence: "public.ai_gateway_idempotency_fencing_seq",
+    expiryIndex: "ai_gateway_idempotency_expiry_idx",
+    leaseIndex: "ai_gateway_idempotency_lease_idx",
+    claimLockKey: 1_768_841_005,
+    initializeLockKey: 1_768_841_006,
+    applicationName: "unified-ai-system-idempotency",
+  },
+  "provider-dispatch": {
+    table: "public.ai_gateway_provider_dispatch_entries",
+    sequence: "public.ai_gateway_provider_dispatch_fencing_seq",
+    expiryIndex: "ai_gateway_provider_dispatch_expiry_idx",
+    leaseIndex: "ai_gateway_provider_dispatch_lease_idx",
+    claimLockKey: 1_768_841_007,
+    initializeLockKey: 1_768_841_008,
+    applicationName: "unified-ai-system-provider-dispatch",
+  },
+};
 
 export function createPostgresIdempotencyCoordinator(options: PostgresCoordinatorOptions): IdempotencyCoordinator {
+  const storage = POSTGRES_STORAGE[options.storageNamespace];
+  const table = storage.table;
+  const initializeSql = createInitializeSql(storage);
+  const readEntrySql = createReadEntrySql(table);
   let closed = false;
   let readyPromise: Promise<PostgresPoolLike> | null = null;
   let statsRefreshPromise: Promise<void> | null = null;
@@ -234,16 +238,16 @@ export function createPostgresIdempotencyCoordinator(options: PostgresCoordinato
     try {
       await client.query(
         "/* idempotency:init-lock */ SELECT pg_advisory_lock($1, $2)",
-        [CLAIM_LOCK_NAMESPACE, INITIALIZE_LOCK_KEY],
+        [CLAIM_LOCK_NAMESPACE, storage.initializeLockKey],
       );
       locked = true;
-      await client.query(INITIALIZE_SQL);
+      await client.query(initializeSql);
     } finally {
       if (locked) {
         try {
           await client.query(
             "/* idempotency:init-unlock */ SELECT pg_advisory_unlock($1, $2)",
-            [CLAIM_LOCK_NAMESPACE, INITIALIZE_LOCK_KEY],
+            [CLAIM_LOCK_NAMESPACE, storage.initializeLockKey],
           );
         } catch {
           // Session termination releases the lock if an explicit unlock cannot complete.
@@ -259,21 +263,21 @@ export function createPostgresIdempotencyCoordinator(options: PostgresCoordinato
       await client.query("BEGIN");
       await client.query(
         "/* idempotency:claim-lock */ SELECT pg_advisory_xact_lock($1, $2)",
-        [CLAIM_LOCK_NAMESPACE, CLAIM_LOCK_KEY],
+        [CLAIM_LOCK_NAMESPACE, storage.claimLockKey],
       );
       await client.query(`/* idempotency:expire-leases */
-        UPDATE ${TABLE}
+        UPDATE ${table}
         SET state = 'unknown', lease_owner = NULL, lease_expires_at = NULL,
             expires_at = GREATEST(expires_at, clock_timestamp() + ($1 * interval '1 millisecond')),
             updated_at = clock_timestamp()
         WHERE state = 'in_flight' AND lease_expires_at <= clock_timestamp()
       `, [options.ttlMs]);
       await client.query(`/* idempotency:delete-expired */
-        DELETE FROM ${TABLE}
+        DELETE FROM ${table}
         WHERE state <> 'in_flight' AND expires_at <= clock_timestamp()
       `);
 
-      const existing = await client.query<EntryRow>(`${READ_ENTRY_SQL} FOR UPDATE`, [identity]);
+      const existing = await client.query<EntryRow>(`${readEntrySql} FOR UPDATE`, [identity]);
       if (existing.rows[0]) {
         const decision = decodeRow<T>(existing.rows[0], fingerprint);
         await client.query("COMMIT");
@@ -282,7 +286,7 @@ export function createPostgresIdempotencyCoordinator(options: PostgresCoordinato
       }
 
       const count = await client.query<{ count: string | number }>(
-        `/* idempotency:count */ SELECT COUNT(*)::bigint AS count FROM ${TABLE}`,
+        `/* idempotency:count */ SELECT COUNT(*)::bigint AS count FROM ${table}`,
       );
       if (Number(count.rows[0]?.count ?? 0) >= options.maxEntries) {
         await client.query("COMMIT");
@@ -294,7 +298,7 @@ export function createPostgresIdempotencyCoordinator(options: PostgresCoordinato
 
       const leaseOwner = randomUUID();
       const inserted = await client.query<{ fencing_token: string | number }>(`/* idempotency:insert */
-        INSERT INTO ${TABLE} (
+        INSERT INTO ${table} (
           identity, fingerprint, state, lease_owner, lease_expires_at, expires_at, result_json, updated_at
         ) VALUES (
           $1, $2, 'in_flight', $3::uuid,
@@ -352,7 +356,7 @@ export function createPostgresIdempotencyCoordinator(options: PostgresCoordinato
     while (performance.now() < waitDeadline) {
       await delay(options.pollIntervalMs);
       try {
-        const result = await pool.query<EntryRow>(READ_ENTRY_SQL, [identity]);
+        const result = await pool.query<EntryRow>(readEntrySql, [identity]);
         const row = result.rows[0];
         if (!row) return previousAttemptUnknown();
         const decision = decodeRow<T>(row, fingerprint);
@@ -360,13 +364,13 @@ export function createPostgresIdempotencyCoordinator(options: PostgresCoordinato
         leaseRemainingMs = decision.leaseRemainingMs;
         if (leaseRemainingMs <= 0) {
           await pool.query(`/* idempotency:mark-unknown */
-            UPDATE ${TABLE}
+            UPDATE ${table}
             SET state = 'unknown', lease_owner = NULL, lease_expires_at = NULL,
                 expires_at = GREATEST(expires_at, clock_timestamp() + ($1 * interval '1 millisecond')),
                 updated_at = clock_timestamp()
             WHERE identity = $2 AND state = 'in_flight' AND lease_expires_at <= clock_timestamp()
           `, [options.ttlMs, identity]);
-          const latest = await pool.query<EntryRow>(READ_ENTRY_SQL, [identity]);
+          const latest = await pool.query<EntryRow>(readEntrySql, [identity]);
           return latest.rows[0] ? decodeTerminal<T>(latest.rows[0], fingerprint) : previousAttemptUnknown();
         }
       } catch {
@@ -406,7 +410,7 @@ export function createPostgresIdempotencyCoordinator(options: PostgresCoordinato
         }
         try {
           const update = await pool.query(`/* idempotency:renew */
-            UPDATE ${TABLE}
+            UPDATE ${table}
             SET lease_expires_at = clock_timestamp() + ($1 * interval '1 millisecond'),
                 updated_at = clock_timestamp()
             WHERE identity = $2 AND state = 'in_flight' AND lease_owner = $3::uuid
@@ -432,7 +436,7 @@ export function createPostgresIdempotencyCoordinator(options: PostgresCoordinato
       const encoded = encodeResult(value, options.maxResultBytes);
       try {
         const update = await pool.query(`/* idempotency:complete */
-          UPDATE ${TABLE}
+          UPDATE ${table}
           SET state = $1, lease_owner = NULL, lease_expires_at = NULL,
               expires_at = clock_timestamp() + ($2 * interval '1 millisecond'),
               result_json = CASE WHEN $1 = 'completed' THEN $3::jsonb ELSE NULL END,
@@ -453,7 +457,7 @@ export function createPostgresIdempotencyCoordinator(options: PostgresCoordinato
       if (!leaseLost) {
         try {
           await pool.query(`/* idempotency:fail */
-            UPDATE ${TABLE}
+            UPDATE ${table}
             SET state = 'failed', lease_owner = NULL, lease_expires_at = NULL,
                 expires_at = clock_timestamp() + ($1 * interval '1 millisecond'),
                 result_json = NULL, updated_at = clock_timestamp()
@@ -484,7 +488,7 @@ export function createPostgresIdempotencyCoordinator(options: PostgresCoordinato
   async function refreshStats(pool: PostgresPoolLike): Promise<void> {
     try {
       const result = await pool.query<{ state: EntryState; count: string | number }>(`/* idempotency:stats */
-        SELECT state, COUNT(*)::bigint AS count FROM ${TABLE} GROUP BY state
+        SELECT state, COUNT(*)::bigint AS count FROM ${table} GROUP BY state
       `);
       const counts = new Map<EntryState, number>();
       for (const row of result.rows) counts.set(row.state, Number(row.count));
@@ -502,6 +506,39 @@ export function createPostgresIdempotencyCoordinator(options: PostgresCoordinato
   }
 }
 
+function createInitializeSql(storage: PostgresStorage): string {
+  return `/* idempotency:init */
+    CREATE SEQUENCE IF NOT EXISTS ${storage.sequence} AS bigint;
+    CREATE TABLE IF NOT EXISTS ${storage.table} (
+      identity TEXT PRIMARY KEY,
+      fingerprint TEXT NOT NULL,
+      state TEXT NOT NULL CHECK (state IN ('in_flight', 'completed', 'oversized', 'failed', 'unknown')),
+      lease_owner UUID,
+      fencing_token BIGINT NOT NULL DEFAULT nextval('${storage.sequence}'::regclass),
+      lease_expires_at TIMESTAMPTZ,
+      expires_at TIMESTAMPTZ NOT NULL,
+      result_json JSONB,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp()
+    );
+    CREATE INDEX IF NOT EXISTS ${storage.expiryIndex}
+      ON ${storage.table} (expires_at);
+    CREATE INDEX IF NOT EXISTS ${storage.leaseIndex}
+      ON ${storage.table} (lease_expires_at)
+      WHERE state = 'in_flight';
+  `;
+}
+
+function createReadEntrySql(table: string): string {
+  return `/* idempotency:read-entry */
+    SELECT identity, fingerprint, state, lease_owner, fencing_token, result_json,
+           CASE WHEN lease_expires_at IS NULL THEN NULL
+                ELSE GREATEST(0, EXTRACT(EPOCH FROM (lease_expires_at - clock_timestamp())) * 1000)::bigint
+            END AS lease_remaining_ms
+    FROM ${table}
+    WHERE identity = $1
+  `;
+}
+
 async function loadPool(options: PostgresCoordinatorOptions): Promise<PostgresPoolLike> {
   const module = await import("pg") as unknown as {
     Pool: new (configuration: Record<string, unknown>) => PostgresPoolLike;
@@ -512,7 +549,7 @@ async function loadPool(options: PostgresCoordinatorOptions): Promise<PostgresPo
     connectionTimeoutMillis: Math.min(10_000, options.statementTimeoutMs),
     idleTimeoutMillis: 30_000,
     statement_timeout: options.statementTimeoutMs,
-    application_name: "unified-ai-system-idempotency",
+    application_name: POSTGRES_STORAGE[options.storageNamespace].applicationName,
     allowExitOnIdle: true,
   });
 }

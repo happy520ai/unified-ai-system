@@ -32,6 +32,11 @@ export function resolveMultiInstanceStoreMode(env = process.env, explicitMode = 
 /**
  * 加载或生成共享 HMAC secret（仅自动 sqlite 路径使用）。
  * 返回字符串（≥32 字节）或 null（文件不可用且未启用多实例）。
+ * @param {{
+ *   env?: Record<string, string | undefined>;
+ *   secretPath?: string;
+ *   explicitSecret?: string | null;
+ * }} [options]
  */
 export function loadOrCreateSharedSecret({
   env = process.env,

@@ -4,6 +4,7 @@ import { enhanceNaturalLanguagePrompt } from "../prompts/naturalLanguagePromptEn
 import { enhancePromptWithLLM } from "../prompts/llmPromptEnhancer.js";
 import { ROUTE_NOT_HANDLED } from "./httpRouteDispatch.js";
 import { readJson, writeJson } from "./utils/responseUtils.js";
+import { createGatewayBackedProviderAdapter } from "../providers/gatewayBackedProviderAdapter.ts";
 
 export async function dispatchPromptEnhancementRoutes(context) {
   const {
@@ -13,6 +14,7 @@ export async function dispatchPromptEnhancementRoutes(context) {
     url,
     writeServiceLog,
     application,
+    gatewayService: requestGatewayService,
   } = context;
 
   // ── POST /prompts/enhance (deterministic, no provider) ──
@@ -97,9 +99,15 @@ export async function dispatchPromptEnhancementRoutes(context) {
             runtimeConfig: gatewayService?.runtimeConfig,
           });
           if (decision.allowed) {
-            providerAdapter = provider;
             providerId = body.providerId;
-            modelId = body.modelId;
+            modelId = body.modelId ?? provider.descriptor?.models?.[0]?.id;
+            providerAdapter = createGatewayBackedProviderAdapter({
+              gatewayService: requestGatewayService ?? gatewayService,
+              providerId,
+              modelId,
+              descriptor: provider.descriptor,
+              source: "prompt-enhancement-llm",
+            });
           }
         } catch {
           // Provider not found — fall back to deterministic only

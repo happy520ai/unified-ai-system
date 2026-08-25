@@ -1,4 +1,5 @@
 import { EventEmitter } from "node:events";
+import { createHash } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { describe, expect, it, vi } from "vitest";
 import { EXECUTION_ABORT_CODES } from "@unified-ai-system/shared-utils";
@@ -80,6 +81,39 @@ describe("HTTP request execution scope", () => {
     const events: unknown[] = [];
     for await (const event of bound.executeStream({})) events.push(event);
     expect(events).toEqual([scope.context]);
+    scope.cleanup();
+  });
+
+  it("hashes the request idempotency key and assigns stable per-request invocation lanes", async () => {
+    const transport = createTransport();
+    transport.request.headers = { "idempotency-key": "operator-attempt-1" };
+    transport.request.url = "/v1/chat/completions?ignored=true";
+    const scope = createHttpRequestExecutionScope({ ...transport, timeoutMs: 10_000 });
+    expect(scope.context).toMatchObject({
+      providerDispatchKeyHash: createHash("sha256")
+        .update("operator-attempt-1")
+        .digest("hex"),
+      providerDispatchRoute: "/v1/chat/completions",
+    });
+    expect(JSON.stringify(scope.context)).not.toContain("operator-attempt-1");
+
+    const execute = vi.fn(async (_input: unknown, execution?: unknown) => execution);
+    const bound = bindGatewayExecution({ execute }, scope.context);
+    await expect(bound.execute({})).resolves.toMatchObject({ providerDispatchInvocation: 1 });
+    await expect(bound.execute({})).resolves.toMatchObject({ providerDispatchInvocation: 2 });
+    scope.cleanup();
+  });
+
+  it("marks malformed idempotency headers without retaining their values", () => {
+    const transport = createTransport();
+    transport.request.headers = { "idempotency-key": "contains space" };
+    transport.request.url = "/chat";
+    const scope = createHttpRequestExecutionScope({ ...transport, timeoutMs: 10_000 });
+    expect(scope.context).toMatchObject({
+      providerDispatchKeyInvalid: true,
+      providerDispatchRoute: "/chat",
+    });
+    expect(scope.context).not.toHaveProperty("providerDispatchKeyHash");
     scope.cleanup();
   });
 

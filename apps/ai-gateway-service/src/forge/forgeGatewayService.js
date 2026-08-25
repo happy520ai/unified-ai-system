@@ -50,15 +50,16 @@ export function createForgeGatewayService({
    * llmCaller 桥:forge 约定 (userPrompt, systemPrompt, opts) → 文本。
    * 走网关 provider lane——预算、guardrails、审计全部生效。
    */
-  async function executeGatewayLlm(tenantIdentity, userPrompt, systemPrompt, opts = {}) {
-    if (!gatewayService || typeof gatewayService.execute !== "function") {
+  async function executeGatewayLlm(executionGatewayService, tenantIdentity, userPrompt, systemPrompt, opts = {}) {
+    const activeGatewayService = executionGatewayService ?? gatewayService;
+    if (!activeGatewayService || typeof activeGatewayService.execute !== "function") {
       throw new Error("FORGE_GATEWAY_UNAVAILABLE: gateway provider lane is required.");
     }
     const messages = [
       ...(systemPrompt ? [{ role: "system", content: String(systemPrompt) }] : []),
       { role: "user", content: String(userPrompt ?? "") },
     ];
-    const result = await gatewayService.execute({
+    const result = await activeGatewayService.execute({
       taskType: "chat",
       messages,
       options: {
@@ -87,15 +88,22 @@ export function createForgeGatewayService({
     };
   }
 
-  function makeLlmCaller(tenantIdentity = null) {
+  function makeLlmCaller(tenantIdentity = null, executionGatewayService = null) {
     return async (userPrompt, systemPrompt, opts = {}) => {
-      const result = await executeGatewayLlm(tenantIdentity, userPrompt, systemPrompt, opts);
+      const result = await executeGatewayLlm(
+        executionGatewayService,
+        tenantIdentity,
+        userPrompt,
+        systemPrompt,
+        opts,
+      );
       return result.text;
     };
   }
 
-  function makeScopedLlmCaller(tenantIdentity = null) {
+  function makeScopedLlmCaller(tenantIdentity = null, executionGatewayService = null) {
     return (userPrompt, systemPrompt, opts = {}) => executeGatewayLlm(
+      executionGatewayService,
       tenantIdentity,
       userPrompt,
       systemPrompt,
@@ -158,7 +166,7 @@ export function createForgeGatewayService({
     makeLlmCaller,
 
     // ── B:打磨 ──
-    async polish({ content, task = {}, passes, tenantIdentity = null } = {}) {
+    async polish({ content, task = {}, passes, tenantIdentity = null, gatewayService: executionGatewayService = null } = {}) {
       if (!enabled()) return { ok: false, code: "FORGE_LANE_DISABLED" };
       if (typeof content !== "string" || !content.trim()) {
         return { ok: false, code: "FORGE_INPUT_INVALID", reason: "content is required." };
@@ -166,7 +174,7 @@ export function createForgeGatewayService({
       const startedAt = clock();
       const result = await getRefiner().refine(
         { ...task, content },
-        makeLlmCaller(tenantIdentity),
+        makeLlmCaller(tenantIdentity, executionGatewayService),
         Number.isInteger(passes) ? { maxPasses: Math.min(passes, 10) } : {},
       );
       return {
@@ -224,7 +232,7 @@ export function createForgeGatewayService({
     },
 
     // ── A+G:目标编排(Forge 主类,单目标 run;多目标池后续按需)──
-    async orchestrate({ goal, options = {}, tenantIdentity = null } = {}) {
+    async orchestrate({ goal, options = {}, tenantIdentity = null, gatewayService: executionGatewayService = null } = {}) {
       if (!enabled()) return { ok: false, code: "FORGE_LANE_DISABLED" };
       if (typeof goal !== "string" || !goal.trim()) {
         return { ok: false, code: "FORGE_INPUT_INVALID", reason: "goal is required." };
@@ -242,7 +250,7 @@ export function createForgeGatewayService({
           enableCostTracking: true,
         });
         const result = await runWithLlmCaller(
-          makeScopedLlmCaller(tenantIdentity),
+          makeScopedLlmCaller(tenantIdentity, executionGatewayService),
           () => forge.run(goal, options),
         );
         forgeRuns.set(runId, { tenantKey, goal, status: "completed", startedAt: forgeRuns.get(runId).startedAt, result });
@@ -274,12 +282,23 @@ export function createForgeGatewayService({
     },
 
     // ── D:韧性演示/直通(内部由 polish 使用)──
-    async degrade(input) {
+    async degrade(input, { gatewayService: executionGatewayService = null } = {}) {
+      if (executionGatewayService) {
+        try {
+          return await makeLlmCaller(null, executionGatewayService)(
+            input?.userPrompt,
+            input?.systemPrompt,
+            input?.opts,
+          );
+        } catch {
+          return `[forge:degraded] LLM lane unavailable; original task preserved.\n${input?.userPrompt ?? ""}`;
+        }
+      }
       return getDegradation().execute(input);
     },
 
     // ── F:状态面 ──
-    getStatus({ tenantIdentity = null } = {}) {
+    getStatus({ tenantIdentity = null, gatewayService: executionGatewayService = null } = {}) {
       const tenantKey = getTenantKey(tenantIdentity);
       return {
         ok: true,
@@ -300,7 +319,7 @@ export function createForgeGatewayService({
           consensus: consensus !== null,
         },
         activeRuns: [...forgeRuns.values()].filter((run) => run.tenantKey === tenantKey).length,
-        llmLane: gatewayService ? "gateway-provider-lane" : "unavailable",
+        llmLane: executionGatewayService || gatewayService ? "gateway-provider-lane" : "unavailable",
       };
     },
   };

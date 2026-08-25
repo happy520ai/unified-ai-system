@@ -80,6 +80,8 @@ async function runSmoke() {
       PME_AUDIT_CHECKPOINT_PATH: join(isolatedStateRoot, "enterprise-audit.checkpoint.json"),
       PME_AUDIT_CHECKPOINT_HMAC_KEY: auditCheckpointKey,
       AI_GATEWAY_USAGE_LOG_DIR: join(isolatedStateRoot, "usage"),
+      AI_GATEWAY_PROVIDER_DISPATCH_SQLITE_PATH: join(isolatedStateRoot, "provider-dispatch.sqlite"),
+      AI_GATEWAY_PROVIDER_DISPATCH_HMAC_SECRET: randomBytes(32).toString("hex"),
     },
     stdio: ["ignore", "pipe", "pipe"],
   });

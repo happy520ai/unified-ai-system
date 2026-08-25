@@ -5,11 +5,11 @@ import { verifyResultCompletion } from "../../chat-gateway/resultCompletionVerif
 import { recordChatGatewayEvidence, generateEvidenceId } from "../../chat-gateway/chatGatewayEvidenceRecorder.js";
 import { LATENCY_DRY_RUN_CASES, buildProviderLatencyAccountability } from "../../chat-gateway/providerLatencyPolicy.js";
 import { buildProviderRetryFallbackAccountability } from "../../chat-gateway/providerRetryFallbackPolicy.js";
-import { createNvidiaUnifiedClient } from "../../providers/nvidia/nvidiaUnifiedClient.js";
+import { createGatewayBackedNvidiaClient } from "../../providers/gatewayBackedNvidiaClient.ts";
 import { normalizeGatewayMode, normalizeModelSelection } from "./phaseModelUtils.js";
 import { getProviderExecutionDecision } from "../../providers/providerExecutionGate.ts";
 
-export async function runPhase312AChatGateway({ application, body, startedAt }) {
+export async function runPhase312AChatGateway({ application, body, startedAt, gatewayService }) {
   const input = String(body?.input ?? body?.message ?? body?.messages?.at?.(-1)?.content ?? "").trim();
   const requestedMode = normalizeGatewayMode(body?.mode);
   const messages = Array.isArray(body?.messages) && body.messages.length
@@ -29,7 +29,6 @@ export async function runPhase312AChatGateway({ application, body, startedAt }) 
     selectedModel: mode === "manual_model" ? selectedModel : null,
     taskToolPreference,
   });
-  const env = application.runtimeEnv ?? process.env;
   const providerId = plan.selected?.providerId ?? "nvidia";
   const executionDecision = getProviderExecutionDecision({
     providerId,
@@ -46,12 +45,7 @@ export async function runPhase312AChatGateway({ application, body, startedAt }) 
         plan,
         input,
         messages,
-        nvidiaClient: createNvidiaUnifiedClient({
-          env,
-          runtimeCredentialStore: application.runtimeCredentialStore,
-          modelLibraryStore: application.modelLibraryStore,
-          runtimeConfig: application.gatewayService?.runtimeConfig,
-        }),
+        nvidiaClient: createGatewayBackedNvidiaClient(gatewayService ?? application.gatewayService),
       });
   const evidenceId = generateEvidenceId();
   execution.meta.evidenceId = evidenceId;

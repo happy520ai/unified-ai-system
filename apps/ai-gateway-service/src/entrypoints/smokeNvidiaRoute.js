@@ -1,5 +1,6 @@
 import { createGatewayApplication } from "../application/createGatewayApplication.js";
 import { createGatewayHttpServer } from "../http/httpServer.js";
+import { randomUUID } from "node:crypto";
 
 const SMOKE_MODES = new Set(["fake", "real-no-key", "real-with-key"]);
 const mode = SMOKE_MODES.has(process.env.AI_GATEWAY_SMOKE_MODE) ? process.env.AI_GATEWAY_SMOKE_MODE : "fake";
@@ -82,6 +83,7 @@ async function runRouteCheck({ name, env, expected }) {
       method: "POST",
       headers: {
         "content-type": "application/json",
+        "idempotency-key": `gateway-smoke-${randomUUID()}`,
       },
       body: JSON.stringify({
         taskType: "chat",
@@ -118,6 +120,7 @@ async function runRouteCheck({ name, env, expected }) {
     };
   } finally {
     await new Promise((resolve) => server.close(resolve));
+    await server.shutdownResources?.();
   }
 }
 

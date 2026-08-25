@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { createHash } from "node:crypto";
 import {
   EXECUTION_ABORT_CODES,
   createExecutionAbortError,
@@ -9,6 +10,10 @@ export interface GatewayExecutionContext {
   signal: AbortSignal;
   timeoutMs: number;
   deadlineAt: number;
+  providerDispatchKeyHash?: string;
+  providerDispatchKeyInvalid?: boolean;
+  providerDispatchRoute?: string;
+  providerDispatchInvocation?: number;
 }
 
 interface RequestExecutionScopeOptions {
@@ -68,6 +73,7 @@ export function createHttpRequestExecutionScope(
     signal: controller.signal,
     timeoutMs,
     deadlineAt: now() + timeoutMs,
+    ...readProviderDispatchContext(options.request),
   });
 
   function cleanup() {
@@ -87,21 +93,52 @@ export function bindGatewayExecution<TService extends object>(
   execution: GatewayExecutionContext,
   identityProvider?: () => unknown,
 ): TService {
+  let providerDispatchInvocation = 0;
   return new Proxy(gatewayService, {
     get(target, property, receiver) {
       if (property === "execute" || property === "executeStream") {
         const operation = Reflect.get(target, property, receiver);
         if (typeof operation !== "function") return operation;
-        return (input: unknown) => Reflect.apply(
-          operation,
-          target,
-          [withServerIdentity(input, identityProvider?.()), execution],
-        );
+        return (input: unknown) => {
+          const boundExecution = execution.providerDispatchKeyHash
+            || execution.providerDispatchKeyInvalid
+            ? Object.freeze({
+                ...execution,
+                providerDispatchInvocation: ++providerDispatchInvocation,
+              })
+            : execution;
+          return Reflect.apply(
+            operation,
+            target,
+            [withServerIdentity(input, identityProvider?.()), boundExecution],
+          );
+        };
       }
       const value = Reflect.get(target, property, receiver);
       return typeof value === "function" ? value.bind(target) : value;
     },
   });
+}
+
+function readProviderDispatchContext(request: IncomingMessage) {
+  const rawKey = request.headers?.["idempotency-key"];
+  const route = String(request.url ?? "/").split("?", 1)[0] || "/";
+  if (rawKey === undefined) return { providerDispatchRoute: route };
+  if (
+    typeof rawKey !== "string"
+    || rawKey.length < 1
+    || rawKey.length > 255
+    || !/^[\x21-\x7e]+$/u.test(rawKey)
+  ) {
+    return {
+      providerDispatchKeyInvalid: true,
+      providerDispatchRoute: route,
+    };
+  }
+  return {
+    providerDispatchKeyHash: createHash("sha256").update(rawKey, "utf8").digest("hex"),
+    providerDispatchRoute: route,
+  };
 }
 
 // The gateway usage ledger attributes records per tenant from the request's

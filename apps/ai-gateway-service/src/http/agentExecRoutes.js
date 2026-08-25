@@ -13,6 +13,7 @@ import { ROUTE_NOT_HANDLED } from "./httpRouteDispatch.js";
 import { readJson, writeJson } from "./utils/responseUtils.js";
 import { createErrorEnvelope, createOkEnvelope } from "@unified-ai-system/shared-utils";
 import { assertProviderExecutionAllowed } from "../providers/providerExecutionGate.ts";
+import { createGatewayBackedProviderAdapter } from "../providers/gatewayBackedProviderAdapter.ts";
 
 export const AGENT_EXEC_PATH = "/agent-exec/run";
 
@@ -43,6 +44,7 @@ export async function dispatchAgentExecRoutes(context) {
     url,
     writeServiceLog,
     application,
+    gatewayService: requestGatewayService,
   } = context;
 
   if (request.method !== "POST" || url.pathname !== AGENT_EXEC_PATH) {
@@ -62,7 +64,7 @@ export async function dispatchAgentExecRoutes(context) {
   }
 
   try {
-    const result = await runBoundedAgentExec(body, application);
+    const result = await runBoundedAgentExec(body, application, requestGatewayService);
     writeServiceLog?.("agent_exec_completed", {
       method: request.method,
       path: AGENT_EXEC_PATH,
@@ -177,7 +179,7 @@ function resolveToolAllowlist(body, toolMode) {
   return [...AGENT_EXEC_LIMITS.readonlyToolAllowlist];
 }
 
-export async function runBoundedAgentExec(body, application) {
+export async function runBoundedAgentExec(body, application, executionGatewayService = null) {
   const normalized = normalizeAgentExecRequest(body);
   const providerRegistry = application?.gatewayService?.providerRegistry;
   if (!providerRegistry) {
@@ -187,9 +189,9 @@ export async function runBoundedAgentExec(body, application) {
     );
   }
 
-  let providerAdapter;
+  let selectedProviderAdapter;
   try {
-    providerAdapter = providerRegistry.get(normalized.providerId);
+    selectedProviderAdapter = providerRegistry.get(normalized.providerId);
   } catch {
     throw createExecError(
       "AGENT_EXEC_PROVIDER_UNAVAILABLE",
@@ -201,7 +203,7 @@ export async function runBoundedAgentExec(body, application) {
   try {
     assertProviderExecutionAllowed({
       providerId: normalized.providerId,
-      providerType: providerAdapter.descriptor?.metadata?.providerType,
+      providerType: selectedProviderAdapter.descriptor?.metadata?.providerType,
       runtimeConfig: application?.gatewayService?.runtimeConfig,
     });
   } catch (error) {
@@ -215,6 +217,16 @@ export async function runBoundedAgentExec(body, application) {
       },
     );
   }
+
+  const selectedModelId = normalized.modelId
+    ?? selectedProviderAdapter?.descriptor?.models?.[0]?.id;
+  const providerAdapter = createGatewayBackedProviderAdapter({
+    gatewayService: executionGatewayService ?? application?.gatewayService,
+    providerId: normalized.providerId,
+    modelId: selectedModelId,
+    descriptor: selectedProviderAdapter.descriptor,
+    source: "bounded-agent-exec",
+  });
 
   const loop = createAgenticLoop({
     providerAdapter,
@@ -244,7 +256,7 @@ export async function runBoundedAgentExec(body, application) {
     result = await loop.execute({
       goal: normalized.goal,
       providerId: normalized.providerId,
-      modelId: normalized.modelId,
+      modelId: selectedModelId,
       toolAllowlist: normalized.toolAllowlist,
       signal: controller.signal,
     });
@@ -285,7 +297,7 @@ export async function runBoundedAgentExec(body, application) {
     },
     provider: {
       id: normalized.providerId,
-      modelId: normalized.modelId ?? providerAdapter?.descriptor?.models?.[0]?.id ?? null,
+      modelId: selectedModelId ?? null,
     },
     sessionId: result?.sessionId ?? null,
   };

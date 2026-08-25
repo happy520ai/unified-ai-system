@@ -1,8 +1,9 @@
 # Multi-process deployment guide
 
-This guide covers same-host processes with local SQLite and cross-host chat
-idempotency with PostgreSQL. It does not claim complete high availability or
-globally exactly-once provider execution.
+This guide covers same-host processes with local SQLite and cross-host response
+idempotency plus real-provider dispatch reservations with PostgreSQL. It does
+not claim complete high availability or globally exactly-once provider
+execution.
 
 ## Deployment boundary
 
@@ -71,6 +72,7 @@ selected explicitly.
 | Enterprise users | `PME_ENTERPRISE_USER_STORE_MODE=sqlite` | `PME_ENTERPRISE_USER_STORE_PATH` |
 | Runtime credentials | `PME_RUNTIME_CREDENTIAL_STORE_MODE=sqlite` | `PME_RUNTIME_CREDENTIAL_STORE_PATH` |
 | Chat idempotency | `AI_GATEWAY_IDEMPOTENCY_STORE_MODE=sqlite` | `AI_GATEWAY_IDEMPOTENCY_SQLITE_PATH` |
+| Real-provider dispatch | `AI_GATEWAY_PROVIDER_DISPATCH_STORE_MODE=sqlite` | `AI_GATEWAY_PROVIDER_DISPATCH_SQLITE_PATH` |
 
 Use a `.db` extension for operational clarity. Do not point one store type at
 another store's database unless its schema and lifecycle have been reviewed for
@@ -117,6 +119,32 @@ AI_GATEWAY_IDEMPOTENCY_POLL_MS=50
 
 See [the idempotent chat contract](./idempotent-chat-contract.md) for response
 headers, conflict behavior, and retry rules.
+
+## Real-provider dispatch coordination
+
+Response replay and provider dispatch use separate stores and capacities. Every
+real-provider replica must share the provider-dispatch database and HMAC secret:
+
+```bash
+AI_GATEWAY_PROVIDER_DISPATCH_STORE_MODE=postgres
+AI_GATEWAY_PROVIDER_DISPATCH_CENTRAL_REQUIRED=true
+AI_GATEWAY_PROVIDER_DISPATCH_POSTGRES_URL=<same-database-as-usage-ledger>?sslmode=verify-full
+AI_GATEWAY_PROVIDER_DISPATCH_HMAC_SECRET=<load-the-same-32-byte-or-longer-secret>
+AI_GATEWAY_PROVIDER_DISPATCH_POSTGRES_TLS_REQUIRED=true
+```
+
+`AI_GATEWAY_MULTI_INSTANCE=true` makes PostgreSQL mandatory for real-provider
+dispatch. Startup rejects SQLite, a missing stable secret, a non-verified remote
+TLS URL, or a database target that differs from the central usage ledger. The
+runtime creates `public.ai_gateway_provider_dispatch_entries` and its dedicated
+fencing sequence/indexes; it does not share the HTTP idempotency table.
+
+Route traffic is ready only when the redacted provider-dispatch health reports
+`enabled=true` and `available=true`. Monitor
+`ai_gateway_provider_dispatch_store_available`, retained tombstones, capacity,
+statistics age, database lag, and restore drills. See
+[the real-provider dispatch contract](./provider-dispatch-idempotency.md) for
+client keys, failure codes, retention, and the exactly-once boundary.
 
 ## Example same-host layout
 

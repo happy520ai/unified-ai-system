@@ -2,6 +2,13 @@ import { ROUTE_NOT_HANDLED } from "./httpRouteDispatch.js";
 import { resolveChatResultHttpStatus } from "./routes/chatRoutes.js";
 import { applyIdempotencyResponseHeaders } from "./idempotencyCoordinator.ts";
 import { getGuardrailsEngine } from "../guardrails/guardrailsEngine.ts";
+import {
+  closePrimedGatewayStream,
+  iteratePrimedGatewayStream,
+  primeGatewayStream,
+  readPrimedGatewayStreamError,
+} from "./gatewayStreamPreflight.ts";
+import { resolveProviderDispatchHttpStatus } from "./providerDispatchHttpStatus.ts";
 
 export async function dispatchHttpRoutes06(context) {
   const {
@@ -128,6 +135,14 @@ export async function dispatchHttpRoutes06(context) {
       response.on("close", () => {
         clientClosed = true;
       });
+      const primedStream = await primeGatewayStream(gatewayService.executeStream(chatInput));
+      const preflightError = readPrimedGatewayStreamError(primedStream);
+      const preflightStatus = resolveProviderDispatchHttpStatus(preflightError?.code);
+      if (preflightError && preflightStatus !== null) {
+        await closePrimedGatewayStream(primedStream);
+        writeJson(response, preflightStatus, primedStream.first.value.envelope);
+        return;
+      }
       writeSseHeaders(response);
       writeSseEvent(response, "knowledge", {
         type: "knowledge",
@@ -139,7 +154,7 @@ export async function dispatchHttpRoutes06(context) {
       });
 
       let failed = false;
-      for await (const event of gatewayService.executeStream(chatInput)) {
+      for await (const event of iteratePrimedGatewayStream(primedStream)) {
         if (clientClosed) break;
         if (event.type === "error") {
           failed = true;
@@ -411,10 +426,18 @@ export async function dispatchHttpRoutes06(context) {
       response.on("close", () => {
         clientClosed = true;
       });
+      const primedStream = await primeGatewayStream(gatewayService.executeStream(gatewayInput));
+      const preflightError = readPrimedGatewayStreamError(primedStream);
+      const preflightStatus = resolveProviderDispatchHttpStatus(preflightError?.code);
+      if (preflightError && preflightStatus !== null) {
+        await closePrimedGatewayStream(primedStream);
+        writeJson(response, preflightStatus, primedStream.first.value.envelope);
+        return;
+      }
       writeSseHeaders(response);
 
       let failed = false;
-      for await (const event of gatewayService.executeStream(gatewayInput)) {
+      for await (const event of iteratePrimedGatewayStream(primedStream)) {
         if (clientClosed) break;
         if (event.type === "error") {
           failed = true;

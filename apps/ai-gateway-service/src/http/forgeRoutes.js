@@ -29,7 +29,10 @@ export async function dispatchForgeRoutes(context) {
   const gatewayService = context.gatewayService ?? application?.gatewayService;
   if (!application.__forgeGatewayService) {
     application.__forgeGatewayService = createForgeGatewayService({
-      gatewayService,
+      // Never retain a request-bound proxy here. Each LLM-bearing operation
+      // receives the current request's gateway below, preserving cancellation,
+      // tenant identity, and provider-dispatch invocation lanes.
+      gatewayService: application?.gatewayService,
       env: application.runtimeEnv ?? process.env,
     });
   }
@@ -75,7 +78,7 @@ export async function dispatchForgeRoutes(context) {
   }
 
   if (request.method === "GET" && url.pathname === "/forge/status") {
-    writeJson(response, 200, createOkEnvelope(forge.getStatus({ tenantIdentity }), { startedAt }));
+    writeJson(response, 200, createOkEnvelope(forge.getStatus({ tenantIdentity, gatewayService }), { startedAt }));
     return;
   }
 
@@ -101,6 +104,7 @@ export async function dispatchForgeRoutes(context) {
         task: body.task ?? {},
         passes: body.passes,
         tenantIdentity,
+        gatewayService,
       });
       if (!result.ok) return fail(400, result.code, result.reason ?? "polish failed.");
       writeServiceLog?.("forge_polish_completed", {
@@ -119,6 +123,7 @@ export async function dispatchForgeRoutes(context) {
         goal: body.goal,
         options: body.options ?? {},
         tenantIdentity,
+        gatewayService,
       });
       if (!result.ok && result.code === "FORGE_INPUT_INVALID") {
         return fail(400, result.code, result.reason ?? "goal is required.");

@@ -17,6 +17,13 @@ import {
   recordGuardrailFinding,
 } from "../observability/aiMetrics.ts";
 import { isResponseId } from "../responses/responseSessionStore.js";
+import {
+  closePrimedGatewayStream,
+  iteratePrimedGatewayStream,
+  primeGatewayStream,
+  readPrimedGatewayStreamError,
+} from "./gatewayStreamPreflight.ts";
+import { resolveProviderDispatchHttpStatus } from "./providerDispatchHttpStatus.ts";
 
 export const RESPONSES_PATH = "/v1/responses";
 const OPENAI_AZURE_RESPONSES = /^\/openai\/deployments\/([^/]+)\/responses\/?$/;
@@ -1059,6 +1066,20 @@ async function streamOpenAiResponse({
   response.on("close", () => {
     clientClosed = true;
   });
+  const primedStream = await primeGatewayStream(gatewayService.executeStream(gatewayInput));
+  const preflightError = readPrimedGatewayStreamError(primedStream);
+  const preflightStatus = resolveProviderDispatchHttpStatus(preflightError?.code);
+  if (preflightError && preflightStatus !== null) {
+    await closePrimedGatewayStream(primedStream);
+    writeServiceLog?.("openai_response_stream_failed", {
+      method: request.method,
+      path: RESPONSES_PATH,
+      code: preflightError.code,
+      durationMs: Date.now() - startedAt,
+    });
+    writeJson(response, preflightStatus, createOpenAiError(preflightError));
+    return;
+  }
   writeSseHeaders(response);
 
   const initialResponse = createStreamingResponse({
@@ -1080,7 +1101,7 @@ async function streamOpenAiResponse({
   });
 
   try {
-    for await (const event of gatewayService.executeStream(gatewayInput)) {
+    for await (const event of iteratePrimedGatewayStream(primedStream)) {
       if (clientClosed) break;
       if (event.type === "error") {
         failed = true;

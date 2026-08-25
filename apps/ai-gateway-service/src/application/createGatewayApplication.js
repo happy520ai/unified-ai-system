@@ -18,6 +18,7 @@ import { GatewayService } from "../core/gatewayService.js";
 import { createWeightedTrafficPolicy } from "../routing/weightedTrafficPolicy.js";
 import { createPriorityProviderSelectionPolicy } from "../core/providerSelectionPolicy.js";
 import { createProviderHealthScorer } from "../providers/providerHealthScorer.js";
+import { createProviderDispatchGate } from "../providers/providerDispatchGate.ts";
 import { createUsageLedger } from "../logging/usageLedgerFactory.ts";
 import { createProviderStatementReconciliationService } from "../billing/providerStatementReconciliationService.ts";
 import { createContentGuardrails } from "../guardrails/contentGuardrails.js";
@@ -105,6 +106,10 @@ export function createGatewayApplication(env = process.env) {
     env,
     realProviderEnabled: config.aiGatewayService.realProviderEnabled,
   });
+  const providerDispatchGate = createProviderDispatchGate({
+    env,
+    realProviderEnabled: config.aiGatewayService.realProviderEnabled,
+  });
   const providerStatementReconciliationService = createProviderStatementReconciliationService({
     requestLogger,
   });
@@ -136,6 +141,7 @@ export function createGatewayApplication(env = process.env) {
       // Cost guard is secure-by-default; operators may explicitly disable it.
       costGuardEnforce: String(env.AI_GATEWAY_COST_GUARD_ENFORCE ?? "true").toLowerCase() !== "false",
       requireDurableUsageLedger: config.aiGatewayService.realProviderEnabled,
+      requireProviderDispatchGate: config.aiGatewayService.realProviderEnabled,
       shadowRealProviderEnabled: String(env.AI_GATEWAY_SHADOW_REAL_PROVIDER_ENABLED ?? "false").toLowerCase() === "true",
       shadowTimeoutMs: readBoundedNumber(env.AI_GATEWAY_SHADOW_TIMEOUT_MS, 30_000, 1_000, 120_000),
       // Opt-in model-access enforcement. Requires identity (metadata.userId) and
@@ -147,6 +153,7 @@ export function createGatewayApplication(env = process.env) {
     enterpriseAudit: enterpriseGovernanceService,
     governance,
     contentGuardrails,
+    providerDispatchGate,
   });
   const knowledgeService = createLocalKnowledgeService({
     env,
@@ -218,6 +225,7 @@ export function createGatewayApplication(env = process.env) {
     modelImportService,
     modelLibraryStore,
     providerConfigRoutes,
+    providerDispatchGate,
     providerKeyConfigStore,
     providerRegistry,
     providerStatementReconciliationService,

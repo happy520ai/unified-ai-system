@@ -23,11 +23,11 @@ import {
   throwIfExecutionAborted,
 } from "@unified-ai-system/shared-utils";
 import { assertProviderExecutionAllowed } from "../providers/providerExecutionGate.ts";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 
 
 export class GatewayService {
-  constructor({ providerRegistry, runtimeConfig = {}, healthScorer = null, requestLogger = null, enterpriseAudit = null, governance = null, contentGuardrails = null, weightedTrafficPolicy = null }) {
+  constructor({ providerRegistry, runtimeConfig = {}, healthScorer = null, requestLogger = null, enterpriseAudit = null, governance = null, contentGuardrails = null, weightedTrafficPolicy = null, providerDispatchGate = null }) {
     this.providerRegistry = providerRegistry;
     this.runtimeConfig = runtimeConfig;
     // Optional health scorer — when present, provider call outcomes are recorded
@@ -49,6 +49,7 @@ export class GatewayService {
     this.contentGuardrails = contentGuardrails;
     // 运营可配的加权分流与影子流量(AI_GATEWAY_WEIGHTED_ROUTES_JSON);未配置时为 null,零行为变化。
     this.weightedTrafficPolicy = weightedTrafficPolicy ?? null;
+    this.providerDispatchGate = providerDispatchGate;
   }
 
   async execute(input, execution = {}) {
@@ -174,6 +175,13 @@ export class GatewayService {
           error.retryable = false;
           throw error;
         }
+
+        await this.#reserveProviderDispatch({
+          request,
+          selection,
+          execution,
+          attempt: attempt.index + 1,
+        });
 
         writeGatewayLog("provider_stream_start", {
           requestId: request.context.requestId,
@@ -372,6 +380,12 @@ export class GatewayService {
           shadowRequest: execution.shadow === true,
         });
         await this.#assertUsageLedgerReady(attemptSelection);
+        await this.#reserveProviderDispatch({
+          request,
+          selection: attemptSelection,
+          execution,
+          attempt: attempt.index + 1,
+        });
         usageAttemptId = await this.#beginUsageAttempt({
           request,
           selection: attemptSelection,
@@ -802,6 +816,68 @@ export class GatewayService {
       throw createUsageLedgerFailure(error?.code, error);
     }
   }
+
+  async #reserveProviderDispatch({ request, selection, execution, attempt }) {
+    if (selection?.selected?.providerType === "fake") return null;
+    if (!this.providerDispatchGate) {
+      if (this.runtimeConfig.requireProviderDispatchGate === true) {
+        const error = new Error("Real-provider execution requires the provider dispatch reservation gate.");
+        error.code = "PROVIDER_DISPATCH_GATE_UNAVAILABLE";
+        error.category = "persistence";
+        error.statusCode = 503;
+        error.retryable = true;
+        throw error;
+      }
+      return null;
+    }
+    const requestFingerprint = createHash("sha256")
+      .update(stableStringify({
+        taskType: request?.taskType,
+        messages: request?.messages,
+        options: request?.options,
+        tools: request?.tools,
+        toolChoice: request?.toolChoice,
+        parallelToolCalls: request?.parallelToolCalls,
+        responseFormat: request?.metadata?.openAiCompatibility?.responseFormat,
+        target: selection?.selected?.target,
+      }))
+      .digest("hex");
+    const reservation = await this.providerDispatchGate.reserve({
+      dispatchKeyHash: execution?.providerDispatchKeyHash,
+      dispatchKeyInvalid: execution?.providerDispatchKeyInvalid === true,
+      route: execution?.providerDispatchRoute ?? "/internal",
+      invocation: execution?.providerDispatchInvocation ?? 1,
+      attempt,
+      shadow: execution?.shadow === true,
+      tenantId: request?.enterpriseIdentity?.tenantId
+        ?? request?.context?.tenantId
+        ?? "default",
+      providerId: selection?.selected?.target?.providerId,
+      modelId: selection?.selected?.target?.modelId,
+      requestFingerprint,
+    });
+    writeGatewayLog("provider_dispatch_reserved", {
+      requestId: request?.context?.requestId,
+      traceId: request?.context?.traceId,
+      provider: selection?.selected?.target?.providerId,
+      model: selection?.selected?.target?.modelId,
+      attempt,
+      shadow: execution?.shadow === true,
+      bypassed: reservation.bypassed,
+      reservationFingerprint: reservation.reservationFingerprint,
+    });
+    return reservation;
+  }
+}
+
+function stableStringify(value) {
+  if (value === null || typeof value !== "object") return JSON.stringify(value) ?? "null";
+  if (Array.isArray(value)) return `[${value.map((item) => stableStringify(item)).join(",")}]`;
+  return `{${Object.keys(value)
+    .sort()
+    .filter((key) => value[key] !== undefined)
+    .map((key) => `${JSON.stringify(key)}:${stableStringify(value[key])}`)
+    .join(",")}}`;
 }
 
 function estimateOutputTokens(text) {

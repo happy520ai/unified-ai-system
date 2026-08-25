@@ -8,6 +8,7 @@ import {
 } from "./agentExecRoutes.js";
 import { createFakeProvider } from "../providers/fakeProvider.js";
 import { ProviderRegistry } from "../providers/providerRegistry.js";
+import { GatewayService } from "../core/gatewayService.js";
 
 function createApplication({ fixedLatencyMs = 1 } = {}) {
   const registry = new ProviderRegistry();
@@ -19,7 +20,16 @@ function createApplication({ fixedLatencyMs = 1 } = {}) {
     enabled: true,
     fixedLatencyMs,
   }));
-  return { gatewayService: { providerRegistry: registry } };
+  return {
+    gatewayService: new GatewayService({
+      providerRegistry: registry,
+      runtimeConfig: {
+        providerMode: "fake",
+        realProviderEnabled: false,
+        fallbackEnabled: false,
+      },
+    }),
+  };
 }
 
 function createContext({ body, application = createApplication(), path = "/agent-exec/run" }) {

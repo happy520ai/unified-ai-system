@@ -30,6 +30,13 @@ import {
   recordGuardrailFinding,
 } from "../observability/aiMetrics.ts";
 import { estimateTextTokens, estimateTokens } from "../cost/tokenEstimator.js";
+import {
+  closePrimedGatewayStream,
+  iteratePrimedGatewayStream,
+  primeGatewayStream,
+  readPrimedGatewayStreamError,
+} from "./gatewayStreamPreflight.ts";
+import { resolveProviderDispatchHttpStatus } from "./providerDispatchHttpStatus.ts";
 
 type GeminiModelRoute = {
   modelId: string;
@@ -859,10 +866,31 @@ async function streamGeminiGenerateContent({
     return;
   }
 
+  const primedStream = await primeGatewayStream<Record<string, any>>(
+    gatewayService.executeStream(gatewayInput),
+  );
+  const preflightError = readPrimedGatewayStreamError(primedStream);
+  const preflightStatus = resolveProviderDispatchHttpStatus(preflightError?.code);
+  if (preflightError && preflightStatus !== null) {
+    await closePrimedGatewayStream(primedStream);
+    writeServiceLog?.("gemini_stream_failed", {
+      method: request.method,
+      path: pathname,
+      code: preflightError.code,
+      durationMs: Date.now() - startedAt,
+    });
+    writeGeminiError(
+      response,
+      preflightStatus,
+      String(preflightError.message ?? "Gateway execution failed."),
+      preflightError.code ? { reason: String(preflightError.code) } : undefined,
+    );
+    return;
+  }
   writeSseHeaders(response);
 
   const guardrailsEngine = getGuardrailsEngine(request.enterpriseIdentity?.tenantId);
-  for await (const event of gatewayService.executeStream(gatewayInput)) {
+  for await (const event of iteratePrimedGatewayStream(primedStream)) {
     if (clientClosed) break;
     if (event.type === "error") {
       failed = true;

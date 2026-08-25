@@ -18,6 +18,7 @@ export interface GatewayRuntimeConfig {
   shadowRealProviderEnabled?: boolean;
   shadowTimeoutMs?: number;
   requireDurableUsageLedger?: boolean;
+  requireProviderDispatchGate?: boolean;
 }
 
 /**
@@ -61,6 +62,9 @@ export interface GatewayServiceOptions {
   healthScorer?: GatewayHealthScorer | null;
   requestLogger?: GatewayRequestLogger | null;
   enterpriseAudit?: GatewayEnterpriseAudit | null;
+  providerDispatchGate?: {
+    reserve(input: Record<string, unknown>): Promise<Record<string, unknown>>;
+  } | null;
   governance?: GatewayGovernance | null;
 }
 
@@ -70,8 +74,8 @@ export interface GatewayServiceOptions {
 export declare class GatewayService {
   constructor(options: GatewayServiceOptions & Record<string, unknown>);
   readonly runtimeConfig: Partial<GatewayRuntimeConfig>;
-  execute(input: Partial<GatewayRequest>, execution?: { signal?: AbortSignal; shadow?: boolean }): Promise<GatewayRouteResult>;
-  executeStream(input: Partial<GatewayRequest>, execution?: { signal?: AbortSignal; shadow?: boolean }): AsyncGenerator<GatewayStreamEvent>;
+  execute(input: Partial<GatewayRequest>, execution?: { signal?: AbortSignal; shadow?: boolean; providerDispatchKeyHash?: string; providerDispatchKeyInvalid?: boolean; providerDispatchRoute?: string; providerDispatchInvocation?: number }): Promise<GatewayRouteResult>;
+  executeStream(input: Partial<GatewayRequest>, execution?: { signal?: AbortSignal; shadow?: boolean; providerDispatchKeyHash?: string; providerDispatchKeyInvalid?: boolean; providerDispatchRoute?: string; providerDispatchInvocation?: number }): AsyncGenerator<GatewayStreamEvent>;
   getProviderDescriptors(): ProviderDescriptor[];
 }
 

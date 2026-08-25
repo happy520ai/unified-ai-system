@@ -8,12 +8,15 @@
 // =============================================================================
 
 import { validators } from "../../validation/httpSchemas.js";
+import { resolveProviderDispatchHttpStatus } from "../providerDispatchHttpStatus.ts";
 
 export function resolveChatResultHttpStatus(result) {
   if (result?.success === true) return 200;
 
   const error = result?.error ?? {};
   const code = String(result?.code ?? error.code ?? "").toUpperCase();
+  const providerDispatchStatus = resolveProviderDispatchHttpStatus(code);
+  if (providerDispatchStatus !== null) return providerDispatchStatus;
   if (code.includes("TIMEOUT") || code.includes("DEADLINE_EXCEEDED")) return 504;
   if (
     code === "CIRCUIT_OPEN"

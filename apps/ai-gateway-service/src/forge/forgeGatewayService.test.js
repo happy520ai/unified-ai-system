@@ -135,7 +135,7 @@ describe("forgeGatewayService — 桥与惰性", () => {
 });
 
 describe("forgeRoutes dispatcher", () => {
-  function createContext({ method = "POST", path, body, application } = {}) {
+  function createContext({ method = "POST", path, body, application, gatewayService } = {}) {
     const request = Readable.from([Buffer.from(JSON.stringify(body ?? {}))]);
     request.method = method;
     const response = new EventEmitter();
@@ -158,7 +158,7 @@ describe("forgeRoutes dispatcher", () => {
       response.writableEnded = true;
     };
     const app = application ?? { runtimeEnv: {}, gatewayService: createFakeGatewayService() };
-    return { application: app, request, response, startedAt: Date.now(), url: new URL(`http://127.0.0.1:4010${path}`), writeServiceLog: vi.fn(), gatewayService: app.gatewayService };
+    return { application: app, request, response, startedAt: Date.now(), url: new URL(`http://127.0.0.1:4010${path}`), writeServiceLog: vi.fn(), gatewayService: gatewayService ?? app.gatewayService };
   }
 
   it("serves status and handles polish end to end", async () => {
@@ -170,6 +170,31 @@ describe("forgeRoutes dispatcher", () => {
     const polishContext = createContext({ path: "/forge/polish", body: { content: "smooth this out" } });
     await dispatchForgeRoutes(polishContext);
     expect(polishContext.response.statusCode).toBe(200);
+  });
+
+  it("uses each request-bound gateway without retaining the first request context", async () => {
+    const rawGateway = createFakeGatewayService();
+    const requestGatewayA = createFakeGatewayService();
+    const requestGatewayB = createFakeGatewayService();
+    const application = { runtimeEnv: {}, gatewayService: rawGateway };
+
+    await dispatchForgeRoutes(createContext({
+      path: "/forge/polish",
+      body: { content: "request a" },
+      application,
+      gatewayService: requestGatewayA,
+    }));
+    await dispatchForgeRoutes(createContext({
+      path: "/forge/polish",
+      body: { content: "request b" },
+      application,
+      gatewayService: requestGatewayB,
+    }));
+
+    expect(requestGatewayA.execute).toHaveBeenCalled();
+    expect(requestGatewayB.execute).toHaveBeenCalled();
+    expect(rawGateway.execute).not.toHaveBeenCalled();
+    expect(requestGatewayA.execute.mock.calls.flat().some((input) => JSON.stringify(input).includes("request b"))).toBe(false);
   });
 
   it("rejects invalid memory actions and unknown forge paths honestly", async () => {

@@ -50,6 +50,7 @@ export type IdempotencyCoordinatorOptions = {
   secret?: string | Buffer;
   ttlMs?: number;
   maxEntries?: number;
+  maxEntriesLimit?: number;
   maxResultBytes?: number;
   storeMode?: "memory" | "sqlite" | "postgres";
   sqlitePath?: string;
@@ -57,6 +58,7 @@ export type IdempotencyCoordinatorOptions = {
   postgresPool?: PostgresPoolLike;
   postgresPoolMax?: number;
   postgresStatementTimeoutMs?: number;
+  postgresStorageNamespace?: "idempotency" | "provider-dispatch";
   leaseMs?: number;
   inFlightWaitMs?: number;
   pollIntervalMs?: number;
@@ -122,11 +124,17 @@ export function createIdempotencyCoordinator(options: IdempotencyCoordinatorOpti
     1_000,
     24 * 60 * 60 * 1000,
   );
+  const maxEntriesLimit = readBoundedNumber(
+    options.maxEntriesLimit,
+    100_000,
+    1,
+    1_000_000,
+  );
   const maxEntries = readBoundedNumber(
     options.maxEntries ?? env.AI_GATEWAY_IDEMPOTENCY_MAX_ENTRIES,
     DEFAULT_MAX_ENTRIES,
     1,
-    100_000,
+    maxEntriesLimit,
   );
   const maxResultBytes = readBoundedNumber(
     options.maxResultBytes ?? env.AI_GATEWAY_IDEMPOTENCY_MAX_RESULT_BYTES,
@@ -174,6 +182,7 @@ export function createIdempotencyCoordinator(options: IdempotencyCoordinatorOpti
     if (!connectionString && !options.postgresPool) {
       throw new Error("AI_GATEWAY_IDEMPOTENCY_POSTGRES_URL is required when the idempotency store mode is postgres.");
     }
+    if (connectionString) assertSecurePostgresUrl(connectionString, env);
     return createPostgresIdempotencyCoordinator({
       connectionString,
       pool: options.postgresPool,
@@ -192,6 +201,7 @@ export function createIdempotencyCoordinator(options: IdempotencyCoordinatorOpti
         100,
         30_000,
       ),
+      storageNamespace: options.postgresStorageNamespace ?? "idempotency",
       normalizeKey,
       createIdentity: createScopedIdentity,
       createFingerprint,
@@ -451,3 +461,70 @@ function normalizeStoreMode(value: string | undefined): "memory" | "sqlite" | "p
   if (value === "postgres") return "postgres";
   throw new Error(`Unsupported idempotency store mode: ${value}`);
 }
+
+function assertSecurePostgresUrl(connectionString: string, env: NodeJS.ProcessEnv) {
+  let url: URL;
+  try {
+    url = new URL(connectionString);
+  } catch {
+    throw configurationError(
+      "IDEMPOTENCY_POSTGRES_URL_INVALID",
+      "The idempotency PostgreSQL URL is invalid.",
+    );
+  }
+  if (!new Set(["postgres:", "postgresql:"]).has(url.protocol)) {
+    throw configurationError(
+      "IDEMPOTENCY_POSTGRES_URL_INVALID",
+      "The idempotency store URL must use PostgreSQL.",
+    );
+  }
+  const tlsRequired = readBoolean(
+    env.AI_GATEWAY_IDEMPOTENCY_POSTGRES_TLS_REQUIRED,
+    true,
+    "AI_GATEWAY_IDEMPOTENCY_POSTGRES_TLS_REQUIRED",
+  );
+  if (!tlsRequired || isLoopbackHostname(url.hostname)) return;
+  const sslMode = String(url.searchParams.get("sslmode") ?? env.PGSSLMODE ?? "")
+    .trim()
+    .toLowerCase();
+  if (sslMode !== "verify-full") {
+    throw configurationError(
+      "IDEMPOTENCY_POSTGRES_TLS_VERIFY_REQUIRED",
+      "A non-loopback idempotency PostgreSQL store must use sslmode=verify-full.",
+    );
+  }
+}
+
+function readBoolean(
+  value: string | undefined,
+  fallback: boolean,
+  name: string,
+) {
+  if (value === undefined || String(value).trim() === "") return fallback;
+  const normalized = String(value).trim().toLowerCase();
+  if (normalized === "true" || normalized === "1") return true;
+  if (normalized === "false" || normalized === "0") return false;
+  throw configurationError(
+    "IDEMPOTENCY_CONFIGURATION_INVALID",
+    `${name} must be true or false when configured.`,
+  );
+}
+
+function isLoopbackHostname(hostname: string) {
+  const normalized = hostname.replace(/^\[|\]$/gu, "").trim().toLowerCase();
+  return normalized === "localhost"
+    || normalized.endsWith(".localhost")
+    || normalized === "127.0.0.1"
+    || normalized === "::1";
+}
+
+function configurationError(code: string, message: string) {
+  return Object.assign(new Error(message), {
+    code,
+    category: "configuration" as const,
+  });
+}
+
+export const idempotencyCoordinatorInternals = Object.freeze({
+  assertSecurePostgresUrl,
+});

@@ -90,6 +90,63 @@ describe("prompt enhancement route", () => {
     expect(response.body.data.metadata.providerCalled).toBe(false);
     expect(generate).not.toHaveBeenCalled();
   });
+
+  it("routes an enabled LLM enhancement through the request-bound gateway", async () => {
+    const registry = new ProviderRegistry({ enabledProviders: ["openai"] });
+    const provider = createFakeProvider({
+      providerId: "openai",
+      modelId: "gpt-test",
+      providerType: "openai",
+      capabilities: ["chat"],
+      enabled: true,
+    });
+    const directGenerate = vi.spyOn(provider, "generate");
+    registry.register(provider);
+    const requestGatewayService = {
+      execute: vi.fn(async () => ({
+        success: true,
+        data: {
+          message: { role: "assistant", content: "A governed and carefully enhanced prompt." },
+          usage: { inputTokens: 10, outputTokens: 8, totalTokens: 18 },
+          metadata: { latencyMs: 2 },
+        },
+      })),
+    };
+    const response = createResponseRecorder();
+
+    await dispatchPromptEnhancementRoutes({
+      request: createJsonRequest({
+        input: "Plan a product launch",
+        providerId: "openai",
+        modelId: "gpt-test",
+      }),
+      response,
+      startedAt: Date.now(),
+      url: new URL("http://127.0.0.1/prompts/enhance-llm"),
+      writeServiceLog: vi.fn(),
+      gatewayService: requestGatewayService,
+      application: {
+        gatewayService: {
+          providerRegistry: registry,
+          runtimeConfig: {
+            providerMode: "real",
+            realProviderEnabled: true,
+            enabledProviders: ["openai"],
+          },
+        },
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body.data.llmEnhanced).toBe(true);
+    expect(response.body.data.metadata.providerCalled).toBe(true);
+    expect(requestGatewayService.execute).toHaveBeenCalledWith(expect.objectContaining({
+      providerId: "openai",
+      modelId: "gpt-test",
+      metadata: expect.objectContaining({ source: "prompt-enhancement-llm" }),
+    }), expect.any(Object));
+    expect(directGenerate).not.toHaveBeenCalled();
+  });
 });
 
 function createJsonRequest(body) {

@@ -160,6 +160,7 @@ jobs:
         run: >-
           pnpm exec vitest run
           apps/ai-gateway-service/src/http/idempotencyCoordinator.postgres.integration.test.ts
+          apps/ai-gateway-service/src/providers/providerDispatchGate.postgres.integration.test.ts
           apps/ai-gateway-service/src/http/rateLimiter.postgres.integration.test.ts
           apps/ai-gateway-service/src/http/postgresWebSocketConnectionLeaseManager.postgres.integration.test.ts
           apps/ai-gateway-service/src/http/postgresWebSocketExecutionLeaseManager.postgres.integration.test.ts

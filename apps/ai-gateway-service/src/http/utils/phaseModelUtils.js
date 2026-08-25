@@ -1,10 +1,10 @@
 import { extractRuntimeCredentialEndpoint, extractRuntimeCredentialSecret } from "../../providers/providerCredentialDetector.js";
-import { createNvidiaUnifiedClient } from "../../providers/nvidia/nvidiaUnifiedClient.js";
+import { createGatewayBackedNvidiaClient } from "../../providers/gatewayBackedNvidiaClient.ts";
 import { ENDPOINT_TYPES } from "../../model-library/modelCapabilityRules.js";
 import { findModel } from "../../model-library/unifiedModelRegistry.js";
 import { getProviderExecutionDecision } from "../../providers/providerExecutionGate.ts";
 
-export async function testPhase312AModel({ application, body }) {
+export async function testPhase312AModel({ application, body, gatewayService }) {
   const env = application.runtimeEnv ?? process.env;
   const realSmokeEnabled = env.PHASE312A_NVIDIA_REAL_SMOKE === "1";
   const providerId = String(body?.providerId ?? "nvidia").trim().toLowerCase();
@@ -71,12 +71,7 @@ export async function testPhase312AModel({ application, body }) {
     };
   }
 
-  const nvidiaClient = createNvidiaUnifiedClient({
-    env,
-    runtimeCredentialStore: application.runtimeCredentialStore,
-    modelLibraryStore: application.modelLibraryStore,
-    runtimeConfig: application.gatewayService?.runtimeConfig,
-  });
+  const nvidiaClient = createGatewayBackedNvidiaClient(gatewayService ?? application.gatewayService);
   const result = await callModelSmoke({ client: nvidiaClient, model });
   application.modelLibraryStore.recordSmokeResult({
     providerId,

@@ -123,6 +123,36 @@ describe("prometheusExporter", () => {
     expect(text).not.toContain("connectionString");
   });
 
+  it("renders provider dispatch reservation health without identifiers", () => {
+    const exporter = createPrometheusExporter({ prefix: "ai_gateway" });
+    const text = exporter.formatMetrics({
+      providerDispatch: {
+        mode: "postgres",
+        enabled: true,
+        required: true,
+        durable: true,
+        distributed: true,
+        available: false,
+        entries: 9,
+        inFlight: 2,
+        tombstones: 7,
+        maxEntries: 100_000,
+        statsUpdatedAt: Date.now() - 3_000,
+        connectionString: "postgres://must-not-leak",
+        reservationFingerprint: "must-not-leak",
+      },
+    });
+
+    expect(text).toContain('ai_gateway_provider_dispatch_gate_enabled{mode="postgres"} 1');
+    expect(text).toContain('ai_gateway_provider_dispatch_key_required{mode="postgres"} 1');
+    expect(text).toContain('ai_gateway_provider_dispatch_store_available{mode="postgres"} 0');
+    expect(text).toContain('ai_gateway_provider_dispatch_store_distributed{mode="postgres"} 1');
+    expect(text).toContain('ai_gateway_provider_dispatch_reservations{mode="postgres",state="total"} 9');
+    expect(text).toContain('ai_gateway_provider_dispatch_reservations{mode="postgres",state="capacity"} 100000');
+    expect(text).toMatch(/ai_gateway_provider_dispatch_stats_age_seconds\{mode="postgres"\} 3\.\d{3}/);
+    expect(text).not.toContain("must-not-leak");
+  });
+
   it("renders bounded WebSocket lease metrics without deployment identifiers", () => {
     const exporter = createPrometheusExporter({ prefix: "ai_gateway" });
     const text = exporter.formatMetrics({

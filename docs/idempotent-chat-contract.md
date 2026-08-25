@@ -5,6 +5,11 @@ request header. It lets a caller retry an uncertain non-streaming request
 without starting the same provider execution twice inside one gateway process
 and retention window.
 
+This response-replay contract is distinct from the mandatory real-provider
+dispatch tombstone. The latter protects every core provider attempt, including
+compatibility and streaming routes, and is documented in
+[Real-provider dispatch idempotency](./provider-dispatch-idempotency.md).
+
 The coordinator is an erasable TypeScript runtime module loaded directly by
 Node.js. The repository therefore requires Node.js `>=22.18.0`, the first Node
 22 release where type stripping is enabled by default. The module does not use

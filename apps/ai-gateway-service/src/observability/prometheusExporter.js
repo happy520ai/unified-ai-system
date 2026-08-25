@@ -193,6 +193,39 @@ export function createPrometheusExporter(options = {}) {
     lines.push(`# TYPE ${prefix}_idempotency_stats_age_seconds gauge`);
     lines.push(`${prefix}_idempotency_stats_age_seconds{mode="${idempotencyMode}"} ${statsAgeSeconds}`);
 
+    const providerDispatch = snapshot.providerDispatch;
+    const providerDispatchMode = sanitizeMetricLabel(providerDispatch?.mode ?? "disabled");
+    const providerDispatchEnabled = providerDispatch?.enabled === true;
+    const providerDispatchAvailable = providerDispatchEnabled
+      ? (providerDispatch?.available === true ? 1 : 0)
+      : 1;
+    const providerDispatchStatsUpdatedAt = Number(providerDispatch?.statsUpdatedAt);
+    const providerDispatchStatsAgeSeconds = Number.isFinite(providerDispatchStatsUpdatedAt)
+      && providerDispatchStatsUpdatedAt > 0
+      ? Math.max(0, (Date.now() - providerDispatchStatsUpdatedAt) / 1000).toFixed(3)
+      : -1;
+    lines.push(`# HELP ${prefix}_provider_dispatch_gate_enabled Whether real-provider dispatch reservations are enabled`);
+    lines.push(`# TYPE ${prefix}_provider_dispatch_gate_enabled gauge`);
+    lines.push(`${prefix}_provider_dispatch_gate_enabled{mode="${providerDispatchMode}"} ${providerDispatchEnabled ? 1 : 0}`);
+    lines.push(`# HELP ${prefix}_provider_dispatch_key_required Whether real-provider requests require an idempotency key`);
+    lines.push(`# TYPE ${prefix}_provider_dispatch_key_required gauge`);
+    lines.push(`${prefix}_provider_dispatch_key_required{mode="${providerDispatchMode}"} ${providerDispatch?.required === true ? 1 : 0}`);
+    lines.push(`# HELP ${prefix}_provider_dispatch_store_available Whether the durable provider dispatch reservation store is reachable`);
+    lines.push(`# TYPE ${prefix}_provider_dispatch_store_available gauge`);
+    lines.push(`${prefix}_provider_dispatch_store_available{mode="${providerDispatchMode}"} ${providerDispatchAvailable}`);
+    lines.push(`# HELP ${prefix}_provider_dispatch_store_distributed Whether provider dispatch reservations coordinate across hosts`);
+    lines.push(`# TYPE ${prefix}_provider_dispatch_store_distributed gauge`);
+    lines.push(`${prefix}_provider_dispatch_store_distributed{mode="${providerDispatchMode}"} ${providerDispatch?.distributed === true ? 1 : 0}`);
+    lines.push(`# HELP ${prefix}_provider_dispatch_reservations Durable provider dispatch reservation records by state class`);
+    lines.push(`# TYPE ${prefix}_provider_dispatch_reservations gauge`);
+    lines.push(`${prefix}_provider_dispatch_reservations{mode="${providerDispatchMode}",state="total"} ${safeMetricNumber(providerDispatch?.entries)}`);
+    lines.push(`${prefix}_provider_dispatch_reservations{mode="${providerDispatchMode}",state="in_flight"} ${safeMetricNumber(providerDispatch?.inFlight)}`);
+    lines.push(`${prefix}_provider_dispatch_reservations{mode="${providerDispatchMode}",state="tombstone"} ${safeMetricNumber(providerDispatch?.tombstones)}`);
+    lines.push(`${prefix}_provider_dispatch_reservations{mode="${providerDispatchMode}",state="capacity"} ${safeMetricNumber(providerDispatch?.maxEntries)}`);
+    lines.push(`# HELP ${prefix}_provider_dispatch_stats_age_seconds Age of the last distributed provider dispatch statistics snapshot, or -1 when unavailable`);
+    lines.push(`# TYPE ${prefix}_provider_dispatch_stats_age_seconds gauge`);
+    lines.push(`${prefix}_provider_dispatch_stats_age_seconds{mode="${providerDispatchMode}"} ${providerDispatchStatsAgeSeconds}`);
+
     const webSocketLease = snapshot.webSocketLease;
     const webSocketLeaseEnabled = webSocketLease?.storeMode === "postgres" && webSocketLease?.distributed === true;
     const webSocketLeaseMode = webSocketLeaseEnabled ? "postgres" : "disabled";

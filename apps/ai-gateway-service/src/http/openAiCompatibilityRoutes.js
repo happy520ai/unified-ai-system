@@ -1,6 +1,13 @@
 import { ROUTE_NOT_HANDLED } from "./httpRouteDispatch.js";
 import { getChatResponseCacheIntegration } from "../cache/chatResponseCacheIntegration.ts";
 import { getGuardrailsEngine } from "../guardrails/guardrailsEngine.ts";
+import { resolveProviderDispatchHttpStatus } from "./providerDispatchHttpStatus.ts";
+import {
+  closePrimedGatewayStream,
+  iteratePrimedGatewayStream,
+  primeGatewayStream,
+  readPrimedGatewayStreamError,
+} from "./gatewayStreamPreflight.ts";
 import { estimateTextTokens, estimateTokens } from "../cost/tokenEstimator.js";
 import {
   recordChatCacheEvent,
@@ -1433,6 +1440,24 @@ async function streamAnthropicMessage({
   response.on("close", () => {
     clientClosed = true;
   });
+  const primedStream = await primeGatewayStream(gatewayService.executeStream(gatewayInput));
+  const preflightError = readPrimedGatewayStreamError(primedStream);
+  const preflightStatus = resolveProviderDispatchHttpStatus(preflightError?.code);
+  if (preflightError && preflightStatus !== null) {
+    await closePrimedGatewayStream(primedStream);
+    writeServiceLog?.("anthropic_messages_stream_failed", {
+      method: request.method,
+      path: ANTHROPIC_MESSAGES_PATH,
+      code: preflightError.code,
+      durationMs: Date.now() - startedAt,
+    });
+    writeJson(
+      response,
+      preflightStatus,
+      createAnthropicError(preflightError),
+    );
+    return;
+  }
   writeSseHeaders(response);
 
   const ensureStarted = (event = {}) => {
@@ -1468,7 +1493,7 @@ async function streamAnthropicMessage({
     started = true;
   };
 
-  for await (const event of gatewayService.executeStream(gatewayInput)) {
+  for await (const event of iteratePrimedGatewayStream(primedStream)) {
     if (clientClosed) break;
     if (event.type === "error") {
       failed = true;
@@ -2172,8 +2197,6 @@ async function streamOpenAiChatCompletion({
     return;
   }
 
-  writeSseHeaders(response);
-
   const choiceCount = Number(gatewayInput.metadata?.openAiCompatibility?.choiceCount ?? 1);
   // 多候选（n>1）与 RAG 注入均不支持缓存读写：候选集合/检索结果不可稳定复放。
   const chatResponseCache = getChatResponseCacheIntegration();
@@ -2184,6 +2207,7 @@ async function streamOpenAiChatCompletion({
     ? chatResponseCache.lookup({ candidate: cacheCandidate, tenantIdentity: request.enterpriseIdentity })
     : null;
   if (cacheLookup?.payload.kind === "sse") {
+    writeSseHeaders(response);
     const hitLayer = cacheLookup.hitType === "semantic" ? "semantic" : "exact";
     recordChatRequest(CHAT_COMPLETIONS_PATH, true);
     recordChatCacheEvent(hitLayer, "hit");
@@ -2225,12 +2249,29 @@ async function streamOpenAiChatCompletion({
     return;
   }
 
+  const firstPrimedStream = await primeGatewayStream(gatewayService.executeStream(gatewayInput));
+  const preflightError = readPrimedGatewayStreamError(firstPrimedStream);
+  const preflightStatus = resolveProviderDispatchHttpStatus(preflightError?.code);
+  if (preflightError && preflightStatus !== null) {
+    await closePrimedGatewayStream(firstPrimedStream);
+    writeServiceLog?.("openai_chat_stream_failed", {
+      method: request.method,
+      path: CHAT_COMPLETIONS_PATH,
+      code: preflightError.code,
+      durationMs: Date.now() - startedAt,
+    });
+    writeJson(response, preflightStatus, createOpenAiError(preflightError));
+    return;
+  }
+  writeSseHeaders(response);
+
   const capturedChunks = [];
   let capturedUsageChunk;
   let firstTokenAt = 0;
 
-  const consumeProviderStream = async (choiceIndex) => {
-    for await (const event of gatewayService.executeStream(gatewayInput)) {
+  const consumeProviderStream = async (choiceIndex, primedStream) => {
+    const stream = primedStream ?? await primeGatewayStream(gatewayService.executeStream(gatewayInput));
+    for await (const event of iteratePrimedGatewayStream(stream)) {
       if (clientClosed) break;
       if (event.type === "error") {
         failed = true;
@@ -2268,7 +2309,7 @@ async function streamOpenAiChatCompletion({
 
   // n=1 保持既有单流路径；n>1 顺序消费 n 条流并按 choice index 标记。
   for (let choiceIndex = 0; choiceIndex < choiceCount && !failed && !clientClosed; choiceIndex += 1) {
-    await consumeProviderStream(choiceIndex);
+    await consumeProviderStream(choiceIndex, choiceIndex === 0 ? firstPrimedStream : undefined);
   }
 
   if (!failed) {
@@ -2365,10 +2406,25 @@ async function streamOpenAiCompletion({
   response.on("close", () => {
     clientClosed = true;
   });
+  const firstPrimedStream = await primeGatewayStream(gatewayService.executeStream(gatewayInput));
+  const preflightError = readPrimedGatewayStreamError(firstPrimedStream);
+  const preflightStatus = resolveProviderDispatchHttpStatus(preflightError?.code);
+  if (preflightError && preflightStatus !== null) {
+    await closePrimedGatewayStream(firstPrimedStream);
+    writeServiceLog?.("openai_completion_stream_failed", {
+      method: request.method,
+      path: COMPLETIONS_PATH,
+      code: preflightError.code,
+      durationMs: Date.now() - startedAt,
+    });
+    writeJson(response, preflightStatus, createOpenAiError(preflightError));
+    return;
+  }
   writeSseHeaders(response);
 
-  const consumeLegacyStream = async (choiceIndex) => {
-    for await (const event of gatewayService.executeStream(gatewayInput)) {
+  const consumeLegacyStream = async (choiceIndex, primedStream) => {
+    const stream = primedStream ?? await primeGatewayStream(gatewayService.executeStream(gatewayInput));
+    for await (const event of iteratePrimedGatewayStream(stream)) {
       if (clientClosed) break;
       if (event.type === "error") {
         failed = true;
@@ -2397,7 +2453,7 @@ async function streamOpenAiCompletion({
   };
 
   for (let choiceIndex = 0; choiceIndex < choiceCount && !failed && !clientClosed; choiceIndex += 1) {
-    await consumeLegacyStream(choiceIndex);
+    await consumeLegacyStream(choiceIndex, choiceIndex === 0 ? firstPrimedStream : undefined);
   }
 
   writeServiceLog?.(failed ? "openai_completion_stream_failed" : "openai_completion_stream_completed", {
@@ -3139,6 +3195,8 @@ export function resolveOpenAiErrorStatus(error) {
   if (typeof error?.status === "number" && error.status >= 400 && error.status < 500) {
     return error.status;
   }
+  const providerDispatchStatus = resolveProviderDispatchHttpStatus(error?.code);
+  if (providerDispatchStatus !== null) return providerDispatchStatus;
   const category = error?.category ?? error?.type;
   if (category === "validation" || category === "routing") return 400;
   if (category === "auth") return 401;

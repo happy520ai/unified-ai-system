@@ -87,6 +87,7 @@ export async function dispatchHttpRoutes02(context) {
     const saturated = saturationThreshold > 0 && currentInFlight >= saturationThreshold;
     const lifecycle = gatewayLifecycle?.snapshot?.() ?? null;
     const idempotency = await readIdempotencyHealth(idempotencyCoordinator);
+    const providerDispatch = await readProviderDispatchHealth(application?.providerDispatchGate);
     const rateLimit = await readRateLimitHealth(rateLimiter);
     const webSocketLease = await readWebSocketLeaseHealth(webSocketConnectionLeaseManager);
     const a2aTaskStore = await readA2ATaskStoreHealth(a2aGateway);
@@ -98,6 +99,9 @@ export async function dispatchHttpRoutes02(context) {
       gatewayErrorCircuitState: resilienceSnapshot?.gatewayErrorCircuitState,
       lifecycleState: lifecycle?.state,
       idempotencyStoreUnavailable: idempotency?.storeMode === "postgres" && idempotency?.available !== true,
+      providerDispatchUnavailable:
+        application?.gatewayService?.runtimeConfig?.requireProviderDispatchGate === true
+        && (providerDispatch?.enabled !== true || providerDispatch?.available !== true),
       rateLimitStoreUnavailable: rateLimit?.storeMode === "postgres" && rateLimit?.available !== true,
       webSocketLeaseStoreUnavailable: Boolean(webSocketConnectionLeaseManager) && webSocketLease?.available !== true,
       a2aTaskStoreUnavailable: Boolean(a2aGateway) && a2aTaskStore?.available !== true,
@@ -121,6 +125,7 @@ export async function dispatchHttpRoutes02(context) {
       isReady: !degraded,
       lifecycle,
       idempotency,
+      providerDispatch,
       rateLimit,
       webSocketLease,
       a2aTaskStore,
@@ -254,6 +259,7 @@ export async function dispatchHttpRoutes02(context) {
     const saturated = saturationThreshold > 0 && currentInFlight >= saturationThreshold;
     const lifecycle = gatewayLifecycle?.snapshot?.() ?? null;
     const idempotency = await readIdempotencyHealth(idempotencyCoordinator);
+    const providerDispatch = await readProviderDispatchHealth(application?.providerDispatchGate);
     const rateLimit = await readRateLimitHealth(rateLimiter);
     const webSocketLease = await readWebSocketLeaseHealth(webSocketConnectionLeaseManager);
     const a2aTaskStore = await readA2ATaskStoreHealth(a2aGateway);
@@ -265,6 +271,9 @@ export async function dispatchHttpRoutes02(context) {
       gatewayErrorCircuitState: readinessResilienceSnapshot?.gatewayErrorCircuitState,
       lifecycleState: lifecycle?.state,
       idempotencyStoreUnavailable: idempotency?.storeMode === "postgres" && idempotency?.available !== true,
+      providerDispatchUnavailable:
+        application?.gatewayService?.runtimeConfig?.requireProviderDispatchGate === true
+        && (providerDispatch?.enabled !== true || providerDispatch?.available !== true),
       rateLimitStoreUnavailable: rateLimit?.storeMode === "postgres" && rateLimit?.available !== true,
       webSocketLeaseStoreUnavailable: Boolean(webSocketConnectionLeaseManager) && webSocketLease?.available !== true,
       a2aTaskStoreUnavailable: Boolean(a2aGateway) && a2aTaskStore?.available !== true,
@@ -286,6 +295,7 @@ export async function dispatchHttpRoutes02(context) {
       readinessFailureCount: readinessFailures.length,
       lifecycle,
       idempotency,
+      providerDispatch,
       webSocketLease,
       a2aTaskStore,
       workforceClaimStore,
@@ -421,7 +431,7 @@ export async function dispatchHttpRoutes02(context) {
   if (request.method === "POST" && url.pathname === "/model-library/test-model") {
     const body = await readCapabilityJson({ request, response, startedAt, code: "model_library_test_invalid_json" });
     if (!body) return;
-    const result = await testPhase312AModel({ application, body });
+    const result = await testPhase312AModel({ application, body, gatewayService });
     if (result.success === false) {
       const statusCode = result.code === "real_smoke_not_enabled" ? 503 : 400;
       writeJson(response, statusCode, createErrorEnvelope(
@@ -455,7 +465,7 @@ export async function dispatchHttpRoutes02(context) {
       writeJson(response, taijiBeidouExecuteHook.responseStatus ?? 200, createOkEnvelope(taijiBeidouExecuteHook.result, { startedAt }));
       return;
     }
-    const result = await runPhase312AChatGateway({ application, body, startedAt });
+    const result = await runPhase312AChatGateway({ application, body, startedAt, gatewayService });
     writeJson(response, 200, createOkEnvelope(result, { startedAt }));
     return;
   }
@@ -697,6 +707,9 @@ function collectReadinessFailures(healthSnapshot, readinessSnapshot, context = {
   if (context?.idempotencyStoreUnavailable) {
     readinessFailures.push("idempotency-store-unavailable");
   }
+  if (context?.providerDispatchUnavailable) {
+    readinessFailures.push("provider-dispatch-store-unavailable");
+  }
   if (context?.rateLimitStoreUnavailable) {
     readinessFailures.push("rate-limit-store-unavailable");
   }
@@ -877,6 +890,37 @@ async function readIdempotencyHealth(coordinator) {
   if (!coordinator) return null;
   if (typeof coordinator.checkHealth === "function") return coordinator.checkHealth();
   return coordinator.getStats?.() ?? null;
+}
+
+async function readProviderDispatchHealth(gate) {
+  if (!gate) return null;
+  try {
+    const snapshot = typeof gate.checkHealth === "function"
+      ? await gate.checkHealth()
+      : gate.getHealth?.();
+    return sanitizeProviderDispatchHealth(snapshot, gate.status);
+  } catch {
+    return sanitizeProviderDispatchHealth({ available: false }, gate.status);
+  }
+}
+
+function sanitizeProviderDispatchHealth(snapshot, status = {}) {
+  if (!snapshot && !status) return null;
+  return {
+    mode: snapshot?.mode ?? status?.mode ?? "unknown",
+    enabled: snapshot?.enabled === true || status?.enabled === true,
+    required: snapshot?.required === true || status?.required === true,
+    durable: snapshot?.durable === true || status?.durable === true,
+    distributed: snapshot?.distributed === true || status?.distributed === true,
+    centralRequired: snapshot?.centralRequired === true || status?.centralRequired === true,
+    available: snapshot?.available === true,
+    ttlMs: Number(snapshot?.ttlMs ?? status?.ttlMs ?? 0),
+    maxEntries: Number(snapshot?.maxEntries ?? status?.maxEntries ?? 0),
+    entries: Number(snapshot?.entries ?? 0),
+    inFlight: Number(snapshot?.inFlight ?? 0),
+    tombstones: Number(snapshot?.tombstones ?? 0),
+    statsUpdatedAt: snapshot?.statsUpdatedAt ?? null,
+  };
 }
 
 async function readRateLimitHealth(rateLimiter) {
