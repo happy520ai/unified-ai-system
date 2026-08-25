@@ -254,8 +254,10 @@ fixture into PostgreSQL 17, builds a real asynchronous streaming standby with
 `pg_basebackup -R`, proves post-basebackup WAL replay, interrupts an active query
 by destroying primary, promotes standby, switches a stable local TCP endpoint,
 and re-verifies the same eight application clients before/after the switch and
-restart. Complete deployment HA still needs independently verified automatic
-detection/election/promotion/endpoint switching, synchronous/quorum policy, TLS
+restart. The drill controller requires healthy arming, consecutive failures,
+confirmation, recovery-state validation, and one-standby automatic promotion
+and endpoint switching. Complete deployment HA still needs independently
+verified multi-candidate election/quorum, external HA control, synchronous policy, TLS
 identity, retention/PITR, production-scale restore, network partition and
 split-brain behavior, replica convergence, provider reconciliation, measured
 RTO/RPO, and load-balancer behavior.

@@ -52,10 +52,11 @@ and the project uses [Semantic Versioning](https://semver.org/).
   database and volume, restores twelve covered gateway tables, builds an
   asynchronous streaming standby with `pg_basebackup -R`, and proves replay of
   a post-basebackup WAL marker. It interrupts an in-flight query by destroying
-  primary, promotes standby, switches a stable local endpoint, and requires the
-  same sentinel Pool plus eight application clients to recover after switch and
-  restart. This remains controlled-promotion CI evidence rather than automatic
-  detection/election/switching, PITR, split-brain, or production RTO/RPO proof.
+  primary, then a healthy-armed controller requires three consecutive failures
+  plus confirmation before automatically promoting the one known standby and
+  switching a stable endpoint. The same sentinel Pool plus eight clients must
+  recover after switch/restart. This is not multi-candidate election/quorum,
+  external HA control, PITR, split-brain, or production RTO/RPO proof.
 - Added central PostgreSQL Workforce execution control: raw-identifier-free
   tenant/plan/subject keys, atomic single-use approval consumption, versioned
   digest-verified lifecycle transitions, bounded retention/capacity, remote

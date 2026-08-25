@@ -77,7 +77,7 @@ async function runRecoveryDrill({ dryRun }) {
         "restore into a clean PostgreSQL 17 container",
         "verify inventory and all eight application contracts",
         "build a real streaming standby from recovery with pg_basebackup -R and replay a post-basebackup WAL marker",
-        "destroy the active recovery database, promote standby, switch a stable TCP endpoint, and verify through the same application clients",
+        "arm bounded health probes, destroy primary, automatically confirm failure, promote standby, switch the stable endpoint, and verify through the same clients",
         "restart standby and verify again through those same clients",
         "remove containers and the temporary backup artifact",
       ],
@@ -152,6 +152,9 @@ async function runRecoveryDrill({ dryRun }) {
   let sentinelPoolRecoveredAfterRestart = false;
   let streamingReplication = null;
   let replicationHbaScope = null;
+  let automaticFailoverController = null;
+  let automaticFailoverAbortController = null;
+  let automaticFailoverEvidence = null;
 
   try {
     await runDocker(dockerExecutable, ["version", "--format", "{{.Server.Version}}"], { stage });
@@ -351,7 +354,44 @@ async function runRecoveryDrill({ dryRun }) {
     };
 
     stage = "endpoint-failover";
-    failoverStartedAt = Date.now();
+    automaticFailoverAbortController = new AbortController();
+    automaticFailoverController = startAutomaticSingleStandbyFailover({
+      signal: automaticFailoverAbortController.signal,
+      probePrimary: () => probePostgresWritable(recoveryUrl, 500),
+      inspectStandby: () => readPostgresRole(standbyUrl),
+      promoteStandby: async () => {
+        const promotionStartedAt = Date.now();
+        await runDocker(dockerExecutable, [
+          "exec", "--user", "postgres", standbyName,
+          "pg_ctl", "promote",
+          "--pgdata", "/var/lib/postgresql/data",
+          "--wait",
+          "--timeout", "15",
+        ], { stage: "automatic-standby-promotion" });
+        await waitForWritablePrimary(standbyUrl);
+        const role = await readPostgresRole(standbyUrl);
+        assertCondition(
+          role.inRecovery === false,
+          "POSTGRES_RECOVERY_STANDBY_PROMOTION_FAILED",
+        );
+        return {
+          promotionTimeMs: Date.now() - promotionStartedAt,
+          standbyInRecoveryAfterPromotion: role.inRecovery,
+        };
+      },
+      switchEndpoint: () => failoverProxy.switchTarget(standbyPort),
+    });
+    const armedEvidence = await automaticFailoverController.waitUntilArmed();
+    assertCondition(
+      armedEvidence.healthyProbes >= armedEvidence.requiredHealthyProbes,
+      "POSTGRES_RECOVERY_FAILOVER_CONTROLLER_NOT_ARMED",
+    );
+    automaticFailoverController.injectSyntheticProbeFailure();
+    const transientResetEvidence = await automaticFailoverController.waitForTransientFailureReset();
+    assertCondition(
+      transientResetEvidence.transientFailureResets >= 1,
+      "POSTGRES_RECOVERY_FAILOVER_TRANSIENT_FAILURE_NOT_RESET",
+    );
     failoverSentinelPool = new Pool({
       connectionString: proxyUrl,
       max: 1,
@@ -367,6 +407,7 @@ async function runRecoveryDrill({ dryRun }) {
     const interruptedQuery = failoverSentinelClient.query("SELECT pg_sleep(30)")
       .then(() => false, () => true);
     await delay(100);
+    failoverStartedAt = Date.now();
     await removeContainer(dockerExecutable, recoveryName);
     cleanupTargets.delete(recoveryName);
     await removeVolume(dockerExecutable, recoveryVolume);
@@ -378,24 +419,19 @@ async function runRecoveryDrill({ dryRun }) {
     failoverSentinelClient.release(true);
     failoverSentinelClient = null;
     assertCondition(activeQueryInterrupted, "POSTGRES_RECOVERY_ACTIVE_QUERY_NOT_INTERRUPTED");
-    const promotionStartedAt = Date.now();
-    await runDocker(dockerExecutable, [
-      "exec", "--user", "postgres", standbyName,
-      "pg_ctl", "promote",
-      "--pgdata", "/var/lib/postgresql/data",
-      "--wait",
-      "--timeout", "15",
-    ], { stage });
-    await waitForWritablePrimary(standbyUrl);
-    const standbyRoleAfterPromotion = await readPostgresRole(standbyUrl);
-    assertCondition(
-      standbyRoleAfterPromotion.inRecovery === false,
-      "POSTGRES_RECOVERY_STANDBY_PROMOTION_FAILED",
-    );
+    const automaticResult = await automaticFailoverController.completion;
+    const { switchResult, promotion, ...automaticEvidence } = automaticResult;
+    automaticFailoverEvidence = {
+      ...automaticEvidence,
+      promotionTimeMs: promotion.promotionTimeMs,
+    };
+    failoverSwitch = switchResult;
+    automaticFailoverController = null;
+    automaticFailoverAbortController = null;
     streamingReplication.controlledPromotionProved = true;
-    streamingReplication.promotionTimeMs = Date.now() - promotionStartedAt;
-    streamingReplication.standbyInRecoveryAfterPromotion = standbyRoleAfterPromotion.inRecovery;
-    failoverSwitch = failoverProxy.switchTarget(standbyPort);
+    streamingReplication.automaticSingleStandbyPromotionProved = true;
+    streamingReplication.promotionTimeMs = promotion.promotionTimeMs;
+    streamingReplication.standbyInRecoveryAfterPromotion = promotion.standbyInRecoveryAfterPromotion;
     await waitForClientPostgres(proxyUrl);
     await failoverSentinelPool.query("SELECT 1 AS recovered");
     sentinelPoolRecovered = true;
@@ -470,7 +506,7 @@ async function runRecoveryDrill({ dryRun }) {
         stableLoopbackEndpoint: true,
       },
       endpointFailover: {
-        mode: "operator-controlled-stable-tcp-endpoint",
+        mode: "automatic-single-standby-controller",
         oldDatabaseDestroyedBeforeSwitch: true,
         standbyRestoredFromSameArtifact: false,
         standbyCreatedByPgBasebackup: true,
@@ -482,9 +518,13 @@ async function runRecoveryDrill({ dryRun }) {
         proxySwitchCount: failoverSwitch.switchCount,
         acceptedConnections: proxyStats.acceptedConnections,
         rejectedConnections: proxyStats.rejectedConnections,
+        automaticDetectionProved: true,
+        automaticPromotionProved: true,
+        automaticEndpointSwitchProved: true,
         automaticElectionProved: false,
         streamingReplicationProved: true,
       },
+      automaticFailover: automaticFailoverEvidence,
       streamingReplication,
       recoveryPoint: {
         mode: "controlled-logical-snapshot",
@@ -498,7 +538,8 @@ async function runRecoveryDrill({ dryRun }) {
         realProviderCallsMade: false,
         streamingReplicationProved: true,
         controlledStandbyPromotionProved: true,
-        operatorControlledEndpointSwitchProved: true,
+        automaticSingleStandbyFailoverProved: true,
+        operatorControlledEndpointSwitchProved: false,
         automaticFailoverProved: false,
         networkPartitionProved: false,
         splitBrainProved: false,
@@ -522,6 +563,14 @@ async function runRecoveryDrill({ dryRun }) {
     throw error;
   } finally {
     let cleanupFailed = false;
+    if (automaticFailoverAbortController) {
+      automaticFailoverAbortController.abort();
+      automaticFailoverAbortController = null;
+    }
+    if (automaticFailoverController) {
+      await automaticFailoverController.completion.catch(() => undefined);
+      automaticFailoverController = null;
+    }
     if (applicationVerifier) {
       await applicationVerifier.close().catch(() => {
         cleanupFailed = true;
@@ -1148,6 +1197,184 @@ async function waitForWritablePrimary(connectionString) {
   );
 }
 
+function startAutomaticSingleStandbyFailover({
+  signal,
+  probePrimary,
+  inspectStandby,
+  promoteStandby,
+  switchEndpoint,
+  requiredHealthyProbes = 3,
+  failureThreshold = 3,
+  pollIntervalMs = 100,
+  confirmationDelayMs = 200,
+  maxDurationMs = 30_000,
+}) {
+  let resolveArmed;
+  let rejectArmed;
+  let resolveTransientReset;
+  let rejectTransientReset;
+  let armed = false;
+  let transientResetObserved = false;
+  let forcedProbeFailures = 0;
+  let syntheticProbeFailuresObserved = 0;
+  const armedPromise = new Promise((resolvePromise, rejectPromise) => {
+    resolveArmed = resolvePromise;
+    rejectArmed = rejectPromise;
+  });
+  const transientResetPromise = new Promise((resolvePromise, rejectPromise) => {
+    resolveTransientReset = resolvePromise;
+    rejectTransientReset = rejectPromise;
+  });
+  const completion = (async () => {
+    const startedAt = Date.now();
+    let totalProbes = 0;
+    let healthyProbes = 0;
+    let consecutiveHealthy = 0;
+    let consecutiveFailures = 0;
+    let maximumConsecutiveFailures = 0;
+    let transientFailureResets = 0;
+    let confirmationProbes = 0;
+    let firstFailureAt = null;
+    while (Date.now() - startedAt <= maxDurationMs) {
+      if (signal?.aborted) {
+        throw drillError("POSTGRES_RECOVERY_FAILOVER_CONTROLLER_ABORTED", "The automatic failover controller was aborted.");
+      }
+      let healthy;
+      if (forcedProbeFailures > 0) {
+        forcedProbeFailures -= 1;
+        syntheticProbeFailuresObserved += 1;
+        healthy = false;
+      } else {
+        healthy = await Promise.resolve().then(probePrimary).catch(() => false);
+      }
+      totalProbes += 1;
+      if (!armed) {
+        if (healthy) {
+          healthyProbes += 1;
+          consecutiveHealthy += 1;
+          if (consecutiveHealthy >= requiredHealthyProbes) {
+            armed = true;
+            resolveArmed({
+              armed: true,
+              healthyProbes,
+              requiredHealthyProbes,
+              totalProbes,
+            });
+          }
+        } else {
+          consecutiveHealthy = 0;
+        }
+      } else if (healthy) {
+        healthyProbes += 1;
+        if (consecutiveFailures > 0) {
+          transientFailureResets += 1;
+          if (!transientResetObserved) {
+            transientResetObserved = true;
+            resolveTransientReset({
+              transientFailureResets,
+              syntheticProbeFailuresObserved,
+            });
+          }
+        }
+        consecutiveFailures = 0;
+        firstFailureAt = null;
+      } else {
+        if (consecutiveFailures === 0) firstFailureAt = Date.now();
+        consecutiveFailures += 1;
+        maximumConsecutiveFailures = Math.max(maximumConsecutiveFailures, consecutiveFailures);
+        if (consecutiveFailures >= failureThreshold) {
+          await delay(confirmationDelayMs);
+          if (signal?.aborted) {
+            throw drillError("POSTGRES_RECOVERY_FAILOVER_CONTROLLER_ABORTED", "The automatic failover controller was aborted.");
+          }
+          confirmationProbes += 1;
+          const recovered = await Promise.resolve().then(probePrimary).catch(() => false);
+          if (recovered) {
+            healthyProbes += 1;
+            transientFailureResets += 1;
+            consecutiveFailures = 0;
+            firstFailureAt = null;
+          } else {
+            const standbyRole = await inspectStandby();
+            if (standbyRole?.inRecovery !== true) {
+              throw drillError(
+                "POSTGRES_RECOVERY_FAILOVER_STANDBY_NOT_READY",
+                "Automatic failover requires exactly one healthy standby still in recovery.",
+              );
+            }
+            const detectedAt = Date.now();
+            const promotion = await promoteStandby();
+            const switchStartedAt = Date.now();
+            const switchResult = switchEndpoint();
+            return {
+              mode: "automatic-single-standby",
+              armed: true,
+              requiredHealthyProbes,
+              healthyProbes,
+              totalProbes,
+              failureThreshold,
+              maximumConsecutiveFailures,
+              confirmationProbes,
+              primaryFailureConfirmed: true,
+              standbyWasInRecoveryBeforePromotion: true,
+              transientFailureResets,
+              syntheticProbeFailuresObserved,
+              detectionTimeMs: detectedAt - firstFailureAt,
+              endpointSwitchTimeMs: Date.now() - switchStartedAt,
+              controllerDurationMs: Date.now() - startedAt,
+              promotion,
+              switchResult,
+            };
+          }
+        }
+      }
+      await delay(pollIntervalMs);
+    }
+    throw drillError(
+      "POSTGRES_RECOVERY_FAILOVER_CONTROLLER_TIMEOUT",
+      "The automatic failover controller did not reach a safe terminal decision in time.",
+    );
+  })();
+  completion.catch((error) => {
+    if (!armed) rejectArmed(error);
+    if (!transientResetObserved) rejectTransientReset(error);
+  });
+  void completion.catch(() => undefined);
+  return {
+    waitUntilArmed: () => armedPromise,
+    injectSyntheticProbeFailure() {
+      if (!armed) {
+        throw drillError(
+          "POSTGRES_RECOVERY_FAILOVER_CONTROLLER_NOT_ARMED",
+          "Synthetic probe failure injection requires an armed failover controller.",
+        );
+      }
+      forcedProbeFailures += 1;
+    },
+    waitForTransientFailureReset: () => transientResetPromise,
+    completion,
+  };
+}
+
+async function probePostgresWritable(connectionString, timeoutMs = 500) {
+  const pool = new Pool({
+    connectionString,
+    max: 1,
+    allowExitOnIdle: true,
+    connectionTimeoutMillis: timeoutMs,
+    statement_timeout: timeoutMs,
+    query_timeout: timeoutMs,
+  });
+  try {
+    const result = await pool.query(`SELECT NOT pg_is_in_recovery() AS writable`);
+    return result.rows[0]?.writable === true;
+  } catch {
+    return false;
+  } finally {
+    await pool.end().catch(() => undefined);
+  }
+}
+
 function parsePgLsn(value) {
   const match = String(value ?? "").match(/^([0-9A-F]+)\/([0-9A-F]+)$/i);
   if (!match) throw drillError("POSTGRES_RECOVERY_WAL_LSN_INVALID", "PostgreSQL returned an invalid WAL LSN.");
@@ -1576,6 +1803,7 @@ function printHumanSummary(value) {
       `Same application clients survived database restart: ${String(value.clientContinuity.sameApplicationClientsAcrossRestart)}`,
       `Same application clients survived endpoint failover: ${String(value.clientContinuity.sameApplicationClientsAcrossEndpointSwitch)}`,
       `Streaming WAL marker replayed before promotion: ${String(value.streamingReplication.markerReplayed)}`,
+      `Automatic single-standby failover proved: ${String(value.boundaries.automaticSingleStandbyFailoverProved)}`,
       `Database inventory: ${value.databaseInventory.tableCount} tables, ${value.databaseInventory.totalRows} rows`,
       `Cleanup complete: ${String(value.cleanup.complete)}`,
       "Boundary: controlled logical recovery only; no automatic failover, continuous WAL RPO, or production RTO claim.",

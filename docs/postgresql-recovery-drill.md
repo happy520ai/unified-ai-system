@@ -44,10 +44,13 @@ returning.
    bounded local TCP endpoint. A checked-out sentinel runs an in-flight query;
    the active recovery database and its volume are destroyed, which must
    interrupt that query.
-10. Promotes standby with `pg_ctl promote`, waits until it is writable, and
-    switches the stable endpoint. The original sentinel Pool and all eight
-    original application clients must recover without reconstruction and pass
-    8/8 again.
+10. Arms a bounded single-standby controller only after three healthy primary
+    probes. One explicitly labelled synthetic single-probe failure must recover
+    without promotion. After real primary destruction, three consecutive
+    failures plus a confirmation probe are required before the controller
+    verifies standby recovery state, runs `pg_ctl promote`, waits for writable,
+    and switches the stable endpoint. The original sentinel Pool and all eight
+    clients must recover without reconstruction and pass 8/8 again.
 11. Restarts the promoted standby and requires the same sentinel Pool plus the
     same eight application clients to recover and pass a third 8/8.
 12. Removes every client, proxy, container, volume, network, credential file,
@@ -62,16 +65,17 @@ backup itself is deliberately not retained.
 A passing result proves a bounded logical snapshot can recover the covered
 gateway schemas into a clean PostgreSQL 17 primary, establish a real asynchronous
 streaming standby, replay post-basebackup WAL, perform controlled promotion, and
-recover the same in-process application pools after endpoint switch and restart.
+exercise bounded automatic failure detection/promotion/switching for exactly one
+standby. The same in-process application pools recover after switch and restart.
 The reported `controlledRecoveryTimeMs` and `controlledFailoverTimeMs` are only
 the wall clocks of this disposable fixture; neither is a production RTO.
 
 The drill does **not** prove:
 
 - continuous WAL archiving or point-in-time recovery;
-- synchronous replication, automatic leader election, or automatic failure
-  detection/promotion/endpoint switching (the drill invokes promotion and its
-  bounded proxy switch explicitly);
+- synchronous replication, multi-candidate leader election/quorum, or a
+  production external HA controller (the repository controller knows exactly
+  one standby and runs only inside this disposable drill);
 - network-partition or split-brain safety;
 - object-lock/WORM retention or independent backup custody;
 - production data volume, encryption-at-rest, certificate rotation, RPO, or
