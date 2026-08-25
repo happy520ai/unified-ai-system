@@ -65,7 +65,14 @@ function createResponseRecorder() {
 describe("bounded agent execution route", () => {
   it("runs a bounded non-interactive goal against the fake provider with structured output", async () => {
     const context = createContext({
-      body: { goal: "Summarize the repository layout.", maxIterations: 4, timeoutMs: 30_000 },
+      // The wall-clock budget includes bounded project-context I/O. Use the
+      // product default so host contention does not turn this semantic
+      // completion check into the dedicated timeout case below.
+      body: {
+        goal: "Summarize the repository layout.",
+        maxIterations: 4,
+        timeoutMs: AGENT_EXEC_LIMITS.defaultTimeoutMs,
+      },
     });
     await dispatchAgentExecRoutes(context);
 
@@ -81,11 +88,16 @@ describe("bounded agent execution route", () => {
     expect(result.compaction.engine).toBe("unified-context-compactor");
     expect(result.provider.id).toBe("local-fake-provider");
     expect(typeof result.finalAnswer).toBe("string");
-  }, 60_000);
+  }, 90_000);
 
   it("honours toolMode none and custom tool allowlists", async () => {
     const none = createContext({
-      body: { goal: "Answer directly.", toolMode: "none", maxIterations: 2, timeoutMs: 30_000 },
+      body: {
+        goal: "Answer directly.",
+        toolMode: "none",
+        maxIterations: 2,
+        timeoutMs: AGENT_EXEC_LIMITS.defaultTimeoutMs,
+      },
     });
     await dispatchAgentExecRoutes(none);
     expect(none.response.body.data.tools.mode).toBe("none");
@@ -96,13 +108,13 @@ describe("bounded agent execution route", () => {
         goal: "Answer directly.",
         toolAllowlist: ["file_read", "glob"],
         maxIterations: 2,
-        timeoutMs: 30_000,
+        timeoutMs: AGENT_EXEC_LIMITS.defaultTimeoutMs,
       },
     });
     await dispatchAgentExecRoutes(custom);
     expect(custom.response.body.data.tools.mode).toBe("custom");
     expect(custom.response.body.data.tools.allowlist).toEqual(["file_read", "glob"]);
-  }, 60_000);
+  }, 130_000);
 
   it("reports timeout when the provider exceeds the wall-clock bound", async () => {
     const context = createContext({
