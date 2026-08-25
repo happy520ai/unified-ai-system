@@ -76,8 +76,8 @@ async function runRecoveryDrill({ dryRun }) {
         "destroy the source container",
         "restore into a clean PostgreSQL 17 container",
         "verify inventory and all eight application contracts",
-        "restore the same artifact into an independent standby database",
-        "destroy the active recovery database, switch a stable TCP endpoint to standby, and verify through the same application clients",
+        "build a real streaming standby from recovery with pg_basebackup -R and replay a post-basebackup WAL marker",
+        "destroy the active recovery database, promote standby, switch a stable TCP endpoint, and verify through the same application clients",
         "restart standby and verify again through those same clients",
         "remove containers and the temporary backup artifact",
       ],
@@ -97,6 +97,9 @@ async function runRecoveryDrill({ dryRun }) {
   const sourceName = `ai-gateway-pg-source-${runId}`;
   const recoveryName = `ai-gateway-pg-recovery-${runId}`;
   const standbyName = `ai-gateway-pg-standby-${runId}`;
+  const basebackupName = `ai-gateway-pg-basebackup-${runId}`;
+  const standbyChownName = `ai-gateway-pg-standby-chown-${runId}`;
+  const replicationNetworkName = `ai-gateway-pg-replication-${runId}`;
   const sourceVolume = `ai-gateway-pg-source-data-${runId}`;
   const recoveryVolume = `ai-gateway-pg-recovery-data-${runId}`;
   const standbyVolume = `ai-gateway-pg-standby-data-${runId}`;
@@ -107,11 +110,19 @@ async function runRecoveryDrill({ dryRun }) {
     `POSTGRES_USER=${POSTGRES_USER}`,
     `POSTGRES_PASSWORD=${password}`,
     `POSTGRES_DB=${POSTGRES_DATABASE}`,
+    `PGPASSWORD=${password}`,
     "",
   ].join("\n"), { encoding: "utf8", mode: 0o600 });
   await chmod(postgresEnvPath, 0o600).catch(() => undefined);
-  const cleanupTargets = new Set([sourceName, recoveryName, standbyName]);
+  const cleanupTargets = new Set([
+    sourceName,
+    recoveryName,
+    standbyName,
+    basebackupName,
+    standbyChownName,
+  ]);
   const cleanupVolumes = new Set([sourceVolume, recoveryVolume, standbyVolume]);
+  const cleanupNetworks = new Set([replicationNetworkName]);
   const startedAt = Date.now();
   let stage = "docker-preflight";
   let sourceRemoved = false;
@@ -139,6 +150,8 @@ async function runRecoveryDrill({ dryRun }) {
   let sentinelClientErrorEvents = 0;
   let sentinelPoolRecovered = false;
   let sentinelPoolRecoveredAfterRestart = false;
+  let streamingReplication = null;
+  let replicationHbaScope = null;
 
   try {
     await runDocker(dockerExecutable, ["version", "--format", "{{.Server.Version}}"], { stage });
@@ -195,6 +208,7 @@ async function runRecoveryDrill({ dryRun }) {
     sourceRemoved = true;
 
     stage = "recovery-start";
+    await createDockerNetwork(dockerExecutable, replicationNetworkName, runId);
     const recoveryPublishedPort = await allocateLoopbackPort();
     await startPostgresContainer({
       dockerExecutable,
@@ -202,6 +216,15 @@ async function runRecoveryDrill({ dryRun }) {
       volumeName: recoveryVolume,
       postgresEnvPath,
       publishedPort: recoveryPublishedPort,
+      networkName: replicationNetworkName,
+      networkAlias: "primary",
+      postgresArguments: [
+        "-c", "wal_level=replica",
+        "-c", "max_wal_senders=5",
+        "-c", "max_replication_slots=5",
+        "-c", "wal_keep_size=128MB",
+        "-c", "hot_standby=on",
+      ],
       runId,
     });
     await waitForPostgres({ dockerExecutable, containerName: recoveryName });
@@ -246,6 +269,42 @@ async function runRecoveryDrill({ dryRun }) {
     firstVerification = publicApplicationChecks(firstVerificationWithDiagnostics);
     const firstRecoveryVerifiedAt = Date.now();
 
+    stage = "standby-basebackup";
+    replicationHbaScope = await configureReplicationHba({
+      dockerExecutable,
+      primaryContainerName: recoveryName,
+      networkName: replicationNetworkName,
+      temporaryRoot,
+    });
+    await runDocker(dockerExecutable, [
+      "run", "--rm",
+      "--name", standbyChownName,
+      "--user", "root",
+      "--mount", `type=volume,source=${standbyVolume},target=/var/lib/postgresql/data`,
+      "--entrypoint", "chown",
+      POSTGRES_IMAGE,
+      "-R", "70:70", "/var/lib/postgresql/data",
+    ], { stage });
+    cleanupTargets.delete(standbyChownName);
+    await runDocker(dockerExecutable, [
+      "run", "--rm",
+      "--name", basebackupName,
+      "--user", "postgres",
+      "--network", replicationNetworkName,
+      "--env-file", postgresEnvPath,
+      "--mount", `type=volume,source=${standbyVolume},target=/var/lib/postgresql/data`,
+      "--entrypoint", "pg_basebackup",
+      POSTGRES_IMAGE,
+      "--dbname", `postgresql://${POSTGRES_USER}@primary:5432/postgres`,
+      "--pgdata", "/var/lib/postgresql/data",
+      "--format", "plain",
+      "--wal-method", "stream",
+      "--write-recovery-conf",
+      "--checkpoint", "fast",
+      "--progress",
+    ], { stage });
+    cleanupTargets.delete(basebackupName);
+
     stage = "standby-start";
     const standbyPublishedPort = await allocateLoopbackPort();
     await startPostgresContainer({
@@ -254,6 +313,9 @@ async function runRecoveryDrill({ dryRun }) {
       volumeName: standbyVolume,
       postgresEnvPath,
       publishedPort: standbyPublishedPort,
+      networkName: replicationNetworkName,
+      networkAlias: "standby",
+      postgresArguments: ["-c", "hot_standby=on"],
       runId,
     });
     await waitForPostgres({ dockerExecutable, containerName: standbyName });
@@ -261,24 +323,32 @@ async function runRecoveryDrill({ dryRun }) {
     assertCondition(standbyPort === standbyPublishedPort, "POSTGRES_RECOVERY_STANDBY_ENDPOINT_CHANGED");
     const standbyUrl = createConnectionString(standbyPort, password);
     await waitForClientPostgres(standbyUrl);
-    await runDocker(dockerExecutable, [
-      "cp", backupPath, `${standbyName}:/tmp/gateway-drill.dump`,
-    ], { stage });
-    await runDocker(dockerExecutable, [
-      "exec", standbyName,
-      "pg_restore",
-      "--username", POSTGRES_USER,
-      "--dbname", POSTGRES_DATABASE,
-      "--exit-on-error",
-      "--no-owner",
-      "--no-acl",
-      "/tmp/gateway-drill.dump",
-    ], { stage });
+    const standbyRoleBeforePromotion = await readPostgresRole(standbyUrl);
+    assertCondition(
+      standbyRoleBeforePromotion.inRecovery === true,
+      "POSTGRES_RECOVERY_STANDBY_NOT_IN_RECOVERY",
+    );
+    const replicationEvidence = await writeAndWaitForReplication({
+      primaryConnectionString: recoveryUrl,
+      standbyConnectionString: standbyUrl,
+      runId,
+    });
     standbyInventory = await readDatabaseInventory(standbyUrl);
     assertCondition(
       sourceInventory.digest === standbyInventory.digest,
       "POSTGRES_RECOVERY_STANDBY_INVENTORY_MISMATCH",
     );
+    streamingReplication = {
+      baseBackupUsed: true,
+      standbyInRecoveryBeforePromotion: standbyRoleBeforePromotion.inRecovery,
+      markerReplayed: replicationEvidence.markerReplayed,
+      replicationHbaScope,
+      primaryWalLsn: replicationEvidence.primaryWalLsn,
+      standbyReplayLsn: replicationEvidence.standbyReplayLsn,
+      replayLagBytes: replicationEvidence.replayLagBytes,
+      controlledPromotionProved: false,
+      streamingReplicationProved: true,
+    };
 
     stage = "endpoint-failover";
     failoverStartedAt = Date.now();
@@ -308,6 +378,23 @@ async function runRecoveryDrill({ dryRun }) {
     failoverSentinelClient.release(true);
     failoverSentinelClient = null;
     assertCondition(activeQueryInterrupted, "POSTGRES_RECOVERY_ACTIVE_QUERY_NOT_INTERRUPTED");
+    const promotionStartedAt = Date.now();
+    await runDocker(dockerExecutable, [
+      "exec", "--user", "postgres", standbyName,
+      "pg_ctl", "promote",
+      "--pgdata", "/var/lib/postgresql/data",
+      "--wait",
+      "--timeout", "15",
+    ], { stage });
+    await waitForWritablePrimary(standbyUrl);
+    const standbyRoleAfterPromotion = await readPostgresRole(standbyUrl);
+    assertCondition(
+      standbyRoleAfterPromotion.inRecovery === false,
+      "POSTGRES_RECOVERY_STANDBY_PROMOTION_FAILED",
+    );
+    streamingReplication.controlledPromotionProved = true;
+    streamingReplication.promotionTimeMs = Date.now() - promotionStartedAt;
+    streamingReplication.standbyInRecoveryAfterPromotion = standbyRoleAfterPromotion.inRecovery;
     failoverSwitch = failoverProxy.switchTarget(standbyPort);
     await waitForClientPostgres(proxyUrl);
     await failoverSentinelPool.query("SELECT 1 AS recovered");
@@ -325,6 +412,12 @@ async function runRecoveryDrill({ dryRun }) {
     await waitForClientPostgres(proxyUrl);
     await failoverSentinelPool.query("SELECT 1 AS recovered_after_restart");
     sentinelPoolRecoveredAfterRestart = true;
+    const standbyRoleAfterRestart = await readPostgresRole(standbyUrl);
+    assertCondition(
+      standbyRoleAfterRestart.inRecovery === false,
+      "POSTGRES_RECOVERY_PROMOTED_STANDBY_REVERTED",
+    );
+    streamingReplication.standbyInRecoveryAfterRestart = standbyRoleAfterRestart.inRecovery;
     const restartVerificationWithDiagnostics = await applicationVerifier.verify();
     assertAllChecks(restartVerificationWithDiagnostics);
     restartVerification = publicApplicationChecks(restartVerificationWithDiagnostics);
@@ -339,6 +432,8 @@ async function runRecoveryDrill({ dryRun }) {
     failoverProxy = null;
     await removeContainer(dockerExecutable, standbyName);
     cleanupTargets.delete(standbyName);
+    await removeDockerNetwork(dockerExecutable, replicationNetworkName);
+    cleanupNetworks.delete(replicationNetworkName);
     await removeVolume(dockerExecutable, standbyVolume);
     cleanupVolumes.delete(standbyVolume);
     await rm(temporaryRoot, { recursive: true, force: true });
@@ -377,7 +472,8 @@ async function runRecoveryDrill({ dryRun }) {
       endpointFailover: {
         mode: "operator-controlled-stable-tcp-endpoint",
         oldDatabaseDestroyedBeforeSwitch: true,
-        standbyRestoredFromSameArtifact: true,
+        standbyRestoredFromSameArtifact: false,
+        standbyCreatedByPgBasebackup: true,
         activeQueryInterrupted,
         sentinelClientErrorEvents,
         sameSentinelPoolRecovered: sentinelPoolRecovered,
@@ -387,8 +483,9 @@ async function runRecoveryDrill({ dryRun }) {
         acceptedConnections: proxyStats.acceptedConnections,
         rejectedConnections: proxyStats.rejectedConnections,
         automaticElectionProved: false,
-        streamingReplicationProved: false,
+        streamingReplicationProved: true,
       },
+      streamingReplication,
       recoveryPoint: {
         mode: "controlled-logical-snapshot",
         fixtureRowsLost: 0,
@@ -399,6 +496,8 @@ async function runRecoveryDrill({ dryRun }) {
         credentialTransport: "private-temporary-env-file",
         loopbackOnly: true,
         realProviderCallsMade: false,
+        streamingReplicationProved: true,
+        controlledStandbyPromotionProved: true,
         operatorControlledEndpointSwitchProved: true,
         automaticFailoverProved: false,
         networkPartitionProved: false,
@@ -410,6 +509,10 @@ async function runRecoveryDrill({ dryRun }) {
         attempted: true,
         complete: cleanupComplete,
         containersRemaining: 0,
+        volumesRemaining: 0,
+        networksRemaining: 0,
+        proxyClosed: true,
+        clientsClosed: true,
         artifactRetained: false,
       },
     };
@@ -443,6 +546,11 @@ async function runRecoveryDrill({ dryRun }) {
     }
     for (const containerName of cleanupTargets) {
       await removeContainer(dockerExecutable, containerName).catch(() => {
+        cleanupFailed = true;
+      });
+    }
+    for (const networkName of cleanupNetworks) {
+      await removeDockerNetwork(dockerExecutable, networkName).catch(() => {
         cleanupFailed = true;
       });
     }
@@ -936,6 +1044,123 @@ async function readDatabaseInventory(connectionString) {
   }
 }
 
+async function readPostgresRole(connectionString) {
+  const pool = new Pool({ connectionString, max: 1, allowExitOnIdle: true });
+  try {
+    const result = await pool.query(`
+      SELECT
+        pg_is_in_recovery() AS in_recovery,
+        CASE WHEN pg_is_in_recovery() THEN NULL ELSE pg_current_wal_lsn()::text END AS current_wal_lsn,
+        pg_last_wal_replay_lsn()::text AS replay_wal_lsn
+    `);
+    return {
+      inRecovery: result.rows[0]?.in_recovery === true,
+      currentWalLsn: result.rows[0]?.current_wal_lsn ?? null,
+      replayWalLsn: result.rows[0]?.replay_wal_lsn ?? null,
+    };
+  } finally {
+    await pool.end();
+  }
+}
+
+async function writeAndWaitForReplication({
+  primaryConnectionString,
+  standbyConnectionString,
+  runId,
+}) {
+  const primary = new Pool({ connectionString: primaryConnectionString, max: 1, allowExitOnIdle: true });
+  const standby = new Pool({ connectionString: standbyConnectionString, max: 1, allowExitOnIdle: true });
+  try {
+    await primary.query(`
+      CREATE TABLE IF NOT EXISTS public.gateway_drill_replication_evidence (
+        run_id TEXT PRIMARY KEY,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp()
+      )
+    `);
+    await primary.query(`
+      INSERT INTO public.gateway_drill_replication_evidence (run_id)
+      VALUES ($1)
+      ON CONFLICT (run_id) DO UPDATE SET created_at = clock_timestamp()
+    `, [runId]);
+    const primaryLsnResult = await primary.query(`SELECT pg_current_wal_lsn()::text AS lsn`);
+    const primaryWalLsn = String(primaryLsnResult.rows[0]?.lsn ?? "");
+    assertCondition(primaryWalLsn.length > 0, "POSTGRES_RECOVERY_PRIMARY_WAL_LSN_MISSING");
+
+    const deadline = Date.now() + 30_000;
+    while (Date.now() < deadline) {
+      const role = await standby.query(`
+        SELECT
+          pg_is_in_recovery() AS in_recovery,
+          pg_last_wal_replay_lsn()::text AS replay_lsn,
+          to_regclass('public.gateway_drill_replication_evidence')::text AS evidence_table
+      `);
+      const row = role.rows[0] ?? {};
+      if (row.in_recovery === true && row.evidence_table) {
+        const marker = await standby.query(`
+          SELECT EXISTS (
+            SELECT 1 FROM public.gateway_drill_replication_evidence WHERE run_id = $1
+          ) AS present
+        `, [runId]);
+        if (marker.rows[0]?.present === true && row.replay_lsn) {
+          const standbyReplayLsn = String(row.replay_lsn);
+          const replayLag = parsePgLsn(primaryWalLsn) - parsePgLsn(standbyReplayLsn);
+          return {
+            markerReplayed: true,
+            primaryWalLsn,
+            standbyReplayLsn,
+            replayLagBytes: safeBigIntToNumber(replayLag > 0n ? replayLag : 0n),
+          };
+        }
+      }
+      await delay(250);
+    }
+    throw drillError(
+      "POSTGRES_RECOVERY_STREAMING_REPLICATION_TIMEOUT",
+      "The streaming standby did not replay the bounded WAL marker in time.",
+    );
+  } finally {
+    await Promise.allSettled([primary.end(), standby.end()]);
+  }
+}
+
+async function waitForWritablePrimary(connectionString) {
+  const deadline = Date.now() + 20_000;
+  while (Date.now() < deadline) {
+    const pool = new Pool({
+      connectionString,
+      max: 1,
+      allowExitOnIdle: true,
+      connectionTimeoutMillis: 1_000,
+    });
+    try {
+      const result = await pool.query(`SELECT NOT pg_is_in_recovery() AS writable`);
+      if (result.rows[0]?.writable === true) return;
+    } catch {
+      // Promotion may briefly close or reset connections.
+    } finally {
+      await pool.end().catch(() => undefined);
+    }
+    await delay(250);
+  }
+  throw drillError(
+    "POSTGRES_RECOVERY_PROMOTION_TIMEOUT",
+    "The promoted standby did not become writable in time.",
+  );
+}
+
+function parsePgLsn(value) {
+  const match = String(value ?? "").match(/^([0-9A-F]+)\/([0-9A-F]+)$/i);
+  if (!match) throw drillError("POSTGRES_RECOVERY_WAL_LSN_INVALID", "PostgreSQL returned an invalid WAL LSN.");
+  return (BigInt(`0x${match[1]}`) << 32n) + BigInt(`0x${match[2]}`);
+}
+
+function safeBigIntToNumber(value) {
+  if (value < 0n || value > BigInt(Number.MAX_SAFE_INTEGER)) {
+    throw drillError("POSTGRES_RECOVERY_WAL_LAG_INVALID", "The measured WAL lag is outside the safe evidence range.");
+  }
+  return Number(value);
+}
+
 async function allocateLoopbackPort() {
   const server = createServer();
   await new Promise((resolvePromise, rejectPromise) => {
@@ -1060,9 +1285,12 @@ async function startPostgresContainer({
   volumeName,
   postgresEnvPath,
   publishedPort,
+  networkName,
+  networkAlias,
+  postgresArguments = [],
   runId,
 }) {
-  await runDocker(dockerExecutable, [
+  const args = [
     "run",
     "--detach",
     "--name", containerName,
@@ -1070,8 +1298,11 @@ async function startPostgresContainer({
     "--publish", `127.0.0.1:${publishedPort}:5432`,
     "--env-file", postgresEnvPath,
     "--mount", `type=volume,source=${volumeName},target=/var/lib/postgresql/data`,
-    POSTGRES_IMAGE,
-  ], { stage: "postgres-container-start" });
+  ];
+  if (networkName) args.push("--network", networkName);
+  if (networkAlias) args.push("--network-alias", networkAlias);
+  args.push(POSTGRES_IMAGE, ...postgresArguments);
+  await runDocker(dockerExecutable, args, { stage: "postgres-container-start" });
 }
 
 async function waitForPostgres({ dockerExecutable, containerName }) {
@@ -1126,6 +1357,69 @@ function createConnectionString(port, password) {
   return `postgresql://${POSTGRES_USER}:${encodeURIComponent(password)}@127.0.0.1:${port}/${POSTGRES_DATABASE}`;
 }
 
+async function createDockerNetwork(dockerExecutable, networkName, runId) {
+  await runDocker(dockerExecutable, [
+    "network", "create",
+    "--driver", "bridge",
+    "--label", `ai.gateway.recovery-drill=${runId}`,
+    networkName,
+  ], { stage: "postgres-replication-network-create" });
+}
+
+async function configureReplicationHba({
+  dockerExecutable,
+  primaryContainerName,
+  networkName,
+  temporaryRoot,
+}) {
+  const subnetResult = await runDocker(dockerExecutable, [
+    "network", "inspect",
+    "--format", "{{(index .IPAM.Config 0).Subnet}}",
+    networkName,
+  ], { stage: "postgres-replication-network-inspect" });
+  const subnet = subnetResult.stdout.trim();
+  assertIpv4Cidr(subnet);
+  const hbaPath = resolve(temporaryRoot, "pg_hba.conf");
+  await runDocker(dockerExecutable, [
+    "cp",
+    `${primaryContainerName}:/var/lib/postgresql/data/pg_hba.conf`,
+    hbaPath,
+  ], { stage: "postgres-replication-hba-read" });
+  const current = await readFile(hbaPath, "utf8");
+  if (Buffer.byteLength(current, "utf8") <= 0 || Buffer.byteLength(current, "utf8") > 64 * 1024) {
+    throw drillError("POSTGRES_RECOVERY_HBA_INVALID", "The disposable PostgreSQL HBA file has an invalid size.");
+  }
+  const marker = "# ai-gateway-postgres-recovery-drill replication";
+  assertCondition(!current.includes(marker), "POSTGRES_RECOVERY_HBA_DUPLICATE");
+  const updated = `${current.trimEnd()}\n${marker}\nhost replication ${POSTGRES_USER} ${subnet} scram-sha-256\n`;
+  await writeFile(hbaPath, updated, { encoding: "utf8", mode: 0o600 });
+  await chmod(hbaPath, 0o600).catch(() => undefined);
+  await runDocker(dockerExecutable, [
+    "cp", hbaPath,
+    `${primaryContainerName}:/var/lib/postgresql/data/pg_hba.conf`,
+  ], { stage: "postgres-replication-hba-write" });
+  await runDocker(dockerExecutable, [
+    "exec", primaryContainerName,
+    "chown", "70:70", "/var/lib/postgresql/data/pg_hba.conf",
+  ], { stage: "postgres-replication-hba-permissions" });
+  await runDocker(dockerExecutable, [
+    "exec", primaryContainerName,
+    "chmod", "600", "/var/lib/postgresql/data/pg_hba.conf",
+  ], { stage: "postgres-replication-hba-permissions" });
+  await runDocker(dockerExecutable, [
+    "exec", "--user", "postgres", primaryContainerName,
+    "pg_ctl", "reload", "--pgdata", "/var/lib/postgresql/data",
+  ], { stage: "postgres-replication-hba-reload" });
+  return subnet;
+}
+
+function assertIpv4Cidr(value) {
+  const match = String(value ?? "").match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})\/(\d|[12]\d|3[0-2])$/);
+  if (!match || match.slice(1, 5).some((part) => Number(part) > 255)) {
+    throw drillError("POSTGRES_RECOVERY_NETWORK_CIDR_INVALID", "Docker returned an invalid replication network CIDR.");
+  }
+}
+
 async function removeContainer(dockerExecutable, containerName) {
   const result = await runProcess(dockerExecutable, ["rm", "--force", containerName], { timeoutMs: 30_000 });
   if (result.exitCode !== 0 && !/No such container/i.test(result.stderr)) {
@@ -1137,6 +1431,17 @@ async function removeVolume(dockerExecutable, volumeName) {
   const result = await runProcess(dockerExecutable, ["volume", "rm", "--force", volumeName], { timeoutMs: 30_000 });
   if (result.exitCode !== 0 && !/No such volume/i.test(result.stderr)) {
     throw drillError("POSTGRES_RECOVERY_CLEANUP_FAILED", "A disposable PostgreSQL data volume could not be removed.");
+  }
+}
+
+async function removeDockerNetwork(dockerExecutable, networkName) {
+  const result = await runProcess(
+    dockerExecutable,
+    ["network", "rm", networkName],
+    { timeoutMs: 30_000 },
+  );
+  if (result.exitCode !== 0 && !/No such network/i.test(result.stderr)) {
+    throw drillError("POSTGRES_RECOVERY_CLEANUP_FAILED", "A disposable PostgreSQL network could not be removed.");
   }
 }
 
@@ -1270,6 +1575,7 @@ function printHumanSummary(value) {
       `Application contracts: ${Object.entries(value.applicationChecks).filter(([key, passed]) => key !== "all" && passed).length}/8`,
       `Same application clients survived database restart: ${String(value.clientContinuity.sameApplicationClientsAcrossRestart)}`,
       `Same application clients survived endpoint failover: ${String(value.clientContinuity.sameApplicationClientsAcrossEndpointSwitch)}`,
+      `Streaming WAL marker replayed before promotion: ${String(value.streamingReplication.markerReplayed)}`,
       `Database inventory: ${value.databaseInventory.tableCount} tables, ${value.databaseInventory.totalRows} rows`,
       `Cleanup complete: ${String(value.cleanup.complete)}`,
       "Boundary: controlled logical recovery only; no automatic failover, continuous WAL RPO, or production RTO claim.",

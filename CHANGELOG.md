@@ -49,13 +49,13 @@ and the project uses [Semantic Versioning](https://semver.org/).
   deletes the lease in one transaction. External irreversible sinks still need
   their own fence-aware commit boundary before exactly-once can be claimed.
 - Added a destructive PostgreSQL logical-recovery gate that deletes its source
-  database and volume, restores twelve covered gateway tables into two separate
-  PostgreSQL 17 nodes, verifies eight application contracts, interrupts an
-  in-flight query by destroying the active restored node, and switches a stable
-  local TCP endpoint to standby. The same sentinel Pool and eight application
-  clients must recover after the switch and standby restart. This remains
-  operator-controlled CI evidence rather than streaming replication, automatic
-  election/switching, PITR, or production RTO/RPO proof.
+  database and volume, restores twelve covered gateway tables, builds an
+  asynchronous streaming standby with `pg_basebackup -R`, and proves replay of
+  a post-basebackup WAL marker. It interrupts an in-flight query by destroying
+  primary, promotes standby, switches a stable local endpoint, and requires the
+  same sentinel Pool plus eight application clients to recover after switch and
+  restart. This remains controlled-promotion CI evidence rather than automatic
+  detection/election/switching, PITR, split-brain, or production RTO/RPO proof.
 - Added central PostgreSQL Workforce execution control: raw-identifier-free
   tenant/plan/subject keys, atomic single-use approval consumption, versioned
   digest-verified lifecycle transitions, bounded retention/capacity, remote

@@ -250,12 +250,13 @@ session affinity, or provider-side reconciliation.
 
 PostgreSQL mode supplies cross-host atomic ownership and fencing for the covered
 central stores. The repository now destructively restores a bounded twelve-table
-fixture into two clean PostgreSQL 17 instances, interrupts an active query by
-destroying the first restored node, switches a stable local TCP endpoint to the
-standby, and re-verifies the same eight application clients before/after the
-switch and standby restart. Complete deployment HA still needs independently
-verified streaming replication, automatic detection/election/endpoint switching,
-TLS identity, retention/PITR, production-scale restore, network partition and
+fixture into PostgreSQL 17, builds a real asynchronous streaming standby with
+`pg_basebackup -R`, proves post-basebackup WAL replay, interrupts an active query
+by destroying primary, promotes standby, switches a stable local TCP endpoint,
+and re-verifies the same eight application clients before/after the switch and
+restart. Complete deployment HA still needs independently verified automatic
+detection/election/promotion/endpoint switching, synchronous/quorum policy, TLS
+identity, retention/PITR, production-scale restore, network partition and
 split-brain behavior, replica convergence, provider reconciliation, measured
 RTO/RPO, and load-balancer behavior.
 

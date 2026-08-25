@@ -10,8 +10,9 @@ pnpm drill:postgres-recovery -- --json --output .tmp/postgres-recovery-drill.jso
 The drill needs a working Docker engine. It does not read `.env`, provider
 credentials, or production database URLs. It creates a random test-only
 password in a private temporary environment file, binds each database only to a
-random loopback port, and removes both containers, both named volumes, and the
-logical-backup artifact before returning.
+preallocated loopback port, and removes every client, proxy, container, named
+volume, Docker network, credential file, and logical-backup artifact before
+returning.
 
 ## What the drill does
 
@@ -33,19 +34,24 @@ logical-backup artifact before returning.
    `pg_restore --exit-on-error`.
 6. Requires an exact inventory digest match and verifies all eight contracts
    through fresh application clients.
-7. Restores the same artifact into a second independent PostgreSQL 17 standby
-   and requires the same inventory digest.
-8. Keeps the same eight application clients and pools connected through one
+7. Enables WAL senders on recovery and limits one `scram-sha-256` replication
+   HBA rule to the exact disposable Docker-network CIDR. `pg_basebackup -R`
+   builds a real streaming standby in a separate volume.
+8. Writes a marker after the base backup. The standby must report
+   `pg_is_in_recovery()=true`, replay that marker, expose a replay LSN, and
+   retain the same gateway inventory digest.
+9. Keeps the same eight application clients and pools connected through one
    bounded local TCP endpoint. A checked-out sentinel runs an in-flight query;
    the active recovery database and its volume are destroyed, which must
    interrupt that query.
-9. Switches the stable endpoint to the standby. The original sentinel Pool and
-   all eight original application clients must recover without reconstruction
-   and pass 8/8 again.
-10. Restarts the standby and requires the same sentinel Pool plus the same eight
-    application clients to recover and pass a third 8/8.
-11. Removes every client, proxy, container, volume, credential file, and dump
-    artifact. A cleanup failure makes the drill fail.
+10. Promotes standby with `pg_ctl promote`, waits until it is writable, and
+    switches the stable endpoint. The original sentinel Pool and all eight
+    original application clients must recover without reconstruction and pass
+    8/8 again.
+11. Restarts the promoted standby and requires the same sentinel Pool plus the
+    same eight application clients to recover and pass a third 8/8.
+12. Removes every client, proxy, container, volume, network, credential file,
+    and dump artifact. A cleanup failure makes the drill fail.
 
 CI runs the same command after the real PostgreSQL integration suite. The JSON
 result is retained with the quality artifacts, while the temporary database
@@ -54,18 +60,18 @@ backup itself is deliberately not retained.
 ## Evidence interpretation
 
 A passing result proves a bounded logical snapshot can recover the covered
-gateway schemas into two clean PostgreSQL 17 instances, that the recovered rows
-remain application-readable, and that the same in-process application pools can
-recover after both a controlled stable-endpoint switch and a database restart.
+gateway schemas into a clean PostgreSQL 17 primary, establish a real asynchronous
+streaming standby, replay post-basebackup WAL, perform controlled promotion, and
+recover the same in-process application pools after endpoint switch and restart.
 The reported `controlledRecoveryTimeMs` and `controlledFailoverTimeMs` are only
 the wall clocks of this disposable fixture; neither is a production RTO.
 
 The drill does **not** prove:
 
 - continuous WAL archiving or point-in-time recovery;
-- synchronous/streaming replication, automatic leader election, or automatic
-  failure detection and endpoint switching (the drill invokes its bounded
-  proxy switch explicitly);
+- synchronous replication, automatic leader election, or automatic failure
+  detection/promotion/endpoint switching (the drill invokes promotion and its
+  bounded proxy switch explicitly);
 - network-partition or split-brain safety;
 - object-lock/WORM retention or independent backup custody;
 - production data volume, encryption-at-rest, certificate rotation, RPO, or
@@ -73,7 +79,9 @@ The drill does **not** prove:
 - end-to-end exactly-once behavior in a remote Provider or other external
   system.
 
-Those remain deployment-specific E4 evidence. A production program should add
+Those remain deployment-specific E4 evidence. The drill reuses its ephemeral
+PostgreSQL superuser for replication; production must use a dedicated bounded
+replication identity. A production program should also add
 managed backup retention, independently stored restore points, continuous WAL
 or an equivalent mechanism, a separate recovery account and environment,
 certificate-verified connections, destructive restore rehearsals, failover and
