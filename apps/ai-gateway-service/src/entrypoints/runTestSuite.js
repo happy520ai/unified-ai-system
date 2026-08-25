@@ -151,11 +151,15 @@ async function main() {
 
   const nodeExit = await runNodeTests(selected.filter((test) => test.framework === "node"));
   const vitestTests = selected.filter((test) => test.framework === "vitest");
-  const vitestExit = await runVitestTests(vitestTests.filter((test) => !test.processIsolated));
+  // Resource-heavy parser tests must enter their dedicated process before the
+  // large Vitest pool. On constrained Windows runners, starting this fork only
+  // after ~1,400 tests can make the OS terminate it even though the file passes
+  // independently; process isolation should not inherit prior pool pressure.
   const isolatedVitestExit = await runVitestTests(
     vitestTests.filter((test) => test.processIsolated),
     { processIsolated: true },
   );
+  const vitestExit = await runVitestTests(vitestTests.filter((test) => !test.processIsolated));
   if (nodeExit !== 0 || vitestExit !== 0 || isolatedVitestExit !== 0) {
     throw new Error(`Test suite failed: node=${nodeExit} vitest=${vitestExit} isolatedVitest=${isolatedVitestExit}`);
   }
