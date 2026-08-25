@@ -114,12 +114,21 @@
         "apps/ai-gateway-service/src/workforce/taskClaimTokenService.js",
         "apps/ai-gateway-service/src/workforce/workflowRunHandoff.js",
         "apps/ai-gateway-service/src/workforce/workforceExecutionCapabilities.test.js",
-        "apps/ai-gateway-service/src/workforce/workforceExecutionGates.test.js"
+        "apps/ai-gateway-service/src/workforce/workforceExecutionGates.test.js",
+        "packages/forge-core/src/sandbox-executor/container-backend.js",
+        "packages/forge-core/test/container-backend.test.js",
+        "packages/forge-core/test/container-sandbox.integration.test.js",
+        "packages/forge-core/test/git-worktree-security.test.js",
+        "packages/forge-core/test/native-execution-boundary.test.js",
+        "packages/mcp-server/src/runtime-environment.js",
+        "packages/mcp-server/src/runtime-environment.test.js",
+        "packages/mcp-service/src/child-environment.js",
+        "packages/mcp-service/src/child-environment.test.js"
       ],
-      "justification": "PR #115 closes urgent security and protocol gaps inside established Node.js ESM modules. A simultaneous broad file-extension migration would combine exploit-chain remediation with loader and declaration changes, widening rollback and review risk.",
+      "justification": "PR #115 closes urgent security, native-execution, and protocol gaps inside established Node.js ESM packages that currently have no TypeScript runtime build/loader boundary. Migrating those packages while landing the fail-closed container and child-environment fixes would combine exploit remediation with module-resolution, declaration, and packaging changes, widening rollback and review risk.",
       "owner": "happy520ai",
       "removalBy": "2026-10-31",
-      "migrationPlan": "Before v0.6.0 and no later than 2026-10-31, happy520ai will migrate the 14 runtime modules first in ownership order (enterprise, provider/gateway, Forge, response/routing, workforce), then convert their 15 colocated tests and remove this exact file-set exception.",
+      "migrationPlan": "Before v0.6.0 and no later than 2026-10-31, happy520ai will migrate the 17 runtime modules first in ownership order (enterprise, provider/gateway, Forge sandbox, MCP child boundaries, response/routing, workforce), then convert their 21 colocated tests and remove this exact file-set exception.",
       "pr": "https://github.com/happy520ai/unified-ai-system/pull/115",
       "notes": "Exact files only. New JavaScript files remain blocked; this exception is not evidence of TypeScript completion or production readiness."
     }
