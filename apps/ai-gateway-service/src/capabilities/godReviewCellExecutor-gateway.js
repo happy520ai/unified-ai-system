@@ -3,6 +3,8 @@
 // Extracted gateway HTTP call logic to keep the main executor under 500 lines.
 // =============================================================================
 
+import { randomUUID } from "node:crypto";
+
 import {
   DEFAULT_TIMEOUT_MS,
   isUnsafeGatewayHost,
@@ -10,6 +12,7 @@ import {
   log,
 } from "./godReviewCellExecutor-helpers.js";
 import { safeOutboundFetch } from "../security/safeOutboundFetch.ts";
+import { resolveGatewayOutboundUrl } from "../security/gatewayOutboundUrlPolicy.ts";
 
 /**
  * Extract text content from various gateway response structures.
@@ -46,6 +49,9 @@ export function extractContent(data) {
  * @param {number} [options.maxTokens] - Max tokens
  * @param {string} [options.purpose] - Call purpose (for logging)
  * @param {number} [options.timeout] - Timeout in ms
+ * @param {string} [options.gatewayAuthToken] - Enterprise gateway token
+ * @param {string} [options.idempotencyKey] - Caller-stable response identity
+ * @param {string} [options.providerDispatchKey] - Caller-stable provider-only identity
  * @returns {Promise<{content: string, model: string, usage: Object|null}>}
  */
 export async function callGateway(gatewayUrl, messages, options = {}) {
@@ -70,6 +76,7 @@ export async function callGateway(gatewayUrl, messages, options = {}) {
 
   let lastError = null;
   const maxAttempts = 2; // first + 1 retry
+  const requestHeaders = createGatewayOperationHeaders(options);
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const controller = new AbortController();
@@ -87,11 +94,12 @@ export async function callGateway(gatewayUrl, messages, options = {}) {
           Accept: "application/json",
           "X-Purpose": purpose,
           "X-Executor": "GodReviewCell",
+          ...requestHeaders,
         },
         body: JSON.stringify(requestBody),
         signal: controller.signal,
         timeout,
-      });
+      }, { resolveOutboundUrl: resolveGatewayOutboundUrl });
 
       clearTimeout(timeoutId);
 
@@ -158,4 +166,24 @@ export async function callGateway(gatewayUrl, messages, options = {}) {
   }
 
   throw lastError || new Error("Gateway call failed after all retry attempts");
+}
+
+function createGatewayOperationHeaders(options) {
+  if (options.idempotencyKey !== undefined && options.providerDispatchKey !== undefined) {
+    throw new Error("Use exactly one of idempotencyKey or providerDispatchKey.");
+  }
+  const token = options.gatewayAuthToken ?? process.env.PME_AUTH_TOKEN;
+  const dispatchHeaders = options.idempotencyKey !== undefined
+    ? { "Idempotency-Key": String(options.idempotencyKey) }
+    : {
+        "Provider-Dispatch-Key": String(
+          options.providerDispatchKey ?? `god-review-${randomUUID()}`,
+        ),
+      };
+  return {
+    ...(typeof token === "string" && token.length > 0
+      ? { Authorization: `Bearer ${token}` }
+      : {}),
+    ...dispatchHeaders,
+  };
 }

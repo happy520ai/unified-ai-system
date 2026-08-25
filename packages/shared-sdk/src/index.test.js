@@ -4,11 +4,22 @@ import { once } from "node:events";
 import test from "node:test";
 
 import {
+  createGatewayChatRequest,
   createGatewayClient,
+  GATEWAY_CLIENT_ERROR_CODES,
   GatewayClientAbortError,
   GatewayClientError,
   GatewayClientTimeoutError,
 } from "./index.js";
+
+test("carries caller retry identity through the chat request helper", () => {
+  const request = createGatewayChatRequest({
+    prompt: "hello",
+    idempotencyKey: "stable-chat-operation",
+  });
+  assert.equal(request.idempotencyKey, "stable-chat-operation");
+  assert.equal(request.providerDispatchKey, undefined);
+});
 
 async function startServer(handler) {
   const server = createServer(handler);
@@ -199,6 +210,105 @@ test("forwards custom headers without mutating the caller's headers", async () =
   } finally {
     await closeServer(server);
   }
+});
+
+test("adds a stable explicit idempotency key to provider requests without putting it in the body", async () => {
+  let observed;
+  const { server, baseUrl } = await startServer(async (request, response) => {
+    let body = "";
+    for await (const chunk of request) body += chunk;
+    observed = { headers: request.headers, body: JSON.parse(body) };
+    response.writeHead(200, { "content-type": "application/json" });
+    response.end(JSON.stringify({ success: true }));
+  });
+
+  try {
+    const client = createGatewayClient({
+      baseUrl,
+      headers: { "Provider-Dispatch-Key": "configured-default-key" },
+      providerDispatchKeyFactory: () => "factory-key-must-not-win",
+    });
+    await client.chat({
+      idempotencyKey: "operation-key-1",
+      messages: [{ role: "user", content: "hello" }],
+    });
+    assert.equal(observed.headers["idempotency-key"], "operation-key-1");
+    assert.equal(observed.headers["provider-dispatch-key"], undefined);
+    assert.deepEqual(observed.body, {
+      messages: [{ role: "user", content: "hello" }],
+    });
+  } finally {
+    await closeServer(server);
+  }
+});
+
+test("generates a provider-only dispatch key for first-party provider calls by default", async () => {
+  let observedHeaders;
+  const { server, baseUrl } = await startServer((request, response) => {
+    observedHeaders = request.headers;
+    response.writeHead(200, { "content-type": "application/json" });
+    response.end(JSON.stringify({ success: true }));
+  });
+
+  try {
+    await createGatewayClient({ baseUrl }).chat({
+      messages: [{ role: "user", content: "hello" }],
+    });
+    assert.match(observedHeaders["provider-dispatch-key"], /^uai-sdk-[A-Za-z0-9-]+$/);
+    assert.equal(observedHeaders["idempotency-key"], undefined);
+  } finally {
+    await closeServer(server);
+  }
+});
+
+test("supports a caller-stable provider-only key without putting it in the body", async () => {
+  let observed;
+  const { server, baseUrl } = await startServer(async (request, response) => {
+    let body = "";
+    for await (const chunk of request) body += chunk;
+    observed = { headers: request.headers, body: JSON.parse(body) };
+    response.writeHead(200, { "content-type": "application/json" });
+    response.end(JSON.stringify({ success: true }));
+  });
+
+  try {
+    await createGatewayClient({ baseUrl }).chat({
+      providerDispatchKey: "provider-operation-key-1",
+      messages: [{ role: "user", content: "hello" }],
+    });
+    assert.equal(observed.headers["provider-dispatch-key"], "provider-operation-key-1");
+    assert.equal(observed.headers["idempotency-key"], undefined);
+    assert.deepEqual(observed.body, {
+      messages: [{ role: "user", content: "hello" }],
+    });
+  } finally {
+    await closeServer(server);
+  }
+});
+
+test("fails locally when provider key configuration is ambiguous", () => {
+  const baseUrl = "http://127.0.0.1:3100";
+  const client = createGatewayClient({ baseUrl });
+  assert.throws(
+    () => client.chat({
+      idempotencyKey: "response-key",
+      providerDispatchKey: "dispatch-key",
+      messages: [{ role: "user", content: "hello" }],
+    }),
+    (error) => error instanceof GatewayClientError && error.code === GATEWAY_CLIENT_ERROR_CODES.PROTOCOL,
+  );
+
+  const ambiguousHeadersClient = createGatewayClient({
+    baseUrl,
+    headers: {
+      "Idempotency-Key": "response-key",
+      "Provider-Dispatch-Key": "dispatch-key",
+    },
+  });
+  assert.throws(
+    () => ambiguousHeadersClient.chat({ messages: [{ role: "user", content: "hello" }] }),
+    (error) => error instanceof GatewayClientError && error.code === GATEWAY_CLIENT_ERROR_CODES.PROTOCOL,
+  );
 });
 
 test("parses multiple server-sent events from chatStream", async () => {

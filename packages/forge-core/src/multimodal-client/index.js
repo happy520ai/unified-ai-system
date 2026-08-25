@@ -19,6 +19,7 @@
  *   const result = await generateImage('A sunset over mountains', { size: '1024x1024' });
  */
 
+import { randomUUID } from 'node:crypto';
 import { writeFile } from 'node:fs/promises';
 import {
   MultimodalError,
@@ -43,6 +44,34 @@ export { MultimodalError };
 // ── Module State ────────────────────────────────────────────────────────────
 
 let _gatewayUrl = DEFAULT_GATEWAY_URL;
+
+function createGatewayAuthHeaders(opts = {}) {
+  const token = opts.gatewayAuthToken ?? process.env.PME_AUTH_TOKEN;
+  return typeof token === 'string' && token.length > 0
+    ? { Authorization: `Bearer ${token}` }
+    : {};
+}
+
+function createGatewayOperationHeaders(opts = {}, contentType = 'application/json') {
+  if (opts.idempotencyKey !== undefined && opts.providerDispatchKey !== undefined) {
+    throw new MultimodalError(
+      'Use exactly one of idempotencyKey or providerDispatchKey.',
+      { code: 'INVALID_INPUT', retryable: false },
+    );
+  }
+  const dispatchHeaders = opts.idempotencyKey !== undefined
+    ? { 'Idempotency-Key': String(opts.idempotencyKey) }
+    : {
+        'Provider-Dispatch-Key': String(
+          opts.providerDispatchKey ?? `forge-multimodal-${randomUUID()}`,
+        ),
+      };
+  return {
+    'Content-Type': contentType,
+    ...createGatewayAuthHeaders(opts),
+    ...dispatchHeaders,
+  };
+}
 
 /**
  * Set the AI Gateway base URL for all multimodal requests.
@@ -122,7 +151,9 @@ export async function generateImage(prompt, opts = {}) {
 
   const url = `${_gatewayUrl}/v1/images/generations`;
   const timeout = opts.timeout ?? IMAGE_TIMEOUT_MS;
-  const data = await _post(url, body, timeout);
+  const data = await _post(url, body, timeout, {
+    headers: createGatewayOperationHeaders(opts),
+  });
 
   const apiUsage = data.usage || {};
   const usage = { images: apiUsage.images ?? apiUsage.n ?? body.n };
@@ -197,7 +228,9 @@ export async function generateVideo(prompt, opts = {}) {
 
   const url = `${_gatewayUrl}/v1/images/generations`;
   const timeout = opts.timeout ?? VIDEO_TIMEOUT_MS;
-  const data = await _post(url, body, timeout);
+  const data = await _post(url, body, timeout, {
+    headers: createGatewayOperationHeaders(opts),
+  });
 
   const apiUsage = data.usage || {};
   const usage = { videos: apiUsage.videos ?? apiUsage.n ?? 1 };
@@ -259,7 +292,9 @@ export async function generateEmbedding(input, opts = {}) {
 
   const url = `${_gatewayUrl}/v1/embeddings`;
   const timeout = opts.timeout ?? EMBEDDING_TIMEOUT_MS;
-  const data = await _post(url, body, timeout);
+  const data = await _post(url, body, timeout, {
+    headers: createGatewayOperationHeaders(opts),
+  });
 
   const embeddings = [];
   const rawData = data.data || data.embeddings || [];
@@ -330,7 +365,7 @@ export async function synthesizeSpeech(text, opts = {}) {
 
   const response = await _fetchWithRetry(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: createGatewayOperationHeaders(opts),
     body: JSON.stringify(body),
   }, timeout);
 
@@ -397,7 +432,10 @@ export async function transcribeAudio(audio, opts = {}) {
   const timeout = opts.timeout ?? TRANSCRIPTION_TIMEOUT_MS;
   const response = await _fetchWithRetry(url, {
     method: 'POST',
-    headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}` },
+    headers: createGatewayOperationHeaders(
+      opts,
+      `multipart/form-data; boundary=${boundary}`,
+    ),
     body: bodyBuffer,
   }, timeout);
 
@@ -442,7 +480,10 @@ export async function checkGatewayHealth(opts = {}) {
   const start = Date.now();
 
   try {
-    const response = await _fetchWithTimeout(url, { method: 'GET' }, timeout);
+    const response = await _fetchWithTimeout(url, {
+      method: 'GET',
+      headers: createGatewayAuthHeaders(opts),
+    }, timeout);
     const latencyMs = Date.now() - start;
 
     if (!response.ok) {

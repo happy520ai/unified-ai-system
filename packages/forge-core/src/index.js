@@ -41,9 +41,10 @@ export class Forge {
    * @param {string} [options.dbPath] — path to SQLite database (default: .forge/forge.db)
    * @param {boolean} [options.enableProgress] — enable ProgressReporter (default: false)
    * @param {string} [options.gatewayUrl] — AI Gateway URL (default: http://127.0.0.1:3100)
+   * @param {string} [options.gatewayAuthToken] — enterprise gateway token
    * @param {boolean} [options.enableCostTracking] — enable P11 cost modules (default: true)
    */
-  constructor({ projectRoot, dbPath, enableProgress, gatewayUrl, enableCostTracking = true }) {
+  constructor({ projectRoot, dbPath, enableProgress, gatewayUrl, gatewayAuthToken, enableCostTracking = true }) {
     this.#projectRoot = projectRoot;
     this.#dbPath = dbPath ?? join(projectRoot, '.forge', 'forge.db');
 
@@ -58,7 +59,7 @@ export class Forge {
     }
 
     // Gateway: Initialize lifecycle manager
-    this.#gatewayLifecycle = new GatewayLifecycle({ gatewayUrl });
+    this.#gatewayLifecycle = new GatewayLifecycle({ gatewayUrl, gatewayAuthToken });
 
     // P11: Wire cost tracking modules into llm-client for all LLM calls
     if (enableCostTracking) {

@@ -18,6 +18,9 @@ describe('P0-1: LLM Client responseFormat option', () => {
 
     // Mock fetch to capture request bodies
     globalThis.fetch = async (url, opts) => {
+      if (String(url).endsWith('/health/check')) {
+        throw new Error('gateway transport unavailable');
+      }
       capturedBodies.push({ url, body: JSON.parse(opts.body) });
       return {
         ok: true,

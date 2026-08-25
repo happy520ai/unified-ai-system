@@ -1318,7 +1318,7 @@ function applyCorsHeaders(response, origin, allowedOrigins, maxAgeSeconds) {
     if (allowOrigin !== "*") {
       response.setHeader("Access-Control-Allow-Credentials", "true");
     }
-    response.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type, Idempotency-Key, Traceparent, Tracestate, X-Request-ID, X-Request-Context, X-Client-ID");
+    response.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type, Idempotency-Key, Provider-Dispatch-Key, Traceparent, Tracestate, X-Request-ID, X-Request-Context, X-Client-ID");
     response.setHeader("Access-Control-Allow-Methods", "GET,HEAD,POST,PUT,PATCH,DELETE,OPTIONS");
     response.setHeader("Access-Control-Expose-Headers", [
       "Traceparent",

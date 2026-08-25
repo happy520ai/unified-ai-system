@@ -124,8 +124,16 @@ export function bindGatewayExecution<TService extends object>(
 }
 
 function readProviderDispatchContext(request: IncomingMessage) {
-  const rawKey = request.headers?.["idempotency-key"];
+  const rawIdempotencyKey = request.headers?.["idempotency-key"];
+  const rawProviderDispatchKey = request.headers?.["provider-dispatch-key"];
   const route = String(request.url ?? "/").split("?", 1)[0] || "/";
+  if (rawIdempotencyKey !== undefined && rawProviderDispatchKey !== undefined) {
+    return {
+      providerDispatchKeyInvalid: true,
+      providerDispatchRoute: route,
+    };
+  }
+  const rawKey = rawProviderDispatchKey ?? rawIdempotencyKey;
   if (rawKey === undefined) return { providerDispatchRoute: route };
   if (
     typeof rawKey !== "string"

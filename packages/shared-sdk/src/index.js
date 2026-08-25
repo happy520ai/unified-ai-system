@@ -1,4 +1,5 @@
 const DEFAULT_TIMEOUT_MS = 10_000;
+const PROVIDER_KEY_HEADERS = new Set(["idempotency-key", "provider-dispatch-key"]);
 
 export const GATEWAY_CLIENT_ERROR_CODES = Object.freeze({
   ABORTED: "GATEWAY_CLIENT_ABORTED",
@@ -52,6 +53,7 @@ export function createGatewayClient(options = {}) {
   const headers = options.headers ?? {};
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const signal = options.signal;
+  const providerDispatchKeyFactory = options.providerDispatchKeyFactory ?? createDefaultProviderDispatchKey;
   const requestJson = (requestOptions) =>
     requestJsonImpl({ baseUrl, headers, timeoutMs, signal, ...requestOptions });
   const requestSse = (requestOptions) =>
@@ -86,42 +88,46 @@ export function createGatewayClient(options = {}) {
       });
     },
     enhancePromptLlm(request) {
+      const prepared = prepareProviderRequest(request, headers, providerDispatchKeyFactory);
       return requestJson({
         baseUrl,
         path: "/prompts/enhance-llm",
         method: "POST",
-        body: request,
-        headers,
+        body: prepared.body,
+        headers: prepared.headers,
         timeoutMs,
       });
     },
     chat(request) {
+      const prepared = prepareProviderRequest(request, headers, providerDispatchKeyFactory);
       return requestJson({
         baseUrl,
         path: "/chat",
         method: "POST",
-        body: request,
-        headers,
+        body: prepared.body,
+        headers: prepared.headers,
         timeoutMs,
       });
     },
     ragChat(request) {
+      const prepared = prepareProviderRequest(request, headers, providerDispatchKeyFactory);
       return requestJson({
         baseUrl,
         path: "/chat/rag",
         method: "POST",
-        body: request,
-        headers,
+        body: prepared.body,
+        headers: prepared.headers,
         timeoutMs,
       });
     },
     chatStream(request) {
+      const prepared = prepareProviderRequest(request, headers, providerDispatchKeyFactory);
       return requestSse({
         baseUrl,
         path: "/chat/stream",
         method: "POST",
-        body: request,
-        headers,
+        body: prepared.body,
+        headers: prepared.headers,
         timeoutMs,
       });
     },
@@ -317,16 +323,69 @@ export function createGatewayClient(options = {}) {
       });
     },
     generate(request) {
+      const prepared = prepareProviderRequest(request, headers, providerDispatchKeyFactory);
       return requestJson({
         baseUrl,
         path: "/gateway/route",
         method: "POST",
-        body: request,
-        headers,
+        body: prepared.body,
+        headers: prepared.headers,
         timeoutMs,
       });
     },
   };
+}
+
+function prepareProviderRequest(request, headers, providerDispatchKeyFactory) {
+  const source = request && typeof request === "object" ? request : {};
+  const { idempotencyKey, providerDispatchKey, ...body } = source;
+  const providerHeaderEntries = Object.entries(headers).filter(
+    ([name]) => PROVIDER_KEY_HEADERS.has(String(name).toLowerCase()),
+  );
+  if (idempotencyKey !== undefined && providerDispatchKey !== undefined) {
+    throw createProviderKeyConfigurationError(
+      "Provider requests cannot set both idempotencyKey and providerDispatchKey.",
+    );
+  }
+  if (providerHeaderEntries.length > 1) {
+    throw createProviderKeyConfigurationError(
+      "Gateway client headers cannot contain both Idempotency-Key and Provider-Dispatch-Key.",
+    );
+  }
+
+  if (idempotencyKey === undefined && providerDispatchKey === undefined && providerHeaderEntries.length === 1) {
+    return { body, headers };
+  }
+
+  const keyHeaderName = idempotencyKey === undefined
+    ? "provider-dispatch-key"
+    : "idempotency-key";
+  const key = idempotencyKey
+    ?? providerDispatchKey
+    ?? providerDispatchKeyFactory();
+  const headersWithoutProviderKeys = Object.fromEntries(
+    Object.entries(headers).filter(
+      ([name]) => !PROVIDER_KEY_HEADERS.has(String(name).toLowerCase()),
+    ),
+  );
+  return {
+    body,
+    headers: { ...headersWithoutProviderKeys, [keyHeaderName]: String(key) },
+  };
+}
+
+function createProviderKeyConfigurationError(message) {
+  return new GatewayClientError(message, {
+    code: GATEWAY_CLIENT_ERROR_CODES.PROTOCOL,
+    kind: "protocol",
+    retryable: false,
+  });
+}
+
+function createDefaultProviderDispatchKey() {
+  const randomUuid = globalThis.crypto?.randomUUID?.();
+  if (randomUuid) return `uai-sdk-${randomUuid}`;
+  return `uai-sdk-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 14)}`;
 }
 
 export function createGatewayChatRequest(options) {
@@ -341,6 +400,12 @@ export function createGatewayChatRequest(options) {
       ? { promptEnhancement: options.promptEnhancement }
       : {}),
     metadata: options.metadata ?? {},
+    ...(options.idempotencyKey !== undefined
+      ? { idempotencyKey: options.idempotencyKey }
+      : {}),
+    ...(options.providerDispatchKey !== undefined
+      ? { providerDispatchKey: options.providerDispatchKey }
+      : {}),
   };
 }
 

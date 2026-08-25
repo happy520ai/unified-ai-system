@@ -127,6 +127,35 @@ describe("HTTP request execution scope", () => {
     scope.cleanup();
   });
 
+  it("accepts a provider-only dispatch key without retaining its raw value", () => {
+    const transport = createTransport();
+    transport.request.headers = { "provider-dispatch-key": "provider-operation-1" };
+    transport.request.url = "/v1/images/generations";
+    const scope = createHttpRequestExecutionScope({ ...transport, timeoutMs: 10_000 });
+
+    expect(scope.context).toMatchObject({
+      providerDispatchKeyHash: createHash("sha256")
+        .update("provider-operation-1")
+        .digest("hex"),
+      providerDispatchRoute: "/v1/images/generations",
+    });
+    expect(JSON.stringify(scope.context)).not.toContain("provider-operation-1");
+    scope.cleanup();
+  });
+
+  it("rejects ambiguous standard and provider-only dispatch headers", () => {
+    const transport = createTransport();
+    transport.request.headers = {
+      "idempotency-key": "response-replay-key",
+      "provider-dispatch-key": "provider-only-key",
+    };
+    const scope = createHttpRequestExecutionScope({ ...transport, timeoutMs: 10_000 });
+
+    expect(scope.context).toMatchObject({ providerDispatchKeyInvalid: true });
+    expect(scope.context).not.toHaveProperty("providerDispatchKeyHash");
+    scope.cleanup();
+  });
+
   it("stamps the server identity onto gateway inputs and strips client spoofing", async () => {
     const transport = createTransport();
     const scope = createHttpRequestExecutionScope({ ...transport, timeoutMs: 10_000 });

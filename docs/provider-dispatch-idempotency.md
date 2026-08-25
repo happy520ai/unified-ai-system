@@ -13,11 +13,19 @@ exactly-once execution.
 
 ## Client contract
 
-Real-provider requests require an `Idempotency-Key` header by default. Generate
-one opaque key per intended client operation and reuse it only to retry the
-same route and payload. Keys must contain 1-255 visible ASCII characters with
-no spaces and must not contain prompts, credentials, email addresses, tenant
-IDs, or other sensitive data.
+Real-provider requests require exactly one of `Idempotency-Key` or
+`Provider-Dispatch-Key` by default. Both protect the provider dispatch. The
+standard `Idempotency-Key` also opts into response replay on routes such as
+`POST /chat`; `Provider-Dispatch-Key` creates only the durable provider
+tombstone and does not consume response-cache capacity. Use the standard
+header for a caller-stable retry whose completed response should be replayed.
+Use the provider-only header for a fresh one-shot operation where a duplicate
+must fail closed with `409` instead of replaying a response.
+
+Generate one opaque key per intended client operation and reuse it only with
+the same route and payload. Keys must contain 1-255 visible ASCII characters
+with no spaces and must not contain prompts, credentials, email addresses,
+tenant IDs, or other sensitive data. Supplying both headers is invalid.
 
 Example:
 
@@ -31,6 +39,33 @@ curl http://127.0.0.1:3100/v1/chat/completions \
 
 Configure an SDK's default headers when it does not generate the header itself.
 Credential-free fake-provider requests remain usable without a key.
+
+First-party clients generate a fresh `Provider-Dispatch-Key` for ordinary
+calls so they do not fill the response-replay store. The shared SDK accepts
+`request.idempotencyKey` for caller-stable response replay and
+`request.providerDispatchKey` for an explicitly stable provider-only key; a
+per-request field safely replaces a configured default provider key. The CLI
+generates a per-command provider-only key. Forge gateway calls accept
+`options.idempotencyKey` for response replay and otherwise generate a
+provider-only key. Forge image, video, embedding, text-to-speech, and
+speech-to-text calls apply the same rule, reuse one key across their bounded
+HTTP retries, and carry gateway authentication without putting either key in
+the payload.
+
+`GatewayBridge` and the lower-level Forge LLM client distinguish transport
+unavailability from an HTTP authentication/readiness response. Direct fallback
+is permitted only before any gateway POST after an explicit transport probe
+fails, or after the gateway returns authoritative fake-provider proof. Once a
+chat or stream POST begins, an uncertain result raises
+`FORGE_GATEWAY_OUTCOME_UNCERTAIN`; Forge does not issue a direct or non-stream
+retry that could duplicate a billable operation.
+
+Legacy Tianshu, GodReview, and neurogenesis capability calls now use the same
+authenticated dispatch contract. Exact loopback gateway targets are pinned to
+loopback; other destinations retain the public-unicast-only outbound policy.
+Neurogenesis defaults to the core gateway port (`3100` or
+`AI_GATEWAY_SERVICE_PORT`) rather than the development-console port. A bounded
+GodReview HTTP retry reuses the original dispatch key.
 
 ## Execution order
 
@@ -63,7 +98,7 @@ its normal `400`, `409`, or `503` HTTP status instead of becoming a misleading
 | Condition | HTTP/code | Provider adapter called |
 | --- | --- | --- |
 | Missing key while strict mode is enabled | `400 PROVIDER_DISPATCH_KEY_REQUIRED` | No |
-| Malformed key | `400 PROVIDER_DISPATCH_KEY_INVALID` | No |
+| Malformed key or both key headers supplied | `400 PROVIDER_DISPATCH_KEY_INVALID` | No |
 | Same key and lane already consumed | `409 PROVIDER_DISPATCH_ALREADY_RESERVED` | No |
 | Same key and lane, changed request/provider/model | `409 PROVIDER_DISPATCH_KEY_REUSED` | No |
 | Reservation completion cannot be confirmed | `409 PROVIDER_DISPATCH_RESERVATION_UNCONFIRMED` | No; manual reconciliation is required |

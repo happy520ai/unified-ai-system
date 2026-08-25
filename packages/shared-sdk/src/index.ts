@@ -52,6 +52,20 @@ export interface GatewayClientOptions {
   headers?: Record<string, string>;
   timeoutMs?: number;
   signal?: AbortSignal;
+  providerDispatchKeyFactory?: () => string;
+}
+
+export interface ProviderDispatchRequestOptions {
+  /** Requests response replay where the HTTP route supports it. */
+  idempotencyKey?: string;
+  /** Reserves only the durable provider-dispatch tombstone. */
+  providerDispatchKey?: string;
+}
+
+export interface GatewayLlmPromptEnhancementRequest
+  extends PromptEnhancementRequest, ProviderDispatchRequestOptions {
+  providerId?: string;
+  modelId?: string;
 }
 
 export type GatewayClientErrorKind = "cancelled" | "timeout" | "network" | "http" | "protocol" | "stream";
@@ -101,9 +115,10 @@ export interface GatewayClient {
   health(): Promise<ResultEnvelope<GatewayHealth>>;
   setupReadiness(): Promise<ResultEnvelope<SetupReadinessResult>>;
   enhancePrompt(request: PromptEnhancementRequest): Promise<ResultEnvelope<PromptEnhancementResult>>;
-  chat(request: GatewayChatRequest): Promise<GatewayChatResult>;
-  ragChat(request: RagChatRequest): Promise<RagChatResult>;
-  chatStream(request: GatewayChatRequest): AsyncIterable<GatewayStreamEvent>;
+  enhancePromptLlm(request: GatewayLlmPromptEnhancementRequest): Promise<ResultEnvelope<Record<string, unknown>>>;
+  chat(request: GatewayChatRequest & ProviderDispatchRequestOptions): Promise<GatewayChatResult>;
+  ragChat(request: RagChatRequest & ProviderDispatchRequestOptions): Promise<RagChatResult>;
+  chatStream(request: GatewayChatRequest & ProviderDispatchRequestOptions): AsyncIterable<GatewayStreamEvent>;
   knowledgeRetrieve(request: KnowledgeRetrieveRequest): Promise<KnowledgeRetrieveResult>;
   knowledgeLoad(request: KnowledgeLoadRequest): Promise<KnowledgeLoadResult>;
   knowledgeInfraReadiness(): Promise<KnowledgeInfraReadinessResult>;
@@ -125,10 +140,10 @@ export interface GatewayClient {
   workforcePlanLifecycle(planId: string, request: WorkforcePlanLifecycleRequest): Promise<WorkforcePlanLifecycleResult>;
   workforcePlanReviewPackage(planId: string): Promise<WorkforcePlanReviewPackageResult>;
   workforcePlanApprovalGate(planId: string, request: WorkforcePlanApprovalGateRequest): Promise<WorkforcePlanApprovalGateResult>;
-  generate(request: GatewayRequest): Promise<GatewayResult>;
+  generate(request: GatewayRequest & ProviderDispatchRequestOptions): Promise<GatewayResult>;
 }
 
-export interface GatewayChatRequestOptions {
+export interface GatewayChatRequestOptions extends ProviderDispatchRequestOptions {
   prompt?: string;
   messages?: MessageDto[];
   context?: RequestContext;
@@ -143,9 +158,12 @@ export function createGatewayClientOptions(options: GatewayClientOptions): Gatew
     headers: options.headers ?? {},
     timeoutMs: options.timeoutMs,
     signal: options.signal,
+    providerDispatchKeyFactory: options.providerDispatchKeyFactory,
   };
 }
 
-export declare function createGatewayChatRequest(options: GatewayChatRequestOptions): GatewayChatRequest;
+export declare function createGatewayChatRequest(
+  options: GatewayChatRequestOptions,
+): GatewayChatRequest & ProviderDispatchRequestOptions;
 
 export declare function createGatewayClient(options: GatewayClientOptions): GatewayClient;

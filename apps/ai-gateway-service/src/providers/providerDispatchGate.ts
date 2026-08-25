@@ -124,7 +124,7 @@ export function createProviderDispatchGate({
       if (input.dispatchKeyInvalid === true) {
         throw dispatchError(
           "PROVIDER_DISPATCH_KEY_INVALID",
-          "Idempotency-Key must be 1-255 visible ASCII characters.",
+          "Provide exactly one valid Idempotency-Key or Provider-Dispatch-Key containing 1-255 visible ASCII characters.",
           400,
           "validation",
         );
@@ -134,7 +134,7 @@ export function createProviderDispatchGate({
         if (required) {
           throw dispatchError(
             "PROVIDER_DISPATCH_KEY_REQUIRED",
-            "Real-provider execution requires an Idempotency-Key header.",
+            "Real-provider execution requires an Idempotency-Key or Provider-Dispatch-Key header.",
             400,
             "validation",
           );

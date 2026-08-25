@@ -262,6 +262,9 @@ async function runEnhance(options, output, stdin) {
   const client = createGatewayClient({
     baseUrl: options.url,
     timeoutMs: options.timeoutMs,
+    headers: process.env.PME_AUTH_TOKEN
+      ? { authorization: `Bearer ${process.env.PME_AUTH_TOKEN}` }
+      : {},
   });
   const response = await client.enhancePrompt({
     input: prompt,
@@ -417,7 +420,11 @@ async function runForge(options, output) {
   const request = async (path, body) => {
     const response = await fetch(`${trimUrl(options.url)}${path}`, {
       method: "POST",
-      headers: { "content-type": "application/json", ...(process.env.PME_AUTH_TOKEN ? { authorization: `Bearer ${process.env.PME_AUTH_TOKEN}` } : {}) },
+      headers: {
+        "content-type": "application/json",
+        "provider-dispatch-key": `uai-cli-${randomUUID()}`,
+        ...(process.env.PME_AUTH_TOKEN ? { authorization: `Bearer ${process.env.PME_AUTH_TOKEN}` } : {}),
+      },
       body: JSON.stringify(body ?? {}),
     });
     const payload = await response.json().catch(() => ({}));
@@ -572,6 +579,9 @@ async function runChat(options, output, stdin) {
   const client = createGatewayClient({
     baseUrl: options.url,
     timeoutMs: options.timeoutMs,
+    headers: process.env.PME_AUTH_TOKEN
+      ? { authorization: `Bearer ${process.env.PME_AUTH_TOKEN}` }
+      : {},
   });
   const health = unwrapEnvelope(await client.health());
   const safeFakeRuntime =

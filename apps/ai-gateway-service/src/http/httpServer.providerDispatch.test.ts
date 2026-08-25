@@ -181,6 +181,19 @@ describe("real-provider HTTP dispatch idempotency", () => {
       expect((await readJson(malformed)).error.code).toBe("PROVIDER_DISPATCH_KEY_INVALID");
       expect(generate).toHaveBeenCalledTimes(1);
 
+      const ambiguous = await fetch(`${baseUrl}/v1/chat/completions`, {
+        method: "POST",
+        headers: {
+          ...commonHeaders,
+          "idempotency-key": "response-replay-operation",
+          "provider-dispatch-key": "provider-only-operation",
+        },
+        body: JSON.stringify(body),
+      });
+      expect(ambiguous.status).toBe(400);
+      expect((await readJson(ambiguous)).error.code).toBe("PROVIDER_DISPATCH_KEY_INVALID");
+      expect(generate).toHaveBeenCalledTimes(1);
+
       const multiple = await fetch(`${baseUrl}/v1/chat/completions`, {
         method: "POST",
         headers: { ...commonHeaders, "idempotency-key": "operation-multiple" },
@@ -274,7 +287,7 @@ describe("real-provider HTTP dispatch idempotency", () => {
 
       const firstImage = await fetch(`${baseUrl}/v1/images/generations`, {
         method: "POST",
-        headers: { ...commonHeaders, "idempotency-key": "operation-image" },
+        headers: { ...commonHeaders, "provider-dispatch-key": "operation-image" },
         body: JSON.stringify({
           provider: "dispatch-provider",
           model: "dispatch-image-model",
@@ -290,7 +303,7 @@ describe("real-provider HTTP dispatch idempotency", () => {
 
       const imageReplay = await fetch(`${baseUrl}/v1/images/generations`, {
         method: "POST",
-        headers: { ...commonHeaders, "idempotency-key": "operation-image" },
+        headers: { ...commonHeaders, "provider-dispatch-key": "operation-image" },
         body: JSON.stringify({
           provider: "dispatch-provider",
           model: "dispatch-image-model",
@@ -333,12 +346,14 @@ describe("real-provider HTTP dispatch idempotency", () => {
         headers: {
           origin: "http://127.0.0.1:3100",
           "access-control-request-method": "POST",
-          "access-control-request-headers": "content-type,idempotency-key",
+          "access-control-request-headers": "content-type,idempotency-key,provider-dispatch-key",
         },
       });
       expect(preflight.status).toBe(204);
       expect(preflight.headers.get("access-control-allow-headers")?.toLowerCase())
         .toContain("idempotency-key");
+      expect(preflight.headers.get("access-control-allow-headers")?.toLowerCase())
+        .toContain("provider-dispatch-key");
     } finally {
       await closeServer(server);
       await originalRequestLogger?.close?.();

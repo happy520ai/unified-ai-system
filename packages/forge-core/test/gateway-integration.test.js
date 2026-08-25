@@ -71,6 +71,40 @@ describe('GatewayLifecycle', () => {
     globalThis.fetch = originalFetch;
   });
 
+  it('propagates enterprise authentication across lifecycle operations', async () => {
+    const mockFetch = createMockFetch({
+      '/health/check': { json: { status: 'ok' } },
+      '/setup/readiness': { json: { ready: true } },
+      '/providers/runtime-credential': { json: { success: true } },
+      '/models/import/preview': { json: { data: { models: [], status: 'ready' } } },
+      '/models/import/confirm': { json: { success: true } },
+      '/config/runtime': { json: { providerMode: 'fake' } },
+      '/providers': { json: { data: { providers: [] } } },
+    });
+    globalThis.fetch = mockFetch;
+    const gw = new GatewayLifecycle({
+      gatewayUrl: 'http://test-gateway:3100',
+      gatewayAuthToken: 'forge-lifecycle-token',
+    });
+
+    await gw.checkHealth();
+    await gw.checkReadiness();
+    await gw.getProviders();
+    await gw.getRuntimeConfig();
+    await gw.setApiKey('openai', 'test-provider-key');
+    await gw.discoverModels('test-provider-key', 'openai');
+    await gw.selectModel({
+      providerId: 'openai',
+      modelId: 'gpt-test',
+      apiKey: 'test-provider-key',
+    });
+
+    assert.equal(mockFetch.calls.length, 7);
+    for (const { opts } of mockFetch.calls) {
+      assert.equal(opts.headers.authorization, 'Bearer forge-lifecycle-token');
+    }
+  });
+
   describe('health check', () => {
     it('should report healthy when gateway responds 200', async () => {
       globalThis.fetch = createMockFetch({
@@ -352,24 +386,97 @@ describe('Forge governed LLM route security', () => {
 
   it('fails closed on fake output unless direct fallback is explicit', async () => {
     const requestedUrls = [];
+    const requestedHeaders = [];
     delete process.env.FORGE_DIRECT_PROVIDER_FALLBACK_ENABLED;
-    globalThis.fetch = async (url) => {
+    globalThis.fetch = async (url, options = {}) => {
       requestedUrls.push(String(url));
+      requestedHeaders.push(options.headers);
       return {
         ok: true,
         async json() {
-          return { success: true, data: { outputText: '[fake:test]' } };
+          return {
+            success: true,
+            data: {
+              outputText: '[fake:test]',
+              executionMode: 'fake',
+              selectedProvider: 'local-fake-provider',
+            },
+          };
         },
       };
     };
     const { callLLMWithUsage } = await import('../src/llm-client.js');
 
     await assert.rejects(
-      () => callLLMWithUsage('security-system', 'no-direct-fallback', { responseFormat: 'json' }),
+      () => callLLMWithUsage('security-system', 'no-direct-fallback', {
+        responseFormat: 'json',
+        idempotencyKey: 'forge-llm-operation-1',
+        gatewayAuthToken: 'forge-gateway-token',
+      }),
       (error) => error?.code === 'FORGE_DIRECT_PROVIDER_FALLBACK_DISABLED',
     );
     assert.equal(requestedUrls.length, 1);
     assert.match(requestedUrls[0], /\/chat$/);
+    assert.equal(requestedHeaders[0]['idempotency-key'], 'forge-llm-operation-1');
+    assert.equal(requestedHeaders[0].authorization, 'Bearer forge-gateway-token');
+
+    await assert.rejects(
+      () => callLLMWithUsage('security-system', 'provider-only-default', {
+        responseFormat: 'json',
+      }),
+      (error) => error?.code === 'FORGE_DIRECT_PROVIDER_FALLBACK_DISABLED',
+    );
+    assert.equal(requestedUrls.length, 2);
+    assert.match(requestedHeaders[1]['provider-dispatch-key'], /^forge-llm-[A-Za-z0-9-]+$/);
+    assert.equal(requestedHeaders[1]['idempotency-key'], undefined);
+  });
+
+  it('suppresses llm-client direct fallback after an uncertain gateway POST', async () => {
+    const requestedUrls = [];
+    process.env.FORGE_DIRECT_PROVIDER_FALLBACK_ENABLED = 'true';
+    globalThis.fetch = async (url) => {
+      requestedUrls.push(String(url));
+      if (String(url).endsWith('/health/check')) {
+        return { ok: false, status: 401 };
+      }
+      if (String(url).endsWith('/chat')) {
+        throw new Error('connection reset after gateway accepted the POST');
+      }
+      throw new Error('direct provider fallback must not be attempted');
+    };
+    const { callLLMWithUsage } = await import('../src/llm-client.js');
+
+    try {
+      await assert.rejects(
+        () => callLLMWithUsage('security-system', 'uncertain-post', {
+          responseFormat: 'json',
+          gatewayAuthToken: 'forge-gateway-token',
+        }),
+        (error) => error?.code === 'FORGE_GATEWAY_OUTCOME_UNCERTAIN',
+      );
+      assert.deepEqual(requestedUrls.map((url) => new URL(url).pathname), [
+        '/health/check',
+        '/chat',
+      ]);
+    } finally {
+      delete process.env.FORGE_DIRECT_PROVIDER_FALLBACK_ENABLED;
+    }
+  });
+
+  it('does not issue a non-stream retry after a stream outcome becomes uncertain', async () => {
+    const requestedUrls = [];
+    delete process.env.FORGE_DIRECT_PROVIDER_FALLBACK_ENABLED;
+    globalThis.fetch = async (url) => {
+      requestedUrls.push(String(url));
+      throw new Error('stream connection reset after POST');
+    };
+    const { callLLMStream } = await import('../src/llm-client.js');
+
+    await assert.rejects(
+      () => callLLMStream('security-system', 'uncertain-stream', { responseFormat: 'json' }),
+      (error) => error?.code === 'FORGE_GATEWAY_OUTCOME_UNCERTAIN',
+    );
+    assert.deepEqual(requestedUrls.map((url) => new URL(url).pathname), ['/chat/stream']);
   });
 
   it('keeps GatewayBridge direct fallback disabled by default', async () => {
@@ -383,6 +490,74 @@ describe('Forge governed LLM route security', () => {
       () => bridge.chat([{ role: 'user', content: 'test' }]),
       /direct fallback disabled/,
     );
+  });
+
+  it('separates caller-stable response replay from default provider-only dispatch in GatewayBridge', async () => {
+    const chatHeaders = [];
+    globalThis.fetch = async (url, options = {}) => {
+      if (String(url).endsWith('/providers')) {
+        return { ok: true, async json() { return { providers: [] }; } };
+      }
+      chatHeaders.push(options.headers);
+      return {
+        ok: true,
+        async json() {
+          return { success: true, data: { outputText: 'governed', selectedModel: 'model-a' } };
+        },
+      };
+    };
+    const { GatewayBridge } = await import('../src/gateway-bridge/index.js');
+    const bridge = new GatewayBridge({
+      gatewayUrl: 'http://gateway.test',
+      gatewayAuthToken: 'bridge-gateway-token',
+    });
+
+    await bridge.chat([{ role: 'user', content: 'test' }], { idempotencyKey: 'forge-operation-1' });
+    await bridge.chat([{ role: 'user', content: 'ordinary-call' }]);
+    assert.equal(chatHeaders[0]['Idempotency-Key'], 'forge-operation-1');
+    assert.equal(chatHeaders[0]['Provider-Dispatch-Key'], undefined);
+    assert.equal(chatHeaders[0].Authorization, 'Bearer bridge-gateway-token');
+    assert.match(chatHeaders[1]['Provider-Dispatch-Key'], /^forge-bridge-[A-Za-z0-9-]+$/);
+    assert.equal(chatHeaders[1]['Idempotency-Key'], undefined);
+  });
+
+  it('does not treat a gateway authorization response as transport unavailability', async () => {
+    const requestedUrls = [];
+    globalThis.fetch = async (url) => {
+      requestedUrls.push(String(url));
+      return { ok: false, status: 401 };
+    };
+    const { GatewayBridge } = await import('../src/gateway-bridge/index.js');
+    const bridge = new GatewayBridge({
+      gatewayUrl: 'http://gateway.test',
+      gatewayAuthToken: 'invalid-token',
+      fallbackDirect: true,
+    });
+
+    await assert.rejects(
+      () => bridge.chat([{ role: 'user', content: 'test' }]),
+      (error) => error?.code === 'FORGE_GATEWAY_OUTCOME_UNCERTAIN',
+    );
+    assert.deepEqual(requestedUrls.map((url) => new URL(url).pathname), ['/providers', '/chat']);
+  });
+
+  it('suppresses direct fallback after an uncertain gateway POST', async () => {
+    let requests = 0;
+    globalThis.fetch = async (url) => {
+      requests += 1;
+      if (String(url).endsWith('/providers')) {
+        return { ok: true, async json() { return { providers: [] }; } };
+      }
+      throw new Error('connection reset after request write');
+    };
+    const { GatewayBridge } = await import('../src/gateway-bridge/index.js');
+    const bridge = new GatewayBridge({ gatewayUrl: 'http://gateway.test', fallbackDirect: true });
+
+    await assert.rejects(
+      () => bridge.chat([{ role: 'user', content: 'test' }]),
+      (error) => error?.code === 'FORGE_GATEWAY_OUTCOME_UNCERTAIN',
+    );
+    assert.equal(requests, 2);
   });
 });
 
