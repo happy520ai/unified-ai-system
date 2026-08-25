@@ -54,9 +54,13 @@ and the project uses [Semantic Versioning](https://semver.org/).
   a post-basebackup WAL marker. It interrupts an in-flight query by destroying
   primary, then a healthy-armed controller requires three consecutive failures
   plus confirmation before automatically promoting the one known standby and
-  switching a stable endpoint. The same sentinel Pool plus eight clients must
-  recover after switch/restart. This is not multi-candidate election/quorum,
-  external HA control, PITR, split-brain, or production RTO/RPO proof.
+  switching a stable endpoint. Before destruction, the same full synthetic
+  failure sequence must be rejected because an independent Docker-state fence
+  still reports the primary running; the controller must then recover on a
+  healthy probe. The same sentinel Pool plus eight clients must recover after
+  switch/restart. This fixture-level fail-closed fence is not multi-candidate
+  election/quorum, external HA control, PITR, a real partition/old-primary
+  rejoin test, complete split-brain safety, or production RTO/RPO proof.
 - Added central PostgreSQL Workforce execution control: raw-identifier-free
   tenant/plan/subject keys, atomic single-use approval consumption, versioned
   digest-verified lifecycle transitions, bounded retention/capacity, remote
@@ -239,6 +243,12 @@ and the project uses [Semantic Versioning](https://semver.org/).
 - Enterprise audit hash-chain writes are awaited and fail the governed
   operation when durable append fails; health degrades instead of silently
   treating an asynchronous audit failure as success.
+- Fixed local audit lock reclamation across Node worker threads. Threads share
+  a process ID but not module memory, so the former 250 ms same-process orphan
+  shortcut could delete another thread's live lock and create two entries from
+  one tail. Lock cleanup now verifies its nonce, and any lock owned by a live
+  process remains fail-closed. A deterministic two-worker regression reproduces
+  the former `chain_linkage` corruption and now requires a valid 2-entry chain.
 - Placeholder executions are now honest: `LocalRunner` marks handler-less
   tasks `skipped`, and `SubProcessRunner` fails fast with
   `SCRIPT_PATH_MISSING` instead of reporting fake completions.

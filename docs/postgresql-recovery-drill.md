@@ -46,11 +46,15 @@ returning.
    interrupt that query.
 10. Arms a bounded single-standby controller only after three healthy primary
     probes. One explicitly labelled synthetic single-probe failure must recover
-    without promotion. After real primary destruction, three consecutive
-    failures plus a confirmation probe are required before the controller
-    verifies standby recovery state, runs `pg_ctl promote`, waits for writable,
-    and switches the stable endpoint. The original sentinel Pool and all eight
-    clients must recover without reconstruction and pass 8/8 again.
+    without promotion. Four more synthetic failures then cover the three-failure
+    threshold plus confirmation while the primary is still healthy. An
+    independent Docker container-state check must reject promotion, and a later
+    healthy SQL probe must prove the controller reset. After real primary
+    destruction, three consecutive failures plus confirmation are required
+    again; the controller verifies the one standby is still in recovery and the
+    old primary container is fenced before it runs `pg_ctl promote`, waits for
+    writable, and switches the stable endpoint. The original sentinel Pool and
+    all eight clients must recover without reconstruction and pass 8/8 again.
 11. Restarts the promoted standby and requires the same sentinel Pool plus the
     same eight application clients to recover and pass a third 8/8.
 12. Removes every client, proxy, container, volume, network, credential file,
@@ -66,7 +70,10 @@ A passing result proves a bounded logical snapshot can recover the covered
 gateway schemas into a clean PostgreSQL 17 primary, establish a real asynchronous
 streaming standby, replay post-basebackup WAL, perform controlled promotion, and
 exercise bounded automatic failure detection/promotion/switching for exactly one
-standby. The same in-process application pools recover after switch and restart.
+standby. It also proves the fixture controller fails closed when its SQL health
+channel reports the complete failure threshold while Docker independently says
+the old primary is still running. The same in-process application pools recover
+after switch and restart.
 The reported `controlledRecoveryTimeMs` and `controlledFailoverTimeMs` are only
 the wall clocks of this disposable fixture; neither is a production RTO.
 
@@ -76,7 +83,9 @@ The drill does **not** prove:
 - synchronous replication, multi-candidate leader election/quorum, or a
   production external HA controller (the repository controller knows exactly
   one standby and runs only inside this disposable drill);
-- network-partition or split-brain safety;
+- network-partition or complete split-brain safety. The Docker-state fence is
+  independent of the SQL health probes, but it is not a quorum service, a real
+  network partition, or an old-primary rejoin test;
 - object-lock/WORM retention or independent backup custody;
 - production data volume, encryption-at-rest, certificate rotation, RPO, or
   RTO;

@@ -77,7 +77,7 @@ async function runRecoveryDrill({ dryRun }) {
         "restore into a clean PostgreSQL 17 container",
         "verify inventory and all eight application contracts",
         "build a real streaming standby from recovery with pg_basebackup -R and replay a post-basebackup WAL marker",
-        "arm bounded health probes, destroy primary, automatically confirm failure, promote standby, switch the stable endpoint, and verify through the same clients",
+        "arm bounded health probes, reject promotion after threshold-plus-confirmation false failures while Docker still reports primary running, then destroy primary, confirm fencing, promote standby, switch the stable endpoint, and verify through the same clients",
         "restart standby and verify again through those same clients",
         "remove containers and the temporary backup artifact",
       ],
@@ -86,6 +86,7 @@ async function runRecoveryDrill({ dryRun }) {
         credentialTransport: "private-temporary-env-file",
         realProviderCallsMade: false,
         continuousWalRecoveryProved: false,
+        singleStandbyFenceFailClosedProved: false,
         automaticFailoverProved: false,
         productionRtoRpoProved: false,
       },
@@ -379,6 +380,7 @@ async function runRecoveryDrill({ dryRun }) {
           standbyInRecoveryAfterPromotion: role.inRecovery,
         };
       },
+      verifyPrimaryFenced: () => inspectContainerFence(dockerExecutable, recoveryName),
       switchEndpoint: () => failoverProxy.switchTarget(standbyPort),
     });
     const armedEvidence = await automaticFailoverController.waitUntilArmed();
@@ -386,11 +388,19 @@ async function runRecoveryDrill({ dryRun }) {
       armedEvidence.healthyProbes >= armedEvidence.requiredHealthyProbes,
       "POSTGRES_RECOVERY_FAILOVER_CONTROLLER_NOT_ARMED",
     );
-    automaticFailoverController.injectSyntheticProbeFailure();
+    automaticFailoverController.injectSyntheticProbeFailures(1);
     const transientResetEvidence = await automaticFailoverController.waitForTransientFailureReset();
     assertCondition(
       transientResetEvidence.transientFailureResets >= 1,
       "POSTGRES_RECOVERY_FAILOVER_TRANSIENT_FAILURE_NOT_RESET",
+    );
+    automaticFailoverController.injectSyntheticProbeFailures(4);
+    const fencingRejectionEvidence = await automaticFailoverController.waitForFencingRejection();
+    assertCondition(
+      fencingRejectionEvidence.fencingRejections >= 1
+        && fencingRejectionEvidence.primaryStillRunning === true
+        && fencingRejectionEvidence.healthyAfterRejection === true,
+      "POSTGRES_RECOVERY_FAILOVER_FENCING_NOT_ENFORCED",
     );
     failoverSentinelPool = new Pool({
       connectionString: proxyUrl,
@@ -521,6 +531,9 @@ async function runRecoveryDrill({ dryRun }) {
         automaticDetectionProved: true,
         automaticPromotionProved: true,
         automaticEndpointSwitchProved: true,
+        independentPrimaryFenceChecked: automaticFailoverEvidence.primaryFenceConfirmed,
+        promotionBlockedWhilePrimaryRunning:
+          automaticFailoverEvidence.promotionBlockedWhilePrimaryRunning,
         automaticElectionProved: false,
         streamingReplicationProved: true,
       },
@@ -539,6 +552,9 @@ async function runRecoveryDrill({ dryRun }) {
         streamingReplicationProved: true,
         controlledStandbyPromotionProved: true,
         automaticSingleStandbyFailoverProved: true,
+        singleStandbyFenceFailClosedProved:
+          automaticFailoverEvidence.promotionBlockedWhilePrimaryRunning
+          && automaticFailoverEvidence.primaryFenceConfirmed,
         operatorControlledEndpointSwitchProved: false,
         automaticFailoverProved: false,
         networkPartitionProved: false,
@@ -1202,6 +1218,7 @@ function startAutomaticSingleStandbyFailover({
   probePrimary,
   inspectStandby,
   promoteStandby,
+  verifyPrimaryFenced,
   switchEndpoint,
   requiredHealthyProbes = 3,
   failureThreshold = 3,
@@ -1213,10 +1230,14 @@ function startAutomaticSingleStandbyFailover({
   let rejectArmed;
   let resolveTransientReset;
   let rejectTransientReset;
+  let resolveFencingRejection;
+  let rejectFencingRejection;
   let armed = false;
   let transientResetObserved = false;
+  let fencingRejectionObserved = false;
   let forcedProbeFailures = 0;
   let syntheticProbeFailuresObserved = 0;
+  let rejectedFenceEvidence = null;
   const armedPromise = new Promise((resolvePromise, rejectPromise) => {
     resolveArmed = resolvePromise;
     rejectArmed = rejectPromise;
@@ -1225,6 +1246,18 @@ function startAutomaticSingleStandbyFailover({
     resolveTransientReset = resolvePromise;
     rejectTransientReset = rejectPromise;
   });
+  const fencingRejectionPromise = new Promise((resolvePromise, rejectPromise) => {
+    resolveFencingRejection = resolvePromise;
+    rejectFencingRejection = rejectPromise;
+  });
+  const samplePrimary = async () => {
+    if (forcedProbeFailures > 0) {
+      forcedProbeFailures -= 1;
+      syntheticProbeFailuresObserved += 1;
+      return false;
+    }
+    return Promise.resolve().then(probePrimary).catch(() => false);
+  };
   const completion = (async () => {
     const startedAt = Date.now();
     let totalProbes = 0;
@@ -1234,19 +1267,14 @@ function startAutomaticSingleStandbyFailover({
     let maximumConsecutiveFailures = 0;
     let transientFailureResets = 0;
     let confirmationProbes = 0;
+    let fencingRejections = 0;
+    let awaitingPostFenceHealthy = false;
     let firstFailureAt = null;
     while (Date.now() - startedAt <= maxDurationMs) {
       if (signal?.aborted) {
         throw drillError("POSTGRES_RECOVERY_FAILOVER_CONTROLLER_ABORTED", "The automatic failover controller was aborted.");
       }
-      let healthy;
-      if (forcedProbeFailures > 0) {
-        forcedProbeFailures -= 1;
-        syntheticProbeFailuresObserved += 1;
-        healthy = false;
-      } else {
-        healthy = await Promise.resolve().then(probePrimary).catch(() => false);
-      }
+      const healthy = await samplePrimary();
       totalProbes += 1;
       if (!armed) {
         if (healthy) {
@@ -1266,6 +1294,18 @@ function startAutomaticSingleStandbyFailover({
         }
       } else if (healthy) {
         healthyProbes += 1;
+        if (awaitingPostFenceHealthy) {
+          awaitingPostFenceHealthy = false;
+          if (!fencingRejectionObserved) {
+            fencingRejectionObserved = true;
+            resolveFencingRejection({
+              fencingRejections,
+              primaryStillRunning: rejectedFenceEvidence?.primaryStillRunning === true,
+              healthyAfterRejection: true,
+              syntheticProbeFailuresObserved,
+            });
+          }
+        }
         if (consecutiveFailures > 0) {
           transientFailureResets += 1;
           if (!transientResetObserved) {
@@ -1288,7 +1328,7 @@ function startAutomaticSingleStandbyFailover({
             throw drillError("POSTGRES_RECOVERY_FAILOVER_CONTROLLER_ABORTED", "The automatic failover controller was aborted.");
           }
           confirmationProbes += 1;
-          const recovered = await Promise.resolve().then(probePrimary).catch(() => false);
+          const recovered = await samplePrimary();
           if (recovered) {
             healthyProbes += 1;
             transientFailureResets += 1;
@@ -1301,6 +1341,19 @@ function startAutomaticSingleStandbyFailover({
                 "POSTGRES_RECOVERY_FAILOVER_STANDBY_NOT_READY",
                 "Automatic failover requires exactly one healthy standby still in recovery.",
               );
+            }
+            const fence = await verifyPrimaryFenced();
+            if (fence?.fenced !== true) {
+              fencingRejections += 1;
+              rejectedFenceEvidence = {
+                primaryStillRunning: fence?.primaryStillRunning === true,
+              };
+              transientFailureResets += 1;
+              awaitingPostFenceHealthy = true;
+              consecutiveFailures = 0;
+              firstFailureAt = null;
+              await delay(pollIntervalMs);
+              continue;
             }
             const detectedAt = Date.now();
             const promotion = await promoteStandby();
@@ -1316,9 +1369,13 @@ function startAutomaticSingleStandbyFailover({
               maximumConsecutiveFailures,
               confirmationProbes,
               primaryFailureConfirmed: true,
+              primaryFenceConfirmed: true,
+              promotionBlockedWhilePrimaryRunning:
+                fencingRejectionObserved && rejectedFenceEvidence?.primaryStillRunning === true,
               standbyWasInRecoveryBeforePromotion: true,
               transientFailureResets,
               syntheticProbeFailuresObserved,
+              fencingRejections,
               detectionTimeMs: detectedAt - firstFailureAt,
               endpointSwitchTimeMs: Date.now() - switchStartedAt,
               controllerDurationMs: Date.now() - startedAt,
@@ -1338,20 +1395,28 @@ function startAutomaticSingleStandbyFailover({
   completion.catch((error) => {
     if (!armed) rejectArmed(error);
     if (!transientResetObserved) rejectTransientReset(error);
+    if (!fencingRejectionObserved) rejectFencingRejection(error);
   });
   void completion.catch(() => undefined);
   return {
     waitUntilArmed: () => armedPromise,
-    injectSyntheticProbeFailure() {
+    injectSyntheticProbeFailures(count = 1) {
       if (!armed) {
         throw drillError(
           "POSTGRES_RECOVERY_FAILOVER_CONTROLLER_NOT_ARMED",
           "Synthetic probe failure injection requires an armed failover controller.",
         );
       }
-      forcedProbeFailures += 1;
+      if (!Number.isSafeInteger(count) || count < 1 || count > 10) {
+        throw drillError(
+          "POSTGRES_RECOVERY_FAILOVER_SYNTHETIC_COUNT_INVALID",
+          "Synthetic probe failure count must be an integer between 1 and 10.",
+        );
+      }
+      forcedProbeFailures += count;
     },
     waitForTransientFailureReset: () => transientResetPromise,
+    waitForFencingRejection: () => fencingRejectionPromise,
     completion,
   };
 }
@@ -1654,6 +1719,37 @@ async function removeContainer(dockerExecutable, containerName) {
   }
 }
 
+async function inspectContainerFence(dockerExecutable, containerName) {
+  const result = await runProcess(
+    dockerExecutable,
+    ["inspect", "--format", "{{.State.Running}}", containerName],
+    { timeoutMs: 5_000 },
+  );
+  if (result.exitCode === 0) {
+    const runningState = result.stdout.trim().toLowerCase();
+    if (runningState !== "true" && runningState !== "false") {
+      throw drillError(
+        "POSTGRES_RECOVERY_PRIMARY_FENCE_STATE_INVALID",
+        "Docker returned an invalid primary fencing state.",
+      );
+    }
+    return {
+      fenced: runningState === "false",
+      primaryStillRunning: runningState === "true",
+    };
+  }
+  if (/No such (?:object|container)/i.test(`${result.stdout} ${result.stderr}`)) {
+    return {
+      fenced: true,
+      primaryStillRunning: false,
+    };
+  }
+  throw drillError(
+    "POSTGRES_RECOVERY_PRIMARY_FENCE_INSPECT_FAILED",
+    "Docker could not determine whether the old primary was fenced.",
+  );
+}
+
 async function removeVolume(dockerExecutable, volumeName) {
   const result = await runProcess(dockerExecutable, ["volume", "rm", "--force", volumeName], { timeoutMs: 30_000 });
   if (result.exitCode !== 0 && !/No such volume/i.test(result.stderr)) {
@@ -1804,9 +1900,10 @@ function printHumanSummary(value) {
       `Same application clients survived endpoint failover: ${String(value.clientContinuity.sameApplicationClientsAcrossEndpointSwitch)}`,
       `Streaming WAL marker replayed before promotion: ${String(value.streamingReplication.markerReplayed)}`,
       `Automatic single-standby failover proved: ${String(value.boundaries.automaticSingleStandbyFailoverProved)}`,
+      `Promotion blocked while old primary remained running: ${String(value.automaticFailover.promotionBlockedWhilePrimaryRunning)}`,
       `Database inventory: ${value.databaseInventory.tableCount} tables, ${value.databaseInventory.totalRows} rows`,
       `Cleanup complete: ${String(value.cleanup.complete)}`,
-      "Boundary: controlled logical recovery only; no automatic failover, continuous WAL RPO, or production RTO claim.",
+      "Boundary: bounded single-standby failover with fixture-level fencing only; no quorum election, real partition/split-brain, continuous WAL RPO, or production RTO claim.",
     ].join("\n") + "\n");
     return;
   }

@@ -256,11 +256,15 @@ by destroying primary, promotes standby, switches a stable local TCP endpoint,
 and re-verifies the same eight application clients before/after the switch and
 restart. The drill controller requires healthy arming, consecutive failures,
 confirmation, recovery-state validation, and one-standby automatic promotion
-and endpoint switching. Complete deployment HA still needs independently
-verified multi-candidate election/quorum, external HA control, synchronous policy, TLS
-identity, retention/PITR, production-scale restore, network partition and
-split-brain behavior, replica convergence, provider reconciliation, measured
-RTO/RPO, and load-balancer behavior.
+and endpoint switching. Before primary destruction, a complete synthetic
+failure sequence must also be rejected by an independent Docker container-state
+fence while the primary remains running, followed by a healthy-probe reset.
+This closes one fixture-level unsafe-promotion precursor; it is not a real
+partition, quorum, or old-primary rejoin test. Complete deployment HA still
+needs independently verified multi-candidate election/quorum, external HA
+control, synchronous policy, TLS identity, retention/PITR, production-scale
+restore, network partition and split-brain behavior, replica convergence,
+provider reconciliation, measured RTO/RPO, and load-balancer behavior.
 
 ### Workforce task ownership
 
@@ -414,8 +418,10 @@ an adjacent exclusive lock, revalidates the complete chain tail inside that
 lock, and fsyncs each chained entry before a protected operation can return.
 Lock acquisition is bounded and fails closed. A lock heartbeat plus same-host
 process liveness check prevents an active writer from being reclaimed merely
-because its original lock timestamp aged; an abandoned lock is recoverable only
-after the stale interval.
+because its original lock timestamp aged. Node worker threads share a PID but
+not module memory, so lock reclamation never relies on a per-thread nonce set;
+a lock attributed to any live process remains fail-closed. Only an ownerless,
+malformed, or dead-process lock is recoverable after the stale interval.
 
 All same-host processes must share both `PME_AUDIT_LOG_PATH` and
 `PME_AUDIT_CHAIN_PATH` on the same restricted local filesystem. Optional bounds
