@@ -125,6 +125,11 @@ for (const [relative, marker] of requiredExternalEffectMarkers) {
   }
 }
 
+const ciWorkflow = fs.readFileSync(path.join(rootDir, ".github", "workflows", "ci.yml"), "utf8");
+if (!ciWorkflow.includes("externalEffectGate.postgres.integration.test.ts")) {
+  failures.push("ci.yml: real PostgreSQL external-effect integration coverage is missing");
+}
+
 if (failures.length > 0) {
   console.error("Outbound request policy check failed:");
   for (const failure of failures) console.error(`- ${failure}`);
