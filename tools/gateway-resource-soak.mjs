@@ -13,9 +13,18 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const serviceRoot = resolve(repoRoot, "apps/ai-gateway-service");
 const serviceEntrypoint = resolve(serviceRoot, "src/index.js");
 const DEFAULT_OUTPUT = resolve(repoRoot, ".tmp/gateway-resource-soak.json");
-const METHOD_VERSION = "gateway-resource-soak-v2";
+const METHOD_VERSION = "gateway-resource-soak-v3";
+const CHECKPOINT_METHOD_VERSION = "gateway-resource-soak-checkpoint-v1";
 const OUTPUT_TAIL_LIMIT = 16_384;
 const MEBIBYTE = 1024 * 1024;
+const DEFAULT_CHECKPOINT_INTERVAL_MS = 5 * 60_000;
+const LONG_RUN_THRESHOLD_MS = 60 * 60_000;
+const AUTH_TTL_BUFFER_MS = 15 * 60_000;
+const AUTH_POST_SOAK_ALLOWANCE_MS = 60_000;
+const MAX_DURATION_MS = 7 * 24 * 60 * 60_000;
+const METRIC_RESERVOIR_LIMIT = 100_000;
+const MAX_RESOURCE_SAMPLES = 100_000;
+const MAX_WARMUP_REQUESTS = 10_000;
 
 const PROFILES = Object.freeze({
   ci: Object.freeze({
@@ -57,7 +66,19 @@ if (parsedArgs.help) {
 }
 
 const config = createConfig(parsedArgs, process.env);
-const report = await runResourceSoak(config);
+const runController = new AbortController();
+let receivedSignal = null;
+for (const signalName of ["SIGINT", "SIGTERM"]) {
+  process.once(signalName, () => {
+    if (receivedSignal) return;
+    receivedSignal = signalName;
+    const error = new Error(`Gateway resource soak interrupted by ${signalName}.`);
+    error.code = "RUN_ABORTED";
+    runController.abort(error);
+  });
+}
+
+const report = await runResourceSoak(config, { signal: runController.signal });
 await writeReport(config.output, report);
 
 if (config.json) {
@@ -65,9 +86,11 @@ if (config.json) {
 } else {
   printSummary(report, config.output);
 }
-if (report.status !== "passed") process.exitCode = 1;
+if (receivedSignal === "SIGINT") process.exitCode = 130;
+else if (receivedSignal === "SIGTERM") process.exitCode = 143;
+else if (report.status !== "passed") process.exitCode = 1;
 
-async function runResourceSoak(options) {
+async function runResourceSoak(options, { signal } = {}) {
   const startedAt = new Date().toISOString();
   const overallStarted = performance.now();
   let gateway = null;
@@ -79,15 +102,43 @@ async function runResourceSoak(options) {
   let resources = null;
   let fatalError = null;
   let managedGatewayCleanedUp = null;
+  let managedAuthValidityMs = null;
+  let managedAuthRemainingAtMeasurementStartMs = null;
+  let managedAuthRequiredAtMeasurementStartMs = null;
+  let postSoak = null;
+  let checkpointError = null;
   let requestHeaders = options.privateRequestHeaders ?? Object.freeze({});
   let gatewayAuthSource = options.gatewayAuthSource ?? "none";
+  const samples = [];
+  const sampleFailures = [];
+  const progress = { phase: "starting", workloadSnapshot: null };
+  const checkpointWriter = startCheckpointWriter({
+    intervalMs: options.checkpointIntervalMs,
+    output: options.checkpointOutput,
+    snapshot: () => createCheckpoint({
+      options,
+      startedAt,
+      overallStarted,
+      progress,
+      samples,
+      sampleFailures,
+      fatalError,
+      managedGatewayCleanedUp,
+      signal,
+    }),
+    onError: (error) => { checkpointError ??= normalizeError(error); },
+  });
+  await checkpointWriter.writeNow();
 
   try {
+    throwIfAborted(signal);
     if (options.managed) {
+      progress.phase = "starting-managed-gateway";
       gateway = await startManagedGateway(options);
       endpointUrl = `${gateway.baseUrl}/v1/chat/completions`;
       metricsUrl = `${gateway.baseUrl}/metrics`;
       health = gateway.health;
+      managedAuthValidityMs = gateway.authValidityMs;
       requestHeaders = gateway.privateRequestHeaders;
       gatewayAuthSource = "ephemeral-managed";
     }
@@ -95,9 +146,12 @@ async function runResourceSoak(options) {
     if (Object.keys(requestHeaders).length > 0) {
       await verifyAuthenticatedSession(new URL(endpointUrl).origin, requestHeaders);
     }
+    throwIfAborted(signal);
+    progress.phase = "priming-resource-monitor";
     await primeResourceMonitor(metricsUrl, requestHeaders);
-    await delay(Math.min(250, options.sampleIntervalMs));
+    await delay(Math.min(250, options.sampleIntervalMs), signal);
 
+    progress.phase = "warmup";
     warmup = await executeWarmup({
       endpointUrl,
       requests: options.warmupRequests,
@@ -106,11 +160,24 @@ async function runResourceSoak(options) {
       model: options.model,
       requireFakeExecution: options.managed,
       requestHeaders,
+      signal,
     });
+    throwIfAborted(signal);
 
-    const samples = [];
-    const sampleFailures = [];
-    await captureResourceSample({ metricsUrl, requestHeaders, samples, sampleFailures, started: overallStarted });
+    if (options.managed) {
+      managedAuthRemainingAtMeasurementStartMs = Math.max(0, gateway.authExpiresAtMs - Date.now());
+      managedAuthRequiredAtMeasurementStartMs = options.durationMs
+        + options.requestTimeoutMs
+        + AUTH_POST_SOAK_ALLOWANCE_MS;
+      if (managedAuthRemainingAtMeasurementStartMs < managedAuthRequiredAtMeasurementStartMs) {
+        const error = new Error("Managed authentication does not cover measurement, request drain, and post-soak verification.");
+        error.code = "MANAGED_AUTH_WINDOW_INSUFFICIENT";
+        throw error;
+      }
+    }
+
+    progress.phase = "measurement";
+    await captureResourceSample({ metricsUrl, requestHeaders, samples, sampleFailures, started: overallStarted, signal });
     const sampler = sampleResourcesForDuration({
       metricsUrl,
       requestHeaders,
@@ -119,6 +186,7 @@ async function runResourceSoak(options) {
       started: overallStarted,
       durationMs: options.durationMs,
       sampleIntervalMs: options.sampleIntervalMs,
+      signal,
     });
     const workloadPromise = executeOpenLoop({
       endpointUrl,
@@ -129,16 +197,35 @@ async function runResourceSoak(options) {
       model: options.model,
       requireFakeExecution: options.managed,
       requestHeaders,
+      signal,
+      progress,
     });
     const [workloadResult] = await Promise.all([workloadPromise, sampler]);
     workload = workloadResult;
-    await captureResourceSample({ metricsUrl, requestHeaders, samples, sampleFailures, started: overallStarted });
+    throwIfAborted(signal);
+    await captureResourceSample({ metricsUrl, requestHeaders, samples, sampleFailures, started: overallStarted, signal });
     resources = summarizeResources(samples, sampleFailures);
+    progress.phase = "post-soak-verification";
+    postSoak = await verifyPostSoak({
+      baseUrl: gateway?.baseUrl ?? null,
+      endpointUrl,
+      timeoutMs: options.requestTimeoutMs,
+      model: options.model,
+      requireFakeExecution: options.managed,
+      requestHeaders,
+      signal,
+      managed: options.managed,
+    });
   } catch (error) {
     fatalError = normalizeError(error);
   } finally {
+    progress.phase = "cleanup";
     if (gateway) managedGatewayCleanedUp = await stopManagedGateway(gateway);
   }
+  progress.phase = "finalizing";
+  progress.finalStatus = fatalError ? "failed" : "finalizing";
+  await checkpointWriter.stop();
+  const checkpointStats = checkpointWriter.stats();
 
   const checks = createChecks({
     options,
@@ -146,11 +233,16 @@ async function runResourceSoak(options) {
     warmup,
     workload,
     resources,
+    postSoak,
     fatalError,
     managedGatewayCleanedUp,
+    managedAuthValidityMs,
+    managedAuthRemainingAtMeasurementStartMs,
+    managedAuthRequiredAtMeasurementStartMs,
+    checkpointError,
   });
 
-  return {
+  const report = {
     schemaVersion: 1,
     methodologyVersion: METHOD_VERSION,
     status: checks.every((check) => check.passed) ? "passed" : "failed",
@@ -158,6 +250,11 @@ async function runResourceSoak(options) {
     startedAt,
     totalDurationMs: round(performance.now() - overallStarted),
     mode: options.managed ? "managed-local-fake" : "external-observation",
+    source: {
+      candidateSha: options.candidateSha,
+      workflowRunId: options.workflowRunId,
+      workflowRunAttempt: options.workflowRunAttempt,
+    },
     target: {
       endpoint: sanitizeTarget(endpointUrl),
       metrics: sanitizeTarget(metricsUrl),
@@ -183,6 +280,11 @@ async function runResourceSoak(options) {
       maxMemoryGrowthRatio: options.maxMemoryGrowthRatio,
       maxEventLoopP99Seconds: options.maxEventLoopP99Seconds,
       maxEventLoopUtilization: options.maxEventLoopUtilization,
+      maxHeapTrendBytesPerMinute: options.maxHeapTrendBytesPerMinute,
+      maxRssTrendBytesPerMinute: options.maxRssTrendBytesPerMinute,
+      memoryGrowthGateMode: options.durationMs >= LONG_RUN_THRESHOLD_MS
+        ? "absolute-and-relative"
+        : "absolute-or-relative",
     },
     environment: {
       nodeVersion: process.version,
@@ -202,23 +304,43 @@ async function runResourceSoak(options) {
       gatewayAuthTokenExposed: false,
       persistentCredentialStoreRead: false,
       runtimeCredentialStoreMode: options.managed ? "memory" : "unknown",
+      gatewayAuthValidityMs: managedAuthValidityMs,
+      gatewayAuthRemainingAtMeasurementStartMs: managedAuthRemainingAtMeasurementStartMs,
+      gatewayAuthRequiredAtMeasurementStartMs: managedAuthRequiredAtMeasurementStartMs,
+      gatewayAuthPostSoakAllowanceMs: AUTH_POST_SOAK_ALLOWANCE_MS,
       managedGatewayCleanedUp,
+    },
+    checkpoint: {
+      methodologyVersion: CHECKPOINT_METHOD_VERSION,
+      intervalMs: options.checkpointIntervalMs,
+      writesSucceeded: checkpointError === null,
+      requestedWrites: checkpointStats.requestedWrites,
+      completedWrites: checkpointStats.completedWrites,
+      coalescedWrites: checkpointStats.coalescedWrites,
+      maxConcurrentWrites: checkpointStats.maxConcurrentWrites,
+      error: checkpointError,
     },
     warmup,
     workload,
     resources,
+    postSoak,
     checks,
     issueCodes: checks.filter((check) => !check.passed).map((check) => check.code),
     fatalError,
-    comparisonBoundary: "The CI profile is a short resource-regression gate on one host. It does not prove leak freedom, production capacity, or superiority; use repeated long observe runs with the same host and workload for release evidence.",
+    comparisonBoundary: "The CI profile is a short resource-regression gate on one host. A long run provides bounded release evidence for this exact commit, host, and workload, but does not independently prove production capacity or superiority.",
   };
+  progress.phase = "complete";
+  progress.finalStatus = report.status;
+  return report;
 }
 
 async function startManagedGateway(options) {
   const port = await reserveFreePort();
   const baseUrl = `http://127.0.0.1:${port}`;
   const authToken = randomBytes(32).toString("base64url");
-  const authExpiresAt = new Date(Date.now() + 10 * 60_000).toISOString();
+  const authValidityMs = options.durationMs + options.requestTimeoutMs + AUTH_TTL_BUFFER_MS;
+  const authExpiresAtMs = Date.now() + authValidityMs;
+  const authExpiresAt = new Date(authExpiresAtMs).toISOString();
   const requestHeaders = Object.freeze({ Authorization: `Bearer ${authToken}` });
   const isolatedStateRoot = resolve(repoRoot, ".tmp", `gateway-resource-soak-state-${port}`);
   const child = spawn(process.execPath, [serviceEntrypoint], {
@@ -252,7 +374,7 @@ async function startManagedGateway(options) {
       PME_RUNTIME_CREDENTIAL_STORE_MODE: "memory",
     },
   });
-  const state = { child, baseUrl, stdout: "", stderr: "", exitError: null, health: null };
+  const state = { child, baseUrl, stdout: "", stderr: "", exitError: null, health: null, authValidityMs, authExpiresAtMs };
   Object.defineProperty(state, "privateRequestHeaders", {
     configurable: false,
     enumerable: false,
@@ -304,69 +426,86 @@ async function stopManagedGateway(state) {
   return hasChildExited(child);
 }
 
-async function executeWarmup({ endpointUrl, requests, concurrency, timeoutMs, model, requireFakeExecution, requestHeaders }) {
+async function executeWarmup({ endpointUrl, requests, concurrency, timeoutMs, model, requireFakeExecution, requestHeaders, signal }) {
   const results = new Array(requests);
   let cursor = 0;
   const workers = Array.from({ length: Math.min(concurrency, requests) }, async () => {
     while (true) {
+      throwIfAborted(signal);
       const sequence = cursor++;
       if (sequence >= requests) return;
-      results[sequence] = await executeChat({ endpointUrl, timeoutMs, model, requireFakeExecution, requestHeaders, sequence, phase: "warmup" });
+      results[sequence] = await executeChat({ endpointUrl, timeoutMs, model, requireFakeExecution, requestHeaders, sequence, phase: "warmup", signal });
     }
   });
   await Promise.all(workers);
   return summarizeWorkload(results, requests, requests, 0, 0);
 }
 
-async function executeOpenLoop({ endpointUrl, durationMs, targetRps, maxOutstanding, timeoutMs, model, requireFakeExecution, requestHeaders }) {
-  const results = [];
+async function executeOpenLoop({ endpointUrl, durationMs, targetRps, maxOutstanding, timeoutMs, model, requireFakeExecution, requestHeaders, signal, progress }) {
+  const accumulator = createWorkloadAccumulator();
   const pending = new Set();
-  const schedulerLag = [];
+  const schedulerLag = createMetricAccumulator();
   const startedAt = performance.now();
   const intervalMs = 1_000 / targetRps;
-  let scheduled = 0;
-  let started = 0;
-  let clientDropped = 0;
   let maxOutstandingObserved = 0;
+  progress.workloadSnapshot = () => summarizeWorkloadAccumulator({
+    accumulator,
+    scheduled: accumulator.scheduled,
+    started: accumulator.started,
+    clientDropped: accumulator.clientDropped,
+    wallDurationMs: performance.now() - startedAt,
+    targetRps,
+    maxOutstandingObserved,
+    schedulerLag,
+    aborted: signal?.aborted === true,
+  });
 
-  while (true) {
-    const targetAt = startedAt + scheduled * intervalMs;
+  while (!signal?.aborted) {
+    const targetAt = startedAt + accumulator.scheduled * intervalMs;
     if (targetAt - startedAt >= durationMs) break;
     const waitMs = targetAt - performance.now();
-    if (waitMs > 0) await delay(waitMs);
-    schedulerLag.push(Math.max(0, performance.now() - targetAt));
-    scheduled += 1;
+    if (waitMs > 0) await delay(waitMs, signal);
+    if (signal?.aborted) break;
+    recordMetric(schedulerLag, Math.max(0, performance.now() - targetAt));
+    accumulator.scheduled += 1;
     if (pending.size >= maxOutstanding) {
-      clientDropped += 1;
+      accumulator.clientDropped += 1;
       continue;
     }
-    const sequence = started++;
-    const task = executeChat({ endpointUrl, timeoutMs, model, requireFakeExecution, requestHeaders, sequence, phase: "resource-soak" })
-      .then((result) => { results.push(result); })
+    const sequence = accumulator.started++;
+    const task = executeChat({ endpointUrl, timeoutMs, model, requireFakeExecution, requestHeaders, sequence, phase: "resource-soak", signal })
+      .then((result) => { recordWorkloadResult(accumulator, result); })
       .finally(() => { pending.delete(task); });
     pending.add(task);
     maxOutstandingObserved = Math.max(maxOutstandingObserved, pending.size);
   }
+  const measurementDeadline = startedAt + durationMs;
+  while (!signal?.aborted && performance.now() < measurementDeadline) {
+    await delay(measurementDeadline - performance.now(), signal);
+  }
   await Promise.all(pending);
   const wallDurationMs = performance.now() - startedAt;
-  return {
-    ...summarizeWorkload(results, scheduled, started, clientDropped, wallDurationMs),
+  return summarizeWorkloadAccumulator({
+    accumulator,
+    scheduled: accumulator.scheduled,
+    started: accumulator.started,
+    clientDropped: accumulator.clientDropped,
+    wallDurationMs,
     targetRps,
-    startedRps: round(started / (wallDurationMs / 1_000)),
-    successfulRps: round(results.filter((result) => result.ok).length / (wallDurationMs / 1_000)),
-    arrivalRatio: ratio(started, scheduled),
     maxOutstandingObserved,
-    schedulerLagMs: summarizeMetric(schedulerLag),
-  };
+    schedulerLag,
+    aborted: signal?.aborted === true,
+  });
 }
 
-async function executeChat({ endpointUrl, timeoutMs, model, requireFakeExecution, requestHeaders, sequence, phase }) {
+async function executeChat({ endpointUrl, timeoutMs, model, requireFakeExecution, requestHeaders, sequence, phase, signal }) {
   const started = performance.now();
   try {
     const response = await fetchJson(endpointUrl, {
       method: "POST",
       timeoutMs,
       headers: { ...requestHeaders, "content-type": "application/json" },
+      signal,
       body: JSON.stringify({
         model,
         stream: false,
@@ -409,57 +548,123 @@ async function sampleResourcesForDuration({
   started,
   durationMs,
   sampleIntervalMs,
+  signal,
 }) {
   const samplingStarted = performance.now();
-  const pendingSamples = [];
-  for (let sampleIndex = 1; sampleIndex * sampleIntervalMs < durationMs; sampleIndex += 1) {
+  const pendingSamples = new Set();
+  for (let sampleIndex = 1; sampleIndex * sampleIntervalMs < durationMs && !signal?.aborted; sampleIndex += 1) {
     const targetAt = samplingStarted + sampleIndex * sampleIntervalMs;
     const waitMs = targetAt - performance.now();
-    if (waitMs > 0) await delay(waitMs);
-    pendingSamples.push(captureResourceSample({
+    if (waitMs > 0) await delay(waitMs, signal);
+    if (signal?.aborted) break;
+    const task = captureResourceSample({
       metricsUrl,
       requestHeaders,
       samples,
       sampleFailures,
       started,
-    }));
+      signal,
+    }).finally(() => { pendingSamples.delete(task); });
+    pendingSamples.add(task);
   }
-  await Promise.all(pendingSamples);
+  await Promise.all([...pendingSamples]);
   samples.sort((left, right) => left.elapsedMs - right.elapsedMs);
   sampleFailures.sort((left, right) => left.elapsedMs - right.elapsedMs);
 }
 
 function summarizeWorkload(results, scheduled, started, clientDropped, wallDurationMs) {
-  const succeeded = results.filter((result) => result.ok).length;
-  const protocolValid = results.filter((result) => result.protocolValid).length;
-  const safetyValid = results.filter((result) => result.safetyValid).length;
-  const statusCodes = {};
-  for (const result of results) {
-    const key = result.status === null ? "transport_error" : String(result.status);
-    statusCodes[key] = (statusCodes[key] ?? 0) + 1;
+  const accumulator = createWorkloadAccumulator();
+  accumulator.scheduled = scheduled;
+  accumulator.started = started;
+  accumulator.clientDropped = clientDropped;
+  for (const result of results) recordWorkloadResult(accumulator, result);
+  return summarizeWorkloadAccumulator({
+    accumulator,
+    scheduled,
+    started,
+    clientDropped,
+    wallDurationMs,
+    targetRps: null,
+    maxOutstandingObserved: null,
+    schedulerLag: null,
+    aborted: false,
+  });
+}
+
+function createWorkloadAccumulator() {
+  return {
+    scheduled: 0,
+    started: 0,
+    clientDropped: 0,
+    completed: 0,
+    succeeded: 0,
+    protocolValid: 0,
+    safetyValid: 0,
+    timeouts: 0,
+    transportErrors: 0,
+    statusCodes: {},
+    latency: createMetricAccumulator(),
+  };
+}
+
+function recordWorkloadResult(accumulator, result) {
+  accumulator.completed += 1;
+  if (result.ok) {
+    accumulator.succeeded += 1;
+    recordMetric(accumulator.latency, result.latencyMs);
   }
+  if (result.protocolValid) accumulator.protocolValid += 1;
+  if (result.safetyValid) accumulator.safetyValid += 1;
+  if (result.timedOut) accumulator.timeouts += 1;
+  if (result.transportError) accumulator.transportErrors += 1;
+  const key = result.status === null ? "transport_error" : String(result.status);
+  accumulator.statusCodes[key] = (accumulator.statusCodes[key] ?? 0) + 1;
+}
+
+function summarizeWorkloadAccumulator({
+  accumulator,
+  scheduled,
+  started,
+  clientDropped,
+  wallDurationMs,
+  targetRps,
+  maxOutstandingObserved,
+  schedulerLag,
+  aborted,
+}) {
+  const failed = accumulator.completed - accumulator.succeeded;
+  const wallSeconds = wallDurationMs / 1_000;
   return {
     scheduled,
     started,
     clientDropped,
-    completed: results.length,
-    succeeded,
-    failed: results.length - succeeded,
-    protocolValid,
-    safetyValid,
-    timeouts: results.filter((result) => result.timedOut).length,
-    transportErrors: results.filter((result) => result.transportError).length,
-    errorRate: ratio(results.length - succeeded, results.length),
-    protocolValidityRate: ratio(protocolValid, results.length),
+    completed: accumulator.completed,
+    succeeded: accumulator.succeeded,
+    failed,
+    protocolValid: accumulator.protocolValid,
+    safetyValid: accumulator.safetyValid,
+    timeouts: accumulator.timeouts,
+    transportErrors: accumulator.transportErrors,
+    errorRate: ratio(failed, accumulator.completed),
+    protocolValidityRate: ratio(accumulator.protocolValid, accumulator.completed),
     wallDurationMs: round(wallDurationMs),
-    latencyMs: summarizeMetric(results.filter((result) => result.ok).map((result) => result.latencyMs)),
-    statusCodes,
+    latencyMs: summarizeMetricAccumulator(accumulator.latency),
+    statusCodes: { ...accumulator.statusCodes },
+    ...(targetRps === null ? {} : {
+      targetRps,
+      startedRps: wallSeconds > 0 ? round(started / wallSeconds) : 0,
+      successfulRps: wallSeconds > 0 ? round(accumulator.succeeded / wallSeconds) : 0,
+      arrivalRatio: ratio(started, scheduled),
+      maxOutstandingObserved,
+      schedulerLagMs: summarizeMetricAccumulator(schedulerLag),
+      aborted,
+    }),
   };
 }
 
-async function captureResourceSample({ metricsUrl, requestHeaders, samples, sampleFailures, started }) {
+async function captureResourceSample({ metricsUrl, requestHeaders, samples, sampleFailures, started, signal }) {
   try {
-    const response = await fetchText(metricsUrl, { headers: requestHeaders, timeoutMs: 2_000 });
+    const response = await fetchText(metricsUrl, { headers: requestHeaders, timeoutMs: 2_000, signal });
     if (response.status !== 200) throw new Error(`Metrics returned HTTP ${response.status}.`);
     const metrics = parsePrometheus(response.body);
     samples.push({
@@ -488,6 +693,54 @@ async function primeResourceMonitor(metricsUrl, requestHeaders) {
   requiredMetric(metrics, "ai_gateway_event_loop_delay_seconds_count");
 }
 
+async function verifyPostSoak({
+  baseUrl,
+  endpointUrl,
+  timeoutMs,
+  model,
+  requireFakeExecution,
+  requestHeaders,
+  signal,
+  managed,
+}) {
+  if (!managed) {
+    return {
+      required: false,
+      status: "not-required-for-external-observation",
+      healthReady: null,
+      chatValid: null,
+    };
+  }
+  throwIfAborted(signal);
+  const health = await fetchJson(`${baseUrl}/health/check`, {
+    headers: requestHeaders,
+    timeoutMs: Math.min(timeoutMs, 2_000),
+    signal,
+  });
+  const chat = await executeChat({
+    endpointUrl,
+    timeoutMs,
+    model,
+    requireFakeExecution,
+    requestHeaders,
+    sequence: -1,
+    phase: "post-soak",
+    signal,
+  });
+  return {
+    required: true,
+    status: health.status === 200 && health.body?.data?.status === "ready" && chat.ok
+      ? "passed"
+      : "failed",
+    healthReady: health.status === 200 && health.body?.data?.status === "ready",
+    healthStatusCode: health.status,
+    chatValid: chat.ok,
+    chatProtocolValid: chat.protocolValid,
+    chatSafetyValid: chat.safetyValid,
+    chatLatencyMs: round(chat.latencyMs),
+  };
+}
+
 function summarizeResources(samples, failures) {
   if (samples.length === 0) return { samples: [], sampleCount: 0, sampleFailures: failures, sampleFailureCount: failures.length };
   const edgeCount = Math.min(3, samples.length);
@@ -506,17 +759,17 @@ function summarizeResources(samples, failures) {
     memory: {
       heapUsed: summarizeGrowth(samples, "heapUsedBytes", heapInitial, heapFinal),
       rss: summarizeGrowth(samples, "rssBytes", rssInitial, rssFinal),
-      externalMaxBytes: Math.max(...samples.map((sample) => sample.externalBytes)),
-      arrayBuffersMaxBytes: Math.max(...samples.map((sample) => sample.arrayBuffersBytes)),
+      externalMaxBytes: extremeSampleValue(samples, "externalBytes", Math.max),
+      arrayBuffersMaxBytes: extremeSampleValue(samples, "arrayBuffersBytes", Math.max),
     },
     cpuSecondsDelta: round(Math.max(0,
       lastSample.cpuUserSeconds + lastSample.cpuSystemSeconds
       - firstSample.cpuUserSeconds - firstSample.cpuSystemSeconds,
     )),
     eventLoop: {
-      utilizationMaxRatio: Math.max(...samples.map((sample) => sample.eventLoopUtilizationRatio)),
-      delayP99MaxSeconds: Math.max(...samples.map((sample) => sample.eventLoopDelayP99Seconds)),
-      delayMaxSeconds: Math.max(...samples.map((sample) => sample.eventLoopDelayMaxSeconds)),
+      utilizationMaxRatio: extremeSampleValue(samples, "eventLoopUtilizationRatio", Math.max),
+      delayP99MaxSeconds: extremeSampleValue(samples, "eventLoopDelayP99Seconds", Math.max),
+      delayMaxSeconds: extremeSampleValue(samples, "eventLoopDelayMaxSeconds", Math.max),
       finalDelaySampleCount: lastSample.eventLoopDelaySamples,
     },
     samples,
@@ -525,32 +778,54 @@ function summarizeResources(samples, failures) {
 
 function summarizeGrowth(samples, field, initialBytes, finalBytes) {
   const growthBytes = finalBytes - initialBytes;
+  const maxBytes = extremeSampleValue(samples, field, Math.max);
   return {
     initialMedianBytes: round(initialBytes),
     finalMedianBytes: round(finalBytes),
     growthBytes: round(growthBytes),
     growthRatio: initialBytes > 0 ? round(growthBytes / initialBytes) : 0,
-    minBytes: Math.min(...samples.map((sample) => sample[field])),
-    maxBytes: Math.max(...samples.map((sample) => sample[field])),
+    minBytes: extremeSampleValue(samples, field, Math.min),
+    maxBytes,
+    peakIncreaseBytes: round(maxBytes - initialBytes),
     trendBytesPerMinute: round(linearSlope(samples.map((sample) => [sample.elapsedMs, sample[field]])) * 60_000),
   };
 }
 
-function createChecks({ options, health, warmup, workload, resources, fatalError, managedGatewayCleanedUp }) {
+function extremeSampleValue(samples, field, choose) {
+  let value = samples[0][field];
+  for (let index = 1; index < samples.length; index += 1) {
+    value = choose(value, samples[index][field]);
+  }
+  return value;
+}
+
+function createChecks({ options, health, warmup, workload, resources, postSoak, fatalError, managedGatewayCleanedUp, managedAuthValidityMs, managedAuthRemainingAtMeasurementStartMs, managedAuthRequiredAtMeasurementStartMs, checkpointError }) {
   const expectedSamples = Math.max(2, Math.floor(options.durationMs / options.sampleIntervalMs));
   const minimumSamples = Math.max(2, Math.floor(expectedSamples * 0.8));
-  const memoryWithin = (summary, maxBytes) => summary
-    && (summary.growthBytes <= maxBytes || summary.growthRatio <= options.maxMemoryGrowthRatio);
+  const longRun = options.durationMs >= LONG_RUN_THRESHOLD_MS;
+  const memoryWithin = (summary, maxBytes) => {
+    if (!summary) return false;
+    const absoluteWithin = summary.growthBytes <= maxBytes;
+    const relativeWithin = summary.growthRatio <= options.maxMemoryGrowthRatio;
+    return longRun ? absoluteWithin && relativeWithin : absoluteWithin || relativeWithin;
+  };
+  const longMemoryWithin = (summary, maxBytes, maxTrendBytesPerMinute) => memoryWithin(summary, maxBytes)
+    && summary.peakIncreaseBytes <= maxBytes
+    && summary.trendBytesPerMinute <= maxTrendBytesPerMinute;
+  const memoryExpectation = (label, maxBytes, maxTrendBytesPerMinute) => longRun
+    ? `${label} final growth and peak increase <= ${maxBytes} bytes, ratio <= ${options.maxMemoryGrowthRatio}, and positive trend <= ${maxTrendBytesPerMinute} bytes/minute`
+    : `${label} growth <= ${maxBytes} bytes or ratio <= ${options.maxMemoryGrowthRatio}`;
   const checks = [
     check("benchmark_completed", fatalError === null, "benchmark completes without a fatal error", fatalError?.message ?? "complete"),
+    check("checkpoint_writes_succeeded", checkpointError === null, "atomic progress checkpoints remain writable", checkpointError?.message ?? "complete"),
     check("warmup_healthy", warmup?.failed === 0, "warmup completes without failures", warmup?.failed ?? null),
     check("workload_completed", workload?.completed === workload?.started, "every started request completes", workload ? { started: workload.started, completed: workload.completed } : null),
     check("workload_pressure_sufficient", workload?.arrivalRatio >= options.minArrivalRatio, `bounded client starts at least ${options.minArrivalRatio} of fixed arrivals`, workload ? { arrivalRatio: workload.arrivalRatio, clientDropped: workload.clientDropped } : null),
     check("workload_error_rate", workload?.errorRate <= options.maxErrorRate, `error rate <= ${options.maxErrorRate}`, workload?.errorRate ?? null),
     check("workload_protocol_valid", workload?.protocolValidityRate === 1, "all completed responses satisfy the OpenAI contract", workload?.protocolValidityRate ?? null),
     check("resource_samples_complete", resources?.sampleCount >= minimumSamples && resources?.sampleFailureCount === 0, `at least ${minimumSamples} resource samples and zero scrape failures`, resources ? { samples: resources.sampleCount, failures: resources.sampleFailureCount } : null),
-    check("heap_growth_bounded", memoryWithin(resources?.memory?.heapUsed, options.maxHeapGrowthBytes), `heap growth <= ${options.maxHeapGrowthBytes} bytes or ratio <= ${options.maxMemoryGrowthRatio}`, resources?.memory?.heapUsed ?? null),
-    check("rss_growth_bounded", memoryWithin(resources?.memory?.rss, options.maxRssGrowthBytes), `RSS growth <= ${options.maxRssGrowthBytes} bytes or ratio <= ${options.maxMemoryGrowthRatio}`, resources?.memory?.rss ?? null),
+    check("heap_growth_bounded", longRun ? longMemoryWithin(resources?.memory?.heapUsed, options.maxHeapGrowthBytes, options.maxHeapTrendBytesPerMinute) : memoryWithin(resources?.memory?.heapUsed, options.maxHeapGrowthBytes), memoryExpectation("heap", options.maxHeapGrowthBytes, options.maxHeapTrendBytesPerMinute), resources?.memory?.heapUsed ?? null),
+    check("rss_growth_bounded", longRun ? longMemoryWithin(resources?.memory?.rss, options.maxRssGrowthBytes, options.maxRssTrendBytesPerMinute) : memoryWithin(resources?.memory?.rss, options.maxRssGrowthBytes), memoryExpectation("RSS", options.maxRssGrowthBytes, options.maxRssTrendBytesPerMinute), resources?.memory?.rss ?? null),
     check("event_loop_delay_sampled", resources?.eventLoop?.finalDelaySampleCount > 0, "event-loop delay histogram contains samples", resources?.eventLoop?.finalDelaySampleCount ?? null),
     check("event_loop_delay_bounded", resources?.eventLoop?.delayP99MaxSeconds <= options.maxEventLoopP99Seconds, `event-loop delay p99 <= ${options.maxEventLoopP99Seconds}s`, resources?.eventLoop?.delayP99MaxSeconds ?? null),
     check("event_loop_utilization_bounded", resources?.eventLoop?.utilizationMaxRatio <= options.maxEventLoopUtilization, `event-loop utilization <= ${options.maxEventLoopUtilization}`, resources?.eventLoop?.utilizationMaxRatio ?? null),
@@ -562,6 +837,20 @@ function createChecks({ options, health, warmup, workload, resources, fatalError
     };
     checks.push(
       check("managed_fake_only", safeHealth.providerMode === "fake" && safeHealth.realProviderEnabled === false && workload?.safetyValid === workload?.started, "managed workload remains fake-only", safeHealth),
+      check(
+        "managed_auth_valid_for_run",
+        Number.isFinite(managedAuthRemainingAtMeasurementStartMs)
+          && Number.isFinite(managedAuthRequiredAtMeasurementStartMs)
+          && managedAuthRemainingAtMeasurementStartMs >= managedAuthRequiredAtMeasurementStartMs,
+        "authentication remaining at measurement start covers measurement, request drain, and post-soak verification",
+        {
+          originalValidityMs: managedAuthValidityMs,
+          remainingAtMeasurementStartMs: managedAuthRemainingAtMeasurementStartMs,
+          requiredAtMeasurementStartMs: managedAuthRequiredAtMeasurementStartMs,
+        },
+      ),
+      check("post_soak_health_ready", postSoak?.healthReady === true, "managed gateway remains ready after the measured workload", postSoak?.healthReady ?? null),
+      check("post_soak_chat_valid", postSoak?.chatValid === true && postSoak?.chatProtocolValid === true && postSoak?.chatSafetyValid === true, "managed gateway completes one protocol-valid fake chat after the measured workload", postSoak ?? null),
       check("managed_gateway_cleaned_up", managedGatewayCleanedUp === true, "managed gateway exits after the soak", managedGatewayCleanedUp),
     );
   }
@@ -607,6 +896,10 @@ async function fetchText(url, options = {}) {
 
 async function fetchWithTimeout(url, options = {}) {
   const controller = new AbortController();
+  const externalSignal = options.signal;
+  const forwardAbort = () => controller.abort(externalSignal?.reason ?? new Error("Request aborted."));
+  if (externalSignal?.aborted) forwardAbort();
+  else externalSignal?.addEventListener("abort", forwardAbort, { once: true });
   const timer = setTimeout(() => controller.abort(new Error("Request timeout.")), options.timeoutMs ?? 5_000);
   timer.unref?.();
   try {
@@ -618,6 +911,7 @@ async function fetchWithTimeout(url, options = {}) {
     });
   } finally {
     clearTimeout(timer);
+    externalSignal?.removeEventListener("abort", forwardAbort);
   }
 }
 
@@ -652,11 +946,28 @@ function createConfig(args, env = {}) {
     maxEventLoopP99Seconds: parseDuration(args.maxEventLoopP99, profile.maxEventLoopP99Seconds * 1_000) / 1_000,
     maxEventLoopUtilization: parseRatio(args.maxEventLoopUtilization, profile.maxEventLoopUtilization, "max-event-loop-utilization"),
     output: resolve(args.output ?? DEFAULT_OUTPUT),
+    checkpointIntervalMs: parseDuration(args.checkpointInterval, DEFAULT_CHECKPOINT_INTERVAL_MS),
+    candidateSha: parseCandidateSha(args.candidateSha),
+    workflowRunId: parseRunIdentity(args.workflowRunId, "workflow-run-id"),
+    workflowRunAttempt: parseRunIdentity(args.workflowRunAttempt, "workflow-run-attempt"),
     json: args.json === true,
     gatewayAuthSource: authToken ? "environment" : "none",
   };
+  config.checkpointOutput = checkpointPathFor(config.output);
+  const durationMinutes = config.durationMs / 60_000;
+  config.maxHeapTrendBytesPerMinute = round(config.maxHeapGrowthBytes / durationMinutes);
+  config.maxRssTrendBytesPerMinute = round(config.maxRssGrowthBytes / durationMinutes);
+  if (config.durationMs > MAX_DURATION_MS) {
+    throw new Error(`duration must not exceed ${MAX_DURATION_MS}ms.`);
+  }
+  if (Math.ceil(config.durationMs / config.sampleIntervalMs) > MAX_RESOURCE_SAMPLES) {
+    throw new Error(`duration/sample-interval must not exceed ${MAX_RESOURCE_SAMPLES} resource samples.`);
+  }
   if (config.maxOutstanding > 10_000) {
     throw new Error("max-outstanding must not exceed 10000.");
+  }
+  if (config.warmupRequests > MAX_WARMUP_REQUESTS) {
+    throw new Error(`warmup must not exceed ${MAX_WARMUP_REQUESTS}.`);
   }
   Object.defineProperty(config, "privateRequestHeaders", {
     configurable: false,
@@ -707,7 +1018,8 @@ function parseArgs(argv) {
     "--max-error-rate": "maxErrorRate", "--max-heap-growth-bytes": "maxHeapGrowthBytes",
     "--max-rss-growth-bytes": "maxRssGrowthBytes", "--max-memory-growth-ratio": "maxMemoryGrowthRatio",
     "--max-event-loop-p99": "maxEventLoopP99", "--max-event-loop-utilization": "maxEventLoopUtilization",
-    "--output": "output",
+    "--checkpoint-interval": "checkpointInterval", "--candidate-sha": "candidateSha",
+    "--workflow-run-id": "workflowRunId", "--workflow-run-attempt": "workflowRunAttempt", "--output": "output",
   };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
@@ -734,12 +1046,36 @@ function validateUrl(raw, name) {
 
 function parseDuration(value, fallback) {
   if (value === undefined) return fallback;
-  const match = String(value).match(/^(\d+(?:\.\d+)?)(ms|s|m)?$/);
+  const match = String(value).match(/^(\d+(?:\.\d+)?)(ms|s|m|h)?$/);
   if (!match) throw new Error(`Invalid duration: ${value}`);
-  const factor = match[2] === "m" ? 60_000 : match[2] === "s" ? 1_000 : 1;
+  const factor = match[2] === "h" ? 3_600_000 : match[2] === "m" ? 60_000 : match[2] === "s" ? 1_000 : 1;
   const duration = Number(match[1]) * factor;
   if (!Number.isFinite(duration) || duration <= 0) throw new Error(`Duration must be positive: ${value}`);
   return Math.round(duration);
+}
+
+function parseCandidateSha(value) {
+  if (value === undefined || String(value).trim() === "") return null;
+  const normalized = String(value).trim().toLowerCase();
+  if (!/^[a-f0-9]{40}$/.test(normalized)) {
+    throw new Error("--candidate-sha must be a complete 40-character hexadecimal commit SHA.");
+  }
+  return normalized;
+}
+
+function parseRunIdentity(value, name) {
+  if (value === undefined || String(value).trim() === "") return null;
+  const normalized = String(value).trim();
+  if (!/^[1-9]\d{0,19}$/.test(normalized)) {
+    throw new Error(`--${name} must be a positive decimal identifier.`);
+  }
+  return normalized;
+}
+
+function checkpointPathFor(output) {
+  return output.toLowerCase().endsWith(".json")
+    ? `${output.slice(0, -5)}.partial.json`
+    : `${output}.partial.json`;
 }
 
 function parsePositiveInteger(value, fallback, name) {
@@ -769,16 +1105,71 @@ function parseRatio(value, fallback, name) {
 }
 
 function summarizeMetric(values) {
-  const sorted = values.filter(Number.isFinite).sort((a, b) => a - b);
-  if (sorted.length === 0) return { samples: 0, min: null, mean: null, p50: null, p95: null, p99: null, max: null };
+  const accumulator = createMetricAccumulator(Math.max(1, values.length));
+  for (const value of values) recordMetric(accumulator, value);
+  return summarizeMetricAccumulator(accumulator);
+}
+
+function createMetricAccumulator(limit = METRIC_RESERVOIR_LIMIT) {
   return {
-    samples: sorted.length,
-    min: round(sorted[0]),
-    mean: round(sorted.reduce((sum, value) => sum + value, 0) / sorted.length),
+    count: 0,
+    sum: 0,
+    min: null,
+    max: null,
+    limit,
+    retained: [],
+  };
+}
+
+function recordMetric(accumulator, value) {
+  if (!Number.isFinite(value)) return;
+  accumulator.count += 1;
+  accumulator.sum += value;
+  accumulator.min = accumulator.min === null ? value : Math.min(accumulator.min, value);
+  accumulator.max = accumulator.max === null ? value : Math.max(accumulator.max, value);
+  if (accumulator.retained.length < accumulator.limit) {
+    accumulator.retained.push(value);
+    return;
+  }
+  const candidate = deterministicReservoirIndex(accumulator.count);
+  if (candidate < accumulator.limit) accumulator.retained[candidate] = value;
+}
+
+function deterministicReservoirIndex(count) {
+  let value = count >>> 0;
+  value ^= value >>> 16;
+  value = Math.imul(value, 0x7feb352d);
+  value ^= value >>> 15;
+  value = Math.imul(value, 0x846ca68b);
+  value ^= value >>> 16;
+  return (value >>> 0) % count;
+}
+
+function summarizeMetricAccumulator(accumulator) {
+  if (!accumulator || accumulator.count === 0) {
+    return {
+      samples: 0,
+      retainedSamples: 0,
+      approximate: false,
+      min: null,
+      mean: null,
+      p50: null,
+      p95: null,
+      p99: null,
+      max: null,
+    };
+  }
+  const sorted = [...accumulator.retained].sort((a, b) => a - b);
+  return {
+    samples: accumulator.count,
+    retainedSamples: sorted.length,
+    approximate: accumulator.count > sorted.length,
+    min: round(accumulator.min),
+    mean: round(accumulator.sum / accumulator.count),
     p50: round(percentile(sorted, 0.5)),
     p95: round(percentile(sorted, 0.95)),
     p99: round(percentile(sorted, 0.99)),
-    max: round(sorted.at(-1)),
+    max: round(accumulator.max),
   };
 }
 
@@ -860,6 +1251,126 @@ function sanitizeTarget(raw) {
   }
 }
 
+function createCheckpoint({
+  options,
+  startedAt,
+  overallStarted,
+  progress,
+  samples,
+  sampleFailures,
+  fatalError,
+  managedGatewayCleanedUp,
+  signal,
+}) {
+  const lastSample = samples.at(-1) ?? null;
+  return {
+    schemaVersion: 1,
+    methodologyVersion: CHECKPOINT_METHOD_VERSION,
+    status: signal?.aborted ? "aborted" : progress.finalStatus ?? "running",
+    generatedAt: new Date().toISOString(),
+    startedAt,
+    elapsedMs: round(performance.now() - overallStarted),
+    phase: progress.phase,
+    source: {
+      candidateSha: options.candidateSha,
+      workflowRunId: options.workflowRunId,
+      workflowRunAttempt: options.workflowRunAttempt,
+    },
+    workloadConfig: {
+      durationMs: options.durationMs,
+      targetRps: options.targetRps,
+      maxOutstanding: options.maxOutstanding,
+      sampleIntervalMs: options.sampleIntervalMs,
+    },
+    workload: progress.workloadSnapshot?.() ?? null,
+    resources: {
+      sampleCount: samples.length,
+      sampleFailureCount: sampleFailures.length,
+      lastSample,
+    },
+    safety: {
+      managed: options.managed,
+      providerMode: options.managed ? "fake" : "unknown",
+      realProviderEnabled: options.managed ? false : null,
+      providerCredentialsSupported: false,
+      managedGatewayCleanedUp,
+    },
+    fatalError,
+  };
+}
+
+function startCheckpointWriter({ intervalMs, output, snapshot, onError }) {
+  let inFlight = null;
+  let pending = false;
+  let stopped = false;
+  let requestedWrites = 0;
+  let completedWrites = 0;
+  let coalescedWrites = 0;
+  let activeWrites = 0;
+  let maxConcurrentWrites = 0;
+
+  const drain = async () => {
+    if (inFlight) return inFlight;
+    inFlight = (async () => {
+      do {
+        pending = false;
+        let value;
+        try {
+          value = snapshot();
+        } catch (error) {
+          onError(error);
+          continue;
+        }
+        activeWrites += 1;
+        maxConcurrentWrites = Math.max(maxConcurrentWrites, activeWrites);
+        try {
+          await writeReport(output, value);
+          completedWrites += 1;
+        } catch (error) {
+          onError(error);
+        } finally {
+          activeWrites -= 1;
+        }
+      } while (pending);
+    })();
+    try {
+      await inFlight;
+    } finally {
+      inFlight = null;
+      if (pending && !stopped) await drain();
+    }
+  };
+
+  const writeNow = () => {
+    if (stopped) return Promise.resolve();
+    requestedWrites += 1;
+    if (inFlight || pending) coalescedWrites += 1;
+    pending = true;
+    return drain();
+  };
+  const timer = setInterval(() => { void writeNow(); }, intervalMs);
+  timer.unref?.();
+  return {
+    writeNow,
+    async stop() {
+      clearInterval(timer);
+      await writeNow();
+      while (inFlight || pending) await drain();
+      stopped = true;
+    },
+    stats() {
+      return { requestedWrites, completedWrites, coalescedWrites, maxConcurrentWrites };
+    },
+  };
+}
+
+function throwIfAborted(signal) {
+  if (!signal?.aborted) return;
+  throw signal.reason instanceof Error
+    ? signal.reason
+    : Object.assign(new Error("Gateway resource soak aborted."), { code: "RUN_ABORTED" });
+}
+
 function normalizeError(error) {
   if (!error) return null;
   return { name: error.name ?? "Error", code: error.code ?? null, message: error.message ?? String(error) };
@@ -884,8 +1395,19 @@ function round(value) {
   return Number.isFinite(value) ? Math.round(value * 100) / 100 : 0;
 }
 
-function delay(ms) {
-  return new Promise((resolveDelay) => setTimeout(resolveDelay, Math.max(0, ms)));
+function delay(ms, signal) {
+  if (signal?.aborted) return Promise.resolve();
+  return new Promise((resolveDelay) => {
+    const onAbort = () => {
+      clearTimeout(timer);
+      resolveDelay();
+    };
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolveDelay();
+    }, Math.max(0, ms));
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
 }
 
 function printSummary(report, output) {
@@ -899,5 +1421,5 @@ function printSummary(report, output) {
 }
 
 function printHelp() {
-  process.stdout.write(`Credential-free-provider gateway resource stability soak.\n\nUsage:\n  node tools/gateway-resource-soak.mjs [options]\n\nOptions:\n  --profile <ci|observe>              ci defaults to 12s; observe defaults to 5m.\n  --target <chat-url>                 External chat endpoint; defaults to managed fake gateway.\n  --metrics-url <url>                 Required metrics endpoint for an external run.\n  --duration <ms|s|m>                 Measurement duration.\n  --rate <rps>                        Fixed request arrival rate.\n  --max-outstanding <count>           Client outstanding request cap.\n  --warmup <count>                    Warmup requests before the baseline.\n  --sample-interval <ms|s>            Metrics scrape interval.\n  --timeout <ms|s>                    Per-request timeout.\n  --min-arrival-ratio <0..1>          Minimum started/scheduled ratio.\n  --max-error-rate <0..1>             Maximum workload error rate.\n  --max-heap-growth-bytes <bytes>      Absolute heap-growth allowance.\n  --max-rss-growth-bytes <bytes>       Absolute RSS-growth allowance.\n  --max-memory-growth-ratio <0..1>     Relative memory-growth allowance.\n  --max-event-loop-p99 <ms|s>          Maximum observed event-loop p99 delay.\n  --max-event-loop-utilization <0..1>  Maximum observed event-loop utilization.\n  --model <id>                         Request model.\n  --output <path>                      JSON evidence path.\n  --json                               Emit compact JSON.\n  --help                               Show this help.\n\nProvider credential variables are never forwarded. External gateway authentication is accepted only through AI_GATEWAY_RESOURCE_SOAK_AUTH_TOKEN; authenticated chat and metrics URLs must share an origin.\n`);
+  process.stdout.write(`Credential-free-provider gateway resource stability soak.\n\nUsage:\n  node tools/gateway-resource-soak.mjs [options]\n\nOptions:\n  --profile <ci|observe>              ci defaults to 12s; observe defaults to 5m.\n  --target <chat-url>                 External chat endpoint; defaults to managed fake gateway.\n  --metrics-url <url>                 Required metrics endpoint for an external run.\n  --duration <ms|s|m|h>               Measurement duration.\n  --rate <rps>                        Fixed request arrival rate.\n  --max-outstanding <count>           Client outstanding request cap.\n  --warmup <count>                    Warmup requests before the baseline.\n  --sample-interval <ms|s|m>          Metrics scrape interval.\n  --checkpoint-interval <ms|s|m>      Atomic partial-evidence interval (default 5m).\n  --candidate-sha <40-hex>            Immutable commit bound into the evidence.\n  --workflow-run-id <decimal>         Workflow run identity bound into the evidence.\n  --workflow-run-attempt <decimal>    Workflow attempt bound into the evidence.\n  --timeout <ms|s>                    Per-request timeout.\n  --min-arrival-ratio <0..1>          Minimum started/scheduled ratio.\n  --max-error-rate <0..1>             Maximum workload error rate.\n  --max-heap-growth-bytes <bytes>      Absolute heap-growth allowance.\n  --max-rss-growth-bytes <bytes>       Absolute RSS-growth allowance.\n  --max-memory-growth-ratio <0..1>     Relative memory-growth allowance.\n  --max-event-loop-p99 <ms|s>          Maximum observed event-loop p99 delay.\n  --max-event-loop-utilization <0..1>  Maximum observed event-loop utilization.\n  --model <id>                         Request model.\n  --output <path>                      JSON evidence path.\n  --json                               Emit compact JSON.\n  --help                               Show this help.\n\nProvider credential variables are never forwarded. External gateway authentication is accepted only through AI_GATEWAY_RESOURCE_SOAK_AUTH_TOKEN; authenticated chat and metrics URLs must share an origin.\n`);
 }

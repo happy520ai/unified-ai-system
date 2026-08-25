@@ -25,7 +25,7 @@
   "scripts": {
     "start": "node ./src/index.js",
     "start:http": "node ./src/http-entry.js",
-    "check": "node --check ./src/index.js && node --check ./src/http-entry.js && node --check ./src/http.js && node --check ./src/runtime.js && node --check ./src/server.js && node --check ./src/http.test.js && node --check ./src/server.test.js",
+    "check": "node --check ./src/index.js && node --check ./src/http-entry.js && node --check ./src/http.js && node --check ./src/runtime-environment.js && node --check ./src/runtime.js && node --check ./src/server.js && node --check ./src/http.test.js && node --check ./src/runtime-environment.test.js && node --check ./src/server.test.js",
     "build": "pnpm run check",
     "test": "node --test ./src/*.test.js"
   },

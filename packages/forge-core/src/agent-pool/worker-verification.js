@@ -111,8 +111,9 @@ export async function runAutoVerification(s, goalId, task, userId, entry, result
         result.error = `Auto-verification failed, retrying (attempt ${verifyRetryCount + 1}/${(s.config?.pool?.maxVerifyRetries ?? MAX_VERIFY_RETRIES)})`;
         console.log(`[forge:pool] Auto-verify failed for ${task.id} — re-enqueued for retry (attempt ${verifyRetryCount + 1}/${(s.config?.pool?.maxVerifyRetries ?? MAX_VERIFY_RETRIES)})`);
       } else {
-        console.log(`[forge:pool] Auto-verify exhausted for ${task.id} — accepting with warnings`);
-        result.verificationWarning = `Auto-verification failed after ${(s.config?.pool?.maxVerifyRetries ?? MAX_VERIFY_RETRIES)} attempts: ${verifyResult.failures.length} check(s) failed`;
+        console.log(`[forge:pool] Auto-verify exhausted for ${task.id} — failing closed`);
+        result.success = false;
+        result.error = `Auto-verification failed after ${(s.config?.pool?.maxVerifyRetries ?? MAX_VERIFY_RETRIES)} attempts: ${verifyResult.failures.length} check(s) failed`;
 
         s.store.logEvent(goalId, task.id, 'auto_verify_exhausted', {
           attempts: (s.config?.pool?.maxVerifyRetries ?? MAX_VERIFY_RETRIES),
@@ -153,6 +154,8 @@ export async function runAutoVerification(s, goalId, task, userId, entry, result
   } catch (verifyErr) {
     console.log(`[forge:pool] Auto-verification engine error: ${verifyErr.message}`);
     s.store.logEvent(goalId, task.id, 'auto_verify_error', { error: verifyErr.message });
+    result.success = false;
+    result.error = `Auto-verification engine failed closed: ${verifyErr.message}`;
   }
 
   return result;

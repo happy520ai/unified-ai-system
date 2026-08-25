@@ -34,6 +34,7 @@ export class VerificationEngine {
   #projectRoot;
   #store;
   #tracing;
+  #sandboxExecutor;
   #maxTier = 5;
   #verificationHistory = new Map(); // taskId -> [{ timestamp, overall, failures }]
 
@@ -44,11 +45,13 @@ export class VerificationEngine {
       this.#store = storeOrOpts.store;
       this.#projectRoot = storeOrOpts.projectRoot;
       this.#tracing = storeOrOpts.tracingManager || null;
+      this.#sandboxExecutor = storeOrOpts.sandboxExecutor || null;
     } else {
       // Positional arguments form (backward-compatible)
       this.#store = storeOrOpts;
       this.#projectRoot = projectRoot;
       this.#tracing = tracingManager || null;
+      this.#sandboxExecutor = null;
     }
   }
 
@@ -61,7 +64,7 @@ export class VerificationEngine {
    * @param {string[]} options.filesModified — files changed (for diff analysis)
    * @returns {object} — { tiers, overall, failures, summary, diffAnalysis }
    */
-  async verify(goalId, taskId, { maxTier = 5, filesModified = [] } = {}) {
+  async verify(goalId, taskId, { maxTier = 5, filesModified = [], signal } = {}) {
     const results = [];
     const failures = [];
     const startTime = Date.now();
@@ -93,7 +96,7 @@ export class VerificationEngine {
       if (parallelTiers.length > 0) {
         console.log(`[forge:verify] Running Tiers ${parallelTiers.join(' & ')} in parallel...`);
         const tierPromises = parallelTiers.map(tier =>
-          this.#runTier(tier, filesModified).catch(err => ({
+          this.#runTier(tier, filesModified, signal).catch(err => ({
             tier, name: `Tier ${tier}`, status: 'FAIL',
             checks: [{ name: 'execution_error', status: 'FAIL', output: err.message, durationMs: 0 }],
             durationMs: 0,
@@ -133,7 +136,7 @@ export class VerificationEngine {
       if (!hasEarlyFailure) {
         for (let tier = 3; tier <= maxTier; tier++) {
           console.log(`[forge:verify] Running Tier ${tier}...`);
-          const tierResult = await this.#runTier(tier, filesModified);
+          const tierResult = await this.#runTier(tier, filesModified, signal);
           results.push(tierResult);
 
           this.#store.logEvent(goalId, taskId, `verify_tier_${tier}`, {
@@ -205,16 +208,16 @@ export class VerificationEngine {
    * @param {number} options.maxTier — max tier to run (default: 2)
    * @returns {object} — { tiers, overall, failures, summary, diffAnalysis }
    */
-  async verifyAfterMutation(goalId, taskId, { filesModified = [], maxTier = 2 } = {}) {
+  async verifyAfterMutation(goalId, taskId, { filesModified = [], maxTier = 2, signal } = {}) {
     const filePaths = filesModified.map(f => f.path || f);
-    return this.verify(goalId, taskId, { maxTier, filesModified: filePaths });
+    return this.verify(goalId, taskId, { maxTier, filesModified: filePaths, signal });
   }
 
   /**
    * Run a specific tier only (useful for re-verification after fixes).
    */
-  async verifyTier(tier, filesModified = []) {
-    return this.#runTier(tier, filesModified);
+  async verifyTier(tier, filesModified = [], signal) {
+    return this.#runTier(tier, filesModified, signal);
   }
 
   /**
@@ -259,7 +262,7 @@ export class VerificationEngine {
 
   // ── Tier Runner ────────────────────────────────────────────────────────
 
-  async #runTier(tier, filesModified = []) {
+  async #runTier(tier, filesModified = [], signal) {
     let tierSpan;
     try {
       tierSpan = this.#tracing?.startSpan({
@@ -269,7 +272,7 @@ export class VerificationEngine {
     } catch { /* tracing unavailable */ }
 
     try {
-      const result = await this.#runTierHandler(tier, filesModified);
+      const result = await this.#runTierHandler(tier, filesModified, signal);
       try { tierSpan?.end('ok', { 'forge.verify.tier_status': result.status }); } catch { /* tracing unavailable */ }
       return result;
     } catch (err) {
@@ -278,13 +281,13 @@ export class VerificationEngine {
     }
   }
 
-  async #runTierHandler(tier, filesModified) {
+  async #runTierHandler(tier, filesModified, signal) {
     const root = this.#projectRoot;
     switch (tier) {
-      case 1: return _runStaticAnalysis(root);
-      case 2: return _runUnitTests(root, filesModified);
-      case 3: return _runIntegrationTests(root);
-      case 4: return _runSmokeTests(root);
+      case 1: return _runStaticAnalysis(root, this.#sandboxExecutor, signal);
+      case 2: return _runUnitTests(root, filesModified, this.#sandboxExecutor, signal);
+      case 3: return _runIntegrationTests(root, this.#sandboxExecutor, signal);
+      case 4: return _runSmokeTests(root, this.#sandboxExecutor, signal);
       case 5: return _runSecurityScan(root, filesModified);
       default: return { tier, name: 'Unknown', status: 'SKIP', checks: [], reason: 'Unknown tier' };
     }

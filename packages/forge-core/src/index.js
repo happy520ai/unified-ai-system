@@ -396,7 +396,7 @@ export { ErrorPatternLearner } from './error-pattern-learner/index.js';
 
 // P7: Advanced review, sandbox, streaming, and defense
 export { MultiAgentReview, ReviewSeverity, ReviewCategory } from './multi-agent-review/index.js';
-export { SandboxExecutor, SandboxLevel } from './sandbox-executor/index.js';
+export { SandboxExecutor, SandboxLevel, ContainerSandboxBackend } from './sandbox-executor/index.js';
 export { LiveStream, StreamEvent } from './live-stream/index.js';
 export { PromptInjectionDefense } from './injection-defense/index.js';
 

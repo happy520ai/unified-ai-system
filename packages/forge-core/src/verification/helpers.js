@@ -3,7 +3,6 @@
  * extracted from the VerificationEngine class for reusability and testability.
  */
 
-import { execFileSync, execSync } from 'node:child_process';
 import { readFile, access, readdir } from 'node:fs/promises';
 import { join, extname, basename } from 'node:path';
 import { runSmokeTest } from './smokeTest.js';
@@ -58,23 +57,33 @@ export function findLineNumber(content, regex) {
 /**
  * Run a single check command synchronously with timeout.
  */
-export function runCheck(name, command, projectRoot, timeout = 60000) {
+export async function runCheck(name, command, projectRoot, timeout = 60000, sandboxExecutor = null, signal) {
   const start = Date.now();
-  try {
-    const options = {
-      cwd: projectRoot,
-      encoding: 'utf-8',
-      timeout,
-      stdio: ['pipe', 'pipe', 'pipe'],
+  if (!sandboxExecutor) {
+    return {
+      name,
+      status: 'FAIL',
+      output: 'SANDBOX_BACKEND_UNAVAILABLE: project commands require an attested isolation backend.',
+      durationMs: Date.now() - start,
     };
-    const output = Array.isArray(command)
-      ? execFileSync(command[0], command.slice(1), options)
-      : execSync(command, options);
-    return { name, status: 'PASS', output: output.slice(0, 3000), durationMs: Date.now() - start };
-  } catch (err) {
-    const output = (err.stderr || err.stdout || err.message || '').slice(0, 3000);
-    return { name, status: 'FAIL', output, durationMs: Date.now() - start };
   }
+  const commandText = Array.isArray(command)
+    ? command.map((part) => `'${String(part).replace(/'/g, `'"'"'`)}'`).join(' ')
+    : command;
+  const result = await sandboxExecutor.execute(commandText, {
+    cwd: projectRoot,
+    level: 'full',
+    workspaceMode: 'ro',
+    timeout,
+    signal,
+  });
+  const output = [result.stdout, result.stderr].filter(Boolean).join('\n').slice(0, 3000);
+  return {
+    name,
+    status: result.exitCode === 0 ? 'PASS' : 'FAIL',
+    output: output || String(result.killReason || ''),
+    durationMs: Date.now() - start,
+  };
 }
 
 /**
@@ -88,10 +97,8 @@ export async function hasFile(name, projectRoot) {
  * Check if a command is available via npx.
  */
 export async function hasCommand(name, projectRoot) {
-  try {
-    execSync(`npx ${name} --version`, { cwd: projectRoot, encoding: 'utf-8', stdio: 'pipe', timeout: 10000 });
-    return true;
-  } catch { return false; }
+  const pkg = await readPkg(projectRoot);
+  return Boolean(pkg?.dependencies?.[name] || pkg?.devDependencies?.[name] || pkg?.peerDependencies?.[name]);
 }
 
 /**
@@ -285,16 +292,16 @@ export async function analyzeDiff(filesModified, projectRoot) {
 /**
  * Run Tier 1: Static Analysis checks.
  */
-export async function runStaticAnalysis(projectRoot) {
+export async function runStaticAnalysis(projectRoot, sandboxExecutor = null, signal) {
   const checks = [];
 
   if (await hasFile('tsconfig.json', projectRoot)) {
-    checks.push(runCheck('TypeScript', 'npx tsc --noEmit', projectRoot, 120000));
+    checks.push(await runCheck('TypeScript', 'npx --no-install tsc --noEmit', projectRoot, 120000, sandboxExecutor, signal));
   }
 
   if (await hasFile('.eslintrc', projectRoot) || await hasFile('.eslintrc.js', projectRoot) ||
       await hasFile('eslint.config.js', projectRoot) || await hasFile('.eslintrc.json', projectRoot)) {
-    checks.push(runCheck('ESLint', 'npx eslint . --max-warnings 50', projectRoot, 60000));
+    checks.push(await runCheck('ESLint', 'npx --no-install eslint . --max-warnings 50', projectRoot, 60000, sandboxExecutor, signal));
   }
 
   if (await hasFile('package.json', projectRoot)) {
@@ -308,11 +315,13 @@ export async function runStaticAnalysis(projectRoot) {
     if (pkg?.type === 'module') {
       const entryPath = typeof pkg.main === 'string' ? pkg.main : 'src/index.js';
       if (await hasFile(entryPath, projectRoot)) {
-        checks.push(runCheck(
+        checks.push(await runCheck(
           'Module Syntax',
-          [process.execPath, '--check', entryPath],
+          ['node', '--check', entryPath],
           projectRoot,
           15000,
+          sandboxExecutor,
+          signal,
         ));
       } else {
         checks.push({
@@ -334,7 +343,7 @@ export async function runStaticAnalysis(projectRoot) {
 /**
  * Run Tier 2: Unit Tests.
  */
-export async function runUnitTests(projectRoot, filesModified = []) {
+export async function runUnitTests(projectRoot, filesModified = [], sandboxExecutor = null, signal) {
   const checks = [];
 
   let testScript = null;
@@ -359,7 +368,7 @@ export async function runUnitTests(projectRoot, filesModified = []) {
   if (testScript) {
     const isVitest = testScript.includes('vitest');
     const cmd = isVitest ? 'npm test -- --run --passWithNoTests' : 'npm test';
-    const result = runCheck('npm test', cmd, projectRoot, 120000);
+    const result = await runCheck('npm test', cmd, projectRoot, 120000, sandboxExecutor, signal);
     if (result.status === 'FAIL' && result.output?.includes('No test files found')) {
       const hasTestFilesResult = await hasTestFiles(projectRoot);
       if (!hasTestFilesResult) {
@@ -369,9 +378,9 @@ export async function runUnitTests(projectRoot, filesModified = []) {
     }
     checks.push(result);
   } else if (await hasCommand('vitest', projectRoot)) {
-    checks.push(runCheck('Vitest', 'npx vitest run --reporter=verbose --passWithNoTests', projectRoot, 120000));
+    checks.push(await runCheck('Vitest', 'npx --no-install vitest run --reporter=verbose --passWithNoTests', projectRoot, 120000, sandboxExecutor, signal));
   } else if (await hasCommand('jest', projectRoot)) {
-    checks.push(runCheck('Jest', 'npx jest --verbose --passWithNoTests', projectRoot, 120000));
+    checks.push(await runCheck('Jest', 'npx --no-install jest --verbose --passWithNoTests', projectRoot, 120000, sandboxExecutor, signal));
   } else {
     checks.push({ name: 'Test Runner', status: 'SKIP', output: 'No test framework detected', durationMs: 0 });
   }
@@ -383,13 +392,13 @@ export async function runUnitTests(projectRoot, filesModified = []) {
 /**
  * Run Tier 3: Integration Tests.
  */
-export async function runIntegrationTests(projectRoot) {
+export async function runIntegrationTests(projectRoot, sandboxExecutor = null, signal) {
   const checks = [];
 
   if (await hasScript('test:integration', projectRoot)) {
-    checks.push(runCheck('Integration Tests', 'npm run test:integration', projectRoot, 180000));
+    checks.push(await runCheck('Integration Tests', 'npm run test:integration', projectRoot, 180000, sandboxExecutor, signal));
   } else if (await hasScript('test:e2e', projectRoot)) {
-    checks.push(runCheck('E2E Tests', 'npm run test:e2e', projectRoot, 180000));
+    checks.push(await runCheck('E2E Tests', 'npm run test:e2e', projectRoot, 180000, sandboxExecutor, signal));
   } else {
     checks.push({ name: 'Integration Tests', status: 'SKIP', output: 'No integration test script', durationMs: 0 });
   }
@@ -401,18 +410,18 @@ export async function runIntegrationTests(projectRoot) {
 /**
  * Run Tier 4: Smoke Tests.
  */
-export async function runSmokeTests(projectRoot) {
+export async function runSmokeTests(projectRoot, sandboxExecutor = null, signal) {
   const checks = [];
 
   if (await hasScript('start', projectRoot)) {
-    const smokeResult = await runSmokeTest(projectRoot);
+    const smokeResult = await runSmokeTest(projectRoot, sandboxExecutor, signal);
     checks.push(smokeResult);
   } else {
     checks.push({ name: 'App Start', status: 'SKIP', output: 'No start script', durationMs: 0 });
   }
 
   if (await hasScript('health', projectRoot)) {
-    checks.push(runCheck('Health Check', 'npm run health', projectRoot, 30000));
+    checks.push(await runCheck('Health Check', 'npm run health', projectRoot, 30000, sandboxExecutor, signal));
   }
 
   const status = checks.every(c => c.status === 'PASS' || c.status === 'SKIP') ? 'PASS' : 'FAIL';
@@ -426,7 +435,12 @@ export async function runSecurityScan(projectRoot, filesModified = []) {
   const checks = [];
 
   if (await hasFile('package-lock.json', projectRoot) || await hasFile('yarn.lock', projectRoot)) {
-    checks.push(runCheck('npm audit', 'npm audit --audit-level=high 2>&1 || true', projectRoot, 60000));
+    checks.push({
+      name: 'Dependency Audit',
+      status: 'SKIP',
+      output: 'Networked dependency audit is excluded from the no-network execution sandbox and must run in the release supply-chain workflow.',
+      durationMs: 0,
+    });
   }
 
   if (filesModified.length > 0) {

@@ -22,9 +22,9 @@
     "@unified-ai-system/mcp-server": "workspace:*"
   },
   "scripts": {
-    "check": "node --check ./src/daemon.js && node --check ./src/supervisor.js && node --check ./src/logger.js && node --check ./src/health-server.js && node --check ./src/installer.js && node --check ./src/installer-windows.js && node --check ./src/installer-systemd.js && node --check ./src/installer-launchd.js && node --check ./src/workbuddy-register.js && node --check ./bin/install.js && node --check ./bin/start-service.js",
+    "check": "node --check ./src/daemon.js && node --check ./src/child-environment.js && node --check ./src/child-environment.test.js && node --check ./src/supervisor.js && node --check ./src/logger.js && node --check ./src/health-server.js && node --check ./src/installer.js && node --check ./src/installer-windows.js && node --check ./src/installer-systemd.js && node --check ./src/installer-launchd.js && node --check ./src/workbuddy-register.js && node --check ./bin/install.js && node --check ./bin/start-service.js",
     "build": "pnpm run check",
-    "test": "node --test ./src/supervisor.test.js ./src/logger.test.js ./src/workbuddy-register.test.js"
+    "test": "node --test ./src/child-environment.test.js ./src/supervisor.test.js ./src/logger.test.js ./src/workbuddy-register.test.js"
   },
   "engines": {
     "node": ">=20"

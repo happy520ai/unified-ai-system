@@ -142,7 +142,7 @@ export async function executeWorker(s, assignmentId, entry, worker, task, callba
           return worker.execute(
             { ...task, allowed_files: task.allowedFiles, allowedFiles: task.allowedFiles },
             s.projectRoot,
-            {}
+            { signal: s.activeWorkers.get(assignmentId)?.abortController?.signal }
           );
         }),
         new Promise((_, reject) => {
@@ -248,14 +248,12 @@ export async function executeWorker(s, assignmentId, entry, worker, task, callba
     // Run verification engine for verify-type tasks
     if (task.type === 'verify' && result.success && s.verifier) {
       try {
-        const verifyResult = await s.verifier.verify(goalId, task.id, { maxTier: (s.config?.pool?.verifyMaxTier ?? 2) });
+        const verifyResult = await s.verifier.verify(goalId, task.id, {
+          maxTier: (s.config?.pool?.verifyMaxTier ?? 2),
+          signal: s.activeWorkers.get(assignmentId)?.abortController?.signal,
+        });
         result.verification = verifyResult;
         if (verifyResult.overall === 'FAIL') {
-          const allChecks = verifyResult.tiers.flatMap(t => t.checks);
-          const passed = allChecks.filter(c => c.status === 'PASS').length;
-          const total = allChecks.length;
-          const skipped = allChecks.filter(c => c.status === 'SKIP').length;
-
           for (const tier of verifyResult.tiers) {
             for (const check of tier.checks) {
               if (check.status === 'FAIL') {
@@ -264,16 +262,13 @@ export async function executeWorker(s, assignmentId, entry, worker, task, callba
             }
           }
 
-          if (passed > 0 || (passed === 0 && total === skipped)) {
-            console.log(`[forge:pool] Verification partial: ${passed}/${total} passed — accepting with warnings`);
-            result.verificationWarning = `Partial pass: ${passed}/${total} checks passed`;
-          } else {
-            result.success = false;
-            result.error = `Verification failed: ${JSON.stringify(verifyResult.tiers.map(t => ({ tier: t.tier, status: t.status })))}`;
-          }
+          result.success = false;
+          result.error = `Verification failed closed: ${JSON.stringify(verifyResult.tiers.map(t => ({ tier: t.tier, status: t.status })))}`;
         }
       } catch (verifyErr) {
         console.log(`[forge:pool] Verification engine error: ${verifyErr.message}`);
+        result.success = false;
+        result.error = `Verification engine failed closed: ${verifyErr.message}`;
       }
     }
 

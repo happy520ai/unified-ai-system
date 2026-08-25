@@ -160,6 +160,7 @@ export async function processQueue(s, { executeWorkerFn, checkGoalCompletionFn, 
     worker.setInjectionDefense?.(s.injectionDefense);
     worker.setContextEngine?.(s.contextEngine);
     worker.setCrossSessionMemory?.(s.crossSessionMemory);
+    worker.setSandboxExecutor?.(s.sandboxExecutor);
 
     // Expand allowedFiles for mutation tasks
     let allowedFiles;

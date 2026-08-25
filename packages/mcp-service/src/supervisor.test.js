@@ -45,6 +45,16 @@ function makeRogueDrainScript() {
   return { dir, script };
 }
 
+function makeSecretStderrScript() {
+  const dir = mkdtempSync(join(tmpdir(), "sup-secret-"));
+  const script = join(dir, "secret.js");
+  writeFileSync(
+    script,
+    `process.stderr.write('OPENAI_API_KEY='); setTimeout(() => { process.stderr.write('provider-supervisor-canary\\nAuthorization: Bearer bearer-supervisor-secret\\n'); process.exit(1); }, 20);`,
+  );
+  return { dir, script };
+}
+
 function fakeLogger() {
   const calls = [];
   return {
@@ -170,6 +180,34 @@ test("supervisor does not pollute child stdout with log output", async () => {
     }
     await sup.stop();
   } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("supervisor redacts child stderr before logging or retaining status", async () => {
+  const { dir, script } = makeSecretStderrScript();
+  const log = fakeLogger();
+  const sup = createSupervisor({
+    logger: log,
+    command: process.execPath,
+    args: [script],
+    cwd: dir,
+    autoStart: true,
+    restartMinMs: 5_000,
+    restartMaxMs: 5_000,
+    shutdownGraceMs: 200,
+  });
+  try {
+    await waitForLog(log.calls, (call) => call.msg === "child exited");
+    const renderedLogs = JSON.stringify(log.calls);
+    const status = JSON.stringify(sup.getStatus());
+    for (const secret of ["provider-supervisor-canary", "bearer-supervisor-secret"]) {
+      assert.doesNotMatch(renderedLogs, new RegExp(secret));
+      assert.doesNotMatch(status, new RegExp(secret));
+    }
+    assert.match(renderedLogs, /REDACTED/);
+  } finally {
+    await sup.stop();
     rmSync(dir, { recursive: true, force: true });
   }
 });

@@ -8,6 +8,16 @@ import { fileURLToPath } from 'node:url';
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const projectRoot = join(__dirname, '..');
 
+const passingSandboxExecutor = {
+  execute: async () => ({
+    exitCode: 0,
+    stdout: '',
+    stderr: '',
+    killed: false,
+    killReason: null,
+  }),
+};
+
 // Dynamic import to avoid issues if verification module isn't available
 let VerificationEngine;
 before(async () => {
@@ -171,7 +181,11 @@ describe('VerificationEngine', () => {
       'export const fixtureReady = true;\n',
       'utf8',
     );
-    const engine = new VerificationEngine(mockStore, fixtureRoot);
+    const engine = new VerificationEngine({
+      store: mockStore,
+      projectRoot: fixtureRoot,
+      sandboxExecutor: passingSandboxExecutor,
+    });
 
     try {
       const result = await engine.verify('g1', 't1', { maxTier: 2 });
@@ -186,6 +200,27 @@ describe('VerificationEngine', () => {
 
       const tier2 = result.tiers.find(t => t.tier === 2);
       assert.ok(['PASS', 'SKIP'].includes(tier2?.status), 'test-runner discovery should not fail');
+    } finally {
+      await rm(fixtureRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('fails closed instead of running project commands on the host', async () => {
+    const mockStore = { logEvent: () => {} };
+    const fixtureRoot = await mkdtemp(join(tmpdir(), 'forge-verification-no-sandbox-'));
+    await mkdir(join(fixtureRoot, 'src'));
+    await writeFile(
+      join(fixtureRoot, 'package.json'),
+      JSON.stringify({ name: 'no-sandbox', type: 'module', main: 'src/index.js' }),
+      'utf8',
+    );
+    await writeFile(join(fixtureRoot, 'src/index.js'), 'export const ready = true;\n', 'utf8');
+    try {
+      const engine = new VerificationEngine(mockStore, fixtureRoot);
+      const result = await engine.verify('g1', 'no-sandbox', { maxTier: 1 });
+      const syntax = result.tiers[0].checks.find((check) => check.name === 'Module Syntax');
+      assert.equal(syntax.status, 'FAIL');
+      assert.ok(syntax.output.includes('SANDBOX_BACKEND_UNAVAILABLE'));
     } finally {
       await rm(fixtureRoot, { recursive: true, force: true });
     }

@@ -13,8 +13,9 @@ import { resolve, sep } from 'node:path';
 /**
  * Immutable set of sandbox restriction levels.
  *
- * Levels are cumulative: FILESYSTEM includes all PROCESS restrictions, and
- * FULL includes all FILESYSTEM restrictions.
+ * FILESYSTEM and FULL are security levels and therefore require an attested
+ * isolation backend. WORKTREE is a collision boundary, not an OS boundary;
+ * commands at that level must still run through the isolation backend.
  *
  * @readonly
  * @enum {string}
@@ -22,11 +23,11 @@ import { resolve, sep } from 'node:path';
 export const SandboxLevel = Object.freeze({
   /** No restrictions — pass-through execution. */
   NONE: 'none',
-  /** Process-level limits: time, memory, output truncation. */
+  /** Explicit host-process mode: timeout and output bounds, no OS isolation. */
   PROCESS: 'process',
-  /** + filesystem path validation (cwd within allowed paths). */
+  /** Container filesystem isolation with an allowlisted workspace mount. */
   FILESYSTEM: 'filesystem',
-  /** + network isolation hints (best-effort, platform-dependent). */
+  /** Filesystem isolation plus mandatory network isolation. */
   FULL: 'full',
   /**
    * Git Worktree isolation — execute in a dedicated git worktree.
@@ -79,14 +80,18 @@ export const DANGEROUS_PATTERNS = [
 // ---------------------------------------------------------------------------
 
 /**
- * Maximum sandbox level supported by each platform.
+ * Maximum native host-process level supported without an attested backend.
+ *
+ * Platform names do not prove namespace, cgroup, Job Object, AppContainer, or
+ * network-policy availability. Container capability is attested separately by
+ * SandboxExecutor and must never be inferred from process.platform.
  *
  * @type {Record<string, string>}
  */
 const PLATFORM_MAX_LEVEL = {
-  darwin: SandboxLevel.FULL,       // macOS: sandbox-exec with seatbelt profiles
-  linux: SandboxLevel.FULL,        // Linux: namespaces, cgroups, seccomp
-  win32: SandboxLevel.FILESYSTEM,  // Windows: restricted token (best-effort)
+  darwin: SandboxLevel.PROCESS,
+  linux: SandboxLevel.PROCESS,
+  win32: SandboxLevel.PROCESS,
 };
 
 /**
@@ -195,7 +200,7 @@ export function isPathDenied(targetPath, denied) {
 // ---------------------------------------------------------------------------
 
 /**
- * Resolve the effective sandbox level, capped to platform capabilities.
+ * Resolve the requested sandbox level without silently weakening it.
  *
  * @param {string} [override] - Optional per-call level override.
  * @param {string} defaultLevel - Constructor-level default level.
@@ -204,17 +209,15 @@ export function isPathDenied(targetPath, denied) {
  */
 export function resolveEffectiveLevel(override, defaultLevel, platform) {
   const requested = override ?? defaultLevel;
-  if (requested === SandboxLevel.WORKTREE) {
-    return SandboxLevel.WORKTREE;
+  if (!Object.values(SandboxLevel).includes(requested)) {
+    const error = new Error(`SANDBOX_LEVEL_INVALID: unsupported sandbox level "${requested}"`);
+    error.code = 'SANDBOX_LEVEL_INVALID';
+    throw error;
   }
-
-  const maxLevel = getMaxLevelForPlatform(platform);
-  const levels = [SandboxLevel.NONE, SandboxLevel.PROCESS, SandboxLevel.FILESYSTEM, SandboxLevel.FULL];
-  const requestedIdx = levels.indexOf(requested);
-  const maxIdx = levels.indexOf(maxLevel);
-
-  if (requestedIdx < 0) return SandboxLevel.PROCESS;
-  return levels[Math.min(requestedIdx, maxIdx)];
+  // Kept in the signature for API compatibility. Capability is established by
+  // backend attestation, not by the platform string.
+  void platform;
+  return requested;
 }
 
 /**
@@ -262,6 +265,10 @@ export function buildSandboxResult(raw, history, maxHistory) {
       peakMemoryMB: raw.peakMemoryMB,
       cpuTimeMs: raw.duration, // Approximate: wall-clock ~= CPU for short-lived processes
     },
+    backend: raw.backend ?? 'host',
+    oomKilled: raw.oomKilled === true,
+    cleanupUncertain: raw.cleanupUncertain === true,
+    isolation: raw.isolation ?? null,
   };
 
   // Record in ring buffer

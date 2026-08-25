@@ -56,8 +56,9 @@ export class BaseWorker {
   #crossSessionMemory;
   #iterativeRefiner;
   #qualityGate;
+  #sandboxExecutor;
 
-  constructor({ role, systemPrompt, tools = ['read', 'write', 'edit', 'diff', 'grep', 'glob'], allowBash = false, bashSafetyOpts, logger, llmCache }) {
+  constructor({ role, systemPrompt, tools = ['read', 'write', 'edit', 'diff', 'grep', 'glob'], allowBash = false, bashSafetyOpts, logger, llmCache, sandboxExecutor }) {
     this.#role = role;
     this.#systemPrompt = systemPrompt;
     this.#tools = allowBash ? tools : tools.filter((tool) => tool !== 'bash');
@@ -65,6 +66,7 @@ export class BaseWorker {
     this.#incrementalEdit = new IncrementalEdit();
     this.#logger = logger || new ForgeLogger({ module: `forge:${role}`, level: LogLevel.INFO });
     this.#llmCache = llmCache || null;
+    this.#sandboxExecutor = sandboxExecutor || null;
   }
 
   get role() { return this.#role; }
@@ -82,6 +84,7 @@ export class BaseWorker {
   setCrossSessionMemory(csm) { this.#crossSessionMemory = csm; }
   setIterativeRefiner(refiner) { this.#iterativeRefiner = refiner; }
   setQualityGate(gate) { this.#qualityGate = gate; }
+  setSandboxExecutor(executor) { this.#sandboxExecutor = executor; }
 
   /** P9: Store task learnings into cross-session memory after execution. */
   storePostExecutionLearnings(result, task) {
@@ -173,7 +176,14 @@ export class BaseWorker {
       const readResults = [];
       for (const ra of readActions) {
         try {
-          const result = await executeAction(ra, projectRoot, task, { logger: this.#logger, bashSafety: this.#bashSafety, incrementalEdit: this.#incrementalEdit, tools: this.#tools });
+          const result = await executeAction(ra, projectRoot, task, {
+            logger: this.#logger,
+            bashSafety: this.#bashSafety,
+            incrementalEdit: this.#incrementalEdit,
+            tools: this.#tools,
+            sandboxExecutor: this.#sandboxExecutor,
+            signal: context.signal,
+          });
           readResults.push({ path: ra.path, output: result.output });
         } catch { /* skip failed reads */ }
       }
@@ -241,7 +251,14 @@ export class BaseWorker {
     }
 
     // 6. Execute actions (with error feedback retry)
-    const execOpts = { logger: this.#logger, bashSafety: this.#bashSafety, incrementalEdit: this.#incrementalEdit, tools: this.#tools };
+    const execOpts = {
+      logger: this.#logger,
+      bashSafety: this.#bashSafety,
+      incrementalEdit: this.#incrementalEdit,
+      tools: this.#tools,
+      sandboxExecutor: this.#sandboxExecutor,
+      signal: context.signal,
+    };
     const executionErrors = [];
     for (const action of actions) {
       try {
@@ -386,7 +403,7 @@ export class BaseWorker {
     let selfReviewResult = { valid: true, issues: [], autoFixed: 0 };
     const writeEditActions = actions.filter(a => ['write', 'edit', 'diff'].includes(a.type));
     if (filesModified.length > 0 && writeEditActions.length > 0) {
-      selfReviewResult = await selfReview(projectRoot, filesModified);
+      selfReviewResult = await selfReview(projectRoot, filesModified, { sandboxExecutor: this.#sandboxExecutor, signal: context.signal });
       if (!selfReviewResult.valid && selfReviewResult.issues.length > 0) {
         this.#logger.info(`Self-review found ${selfReviewResult.issues.length} issue(s), attempting LLM-driven fix...`);
         let fileContext = '';
@@ -408,15 +425,22 @@ export class BaseWorker {
             for (const fa of fixActions) {
               try { await executeAction(fa, projectRoot, task, execOpts); } catch (fixErr) { this.#logger.info(`Self-review fix action failed: ${fa.type} ${fa.path}: ${fixErr.message}`); }
             }
-            selfReviewResult = await selfReview(projectRoot, filesModified);
+            selfReviewResult = await selfReview(projectRoot, filesModified, { sandboxExecutor: this.#sandboxExecutor, signal: context.signal });
             this.#logger.info(`Self-review after LLM fix: valid=${selfReviewResult.valid}, issues=${selfReviewResult.issues.length}, autoFixed=${selfReviewResult.autoFixed}`);
           }
         } catch (fixErr) { this.#logger.info(`Self-review LLM fix call failed: ${fixErr.message}`); }
       } else { this.#logger.info(`Self-review passed: valid=${selfReviewResult.valid}, autoFixed=${selfReviewResult.autoFixed}`); }
     }
 
+    const validationFailures = [
+      ...(!selfReviewResult.valid ? selfReviewResult.issues.map((issue) => `${issue.type}: ${issue.file}: ${issue.error}`) : []),
+      ...(qualityGateResult?.blockingIssues ?? []),
+    ];
     return {
-      success: true, output: summary || llmResponse, filesModified, toolCalls: actions.length,
+      success: validationFailures.length === 0,
+      output: summary || llmResponse,
+      error: validationFailures.length > 0 ? `Validation failed closed: ${validationFailures.join('; ')}` : undefined,
+      filesModified, toolCalls: actions.length,
       tokenUsage: this.#tokenUsage, selfReview: selfReviewResult, refinement: refinementResult || undefined, qualityGate: qualityGateResult || undefined,
     };
   }
@@ -443,17 +467,38 @@ export class BaseWorker {
       let fullText = '';
       const result = await callLLMStream(this.#systemPrompt, prompt, {
         temperature: task.temperature ?? 0.2, maxTokens: task.maxTokens ?? 4096, goalId: task.goalId,
+        signal: options.signal,
         onChunk: (delta) => { fullText += delta; onProgress(delta); },
       });
       const { actions, summary } = parseResponse(result.text, this.#tools, this.#logger);
       let filesModified = [];
-      const execOpts = { logger: this.#logger, bashSafety: this.#bashSafety, incrementalEdit: this.#incrementalEdit, tools: this.#tools };
+      const execOpts = {
+        logger: this.#logger,
+        bashSafety: this.#bashSafety,
+        incrementalEdit: this.#incrementalEdit,
+        tools: this.#tools,
+        sandboxExecutor: this.#sandboxExecutor,
+        signal: options.signal,
+      };
+      const executionErrors = [];
       for (const action of actions) {
         try { const r = await executeAction(action, projectRoot, task, execOpts); if (r.modified) filesModified.push(r); }
-        catch (err) { this.#logger.error(`[${this.#role}] Stream action failed: ${err.message}`); }
+        catch (err) {
+          executionErrors.push(err.message);
+          this.#logger.error(`[${this.#role}] Stream action failed: ${err.message}`);
+        }
       }
       if (result.usage) { this.#tokenUsage.totalTokens = (this.#tokenUsage.totalTokens || 0) + (result.usage.totalTokens || 0); }
-      return { taskId: task.id, status: 'completed', text: result.text, filesModified, summary, usage: result.usage, streaming: true };
+      return {
+        taskId: task.id,
+        status: executionErrors.length === 0 ? 'completed' : 'failed',
+        text: result.text,
+        filesModified,
+        summary,
+        usage: result.usage,
+        error: executionErrors.length > 0 ? `Stream actions failed closed: ${executionErrors.join('; ')}` : undefined,
+        streaming: true,
+      };
     } catch (err) {
       this.#logger.error(`[${this.#role}] Stream execution failed: ${err.message}`);
       return { taskId: task.id, status: 'failed', error: err.message, streaming: true };

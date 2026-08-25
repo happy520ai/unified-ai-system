@@ -1,0 +1,365 @@
+name: Gateway Release Soak
+
+on:
+  schedule:
+    - cron: "17 18 * * 6"
+  workflow_dispatch:
+    inputs:
+      candidate_sha:
+        description: "Complete 40-character commit SHA to test"
+        required: true
+        type: string
+      mode:
+        description: "dry-run validates the workflow; release measures six continuous hours"
+        required: true
+        default: release
+        type: choice
+        options:
+          - release
+          - dry-run
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gateway-release-soak
+  cancel-in-progress: false
+
+jobs:
+  release-soak:
+    name: Immutable gateway release soak
+    runs-on: [self-hosted, linux, x64, gateway-soak]
+    timeout-minutes: 390
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Validate immutable candidate input
+        id: candidate
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_SHA: ${{ github.sha }}
+          INPUT_SHA: ${{ inputs.candidate_sha }}
+          INPUT_MODE: ${{ inputs.mode }}
+        run: |
+          set -euo pipefail
+          if [[ "${EVENT_NAME}" == "schedule" ]]; then
+            candidate_sha="${EVENT_SHA}"
+            mode="release"
+          else
+            candidate_sha="${INPUT_SHA}"
+            mode="${INPUT_MODE}"
+          fi
+          candidate_sha="${candidate_sha,,}"
+          if [[ ! "${candidate_sha}" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "candidate_sha must be a complete 40-character hexadecimal commit SHA." >&2
+            exit 1
+          fi
+          if [[ "${mode}" != "release" && "${mode}" != "dry-run" ]]; then
+            echo "Unsupported soak mode: ${mode}" >&2
+            exit 1
+          fi
+          echo "sha=${candidate_sha}" >> "${GITHUB_OUTPUT}"
+          echo "mode=${mode}" >> "${GITHUB_OUTPUT}"
+
+      - name: Checkout exact candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ steps.candidate.outputs.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Prove candidate integrity and release ancestry
+        id: integrity
+        env:
+          CANDIDATE_SHA: ${{ steps.candidate.outputs.sha }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          SOAK_MODE: ${{ steps.candidate.outputs.mode }}
+          EVENT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          actual_sha="$(git rev-parse HEAD)"
+          test "${actual_sha}" = "${CANDIDATE_SHA}"
+          if [[ -n "$(git status --porcelain=v1 --untracked-files=no)" ]]; then
+            echo "Tracked checkout is not clean before the soak." >&2
+            git status --short --untracked-files=no
+            exit 1
+          fi
+          candidate_tree="$(git rev-parse "${CANDIDATE_SHA}^{tree}")"
+          lockfile_sha256="$(sha256sum pnpm-lock.yaml | awk '{print $1}')"
+          package_version="$(node --input-type=module --eval 'import packageJson from "./package.json" with { type: "json" }; process.stdout.write(packageJson.version);')"
+          if [[ ! "${package_version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "package.json version must be one exact single-line semantic version." >&2
+            exit 1
+          fi
+          if [[ "${SOAK_MODE}" == "release" ]]; then
+            git fetch --no-tags origin "+refs/heads/${DEFAULT_BRANCH}:refs/remotes/origin/${DEFAULT_BRANCH}"
+            git merge-base --is-ancestor "${CANDIDATE_SHA}" "refs/remotes/origin/${DEFAULT_BRANCH}"
+          elif [[ "${CANDIDATE_SHA}" != "${EVENT_SHA}" ]]; then
+            echo "dry-run candidate must equal the workflow event SHA." >&2
+            exit 1
+          fi
+          echo "tree=${candidate_tree}" >> "${GITHUB_OUTPUT}"
+          echo "lockfile_sha256=${lockfile_sha256}" >> "${GITHUB_OUTPUT}"
+          echo "package_version=${package_version}" >> "${GITHUB_OUTPUT}"
+
+      - name: Select fixed workload contract
+        id: profile
+        env:
+          SOAK_MODE: ${{ steps.candidate.outputs.mode }}
+        run: |
+          set -euo pipefail
+          if [[ "${SOAK_MODE}" == "release" ]]; then
+            echo "duration=360m" >> "${GITHUB_OUTPUT}"
+            echo "min_samples=720" >> "${GITHUB_OUTPUT}"
+            echo "command_timeout=365m" >> "${GITHUB_OUTPUT}"
+            echo "allow_short_run=false" >> "${GITHUB_OUTPUT}"
+          else
+            echo "duration=2m" >> "${GITHUB_OUTPUT}"
+            echo "min_samples=4" >> "${GITHUB_OUTPUT}"
+            echo "command_timeout=7m" >> "${GITHUB_OUTPUT}"
+            echo "allow_short_run=true" >> "${GITHUB_OUTPUT}"
+          fi
+          echo "rate=10" >> "${GITHUB_OUTPUT}"
+          echo "sample_interval=30s" >> "${GITHUB_OUTPUT}"
+          echo "max_outstanding=64" >> "${GITHUB_OUTPUT}"
+
+      - name: Clear stale soak outputs
+        if: always()
+        run: |
+          set -euo pipefail
+          stale_outputs=(
+            .tmp/gateway-release-soak.json
+            .tmp/gateway-release-soak.partial.json
+            .tmp/gateway-release-soak.log
+            .tmp/gateway-release-soak-manifest.json
+            .tmp/gateway-release-soak-verification.json
+            .tmp/gateway-release-soak-SHA256SUMS
+          )
+          rm -f -- "${stale_outputs[@]}"
+          for path in "${stale_outputs[@]}"; do
+            if [[ -e "${path}" ]]; then
+              echo "Stale soak output could not be removed: ${path}" >&2
+              exit 1
+            fi
+          done
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6
+        with:
+          version: 11.19.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install frozen dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Workspace checks
+        run: pnpm check
+
+      - name: Maintained tests
+        run: pnpm test
+
+      - name: Public repository hygiene
+        run: pnpm check:public
+
+      - name: Credential-free public clone verification
+        run: pnpm verify:public-clone
+
+      - name: Six-hour gateway resource soak
+        id: soak
+        env:
+          CANDIDATE_SHA: ${{ steps.candidate.outputs.sha }}
+          SOAK_DURATION: ${{ steps.profile.outputs.duration }}
+          SOAK_RATE: ${{ steps.profile.outputs.rate }}
+          SOAK_SAMPLE_INTERVAL: ${{ steps.profile.outputs.sample_interval }}
+          SOAK_MAX_OUTSTANDING: ${{ steps.profile.outputs.max_outstanding }}
+          SOAK_COMMAND_TIMEOUT: ${{ steps.profile.outputs.command_timeout }}
+        run: |
+          set -euo pipefail
+          mkdir -p .tmp
+          timeout --signal=TERM --kill-after=30s "${SOAK_COMMAND_TIMEOUT}" \
+            node ./tools/gateway-resource-soak.mjs \
+              --profile observe \
+              --duration "${SOAK_DURATION}" \
+              --rate "${SOAK_RATE}" \
+              --max-outstanding "${SOAK_MAX_OUTSTANDING}" \
+              --sample-interval "${SOAK_SAMPLE_INTERVAL}" \
+              --checkpoint-interval 5m \
+              --timeout 5s \
+              --min-arrival-ratio 1 \
+              --max-error-rate 0 \
+              --max-heap-growth-bytes 67108864 \
+              --max-rss-growth-bytes 134217728 \
+              --max-memory-growth-ratio 0.5 \
+              --max-event-loop-p99 200ms \
+              --max-event-loop-utilization 0.95 \
+              --candidate-sha "${CANDIDATE_SHA}" \
+              --workflow-run-id "${GITHUB_RUN_ID}" \
+              --workflow-run-attempt "${GITHUB_RUN_ATTEMPT}" \
+              --json \
+              --output .tmp/gateway-release-soak.json \
+            | tee .tmp/gateway-release-soak.log
+
+      - name: Re-prove immutable checkout after execution
+        if: always()
+        env:
+          CANDIDATE_SHA: ${{ steps.candidate.outputs.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${CANDIDATE_SHA}"
+          git diff --exit-code
+          if [[ -n "$(git status --porcelain=v1 --untracked-files=no)" ]]; then
+            echo "Tracked checkout changed during release evidence generation." >&2
+            git status --short --untracked-files=no
+            exit 1
+          fi
+
+      - name: Build immutable soak manifest
+        if: always()
+        env:
+          CANDIDATE_SHA: ${{ steps.candidate.outputs.sha }}
+          CANDIDATE_TREE: ${{ steps.integrity.outputs.tree }}
+          LOCKFILE_SHA256: ${{ steps.integrity.outputs.lockfile_sha256 }}
+          PACKAGE_VERSION: ${{ steps.integrity.outputs.package_version }}
+          SOAK_MODE: ${{ steps.candidate.outputs.mode }}
+          SOAK_DURATION: ${{ steps.profile.outputs.duration }}
+          SOAK_RATE: ${{ steps.profile.outputs.rate }}
+          SOAK_SAMPLE_INTERVAL: ${{ steps.profile.outputs.sample_interval }}
+          SOAK_MAX_OUTSTANDING: ${{ steps.profile.outputs.max_outstanding }}
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+          WORKFLOW_RUN_ATTEMPT: ${{ github.run_attempt }}
+          REPOSITORY: ${{ github.repository }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          mkdir -p .tmp
+          node --input-type=module <<'NODE'
+          import { createHash } from "node:crypto";
+          import { existsSync, readFileSync, writeFileSync } from "node:fs";
+
+          const evidencePath = ".tmp/gateway-release-soak.json";
+          const evidencePresent = existsSync(evidencePath);
+          const evidenceSha256 = evidencePresent
+            ? createHash("sha256").update(readFileSync(evidencePath)).digest("hex")
+            : null;
+          const manifest = {
+            schemaVersion: 1,
+            generatedAt: new Date().toISOString(),
+            repository: process.env.REPOSITORY,
+            eventName: process.env.EVENT_NAME,
+            workflowRunId: process.env.WORKFLOW_RUN_ID,
+            workflowRunAttempt: process.env.WORKFLOW_RUN_ATTEMPT,
+            mode: process.env.SOAK_MODE,
+            candidateSha: process.env.CANDIDATE_SHA,
+            candidateTree: process.env.CANDIDATE_TREE,
+            lockfileSha256: process.env.LOCKFILE_SHA256,
+            packageVersion: process.env.PACKAGE_VERSION,
+            workload: {
+              duration: process.env.SOAK_DURATION,
+              targetRps: Number(process.env.SOAK_RATE),
+              sampleInterval: process.env.SOAK_SAMPLE_INTERVAL,
+              maxOutstanding: Number(process.env.SOAK_MAX_OUTSTANDING),
+            },
+            evidencePresent,
+            evidenceSha256,
+          };
+          writeFileSync(".tmp/gateway-release-soak-manifest.json", `${JSON.stringify(manifest, null, 2)}\n`);
+          NODE
+
+      - name: Verify release soak evidence
+        if: always()
+        env:
+          CANDIDATE_SHA: ${{ steps.candidate.outputs.sha }}
+          SOAK_DURATION: ${{ steps.profile.outputs.duration }}
+          SOAK_RATE: ${{ steps.profile.outputs.rate }}
+          SOAK_SAMPLE_INTERVAL: ${{ steps.profile.outputs.sample_interval }}
+          SOAK_MAX_OUTSTANDING: ${{ steps.profile.outputs.max_outstanding }}
+          MIN_RESOURCE_SAMPLES: ${{ steps.profile.outputs.min_samples }}
+          ALLOW_SHORT_RUN: ${{ steps.profile.outputs.allow_short_run }}
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+          WORKFLOW_RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          verify_args=(
+            --evidence .tmp/gateway-release-soak.json
+            --manifest .tmp/gateway-release-soak-manifest.json
+            --candidate-sha "${CANDIDATE_SHA}"
+            --expected-duration "${SOAK_DURATION}"
+            --expected-rate "${SOAK_RATE}"
+            --expected-sample-interval "${SOAK_SAMPLE_INTERVAL}"
+            --expected-max-outstanding "${SOAK_MAX_OUTSTANDING}"
+            --min-resource-samples "${MIN_RESOURCE_SAMPLES}"
+            --expected-run-id "${WORKFLOW_RUN_ID}"
+            --expected-run-attempt "${WORKFLOW_RUN_ATTEMPT}"
+            --json
+          )
+          if [[ "${ALLOW_SHORT_RUN}" == "true" ]]; then
+            verify_args+=(--allow-short-run)
+          fi
+          node tools/verify-gateway-release-soak.mjs "${verify_args[@]}" \
+            | tee .tmp/gateway-release-soak-verification.json
+
+      - name: Build evidence checksums
+        if: always()
+        run: |
+          set -euo pipefail
+          files=()
+          for path in \
+            .tmp/gateway-release-soak.json \
+            .tmp/gateway-release-soak.partial.json \
+            .tmp/gateway-release-soak.log \
+            .tmp/gateway-release-soak-manifest.json \
+            .tmp/gateway-release-soak-verification.json; do
+            if [[ -s "${path}" ]]; then
+              files+=("${path}")
+            fi
+          done
+          if [[ "${#files[@]}" -eq 0 ]]; then
+            echo "No soak evidence exists to checksum." >&2
+            exit 1
+          fi
+          sha256sum "${files[@]}" | sort -k2 > .tmp/gateway-release-soak-SHA256SUMS
+
+      - name: Append bounded soak summary
+        if: always()
+        env:
+          CANDIDATE_SHA: ${{ steps.candidate.outputs.sha }}
+          SOAK_MODE: ${{ steps.candidate.outputs.mode }}
+        run: |
+          {
+            echo "## Gateway release soak"
+            echo ""
+            echo "- candidate: ${CANDIDATE_SHA:-unavailable}"
+            echo "- mode: ${SOAK_MODE:-unavailable}"
+            if [[ -f .tmp/gateway-release-soak-verification.json ]]; then
+              node --input-type=module --eval '
+                import { readFileSync } from "node:fs";
+                const result = JSON.parse(readFileSync(".tmp/gateway-release-soak-verification.json", "utf8"));
+                console.log(`- verification: ${result.status}`);
+                console.log(`- issue codes: ${(result.issueCodes ?? []).join(", ") || "none"}`);
+                console.log(`- evidence SHA-256: ${result.evidenceSha256 ?? "unavailable"}`);
+              '
+            else
+              echo "- verification: missing"
+            fi
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload immutable soak evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: gateway-release-soak-${{ steps.candidate.outputs.sha || 'invalid-candidate' }}-${{ github.run_id }}
+          path: |
+            .tmp/gateway-release-soak.json
+            .tmp/gateway-release-soak.partial.json
+            .tmp/gateway-release-soak.log
+            .tmp/gateway-release-soak-manifest.json
+            .tmp/gateway-release-soak-verification.json
+            .tmp/gateway-release-soak-SHA256SUMS
+          if-no-files-found: error
+          retention-days: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'release' && 90 || 30 }}
