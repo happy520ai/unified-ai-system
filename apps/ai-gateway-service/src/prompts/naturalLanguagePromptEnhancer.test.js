@@ -11,6 +11,28 @@ import {
 } from "./naturalLanguagePromptEnhancer.js";
 
 const BASE_SECTION_IDS = ["context", "execution", "output", "acceptance"];
+const SIGNAL_NAMES = [
+  "format",
+  "constraints",
+  "audience",
+  "success",
+  "evidence",
+  "environment",
+];
+const SIGNAL_FIXTURES = [
+  ["format", "en", "Return JSON.", "output", "Use the output format requested in the original request exactly; do not wrap it in irrelevant material."],
+  ["format", "zh-CN", "输出表格。", "output", "严格使用原始请求指定的输出格式，不额外包裹无关内容。"],
+  ["constraints", "en", "Must not exceed scope.", "execution", "Treat explicit constraints in the original request as hard boundaries and preserve them one by one."],
+  ["constraints", "zh-CN", "不得扩大范围。", "execution", "将原始请求中的明确约束视为硬边界，并逐项保留。"],
+  ["audience", "en", "Explain this to a beginner.", "execution", "Adapt terminology, depth, and explanations to the audience named in the original request."],
+  ["audience", "zh-CN", "面向新手解释这个概念。", "execution", "根据原始请求中指定的受众调整术语、深度和解释方式。"],
+  ["success", "en", "Acceptance criteria: all checks pass.", "acceptance", "Turn the requested success criteria, acceptance checks, metrics, or targets into inspectable completion conditions."],
+  ["success", "zh-CN", "验收指标为零。", "acceptance", "把原始请求中的成功、验收、指标或目标值转化为可检查的完成标准。"],
+  ["evidence", "en", "Cite the source.", "output", "Provide the requested verifiable sources, citations, links, or dates near the relevant claims."],
+  ["evidence", "zh-CN", "附上可核查来源。", "output", "按原始请求提供可核查的来源、引用、链接或日期信息。"],
+  ["environment", "en", "Run on Linux.", "execution", "Honor the runtime, framework, operating system, and version conditions named in the original request."],
+  ["environment", "zh-CN", "运行环境是浏览器。", "execution", "遵守原始请求中指定的运行环境、框架、系统和版本条件。"],
+];
 
 function findSection(result, id) {
   const section = result.sections.find((candidate) => candidate.id === id);
@@ -106,6 +128,62 @@ describe("natural-language prompt enhancer", () => {
       "Provide the requested verifiable sources, citations, links, or dates near the relevant claims.",
     );
   });
+
+  it.each(SIGNAL_FIXTURES)(
+    "isolates the %s signal for a narrow %s fixture",
+    (signal, language, input, sectionId, compiledItem) => {
+      const result = enhanceNaturalLanguagePrompt({
+        input,
+        profile: "general",
+        language,
+      });
+
+      expect(result.signals[signal]).toBe(true);
+      for (const otherSignal of SIGNAL_NAMES.filter((name) => name !== signal)) {
+        expect(result.signals[otherSignal]).toBe(false);
+      }
+      expect(findSection(result, sectionId).items).toContain(compiledItem);
+      expect(result.original).toBe(input);
+      expect(result.enhancedPrompt).toContain(input);
+      expect(result.metadata).toMatchObject({
+        providerCalled: false,
+        credentialRequired: false,
+        originalPreserved: true,
+        deterministic: true,
+      });
+    },
+  );
+
+  it.each([
+    [
+      "Return JSON for a beginner.",
+      "en",
+      { format: true, audience: true },
+      ["constraints", "success", "evidence", "environment"],
+    ],
+    [
+      "在 Linux 上附上来源。",
+      "zh-CN",
+      { evidence: true, environment: true },
+      ["format", "constraints", "audience", "success"],
+    ],
+  ])(
+    "does not infer unrelated signals from the focused fixture %s",
+    (input, language, expectedSignals, absentSignals) => {
+      const result = enhanceNaturalLanguagePrompt({
+        input,
+        profile: "general",
+        language,
+      });
+
+      expect(result.signals).toMatchObject(expectedSignals);
+      for (const signal of absentSignals) {
+        expect(result.signals[signal]).toBe(false);
+      }
+      expect(result.metadata.providerCalled).toBe(false);
+      expect(result.metadata.deterministic).toBe(true);
+    },
+  );
 
   it.each([
     ["general", "Summarize the key decisions from this request."],
