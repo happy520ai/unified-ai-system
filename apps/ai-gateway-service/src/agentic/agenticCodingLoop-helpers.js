@@ -292,7 +292,10 @@ import { randomUUID } from "node:crypto";
 
 export async function syncMcpToolsToRegistry(mcpBridge, toolRegistry) {
   try {
-    const mcpTools = await mcpBridge.listAllTools();
+    const listing = await mcpBridge.listAllTools();
+    const mcpTools = Array.isArray(listing)
+      ? listing
+      : Array.isArray(listing?.tools) ? listing.tools : [];
     if (Array.isArray(mcpTools)) {
       for (const mcpTool of mcpTools) {
         const toolName = mcpTool.name || mcpTool.prefixedName;
@@ -302,9 +305,14 @@ export async function syncMcpToolsToRegistry(mcpBridge, toolRegistry) {
             name: toolName,
             description: mcpTool.description || `MCP tool: ${toolName}`,
             inputSchema: mcpTool.inputSchema || createInputSchema({}),
-            execute: async (params) => mcpBridge.callTool(toolName, params),
+            execute: async (params, context) => {
+              await context.commitExternalEffect();
+              return mcpBridge.callTool(toolName, params);
+            },
             requiredPermissions: ["mcp:call"],
-            isReadOnly: true,
+            isReadOnly: false,
+            externalEffectType: "mcp:agent-tool-call",
+            externalEffectRequiresFence: true,
           });
           toolRegistry.registerTool(tool);
         }

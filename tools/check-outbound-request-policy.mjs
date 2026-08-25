@@ -65,6 +65,14 @@ const requiredExternalEffectMarkers = new Map([
   ["http/httpServerCapabilityRoutes.js", "reserveWebhookExternalEffect"],
   ["http/httpServerRoutes03.js", "reserveWebhookExternalEffect"],
 ]);
+const requiredMcpEffectMarkers = new Map([
+  ["agentic/agenticCodingLoop-helpers.js", "context.commitExternalEffect"],
+  ["application/createGatewayApplication.js", "externalEffectGate"],
+  ["http/httpServerRoutes03.js", "readExternalEffectKeyContext"],
+  ["mcpGateway/mcpExternalEffectPolicy.ts", "gate.reserve"],
+  ["mcpGateway/mcpGatewayService.ts", "reserveMcpExternalEffect"],
+  ["tools/mcpToolAdapter.js", "context.commitExternalEffect"],
+]);
 
 // Aliased native fetch (e.g. fetchImpl = globalThis.fetch) previously escaped
 // the literal fetch( scan, so detect the bare reference too.
@@ -122,6 +130,13 @@ for (const [relative, marker] of requiredExternalEffectMarkers) {
   const source = fs.readFileSync(path.join(sourceDir, relative), "utf8");
   if (!source.includes(marker)) {
     failures.push(`${relative}: required irreversible-effect guard ${marker} is missing`);
+  }
+}
+
+for (const [relative, marker] of requiredMcpEffectMarkers) {
+  const source = fs.readFileSync(path.join(sourceDir, relative), "utf8");
+  if (!source.includes(marker)) {
+    failures.push(`${relative}: required MCP external-effect guard ${marker} is missing`);
   }
 }
 

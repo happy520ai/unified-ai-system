@@ -60,6 +60,26 @@ The active runtime router and the extracted capability router share one guard.
 The public outbound-policy check requires that guard in both files to prevent a
 future route refactor from restoring an unguarded send path.
 
+## Reverse MCP and OpenAPI contract
+
+Every operator-configured reverse MCP/OpenAPI tool is mutation-by-default.
+`allowedTools` grants visibility and call permission; the separate
+`readOnlyTools` glob allowlist is the only authority that lets a call bypass
+the durable reservation. Upstream MCP annotations are informative and cannot
+grant that authority.
+
+For a mutation, `POST /mcp/call` requires exactly one `External-Effect-Key` or
+`Idempotency-Key`. The route hashes it before passing context to the MCP
+gateway. After tenant/role/tool ACL and argument-size checks, the service writes
+and commits a tombstone containing only hashes of the tenant, target, tool, and
+arguments. Only then may the HTTP/stdio `tools/call` or generated REST request
+execute. Tool listings expose `readOnly` and `externalEffectRequired` so a
+client can know the contract before calling.
+
+Any non-empty `MCP_UPSTREAM_SERVERS_JSON` array automatically enables the gate.
+This intentionally makes multi-instance reverse MCP deployments satisfy the
+same PostgreSQL and HMAC requirements as other irreversible sinks.
+
 ## Agent tool contract
 
 `shell_exec`, `git_push`, and `git_create_pr` remain unavailable unless the
@@ -86,6 +106,12 @@ success before that call. The registry converts a success without a commit into
 `TOOL_EXTERNAL_EFFECT_COMMIT_MISSING`. This is a runtime contract, not a native
 sandbox: custom code that performs an undeclared side effect can still bypass
 it and must be reviewed.
+
+Both Agent-facing MCP registration paths (`syncMcpToolsToRegistry` and
+`mcpToolAdapter`) mark every imported MCP tool as
+`mcp:agent-tool-call`, non-read-only, and fence-required. They commit through
+the trusted registry context before `mcpBridge.callTool`; an upstream tool hint
+cannot downgrade that boundary.
 
 Workforce role context exposes only a frozen `{ fencingToken, assertActive }`
 object. The assertion closure captures the real claim token inside the queue;
@@ -134,7 +160,7 @@ It does not consume HTTP idempotency or provider-dispatch rows.
 
 | Variable | Default | Requirement |
 | --- | --- | --- |
-| `AI_GATEWAY_EXTERNAL_EFFECT_ENABLED` | auto-enabled by a configured Feishu/WeCom webhook | `true`/`false` only |
+| `AI_GATEWAY_EXTERNAL_EFFECT_ENABLED` | auto-enabled by a configured Feishu/WeCom webhook or non-empty MCP upstream registry | `true`/`false` only |
 | `AI_GATEWAY_EXTERNAL_EFFECT_STORE_MODE` | `sqlite`, or `postgres` when a central URL is present | `disabled` is rejected when enabled |
 | `AI_GATEWAY_EXTERNAL_EFFECT_SQLITE_PATH` | `.data/external-effects.sqlite` | Single-host durable path |
 | `AI_GATEWAY_EXTERNAL_EFFECT_HMAC_SECRET` | generated restricted local secret for SQLite | Stable value of at least 32 bytes; explicit for PostgreSQL |
@@ -189,8 +215,9 @@ tombstone growth, PostgreSQL lag, and failed restore drills.
   network TOCTOU window.
 - Protection expires after at most 24 hours.
 - Provider calls use the separate provider-dispatch contract.
-- Generic upstream MCP/OpenAPI mutations and undeclared custom native tools are
-  not yet universally classified or fenced.
+- Governed reverse MCP/OpenAPI mutations and current Agent MCP adapters are
+  covered, but direct use of low-level MCP clients outside those governed call
+  sites and undeclared custom native tools are not magically sandboxed.
 - A process crash cannot resume an in-memory role call stack.
 - This contract does not prove HA/DR, remote exactly-once, or production
   readiness.

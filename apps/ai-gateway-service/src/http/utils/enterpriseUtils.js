@@ -612,7 +612,11 @@ export function writeCapabilityError({ response, error, startedAt, fallbackCode 
   const explicitStatusCode = Number(error?.statusCode);
   const statusCode = Number.isInteger(explicitStatusCode) && explicitStatusCode >= 400 && explicitStatusCode <= 599
     ? explicitStatusCode
-    : error?.category === "validation" ? 400 : 422;
+    : error?.category === "validation"
+      ? 400
+      : error?.category === "auth"
+        ? 403
+        : 422;
   writeJson(
     response,
     statusCode,

@@ -38,4 +38,22 @@ describe("capability error transport", () => {
       },
     });
   });
+
+  it("maps capability auth denials to 403", () => {
+    const writeHead = vi.fn();
+    const end = vi.fn();
+    writeCapabilityError({
+      response: {
+        writableEnded: false,
+        destroyed: false,
+        headersSent: false,
+        writeHead,
+        end,
+      },
+      error: Object.assign(new Error("Denied."), { code: "MCP_UPSTREAM_NOT_ALLOWED", category: "auth" }),
+      startedAt: Date.now(),
+      fallbackCode: "mcp_call_failed",
+    });
+    expect(writeHead).toHaveBeenCalledWith(403, expect.any(Object));
+  });
 });

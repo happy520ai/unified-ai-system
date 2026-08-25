@@ -71,6 +71,24 @@ describe("gateway-application", () => {
         available: true,
       });
       await application.externalEffectGate.close();
+
+      const mcpApplication = createGatewayApplication({
+        MCP_UPSTREAM_SERVERS_JSON: JSON.stringify([{
+          id: "weather",
+          transport: "http",
+          url: "https://mcp.example.com/mcp",
+          allowedTools: ["get_forecast"],
+          readOnlyTools: ["get_forecast"],
+        }]),
+        AI_GATEWAY_EXTERNAL_EFFECT_STORE_MODE: "sqlite",
+        AI_GATEWAY_EXTERNAL_EFFECT_SQLITE_PATH: join(root, "mcp-effects.sqlite"),
+        AI_GATEWAY_EXTERNAL_EFFECT_HMAC_SECRET: "application-mcp-external-effect-secret".padEnd(64, "x"),
+      });
+      expect(mcpApplication.externalEffectGate.status).toMatchObject({
+        mode: "sqlite",
+        enabled: true,
+      });
+      await mcpApplication.externalEffectGate.close();
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

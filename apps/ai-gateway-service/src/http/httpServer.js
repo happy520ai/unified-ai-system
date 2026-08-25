@@ -971,6 +971,7 @@ export function createGatewayHttpServer(application) {
       await application.requestLogger?.close?.();
       await application.providerDispatchGate?.close?.();
       await application.externalEffectGate?.close?.();
+      await application.mcpGatewayService?.close?.();
       await application.enterpriseGovernanceService?.close?.();
       await openTelemetry.shutdown();
     })();

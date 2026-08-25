@@ -8,40 +8,23 @@ import {
   createMcpUpstreamFromConfig,
   type McpCallResult,
   type McpToolDescriptor,
-  type McpUpstreamConfig,
 } from "./mcpUpstreamClient.ts";
 import { createOpenApiRestBridge } from "./openApiRestBridge.ts";
 import { resolvePlatformTenantId } from "../security/platformControlPlanePolicy.ts";
+import type { ExternalEffectGate } from "../external-effects/externalEffectGate.ts";
+import { reserveMcpExternalEffect } from "./mcpExternalEffectPolicy.ts";
+import {
+  MAX_MCP_UPSTREAMS,
+  parseMcpRegistry,
+  toolAllowed,
+  type McpGovernedServerConfig,
+} from "./mcpGatewayConfig.ts";
+
+export type { McpGovernedServerConfig } from "./mcpGatewayConfig.ts";
 
 const MAX_ARGUMENTS_CHARS = 100_000;
 const MAX_RESULT_CHARS = 1_000_000;
 const TOOL_LIST_CACHE_TTL_MS = 60_000;
-const MAX_UPSTREAMS = 16;
-
-interface McpGovernancePolicy {
-  /** 可选工具白名单（glob 风格 * 通配）；缺省允许该上游全部工具。 */
-  allowedTools?: string[];
-  allowedTenants?: string[];
-  allowedRoles?: string[];
-  description?: string;
-  /** openapi 传输：REST→MCP 桥接配置。 */
-  baseUrl?: string;
-  specUrl?: string;
-  spec?: unknown;
-  headers?: Record<string, string>;
-}
-
-interface McpOpenApiServerConfig {
-  transport: "openapi";
-  id: string;
-  baseUrl: string;
-  specUrl?: string;
-  spec?: unknown;
-  headers?: Record<string, string>;
-}
-
-export type McpGovernedServerConfig = (McpUpstreamConfig | McpOpenApiServerConfig) & McpGovernancePolicy;
-
 interface McpGatewayClient {
   listTools(): Promise<McpToolDescriptor[]>;
   callTool(toolName: string, args: Record<string, unknown>): Promise<McpCallResult>;
@@ -53,7 +36,7 @@ interface GovernedUpstream {
   client: McpGatewayClient;
 }
 
-type McpGatewayError = Error & { code: string; category: string };
+type McpGatewayError = Error & { code: string; category: string; statusCode?: number };
 
 export interface McpGatewayIdentity {
   tenantId?: unknown;
@@ -68,117 +51,8 @@ export interface AggregatedMcpTool {
   namespacedName: string;
   description?: string;
   inputSchema?: Record<string, unknown>;
-}
-
-function parseRegistry(raw: unknown): { configs: McpGovernedServerConfig[]; error: string | null } {
-  if (raw == null || String(raw).trim() === "") return { configs: [], error: null };
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(String(raw));
-  } catch {
-    return { configs: [], error: "MCP_UPSTREAM_SERVERS_JSON is not valid JSON." };
-  }
-  if (!Array.isArray(parsed)) {
-    return { configs: [], error: "MCP_UPSTREAM_SERVERS_JSON must be a JSON array." };
-  }
-  const configs: McpGovernedServerConfig[] = [];
-  for (const entry of parsed) {
-    if (!entry || typeof entry !== "object") continue;
-    const candidate = entry as Partial<McpGovernedServerConfig>;
-    const allowedTools = normalizePolicyList(candidate.allowedTools);
-    const allowedTenants = normalizePolicyList(candidate.allowedTenants);
-    const allowedRoles = normalizePolicyList(candidate.allowedRoles);
-    const id = typeof candidate.id === "string" ? candidate.id.trim() : "";
-    if (!id || !/^[a-z0-9][a-z0-9-]{0,63}$/i.test(id)) {
-      return { configs: [], error: `MCP upstream id '${id}' is invalid (expected [a-z0-9-], max 64 chars).` };
-    }
-    if (configs.some((existing) => existing.id === id)) {
-      return { configs: [], error: `Duplicate MCP upstream id '${id}'.` };
-    }
-    if (candidate.transport === "http") {
-      if (typeof candidate.url !== "string" || !/^https:\/\//i.test(candidate.url)) {
-        return { configs: [], error: `MCP upstream '${id}' requires an https url.` };
-      }
-      configs.push({
-        transport: "http",
-        id,
-        url: candidate.url,
-        ...(candidate.headers && typeof candidate.headers === "object" ? { headers: candidate.headers } : {}),
-        ...(allowedTools ? { allowedTools } : {}),
-        ...(allowedTenants ? { allowedTenants } : {}),
-        ...(allowedRoles ? { allowedRoles } : {}),
-        ...(candidate.description ? { description: candidate.description } : {}),
-      });
-      continue;
-    }
-    if (candidate.transport === "stdio") {
-      if (typeof candidate.command !== "string" || !candidate.command.trim()) {
-        return { configs: [], error: `MCP upstream '${id}' requires a command.` };
-      }
-      configs.push({
-        transport: "stdio",
-        id,
-        command: candidate.command,
-        ...(Array.isArray(candidate.args) ? { args: candidate.args } : {}),
-        ...(candidate.env && typeof candidate.env === "object" ? { env: candidate.env } : {}),
-        ...(candidate.cwd ? { cwd: candidate.cwd } : {}),
-        ...(allowedTools ? { allowedTools } : {}),
-        ...(allowedTenants ? { allowedTenants } : {}),
-        ...(allowedRoles ? { allowedRoles } : {}),
-        ...(candidate.description ? { description: candidate.description } : {}),
-      });
-      continue;
-    }
-    if (candidate.transport === "openapi") {
-      if (typeof candidate.baseUrl !== "string" || !/^https:\/\//i.test(candidate.baseUrl)) {
-        return { configs: [], error: `MCP upstream '${id}' requires an https baseUrl.` };
-      }
-      const specUrl = (candidate as { specUrl?: unknown }).specUrl;
-      const spec = (candidate as { spec?: unknown }).spec;
-      if (typeof specUrl !== "string" || !/^https:\/\//i.test(specUrl)) {
-        if (spec == null || typeof spec !== "object") {
-          return { configs: [], error: `MCP upstream '${id}' requires an https specUrl or an inline spec object.` };
-        }
-      }
-      configs.push({
-        transport: "openapi",
-        id,
-        baseUrl: candidate.baseUrl,
-        ...(typeof specUrl === "string" ? { specUrl } : {}),
-        ...(spec && typeof spec === "object" ? { spec } : {}),
-        ...(candidate.headers && typeof candidate.headers === "object" ? { headers: candidate.headers } : {}),
-        ...(allowedTools ? { allowedTools } : {}),
-        ...(allowedTenants ? { allowedTenants } : {}),
-        ...(allowedRoles ? { allowedRoles } : {}),
-        ...(candidate.description ? { description: candidate.description } : {}),
-      });
-      continue;
-    }
-    return { configs: [], error: `MCP upstream '${id}' has an unsupported transport.` };
-  }
-  if (configs.length > MAX_UPSTREAMS) {
-    return { configs: [], error: `MCP upstream registry exceeds the maximum of ${MAX_UPSTREAMS} servers.` };
-  }
-  return { configs, error: null };
-}
-
-function normalizePolicyList(value: unknown): string[] | undefined {
-  if (!Array.isArray(value)) return undefined;
-  const normalized = [...new Set(value
-    .filter((entry): entry is string => typeof entry === "string")
-    .map((entry) => entry.trim())
-    .filter(Boolean))].slice(0, 128);
-  return normalized.length > 0 ? normalized : undefined;
-}
-
-function toolAllowed(patterns: string[] | undefined, toolName: string): boolean {
-  if (!patterns || patterns.length === 0) return false;
-  return patterns.some((pattern) => {
-    if (pattern === toolName) return true;
-    if (pattern === "*") return true;
-    if (pattern.endsWith("*") && toolName.startsWith(pattern.slice(0, -1))) return true;
-    return false;
-  });
+  readOnly: boolean;
+  externalEffectRequired: boolean;
 }
 
 export function createMcpGatewayService(options: {
@@ -188,13 +62,16 @@ export function createMcpGatewayService(options: {
   upstreams?: GovernedUpstream[];
   /** 审计回调（由 application 接线到 enterpriseGovernanceService.recordAudit）。 */
   recordAudit?: (event: Record<string, unknown>) => void | Promise<void>;
+  /** Durable attempt fence for every tool not explicitly operator-attested read-only. */
+  externalEffectGate?: ExternalEffectGate;
 } = {}) {
   const env = options.env ?? {};
   const platformTenantId = resolvePlatformTenantId(env);
   const parsed = options.upstreamConfigs
-    ? { configs: options.upstreamConfigs.slice(0, MAX_UPSTREAMS), error: null as string | null }
-    : parseRegistry(env.MCP_UPSTREAM_SERVERS_JSON);
+    ? { configs: options.upstreamConfigs.slice(0, MAX_MCP_UPSTREAMS), error: null as string | null }
+    : parseMcpRegistry(env.MCP_UPSTREAM_SERVERS_JSON);
   const recordAudit = options.recordAudit ?? null;
+  const externalEffectGate = options.externalEffectGate;
 
   const upstreams: GovernedUpstream[] = options.upstreams
     ?? parsed.configs.map((config) => ({
@@ -214,6 +91,10 @@ export function createMcpGatewayService(options: {
         id: config.id,
         transport: config.transport,
         toolPolicy: config.allowedTools?.length ? "explicit-allowlist" : "deny-all",
+        readOnlyPolicy: config.readOnlyTools?.length ? "explicit-allowlist" : "none",
+        mutationPolicy: externalEffectGate?.status?.enabled === true
+          ? "durable-external-effect-gate"
+          : "fail-closed-gate-unavailable",
         tenantPolicy: config.allowedTenants?.length ? "explicit-allowlist" : "platform-tenant",
         rolePolicy: config.allowedRoles?.length ? "explicit-allowlist" : "route-rbac",
       })),
@@ -224,6 +105,12 @@ export function createMcpGatewayService(options: {
         tenants: "explicit allowlist or configured platform tenant",
         stdioEnvironment: "restricted inheritance plus explicit config",
         audit: "every tools/call recorded",
+        externalEffects: "mutation-by-default; explicit operator read-only allowlist",
+      },
+      externalEffectGate: {
+        enabled: externalEffectGate?.status?.enabled === true,
+        mode: externalEffectGate?.status?.mode ?? "unavailable",
+        distributed: externalEffectGate?.status?.distributed === true,
       },
     };
   }
@@ -239,6 +126,26 @@ export function createMcpGatewayService(options: {
     }
     const role = typeof identity?.role === "string" ? identity.role : "";
     return { tenantId, role };
+  }
+
+  async function rejectCall(
+    error: McpGatewayError,
+    identity: McpGatewayIdentity | null | undefined,
+    details: Record<string, unknown>,
+  ): Promise<never> {
+    if (recordAudit) {
+      await Promise.resolve(recordAudit({
+        outcome: "denied",
+        method: "POST",
+        path: "/mcp/call",
+        permission: "workflow:run",
+        statusCode: normalizeStatusCode(error.statusCode, error.category === "auth" ? 403 : 400),
+        code: error.code,
+        identity,
+        details,
+      })).catch(() => {});
+    }
+    throw error;
   }
 
   function upstreamAllowed(config: McpGovernedServerConfig, identity: { tenantId: string; role: string }): boolean {
@@ -260,7 +167,7 @@ export function createMcpGatewayService(options: {
       if (cached && Date.now() - cached.at < TOOL_LIST_CACHE_TTL_MS) {
         for (const tool of cached.tools) {
           if (toolAllowed(config.allowedTools, String(tool.name))) {
-            tools.push(toAggregated(config.id, tool));
+            tools.push(toAggregated(config, tool));
           }
         }
         servers.push({ id: config.id });
@@ -271,7 +178,7 @@ export function createMcpGatewayService(options: {
         toolListCache.set(config.id, { at: Date.now(), tools: upstreamTools });
         for (const tool of upstreamTools) {
           if (toolAllowed(config.allowedTools, String(tool.name))) {
-            tools.push(toAggregated(config.id, tool));
+            tools.push(toAggregated(config, tool));
           }
         }
         servers.push({ id: config.id });
@@ -282,12 +189,15 @@ export function createMcpGatewayService(options: {
     return { tools, servers };
   }
 
-  function toAggregated(serverId: string, tool: McpToolDescriptor): AggregatedMcpTool {
+  function toAggregated(config: McpGovernedServerConfig, tool: McpToolDescriptor): AggregatedMcpTool {
     const toolName = String(tool.name);
+    const readOnly = toolAllowed(config.readOnlyTools, toolName);
     return {
-      serverId,
+      serverId: config.id,
       toolName,
-      namespacedName: `${serverId}__${toolName}`,
+      namespacedName: `${config.id}__${toolName}`,
+      readOnly,
+      externalEffectRequired: !readOnly,
       ...(tool.description ? { description: tool.description } : {}),
       ...(tool.inputSchema && typeof tool.inputSchema === "object" ? { inputSchema: tool.inputSchema } : {}),
     };
@@ -295,17 +205,47 @@ export function createMcpGatewayService(options: {
 
   async function callTool(
     identity: McpGatewayIdentity | null | undefined,
-    request: { server: string; tool: string; arguments?: Record<string, unknown> },
-  ): Promise<{ result: unknown; serverId: string; toolName: string }> {
+    request: {
+      server: string;
+      tool: string;
+      arguments?: Record<string, unknown>;
+      externalEffect?: { effectKeyHash?: unknown; effectKeyInvalid?: boolean };
+    },
+  ): Promise<{
+    result: unknown;
+    serverId: string;
+    toolName: string;
+    externalEffect: { required: boolean; reservationFingerprint: string | null };
+  }> {
     const identityContext = requireIdentity(identity);
     const { tenantId } = identityContext;
+    if (
+      typeof request.server !== "string"
+      || !/^[a-z0-9][a-z0-9-]{0,63}$/iu.test(request.server)
+      || typeof request.tool !== "string"
+      || !request.tool.trim()
+      || request.tool.length > 256
+      || /[\u0000-\u001f\u007f]/u.test(request.tool)
+    ) {
+      return rejectCall(createMcpGatewayError(
+        "MCP_CALL_TARGET_INVALID",
+        "MCP calls require a valid server id and a bounded tool name.",
+        "validation",
+        400,
+      ), identity, {
+        tenantId,
+        serverProvided: typeof request.server === "string",
+        toolProvided: typeof request.tool === "string",
+      });
+    }
     const upstream = upstreams.find(({ config }) => config.id === request.server);
     if (!upstream) {
-      throw createMcpGatewayError(
+      return rejectCall(createMcpGatewayError(
         "MCP_UPSTREAM_UNKNOWN",
         `Unknown MCP upstream '${request.server}'.`,
         "validation",
-      );
+        400,
+      ), identity, { tenantId, serverId: request.server, toolName: request.tool });
     }
     if (!upstreamAllowed(upstream.config, identityContext)) {
       const error = createMcpGatewayError(
@@ -313,39 +253,63 @@ export function createMcpGatewayService(options: {
         `MCP upstream '${request.server}' is not allowed for this identity.`,
         "auth",
       );
-      if (recordAudit) {
-        await Promise.resolve(recordAudit({
-          outcome: "denied",
-          method: "POST",
-          path: "/mcp/call",
-          permission: "workflow:run",
-          statusCode: 403,
-          code: error.code,
-          identity,
-          details: { tenantId, serverId: upstream.config.id, toolName: request.tool },
-        })).catch(() => {});
-      }
-      throw error;
+      return rejectCall(error, identity, {
+        tenantId,
+        serverId: upstream.config.id,
+        toolName: request.tool,
+      });
     }
     if (!toolAllowed(upstream.config.allowedTools, request.tool)) {
-      throw createMcpGatewayError(
+      return rejectCall(createMcpGatewayError(
         "MCP_TOOL_NOT_ALLOWED",
         `Tool '${request.tool}' is not allowed on upstream '${request.server}'.`,
         "auth",
-      );
+        403,
+      ), identity, { tenantId, serverId: upstream.config.id, toolName: request.tool });
     }
 
     const args = request.arguments ?? {};
-    const serializedArguments = JSON.stringify(args);
+    if (!args || typeof args !== "object" || Array.isArray(args)) {
+      return rejectCall(createMcpGatewayError(
+        "MCP_ARGUMENTS_INVALID",
+        "MCP tool arguments must be a JSON object.",
+        "validation",
+        400,
+      ), identity, { tenantId, serverId: upstream.config.id, toolName: request.tool });
+    }
+    let serializedArguments: string;
+    try {
+      serializedArguments = JSON.stringify(args);
+    } catch {
+      return rejectCall(createMcpGatewayError(
+        "MCP_ARGUMENTS_INVALID",
+        "MCP tool arguments must be JSON-serializable.",
+        "validation",
+        400,
+      ), identity, { tenantId, serverId: upstream.config.id, toolName: request.tool });
+    }
     if (serializedArguments.length > MAX_ARGUMENTS_CHARS) {
-      throw createMcpGatewayError(
+      return rejectCall(createMcpGatewayError(
         "MCP_ARGUMENTS_TOO_LARGE",
         "MCP tool arguments exceed the size limit.",
         "validation",
-      );
+        400,
+      ), identity, { tenantId, serverId: upstream.config.id, toolName: request.tool });
     }
 
+    const externalEffectRequired = !toolAllowed(upstream.config.readOnlyTools, request.tool);
+    let reservationFingerprint: string | null = null;
     try {
+      if (externalEffectRequired) {
+        reservationFingerprint = await reserveMcpExternalEffect({
+          gate: externalEffectGate,
+          config: upstream.config,
+          tenantId,
+          toolName: request.tool,
+          args,
+          keyContext: request.externalEffect,
+        });
+      }
       const result = await upstream.client.callTool(request.tool, args);
       const serializedResult = JSON.stringify(result);
       if (serializedResult && serializedResult.length > MAX_RESULT_CHARS) {
@@ -370,10 +334,17 @@ export function createMcpGatewayService(options: {
             toolName: request.tool,
             argumentsChars: serializedArguments.length,
             isError: Boolean(result?.isError),
+            externalEffectRequired,
+            reservationFingerprint,
           },
         });
       }
-      return { result, serverId: upstream.config.id, toolName: request.tool };
+      return {
+        result,
+        serverId: upstream.config.id,
+        toolName: request.tool,
+        externalEffect: { required: externalEffectRequired, reservationFingerprint },
+      };
     } catch (error) {
       if (recordAudit && (error as { code?: string }).code !== "MCP_TOOL_NOT_ALLOWED") {
         await Promise.resolve(recordAudit({
@@ -381,13 +352,14 @@ export function createMcpGatewayService(options: {
           method: "POST",
           path: "/mcp/call",
           permission: "workflow:run",
-          statusCode: 502,
+          statusCode: normalizeStatusCode((error as { statusCode?: unknown }).statusCode, 502),
           code: (error as { code?: string }).code ?? "mcp_tool_call_failed",
           identity,
           details: {
             tenantId,
             serverId: upstream.config.id,
             toolName: request.tool,
+            externalEffectRequired,
           },
         })).catch(() => {});
       }
@@ -406,9 +378,20 @@ export function createMcpGatewayService(options: {
 
 export type McpGatewayService = ReturnType<typeof createMcpGatewayService>;
 
-function createMcpGatewayError(code: string, message: string, category: string): McpGatewayError {
+function createMcpGatewayError(
+  code: string,
+  message: string,
+  category: string,
+  statusCode?: number,
+): McpGatewayError {
   const error = new Error(message) as McpGatewayError;
   error.code = code;
   error.category = category;
+  if (statusCode !== undefined) error.statusCode = statusCode;
   return error;
+}
+
+function normalizeStatusCode(value: unknown, fallback: number) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= 400 && parsed <= 599 ? parsed : fallback;
 }

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   adjustIterationBudget,
   buildInitialMessages,
@@ -8,6 +8,7 @@ import {
   compactMessages,
   createErrorResult,
   getOpenAITools,
+  syncMcpToolsToRegistry,
 } from "./agenticCodingLoop-helpers.js";
 import {
   buildRagSourceSelectionBenchmark,
@@ -110,6 +111,34 @@ describe("agenticCodingLoop helpers", () => {
     expect(error.status).toBe("error");
     expect(error.error.code).toBe("E_X");
     expect(error.usage.totalTokens).toBe(0);
+  });
+
+  it("registers MCP bridge tools as fenced mutations and commits before calling", async () => {
+    const registered = [];
+    const commitExternalEffect = vi.fn(async () => {});
+    const callTool = vi.fn(async () => ({ status: "success" }));
+    await syncMcpToolsToRegistry({
+      listAllTools: vi.fn(async () => ({
+        status: "success",
+        tools: [{ name: "ops__create_ticket", description: "Create a ticket", inputSchema: { type: "object" } }],
+      })),
+      callTool,
+    }, {
+      getTool: () => null,
+      registerTool: (tool) => registered.push(tool),
+    });
+
+    expect(registered).toHaveLength(1);
+    expect(registered[0]).toMatchObject({
+      isReadOnly: false,
+      externalEffectType: "mcp:agent-tool-call",
+      externalEffectRequiresFence: true,
+    });
+    await registered[0].execute({ title: "bounded" }, { commitExternalEffect });
+    expect(commitExternalEffect).toHaveBeenCalledOnce();
+    expect(callTool).toHaveBeenCalledWith("ops__create_ticket", { title: "bounded" });
+    expect(commitExternalEffect.mock.invocationCallOrder[0])
+      .toBeLessThan(callTool.mock.invocationCallOrder[0]);
   });
 });
 

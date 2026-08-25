@@ -189,6 +189,7 @@ export function createGatewayApplication(env = process.env) {
   // 反向 MCP 治理：聚合运维声明的上游 MCP server，工具调用全部入审计链。
   const mcpGatewayService = createMcpGatewayService({
     env,
+    externalEffectGate,
     recordAudit: (event) => enterpriseGovernanceService.recordAudit(event),
   });
   const enterpriseOpsService = createEnterpriseOpsService({
@@ -267,7 +268,19 @@ function resolveExternalEffectEnabled(env) {
   return configured === "true"
     || configured === "1"
     || Boolean(String(env.FEISHU_WEBHOOK_URL ?? "").trim())
-    || Boolean(String(env.WECOM_WEBHOOK_URL ?? "").trim());
+    || Boolean(String(env.WECOM_WEBHOOK_URL ?? "").trim())
+    || hasConfiguredMcpUpstreams(env.MCP_UPSTREAM_SERVERS_JSON);
+}
+
+function hasConfiguredMcpUpstreams(value) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return false;
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) && parsed.length > 0;
+  } catch {
+    return false;
+  }
 }
 
 function readBoundedNumber(value, fallback, minimum, maximum) {

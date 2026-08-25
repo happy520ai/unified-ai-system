@@ -1,6 +1,7 @@
 import { ROUTE_NOT_HANDLED } from "./httpRouteDispatch.js";
 import { getChatResponseCacheIntegration } from "../cache/chatResponseCacheIntegration.ts";
 import { reserveWebhookExternalEffect } from "../external-effects/externalEffectWebhookGuard.ts";
+import { readExternalEffectKeyContext } from "../external-effects/externalEffectHttpContext.ts";
 
 export async function dispatchHttpRoutes03(context) {
   const {
@@ -123,6 +124,7 @@ export async function dispatchHttpRoutes03(context) {
         server: body.server,
         tool: body.tool,
         ...(body.arguments && typeof body.arguments === "object" ? { arguments: body.arguments } : {}),
+        externalEffect: readExternalEffectKeyContext(request),
       });
       writeJson(response, 200, createOkEnvelope(result, { startedAt }));
     } catch (error) {

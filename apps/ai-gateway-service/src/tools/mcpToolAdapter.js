@@ -39,7 +39,10 @@ export function createMcpToolAdapter(mcpBridge, options = {}) {
     const errors = [];
 
     try {
-      const mcpTools = await mcpBridge.listAllTools({ forceRefresh: true });
+      const listing = await mcpBridge.listAllTools({ forceRefresh: true });
+      const mcpTools = Array.isArray(listing)
+        ? listing
+        : Array.isArray(listing?.tools) ? listing.tools : [];
 
       if (!Array.isArray(mcpTools)) {
         return { added: [], removed: [], errors: ["listAllTools returned non-array"], total: 0 };
@@ -155,10 +158,13 @@ function convertMcpTool(mcpTool, mcpBridge) {
     description,
     inputSchema,
     requiredPermissions: ["mcp:call"],
-    isReadOnly: true,
+    isReadOnly: false,
+    externalEffectType: "mcp:agent-tool-call",
+    externalEffectRequiresFence: true,
     maxResultSizeChars: 100_000,
 
-    async execute(params) {
+    async execute(params, context) {
+      await context.commitExternalEffect();
       const result = await mcpBridge.callTool(toolName, params);
       return formatMcpResult(result);
     },

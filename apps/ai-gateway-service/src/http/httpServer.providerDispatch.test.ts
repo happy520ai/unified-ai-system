@@ -53,6 +53,7 @@ describe("real-provider HTTP dispatch idempotency", () => {
       AI_GATEWAY_RATE_LIMIT_WHITELIST: "127.0.0.1",
     };
     const application = createGatewayApplication(baseEnvironment);
+    const mcpGatewayClose = vi.spyOn(application.mcpGatewayService, "close");
     const originalRequestLogger = application.requestLogger;
     const provider = createFakeProvider({
       providerId: "dispatch-provider",
@@ -358,6 +359,7 @@ describe("real-provider HTTP dispatch idempotency", () => {
         .toContain("external-effect-key");
     } finally {
       await closeServer(server);
+      expect(mcpGatewayClose).toHaveBeenCalledOnce();
       await originalRequestLogger?.close?.();
     }
   });
