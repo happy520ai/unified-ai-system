@@ -73,6 +73,7 @@ selected explicitly.
 | Runtime credentials | `PME_RUNTIME_CREDENTIAL_STORE_MODE=sqlite` | `PME_RUNTIME_CREDENTIAL_STORE_PATH` |
 | Chat idempotency | `AI_GATEWAY_IDEMPOTENCY_STORE_MODE=sqlite` | `AI_GATEWAY_IDEMPOTENCY_SQLITE_PATH` |
 | Real-provider dispatch | `AI_GATEWAY_PROVIDER_DISPATCH_STORE_MODE=sqlite` | `AI_GATEWAY_PROVIDER_DISPATCH_SQLITE_PATH` |
+| Irreversible external effects | `AI_GATEWAY_EXTERNAL_EFFECT_STORE_MODE=sqlite` | `AI_GATEWAY_EXTERNAL_EFFECT_SQLITE_PATH` |
 
 Use a `.db` extension for operational clarity. Do not point one store type at
 another store's database unless its schema and lifecycle have been reviewed for
@@ -145,6 +146,32 @@ Route traffic is ready only when the redacted provider-dispatch health reports
 statistics age, database lag, and restore drills. See
 [the real-provider dispatch contract](./provider-dispatch-idempotency.md) for
 client keys, failure codes, retention, and the exactly-once boundary.
+
+## Irreversible external-effect coordination
+
+Webhook sends and high-risk Agent Git/shell tools use a third, independent
+tombstone store. Cross-host replicas must share the Workforce database and one
+stable HMAC secret:
+
+```bash
+AI_GATEWAY_EXTERNAL_EFFECT_ENABLED=true
+AI_GATEWAY_EXTERNAL_EFFECT_STORE_MODE=postgres
+AI_GATEWAY_EXTERNAL_EFFECT_CENTRAL_REQUIRED=true
+AI_GATEWAY_EXTERNAL_EFFECT_POSTGRES_URL=<same-database-as-workforce>?sslmode=verify-full
+AI_GATEWAY_EXTERNAL_EFFECT_HMAC_SECRET=<load-the-same-32-byte-or-longer-secret>
+AI_GATEWAY_EXTERNAL_EFFECT_POSTGRES_TLS_REQUIRED=true
+```
+
+Multi-instance mode rejects SQLite. Startup also rejects a database target that
+differs from the Workforce queue/claim database. PostgreSQL creates the
+dedicated `public.ai_gateway_external_effect_entries` table and fencing
+sequence; it does not share HTTP idempotency or provider-dispatch capacity.
+
+Only route redaction-safe health to telemetry. Monitor
+`ai_gateway_external_effect_store_available`, reservation capacity, tombstone
+growth, statistics age, database lag, and restore drills. See
+[the durable external-effect contract](./external-effect-fencing.md) for client
+keys, tool fences, failure codes, and the explicit at-most-once boundary.
 
 ## Example same-host layout
 

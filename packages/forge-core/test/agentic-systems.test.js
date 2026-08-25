@@ -160,14 +160,21 @@ describe("agentToolRegistry expanded", () => {
     assert.ok(toolNames.includes("image_analyze") && toolNames.includes("image_read"));
   });
 
-  it("registers git tools", () => {
+  it("registers local git tools and keeps remote mutations opt-in", () => {
     const registry = createAgentToolRegistry();
     const toolNames = registry.listTools().map((t) => t.name);
 
     assert.ok(toolNames.includes("git_status") && toolNames.includes("git_diff"));
     assert.ok(toolNames.includes("git_log") && toolNames.includes("git_branch"));
-    assert.ok(toolNames.includes("git_commit") && toolNames.includes("git_push"));
-    assert.ok(toolNames.includes("git_create_pr"));
+    assert.ok(toolNames.includes("git_commit"));
+    assert.ok(!toolNames.includes("git_push") && !toolNames.includes("git_create_pr"));
+
+    const privileged = createAgentToolRegistry({
+      enableHighRiskTools: true,
+      permissionChecker: { check: () => ({ allowed: true }) },
+    });
+    const privilegedNames = privileged.listTools().map((tool) => tool.name);
+    assert.ok(privilegedNames.includes("git_push") && privilegedNames.includes("git_create_pr"));
   });
 
   it("has a broad safe tool set registered", () => {

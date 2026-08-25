@@ -57,6 +57,13 @@ const allowedPackageDirectFetchFiles = new Set([
 const requiredPackageMarkers = new Map([
   ["forge-core/src/llm-client-helpers.js", "isObviouslyUnsafeNetworkTarget"],
   ["forge-core/src/multimodal-client/helpers.js", "isObviouslyUnsafeNetworkTarget"],
+  ["im-connector-feishu/src/index.js", "externalEffectGuard.reserveAndCommit"],
+  ["im-connector-wecom/src/index.js", "externalEffectGuard.reserveAndCommit"],
+]);
+const requiredExternalEffectMarkers = new Map([
+  ["alerting/alertEngine.js", "externalEffectGuard.reserveAndCommit"],
+  ["http/httpServerCapabilityRoutes.js", "reserveWebhookExternalEffect"],
+  ["http/httpServerRoutes03.js", "reserveWebhookExternalEffect"],
 ]);
 
 // Aliased native fetch (e.g. fetchImpl = globalThis.fetch) previously escaped
@@ -108,6 +115,13 @@ for (const [relative, marker] of requiredPackageMarkers) {
   const source = fs.readFileSync(path.join(packagesDir, relative), "utf8");
   if (!source.includes(marker)) {
     failures.push(`${relative}: required guard ${marker} is missing`);
+  }
+}
+
+for (const [relative, marker] of requiredExternalEffectMarkers) {
+  const source = fs.readFileSync(path.join(sourceDir, relative), "utf8");
+  if (!source.includes(marker)) {
+    failures.push(`${relative}: required irreversible-effect guard ${marker} is missing`);
   }
 }
 

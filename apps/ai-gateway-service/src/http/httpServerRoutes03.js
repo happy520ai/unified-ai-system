@@ -1,5 +1,6 @@
 import { ROUTE_NOT_HANDLED } from "./httpRouteDispatch.js";
 import { getChatResponseCacheIntegration } from "../cache/chatResponseCacheIntegration.ts";
+import { reserveWebhookExternalEffect } from "../external-effects/externalEffectWebhookGuard.ts";
 
 export async function dispatchHttpRoutes03(context) {
   const {
@@ -428,6 +429,16 @@ export async function dispatchHttpRoutes03(context) {
     } else {
       try {
         const payload = { msg_type: "text", content: { text: `[${body.title || "AI Gateway"}]\n${body.body || body.text || ""}` } };
+        const reservation = await reserveWebhookExternalEffect({
+          gate: application.externalEffectGate,
+          request,
+          route: "/connectors/feishu/send",
+          effectType: "webhook:feishu",
+          webhookUrl,
+          payload,
+          tenantId: request.enterpriseIdentity?.tenantId ?? request.enterpriseIdentity?.tenant ?? "default",
+        });
+        await reservation.commit();
         const resp = await safeOutboundFetch(webhookUrl, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
         const result = await resp.json().catch(() => ({}));
         writeJson(response, 200, createOkEnvelope({
@@ -454,6 +465,16 @@ export async function dispatchHttpRoutes03(context) {
     } else {
       try {
         const payload = { msgtype: "text", text: { content: `[${body.title || "AI Gateway"}]\n${body.body || body.text || ""}` } };
+        const reservation = await reserveWebhookExternalEffect({
+          gate: application.externalEffectGate,
+          request,
+          route: "/connectors/wecom/send",
+          effectType: "webhook:wecom",
+          webhookUrl,
+          payload,
+          tenantId: request.enterpriseIdentity?.tenantId ?? request.enterpriseIdentity?.tenant ?? "default",
+        });
+        await reservation.commit();
         const resp = await safeOutboundFetch(webhookUrl, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
         const result = await resp.json().catch(() => ({}));
         writeJson(response, 200, createOkEnvelope({

@@ -19,6 +19,7 @@ import { createWeightedTrafficPolicy } from "../routing/weightedTrafficPolicy.js
 import { createPriorityProviderSelectionPolicy } from "../core/providerSelectionPolicy.js";
 import { createProviderHealthScorer } from "../providers/providerHealthScorer.js";
 import { createProviderDispatchGate } from "../providers/providerDispatchGate.ts";
+import { createExternalEffectGate } from "../external-effects/externalEffectGate.ts";
 import { createUsageLedger } from "../logging/usageLedgerFactory.ts";
 import { createProviderStatementReconciliationService } from "../billing/providerStatementReconciliationService.ts";
 import { createContentGuardrails } from "../guardrails/contentGuardrails.js";
@@ -110,6 +111,8 @@ export function createGatewayApplication(env = process.env) {
     env,
     realProviderEnabled: config.aiGatewayService.realProviderEnabled,
   });
+  const externalEffectEnabled = resolveExternalEffectEnabled(env);
+  const externalEffectGate = createExternalEffectGate({ env, enabled: externalEffectEnabled });
   const providerStatementReconciliationService = createProviderStatementReconciliationService({
     requestLogger,
   });
@@ -216,6 +219,7 @@ export function createGatewayApplication(env = process.env) {
     config,
     enterpriseGovernanceService,
     enterpriseOpsService,
+    externalEffectGate,
     fiveCapabilityActivationService,
     gatewayService,
     healthScorer,
@@ -253,6 +257,17 @@ function applyRbacRolesFromEnv(governance, env) {
   } catch {
     // Malformed RBAC config: leave governance with no assigned users (fail closed).
   }
+}
+
+function resolveExternalEffectEnabled(env) {
+  const configured = String(env.AI_GATEWAY_EXTERNAL_EFFECT_ENABLED ?? "").trim().toLowerCase();
+  if (configured && !new Set(["true", "1", "false", "0"]).has(configured)) {
+    throw new Error("AI_GATEWAY_EXTERNAL_EFFECT_ENABLED must be true or false when configured.");
+  }
+  return configured === "true"
+    || configured === "1"
+    || Boolean(String(env.FEISHU_WEBHOOK_URL ?? "").trim())
+    || Boolean(String(env.WECOM_WEBHOOK_URL ?? "").trim());
 }
 
 function readBoundedNumber(value, fallback, minimum, maximum) {

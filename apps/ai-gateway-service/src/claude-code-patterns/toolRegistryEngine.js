@@ -17,6 +17,7 @@ import {
   hasUsablePermissionChecker,
   shouldRegisterAgentTool,
 } from "../security/agentToolExecutionPolicy.ts";
+import { createExternalEffectToolBoundary } from "../external-effects/externalEffectToolBoundary.ts";
 
 // Agent 定义结构: agentType, whenToUse, tools (allowlist), disallowedTools (denylist), permissionMode, model
 
@@ -28,6 +29,9 @@ import {
  * @param {number} [options.maxChainDepth] - 工具链最大深度 (default 5)
  * @param {string} [options.workingDirectory] - 工具文件系统边界
  * @param {boolean} [options.enableHighRiskTools] - 显式启用高风险工具
+ * @param {Object} [options.externalEffectGate] - Durable irreversible-effect gate
+ * @param {Object} [options.externalEffectFence] - Trusted execution fence
+ * @param {string} [options.externalEffectTenantId] - Server-derived tenant identity
  */
 export function createAgentToolRegistry(options = {}) {
   const {
@@ -37,6 +41,9 @@ export function createAgentToolRegistry(options = {}) {
   } = options;
   const permissionCheckerConfigured = hasUsablePermissionChecker(permissionChecker);
   const highRiskToolsEnabled = options.enableHighRiskTools === true && permissionCheckerConfigured;
+  const externalEffectGate = options.externalEffectGate;
+  const externalEffectFence = options.externalEffectFence;
+  const externalEffectTenantId = options.externalEffectTenantId;
 
   /** 已注册的工具映射 name -> tool */
   const tools = new Map();
@@ -73,6 +80,11 @@ export function createAgentToolRegistry(options = {}) {
   // 注册 Git 工具集 (7 个: status/diff/log/branch/commit/push/create_pr)
   const gitToolOptions = { workingDirectory: options.workingDirectory || process.cwd() };
   for (const gitTool of createGitTools(gitToolOptions)) {
+    if (!shouldRegisterAgentTool({
+      toolName: gitTool.name,
+      enableHighRiskTools: highRiskToolsEnabled,
+      permissionChecker,
+    })) continue;
     tools.set(gitTool.name, gitTool);
   }
 
@@ -287,11 +299,12 @@ export function createAgentToolRegistry(options = {}) {
       }
 
       // 创建执行上下文
-      const context = contextOverride || createToolUseContext({
+      const baseContext = contextOverride || createToolUseContext({
         registry: this,
         permissionChecker,
         eventBus,
       });
+      let context = { ...baseContext };
 
       // 检查工具链深度
       if (context._chainDepth > maxChainDepth) {
@@ -347,6 +360,25 @@ export function createAgentToolRegistry(options = {}) {
         }
       }
 
+      const externalEffectBoundary = createExternalEffectToolBoundary({
+        tool,
+        toolName,
+        params: coercedParams,
+        context,
+        gate: externalEffectGate,
+        trustedFence: externalEffectFence,
+        tenantId: externalEffectTenantId,
+      });
+      if (externalEffectBoundary.denied) {
+        return recordExternalEffectDenial(
+          toolName,
+          params,
+          externalEffectBoundary.denied.code,
+          externalEffectBoundary.denied.error,
+        );
+      }
+      context = externalEffectBoundary.context;
+
       // Permission-protected results are never shared through the registry
       // cache because its key intentionally has no caller/session identity.
       const cacheEligible = tool.isReadOnly === true && tool.requiredPermissions.length === 0;
@@ -391,6 +423,19 @@ export function createAgentToolRegistry(options = {}) {
             if (timer.unref) timer.unref();
           }),
         ]);
+        if (
+          externalEffectBoundary.required
+          && result
+          && typeof result === "object"
+          && (result.success === true || result.status === "success")
+          && externalEffectBoundary.isCommitted() !== true
+        ) {
+          result = {
+            status: "error",
+            code: "TOOL_EXTERNAL_EFFECT_COMMIT_MISSING",
+            error: "The irreversible tool returned success without committing its external-effect fence.",
+          };
+        }
         const durationMs = Date.now() - startTime;
 
         // 截断超长结果（借鉴 Claude Code 的 maxResultSizeChars 模式）
@@ -472,6 +517,9 @@ export function createAgentToolRegistry(options = {}) {
         maxChainDepth,
         permissionMode: permissionCheckerConfigured ? "configured" : "fail-closed",
         highRiskToolsEnabled,
+        externalEffectGateConfigured: Boolean(
+          externalEffectGate && typeof externalEffectGate.reserve === "function",
+        ),
         cacheSize: resultCache.size,
         cacheMaxSize: resultCache.maxSize,
         cacheableTools: [...resultCache.cacheableTools],
@@ -495,6 +543,19 @@ export function createAgentToolRegistry(options = {}) {
   };
 
   return registry;
+
+  function recordExternalEffectDenial(toolName, params, code, reason) {
+    executionLog.push({
+      id: randomUUID(),
+      toolName,
+      params: sanitizeParams(params),
+      status: "denied",
+      reason,
+      timestamp: new Date().toISOString(),
+    });
+    capExecutionLog();
+    return { status: "denied", code, error: reason };
+  }
 }
 
 // ============================================================

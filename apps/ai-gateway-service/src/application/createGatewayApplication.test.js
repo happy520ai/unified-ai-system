@@ -35,6 +35,7 @@ describe("gateway-application", () => {
     expect(app.userExperienceService).toBeDefined();
     expect(app.capabilityRouterService).toBeDefined();
     expect(app.providerDispatchGate.status).toMatchObject({ enabled: false, mode: "disabled" });
+    expect(app.externalEffectGate.status).toMatchObject({ enabled: false, mode: "disabled" });
   });
 
   it("has correct config", () => {
@@ -48,6 +49,31 @@ describe("gateway-application", () => {
   it("uses the safe shadow timeout default for an empty environment value", () => {
     const application = createGatewayApplication({ AI_GATEWAY_SHADOW_TIMEOUT_MS: "" });
     expect(application.gatewayService.runtimeConfig.shadowTimeoutMs).toBe(30_000);
+  });
+
+  it("fails closed on invalid external-effect enablement and auto-enables for webhooks", async () => {
+    expect(() => createGatewayApplication({
+      AI_GATEWAY_EXTERNAL_EFFECT_ENABLED: "sometimes",
+    })).toThrow("AI_GATEWAY_EXTERNAL_EFFECT_ENABLED must be true or false when configured.");
+
+    const root = mkdtempSync(join(tmpdir(), "gateway-external-effect-"));
+    try {
+      const application = createGatewayApplication({
+        FEISHU_WEBHOOK_URL: "https://open.feishu.example/webhook/test",
+        AI_GATEWAY_EXTERNAL_EFFECT_STORE_MODE: "sqlite",
+        AI_GATEWAY_EXTERNAL_EFFECT_SQLITE_PATH: join(root, "effects.sqlite"),
+        AI_GATEWAY_EXTERNAL_EFFECT_HMAC_SECRET: "application-external-effect-secret".padEnd(64, "x"),
+      });
+      expect(application.externalEffectGate.getHealth()).toMatchObject({
+        mode: "sqlite",
+        enabled: true,
+        durable: true,
+        available: true,
+      });
+      await application.externalEffectGate.close();
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it("fails closed when multi-instance Workforce execution lacks central control state", () => {

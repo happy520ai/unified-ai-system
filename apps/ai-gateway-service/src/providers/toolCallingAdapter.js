@@ -166,12 +166,24 @@ export async function executeToolCalls(toolCalls, toolRegistry, context = {}) {
       let isError = false;
 
       try {
-        const result = await toolRegistry.executeTool(tc.name, tc.arguments, context);
+        const result = await toolRegistry.executeTool(tc.name, tc.arguments, {
+          ...context,
+          toolCallId: tc.id,
+          ...(typeof context?.sessionId === "string" && context.sessionId
+            ? { externalEffectKey: `${context.sessionId}:${tc.id}` }
+            : {}),
+        });
         resultContent = formatToolResult(result);
         // Detect soft-error returns: executeTool() catches thrown exceptions and returns
         // { status: "error", error: "..." } instead of re-throwing. Built-in tools like
         // shell_exec, web_fetch, code_run also return { status: "error" } on failure.
-        if (result && typeof result === "object" && (result.status === "error" || result.error === true)) {
+        if (result && typeof result === "object" && (
+          result.status === "error"
+          || result.status === "denied"
+          || result.success === false
+          || result.error === true
+          || typeof result.error === "string"
+        )) {
           isError = true;
         }
       } catch (error) {

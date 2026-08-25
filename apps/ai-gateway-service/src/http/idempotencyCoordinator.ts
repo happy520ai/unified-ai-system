@@ -58,7 +58,7 @@ export type IdempotencyCoordinatorOptions = {
   postgresPool?: PostgresPoolLike;
   postgresPoolMax?: number;
   postgresStatementTimeoutMs?: number;
-  postgresStorageNamespace?: "idempotency" | "provider-dispatch";
+  postgresStorageNamespace?: "idempotency" | "provider-dispatch" | "external-effect";
   leaseMs?: number;
   inFlightWaitMs?: number;
   pollIntervalMs?: number;

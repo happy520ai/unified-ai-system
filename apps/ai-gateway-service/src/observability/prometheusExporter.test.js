@@ -153,6 +153,34 @@ describe("prometheusExporter", () => {
     expect(text).not.toContain("must-not-leak");
   });
 
+  it("renders external-effect reservation health without operation identities", () => {
+    const exporter = createPrometheusExporter({ prefix: "ai_gateway" });
+    const text = exporter.formatMetrics({
+      externalEffects: {
+        mode: "postgres",
+        enabled: true,
+        durable: true,
+        distributed: true,
+        available: false,
+        entries: 6,
+        inFlight: 1,
+        tombstones: 5,
+        maxEntries: 50_000,
+        statsUpdatedAt: Date.now() - 4_000,
+        effectKeyHash: "must-not-leak",
+        fenceFingerprint: "must-not-leak",
+      },
+    });
+
+    expect(text).toContain('ai_gateway_external_effect_gate_enabled{mode="postgres"} 1');
+    expect(text).toContain('ai_gateway_external_effect_store_available{mode="postgres"} 0');
+    expect(text).toContain('ai_gateway_external_effect_store_distributed{mode="postgres"} 1');
+    expect(text).toContain('ai_gateway_external_effect_reservations{mode="postgres",state="total"} 6');
+    expect(text).toContain('ai_gateway_external_effect_reservations{mode="postgres",state="capacity"} 50000');
+    expect(text).toMatch(/ai_gateway_external_effect_stats_age_seconds\{mode="postgres"\} 4\.\d{3}/);
+    expect(text).not.toContain("must-not-leak");
+  });
+
   it("renders bounded WebSocket lease metrics without deployment identifiers", () => {
     const exporter = createPrometheusExporter({ prefix: "ai_gateway" });
     const text = exporter.formatMetrics({

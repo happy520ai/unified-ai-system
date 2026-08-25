@@ -39,7 +39,7 @@ type PostgresCoordinatorOptions = {
   pollIntervalMs: number;
   poolMax: number;
   statementTimeoutMs: number;
-  storageNamespace: "idempotency" | "provider-dispatch";
+  storageNamespace: "idempotency" | "provider-dispatch" | "external-effect";
   normalizeKey: (value: unknown) => { ok: true; value: string } | { ok: false; message: string };
   createIdentity: (input: { request?: IdempotencyExecution<unknown>["request"]; route: string; key: string; secret: string | Buffer }) => string;
   createFingerprint: (payload: unknown) => string;
@@ -104,6 +104,15 @@ const POSTGRES_STORAGE: Record<PostgresCoordinatorOptions["storageNamespace"], P
     claimLockKey: 1_768_841_007,
     initializeLockKey: 1_768_841_008,
     applicationName: "unified-ai-system-provider-dispatch",
+  },
+  "external-effect": {
+    table: "public.ai_gateway_external_effect_entries",
+    sequence: "public.ai_gateway_external_effect_fencing_seq",
+    expiryIndex: "ai_gateway_external_effect_expiry_idx",
+    leaseIndex: "ai_gateway_external_effect_lease_idx",
+    claimLockKey: 1_768_841_009,
+    initializeLockKey: 1_768_841_010,
+    applicationName: "unified-ai-system-external-effect",
   },
 };
 

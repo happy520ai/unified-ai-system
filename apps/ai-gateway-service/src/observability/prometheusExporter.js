@@ -226,6 +226,36 @@ export function createPrometheusExporter(options = {}) {
     lines.push(`# TYPE ${prefix}_provider_dispatch_stats_age_seconds gauge`);
     lines.push(`${prefix}_provider_dispatch_stats_age_seconds{mode="${providerDispatchMode}"} ${providerDispatchStatsAgeSeconds}`);
 
+    const externalEffects = snapshot.externalEffects;
+    const externalEffectMode = sanitizeMetricLabel(externalEffects?.mode ?? "disabled");
+    const externalEffectEnabled = externalEffects?.enabled === true;
+    const externalEffectAvailable = externalEffectEnabled
+      ? (externalEffects?.available === true ? 1 : 0)
+      : 1;
+    const externalEffectStatsUpdatedAt = Number(externalEffects?.statsUpdatedAt);
+    const externalEffectStatsAgeSeconds = Number.isFinite(externalEffectStatsUpdatedAt)
+      && externalEffectStatsUpdatedAt > 0
+      ? Math.max(0, (Date.now() - externalEffectStatsUpdatedAt) / 1000).toFixed(3)
+      : -1;
+    lines.push(`# HELP ${prefix}_external_effect_gate_enabled Whether irreversible external-effect reservations are enabled`);
+    lines.push(`# TYPE ${prefix}_external_effect_gate_enabled gauge`);
+    lines.push(`${prefix}_external_effect_gate_enabled{mode="${externalEffectMode}"} ${externalEffectEnabled ? 1 : 0}`);
+    lines.push(`# HELP ${prefix}_external_effect_store_available Whether the durable external-effect store is reachable`);
+    lines.push(`# TYPE ${prefix}_external_effect_store_available gauge`);
+    lines.push(`${prefix}_external_effect_store_available{mode="${externalEffectMode}"} ${externalEffectAvailable}`);
+    lines.push(`# HELP ${prefix}_external_effect_store_distributed Whether external-effect reservations coordinate across hosts`);
+    lines.push(`# TYPE ${prefix}_external_effect_store_distributed gauge`);
+    lines.push(`${prefix}_external_effect_store_distributed{mode="${externalEffectMode}"} ${externalEffects?.distributed === true ? 1 : 0}`);
+    lines.push(`# HELP ${prefix}_external_effect_reservations Durable external-effect reservation records by state class`);
+    lines.push(`# TYPE ${prefix}_external_effect_reservations gauge`);
+    lines.push(`${prefix}_external_effect_reservations{mode="${externalEffectMode}",state="total"} ${safeMetricNumber(externalEffects?.entries)}`);
+    lines.push(`${prefix}_external_effect_reservations{mode="${externalEffectMode}",state="in_flight"} ${safeMetricNumber(externalEffects?.inFlight)}`);
+    lines.push(`${prefix}_external_effect_reservations{mode="${externalEffectMode}",state="tombstone"} ${safeMetricNumber(externalEffects?.tombstones)}`);
+    lines.push(`${prefix}_external_effect_reservations{mode="${externalEffectMode}",state="capacity"} ${safeMetricNumber(externalEffects?.maxEntries)}`);
+    lines.push(`# HELP ${prefix}_external_effect_stats_age_seconds Age of the last distributed external-effect statistics snapshot, or -1 when unavailable`);
+    lines.push(`# TYPE ${prefix}_external_effect_stats_age_seconds gauge`);
+    lines.push(`${prefix}_external_effect_stats_age_seconds{mode="${externalEffectMode}"} ${externalEffectStatsAgeSeconds}`);
+
     const webSocketLease = snapshot.webSocketLease;
     const webSocketLeaseEnabled = webSocketLease?.storeMode === "postgres" && webSocketLease?.distributed === true;
     const webSocketLeaseMode = webSocketLeaseEnabled ? "postgres" : "disabled";

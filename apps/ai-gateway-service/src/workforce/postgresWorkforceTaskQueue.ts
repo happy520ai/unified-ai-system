@@ -427,6 +427,32 @@ export function createPostgresWorkforceTaskQueue(
       return { success: true, claim: { ...updated.claim } };
     },
 
+    async assertTaskClaimActive(taskIdInput: unknown, ownership: Record<string, any> = {}) {
+      const taskId = normalizeId(taskIdInput, "taskId");
+      const task = await loadTask(taskId);
+      if (!task || !isActive(task.status)) {
+        throw queueError("TASK_NOT_ACTIVE", `Active task not found: ${taskId}`, 404);
+      }
+      assertOwnershipShape(task, ownership);
+      const validation = await claimManager.validate(ownership.claimToken, claimContext(task));
+      if (!validation?.valid) {
+        const failure = validation as { code?: string; reason?: string };
+        throw queueError(
+          failure.code === "TASK_CLAIM_STORE_UNAVAILABLE"
+            ? failure.code
+            : "TASK_CLAIM_INVALID",
+          failure.reason ?? "The task claim is inactive.",
+          failure.code === "TASK_CLAIM_STORE_UNAVAILABLE" ? 503 : 409,
+        );
+      }
+      return {
+        active: true,
+        taskId: task.taskId,
+        agentId: task.assignedTo,
+        fencingToken: task.claim?.fencingToken,
+      };
+    },
+
     async requeueTask(taskIdInput: unknown) {
       const taskId = normalizeId(taskIdInput, "taskId");
       let client: WorkforceQueuePostgresClient | null = null;

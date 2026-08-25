@@ -71,6 +71,12 @@ describePostgres("real PostgreSQL central Workforce task queue", () => {
       expect(await first.claimTask("other-agent", { taskId: aliceTask.taskId })).toBeNull();
       const ownership = { claimToken: claimed.claimToken, agentId: "backend-engineer" };
       await second.updateTaskStatus(aliceTask.taskId, TASK_STATUS.IN_PROGRESS, undefined, ownership);
+      await expect(second.assertTaskClaimActive(aliceTask.taskId, ownership)).resolves.toMatchObject({
+        active: true,
+        taskId: aliceTask.taskId,
+        agentId: "backend-engineer",
+        fencingToken: claimed.claim.fencingToken,
+      });
       await second.completeTask(aliceTask.taskId, {
         ok: true,
         nested: { claimToken: claimed.claimToken, apiKey: "must-not-persist" },
@@ -135,6 +141,11 @@ describePostgres("real PostgreSQL central Workforce task queue", () => {
         agentId: "agent-old",
       });
       await new Promise((resolve) => setTimeout(resolve, 90));
+
+      await expect(first.assertTaskClaimActive(task.taskId, {
+        claimToken: oldClaim.claimToken,
+        agentId: "agent-old",
+      })).rejects.toMatchObject({ code: "TASK_CLAIM_INVALID" });
 
       const takeover = await second.claimTask("agent-new", { taskId: task.taskId, ttlMs: 500 });
       expect(BigInt(takeover.claim.fencingToken)).toBeGreaterThan(BigInt(oldClaim.claim.fencingToken));

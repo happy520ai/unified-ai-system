@@ -93,6 +93,9 @@ export function createAgenticLoop(options = {}) {
       ? { check: (action, context = {}) => options.permissionGate.check(action, { ...context, permissionMode }) }
       : null,
     enableHighRiskTools: options.enableHighRiskTools === true,
+    externalEffectGate: options.externalEffectGate,
+    externalEffectFence: options.externalEffectFence,
+    externalEffectTenantId: options.tenantId,
   });
   if (options.mcpBridge) syncMcpToolsToRegistry(options.mcpBridge, toolRegistry);
 
@@ -236,7 +239,10 @@ export function createAgenticLoop(options = {}) {
         if (!toolCalls || toolCalls.length === 0) { finalAnswer = providerResponse?.text || ""; trace.push({ iteration, type: "final_answer", textLength: finalAnswer.length, note: "hasToolCalls=true but extractToolCalls returned null/empty", durationMs: Date.now() - iterStartedAt, timestamp: new Date().toISOString() }); try { if (typeof input.onIteration === "function") input.onIteration(iteration, { type: "final_answer", text: finalAnswer, durationMs: Date.now() - iterStartedAt }); } catch (_cbErr) { debugLoop("onIteration callback error:", _cbErr); } break; }
         messages.push(buildAssistantMessageWithToolCalls(providerResponse));
         trace.push({ iteration, type: "tool_calls", toolCalls: toolCalls.map((tc) => ({ name: tc.name, args: tc.arguments })), tokenUsage: providerResponse?.usage ? { inputTokens: providerResponse.usage.inputTokens ?? 0, outputTokens: providerResponse.usage.outputTokens ?? 0 } : undefined, durationMs: Date.now() - iterStartedAt, timestamp: new Date().toISOString() });
-        const toolResults = await executeToolCalls(toolCalls, toolRegistry, { workingDirectory, sessionId });
+        const toolResults = await executeToolCalls(toolCalls, toolRegistry, {
+          workingDirectory,
+          sessionId,
+        });
         await processToolResults(toolCalls, toolResults, messages, allToolResults, iteration, plan);
         trace.push({ iteration, type: "tool_results", results: toolResults.map((r) => ({ tool_call_id: r.tool_call_id, isError: r._meta?.isError, durationMs: r._meta?.durationMs })), timestamp: new Date().toISOString() });
         if (errorRecoveryEnabled) { for (const r of toolResults) { if (r._meta?.isError) { const n = r._meta?.toolName || "unknown"; const rec = applyErrorRecovery(n, r.content, toolRegistry); if (rec) trace.push({ iteration, type: "error_recovery", toolName: n, recovery: rec, timestamp: new Date().toISOString() }); } } }
@@ -305,7 +311,10 @@ export function createAgenticLoop(options = {}) {
         if (!toolCalls || toolCalls.length === 0) { yield createStreamEvent("answer", { text: providerResponse?.text || "" }); yield createStreamEvent("iteration_end", { iteration, hasToolCalls: false }); yield createStreamEvent("complete", { sessionId, finalAnswer: providerResponse?.text || "", iterations: iteration, toolUsage: summarizeToolUsage(allToolResults), usage: totalUsage, durationMs: Date.now() - startedAt }); return; }
         messages.push(buildAssistantMessageWithToolCalls(providerResponse));
         for (const tc of toolCalls) yield createStreamEvent("tool_call_start", { id: tc.id, tool: tc.name, params: tc.arguments });
-        const toolResults = await executeToolCalls(toolCalls, toolRegistry, { workingDirectory, sessionId });
+        const toolResults = await executeToolCalls(toolCalls, toolRegistry, {
+          workingDirectory,
+          sessionId,
+        });
         await processToolResults(toolCalls, toolResults, messages, allToolResults, iteration, null);
         for (const r of toolResults) yield createStreamEvent("tool_call_result", { tool_call_id: r.tool_call_id, tool: r._meta?.toolName, result: truncateForEvent(r.content), durationMs: r._meta?.durationMs, isError: r._meta?.isError });
         if (errorRecoveryEnabled) { for (const r of toolResults) { if (r._meta?.isError) { const n = r._meta?.toolName || "unknown"; const rec = applyErrorRecovery(n, r.content, toolRegistry); if (rec) yield createStreamEvent("error_recovery", { toolName: n, recovery: rec }); } } }

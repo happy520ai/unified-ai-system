@@ -337,6 +337,55 @@ describe("dispatchHttpRoutes02 healthz readiness", () => {
     expect(serialized).not.toContain("hmacSecret");
   });
 
+  it("returns unready with a redacted snapshot when enabled external-effect storage degrades", async () => {
+    const context = createEnvelopeContext({
+      application: {
+        externalEffectGate: {
+          status: {
+            mode: "postgres",
+            enabled: true,
+            durable: true,
+            distributed: true,
+            centralRequired: true,
+            ttlMs: 86_400_000,
+            maxEntries: 100_000,
+          },
+          checkHealth: async () => ({
+            mode: "postgres",
+            enabled: true,
+            durable: true,
+            distributed: true,
+            centralRequired: true,
+            available: false,
+            entries: 4,
+            inFlight: 1,
+            tombstones: 3,
+            maxEntries: 100_000,
+            connectionString: "postgres://must-not-leak",
+            effectKeyHash: "must-not-leak",
+          }),
+        },
+      },
+    });
+
+    await dispatchHttpRoutes02(context);
+
+    expect(context.response.status).toBe(503);
+    expect(context.response.payload.error.details.readinessFailures)
+      .toContain("external-effect-store-unavailable");
+    expect(context.response.payload.error.details.externalEffects).toMatchObject({
+      mode: "postgres",
+      enabled: true,
+      available: false,
+      entries: 4,
+      tombstones: 3,
+    });
+    const serialized = JSON.stringify(context.response.payload.error.details.externalEffects);
+    expect(serialized).not.toContain("must-not-leak");
+    expect(serialized).not.toContain("connectionString");
+    expect(serialized).not.toContain("effectKeyHash");
+  });
+
   it("returns unready when the PostgreSQL rate-limit store is unavailable", async () => {
     const context = createEnvelopeContext({
       rateLimiter: {

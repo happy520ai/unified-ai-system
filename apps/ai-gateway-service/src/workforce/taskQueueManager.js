@@ -245,6 +245,18 @@ export class TaskQueueManager {
     return { success: true, claim: { ...task.claim } };
   }
 
+  async assertTaskClaimActive(taskId, ownership = {}) {
+    const task = this.activeTasks.get(taskId);
+    if (!task) throw queueError("TASK_NOT_ACTIVE", `Active task not found: ${taskId}`, 404);
+    await this._assertClaimOwnership(task, ownership);
+    return {
+      active: true,
+      taskId: task.taskId,
+      agentId: task.assignedTo,
+      fencingToken: task.claim?.fencingToken,
+    };
+  }
+
   async requeueTask(taskId) {
     const index = this.completedTasks.findIndex((task) => task.taskId === taskId && task.status === TASK_STATUS.FAILED);
     if (index === -1) throw queueError("TASK_FAILED_NOT_FOUND", `Failed task not found: ${taskId}`, 404);

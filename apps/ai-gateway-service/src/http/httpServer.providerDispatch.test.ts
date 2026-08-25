@@ -354,6 +354,8 @@ describe("real-provider HTTP dispatch idempotency", () => {
         .toContain("idempotency-key");
       expect(preflight.headers.get("access-control-allow-headers")?.toLowerCase())
         .toContain("provider-dispatch-key");
+      expect(preflight.headers.get("access-control-allow-headers")?.toLowerCase())
+        .toContain("external-effect-key");
     } finally {
       await closeServer(server);
       await originalRequestLogger?.close?.();

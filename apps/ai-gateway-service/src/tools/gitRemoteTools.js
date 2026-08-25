@@ -32,8 +32,10 @@ export function createGitPushTool(defaultCwd) {
     }),
     requiredPermissions: ["git:remote"],
     isReadOnly: false,
+    externalEffectType: "git:push",
+    externalEffectRequiresFence: true,
 
-    async execute(params) {
+    async execute(params, context) {
       const cwd = resolveSafeCwd(defaultCwd);
 
       if (params.remote) {
@@ -62,6 +64,7 @@ export function createGitPushTool(defaultCwd) {
       args.push(remote, branch);
 
       try {
+        await context.commitExternalEffect();
         const output = runGit(args.join(" "), cwd);
         return {
           success: true,
@@ -99,8 +102,10 @@ export function createGitCreatePRTool(defaultCwd) {
     }, ["title"]),
     requiredPermissions: ["git:remote"],
     isReadOnly: false,
+    externalEffectType: "github:pull-request-create",
+    externalEffectRequiresFence: true,
 
-    async execute(params) {
+    async execute(params, context) {
       const cwd = resolveSafeCwd(params.directory || defaultCwd);
 
       // Detect base branch
@@ -141,6 +146,7 @@ export function createGitCreatePRTool(defaultCwd) {
       if (params.draft) ghArgs.push("--draft");
 
       try {
+        await context.commitExternalEffect();
         const output = runGh(ghArgs, cwd);
 
         const prUrl = (output || "").trim();

@@ -88,6 +88,7 @@ export async function dispatchHttpRoutes02(context) {
     const lifecycle = gatewayLifecycle?.snapshot?.() ?? null;
     const idempotency = await readIdempotencyHealth(idempotencyCoordinator);
     const providerDispatch = await readProviderDispatchHealth(application?.providerDispatchGate);
+    const externalEffects = await readExternalEffectHealth(application?.externalEffectGate);
     const rateLimit = await readRateLimitHealth(rateLimiter);
     const webSocketLease = await readWebSocketLeaseHealth(webSocketConnectionLeaseManager);
     const a2aTaskStore = await readA2ATaskStoreHealth(a2aGateway);
@@ -102,6 +103,8 @@ export async function dispatchHttpRoutes02(context) {
       providerDispatchUnavailable:
         application?.gatewayService?.runtimeConfig?.requireProviderDispatchGate === true
         && (providerDispatch?.enabled !== true || providerDispatch?.available !== true),
+      externalEffectStoreUnavailable:
+        externalEffects?.enabled === true && externalEffects?.available !== true,
       rateLimitStoreUnavailable: rateLimit?.storeMode === "postgres" && rateLimit?.available !== true,
       webSocketLeaseStoreUnavailable: Boolean(webSocketConnectionLeaseManager) && webSocketLease?.available !== true,
       a2aTaskStoreUnavailable: Boolean(a2aGateway) && a2aTaskStore?.available !== true,
@@ -126,6 +129,7 @@ export async function dispatchHttpRoutes02(context) {
       lifecycle,
       idempotency,
       providerDispatch,
+      externalEffects,
       rateLimit,
       webSocketLease,
       a2aTaskStore,
@@ -260,6 +264,7 @@ export async function dispatchHttpRoutes02(context) {
     const lifecycle = gatewayLifecycle?.snapshot?.() ?? null;
     const idempotency = await readIdempotencyHealth(idempotencyCoordinator);
     const providerDispatch = await readProviderDispatchHealth(application?.providerDispatchGate);
+    const externalEffects = await readExternalEffectHealth(application?.externalEffectGate);
     const rateLimit = await readRateLimitHealth(rateLimiter);
     const webSocketLease = await readWebSocketLeaseHealth(webSocketConnectionLeaseManager);
     const a2aTaskStore = await readA2ATaskStoreHealth(a2aGateway);
@@ -274,6 +279,8 @@ export async function dispatchHttpRoutes02(context) {
       providerDispatchUnavailable:
         application?.gatewayService?.runtimeConfig?.requireProviderDispatchGate === true
         && (providerDispatch?.enabled !== true || providerDispatch?.available !== true),
+      externalEffectStoreUnavailable:
+        externalEffects?.enabled === true && externalEffects?.available !== true,
       rateLimitStoreUnavailable: rateLimit?.storeMode === "postgres" && rateLimit?.available !== true,
       webSocketLeaseStoreUnavailable: Boolean(webSocketConnectionLeaseManager) && webSocketLease?.available !== true,
       a2aTaskStoreUnavailable: Boolean(a2aGateway) && a2aTaskStore?.available !== true,
@@ -296,6 +303,7 @@ export async function dispatchHttpRoutes02(context) {
       lifecycle,
       idempotency,
       providerDispatch,
+      externalEffects,
       webSocketLease,
       a2aTaskStore,
       workforceClaimStore,
@@ -710,6 +718,9 @@ function collectReadinessFailures(healthSnapshot, readinessSnapshot, context = {
   if (context?.providerDispatchUnavailable) {
     readinessFailures.push("provider-dispatch-store-unavailable");
   }
+  if (context?.externalEffectStoreUnavailable) {
+    readinessFailures.push("external-effect-store-unavailable");
+  }
   if (context?.rateLimitStoreUnavailable) {
     readinessFailures.push("rate-limit-store-unavailable");
   }
@@ -902,6 +913,36 @@ async function readProviderDispatchHealth(gate) {
   } catch {
     return sanitizeProviderDispatchHealth({ available: false }, gate.status);
   }
+}
+
+async function readExternalEffectHealth(gate) {
+  if (!gate) return null;
+  try {
+    const snapshot = typeof gate.checkHealth === "function"
+      ? await gate.checkHealth()
+      : gate.getHealth?.();
+    return sanitizeExternalEffectHealth(snapshot, gate.status);
+  } catch {
+    return sanitizeExternalEffectHealth({ available: false }, gate.status);
+  }
+}
+
+function sanitizeExternalEffectHealth(snapshot, status = {}) {
+  if (!snapshot && !status) return null;
+  return {
+    mode: snapshot?.mode ?? status?.mode ?? "unknown",
+    enabled: snapshot?.enabled === true || status?.enabled === true,
+    durable: snapshot?.durable === true || status?.durable === true,
+    distributed: snapshot?.distributed === true || status?.distributed === true,
+    centralRequired: snapshot?.centralRequired === true || status?.centralRequired === true,
+    available: snapshot?.available === true,
+    ttlMs: Number(snapshot?.ttlMs ?? status?.ttlMs ?? 0),
+    maxEntries: Number(snapshot?.maxEntries ?? status?.maxEntries ?? 0),
+    entries: Number(snapshot?.entries ?? 0),
+    inFlight: Number(snapshot?.inFlight ?? 0),
+    tombstones: Number(snapshot?.tombstones ?? 0),
+    statsUpdatedAt: snapshot?.statsUpdatedAt ?? null,
+  };
 }
 
 function sanitizeProviderDispatchHealth(snapshot, status = {}) {

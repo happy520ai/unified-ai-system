@@ -133,7 +133,12 @@ export async function executeWorkforceDag(options: DagExecutorOptions) {
       }
       const ownership = { claimToken: claimed.claimToken, agentId: roleId };
       await options.taskQueue.updateTaskStatus(task.queueTaskId, TASK_STATUS.IN_PROGRESS, undefined, ownership);
-      return { roleId, task, ownership };
+      return {
+        roleId,
+        task,
+        ownership,
+        fencingToken: String(claimed.claim?.fencingToken ?? ""),
+      };
     }));
 
     const preparationFailures: Array<{ roleId: string; message: string }> = [];
@@ -141,6 +146,7 @@ export async function executeWorkforceDag(options: DagExecutorOptions) {
       roleId: string;
       task: DagTask;
       ownership: { claimToken: string; agentId: string };
+      fencingToken: string;
     }> = [];
     for (let index = 0; index < preparedSettled.length; index += 1) {
       const result = preparedSettled[index];
@@ -165,7 +171,7 @@ export async function executeWorkforceDag(options: DagExecutorOptions) {
       );
     }
 
-    const settled = await Promise.allSettled(prepared.map(async ({ roleId, task, ownership }) => {
+    const settled = await Promise.allSettled(prepared.map(async ({ roleId, task, ownership, fencingToken }) => {
       activeExecutions += 1;
       peakConcurrency = Math.max(peakConcurrency, activeExecutions);
       try {
@@ -173,6 +179,18 @@ export async function executeWorkforceDag(options: DagExecutorOptions) {
           ...(options.context ?? {}),
           priorOutputs,
           signal: options.signal,
+          externalEffectFence: Object.freeze({
+            fencingToken,
+            async assertActive() {
+              if (!fencingToken || typeof options.taskQueue.assertTaskClaimActive !== "function") {
+                throw dagError(
+                  "WORKFORCE_EXTERNAL_EFFECT_FENCE_UNAVAILABLE",
+                  "The task queue cannot prove an active fence for an external effect.",
+                );
+              }
+              return options.taskQueue.assertTaskClaimActive(task.queueTaskId, ownership);
+            },
+          }),
         }, task)), options.signal, options.abortDrainTimeoutMs);
         await options.taskQueue.completeTask(task.queueTaskId, {
           roleId,

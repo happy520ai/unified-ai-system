@@ -2,6 +2,8 @@ export const HIGH_RISK_AGENT_TOOLS = Object.freeze([
   "shell_exec",
   "code_run",
   "web_fetch",
+  "git_push",
+  "git_create_pr",
 ]);
 
 const HIGH_RISK_AGENT_TOOL_SET = new Set<string>(HIGH_RISK_AGENT_TOOLS);

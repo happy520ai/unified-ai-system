@@ -81,6 +81,16 @@ describe("claim-enforced task queue", () => {
     })).rejects.toMatchObject({ code: "TASK_CLAIM_INVALID" });
     const ownership = { claimToken: claimed.claimToken, agentId: "agent-secure" };
     await queue.updateTaskStatus(task.taskId, TASK_STATUS.IN_PROGRESS, undefined, ownership);
+    await expect(queue.assertTaskClaimActive(task.taskId, ownership)).resolves.toMatchObject({
+      active: true,
+      taskId: task.taskId,
+      agentId: "agent-secure",
+      fencingToken: claimed.claim?.fencingToken,
+    });
+    await expect(queue.assertTaskClaimActive(task.taskId, {
+      claimToken: "forged-token",
+      agentId: "agent-secure",
+    })).rejects.toMatchObject({ code: "TASK_CLAIM_INVALID" });
     await expect(queue.completeTask(task.taskId, { ok: true }, ownership))
       .resolves.toEqual(expect.objectContaining({ status: TASK_STATUS.COMPLETED }));
     expect(queue.getQueueStatus()).toEqual(expect.objectContaining({ totalActive: 0, totalCompleted: 1 }));
@@ -119,6 +129,7 @@ describe("dependency-aware workforce execution", () => {
     let active = 0;
     let observedPeak = 0;
     const observedPriorOutputs = new Map<string, string[]>();
+    const observedFencingTokens = new Map<string, string>();
     const result = await executeWorkforceDag({
       tasks: queued.map((task) => ({
         queueTaskId: task.taskId,
@@ -131,6 +142,14 @@ describe("dependency-aware workforce execution", () => {
         active += 1;
         observedPeak = Math.max(observedPeak, active);
         observedPriorOutputs.set(roleId, Object.keys(context.priorOutputs as object).sort());
+        const fence = context.externalEffectFence as {
+          fencingToken: string;
+          assertActive(): Promise<unknown>;
+        };
+        expect(fence.fencingToken).toMatch(/^\d+$/u);
+        expect(JSON.stringify(fence)).not.toContain("claimToken");
+        await expect(fence.assertActive()).resolves.toMatchObject({ active: true });
+        observedFencingTokens.set(roleId, fence.fencingToken);
         try {
           await new Promise((resolve) => setTimeout(resolve, 5));
           return { roleId, ok: true };
@@ -148,6 +167,7 @@ describe("dependency-aware workforce execution", () => {
     ]);
     expect(result.peakConcurrency).toBe(2);
     expect(observedPeak).toBe(2);
+    expect(observedFencingTokens.size).toBe(7);
     expect(observedPriorOutputs.get("pm")).toEqual(["ceo"]);
     expect(observedPriorOutputs.get("frontend-engineer")).toEqual(["architect", "ceo", "pm"]);
     expect(queue.getQueueStatus()).toEqual(expect.objectContaining({ totalCompleted: 7, totalActive: 0 }));

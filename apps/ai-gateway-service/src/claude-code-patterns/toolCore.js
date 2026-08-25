@@ -80,6 +80,8 @@ export function createToolUseContext({ registry, permissionChecker, eventBus, ag
  * @param {string[]} def.requiredPermissions - 需要的权限列表
  * @param {number} [def.maxResultSizeChars] - 结果最大字符数
  * @param {boolean} [def.isReadOnly] - 是否只读操作
+ * @param {string} [def.externalEffectType] - Irreversible external effect class
+ * @param {boolean} [def.externalEffectRequiresFence] - Require an active execution fence
  * @returns {Object} 标准化的工具定义
  */
 export function buildTool(def) {
@@ -91,6 +93,8 @@ export function buildTool(def) {
     requiredPermissions: def.requiredPermissions || [],
     maxResultSizeChars: def.maxResultSizeChars || 100_000,
     isReadOnly: def.isReadOnly ?? false,
+    externalEffectType: def.externalEffectType || null,
+    externalEffectRequiresFence: def.externalEffectRequiresFence === true,
     /** 来源标记，区分内置工具 vs 外部注册工具 */
     source: def.source || "built-in",
     /** 工具版本号 */

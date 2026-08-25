@@ -609,13 +609,17 @@ export function writeEnterpriseError({ response, error, startedAt, fallbackCode 
 }
 
 export function writeCapabilityError({ response, error, startedAt, fallbackCode }) {
+  const explicitStatusCode = Number(error?.statusCode);
+  const statusCode = Number.isInteger(explicitStatusCode) && explicitStatusCode >= 400 && explicitStatusCode <= 599
+    ? explicitStatusCode
+    : error?.category === "validation" ? 400 : 422;
   writeJson(
     response,
-    error?.category === "validation" ? 400 : 422,
+    statusCode,
     createErrorEnvelope(error?.code ?? fallbackCode, error instanceof Error ? error.message : "Capability request failed.", {
       startedAt,
       category: error?.category ?? "capability",
-      retryable: false,
+      retryable: error?.retryable === true,
       details: error?.details,
     }),
   );
