@@ -262,11 +262,15 @@ Docker replication bridge. The full failure sequence must be rejected by an
 independent container-state fence; reconnecting the bridge must restore health
 and replay a marker written during the partition. This closes one bounded
 single-bridge unsafe-promotion and convergence precursor. It is not
-multi-candidate quorum, an arbitrary multi-host partition, or an old-primary
-rejoin test. Complete deployment HA still needs independently verified
+multi-candidate quorum or an arbitrary multi-host partition. After promotion,
+the drill retains the fenced old-primary volume, runs `pg_rewind -R` with
+persisted `wal_log_hints` and WAL retention, and starts that volume only as a
+standby; it must replay both a post-promotion marker and another marker after
+the promoted primary restarts. Complete deployment HA still needs independently verified
 multi-candidate election/quorum, external HA control, synchronous policy, TLS
-identity, retention/PITR, production-scale restore, broader partition and
-split-brain behavior, old-primary convergence, provider reconciliation,
+identity, retention/PITR/WAL archive fallback, production-scale restore,
+broader partition and split-brain behavior, multi-candidate rejoin control,
+provider reconciliation,
 measured RTO/RPO, and load-balancer behavior.
 
 ### Workforce task ownership

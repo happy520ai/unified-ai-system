@@ -53,15 +53,25 @@ returning.
     container-state fence must reject promotion. The bridge is reconnected with
     the same `primary` alias; a healthy probe must reset the controller and the
     standby must replay the partition marker with bounded LSN lag. Finally, a
-    checked-out sentinel runs an in-flight query and the active primary and its
-    volume are destroyed, which must interrupt the query. Three failures plus
+    checked-out sentinel runs an in-flight query and the active primary
+    container is destroyed while its fenced volume is retained, which must
+    interrupt the query. Three failures plus
     confirmation are required again; only an independently fenced old primary
     permits `pg_ctl promote`, writable wait, and stable endpoint switch. The
     original sentinel Pool and all eight clients must recover without
     reconstruction and pass 8/8 again.
-11. Restarts the promoted standby and requires the same sentinel Pool plus the
-    same eight application clients to recover and pass a third 8/8.
-12. Removes every client, proxy, container, volume, network, credential file,
+11. Writes a marker on the promoted primary, then runs PostgreSQL 17
+    `pg_rewind -R` against the fenced old-primary volume. `wal_log_hints=on`,
+    `full_page_writes=on`, and a persisted 128 MiB WAL retention window are
+    required. The old volume is never started before rewind. Its first start
+    must report `pg_is_in_recovery()=true`, replay the post-promotion marker,
+    match the gateway inventory, and leave the stable endpoint and original
+    clients healthy.
+12. Restarts the promoted primary and requires the same sentinel Pool plus the
+    same eight application clients to recover and pass a third 8/8. The rewound
+    old primary must remain a standby and replay another marker after that
+    source restart.
+13. Removes every client, proxy, container, volume, network, credential file,
     and dump artifact. A cleanup failure makes the drill fail.
 
 CI runs the same command after the real PostgreSQL integration suite. The JSON
@@ -79,7 +89,9 @@ writable, the standby cannot replay a new marker, the health path reaches its
 full failure threshold, and the independent Docker-state fence blocks
 promotion. After bridge healing, health recovers and the standby replays that
 marker before the destructive failover proceeds. The same in-process
-application pools recover after switch and restart.
+application pools recover after switch and restart. The fenced old-primary
+volume is then rewound against the promoted primary, starts only in recovery,
+and proves both initial and post-source-restart streaming convergence.
 The reported `controlledRecoveryTimeMs` and `controlledFailoverTimeMs` are only
 the wall clocks of this disposable fixture; neither is a production RTO.
 
@@ -91,7 +103,8 @@ The drill does **not** prove:
   one standby and runs only inside this disposable drill);
 - arbitrary multi-link/multi-host partition or complete split-brain safety. The
   covered partition is one disposable Docker bridge with one known standby;
-  the independent fence is not a quorum service or an old-primary rejoin test;
+  the independent fence and rewind path are not a quorum service, automatic
+  multi-candidate rejoin controller, or proof for missing-WAL/archive recovery;
 - object-lock/WORM retention or independent backup custody;
 - production data volume, encryption-at-rest, certificate rotation, RPO, or
   RTO;

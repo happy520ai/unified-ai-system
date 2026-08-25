@@ -61,9 +61,14 @@ and the project uses [Semantic Versioning](https://semver.org/).
   after bridge healing, the probe must recover and the standby must replay a
   marker written during the partition. The same sentinel Pool plus eight
   clients must recover after switch/restart. This bounded single-bridge proof
-  is not multi-candidate election/quorum, external HA control, PITR, arbitrary
-  multi-host partition/old-primary rejoin, complete split-brain safety, or
-  production RTO/RPO proof.
+  now also retains the fenced old-primary volume, persists rewind prerequisites,
+  runs PostgreSQL 17 `pg_rewind -R`, and starts the old volume only as a
+  streaming standby. It must replay a post-promotion marker, preserve exact
+  inventory and client health, then reconnect and replay another marker after
+  the promoted primary restarts. This is not multi-candidate election/quorum,
+  external HA control, PITR/WAL-archive fallback, arbitrary multi-host
+  partition/rejoin control, complete split-brain safety, or production RTO/RPO
+  proof.
 - Added central PostgreSQL Workforce execution control: raw-identifier-free
   tenant/plan/subject keys, atomic single-use approval consumption, versioned
   digest-verified lifecycle transitions, bounded retention/capacity, remote

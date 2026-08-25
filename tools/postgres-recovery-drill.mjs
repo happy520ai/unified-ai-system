@@ -78,6 +78,7 @@ async function runRecoveryDrill({ dryRun }) {
         "verify inventory and all eight application contracts",
         "build a real streaming standby from recovery with pg_basebackup -R and replay a post-basebackup WAL marker",
         "arm a probe from an isolated Docker peer, disconnect primary from the replication bridge, prove primary remains writable while promotion is fenced, heal the bridge and replay a partition marker, then destroy primary, confirm fencing, promote standby, switch the stable endpoint, and verify through the same clients",
+        "rewind the fenced old-primary volume against the promoted primary, start it only with recovery configuration, and prove it rejoins as a streaming standby",
         "restart standby and verify again through those same clients",
         "remove containers and the temporary backup artifact",
       ],
@@ -88,6 +89,7 @@ async function runRecoveryDrill({ dryRun }) {
         continuousWalRecoveryProved: false,
         singleStandbyFenceFailClosedProved: false,
         singleBridgePartitionFenceProved: false,
+        safeOldPrimaryRejoinProved: false,
         automaticFailoverProved: false,
         productionRtoRpoProved: false,
       },
@@ -100,6 +102,8 @@ async function runRecoveryDrill({ dryRun }) {
   const recoveryName = `ai-gateway-pg-recovery-${runId}`;
   const standbyName = `ai-gateway-pg-standby-${runId}`;
   const networkProbeName = `ai-gateway-pg-network-probe-${runId}`;
+  const rewindName = `ai-gateway-pg-rewind-${runId}`;
+  const rejoinedName = `ai-gateway-pg-rejoined-${runId}`;
   const basebackupName = `ai-gateway-pg-basebackup-${runId}`;
   const standbyChownName = `ai-gateway-pg-standby-chown-${runId}`;
   const replicationNetworkName = `ai-gateway-pg-replication-${runId}`;
@@ -122,6 +126,8 @@ async function runRecoveryDrill({ dryRun }) {
     recoveryName,
     standbyName,
     networkProbeName,
+    rewindName,
+    rejoinedName,
     basebackupName,
     standbyChownName,
   ]);
@@ -160,6 +166,9 @@ async function runRecoveryDrill({ dryRun }) {
   let automaticFailoverAbortController = null;
   let automaticFailoverEvidence = null;
   let networkPartitionEvidence = null;
+  let oldPrimaryRejoinEvidence = null;
+  let rewindPrerequisites = null;
+  let rejoinedUrl = null;
 
   try {
     await runDocker(dockerExecutable, ["version", "--format", "{{.Server.Version}}"], { stage });
@@ -232,6 +241,7 @@ async function runRecoveryDrill({ dryRun }) {
         "-c", "max_replication_slots=5",
         "-c", "wal_keep_size=128MB",
         "-c", "hot_standby=on",
+        "-c", "wal_log_hints=on",
       ],
       runId,
     });
@@ -255,6 +265,9 @@ async function runRecoveryDrill({ dryRun }) {
       "--no-acl",
       "/tmp/gateway-drill.dump",
     ], { stage });
+
+    stage = "rewind-prerequisite";
+    rewindPrerequisites = await configurePgRewindPrerequisites(recoveryUrl);
 
     stage = "inventory-verify";
     restoredInventory = await readDatabaseInventory(recoveryUrl);
@@ -323,7 +336,10 @@ async function runRecoveryDrill({ dryRun }) {
       publishedPort: standbyPublishedPort,
       networkName: replicationNetworkName,
       networkAlias: "standby",
-      postgresArguments: ["-c", "hot_standby=on"],
+      postgresArguments: [
+        "-c", "hot_standby=on",
+        "-c", "wal_log_hints=on",
+      ],
       runId,
     });
     await waitForPostgres({ dockerExecutable, containerName: standbyName });
@@ -512,8 +528,6 @@ async function runRecoveryDrill({ dryRun }) {
     failoverStartedAt = Date.now();
     await removeContainer(dockerExecutable, recoveryName);
     cleanupTargets.delete(recoveryName);
-    await removeVolume(dockerExecutable, recoveryVolume);
-    cleanupVolumes.delete(recoveryVolume);
     activeQueryInterrupted = await Promise.race([
       interruptedQuery,
       delay(5_000).then(() => false),
@@ -542,6 +556,101 @@ async function runRecoveryDrill({ dryRun }) {
     failoverVerification = publicApplicationChecks(failoverVerificationWithDiagnostics);
     failoverVerifiedAt = Date.now();
 
+    stage = "old-primary-rewind";
+    const promotedRoleBeforeRewind = await readPostgresRole(standbyUrl);
+    assertCondition(
+      promotedRoleBeforeRewind.inRecovery === false,
+      "POSTGRES_RECOVERY_REWIND_SOURCE_NOT_PRIMARY",
+    );
+    const postPromotionMarkerId = `${runId}-post-promotion`;
+    const postPromotionMarker = await writeReplicationMarkerInsideContainer({
+      dockerExecutable,
+      containerName: standbyName,
+      markerId: postPromotionMarkerId,
+    });
+    const rewindStartedAt = Date.now();
+    await runPgRewind({
+      dockerExecutable,
+      containerName: rewindName,
+      targetVolumeName: recoveryVolume,
+      sourceHost: "standby",
+      postgresEnvPath,
+      networkName: replicationNetworkName,
+    });
+    cleanupTargets.delete(rewindName);
+    const rewindTimeMs = Date.now() - rewindStartedAt;
+
+    stage = "old-primary-rejoin";
+    const rejoinedPublishedPort = await allocateLoopbackPort();
+    await startPostgresContainer({
+      dockerExecutable,
+      containerName: rejoinedName,
+      volumeName: recoveryVolume,
+      postgresEnvPath,
+      publishedPort: rejoinedPublishedPort,
+      networkName: replicationNetworkName,
+      networkAlias: "rejoined",
+      postgresArguments: [
+        "-c", "hot_standby=on",
+        "-c", "wal_log_hints=on",
+      ],
+      runId,
+    });
+    await waitForPostgres({ dockerExecutable, containerName: rejoinedName });
+    const rejoinedPort = await readPublishedPort(dockerExecutable, rejoinedName);
+    assertCondition(
+      rejoinedPort === rejoinedPublishedPort,
+      "POSTGRES_RECOVERY_REJOINED_ENDPOINT_CHANGED",
+    );
+    rejoinedUrl = createConnectionString(rejoinedPort, password);
+    await waitForClientPostgres(rejoinedUrl);
+    const rejoinedRole = await readPostgresRole(rejoinedUrl);
+    assertCondition(
+      rejoinedRole.inRecovery === true,
+      "POSTGRES_RECOVERY_OLD_PRIMARY_REJOINED_WRITABLE",
+    );
+    const rewindCatchup = await waitForStandbyReplicationMarker({
+      standbyConnectionString: rejoinedUrl,
+      markerId: postPromotionMarkerId,
+      primaryWalLsn: postPromotionMarker.primaryWalLsn,
+    });
+    const rejoinedInventory = await readDatabaseInventory(rejoinedUrl);
+    assertCondition(
+      sourceInventory.digest === rejoinedInventory.digest,
+      "POSTGRES_RECOVERY_REJOINED_INVENTORY_MISMATCH",
+    );
+    const rejoinVerificationWithDiagnostics = await applicationVerifier.verify();
+    assertAllChecks(rejoinVerificationWithDiagnostics);
+    oldPrimaryRejoinEvidence = {
+      mode: "pg_rewind-write-recovery-conf",
+      oldPrimaryContainerDestroyedBeforePromotion: true,
+      oldPrimaryVolumeRetainedForRewind: true,
+      walLogHintsEnabledBeforeDivergence: rewindPrerequisites.walLogHintsEnabled,
+      walLogHintsPersistedWithAlterSystem:
+        rewindPrerequisites.walLogHintsPersistedWithAlterSystem,
+      fullPageWritesEnabled: rewindPrerequisites.fullPageWritesEnabled,
+      walKeepSizeBytes: rewindPrerequisites.walKeepSizeBytes,
+      walKeepSizePersistedWithAlterSystem:
+        rewindPrerequisites.walKeepSizePersistedWithAlterSystem,
+      rewindSourceWasPromotedPrimary: true,
+      rewindCompleted: true,
+      rewindTimeMs,
+      writeRecoveryConfUsed: true,
+      oldPrimaryTargetWasForceRemoved: true,
+      oldPrimaryRestartedBeforeRewind: false,
+      rejoinedInRecovery: rejoinedRole.inRecovery,
+      postPromotionMarkerReplayed: rewindCatchup.markerReplayed,
+      primaryWalLsn: postPromotionMarker.primaryWalLsn,
+      rejoinedReplayLsn: rewindCatchup.standbyReplayLsn,
+      replayLagBytes: rewindCatchup.replayLagBytes,
+      inventoryExactMatch: sourceInventory.digest === rejoinedInventory.digest,
+      sameApplicationClientsHealthyAfterRejoin:
+        publicApplicationChecks(rejoinVerificationWithDiagnostics).all,
+      markerReplayedAfterPromotedPrimaryRestart: false,
+      safeOldPrimaryRejoinProved: true,
+    };
+    streamingReplication.oldPrimaryRejoinedAsStandbyProved = true;
+
     stage = "standby-restart";
     await runDocker(dockerExecutable, ["restart", standbyName], { stage });
     await waitForPostgres({ dockerExecutable, containerName: standbyName });
@@ -559,6 +668,21 @@ async function runRecoveryDrill({ dryRun }) {
     const restartVerificationWithDiagnostics = await applicationVerifier.verify();
     assertAllChecks(restartVerificationWithDiagnostics);
     restartVerification = publicApplicationChecks(restartVerificationWithDiagnostics);
+    const rejoinAfterSourceRestart = await writeAndWaitForReplication({
+      primaryConnectionString: standbyUrl,
+      standbyConnectionString: rejoinedUrl,
+      runId: `${runId}-source-restart`,
+    });
+    const rejoinedRoleAfterSourceRestart = await readPostgresRole(rejoinedUrl);
+    assertCondition(
+      rejoinedRoleAfterSourceRestart.inRecovery === true
+        && rejoinAfterSourceRestart.markerReplayed === true,
+      "POSTGRES_RECOVERY_REJOINED_STANDBY_DID_NOT_RECOVER",
+    );
+    oldPrimaryRejoinEvidence.markerReplayedAfterPromotedPrimaryRestart = true;
+    oldPrimaryRejoinEvidence.postRestartPrimaryWalLsn = rejoinAfterSourceRestart.primaryWalLsn;
+    oldPrimaryRejoinEvidence.postRestartRejoinedReplayLsn = rejoinAfterSourceRestart.standbyReplayLsn;
+    oldPrimaryRejoinEvidence.postRestartReplayLagBytes = rejoinAfterSourceRestart.replayLagBytes;
 
     stage = "cleanup";
     await applicationVerifier.close();
@@ -570,12 +694,16 @@ async function runRecoveryDrill({ dryRun }) {
     failoverProxy = null;
     await removeContainer(dockerExecutable, networkProbeName);
     cleanupTargets.delete(networkProbeName);
+    await removeContainer(dockerExecutable, rejoinedName);
+    cleanupTargets.delete(rejoinedName);
     await removeContainer(dockerExecutable, standbyName);
     cleanupTargets.delete(standbyName);
     await removeDockerNetwork(dockerExecutable, replicationNetworkName);
     cleanupNetworks.delete(replicationNetworkName);
     await removeVolume(dockerExecutable, standbyVolume);
     cleanupVolumes.delete(standbyVolume);
+    await removeVolume(dockerExecutable, recoveryVolume);
+    cleanupVolumes.delete(recoveryVolume);
     await rm(temporaryRoot, { recursive: true, force: true });
     cleanupComplete = true;
 
@@ -611,7 +739,8 @@ async function runRecoveryDrill({ dryRun }) {
       },
       endpointFailover: {
         mode: "automatic-single-standby-controller",
-        oldDatabaseDestroyedBeforeSwitch: true,
+        oldPrimaryContainerDestroyedBeforeSwitch: true,
+        oldPrimaryVolumeRetainedForRewind: true,
         standbyRestoredFromSameArtifact: false,
         standbyCreatedByPgBasebackup: true,
         activeQueryInterrupted,
@@ -630,11 +759,14 @@ async function runRecoveryDrill({ dryRun }) {
           automaticFailoverEvidence.promotionBlockedWhilePrimaryRunning,
         singleBridgePartitionFenceProved:
           networkPartitionEvidence.singleBridgePartitionFenceProved,
+        oldPrimaryRejoinedAsStandbyProved:
+          oldPrimaryRejoinEvidence.safeOldPrimaryRejoinProved,
         automaticElectionProved: false,
         streamingReplicationProved: true,
       },
       automaticFailover: automaticFailoverEvidence,
       networkPartition: networkPartitionEvidence,
+      oldPrimaryRejoin: oldPrimaryRejoinEvidence,
       streamingReplication,
       recoveryPoint: {
         mode: "controlled-logical-snapshot",
@@ -654,6 +786,8 @@ async function runRecoveryDrill({ dryRun }) {
           && automaticFailoverEvidence.primaryFenceConfirmed,
         singleBridgePartitionFenceProved:
           networkPartitionEvidence.singleBridgePartitionFenceProved,
+        safeOldPrimaryRejoinProved:
+          oldPrimaryRejoinEvidence.safeOldPrimaryRejoinProved,
         operatorControlledEndpointSwitchProved: false,
         automaticFailoverProved: false,
         networkPartitionProved: false,
@@ -1224,6 +1358,84 @@ async function readPostgresRole(connectionString) {
     };
   } finally {
     await pool.end();
+  }
+}
+
+async function configurePgRewindPrerequisites(connectionString) {
+  const pool = new Pool({ connectionString, max: 1, allowExitOnIdle: true });
+  try {
+    await pool.query(`ALTER SYSTEM SET wal_log_hints = 'on'`);
+    await pool.query(`ALTER SYSTEM SET wal_keep_size = '128MB'`);
+    const result = await pool.query(`
+      SELECT
+        current_setting('wal_log_hints') AS wal_log_hints,
+        current_setting('full_page_writes') AS full_page_writes,
+        pg_size_bytes(current_setting('wal_keep_size'))::bigint AS wal_keep_size_bytes
+    `);
+    const walLogHintsEnabled = result.rows[0]?.wal_log_hints === "on";
+    const fullPageWritesEnabled = result.rows[0]?.full_page_writes === "on";
+    const walKeepSizeBytes = Number(result.rows[0]?.wal_keep_size_bytes ?? 0);
+    assertCondition(
+      walLogHintsEnabled
+        && fullPageWritesEnabled
+        && Number.isSafeInteger(walKeepSizeBytes)
+        && walKeepSizeBytes >= 128 * 1024 * 1024,
+      "POSTGRES_RECOVERY_REWIND_PREREQUISITE_MISSING",
+    );
+    return {
+      walLogHintsEnabled,
+      walLogHintsPersistedWithAlterSystem: true,
+      fullPageWritesEnabled,
+      walKeepSizeBytes,
+      walKeepSizePersistedWithAlterSystem: true,
+    };
+  } finally {
+    await pool.end();
+  }
+}
+
+async function runPgRewind({
+  dockerExecutable,
+  containerName,
+  targetVolumeName,
+  sourceHost,
+  postgresEnvPath,
+  networkName,
+}) {
+  assertCondition(
+    /^[a-z0-9-]{1,63}$/.test(sourceHost),
+    "POSTGRES_RECOVERY_REWIND_SOURCE_HOST_INVALID",
+  );
+  const result = await runProcess(dockerExecutable, [
+    "run", "--rm",
+    "--name", containerName,
+    "--user", "postgres",
+    "--network", networkName,
+    "--env-file", postgresEnvPath,
+    "--read-only",
+    "--cap-drop", "ALL",
+    "--security-opt", "no-new-privileges",
+    "--pids-limit", "64",
+    "--memory", "256m",
+    "--tmpfs", "/tmp:rw,noexec,nosuid,size=16m",
+    "--mount", `type=volume,source=${targetVolumeName},target=/var/lib/postgresql/data`,
+    "--entrypoint", "pg_rewind",
+    POSTGRES_IMAGE,
+    "--target-pgdata=/var/lib/postgresql/data",
+    "--source-server", `postgresql://${POSTGRES_USER}@${sourceHost}:5432/${POSTGRES_DATABASE}`,
+    "--write-recovery-conf",
+    "--progress",
+  ], { timeoutMs: PROCESS_TIMEOUT_MS });
+  if (result.exitCode !== 0) {
+    const error = drillError(
+      "POSTGRES_RECOVERY_PG_REWIND_FAILED",
+      "The fenced old primary could not be rewound safely.",
+    );
+    error.stage = "postgres-old-primary-rewind";
+    error.diagnostics = {
+      pgRewindStderrTail: sanitizeFailureMessage(result.stderr.slice(-4_000), 2_000),
+    };
+    throw error;
   }
 }
 
@@ -2160,13 +2372,16 @@ function readArgumentValue(args, name) {
   return inline ? inline.slice(prefix.length) : null;
 }
 
-function sanitizeFailureMessage(value) {
+function sanitizeFailureMessage(value, maxLength = 500) {
   const normalized = String(value ?? "PostgreSQL recovery drill failed.")
     .replace(/postgres(?:ql)?:\/\/[^\s]+/gi, "[redacted-postgres-url]")
     .replace(/POSTGRES_PASSWORD=[^\s]+/gi, "POSTGRES_PASSWORD=[redacted]")
     .replace(/[\r\n\t]+/g, " ")
     .trim();
-  return normalized.slice(0, 500) || "PostgreSQL recovery drill failed.";
+  const boundedLength = Number.isSafeInteger(maxLength)
+    ? Math.min(4_000, Math.max(100, maxLength))
+    : 500;
+  return normalized.slice(0, boundedLength) || "PostgreSQL recovery drill failed.";
 }
 
 function printHumanSummary(value) {
@@ -2181,9 +2396,10 @@ function printHumanSummary(value) {
       `Automatic single-standby failover proved: ${String(value.boundaries.automaticSingleStandbyFailoverProved)}`,
       `Promotion blocked while old primary remained running: ${String(value.automaticFailover.promotionBlockedWhilePrimaryRunning)}`,
       `Single Docker-bridge partition fenced and healed: ${String(value.boundaries.singleBridgePartitionFenceProved)}`,
+      `Old primary safely rejoined as standby: ${String(value.boundaries.safeOldPrimaryRejoinProved)}`,
       `Database inventory: ${value.databaseInventory.tableCount} tables, ${value.databaseInventory.totalRows} rows`,
       `Cleanup complete: ${String(value.cleanup.complete)}`,
-      "Boundary: one Docker-bridge partition and bounded single-standby failover; no quorum election, old-primary rejoin, complete split-brain, continuous WAL RPO, or production RTO claim.",
+      "Boundary: one Docker-bridge partition, bounded failover, and pg_rewind old-primary rejoin; no quorum election, complete split-brain, continuous WAL RPO, or production RTO claim.",
     ].join("\n") + "\n");
     return;
   }
