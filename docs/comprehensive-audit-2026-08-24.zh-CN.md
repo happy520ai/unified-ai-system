@@ -74,7 +74,7 @@
 | `docs/` Markdown/HTML | 98 |
 | pnpm 工作区项目 | 20（含根项目） |
 | PR 相对 `origin/master` 变化文件 | 420（包含本报告） |
-| 已审分支相对 `origin/master` | 本报告提交后 93 个提交领先；最新代码证据为 `492a7d0a` |
+| 已审分支相对 `origin/master` | 本次最终证据刷新提交后 94 个提交领先；最新代码证据为 `492a7d0a` |
 | 当前 GitHub 采用快照 | 6 stars、2 forks；这是采用度快照，不是质量评分 |
 
 文件数、测试数和星标都不能单独证明质量；它们仅用于界定审计规模与市场成熟度。
@@ -141,7 +141,7 @@
 | AUD-35 | 高 | `/chat` 只有响应级幂等，OpenAI/Anthropic/Gemini 兼容路由、流式、fallback、shadow 和内部多次调用没有跨进程的 Provider dispatch 身份；usage attempt 又是随机 ID，崩溃重放可能重复外呼/扣费 | HTTP 入口立即哈希 `Idempotency-Key`；真实调用默认强制 key；每个 invocation/fallback/shadow lane 在外呼前写 durable tombstone；SQLite 支持重启/同主机，PostgreSQL 使用独立 table/sequence/index/lock、verify-full TLS、同 usage 数据库和稳定 HMAC；容量、冲突、未知状态均失败关闭；SSE 在写 200 头前预取首事件；health/readiness/metrics 全接入 | E3；SQLite 重启、双实例竞争、负载冲突、容量和明文不落库覆盖；真实 PostgreSQL 17 两个独立 pool 仅一个 owner、重启重复拒绝、独立 invocation、专表隔离通过；普通 HTTP 幂等表不被 dispatch 墓碑挤占；不声称 Provider 侧 exactly-once |
 | AUD-36 | 高 | LLM prompt enhancer、bounded Agent、Forge、Phase312A/Three Mode、Provider connection test、Multimodal 和可注入 Workforce Provider 曾可直接持有 adapter/client，绕过核心 usage/audit/dispatch；Forge 还会把首个请求绑定 proxy 缓存在 application，造成跨请求身份、取消和幂等上下文滞留；Knowledge `sqlite-vec` 可被环境变量悄然切到直连 HTTP embedding | 增加 TypeScript gateway-backed adapter 与通用 `executeProviderOperation`，将聊天、图像、Embedding、TTS、STT 的 policy→reservation→audit→usage-start→adapter→terminal 顺序收口；每个请求显式传入当前 bound gateway，禁止缓存 request proxy；Provider test/Three Mode/Phase chat 改走核心，未纳入核心的 Phase 非聊天端点明确阻断；Workforce 拒绝无治理标记 adapter；Knowledge 运行时忽略环境直连凭据并暴露 blocked health，注入外部 embedding 也必须带治理标记 | E2/E3；核心顺序、前置拒绝不调用 adapter、四类 Multimodal 映射、音频仅摘要、HTTP 缺 key/首次/重放、Forge 跨请求隔离、Prompt/Agent/Three Mode/Provider test/Knowledge/Workforce 行为测试通过；显式离线 vector production probe 不属于在线 application 路径 |
 | AUD-37 | 高 | 服务端强制 dispatch key 后，shared SDK、CLI、Forge LLM/HTTP bridge 及多模态客户端未自动提供 key，真实调用会退化为 400；若普通随机 key 一律占用 `/chat` 响应重放表，还会把一次性调用变成无价值的缓存容量；Forge 低层 LLM 在 stream 失败后会再发 non-stream POST，显式 standalone direct fallback 也可能在 gateway POST 已发送但响应丢失后改为直连 Provider，均可制造重复扣费；认证 401 又曾被 GatewayBridge 当成“网关不可达” | 明确双头语义：显式 `Idempotency-Key` 同时请求响应重放与 Provider 墓碑，默认 `Provider-Dispatch-Key` 只占调度墓碑；shared SDK 对 Provider-bearing 方法自动生成 provider-only key，并允许两种显式 caller key 且拒绝歧义，JavaScript 实现与 TypeScript 公共声明同步；CLI 每次命令生成 provider-only key并透传企业 token；Forge bridge/LLM/stream 及图像、视频、Embedding、TTS、STT 默认 provider-only、显式 retry 才发标准 key并透传企业 token，多模态有界重试复用同一 key；只有 POST 前 transport probe 明确失败或权威 fake 证明才允许显式 direct，一旦 POST 已开始，chat/stream 均返回 `FORGE_GATEWAY_OUTCOME_UNCERTAIN`，不再切 direct/non-stream；任何 HTTP 响应都证明网关可达，401/503 不授予绕过权 | E2/E3；SDK 双头选择/歧义失败关闭/header 剥离 body/默认生成、HTTP 双头拒绝/CORS/provider-only Multimodal 重放、Forge auth/显式与默认 header 分流、五类多模态唯一 key/重试 key 稳定、401 不直连、chat uncertain POST 禁 direct、stream uncertain 禁 non-stream 的行为测试通过；standalone Forge 仅在 POST 前探针明确判定 transport 不可达且 operator 显式开启时保留 direct 能力，该路径不属于网关 usage/audit 证据 |
-| AUD-38 | 高 | Tianshu 与 GodReview 的旧 `/chat/auto` 自调用没有 dispatch key/auth，GodReview 的 5xx/network retry 会生成重复 POST；两套神经元生成器又硬编码前端开发端口 `5191`。更基础的契约矛盾是：这些模块自己声称允许默认 loopback，却调用只允许公网单播的 `safeOutboundFetch`，所以 `127.0.0.1` 默认路径会在发请求前被安全策略永久阻断 | 新增 TypeScript internal gateway client 与专用 outbound resolver：只允许并 pin 精确 `127.0.0.1`/`localhost`/`::1`，其他目标继续执行公网单播、DNS pin 和禁止重定向策略；神经元调用合并到共享客户端，默认核心 `3100`/`AI_GATEWAY_SERVICE_PORT`；Tianshu/GodReview/Neurogenesis 全部透传 auth 与 provider-only key，GodReview 两次有界尝试复用同一 key，未知 POST 不切另一路径 | E3；真实 loopback HTTP server 4/4 覆盖 loopback pin/metadata 拒绝、Tianshu header、GodReview retry key 稳定与 Neurogenesis 核心响应形状；最终根级工作区与干净公共克隆均通过，latest hosted quality 尚待本次推送触发，未把旧 CI 当新提交证明 |
+| AUD-38 | 高 | Tianshu 与 GodReview 的旧 `/chat/auto` 自调用没有 dispatch key/auth，GodReview 的 5xx/network retry 会生成重复 POST；两套神经元生成器又硬编码前端开发端口 `5191`。更基础的契约矛盾是：这些模块自己声称允许默认 loopback，却调用只允许公网单播的 `safeOutboundFetch`，所以 `127.0.0.1` 默认路径会在发请求前被安全策略永久阻断 | 新增 TypeScript internal gateway client 与专用 outbound resolver：只允许并 pin 精确 `127.0.0.1`/`localhost`/`::1`，其他目标继续执行公网单播、DNS pin 和禁止重定向策略；神经元调用合并到共享客户端，默认核心 `3100`/`AI_GATEWAY_SERVICE_PORT`；Tianshu/GodReview/Neurogenesis 全部透传 auth 与 provider-only key，GodReview 两次有界尝试复用同一 key，未知 POST 不切另一路径 | E3；真实 loopback HTTP server 4/4 覆盖 loopback pin/metadata 拒绝、Tianshu header、GodReview retry key 稳定与 Neurogenesis 核心响应形状；最终根级工作区、干净公共克隆及 hosted quality `32802349501` 均通过 |
 
 在本轮已审范围和现有自动化证据内，**没有仍然已知且未处置的 P0/P1 代码级缺陷**。这句话不等于“没有未知漏洞”，也不覆盖下节列出的生产证据阻断。
 
@@ -182,11 +182,12 @@
 
 | 门 | 结果 | 可复核链接 |
 | --- | --- | --- |
-| 完整 `quality` | 通过；已审证据提交 `63569228`，attempt 2 约 6 分 38 秒，quality score 270；attempt 1 的前置性能失败保留 | [Run 32796784918](https://github.com/happy520ai/unified-ai-system/actions/runs/32796784918) |
+| 完整 `quality` | 已审代码/报告基线 `eb964f89` 一次通过；6 分 59 秒，quality score 270，所有 required artifact parity 通过 | [Run 32802349501](https://github.com/happy520ai/unified-ai-system/actions/runs/32802349501) |
 | PostgreSQL 集成 | 通过；11 个文件、24/24，含 Provider dispatch 双实例原子 owner/专表隔离 1/1、A2A TaskStore+execution lease+原子终态 3/3、中央 audit 2/2、usage+statement comparison 2/2、Workforce claim 2/2、中央 queue/result 2/2、中央 approval/lifecycle 2/2 | 同一 quality run |
 | SLO/故障隔离 | 通过 | 同一 quality run |
-| 开环 soak/背压 | v3 通过；warmup 5/5（p95 31.19ms）；持续 500/500、0 错误、p95 7.88ms；突发 83 accepted/173 controlled 503；恢复与 8/8 中断通过 | Run `32796784918` attempt 2；attempt 1 的 49/500 受控 503/p95 1,165.43ms 失败历史保留，不写成长时稳定性证明 |
-| 资源稳定性 soak | v2 通过；1,200/1,200、arrival 1.00、0 错误、25/25 scrape；heap +10.28MiB、RSS +12.46MiB、event-loop p99 21.95ms | 同一 quality run；v1 客户端自限失败 `32786355822` 保留，前一道 open-loop 仍单独要求 100 RPS/0 drop |
+| 开环 soak/背压 | v3 通过；warmup 5/5（p95 39.29ms）；持续 500/500、0 错误、p95 9.17ms、scheduler lag p95 1.01ms；突发 83 accepted/173 controlled 503；恢复与 8/8 中断通过 | Run `32802349501`；旧 run `32796784918` attempt 1 的 49/500 受控 503/p95 1,165.43ms 失败历史保留，不写成长时稳定性证明 |
+| SLO | 非流式 80/80、p95 50.32ms/p99 54.40ms；流式 80/80、首内容 p95 48.02ms、总响应 p95 56.68ms；0 错误，故障隔离后恢复 | Run `32802349501` |
+| 资源稳定性 soak | v2 通过；1,200/1,200、arrival 1.00、0 错误、25/25 scrape；heap +9.17MiB、RSS +6.89MiB、event-loop bound 34.54ms | 同一 quality run；v1 客户端自限失败 `32786355822` 保留，前一道 open-loop 仍单独要求 100 RPS/0 drop |
 | MCP、CLI、Go/C#/SDK 示例 | 全部通过 | 同一 quality run |
 | 代码/依赖扫描 | 通过 | [PR #115 checks](https://github.com/happy520ai/unified-ai-system/pull/115/checks) |
 | 插件扫描 | 通过 | [PR #115 checks](https://github.com/happy520ai/unified-ai-system/pull/115/checks) |
