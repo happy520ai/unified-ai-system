@@ -1,8 +1,8 @@
 # Unified AI System 全面审计与行业阶段报告
 
-> 审计日期：2026-08-24；加固证据更新至 2026-08-25（Asia/Shanghai）
+> 审计日期：2026-08-24；加固证据更新至 2026-08-26（Asia/Shanghai）
 > 已发布版本：[`v0.5.0`](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.5.0)，发布于 2026-08-15  
-> 已审代码提交：`0763301d55939a37e952df4fa96bdb3ba80dd60f`（archive-only bounded LSN PITR：`0763301d`；fenced old-primary `pg_rewind -R` safe rejoin：`680a5639`；真实 single-bridge partition/fence/heal：`265921f9`；single-standby 独立围栏拒绝：`341efd92`；audit lock worker-thread fail-closed：`c409a5ac`；automatic single-standby failover：`dfe25e67`；PostgreSQL streaming replication/promotion：`33f92651`；standby endpoint failover：`53a47b76`；live-client reconnect：`0d658b77`；A2A overlapping signing-key rotation：`4ac41439`；PostgreSQL recovery root dependency：`7ac3832d`；destructive logical recovery：`b97a687f`；PDF native crash containment：`1a12c200`；双语 signal/Unicode share：`f1fe7b9d`；Agent completion/timeout 测试契约：`d2205a20`；采用/版本一致性：`05d49df1`；custom tool authority：`dd21f740`；MCP/OpenAPI mutation fence：`a864b2cf`；外部不可逆效果 fence：`4fa6001d`；PostgreSQL CI 覆盖闭环：`5ff8a0b6`；Provider dispatch：`725c1ab5`；间接 Provider sink 收口：`63569228`；运行时：`3adb9fe3`；A2A 原子终态：`0eeb2aa2`/`46da8708`）
+> 已审代码提交：`d76ac86de698858294f7242adb65da0deddea32c`（Forge attested container sandbox、原生执行 fail-closed、MCP child 最小环境、release-soak v3：`d76ac86d`；archive-only bounded LSN PITR：`0763301d`；fenced old-primary `pg_rewind -R` safe rejoin：`680a5639`；真实 single-bridge partition/fence/heal：`265921f9`；single-standby 独立围栏拒绝：`341efd92`；audit lock worker-thread fail-closed：`c409a5ac`；automatic single-standby failover：`dfe25e67`；PostgreSQL streaming replication/promotion：`33f92651`；standby endpoint failover：`53a47b76`；live-client reconnect：`0d658b77`；A2A overlapping signing-key rotation：`4ac41439`；PostgreSQL recovery root dependency：`7ac3832d`；destructive logical recovery：`b97a687f`；PDF native crash containment：`1a12c200`；双语 signal/Unicode share：`f1fe7b9d`；Agent completion/timeout 测试契约：`d2205a20`；采用/版本一致性：`05d49df1`；custom tool authority：`dd21f740`；MCP/OpenAPI mutation fence：`a864b2cf`；外部不可逆效果 fence：`4fa6001d`；PostgreSQL CI 覆盖闭环：`5ff8a0b6`；Provider dispatch：`725c1ab5`；间接 Provider sink 收口：`63569228`；运行时：`3adb9fe3`；A2A 原子终态：`0eeb2aa2`/`46da8708`）
 > 审计分支：`codex/protocol-client-compatibility`，GitHub [PR #115](https://github.com/happy520ai/unified-ai-system/pull/115)  
 > 审计性质：全仓代码、配置、运行时、数据、安全、协议、部署、发布、文档与行业位置审计  
 > 明确边界：未读取本地 `.mcp.json` 的用户改动、任何 `.env`、提供商密钥或私人授权记录；本轮没有发起真实提供商调用。
@@ -13,7 +13,7 @@
 
 本系统已经越过“概念验证”和“功能样机”，当前应定级为：
 
-> **已有公开 `v0.5.0` 的成熟 Public Preview；PR #115 是经过强安全、协议、计费、审计链与发布工程加固的下一版候选源码。它具备可信的单机/同主机自托管实用价值，并已有部分通过真实 PostgreSQL 17 验证的跨实例治理原语；但尚未获得“企业生产 GA”或“行业领导者”所需的端到端多主机、真实流量、独立安全与市场采用证据。**
+> **已有公开 `v0.5.0` 的成熟 Public Preview；PR #115 是经过强安全、协议、计费、审计链、恢复、真实容器沙箱与发布工程加固的下一版候选源码。它具备可信的单机/同主机自托管实用价值，并已有部分通过真实 PostgreSQL 17 验证的跨实例治理原语；但尚未获得“企业生产 GA”或“行业领导者”所需的端到端多主机、真实 Provider/客户流量、已完成六小时长稳、独立安全与市场采用证据。**
 
 阶段判断不是由版本号决定，而由证据决定：
 
@@ -21,8 +21,8 @@
 | --- | --- | --- |
 | 概念验证 | 已越过 | 核心路径均有真实实现，不是界面或文档桩。 |
 | 可用开源产品 | 已达到 | 已发布 v0.5.0、Apache-2.0、公开容器、MCP Registry、文档与无密钥体验路径。 |
-| 加固 Public Preview | **当前阶段** | 完整测试、公共克隆、依赖扫描、攻击回归、多架构容器、短时 SLO/背压/资源门均通过。 |
-| 企业生产候选 | 部分达到 | 身份、租户、预算、审计、可观测性已有；PostgreSQL claim/中央 Workforce queue+result+审批+生命周期、usage/audit、A2A task state+execution lease+原子终态、结构化对账、真实 Provider 调度墓碑，以及 built-in Git/shell、Webhooks、reverse MCP/OpenAPI、Agent MCP 与动态 custom tool authority 已获 E3；但运行中角色不能跨进程恢复，远端 exactly-once、治理 API 之外的任意原生代码、HA/DR、provider-authenticated statement 和真实提供商阶段证据不足。 |
+| 加固 Public Preview | **当前阶段** | 完整测试、公共克隆、依赖扫描、攻击回归、多架构容器、真实 Forge Docker 隔离和短时 SLO/背压/资源门均通过；六小时发布长稳工作流已实现但尚无 dedicated runner 的完成证据。 |
+| 企业生产候选 | 部分达到 | 身份、租户、预算、审计、可观测性已有；PostgreSQL claim/中央 Workforce queue+result+审批+生命周期、usage/audit、A2A task state+execution lease+原子终态、结构化对账、真实 Provider 调度墓碑，以及 built-in Git/shell、Webhooks、reverse MCP/OpenAPI、Agent MCP 与动态 custom tool authority 已获 E3；Forge 的 LLM bash、项目 lint/test/typecheck/smoke 已进入真实容器或失败关闭。但运行中角色不能跨进程恢复，其他原生 helper 尚未全部并入唯一 broker，远端 exactly-once、多候选 HA、provider-authenticated statement、真实提供商阶段和完成的长稳证据不足。 |
 | 生产 GA | 未达到 | 缺独立渗透测试、真实提供商预生产验证、6–24 小时负载、多候选选主/quorum、外部 HA 控制器、同步策略、长时/异地 archive custody、time-based PITR、完整 split-brain 与生产规模恢复证据；仓库已有有界 LSN-PITR、异步流复制和 single-standby 自动检测/promotion/switch/rejoin，但只覆盖 CI 拓扑。 |
 | 行业领导者 | 未达到 | 独特方向成立，但提供商广度、生态采用、跨区域 HA 和第三方证明尚弱。 |
 
@@ -68,7 +68,7 @@
 
 | 项目 | 数量/状态 |
 | --- | --- |
-| Git 跟踪文件 | 1,903（包含本报告，审计统计排除本地 `.mcp.json` 用户改动） |
+| Git 跟踪文件 | 1,915（包含本报告；审计统计排除本地 `.mcp.json` 用户改动） |
 | JS/TS/ESM 源文件 | 1,621 |
 | 测试文件 | 348 |
 | `docs/` Markdown/HTML | 100 |
@@ -85,7 +85,7 @@
 | --- | --- | --- | --- |
 | 确定性 prompt 增强 | 本地把自然语言需求编译为结构化、可复核任务；保留原始请求 | 不需要先学复杂提示词，也不需要提供 API Key | E3；无提供商调用的评估、CLI、MCP 和公共克隆均通过 |
 | OpenAI/Anthropic/Gemini 兼容入口 | Chat Completions、Responses、Messages、Gemini generate/stream/batch、多模态、工具与流式；真实调用先持久化调度墓碑 | 现有 SDK 通常只需切换 base URL；重试不会因网关崩溃或兼容路由缺少响应缓存而静默重复外呼 | E3；协议、HTTP/SSE 前置错误和 SQLite/PostgreSQL 跨副本去重通过，真实提供商响应契约未在本轮重验 |
-| MCP 网关 | 12 个首方受治理工具；stdio 与 Streamable HTTP；可聚合上游 MCP，并从 OpenAPI 生成工具；reverse tool mutation 默认要求 durable key，只有运维 `readOnlyTools` 可豁免；Agent MCP 工具一律按 mutation+fence 注册 | Codex、Cursor、Cline 等可使用同一套可审计能力；外部 MCP/REST 写操作不会因客户端重试静默执行第二次 | E3；当前源码认证 MCP `2026-07-28`，兼容 `2025-11-25`/`2025-06-18`；远端与墓碑仍非同一事务，直接绕开 gateway service 的低层 client 不自动受保护 |
+| MCP 网关 | 12 个首方受治理工具；stdio 与 Streamable HTTP；可聚合上游 MCP，并从 OpenAPI 生成工具；reverse tool mutation 默认要求 durable key，只有运维 `readOnlyTools` 可豁免；Agent MCP 工具一律按 mutation+fence 注册 | Codex、Cursor、Cline 等可使用同一套可审计能力；外部 MCP/REST 写操作不会因客户端重试静默执行第二次；托管 Gateway 与 supervisor child 不再默认继承 Provider/GitHub/数据库/云凭据，stderr 在日志/状态前脱敏 | E3；当前源码认证 MCP `2026-07-28`，兼容 `2025-11-25`/`2025-06-18`；远端与墓碑仍非同一事务，直接绕开 gateway service 的低层 client 不自动受保护 |
 | A2A v1.0 | 可验证 Agent Card/JWKS、主密钥+最多三把旧密钥的重叠多签名轮换、JSON-RPC 任务、取消、Workforce 模式，以及有界 memory/同主机 SQLite/跨主机 PostgreSQL 任务与 fenced execution lease | 其他智能体可验证身份、在缓存窗口内同时信任新旧卡片、发现并调用网关；多副本共享任务生命周期，同 tenant/owner/task 仅一个有效执行者；completed/failed/canceled 与当前 fence 在一个事务提交，跨副本无本地 event bus 也可取消 | E3；每个新旧签名均经官方 SDK 独立验签，缓存旧卡可从 overlap JWKS 取旧公钥验证；真实 PostgreSQL 独立连接池通过。外部 JWKS 同步、真实客户端缓存/时钟偏差和 secret-manager 生产轮换仍需部署演练；远端副作用仍不能撤回或 exactly-once |
 | 提供商治理 | fake provider 默认；真实提供商需白名单、运行时授权、凭据和持久调度 reservation；单机 SQLite、跨主机 PostgreSQL 均失败关闭 | 防止“配置一改就误花钱”、静默外呼和不确定重试造成的重复扣费；原始 `Idempotency-Key`/`Provider-Dispatch-Key` 不落执行上下文、日志或数据库 | E3；聊天、fallback、shadow、流式、Forge、Agent、Three Mode、Provider test 和 Multimodal 均回到核心门；本轮没有真实提供商调用，不能证明 Provider 侧 exactly-once |
 | 虚拟密钥、预算与成本核对 | 虚拟 key、撤销、限流、token 预算、使用归属、spend 报告、逐调用调度墓碑，以及精确 attempt-ID 的 USD statement comparison | 团队成员不持有底层提供商密钥；管理者可找出漏记、重复、未决、未知估值、模型/token 不符和成本差异 | E3；中央 usage、独立 dispatch 表与结构化对账已通过真实 PostgreSQL，但 statement 输入仍由 operator 提供，未认证 provider 来源，也不是支付或法定发票系统 |
@@ -95,7 +95,7 @@
 | 企业身份 | JWT/RBAC、OIDC Authorization Code + PKCE + JWKS、SCIM 2.0 | 接入企业 IdP，按主体、角色和租户执行 | E2/E3；没有外部 IdP 互操作认证 |
 | 可观测性 | Prometheus、OpenTelemetry、Langfuse 可选出口、SLO 与质量趋势 | 看见 token、延迟、缓存、拒绝、guardrail、成本与健康状态 | E3；成熟度和托管平台仪表盘仍弱于头部产品 |
 | 审计与备份 | 本地 HMAC 防篡改镜像、跨进程/worker 安全锁、签名检查点、企业 envelope、PostgreSQL canonical audit，以及逻辑恢复→manifest物理基线/continuous archive/LSN-PITR→streaming→真实分区→failover→旧主 rewind 重入演练 | 能发现篡改/回滚/多写者碰撞；恢复已销毁源库；archive-only 恢复到好 marker 已提交而稍后坏 marker 尚未发生的精确 LSN；真实 bridge 分区时 fence 拒绝误晋升，恢复后追平；确认旧主围栏才提升，并以 `pg_rewind -R`让旧主首次重启即成为新主 standby | E3；`pg_verifybackup`、基线 WAL 删除、archive RO、无 streaming配置、A=true/B=false、8/8、inventory exact；另含 partition/rejoin markers、same Pool三阶段。企业 envelope 不含中央数据库；多候选 quorum、外部 HA、同步策略、长时/异地 archive、time/named PITR、多主机 partition/rejoin、完整 split-brain、生产 RTO/RPO/WORM 仍未完成 |
-| Forge/Workforce | 受限、可取消、资源感知的编码/多角色执行；真实 HTTP 审批/状态/取消；PostgreSQL claim、中央 queue/result/审批/lifecycle 与原子终态 fence；LLM 调用强制使用请求绑定的核心网关适配器 | 把执行置于网关预算、租户、权限、调度去重和审计边界；多副本原子消费同一审批、共享状态/结果并可远程取消，过期 owner 由更高 fence 接管，旧 token 不能提交数据库终态；built-in Git/PR/任意 shell、Agent MCP 与动态 custom write 在 sink 前复核 fence | E3；修复 Forge 缓存首请求代理的身份/取消上下文滞留，并拒绝未带治理标记的 Workforce Provider 适配器；但崩溃中的角色调用栈不能重建，远端 Provider/Git/Webhook/MCP 接受与 Workforce fence 仍非同一原子事务，治理 API 外原生代码需要进程级 sandbox |
+| Forge/Workforce | 受限、可取消、资源感知的编码/多角色执行；真实 HTTP 审批/状态/取消；PostgreSQL claim、中央 queue/result/审批/lifecycle 与原子终态 fence；LLM 调用强制使用请求绑定的核心网关适配器；项目 bash/lint/test/typecheck/smoke 统一要求 attested container | 把执行置于网关预算、租户、权限、调度去重、审计和 OS 隔离边界；多副本原子消费同一审批、共享状态/结果并可远程取消；项目命令看不到 ambient secret、不能联网或写只读根，超时/取消按容器树清理；Git worktree hooks/filter/path穿越被拒绝 | E3（代码与真实本机 Docker攻击回归）；缺 backend、镜像 digest、敏感 workspace、清理证明或验证结果一律失败。Native Windows `FULL` 不声称支持；其他 dormant/native helper 尚未全部收口到同一 broker；崩溃中的角色调用栈仍不能重建，远端接受与本地 fence 仍非同一原子事务 |
 | 容器与发布 | 非 root、只读根文件系统、cap drop、no-new-privileges、受限 tmpfs、amd64+arm64、SBOM/provenance | 用户可无密钥启动，部署默认面更小，镜像架构可验证 | E3；Kubernetes/多区域/灾备不是已证实能力 |
 
 ## 5. 本轮发现并修复的主要风险
@@ -160,8 +160,12 @@
 | AUD-54 | 高 | AUD-52 的完整失败阈值仍由合成 probe 产生，不能证明真实网络路径断开时旧主继续写、standby 确实落后、控制器失败关闭，或网络恢复后 health/WAL 自动收敛 | 启动只读、cap-drop、no-new-privileges、128MiB 的独立 probe 容器，从 replication bridge 的 `primary` alias 执行 writable SQL。真实执行 `docker network disconnect` 把 primary 与 probe/standby 分开；旧主容器内显式事务提交 partition marker，standby 必须仍在 recovery 且看不到 marker。3 failures+confirmation 后独立 container-state fence 必须拒绝 promotion；以同 alias reconnect 后 health 必须恢复，standby 必须重放提交后 LSN marker，再进入原有真实毁主 failover。实现位于 `tools/postgres-recovery-drill.mjs:499,1934,1993,2609` | E3：最终本地 run 总计 39,262ms、partition+heal 7,318ms；分区期 primary writable、standby marker absent，恢复后 primary LSN `0/3029CE0`、standby replay `0/3029D18`、lag 0；实际毁主 detection 5,256ms、promotion 4,856ms、三阶段 8/8、0 Provider、0 残留。托管 [run 32858224386 attempt 2](https://github.com/happy520ai/unified-ai-system/actions/runs/32858224386) 7 分 34 秒全绿；DR 33,918-byte、总计 28,077ms、partition+heal 8,802ms，双方 LSN `0/3029CE0`、lag 0，detection 5,102ms、promotion 4,972ms、controller 19,890ms、37 accepted/0 rejected、完整 cleanup。attempt 1 在任何代码测试前以 500/500、0 error、arrival 1、scheduler lag p95 1.01ms、latency p95 816.37ms > 750ms 正确阻断；未降门，failed-job 复跑完成全链。此证据精确限于一个 Docker bridge/一个 standby；`networkPartitionProved=false` 与 `splitBrainProved=false` 继续保留广义边界 |
 | AUD-55 | 高 | AUD-54 在 failover 后直接删除旧主卷；这避免双主，却没有证明保留数据的旧主能安全重入。若运维直接重启旧卷，它仍属于旧时间线并可能再次 writable；若 rewind 所需 WAL 已回收，重入又会失败 | recovery 从首次启动即启用并通过 `ALTER SYSTEM`持久化 `wal_log_hints=on`与 128MiB `wal_keep_size`，同时确认 `full_page_writes=on`（`tools/postgres-recovery-drill.mjs:305,1434`）。真实 failover 只删除旧主容器并保留 fenced volume；新主写 post-promotion marker 后，以只读根/cap-drop/no-new-privileges helper 运行 PostgreSQL 17 `pg_rewind -R`（`:619,1467`）。旧卷绝不在 rewind 前启动；首次启动必须 `inRecovery=true`、重放 marker、inventory 精确一致且原 clients 健康。新主再重启后，旧主仍须以 standby 身份重放第二条 marker | E3：第一次 rewind 正确失败，诊断为自动 crash recovery 回收旧 WAL 后缺 `000000010000000000000002`/无法找到前序记录；没有使用 `pg_resetwal`、`--no-sync`或跳过 shutdown 检查，改为持久 WAL retention。最终本地 run 48,041ms，rewind 2,138ms；旧主首次 rejoin 即 recovery，post-promotion LSN `0/302CA50`→replay `0/302CB00`、lag 0，inventory/client 通过；新主重启后双方 `0/30362A0`、lag 0，0 Provider/0 残留。托管 [run 32862597648](https://github.com/happy520ai/unified-ai-system/actions/runs/32862597648) 7 分 26 秒一次全绿；rewind 729ms，post-promotion 双方 `0/302BC40`、post-restart 双方 `0/3035490`，两次 lag 0、三阶段 8/8、完整 cleanup。`safeOldPrimaryRejoinProved=true`，但多候选 rejoin controller、WAL archive fallback、quorum 与完整 split-brain 仍未证明 |
 | AUD-56 | 高 | HA 会复制误删与逻辑腐坏；AUD-55 能带回旧主，却没有持续 WAL archive 或恢复到坏写入之前的证据。仅保留 `pg_dump`或 basebackup 自带 WAL不能证明 PITR，也无法证明恢复点选择正确 | recovery 首次启动即挂独立 UID70 archive volume，`archive_mode=on`且原子 temp-copy→rename，已有同名只接受 `cmp`相同；工具预检 `cp/cmp/mv`（`tools/postgres-recovery-drill.mjs:278`）。独立 plain base backup使用 stream WAL+SHA-256 manifest；完成后提交 A、创建精确 restore-point LSN、提交 B。强制 switch并要求 B 所在 WAL非空且 archiver failed_count不增；`pg_verifybackup`校验后删除基线全部 `pg_wal`并创建 `recovery.signal`。PITR容器仅挂 archive RO、无 replication配置，以 inclusive LSN/current timeline/promote恢复（`:1512-1848`）。新增结构化 verifier强制 A=true/B=false、LSN顺序、8/8、边界与清理 | E3：首次校验因 cap-drop root无法读取 0600 manifest正确失败，改同 UID `postgres`只读校验，未放宽权限。最终本地总演练 65,880ms，PITR 10,858ms；included `0/6000210` ≤ target `0/6000278` ≤ replay `0/60002E0` < excluded `0/6000398`，A=true/B=false、archive failure 0、manifest/8项/inventory/清理全过。托管 [run 32867837476](https://github.com/happy520ai/unified-ai-system/actions/runs/32867837476) 7 分 31 秒一次全绿；PITR 2,730ms，相同四个 LSN、A=true/B=false、archive `000000010000000000000006`非空、0 Provider、完整 cleanup，且 CI JSON verifier通过。此处证明有界 LSN-PITR，不证明 time/named target、长时/异地 archive custody、WORM、archive-loss fallback或生产 RPO |
+| AUD-57 | 严重 | `SandboxExecutor` 的 `FILESYSTEM/FULL` 实际只校验 cwd 后运行同一宿主 shell，完整继承 env、无网络/内存/进程树边界并静默降级；真实 Forge bash、项目 test/lint/typecheck/smoke 又完全绕过该对象。worktree taskId 可穿越删除，Git checkout hook/filter可在容器前宿主执行，junction 可把写操作导向项目外，验证失败还可能被“部分成功”吞掉 | 新增 digest-pinned、no-pull 的 Linux container backend：`network none`、只读根、non-root、cap-drop、no-new-privileges、默认 seccomp、PID/CPU/memory/no-swap/ulimit、单一 canonical workspace、最小 env、timeout/abort kill→inspect→rm；敏感文件递归拒绝并隐藏主 `.git`目录。`FILESYSTEM/FULL/WORKTREE` 缺 capability attestation 即拒绝；`PROCESS`也需显式 opt-in。所有项目命令、eslint/tsc/smoke接入同一 executor；cleanup不确定强制非零并保留 worktree。路径逐组件 realpath/lstat 拒绝 symlink/junction，最终写使用 no-follow；worktree ID/根/删除证明、每 repo manager、branch ownership、hooks/filter与最小 Git env全部失败关闭；任何验证/stream action错误均成为任务失败 | E3（本地）：真实 Docker attack 证明 ambient canary不可见、网络断、root/workspace只读、嵌套 mixed-case `.env`拒绝、`.git`隐藏、smoke 200、timeout后0容器；cleanup/timeout伪成功、Windows junction、hook/filter、跨 repo、重复 ID和不确定 quiescence均有负测。完整 Forge 2,721/2,721与四项发布门通过。边界：backend/image/workspace需运维配置；Native Windows `FULL` 尚无 AppContainer/Job Object helper，其他非 Forge native helper仍需逐步并入唯一 broker |
+| AUD-58 | 高 | 托管 MCP Gateway 与 MCP service supervisor 把宿主完整环境复制给 child；即使正常路由强制 fake，child 仍可读取 Provider、GitHub、数据库和云凭据，并可把内容经 stderr 状态/日志回显 | 两个包分别建立最小环境 allowlist；managed Gateway 只接收内部显式 fake/auth配置，supervisor 只继承 OS 基础与必要 MCP连接 capsule。Provider/GH/DB/云 ambient 值不下传；stderr 先重组跨 chunk 再对 labeled、Bearer、URL userinfo、known/opaque token和private-key形状脱敏，原始 chunk不写日志/状态 | E3：MCP Server 6/6、MCP Service 15/15，含真实 managed child启停、跨 chunk stderr canary和状态/日志明文消失；公共扫描0 issues。child仍是同 OS 用户的受信任组件，不把环境收敛写成 OS sandbox |
+| AUD-59 | 高 | 既有 resource-soak 的 token 约10分钟后过期、每请求结果数组随时长增长、checkpoint可能排无界 Promise、信号中断缺稳定部分证据；直接把参数改成6小时会在鉴权、内存和证据完整性上失真。GitHub-hosted单 job上限也无法容纳完整6小时测量后的收尾 | resource-soak v3 改精确计数+10万确定性 reservoir、resource/warmup/输出硬上限；measurement起点重验剩余 token TTL；checkpoint single-flight+coalesce、原子 partial、SIGINT/SIGTERM取消与清理、结束 health+fake chat。长跑同时门控 raw sample 重算的 absolute/relative final growth、peak increase、slope及 event-loop；独立 verifier 73项核对 raw/summary、完整SHA/tree/lock/evidence digest、run id/attempt、mode/workload、stale output与cleanup。新增仅手动/每周的 dedicated self-hosted workflow，固定360m/10RPS/64/30s且先跑四门 | E2/E3（实现与短跑）：20/20、0错误/丢弃、5 raw samples、post health/chat和cleanup通过；checkpoint 100ms/1ms压力 requested 5,791/completed 2,460/coalesced 5,788/maxConcurrent=1；summary null、旧run、manifest篡改、60m short绕过和150MiB中途峰值后GC均正确失败。尚未注册 `gateway-soak` runner，故**没有已完成六小时 run**，不能把工作流存在写成长稳通过 |
+| AUD-60 | 中 | `d76ac86d` 首次托管 CI 在任何性能/代码测试前被语言策略阻断：新增 Forge/MCP Node ESM 文件未进入 PR 的精确例外集合；本地无 base-ref 的检查未复现该差异 | 不放宽全局 TypeScript-first 规则；仅把9个新增 runtime/test精确路径加入现有 PR-115 fileSet，保留 owner、PR、`2026-10-31`截止和迁移顺序；说明这些包当前没有 TS runtime build/loader，安全修复与模块迁移同批会扩大回滚面。新 JS仍默认阻断 | E3；失败 [run 32876820761](https://github.com/happy520ai/unified-ai-system/actions/runs/32876820761) 和其余步骤 skipped完整保留；当时HOL [32876820720](https://github.com/happy520ai/unified-ai-system/actions/runs/32876820720)通过。`ce75ecee`复跑 [quality 32877396799](https://github.com/happy520ai/unified-ai-system/actions/runs/32877396799) 7分26秒一次全绿，语言策略列出恰好9个有截止例外，后续SLO/资源、2,721 Forge、1,438/26网关、PostgreSQL 12/25、完整恢复、公共克隆与制品parity全过；[HOL 32877396764](https://github.com/happy520ai/unified-ai-system/actions/runs/32877396764)和独立plugin-scanner通过 |
 
-在本轮已审范围和现有自动化证据内，**没有仍然已知且未处置的 P0 代码级缺陷，也没有已知仍可达的仓内低层 MCP/custom registry 旁路**。仍知的 P1 是完全绕开治理 API 的任意原生代码无法靠 JavaScript 运行时自动沙箱，以及任何远端系统都不参与本地墓碑事务；它们在下节保留为架构/生产阻断。
+在本轮已审范围和现有自动化证据内，**没有仍然已知且未处置的 P0 代码级缺陷，也没有已知仍可达的仓内低层 MCP/custom registry 旁路**。Forge 的项目命令执行已从名义 sandbox 收口到真实容器或失败关闭；仍知的 P1 是其他 native helper 尚未全部经唯一 broker、Windows 原生 `FULL` 隔离未实现，以及任何远端系统都不参与本地墓碑事务。它们在下节保留为架构/生产阻断。
 
 ## 6. 仍然存在的风险与阻断项
 
@@ -172,11 +176,11 @@
 | 生产阻断 | 当前加固分支仍是开放 PR，尚未进入正式发布 | v0.5.0 用户没有自动获得本轮全部修复 | 审核、合并、从合并提交重跑发布门并发布新版本 |
 | 生产阻断 | 本轮没有真实提供商预生产验证 | 无法确认最新 OpenAI/Anthropic/Gemini 等真实响应、计费与错误契约 | 使用限额凭据、出口 allowlist、硬成本上限逐家验证；不得复用旧证明 |
 | 生产阻断 | 缺独立渗透测试和外部威胁模型复核 | 现有安全结论由仓库本地工具和本次审计产生 | 第三方测试、修复复测、签名报告 |
-| 生产阻断 | 缺 6–24 小时真实工作负载 soak 与容量包线 | 当前短时门只能发现明显回归，不能证明无泄漏或峰值稳定 | 多负载混合、并发爬坡、故障注入、长时资源趋势 |
-| 生产阻断 | Workforce 的 claim、queue/result、审批和 lifecycle 已中央化，数据库终态已原子消费 fence；Provider、built-in Git/PR/任意 shell、Webhooks、受治理 MCP/OpenAPI 和动态 custom registry 都有声明/墓碑边界，但运行中的角色调用栈不能在副本崩溃后重建，远端接受不与本地 fence 同事务，完全绕开治理 API 的原生代码仍不受自动沙箱 | 跨副本授权、状态、取消、数据库终态和已覆盖 sink 的 TTL 内重复尝试防护已经闭环；进程崩溃仍只能由租约恢复/重新执行，已发出的远端副作用不能撤回，不能声称 durable resume 或端到端 exactly-once | 可重建执行状态机或明确幂等重放契约、中央/对象化证据、Provider/外部系统侧 idempotency 或可认证对账、以进程/容器 sandbox 禁止治理 API 外执行、数据库故障转移/分区/split-brain 测试 |
+| 生产阻断 | 缺已完成的 6–24 小时真实工作负载 soak 与容量包线；仓库已有固定六小时 release workflow/verifier，但没有 matching dedicated runner | 当前短时门和工作流实现只能证明方法会失败关闭，不能证明六小时无泄漏、峰值稳定或 runner可信 | 注册隔离/最好 ephemeral 的 `gateway-soak` self-hosted runner；对不可变候选 SHA 完成360分钟 run并保存manifest/checksum；再补多负载混合、并发爬坡、故障注入与重复长跑 |
+| 生产阻断 | Workforce 的 claim、queue/result、审批和 lifecycle 已中央化，数据库终态已原子消费 fence；Provider、built-in Git/PR/任意 shell、Webhooks、受治理 MCP/OpenAPI 和动态 custom registry 都有声明/墓碑边界；Forge 项目命令已有 container sandbox。但运行中的角色调用栈不能在副本崩溃后重建，远端接受不与本地 fence 同事务，PDF parser、dormant external runner及部分运维 CLI/native helper尚未全部并入同一 broker | 跨副本授权、状态、取消、数据库终态和已覆盖 sink 的 TTL 内重复尝试防护已经闭环；Forge 未配置 backend时拒绝执行。进程崩溃仍只能由租约恢复/重新执行，已发出的远端副作用不能撤回，其他 native helper 的同用户权限边界不等于容器隔离 | 可重建执行状态机或明确幂等重放契约、中央/对象化证据、Provider/外部系统侧 idempotency 或可认证对账、统一 NativeExecutionBroker/容器或等价 OS隔离、数据库故障转移/分区/split-brain 测试 |
 | 生产阻断 | usage/audit 已中央化，结构化 provider statement comparison 已能精确核对，但 statement 来源仍由 operator 提供，未通过 provider API/签名认证；外部 WORM 也未闭环 | 能发现技术账本差异，仍不能把输入真实性、支付状态、税务或外部不可变性视为已证明 | provider-authenticated/signed ingestion、持久对账历史、财务/税务边界，以及把 sequence/hash floor 写入并演练外部 WORM/object-lock |
 | 生产阻断 | 已完成逻辑/物理恢复、manifest校验、独立 continuous archive 的有界 LSN-PITR、异步 streaming、真实 bridge partition/heal、自动 single-standby failover，以及 fenced old-primary `pg_rewind -R`重入。但未完成 TLS/mTLS、长时/异地 WAL archive custody、time/named PITR、archive-loss fallback、多候选 quorum、外部 HA、同步策略、生产规模、多主机分区/自动 rejoin和完整 split-brain | 能证明一个隔离拓扑可恢复到坏 marker 之前、拒绝误晋升、故障接管并安全带回旧主；仍不能给出 quorum HA、生产 RPO/RTO、独立备份保管、任意故障域或跨区域承诺 | 预生产使用 dedicated backup/replication/rewind role与真实托管 HA，做外部 object-lock archive、time/named targets、缺档 fallback、多容量恢复、多主机 partition/rejoin/split-brain和重复演练；RTO/RPO由外部保留点与业务验收签署 |
-| P1 能力差距 | A2A 已支持稳定 Ed25519/JWKS、bounded overlap multi-signature rotation、memory/SQLite/PostgreSQL 任务、分布式 lease/fence 和原子 TaskStore 终态；Provider、built-in Git/shell、Webhooks、受治理 MCP/OpenAPI 与 custom registry 已能阻断同 key 重放，但 fence 尚不能原子传递给远端，治理 API 外原生代码不能由语言运行时自动沙箱 | 数据库内 revoke/commit、覆盖 sink 的墓碑与网关侧重复外呼风险已分别关闭；它们不是同一远端事务，最终网络 TOCTOU 和未知结果仍存在，不能声称端到端 exactly-once | 以进程/容器级 sandbox 禁止治理 API 外执行；推动 Provider/外部系统消费 idempotency/fence 或完成可认证对账，并做数据库故障转移/分区与真实 secret-manager/JWKS 轮换演练 |
+| P1 能力差距 | A2A 已支持稳定 Ed25519/JWKS、bounded overlap multi-signature rotation、memory/SQLite/PostgreSQL 任务、分布式 lease/fence 和原子 TaskStore 终态；Provider、built-in Git/shell、Webhooks、受治理 MCP/OpenAPI 与 custom registry 已能阻断同 key 重放；Forge 项目命令已有 attested container，但 fence 尚不能原子传递给远端，其他 native helper 未全部统一隔离 | 数据库内 revoke/commit、覆盖 sink 的墓碑、网关侧重复外呼与 Forge command escape风险已分别收口；它们不是同一远端事务，最终网络 TOCTOU、未知结果与非 Forge native边界仍存在，不能声称端到端 exactly-once或全仓OS隔离 | 推动 Provider/外部系统消费 idempotency/fence或完成可认证对账；统一其余 native execution broker/sidecar；做数据库故障转移/分区与真实 secret-manager/JWKS轮换演练 |
 | P1 隔离差距 | PDF native addon 已移入最小环境、内存/时间受限的子进程，原生访问冲突不再与 gateway 同进程；但该子进程仍以同一 OS 用户运行，没有独立文件系统、网络 namespace、seccomp/AppContainer 或容器边界 | native crash 被遏制为单请求 availability 失败，但若解析依赖被利用，不能据此声称已阻止同权限文件读取或网络访问 | 在 Linux 容器/生产拓扑中增加专用 parser sandbox/sidecar、只读最小文件系统、禁网、seccomp/cgroup/进程限额与故障注入；Windows 需等价 AppContainer/job-object 或隔离服务证据 |
 | P1 工程债 | TypeScript 迁移例外仍存在 | 严格检查通过，但部分旧运行时仍依赖 JS 兼容边界 | 在 2026-10-31/11-13 前消除登记例外并保持契约兼容 |
 | 市场阻断 | 采用度和第三方案例很小 | 不能把技术潜力写成行业领导地位 | 可复现用户案例、贡献者增长、独立基准、长期留存与生产参考 |
@@ -188,11 +192,13 @@
 | 验证 | 结果 |
 | --- | --- |
 | `pnpm check` | 通过；679 个网关文件语法检查，TypeScript 0 errors，语言/供应链策略通过，83 个权限声明/136 条静态活动路由，18 个受治理出站集成；动态 Workforce dispatcher 另有真实 HTTP server 行为覆盖 |
-| `pnpm test` | 当前完整命令通过；Forge 2,700/2,700；网关 Node 101/101、隔离解析器 12/12、主要 Vitest 1,438 passed/26 conditional skipped；shared SDK 18/18、Agent Console 17/17、MCP/其余工作区套件通过。本 external-effect tranche 首次根门在 Forge 2,698/2,700 被两条仍假设远端 Git 默认注册/旧 shell 源码窗口的契约测试正确阻断；更新断言后聚焦 59/59、完整 Forge 2,700/2,700 和后续根门通过。采用度报告后又出现 AUD-44 的 30 秒 completion 测试假阴性、AUD-46 的 PDF native process crash，以及本轮 AUD-53 的真实 audit `chain_linkage` worker 竞态；原始失败、确定性复现和修复后全门均保留，不把单次复跑替代失败历史 |
+| `pnpm test` | 当前完整命令通过；Forge 2,721/2,721；网关 Node 101/101、隔离解析器 12/12、主要 Vitest 1,438 passed/26 conditional skipped；shared SDK 18/18、Agent Console 17/17、MCP Server 6/6、MCP Service 15/15及其余工作区套件通过。本 tranche 首次全量 Forge 被4条仍锁定旧 `execFileSync`/词法路径源码形状的断言正确阻断；断言升级为真实 container/canonical path合同后完整门通过。历史 AUD-44 completion假阴性、AUD-46 native crash、AUD-53 audit worker竞态与本轮失败均保留，不把单次复跑替代失败历史 |
 | 真实 PostgreSQL 集成（本地） | PostgreSQL 17 临时实例通过 12 个文件、25/25；新增 external-effect 证明双独立 pool 仅一个 owner、重启重复拒绝、专表/序列隔离、原始 key/tenant/effect type 不落库；Workforce queue 新增活跃/过期 claim 断言。临时容器已停止并删除 |
 | `pnpm drill:postgres-recovery -- --json` | 通过；逻辑恢复→manifest物理基线/continuous archive/LSN-PITR→streaming→真实 partition/fence/heal→自动 failover→`pg_rewind -R`重入。最终本地总计 65,880ms，PITR 10,858ms；删除基线 WAL后archive-only恢复，A=true/B=false，`0/6000210 ≤ 0/6000278 ≤ 0/60002E0 < 0/6000398`，8/8/inventory/manifest/archiver/cleanup全过。后续 partition+heal、三阶段8/8、rewind和新主 restart后再收敛继续通过；0 Provider/0残留。失败历史含0600 manifest权限与缺rewind WAL，均失败关闭且未绕过。它不是 multi-candidate quorum、time-based/off-host PITR、WORM/archive fallback、完整 split-brain或production RTO/RPO证明 |
-| `pnpm check:public` | 通过；1,902 个 tracked/candidate、1,842 个文本文件，0 issue codes；新增工具链/发布镜像/营销源稿一致性门；工作区 `.mcp.json` 有用户改动时从 Git 提交内容审计，未读取其本地内容 |
-| `pnpm verify:public-clone` | 通过；干净克隆、fake-provider 强制、MCP `2026-07-28`、12 tools、0 次真实提供商调用、进程清理成功 |
+| `pnpm check:public` | 通过；代码提交候选 1,915 个文件、1,855 个文本文件，0 issue codes；工作区 `.mcp.json` 有用户改动时只校验 Git 提交内容，未读取或提交本地副本 |
+| `pnpm verify:public-clone` | 通过；25项入口/SDK/MCP/OTel/circuit checks；fake-provider 强制，MCP `2026-07-28`、12 tools、0 次真实提供商调用、Gateway/MCP进程清理成功 |
+| Forge 真实 Docker攻击回归 | 通过 1/1；pinned `node@sha256:c610…`、ambient secret不可见、network none、只读root/workspace、`.git`隐藏、嵌套`.EnV.Local`拒绝、内部loopback smoke 200、timeout/cleanup后managed container 0残留。另有cleanup/timeout、junction、hook/filter、跨repo/重复ID等聚焦16/16 |
+| Release-soak v3 聚焦 | 短托管20/20、0错误/丢弃、5 raw samples、post health/chat/cleanup通过；独立verifier 73项正路径通过。summary null、run identity/manifest篡改、`allow-short-run+60m`、中途150MiB峰值后GC均失败关闭；checkpoint压力maxConcurrentWrites=1。未执行六小时run |
 | `pnpm verify:mcp` | 通过 4/4；现代 stdio、现代+兼容 HTTP、认证/CORS/清理 |
 | `pnpm smoke:mcp --json` | 通过；现代协议时代 `2026-07-28` |
 | `node tools/security-attack-regression.mjs` | 23/23 防住；含对账跨 tenant body 和 viewer 权限攻击；`SECURITY AUDIT: ALL DEFENDED` |
@@ -203,6 +209,7 @@
 
 | 门 | 结果 | 可复核链接 |
 | --- | --- | --- |
+| Forge container sandbox、MCP child env 与 release-soak v3 | 代码 `d76ac86d` 首次 quality被新增JS精确语言例外缺失正确阻断；政策提交 `ce75ecee` 后一次7分26秒全绿。语言策略9个精确例外、三项性能门、maintained tests（Forge 2,721/2,721；网关1,438/26）、PostgreSQL 12/25、archive-only PITR/partition/failover/rewind、公共克隆、MCP/CLI/examples及artifact parity均通过；0真实Provider。六小时dedicated workflow未调度，不计为长稳通过 | [Success 32877396799](https://github.com/happy520ai/unified-ai-system/actions/runs/32877396799)；[HOL 32877396764](https://github.com/happy520ai/unified-ai-system/actions/runs/32877396764)；[pre-gate failure 32876820761](https://github.com/happy520ai/unified-ai-system/actions/runs/32876820761)；[PR checks](https://github.com/happy520ai/unified-ai-system/pull/115/checks) |
 | Archive-only bounded LSN PITR | `0763301d` hosted quality 7 分 31 秒一次全绿；独立 stream-WAL physical base backup+SHA-256 manifest，强制 archive并经 `pg_verifybackup`校验；删除基线 WAL后仅挂 archive RO恢复。included `0/6000210`、target `0/6000278`、replay `0/60002E0`、excluded `0/6000398`，A=true/B=false；PITR 2,730ms、archive failure 0、8/8、inventory exact、0 Provider、完整 cleanup，结构化证据 verifier通过 | [Run 32867837476](https://github.com/happy520ai/unified-ai-system/actions/runs/32867837476)；[HOL 32867837447](https://github.com/happy520ai/unified-ai-system/actions/runs/32867837447)；[PR checks](https://github.com/happy520ai/unified-ai-system/pull/115/checks) |
 | Fenced old-primary safe rejoin | `680a5639` hosted quality 7 分 26 秒一次全绿；真实 force-remove old primary 后保留卷，`pg_rewind -R` 729ms，旧主从未在 rewind 前启动且首次启动即 recovery。post-promotion marker 双方 LSN `0/302BC40`，promoted primary restart 后双方 `0/3035490`，两次 lag 0；inventory exact、same clients/三阶段 8/8、0 Provider、完整 cleanup | [Run 32862597648](https://github.com/happy520ai/unified-ai-system/actions/runs/32862597648)；[HOL 32862597735](https://github.com/happy520ai/unified-ai-system/actions/runs/32862597735)；[PR checks](https://github.com/happy520ai/unified-ai-system/pull/115/checks) |
 | 真实 single-bridge partition/fence/heal | `265921f9` hosted attempt 2 在 7 分 34 秒全绿；独立 probe 与 standby 真实失去仍可写 primary，standby 看不到 partition marker，完整 failure threshold+confirmation 后 promotion 被 container-state fence 拒绝；bridge heal 后 health 恢复且双方 LSN `0/3029CE0`、lag 0，再完成真实毁主、same Pool/八类 clients 三阶段验证。DR 总计 28,077ms、partition+heal 8,802ms、detection 5,102ms、promotion 4,972ms、37 accepted/0 rejected、0 Provider、全资源 cleanup。attempt 1 的 500/500、0 error、p95 816.37ms 性能门失败保留，未改阈值 | [Run 32858224386](https://github.com/happy520ai/unified-ai-system/actions/runs/32858224386)；[HOL 32858224482](https://github.com/happy520ai/unified-ai-system/actions/runs/32858224482)；[PR checks](https://github.com/happy520ai/unified-ai-system/pull/115/checks) |
@@ -242,7 +249,7 @@
 | Provider/model 广度 | 已有主流协议与多提供商治理，但目录广度有限 | [LiteLLM](https://github.com/BerriAI/litellm-docs) 强调 100+ LLM；[Portkey](https://portkey.ai/docs/product/ai-gateway) 提供更大的模型/提供商目录 | **落后**，短期不要打“最多模型” |
 | 路由与可靠性 | 加权、fallback、熔断、缓存、影子、成本门，以及单机/跨主机 durable Provider dispatch tombstone | Portkey、[Cloudflare AI Gateway](https://developers.cloudflare.com/ai-gateway/features/) 和 [Kong AI Gateway](https://docs.konghq.com/gateway/latest/ai-gateway/) 已有成熟路由、限流和全球/企业部署叙事 | 代码级成本安全与治理有差异化，全球规模、Provider 侧 exactly-once 和生产证据仍落后 |
 | 可观测与成本 | Prometheus、OTel、Langfuse、虚拟 key、预算、spend ledger | [Helicone](https://docs.helicone.ai/getting-started/platform-overview) 和 Cloudflare 有成熟托管分析体验 | 控制面扎实，产品化与托管体验落后 |
-| 协议与智能体治理 | OpenAI/Anthropic/Gemini + MCP + A2A + reverse MCP + Forge/Workforce；A2A 已有稳定签名/JWKS、bounded overlap rotation、跨主机 PostgreSQL 状态、fenced execution lease 与原子 TaskStore 终态；Provider、built-in Git/shell/Webhook、受治理 MCP/OpenAPI/custom tool 有独立 durable 墓碑 | [MCP `2026-07-28`](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/blog/content/posts/2026-07-28-spec-ga/index.md) 进入无会话现代时代；[A2A v1.0](https://github.com/a2aproject/A2A/blob/main/docs/announcing-1.0.md) 强调稳定、多租户与可签名 Agent Card | **项目最有机会领先的维度**；远端原子性、治理 API 外进程 sandbox、真实 JWKS/secret-manager 轮换和故障转移证据仍需补齐 |
+| 协议与智能体治理 | OpenAI/Anthropic/Gemini + MCP + A2A + reverse MCP + Forge/Workforce；A2A 已有稳定签名/JWKS、bounded overlap rotation、跨主机 PostgreSQL 状态、fenced execution lease 与原子 TaskStore 终态；Provider、built-in Git/shell/Webhook、受治理 MCP/OpenAPI/custom tool 有独立 durable 墓碑；Forge project commands要求attested container | [MCP `2026-07-28`](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/blog/content/posts/2026-07-28-spec-ga/index.md) 进入无会话现代时代；[A2A v1.0](https://github.com/a2aproject/A2A/blob/main/docs/announcing-1.0.md) 强调稳定、多租户与可签名 Agent Card | **项目最有机会领先的维度**；但远端原子性、其余 native helper统一隔离、真实 JWKS/secret-manager 轮换和多候选故障转移证据仍需补齐 |
 | 确定性与无密钥验证 | 本地增强、fake provider、公共克隆、明确调用证据 | 多数网关更关注代理、路由和托管分析 | **差异化强**，可形成品牌心智 |
 | 安全与发布工程 | fail-closed、攻击回归、严格类型门、公共检查、只读多架构容器、SBOM/provenance | 头部产品拥有更长生产历史、团队和第三方认证 | 仓库工程纪律强；外部保证不足 |
 | HA/DR/全球规模 | 部分 PostgreSQL 跨主机状态；已有 manifest physical backup、真实 archive-only LSN-PITR、streaming/WAL replay、独立 fence、真实 bridge partition/heal、自动 single-standby switch、same Pool三阶段8/8，以及 fenced old-primary rewind重入 | Cloudflare/Kong/商业网关具备成熟多区域、quorum election、长期PITR与企业运维能力 | 已推进到可选择恢复点、拒绝单桥误晋升、接管并带回旧主的 single-standby流程；在多候选/quorum、外部HA、长时异地archive/time PITR、多主机partition/rejoin/full split-brain、生产规模与跨区域上仍**明显落后** |
@@ -286,7 +293,7 @@
 项目不需要复制所有竞品，最有胜算的顺序是：
 
 1. **守住差异化**：把“零密钥可试、确定性增强、真实调用显式、证据可复核”做成最短上手路径。
-2. **补生产闭环**：把 Workforce 运行状态改成可重建/幂等重放并中央化证据，以进程/容器 sandbox 禁止绕开已覆盖 Provider/Git/shell/Webhook/MCP/OpenAPI/custom registry 的任意执行；再补远端可认证对账、provider-authenticated statement ingestion/持久历史/外部 WORM、真实 secret-manager/JWKS 轮换、真实 provider staging、24 小时 soak、DR 与独立渗透测试。
+2. **补生产闭环**：把 Workforce 运行状态改成可重建/幂等重放并中央化证据；把已用于 Forge 的 attested container/broker推广到剩余 native helper；再补远端可认证对账、provider-authenticated statement ingestion/持久历史/外部 WORM、真实 secret-manager/JWKS 轮换、真实 provider staging、注册隔离 runner并完成6–24小时 soak、多候选DR与独立渗透测试。
 3. **建立可信对标**：固定硬件、固定模型、固定流量，公开与 LiteLLM/Portkey/Kong 等同场的延迟、错误率、资源、成本和治理功能矩阵。
 4. **扩大生态而非堆宣传词**：每个主流 MCP/A2A/SDK 客户端取得一份可复现第三方报告；把 2,084 个“待人工证据”逐步转成真实认证。
 5. **用真实采用证明领先**：安装成功率、7/30 日留存、活跃部署、外部贡献者、生产案例与问题响应时间，比 star 口号更能说明市场价值。
@@ -297,8 +304,8 @@
 
 当前 PR #115：
 
-- 已审代码 head `0763301d` 已推送；本报告作为后续 docs-only 证据快照提交，代码证据与 PR 历史一致；
-- 已审代码 head 的 `quality` [32867837476](https://github.com/happy520ai/unified-ai-system/actions/runs/32867837476)、HOL [32867837447](https://github.com/happy520ai/unified-ai-system/actions/runs/32867837447)、独立 plugin scan 与既有 hardened multiarch container 证据均通过；PITR权限失败与早期缺 WAL rewind按 AUD-56/AUD-55保留；
+- 已审代码 head `d76ac86d` 与精确语言迁移政策 `ce75ecee` 已推送；本报告作为后续 docs-only 证据快照提交，代码证据与 PR 历史一致；
+- `ce75ecee` 的 `quality` [32877396799](https://github.com/happy520ai/unified-ai-system/actions/runs/32877396799)、HOL [32877396764](https://github.com/happy520ai/unified-ai-system/actions/runs/32877396764)与独立 plugin-scanner均通过；首次语言策略失败[32876820761](https://github.com/happy520ai/unified-ai-system/actions/runs/32876820761)、PITR权限失败与早期缺 WAL rewind分别按 AUD-60/AUD-56/AUD-55保留；
 - PR 处于 open、mergeable 状态，尚无独立 review decision；
 - 可进入维护者复核与下一版候选流程；
 - **不能把“PR 全绿”写成“已合并、已发布、生产 GA 或行业领先”。**
@@ -316,16 +323,16 @@
 
 适合对外传播的诚实表述是：
 
-> Unified AI System 是一个自托管、协议优先、零密钥可验证的 AI 网关与智能体控制面。它把确定性 prompt 增强、MCP/A2A、虚拟 key、预算、缓存、RAG、guardrails、审计、可观测性和真实 Provider 防重复外呼放进同一个受治理执行路径。当前发布为 Public Preview；生产推广仍需真实提供商、多候选跨主机 HA、长时异地 archive/time PITR、长时负载和独立安全证据。
+> Unified AI System 是一个自托管、协议优先、零密钥可验证的 AI 网关与智能体控制面。它把确定性 prompt 增强、MCP/A2A、虚拟 key、预算、缓存、RAG、guardrails、审计、可观测性、真实 Provider 防重复外呼和 Forge attested-container执行放进受治理路径。当前发布为 Public Preview；生产推广仍需真实提供商、多候选跨主机 HA、长时异地 archive/time PITR、已完成长时负载和独立安全证据。
 
 ## 12. 最终判定
 
 | 问题 | 审计回答 |
 | --- | --- |
-| 系统现在能不能用？ | **能。** 对本地/单机/同主机、自托管、fake-provider、prompt 增强、MCP、协议兼容和团队治理评估已经有强 E3 证据。 |
+| 系统现在能不能用？ | **能。** 对本地/单机/同主机、自托管、fake-provider、prompt 增强、MCP、协议兼容、团队治理与配置后Forge容器隔离已经有强 E3 代码/本机证据。 |
 | 是不是玩具？ | **不是。** 核心能力真实、跨协议、具备严格测试和发布工程。 |
-| 能不能直接称生产级？ | **不能。** E4 的真实 provider、跨主机 HA/总账/DR、长时负载、独立安全证据不完整。 |
-| 有没有独特价值？ | **有，而且清晰。** 确定性、可验证、默认无密钥、受治理执行是最强长板。 |
+| 能不能直接称生产级？ | **不能。** E4 的真实 provider、多候选跨主机 HA/总账/DR、已完成六小时负载、独立安全证据不完整。 |
+| 有没有独特价值？ | **有，而且清晰。** 确定性、可验证、默认无密钥、受治理执行、远端副作用墓碑与项目命令真实容器隔离是最强长板。 |
 | 是否已经行业领先？ | **尚未。** 在治理方向有领先潜力，在提供商广度、HA、生态和生产历史上明显落后头部。 |
 | 是否可以大放异彩？ | **可以，但属于有条件的“可以”。** 先成为受治理智能体网关细分赛道的第一选择，再用生产证据和真实采用扩大边界。 |
 
