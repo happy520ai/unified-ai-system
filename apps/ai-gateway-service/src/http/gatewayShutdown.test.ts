@@ -84,6 +84,41 @@ describe("gateway shutdown controller", () => {
     expect(exit).toHaveBeenCalledWith(1);
   });
 
+  it("keeps the force deadline active while resource shutdown is still pending", async () => {
+    vi.useFakeTimers();
+    let closeCallback: ((error?: Error) => void) | undefined;
+    const server = {
+      gatewayLifecycle: createGatewayLifecycle(),
+      close: vi.fn((callback) => { closeCallback = callback; }),
+      closeIdleConnections: vi.fn(),
+      closeAllConnections: vi.fn(),
+      closeRealtimeConnections: vi.fn(),
+      shutdownResources: vi.fn(() => new Promise<void>(() => undefined)),
+    };
+    const logger = { info: vi.fn(), error: vi.fn(), fatal: vi.fn() };
+    const destroyPools = vi.fn();
+    const exit = vi.fn();
+    const controller = createGatewayShutdownController({
+      server,
+      logger,
+      destroyPools,
+      exit,
+      propagationMs: 0,
+      timeoutMs: 10,
+    });
+
+    controller.shutdown("SIGTERM", 0);
+    closeCallback?.();
+    await Promise.resolve();
+    expect(server.shutdownResources).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(10);
+
+    expect(server.closeAllConnections).toHaveBeenCalledTimes(1);
+    expect(destroyPools).toHaveBeenCalledTimes(1);
+    expect(exit).toHaveBeenCalledWith(1);
+  });
+
   it("bounds configured durations", () => {
     expect(readBoundedDuration("500", 100, 0, 1_000)).toBe(500);
     expect(readBoundedDuration("-1", 100, 0, 1_000)).toBe(0);

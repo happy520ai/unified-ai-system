@@ -50,6 +50,38 @@ It preserves the original request and asserts `original`, `profile`, `language`,
 and `enhancedPrompt`, plus `providerCalled=false`, `credentialRequired=false`,
 `originalPreserved=true`, and `deterministic=true`.
 
+## Managed local-client receipt wire contract
+
+The package owns the public wire versions and TypeScript shapes for:
+
+- `LocalClientDispatchIntent`
+- `LocalClientDurableExecutionReceipt`
+- `LocalClientReceiptReconciliationQuery`
+- `LocalClientReceiptReconciliationResponse`
+- `LocalClientReceiptReconciliationState`
+
+The corresponding `LOCAL_CLIENT_*_VERSION` constants are runtime exports from
+the package as well as literal types. These contracts describe authenticated
+wire data only. They do not claim that a client has durably stored an intent,
+atomically coupled an effect with its receipt, or implemented replay fencing.
+Those guarantees remain the external managed client's responsibility.
+
+## Language Selection
+
+- Workload: a side-effect-free runtime constant bridge consumed by both the
+  JavaScript SDK and TypeScript contracts.
+- Alternatives considered: a TypeScript-only source entry would require every
+  Node consumer and public-clone check to install a TypeScript loader or a
+  generated `dist` tree; duplicating the literals in the SDK and gateway would
+  remove the single source of truth.
+- Selection: the seven immutable runtime constants live in one small ESM
+  JavaScript file, while all wire structures and public function signatures
+  remain TypeScript-first.
+- Compatibility and rollback: the package retains its TypeScript `types`
+  entry, exposes the runtime file through the existing default export, and can
+  roll back by restoring the prior default entry together with the gateway and
+  SDK imports. No protocol version changed in this move.
+
 ## Development
 
 ```bash

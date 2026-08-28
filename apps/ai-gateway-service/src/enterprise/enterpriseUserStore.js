@@ -10,6 +10,7 @@ export const DEFAULT_ROLES = {
   operator: ["session:read", "dashboard:read", "provider:read", "chat:use", "knowledge:read", "knowledge:write", "memory:write", "connector:write", "workflow:run", "evaluation:run", "audit:read"],
   viewer: ["session:read", "dashboard:read", "provider:read", "knowledge:read"],
   auditor: ["session:read", "dashboard:read", "audit:read"],
+  local_client: ["session:read", "provider:read", "chat:use", "local-client:telemetry"],
 };
 
 function readOptionalString(value) {

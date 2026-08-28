@@ -32,6 +32,9 @@ const PROVIDER_OPERATION_TYPES = new Set([
   "speech_to_text",
 ]);
 
+/** Internal capability marker; JSON callers cannot construct this symbol. */
+export const MANAGED_LOCAL_CLIENT_PROVIDER_PIN = Symbol("managed-local-client-provider-pin");
+
 export class GatewayService {
   constructor({ providerRegistry, runtimeConfig = {}, healthScorer = null, requestLogger = null, enterpriseAudit = null, governance = null, contentGuardrails = null, weightedTrafficPolicy = null, providerDispatchGate = null }) {
     this.providerRegistry = providerRegistry;
@@ -77,7 +80,12 @@ export class GatewayService {
         this.#enforceModelAccess(request, baseSelection);
       }
       // 加权分流:运营配置命中时覆写目标 provider(影子请求自身不再套用,防递归)。
-      if (this.weightedTrafficPolicy && !execution.shadow) {
+      const managedLocalClientProviderPinned =
+        typeof request[MANAGED_LOCAL_CLIENT_PROVIDER_PIN]?.assertAttempt === "function"
+        &&
+        request.metadata?.managedLocalClientProviderRouting?.providerPinned === true
+        && request.metadata?.managedLocalClientProviderRouting?.modelPinned === true;
+      if (this.weightedTrafficPolicy && !execution.shadow && !managedLocalClientProviderPinned) {
         const weighted = this.weightedTrafficPolicy.apply(request);
         if (weighted?.overrideProviderId && weighted.overrideProviderId !== baseSelection.selected.target.providerId) {
           const shadowOfWeighted = request;
@@ -109,7 +117,7 @@ export class GatewayService {
       const response = createGatewayResponse(request, selection, providerResult, startedAt, this.runtimeConfig, [...compactionWarnings, ...attemptResult.warnings]);
 
       // 影子流量:主响应已定,旁路复制到 shadow provider,仅观测不影响主响应。
-      if (this.weightedTrafficPolicy && !execution.shadow) {
+      if (this.weightedTrafficPolicy && !execution.shadow && !managedLocalClientProviderPinned) {
         this.#fireShadowTraffic(request, execution);
       }
       return createRouteSuccessEnvelope(response, {
@@ -164,6 +172,10 @@ export class GatewayService {
       for (const attempt of createFallbackAttempts(baseSelection, this.runtimeConfig)) {
         throwIfExecutionAborted(execution.signal);
         selection = createAttemptSelection(baseSelection, attempt.candidate, attempt.index);
+        assertManagedLocalClientProviderAttempt(request, selection.selected.target);
+        if (this.runtimeConfig.modelAccessEnforce) {
+          this.#enforceModelAccess(request, selection);
+        }
         let providerCallStarted = false;
         let usageAttemptId = null;
         assertProviderExecutionAllowed({
@@ -390,6 +402,10 @@ export class GatewayService {
 
     try {
       throwIfExecutionAborted(execution.signal);
+      assertManagedLocalClientProviderAttempt(request, selection.selected.target);
+      if (this.runtimeConfig.modelAccessEnforce) {
+        this.#enforceModelAccess(request, selection);
+      }
       assertProviderExecutionAllowed({
         providerId: operation.providerId,
         providerType: operation.providerType,
@@ -479,11 +495,15 @@ export class GatewayService {
     for (const attempt of createFallbackAttempts(baseSelection, this.runtimeConfig)) {
       throwIfExecutionAborted(execution.signal);
       const attemptSelection = createAttemptSelection(baseSelection, attempt.candidate, attempt.index);
+      assertManagedLocalClientProviderAttempt(request, attemptSelection.selected.target);
       hooks.onAttemptSelected?.(attemptSelection);
       let providerCallStarted = false;
       let usageAttemptId = null;
 
       try {
+        if (this.runtimeConfig.modelAccessEnforce) {
+          this.#enforceModelAccess(request, attemptSelection);
+        }
         assertProviderExecutionAllowed({
           providerId: attemptSelection.selected.target.providerId,
           providerType: attemptSelection.selected.providerType,
@@ -716,9 +736,28 @@ export class GatewayService {
   }
 
   #enforceModelAccess(request, selection) {
-    if (!this.governance) return;
-    const userId = request.metadata?.userId;
-    if (!userId) return; // no identity on the request → skip (backwards compatible)
+    if (!this.governance || typeof this.governance.checkModelAccess !== "function") {
+      const error = new Error("Model access governance is unavailable.");
+      error.code = "MODEL_ACCESS_GOVERNANCE_UNAVAILABLE";
+      error.category = "governance";
+      error.retryable = false;
+      throw error;
+    }
+    const identity = request.enterpriseIdentity;
+    const userId = typeof identity?.userId === "string"
+      ? identity.userId
+      : typeof identity?.subject === "string"
+        ? identity.subject
+        : typeof identity?.id === "string"
+          ? identity.id
+          : "";
+    if (!userId) {
+      const error = new Error("Authenticated model access identity is required.");
+      error.code = "MODEL_ACCESS_IDENTITY_REQUIRED";
+      error.category = "auth";
+      error.retryable = false;
+      throw error;
+    }
     const modelId = selection.selected?.target?.modelId;
     if (!modelId) return;
 
@@ -728,7 +767,7 @@ export class GatewayService {
       error.code = "MODEL_ACCESS_DENIED";
       error.category = "governance";
       error.retryable = false;
-      error.details = { userId, modelId };
+      error.details = { modelId };
       throw error;
     }
   }
@@ -989,6 +1028,29 @@ export class GatewayService {
     });
     return reservation;
   }
+}
+
+function assertManagedLocalClientProviderAttempt(request, target) {
+  const binding = request?.[MANAGED_LOCAL_CLIENT_PROVIDER_PIN];
+  const managedClientId = typeof request?.enterpriseIdentity?.managedClientId === "string"
+    ? request.enterpriseIdentity.managedClientId
+    : null;
+  if (binding === undefined && managedClientId === null) return;
+  if (
+    typeof binding?.assertAttempt !== "function"
+    || managedClientId === null
+    || binding.clientId !== managedClientId
+  ) {
+    const error = new Error("Managed local-client provider dispatch binding is invalid.");
+    error.code = "LOCAL_CLIENT_PROVIDER_DISPATCH_ATTEMPT_DENIED";
+    error.category = "authorization";
+    error.retryable = false;
+    throw error;
+  }
+  binding.assertAttempt({
+    providerId: target?.providerId,
+    modelId: target?.modelId,
+  });
 }
 
 function normalizeProviderOperation(input) {

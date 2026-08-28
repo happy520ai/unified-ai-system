@@ -1,4 +1,6 @@
 import { ROUTE_NOT_HANDLED } from "./httpRouteDispatch.js";
+import { MANAGED_LOCAL_CLIENT_PROVIDER_PIN } from "../core/gatewayService.js";
+import { createLocalClientProviderDispatchBinding } from "../routing/localClientProviderDispatchBinding.ts";
 import { getChatResponseCacheIntegration } from "../cache/chatResponseCacheIntegration.ts";
 import { getGuardrailsEngine } from "../guardrails/guardrailsEngine.ts";
 import { resolveProviderDispatchHttpStatus } from "./providerDispatchHttpStatus.ts";
@@ -21,7 +23,12 @@ import {
 import { getLangfuseCallback } from "../observability/langfuseCallback.ts";
 import { applyPromptEnhancement } from "./utils/chatUtils.js";
 import { injectRagContextIntoGatewayInput } from "./utils/ragInjection.js";
-import { readJson, writeJson, writeSseHeaders } from "./utils/responseUtils.js";
+import {
+  takeRawJsonRequestBody,
+  readJson,
+  writeJson,
+  writeSseHeaders,
+} from "./utils/responseUtils.js";
 import {
   getMessageImageStats,
   inspectInlineImageDataUrl,
@@ -196,6 +203,7 @@ export async function dispatchOpenAiCompatibilityRoutes(context) {
     writeServiceLog,
     enterpriseGovernanceService,
     knowledgeService,
+    application,
   } = context;
   const normalized = normalizeOpenAiPath(url.pathname);
   const normalizedPath = normalized.path;
@@ -266,10 +274,12 @@ export async function dispatchOpenAiCompatibilityRoutes(context) {
     await handleAnthropicMessages({
       gatewayService,
       enterpriseGovernanceService,
+      application,
       request,
       response,
       startedAt,
       writeServiceLog,
+      url,
     });
     return;
   }
@@ -300,6 +310,24 @@ export async function dispatchOpenAiCompatibilityRoutes(context) {
       ...(typeof body === "object" && body !== null ? body : null),
       ...(normalized.modelFromPath && !body?.model ? { model: normalized.modelFromPath } : {}),
     };
+    let managedLocalClientPrincipal = null;
+    try {
+      managedLocalClientPrincipal = await authenticateManagedLocalClientProtocolRequest({
+        application,
+        request,
+        url,
+        requestBody,
+      });
+    } catch (error) {
+      writeServiceLog?.("managed_local_client_protocol_auth_failed", {
+        method: request.method,
+        path: normalizedPath,
+        code: error?.code ?? "LOCAL_CLIENT_POP_HTTP_UNAUTHORIZED",
+        durationMs: Date.now() - startedAt,
+      });
+      writeJson(response, resolveOpenAiErrorStatus(error), createOpenAiError(error));
+      return;
+    }
 
     // Guardrails（确定性本地扫描）：在 normalize 之前作用于原始请求——
     // 拦截/脱敏同时覆盖 JSON、SSE 与缓存路径（脱敏后的文本进入缓存键）。
@@ -360,6 +388,31 @@ export async function dispatchOpenAiCompatibilityRoutes(context) {
       return;
     }
 
+    let managedLocalClientRoute = null;
+    if (managedLocalClientPrincipal) {
+      try {
+        managedLocalClientRoute = await resolveManagedLocalClientProviderRoute({
+          application,
+          principal: managedLocalClientPrincipal,
+          gatewayInput,
+        });
+        gatewayInput = applyManagedLocalClientProviderRoute(gatewayInput, managedLocalClientRoute);
+        response.setHeader("X-AI-Gateway-Local-Client-Routing", "policy-pinned");
+        response.setHeader("X-AI-Gateway-Local-Client-Policy-Revision", managedLocalClientRoute.policyRevision);
+        response.setHeader("X-AI-Gateway-Local-Client-Revision", String(managedLocalClientPrincipal.identity.clientRevision));
+        response.setHeader("X-AI-Gateway-Local-Client-Decision-Digest", managedLocalClientRoute.decisionDigest);
+      } catch (error) {
+        writeServiceLog?.("managed_local_client_provider_route_failed", {
+          method: request.method,
+          path: normalizedPath,
+          code: error?.code ?? "LOCAL_CLIENT_PROVIDER_ROUTE_DENIED",
+          durationMs: Date.now() - startedAt,
+        });
+        writeJson(response, resolveOpenAiErrorStatus(error), createOpenAiError(error));
+        return;
+      }
+    }
+
     // RAG（显式 opt-in）：注入租户可见的知识库上下文；失败 fail-open。
     const ragConfig = gatewayInput.metadata?.openAiCompatibility?.rag;
     if (ragConfig?.enabled === true) {
@@ -378,6 +431,15 @@ export async function dispatchOpenAiCompatibilityRoutes(context) {
       });
     }
 
+    const choiceCount = Number(gatewayInput.metadata?.openAiCompatibility?.choiceCount ?? 1);
+    if (managedLocalClientRoute && choiceCount > 1) {
+      writeJson(response, 409, createOpenAiError(createManagedLocalClientRouteError(
+        "LOCAL_CLIENT_PROVIDER_MULTI_CHOICE_DENIED",
+        "Managed local-client routing currently permits one provider generation per request.",
+      )));
+      return;
+    }
+
     if (requestBody.stream === true) {
       await streamOpenAiChatCompletion({
         body: requestBody,
@@ -393,7 +455,6 @@ export async function dispatchOpenAiCompatibilityRoutes(context) {
     }
 
     // n>1：并发执行 n 次同输入生成，choices 按序返回；不走响应缓存（v1 不缓存多候选）。
-    const choiceCount = Number(gatewayInput.metadata?.openAiCompatibility?.choiceCount ?? 1);
     if (choiceCount > 1) {
       await handleMultiChoiceChatCompletion({
         choiceCount,
@@ -425,7 +486,9 @@ export async function dispatchOpenAiCompatibilityRoutes(context) {
 
     const chatResponseCache = getChatResponseCacheIntegration();
     // RAG 注入后缓存键不稳定（检索库随时间变化），跳过响应缓存。
-    const cacheCandidate = gatewayInput.metadata?.ragInjection?.applied
+    const cacheCandidate = managedLocalClientRoute
+      ? null
+      : gatewayInput.metadata?.ragInjection?.applied
       ? null
       : chatResponseCache.describeCacheCandidate(requestBody, gatewayInput);
     const cacheLookup = cacheCandidate
@@ -723,10 +786,12 @@ export async function dispatchOpenAiCompatibilityRoutes(context) {
 async function handleAnthropicMessages({
   gatewayService,
   enterpriseGovernanceService,
+  application,
   request,
   response,
   startedAt,
   writeServiceLog,
+  url,
 }) {
   let body;
   try {
@@ -737,6 +802,18 @@ async function handleAnthropicMessages({
       category: "validation",
       message: "Request body must be valid JSON.",
     }));
+    return;
+  }
+  let managedLocalClientPrincipal = null;
+  try {
+    managedLocalClientPrincipal = await authenticateManagedLocalClientProtocolRequest({
+      application,
+      request,
+      url,
+      requestBody: body,
+    });
+  } catch (error) {
+    writeJson(response, resolveOpenAiErrorStatus(error), createAnthropicError(error));
     return;
   }
 
@@ -797,6 +874,24 @@ async function handleAnthropicMessages({
     });
     writeJson(response, 400, createAnthropicError(error));
     return;
+  }
+
+  if (managedLocalClientPrincipal) {
+    try {
+      const managedRoute = await resolveManagedLocalClientProviderRoute({
+        application,
+        principal: managedLocalClientPrincipal,
+        gatewayInput,
+      });
+      gatewayInput = applyManagedLocalClientProviderRoute(gatewayInput, managedRoute);
+      response.setHeader("X-AI-Gateway-Local-Client-Routing", "policy-pinned");
+      response.setHeader("X-AI-Gateway-Local-Client-Policy-Revision", managedRoute.policyRevision);
+      response.setHeader("X-AI-Gateway-Local-Client-Revision", String(managedRoute.clientRevision));
+      response.setHeader("X-AI-Gateway-Local-Client-Decision-Digest", managedRoute.decisionDigest);
+    } catch (error) {
+      writeJson(response, resolveOpenAiErrorStatus(error), createAnthropicError(error));
+      return;
+    }
   }
 
   if (body.stream === true) {
@@ -2163,7 +2258,7 @@ async function handleMultiChoiceChatCompletion({
   writeJson(response, 200, chatCompletion);
 }
 
-async function streamOpenAiChatCompletion({
+export async function streamOpenAiChatCompletion({
   body,
   gatewayInput,
   gatewayService,
@@ -2200,7 +2295,12 @@ async function streamOpenAiChatCompletion({
   const choiceCount = Number(gatewayInput.metadata?.openAiCompatibility?.choiceCount ?? 1);
   // 多候选（n>1）与 RAG 注入均不支持缓存读写：候选集合/检索结果不可稳定复放。
   const chatResponseCache = getChatResponseCacheIntegration();
-  const cacheCandidate = choiceCount > 1 || gatewayInput.metadata?.ragInjection?.applied
+  const managedLocalClientPinned =
+    gatewayInput.metadata?.managedLocalClientProviderRouting?.providerPinned === true
+    && gatewayInput.metadata?.managedLocalClientProviderRouting?.modelPinned === true;
+  const cacheCandidate = managedLocalClientPinned
+    || choiceCount > 1
+    || gatewayInput.metadata?.ragInjection?.applied
     ? null
     : chatResponseCache.describeCacheCandidate(body, gatewayInput);
   const cacheLookup = cacheCandidate
@@ -3036,6 +3136,119 @@ function isRecord(value) {
 
 function estimateCompatibilityTokens(text) {
   return Math.max(1, Math.ceil(String(text).length / 4));
+}
+
+const MANAGED_LOCAL_CLIENT_PROTOCOL_ID_PATTERN = /^[a-z][a-z0-9._-]{0,127}$/u;
+
+export async function authenticateManagedLocalClientProtocolRequest({
+  application,
+  request,
+  url,
+  requestBody,
+}) {
+  const extension = isRecord(requestBody?.unified_ai) ? requestBody.unified_ai : null;
+  const rawClientId = extension?.local_client_id;
+  const proofHeader = request.headers?.["x-ai-gateway-local-client-proof"];
+  const clientRequested = rawClientId !== undefined;
+  const proofSupplied = proofHeader !== undefined;
+  const rawBody = proofSupplied ? takeRawJsonRequestBody(request) : null;
+  try {
+    const serverBinding = application?.localClientProtocolPrincipalResolver?.resolve?.(
+      request.enterpriseIdentity,
+    ) ?? null;
+    if (!serverBinding) {
+      if (!clientRequested && !proofSupplied) return null;
+      throw createManagedLocalClientAuthError();
+    }
+    if (
+      !clientRequested
+      || !proofSupplied
+      || typeof rawClientId !== "string"
+      || !MANAGED_LOCAL_CLIENT_PROTOCOL_ID_PATTERN.test(rawClientId)
+      || rawClientId !== serverBinding.clientId
+      || !application?.localClientPopHttpAuth
+      || application?.localClientManagedProtocolDispatchStatus?.ready !== true
+    ) {
+      throw createManagedLocalClientAuthError();
+    }
+    return await application.localClientPopHttpAuth.authenticate({
+      authenticatedScope: {
+        tenantId: request.enterpriseIdentity?.tenantId,
+        subjectId: request.enterpriseIdentity?.userId,
+      },
+      clientId: serverBinding.clientId,
+      method: request.method,
+      canonicalPathWithQuery: `${url.pathname}${url.search}`,
+      rawBody,
+      proofHeader,
+    });
+  } finally {
+    rawBody?.fill(0);
+  }
+}
+
+export async function resolveManagedLocalClientProviderRoute({ application, principal, gatewayInput }) {
+  const runtimeRouter = application?.localClientProviderRuntimeRouter;
+  if (!runtimeRouter || principal?.verified !== true) throw createManagedLocalClientAuthError();
+  const decision = await runtimeRouter.route({
+    tenantId: principal.identity.tenantId,
+    subjectId: principal.identity.subjectId,
+    clientId: principal.identity.clientId,
+    expectedClientRevision: principal.identity.clientRevision,
+    requiredCapabilities: [...new Set(["chat", ...(gatewayInput.requiredCapabilities ?? [])])],
+    requestedFanout: 1,
+    fusionRequested: false,
+  });
+  try {
+    return createLocalClientProviderDispatchBinding({
+      popVerification: principal,
+      runtimeDecision: decision,
+    });
+  } catch {
+    throw createManagedLocalClientRouteError(
+      "LOCAL_CLIENT_PROVIDER_ROUTE_DENIED",
+      "No provider route satisfies the authenticated managed-client policy.",
+    );
+  }
+}
+
+export function applyManagedLocalClientProviderRoute(gatewayInput, route) {
+  return {
+    ...gatewayInput,
+    [MANAGED_LOCAL_CLIENT_PROVIDER_PIN]: route,
+    providerId: route.providerId,
+    model: route.modelId,
+    metadata: {
+      ...(gatewayInput.metadata ?? {}),
+      managedLocalClientProviderRouting: Object.freeze({
+        applied: true,
+        providerPinned: true,
+        modelPinned: true,
+        clientId: route.clientId,
+        clientRevision: route.clientRevision,
+        policyRevision: route.policyRevision,
+        decisionDigest: route.decisionDigest,
+      }),
+    },
+  };
+}
+
+function createManagedLocalClientAuthError() {
+  const error = new Error("Managed local-client proof authorization failed.");
+  error.code = "LOCAL_CLIENT_POP_HTTP_UNAUTHORIZED";
+  error.category = "auth";
+  error.status = 401;
+  error.retryable = false;
+  return error;
+}
+
+function createManagedLocalClientRouteError(code, message) {
+  const error = new Error(message);
+  error.code = code;
+  error.category = "routing";
+  error.status = 409;
+  error.retryable = false;
+  return error;
 }
 
 function normalizeUnifiedAiExtension(body) {

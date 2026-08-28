@@ -28,6 +28,7 @@ Public documentation is grouped by task so the repo stays easy to scan.
 ## Product References
 
 - [Architecture](architecture.md)
+- [Local client intelligence gateway](local-client-intelligence-gateway.md)
 - [Gemini provider](gemini-provider.md)
 - [Chat guardrails](guardrails.md)
 - [Spend reporting](spend-reporting.md)

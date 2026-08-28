@@ -2,6 +2,8 @@ import { ROUTE_NOT_HANDLED } from "./httpRouteDispatch.js";
 import { getChatResponseCacheIntegration } from "../cache/chatResponseCacheIntegration.ts";
 import { reserveWebhookExternalEffect } from "../external-effects/externalEffectWebhookGuard.ts";
 import { readExternalEffectKeyContext } from "../external-effects/externalEffectHttpContext.ts";
+import { takeRawJsonRequestBody } from "./utils/responseUtils.js";
+import { hasActiveLocalClientReceiptRecoveryFailure } from "./utils/healthUtils.js";
 
 export async function dispatchHttpRoutes03(context) {
   const {
@@ -24,13 +26,77 @@ export async function dispatchHttpRoutes03(context) {
     readEnterpriseJson, writeEnterpriseError, writeCapabilityError, normalizeChatBody,
     normalizeRagChatBody, extractChatPrompt, createRagRetrieveRequest, createRagCitations,
     createRagPrompt, createRagChatData, OWNER_AUTOMATION_CHAT_PROPOSAL_FLAG, application,
-    request, response, url, startedAt,
+    request, requestExecution, response, url, startedAt,
     approvalStore, fileContextStore, phase319LocalOperation, connectorFeishuDryRun,
     connectorWeComDryRun, capabilityRouterService, codexExecCrsRuntimeCandidate, enterpriseGovernanceService,
-    enterpriseOpsService, fiveCapabilityActivationService, gatewayService, knowledgeService,
+    enterpriseOpsService, fiveCapabilityActivationService, gatewayService, knowledgeService, localClientManagementService,
     modelImportService, modelLibraryStore, providerConfigRoutes, userExperienceService,
     workforceService, workflowService, wsServer,
   } = context;
+  const localClientScope = {
+    tenantId: request.enterpriseIdentity?.tenantId,
+    userId: request.enterpriseIdentity?.userId,
+  };
+  const localClientOnboardingIdentity = {
+    tenantId: localClientScope.tenantId,
+    subjectId: localClientScope.userId,
+  };
+  const localClientOnboardingRequestPort = {
+    getHeader: (name) => request.headers?.[String(name).toLowerCase()],
+    signal: requestExecution?.signal ?? new AbortController().signal,
+  };
+  const authenticateLocalClientTelemetry = async (body) => {
+    const auth = application.localClientPopHttpAuth;
+    if (!auth) {
+      return Object.freeze({
+        mode: "operator-authenticated",
+        clientProofVerified: false,
+        proofFingerprint: null,
+      });
+    }
+    const verification = await auth.authenticate({
+      authenticatedScope: {
+        tenantId: localClientScope.tenantId,
+        subjectId: localClientScope.userId,
+      },
+      clientId: body?.clientId ?? body?.id,
+      method: request.method,
+      canonicalPathWithQuery: `${url.pathname}${url.search}`,
+      rawBody: takeRawJsonRequestBody(request),
+      proofHeader: request.headers?.["x-ai-gateway-local-client-proof"],
+    });
+    return Object.freeze({
+      mode: "managed-client-pop",
+      clientProofVerified: true,
+      proofFingerprint: verification.proofFingerprint,
+    });
+  };
+  const writeLocalClientOnboardingOutcome = (outcome) => {
+    setLocalClientIdempotencyHeaders(response, outcome);
+    if (outcome.accepted) {
+      writeJson(response, outcome.statusCode, createOkEnvelope(outcome, { startedAt }));
+      return;
+    }
+    if (Number.isInteger(outcome.retryAfterSeconds)) {
+      response.setHeader("Retry-After", String(outcome.retryAfterSeconds));
+    }
+    writeJson(response, outcome.statusCode, createErrorEnvelope(outcome.code, outcome.message, {
+      startedAt,
+      category: outcome.status === "unknown-reconcile-required" ? "integrity" : "execution",
+      retryable: outcome.status === "rejected" && outcome.retryAllowed === true,
+      details: {
+        status: outcome.status,
+        replayed: outcome.replayed,
+        replayable: outcome.replayable,
+        retryAllowed: outcome.retryAllowed,
+        operationInvoked: outcome.operationInvoked,
+        result: outcome.result,
+      },
+    }));
+  };
+  if (url.pathname.startsWith("/local-clients/")) {
+    response.setHeader("Cache-Control", "no-store");
+  }
 
   if (request.method === "GET" && url.pathname === "/cost/summary") {
     const tenantScopeIdentity = request.enterpriseIdentity;
@@ -342,6 +408,451 @@ export async function dispatchHttpRoutes03(context) {
     return;
   }
 
+  if (request.method === "GET" && url.pathname === "/local-clients/status") {
+    try {
+      const status = await localClientManagementService.getStatus(localClientScope);
+      const onboarding = application.localClientGovernedOnboardingRuntime?.getStatus?.()
+        ?? application.localClientGovernedOnboardingStatus;
+      const receiptRecovery = application.localClientExecutionReceiptRecoveryStatus;
+      const recoveryFailureActive = hasActiveLocalClientReceiptRecoveryFailure(receiptRecovery);
+      writeJson(response, 200, createOkEnvelope({
+        ...status,
+        ...(recoveryFailureActive ? { status: "degraded" } : {}),
+        ...(onboarding ? { onboarding } : {}),
+        smartManagementScheduler: application.localClientSmartManagementScheduler?.getStatus?.()
+          ?? application.localClientSmartManagementSchedulerStatus,
+        clientProofAuthority: application.localClientPopIdentityStatus,
+        managedProtocolDispatch: application.localClientManagedProtocolDispatchStatus,
+        popSnapshotRollbackProtection:
+          application.localClientPopSnapshotRollbackProtectionStatus,
+        executionFeedback: {
+          outbox: application.localClientExecutionFeedbackOutboxStatus,
+          dispatcher: application.localClientExecutionFeedbackDispatcher?.status
+            ?? application.localClientExecutionFeedbackDispatcherStatus,
+          receiptJournal: application.localClientExecutionReceiptJournalStatus,
+          receiptRecovery,
+        },
+      }, { startedAt }));
+    } catch (error) {
+      writeCapabilityError({ response, error, startedAt, fallbackCode: "local_client_status_failed" });
+    }
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/local-clients/provider-route") {
+    const body = await readCapabilityJson({ request, response, startedAt, code: "local_client_provider_route_invalid_json" });
+    if (!body) return;
+    try {
+      const result = await application.localClientProviderRuntimeRouter.route({
+        ...body,
+        tenantId: localClientScope.tenantId,
+        subjectId: localClientScope.userId,
+      });
+      writeJson(response, 200, createOkEnvelope(result, { startedAt }));
+    } catch (error) {
+      writeCapabilityError({ response, error, startedAt, fallbackCode: "local_client_provider_route_failed" });
+    }
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/local-clients/health") {
+    try {
+      writeJson(response, 200, createOkEnvelope(await localClientManagementService.healthCheck(localClientScope), { startedAt }));
+    } catch (error) {
+      writeCapabilityError({ response, error, startedAt, fallbackCode: "local_client_health_failed" });
+    }
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/local-clients/intelligence") {
+    try {
+      writeJson(response, 200, createOkEnvelope(await localClientManagementService.getIntelligence(localClientScope), { startedAt }));
+    } catch (error) {
+      writeCapabilityError({ response, error, startedAt, fallbackCode: "local_client_intelligence_failed" });
+    }
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/local-clients/registry") {
+    const includeDisabled = url.searchParams.get("includeDisabled") === "true";
+    const limit = Number.parseInt(url.searchParams.get("limit") ?? "50", 10);
+    const offset = Number.parseInt(url.searchParams.get("offset") ?? "0", 10);
+    const capabilities = (url.searchParams.get("capabilities") || "")
+      .split(",")
+      .map((item) => item.trim().toLowerCase())
+      .filter(Boolean);
+    try {
+      writeJson(response, 200, createOkEnvelope(await localClientManagementService.list({
+        includeDisabled,
+        limit,
+        offset,
+        capabilities,
+      }, localClientScope), { startedAt }));
+    } catch (error) {
+      writeCapabilityError({ response, error, startedAt, fallbackCode: "local_client_registry_failed" });
+    }
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/local-clients/discover") {
+    const body = await readCapabilityJson({ request, response, startedAt, code: "local_client_discover_invalid_json" });
+    if (!body) return;
+    try {
+      writeJson(response, 200, createOkEnvelope(await localClientManagementService.discover(body, localClientScope), { startedAt }));
+    } catch (error) {
+      writeCapabilityError({ response, error, startedAt, fallbackCode: "local_client_discover_failed" });
+    }
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/local-clients/discover/system") {
+    const body = await readCapabilityJson({ request, response, startedAt, code: "local_client_discover_system_invalid_json" });
+    if (!body) return;
+    try {
+      writeJson(response, 200, createOkEnvelope(await localClientManagementService.discoverFromSystem(body, localClientScope), { startedAt }));
+    } catch (error) {
+      writeCapabilityError({ response, error, startedAt, fallbackCode: "local_client_discover_system_failed" });
+    }
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/local-clients/heartbeat") {
+    const body = await readCapabilityJson({ request, response, startedAt, code: "local_client_heartbeat_invalid_json" });
+    if (!body) return;
+    try {
+      const telemetryAuthority = await authenticateLocalClientTelemetry(body);
+      writeJson(response, 200, createOkEnvelope({
+        ...await localClientManagementService.heartbeat(body, localClientScope),
+        telemetryAuthority,
+      }, { startedAt }));
+    } catch (error) {
+      writeCapabilityError({ response, error, startedAt, fallbackCode: "local_client_heartbeat_failed" });
+    }
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/local-clients/feedback") {
+    const body = await readCapabilityJson({ request, response, startedAt, code: "local_client_feedback_invalid_json" });
+    if (!body) return;
+    try {
+      const telemetryAuthority = await authenticateLocalClientTelemetry(body);
+      writeJson(response, 200, createOkEnvelope({
+        ...await localClientManagementService.feedback(body, localClientScope),
+        telemetryAuthority,
+      }, { startedAt }));
+    } catch (error) {
+      writeCapabilityError({ response, error, startedAt, fallbackCode: "local_client_feedback_failed" });
+    }
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/local-clients/register") {
+    const body = await readCapabilityJson({ request, response, startedAt, code: "local_client_register_invalid_json" });
+    if (!body) return;
+    try {
+      writeJson(response, 200, createOkEnvelope(await localClientManagementService.register(body, localClientScope), { startedAt }));
+    } catch (error) {
+      writeCapabilityError({ response, error, startedAt, fallbackCode: "local_client_register_failed" });
+    }
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/local-clients/disable") {
+    const body = await readCapabilityJson({ request, response, startedAt, code: "local_client_disable_invalid_json" });
+    if (!body) return;
+    try {
+      writeJson(response, 200, createOkEnvelope(await localClientManagementService.disable(body, localClientScope), { startedAt }));
+    } catch (error) {
+      writeCapabilityError({ response, error, startedAt, fallbackCode: "local_client_disable_failed" });
+    }
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/local-clients/revoke") {
+    const body = await readCapabilityJson({ request, response, startedAt, code: "local_client_revoke_invalid_json" });
+    if (!body) return;
+    try {
+      writeJson(response, 200, createOkEnvelope(await localClientManagementService.revoke(body, localClientScope), { startedAt }));
+    } catch (error) {
+      writeCapabilityError({ response, error, startedAt, fallbackCode: "local_client_revoke_failed" });
+    }
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/local-clients/route") {
+    const body = await readCapabilityJson({ request, response, startedAt, code: "local_client_route_invalid_json" });
+    if (!body) return;
+    try {
+      writeJson(response, 200, createOkEnvelope(await localClientManagementService.route(body, localClientScope), { startedAt }));
+    } catch (error) {
+      writeCapabilityError({ response, error, startedAt, fallbackCode: "local_client_route_failed" });
+    }
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/local-clients/verify") {
+    const body = await readCapabilityJson({ request, response, startedAt, code: "local_client_verify_invalid_json" });
+    if (!body) return;
+    try {
+      const result = await application.localClientVerificationService.verifyAndPromote({
+        clientId: body.clientId,
+        expectedRevision: body.expectedRevision,
+        expectedAdapter: body.expectedAdapter,
+        expectedManifestSha256: body.expectedManifestSha256,
+        signal: requestExecution?.signal ?? new AbortController().signal,
+      }, {
+        tenantId: localClientScope.tenantId,
+        subjectId: localClientScope.userId,
+      });
+      writeJson(response, 200, createOkEnvelope(result, { startedAt }));
+    } catch (error) {
+      writeCapabilityError({ response, error, startedAt, fallbackCode: "local_client_verify_failed" });
+    }
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/local-clients/onboarding/profiles") {
+    try {
+      const result = await application.localClientGovernedOnboardingApi.list(
+        localClientOnboardingIdentity,
+      );
+      writeJson(response, 200, createOkEnvelope(result, { startedAt }));
+    } catch (error) {
+      writeCapabilityError({ response, error, startedAt, fallbackCode: "local_client_onboarding_profiles_failed" });
+    }
+    return;
+  }
+
+  const localClientOnboardingVerifyMatch = /^\/local-clients\/onboarding\/profiles\/([^/]+)\/verify$/u.exec(
+    url.pathname,
+  );
+  if (request.method === "GET" && localClientOnboardingVerifyMatch) {
+    try {
+      const result = await application.localClientGovernedOnboardingApi.verify({
+        ...localClientOnboardingIdentity,
+        profileId: decodeURIComponent(localClientOnboardingVerifyMatch[1]),
+      });
+      writeJson(response, 200, createOkEnvelope(result, { startedAt }));
+    } catch (error) {
+      writeCapabilityError({ response, error, startedAt, fallbackCode: "local_client_onboarding_verify_failed" });
+    }
+    return;
+  }
+
+  const localClientOnboardingProfileMatch = /^\/local-clients\/onboarding\/profiles\/([^/]+)$/u.exec(
+    url.pathname,
+  );
+  if (request.method === "GET" && localClientOnboardingProfileMatch) {
+    try {
+      const result = await application.localClientGovernedOnboardingApi.inspect({
+        ...localClientOnboardingIdentity,
+        profileId: decodeURIComponent(localClientOnboardingProfileMatch[1]),
+      });
+      writeJson(response, 200, createOkEnvelope(result, { startedAt }));
+    } catch (error) {
+      writeCapabilityError({ response, error, startedAt, fallbackCode: "local_client_onboarding_profile_failed" });
+    }
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/local-clients/onboarding/plans") {
+    const body = await readCapabilityJson({ request, response, startedAt, code: "local_client_onboarding_plan_invalid_json" });
+    if (!body) return;
+    try {
+      const result = await application.localClientGovernedOnboardingApi.plan({
+        ...body,
+        ...localClientOnboardingIdentity,
+      });
+      writeJson(response, 200, createOkEnvelope(result, { startedAt }));
+    } catch (error) {
+      writeCapabilityError({ response, error, startedAt, fallbackCode: "local_client_onboarding_plan_failed" });
+    }
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/local-clients/onboarding/approve") {
+    const body = await readCapabilityJson({ request, response, startedAt, code: "local_client_onboarding_approve_invalid_json" });
+    if (!body) return;
+    try {
+      const result = await application.localClientGovernedOnboardingApi.approve({
+        ...body,
+        ...localClientOnboardingIdentity,
+      }, localClientOnboardingRequestPort);
+      writeJson(response, 200, createOkEnvelope(result, { startedAt }));
+    } catch (error) {
+      writeCapabilityError({ response, error, startedAt, fallbackCode: "local_client_onboarding_approve_failed" });
+    }
+    return;
+  }
+
+  for (const operation of ["apply", "rollback", "recover"]) {
+    if (request.method !== "POST" || url.pathname !== `/local-clients/onboarding/${operation}`) continue;
+    const body = await readCapabilityJson({
+      request,
+      response,
+      startedAt,
+      code: `local_client_onboarding_${operation}_invalid_json`,
+    });
+    if (!body) return;
+    try {
+      const outcome = await application.localClientGovernedOnboardingApi[operation]({
+        ...body,
+        ...localClientOnboardingIdentity,
+      }, localClientOnboardingRequestPort);
+      writeLocalClientOnboardingOutcome(outcome);
+    } catch (error) {
+      writeCapabilityError({
+        response,
+        error,
+        startedAt,
+        fallbackCode: `local_client_onboarding_${operation}_failed`,
+      });
+    }
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/local-clients/executions/preview") {
+    const body = await readCapabilityJson({ request, response, startedAt, code: "local_client_execution_preview_invalid_json" });
+    if (!body) return;
+    try {
+      const result = await application.localClientGovernedExecutionApi.preview({
+        ...body,
+        tenantId: localClientScope.tenantId,
+        subjectId: localClientScope.userId,
+      });
+      writeJson(response, 200, createOkEnvelope(result, { startedAt }));
+    } catch (error) {
+      writeCapabilityError({ response, error, startedAt, fallbackCode: "local_client_execution_preview_failed" });
+    }
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/local-clients/executions/approve") {
+    const body = await readCapabilityJson({ request, response, startedAt, code: "local_client_execution_approve_invalid_json" });
+    if (!body) return;
+    try {
+      const result = await application.localClientGovernedExecutionApi.approve({
+        ...body,
+        tenantId: localClientScope.tenantId,
+        subjectId: localClientScope.userId,
+      });
+      writeJson(response, 200, createOkEnvelope(result, { startedAt }));
+    } catch (error) {
+      writeCapabilityError({ response, error, startedAt, fallbackCode: "local_client_execution_approve_failed" });
+    }
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/local-clients/executions/execute") {
+    const body = await readCapabilityJson({ request, response, startedAt, code: "local_client_execution_execute_invalid_json" });
+    if (!body) return;
+    try {
+      const outcome = await application.localClientGovernedExecutionApi.execute({
+        ...body,
+        tenantId: localClientScope.tenantId,
+        subjectId: localClientScope.userId,
+      }, {
+        getHeader: (name) => request.headers?.[name],
+        signal: requestExecution?.signal ?? new AbortController().signal,
+      });
+      setLocalClientIdempotencyHeaders(response, outcome);
+      if (outcome.accepted) {
+        writeJson(response, outcome.statusCode, createOkEnvelope(outcome, { startedAt }));
+      } else {
+        if (Number.isInteger(outcome.retryAfterSeconds)) {
+          response.setHeader("Retry-After", String(outcome.retryAfterSeconds));
+        }
+        writeJson(response, outcome.statusCode, createErrorEnvelope(outcome.code, outcome.message, {
+          startedAt,
+          category: outcome.status === "unknown-reconcile-required" ? "integrity" : "execution",
+          retryable: outcome.status === "rejected" && outcome.retryable === true,
+          details: {
+            status: outcome.status,
+            replayed: outcome.replayed,
+            replayable: outcome.replayable,
+            retryAllowed: false,
+            ...(Object.hasOwn(outcome, "idempotencyStatus")
+              ? { idempotencyStatus: outcome.idempotencyStatus }
+              : {}),
+            ...(Object.hasOwn(outcome, "operationInvoked")
+              ? { operationInvoked: outcome.operationInvoked }
+              : {}),
+            ...(Object.hasOwn(outcome, "result") ? { result: outcome.result } : {}),
+          },
+        }));
+      }
+    } catch (error) {
+      writeCapabilityError({ response, error, startedAt, fallbackCode: "local_client_execution_execute_failed" });
+    }
+    return;
+  }
+
+  const localClientExecutionStatusMatch = /^\/local-clients\/executions\/([^/]+)$/u.exec(url.pathname);
+  if (request.method === "GET" && localClientExecutionStatusMatch) {
+    try {
+      const result = await application.localClientGovernedExecutionApi.status({
+        tenantId: localClientScope.tenantId,
+        subjectId: localClientScope.userId,
+        executionId: localClientExecutionStatusMatch[1],
+      });
+      writeJson(response, 200, createOkEnvelope(result, { startedAt }));
+    } catch (error) {
+      writeCapabilityError({ response, error, startedAt, fallbackCode: "local_client_execution_status_failed" });
+    }
+    return;
+  }
+
+  const localClientExecutionCancelMatch = /^\/local-clients\/executions\/([^/]+)\/cancel$/u.exec(url.pathname);
+  if (request.method === "POST" && localClientExecutionCancelMatch) {
+    const body = await readCapabilityJson({ request, response, startedAt, code: "local_client_execution_cancel_invalid_json" });
+    if (!body) return;
+    try {
+      const result = await application.localClientGovernedExecutionApi.cancel({
+        ...body,
+        tenantId: localClientScope.tenantId,
+        subjectId: localClientScope.userId,
+        executionId: localClientExecutionCancelMatch[1],
+      });
+      writeJson(response, 200, createOkEnvelope(result, { startedAt }));
+    } catch (error) {
+      writeCapabilityError({ response, error, startedAt, fallbackCode: "local_client_execution_cancel_failed" });
+    }
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/local-clients/execute") {
+    const body = await readCapabilityJson({ request, response, startedAt, code: "local_client_execute_invalid_json" });
+    if (!body) return;
+    try {
+      writeJson(response, 200, createOkEnvelope(await localClientManagementService.execute(body, localClientScope), { startedAt }));
+    } catch (error) {
+      writeCapabilityError({ response, error, startedAt, fallbackCode: "local_client_execute_failed" });
+    }
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/local-clients/maintenance") {
+    const body = await readCapabilityJson({ request, response, startedAt, code: "local_client_maintenance_invalid_json" });
+    if (!body) return;
+    try {
+      writeJson(response, 200, createOkEnvelope(await localClientManagementService.maintenance(body, localClientScope), { startedAt }));
+    } catch (error) {
+      writeCapabilityError({ response, error, startedAt, fallbackCode: "local_client_maintenance_failed" });
+    }
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/local-clients/smart-manage") {
+    const body = await readCapabilityJson({ request, response, startedAt, code: "local_client_smart_manage_invalid_json" });
+    if (!body) return;
+    try {
+      writeJson(response, 200, createOkEnvelope(await localClientManagementService.smartManage(body, localClientScope), { startedAt }));
+    } catch (error) {
+      writeCapabilityError({ response, error, startedAt, fallbackCode: "local_client_smart_manage_failed" });
+    }
+    return;
+  }
+
   if (request.method === "POST" && url.pathname === "/codex-handoff/next-task") {
     try {
       const result = await writeNextCodexTaskOutbox();
@@ -492,5 +1003,24 @@ export async function dispatchHttpRoutes03(context) {
 
 
   return ROUTE_NOT_HANDLED;
+}
+
+function setLocalClientIdempotencyHeaders(response, outcome) {
+  const status = outcome?.accepted === true
+    ? outcome.idempotencyStatus
+    : outcome?.idempotencyStatus ?? "rejected";
+  response.setHeader("Idempotency-Status", String(status));
+  response.setHeader("Idempotency-Replayed", String(outcome?.replayed === true));
+  response.setHeader("Idempotency-Replayable", String(outcome?.replayable === true));
+  const exposed = new Set(
+    String(response.getHeader?.("Access-Control-Expose-Headers") ?? "")
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean),
+  );
+  exposed.add("Idempotency-Status");
+  exposed.add("Idempotency-Replayed");
+  exposed.add("Idempotency-Replayable");
+  response.setHeader("Access-Control-Expose-Headers", [...exposed].join(", "));
 }
 import { safeOutboundFetch } from "../security/safeOutboundFetch.ts";

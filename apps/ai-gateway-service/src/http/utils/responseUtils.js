@@ -1,5 +1,31 @@
 import { createErrorEnvelope } from "@unified-ai-system/shared-utils";
 // =============================================================================
+
+const rawJsonRequestBodies = new WeakMap();
+
+/**
+ * Return a defensive copy of the exact bytes consumed by readJson(). A null
+ * result means middleware supplied only a parsed body and request-bound proof
+ * verification must fail closed.
+ */
+export function takeRawJsonRequestBody(request) {
+  const raw = request && typeof request === "object"
+    ? rawJsonRequestBodies.get(request)
+    : undefined;
+  if (!Buffer.isBuffer(raw)) return null;
+  rawJsonRequestBodies.delete(request);
+  const copy = Buffer.from(raw);
+  raw.fill(0);
+  return copy;
+}
+
+export function discardRawJsonRequestBody(request) {
+  const raw = request && typeof request === "object"
+    ? rawJsonRequestBodies.get(request)
+    : undefined;
+  rawJsonRequestBodies.delete(request);
+  if (Buffer.isBuffer(raw)) raw.fill(0);
+}
 // responseUtils.js — HTTP 响应工具函数
 // 从 httpServer.js 提取的通用响应工具
 // =============================================================================
@@ -18,6 +44,10 @@ export async function readJson(request, maxSize = 1_048_576) {
   for await (const chunk of request) {
     totalSize += chunk.length;
     if (totalSize > requestMaxBodyBytes) {
+      for (const buffered of chunks) {
+        if (Buffer.isBuffer(buffered)) buffered.fill(0);
+      }
+      if (Buffer.isBuffer(chunk)) chunk.fill(0);
       const bodyError = new Error(`Request body too large (max ${Math.round(requestMaxBodyBytes / 1024)}KB)`);
       bodyError.code = "request_payload_too_large";
       bodyError.statusCode = 413;
@@ -25,13 +55,21 @@ export async function readJson(request, maxSize = 1_048_576) {
     }
     chunks.push(chunk);
   }
-  const raw = Buffer.concat(chunks).toString("utf8");
+  const rawBytes = Buffer.concat(chunks);
+  const captureForProof = request?.headers?.["x-ai-gateway-local-client-proof"] !== undefined;
+  if (captureForProof) rawJsonRequestBodies.set(request, rawBytes);
+  const raw = rawBytes.toString("utf8");
   if (!raw) {
+    if (!captureForProof) rawBytes.fill(0);
     return {};
   }
   try {
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    if (!captureForProof) rawBytes.fill(0);
+    return parsed;
   } catch (error) {
+    rawJsonRequestBodies.delete(request);
+    rawBytes.fill(0);
     const parseError = new Error("Request body must be valid JSON.");
     parseError.code = "request_invalid_json";
     parseError.statusCode = 400;

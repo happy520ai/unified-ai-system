@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  discardRawJsonRequestBody,
+  takeRawJsonRequestBody,
+  readJson,
   writeHtml,
   writeJson,
   writeSseEvent,
@@ -20,6 +23,35 @@ function createResponse(overrides = {}) {
 }
 
 describe("response writers", () => {
+  it("retains only a defensive copy of exact JSON bytes for request-bound proof checks", async () => {
+    const exact = Buffer.from('{"clientId":"fixture.client", "healthStatus":"healthy"}', "utf8");
+    const request = {
+      headers: { "x-ai-gateway-local-client-proof": "fixture" },
+      async *[Symbol.asyncIterator]() {
+        yield exact.subarray(0, 17);
+        yield exact.subarray(17);
+      },
+    };
+
+    await expect(readJson(request)).resolves.toEqual({
+      clientId: "fixture.client",
+      healthStatus: "healthy",
+    });
+    const first = takeRawJsonRequestBody(request);
+    expect(first).toEqual(exact);
+    first.fill(0);
+    expect(takeRawJsonRequestBody(request)).toBeNull();
+    expect(takeRawJsonRequestBody({ body: { clientId: "parsed-only" } })).toBeNull();
+
+    const discardedRequest = {
+      headers: { "x-ai-gateway-local-client-proof": "malformed" },
+      async *[Symbol.asyncIterator]() { yield exact; },
+    };
+    await readJson(discardedRequest);
+    discardRawJsonRequestBody(discardedRequest);
+    expect(takeRawJsonRequestBody(discardedRequest)).toBeNull();
+  });
+
   it("does not write after a response has ended", () => {
     const response = createResponse({ writableEnded: true });
 

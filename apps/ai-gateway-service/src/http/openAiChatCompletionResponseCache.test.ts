@@ -9,7 +9,10 @@ import {
   setChatResponseCacheIntegrationForTests,
 } from "../cache/chatResponseCacheIntegration.ts";
 import { createResponseCacheStore } from "../cache/responseCacheStore.js";
-import { dispatchOpenAiCompatibilityRoutes } from "./openAiCompatibilityRoutes.js";
+import {
+  dispatchOpenAiCompatibilityRoutes,
+  streamOpenAiChatCompletion,
+} from "./openAiCompatibilityRoutes.js";
 
 const descriptors = [
   {
@@ -300,6 +303,44 @@ describe("chat completions hot-path response cache", () => {
     expect(secondLog).toHaveBeenCalledWith("openai_chat_stream_cache_hit", expect.objectContaining({
       path: "/v1/chat/completions",
     }));
+  });
+
+  it("never reads or writes the SSE cache for a server-pinned managed client", async () => {
+    installIntegration();
+    const gatewayService = createGatewayService();
+    const body = { ...chatBody, stream: true };
+    const gatewayInput = {
+      model: "local-fake-model",
+      providerId: "local-fake-provider",
+      messages: chatBody.messages,
+      options: {},
+      metadata: {
+        openAiCompatibility: { choiceCount: 1 },
+        managedLocalClientProviderRouting: {
+          providerPinned: true,
+          modelPinned: true,
+          policyRevision: "policy-r1",
+          clientRevision: 2,
+          decisionDigest: "a".repeat(64),
+        },
+      },
+    };
+    for (let index = 0; index < 2; index += 1) {
+      const response = createResponseRecorder();
+      await streamOpenAiChatCompletion({
+        body,
+        gatewayInput,
+        gatewayService,
+        request: createJsonRequest(undefined, "POST", TENANT_A),
+        response,
+        startedAt: FIXED_STARTED_AT + index,
+        writeServiceLog: vi.fn(),
+        enterpriseGovernanceService: undefined,
+      });
+      expect(response.writableEnded).toBe(true);
+      expect(response.text).toContain("data: [DONE]");
+    }
+    expect(gatewayService.executeStream).toHaveBeenCalledTimes(2);
   });
 
   it("isolates cache lanes per tenant", async () => {

@@ -80,14 +80,27 @@ export interface GatewayProviderOperationInput {
   context?: Record<string, unknown>;
 }
 
+/** Internal, non-JSON capability marker for a verified provider dispatch binding. */
+export declare const MANAGED_LOCAL_CLIENT_PROVIDER_PIN: unique symbol;
+
+export interface GatewayManagedLocalClientProviderBinding {
+  readonly clientId: string;
+  assertAttempt(input: { providerId: string; modelId: string }): unknown;
+}
+
+export type GatewayExecutionInput = Partial<GatewayRequest> & {
+  readonly [MANAGED_LOCAL_CLIENT_PROVIDER_PIN]?: GatewayManagedLocalClientProviderBinding;
+  readonly enterpriseIdentity?: Record<string, unknown>;
+};
+
 /**
  * 网关核心服务：统一 chat/流式路由、provider 选择、fallback、成本守卫、模型访问守卫、台账。
  */
 export declare class GatewayService {
   constructor(options: GatewayServiceOptions & Record<string, unknown>);
   readonly runtimeConfig: Partial<GatewayRuntimeConfig>;
-  execute(input: Partial<GatewayRequest>, execution?: { signal?: AbortSignal; shadow?: boolean; providerDispatchKeyHash?: string; providerDispatchKeyInvalid?: boolean; providerDispatchRoute?: string; providerDispatchInvocation?: number }): Promise<GatewayRouteResult>;
-  executeStream(input: Partial<GatewayRequest>, execution?: { signal?: AbortSignal; shadow?: boolean; providerDispatchKeyHash?: string; providerDispatchKeyInvalid?: boolean; providerDispatchRoute?: string; providerDispatchInvocation?: number }): AsyncGenerator<GatewayStreamEvent>;
+  execute(input: GatewayExecutionInput, execution?: { signal?: AbortSignal; shadow?: boolean; providerDispatchKeyHash?: string; providerDispatchKeyInvalid?: boolean; providerDispatchRoute?: string; providerDispatchInvocation?: number }): Promise<GatewayRouteResult>;
+  executeStream(input: GatewayExecutionInput, execution?: { signal?: AbortSignal; shadow?: boolean; providerDispatchKeyHash?: string; providerDispatchKeyInvalid?: boolean; providerDispatchRoute?: string; providerDispatchInvocation?: number }): AsyncGenerator<GatewayStreamEvent>;
   executeProviderOperation(input: GatewayProviderOperationInput, execution?: { signal?: AbortSignal; providerDispatchKeyHash?: string; providerDispatchKeyInvalid?: boolean; providerDispatchRoute?: string; providerDispatchInvocation?: number; transportRequestId?: string; transportTraceId?: string }): Promise<unknown>;
   getProviderDescriptors(): ProviderDescriptor[];
 }

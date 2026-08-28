@@ -132,6 +132,7 @@ Cursor、Cline、Continue 和通用 stdio 客户端都可以通过同一个网�
 | 向量检索 + 热路径 RAG | 零凭证确定性 embedding（可插拔 HTTP 真实 embedding）+ SQLite 向量库激活 `mode: "vector"` 检索；`unified_ai.rag` 在 `/v1/chat/completions` 上按请求注入带来源的知识上下文。 | [Provider 与知识库](docs/providers.md) |
 | 流量治理 | 运营可配的**加权分流**与**影子流量**（`AI_GATEWAY_WEIGHTED_ROUTES_JSON`）：影子调用独立进入成本账本；真实 provider 影子还要求 `AI_GATEWAY_SHADOW_REAL_PROVIDER_ENABLED=true`。 | [多进程部署](docs/multi-process-deployment.md) |
 | Provider 治理 | 真实 provider 三道门白名单矩阵、运行时凭证库（SHA-256 落存 + file 金库解析）、请求成本守卫、熔断器、fallback 链。 | [真实 provider 启用](docs/real-provider-enablement.md) |
+| 本地客户端智能网关 | 租户隔离清单、服务端绑定的每客户端 PoP（可选单机持久防重放）、策略固定的 OpenAI/Anthropic/Gemini/原生 chat fake-provider 调度、仅 dry-run 自动治理、回执反馈持久 outbox 与聚合层恰好一次学习、不可逆撤销，以及 Claude-compatible、Cursor、VS Code JSON 事务接入。无凭据 fixture 已通过；真客户端/真 Provider 认证、分布式状态、外部防回滚锚和已部署 Windows 受保护权威仍是发布门。 | [设计与证据边界](docs/local-client-intelligence-gateway.md) |
 | 企业身份与供给 | **OIDC SSO**（授权码+PKCE+JWKS 验签，登录即发 API token）与 **SCIM 2.0** 用户供给（Bearer 鉴权，create/get/list/patch/deactivate）；RBAC、审计哈希链租户隔离，16+ 项攻击安全回归守护。 | [安全演练](tools/security-attack-regression.mjs) |
 | 本地计费台账 | 客户/用量/开票/作废/收款登记的 JSONL 台账（未接支付网关：票据如实标注为对账单，非法律发票）。 | [花费报表](docs/spend-reporting.md) |
 | 多实例控制 | `AI_GATEWAY_MULTI_INSTANCE=true` 保留同主机 SQLite 默认；PostgreSQL 模式覆盖跨主机配额、响应幂等、调度墓碑、WebSocket/A2A/Workforce 租约与终态 fence、审批、中央计费用量和共享 HMAC 审计链。当前源码还以持久 effect tombstone 约束受治理的不可逆内建工具、Webhook、MCP/OpenAPI mutation 与自定义工具。破坏性 CI 演练恢复 PostgreSQL 17、建立真实异步 standby、证明 WAL 重放，并以“连续三次失败 + 二次确认 + 独立围栏”自动提升唯一 standby；真实 Docker bridge 分区期间旧主仍可写但禁止误晋升，恢复后 marker 追平。故障转移后旧主卷先经 `pg_rewind -R`，首次启动只能作为 standby并在新主重启后继续复制；另有独立 manifest 物理基线和连续 WAL archive，删除基线自带 WAL 后仅靠 archive恢复到“好 marker 已存在、稍后坏 marker 不存在”的精确 LSN，八类状态全部通过。这是有界 LSN-PITR、单桥 fencing、旧主安全重入、single-standby failover 与 TTL 内 at-most-once 准入证据，不等于 Provider 侧 exactly-once、多候选 quorum、外部 HA、长时/异地 archive custody、time-based PITR、任意多主机分区/rejoin、完整 split-brain 或生产 RTO/RPO。 | [多进程部署](docs/multi-process-deployment.md) · [PostgreSQL 恢复演练](docs/postgresql-recovery-drill.md) · [外部副作用 fencing](docs/external-effect-fencing.md) |
@@ -194,6 +195,20 @@ pnpm gateway doctor
 pnpm gateway enhance "帮我为团队设计一个小型 API" --profile coding
 pnpm gateway chat "帮我为团队设计一个小型 API" --enhance --profile coding
 ```
+
+受保护的本地客户端控制面提供只读检查和显式受治理生命周期命令。
+建议通过环境变量提供管理员虚拟 key，避免写入 shell 历史：
+
+```powershell
+$env:AGENT_CONSOLE_ADMIN_KEY = "<admin-virtual-key>"
+pnpm gateway clients --json
+pnpm gateway clients discover --json
+pnpm gateway clients --help
+```
+
+发现和 smart-manage 默认 dry-run。状态变更必须显式确认并提供管理员 key；
+结果不确定的写操作绝不自动重试。注册表检查不等于已配置或控制某个命名应用。
+适配器与证据边界见[本地客户端智能网关设计](docs/local-client-intelligence-gateway.md)。
 
 如果偏好 Node.js，可运行只使用内置模块的示例；它会先验证 provider-free
 响应，再输出增强后的 JSON：

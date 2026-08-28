@@ -6,6 +6,12 @@ import type {
 } from "./common.js";
 import type { GovernanceSummary } from "./governance.js";
 import type { KnowledgeRetrieveResponse } from "./knowledge.js";
+import type {
+  LocalClientExecutionReceiptJournalStatus,
+  LocalClientExecutionReceiptRecoveryStatus,
+  LocalClientManagedProtocolDispatchStatus,
+  LocalClientPopSnapshotRollbackProtectionStatus,
+} from "./localClient.js";
 import type { ProviderDescriptor } from "./provider.js";
 import type { RoutingDecision } from "./routing.js";
 
@@ -176,9 +182,39 @@ export interface GatewayChatRequest extends GatewayRequest {
 
 export interface GatewayHealth {
   app: "ai-gateway-service";
-  status: "ready";
+  status: "ready" | "degraded";
   phase: string;
   routes: string[];
+  localClientExecutionFeedback?: {
+    required: boolean;
+    ready: boolean;
+    activeRecoveryFailure: boolean;
+    outbox: {
+      available: boolean;
+      durable: boolean;
+      distributed?: boolean;
+      singleHost?: boolean;
+      rollbackResistant?: boolean;
+      pendingTtlApplied?: boolean;
+      deliverySemantics?: string;
+    };
+    dispatcher: {
+      enabled?: boolean;
+      available: boolean;
+      lifecycle: "disabled" | "idle" | "started" | "closed";
+      lastErrorCode?: string | null;
+    };
+    receiptJournal: LocalClientExecutionReceiptJournalStatus;
+    receiptRecovery: LocalClientExecutionReceiptRecoveryStatus;
+  };
+  /**
+   * `/health/check` name. `/local-clients/status` deliberately keeps the
+   * historical `managedProtocolDispatch` name for compatibility.
+   */
+  managedLocalClientProtocol?: LocalClientManagedProtocolDispatchStatus;
+  localClientPopSnapshotRollbackProtection?:
+    | LocalClientPopSnapshotRollbackProtectionStatus
+    | null;
   providerMode: "fake" | "real" | "auto" | string;
   realProviderEnabled: boolean;
   providers: ProviderDescriptor[];

@@ -17,9 +17,7 @@ export function createProviderHealthScorer() {
   function ensureStats(providerId) {
     if (!stats.has(providerId)) {
       stats.set(providerId, {
-        successes: [],
-        failures: [],
-        latencies: [],
+        events: [],
         lastUpdated: Date.now(),
       });
     }
@@ -28,18 +26,15 @@ export function createProviderHealthScorer() {
 
   function recordSuccess(providerId, latencyMs) {
     const s = ensureStats(providerId);
-    s.successes.push({ at: Date.now(), latencyMs });
-    s.latencies.push(latencyMs);
-    // 滑动窗口
-    if (s.successes.length > WINDOW_SIZE) s.successes.shift();
-    if (s.latencies.length > WINDOW_SIZE) s.latencies.shift();
+    s.events.push({ success: true, at: Date.now(), latencyMs });
+    if (s.events.length > WINDOW_SIZE) s.events.shift();
     s.lastUpdated = Date.now();
   }
 
   function recordFailure(providerId, _errorCode) {
     const s = ensureStats(providerId);
-    s.failures.push({ at: Date.now() });
-    if (s.failures.length > WINDOW_SIZE) s.failures.shift();
+    s.events.push({ success: false, at: Date.now(), latencyMs: null });
+    if (s.events.length > WINDOW_SIZE) s.events.shift();
     s.lastUpdated = Date.now();
   }
 
@@ -47,16 +42,20 @@ export function createProviderHealthScorer() {
     const s = stats.get(providerId);
     if (!s) return DEFAULT_SCORE;
 
-    const total = s.successes.length + s.failures.length;
+    const total = s.events.length;
     if (total === 0) return DEFAULT_SCORE;
 
     // 成功率 (权重 50%)
-    const successRate = s.successes.length / total;
+    const successes = s.events.filter((event) => event.success);
+    const successRate = successes.length / total;
 
     // 延迟分数 (权重 30%) — P50 < 2s = 1.0, P50 > 10s = 0.0
-    let latencyScore = 1.0;
-    if (s.latencies.length > 0) {
-      const sorted = [...s.latencies].sort((a, b) => a - b);
+    let latencyScore = 0;
+    const latencies = successes
+      .map((event) => event.latencyMs)
+      .filter((value) => Number.isFinite(value) && value >= 0);
+    if (latencies.length > 0) {
+      const sorted = [...latencies].sort((a, b) => a - b);
       const p50 = sorted[Math.floor(sorted.length / 2)];
       latencyScore = Math.max(0, Math.min(1, 1 - (p50 - 2000) / 8000));
     }
@@ -81,5 +80,27 @@ export function createProviderHealthScorer() {
     return result;
   }
 
-  return { recordSuccess, recordFailure, getScore, getRankedProviders, getAllScores };
+  function getSnapshot(providerId) {
+    const s = stats.get(providerId);
+    if (!s) {
+      return Object.freeze({
+        sampleCount: 0,
+        successRate: null,
+        p50LatencyMs: null,
+      });
+    }
+    const sampleCount = s.events.length;
+    const successfulEvents = s.events.filter((event) => event.success);
+    const successRate = sampleCount > 0 ? successfulEvents.length / sampleCount : null;
+    const sortedLatencies = successfulEvents
+      .map((event) => event.latencyMs)
+      .filter((value) => Number.isFinite(value) && value >= 0)
+      .sort((a, b) => a - b);
+    const p50LatencyMs = sortedLatencies.length > 0
+      ? sortedLatencies[Math.floor(sortedLatencies.length / 2)]
+      : null;
+    return Object.freeze({ sampleCount, successRate, p50LatencyMs });
+  }
+
+  return { recordSuccess, recordFailure, getScore, getRankedProviders, getAllScores, getSnapshot };
 }

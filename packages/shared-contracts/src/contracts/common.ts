@@ -1,4 +1,4 @@
-export const CONTRACT_VERSION = "0.2.0";
+export { CONTRACT_VERSION } from "../runtime.js";
 
 export type MetadataValue =
   | string

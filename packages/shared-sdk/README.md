@@ -68,6 +68,89 @@ error paths expose the expected cause.
 The client trims surrounding whitespace and trailing slashes from `baseUrl` so
 the same configuration works in local scripts and deployed environments.
 
+## Managed local-client receipt reconciliation
+
+External managed clients can use the stateless receipt wire helpers without
+importing gateway-private modules:
+
+```js
+import {
+  createLocalClientCompletedReceiptReconciliationResponse,
+  createLocalClientDurableExecutionReceipt,
+  createLocalClientFailedBeforeEffectReconciliationResponse,
+  createLocalClientNotFoundReconciliationResponse,
+  createLocalClientPendingReconciliationResponse,
+  deriveLocalClientReceiptReconciliationProtocolKey,
+  verifyLocalClientDispatchIntent,
+  verifyLocalClientReceiptReconciliationQuery,
+} from "@unified-ai-system/shared-sdk";
+
+const protocolKey = await deriveLocalClientReceiptReconciliationProtocolKey({
+  sharedSecret: sharedSecretBytes,
+  tenantId,
+  clientId,
+});
+
+try {
+  const intent = await verifyLocalClientDispatchIntent({
+    protocolKey,
+    intent: receivedIntent,
+  });
+
+  // The client must atomically claim the effect in its own durable journal
+  // before executing it. The SDK intentionally provides no storage layer.
+  const receipt = await createLocalClientDurableExecutionReceipt({
+    protocolKey,
+    intent,
+    completedAtMs: Date.now(),
+  });
+
+  const query = await verifyLocalClientReceiptReconciliationQuery({
+    protocolKey,
+    query: receivedQuery,
+  });
+
+  // Return exactly one response derived from the client's durable state.
+  const completed =
+    await createLocalClientCompletedReceiptReconciliationResponse({
+      protocolKey,
+      query,
+      receipt,
+      observedAtMs: Date.now(),
+    });
+
+  // Use this only when durable client state proves no effect claim occurred.
+  const failedBeforeEffect =
+    await createLocalClientFailedBeforeEffectReconciliationResponse({
+      protocolKey,
+      query,
+      observedAtMs: Date.now(),
+    });
+
+  // These states are also receipt-less and read-only. Choose them only from
+  // the client's durable journal; neither state authorizes execution or retry.
+  const pending = await createLocalClientPendingReconciliationResponse({
+    protocolKey,
+    query,
+    observedAtMs: Date.now(),
+  });
+  const notFound = await createLocalClientNotFoundReconciliationResponse({
+    protocolKey,
+    query,
+    observedAtMs: Date.now(),
+  });
+} finally {
+  protocolKey.fill(0);
+}
+```
+
+The helpers enforce exact data-only shapes, canonical JSON, HMAC-SHA-256,
+protocol windows, and gateway-compatible identifiers. They are stateless: they
+do not provide replay protection, execution fencing, SQLite journaling, or an
+atomic effect/receipt transaction. A reconciliation query is read-only and
+never authorizes execution or retry. The returned protocol key is sensitive;
+do not log, serialize, or place it in an error response.
+
 ## Development
 
 ```bash

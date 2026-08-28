@@ -21,6 +21,32 @@ const RUNTIME_ROUTE_PERMISSION_OVERRIDES = new Map<string, string>([
   ["POST /runtime-candidate/codex-exec-crs/dry-run-smoke", "workflow:run"],
   ["POST /runtime-candidate/codex-exec-crs/guarded-one-shot", "workflow:run"],
   ["POST /runtime-candidate/codex-exec-crs/reliability", "workflow:run"],
+  ["GET /local-clients/status", "dashboard:read"],
+  ["GET /local-clients/health", "dashboard:read"],
+  ["GET /local-clients/registry", "audit:read"],
+  ["GET /local-clients/intelligence", "dashboard:read"],
+  ["POST /local-clients/discover", "workflow:approve"],
+  ["POST /local-clients/discover/system", "workflow:approve"],
+  ["POST /local-clients/maintenance", "workflow:approve"],
+  ["POST /local-clients/smart-manage", "workflow:approve"],
+  ["POST /local-clients/register", "workflow:approve"],
+  ["POST /local-clients/disable", "workflow:approve"],
+  ["POST /local-clients/revoke", "workflow:approve"],
+  ["POST /local-clients/route", "workflow:run"],
+  ["POST /local-clients/provider-route", "workflow:run"],
+  ["POST /local-clients/verify", "workflow:approve"],
+  ["POST /local-clients/executions/preview", "workflow:run"],
+  ["POST /local-clients/executions/approve", "workflow:approve"],
+  ["POST /local-clients/executions/execute", "workflow:approve"],
+  ["POST /local-clients/execute", "workflow:approve"],
+  ["POST /local-clients/heartbeat", "local-client:telemetry"],
+  ["POST /local-clients/feedback", "local-client:telemetry"],
+  ["GET /local-clients/onboarding/profiles", "dashboard:read"],
+  ["POST /local-clients/onboarding/plans", "workflow:run"],
+  ["POST /local-clients/onboarding/approve", "workflow:approve"],
+  ["POST /local-clients/onboarding/apply", "workflow:approve"],
+  ["POST /local-clients/onboarding/rollback", "workflow:approve"],
+  ["POST /local-clients/onboarding/recover", "workflow:approve"],
 ]);
 
 function normalizePath(pathname: unknown) {
@@ -46,6 +72,27 @@ export function resolveRuntimeRoutePermissionOverride(method: unknown, pathname:
     && /^\/chat-gateway\/evidence\/[^/]+$/.test(normalizedPath)
   ) {
     return "audit:read";
+  }
+
+  if (
+    normalizedMethod === "GET"
+    && /^\/local-clients\/executions\/[^/]+$/.test(normalizedPath)
+  ) {
+    return "dashboard:read";
+  }
+
+  if (
+    normalizedMethod === "GET"
+    && /^\/local-clients\/onboarding\/profiles\/[^/]+(?:\/verify)?$/.test(normalizedPath)
+  ) {
+    return "audit:read";
+  }
+
+  if (
+    normalizedMethod === "POST"
+    && /^\/local-clients\/executions\/[^/]+\/cancel$/.test(normalizedPath)
+  ) {
+    return "workflow:approve";
   }
 
   return null;

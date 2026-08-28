@@ -347,7 +347,7 @@ describe("real-provider HTTP dispatch idempotency", () => {
         headers: {
           origin: "http://127.0.0.1:3100",
           "access-control-request-method": "POST",
-          "access-control-request-headers": "content-type,idempotency-key,provider-dispatch-key",
+          "access-control-request-headers": "content-type,idempotency-key,provider-dispatch-key,x-ai-gateway-local-client-proof",
         },
       });
       expect(preflight.status).toBe(204);
@@ -357,10 +357,38 @@ describe("real-provider HTTP dispatch idempotency", () => {
         .toContain("provider-dispatch-key");
       expect(preflight.headers.get("access-control-allow-headers")?.toLowerCase())
         .toContain("external-effect-key");
+      expect(preflight.headers.get("access-control-allow-headers")?.toLowerCase())
+        .toContain("x-ai-gateway-local-client-proof");
+      const exposed = preflight.headers.get("access-control-expose-headers")?.toLowerCase() ?? "";
+      expect(exposed).toContain("x-ai-gateway-local-client-routing");
+      expect(exposed).toContain("x-ai-gateway-local-client-policy-revision");
+      expect(exposed).toContain("x-ai-gateway-local-client-revision");
+      expect(exposed).toContain("x-ai-gateway-local-client-decision-digest");
     } finally {
       await closeServer(server);
       expect(mcpGatewayClose).toHaveBeenCalledOnce();
       await originalRequestLogger?.close?.();
     }
+  });
+});
+
+describe("gateway application resource shutdown", () => {
+  it("closes an explicitly configured local-client execution claim store", async () => {
+    const root = mkdtempSync(join(tmpdir(), "gateway-local-client-claim-shutdown-"));
+    temporaryDirectories.push(root);
+    const application = createGatewayApplication({
+      AI_GATEWAY_LOCAL_CLIENT_EXECUTION_CLAIM_STORE_MODE: "sqlite",
+      AI_GATEWAY_LOCAL_CLIENT_EXECUTION_CLAIM_SQLITE_PATH: join(root, "claims.sqlite"),
+      AI_GATEWAY_LOCAL_CLIENT_HOST_ID: "http-shutdown-test-host",
+    });
+    const claimStore = application.localClientExecutionClaimStore;
+    if (!claimStore) throw new Error("The explicit local-client execution claim store was not created.");
+    const claimClose = vi.spyOn(claimStore, "close");
+    const server = createGatewayHttpServer(application);
+
+    expect(claimStore.status.available).toBe(true);
+    await (server as typeof server & { shutdownResources(): Promise<void> }).shutdownResources();
+    expect(claimClose).toHaveBeenCalledOnce();
+    expect(claimStore.status.available).toBe(false);
   });
 });

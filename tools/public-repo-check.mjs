@@ -105,23 +105,11 @@ function readJson(path) {
 
 const notes = [];
 
-function addNote(code, path, details = "") {
-  notes.push({ code, path, details });
-}
-
 // Public hygiene gates must validate what git publishes. A source checkout may
 // keep an intentionally uncommitted local launch override in .mcp.json (for
-// example pointing a host at its own interpreter); validate the committed
-// content in that case and surface the override as a non-blocking note.
+// example pointing a host at its own interpreter). Never inspect that working
+// copy: validate only the committed object.
 function readTrackedJson(path) {
-  const status = execFileSync("git", ["status", "--porcelain", "--", path], {
-    cwd: repoRoot,
-    encoding: "utf8",
-    windowsHide: true,
-  }).trim();
-  if (!status) {
-    return readJson(path);
-  }
   try {
     const headContent = execFileSync("git", ["show", `HEAD:${path}`], {
       cwd: repoRoot,
@@ -129,10 +117,9 @@ function readTrackedJson(path) {
       windowsHide: true,
     });
     const parsed = JSON.parse(headContent);
-    addNote("local_override_validated_from_git", path, "working copy differs from HEAD; validated the committed content");
     return parsed;
   } catch {
-    return readJson(path);
+    throw new Error(`Tracked JSON could not be read safely from HEAD: ${path}`);
   }
 }
 
@@ -171,14 +158,119 @@ const requiredFiles = [
   "pnpm-lock.yaml",
   "pnpm-workspace.yaml",
   "apps/ai-gateway-service/src/index.js",
+  "apps/ai-gateway-service/src/core/gatewayService.providerDispatch.test.ts",
+  "apps/ai-gateway-service/src/core/gatewayService.providerOperation.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientAdapterRegistry.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientAdapterRegistry.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientConfigTransaction.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientConfigTransaction.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientExecutionIdempotencyCoordinator.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientExecutionIdempotencyCoordinator.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientExecutionPreview.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientExecutionPreview.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientGovernedExecutionApi.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientGovernedExecutionApi.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientGovernedOnboardingApi.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientGovernedOnboardingApi.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientGovernedOnboardingRuntime.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientGovernedOnboardingRuntime.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientManagementService.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientManagementService.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientOnboardingConfig.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientOnboardingConfig.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientOnboardingRegistry.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientOnboardingRegistry.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientPopIdentityAuthority.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientPopIdentityAuthority.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientPopHttpAuth.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientPopHttpAuth.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientSqlitePopReplayGuard.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientSqlitePopReplayGuard.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientPopSnapshotRollbackProtection.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientPopSnapshotRollbackProtection.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientProtocolPrincipalConfig.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientProtocolPrincipalConfig.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientSmartManagementScheduler.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientSmartManagementScheduler.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientSmartManagementSchedulerConfig.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientSmartManagementSchedulerConfig.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientRoutePlanStore.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientRoutePlanStore.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientLoopbackAdapter.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientLoopbackAdapter.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientLoopbackAdapterConfig.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientLoopbackAdapterConfig.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientLoopbackVerificationProbe.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientExecutionReadiness.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientExecutionReadiness.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientExecutionOrchestrator.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientExecutionOrchestrator.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientExecutionReceiptReconciliation.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientExecutionReceiptReconciliation.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientExecutionReceiptJournalRegistry.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientExecutionReceiptJournalRegistry.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientExecutionReceiptRecoveryService.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientExecutionReceiptRecoveryService.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientExecutionFeedbackDispatcher.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientExecutionFeedbackDispatcher.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientSqliteExecutionFeedbackOutbox.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientSqliteExecutionFeedbackOutbox.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientSqliteRoutePlanStore.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientSqliteRoutePlanStore.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientSqliteExecutionClaimStore.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientSqliteExecutionClaimStore.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientSqliteFeedbackDedupStore.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientSqliteFeedbackDedupStore.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientSqliteOnboardingReceiptAuthorityStore.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientSqliteOnboardingReceiptAuthorityStore.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientSqliteVerificationAuthorityEpochStore.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientSqliteVerificationAuthorityEpochStore.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientVerificationService.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientVerificationService.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientVerificationOwnership.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientVerificationOwnership.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientVerifiedExecutionFence.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientVerifiedExecutionFence.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientWindowsProtectedAuthorityAnchor.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientWindowsProtectedAuthorityAnchor.test.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientWindowsAuthorityBrokerService.ts",
+  "apps/ai-gateway-service/src/capabilities/localClientWindowsAuthorityBrokerService.test.ts",
+  "apps/ai-gateway-service/src/application/createGatewayApplication.js",
+  "apps/ai-gateway-service/src/application/createGatewayApplication.test.js",
+  "apps/ai-gateway-service/src/http/httpServer.js",
+  "apps/ai-gateway-service/src/http/httpServer.providerDispatch.test.ts",
+  "apps/ai-gateway-service/src/http/gatewayShutdown.ts",
+  "apps/ai-gateway-service/src/http/gatewayShutdown.test.ts",
+  "apps/ai-gateway-service/src/http/httpRequestExecution.ts",
+  "apps/ai-gateway-service/src/http/httpRequestExecution.test.ts",
+  "apps/ai-gateway-service/src/http/openAiChatCompletionResponseCache.test.ts",
+  "apps/ai-gateway-service/src/http/utils/responseUtils.js",
+  "apps/ai-gateway-service/src/http/utils/responseUtils.test.js",
   "apps/ai-gateway-service/src/http/a2aGateway.js",
   "apps/ai-gateway-service/src/http/a2aGateway.test.js",
   "apps/ai-gateway-service/src/http/a2aRoutes.js",
   "apps/ai-gateway-service/src/http/openAiResponsesRoutes.js",
   "apps/ai-gateway-service/src/http/openAiResponsesRoutes.test.js",
+  "apps/ai-gateway-service/src/http/localClientGovernedExecution.e2e.test.ts",
+  "apps/ai-gateway-service/src/http/localClientManagementRoutes.test.ts",
+  "apps/ai-gateway-service/src/routing/localClientProviderPolicy.ts",
+  "apps/ai-gateway-service/src/routing/localClientProviderPolicy.test.ts",
+  "apps/ai-gateway-service/src/routing/localClientProviderPolicyConfig.ts",
+  "apps/ai-gateway-service/src/routing/localClientProviderPolicyConfig.test.ts",
+  "apps/ai-gateway-service/src/routing/localClientProviderRuntimeRouter.ts",
+  "apps/ai-gateway-service/src/routing/localClientProviderRuntimeRouter.test.ts",
+  "apps/ai-gateway-service/src/routing/localClientProviderDispatchBinding.ts",
+  "apps/ai-gateway-service/src/routing/localClientProviderDispatchBinding.test.ts",
   "apps/agent-console/src/cli-core.js",
   "apps/agent-console/evidence/README.md",
   "apps/ai-gateway-service/evidence/README.md",
+  "packages/shared-contracts/src/contracts/localClient.ts",
+  "packages/shared-contracts/src/runtime.js",
+  "packages/shared-contracts/src/runtime.d.ts",
+  "packages/shared-sdk/package.json",
+  "packages/shared-sdk/src/index.js",
+  "packages/shared-sdk/src/index.test.js",
+  "packages/shared-sdk/src/index.ts",
   "packages/mcp-server/package.json",
   "packages/mcp-server/src/http-entry.js",
   "packages/mcp-server/src/http.js",
@@ -198,6 +290,7 @@ const requiredFiles = [
   "docs/codex-mcp-docker-quickstart.html",
   "docs/codex-mcp-docker-quickstart.zh-CN.html",
   "docs/getting-started.md",
+  "docs/local-client-intelligence-gateway.md",
   "docs/index.html",
   "docs/index.zh-CN.html",
   "docs/indexnow.json",
@@ -223,6 +316,7 @@ const requiredFiles = [
   ".github/ISSUE_TEMPLATE/protocol-client-report.yml",
   "skills/unified-ai-gateway/SKILL.md",
   "tools/mcp-smoke.mjs",
+  "tools/local-client-control-plane-smoke.mjs",
   "tools/release-metadata.mjs",
   "tools/submit-indexnow.mjs",
   "tools/verify-public-clone.mjs",
@@ -267,11 +361,13 @@ const requiredScripts = [
   "start",
   "check",
   "test",
+  "test:local-clients",
   "mcp",
   "mcp:http",
   "notify:indexnow",
   "verify:mcp",
   "smoke:mcp",
+  "smoke:local-clients",
   "check:public",
   "verify:public-clone",
 ];

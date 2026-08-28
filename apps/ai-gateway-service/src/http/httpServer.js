@@ -138,6 +138,7 @@ import {
   isPublicRoute,
 } from "./routeAccessPolicy.js";
 import {
+  discardRawJsonRequestBody,
   readJson,
   writeJson,
   writeSseEvent,
@@ -285,6 +286,7 @@ const CIRCUIT_BYPASS_ROUTES = Object.freeze(new Set(
 
 export function createGatewayHttpServer(application) {
   const { capabilityRouterService, codexExecCrsRuntimeCandidate, enterpriseGovernanceService, enterpriseOpsService, fiveCapabilityActivationService, gatewayService, knowledgeService, modelImportService, modelLibraryStore, providerConfigRoutes, runtimeCredentialStore, userExperienceService, workforceService, workflowService } = application;
+  const { localClientManagementService } = application;
   const approvalStore = createApprovalStore();
   const fileContextStore = createFileContextStore();
   const phase319LocalOperation = createPhase319LocalOperationService();
@@ -396,7 +398,8 @@ export function createGatewayHttpServer(application) {
     halfOpenMaxCalls: gatewayErrorCircuitHalfOpenMaxCalls,
   });
   const openTelemetry = createOpenTelemetryRuntime({ env: requestConfig });
-  const idempotencyCoordinator = createIdempotencyCoordinator({ env: requestConfig });
+  const idempotencyCoordinator = application.idempotencyCoordinator
+    ?? createIdempotencyCoordinator({ env: requestConfig });
   const gatewayLifecycle = createGatewayLifecycle();
   const tracedGatewayService = openTelemetry.instrumentGatewayService(gatewayService);
   const a2aGateway = createA2AGateway({
@@ -437,7 +440,23 @@ export function createGatewayHttpServer(application) {
     connectionLeaseManager: webSocketConnectionLeaseManager,
     executionLeaseManager: webSocketConnectionLeaseManager,
     authenticate(request) {
-      return enterpriseGovernanceService.authorize(request, "chat:use");
+      const decision = enterpriseGovernanceService.authorize(request, "chat:use");
+      const boundPrincipal = decision.allowed
+        ? application.localClientProtocolPrincipalResolver?.resolve?.(decision.identity)
+        : null;
+      if (
+        decision.allowed
+        && (decision.identity?.role === "local_client" || boundPrincipal)
+      ) {
+        return {
+          ...decision,
+          allowed: false,
+          statusCode: 403,
+          code: "LOCAL_CLIENT_WEBSOCKET_UNSUPPORTED",
+          message: "Managed local-client WebSocket PoP is not implemented.",
+        };
+      }
+      return decision;
     },
     onConnection(ws) {
       logger.info("ws_connected", { connectionCount: wsServer.getConnectionCount() });
@@ -613,9 +632,11 @@ export function createGatewayHttpServer(application) {
     const refreshInFlightGauge = () => resilienceMetrics.recordInFlight(inFlightRequests.size);
     refreshInFlightGauge();
     response.on("close", () => {
+      discardRawJsonRequestBody(request);
       inFlightRequests.delete(requestId);
       refreshInFlightGauge();
     });
+    response.on("finish", () => discardRawJsonRequestBody(request));
     resilienceMetrics.recordRequestStarted(inFlightRequests.size);
 
     const pathname = url.pathname;
@@ -771,7 +792,15 @@ export function createGatewayHttpServer(application) {
             message: "Global provider and model mutations require the configured platform tenant.",
           }
         : baseEnterpriseDecision;
-      request.enterpriseIdentity = enterpriseDecision.identity;
+      const managedProtocolPrincipal = application.localClientProtocolPrincipalResolver?.resolve?.(
+        enterpriseDecision.identity,
+      ) ?? null;
+      request.enterpriseIdentity = managedProtocolPrincipal
+        ? Object.freeze({
+            ...enterpriseDecision.identity,
+            managedClientId: managedProtocolPrincipal.clientId,
+          })
+        : enterpriseDecision.identity;
       if (enterpriseDecision.allowed) {
         authRateLimiter.recordSuccess(authRateKey);
       } else if (!publicRoute) {
@@ -842,6 +871,112 @@ export function createGatewayHttpServer(application) {
         return;
       }
 
+      if (
+        !publicRoute
+        && enterpriseDecision.identity?.role === "local_client"
+        && !managedProtocolPrincipal
+      ) {
+        const authError = {
+          code: "LOCAL_CLIENT_PRINCIPAL_BINDING_REQUIRED",
+          message: "The local-client credential has no exact server-side client binding.",
+          category: "auth",
+        };
+        await enterpriseGovernanceService.recordAudit({
+          outcome: "denied",
+          method: request.method,
+          path: pathname,
+          permission: enterpriseDecision.permission,
+          statusCode: 403,
+          code: authError.code,
+          identity: enterpriseDecision.identity,
+        });
+        writeJson(
+          response,
+          403,
+          isAnthropicMessagesRoute(url.pathname)
+            ? createAnthropicError(authError, requestId)
+            : isOpenAiCompatibilityRoute(url.pathname)
+              ? createOpenAiError(authError)
+              : isGeminiCompatibilityRoute(url.pathname)
+                ? createGeminiErrorPayload(403, authError.message, { reason: authError.code })
+                : createErrorEnvelope(authError.code, authError.message, {
+                    startedAt,
+                    category: authError.category,
+                  }),
+        );
+        markRequestSuccess();
+        return;
+      }
+
+      if (
+        !publicRoute
+        && managedProtocolPrincipal
+        && enterpriseDecision.identity?.role !== "local_client"
+      ) {
+        const authError = {
+          code: "LOCAL_CLIENT_PRINCIPAL_ROLE_REQUIRED",
+          message: "A managed protocol binding requires the dedicated local_client role.",
+          category: "auth",
+        };
+        await enterpriseGovernanceService.recordAudit({
+          outcome: "denied",
+          method: request.method,
+          path: pathname,
+          permission: enterpriseDecision.permission,
+          statusCode: 403,
+          code: authError.code,
+          identity: enterpriseDecision.identity,
+        });
+        writeJson(response, 403, createErrorEnvelope(authError.code, authError.message, {
+          startedAt,
+          category: authError.category,
+        }));
+        markRequestSuccess();
+        return;
+      }
+
+      if (
+        managedProtocolPrincipal
+        && !publicRoute
+        && !isAllowedManagedLocalClientPrincipalRoute(request.method, url.pathname)
+      ) {
+        const unsupportedProviderRoute = isProviderExecutionRoute(request.method, url.pathname);
+        const authError = {
+          code: unsupportedProviderRoute
+            ? "LOCAL_CLIENT_PROTOCOL_ROUTE_UNSUPPORTED"
+            : "LOCAL_CLIENT_PRINCIPAL_ROUTE_DENIED",
+          message: unsupportedProviderRoute
+            ? "This provider route is not enabled for the server-bound managed client."
+            : "The server-bound managed-client principal cannot access this control-plane route.",
+          category: "auth",
+        };
+        await enterpriseGovernanceService.recordAudit({
+          outcome: "denied",
+          method: request.method,
+          path: pathname,
+          permission: enterpriseDecision.permission,
+          statusCode: 403,
+          code: authError.code,
+          identity: enterpriseDecision.identity,
+        });
+        writeJson(
+          response,
+          403,
+          isAnthropicMessagesRoute(url.pathname)
+            ? createAnthropicError(authError, requestId)
+            : isOpenAiCompatibilityRoute(url.pathname)
+              ? createOpenAiError(authError)
+              : isGeminiCompatibilityRoute(url.pathname)
+                ? createGeminiErrorPayload(403, authError.message, { reason: authError.code })
+                : createErrorEnvelope(authError.code, authError.message, {
+                    startedAt,
+                    category: authError.category,
+                  }),
+        );
+        markRequestSuccess();
+        return;
+      }
+
       if (!publicRoute) {
         await enterpriseGovernanceService.recordAudit({
           outcome: "allowed",
@@ -857,6 +992,7 @@ export function createGatewayHttpServer(application) {
           ...HTTP_ROUTE_DEPENDENCIES,
           application,
           request,
+          requestExecution: requestExecutionScope.context,
           response,
           url,
           startedAt,
@@ -878,6 +1014,7 @@ export function createGatewayHttpServer(application) {
           modelLibraryStore,
           providerConfigRoutes,
           userExperienceService,
+          localClientManagementService,
           workforceService,
           workflowService,
           wsServer,
@@ -963,17 +1100,55 @@ export function createGatewayHttpServer(application) {
   server.closeRealtimeConnections = () => wsServer.close(1001, "Gateway shutting down");
   server.shutdownResources = () => {
     shutdownResourcesPromise ??= (async () => {
-      await idempotencyCoordinator.close();
-      await webSocketConnectionLeaseManager?.close?.();
-      await rateLimiter.close();
-      await a2aGateway.close?.();
-      await application.workforceExecutor?.close?.();
-      await application.requestLogger?.close?.();
-      await application.providerDispatchGate?.close?.();
-      await application.externalEffectGate?.close?.();
-      await application.mcpGatewayService?.close?.();
-      await application.enterpriseGovernanceService?.close?.();
-      await openTelemetry.shutdown();
+      const failures = [];
+      try {
+        await application.localClientSmartManagementScheduler?.close?.();
+      } catch (error) {
+        failures.push(error);
+      }
+      try {
+        await application.localClientExecutionReceiptRecoveryService?.close?.();
+      } catch (error) {
+        failures.push(error);
+      }
+      try {
+        await application.localClientExecutionFeedbackDispatcher?.close?.();
+      } catch (error) {
+        failures.push(error);
+      }
+      const closeOperations = [
+        () => application.localClientExecutionReceiptJournalRegistry?.close?.(),
+        () => application.localClientPopIdentityAuthority?.close?.(),
+        () => application.localClientVerificationService?.close?.(),
+        () => application.localClientAdapterRegistry?.close?.(),
+        () => application.localClientGovernedOnboardingRuntime?.close?.(),
+        () => application.localClientOnboardingReceiptAuthorityStore?.close?.(),
+        () => application.localClientExecutionFeedbackOutbox?.close?.(),
+        () => application.localClientManagementService?.close?.(),
+        () => application.localClientRoutePlanStore?.close?.(),
+        () => application.localClientExecutionClaimStore?.close?.(),
+        () => application.localClientExecutionControl?.close?.(),
+        () => idempotencyCoordinator.close(),
+        () => webSocketConnectionLeaseManager?.close?.(),
+        () => rateLimiter.close(),
+        () => a2aGateway.close?.(),
+        () => application.workforceExecutor?.close?.(),
+        () => application.requestLogger?.close?.(),
+        () => application.providerDispatchGate?.close?.(),
+        () => application.externalEffectGate?.close?.(),
+        () => application.mcpGatewayService?.close?.(),
+        () => application.enterpriseGovernanceService?.close?.(),
+        () => openTelemetry.shutdown(),
+      ];
+      const results = await Promise.allSettled(
+        closeOperations.map((close) => Promise.resolve().then(close)),
+      );
+      for (const result of results) {
+        if (result.status === "rejected") failures.push(result.reason);
+      }
+      if (failures.length > 0) {
+        throw new AggregateError(failures, "One or more gateway resources failed to close.");
+      }
     })();
     return shutdownResourcesPromise;
   };
@@ -981,12 +1156,85 @@ export function createGatewayHttpServer(application) {
     wsServer.close(1001, "Gateway stopped");
     gatewayLifecycle.markStopped();
     void server.shutdownResources().catch((error) => {
-      writeServiceLog("opentelemetry_shutdown_failed", {
-        code: error?.code ?? error?.name ?? "otel_shutdown_failed",
+      writeServiceLog("gateway_resource_shutdown_failed", {
+        code: error?.code ?? error?.name ?? "gateway_resource_shutdown_failed",
       });
     });
   });
   return server;
+}
+
+function isManagedLocalClientProtocolRoute(method, pathname) {
+  if (String(method ?? "").toUpperCase() !== "POST") return false;
+  const path = String(pathname ?? "").replace(/\/+$/u, "") || "/";
+  return path === "/chat"
+    || path === "/chat/stream"
+    || path === "/v1/chat/completions"
+    || path === "/chat/completions"
+    || path === "/v1/messages"
+    || /^\/openai\/deployments\/[^/]+\/chat\/completions$/u.test(path)
+    || /^\/v1\/engines\/[^/]+\/chat\/completions$/u.test(path)
+    || /^\/(?:v1beta|v1)\/models\/[^/:]+:(?:generateContent|streamGenerateContent)$/u.test(path);
+}
+
+function isAllowedManagedLocalClientPrincipalRoute(method, pathname) {
+  if (isManagedLocalClientProtocolRoute(method, pathname)) return true;
+  const normalizedMethod = String(method ?? "").toUpperCase();
+  const path = String(pathname ?? "").replace(/\/+$/u, "") || "/";
+  if (
+    normalizedMethod === "POST"
+    && (path === "/local-clients/heartbeat" || path === "/local-clients/feedback")
+  ) return true;
+  if (
+    normalizedMethod === "GET"
+    && (
+      path === "/local-clients/status"
+      || path === "/v1/models"
+      || path === "/models"
+      || path === "/v1/engines"
+      || path === "/engines"
+      || /^\/(?:v1\/models|models|v1\/engines|engines)\/[^/]+$/u.test(path)
+    )
+  ) return true;
+  return false;
+}
+
+function isProviderExecutionRoute(method, pathname) {
+  if (String(method ?? "").toUpperCase() !== "POST") return false;
+  const path = String(pathname ?? "").replace(/\/+$/u, "") || "/";
+  return new Set([
+    "/chat",
+    "/chat/stream",
+    "/chat/auto",
+    "/chat-gateway/execute",
+    "/chat/gateway",
+    "/three-mode/execute",
+    "/chat/rag",
+    "/chat/rag/stream",
+    "/route",
+    "/gateway/route",
+    "/gateway/mock",
+    "/v1/chat/completions",
+    "/chat/completions",
+    "/v1/completions",
+    "/completions",
+    "/v1/responses",
+    "/responses",
+    "/v1/messages",
+    "/v1/images/generations",
+    "/images/generations",
+    "/v1/embeddings",
+    "/embeddings",
+    "/v1/audio/speech",
+    "/audio/speech",
+    "/v1/audio/transcriptions",
+    "/audio/transcriptions",
+    "/prompts/enhance-llm",
+    "/a2a/jsonrpc",
+  ]).has(path)
+    || /^\/openai\/deployments\/[^/]+\/(?:chat\/completions|completions|responses)$/u.test(path)
+    || /^\/v1\/engines\/[^/]+\/(?:chat\/completions|completions)$/u.test(path)
+    || /^\/(?:v1beta|v1)\/models\/[^/:]+:(?:generateContent|streamGenerateContent|batchGenerateContent)$/u.test(path);
 }
 
 function isDrainProbeRoute(method, pathname) {
@@ -1320,7 +1568,7 @@ function applyCorsHeaders(response, origin, allowedOrigins, maxAgeSeconds) {
     if (allowOrigin !== "*") {
       response.setHeader("Access-Control-Allow-Credentials", "true");
     }
-    response.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type, Idempotency-Key, Provider-Dispatch-Key, External-Effect-Key, Traceparent, Tracestate, X-Request-ID, X-Request-Context, X-Client-ID");
+    response.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type, Idempotency-Key, Provider-Dispatch-Key, External-Effect-Key, Traceparent, Tracestate, X-Request-ID, X-Request-Context, X-Client-ID, X-AI-Gateway-Local-Client-Proof");
     response.setHeader("Access-Control-Allow-Methods", "GET,HEAD,POST,PUT,PATCH,DELETE,OPTIONS");
     response.setHeader("Access-Control-Expose-Headers", [
       "Traceparent",
@@ -1330,6 +1578,10 @@ function applyCorsHeaders(response, origin, allowedOrigins, maxAgeSeconds) {
       "RateLimit-Limit",
       "RateLimit-Remaining",
       "RateLimit-Window",
+      "X-AI-Gateway-Local-Client-Routing",
+      "X-AI-Gateway-Local-Client-Policy-Revision",
+      "X-AI-Gateway-Local-Client-Revision",
+      "X-AI-Gateway-Local-Client-Decision-Digest",
       ...Object.values(RATE_LIMIT_RESPONSE_HEADERS),
     ].join(", "));
     response.setHeader("Access-Control-Max-Age", String(Math.max(0, maxAgeSeconds)));

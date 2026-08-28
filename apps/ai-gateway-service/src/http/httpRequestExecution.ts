@@ -169,17 +169,10 @@ function readTransportContext(request: IncomingMessage) {
 function withServerIdentity(input: unknown, identity: unknown): unknown {
   if (input === null || typeof input !== "object" || Array.isArray(input)) return input;
   const record = input as Record<string, unknown>;
-  try {
-    if (identity && typeof identity === "object") {
-      record.enterpriseIdentity = identity;
-    } else {
-      delete record.enterpriseIdentity;
-    }
-  } catch {
-    // Frozen inputs keep their original attribution; the ledger then falls
-    // back to its conservative default rather than trusting client data.
-  }
-  return record;
+  const { enterpriseIdentity: _callerIdentity, ...serverOwnedInput } = record;
+  return identity && typeof identity === "object"
+    ? { ...serverOwnedInput, enterpriseIdentity: identity }
+    : serverOwnedInput;
 }
 
 function createClientDisconnectedError(phase: string): ExecutionAbortError {

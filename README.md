@@ -131,6 +131,7 @@ fake-provider-first, so you can try every feature with zero credentials:
 | Observability | Chat-specific Prometheus metrics on `/metrics` — tokens per model, cache hit rates, TTFT histograms, virtual-key rejections, guardrail findings — plus an opt-in Langfuse export and a per-key spend report API/CLI. | [Observability](docs/observability-export.md) |
 | Vector retrieval | A credential-free deterministic embedding provider and the SQLite vector store activate `mode: "vector"` RAG with strict tenant isolation. | [Providers & knowledge](docs/providers.md) |
 | Provider governance | A three-gate whitelist matrix for real providers, a runtime credential store (locally permissioned file; virtual keys and user tokens are stored SHA-256-hashed, provider runtime credentials in cleartext for local execution — see the honest-boundaries note), request cost guards, circuit breakers, and fallback chains. | [Provider enablement](docs/real-provider-enablement.md) |
+| Local-client intelligence gateway | Tenant-scoped inventory; server-bound per-client PoP with optional durable single-host replay protection; policy-pinned fake-provider dispatch for OpenAI, Anthropic, Gemini, and native chat; dry-run autonomous management; governed execution with durable dispatch/receipt reconciliation, a receipt-feedback outbox, and exactly-once aggregate learning; irreversible revocation; and transactional MCP onboarding for Claude-compatible, Cursor, and VS Code JSON profiles. Credential-free fixture flows are proven; real-client atomic-receipt certification, real-provider certification, distributed state, external rollback anchors, and a deployed protected Windows authority remain release gates. | [Design and evidence boundary](docs/local-client-intelligence-gateway.md) |
 | Enterprise governance + security drills | JWT auth, RBAC, tenant isolation with audit hash chains — verified by a repeatable 23-attack live security regression. | [Security drill](tools/security-attack-regression.mjs) |
 | Enterprise identity & provisioning | **OIDC SSO** (authorization code + PKCE + JWKS signature verification, issues an API token on login) and **SCIM 2.0** user provisioning (bearer-auth create/get/list/patch/deactivate). | [Security drill](tools/security-attack-regression.mjs) · [Enterprise SSO & SCIM](docs/enterprise-sso.md) |
 | Operator traffic control | Configurable **weighted routing splits** and **shadow traffic** (`AI_GATEWAY_WEIGHTED_ROUTES_JSON`): shadow calls are separately accounted; real-provider shadowing also requires `AI_GATEWAY_SHADOW_REAL_PROVIDER_ENABLED=true`. | [Multi-process deployment](docs/multi-process-deployment.md) |
@@ -146,8 +147,9 @@ Published infrastructure benchmark (fake provider, single node): chat JSON p50 *
 - Provider-free HTTP examples for curl and Python's standard library.
 - OpenAI SDK, CLI, HTTP API, shared SDK, MCP, Codex, Cursor, Cline, and Continue entry points.
 - Clear boundaries: no AGI claim, no L5 claim, no silent provider behavior.
-- Protocol-first onboarding: any OpenAI-compatible MCP, A2A, or HTTP client can be onboarded
-  via a short setup + reproducible report path; we prioritize verification over marketing claims.
+- Protocol-first onboarding: the governed JSON transaction path currently supports
+  Claude-compatible, Cursor, and VS Code profiles. Other MCP, A2A, or HTTP clients
+  require an explicit adapter/principal binding and reproducible certification report.
 
 ## Try It in 60 Seconds
 
@@ -314,6 +316,23 @@ pnpm gateway status
 pnpm gateway doctor
 pnpm gateway chat "Hello from Unified AI System"
 ```
+
+The protected local-client control plane has read-only inspection plus explicit
+governed lifecycle commands. Prefer supplying the admin virtual key through the
+environment so it is not written to shell history:
+
+```powershell
+$env:AGENT_CONSOLE_ADMIN_KEY = "<admin-virtual-key>"
+pnpm gateway clients --json
+pnpm gateway clients discover --json
+pnpm gateway clients --help
+```
+
+Discovery and smart-management default to dry-run. Mutations require explicit
+confirmation and an admin key; uncertain writes are never retried. A registry
+inspection is not proof that a named application was configured or controlled. See
+[Local Client Intelligence Gateway](docs/local-client-intelligence-gateway.md)
+for the adapter and evidence boundary.
 
 ### MCP / Codex / Cursor / Cline
 

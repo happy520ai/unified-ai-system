@@ -157,4 +157,41 @@ describe("GatewayService governed provider operations", () => {
       path: "/v1/images/generations",
     });
   });
+
+  it("denies provider operations for a server-bound client without an operation binding", async () => {
+    const invoke = vi.fn(async () => ({ ok: true }));
+    const providerDispatchGate = {
+      reserve: vi.fn(async () => ({
+        reserved: true,
+        bypassed: false,
+        reservationFingerprint: "0123456789abcdef",
+      })),
+    };
+    const service = new GatewayService({
+      providerRegistry: {} as any,
+      runtimeConfig: {
+        providerMode: "real",
+        realProviderEnabled: true,
+        enabledProviders: ["openai"],
+        requireProviderDispatchGate: true,
+      },
+      providerDispatchGate,
+    });
+    const input = operationInput(invoke);
+    input.enterpriseIdentity = {
+      tenantId: "tenant-a",
+      subject: "user-a",
+      managedClientId: "desktop.alpha",
+    } as any;
+
+    await expect(service.executeProviderOperation(input, {
+      providerDispatchKeyHash: fingerprint("client-key"),
+      providerDispatchRoute: "/v1/images/generations",
+      providerDispatchInvocation: 1,
+    })).rejects.toMatchObject({
+      code: "LOCAL_CLIENT_PROVIDER_DISPATCH_ATTEMPT_DENIED",
+    });
+    expect(providerDispatchGate.reserve).not.toHaveBeenCalled();
+    expect(invoke).not.toHaveBeenCalled();
+  });
 });

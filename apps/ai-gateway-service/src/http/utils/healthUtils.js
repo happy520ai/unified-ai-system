@@ -12,9 +12,73 @@ export function createHealth(application) {
   );
   const enterpriseHealth = application.enterpriseGovernanceService.getHealth();
   const enterpriseReady = enterpriseHealth.status === "ready";
+  const localClientExecutionRequested = application.localClientExecutionReadiness?.requested === true;
+  const feedbackOutbox = application.localClientExecutionFeedbackOutboxStatus ?? {
+    available: false,
+    durable: false,
+  };
+  const feedbackDispatcher = application.localClientExecutionFeedbackDispatcherStatus ?? {
+    available: false,
+    lifecycle: "disabled",
+  };
+  const receiptJournal = application.localClientExecutionReceiptJournalStatus ?? {
+    enabled: false,
+    available: false,
+    durable: false,
+    distributed: false,
+    singleHost: true,
+    bindingCount: 0,
+    recoveryContextEncrypted: false,
+    snapshotRollbackProtected: false,
+    clientAtomicEffectReceiptVerified: false,
+  };
+  const receiptRecovery = application.localClientExecutionReceiptRecoveryStatus ?? {
+    enabled: false,
+    available: false,
+    lifecycle: "disabled",
+    executionRedispatchAllowed: false,
+    runInFlight: false,
+    runCount: 0,
+    resolvedCount: 0,
+    unresolvedCount: 0,
+    failureCount: 0,
+    consecutiveFailureCount: 0,
+    lastErrorCode: null,
+    lastRunSucceeded: null,
+    lastSuccessAt: null,
+    lastRunAt: null,
+  };
+  const receiptRecoveryActiveFailure = hasActiveLocalClientReceiptRecoveryFailure(
+    receiptRecovery,
+  );
+  const localClientFeedbackReady = !receiptRecoveryActiveFailure
+    && (!localClientExecutionRequested || (
+      feedbackOutbox.available === true
+      && feedbackOutbox.durable === true
+      && feedbackDispatcher.available === true
+      && feedbackDispatcher.lifecycle === "started"
+      && receiptJournal.available === true
+      && receiptJournal.durable === true
+      && receiptJournal.recoveryContextEncrypted === true
+      && receiptRecovery.available === true
+      && receiptRecovery.lifecycle === "started"
+      && receiptRecovery.executionRedispatchAllowed === false
+    ));
+  const managedProtocolDispatch = application.localClientManagedProtocolDispatchStatus ?? {
+    enabled: false,
+    ready: false,
+    blockers: [],
+  };
+  const managedProtocolReady = managedProtocolDispatch.enabled !== true
+    || managedProtocolDispatch.ready === true;
   return {
     app: "ai-gateway-service",
-    status: usageLedgerReady && enterpriseReady ? "ready" : "degraded",
+    status: usageLedgerReady
+      && enterpriseReady
+      && localClientFeedbackReady
+      && managedProtocolReady
+      ? "ready"
+      : "degraded",
     phase: "phase-7a-1-service-entry",
     routes: [
     "GET /health/check",
@@ -137,10 +201,29 @@ export function createHealth(application) {
       ...usageLedger,
       requiredForRealProviders: realProviderEnabled,
     },
+    localClientExecutionFeedback: {
+      required: localClientExecutionRequested,
+      ready: localClientFeedbackReady,
+      activeRecoveryFailure: receiptRecoveryActiveFailure,
+      outbox: feedbackOutbox,
+      dispatcher: feedbackDispatcher,
+      receiptJournal,
+      receiptRecovery,
+    },
+    managedLocalClientProtocol: managedProtocolDispatch,
+    localClientPopSnapshotRollbackProtection:
+      application.localClientPopSnapshotRollbackProtectionStatus ?? null,
     providerMode: application.config.aiGatewayService.providerMode,
     realProviderEnabled,
     providers: application.gatewayService.getProviderDescriptors(),
   };
+}
+
+export function hasActiveLocalClientReceiptRecoveryFailure(status) {
+  return status?.lifecycle === "started"
+    && status?.lastRunSucceeded === false
+    && Number.isSafeInteger(status?.consecutiveFailureCount)
+    && status.consecutiveFailureCount > 0;
 }
 
 export function createSetupReadiness(application) {

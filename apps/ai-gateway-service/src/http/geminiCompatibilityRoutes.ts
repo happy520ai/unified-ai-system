@@ -18,8 +18,11 @@ import { readJson, writeJson, writeSseHeaders } from "./utils/responseUtils.js";
 import { getGuardrailsEngine } from "../guardrails/guardrailsEngine.ts";
 import {
   applyVirtualKeyRequestGate,
+  applyManagedLocalClientProviderRoute,
+  authenticateManagedLocalClientProtocolRequest,
   normalizeOpenAiChatCompletionRequest,
   recordVirtualKeyUsage,
+  resolveManagedLocalClientProviderRoute,
   resolveOpenAiErrorStatus,
 } from "./openAiCompatibilityRoutes.js";
 import {
@@ -523,6 +526,7 @@ export async function dispatchGeminiCompatibilityRoutes(context: Record<string, 
     url,
     writeServiceLog,
     enterpriseGovernanceService,
+    application,
   } = context;
 
   const route = parseGeminiModelRoute(url?.pathname);
@@ -559,9 +563,36 @@ export async function dispatchGeminiCompatibilityRoutes(context: Record<string, 
     writeGeminiError(response, 400, "Request body must be valid JSON.");
     return;
   }
+  let managedLocalClientPrincipal: Record<string, any> | null = null;
+  try {
+    managedLocalClientPrincipal = await authenticateManagedLocalClientProtocolRequest({
+      application,
+      request,
+      url,
+      requestBody: body,
+    });
+  } catch (error) {
+    const details = readErrorDetails(error);
+    writeGeminiError(
+      response,
+      resolveOpenAiErrorStatus(details),
+      String(details.message ?? "Managed local-client proof authorization failed."),
+      { reason: String(details.code ?? "LOCAL_CLIENT_POP_HTTP_UNAUTHORIZED") },
+    );
+    return;
+  }
 
   // batchGenerateContent:批量体没有顶层 contents,必须在单条转换之前处理。
   if (route.action === "batchGenerateContent") {
+    if (managedLocalClientPrincipal) {
+      writeGeminiError(
+        response,
+        409,
+        "Managed local-client routing currently permits one provider generation per request.",
+        { reason: "LOCAL_CLIENT_PROVIDER_BATCH_DENIED" },
+      );
+      return;
+    }
     if (!Array.isArray(body.requests) || body.requests.length === 0) {
       writeGeminiError(response, 400, "requests must contain at least one GenerateContentRequest.");
       return;
@@ -732,6 +763,30 @@ export async function dispatchGeminiCompatibilityRoutes(context: Record<string, 
       stream: route.action === "streamGenerateContent",
     },
   };
+
+  if (managedLocalClientPrincipal) {
+    try {
+      const managedRoute = await resolveManagedLocalClientProviderRoute({
+        application,
+        principal: managedLocalClientPrincipal,
+        gatewayInput,
+      });
+      gatewayInput = applyManagedLocalClientProviderRoute(gatewayInput, managedRoute);
+      response.setHeader("X-AI-Gateway-Local-Client-Routing", "policy-pinned");
+      response.setHeader("X-AI-Gateway-Local-Client-Policy-Revision", managedRoute.policyRevision);
+      response.setHeader("X-AI-Gateway-Local-Client-Revision", String(managedRoute.clientRevision));
+      response.setHeader("X-AI-Gateway-Local-Client-Decision-Digest", managedRoute.decisionDigest);
+    } catch (error) {
+      const details = readErrorDetails(error);
+      writeGeminiError(
+        response,
+        resolveOpenAiErrorStatus(details),
+        String(details.message ?? "Managed local-client provider routing failed."),
+        { reason: String(details.code ?? "LOCAL_CLIENT_PROVIDER_ROUTE_DENIED") },
+      );
+      return;
+    }
+  }
 
   if (route.action === "streamGenerateContent") {
     await streamGeminiGenerateContent({

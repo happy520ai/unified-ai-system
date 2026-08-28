@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { createFakeProvider } from "../providers/fakeProvider.js";
 import { ProviderRegistry } from "../providers/providerRegistry.js";
-import { GatewayService } from "./gatewayService.js";
+import { GatewayService, MANAGED_LOCAL_CLIENT_PROVIDER_PIN } from "./gatewayService.js";
 
 const execution = Object.freeze({
   providerDispatchKeyHash: "a".repeat(64),
@@ -293,5 +293,89 @@ describe("GatewayService provider dispatch reservation", () => {
 
     expect(result.success).toBe(true);
     expect(gate.reserve).not.toHaveBeenCalled();
+  });
+
+  it("checks the managed-client dispatch binding before invoking any provider adapter", async () => {
+    const provider = createFakeProvider({
+      providerId: "local-fake",
+      modelId: "local-fake-model",
+      providerType: "fake",
+      capabilities: ["chat"],
+      enabled: true,
+    });
+    const generate = vi.spyOn(provider, "generate");
+    const registry = new ProviderRegistry();
+    registry.register(provider);
+    const service = new GatewayService({
+      providerRegistry: registry,
+      runtimeConfig: { providerMode: "fake", realProviderEnabled: false, fallbackEnabled: true },
+    });
+    const assertAttempt = vi.fn(() => {
+      throw Object.assign(new Error("attempt outside immutable binding"), {
+        code: "LOCAL_CLIENT_PROVIDER_DISPATCH_ATTEMPT_DENIED",
+        category: "authorization",
+        retryable: false,
+      });
+    });
+
+    const result = await service.execute({
+      [MANAGED_LOCAL_CLIENT_PROVIDER_PIN]: { clientId: "fixture-client", assertAttempt },
+      enterpriseIdentity: { managedClientId: "fixture-client" },
+      providerId: "local-fake",
+      model: "local-fake-model",
+      messages: [{ role: "user", content: "must remain policy pinned" }],
+      metadata: {
+        managedLocalClientProviderRouting: { providerPinned: true, modelPinned: true },
+      },
+    });
+
+    expect(result).toMatchObject({
+      success: false,
+      error: { code: "LOCAL_CLIENT_PROVIDER_DISPATCH_ATTEMPT_DENIED" },
+    });
+    expect(assertAttempt).toHaveBeenCalledWith({
+      providerId: "local-fake",
+      modelId: "local-fake-model",
+    });
+    expect(generate).not.toHaveBeenCalled();
+  });
+
+  it("denies every provider attempt when a server-bound client omits or mismatches its binding", async () => {
+    const provider = createFakeProvider({
+      providerId: "local-fake",
+      modelId: "local-fake-model",
+      providerType: "fake",
+      capabilities: ["chat"],
+      enabled: true,
+    });
+    const generate = vi.spyOn(provider, "generate");
+    const registry = new ProviderRegistry();
+    registry.register(provider);
+    const service = new GatewayService({
+      providerRegistry: registry,
+      runtimeConfig: { providerMode: "fake", realProviderEnabled: false, fallbackEnabled: false },
+    });
+    const base: any = {
+      providerId: "local-fake",
+      model: "local-fake-model",
+      messages: [{ role: "user", content: "server-bound request" }],
+      enterpriseIdentity: { managedClientId: "client.alpha" },
+    };
+
+    await expect(service.execute(base)).resolves.toMatchObject({
+      success: false,
+      error: { code: "LOCAL_CLIENT_PROVIDER_DISPATCH_ATTEMPT_DENIED" },
+    });
+    await expect(service.execute({
+      ...base,
+      [MANAGED_LOCAL_CLIENT_PROVIDER_PIN]: {
+        clientId: "client.beta",
+        assertAttempt: vi.fn(),
+      },
+    })).resolves.toMatchObject({
+      success: false,
+      error: { code: "LOCAL_CLIENT_PROVIDER_DISPATCH_ATTEMPT_DENIED" },
+    });
+    expect(generate).not.toHaveBeenCalled();
   });
 });

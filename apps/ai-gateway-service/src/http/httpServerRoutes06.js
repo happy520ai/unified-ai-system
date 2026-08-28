@@ -9,6 +9,11 @@ import {
   readPrimedGatewayStreamError,
 } from "./gatewayStreamPreflight.ts";
 import { resolveProviderDispatchHttpStatus } from "./providerDispatchHttpStatus.ts";
+import {
+  applyManagedLocalClientProviderRoute,
+  authenticateManagedLocalClientProtocolRequest,
+  resolveManagedLocalClientProviderRoute,
+} from "./openAiCompatibilityRoutes.js";
 
 export async function dispatchHttpRoutes06(context) {
   const {
@@ -318,6 +323,21 @@ export async function dispatchHttpRoutes06(context) {
       return;
     }
 
+    let managedLocalClientPrincipal = null;
+    if (url.pathname === "/chat" || url.pathname === "/chat/stream") {
+      try {
+        managedLocalClientPrincipal = await authenticateManagedLocalClientProtocolRequest({
+          application,
+          request,
+          url,
+          requestBody: body,
+        });
+      } catch (error) {
+        writeJson(response, 401, createRouteFailureEnvelope(error, { startedAt }));
+        return;
+      }
+    }
+
     if (url.pathname === "/chat") {
       const taijiBeidouChatHook = evaluateTaijiBeidouChatPreviewHook({ body, route: url.pathname });
       if (taijiBeidouChatHook.action === "respond") {
@@ -396,6 +416,25 @@ export async function dispatchHttpRoutes06(context) {
       }
     }
 
+    let managedLocalClientRoute = null;
+    if (managedLocalClientPrincipal) {
+      try {
+        managedLocalClientRoute = await resolveManagedLocalClientProviderRoute({
+          application,
+          principal: managedLocalClientPrincipal,
+          gatewayInput,
+        });
+        gatewayInput = applyManagedLocalClientProviderRoute(gatewayInput, managedLocalClientRoute);
+        response.setHeader("X-AI-Gateway-Local-Client-Routing", "policy-pinned");
+        response.setHeader("X-AI-Gateway-Local-Client-Policy-Revision", managedLocalClientRoute.policyRevision);
+        response.setHeader("X-AI-Gateway-Local-Client-Revision", String(managedLocalClientRoute.clientRevision));
+        response.setHeader("X-AI-Gateway-Local-Client-Decision-Digest", managedLocalClientRoute.decisionDigest);
+      } catch (error) {
+        writeJson(response, 409, createRouteFailureEnvelope(error, { startedAt }));
+        return;
+      }
+    }
+
     const promptEnhancement = gatewayInput?.metadata?.promptEnhancement ?? null;
 
     // Guardrails(确定性本地扫描):原生 /chat 与 /chat/stream 必须与 /v1/* 协议
@@ -465,7 +504,15 @@ export async function dispatchHttpRoutes06(context) {
       const idempotencyOutcome = await idempotencyCoordinator.execute({
         request,
         route: url.pathname,
-        payload: body,
+        payload: managedLocalClientRoute
+          ? {
+              schema: "managed-local-client-chat-idempotency-v1",
+              requestBody: body,
+              clientRevision: managedLocalClientRoute.clientRevision,
+              policyRevision: managedLocalClientRoute.policyRevision,
+              decisionDigest: managedLocalClientRoute.decisionDigest,
+            }
+          : body,
         operation: async () => {
           let executionResult = await gatewayService.execute(gatewayInput);
           if (promptEnhancement) {

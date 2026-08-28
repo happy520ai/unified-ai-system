@@ -175,6 +175,17 @@ describe("HTTP request execution scope", () => {
     const anonymous = bindGatewayExecution({ execute }, scope.context);
     await anonymous.execute({ messages: [], enterpriseIdentity: { tenantId: "attacker" } });
     expect(seen[1]).not.toHaveProperty("enterpriseIdentity");
+
+    const frozenSpoof = Object.freeze({
+      messages: Object.freeze([]),
+      enterpriseIdentity: Object.freeze({ tenantId: "frozen-attacker" }),
+    });
+    await bound.execute(frozenSpoof);
+    expect(seen[2]).toMatchObject({ enterpriseIdentity: { tenantId: "tenant-a" } });
+    expect(seen[2]).not.toBe(frozenSpoof);
+    expect(frozenSpoof.enterpriseIdentity.tenantId).toBe("frozen-attacker");
+    await anonymous.execute(frozenSpoof);
+    expect(seen[3]).not.toHaveProperty("enterpriseIdentity");
     scope.cleanup();
   });
 });

@@ -553,16 +553,40 @@ const EXACT_ROUTE_PERMISSIONS = Object.freeze({
   "POST /workforce/autonomy/token": "workflow:run",
   "POST /workforce/autonomy/token/revoke": "workflow:run",
   "POST /workforce/diagnostic/read": "audit:read",
+  "GET /local-clients/status": "dashboard:read",
+  "GET /local-clients/health": "dashboard:read",
+  "GET /local-clients/registry": "audit:read",
+  "GET /local-clients/intelligence": "dashboard:read",
+  "POST /local-clients/discover": "workflow:approve",
+  "POST /local-clients/discover/system": "workflow:approve",
+  "POST /local-clients/maintenance": "workflow:approve",
+  "POST /local-clients/smart-manage": "workflow:approve",
+  "POST /local-clients/register": "workflow:approve",
+  "POST /local-clients/disable": "workflow:approve",
+  "POST /local-clients/revoke": "workflow:approve",
+  "POST /local-clients/route": "workflow:run",
+  "POST /local-clients/provider-route": "workflow:run",
+  "POST /local-clients/verify": "workflow:approve",
+  "POST /local-clients/executions/preview": "workflow:run",
+  "POST /local-clients/executions/approve": "workflow:approve",
+  "POST /local-clients/executions/execute": "workflow:approve",
+  "POST /local-clients/execute": "workflow:approve",
+  "POST /local-clients/heartbeat": "local-client:telemetry",
+  "POST /local-clients/feedback": "local-client:telemetry",
 });
 
 export async function readCapabilityJson({ request, response, startedAt, code }) {
   try {
-    return await readJson(request);
+    const body = await readJson(request);
+    if (body === null || typeof body !== "object" || Array.isArray(body)) {
+      throw new Error("Capability request body must be a JSON object.");
+    }
+    return body;
   } catch {
     writeJson(
       response,
       400,
-      createErrorEnvelope(code, "Request body must be valid JSON.", {
+      createErrorEnvelope(code, "Request body must be a valid JSON object.", {
         startedAt,
         category: "validation",
       }),
