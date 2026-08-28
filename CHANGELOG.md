@@ -243,6 +243,11 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Marked the declared `bin` entrypoints (`packages/mcp-server/src/index.js`,
+  `packages/mcp-server/src/http-entry.js`, `packages/mcp-service/bin/install.js`)
+  executable in git. pnpm chmods declared bin files 0755 during install on
+  POSIX, which made the Linux CI worktree report exactly those files as
+  modified and fail the public-clone verifier's clean-candidate gate.
 - Made the local-client test suites platform-honest: the durable SQLite
   store suites (feedback dedup, verification-authority epoch, onboarding
   receipt authority, governed onboarding, and the durable gateway-application
