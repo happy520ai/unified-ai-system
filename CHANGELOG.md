@@ -7,6 +7,10 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+- Nothing yet.
+
+## [0.6.0] - 2026-08-29
+
 ### Added
 
 - Added opt-in A2A v1.0 Agent Card identity signing with a stable Ed25519
@@ -822,7 +826,9 @@ source of truth; see docs/vision-revival-inventory.md for the revival menu.
 - It is not presented as production-certified, L5 autonomous, or established
   AGI. Those claims require independent evidence beyond local verification.
 
-[Unreleased]: https://github.com/happy520ai/unified-ai-system/compare/v0.4.9...HEAD
+[Unreleased]: https://github.com/happy520ai/unified-ai-system/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/happy520ai/unified-ai-system/compare/v0.5.0...v0.6.0
+[0.5.0]: https://github.com/happy520ai/unified-ai-system/compare/v0.4.9...v0.5.0
 [0.4.9]: https://github.com/happy520ai/unified-ai-system/compare/v0.4.8...v0.4.9
 [0.4.8]: https://github.com/happy520ai/unified-ai-system/compare/v0.4.7...v0.4.8
 [0.4.7]: https://github.com/happy520ai/unified-ai-system/compare/v0.4.6...v0.4.7
