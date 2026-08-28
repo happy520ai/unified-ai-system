@@ -7,7 +7,7 @@ import {
 import * as z from "zod/v4";
 
 export const MCP_SERVER_NAME = "unified-ai-system";
-export const MCP_SERVER_VERSION = "0.5.0";
+export const MCP_SERVER_VERSION = "0.6.0";
 export const MCP_MODERN_PROTOCOL_VERSION = "2026-07-28";
 export const MCP_LEGACY_PROTOCOL_VERSION = "2025-11-25";
 export const MCP_COMPAT_PROTOCOL_VERSION = "2025-06-18";

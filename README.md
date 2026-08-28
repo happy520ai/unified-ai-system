@@ -21,7 +21,7 @@
     <img alt="Release" src="https://img.shields.io/github/v/release/happy520ai/unified-ai-system?style=flat-square" />
   </a>
   <img alt="Maturity: hardened Public Preview" src="https://img.shields.io/badge/maturity-hardened_Public_Preview-f59e0b?style=flat-square" />
-  <a href="https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.5.0">
+  <a href="https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.6.0">
     <img alt="Official MCP Registry: active" src="https://img.shields.io/badge/Official_MCP_Registry-active-1f883d?style=flat-square" />
   </a>
   <a href="LICENSE">
@@ -65,7 +65,7 @@ account, API key, or provider call is required.
 Run the same proof against the published container:
 
 ```bash
-docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.5.0 pnpm gateway demo "Build a small API for my team" --enhance --profile coding --evidence
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.6.0 pnpm gateway demo "Build a small API for my team" --enhance --profile coding --evidence
 ```
 
 The evidence confirms that the original request was preserved, the result is
@@ -164,7 +164,7 @@ Published infrastructure benchmark (fake provider, single node): chat JSON p50 *
 Verify the project without signing in:
 
 ```bash
-docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.5.0 pnpm gateway demo
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.6.0 pnpm gateway demo
 ```
 
 Expected behavior:
@@ -178,7 +178,7 @@ Expected behavior:
 One-command natural-language enhancement preview:
 
 ```bash
-docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.5.0 \
+docker run --rm ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.6.0 \
   pnpm gateway demo "Build a small API for my team" --enhance --profile coding --evidence
 ```
 
@@ -190,7 +190,7 @@ the repository:
 
 ```bash
 printf '%s' "Plan a launch for a small API" \
-  | docker run --rm -i ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.5.0 \
+  | docker run --rm -i ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.6.0 \
       pnpm --silent gateway demo --enhance --profile planning --language en --json
 ```
 
@@ -198,7 +198,7 @@ PowerShell equivalent for a request file:
 
 ```powershell
 Get-Content .\request.txt -Raw |
-  docker run --rm -i ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.5.0 `
+  docker run --rm -i ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.6.0 `
     pnpm --silent gateway demo --enhance --profile planning --language en --json
 ```
 
@@ -294,7 +294,7 @@ docker run --rm --publish 127.0.0.1:3100:3100 \
   --env AI_GATEWAY_REAL_PROVIDER_ENABLED=false \
   --env PME_ENTERPRISE_AUTH_ENABLED=true \
   --env PME_AUTH_TOKEN \
-  ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.5.0
+  ghcr.io/happy520ai/unified-ai-system/ai-gateway-service:0.6.0
 ```
 
 Keep that process running while you send the curl request. The response
@@ -339,7 +339,7 @@ for the adapter and evidence boundary.
 Published MCP command:
 
 ```bash
-codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.5.0
+codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.6.0
 ```
 
 Restart Codex, run `/mcp verbose` to verify the twelve tools, then follow the
@@ -472,8 +472,8 @@ CI on `master` runs Linux checks, container startup smoke tests, MCP discovery, 
 
 ## Project Links
 
-- [Official MCP Registry entry](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.5.0)
-- [Release v0.5.0](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.5.0)
+- [Official MCP Registry entry](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.6.0)
+- [Release v0.5.0](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.6.0)
 - [Codex MCP server README](packages/mcp-server/README.md)
 - [Roadmap](ROADMAP.md)
 - [Vision](VISION.md)
