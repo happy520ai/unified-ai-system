@@ -17,7 +17,7 @@ export function loadRuntimeConfig(env = process.env) {
   );
   const openAiModel = env.OPENAI_MODEL ?? "gpt-4o-mini";
   const nvidiaModel = env.NVIDIA_MODEL ?? "meta/llama-3.1-8b-instruct";
-  const mimoModel = env.MIMO_MODEL ?? "mimo-model-from-console";
+  const mimoModel = env.MIMO_MODEL ?? "mimo-v2.5-pro";
   const requestedEnabledProviders = readList(env.AI_GATEWAY_ENABLED_PROVIDERS, []);
   const openAiProviderEnabled = shouldEnableOpenAiProvider({
     providerMode,

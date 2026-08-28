@@ -260,8 +260,8 @@ export const PROVIDER_PROBES = {
   },
   mimo: {
     providerId: "mimo",
-    displayName: "MiMo Token Plan",
-    baseUrl: "https://token-plan-cn.xiaomimimo.com/v1",
+    displayName: "Xiaomi MiMo API",
+    baseUrl: "https://api.xiaomimimo.com/v1",
     modelsPath: "/models",
     auth: "bearer",
     defaultCapabilities: ["chat", "reasoning", "summary"],
