@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { DatabaseSync } from "node:sqlite";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -33,7 +34,30 @@ const NOW_MS = Date.parse("2026-08-28T14:00:00.000Z");
 const PRIVATE_COMMAND = "C:\\private\\gateway-command.exe";
 const PRIVATE_ARGUMENT = "--private-config-value";
 
-describe("governed local-client onboarding API", () => {
+
+// The governed onboarding harness always composes the durable SQLite
+// idempotency and receipt-authority stores, which fail closed unless the
+// runtime provides node:sqlite defensive mode; this suite runs only where
+// that capability exists.
+const durableLocalClientSqliteSupported = (() => {
+  try {
+    const probe = new DatabaseSync(":memory:");
+    try {
+      return typeof (probe as DatabaseSync & {
+        enableDefensive?: unknown;
+      }).enableDefensive === "function";
+    } finally {
+      probe.close();
+    }
+  } catch {
+    return false;
+  }
+})();
+const describeDurableLocalClientSqlite = durableLocalClientSqliteSupported
+  ? describe
+  : describe.skip;
+
+describeDurableLocalClientSqlite("governed local-client onboarding API", () => {
   let root: string;
   let paths: ReturnType<typeof profilePaths>;
   let closeables: Array<{ close(): unknown | Promise<unknown> }>;

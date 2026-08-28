@@ -4,6 +4,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 
 import { describe, expect, it } from "vitest";
 import WebSocket from "ws";
@@ -70,7 +71,25 @@ type HttpResult = {
 };
 
 describe("governed local-client HTTP execution", () => {
-  it("verifies, approves, executes, and durably replays one signed loopback effect", async () => {
+  // The durable replay case composes the governed local-client SQLite stores
+// that fail closed unless the runtime provides node:sqlite defensive mode.
+const durableLocalClientSqliteSupported = (() => {
+  try {
+    const probe = new DatabaseSync(":memory:");
+    try {
+      return typeof (probe as DatabaseSync & {
+        enableDefensive?: unknown;
+      }).enableDefensive === "function";
+    } finally {
+      probe.close();
+    }
+  } catch {
+    return false;
+  }
+})();
+const itDurableLocalClientSqlite = durableLocalClientSqliteSupported ? it : it.skip;
+
+  itDurableLocalClientSqlite("verifies, approves, executes, and durably replays one signed loopback effect", async () => {
     const root = await mkdtemp(join(tmpdir(), "gateway-local-client-governed-http-e2e-"));
     const loopbackSecret = randomBytes(32);
     const primaryToken = randomBytes(24).toString("base64url");

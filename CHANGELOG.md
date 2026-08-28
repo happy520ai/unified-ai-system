@@ -243,6 +243,14 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Made the local-client test suites platform-honest: the durable SQLite
+  store suites (feedback dedup, verification-authority epoch, onboarding
+  receipt authority, governed onboarding, and the durable gateway-application
+  compositions) now skip on Node runtimes without `node:sqlite` defensive
+  mode, and the Windows protected-authority/tasklist-discovery tests skip on
+  non-win32 platforms, so `pnpm test` is green on both the CI Linux runner
+  and Windows development hosts. The public-clone verifier's dirty-worktree
+  failure now lists the offending paths for direct diagnosis.
 - Updated pinned `actions/cache` to v6.1.0 and `actions/upload-artifact` to
   v7.0.1 across CI, quality-trend, and Docker evidence workflows so GitHub's
   Node 20 action-runtime deprecation no longer leaves a forced-runtime warning;

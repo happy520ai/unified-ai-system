@@ -35,6 +35,11 @@ const KEY = Buffer.from("0123456789abcdef0123456789abcdef", "utf8");
 const DIGEST_ONE = "a".repeat(64);
 const DIGEST_TWO = "b".repeat(64);
 
+// Enabled anchor flows are fail-closed to Windows by contract (the runtime
+// reports NOT_WINDOWS elsewhere), so only the disabled-default guarantees
+// below stay cross-platform; broker-attested flows run on win32 only.
+const describeWindowsAnchorFlows = process.platform === "win32" ? describe : describe.skip;
+
 describe("LocalClientWindowsProtectedAuthorityAnchor", () => {
   let container = "";
   let programDataRoot = "";
@@ -79,25 +84,26 @@ describe("LocalClientWindowsProtectedAuthorityAnchor", () => {
     });
   });
 
-  it("completes a broker-only two-phase advance and rejects an older generation", async () => {
-    const broker = new FakeBroker(
-      createConfiguration({ broker: undefined }),
-      checkpoint(1, DIGEST_ONE),
-    );
-    await broker.persistFile();
-    const anchor = createAnchor(broker);
-
-    await expect(anchor.inspect()).resolves.toMatchObject({
-      available: true,
-      rollbackResistant: true,
-      state: "ready",
-      currentGeneration: 1,
-      currentDigest: DIGEST_ONE,
-      brokerAttested: true,
-      localFileVerified: true,
-      aclVerified: true,
-      hklmVerified: true,
-    });
+  describeWindowsAnchorFlows("broker-attested win32 flows", () => {
+      it("completes a broker-only two-phase advance and rejects an older generation", async () => {
+      const broker = new FakeBroker(
+        createConfiguration({ broker: undefined }),
+        checkpoint(1, DIGEST_ONE),
+      );
+      await broker.persistFile();
+      const anchor = createAnchor(broker);
+  
+      await expect(anchor.inspect()).resolves.toMatchObject({
+        available: true,
+        rollbackResistant: true,
+        state: "ready",
+        currentGeneration: 1,
+        currentDigest: DIGEST_ONE,
+        brokerAttested: true,
+        localFileVerified: true,
+        aclVerified: true,
+        hklmVerified: true,
+      });
     await expect(anchor.assertCurrent(1, DIGEST_ONE)).resolves.toEqual({
       generation: 1,
       digest: DIGEST_ONE,
@@ -137,9 +143,9 @@ describe("LocalClientWindowsProtectedAuthorityAnchor", () => {
       "inspect",
       "inspect",
     ]);
-  });
+    });
 
-  it("fails closed for a forged broker response HMAC", async () => {
+    it("fails closed for a forged broker response HMAC", async () => {
     const broker = new FakeBroker(
       createConfiguration({ broker: undefined }),
       checkpoint(1, DIGEST_ONE),
@@ -153,9 +159,9 @@ describe("LocalClientWindowsProtectedAuthorityAnchor", () => {
       state: "unavailable",
       reason: "ATTESTATION_INVALID",
     });
-  });
+    });
 
-  it("rejects a correctly signed response bound to another service SID", async () => {
+    it("rejects a correctly signed response bound to another service SID", async () => {
     const broker = new FakeBroker(
       createConfiguration({ broker: undefined }),
       checkpoint(1, DIGEST_ONE),
@@ -173,9 +179,9 @@ describe("LocalClientWindowsProtectedAuthorityAnchor", () => {
       rollbackResistant: false,
       reason: "ATTESTATION_BINDING_MISMATCH",
     });
-  });
+    });
 
-  it("rejects an ACL attestation where the ordinary user can write", async () => {
+    it("rejects an ACL attestation where the ordinary user can write", async () => {
     const configuration = createConfiguration({ broker: undefined });
     const broker = new FakeBroker(configuration, checkpoint(1, DIGEST_ONE), {
       acl: { ...safeAcl(), fileCurrentUserCanWrite: true },
@@ -188,9 +194,9 @@ describe("LocalClientWindowsProtectedAuthorityAnchor", () => {
       reason: "CURRENT_USER_WRITABLE",
       aclVerified: false,
     });
-  });
+    });
 
-  it.each([EVERYONE_SID, USERS_SID])(
+    it.each([EVERYONE_SID, USERS_SID])(
     "rejects inherited broad write access for %s",
     async (broadSid) => {
       const configuration = createConfiguration({ broker: undefined });
@@ -208,9 +214,9 @@ describe("LocalClientWindowsProtectedAuthorityAnchor", () => {
         reason: "INHERITED_BROAD_WRITE",
       });
     },
-  );
+    );
 
-  it("rejects an unallowed owner and a registry view other than exact HKLM 64-bit", async () => {
+    it("rejects an unallowed owner and a registry view other than exact HKLM 64-bit", async () => {
     const configuration = createConfiguration({ broker: undefined });
     const ownerBroker = new FakeBroker(configuration, checkpoint(1, DIGEST_ONE), {
       acl: { ...safeAcl(), registryOwnerSid: CURRENT_USER_SID },
@@ -229,9 +235,9 @@ describe("LocalClientWindowsProtectedAuthorityAnchor", () => {
       reason: "HKLM_VIEW_MISMATCH",
       rollbackResistant: false,
     });
-  });
+    });
 
-  it("rejects divergent file and HKLM checkpoints", async () => {
+    it("rejects divergent file and HKLM checkpoints", async () => {
     const configuration = createConfiguration({ broker: undefined });
     const broker = new FakeBroker(configuration, checkpoint(2, DIGEST_TWO), {
       hklmCheckpoint: checkpoint(1, DIGEST_ONE),
@@ -243,9 +249,9 @@ describe("LocalClientWindowsProtectedAuthorityAnchor", () => {
       rollbackResistant: false,
       reason: "CHECKPOINT_DIVERGED",
     });
-  });
+    });
 
-  it("keeps pending state fail-closed and permits only exact explicit finalization", async () => {
+    it("keeps pending state fail-closed and permits only exact explicit finalization", async () => {
     const pending = checkpoint(1, DIGEST_ONE, 2, DIGEST_TWO);
     const broker = new FakeBroker(createConfiguration({ broker: undefined }), pending);
     await broker.persistFile();
@@ -267,9 +273,9 @@ describe("LocalClientWindowsProtectedAuthorityAnchor", () => {
       currentGeneration: 2,
       rollbackResistant: true,
     });
-  });
+    });
 
-  it("rejects UNC configuration and symlinked or junction-backed roots", async () => {
+    it("rejects UNC configuration and symlinked or junction-backed roots", async () => {
     expect(() => createLocalClientWindowsProtectedAuthorityAnchor({
       ...createConfiguration({ broker: undefined }),
       anchorPath: "\\\\server\\share\\authority.json",
@@ -298,9 +304,9 @@ describe("LocalClientWindowsProtectedAuthorityAnchor", () => {
       rollbackResistant: false,
       reason: "PATH_UNSAFE",
     });
-  });
+    });
 
-  it("requires the independently attested broker even when a signed file exists", async () => {
+    it("requires the independently attested broker even when a signed file exists", async () => {
     const configuration = createConfiguration({ broker: undefined });
     await writeCheckpoint(anchorPath, checkpoint(1, DIGEST_ONE), configuration);
     const anchor = createLocalClientWindowsProtectedAuthorityAnchor(configuration);
@@ -310,6 +316,7 @@ describe("LocalClientWindowsProtectedAuthorityAnchor", () => {
       rollbackResistant: false,
       reason: "BROKER_UNAVAILABLE",
       brokerAttested: false,
+    });
     });
   });
 

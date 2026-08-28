@@ -16,7 +16,29 @@ const HOST_ID = "fixture-authority-host-01";
 const NAMESPACE = "fixture-local-client-authority";
 const INTEGRITY_KEY = Buffer.from("a7b8c9d0e1f2a3b4c5d6e7f8091a2b3c", "utf8");
 
-describe("LocalClientSqliteVerificationAuthorityEpochStore", () => {
+
+// The durable local-client SQLite stores fail closed unless the runtime
+// provides node:sqlite defensive mode (DatabaseSync#enableDefensive, newer
+// Node majors); these suites run only where that capability exists.
+const durableLocalClientSqliteSupported = (() => {
+  try {
+    const probe = new DatabaseSync(":memory:");
+    try {
+      return typeof (probe as DatabaseSync & {
+        enableDefensive?: unknown;
+      }).enableDefensive === "function";
+    } finally {
+      probe.close();
+    }
+  } catch {
+    return false;
+  }
+})();
+const describeDurableLocalClientSqlite = durableLocalClientSqliteSupported
+  ? describe
+  : describe.skip;
+
+describeDurableLocalClientSqlite("LocalClientSqliteVerificationAuthorityEpochStore", () => {
   let root = "";
   let sqlitePath = "";
   let stores: LocalClientSqliteVerificationAuthorityEpochStore[] = [];

@@ -201,8 +201,11 @@ async function runInActualPublicClone() {
   if (status.code !== 0) throw new Error(`git status failed: ${status.stderr.trim()}`);
   const dirtyRecords = status.stdout.split("\0").filter(Boolean);
   if (dirtyRecords.length > 0) {
+    const dirtyPaths = dirtyRecords
+      .map((record) => record.replace(/^\S{0,2}\s+/u, ""))
+      .slice(0, 20);
     const error = new Error(
-      `Public clone verification requires a tracked clean candidate; ${dirtyRecords.length} worktree entries remain.`,
+      `Public clone verification requires a tracked clean candidate; ${dirtyRecords.length} worktree entries remain (${dirtyPaths.join(", ")}).`,
     );
     error.code = "PUBLIC_CLONE_WORKTREE_NOT_CLEAN";
     throw error;

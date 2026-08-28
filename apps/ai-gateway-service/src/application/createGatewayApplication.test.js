@@ -1,3 +1,4 @@
+import { DatabaseSync } from "node:sqlite";
 import { describe, it, expect, beforeAll, vi } from "vitest";
 import {
   createGatewayApplication,
@@ -13,6 +14,24 @@ import { tmpdir } from "node:os";
 import { join, parse } from "node:path";
 import { LocalClientSqliteFeedbackDedupStore } from "../capabilities/localClientSqliteFeedbackDedupStore.ts";
 import { LocalClientSqliteOnboardingReceiptAuthorityStore } from "../capabilities/localClientSqliteOnboardingReceiptAuthorityStore.ts";
+
+
+// The governed local-client composition cases below construct the durable
+// SQLite stores that fail closed unless the runtime provides node:sqlite
+// defensive mode; they run only where that capability exists.
+const durableLocalClientSqliteSupported = (() => {
+  try {
+    const probe = new DatabaseSync(":memory:");
+    try {
+      return typeof probe.enableDefensive === "function";
+    } finally {
+      probe.close();
+    }
+  } catch {
+    return false;
+  }
+})();
+const itDurableLocalClientSqlite = durableLocalClientSqliteSupported ? it : it.skip;
 
 describe("gateway-application", () => {
   let app;
@@ -456,7 +475,7 @@ describe("gateway-application", () => {
     }
   });
 
-  it("constructs an explicit single-host feedback dedup store with bounded status", async () => {
+  itDurableLocalClientSqlite("constructs an explicit single-host feedback dedup store with bounded status", async () => {
     const root = mkdtempSync(join(tmpdir(), "gateway-local-client-feedback-dedup-"));
     const env = localClientFeedbackDedupTestEnv(root);
     let application;
@@ -592,7 +611,7 @@ describe("gateway-application", () => {
     }
   });
 
-  it("closes a created feedback store when a later registry preflight fails", () => {
+  itDurableLocalClientSqlite("closes a created feedback store when a later registry preflight fails", () => {
     const root = mkdtempSync(join(tmpdir(), "gateway-local-client-feedback-cleanup-"));
     const env = localClientFeedbackDedupTestEnv(root);
     writeFileSync(env.AI_GATEWAY_LOCAL_CLIENT_REGISTRY_PATH, "{not-json", "utf8");
@@ -608,7 +627,7 @@ describe("gateway-application", () => {
     }
   });
 
-  it("composes and validates the durable execution-feedback outbox and dispatcher", async () => {
+  itDurableLocalClientSqlite("composes and validates the durable execution-feedback outbox and dispatcher", async () => {
     const root = mkdtempSync(join(tmpdir(), "gateway-local-client-feedback-outbox-config-"));
     const base = localClientFeedbackDedupTestEnv(root);
     let application;
@@ -675,7 +694,7 @@ describe("gateway-application", () => {
     }
   });
 
-  it("composes and validates per-client durable receipt reconciliation journals", async () => {
+  itDurableLocalClientSqlite("composes and validates per-client durable receipt reconciliation journals", async () => {
     const root = mkdtempSync(join(tmpdir(), "gateway-local-client-receipt-reconcile-config-"));
     const base = localClientFeedbackDedupTestEnv(root);
     let application;
@@ -812,7 +831,7 @@ describe("gateway-application", () => {
     }
   });
 
-  it("keeps the gateway receipt filename stable and rejects client-only secret rotation", async () => {
+  itDurableLocalClientSqlite("keeps the gateway receipt filename stable and rejects client-only secret rotation", async () => {
     const root = mkdtempSync(join(tmpdir(), "gateway-local-client-receipt-secret-rotation-"));
     const receiptDirectory = join(root, "receipt-journals");
     const env = {
@@ -878,7 +897,7 @@ describe("gateway-application", () => {
     }
   });
 
-  it("closes receipt authority when later idempotency construction fails", () => {
+  itDurableLocalClientSqlite("closes receipt authority when later idempotency construction fails", () => {
     const root = mkdtempSync(join(tmpdir(), "gateway-local-client-onboarding-idempotency-cleanup-"));
     const env = localClientOnboardingTestEnv(root);
     mkdirSync(env.AI_GATEWAY_IDEMPOTENCY_SQLITE_PATH, { recursive: true });
@@ -892,7 +911,7 @@ describe("gateway-application", () => {
     }
   });
 
-  it("composes governed onboarding lazily without route-plan, claim, or epoch stores", async () => {
+  itDurableLocalClientSqlite("composes governed onboarding lazily without route-plan, claim, or epoch stores", async () => {
     const root = mkdtempSync(join(tmpdir(), "gateway-local-client-onboarding-app-"));
     const env = localClientOnboardingTestEnv(root);
     let application;
@@ -954,7 +973,7 @@ describe("gateway-application", () => {
     }
   });
 
-  it("runs a governed onboarding enable, replay, verify, and exact rollback through the composed app", async () => {
+  itDurableLocalClientSqlite("runs a governed onboarding enable, replay, verify, and exact rollback through the composed app", async () => {
     const root = mkdtempSync(join(tmpdir(), "gateway-local-client-onboarding-flow-"));
     const env = localClientOnboardingTestEnv(root);
     for (const targetPath of onboardingTargetPaths(root)) {
@@ -1078,7 +1097,7 @@ describe("gateway-application", () => {
     }
   });
 
-  it("accepts an explicit local external-effect secret path for governed onboarding", async () => {
+  itDurableLocalClientSqlite("accepts an explicit local external-effect secret path for governed onboarding", async () => {
     const root = mkdtempSync(join(tmpdir(), "gateway-local-client-onboarding-secret-path-"));
     const secretPath = join(root, "secrets", "external-effect.key");
     const env = {
@@ -1108,7 +1127,7 @@ describe("gateway-application", () => {
     }
   });
 
-  it("fails closed if the onboarding root secret rotates without receipt/backup migration", async () => {
+  itDurableLocalClientSqlite("fails closed if the onboarding root secret rotates without receipt/backup migration", async () => {
     const root = mkdtempSync(join(tmpdir(), "gateway-local-client-onboarding-key-rotation-"));
     const env = localClientOnboardingTestEnv(root);
     let application;
@@ -1272,7 +1291,7 @@ describe("gateway-application", () => {
     }
   });
 
-  it("registers an explicitly configured loopback adapter without exposing its secret", async () => {
+  itDurableLocalClientSqlite("registers an explicitly configured loopback adapter without exposing its secret", async () => {
     const root = mkdtempSync(join(tmpdir(), "gateway-loopback-adapter-app-"));
     let application;
     try {
@@ -1580,7 +1599,7 @@ describe("gateway-application", () => {
     }
   });
 
-  it("registers multiple tenant-bound loopback clients from one versioned configuration", async () => {
+  itDurableLocalClientSqlite("registers multiple tenant-bound loopback clients from one versioned configuration", async () => {
     const root = mkdtempSync(join(tmpdir(), "gateway-loopback-multi-app-"));
     let application;
     try {
@@ -1690,7 +1709,7 @@ describe("gateway-application", () => {
     }
   });
 
-  it("denies restart when only an older valid signed registry is restored", async () => {
+  itDurableLocalClientSqlite("denies restart when only an older valid signed registry is restored", async () => {
     const root = mkdtempSync(join(tmpdir(), "gateway-local-client-registry-rollback-"));
     const env = localClientAuthorityTestEnv(root);
     let application;
@@ -1737,7 +1756,7 @@ describe("gateway-application", () => {
     }
   });
 
-  it("denies restart while an authority generation is pending after the registry-write crash point", async () => {
+  itDurableLocalClientSqlite("denies restart while an authority generation is pending after the registry-write crash point", async () => {
     const root = mkdtempSync(join(tmpdir(), "gateway-local-client-registry-pending-"));
     const env = localClientAuthorityTestEnv(root);
     let application;
@@ -1769,7 +1788,7 @@ describe("gateway-application", () => {
     }
   });
 
-  it("composes the complete single-host governed local-client runtime only from explicit durable configuration", async () => {
+  itDurableLocalClientSqlite("composes the complete single-host governed local-client runtime only from explicit durable configuration", async () => {
     const root = mkdtempSync(join(tmpdir(), "gateway-local-client-governed-runtime-"));
     let application;
     try {

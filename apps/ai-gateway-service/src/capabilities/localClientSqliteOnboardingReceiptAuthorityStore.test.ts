@@ -22,7 +22,29 @@ const HOST_ID = "fixture-onboarding-receipt-host-01";
 const NAMESPACE = "fixture-onboarding-receipt-authority";
 const INTEGRITY_KEY = Buffer.alloc(32, 0x63);
 
-describe("LocalClientSqliteOnboardingReceiptAuthorityStore", () => {
+
+// The durable local-client SQLite stores fail closed unless the runtime
+// provides node:sqlite defensive mode (DatabaseSync#enableDefensive, newer
+// Node majors); these suites run only where that capability exists.
+const durableLocalClientSqliteSupported = (() => {
+  try {
+    const probe = new DatabaseSync(":memory:");
+    try {
+      return typeof (probe as DatabaseSync & {
+        enableDefensive?: unknown;
+      }).enableDefensive === "function";
+    } finally {
+      probe.close();
+    }
+  } catch {
+    return false;
+  }
+})();
+const describeDurableLocalClientSqlite = durableLocalClientSqliteSupported
+  ? describe
+  : describe.skip;
+
+describeDurableLocalClientSqlite("LocalClientSqliteOnboardingReceiptAuthorityStore", () => {
   let root = "";
   let sqlitePath = "";
   let now = 1_910_000_000_000;

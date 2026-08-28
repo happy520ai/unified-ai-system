@@ -1,3 +1,4 @@
+import { DatabaseSync } from "node:sqlite";
 import { access, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -21,6 +22,28 @@ const TENANT_A_SCOPE = Object.freeze({ tenantId: "tenant-a", userId: "user-a" })
 const TENANT_B_SCOPE = Object.freeze({ tenantId: "tenant-b", userId: "user-b" });
 const TENANT_A_IDENTITY = Object.freeze({ tenantId: "tenant-a", subjectId: "subject-a" });
 const MANIFEST_SHA256 = "a".repeat(64);
+
+
+// The durable feedback-dedup fixtures below compose the SQLite store that
+// fails closed unless the runtime provides node:sqlite defensive mode; those
+// cases run only where that capability exists. Windows tasklist-row
+// classification heuristics are a win32-only contract.
+const durableLocalClientSqliteSupported = (() => {
+  try {
+    const probe = new DatabaseSync(":memory:");
+    try {
+      return typeof (probe as DatabaseSync & {
+        enableDefensive?: unknown;
+      }).enableDefensive === "function";
+    } finally {
+      probe.close();
+    }
+  } catch {
+    return false;
+  }
+})();
+const itDurableLocalClientSqlite = durableLocalClientSqliteSupported ? it : it.skip;
+const itWindowsProcessDiscovery = process.platform === "win32" ? it : it.skip;
 
 describe("local client management service", () => {
   let rootDir: string;
@@ -443,7 +466,7 @@ describe("local client management service", () => {
     expect(persisted).toContain("client_reported_error");
   });
 
-  it("applies a durable feedback event exactly once and rejects conflicting reuse", async () => {
+  itDurableLocalClientSqlite("applies a durable feedback event exactly once and rejects conflicting reuse", async () => {
     const feedbackStore = createLocalClientSqliteFeedbackDedupStore({
       sqlitePath: join(rootDir, "feedback.sqlite"),
       hostId: "management-test-host",
@@ -504,7 +527,7 @@ describe("local client management service", () => {
     await service.close();
   });
 
-  it("persists marker cleanup so the same event id is a new sample after the dedup TTL", async () => {
+  itDurableLocalClientSqlite("persists marker cleanup so the same event id is a new sample after the dedup TTL", async () => {
     let storeNowMs = Date.parse("2026-08-28T05:00:00.000Z");
     const feedbackStore = createLocalClientSqliteFeedbackDedupStore({
       sqlitePath: join(rootDir, "feedback-retirement.sqlite"),
@@ -544,7 +567,7 @@ describe("local client management service", () => {
     await service.close();
   });
 
-  it("reconciles a registry write after an acknowledgement crash without learning twice", async () => {
+  itDurableLocalClientSqlite("reconciles a registry write after an acknowledgement crash without learning twice", async () => {
     const sqlitePath = join(rootDir, "feedback-recovery.sqlite");
     const feedbackKey = Buffer.alloc(32, 0x46);
     const firstStore = createLocalClientSqliteFeedbackDedupStore({
@@ -833,7 +856,7 @@ describe("local client management service", () => {
     }
   });
 
-  it("keeps core Windows processes out of all-application discovery by default", async () => {
+  itWindowsProcessDiscovery("keeps core Windows processes out of all-application discovery by default", async () => {
     const service = createService({
       processRowsProvider: async () => [
         { imageName: "System Idle Process", pid: "0" },
