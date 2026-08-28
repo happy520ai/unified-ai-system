@@ -125,6 +125,16 @@ function toTrendRecord({ qualitySummary, verificationSummary, drillSummary, args
       requiredScore: scoreStatus.requiredScore,
       requiredScoreMet: scoreStatus.requiredScoreMet,
     },
+    simplicity: qualitySummary?.simplicityMetrics
+      ? {
+          trackedFiles: qualitySummary.simplicityMetrics.trackedFiles ?? null,
+          rootScriptCount: qualitySummary.simplicityMetrics.rootScriptCount ?? null,
+          rootScriptSurfaceCount: qualitySummary.simplicityMetrics.rootScriptSurfaceCount ?? null,
+          serviceScriptCount: qualitySummary.simplicityMetrics.serviceScriptCount ?? null,
+          toolsScriptCount: qualitySummary.simplicityMetrics.toolsScriptCount ?? null,
+          visionInvariantsOk: qualitySummary.simplicityMetrics.visionInvariantsOk ?? null,
+        }
+      : null,
     drill: {
       status: scoreStatus.drillStatus,
       recommendation: drillSummary?.recommendation ?? null,

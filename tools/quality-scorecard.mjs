@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -1958,6 +1958,11 @@ async function main() {
     "node",
     ["tools/check-supply-chain-config.mjs", "--json"],
   );
+  const visionInvariants = runCommand(
+    "vision_invariants",
+    "node",
+    ["tools/check-vision-invariants.mjs", "--json"],
+  );
 
   const repoFileCheck = checkRepositoryFilesPresence([
     "docs/sitemap.xml",
@@ -2004,6 +2009,10 @@ async function main() {
     supplyChainConfig,
     "supply-chain-config",
   );
+  const visionInvariantsCheck = attachIssueSummaryFromResult(
+    visionInvariants,
+    "vision-invariants-check",
+  );
   const circuitDrillLiveCheck = attachIssueSummaryFromResult(
     circuitDrillLive,
     "circuit-recovery-drill",
@@ -2013,6 +2022,7 @@ async function main() {
     publicRepoCheck,
     verifyPublicClone: verifyPublicCloneCheck,
     supplyChainConfig: supplyChainConfigCheck,
+    visionInvariants: visionInvariantsCheck,
     circuitDrillLive: circuitDrillLiveCheck,
     repoFilesPresent: repoFileCheck,
     versionConsistency: versionCheck,
@@ -2262,6 +2272,38 @@ async function main() {
     trendIncidentBundleSchemaCheck.ok,
     trendIncidentBundleSchemaCheck.details,
   );
+  score += addGate(
+    gates,
+    "Vision simplicity invariants",
+    "the permanent Principle of Simplicity section in VISION.md must be intact (owner-only amendment, verified by tools/check-vision-invariants.mjs)",
+    4,
+    visionInvariantsCheck.ok,
+    visionInvariantsCheck.ok
+      ? `fragments=${visionInvariants.parseableOutput?.checkedFragments?.length ?? "n/a"}`
+      : `missing=${(visionInvariants.parseableOutput?.missingFragments ?? []).join(", ") || "unknown"}`,
+  );
+
+  const simplicityMetrics = (() => {
+    const repoStats = repoCheck.parseableOutput ?? {};
+    let toolsScriptCount = null;
+    try {
+      toolsScriptCount = readdirSync(resolve(repoRoot, "tools"))
+        .filter((name) => name.endsWith(".mjs"))
+        .length;
+    } catch {
+      toolsScriptCount = null;
+    }
+    return {
+      trackedFiles: repoStats.trackedFiles ?? null,
+      rootScriptCount: repoStats.rootScriptCount ?? null,
+      rootScriptSurfaceCount: repoStats.rootScriptSurfaceCount ?? null,
+      serviceScriptCount: repoStats.serviceScriptCount ?? null,
+      toolsScriptCount,
+      visionInvariantFragments: visionInvariants.parseableOutput?.checkedFragments?.length ?? null,
+      visionInvariantsOk: visionInvariantsCheck.ok,
+      collectedFrom: "public-repo-check + check-vision-invariants",
+    };
+  })();
 
   const trendConsistency = buildTrendConsistencySummary(
     trendDigestHealthCheck,
@@ -2282,6 +2324,7 @@ async function main() {
     ),
     ...publicRepoCheck.issueCodes,
     ...verifyPublicCloneCheck.issueCodes,
+    ...visionInvariantsCheck.issueCodes,
     ...circuitDrillLiveCheck.issueCodes,
     ...trendHardBlockArtifactCheck.issueCodes,
     ...trendDigestHealthCheck.issueCodes,
@@ -2314,6 +2357,7 @@ async function main() {
     packageVersion: rootPackage.version,
     checks: gates,
     executedChecks: gateResults,
+    simplicityMetrics,
     drillLive: drillLiveParsed,
     issueCodes,
     issueCodeSummary,
@@ -2332,6 +2376,9 @@ async function main() {
       outputLines.push(`Required score: ${requireScore}`);
     }
     outputLines.push(`Trend consistency: ${summary.trendConsistency.status}`);
+    outputLines.push(
+      `Simplicity metrics: trackedFiles=${simplicityMetrics.trackedFiles ?? "n/a"}, rootScripts=${simplicityMetrics.rootScriptCount ?? "n/a"}, toolsScripts=${simplicityMetrics.toolsScriptCount ?? "n/a"}, visionInvariantsOk=${String(simplicityMetrics.visionInvariantsOk)}`,
+    );
     outputLines.push(
       `Issue summary: total=${issueCodeSummary.total}, high=${issueCodeSummary.high}, medium=${issueCodeSummary.medium}, low=${issueCodeSummary.low}, info=${issueCodeSummary.info}, unknown=${issueCodeSummary.unknown}`,
     );
