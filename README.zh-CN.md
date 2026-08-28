@@ -24,7 +24,7 @@
     <img alt="Release" src="https://img.shields.io/github/v/release/happy520ai/unified-ai-system?style=flat-square" />
   </a>
   <img alt="成熟度：加固后的 Public Preview" src="https://img.shields.io/badge/%E6%88%90%E7%86%9F%E5%BA%A6-%E5%8A%A0%E5%9B%BA%E5%90%8E%E7%9A%84_Public_Preview-f59e0b?style=flat-square" />
-  <a href="https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.5.0">
+  <a href="https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.6.0">
     <img alt="Official MCP Registry" src="https://img.shields.io/badge/Official_MCP_Registry-active-1f883d?style=flat-square" />
   </a>
   <a href="LICENSE">
@@ -401,8 +401,8 @@ Get-Content .\request.txt -Raw |
 
 ## 项目链接
 
-- [官方 MCP Registry 条目](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.5.0)
-- [Release v0.5.0](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.5.0)
+- [官方 MCP Registry 条目](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.happy520ai%2Funified-ai-system/versions/0.6.0)
+- [Release v0.5.0](https://github.com/happy520ai/unified-ai-system/releases/tag/v0.6.0)
 - [Codex MCP Server README](packages/mcp-server/README.md)
 - [Roadmap](ROADMAP.md)
 - [Vision](VISION.md)

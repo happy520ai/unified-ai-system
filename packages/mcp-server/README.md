@@ -89,7 +89,7 @@ source-build functionality until a later release publishes it.
 No clone or API key is required:
 
 ```bash
-codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.5.0
+codex mcp add unified-ai-system -- docker run --rm -i ghcr.io/happy520ai/unified-ai-system/mcp-server:0.6.0
 ```
 
 The dedicated image starts the MCP server by default; no command override is
@@ -107,7 +107,7 @@ args = [
   "run",
   "--rm",
   "-i",
-  "ghcr.io/happy520ai/unified-ai-system/mcp-server:0.5.0",
+  "ghcr.io/happy520ai/unified-ai-system/mcp-server:0.6.0",
 ]
 startup_timeout_sec = 45
 tool_timeout_sec = 60
