@@ -155,6 +155,9 @@ and the project uses [Semantic Versioning](https://semver.org/).
   workforce-contracts, position-library, workforce-scheduler,
   employee-brain-adapter, and the workforce preview service were rolled back
   and stay in-tree pending the owner's decision.
+  (Superseded: the whole D2 subtraction was rolled back with the restoration
+  below — the im-connector packages, the gateway context-codec adapter, and
+  the live taiji-beidou `/chat` preview hook are all in-tree.)
 - Fixed Chinese keyword retrieval/RAG: the local tokenizer now emits CJK
   runs plus overlapping bigrams, so Chinese queries match Chinese documents
   (whitespace-only tokenization previously made CJK prose unmatchable).
@@ -188,6 +191,9 @@ and the project uses [Semantic Versioning](https://semver.org/).
   Forge-core fixes shipped earlier in this cycle (real knowledge DELETE,
   FileSnapshot API, revived incremental tests) were removed with the package;
   their diffs are preserved in the session baseline notes.
+  (Superseded: fully restored on 2026-08-23 — see the Restoration Note below;
+  forge-core is a runtime gateway dependency, web-agent and its tests are
+  active, and `/three-mode/execute` is wired.)
 - Added inbound Gemini compatibility routes: Gemini-native clients can now
   call `POST /v1beta/models/{model}:generateContent`,
   `POST /v1beta/models/{model}:streamGenerateContent` (SSE), and
@@ -283,10 +289,12 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Restoration Note]
 
-The forge-core / web-agent / three-mode / dead-chain removals listed above
-were fully restored on 2026-08-23 at the owner's direction (they carry the
-original design vision); see docs/vision-revival-inventory.md for the
-revival menu.
+The subtraction entries listed above were fully restored on 2026-08-23 at
+the owner's direction (they carry the original design vision). This covers
+the forge-core / web-agent / three-mode / dead-chain removals (ledger D3/D4)
+and the im-connector packages, the gateway-side context-codec adapter, and
+the taiji-beidou `/chat` preview hooks (ledger D2). The restored tree is the
+source of truth; see docs/vision-revival-inventory.md for the revival menu.
 
 ## [0.5.0] - 2026-08-15
 
